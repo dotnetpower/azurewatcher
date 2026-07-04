@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AzureWatcher — WebGL Sand UI</title>
+  <style>
+    :root { --bg1: #FCFBFA; --bg2: #F1EEEA; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: radial-gradient(120% 120% at 50% 15%, var(--bg1) 0%, var(--bg2) 100%);
+      font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+      color: #2C333A;
+    }
+    #scene { position: fixed; inset: 0; display: block; }
+    .nav {
+      position: fixed; top: 14px; left: 16px; z-index: 10; display: flex; gap: 6px; font-size: 13px;
+    }
+    .nav a {
+      color: #6B7178; text-decoration: none; padding: 5px 11px; border-radius: 8px;
+      border: 1px solid #E3E1DE; background: rgba(255,255,255,0.7); backdrop-filter: blur(4px);
+    }
+    .nav a.active { color: #fff; background: #3E4C59; border-color: #3E4C59; }
+    #loading {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: #6B7178; font-size: 14px; letter-spacing: .04em; transition: opacity .6s ease;
+    }
+    #loading.hidden { opacity: 0; pointer-events: none; }
+    noscript { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: #6B7178; }
+  </style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <nav class="nav">
+    <a href="index.html" class="active">Intro</a>
+    <a href="dashboard.html">Console</a>
+  </nav>
+  <div id="loading">Loading…</div>
+  <noscript>This WebGL demo requires JavaScript.</noscript>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "troika-three-text": "https://esm.sh/troika-three-text@0.52.4?external=three"
+      }
+    }
+  </script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

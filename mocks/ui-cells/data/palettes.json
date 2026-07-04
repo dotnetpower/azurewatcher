@@ -1,0 +1,153 @@
+{
+  "default": "azure-mono",
+  "palettes": {
+    "azure-mono": {
+      "label": "Azure Blue (layered)",
+      "mode": "layered",
+      "direction": "layered",
+      "accent": "#60A5FA",
+      "pending": [90, 108, 130],
+      "layers": [
+        [30, 58, 138],
+        [37, 99, 235],
+        [59, 130, 246],
+        [96, 165, 250],
+        [147, 197, 253]
+      ]
+    },
+    "indigo-mono": {
+      "label": "Indigo (layered)",
+      "mode": "layered",
+      "direction": "layered",
+      "accent": "#818CF8",
+      "pending": [96, 108, 138],
+      "layers": [
+        [30, 27, 75],
+        [67, 56, 202],
+        [99, 102, 241],
+        [129, 140, 248],
+        [165, 180, 252]
+      ]
+    },
+    "azure-violet": {
+      "label": "Azure Violet (blue → purple)",
+      "mode": "gradient",
+      "direction": "risk",
+      "accent": "#8B5CF6",
+      "pending": [110, 118, 138],
+      "stops": [
+        { "t": 0.00, "rgb": [107, 196, 245] },
+        { "t": 0.30, "rgb": [59, 130, 246] },
+        { "t": 0.55, "rgb": [99, 102, 241] },
+        { "t": 0.78, "rgb": [139, 92, 246] },
+        { "t": 1.00, "rgb": [192, 132, 252] }
+      ]
+    },
+    "microsoft": {
+      "label": "Microsoft Brand",
+      "mode": "gradient",
+      "direction": "risk",
+      "accent": "#50E6FF",
+      "pending": [138, 136, 134],
+      "stops": [
+        { "t": 0.00, "rgb": [127, 186, 0] },
+        { "t": 0.35, "rgb": [0, 164, 239] },
+        { "t": 0.60, "rgb": [255, 185, 0] },
+        { "t": 0.82, "rgb": [242, 80, 34] },
+        { "t": 1.00, "rgb": [232, 17, 35] }
+      ]
+    },
+    "neon-grid": {
+      "label": "Neon Grid (sci-fi)",
+      "mode": "gradient",
+      "direction": "risk",
+      "accent": "#4dd0e1",
+      "pending": [80, 96, 118],
+      "stops": [
+        { "t": 0.00, "rgb": [96, 224, 200] },
+        { "t": 0.30, "rgb": [88, 196, 240] },
+        { "t": 0.55, "rgb": [120, 168, 244] },
+        { "t": 0.78, "rgb": [180, 132, 236] },
+        { "t": 1.00, "rgb": [232, 108, 176] }
+      ]
+    },
+    "azure-brand": {
+      "label": "Azure Brand",
+      "mode": "gradient",
+      "direction": "risk",
+      "accent": "#50E6FF",
+      "pending": [138, 136, 134],
+      "stops": [
+        { "t": 0.00, "rgb": [36, 58, 94] },
+        { "t": 0.30, "rgb": [0, 120, 212] },
+        { "t": 0.60, "rgb": [80, 230, 255] },
+        { "t": 0.82, "rgb": [255, 185, 0] },
+        { "t": 1.00, "rgb": [232, 17, 35] }
+      ]
+    },
+    "soft-pastel": {
+      "label": "Soft Pastel (light)",
+      "mode": "gradient",
+      "direction": "risk",
+      "accent": "#7c9cc7",
+      "pending": [200, 205, 214],
+      "stops": [
+        { "t": 0.00, "rgb": [178, 217, 178] },
+        { "t": 0.35, "rgb": [174, 205, 232] },
+        { "t": 0.60, "rgb": [246, 220, 148] },
+        { "t": 0.82, "rgb": [244, 180, 140] },
+        { "t": 1.00, "rgb": [227, 138, 138] }
+      ]
+    },
+    "aurora-orb": {
+      "label": "Aurora Orb",
+      "mode": "gradient",
+      "direction": "risk",
+      "accent": "#e07aa2",
+      "pending": [96, 92, 128],
+      "stops": [
+        { "t": 0.00, "rgb": [156, 128, 232] },
+        { "t": 0.40, "rgb": [236, 140, 196] },
+        { "t": 0.72, "rgb": [244, 168, 132] },
+        { "t": 1.00, "rgb": [248, 200, 128] }
+      ]
+    },
+    "waf-pillar": {
+      "label": "WAF Pillar (categorical)",
+      "mode": "categorical",
+      "direction": "categorical",
+      "accent": "#8B5CF6",
+      "pending": [110, 118, 138],
+      "categories": {
+        "reliability": [107, 196, 245],
+        "security": [192, 132, 252],
+        "cost": [59, 130, 246],
+        "operational": [139, 92, 246],
+        "performance": [99, 102, 241],
+        "sustainability": [79, 194, 232]
+      },
+      "fallback": [130, 138, 158]
+    },
+    "colorblind-safe": {
+      "label": "Colorblind-safe",
+      "mode": "gradient",
+      "direction": "risk",
+      "accent": "#FDE725",
+      "pending": [140, 148, 158],
+      "stops": [
+        { "t": 0.00, "rgb": [68, 1, 84] },
+        { "t": 0.25, "rgb": [59, 82, 139] },
+        { "t": 0.50, "rgb": [33, 145, 140] },
+        { "t": 0.75, "rgb": [94, 201, 98] },
+        { "t": 1.00, "rgb": [253, 231, 37] }
+      ]
+    }
+  },
+  "severity": {
+    "critical": [192, 132, 252],
+    "high": [139, 92, 246],
+    "medium": [99, 102, 241],
+    "low": [59, 130, 246],
+    "info": [130, 138, 158]
+  }
+}

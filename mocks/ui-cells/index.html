@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AzureWatcher — Cells (WebGL2 mock)</title>
+<style>
+  :root {
+    --bg-0: #1a2540;
+    --bg-1: #223058;
+    --bg-2: #2b3d6e;
+    --ink:  #dbe6f2;
+    --muted: #7f92ae;
+    --accent: #8B5CF6;
+    --panel: rgba(20, 32, 60, 0.72);
+    --panel-border: rgba(139, 92, 246, 0.35);
+    --danger: #e86ca8;
+    --ok:     #66d9c0;
+  }
+  html, body {
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    background: radial-gradient(ellipse at 50% 36%, var(--bg-2) 0%, var(--bg-1) 48%, var(--bg-0) 80%);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+    overflow: hidden;
+    cursor: default;
+  }
+  #stage {
+    position: absolute; inset: 0;
+    display: block;
+  }
+  canvas {
+    position: absolute; inset: 0;
+    display: block;
+    width: 100%; height: 100%;
+  }
+  #gl { z-index: 1; }
+  #overlay { z-index: 2; pointer-events: none; }
+
+  /* Soft blur ring around the viewport edges.  A masked overlay applies
+     backdrop-filter only to the outer ~40% of the viewport, so cells
+     and labels near the frame gain a soft-focus halo without affecting
+     the centre. */
+  #edge-blur {
+    position: absolute; inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    backdrop-filter: blur(6px) saturate(1.05);
+    -webkit-backdrop-filter: blur(6px) saturate(1.05);
+    -webkit-mask-image: radial-gradient(ellipse at center,
+      transparent 42%, rgba(0,0,0,0.35) 65%, rgba(0,0,0,0.85) 90%, black 100%);
+    mask-image: radial-gradient(ellipse at center,
+      transparent 42%, rgba(0,0,0,0.35) 65%, rgba(0,0,0,0.85) 90%, black 100%);
+  }
+
+  .hud {
+    position: absolute; z-index: 3;
+    color: var(--ink);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    user-select: none;
+  }
+
+  #hud-title {
+    top: 18px; left: 22px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px;
+  }
+  #hud-title .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1.0; }
+    50%      { transform: scale(1.35); opacity: 0.55; }
+  }
+  #hud-title .kicker {
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  #hud-controls {
+    top: 18px; right: 22px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel);
+    padding: 8px 10px;
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    pointer-events: auto;
+  }
+  #hud-controls label {
+    color: var(--muted);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-right: 4px;
+  }
+  #hud-controls select, #hud-controls button {
+    background: rgba(0,0,0,0.25);
+    color: var(--ink);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11.5px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  #hud-controls select:focus, #hud-controls button:focus {
+    outline: 1px solid var(--accent);
+  }
+  #hud-controls .badge {
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    font-size: 10.5px;
+    padding-left: 4px;
+  }
+
+  #hud-focus {
+    left: 22px; bottom: 22px;
+    max-width: 360px;
+    min-width: 260px;
+    padding: 14px 16px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: opacity 0.25s ease;
+    pointer-events: auto;
+  }
+  #hud-focus .title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0 0 2px 0;
+  }
+  #hud-focus .subtitle {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  #hud-focus .desc {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--ink);
+    opacity: 0.85;
+    margin-bottom: 10px;
+  }
+  #hud-focus .metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  #hud-focus .metric {
+    padding: 6px 8px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 6px;
+  }
+  #hud-focus .metric .k {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--muted);
+  }
+  #hud-focus .metric .v {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-top: 1px;
+  }
+
+  #hud-progress {
+    left: 22px; bottom: 22px;
+    max-width: 420px;
+    min-width: 300px;
+    padding: 14px 16px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    pointer-events: auto;
+  }
+  #hud-progress .phase {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 6px;
+  }
+  #hud-progress .phase .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  #hud-progress .label {
+    font-size: 14px;
+    color: var(--ink);
+    margin-bottom: 10px;
+  }
+  #hud-progress .bar {
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  #hud-progress .bar > .fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), #ff7d55);
+    transition: width 0.28s ease;
+  }
+  #hud-progress .counts {
+    display: flex; gap: 16px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  #hud-progress .counts b { color: var(--ink); font-weight: 600; }
+
+  #loading {
+    position: absolute; z-index: 4;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted);
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    background: rgba(0,0,0,0.35);
+    transition: opacity 0.5s ease;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+
+  .hidden { display: none !important; }
+
+  #hud-hint {
+    right: 22px; bottom: 22px;
+    color: var(--muted);
+    font-size: 10.5px;
+    text-align: right;
+    line-height: 1.5;
+    max-width: 260px;
+    pointer-events: none;
+  }
+  #hud-hint b { color: var(--ink); font-weight: 500; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="gl"></canvas>
+    <canvas id="overlay"></canvas>
+    <div id="edge-blur"></div>
+
+    <div id="hud-title" class="hud">
+      <span class="dot"></span>
+      <span><b>AzureWatcher</b> <span class="kicker">— Well-Architected view (mock)</span></span>
+    </div>
+
+    <div id="hud-controls" class="hud">
+      <label for="view-select">View</label>
+      <select id="view-select">
+        <option value="pillar" selected>WAF Pillars</option>
+        <option value="topology">Topology</option>
+        <option value="severity">Severity</option>
+      </select>
+      <label for="palette-select">Palette</label>
+      <select id="palette-select"></select>
+      <button id="replay-btn" title="Replay the discovery stream">Replay</button>
+      <span class="badge">WebGL2 · GPU</span>
+    </div>
+
+    <div id="hud-progress" class="hud">
+      <div class="phase"><span class="dot"></span><span id="phase-name">Starting</span></div>
+      <div class="label" id="phase-label">Preparing the surface</div>
+      <div class="bar"><div class="fill" id="phase-bar"></div></div>
+      <div class="counts">
+        <span>subs <b id="cnt-subs">0</b></span>
+        <span>resources <b id="cnt-resources">0</b></span>
+        <span>findings <b id="cnt-findings">0</b></span>
+      </div>
+    </div>
+
+    <div id="hud-focus" class="hud hidden">
+      <div class="title"    id="focus-title">—</div>
+      <div class="subtitle" id="focus-subtitle">—</div>
+      <div class="desc"     id="focus-desc"></div>
+      <div class="metrics">
+        <div class="metric"><div class="k">risk</div><div class="v" id="focus-risk">—</div></div>
+        <div class="metric"><div class="k">children</div><div class="v" id="focus-children">—</div></div>
+        <div class="metric"><div class="k">depth</div><div class="v" id="focus-depth">—</div></div>
+      </div>
+    </div>
+
+    <div id="hud-hint" class="hud">
+      wheel to zoom · drag to pan · click a cell to reframe
+    </div>
+
+    <div id="loading">Building cells… (WebGL2)</div>
+  </div>
+
+  <!-- d3 UMD from jsDelivr (offline vendoring is a follow-up; see README) -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-weighted-voronoi@1/build/d3-weighted-voronoi.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-voronoi-map@2/build/d3-voronoi-map.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-voronoi-treemap@1/build/d3-voronoi-treemap.min.js"></script>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

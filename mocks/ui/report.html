@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Report — Calm Slate</title>
+  <link rel="stylesheet" href="assets/calm-slate.css" />
+</head>
+<body>
+  <header class="cs-topbar">
+    <div class="cs-container cs-topbar-inner">
+      <span class="cs-brand"><span class="cs-brand-mark">AW</span> AzureWatcher</span>
+      <nav class="cs-nav">
+        <a href="index.html">Overview</a>
+        <a href="components.html">Components</a>
+        <a href="report.html" class="cs-active">Report</a>
+        <a href="dashboard.html">Console</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="cs-container cs-page">
+    <div class="cs-page-header cs-mb-24">
+      <div class="cs-eyebrow">Autonomous Operations · Weekly Report</div>
+      <h1>Control-plane review</h1>
+      <p class="cs-lead">A read-oriented report layout: numbered sections, KPI grid, an
+        AS-IS / TO-BE comparison, and a critique table. All values are synthetic placeholders.</p>
+      <div class="cs-flex cs-wrap cs-gap-8" style="margin-top:12px">
+        <span class="cs-tag is-steel">scenario set v2026.07</span>
+        <span class="cs-tag">window: 30 days</span>
+        <span class="cs-tag is-sage">shadow mode</span>
+      </div>
+    </div>
+
+    <!-- Section 1: KPIs -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">1</span>
+        <div class="cs-section-title"><h2>Headline metrics</h2><p class="cs-desc">Measured against a pinned reference agent on the same scenario set. Targets, not guarantees.</p></div>
+      </div>
+      <div class="cs-grid cs-grid-4">
+        <div class="cs-card cs-kpi"><div class="cs-kpi-accent"></div><span class="cs-kpi-label">Auto-resolution rate</span><span class="cs-kpi-value">87.4%</span><span class="cs-kpi-foot"><span class="cs-trend up">▲ vs baseline</span></span></div>
+        <div class="cs-card cs-kpi"><div class="cs-kpi-accent is-teal"></div><span class="cs-kpi-label">MTTR (median)</span><span class="cs-kpi-value">42s</span><span class="cs-kpi-foot"><span class="cs-trend down">▼ faster</span></span></div>
+        <div class="cs-card cs-kpi"><div class="cs-kpi-accent is-terracotta"></div><span class="cs-kpi-label">Human touchpoints</span><span class="cs-kpi-value">3.1</span><span class="cs-kpi-foot">per 100 events</span></div>
+        <div class="cs-card cs-kpi"><div class="cs-kpi-accent is-sage"></div><span class="cs-kpi-label">Cost / incident</span><span class="cs-kpi-value">$0.06</span><span class="cs-kpi-foot"><span class="cs-trend flat">— stable</span></span></div>
+      </div>
+      <div class="cs-alert is-info" style="margin-top:16px"><div class="cs-alert-bar"></div><div><p>Guard metrics held: change-failure rate, false-positive rate, and rollback rate did not regress; policy-violation escapes = 0.</p></div></div>
+    </section>
+
+    <!-- Section 2: AS-IS / TO-BE -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">2</span>
+        <div class="cs-section-title"><h2>AS-IS &nbsp;→&nbsp; TO-BE</h2><p class="cs-desc">Where a general-purpose agent spends effort vs the deterministic-first design.</p></div>
+      </div>
+      <div class="cs-compare">
+        <div class="cs-compare-col is-asis">
+          <h4>AS-IS · general agent</h4>
+          <ul>
+            <li>Every event re-runs an LLM from scratch (diagnose, RCA, remediate).</li>
+            <li>Frequent escalation; humans confirm most actions.</li>
+            <li>Latency bound to model round-trips.</li>
+            <li>Cost scales with token volume.</li>
+          </ul>
+        </div>
+        <div class="cs-compare-col is-tobe">
+          <h4>TO-BE · deterministic-first</h4>
+          <ul>
+            <li>T0/T1 resolve the large majority without a frontier model.</li>
+            <li>Risk-gated autonomy; humans see only high-risk and novel cases.</li>
+            <li>T0/T1 answer in milliseconds to seconds.</li>
+            <li>Only a small share reaches a frontier model.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Critique table -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">3</span>
+        <div class="cs-section-title"><h2>Findings &amp; critique</h2><p class="cs-desc">Deterministic verdicts with severity, tier, and recommended remediation.</p></div>
+      </div>
+      <div class="cs-table-wrap">
+        <table class="cs-table">
+          <thead><tr><th>#</th><th>Finding</th><th>Category</th><th>Severity</th><th>Tier</th><th>Recommended action</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Object storage allows public access</td><td>security</td><td><span class="cs-sev high">high</span></td><td><span class="cs-tier t0">T0</span></td><td>Remediation PR: deny public access</td></tr>
+            <tr><td>2</td><td>Managed database missing PITR + geo-replica</td><td>reliability</td><td><span class="cs-sev critical">critical</span></td><td><span class="cs-tier t1">T1</span></td><td>HIL approval, then enable PITR</td></tr>
+            <tr><td>3</td><td>Idle non-prod compute over threshold</td><td>cost</td><td><span class="cs-sev low">low</span></td><td><span class="cs-tier t0">T0</span></td><td>Shadow: schedule shutdown</td></tr>
+            <tr><td>4</td><td>Config drift from declared IaC state</td><td>config-drift</td><td><span class="cs-sev medium">medium</span></td><td><span class="cs-tier t0">T0</span></td><td>Reconcile PR to desired state</td></tr>
+            <tr><td>5</td><td>Ambiguous novel event, no rule match</td><td>security</td><td><span class="cs-sev medium">medium</span></td><td><span class="cs-tier t2">T2</span></td><td>Quality gate → HIL if unresolved</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section 4: Notes -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">4</span>
+        <div class="cs-section-title"><h2>Notes</h2><p class="cs-desc">Method and caveats.</p></div>
+      </div>
+      <div class="cs-grid cs-grid-2">
+        <div class="cs-card"><h3>Method</h3><dl class="cs-dl">
+          <dt>Baseline</dt><dd>pinned reference agent</dd>
+          <dt>Scenario set</dt><dd>v2026.07 (frozen)</dd>
+          <dt>Window</dt><dd>30 days</dd>
+          <dt>Sample size</dt><dd>reported per metric</dd>
+        </dl></div>
+        <div class="cs-card"><h3>Caveats</h3>
+          <p class="cs-muted cs-mb-8">Multiplier targets are validated against a measured baseline, never asserted.</p>
+          <p class="cs-muted cs-mb-0">All identifiers and figures on this page are synthetic and customer-agnostic.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="cs-footer">
+    <div class="cs-container"><span>AzureWatcher UI kit — Calm Slate theme. Report layout demo.</span></div>
+  </footer>
+</body>
+</html>

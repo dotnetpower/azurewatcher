@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Components — Calm Slate</title>
+  <link rel="stylesheet" href="assets/calm-slate.css" />
+</head>
+<body>
+  <header class="cs-topbar">
+    <div class="cs-container cs-topbar-inner">
+      <span class="cs-brand"><span class="cs-brand-mark">AW</span> AzureWatcher</span>
+      <nav class="cs-nav">
+        <a href="index.html">Overview</a>
+        <a href="components.html" class="cs-active">Components</a>
+        <a href="report.html">Report</a>
+        <a href="dashboard.html">Console</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="cs-container cs-page">
+    <div class="cs-page-header cs-mb-24">
+      <div class="cs-eyebrow">Component Gallery</div>
+      <h1>Components</h1>
+      <p class="cs-lead">Every building block in the Calm Slate kit, shown once. Copy the markup
+        and class names straight into a page.</p>
+    </div>
+
+    <!-- KPI cards -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">1</span>
+        <div class="cs-section-title"><h2>KPI cards</h2><p class="cs-desc">Metric, value, and a muted trend chip.</p></div>
+      </div>
+      <div class="cs-grid cs-grid-4">
+        <div class="cs-card cs-kpi">
+          <div class="cs-kpi-accent"></div>
+          <span class="cs-kpi-label">Auto-resolution rate</span>
+          <span class="cs-kpi-value">87.4%</span>
+          <span class="cs-kpi-foot"><span class="cs-trend up">▲ target</span> vs baseline</span>
+        </div>
+        <div class="cs-card cs-kpi">
+          <div class="cs-kpi-accent is-teal"></div>
+          <span class="cs-kpi-label">MTTR (median)</span>
+          <span class="cs-kpi-value">42s</span>
+          <span class="cs-kpi-foot"><span class="cs-trend down">▼ lower</span> detect → resolve</span>
+        </div>
+        <div class="cs-card cs-kpi">
+          <div class="cs-kpi-accent is-terracotta"></div>
+          <span class="cs-kpi-label">Human touchpoints</span>
+          <span class="cs-kpi-value">3.1</span>
+          <span class="cs-kpi-foot">per 100 events</span>
+        </div>
+        <div class="cs-card cs-kpi">
+          <div class="cs-kpi-accent is-sage"></div>
+          <span class="cs-kpi-label">Cost / incident</span>
+          <span class="cs-kpi-value">$0.06</span>
+          <span class="cs-kpi-foot"><span class="cs-trend flat">— stable</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tags & severity -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">2</span>
+        <div class="cs-section-title"><h2>Tags, severity &amp; tiers</h2><p class="cs-desc">Pill tags, severity badges, and trust-tier chips.</p></div>
+      </div>
+      <div class="cs-card">
+        <p class="cs-label">Pill tags</p>
+        <div class="cs-flex cs-wrap cs-gap-8 cs-mb-24">
+          <span class="cs-tag">neutral</span>
+          <span class="cs-tag is-steel"><span class="cs-tag-dot"></span> change</span>
+          <span class="cs-tag is-sage">reliability</span>
+          <span class="cs-tag is-teal">dr</span>
+          <span class="cs-tag is-plum">finops</span>
+          <span class="cs-tag is-terracotta">drift</span>
+        </div>
+        <p class="cs-label">Severity badges</p>
+        <div class="cs-flex cs-wrap cs-gap-8 cs-mb-24">
+          <span class="cs-sev critical">critical</span>
+          <span class="cs-sev high">high</span>
+          <span class="cs-sev medium">medium</span>
+          <span class="cs-sev low">low</span>
+        </div>
+        <p class="cs-label">Trust tiers</p>
+        <div class="cs-flex cs-wrap cs-gap-8">
+          <span class="cs-tier t0">T0</span>
+          <span class="cs-tier t1">T1</span>
+          <span class="cs-tier t2">T2</span>
+          <span class="cs-muted" style="align-self:center">deterministic → lightweight → reasoning</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Table -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">3</span>
+        <div class="cs-section-title"><h2>Table</h2><p class="cs-desc">Slate-navy header, subtly shaded even rows.</p></div>
+      </div>
+      <div class="cs-table-wrap">
+        <table class="cs-table">
+          <thead><tr><th>Rule id</th><th>Category</th><th>Severity</th><th>Tier</th><th>Decision</th></tr></thead>
+          <tbody>
+            <tr><td><code>object-storage.public-access.deny</code></td><td>security</td><td><span class="cs-sev high">high</span></td><td><span class="cs-tier t0">T0</span></td><td class="cs-muted">shadow — would remediate</td></tr>
+            <tr><td><code>sql-database.encryption.tde-required</code></td><td>security</td><td><span class="cs-sev high">high</span></td><td><span class="cs-tier t0">T0</span></td><td class="cs-muted">compliant</td></tr>
+            <tr><td><code>postgresql-server.dr.pitr-required</code></td><td>reliability</td><td><span class="cs-sev critical">critical</span></td><td><span class="cs-tier t1">T1</span></td><td class="cs-muted">HIL — awaiting approval</td></tr>
+            <tr><td><code>cost.idle-resource.recommend</code></td><td>cost</td><td><span class="cs-sev low">low</span></td><td><span class="cs-tier t0">T0</span></td><td class="cs-muted">shadow — would shut down</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Alerts -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">4</span>
+        <div class="cs-section-title"><h2>Alerts</h2><p class="cs-desc">Left hairline bar carries the muted status color.</p></div>
+      </div>
+      <div class="cs-grid cs-grid-2">
+        <div class="cs-alert is-info"><div class="cs-alert-bar"></div><div><h4>Information</h4><p>Event routed to T0 and resolved deterministically.</p></div></div>
+        <div class="cs-alert is-success"><div class="cs-alert-bar"></div><div><h4>Promoted</h4><p>Action passed shadow evaluation with zero policy escapes.</p></div></div>
+        <div class="cs-alert is-warn"><div class="cs-alert-bar"></div><div><h4>Awaiting HIL</h4><p>High-risk change queued for human approval.</p></div></div>
+        <div class="cs-alert is-danger"><div class="cs-alert-bar"></div><div><h4>Regression</h4><p>Assignment auto-demoted back to shadow mode.</p></div></div>
+      </div>
+    </section>
+
+    <!-- Buttons & forms -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">5</span>
+        <div class="cs-section-title"><h2>Buttons &amp; forms</h2><p class="cs-desc">Demo controls. The production console is read-only.</p></div>
+      </div>
+      <div class="cs-grid cs-grid-2">
+        <div class="cs-card">
+          <p class="cs-label">Buttons</p>
+          <div class="cs-flex cs-wrap cs-gap-8 cs-mb-16">
+            <button class="cs-btn is-primary">Primary</button>
+            <button class="cs-btn is-navy">Navy</button>
+            <button class="cs-btn">Default</button>
+            <button class="cs-btn is-ghost">Ghost</button>
+            <button class="cs-btn is-sm">Small</button>
+          </div>
+          <div class="cs-alert is-info"><div class="cs-alert-bar"></div><div><p>Buttons here are style samples only — the operator console issues no privileged calls.</p></div></div>
+        </div>
+        <div class="cs-card">
+          <div class="cs-field">
+            <label class="cs-label" for="f1">Scenario set</label>
+            <select class="cs-select" id="f1"><option>v2026.07</option><option>v2026.06</option></select>
+          </div>
+          <div class="cs-field">
+            <label class="cs-label" for="f2">Filter rules</label>
+            <input class="cs-input" id="f2" type="text" placeholder="e.g. category:security" />
+            <div class="cs-help">Read-only filter; does not mutate the catalog.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tabs & meters -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">6</span>
+        <div class="cs-section-title"><h2>Tabs &amp; meters</h2><p class="cs-desc">Lightweight tab switch and coverage meters.</p></div>
+      </div>
+      <div class="cs-card">
+        <div class="cs-tabs" data-cs-tabs>
+          <button class="cs-tab cs-active" data-cs-tab="tab-cov">Coverage</button>
+          <button class="cs-tab" data-cs-tab="tab-lat">Latency</button>
+        </div>
+        <div class="cs-tabpanel cs-active" id="tab-cov">
+          <div class="cs-mb-16"><div class="cs-flex-between cs-mb-8"><span>T0 deterministic</span><span class="cs-muted">76%</span></div><div class="cs-meter is-sage"><span style="width:76%"></span></div></div>
+          <div class="cs-mb-16"><div class="cs-flex-between cs-mb-8"><span>T1 lightweight</span><span class="cs-muted">17%</span></div><div class="cs-meter"><span style="width:17%"></span></div></div>
+          <div><div class="cs-flex-between cs-mb-8"><span>T2 reasoning</span><span class="cs-muted">7%</span></div><div class="cs-meter is-terracotta"><span style="width:7%"></span></div></div>
+          <p class="cs-help cs-mt-0" style="margin-top:12px">Coverage figures are targets to validate against a measured baseline.</p>
+        </div>
+        <div class="cs-tabpanel" id="tab-lat">
+          <dl class="cs-dl">
+            <dt>T0</dt><dd>milliseconds — no model call</dd>
+            <dt>T1</dt><dd>~seconds — embedding + small model</dd>
+            <dt>T2</dt><dd>seconds to tens of seconds — frontier models</dd>
+          </dl>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="cs-footer">
+    <div class="cs-container"><span>AzureWatcher UI kit — Calm Slate theme.</span></div>
+  </footer>
+  <script src="assets/calm-slate.js"></script>
+</body>
+</html>

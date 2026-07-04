@@ -1,0 +1,296 @@
+/* ==========================================================================
+   Calm Slate — report theme for AzureWatcher UI kit
+   Toned-down, desaturated palette. No primary/neon colors, no color bands.
+   Font: Segoe UI / Malgun Gothic. Calm, professional, report-like.
+   All class names are prefixed `cs-`.
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --cs-bg: #FBFAF9;
+  --cs-card: #FFFFFF;
+  --cs-hairline: #E3E1DE;
+  --cs-shade: #F4F2F0; /* subtle even-row / muted block */
+
+  /* Text */
+  --cs-text: #2C333A;
+  --cs-text-soft: #6B7178;
+
+  /* Primary tones */
+  --cs-steel: #44688E;      /* steel blue — primary accent */
+  --cs-navy: #3E4C59;       /* slate navy — badges, table header */
+
+  /* Desaturated accents */
+  --cs-sage: #5E8259;
+  --cs-terracotta: #BC7449;
+  --cs-dusty-red: #AC5A5A;
+  --cs-teal: #4F847E;
+  --cs-plum: #7B6C9C;
+
+  /* Comparison backgrounds (very light) */
+  --cs-asis-bg: #F7ECEC;    /* light pink */
+  --cs-tobe-bg: #ECF2EA;    /* light green */
+
+  /* Shape */
+  --cs-radius: 14px;
+  --cs-radius-sm: 9px;
+  --cs-radius-pill: 999px;
+  --cs-shadow: 0 4px 16px rgba(46, 54, 64, .06);
+  --cs-shadow-hover: 0 6px 22px rgba(46, 54, 64, .10);
+
+  --cs-maxw: 1160px;
+  --cs-gap: 20px;
+  --cs-font: "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+}
+
+/* ----- Reset-ish ----- */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: var(--cs-font);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--cs-text);
+  background: var(--cs-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+h1, h2, h3, h4 { color: var(--cs-text); font-weight: 600; line-height: 1.3; margin: 0 0 .4em; letter-spacing: -0.01em; }
+h1 { font-size: 30px; }
+h2 { font-size: 22px; }
+h3 { font-size: 17px; }
+p { margin: 0 0 1em; }
+a { color: var(--cs-steel); text-decoration: none; }
+a:hover { text-decoration: underline; }
+small { color: var(--cs-text-soft); }
+code { font-family: "Cascadia Code", "Consolas", monospace; font-size: .88em; background: var(--cs-shade); padding: .12em .4em; border-radius: 5px; }
+
+/* ----- Layout ----- */
+.cs-container { max-width: var(--cs-maxw); margin: 0 auto; padding: 0 24px; }
+.cs-page { padding: 40px 0 72px; }
+.cs-section { margin: 44px 0; }
+.cs-section-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 20px; }
+.cs-section-title { flex: 1; }
+.cs-section-title h2 { margin: 0 0 2px; }
+.cs-section-title .cs-desc { color: var(--cs-text-soft); font-size: 14px; margin: 0; }
+
+/* Numbered badge — slate navy square */
+.cs-badge-num {
+  flex: 0 0 auto;
+  width: 34px; height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--cs-navy);
+  color: #fff;
+  border-radius: 8px;
+  font-weight: 600; font-size: 15px;
+  margin-top: 2px;
+}
+
+/* ----- Top bar (calm, no color band) ----- */
+.cs-topbar {
+  background: var(--cs-card);
+  border-bottom: 1px solid var(--cs-hairline);
+  position: sticky; top: 0; z-index: 20;
+}
+.cs-topbar-inner { display: flex; align-items: center; gap: 20px; height: 60px; }
+.cs-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; color: var(--cs-text); }
+.cs-brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--cs-steel); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 700; }
+.cs-nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+.cs-nav a { color: var(--cs-text-soft); padding: 7px 12px; border-radius: var(--cs-radius-sm); font-size: 14px; }
+.cs-nav a:hover { background: var(--cs-shade); color: var(--cs-text); text-decoration: none; }
+.cs-nav a.cs-active { background: var(--cs-navy); color: #fff; }
+
+/* ----- Page header block ----- */
+.cs-page-header { margin-bottom: 8px; }
+.cs-page-header .cs-eyebrow { color: var(--cs-steel); font-size: 12.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
+.cs-page-header p.cs-lead { color: var(--cs-text-soft); font-size: 16px; max-width: 720px; }
+
+/* ----- Card ----- */
+.cs-card {
+  background: var(--cs-card);
+  border: 1px solid var(--cs-hairline);
+  border-radius: var(--cs-radius);
+  box-shadow: var(--cs-shadow);
+  padding: 22px;
+}
+.cs-card--flat { box-shadow: none; }
+.cs-card--pad-lg { padding: 28px; }
+.cs-card h3 { margin-top: 0; }
+.cs-card-hover { transition: box-shadow .18s ease, transform .18s ease; }
+.cs-card-hover:hover { box-shadow: var(--cs-shadow-hover); transform: translateY(-1px); }
+
+/* ----- Grid ----- */
+.cs-grid { display: grid; gap: var(--cs-gap); }
+.cs-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.cs-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.cs-grid-4 { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 900px) { .cs-grid-3, .cs-grid-4 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 620px) { .cs-grid-2, .cs-grid-3, .cs-grid-4 { grid-template-columns: 1fr; } }
+
+/* ----- KPI card ----- */
+.cs-kpi { display: flex; flex-direction: column; gap: 6px; }
+.cs-kpi .cs-kpi-label { color: var(--cs-text-soft); font-size: 13px; }
+.cs-kpi .cs-kpi-value { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+.cs-kpi .cs-kpi-foot { font-size: 12.5px; color: var(--cs-text-soft); display: flex; align-items: center; gap: 6px; }
+.cs-kpi-accent { width: 28px; height: 3px; border-radius: 3px; background: var(--cs-steel); margin-bottom: 4px; }
+.cs-kpi-accent.is-sage { background: var(--cs-sage); }
+.cs-kpi-accent.is-terracotta { background: var(--cs-terracotta); }
+.cs-kpi-accent.is-teal { background: var(--cs-teal); }
+.cs-kpi-accent.is-plum { background: var(--cs-plum); }
+
+/* trend chips (muted) */
+.cs-trend { font-size: 12px; font-weight: 600; padding: 1px 7px; border-radius: var(--cs-radius-pill); }
+.cs-trend.up { color: var(--cs-sage); background: rgba(94,130,89,.12); }
+.cs-trend.down { color: var(--cs-dusty-red); background: rgba(172,90,90,.12); }
+.cs-trend.flat { color: var(--cs-text-soft); background: var(--cs-shade); }
+
+/* ----- AS-IS / TO-BE comparison ----- */
+.cs-compare { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cs-gap); }
+@media (max-width: 620px) { .cs-compare { grid-template-columns: 1fr; } }
+.cs-compare-col { border-radius: var(--cs-radius); border: 1px solid var(--cs-hairline); padding: 20px; }
+.cs-compare-col.is-asis { background: var(--cs-asis-bg); border-color: #ECD9D9; }
+.cs-compare-col.is-tobe { background: var(--cs-tobe-bg); border-color: #D8E4D3; }
+.cs-compare-col h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+.cs-compare-col.is-asis h4 { color: var(--cs-dusty-red); }
+.cs-compare-col.is-tobe h4 { color: var(--cs-sage); }
+.cs-compare-col ul { margin: 0; padding-left: 18px; }
+.cs-compare-col li { margin-bottom: 8px; }
+.cs-compare-arrow { display: flex; align-items: center; justify-content: center; color: var(--cs-text-soft); }
+
+/* ----- Table (critique / audit) ----- */
+.cs-table-wrap { border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); overflow: hidden; }
+.cs-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.cs-table thead th {
+  background: var(--cs-navy);
+  color: #fff;
+  text-align: left;
+  font-weight: 600;
+  padding: 12px 14px;
+  font-size: 13px;
+  letter-spacing: .02em;
+}
+.cs-table tbody td { padding: 11px 14px; border-top: 1px solid var(--cs-hairline); vertical-align: top; }
+.cs-table tbody tr:nth-child(even) { background: var(--cs-shade); }
+.cs-table tbody tr:hover { background: #EEF3F7; }
+.cs-table td .cs-muted { color: var(--cs-text-soft); }
+
+/* ----- Pills / tags ----- */
+.cs-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 11px;
+  border-radius: var(--cs-radius-pill);
+  font-size: 12.5px; font-weight: 500;
+  background: var(--cs-shade); color: var(--cs-text);
+  border: 1px solid var(--cs-hairline);
+}
+.cs-tag.is-steel { background: rgba(68,104,142,.10); color: var(--cs-steel); border-color: rgba(68,104,142,.20); }
+.cs-tag.is-sage { background: rgba(94,130,89,.12); color: var(--cs-sage); border-color: rgba(94,130,89,.22); }
+.cs-tag.is-teal { background: rgba(79,132,126,.12); color: var(--cs-teal); border-color: rgba(79,132,126,.22); }
+.cs-tag.is-plum { background: rgba(123,108,156,.12); color: var(--cs-plum); border-color: rgba(123,108,156,.22); }
+.cs-tag.is-terracotta { background: rgba(188,116,73,.12); color: var(--cs-terracotta); border-color: rgba(188,116,73,.22); }
+.cs-tag-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
+
+/* ----- Severity badges ----- */
+.cs-sev { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: var(--cs-radius-pill); font-size: 12px; font-weight: 600; }
+.cs-sev::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.cs-sev.critical { color: var(--cs-dusty-red); background: rgba(172,90,90,.12); }
+.cs-sev.high { color: var(--cs-terracotta); background: rgba(188,116,73,.12); }
+.cs-sev.medium { color: var(--cs-steel); background: rgba(68,104,142,.12); }
+.cs-sev.low { color: var(--cs-text-soft); background: var(--cs-shade); }
+
+/* ----- Status dots ----- */
+.cs-status { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--cs-text-soft); }
+.cs-status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; }
+.cs-status.ok::before { background: var(--cs-sage); }
+.cs-status.wait::before { background: var(--cs-terracotta); }
+.cs-status.err::before { background: var(--cs-dusty-red); }
+.cs-status.idle::before { background: #C4C1BD; }
+
+/* ----- Buttons (demo only; console is read-only in production) ----- */
+.cs-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: inherit; font-size: 14px; font-weight: 500;
+  padding: 9px 16px; border-radius: var(--cs-radius-sm);
+  border: 1px solid var(--cs-hairline); background: var(--cs-card); color: var(--cs-text);
+  cursor: pointer; transition: background .15s ease, border-color .15s ease;
+}
+.cs-btn:hover { background: var(--cs-shade); text-decoration: none; }
+.cs-btn.is-primary { background: var(--cs-steel); border-color: var(--cs-steel); color: #fff; }
+.cs-btn.is-primary:hover { background: #3B5B7C; }
+.cs-btn.is-navy { background: var(--cs-navy); border-color: var(--cs-navy); color: #fff; }
+.cs-btn.is-ghost { background: transparent; }
+.cs-btn.is-sm { padding: 6px 12px; font-size: 13px; }
+
+/* ----- Alerts / callouts ----- */
+.cs-alert { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--cs-radius-sm); border: 1px solid var(--cs-hairline); background: var(--cs-card); font-size: 14px; }
+.cs-alert .cs-alert-bar { width: 3px; border-radius: 3px; background: var(--cs-steel); flex: 0 0 auto; }
+.cs-alert.is-info .cs-alert-bar { background: var(--cs-steel); }
+.cs-alert.is-success .cs-alert-bar { background: var(--cs-sage); }
+.cs-alert.is-warn .cs-alert-bar { background: var(--cs-terracotta); }
+.cs-alert.is-danger .cs-alert-bar { background: var(--cs-dusty-red); }
+.cs-alert h4 { margin: 0 0 2px; font-size: 14px; }
+.cs-alert p { margin: 0; color: var(--cs-text-soft); }
+
+/* ----- Forms ----- */
+.cs-field { margin-bottom: 16px; }
+.cs-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.cs-input, .cs-select, .cs-textarea {
+  width: 100%; font-family: inherit; font-size: 14px; color: var(--cs-text);
+  padding: 9px 12px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius-sm);
+  background: var(--cs-card); transition: border-color .15s ease, box-shadow .15s ease;
+}
+.cs-input:focus, .cs-select:focus, .cs-textarea:focus {
+  outline: none; border-color: var(--cs-steel); box-shadow: 0 0 0 3px rgba(68,104,142,.12);
+}
+.cs-help { font-size: 12.5px; color: var(--cs-text-soft); margin-top: 5px; }
+
+/* ----- Tabs ----- */
+.cs-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--cs-hairline); margin-bottom: 20px; flex-wrap: wrap; }
+.cs-tab { padding: 9px 15px; font-size: 14px; color: var(--cs-text-soft); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; border-top: none; border-left: none; border-right: none; font-family: inherit; }
+.cs-tab:hover { color: var(--cs-text); }
+.cs-tab.cs-active { color: var(--cs-steel); border-bottom-color: var(--cs-steel); font-weight: 600; }
+.cs-tabpanel { display: none; }
+.cs-tabpanel.cs-active { display: block; }
+
+/* ----- Tier chips (T0/T1/T2) ----- */
+.cs-tier { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+.cs-tier.t0 { background: rgba(94,130,89,.14); color: var(--cs-sage); }
+.cs-tier.t1 { background: rgba(79,132,126,.14); color: var(--cs-teal); }
+.cs-tier.t2 { background: rgba(123,108,156,.14); color: var(--cs-plum); }
+
+/* ----- Progress / meter ----- */
+.cs-meter { height: 8px; border-radius: var(--cs-radius-pill); background: var(--cs-shade); overflow: hidden; }
+.cs-meter > span { display: block; height: 100%; border-radius: var(--cs-radius-pill); background: var(--cs-steel); }
+.cs-meter.is-sage > span { background: var(--cs-sage); }
+.cs-meter.is-terracotta > span { background: var(--cs-terracotta); }
+
+/* ----- Definition / spec list ----- */
+.cs-dl { display: grid; grid-template-columns: 160px 1fr; gap: 8px 16px; font-size: 14px; }
+.cs-dl dt { color: var(--cs-text-soft); }
+.cs-dl dd { margin: 0; }
+
+/* ----- Swatches ----- */
+.cs-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+.cs-swatch { border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius-sm); overflow: hidden; background: var(--cs-card); }
+.cs-swatch .cs-swatch-color { height: 62px; }
+.cs-swatch .cs-swatch-meta { padding: 9px 11px; font-size: 12.5px; }
+.cs-swatch .cs-swatch-name { font-weight: 600; }
+.cs-swatch .cs-swatch-hex { color: var(--cs-text-soft); font-family: "Cascadia Code","Consolas",monospace; }
+
+/* ----- Utilities ----- */
+.cs-muted { color: var(--cs-text-soft); }
+.cs-mt-0 { margin-top: 0; }
+.cs-mb-0 { margin-bottom: 0; }
+.cs-mb-8 { margin-bottom: 8px; }
+.cs-mb-16 { margin-bottom: 16px; }
+.cs-mb-24 { margin-bottom: 24px; }
+.cs-flex { display: flex; }
+.cs-flex-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cs-gap-8 { gap: 8px; }
+.cs-gap-12 { gap: 12px; }
+.cs-wrap { flex-wrap: wrap; }
+.cs-divider { height: 1px; background: var(--cs-hairline); border: 0; margin: 24px 0; }
+
+/* ----- Footer ----- */
+.cs-footer { border-top: 1px solid var(--cs-hairline); margin-top: 56px; padding: 28px 0; color: var(--cs-text-soft); font-size: 13px; }

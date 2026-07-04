@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Console — Calm Slate</title>
+  <link rel="stylesheet" href="assets/calm-slate.css" />
+</head>
+<body>
+  <header class="cs-topbar">
+    <div class="cs-container cs-topbar-inner">
+      <span class="cs-brand"><span class="cs-brand-mark">AW</span> AzureWatcher</span>
+      <nav class="cs-nav">
+        <a href="index.html">Overview</a>
+        <a href="components.html">Components</a>
+        <a href="report.html">Report</a>
+        <a href="dashboard.html" class="cs-active">Console</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="cs-container cs-page">
+    <div class="cs-page-header cs-mb-24">
+      <div class="cs-eyebrow">Operator Console · Read-only</div>
+      <h1>Control-plane status</h1>
+      <p class="cs-lead">The console renders state, the HIL queue, shadow results, and the audit
+        log. It issues no privileged calls — approvals happen in ChatOps or via a remediation PR.</p>
+      <div class="cs-flex cs-wrap cs-gap-12" style="margin-top:12px">
+        <span class="cs-status ok">Core engine: healthy</span>
+        <span class="cs-status ok">Event bus: draining</span>
+        <span class="cs-status wait">HIL queue: 2 pending</span>
+        <span class="cs-status idle">Scale: idle (0 replicas)</span>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">1</span>
+        <div class="cs-section-title"><h2>Live KPIs</h2><p class="cs-desc">Last 24 hours.</p></div>
+      </div>
+      <div class="cs-grid cs-grid-4">
+        <div class="cs-card cs-kpi"><div class="cs-kpi-accent"></div><span class="cs-kpi-label">Events processed</span><span class="cs-kpi-value">12,480</span><span class="cs-kpi-foot">deduplicated</span></div>
+        <div class="cs-card cs-kpi"><div class="cs-kpi-accent is-sage"></div><span class="cs-kpi-label">Auto-resolved</span><span class="cs-kpi-value">88%</span><span class="cs-kpi-foot"><span class="cs-trend up">▲</span> T0 + T1</span></div>
+        <div class="cs-card cs-kpi"><div class="cs-kpi-accent is-plum"></div><span class="cs-kpi-label">Reached T2</span><span class="cs-kpi-value">6.9%</span><span class="cs-kpi-foot">quality-gated</span></div>
+        <div class="cs-card cs-kpi"><div class="cs-kpi-accent is-terracotta"></div><span class="cs-kpi-label">Rollback rate</span><span class="cs-kpi-value">0.2%</span><span class="cs-kpi-foot"><span class="cs-trend flat">— stable</span></span></div>
+      </div>
+    </section>
+
+    <!-- HIL queue + tier split -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">2</span>
+        <div class="cs-section-title"><h2>Human-in-the-loop queue</h2><p class="cs-desc">High-risk items awaiting approval. Actioned in ChatOps, not here.</p></div>
+      </div>
+      <div class="cs-grid" style="grid-template-columns: 1.6fr 1fr;">
+        <div class="cs-table-wrap">
+          <table class="cs-table">
+            <thead><tr><th>Event</th><th>Severity</th><th>Tier</th><th>Waiting</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Enable PITR on managed database</td><td><span class="cs-sev critical">critical</span></td><td><span class="cs-tier t1">T1</span></td><td class="cs-muted">8m</td><td><span class="cs-status wait">pending</span></td></tr>
+              <tr><td>Production autoscale floor change</td><td><span class="cs-sev high">high</span></td><td><span class="cs-tier t2">T2</span></td><td class="cs-muted">21m</td><td><span class="cs-status wait">pending</span></td></tr>
+              <tr><td>Firewall rule reconcile</td><td><span class="cs-sev medium">medium</span></td><td><span class="cs-tier t0">T0</span></td><td class="cs-muted">—</td><td><span class="cs-status ok">approved</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="cs-card">
+          <h3>Tier split</h3>
+          <div class="cs-mb-16"><div class="cs-flex-between cs-mb-8"><span><span class="cs-tier t0">T0</span> deterministic</span><span class="cs-muted">76%</span></div><div class="cs-meter is-sage"><span style="width:76%"></span></div></div>
+          <div class="cs-mb-16"><div class="cs-flex-between cs-mb-8"><span><span class="cs-tier t1">T1</span> lightweight</span><span class="cs-muted">17%</span></div><div class="cs-meter"><span style="width:17%"></span></div></div>
+          <div><div class="cs-flex-between cs-mb-8"><span><span class="cs-tier t2">T2</span> reasoning</span><span class="cs-muted">7%</span></div><div class="cs-meter is-terracotta"><span style="width:7%"></span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Shadow results -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">3</span>
+        <div class="cs-section-title"><h2>Shadow results</h2><p class="cs-desc">New capabilities judge and log only, before any enforce promotion.</p></div>
+      </div>
+      <div class="cs-grid cs-grid-3">
+        <div class="cs-card"><div class="cs-flex-between cs-mb-8"><span class="cs-tag is-sage">accuracy</span><strong>98.6%</strong></div><div class="cs-meter is-sage"><span style="width:98%"></span></div><p class="cs-help">Over 7-day shadow window.</p></div>
+        <div class="cs-card"><div class="cs-flex-between cs-mb-8"><span class="cs-tag is-steel">policy escapes</span><strong>0</strong></div><div class="cs-meter"><span style="width:2%"></span></div><p class="cs-help">Required for enforce promotion.</p></div>
+        <div class="cs-card"><div class="cs-flex-between cs-mb-8"><span class="cs-tag is-terracotta">disagreement</span><strong>3.4%</strong></div><div class="cs-meter is-terracotta"><span style="width:34%"></span></div><p class="cs-help">Mixed-model cross-check; escalates to HIL.</p></div>
+      </div>
+    </section>
+
+    <!-- Audit log -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">4</span>
+        <div class="cs-section-title"><h2>Audit log</h2><p class="cs-desc">Append-only. Every terminal path writes an entry.</p></div>
+      </div>
+      <div class="cs-table-wrap">
+        <table class="cs-table">
+          <thead><tr><th>Time (UTC)</th><th>Event id</th><th>Tier</th><th>Decision</th><th>Mode</th></tr></thead>
+          <tbody>
+            <tr><td class="cs-muted">2026-07-03T09:15:04Z</td><td><code>evt-0001</code></td><td><span class="cs-tier t0">T0</span></td><td>remediation-pr opened</td><td><span class="cs-tag is-sage">shadow</span></td></tr>
+            <tr><td class="cs-muted">2026-07-03T09:14:52Z</td><td><code>evt-0002</code></td><td><span class="cs-tier t1">T1</span></td><td>reused learned action</td><td><span class="cs-tag is-steel">enforce</span></td></tr>
+            <tr><td class="cs-muted">2026-07-03T09:14:31Z</td><td><code>evt-0003</code></td><td><span class="cs-tier t2">T2</span></td><td>abstain → HIL</td><td><span class="cs-tag">n/a</span></td></tr>
+            <tr><td class="cs-muted">2026-07-03T09:13:58Z</td><td><code>evt-0004</code></td><td><span class="cs-tier t0">T0</span></td><td>no-op (compliant)</td><td><span class="cs-tag is-sage">shadow</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="cs-alert is-info" style="margin-top:16px"><div class="cs-alert-bar"></div><div><p>This surface is read-only. To approve or reject a HIL item, use the ChatOps card — the console never executes actions.</p></div></div>
+    </section>
+  </main>
+
+  <footer class="cs-footer">
+    <div class="cs-container"><span>AzureWatcher UI kit — Calm Slate theme. Read-only console demo.</span></div>
+  </footer>
+</body>
+</html>

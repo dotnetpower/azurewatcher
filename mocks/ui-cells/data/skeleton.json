@@ -1,0 +1,147 @@
+{
+  "_note": "Synthetic, customer-agnostic. GUIDs are all-zero placeholders; names use example-* prefixes.",
+  "id": "root",
+  "label": "AzureWatcher",
+  "subtitle": "Well-Architected view",
+  "g_direction": "risk",
+  "views": ["pillar", "topology", "severity"],
+  "initialView": "pillar",
+
+  "pillars": [
+    { "id": "reliability",     "label": "Reliability",             "categories": [
+      { "id": "availability",   "label": "Availability" },
+      { "id": "recovery",       "label": "Recovery" },
+      { "id": "health",         "label": "Health monitoring" }
+    ]},
+    { "id": "security",         "label": "Security",                "categories": [
+      { "id": "identity",       "label": "Identity" },
+      { "id": "network",        "label": "Network" },
+      { "id": "data",           "label": "Data protection" },
+      { "id": "secrets",        "label": "Secrets" }
+    ]},
+    { "id": "cost",             "label": "Cost Optimization",       "categories": [
+      { "id": "right-sizing",   "label": "Right-sizing" },
+      { "id": "waste",          "label": "Waste elimination" },
+      { "id": "reserved",       "label": "Reserved capacity" }
+    ]},
+    { "id": "operational",      "label": "Operational Excellence",  "categories": [
+      { "id": "automation",     "label": "Automation" },
+      { "id": "observability",  "label": "Observability" },
+      { "id": "iac",            "label": "Infrastructure as code" }
+    ]},
+    { "id": "performance",      "label": "Performance Efficiency",  "categories": [
+      { "id": "scaling",        "label": "Scaling" },
+      { "id": "caching",        "label": "Caching" },
+      { "id": "data-plane",     "label": "Data plane" }
+    ]},
+    { "id": "sustainability",   "label": "Sustainability",          "categories": [
+      { "id": "efficiency",     "label": "Efficiency" },
+      { "id": "region-choice",  "label": "Region choice" }
+    ]}
+  ],
+
+  "severities": [
+    { "id": "critical", "label": "Critical", "weight": 1.00, "riskScore": 1.00 },
+    { "id": "high",     "label": "High",     "weight": 0.75, "riskScore": 0.78 },
+    { "id": "medium",   "label": "Medium",   "weight": 0.45, "riskScore": 0.52 },
+    { "id": "low",      "label": "Low",      "weight": 0.20, "riskScore": 0.28 },
+    { "id": "info",     "label": "Info",     "weight": 0.10, "riskScore": 0.10 }
+  ],
+
+  "rules": [
+    { "id": "rel-zone-redundant-compute", "pillar": "reliability", "category": "availability", "severity": "high",     "label": "Compute is zone-redundant",         "targets": ["compute", "aks"] },
+    { "id": "rel-zone-redundant-storage", "pillar": "reliability", "category": "availability", "severity": "high",     "label": "Storage is zone-redundant",         "targets": ["storage"] },
+    { "id": "rel-multi-region-frontdoor", "pillar": "reliability", "category": "availability", "severity": "medium",   "label": "Multi-region front door",           "targets": ["network"] },
+    { "id": "rel-backup-configured",      "pillar": "reliability", "category": "recovery",     "severity": "critical", "label": "Backup configured",                 "targets": ["database", "storage"] },
+    { "id": "rel-restore-tested",         "pillar": "reliability", "category": "recovery",     "severity": "high",     "label": "Restore drill within 90d",          "targets": ["database"] },
+    { "id": "rel-runbook-published",      "pillar": "reliability", "category": "recovery",     "severity": "medium",   "label": "Runbook published",                 "targets": ["any"] },
+    { "id": "rel-health-probe",           "pillar": "reliability", "category": "health",       "severity": "medium",   "label": "Health probe configured",           "targets": ["compute", "aks"] },
+    { "id": "rel-alerts-wired",           "pillar": "reliability", "category": "health",       "severity": "high",     "label": "Critical alerts wired to on-call",  "targets": ["any"] },
+
+    { "id": "sec-mfa-enforced",           "pillar": "security",    "category": "identity",     "severity": "critical", "label": "MFA enforced for admins",           "targets": ["identity"] },
+    { "id": "sec-managed-identity",       "pillar": "security",    "category": "identity",     "severity": "high",     "label": "Workloads use managed identity",    "targets": ["compute", "aks", "functions"] },
+    { "id": "sec-rbac-least-priv",        "pillar": "security",    "category": "identity",     "severity": "high",     "label": "Least-privilege role assignments",  "targets": ["any"] },
+    { "id": "sec-private-endpoint",       "pillar": "security",    "category": "network",      "severity": "high",     "label": "Private endpoint enabled",           "targets": ["storage", "database", "servicebus"] },
+    { "id": "sec-public-ingress",         "pillar": "security",    "category": "network",      "severity": "critical", "label": "No unintended public ingress",      "targets": ["compute", "network"] },
+    { "id": "sec-tls-min-12",             "pillar": "security",    "category": "network",      "severity": "medium",   "label": "Minimum TLS 1.2",                    "targets": ["compute", "storage"] },
+    { "id": "sec-encryption-at-rest",     "pillar": "security",    "category": "data",         "severity": "critical", "label": "Encryption at rest with CMK",       "targets": ["storage", "database"] },
+    { "id": "sec-soft-delete",            "pillar": "security",    "category": "data",         "severity": "medium",   "label": "Soft-delete + immutability",        "targets": ["storage"] },
+    { "id": "sec-secrets-in-vault",       "pillar": "security",    "category": "secrets",      "severity": "critical", "label": "Secrets stored in Key Vault",       "targets": ["compute", "functions", "aks"] },
+    { "id": "sec-secret-rotation",        "pillar": "security",    "category": "secrets",      "severity": "high",     "label": "Secret rotation policy",            "targets": ["identity"] },
+
+    { "id": "cost-right-sized",           "pillar": "cost",        "category": "right-sizing", "severity": "medium",   "label": "SKU right-sized to p95 load",       "targets": ["compute", "database"] },
+    { "id": "cost-idle-resource",         "pillar": "cost",        "category": "waste",        "severity": "high",     "label": "No idle resource > 14d",             "targets": ["compute", "storage", "database"] },
+    { "id": "cost-orphan-disks",          "pillar": "cost",        "category": "waste",        "severity": "medium",   "label": "No orphan managed disks",           "targets": ["storage"] },
+    { "id": "cost-orphan-ip",             "pillar": "cost",        "category": "waste",        "severity": "low",      "label": "No orphan public IPs",               "targets": ["network"] },
+    { "id": "cost-reserved-eligible",     "pillar": "cost",        "category": "reserved",     "severity": "medium",   "label": "Reservation candidate coverage",    "targets": ["compute", "database"] },
+    { "id": "cost-savings-plan",          "pillar": "cost",        "category": "reserved",     "severity": "low",      "label": "Savings plan enrollment",           "targets": ["compute"] },
+
+    { "id": "ops-deploy-automated",       "pillar": "operational", "category": "automation",   "severity": "high",     "label": "Deploys are automated",              "targets": ["any"] },
+    { "id": "ops-manual-change-block",    "pillar": "operational", "category": "automation",   "severity": "medium",   "label": "No manual production writes",       "targets": ["any"] },
+    { "id": "ops-logs-centralized",       "pillar": "operational", "category": "observability","severity": "medium",   "label": "Logs to central workspace",          "targets": ["any"] },
+    { "id": "ops-traces-enabled",         "pillar": "operational", "category": "observability","severity": "low",      "label": "Distributed tracing enabled",       "targets": ["compute", "functions", "aks"] },
+    { "id": "ops-iac-source",             "pillar": "operational", "category": "iac",          "severity": "high",     "label": "Resource in IaC repository",         "targets": ["any"] },
+    { "id": "ops-drift-detected",         "pillar": "operational", "category": "iac",          "severity": "medium",   "label": "No IaC drift",                       "targets": ["any"] },
+
+    { "id": "perf-autoscale",             "pillar": "performance", "category": "scaling",      "severity": "medium",   "label": "Autoscale rules configured",         "targets": ["compute", "aks"] },
+    { "id": "perf-cold-start",            "pillar": "performance", "category": "scaling",      "severity": "low",      "label": "Cold-start budget met",              "targets": ["functions", "compute"] },
+    { "id": "perf-cache-hit-ratio",       "pillar": "performance", "category": "caching",      "severity": "medium",   "label": "Cache hit ratio > 0.8",              "targets": ["cache"] },
+    { "id": "perf-hot-partition",         "pillar": "performance", "category": "data-plane",   "severity": "high",     "label": "No hot partition (RU skew)",         "targets": ["database"] },
+    { "id": "perf-index-fresh",           "pillar": "performance", "category": "data-plane",   "severity": "medium",   "label": "Indexes updated < 24h",              "targets": ["database"] },
+
+    { "id": "sus-cpu-utilization",        "pillar": "sustainability", "category": "efficiency","severity": "low",      "label": "Average CPU utilization > 0.30",    "targets": ["compute", "aks"] },
+    { "id": "sus-storage-tiering",        "pillar": "sustainability", "category": "efficiency","severity": "low",      "label": "Cold data on cool/archive tier",    "targets": ["storage"] },
+    { "id": "sus-region-carbon",          "pillar": "sustainability", "category": "region-choice","severity": "info",  "label": "Lower-carbon region preferred",      "targets": ["any"] }
+  ],
+
+  "topology": {
+    "subscriptions": [
+      {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "label": "example-sub-prod",
+        "resourceGroups": [
+          { "id": "example-rg-app-prod",   "label": "example-rg-app-prod",   "resources": [
+            { "id": "res-app-01",   "label": "example-app-01",    "type": "Microsoft.App/containerApps",     "target": "compute" },
+            { "id": "res-app-02",   "label": "example-app-02",    "type": "Microsoft.App/containerApps",     "target": "compute" },
+            { "id": "res-func-01",  "label": "example-func-01",   "type": "Microsoft.Web/sites",             "target": "functions" },
+            { "id": "res-aks-01",   "label": "example-aks-01",    "type": "Microsoft.ContainerService/managedClusters", "target": "aks" }
+          ]},
+          { "id": "example-rg-data-prod",  "label": "example-rg-data-prod",  "resources": [
+            { "id": "res-pg-01",    "label": "example-pg-01",     "type": "Microsoft.DBforPostgreSQL/flexibleServers", "target": "database" },
+            { "id": "res-cosmos-01","label": "example-cosmos-01", "type": "Microsoft.DocumentDB/databaseAccounts",     "target": "database" },
+            { "id": "res-st-01",    "label": "example-st-01",     "type": "Microsoft.Storage/storageAccounts",         "target": "storage" },
+            { "id": "res-redis-01", "label": "example-redis-01",  "type": "Microsoft.Cache/redis",                      "target": "cache"    }
+          ]},
+          { "id": "example-rg-net-prod",   "label": "example-rg-net-prod",   "resources": [
+            { "id": "res-fd-01",    "label": "example-fd-01",     "type": "Microsoft.Cdn/profiles",                     "target": "network" },
+            { "id": "res-vnet-01",  "label": "example-vnet-01",   "type": "Microsoft.Network/virtualNetworks",          "target": "network" },
+            { "id": "res-pip-01",   "label": "example-pip-01",    "type": "Microsoft.Network/publicIPAddresses",        "target": "network" }
+          ]},
+          { "id": "example-rg-shared",     "label": "example-rg-shared",     "resources": [
+            { "id": "res-kv-01",    "label": "example-kv-01",     "type": "Microsoft.KeyVault/vaults",                  "target": "identity" },
+            { "id": "res-sb-01",    "label": "example-sb-01",     "type": "Microsoft.ServiceBus/namespaces",            "target": "servicebus" },
+            { "id": "res-law-01",   "label": "example-law-01",    "type": "Microsoft.OperationalInsights/workspaces",   "target": "any"     }
+          ]}
+        ]
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000002",
+        "label": "example-sub-dev",
+        "resourceGroups": [
+          { "id": "example-rg-app-dev",    "label": "example-rg-app-dev",    "resources": [
+            { "id": "res-app-11",   "label": "example-app-11",    "type": "Microsoft.App/containerApps",     "target": "compute" },
+            { "id": "res-func-11",  "label": "example-func-11",   "type": "Microsoft.Web/sites",             "target": "functions" }
+          ]},
+          { "id": "example-rg-data-dev",   "label": "example-rg-data-dev",   "resources": [
+            { "id": "res-pg-11",    "label": "example-pg-11",     "type": "Microsoft.DBforPostgreSQL/flexibleServers", "target": "database" },
+            { "id": "res-st-11",    "label": "example-st-11",     "type": "Microsoft.Storage/storageAccounts",         "target": "storage" }
+          ]},
+          { "id": "example-rg-sandbox",    "label": "example-rg-sandbox",    "resources": [
+            { "id": "res-app-21",   "label": "example-app-21",    "type": "Microsoft.App/containerApps",     "target": "compute" },
+            { "id": "res-st-21",    "label": "example-st-21",     "type": "Microsoft.Storage/storageAccounts","target": "storage" }
+          ]}
+        ]
+      }
+    ]
+  }
+}
