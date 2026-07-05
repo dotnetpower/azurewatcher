@@ -135,6 +135,25 @@ def test_bind_azure_llm_bindings_attaches_adapters(tmp_path: Path) -> None:
     assert len(bindings.cross_check_models) == 2
 
 
+def test_bind_accepts_inline_json_in_resolved_models_path() -> None:
+    """Container Apps secret refs may deliver the resolver output as an
+    env var — the composition MUST accept the JSON document inline, not
+    just a filesystem path."""
+    container = default_container(
+        _config(mode=LlmMode.AZURE, resolved_path=_resolved_models_json())
+    )
+    http = httpx.AsyncClient(transport=httpx.MockTransport(lambda _r: httpx.Response(200)))
+    finalized = bind_azure_llm_bindings(
+        container,
+        identity=_StaticIdentity(),
+        http_client=http,
+        endpoint="https://oai-test.openai.azure.com",
+    )
+    bindings = finalized.require_llm_bindings()
+    assert bindings.embedding_model is not None
+    assert len(bindings.cross_check_models) == 2
+
+
 def test_bind_rejects_non_azure_mode() -> None:
     container = default_container(_config(mode=LlmMode.LOCAL_FAKE))
     http = httpx.AsyncClient()

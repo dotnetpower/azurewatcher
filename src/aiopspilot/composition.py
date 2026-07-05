@@ -294,9 +294,21 @@ def bind_azure_llm_bindings(
 def _load_resolved_models(path_or_ref: str) -> ResolvedModels:
     """Load ``resolved-models.json``.
 
-    Filesystem-only in this build; a Key-Vault-backed loader lands with
-    the reconciler in a later phase.
+    Two shapes are accepted:
+
+    - a filesystem path — used when Container Apps mounts the KV secret
+      as a file under ``/mnt/secrets/`` (or when a dev laptop writes the
+      resolver output next to the checkout);
+    - an inline JSON document — used when the Container App reads the
+      secret through a ``secretRef`` env var (no volume-mount extension
+      required). Detected by a leading ``{`` after stripping whitespace.
+
+    A future Key-Vault-backed loader lands with the reconciler; for now
+    the filesystem / env-var pair covers the day-zero deployment.
     """
+    stripped = path_or_ref.strip()
+    if stripped.startswith("{"):
+        return ResolvedModels.from_json(stripped)
     path = Path(path_or_ref)
     if not path.exists():
         raise LlmBindingsUnavailableError(
