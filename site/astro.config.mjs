@@ -1,17 +1,32 @@
 // @ts-check
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
+import { remarkStripFirstH1 } from "./src/plugins/strip-first-h1.mjs";
 
 // GitHub Pages project page: https://dotnetpower.github.io/aiopspilot/
 // Overridable at build time via SITE_URL / BASE_PATH env vars so a fork can
 // deploy under a different owner or path without editing this file.
+//
+// Base path defaults by environment:
+//   - astro dev  (NODE_ENV=development) -> "/"          so localhost:4321/roadmap/ works
+//   - astro build (NODE_ENV=production) -> "/aiopspilot" (GitHub Pages project page)
+// An explicit BASE_PATH env always wins, so CI can override either way.
 const SITE_URL = process.env.SITE_URL ?? "https://dotnetpower.github.io";
-const BASE_PATH = process.env.BASE_PATH ?? "/aiopspilot";
+const IS_PROD = process.env.NODE_ENV === "production";
+const BASE_PATH = process.env.BASE_PATH ?? (IS_PROD ? "/aiopspilot" : "/");
 
 export default defineConfig({
   site: SITE_URL,
   base: BASE_PATH,
   trailingSlash: "ignore",
+  // Starlight auto-renders `frontmatter.title` as the page H1. The source
+  // Markdown under docs/roadmap/**/*.md keeps its own `# Title` line so it
+  // reads naturally on GitHub, so left alone the site would show two H1s
+  // back-to-back. remarkStripFirstH1 drops the first H1 iff it duplicates
+  // the front-matter title; anything else is preserved.
+  markdown: {
+    remarkPlugins: [remarkStripFirstH1],
+  },
   integrations: [
     starlight({
       title: "AIOpsPilot",
