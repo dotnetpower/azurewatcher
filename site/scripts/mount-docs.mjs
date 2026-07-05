@@ -22,7 +22,8 @@
 // docs/roadmap/*.md; edits happen there. Symlink targets are gitignored so
 // they never appear in commits or in the English-only / translation gates.
 
-import { mkdir, readdir, rm, stat, symlink } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,6 +33,7 @@ const repoRoot = resolve(siteRoot, "..");
 const docsSource = resolve(repoRoot, "docs", "roadmap");
 const docsMountEn = resolve(siteRoot, "src", "content", "docs", "roadmap");
 const docsMountKo = resolve(siteRoot, "src", "content", "docs", "ko", "roadmap");
+const staleListPath = resolve(siteRoot, "src", "data", "stale-translations.json");
 
 /**
  * Recursively walk `dir` and yield `{ absPath, relPath }` for each *.md file.
@@ -87,6 +89,54 @@ async function linkOne(sourceAbs, mountAbs) {
   await symlink(target, mountAbs);
 }
 
+/**
+ * Extract `translation_source_sha` from a Korean file's YAML front-matter.
+ * Returns null when the file has no front-matter or the field is absent.
+ */
+async function recordedSourceSha(koAbsPath) {
+  const raw = await readFile(koAbsPath, "utf8");
+  if (!raw.startsWith("---\n")) return null;
+  const closeIdx = raw.indexOf("\n---\n", 4);
+  if (closeIdx === -1) return null;
+  const frontmatter = raw.slice(4, closeIdx);
+  const match = frontmatter.match(/^translation_source_sha:\s*([0-9a-f]+)\s*$/m);
+  return match ? match[1] : null;
+}
+
+/** Current `git hash-object` of the English source, or null if the file
+ *  or git is unavailable. */
+function gitHashObject(filePath) {
+  try {
+    return execFileSync("git", ["hash-object", filePath], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Compute the mounted Starlight route slug for a Korean markdown file.
+ * Mirrors mountTargetFor() but returns the slug (no extension, index
+ * collapsed) rather than a filesystem path.
+ *
+ *   goals-and-metrics-ko.md         → ko/roadmap/goals-and-metrics
+ *   phases/phase-0-instrumentation-ko.md → ko/roadmap/phases/phase-0-instrumentation
+ *   README-ko.md                    → ko/roadmap
+ */
+function mountSlugForKo(relPath) {
+  const parts = relPath.split("/");
+  const filename = parts[parts.length - 1];
+  const bareName = filename.slice(0, -"-ko.md".length);
+  const dirParts = parts.slice(0, -1);
+  if (bareName === "README") {
+    return ["ko", "roadmap", ...dirParts].join("/");
+  }
+  return ["ko", "roadmap", ...dirParts, bareName].join("/");
+}
+
 async function main() {
   const src = await stat(docsSource).catch(() => null);
   if (!src || !src.isDirectory()) {
@@ -97,16 +147,45 @@ async function main() {
   await ensureCleanMount();
 
   let linked = 0;
+  const staleEntries = [];
   for await (const { absPath, relPath } of walkMarkdown(docsSource)) {
     const target = mountTargetFor(relPath);
     if (!target) continue;
     await linkOne(absPath, target);
     linked += 1;
+
+    // For each Korean translation, compare the recorded
+    // `translation_source_sha` against the current git hash of its
+    // English sibling. Mismatches feed the runtime banner shown on
+    // stale ko pages (Banner component override).
+    if (relPath.endsWith("-ko.md")) {
+      const recordedSha = await recordedSourceSha(absPath);
+      if (!recordedSha) continue;
+      const enPath = absPath.replace(/-ko\.md$/, ".md");
+      const currentSha = gitHashObject(enPath);
+      if (!currentSha || recordedSha === currentSha) continue;
+      staleEntries.push({
+        slug: mountSlugForKo(relPath),
+        englishSource: relative(repoRoot, enPath),
+        recordedSha,
+        currentSha,
+      });
+    }
   }
+
+  await mkdir(dirname(staleListPath), { recursive: true });
+  await writeFile(
+    staleListPath,
+    `${JSON.stringify(staleEntries, null, 2)}\n`,
+    "utf8",
+  );
 
   const relEn = relative(siteRoot, docsMountEn);
   const relKo = relative(siteRoot, docsMountKo);
   console.log(`mount-docs: linked ${linked} markdown files into ${relEn}/ and ${relKo}/`);
+  console.log(
+    `mount-docs: stale-translations.json lists ${staleEntries.length} ko page(s) whose translation_source_sha is out of date.`,
+  );
 }
 
 main().catch((err) => {

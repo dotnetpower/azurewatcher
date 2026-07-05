@@ -1,0 +1,76 @@
+---
+/*
+ * StaleTranslationBanner.astro — override of Starlight's Banner slot.
+ *
+ * When a Korean translation's `translation_source_sha` no longer
+ * matches the current git hash of its English sibling, the mount step
+ * records the affected page in src/data/stale-translations.json.
+ * This component reads that list and, when the current page appears in
+ * it, renders a prominent banner pointing readers at the up-to-date
+ * English source on GitHub. Non-stale pages (and every English page)
+ * fall through to Starlight's default Banner behaviour — i.e. respect
+ * the `banner` front-matter field if the doc author set one.
+ *
+ * Banner text is Korean because stale entries are always Korean pages;
+ * anything else would be misleading.
+ */
+
+import Default from "@astrojs/starlight/components/Banner.astro";
+import staleList from "../data/stale-translations.json";
+
+interface StaleEntry {
+  slug: string;
+  englishSource: string;
+  recordedSha: string;
+  currentSha: string;
+}
+
+const entries = staleList as StaleEntry[];
+
+// Starlight v0.36 exposes route metadata via Astro.locals.starlightRoute.
+// entry.id follows Astro's content-collection convention: the file path
+// relative to src/content/docs/ *without* the .md extension, so it
+// matches the slug we emit from mount-docs.mjs directly.
+const route = Astro.locals.starlightRoute;
+const slug = route?.entry?.id ?? "";
+const staleEntry = entries.find((e) => e.slug === slug);
+
+// If the doc author set an explicit banner in front-matter, defer to
+// Starlight's default so we do not stomp on it.
+const hasAuthoredBanner = Boolean(route?.entry?.data?.banner);
+---
+
+{hasAuthoredBanner && <Default {...Astro.props} />}
+
+{!hasAuthoredBanner && staleEntry && (
+  <aside class="stale-translation-banner" role="note" aria-label="Stale translation notice">
+    <p>
+      <strong>⚠ 이 한국어 번역은 최신 영문 원본과 다를 수 있습니다.</strong>
+      영문 원본이 개정된 이후 번역이 아직 갱신되지 않았습니다.
+    </p>
+    <p>
+      <a href={`https://github.com/dotnetpower/aiopspilot/blob/main/${staleEntry.englishSource}`}>
+        영문 원본 보기 →
+      </a>
+    </p>
+  </aside>
+)}
+
+<style>
+  .stale-translation-banner {
+    border: 1px solid var(--sl-color-orange, #d18b0a);
+    background: color-mix(in srgb, var(--sl-color-orange, #d18b0a) 12%, transparent);
+    border-radius: 0.5rem;
+    padding: 0.9rem 1.1rem;
+    margin: 0 0 1.5rem 0;
+    font-size: var(--sl-text-sm);
+    line-height: 1.55;
+  }
+  .stale-translation-banner p {
+    margin: 0.25rem 0;
+  }
+  .stale-translation-banner a {
+    color: var(--sl-color-text-accent);
+    font-weight: 600;
+  }
+</style>
