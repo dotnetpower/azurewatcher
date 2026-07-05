@@ -51,6 +51,19 @@ then decides whether the resulting action auto-executes or waits for approval.
 
 AIOpsPilot is a good fit when **all** of these are true:
 
+```mermaid
+flowchart TB
+  Q1{Do operators<br/>repeatedly approve or<br/>roll back the same<br/>types of events?}
+  Q1 -->|no| N1[Not the fit yet — the<br/>deterministic tier has<br/>nothing repeatable to<br/>automate.]
+  Q1 -->|yes| Q2{Is infrastructure<br/>expressed as IaC and<br/>policy-as-code?}
+  Q2 -->|no| N2[Not the fit yet — T0<br/>needs machine-readable<br/>rules to run.]
+  Q2 -->|yes| Q3{Is a baseline<br/>reproducible for<br/>measuring gains?}
+  Q3 -->|no| N3[Build the baseline first<br/>Phase 0 exists precisely<br/>for this.]
+  Q3 -->|yes| Q4{Are you on Azure?}
+  Q4 -->|no| N4[Adapter is TBD for other<br/>CSPs. Not shipped yet.]
+  Q4 -->|yes| OK[✓ AIOpsPilot fits.<br/>Start with Phase 0.]
+```
+
 - Operators already spend real time approving or rolling back repeatable
   cloud-configuration events (drift, cost regressions, policy violations).
 - Your infrastructure is expressed as IaC and policy-as-code (or you are
