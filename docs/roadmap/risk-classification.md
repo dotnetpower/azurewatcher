@@ -1,3 +1,6 @@
+---
+title: Risk Classification (auto vs HIL vs deny)
+---
 # Risk Classification (auto vs HIL vs deny)
 
 The risk gate ([architecture.instructions.md § Control Loop](../../.github/instructions/architecture.instructions.md#control-loop))

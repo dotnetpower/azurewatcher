@@ -1,6 +1,7 @@
 ---
+title: AIOpsPilot 로드맵
 translation_of: README.md
-translation_source_sha: 55624c5ac5d1302f6c9ef97989700b55f6409edf
+translation_source_sha: 50b9504c45d62f12b91bc95d01ac2e47644f1768
 translation_revised: 2026-07-05
 ---
 

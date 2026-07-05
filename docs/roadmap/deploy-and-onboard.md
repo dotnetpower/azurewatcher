@@ -1,3 +1,6 @@
+---
+title: Deploy and Onboard
+---
 # Deploy and Onboard
 
 How to provision AIOpsPilot into an Azure subscription and complete first-time onboarding
@@ -61,6 +64,68 @@ All identifiers are synthetic per
   [tech-stack.md](tech-stack.md).
 - Same signed image is promoted `dev → staging → prod`; nothing is rebuilt per environment
   ([deployment.md](deployment.md)).
+
+## Resource Naming Convention
+
+Every Azure resource this repo provisions follows the **Microsoft Cloud Adoption Framework
+(CAF)** abbreviation convention. Names are deterministic, deployment-agnostic, and safe to
+grep for — a rename is a Terraform diff, never a hand-edit.
+
+Pattern:
+
+```
+<caf-prefix>-<workload>[-<component>][-<env>][-<region>][-<instance>]
+```
+
+- **workload** is the fixed literal `aiopspilot` (product name, not a customer identifier —
+  allowed under [generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md)).
+- **component** is added only when one resource kind is provisioned more than once
+  (e.g. `ca-aiopspilot-core` vs a future `ca-aiopspilot-worker`).
+- **env** (`dev`/`staging`/`prod`) and **region** (`krc`/`weu`/`eus`) suffixes are added only
+  when the resource is deployed side-by-side; the day-zero deployment keeps names
+  suffix-free.
+- **instance** (`01`, `02`, …) is added only when multiple copies exist in one env.
+
+The default **resource group** is `rg-aiopspilot` (fixed by user directive). Everything the
+system provisions lives under that RG unless a resource type requires a subscription-scope
+placement (none today).
+
+### CAF prefixes for the day-zero inventory
+
+| Resource | CAF prefix | Char rules | Example name |
+|----------|------------|------------|--------------|
+| Resource Group | `rg-` | 1–90; alphanumerics + hyphens/underscores | `rg-aiopspilot` |
+| User-assigned Managed Identity | `id-` | 3–128 | `id-aiopspilot-executor` |
+| Container Apps environment | `cae-` | 2–32; alphanumerics + hyphens | `cae-aiopspilot` |
+| Container App (core) | `ca-` | 2–32 | `ca-aiopspilot-core` |
+| Container Apps Job (out-of-band) | `caj-` | 2–32 | `caj-aiopspilot-oob` |
+| Event Hubs namespace | `evhns-` | 6–50 | `evhns-aiopspilot` |
+| PostgreSQL Flexible Server | `psql-` | 3–63; lowercase | `psql-aiopspilot` |
+| Key Vault | `kv-` | 3–24; alphanumerics + hyphens | `kv-aiopspilot` |
+| **Container Registry (ACR)** | `cr` | 5–50; **alphanumeric only, no hyphens** | `craiopspilot` |
+| Log Analytics workspace | `log-` | 4–63 | `log-aiopspilot` |
+| Azure Bot (HIL Adaptive Cards) | `bot-` | 2–64 | `bot-aiopspilot` |
+| Static Web App (read-only console) | `stapp-` | 2–40 | `stapp-aiopspilot` |
+
+### Length-safety rules (MUST)
+
+- **ACR names never contain hyphens**; the prefix `cr` is fused with the workload token
+  (`craiopspilot`). When env/region suffixes join, do NOT reintroduce hyphens — use one
+  continuous lowercase alphanumeric string (e.g. `craiopspilotdevkrc01`).
+- **Storage account** (if ever added) is 24-char lowercase alphanumeric only — same
+  no-hyphen rule (`staiopspilot…`).
+- If a legal name exceeds the character limit after adding env/region/instance, use the
+  documented short-name `aip` in place of `aiopspilot` — and only for that resource kind.
+  Do not sprinkle `aip` where the full name still fits.
+
+### What this rule forbids
+
+- **No random or opaque suffixes** in Terraform (`craiopspilotcyutlgcnv3` from a hash source
+  is a review blocker). Determinism is a debugging tool.
+- **No customer names or environment values baked into the identifier** — those live in
+  `*.tfvars` and the tag map, never in the resource name.
+- **No inline naming logic in Python** — the app reads whatever it is handed via env vars;
+  the name is decided in `infra/` at plan time.
 
 ## Azure Resource Inventory (minimum set)
 

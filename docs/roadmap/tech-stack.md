@@ -1,3 +1,6 @@
+---
+title: Technology Stack
+---
 # Technology Stack
 
 Choices favor **CSP-neutral, OSS-first** components so the control plane stays portable and

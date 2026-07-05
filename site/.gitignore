@@ -3,6 +3,11 @@ node_modules/
 dist/
 .astro/
 
+# Generated symlinks (see scripts/mount-docs.mjs). Regenerated on every
+# `npm run dev` / `npm run build` from docs/roadmap/, which stays canonical.
+src/content/docs/roadmap/
+src/content/docs/ko/
+
 # Environment overrides (site can be built for a fork without editing config)
 .env
 .env.*

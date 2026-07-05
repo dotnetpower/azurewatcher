@@ -1,3 +1,6 @@
+---
+title: Project Structure
+---
 # Project Structure
 
 The system is a **headless control plane + thin console + ChatOps**, not one web app
@@ -29,6 +32,7 @@ aiopspilot/
 │   │   │   ├── rule/          # rule/schema.json
 │   │   │   └── ontology/      # object-type / link-type / action-type JSON Schemas
 │   │   ├── providers/         # CSP-neutral cloud provider interfaces (adapters implement them)
+│   │   ├── streaming/         # SSE broadcaster (Kafka → outbound text/event-stream relay)
 │   │   ├── telemetry/         # structured logging, tracing, metric helpers
 │   │   └── config/            # config schema + startup validation (fail-fast)
 │   ├── delivery/              # action delivery adapters (behind one shared interface)
@@ -44,6 +48,23 @@ aiopspilot/
 │   └── sources/               # per-source rule snapshots + provenance
 ├── policies/                  # OPA/Rego policy-as-code consumed by T0 and the verifier
 ├── infra/                     # IaC: Terraform (HCL); entry command `terraform apply`
+│   ├── modules/
+│   │   ├── resource-group/          # rg-aiopspilot; CAF-named per deploy-and-onboard.md
+│   │   ├── identity/                # user-assigned Managed Identity for the executor
+│   │   ├── compute/                 # runtime seam — alternates in siblings
+│   │   │   └── container-apps/      # default (Consumption + KEDA)
+│   │   ├── state-store/             # audit + KPI + pgvector
+│   │   │   └── postgres-flex/       # default
+│   │   ├── event-bus/               # Kafka wire
+│   │   │   └── event-hubs-kafka/    # default (Event Hubs, :9093)
+│   │   ├── secret-store/            # env + Key Vault reference bridge
+│   │   │   └── key-vault/           # default
+│   │   └── observability/           # Log Analytics + App Insights bound to it
+│   │       └── log-analytics/       # default
+│   └── envs/                        # per-env tfvars (git-ignored; never committed)
+│       ├── dev/
+│       ├── staging/
+│       └── prod/
 ├── console/                   # (future) thin read-only SPA — placeholder
 ├── ui/                        # (future) static UI kit (Calm Slate theme) — placeholder
 ├── tests/                     # cross-subsystem regression suites + shared fixtures
@@ -128,9 +149,20 @@ non-Azure phase registers a new implementation at the composition root without e
 | Delivery adapter | delivery interface | — | `gitops-pr` / `chatops` | a different PR host / chat channel |
 | Risk scoring & thresholds | risk-gate config | — | generic thresholds | customer risk policy |
 | Model provider | model client (per capability) | — | configured default endpoints | customer-approved models |
+| **Real-time outbound stream** | `SseSink` (async publish + async-iterator subscribe over an SSE-shaped payload) | — | `InMemorySseSink` (test/dev); HTTP `text/event-stream` adapter lands with the console read-only surface | replace with a WebSocket adapter for a two-way surface; a webhook-only variant for headless observers. `shared/streaming/SseBroadcaster` relays `EventBus` topics into channels. |
+| **Infra module** | `infra/modules/<seam>/` (Terraform sub-module selected by `var.<seam>_kind`) | — | Container Apps + PostgreSQL Flex + Event Hubs Kafka + Key Vault + Log Analytics | pick a different sub-module per [csp-neutrality.md § Approved Alternative Azure Implementations](csp-neutrality.md#approved-alternative-azure-implementations); the module's output contract stays fixed |
 
 Because every seam is an injected interface, adding a customer or a second cloud is a matter of
 registering an implementation — the strict one-way dependency direction above is preserved.
+
+**Concurrency posture**: the four **I/O provider Protocols** — `EventBus`, `StateStore`,
+`SecretProvider`, `WorkloadIdentity` — are **async by default**. Their concrete
+implementations (Kafka client, asyncpg, Key Vault HTTP, OIDC token exchange) block the event
+loop if forced to be sync. The **CPU / startup seams** — `SchemaRegistry`,
+`ContractValidator` / `EventValidator`, `ConfigProvider` — stay **sync**: they run once at
+startup, or are pure CPU boundary validation with no I/O, so an async wrapper would only add
+noise. Tests use `pytest-asyncio` with `asyncio_mode = "auto"` so a plain `async def
+test_...` runs without a per-test marker.
 
 ## Control-Loop Wiring
 

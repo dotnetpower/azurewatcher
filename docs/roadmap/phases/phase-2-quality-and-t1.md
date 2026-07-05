@@ -1,3 +1,6 @@
+---
+title: "Phase 2 — Continuous Rule Update, Quality Gate, and T1"
+---
 # Phase 2 — Continuous Rule Update, Quality Gate, and T1
 
 **Goal**: keep the deterministic layer fresh, make LLM (T2) output safe to trust, add the T1

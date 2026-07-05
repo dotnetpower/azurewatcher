@@ -1,6 +1,7 @@
 ---
+title: 규칙 카탈로그 수집(Rule Catalog Collection)
 translation_of: rule-catalog-collection.md
-translation_source_sha: c950fc66ecb52760dcd33e597f145d4a92fade12
+translation_source_sha: 9f0377eab52fcc73aee6447578d22f834909e833
 translation_revised: 2026-07-05
 ---
 

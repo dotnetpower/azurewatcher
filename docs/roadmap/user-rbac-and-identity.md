@@ -1,3 +1,6 @@
+---
+title: User RBAC and Entra Identity
+---
 # User RBAC and Entra Identity
 
 How **human users** authenticate, are authorized, and are audited across the console,

@@ -1,3 +1,6 @@
+---
+title: Deployment
+---
 # Deployment
 
 Deployment follows the app shape: a **headless, event-driven core** that scales to zero, a

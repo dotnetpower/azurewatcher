@@ -37,14 +37,13 @@ export default defineConfig({
           label: "Roadmap",
           autogenerate: { directory: "roadmap" },
         },
-        {
-          label: "Phases",
-          autogenerate: { directory: "roadmap/phases" },
-        },
       ],
-      // "Edit this page" is wired later once the roadmap docs are mounted;
-      // it will point at the canonical .md under docs/roadmap so contributors
-      // land on the source of truth, not the built page.
+      editLink: {
+        // "Edit this page" points at the canonical Markdown under
+        // docs/roadmap/, not at the mounted symlink. Contributors land on
+        // the source of truth.
+        baseUrl: "https://github.com/dotnetpower/aiopspilot/edit/main/",
+      },
     }),
   ],
 });

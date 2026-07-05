@@ -1,6 +1,7 @@
 ---
+title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: 0e4e2c92aa7badaddd2d8d74ddd77dfbaa41d4fe
+translation_source_sha: f681e9feb1ec07aa70f179738ce4852e758a8256
 translation_revised: 2026-07-05
 ---
 
@@ -17,36 +18,63 @@ translation_revised: 2026-07-05
 
 ```text
 aiopspilot/
-├── core/                      # headless 컨트롤 플레인 (UI 없음, 클라우드 SDK 직접 import 없음)
-│   ├── event-ingest/          # 버스 컨슈머; 이벤트 스키마로 정규화; idempotency key로 dedup; 관련 이벤트를 인시던트로 상관 연결
-│   ├── trust-router/          # 계산된 신뢰도로 각 이벤트를 T0 | T1 | T2 로 라우팅
-│   ├── tiers/
-│   │   ├── t0-deterministic/  # deterministic-engine: policy, checklist, what-if, drift eval
-│   │   ├── t1-lightweight/    # 임베딩 유사도, 학습된 액션 재사용, 소형 모델 분류
-│   │   └── t2-reasoning/      # 신규/모호 케이스에만 사용하는 프론티어 모델 추론
-│   ├── quality-gate/          # mixed-model 교차 검사, verifier, grounding (T2 방어)
-│   ├── risk-gate/             # 리스크 스코어링; auto vs HIL; 4개 안전 불변식 강제
-│   ├── executor/              # 리소스별 락, 딜리버리 어댑터로 멱등 적용
-│   └── audit/                 # append-only 감사 로그, 추적 상태, KPI/메트릭 발행
-├── rule-catalog/              # catalog-as-code: 정규화·버전된 규칙
-│   ├── schema/                # 규칙 스키마 (semver) + 검증
-│   ├── sources/               # 소스별 컬렉터 (WAF, CIS, OPA, IaC scanners, ...)
-│   └── pipeline/              # watch → collect → shadow eval → regression → promote/rollback
+├── src/aiopspilot/            # Python (3.12+, src-layout); 모노레포 전체가 하나의 언어
+│   ├── core/                  # headless 컨트롤 플레인 (UI 없음, 클라우드 SDK 직접 import 없음)
+│   │   ├── event_ingest/      # 버스 컨슈머; 이벤트 스키마로 정규화; idempotency key로 dedup; 관련 이벤트를 인시던트로 상관 연결
+│   │   ├── trust_router/      # 계산된 신뢰도로 각 이벤트를 T0 | T1 | T2 로 라우팅
+│   │   ├── tiers/
+│   │   │   ├── t0_deterministic/  # deterministic-engine: policy, checklist, what-if, drift eval
+│   │   │   ├── t1_lightweight/    # 임베딩 유사도, 학습된 액션 재사용, 소형 모델 분류
+│   │   │   └── t2_reasoning/      # 신규/모호 케이스에만 사용하는 프론티어 모델 추론
+│   │   ├── quality_gate/      # mixed-model 교차 검사, verifier, grounding (T2 방어)
+│   │   ├── risk_gate/         # 리스크 스코어링; auto vs HIL; 4개 안전 불변식 강제
+│   │   ├── executor/          # 리소스별 락, 딜리버리 어댑터로 멱등 적용
+│   │   └── audit/             # append-only 감사 로그, 추적 상태, KPI/메트릭 발행
+│   ├── shared/                # 크로스컷팅; core/ 로부터 import 금지
+│   │   ├── contracts/         # models.py + registry.py + validation.py + JSON 스키마들
+│   │   │   ├── event/         # event/schema.json
+│   │   │   ├── action/        # action/schema.json
+│   │   │   ├── rule/          # rule/schema.json
+│   │   │   └── ontology/      # object-type / link-type / action-type JSON 스키마
+│   │   ├── providers/         # CSP-중립 클라우드 프로바이더 인터페이스 (어댑터가 구현)
+│   │   ├── streaming/         # SSE broadcaster (Kafka → 외부 text/event-stream 릴레이)
+│   │   ├── telemetry/         # 구조화 로깅, 트레이싱, 메트릭 헬퍼
+│   │   └── config/            # config 스키마 + 시작 시 검증 (fail-fast)
+│   ├── delivery/              # 액션 딜리버리 어댑터 (공유 인터페이스 뒤)
+│   │   ├── gitops_pr/         # remediation-pr 어댑터: GitHub App / Azure DevOps, Checks API
+│   │   └── chatops/           # 채널 어댑터 (Teams / Slack / email / webhook / pager / SMS)
+│   └── rule_catalog/          # rule-catalog 파이프라인 코드
+│       ├── schema/            # 규칙 스키마 (semver) + 검증
+│       ├── sources/           # 소스별 컴렉터 (WAF, CIS, OPA, IaC scanners, ...)
+│       └── pipeline/          # watch → collect → shadow eval → regression → promote/rollback
+├── src/aiopspilot/composition.py  # composition root: default_container() 가 모든 seam 을 바인딩
+├── rule-catalog/              # catalog-as-code 데이터 (YAML) — Python 아님; 파이프라인은 src/aiopspilot/rule_catalog/ 에
+│   ├── schema/                # JSON Schema 정의 (데이터)
+│   └── sources/               # 소스별 규칙 스냅샷 + provenance
 ├── policies/                  # T0와 verifier가 소비하는 OPA/Rego policy-as-code
-├── delivery/                  # 액션 딜리버리 어댑터 (공유 인터페이스 뒤)
-│   ├── gitops-pr/             # remediation-pr 어댑터: GitHub App / Azure DevOps, Checks API
-│   └── chatops/               # 채널 어댑터 (Teams / Slack / email / webhook / pager / SMS)
-│                              # Channel 계약은 channels-and-notifications.md 참조
-├── console/                   # 읽기 전용 얇은 SPA: KPI 대시보드, 감사, shadow, HIL 큐
-├── ui/                        # 정적 UI 킷 (Calm Slate 테마): 컴포넌트 갤러리 + 페이지 템플릿
-├── infra/                     # IaC (Bicep 및/또는 Terraform): 환경, 파이프라인
-├── shared/                    # 크로스컷팅; core/ 로부터 import 금지
-│   ├── contracts/             # 온톨로지 타입 (Resource / Rule / Signal / Finding) + event / action / rule 스키마 (버전) + 생성 타입
-│   ├── providers/             # CSP-중립 클라우드 프로바이더 인터페이스 (어댑터가 구현)
-│   ├── telemetry/             # 구조화 로깅, 트레이싱, 메트릭 헬퍼
-│   └── config/                # config 스키마 + 시작 시 검증 (fail-fast)
+├── infra/                     # IaC: Terraform (HCL); 엔트리 커맨드 `terraform apply`
+│   ├── modules/
+│   │   ├── resource-group/          # rg-aiopspilot; deploy-and-onboard-ko.md 에 따라 CAF 명명
+│   │   ├── identity/                # executor 를 위한 user-assigned Managed Identity
+│   │   ├── compute/                 # runtime seam — 대안은 형제 폴더에
+│   │   │   └── container-apps/      # 기본 (Consumption + KEDA)
+│   │   ├── state-store/             # audit + KPI + pgvector
+│   │   │   └── postgres-flex/       # 기본
+│   │   ├── event-bus/               # Kafka 와이어
+│   │   │   └── event-hubs-kafka/    # 기본 (Event Hubs, :9093)
+│   │   ├── secret-store/            # env + Key Vault reference 브릿지
+│   │   │   └── key-vault/           # 기본
+│   │   └── observability/           # Log Analytics + 여기 바인딩된 App Insights
+│   │       └── log-analytics/       # 기본
+│   └── envs/                        # 환경별 tfvars (git-ignored; 커밋 금지)
+│       ├── dev/
+│       ├── staging/
+│       └── prod/
+├── console/                   # (미래) 읽기 전용 얇은 SPA — placeholder
+├── ui/                        # (미래) 정적 UI 킷 (Calm Slate 테마) — placeholder
 ├── tests/                     # 크로스-서브시스템 회귀 스위트 + 공유 픽스처
 ├── docs/roadmap/              # 이 로드맵과 설계 문서
+├── pyproject.toml             # Python 모노레포의 단일 매니페스트
 └── .github/                   # instructions/ 와 workflows/ (CI: lint, secret-scan, coverage)
 ```
 
@@ -127,9 +155,19 @@ phase 는 `core/` 를 편집하지 않고 composition root 에서 새 구현을 
 | Delivery adapter | delivery 인터페이스 | — | `gitops-pr` / `chatops` | 다른 PR 호스트 / 채팅 채널 |
 | Risk scoring & thresholds | risk-gate config | — | 범용 임계값 | 고객 리스크 정책 |
 | Model provider | model client (capability별) | — | 설정된 기본 엔드포인트 | 고객 승인 모델 |
+| **실시간 아웃바운드 스트림** | `SseSink` (async publish + async-iterator subscribe, SSE 페이로드) | — | `InMemorySseSink` (테스트/데브); HTTP `text/event-stream` 어댑터는 콘솔 read-only 표면과 함께 랜딩 | 양방향 표면이 필요하면 WebSocket 어댑터로 교체; 헤드리스 observer는 webhook 전용. `shared/streaming/SseBroadcaster` 가 `EventBus` 토픽을 채널로 릴레이. |
+| **Infra module** | `infra/modules/<seam>/` (Terraform 서브-모듈, `var.<seam>_kind` 로 선택) | — | Container Apps + PostgreSQL Flex + Event Hubs Kafka + Key Vault + Log Analytics | [csp-neutrality-ko.md § 승인된 대안 Azure 구현](csp-neutrality-ko.md#승인된-대안-azure-구현approved-alternative-azure-implementations) 에 따라 다른 서브-모듈 선택; 모듈의 output 계약은 고정 유지 |
 
 모든 seam이 주입되는 인터페이스이므로 고객 추가나 두 번째 클라우드는 구현 등록 문제입니다 —
 위의 엄격한 단방향 의존 방향이 보존됩니다.
+
+**동시성 자세**: 네 개의 **I/O provider Protocol** — `EventBus`, `StateStore`,
+`SecretProvider`, `WorkloadIdentity` — 은 **기본 async** 입니다. 구체 구현 (Kafka 클라이언트,
+asyncpg, Key Vault HTTP, OIDC 토큰 교환) 을 sync 로 강제하면 event loop 를 블록합니다.
+**CPU / startup seam** — `SchemaRegistry`, `ContractValidator` / `EventValidator`,
+`ConfigProvider` — 은 **sync 유지**: 시작 시 한 번 실행되거나, I/O 없는 순수 CPU 경계
+검증이므로 async 래퍼는 노이즈만 추가합니다. 테스트는 `pytest-asyncio` + `asyncio_mode =
+"auto"` 로 실행되어 평범한 `async def test_...` 가 per-test 마커 없이 동작합니다.
 
 ## 컨트롤 루프 배선
 

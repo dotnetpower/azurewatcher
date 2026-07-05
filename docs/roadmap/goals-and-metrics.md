@@ -1,3 +1,6 @@
+---
+title: Goals and Metrics
+---
 # Goals and Metrics
 
 The roadmap optimizes for **autonomy with proof**. Every autonomy claim is backed by a

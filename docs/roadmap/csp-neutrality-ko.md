@@ -1,6 +1,7 @@
 ---
+title: CSP-중립성 계약
 translation_of: csp-neutrality.md
-translation_source_sha: 8a7e6d87b801c98aefbdf73e0df0b331b46e190b
+translation_source_sha: 9d6acd7945fb640891be96604689b2ee001068a2
 translation_revised: 2026-07-05
 ---
 
@@ -21,6 +22,13 @@ translation_revised: 2026-07-05
 코어가 클라우드 프로바이더에서 접근하는 모든 것은 벤더 SDK 가 아니라 **관심사당 하나의
 와이어 수준 계약** 을 통해야 합니다. 각 계약의 Azure 구현이 오늘 우리가 만드는 것이며,
 fork 나 미래 phase 는 `core/` 를 편집하지 않고 **같은 계약** 의 새 구현을 등록해서 다른 CSP 를 추가합니다.
+
+**동시성(Concurrency)**: 네 개의 provider Protocol 은 **기본 async** 입니다 (Kafka poll
+loop, Postgres asyncpg, Key Vault HTTP, OIDC 토큰 교환은 모두 I/O bound). Sync 는 event loop
+를 블록하지 않도록 CPU / startup 전용 seam — `SchemaRegistry`, `ContractValidator`,
+`ConfigProvider` — 에만 남겨둡니다. 정본 seam 리스트는
+[project-structure-ko.md § 주입 가능한 Seams](project-structure-ko.md#주입-가능한-seams)
+참조.
 
 CSP 접촉면을 지배하는 네 개의 계약:
 
@@ -182,6 +190,43 @@ executor 는 런타임 서브스트레이트에서 얻은 **짧은 수명의 OID
 Kafka 와이어 전용입니다. 프로바이더 네이티브 pub/sub 은 오직 **Kafka 버스로 이벤트를 넣는
 소스** (예: Event Hubs Kafka 토픽으로 forward 하는 Event Grid subscription) 로만
 사용되고, 절대 `core/` 의 런타임 의존이 아닙니다.
+
+## 승인된 대안 Azure 구현(Approved Alternative Azure Implementations)
+
+네 개의 와이어-레벨 계약이 이미 코어를 CSP-이식 가능하게 유지합니다. 이 표는 각 계약이
+`core/` 를 건드리지 않고 스왑할 수 있는 **Azure 내부** 대안을 나열합니다. 스왑은
+**infra 모듈 경계**에서 일어남 — fork 가 `infra/modules/<seam>/` 아래 다른 서브-모듈을
+고르거나 (또는 순수 코드 레벨 변경이면 composition root에서 DI 바인딩 오버라이드).
+"유지되는 것" 컬럼의 모든 것은 계약이지 구현이 아니며 스왑 전체에서 보존됩니다;
+"변하는 것" 은 스왑된 모듈과 그 즉시 config 에 국한됩니다.
+
+| Seam | Day-zero 기본 | 승인된 대안(Azure) | 스왑 시 변경 | 유지되는 것(계약) |
+|------|--------------|-------------------|-------------|-------------------|
+| Event bus | Event Hubs Standard (Kafka `:9093`) | **Strimzi** 통한 AKS 위 Kafka; **Confluent Cloud** (멀티 클라우드 관리형); AKS 위 **Redpanda** | broker 엔드포인트, 인증 메커니즘, 비용 프로파일 | Kafka 와이어 프로토콜, 토픽 + DLQ 명명(`<topic>.dlq`), idempotency key, partition-key로 순서 |
+| Runtime | Container Apps (Consumption + KEDA) | **AKS** + Knative Serving + KEDA; 버스트/바인딩용 **Azure Functions** (Premium plan); 공개 HTTPS surface 필요 시 **App Service** | 스케일 트리거 렌더링, 프로브 배선, 사이드카 레이아웃 | OCI 이미지, Knative 호환 매니페스트 서브셋, `/healthz` + `/readyz` 계약, `scale-on:kafka-lag` 신호 |
+| State store | PostgreSQL Flexible + `pgvector` | RU-미터링과 지역 write가 단일 primary를 초과할 때 **Cosmos DB** (SQL API); TDE / SQL-Server 호환이 필수일 때 **Azure SQL Managed Instance** | SQL 방언, 마이그레이션 도구, RU 비용 모델 | audit hash-chain 스키마, 버전된 event/action/rule 계약, `SchemaRegistry`+`ContractValidator` seam |
+| Vector store | `pgvector` (state store와 co-located) | **Azure AI Search** 벡터 인덱스; AKS 위 **Qdrant** / **Milvus** | 인덱스 타입(HNSW/IVFFlat), 거리 metric, refresh 경로 | 임베딩 차원, 모델 선택(설정), T1 유사도 임계값 |
+| Secret | Container Apps native `secret` + Key Vault reference | Key Vault 를 가리키는 `SecretStore` CRD 로 **AKS + External Secrets Operator**; FIPS-규제 데이터용 **Key Vault Premium** (HSM-backed) | 주입 레이어(Container Apps native ↔ ESO) | env-var-only 읽기, upper-snake env 이름, 시작 시 fail-closed, `core/` 에 SDK 호출 없음 |
+| Workload identity | User-assigned MI | **Federated workload identity** (GH Actions OIDC ↔ Entra federated credential; AKS workload identity federation); 리소스 principal 이 단일-소유자일 때 **System-assigned MI** | trust 설정과 토큰 audience | `WorkloadIdentity` 인터페이스, JIT-스코프 롤, cross-domain assumption 거부 |
+| Container registry | ACR Basic | **ACR Standard/Premium** (지역 replication, 프라이빗 엔드포인트); 외부 레지스트리로 **GHCR** 또는 **Docker Hub** | 티어 비용, 서명 + attestation 위치 | pin-by-digest, `latest` 없음, SBOM + provenance 기록 |
+| Observability | Log Analytics workspace + 여기 바인딩된 App Insights | 독립형 Application Insights; **Grafana Managed for Azure** + Prometheus + Loki; OTel exporter 뒤의 벤더 APM | 대시보드, 알림 규칙, 보존 가격 | OpenTelemetry SDK, `correlation_id`, KPI 당 하나의 원격측정 소스 |
+| HIL chat | Bot Framework / Teams 통한 Azure Bot(Free) | Container App 위 **커스텀 웹훅 어댑터**; [`chatops`] delivery 어댑터 통한 Slack 네이티브 봇 | 인증된 전송, Adaptive Card 렌더러 | approval-message 계약, action-bound HIL id, fail-closed 타임아웃 |
+| Read-only 콘솔 호스팅 | Static Web Apps (Free) | Storage static-website + **Front Door**; **App Service Static Sites** | HTTPS surface, 커스텀 도메인 배선 | 읽기 전용 보장, Entra sign-in, privileged 호출 없음 |
+
+**전체 표에 걸친 규칙 (MUST):**
+
+- 모든 대안은 기본 모듈이 노출하는 **같은 output 계약** 을 사용 (`endpoint`,
+  `identity_resource_id`, `secret_ref_envelope`, `event_topic_names`, …) 하므로 downstream
+  Terraform / `main.tf` composition 이 대안에 따라 분기하지 않음.
+- 대안은 **별도 Terraform 서브-모듈** 로 `infra/modules/<seam>/` 아래 배송, 최상위
+  `var.<seam>_kind` (예: `var.runtime_kind = "container_apps"`) 로 선택.
+- 어떤 대안도
+  [deploy-and-onboard-ko.md § 리소스 명명 규약](deploy-and-onboard-ko.md#리소스-명명-규약resource-naming-convention)
+  을 지켜야 함; 스왑이 손으로 뽑은 이름을 허용하지 않음.
+- 대안은 **필요할 때 빌드** — W4.1 과 함께 기본만 랜딩. 대안 추가는 자체 PR, 자체 shadow-mode
+  검증.
+- 어떤 대안도 `core/` 에 벤더 SDK 의존을 재도입할 수 없음. 이것은 원래의 CSP-중립성 규칙이고
+  이깁니다.
 
 ## 비-Azure 경로 (Additive)
 

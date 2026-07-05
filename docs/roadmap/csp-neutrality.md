@@ -1,3 +1,6 @@
+---
+title: CSP-Neutrality Contracts
+---
 # CSP-Neutrality Contracts
 
 Names the concrete **contracts** that keep the core CSP-neutral even though
@@ -17,6 +20,13 @@ Anything the core touches from a cloud provider MUST be reached through **one wi
 contract per concern**, not through a vendor SDK. The Azure implementation of each contract
 is what we build today; a fork or a future phase adds another CSP by registering a new
 implementation of the **same contract**, without editing `core/`.
+
+**Concurrency**: the four provider Protocols are **async by default** (Kafka poll loop,
+Postgres asyncpg, Key Vault HTTP, OIDC token exchange are all I/O-bound). Sync is reserved
+for CPU / startup-only seams — `SchemaRegistry`, `ContractValidator`, `ConfigProvider` — so
+they do not block the event loop. See
+[project-structure.md § Injectable Seams](project-structure.md#injectable-seams) for the
+canonical seam list.
 
 Four contracts govern the CSP-touching surface:
 
@@ -186,6 +196,44 @@ contract is what does not change.
 event bus is Kafka wire only. Any provider-native pub/sub is used solely as a **source of
 events into the Kafka bus** (e.g. an Event Grid subscription that forwards to an Event Hubs
 Kafka topic) and never as a runtime dependency of `core/`.
+
+## Approved Alternative Azure Implementations
+
+The four wire-level contracts already keep the core CSP-portable. This table lists the
+**Azure-internal** alternates each contract may swap to, without touching `core/`. Swapping
+happens at the **infra module boundary** — a fork picks a different sub-module under
+`infra/modules/<seam>/` (or overrides the DI binding at the composition root when the
+change is purely code-level). Everything in the "What stays" column is contract, not
+implementation, and is preserved across the swap; anything in "What changes" is confined to
+the swapped module and its immediate config.
+
+| Seam | Day-zero default | Approved alternates (Azure) | What changes on swap | What stays (contract) |
+|------|------------------|-----------------------------|----------------------|------------------------|
+| Event bus | Event Hubs Standard (Kafka `:9093`) | Kafka on AKS via **Strimzi**; **Confluent Cloud** (multi-cloud managed); **Redpanda** on AKS | broker endpoint, auth mechanism, cost profile | Kafka wire protocol, topic + DLQ naming (`<topic>.dlq`), idempotency key, ordering-by-partition-key |
+| Runtime | Container Apps (Consumption + KEDA) | **AKS** + Knative Serving + KEDA; **Azure Functions** (Premium plan) for burst / bindings; **App Service** where a public HTTPS surface is unavoidable | scale trigger rendering, probe wiring, sidecar layout | OCI image, Knative-compatible manifest subset, `/healthz` + `/readyz` contract, scale-on:kafka-lag signal |
+| State store | PostgreSQL Flexible + `pgvector` | **Cosmos DB** (SQL API) when RU-metering and geo-write outgrow a single primary; **Azure SQL Managed Instance** when TDE / SQL-Server compat is mandated | SQL dialect, migration tool, RU cost model | audit hash-chain schema, versioned event/action/rule contracts, `SchemaRegistry`+`ContractValidator` seams |
+| Vector store | `pgvector` (co-located with the state store) | **Azure AI Search** vector index; **Qdrant** / **Milvus** on AKS | index type (HNSW/IVFFlat), distance metric, refresh path | embedding dimension, model choice (configured), T1 similarity threshold |
+| Secret | Container Apps native `secret` + Key Vault reference | **AKS + External Secrets Operator** with a `SecretStore` CRD pointing at Key Vault; **Key Vault Premium** (HSM-backed) for FIPS-regulated data | injection layer (Container Apps native ↔ ESO) | env-var-only reads, upper-snake env names, fail-closed on startup, no SDK calls in `core/` |
+| Workload identity | User-assigned MI | **Federated workload identity** (GH Actions OIDC ↔ Entra federated credential; AKS workload identity federation); **System-assigned MI** where the resource principal is single-owner | trust configuration and token audience | `WorkloadIdentity` interface, JIT-scoped roles, deny cross-domain assumption |
+| Container registry | ACR Basic | **ACR Standard/Premium** (geo-replication, private endpoint); **GHCR** or **Docker Hub** as external registries | tier cost, signature + attestation location | pin-by-digest, no `latest`, SBOM + provenance recorded |
+| Observability | Log Analytics workspace + App Insights bound to it | Application Insights standalone; **Grafana Managed for Azure** + Prometheus + Loki; a vendor APM behind the OTel exporter | dashboards, alert rules, retention pricing | OpenTelemetry SDK, `correlation_id`, one telemetry source per KPI |
+| HIL chat | Azure Bot (Free tier) via Bot Framework / Teams | **Custom webhook adapter** on a Container App; Slack native bot via the [`chatops`] delivery adapter | authenticated transport, Adaptive Card renderer | approval-message contract, action-bound HIL id, fail-closed timeout |
+| Read-only console hosting | Static Web Apps (Free) | Storage static-website + **Front Door**; **App Service Static Sites** | HTTPS surface, custom domain wiring | read-only guarantee, Entra sign-in, no privileged calls |
+
+**Rules across the whole table (MUST):**
+
+- Every alternate uses the **same output contract** its default module exposes
+  (`endpoint`, `identity_resource_id`, `secret_ref_envelope`, `event_topic_names`, …) so
+  downstream Terraform / `main.tf` composition never branches on the alternate.
+- Alternates ship as **separate Terraform sub-modules** under `infra/modules/<seam>/`,
+  selected by a top-level `var.<seam>_kind` (e.g. `var.runtime_kind = "container_apps"`).
+- Any alternate MUST honor the **naming convention** in
+  [deploy-and-onboard.md § Resource Naming Convention](deploy-and-onboard.md#resource-naming-convention);
+  a swap does not license a hand-picked name.
+- Alternates are **build-when-needed**: only the default lands with W4.1. Adding an
+  alternate is its own PR with its own shadow-mode validation.
+- No alternate is allowed to re-introduce a vendor SDK dependency in `core/`. That is the
+  original CSP-neutrality rule and it wins.
 
 ## Non-Azure Path (Additive)
 

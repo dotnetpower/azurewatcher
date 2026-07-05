@@ -1,3 +1,6 @@
+---
+title: Phase 0 — Instrumentation and Unblocking
+---
 # Phase 0 — Instrumentation and Unblocking
 
 **Goal**: establish measurement and remove the blockers that would stop any autonomy from

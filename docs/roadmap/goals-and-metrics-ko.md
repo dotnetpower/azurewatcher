@@ -1,6 +1,7 @@
 ---
+title: 목표와 메트릭
 translation_of: goals-and-metrics.md
-translation_source_sha: 3ef8343ec194559a60ac3af13de06b3c6caa5c48
+translation_source_sha: 80a68c73f576039d4df36804473c0dcdcb8bc6d7
 translation_revised: 2026-07-05
 ---
 

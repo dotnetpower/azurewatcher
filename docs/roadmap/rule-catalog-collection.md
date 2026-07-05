@@ -1,3 +1,6 @@
+---
+title: Rule Catalog Collection
+---
 # Rule Catalog Collection
 
 How AIOpsPilot **collects** checklists, best practices, policies, and baselines, and

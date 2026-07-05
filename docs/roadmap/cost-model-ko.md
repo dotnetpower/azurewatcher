@@ -1,6 +1,7 @@
 ---
+title: 비용 모델 (예시)
 translation_of: cost-model.md
-translation_source_sha: a8763b563bfd7e1df16b7bbabde5057f4aa2c71a
+translation_source_sha: abca67812ca74cd5e6df64cc9270c47819234315
 translation_revised: 2026-07-05
 ---
 

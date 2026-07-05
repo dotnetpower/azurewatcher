@@ -1,3 +1,6 @@
+---
+title: Phase 4 — Scale (Azure); Multi-Cloud (TBD)
+---
 # Phase 4 — Scale (Azure); Multi-Cloud (TBD)
 
 **Goal**: keep the Azure baseline honest as the system scales — continuous measurement,

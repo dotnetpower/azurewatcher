@@ -1,3 +1,6 @@
+---
+title: Rule Governance
+---
 # Rule Governance
 
 How an administrator **controls** rules — authoring, parameterizing, scoping, enabling, and

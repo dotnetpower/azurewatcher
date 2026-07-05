@@ -1,6 +1,7 @@
 ---
+title: 운영과 검증(Operating and Verification)
 translation_of: operating-and-verification.md
-translation_source_sha: 79cfbff0367311d112ceaea888f45e1e31bb635e
+translation_source_sha: 194464603ea1c9739db36fd30427d3c95092e8f3
 translation_revised: 2026-07-05
 ---
 

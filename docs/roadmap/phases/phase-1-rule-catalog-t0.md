@@ -1,3 +1,6 @@
+---
+title: Phase 1 — Rule Catalog and T0 Deterministic Engine
+---
 # Phase 1 — Rule Catalog and T0 Deterministic Engine
 
 **Goal**: stand up the deterministic core (T0) that resolves the majority of events without any

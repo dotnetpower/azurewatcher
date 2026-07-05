@@ -1,3 +1,6 @@
+---
+title: Phase 3 — Integrated Control Loop (Resilience · Change Safety · Cost Governance)
+---
 # Phase 3 — Integrated Control Loop (Resilience · Change Safety · Cost Governance)
 
 **Goal**: unify the three initial verticals under one control loop and deliver the

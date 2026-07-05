@@ -1,3 +1,6 @@
+---
+title: Cost Model (Illustrative)
+---
 # Cost Model (Illustrative)
 
 Estimated monthly cost of the minimum Azure resource inventory defined in

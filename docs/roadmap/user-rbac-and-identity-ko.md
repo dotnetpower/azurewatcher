@@ -1,6 +1,7 @@
 ---
+title: 사용자 RBAC와 Entra 아이덴티티
 translation_of: user-rbac-and-identity.md
-translation_source_sha: b082ee312034a259802d25be4199fab68f1bec4e
+translation_source_sha: fc8fb7a4e0b16eda39a5e89c8a34d291831bbe2f
 translation_revised: 2026-07-05
 ---
 

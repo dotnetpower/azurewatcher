@@ -1,3 +1,6 @@
+---
+title: LLM Strategy
+---
 # LLM Strategy
 
 The design **uses the LLM less**, not more. A model is the **T2** fallback, reached only after

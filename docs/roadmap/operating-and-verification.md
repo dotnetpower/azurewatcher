@@ -1,3 +1,6 @@
+---
+title: Operating and Verification
+---
 # Operating and Verification
 
 How to know AIOpsPilot is **alive, correct, and behaving** — from a freshly provisioned

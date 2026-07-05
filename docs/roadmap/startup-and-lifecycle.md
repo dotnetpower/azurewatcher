@@ -1,3 +1,6 @@
+---
+title: Startup and Lifecycle
+---
 # Startup and Lifecycle
 
 How AIOpsPilot **starts from cold and reaches steady state** on a freshly provisioned Azure

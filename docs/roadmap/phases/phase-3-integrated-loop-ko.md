@@ -1,6 +1,7 @@
 ---
+title: Phase 3 — 통합 컨트롤 루프 (Resilience · Change Safety · Cost Governance)
 translation_of: phase-3-integrated-loop.md
-translation_source_sha: cf5bde08ce09a110e18fabf96340afd011d52973
+translation_source_sha: c8f009184ccbf0103a4dd2ae7fe0c18fec284669
 translation_revised: 2026-07-05
 ---
 

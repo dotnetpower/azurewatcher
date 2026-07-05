@@ -1,3 +1,6 @@
+---
+title: Security and Identity
+---
 # Security and Identity
 
 Autonomy requires execution privileges, which makes identity and safety the highest-risk

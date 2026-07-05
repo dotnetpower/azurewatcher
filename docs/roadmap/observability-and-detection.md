@@ -1,3 +1,6 @@
+---
+title: Observability and Detection
+---
 # Observability and Detection
 
 How AIOpsPilot turns raw telemetry into **findings** the control loop can act on:

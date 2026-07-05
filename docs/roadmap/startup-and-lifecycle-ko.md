@@ -1,6 +1,7 @@
 ---
+title: 시작과 라이프사이클(Startup and Lifecycle)
 translation_of: startup-and-lifecycle.md
-translation_source_sha: 56b90f3ab4bf21073be3986f4240d97106965d13
+translation_source_sha: b4ec210c7981bddbbc78dd62d853a4c1c6e27a96
 translation_revised: 2026-07-05
 ---
 

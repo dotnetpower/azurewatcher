@@ -1,3 +1,6 @@
+---
+title: Channels and Notifications
+---
 # Channels and Notifications
 
 How AIOpsPilot talks to humans through **non-web-UI channels** — Teams, Slack, email,
