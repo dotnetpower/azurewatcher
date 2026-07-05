@@ -17,6 +17,14 @@ resource "azurerm_postgresql_flexible_server" "primary" {
   }
 
   tags = var.tags
+
+  lifecycle {
+    # Zone is auto-assigned by Azure on the first apply and MUST NOT be
+    # rewritten on subsequent applies — Postgres Flex only allows zone
+    # swaps paired with a `standby_availability_zone` change (HA), which
+    # this single-zone day-zero config does not use.
+    ignore_changes = [zone]
+  }
 }
 
 resource "azurerm_postgresql_flexible_server_database" "primary" {
