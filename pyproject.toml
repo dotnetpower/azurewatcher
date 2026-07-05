@@ -57,6 +57,12 @@ dependencies = [
     # Async by default; `core/` never imports it — only adapters under
     # `delivery/<csp>/` do. Pinned per docs/roadmap/csp-neutrality.md § 5.
     "httpx>=0.27,<1",
+    # W3.5 — Kafka client for the event-bus adapter. Realizes the wire-level
+    # contract in docs/roadmap/csp-neutrality.md § 1; the same client talks
+    # to Event Hubs Kafka on :9093 (SASL_SSL / OAUTHBEARER) or a self-hosted
+    # broker. Only `delivery/<csp>/event_bus.py` imports it — `core/` stays
+    # portable behind the `EventBus` Protocol.
+    "aiokafka>=0.12,<0.13",
 ]
 
 [project.optional-dependencies]
@@ -117,6 +123,13 @@ ignore = []
 python_version = "3.12"
 strict = true
 files = ["src/aiopspilot"]
+
+# aiokafka ships no py.typed marker and no stub package. It is only imported
+# by `delivery/azure/event_bus.py`; the adapter boundary in composition
+# wraps every call, so the untyped surface is narrow.
+[[tool.mypy.overrides]]
+module = ["aiokafka", "aiokafka.abc"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"
