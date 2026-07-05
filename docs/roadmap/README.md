@@ -3,6 +3,12 @@ title: AIOpsPilot Roadmap
 ---
 # AIOpsPilot Roadmap
 
+> **Read online:** [dotnetpower.github.io/aiopspilot](https://dotnetpower.github.io/aiopspilot/) —
+> this roadmap is also published as a searchable site with sidebar navigation, right-column TOC,
+> full-text search, and Korean/English switcher. The Markdown here is the canonical source;
+> the site mounts these files read-only. See [site/](../../site/README.md) for how the
+> mount and deploy work.
+
 Detailed, phased plan to build the autonomous cloud operations control plane — an **AIOps**
 approach whose initial verticals are **Resilience**, **Change Safety**, and **Cost
 Governance**. Other AIOps domains (posture management, SRE/SLO, etc.) fit the same

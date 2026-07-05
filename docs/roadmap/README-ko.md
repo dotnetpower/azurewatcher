@@ -1,11 +1,16 @@
 ---
 title: AIOpsPilot 로드맵
 translation_of: README.md
-translation_source_sha: 50b9504c45d62f12b91bc95d01ac2e47644f1768
+translation_source_sha: 5cd8c600dd14d9910d621467173fc2a574353834
 translation_revised: 2026-07-05
 ---
 
 # AIOpsPilot 로드맵
+
+> **온라인으로 읽기:** [dotnetpower.github.io/aiopspilot](https://dotnetpower.github.io/aiopspilot/) —
+> 이 로드맵은 사이드바 · 우측 TOC · 전문 검색 · 한/영 스위처를 갖춘 검색 가능한 사이트로도
+> 배포됩니다. 여기의 Markdown이 canonical 소스이며, 사이트는 이 파일들을 읽기 전용으로
+> 마운트합니다. 마운트와 배포 방식은 [site/](../../site/README.md) 참조.
 
 자율 클라우드 운영 컨트롤 플레인을 구축하기 위한 단계별 상세 계획 — **AIOps** 접근이며
 초기 버티컬은 **Resilience**, **Change Safety**, **Cost Governance** 입니다. 다른 AIOps
