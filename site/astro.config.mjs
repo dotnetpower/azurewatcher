@@ -121,11 +121,29 @@ export default defineConfig({
       ],
       sidebar: [
         {
+          label: "Get Started",
+          translations: { ko: "\uc2dc\uc791\ud558\uae30" },
+          link: "/get-started/",
+        },
+        {
+          label: "Concepts",
+          translations: { ko: "\uac1c\ub150" },
+          autogenerate: { directory: "concepts" },
+        },
+        {
+          label: "Guides",
+          translations: { ko: "\uac00\uc774\ub4dc" },
+          autogenerate: { directory: "guides" },
+        },
+        {
           label: "Reference",
+          translations: { ko: "\ub808\ud37c\ub7f0\uc2a4" },
           items: [
             {
               label: "Roadmap",
+              translations: { ko: "\ub85c\ub4dc\ub9f5" },
               autogenerate: { directory: "reference/roadmap" },
+              collapsed: true,
             },
           ],
         },
