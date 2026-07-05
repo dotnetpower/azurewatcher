@@ -2,7 +2,7 @@
 /*
  * CustomHero.astro — Starlight <Hero> override for the landing page.
  *
- * Adds two visual touches from examples/option-b-tailwind.html that
+ * Adds three visual touches from examples/option-b-tailwind.html that
  * the default Starlight hero lacks:
  *
  *   1. A soft radial-glow backdrop behind the hero, mirroring the
@@ -13,6 +13,13 @@
  *   2. A gradient sweep on the H1 text (from `--sl-color-text-accent`
  *      to the Azure accent cyan) so the tagline reads as a proper
  *      landing headline instead of a stock docs title.
+ *   3. An abstract inline SVG node-and-edge illustration in the
+ *      background, evoking the control-loop shape the site describes
+ *      (events streaming in on the left, converging through a
+ *      triage funnel, fanning out to actions on the right). No
+ *      real UI to screenshot yet, so the visual is intentionally
+ *      abstract; when a real dashboard exists this SVG is a
+ *      one-file swap.
  *
  * The Starlight default Hero is delegated to for everything else
  * (buttons, tagline text, image slot, actions), so this override is
@@ -23,6 +30,81 @@ import Default from "@astrojs/starlight/components/Hero.astro";
 ---
 
 <div class="landing-hero">
+  <svg
+    class="landing-hero-art"
+    viewBox="0 0 800 400"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <defs>
+      <linearGradient id="edge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#0078D4" stop-opacity="0.55" />
+        <stop offset="100%" stop-color="#50E6FF" stop-opacity="0.35" />
+      </linearGradient>
+      <radialGradient id="node-glow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#50E6FF" stop-opacity="0.9" />
+        <stop offset="100%" stop-color="#0078D4" stop-opacity="0" />
+      </radialGradient>
+    </defs>
+
+    <!-- Incoming events (left cluster) -->
+    <g class="hero-events">
+      <circle cx="60" cy="90" r="4" fill="#0078D4" />
+      <circle cx="90" cy="140" r="3" fill="#0078D4" opacity="0.7" />
+      <circle cx="55" cy="200" r="5" fill="#0078D4" />
+      <circle cx="100" cy="260" r="3" fill="#0078D4" opacity="0.7" />
+      <circle cx="70" cy="320" r="4" fill="#0078D4" opacity="0.85" />
+      <circle cx="130" cy="90" r="3" fill="#50E6FF" opacity="0.7" />
+      <circle cx="140" cy="220" r="4" fill="#50E6FF" opacity="0.6" />
+    </g>
+
+    <!-- Trust-router funnel: converging edges into the middle node -->
+    <g stroke="url(#edge-gradient)" stroke-width="1.5" fill="none">
+      <path d="M60 90 Q220 180 400 200" />
+      <path d="M90 140 Q220 170 400 200" />
+      <path d="M55 200 L400 200" />
+      <path d="M100 260 Q220 230 400 200" />
+      <path d="M70 320 Q220 260 400 200" />
+      <path d="M130 90 Q260 150 400 200" opacity="0.6" />
+      <path d="M140 220 Q260 220 400 200" opacity="0.6" />
+    </g>
+
+    <!-- Central router node -->
+    <circle cx="400" cy="200" r="60" fill="url(#node-glow)" opacity="0.4" />
+    <circle cx="400" cy="200" r="16" fill="#0078D4" />
+    <circle cx="400" cy="200" r="24" fill="none" stroke="#50E6FF" stroke-width="1.5" opacity="0.6" />
+    <circle cx="400" cy="200" r="34" fill="none" stroke="#50E6FF" stroke-width="1" opacity="0.35" />
+
+    <!-- Tier lanes: three horizontal branches to the right -->
+    <g stroke="url(#edge-gradient)" stroke-width="1.5" fill="none">
+      <path d="M416 200 Q560 130 720 90" />
+      <path d="M416 200 L720 200" />
+      <path d="M416 200 Q560 270 720 310" />
+    </g>
+
+    <!-- Output nodes: T0/T1/T2 -> action -->
+    <g>
+      <circle cx="720" cy="90" r="10" fill="#0078D4" />
+      <circle cx="720" cy="200" r="10" fill="#50E6FF" opacity="0.85" />
+      <circle cx="720" cy="310" r="10" fill="#0078D4" opacity="0.75" />
+
+      <circle cx="720" cy="90" r="18" fill="none" stroke="#0078D4" stroke-width="1" opacity="0.4" />
+      <circle cx="720" cy="200" r="18" fill="none" stroke="#50E6FF" stroke-width="1" opacity="0.4" />
+      <circle cx="720" cy="310" r="18" fill="none" stroke="#0078D4" stroke-width="1" opacity="0.3" />
+    </g>
+
+    <!-- Faint horizontal "audit log" band anchoring the composition -->
+    <line
+      x1="0"
+      y1="380"
+      x2="800"
+      y2="380"
+      stroke="#0078D4"
+      stroke-opacity="0.15"
+      stroke-width="1"
+      stroke-dasharray="4 6"
+    />
+  </svg>
   <Default {...Astro.props}><slot /></Default>
 </div>
 
@@ -36,7 +118,7 @@ import Default from "@astrojs/starlight/components/Hero.astro";
     content: "";
     position: absolute;
     inset: -4rem -2rem 0 -2rem;
-    z-index: -1;
+    z-index: -2;
     background:
       radial-gradient(80% 60% at 15% 10%, rgba(0, 120, 212, 0.18), transparent 60%),
       radial-gradient(60% 50% at 85% 30%, rgba(80, 230, 255, 0.15), transparent 60%);
@@ -46,6 +128,28 @@ import Default from "@astrojs/starlight/components/Hero.astro";
     background:
       radial-gradient(80% 60% at 15% 10%, rgba(0, 120, 212, 0.28), transparent 60%),
       radial-gradient(60% 50% at 85% 30%, rgba(80, 230, 255, 0.10), transparent 60%);
+  }
+  .landing-hero-art {
+    position: absolute;
+    inset: 0 -2rem 0 auto;
+    width: min(720px, 100%);
+    height: 100%;
+    z-index: -1;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  :global([data-theme="dark"]) .landing-hero-art {
+    opacity: 0.75;
+  }
+  /*
+   * On narrow screens the SVG competes with the hero text for pixels,
+   * so we hide it below 60rem — the hero still renders with the glow
+   * and gradient title alone, which are enough at that width.
+   */
+  @media (max-width: 60rem) {
+    .landing-hero-art {
+      display: none;
+    }
   }
   /* Gradient sweep on the hero title. Scoped to the landing hero so
      it does not leak into interior doc pages. */
@@ -58,3 +162,4 @@ import Default from "@astrojs/starlight/components/Hero.astro";
     letter-spacing: -0.01em;
   }
 </style>
+
