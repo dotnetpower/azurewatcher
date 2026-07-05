@@ -3,6 +3,7 @@ import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import { remarkStripFirstH1 } from "./src/plugins/strip-first-h1.mjs";
 import { remarkMermaid } from "./src/plugins/mermaid.mjs";
+import { remarkRewriteLinks } from "./src/plugins/rewrite-links.mjs";
 
 // GitHub Pages project page: https://dotnetpower.github.io/aiopspilot/
 // Overridable at build time via SITE_URL / BASE_PATH env vars so a fork can
@@ -29,8 +30,12 @@ export default defineConfig({
   // <pre class="mermaid"> so the head-level mermaid loader can render
   // them on the client (Expressive Code otherwise turns them into a
   // syntax-highlighted code sample).
+  // remarkRewriteLinks turns cross-file `.md` links (authored for
+  // GitHub reading) into site-relative URLs, and re-points `.github/**`
+  // links at GitHub blob URLs since the site intentionally does not
+  // publish that scope.
   markdown: {
-    remarkPlugins: [remarkStripFirstH1, remarkMermaid],
+    remarkPlugins: [remarkStripFirstH1, remarkMermaid, remarkRewriteLinks],
   },
   integrations: [
     starlight({
