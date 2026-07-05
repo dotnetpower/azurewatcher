@@ -14,6 +14,10 @@ src/content/docs/ko/reference/roadmap/
 # authoritative source is docs/roadmap/**/*-ko.md's translation_source_sha
 # vs git hash-object of the English sibling. Regenerated every mount.
 src/data/stale-translations.json
+# Mount manifest: absolute paths of the symlinks mount-docs.mjs created on
+# its last run, used to cleanly unlink them on the next run without touching
+# hand-authored files.
+src/data/mount-manifest.json
 
 # Environment overrides (site can be built for a fork without editing config)
 .env
