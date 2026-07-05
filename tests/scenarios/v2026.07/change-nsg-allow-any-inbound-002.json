@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "id": "change.nsg-allow-any-inbound.002",
+  "version": "v2026.07",
+  "domain": "change",
+  "tags": [
+    "network-security",
+    "cis-benchmark"
+  ],
+  "event": {
+    "schema_version": "1.0.0",
+    "event_id": "00000000-0000-0000-0000-000000000002",
+    "idempotency_key": "scenario-2",
+    "source": "example_activity_log",
+    "event_type": "change_detected",
+    "detected_at": "2026-07-05T08:00:00Z",
+    "ingested_at": "2026-07-05T08:00:01Z",
+    "mode": "shadow"
+  },
+  "expected": {
+    "tier": "t0",
+    "decision": "hil",
+    "citing_rule_ids": [
+      "example.nsg.no-allow-any-inbound"
+    ],
+    "guard": {
+      "should_execute": false,
+      "should_rollback": false,
+      "should_trigger_policy_violation": false
+    }
+  }
+}

@@ -1,0 +1,258 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref (typical PR workflow).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least-privileged default; individual jobs elevate only when required.
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    name: lint • mypy • pytest (with coverage)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv (Python 3.13)
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev --frozen
+
+      - name: Install OPA (Rego runner)
+        # T0's OpaRegoEvaluator shells out to `opa eval`. Local dev may
+        # not have OPA installed (tests skip gracefully); CI installs a
+        # pinned version so the merge gate exercises the subprocess path.
+        # Checksum pinned to defend against a mid-flight artifact swap.
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/opa \
+            "https://openpolicyagent.org/downloads/v0.68.0/opa_linux_amd64_static"
+          echo "dfd5081fc6f930dfeaf2a225e31e616fc227dc0c7b43019b73d6f8fb8a1de1aa  /tmp/opa" \
+            | sha256sum -c -
+          chmod +x /tmp/opa
+          sudo mv /tmp/opa /usr/local/bin/opa
+          opa version
+
+      - name: ruff format --check
+        run: uv run ruff format --check src tests
+
+      - name: ruff check
+        run: uv run ruff check src tests
+
+      - name: mypy --strict
+        run: uv run mypy
+
+      - name: pytest + coverage
+        # Safety-core coverage bar (T0 deterministic engine, risk gate, rule
+        # loader, provider adapters). Live measurement sits at ~93-100% per
+        # module (2026-07-05 audit); the floor is set to 90 to catch a
+        # regression before it lands. Individual module bars are enforced
+        # per subsystem in unit tests, not in this global gate.
+        run: >
+          uv run pytest -q
+          --cov=src/aiopspilot
+          --cov-branch
+          --cov-report=term-missing
+          --cov-report=xml
+          --cov-fail-under=90
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore
+
+  translations:
+    name: docs/**/*.md ↔ -ko.md pair check
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: check-translations.sh
+        run: bash scripts/check-translations.sh
+
+  english-only:
+    name: English-only outside -ko.md
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: check-english-only.sh
+        run: bash scripts/check-english-only.sh
+
+  core-imports:
+    name: core/ module-boundary guard (no cloud SDK, no HTTP client)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: check-core-imports.sh
+        run: bash scripts/check-core-imports.sh
+
+  secret-scan:
+    name: gitleaks
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so gitleaks scans every commit in a PR.
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deps-audit:
+    name: pip-audit (dependency vulnerabilities)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: pip-audit against pyproject.toml
+        uses: pypa/gh-action-pip-audit@v1.0.8
+        with:
+          inputs: pyproject.toml
+
+  exemption-check:
+    name: Exemption artifact validation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv (Python 3.13)
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev --frozen
+
+      - name: Validate every rule-catalog/exemptions/*.json
+        # No-op when the directory is empty (fresh clone).
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(rule-catalog/exemptions/*.json)
+          if (( ${#files[@]} == 0 )); then
+            echo "No exemption artifacts to validate."
+            exit 0
+          fi
+          uv run python -m aiopspilot.rule_catalog.schema.exemption_cli "${files[@]}"
+
+  freeze-scenarios:
+    name: Frozen scenario-set immutability (PR only)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so we can diff against the base ref.
+          fetch-depth: 0
+
+      - name: Fetch base ref
+        run: git fetch --no-tags --depth=1 origin ${{ github.base_ref }}
+
+      - name: Detect modifications / deletions in frozen versions
+        run: |
+          set -euo pipefail
+          base_sha=$(git rev-parse origin/${{ github.base_ref }})
+          # Only *.json files under versioned scenario folders count as frozen.
+          # Adding a new version directory (or new files in the current unfrozen
+          # tip) is allowed; edits and deletes are not.
+          changed=$(git diff --name-only --diff-filter=MDR "$base_sha...HEAD" \
+                    -- 'tests/scenarios/v*/*.json' || true)
+          if [[ -n "$changed" ]]; then
+            echo "Frozen scenario files modified or deleted:"
+            printf '  - %s\n' $changed
+            echo ""
+            echo "Frozen versions are immutable — create a new version directory instead."
+            exit 1
+          fi
+          echo "No frozen scenario files were modified."
+
+  db-migrations:
+    name: Alembic migrations against pgvector
+    runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: aiopspilot
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: aiopspilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aiopspilot -d aiopspilot"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      AIOPSPILOT_DATABASE_URL: postgresql+psycopg://aiopspilot:ci@localhost:5432/aiopspilot
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv (Python 3.13)
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev --frozen
+
+      - name: Run alembic upgrade head
+        run: uv run alembic upgrade head
+
+      - name: Run integration test suite
+        run: uv run pytest -q -m integration tests/persistence/test_migrations_integration.py
+
+  terraform-validate:
+    name: Terraform fmt + validate
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: terraform fmt (recursive check)
+        run: terraform fmt -check -recursive
+
+      - name: terraform init (no backend — offline validate)
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate

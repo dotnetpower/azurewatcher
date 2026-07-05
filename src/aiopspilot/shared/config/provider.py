@@ -1,0 +1,103 @@
+"""Config provider — the DI seam that decides *where runtime config comes from*.
+
+Core modules never read env vars, files, or config services directly; they
+receive an :class:`aiopspilot.shared.config.models.AppConfig` handed to them
+by a composition root that instantiated a :class:`ConfigProvider`.
+
+The upstream default, :class:`EnvVarConfigProvider`, reads the well-known
+upper-snake env-var names documented in
+[deploy-and-onboard.md § Runtime Configuration Matrix][matrix].
+A fork MAY register a config-service adapter (App Configuration, ConsulKV,
+etc.) by implementing this Protocol.
+
+[matrix]: ../../../../docs/roadmap/deploy-and-onboard.md#runtime-configuration-matrix
+
+Fail-fast contract
+------------------
+Every provider MUST raise :class:`aiopspilot.shared.config.errors.ConfigError`
+with the full list of problems the moment invalid or missing config is
+detected. Do not partially-return an :class:`AppConfig`; degraded startup is
+prohibited by ``coding-conventions.instructions.md``.
+"""
+
+from __future__ import annotations
+
+import os
+from collections.abc import Mapping
+from typing import Any, Protocol, runtime_checkable
+
+from .errors import ConfigError, ConfigIssue
+from .loader import load_from_mapping
+from .models import AppConfig
+
+
+@runtime_checkable
+class ConfigProvider(Protocol):
+    """Return a fully-validated :class:`AppConfig` — or raise :class:`ConfigError`."""
+
+    def get(self) -> AppConfig: ...
+
+
+# Env-var → config-path lookup table. Kept as data so a mismatch is a
+# straightforward diff review, not a bug hunt.
+_ENV_VAR_MAP: tuple[tuple[str, tuple[str, ...], bool], ...] = (
+    # (env var, (dotted path split), is_required)
+    ("AZURE_TENANT_ID", ("azure", "tenant_id"), True),
+    ("AZURE_SUBSCRIPTION_ID", ("azure", "subscription_id"), True),
+    ("AZURE_RESOURCE_GROUP", ("azure", "resource_group"), False),
+    ("AZURE_REGION", ("azure", "region"), True),
+    ("KAFKA_BOOTSTRAP_SERVERS", ("kafka", "bootstrap_servers"), True),
+    ("KAFKA_SECURITY_PROTOCOL", ("kafka", "security_protocol"), False),
+    ("KAFKA_SASL_MECHANISM", ("kafka", "sasl_mechanism"), False),
+    ("KAFKA_TOPIC_EVENTS", ("kafka", "topic_events"), True),
+    ("KAFKA_TOPIC_DLQ_SUFFIX", ("kafka", "topic_dlq_suffix"), False),
+    ("POSTGRES_HOST", ("postgres", "host"), True),
+    ("POSTGRES_DATABASE", ("postgres", "database"), True),
+    ("RULE_CATALOG_REF", ("rule_catalog", "ref"), False),
+    ("RUNTIME_ENV", ("runtime", "env"), True),
+    ("AUTONOMY_MODE_DEFAULT", ("runtime", "autonomy_mode_default"), False),
+    ("LLM_MODE", ("llm", "mode"), False),
+    ("LLM_RESOLVED_MODELS_PATH", ("llm", "resolved_models_path"), False),
+)
+
+
+class EnvVarConfigProvider:
+    """Default :class:`ConfigProvider` — reads config from process env.
+
+    Every problem is reported in one shot: missing required vars, invalid
+    enum values, schema violations, and pydantic type errors are aggregated
+    into a single :class:`ConfigError`.
+    """
+
+    def __init__(self, env: Mapping[str, str] | None = None) -> None:
+        # Snapshot the env at construction so the same provider yields a
+        # stable result across calls even if os.environ mutates.
+        self._env: Mapping[str, str] = dict(env if env is not None else os.environ)
+
+    def get(self) -> AppConfig:
+        raw: dict[str, Any] = {"schema_version": "1.0.0"}
+        missing: list[ConfigIssue] = []
+
+        for env_var, path, required in _ENV_VAR_MAP:
+            value = self._env.get(env_var)
+            if value is None:
+                if required:
+                    missing.append(ConfigIssue(key=env_var, message="required env var is unset"))
+                continue
+            _assign(raw, path, value)
+
+        if missing:
+            raise ConfigError(missing)
+
+        return load_from_mapping(raw)
+
+
+def _assign(target: dict[str, Any], path: tuple[str, ...], value: str) -> None:
+    """Nested-dict assignment for ``('kafka', 'topic_events')``-style paths."""
+    cursor = target
+    for key in path[:-1]:
+        cursor = cursor.setdefault(key, {})
+    cursor[path[-1]] = value
+
+
+__all__ = ["ConfigProvider", "EnvVarConfigProvider"]

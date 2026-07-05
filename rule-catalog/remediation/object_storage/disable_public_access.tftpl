@@ -1,0 +1,20 @@
+# remediate.disable-public-access — Terraform patch template.
+#
+# Referenced by rule `object-storage.public-access.deny`.
+# Renders the target state (public network access disabled + default deny
+# on the network ACL). Shadow-mode PRs open with this patch labeled
+# `shadow`; enforce-mode promotion is P2.
+
+resource "azurerm_storage_account" "${resource_id}" {
+  # Disable unauthenticated public access at the account level; the T0
+  # rule denies whenever the observed property is `enabled`, so this
+  # patch flips the flag and adds a default-deny network rule as a
+  # belt-and-braces guard against a later drift back to public.
+  public_network_access_enabled   = false
+  allow_nested_items_to_be_public = false
+
+  network_rules {
+    default_action = "Deny"
+    bypass         = ["AzureServices"]
+  }
+}

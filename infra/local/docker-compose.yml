@@ -1,0 +1,72 @@
+# Local development Postgres+pgvector + Redpanda stack.
+#
+# Ports are bound to 127.0.0.1 only so a laptop on a hostile network does
+# NOT expose the dev cluster. If you need to reach the cluster from a
+# container network in another compose file, join the `aiopspilot-local`
+# external network there.
+
+name: aiopspilot-local
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: aiopspilot-postgres
+    environment:
+      POSTGRES_USER: aiopspilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devonly}
+      POSTGRES_DB: aiopspilot
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-pgvector.sql:/docker-entrypoint-initdb.d/00-vector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiopspilot -d aiopspilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: aiopspilot-redpanda
+    # Single-node dev mode. Dual Kafka listener:
+    #   internal (29092): reachable from the compose network at redpanda:29092
+    #   external (19092): reachable from the host at localhost:19092
+    # See https://docs.redpanda.com/current/deploy/deployment-option/self-hosted/docker/
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=internal://0.0.0.0:29092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:29092,external://127.0.0.1:19092
+      - --rpc-addr=0.0.0.0:33145
+      - --advertise-rpc-addr=redpanda:33145
+    ports:
+      - "127.0.0.1:19092:19092"
+      - "127.0.0.1:9644:9644"
+    volumes:
+      - redpandadata:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health --exit-when-healthy"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    name: aiopspilot-pgdata
+  redpandadata:
+    name: aiopspilot-redpandadata
+
+networks:
+  default:
+    name: aiopspilot-local

@@ -21,14 +21,14 @@ contract per concern**, not through a vendor SDK. The Azure implementation of ea
 is what we build today; a fork or a future phase adds another CSP by registering a new
 implementation of the **same contract**, without editing `core/`.
 
-**Concurrency**: the four provider Protocols are **async by default** (Kafka poll loop,
-Postgres asyncpg, Key Vault HTTP, OIDC token exchange are all I/O-bound). Sync is reserved
-for CPU / startup-only seams — `SchemaRegistry`, `ContractValidator`, `ConfigProvider` — so
-they do not block the event loop. See
+**Concurrency**: the five provider Protocols are **async by default** (Kafka poll loop,
+Postgres asyncpg, Key Vault HTTP, OIDC token exchange, and inventory-graph queries are all
+I/O-bound). Sync is reserved for CPU / startup-only seams — `SchemaRegistry`,
+`ContractValidator`, `ConfigProvider` — so they do not block the event loop. See
 [project-structure.md § Injectable Seams](project-structure.md#injectable-seams) for the
 canonical seam list.
 
-Four contracts govern the CSP-touching surface:
+Five contracts govern the CSP-touching surface:
 
 | # | Contract | Wire / artifact | Azure implementation |
 |---|----------|-----------------|----------------------|
@@ -36,8 +36,9 @@ Four contracts govern the CSP-touching surface:
 | 2 | **Runtime** | OCI container image + Knative-compatible manifest subset | Container Apps (Consumption, KEDA) |
 | 3 | **Secret** | environment variables (or K8s Secret mount) — never a CSP secret SDK call from the app | Container Apps native secret + Key Vault reference |
 | 4 | **Workload identity** | OIDC token (federated) | User-assigned Managed Identity + workload identity federation |
+| 5 | **Inventory** | resource-graph query surface returning `(Resource, Link[])` batches over an HTTP + OIDC-bearer wire | Azure Resource Graph (ARG) + Activity Log delta |
 
-Every one of the four MUST NOT leak provider specifics into `core/`. See
+Every one of the five MUST NOT leak provider specifics into `core/`. See
 [Anti-Patterns](#anti-patterns) for the concrete violations to reject.
 
 ## 1. Event Bus Contract — Kafka Wire Protocol
@@ -179,6 +180,68 @@ long-lived key or shared secret is held by the executor.
   behind the interface.
 - Sharing the executor's identity with the console, ChatOps, or any read-only surface.
 
+## 5. Inventory Contract — Resource Graph
+
+The core reasons over an ontology graph of resources and typed edges
+([llm-strategy.md § Ontology Foundation](llm-strategy.md#ontology-foundation)); the
+**Inventory** contract is how that graph is populated and kept fresh. The core sees a
+single `Inventory` Protocol with two operations returning CSP-neutral records:
+
+- `full_snapshot(since=None) -> AsyncIterator[InventoryBatch]` — the initial or periodic
+  reconciliation load, emitted as batches of typed `Resource` records and
+  `contains` / `attached_to` / `depends_on` link records.
+- `delta(cursor) -> AsyncIterator[InventoryBatch]` — incremental changes since the given
+  cursor, driven by the provider's native change stream.
+
+| CSP / substrate | Inventory source | Delta source | Wire |
+|---|---|---|---|
+| Azure | **Azure Resource Graph** (Kusto over ARM) | Activity Log via the [event-bus](#1-event-bus-contract--kafka-wire-protocol) contract (a Diagnostic-Settings-forwarded Kafka topic) | HTTPS + `Authorization: Bearer <OIDC>` |
+| AWS *(TBD)* | AWS Config + Resource Explorer | Config configuration-item stream forwarded to Kafka | HTTPS + SigV4 |
+| GCP *(TBD)* | Cloud Asset Inventory | Asset feed forwarded to Kafka | HTTPS + Google IAM |
+| Any K8s | `apiserver` list-watch through a resource-model translator | `watch` stream forwarded to Kafka | HTTPS + service-account token |
+
+**Rules (MUST):**
+
+- The core reads inventory only through the injected `Inventory` interface in
+  `shared/providers/` ([project-structure.md § Injectable Seams](project-structure.md#injectable-seams)).
+  No `ResourceManagementClient`, `ArmClient`, `boto3.client("config")`,
+  `google.cloud.asset` — no cloud-inventory SDK appears in `core/`.
+- Records are **CSP-neutral** at the wire: `Resource.type` is the canonical `resource_type`
+  vocabulary ([rule-catalog-collection.md](rule-catalog-collection.md#collection-sources))
+  and link kinds are the ones declared in
+  `shared/contracts/ontology/link-type.json`. Vendor-native ids may ride in a redacted
+  `provider_ref` field on the Resource, never as the primary key.
+- **Initial full snapshot is parallelized** with bounded concurrency: the adapter shards the
+  workload by `ResourceType` (and further by scope when a single type is too broad), fans
+  out queries under a semaphore, and streams batches into the ingest pipeline. The core
+  never assumes a single-connection blocking scan.
+- **Idempotent upsert** into `ontology_resource` + `ontology_link` keyed by the neutral
+  `resource_id` and `(from_id, link_type, to_id)`; re-running the full scan converges the
+  graph, it never duplicates.
+- **Fail-closed**: a partial snapshot never lands in a state that would let a stale graph
+  drive an autonomous decision. Either the snapshot completes and is atomically promoted,
+  or the previous graph is retained and the failure is audited.
+- **Deltas flow through the event bus**, not through a separate side-channel. A provider
+  change signal (Activity Log, Config item, Asset feed, apiserver watch) is forwarded into
+  a Kafka topic and consumed exactly like any other `Signal` — same idempotency, same DLQ.
+- **Unknown `ResourceType` or LinkType** opens an issue and is dropped; the adapter never
+  auto-registers a new ontology type at runtime
+  ([llm-strategy.md § Fork Extension](llm-strategy.md#fork-extension-self-extending-ontology)).
+- Untrusted vendor properties (tags, descriptions) MUST be redacted or length-bounded
+  before write and are inert data, never instructions.
+
+**Anti-patterns (MUST NOT):**
+
+- Importing `azure-mgmt-*`, `boto3`, or `google-cloud-*` clients from `core/`. Cloud
+  inventory SDKs live only in the provider adapter package.
+- Embedding Kusto / ARG queries inside `core/` code paths (they belong in the Azure
+  adapter, driven by manifest or query template).
+- Running the initial full scan under a global lock, or under the executor's
+  per-resource lock; inventory sync and remediation execution are separate concerns with
+  independent concurrency budgets.
+- Trusting a partial delta stream as authoritative; the periodic full-snapshot
+  reconciliation is required to catch dropped events.
+
 ## Azure-Phase Realization (Summary)
 
 Today's implementation slots into the four contracts as follows. Every named service is a
@@ -191,6 +254,7 @@ contract is what does not change.
 | Runtime | **Container Apps** (Consumption, KEDA scale-to-zero) — one app + sidecars | `$0` when idle |
 | Secret | Container Apps native secret + **Key Vault reference** | negligible |
 | Workload identity | **User-assigned MI** + workload identity federation for CI/CD | free |
+| Inventory | **Azure Resource Graph** (initial parallel full-scan sharded by `resource_type`) + **Activity Log** delta forwarded to a Kafka topic | free (ARG); Log-based delta covered by the observability inventory |
 
 `Service Bus` and `Event Grid` are **not** in the minimum inventory going forward; the
 event bus is Kafka wire only. Any provider-native pub/sub is used solely as a **source of
@@ -199,7 +263,7 @@ Kafka topic) and never as a runtime dependency of `core/`.
 
 ## Approved Alternative Azure Implementations
 
-The four wire-level contracts already keep the core CSP-portable. This table lists the
+The five wire-level contracts already keep the core CSP-portable. This table lists the
 **Azure-internal** alternates each contract may swap to, without touching `core/`. Swapping
 happens at the **infra module boundary** — a fork picks a different sub-module under
 `infra/modules/<seam>/` (or overrides the DI binding at the composition root when the
@@ -219,6 +283,7 @@ the swapped module and its immediate config.
 | Observability | Log Analytics workspace + App Insights bound to it | Application Insights standalone; **Grafana Managed for Azure** + Prometheus + Loki; a vendor APM behind the OTel exporter | dashboards, alert rules, retention pricing | OpenTelemetry SDK, `correlation_id`, one telemetry source per KPI |
 | HIL chat | Azure Bot (Free tier) via Bot Framework / Teams | **Custom webhook adapter** on a Container App; Slack native bot via the [`chatops`] delivery adapter | authenticated transport, Adaptive Card renderer | approval-message contract, action-bound HIL id, fail-closed timeout |
 | Read-only console hosting | Static Web Apps (Free) | Storage static-website + **Front Door**; **App Service Static Sites** | HTTPS surface, custom domain wiring | read-only guarantee, Entra sign-in, no privileged calls |
+| Inventory | Azure Resource Graph + Activity Log delta | Direct **ARM list** polling (per-resource-type, sharded) for tenants where ARG lags; **Microsoft Defender for Cloud Inventory** when its coverage is authoritative for the target set | query language (Kusto vs REST), delta cursor semantics, freshness lag | `Inventory` Protocol shape, CSP-neutral `resource_type` + link kinds, idempotent upsert, fail-closed partial snapshot |
 
 **Rules across the whole table (MUST):**
 
@@ -239,10 +304,10 @@ the swapped module and its immediate config.
 
 Adding another CSP is a **fork-level configuration exercise**, not a core change:
 
-1. Register a new implementation of the four provider interfaces in `shared/providers/` at
+1. Register a new implementation of the five provider interfaces in `shared/providers/` at
    the composition root ([project-structure.md](project-structure.md#customization-via-dependency-injection)).
-2. Point `bootstrap.servers`, the `SecretProvider`, the `RuntimeAdapter`, and the
-   `WorkloadIdentity` bindings at the new CSP.
+2. Point `bootstrap.servers`, the `SecretProvider`, the `RuntimeAdapter`, the
+   `WorkloadIdentity`, and the `Inventory` bindings at the new CSP.
 3. Render the same OCI image + Knative-compatible manifest into the target runtime.
 4. Ship in **shadow mode** ([architecture.instructions.md](../../.github/instructions/architecture.instructions.md#safety-invariants))
    until parity with the Azure implementation is measured.

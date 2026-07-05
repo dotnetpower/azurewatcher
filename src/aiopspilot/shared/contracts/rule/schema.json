@@ -15,6 +15,7 @@
     "resource_type",
     "check_logic",
     "remediation",
+    "remediates",
     "provenance"
   ],
   "properties": {
@@ -120,20 +121,26 @@
       "additionalProperties": false,
       "required": [
         "source_url",
-        "resolved_revision",
+        "resolved_ref",
         "content_hash",
         "license",
         "redistribution",
-        "imported_at"
+        "retrieved_at"
       ],
       "properties": {
         "source_url": {
           "type": "string",
           "format": "uri"
         },
-        "resolved_revision": {
+        "source_version": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Human-readable upstream tag or release (e.g. v1.4.0); paired with `resolved_ref` for reproducibility."
+        },
+        "resolved_ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Immutable commit / digest the fetch pinned to (rename of the legacy `resolved_revision`; docs/roadmap/rule-catalog-collection.md § YAML Normalization)."
         },
         "content_hash": {
           "type": "string",
@@ -141,15 +148,22 @@
         },
         "license": {
           "type": "string",
-          "description": "SPDX identifier or upstream text."
+          "description": "SPDX identifier (e.g. `Apache-2.0`) or `LicenseRef-reference-only` for restricted sources."
         },
         "redistribution": {
-          "type": "boolean",
-          "description": "Whether the license permits redistribution in this repo."
-        },
-        "imported_at": {
           "type": "string",
-          "format": "date-time"
+          "enum": ["embeddable", "reference-only"],
+          "description": "Redistribution posture — `embeddable` allows verbatim source text in this repo; `reference-only` allows only authored logic plus a citation."
+        },
+        "retrieved_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 UTC timestamp when the source was fetched (rename of the legacy `imported_at`)."
+        },
+        "mapped_by": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Role or pipeline id that mapped the source into the normalized schema (never a person)."
         }
       },
       "description": "Auditable origin. Missing provenance = rule is rejected at load."
@@ -158,6 +172,25 @@
       "type": "object",
       "additionalProperties": true,
       "description": "Scope predicates (labels, tags, tenants). CSP-neutral vocabulary."
+    },
+    "remediates": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_\\.\\-]{0,79}$",
+      "description": "Ontology dispatch: the ActionType `name` this rule proposes on match (M:1). MUST resolve to a registered `rule-catalog/action-types/*.yaml` instance; the loader enforces cross-reference at load time. See docs/roadmap/llm-strategy.md § Rule as Ontology Artifact."
+    },
+    "alternatives": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_\\.\\-]{0,79}$"
+      },
+      "uniqueItems": true,
+      "description": "Alternative ActionType names ranked by preference. T0 always uses `remediates`; only the T2 quality gate may swap in an alternative. Every entry MUST resolve to a registered ActionType."
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional typed inputs to `check_logic` (e.g. retention thresholds, CVSS version). Defaults live on the rule; per-assignment overrides live in rule-governance."
     }
   }
 }

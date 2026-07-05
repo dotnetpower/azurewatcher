@@ -7,18 +7,68 @@ things (composition helpers, common valid instances) live here.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from typing import Any
 
 import pytest
 
 from aiopspilot.composition import Container, default_container
+from aiopspilot.shared.config import AppConfig
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _shutdown_otel_at_session_end() -> Iterator[None]:
+    """Flush the OTel tracer provider before pytest closes captured streams.
+
+    Without this fixture, the BatchSpanProcessor's background thread races
+    pytest's teardown of stdout and prints a scary (but harmless) traceback
+    on session exit. The shutdown is idempotent — safe to run even when
+    no test touched tracing.
+    """
+    yield
+    from opentelemetry import trace
+
+    provider = trace.get_tracer_provider()
+    shutdown = getattr(provider, "shutdown", None)
+    if callable(shutdown):
+        shutdown()
 
 
 @pytest.fixture()
-def container() -> Container:
-    """Upstream default binding — the same one an ``aiopspilot`` entry point uses."""
-    return default_container()
+def app_config() -> AppConfig:
+    """A customer-agnostic :class:`AppConfig` for tests.
+
+    Kept in code (not env) so the test suite is deterministic regardless of
+    the shell environment. Real deployments load from env via
+    :func:`aiopspilot.composition.default_container_from_env`.
+    """
+    return AppConfig.model_validate(
+        {
+            "schema_version": "1.0.0",
+            "azure": {
+                "tenant_id": "00000000-0000-0000-0000-000000000000",
+                "subscription_id": "00000000-0000-0000-0000-000000000000",
+                "resource_group": "rg-aiopspilot",
+                "region": "krc",
+            },
+            "kafka": {
+                "bootstrap_servers": "evhns-aiopspilot.example.local:9093",
+                "topic_events": "aw.change.events",
+            },
+            "postgres": {
+                "host": "psql-aiopspilot.example.local",
+                "database": "aiopspilot",
+            },
+            "rule_catalog": {"ref": "main"},
+            "runtime": {"env": "dev"},
+        }
+    )
+
+
+@pytest.fixture()
+def container(app_config: AppConfig) -> Container:
+    """Upstream default binding — same wiring an entry point receives."""
+    return default_container(app_config)
 
 
 @pytest.fixture()
@@ -76,13 +126,14 @@ def valid_rule() -> dict[str, Any]:
             "template_ref": "remediations/example-tag-owner",
             "cost_impact_monthly_usd": 0,
         },
+        "remediates": "remediate.tag-add",
         "provenance": {
             "source_url": "https://example.com/rules/tag-owner",
-            "resolved_revision": "0000000000000000000000000000000000000000",
+            "resolved_ref": "0000000000000000000000000000000000000000",
             "content_hash": "sha256:example",
             "license": "MIT",
-            "redistribution": True,
-            "imported_at": "2026-07-05T00:00:00Z",
+            "redistribution": "embeddable",
+            "retrieved_at": "2026-07-05T00:00:00Z",
         },
     }
 
@@ -91,11 +142,18 @@ def valid_rule() -> dict[str, Any]:
 def valid_ontology_action_type() -> dict[str, Any]:
     return {
         "schema_version": "1.0.0",
-        "name": "tag_missing_owner",
+        "name": "remediate.tag-missing-owner",
         "version": "1.0.0",
         "operation": "tag",
         "interfaces": ["ControlPlane", "IdempotentByKey"],
         "rollback_contract": "pr_revert",
+        "default_mode": "shadow",
+        "promotion_gate": {
+            "min_shadow_days": 14,
+            "min_samples": 100,
+            "min_accuracy": 0.95,
+            "max_policy_escapes": 0,
+        },
         "description": "Attach an owner tag when missing.",
     }
 

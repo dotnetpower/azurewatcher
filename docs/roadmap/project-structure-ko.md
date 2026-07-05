@@ -1,7 +1,7 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: f681e9feb1ec07aa70f179738ce4852e758a8256
+translation_source_sha: cf42aba9a5d511e452760b283846807809f41cf6
 translation_revised: 2026-07-05
 ---
 
@@ -37,6 +37,8 @@ aiopspilot/
 │   │   │   ├── rule/          # rule/schema.json
 │   │   │   └── ontology/      # object-type / link-type / action-type JSON 스키마
 │   │   ├── providers/         # CSP-중립 클라우드 프로바이더 인터페이스 (어댑터가 구현)
+│   │   │                      #   event_bus.py, secret_provider.py, state_store.py,
+│   │   │                      #   workload_identity.py, inventory.py
 │   │   ├── streaming/         # SSE broadcaster (Kafka → 외부 text/event-stream 릴레이)
 │   │   ├── telemetry/         # 구조화 로깅, 트레이싱, 메트릭 헬퍼
 │   │   └── config/            # config 스키마 + 시작 시 검증 (fail-fast)
@@ -48,8 +50,12 @@ aiopspilot/
 │       ├── sources/           # 소스별 컴렉터 (WAF, CIS, OPA, IaC scanners, ...)
 │       └── pipeline/          # watch → collect → shadow eval → regression → promote/rollback
 ├── src/aiopspilot/composition.py  # composition root: default_container() 가 모든 seam 을 바인딩
+├── src/aiopspilot/core/control_loop.py  # P1 파이프라인 오케스트레이터: event_ingest → trust_router → T0 → executor → audit
 ├── rule-catalog/              # catalog-as-code 데이터 (YAML) — Python 아님; 파이프라인은 src/aiopspilot/rule_catalog/ 에
 │   ├── schema/                # JSON Schema 정의 (데이터)
+│   ├── vocabulary/            # canonical CSP-중립 어휘 (resource-types.yaml, ...)
+│   ├── action-types/          # 온톨로지 ActionType 인스턴스 (shadow-default, promotion_gate 필수)
+│   ├── exemptions/            # 시간-바운드 감사된 예외 아티팩트
 │   └── sources/               # 소스별 규칙 스냅샷 + provenance
 ├── policies/                  # T0와 verifier가 소비하는 OPA/Rego policy-as-code
 ├── infra/                     # IaC: Terraform (HCL); 엔트리 커맨드 `terraform apply`
@@ -161,9 +167,10 @@ phase 는 `core/` 를 편집하지 않고 composition root 에서 새 구현을 
 모든 seam이 주입되는 인터페이스이므로 고객 추가나 두 번째 클라우드는 구현 등록 문제입니다 —
 위의 엄격한 단방향 의존 방향이 보존됩니다.
 
-**동시성 자세**: 네 개의 **I/O provider Protocol** — `EventBus`, `StateStore`,
-`SecretProvider`, `WorkloadIdentity` — 은 **기본 async** 입니다. 구체 구현 (Kafka 클라이언트,
-asyncpg, Key Vault HTTP, OIDC 토큰 교환) 을 sync 로 강제하면 event loop 를 블록합니다.
+**동시성 자세**: 다섯 개의 **I/O provider Protocol** — `EventBus`, `StateStore`,
+`SecretProvider`, `WorkloadIdentity`, `Inventory` — 은 **기본 async** 입니다. 구체 구현 (Kafka
+클라이언트, asyncpg, Key Vault HTTP, OIDC 토큰 교환, ARG/HTTP 인벤토리 쿼리) 을 sync 로
+강제하면 event loop 를 블록합니다.
 **CPU / startup seam** — `SchemaRegistry`, `ContractValidator` / `EventValidator`,
 `ConfigProvider` — 은 **sync 유지**: 시작 시 한 번 실행되거나, I/O 없는 순수 CPU 경계
 검증이므로 async 래퍼는 노이즈만 추가합니다. 테스트는 `pytest-asyncio` + `asyncio_mode =

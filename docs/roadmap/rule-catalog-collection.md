@@ -279,6 +279,27 @@ contradictory:
   They let the runtime traverse from a `Signal` to the exact matching rules with two index
   intersections instead of a scan; the full pipeline lives in
   [llm-strategy.md § Rule-to-Decision Lookup Pipeline](llm-strategy.md#rule-to-decision-lookup-pipeline).
+- **`remediates` vs `remediation` — two fields, one concept:** `remediates` is the
+  **ActionType id** (M:1) declaring *which category of mutation* this rule proposes;
+  `remediation` is the concrete *how* — a `{ kind, ref, parameters, cost_impact_monthly }`
+  block whose `kind` (`iac-patch`, `scripted`, ...) MUST be compatible with the
+  ActionType's `operation`. Both fields are required together on every `rule`. CI rejects
+  a rule whose `remediates` resolves to an unknown ActionType or whose `remediation.kind`
+  is incompatible with the ActionType's `operation` (e.g. a `delete` operation delivered
+  as a `tag`-shaped patch).
+- **`alternatives[]` (optional):** a rule MAY declare alternative remediation ActionTypes
+  ranked by preference; T0 always uses `remediates` (deterministic-first), and only the
+  T2 quality gate — with grounding and mixed-model check — may swap in an alternative,
+  never a cheaper tier. Each alternative points to a registered ActionType id, never to a
+  free-form action.
+
+  ```yaml
+  # illustrative fragment
+  remediates: remediate.disable-public-access          # primary, deterministic
+  alternatives:
+    - remediate.add-firewall-rule                       # T2 may prefer if a tag pins
+    - remediate.add-private-endpoint                    #   "keep-public"
+  ```
 - `provenance` is a shared object on every rule-like kind:
   `{ source_url, source_version, resolved_ref, content_hash, license, retrieved_at, mapped_by }`.
   It maps onto phase-1's "source URL/commit, imported-at timestamp, mapping author":
@@ -336,6 +357,7 @@ check_logic:
 remediation:
   kind: iac-patch
   ref: remediation/object_storage/disable_public_access.tftpl
+remediates: remediate.disable-public-access          # M:1 ontology dispatch (REQUIRED)
 provenance:
   source_url: https://example.com/benchmark/controls/5.1
   source_version: v1.4.0
@@ -345,6 +367,15 @@ provenance:
   retrieved_at: 2026-07-03T00:00:00Z
   mapped_by: catalog-team
 ```
+
+> `remediates` is validated at load time against
+> [`rule-catalog/action-types/`](../../rule-catalog/action-types/) by
+> [`rule_catalog.schema.rule`](../../src/aiopspilot/rule_catalog/schema/rule.py) — an
+> unknown ActionType id fails the load, so a rule can never quote a mutation category
+> that has no `rollback_contract` / `promotion_gate` declared. Optional `alternatives`
+> follows the same rule; the shipped
+> [`rule-catalog/catalog/`](../../rule-catalog/catalog/) exercises the primary
+> `remediates` on every entry (P1 W-2).
 
 ### Best Practice (multi-check recommendation)
 
@@ -424,17 +455,29 @@ aiopspilot/
 └── rule-catalog/          # catalog-as-code (YAML)
     ├── schema/            # per-kind JSON Schema (validation language) applied to YAML documents:
     │                      #   source-manifest, rule, best-practice, config-baseline
+    ├── vocabulary/        # canonical CSP-neutral vocabularies (resource-types.yaml, ...)
+    ├── action-types/      # ActionType instances quoted from rules' `remediates` field
     ├── sources/           # one folder per source: manifest (.yaml) + collector + parser
     │   └── <source>/
     ├── pipeline/          # watch → collect → shadow-eval → regression → promote/rollback (Phase 2)
     ├── remediation/       # remediation templates referenced by remediation.ref
     ├── catalog/           # normalized, version-pinned YAML output (catalog-as-code)
+    ├── exemptions/        # time-boxed, audited exemption artifacts
     └── baselines/         # measurement baselines (YAML; separate namespace + store from rules)
 ```
 
 Authored Rego is **not** nested under `rule-catalog/`; it lives in the top-level `policies/`
 consumed by T0 and the verifier, exactly as in
 [project-structure.md](project-structure.md). `pipeline/` is the Phase 2 continuous updater.
+
+- `vocabulary/resource-types.yaml` — the enumerated CSP-neutral `resource_type` identifier
+  set every rule quotes from. Rename → catalog-wide migration; add → governance PR. Loader:
+  `src/aiopspilot/rule_catalog/schema/resource_type.py`, JSON Schema:
+  `src/aiopspilot/rule_catalog/schema/resource_types.schema.json`.
+- `action-types/*.yaml` — one file per ontology `ActionType` instance. `default_mode`
+  MUST be `shadow` in upstream and `promotion_gate` MUST be present. Loader:
+  `src/aiopspilot/rule_catalog/schema/action_type.py`; JSON Schema is the shared ontology
+  schema at `src/aiopspilot/shared/contracts/ontology/action-type.json`.
 
 ## Validation and Trust
 

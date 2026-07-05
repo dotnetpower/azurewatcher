@@ -1,0 +1,11 @@
+# Rule-catalog exemptions require Owner-tier quorum review.
+#
+# Populate the actual team handle in a fork; this placeholder does not point
+# at a real GitHub team yet and is intentionally kept synthetic per
+# generic-scope.instructions.md.
+
+/rule-catalog/exemptions/    @dotnetpower/aiopspilot-owners
+/rule-catalog/risk-classification.yaml    @dotnetpower/aiopspilot-owners
+
+# Risk-gate policy changes always want Owner review.
+/src/aiopspilot/core/risk_gate/    @dotnetpower/aiopspilot-owners

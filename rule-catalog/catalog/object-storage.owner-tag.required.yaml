@@ -1,0 +1,24 @@
+schema_version: "1.0.0"
+id: object-storage.owner-tag.required
+version: "1.0.0"
+source: custom
+severity: low
+category: config_drift
+resource_type: object-storage
+check_logic:
+  kind: rego
+  reference: policies/object_storage/owner_tag_required.rego
+remediation:
+  template_ref: remediation/object_storage/tag_owner.tftpl
+  cost_impact_monthly_usd: 0
+remediates: remediate.tag-add
+parameters:
+  tag_name: owner
+  tag_value: unassigned
+provenance:
+  source_url: https://example.com/rules/object-storage-owner-tag
+  resolved_ref: "0000000000000000000000000000000000000000"
+  content_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  license: MIT
+  redistribution: embeddable
+  retrieved_at: "2026-07-05T00:00:00Z"

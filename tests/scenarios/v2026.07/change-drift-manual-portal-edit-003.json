@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "id": "change.drift-manual-portal-edit.003",
+  "version": "v2026.07",
+  "domain": "change",
+  "tags": [
+    "config-drift",
+    "out-of-band"
+  ],
+  "event": {
+    "schema_version": "1.0.0",
+    "event_id": "00000000-0000-0000-0000-000000000003",
+    "idempotency_key": "scenario-3",
+    "source": "example_activity_log",
+    "event_type": "drift_detected",
+    "detected_at": "2026-07-05T08:00:00Z",
+    "ingested_at": "2026-07-05T08:00:01Z",
+    "mode": "shadow"
+  },
+  "expected": {
+    "tier": "t0",
+    "decision": "hil",
+    "citing_rule_ids": [
+      "example.drift.reconcile-to-iac"
+    ],
+    "guard": {
+      "should_execute": false,
+      "should_rollback": false,
+      "should_trigger_policy_violation": false
+    }
+  }
+}

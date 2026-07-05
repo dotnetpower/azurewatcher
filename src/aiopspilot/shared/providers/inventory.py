@@ -1,0 +1,144 @@
+"""Inventory — 5th CSP-neutral wire contract; populates the ontology resource graph.
+
+Realizes the contract in ``docs/roadmap/csp-neutrality.md § 5. Inventory
+Contract`` and the ontology model in ``docs/roadmap/llm-strategy.md §
+Ontology Foundation``.
+
+Core code sees only this Protocol; no cloud SDK (`azure-mgmt-*`,
+`boto3.client("config")`, `google.cloud.asset`, ...) is imported anywhere
+under ``core/`` or ``shared/``. Adapters live under ``delivery/`` or in a
+fork's package and are registered at the composition root.
+
+Two operations return CSP-neutral records:
+
+- :meth:`Inventory.full_snapshot` — the initial or periodic
+  reconciliation load, emitted as batches of :class:`ResourceRecord` +
+  :class:`LinkRecord`. The Azure adapter parallelizes this by sharding
+  the query workload by ``Resource.type`` under a bounded semaphore; the
+  Protocol does not prescribe how, it only requires that the batches are
+  streamed as ``AsyncIterator[InventoryBatch]`` so the ingest pipeline
+  can consume them without an unbounded memory buffer.
+- :meth:`Inventory.delta` — incremental changes since ``cursor``, driven
+  by the provider's native change stream (Azure Activity Log forwarded
+  into the event bus, AWS Config item stream, GCP Cloud Asset feed, K8s
+  watch). Deltas MUST be idempotent and safe to re-apply.
+
+Any adapter MUST honor the rules in
+``docs/roadmap/csp-neutrality.md § 5``:
+
+- Idempotent upsert into ``ontology_resource`` + ``ontology_link``.
+- Fail-closed on partial snapshot: the caller MUST reject a stream that
+  ended before ``final=True`` and retain the previous graph.
+- Redact / length-bound untrusted vendor properties before returning
+  them; the Protocol return type is inert data.
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator, Mapping
+from dataclasses import dataclass, field
+from typing import Any, Protocol, runtime_checkable
+
+
+@dataclass(frozen=True, slots=True)
+class ResourceRecord:
+    """One CSP-neutral resource observed by the inventory adapter.
+
+    ``resource_id`` is the stable neutral identifier the ontology uses as
+    ``ontology_resource.resource_id``. The vendor-native id (ARM path,
+    ARN, GCP resource name, K8s uid) rides in ``provider_ref`` for audit
+    and is never used as a primary key by ``core/``.
+    """
+
+    resource_id: str
+    type: str
+    props: Mapping[str, Any] = field(default_factory=dict)
+    provider_ref: str | None = None
+    last_seen: str | None = None
+    """RFC 3339 UTC timestamp of the observation; ``None`` when the
+    adapter cannot supply one (rare)."""
+
+
+@dataclass(frozen=True, slots=True)
+class LinkRecord:
+    """One CSP-neutral Resource→Resource link observed by the inventory adapter.
+
+    ``link_type`` MUST be a name registered in
+    ``shared/contracts/ontology/link-type.json`` (P1: ``contains`` /
+    ``attached_to`` / ``depends_on``; P3+: ``peered_with`` /
+    ``routes_to``). Unknown link types MUST be dropped and reported
+    upstream — the Protocol does not enforce the registry itself, but
+    the caller (event-ingest) MUST validate before writing.
+    """
+
+    from_id: str
+    from_type: str
+    link_type: str
+    to_id: str
+    to_type: str
+    link_props: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class InventoryBatch:
+    """One batch of resources + links returned by ``full_snapshot`` / ``delta``.
+
+    Batches are streamed; a caller MUST NOT rely on any batch to be
+    "complete" for a resource type. Idempotency is by
+    ``(resource_id)`` for resources and ``(from_id, link_type, to_id)``
+    for links.
+    """
+
+    resources: tuple[ResourceRecord, ...] = ()
+    links: tuple[LinkRecord, ...] = ()
+    cursor: str | None = None
+    """Adapter-defined opaque cursor advanced by this batch. Passed back
+    to :meth:`Inventory.delta` on the next incremental pull."""
+    final: bool = False
+    """``True`` only on the last batch of a successful ``full_snapshot``
+    call. The caller uses this as the atomic-promote fence — a stream
+    that ends without a ``final=True`` batch MUST be discarded."""
+
+
+@runtime_checkable
+class Inventory(Protocol):
+    """CSP-neutral resource-graph adapter (5th wire-level contract).
+
+    Async by default — every real backend is I/O-bound (ARG HTTPS, AWS
+    Config, GCP Cloud Asset REST, K8s apiserver list-watch). Sync is
+    reserved for pure-CPU seams elsewhere; forcing sync here would
+    block the event loop under Kafka poll.
+    """
+
+    def full_snapshot(self, since: str | None = None) -> AsyncIterator[InventoryBatch]:
+        """Parallel initial or reconciliation load.
+
+        Adapters MUST shard the workload by ``resource_type`` (and
+        further by scope where needed) under a bounded semaphore so a
+        large tenant does not exhaust the API budget. The returned
+        stream ends with a batch whose ``final=True``.
+
+        ``since`` is optional and adapter-defined; when supplied it MAY
+        be used to skip resources whose ``last_seen`` is at least that
+        recent (an optimization, not a substitute for :meth:`delta`).
+        """
+        ...
+
+    def delta(self, cursor: str) -> AsyncIterator[InventoryBatch]:
+        """Incremental changes since ``cursor``.
+
+        Deltas MUST be idempotent (safe to re-apply on retry) and
+        stream in ontology-neutral records. Native provider change
+        signals are forwarded into a Kafka topic and consumed exactly
+        like any other ``Signal`` — see
+        ``docs/roadmap/csp-neutrality.md § 5``.
+        """
+        ...
+
+
+__all__ = [
+    "Inventory",
+    "InventoryBatch",
+    "LinkRecord",
+    "ResourceRecord",
+]

@@ -1,7 +1,7 @@
 ---
 title: Phase 4 — 스케일 (Azure); 멀티 클라우드 (TBD)
 translation_of: phase-4-scale.md
-translation_source_sha: 25a170c4e0b024196d4ada8ab3820a369c092a57
+translation_source_sha: 4f7b46bd6cf49614e0c4f9694d70a332690a5398
 translation_revised: 2026-07-05
 ---
 
@@ -25,10 +25,22 @@ CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마)
 
 ## 산출물
 
+모듈 참조는 [`src/aiopspilot/`](../project-structure-ko.md)에서 해당 산출물을 담고 있는
+주요 Python 패키지를 가리킴; 여기 나열된 모든 모듈은 고객-agnostic이고 Azure 전용
+(아래 멀티 클라우드 산출물은 TBD로 남음).
+
 - 자동 회귀 강등 있는 Azure 베이스라인의 지속 측정/개선 루프.
+  모듈:
+  [core/measurement/regression.py](../../../src/aiopspilot/core/measurement/regression.py).
 - 오버피팅 방지 가드 있는 패턴-라이브러리(T1) 성장.
+  모듈:
+  [core/measurement/pattern_growth.py](../../../src/aiopspilot/core/measurement/pattern_growth.py).
 - 측정-주도 스왑 있는 모델 cost/quality 추적.
+  모듈:
+  [core/measurement/model_tracking.py](../../../src/aiopspilot/core/measurement/model_tracking.py).
 - Azure에서 확장성/성능 검증(티어별 지연 예산, 이벤트-기반 scale-to-zero 보존).
+  모듈:
+  [core/measurement/latency_budget.py](../../../src/aiopspilot/core/measurement/latency_budget.py).
 - **TBD (deferred)**: **provider 어댑터** 를 통한 정책과 실행의 멀티 클라우드 확장(새 코어 없음),
   크로스-CSP rule-catalog 정규화, per-CSP 실행 아이덴티티, 멀티 클라우드 이벤트 버스 결정
   ([tech-stack-ko.md](../tech-stack-ko.md) 의 OD-3). 이 항목들은 비-Azure 작업이 스코프될

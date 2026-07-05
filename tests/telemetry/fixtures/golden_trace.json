@@ -1,0 +1,129 @@
+{
+  "$schema": "https://aiopspilot.dev/schemas/golden-audit-trace/1.0.0",
+  "version": "v2026.07",
+  "description": "Synthetic 12-event audit-log trace. Every field is customer-agnostic; UUIDs are the reserved 00000000-... form. Metric expectations at the bottom are ground truth for the golden-fixture test.",
+  "entries": [
+    {
+      "event_id": "00000000-0000-0000-0000-000000000001",
+      "correlation_id": "corr-001",
+      "tier": "t0",
+      "decision": "auto",
+      "mode": "shadow",
+      "detected_at": "2026-07-05T08:00:00Z",
+      "resolved_at": "2026-07-05T08:00:00.500Z"
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000002",
+      "correlation_id": "corr-002",
+      "tier": "t0",
+      "decision": "auto",
+      "mode": "shadow",
+      "detected_at": "2026-07-05T08:00:01Z",
+      "resolved_at": "2026-07-05T08:00:01.500Z"
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000003",
+      "correlation_id": "corr-003",
+      "tier": "t0",
+      "decision": "auto",
+      "mode": "enforce",
+      "detected_at": "2026-07-05T08:00:02Z",
+      "resolved_at": "2026-07-05T08:00:02.500Z"
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000004",
+      "correlation_id": "corr-004",
+      "tier": "t0",
+      "decision": "auto",
+      "mode": "enforce",
+      "detected_at": "2026-07-05T08:00:03Z",
+      "resolved_at": "2026-07-05T08:00:03.500Z"
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000005",
+      "correlation_id": "corr-005",
+      "tier": "t1",
+      "decision": "auto",
+      "mode": "shadow",
+      "detected_at": "2026-07-05T08:00:04Z",
+      "resolved_at": "2026-07-05T08:00:04.700Z"
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000006",
+      "correlation_id": "corr-006",
+      "tier": "t1",
+      "decision": "hil",
+      "mode": "shadow",
+      "detected_at": "2026-07-05T08:00:05Z",
+      "resolved_at": "2026-07-05T08:00:06.000Z",
+      "human_touched": true
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000007",
+      "correlation_id": "corr-007",
+      "tier": "t1",
+      "decision": "hil",
+      "mode": "enforce",
+      "detected_at": "2026-07-05T08:00:06Z",
+      "resolved_at": "2026-07-05T08:00:07.500Z",
+      "human_touched": true
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000008",
+      "correlation_id": "corr-008",
+      "tier": "t2",
+      "decision": "hil",
+      "mode": "shadow",
+      "detected_at": "2026-07-05T08:00:07Z",
+      "resolved_at": "2026-07-05T08:00:09.000Z",
+      "human_touched": true
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000009",
+      "correlation_id": "corr-009",
+      "tier": "t2",
+      "decision": "abstain",
+      "mode": "shadow",
+      "detected_at": "2026-07-05T08:00:08Z",
+      "resolved_at": "2026-07-05T08:00:10.000Z"
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000010",
+      "correlation_id": "corr-010",
+      "tier": "t2",
+      "decision": "abstain",
+      "mode": "shadow",
+      "detected_at": "2026-07-05T08:00:09Z",
+      "resolved_at": "2026-07-05T08:00:11.000Z"
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000011",
+      "correlation_id": "corr-011",
+      "tier": "t0",
+      "decision": "deny",
+      "mode": "shadow",
+      "detected_at": "2026-07-05T08:00:10Z",
+      "resolved_at": "2026-07-05T08:00:10.500Z"
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000012",
+      "correlation_id": "corr-012",
+      "tier": "t0",
+      "decision": "deny",
+      "mode": "enforce",
+      "detected_at": "2026-07-05T08:00:11Z",
+      "resolved_at": "2026-07-05T08:00:11.500Z"
+    }
+  ],
+  "expected_metrics": {
+    "event_count": 12,
+    "auto_resolution_rate": 0.4166666666666667,
+    "hil_rate": 0.25,
+    "abstain_rate": 0.16666666666666666,
+    "deny_rate": 0.16666666666666666,
+    "human_touchpoints_per_100_events": 25.0,
+    "shadow_share": 0.6666666666666666,
+    "enforce_share": 0.3333333333333333,
+    "per_tier": {"t0": 6, "t1": 3, "t2": 3}
+  }
+}

@@ -1,7 +1,7 @@
 ---
 title: 리스크 분류 (auto vs HIL vs deny)
 translation_of: risk-classification.md
-translation_source_sha: a68a057faabbbfffc549a14cb96178aad1d263cd
+translation_source_sha: fe0c71b8f897b45977a50d2a432b5eb5743c729b
 translation_revised: 2026-07-05
 ---
 
@@ -38,12 +38,15 @@ Decision *"Risk-classification policy (auto vs HIL) and initial policy approver"
 | 차원 | 타입 | 소스 |
 |------|------|------|
 | `policy_violation` | bool | OPA/Rego verifier 판정 |
-| `destructive` | bool | 온톨로지 `ActionType.operation ∈ {delete, disable, drop, purge}` |
-| `blast_radius` | enum `resource` \| `resource_group` \| `subscription` | `applies_to` × 영향받은 리소스의 스코프 |
-| `rollback_path` | enum `pr_revert` \| `scripted` \| `none` | `remediates` 액션의 롤백 계약 |
-| `reversible` | bool | `rollback_path ≠ none` 의 지름길 |
+| `destructive` | bool | 온톨로지 `ActionType.operation ∈ {delete, drop, purge, detach}` |
+| `irreversible` | bool | 온톨로지 `ActionType.irreversible == true` (롤백된 상태가 액션 이전 상태를 완전 복원 불가) |
+| `blast_radius` | enum `resource` \| `resource_group` \| `subscription` | `applies_to` × 영향받은 리소스의 스코프; `ActionType.blast_radius.computation == graph_derived` 일 때 risk-gate 가 Resource→Resource 링크(기본 `contains` + 역방향 `depends_on`, depth 2) 를 walk 해서 영향받는 리소스 count 를 bucket 으로 매핑 |
+| `rollback_path` | enum `pr_revert` \| `scripted` \| `pitr` \| `snapshot_restore` \| `state_forward_only` | `remediates` 액션의 롬백 계약 (`none` 은 유효 값 아님 — 모든 ActionType 이 undo 경로를 선언) |
+| `reversible` | bool | `irreversible == false` 의 지름길 |
 | `environment` | enum `prod` \| `non-prod` | [Environment Detection](#environment-detection) 참조 |
-| `data_plane_touched` | bool | 온톨로지 `ActionType` 인터페이스가 `DataPlaneMutating` 포함 |
+| `data_plane_touched` | bool | 온톨로지 `ActionType.interfaces` 가 `DataPlaneMutating` 포함 |
+| `graph_stale` | bool | `ActionType.interfaces` 에 `RequiresInventoryFresh` 포함 AND 대상 Resource 의 인벤토리 레코드가 `freshness_ttl` 초과 |
+| `cross_resource_impact` | int | `ActionType.blast_radius.computation == graph_derived` ⇒ traversal 이 반환한 영향받는 Resource count; `GraphTraversalRequired` 없고 그래프 또한 없으면 `unknown` |
 | `cost_impact_monthly` | number (USD/월) | 규칙의 `remediation.cost_impact` 추정, 또는 관찰된 사후 정산 |
 | `verifier_confidence` | number [0..1] | LLM quality-gate 신호 (T2 생산 액션에만 설정) |
 
@@ -63,14 +66,18 @@ rules:
   - if: { blast_radius: subscription }
     decision: deny
     reason: "no autonomous change spans a full subscription"
-  - if: { rollback_path: none }
+  - if: { graph_stale: true }
     decision: deny
-    reason: "safety invariant requires a tested rollback path"
+    reason: "inventory graph is stale; refuse to act on a possibly-ghost resource"
 
   # ── HIL (사람 승인 필요) ──
+  - if: { irreversible: true }
+    decision: hil
+    reason: "irreversible mutation always requires an approver quorum >= 2"
+    quorum: 2
   - if: { destructive: true }
     decision: hil
-    reason: "delete/disable/drop/purge always requires an approver"
+    reason: "delete/drop/purge/detach always requires an approver"
   - if: { environment: prod, allowlist_prod_auto: false }
     decision: hil
     reason: "prod defaults to HIL unless the rule is on the prod-auto allowlist"

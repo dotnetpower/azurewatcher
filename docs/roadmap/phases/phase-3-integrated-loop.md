@@ -18,17 +18,27 @@ multipliers (see [goals-and-metrics.md](../goals-and-metrics.md)).
 
 ## Deliverables
 
-Each deliverable maps to a section below.
+Each deliverable maps to a section below. The module reference lists the primary Python
+package that carries the deliverable in
+[`src/aiopspilot/`](../project-structure.md).
 
 - **Unified control loop** across Resilience, Change Safety, and Cost Governance — one
   `trust-router` → `risk-gate` → `executor` → `audit` path, with per-resource ordering/locking
-  and cross-vertical conflict handling ([Unified Control Loop](#unified-control-loop)).
+  and cross-vertical conflict handling
+  ([Unified Control Loop](#unified-control-loop)).
+  Modules: [core/control_loop.py](../../../src/aiopspilot/core/control_loop.py),
+  [core/risk_gate/precedence.py](../../../src/aiopspilot/core/risk_gate/precedence.py).
 - **DR/Chaos scheduler** with window-based test failover / game days, deep DB-DR handling, and
-  measured RPO/RTO reporting ([#dr--chaos--scheduled-periodic-testing](#dr--chaos--scheduled-periodic-testing)).
+  measured RPO/RTO reporting
+  ([#dr--chaos--scheduled-periodic-testing](#dr--chaos--scheduled-periodic-testing)).
+  Module: [core/verticals/resilience.py](../../../src/aiopspilot/core/verticals/resilience.py).
 - **FinOps auto-actions** with risk-gated autonomy delivered as remediation PRs
   ([FinOps](#finops)).
+  Module: [core/verticals/finops.py](../../../src/aiopspilot/core/verticals/finops.py).
 - **Integrated Change Safety** — low-risk auto-merge/reconcile, high-risk to HIL
   ([Change Safety](#change-safety-integrated)).
+  Module:
+  [core/verticals/change_safety.py](../../../src/aiopspilot/core/verticals/change_safety.py).
 
 ## Unified Control Loop
 

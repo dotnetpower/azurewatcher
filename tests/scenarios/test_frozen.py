@@ -1,0 +1,129 @@
+"""Frozen scenario-set integrity + balance + validity tests.
+
+W2.4 exit criterion: no customer values, English-only, every scenario carries
+both success and guard expectations, balance across domains.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+from typing import Any, cast
+
+import pytest
+from jsonschema import Draft202012Validator
+
+from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+from aiopspilot.shared.contracts.validation import JsonSchemaContractValidator
+
+SCENARIO_DIR = Path(__file__).resolve().parent / "v2026.07"
+SCHEMA_PATH = Path(__file__).resolve().parent / "schema.json"
+
+# ── Guard patterns ──────────────────────────────────────────────────────────
+# Any GUID whose first four groups are non-zero is a real customer identifier
+# and MUST NOT appear in a committed scenario file. The synthetic pattern
+# `00000000-0000-0000-0000-XXXXXXXXXXXX` (used to keep scenario event_ids
+# unique) is exempt.
+_NONZERO_GUID = re.compile(
+    r"\b(?!00000000-0000-0000-0000-[0-9a-fA-F]{12}\b)"
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
+)
+
+
+def _load_scenario_schema() -> dict[str, Any]:
+    return cast(dict[str, Any], json.loads(SCHEMA_PATH.read_text(encoding="utf-8")))
+
+
+def _load_scenarios() -> list[tuple[Path, dict[str, Any]]]:
+    files = sorted(SCENARIO_DIR.glob("*.json"))
+    return [(p, cast(dict[str, Any], json.loads(p.read_text(encoding="utf-8")))) for p in files]
+
+
+# ---------------------------------------------------------------------------
+# Schema validity
+# ---------------------------------------------------------------------------
+
+
+def test_scenario_schema_is_valid_draft_2020_12() -> None:
+    Draft202012Validator.check_schema(_load_scenario_schema())
+
+
+@pytest.mark.parametrize(("path", "raw"), _load_scenarios())
+def test_scenario_passes_its_schema(path: Path, raw: dict[str, Any]) -> None:
+    validator = Draft202012Validator(_load_scenario_schema())
+    errors = sorted(validator.iter_errors(raw), key=lambda e: list(e.path))
+    assert not errors, f"{path.name}: {[e.message for e in errors[:5]]}"
+
+
+@pytest.mark.parametrize(("path", "raw"), _load_scenarios())
+def test_scenario_event_passes_event_schema(path: Path, raw: dict[str, Any]) -> None:
+    """Every scenario event MUST validate against Event schema."""
+    registry = PackageResourceSchemaRegistry()
+    contract_v = JsonSchemaContractValidator(registry)
+    contract_v.validate("event", raw["event"])
+
+
+# ---------------------------------------------------------------------------
+# Balance
+# ---------------------------------------------------------------------------
+
+
+def test_scenarios_balanced_within_10_percent_of_mean() -> None:
+    per_domain: dict[str, int] = {}
+    for _, raw in _load_scenarios():
+        per_domain[raw["domain"]] = per_domain.get(raw["domain"], 0) + 1
+
+    assert set(per_domain) == {"change", "dr", "finops"}, f"Missing a domain: {set(per_domain)}"
+    mean = sum(per_domain.values()) / len(per_domain)
+    for domain, count in per_domain.items():
+        deviation = abs(count - mean) / mean
+        assert deviation <= 0.10, (
+            f"Domain {domain} deviates {deviation:.0%} from the mean count {mean:.1f}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Customer-agnosticness
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("path", "raw"), _load_scenarios())
+def test_scenario_carries_no_non_zero_guid(path: Path, raw: dict[str, Any]) -> None:
+    """Every UUID literal in a committed scenario MUST be the all-zero placeholder."""
+    body = json.dumps(raw)
+    matches = _NONZERO_GUID.findall(body)
+    assert not matches, f"{path.name} contains customer-identifying GUIDs: {matches[:3]}"
+
+
+@pytest.mark.parametrize(("path", "raw"), _load_scenarios())
+def test_scenario_has_english_only_prose(path: Path, raw: dict[str, Any]) -> None:
+    """Hangul + CJK in a scenario file is a bug."""
+    body = path.read_text(encoding="utf-8")
+    korean_or_cjk = re.compile(r"[\uac00-\ud7a3\u1100-\u11ff\u4e00-\u9fff]")
+    hits = korean_or_cjk.findall(body)
+    assert not hits, f"{path.name} contains non-ASCII natural-language text"
+
+
+# ---------------------------------------------------------------------------
+# Coverage — success + guard together
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("path", "raw"), _load_scenarios())
+def test_every_scenario_declares_both_success_and_guard(path: Path, raw: dict[str, Any]) -> None:
+    expected = raw["expected"]
+    # Success side (routing decision).
+    assert expected["tier"] in ("t0", "t1", "t2"), path.name
+    assert expected["decision"] in ("auto", "hil", "abstain", "deny"), path.name
+    # Guard side.
+    guard = expected["guard"]
+    for k in ("should_execute", "should_rollback", "should_trigger_policy_violation"):
+        assert isinstance(guard[k], bool), f"{path.name}: guard.{k} must be bool"
+
+
+@pytest.mark.parametrize(("path", "raw"), _load_scenarios())
+def test_scenario_id_matches_filename(path: Path, raw: dict[str, Any]) -> None:
+    """Filename MUST derive from id (dots → dashes) so grep / audit are easy."""
+    expected = raw["id"].replace(".", "-") + ".json"
+    assert path.name == expected, f"{path.name} does not match id-derived filename {expected}"

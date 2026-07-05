@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aiopspilot.dev/schemas/ontology/action-type/1.0.0",
+  "$id": "https://aiopspilot.dev/schemas/ontology/action-type/2.0.0",
   "title": "OntologyActionType",
-  "description": "Declares a category of autonomous action. Referenced by Action.action_type. The risk gate composes its feature vector partly from these declarations.",
+  "description": "Declares a category of autonomous mutation applied to a Resource. Referenced by Rule.remediates. Pipeline stages (evaluate, reuse, reason, escalate, abstain, deny) are NOT ActionTypes; they are audit vocabulary. Every ActionType MUST supply a rollback contract; irreversibility is opt-in via the `irreversible` flag and forces HIL+quorum via the risk gate.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,7 +10,9 @@
     "name",
     "version",
     "operation",
-    "rollback_contract"
+    "rollback_contract",
+    "default_mode",
+    "promotion_gate"
   ],
   "properties": {
     "schema_version": {
@@ -19,7 +21,8 @@
     },
     "name": {
       "type": "string",
-      "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      "pattern": "^[a-z][a-z0-9_\\.\\-]{0,79}$",
+      "description": "Stable id, e.g. `remediate.disable-public-access`."
     },
     "version": {
       "type": "string",
@@ -35,8 +38,17 @@
         "enable",
         "tag",
         "drop",
-        "purge"
-      ]
+        "purge",
+        "scale",
+        "restart",
+        "failover",
+        "rotate",
+        "revert",
+        "attach",
+        "detach",
+        "quarantine"
+      ],
+      "description": "CSP-neutral verb. Semantics: create=provision; update=in-place property change (non-destructive); delete=remove CSP resource; disable=turn off without deleting; enable=inverse of disable; tag=metadata-only; drop=DB-DDL removal (schema/object); purge=soft-delete then hard-delete; scale=count/SKU adjustment; restart=in-place bounce; failover=trigger managed failover; rotate=secret/cert rotation; revert=explicit rollback of a prior action instance; attach/detach=create/remove a Resource->Resource link (PE->target, MI->App, disk->VM); quarantine=network/policy isolation without deletion."
     },
     "interfaces": {
       "type": "array",
@@ -46,20 +58,137 @@
           "ControlPlane",
           "DataPlaneMutating",
           "IdempotentByKey",
-          "RateLimited"
+          "RateLimited",
+          "RequiresInventoryFresh",
+          "GraphTraversalRequired",
+          "CrossResource",
+          "AsymmetricRollback",
+          "RequiresMaintenanceWindow"
         ]
       },
       "uniqueItems": true,
-      "default": []
+      "default": [],
+      "description": "Runtime contracts the executor must honor. ControlPlane=touches only CSP metadata; DataPlaneMutating=touches user data (always HIL by default); IdempotentByKey=safe to retry with the same idempotency key; RateLimited=must respect a bucket cap; RequiresInventoryFresh=must not fire on a Resource whose inventory record is stale beyond freshness_ttl; GraphTraversalRequired=blast_radius calculation depends on Resource->Resource links (contains/depends_on); CrossResource=mutation touches multiple Resources so executor acquires N locks in deterministic order (deadlock-free); AsymmetricRollback=rollback path is not the exact inverse (e.g. PITR loses delta), forces auto->HIL demotion; RequiresMaintenanceWindow=only executes inside an approved window (P3 chaos/DR)."
     },
     "rollback_contract": {
       "type": "string",
       "enum": [
         "pr_revert",
         "scripted",
-        "none"
+        "pitr",
+        "snapshot_restore",
+        "state_forward_only"
       ],
-      "description": "How instances of this action can be undone."
+      "description": "How instances of this action are undone. pr_revert=git revert on the remediation PR; scripted=an inverse action script bundled with the ActionType; pitr=DB point-in-time restore; snapshot_restore=restore a snapshot taken before the action; state_forward_only=rollback is achieved by executing an inverse ActionType instance (e.g. `disable`<->`enable`). No `none` value: every ActionType MUST declare how to undo an instance. Genuinely one-way mutations set `irreversible: true` (below) and are gated by risk-classification, not by silencing rollback."
+    },
+    "irreversible": {
+      "type": "boolean",
+      "default": false,
+      "description": "True only when a rolled-back state cannot restore the pre-action state (e.g. purge of a deleted-only-once resource). When true, risk-classification MUST route to HIL with quorum >= 2 regardless of other dimensions. Rollback_contract is still required and MUST describe the best-effort recovery even if partial."
+    },
+    "default_mode": {
+      "type": "string",
+      "enum": ["shadow", "enforce"],
+      "default": "shadow",
+      "description": "Upstream ActionTypes MUST default to `shadow`. Rule assignments MAY tighten (never loosen) via governance PR after the promotion_gate is measured. Setting `enforce` in upstream is only allowed for the trivial no-op ActionTypes (`observe`, `revert` bound to an audited prior action)."
+    },
+    "promotion_gate": {
+      "type": "object",
+      "description": "Measurable criteria a shadow-mode ActionType must satisfy on the frozen scenario set before assignment can promote it to enforce.",
+      "additionalProperties": false,
+      "required": [
+        "min_shadow_days",
+        "min_samples",
+        "min_accuracy",
+        "max_policy_escapes"
+      ],
+      "properties": {
+        "min_shadow_days": {"type": "integer", "minimum": 1},
+        "min_samples": {"type": "integer", "minimum": 1},
+        "min_accuracy": {"type": "number", "minimum": 0, "maximum": 1},
+        "max_policy_escapes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "preconditions": {
+      "type": "array",
+      "default": [],
+      "description": "Deterministic checks the T0 verifier evaluates BEFORE the action can be emitted to the risk-gate. A failing precondition MUST abstain, never partially apply.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "graph_fresh_within_seconds",
+              "link_exists",
+              "link_absent",
+              "no_conflicting_open_action_on_resource",
+              "maintenance_window_active",
+              "resource_property_equals",
+              "resource_tag_present"
+            ]
+          },
+          "value": {"type": ["string", "number", "boolean"]},
+          "link_type": {"type": "string"},
+          "property": {"type": "string"},
+          "tag": {"type": "string"}
+        }
+      }
+    },
+    "stop_conditions": {
+      "type": "array",
+      "default": [],
+      "description": "Deterministic conditions the executor evaluates DURING or AFTER apply. Any true value auto-halts and triggers rollback per rollback_contract.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "error_rate_above",
+              "latency_p99_above_ms",
+              "dependent_resource_degraded",
+              "time_box_exceeded_seconds",
+              "provider_api_error_streak"
+            ]
+          },
+          "threshold": {"type": "number"},
+          "window_seconds": {"type": "integer", "minimum": 1},
+          "seconds": {"type": "integer", "minimum": 1},
+          "count": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "blast_radius": {
+      "type": "object",
+      "description": "How the risk-gate computes the blast_radius classification dimension for an instance of this ActionType. `static_enum` means the ActionType declares a fixed bucket; `graph_derived` means the risk-gate walks Resource->Resource links (default: `contains` + reverse `depends_on`, depth 2) and counts affected Resources. An instance exceeding `max_affected_resources` abstains and escalates to HIL. Actual traversal implementation lands with the risk-gate (P2); P1 only records the declaration.",
+      "additionalProperties": false,
+      "required": ["computation"],
+      "properties": {
+        "computation": {
+          "type": "string",
+          "enum": ["static_enum", "graph_derived"]
+        },
+        "static_bucket": {
+          "type": "string",
+          "enum": ["resource", "resource_group", "subscription"]
+        },
+        "max_affected_resources": {"type": "integer", "minimum": 1},
+        "traversal_depth": {"type": "integer", "minimum": 1, "maximum": 5, "default": 2},
+        "traversal_links": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["contains", "attached_to", "depends_on"]
+          },
+          "uniqueItems": true,
+          "default": ["contains", "depends_on"]
+        }
+      }
     },
     "description": {
       "type": "string"

@@ -32,6 +32,8 @@ aiopspilot/
 │   │   │   ├── rule/          # rule/schema.json
 │   │   │   └── ontology/      # object-type / link-type / action-type JSON Schemas
 │   │   ├── providers/         # CSP-neutral cloud provider interfaces (adapters implement them)
+│   │   │                      #   event_bus.py, secret_provider.py, state_store.py,
+│   │   │                      #   workload_identity.py, inventory.py
 │   │   ├── streaming/         # SSE broadcaster (Kafka → outbound text/event-stream relay)
 │   │   ├── telemetry/         # structured logging, tracing, metric helpers
 │   │   └── config/            # config schema + startup validation (fail-fast)
@@ -43,8 +45,12 @@ aiopspilot/
 │       ├── sources/           # per-source collectors (WAF, CIS, OPA, IaC scanners, ...)
 │       └── pipeline/          # watch → collect → shadow eval → regression → promote/rollback
 ├── src/aiopspilot/composition.py  # composition root: default_container() binds every seam
+├── src/aiopspilot/core/control_loop.py  # P1 pipeline orchestrator: event_ingest → trust_router → T0 → executor → audit
 ├── rule-catalog/              # catalog-as-code DATA (YAML) — no Python; pipeline lives in src/aiopspilot/rule_catalog/
 │   ├── schema/                # JSON Schema definitions (data)
+│   ├── vocabulary/            # canonical CSP-neutral vocabularies (resource-types.yaml, ...)
+│   ├── action-types/          # ontology ActionType instances (shadow-default, promotion_gate-required)
+│   ├── exemptions/            # time-boxed audited exemption artifacts
 │   └── sources/               # per-source rule snapshots + provenance
 ├── policies/                  # OPA/Rego policy-as-code consumed by T0 and the verifier
 ├── infra/                     # IaC: Terraform (HCL); entry command `terraform apply`
@@ -132,7 +138,7 @@ clean (see the fork model in
 
 ### Injectable Seams
 
-The four seams marked **CSP-neutrality contract** below realize the wire-level contracts in
+The five seams marked **CSP-neutrality contract** below realize the wire-level contracts in
 [csp-neutrality.md](csp-neutrality.md). `core/` sees only the interface; a fork or a future
 non-Azure phase registers a new implementation at the composition root without editing `core/`.
 
@@ -142,7 +148,8 @@ non-Azure phase registers a new implementation at the composition root without e
 | Runtime | `RuntimeAdapter` (renders OCI + Knative-compatible manifest) | **CSP-neutrality contract** — [runtime](csp-neutrality.md#2-runtime-contract--oci-image--knative-compatible-manifest) | Container Apps IaC renderer (Bicep/Terraform) | Cloud Run YAML, App Runner service, Knative Service on any K8s |
 | Secret & config | `SecretProvider` / `ConfigProvider` | **CSP-neutrality contract** — [secret](csp-neutrality.md#3-secret-contract--environment--k8s-secret) | env + Container Apps KV-reference bridge | ESO + Key Vault / AWS Secrets Manager / GCP Secret Manager / HashiCorp Vault |
 | Workload identity | `WorkloadIdentity` (audience-scoped OIDC token) | **CSP-neutrality contract** — [workload identity](csp-neutrality.md#4-workload-identity-contract--oidc-token) | user-assigned Managed Identity (IMDS → Entra token) | IRSA, GCP Workload Identity Federation, SPIFFE/SPIRE SVID |
-| Cloud provider | provider client | (uses the four above) | reference/generic Azure adapter | a specific CSP adapter |
+| Inventory | `Inventory` (CSP-neutral resource-graph adapter emitting `Resource` + `contains` / `attached_to` / `depends_on` link records via `full_snapshot()` and `delta()`) | **CSP-neutrality contract** — [inventory](csp-neutrality.md#5-inventory-contract--resource-graph) | Azure Resource Graph adapter: parallel full-scan sharded by `resource_type` + Activity-Log-driven delta consumed off the event bus | AWS Config + Resource Explorer adapter; GCP Cloud Asset Inventory adapter; K8s `apiserver` list-watch translator |
+| Cloud provider | provider client | (uses the five above) | reference/generic Azure adapter | a specific CSP adapter |
 | **Schema source** | `SchemaRegistry` (raw JSON Schema loader) | — | `PackageResourceSchemaRegistry` (schemas ship inside the package) | remote schema-registry adapter; snapshot pinned by content hash |
 | **Boundary validation** | `ContractValidator` / `EventValidator` (fail-closed input check) | — | `JsonSchemaContractValidator` + `JsonSchemaEventValidator` (draft-2020-12) | fork MAY layer domain-specific checks (e.g. source allowlist) without editing `core/` |
 | Rule / policy source | rule-catalog + `policies/` loader | — | bundled generic rules | customer rule set / thresholds |
@@ -155,10 +162,10 @@ non-Azure phase registers a new implementation at the composition root without e
 Because every seam is an injected interface, adding a customer or a second cloud is a matter of
 registering an implementation — the strict one-way dependency direction above is preserved.
 
-**Concurrency posture**: the four **I/O provider Protocols** — `EventBus`, `StateStore`,
-`SecretProvider`, `WorkloadIdentity` — are **async by default**. Their concrete
-implementations (Kafka client, asyncpg, Key Vault HTTP, OIDC token exchange) block the event
-loop if forced to be sync. The **CPU / startup seams** — `SchemaRegistry`,
+**Concurrency posture**: the five **I/O provider Protocols** — `EventBus`, `StateStore`,
+`SecretProvider`, `WorkloadIdentity`, `Inventory` — are **async by default**. Their concrete
+implementations (Kafka client, asyncpg, Key Vault HTTP, OIDC token exchange, ARG/HTTP
+inventory queries) block the event loop if forced to be sync. The **CPU / startup seams** — `SchemaRegistry`,
 `ContractValidator` / `EventValidator`, `ConfigProvider` — stay **sync**: they run once at
 startup, or are pure CPU boundary validation with no I/O, so an async wrapper would only add
 noise. Tests use `pytest-asyncio` with `asyncio_mode = "auto"` so a plain `async def

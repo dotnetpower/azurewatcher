@@ -1,0 +1,656 @@
+"""AzureArgQueryFactory — HTTP-level round-trip via httpx.MockTransport.
+
+Verifies the wire contract the P1 executor + risk-gate rely on:
+
+- Bearer-token authentication using the injected ``WorkloadIdentity``.
+- Kusto query targets the ARM type resolved from the vocabulary; unknown
+  CSP-neutral types raise a clear error.
+- ``$skipToken`` pagination is followed until exhaustion or ``max_pages``.
+- Non-2xx / non-JSON / missing ``data`` responses raise ``ArgQueryError``.
+- Response rows map into CSP-neutral ``ResourceRecord`` (raw ARM id lives
+  on ``provider_ref``); untrusted ``props`` are truncated when they exceed
+  the byte cap.
+- ``resource_type`` with a ``None`` ``azure_arm_type`` is a legitimate
+  no-op — the factory returns empty tuples so
+  :class:`AzureResourceGraphInventory` still emits its ``final=True`` fence.
+
+No real Azure endpoints are contacted; every test builds an
+``httpx.AsyncClient`` on top of ``httpx.MockTransport``.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
+
+import httpx
+import pytest
+import yaml
+
+from aiopspilot.delivery.azure.arg_query import (
+    ArgQueryError,
+    AzureArgQueryFactory,
+    AzureArgQueryFactoryConfig,
+)
+from aiopspilot.delivery.azure.inventory import (
+    AzureInventoryConfig,
+    AzureResourceGraphInventory,
+)
+from aiopspilot.rule_catalog.schema.resource_type import (
+    ResourceTypeRegistry,
+    load_resource_type_registry_from_mapping,
+)
+from aiopspilot.shared.providers.inventory import ResourceRecord
+from aiopspilot.shared.providers.testing.workload_identity import (
+    StaticWorkloadIdentity,
+)
+from aiopspilot.shared.providers.workload_identity import WorkloadIdentity
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+VOCABULARY_FILE = REPO_ROOT / "rule-catalog" / "vocabulary" / "resource-types.yaml"
+
+
+def _vocab() -> ResourceTypeRegistry:
+    with VOCABULARY_FILE.open("r", encoding="utf-8") as fh:
+        return load_resource_type_registry_from_mapping(yaml.safe_load(fh))
+
+
+def _identity(
+    audience: str = "https://management.azure.com/.default",
+    token: str = "test-token-xyz",  # noqa: S107 — deterministic test literal, not a secret
+) -> WorkloadIdentity:
+    return StaticWorkloadIdentity(audience=audience, token=token)
+
+
+def _config(**overrides: Any) -> AzureArgQueryFactoryConfig:
+    defaults = dict(
+        subscription_scopes=("00000000-0000-0000-0000-000000000001",),
+        page_size=2,
+        max_pages=3,
+        timeout_seconds=5.0,
+    )
+    defaults.update(overrides)
+    return AzureArgQueryFactoryConfig(**defaults)
+
+
+def _arm_row(*, arm_id: str, arm_type: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "id": arm_id,
+        "type": arm_type,
+        "name": arm_id.rsplit("/", 1)[-1],
+        "location": "koreacentral",
+        "tags": {"owner": "team-a"},
+        "properties": {"public_access": "enabled"},
+        "resourceGroup": "rg-example",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+    }
+    if extra:
+        row.update(extra)
+    return row
+
+
+def _make_client(
+    handler: httpx.MockTransport,
+) -> httpx.AsyncClient:
+    return httpx.AsyncClient(transport=handler, base_url="https://mock-arm.local")
+
+
+# ---------------------------------------------------------------------------
+# Construction guards
+# ---------------------------------------------------------------------------
+
+
+def test_empty_subscription_scopes_is_rejected() -> None:
+    with pytest.raises(ValueError, match="subscription_scopes MUST NOT be empty"):
+        AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=httpx.AsyncClient(),
+            config=AzureArgQueryFactoryConfig(subscription_scopes=()),
+        )
+
+
+@pytest.mark.parametrize(
+    "override,message",
+    [
+        ({"page_size": 0}, "page_size MUST be in"),
+        ({"page_size": 1001}, "page_size MUST be in"),
+        ({"max_pages": 0}, "max_pages MUST be >= 1"),
+        ({"timeout_seconds": 0}, "timeout_seconds MUST be > 0"),
+        ({"max_props_bytes": 500}, "max_props_bytes MUST be >= 1024"),
+    ],
+)
+def test_invalid_config_is_rejected(override: dict[str, Any], message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=httpx.AsyncClient(),
+            config=_config(**override),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Happy path — single page
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_single_page_query_maps_to_resource_records() -> None:
+    seen_requests: list[httpx.Request] = []
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        seen_requests.append(request)
+        payload = {
+            "data": [
+                _arm_row(
+                    arm_id=(
+                        "/subscriptions/00000000-0000-0000-0000-000000000001/"
+                        "resourceGroups/rg-example/providers/Microsoft.Storage/"
+                        "storageAccounts/stg1"
+                    ),
+                    arm_type="Microsoft.Storage/storageAccounts",
+                ),
+            ]
+        }
+        return httpx.Response(200, json=payload)
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=client,
+            config=_config(),
+        )
+        fetch = factory.build_query_fn()
+        resources, links = await fetch("object-storage")
+
+    assert len(resources) == 1
+    record: ResourceRecord = resources[0]
+    assert record.type == "object-storage"
+    assert record.provider_ref is not None
+    assert record.provider_ref.endswith("/storageAccounts/stg1")
+    # CSP-neutral id starts with `resource-group` prefix (see `_to_neutral_id`).
+    assert record.resource_id.startswith("resource-group/rg-example/")
+    assert links == ()
+
+    # Bearer auth + Kusto shape assertions.
+    assert len(seen_requests) == 1
+    req = seen_requests[0]
+    assert req.method == "POST"
+    assert req.headers["Authorization"] == "Bearer test-token-xyz"
+    body = json.loads(req.content.decode("utf-8"))
+    assert body["subscriptions"] == ["00000000-0000-0000-0000-000000000001"]
+    assert "Microsoft.Storage/storageAccounts" in body["query"]
+    assert body["options"]["$top"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Pagination
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_skip_token_is_followed_until_exhausted() -> None:
+    pages: list[dict[str, Any]] = [
+        {
+            "data": [
+                _arm_row(
+                    arm_id=(
+                        "/subscriptions/00000000-0000-0000-0000-000000000001/"
+                        "resourceGroups/rg-a/providers/Microsoft.Storage/"
+                        "storageAccounts/s1"
+                    ),
+                    arm_type="Microsoft.Storage/storageAccounts",
+                ),
+                _arm_row(
+                    arm_id=(
+                        "/subscriptions/00000000-0000-0000-0000-000000000001/"
+                        "resourceGroups/rg-a/providers/Microsoft.Storage/"
+                        "storageAccounts/s2"
+                    ),
+                    arm_type="Microsoft.Storage/storageAccounts",
+                ),
+            ],
+            "$skipToken": "next-1",
+        },
+        {
+            "data": [
+                _arm_row(
+                    arm_id=(
+                        "/subscriptions/00000000-0000-0000-0000-000000000001/"
+                        "resourceGroups/rg-b/providers/Microsoft.Storage/"
+                        "storageAccounts/s3"
+                    ),
+                    arm_type="Microsoft.Storage/storageAccounts",
+                ),
+            ],
+        },
+    ]
+    calls: list[dict[str, Any]] = []
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode("utf-8"))
+        calls.append(body)
+        return httpx.Response(200, json=pages[len(calls) - 1])
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=client,
+            config=_config(),
+        )
+        resources, _ = await factory.build_query_fn()("object-storage")
+
+    assert [r.provider_ref.split("/")[-1] for r in resources] == ["s1", "s2", "s3"]  # type: ignore[union-attr]
+    # First page has no $skipToken; second page carries it.
+    assert "$skipToken" not in calls[0]["options"]
+    assert calls[1]["options"]["$skipToken"] == "next-1"
+
+
+@pytest.mark.asyncio
+async def test_pagination_cap_raises() -> None:
+    def _handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    _arm_row(
+                        arm_id=(
+                            "/subscriptions/00000000-0000-0000-0000-000000000001/"
+                            "resourceGroups/rg-a/providers/Microsoft.Storage/"
+                            "storageAccounts/x"
+                        ),
+                        arm_type="Microsoft.Storage/storageAccounts",
+                    ),
+                ],
+                "$skipToken": "runaway",  # never terminates
+            },
+        )
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=client,
+            config=_config(max_pages=2),
+        )
+        with pytest.raises(ArgQueryError, match="pagination cap"):
+            await factory.build_query_fn()("object-storage")
+
+
+# ---------------------------------------------------------------------------
+# Failure paths
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_non_2xx_response_raises() -> None:
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="Forbidden — insufficient RBAC")
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=client,
+            config=_config(),
+        )
+        with pytest.raises(ArgQueryError, match="HTTP 403"):
+            await factory.build_query_fn()("object-storage")
+
+
+@pytest.mark.asyncio
+async def test_non_json_response_raises() -> None:
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"not-json-at-all")
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=client,
+            config=_config(),
+        )
+        with pytest.raises(ArgQueryError, match="non-JSON"):
+            await factory.build_query_fn()("object-storage")
+
+
+@pytest.mark.asyncio
+async def test_missing_data_field_raises() -> None:
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"$skipToken": "next"})  # no `data`
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=client,
+            config=_config(),
+        )
+        with pytest.raises(ArgQueryError, match="missing 'data'"):
+            await factory.build_query_fn()("object-storage")
+
+
+@pytest.mark.asyncio
+async def test_httpx_transport_error_wraps_into_arg_query_error() -> None:
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("simulated network failure")
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=client,
+            config=_config(),
+        )
+        with pytest.raises(ArgQueryError, match="ARG request failed"):
+            await factory.build_query_fn()("object-storage")
+
+
+# ---------------------------------------------------------------------------
+# Resource-type resolution
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_unknown_resource_type_raises_before_calling_arg() -> None:
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        raise AssertionError("adapter must not hit HTTP for an unknown type")
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=client,
+            config=_config(),
+        )
+        with pytest.raises(ArgQueryError, match="unknown resource_type"):
+            await factory.build_query_fn()("not-in-vocab")
+
+
+# ---------------------------------------------------------------------------
+# Untrusted-prop truncation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_oversize_properties_are_truncated() -> None:
+    huge = {"blob": "x" * 20000, "nested": {"inner": "y" * 20000}}
+
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    _arm_row(
+                        arm_id=(
+                            "/subscriptions/00000000-0000-0000-0000-000000000001/"
+                            "resourceGroups/rg-a/providers/Microsoft.Storage/"
+                            "storageAccounts/big"
+                        ),
+                        arm_type="Microsoft.Storage/storageAccounts",
+                        extra={"properties": huge, "tags": huge},
+                    ),
+                ]
+            },
+        )
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=client,
+            config=_config(max_props_bytes=2048),
+        )
+        resources, _ = await factory.build_query_fn()("object-storage")
+
+    assert len(resources) == 1
+    record = resources[0]
+    # After truncation the record still exists and is auditable via provider_ref.
+    assert record.provider_ref is not None
+    assert record.props.get("_truncated") is True
+
+
+# ---------------------------------------------------------------------------
+# Empty ARM type (legitimate no-op)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_resource_type_without_arm_mapping_is_a_noop() -> None:
+    """A CSP-neutral type with `azure_arm_type: None` MUST NOT call HTTP.
+
+    We synthesize such an entry to exercise the branch — production
+    vocabulary may or may not have one at any point, but the branch MUST
+    behave deterministically either way.
+    """
+    seen: list[httpx.Request] = []
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"data": []})
+
+    # Build a one-entry vocab whose azure_arm_type is null.
+    minimal = load_resource_type_registry_from_mapping(
+        {
+            "schema_version": "1.0.0",
+            "version": "0.0.1",
+            "types": [
+                {
+                    "id": "phantom.type",
+                    "category": "compute",
+                    "description": "No Azure counterpart at this level.",
+                    "azure_arm_type": None,
+                }
+            ],
+        }
+    )
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=minimal,
+            http_client=client,
+            config=_config(),
+        )
+        resources, links = await factory.build_query_fn()("phantom.type")
+
+    assert resources == ()
+    assert links == ()
+    assert seen == []  # no HTTP call
+
+
+# ---------------------------------------------------------------------------
+# End-to-end: full-scan through AzureResourceGraphInventory
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_end_to_end_inventory_snapshot_streams_final_true() -> None:
+    """AzureResourceGraphInventory + factory streams a real fence batch."""
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode("utf-8"))
+        # Return one resource per resource_type shard.
+        query = body["query"]
+        if "Microsoft.Storage/storageAccounts" in query:
+            row = _arm_row(
+                arm_id=(
+                    "/subscriptions/00000000-0000-0000-0000-000000000001/"
+                    "resourceGroups/rg-a/providers/Microsoft.Storage/"
+                    "storageAccounts/s1"
+                ),
+                arm_type="Microsoft.Storage/storageAccounts",
+            )
+        else:
+            row = _arm_row(
+                arm_id=(
+                    "/subscriptions/00000000-0000-0000-0000-000000000001/"
+                    "resourceGroups/rg-a/providers/Microsoft.Compute/"
+                    "virtualMachines/vm1"
+                ),
+                arm_type="Microsoft.Compute/virtualMachines",
+            )
+        return httpx.Response(200, json={"data": [row]})
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=client,
+            config=_config(),
+        )
+        inventory = AzureResourceGraphInventory(
+            config=AzureInventoryConfig(
+                resource_types=("object-storage", "compute.vm"),
+                max_concurrent_queries=2,
+            ),
+            query=factory.build_query_fn(),
+        )
+        batches: list[Sequence[ResourceRecord]] = []
+        final_seen = False
+        async for batch in inventory.full_snapshot():
+            if batch.final:
+                final_seen = True
+            batches.extend([batch.resources])
+
+    assert final_seen
+    # One shard yields one resource; final fence carries no data.
+    payload_batches = [b for b in batches if b]
+    assert len(payload_batches) == 2
+    provider_refs = {r.provider_ref for shard in payload_batches for r in shard}
+    assert any(pr and pr.endswith("/storageAccounts/s1") for pr in provider_refs)
+    assert any(pr and pr.endswith("/virtualMachines/vm1") for pr in provider_refs)
+
+
+# ---------------------------------------------------------------------------
+# Edge cases: mapper / helpers
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_non_mapping_rows_and_missing_id_are_skipped() -> None:
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    "not-a-mapping",
+                    {"id": "", "type": "Microsoft.Storage/storageAccounts"},  # empty id
+                    {"type": "no-id"},  # missing id
+                    _arm_row(
+                        arm_id=(
+                            "/subscriptions/00000000-0000-0000-0000-000000000001/"
+                            "resourceGroups/rg-a/providers/Microsoft.Storage/"
+                            "storageAccounts/keep"
+                        ),
+                        arm_type="Microsoft.Storage/storageAccounts",
+                    ),
+                ]
+            },
+        )
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=client,
+            config=_config(),
+        )
+        resources, _ = await factory.build_query_fn()("object-storage")
+
+    # Only the well-formed row survives; the three malformed ones are dropped
+    # silently — no ArgQueryError because that's per-page level, not per-row.
+    assert len(resources) == 1
+    assert resources[0].provider_ref is not None
+    assert resources[0].provider_ref.endswith("/storageAccounts/keep")
+
+
+def test_neutral_id_falls_back_when_no_resource_group_marker() -> None:
+    """Cover the branch where an ARM id lacks `/resourceGroups/`.
+
+    Subscription-scoped resources (rare in the P1 rule set) have no RG
+    segment; the helper MUST still return a stable, lowercased id.
+    """
+    from aiopspilot.delivery.azure.arg_query import _to_neutral_id
+
+    result = _to_neutral_id(
+        "/subscriptions/00000000-0000-0000-0000-000000000001/"
+        "providers/Microsoft.Authorization/roleDefinitions/xyz"
+    )
+    assert result == (
+        "/subscriptions/00000000-0000-0000-0000-000000000001/"
+        "providers/microsoft.authorization/roledefinitions/xyz"
+    )
+
+
+def test_truncate_props_extreme_case_returns_hint_only() -> None:
+    """When even dropping `properties` + `tags` can't fit, return the
+    minimal audit hint. Guards against a runaway `name`/`location` blob."""
+    from aiopspilot.delivery.azure.arg_query import _truncate_props
+
+    huge = {
+        "name": "n" * 5000,
+        "location": "l" * 5000,
+        "properties": {"x": "y" * 5000},
+        "tags": {"a": "b" * 5000},
+    }
+    result = _truncate_props(huge, max_bytes=1024)
+    assert result == {"_truncated": True, "resource_id_hint": huge["name"]}
+
+
+def test_build_query_rejects_single_quote_in_arm_type() -> None:
+    """Defense-in-depth against a corrupted vocabulary entry."""
+    from aiopspilot.delivery.azure.arg_query import ArgQueryError
+
+    factory = AzureArgQueryFactory(
+        identity=_identity(),
+        resource_types=_vocab(),
+        http_client=httpx.AsyncClient(),
+        config=_config(),
+    )
+    with pytest.raises(ArgQueryError, match="illegal character"):
+        factory._build_query(arm_type="Microsoft.Weird/type'; drop table --")
+
+
+@pytest.mark.asyncio
+async def test_row_property_with_null_value_is_dropped() -> None:
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "id": (
+                            "/subscriptions/00000000-0000-0000-0000-000000000001/"
+                            "resourceGroups/rg-a/providers/Microsoft.Storage/"
+                            "storageAccounts/nullish"
+                        ),
+                        "type": "Microsoft.Storage/storageAccounts",
+                        "name": "nullish",
+                        "location": None,  # skipped by mapper
+                        "tags": None,  # skipped by mapper
+                        "properties": {"public_access": "disabled"},
+                    }
+                ]
+            },
+        )
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=client,
+            config=_config(),
+        )
+        resources, _ = await factory.build_query_fn()("object-storage")
+
+    assert len(resources) == 1
+    props = resources[0].props
+    assert "location" not in props
+    assert "tags" not in props
+    assert props.get("properties") == {"public_access": "disabled"}

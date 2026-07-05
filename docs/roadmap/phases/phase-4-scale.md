@@ -23,12 +23,24 @@ and shadow-mode rules in [security-and-identity.md](../security-and-identity.md)
 
 ## Deliverables
 
+The module reference lists the primary Python package that carries the deliverable in
+[`src/aiopspilot/`](../project-structure.md); every module listed here is
+customer-agnostic and Azure-only in intent (multi-cloud deliverables below stay TBD).
+
 - Continuous measurement/improvement loop on the Azure baseline with automatic regression
   demotion.
+  Module:
+  [core/measurement/regression.py](../../../src/aiopspilot/core/measurement/regression.py).
 - Pattern-library (T1) growth with anti-overfitting guards.
+  Module:
+  [core/measurement/pattern_growth.py](../../../src/aiopspilot/core/measurement/pattern_growth.py).
 - Model cost/quality tracking with measurement-driven swaps.
+  Module:
+  [core/measurement/model_tracking.py](../../../src/aiopspilot/core/measurement/model_tracking.py).
 - Scalability/performance validation on Azure (per-tier latency budgets, event-driven
   scale-to-zero preserved).
+  Module:
+  [core/measurement/latency_budget.py](../../../src/aiopspilot/core/measurement/latency_budget.py).
 - **TBD (deferred)**: multi-cloud expansion of policy and execution via **provider adapters**
   (no new core), cross-CSP rule-catalog normalization, per-CSP execution identity, and the
   multi-cloud event-bus decision (OD-3 in [tech-stack.md](../tech-stack.md)). These items

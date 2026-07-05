@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiopspilot.dev/schemas/scenario/1.0.0",
+  "title": "Scenario",
+  "description": "One frozen input+expected pair replayable by any tier under the same conditions. Kept synthetic and English-only per generic-scope.instructions.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "domain",
+    "tags",
+    "event",
+    "expected"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{1,127}$",
+      "description": "Stable, human-readable scenario id."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^v\\d{4}\\.\\d{2}$",
+      "description": "Scenario-set version, e.g. v2026.07. Immutable after freeze."
+    },
+    "domain": {
+      "type": "string",
+      "enum": ["change", "dr", "finops"],
+      "description": "Vertical the scenario belongs to."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "event": {
+      "type": "object",
+      "description": "Event payload conforming to https://aiopspilot.dev/schemas/event/1.0.0.",
+      "additionalProperties": true
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier", "decision", "guard"],
+      "properties": {
+        "tier": {
+          "type": "string",
+          "enum": ["t0", "t1", "t2"]
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["auto", "hil", "abstain", "deny"]
+        },
+        "citing_rule_ids": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Rule ids the deterministic engine cites. Empty is legal for t2."
+        },
+        "guard": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "should_execute",
+            "should_rollback",
+            "should_trigger_policy_violation"
+          ],
+          "properties": {
+            "should_execute": {"type": "boolean"},
+            "should_rollback": {"type": "boolean"},
+            "should_trigger_policy_violation": {"type": "boolean"},
+            "expected_mttr_s_max": {"type": ["number", "null"], "minimum": 0}
+          }
+        }
+      }
+    }
+  }
+}

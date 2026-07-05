@@ -12,8 +12,12 @@ must be imported from their submodules by the composition root only, so
 
 from .models import (
     Action,
+    ActionBlastRadius,
     ActionInterface,
+    ActionPrecondition,
+    ActionStopCondition,
     BlastRadius,
+    BlastRadiusComputation,
     BlastRadiusScope,
     Category,
     CheckLogic,
@@ -27,6 +31,8 @@ from .models import (
     OntologyLinkType,
     OntologyObjectType,
     Operation,
+    PreconditionKind,
+    PromotionGate,
     PropertyDecl,
     PropertyType,
     Provenance,
@@ -37,6 +43,7 @@ from .models import (
     RuleSource,
     SemVer,
     Severity,
+    StopConditionKind,
     Tier,
 )
 from .registry import SchemaNotFoundError, SchemaRegistry
@@ -50,6 +57,7 @@ from .validation import (
 __all__ = [
     # data — enums
     "ActionInterface",
+    "BlastRadiusComputation",
     "BlastRadiusScope",
     "Category",
     "CheckLogicKind",
@@ -57,22 +65,28 @@ __all__ = [
     "LinkCardinality",
     "Mode",
     "Operation",
+    "PreconditionKind",
     "PropertyType",
     "RollbackKind",
     "RuleSource",
     "Severity",
+    "StopConditionKind",
     "Tier",
     # data — aliases
     "IdempotencyKey",
     "SemVer",
     # data — models
     "Action",
+    "ActionBlastRadius",
+    "ActionPrecondition",
+    "ActionStopCondition",
     "BlastRadius",
     "CheckLogic",
     "Event",
     "OntologyActionType",
     "OntologyLinkType",
     "OntologyObjectType",
+    "PromotionGate",
     "PropertyDecl",
     "Provenance",
     "Remediation",

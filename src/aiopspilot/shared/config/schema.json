@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiopspilot.dev/schemas/config/1.0.0",
+  "title": "AppConfig",
+  "description": "Fail-fast runtime configuration. Every field is validated on startup; a missing required field aborts the process with a structured error. Loaders MUST report every problem in one shot, not one at a time.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "azure", "kafka", "postgres", "runtime"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "azure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenant_id", "subscription_id", "region"],
+      "properties": {
+        "tenant_id": {"type": "string", "format": "uuid"},
+        "subscription_id": {"type": "string", "format": "uuid"},
+        "resource_group": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 90,
+          "default": "rg-aiopspilot",
+          "description": "Default matches deploy-and-onboard.md § Resource Naming Convention."
+        },
+        "region": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 32,
+          "description": "Azure region short-name, e.g. 'krc', 'weu'. No customer-identifying value."
+        }
+      }
+    },
+    "kafka": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bootstrap_servers", "topic_events"],
+      "properties": {
+        "bootstrap_servers": {"type": "string", "minLength": 1},
+        "security_protocol": {
+          "type": "string",
+          "enum": ["PLAINTEXT", "SASL_PLAINTEXT", "SASL_SSL", "SSL"],
+          "default": "SASL_SSL"
+        },
+        "sasl_mechanism": {
+          "type": "string",
+          "enum": ["OAUTHBEARER", "PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512"],
+          "default": "OAUTHBEARER"
+        },
+        "topic_events": {"type": "string", "minLength": 1},
+        "topic_dlq_suffix": {
+          "type": "string",
+          "default": ".dlq",
+          "pattern": "^\\.[a-z][a-z0-9._-]{1,63}$"
+        }
+      }
+    },
+    "postgres": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "database"],
+      "properties": {
+        "host": {"type": "string", "minLength": 1},
+        "database": {"type": "string", "minLength": 1}
+      }
+    },
+    "rule_catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "ref": {"type": "string", "default": "main"}
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["env"],
+      "properties": {
+        "env": {
+          "type": "string",
+          "enum": ["dev", "staging", "prod"]
+        },
+        "autonomy_mode_default": {
+          "type": "string",
+          "enum": ["shadow", "enforce"],
+          "default": "shadow",
+          "description": "MUST default to shadow (safety invariant)."
+        }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "description": "LLM binding mode + optional resolved-models pointer. Governs which composition-root bindings are used (deterministic fake vs Azure adapter). See docs/roadmap/dev-and-deploy-parity.md § Parity Contract.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["local-fake", "azure"],
+          "description": "'local-fake' binds deterministic in-memory implementations (default in dev). 'azure' loads resolved-models.json and binds the Azure OpenAI adapters."
+        },
+        "resolved_models_path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Filesystem path or KV secret name pointing at the resolved-models.json emitted by the bootstrap resolver. REQUIRED when mode=azure."
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(t1|t2)\\.[a-z][a-z0-9._-]{1,63}$"
+          },
+          "uniqueItems": true,
+          "default": ["t1.embedding", "t1.judge", "t2.reasoner.primary", "t2.reasoner.secondary"],
+          "description": "Capability names the process expects to bind. MUST mirror the llm-registry.yaml. Duplicates fail-close at load time."
+        }
+      }
+    }
+  }
+}

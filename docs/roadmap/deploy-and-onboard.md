@@ -148,6 +148,7 @@ replica caps are still **fork-specific** and tuned per environment; the shape is
 | 8 | **User-assigned Managed Identity** | — | executor's least-privilege, action-whitelisted identity; realizes the [Workload Identity contract](csp-neutrality.md#4-workload-identity-contract--oidc-token) | Phase 1 ships **one** MI (`mi-aw-executor`) using built-in role composition, RG-scoped; Phase 3 splits into per-domain MIs — see [security-and-identity.md § Identity Mapping (Phased)](security-and-identity.md#identity-mapping-phased) |
 | 9 | **Log Analytics workspace** | Pay-as-you-go, **30-day default retention** | traces / metrics / logs / audit-forward; App Insights binds to it | retention is **UI-configurable** post-deploy, defaulting to 30 days |
 | 10 | **Container Registry (ACR)** | Basic (Standard if geo-replication needed later) | signed images + build attestations | pin by digest, never a mutable tag |
+| 11 | **Azure OpenAI / AI Foundry account** (**opt-in**, `var.enable_llm`) | Standard | T1 embedding + T2 mixed-model reasoner deployments (one per capability from `resolved-models.json`) | provisioned only when the deployer holds `Cognitive Services Contributor` on the sub AND the region exposes the preferred family; otherwise the affected capabilities degrade to **`hil-only`** (see [dev-and-deploy-parity.md § Deployer-Scoped LLM Provisioning](dev-and-deploy-parity.md#deployer-scoped-llm-provisioning)). Never deployed in `dev` mode — dev-mode binds deterministic fakes. |
 
 Additional required elements that **do not incur a billable Azure resource of their own**:
 
@@ -272,6 +273,8 @@ full expanded catalog and defaults are authored during the inventory PR.
 | `TEAMS_HIL_CHANNEL_ID` | env | fork | HIL routing |
 | `T2_MODEL_ENDPOINT` | env | fork | primary reasoner — populated by the bootstrap resolver from `rule-catalog/llm-registry.yaml`; see [llm-strategy.md § Model Provisioning and Lifecycle](llm-strategy.md#model-provisioning-and-lifecycle) |
 | `T2_MODEL_ENDPOINT_CROSSCHECK` | env | fork | mixed-model cross-check target — distinct publisher enforced at bootstrap |
+| `LLM_MODE` | env | fork | `local-fake` (default in `dev`) or `azure`. Governs the composition-root binding; see [dev-and-deploy-parity.md § Parity Contract](dev-and-deploy-parity.md#parity-contract-must). |
+| `LLM_RESOLVED_MODELS_PATH` | KV ref | fork | required when `LLM_MODE=azure`; points at the `resolved-models.json` written by the bootstrap resolver |
 | `RULE_CATALOG_REF` | env | fork | git ref of catalog snapshot |
 | `AUTONOMY_MODE_DEFAULT` | env | fork | MUST default to `shadow` |
 

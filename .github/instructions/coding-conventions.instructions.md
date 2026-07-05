@@ -80,6 +80,22 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
 - Never hardcode secrets, connection strings, subscription IDs, tenant IDs, resource names,
   endpoints, or customer names. Load them from environment or a secret store at runtime.
   Secret scanning (e.g. gitleaks) runs in CI and a positive finding blocks the merge.
+- **Deployment resource names** follow the CAF naming convention documented in
+  [../../docs/roadmap/deploy-and-onboard.md § Resource Naming Convention](../../docs/roadmap/deploy-and-onboard.md#resource-naming-convention).
+  The name is decided in Terraform (`infra/`) at plan time; Python code reads it from an env
+  var. Never compute a resource name in Python and never bake env/region into a Python
+  literal.
+- **Resource-type swaps** stay portable via the infra-module boundary in
+  [../../docs/roadmap/csp-neutrality.md § Approved Alternative Azure Implementations](../../docs/roadmap/csp-neutrality.md#approved-alternative-azure-implementations).
+  A swap picks a different sub-module under `infra/modules/<seam>/`; the module's output
+  contract stays fixed so callers do not branch on the alternate.
+- **Provider Protocols are async by default.** The five I/O-bound seams (`EventBus`,
+  `StateStore`, `SecretProvider`, `WorkloadIdentity`, `Inventory`) MUST be declared `async` —
+  real backends (Kafka, asyncpg, Key Vault, OIDC exchange, Azure Resource Graph queries)
+  block the event loop otherwise. The three CPU / startup-only seams (`SchemaRegistry`,
+  `ContractValidator`, `ConfigProvider`) stay sync. Tests rely on `pytest-asyncio` with
+  `asyncio_mode = "auto"` (see
+  [../../pyproject.toml](../../pyproject.toml)); no per-test marker required.
 - Secrets MUST NOT be written to logs, audit entries, error messages, test fixtures, or
   committed config. Access secrets through an injected provider, never a global read at import.
 - Keep the repo customer-agnostic; customer-specific values and logic belong in a fork
@@ -87,10 +103,18 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
 - Every autonomous action path MUST implement all four safety invariants: a stop-condition,
   a rollback path, a blast-radius limit, and an audit-log write. Code that executes changes
   without all four is incomplete and MUST NOT merge.
+- **ActionType schema is the enforcement surface for those invariants.** New ontology
+  `ActionType` declarations MUST supply `rollback_contract` from the enum
+  (`pr_revert` / `scripted` / `pitr` / `snapshot_restore` / `state_forward_only`) — the
+  legacy `none` value is gone. A genuinely one-way mutation sets `irreversible: true` and
+  is routed HIL+quorum by the risk-gate; it never uses `rollback_contract` to silence the
+  invariant. Preconditions and stop_conditions belong on the ActionType, not the executor.
 - Autonomous actions MUST be idempotent: re-delivery of the same event or a retried action
   MUST NOT cause duplicate changes. Use a stable idempotency key and deduplicate on it.
-- Default new actions to **shadow mode** (judge and log only). Promotion to enforce is an
-  explicit, separately reviewed change, never bundled with the capability's first PR.
+- Default new actions to **shadow mode** (judge and log only) — every upstream ActionType
+  declares `default_mode: shadow` and a measurable `promotion_gate`. Promotion to enforce
+  is an explicit, separately reviewed change, never bundled with the capability's first PR,
+  and MUST measure the promotion_gate on the frozen scenario set before merging.
 - The audit log is append-only and MUST record, per action: event id, tier, decision,
   idempotency key, actor identity, timestamp, shadow-vs-enforce mode, and rollback reference.
 

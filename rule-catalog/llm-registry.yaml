@@ -1,0 +1,54 @@
+# Upstream default LLM capability preferences.
+#
+# Family-only (never dated versions) — the bootstrap resolver picks the
+# latest stable version at provisioning time and records it in
+# resolved-models.json + audit. See docs/roadmap/llm-strategy.md § Capability
+# Preferences Registry and docs/roadmap/dev-and-deploy-parity.md § W-B.
+#
+# Rules the schema enforces at load time:
+#   - schema_version is semver.
+#   - Every capability declares >= 1 preference of (publisher, family).
+#   - capacity_tpm >= 1000.
+#   - t2.reasoner.primary[0].publisher != t2.reasoner.secondary[0].publisher
+#     UNLESS mixed_model_mode = "hil-only".
+#
+# Forks override this file (mode = azure-foundry | external | hil-only) with
+# region / compliance / cost tuning. NEVER commit fork values here.
+
+schema_version: "1.0.0"
+mixed_model_mode: azure-foundry
+models:
+  t1.embedding:
+    preferences:
+      - {publisher: OpenAI, family: text-embedding-3-small}
+      - {publisher: OpenAI, family: text-embedding-3-large}
+    sku: Standard
+    capacity_tpm: 100000
+
+  t1.judge:
+    preferences:
+      - {publisher: OpenAI, family: gpt-4o-mini}
+    sku: Standard
+    capacity_tpm: 40000
+
+  t2.reasoner.primary:
+    preferences:
+      - {publisher: OpenAI, family: gpt-4o}
+      - {publisher: OpenAI, family: gpt-4-turbo}
+    sku: Standard
+    capacity_tpm: 20000
+
+  t2.reasoner.secondary:
+    preferences:
+      - {publisher: Anthropic, family: claude-opus-4}
+      - {publisher: MistralAI, family: mistral-large-2}
+    sku: Standard
+    capacity_tpm: 10000
+
+  t2.reasoner.escalated:
+    preferences:
+      - {publisher: OpenAI, family: o1}
+      - {publisher: Anthropic, family: claude-opus-4}
+    sku: Standard
+    capacity_tpm: 5000
+    invocation: on_disagreement

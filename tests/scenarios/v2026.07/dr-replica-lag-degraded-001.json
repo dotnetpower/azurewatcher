@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "id": "dr.replica-lag-degraded.001",
+  "version": "v2026.07",
+  "domain": "dr",
+  "tags": [
+    "postgres",
+    "replica-lag"
+  ],
+  "event": {
+    "schema_version": "1.0.0",
+    "event_id": "00000000-0000-0000-0000-000000000004",
+    "idempotency_key": "scenario-4",
+    "source": "example_resource_health",
+    "event_type": "health_degraded",
+    "detected_at": "2026-07-05T08:00:00Z",
+    "ingested_at": "2026-07-05T08:00:01Z",
+    "mode": "shadow"
+  },
+  "expected": {
+    "tier": "t1",
+    "decision": "hil",
+    "citing_rule_ids": [
+      "example.dr.replica-lag-threshold"
+    ],
+    "guard": {
+      "should_execute": false,
+      "should_rollback": false,
+      "should_trigger_policy_violation": false
+    }
+  }
+}

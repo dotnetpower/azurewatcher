@@ -1,7 +1,7 @@
 ---
 title: 보안과 아이덴티티
 translation_of: security-and-identity.md
-translation_source_sha: c3a3813ae59c95b28c80ef13208222b032beab9a
+translation_source_sha: 4fac2186f8772d69070767706c54067da81f3bd0
 translation_revised: 2026-07-05
 ---
 
@@ -143,11 +143,17 @@ IaC가 신규 MI를 프로비저닝.
 
 ## 안전 불변식 (모든 자율 액션)
 
-1. **Stop-condition** — 액션을 중단시키는 정의된 halt 상태.
-2. **Rollback path** — 되돌리는 테스트된 방법(PR-네이티브 액션은 git revert; 비-PR 액션도
-   등가 스크립트/IaC revert를 제공해야 하며 롤백과 감사도 공급).
+1. **Stop-condition** — 액션을 중단시키는 정의된 halt 상태. ActionType 별로 `stop_conditions[]`
+   에 선언되고 executor 가 apply 도중·이후에 평가.
+2. **Rollback path** — 되돌리는 테스트된 방법. 온톨로지 `ActionType.rollback_contract` 는
+   `pr_revert` / `scripted` / `pitr` / `snapshot_restore` / `state_forward_only` 중 하나여야
+   함; **`none` 은 유효 값 아님**. 정말로 되돌릴 수 없는 mutation 은
+   `ActionType.irreversible: true` 로 설정되어 risk-gate 가 HIL+quorum 라우팅; rollback 은
+   여전히 best-effort 복구로 선언.
 3. **Blast-radius limit** — 스코프 상한(non-prod 우선, 배치 크기, 속도) + 리소스별
-   직렬화로 한 리소스에 대한 동시 액션은 상호 배제.
+   직렬화로 한 리소스에 대한 동시 액션은 상호 배제. `ActionType.blast_radius.computation =
+   graph_derived` 는 risk-gate 가 Resource → Resource 그래프(`contains` + 역방향
+   `depends_on`, depth 2) 로 실제 영향 집합을 계산하게 함 — 3-값 enum 은 상한이 아니라 bucket.
 4. **Audit-log entry** — 누가/무엇을/왜/언제와 결과의 append-only 기록.
 
 네 개 중 하나라도 빠지면 = 액션은 미완결이며 출시되지 않음. 각 불변식은 **테스트 가능**:

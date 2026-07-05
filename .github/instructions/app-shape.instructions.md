@@ -47,8 +47,8 @@ shape maps to environments and CI/CD.
 
 Azure is the implemented target (see
 [Implementation Focus](../copilot-instructions.md#implementation-focus-must)); the shape stays
-CSP-neutral in design by rendering four wire-level contracts (event bus, runtime, secret,
-workload identity) into Azure resources — see
+CSP-neutral in design by rendering five wire-level contracts (event bus, runtime, secret,
+workload identity, inventory) into Azure resources — see
 [../../docs/roadmap/csp-neutrality.md](../../docs/roadmap/csp-neutrality.md). The mapping is
 **minimum-cost-set first** — the concrete inventory, tiers, and rationale live in
 [../../docs/roadmap/deploy-and-onboard.md](../../docs/roadmap/deploy-and-onboard.md#azure-resource-inventory-minimum-set).

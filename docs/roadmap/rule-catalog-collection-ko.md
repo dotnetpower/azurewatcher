@@ -1,7 +1,7 @@
 ---
 title: 규칙 카탈로그 수집(Rule Catalog Collection)
 translation_of: rule-catalog-collection.md
-translation_source_sha: 9f0377eab52fcc73aee6447578d22f834909e833
+translation_source_sha: 68718b7488421c3f58f6fe0b2260d1fa9010de69
 translation_revised: 2026-07-05
 ---
 
@@ -277,6 +277,25 @@ YAML 키는 **snake_case** ;
   `Signal` 에서 정확한 매칭 규칙으로 스캔 대신 두 인덱스 교집합으로 traverse 가능하게 함; 전체
   파이프라인은 [llm-strategy-ko.md § Rule-to-Decision Lookup Pipeline](llm-strategy-ko.md#rule-to-decision-lookup-pipeline)
   에 있음.
+- **`remediates` vs `remediation` — 두 필드, 하나의 개념:** `remediates` 는 이 규칙이 제안하는
+  *mutation 카테고리* 를 선언하는 **ActionType id** (M:1); `remediation` 은 구체적 *how* —
+  `{ kind, ref, parameters, cost_impact_monthly }` 블록이며 그 `kind` (`iac-patch`,
+  `scripted`, ...) 는 ActionType 의 `operation` 과 호환되어야 함. 두 필드는 모든 `rule` 에
+  함께 필수. CI 는 `remediates` 가 미인식 ActionType 을 가리키거나 `remediation.kind` 가
+  ActionType 의 `operation` 과 호환 안 되는 규칙을 거부 (예: `delete` operation 이 `tag` 모양
+  패치로 배송).
+- **`alternatives[]` (선택):** 규칙은 선호도 순으로 랭크된 대안 remediation ActionType 을
+  선언 가능; T0 는 항상 `remediates` 사용 (deterministic-first), grounding + mixed-model
+  체크를 거친 T2 quality gate 만 대안으로 스왑 가능 — 더 저렴한 티어는 절대 스왑 안 함. 각
+  대안은 등록된 ActionType id 를 가리켜야 하며 free-form 액션은 불가.
+
+  ```yaml
+  # 예시 프래그먼트
+  remediates: remediate.disable-public-access          # primary, deterministic
+  alternatives:
+    - remediate.add-firewall-rule                       # 태그로 "keep-public" 이면 T2 선호
+    - remediate.add-private-endpoint
+  ```
 - `provenance` 는 모든 rule-like kind의 공유 객체:
   `{ source_url, source_version, resolved_ref, content_hash, license, retrieved_at, mapped_by }`.
   phase-1의 "source URL/commit, imported-at 타임스탬프, mapping author" 에 매핑:
@@ -334,6 +353,7 @@ check_logic:
 remediation:
   kind: iac-patch
   ref: remediation/object_storage/disable_public_access.tftpl
+remediates: remediate.disable-public-access          # M:1 온톨로지 dispatch (필수)
 provenance:
   source_url: https://example.com/benchmark/controls/5.1
   source_version: v1.4.0
@@ -343,6 +363,15 @@ provenance:
   retrieved_at: 2026-07-03T00:00:00Z
   mapped_by: catalog-team
 ```
+
+> `remediates` 는 load 시점에
+> [`rule_catalog.schema.rule`](../../src/aiopspilot/rule_catalog/schema/rule.py) 이
+> [`rule-catalog/action-types/`](../../rule-catalog/action-types/) 에 대해 검증 —
+> 알려지지 않은 ActionType id 는 load 를 실패시켜, 규칙이 `rollback_contract` /
+> `promotion_gate` 를 선언하지 않은 mutation 카테고리를 인용할 수 없도록 강제. 선택적
+> `alternatives` 도 같은 규칙; 배송된
+> [`rule-catalog/catalog/`](../../rule-catalog/catalog/) 는 모든 항목에서 primary
+> `remediates` 를 exercise (P1 W-2).
 
 ### Best Practice (다중-check 권고)
 
@@ -422,17 +451,29 @@ aiopspilot/
 └── rule-catalog/          # catalog-as-code (YAML)
     ├── schema/            # per-kind JSON Schema (검증 언어) 가 YAML 문서에 적용:
     │                      #   source-manifest, rule, best-practice, config-baseline
+    ├── vocabulary/        # canonical CSP-중립 어휘 (resource-types.yaml, ...)
+    ├── action-types/      # 규칙의 `remediates` 필드가 인용하는 ActionType 인스턴스
     ├── sources/           # 소스당 하나의 폴더: manifest (.yaml) + collector + parser
     │   └── <source>/
     ├── pipeline/          # watch → collect → shadow-eval → regression → promote/rollback (Phase 2)
     ├── remediation/       # remediation.ref로 참조되는 remediation 템플릿
     ├── catalog/           # 정규화, 버전-고정 YAML 출력 (catalog-as-code)
+    ├── exemptions/        # 시간-바운드 감사된 예외 아티팩트
     └── baselines/         # measurement 베이스라인 (YAML; 규칙과 별도 네임스페이스 + 저장소)
 ```
 
 Authored Rego는 `rule-catalog/` 아래에 **중첩되지 않음** ; T0와 verifier가 소비하는 top-level
 `policies/` 에 존재, [project-structure-ko.md](project-structure-ko.md) 와 정확히 같음.
 `pipeline/` 은 Phase 2 지속 업데이터.
+
+- `vocabulary/resource-types.yaml` — 모든 규칙이 인용하는 CSP-중립 `resource_type` 식별자
+  집합. 이름 변경 → 카탈로그 전역 마이그레이션; 추가 → 거버넌스 PR. Loader:
+  `src/aiopspilot/rule_catalog/schema/resource_type.py`, JSON Schema:
+  `src/aiopspilot/rule_catalog/schema/resource_types.schema.json`.
+- `action-types/*.yaml` — 온톨로지 `ActionType` 인스턴스 파일당 하나. Upstream 에서 `default_mode`
+  는 **반드시** `shadow` 여야 하고 `promotion_gate` 필수. Loader:
+  `src/aiopspilot/rule_catalog/schema/action_type.py`; JSON Schema 는 공유 온톨로지 스키마
+  `src/aiopspilot/shared/contracts/ontology/action-type.json`.
 
 ## 검증과 신뢰
 

@@ -74,12 +74,15 @@ def test_registry_names_covers_expected_set(
     assert set(registry.names()) == expected
 
 
-def test_default_container_wires_the_upstream_seam() -> None:
-    """The composition root MUST bind the upstream default when called with no args."""
+def test_default_container_wires_the_upstream_seam(app_config: object) -> None:
+    """The composition root MUST bind the upstream default when handed a valid config."""
     from aiopspilot.composition import default_container
+    from aiopspilot.shared.config import AppConfig
 
-    container = default_container()
+    assert isinstance(app_config, AppConfig)
+    container = default_container(app_config)
     assert isinstance(container.schema_registry, PackageResourceSchemaRegistry)
+    assert container.config is app_config
     # And the validator holds a *reference* to whatever SchemaRegistry the
     # container decided to wire — not a hard-coded default.
     assert container.contract_validator is not None

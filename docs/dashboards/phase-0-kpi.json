@@ -1,0 +1,169 @@
+{
+  "$schema": "https://aiopspilot.dev/schemas/dashboard/1.0.0",
+  "id": "phase-0-kpi",
+  "title": "Phase 0 — KPI Dashboard",
+  "description": "Renders the four success metrics, the guard metrics, and the leading indicators declared in docs/roadmap/goals-and-metrics.md. Every panel maps to a named telemetry source; no panel is manually populated. Rendering targets (Grafana / Log Analytics / App Insights) consume this descriptor; the shape here is target-neutral.",
+  "version": "1.0.0",
+  "panels": [
+    {
+      "id": "success.1.cost_per_unit",
+      "title": "Cost per unit",
+      "description": "Total attributable spend / units processed. Computed separately as $/incident, $/change, $/optimization.",
+      "category": "success",
+      "unit": "usd_per_unit",
+      "direction": "lower_is_better",
+      "target": {"kind": "large_reduction", "note": "state factor only when measured"},
+      "source": {"kind": "deferred", "deferred_to": "W3.x baseline runner + cost/usage telemetry (W1.4+)"}
+    },
+    {
+      "id": "success.2.auto_resolution_rate",
+      "title": "Auto-resolution rate",
+      "description": "count(decision=auto) / total events, in [0, 1].",
+      "category": "success",
+      "unit": "ratio",
+      "direction": "higher_is_better",
+      "target": {"kind": "multiple", "baseline_multiplier": 5.0, "cap": 1.0},
+      "source": {"kind": "audit_log_derivation", "field": "auto_resolution_rate"}
+    },
+    {
+      "id": "success.3a.mttr",
+      "title": "MTTR",
+      "description": "Mean(resolve_time - detect_time) over resolved incidents. Report median + p90 alongside.",
+      "category": "success",
+      "unit": "seconds",
+      "direction": "lower_is_better",
+      "target": {"kind": "multiple", "baseline_multiplier": 0.2},
+      "source": {"kind": "deferred", "deferred_to": "core/audit + resolve_time telemetry"}
+    },
+    {
+      "id": "success.3b.change_lead_time",
+      "title": "Change lead time",
+      "description": "Mean(merge_time - change_request_time). Report median + p90.",
+      "category": "success",
+      "unit": "seconds",
+      "direction": "lower_is_better",
+      "target": {"kind": "multiple", "baseline_multiplier": 0.2},
+      "source": {"kind": "deferred", "deferred_to": "delivery/gitops_pr merge telemetry"}
+    },
+    {
+      "id": "success.4.human_intervention",
+      "title": "Human intervention per 100 events",
+      "description": "human_touchpoints / (total_events / 100).",
+      "category": "success",
+      "unit": "touchpoints_per_100",
+      "direction": "lower_is_better",
+      "target": {"kind": "multiple", "baseline_multiplier": 0.2},
+      "source": {"kind": "audit_log_derivation", "field": "human_touchpoints_per_100_events"}
+    },
+    {
+      "id": "guard.cfr",
+      "title": "Change failure rate",
+      "description": "changes causing incident/rollback / total changes.",
+      "category": "guard",
+      "unit": "ratio",
+      "direction": "lower_is_better",
+      "target": {"kind": "no_regression", "reference": "baseline"},
+      "source": {"kind": "deferred", "deferred_to": "core/executor rollback telemetry (P1)"}
+    },
+    {
+      "id": "guard.false_positive_rate",
+      "title": "False-positive rate",
+      "description": "Incorrect actions / actions taken. Alert if > baseline + 1pp.",
+      "category": "guard",
+      "unit": "ratio",
+      "direction": "lower_is_better",
+      "target": {"kind": "no_regression", "alert_delta_pp": 1.0},
+      "source": {"kind": "deferred", "deferred_to": "shadow-mode verdicts + post-hoc reconciliation (P2)"}
+    },
+    {
+      "id": "guard.false_negative_rate",
+      "title": "False-negative rate",
+      "description": "Missed true events / true events. Alert if > baseline + 1pp.",
+      "category": "guard",
+      "unit": "ratio",
+      "direction": "lower_is_better",
+      "target": {"kind": "no_regression", "alert_delta_pp": 1.0},
+      "source": {"kind": "deferred", "deferred_to": "shadow-mode verdicts + post-hoc reconciliation (P2)"}
+    },
+    {
+      "id": "guard.rollback_rate",
+      "title": "Rollback rate",
+      "description": "Actions rolled back / actions executed.",
+      "category": "guard",
+      "unit": "ratio",
+      "direction": "lower_is_better",
+      "target": {"kind": "no_regression", "reference": "baseline"},
+      "source": {"kind": "deferred", "deferred_to": "core/executor + delivery/gitops_pr revert events (P1)"}
+    },
+    {
+      "id": "guard.policy_violation_escapes",
+      "title": "Policy-violation escapes",
+      "description": "Autonomous actions that violate policy and reach enforce.",
+      "category": "guard",
+      "unit": "count",
+      "direction": "lower_is_better",
+      "target": {"kind": "exact_zero", "note": "any escape is stop-ship"},
+      "source": {"kind": "deferred", "deferred_to": "core/quality_gate verifier veto counters (P2)"}
+    },
+    {
+      "id": "leading.tier_coverage_t0",
+      "title": "T0 coverage share",
+      "description": "Per-tier event share; T0 target 0.70-0.80.",
+      "category": "leading",
+      "unit": "ratio",
+      "direction": "in_band",
+      "target": {"kind": "band", "min": 0.70, "max": 0.80},
+      "source": {"kind": "audit_log_derivation", "field": "per_tier.t0"}
+    },
+    {
+      "id": "leading.tier_coverage_t1",
+      "title": "T1 coverage share",
+      "description": "T1 target 0.15-0.20.",
+      "category": "leading",
+      "unit": "ratio",
+      "direction": "in_band",
+      "target": {"kind": "band", "min": 0.15, "max": 0.20},
+      "source": {"kind": "audit_log_derivation", "field": "per_tier.t1"}
+    },
+    {
+      "id": "leading.tier_coverage_t2",
+      "title": "T2 coverage share",
+      "description": "T2 target 0.05-0.10.",
+      "category": "leading",
+      "unit": "ratio",
+      "direction": "in_band",
+      "target": {"kind": "band", "min": 0.05, "max": 0.10},
+      "source": {"kind": "audit_log_derivation", "field": "per_tier.t2"}
+    },
+    {
+      "id": "leading.mixed_model_disagreement_rate",
+      "title": "Mixed-model disagreement rate",
+      "description": "T2 quality-gate cross-check disagreements / T2 events.",
+      "category": "leading",
+      "unit": "ratio",
+      "direction": "watch",
+      "target": {"kind": "threshold_alert", "alert_if_above": 0.20},
+      "source": {"kind": "deferred", "deferred_to": "core/quality_gate cross-check counters (P2)"}
+    },
+    {
+      "id": "leading.verifier_abstain_rate",
+      "title": "Verifier abstain / fail rate",
+      "description": "Verifier pass=false or abstain / verifier calls.",
+      "category": "leading",
+      "unit": "ratio",
+      "direction": "watch",
+      "target": {"kind": "threshold_alert", "alert_if_above": 0.10},
+      "source": {"kind": "deferred", "deferred_to": "core/quality_gate abstain counters (P2)"}
+    },
+    {
+      "id": "leading.shadow_enforce_divergence",
+      "title": "Shadow-vs-enforce decision divergence",
+      "description": "|shadow_share - enforce_share| for a candidate action.",
+      "category": "leading",
+      "unit": "ratio",
+      "direction": "watch",
+      "target": {"kind": "threshold_alert", "alert_if_above": 0.05},
+      "source": {"kind": "audit_log_derivation", "field": "shadow_share"}
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+schema_version: "1.0.0"
+id: object-storage.public-access.deny
+version: "1.0.0"
+source: mcsb
+severity: high
+category: security
+resource_type: object-storage
+check_logic:
+  kind: rego
+  reference: policies/object_storage/public_access.rego
+remediation:
+  template_ref: remediation/object_storage/disable_public_access.tftpl
+  cost_impact_monthly_usd: 0
+remediates: remediate.disable-public-access
+provenance:
+  source_url: https://example.com/rules/object-storage-public-access
+  resolved_ref: "0000000000000000000000000000000000000000"
+  content_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: "2026-07-05T00:00:00Z"

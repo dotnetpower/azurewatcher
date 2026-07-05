@@ -1,7 +1,7 @@
 ---
 title: 기술 스택
 translation_of: tech-stack.md
-translation_source_sha: 6f18ec7f4cca75990d1e47eafada8a596d788c65
+translation_source_sha: 1be969d0009a1fe7e4b5810bddee52dc85ac18d2
 translation_revised: 2026-07-05
 ---
 
@@ -130,6 +130,12 @@ translation_revised: 2026-07-05
   endpoint 에 대해 재검증.
 - Deterministic engine과 risk gate는 완전 오프라인(클라우드 호출 없음)으로 실행되어 빠른 단위
   테스트.
+- **Dev에서 LLM은 기본 fake 유지**: `runtime.env == "dev"` 는 결정론적 인-메모리 fake
+  (`DeterministicEmbeddingModel`, `MatchTypeCrossCheckModel`, `StaticVerifier`,
+  `InMemoryGroundingSource`) 를 바인딩 — Azure OpenAI 자격증명 없음, 라이브 엔드포인트 없음,
+  토큰 비용 없음. Azure 측 어댑터는 `delivery/azure/llm/` 하위에 살고 composition root가
+  `llm.mode == "azure"` 일 때만 import. 전체 parity 컨트랙트 + 작업 계획:
+  [dev-and-deploy-parity-ko.md](dev-and-deploy-parity-ko.md).
 - rule-catalog 엔트리와 이벤트 페이로드 픽스처는 영문·시크릿 없음.
 
 ## 미결 결정(Open Decisions)

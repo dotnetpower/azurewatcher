@@ -1,7 +1,7 @@
 ---
 title: AIOpsPilot 로드맵
 translation_of: README.md
-translation_source_sha: 5cd8c600dd14d9910d621467173fc2a574353834
+translation_source_sha: abc6a8b4c5c19e6123573996bc32fbf3e68dc6f1
 translation_revised: 2026-07-05
 ---
 
@@ -55,6 +55,7 @@ translation_revised: 2026-07-05
 | 15 | [user-rbac-and-identity-ko.md](user-rbac-and-identity-ko.md) | 사람 사용자 롤(Reader/Contributor/Approver/Owner + Break-Glass), Entra ID 아티팩트, 콘솔→PR 아이덴티티 흐름 |
 | 16 | [channels-and-notifications-ko.md](channels-and-notifications-ko.md) | 비-웹-UI 채널(Teams / Slack / email / webhook / pager / SMS), 카테고리 & 신뢰 티어 매트릭스, 라우팅 정책 |
 | 17 | [risk-classification-ko.md](risk-classification-ko.md) | auto vs HIL vs deny 분류: 차원, 초기 규칙 테이블, 환경 감지, 변경 프로세스 |
+| 18 | [dev-and-deploy-parity-ko.md](dev-and-deploy-parity-ko.md) | dev-mode 로컬 fake vs deploy-mode Azure-first parity 컨트랙트; 배포자-스코프 LLM 프로비저닝 게이트; 작업 계획 |
 
 ## 설계 한눈에 보기
 

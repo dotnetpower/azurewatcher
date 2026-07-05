@@ -1,0 +1,42 @@
+schema_version: "1.0.0"
+name: remediate.right-size
+version: "1.0.0"
+operation: scale
+interfaces:
+  - ControlPlane
+  - IdempotentByKey
+  - RateLimited
+  - RequiresInventoryFresh
+  - GraphTraversalRequired
+rollback_contract: pr_revert
+irreversible: false
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 21
+  min_samples: 30
+  min_accuracy: 0.95
+  max_policy_escapes: 0
+preconditions:
+  - kind: graph_fresh_within_seconds
+    value: 300
+  - kind: no_conflicting_open_action_on_resource
+stop_conditions:
+  - kind: error_rate_above
+    threshold: 0.02
+    window_seconds: 300
+  - kind: latency_p99_above_ms
+    threshold: 500
+    window_seconds: 300
+  - kind: dependent_resource_degraded
+  - kind: time_box_exceeded_seconds
+    seconds: 900
+blast_radius:
+  computation: graph_derived
+  max_affected_resources: 10
+  traversal_depth: 2
+  traversal_links: [contains, depends_on]
+description: >-
+  Adjust compute count or SKU to match observed utilization (Cost
+  Governance). Non-destructive; rollback is a PR to the prior spec.
+  Runs post-shadow only after the scenario set proves it never
+  degrades a `depends_on` dependent.

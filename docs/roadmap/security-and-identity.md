@@ -148,11 +148,17 @@ dispatch fields); no core code change is needed — the delivery layer selects t
 
 ## Safety Invariants (every autonomous action)
 
-1. **Stop-condition** — a defined halt state that aborts the action.
-2. **Rollback path** — a tested way to revert (git revert for PR-native actions; an equivalent
-   scripted/IaC revert for any non-PR action, which must still supply rollback and audit).
+1. **Stop-condition** — a defined halt state that aborts the action. Declared per-ActionType
+   in `stop_conditions[]` and evaluated by the executor during and after apply.
+2. **Rollback path** — a tested way to revert. The ontology `ActionType.rollback_contract`
+   MUST be one of `pr_revert` / `scripted` / `pitr` / `snapshot_restore` /
+   `state_forward_only`; **`none` is not a valid value**. Genuinely one-way mutations set
+   `ActionType.irreversible: true` and are routed HIL+quorum by the risk-gate; rollback is
+   still declared as the best-effort recovery.
 3. **Blast-radius limit** — scope caps (non-prod first, batch size, rate) plus per-resource
-   serialization so concurrent actions on one resource are mutually excluded.
+   serialization so concurrent actions on one resource are mutually excluded. `ActionType.blast_radius.computation = graph_derived`
+   makes the risk-gate compute the actual impacted set over the Resource → Resource graph
+   (`contains` + reverse `depends_on`, depth 2) — the three-value enum is a bucket, not a cap.
 4. **Audit-log entry** — append-only record of who/what/why/when and the outcome.
 
 Missing any of the four = the action is incomplete and must not ship. Each invariant is

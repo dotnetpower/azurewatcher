@@ -30,12 +30,105 @@ It consumes the telemetry, baseline, and identity/policy unblocking delivered by
 ## Deliverables
 
 - **Rule catalog** (catalog-as-code) with a normalized, CSP-neutral schema and multi-source
-  collectors that map each source into that schema.
+  collectors that map each source into that schema. The first authored rules ship under
+  [`rule-catalog/catalog/`](../../../rule-catalog/catalog/) — one YAML per rule id, each
+  exercising exactly one ActionType via the required `remediates` field:
+  `object-storage.public-access.deny`, `object-storage.owner-tag.required`,
+  `compute.vm-scale-set.over-provisioned`, `secret-store.rotation-overdue`,
+  `sql-database.tde-required`. The loader
+  [`src/aiopspilot/rule_catalog/schema/rule.py`](../../../src/aiopspilot/rule_catalog/schema/rule.py)
+  cross-checks every rule's `remediates` / `alternatives` against the ActionType catalog,
+  `resource_type` against the CSP-neutral vocabulary, **and** — when a `policies_root` is
+  supplied — every `check_logic.reference` that starts with `policies/` against a Rego file
+  that exists on disk at load time (fail-closed).
+- **Authored Rego policies** — the five rules above ship with their `check_logic.reference`
+  Rego bodies under [`policies/`](../../../policies/) (one folder per resource-type family):
+  `policies/object_storage/{public_access,owner_tag_required}.rego`,
+  `policies/compute/vmss_over_provisioned.rego`,
+  `policies/secret_store/rotation_overdue.rego`,
+  `policies/sql_database/tde_required.rego`. Every module exports a
+  `default deny := false` + `deny if { ... }` entrypoint and reads
+  `input.parameters.<name>` with an authored default so per-assignment
+  overrides ([rule-governance.md](../rule-governance.md)) flow through
+  without editing the rule.
+- **Canonical `resource_type` vocabulary** — [`rule-catalog/vocabulary/resource-types.yaml`](../../../rule-catalog/vocabulary/resource-types.yaml)
+  enumerates the initial CSP-neutral identifier set covering the three verticals; loader +
+  JSON Schema in `src/aiopspilot/rule_catalog/schema/`.
+- **Initial ActionType catalog** — five shadow-mode `ActionType` instances under
+  [`rule-catalog/action-types/`](../../../rule-catalog/action-types/): `remediate.disable-public-access`,
+  `remediate.tag-add`, `remediate.right-size`, `remediate.rotate-secret`, `remediate.enable-tde`.
+  Each declares `default_mode: shadow` + a measurable `promotion_gate`; the loader enforces the
+  shadow-first invariant at load-time so an accidental `default_mode: enforce` cannot ship.
 - **T0 deterministic engine**: policy-as-code gate (OPA/Rego) + what-if (dry-run) + drift
   detection, emitting a verdict and the citing rule ids for every event.
+  [`src/aiopspilot/core/tiers/t0_deterministic/`](../../../src/aiopspilot/core/tiers/t0_deterministic/)
+  ships a `RuleIndex` keyed on `resource_type` (severity-desc ordered), a `T0Engine`
+  orchestrator, and a `PolicyEvaluator` DI seam. Two evaluators land in P1:
+  the fail-closed `AbstainEvaluator` (fallback when OPA is not installed) and
+  [`OpaRegoEvaluator`](../../../src/aiopspilot/core/tiers/t0_deterministic/opa_evaluator.py)
+  — a subprocess-backed adapter that shells out to `opa eval --stdin-input --format json`
+  under a bounded timeout, queries `data.aiopspilot.<derived-path>`, and interprets
+  `deny` + `deny_reason`. Fail-fast on missing binary; fail-close per rule on timeout,
+  non-zero exit, or non-JSON output so one broken policy cannot silence the catalog. CI
+  installs a checksum-pinned OPA build ([`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)).
 - **Shadow remediation-PR** path via the GitOps delivery adapter (generated but not merged).
+  Five Terraform patch templates ship under
+  [`rule-catalog/remediation/`](../../../rule-catalog/remediation/), one per shipped
+  rule; the loader cross-checks that every `remediation.template_ref` exists on disk
+  at load time (fail-closed, symmetric to the `check_logic.reference` gate). The
+  executor
+  ([`src/aiopspilot/core/executor/`](../../../src/aiopspilot/core/executor/))
+  enforces every safety invariant on the way out:
+  per-resource serialization via `ResourceLockManager`, in-process dedup by
+  `Action.idempotency_key`, blast-radius caps (`ExecutorConfig.max_affected_resources` /
+  `max_rate_per_minute`), shadow-only mode invariant (an `enforce`-mode Action is
+  rejected without any mutation), and an append-only audit entry on every terminal
+  path — `PUBLISHED` / `ALREADY_EXISTED` / `ABSTAINED_BLAST_RADIUS` /
+  `ABSTAINED_RENDER_ERROR` / `REJECTED_MODE` / `REJECTED_INVARIANT`. The delivery
+  layer ships
+  [`GitOpsPrAdapter`](../../../src/aiopspilot/delivery/gitops_pr/adapter.py), a
+  GitHub REST implementation of the CSP-neutral
+  [`RemediationPrPublisher`](../../../src/aiopspilot/shared/providers/remediation_pr.py)
+  Protocol — Bearer-authed, probes for an existing open PR before writing,
+  creates a shadow branch + commits the patch via the Contents API, opens the PR as
+  a **draft** with the `shadow` label + `rule:<id>` + `action:<type>`. It never merges
+  and never removes the `shadow` label; those paths are Phase 2 promotion territory.
+- **Pipeline orchestrator** —
+  [`ControlLoop`](../../../src/aiopspilot/core/control_loop.py) wires the P1 stages
+  end-to-end: [`EventIngest`](../../../src/aiopspilot/core/event_ingest/__init__.py)
+  (normalize + dedup by `idempotency_key`) →
+  [`TrustRouter`](../../../src/aiopspilot/core/trust_router/__init__.py) (route to T0
+  when a rule matches the event's `resource_type`, otherwise abstain) → `T0Engine` →
+  [`ActionBuilder`](../../../src/aiopspilot/core/executor/action_builder.py) (Finding
+  → `Action` with the safety invariants derived from the ActionType) → `ShadowExecutor`.
+  Every terminal outcome (`DEDUPED` / `ABSTAINED_ROUTING` / `ABSTAINED_T0` / `EXECUTED`
+  / `ABSTAINED_ACTION_BUILD`) writes an append-only audit record; the shipped rules +
+  Rego + IaC templates fire end-to-end in
+  [`tests/pipeline/test_control_loop_e2e.py`](../../../tests/pipeline/test_control_loop_e2e.py)
+  under real OPA (skipped gracefully when `opa` is absent).
 - **Out-of-band change detection** for console/manual changes, with an explicit
   false-positive-suppression strategy.
+- **Inventory adapter (Azure)** — the Azure implementation of the
+  [inventory contract](../csp-neutrality.md#5-inventory-contract--resource-graph): an initial
+  **parallelized full-scan** against Azure Resource Graph (sharded by `resource_type` with
+  bounded concurrency) plus an **Activity-Log-driven delta** consumed off the event bus.
+  Populates `ontology_resource` + `ontology_link` (`contains`, `attached_to`, `depends_on`) so
+  T0 can cite CSP-neutral resource ids and the risk-gate can compute a real blast radius over
+  the graph. The Protocol scaffold ships in
+  [`src/aiopspilot/shared/providers/inventory.py`](../../../src/aiopspilot/shared/providers/inventory.py);
+  the Azure adapter in
+  [`src/aiopspilot/delivery/azure/inventory.py`](../../../src/aiopspilot/delivery/azure/inventory.py)
+  provides the bounded-concurrency parallel-shard structure, the `final=True`
+  atomic-promote fence, and the idempotent-upsert dedup pre-condition; the real
+  Kusto-over-ARG REST wiring lives beside it in
+  [`src/aiopspilot/delivery/azure/arg_query.py`](../../../src/aiopspilot/delivery/azure/arg_query.py)
+  as an `AzureArgQueryFactory` that resolves the CSP-neutral `resource_type` to
+  its `azure_arm_type` from the vocabulary, calls
+  `POST /providers/Microsoft.ResourceGraph/resources` under an OIDC token from
+  the injected `WorkloadIdentity`, follows `$skipToken` pagination under a
+  bounded page cap, and truncates untrusted vendor properties before returning
+  CSP-neutral records. Link extraction (`contains` / `attached_to` /
+  `depends_on`) lands with the risk-gate blast-radius work in P2.
 - **Fixtures and a regression suite** covering the initial rule set and the detection paths.
 
 ## Rule Catalog
@@ -55,6 +148,7 @@ and versioned. Required fields:
 | `resource-type` | CSP-neutral string | normalized target type, not a vendor-specific ARM path |
 | `check-logic` | ref/expr | deterministic predicate (OPA/Rego module ref or expression) |
 | `remediation` | ref | remediation template producing an IaC/PR diff |
+| `remediates` | ActionType id (M:1) | ontology dispatch: the `ActionType` this rule proposes on match. Cross-checked at load against [`rule-catalog/action-types/`](../../../rule-catalog/action-types/); optional `alternatives[]` ranks alternates that only the T2 quality gate may swap in |
 | `provenance` | object | source URL/commit, imported-at timestamp, mapping author |
 
 `provenance` is mandatory for auditability and rollback; `version` is mandatory so a bad rule
@@ -182,6 +276,9 @@ Each criterion is measurable against the Phase 0 telemetry and scenario set, not
   not regress.
 - Every terminal path (violation, no-op, abstain, HIL-route) writes an audit entry; audit
   completeness is asserted.
+- The **inventory graph is populated** before any T0 verdict fires: the parallel full-scan
+  completes atomically (fail-closed on partial failure), links land under the CSP-neutral
+  vocabulary, and re-running the scan is a no-op idempotent upsert.
 
 ## Dependencies
 

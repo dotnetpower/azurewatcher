@@ -1,0 +1,37 @@
+{
+  "generated_at": "2026-07-05T02:48:52.634723+00:00",
+  "reference_agent": "reference-agent-stub@1.0.0",
+  "scenario_set_version": "v2026.07",
+  "scenario_count": 9,
+  "success_metrics": {
+    "auto_resolution_rate": 0.0,
+    "hil_rate": 1.0,
+    "routed_correctly_rate": 0.1111111111111111,
+    "human_touchpoints_per_100_events": 100.0
+  },
+  "guard_metrics_baseline": {
+    "expected_execute_rate": 0.4444444444444444,
+    "expected_rollback_rate": 0,
+    "expected_policy_violation_rate": 0
+  },
+  "per_domain": {
+    "change": {
+      "count": 3,
+      "auto_resolution_rate": 0.0,
+      "hil_rate": 1.0,
+      "routed_correctly_rate": 0.0
+    },
+    "dr": {
+      "count": 3,
+      "auto_resolution_rate": 0.0,
+      "hil_rate": 1.0,
+      "routed_correctly_rate": 0.3333333333333333
+    },
+    "finops": {
+      "count": 3,
+      "auto_resolution_rate": 0.0,
+      "hil_rate": 1.0,
+      "routed_correctly_rate": 0.0
+    }
+  }
+}

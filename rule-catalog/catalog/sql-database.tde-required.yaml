@@ -1,0 +1,21 @@
+schema_version: "1.0.0"
+id: sql-database.tde-required
+version: "1.0.0"
+source: mcsb
+severity: high
+category: security
+resource_type: sql-database
+check_logic:
+  kind: rego
+  reference: policies/sql_database/tde_required.rego
+remediation:
+  template_ref: remediation/sql_database/enable_tde.tftpl
+  cost_impact_monthly_usd: 0
+remediates: remediate.enable-tde
+provenance:
+  source_url: https://example.com/rules/sql-tde-required
+  resolved_ref: "0000000000000000000000000000000000000000"
+  content_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: "2026-07-05T00:00:00Z"

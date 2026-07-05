@@ -34,12 +34,15 @@ No new data collection is introduced.
 | Dimension | Type | Source |
 |-----------|------|--------|
 | `policy_violation` | bool | OPA/Rego verifier verdict |
-| `destructive` | bool | ontology `ActionType.operation ∈ {delete, disable, drop, purge}` |
-| `blast_radius` | enum `resource` \| `resource_group` \| `subscription` | `applies_to` × scope of the affected resource(s) |
-| `rollback_path` | enum `pr_revert` \| `scripted` \| `none` | `remediates` action's rollback contract |
-| `reversible` | bool | shortcut for `rollback_path ≠ none` |
+| `destructive` | bool | ontology `ActionType.operation ∈ {delete, drop, purge, detach}` |
+| `irreversible` | bool | ontology `ActionType.irreversible == true` (a rolled-back state cannot fully restore the pre-action state) |
+| `blast_radius` | enum `resource` \| `resource_group` \| `subscription` | `applies_to` × scope of the affected resource(s); when `ActionType.blast_radius.computation == graph_derived`, the risk-gate walks Resource→Resource links (default `contains` + reverse `depends_on`, depth 2) and maps the affected-resource count to a bucket |
+| `rollback_path` | enum `pr_revert` \| `scripted` \| `pitr` \| `snapshot_restore` \| `state_forward_only` | `remediates` action's rollback contract (no `none` value — every ActionType MUST declare an undo path) |
+| `reversible` | bool | shortcut for `irreversible == false` |
 | `environment` | enum `prod` \| `non-prod` | see [Environment Detection](#environment-detection) |
-| `data_plane_touched` | bool | ontology `ActionType` interfaces include `DataPlaneMutating` |
+| `data_plane_touched` | bool | ontology `ActionType.interfaces` include `DataPlaneMutating` |
+| `graph_stale` | bool | ontology `ActionType.interfaces` include `RequiresInventoryFresh` AND the target Resource's inventory record exceeds `freshness_ttl` |
+| `cross_resource_impact` | int | `ActionType.blast_radius.computation == graph_derived` ⇒ count of affected Resources returned by the traversal; `unknown` when the graph is unavailable and the ActionType lacks `GraphTraversalRequired` |
 | `cost_impact_monthly` | number (USD/month) | rule's `remediation.cost_impact` estimate, or observed post-hoc reconciliation |
 | `verifier_confidence` | number [0..1] | LLM quality-gate signal (only set for T2-produced actions) |
 
@@ -59,14 +62,18 @@ rules:
   - if: { blast_radius: subscription }
     decision: deny
     reason: "no autonomous change spans a full subscription"
-  - if: { rollback_path: none }
+  - if: { graph_stale: true }
     decision: deny
-    reason: "safety invariant requires a tested rollback path"
+    reason: "inventory graph is stale; refuse to act on a possibly-ghost resource"
 
   # ── HIL (human approval required) ──
+  - if: { irreversible: true }
+    decision: hil
+    reason: "irreversible mutation always requires an approver quorum >= 2"
+    quorum: 2
   - if: { destructive: true }
     decision: hil
-    reason: "delete/disable/drop/purge always requires an approver"
+    reason: "delete/drop/purge/detach always requires an approver"
   - if: { environment: prod, allowlist_prod_auto: false }
     decision: hil
     reason: "prod defaults to HIL unless the rule is on the prod-auto allowlist"

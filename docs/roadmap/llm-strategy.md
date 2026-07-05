@@ -194,6 +194,13 @@ At `azd up` (or equivalent) the resolver reads the registry, queries the Azure O
 Foundry catalog for the target region, and provisions **one deployment per capability**.
 The resolved `{capability → deployment}` mapping is written to Key Vault and audited.
 
+The full **deployer-permission gate table** (what happens when the deployer identity lacks
+`Cognitive Services Contributor`, when a preferred family is missing from the region, when
+`capacity_tpm` quota is short, or when the mixed-model invariant cannot be satisfied) is
+authored in
+[dev-and-deploy-parity.md § Deployer-Scoped LLM Provisioning](dev-and-deploy-parity.md#deployer-scoped-llm-provisioning);
+this section shows the happy-path shape.
+
 ```mermaid
 flowchart LR
     IAC[Terraform / Bicep: azd up] --> AOAI[Azure OpenAI or Foundry resource]
@@ -318,22 +325,40 @@ Every runtime concept is one of four **ObjectTypes**. Concrete instances live in
 | `Finding` | a rule match on a resource at a point in time, with context and severity | derived at runtime; persisted in the audit store |
 
 Relationships are **typed LinkTypes** with cardinality metadata, so traversal is O(indexed
-lookup), not scan.
+lookup), not scan. Each declaration also carries `is_transitive`, `is_causal`, and
+`temporal_order` flags so the traversal engine knows when a recursive expansion is safe and
+when a Finding-chain query must respect time.
 
-| LinkType | Cardinality | Meaning |
-|----------|-------------|---------|
-| `applies_to` | Rule → ResourceType (M:M) | which resource types the rule may match |
-| `triggered_by` | Rule → SignalType (M:M) | which signals cause the rule to be evaluated |
-| `evaluates` | Rule → Property (M:M) | which resource properties the rule reads |
-| `remediates` | Rule → ActionType (M:1) | which ontology action the rule proposes on match |
-| `resource_of` | Signal → Resource (M:1) | which resource the signal is about |
-| `overrides` | Override → Rule (M:1) | the override targets this rule (see [rule-governance.md](rule-governance.md#overrides)) |
-| `causes` / `prevents` | Rule → Outcome (M:M, causal) | causal metadata that T2 may reason over (rare) |
-| `precedes` / `follows` | Finding → Finding (M:M, temporal) | correlation of related findings on one incident |
+| LinkType | Cardinality | Transitive | Meaning |
+|----------|-------------|:---------:|---------|
+| `applies_to` | Rule → ResourceType (M:M) | — | which resource types the rule may match |
+| `triggered_by` | Rule → SignalType (M:M) | — | which signals cause the rule to be evaluated |
+| `evaluates` | Rule → Property (M:M) | — | which resource properties the rule reads |
+| `remediates` | Rule → ActionType (M:1) | — | which ontology action the rule proposes on match |
+| `resource_of` | Signal → Resource (M:1) | — | which resource the signal is about |
+| `overrides` | Override → Rule (M:1) | — | the override targets this rule (see [rule-governance.md](rule-governance.md#overrides)) |
+| `causes` / `prevents` | Rule → Outcome (M:M, causal) | — | causal metadata that T2 may reason over (rare) |
+| `precedes` / `follows` | Finding → Finding (M:M, temporal) | — | correlation of related findings on one incident |
+| `contains` | Resource → Resource (M:1, child→parent) | ✓ | ownership / scope containment: subscription→resource-group→resource, VNet→subnet, cluster→node-pool. Recursive CTE walks the whole chain. Populated by the [inventory adapter](csp-neutrality.md#5-inventory-contract--resource-graph). |
+| `attached_to` | Resource → Resource (M:1) | — | lifetime-bound attachment: NIC→VM, disk→VM, private-endpoint→target. Removing the parent breaks the child. |
+| `depends_on` | Resource → Resource (M:M) | — | logical reference required for correct operation: ContainerApp→Key-Vault / ACR / Postgres, managed-identity→app. Broken edges degrade the dependent, not the target. |
+| `peered_with` *(Phase 3+)* | Resource ↔ Resource (M:M, symmetric) | — | reachable-by-network symmetric peer: VNet peering, cross-region replicas. |
+| `routes_to` *(Phase 3+)* | Resource → Resource (M:1) | — | traffic path or reference: UDR next-hop, private-DNS zone link. |
 
 Traversal is directional and cached; a `Signal` of type `T` on a `Resource` of type `R`
 resolves to exactly the set of rules where `triggered_by ∋ T` and `applies_to ∋ R` via
 two index intersections — no text search, no model call.
+
+The Resource→Resource links (`contains`, `attached_to`, `depends_on`, and later
+`peered_with` / `routes_to`) are what let the risk-gate compute an *actual* blast radius
+instead of the three-value enum in [risk-classification.md](risk-classification.md), and
+what let T2 be prompted with a **depth-2 neighborhood subgraph** around the target
+resource — grounded, cited context instead of a bare resource id. Their authoritative
+source is the [inventory contract](csp-neutrality.md#5-inventory-contract--resource-graph);
+`core/` never queries a cloud SDK for them. New link kinds MUST be added to
+`shared/contracts/ontology/link-type.json` before an adapter can emit them — an
+unrecognized link, like an unrecognized `ResourceType`, opens an issue rather than
+auto-registering (self-extending ontology, see [Fork Extension](#fork-extension-self-extending-ontology)).
 
 ### Rule as Ontology Artifact
 
@@ -370,25 +395,120 @@ dispatchable when its interface contract is satisfied on the runtime object, and
 rejects a rule whose `applies_to` / `triggered_by` cannot be resolved against the
 schema registry.
 
-### Ontology Actions
+### Pipeline Stages and ActionTypes (distinct concepts)
 
-Every runtime step is an **ontology action** with a submission-criteria contract. Most
-are deterministic; only one calls a frontier LLM.
+Two things are called "action" in this system and MUST NOT be conflated:
 
-| ActionType | Layer | Cost | Preconditions |
-|------------|-------|------|---------------|
-| `evaluate` | L1 (T0) | pure function, in-memory OPA/Rego | rule's `applies_to` matches Resource; `check_logic` compiled |
-| `simulate` (what-if) | L1 (T0) | pure function against declarative state | resource state snapshot available |
-| `reuse` | L2 | O(1) indexed SELECT | `(signature, rule_id, catalog_version)` hit in learned-action store |
-| `similarity` | L3 (T1) | 1 embedding + pgvector kNN | context compatibility check passes on the neighbor |
-| `cache-hit` | L4 | O(1) key lookup | signature match within TTL and catalog / model version |
-| `reason` | L5 (T2) | frontier LLM (primary + secondary; escalated on disagreement) | quality gate is authoritative on the output |
-| `remediate` | risk-gate ⇒ delivery | draft PR emission | action verified by policy-as-code |
-| `escalate` | risk-gate ⇒ ChatOps | HIL request | no cheaper layer resolved the case |
-| `abstain` / `deny` | any layer | audited no-op | verifier rejects or grounding fails |
+- **PipelineStage** — where in the layered lookup a decision was made. This is an
+  **audit vocabulary**, not a schema artifact. Every audit-log entry records the
+  `pipeline_stage` field so the decision path is reconstructable end-to-end. Stages are
+  read-only from the executor's perspective (no CSP mutation happens here except at
+  `remediate`).
+- **ActionType** — a **CSP-neutral mutation category** with a rollback contract. Declared
+  in `shared/contracts/ontology/action-type.json`; instances (e.g.
+  `remediate.disable-public-access`) live in the catalog and are referenced from a rule's
+  `remediates` field. This is the schema artifact.
 
-Only `reason` invokes the LLM. Every other action is deterministic and executes in
+Only `remediate` couples the two: it is a PipelineStage (the executor step) whose
+output is an ActionType **instance** applied to a Resource. `escalate` / `abstain` / `deny`
+are terminal stages that never invoke an ActionType.
+
+**PipelineStage vocabulary** (recorded in `audit_log.pipeline_stage`):
+
+| PipelineStage | Layer | Cost | Preconditions | Terminal? |
+|---------------|-------|------|---------------|:---------:|
+| `L1_evaluate` | L1 (T0) | pure function, in-memory OPA/Rego | rule's `applies_to` matches Resource; `check_logic` compiled | — |
+| `L1_simulate` (what-if) | L1 (T0) | pure function against declarative state | resource state snapshot available | — |
+| `L2_reuse` | L2 | O(1) indexed SELECT | `(signature, rule_id, catalog_version)` hit in learned-action store | — |
+| `L3_similarity` | L3 (T1) | 1 embedding + pgvector kNN | context compatibility check passes on the neighbor | — |
+| `L4_cache_hit` | L4 | O(1) key lookup | signature match within TTL and catalog / model version | — |
+| `L5_reason` | L5 (T2) | frontier LLM (primary + secondary; escalated on disagreement) | quality-gate authoritative | — |
+| `remediate` | risk-gate ⇒ executor ⇒ delivery | apply an ActionType instance to a Resource | policy-as-code verifier passed; all ActionType preconditions hold | — |
+| `escalate` | risk-gate ⇒ ChatOps | HIL request | no cheaper layer resolved the case | ✓ |
+| `abstain` | any layer | audited no-op | grounding unavailable or verifier abstained | ✓ |
+| `deny` | any layer | audited no-op | risk-classification blocked the action | ✓ |
+
+Only `L5_reason` invokes the LLM. Every other stage is deterministic and executes in
 microseconds to milliseconds.
+
+### ActionType Contract
+
+An **ActionType** ([schema](../../src/aiopspilot/shared/contracts/ontology/action-type.json))
+declares one CSP-neutral mutation category and the safety invariants for every instance
+of it. All fields except `preconditions` / `stop_conditions` / `blast_radius` /
+`description` are required.
+
+- `name` — stable id (e.g. `remediate.disable-public-access`).
+- `operation` — CSP-neutral verb from the enum below.
+- `interfaces` — runtime contracts the executor honors; risk-gate composes its feature
+  vector from this set.
+- `rollback_contract` — how instances are undone. **`none` is not a valid value**; every
+  ActionType MUST declare an undo path, even a best-effort one. Genuinely one-way
+  mutations set `irreversible: true` (below) and are routed HIL+quorum by
+  risk-classification, they do NOT silence rollback.
+- `irreversible` — true only when the pre-action state cannot be fully restored (e.g.
+  `purge` of a soft-deleted resource). Rollback_contract is still required and describes
+  best-effort recovery.
+- `default_mode` — new upstream ActionTypes MUST default to `shadow`; only the trivial
+  no-op categories (`observe`, `revert` bound to an audited prior action) may ship with
+  `enforce`.
+- `promotion_gate` — measurable criteria (`min_shadow_days`, `min_samples`,
+  `min_accuracy`, `max_policy_escapes`) a shadow-mode ActionType MUST clear on the
+  frozen scenario set before an assignment can promote it to enforce. Rule assignments
+  may tighten these values, never loosen them.
+- `preconditions[]` — deterministic checks the T0 verifier evaluates BEFORE the action
+  reaches the risk-gate. A failing precondition MUST abstain, never partially apply.
+- `stop_conditions[]` — deterministic conditions the executor evaluates DURING or AFTER
+  apply. Any true value auto-halts and triggers rollback per `rollback_contract`.
+- `blast_radius` — how the risk-gate computes the blast-radius classification dimension
+  for an instance. `static_enum` uses a fixed bucket; `graph_derived` walks Resource →
+  Resource links (default: `contains` + reverse `depends_on`, depth 2) and counts
+  affected Resources. Instances exceeding `max_affected_resources` abstain and escalate.
+  Traversal implementation lands with the risk-gate (P2); P1 only records the declaration.
+
+#### Operation Verbs
+
+The `operation` enum is CSP-neutral. Each verb has a fixed semantic so rule authors and
+provider adapters agree on intent.
+
+| Verb | Semantic | Rollback default |
+|------|----------|------------------|
+| `create` | provision a new Resource | `pr_revert` (destroy in the same PR) |
+| `update` | in-place property change (non-destructive) | `pr_revert` (prior property values in the diff) |
+| `delete` | remove a CSP-level Resource | `snapshot_restore` (pre-delete snapshot) |
+| `disable` | turn off without deleting | `state_forward_only` via `enable` |
+| `enable` | inverse of `disable` | `state_forward_only` via `disable` |
+| `tag` | metadata-only mutation | `pr_revert` |
+| `drop` | DB-DDL removal (schema / object) | `pitr` |
+| `purge` | soft-delete then hard-delete; `irreversible: true` | best-effort `snapshot_restore` |
+| `scale` | count / SKU adjustment | `pr_revert` to prior spec |
+| `restart` | in-place process/pod bounce | none required (transient); `scripted` if step spans nodes |
+| `failover` | trigger managed failover; `RequiresMaintenanceWindow` | `scripted` (failback) |
+| `rotate` | secret / cert rotation | `snapshot_restore` (prior version retained) |
+| `revert` | explicit rollback of a prior action instance | `pr_revert` on the revert PR itself |
+| `attach` | create a Resource → Resource link (PE→target, MI→App, disk→VM) | `state_forward_only` via `detach` |
+| `detach` | remove such a link | `state_forward_only` via `attach` |
+| `quarantine` | network/policy isolation without deletion | `state_forward_only` (lift the isolation policy) |
+
+#### Interfaces
+
+The `interfaces` set on an ActionType names runtime contracts the executor MUST honor. A
+missing interface is not "allowed anything" — the risk-gate refuses to auto-execute an
+ActionType whose interface set does not cover the safety-invariant requirements for its
+`operation`.
+
+| Interface | Meaning |
+|-----------|---------|
+| `ControlPlane` | Touches only CSP metadata / configuration (never user data). Baseline for auto candidates. |
+| `DataPlaneMutating` | Touches user data. **HIL by default** regardless of blast radius. |
+| `IdempotentByKey` | Safe to retry with the same idempotency key; the executor's dedup uses this key. |
+| `RateLimited` | Must respect a bucket cap (per-resource, per-tier, or global); overflow degrades to HIL. |
+| `RequiresInventoryFresh` | MUST NOT fire if the target Resource's inventory record is stale beyond `freshness_ttl`. Prevents acting on ghost resources — the inventory contract ([csp-neutrality.md § 5](csp-neutrality.md#5-inventory-contract--resource-graph)) supplies the freshness cursor. |
+| `GraphTraversalRequired` | Blast-radius calculation depends on Resource → Resource links (`contains` / `attached_to` / `depends_on`). If the graph is unavailable, the ActionType abstains. |
+| `CrossResource` | Mutation touches multiple Resources; the executor acquires N per-resource locks in a deterministic order to stay deadlock-free. |
+| `AsymmetricRollback` | Rollback path is not the exact inverse (e.g. PITR may lose Δ-data). Forces auto → HIL demotion; auto is never selected regardless of other dimensions. |
+| `RequiresMaintenanceWindow` | Only executes inside an approved window (P3 chaos / DR). Missing window scheduler → abstain, never fall through to a bare execute. |
+
 
 ### Layered Lookup Pipeline
 
@@ -503,7 +623,7 @@ surfaces the minimum inventory already provisions
 | `Resource` instances (observed inventory) | discovered at runtime | **PostgreSQL** | `ontology_resource` |
 | `Signal` instances (raw events) | transient | **Event Hubs Kafka topic** in flight; only correlation window state persists | queue + `signal_correlation` |
 | `Finding` instances (rule matches) | audited, persistent | **PostgreSQL** | `ontology_finding` + `audit_log` |
-| `Link` instances (Signal→Resource, Finding→Finding, …) | runtime + audit | **PostgreSQL** | `ontology_link` |
+| `Link` instances (Signal→Resource, Finding→Finding, Resource→Resource `contains` / `attached_to` / `depends_on`, …) | runtime + audit | **PostgreSQL** | `ontology_link` |
 | Learned actions (L2) | persistent, catalog-version scoped | **PostgreSQL** | `learned_action` |
 | Embeddings (L3) | persistent, HNSW-indexed | **PostgreSQL + pgvector** | `ontology_embedding` |
 | T2 result cache (L4) | TTL-bounded | **PostgreSQL** | `t2_cache` (partition by `catalog_version`) |

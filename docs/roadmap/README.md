@@ -51,6 +51,7 @@ reference docs first, then the phases in order.
 | 15 | [user-rbac-and-identity.md](user-rbac-and-identity.md) | human user roles (Reader/Contributor/Approver/Owner + Break-Glass), Entra ID artifacts, console→PR identity flow |
 | 16 | [channels-and-notifications.md](channels-and-notifications.md) | non-web-UI channels (Teams / Slack / email / webhook / pager / SMS), category & trust-tier matrix, routing policy |
 | 17 | [risk-classification.md](risk-classification.md) | auto vs HIL vs deny classification: dimensions, initial rule table, environment detection, change process |
+| 18 | [dev-and-deploy-parity.md](dev-and-deploy-parity.md) | dev-mode local-fake vs deploy-mode Azure-first parity contract; deployer-scoped LLM provisioning gates; work plan |
 
 ## Design at a Glance
 

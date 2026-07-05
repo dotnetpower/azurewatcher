@@ -1,0 +1,25 @@
+schema_version: "1.0.0"
+id: compute.vm-scale-set.over-provisioned
+version: "1.0.0"
+source: azure_advisor
+severity: medium
+category: cost
+resource_type: compute.vm-scale-set
+check_logic:
+  kind: rego
+  reference: policies/compute/vmss_over_provisioned.rego
+remediation:
+  template_ref: remediation/compute/vmss_right_size.tftpl
+  cost_impact_monthly_usd: 0
+remediates: remediate.right-size
+parameters:
+  window_days: 14
+  max_cpu_p95_percent: 30
+  min_headroom_replicas: 1
+provenance:
+  source_url: https://example.com/rules/vmss-over-provisioned
+  resolved_ref: "0000000000000000000000000000000000000000"
+  content_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  license: MIT
+  redistribution: embeddable
+  retrieved_at: "2026-07-05T00:00:00Z"

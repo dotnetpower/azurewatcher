@@ -1,0 +1,169 @@
+# Canonical CSP-neutral `resource_type` vocabulary.
+#
+# Every entry is a stable, CSP-neutral identifier used across the ontology
+# (`Resource.type`, `Rule.resource_type`, `applies_to` links, and provider
+# adapter dispatch). The list is deliberately conservative for P1 — it
+# covers the resource types the initial rule set for the three verticals
+# (Resilience, Change Safety, Cost Governance) references. New types are
+# added via a governance PR (see `docs/roadmap/rule-catalog-collection.md`).
+#
+# Fields
+#   id             kebab-case identifier (this string is what rules quote)
+#   category       high-level grouping used only for docs / dashboards
+#   description    one-line human summary
+#   azure_arm_type Azure Resource Manager type path the provider adapter
+#                  maps to. `null` when the type has no direct Azure
+#                  counterpart at this level of abstraction (a fork adapter
+#                  will render the mapping — the vocabulary stays neutral).
+#   typical_parents typical `contains` parents in the resource graph
+#                   ([llm-strategy.md § Ontology Foundation]). Informational
+#                   for authors; the runtime graph is populated by the
+#                   inventory adapter, not by this list.
+#
+# All values are English, secret-free, and customer-agnostic.
+schema_version: "1.0.0"
+version: "0.1.0"
+types:
+  # ── compute ───────────────────────────────────────────────────────────
+  - id: compute.vm
+    category: compute
+    description: Long-running virtual machine.
+    azure_arm_type: Microsoft.Compute/virtualMachines
+    typical_parents: [resource-group]
+  - id: compute.vm-scale-set
+    category: compute
+    description: Managed group of identical VMs; the unit `scale` operates on.
+    azure_arm_type: Microsoft.Compute/virtualMachineScaleSets
+    typical_parents: [resource-group]
+  - id: compute.container-app
+    category: compute
+    description: Serverless container running an OCI image + Knative-compatible manifest subset.
+    azure_arm_type: Microsoft.App/containerApps
+    typical_parents: [resource-group]
+  - id: compute.function
+    category: compute
+    description: Function-as-a-service unit; single event trigger.
+    azure_arm_type: Microsoft.Web/sites
+    typical_parents: [resource-group]
+  - id: kubernetes-cluster
+    category: compute
+    description: Managed Kubernetes control plane.
+    azure_arm_type: Microsoft.ContainerService/managedClusters
+    typical_parents: [resource-group]
+  - id: kubernetes-node-pool
+    category: compute
+    description: A pool of worker nodes attached to a kubernetes-cluster.
+    azure_arm_type: Microsoft.ContainerService/managedClusters/agentPools
+    typical_parents: [kubernetes-cluster]
+
+  # ── networking ────────────────────────────────────────────────────────
+  - id: network.vnet
+    category: network
+    description: Virtual network address space.
+    azure_arm_type: Microsoft.Network/virtualNetworks
+    typical_parents: [resource-group]
+  - id: network.subnet
+    category: network
+    description: Address range inside a vnet.
+    azure_arm_type: Microsoft.Network/virtualNetworks/subnets
+    typical_parents: [network.vnet]
+  - id: network.nsg
+    category: network
+    description: Network security group (stateful L4 firewall rules).
+    azure_arm_type: Microsoft.Network/networkSecurityGroups
+    typical_parents: [resource-group]
+  - id: network.private-endpoint
+    category: network
+    description: Private link into a target resource (attaches via `attached_to`).
+    azure_arm_type: Microsoft.Network/privateEndpoints
+    typical_parents: [resource-group]
+  - id: network.load-balancer
+    category: network
+    description: L4 load balancer (public or internal).
+    azure_arm_type: Microsoft.Network/loadBalancers
+    typical_parents: [resource-group]
+  - id: network.dns-zone
+    category: network
+    description: DNS zone (public or private).
+    azure_arm_type: Microsoft.Network/dnsZones
+    typical_parents: [resource-group]
+
+  # ── storage ──────────────────────────────────────────────────────────
+  - id: object-storage
+    category: storage
+    description: Object / blob storage account.
+    azure_arm_type: Microsoft.Storage/storageAccounts
+    typical_parents: [resource-group]
+  - id: file-share
+    category: storage
+    description: Network file share.
+    azure_arm_type: Microsoft.Storage/storageAccounts/fileServices/shares
+    typical_parents: [object-storage]
+  - id: disk
+    category: storage
+    description: Block-storage disk attached to a compute resource.
+    azure_arm_type: Microsoft.Compute/disks
+    typical_parents: [resource-group]
+
+  # ── databases ────────────────────────────────────────────────────────
+  - id: sql-database
+    category: database
+    description: SQL-family database engine (T-SQL family). Azure=Azure SQL / MI.
+    azure_arm_type: Microsoft.Sql/servers/databases
+    typical_parents: [resource-group]
+  - id: postgresql-server
+    category: database
+    description: PostgreSQL engine (Flexible / Single).
+    azure_arm_type: Microsoft.DBforPostgreSQL/flexibleServers
+    typical_parents: [resource-group]
+  - id: nosql-database
+    category: database
+    description: Document / KV NoSQL engine (Cosmos DB SQL API, DynamoDB, Firestore).
+    azure_arm_type: Microsoft.DocumentDB/databaseAccounts
+    typical_parents: [resource-group]
+  - id: cache
+    category: database
+    description: In-memory cache (Redis, Memcached).
+    azure_arm_type: Microsoft.Cache/redis
+    typical_parents: [resource-group]
+
+  # ── security / identity ──────────────────────────────────────────────
+  - id: secret-store
+    category: security
+    description: Managed secret / key store (Key Vault, Secrets Manager, Secret Manager).
+    azure_arm_type: Microsoft.KeyVault/vaults
+    typical_parents: [resource-group]
+  - id: managed-identity
+    category: security
+    description: User-assigned or system-assigned workload identity.
+    azure_arm_type: Microsoft.ManagedIdentity/userAssignedIdentities
+    typical_parents: [resource-group]
+  - id: certificate
+    category: security
+    description: TLS or code-signing certificate managed by a secret-store.
+    azure_arm_type: Microsoft.KeyVault/vaults/certificates
+    typical_parents: [secret-store]
+
+  # ── observability ────────────────────────────────────────────────────
+  - id: log-workspace
+    category: observability
+    description: Centralized log analytics workspace (Log Analytics, CloudWatch, Cloud Logging).
+    azure_arm_type: Microsoft.OperationalInsights/workspaces
+    typical_parents: [resource-group]
+  - id: metrics-workspace
+    category: observability
+    description: Prometheus-style metrics workspace bound to a log-workspace.
+    azure_arm_type: Microsoft.Monitor/accounts
+    typical_parents: [resource-group]
+
+  # ── governance / scope ───────────────────────────────────────────────
+  - id: resource-group
+    category: governance
+    description: Logical grouping of resources under one lifecycle. Root of the `contains` chain from `subscription`.
+    azure_arm_type: Microsoft.Resources/resourceGroups
+    typical_parents: [subscription]
+  - id: subscription
+    category: governance
+    description: Billing / RBAC boundary containing many resource-groups.
+    azure_arm_type: Microsoft.Resources/subscriptions
+    typical_parents: []

@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "id": "finops.right-size-vm-high-monthly.002",
+  "version": "v2026.07",
+  "domain": "finops",
+  "tags": [
+    "right-sizing",
+    "high-cost"
+  ],
+  "event": {
+    "schema_version": "1.0.0",
+    "event_id": "00000000-0000-0000-0000-000000000008",
+    "idempotency_key": "scenario-8",
+    "source": "example_advisor",
+    "event_type": "cost_recommendation",
+    "detected_at": "2026-07-05T08:00:00Z",
+    "ingested_at": "2026-07-05T08:00:01Z",
+    "mode": "shadow"
+  },
+  "expected": {
+    "tier": "t0",
+    "decision": "hil",
+    "citing_rule_ids": [
+      "example.finops.right-size-vm"
+    ],
+    "guard": {
+      "should_execute": false,
+      "should_rollback": false,
+      "should_trigger_policy_violation": false
+    }
+  }
+}

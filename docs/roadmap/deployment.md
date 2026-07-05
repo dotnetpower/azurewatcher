@@ -45,7 +45,7 @@ prod topology so shadow evaluation is representative.
   and a reconciliation PR; drift is never silently auto-applied to prod.
 - Provisioned resources — **minimum cost-efficient set** (full inventory + tier decisions in
   [deploy-and-onboard.md](deploy-and-onboard.md#azure-resource-inventory-minimum-set); the
-  inventory renders the four wire-level contracts in [csp-neutrality.md](csp-neutrality.md)):
+  inventory renders the five wire-level contracts in [csp-neutrality.md](csp-neutrality.md)):
   - **Container Apps environment** (Consumption, KEDA scale-to-zero) running **one Container
     App with sidecar containers** for `event-ingest` + `trust-router` + `executor` +
     `audit-writer`, deployed from an **OCI image + Knative-compatible manifest subset** so

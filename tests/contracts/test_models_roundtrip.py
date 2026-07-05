@@ -22,6 +22,7 @@ from aiopspilot.shared.contracts.models import (
     Mode,
     OntologyActionType,
     Operation,
+    PromotionGate,
     Provenance,
     Remediation,
     RollbackKind,
@@ -39,7 +40,7 @@ def _validator() -> JsonSchemaContractValidator:
 
 
 def _dump(model: Any) -> dict[str, Any]:
-    return model.model_dump(mode="json")
+    return model.model_dump(mode="json", exclude_none=True)
 
 
 def test_event_model_round_trip(valid_event: dict[str, Any]) -> None:
@@ -103,13 +104,14 @@ def test_rule_model_construction_covers_provenance() -> None:
         resource_type="compute.vm",
         check_logic=CheckLogic(kind=CheckLogicKind.REGO, reference="policies/example.rego"),
         remediation=Remediation(template_ref="remediations/example", cost_impact_monthly_usd=0),
+        remediates="remediate.tag-add",
         provenance=Provenance(
             source_url="https://example.com/rules/tag-owner",
-            resolved_revision="0000000000000000000000000000000000000000",
+            resolved_ref="0000000000000000000000000000000000000000",
             content_hash="sha256:example",
             license="MIT",
-            redistribution=True,
-            imported_at="2026-07-05T00:00:00Z",  # type: ignore[arg-type]
+            redistribution="embeddable",  # type: ignore[arg-type]
+            retrieved_at="2026-07-05T00:00:00Z",  # type: ignore[arg-type]
         ),
     )
     _validator().validate("rule", _dump(rule))
@@ -118,11 +120,17 @@ def test_rule_model_construction_covers_provenance() -> None:
 def test_ontology_action_type_carries_interface_set() -> None:
     obj = OntologyActionType(
         schema_version="1.0.0",
-        name="tag_missing_owner",
+        name="remediate.tag-missing-owner",
         version="1.0.0",
         operation=Operation.TAG,
         interfaces=[ActionInterface.CONTROL_PLANE, ActionInterface.IDEMPOTENT_BY_KEY],
         rollback_contract=RollbackKind.PR_REVERT,
+        promotion_gate=PromotionGate(
+            min_shadow_days=14,
+            min_samples=100,
+            min_accuracy=0.95,
+            max_policy_escapes=0,
+        ),
         description="Attach an owner tag when missing.",
     )
     _validator().validate("ontology/action-type", _dump(obj))

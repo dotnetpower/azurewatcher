@@ -43,6 +43,21 @@
         "many_to_many"
       ]
     },
+    "is_transitive": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when a chain of this link may be walked recursively (e.g. `contains` from subscription to a leaf resource). The traversal engine only recurses when this is true."
+    },
+    "is_causal": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when this link carries causal semantics (Rule -> Outcome `causes`/`prevents`). T2 reasoning may cite it; deterministic tiers must not treat causality as certainty."
+    },
+    "temporal_order": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when this link's endpoints have a strict time ordering (Finding `precedes`/`follows`). Queries over the link must respect the timestamp on the endpoints."
+    },
     "description": {
       "type": "string"
     }

@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "id": "change.tag-owner-missing.001",
+  "version": "v2026.07",
+  "domain": "change",
+  "tags": [
+    "azure-policy",
+    "tag-compliance"
+  ],
+  "event": {
+    "schema_version": "1.0.0",
+    "event_id": "00000000-0000-0000-0000-000000000001",
+    "idempotency_key": "scenario-1",
+    "source": "example_activity_log",
+    "event_type": "change_detected",
+    "detected_at": "2026-07-05T08:00:00Z",
+    "ingested_at": "2026-07-05T08:00:01Z",
+    "mode": "shadow"
+  },
+  "expected": {
+    "tier": "t0",
+    "decision": "auto",
+    "citing_rule_ids": [
+      "example.tag.owner-required"
+    ],
+    "guard": {
+      "should_execute": true,
+      "should_rollback": false,
+      "should_trigger_policy_violation": false,
+      "expected_mttr_s_max": 60
+    }
+  }
+}

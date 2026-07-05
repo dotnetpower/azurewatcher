@@ -126,6 +126,12 @@ These feed the rule catalog ([phase-1-rule-catalog-t0.md](phases/phase-1-rule-ca
   match production behind the same event interface. Cloud-integration tests re-verify
   against the Event Hubs Kafka endpoint before promotion.
 - Deterministic engine and risk gate run fully offline (no cloud calls) for fast unit tests.
+- **LLM stays fake by default in dev**: `runtime.env == "dev"` binds the deterministic
+  in-memory fakes (`DeterministicEmbeddingModel`, `MatchTypeCrossCheckModel`,
+  `StaticVerifier`, `InMemoryGroundingSource`) — no Azure OpenAI credentials, no live
+  endpoints, no token cost. The Azure-side adapters live under `delivery/azure/llm/` and
+  are only imported by the composition root when `llm.mode == "azure"`. Full parity
+  contract + work plan: [dev-and-deploy-parity.md](dev-and-deploy-parity.md).
 - Fixtures for rule-catalog entries and event payloads are English and secret-free.
 
 ## Open Decisions

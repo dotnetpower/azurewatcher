@@ -1,7 +1,7 @@
 ---
 title: CSP-중립성 계약
 translation_of: csp-neutrality.md
-translation_source_sha: 9d6acd7945fb640891be96604689b2ee001068a2
+translation_source_sha: c9d2e94f2b6a5f4626e2a8cd73dd8283ad5e956b
 translation_revised: 2026-07-05
 ---
 
@@ -23,24 +23,26 @@ translation_revised: 2026-07-05
 와이어 수준 계약** 을 통해야 합니다. 각 계약의 Azure 구현이 오늘 우리가 만드는 것이며,
 fork 나 미래 phase 는 `core/` 를 편집하지 않고 **같은 계약** 의 새 구현을 등록해서 다른 CSP 를 추가합니다.
 
-**동시성(Concurrency)**: 네 개의 provider Protocol 은 **기본 async** 입니다 (Kafka poll
-loop, Postgres asyncpg, Key Vault HTTP, OIDC 토큰 교환은 모두 I/O bound). Sync 는 event loop
-를 블록하지 않도록 CPU / startup 전용 seam — `SchemaRegistry`, `ContractValidator`,
-`ConfigProvider` — 에만 남겨둡니다. 정본 seam 리스트는
+**동시성(Concurrency)**: 다섯 개의 provider Protocol 은 **기본 async** 입니다 (Kafka poll
+loop, Postgres asyncpg, Key Vault HTTP, OIDC 토큰 교환, inventory-graph 쿼리는 모두 I/O
+bound). Sync 는 event loop 를 블록하지 않도록 CPU / startup 전용 seam —
+`SchemaRegistry`, `ContractValidator`, `ConfigProvider` — 에만 남겨둡니다. 정본 seam
+리스트는
 [project-structure-ko.md § 주입 가능한 Seams](project-structure-ko.md#주입-가능한-seams)
 참조.
 
-CSP 접촉면을 지배하는 네 개의 계약:
+CSP 접촉면을 지배하는 다섯 개의 계약:
 
 | # | 계약 | 와이어 / 아티팩트 | Azure 구현 |
-|---|-----|------------------|-----------|
-| 1 | **이벤트버스** | Apache Kafka 와이어 프로토콜 | Event Hubs (`9093` 포트의 Kafka endpoint) |
+|---|------|---------------------|-------------|
+| 1 | **이벤트 버스** | Apache Kafka 와이어 프로토콜 | Event Hubs (Kafka endpoint on port `9093`) |
 | 2 | **런타임** | OCI 컨테이너 이미지 + Knative 호환 매니페스트 서브셋 | Container Apps (Consumption, KEDA) |
-| 3 | **시크릿** | 환경변수 (또는 K8s Secret 마운트) — 앱에서 CSP secret SDK 를 직접 호출하지 않음 | Container Apps native secret + Key Vault reference |
+| 3 | **시크릿** | 환경변수 (또는 K8s Secret 마운트) — 앱에서 CSP secret SDK 호출 안 함 | Container Apps native secret + Key Vault reference |
 | 4 | **워크로드 아이덴티티** | OIDC 토큰 (federated) | User-assigned Managed Identity + workload identity federation |
+| 5 | **인벤토리** | HTTP + OIDC-bearer 와이어로 `(Resource, Link[])` 배치를 반환하는 리소스-그래프 쿼리 표면 | Azure Resource Graph (ARG) + Activity Log delta |
 
-네 개 모두 `core/` 로 프로바이더 특이 사항을 흘려서는 안 됩니다. 구체적 위반 사례는
-[Anti-Patterns](#anti-patterns) 참조.
+다섯 개 모두 `core/` 에 provider 특이를 누출하지 MUST NOT.
+거부해야 하는 구체적 위반은 [Anti-Patterns](#anti-patterns) 참조.
 
 ## 1. 이벤트버스 계약 — Kafka 와이어 프로토콜
 
@@ -174,6 +176,66 @@ executor 는 런타임 서브스트레이트에서 얻은 **짧은 수명의 OID
   호출이지 계약이 아님. 인터페이스 뒤의 Azure 프로바이더 어댑터에서 **만** 허용.
 - executor 의 신원을 콘솔, ChatOps, 또는 다른 읽기 전용 표면과 공유.
 
+## 5. 인벤토리 계약 — 리소스 그래프
+
+코어는 리소스와 타입된 엣지의 온톨로지 그래프를 가지고 추론함
+([llm-strategy-ko.md § 온톨로지 기반](llm-strategy-ko.md#온톨로지-기반)); **인벤토리** 계약은
+그 그래프를 채우고 신선하게 유지하는 방법. 코어는 단일 `Inventory` Protocol 만
+보며 CSP-중립 레코드를 반환하는 두 연산을 가짐:
+
+- `full_snapshot(since=None) -> AsyncIterator[InventoryBatch]` — 초기 또는 주기적
+  reconciliation 로드, 타입된 `Resource` 레코드와 `contains` / `attached_to` /
+  `depends_on` 링크 레코드 배치로 emit.
+- `delta(cursor) -> AsyncIterator[InventoryBatch]` — 주어진 커서 이후의 증분 변경,
+  provider 의 네이티브 변경 스트림이 구동.
+
+| CSP / 서브스트레이트 | 인벤토리 소스 | Delta 소스 | 와이어 |
+|---|---|---|---|
+| Azure | **Azure Resource Graph** (ARM 위 Kusto) | Activity Log → [이벤트버스](#1-이벤트버스-계약--kafka-와이어-프로토콜) 계약 (Diagnostic-Settings-포워딩된 Kafka 토픽) | HTTPS + `Authorization: Bearer <OIDC>` |
+| AWS *(TBD)* | AWS Config + Resource Explorer | Config configuration-item 스트림이 Kafka 로 포워드 | HTTPS + SigV4 |
+| GCP *(TBD)* | Cloud Asset Inventory | Asset feed 가 Kafka 로 포워드 | HTTPS + Google IAM |
+| Any K8s | 리소스-모델 번역기를 통한 `apiserver` list-watch | `watch` 스트림이 Kafka 로 포워드 | HTTPS + service-account token |
+
+**규칙 (MUST):**
+
+- 코어는 `shared/providers/` 에 주입된 `Inventory` 인터페이스를 통해서만 인벤토리를 읽음
+  ([project-structure-ko.md § 주입 가능한 Seams](project-structure-ko.md#주입-가능한-seams)).
+  `ResourceManagementClient`, `ArmClient`, `boto3.client("config")`, `google.cloud.asset`
+  — 클라우드-인벤토리 SDK 는 `core/` 에 생김 안 함.
+- 레코드는 와이어에서 **CSP-중립**: `Resource.type` 은 canonical `resource_type`
+  어휘 ([rule-catalog-collection-ko.md](rule-catalog-collection-ko.md#수집-소스))
+  이며 링크 종류는 `shared/contracts/ontology/link-type.json` 에 선언된 것. 벤더-네이티브
+  id 는 Resource 의 redacted `provider_ref` 필드에 타고 올 수 있음 — 절대 primary key 아님.
+- **초기 full snapshot 은 바운드된 동시성으로 병렬화**: 어댑터는 워크로드를
+  `ResourceType` 으로 샤딩 (하나의 타입이 너무 넓으면 스코프로 더 세분화), semaphore 하에서
+  fan-out 쿼리, 배치를 ingest 파이프라인으로 스트리밍. 코어는 절대 단일-연결 블로킹
+  스캔을 가정하지 않음.
+- 중립 `resource_id` 와 `(from_id, link_type, to_id)` 로 keyed 된 `ontology_resource` +
+  `ontology_link` 에 **멱등 upsert**; full scan 을 재실행해도 그래프가 수렴할 뿐 중복
+  안 함.
+- **Fail-closed**: 부분 snapshot 은 stale 그래프가 자율 결정을 구동하는 상태에 절대
+  런딩하지 않음. snapshot 이 완료되고 원자적으로 승격되거나, 이전 그래프가 유지되고
+  실패가 감사됨.
+- **Delta 는 별도 사이드-채널이 아니라 이벤트 버스를 통해 흐름**. Provider 변경 신호
+  (Activity Log, Config item, Asset feed, apiserver watch) 는 Kafka 토픽으로 포워드되어
+  다른 `Signal` 과 정확히 같이 소비 — 동일한 멱등성, 동일한 DLQ.
+- **미인식 `ResourceType` 또는 LinkType** 은 이슈를 열고 드롭됨; 어댑터는 런타임에 새
+  온톨로지 타입을 자동 등록하지 않음
+  ([llm-strategy-ko.md § 포크 확장](llm-strategy-ko.md#포크-확장-self-extending-온톨로지)).
+- 신뢰할 수 없는 벤더 속성 (태그, 설명) 은 추가 전에 redact 또는 길이-상한화되어
+  있어야 하며 inert 데이터이지 지시가 아님.
+
+**Anti-patterns (MUST NOT):**
+
+- `core/` 에서 `azure-mgmt-*`, `boto3`, `google-cloud-*` 클라이언트 import.
+  클라우드 인벤토리 SDK 는 provider 어댑터 패키지에만 살았.
+- Kusto / ARG 쿼리를 `core/` 코드 경로에 임베드 (그것들은 manifest / 쿼리 템플릿이
+  구동하는 Azure 어댑터에 속함).
+- 초기 full scan 을 글로벌 락 하에 실행하거나, executor 의 per-resource 락 하에서 실행;
+  인벤토리 sync 와 remediation 실행은 독립적 동시성 예산을 가진 별개 관심사.
+- 부분 delta 스트림만을 authoritative 로 신뢰; 다운된 이벤트를 잡으려면 주기 full-snapshot
+  reconciliation 이 필수.
+
 ## Azure-Phase 실현 (요약)
 
 오늘의 구현은 네 계약에 다음과 같이 슬롯됩니다. 명명된 각 서비스는 **채택 시점에 재확인할
@@ -185,6 +247,7 @@ executor 는 런타임 서브스트레이트에서 얻은 **짧은 수명의 OID
 | 런타임 | **Container Apps** (Consumption, KEDA scale-to-zero) — 앱 하나 + 사이드카 | idle 시 `$0` |
 | 시크릿 | Container Apps native secret + **Key Vault reference** | 무시할 수준 |
 | 워크로드 아이덴티티 | **User-assigned MI** + CI/CD 를 위한 workload identity federation | 무료 |
+| 인벤토리 | **Azure Resource Graph** (`resource_type` 으로 샤딩된 초기 병렬 full-scan) + 이벤트 버스로 포워드된 **Activity Log** delta | ARG 무료; Log 기반 delta 는 observability 인벤토리에 포함 |
 
 `Service Bus` 와 `Event Grid` 는 앞으로 최소 인벤토리에 **포함되지 않습니다**. 이벤트버스는
 Kafka 와이어 전용입니다. 프로바이더 네이티브 pub/sub 은 오직 **Kafka 버스로 이벤트를 넣는
@@ -193,7 +256,7 @@ Kafka 와이어 전용입니다. 프로바이더 네이티브 pub/sub 은 오직
 
 ## 승인된 대안 Azure 구현(Approved Alternative Azure Implementations)
 
-네 개의 와이어-레벨 계약이 이미 코어를 CSP-이식 가능하게 유지합니다. 이 표는 각 계약이
+다섯 개의 와이어-레벨 계약이 이미 코어를 CSP-이식 가능하게 유지합니다. 이 표는 각 계약이
 `core/` 를 건드리지 않고 스왑할 수 있는 **Azure 내부** 대안을 나열합니다. 스왑은
 **infra 모듈 경계**에서 일어남 — fork 가 `infra/modules/<seam>/` 아래 다른 서브-모듈을
 고르거나 (또는 순수 코드 레벨 변경이면 composition root에서 DI 바인딩 오버라이드).
@@ -212,6 +275,7 @@ Kafka 와이어 전용입니다. 프로바이더 네이티브 pub/sub 은 오직
 | Observability | Log Analytics workspace + 여기 바인딩된 App Insights | 독립형 Application Insights; **Grafana Managed for Azure** + Prometheus + Loki; OTel exporter 뒤의 벤더 APM | 대시보드, 알림 규칙, 보존 가격 | OpenTelemetry SDK, `correlation_id`, KPI 당 하나의 원격측정 소스 |
 | HIL chat | Bot Framework / Teams 통한 Azure Bot(Free) | Container App 위 **커스텀 웹훅 어댑터**; [`chatops`] delivery 어댑터 통한 Slack 네이티브 봇 | 인증된 전송, Adaptive Card 렌더러 | approval-message 계약, action-bound HIL id, fail-closed 타임아웃 |
 | Read-only 콘솔 호스팅 | Static Web Apps (Free) | Storage static-website + **Front Door**; **App Service Static Sites** | HTTPS surface, 커스텀 도메인 배선 | 읽기 전용 보장, Entra sign-in, privileged 호출 없음 |
+| 인벤토리 | Azure Resource Graph + Activity Log delta | ARG 가 느린 테넌트용 **ARM list** 폴링 (per-resource-type, 샤딩된); 대상 집합에 authoritative 하다면 **Microsoft Defender for Cloud Inventory** | 쿼리 언어 (Kusto vs REST), delta 커서 시망틱스, freshness lag | `Inventory` Protocol 모양, CSP-중립 `resource_type` + 링크 종류, 멱등 upsert, 부분 snapshot fail-closed |
 
 **전체 표에 걸친 규칙 (MUST):**
 
@@ -232,9 +296,9 @@ Kafka 와이어 전용입니다. 프로바이더 네이티브 pub/sub 은 오직
 
 다른 CSP 를 추가하는 것은 **fork 수준 config 작업** 이며 코어 변경이 아닙니다:
 
-1. Composition root 에서 `shared/providers/` 의 네 프로바이더 인터페이스의 새 구현을
+1. Composition root 에서 `shared/providers/` 의 다섯 프로바이더 인터페이스의 새 구현을
    등록 ([project-structure-ko.md](project-structure-ko.md#customization-via-dependency-injection)).
-2. `bootstrap.servers`, `SecretProvider`, `RuntimeAdapter`, `WorkloadIdentity` 바인딩을 새 CSP 로 지시.
+2. `bootstrap.servers`, `SecretProvider`, `RuntimeAdapter`, `WorkloadIdentity`, `Inventory` 바인딩을 새 CSP 로 지시.
 3. 같은 OCI 이미지 + Knative 호환 매니페스트를 대상 런타임으로 렌더링.
 4. Azure 구현과의 parity 가 측정될 때까지 **shadow mode** 로 배송
    ([architecture.instructions.md](../../.github/instructions/architecture.instructions.md#safety-invariants)).
