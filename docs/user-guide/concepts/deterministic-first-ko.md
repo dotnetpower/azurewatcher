@@ -2,7 +2,7 @@
 title: 결정론 우선(Deterministic first)
 description: AIOpsPilot 이 반복 가능한 다수는 규칙으로 해소하고 애매한 소수만 LLM 추론에 넘기는 이유.
 translation_of: deterministic-first.md
-translation_source_sha: 040c3ee77094f91068fb92b1574df3bc098cc5ab
+translation_source_sha: e395b907ad046fac3c56e23f33c86d16120eb1b6
 translation_revised: 2026-07-05
 ---
 
@@ -27,6 +27,19 @@ translation_revised: 2026-07-05
 
 들어오는 모든 이벤트는 **trust router** 를 거쳐 케이스를 결정할 수 있는 가장 낮은
 티어에 라우팅됩니다:
+
+```mermaid
+flowchart TB
+  E[들어오는 이벤트]
+  E --> R{규칙 카탈로그<br/>히트?}
+  R -->|yes| T0[T0 · 결정론<br/>목표 ~70–80%<br/>규칙 판정이 이김]
+  R -->|no| S{과거 해소된<br/>인시던트와 유사?}
+  S -->|점수 ≥ 임계값| T1[T1 · 경량 재사용<br/>목표 ~15–20%<br/>학습된 액션]
+  S -->|no| T2[T2 · 심층 추론<br/>목표 ~5–10%<br/>frontier LLM + verifier]
+  T0 --> V[판정]
+  T1 --> V
+  T2 --> V
+```
 
 - **T0 — 결정론 (목표 이벤트의 ~70–80%)**. policy-as-code (OPA), 체크리스트,
   임계값, allow/deny 리스트. 규칙이 히트하면 그 규칙의 판정이 이깁니다. 모델 호출

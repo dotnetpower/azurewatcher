@@ -28,6 +28,19 @@ break:
 Every incoming event flows through a **trust router** that picks the lowest
 tier competent to decide the case:
 
+```mermaid
+flowchart TB
+  E[Incoming event]
+  E --> R{Rule catalog<br/>hit?}
+  R -->|yes| T0[T0 · deterministic<br/>target ~70–80%<br/>rule verdict wins]
+  R -->|no| S{Similar to a<br/>past resolved<br/>incident?}
+  S -->|score ≥ threshold| T1[T1 · lightweight reuse<br/>target ~15–20%<br/>learned action]
+  S -->|no| T2[T2 · deep reasoning<br/>target ~5–10%<br/>frontier LLM + verifier]
+  T0 --> V[Verdict]
+  T1 --> V
+  T2 --> V
+```
+
 - **T0 — deterministic (target ~70–80% of events)**. Policy-as-code (OPA),
   checklists, thresholds, allow/deny lists. If a rule fires, that rule's
   verdict wins. No model call, no ambiguity.

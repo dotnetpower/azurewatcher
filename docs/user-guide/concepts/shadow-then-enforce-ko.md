@@ -2,7 +2,7 @@
 title: Shadow, then enforce
 description: 왜 모든 새 자율 액션이 shadow 로 먼저 배포되고, 어떻게 자동 실행 권한을 얻는가.
 translation_of: shadow-then-enforce.md
-translation_source_sha: 4a2b379a45d8322f63bc311d31aeafbb550fa40c
+translation_source_sha: c180f740218a03a1b98a557c687aebb11839e831
 translation_revised: 2026-07-05
 ---
 
@@ -16,6 +16,18 @@ remediation 은 먼저 **shadow 모드** 로 배포됩니다 — 프로덕션에
 ## Shadow 모드가 기록하는 것
 
 새 능력이 shadow 인 동안 모든 이벤트는 자율성이 켜진 것처럼 흐릅니다:
+
+```mermaid
+flowchart LR
+  NEW[새 능력<br/>배포]
+  NEW --> SH[Shadow 모드<br/>판정 + 로깅만<br/>실행 없음]
+  SH --> M{측정 가능 기준 통과?<br/>일치율 · 위양성 0 ·<br/>blast 불변식}
+  M -->|yes| EN[Enforce 모드<br/>자동 실행]
+  M -->|no| SH
+  EN --> R{라이브 회귀?}
+  R -->|yes| SH
+  R -->|no| EN
+```
 
 - 전체 trust-routing + risk-gate 결정이 계산됩니다.
 - 제안 액션(실행됐을 것)이 저장됩니다.

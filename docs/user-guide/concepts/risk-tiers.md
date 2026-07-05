@@ -15,6 +15,21 @@ Every proposed action carries a **risk classification** derived from the
 event, the target resource, the environment, and the action's stated
 blast-radius. The classification maps to exactly one of:
 
+```mermaid
+flowchart LR
+  A[Proposed action]
+  A --> C{Blast radius,<br/>reversibility,<br/>novelty,<br/>signal trust}
+  C -->|all safe| I{All 4 invariants<br/>present?<br/>stop / rollback /<br/>blast-cap / audit}
+  C -->|elevated| H
+  C -->|hard rule refuses| D
+  I -->|yes| AU[AUTO<br/>auto-execute]
+  I -->|no| H[HIL<br/>wait for approval]
+  D[DENY<br/>refuse outright]
+  AU --> AUD[(Audit log entry<br/>always)]
+  H --> AUD
+  D --> AUD
+```
+
 - **AUTO** — safe enough to execute directly. The audit-log entry still
   records who, what, when, why.
 - **HIL** — an operator has to approve. AIOpsPilot pauses execution and

@@ -16,6 +16,18 @@ action earn the right to execute for real.
 While a new capability is in shadow, every event flows through it as if
 autonomy were on:
 
+```mermaid
+flowchart LR
+  NEW[New capability<br/>ships]
+  NEW --> SH[Shadow mode<br/>judge + log only<br/>no execution]
+  SH --> M{Measurable bar met?<br/>agreement · zero escapes ·<br/>blast invariants}
+  M -->|yes| EN[Enforce mode<br/>auto-execute]
+  M -->|no| SH
+  EN --> R{Live regression?}
+  R -->|yes| SH
+  R -->|no| EN
+```
+
 - The full trust-routing + risk-gate decision is computed.
 - The proposed action (what would have executed) is stored.
 - The *actual* human resolution (what operators eventually did) is captured
