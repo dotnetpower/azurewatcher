@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+id: disk.snapshot-policy.required
+version: 1.0.0
+source: waf
+severity: medium
+category: reliability
+resource_type: disk
+check_logic:
+  kind: rego
+  reference: policies/disk/snapshot_policy_required.rego
+remediation:
+  template_ref: remediation/disk/attach_snapshot_policy.tftpl
+  cost_impact_monthly_usd: 0.0
+remediates: remediate.enable-backup-protection
+provenance:
+  source_url: https://learn.microsoft.com/azure/well-architected/reliability/backup-recovery
+  resolved_ref: '0000000000000000000000000000000000000000'
+  content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: '2026-07-06T00:00:00Z'

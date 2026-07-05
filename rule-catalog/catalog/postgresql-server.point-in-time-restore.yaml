@@ -1,0 +1,23 @@
+schema_version: 1.0.0
+id: postgresql-server.point-in-time-restore
+version: 1.0.0
+source: waf
+severity: high
+category: reliability
+resource_type: postgresql-server
+check_logic:
+  kind: rego
+  reference: policies/postgresql/point_in_time_restore.rego
+remediation:
+  template_ref: remediation/postgresql/raise_backup_retention.tftpl
+  cost_impact_monthly_usd: 0.0
+remediates: remediate.enable-backup-protection
+parameters:
+  min_retention_days: 7
+provenance:
+  source_url: https://learn.microsoft.com/azure/well-architected/reliability/backup-recovery
+  resolved_ref: '0000000000000000000000000000000000000000'
+  content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: '2026-07-06T00:00:00Z'

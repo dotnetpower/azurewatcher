@@ -1,0 +1,18 @@
+# remediate.enable-diagnostic-settings — Terraform patch template.
+#
+# Referenced by rule `kubernetes-cluster.diagnostic-settings-required`.
+# Route audit + controller logs to var.log_workspace_id.
+
+
+resource "azurerm_monitor_diagnostic_setting" "${resource_id}_diag" {
+  name                       = "aks-diag"
+  target_resource_id         = azurerm_kubernetes_cluster.${resource_id}.id
+  log_analytics_workspace_id = var.log_workspace_id
+
+  enabled_log {
+    category = "kube-audit"
+  }
+  enabled_log {
+    category = "kube-controller-manager"
+  }
+}

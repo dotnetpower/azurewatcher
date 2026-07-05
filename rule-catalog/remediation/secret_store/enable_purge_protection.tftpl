@@ -1,0 +1,10 @@
+# remediate.enable-purge-protection — Terraform patch template.
+#
+# Referenced by rule `secret-store.purge-protection.enabled`.
+# Turn on purge protection. Once enabled the provider does not allow
+turning it off.
+
+
+resource "azurerm_key_vault" "${resource_id}" {
+  purge_protection_enabled = true
+}

@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+id: network.vnet.ddos-plan.required
+version: 1.0.0
+source: mcsb
+severity: medium
+category: security
+resource_type: network.vnet
+check_logic:
+  kind: rego
+  reference: policies/network/vnet_ddos_plan_required.rego
+remediation:
+  template_ref: remediation/network/vnet_attach_ddos_plan.tftpl
+  cost_impact_monthly_usd: 0.0
+remediates: remediate.restrict-network-access
+provenance:
+  source_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-network-security
+  resolved_ref: '0000000000000000000000000000000000000000'
+  content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: '2026-07-06T00:00:00Z'

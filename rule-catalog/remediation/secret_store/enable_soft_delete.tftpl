@@ -1,0 +1,9 @@
+# remediate.enable-backup-protection — Terraform patch template.
+#
+# Referenced by rule `secret-store.soft-delete.enabled`.
+# Turn on soft-delete with the provider default retention.
+
+
+resource "azurerm_key_vault" "${resource_id}" {
+  soft_delete_retention_days = 90
+}

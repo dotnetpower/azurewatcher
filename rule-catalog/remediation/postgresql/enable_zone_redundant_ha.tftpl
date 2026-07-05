@@ -1,0 +1,11 @@
+# remediate.enable-zone-redundancy — Terraform patch template.
+#
+# Referenced by rule `postgresql-server.high-availability`.
+# Set high_availability.mode = ZoneRedundant.
+
+
+resource "azurerm_postgresql_flexible_server" "${resource_id}" {
+  high_availability {
+    mode = "ZoneRedundant"
+  }
+}

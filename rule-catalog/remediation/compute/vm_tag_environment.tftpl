@@ -1,0 +1,14 @@
+# remediate.tag-add — Terraform patch template.
+#
+# Referenced by rule `compute.vm.environment-tag.required`.
+# Merge the environment tag.
+
+
+resource "azurerm_linux_virtual_machine" "${resource_id}" {
+  tags = merge(
+    var.tags,
+    {
+      "${tag_name}" = "${tag_value}"
+    }
+  )
+}

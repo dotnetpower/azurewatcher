@@ -1,0 +1,17 @@
+# remediate.restrict-network-access — Terraform patch template.
+#
+# Referenced by rule `network.nsg.no-inbound-any-rdp`.
+# Replace the wide-open RDP rule with a management-CIDR allow list.
+
+
+resource "azurerm_network_security_rule" "${resource_id}_allow_rdp_scoped" {
+  name                       = "AllowRDPFromManagement"
+  priority                   = 1001
+  direction                  = "Inbound"
+  access                     = "Allow"
+  protocol                   = "Tcp"
+  destination_port_range     = "3389"
+  source_address_prefixes    = var.management_source_cidrs
+  source_port_range          = "*"
+  destination_address_prefix = "*"
+}

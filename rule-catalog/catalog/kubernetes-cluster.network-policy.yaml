@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+id: kubernetes-cluster.network-policy
+version: 1.0.0
+source: aks_baseline
+severity: high
+category: security
+resource_type: kubernetes-cluster
+check_logic:
+  kind: rego
+  reference: policies/kubernetes/network_policy_required.rego
+remediation:
+  template_ref: remediation/kubernetes/enable_network_policy.tftpl
+  cost_impact_monthly_usd: 0.0
+remediates: remediate.restrict-network-access
+provenance:
+  source_url: https://learn.microsoft.com/azure/architecture/reference-architectures/containers/aks/baseline-aks
+  resolved_ref: '0000000000000000000000000000000000000000'
+  content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: '2026-07-06T00:00:00Z'

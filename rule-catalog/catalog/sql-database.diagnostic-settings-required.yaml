@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+id: sql-database.diagnostic-settings-required
+version: 1.0.0
+source: waf
+severity: medium
+category: reliability
+resource_type: sql-database
+check_logic:
+  kind: rego
+  reference: policies/sql_database/diagnostic_settings_required.rego
+remediation:
+  template_ref: remediation/sql_database/attach_diagnostic_settings.tftpl
+  cost_impact_monthly_usd: 0.0
+remediates: remediate.enable-diagnostic-settings
+provenance:
+  source_url: https://learn.microsoft.com/azure/well-architected/operational-excellence/observability
+  resolved_ref: '0000000000000000000000000000000000000000'
+  content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: '2026-07-06T00:00:00Z'

@@ -87,6 +87,16 @@ types:
     description: DNS zone (public or private).
     azure_arm_type: Microsoft.Network/dnsZones
     typical_parents: [resource-group]
+  - id: network.public-ip
+    category: network
+    description: Public IP address; typically attached to a load-balancer, NIC, or NAT gateway.
+    azure_arm_type: Microsoft.Network/publicIPAddresses
+    typical_parents: [resource-group]
+  - id: diagnostic-settings
+    category: observability
+    description: Binding routing platform logs / metrics of a target to a log-workspace.
+    azure_arm_type: Microsoft.Insights/diagnosticSettings
+    typical_parents: [resource-group]
 
   # ── storage ──────────────────────────────────────────────────────────
   - id: object-storage

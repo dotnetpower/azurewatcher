@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+id: kubernetes-cluster.rbac-enabled
+version: 1.0.0
+source: aks_baseline
+severity: high
+category: security
+resource_type: kubernetes-cluster
+check_logic:
+  kind: rego
+  reference: policies/kubernetes/rbac_enabled.rego
+remediation:
+  template_ref: remediation/kubernetes/enable_azure_rbac.tftpl
+  cost_impact_monthly_usd: 0.0
+remediates: remediate.enable-rbac
+provenance:
+  source_url: https://learn.microsoft.com/azure/architecture/reference-architectures/containers/aks/baseline-aks
+  resolved_ref: '0000000000000000000000000000000000000000'
+  content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: '2026-07-06T00:00:00Z'

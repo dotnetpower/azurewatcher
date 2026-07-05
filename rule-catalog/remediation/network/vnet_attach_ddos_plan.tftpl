@@ -1,0 +1,12 @@
+# remediate.restrict-network-access — Terraform patch template.
+#
+# Referenced by rule `network.vnet.ddos-plan.required`.
+# Attach the shared DDoS plan supplied by var.ddos_plan_id.
+
+
+resource "azurerm_virtual_network" "${resource_id}" {
+  ddos_protection_plan {
+    id     = var.ddos_plan_id
+    enable = true
+  }
+}

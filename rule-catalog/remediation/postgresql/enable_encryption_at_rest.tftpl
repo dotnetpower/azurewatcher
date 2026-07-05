@@ -1,0 +1,11 @@
+# remediate.enable-encryption — Terraform patch template.
+#
+# Referenced by rule `postgresql-server.encryption-at-rest`.
+# Confirm encryption at rest is on via a customer-managed key.
+
+
+resource "azurerm_postgresql_flexible_server" "${resource_id}" {
+  customer_managed_key {
+    key_vault_key_id = var.pg_cmk_id
+  }
+}

@@ -1,0 +1,15 @@
+# remediate.restrict-network-access — Terraform patch template.
+#
+# Referenced by rule `secret-store.public-network-access.disabled`.
+# Turn public network access off; a paired private-endpoint is
+expected in the platform IaC.
+
+
+resource "azurerm_key_vault" "${resource_id}" {
+  public_network_access_enabled = false
+
+  network_acls {
+    default_action = "Deny"
+    bypass         = "AzureServices"
+  }
+}

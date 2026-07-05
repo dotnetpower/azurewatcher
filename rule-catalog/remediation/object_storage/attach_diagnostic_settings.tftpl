@@ -1,0 +1,21 @@
+# remediate.enable-diagnostic-settings — Terraform patch template.
+#
+# Referenced by rule `object-storage.diagnostic-settings-required`.
+# Wire the storage account into var.log_workspace_id.
+
+
+resource "azurerm_monitor_diagnostic_setting" "${resource_id}_diag" {
+  name                       = "storage-diag"
+  target_resource_id         = azurerm_storage_account.${resource_id}.id
+  log_analytics_workspace_id = var.log_workspace_id
+
+  enabled_log {
+    category = "StorageRead"
+  }
+  enabled_log {
+    category = "StorageWrite"
+  }
+  enabled_log {
+    category = "StorageDelete"
+  }
+}

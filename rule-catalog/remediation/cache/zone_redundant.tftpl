@@ -1,0 +1,9 @@
+# remediate.enable-zone-redundancy — Terraform patch template.
+#
+# Referenced by rule `cache.zone-redundant`.
+# Set zones on the cache.
+
+
+resource "azurerm_redis_cache" "${resource_id}" {
+  zones = ["1", "2", "3"]
+}

@@ -1,0 +1,93 @@
+# Source registry — normative sources the seed catalog draws from.
+#
+# Consumed as data by future collection pipelines (see
+# docs/roadmap/rule-catalog-collection.md). The runtime T0 pipeline does
+# not read this file; it exists so authors and LLMs proposing new rules
+# can pick the correct `source` enum value and provenance URL prefix.
+#
+# Each entry follows a common shape:
+#   id: matches the `source` enum in rule schema
+#   name: human label
+#   url_prefix: canonical documentation URL for the source
+#   license: SPDX identifier or LicenseRef-reference-only
+#   redistribution: embeddable | reference-only
+#   scope: one-line summary of what the source covers
+#   maintainer_url: where to find the current published version
+
+schema_version: "1.0.0"
+version: "0.1.0"
+
+sources:
+
+  - id: mcsb
+    name: Microsoft Cloud Security Benchmark
+    url_prefix: https://learn.microsoft.com/security/benchmark/azure/
+    license: LicenseRef-reference-only
+    redistribution: reference-only
+    scope: >-
+      Baseline security controls Microsoft publishes for Azure; combines
+      NIST 800-53, PCI DSS, and CIS controls into a single Azure-mapped
+      matrix. Domains: Network, Identity, Privileged Access, Data
+      Protection, Asset Management, Logging & Threat Detection, Incident
+      Response, Posture & Vulnerability Management, Endpoint Security,
+      Backup & Recovery, DevOps Security, Governance & Strategy.
+    maintainer_url: https://learn.microsoft.com/security/benchmark/azure/introduction
+
+  - id: waf
+    name: Azure Well-Architected Framework
+    url_prefix: https://learn.microsoft.com/azure/well-architected/
+    license: LicenseRef-reference-only
+    redistribution: reference-only
+    scope: >-
+      Five pillars of workload design — Reliability, Security, Cost
+      Optimization, Operational Excellence, Performance Efficiency. The
+      catalog draws mainly on Reliability (backup, redundancy, RTO/RPO),
+      Cost (right-size, orphan cleanup), and Operational Excellence
+      (diagnostics, observability).
+    maintainer_url: https://learn.microsoft.com/azure/well-architected/
+
+  - id: azure_advisor
+    name: Azure Advisor recommendations
+    url_prefix: https://learn.microsoft.com/azure/advisor/
+    license: LicenseRef-reference-only
+    redistribution: reference-only
+    scope: >-
+      Data-plane recommendations Azure emits per subscription — Cost,
+      Security, Reliability, Operational Excellence, Performance. The
+      catalog imports the deterministic subset (idle / orphan / low
+      utilization); dynamic recommendations that depend on subscription
+      telemetry stay in the collector, not the rule catalog.
+    maintainer_url: https://learn.microsoft.com/azure/advisor/advisor-overview
+
+  - id: cis
+    name: CIS Microsoft Azure Foundations Benchmark
+    url_prefix: https://www.cisecurity.org/benchmark/azure
+    license: LicenseRef-reference-only
+    redistribution: reference-only
+    scope: >-
+      Center for Internet Security's audit and hardening guide for Azure
+      subscriptions. Section 5 (Logging & Monitoring) and Section 7
+      (Virtual Machines) map cleanly onto our rule schema.
+    maintainer_url: https://www.cisecurity.org/benchmark/azure
+
+  - id: aks_baseline
+    name: Azure AKS Baseline reference architecture
+    url_prefix: https://learn.microsoft.com/azure/architecture/reference-architectures/containers/aks/
+    license: LicenseRef-reference-only
+    redistribution: reference-only
+    scope: >-
+      Microsoft reference architecture for a production AKS cluster.
+      Rules derived from this source cover cluster-level RBAC, network
+      policy, private API server, and node-pool topology.
+    maintainer_url: https://learn.microsoft.com/azure/architecture/reference-architectures/containers/aks/baseline-aks
+
+  - id: azure_policy
+    name: Azure Policy built-in definitions
+    url_prefix: https://learn.microsoft.com/azure/governance/policy/samples/built-in-policies
+    license: LicenseRef-reference-only
+    redistribution: reference-only
+    scope: >-
+      Microsoft-published Policy definitions. Used as a cross-reference
+      to keep rule intent aligned with the enforcement surface Azure
+      customers already recognize.
+    maintainer_url: https://learn.microsoft.com/azure/governance/policy/overview

@@ -328,12 +328,14 @@ def test_t0_engine_end_to_end_with_opa_evaluator() -> None:
         resource_type="object-storage",
         resource_props={"public_access": "enabled", "tags": {}},
     )
-    # Both object-storage rules apply; public-access.deny fires on the flag,
-    # owner-tag.required fires on the empty tags map.
-    assert {f.rule_id for f in verdict.findings} == {
+    # Both original object-storage rules still fire on this minimal snapshot;
+    # newer rules may fire too when their properties are missing, so we assert
+    # a subset relationship rather than exact equality.
+    fired = {f.rule_id for f in verdict.findings}
+    assert {
         "object-storage.public-access.deny",
         "object-storage.owner-tag.required",
-    }
+    }.issubset(fired)
     assert verdict.audit_hint is not None
     assert verdict.audit_hint.pipeline_stage is PipelineStage.L1_EVALUATE
     assert verdict.audit_hint.mode is Mode.SHADOW

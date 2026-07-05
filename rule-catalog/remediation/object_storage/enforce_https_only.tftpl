@@ -1,0 +1,9 @@
+# remediate.set-tls-policy — Terraform patch template.
+#
+# Referenced by rule `object-storage.https-only.required`.
+# Turn on the HTTPS-only flag.
+
+
+resource "azurerm_storage_account" "${resource_id}" {
+  enable_https_traffic_only = true
+}

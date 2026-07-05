@@ -1,0 +1,12 @@
+# remediate.restrict-network-access — Terraform patch template.
+#
+# Referenced by rule `kubernetes-cluster.network-policy`.
+# Set network_policy to `azure`.
+
+
+resource "azurerm_kubernetes_cluster" "${resource_id}" {
+  network_profile {
+    network_plugin = "azure"
+    network_policy = "azure"
+  }
+}

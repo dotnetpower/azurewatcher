@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+id: compute.vm.managed-identity.assigned
+version: 1.0.0
+source: mcsb
+severity: medium
+category: security
+resource_type: compute.vm
+check_logic:
+  kind: rego
+  reference: policies/compute/vm_managed_identity_assigned.rego
+remediation:
+  template_ref: remediation/compute/vm_assign_system_identity.tftpl
+  cost_impact_monthly_usd: 0.0
+remediates: remediate.assign-identity
+provenance:
+  source_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-identity-management
+  resolved_ref: '0000000000000000000000000000000000000000'
+  content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: '2026-07-06T00:00:00Z'

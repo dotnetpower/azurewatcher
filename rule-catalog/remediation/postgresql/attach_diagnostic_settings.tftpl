@@ -1,0 +1,15 @@
+# remediate.enable-diagnostic-settings — Terraform patch template.
+#
+# Referenced by rule `postgresql-server.diagnostic-settings-required`.
+# Route PostgreSQL logs to var.log_workspace_id.
+
+
+resource "azurerm_monitor_diagnostic_setting" "${resource_id}_diag" {
+  name                       = "pg-diag"
+  target_resource_id         = azurerm_postgresql_flexible_server.${resource_id}.id
+  log_analytics_workspace_id = var.log_workspace_id
+
+  enabled_log {
+    category = "PostgreSQLLogs"
+  }
+}

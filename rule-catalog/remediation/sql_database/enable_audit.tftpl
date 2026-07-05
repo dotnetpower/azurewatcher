@@ -1,0 +1,16 @@
+# remediate.enable-diagnostic-settings — Terraform patch template.
+#
+# Referenced by rule `sql-database.audit-enabled`.
+# Attach a diagnostic-settings resource routing audit logs to a
+log-workspace referenced by var.log_workspace_id.
+
+
+resource "azurerm_monitor_diagnostic_setting" "${resource_id}_audit" {
+  name                       = "sql-audit"
+  target_resource_id         = azurerm_mssql_database.${resource_id}.id
+  log_analytics_workspace_id = var.log_workspace_id
+
+  enabled_log {
+    category = "SQLSecurityAuditEvents"
+  }
+}

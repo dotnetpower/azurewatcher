@@ -1,0 +1,13 @@
+# remediate.enable-rbac — Terraform patch template.
+#
+# Referenced by rule `kubernetes-cluster.rbac-enabled`.
+# Turn on AAD-integrated Azure RBAC and disable local accounts.
+
+
+resource "azurerm_kubernetes_cluster" "${resource_id}" {
+  local_account_disabled = true
+
+  azure_active_directory_role_based_access_control {
+    azure_rbac_enabled = true
+  }
+}

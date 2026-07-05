@@ -1,0 +1,11 @@
+# remediate.enable-backup-protection — Terraform patch template.
+#
+# Referenced by rule `object-storage.versioning-enabled`.
+# Turn on blob versioning.
+
+
+resource "azurerm_storage_account" "${resource_id}" {
+  blob_properties {
+    versioning_enabled = true
+  }
+}

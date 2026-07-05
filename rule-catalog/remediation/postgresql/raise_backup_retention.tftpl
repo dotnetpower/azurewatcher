@@ -1,0 +1,9 @@
+# remediate.enable-backup-protection — Terraform patch template.
+#
+# Referenced by rule `postgresql-server.point-in-time-restore`.
+# Raise the backup retention window.
+
+
+resource "azurerm_postgresql_flexible_server" "${resource_id}" {
+  backup_retention_days = ${min_retention_days}
+}

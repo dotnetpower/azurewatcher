@@ -1,0 +1,1892 @@
+# Seed manifest for P1 rule catalog (50 rules).
+#
+# Consumed by `tools/seed_p1_rules.py` to emit:
+#   - rule-catalog/catalog/<id>.yaml
+#   - policies/<policy_dir>/<policy_stem>.rego
+#   - rule-catalog/remediation/<template_dir>/<template_stem>.tftpl
+#
+# This file is authored (not generated). It stays in the tree as a
+# machine-readable reference of what a rule "batch" looks like — see
+# rule-catalog/RULE_AUTHORING_GUIDE.md for the manual per-rule flow that
+# every follow-up rule (including LLM-authored ones) MUST use instead.
+#
+# All content English, secret-free, customer-agnostic. Provenance URLs
+# point to public normative sources (Microsoft Learn, CIS). Every rule
+# references an ActionType from rule-catalog/action-types/ and a
+# resource_type from rule-catalog/vocabulary/resource-types.yaml.
+
+rules:
+
+  # ── Batch A — MCSB Identity & Access ──────────────────────────────────
+  - id: secret-store.rbac-authorization.enabled
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: secret-store
+    remediates: remediate.enable-rbac
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-privileged-access
+    policy_dir: secret_store
+    policy_stem: rbac_authorization_enabled
+    policy_package: aiopspilot.secret_store.rbac_authorization_enabled
+    policy_title: Require RBAC authorization on secret-store
+    policy_description: |
+      A secret-store MUST use RBAC authorization; legacy access-policies
+      leave stale key-based grants un-audited. The T0 rule denies when the
+      inventory reports RBAC as disabled.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "secret-store"
+        input.resource.props.rbac_authorization_enabled != true
+      }
+
+      deny_reason := "rbac_authorization_disabled" if deny
+    template_dir: secret_store
+    template_stem: enable_rbac_authorization
+    template_summary: |
+      Flip the vault to RBAC mode and keep other settings intact.
+    template_body: |
+      resource "azurerm_key_vault" "${resource_id}" {
+        enable_rbac_authorization = true
+      }
+
+  - id: secret-store.soft-delete.enabled
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: secret-store
+    remediates: remediate.enable-backup-protection
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-backup-and-recovery
+    policy_dir: secret_store
+    policy_stem: soft_delete_enabled
+    policy_package: aiopspilot.secret_store.soft_delete_enabled
+    policy_title: Require soft-delete on secret-store
+    policy_description: |
+      A secret-store MUST have soft-delete enabled so a purge is
+      recoverable within the provider retention window.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "secret-store"
+        input.resource.props.soft_delete_enabled != true
+      }
+
+      deny_reason := "soft_delete_disabled" if deny
+    template_dir: secret_store
+    template_stem: enable_soft_delete
+    template_summary: |
+      Turn on soft-delete with the provider default retention.
+    template_body: |
+      resource "azurerm_key_vault" "${resource_id}" {
+        soft_delete_retention_days = 90
+      }
+
+  - id: secret-store.purge-protection.enabled
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: secret-store
+    remediates: remediate.enable-purge-protection
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-backup-and-recovery
+    policy_dir: secret_store
+    policy_stem: purge_protection_enabled
+    policy_package: aiopspilot.secret_store.purge_protection_enabled
+    policy_title: Require purge protection on secret-store
+    policy_description: |
+      A secret-store MUST have purge protection enabled so a soft-deleted
+      secret cannot be purged during the retention window. Turning it on
+      is irreversible — the ActionType is HIL-gated until measured.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "secret-store"
+        input.resource.props.purge_protection_enabled != true
+      }
+
+      deny_reason := "purge_protection_disabled" if deny
+    template_dir: secret_store
+    template_stem: enable_purge_protection
+    template_summary: |
+      Turn on purge protection. Once enabled the provider does not allow
+      turning it off.
+    template_body: |
+      resource "azurerm_key_vault" "${resource_id}" {
+        purge_protection_enabled = true
+      }
+
+  - id: compute.vm.managed-identity.assigned
+    source: mcsb
+    severity: medium
+    category: security
+    resource_type: compute.vm
+    remediates: remediate.assign-identity
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-identity-management
+    policy_dir: compute
+    policy_stem: vm_managed_identity_assigned
+    policy_package: aiopspilot.compute.vm_managed_identity_assigned
+    policy_title: Require a managed-identity on compute.vm
+    policy_description: |
+      A compute.vm MUST have a system- or user-assigned managed-identity
+      so it does not depend on secrets embedded in application settings.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "compute.vm"
+        input.resource.props.identity_type == "None"
+      }
+
+      deny_reason := "no_managed_identity" if deny
+    template_dir: compute
+    template_stem: vm_assign_system_identity
+    template_summary: |
+      Attach a system-assigned managed identity. Existing user-assigned
+      identities (if any) stay attached; this only turns SystemAssigned on.
+    template_body: |
+      resource "azurerm_linux_virtual_machine" "${resource_id}" {
+        identity {
+          type = "SystemAssigned"
+        }
+      }
+
+  - id: object-storage.shared-key-access.disabled
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: object-storage
+    remediates: remediate.enable-rbac
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-identity-management
+    policy_dir: object_storage
+    policy_stem: shared_key_access_disabled
+    policy_package: aiopspilot.object_storage.shared_key_access_disabled
+    policy_title: Disallow shared-key access on object-storage
+    policy_description: |
+      An object-storage account MUST NOT accept shared-key auth; every
+      caller SHOULD use AAD RBAC via a managed-identity.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "object-storage"
+        input.resource.props.allow_shared_key_access == true
+      }
+
+      deny_reason := "shared_key_access_enabled" if deny
+    template_dir: object_storage
+    template_stem: disable_shared_key_access
+    template_summary: |
+      Turn off shared-key auth so every caller uses AAD RBAC.
+    template_body: |
+      resource "azurerm_storage_account" "${resource_id}" {
+        shared_access_key_enabled = false
+      }
+
+  # ── Batch B — MCSB Data Protection ────────────────────────────────────
+  - id: object-storage.encryption-at-rest.required
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: object-storage
+    remediates: remediate.enable-encryption
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-data-protection
+    policy_dir: object_storage
+    policy_stem: encryption_at_rest_required
+    policy_package: aiopspilot.object_storage.encryption_at_rest_required
+    policy_title: Require infrastructure encryption on object-storage
+    policy_description: |
+      An object-storage account MUST have infrastructure encryption
+      (double encryption at rest) enabled. The default single-layer
+      service-managed encryption is not enough for regulated data.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "object-storage"
+        input.resource.props.infrastructure_encryption_enabled != true
+      }
+
+      deny_reason := "infrastructure_encryption_disabled" if deny
+    template_dir: object_storage
+    template_stem: enable_infrastructure_encryption
+    template_summary: |
+      Enable the double-encryption layer.
+    template_body: |
+      resource "azurerm_storage_account" "${resource_id}" {
+        infrastructure_encryption_enabled = true
+      }
+
+  - id: object-storage.https-only.required
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: object-storage
+    remediates: remediate.set-tls-policy
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-data-protection
+    policy_dir: object_storage
+    policy_stem: https_only_required
+    policy_package: aiopspilot.object_storage.https_only_required
+    policy_title: Require HTTPS-only traffic on object-storage
+    policy_description: |
+      An object-storage account MUST reject HTTP; plaintext traffic to
+      the account is a data-in-transit exposure.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "object-storage"
+        input.resource.props.enable_https_traffic_only != true
+      }
+
+      deny_reason := "https_only_disabled" if deny
+    template_dir: object_storage
+    template_stem: enforce_https_only
+    template_summary: |
+      Turn on the HTTPS-only flag.
+    template_body: |
+      resource "azurerm_storage_account" "${resource_id}" {
+        enable_https_traffic_only = true
+      }
+
+  - id: object-storage.min-tls-version
+    source: mcsb
+    severity: medium
+    category: security
+    resource_type: object-storage
+    remediates: remediate.set-tls-policy
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-data-protection
+    parameters:
+      min_tls_version: "TLS1_2"
+    policy_dir: object_storage
+    policy_stem: min_tls_version
+    policy_package: aiopspilot.object_storage.min_tls_version
+    policy_title: Require min TLS 1.2 on object-storage
+    policy_description: |
+      An object-storage account MUST require TLS 1.2 or higher; older
+      TLS versions are considered broken.
+    policy_body: |
+      default deny := false
+
+      required_tls := t if {
+        t := input.parameters.min_tls_version
+      } else := "TLS1_2"
+
+      deny if {
+        input.resource.type == "object-storage"
+        input.resource.props.min_tls_version != required_tls
+        input.resource.props.min_tls_version != "TLS1_3"
+      }
+
+      deny_reason := sprintf("min_tls_below:%s", [required_tls]) if deny
+    template_dir: object_storage
+    template_stem: set_min_tls_version
+    template_summary: |
+      Raise the min TLS floor.
+    template_body: |
+      resource "azurerm_storage_account" "${resource_id}" {
+        min_tls_version = "${min_tls_version}"
+      }
+
+  - id: sql-database.audit-enabled
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: sql-database
+    remediates: remediate.enable-diagnostic-settings
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-logging-threat-detection
+    policy_dir: sql_database
+    policy_stem: audit_enabled
+    policy_package: aiopspilot.sql_database.audit_enabled
+    policy_title: Require auditing on sql-database
+    policy_description: |
+      A sql-database MUST have auditing enabled routing to a log-workspace
+      so admin actions are recoverable for forensics.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "sql-database"
+        input.resource.props.audit_enabled != true
+      }
+
+      deny_reason := "audit_disabled" if deny
+    template_dir: sql_database
+    template_stem: enable_audit
+    template_summary: |
+      Attach a diagnostic-settings resource routing audit logs to a
+      log-workspace referenced by var.log_workspace_id.
+    template_body: |
+      resource "azurerm_monitor_diagnostic_setting" "${resource_id}_audit" {
+        name                       = "sql-audit"
+        target_resource_id         = azurerm_mssql_database.${resource_id}.id
+        log_analytics_workspace_id = var.log_workspace_id
+
+        enabled_log {
+          category = "SQLSecurityAuditEvents"
+        }
+      }
+
+  - id: postgresql-server.ssl-enforcement
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: postgresql-server
+    remediates: remediate.enable-encryption
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-data-protection
+    policy_dir: postgresql
+    policy_stem: ssl_enforcement
+    policy_package: aiopspilot.postgresql.ssl_enforcement
+    policy_title: Require SSL enforcement on postgresql-server
+    policy_description: |
+      A postgresql-server MUST enforce SSL; unencrypted client traffic
+      to the database is a data-in-transit exposure.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "postgresql-server"
+        input.resource.props.ssl_enforcement != "enabled"
+      }
+
+      deny_reason := "ssl_enforcement_disabled" if deny
+    template_dir: postgresql
+    template_stem: enforce_ssl
+    template_summary: |
+      Turn on SSL enforcement.
+    template_body: |
+      resource "azurerm_postgresql_flexible_server" "${resource_id}" {
+        # Flexible server enforces SSL via a server parameter.
+      }
+
+      resource "azurerm_postgresql_flexible_server_configuration" "${resource_id}_ssl" {
+        name      = "require_secure_transport"
+        server_id = azurerm_postgresql_flexible_server.${resource_id}.id
+        value     = "ON"
+      }
+
+  # ── Batch C — MCSB Network ────────────────────────────────────────────
+  - id: network.nsg.no-inbound-any-ssh
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: network.nsg
+    remediates: remediate.restrict-network-access
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-network-security
+    policy_dir: network
+    policy_stem: nsg_no_inbound_any_ssh
+    policy_package: aiopspilot.network.nsg_no_inbound_any_ssh
+    policy_title: Disallow any-source inbound SSH on network.nsg
+    policy_description: |
+      A network.nsg MUST NOT allow inbound TCP/22 from any source. Public
+      SSH exposure is a credential-brute-force surface.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "network.nsg"
+        some rule in input.resource.props.security_rules
+        rule.direction == "Inbound"
+        rule.access == "Allow"
+        rule.protocol == "Tcp"
+        rule.destination_port_range == "22"
+        rule.source_address_prefix == "*"
+      }
+
+      deny_reason := "inbound_ssh_any" if deny
+    template_dir: network
+    template_stem: nsg_scope_ssh_to_management
+    template_summary: |
+      Replace the wide-open SSH rule with a management-CIDR allow list
+      supplied by var.management_source_cidrs.
+    template_body: |
+      resource "azurerm_network_security_rule" "${resource_id}_allow_ssh_scoped" {
+        name                       = "AllowSSHFromManagement"
+        priority                   = 1000
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        destination_port_range     = "22"
+        source_address_prefixes    = var.management_source_cidrs
+        source_port_range          = "*"
+        destination_address_prefix = "*"
+      }
+
+  - id: network.nsg.no-inbound-any-rdp
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: network.nsg
+    remediates: remediate.restrict-network-access
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-network-security
+    policy_dir: network
+    policy_stem: nsg_no_inbound_any_rdp
+    policy_package: aiopspilot.network.nsg_no_inbound_any_rdp
+    policy_title: Disallow any-source inbound RDP on network.nsg
+    policy_description: |
+      A network.nsg MUST NOT allow inbound TCP/3389 from any source.
+      Public RDP exposure is a credential-brute-force surface.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "network.nsg"
+        some rule in input.resource.props.security_rules
+        rule.direction == "Inbound"
+        rule.access == "Allow"
+        rule.protocol == "Tcp"
+        rule.destination_port_range == "3389"
+        rule.source_address_prefix == "*"
+      }
+
+      deny_reason := "inbound_rdp_any" if deny
+    template_dir: network
+    template_stem: nsg_scope_rdp_to_management
+    template_summary: |
+      Replace the wide-open RDP rule with a management-CIDR allow list.
+    template_body: |
+      resource "azurerm_network_security_rule" "${resource_id}_allow_rdp_scoped" {
+        name                       = "AllowRDPFromManagement"
+        priority                   = 1001
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        destination_port_range     = "3389"
+        source_address_prefixes    = var.management_source_cidrs
+        source_port_range          = "*"
+        destination_address_prefix = "*"
+      }
+
+  - id: object-storage.private-endpoint.required
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: object-storage
+    remediates: remediate.restrict-network-access
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-network-security
+    policy_dir: object_storage
+    policy_stem: private_endpoint_required
+    policy_package: aiopspilot.object_storage.private_endpoint_required
+    policy_title: Require a private-endpoint on object-storage
+    policy_description: |
+      An object-storage account holding data MUST be reachable only
+      through a private-endpoint; public network access is denied.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "object-storage"
+        input.resource.props.public_network_access_enabled == true
+      }
+
+      deny if {
+        input.resource.type == "object-storage"
+        count(input.resource.props.private_endpoints) == 0
+      }
+
+      deny_reason := "no_private_endpoint" if deny
+    template_dir: object_storage
+    template_stem: attach_private_endpoint
+    template_summary: |
+      Turn public network access off; a paired private-endpoint resource
+      is expected to be provisioned separately by the platform IaC.
+    template_body: |
+      resource "azurerm_storage_account" "${resource_id}" {
+        public_network_access_enabled = false
+      }
+
+  - id: network.vnet.ddos-plan.required
+    source: mcsb
+    severity: medium
+    category: security
+    resource_type: network.vnet
+    remediates: remediate.restrict-network-access
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-network-security
+    policy_dir: network
+    policy_stem: vnet_ddos_plan_required
+    policy_package: aiopspilot.network.vnet_ddos_plan_required
+    policy_title: Require a DDoS protection plan on network.vnet
+    policy_description: |
+      A network.vnet holding internet-exposed workloads MUST be attached
+      to a DDoS protection plan.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "network.vnet"
+        input.resource.props.ddos_protection_plan_id == ""
+      }
+
+      deny_reason := "no_ddos_plan" if deny
+    template_dir: network
+    template_stem: vnet_attach_ddos_plan
+    template_summary: |
+      Attach the shared DDoS plan supplied by var.ddos_plan_id.
+    template_body: |
+      resource "azurerm_virtual_network" "${resource_id}" {
+        ddos_protection_plan {
+          id     = var.ddos_plan_id
+          enable = true
+        }
+      }
+
+  - id: network.public-ip.orphan
+    source: azure_advisor
+    severity: low
+    category: cost
+    resource_type: network.public-ip
+    remediates: remediate.remove-orphan-resource
+    provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
+    policy_dir: network
+    policy_stem: public_ip_orphan
+    policy_package: aiopspilot.network.public_ip_orphan
+    policy_title: Remove orphaned network.public-ip
+    policy_description: |
+      A network.public-ip that is not associated to any resource is
+      billed but delivers no value; safe to remove.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "network.public-ip"
+        input.resource.props.associated_resource_id == ""
+      }
+
+      deny_reason := "public_ip_unassociated" if deny
+    template_dir: network
+    template_stem: public_ip_remove_orphan
+    template_summary: |
+      Remove the orphaned public IP (PR-declared deletion).
+    template_body: |
+      # The remediation PR removes this resource stanza.
+      # No replacement resource is emitted.
+
+  # ── Batch D — WAF Reliability / Backup ────────────────────────────────
+  - id: sql-database.geo-redundant-backup
+    source: waf
+    severity: high
+    category: reliability
+    resource_type: sql-database
+    remediates: remediate.enable-backup-protection
+    provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/backup-recovery
+    policy_dir: sql_database
+    policy_stem: geo_redundant_backup
+    policy_package: aiopspilot.sql_database.geo_redundant_backup
+    policy_title: Require geo-redundant backup on sql-database
+    policy_description: |
+      A sql-database that stores customer-facing data MUST use
+      geo-redundant backup storage so a regional outage does not lose
+      the point-in-time restore window.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "sql-database"
+        input.resource.props.geo_redundant_backup_enabled != true
+      }
+
+      deny_reason := "geo_redundant_backup_disabled" if deny
+    template_dir: sql_database
+    template_stem: enable_geo_redundant_backup
+    template_summary: |
+      Switch backup storage redundancy to geo.
+    template_body: |
+      resource "azurerm_mssql_database" "${resource_id}" {
+        storage_account_type = "Geo"
+      }
+
+  - id: postgresql-server.point-in-time-restore
+    source: waf
+    severity: high
+    category: reliability
+    resource_type: postgresql-server
+    remediates: remediate.enable-backup-protection
+    provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/backup-recovery
+    parameters:
+      min_retention_days: 7
+    policy_dir: postgresql
+    policy_stem: point_in_time_restore
+    policy_package: aiopspilot.postgresql.point_in_time_restore
+    policy_title: Require adequate PITR window on postgresql-server
+    policy_description: |
+      A postgresql-server MUST retain at least the operator-configured
+      number of days of backups (default 7) to support point-in-time
+      restore after an accidental data change.
+    policy_body: |
+      default deny := false
+
+      min_days := d if {
+        d := input.parameters.min_retention_days
+      } else := 7
+
+      deny if {
+        input.resource.type == "postgresql-server"
+        input.resource.props.backup_retention_days < min_days
+      }
+
+      deny_reason := "backup_retention_below_min" if deny
+    template_dir: postgresql
+    template_stem: raise_backup_retention
+    template_summary: |
+      Raise the backup retention window.
+    template_body: |
+      resource "azurerm_postgresql_flexible_server" "${resource_id}" {
+        backup_retention_days = ${min_retention_days}
+      }
+
+  - id: object-storage.soft-delete-blob
+    source: waf
+    severity: high
+    category: reliability
+    resource_type: object-storage
+    remediates: remediate.enable-backup-protection
+    provenance_url: https://learn.microsoft.com/azure/storage/blobs/soft-delete-blob-overview
+    parameters:
+      retention_days: 14
+    policy_dir: object_storage
+    policy_stem: blob_soft_delete
+    policy_package: aiopspilot.object_storage.blob_soft_delete
+    policy_title: Require blob soft-delete on object-storage
+    policy_description: |
+      An object-storage account MUST have blob soft-delete enabled so
+      an accidental delete is recoverable within the retention window.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "object-storage"
+        input.resource.props.blob_soft_delete_enabled != true
+      }
+
+      deny_reason := "blob_soft_delete_disabled" if deny
+    template_dir: object_storage
+    template_stem: enable_blob_soft_delete
+    template_summary: |
+      Turn on blob soft-delete with the operator-configured retention.
+    template_body: |
+      resource "azurerm_storage_account" "${resource_id}" {
+        blob_properties {
+          delete_retention_policy {
+            days = ${retention_days}
+          }
+        }
+      }
+
+  - id: object-storage.versioning-enabled
+    source: waf
+    severity: medium
+    category: reliability
+    resource_type: object-storage
+    remediates: remediate.enable-backup-protection
+    provenance_url: https://learn.microsoft.com/azure/storage/blobs/versioning-overview
+    policy_dir: object_storage
+    policy_stem: blob_versioning
+    policy_package: aiopspilot.object_storage.blob_versioning
+    policy_title: Require blob versioning on object-storage
+    policy_description: |
+      An object-storage account MUST have blob versioning enabled so
+      each overwrite produces a recoverable prior version.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "object-storage"
+        input.resource.props.blob_versioning_enabled != true
+      }
+
+      deny_reason := "blob_versioning_disabled" if deny
+    template_dir: object_storage
+    template_stem: enable_blob_versioning
+    template_summary: |
+      Turn on blob versioning.
+    template_body: |
+      resource "azurerm_storage_account" "${resource_id}" {
+        blob_properties {
+          versioning_enabled = true
+        }
+      }
+
+  - id: disk.snapshot-policy.required
+    source: waf
+    severity: medium
+    category: reliability
+    resource_type: disk
+    remediates: remediate.enable-backup-protection
+    provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/backup-recovery
+    policy_dir: disk
+    policy_stem: snapshot_policy_required
+    policy_package: aiopspilot.disk.snapshot_policy_required
+    policy_title: Require a snapshot policy on disk
+    policy_description: |
+      A disk holding stateful data MUST be enrolled in a snapshot
+      policy so a rollback point exists.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "disk"
+        input.resource.props.snapshot_policy_present != true
+      }
+
+      deny_reason := "no_snapshot_policy" if deny
+    template_dir: disk
+    template_stem: attach_snapshot_policy
+    template_summary: |
+      Attach the shared snapshot policy resource id supplied by
+      var.snapshot_policy_id.
+    template_body: |
+      resource "azurerm_managed_disk" "${resource_id}" {
+        # Snapshot policy attachment is a paired module output; the
+        # remediation PR wires the disk id into var.snapshot_policy_id.
+      }
+
+  # ── Batch E — WAF Reliability / Availability ──────────────────────────
+  - id: compute.vm-scale-set.zone-redundancy
+    source: waf
+    severity: high
+    category: reliability
+    resource_type: compute.vm-scale-set
+    remediates: remediate.enable-zone-redundancy
+    provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/redundancy
+    policy_dir: compute
+    policy_stem: vmss_zone_redundancy
+    policy_package: aiopspilot.compute.vmss_zone_redundancy
+    policy_title: Require zone redundancy on compute.vm-scale-set
+    policy_description: |
+      A compute.vm-scale-set MUST span at least two availability zones
+      to survive a single-zone outage.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "compute.vm-scale-set"
+        count(input.resource.props.zones) < 2
+      }
+
+      deny_reason := "single_zone_scale_set" if deny
+    template_dir: compute
+    template_stem: vmss_zone_redundant
+    template_summary: |
+      Set zones = [1,2,3].
+    template_body: |
+      resource "azurerm_linux_virtual_machine_scale_set" "${resource_id}" {
+        zones = ["1", "2", "3"]
+      }
+
+  - id: kubernetes-node-pool.multi-zone
+    source: waf
+    severity: high
+    category: reliability
+    resource_type: kubernetes-node-pool
+    remediates: remediate.enable-zone-redundancy
+    provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/redundancy
+    policy_dir: kubernetes
+    policy_stem: node_pool_multi_zone
+    policy_package: aiopspilot.kubernetes.node_pool_multi_zone
+    policy_title: Require multi-zone kubernetes-node-pool
+    policy_description: |
+      A kubernetes-node-pool MUST span at least two availability zones
+      so a single-zone outage does not evict the whole pool.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "kubernetes-node-pool"
+        count(input.resource.props.availability_zones) < 2
+      }
+
+      deny_reason := "single_zone_node_pool" if deny
+    template_dir: kubernetes
+    template_stem: node_pool_zone_redundant
+    template_summary: |
+      Set zones on the node pool.
+    template_body: |
+      resource "azurerm_kubernetes_cluster_node_pool" "${resource_id}" {
+        zones = ["1", "2", "3"]
+      }
+
+  - id: postgresql-server.high-availability
+    source: waf
+    severity: high
+    category: reliability
+    resource_type: postgresql-server
+    remediates: remediate.enable-zone-redundancy
+    provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/redundancy
+    policy_dir: postgresql
+    policy_stem: high_availability
+    policy_package: aiopspilot.postgresql.high_availability
+    policy_title: Require zone-redundant HA on postgresql-server
+    policy_description: |
+      A postgresql-server MUST run in zone-redundant HA mode to survive
+      a zone outage without operator action.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "postgresql-server"
+        input.resource.props.ha_mode != "ZoneRedundant"
+      }
+
+      deny_reason := "ha_not_zone_redundant" if deny
+    template_dir: postgresql
+    template_stem: enable_zone_redundant_ha
+    template_summary: |
+      Set high_availability.mode = ZoneRedundant.
+    template_body: |
+      resource "azurerm_postgresql_flexible_server" "${resource_id}" {
+        high_availability {
+          mode = "ZoneRedundant"
+        }
+      }
+
+  - id: sql-database.zone-redundant
+    source: waf
+    severity: high
+    category: reliability
+    resource_type: sql-database
+    remediates: remediate.enable-zone-redundancy
+    provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/redundancy
+    policy_dir: sql_database
+    policy_stem: zone_redundant
+    policy_package: aiopspilot.sql_database.zone_redundant
+    policy_title: Require zone-redundant sql-database
+    policy_description: |
+      A sql-database MUST run in a zone-redundant configuration.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "sql-database"
+        input.resource.props.zone_redundant != true
+      }
+
+      deny_reason := "sql_not_zone_redundant" if deny
+    template_dir: sql_database
+    template_stem: enable_zone_redundant
+    template_summary: |
+      Flip zone_redundant to true.
+    template_body: |
+      resource "azurerm_mssql_database" "${resource_id}" {
+        zone_redundant = true
+      }
+
+  - id: cache.zone-redundant
+    source: waf
+    severity: high
+    category: reliability
+    resource_type: cache
+    remediates: remediate.enable-zone-redundancy
+    provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/redundancy
+    policy_dir: cache
+    policy_stem: zone_redundant
+    policy_package: aiopspilot.cache.zone_redundant
+    policy_title: Require zone-redundant cache
+    policy_description: |
+      A cache MUST span at least two availability zones so a zone
+      outage does not evict the whole cache.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "cache"
+        count(input.resource.props.zones) < 2
+      }
+
+      deny_reason := "cache_single_zone" if deny
+    template_dir: cache
+    template_stem: zone_redundant
+    template_summary: |
+      Set zones on the cache.
+    template_body: |
+      resource "azurerm_redis_cache" "${resource_id}" {
+        zones = ["1", "2", "3"]
+      }
+
+  # ── Batch F — WAF Cost / Idle & Orphan ────────────────────────────────
+  - id: compute.vm.idle-detected
+    source: azure_advisor
+    severity: medium
+    category: cost
+    resource_type: compute.vm
+    remediates: remediate.remove-orphan-resource
+    provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
+    parameters:
+      cpu_p95_threshold: 5
+      network_p95_bytes: 1024
+    policy_dir: compute
+    policy_stem: vm_idle_detected
+    policy_package: aiopspilot.compute.vm_idle_detected
+    policy_title: Flag idle compute.vm
+    policy_description: |
+      A compute.vm with CPU p95 below the operator threshold AND
+      almost no network traffic is idle and safe to deallocate.
+    policy_body: |
+      default deny := false
+
+      cpu_t := t if {
+        t := input.parameters.cpu_p95_threshold
+      } else := 5
+
+      net_t := t if {
+        t := input.parameters.network_p95_bytes
+      } else := 1024
+
+      deny if {
+        input.resource.type == "compute.vm"
+        input.resource.props.cpu_p95_percent < cpu_t
+        input.resource.props.network_p95_bytes < net_t
+      }
+
+      deny_reason := "vm_idle" if deny
+    template_dir: compute
+    template_stem: vm_remove_orphan
+    template_summary: |
+      The remediation PR removes the VM stanza. Rollback via
+      provider soft-delete (PITR window).
+    template_body: |
+      # The remediation PR removes this resource stanza.
+
+  - id: disk.unattached
+    source: azure_advisor
+    severity: low
+    category: cost
+    resource_type: disk
+    remediates: remediate.remove-orphan-resource
+    provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
+    policy_dir: disk
+    policy_stem: unattached
+    policy_package: aiopspilot.disk.unattached
+    policy_title: Remove unattached disk
+    policy_description: |
+      A disk that is not attached to any compute resource is billed
+      but delivers no value; safe to remove.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "disk"
+        input.resource.props.managed_by == ""
+      }
+
+      deny_reason := "disk_unattached" if deny
+    template_dir: disk
+    template_stem: remove_orphan_disk
+    template_summary: |
+      The remediation PR removes the disk stanza.
+    template_body: |
+      # The remediation PR removes this resource stanza.
+
+  - id: network.load-balancer.unused-backend
+    source: azure_advisor
+    severity: low
+    category: cost
+    resource_type: network.load-balancer
+    remediates: remediate.remove-orphan-resource
+    provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
+    policy_dir: network
+    policy_stem: lb_unused_backend
+    policy_package: aiopspilot.network.lb_unused_backend
+    policy_title: Remove load-balancer with empty backend pool
+    policy_description: |
+      A load-balancer whose backend pool is empty routes to nothing;
+      it is billed but delivers no value.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "network.load-balancer"
+        input.resource.props.backend_count == 0
+      }
+
+      deny_reason := "lb_backend_empty" if deny
+    template_dir: network
+    template_stem: lb_remove_orphan
+    template_summary: |
+      The remediation PR removes the load-balancer stanza.
+    template_body: |
+      # The remediation PR removes this resource stanza.
+
+  - id: network.public-ip.unassociated
+    source: azure_advisor
+    severity: low
+    category: cost
+    resource_type: network.public-ip
+    remediates: remediate.remove-orphan-resource
+    provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
+    policy_dir: network
+    policy_stem: public_ip_unassociated
+    policy_package: aiopspilot.network.public_ip_unassociated
+    policy_title: Remove unassociated Standard public IP
+    policy_description: |
+      A Standard-tier public IP that is not associated to any resource
+      is billed hourly regardless.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "network.public-ip"
+        input.resource.props.sku_tier == "Standard"
+        input.resource.props.associated_resource_id == ""
+      }
+
+      deny_reason := "public_ip_standard_unassociated" if deny
+    template_dir: network
+    template_stem: public_ip_remove_unassociated
+    template_summary: |
+      The remediation PR removes the public IP stanza.
+    template_body: |
+      # The remediation PR removes this resource stanza.
+
+  - id: log-workspace.retention-excessive
+    source: waf
+    severity: low
+    category: cost
+    resource_type: log-workspace
+    remediates: remediate.set-retention-policy
+    provenance_url: https://learn.microsoft.com/azure/well-architected/cost-optimization/optimize-network-costs
+    parameters:
+      max_retention_days: 90
+    policy_dir: log_workspace
+    policy_stem: retention_excessive
+    policy_package: aiopspilot.log_workspace.retention_excessive
+    policy_title: Cap retention on log-workspace
+    policy_description: |
+      A log-workspace MUST NOT retain data beyond the operator-configured
+      ceiling (default 90 days). Longer retention is billed as archive.
+    policy_body: |
+      default deny := false
+
+      max_days := d if {
+        d := input.parameters.max_retention_days
+      } else := 90
+
+      deny if {
+        input.resource.type == "log-workspace"
+        input.resource.props.retention_days > max_days
+      }
+
+      deny_reason := "retention_above_ceiling" if deny
+    template_dir: log_workspace
+    template_stem: cap_retention
+    template_summary: |
+      Lower retention_in_days.
+    template_body: |
+      resource "azurerm_log_analytics_workspace" "${resource_id}" {
+        retention_in_days = ${max_retention_days}
+      }
+
+  # ── Batch G — WAF Cost / Right-Size ───────────────────────────────────
+  - id: compute.vm.low-utilization
+    source: azure_advisor
+    severity: medium
+    category: cost
+    resource_type: compute.vm
+    remediates: remediate.right-size
+    provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
+    parameters:
+      cpu_p95_threshold: 20
+      memory_p95_threshold: 30
+    policy_dir: compute
+    policy_stem: vm_low_utilization
+    policy_package: aiopspilot.compute.vm_low_utilization
+    policy_title: Right-size low-utilisation compute.vm
+    policy_description: |
+      A compute.vm running well below CPU and memory thresholds is a
+      candidate for a smaller SKU. Both thresholds MUST hold so a
+      spiky workload is not misclassified.
+    policy_body: |
+      default deny := false
+
+      cpu_t := t if {
+        t := input.parameters.cpu_p95_threshold
+      } else := 20
+
+      mem_t := t if {
+        t := input.parameters.memory_p95_threshold
+      } else := 30
+
+      deny if {
+        input.resource.type == "compute.vm"
+        input.resource.props.cpu_p95_percent < cpu_t
+        input.resource.props.memory_p95_percent < mem_t
+      }
+
+      deny_reason := "vm_low_utilization" if deny
+    template_dir: compute
+    template_stem: vm_right_size
+    template_summary: |
+      Swap the SKU to var.recommended_vm_size supplied by the
+      right-sizing catalog.
+    template_body: |
+      resource "azurerm_linux_virtual_machine" "${resource_id}" {
+        size = var.recommended_vm_size
+      }
+
+  - id: kubernetes-node-pool.oversized
+    source: azure_advisor
+    severity: medium
+    category: cost
+    resource_type: kubernetes-node-pool
+    remediates: remediate.right-size
+    provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
+    parameters:
+      cpu_p95_threshold: 25
+      min_headroom_nodes: 2
+    policy_dir: kubernetes
+    policy_stem: node_pool_oversized
+    policy_package: aiopspilot.kubernetes.node_pool_oversized
+    policy_title: Right-size oversized kubernetes-node-pool
+    policy_description: |
+      A kubernetes-node-pool running well below CPU threshold with more
+      nodes than the operator floor is a candidate for scale-down. Both
+      conditions MUST hold to avoid breaching the floor.
+    policy_body: |
+      default deny := false
+
+      cpu_t := t if {
+        t := input.parameters.cpu_p95_threshold
+      } else := 25
+
+      floor := f if {
+        f := input.parameters.min_headroom_nodes
+      } else := 2
+
+      deny if {
+        input.resource.type == "kubernetes-node-pool"
+        input.resource.props.cpu_p95_percent < cpu_t
+        input.resource.props.node_count > floor
+      }
+
+      deny_reason := "node_pool_oversized" if deny
+    template_dir: kubernetes
+    template_stem: node_pool_right_size
+    template_summary: |
+      Reduce node_count by one; a repeated fire converges further.
+    template_body: |
+      resource "azurerm_kubernetes_cluster_node_pool" "${resource_id}" {
+        node_count = var.recommended_node_count
+      }
+
+  - id: sql-database.tier-overprovisioned
+    source: azure_advisor
+    severity: medium
+    category: cost
+    resource_type: sql-database
+    remediates: remediate.right-size
+    provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
+    parameters:
+      dtu_p95_threshold: 20
+    policy_dir: sql_database
+    policy_stem: tier_overprovisioned
+    policy_package: aiopspilot.sql_database.tier_overprovisioned
+    policy_title: Right-size over-provisioned sql-database
+    policy_description: |
+      A sql-database whose DTU/vCore p95 sits below the operator
+      threshold is a candidate for a smaller service tier.
+    policy_body: |
+      default deny := false
+
+      dtu_t := t if {
+        t := input.parameters.dtu_p95_threshold
+      } else := 20
+
+      deny if {
+        input.resource.type == "sql-database"
+        input.resource.props.dtu_p95_percent < dtu_t
+      }
+
+      deny_reason := "sql_dtu_low" if deny
+    template_dir: sql_database
+    template_stem: right_size_tier
+    template_summary: |
+      Drop the SKU to var.recommended_sku_name.
+    template_body: |
+      resource "azurerm_mssql_database" "${resource_id}" {
+        sku_name = var.recommended_sku_name
+      }
+
+  - id: postgresql-server.tier-overprovisioned
+    source: azure_advisor
+    severity: medium
+    category: cost
+    resource_type: postgresql-server
+    remediates: remediate.right-size
+    provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
+    parameters:
+      cpu_p95_threshold: 20
+    policy_dir: postgresql
+    policy_stem: tier_overprovisioned
+    policy_package: aiopspilot.postgresql.tier_overprovisioned
+    policy_title: Right-size over-provisioned postgresql-server
+    policy_description: |
+      A postgresql-server whose CPU p95 sits below the operator
+      threshold is a candidate for a smaller SKU.
+    policy_body: |
+      default deny := false
+
+      cpu_t := t if {
+        t := input.parameters.cpu_p95_threshold
+      } else := 20
+
+      deny if {
+        input.resource.type == "postgresql-server"
+        input.resource.props.cpu_p95_percent < cpu_t
+      }
+
+      deny_reason := "pg_cpu_low" if deny
+    template_dir: postgresql
+    template_stem: right_size_tier
+    template_summary: |
+      Drop the SKU to var.recommended_sku_name.
+    template_body: |
+      resource "azurerm_postgresql_flexible_server" "${resource_id}" {
+        sku_name = var.recommended_sku_name
+      }
+
+  - id: cache.tier-overprovisioned
+    source: azure_advisor
+    severity: low
+    category: cost
+    resource_type: cache
+    remediates: remediate.right-size
+    provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
+    parameters:
+      server_load_p95_threshold: 30
+      min_hit_rate: 0.99
+    policy_dir: cache
+    policy_stem: tier_overprovisioned
+    policy_package: aiopspilot.cache.tier_overprovisioned
+    policy_title: Right-size over-provisioned cache
+    policy_description: |
+      A cache with high hit-rate AND low server load p95 is a candidate
+      for a smaller SKU. Both conditions MUST hold so a cold cache is
+      not scaled down further.
+    policy_body: |
+      default deny := false
+
+      load_t := t if {
+        t := input.parameters.server_load_p95_threshold
+      } else := 30
+
+      hit_t := t if {
+        t := input.parameters.min_hit_rate
+      } else := 0.99
+
+      deny if {
+        input.resource.type == "cache"
+        input.resource.props.server_load_p95_percent < load_t
+        input.resource.props.hit_rate > hit_t
+      }
+
+      deny_reason := "cache_overprovisioned" if deny
+    template_dir: cache
+    template_stem: right_size_tier
+    template_summary: |
+      Drop the SKU to var.recommended_sku_name.
+    template_body: |
+      resource "azurerm_redis_cache" "${resource_id}" {
+        sku_name = var.recommended_sku_name
+      }
+
+  # ── Batch H — WAF Ops / Diagnostics ───────────────────────────────────
+  - id: object-storage.diagnostic-settings-required
+    source: waf
+    severity: medium
+    category: reliability
+    resource_type: object-storage
+    remediates: remediate.enable-diagnostic-settings
+    provenance_url: https://learn.microsoft.com/azure/well-architected/operational-excellence/observability
+    policy_dir: object_storage
+    policy_stem: diagnostic_settings_required
+    policy_package: aiopspilot.object_storage.diagnostic_settings_required
+    policy_title: Require diagnostic-settings on object-storage
+    policy_description: |
+      An object-storage account MUST route storage/blob logs to a
+      log-workspace for auditability.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "object-storage"
+        count(input.resource.props.diagnostic_settings) == 0
+      }
+
+      deny_reason := "no_diagnostic_settings" if deny
+    template_dir: object_storage
+    template_stem: attach_diagnostic_settings
+    template_summary: |
+      Wire the storage account into var.log_workspace_id.
+    template_body: |
+      resource "azurerm_monitor_diagnostic_setting" "${resource_id}_diag" {
+        name                       = "storage-diag"
+        target_resource_id         = azurerm_storage_account.${resource_id}.id
+        log_analytics_workspace_id = var.log_workspace_id
+
+        enabled_log {
+          category = "StorageRead"
+        }
+        enabled_log {
+          category = "StorageWrite"
+        }
+        enabled_log {
+          category = "StorageDelete"
+        }
+      }
+
+  - id: kubernetes-cluster.diagnostic-settings-required
+    source: waf
+    severity: medium
+    category: reliability
+    resource_type: kubernetes-cluster
+    remediates: remediate.enable-diagnostic-settings
+    provenance_url: https://learn.microsoft.com/azure/well-architected/operational-excellence/observability
+    policy_dir: kubernetes
+    policy_stem: diagnostic_settings_required
+    policy_package: aiopspilot.kubernetes.diagnostic_settings_required
+    policy_title: Require diagnostic-settings on kubernetes-cluster
+    policy_description: |
+      A kubernetes-cluster MUST route audit and controller-manager
+      logs to a log-workspace.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "kubernetes-cluster"
+        count(input.resource.props.diagnostic_settings) == 0
+      }
+
+      deny_reason := "no_diagnostic_settings" if deny
+    template_dir: kubernetes
+    template_stem: attach_diagnostic_settings
+    template_summary: |
+      Route audit + controller logs to var.log_workspace_id.
+    template_body: |
+      resource "azurerm_monitor_diagnostic_setting" "${resource_id}_diag" {
+        name                       = "aks-diag"
+        target_resource_id         = azurerm_kubernetes_cluster.${resource_id}.id
+        log_analytics_workspace_id = var.log_workspace_id
+
+        enabled_log {
+          category = "kube-audit"
+        }
+        enabled_log {
+          category = "kube-controller-manager"
+        }
+      }
+
+  - id: sql-database.diagnostic-settings-required
+    source: waf
+    severity: medium
+    category: reliability
+    resource_type: sql-database
+    remediates: remediate.enable-diagnostic-settings
+    provenance_url: https://learn.microsoft.com/azure/well-architected/operational-excellence/observability
+    policy_dir: sql_database
+    policy_stem: diagnostic_settings_required
+    policy_package: aiopspilot.sql_database.diagnostic_settings_required
+    policy_title: Require diagnostic-settings on sql-database
+    policy_description: |
+      A sql-database MUST route audit and metric logs to a
+      log-workspace.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "sql-database"
+        count(input.resource.props.diagnostic_settings) == 0
+      }
+
+      deny_reason := "no_diagnostic_settings" if deny
+    template_dir: sql_database
+    template_stem: attach_diagnostic_settings
+    template_summary: |
+      Route audit + metric logs to var.log_workspace_id.
+    template_body: |
+      resource "azurerm_monitor_diagnostic_setting" "${resource_id}_diag" {
+        name                       = "sql-diag"
+        target_resource_id         = azurerm_mssql_database.${resource_id}.id
+        log_analytics_workspace_id = var.log_workspace_id
+
+        enabled_log {
+          category = "SQLSecurityAuditEvents"
+        }
+        metric {
+          category = "AllMetrics"
+        }
+      }
+
+  - id: postgresql-server.diagnostic-settings-required
+    source: waf
+    severity: medium
+    category: reliability
+    resource_type: postgresql-server
+    remediates: remediate.enable-diagnostic-settings
+    provenance_url: https://learn.microsoft.com/azure/well-architected/operational-excellence/observability
+    policy_dir: postgresql
+    policy_stem: diagnostic_settings_required
+    policy_package: aiopspilot.postgresql.diagnostic_settings_required
+    policy_title: Require diagnostic-settings on postgresql-server
+    policy_description: |
+      A postgresql-server MUST route log-plane events to a log-workspace.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "postgresql-server"
+        count(input.resource.props.diagnostic_settings) == 0
+      }
+
+      deny_reason := "no_diagnostic_settings" if deny
+    template_dir: postgresql
+    template_stem: attach_diagnostic_settings
+    template_summary: |
+      Route PostgreSQL logs to var.log_workspace_id.
+    template_body: |
+      resource "azurerm_monitor_diagnostic_setting" "${resource_id}_diag" {
+        name                       = "pg-diag"
+        target_resource_id         = azurerm_postgresql_flexible_server.${resource_id}.id
+        log_analytics_workspace_id = var.log_workspace_id
+
+        enabled_log {
+          category = "PostgreSQLLogs"
+        }
+      }
+
+  - id: secret-store.diagnostic-settings-required
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: secret-store
+    remediates: remediate.enable-diagnostic-settings
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-logging-threat-detection
+    policy_dir: secret_store
+    policy_stem: diagnostic_settings_required
+    policy_package: aiopspilot.secret_store.diagnostic_settings_required
+    policy_title: Require diagnostic-settings on secret-store
+    policy_description: |
+      A secret-store MUST route AuditEvent logs to a log-workspace so
+      every secret read/write is auditable.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "secret-store"
+        count(input.resource.props.diagnostic_settings) == 0
+      }
+
+      deny_reason := "no_diagnostic_settings" if deny
+    template_dir: secret_store
+    template_stem: attach_diagnostic_settings
+    template_summary: |
+      Route AuditEvent to var.log_workspace_id.
+    template_body: |
+      resource "azurerm_monitor_diagnostic_setting" "${resource_id}_diag" {
+        name                       = "keyvault-diag"
+        target_resource_id         = azurerm_key_vault.${resource_id}.id
+        log_analytics_workspace_id = var.log_workspace_id
+
+        enabled_log {
+          category = "AuditEvent"
+        }
+      }
+
+  # ── Batch I — CIS Config Drift / Tagging ──────────────────────────────
+  - id: resource-group.owner-tag.required
+    source: cis
+    severity: low
+    category: config_drift
+    resource_type: resource-group
+    remediates: remediate.tag-add
+    parameters:
+      tag_name: owner
+      tag_value: unassigned
+    provenance_url: https://www.cisecurity.org/benchmark/azure
+    policy_dir: resource_group
+    policy_stem: owner_tag_required
+    policy_package: aiopspilot.resource_group.owner_tag_required
+    policy_title: Owner tag required on resource-group
+    policy_description: |
+      Every resource-group MUST carry an `owner` tag so ownership is
+      auditable.
+    policy_body: |
+      default deny := false
+
+      required_tag := t if {
+        t := input.parameters.tag_name
+      } else := "owner"
+
+      deny if {
+        input.resource.type == "resource-group"
+        not input.resource.props.tags[required_tag]
+      }
+
+      deny_reason := sprintf("missing_required_tag:%s", [required_tag]) if deny
+    template_dir: resource_group
+    template_stem: tag_owner
+    template_summary: |
+      Merge the required tag; do not replace the tag set.
+    template_body: |
+      resource "azurerm_resource_group" "${resource_id}" {
+        tags = merge(
+          var.tags,
+          {
+            "${tag_name}" = "${tag_value}"
+          }
+        )
+      }
+
+  - id: resource-group.cost-center-tag.required
+    source: cis
+    severity: low
+    category: config_drift
+    resource_type: resource-group
+    remediates: remediate.tag-add
+    parameters:
+      tag_name: cost_center
+      tag_value: unassigned
+    provenance_url: https://www.cisecurity.org/benchmark/azure
+    policy_dir: resource_group
+    policy_stem: cost_center_tag_required
+    policy_package: aiopspilot.resource_group.cost_center_tag_required
+    policy_title: Cost-center tag required on resource-group
+    policy_description: |
+      Every resource-group MUST carry a `cost_center` tag so spend is
+      attributable.
+    policy_body: |
+      default deny := false
+
+      required_tag := t if {
+        t := input.parameters.tag_name
+      } else := "cost_center"
+
+      deny if {
+        input.resource.type == "resource-group"
+        not input.resource.props.tags[required_tag]
+      }
+
+      deny_reason := sprintf("missing_required_tag:%s", [required_tag]) if deny
+    template_dir: resource_group
+    template_stem: tag_cost_center
+    template_summary: |
+      Merge the cost-center tag.
+    template_body: |
+      resource "azurerm_resource_group" "${resource_id}" {
+        tags = merge(
+          var.tags,
+          {
+            "${tag_name}" = "${tag_value}"
+          }
+        )
+      }
+
+  - id: resource-group.environment-tag.required
+    source: cis
+    severity: low
+    category: config_drift
+    resource_type: resource-group
+    remediates: remediate.tag-add
+    parameters:
+      tag_name: environment
+      tag_value: unassigned
+    provenance_url: https://www.cisecurity.org/benchmark/azure
+    policy_dir: resource_group
+    policy_stem: environment_tag_required
+    policy_package: aiopspilot.resource_group.environment_tag_required
+    policy_title: Environment tag required on resource-group
+    policy_description: |
+      Every resource-group MUST carry an `environment` tag so
+      lifecycle-scoped policies can key off it.
+    policy_body: |
+      default deny := false
+
+      required_tag := t if {
+        t := input.parameters.tag_name
+      } else := "environment"
+
+      deny if {
+        input.resource.type == "resource-group"
+        not input.resource.props.tags[required_tag]
+      }
+
+      deny_reason := sprintf("missing_required_tag:%s", [required_tag]) if deny
+    template_dir: resource_group
+    template_stem: tag_environment
+    template_summary: |
+      Merge the environment tag.
+    template_body: |
+      resource "azurerm_resource_group" "${resource_id}" {
+        tags = merge(
+          var.tags,
+          {
+            "${tag_name}" = "${tag_value}"
+          }
+        )
+      }
+
+  - id: object-storage.cost-center-tag.required
+    source: cis
+    severity: low
+    category: config_drift
+    resource_type: object-storage
+    remediates: remediate.tag-add
+    parameters:
+      tag_name: cost_center
+      tag_value: unassigned
+    provenance_url: https://www.cisecurity.org/benchmark/azure
+    policy_dir: object_storage
+    policy_stem: cost_center_tag_required
+    policy_package: aiopspilot.object_storage.cost_center_tag_required
+    policy_title: Cost-center tag required on object-storage
+    policy_description: |
+      Every object-storage account MUST carry a `cost_center` tag so
+      spend is attributable.
+    policy_body: |
+      default deny := false
+
+      required_tag := t if {
+        t := input.parameters.tag_name
+      } else := "cost_center"
+
+      deny if {
+        input.resource.type == "object-storage"
+        not input.resource.props.tags[required_tag]
+      }
+
+      deny_reason := sprintf("missing_required_tag:%s", [required_tag]) if deny
+    template_dir: object_storage
+    template_stem: tag_cost_center
+    template_summary: |
+      Merge the cost-center tag.
+    template_body: |
+      resource "azurerm_storage_account" "${resource_id}" {
+        tags = merge(
+          var.tags,
+          {
+            "${tag_name}" = "${tag_value}"
+          }
+        )
+      }
+
+  - id: compute.vm.environment-tag.required
+    source: cis
+    severity: low
+    category: config_drift
+    resource_type: compute.vm
+    remediates: remediate.tag-add
+    parameters:
+      tag_name: environment
+      tag_value: unassigned
+    provenance_url: https://www.cisecurity.org/benchmark/azure
+    policy_dir: compute
+    policy_stem: vm_environment_tag_required
+    policy_package: aiopspilot.compute.vm_environment_tag_required
+    policy_title: Environment tag required on compute.vm
+    policy_description: |
+      Every compute.vm MUST carry an `environment` tag so lifecycle
+      policies apply predictably.
+    policy_body: |
+      default deny := false
+
+      required_tag := t if {
+        t := input.parameters.tag_name
+      } else := "environment"
+
+      deny if {
+        input.resource.type == "compute.vm"
+        not input.resource.props.tags[required_tag]
+      }
+
+      deny_reason := sprintf("missing_required_tag:%s", [required_tag]) if deny
+    template_dir: compute
+    template_stem: vm_tag_environment
+    template_summary: |
+      Merge the environment tag.
+    template_body: |
+      resource "azurerm_linux_virtual_machine" "${resource_id}" {
+        tags = merge(
+          var.tags,
+          {
+            "${tag_name}" = "${tag_value}"
+          }
+        )
+      }
+
+  # ── Batch J — WAF Security / Advanced ─────────────────────────────────
+  - id: kubernetes-cluster.rbac-enabled
+    source: aks_baseline
+    severity: high
+    category: security
+    resource_type: kubernetes-cluster
+    remediates: remediate.enable-rbac
+    provenance_url: https://learn.microsoft.com/azure/architecture/reference-architectures/containers/aks/baseline-aks
+    policy_dir: kubernetes
+    policy_stem: rbac_enabled
+    policy_package: aiopspilot.kubernetes.rbac_enabled
+    policy_title: Require Azure RBAC on kubernetes-cluster
+    policy_description: |
+      A kubernetes-cluster MUST use Azure RBAC integration; kubectl
+      permissions MUST NOT rely on the built-in local admin.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "kubernetes-cluster"
+        input.resource.props.azure_rbac_enabled != true
+      }
+
+      deny_reason := "azure_rbac_disabled" if deny
+    template_dir: kubernetes
+    template_stem: enable_azure_rbac
+    template_summary: |
+      Turn on AAD-integrated Azure RBAC and disable local accounts.
+    template_body: |
+      resource "azurerm_kubernetes_cluster" "${resource_id}" {
+        local_account_disabled = true
+
+        azure_active_directory_role_based_access_control {
+          azure_rbac_enabled = true
+        }
+      }
+
+  - id: kubernetes-cluster.network-policy
+    source: aks_baseline
+    severity: high
+    category: security
+    resource_type: kubernetes-cluster
+    remediates: remediate.restrict-network-access
+    provenance_url: https://learn.microsoft.com/azure/architecture/reference-architectures/containers/aks/baseline-aks
+    policy_dir: kubernetes
+    policy_stem: network_policy_required
+    policy_package: aiopspilot.kubernetes.network_policy_required
+    policy_title: Require a network policy engine on kubernetes-cluster
+    policy_description: |
+      A kubernetes-cluster MUST run a network-policy engine (calico or
+      azure) so pod-to-pod traffic can be restricted.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "kubernetes-cluster"
+        not input.resource.props.network_policy
+      }
+
+      deny_reason := "no_network_policy" if deny
+    template_dir: kubernetes
+    template_stem: enable_network_policy
+    template_summary: |
+      Set network_policy to `azure`.
+    template_body: |
+      resource "azurerm_kubernetes_cluster" "${resource_id}" {
+        network_profile {
+          network_plugin = "azure"
+          network_policy = "azure"
+        }
+      }
+
+  - id: kubernetes-cluster.private-cluster
+    source: aks_baseline
+    severity: high
+    category: security
+    resource_type: kubernetes-cluster
+    remediates: remediate.restrict-network-access
+    provenance_url: https://learn.microsoft.com/azure/architecture/reference-architectures/containers/aks/baseline-aks
+    policy_dir: kubernetes
+    policy_stem: private_cluster_required
+    policy_package: aiopspilot.kubernetes.private_cluster_required
+    policy_title: Require private API server on kubernetes-cluster
+    policy_description: |
+      A kubernetes-cluster serving workloads MUST have the API server
+      reachable only through a private endpoint.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "kubernetes-cluster"
+        input.resource.props.private_cluster_enabled != true
+      }
+
+      deny_reason := "api_server_public" if deny
+    template_dir: kubernetes
+    template_stem: enable_private_cluster
+    template_summary: |
+      Flip private_cluster_enabled to true; enabling this is forward-
+      only in the provider — a paired disable is HIL-gated.
+    template_body: |
+      resource "azurerm_kubernetes_cluster" "${resource_id}" {
+        private_cluster_enabled = true
+      }
+
+  - id: postgresql-server.encryption-at-rest
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: postgresql-server
+    remediates: remediate.enable-encryption
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-data-protection
+    policy_dir: postgresql
+    policy_stem: encryption_at_rest
+    policy_package: aiopspilot.postgresql.encryption_at_rest
+    policy_title: Require encryption at rest on postgresql-server
+    policy_description: |
+      A postgresql-server MUST have encryption at rest enabled; the
+      default provider setting is usually service-managed and enough,
+      but a rule fires when the property comes back false.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "postgresql-server"
+        input.resource.props.encryption_at_rest_enabled != true
+      }
+
+      deny_reason := "encryption_at_rest_disabled" if deny
+    template_dir: postgresql
+    template_stem: enable_encryption_at_rest
+    template_summary: |
+      Confirm encryption at rest is on via a customer-managed key.
+    template_body: |
+      resource "azurerm_postgresql_flexible_server" "${resource_id}" {
+        customer_managed_key {
+          key_vault_key_id = var.pg_cmk_id
+        }
+      }
+
+  - id: secret-store.public-network-access.disabled
+    source: mcsb
+    severity: high
+    category: security
+    resource_type: secret-store
+    remediates: remediate.restrict-network-access
+    provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-network-security
+    policy_dir: secret_store
+    policy_stem: public_network_access_disabled
+    policy_package: aiopspilot.secret_store.public_network_access_disabled
+    policy_title: Disallow public network access on secret-store
+    policy_description: |
+      A secret-store MUST NOT accept traffic from the public internet;
+      the vault should be reachable only through private-endpoints or
+      the platform trusted-services bypass.
+    policy_body: |
+      default deny := false
+
+      deny if {
+        input.resource.type == "secret-store"
+        input.resource.props.public_network_access_enabled == true
+      }
+
+      deny_reason := "public_network_access_enabled" if deny
+    template_dir: secret_store
+    template_stem: disable_public_network_access
+    template_summary: |
+      Turn public network access off; a paired private-endpoint is
+      expected in the platform IaC.
+    template_body: |
+      resource "azurerm_key_vault" "${resource_id}" {
+        public_network_access_enabled = false
+
+        network_acls {
+          default_action = "Deny"
+          bypass         = "AzureServices"
+        }
+      }

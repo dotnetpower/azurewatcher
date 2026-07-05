@@ -1,0 +1,9 @@
+# remediate.enable-zone-redundancy — Terraform patch template.
+#
+# Referenced by rule `compute.vm-scale-set.zone-redundancy`.
+# Set zones = [1,2,3].
+
+
+resource "azurerm_linux_virtual_machine_scale_set" "${resource_id}" {
+  zones = ["1", "2", "3"]
+}

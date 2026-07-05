@@ -1,0 +1,14 @@
+# remediate.tag-add — Terraform patch template.
+#
+# Referenced by rule `resource-group.owner-tag.required`.
+# Merge the required tag; do not replace the tag set.
+
+
+resource "azurerm_resource_group" "${resource_id}" {
+  tags = merge(
+    var.tags,
+    {
+      "${tag_name}" = "${tag_value}"
+    }
+  )
+}

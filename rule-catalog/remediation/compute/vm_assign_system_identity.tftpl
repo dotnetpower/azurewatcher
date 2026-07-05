@@ -1,0 +1,12 @@
+# remediate.assign-identity — Terraform patch template.
+#
+# Referenced by rule `compute.vm.managed-identity.assigned`.
+# Attach a system-assigned managed identity. Existing user-assigned
+identities (if any) stay attached; this only turns SystemAssigned on.
+
+
+resource "azurerm_linux_virtual_machine" "${resource_id}" {
+  identity {
+    type = "SystemAssigned"
+  }
+}

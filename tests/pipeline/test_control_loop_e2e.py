@@ -297,8 +297,10 @@ async def test_multiple_rules_fire_on_one_resource_e2e(
     rule_ids = set(result.citing_rule_ids)
     assert "object-storage.public-access.deny" in rule_ids
     assert "object-storage.owner-tag.required" in rule_ids
-    # Two shadow PRs opened, one per rule.
-    assert len(publisher.records) == 2
+    # One shadow PR per rule that fired. Newer object-storage rules also fire
+    # when their compliance property is absent from the snapshot; the invariant
+    # is that PR count matches fired-rule count (never fewer, never batched).
+    assert len(publisher.records) == len(rule_ids)
 
 
 @requires_opa
@@ -367,7 +369,22 @@ async def test_every_terminal_path_writes_audit(
             idempotency_key="e-b",
             resource_type="object-storage",
             resource_id="rid-b",
-            props={"public_access": "disabled", "tags": {"owner": "team-a"}},
+            # Fully compliant snapshot — every shipped object-storage rule
+            # MUST see its expected property; if a new rule adds a property,
+            # its compliant value goes here so this path stays a T0 abstain.
+            props={
+                "public_access": "disabled",
+                "public_network_access_enabled": False,
+                "private_endpoints": ["pe-1"],
+                "tags": {"owner": "team-a", "cost_center": "cc-1"},
+                "infrastructure_encryption_enabled": True,
+                "enable_https_traffic_only": True,
+                "min_tls_version": "TLS1_2",
+                "blob_soft_delete_enabled": True,
+                "blob_versioning_enabled": True,
+                "allow_shared_key_access": False,
+                "diagnostic_settings": ["diag-1"],
+            },
         )
     )
     # Path C: T0 executes
@@ -531,9 +548,20 @@ async def test_action_build_failure_falls_closed_and_audits(
             idempotency_key="e-noaction",
             resource_type="object-storage",
             resource_id="stg-noaction",
+            # Fully compliant EXCEPT public_access — only the deny rule fires,
+            # and its ActionType has been stripped so the builder MUST abstain.
             props={
                 "public_access": "enabled",
-                "tags": {"owner": "team-a"},  # keep owner-tag rule silent
+                "public_network_access_enabled": False,
+                "private_endpoints": ["pe-1"],
+                "tags": {"owner": "team-a", "cost_center": "cc-1"},
+                "infrastructure_encryption_enabled": True,
+                "enable_https_traffic_only": True,
+                "min_tls_version": "TLS1_2",
+                "blob_soft_delete_enabled": True,
+                "blob_versioning_enabled": True,
+                "allow_shared_key_access": False,
+                "diagnostic_settings": ["diag-1"],
             },
         )
     )

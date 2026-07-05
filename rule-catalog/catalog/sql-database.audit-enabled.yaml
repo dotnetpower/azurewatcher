@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+id: sql-database.audit-enabled
+version: 1.0.0
+source: mcsb
+severity: high
+category: security
+resource_type: sql-database
+check_logic:
+  kind: rego
+  reference: policies/sql_database/audit_enabled.rego
+remediation:
+  template_ref: remediation/sql_database/enable_audit.tftpl
+  cost_impact_monthly_usd: 0.0
+remediates: remediate.enable-diagnostic-settings
+provenance:
+  source_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-logging-threat-detection
+  resolved_ref: '0000000000000000000000000000000000000000'
+  content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: '2026-07-06T00:00:00Z'

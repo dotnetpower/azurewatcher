@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+id: compute.vm-scale-set.zone-redundancy
+version: 1.0.0
+source: waf
+severity: high
+category: reliability
+resource_type: compute.vm-scale-set
+check_logic:
+  kind: rego
+  reference: policies/compute/vmss_zone_redundancy.rego
+remediation:
+  template_ref: remediation/compute/vmss_zone_redundant.tftpl
+  cost_impact_monthly_usd: 0.0
+remediates: remediate.enable-zone-redundancy
+provenance:
+  source_url: https://learn.microsoft.com/azure/well-architected/reliability/redundancy
+  resolved_ref: '0000000000000000000000000000000000000000'
+  content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: '2026-07-06T00:00:00Z'

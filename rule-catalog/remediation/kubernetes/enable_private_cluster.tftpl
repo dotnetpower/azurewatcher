@@ -1,0 +1,10 @@
+# remediate.restrict-network-access — Terraform patch template.
+#
+# Referenced by rule `kubernetes-cluster.private-cluster`.
+# Flip private_cluster_enabled to true; enabling this is forward-
+only in the provider — a paired disable is HIL-gated.
+
+
+resource "azurerm_kubernetes_cluster" "${resource_id}" {
+  private_cluster_enabled = true
+}

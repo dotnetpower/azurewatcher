@@ -265,13 +265,28 @@ def test_opa_replay_no_match_when_props_are_compliant() -> None:
         candidate_rules=_shipped_rules(),
         evaluator=OpaRegoEvaluator(policies_root=POLICIES_ROOT),
     )
+    # The compliant snapshot MUST satisfy every shipped object-storage rule;
+    # if a new rule adds a property, its compliant baseline goes here so this
+    # test keeps asserting "no rule fires on a compliant resource".
     report = evaluator.evaluate_scenarios(
         scenario_set_id="s6",
         scenarios=[
             _scenario(
                 scenario_id="compliant",
                 resource_type="object-storage",
-                props={"public_access": "disabled", "tags": {"owner": "x"}},
+                props={
+                    "public_access": "disabled",
+                    "public_network_access_enabled": False,
+                    "private_endpoints": ["pe-1"],
+                    "tags": {"owner": "x", "cost_center": "y"},
+                    "infrastructure_encryption_enabled": True,
+                    "enable_https_traffic_only": True,
+                    "min_tls_version": "TLS1_2",
+                    "blob_soft_delete_enabled": True,
+                    "blob_versioning_enabled": True,
+                    "allow_shared_key_access": False,
+                    "diagnostic_settings": ["diag-1"],
+                },
                 expected_decision="abstain",
             )
         ],

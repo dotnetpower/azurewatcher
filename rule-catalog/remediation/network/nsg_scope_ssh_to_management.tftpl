@@ -1,0 +1,18 @@
+# remediate.restrict-network-access — Terraform patch template.
+#
+# Referenced by rule `network.nsg.no-inbound-any-ssh`.
+# Replace the wide-open SSH rule with a management-CIDR allow list
+supplied by var.management_source_cidrs.
+
+
+resource "azurerm_network_security_rule" "${resource_id}_allow_ssh_scoped" {
+  name                       = "AllowSSHFromManagement"
+  priority                   = 1000
+  direction                  = "Inbound"
+  access                     = "Allow"
+  protocol                   = "Tcp"
+  destination_port_range     = "22"
+  source_address_prefixes    = var.management_source_cidrs
+  source_port_range          = "*"
+  destination_address_prefix = "*"
+}

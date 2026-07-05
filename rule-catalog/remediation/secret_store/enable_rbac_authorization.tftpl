@@ -1,0 +1,9 @@
+# remediate.enable-rbac — Terraform patch template.
+#
+# Referenced by rule `secret-store.rbac-authorization.enabled`.
+# Flip the vault to RBAC mode and keep other settings intact.
+
+
+resource "azurerm_key_vault" "${resource_id}" {
+  enable_rbac_authorization = true
+}

@@ -1,0 +1,9 @@
+# remediate.enable-encryption — Terraform patch template.
+#
+# Referenced by rule `object-storage.encryption-at-rest.required`.
+# Enable the double-encryption layer.
+
+
+resource "azurerm_storage_account" "${resource_id}" {
+  infrastructure_encryption_enabled = true
+}

@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+id: object-storage.versioning-enabled
+version: 1.0.0
+source: waf
+severity: medium
+category: reliability
+resource_type: object-storage
+check_logic:
+  kind: rego
+  reference: policies/object_storage/blob_versioning.rego
+remediation:
+  template_ref: remediation/object_storage/enable_blob_versioning.tftpl
+  cost_impact_monthly_usd: 0.0
+remediates: remediate.enable-backup-protection
+provenance:
+  source_url: https://learn.microsoft.com/azure/storage/blobs/versioning-overview
+  resolved_ref: '0000000000000000000000000000000000000000'
+  content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: '2026-07-06T00:00:00Z'

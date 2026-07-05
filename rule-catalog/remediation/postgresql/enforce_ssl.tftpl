@@ -1,0 +1,15 @@
+# remediate.enable-encryption — Terraform patch template.
+#
+# Referenced by rule `postgresql-server.ssl-enforcement`.
+# Turn on SSL enforcement.
+
+
+resource "azurerm_postgresql_flexible_server" "${resource_id}" {
+  # Flexible server enforces SSL via a server parameter.
+}
+
+resource "azurerm_postgresql_flexible_server_configuration" "${resource_id}_ssl" {
+  name      = "require_secure_transport"
+  server_id = azurerm_postgresql_flexible_server.${resource_id}.id
+  value     = "ON"
+}

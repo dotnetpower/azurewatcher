@@ -1,0 +1,24 @@
+schema_version: 1.0.0
+id: resource-group.owner-tag.required
+version: 1.0.0
+source: cis
+severity: low
+category: config_drift
+resource_type: resource-group
+check_logic:
+  kind: rego
+  reference: policies/resource_group/owner_tag_required.rego
+remediation:
+  template_ref: remediation/resource_group/tag_owner.tftpl
+  cost_impact_monthly_usd: 0.0
+remediates: remediate.tag-add
+parameters:
+  tag_name: owner
+  tag_value: unassigned
+provenance:
+  source_url: https://www.cisecurity.org/benchmark/azure
+  resolved_ref: '0000000000000000000000000000000000000000'
+  content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: '2026-07-06T00:00:00Z'
