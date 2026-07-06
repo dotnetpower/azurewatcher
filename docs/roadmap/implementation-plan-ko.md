@@ -1,7 +1,7 @@
 ---
 title: 구현 계획 (표준 세트)
 translation_of: implementation-plan.md
-translation_source_sha: 6f189919550388bb49d101a6892e2281e901f6cb
+translation_source_sha: 17c0ed91a7d4c14c06a16f418ff489655cfa7c1d
 translation_revised: 2026-07-06
 ---
 
@@ -385,7 +385,16 @@ prompt-composition Wave 3 step B pipeline slice 3 잔재
 - **W1.1** 쓰기 계열 툴(`simulate_change`, `approve_hil`, `list_hil`,
   `run_runbook`, `activate_break_glass`). R2에 따라 이들은 ActionType
   프로젝션이고 콘솔이 필터해서 노출하는 `governance.*` / `ops.*`
-  ActionType YAML로 랜딩.
+  ActionType YAML로 랜딩. **`simulate_change` 배송 완료**:
+  `core/conversation/write_tools.py`가 한 개의 가설 이벤트를
+  `EventIngest -> TrustRouter -> T0Engine -> ActionBuilder ->
+  TemplateRenderer`로 in-memory 실행하며, 모든 PR intent
+  (title, patch preview, 4개 safety-invariant 흔적)를 캡처하고,
+  ShadowExecutor나 실제 PR publisher는 절대 호출하지 않으며,
+  `query_audit`로 발견 가능하도록 정확히 하나의
+  `console.simulate_change` 감사 엔트리를 기록. Contributor floor,
+  `side_effect_class = 'simulate'`. `approve_hil` / `list_hil` /
+  `run_runbook` / `activate_break_glass`는 남은 슬라이스.
 - **W1.2** `TeamsBotChannel`과 `SlackBotChannel` (pull).
   [config/notifications-matrix.yaml](../../config/notifications-matrix.yaml)
   의 push 채널 자격증명 재사용.

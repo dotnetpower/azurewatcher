@@ -1,0 +1,320 @@
+"""System tool suite tests (describe_event, explain_verdict, query_audit, query_inventory)."""
+
+from __future__ import annotations
+
+import pytest
+
+from aiopspilot.core.conversation import (
+    DescribeEventTool,
+    ExplainVerdictTool,
+    Principal,
+    QueryAuditTool,
+    QueryInventoryTool,
+    Role,
+    SystemConsoleTool,
+    ToolResult,
+)
+from aiopspilot.core.conversation.system_tools import AuditReader, InventoryProvider
+from aiopspilot.core.tiers.t0_deterministic import T0Engine
+from aiopspilot.core.tiers.t0_deterministic.engine import AbstainEvaluator
+from aiopspilot.core.tiers.t0_deterministic.index import RuleIndex
+from aiopspilot.core.trust_router import TrustRouter
+from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+
+
+@pytest.fixture
+def rules_and_index():
+    from pathlib import Path
+
+    import yaml
+
+    from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
+    from aiopspilot.rule_catalog.schema.resource_type import (
+        load_resource_type_registry_from_mapping,
+    )
+    from aiopspilot.rule_catalog.schema.rule import load_rule_catalog
+    from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+
+    repo_root = Path(__file__).resolve().parents[2]
+    registry = PackageResourceSchemaRegistry()
+    catalog_root = repo_root / "rule-catalog"
+    with (catalog_root / "vocabulary" / "resource-types.yaml").open() as f:
+        rt = load_resource_type_registry_from_mapping(yaml.safe_load(f))
+    action_types = load_action_type_catalog(catalog_root / "action-types", schema_registry=registry)
+    rules = load_rule_catalog(
+        catalog_root / "catalog",
+        schema_registry=registry,
+        resource_types=rt,
+        action_types=action_types,
+    )
+    return list(rules), RuleIndex.build(rules)
+
+
+# ---------------------------------------------------------------------------
+# describe_event
+# ---------------------------------------------------------------------------
+
+
+def test_describe_event_satisfies_protocol(rules_and_index):
+    _, index = rules_and_index
+    tool = DescribeEventTool(
+        trust_router=TrustRouter(index=index),
+        t0_engine=T0Engine(index=index, evaluator=AbstainEvaluator()),
+    )
+    assert isinstance(tool, SystemConsoleTool)
+    assert tool.side_effect_class == "read"
+    assert tool.rbac_floor == Role.READER
+
+
+def test_describe_event_routes_to_t0(rules_and_index):
+    _, index = rules_and_index
+    tool = DescribeEventTool(
+        trust_router=TrustRouter(index=index),
+        t0_engine=T0Engine(index=index, evaluator=AbstainEvaluator()),
+    )
+    principal = Principal(id="cli", role=Role.READER)
+    result = tool.call(
+        arguments={
+            "resource_type": "object-storage",
+            "resource_id": "storage-x",
+            "resource_props": {"public_access": True},
+        },
+        principal=principal,
+    )
+    assert isinstance(result, ToolResult)
+    assert result.data["tier"] == "t0"
+    assert result.data["resource_type"] == "object-storage"
+    # Abstain evaluator returns None on all candidates -> no findings.
+    assert result.data["decision"] == "abstain"
+    assert result.data["findings"] == []
+    # But we should have candidate rule ids (routing found them).
+    assert len(result.data["candidate_rule_ids"]) > 0
+
+
+def test_describe_event_rejects_bad_arguments(rules_and_index):
+    _, index = rules_and_index
+    tool = DescribeEventTool(
+        trust_router=TrustRouter(index=index),
+        t0_engine=T0Engine(index=index, evaluator=AbstainEvaluator()),
+    )
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(
+        arguments={"resource_type": "", "resource_id": "x", "resource_props": {}},
+        principal=principal,
+    )
+    assert r.status == "error"
+    r = tool.call(
+        arguments={"resource_type": "x", "resource_id": "y", "resource_props": "not-a-dict"},
+        principal=principal,
+    )
+    assert r.status == "error"
+
+
+def test_describe_event_abstains_on_unknown_resource_type(rules_and_index):
+    _, index = rules_and_index
+    tool = DescribeEventTool(
+        trust_router=TrustRouter(index=index),
+        t0_engine=T0Engine(index=index, evaluator=AbstainEvaluator()),
+    )
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(
+        arguments={
+            "resource_type": "definitely-not-a-real-type",
+            "resource_id": "x",
+            "resource_props": {},
+        },
+        principal=principal,
+    )
+    # Router abstains -> tool status abstain, no findings.
+    assert r.status == "abstain"
+    assert r.data["decision"] == "abstain"
+
+
+# ---------------------------------------------------------------------------
+# explain_verdict + query_audit
+# ---------------------------------------------------------------------------
+
+
+async def _seed_audit(store: InMemoryStateStore, entries: list[dict]):
+    for e in entries:
+        await store.append_audit_entry(e)
+
+
+def test_explain_verdict_returns_matched_entries():
+    import asyncio
+
+    store = InMemoryStateStore()
+    asyncio.run(
+        _seed_audit(
+            store,
+            [
+                {
+                    "event_id": "00000000-0000-0000-0000-000000000001",
+                    "action_kind": "control_loop.abstain",
+                    "actor": "aiopspilot.core.control_loop",
+                    "decision": "abstain",
+                    "recorded_at": "2026-07-06T22:00:00Z",
+                    "reason": "t0_no_match",
+                },
+                {
+                    "event_id": "00000000-0000-0000-0000-000000000002",
+                    "action_kind": "control_loop.abstain",
+                    "actor": "aiopspilot.core.control_loop",
+                    "decision": "abstain",
+                    "recorded_at": "2026-07-06T22:01:00Z",
+                    "reason": "t0_no_match",
+                },
+            ],
+        )
+    )
+    tool = ExplainVerdictTool(audit_reader=store)
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(
+        arguments={"event_id": "00000000-0000-0000-0000-000000000001"},
+        principal=principal,
+    )
+    assert r.status == "ok"
+    assert len(r.data["entries"]) == 1
+    assert r.data["entries"][0]["event_id"] == "00000000-0000-0000-0000-000000000001"
+
+
+def test_explain_verdict_rejects_non_uuid():
+    store = InMemoryStateStore()
+    tool = ExplainVerdictTool(audit_reader=store)
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(arguments={"event_id": "not-a-uuid"}, principal=principal)
+    assert r.status == "error"
+    assert "UUID" in r.preview
+
+
+def test_query_audit_requires_at_least_one_filter():
+    store = InMemoryStateStore()
+    tool = QueryAuditTool(audit_reader=store)
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(arguments={}, principal=principal)
+    assert r.status == "error"
+    assert "at least one filter" in r.preview
+
+
+def test_query_audit_filters_by_decision_and_actor():
+    import asyncio
+
+    store = InMemoryStateStore()
+    asyncio.run(
+        _seed_audit(
+            store,
+            [
+                {
+                    "event_id": "00000000-0000-0000-0000-000000000001",
+                    "action_kind": "control_loop.abstain",
+                    "actor": "aiopspilot.core.control_loop",
+                    "decision": "abstain",
+                    "recorded_at": "2026-07-06T22:00:00Z",
+                },
+                {
+                    "event_id": "00000000-0000-0000-0000-000000000002",
+                    "action_kind": "executor.shadow",
+                    "actor": "aiopspilot.core.executor",
+                    "decision": "auto",
+                    "recorded_at": "2026-07-06T22:01:00Z",
+                },
+            ],
+        )
+    )
+    tool = QueryAuditTool(audit_reader=store)
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(arguments={"decision": "auto"}, principal=principal)
+    assert r.status == "ok"
+    assert len(r.data["entries"]) == 1
+    assert r.data["entries"][0]["decision"] == "auto"
+
+
+def test_query_audit_bad_since_rejected():
+    store = InMemoryStateStore()
+    tool = QueryAuditTool(audit_reader=store)
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(arguments={"since": "not-a-date"}, principal=principal)
+    assert r.status == "error"
+    assert "RFC 3339" in r.preview
+
+
+def test_audit_reader_protocol_recognised():
+    """InMemoryStateStore satisfies :class:`AuditReader` structurally."""
+
+    store = InMemoryStateStore()
+    assert isinstance(store, AuditReader)
+
+
+# ---------------------------------------------------------------------------
+# query_inventory
+# ---------------------------------------------------------------------------
+
+
+class _FakeResource:
+    def __init__(self, resource_type: str, id: str, properties: dict):
+        self.type = resource_type
+        self.id = id
+        self.properties = properties
+
+
+class _FakeBatch:
+    def __init__(self, resources):
+        self.resources = tuple(resources)
+
+
+class _FakeInventory:
+    def __init__(self, records):
+        self._records = records
+
+    async def full_snapshot(self, since: str | None = None):  # noqa: ARG002
+        yield _FakeBatch(self._records)
+
+    async def delta(self, cursor: str):  # noqa: ARG002
+        yield _FakeBatch(())
+
+
+def test_query_inventory_returns_filtered_records():
+    inv = _FakeInventory(
+        [
+            _FakeResource("object-storage", "stg-a", {"public_access": True}),
+            _FakeResource("object-storage", "stg-b", {"public_access": False}),
+            _FakeResource("compute.vm", "vm-1", {}),
+        ]
+    )
+    tool = QueryInventoryTool(inventory=inv)
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(arguments={"resource_type": "object-storage"}, principal=principal)
+    assert r.status == "ok"
+    assert len(r.data["records"]) == 2
+    assert {rec["id"] for rec in r.data["records"]} == {"stg-a", "stg-b"}
+
+
+def test_query_inventory_id_substring_filter():
+    inv = _FakeInventory(
+        [
+            _FakeResource("object-storage", "prod-stg-1", {}),
+            _FakeResource("object-storage", "dev-stg-1", {}),
+        ]
+    )
+    tool = QueryInventoryTool(inventory=inv)
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(
+        arguments={"resource_type": "object-storage", "id_substring": "prod"},
+        principal=principal,
+    )
+    assert r.status == "ok"
+    assert len(r.data["records"]) == 1
+    assert r.data["records"][0]["id"] == "prod-stg-1"
+
+
+def test_query_inventory_empty_result_abstains():
+    inv = _FakeInventory([])
+    tool = QueryInventoryTool(inventory=inv)
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(arguments={"resource_type": "object-storage"}, principal=principal)
+    assert r.status == "abstain"
+
+
+def test_inventory_provider_protocol_recognised():
+    inv = _FakeInventory([])
+    assert isinstance(inv, InventoryProvider)

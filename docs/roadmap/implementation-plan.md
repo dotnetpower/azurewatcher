@@ -398,7 +398,16 @@ prompt-composition Wave 3 step B pipeline slice 3 leftover
 - **W1.1** Write-class tools (`simulate_change`, `approve_hil`,
   `list_hil`, `run_runbook`, `activate_break_glass`). Per R2, these are
   ActionType projections and land as `governance.*` / `ops.*` ActionType
-  YAMLs that the console filters and exposes.
+  YAMLs that the console filters and exposes. **`simulate_change`
+  shipped**: `core/conversation/write_tools.py` runs one hypothetical
+  event through `EventIngest -> TrustRouter -> T0Engine ->
+  ActionBuilder -> TemplateRenderer` in memory, captures every PR
+  intent (title, patch preview, safety-invariant footprint), never
+  invokes ShadowExecutor or the real PR publisher, and writes exactly
+  one `console.simulate_change` audit entry so an operator can
+  discover the run via `query_audit`. Contributor floor,
+  `side_effect_class = 'simulate'`. `approve_hil` / `list_hil` /
+  `run_runbook` / `activate_break_glass` are the remaining slices.
 - **W1.2** `TeamsBotChannel` and `SlackBotChannel` (pull). Reuse the
   push channel credentials in
   [config/notifications-matrix.yaml](../../config/notifications-matrix.yaml).
