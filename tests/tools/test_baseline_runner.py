@@ -88,3 +88,36 @@ def test_cli_writes_report_and_json(tmp_path: Path) -> None:
     # The KO sibling MUST have been emitted alongside the EN report.
     ko_sibling = report.with_name(report.stem + "-ko" + report.suffix)
     assert ko_sibling.exists()
+
+
+def test_committed_baseline_artifact_matches_a_fresh_run() -> None:
+    """W3.4 reproducibility CI gate.
+
+    The shipped `docs/baselines/v2026.07.json` MUST remain reproducible from
+    the pinned reference agent + frozen scenario set. If a fresh run diverges
+    on anything other than the wall-clock ``generated_at`` field, the
+    baseline artifact is stale and has to be regenerated (or the pinned agent
+    version bumped) in the same PR that caused the drift.
+
+    This is stricter than the CI-band variant described in
+    docs/roadmap/phases/phase-0-instrumentation.md § W3.4 because the
+    reference agent is deterministic; we get byte-exact reproducibility, not
+    a confidence interval.
+    """
+    committed = json.loads(
+        (REPO_ROOT / "docs" / "baselines" / "v2026.07.json").read_text(encoding="utf-8")
+    )
+    _, fresh = _run(SCENARIOS)
+
+    committed_copy = dict(committed)
+    fresh_copy = dict(fresh)
+    del committed_copy["generated_at"]
+    del fresh_copy["generated_at"]
+
+    assert committed_copy == fresh_copy, (
+        "committed docs/baselines/v2026.07.json diverges from a fresh run — "
+        "regenerate with `python -m tools.baseline_run --scenarios "
+        "tests/scenarios/v2026.07 --json docs/baselines/v2026.07.json "
+        "--report docs/baselines/v2026.07.md` or bump the reference-agent "
+        "version pin"
+    )
