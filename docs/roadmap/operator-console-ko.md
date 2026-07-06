@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: 67df825e17b460f4784960abe417215e077bcac7
+translation_source_sha: 2a92566e59ea6d8076746270d74b9ae418622243
 translation_revised: 2026-07-06
 ---
 
@@ -701,6 +701,12 @@ opening 하지 않음.
 
 - [architecture.instructions.md](../../.github/instructions/architecture.instructions.md) -
   trust routing, verifier authority.
+- [action-ontology.md](action-ontology-ko.md) - 콘솔이 emit 하는
+  `trigger_kind=operator_request` 축을 가진 ActionType 스키마 + coordinator
+  가 validate 하는 `argument_schema`.
+- [execution-model.md](execution-model-ko.md) - chat verifier re-check
+  (§7.2) 가 invoke 하는 통합 RiskGate + 모든 write-class tool call 에
+  대해 auto / HIL / deny 를 결정하는 5-axis authority 매트릭스.
 - [channels-and-notifications.md](channels-and-notifications-ko.md) - 이
   문서의 pull 측이 확장하는 push-방향 채널 매트릭스.
 - [user-rbac-and-identity.md](user-rbac-and-identity-ko.md) - tool 매트릭스

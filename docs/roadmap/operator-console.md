@@ -726,6 +726,12 @@ process but does not open it publicly.
 
 - [architecture.instructions.md](../../.github/instructions/architecture.instructions.md) -
   trust routing, verifier authority.
+- [action-ontology.md](action-ontology.md) - ActionType schema with the
+  `trigger_kind` axis (`operator_request`) that the console emits, plus
+  the `argument_schema` the coordinator validates against.
+- [execution-model.md](execution-model.md) - the unified RiskGate the
+  chat verifier re-check (§7.2) invokes, and the 5-axis authority
+  matrix that decides auto / HIL / deny for every write-class tool call.
 - [channels-and-notifications.md](channels-and-notifications.md) - the
   push-direction channel matrix this doc's pull side extends.
 - [user-rbac-and-identity.md](user-rbac-and-identity.md) - the RBAC role

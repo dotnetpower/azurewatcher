@@ -1,7 +1,7 @@
 ---
 title: AIOpsPilot 로드맵
 translation_of: README.md
-translation_source_sha: 1ed8ab794294a89c69426a458bf37d0f1a16e896
+translation_source_sha: 25dee6eec50e7d136cf8e3ac51c8be8d2337e51b
 translation_revised: 2026-07-06
 ---
 
@@ -73,12 +73,14 @@ AIOpsPilot 뒤편의 엔지니어링 계획. 이 폴더는
 | 17 | [risk-classification-ko.md](risk-classification-ko.md) | auto vs HIL vs deny 분류: 차원, 초기 규칙 표, 환경 감지 |
 | 18 | [dev-and-deploy-parity-ko.md](dev-and-deploy-parity-ko.md) | dev-mode local-fake vs deploy-mode Azure-first 패리티 계약, 배포자 스코프 LLM 프로비저닝 게이트 |
 | 19 | [operator-console-ko.md](operator-console-ko.md) | 대화형 surface (CLI / Teams / Slack / web), 3-layer 아키텍처, tool 별 RBAC 매트릭스, LLM tier 모델, 세션 지속성 |
+| 20 | [action-ontology-ko.md](action-ontology-ko.md) | ActionType 스키마 (remediation + ops + governance), trigger 축, tier / role / prod / live-probe 상한, fork override seam |
+| 21 | [execution-model-ko.md](execution-model-ko.md) | 통합 RiskGate, 5-axis authority 매트릭스, 3개 executor 경로 (PR-native / direct API / PR-manual), live-blast probe combinator, resolved_ceiling audit 블록 |
 
 ### 프롬프트 서브시스템
 
 | # | 문서 | 다루는 내용 |
 |---|------|-------------|
-| 19 | [prompt-composition-ko.md](prompt-composition-ko.md) | 진화하는 시스템 프롬프트: role x layer 매트릭스, 툴 / 웹 검색, debate orchestrator, 인식 측정 |
+| 22 | [prompt-composition-ko.md](prompt-composition-ko.md) | 진화하는 시스템 프롬프트: role x layer 매트릭스, 툴 / 웹 검색, debate orchestrator, 인식 측정 |
 
 ## 페이즈 타임라인
 

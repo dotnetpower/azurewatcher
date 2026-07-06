@@ -75,12 +75,14 @@ build. Read the reference docs first, then the phases in order.
 | 17 | [risk-classification.md](risk-classification.md) | auto vs HIL vs deny classification: dimensions, initial rule table, environment detection |
 | 18 | [dev-and-deploy-parity.md](dev-and-deploy-parity.md) | dev-mode local-fake vs deploy-mode Azure-first parity contract; deployer-scoped LLM provisioning gates |
 | 19 | [operator-console.md](operator-console.md) | conversational surface (CLI / Teams / Slack / web), three-layer architecture, per-tool RBAC matrix, LLM tier model, session persistence |
+| 20 | [action-ontology.md](action-ontology.md) | ActionType schema (remediation + ops + governance), trigger axis, tier / role / prod / live-probe ceilings, fork override seams |
+| 21 | [execution-model.md](execution-model.md) | Unified RiskGate, 5-axis authority matrix, three executor paths (PR-native / direct API / PR-manual), live-blast probe combinator, resolved_ceiling audit block |
 
 ### Prompt subsystem
 
 | # | Document | What it covers |
 |---|----------|----------------|
-| 19 | [prompt-composition.md](prompt-composition.md) | evolving system prompt: role x layer matrix, tools / web search, debate orchestrator, recognition measurement |
+| 22 | [prompt-composition.md](prompt-composition.md) | evolving system prompt: role x layer matrix, tools / web search, debate orchestrator, recognition measurement |
 
 ## Phase timeline
 
