@@ -11,10 +11,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import httpx
 import pytest
 
 from aiopspilot.__main__ import (
     _build_audit_store,
+    _build_publisher,
     _resolve_catalog_root,
     _resolve_policies_root,
     _summarize_config,
@@ -124,3 +126,109 @@ def test_summarize_config_is_secret_free(app_config: AppConfig) -> None:
     assert summary["env"] == "dev"
     assert summary["azure_region"] == "krc"
     assert summary["llm_bindings_available"] is True
+
+
+# ---------------------------------------------------------------------------
+# _build_publisher — RemediationPrPublisher selection
+# ---------------------------------------------------------------------------
+
+
+def _clear_gitops_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in (
+        "AIOPSPILOT_GITOPS_TOKEN",
+        "AIOPSPILOT_GITOPS_OWNER",
+        "AIOPSPILOT_GITOPS_REPO",
+        "AIOPSPILOT_GITOPS_DEFAULT_BRANCH",
+        "AIOPSPILOT_GITOPS_BRANCH_PREFIX",
+        "AIOPSPILOT_GITOPS_API_BASE",
+        "AIOPSPILOT_GITOPS_TIMEOUT_SECONDS",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_build_publisher_defaults_to_recording_fake(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_gitops_env(monkeypatch)
+    from aiopspilot.shared.providers.testing.remediation_pr import (
+        RecordingRemediationPrPublisher,
+    )
+
+    publisher = _build_publisher(http_client=None)
+    assert isinstance(publisher, RecordingRemediationPrPublisher)
+
+
+def test_build_publisher_returns_gitops_when_token_owner_repo_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_gitops_env(monkeypatch)
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_TOKEN", "ghp_fake")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_OWNER", "example-org")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_REPO", "example-repo")
+    from aiopspilot.delivery.gitops_pr.adapter import GitOpsPrAdapter
+
+    client = httpx.AsyncClient()
+    try:
+        publisher = _build_publisher(http_client=client)
+        assert isinstance(publisher, GitOpsPrAdapter)
+    finally:
+        # AsyncClient.close is async but the object is safe to leak in
+        # tests — the event loop is torn down at test exit. Prefer
+        # not spinning up an event loop just for this smoke check.
+        pass
+
+
+def test_build_publisher_rejects_partial_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_gitops_env(monkeypatch)
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_TOKEN", "ghp_fake")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_OWNER", "example-org")
+    # AIOPSPILOT_GITOPS_REPO deliberately missing
+    with pytest.raises(RuntimeError, match="AIOPSPILOT_GITOPS_OWNER / AIOPSPILOT_GITOPS_REPO"):
+        _build_publisher(http_client=httpx.AsyncClient())
+
+
+def test_build_publisher_requires_http_client_when_gitops_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_gitops_env(monkeypatch)
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_TOKEN", "ghp_fake")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_OWNER", "example-org")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_REPO", "example-repo")
+    with pytest.raises(RuntimeError, match="no HTTP client is available"):
+        _build_publisher(http_client=None)
+
+
+def test_build_publisher_rejects_non_float_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_gitops_env(monkeypatch)
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_TOKEN", "ghp_fake")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_OWNER", "example-org")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_REPO", "example-repo")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_TIMEOUT_SECONDS", "not-a-number")
+    with pytest.raises(RuntimeError, match="not a float"):
+        _build_publisher(http_client=httpx.AsyncClient())
+
+
+def test_build_publisher_rejects_nonpositive_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_gitops_env(monkeypatch)
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_TOKEN", "ghp_fake")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_OWNER", "example-org")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_REPO", "example-repo")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_TIMEOUT_SECONDS", "0")
+    with pytest.raises(RuntimeError, match="MUST be > 0"):
+        _build_publisher(http_client=httpx.AsyncClient())
+
+
+def test_build_publisher_honors_env_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_gitops_env(monkeypatch)
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_TOKEN", "ghp_fake")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_OWNER", "example-org")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_REPO", "example-repo")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_DEFAULT_BRANCH", "trunk")
+    monkeypatch.setenv("AIOPSPILOT_GITOPS_API_BASE", "https://ghe.example.com/api/v3")
+    from aiopspilot.delivery.gitops_pr.adapter import GitOpsPrAdapter
+
+    publisher = _build_publisher(http_client=httpx.AsyncClient())
+    assert isinstance(publisher, GitOpsPrAdapter)
+    # Non-secret config surface is inspectable (secrets — token — are not).
+    assert publisher._config.default_branch == "trunk"
+    assert publisher._config.api_base == "https://ghe.example.com/api/v3"
+    assert publisher._config.owner == "example-org"
+    assert publisher._config.repo == "example-repo"

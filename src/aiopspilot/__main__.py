@@ -12,9 +12,11 @@ Fail-fast contract:
   ``ManagedIdentityWorkloadIdentity`` adapter raises when they are
   missing so a container that was miswired never masquerades as ready.
 - ShadowExecutor + InMemoryStateStore + RecordingRemediationPrPublisher
-  are the initial P1 wiring — every autonomous action is judged and
-  audited, but no real PR is opened yet. A follow-up phase replaces
-  those seams with the GitHub Checks + Postgres StateStore adapters.
+  are the fake defaults for dev / smoke; setting
+  ``AIOPSPILOT_STATE_STORE_DSN`` switches audit to :class:`PostgresStateStore`
+  and setting ``AIOPSPILOT_GITOPS_TOKEN`` (plus owner/repo) switches
+  the executor to the real :class:`GitOpsPrAdapter`. Every autonomous
+  action is judged and audited regardless of the backend selection.
 """
 
 from __future__ import annotations
@@ -131,6 +133,89 @@ def _build_audit_store() -> Any:
     return InMemoryStateStore()
 
 
+def _build_publisher(http_client: httpx.AsyncClient | None) -> Any:
+    """Select the :class:`RemediationPrPublisher` backend for this process.
+
+    Presence of ``AIOPSPILOT_GITOPS_TOKEN`` opts into the real
+    :class:`GitOpsPrAdapter`; missing token falls back to the in-memory
+    :class:`RecordingRemediationPrPublisher` fake. The
+    ``RemediationPrPublisher`` Protocol is the contract, so ``core/``
+    neither knows nor cares which backend is active.
+
+    Fail-fast contract: opting in requires ``owner`` + ``repo``. A
+    partial configuration (token without owner/repo) is a deployment
+    bug and raises immediately so the container never masquerades as
+    a real GitOps publisher.
+
+    ``http_client`` MUST be non-None when the token is set — the
+    adapter never opens its own connection; the composition root owns
+    the client lifecycle.
+    """
+    token = os.environ.get("AIOPSPILOT_GITOPS_TOKEN", "").strip()
+    if not token:
+        _LOGGER.info("remediation_pr_backend", extra={"backend": "recording"})
+        return RecordingRemediationPrPublisher()
+
+    owner = os.environ.get("AIOPSPILOT_GITOPS_OWNER", "").strip()
+    repo = os.environ.get("AIOPSPILOT_GITOPS_REPO", "").strip()
+    if not owner or not repo:
+        raise RuntimeError(
+            "AIOPSPILOT_GITOPS_TOKEN is set but AIOPSPILOT_GITOPS_OWNER / "
+            "AIOPSPILOT_GITOPS_REPO are missing; both are required to publish "
+            "remediation PRs. Unset the token to run in fake mode."
+        )
+    if http_client is None:
+        raise RuntimeError(
+            "AIOPSPILOT_GITOPS_TOKEN is set but no HTTP client is available. "
+            "The composition root MUST create an httpx.AsyncClient before "
+            "building the publisher."
+        )
+
+    from .delivery.gitops_pr.adapter import GitOpsPrAdapter, GitOpsPrConfig
+
+    default_branch = os.environ.get("AIOPSPILOT_GITOPS_DEFAULT_BRANCH", "main").strip() or "main"
+    branch_prefix = (
+        os.environ.get("AIOPSPILOT_GITOPS_BRANCH_PREFIX", "aiopspilot/shadow").strip()
+        or "aiopspilot/shadow"
+    )
+    api_base = (
+        os.environ.get("AIOPSPILOT_GITOPS_API_BASE", "https://api.github.com").strip()
+        or "https://api.github.com"
+    )
+    timeout_raw = os.environ.get("AIOPSPILOT_GITOPS_TIMEOUT_SECONDS", "").strip()
+    try:
+        timeout_seconds = float(timeout_raw) if timeout_raw else 15.0
+    except ValueError as exc:
+        raise RuntimeError(
+            f"AIOPSPILOT_GITOPS_TIMEOUT_SECONDS={timeout_raw!r} is not a float"
+        ) from exc
+    if timeout_seconds <= 0:
+        raise RuntimeError(f"AIOPSPILOT_GITOPS_TIMEOUT_SECONDS MUST be > 0; got {timeout_seconds}")
+
+    _LOGGER.info(
+        "remediation_pr_backend",
+        extra={
+            "backend": "gitops",
+            "owner": owner,
+            "repo": repo,
+            "default_branch": default_branch,
+            "api_base": api_base,
+        },
+    )
+    return GitOpsPrAdapter(
+        config=GitOpsPrConfig(
+            owner=owner,
+            repo=repo,
+            default_branch=default_branch,
+            branch_prefix=branch_prefix,
+            api_base=api_base,
+            timeout_seconds=timeout_seconds,
+        ),
+        http_client=http_client,
+        token=token,
+    )
+
+
 def _summarize_config(container: Container) -> dict[str, Any]:
     """Return a secret-free view of the loaded config for the startup log."""
     cfg = container.config
@@ -171,8 +256,17 @@ async def _finalize_llm_bindings(
     )
 
 
-def _build_control_loop(container: Container) -> ControlLoop:
-    """Load rule / action / policy catalogs and wire the P1 control loop."""
+def _build_control_loop(
+    container: Container,
+    *,
+    http_client: httpx.AsyncClient | None = None,
+) -> ControlLoop:
+    """Load rule / action / policy catalogs and wire the P1 control loop.
+
+    ``http_client`` — passed to :func:`_build_publisher` when the
+    GitOps env vars opt into the real adapter. ``None`` is fine when
+    the container runs in fake-publisher mode (dev / unit tests).
+    """
     catalog_root = _resolve_catalog_root()
     policies_root = _resolve_policies_root(catalog_root)
     action_types_root = catalog_root / "action-types"
@@ -210,7 +304,7 @@ def _build_control_loop(container: Container) -> ControlLoop:
     action_builder = ActionBuilder(action_types_by_name=action_types_by_name)
 
     audit_store = _build_audit_store()
-    publisher = RecordingRemediationPrPublisher()
+    publisher = _build_publisher(http_client)
     renderer = TemplateRenderer(remediation_root=remediation_root)
     resource_lock = ResourceLockManager()
 
@@ -328,7 +422,11 @@ async def _run() -> int:
                     dlq_suffix=container.config.kafka.topic_dlq_suffix,
                 ),
             )
-            control_loop = _build_control_loop(container)
+            # A GitOps token opts into the real publisher; ensure an
+            # http_client exists before _build_control_loop needs one.
+            if os.environ.get("AIOPSPILOT_GITOPS_TOKEN") and http_client is None:
+                http_client = httpx.AsyncClient()
+            control_loop = _build_control_loop(container, http_client=http_client)
             _LOGGER.info(
                 "control_loop_ready",
                 extra={

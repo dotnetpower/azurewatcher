@@ -597,7 +597,7 @@ def test_cli_reports_hash_mismatch_as_nonzero_exit(
                     # Deliberately wrong so the pipeline records a mismatch.
                     "expected_sha256": "0" * 64,
                 },
-                "parser": "raw",
+                "parser": "rule-yaml",
             }
         ),
         encoding="utf-8",
@@ -703,7 +703,7 @@ def test_collector_records_http_mismatch_when_fetcher_skips_validation(tmp_path:
                 "url": "https://example.com/x.bin",
                 "expected_sha256": "0" * 64,
             },
-            "parser": "raw",
+            "parser": "rule-yaml",
         }
     )
 
@@ -717,3 +717,226 @@ def test_collector_records_http_mismatch_when_fetcher_skips_validation(tmp_path:
     assert "expected_sha256" in report.mismatch
     # A mismatch MUST NOT materialize a snapshot on disk.
     assert not (tmp_path / "snapshots" / "pipeline-http-guard").exists()
+
+
+# ---------------------------------------------------------------------------
+# CLI --verify path (collect + parse + verify end-to-end)
+# ---------------------------------------------------------------------------
+
+
+def test_cli_verify_flag_reports_verified_count_on_shipped_seed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--verify`` against the shipped seed manifest exits 0 with issues=[]."""
+    manifest_path = REPO_ROOT / "rule-catalog" / "sources" / "aiopspilot-p1-seed" / "manifest.yaml"
+    exit_code = cli_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--repo-root",
+            str(REPO_ROOT),
+            "--output-root",
+            str(tmp_path / "snapshots"),
+            "--verify",
+        ]
+    )
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    verify = payload["verify"]
+    assert verify["parser"] == "rule-yaml"
+    assert verify["parsed"] >= 50
+    assert verify["verified"] >= 50
+    assert verify["issues"] == []
+
+
+def test_cli_verify_flag_skipped_on_dry_run(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--verify --dry-run`` reports a skip marker instead of parsing anything."""
+    source = tmp_path / "seed"
+    _write_source_tree(source)
+    manifest_path = tmp_path / "manifest.yaml"
+    _write_manifest(manifest_path, str(source), source_id="cli-verify-dry")
+
+    exit_code = cli_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--repo-root",
+            str(tmp_path),
+            "--output-root",
+            str(tmp_path / "snapshots"),
+            "--verify",
+            "--dry-run",
+        ]
+    )
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["verify"]["skipped"] == "dry-run"
+
+
+def test_cli_verify_flag_reports_verification_issues(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A snapshot whose rule points at an unknown ActionType exits 2 with issues."""
+    # Craft a source tree with a rule that references a bogus ActionType.
+    source = tmp_path / "seed"
+    source.mkdir()
+    (source / "bogus.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "1.0.0",
+                "id": "bogus.action.example",
+                "version": "1.0.0",
+                "source": "custom",
+                "severity": "low",
+                "category": "config_drift",
+                "resource_type": "object-storage",
+                "check_logic": {"kind": "rego", "reference": "inline://nope"},
+                "remediation": {"template_ref": "inline://nope"},
+                "remediates": "remediate.does-not-exist",
+                "provenance": {
+                    "source_url": "https://example.com/bogus",
+                    "resolved_ref": "0" * 40,
+                    "content_hash": "sha256:" + "0" * 64,
+                    "license": "LicenseRef-reference-only",
+                    "redistribution": "reference-only",
+                    "retrieved_at": "2026-07-06T00:00:00Z",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    manifest_path = tmp_path / "manifest.yaml"
+    _write_manifest(manifest_path, str(source), source_id="cli-verify-fail")
+
+    exit_code = cli_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--repo-root",
+            str(tmp_path),
+            "--output-root",
+            str(tmp_path / "snapshots"),
+            "--verify",
+            "--catalog-root",
+            str(REPO_ROOT / "rule-catalog"),
+        ]
+    )
+    assert exit_code == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["verify"]["verified"] == 0
+    assert any("unknown ActionType" in i["message"] for i in payload["verify"]["issues"])
+
+
+def test_cli_verify_flag_errors_on_missing_catalog_root(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--verify`` with a bogus ``--catalog-root`` exits 2 with an error."""
+    source = tmp_path / "seed"
+    _write_source_tree(source)
+    manifest_path = tmp_path / "manifest.yaml"
+    _write_manifest(manifest_path, str(source), source_id="cli-verify-missing")
+
+    exit_code = cli_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--repo-root",
+            str(tmp_path),
+            "--output-root",
+            str(tmp_path / "snapshots"),
+            "--verify",
+            "--catalog-root",
+            str(tmp_path / "no-catalog-here"),
+        ]
+    )
+    assert exit_code == 2
+    captured = capsys.readouterr()
+    assert "catalog root missing" in captured.err
+    payload = json.loads(captured.out)
+    assert "error" in payload["verify"]
+
+
+def test_cli_verify_flag_reports_parse_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "seed"
+    source.mkdir()
+    (source / "broken.yaml").write_text("id: [unterminated\n", encoding="utf-8")
+    manifest_path = tmp_path / "manifest.yaml"
+    _write_manifest(manifest_path, str(source), source_id="cli-verify-parse-err")
+
+    exit_code = cli_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--repo-root",
+            str(tmp_path),
+            "--output-root",
+            str(tmp_path / "snapshots"),
+            "--verify",
+        ]
+    )
+    assert exit_code == 2
+    captured = capsys.readouterr()
+    assert "invalid YAML" in captured.err
+    payload = json.loads(captured.out)
+    assert "error" in payload["verify"]
+
+
+def test_cli_verify_flag_reports_not_implemented_parser(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A manifest referencing a declared-but-unimplemented parser exits 2."""
+    source = tmp_path / "seed"
+    _write_source_tree(source)
+    manifest_path = tmp_path / "manifest.yaml"
+    manifest_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "1.0.0",
+                "id": "cli-verify-notimpl",
+                "name": "Not implemented parser",
+                "license": "Apache-2.0",
+                "redistribution": "embeddable",
+                "fetch": {"kind": "local", "path": str(source)},
+                # `rego` is a declared parser but has no built-in adapter yet.
+                "parser": "rego",
+            }
+        ),
+        encoding="utf-8",
+    )
+    exit_code = cli_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--repo-root",
+            str(tmp_path),
+            "--output-root",
+            str(tmp_path / "snapshots"),
+            "--verify",
+        ]
+    )
+    assert exit_code == 2
+    captured = capsys.readouterr()
+    assert "rego" in captured.err
+    payload = json.loads(captured.out)
+    assert "error" in payload["verify"]
+
+
+def test_cli_repo_root_fallback_uses_cwd_when_no_rule_catalog_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``_repo_root`` returns cwd when no ancestor has a ``rule-catalog/`` dir."""
+    from aiopspilot.rule_catalog.pipeline import collect_cli
+
+    # Point Path(__file__) resolution deep into a tmp tree without any
+    # ``rule-catalog`` sibling on the way up.
+    fake_leaf = tmp_path / "a" / "b" / "c" / "collect_cli.py"
+    fake_leaf.parent.mkdir(parents=True)
+    fake_leaf.write_text("# stub\n", encoding="utf-8")
+    monkeypatch.setattr(collect_cli, "__file__", str(fake_leaf))
+    monkeypatch.chdir(tmp_path)
+    assert collect_cli._repo_root() == tmp_path.resolve()
