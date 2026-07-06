@@ -16,6 +16,7 @@ from aiopspilot.rule_catalog.pipeline.collect.fetch import (
     Fetcher,
     FetchError,
     GitCloneFetcher,
+    HttpDownloadFetcher,
     LocalDirectoryFetcher,
     build_fetcher,
 )
@@ -25,6 +26,7 @@ __all__ = [
     "FetchError",
     "Fetcher",
     "GitCloneFetcher",
+    "HttpDownloadFetcher",
     "LocalDirectoryFetcher",
     "SnapshotReport",
     "build_fetcher",

@@ -10,8 +10,10 @@ implementations ship today:
   revision, then copies the requested ``subpath`` (or whole tree). Real
   networked adapter used for OSS sources (Gatekeeper library, Checkov,
   tfsec, ...).
-- HTTP downloader — deferred; the manifest ``kind=http`` shape lands
-  next when the first HTTP source arrives.
+- :class:`HttpDownloadFetcher` — download a single URL over ``http(s)``
+  or ``file://``, verify against the manifest's ``expected_sha256`` and
+  drop the file into the snapshot tree. Used for tarball / single-file
+  sources.
 
 Every fetcher returns a :class:`FetchResult` describing the local
 directory the pipeline will hash + snapshot.
@@ -19,8 +21,11 @@ directory the pipeline will hash + snapshot.
 
 from __future__ import annotations
 
+import hashlib
 import shutil
 import subprocess
+import urllib.parse
+import urllib.request
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -202,6 +207,88 @@ class GitCloneFetcher(Fetcher):
 
 
 # ---------------------------------------------------------------------------
+# HTTP download fetcher
+# ---------------------------------------------------------------------------
+
+
+_ALLOWED_HTTP_SCHEMES = frozenset({"http", "https", "file"})
+
+
+class HttpDownloadFetcher(Fetcher):
+    """Download one URL, verify its sha256, drop it in the snapshot tree.
+
+    The manifest MUST carry ``expected_sha256``; the fetcher rejects the
+    download when the computed hash differs so the resolved revision on
+    the snapshot is always the operator-declared one. Only ``http``,
+    ``https``, and ``file`` URL schemes are honored — anything else
+    (``ftp``, ``data``, custom) is refused up front to keep the surface
+    predictable and to make tests offline-safe via ``file://`` URLs.
+    """
+
+    def __init__(
+        self,
+        *,
+        timeout_seconds: float = 120.0,
+        chunk_bytes: int = 65_536,
+    ) -> None:
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds MUST be > 0")
+        if chunk_bytes <= 0:
+            raise ValueError("chunk_bytes MUST be > 0")
+        self._timeout = timeout_seconds
+        self._chunk = chunk_bytes
+
+    def fetch(self, *, config: FetchConfig, dest_root: Path) -> FetchResult:
+        if config.kind is not FetchKind.HTTP:
+            raise FetchError(f"HttpDownloadFetcher does not handle kind={config.kind}")
+        if (
+            config.url is None or config.expected_sha256 is None
+        ):  # pragma: no cover — schema enforces
+            raise FetchError("HttpDownloadFetcher requires fetch.url + fetch.expected_sha256")
+
+        scheme = urllib.parse.urlparse(config.url).scheme.lower()
+        if scheme not in _ALLOWED_HTTP_SCHEMES:
+            raise FetchError(
+                f"URL scheme {scheme!r} is not allowed (accepted: {sorted(_ALLOWED_HTTP_SCHEMES)})"
+            )
+
+        dest_root.mkdir(parents=True, exist_ok=True)
+        # Pick a stable output filename — the last path segment when it
+        # looks like a filename, else a synthetic ``payload`` so the
+        # snapshot layout stays predictable.
+        filename = Path(urllib.parse.urlparse(config.url).path).name or "payload"
+        target = dest_root / filename
+
+        digest = hashlib.sha256()
+        try:
+            with (
+                urllib.request.urlopen(  # noqa: S310 — scheme allow-list enforced above.
+                    config.url, timeout=self._timeout
+                ) as response,
+                target.open("wb") as sink,
+            ):
+                while True:
+                    chunk = response.read(self._chunk)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+                    sink.write(chunk)
+        except OSError as exc:
+            raise FetchError(f"http download failed: {exc}") from exc
+
+        actual_sha = digest.hexdigest()
+        if actual_sha != config.expected_sha256:
+            # Never leave a mis-hashed payload sitting on disk — a later
+            # tool could treat it as valid.
+            target.unlink(missing_ok=True)
+            raise FetchError(
+                f"sha256 mismatch: expected={config.expected_sha256} actual={actual_sha}"
+            )
+
+        return FetchResult(tree_root=dest_root, resolved_revision=config.expected_sha256)
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 
@@ -216,6 +303,8 @@ def build_fetcher(kind: FetchKind, *, repo_root: Path) -> Fetcher:
         return LocalDirectoryFetcher(repo_root=repo_root)
     if kind is FetchKind.GIT:
         return GitCloneFetcher()
+    if kind is FetchKind.HTTP:
+        return HttpDownloadFetcher()
     raise FetchError(f"no default fetcher registered for kind={kind}")
 
 
@@ -224,6 +313,7 @@ __all__ = [
     "FetchResult",
     "Fetcher",
     "GitCloneFetcher",
+    "HttpDownloadFetcher",
     "LocalDirectoryFetcher",
     "build_fetcher",
 ]
