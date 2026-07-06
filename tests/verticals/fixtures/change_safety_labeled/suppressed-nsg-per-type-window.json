@@ -1,0 +1,14 @@
+{
+  "id": "suppressed-nsg-per-type-window",
+  "label": "SUPPRESSED",
+  "narrative": "Unknown actor, event age ~20s within per-type 45s settling window for network.nsg.",
+  "event": {
+    "signal_kind": "azure.activity_log",
+    "resource_type": "network.nsg",
+    "resource_id": "sub/rg/nsg-db",
+    "actor": "sp-legacy-tool",
+    "correlation_id": null,
+    "detected_at": "2026-07-06T11:59:40Z",
+    "idempotency_key": "labeled-7"
+  }
+}

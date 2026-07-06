@@ -1,0 +1,14 @@
+{
+  "id": "suppressed-null-actor-default-window",
+  "label": "SUPPRESSED",
+  "narrative": "No actor at all, event age ~10s within default 60s window; propagation-lag noise on sql-database.",
+  "event": {
+    "signal_kind": "azure.activity_log",
+    "resource_type": "sql-database",
+    "resource_id": "sub/rg/sqldb-y",
+    "actor": null,
+    "correlation_id": null,
+    "detected_at": "2026-07-06T11:59:50Z",
+    "idempotency_key": "labeled-8"
+  }
+}

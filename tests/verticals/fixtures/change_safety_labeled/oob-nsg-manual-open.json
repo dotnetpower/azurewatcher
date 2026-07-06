@@ -1,0 +1,14 @@
+{
+  "id": "oob-nsg-manual-open",
+  "label": "OUT_OF_BAND",
+  "narrative": "Manual NSG rule opening from an unknown actor two days ago; canonical OOB case for phase-1 exit metrics.",
+  "event": {
+    "signal_kind": "azure.activity_log",
+    "resource_type": "network.nsg",
+    "resource_id": "sub/rg/nsg-frontend",
+    "actor": "user-oncall-emergency",
+    "correlation_id": null,
+    "detected_at": "2026-07-04T12:00:00Z",
+    "idempotency_key": "labeled-12"
+  }
+}

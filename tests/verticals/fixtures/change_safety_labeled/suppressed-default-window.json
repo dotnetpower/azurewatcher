@@ -1,0 +1,14 @@
+{
+  "id": "suppressed-default-window",
+  "label": "SUPPRESSED",
+  "narrative": "Unknown actor, no correlation, event age ~30s within default 60s settling window for compute.vm.",
+  "event": {
+    "signal_kind": "azure.activity_log",
+    "resource_type": "compute.vm",
+    "resource_id": "sub/rg/vm-blue",
+    "actor": "sp-unknown-drive-by",
+    "correlation_id": null,
+    "detected_at": "2026-07-06T11:59:30Z",
+    "idempotency_key": "labeled-5"
+  }
+}

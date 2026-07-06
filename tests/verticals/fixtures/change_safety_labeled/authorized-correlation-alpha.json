@@ -1,0 +1,14 @@
+{
+  "id": "authorized-correlation-alpha",
+  "label": "AUTHORIZED",
+  "narrative": "Unknown actor but the correlation_id links to merged PR pr#101 in _labeled_config; classify as AUTHORIZED.",
+  "event": {
+    "signal_kind": "azure.activity_log",
+    "resource_type": "sql-database",
+    "resource_id": "sub/rg/sqldb-x",
+    "actor": "sp-service-runtime",
+    "correlation_id": "corr-merged-pr-alpha",
+    "detected_at": "2026-07-06T11:00:00Z",
+    "idempotency_key": "labeled-3"
+  }
+}

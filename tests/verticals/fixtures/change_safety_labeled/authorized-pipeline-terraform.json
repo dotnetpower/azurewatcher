@@ -1,0 +1,14 @@
+{
+  "id": "authorized-pipeline-terraform",
+  "label": "AUTHORIZED",
+  "narrative": "Actor is the terraform pipeline SP registered in _labeled_config; classify as AUTHORIZED regardless of age.",
+  "event": {
+    "signal_kind": "azure.activity_log",
+    "resource_type": "compute.vm",
+    "resource_id": "sub/rg/vm-alpha",
+    "actor": "sp-pipeline-terraform",
+    "correlation_id": null,
+    "detected_at": "2026-07-06T10:00:00Z",
+    "idempotency_key": "labeled-1"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "oob-null-actor-no-correlation-old",
+  "label": "OUT_OF_BAND",
+  "narrative": "No actor, no correlation, event age ~1h — past every settling window.",
+  "event": {
+    "signal_kind": "azure.activity_log",
+    "resource_type": "network.public-ip",
+    "resource_id": "sub/rg/pip-orphan",
+    "actor": null,
+    "correlation_id": null,
+    "detected_at": "2026-07-06T11:00:00Z",
+    "idempotency_key": "labeled-10"
+  }
+}

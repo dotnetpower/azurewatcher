@@ -1,0 +1,14 @@
+{
+  "id": "oob-unknown-actor-unmerged-correlation",
+  "label": "OUT_OF_BAND",
+  "narrative": "Correlation_id exists but does not match any merged PR in the ledger; actor unknown; past window.",
+  "event": {
+    "signal_kind": "azure.activity_log",
+    "resource_type": "object-storage",
+    "resource_id": "sub/rg/stg-public",
+    "actor": "user-console-ops",
+    "correlation_id": "corr-open-pr-nine-thousand",
+    "detected_at": "2026-07-06T09:00:00Z",
+    "idempotency_key": "labeled-11"
+  }
+}

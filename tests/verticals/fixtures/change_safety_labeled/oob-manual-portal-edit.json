@@ -1,0 +1,14 @@
+{
+  "id": "oob-manual-portal-edit",
+  "label": "OUT_OF_BAND",
+  "narrative": "Unknown actor (manual portal user), no correlation, event age ~2h past every settling window.",
+  "event": {
+    "signal_kind": "azure.activity_log",
+    "resource_type": "compute.vm",
+    "resource_id": "sub/rg/vm-critical",
+    "actor": "user-manual-portal-a",
+    "correlation_id": null,
+    "detected_at": "2026-07-06T10:00:00Z",
+    "idempotency_key": "labeled-9"
+  }
+}

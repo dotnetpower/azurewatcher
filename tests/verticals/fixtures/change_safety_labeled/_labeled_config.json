@@ -1,0 +1,19 @@
+{
+  "known_pipeline_principals": [
+    "sp-pipeline-terraform",
+    "sp-pipeline-github-actions",
+    "sp-pipeline-argo-cd"
+  ],
+  "correlations": {
+    "corr-merged-pr-alpha": "pr#101",
+    "corr-merged-pr-beta": "pr#204"
+  },
+  "settling_windows_seconds": {
+    "default": 60,
+    "per_resource_type": {
+      "object-storage": 30,
+      "network.nsg": 45
+    }
+  },
+  "clock_wall_time": "2026-07-06T12:00:00Z"
+}

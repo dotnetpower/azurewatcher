@@ -1,0 +1,14 @@
+{
+  "id": "authorized-correlation-beta",
+  "label": "AUTHORIZED",
+  "narrative": "Unknown actor but correlation_id links to merged PR pr#204.",
+  "event": {
+    "signal_kind": "azure.activity_log",
+    "resource_type": "secret-store",
+    "resource_id": "sub/rg/kv-prod",
+    "actor": null,
+    "correlation_id": "corr-merged-pr-beta",
+    "detected_at": "2026-07-06T09:15:00Z",
+    "idempotency_key": "labeled-4"
+  }
+}

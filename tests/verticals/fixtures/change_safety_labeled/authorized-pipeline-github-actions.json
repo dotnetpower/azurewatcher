@@ -1,0 +1,14 @@
+{
+  "id": "authorized-pipeline-github-actions",
+  "label": "AUTHORIZED",
+  "narrative": "Actor is the github-actions runner SP registered in _labeled_config.",
+  "event": {
+    "signal_kind": "azure.activity_log",
+    "resource_type": "network.nsg",
+    "resource_id": "sub/rg/nsg-web",
+    "actor": "sp-pipeline-github-actions",
+    "correlation_id": null,
+    "detected_at": "2026-07-06T11:30:00Z",
+    "idempotency_key": "labeled-2"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "suppressed-object-storage-window",
+  "label": "SUPPRESSED",
+  "narrative": "Unknown actor, event age ~15s within per-type 30s settling window for object-storage.",
+  "event": {
+    "signal_kind": "azure.activity_log",
+    "resource_type": "object-storage",
+    "resource_id": "sub/rg/stg-hot",
+    "actor": "sp-manual-portal",
+    "correlation_id": null,
+    "detected_at": "2026-07-06T11:59:45Z",
+    "idempotency_key": "labeled-6"
+  }
+}
