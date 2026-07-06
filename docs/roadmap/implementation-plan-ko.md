@@ -1,7 +1,7 @@
 ---
 title: 구현 계획 (표준 세트)
 translation_of: implementation-plan.md
-translation_source_sha: d792aa02ca8b3c1d8fb0416e1e1db5873de5e70e
+translation_source_sha: 31473f177ec0447b4eed32cb1b60cff767b6f258
 translation_revised: 2026-07-06
 ---
 
@@ -577,7 +577,17 @@ Wave F 배송 이후에는 Waves D1..M1과 독립.
   스크래치 평가에 R4 프리미티브 소비.
 - **P.2**
   [deployment-preflight.md § Blocker to Terraform Toggle Mapping](deployment-preflight.md#blocker-to-terraform-toggle-mapping)
-  의 `infra/modules/` capability-mode 토글.
+  의 `infra/modules/` capability-mode 토글. **배송 완료**:
+  `infra/modules/preflight-toggles/` 아래 5개 data-only Terraform
+  서브 모듈 (`disk_provisioning`, `nsg_provisioning`,
+  `registry_source`, `python_index_url`, `dependency_ordering`).
+  각각 validated `mode` 변수 + toggle 별 auxiliary vars를 받아
+  normalized outputs (`effective_mode` + toggle 별 config)를 emit;
+  `resource` 블록 없음, provider 의존성 없음이라 CI에서 Azure
+  구독 없이 `terraform validate` 통과. Consumer 모듈이 outputs를
+  읽어 실제 resource shape를 결정 - toggle 모듈 자체는 live
+  resource를 emit하지 않으므로 Preflight 분석기의
+  `terraform_toggle` finding이 단일 변수 override에 1:1로 매핑.
 - **P.3** 인프라 PR에 리포트를 게시하는 GitHub Check.
 - **P.4** `Inventory` delta 스트림으로 새로고침되는 Deployment
   Environment Profile 캐시.

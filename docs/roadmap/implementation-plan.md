@@ -601,6 +601,18 @@ increments in
   evaluation.
 - **P.2** `infra/modules/` capability-mode toggles from
   [deployment-preflight.md § Blocker to Terraform Toggle Mapping](deployment-preflight.md#blocker-to-terraform-toggle-mapping).
+  **Shipped**: five data-only Terraform sub-modules under
+  `infra/modules/preflight-toggles/` (`disk_provisioning`,
+  `nsg_provisioning`, `registry_source`, `python_index_url`,
+  `dependency_ordering`). Each accepts a validated `mode` variable
+  plus toggle-specific auxiliary vars and emits normalized
+  outputs (`effective_mode`, plus toggle-specific config); no
+  `resource` blocks, no provider dependency, so `terraform validate`
+  passes in CI without an Azure subscription. A consumer module
+  reads the outputs and picks the concrete resource shape - the
+  toggle module itself never emits a live resource, which keeps the
+  Preflight analyzer's `terraform_toggle` finding a 1:1 map to a
+  single variable override.
 - **P.3** GitHub Check that posts the report on infrastructure PRs.
 - **P.4** Deployment Environment Profile cache refreshed via the
   `Inventory` delta stream.
