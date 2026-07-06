@@ -3,66 +3,77 @@ title: AIOpsPilot Roadmap
 ---
 # AIOpsPilot Roadmap
 
-> **Read online:** [dotnetpower.github.io/aiopspilot](https://dotnetpower.github.io/aiopspilot/) -
-> this roadmap is also published as a searchable site with sidebar navigation, right-column TOC,
-> full-text search, and Korean/English switcher. The Markdown here is the canonical source;
-> the site mounts these files read-only. See [site/](../../site/README.md) for how the
-> mount and deploy work.
+The engineering plan behind AIOpsPilot. This folder expands the short-form
+principles in [copilot-instructions.md](../../.github/copilot-instructions.md)
+and the control loop in
+[architecture.instructions.md](../../.github/instructions/architecture.instructions.md)
+into an actionable, phased roadmap: from goals and structure through deployment
+and scale-out.
 
-Detailed, phased plan to build the autonomous cloud operations control plane - an **AIOps**
-approach whose initial verticals are **Resilience**, **Change Safety**, and **Cost
-Governance**. Other AIOps domains (posture management, SRE/SLO, etc.) fit the same
-architecture and are future scope. This folder expands the short-form principles in
-[copilot-instructions.md](../../.github/copilot-instructions.md) and the
-control-loop design in
-[architecture.instructions.md](../../.github/instructions/architecture.instructions.md) into an
-actionable engineering roadmap: from goals and structure through deployment and scale-out.
+> **Read online:** [dotnetpower.github.io/aiopspilot](https://dotnetpower.github.io/aiopspilot/).
+> The markdown here is the canonical source; the site mounts these files
+> read-only with sidebar navigation, right-column TOC, full-text search, and a
+> Korean / English switcher. See [site/](../../site/README.md) for how the mount
+> and deploy work.
 
-> Scope reminder: this repo is **generic and customer-agnostic**. Everything here is
-> parameterized; per-customer values live in a fork. See
-> [generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md).
+> **Scope:** the repo is generic and customer-agnostic; per-customer values live
+> in a fork ([generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md)).
 >
-> **Implementation focus:** Azure is the only implemented target. Non-Azure providers and
-> Phase 4 multi-cloud expansion are **TBD** - the CSP-neutral abstractions in these docs
-> exist so a future adapter is additive, not a delivery commitment. See
-> [copilot-instructions.md](../../.github/copilot-instructions.md#implementation-focus-must).
+> **Implementation focus:** Azure is the only implemented target. Non-Azure
+> providers and Phase 4 multi-cloud expansion are TBD. The CSP-neutral
+> abstractions in these docs exist so a future adapter is additive, not a
+> delivery commitment
+> ([Implementation Focus](../../.github/copilot-instructions.md#implementation-focus-must)).
 
-## How to Read This Folder
+## Design at a glance
 
-Reference docs (1-13) describe the system; phase docs (P0-P4) sequence the build. Read the
-reference docs first, then the phases in order.
+Deterministic-first, event-driven, risk-gated. A 3-tier trust router resolves
+repeatable events with rules and policies (T0) and lightweight similarity reuse
+(T1), reserving frontier-model reasoning (T2) for the ambiguous residual. Every
+autonomous action ships in shadow mode first and is promoted per-action
+explicitly. Coverage shares and autonomy multipliers are design targets that
+require a measured baseline before they can be claimed
+([goals-and-metrics.md](goals-and-metrics.md)).
+
+## How to read this folder
+
+Reference docs (1-18) describe the system; phase docs (P0-P4) sequence the
+build. Read the reference docs first, then the phases in order.
+
+### Core reference (system shape)
 
 | # | Document | What it covers |
 |---|----------|----------------|
 | 1 | [goals-and-metrics.md](goals-and-metrics.md) | success criteria, KPIs, measurement-first rule |
 | 2 | [project-structure.md](project-structure.md) | repo layout, module boundaries, control-loop wiring |
 | 3 | [tech-stack.md](tech-stack.md) | languages, frameworks, data stores, event bus |
-| 4 | [csp-neutrality.md](csp-neutrality.md) | wire-level contracts (event bus / runtime / secret / workload identity) that keep the core CSP-neutral |
-| 5 | [llm-strategy.md](llm-strategy.md) | which models per tier, mixed-model gate, abstraction |
+| 4 | [csp-neutrality.md](csp-neutrality.md) | wire-level contracts that keep the core CSP-neutral |
+| 5 | [llm-strategy.md](llm-strategy.md) | per-tier model choices, mixed-model gate, abstraction |
 | 6 | [security-and-identity.md](security-and-identity.md) | least-privilege identity, secrets, safety invariants |
-| 7 | [deployment.md](deployment.md) | IaC, CI/CD, environments, release/rollback |
-| 8 | [rule-catalog-collection.md](rule-catalog-collection.md) | where rules/checklists/baselines come from and their YAML shape |
+| 7 | [deployment.md](deployment.md) | IaC, CI/CD, environments, release / rollback |
+
+### Rules, detection, and operations
+
+| # | Document | What it covers |
+|---|----------|----------------|
+| 8 | [rule-catalog-collection.md](rule-catalog-collection.md) | where rules / checklists / baselines come from and their YAML shape |
 | 9 | [rule-governance.md](rule-governance.md) | how admins author, scope, enable, and exempt rules (Azure Policy-like) |
-| 10 | [observability-and-detection.md](observability-and-detection.md) | event correlation, anomaly detection, forecasting, and root-cause analysis |
-| 11 | [deploy-and-onboard.md](deploy-and-onboard.md) | concrete Azure resource inventory, bootstrap sequence, fork ↔ core split |
+| 10 | [observability-and-detection.md](observability-and-detection.md) | event correlation, anomaly detection, forecasting, root-cause analysis |
+| 11 | [deploy-and-onboard.md](deploy-and-onboard.md) | concrete Azure resource inventory, bootstrap sequence, fork vs core split |
 | 12 | [startup-and-lifecycle.md](startup-and-lifecycle.md) | cold start, day-zero catalog, shadow-first rollout, discovery-loop kickoff |
 | 13 | [operating-and-verification.md](operating-and-verification.md) | self-health signals, canary event, smoke tests, alert routing, runbooks |
-| 14 | [cost-model.md](cost-model.md) | illustrative monthly cost envelope for the minimum resource inventory, T2 LLM cost split, traffic scaling triggers |
-| 15 | [user-rbac-and-identity.md](user-rbac-and-identity.md) | human user roles (Reader/Contributor/Approver/Owner + Break-Glass), Entra ID artifacts, console→PR identity flow |
-| 16 | [channels-and-notifications.md](channels-and-notifications.md) | non-web-UI channels (Teams / Slack / email / webhook / pager / SMS), category & trust-tier matrix, routing policy |
-| 17 | [risk-classification.md](risk-classification.md) | auto vs HIL vs deny classification: dimensions, initial rule table, environment detection, change process |
-| 18 | [dev-and-deploy-parity.md](dev-and-deploy-parity.md) | dev-mode local-fake vs deploy-mode Azure-first parity contract; deployer-scoped LLM provisioning gates; work plan |
 
-## Design at a Glance
+### Cost, users, channels, risk, parity
 
-Deterministic-first, event-driven, risk-gated. A 3-tier trust router resolves repeatable events
-with rules and policies (T0) and lightweight similarity reuse (T1), reserving frontier-model
-reasoning (T2) for the ambiguous residual. The T0/T1 coverage share and every autonomy
-multiplier are **design targets that require a measured baseline** before they can be claimed
-(see [goals-and-metrics.md](goals-and-metrics.md) and
-[architecture.instructions.md](../../.github/instructions/architecture.instructions.md)).
+| # | Document | What it covers |
+|---|----------|----------------|
+| 14 | [cost-model.md](cost-model.md) | monthly cost envelope for the minimum resource inventory, T2 LLM cost split, traffic triggers |
+| 15 | [user-rbac-and-identity.md](user-rbac-and-identity.md) | human roles (Reader / Contributor / Approver / Owner + Break-Glass), Entra ID artifacts, console-to-PR identity flow |
+| 16 | [channels-and-notifications.md](channels-and-notifications.md) | non-web-UI channels (Teams / Slack / email / webhook / pager / SMS), category and trust-tier matrix |
+| 17 | [risk-classification.md](risk-classification.md) | auto vs HIL vs deny classification: dimensions, initial rule table, environment detection |
+| 18 | [dev-and-deploy-parity.md](dev-and-deploy-parity.md) | dev-mode local-fake vs deploy-mode Azure-first parity contract; deployer-scoped LLM provisioning gates |
 
-## Phase Timeline
+## Phase timeline
 
 ```mermaid
 timeline
@@ -74,31 +85,50 @@ timeline
     P4 Scale : Continuous measurement : Pattern-library and model tracking : Scalability : Multi-cloud expansion (TBD)
 ```
 
-Phases are **strictly sequential** - P0 → P1 → P2 → P3 → P4 - and each phase doc names its
-predecessor in a *Dependencies* section. Vertical coverage lands incrementally: Change Safety
-in P1, Resilience and Cost Governance in P3. **Multi-cloud is TBD in P4** (Azure is the only implemented
-target - see
+Phases are strictly sequential (P0 -> P1 -> P2 -> P3 -> P4) and each phase doc
+names its predecessor in a *Dependencies* section. Vertical coverage lands
+incrementally: Change Safety in P1; Resilience and Cost Governance in P3.
+Multi-cloud stays TBD in P4 (Azure-only implementation, see
 [Implementation Focus](../../.github/copilot-instructions.md#implementation-focus-must)).
 
-## Phase Summary
+## Phase summary
 
-The exit column is each phase's **primary gate**; every phase doc lists the complete exit
-criteria and its dependencies.
+The exit column is each phase's primary gate; every phase doc lists the complete
+exit criteria and its dependencies.
 
 | Phase | Goal | Key deliverables | Primary exit gate |
 |-------|------|------------------|-------------------|
-| **[P0](phases/phase-0-instrumentation.md)** | Instrument & unblock | KPI dashboard, baseline report, identity/policy blockers resolved | reproducible baseline exists |
+| **[P0](phases/phase-0-instrumentation.md)** | Instrument and unblock | KPI dashboard, baseline report, identity / policy blockers resolved | reproducible baseline exists |
 | **[P1](phases/phase-1-rule-catalog-t0.md)** | Deterministic core | rule catalog, T0 engine, policy gate, remediation PRs | Change gate runs in shadow |
-| **[P2](phases/phase-2-quality-and-t1.md)** | Quality & lightweight tier | rule-update pipeline, LLM quality gate (guards T2), T1 similarity reuse | auto-resolution rate validated vs P0 baseline |
-| **[P3](phases/phase-3-integrated-loop.md)** | Integrated autonomy | unified loop, DR/chaos scheduler, cost auto-actions | autonomous MVP across all 3 verticals |
-| **[P4](phases/phase-4-scale.md)** | Scale out (Azure) | continuous measurement, pattern-library and model tracking, scalability; **multi-cloud adapters TBD** | guard metrics stable on the Azure baseline |
+| **[P2](phases/phase-2-quality-and-t1.md)** | Quality and lightweight tier | rule-update pipeline, LLM quality gate (guards T2), T1 similarity reuse | auto-resolution rate validated vs P0 baseline |
+| **[P3](phases/phase-3-integrated-loop.md)** | Integrated autonomy | unified loop, DR / chaos scheduler, cost auto-actions | autonomous MVP across all 3 verticals |
+| **[P4](phases/phase-4-scale.md)** | Scale out (Azure) | continuous measurement, pattern-library and model tracking, scalability; multi-cloud adapters TBD | guard metrics stable on the Azure baseline |
 
-## Guardrails Applied Throughout
+## Guardrails applied throughout
 
-- **Measurement first**: no autonomy without telemetry; no multiplier or coverage claim without a measured baseline.
-- **Shadow before enforce**: every new action ships judge-only, then is promoted per-action explicitly; regressions demote automatically.
-- **Fail toward safety**: low confidence, verification failure, or budget/rate overflow degrades to HIL - never to an ungated auto-action.
-- **Safety invariants on every action**: stop-condition, rollback path, blast-radius limit, and audit-log entry ([security-and-identity.md](security-and-identity.md)).
-- **Idempotent actions**: re-delivered events and retried actions never double-apply.
-- **Separation of duties**: approval and execution are distinct principals; the console is read-only ([security-and-identity.md](security-and-identity.md)).
-- **English-only, customer-agnostic artifacts** ([generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md)); Korean only in maintainer chat.
+- **Measurement first**: no autonomy without telemetry; no multiplier or
+  coverage claim without a measured baseline.
+- **Shadow before enforce**: every new action ships judge-only, then is promoted
+  per-action explicitly; regressions demote automatically.
+- **Fail toward safety**: low confidence, verification failure, or budget /
+  rate overflow degrades to HIL, never to an ungated auto-action.
+- **Safety invariants on every action**: stop-condition, rollback path,
+  blast-radius limit, and audit-log entry
+  ([security-and-identity.md](security-and-identity.md)).
+- **Idempotent actions**: re-delivered events and retried actions never
+  double-apply.
+- **Separation of duties**: approval and execution are distinct principals; the
+  console is read-only ([security-and-identity.md](security-and-identity.md)).
+- **English-only, customer-agnostic artifacts**
+  ([generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md));
+  Korean only in maintainer chat.
+
+## Next steps
+
+| To do this | Start here |
+|-----------|-----------|
+| Understand the 3-tier control loop | [architecture.instructions.md](../../.github/instructions/architecture.instructions.md) |
+| See the concrete Azure resource inventory | [deploy-and-onboard.md](deploy-and-onboard.md) |
+| Follow the P0 baseline instrumentation | [phases/phase-0-instrumentation.md](phases/phase-0-instrumentation.md) |
+| Read the safety rules on every autonomous action | [../../.github/instructions/coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md) |
+| Contribute a new rule to the catalog | [../../rule-catalog/RULE_AUTHORING_GUIDE.md](../../rule-catalog/RULE_AUTHORING_GUIDE.md) |
