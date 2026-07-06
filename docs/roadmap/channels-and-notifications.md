@@ -28,7 +28,7 @@ lives in [user-rbac-and-identity.md](user-rbac-and-identity.md).
 3. **Trust-tiered.** Approval-category traffic (A1) MUST NOT flow through a channel that
    cannot verify the human's Entra identity end-to-end. A less-trusted channel MAY carry
    information but never decisions (§4).
-4. **Fail toward safety.** If every configured channel for a category fails, the request
+4. **Choose the safer default when the outcome is uncertain.** If every configured channel for a category fails, the request
    queues and pages the operational lane - it never auto-executes. Fallback within a
    category preserves the trust tier (§6).
 5. **Redaction is the sender's job.** No secret, credential, PII, subscription id, or raw
@@ -114,14 +114,14 @@ and what its authentication can prove.
 | **Teams (same tenant)** | ✓ | Teams SSO → OBO exchange → `aiopspilot-api` token | **A1, A2, A3, A4** |
 | **Teams (guest tenant)** | guest | OBO with guest OID | **A2, A3, A4** (A1 denied - same guest rule as [user-rbac-and-identity.md §10.5](user-rbac-and-identity.md#105-guest-entra-b2b-users)) |
 | **Slack** | ✗ | Slack OAuth; **fork-mandatory** Slack userId ↔ Entra OID mapping; A1 approvals bounce through `aiopspilot-api` for Entra re-auth in the browser | **A1, A2, A3, A4** - A1 enabled in P1 (see §7 Slack notes) |
-| **Email (SMTP / Graph)** | ✗ | send-only, no return channel | **A2, A4 only** - never A1 (magic-link approvals are prohibited) |
+| **Email (SMTP / Graph)** | ✗ | send-only, no return channel | **A2, A4 only** - never A1 (magic-link approvals aren't supported) |
 | **Generic webhook** | ✗ | HMAC-signed, timestamped, replay-guarded | **A2 only** |
 | **PagerDuty / Opsgenie** | ✗ | API key, ack from mobile app | **A2 only** (operational lane paging) |
 | **SMS** | ✗ | - | **A2 only** (minimal payload; break-glass reachability) |
 
 **Rules that keep the matrix safe (MUST)**
 
-- **Magic-link approvals are prohibited across every channel.** Approval always requires
+- **Magic-link approvals aren't supported across every channel.** Approval always requires
   a re-authenticated round-trip through `aiopspilot-api`.
 - **A1 fallback stays inside A1-capable channels.** A failed Teams A1 attempt never falls
   through to email; it falls to another A1-capable channel (Teams standby, or Slack when

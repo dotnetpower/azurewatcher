@@ -17,12 +17,14 @@ domains (posture management, SRE/SLO) fit the same architecture and are future s
 ### Change Safety
 
 Rule-catalog-driven policy gates on every proposed change. Each candidate is
-dry-run against policy-as-code, blast-radius scoped, and either auto-merged
-(low risk) or routed to human-in-the-loop (high risk).
+dry-run against policy-as-code (policies expressed as machine-readable rules),
+blast-radius scoped (the scope a change can affect), and either auto-merged
+(low risk) or routed to human-in-the-loop review (HIL, high risk).
 
 Example: an IaC PR introduces a public-egress NSG rule -> risk gate flags
 high-risk -> HIL approval card in Teams -> approver clicks approve -> executor
-merges the remediation PR and writes the audit entry.
+merges the remediation pull request (remediation PR) and writes the audit
+entry.
 
 ### Resilience
 
@@ -41,15 +43,18 @@ of the low-risk subset (idle disk cleanup, unused public IP release, orphan
 NIC removal).
 
 Example: cost-anomaly detector fires on cache-tier over-provisioning ->
-T0 rule matches -> two-week shadow proves accuracy -> promotion to enforce ->
-right-size remediation PR ships with a rollback path.
+T0 rule matches -> two-week shadow (observe and log without acting) proves
+accuracy -> promotion to enforce -> right-size remediation PR ships with a
+rollback path.
 
 ### Rule Catalog That Grows Itself
 
-The catalog stays current on its own. A discovery loop watches upstream
-sources (WAF, MCSB, CIS, Advisor, OPA/Gatekeeper, Checkov, tfsec, KICS, Trivy,
-kube-bench) and operational signals (HIL patterns, shadow drift, overrides)
-and proposes new, revised, or retired rules through the same quality gate.
+The catalog stays current on its own. A discovery loop (the pipeline that
+proposes new or revised rules) watches upstream sources (WAF, MCSB, CIS,
+Advisor, OPA/Gatekeeper, Checkov, tfsec, KICS, Trivy, kube-bench) and
+operational signals (HIL patterns, shadow drift, overrides) and proposes new,
+revised, or retired rules through the same quality gate (a set of checks the
+model output must pass).
 
 Example: three shadow entries in a row show a rule triggering on legitimate
 traffic -> discovery loop flags the drift -> a revision PR lands with the
@@ -68,22 +73,25 @@ tightened threshold and a fresh regression suite.
   signals (Activity Log, Resource events) are forwarded into Kafka topics so
   the core sees Kafka only.
 - **CSP-neutral by design**: cloud access sits behind provider adapters
-  (OPA policy, Terraform IaC). Azure is the implemented target; non-Azure
-  providers are TBD, tracked as a preserved seam rather than a delivery
-  commitment.
+  (OPA for policy-as-code, Terraform for infrastructure-as-code).
+  Cloud-provider-neutral (CSP-neutral) is a design principle; Azure is the
+  implemented target, and non-Azure providers are TBD, tracked as a preserved
+  seam rather than a delivery commitment.
 
 ## How it works
 
 1. **Ingest**: events land on the bus. `event-ingest` normalizes and
    deduplicates them and correlates related events into one incident.
-2. **Route**: the trust router computes a confidence and picks the lowest
-   sufficient tier: T0 deterministic (rule verdict) -> T1 lightweight reuse
-   (similarity to resolved incidents) -> T2 reasoning (frontier LLM + verifier
-   + mixed-model cross-check + policy grounding). T2 output must clear the
-   quality gate before it is even eligible to execute.
-3. **Gate and act**: the risk gate decides auto, HIL, abstain, or deny.
-   Auto and approved-HIL actions become remediation PRs. Every terminal path
-   (including reject, timeout, and abstain) writes an audit entry.
+2. **Route**: the trust router (picks the tier that decides the event) picks
+   the lowest sufficient tier. T0 deterministic (rule verdict) -> T1
+   lightweight reuse (similarity to resolved incidents) -> T2 reasoning
+   (frontier LLM + verifier + mixed-model cross-check + policy grounding).
+   T2 output must clear the quality gate before it becomes eligible to
+   execute.
+3. **Gate and act**: the risk gate decides auto, HIL (hold for a human),
+   abstain (no autonomous action), or deny. Auto and approved-HIL actions
+   become remediation PRs. Every terminal path (including reject, timeout,
+   and abstain) writes an audit entry.
 
 ```text
 event -> event-ingest -> trust-router -> T0 | T1 | (T2 -> quality-gate)

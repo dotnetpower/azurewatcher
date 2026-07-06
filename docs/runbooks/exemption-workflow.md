@@ -80,8 +80,10 @@ pipeline observes the state change).
 
 ## References
 
-- Design: [architecture.instructions.md § Human Override](../../.github/instructions/architecture.instructions.md#human-override)
-- Schema: [`src/aiopspilot/rule_catalog/schema/exemption.schema.json`](../../src/aiopspilot/rule_catalog/schema/exemption.schema.json)
-- CI check: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) (`exemption-check` job)
-- CLI: [`scripts/exemption-expire.py`](../../scripts/exemption-expire.py)
-- PR template: [`.github/PULL_REQUEST_TEMPLATE/exemption.md`](../../.github/PULL_REQUEST_TEMPLATE/exemption.md)
+| Artifact | Path |
+|----------|------|
+| Design: Human Override | [../../.github/instructions/architecture.instructions.md#human-override](../../.github/instructions/architecture.instructions.md#human-override) |
+| Exemption schema | [../../src/aiopspilot/rule_catalog/schema/exemption.schema.json](../../src/aiopspilot/rule_catalog/schema/exemption.schema.json) |
+| CI check (`exemption-check` job) | [../../.github/workflows/ci.yml](../../.github/workflows/ci.yml) |
+| Expiry CLI | [../../scripts/exemption-expire.py](../../scripts/exemption-expire.py) |
+| PR template | [../../.github/PULL_REQUEST_TEMPLATE/exemption.md](../../.github/PULL_REQUEST_TEMPLATE/exemption.md) |

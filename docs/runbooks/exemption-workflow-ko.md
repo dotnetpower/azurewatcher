@@ -1,6 +1,6 @@
 ---
 translation_of: exemption-workflow.md
-translation_source_sha: 55c20f3714e322c61476a3bb3b369ef12a3bbd50
+translation_source_sha: e820101bf4ee79a28dd253740ec1c41d7d635475
 translation_revised: 2026-07-06
 title: 예외 워크플로
 owner: aw-owners (Owner-tier)
@@ -77,8 +77,10 @@ Owner 는 active 예외를 다음으로 취소할 수 있음:
 
 ## 참조
 
-- 설계: [architecture.instructions.md § Human Override](../../.github/instructions/architecture.instructions.md#human-override)
-- 스키마: [`src/aiopspilot/rule_catalog/schema/exemption.schema.json`](../../src/aiopspilot/rule_catalog/schema/exemption.schema.json)
-- CI 검사: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) (`exemption-check` job)
-- CLI: [`scripts/exemption-expire.py`](../../scripts/exemption-expire.py)
-- PR 템플릿: [`.github/PULL_REQUEST_TEMPLATE/exemption.md`](../../.github/PULL_REQUEST_TEMPLATE/exemption.md)
+| 아티팩트 | 경로 |
+|----------|------|
+| 설계: Human Override | [../../.github/instructions/architecture.instructions.md#human-override](../../.github/instructions/architecture.instructions.md#human-override) |
+| 예외 스키마 | [../../src/aiopspilot/rule_catalog/schema/exemption.schema.json](../../src/aiopspilot/rule_catalog/schema/exemption.schema.json) |
+| CI 검사 (`exemption-check` job) | [../../.github/workflows/ci.yml](../../.github/workflows/ci.yml) |
+| 만료 CLI | [../../scripts/exemption-expire.py](../../scripts/exemption-expire.py) |
+| PR 템플릿 | [../../.github/PULL_REQUEST_TEMPLATE/exemption.md](../../.github/PULL_REQUEST_TEMPLATE/exemption.md) |

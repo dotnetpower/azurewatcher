@@ -58,7 +58,7 @@ The same signals promote and demote. If a live enforced capability starts
 failing its own promotion bar - accuracy drops, a policy-violation escape is
 recorded, or an operator opens an override - automation demotes it back to
 shadow and the on-call team receives a notification. Fixing the regression
-is a new promotion cycle, not a hot-patch.
+is a new promotion cycle, not a emergency fix.
 
 ## Why this matters to operators
 
@@ -71,11 +71,11 @@ Two consequences for anyone consuming the system:
   same pipeline, taking a capability out of enforcement is not a heroic
   operation - it is the default response to any regression.
 
-## Related
+## Next steps
 
-- [Deterministic first](../deterministic-first/) - the tiers on which
-  shadow-then-enforce runs.
-- [Risk tiers](../risk-tiers/) - what auto-vs-HIL means for the actions a
-  shadow capability produces.
-- Engineering detail: the roadmap's *Safety Invariants* and the phase
-  documents' *Exit gate* sections.
+| To learn about | Read |
+|----------------|------|
+| The tiers shadow-then-enforce runs on | [deterministic-first.md](deterministic-first.md) |
+| What auto vs HIL means for the actions produced | [risk-tiers.md](risk-tiers.md) |
+| Safety invariants required for every action | [../../../.github/instructions/coding-conventions.instructions.md](../../../.github/instructions/coding-conventions.instructions.md) |
+| The phase exit gates that promote capabilities | [../../roadmap/README.md](../../roadmap/README.md) |

@@ -245,7 +245,7 @@ return quorum_result(cand_a, cand_b)
 - No model id appears in `core/`.
 - A missing deployment is treated as an outage: the request routes to HIL and emits an
   operational alert (A2 per [channels-and-notifications.md](channels-and-notifications.md#3-categories-a1a4)).
-  A silent switch to a different capability is prohibited.
+  A silent switch to a different capability isn't supported.
 
 ### Reconciler Job
 

@@ -1,7 +1,7 @@
 ---
 title: 채널과 알림(Channels and Notifications)
 translation_of: channels-and-notifications.md
-translation_source_sha: 8d28c3a7efb744af3ef07d6b7dfe7c9458e8f44e
+translation_source_sha: e9583cc5609f1f9e0a295286aed74d5ecffc398e
 translation_revised: 2026-07-06
 ---
 
@@ -31,7 +31,7 @@ Routing 조각들과
    안전하게 서비스할 수 있는 카테고리로 제약됨.
 3. **신뢰 티어링.** 승인 카테고리 트래픽(A1)은 사람의 Entra 아이덴티티를 종단으로 검증할 수
    없는 채널을 통해 흘러선 안 됨. 신뢰 낮은 채널은 정보를 운반해도 결정은 절대 안 됨(§4).
-4. **안전 방향 실패.** 카테고리의 설정된 모든 채널이 실패하면 요청은 큐잉되고 운영 라인에
+4. **불확실할 때는 안전한 쪽을 선택.** 카테고리의 설정된 모든 채널이 실패하면 요청은 큐잉되고 운영 라인에
    page - 절대 auto-execute 안 함. 카테고리 내 fallback은 신뢰 티어 보존(§6).
 5. **Redaction은 발신자의 일.** 시크릿, 자격증명, PII, 구독 id, 원시 고객 페이로드는 어떤
    카테고리에서도 채널 메시지로 신뢰 경계를 떠나지 않음.

@@ -62,9 +62,11 @@ need diagnostic data, the observability stack (logs, metrics, traces) is
 the correct place; each audit entry carries the correlation id that ties
 back to those observations.
 
-## Related
+## Next steps
 
-- [Approve a change](../approve-change/) - the operator interaction that
-  writes many of the HIL entries you'll be reading here.
-- [Shadow, then enforce](../../concepts/shadow-then-enforce/) - why some
-  entries carry a `would-have-been` action and others a real one.
+| To learn about | Read |
+|----------------|------|
+| The operator interaction that writes HIL entries | [approve-change.md](approve-change.md) |
+| Why some entries carry `would-have-been` decisions | [../concepts/shadow-then-enforce.md](../concepts/shadow-then-enforce.md) |
+| How to narrow a rule that keeps auditing badly | [override-a-rule.md](override-a-rule.md) |
+| The audit-log storage and retention design | [../../roadmap/observability-and-detection.md](../../roadmap/observability-and-detection.md) |

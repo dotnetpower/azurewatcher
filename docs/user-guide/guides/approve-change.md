@@ -67,11 +67,11 @@ DENY. Every Break-Glass use is prominently audited, notifies the on-call
 team, and is expected to be justified after the fact. It is not an
 alternative to fixing the underlying rule.
 
-## Related
+## Next steps
 
-- [Risk tiers](../../concepts/risk-tiers/) - how the classification you're
-  looking at was produced.
-- [Read the audit log](../read-audit-log/) - how to trace what actually
-  happened after your verdict.
-- [Override a rule](../override-a-rule/) - if the same rule keeps producing
-  bad HIL requests.
+| To learn about | Read |
+|----------------|------|
+| How the classification in front of you was produced | [../concepts/risk-tiers.md](../concepts/risk-tiers.md) |
+| How to trace what happened after your verdict | [read-audit-log.md](read-audit-log.md) |
+| What to do if a rule keeps producing bad HIL cards | [override-a-rule.md](override-a-rule.md) |
+| The channels that carry HIL requests | [../../roadmap/channels-and-notifications.md](../../roadmap/channels-and-notifications.md) |

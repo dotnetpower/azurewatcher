@@ -2,7 +2,7 @@
 title: 감사 로그 읽기(Read the audit log)
 description: 모든 자율 결정에 대해 append-only 감사 로그가 기록하는 것과, 증상에서 root 이벤트로 거슬러 추적하는 법.
 translation_of: read-audit-log.md
-translation_source_sha: d7d7ed1ac8af6e72dbd9a69d0bde6fab937d6a8c
+translation_source_sha: 34c1da56451cbe35cff23769e75cf2d4b0aeec1c
 translation_revised: 2026-07-06
 ---
 
@@ -60,9 +60,11 @@ replay 하고 다시 계산되는 결정을 볼 수 있습니다 - 기초 액션
 메트릭, 트레이스)이 올바른 곳입니다. 각 감사 항목은 그 관측으로 되돌아가는 상관
 관계 id 를 담습니다.
 
-## 관련
+## 다음 단계
 
-- [변경 승인](../approve-change/) - 여기서 읽게 될 HIL 항목의 많은 부분을 쓰는
-  운영자 상호작용.
-- [Shadow, then enforce](../../concepts/shadow-then-enforce/) - 왜 어떤 항목은
-  `would-have-been` 액션을 담고 어떤 것은 실제 액션을 담는지.
+| 학습 대상 | 문서 |
+|-----------|------|
+| 여기서 읽게 될 HIL 항목을 쓰는 운영자 상호작용 | [approve-change-ko.md](approve-change-ko.md) |
+| `would-have-been` 결정이 담기는 이유 | [../concepts/shadow-then-enforce-ko.md](../concepts/shadow-then-enforce-ko.md) |
+| 계속 나쁘게 감사되는 규칙을 좁히기 | [override-a-rule-ko.md](override-a-rule-ko.md) |
+| 감사 로그의 스토리지와 보존 설계 | [../../roadmap/observability-and-detection-ko.md](../../roadmap/observability-and-detection-ko.md) |

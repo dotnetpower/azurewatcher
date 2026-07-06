@@ -6,50 +6,78 @@ description: A five-minute orientation to AIOpsPilot - what it is, when it fits,
 # Get Started with AIOpsPilot
 
 AIOpsPilot is an autonomous cloud operations control plane. It resolves the
-**repeatable majority** of operational events deterministically - with rules,
-policies, and typed actions - and reserves LLM inference for the residual
-**ambiguous minority** that survives the deterministic gate. Every autonomous
-action is risk-classified, and anything above the safe threshold pauses for a
-human-in-the-loop (HIL) approval.
+repeatable majority of operational events deterministically with rules, policies,
+and typed actions, and reserves LLM inference for the ambiguous residual that
+survives the deterministic gate. Every autonomous action is risk-classified, and
+anything above the safe threshold pauses for human-in-the-loop (HIL) approval.
 
-The reference implementation targets **Azure**. The design keeps a cloud-neutral
-seam so other CSPs are additive rather than requiring a core rewrite, but no
-non-Azure adapter ships today.
+The reference implementation targets Azure. The design keeps a cloud-neutral seam
+so other CSPs are additive rather than requiring a core rewrite, but no non-Azure
+adapter ships today.
 
-## Three domains, one control plane
+## What can you achieve?
 
-AIOpsPilot addresses three initial verticals under one event-driven core:
+AIOpsPilot ships three verticals under one event-driven core. Each loads its own
+rules and actions but shares the control loop, observability, audit log, and
+risk gate.
 
-- **Change Safety** - rule-catalog-driven policy gates, remediation PRs,
-  shadow-then-enforce rollout.
-- **Resilience** - scheduled resilience drills, DB DR exercises, blast-radius
-  bounded chaos experiments.
-- **Cost Governance** - cost anomaly detection, right-sizing PRs, budget
-  guardrails per resource group.
+### Change Safety
 
-Each domain loads its own rules and actions but shares the same control loop,
-observability, audit log, and risk gate.
+Rule-catalog-driven policy gates on every proposed change. Each candidate is
+dry-run against policy-as-code, blast-radius scoped, and either auto-merged or
+routed to HIL.
 
-## What "autonomous" means here
+Example: an IaC PR proposes a public-egress NSG rule -> risk gate flags
+high-risk -> HIL approval card in Teams -> approver clicks approve -> executor
+merges the remediation PR + writes the audit entry.
 
-AIOpsPilot does not replace operators with an LLM. It classifies every event
-into one of three tiers and routes accordingly:
+### Resilience
 
-- **T0 (deterministic, ~70-80% target coverage)** - policy-as-code decisions
-  with a known correct outcome. No model call, no ambiguity.
-- **T1 (lightweight, ~15-20%)** - pattern matching, embedding similarity, and
-  small-model classifiers over the audit log's history. Cheap, fast, and
-  auditable.
-- **T2 (deep reasoning, ~5-10%)** - frontier models with mixed-model
-  cross-check, deterministic verifier, and grounding checks. LLMs generate;
-  execution eligibility is granted by verifier, not by the model itself.
+Scheduled DR drills, database DR exercises, and blast-radius-bounded chaos
+experiments. Cadence, scope, and proof stay separated: scheduler owns cadence,
+risk gate owns scope, audit log owns proof.
 
-The trust-router picks the lowest tier that can decide the event. The risk-gate
-then decides whether the resulting action auto-executes or waits for approval.
+Example: a nightly job finds a PITR gap on a critical database -> agent schedules
+a paired restore drill in the exercise window -> restore succeeds against target
+RPO/RTO -> audit entry recorded.
+
+### Cost Governance
+
+Anomaly detection on spend, right-sizing recommendations, and auto-execution of
+the low-risk subset (idle disk cleanup, unused public IP release, orphan NIC
+removal).
+
+Example: cost-anomaly detector fires on cache-tier over-provisioning -> T0 rule
+matches -> two-week shadow proves accuracy -> promotion to enforce -> right-size
+remediation PR ships with a rollback path.
+
+## How it works
+
+Three tiers, one loop. The trust router picks the lowest tier that can decide
+the event; the risk gate decides whether the resulting action auto-executes or
+waits for approval.
+
+1. **T0 (deterministic, ~70-80% target coverage)**: policy-as-code decisions
+   with a known correct outcome. No model call, no ambiguity.
+2. **T1 (lightweight, ~15-20%)**: pattern matching, embedding similarity, and
+   small-model classifiers over the audit log's history. Cheap, fast, and
+   auditable.
+3. **T2 (deep reasoning, ~5-10%)**: frontier models with mixed-model
+   cross-check, deterministic verifier, and grounding checks. LLMs generate;
+   execution eligibility is granted by verifier, not by the model.
+
+```text
+event -> event-ingest -> trust-router -> T0 | T1 | (T2 -> quality-gate)
+      -> risk-gate    -> auto | HIL | abstain -> executor -> delivery -> audit
+```
+
+Coverage percentages are targets that require a measured baseline before they
+can be claimed
+([goals-and-metrics](../roadmap/goals-and-metrics.md)).
 
 ## When AIOpsPilot fits
 
-AIOpsPilot is a good fit when **all** of these are true:
+AIOpsPilot is a good fit when all of these are true:
 
 ```mermaid
 flowchart TB
@@ -61,38 +89,46 @@ flowchart TB
   Q3 -->|no| N3[Build the baseline first<br/>Phase 0 exists precisely<br/>for this.]
   Q3 -->|yes| Q4{Are you on Azure?}
   Q4 -->|no| N4[Adapter is TBD for other<br/>CSPs. Not shipped yet.]
-  Q4 -->|yes| OK[✓ AIOpsPilot fits.<br/>Start with Phase 0.]
+  Q4 -->|yes| OK[AIOpsPilot fits.<br/>Start with Phase 0.]
 ```
 
 - Operators already spend real time approving or rolling back repeatable
   cloud-configuration events (drift, cost regressions, policy violations).
-- Your infrastructure is expressed as IaC and policy-as-code (or you are
-  moving that way).
-- You have - or can construct - a **baseline** to measure autonomy gains
-  against. AIOpsPilot never claims a multiplier without a paired measurement.
+- Your infrastructure is expressed as IaC and policy-as-code, or you are
+  moving that way.
+- You have, or can construct, a baseline to measure autonomy gains against.
+  AIOpsPilot never claims a multiplier without a paired measurement.
 - Your compliance regime tolerates auto-executed low-risk changes provided
   every action has a stop-condition, rollback path, blast-radius limit, and
   audit-log entry.
 
 ## When AIOpsPilot doesn't fit (yet)
 
-- No IaC / no policy-as-code - the deterministic tier has nothing to run.
-- One-off, non-repeatable incidents. AIOpsPilot's edge comes from resolving
-  the repeatable majority; the residual novel minority is where humans stay
-  in the loop.
-- CSPs other than Azure. The abstractions are neutral by design, but the
-  Azure adapter is the only one shipped.
+- **No IaC or no policy-as-code**: the deterministic tier has nothing to run.
+- **One-off, non-repeatable incidents**: AIOpsPilot's edge comes from
+  resolving the repeatable majority; the residual novel minority stays with
+  humans.
+- **Non-Azure CSPs**: abstractions are neutral by design, but the Azure
+  adapter is the only one shipped.
+
+## Grows with your environment
+
+- **Day 1**: T0 rules run in shadow mode on your events. Every finding writes
+  an audit entry so you can see what it would have done.
+- **Week 1**: shadow metrics show which actions clear their promotion gate.
+  T1 starts reusing patterns from resolved incidents; T2 stays a small share.
+- **Month 1**: promoted actions run autonomously with rollback paths. The
+  discovery loop begins proposing catalog updates from your own operating
+  signals (HIL approvals, shadow drift, overrides).
 
 ## Next steps
 
-- **Concepts** - read [Deterministic first](../concepts/deterministic-first/),
-  [Risk tiers](../concepts/risk-tiers/), and
-  [Shadow, then enforce](../concepts/shadow-then-enforce/) to understand
-  the invariants any adoption depends on.
-- **Guides** - task-oriented walkthroughs of the everyday operator flows:
-  [Approve a change](../guides/approve-change/),
-  [Read the audit log](../guides/read-audit-log/), and
-  [Override a rule](../guides/override-a-rule/).
-- **Reference** - the full engineering
-  [roadmap](../reference/roadmap/) with per-phase deliverables, KPIs, the
-  rule-catalog schema, and the deployment topology.
+| To learn about | Read |
+|----------------|------|
+| Why deterministic first | [concepts/deterministic-first.md](concepts/deterministic-first.md) |
+| The three trust tiers in depth | [concepts/risk-tiers.md](concepts/risk-tiers.md) |
+| Shadow-mode rollout and promotion | [concepts/shadow-then-enforce.md](concepts/shadow-then-enforce.md) |
+| Approving a change on the operator side | [guides/approve-change.md](guides/approve-change.md) |
+| Reading the audit log | [guides/read-audit-log.md](guides/read-audit-log.md) |
+| Narrowing a rule for one scope | [guides/override-a-rule.md](guides/override-a-rule.md) |
+| The full engineering roadmap | [../roadmap/README.md](../roadmap/README.md) |

@@ -2,7 +2,7 @@
 title: 리스크 티어(Risk tiers)
 description: AIOpsPilot 이 어떤 자율 액션은 자동 실행하고 어떤 것은 사람 승인을 기다리게 하는 결정 방식.
 translation_of: risk-tiers.md
-translation_source_sha: 81f117f21afd90c7cea83bd51cfcd38fc4753af1
+translation_source_sha: e19b9777c4988165e18d930d93e347844b99287d
 translation_revised: 2026-07-06
 ---
 
@@ -63,7 +63,7 @@ downgrade 됩니다:
 4. **감사 로그 항목** - append-only, immutable, 완전.
 
 넷 중 하나라도 없으면 액션은 정의상 불완전하며 HIL 로 라우팅됩니다. 이건 override
-가 아니라 정의상 게이트입니다.
+가 아니라 필수 검사입니다.
 
 ## 사람의 override 는 최상위 제어
 
@@ -71,10 +71,11 @@ downgrade 됩니다:
 거부할 수 있습니다. Override 자체도 감사됩니다. 자세한 메커닉은 로드맵의 *Human
 Override* 절 참조.
 
-## 관련
+## 다음 단계
 
-- [결정론 우선](../deterministic-first/) - 어떤 티어가 케이스를 결정할지 라우터가
-  고르는 방식.
-- [Shadow, then enforce](../shadow-then-enforce/) - 새 액션이 "관찰 전용"에서
-  "자동 실행"으로 이행하는 방식.
-- [변경 승인](../../guides/approve-change/) - HIL 의 일상 운영자 관점.
+| 학습 대상 | 문서 |
+|-----------|------|
+| 라우터가 어떤 티어를 고르는지 | [deterministic-first-ko.md](deterministic-first-ko.md) |
+| 새 액션이 관찰 전용에서 자동 실행으로 이행하는 방식 | [shadow-then-enforce-ko.md](shadow-then-enforce-ko.md) |
+| HIL의 일상 운영자 관점 | [../guides/approve-change-ko.md](../guides/approve-change-ko.md) |
+| 전체 리스크 분류 규정 | [../../roadmap/risk-classification-ko.md](../../roadmap/risk-classification-ko.md) |

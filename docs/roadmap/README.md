@@ -73,6 +73,12 @@ build. Read the reference docs first, then the phases in order.
 | 17 | [risk-classification.md](risk-classification.md) | auto vs HIL vs deny classification: dimensions, initial rule table, environment detection |
 | 18 | [dev-and-deploy-parity.md](dev-and-deploy-parity.md) | dev-mode local-fake vs deploy-mode Azure-first parity contract; deployer-scoped LLM provisioning gates |
 
+### Prompt subsystem
+
+| # | Document | What it covers |
+|---|----------|----------------|
+| 19 | [prompt-composition.md](prompt-composition.md) | evolving system prompt: role x layer matrix, tools / web search, debate orchestrator, recognition measurement |
+
 ## Phase timeline
 
 ```mermaid
@@ -110,7 +116,7 @@ exit criteria and its dependencies.
   coverage claim without a measured baseline.
 - **Shadow before enforce**: every new action ships judge-only, then is promoted
   per-action explicitly; regressions demote automatically.
-- **Fail toward safety**: low confidence, verification failure, or budget /
+- **Choose the safer default when the outcome is uncertain**: low confidence, verification failure, or budget /
   rate overflow degrades to HIL, never to an ungated auto-action.
 - **Safety invariants on every action**: stop-condition, rollback path,
   blast-radius limit, and audit-log entry

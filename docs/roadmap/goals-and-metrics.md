@@ -71,7 +71,7 @@ has an explicit threshold, not just a direction.
 | False-positive rate | incorrect actions ÷ actions taken | ≤ baseline; alert if > baseline + 1pp |
 | False-negative rate | missed true events ÷ true events | ≤ baseline; alert if > baseline + 1pp |
 | Rollback rate | actions rolled back ÷ actions executed | ≤ baseline rollback rate |
-| Policy-violation escapes | autonomous actions that violate policy and reach enforce | **exactly 0** (any escape is a stop-ship) |
+| Policy-violation escapes | autonomous actions that violate policy and reach enforce | **exactly 0** (any escape blocks release) |
 
 Thresholds are evaluated on the same measurement window and scenario-set version as the success
 metrics, so a gain and a guard breach are never compared across different data.
@@ -134,3 +134,12 @@ credited once measured against the baseline. Framing is intentionally "uses the 
 
 > Core insight: the gains are hypothesized to come from a structure that **uses the LLM less**,
 > not from a smarter LLM - and this claim stands or falls on the Phase 0 measurement.
+
+## Next steps
+
+| To learn about | Read |
+|----------------|------|
+| How the baseline is instrumented | [phases/phase-0-instrumentation.md](phases/phase-0-instrumentation.md) |
+| Per-tier coverage targets and the trust router | [../../.github/instructions/architecture.instructions.md](../../.github/instructions/architecture.instructions.md) |
+| Safety invariants that guard-metrics enforce | [../../.github/instructions/coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md) |
+| The KPI dashboard shipped with P0 | [../dashboards/phase-0-kpi.json](../dashboards/phase-0-kpi.json) |

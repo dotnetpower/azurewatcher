@@ -61,10 +61,11 @@ flowchart TB
 - Fork-friendly: to raise your T0 coverage, you add rules; you don't retrain
   a model.
 
-## Related
+## Next steps
 
-- [Risk tiers](../risk-tiers/) - how the outcome of T0/T1/T2 gets classified
-  into auto vs HIL.
-- Full engineering detail in the roadmap:
-  [architecture.instructions.md](../../reference/roadmap/) → *3-Tier Trust
-  Router*.
+| To learn about | Read |
+|----------------|------|
+| How T0/T1/T2 verdicts become auto vs HIL | [risk-tiers.md](risk-tiers.md) |
+| How new actions ship in shadow before enforcing | [shadow-then-enforce.md](shadow-then-enforce.md) |
+| The full control-loop design | [../../../.github/instructions/architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) |
+| The catalog schema and sources | [../../roadmap/rule-catalog-collection.md](../../roadmap/rule-catalog-collection.md) |

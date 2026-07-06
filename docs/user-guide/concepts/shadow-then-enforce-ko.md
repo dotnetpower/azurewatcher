@@ -2,7 +2,7 @@
 title: Shadow, then enforce
 description: 왜 모든 새 자율 액션이 shadow 로 먼저 배포되고, 어떻게 자동 실행 권한을 얻는가.
 translation_of: shadow-then-enforce.md
-translation_source_sha: b68f19cdb59945897361cde00fa6476dd10fc2a1
+translation_source_sha: 9de4333cfc49caf0fc8a1e8bcd8d6655c818195d
 translation_revised: 2026-07-06
 ---
 
@@ -56,7 +56,7 @@ flowchart LR
 승격과 강등은 같은 신호를 씁니다. 라이브로 enforce 된 능력이 자체 승격 기준을
 놓치기 시작하면 - 정확도가 떨어지거나, 정책 위반 escape 가 기록되거나, 운영자가
 override 를 열면 - 자동화가 다시 shadow 로 강등하고 온콜 팀에 알림이 갑니다.
-회귀를 고치는 것은 새 승격 사이클이지 hot-patch 가 아닙니다.
+회귀를 고치는 것은 새 승격 사이클이지 emergency fix 가 아닙니다.
 
 ## 왜 이게 운영자에게 중요한가
 
@@ -68,9 +68,11 @@ override 를 열면 - 자동화가 다시 shadow 로 강등하고 온콜 팀에 
 - **롤백이 저렴하다.** 승격과 강등이 같은 파이프라인을 지나기 때문에 능력을 강제
   실행에서 빼는 것은 영웅적 작업이 아니라 회귀에 대한 기본 반응입니다.
 
-## 관련
+## 다음 단계
 
-- [결정론 우선](../deterministic-first/) - shadow-then-enforce 가 돌아가는 티어.
-- [리스크 티어](../risk-tiers/) - shadow 능력이 낳는 액션의 auto vs HIL 의미.
-- 엔지니어링 상세: 로드맵의 *Safety Invariants* 절과 phase 문서들의 *Exit gate*
-  절.
+| 학습 대상 | 문서 |
+|-----------|------|
+| shadow-then-enforce가 도는 티어 | [deterministic-first-ko.md](deterministic-first-ko.md) |
+| 낳아진 액션의 auto vs HIL 의미 | [risk-tiers-ko.md](risk-tiers-ko.md) |
+| 모든 액션이 요구하는 안전 불변식 | [../../../.github/instructions/coding-conventions.instructions.md](../../../.github/instructions/coding-conventions.instructions.md) |
+| 능력을 승격시키는 페이즈 exit 게이트 | [../../roadmap/README-ko.md](../../roadmap/README-ko.md) |

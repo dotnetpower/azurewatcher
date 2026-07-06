@@ -2,7 +2,7 @@
 title: 결정론 우선(Deterministic first)
 description: AIOpsPilot 이 반복 가능한 다수는 규칙으로 해소하고 애매한 소수만 LLM 추론에 넘기는 이유.
 translation_of: deterministic-first.md
-translation_source_sha: 4f7824a023dcecbff158babd1293f102a7a44296
+translation_source_sha: 621072cb5d38f4e0374f7a78be419940f1f5a097
 translation_revised: 2026-07-06
 ---
 
@@ -58,8 +58,11 @@ flowchart TB
   케이스는 "최선의 추측"이 아니라 사람에게 escalation 됩니다.
 - 포크 친화적: T0 커버리지를 높이려면 규칙을 추가합니다. 모델을 재훈련하지 않습니다.
 
-## 관련
+## 다음 단계
 
-- [리스크 티어](../risk-tiers/) - T0/T1/T2 의 결과가 어떻게 auto vs HIL 로 분류되나.
-- 전체 엔지니어링 상세: 로드맵의
-  [architecture.instructions.md](../../reference/roadmap/) → *3-Tier Trust Router*.
+| 학습 대상 | 문서 |
+|-----------|------|
+| T0/T1/T2 판정이 auto vs HIL로 어떻게 분류되나 | [risk-tiers-ko.md](risk-tiers-ko.md) |
+| 새 액션이 shadow에서 enforce로 넘어가는 방식 | [shadow-then-enforce-ko.md](shadow-then-enforce-ko.md) |
+| 전체 컨트롤 루프 설계 | [../../../.github/instructions/architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) |
+| 카탈로그 스키마와 소스 | [../../roadmap/rule-catalog-collection-ko.md](../../roadmap/rule-catalog-collection-ko.md) |

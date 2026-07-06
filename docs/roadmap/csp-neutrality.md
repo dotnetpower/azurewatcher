@@ -141,7 +141,7 @@ CSP secret backend to the container's environment.
   process fails fast - it never falls back to a cached or embedded value
   ([security-and-identity.md](security-and-identity.md#secrets-and-config)).
 - **Rotation** is the injection layer's job; the app tolerates a rolled secret by re-reading
-  env on process restart. Long-lived caches of decrypted secret material are prohibited.
+  env on process restart. Long-lived caches of decrypted secret material aren't supported.
 
 **Anti-patterns (MUST NOT):**
 
@@ -330,10 +330,9 @@ the contract exists so a future adapter is additive.
 
 ## Related Docs
 
-- [tech-stack.md](tech-stack.md) - the concrete stack that realizes these contracts.
-- [deploy-and-onboard.md](deploy-and-onboard.md#azure-resource-inventory-minimum-set) - the
-  Azure resource inventory rendered from the contracts.
-- [security-and-identity.md](security-and-identity.md) - identity model and secret
-  handling in depth.
-- [project-structure.md](project-structure.md#injectable-seams) - the DI seams that
-  expose each contract to the composition root.
+| To learn about | Read |
+|----------------|------|
+| The concrete stack that realizes these contracts | [tech-stack.md](tech-stack.md) |
+| The Azure resource inventory rendered from the contracts | [deploy-and-onboard.md#azure-resource-inventory-minimum-set](deploy-and-onboard.md#azure-resource-inventory-minimum-set) |
+| The identity model and secret handling in depth | [security-and-identity.md](security-and-identity.md) |
+| The DI seams that expose each contract to the composition root | [project-structure.md#injectable-seams](project-structure.md#injectable-seams) |

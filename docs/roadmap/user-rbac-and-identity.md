@@ -380,7 +380,7 @@ Human users never hold PATs or long-lived secrets:
   `aiopspilot-api-dev` audience against a dev tenant.
 - **CI**: workload identity federation (OIDC), already required by
   [deployment.md](deployment.md). GitHub Actions and Azure DevOps both support it.
-- **PATs are prohibited**. Secret scanning in CI blocks accidental commits
+- **PATs aren't supported**. Secret scanning in CI blocks accidental commits
   ([coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md)).
 
 ### 10.7 Break-Glass Sign-In

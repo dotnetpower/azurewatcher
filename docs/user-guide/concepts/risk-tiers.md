@@ -65,7 +65,7 @@ the action to HIL automatically:
 4. **Audit-log entry** - append-only, immutable, and complete.
 
 If any of the four is missing, the action is by definition incomplete and
-routes to HIL instead. This is not an override - it is a definitional gate.
+routes to HIL instead. This is a required check, not an option.
 
 ## Human override is the top-of-stack control
 
@@ -73,11 +73,11 @@ Even when everything is green, an operator with the right role can pause,
 downgrade, or reject an AUTO action. Overrides are themselves audited. See
 the roadmap's *Human Override* section for the full mechanics.
 
-## Related
+## Next steps
 
-- [Deterministic first](../deterministic-first/) - how the router picks
-  which tier decides the case in the first place.
-- [Shadow, then enforce](../shadow-then-enforce/) - how a new action moves
-  from "watch-only" to "auto-execute".
-- [Approve a change](../../guides/approve-change/) - the operator's
-  everyday view of HIL.
+| To learn about | Read |
+|----------------|------|
+| How the router picks the tier | [deterministic-first.md](deterministic-first.md) |
+| How a new action goes from watch to auto-execute | [shadow-then-enforce.md](shadow-then-enforce.md) |
+| The operator view of a HIL approval | [../guides/approve-change.md](../guides/approve-change.md) |
+| The full risk-classification rulebook | [../../roadmap/risk-classification.md](../../roadmap/risk-classification.md) |

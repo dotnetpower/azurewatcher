@@ -2,7 +2,7 @@
 title: 변경 승인(Approve a change)
 description: AIOpsPilot 이 HIL 결정 대기로 큐잉한 변경을 어떻게 리뷰하고 승인(또는 거부)하는가.
 translation_of: approve-change.md
-translation_source_sha: 5557976a14d198a7f787cfa86e25a4618fb5669c
+translation_source_sha: afd669dff96b154574abad3def750290d1c230b7
 translation_revised: 2026-07-06
 ---
 
@@ -59,8 +59,11 @@ translation_revised: 2026-07-06
 Break-Glass 사용은 눈에 띄게 감사되고, 온콜 팀에 알림이 가며, 사후 정당화가 기대됩니다.
 이건 기초 규칙을 고치는 것의 대안이 아닙니다.
 
-## 관련
+## 다음 단계
 
-- [리스크 티어](../../concepts/risk-tiers/) - 지금 보고 있는 분류가 만들어진 방식.
-- [감사 로그 읽기](../read-audit-log/) - 판정 후 실제로 무엇이 일어났는지 추적.
-- [규칙 override](../override-a-rule/) - 같은 규칙이 계속 나쁜 HIL 요청을 낳는다면.
+| 학습 대상 | 문서 |
+|-----------|------|
+| 지금 보고 있는 분류가 만들어진 방식 | [../concepts/risk-tiers-ko.md](../concepts/risk-tiers-ko.md) |
+| 판정 후 실제로 무엇이 일어났는지 추적 | [read-audit-log-ko.md](read-audit-log-ko.md) |
+| 같은 규칙이 계속 나쁜 HIL 카드를 낳을 때 | [override-a-rule-ko.md](override-a-rule-ko.md) |
+| HIL 요청을 나르는 채널 | [../../roadmap/channels-and-notifications-ko.md](../../roadmap/channels-and-notifications-ko.md) |

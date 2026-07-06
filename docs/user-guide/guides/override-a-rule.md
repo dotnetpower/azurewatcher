@@ -86,9 +86,11 @@ rule itself may need a revision. Rather than accumulate overrides, open a
 PR against the rule catalog with the revised parameters and let it flow
 through the quality gate the same way any rule change does.
 
-## Related
+## Next steps
 
-- [Risk tiers](../../concepts/risk-tiers/) - what "severity" and
-  auto/HIL/DENY actually mean at execution time.
-- [Read the audit log](../read-audit-log/) - how to see whether an override
-  is actually taking effect.
+| To learn about | Read |
+|----------------|------|
+| What severity and auto/HIL/DENY mean at execution | [../concepts/risk-tiers.md](../concepts/risk-tiers.md) |
+| How to see whether your override is taking effect | [read-audit-log.md](read-audit-log.md) |
+| The exemption workflow (owner-approved, time-boxed) | [../../runbooks/exemption-workflow.md](../../runbooks/exemption-workflow.md) |
+| The full Human Override design | [../../../.github/instructions/architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) |

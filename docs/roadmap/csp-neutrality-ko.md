@@ -1,7 +1,7 @@
 ---
 title: CSP-중립성 계약
 translation_of: csp-neutrality.md
-translation_source_sha: 1f2fb57d06752dc6939e03bb0e53bd9530406b82
+translation_source_sha: 4b43b2396cc4ba2aeeed4c929d070b80ed8fe052
 translation_revised: 2026-07-06
 ---
 
@@ -321,9 +321,9 @@ Kafka 와이어 전용입니다. 프로바이더 네이티브 pub/sub 은 오직
 
 ## 관련 문서
 
-- [tech-stack-ko.md](tech-stack-ko.md) - 이 계약을 실현하는 구체 스택.
-- [deploy-and-onboard-ko.md](deploy-and-onboard-ko.md#azure-resource-inventory-minimum-set) -
-  계약에서 렌더링되는 Azure 리소스 인벤토리.
-- [security-and-identity-ko.md](security-and-identity-ko.md) - 신원 모델과 secret 취급 심층.
-- [project-structure-ko.md](project-structure-ko.md#injectable-seams) - 각 계약을
-  composition root 에 노출하는 DI 씸.
+| 학습 대상 | 문서 |
+|-----------|------|
+| 이 계약을 실현하는 구체 스택 | [tech-stack-ko.md](tech-stack-ko.md) |
+| 계약에서 렌더링되는 Azure 리소스 인벤토리 | [deploy-and-onboard-ko.md#azure-resource-inventory-minimum-set](deploy-and-onboard-ko.md#azure-resource-inventory-minimum-set) |
+| 신원 모델과 secret 취급 심층 | [security-and-identity-ko.md](security-and-identity-ko.md) |
+| 각 계약을 composition root에 노출하는 DI seam | [project-structure-ko.md#injectable-seams](project-structure-ko.md#injectable-seams) |

@@ -1,7 +1,7 @@
 ---
 title: 목표와 메트릭
 translation_of: goals-and-metrics.md
-translation_source_sha: 36263985f22863627cac3520fd69107356364f1a
+translation_source_sha: 09c87ef59567e49b9a79aa8c0e8a817bf6288acb
 translation_revised: 2026-07-06
 ---
 
@@ -22,7 +22,7 @@ translation_revised: 2026-07-06
 ## 주요 목표(Primary Objective)
 
 3개 초기 버티컬(Resilience, Change Safety, Cost Governance)을 가진 AIOps 접근에서 클라우드
-운영의 사람 개입을 최소화 - 대부분의 이벤트를 결정론적(T0/T1)으로 해결하고 LLM 추론(T2)은
+운영의 사람 검토을 최소화 - 대부분의 이벤트를 결정론적(T0/T1)으로 해결하고 LLM 추론(T2)은
 잔여 모호한 소수에 한정하며, **가드 메트릭을 회귀시키지 않은 채로** 달성합니다. 성공 메트릭을
 개선하면서 가드 메트릭을 악화시키는 자율성은 실패이지 승리가 아닙니다.
 
@@ -75,7 +75,7 @@ translation_revised: 2026-07-06
 | False-positive rate | 잘못된 액션 ÷ 실행된 액션 | ≤ 베이스라인. > 베이스라인 + 1pp면 알림 |
 | False-negative rate | 놓친 진짜 이벤트 ÷ 진짜 이벤트 | ≤ 베이스라인. > 베이스라인 + 1pp면 알림 |
 | Rollback rate | 롤백된 액션 ÷ 실행된 액션 | ≤ 베이스라인 롤백률 |
-| Policy-violation escapes | 정책을 위반하고 enforce에 도달한 자율 액션 | **정확히 0**(모든 escape은 stop-ship) |
+| Policy-violation escapes | 정책을 위반하고 enforce에 도달한 자율 액션 | **정확히 0**(모든 escape은 release-blocking) |
 
 임계값은 성공 메트릭과 동일한 측정 윈도우와 시나리오 세트 버전에서 평가되어, 이득과 가드 위반이
 다른 데이터에서 비교되지 않습니다.
@@ -137,3 +137,12 @@ translation_revised: 2026-07-06
 
 > 핵심 통찰: 이득은 더 똑똑한 LLM이 아니라 **LLM을 덜 쓰는** 구조에서 온다는 가설이며 - 이
 > 주장은 Phase 0 측정으로 살거나 죽습니다.
+
+## 다음 단계
+
+| 학습 대상 | 문서 |
+|-----------|------|
+| 베이스라인 계기화 방식 | [phases/phase-0-instrumentation-ko.md](phases/phase-0-instrumentation-ko.md) |
+| 티어별 커버리지 목표와 trust router | [../../.github/instructions/architecture.instructions.md](../../.github/instructions/architecture.instructions.md) |
+| Guard 메트릭이 강제하는 안전 불변식 | [../../.github/instructions/coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md) |
+| P0와 함께 배송되는 KPI 대시보드 | [../dashboards/phase-0-kpi.json](../dashboards/phase-0-kpi.json) |
