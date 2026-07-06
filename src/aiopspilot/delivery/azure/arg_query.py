@@ -34,11 +34,12 @@ What this cut ships (Step 3d)
 - Response → :class:`ResourceRecord` mapping (``resource_id`` = CSP-neutral
   path; ``provider_ref`` = raw ARM id; ``props`` carries a length-bounded
   subset of the ARG row).
-- **No link records emitted yet** — extracting ``contains`` /
-  ``attached_to`` / ``depends_on`` requires cross-resource queries and
-  lands with the risk-gate work in P2. This factory returns ``()`` for
-  links; the ``LinkRecord`` shape stays reserved so a follow-up wires
-  them without changing the seam.
+- **``contains`` link extraction** from the ARM id hierarchy: every
+  resource inside a resource-group emits a ``contains(rg, resource)``
+  edge. Purely a function of the ARM id — never reads untrusted vendor
+  ``properties`` for this — so the blast-radius seam has a real edge
+  set without a trust boundary. ``attached_to`` / ``depends_on`` still
+  require per-provider property parsing and land in a follow-up cycle.
 
 Safety / cost invariants
 ------------------------
@@ -184,7 +185,8 @@ class AzureArgQueryFactory:
                 return (), ()
 
             resources = await self._fetch_all_pages(resource_type=resource_type, arm_type=arm_type)
-            return resources, ()
+            links = _extract_rg_contains_links(resources)
+            return resources, links
 
         return _fetch
 
@@ -326,6 +328,9 @@ class AzureArgQueryFactory:
 # ---------------------------------------------------------------------------
 
 
+_RESOURCE_GROUP_TYPE: Final[str] = "resource-group"
+
+
 def _to_neutral_id(arm_id: str) -> str:
     """Fold the ARM path into a CSP-neutral resource identifier.
 
@@ -366,6 +371,65 @@ def _truncate_props(props: Mapping[str, Any], *, max_bytes: int) -> dict[str, An
             return result
 
     return {"_truncated": True, "resource_id_hint": props.get("name")}
+
+
+def _extract_rg_contains_links(
+    resources: Sequence[ResourceRecord],
+) -> tuple[LinkRecord, ...]:
+    """Emit one ``contains(resource-group, resource)`` edge per RG-scoped resource.
+
+    Purely a function of the ARM id (via ``provider_ref``) — never
+    reads ``props`` — so the trust boundary from vendor properties
+    stays intact. A resource without ``provider_ref`` (rare; the mapper
+    always sets it, but a hand-crafted fixture might not) is skipped.
+
+    Deduplication is by the standard link key
+    ``(from_id, link_type, to_id)`` — repeats within one shard collapse
+    into a single edge, matching the ``LinkRecord`` idempotency contract
+    on :class:`~aiopspilot.shared.providers.inventory.InventoryBatch`.
+
+    The Resource-Group node itself is emitted implicitly through the
+    edge's ``from_id`` — the resource-group ``ResourceRecord`` MAY or
+    MAY NOT appear in the same shard (the caller's shard set decides).
+    That is fine: the ingest layer stores links whose endpoints may
+    predate observation of the referenced node.
+    """
+    rg_marker = "/resourceGroups/"
+    seen: set[tuple[str, str, str]] = set()
+    links: list[LinkRecord] = []
+    for record in resources:
+        arm_id = record.provider_ref
+        if not arm_id:
+            continue
+        marker_idx = arm_id.lower().find(rg_marker.lower())
+        if marker_idx == -1:
+            continue
+        # Locate the segment immediately after the RG name; the parent
+        # RG's ARM id ends there. Guards against `contains(rg, rg)`
+        # self-edges when scanning the resource-group type itself.
+        after_marker = marker_idx + len(rg_marker)
+        next_slash = arm_id.find("/", after_marker)
+        if next_slash == -1:
+            # The resource IS a resource-group (arm_id ends after the
+            # RG name). No parent to emit — that edge lives on the
+            # subscription level, out of P1 scope.
+            continue
+        rg_arm_id = arm_id[:next_slash]
+        rg_neutral_id = _to_neutral_id(rg_arm_id)
+        key = (rg_neutral_id, "contains", record.resource_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        links.append(
+            LinkRecord(
+                from_id=rg_neutral_id,
+                from_type=_RESOURCE_GROUP_TYPE,
+                link_type="contains",
+                to_id=record.resource_id,
+                to_type=record.type,
+            )
+        )
+    return tuple(links)
 
 
 # Guard against accidental widening: this file MUST NOT introduce

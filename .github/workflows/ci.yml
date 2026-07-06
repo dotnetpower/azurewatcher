@@ -129,9 +129,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: pip-audit against pyproject.toml
+        # The action's `inputs` must be a project directory (which contains
+        # pyproject.toml), not the file itself — passing `pyproject.toml`
+        # sends pip-audit into requirements-file mode and it chokes on the
+        # first `[project]` table. Repo root has our only pyproject.toml.
         uses: pypa/gh-action-pip-audit@v1.0.8
         with:
-          inputs: pyproject.toml
+          inputs: .
 
   exemption-check:
     name: Exemption artifact validation

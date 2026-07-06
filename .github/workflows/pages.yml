@@ -41,7 +41,15 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Configure Pages
+        # `enablement: true` turns Pages on via the REST API the first time
+        # it runs against a repository that has never had Pages configured
+        # (default is false → the action 404s with "Get Pages site failed"
+        # until an admin flips the switch in Settings → Pages). Requires
+        # `pages: write` which this workflow already grants.
+        id: pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Build site
         working-directory: site

@@ -174,7 +174,14 @@ async def test_single_page_query_maps_to_resource_records() -> None:
     assert record.provider_ref.endswith("/storageAccounts/stg1")
     # CSP-neutral id starts with `resource-group` prefix (see `_to_neutral_id`).
     assert record.resource_id.startswith("resource-group/rg-example/")
-    assert links == ()
+    # `contains(rg-example, stg1)` edge is derived from the ARM id.
+    assert len(links) == 1
+    (edge,) = links
+    assert edge.link_type == "contains"
+    assert edge.from_id == "resource-group/rg-example"
+    assert edge.from_type == "resource-group"
+    assert edge.to_id == record.resource_id
+    assert edge.to_type == "object-storage"
 
     # Bearer auth + Kusto shape assertions.
     assert len(seen_requests) == 1
@@ -654,3 +661,114 @@ async def test_row_property_with_null_value_is_dropped() -> None:
     assert "location" not in props
     assert "tags" not in props
     assert props.get("properties") == {"public_access": "disabled"}
+
+
+# ---------------------------------------------------------------------------
+# _extract_rg_contains_links — pure helper, no HTTP
+# ---------------------------------------------------------------------------
+
+
+def _record(
+    *,
+    arm_id: str,
+    rtype: str = "object-storage",
+) -> ResourceRecord:
+    from aiopspilot.delivery.azure.arg_query import _to_neutral_id
+
+    return ResourceRecord(
+        resource_id=_to_neutral_id(arm_id),
+        type=rtype,
+        provider_ref=arm_id,
+    )
+
+
+def test_extract_rg_contains_returns_empty_for_no_resources() -> None:
+    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+
+    assert _extract_rg_contains_links(()) == ()
+
+
+def test_extract_rg_contains_emits_edge_for_rg_scoped_resource() -> None:
+    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+
+    rec = _record(
+        arm_id=(
+            "/subscriptions/00000000-0000-0000-0000-000000000001/"
+            "resourceGroups/rg-example/providers/Microsoft.Storage/"
+            "storageAccounts/stg1"
+        )
+    )
+    (edge,) = _extract_rg_contains_links([rec])
+    assert edge.link_type == "contains"
+    assert edge.from_id == "resource-group/rg-example"
+    assert edge.from_type == "resource-group"
+    assert edge.to_id == rec.resource_id
+    assert edge.to_type == "object-storage"
+
+
+def test_extract_rg_contains_skips_resource_group_itself() -> None:
+    """A resource-group RECORD has no RG parent within P1 scope
+    (its parent is the subscription, which lands in a later phase)."""
+    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+
+    rg_record = _record(
+        arm_id=("/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-example"),
+        rtype="resource-group",
+    )
+    assert _extract_rg_contains_links([rg_record]) == ()
+
+
+def test_extract_rg_contains_skips_resource_without_provider_ref() -> None:
+    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+
+    hand_crafted = ResourceRecord(
+        resource_id="resource-group/rg-x/providers/microsoft.storage/x/y",
+        type="object-storage",
+        provider_ref=None,
+    )
+    assert _extract_rg_contains_links([hand_crafted]) == ()
+
+
+def test_extract_rg_contains_skips_subscription_scoped_resource() -> None:
+    """Role definitions and similar sub-scoped resources have no RG segment."""
+    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+
+    rec = _record(
+        arm_id=(
+            "/subscriptions/00000000-0000-0000-0000-000000000001/"
+            "providers/Microsoft.Authorization/roleDefinitions/xyz"
+        )
+    )
+    assert _extract_rg_contains_links([rec]) == ()
+
+
+def test_extract_rg_contains_deduplicates_repeats_within_shard() -> None:
+    """Duplicate `(rg, contains, resource)` triples collapse into one edge."""
+    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+
+    arm_id = (
+        "/subscriptions/00000000-0000-0000-0000-000000000001/"
+        "resourceGroups/rg-a/providers/Microsoft.Storage/storageAccounts/s1"
+    )
+    dup = _record(arm_id=arm_id)
+    # Two records with identical resource_id — the extractor dedupes.
+    (edge,) = _extract_rg_contains_links([dup, dup])
+    assert edge.from_id == "resource-group/rg-a"
+
+
+def test_extract_rg_contains_case_insensitive_marker() -> None:
+    """The `/resourceGroups/` marker is matched case-insensitively so a
+    provider variation (`/resourcegroups/` seen in some legacy ids)
+    still yields an edge."""
+    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+
+    rec = _record(
+        arm_id=(
+            "/subscriptions/00000000-0000-0000-0000-000000000001/"
+            "resourcegroups/rg-lower/providers/Microsoft.Storage/"
+            "storageAccounts/lc"
+        )
+    )
+    (edge,) = _extract_rg_contains_links([rec])
+    assert edge.from_id == "resource-group/rg-lower"
+    assert edge.to_type == "object-storage"
