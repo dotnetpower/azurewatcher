@@ -26,6 +26,15 @@ from .direct_api import (
     DirectApiRequest,
 )
 from .event_bus import EventBus, EventEnvelope, PublishReceipt
+from .hil_registry import (
+    HilApprovalDecision,
+    HilApprovalRegistry,
+    HilDecisionReceipt,
+    HilItemAlreadyResolvedError,
+    HilItemNotFoundError,
+    HilPendingItem,
+    HilRegistryError,
+)
 from .inventory import Inventory, InventoryBatch, LinkRecord, ResourceRecord
 from .remediation_pr import (
     PublishReceipt as PrPublishReceipt,
@@ -52,6 +61,13 @@ __all__ = [
     "DirectApiRequest",
     "EventBus",
     "EventEnvelope",
+    "HilApprovalDecision",
+    "HilApprovalRegistry",
+    "HilDecisionReceipt",
+    "HilItemAlreadyResolvedError",
+    "HilItemNotFoundError",
+    "HilPendingItem",
+    "HilRegistryError",
     "IdentityToken",
     "Inventory",
     "InventoryBatch",

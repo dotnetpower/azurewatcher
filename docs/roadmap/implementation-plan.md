@@ -406,8 +406,20 @@ prompt-composition Wave 3 step B pipeline slice 3 leftover
   invokes ShadowExecutor or the real PR publisher, and writes exactly
   one `console.simulate_change` audit entry so an operator can
   discover the run via `query_audit`. Contributor floor,
-  `side_effect_class = 'simulate'`. `approve_hil` / `list_hil` /
-  `run_runbook` / `activate_break_glass` are the remaining slices.
+  `side_effect_class = 'simulate'`. **`list_hil` + `approve_hil`
+  shipped** (same module): the Approver-scoped queue projection lives
+  under a new CSP-neutral `HilApprovalRegistry` Protocol
+  (`shared/providers/hil_registry.py` + fake). `list_hil` returns full
+  Approver-visible detail (submitter_oid, action_id, citing rules),
+  distinct from the Reader dashboard tile in the read-API. `approve_hil`
+  enforces four fail-closed invariants BEFORE the registry write:
+  existence check, verifier re-check (`action_kind` still in the
+  shipped catalog), `no_self_approval` (`principal.id ==
+  submitter_oid` refused), and terminal-state respect
+  (`HilItemAlreadyResolvedError` short-circuits without a second
+  write). Every terminal path writes exactly one
+  `console.approve_hil` audit entry. `run_runbook` /
+  `activate_break_glass` are the remaining slices.
 - **W1.2** `TeamsBotChannel` and `SlackBotChannel` (pull). Reuse the
   push channel credentials in
   [config/notifications-matrix.yaml](../../config/notifications-matrix.yaml).

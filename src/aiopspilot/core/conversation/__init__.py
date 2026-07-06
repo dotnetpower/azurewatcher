@@ -60,12 +60,15 @@ from aiopspilot.core.conversation.tools import (
     ToolResult,
 )
 from aiopspilot.core.conversation.write_tools import (
+    ApproveHilTool,
     AuditWriter,
+    ListHilTool,
     SimulateChangeTool,
 )
 
 __all__ = [
     "AbstainResult",
+    "ApproveHilTool",
     "AuditReader",
     "AuditWriter",
     "ConversationCoordinator",
@@ -75,6 +78,7 @@ __all__ = [
     "ExplainVerdictTool",
     "ExploreCatalogTool",
     "InventoryProvider",
+    "ListHilTool",
     "Principal",
     "QueryAuditTool",
     "QueryInventoryTool",

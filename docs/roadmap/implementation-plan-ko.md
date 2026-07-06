@@ -1,7 +1,7 @@
 ---
 title: 구현 계획 (표준 세트)
 translation_of: implementation-plan.md
-translation_source_sha: 17c0ed91a7d4c14c06a16f418ff489655cfa7c1d
+translation_source_sha: 0d654b70b63415ffbfa9a9667aeb65bdb2df641c
 translation_revised: 2026-07-06
 ---
 
@@ -393,8 +393,18 @@ prompt-composition Wave 3 step B pipeline slice 3 잔재
   ShadowExecutor나 실제 PR publisher는 절대 호출하지 않으며,
   `query_audit`로 발견 가능하도록 정확히 하나의
   `console.simulate_change` 감사 엔트리를 기록. Contributor floor,
-  `side_effect_class = 'simulate'`. `approve_hil` / `list_hil` /
-  `run_runbook` / `activate_break_glass`는 남은 슬라이스.
+  `side_effect_class = 'simulate'`. **`list_hil` + `approve_hil`
+  배송 완료** (같은 모듈): Approver-scoped 큐 projection은 새 CSP-중립
+  `HilApprovalRegistry` Protocol (`shared/providers/hil_registry.py`
+  + fake) 위에 얹혀 있음. `list_hil`은 Approver-visible full detail
+  (submitter_oid, action_id, citing rules)을 반환하며, read-API의
+  Reader 대시보드 tile과 구분됨. `approve_hil`은 registry write **이전**에
+  4개 fail-closed 불변식을 적용: 존재 검사, verifier 재검사
+  (`action_kind`가 shipped 카탈로그에 여전히 존재), `no_self_approval`
+  (`principal.id == submitter_oid` 거부), terminal-state 존중
+  (`HilItemAlreadyResolvedError`는 두 번째 write 없이 short-circuit).
+  모든 terminal path가 정확히 하나의 `console.approve_hil` 감사
+  엔트리를 기록. `run_runbook` / `activate_break_glass`는 남은 슬라이스.
 - **W1.2** `TeamsBotChannel`과 `SlackBotChannel` (pull).
   [config/notifications-matrix.yaml](../../config/notifications-matrix.yaml)
   의 push 채널 자격증명 재사용.

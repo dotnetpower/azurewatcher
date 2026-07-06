@@ -52,6 +52,14 @@ from aiopspilot.core.executor.renderer import (
 from aiopspilot.core.tiers.t0_deterministic import T0Engine
 from aiopspilot.core.trust_router import RoutingTier, TrustRouter
 from aiopspilot.shared.contracts.models import Event, Mode, Rule
+from aiopspilot.shared.providers.hil_registry import (
+    HilApprovalDecision,
+    HilApprovalRegistry,
+    HilItemAlreadyResolvedError,
+    HilItemNotFoundError,
+    HilPendingItem,
+    HilRegistryError,
+)
 
 
 class SimulateChangeTool:
@@ -348,6 +356,327 @@ class AuditWriter:
         asyncio.run(self._audit_store.append_audit_entry(entry))
         return audit_id
 
+    def write_approval_entry(
+        self,
+        *,
+        item: HilPendingItem,
+        principal: Principal,
+        decision: HilApprovalDecision,
+        outcome: str,
+        justification: str,
+        receipt_ref: str,
+        already_recorded: bool,
+    ) -> str:
+        """Append one ``console.approve_hil`` audit entry.
+
+        ``outcome`` mirrors :attr:`ToolResult.status` (`ok` / `error` /
+        `abstain`) so the audit trail records both the operator's
+        recorded ``decision`` and the tool's outcome (they diverge on
+        already-recorded replays, verifier failures, etc.).
+        """
+        import asyncio
+
+        audit_id = str(uuid4())
+        entry: dict[str, Any] = {
+            "audit_id": audit_id,
+            "event_id": item.event_id,
+            "action_id": item.action_id,
+            "action_kind": "console.approve_hil",
+            "actor": principal.id,
+            "actor_role": principal.role.value,
+            "decision": decision.value,
+            "outcome": outcome,
+            "mode": Mode.SHADOW.value,
+            "stage": "approve",
+            "recorded_at": datetime.now(tz=UTC).isoformat(),
+            "idempotency_key": item.idempotency_key,
+            "approval_id": item.approval_id,
+            "submitter_oid": item.submitter_oid,
+            "target_resource_ref": item.target_resource_ref,
+            "citing_rule_ids": list(item.citing_rule_ids),
+            "action_kind_dispatched": item.action_kind,
+            "receipt_ref": receipt_ref,
+            "already_recorded": already_recorded,
+            "justification": justification,
+        }
+        asyncio.run(self._audit_store.append_audit_entry(entry))
+        return audit_id
+
+
+# ---------------------------------------------------------------------------
+# ListHilTool - Approver-scoped queue projection
+# ---------------------------------------------------------------------------
+
+
+class ListHilTool:
+    """Return the pending HIL items visible to Approvers.
+
+    Distinct from the read-API's dashboard tile which the Reader sees:
+    that surface shows count + short reason only, whereas this tool
+    returns the full item detail (including the submitter identity)
+    because it is the input Approvers use to decide `approve_hil`.
+
+    Arguments (``arguments`` mapping):
+
+    - ``limit`` (int, optional; default 20, capped 100).
+
+    The tool is read-only on the registry: it never mutates queue state
+    and never writes an audit entry. Approver-floor RBAC is what keeps
+    submitter identity from leaking to Readers.
+    """
+
+    name = "list_hil"
+    description = (
+        "Return the pending HIL items with full Approver-visible detail "
+        "(idempotency_key, submitter, action, resource). Read-only."
+    )
+    rbac_floor: Role = Role.APPROVER
+    side_effect_class: SideEffectClass = "read"
+
+    def __init__(self, *, registry: HilApprovalRegistry) -> None:
+        self._registry = registry
+
+    def call(
+        self,
+        *,
+        arguments: Mapping[str, Any],
+        principal: Principal,  # noqa: ARG002 - RBAC applied by coordinator
+    ) -> ToolResult:
+        import asyncio
+
+        raw_limit = arguments.get("limit", 20)
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            return ToolResult(
+                status="error",
+                preview="list_hil 'limit' MUST be an integer",
+            )
+        if limit < 1:
+            limit = 1
+        elif limit > 100:
+            limit = 100
+
+        items = asyncio.run(self._registry.list_pending(limit=limit))
+        payload = [_project_pending_item(item) for item in items]
+        preview = f"list_hil: {len(payload)} pending item(s)"
+        return ToolResult(
+            status="ok" if payload else "abstain",
+            data={"items": payload, "limit": limit},
+            preview=preview,
+            evidence_refs=tuple(f"hil:{item.idempotency_key}" for item in items),
+        )
+
+
+# ---------------------------------------------------------------------------
+# ApproveHilTool - record approver decision + audit
+# ---------------------------------------------------------------------------
+
+
+class ApproveHilTool:
+    """Resolve one queued HIL item.
+
+    Invariants enforced (fail-closed) BEFORE the registry write:
+
+    1. **Existence** - the ``idempotency_key`` MUST match a currently
+       pending item; ``HilItemNotFoundError`` degrades to status='error'.
+    2. **Verifier re-check** - the item's ``action_kind`` MUST still
+       exist in the ActionType catalog (a fork MAY tighten the check
+       further; see :attr:`known_action_kinds`).
+    3. **No self-approval** - ``principal.id == item.submitter_oid``
+       is refused with status='error'. Comparison uses the OID-shaped
+       principal id (the console coordinator populates ``Principal.id``
+       from the Entra ``oid`` claim) per the API-token-validation section
+       of ``docs/roadmap/user-rbac-and-identity.md``.
+    4. **Terminal-state respect** - a conflicting re-decision on an
+       already-resolved key surfaces the registry's
+       :class:`HilItemAlreadyResolvedError` as status='error' without a
+       second write.
+
+    Arguments (``arguments`` mapping):
+
+    - ``idempotency_key`` (str, required)
+    - ``decision`` (str, required) - ``approve`` or ``reject``.
+    - ``justification`` (str, optional) - short free-form reason.
+
+    Every terminal path writes exactly one ``console.approve_hil``
+    audit entry (kind='approve' or 'reject' recorded on the entry;
+    'outcome' mirrors the tool's ToolResult.status).
+    """
+
+    name = "approve_hil"
+    description = (
+        "Resolve one queued HIL item. Requires idempotency_key + "
+        "decision ('approve' or 'reject'). Verifier re-check + "
+        "no_self_approval invariant applied."
+    )
+    rbac_floor: Role = Role.APPROVER
+    side_effect_class: SideEffectClass = "approve"
+
+    def __init__(
+        self,
+        *,
+        registry: HilApprovalRegistry,
+        audit_writer: AuditWriter,
+        known_action_kinds: frozenset[str] | None = None,
+    ) -> None:
+        self._registry = registry
+        self._audit_writer = audit_writer
+        self.known_action_kinds: frozenset[str] = (
+            known_action_kinds if known_action_kinds is not None else frozenset()
+        )
+
+    def call(
+        self,
+        *,
+        arguments: Mapping[str, Any],
+        principal: Principal,
+    ) -> ToolResult:
+        import asyncio
+
+        idempotency_key = str(arguments.get("idempotency_key", "")).strip()
+        raw_decision = str(arguments.get("decision", "")).strip().lower()
+        justification = _optional_str(arguments, "justification", default="").strip()
+
+        if not idempotency_key:
+            return ToolResult(
+                status="error",
+                preview="approve_hil requires a non-empty 'idempotency_key'",
+            )
+        try:
+            decision = HilApprovalDecision(raw_decision)
+        except ValueError:
+            return ToolResult(
+                status="error",
+                preview=(
+                    f"approve_hil 'decision' MUST be 'approve' or 'reject'; got {raw_decision!r}"
+                ),
+            )
+
+        # Fetch pending item (existence check).
+        item = asyncio.run(self._registry.get_pending(idempotency_key))
+        if item is None:
+            return ToolResult(
+                status="error",
+                preview=(f"approve_hil: no pending item for idempotency_key={idempotency_key!r}"),
+            )
+
+        # Verifier re-check: action_kind still known.
+        if self.known_action_kinds and item.action_kind not in self.known_action_kinds:
+            return ToolResult(
+                status="error",
+                preview=(
+                    f"approve_hil: action_kind {item.action_kind!r} is no longer "
+                    "in the shipped catalog; verifier re-check failed"
+                ),
+            )
+
+        # No-self-approval invariant. Comparison uses Principal.id which
+        # the console coordinator populates from the Entra 'oid' claim.
+        if principal.id and principal.id == item.submitter_oid:
+            return ToolResult(
+                status="error",
+                preview=(
+                    "approve_hil: no_self_approval invariant would be "
+                    "violated (approver.oid == submitter_oid)"
+                ),
+            )
+
+        # Registry write. Idempotent replays return already_recorded=True
+        # and are still audited so the trail records the replay path.
+        try:
+            receipt = asyncio.run(
+                self._registry.record_decision(
+                    idempotency_key=idempotency_key,
+                    decision=decision,
+                    approver_oid=principal.id,
+                    justification=justification,
+                )
+            )
+        except HilItemAlreadyResolvedError as exc:
+            audit_id = self._audit_writer.write_approval_entry(
+                item=item,
+                principal=principal,
+                decision=decision,
+                outcome="error",
+                justification=justification,
+                receipt_ref="",
+                already_recorded=False,
+            )
+            return ToolResult(
+                status="error",
+                data={"audit_id": audit_id, "reason": str(exc)},
+                preview=f"approve_hil: {exc}",
+                evidence_refs=(f"audit:{audit_id}",),
+            )
+        except HilItemNotFoundError:
+            # Race between get_pending and record_decision - fail closed.
+            return ToolResult(
+                status="error",
+                preview=(
+                    f"approve_hil: item {idempotency_key!r} disappeared "
+                    "between existence check and decision write"
+                ),
+            )
+        except HilRegistryError as exc:
+            return ToolResult(
+                status="error",
+                preview=f"approve_hil: registry error [{exc.kind}] {exc}",
+            )
+
+        outcome_status: Literal["ok", "error", "abstain"] = "ok"
+        audit_id = self._audit_writer.write_approval_entry(
+            item=item,
+            principal=principal,
+            decision=decision,
+            outcome=outcome_status,
+            justification=justification,
+            receipt_ref=receipt.receipt_ref,
+            already_recorded=receipt.already_recorded,
+        )
+        preview = (
+            f"approve_hil[{item.action_kind}]: decision={decision.value} "
+            f"receipt={receipt.receipt_ref}" + (" (replay)" if receipt.already_recorded else "")
+        )
+        return ToolResult(
+            status=outcome_status,
+            data={
+                "audit_id": audit_id,
+                "receipt_ref": receipt.receipt_ref,
+                "already_recorded": receipt.already_recorded,
+                "decision": decision.value,
+                "idempotency_key": item.idempotency_key,
+            },
+            preview=preview,
+            evidence_refs=(f"audit:{audit_id}", f"hil:{item.idempotency_key}"),
+        )
+
+
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+
+def _project_pending_item(item: HilPendingItem) -> dict[str, Any]:
+    """Reduce a :class:`HilPendingItem` to a CLI-friendly projection.
+
+    Kept explicit (no ``dataclasses.asdict``) so the shape is stable
+    across dataclass evolution.
+    """
+    return {
+        "idempotency_key": item.idempotency_key,
+        "approval_id": item.approval_id,
+        "event_id": item.event_id,
+        "action_id": item.action_id,
+        "action_kind": item.action_kind,
+        "target_resource_ref": item.target_resource_ref,
+        "reason": item.reason,
+        "submitter_oid": item.submitter_oid,
+        "citing_rule_ids": list(item.citing_rule_ids),
+        "requested_at": item.requested_at.isoformat() if item.requested_at else None,
+        "correlation_id": item.correlation_id,
+    }
+
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -418,6 +747,8 @@ _ = UUID
 
 
 __all__ = [
+    "ApproveHilTool",
     "AuditWriter",
+    "ListHilTool",
     "SimulateChangeTool",
 ]
