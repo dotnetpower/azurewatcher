@@ -1,7 +1,7 @@
 ---
 title: 구현 계획 (표준 세트)
 translation_of: implementation-plan.md
-translation_source_sha: a4845c8fbcf2f4f1d297c99f63663f9ec5687287
+translation_source_sha: 6f189919550388bb49d101a6892e2281e901f6cb
 translation_revised: 2026-07-06
 ---
 
@@ -446,6 +446,14 @@ W2 뒤. [execution-model.md § Month 1](execution-model.md#month-1) 과
 
 - **M1.1** `LiveBlastProbe` Protocol, `NoOpBlastProbe`,
   `AzureMonitorBlastProbe` (KQL과 Metrics API 어댑터).
+  **Upstream 배송 완료**: CSP-중립 :class:`LiveBlastProbe` Protocol +
+  :class:`NoOpBlastProbe` fake (`shared/providers/blast_probe.py` +
+  `shared/providers/testing/blast_probe.py`)에 네 값 enum
+  (`quiet / active / overloaded / no_opinion`),
+  :class:`BlastProbeTimeoutError` / :class:`BlastProbeConfigError`
+  에러 surface, `force_verdict` / `next_timeout` / `next_error`
+  테스트 훅을 담아 shipping. 실제 :class:`AzureMonitorBlastProbe`는
+  포크가 authoring하는 delivery 어댑터.
 - **M1.2** [rule-catalog/probes/](../../rule-catalog/probes/) 아래의
   스타터 프로브: `vm_traffic_last_5m`, `storage_access_log`,
   `lb_backend_health`.

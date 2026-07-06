@@ -463,6 +463,15 @@ Follows W2. Implements
 
 - **M1.1** `LiveBlastProbe` Protocol, `NoOpBlastProbe`, and
   `AzureMonitorBlastProbe` (KQL and Metrics API adapters).
+  **Shipped upstream**: the CSP-neutral :class:`LiveBlastProbe`
+  Protocol + :class:`NoOpBlastProbe` fake
+  (`shared/providers/blast_probe.py` +
+  `shared/providers/testing/blast_probe.py`) with the four-verdict
+  enum (`quiet / active / overloaded / no_opinion`),
+  :class:`BlastProbeTimeoutError` / :class:`BlastProbeConfigError`
+  error surface, and `force_verdict` / `next_timeout` / `next_error`
+  test hooks. The real :class:`AzureMonitorBlastProbe` is a
+  fork-authored delivery adapter.
 - **M1.2** Starter probes under
   [rule-catalog/probes/](../../rule-catalog/probes/):
   `vm_traffic_last_5m`, `storage_access_log`, `lb_backend_health`.
