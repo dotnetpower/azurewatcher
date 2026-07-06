@@ -10,6 +10,9 @@ Public exports (P2-B):
 - :class:`~aiopspilot.core.quality_gate.gate.CrossCheckModel` /
   :class:`~aiopspilot.core.quality_gate.gate.VerifierPolicy` /
   :class:`~aiopspilot.core.quality_gate.gate.GroundingSource` — DI seams.
+- :class:`~aiopspilot.core.quality_gate.rule_based.RuleBasedVerifier` —
+  the first non-fake :class:`VerifierPolicy`; denies any candidate
+  ``action_type`` no cited rule authorizes on the target resource type.
 """
 
 from aiopspilot.core.quality_gate.gate import (
@@ -22,6 +25,7 @@ from aiopspilot.core.quality_gate.gate import (
     QualityOutcome,
     VerifierPolicy,
 )
+from aiopspilot.core.quality_gate.rule_based import RuleBasedVerifier
 
 __all__ = [
     "CrossCheckModel",
@@ -31,5 +35,6 @@ __all__ = [
     "QualityGate",
     "QualityGateConfig",
     "QualityOutcome",
+    "RuleBasedVerifier",
     "VerifierPolicy",
 ]
