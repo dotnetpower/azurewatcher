@@ -38,8 +38,15 @@ What this cut ships (Step 3d)
   resource inside a resource-group emits a ``contains(rg, resource)``
   edge. Purely a function of the ARM id — never reads untrusted vendor
   ``properties`` for this — so the blast-radius seam has a real edge
-  set without a trust boundary. ``attached_to`` / ``depends_on`` still
-  require per-provider property parsing and land in a follow-up cycle.
+  set without a trust boundary.
+- **``attached_to`` link extraction** from a narrow whitelist of
+  well-known ``properties`` paths (``subnet.id`` /
+  ``networkSecurityGroup.id`` / ``publicIPAddress.id``). The referenced
+  target's CSP-neutral ``resource_type`` is resolved through the
+  vocabulary's ``azure_arm_type`` reverse map; targets whose ARM type
+  is not in the vocabulary are dropped rather than emitted with an
+  unknown ``to_type``. ``depends_on`` still requires deeper property
+  walking and lands in a follow-up cycle.
 
 Safety / cost invariants
 ------------------------
@@ -165,6 +172,10 @@ class AzureArgQueryFactory:
         self._resource_types: Final[ResourceTypeRegistry] = resource_types
         self._http: Final[httpx.AsyncClient] = http_client
         self._config: Final[AzureArgQueryFactoryConfig] = config
+        # Pre-compute the ARM-type → neutral-id reverse map once. Every
+        # `attached_to` extraction hits this map per referenced id; a
+        # fresh iteration per row would be O(vocabulary_size * rows).
+        self._arm_to_neutral: Final[Mapping[str, str]] = _build_arm_to_neutral_map(resource_types)
 
     # ------------------------------------------------------------------
     # Public API
@@ -184,9 +195,11 @@ class AzureArgQueryFactory:
                 # `secret-store` variant with no direct ARM equivalent).
                 return (), ()
 
-            resources = await self._fetch_all_pages(resource_type=resource_type, arm_type=arm_type)
-            links = _extract_rg_contains_links(resources)
-            return resources, links
+            resources, attached_links = await self._fetch_all_pages(
+                resource_type=resource_type, arm_type=arm_type
+            )
+            contains_links = _extract_rg_contains_links(resources)
+            return resources, (*contains_links, *attached_links)
 
         return _fetch
 
@@ -221,7 +234,7 @@ class AzureArgQueryFactory:
 
     async def _fetch_all_pages(
         self, *, resource_type: str, arm_type: str
-    ) -> tuple[ResourceRecord, ...]:
+    ) -> tuple[tuple[ResourceRecord, ...], tuple[LinkRecord, ...]]:
         query = self._build_query(arm_type=arm_type)
         url = (
             f"{self._config.arg_endpoint.rstrip('/')}"
@@ -237,6 +250,7 @@ class AzureArgQueryFactory:
         }
 
         collected: list[ResourceRecord] = []
+        collected_links: list[LinkRecord] = []
         skip_token: str | None = None
 
         for page in range(self._config.max_pages):
@@ -288,6 +302,14 @@ class AzureArgQueryFactory:
                 record = self._map_row(row, resource_type=resource_type)
                 if record is not None:
                     collected.append(record)
+                    # Extract attached_to links from the untruncated row
+                    # (props truncation happens inside _map_row and could
+                    # otherwise drop the referenced ids).
+                    collected_links.extend(
+                        _extract_attached_to_links_from_row(
+                            row, child=record, arm_to_neutral=self._arm_to_neutral
+                        )
+                    )
 
             next_token = payload.get("$skipToken")
             if not isinstance(next_token, str) or not next_token:
@@ -300,7 +322,7 @@ class AzureArgQueryFactory:
                 "narrow the query or raise max_pages via config"
             )
 
-        return tuple(collected)
+        return tuple(collected), tuple(collected_links)
 
     def _map_row(self, row: Mapping[str, Any], *, resource_type: str) -> ResourceRecord | None:
         arm_id = row.get("id")
@@ -427,6 +449,113 @@ def _extract_rg_contains_links(
                 link_type="contains",
                 to_id=record.resource_id,
                 to_type=record.type,
+            )
+        )
+    return tuple(links)
+
+
+# Well-known top-level `properties.<key>.id` paths that carry ARM ids to
+# a referenced resource. Deliberately narrow so a change here is a
+# reviewable, versioned expansion — never a wildcard walk of untrusted
+# vendor data.
+_ATTACHED_TO_PROPERTY_KEYS: Final[tuple[str, ...]] = (
+    "subnet",
+    "networkSecurityGroup",
+    "publicIPAddress",
+)
+
+
+def _build_arm_to_neutral_map(registry: ResourceTypeRegistry) -> dict[str, str]:
+    """Reverse ``ResourceTypeRegistry.get(id).azure_arm_type`` lookup.
+
+    Case-insensitive matching — ARM type spellings occasionally drift
+    (`Microsoft.Storage/storageAccounts` vs
+    `microsoft.storage/storageaccounts` on legacy events); the map keys
+    are lowered and the callers lowercase their inputs.
+    """
+    out: dict[str, str] = {}
+    for entry in registry:
+        if entry.azure_arm_type is None:
+            continue
+        out[entry.azure_arm_type.lower()] = entry.id
+    return out
+
+
+def _arm_id_to_type(arm_id: str) -> str | None:
+    """Extract the ``Microsoft.X/Y[/Z]`` type suffix from a full ARM id.
+
+    Handles the multi-segment case (``.../providers/Microsoft.Network/
+    virtualNetworks/vnet1/subnets/sub1`` → ``Microsoft.Network/
+    virtualNetworks/subnets``). Returns ``None`` when the id does not
+    have a ``/providers/`` segment.
+    """
+    marker = "/providers/"
+    idx = arm_id.find(marker)
+    if idx == -1:
+        return None
+    parts = arm_id[idx + len(marker) :].split("/")
+    if len(parts) < 2:
+        return None
+    # parts = [namespace, primary_type, name, sub_type, sub_name, ...]
+    # Rebuild the type path by taking every OTHER segment starting at
+    # index 1: namespace/primary/sub1/sub2/...
+    provider = parts[0]
+    type_segments: list[str] = []
+    # parts pattern after provider: [type_a, name_a, type_b, name_b, ...]
+    for i in range(1, len(parts), 2):
+        type_segments.append(parts[i])
+    if not type_segments:
+        return None
+    return f"{provider}/{'/'.join(type_segments)}"
+
+
+def _extract_attached_to_links_from_row(
+    row: Mapping[str, Any],
+    *,
+    child: ResourceRecord,
+    arm_to_neutral: Mapping[str, str],
+) -> tuple[LinkRecord, ...]:
+    """Walk the whitelisted ``properties.<key>.id`` paths.
+
+    Emits one ``attached_to(child, target)`` per resolvable reference:
+
+    - The referenced value MUST be a non-empty string ARM id.
+    - The referenced ARM type MUST be in the vocabulary's reverse map;
+      unmapped targets are dropped (safer than emitting an unknown
+      ``to_type`` that the ontology would reject at ingest).
+    - Duplicates within one row collapse into a single edge.
+    """
+    properties = row.get("properties")
+    if not isinstance(properties, Mapping):
+        return ()
+
+    seen: set[tuple[str, str, str]] = set()
+    links: list[LinkRecord] = []
+    for key in _ATTACHED_TO_PROPERTY_KEYS:
+        nested = properties.get(key)
+        if not isinstance(nested, Mapping):
+            continue
+        ref_id = nested.get("id")
+        if not isinstance(ref_id, str) or not ref_id:
+            continue
+        arm_type = _arm_id_to_type(ref_id)
+        if arm_type is None:
+            continue
+        to_type = arm_to_neutral.get(arm_type.lower())
+        if to_type is None:
+            continue
+        target_neutral = _to_neutral_id(ref_id)
+        dedup_key = (child.resource_id, "attached_to", target_neutral)
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        links.append(
+            LinkRecord(
+                from_id=child.resource_id,
+                from_type=child.type,
+                link_type="attached_to",
+                to_id=target_neutral,
+                to_type=to_type,
             )
         )
     return tuple(links)

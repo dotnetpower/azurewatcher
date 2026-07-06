@@ -772,3 +772,224 @@ def test_extract_rg_contains_case_insensitive_marker() -> None:
     (edge,) = _extract_rg_contains_links([rec])
     assert edge.from_id == "resource-group/rg-lower"
     assert edge.to_type == "object-storage"
+
+
+# ---------------------------------------------------------------------------
+# _arm_id_to_type / _extract_attached_to_links_from_row helpers
+# ---------------------------------------------------------------------------
+
+
+def test_arm_id_to_type_extracts_top_level_type() -> None:
+    from aiopspilot.delivery.azure.arg_query import _arm_id_to_type
+
+    arm_id = (
+        "/subscriptions/00000000-0000-0000-0000-000000000001/"
+        "resourceGroups/rg-a/providers/Microsoft.Storage/"
+        "storageAccounts/stg1"
+    )
+    assert _arm_id_to_type(arm_id) == "Microsoft.Storage/storageAccounts"
+
+
+def test_arm_id_to_type_extracts_multi_segment_type() -> None:
+    from aiopspilot.delivery.azure.arg_query import _arm_id_to_type
+
+    arm_id = (
+        "/subscriptions/00000000-0000-0000-0000-000000000001/"
+        "resourceGroups/rg-a/providers/Microsoft.Network/"
+        "virtualNetworks/vnet1/subnets/sub1"
+    )
+    assert _arm_id_to_type(arm_id) == "Microsoft.Network/virtualNetworks/subnets"
+
+
+def test_arm_id_to_type_returns_none_without_providers_segment() -> None:
+    from aiopspilot.delivery.azure.arg_query import _arm_id_to_type
+
+    assert _arm_id_to_type("/subscriptions/00000000-0000-0000-0000-000000000001") is None
+
+
+def test_extract_attached_to_from_subnet_reference() -> None:
+    """A NIC row with properties.subnet.id emits attached_to(nic, subnet)."""
+    from aiopspilot.delivery.azure.arg_query import (
+        _build_arm_to_neutral_map,
+        _extract_attached_to_links_from_row,
+        _to_neutral_id,
+    )
+
+    reverse = _build_arm_to_neutral_map(_vocab())
+    subnet_arm_id = (
+        "/subscriptions/00000000-0000-0000-0000-000000000001/"
+        "resourceGroups/rg-a/providers/Microsoft.Network/"
+        "virtualNetworks/vnet1/subnets/sub1"
+    )
+    child = ResourceRecord(
+        resource_id="resource-group/rg-a/providers/microsoft.network/networkinterfaces/nic1",
+        type="network.load-balancer",
+        provider_ref=(
+            "/subscriptions/.../resourceGroups/rg-a/providers/Microsoft.Network/"
+            "networkInterfaces/nic1"
+        ),
+    )
+    row = {"properties": {"subnet": {"id": subnet_arm_id}}}
+    (edge,) = _extract_attached_to_links_from_row(row, child=child, arm_to_neutral=reverse)
+    assert edge.link_type == "attached_to"
+    assert edge.from_id == child.resource_id
+    assert edge.from_type == "network.load-balancer"
+    assert edge.to_id == _to_neutral_id(subnet_arm_id)
+    assert edge.to_type == "network.subnet"
+
+
+def test_extract_attached_to_from_nsg_reference() -> None:
+    from aiopspilot.delivery.azure.arg_query import (
+        _build_arm_to_neutral_map,
+        _extract_attached_to_links_from_row,
+    )
+
+    reverse = _build_arm_to_neutral_map(_vocab())
+    nsg_arm_id = (
+        "/subscriptions/00000000-0000-0000-0000-000000000001/"
+        "resourceGroups/rg-a/providers/Microsoft.Network/"
+        "networkSecurityGroups/nsg-1"
+    )
+    child = ResourceRecord(
+        resource_id="resource-group/rg-a/providers/microsoft.network/virtualnetworks/vnet1/subnets/sub1",
+        type="network.subnet",
+        provider_ref="/subscriptions/.../subnets/sub1",
+    )
+    row = {"properties": {"networkSecurityGroup": {"id": nsg_arm_id}}}
+    (edge,) = _extract_attached_to_links_from_row(row, child=child, arm_to_neutral=reverse)
+    assert edge.to_type == "network.nsg"
+
+
+def test_extract_attached_to_drops_reference_to_unmapped_type() -> None:
+    """A referenced ARM type not in the vocabulary is dropped, not
+    emitted with an unknown to_type."""
+    from aiopspilot.delivery.azure.arg_query import (
+        _build_arm_to_neutral_map,
+        _extract_attached_to_links_from_row,
+    )
+
+    reverse = _build_arm_to_neutral_map(_vocab())
+    unknown_arm_id = (
+        "/subscriptions/00000000-0000-0000-0000-000000000001/"
+        "resourceGroups/rg-a/providers/Microsoft.Weird/thingies/x"
+    )
+    child = ResourceRecord(
+        resource_id="resource-group/rg-a/providers/microsoft.network/networkinterfaces/nic1",
+        type="network.load-balancer",
+        provider_ref="/subscriptions/.../nic1",
+    )
+    row = {"properties": {"subnet": {"id": unknown_arm_id}}}
+    assert _extract_attached_to_links_from_row(row, child=child, arm_to_neutral=reverse) == ()
+
+
+def test_extract_attached_to_returns_empty_when_no_properties() -> None:
+    from aiopspilot.delivery.azure.arg_query import (
+        _build_arm_to_neutral_map,
+        _extract_attached_to_links_from_row,
+    )
+
+    reverse = _build_arm_to_neutral_map(_vocab())
+    child = ResourceRecord(
+        resource_id="resource-group/rg-a/providers/microsoft.storage/storageaccounts/x",
+        type="object-storage",
+        provider_ref="/subscriptions/.../x",
+    )
+    assert _extract_attached_to_links_from_row({}, child=child, arm_to_neutral=reverse) == ()
+    # Properties present but not a mapping — same result.
+    assert (
+        _extract_attached_to_links_from_row(
+            {"properties": "not a dict"}, child=child, arm_to_neutral=reverse
+        )
+        == ()
+    )
+
+
+def test_extract_attached_to_deduplicates_within_row() -> None:
+    """Two whitelisted keys pointing at the same target collapse into
+    a single edge — deduplication mirrors the LinkRecord idempotency
+    contract on InventoryBatch."""
+    from aiopspilot.delivery.azure.arg_query import (
+        _build_arm_to_neutral_map,
+        _extract_attached_to_links_from_row,
+    )
+
+    reverse = _build_arm_to_neutral_map(_vocab())
+    same_target = (
+        "/subscriptions/00000000-0000-0000-0000-000000000001/"
+        "resourceGroups/rg-a/providers/Microsoft.Network/"
+        "virtualNetworks/vnet1/subnets/sub1"
+    )
+    child = ResourceRecord(
+        resource_id="resource-group/rg-a/providers/microsoft.network/networkinterfaces/nic1",
+        type="network.load-balancer",
+        provider_ref="/subscriptions/.../nic1",
+    )
+    row = {
+        "properties": {
+            # Same subnet referenced twice via two whitelisted paths
+            # (contrived — the extractor still dedupes).
+            "subnet": {"id": same_target},
+            "networkSecurityGroup": {"id": same_target},  # same target string
+        }
+    }
+    edges = _extract_attached_to_links_from_row(row, child=child, arm_to_neutral=reverse)
+    # Even though two keys were consumed, the extractor collapses to a
+    # single edge because from_id / link_type / to_id are identical.
+    assert len(edges) == 1
+
+
+@pytest.mark.asyncio
+async def test_full_row_emits_contains_and_attached_to_links_together() -> None:
+    """End-to-end via httpx.MockTransport: a NIC row surfaces
+    contains(rg, nic) + attached_to(nic, subnet) in the same shard."""
+
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    _arm_row(
+                        arm_id=(
+                            "/subscriptions/00000000-0000-0000-0000-000000000001/"
+                            "resourceGroups/rg-example/providers/Microsoft.Storage/"
+                            "storageAccounts/stg1"
+                        ),
+                        arm_type="Microsoft.Storage/storageAccounts",
+                        extra={
+                            "properties": {
+                                # A storage account rarely has a subnet
+                                # attachment, but the extractor is
+                                # property-driven — this exercises the
+                                # end-to-end path deterministically.
+                                "subnet": {
+                                    "id": (
+                                        "/subscriptions/"
+                                        "00000000-0000-0000-0000-000000000001/"
+                                        "resourceGroups/rg-example/providers/"
+                                        "Microsoft.Network/virtualNetworks/"
+                                        "vnet1/subnets/sub1"
+                                    )
+                                }
+                            }
+                        },
+                    )
+                ]
+            },
+        )
+
+    async with _make_client(httpx.MockTransport(_handler)) as client:
+        factory = AzureArgQueryFactory(
+            identity=_identity(),
+            resource_types=_vocab(),
+            http_client=client,
+            config=_config(),
+        )
+        resources, links = await factory.build_query_fn()("object-storage")
+
+    assert len(resources) == 1
+    link_types = {edge.link_type for edge in links}
+    assert link_types == {"contains", "attached_to"}
+    (attached,) = [e for e in links if e.link_type == "attached_to"]
+    assert attached.to_type == "network.subnet"
+    (contained,) = [e for e in links if e.link_type == "contains"]
+    assert contained.from_type == "resource-group"
