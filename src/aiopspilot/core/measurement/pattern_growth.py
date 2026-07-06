@@ -125,7 +125,7 @@ class TemporalHoldoutValidator:
         candidate: PatternCandidate,
         holdout: Iterable[PatternValidationSample],
     ) -> HoldoutDecision:
-        # Only samples STRICTLY AFTER `learned_at` are holdout samples —
+        # Only samples STRICTLY AFTER `learned_at` are holdout samples -
         # samples before that timestamp are training-leakage.
         eligible = [
             sample

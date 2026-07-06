@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# dev-logs.sh — tail both services.
+# dev-logs.sh - tail both services.
 #
 # Optional arg: a service name (`postgres` or `redpanda`) to filter.
 

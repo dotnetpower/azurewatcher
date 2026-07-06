@@ -52,7 +52,7 @@ def test_next_hash_chains_previous_and_entry() -> None:
     assert h1 != h2
     assert len(h1) == 64
     assert len(h2) == 64
-    # Order matters — same entry with a different previous hash produces
+    # Order matters - same entry with a different previous hash produces
     # a distinct chain hash, matching the tamper-evidence invariant.
     h1_bis = _next_hash(genesis, {"seq": 1})
     assert h1 == h1_bis

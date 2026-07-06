@@ -1,9 +1,9 @@
-"""SMS adapter — Azure Communication Services SMS REST API.
+"""SMS adapter - Azure Communication Services SMS REST API.
 
 Wire format: POST ``{endpoint}/sms?api-version=2021-03-07`` with an
 ``Authorization: Bearer <token>`` header. Payload restricted to
 ``<severity> <audit_id> <short-url>`` per
-``docs/roadmap/channels-and-notifications.md § 7 (SMS)`` — no free-form
+``docs/roadmap/channels-and-notifications.md § 7 (SMS)`` - no free-form
 text, no customer identifiers.
 """
 
@@ -104,7 +104,7 @@ def _sms_body(message: NotificationMessage) -> str:
     """Restrict SMS content to severity + audit id + first runbook link.
 
     Per the design doc the SMS payload MUST NOT carry free-form text,
-    secrets, or customer identifiers — those already-redacted fields
+    secrets, or customer identifiers - those already-redacted fields
     are the only safe surface.
     """
     parts: list[str] = [message.severity.value.upper()]

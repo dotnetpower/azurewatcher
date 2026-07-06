@@ -2,7 +2,7 @@
  * Read API client. The console makes exactly three kinds of GET call
  * against the API defined in `src/aiopspilot/delivery/read_api/main.py`.
  * All routes are read-only; there are NO helpers here for POST / PUT /
- * DELETE / PATCH — the read-only invariant is enforced by not writing
+ * DELETE / PATCH - the read-only invariant is enforced by not writing
  * such helpers in the first place (see app-shape.instructions.md).
  */
 
@@ -60,7 +60,7 @@ export class ReadApiClient {
         const body = (await response.json()) as ApiError;
         message = body.error?.message ?? message;
       } catch {
-        /* body was not JSON — fall through */
+        /* body was not JSON - fall through */
       }
       throw new ReadApiError(response.status, message);
     }

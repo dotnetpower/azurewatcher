@@ -1,4 +1,4 @@
-"""Risk-gate — the final safety-invariant enforcement point.
+"""Risk-gate - the final safety-invariant enforcement point.
 
 Phase 2 risk-gate (see
 [`architecture.instructions.md § Risk-Gated Autonomy`] and
@@ -11,14 +11,14 @@ Given a proposed :class:`Action` + the referenced :class:`Rule` + the
 matched :class:`OntologyActionType`, the risk gate produces a
 :class:`RiskDecision`:
 
-- ``auto`` — safety invariants + preconditions + blast radius all clean,
+- ``auto`` - safety invariants + preconditions + blast radius all clean,
   and the ActionType has been **promoted to enforce** through the
   per-action promotion gate. Executor may apply.
-- ``hil`` — high-risk (irreversible, over blast-radius cap, or
+- ``hil`` - high-risk (irreversible, over blast-radius cap, or
   precondition unresolved). Human-in-the-loop approval required.
-- ``deny`` — an explicit deny signal (verifier from the T2 quality gate,
+- ``deny`` - an explicit deny signal (verifier from the T2 quality gate,
   or the ActionType's `preconditions` explicitly false).
-- ``abstain`` — insufficient information to decide; no-op audit + HIL
+- ``abstain`` - insufficient information to decide; no-op audit + HIL
   hand-off.
 
 Every path writes an audit entry (the caller is expected to persist it
@@ -37,7 +37,7 @@ decision keyed on measured metrics:
 
 The :class:`ActionPromotionRegistry` records the current per-ActionType
 mode + the promotion metric report the last decision was based on. The
-risk gate reads that registry — it does NOT re-measure. Measurement is
+risk gate reads that registry - it does NOT re-measure. Measurement is
 the pipeline / KPI job's responsibility (P2-A + phase-0 KPI dashboard).
 """
 
@@ -97,7 +97,7 @@ class ActionPromotionRegistry:
 
     A fork MAY back this with the state store; the P1/P2 default is
     in-memory so tests don't need Postgres. The registry NEVER mutates
-    the ActionType YAML — a promotion is a runtime state change, not a
+    the ActionType YAML - a promotion is a runtime state change, not a
     catalog edit.
     """
 
@@ -167,7 +167,7 @@ class ActionPromotionRegistry:
         Idempotent: demoting an ActionType that has never been recorded
         creates a shadow record; demoting one already in shadow leaves
         ``demoted_at`` at its prior value. ``demoted_at`` is stamped only
-        when this call transitions the record out of ``ENFORCE`` — that
+        when this call transitions the record out of ``ENFORCE`` - that
         keeps the audit trail meaningful (a "demotion" against an
         already-shadow entry is not a state change).
 
@@ -216,7 +216,7 @@ class RiskDecision:
     action_id: str
     effective_mode: Mode
     reasons: tuple[str, ...] = field(default_factory=tuple)
-    """Every reason contributing to the outcome — empty on clean AUTO."""
+    """Every reason contributing to the outcome - empty on clean AUTO."""
 
 
 class RiskGate:
@@ -308,7 +308,7 @@ class RiskGate:
         if rpm is not None and rpm > self._config.max_rate_per_minute:
             reasons.append(f"blast_radius_rate={rpm}>max={self._config.max_rate_per_minute}")
 
-        # 3. Precondition freshness — a stale inventory read blocks
+        # 3. Precondition freshness - a stale inventory read blocks
         # graph-derived preconditions per the ActionType contract.
         # Fail-close: if the ActionType demands the check but the caller
         # did not supply an age, treat the precondition as unresolved.
@@ -368,7 +368,7 @@ def _declared_graph_fresh_seconds(action_type: OntologyActionType) -> int:
     """Return the smallest ``graph_fresh_within_seconds`` precondition value.
 
     Assumes the caller has already verified at least one precondition of
-    that kind exists on ``action_type`` — raises when the values are not
+    that kind exists on ``action_type`` - raises when the values are not
     numeric so a malformed ActionType surfaces at first use instead of
     being silently ignored.
     """
@@ -392,7 +392,7 @@ def _extract_resource_group(resource_ref: str) -> str | None:
 
     Returns ``None`` when the reference is not an ARM id or does not
     include a ``resourceGroups/<name>`` segment. Case-insensitive on the
-    segment key — ARM ids may appear as ``resourcegroups`` in the wild.
+    segment key - ARM ids may appear as ``resourcegroups`` in the wild.
     """
     lowered = resource_ref.lower()
     marker = "/resourcegroups/"

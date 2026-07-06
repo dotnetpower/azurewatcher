@@ -3,35 +3,35 @@
 Implements the shadow-mode attribution + response pipeline documented in
 [phase-1-rule-catalog-t0.md § Out-of-Band Detection]:
 
-1. **Signal source** — Azure Activity Log records already flowing
+1. **Signal source** - Azure Activity Log records already flowing
    through the Kafka event-ingest topic (``aw.change.events``). The
    detector is invoked BEFORE :class:`~aiopspilot.core.trust_router.TrustRouter`
    by :class:`~aiopspilot.core.control_loop.ControlLoop` for events whose
    ``signal_kind == "azure.activity_log"``; every other event stream
    passes through unchanged.
-2. **Attribution** — each event is classified into exactly one of
+2. **Attribution** - each event is classified into exactly one of
    :class:`ChangeAttribution` values:
 
-   - :attr:`~ChangeAttribution.AUTHORIZED` — the actor identity is a
+   - :attr:`~ChangeAttribution.AUTHORIZED` - the actor identity is a
      known pipeline principal, OR the event carries a ``correlation_id``
      that links to a merged remediation PR.
-   - :attr:`~ChangeAttribution.SUPPRESSED` — the event falls inside the
+   - :attr:`~ChangeAttribution.SUPPRESSED` - the event falls inside the
      per-resource-type settling window (default 60s) used to eat
      propagation lag and reconcile noise. The suppression reason is
      recorded so the audit trail keeps the false-positive rate
      measurable per the phase-1 exit criterion.
-   - :attr:`~ChangeAttribution.OUT_OF_BAND` — the change appears to
+   - :attr:`~ChangeAttribution.OUT_OF_BAND` - the change appears to
      originate outside a merged remediation PR / known pipeline. This
      is the only attribution that produces a shadow reconcile PR and
      an alert on the ``aw.change.out-of-band`` topic.
 
-3. **Response** — for :attr:`~ChangeAttribution.OUT_OF_BAND` the
+3. **Response** - for :attr:`~ChangeAttribution.OUT_OF_BAND` the
    detector emits (in this exact order):
 
    a. an audit entry (append-only, shadow mode);
    b. an alert :class:`~aiopspilot.shared.providers.event_bus.EventBus`
       record on ``aw.change.out-of-band`` (never a Kafka publish keyed
-      globally — always per-resource for ordering);
+      globally - always per-resource for ordering);
    c. a **shadow reconcile PR** through the injected
       :class:`~aiopspilot.shared.providers.remediation_pr.RemediationPrPublisher`.
 
@@ -47,11 +47,11 @@ Design boundaries
   ``aiopspilot.shared.providers``. No ``azure.*`` import, no
   ``aiopspilot.delivery.*`` import (enforced by
   :file:`scripts/check-core-imports.sh`).
-- Attribution is a **classification only** — the detector never mutates
+- Attribution is a **classification only** - the detector never mutates
   state, never revert, never blocks the primary pipeline. On any
   publisher / bus error the detector still records the audit entry
   and returns a failure-tagged outcome so a monitor can page on it.
-- Every terminal path writes exactly one audit entry — the top-level
+- Every terminal path writes exactly one audit entry - the top-level
   invariant from :doc:`.github/instructions/architecture.instructions`
   applies here too.
 """
@@ -92,7 +92,7 @@ receiver share one canonical string."""
 OUT_OF_BAND_ALERT_TOPIC: Final[str] = "aw.change.out-of-band"
 """Kafka topic (CSP-neutral naming) the detector uses for its alert
 events. Complements the day-zero ``aw.change.events`` topic in
-:file:`infra/main.tf` — a fork MAY override via config, but the string
+:file:`infra/main.tf` - a fork MAY override via config, but the string
 lives here so tests do not drift from wire."""
 
 DEFAULT_SETTLING_WINDOW_SECONDS: Final[int] = 60
@@ -101,7 +101,7 @@ absent; matches the phase-1 doc ("default 60s") and the value
 tests import from this module."""
 
 _ATTRIBUTION_NAMESPACE: Final[UUID] = UUID("6b1b6f2c-5a3e-4a91-8f1a-8b8a7e2f9d10")
-"""Deterministic UUID5 namespace for the alert event id — keeps a
+"""Deterministic UUID5 namespace for the alert event id - keeps a
 re-delivered signal producing the same alert event id so the audit
 trail can be reconciled across retries."""
 
@@ -124,10 +124,10 @@ class DetectorOutcome(StrEnum):
 
     AUTHORIZED = "authorized"
     """Change is attributed to a known pipeline principal or a merged
-    remediation PR — no reconcile PR, no alert. Audit only."""
+    remediation PR - no reconcile PR, no alert. Audit only."""
 
     SUPPRESSED = "suppressed"
-    """Change fell inside the resource-type settling window — audit
+    """Change fell inside the resource-type settling window - audit
     the suppression with the reason so the false-positive rate is
     measurable."""
 
@@ -141,14 +141,14 @@ class DetectorOutcome(StrEnum):
     which one failed so an operator can retry."""
 
     NOT_ACTIVITY_LOG = "not_activity_log"
-    """Event's ``signal_kind`` did not match — the detector is a no-op
+    """Event's ``signal_kind`` did not match - the detector is a no-op
     for this event. No audit is written (the primary pipeline audits
     the routing decision)."""
 
 
 @dataclass(frozen=True, slots=True)
 class ChangeSafetyDetectorConfig:
-    """Tunable detector policy — never contains customer values.
+    """Tunable detector policy - never contains customer values.
 
     ``settling_windows`` is a per-resource-type override map. A missing
     entry falls back to :attr:`default_settling_window`. The upstream
@@ -201,14 +201,14 @@ class ChangeSafetyDecision:
 
 
 class ChangeSafetyDetector:
-    """Out-of-band Change Safety detector — shadow-mode only.
+    """Out-of-band Change Safety detector - shadow-mode only.
 
     The detector composes three CSP-neutral Protocols:
 
-    - :class:`PipelinePrincipalRegistry` — actor-id → is-known-pipeline?
-    - :class:`RemediationPrLedger` — correlation_id → merged PR ref
+    - :class:`PipelinePrincipalRegistry` - actor-id → is-known-pipeline?
+    - :class:`RemediationPrLedger` - correlation_id → merged PR ref
     - :class:`RemediationPrPublisher` + :class:`EventBus` +
-      :class:`StateStore` — the shadow-response fan-out.
+      :class:`StateStore` - the shadow-response fan-out.
 
     The upstream default settling window is 60s; a fork provides its own
     :class:`ChangeSafetyDetectorConfig` at the composition root.
@@ -256,14 +256,14 @@ class ChangeSafetyDetector:
         """Classify ``event``, side-effect on out-of-band, audit every path.
 
         Non-activity-log events short-circuit with
-        :attr:`DetectorOutcome.NOT_ACTIVITY_LOG` and NO audit — the
+        :attr:`DetectorOutcome.NOT_ACTIVITY_LOG` and NO audit - the
         control loop writes the routing audit for the primary path
         after the detector returns.
         """
         if not self.is_activity_log(event):
             return ChangeSafetyDecision(
                 event_id=str(event.event_id),
-                attribution=ChangeAttribution.AUTHORIZED,  # placeholder — outcome trumps
+                attribution=ChangeAttribution.AUTHORIZED,  # placeholder - outcome trumps
                 outcome=DetectorOutcome.NOT_ACTIVITY_LOG,
                 actor=None,
                 reason="event.payload.signal_kind != azure.activity_log",
@@ -305,7 +305,7 @@ class ChangeSafetyDetector:
             await self._write_audit(event=event, decision=decision)
             return decision
 
-        # ---- OUT_OF_BAND — shadow response ---------------------------------
+        # ---- OUT_OF_BAND - shadow response ---------------------------------
         alert_topic = self._config.alert_topic
         alert_offset: int | None = None
         alert_error: str | None = None
@@ -321,7 +321,7 @@ class ChangeSafetyDetector:
                 _alert_payload(event=event, actor=actor, reason=reason, resource_id=resource_id),
             )
             alert_offset = receipt.offset
-        except Exception as exc:  # noqa: BLE001 — fail-close: audit and continue
+        except Exception as exc:  # noqa: BLE001 - fail-close: audit and continue
             alert_error = _short_exc(exc)
 
         # 2. Shadow reconcile PR.
@@ -336,7 +336,7 @@ class ChangeSafetyDetector:
             pr_receipt = await self._publisher.publish(pr)
             pr_ref = pr_receipt.pr_ref
             pr_url = pr_receipt.url
-        except Exception as exc:  # noqa: BLE001 — same fail-close policy
+        except Exception as exc:  # noqa: BLE001 - same fail-close policy
             pr_error = _short_exc(exc)
 
         outcome = (
@@ -395,7 +395,7 @@ class ChangeSafetyDetector:
                     pr_ref,
                 )
 
-        # Settling window — suppress if the event is still within the
+        # Settling window - suppress if the event is still within the
         # per-resource-type debounce horizon relative to now.
         window = self._config.window_for(resource_type)
         now = self._clock()
@@ -467,7 +467,7 @@ def _extract_actor(payload: Mapping[str, Any]) -> str | None:
     Accepts two shapes matching the ``azure.activity_log`` envelope in
     :file:`tools/publish_smoke_event.py` and the Kafka producer:
 
-    1. ``payload['actor']['principal_id']`` — the canonical shape.
+    1. ``payload['actor']['principal_id']`` - the canonical shape.
     2. ``payload['actor']`` as a plain string (legacy / test fixtures).
     """
     actor = payload.get("actor")
@@ -481,7 +481,7 @@ def _extract_actor(payload: Mapping[str, Any]) -> str | None:
 
 
 def _extract_resource_type(payload: Mapping[str, Any]) -> str | None:
-    """Pull ``resource_type`` — mirrors :mod:`aiopspilot.core.trust_router`."""
+    """Pull ``resource_type`` - mirrors :mod:`aiopspilot.core.trust_router`."""
     resource = payload.get("resource")
     if isinstance(resource, Mapping):
         rtype = resource.get("type") or resource.get("resource_type")
@@ -548,10 +548,10 @@ def _build_reconcile_pr(
     action_id = uuid5(_ATTRIBUTION_NAMESPACE, f"reconcile:{event.event_id}")
     slug = (resource_id or f"event-{event.event_id}").replace("/", "_").replace(":", "_")
     patch_path = f"infra/envs/dev/{slug}.reconcile.tf"
-    title = f"[shadow] Out-of-band change on {resource_id or 'unknown resource'} — reconcile to IaC"
+    title = f"[shadow] Out-of-band change on {resource_id or 'unknown resource'} - reconcile to IaC"
     body = "\n".join(
         [
-            "**Change Safety — out-of-band change detected**",
+            "**Change Safety - out-of-band change detected**",
             "",
             f"- **Source event**: `{event.event_id}`",
             f"- **Idempotency key**: `{event.idempotency_key}`",
@@ -561,7 +561,7 @@ def _build_reconcile_pr(
             f"- **Detected at**: {event.detected_at.isoformat()}",
             f"- **Attribution reason**: {reason}",
             "",
-            "Shadow-mode reconcile PR — NOT mergeable, NEVER auto-reverts.",
+            "Shadow-mode reconcile PR - NOT mergeable, NEVER auto-reverts.",
             "Reconcile execution is gated off until phase 2 promotion.",
             "See `docs/roadmap/phases/phase-1-rule-catalog-t0.md § Out-of-Band Detection`.",
         ]
@@ -572,7 +572,7 @@ def _build_reconcile_pr(
         rule_ids=("change_safety.out_of_band",),
         title=title,
         body=body,
-        patch="# reconcile placeholder — populated by the reconcile renderer in phase 2\n",
+        patch="# reconcile placeholder - populated by the reconcile renderer in phase 2\n",
         patch_path=patch_path,
         labels=("shadow", "change-safety", "out-of-band"),
         mode=Mode.SHADOW,

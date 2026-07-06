@@ -61,11 +61,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"✓ {path}")
 
     if failures:
-        print(f"\nexemption-check: FAILED — {failures} file(s) invalid.", file=sys.stderr)
+        print(f"\nexemption-check: FAILED - {failures} file(s) invalid.", file=sys.stderr)
         return 1
 
     return 0
 
 
-if __name__ == "__main__":  # pragma: no cover — invoked via `python -m`
+if __name__ == "__main__":  # pragma: no cover - invoked via `python -m`
     raise SystemExit(main())

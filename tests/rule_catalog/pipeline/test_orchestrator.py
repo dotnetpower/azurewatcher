@@ -358,7 +358,7 @@ def test_custom_regression_gate_config_flows_through() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _now() -> datetime:  # noqa: F821 — string-annotated for lazy import in tests
+def _now() -> datetime:  # noqa: F821 - string-annotated for lazy import in tests
     from datetime import UTC, datetime
 
     return datetime.now(tz=UTC)

@@ -1,9 +1,9 @@
-"""OpaRegoEvaluator — subprocess-backed policy evaluation against shipped Rego.
+"""OpaRegoEvaluator - subprocess-backed policy evaluation against shipped Rego.
 
 The tests are skipped when the ``opa`` binary is not on ``PATH`` (typical
 on a fresh developer machine); CI installs OPA via ``.github/workflows/ci.yml``
 so the same tests are exercised in the merge gate. A dedicated
-:func:`test_missing_binary_raises_at_construction` case runs regardless — it
+:func:`test_missing_binary_raises_at_construction` case runs regardless - it
 covers the fail-fast contract by pointing at a binary that does not exist.
 """
 
@@ -207,7 +207,7 @@ def test_vmss_over_provisioned_uses_authored_parameter_defaults() -> None:
     """A rule with `parameters` shipped in YAML must override rego defaults.
 
     The shipped rule sets `max_cpu_p95_percent: 30` and
-    `min_headroom_replicas: 1` — a 15% CPU / 5 replicas scenario denies.
+    `min_headroom_replicas: 1` - a 15% CPU / 5 replicas scenario denies.
     """
     evaluator = OpaRegoEvaluator(policies_root=POLICIES_ROOT)
     rule = _rules_by_id(_load_shipped_rules())["compute.vm-scale-set.over-provisioned"]
@@ -379,7 +379,7 @@ def test_t0_engine_fail_closes_on_broken_policy(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Undefined-result interpretation (no opa needed — parses raw JSON)
+# Undefined-result interpretation (no opa needed - parses raw JSON)
 # ---------------------------------------------------------------------------
 
 

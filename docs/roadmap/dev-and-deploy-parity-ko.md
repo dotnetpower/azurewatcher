@@ -1,11 +1,11 @@
 ---
-title: Dev/Deploy Parity — 로컬 Fake vs Azure-First 프로비저닝
+title: Dev/Deploy Parity - 로컬 Fake vs Azure-First 프로비저닝
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: be8cc0905f7b372b48ccbf114d99f9f94f3c3fde
-translation_revised: 2026-07-05
+translation_source_sha: abaa856d45ea639e726088d97858f36bde2c4b34
+translation_revised: 2026-07-06
 ---
 
-# Dev/Deploy Parity — 로컬 Fake vs Azure-First 프로비저닝
+# Dev/Deploy Parity - 로컬 Fake vs Azure-First 프로비저닝
 
 **목표**: AIOpsPilot의 모든 기능이 **개발자 랩탑에서 Azure 리소스 하나 없이 종단으로
 동작**해야 하고, 동시에 Azure에 배포하면 **배포자의 Azure 권한과 리전 카탈로그가 어떤 LLM
@@ -13,7 +13,7 @@ translation_revised: 2026-07-05
 
 - **Dev truth**: `dev-up.sh` + `uv run`으로 컨트롤 루프 전체가 오프라인 실행. 이 모드에서
   모든 LLM/클라우드 seam은 **결정론적 fake** 로 바인딩. 프로덕션과의 feature parity는
-  "같은 T0 verdict, 같은 shadow-mode 결정, 같은 audit entry"로 측정 — T2 fake가
+  "같은 T0 verdict, 같은 shadow-mode 결정, 같은 audit entry"로 측정 - T2 fake가
   결정론적이므로 T2 quality 자체는 의도적으로 낮음.
 - **Deploy truth**: `terraform apply` 가 CSP-neutral 컨트랙트의 Azure 측 실현체를 생성.
   **LLM 부분은 배포자-스코프**: bootstrap resolver가 배포자 아이덴티티를 대상 리전
@@ -24,7 +24,7 @@ translation_revised: 2026-07-05
 ([project-structure.md § Customization via Dependency Injection](project-structure-ko.md#customization-via-dependency-injection)).
 실제 Azure 클라이언트 추가는 fork-side injection이고 `core/` 는 절대 안 건드림.
 
-## 전수조사 — 로컬 동작 vs Azure 필요
+## 전수조사 - 로컬 동작 vs Azure 필요
 
 2026-07-05 기준. "로컬" = fresh `git clone` 후 `bash scripts/dev-up.sh` + `uv run pytest`가
 **Azure 자격증명 없이** 통과.
@@ -50,7 +50,7 @@ translation_revised: 2026-07-05
 | State store (통합 테스트) | `pgvector/pgvector:pg16` on `:5432` | Azure PostgreSQL Flexible + pgvector |
 | Event bus (통합 테스트) | Redpanda on `:19092` (Kafka wire) | Event Hubs Kafka on `:9093` |
 
-### 지금은 Azure가 필요 — 로컬 모드 추가 필요
+### 지금은 Azure가 필요 - 로컬 모드 추가 필요
 
 | 서브시스템 | 상태 | 갭 |
 |-----------|------|-----|
@@ -75,16 +75,16 @@ translation_revised: 2026-07-05
 
 out-of-process 의존을 건드리는 모든 seam은 다음을 갖춰야:
 
-1. **`shared/providers/` 의 Protocol** — 중립 wire contract. `core/` 는 Protocol만 import.
+1. **`shared/providers/` 의 Protocol** - 중립 wire contract. `core/` 는 Protocol만 import.
    `EventBus`, `StateStore`, `SecretProvider`, `WorkloadIdentity`, `Inventory` 및 LLM seam
    (`EmbeddingModel`, `CrossCheckModel`, `VerifierPolicy`, `GroundingSource`) 이미 준수.
-2. **로컬 fake 구현** — 결정론적, 인-프로세스, secret-free. `runtime.env == "dev"` OR
+2. **로컬 fake 구현** - 결정론적, 인-프로세스, secret-free. `runtime.env == "dev"` OR
    `llm.mode == "local-fake"` OR Azure 측 산출물 (예: `resolved-models.json`) 부재 시 자동
    선택.
-3. **Azure 어댑터** — `delivery/azure/` 하위 (절대 `core/` 아님). `runtime.env in
+3. **Azure 어댑터** - `delivery/azure/` 하위 (절대 `core/` 아님). `runtime.env in
    ("staging","prod")` AND Azure 측 산출물 존재 AND 배포자 아이덴티티가 해당 capability에 대해
    유효한 deployment를 해결한 경우 선택.
-4. **미스매치 시 fail-fast** — `runtime.env == "prod"` 인데 Azure 어댑터가 capability 해결
+4. **미스매치 시 fail-fast** - `runtime.env == "prod"` 인데 Azure 어댑터가 capability 해결
    실패하면 프로세스가 시작을 거부. 프로덕션에서 로컬 fake로의 조용한 fallback은 **금지**
    ([llm-strategy.md § Bootstrap Provisioner](llm-strategy-ko.md#bootstrap-provisioner) 의
    "no HIL-silent fallback" 룰과 일치).
@@ -120,11 +120,11 @@ flowchart LR
 
 | 체크 | 실패 모드 | 후속조치 |
 |------|---------|--------|
-| `az account show` 가 로그인된 principal 반환 | abort — 배포자가 `az login` 필요 | 한 줄 진단 |
+| `az account show` 가 로그인된 principal 반환 | abort - 배포자가 `az login` 필요 | 한 줄 진단 |
 | Principal이 대상 subscription에 `Cognitive Services Contributor` (또는 `Owner`) 보유 | LLM 프로비저닝 스킵, 모든 `t2.*` 및 `t1.judge` capability를 `hil-only` 로, 경고 emit | fork가 role 부여 후 재실행 |
 | 리전이 각 capability preference 중 최소 하나 family 노출 | 해당 capability만 `hil-only` 마킹, 경고 | fork가 `llm-registry.yaml` preference 확장 후 재실행 |
 | 배포자 subscription이 요청한 `capacity_tpm` 쿼터 보유 | 요청의 ≥ 20% 이상 큰 최대 사용가능 capacity로 축소; 미만이면 거부 | fork가 쿼터 증가 요청 |
-| Mixed-model 불변식 (`t2.reasoner.primary.publisher != t2.reasoner.secondary.publisher`) resolve 후 만족 | **abort** — quality gate 통과 못하는 T2 tier 부분 배포 안 함 | fork가 preference 조정 |
+| Mixed-model 불변식 (`t2.reasoner.primary.publisher != t2.reasoner.secondary.publisher`) resolve 후 만족 | **abort** - quality gate 통과 못하는 T2 tier 부분 배포 안 함 | fork가 preference 조정 |
 
 Resolver의 결정은 배포자 `object_id`, 리전, resolved capability map과 함께 **한 개의
 bootstrap audit entry** 로 기록. 이 entry는 클린 replay: 동일 sub + region + registry로
@@ -145,7 +145,7 @@ resolver 재실행 시 동일 매핑 산출 (idempotent).
   - `mode`: `local-fake` | `azure` (`runtime.env == "dev"` 일 때 default `local-fake`).
   - `resolved_models_path`: 옵셔널 KV secret 이름 또는 파일시스템 경로.
   - `capabilities`: capability 이름 리스트 (`t1.embedding`, `t1.judge`,
-    `t2.reasoner.primary`, `t2.reasoner.secondary`) — registry를 미러.
+    `t2.reasoner.primary`, `t2.reasoner.secondary`) - registry를 미러.
 - Fail-fast validator: `mode == "azure"` 는 `resolved_models_path` 필수.
 - 테스트: schema + pydantic validator.
 
@@ -153,7 +153,7 @@ resolver 재실행 시 동일 매핑 산출 (idempotent).
 
 - 신규 파일: 업스트림 기본값 있는 `rule-catalog/llm-registry.yaml` (mini → Opus tier).
 - JSON Schema: `rule-catalog/schema/llm-registry.schema.json`.
-- Python 로더: `aiopspilot.rule_catalog.schema.llm_registry` — 다른 곳에서 쓰는 aggregating
+- Python 로더: `aiopspilot.rule_catalog.schema.llm_registry` - 다른 곳에서 쓰는 aggregating
   fail-close 패턴 사용 (`exemption.py` 참고).
 - 테스트: schema 검증, mixed-model 불변식 체크.
 
@@ -176,7 +176,7 @@ resolver 재실행 시 동일 매핑 산출 (idempotent).
 - 신규: `infra/modules/llm/azure-openai/`.
   - `main.tf`: `azurerm_cognitive_account` (kind=`OpenAI`) + 입력 변수의
     `resolved_models.json` 으로부터 N개 `azurerm_cognitive_deployment`.
-  - `variables.tf`: `enable_llm` (default `false` — 최소 배포도 성공하도록),
+  - `variables.tf`: `enable_llm` (default `false` - 최소 배포도 성공하도록),
     `resolved_models` (resolver 로부터의 object list).
   - `outputs.tf`: `endpoint`, `deployments` map, `resource_id`.
 - Role assignment: executor MI → account의 `Cognitive Services OpenAI User`.
@@ -185,13 +185,13 @@ resolver 재실행 시 동일 매핑 산출 (idempotent).
 
 ### W-E: Azure OpenAI 어댑터 클래스 ✅ *(delivery, 배포)*
 
-- `src/aiopspilot/delivery/azure/llm/embeddings.py` — `EmbeddingModel` 을 구현하는
+- `src/aiopspilot/delivery/azure/llm/embeddings.py` - `EmbeddingModel` 을 구현하는
   `AzureOpenAIEmbeddingModel`, `openai.AzureOpenAI` (async 클라이언트) + `DefaultAzureCredential`.
-- `src/aiopspilot/delivery/azure/llm/cross_check.py` — `CrossCheckModel` 구현
+- `src/aiopspilot/delivery/azure/llm/cross_check.py` - `CrossCheckModel` 구현
   `AzureOpenAICrossCheckModel`.
 - 타임아웃, retry-after honouring, structured output (`response_format={"type":"json_schema"}`)
-  — [llm-strategy.md § Provider Abstraction](llm-strategy-ko.md#provider-abstraction) 참조.
-- 테스트: `httpx.MockTransport` + 녹화 fixture — 라이브 네트워크 없음.
+  - [llm-strategy.md § Provider Abstraction](llm-strategy-ko.md#provider-abstraction) 참조.
+- 테스트: `httpx.MockTransport` + 녹화 fixture - 라이브 네트워크 없음.
 
 ### W-F: Composition-root wiring ✅ *(binding, 배포)*
 
@@ -207,8 +207,8 @@ resolver 재실행 시 동일 매핑 산출 (idempotent).
 
 - `shared/providers/testing/` 의 `EnvSecretProvider` (dev 사용 반영해
   `shared/providers/local/` 로 이름 변경).
-- `LocalWorkloadIdentity` — dev-mode에서 어댑터가 수락하는 인-메모리 OIDC 토큰 issue (네트워크 없음).
-- `FileFixtureInventory` — `tests/scenarios/inventory/*.yaml` 에서 `Resource` 레코드 읽기 →
+- `LocalWorkloadIdentity` - dev-mode에서 어댑터가 수락하는 인-메모리 OIDC 토큰 issue (네트워크 없음).
+- `FileFixtureInventory` - `tests/scenarios/inventory/*.yaml` 에서 `Resource` 레코드 읽기 →
   ARG 없이도 verticals dry-run.
 - 테스트 + docstring이 정확한 fork-side 패턴 시연.
 
@@ -224,7 +224,7 @@ resolver 재실행 시 동일 매핑 산출 (idempotent).
 - [llm-strategy.md § Bootstrap Provisioner](llm-strategy-ko.md#bootstrap-provisioner) 를
   배포자-권한 게이트에 대해 이 문서 참조로.
 
-### W-I: Reconciler weekly Job  *(later phase — deferred)*
+### W-I: Reconciler weekly Job  *(later phase - deferred)*
 
 Future work로 유지. 전체 설계는 이미
 [llm-strategy.md § Reconciler Job](llm-strategy-ko.md#reconciler-job) 에 있음;
@@ -238,7 +238,7 @@ Future work로 유지. 전체 설계는 이미
 - fork의 subscription을 가리키는 `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` env 제공.
   **이 리포는 그 값들을 절대 저장 안 함.**
 - 추가 LLM 프로바이더 (예: Anthropic 직접 API) 등록: composition root에서 fork 소유
-  `CrossCheckModel` 구현 바인딩 — [llm-strategy.md § Mixed-Model Family Strategies](llm-strategy-ko.md#mixed-model-family-strategies)
+  `CrossCheckModel` 구현 바인딩 - [llm-strategy.md § Mixed-Model Family Strategies](llm-strategy-ko.md#mixed-model-family-strategies)
   의 `azure-foundry` / `external` / `hil-only` 토글.
 
 ## 검증 게이트
@@ -246,7 +246,7 @@ Future work로 유지. 전체 설계는 이미
 각 작업 항목은 CI에서 증명 가능해야:
 
 - `runtime.env == "dev"` 종단 pytest 실행이 **`delivery.azure.*` 모듈을 zero import**
-  (`scripts/check-core-imports.sh` 로 강제 — dev-mode 픽스처에서 `delivery.azure.llm.*`
+  (`scripts/check-core-imports.sh` 로 강제 - dev-mode 픽스처에서 `delivery.azure.llm.*`
   import 게이팅 추가).
 - `Reader` 롤만 있는 fresh subscription에서 `enable_llm=false` 로 Terraform plan 성공 →
   LLM 모듈이 정말 opt-in 임을 증명.
@@ -257,7 +257,7 @@ Future work로 유지. 전체 설계는 이미
 
 - **`resolved-models.json` 이 런타임에 어디 사나?** 옵션: Key Vault secret, ACR attestation,
   컨테이너 이미지 내 파일시스템. 선호: Key Vault (기존 secret contract에 맞음).
-- **로컬 Ollama / LM Studio 경로를 두 번째 dev 모드로 추가할 가치?** 지금은 아님 —
+- **로컬 Ollama / LM Studio 경로를 두 번째 dev 모드로 추가할 가치?** 지금은 아님 -
   결정론 fake로 correctness 테스트 완전 parity; "의미론적" dev 모드는 composition root
   churn 없이 나중에 landing 가능.
-- **Reconciler 알림 채널** — Teams로 가정; W-I 시점에 확정.
+- **Reconciler 알림 채널** - Teams로 가정; W-I 시점에 확정.

@@ -1,4 +1,4 @@
-"""ExemptionRegistry — human-override lookup contract."""
+"""ExemptionRegistry - human-override lookup contract."""
 
 from __future__ import annotations
 
@@ -114,7 +114,7 @@ def test_registry_matches_by_narrow_resource_ref() -> None:
 
 def test_registry_rejects_unscoped_records() -> None:
     """A record with neither ``resource_group`` nor ``resource_ref``
-    covers too much (subscription-wide) — the risk-gate MUST NOT honor
+    covers too much (subscription-wide) - the risk-gate MUST NOT honor
     it. That is a rule retirement, not an override."""
     registry = InMemoryExemptionRegistry(
         records=(_record(resource_group=None, resource_ref=None),),

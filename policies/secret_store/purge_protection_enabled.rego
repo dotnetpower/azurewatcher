@@ -3,7 +3,7 @@
 # description: |
 #   A secret-store MUST have purge protection enabled so a soft-deleted
 #   secret cannot be purged during the retention window. Turning it on
-#   is irreversible — the ActionType is HIL-gated until measured.
+#   is irreversible - the ActionType is HIL-gated until measured.
 # custom:
 #   rule_id: secret-store.purge-protection.enabled
 #   severity: high

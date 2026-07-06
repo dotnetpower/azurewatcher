@@ -1,12 +1,12 @@
 /*
- * custom.css — site-wide style overrides on top of Starlight defaults.
+ * custom.css - site-wide style overrides on top of Starlight defaults.
  *
  * Layout: narrow the right-hand table-of-contents lane.
  *
  * Starlight's default layout gives the right sidebar
  *   width = var(--sl-sidebar-width) + (100% - content - sidebar) / 2
  * i.e. the reader's main text takes the content width, and the *entire*
- * leftover horizontal space is split evenly — half feeds the main pane's
+ * leftover horizontal space is split evenly - half feeds the main pane's
  * margin, the other half becomes the TOC lane. On wide screens that
  * pushes the TOC container well past 400 px even though the TOC text
  * itself only needs ~200 px, and the docs read as a thin ribbon.
@@ -36,7 +36,7 @@
     width: calc(100% - var(--sl-right-sidebar-width));
     /*
      * Starlight defaults .main-pane's inner margin to `auto 0`, which
-     * flushes the content to the right edge — fine when the pane is
+     * flushes the content to the right edge - fine when the pane is
      * only slightly wider than the content, but with our slimmer TOC
      * the surplus space piles up on the left and the article visibly
      * lists to the right. Switching to `auto` on both sides re-centres
@@ -47,7 +47,7 @@
 }
 
 /*
- * Landing page (splash template) — inline <style> blocks in MDX collide
+ * Landing page (splash template) - inline <style> blocks in MDX collide
  * with the MDX parser because CSS `{}` looks like a JSX expression, so
  * the styles live here instead. Kept scoped to the landing selectors
  * so they don't leak into doc pages.
@@ -104,7 +104,7 @@
   height: 1.1rem;
   border-radius: 999px;
   background: var(--sl-color-text-accent);
-  /* Ring effect from option-b — soft halo around the dot. */
+  /* Ring effect from option-b - soft halo around the dot. */
   box-shadow:
     0 0 0 4px color-mix(in srgb, var(--sl-color-text-accent) 20%, transparent),
     0 0 0 8px color-mix(in srgb, var(--sl-color-text-accent) 8%, transparent);
@@ -150,7 +150,7 @@
 }
 
 /*
- * Impact list — Palantir-style bullet list with a hairline separator
+ * Impact list - Palantir-style bullet list with a hairline separator
  * between entries and a coloured arrow marker on the left. Used on the
  * landing page to highlight the design targets AIOpsPilot commits to.
  * Scoped to splash so interior <ul> elements stay untouched.

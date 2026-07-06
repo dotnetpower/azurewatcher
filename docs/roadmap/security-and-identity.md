@@ -14,16 +14,16 @@ and the code/CI gates in
 
 ## Severity Vocabulary
 
-- **P0 blocker** — must be resolved and verified before any auto-execution is enabled; blocks
+- **P0 blocker** - must be resolved and verified before any auto-execution is enabled; blocks
   promotion out of shadow mode.
-- **P1** — required before a capability handles production (enforce mode) events.
-- **P2** — hardening that may follow first enforce, tracked in Open Decisions with an owner.
+- **P1** - required before a capability handles production (enforce mode) events.
+- **P2** - hardening that may follow first enforce, tracked in Open Decisions with an owner.
 
 ## Execution Identity
 
-This section governs the **non-human** executor identity. The **human** identity model —
+This section governs the **non-human** executor identity. The **human** identity model -
 who signs in to the console and ChatOps, what Entra groups exist, and how the console
-delegates writes to a GitHub App — lives in
+delegates writes to a GitHub App - lives in
 [user-rbac-and-identity.md](user-rbac-and-identity.md). Approval ≠ execution: humans
 never hold the executor identity described below.
 
@@ -38,7 +38,7 @@ never hold the executor identity described below.
   `core/`**; it appears only inside the Azure provider adapter behind the interface.
 - **Per-vertical identity is the target end-state**, phased over the roadmap: Phase 1 ships
   a single `mi-aw-executor` (Change Safety only), Phase 3 splits into
-  `mi-aw-change` / `mi-aw-dr` / `mi-aw-finops` when Resilience and Cost Governance land — see
+  `mi-aw-change` / `mi-aw-dr` / `mi-aw-finops` when Resilience and Cost Governance land - see
   [Identity Mapping (Phased)](#identity-mapping-phased) below.
 - Human approval identities (HIL) are distinct from execution identities; approval and
   execution are never the same principal, and no identity may assume another domain's identity
@@ -58,14 +58,14 @@ rewrite.
 
 | Phase | MI(s) | Azure role strategy | Scope |
 |-------|-------|---------------------|-------|
-| **P1** (Change only) | 1 × `mi-aw-executor` | **Built-in role composition** — e.g. `Reader` + `Tag Contributor` + `Network Contributor` scoped to the Change action set. Each role assignment is enumerated in IaC. | **RG-scoped**, one assignment per governed resource group (fork Terraform iterates `for_each rg`). |
-| **P2** (Custom Role transition) | 1 × `mi-aw-executor` | Derive a **Custom Role** whose `actions:` is the action whitelist observed in the Phase 1 shadow log — measurement-based least privilege, not theoretical. The Custom Role replaces the built-in composition in a governance PR. | RG-scoped (unchanged). |
+| **P1** (Change only) | 1 × `mi-aw-executor` | **Built-in role composition** - e.g. `Reader` + `Tag Contributor` + `Network Contributor` scoped to the Change action set. Each role assignment is enumerated in IaC. | **RG-scoped**, one assignment per governed resource group (fork Terraform iterates `for_each rg`). |
+| **P2** (Custom Role transition) | 1 × `mi-aw-executor` | Derive a **Custom Role** whose `actions:` is the action whitelist observed in the Phase 1 shadow log - measurement-based least privilege, not theoretical. The Custom Role replaces the built-in composition in a governance PR. | RG-scoped (unchanged). |
 | **P3** (Domain split) | 3 × `mi-aw-change`, `mi-aw-dr`, `mi-aw-finops` | Each MI gets its own Custom Role, derived the same way from that domain's shadow log. Cross-domain assumption is denied (matches the invariant above). | RG-scoped, per-domain scope sets. |
 
 Rules that apply to every phase (MUST):
 
 - **RG-scoped, never subscription-wide.** A new RG comes under governance only when the
-  fork explicitly adds it to the assignment IaC — no automatic broadening.
+  fork explicitly adds it to the assignment IaC - no automatic broadening.
 - **Complementary Azure Policy `deny`** blocks any MI action outside its declared
   whitelist as a second line of defense, so a mis-assigned role cannot silently widen
   the surface.
@@ -77,7 +77,7 @@ Rules that apply to every phase (MUST):
   would call, so the Phase 2 Custom Role derivation is deterministic and auditable.
 
 The Phase 3 split reuses the risk-gate's `Rule.domain` routing (already in the ontology
-dispatch fields); no core code change is needed — the delivery layer selects the MI by
+dispatch fields); no core code change is needed - the delivery layer selects the MI by
 `Rule.domain` and the extra IaC provisions the new MIs.
 
 ## Authorization Model
@@ -102,7 +102,7 @@ dispatch fields); no core code change is needed — the delivery layer selects t
   Secret scanning (e.g. gitleaks) runs in CI and a positive finding blocks the merge
   ([coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md)).
 - **The app reads only environment variables (or K8s Secret mounts).** It MUST NOT call a CSP
-  secret SDK (`SecretClient`, `SecretsManagerClient`, `SecretManagerServiceClient`, …); this
+  secret SDK (`SecretClient`, `SecretsManagerClient`, `SecretManagerServiceClient`, ...); this
   realizes the [Secret contract](csp-neutrality.md#3-secret-contract--environment--k8s-secret).
   On Azure the injection layer is **Container Apps native secret + Key Vault reference**; on
   Kubernetes it is **External Secrets Operator** with a `SecretStore` CRD.
@@ -112,7 +112,7 @@ dispatch fields); no core code change is needed — the delivery layer selects t
   compromised or superseded material is revoked immediately. Prefer federated tokens so there
   is no secret to rotate.
 - **Fail-closed**: if the secret injection layer or token issuer is unavailable at startup, the
-  process fails fast — it does not fall back to a cached or embedded credential and never
+  process fails fast - it does not fall back to a cached or embedded credential and never
   starts in a degraded state.
 - Secrets MUST NOT appear in logs, audit entries, error messages, test fixtures, or LLM prompts.
 - Keep the repo customer-agnostic
@@ -148,18 +148,18 @@ dispatch fields); no core code change is needed — the delivery layer selects t
 
 ## Safety Invariants (every autonomous action)
 
-1. **Stop-condition** — a defined halt state that aborts the action. Declared per-ActionType
+1. **Stop-condition** - a defined halt state that aborts the action. Declared per-ActionType
    in `stop_conditions[]` and evaluated by the executor during and after apply.
-2. **Rollback path** — a tested way to revert. The ontology `ActionType.rollback_contract`
+2. **Rollback path** - a tested way to revert. The ontology `ActionType.rollback_contract`
    MUST be one of `pr_revert` / `scripted` / `pitr` / `snapshot_restore` /
    `state_forward_only`; **`none` is not a valid value**. Genuinely one-way mutations set
    `ActionType.irreversible: true` and are routed HIL+quorum by the risk-gate; rollback is
    still declared as the best-effort recovery.
-3. **Blast-radius limit** — scope caps (non-prod first, batch size, rate) plus per-resource
+3. **Blast-radius limit** - scope caps (non-prod first, batch size, rate) plus per-resource
    serialization so concurrent actions on one resource are mutually excluded. `ActionType.blast_radius.computation = graph_derived`
    makes the risk-gate compute the actual impacted set over the Resource → Resource graph
-   (`contains` + reverse `depends_on`, depth 2) — the three-value enum is a bucket, not a cap.
-4. **Audit-log entry** — append-only record of who/what/why/when and the outcome.
+   (`contains` + reverse `depends_on`, depth 2) - the three-value enum is a bucket, not a cap.
+4. **Audit-log entry** - append-only record of who/what/why/when and the outcome.
 
 Missing any of the four = the action is incomplete and must not ship. Each invariant is
 **testable**: shadow-mode tests prove no mutation, rollback tests prove prior state is restored,
@@ -229,8 +229,8 @@ re-check are the authority, never model or event text.
 
 | Priority | Decision | Owner | Target |
 |----------|----------|-------|--------|
-| ~~P0~~ | ~~Executor-side identity mapping~~ — **resolved** in [Identity Mapping (Phased)](#identity-mapping-phased) | — | — |
-| ~~P0~~ | ~~Risk-classification policy (auto vs HIL) and initial policy approver~~ — **resolved** in [risk-classification.md](risk-classification.md) | — | — |
+| ~~P0~~ | ~~Executor-side identity mapping~~ - **resolved** in [Identity Mapping (Phased)](#identity-mapping-phased) | - | - |
+| ~~P0~~ | ~~Risk-classification policy (auto vs HIL) and initial policy approver~~ - **resolved** in [risk-classification.md](risk-classification.md) | - | - |
 | P1 | Policy-exemption workflow owner and SLA | TBD | before production |
 | P1 | Audit tamper-evidence scheme (hash-chain + anchoring cadence) | TBD | before production |
 | P1 | Kill-switch and break-glass runbook and drill schedule | TBD | before production |

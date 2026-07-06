@@ -1,4 +1,4 @@
-"""Local provider implementations — dev-mode parity."""
+"""Local provider implementations - dev-mode parity."""
 
 from __future__ import annotations
 

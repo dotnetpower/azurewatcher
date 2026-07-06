@@ -21,18 +21,18 @@ for the *human* side; the executor-side mapping stays as declared there.
 
 Three safety principles govern this design; every choice below preserves them:
 
-1. **No self-approval** — the requester of a governance change (PR author, HIL trigger)
+1. **No self-approval** - the requester of a governance change (PR author, HIL trigger)
    MUST NOT be the approver. Enforced by CI + GitHub CODEOWNERS, not by role separation.
-2. **Approval ≠ execution** — no human role holds the executor Managed Identity. Humans
+2. **Approval ≠ execution** - no human role holds the executor Managed Identity. Humans
    author, review, and approve; the MI executes.
-3. **Console is read-only** — the console never mutates the live catalog or executes
+3. **Console is read-only** - the console never mutates the live catalog or executes
    actions ([app-shape.instructions.md](../../.github/instructions/app-shape.instructions.md)).
    Editing flows are draft PRs authored by a GitHub App on behalf of the console user.
 
 ## 2. Role Model (4 tiers + Break-Glass)
 
 Modeled on Azure RBAC (Reader / Contributor / Owner). Four everyday roles plus one
-segregated break-glass group. Roles are **coarse-grained on purpose** — differentiation
+segregated break-glass group. Roles are **coarse-grained on purpose** - differentiation
 comes from CI checks, CODEOWNERS paths, and app-level justification, not from adding
 more roles.
 
@@ -40,9 +40,9 @@ more roles.
 |---|------|----------------------|--------|--------|
 | 1 | **Reader** | `aw-readers` | Azure Reader | View console: KPI dashboard, audit log, shadow results, HIL queue |
 | 2 | **Contributor** | `aw-contributors` | Azure Contributor | All of Reader + author draft PRs for rules, rule-sets, assignments, exemptions, overrides |
-| 3 | **Approver** | `aw-approvers` | (Reviewer) | All of Reader + review/approve governance PRs + approve runtime HIL requests + approve enforce promotions / exemptions / overrides (quorum applies to high-risk — see §5) |
+| 3 | **Approver** | `aw-approvers` | (Reviewer) | All of Reader + review/approve governance PRs + approve runtime HIL requests + approve enforce promotions / exemptions / overrides (quorum applies to high-risk - see §5) |
 | 4 | **Owner** | `aw-owners` | Azure Owner | All of Approver + trigger kill-switch + manage Entra group membership + apply infra IaC |
-| — | **Break-Glass** | `aw-break-glass` | (separate emergency account) | Emergency scope grants and kill-switch override; membership is a small dedicated set, credentials sealed with hardware MFA, every sign-in raises an alert |
+| - | **Break-Glass** | `aw-break-glass` | (separate emergency account) | Emergency scope grants and kill-switch override; membership is a small dedicated set, credentials sealed with hardware MFA, every sign-in raises an alert |
 
 **Rules that keep the model safe without adding tiers**
 
@@ -72,7 +72,7 @@ more roles.
 | Grant emergency scoped access | | | | | ✓ |
 | Manage `aw-*` group membership | | | | ✓ | |
 | Apply infra IaC (deployer) | | | | ✓ | |
-| Hold the executor Managed Identity | (never) — the MI is non-human |||||
+| Hold the executor Managed Identity | (never) - the MI is non-human |||||
 
 ## 4. Entra ID Artifacts
 
@@ -236,8 +236,8 @@ sequenceDiagram
 
 ## 7. ChatOps HIL Flow
 
-This is the identity view of the HIL approval hop. The **channel abstraction** behind it —
-categories, trust tiers, per-vendor rules, and fallback policy — lives in
+This is the identity view of the HIL approval hop. The **channel abstraction** behind it -
+categories, trust tiers, per-vendor rules, and fallback policy - lives in
 [channels-and-notifications.md](channels-and-notifications.md).
 
 ```mermaid
@@ -259,7 +259,7 @@ sequenceDiagram
 - Approvals are **action-bound**: each Adaptive Card carries the `idempotency_key` and
   `action_hash` of the pending item; replay against a different action is rejected by API.
 - Approver-is-not-originator: for HIL items generated in response to a human-authored
-  change (rare — most items come from the risk-gate autonomously), the API blocks the
+  change (rare - most items come from the risk-gate autonomously), the API blocks the
   approver whose OID matches the originating change's author.
 
 ## 8. Audit Correlation
@@ -294,7 +294,7 @@ flow and propagated to GitHub (PR body), Adaptive Cards, and the core audit writ
 Concrete protocol details behind the flows in §6 and §7. All timing values are
 recommendations; a fork tunes them via Conditional Access.
 
-### 10.1 Console (SPA) — OIDC + Authorization Code with PKCE
+### 10.1 Console (SPA) - OIDC + Authorization Code with PKCE
 
 - **Library**: MSAL.js v3 (`@azure/msal-browser`). No Implicit Flow.
 - **Tenant**: single-tenant per fork (`accountsInHomeTenantOnly`); guest access is via
@@ -336,7 +336,7 @@ The API validates every request as follows (deny by default):
 2. **Audience** equals `api://<aiopspilot-api-guid>`.
 3. **Issuer** equals the fork's tenant issuer URL.
 4. **Not expired** (`exp`) and **not-before valid** (`nbf`).
-5. **Roles claim present** — if `roles` is empty, respond `403` with an "administrator
+5. **Roles claim present** - if `roles` is empty, respond `403` with an "administrator
    assignment required" body. **No auto-provisioning** to `aw-readers`; explicit assignment
    is the only path in.
 6. **Stable identity** is `oid` (Entra user objectId). `upn`/email are informational only;
@@ -367,7 +367,7 @@ Teams already runs an authenticated Entra session, so approvals ride Teams SSO:
 External collaborators are onboarded via **Entra B2B invitation**, producing a guest
 `oid` in the fork tenant. Recommended fork policy:
 
-- Guests MAY be added to `aw-readers` and — with justification — `aw-contributors`.
+- Guests MAY be added to `aw-readers` and - with justification - `aw-contributors`.
 - Guests MUST NOT be added to `aw-approvers`, `aw-owners`, or `aw-break-glass`. A fork
   bootstrap check rejects such assignments (deny-by-default at membership sync time).
 - Conditional Access policies apply uniformly to guests and members.
@@ -404,7 +404,7 @@ Human users never hold PATs or long-lived secrets:
 - [ ] The rotation cadence for `aw-owners` and `aw-break-glass` membership (manual access
       review vs P2 Entra Access Reviews).
 - [ ] Whether the console's "draft change" UI ships in P1 (Change domain only) or P3 (all
-      three verticals) — depends on
+      three verticals) - depends on
       [rule-governance.md](rule-governance.md#open-decisions) authoring-UI decision.
 - [ ] Whether guest users MAY be assigned `Contributor` at all, or must stay `Reader`-only
       (§10.5 default allows Contributor with justification).

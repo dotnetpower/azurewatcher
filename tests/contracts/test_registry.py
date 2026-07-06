@@ -84,6 +84,6 @@ def test_default_container_wires_the_upstream_seam(app_config: object) -> None:
     assert isinstance(container.schema_registry, PackageResourceSchemaRegistry)
     assert container.config is app_config
     # And the validator holds a *reference* to whatever SchemaRegistry the
-    # container decided to wire — not a hard-coded default.
+    # container decided to wire - not a hard-coded default.
     assert container.contract_validator is not None
     assert container.event_validator is not None

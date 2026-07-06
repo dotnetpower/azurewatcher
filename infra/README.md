@@ -1,13 +1,13 @@
 # `infra/`
 
-Infrastructure as Code — Terraform (HCL).
+Infrastructure as Code - Terraform (HCL).
 
 Renders the four CSP-neutrality contracts (event bus / runtime / secret / workload
 identity) into Azure resources. Entry command: `terraform apply` per
 [docs/roadmap/deploy-and-onboard.md](../docs/roadmap/deploy-and-onboard.md).
 
 Environment values (subscription id, tenant id, resource group, etc.) are supplied
-at apply time via env vars / tfvars files that are **never committed** — the repo
+at apply time via env vars / tfvars files that are **never committed** - the repo
 stays customer-agnostic per
 [generic-scope.instructions.md](../.github/instructions/generic-scope.instructions.md).
 
@@ -18,7 +18,7 @@ the same DI pattern the Python code uses:
 
 ```
 infra/
-├── main.tf                 # composition root — picks a sub-module per seam
+├── main.tf                 # composition root - picks a sub-module per seam
 ├── variables.tf            # workload="aiopspilot", env, region, kind selectors
 ├── outputs.tf              # cross-module contract outputs
 ├── modules/
@@ -40,7 +40,7 @@ infra/
     └── prod/
 ```
 
-Approved Azure-internal alternates for each seam (AKS, Cosmos, ESO, …) are catalogued in
+Approved Azure-internal alternates for each seam (AKS, Cosmos, ESO, ...) are catalogued in
 [docs/roadmap/csp-neutrality.md § Approved Alternative Azure Implementations](../docs/roadmap/csp-neutrality.md#approved-alternative-azure-implementations).
 Alternates land as **sibling sub-modules** (e.g. `modules/compute/aks/`) when a real need
 arises; each MUST honor the standard output contract below so callers stay swap-blind.
@@ -65,7 +65,7 @@ uses them or does not.
 
 Values are always **references**, never raw secrets: any `*_ref` field points at a Key Vault
 secret or an env-var name whose value the app resolves at runtime via the injected
-`SecretProvider` — see
+`SecretProvider` - see
 [csp-neutrality.md § Secret Contract](../docs/roadmap/csp-neutrality.md#3-secret-contract--environment--k8s-secret).
 
 ## Naming
@@ -74,11 +74,11 @@ Every resource name follows the CAF convention in
 [deploy-and-onboard.md § Resource Naming Convention](../docs/roadmap/deploy-and-onboard.md#resource-naming-convention).
 The workload token is the fixed literal `aiopspilot`; the default resource group is
 `rg-aiopspilot`. Modules MUST NOT compute names from a random string or a subscription
-hash — a rename is a Terraform diff, not a mystery.
+hash - a rename is a Terraform diff, not a mystery.
 
 ## What is NOT here yet
 
 The `modules/` and `envs/` directories are **planned**, not created. Scaffolding lands with
 Phase 0 W4.1 (Terraform bootstrap modules). Adding files under `infra/` before W4.1 requires
-docs to move in the same PR — that is the docs-first / docs-after rule
+docs to move in the same PR - that is the docs-first / docs-after rule
 ([coding-conventions.instructions.md § Documentation Workflow](../.github/instructions/coding-conventions.instructions.md#documentation-workflow)).

@@ -1,6 +1,6 @@
-"""State store — Postgres-backed by default; DI seam for alternate backends.
+"""State store - Postgres-backed by default; DI seam for alternate backends.
 
-Async by contract — real backends (asyncpg on PostgreSQL) are I/O bound and
+Async by contract - real backends (asyncpg on PostgreSQL) are I/O bound and
 would otherwise block the event loop. Only CPU / startup-only seams
 (SchemaRegistry, ContractValidator, ConfigProvider) stay sync.
 """
@@ -32,7 +32,7 @@ class StateStore(Protocol):
         """Persist ``value`` under ``key``.
 
         Semantics are idempotent by key: re-applying the same ``(key, value)``
-        pair MUST NOT create duplicate history — the value replaces the prior
+        pair MUST NOT create duplicate history - the value replaces the prior
         state atomically.
         """
         ...

@@ -1,6 +1,6 @@
 # AIOpsPilot
 
-Autonomous cloud operations control plane — an **AIOps** approach whose initial verticals
+Autonomous cloud operations control plane - an **AIOps** approach whose initial verticals
 are **Resilience** (disaster recovery and chaos/resilience testing), **Change Safety** (safe
 change and drift remediation), and **Cost Governance** (FinOps). The same architecture
 applies to other AIOps domains (posture management, SRE/SLO, etc.), which are future scope.

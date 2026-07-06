@@ -4,7 +4,7 @@ HMAC-SHA256 signature over ``timestamp + "." + body`` (canonical
 Slack/GitHub shape). Timestamp is monotonic (UNIX seconds); receivers
 verify the signature and MUST reject requests older than a small skew.
 
-The secret is handed in at construction time — the composition root
+The secret is handed in at construction time - the composition root
 loads it via the
 :class:`~aiopspilot.shared.providers.secret_provider.SecretProvider` seam
 so this module never touches env vars or vaults.

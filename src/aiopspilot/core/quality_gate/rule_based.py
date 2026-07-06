@@ -1,4 +1,4 @@
-"""Rule-catalog-backed :class:`VerifierPolicy` — the first non-fake verifier.
+"""Rule-catalog-backed :class:`VerifierPolicy` - the first non-fake verifier.
 
 The T2 quality gate MUST verify a candidate action **deterministically**
 before it can execute; the model's own text is inadmissible. The verifier
@@ -9,18 +9,18 @@ in this module answers a narrow, testable question:
 
 Concretely:
 
-- **True** — a cited rule exists, its ``resource_type`` matches the
+- **True** - a cited rule exists, its ``resource_type`` matches the
   candidate's target type, and its ``remediates`` or ``alternatives[]``
   contains the candidate's ``action_type``. The rule authorized this
   remediation intent; the gate MAY proceed.
-- **False** — cited rules exist but NONE authorize the candidate's
+- **False** - cited rules exist but NONE authorize the candidate's
   ``action_type`` on the target type. The model invented an action the
-  catalog does not sanction — an explicit deny (safest posture).
-- **None** — no cited rules or none resolvable to the catalog. The
+  catalog does not sanction - an explicit deny (safest posture).
+- **None** - no cited rules or none resolvable to the catalog. The
   grounding leg handles that case; the verifier abstains rather than
   duplicating the message.
 
-This verifier is intentionally lightweight — it closes the biggest
+This verifier is intentionally lightweight - it closes the biggest
 class of LLM-invention risk (proposing an action_type no rule
 authorizes) without needing per-ActionType what-if projectors. A
 future cycle adds a Rego-backed post-state verifier (project the
@@ -65,14 +65,14 @@ class RuleBasedVerifier(VerifierPolicy):
         )
         if not cited:
             # Grounding leg surfaces "no cited rules" / "unknown citation"
-            # — verifier abstains to keep the audit message clean.
+            # - verifier abstains to keep the audit message clean.
             return None
 
         target_type = self._resolve_target_type(candidate.target_resource_ref)
 
         for rule in cited:
             if target_type is not None and rule.resource_type != target_type:
-                # Cited rule doesn't apply to this resource type — skip.
+                # Cited rule doesn't apply to this resource type - skip.
                 continue
             if candidate.action_type == rule.remediates:
                 return True
@@ -80,7 +80,7 @@ class RuleBasedVerifier(VerifierPolicy):
                 return True
 
         # At least one cited rule loaded, but none authorized this
-        # action_type on this target — explicit deny.
+        # action_type on this target - explicit deny.
         return False
 
     def _resolve_target_type(self, resource_ref: str) -> str | None:

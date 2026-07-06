@@ -1,7 +1,7 @@
 # v2026.07 replay enrichment
 
 The v2026.07 scenario set in [`tests/scenarios/v2026.07/`](../../v2026.07/)
-is **frozen** for baseline comparison — its `citing_rule_ids` are
+is **frozen** for baseline comparison - its `citing_rule_ids` are
 placeholder names like `example.tag.owner-required` and its `event`
 objects intentionally omit `payload.resource` so any consumer must
 supply concrete inputs. That keeps the frozen artifact reusable across

@@ -11,19 +11,19 @@ Composes the P2-A stages end-to-end:
 Each call is one *run*: given a candidate rule set, replay it against
 the frozen scenario set, decide promote-vs-rollback, and produce an
 audit-worthy result. The pipeline does NOT touch git / the delivery
-adapter — the catalog-as-code PR machinery lives one layer up (a
+adapter - the catalog-as-code PR machinery lives one layer up (a
 future stage that a fork wires in). This keeps the pipeline itself
 pure, so a fork can replace the delivery layer without editing ``core/``.
 
 Phase 2 mapping (docs/roadmap/phases/phase-2-quality-and-t1.md):
 
-- **source watcher** — external, delivers candidate rules; the caller
+- **source watcher** - external, delivers candidate rules; the caller
   hands the loaded catalog to :meth:`ContinuousRulePipeline.run`.
-- **collect / normalize** — the rule loader already normalized the
+- **collect / normalize** - the rule loader already normalized the
   candidates (`rule_catalog/schema/rule.py`).
-- **shadow eval** — :class:`ShadowEvaluator`.
-- **regression gate** — :class:`RegressionGate`.
-- **promote | rollback** — :class:`RulePromotionController`.
+- **shadow eval** - :class:`ShadowEvaluator`.
+- **regression gate** - :class:`RegressionGate`.
+- **promote | rollback** - :class:`RulePromotionController`.
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ class ContinuousRulePipeline:
     """Optional T0 policy evaluator to use for the replay.
 
     Defaults to the T0 engine's built-in :class:`AbstainEvaluator` when
-    omitted — abstains never count as policy-violation escapes, so a
+    omitted - abstains never count as policy-violation escapes, so a
     pipeline run with no OPA still exercises router + audit paths
     without spuriously failing the regression gate.
     """
@@ -90,7 +90,7 @@ class ContinuousRulePipeline:
         """Run one continuous-update cycle.
 
         Provide **exactly one** of ``scenarios`` / ``scenarios_dir``.
-        ``baseline_rules`` is optional — when supplied, the pipeline
+        ``baseline_rules`` is optional - when supplied, the pipeline
         replays it too so the regression gate has a fresh baseline
         report to compare against. Callers that keep a cached baseline
         report can skip that leg by passing ``baseline_rules=None`` and
@@ -142,7 +142,7 @@ class ContinuousRulePipeline:
             return evaluator.evaluate_scenario_directory(
                 scenario_set_id=scenario_set_id, directory=scenarios_dir
             )
-        if scenarios is None:  # pragma: no cover — guarded above, kept for narrowing
+        if scenarios is None:  # pragma: no cover - guarded above, kept for narrowing
             raise ValueError("scenarios were None after narrowing")
         return evaluator.evaluate_scenarios(scenario_set_id=scenario_set_id, scenarios=scenarios)
 

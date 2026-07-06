@@ -1,7 +1,7 @@
 # Rule Authoring Guide
 
 How to author a new rule for the AIOpsPilot catalog. This guide is the
-canonical procedure every rule PR MUST follow — hand-authored, generated,
+canonical procedure every rule PR MUST follow - hand-authored, generated,
 or LLM-proposed. The T0 pipeline runs entirely **LLM-free**: rules produce
 verdicts through OPA/Rego evaluation, so a well-authored rule turns a
 class of misconfigurations into deterministic, auto-verifiable findings
@@ -14,7 +14,7 @@ and [docs/roadmap/llm-strategy.md](../docs/roadmap/llm-strategy.md).
 ## What a rule ships
 
 Every rule is a **tuple of four artifacts** on disk. All four MUST land
-in the same PR — the loader cross-checks references at load time and
+in the same PR - the loader cross-checks references at load time and
 fail-closes if any is missing.
 
 | # | Artifact | Path | Purpose |
@@ -29,7 +29,7 @@ matching declaration files (see [Extending the ontology](#extending-the-ontology
 
 ## Step-by-step
 
-The steps are ordered so each one produces a validating artifact — a
+The steps are ordered so each one produces a validating artifact - a
 half-finished rule always fails a specific test, never leaks into runtime.
 
 ### 1. Pick an ActionType
@@ -93,7 +93,7 @@ deny_reason := "<machine_readable_reason>" if deny
   `TemplateRenderer` with the executor's `Action.params` and a stable
   `resource_id`. Anything you interpolate becomes a placeholder like
   `${resource_id}` or `${retention_days}`.
-- Render the **target state**, not a mutation — the shadow PR shows the
+- Render the **target state**, not a mutation - the shadow PR shows the
   desired Terraform stanza the operator merges.
 - Do NOT include destructive fallbacks or `terraform destroy`. Removing a
   resource is expressed as a comment stanza saying the PR removes the
@@ -147,7 +147,7 @@ provenance:
 
 ### 6. Validate locally
 
-Run these in order — each catches a different class of drift:
+Run these in order - each catches a different class of drift:
 
 ```bash
 uv run pytest tests/rule_catalog -q      # schema + cross-reference load
@@ -158,7 +158,7 @@ scripts/check-english-only.sh            # no non-English in tracked files
 ```
 
 A pytest failure with `test_shipped_catalog_loads_and_covers_every_action_type`
-usually means an ActionType has no rule pointing at it — either the rule
+usually means an ActionType has no rule pointing at it - either the rule
 YAML has a typo in `remediates`, or the ActionType is unused (add ≥1 rule).
 
 ## Extending the ontology
@@ -201,7 +201,7 @@ description: >-
   and how it reverses.
 ```
 
-Rules — the loader enforces every ActionType has ≥1 rule pointing at it,
+Rules - the loader enforces every ActionType has ≥1 rule pointing at it,
 so ship the ActionType and its first rule in the same PR.
 
 ### New resource_type
@@ -216,13 +216,13 @@ under the appropriate category, including `azure_arm_type` and
 The rule catalog is **the ontology surface an LLM can consult** when
 reasoning about a case that fell through T0. The pieces the LLM reads:
 
-- `rule-catalog/vocabulary/resource-types.yaml` — resource-type ids and
+- `rule-catalog/vocabulary/resource-types.yaml` - resource-type ids and
   ARM mappings.
-- `rule-catalog/action-types/*.yaml` — operation verbs, rollback contracts,
+- `rule-catalog/action-types/*.yaml` - operation verbs, rollback contracts,
   preconditions, blast-radius semantics.
-- `rule-catalog/catalog/*.yaml` — every rule's metadata (severity,
+- `rule-catalog/catalog/*.yaml` - every rule's metadata (severity,
   category, remediates target, provenance).
-- The Rego files themselves — the deterministic ground truth. A rule
+- The Rego files themselves - the deterministic ground truth. A rule
   proposal that contradicts an existing rego is a proposal to change the
   rego, not to bypass it.
 
@@ -244,7 +244,7 @@ Guidance for an LLM proposing new rules from a fresh source:
    set.
 6. **Abstain on doubt.** If the source is ambiguous (e.g. severity depends
    on context the source doesn't state), leave the field at its
-   conservative default and flag it in the PR — an author reviews it.
+   conservative default and flag it in the PR - an author reviews it.
 
 ## Seed batch reference
 
@@ -256,7 +256,7 @@ The initial 50-rule seed was produced by a one-shot manifest + generator:
 The generator is not part of the runtime pipeline; it's kept as a
 worked example of the artifact shape and as a repeatable regeneration
 path if the seeds ever drift. **New rules go through the manual flow
-above**, not through the generator — the manifest was a bootstrap
+above**, not through the generator - the manifest was a bootstrap
 convenience, not the authoring interface.
 
 ## Anti-patterns
@@ -266,7 +266,7 @@ convenience, not the authoring interface.
 - **Reusing a template across resource types.** Templates are per-rule;
   duplication is acceptable, cross-contamination is not.
 - **Bypassing the ActionType.** The dispatch is `rule.remediates -> ActionType`.
-  If the operation doesn't fit any existing ActionType, add one — do not
+  If the operation doesn't fit any existing ActionType, add one - do not
   invent an inline action shape in the rule.
 - **Adding a rule in enforce mode.** New ActionTypes MUST ship as
   `default_mode: shadow`; promotion is a separate governance step.
@@ -277,7 +277,7 @@ convenience, not the authoring interface.
 ## Governance and update pipeline
 
 Rules are versioned and can be revised or retired through the same
-authoring flow — bump `version`, keep the `id`. The continuous update
+authoring flow - bump `version`, keep the `id`. The continuous update
 pipeline (see
 [docs/roadmap/rule-catalog-collection.md](../docs/roadmap/rule-catalog-collection.md))
 watches upstream sources, opens shadow PRs, and enforces regressions

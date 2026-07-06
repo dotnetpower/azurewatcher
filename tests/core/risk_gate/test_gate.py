@@ -1,4 +1,4 @@
-"""RiskGate + ActionPromotionRegistry — safety invariants + promotion contract."""
+"""RiskGate + ActionPromotionRegistry - safety invariants + promotion contract."""
 
 from __future__ import annotations
 
@@ -200,7 +200,7 @@ def test_stale_inventory_precondition_is_hil() -> None:
 
 def test_fresh_inventory_passes_precondition_check() -> None:
     registry = ActionPromotionRegistry()
-    # Promote first so mode is ENFORCE — otherwise shadow-mode default HIL wins.
+    # Promote first so mode is ENFORCE - otherwise shadow-mode default HIL wins.
     action_type = _shipped_action_types()["remediate.disable-public-access"]
     metrics = PromotionMetrics(
         action_type=action_type.name,
@@ -462,7 +462,7 @@ def test_upstream_abstain_yields_to_hil_when_other_reason_present() -> None:
 
 def test_declared_graph_fresh_seconds_raises_when_value_is_non_numeric() -> None:
     """A malformed ActionType (graph_fresh precondition without a numeric
-    value) MUST surface at first use — never silently defaulted."""
+    value) MUST surface at first use - never silently defaulted."""
     from aiopspilot.core.risk_gate.gate import _declared_graph_fresh_seconds
     from aiopspilot.shared.contracts.models import (
         ActionPrecondition,
@@ -537,7 +537,7 @@ def test_active_exemption_short_circuits_to_abstain() -> None:
 
 def test_no_exemption_match_yields_normal_outcome() -> None:
     """A registry with no matching exemption MUST not affect the
-    outcome — proves the override path is scope-bounded."""
+    outcome - proves the override path is scope-bounded."""
     from aiopspilot.shared.providers.exemption import (
         InMemoryExemptionRecord,
         InMemoryExemptionRegistry,

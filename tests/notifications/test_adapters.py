@@ -1,4 +1,4 @@
-"""Notification adapter tests — HTTP-level round-trip via httpx.MockTransport.
+"""Notification adapter tests - HTTP-level round-trip via httpx.MockTransport.
 
 Covers the six delivery adapters + the shared ``_http.post_json`` helper.
 Each adapter test mimics the pattern used by

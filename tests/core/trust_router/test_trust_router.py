@@ -1,4 +1,4 @@
-"""TrustRouter — P1 routing surface tests."""
+"""TrustRouter - P1 routing surface tests."""
 
 from __future__ import annotations
 

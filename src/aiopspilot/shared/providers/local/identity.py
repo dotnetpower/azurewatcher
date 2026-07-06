@@ -1,10 +1,10 @@
-"""LocalWorkloadIdentity — deterministic in-memory OIDC token issuer.
+"""LocalWorkloadIdentity - deterministic in-memory OIDC token issuer.
 
 Used in dev + tests. The token is a synthetic HS256-style string (no
 real signature) so no cryptography libs are pulled into the wheel; the
 Azure OpenAI + ARG adapters that consume it via httpx.MockTransport
 never validate the signature. Real prod uses the Managed-Identity
-adapter — this module is NEVER active when ``runtime.env == 'prod'``.
+adapter - this module is NEVER active when ``runtime.env == 'prod'``.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ class LocalWorkloadIdentity:
 
     Tokens are stable per ``(audience, tenant_id, principal_object_id)`` so a
     test replay produces byte-identical audit entries. A cache honours
-    :attr:`LocalWorkloadIdentityConfig.ttl_seconds` — beyond that a fresh
+    :attr:`LocalWorkloadIdentityConfig.ttl_seconds` - beyond that a fresh
     token is minted (again deterministically).
     """
 
@@ -42,7 +42,7 @@ class LocalWorkloadIdentity:
         if cfg.ttl_seconds < 1:
             raise ValueError("ttl_seconds MUST be >= 1")
         self._config = cfg
-        # Simple audience cache — Protocol contract forbids cross-audience
+        # Simple audience cache - Protocol contract forbids cross-audience
         # reuse, so keyed by full audience string.
         self._cache: dict[str, IdentityToken] = {}
 
@@ -70,11 +70,11 @@ def _synthetic_token(
     tenant_id: str,
     expires_at: datetime,
 ) -> str:
-    """Hex-encoded SHA256 of the claims — deterministic, not cryptographic.
+    """Hex-encoded SHA256 of the claims - deterministic, not cryptographic.
 
     A downstream test-mode HTTP handler can accept any bearer that starts
     with the ``aiopspilot-local:`` prefix; production adapters MUST NOT
-    accept this token — the Azure identity plane rejects it because the
+    accept this token - the Azure identity plane rejects it because the
     signature is not real.
     """
     claims: Mapping[str, str] = {

@@ -1,4 +1,4 @@
-"""Local smoke publisher — send one test event to Event Hubs Kafka.
+"""Local smoke publisher - send one test event to Event Hubs Kafka.
 
 Uses the user's `az account get-access-token` to authenticate via
 OAUTHBEARER. Run once after a deploy to verify the consumer picks up

@@ -51,7 +51,7 @@ class TrustTier(StrEnum):
 
 
 class Severity(StrEnum):
-    """Message severity — informational, mapped from the Adaptive-Card /
+    """Message severity - informational, mapped from the Adaptive-Card /
     Block-Kit colour palette. Vendor-neutral so the adapter picks the
     right visual on its side.
     """
@@ -66,7 +66,7 @@ class Severity(StrEnum):
 class Link:
     """One labelled hyperlink surfaced in the message body / card.
 
-    A2/A4 messages carry links only — never inline action buttons — so
+    A2/A4 messages carry links only - never inline action buttons - so
     every actionable path re-enters through :mod:`aiopspilot-api` where
     it can be authenticated.
     """
@@ -109,11 +109,11 @@ class NotificationMessage:
     digest names without editing core."""
 
     trust_tier: TrustTier
-    """A1..A4 — enforced by the router against the channel's declared
+    """A1..A4 - enforced by the router against the channel's declared
     :attr:`NotificationChannel.trust_tiers`."""
 
     correlation_id: str
-    """Stable id from the source event / action / digest run — used both
+    """Stable id from the source event / action / digest run - used both
     for audit correlation and for adapter-side idempotency."""
 
     title: str
@@ -125,7 +125,7 @@ class NotificationMessage:
     audit_id: str | None = None
     links: tuple[Link, ...] = ()
     metadata: Mapping[str, str] = field(default_factory=dict)
-    """Adapter-neutral k/v pairs (tenant label, digest run id, …). Never
+    """Adapter-neutral k/v pairs (tenant label, digest run id, ...). Never
     carries secrets."""
 
 
@@ -133,7 +133,7 @@ class NotificationMessage:
 class DeliveryReceipt:
     """One adapter's response for a single send attempt.
 
-    ``delivered=False`` is a soft failure — the router will try the next
+    ``delivered=False`` is a soft failure - the router will try the next
     fallback. Hard failures raise :class:`ChannelDeliveryError` so the
     router can distinguish "adapter said the send didn't stick" from
     "adapter never got that far".

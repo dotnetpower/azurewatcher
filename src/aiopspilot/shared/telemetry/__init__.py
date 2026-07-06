@@ -1,7 +1,7 @@
 """Structured logging, tracing, metric helpers.
 
-Public API. Every subsystem that emits telemetry imports from here — never
-from the sub-modules directly — so the module surface can change without
+Public API. Every subsystem that emits telemetry imports from here - never
+from the sub-modules directly - so the module surface can change without
 touching consumers.
 """
 

@@ -1,4 +1,4 @@
-# Standard output contract — every module surfaces its handles here so
+# Standard output contract - every module surfaces its handles here so
 # the composition layer stays swap-blind.
 
 output "resource_group_name" {

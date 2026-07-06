@@ -4,7 +4,7 @@ Captures every publish call in an append-only list so a test can assert
 on the exact intent the executor produced (title, body, patch, labels).
 Idempotency is honored: a second publish for the same
 ``idempotency_key`` returns the same receipt with ``already_existed=True``
-and does NOT duplicate the recorded entry — this matches the contract in
+and does NOT duplicate the recorded entry - this matches the contract in
 ``docs/roadmap/phases/phase-1-rule-catalog-t0.md § Remediation PR``.
 """
 

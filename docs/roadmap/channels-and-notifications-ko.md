@@ -1,13 +1,13 @@
 ---
 title: 채널과 알림(Channels and Notifications)
 translation_of: channels-and-notifications.md
-translation_source_sha: a26a020315442774594c6fc50a74b4a80ee4ea4d
-translation_revised: 2026-07-05
+translation_source_sha: 8d28c3a7efb744af3ef07d6b7dfe7c9458e8f44e
+translation_revised: 2026-07-06
 ---
 
 # 채널과 알림(Channels and Notifications)
 
-AIOpsPilot가 **비-웹-UI 채널** — Teams, Slack, email, webhook, paging 서비스, SMS —
+AIOpsPilot가 **비-웹-UI 채널** - Teams, Slack, email, webhook, paging 서비스, SMS -
 을 통해 사람과 소통하는 방법. 이 문서는 **채널 추상화, 신뢰 레벨, 카테고리 경계, 라우팅
 정책, 채널 특이 규칙** 의 진실 원본입니다. [tech-stack-ko.md](tech-stack-ko.md) 에서 힌트한
 "notifier 인터페이스" placeholder를 해결하고
@@ -32,7 +32,7 @@ Routing 조각들과
 3. **신뢰 티어링.** 승인 카테고리 트래픽(A1)은 사람의 Entra 아이덴티티를 종단으로 검증할 수
    없는 채널을 통해 흘러선 안 됨. 신뢰 낮은 채널은 정보를 운반해도 결정은 절대 안 됨(§4).
 4. **안전 방향 실패.** 카테고리의 설정된 모든 채널이 실패하면 요청은 큐잉되고 운영 라인에
-   page — 절대 auto-execute 안 함. 카테고리 내 fallback은 신뢰 티어 보존(§6).
+   page - 절대 auto-execute 안 함. 카테고리 내 fallback은 신뢰 티어 보존(§6).
 5. **Redaction은 발신자의 일.** 시크릿, 자격증명, PII, 구독 id, 원시 고객 페이로드는 어떤
    카테고리에서도 채널 메시지로 신뢰 경계를 떠나지 않음.
 
@@ -68,16 +68,16 @@ flowchart LR
   ([user-rbac-and-identity-ko.md](user-rbac-and-identity-ko.md#102-api-token-validation)).
   어댑터는 절대 자체로 결정을 authorize 하지 않음.
 
-## 3. 카테고리 (A1–A4)
+## 3. 카테고리 (A1-A4)
 
 모든 채널 메시지는 **카테고리 태그** 를 운반하고 그 카테고리의 규칙을 준수해야 함.
 
 | 카테고리 | 방향 | 예시 | 필요한 인증 강도 |
 |----------|------|------|-----------------|
-| **A1 — HIL 승인** | 양방향(결정 반환) | 고위험 액션 승인, enforce-promotion 승인, exemption 승인, override 승인 | **최고** — 검증된 Entra 아이덴티티, 액션-바인딩, 재생 없음 |
-| **A2 — 운영 알림** | outbound only | SLO burn, DLQ depth, verifier 실패율, cold-start miss, IaC drift, adapter 불건강, canary miss | 낮음 — 정보성 |
-| **A3 — 채팅 명령** | 양방향(쿼리/응답) | **read**: `/aw status`, `/aw shadow-report`, `/aw override list`, `/aw kill-switch status`. **write (draft-PR only)**: `/aw override draft`, `/aw exemption draft`, `/aw assignment param-tune` | 중간 — 명령별 롤-게이팅(§3.1) |
-| **A4 — 다이제스트** | outbound only | 일간 shadow-accuracy 리포트, 주간 override 회고, 주간 enforce-promotion 후보, 주간 governance PR aging, 주간 exemption 만료 lookahead, 월간 KPI + 비용 총결, break-glass 사용 요약 | 낮음 — 수신자 스코프만 |
+| **A1 - HIL 승인** | 양방향(결정 반환) | 고위험 액션 승인, enforce-promotion 승인, exemption 승인, override 승인 | **최고** - 검증된 Entra 아이덴티티, 액션-바인딩, 재생 없음 |
+| **A2 - 운영 알림** | outbound only | SLO burn, DLQ depth, verifier 실패율, cold-start miss, IaC drift, adapter 불건강, canary miss | 낮음 - 정보성 |
+| **A3 - 채팅 명령** | 양방향(쿼리/응답) | **read**: `/aw status`, `/aw shadow-report`, `/aw override list`, `/aw kill-switch status`. **write (draft-PR only)**: `/aw override draft`, `/aw exemption draft`, `/aw assignment param-tune` | 중간 - 명령별 롤-게이팅(§3.1) |
+| **A4 - 다이제스트** | outbound only | 일간 shadow-accuracy 리포트, 주간 override 회고, 주간 enforce-promotion 후보, 주간 governance PR aging, 주간 exemption 만료 lookahead, 월간 KPI + 비용 총결, break-glass 사용 요약 | 낮음 - 수신자 스코프만 |
 
 **카테고리 경계 (MUST)**
 
@@ -85,7 +85,7 @@ flowchart LR
   email body는 **opaque `approval_id`** 을 운반; 실제 결정은 `aiopspilot-api` 로 post,
   이것이 재인증하고 재검증 (`idempotency_key` + `action_hash`) 하여 유출된 메시지가 유효한
   승인이 아니게 함.
-- **A3 write 명령은 절대 라이브 카탈로그를 직접 변형하지 않음** — 콘솔과 같은 방식으로 draft
+- **A3 write 명령은 절대 라이브 카탈로그를 직접 변형하지 않음** - 콘솔과 같은 방식으로 draft
   PR을 생산
   ([user-rbac-and-identity-ko.md](user-rbac-and-identity-ko.md#6-identity-flow-console--draft-pr--audit)
   §6), invoker의 Entra OID를 PR trailer에 운반. PR은 이후 표준 quorum + 자기승인 없음 규칙을
@@ -112,12 +112,12 @@ flowchart LR
 | 채널 | Entra tenant | 인증 경로 | 허용 카테고리 |
 |------|--------------|-----------|--------------|
 | **Teams (same tenant)** | ✓ | Teams SSO → OBO 교환 → `aiopspilot-api` 토큰 | **A1, A2, A3, A4** |
-| **Teams (guest tenant)** | guest | guest OID로 OBO | **A2, A3, A4** (A1 거부 — [user-rbac-and-identity-ko.md §10.5](user-rbac-and-identity-ko.md#105-guest-entra-b2b-users) 와 동일한 guest 규칙) |
-| **Slack** | ✗ | Slack OAuth; **fork-mandatory** Slack userId ↔ Entra OID 매핑; A1 승인은 브라우저에서 Entra 재인증을 위해 `aiopspilot-api` 로 바운스 | **A1, A2, A3, A4** — P1에서 A1 활성화(§7 Slack notes 참조) |
-| **Email (SMTP / Graph)** | ✗ | 발신 전용, return 채널 없음 | **A2, A4 only** — 절대 A1 아님 (magic-link 승인 금지) |
+| **Teams (guest tenant)** | guest | guest OID로 OBO | **A2, A3, A4** (A1 거부 - [user-rbac-and-identity-ko.md §10.5](user-rbac-and-identity-ko.md#105-guest-entra-b2b-users) 와 동일한 guest 규칙) |
+| **Slack** | ✗ | Slack OAuth; **fork-mandatory** Slack userId ↔ Entra OID 매핑; A1 승인은 브라우저에서 Entra 재인증을 위해 `aiopspilot-api` 로 바운스 | **A1, A2, A3, A4** - P1에서 A1 활성화(§7 Slack notes 참조) |
+| **Email (SMTP / Graph)** | ✗ | 발신 전용, return 채널 없음 | **A2, A4 only** - 절대 A1 아님 (magic-link 승인 금지) |
 | **Generic webhook** | ✗ | HMAC-signed, timestamped, replay-guarded | **A2 only** |
 | **PagerDuty / Opsgenie** | ✗ | API 키, 모바일 앱에서 ack | **A2 only** (운영 라인 paging) |
-| **SMS** | ✗ | — | **A2 only** (최소 페이로드; break-glass 도달성) |
+| **SMS** | ✗ | - | **A2 only** (최소 페이로드; break-glass 도달성) |
 
 **매트릭스를 안전하게 유지하는 규칙 (MUST)**
 
@@ -144,13 +144,13 @@ interface Channel {
   categories: ChannelCategory[];         // 이 채널이 서비스할 수 있는 카테고리
   trust_level: TrustLevel;
 
-  // A2 / A4 (send-only) — 모든 채널이 구현
+  // A2 / A4 (send-only) - 모든 채널이 구현
   send(msg: NotificationMessage): Promise<DeliveryReceipt>;
 
-  // A1 — 승인 가능 채널만 구현
+  // A1 - 승인 가능 채널만 구현
   awaitDecision?(req: ApprovalRequest, ttl: Duration): Promise<ApprovalOutcome>;
 
-  // A3 — 채팅-명령 가능 채널만 구현
+  // A3 - 채팅-명령 가능 채널만 구현
   registerCommand?(cmd: ChatCommandSpec, handler: CommandHandler): void;
 }
 
@@ -160,7 +160,7 @@ interface NotificationMessage {
   audit_id?: string;
   title: string;
   body_markdown: string;                 // pre-redacted; 어댑터가 known-secret 패턴 재스캔
-  links: { label: string; url: string }[];    // 링크만 — A2/A4용 인라인 액션 버튼 없음
+  links: { label: string; url: string }[];    // 링크만 - A2/A4용 인라인 액션 버튼 없음
   severity?: 'info' | 'warn' | 'error' | 'critical';
 }
 
@@ -177,7 +177,7 @@ interface ApprovalRequest {
 - **어댑터는 절대 자체로 결정을 authorize 하지 않음.** `awaitDecision` 은 사용자가 클릭한
   무엇을 반환; 코어 라우터가 그 원시 클릭을 `aiopspilot-api` 로 넘기고, 그것이 유일한 권위
   (아이덴티티 재검증, 재생 검사, 자기승인 없음).
-- **어댑터는 메시지 body를 재스캔** 해야 함 — 알려진 시크릿 패턴에 대해(CI secret 스캐너가
+- **어댑터는 메시지 body를 재스캔** 해야 함 - 알려진 시크릿 패턴에 대해(CI secret 스캐너가
   쓰는 것과 같은 regex 세트) 발송 전에 마지막 방어선으로.
 - **어댑터는 멱등 `send` 를 구현** 해야 함: 같은 `correlation_id + audit_id + category` 로
   재발행된 send는 중복 포스트를 생성해선 안 됨.
@@ -185,7 +185,7 @@ interface ApprovalRequest {
 ### 5.1 오디언스 파생 (channel-as-audience)
 
 수신자 리스트는 라우터에서 per-user로 파생되지 **않음**. 각 채널이 오디언스 *그 자체* 이며,
-멤버십은 컨트롤 플레인 **밖에서** 관리 — 보통 채널을 Entra 보안 그룹에 바인딩.
+멤버십은 컨트롤 플레인 **밖에서** 관리 - 보통 채널을 Entra 보안 그룹에 바인딩.
 
 - **기본 (Option A)**: Teams 채널/DL은 `aw-*` Entra 보안 그룹으로 백업된 **group-connected
   team** 으로 생성. 멤버십은 Entra에서 자동 sync ("Owner가 Portal에서 `aw-approvers` 에
@@ -194,7 +194,7 @@ interface ApprovalRequest {
   ([user-rbac-and-identity-ko.md §4.2](user-rbac-and-identity-ko.md#42-security-groups-slots)).
 - **In-message `@mentions`** 은 채널 포스트 안에서 아티팩트-소유자를 호출(예: 만료되는 exemption
   의 요청자). 멘션은 감사 스트림이 이미 운반하는 아티팩트 메타데이터(`requested_by`, PR author,
-  rule author)에서 파생 — 다이제스트 시점에 Graph 조회 없음.
+  rule author)에서 파생 - 다이제스트 시점에 Graph 조회 없음.
 - **롤-파생 direct messaging** 은 break-glass 사용 요약에만 사용(채널 포스트로 충분하지 않은
   작고 시간-임계 오디언스). 다른 모든 A4 다이제스트는 채널 전용.
 
@@ -235,7 +235,7 @@ channel_routing:
       - slack-hil-prd
     # 롤 검사는 명령별(§3.1); 라우터는 재구현 안 함
 
-  digests:                         # 카테고리 A4 — 7가지 기본 다이제스트
+  digests:                         # 카테고리 A4 - 7가지 기본 다이제스트
     shadow_accuracy_daily:
       cron: "0 9 * * *"
       audience:
@@ -279,28 +279,28 @@ channel_routing:
 
 **라우터 규칙 (MUST)**
 
-- **카테고리 ⊆ channel.categories** — 라우터는 선언된 카테고리에 메시지 카테고리가 포함되지
+- **카테고리 ⊆ channel.categories** - 라우터는 선언된 카테고리에 메시지 카테고리가 포함되지
   않은 채널로 메시지 전송을 거부. 시작 config 검증이 허용되지 않은 카테고리와 채널을 짝지은
   라우팅 엔트리를 거부(deny-by-default; fail fast).
-- **Fallback 시 신뢰 보존** — A1 primary → A1 fallback만. Fallback에서 더 낮은 신뢰 레벨로
+- **Fallback 시 신뢰 보존** - A1 primary → A1 fallback만. Fallback에서 더 낮은 신뢰 레벨로
   다운그레이드는 config-load 에러.
 - **`role-dm` 은 `break_glass_usage_summary` 를 제외하고 deny-list.** `role-dm` 을 시도하는
   다른 다이제스트는 config 로드 실패.
 - **`mention-artifact-owner` 를 선언하는 다이제스트는 유효한 메타데이터 필드를 명시** 해야 함
   (`rule_author`, `override_requester`, `exemption_requester`, `pr_author_and_reviewers`);
   알려지지 않은 값은 config 로드 실패.
-- **Bounded 재시도** — 각 어댑터는 자체 재시도 예산을 선언; 라우터는 소진 시 다음 채널 또는
+- **Bounded 재시도** - 각 어댑터는 자체 재시도 예산을 선언; 라우터는 소진 시 다음 채널 또는
   `on_all_fail` 로 escalate.
-- **TTL fail-closed** — TTL까지 결정 없는 A1 요청은 no-op + A2 알림 + 감사 엔트리
+- **TTL fail-closed** - TTL까지 결정 없는 A1 요청은 no-op + A2 알림 + 감사 엔트리
   ([security-and-identity-ko.md](security-and-identity-ko.md#hil-approval-integrity)).
 
 ## 7. 채널 특이 노트
 
 | 채널 | 노트 |
 |------|------|
-| **Teams** | A1에 Adaptive Cards; OAuth 스코프 세트를 최소로 유지(`ChannelMessage.Send.Group` + 봇 시그널링). SSO + OBO는 이미 [user-rbac-and-identity-ko.md §10.4](user-rbac-and-identity-ko.md#104-chatops-teams-sign-in) 에 커버. 다이제스트 오디언스는 **`aw-*` Entra 보안 그룹으로 백업된 group-connected 팀** — 멤버십이 별도 리스트 없이 Entra를 따름. |
+| **Teams** | A1에 Adaptive Cards; OAuth 스코프 세트를 최소로 유지(`ChannelMessage.Send.Group` + 봇 시그널링). SSO + OBO는 이미 [user-rbac-and-identity-ko.md §10.4](user-rbac-and-identity-ko.md#104-chatops-teams-sign-in) 에 커버. 다이제스트 오디언스는 **`aw-*` Entra 보안 그룹으로 백업된 group-connected 팀** - 멤버십이 별도 리스트 없이 Entra를 따름. |
 | **Slack** | A2/A3에 Block Kit; 승인 콜백 URL은 `aiopspilot-api` 를 통해 리다이렉트하여 Entra 재인증이 Slack 안이 아니라 브라우저에서 발생. `chat:write` 스코프만. 포크는 userId↔OID 매핑 저장소를 공급해야 함; Slack 사용자에게 매핑된 Entra OID가 없으면 어댑터는 A1 트래픽 거부. Slack 채널 멤버십은 Slack에서 관리; 해당 `aw-*` 그룹과 수동 또는 SCIM으로 sync 유지. |
-| **Email** | Send-only. 승인 링크 절대 포함 안 함; 다이제스트와 알림만. 발신자 아이덴티티는 알림 롤에 범위된 Graph API 메일박스. Redaction 필수 — `audit_id` 와 대시보드 URL 이상의 상관 페이로드 없음. 권장 DL: `aw-approvers` / `aw-owners` 를 미러링하는 **Entra 동적 분배 그룹**. |
+| **Email** | Send-only. 승인 링크 절대 포함 안 함; 다이제스트와 알림만. 발신자 아이덴티티는 알림 롤에 범위된 Graph API 메일박스. Redaction 필수 - `audit_id` 와 대시보드 URL 이상의 상관 페이로드 없음. 권장 DL: `aw-approvers` / `aw-owners` 를 미러링하는 **Entra 동적 분배 그룹**. |
 | **Generic webhook** | HMAC-SHA256 서명, 단조 타임스탬프, 단발 nonce. Receiver 실패는 절대 블록 안 함; 코어가 어댑터 정책대로 재시도 후 이동. |
 | **PagerDuty / Opsgenie** | Dedup 키 = observability 상관 id 이므로 버스트가 접힘. 런북 URL은 모든 알림에 필수. |
 | **SMS** | 페이로드는 `<severity> <audit_id> <short-url-to-runbook>` 로 제한. 시크릿 없음, 고객 이름 없음, 자유 텍스트 없음. 주로 break-glass 도달성. |
@@ -312,14 +312,14 @@ channel_routing:
 - **모든 A2 채널이 다운** 이면, 어댑터 헬스 원격측정은 여전히 관측성에 랜딩하고 콘솔에 나타남;
   kill-switch는 전용 break-glass 경로를 통해 조작 가능
   ([security-and-identity-ko.md](security-and-identity-ko.md#rate-limiting-and-kill-switch-dos-and-containment)).
-- 어댑터 불건강 자체는 A2 신호 — A1 딜리버리를 중단한 Teams outage는 fallback 채널을 통해
+- 어댑터 불건강 자체는 A2 신호 - A1 딜리버리를 중단한 Teams outage는 fallback 채널을 통해
   운영 라인을 page.
 
 ## 9. 포크 vs 상류 분리
 
 | 항목 | 상류 (이 리포) | 포크 |
 |------|--------------|------|
-| `Channel` 인터페이스 + `NotificationMessage` / `ApprovalRequest` 타입 | ✓ | — |
+| `Channel` 인터페이스 + `NotificationMessage` / `ApprovalRequest` 타입 | ✓ | - |
 | Teams 어댑터 (기본 A1 + A2 + A3 + A4 구현) | ✓ | tenant / group-connected 팀 바인딩 |
 | **A1 기본 활성화된 Slack 어댑터 (P1)** | ✓ | workspace 자격증명 + userId↔OID 매핑(필수) |
 | Email / Webhook / Pager / SMS 어댑터 | ✓ (스켈레톤) | 자격증명 + 활성화 |
@@ -332,7 +332,7 @@ channel_routing:
 ## 10. Open Decisions
 
 - [ ] 어댑터-헬스 알림 임계와 dedupe 윈도우.
-- [ ] 어떤 벤더의 incoming webhook (있다면) 이 AIOpsPilot에 인시던트를 오픈할 수 있는가 —
+- [ ] 어떤 벤더의 incoming webhook (있다면) 이 AIOpsPilot에 인시던트를 오픈할 수 있는가 -
       오늘 observability만이 A2 트래픽을 오픈; 외부 webhook in은 별도 범위.
 - [ ] 아티팩트 소유자가 **guest** 사용자일 때의 `mention-artifact-owner` 동작 (Teams에서
       멘션은 여전히 resolve하지만, 정보 유출을 줄이기 위해 다이제스트가 억제하거나 다르게

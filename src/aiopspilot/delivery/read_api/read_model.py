@@ -1,14 +1,14 @@
 """Read-only projection surface for the console SPA.
 
-The console has three views (KPI dashboard, audit log, HIL queue) — each
+The console has three views (KPI dashboard, audit log, HIL queue) - each
 one is one GET call. Rather than let handlers reach directly into the
 :class:`~aiopspilot.shared.providers.state_store.StateStore` (which knows
 only how to *append* audit entries), this module defines a narrow
 **read model Protocol** that a fork's composition root binds to a concrete
 implementation (e.g. a Postgres-backed adapter). The upstream repo ships:
 
-- :class:`ConsoleReadModel` — the Protocol,
-- :class:`InMemoryConsoleReadModel` — a dev / test fake that also drives
+- :class:`ConsoleReadModel` - the Protocol,
+- :class:`InMemoryConsoleReadModel` - a dev / test fake that also drives
   the pytest suite.
 
 The Protocol is intentionally colocated with the read-API delivery layer
@@ -19,11 +19,11 @@ what it returns.
 
 Contract highlights (see docs/roadmap/user-rbac-and-identity.md § 6):
 
-- Every method is async — real backends (Postgres) block the loop.
+- Every method is async - real backends (Postgres) block the loop.
 - Cursor pagination is opaque: callers pass whatever the previous page
   returned as ``next_cursor``. The Protocol makes no guarantee about the
   cursor's structure other than "treat it as an opaque string".
-- Every method MUST return read-only shapes — no callable back-channel
+- Every method MUST return read-only shapes - no callable back-channel
   the console could use to mutate state.
 """
 
@@ -46,7 +46,7 @@ class AuditItem:
 
     Fields intentionally mirror the persisted ``audit_log`` row (see
     ``alembic/versions/20260705_0001_base.py``) with the JSON payload
-    kept as an opaque ``entry`` map — the console renders it with a
+    kept as an opaque ``entry`` map - the console renders it with a
     generic key/value viewer, so the API is stable across schema
     additions.
     """
@@ -120,7 +120,7 @@ class HilQueueItem:
     """One pending HIL approval item.
 
     The console renders these as an alert list; approval happens through
-    ChatOps (Teams Adaptive Card) — the console MUST NOT expose a "Approve"
+    ChatOps (Teams Adaptive Card) - the console MUST NOT expose a "Approve"
     button (see app-shape.instructions.md § Layer Boundaries).
     """
 
@@ -188,7 +188,7 @@ def clamp_limit(limit: int | None) -> int:
     """Bound the ``?limit=`` query param to ``[1, MAX_LIMIT]``.
 
     Exposed as module-level so both the Protocol implementations and the
-    HTTP handlers use the same clamp — a driver-side ``limit=99999`` MUST
+    HTTP handlers use the same clamp - a driver-side ``limit=99999`` MUST
     never turn into an unbounded scan.
     """
     if limit is None:
@@ -205,7 +205,7 @@ DEFAULT_LIMIT = _DEFAULT_LIMIT
 
 
 # ---------------------------------------------------------------------------
-# In-memory fake — powers the pytest suite and (optionally) the local dev
+# In-memory fake - powers the pytest suite and (optionally) the local dev
 # harness so a developer can `python -m aiopspilot.delivery.read_api` and
 # hit the console without a live Postgres.
 # ---------------------------------------------------------------------------
@@ -214,7 +214,7 @@ DEFAULT_LIMIT = _DEFAULT_LIMIT
 class InMemoryConsoleReadModel(ConsoleReadModel):
     """Dict-backed :class:`ConsoleReadModel` for tests + local dev.
 
-    Not suitable for production — entries vanish on process restart.
+    Not suitable for production - entries vanish on process restart.
     Adds :meth:`record_audit_entry` and :meth:`record_hil_pending` so
     tests can seed the model without a full control-loop replay.
     """
@@ -241,7 +241,7 @@ class InMemoryConsoleReadModel(ConsoleReadModel):
 
         Missing top-level fields fall back to sensible defaults so tests
         can pass minimal fixtures. The audit hash chain is NOT enforced
-        here — the fake exists to drive the HTTP surface, not to mirror
+        here - the fake exists to drive the HTTP surface, not to mirror
         :class:`~aiopspilot.shared.providers.testing.state_store.InMemoryStateStore`.
         """
         with self._lock:

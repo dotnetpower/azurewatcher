@@ -1,4 +1,4 @@
-"""Control-loop orchestrator — wires the P1 pipeline end-to-end.
+"""Control-loop orchestrator - wires the P1 pipeline end-to-end.
 
 Composes the five P1 subsystems currently implemented:
 
@@ -10,7 +10,7 @@ Composes the five P1 subsystems currently implemented:
 
 No T1 / T2 / risk-gate is invoked; those land in later phases behind
 their own DI seams. The orchestrator lives in ``core/`` because it is
-the safety-critical assembly point — every failure MUST audit, and
+the safety-critical assembly point - every failure MUST audit, and
 shadow-mode invariants hold for every path.
 
 Contract (P1)
@@ -55,7 +55,7 @@ class ControlLoopOutcome(StrEnum):
     """Top-level outcome for one :meth:`ControlLoop.process` call."""
 
     DEDUPED = "deduped"
-    """Duplicate delivery — no audit written (previous delivery owns it)."""
+    """Duplicate delivery - no audit written (previous delivery owns it)."""
 
     ABSTAINED_ROUTING = "abstained_routing"
     """Trust-router found no candidate rule; no T0 evaluation."""
@@ -78,9 +78,9 @@ class ControlLoopResult:
     ``decision`` follows the audit vocabulary defined in
     ``docs/roadmap/llm-strategy.md``:
 
-    - ``auto`` — T0 matched and an action was executed (shadow PR opened).
-    - ``abstain`` — routing or T0 abstained.
-    - ``dedupe`` — duplicate delivery.
+    - ``auto`` - T0 matched and an action was executed (shadow PR opened).
+    - ``abstain`` - routing or T0 abstained.
+    - ``dedupe`` - duplicate delivery.
 
     ``hil`` and ``deny`` are Phase 2 risk-gate outputs and are not
     produced by the P1 loop.
@@ -141,7 +141,7 @@ class ControlLoop:
         # Runs BEFORE the trust router for Activity Log signals; every
         # other signal passes through unchanged (per phase-1 doc §
         # Out-of-Band Detection). The detector never blocks primary
-        # routing — it is a shadow-mode observability + reconcile-PR
+        # routing - it is a shadow-mode observability + reconcile-PR
         # emitter.
         cs_decision: ChangeSafetyDecision | None = None
         if (
@@ -170,7 +170,7 @@ class ControlLoop:
                 change_safety_decision=cs_decision,
             )
 
-        if decision.resource_type is None:  # pragma: no cover — belt-and-suspenders
+        if decision.resource_type is None:  # pragma: no cover - belt-and-suspenders
             # The router MUST populate resource_type for T0 decisions;
             # this branch is unreachable via the public API.
             raise RuntimeError("trust router returned T0 without a resource_type")
@@ -213,7 +213,7 @@ class ControlLoop:
         exec_results: list[ExecutionResult] = []
         for finding in verdict.findings:
             rule = self._rules_by_id.get(finding.rule_id)
-            if rule is None:  # pragma: no cover — index/catalog inconsistency
+            if rule is None:  # pragma: no cover - index/catalog inconsistency
                 raise KeyError(
                     f"rule {finding.rule_id!r} appears in T0 findings but is "
                     "not in the rules_by_id map"
@@ -230,7 +230,7 @@ class ControlLoop:
                     reason=str(exc),
                     stage="action_build",
                 )
-                exec_results.append(  # noqa: E501 — surfaces the failure to the caller
+                exec_results.append(  # noqa: E501 - surfaces the failure to the caller
                     _synthetic_action_build_failure(event=event, finding=finding, reason=str(exc))
                 )
                 continue
@@ -295,9 +295,9 @@ def _extract_resource_props(payload: Mapping[str, Any]) -> Mapping[str, Any]:
     Two shapes are accepted (both documented in
     ``docs/roadmap/csp-neutrality.md § 5``):
 
-    1. ``payload['resource']['props']`` — matches
+    1. ``payload['resource']['props']`` - matches
        :class:`ResourceRecord` produced by the Inventory adapter.
-    2. ``payload['props']`` — a legacy flat form used by some Phase 0
+    2. ``payload['props']`` - a legacy flat form used by some Phase 0
        fixture generators.
     """
     resource = payload.get("resource")

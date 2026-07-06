@@ -1,4 +1,4 @@
-"""TeamsHilAdapter — HTTP-level round-trip via httpx.MockTransport.
+"""TeamsHilAdapter - HTTP-level round-trip via httpx.MockTransport.
 
 Verifies the wire contract the P2 risk-gate + HIL notifier rely on:
 
@@ -16,7 +16,7 @@ Verifies the wire contract the P2 risk-gate + HIL notifier rely on:
   / ``timeout`` / unknown payloads to the right :class:`HilDecision`
   values, and rejects a payload without ``approval_id``.
 - Non-2xx / non-JSON / transport failures raise :class:`HilChannelError`
-  with a truncated snippet — no raw response body leaks.
+  with a truncated snippet - no raw response body leaks.
 
 No real Teams endpoints are contacted; every test builds an
 ``httpx.AsyncClient`` on top of :class:`httpx.MockTransport`.
@@ -52,7 +52,7 @@ from aiopspilot.shared.providers.testing.workload_identity import (
 # ---------------------------------------------------------------------------
 
 _WEBHOOK_URL = "https://mock-teams.local/webhookb2/example@tenant/IncomingWebhook/abc/def"
-_WEBHOOK_SECRET = "s3cret-shared-hmac-key"  # noqa: S105 — deterministic test literal
+_WEBHOOK_SECRET = "s3cret-shared-hmac-key"  # noqa: S105 - deterministic test literal
 _BEARER = "test-bot-token"  # noqa: S105
 
 
@@ -160,7 +160,7 @@ def test_secret_and_identity_are_mutually_exclusive() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Happy path — send + receipt
+# Happy path - send + receipt
 # ---------------------------------------------------------------------------
 
 
@@ -310,7 +310,7 @@ async def test_send_with_secret_attaches_hmac_signature() -> None:
     # Timestamp is a monotonic-ish unix seconds string.
     assert timestamp_header.isdigit()
 
-    # Recompute HMAC and compare — verifies the wire signature exactly.
+    # Recompute HMAC and compare - verifies the wire signature exactly.
     mac = hmac.new(_WEBHOOK_SECRET.encode("utf-8"), digestmod=hashlib.sha256)
     mac.update(timestamp_header.encode("utf-8"))
     mac.update(b".")
@@ -428,7 +428,7 @@ async def test_send_4xx_raises_hil_channel_error_with_trimmed_body() -> None:
     assert err.status_code == 400
     assert err.approval_id == "appr-1"
     # Trimmed to the default 512-byte cap.
-    assert "…" in str(err)
+    assert "..." in str(err)
     assert "eeeee" in str(err)
     assert len(str(err)) < 2000  # not the raw 2 KB body
 
@@ -446,7 +446,7 @@ async def test_send_4xx_short_body_is_not_trimmed() -> None:
     # Body is preserved verbatim (no truncation ellipsis), newlines
     # collapsed to spaces.
     assert "short error with newline" in text
-    assert "…" not in text
+    assert "..." not in text
 
 
 async def test_send_transport_error_raises_hil_channel_error() -> None:
@@ -460,7 +460,7 @@ async def test_send_transport_error_raises_hil_channel_error() -> None:
 
 
 # ---------------------------------------------------------------------------
-# poll() — P1 posture
+# poll() - P1 posture
 # ---------------------------------------------------------------------------
 
 
@@ -484,7 +484,7 @@ async def test_poll_returns_pending_in_p1() -> None:
 
 
 # ---------------------------------------------------------------------------
-# parse_response() — approve / reject / timeout / unknown
+# parse_response() - approve / reject / timeout / unknown
 # ---------------------------------------------------------------------------
 
 

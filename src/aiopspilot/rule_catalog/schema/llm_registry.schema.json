@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://aiopspilot.dev/schemas/rule-catalog/llm-registry/1.0.0",
   "title": "LlmRegistry",
-  "description": "Capability preferences registry consumed by the bootstrap resolver. Family-only (no dated versions) — the resolver picks the latest stable version at provisioning time. See docs/roadmap/llm-strategy.md § Capability Preferences Registry.",
+  "description": "Capability preferences registry consumed by the bootstrap resolver. Family-only (no dated versions) - the resolver picks the latest stable version at provisioning time. See docs/roadmap/llm-strategy.md § Capability Preferences Registry.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "models"],

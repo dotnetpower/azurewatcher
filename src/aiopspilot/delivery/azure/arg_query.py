@@ -1,4 +1,4 @@
-"""Azure Resource Graph query factory — turns a
+"""Azure Resource Graph query factory - turns a
 :class:`~aiopspilot.shared.providers.inventory.Inventory` shard call into a
 real Kusto-over-ARG REST request.
 
@@ -14,7 +14,7 @@ Design boundaries
   file adds only the "how do I fetch one shard from ARG" concern.
 - Identity flows through the injected
   :class:`~aiopspilot.shared.providers.workload_identity.WorkloadIdentity`
-  Protocol — no ``DefaultAzureCredential``, no ``azure-identity`` import.
+  Protocol - no ``DefaultAzureCredential``, no ``azure-identity`` import.
   A fork MAY plug in IRSA / SPIFFE / GCP-WIF under the same seam.
 - HTTP transport is an injected :class:`httpx.AsyncClient`. Tests pass a
   client backed by :class:`httpx.MockTransport`; production wires a
@@ -29,15 +29,15 @@ What this cut ships (Step 3d)
 
 - Bearer-token authenticated ``POST`` against the ARG REST endpoint under
   a bounded per-request timeout.
-- ``$skipToken`` pagination — the loop halts on an empty token or an empty
+- ``$skipToken`` pagination - the loop halts on an empty token or an empty
   ``data`` page.
 - Response → :class:`ResourceRecord` mapping (``resource_id`` = CSP-neutral
   path; ``provider_ref`` = raw ARM id; ``props`` carries a length-bounded
   subset of the ARG row).
 - **``contains`` link extraction** from the ARM id hierarchy: every
   resource inside a resource-group emits a ``contains(rg, resource)``
-  edge. Purely a function of the ARM id — never reads untrusted vendor
-  ``properties`` for this — so the blast-radius seam has a real edge
+  edge. Purely a function of the ARM id - never reads untrusted vendor
+  ``properties`` for this - so the blast-radius seam has a real edge
   set without a trust boundary.
 - **``attached_to`` link extraction** from a narrow whitelist of
   well-known ``properties`` paths (``subnet.id`` /
@@ -51,7 +51,7 @@ What this cut ships (Step 3d)
   ``acrLoginServer``). The first two carry ARM ids and resolve through
   the same reverse map as ``attached_to``; ``acrLoginServer`` is a DNS
   name that requires a login-server → ARM id registry lookup and is
-  skipped when the resolver cannot map it (the current default —
+  skipped when the resolver cannot map it (the current default -
   positive resolution lands when the ACR registry is wired).
 
 Safety / cost invariants
@@ -67,7 +67,7 @@ Safety / cost invariants
   raises :class:`ArgQueryError`. The
   :class:`~aiopspilot.delivery.azure.inventory.AzureResourceGraphInventory`
   cancels outstanding shards and skips the ``final=True`` fence, so the
-  caller retains the previous graph — matches ``csp-neutrality.md § 5``.
+  caller retains the previous graph - matches ``csp-neutrality.md § 5``.
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ _DEFAULT_MAX_PROPS_BYTES: Final[int] = 64 * 1024
 class ArgQueryError(RuntimeError):
     """Raised when an ARG shard query fails or returns unusable output.
 
-    The message is safe to log — it never carries raw response bodies or
+    The message is safe to log - it never carries raw response bodies or
     tenant-identifying values, only the failing shard's resource_type,
     HTTP status, and a short-truncated reason string.
     """
@@ -123,7 +123,7 @@ class AzureArgQueryFactoryConfig:
     arg_api_version: str = _DEFAULT_ARG_API_VERSION
     """ARG REST API version.
 
-    Pinned by the adapter, not the SDK — a version bump is an intentional,
+    Pinned by the adapter, not the SDK - a version bump is an intentional,
     reviewable change (contract diff), never a mid-flight upgrade.
     """
 
@@ -137,7 +137,7 @@ class AzureArgQueryFactoryConfig:
     """Upper bound on ``$skipToken`` follow-ups per shard.
 
     Ceiling defense against a runaway result set. Exceeding it raises
-    :class:`ArgQueryError` — the caller retries with a narrower query
+    :class:`ArgQueryError` - the caller retries with a narrower query
     rather than silently truncating.
     """
 
@@ -196,7 +196,7 @@ class AzureArgQueryFactory:
             arm_type = self._resolve_arm_type(resource_type)
             if arm_type is None:
                 # The vocabulary does not declare an ARM path for this
-                # CSP-neutral type — nothing to fetch from Azure. This is
+                # CSP-neutral type - nothing to fetch from Azure. This is
                 # a legitimate no-op, not an error (e.g. a future
                 # `secret-store` variant with no direct ARM equivalent).
                 return (), ()
@@ -370,7 +370,7 @@ def _to_neutral_id(arm_id: str) -> str:
     The ontology's ``resource_id`` is defined as a stable, non-vendor path
     keyed on tenancy scope + resource name (docs/roadmap/llm-strategy.md
     § Ontology Foundation). For P1 we adopt a conservative rule: strip the
-    leading ``/subscriptions/...`` prefix and lowercase — enough for the
+    leading ``/subscriptions/...`` prefix and lowercase - enough for the
     audit log to link ontology → provider, without leaking ARM.
     Later phases MAY refine this once the ontology promotes ``tenancy``
     to a first-class field.
@@ -391,7 +391,7 @@ def _truncate_props(props: Mapping[str, Any], *, max_bytes: int) -> dict[str, An
         # Round-trip through JSON to normalise types (dates → strings).
         return dict(json.loads(encoded))
 
-    # Drop the widest offender first — usually `properties` (nested dict).
+    # Drop the widest offender first - usually `properties` (nested dict).
     # Truncation is best-effort; the record still carries the ARM id via
     # `provider_ref`, so an operator can retrieve full detail out-of-band.
     trimmed = dict(props)
@@ -411,18 +411,18 @@ def _extract_rg_contains_links(
 ) -> tuple[LinkRecord, ...]:
     """Emit one ``contains(resource-group, resource)`` edge per RG-scoped resource.
 
-    Purely a function of the ARM id (via ``provider_ref``) — never
-    reads ``props`` — so the trust boundary from vendor properties
+    Purely a function of the ARM id (via ``provider_ref``) - never
+    reads ``props`` - so the trust boundary from vendor properties
     stays intact. A resource without ``provider_ref`` (rare; the mapper
     always sets it, but a hand-crafted fixture might not) is skipped.
 
     Deduplication is by the standard link key
-    ``(from_id, link_type, to_id)`` — repeats within one shard collapse
+    ``(from_id, link_type, to_id)`` - repeats within one shard collapse
     into a single edge, matching the ``LinkRecord`` idempotency contract
     on :class:`~aiopspilot.shared.providers.inventory.InventoryBatch`.
 
     The Resource-Group node itself is emitted implicitly through the
-    edge's ``from_id`` — the resource-group ``ResourceRecord`` MAY or
+    edge's ``from_id`` - the resource-group ``ResourceRecord`` MAY or
     MAY NOT appear in the same shard (the caller's shard set decides).
     That is fine: the ingest layer stores links whose endpoints may
     predate observation of the referenced node.
@@ -444,7 +444,7 @@ def _extract_rg_contains_links(
         next_slash = arm_id.find("/", after_marker)
         if next_slash == -1:
             # The resource IS a resource-group (arm_id ends after the
-            # RG name). No parent to emit — that edge lives on the
+            # RG name). No parent to emit - that edge lives on the
             # subscription level, out of P1 scope.
             continue
         rg_arm_id = arm_id[:next_slash]
@@ -467,7 +467,7 @@ def _extract_rg_contains_links(
 
 # Well-known top-level `properties.<key>.id` paths that carry ARM ids to
 # a referenced resource. Deliberately narrow so a change here is a
-# reviewable, versioned expansion — never a wildcard walk of untrusted
+# reviewable, versioned expansion - never a wildcard walk of untrusted
 # vendor data.
 _ATTACHED_TO_PROPERTY_KEYS: Final[tuple[str, ...]] = (
     "subnet",
@@ -479,7 +479,7 @@ _ATTACHED_TO_PROPERTY_KEYS: Final[tuple[str, ...]] = (
 def _build_arm_to_neutral_map(registry: ResourceTypeRegistry) -> dict[str, str]:
     """Reverse ``ResourceTypeRegistry.get(id).azure_arm_type`` lookup.
 
-    Case-insensitive matching — ARM type spellings occasionally drift
+    Case-insensitive matching - ARM type spellings occasionally drift
     (`Microsoft.Storage/storageAccounts` vs
     `microsoft.storage/storageaccounts` on legacy events); the map keys
     are lowered and the callers lowercase their inputs.
@@ -572,16 +572,16 @@ def _extract_attached_to_links_from_row(
     return tuple(links)
 
 
-# Well-known `properties.<key>` paths that carry a **soft** dependency —
+# Well-known `properties.<key>` paths that carry a **soft** dependency -
 # the child cannot function without the target but is not part of its
 # lifecycle (contrast with `contains`). Deliberately narrow so a change
-# here is a reviewable, versioned expansion — never a wildcard walk of
+# here is a reviewable, versioned expansion - never a wildcard walk of
 # untrusted vendor data.
 #
 # Two shapes are supported:
 #
 # 1. Nested ARM-id: `properties.<key>.id` (matches the `attached_to`
-#    shape) — currently used by App Service / Function / AKS storage
+#    shape) - currently used by App Service / Function / AKS storage
 #    account references.
 # 2. Top-level ARM-id string: `properties.<key>` (Diagnostic Settings
 #    `workspaceResourceId` and similar).
@@ -598,7 +598,7 @@ _DEPENDS_ON_ARM_ID_STRING_KEYS: Final[tuple[str, ...]] = ("workspaceResourceId",
 def _resolve_acr_login_server_to_arm_id(login_server: str) -> str | None:
     """Placeholder for the ACR login-server → ARM id registry lookup.
 
-    Returns ``None`` in this cycle — no resolver is wired yet, so every
+    Returns ``None`` in this cycle - no resolver is wired yet, so every
     ``properties.acrLoginServer`` reference is treated as unresolvable
     and dropped by :func:`_extract_depends_on_links_from_row`. Tests
     monkeypatch this hook to exercise the resolvable path when the
@@ -620,11 +620,11 @@ def _extract_depends_on_links_from_row(
 
     Emits one ``depends_on(child, target)`` per resolvable reference:
 
-    - ``properties.storageAccount.id`` (nested ARM id) — App Service /
+    - ``properties.storageAccount.id`` (nested ARM id) - App Service /
       Function / AKS → storage.
-    - ``properties.workspaceResourceId`` (top-level ARM id string) —
+    - ``properties.workspaceResourceId`` (top-level ARM id string) -
       Diagnostic Setting → log-workspace.
-    - ``properties.acrLoginServer`` (top-level DNS string) — resolved
+    - ``properties.acrLoginServer`` (top-level DNS string) - resolved
       back to an ARM id via
       :func:`_resolve_acr_login_server_to_arm_id`; dropped when the
       resolver returns ``None`` (the current default).
@@ -636,7 +636,7 @@ def _extract_depends_on_links_from_row(
       unmapped targets are dropped (safer than emitting an unknown
       ``to_type`` that the ontology would reject at ingest).
     - Duplicates within one row (across all whitelisted paths) collapse
-      into a single edge — matches the ``LinkRecord`` idempotency
+      into a single edge - matches the ``LinkRecord`` idempotency
       contract on :class:`~aiopspilot.shared.providers.inventory.InventoryBatch`.
     """
     properties = row.get("properties")
@@ -685,7 +685,7 @@ def _extract_depends_on_links_from_row(
             continue
         _try_emit(ref_id)
 
-    # 3. `properties.acrLoginServer` — DNS-name string requiring a
+    # 3. `properties.acrLoginServer` - DNS-name string requiring a
     # separate registry lookup. Skip when the resolver cannot map the
     # login-server back to an ARM id (the current default).
     login_server = properties.get("acrLoginServer")

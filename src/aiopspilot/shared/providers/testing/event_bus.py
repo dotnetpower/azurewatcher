@@ -2,16 +2,16 @@
 
 Semantics that matter for the safety-core tests:
 
-- **Per-partition ordering** — one implicit partition (partition=0) so
+- **Per-partition ordering** - one implicit partition (partition=0) so
   ordering-by-key equals ordering-by-publish. Real brokers preserve order
   only per partition; the fake keeps that guarantee trivially.
-- **Consumer-group offsets** — each ``group_id`` remembers where its last
+- **Consumer-group offsets** - each ``group_id`` remembers where its last
   ``subscribe(...)`` yield ended. A second call resumes from that offset.
   New groups start at offset 0 (mirrors ``auto.offset.reset=earliest``).
-- **At-least-once delivery** — the fake never removes records; a consumer
+- **At-least-once delivery** - the fake never removes records; a consumer
   MUST enforce idempotency on the event's ``idempotency_key`` just like on
   a real broker.
-- **DLQ convention** — ``dead_letter`` publishes into ``<topic>.dlq``,
+- **DLQ convention** - ``dead_letter`` publishes into ``<topic>.dlq``,
   matching the wire-level rule in ``csp-neutrality.md § Event Bus``.
 """
 
@@ -56,7 +56,7 @@ class InMemoryEventBus(EventBus):
 
     async def _subscribe(self, topic: str, group_id: str) -> AsyncIterator[EventEnvelope]:
         # Snapshot the queue at the moment subscribe() is called so a
-        # concurrent publish doesn't extend our iterator mid-flight —
+        # concurrent publish doesn't extend our iterator mid-flight -
         # matching how real consumers poll a batch.
         with self._lock:
             queue_snapshot = list(self._records.get(topic, ()))
@@ -83,7 +83,7 @@ class InMemoryEventBus(EventBus):
         payload: Mapping[str, Any],
         reason: str,
     ) -> None:
-        # Kafka has no native DLQ — enforce the <topic>.dlq convention.
+        # Kafka has no native DLQ - enforce the <topic>.dlq convention.
         dlq_topic = f"{topic}.dlq"
         dlq_payload: dict[str, Any] = {
             "original_topic": topic,

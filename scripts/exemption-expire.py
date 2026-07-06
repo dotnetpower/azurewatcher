@@ -38,7 +38,7 @@ def _expire_one(path: Path, *, apply: bool) -> bool:
         raw = json.loads(path.read_text(encoding="utf-8"))
         exemption = load_exemption_from_mapping(raw)
     except (json.JSONDecodeError, ExemptionError) as exc:
-        print(f"❌ {path}: skipping (invalid — {exc})", file=sys.stderr)
+        print(f"❌ {path}: skipping (invalid - {exc})", file=sys.stderr)
         return False
 
     if exemption.state is not ExemptionState.ACTIVE:
@@ -96,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if not args.directory.exists():
-        print(f"{args.directory} does not exist — nothing to expire.")
+        print(f"{args.directory} does not exist - nothing to expire.")
         return 0
 
     changed = 0
@@ -111,5 +111,5 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":  # pragma: no cover — invoked as a script
+if __name__ == "__main__":  # pragma: no cover - invoked as a script
     raise SystemExit(main())

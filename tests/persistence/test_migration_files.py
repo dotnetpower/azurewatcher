@@ -5,7 +5,7 @@ No database is touched. Verifies:
 - Each migration file imports without error.
 - ``upgrade`` / ``downgrade`` are defined.
 - ``revision`` and ``down_revision`` are consistent (linear chain).
-- Migrations use raw SQL only (no SQLAlchemy metadata reference) — the
+- Migrations use raw SQL only (no SQLAlchemy metadata reference) - the
   runtime StateStore adapter will be psycopg-only, so any ORM-flavoured
   migration would drift.
 """
@@ -25,7 +25,7 @@ MIGRATION_FILES = sorted(p for p in MIGRATIONS_DIR.glob("*.py") if not p.name.st
 
 
 def _load_migration(path: Path) -> ModuleType:
-    """Load a migration file directly — ``alembic/`` is a script folder, not a package."""
+    """Load a migration file directly - ``alembic/`` is a script folder, not a package."""
     spec = importlib.util.spec_from_file_location(f"migration_{path.stem}", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -69,5 +69,5 @@ def test_migration_uses_raw_sql_only(path: Path) -> None:
     for token in forbidden:
         assert token not in text, f"{path.name}: forbidden ORM token {token!r}"
     assert re.search(r"\bop\.execute\(", text), (
-        f"{path.name}: no op.execute() call — likely empty migration"
+        f"{path.name}: no op.execute() call - likely empty migration"
     )

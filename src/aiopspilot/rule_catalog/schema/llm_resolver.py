@@ -1,4 +1,4 @@
-"""Bootstrap resolver — deployer-scoped LLM capability resolution.
+"""Bootstrap resolver - deployer-scoped LLM capability resolution.
 
 Pure-function core; SDK bindings sit at the edges. Given a
 :class:`~aiopspilot.rule_catalog.schema.llm_registry.LlmRegistry` and three
@@ -23,7 +23,7 @@ Rules the resolver enforces (MUST):
   refuse and mark ``hil-only``.
 - **Mixed-model invariant** (`t2.reasoner.primary.publisher !=
   t2.reasoner.secondary.publisher`) after resolution: raise
-  :class:`ResolverError` — do NOT partially deploy a T2 tier that would
+  :class:`ResolverError` - do NOT partially deploy a T2 tier that would
   fail the quality gate.
 
 The output is deterministic: same registry + region + subscription +
@@ -64,7 +64,7 @@ class CapabilityStatus(StrEnum):
 
 
 # ---------------------------------------------------------------------------
-# DI seams — three tiny Protocols so tests never need Azure SDKs.
+# DI seams - three tiny Protocols so tests never need Azure SDKs.
 # ---------------------------------------------------------------------------
 
 
@@ -86,7 +86,7 @@ class PermissionQuery(Protocol):
 
 @runtime_checkable
 class QuotaQuery(Protocol):
-    """Available capacity_tpm for (region, publisher, family) — 0 = none."""
+    """Available capacity_tpm for (region, publisher, family) - 0 = none."""
 
     def available_capacity_tpm(self, *, region: str, publisher: str, family: str) -> int: ...
 
@@ -123,7 +123,7 @@ class ResolvedModels:
     capabilities: tuple[ResolvedCapability, ...]
 
     def to_json(self) -> str:
-        """JSON with sorted keys — same input yields the same bytes."""
+        """JSON with sorted keys - same input yields the same bytes."""
         payload = {
             "schema_version": self.schema_version,
             "region": self.region,
@@ -189,7 +189,7 @@ def resolve(
     """Produce a :class:`ResolvedModels` for the target deployment.
 
     Never raises for "environmental" failures (missing role, missing
-    family, low quota) — those degrade the affected capability to
+    family, low quota) - those degrade the affected capability to
     ``hil-only`` and continue. Raises :class:`ResolverError` only when
     the mixed-model invariant cannot hold at deployment time.
     """
@@ -327,7 +327,7 @@ def _enforce_mixed_model_invariant(entries: list[ResolvedCapability]) -> None:
     if primary is None or secondary is None:
         return
     # Only the two RESOLVED cases can violate the invariant. If either
-    # is hil-only the invariant is not applicable — the T2 tier already
+    # is hil-only the invariant is not applicable - the T2 tier already
     # can't auto-execute for the affected capability.
     if (
         primary.status in (CapabilityStatus.RESOLVED, CapabilityStatus.CAPACITY_REDUCED)

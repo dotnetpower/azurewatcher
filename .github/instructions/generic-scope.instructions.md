@@ -8,7 +8,7 @@ applyTo: "**"
 This repository is the **general-purpose, reusable** control plane. It must stay
 customer-agnostic so it can be adopted by any tenant, team, or cloud provider (CSP).
 **Customer-agnostic** means the code, config, docs, and history contain only generic,
-synthetic, or placeholder values — never anything that identifies or belongs to a
+synthetic, or placeholder values - never anything that identifies or belongs to a
 specific customer environment.
 
 This file is the single source of truth for scope; the repo root
@@ -55,7 +55,7 @@ To keep examples concrete without leaking anything, use synthetic placeholders:
 ## Fork-Per-Customer Model
 
 - Customer-specific customization lives in a **separate downstream fork**, never here.
-- This repo is the **main project**; a fork customizes it by **dependency injection** — it
+- This repo is the **main project**; a fork customizes it by **dependency injection** - it
   registers its own implementations (provider adapters, rules/policies, secret/config providers,
   delivery adapters, risk thresholds, model providers) at the composition root and selects
   bindings via configuration. A fork MUST NOT patch `core/`. See the injectable seams in
@@ -83,7 +83,7 @@ Do not rely on human review alone. Gate every change:
 Author and reviewer are both responsible.
 
 - If a diff introduces any customer-identifying value or one-off customer logic, treat it as a
-  defect and **block the merge** — no exceptions.
+  defect and **block the merge** - no exceptions.
 - Fix by moving the value into configuration (env var / config file / secret-store reference)
   and moving the logic into the downstream customer fork.
 - If customer data was already committed, it also exists in git history: rotate any exposed

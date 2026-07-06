@@ -1,10 +1,10 @@
-"""Composition root — the ONE place that instantiates concrete implementations.
+"""Composition root - the ONE place that instantiates concrete implementations.
 
 ``core/`` modules never construct adapters; they receive :class:`Container`
 instances (or the individual seam Protocols) via arguments. Only entry points
 (``__main__``, CLIs, tests) call :func:`default_container` /
 :func:`default_container_from_env`. A per-customer fork registers its own
-bindings by exposing its own container factory in its composition root —
+bindings by exposing its own container factory in its composition root -
 it MUST NOT edit ``core/`` or patch upstream defaults.
 
 Fail-fast contract
@@ -22,7 +22,7 @@ The container carries an :class:`LlmBindings` that resolves the T1 embedding
 model and the T2 cross-check models. In ``llm.mode == 'local-fake'`` (the
 default in dev), the composition root binds the deterministic in-memory
 fakes from ``core/tiers/t1_lightweight/testing.py`` and
-``core/quality_gate/testing.py`` — the pipeline works end-to-end with zero
+``core/quality_gate/testing.py`` - the pipeline works end-to-end with zero
 Azure credentials. In ``llm.mode == 'azure'``, ``Container.llm_bindings``
 starts as ``None``; the entry point MUST call :func:`bind_azure_llm_bindings`
 with a live :class:`httpx.AsyncClient` and a :class:`WorkloadIdentity` to
@@ -79,7 +79,7 @@ class LlmBindingsUnavailableError(RuntimeError):
     Fail-close guard: azure-mode containers start with ``llm_bindings=None``
     and MUST be finalized via :func:`bind_azure_llm_bindings`. A caller that
     reaches this exception is running in production without having wired
-    the Azure adapters — the process refuses to proceed.
+    the Azure adapters - the process refuses to proceed.
     """
 
 
@@ -88,7 +88,7 @@ class LlmBindings:
     """Runtime-bound LLM seams handed to core code.
 
     ``cross_check_models`` MUST contain the number of models the quality
-    gate expects to reach quorum (default 2 — see
+    gate expects to reach quorum (default 2 - see
     :class:`~aiopspilot.core.quality_gate.gate.QualityGateConfig`).
     """
 
@@ -143,7 +143,7 @@ def default_container(config: AppConfig) -> Container:
     """Return the upstream default binding of every seam.
 
     The caller MUST hand in an already-validated :class:`AppConfig`. Building
-    one from the process environment is the entry point's job — see
+    one from the process environment is the entry point's job - see
     :func:`default_container_from_env`.
 
     A fork MAY:
@@ -201,7 +201,7 @@ def bind_azure_llm_bindings(
     if container.config.llm.mode != LlmMode.AZURE:
         raise ValueError(
             f"bind_azure_llm_bindings called but llm.mode="
-            f"{container.config.llm.mode!r} — only 'azure' is supported"
+            f"{container.config.llm.mode!r} - only 'azure' is supported"
         )
     if container.config.llm.resolved_models_path is None:
         raise ValueError(
@@ -218,7 +218,7 @@ def bind_azure_llm_bindings(
             "resolved-models.json lacks a bindable 't1.embedding' capability"
         )
     if primary_cap is None or secondary_cap is None:
-        # `hil-only` mode is a designed opt-out — the region cannot host
+        # `hil-only` mode is a designed opt-out - the region cannot host
         # a distinct-publisher secondary reasoner. Bind the primary (or a
         # deterministic fake if even the primary is missing) plus an
         # always-disagree fake secondary so every T2 quality-gate call
@@ -255,7 +255,7 @@ def bind_azure_llm_bindings(
             return replace(container, llm_bindings=bindings)
 
         raise LlmBindingsUnavailableError(
-            "resolved-models.json lacks bindable T2 reasoner capabilities — "
+            "resolved-models.json lacks bindable T2 reasoner capabilities - "
             "the quality gate cannot form a quorum"
         )
 
@@ -296,10 +296,10 @@ def _load_resolved_models(path_or_ref: str) -> ResolvedModels:
 
     Two shapes are accepted:
 
-    - a filesystem path — used when Container Apps mounts the KV secret
+    - a filesystem path - used when Container Apps mounts the KV secret
       as a file under ``/mnt/secrets/`` (or when a dev laptop writes the
       resolver output next to the checkout);
-    - an inline JSON document — used when the Container App reads the
+    - an inline JSON document - used when the Container App reads the
       secret through a ``secretRef`` env var (no volume-mount extension
       required). Detected by a leading ``{`` after stripping whitespace.
 

@@ -1,6 +1,6 @@
 """The AppConfig JSON Schema is itself valid draft-2020-12.
 
-Same idea as ``tests/contracts/test_schemas_valid.py`` — a malformed config
+Same idea as ``tests/contracts/test_schemas_valid.py`` - a malformed config
 schema is a startup bug worth catching before the loader runs on real env.
 """
 

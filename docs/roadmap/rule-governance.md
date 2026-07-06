@@ -3,8 +3,8 @@ title: Rule Governance
 ---
 # Rule Governance
 
-How an administrator **controls** rules — authoring, parameterizing, scoping, enabling, and
-exempting them — the way Azure Policy lets an operator manage definitions, assignments, and
+How an administrator **controls** rules - authoring, parameterizing, scoping, enabling, and
+exempting them - the way Azure Policy lets an operator manage definitions, assignments, and
 exemptions. This is the human-facing control surface over the rule catalog.
 
 It builds on the collected/normalized rules in
@@ -30,7 +30,7 @@ so administrators get a familiar mental model:
 | assignment | **assignment** | a rule/rule-set applied to a scope, with parameters and an effect |
 | assignment `enforcementMode` | **enforcement flag** | `enforce` vs `do-not-enforce` (shadow); orthogonal to effect |
 | exemption (waiver / mitigated) | **exemption** | a time-boxed, justified, categorized waiver of an assignment on a scope |
-| effect (audit/deny/…) | **effect / mode** | what happens on violation (see Effects) |
+| effect (audit/deny/...) | **effect / mode** | what happens on violation (see Effects) |
 
 A rule is inert until an **assignment** binds it to a **scope** with an **effect**. This is the
 key to administrator control: authors write rules once; operators decide *where*, *how strict*,
@@ -61,7 +61,7 @@ assignment's top-level `effect` is the default for rules without an override.
 |------|----|----|
 | `disabled` | `audit` | standard review |
 | `audit` (shadow) | `deny` / `remediate` (enforce) | **separate enforce-promotion approval** |
-| `deny` / `remediate` | `audit` | standard review (demotion always allowed — fail toward safety) |
+| `deny` / `remediate` | `audit` | standard review (demotion always allowed - fail toward safety) |
 | any active state | `disabled` | standard review (records why) |
 
 - **New assignments default to `audit` (shadow) with `enforcement: do-not-enforce`.** Promotion to
@@ -71,14 +71,14 @@ assignment's top-level `effect` is the default for rules without an override.
 - A regression **auto-demotes** the assignment back to `audit`; demotion never needs the promotion
   gate, so safety degradation is always fast.
 - The **absence** of an assignment means the rule is unenforced on that scope (governance is
-  default-audit, not default-deny); this does not fail open at runtime — an unmatched or ambiguous
+  default-audit, not default-deny); this does not fail open at runtime - an unmatched or ambiguous
   event still routes to HIL per
   [architecture.instructions.md](../../.github/instructions/architecture.instructions.md).
 - `deny`/`remediate` actions carry the four safety invariants (stop-condition, rollback,
   blast-radius limit, audit entry) from
   [coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md).
   A misfiring `deny` is recoverable via the global kill-switch or a time-boxed exemption (its blast
-  radius is *blocking legitimate change*); a `remediate` PR is idempotent — a re-evaluated finding
+  radius is *blocking legitimate change*); a `remediate` PR is idempotent - a re-evaluated finding
   updates the open PR rather than opening duplicates.
 
 ## Scope
@@ -89,11 +89,11 @@ Scope selects which resources an assignment covers, CSP-neutrally:
 - **Selectors**: by resource-type, by tag/label, or by an explicit resource-id allowlist.
 - **Exclusions**: a scope may exclude child scopes (e.g. apply org-wide but exclude a sandbox).
 - Scope is data; the executor still holds only its least-privilege identity and action whitelist
-  ([security-and-identity.md](security-and-identity.md)) — a broad scope never widens execution
+  ([security-and-identity.md](security-and-identity.md)) - a broad scope never widens execution
   privilege.
 - **Scope precedence**: when nested scopes both bind the same rule, the **most-specific scope
   wins** for parameters; for conflicting *effects* the **strictest effect wins**
-  (`deny` > `remediate` > `audit` > `disabled`), and a genuine tie escalates to HIL — consistent
+  (`deny` > `remediate` > `audit` > `disabled`), and a genuine tie escalates to HIL - consistent
   with the deterministic order in
   [phase-1-rule-catalog-t0.md](phases/phase-1-rule-catalog-t0.md#deduplication-conflict-and-precedence).
 - **Conflicting assignments** on the same rule+scope resolve by that same strictest-effect-wins
@@ -102,8 +102,8 @@ Scope selects which resources an assignment covers, CSP-neutrally:
 
 ## Administrator Control Flow (GitOps, not buttons)
 
-Administrators control rules exactly like changing Azure Policy — author, parameterize, assign,
-exempt — but the change is delivered as a **reviewed PR to catalog-as-code**, so audit, rollback,
+Administrators control rules exactly like changing Azure Policy - author, parameterize, assign,
+exempt - but the change is delivered as a **reviewed PR to catalog-as-code**, so audit, rollback,
 and approval come from git for free:
 
 ```mermaid
@@ -119,7 +119,7 @@ flowchart LR
     MERGE --> LOAD[T0 loads at runtime]
 ```
 
-- The console MAY offer an **authoring UI**, but it only **produces a draft PR** — it never
+- The console MAY offer an **authoring UI**, but it only **produces a draft PR** - it never
   executes or mutates the live catalog directly (keeps the console read-only).
 - Every governance change (create/modify rule, assignment, exemption, effect change) is a PR with
   an author, reviewer, and audit trail. Raising an effect toward enforce requires the extra
@@ -127,7 +127,7 @@ flowchart LR
 - A draft PR is validated **against the current merged catalog**, not the authoring UI's local
   view; a stale draft must rebase, so the live catalog stays the single source of truth and
   concurrent edits cannot silently clobber each other. Approvals happen in git (or ChatOps), never
-  as a console button — the console only renders state and emits draft PRs.
+  as a console button - the console only renders state and emits draft PRs.
 
 ## Custom Rules and Precedence
 
@@ -146,7 +146,7 @@ allows custom definitions beside built-ins:
   from the promotion gate.
 - **Untrusted authored input**: a custom rule's `check-logic`, `remediation`, and any parameter
   values are validated against schema at load and evaluated **only** through the sandboxed policy
-  engine (OPA) — never string-interpolated into shell or provider API calls — closing the
+  engine (OPA) - never string-interpolated into shell or provider API calls - closing the
   injection path from rule text or parameters
   ([coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md)).
 
@@ -156,20 +156,20 @@ An exemption waives an assignment for a scope, like an Azure Policy exemption:
 
 - Required fields: target assignment, scope, **justification**, **category** (`waiver` = accepted
   risk, or `mitigated` = compensating control in place), **requester**, **approver** (distinct
-  from the requester — no self-exemption), and an **expiry** (exemptions are time-boxed; no
+  from the requester - no self-exemption), and an **expiry** (exemptions are time-boxed; no
   permanent silent waivers).
-- Expiry is bounded by a configured **maximum duration**; there is no auto-renew — extending an
+- Expiry is bounded by a configured **maximum duration**; there is no auto-renew - extending an
   exemption is a fresh PR with a fresh approval, so a waiver can never quietly become permanent.
 - On expiry the assignment re-applies automatically; expiring exemptions alert ahead of time via
   ChatOps (not a console action).
 - Every exemption and its expiry is audited; an exemption never suppresses the audit record of the
-  underlying finding — it records *why* it was accepted, not that it did not occur.
+  underlying finding - it records *why* it was accepted, not that it did not occur.
 
 ## Overrides
 
 An **override** is the human control surface *above* the automated quality gate: an operator
 declares that a rule is too aggressive in a specific environment and narrows, downgrades, or
-disables it — without editing the rule. Overrides are what
+disables it - without editing the rule. Overrides are what
 [architecture.instructions.md](../../.github/instructions/architecture.instructions.md#human-override)
 means by "human override on top". They complement, not replace, exemptions.
 
@@ -181,7 +181,7 @@ means by "human override on top". They complement, not replace, exemptions.
 | The rule itself is systematically too aggressive for a resource-group, indefinitely | **override** (may be permanent) |
 | The rule is a poor fit everywhere and should not exist | **rule retirement** via the catalog pipeline, not an override |
 
-An override is not a waiver of an individual finding — it is a scoped policy stance that the
+An override is not a waiver of an individual finding - it is a scoped policy stance that the
 rule's shipped behavior does not match this environment.
 
 ### Rules (MUST)
@@ -189,7 +189,7 @@ rule's shipped behavior does not match this environment.
 - **Policy-as-code, separate artifact**. An override is its own catalog-as-code entry
   (`kind: override`); it never edits the target rule's text. Removing the override restores
   the rule automatically, and an upstream rule update flows through untouched.
-- **Scope MUST be resource-group-equivalent or narrower** — the `resource-group` layer of the
+- **Scope MUST be resource-group-equivalent or narrower** - the `resource-group` layer of the
   scope hierarchy above, or a specific `resource`. Organization- and account/subscription-wide
   overrides are rejected in CI; disabling a rule everywhere is a **rule retirement**, which
   goes through the catalog pipeline, not an override.
@@ -207,7 +207,7 @@ rule's shipped behavior does not match this environment.
   [rule-catalog-collection.md](rule-catalog-collection.md#autonomous-rule-discovery).
 - **Audit-first**: every override create/modify/remove event is an append-only audit entry
   (actor, reason, target rule, scope, mode). An override never suppresses the audit record of
-  the underlying finding — it records *why* execution was suppressed on that scope.
+  the underlying finding - it records *why* execution was suppressed on that scope.
 
 ### Precedence
 
@@ -232,12 +232,12 @@ rule's shipped behavior does not match this environment.
 
 ## RBAC (who can do what)
 
-Authoring, approving, assigning, and exempting are **separate permissions** — no self-approval,
+Authoring, approving, assigning, and exempting are **separate permissions** - no self-approval,
 mirroring the approval≠execution rule in
 [security-and-identity.md](security-and-identity.md). These are **logical** governance roles;
 they map to a small set of Entra security groups (Reader / Contributor / Approver / Owner +
 Break-Glass) in [user-rbac-and-identity.md](user-rbac-and-identity.md). Several logical roles
-collapse to the same Entra group — no-self-approval is enforced by CI on PR authorship, not by
+collapse to the same Entra group - no-self-approval is enforced by CI on PR authorship, not by
 group separation, and high-risk approvals (`audit → deny / remediate`, exemption, override)
 require a **quorum of two approvers** from `aw-approvers`.
 
@@ -272,9 +272,9 @@ and Owner-tier reviewer for loosening changes.
 - Changing a rule's logic bumps its `version`; changing an assignment's parameters/effect/scope is
   itself an audited, versioned change. A rule set **pins the `version` of each member rule** so a
   rule change cannot silently alter a promoted set.
-- **Testability**: every assignment/exemption PR ships fixtures — the expected match set (which
+- **Testability**: every assignment/exemption PR ships fixtures - the expected match set (which
   synthetic resources the scope selects) and, for enforce promotions, the shadow-eval sample the
-  promotion gate scored — so governance changes are regression-tested like rule changes
+  promotion gate scored - so governance changes are regression-tested like rule changes
   ([coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md)).
 
 ## YAML Shapes
@@ -365,7 +365,7 @@ provenance:
 > CI. Each rule-set member pins a rule `version`; each `parameter_overrides` value is validated
 > against the type the target rule declares for that parameter (a type mismatch fails CI);
 > `requested_by` must differ from `approver`. The assignment above is intentionally held **fully
-> in shadow** — the rule set's `deny` default for `object-storage.public-access.deny` is
+> in shadow** - the rule set's `deny` default for `object-storage.public-access.deny` is
 > overridden to `audit` and `enforcement` is `do-not-enforce` until a separate promotion approval
 > flips it.
 
@@ -381,7 +381,7 @@ provenance:
 - [ ] The exact CI check that enforces "override scope is resource-group-equivalent or
       narrower" against the Scope URI grammar (must reject organization/account/subscription
       scopes deterministically).
-- [ ] The permitted `parameter-relaxation` bounds per rule — where a rule declares the
+- [ ] The permitted `parameter-relaxation` bounds per rule - where a rule declares the
       relaxation range in its own schema vs a governance-level cap that overrides cannot
       exceed.
 - [ ] The signal thresholds the discovery loop uses to flag "over-overridden" rules (number

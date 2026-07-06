@@ -2,7 +2,7 @@
 
 Offline-first: the CLI accepts JSON fixture inputs so it is fully
 testable without any Azure SDK. Real Azure-backed queries plug in later
-via ``--use-azure-sdk`` (deferred — see W-C in
+via ``--use-azure-sdk`` (deferred - see W-C in
 [dev-and-deploy-parity.md](../../../../docs/roadmap/dev-and-deploy-parity.md)).
 
 Usage
@@ -23,10 +23,10 @@ Usage
 Exit codes
 ----------
 
-- ``0`` — resolved (all capabilities RESOLVED, CAPACITY_REDUCED, or HIL_ONLY
+- ``0`` - resolved (all capabilities RESOLVED, CAPACITY_REDUCED, or HIL_ONLY
   according to environment).
-- ``2`` — resolver hard error (mixed-model invariant violated, config missing).
-- ``64`` — usage error (bad CLI args).
+- ``2`` - resolver hard error (mixed-model invariant violated, config missing).
+- ``64`` - usage error (bad CLI args).
 """
 
 from __future__ import annotations
@@ -109,13 +109,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--catalog-fixture",
         type=Path,
         required=True,
-        help="JSON file: {region: [family, ...]} — offline stand-in for the catalog API.",
+        help="JSON file: {region: [family, ...]} - offline stand-in for the catalog API.",
     )
     parser.add_argument(
         "--permission-fixture",
         type=Path,
         required=True,
-        help="JSON file: {subscription_id: [principal_object_id, ...]} — role holders.",
+        help="JSON file: {subscription_id: [principal_object_id, ...]} - role holders.",
     )
     parser.add_argument(
         "--quota-fixture",

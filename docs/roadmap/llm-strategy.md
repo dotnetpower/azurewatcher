@@ -18,14 +18,14 @@ the threat model in [security-and-identity.md](security-and-identity.md).
 
 Coverage figures are **targets to validate against a measured baseline**
 ([goals-and-metrics.md](goals-and-metrics.md)), not guarantees. They partition one event
-stream, so T0+T1+T2 sum to ~100%; T0 (~70–80%) is documented in
+stream, so T0+T1+T2 sum to ~100%; T0 (~70-80%) is documented in
 [architecture.instructions.md](../../.github/instructions/architecture.instructions.md).
 
 | Tier | Role | Model class | Coverage target | Cost profile |
 |------|------|-------------|-----------------|--------------|
-| **T0** | deterministic engine | **no model** | ~70–80% | zero tokens |
-| **T1** | similarity + light judgment | **embedding model** + **small/cheap LLM** | ~15–20% | very low |
-| **T2** | reasoning on novel/ambiguous cases | **frontier LLMs (2+ independent)** | ~5–10% | highest; mixed-model cross-check required |
+| **T0** | deterministic engine | **no model** | ~70-80% | zero tokens |
+| **T1** | similarity + light judgment | **embedding model** + **small/cheap LLM** | ~15-20% | very low |
+| **T2** | reasoning on novel/ambiguous cases | **frontier LLMs (2+ independent)** | ~5-10% | highest; mixed-model cross-check required |
 
 ### Tier Boundaries
 
@@ -34,7 +34,7 @@ stream, so T0+T1+T2 sum to ~100%; T0 (~70–80%) is documented in
   resolved incidents falls below a configured score threshold, and no learned action applies.
 - Similarity thresholds and the abstain conditions are **configuration**, not hard-coded.
 
-## T1 — Lightweight Tier
+## T1 - Lightweight Tier
 
 - **Embeddings**: a small embedding model to vectorize incidents and match past patterns.
   Prefer a cost-efficient hosted embedding model, or a local sentence-transformer where data
@@ -43,42 +43,42 @@ stream, so T0+T1+T2 sum to ~100%; T0 (~70–80%) is documented in
 - **Small judgment model**: a small/cheap instruction model to classify routine cases and
   select a learned action. Keep prompts short and grounded; treat inputs as untrusted
   (see [Prompt-Injection Defense](#prompt-injection-defense)).
-- Goal: absorb ~15–20% of events without a frontier round-trip.
+- Goal: absorb ~15-20% of events without a frontier round-trip.
 
-## T2 — Reasoning Tier (Quality Gate Required)
+## T2 - Reasoning Tier (Quality Gate Required)
 
-T2 handles only novel or ambiguous cases (~5–10%). Its output must pass the quality gate
+T2 handles only novel or ambiguous cases (~5-10%). Its output must pass the quality gate
 before it can execute. The model **generates a candidate**; the deterministic verifier decides
 eligibility.
 
 - **Mixed-model cross-check**: run **two or more independent models** on the same judgment.
-  Independence means genuinely distinct providers/weights — do **not** count two endpoints
+  Independence means genuinely distinct providers/weights - do **not** count two endpoints
   serving the same base model, since correlated errors defeat the check.
   - **Agreement predicate**: agreement is on the **normalized structured action** (target
     resource, operation, parameters), not free text. Compare canonicalized action objects for
     semantic equivalence, not string identity.
   - **N models and quorum**: with N ≥ 3, require a configured quorum (e.g. majority); no quorum
     → escalate. A 2-of-2 tie (disagreement) escalates to HIL, never auto-resolves.
-  - **Cost control**: prefer a **cascade** — run the cheaper reasoner first and invoke the
-    second only when its self-consistency or grounding signal is weak — so the full N-model
+  - **Cost control**: prefer a **cascade** - run the cheaper reasoner first and invoke the
+    second only when its self-consistency or grounding signal is weak - so the full N-model
     fan-out is spent only on genuinely hard cases.
 - **Verifier**: a **deterministic** check, independent of any model, re-validates the candidate
   action against policy-as-code and what-if/dry-run before it is execution-eligible. The
-  verifier — not model text — is the authority.
+  verifier - not model text - is the authority.
 - **Grounding (RAG)**: force citation of the rules/policies/docs that justify the judgment,
   and **validate that each cited item exists in the rule catalog and actually supports the
   claim** (guards against fabricated citations). **Abstain** when the answer is ungrounded.
 - **Threshold gating**: schema, policy, what-if, and security-scan checks must all pass and a
   computed **confidence** must clear a threshold. Confidence is derived from verifier and
-  cross-check signals (agreement, grounding validity, historical success) — **never from a
+  cross-check signals (agreement, grounding validity, historical success) - **never from a
   model's self-reported confidence**, which is unreliable. Below threshold routes to HIL.
 
 ### Outcome Semantics
 
-- **eligible** — all gates pass; hand to the risk gate.
-- **abstain** — no grounded, supported answer; take no autonomous action, route to HIL.
-- **disagree/escalate** — models fail quorum; route to HIL.
-- **deny** — verifier or policy rejects the candidate; no-op, audited.
+- **eligible** - all gates pass; hand to the risk gate.
+- **abstain** - no grounded, supported answer; take no autonomous action, route to HIL.
+- **disagree/escalate** - models fail quorum; route to HIL.
+- **deny** - verifier or policy rejects the candidate; no-op, audited.
 
 All four are typed, audited outcomes; only **eligible** can proceed toward execution.
 
@@ -103,7 +103,7 @@ injection ([security-and-identity.md](security-and-identity.md)).
 
 - Treat all payload and tool-output text as **data, not instructions**; the model must not
   follow instructions embedded in it. Delimit and quarantine untrusted spans in the prompt.
-- **Indirect injection**: outputs returned from tools/RAG are re-fed to the model — apply the
+- **Indirect injection**: outputs returned from tools/RAG are re-fed to the model - apply the
   same quarantine and never let retrieved text change the action contract.
 - The **verifier and policy re-check are the authority**; a candidate that only "sounds"
   approved but fails deterministic checks is denied.
@@ -165,7 +165,7 @@ models:
       - { publisher: OpenAI, family: gpt-4o }
       - { publisher: OpenAI, family: gpt-4-turbo }
     capacity_tpm: 20_000
-  t2.reasoner.secondary:          # mixed-model peer — MUST be a distinct publisher
+  t2.reasoner.secondary:          # mixed-model peer - MUST be a distinct publisher
     preferences:
       - { publisher: Anthropic, family: claude-opus-4 }
       - { publisher: MistralAI, family: mistral-large-2 }
@@ -182,7 +182,7 @@ Rules the registry enforces (MUST, at config load):
 
 - **Family, not version.** Preferences pin the model *family* (e.g. `gpt-4o-mini`); the
   bootstrap resolver picks the latest stable version at provisioning time and records it in
-  the resolved mapping. Never pin a dated version in the registry — it hides deprecation.
+  the resolved mapping. Never pin a dated version in the registry - it hides deprecation.
 - **`capacity_tpm` is a cost ceiling.** Overflow degrades to HIL (per Cost Controls);
   provisioning a capacity below the fork's measured minimum is a config-load error.
 - **Escalated capability is opt-in per invocation** (`invocation: on_disagreement`); it is
@@ -218,7 +218,7 @@ flowchart LR
 **Bootstrap invariants (MUST, fail-fast)**
 
 - Every capability provisions from at least one preference. Zero-match aborts the
-  bootstrap — the deployer must expand the region or update the registry.
+  bootstrap - the deployer must expand the region or update the registry.
 - `t2.reasoner.primary.publisher` and `t2.reasoner.secondary.publisher` MUST differ
   (Mixed-Model Family Strategies below). Same-publisher pairs abort the bootstrap.
 - The resolved mapping records `{deployment, family, version, publisher}` per capability
@@ -250,7 +250,7 @@ return quorum_result(cand_a, cand_b)
 ### Reconciler Job
 
 A weekly Container Apps Job (same environment as core; no separate compute) watches three
-signals and **proposes changes via draft PR** — it never mutates the live registry or
+signals and **proposes changes via draft PR** - it never mutates the live registry or
 swaps deployments autonomously.
 
 | Signal | Trigger | Reconciler action |
@@ -268,7 +268,7 @@ Rules the reconciler obeys (MUST):
   in shadow: the new deployment is provisioned in parallel, the quality-measurement replay
   scores it against the frozen scenario set, and only a clean replay promotes the
   `resolved-models.json` cutover.
-- **PR reviewers** on `rule-catalog/llm-registry.yaml` are Owner-tier — a model swap is a
+- **PR reviewers** on `rule-catalog/llm-registry.yaml` are Owner-tier - a model swap is a
   high-blast-radius governance change.
 
 ### Mixed-Model Family Strategies
@@ -290,7 +290,7 @@ a runtime toggle.
 
 | Item | Upstream (this repo) | Fork |
 |------|----------------------|------|
-| Capability names (`t1.judge`, `t2.reasoner.primary`, ...) | ✓ | — |
+| Capability names (`t1.judge`, `t2.reasoner.primary`, ...) | ✓ | - |
 | `llm-registry.yaml` default preferences (mini → Opus tier) | ✓ | region / compliance / cost overrides |
 | Bootstrap resolver script + IaC hooks | ✓ | subscription / region / naming |
 | Reconciler Job (schedule, deprecation feed parser, draft-PR opener) | ✓ | cron timezone, alert channel |
@@ -321,7 +321,7 @@ Every runtime concept is one of four **ObjectTypes**. Concrete instances live in
 |------------|---------|---------|
 | `Resource` | a target under governance (Azure resource; CSP-neutral schema, populated by the provider adapter) | `shared/providers/` |
 | `Rule` | a deterministic control with an intent (`applies_to`, `evaluates`, `remediates`) | `rule-catalog/` |
-| `Signal` | a typed observation (Activity Log line, drift diff, cost anomaly, canary result) — the primitive that enters `event-ingest` | `shared/contracts/event` |
+| `Signal` | a typed observation (Activity Log line, drift diff, cost anomaly, canary result) - the primitive that enters `event-ingest` | `shared/contracts/event` |
 | `Finding` | a rule match on a resource at a point in time, with context and severity | derived at runtime; persisted in the audit store |
 
 Relationships are **typed LinkTypes** with cardinality metadata, so traversal is O(indexed
@@ -331,32 +331,32 @@ when a Finding-chain query must respect time.
 
 | LinkType | Cardinality | Transitive | Meaning |
 |----------|-------------|:---------:|---------|
-| `applies_to` | Rule → ResourceType (M:M) | — | which resource types the rule may match |
-| `triggered_by` | Rule → SignalType (M:M) | — | which signals cause the rule to be evaluated |
-| `evaluates` | Rule → Property (M:M) | — | which resource properties the rule reads |
-| `remediates` | Rule → ActionType (M:1) | — | which ontology action the rule proposes on match |
-| `resource_of` | Signal → Resource (M:1) | — | which resource the signal is about |
-| `overrides` | Override → Rule (M:1) | — | the override targets this rule (see [rule-governance.md](rule-governance.md#overrides)) |
-| `causes` / `prevents` | Rule → Outcome (M:M, causal) | — | causal metadata that T2 may reason over (rare) |
-| `precedes` / `follows` | Finding → Finding (M:M, temporal) | — | correlation of related findings on one incident |
+| `applies_to` | Rule → ResourceType (M:M) | - | which resource types the rule may match |
+| `triggered_by` | Rule → SignalType (M:M) | - | which signals cause the rule to be evaluated |
+| `evaluates` | Rule → Property (M:M) | - | which resource properties the rule reads |
+| `remediates` | Rule → ActionType (M:1) | - | which ontology action the rule proposes on match |
+| `resource_of` | Signal → Resource (M:1) | - | which resource the signal is about |
+| `overrides` | Override → Rule (M:1) | - | the override targets this rule (see [rule-governance.md](rule-governance.md#overrides)) |
+| `causes` / `prevents` | Rule → Outcome (M:M, causal) | - | causal metadata that T2 may reason over (rare) |
+| `precedes` / `follows` | Finding → Finding (M:M, temporal) | - | correlation of related findings on one incident |
 | `contains` | Resource → Resource (M:1, child→parent) | ✓ | ownership / scope containment: subscription→resource-group→resource, VNet→subnet, cluster→node-pool. Recursive CTE walks the whole chain. Populated by the [inventory adapter](csp-neutrality.md#5-inventory-contract--resource-graph). |
-| `attached_to` | Resource → Resource (M:1) | — | lifetime-bound attachment: NIC→VM, disk→VM, private-endpoint→target. Removing the parent breaks the child. |
-| `depends_on` | Resource → Resource (M:M) | — | logical reference required for correct operation: ContainerApp→Key-Vault / ACR / Postgres, managed-identity→app. Broken edges degrade the dependent, not the target. |
-| `peered_with` *(Phase 3+)* | Resource ↔ Resource (M:M, symmetric) | — | reachable-by-network symmetric peer: VNet peering, cross-region replicas. |
-| `routes_to` *(Phase 3+)* | Resource → Resource (M:1) | — | traffic path or reference: UDR next-hop, private-DNS zone link. |
+| `attached_to` | Resource → Resource (M:1) | - | lifetime-bound attachment: NIC→VM, disk→VM, private-endpoint→target. Removing the parent breaks the child. |
+| `depends_on` | Resource → Resource (M:M) | - | logical reference required for correct operation: ContainerApp→Key-Vault / ACR / Postgres, managed-identity→app. Broken edges degrade the dependent, not the target. |
+| `peered_with` *(Phase 3+)* | Resource ↔ Resource (M:M, symmetric) | - | reachable-by-network symmetric peer: VNet peering, cross-region replicas. |
+| `routes_to` *(Phase 3+)* | Resource → Resource (M:1) | - | traffic path or reference: UDR next-hop, private-DNS zone link. |
 
 Traversal is directional and cached; a `Signal` of type `T` on a `Resource` of type `R`
 resolves to exactly the set of rules where `triggered_by ∋ T` and `applies_to ∋ R` via
-two index intersections — no text search, no model call.
+two index intersections - no text search, no model call.
 
 The Resource→Resource links (`contains`, `attached_to`, `depends_on`, and later
 `peered_with` / `routes_to`) are what let the risk-gate compute an *actual* blast radius
 instead of the three-value enum in [risk-classification.md](risk-classification.md), and
 what let T2 be prompted with a **depth-2 neighborhood subgraph** around the target
-resource — grounded, cited context instead of a bare resource id. Their authoritative
+resource - grounded, cited context instead of a bare resource id. Their authoritative
 source is the [inventory contract](csp-neutrality.md#5-inventory-contract--resource-graph);
 `core/` never queries a cloud SDK for them. New link kinds MUST be added to
-`shared/contracts/ontology/link-type.json` before an adapter can emit them — an
+`shared/contracts/ontology/link-type.json` before an adapter can emit them - an
 unrecognized link, like an unrecognized `ResourceType`, opens an issue rather than
 auto-registering (self-extending ontology, see [Fork Extension](#fork-extension-self-extending-ontology)).
 
@@ -399,12 +399,12 @@ schema registry.
 
 Two things are called "action" in this system and MUST NOT be conflated:
 
-- **PipelineStage** — where in the layered lookup a decision was made. This is an
+- **PipelineStage** - where in the layered lookup a decision was made. This is an
   **audit vocabulary**, not a schema artifact. Every audit-log entry records the
   `pipeline_stage` field so the decision path is reconstructable end-to-end. Stages are
   read-only from the executor's perspective (no CSP mutation happens here except at
   `remediate`).
-- **ActionType** — a **CSP-neutral mutation category** with a rollback contract. Declared
+- **ActionType** - a **CSP-neutral mutation category** with a rollback contract. Declared
   in `shared/contracts/ontology/action-type.json`; instances (e.g.
   `remediate.disable-public-access`) live in the catalog and are referenced from a rule's
   `remediates` field. This is the schema artifact.
@@ -417,13 +417,13 @@ are terminal stages that never invoke an ActionType.
 
 | PipelineStage | Layer | Cost | Preconditions | Terminal? |
 |---------------|-------|------|---------------|:---------:|
-| `L1_evaluate` | L1 (T0) | pure function, in-memory OPA/Rego | rule's `applies_to` matches Resource; `check_logic` compiled | — |
-| `L1_simulate` (what-if) | L1 (T0) | pure function against declarative state | resource state snapshot available | — |
-| `L2_reuse` | L2 | O(1) indexed SELECT | `(signature, rule_id, catalog_version)` hit in learned-action store | — |
-| `L3_similarity` | L3 (T1) | 1 embedding + pgvector kNN | context compatibility check passes on the neighbor | — |
-| `L4_cache_hit` | L4 | O(1) key lookup | signature match within TTL and catalog / model version | — |
-| `L5_reason` | L5 (T2) | frontier LLM (primary + secondary; escalated on disagreement) | quality-gate authoritative | — |
-| `remediate` | risk-gate ⇒ executor ⇒ delivery | apply an ActionType instance to a Resource | policy-as-code verifier passed; all ActionType preconditions hold | — |
+| `L1_evaluate` | L1 (T0) | pure function, in-memory OPA/Rego | rule's `applies_to` matches Resource; `check_logic` compiled | - |
+| `L1_simulate` (what-if) | L1 (T0) | pure function against declarative state | resource state snapshot available | - |
+| `L2_reuse` | L2 | O(1) indexed SELECT | `(signature, rule_id, catalog_version)` hit in learned-action store | - |
+| `L3_similarity` | L3 (T1) | 1 embedding + pgvector kNN | context compatibility check passes on the neighbor | - |
+| `L4_cache_hit` | L4 | O(1) key lookup | signature match within TTL and catalog / model version | - |
+| `L5_reason` | L5 (T2) | frontier LLM (primary + secondary; escalated on disagreement) | quality-gate authoritative | - |
+| `remediate` | risk-gate ⇒ executor ⇒ delivery | apply an ActionType instance to a Resource | policy-as-code verifier passed; all ActionType preconditions hold | - |
 | `escalate` | risk-gate ⇒ ChatOps | HIL request | no cheaper layer resolved the case | ✓ |
 | `abstain` | any layer | audited no-op | grounding unavailable or verifier abstained | ✓ |
 | `deny` | any layer | audited no-op | risk-classification blocked the action | ✓ |
@@ -438,29 +438,29 @@ declares one CSP-neutral mutation category and the safety invariants for every i
 of it. All fields except `preconditions` / `stop_conditions` / `blast_radius` /
 `description` are required.
 
-- `name` — stable id (e.g. `remediate.disable-public-access`).
-- `operation` — CSP-neutral verb from the enum below.
-- `interfaces` — runtime contracts the executor honors; risk-gate composes its feature
+- `name` - stable id (e.g. `remediate.disable-public-access`).
+- `operation` - CSP-neutral verb from the enum below.
+- `interfaces` - runtime contracts the executor honors; risk-gate composes its feature
   vector from this set.
-- `rollback_contract` — how instances are undone. **`none` is not a valid value**; every
+- `rollback_contract` - how instances are undone. **`none` is not a valid value**; every
   ActionType MUST declare an undo path, even a best-effort one. Genuinely one-way
   mutations set `irreversible: true` (below) and are routed HIL+quorum by
   risk-classification, they do NOT silence rollback.
-- `irreversible` — true only when the pre-action state cannot be fully restored (e.g.
+- `irreversible` - true only when the pre-action state cannot be fully restored (e.g.
   `purge` of a soft-deleted resource). Rollback_contract is still required and describes
   best-effort recovery.
-- `default_mode` — new upstream ActionTypes MUST default to `shadow`; only the trivial
+- `default_mode` - new upstream ActionTypes MUST default to `shadow`; only the trivial
   no-op categories (`observe`, `revert` bound to an audited prior action) may ship with
   `enforce`.
-- `promotion_gate` — measurable criteria (`min_shadow_days`, `min_samples`,
+- `promotion_gate` - measurable criteria (`min_shadow_days`, `min_samples`,
   `min_accuracy`, `max_policy_escapes`) a shadow-mode ActionType MUST clear on the
   frozen scenario set before an assignment can promote it to enforce. Rule assignments
   may tighten these values, never loosen them.
-- `preconditions[]` — deterministic checks the T0 verifier evaluates BEFORE the action
+- `preconditions[]` - deterministic checks the T0 verifier evaluates BEFORE the action
   reaches the risk-gate. A failing precondition MUST abstain, never partially apply.
-- `stop_conditions[]` — deterministic conditions the executor evaluates DURING or AFTER
+- `stop_conditions[]` - deterministic conditions the executor evaluates DURING or AFTER
   apply. Any true value auto-halts and triggers rollback per `rollback_contract`.
-- `blast_radius` — how the risk-gate computes the blast-radius classification dimension
+- `blast_radius` - how the risk-gate computes the blast-radius classification dimension
   for an instance. `static_enum` uses a fixed bucket; `graph_derived` walks Resource →
   Resource links (default: `contains` + reverse `depends_on`, depth 2) and counts
   affected Resources. Instances exceeding `max_affected_resources` abstain and escalate.
@@ -493,7 +493,7 @@ provider adapters agree on intent.
 #### Interfaces
 
 The `interfaces` set on an ActionType names runtime contracts the executor MUST honor. A
-missing interface is not "allowed anything" — the risk-gate refuses to auto-execute an
+missing interface is not "allowed anything" - the risk-gate refuses to auto-execute an
 ActionType whose interface set does not cover the safety-invariant requirements for its
 `operation`.
 
@@ -503,7 +503,7 @@ ActionType whose interface set does not cover the safety-invariant requirements 
 | `DataPlaneMutating` | Touches user data. **HIL by default** regardless of blast radius. |
 | `IdempotentByKey` | Safe to retry with the same idempotency key; the executor's dedup uses this key. |
 | `RateLimited` | Must respect a bucket cap (per-resource, per-tier, or global); overflow degrades to HIL. |
-| `RequiresInventoryFresh` | MUST NOT fire if the target Resource's inventory record is stale beyond `freshness_ttl`. Prevents acting on ghost resources — the inventory contract ([csp-neutrality.md § 5](csp-neutrality.md#5-inventory-contract--resource-graph)) supplies the freshness cursor. |
+| `RequiresInventoryFresh` | MUST NOT fire if the target Resource's inventory record is stale beyond `freshness_ttl`. Prevents acting on ghost resources - the inventory contract ([csp-neutrality.md § 5](csp-neutrality.md#5-inventory-contract--resource-graph)) supplies the freshness cursor. |
 | `GraphTraversalRequired` | Blast-radius calculation depends on Resource → Resource links (`contains` / `attached_to` / `depends_on`). If the graph is unavailable, the ActionType abstains. |
 | `CrossResource` | Mutation touches multiple Resources; the executor acquires N per-resource locks in a deterministic order to stay deadlock-free. |
 | `AsymmetricRollback` | Rollback path is not the exact inverse (e.g. PITR may lose Δ-data). Forces auto → HIL demotion; auto is never selected regardless of other dimensions. |
@@ -535,11 +535,11 @@ flowchart TD
 | Layer | Cost per hit | Design share of incoming events |
 |-------|--------------|--------------------------------|
 | L0 dedup / correlate | µs | folds N events → 1 incident (compression, not a coverage number) |
-| L1 T0 | µs, in-memory | ~70–80% |
+| L1 T0 | µs, in-memory | ~70-80% |
 | L2 learned-action | ms, indexed SELECT | grows over time as L5 outcomes distill down |
-| L3 embedding similarity | ~1 embedding call + kNN | remainder of the T1 ~15–20% band |
+| L3 embedding similarity | ~1 embedding call + kNN | remainder of the T1 ~15-20% band |
 | L4 T2 cache | O(1) key | absorbs repeats of unresolved-but-recent cases |
-| L5 T2 cascade | frontier LLM | **~5–10% only** — the actual token spend |
+| L5 T2 cascade | frontier LLM | **~5-10% only** - the actual token spend |
 
 Two structural consequences:
 
@@ -576,7 +576,7 @@ signature = sha256(
 
 ### Reuse Audit (every layer, including hits)
 
-Autonomy requires that a decision — including one produced by a reuse — is fully
+Autonomy requires that a decision - including one produced by a reuse - is fully
 attributable. Every layer writes an audit entry with:
 
 - `layer` (L1..L5)
@@ -585,7 +585,7 @@ attributable. Every layer writes an audit entry with:
 - `reused_from`: back-reference to the audit_id whose outcome was reused (L2/L4)
 - `mode` (shadow / enforce) and the resulting risk-gate decision
 
-A reuse without a resolvable `reused_from` is a defect — the audit chain must be walkable
+A reuse without a resolvable `reused_from` is a defect - the audit chain must be walkable
 from any decision back to the L5 outcome that originally verified it, and forward to the
 rule/model versions in effect.
 
@@ -597,7 +597,7 @@ type by registering an `ObjectType` and its property/link contracts through
 `shared/providers/`; upstream never edits `core/` to accept it.
 
 - New `Resource` subtypes register through the provider interface and inherit the pipeline
-  automatically — `evaluate`, `reuse`, and `similarity` work over them with no code change
+  automatically - `evaluate`, `reuse`, and `similarity` work over them with no code change
   in `core/`.
 - New `LinkType`s (e.g. a fork-specific causal relation) declare their cardinality,
   transitivity, and reasoning metadata; unused links stay inert.
@@ -623,7 +623,7 @@ surfaces the minimum inventory already provisions
 | `Resource` instances (observed inventory) | discovered at runtime | **PostgreSQL** | `ontology_resource` |
 | `Signal` instances (raw events) | transient | **Event Hubs Kafka topic** in flight; only correlation window state persists | queue + `signal_correlation` |
 | `Finding` instances (rule matches) | audited, persistent | **PostgreSQL** | `ontology_finding` + `audit_log` |
-| `Link` instances (Signal→Resource, Finding→Finding, Resource→Resource `contains` / `attached_to` / `depends_on`, …) | runtime + audit | **PostgreSQL** | `ontology_link` |
+| `Link` instances (Signal→Resource, Finding→Finding, Resource→Resource `contains` / `attached_to` / `depends_on`, ...) | runtime + audit | **PostgreSQL** | `ontology_link` |
 | Learned actions (L2) | persistent, catalog-version scoped | **PostgreSQL** | `learned_action` |
 | Embeddings (L3) | persistent, HNSW-indexed | **PostgreSQL + pgvector** | `ontology_embedding` |
 | T2 result cache (L4) | TTL-bounded | **PostgreSQL** | `t2_cache` (partition by `catalog_version`) |
@@ -633,12 +633,12 @@ surfaces the minimum inventory already provisions
 **Single-store default (MUST)**
 
 PostgreSQL Flexible + pgvector is one store, one backup path, one operational surface.
-A dedicated graph database (Neo4j / AGE) is **not** provisioned — the runtime traversals
+A dedicated graph database (Neo4j / AGE) is **not** provisioned - the runtime traversals
 we need (`Signal → Rule` via `triggered_by ∩ applies_to`) are two indexed intersections,
 covered by B-tree + GIN indexes. Re-evaluate at Phase 4 only if measurement shows
 multi-hop causal queries exceed relational latency budgets on the same scenario set.
 
-**Schema sketch** (illustrative — column names are stable; exact types tuned in the
+**Schema sketch** (illustrative - column names are stable; exact types tuned in the
 inventory PR):
 
 ```sql
@@ -731,7 +731,7 @@ Notes on the schema:
   `audit_log` under the same identity and privacy rules as
   [security-and-identity.md § Data Protection](security-and-identity.md#data-protection).
 - `learned_action` and `t2_cache` are **partitioned by `catalog_version`** so a rule
-  promotion bumps the version and the stale partition is dropped in one operation — no
+  promotion bumps the version and the stale partition is dropped in one operation - no
   per-row cache-flush command needed.
 - All primary keys are **deterministic hashes** (`MD5(name)[:12]`-style or SHA256 for
   signatures), so replay and cross-service references reproduce the same id.
@@ -766,7 +766,7 @@ flowchart LR
   shadow-mode result to satisfy an enforce-mode decision.
 - **Budget guards**: per-tier token budgets and rate limits; overflow degrades to HIL, never to
   an ungated auto-action.
-- **Provider failure handling**: on timeout, rate-limit, or outage, fail **closed** — retry
+- **Provider failure handling**: on timeout, rate-limit, or outage, fail **closed** - retry
   with bounded backoff, fall back to the secondary provider, then a circuit breaker degrades
   to HIL. Never retry indefinitely and never auto-execute an unverified candidate.
 - **Event-driven**: models are invoked only on the residual events that reach T1/T2.
@@ -774,7 +774,7 @@ flowchart LR
 ## Improving T1 (Distillation)
 
 To keep shifting load down-tier (the "use the LLM less" lever), T1 can be strengthened over
-time — options to evaluate, not commitments:
+time - options to evaluate, not commitments:
 
 - **Learned-action reuse**: promote verified T2 outcomes into learned actions T1 can match.
 - **Distillation / fine-tuning**: distill accepted, verified T2 judgments into the small T1
@@ -790,7 +790,7 @@ time — options to evaluate, not commitments:
   offline via replay before promotion, producing a per-model, per-tier scorecard.
 - **Hallucination rate**: measured as the share of generated candidates whose citations fail
   the grounding-validity check or whose action the verifier rejects, sampled and periodically
-  human-labeled — not self-reported by the model.
+  human-labeled - not self-reported by the model.
 - Track accuracy and hallucination rate per model and per tier; **regressions auto-block
   promotion** (shadow→enforce stays in shadow) per
   [security-and-identity.md](security-and-identity.md).
@@ -804,7 +804,7 @@ Decide each by **measured cost/quality on the scenario set**, not assumption.
 - [ ] Fork-side registry overrides: which preferences a specific fork pins in
       `rule-catalog/llm-registry.yaml` for its region and compliance posture.
 - [ ] Default **mixed-model family strategy** (`azure-foundry` vs `external` vs
-      `hil-only`) — the upstream ships all three; each fork must pick one at bootstrap.
+      `hil-only`) - the upstream ships all three; each fork must pick one at bootstrap.
 - [ ] Reconciler cadence and the concrete deprecation-feed source for Azure OpenAI /
       Foundry (weekly is the default recommendation).
 - [ ] Embedding model: hosted vs local (data residency, cost).

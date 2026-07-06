@@ -1,6 +1,6 @@
 # Upstream default LLM capability preferences.
 #
-# Family-only (never dated versions) — the bootstrap resolver picks the
+# Family-only (never dated versions) - the bootstrap resolver picks the
 # latest stable version at provisioning time and records it in
 # resolved-models.json + audit. See docs/roadmap/llm-strategy.md § Capability
 # Preferences Registry and docs/roadmap/dev-and-deploy-parity.md § W-B.

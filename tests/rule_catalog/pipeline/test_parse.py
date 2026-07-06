@@ -6,7 +6,7 @@ Covers:
 - :func:`verify_parsed_rules` end-to-end round-trip through the loader,
   including duplicate-id detection.
 
-The happy path exercises the shipped ``rule-catalog/catalog/`` — closing
+The happy path exercises the shipped ``rule-catalog/catalog/`` - closing
 the "collect → parse → verify" loop on the ``aiopspilot-p1-seed``
 source without touching the network.
 """
@@ -169,7 +169,7 @@ def test_verify_parsed_rules_reports_bad_mapping() -> None:
 def test_verify_parsed_rules_flags_duplicate_ids() -> None:
     parsed = RuleYamlParser().parse(CATALOG_ROOT)
     if parsed.rule_count < 1:
-        pytest.skip("shipped catalog is empty — skipping duplicate-id assertion")
+        pytest.skip("shipped catalog is empty - skipping duplicate-id assertion")
     first = parsed.rules[0]
     # Craft a second entry with the same id (via a fresh mapping copy).
     duplicated = ParsedRule(origin="clone.yaml", raw=dict(first.raw))

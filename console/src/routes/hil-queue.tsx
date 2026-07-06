@@ -34,7 +34,7 @@ export function HilQueueRoute({ client }: Props) {
     };
   }, [client]);
 
-  if (state.status === "loading") return <div class="empty">Loading…</div>;
+  if (state.status === "loading") return <div class="empty">Loading...</div>;
   if (state.status === "error") {
     return (
       <div class="empty error">Failed to load HIL queue: {state.message}</div>
@@ -53,7 +53,7 @@ export function HilQueueRoute({ client }: Props) {
     <section class="card">
       <h2>Pending HIL approvals ({state.items.length})</h2>
       <p class="muted">
-        Read-only view. Approve or reject through the ChatOps channel —
+        Read-only view. Approve or reject through the ChatOps channel -
         the console does not expose an approval button.
       </p>
       <table>
@@ -73,7 +73,7 @@ export function HilQueueRoute({ client }: Props) {
               <td class="mono">{item.action_kind}</td>
               <td>{item.reason}</td>
               <td class="mono">{item.requested_at}</td>
-              <td class="mono muted">{item.correlation_id ?? "—"}</td>
+              <td class="mono muted">{item.correlation_id ?? "-"}</td>
             </tr>
           ))}
         </tbody>

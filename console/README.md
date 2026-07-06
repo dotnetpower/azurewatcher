@@ -1,6 +1,6 @@
 # `console/`
 
-Thin, read-only operator SPA — KPI dashboard, audit log viewer, HIL queue view.
+Thin, read-only operator SPA - KPI dashboard, audit log viewer, HIL queue view.
 This is the layer-3 surface described in
 [`.github/instructions/app-shape.instructions.md`](../.github/instructions/app-shape.instructions.md)
 § Operator console. The read-only invariant is a hard rule: the SPA MUST issue
@@ -11,13 +11,13 @@ share the executor identity.
 
 **Vite + Preact** (10.24) with the MSAL.js browser client.
 
-- **Preact over React** — same JSX/hook API, ~10 kB runtime instead of ~45 kB.
+- **Preact over React** - same JSX/hook API, ~10 kB runtime instead of ~45 kB.
   The console is a low-traffic surface for operators; a smaller bundle wins.
-- **Vite over Astro** — the `site/` docs site uses Astro Starlight for
+- **Vite over Astro** - the `site/` docs site uses Astro Starlight for
   content-plus-islands; the console is a fully authenticated SPA behind Entra
   ID with no static content pre-render benefit. Vite gives the fastest DX and
   the smallest transitive dep tree for that shape.
-- **MSAL.js** — the standard Entra ID library. Handles OIDC + PKCE per
+- **MSAL.js** - the standard Entra ID library. Handles OIDC + PKCE per
   [`docs/roadmap/user-rbac-and-identity.md` § 10.1](../docs/roadmap/user-rbac-and-identity.md).
 
 ## Read-only surface
@@ -39,20 +39,20 @@ No mutating verb (`POST` / `PUT` / `DELETE` / `PATCH`) is called anywhere in
 
 ```text
 console/
-├── index.html          — Vite entrypoint (single-page shell)
-├── package.json        — deps: preact, @azure/msal-browser
-├── tsconfig.json       — strict TS, jsx=preact
-├── vite.config.ts      — build → console/dist/ (git-ignored)
+├── index.html          - Vite entrypoint (single-page shell)
+├── package.json        - deps: preact, @azure/msal-browser
+├── tsconfig.json       - strict TS, jsx=preact
+├── vite.config.ts      - build → console/dist/ (git-ignored)
 └── src/
-    ├── main.tsx        — Preact render root
-    ├── app.tsx         — top-level router + init
-    ├── config.ts       — env-var-driven runtime config
-    ├── auth.ts         — MSAL.js wrapper + dev-mode bypass
-    ├── api.ts          — read-only ReadApiClient (three GET methods)
-    ├── types.ts        — TS mirrors of read_model.py shapes
-    ├── styles.css      — minimal, no design-system dep
+    ├── main.tsx        - Preact render root
+    ├── app.tsx         - top-level router + init
+    ├── config.ts       - env-var-driven runtime config
+    ├── auth.ts         - MSAL.js wrapper + dev-mode bypass
+    ├── api.ts          - read-only ReadApiClient (three GET methods)
+    ├── types.ts        - TS mirrors of read_model.py shapes
+    ├── styles.css      - minimal, no design-system dep
     ├── components/
-    │   └── shell.tsx   — top bar + nav
+    │   └── shell.tsx   - top bar + nav
     └── routes/
         ├── dashboard.tsx
         ├── audit.tsx
@@ -74,7 +74,7 @@ AIOPSPILOT_READ_API_DEV_MODE=1 \
 VITE_DEV_MODE=1 VITE_READ_API_BASE_URL=http://127.0.0.1:8000 npm run dev
 ```
 
-The dev-mode env var is a **boot-time tripwire** — the API refuses to build a
+The dev-mode env var is a **boot-time tripwire** - the API refuses to build a
 `dev_mode=True` app unless `AIOPSPILOT_READ_API_DEV_MODE=1` is set. A fork's
 production build pipeline never sets that env var.
 

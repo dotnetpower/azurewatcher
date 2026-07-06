@@ -1,7 +1,7 @@
 """Per-tier latency budget monitor.
 
 Phase 4 § Scalability and Performance. The system holds tier latency
-budgets (T0 ms–s, T1 ~s, T2 s–tens-of-seconds) across scale; this
+budgets (T0 ms-s, T1 ~s, T2 s-tens-of-seconds) across scale; this
 module compares observed p95 latency to a stated budget and emits a
 demote-vs-hold decision the caller wires into the promotion registry.
 """
@@ -23,7 +23,7 @@ class LatencyOutcome(StrEnum):
     """Observed p95 is within budget."""
 
     OVER_BUDGET = "over_budget"
-    """Observed p95 exceeds budget — caller demotes / alerts."""
+    """Observed p95 exceeds budget - caller demotes / alerts."""
 
 
 @dataclass(frozen=True, slots=True)

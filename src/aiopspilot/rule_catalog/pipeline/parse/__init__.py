@@ -10,19 +10,19 @@ cross-refs.
 
 Ships in this module:
 
-- :class:`Parser` — the Protocol every parser satisfies.
-- :class:`ParsedRule` — one rule mapping produced by a parser.
-- :class:`ParseReport` — the aggregate a parser returns.
-- :class:`ParseError` — raised on structural parse failures (unreadable
+- :class:`Parser` - the Protocol every parser satisfies.
+- :class:`ParsedRule` - one rule mapping produced by a parser.
+- :class:`ParseReport` - the aggregate a parser returns.
+- :class:`ParseError` - raised on structural parse failures (unreadable
   YAML, wrong top-level type). Cross-reference / schema issues are the
   loader's job, so parsers never claim authority they do not own.
-- :class:`RuleYamlParser` — the first concrete parser; consumes a
+- :class:`RuleYamlParser` - the first concrete parser; consumes a
   snapshot whose ``tree/`` is already normalized rule YAML (the seed
   source ``aiopspilot-p1-seed`` is exactly this shape).
-- :class:`RegoParser` — the second concrete parser; walks a snapshot
+- :class:`RegoParser` - the second concrete parser; walks a snapshot
   tree of ``*.rego`` modules (e.g. the gatekeeper-library OSS source)
   and emits partial mappings the normalizer stage completes.
-- :func:`build_parser` — dispatcher keyed on the manifest ``parser``
+- :func:`build_parser` - dispatcher keyed on the manifest ``parser``
   field.
 
 Other parsers (``azure-policy-json``, ``checkov-yaml``, ``kube-bench``,

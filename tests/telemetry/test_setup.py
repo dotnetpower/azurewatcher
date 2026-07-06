@@ -26,7 +26,7 @@ def test_configure_telemetry_wires_everything(app_config: AppConfig) -> None:
 
 
 def test_configure_telemetry_is_idempotent(app_config: AppConfig) -> None:
-    # Calling twice must not raise — the underlying OTel API only accepts
+    # Calling twice must not raise - the underlying OTel API only accepts
     # one provider install and our wrappers guard against duplicates.
     configure_telemetry(app_config)
     configure_telemetry(app_config)

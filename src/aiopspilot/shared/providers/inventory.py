@@ -1,4 +1,4 @@
-"""Inventory — 5th CSP-neutral wire contract; populates the ontology resource graph.
+"""Inventory - 5th CSP-neutral wire contract; populates the ontology resource graph.
 
 Realizes the contract in ``docs/roadmap/csp-neutrality.md § 5. Inventory
 Contract`` and the ontology model in ``docs/roadmap/llm-strategy.md §
@@ -11,14 +11,14 @@ fork's package and are registered at the composition root.
 
 Two operations return CSP-neutral records:
 
-- :meth:`Inventory.full_snapshot` — the initial or periodic
+- :meth:`Inventory.full_snapshot` - the initial or periodic
   reconciliation load, emitted as batches of :class:`ResourceRecord` +
   :class:`LinkRecord`. The Azure adapter parallelizes this by sharding
   the query workload by ``Resource.type`` under a bounded semaphore; the
   Protocol does not prescribe how, it only requires that the batches are
   streamed as ``AsyncIterator[InventoryBatch]`` so the ingest pipeline
   can consume them without an unbounded memory buffer.
-- :meth:`Inventory.delta` — incremental changes since ``cursor``, driven
+- :meth:`Inventory.delta` - incremental changes since ``cursor``, driven
   by the provider's native change stream (Azure Activity Log forwarded
   into the event bus, AWS Config item stream, GCP Cloud Asset feed, K8s
   watch). Deltas MUST be idempotent and safe to re-apply.
@@ -67,7 +67,7 @@ class LinkRecord:
     ``shared/contracts/ontology/link-type.json`` (P1: ``contains`` /
     ``attached_to`` / ``depends_on``; P3+: ``peered_with`` /
     ``routes_to``). Unknown link types MUST be dropped and reported
-    upstream — the Protocol does not enforce the registry itself, but
+    upstream - the Protocol does not enforce the registry itself, but
     the caller (event-ingest) MUST validate before writing.
     """
 
@@ -96,7 +96,7 @@ class InventoryBatch:
     to :meth:`Inventory.delta` on the next incremental pull."""
     final: bool = False
     """``True`` only on the last batch of a successful ``full_snapshot``
-    call. The caller uses this as the atomic-promote fence — a stream
+    call. The caller uses this as the atomic-promote fence - a stream
     that ends without a ``final=True`` batch MUST be discarded."""
 
 
@@ -104,7 +104,7 @@ class InventoryBatch:
 class Inventory(Protocol):
     """CSP-neutral resource-graph adapter (5th wire-level contract).
 
-    Async by default — every real backend is I/O-bound (ARG HTTPS, AWS
+    Async by default - every real backend is I/O-bound (ARG HTTPS, AWS
     Config, GCP Cloud Asset REST, K8s apiserver list-watch). Sync is
     reserved for pure-CPU seams elsewhere; forcing sync here would
     block the event loop under Kafka poll.
@@ -130,7 +130,7 @@ class Inventory(Protocol):
         Deltas MUST be idempotent (safe to re-apply on retry) and
         stream in ontology-neutral records. Native provider change
         signals are forwarded into a Kafka topic and consumed exactly
-        like any other ``Signal`` — see
+        like any other ``Signal`` - see
         ``docs/roadmap/csp-neutrality.md § 5``.
         """
         ...

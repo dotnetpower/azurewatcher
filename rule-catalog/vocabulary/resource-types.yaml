@@ -2,7 +2,7 @@
 #
 # Every entry is a stable, CSP-neutral identifier used across the ontology
 # (`Resource.type`, `Rule.resource_type`, `applies_to` links, and provider
-# adapter dispatch). The list is deliberately conservative for P1 — it
+# adapter dispatch). The list is deliberately conservative for P1 - it
 # covers the resource types the initial rule set for the three verticals
 # (Resilience, Change Safety, Cost Governance) references. New types are
 # added via a governance PR (see `docs/roadmap/rule-catalog-collection.md`).
@@ -14,7 +14,7 @@
 #   azure_arm_type Azure Resource Manager type path the provider adapter
 #                  maps to. `null` when the type has no direct Azure
 #                  counterpart at this level of abstraction (a fork adapter
-#                  will render the mapping — the vocabulary stays neutral).
+#                  will render the mapping - the vocabulary stays neutral).
 #   typical_parents typical `contains` parents in the resource graph
 #                   ([llm-strategy.md § Ontology Foundation]). Informational
 #                   for authors; the runtime graph is populated by the

@@ -8,7 +8,7 @@ Shipped in the main package (not under ``tests/``) so:
 - A future ``DevContainer`` composition root can wire these in for a "no
   Docker" run of the stack.
 
-Nothing in this package is production-safe — mutations vanish on process
+Nothing in this package is production-safe - mutations vanish on process
 restart. The real Postgres + Kafka adapters land with W1.5 and W6.3.
 """
 

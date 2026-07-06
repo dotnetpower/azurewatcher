@@ -1,4 +1,4 @@
-"""LlmConfig — validators and defaults."""
+"""LlmConfig - validators and defaults."""
 
 from __future__ import annotations
 

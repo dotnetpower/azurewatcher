@@ -1,4 +1,4 @@
-// strip-first-h1.mjs — remark plugin that removes a document's first H1
+// strip-first-h1.mjs - remark plugin that removes a document's first H1
 // when its text is identical to the front-matter `title`.
 //
 // Why: Starlight renders `frontmatter.title` as the page's H1 automatically.
@@ -9,7 +9,7 @@
 // title, so any content-bearing H1 (or a page that intentionally leads
 // with a different heading) is left alone.
 //
-// This runs during Markdown rendering — after content sync — so it does
+// This runs during Markdown rendering - after content sync - so it does
 // not interfere with `docsSchema()` validation.
 
 /**

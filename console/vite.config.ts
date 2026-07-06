@@ -6,10 +6,10 @@ import preact from "@preact/preset-vite";
 // - `outDir: "dist"` produces static artifacts under `console/dist/`
 //   (excluded from git via `.gitignore`). The build output is what
 //   `infra/modules/console/` uploads to Azure Static Web Apps.
-// - `base` — the console is served from an origin root by default.
+// - `base` - the console is served from an origin root by default.
 //   Override with `VITE_CONSOLE_BASE_PATH` at build time when mounting
 //   under a subpath.
-// - `assetsInlineLimit: 0` — never inline assets, so the CSP header the
+// - `assetsInlineLimit: 0` - never inline assets, so the CSP header the
 //   fork attaches at Static Web App level is not disturbed by base64
 //   data URIs the console never asked for.
 export default defineConfig(({ mode }) => {

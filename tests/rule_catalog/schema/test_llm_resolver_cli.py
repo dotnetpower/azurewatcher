@@ -1,4 +1,4 @@
-"""CLI resolver — end-to-end offline invocation."""
+"""CLI resolver - end-to-end offline invocation."""
 
 from __future__ import annotations
 

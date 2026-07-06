@@ -1,4 +1,4 @@
-"""Integration test — PostgresStateStore round-trip against a live DB.
+"""Integration test - PostgresStateStore round-trip against a live DB.
 
 Skipped unless ``AIOPSPILOT_DATABASE_URL`` is set (same guard as the
 migrations test). The docker-compose dev stack (`make dev-up`) exposes
@@ -37,7 +37,7 @@ def _requires_live_db() -> str:
 
 
 def _upgrade_head() -> None:
-    result = subprocess.run(  # noqa: S603 — controlled subprocess
+    result = subprocess.run(  # noqa: S603 - controlled subprocess
         [sys.executable, "-m", "alembic", "upgrade", "head"],
         cwd=REPO_ROOT,
         capture_output=True,
@@ -69,7 +69,7 @@ async def test_append_audit_entry_writes_hash_chained_row() -> None:
             "reason": "hash-chain-check",
         }
     )
-    # A second entry inherits the first's hash — verify_chain confirms.
+    # A second entry inherits the first's hash - verify_chain confirms.
     await store.append_audit_entry(
         {
             "event_id": str(uuid.uuid4()),
@@ -92,7 +92,7 @@ async def test_state_kv_round_trip() -> None:
     await store.write_state(key, {"a": 1, "nested": {"b": 2}})
     got = await store.read_state(key)
     assert got == {"a": 1, "nested": {"b": 2}}
-    # Idempotent overwrite — no history row explosion.
+    # Idempotent overwrite - no history row explosion.
     await store.write_state(key, {"a": 2})
     assert await store.read_state(key) == {"a": 2}
     assert await store.read_state("unknown-key") is None

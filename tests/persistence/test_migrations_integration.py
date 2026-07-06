@@ -1,4 +1,4 @@
-"""Integration test — runs ``alembic upgrade head`` against a live Postgres.
+"""Integration test - runs ``alembic upgrade head`` against a live Postgres.
 
 Skipped unless ``AIOPSPILOT_DATABASE_URL`` is set. The docker-compose dev
 stack (``make dev-up``) exposes the URL as
@@ -52,7 +52,7 @@ def _requires_live_db() -> str:
 
 def _alembic(*args: str) -> None:
     """Run ``python -m alembic <args...>`` from the repo root."""
-    result = subprocess.run(  # noqa: S603 — controlled subprocess
+    result = subprocess.run(  # noqa: S603 - controlled subprocess
         [sys.executable, "-m", "alembic", *args],
         cwd=REPO_ROOT,
         capture_output=True,
@@ -64,7 +64,7 @@ def _alembic(*args: str) -> None:
     )
 
 
-def _connect(url: str):  # noqa: ANN202 — helper wraps psycopg lazily
+def _connect(url: str):  # noqa: ANN202 - helper wraps psycopg lazily
     import psycopg  # local import so the offline test file has no psycopg dependency
 
     # Alembic accepts SQLAlchemy-style URLs; psycopg wants the plain scheme.

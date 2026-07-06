@@ -1,11 +1,11 @@
 ---
-title: Phase 3 — Integrated Control Loop (Resilience · Change Safety · Cost Governance)
+title: Phase 3 - Integrated Control Loop (Resilience · Change Safety · Cost Governance)
 ---
-# Phase 3 — Integrated Control Loop (Resilience · Change Safety · Cost Governance)
+# Phase 3 - Integrated Control Loop (Resilience · Change Safety · Cost Governance)
 
 **Goal**: unify the three initial verticals under one control loop and deliver the
-autonomous-operations MVP — the first release that runs Resilience, Change Safety, and Cost
-Governance end to end through a single risk-gated loop — including scheduled DR/chaos testing
+autonomous-operations MVP - the first release that runs Resilience, Change Safety, and Cost
+Governance end to end through a single risk-gated loop - including scheduled DR/chaos testing
 and cost auto-actions. This phase adds no new tier; it composes the T0/T1/T2 router, quality
 gate, and risk gate delivered in P2 (see
 [phase-2-quality-and-t1.md](phase-2-quality-and-t1.md)) into one loop, and enforces the safety
@@ -13,7 +13,7 @@ invariants and control-loop wiring defined in
 [architecture.instructions.md](../../../.github/instructions/architecture.instructions.md).
 
 All RPO/RTO, savings, and lead-time figures here are **measured values reported against stated
-objectives on a fixed scenario set and measurement window** — never estimates or unbaselined
+objectives on a fixed scenario set and measurement window** - never estimates or unbaselined
 multipliers (see [goals-and-metrics.md](../goals-and-metrics.md)).
 
 ## Deliverables
@@ -22,7 +22,7 @@ Each deliverable maps to a section below. The module reference lists the primary
 package that carries the deliverable in
 [`src/aiopspilot/`](../project-structure.md).
 
-- **Unified control loop** across Resilience, Change Safety, and Cost Governance — one
+- **Unified control loop** across Resilience, Change Safety, and Cost Governance - one
   `trust-router` → `risk-gate` → `executor` → `audit` path, with per-resource ordering/locking
   and cross-vertical conflict handling
   ([Unified Control Loop](#unified-control-loop)).
@@ -35,7 +35,7 @@ package that carries the deliverable in
 - **FinOps auto-actions** with risk-gated autonomy delivered as remediation PRs
   ([FinOps](#finops)).
   Module: [core/verticals/finops.py](../../../src/aiopspilot/core/verticals/finops.py).
-- **Integrated Change Safety** — low-risk auto-merge/reconcile, high-risk to HIL
+- **Integrated Change Safety** - low-risk auto-merge/reconcile, high-risk to HIL
   ([Change Safety](#change-safety-integrated)).
   Module:
   [core/verticals/change_safety.py](../../../src/aiopspilot/core/verticals/change_safety.py).
@@ -59,14 +59,14 @@ package that carries the deliverable in
   to HIL if it cannot be safely deferred. Conflicts never resolve by racing.
 - **Idempotency**: all P3 actions key off the stable idempotency key; re-delivered events and
   retried actions are no-ops on already-applied state.
-- **Audit**: every terminal outcome — auto-apply, HIL approve/reject/timeout, defer, abstain,
-  and every scheduled DR run and FinOps action — writes an append-only audit entry with event
+- **Audit**: every terminal outcome - auto-apply, HIL approve/reject/timeout, defer, abstain,
+  and every scheduled DR run and FinOps action - writes an append-only audit entry with event
   id, domain, tier, decision, identity, mode (shadow/enforce), and rollback reference.
 - **Shadow first**: each new P3 action (DR experiment type, FinOps action, cross-domain rule)
   ships in **shadow mode** (judge-and-log, no mutation) and is promoted to enforce
   per-action only after measured validation with zero policy-violation escapes.
 
-## DR / Chaos — Scheduled Periodic Testing
+## DR / Chaos - Scheduled Periodic Testing
 
 - **Window-based scheduler**: run DR failover and Chaos experiments only inside approved
   maintenance windows (test failover / game days). The scheduler honors **freeze/quiet
@@ -89,11 +89,11 @@ Each experiment path MUST satisfy all four invariants, or it does not ship
   resource set, never a whole environment at once.
 - **Rollback**: a tested, automatic rollback that restores prior state on stop or on failure;
   rollback is exercised in shadow before enforce.
-- **Isolation**: production is never the chaos target — experiments run against non-prod or an
+- **Isolation**: production is never the chaos target - experiments run against non-prod or an
   isolated restored environment (see Deep DB-DR). Chaos on a production resource is denied by
   default and, where unavoidable, requires HIL approval plus explicit isolation.
 
-### Deep DB-DR (stateful — dedicated design)
+### Deep DB-DR (stateful - dedicated design)
 
 Stateful services cannot be "killed and revived" like stateless ones, so DB-DR runs on an
 isolated copy and never on the live production DB.
@@ -101,13 +101,13 @@ isolated copy and never on the live production DB.
 - **Replication/backup**: point-in-time restore (PITR / continuous restore), geo-replication
   (active geo-replication / read replica), and periodic backup-restore rehearsal.
 - **Test method** (all steps required, in order):
-  1. **Restore into an isolated environment** — restore a replica/snapshot into a
+  1. **Restore into an isolated environment** - restore a replica/snapshot into a
      network-isolated environment with no write path back to production; tear the environment
      down after the test.
-  2. **Verify integrity deterministically** — a verifier checks row/record counts, cryptographic
+  2. **Verify integrity deterministically** - a verifier checks row/record counts, cryptographic
      content checksums, and referential/constraint consistency against the source snapshot;
      any mismatch fails the run.
-  3. **App-level smoke tests** — run representative read and write operations against the
+  3. **App-level smoke tests** - run representative read and write operations against the
      restored copy to confirm application-level recoverability.
 - **RPO methodology**: continuously measure replication lag (report p50/p95/max) and, in
   forced-failover rehearsals, measure the **actual data loss** at the failover point; compare
@@ -123,10 +123,10 @@ isolated copy and never on the live production DB.
 - **Trigger**: cost events / anomalies (native anomaly detection surfaces candidates into the
   loop).
 - **Routing and autonomy**: candidate actions (idle shutdown, rightsizing, spot/autoscale) are
-  routed by the shared `trust-router` and gated by the `risk-gate` — **non-prod, low-risk
+  routed by the shared `trust-router` and gated by the `risk-gate` - **non-prod, low-risk
   actions auto-execute; any production-impacting action goes to HIL**.
 - **Delivery**: actions are delivered as **remediation PRs** (GitOps), so audit, review, and
-  rollback come from git — not out-of-band API mutations.
+  rollback come from git - not out-of-band API mutations.
 - **Guardrails** (required on every FinOps action):
   - respect **exclusion/opt-out tags** and **protect production** resources from automatic
     scale-down or shutdown;
@@ -146,7 +146,7 @@ isolated copy and never on the live production DB.
   ([security-and-identity.md](../security-and-identity.md)).
 - **Change lead time** is reported as a **measured** reduction against the P0 reference agent on
   the same scenario set (median and p90), per [goals-and-metrics.md](../goals-and-metrics.md)
-  — no unbaselined "weeks to hours" claim.
+  - no unbaselined "weeks to hours" claim.
 
 ## Testability
 
@@ -179,10 +179,10 @@ Each criterion is measurable on the fixed scenario set and measurement window
 
 ## Open Questions (each needs an owner)
 
-- Safe failover window and large-DB restore RTO targets — owner: DR/Chaos lead.
-- Initial risk-classification policy (auto vs HIL) and cross-domain precedence tuning —
+- Safe failover window and large-DB restore RTO targets - owner: DR/Chaos lead.
+- Initial risk-classification policy (auto vs HIL) and cross-domain precedence tuning -
   owner: risk-gate/policy owner.
-- Freeze/quiet-period calendar and game-day opt-out governance — owner: operations owner.
+- Freeze/quiet-period calendar and game-day opt-out governance - owner: operations owner.
 
 ## Dependencies
 

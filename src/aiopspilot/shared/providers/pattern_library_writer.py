@@ -1,4 +1,4 @@
-"""PatternLibraryWriter Protocol — write seam for the T1 pattern library.
+"""PatternLibraryWriter Protocol - write seam for the T1 pattern library.
 
 Companion to
 :class:`~aiopspilot.core.tiers.t1_lightweight.tier.PatternLibrary`, which
@@ -18,14 +18,14 @@ Design boundaries
   Postgres+pgvector under a bearer token issued via
   :class:`~aiopspilot.shared.providers.workload_identity.WorkloadIdentity`.
 - ``LearnedAction`` is imported under ``TYPE_CHECKING`` so this shared
-  module has no runtime dependency on ``core/`` — the shape is stable
+  module has no runtime dependency on ``core/`` - the shape is stable
   and the Protocol stays honest at type-check time.
 
 Safety invariants (owned by the caller)
 ---------------------------------------
 
 - The Phase-4 intake filter (``evaluate_intake``) MUST pass BEFORE this
-  seam is called. The writer carries no policy — it is a delivery seam.
+  seam is called. The writer carries no policy - it is a delivery seam.
 - Growth NEVER auto-promotes. New patterns enter with
   ``historical_success_rate == 0.0`` so the T1 tier's ``min_success_rate``
   floor filters them out of execution until a subsequent, measured
@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 class PatternLibraryWriter(Protocol):
     """Write seam for shadow-first pattern ingestion.
 
-    The Protocol is intentionally minimal — a single upsert operation
+    The Protocol is intentionally minimal - a single upsert operation
     keyed by :attr:`LearnedAction.signature`. Retirement / rebalancing
     are governed by the reviewed catalog pipeline, not this seam.
     """

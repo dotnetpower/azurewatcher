@@ -1,4 +1,4 @@
-"""CollectorPipeline + fetchers + CLI — fully offline tests.
+"""CollectorPipeline + fetchers + CLI - fully offline tests.
 
 Git and HTTP fetchers are exercised via local git bare repos and
 ``file://`` URLs so the test suite has zero external network dependency.
@@ -195,7 +195,7 @@ def _init_local_git_source(root: Path) -> tuple[Path, str]:
     }
 
     def _run(argv: list[str], cwd: Path) -> str:
-        proc = subprocess.run(  # noqa: S603 — argv is a list.
+        proc = subprocess.run(  # noqa: S603 - argv is a list.
             argv,
             cwd=cwd,
             capture_output=True,
@@ -363,11 +363,11 @@ def test_http_fetcher_raises_on_network_error(tmp_path: Path) -> None:
 
 
 def test_http_fetcher_synthetic_filename_when_url_has_no_name(tmp_path: Path) -> None:
-    """A URL ending in ``/`` MUST land under ``payload`` — the sink name stays predictable."""
+    """A URL ending in ``/`` MUST land under ``payload`` - the sink name stays predictable."""
     site = tmp_path / "site"
     site.mkdir()
     (site / "index.html").write_bytes(b"root-doc")
-    # `file://.../site/` — trailing slash, no filename in the path.
+    # `file://.../site/` - trailing slash, no filename in the path.
     url = site.resolve().as_uri() + "/"
     fetcher = HttpDownloadFetcher(timeout_seconds=5.0)
     dest = tmp_path / "snap"
@@ -548,7 +548,7 @@ def test_cli_fails_on_bad_manifest(tmp_path: Path, capsys: pytest.CaptureFixture
 def test_cli_writes_snapshot_and_prints_summary(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Non-dry-run path — snapshot is materialized, summary lands on stdout."""
+    """Non-dry-run path - snapshot is materialized, summary lands on stdout."""
     source = tmp_path / "seed"
     _write_source_tree(source)
     manifest_path = tmp_path / "manifest.yaml"
@@ -604,7 +604,7 @@ def test_cli_reports_hash_mismatch_as_nonzero_exit(
     )
 
     # HTTP mismatch flows through the fetcher (FetchError) rather than the
-    # pipeline's own mismatch record — either way, exit is non-zero.
+    # pipeline's own mismatch record - either way, exit is non-zero.
     exit_code = cli_main(
         [
             "--manifest",
@@ -623,7 +623,7 @@ def test_cli_auto_detects_repo_root_when_omitted(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Omit ``--repo-root``; the CLI walks up until a ``rule-catalog/`` dir appears."""
-    # A tmp workspace with a rule-catalog/ sibling — the same shape the
+    # A tmp workspace with a rule-catalog/ sibling - the same shape the
     # process entrypoint expects.
     workspace = tmp_path / "workspace"
     (workspace / "rule-catalog").mkdir(parents=True)
@@ -903,7 +903,7 @@ def test_cli_verify_flag_reports_not_implemented_parser(
                 "redistribution": "embeddable",
                 "fetch": {"kind": "local", "path": str(source)},
                 # `azure-policy-json` is a declared parser but has no
-                # built-in adapter yet — swap this to the next-added
+                # built-in adapter yet - swap this to the next-added
                 # parser once implemented.
                 "parser": "azure-policy-json",
             }

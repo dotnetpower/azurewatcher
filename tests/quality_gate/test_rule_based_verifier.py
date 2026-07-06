@@ -1,14 +1,14 @@
-"""RuleBasedVerifier — the first non-fake VerifierPolicy.
+"""RuleBasedVerifier - the first non-fake VerifierPolicy.
 
 Covers the four semantic outcomes the verifier must express:
 
-- ``True``  — cited rule authorizes the action_type on the target type.
-- ``False`` — cited rules exist, none authorize the action_type.
-- ``None``  — no resolvable cited rules (verifier abstains; grounding
+- ``True``  - cited rule authorizes the action_type on the target type.
+- ``False`` - cited rules exist, none authorize the action_type.
+- ``None``  - no resolvable cited rules (verifier abstains; grounding
   leg surfaces the reason).
-- ``True``  via ``alternatives[]`` — a cited rule ranks the candidate
+- ``True``  via ``alternatives[]`` - a cited rule ranks the candidate
   action_type as an authorized alternate.
-- Target-type filter — a cited rule whose ``resource_type`` differs
+- Target-type filter - a cited rule whose ``resource_type`` differs
   from the target is skipped rather than counted as authorization.
 """
 
@@ -182,7 +182,7 @@ def test_verifier_target_type_filter_is_optional(valid_rule: dict[str, Any]) -> 
 def test_verifier_returns_false_when_lookup_missing_target(
     valid_rule: dict[str, Any],
 ) -> None:
-    """Lookup supplied but the target ref is not registered — treated
+    """Lookup supplied but the target ref is not registered - treated
     as 'no type filter' for that candidate (fail-open on the filter
     only; the deny-based safety still holds)."""
     rule = _make_rule(

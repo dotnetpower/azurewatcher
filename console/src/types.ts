@@ -1,7 +1,7 @@
 /**
  * Payload shapes returned by the read API. Mirrored from
  * `src/aiopspilot/delivery/read_api/read_model.py`. Keep in sync by hand
- * — the surface is intentionally small (three routes).
+ * - the surface is intentionally small (three routes).
  */
 
 export interface AuditItem {

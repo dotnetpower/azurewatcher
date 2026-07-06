@@ -1,6 +1,6 @@
 """PagerDuty Events API v2 adapter.
 
-Endpoint: ``https://events.pagerduty.com/v2/enqueue`` (default) —
+Endpoint: ``https://events.pagerduty.com/v2/enqueue`` (default) -
 overridable so a fork can point at Opsgenie / an on-prem PagerDuty proxy.
 Only the ``trigger`` action is emitted here; ``acknowledge`` / ``resolve``
 are outside the router's scope.

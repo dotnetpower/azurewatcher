@@ -1,4 +1,4 @@
-"""Read-API auth wire — Bearer extraction + verifier + RBAC glue."""
+"""Read-API auth wire - Bearer extraction + verifier + RBAC glue."""
 
 from __future__ import annotations
 

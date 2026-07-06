@@ -1,11 +1,11 @@
-"""Persistence adapters — CSP-neutral wire-level backends.
+"""Persistence adapters - CSP-neutral wire-level backends.
 
 These modules realize the persistence-facing Protocols
 (:class:`~aiopspilot.shared.providers.state_store.StateStore`,
 :class:`~aiopspilot.core.tiers.t1_lightweight.tier.PatternLibrary`)
 against real databases (currently PostgreSQL + pgvector). Postgres is
-not Azure-specific — the same adapters bind to Cloud SQL, RDS, or a
-self-hosted server — so they live here rather than under
+not Azure-specific - the same adapters bind to Cloud SQL, RDS, or a
+self-hosted server - so they live here rather than under
 ``delivery/azure/``.
 """
 

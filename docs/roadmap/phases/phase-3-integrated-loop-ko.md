@@ -1,14 +1,14 @@
 ---
-title: Phase 3 — 통합 컨트롤 루프 (Resilience · Change Safety · Cost Governance)
+title: Phase 3 - 통합 컨트롤 루프 (Resilience · Change Safety · Cost Governance)
 translation_of: phase-3-integrated-loop.md
-translation_source_sha: 1333c3f522c664ab2964211028b51c4b1c923dcd
-translation_revised: 2026-07-05
+translation_source_sha: 22e05f8098cde8f47de55e16eed521418eff3c69
+translation_revised: 2026-07-06
 ---
 
-# Phase 3 — 통합 컨트롤 루프 (Resilience · Change Safety · Cost Governance)
+# Phase 3 - 통합 컨트롤 루프 (Resilience · Change Safety · Cost Governance)
 
-**목표**: 세 초기 버티컬을 하나의 컨트롤 루프 아래 통합하고 자율-운영 MVP 딜리버리 — Resilience,
-Change Safety, Cost Governance를 단일 리스크-게이팅 루프를 통해 종단으로 실행하는 첫 릴리스 —
+**목표**: 세 초기 버티컬을 하나의 컨트롤 루프 아래 통합하고 자율-운영 MVP 딜리버리 - Resilience,
+Change Safety, Cost Governance를 단일 리스크-게이팅 루프를 통해 종단으로 실행하는 첫 릴리스 -
 스케줄된 DR/chaos 테스트와 비용 auto-actions 포함. 이 phase는 새 티어를 추가하지 않음;
 P2에서 딜리버리된 T0/T1/T2 라우터, quality gate, 리스크 게이트
 ([phase-2-quality-and-t1-ko.md](phase-2-quality-and-t1-ko.md) 참조) 를 하나의 루프로
@@ -16,7 +16,7 @@ P2에서 딜리버리된 T0/T1/T2 라우터, quality gate, 리스크 게이트
 에 정의된 안전 불변식과 컨트롤 루프 배선을 강제.
 
 여기의 모든 RPO/RTO, 절감, lead-time 수치는 **명시된 목표에 대해 고정 시나리오 세트와 측정
-윈도우에서 보고된 측정값** — 절대 추정치나 unbaselined 배수 아님
+윈도우에서 보고된 측정값** - 절대 추정치나 unbaselined 배수 아님
 ([goals-and-metrics-ko.md](../goals-and-metrics-ko.md) 참조).
 
 ## 산출물
@@ -24,7 +24,7 @@ P2에서 딜리버리된 T0/T1/T2 라우터, quality gate, 리스크 게이트
 각 산출물은 아래 섹션에 매핑. 모듈 참조는 [`src/aiopspilot/`](../project-structure-ko.md)에서
 해당 산출물을 담고 있는 주요 Python 패키지를 가리킴.
 
-- Resilience, Change Safety, Cost Governance에 걸친 **통합 컨트롤 루프** — 하나의 `trust-router` →
+- Resilience, Change Safety, Cost Governance에 걸친 **통합 컨트롤 루프** - 하나의 `trust-router` →
   `risk-gate` → `executor` → `audit` 경로, 리소스별 순서/락과 크로스-버티컬 충돌 처리
   ([통합 컨트롤 루프](#통합-컨트롤-루프)).
   모듈: [core/control_loop.py](../../../src/aiopspilot/core/control_loop.py),
@@ -56,14 +56,14 @@ P2에서 딜리버리된 T0/T1/T2 라우터, quality gate, 리스크 게이트
   연기·재평가되거나 안전하게 연기될 수 없으면 HIL로 escalate. 충돌은 절대 racing으로 해결되지 않음.
 - **멱등**: 모든 P3 액션은 안정 idempotency 키를 사용; 재전달된 이벤트와 재시도된 액션은 이미
   적용된 상태에서 no-op.
-- **감사**: 모든 종단 결과 — auto-apply, HIL approve/reject/timeout, defer, abstain, 모든 스케줄
-  DR 실행과 FinOps 액션 — 이 이벤트 id, 도메인, 티어, 결정, 아이덴티티, 모드(shadow/enforce),
+- **감사**: 모든 종단 결과 - auto-apply, HIL approve/reject/timeout, defer, abstain, 모든 스케줄
+  DR 실행과 FinOps 액션 - 이 이벤트 id, 도메인, 티어, 결정, 아이덴티티, 모드(shadow/enforce),
   롤백 참조 있는 append-only 감사 엔트리를 씀.
 - **Shadow first**: 각 새 P3 액션(DR 실험 타입, FinOps 액션, 크로스-도메인 규칙) 은 **shadow
   모드**(judge-and-log, 변형 없음) 로 출시되고 정책 위반 escape 0으로 측정된 검증 후에만
   액션별로 enforce로 승격.
 
-## DR / Chaos — 스케줄된 주기 테스트
+## DR / Chaos - 스케줄된 주기 테스트
 
 - **윈도우-기반 스케줄러**: DR failover와 Chaos 실험을 승인된 유지 윈도우(테스트 failover /
   game day) 안에서만 실행. 스케줄러는 **freeze/quiet 기간** 과 리소스별 **opt-out 태그** 존중,
@@ -84,11 +84,11 @@ P2에서 딜리버리된 T0/T1/T2 라우터, quality gate, 리스크 게이트
   한 번에 전체 환경 아님.
 - **Rollback**: stop 또는 실패 시 이전 상태 복원하는 테스트된 자동 롤백; 롤백은 enforce 전
   shadow에서 실행.
-- **Isolation**: 프로덕션은 절대 chaos 대상 아님 — 실험은 non-prod 또는 격리된 복원 환경에 대해
+- **Isolation**: 프로덕션은 절대 chaos 대상 아님 - 실험은 non-prod 또는 격리된 복원 환경에 대해
   실행(Deep DB-DR 참조). 프로덕션 리소스의 chaos는 기본 거부, 불가피한 곳에서는 HIL 승인 +
   명시적 격리 필요.
 
-### Deep DB-DR (stateful — 전용 설계)
+### Deep DB-DR (stateful - 전용 설계)
 
 Stateful 서비스는 stateless처럼 "kill and revive" 될 수 없으므로, DB-DR은 라이브 프로덕션 DB가
 아니라 격리된 사본에서 실행.
@@ -96,11 +96,11 @@ Stateful 서비스는 stateless처럼 "kill and revive" 될 수 없으므로, DB
 - **Replication/backup**: point-in-time restore (PITR / continuous restore), geo-replication
   (active geo-replication / read replica), 주기 backup-restore rehearsal.
 - **테스트 방법** (모든 스텝 필요, 순서대로):
-  1. **격리 환경으로 restore** — replica/snapshot을 프로덕션으로 write path 없는 네트워크-격리
+  1. **격리 환경으로 restore** - replica/snapshot을 프로덕션으로 write path 없는 네트워크-격리
      환경으로 restore; 테스트 후 환경 tear down.
-  2. **결정론적으로 무결성 검증** — verifier가 소스 스냅샷 대비 row/record 카운트, 암호화 컨텐트
+  2. **결정론적으로 무결성 검증** - verifier가 소스 스냅샷 대비 row/record 카운트, 암호화 컨텐트
      체크섬, referential/constraint 일관성 검사; 어떤 mismatch도 실행 실패.
-  3. **앱-레벨 smoke 테스트** — 복원된 사본에 대해 대표 read와 write 작업 실행하여 애플리케이션-
+  3. **앱-레벨 smoke 테스트** - 복원된 사본에 대해 대표 read와 write 작업 실행하여 애플리케이션-
      레벨 복구 가능성 확인.
 - **RPO 방법론**: replication lag를 지속 측정(p50/p95/max 보고), forced-failover rehearsal에서
   failover 시점의 **실제 데이터 손실** 측정; 둘 다 같은 윈도우에서 RPO 목표와 비교.
@@ -114,14 +114,14 @@ Stateful 서비스는 stateless처럼 "kill and revive" 될 수 없으므로, DB
 
 - **트리거**: 비용 이벤트 / 이상(네이티브 이상 감지가 후보를 루프에 표면화).
 - **라우팅과 자율성**: 후보 액션(idle shutdown, rightsizing, spot/autoscale) 은 공유
-  `trust-router` 로 라우팅되고 `risk-gate` 게이팅 — **non-prod, 저위험 액션은 auto-execute;
+  `trust-router` 로 라우팅되고 `risk-gate` 게이팅 - **non-prod, 저위험 액션은 auto-execute;
   프로덕션-영향 액션은 HIL**.
-- **딜리버리**: 액션은 **remediation PR** (GitOps) 로 딜리버리, 감사·리뷰·롤백이 git에서 옴 —
+- **딜리버리**: 액션은 **remediation PR** (GitOps) 로 딜리버리, 감사·리뷰·롤백이 git에서 옴 -
   out-of-band API 변형 아님.
 - **가드레일** (모든 FinOps 액션에 필요):
   - **exclusion/opt-out 태그** 존중, 자동 scale-down이나 shutdown으로부터 **프로덕션** 리소스
     보호;
-  - **최소-용량 floor** 와 **의존성 검사** 준수 — shutdown이 의존 워크로드를 고아로 만들 수 없음;
+  - **최소-용량 floor** 와 **의존성 검사** 준수 - shutdown이 의존 워크로드를 고아로 만들 수 없음;
   - **멱등** 이고 **가역** (shut-down된 리소스는 재시작 가능; rightsizing PR은 revert 가능);
   - **stop-condition**(예상치 못한 영향 시 abort) 과 **감사 엔트리** 운반.
 - **결과**: 단위-비용 가시성 + 저위험 액션에 대한 자동 절감 루프; 보고된 절감은 **측정** 값,
@@ -133,7 +133,7 @@ Stateful 서비스는 stateless처럼 "kill and revive" 될 수 없으므로, DB
   (reject와 timeout은 여전히 감사하는 no-op). 승인과 실행은 별개 principal 유지
   ([security-and-identity-ko.md](../security-and-identity-ko.md)).
 - **Change lead time** 은 같은 시나리오 세트에서 P0 reference agent 대비 **측정** 감소로 보고
-  (median과 p90), [goals-and-metrics-ko.md](../goals-and-metrics-ko.md) 에 따라 — unbaselined
+  (median과 p90), [goals-and-metrics-ko.md](../goals-and-metrics-ko.md) 에 따라 - unbaselined
   "주 단위 → 시간 단위" 주장 없음.
 
 ## 테스트 가능성
@@ -163,10 +163,10 @@ Stateful 서비스는 stateless처럼 "kill and revive" 될 수 없으므로, DB
 
 ## Open Questions (각각 소유자 필요)
 
-- 안전 failover 윈도우와 large-DB restore RTO 목표 — 소유자: DR/Chaos 리드.
-- 초기 risk-classification 정책(auto vs HIL) 과 크로스-도메인 우선순위 튜닝 — 소유자: risk-gate/
+- 안전 failover 윈도우와 large-DB restore RTO 목표 - 소유자: DR/Chaos 리드.
+- 초기 risk-classification 정책(auto vs HIL) 과 크로스-도메인 우선순위 튜닝 - 소유자: risk-gate/
   정책 소유자.
-- Freeze/quiet-period 캘린더와 game-day opt-out 거버넌스 — 소유자: 운영 소유자.
+- Freeze/quiet-period 캘린더와 game-day opt-out 거버넌스 - 소유자: 운영 소유자.
 
 ## 의존성
 

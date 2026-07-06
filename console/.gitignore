@@ -1,6 +1,6 @@
-# Local build artifacts — the SPA ships as static assets under `dist/`
+# Local build artifacts - the SPA ships as static assets under `dist/`
 # and is uploaded to Azure Static Web Apps by the `console` Terraform
-# module. Never commit `dist/` — the artifact is deterministic from the
+# module. Never commit `dist/` - the artifact is deterministic from the
 # committed source.
 dist/
 node_modules/

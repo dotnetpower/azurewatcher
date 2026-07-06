@@ -1,4 +1,4 @@
-"""In-memory :class:`SseSink` — async fan-out queues, one per subscriber.
+"""In-memory :class:`SseSink` - async fan-out queues, one per subscriber.
 
 Late-join semantics: a subscriber that connects after ``publish()`` was
 called MUST NOT see the earlier events (standard SSE / pub-sub). Callers
@@ -17,7 +17,7 @@ from aiopspilot.shared.providers.sse import SseEvent, SseSink
 class InMemorySseSink(SseSink):
     """Async fan-out to per-subscriber queues.
 
-    Unbounded queues — this fake is for unit tests + debugger sessions,
+    Unbounded queues - this fake is for unit tests + debugger sessions,
     NOT production. Real HTTP adapters MUST handle backpressure (bounded
     queue + slow-consumer disconnect).
     """

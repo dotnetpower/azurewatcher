@@ -1,4 +1,4 @@
-"""EventHubsKafkaBus — `EventBus` adapter for Azure Event Hubs Kafka wire.
+"""EventHubsKafkaBus - `EventBus` adapter for Azure Event Hubs Kafka wire.
 
 Realizes ``docs/roadmap/csp-neutrality.md § 1`` (Kafka wire protocol)
 against the Event Hubs endpoint on ``:9093``. Authenticates via SASL /
@@ -52,7 +52,7 @@ def _audience_from_bootstrap(bootstrap_servers: str) -> str:
     """Derive the namespace-scoped OAUTHBEARER audience.
 
     Event Hubs data-plane REJECTS a token whose ``aud`` is the generic
-    ``https://eventhubs.azure.net`` — it parses "eventhubs" as a
+    ``https://eventhubs.azure.net`` - it parses "eventhubs" as a
     tenant/namespace name and fails with
     ``SaslAuthenticationFailed: Invalid tenant name 'eventhubs'``. The
     working audience is the namespace FQDN, which every Event Hubs
@@ -79,7 +79,7 @@ class EventHubsKafkaBusConfig:
     """``<namespace>.servicebus.windows.net:9093``."""
 
     client_id: str = "aiopspilot-core"
-    """Advertised client id — no functional impact, aids broker logs."""
+    """Advertised client id - no functional impact, aids broker logs."""
 
     session_timeout_ms: int = 30_000
     heartbeat_interval_ms: int = 10_000
@@ -191,7 +191,7 @@ class EventHubsKafkaBus(EventBus):
             extra={"topic": topic, "dlq": dlq, "reason": reason, "key": key},
         )
         # Reason rides on a header so downstream tooling can filter without
-        # rewriting the payload — the payload MUST arrive at the DLQ as-is
+        # rewriting the payload - the payload MUST arrive at the DLQ as-is
         # per csp-neutrality.md § 1.
         producer = await self._get_producer()
         await producer.send_and_wait(

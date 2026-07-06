@@ -1,4 +1,4 @@
-"""Reference agent package — see :mod:`tools.reference_agent.agent`."""
+"""Reference agent package - see :mod:`tools.reference_agent.agent`."""
 
 from .agent import AgentDecision, ReferenceAgent
 

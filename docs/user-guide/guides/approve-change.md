@@ -7,7 +7,7 @@ description: How to review and approve (or reject) a change AIOpsPilot has queue
 
 When a proposed change lands in the HIL tier, AIOpsPilot pauses execution and
 asks a human. This guide walks through the operator's side of that
-interaction — what the request looks like, what to check before approving,
+interaction - what the request looks like, what to check before approving,
 and what happens after each verdict.
 
 ## What a HIL request looks like
@@ -16,18 +16,18 @@ You receive the request through the notification channel your deployment
 configured (Teams Adaptive Card, PR review request, email, pager, etc.).
 Every HIL request carries the same core payload regardless of channel:
 
-- **Event summary** — what triggered the change (drift, cost anomaly, DR
+- **Event summary** - what triggered the change (drift, cost anomaly, DR
   drill, etc.) and which resource is affected.
-- **Proposed action** — the exact change AIOpsPilot would apply, either as a
+- **Proposed action** - the exact change AIOpsPilot would apply, either as a
   ready-to-review PR or as a serialised action envelope.
-- **Risk classification** — why this landed in HIL rather than AUTO: the
+- **Risk classification** - why this landed in HIL rather than AUTO: the
   specific dimension (blast radius, novelty, reversibility, signal source)
   that raised the tier.
-- **Rollback preview** — the pre-computed rollback path that would run if
+- **Rollback preview** - the pre-computed rollback path that would run if
   the change is approved and later needs to be reverted.
-- **Stop-condition** — the measurable state that will halt the change if the
+- **Stop-condition** - the measurable state that will halt the change if the
   world reacts badly after approval.
-- **Audit link** — a deep link to the audit-log entry so you can see the
+- **Audit link** - a deep link to the audit-log entry so you can see the
   event chain that produced this decision.
 
 ## What to check before approving
@@ -36,27 +36,27 @@ Five quick checks in order of importance:
 
 1. **Does the risk classification look right?** If the proposed action feels
    too aggressive for the stated risk, the classification rule may need
-   attention — reject and escalate rather than approve blindly.
-2. **Blast radius** — confirm the scope cap ("this resource group only",
+   attention - reject and escalate rather than approve blindly.
+2. **Blast radius** - confirm the scope cap ("this resource group only",
    "batch of 5 VMs", etc.) matches what you actually want to change.
-3. **Rollback path** — the rollback preview should be non-empty and
+3. **Rollback path** - the rollback preview should be non-empty and
    plausible. An empty or handwavy rollback is a design bug in the action,
    not something to approve around.
-4. **Stop-condition** — should be observable in the metrics you already
+4. **Stop-condition** - should be observable in the metrics you already
    watch. If it references a metric you cannot see, reject.
-5. **Grounding (T2 only)** — if this was a T2 decision, verify the cited
+5. **Grounding (T2 only)** - if this was a T2 decision, verify the cited
    rules or documents in the audit-log entry actually support the proposed
    action.
 
 ## Verdicts and their consequences
 
-- **Approve** — the change executes with all its safety invariants
+- **Approve** - the change executes with all its safety invariants
   (stop-condition, rollback path, blast-radius cap, audit entry). The audit
   log records who approved, when, and any comment you left.
-- **Reject** — the change is discarded. An audit entry is still written
+- **Reject** - the change is discarded. An audit entry is still written
   (approver, reason, event id) so the discovery loop can learn from the
   pattern.
-- **Timeout** — HIL requests carry a configurable timeout. On expiry the
+- **Timeout** - HIL requests carry a configurable timeout. On expiry the
   change is discarded exactly as if it were rejected; there is no
   auto-approve on timeout, ever.
 
@@ -69,9 +69,9 @@ alternative to fixing the underlying rule.
 
 ## Related
 
-- [Risk tiers](../../concepts/risk-tiers/) — how the classification you're
+- [Risk tiers](../../concepts/risk-tiers/) - how the classification you're
   looking at was produced.
-- [Read the audit log](../read-audit-log/) — how to trace what actually
+- [Read the audit log](../read-audit-log/) - how to trace what actually
   happened after your verdict.
-- [Override a rule](../override-a-rule/) — if the same rule keeps producing
+- [Override a rule](../override-a-rule/) - if the same rule keeps producing
   bad HIL requests.

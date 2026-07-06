@@ -1,8 +1,8 @@
-# remediate.enable-tde — Terraform patch template.
+# remediate.enable-tde - Terraform patch template.
 #
 # Referenced by rule `sql-database.tde-required`. Renders the target
 # state (TDE enabled with a server-managed key). Rollback pair is a
-# paired disable ActionType — most tenants deny it via policy, so the
+# paired disable ActionType - most tenants deny it via policy, so the
 # rollback contract on the ActionType is `state_forward_only`.
 
 resource "azurerm_mssql_database" "${resource_id}" {

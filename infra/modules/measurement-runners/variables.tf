@@ -9,7 +9,7 @@ variable "growth_job_name" {
 }
 
 variable "baseline_cron_expression" {
-  description = "Cron for the baseline regression job. Daily at 02:00 UTC — off-peak and one hour before the 03:00 UTC rule watcher."
+  description = "Cron for the baseline regression job. Daily at 02:00 UTC - off-peak and one hour before the 03:00 UTC rule watcher."
   type        = string
   default     = "0 2 * * *"
 }

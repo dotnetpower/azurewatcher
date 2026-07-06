@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# dev-up.sh — start the local development stack (pgvector + Redpanda).
+# dev-up.sh - start the local development stack (pgvector + Redpanda).
 #
 # On first run, seeds `infra/local/.env` from `.env.example` so the compose
 # file's ${POSTGRES_PASSWORD} placeholder resolves to a documented dev
-# default. `.env` is git-ignored — never committed.
+# default. `.env` is git-ignored - never committed.
 #
 # Exits 0 only after both containers report healthy.
 

@@ -9,7 +9,7 @@ routing surface that the ControlLoop needs today:
 
 - **T0** when the event's derived ``resource_type`` matches a rule in
   the loaded :class:`RuleIndex`.
-- **abstain** otherwise — no matching rule means no deterministic
+- **abstain** otherwise - no matching rule means no deterministic
   decision, so the event is handed to HIL rather than partial-applied
   (``architecture.instructions.md § Trust Routing``).
 
@@ -41,7 +41,7 @@ class RoutingDecision:
 
     ``resource_type`` is the CSP-neutral type the router derived from
     the event (via payload key or resource_ref). ``candidate_rule_ids``
-    is what T0 would evaluate — precomputed so the caller can log it
+    is what T0 would evaluate - precomputed so the caller can log it
     even when the tier itself abstains.
     """
 
@@ -62,10 +62,10 @@ class TrustRouter:
 
         Derivation of ``resource_type``:
 
-        1. ``event.payload['resource'].get('type')`` — the ingested
+        1. ``event.payload['resource'].get('type')`` - the ingested
            inventory adapter's Resource record embedded in the event.
-        2. ``event.payload.get('resource_type')`` — a legacy flat form.
-        3. Otherwise abstain — the router refuses to guess.
+        2. ``event.payload.get('resource_type')`` - a legacy flat form.
+        3. Otherwise abstain - the router refuses to guess.
         """
         resource_type = _extract_resource_type(event.payload)
         if resource_type is None:

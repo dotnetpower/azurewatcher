@@ -1,4 +1,4 @@
-"""Rule-set verifier — parsed mappings → the P1 loader.
+"""Rule-set verifier - parsed mappings → the P1 loader.
 
 Wraps :func:`load_rule_from_mapping` in an aggregate-issue shape so a
 collector caller (CLI, PR pipeline) can report *every* schema /
@@ -6,7 +6,7 @@ cross-reference violation across an entire source, not just the first.
 
 Deliberately kept as its own module (not a method on :class:`Parser`)
 because verification requires the ActionType catalog + ResourceType
-registry + schema registry — dependencies the parser itself has no
+registry + schema registry - dependencies the parser itself has no
 business owning. The composition root (CLI, orchestrator) wires them
 in.
 """
@@ -75,7 +75,7 @@ def verify_parsed_rules(
     second entry with the same ``id`` is flagged and skipped from the
     ``verified`` set.
 
-    ``policies_root`` / ``remediation_root`` — same semantics as
+    ``policies_root`` / ``remediation_root`` - same semantics as
     :func:`load_rule_from_mapping`. Pass ``None`` to skip the on-disk
     check (typical for a snapshot whose Rego / template refs live in
     the *target* repo, not the *source* snapshot).

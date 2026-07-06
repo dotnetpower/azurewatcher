@@ -2,7 +2,7 @@
 
 Ships in the main package (not under ``tests/``) so a fork MAY also use it
 as a lightweight backend for a local, throwaway environment. It is **not**
-suitable for production — mutations vanish on process restart.
+suitable for production - mutations vanish on process restart.
 """
 
 from __future__ import annotations

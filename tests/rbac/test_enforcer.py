@@ -1,4 +1,4 @@
-"""Enforcer tests — role/capability gating + framework-neutral dependency shape."""
+"""Enforcer tests - role/capability gating + framework-neutral dependency shape."""
 
 from __future__ import annotations
 
@@ -108,7 +108,7 @@ class TestBreakGlassExpiry:
 
     def test_break_glass_without_activation_stamp_is_denied(self) -> None:
         # A principal carrying the BreakGlass role but no activation is
-        # a fail-close scenario — the resolver never produces this shape
+        # a fail-close scenario - the resolver never produces this shape
         # legitimately, so an attacker who forges one gets rejected.
         enforcer = RoleEnforcer()
         p = Principal(oid="bg", roles=frozenset({Role.BREAK_GLASS}), break_glass=None)

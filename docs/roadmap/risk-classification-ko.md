@@ -1,8 +1,8 @@
 ---
 title: 리스크 분류 (auto vs HIL vs deny)
 translation_of: risk-classification.md
-translation_source_sha: fe0c71b8f897b45977a50d2a432b5eb5743c729b
-translation_revised: 2026-07-05
+translation_source_sha: 74f8536983b7ca835ed1890659a2263fe81af7b2
+translation_revised: 2026-07-06
 ---
 
 # 리스크 분류 (auto vs HIL vs deny)
@@ -20,10 +20,10 @@ Decision *"Risk-classification policy (auto vs HIL) and initial policy approver"
 
 ## 테이블이 사는 곳
 
-- **런타임 경로**: `rule-catalog/risk-classification.yaml` — catalog-as-code, 규칙/할당/예외/
+- **런타임 경로**: `rule-catalog/risk-classification.yaml` - catalog-as-code, 규칙/할당/예외/
   오버라이드처럼 PR로 리뷰. 모든 변경에 `aw-approvers` 리뷰어의 **elevated quorum of 2**
   ([user-rbac-and-identity-ko.md § 5.1](user-rbac-and-identity-ko.md#51-codeowners-single-approver-group-path-based-reviewer-count)).
-- **정책 소유자**: `aw-owners` Entra 보안 그룹. 소유권은 Owner-티어에 있음 — 테이블이 전체
+- **정책 소유자**: `aw-owners` Entra 보안 그룹. 소유권은 Owner-티어에 있음 - 테이블이 전체
   자율성 표면을 게이팅.
 - **평가**: first-match wins. 규칙은 가장 엄격(`deny`)부터 가장 관대(`auto`)로 정렬; 어느
   규칙과도 매칭되지 않는 케이스는 **`default: hil`** fail-close 엔트리로 fall through.
@@ -41,7 +41,7 @@ Decision *"Risk-classification policy (auto vs HIL) and initial policy approver"
 | `destructive` | bool | 온톨로지 `ActionType.operation ∈ {delete, drop, purge, detach}` |
 | `irreversible` | bool | 온톨로지 `ActionType.irreversible == true` (롤백된 상태가 액션 이전 상태를 완전 복원 불가) |
 | `blast_radius` | enum `resource` \| `resource_group` \| `subscription` | `applies_to` × 영향받은 리소스의 스코프; `ActionType.blast_radius.computation == graph_derived` 일 때 risk-gate 가 Resource→Resource 링크(기본 `contains` + 역방향 `depends_on`, depth 2) 를 walk 해서 영향받는 리소스 count 를 bucket 으로 매핑 |
-| `rollback_path` | enum `pr_revert` \| `scripted` \| `pitr` \| `snapshot_restore` \| `state_forward_only` | `remediates` 액션의 롬백 계약 (`none` 은 유효 값 아님 — 모든 ActionType 이 undo 경로를 선언) |
+| `rollback_path` | enum `pr_revert` \| `scripted` \| `pitr` \| `snapshot_restore` \| `state_forward_only` | `remediates` 액션의 롬백 계약 (`none` 은 유효 값 아님 - 모든 ActionType 이 undo 경로를 선언) |
 | `reversible` | bool | `irreversible == false` 의 지름길 |
 | `environment` | enum `prod` \| `non-prod` | [Environment Detection](#environment-detection) 참조 |
 | `data_plane_touched` | bool | 온톨로지 `ActionType.interfaces` 가 `DataPlaneMutating` 포함 |
@@ -106,7 +106,7 @@ rules:
 
   # ── FAIL-CLOSE ──
   - default: hil
-    reason: "no matching rule — fail toward safety"
+    reason: "no matching rule - fail toward safety"
 ```
 
 **규칙 순서 (MUST)**: `deny` 규칙이 먼저, 다음 `hil`, 다음 `auto`, 다음 `default: hil`
@@ -157,7 +157,7 @@ Allowlist는 bypass가 아니라 prod 기본의 opt-in 감소입니다.
 - **모든 변경** 은 **quorum of 2** `aw-approvers` 와 PR 본문의 `Justification:` 블록 필요.
 - **완화 변경** (auto 확대, 비용 임계 상승, deny 제거)은 quorum에 Owner-티어 리뷰어(`aw-owners`
   멤버) 필요.
-- **강화 변경** (deny 추가, 비용 임계 하락, auto→HIL 이동)은 일반 quorum으로 머지 가능 —
+- **강화 변경** (deny 추가, 비용 임계 하락, auto→HIL 이동)은 일반 quorum으로 머지 가능 -
   안전-측 변경은 Owner 승인이 필요 없음.
 - 테이블 버전은 모든 변경에 bump되고 카탈로그 버전에 캡처되어, 어떤 과거 액션을 분류한 리스크
   결정도 재구성 가능
@@ -173,14 +173,14 @@ Allowlist는 bypass가 아니라 prod 기본의 opt-in 감소입니다.
 - 라우팅 결과 (`auto` / `hil` / `deny`) 와 하류 승인 id.
 
 향후 회고에서 매칭 규칙 id로 감사 로그를 필터링하여 과도하게 트리거된 규칙(예: "모든 prod
-변경이 HIL — 모든 것이 Rule 5에 걸림")을 식별하고, 같은 governance PR 흐름을 통해 개선을
+변경이 HIL - 모든 것이 Rule 5에 걸림")을 식별하고, 같은 governance PR 흐름을 통해 개선을
 제안할 수 있습니다.
 
 ## Open Decisions
 
-- [ ] 향후 차원으로 `time_of_day` 게이트(업무 시간 vs 비업무 시간)를 추가할지 — shadow
+- [ ] 향후 차원으로 `time_of_day` 게이트(업무 시간 vs 비업무 시간)를 추가할지 - shadow
       측정이 실제 필요를 보일 때까지 연기.
 - [ ] 결정론적 규칙 테이블에 더해 숫자 `risk_score` 를 계산할지 (동점에서만 또는 tie-breaker
-      로만 작동 — 결정론 테이블이 여전히 권위).
+      로만 작동 - 결정론 테이블이 여전히 권위).
 - [ ] 포크 오버라이드 정책: 포크가 상류 기본을 *완화* (예: 비용 임계 상승)할 수 있는가, 아니면
       강화만 가능한가? 권장 기본: 강화는 무료, 완화는 감사된 Owner override 필요.

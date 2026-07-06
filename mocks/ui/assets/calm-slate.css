@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Calm Slate — report theme for AIOpsPilot UI kit
+   Calm Slate - report theme for AIOpsPilot UI kit
    Toned-down, desaturated palette. No primary/neon colors, no color bands.
    Font: Segoe UI / Malgun Gothic. Calm, professional, report-like.
    All class names are prefixed `cs-`.
@@ -17,8 +17,8 @@
   --cs-text-soft: #6B7178;
 
   /* Primary tones */
-  --cs-steel: #44688E;      /* steel blue — primary accent */
-  --cs-navy: #3E4C59;       /* slate navy — badges, table header */
+  --cs-steel: #44688E;      /* steel blue - primary accent */
+  --cs-navy: #3E4C59;       /* slate navy - badges, table header */
 
   /* Desaturated accents */
   --cs-sage: #5E8259;
@@ -75,7 +75,7 @@ code { font-family: "Cascadia Code", "Consolas", monospace; font-size: .88em; ba
 .cs-section-title h2 { margin: 0 0 2px; }
 .cs-section-title .cs-desc { color: var(--cs-text-soft); font-size: 14px; margin: 0; }
 
-/* Numbered badge — slate navy square */
+/* Numbered badge - slate navy square */
 .cs-badge-num {
   flex: 0 0 auto;
   width: 34px; height: 34px;

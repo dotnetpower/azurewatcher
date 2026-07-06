@@ -15,42 +15,42 @@ multiplier without measuring baseline and treatment on the same scenario set.
 
 ## Design Principles
 
-1. **Deterministic-first** — resolve every repeatable decision with rules, policies, and
+1. **Deterministic-first** - resolve every repeatable decision with rules, policies, and
    checklists. Reach for an LLM only after T0 and T1 cannot resolve the case.
-2. **Confidence tiering** — route by a computed confidence so expensive inference stays a
-   small minority of events (target ~5–10%; see Trust Routing).
-3. **Risk-gated autonomy** — low-risk actions auto-execute; high-risk actions require
+2. **Confidence tiering** - route by a computed confidence so expensive inference stays a
+   small minority of events (target ~5-10%; see Trust Routing).
+3. **Risk-gated autonomy** - low-risk actions auto-execute; high-risk actions require
    human-in-the-loop (HIL) approval. Autonomy is never unconditional.
-4. **Event-driven** — wake on events, scale to zero when idle. No constant polling.
-5. **Policy, state, and audit as code** — policy-as-code (OPA/Rego), tracked state, and a full
+4. **Event-driven** - wake on events, scale to zero when idle. No constant polling.
+5. **Policy, state, and audit as code** - policy-as-code (OPA/Rego), tracked state, and a full
    append-only audit log for every autonomous action.
-6. **Living rules** — the rule catalog is continuously **collected, updated, and
+6. **Living rules** - the rule catalog is continuously **collected, updated, and
    discovered**: automated agents scan upstream sources for new/changed controls, keep
    existing rules current, and propose novel candidates from operational signals
-   (incidents, HIL patterns, shadow outcomes, override events). Every candidate — no matter
-   how it was generated — MUST cite `provenance` and MUST pass the same quality gate
+   (incidents, HIL patterns, shadow outcomes, override events). Every candidate - no matter
+   how it was generated - MUST cite `provenance` and MUST pass the same quality gate
    (schema, mixed-model cross-check, verifier, regression, shadow) before it can enter the
    catalog. Candidates without grounded provenance are rejected.
-7. **Human override on top** — humans retain a final control surface above the automated
+7. **Human override on top** - humans retain a final control surface above the automated
    gate. An operator MAY narrow, downgrade, or disable an accepted rule via a scoped,
    policy-as-code override (see Human Override). Overrides never edit rule text and never
    suppress the audit record of the underlying finding; they are themselves audited and
    feed back into the discovery loop.
-8. **Fail toward safety** — any failure, low confidence, or budget/rate overflow degrades to
+8. **Fail toward safety** - any failure, low confidence, or budget/rate overflow degrades to
    HIL, never to an ungated auto-action.
 
 ## Trust Routing (3-Tier)
 
 Latency values are order-of-magnitude budgets, not SLAs. Coverage targets are approximate and
-partition one event stream, so they must sum to ~100%; T0+T1 together target the ~85–90%
+partition one event stream, so they must sum to ~100%; T0+T1 together target the ~85-90%
 deterministic/lightweight share cited in
 [goals-and-metrics.md](../../docs/roadmap/goals-and-metrics.md).
 
 | Tier | Handles | Model use | Latency budget | Coverage target |
 |------|---------|-----------|----------------|-----------------|
-| **T0 deterministic** | policy eval, checklists, what-if (dry-run predicted effect), config drift, anomaly-threshold checks | none | ms–s | 70–80% |
-| **T1 lightweight** | embedding similarity to past incidents, reuse of learned actions, root-cause correlation to prior resolved incidents, small-model classification of routine cases | embedding + small/cheap LLM | ~s | 15–20% |
-| **T2 reasoning** | novel or ambiguous cases only, grounded root-cause reasoning | frontier LLMs (2+ distinct) | s–tens of s | 5–10% |
+| **T0 deterministic** | policy eval, checklists, what-if (dry-run predicted effect), config drift, anomaly-threshold checks | none | ms-s | 70-80% |
+| **T1 lightweight** | embedding similarity to past incidents, reuse of learned actions, root-cause correlation to prior resolved incidents, small-model classification of routine cases | embedding + small/cheap LLM | ~s | 15-20% |
+| **T2 reasoning** | novel or ambiguous cases only, grounded root-cause reasoning | frontier LLMs (2+ distinct) | s-tens of s | 5-10% |
 
 ### Routing and Tier Boundaries
 
@@ -80,7 +80,7 @@ event bus
 ```
 
 T2 output is never routed straight to the risk gate; it must clear the quality gate first.
-Every terminal path — including reject, HIL timeout, abstain, and deny — writes an audit entry.
+Every terminal path - including reject, HIL timeout, abstain, and deny - writes an audit entry.
 
 ### Detection Signals (correlation, anomaly, prediction, RCA)
 
@@ -89,7 +89,7 @@ related events into one incident (deterministic keys first, T1 similarity for fu
 **Anomaly** and **predictive/forecast** detectors emit normalized findings that enter the trust
 router like any event, and **root-cause analysis** is a first-class tier output (T0 direct cause,
 T1 correlation to resolved incidents, T2 grounded reasoning). Detection stays deterministic-first,
-ships in shadow mode, and a prediction or anomaly **never auto-acts on its own** — it raises a
+ships in shadow mode, and a prediction or anomaly **never auto-acts on its own** - it raises a
 finding the risk gate governs. Full design:
 [observability-and-detection.md](../../docs/roadmap/observability-and-detection.md).
 
@@ -137,7 +137,7 @@ action and hand off to HIL.
   (`source watcher -> collect -> shadow evaluation -> regression -> promote/rollback`).
   Promotion requires the regression suite to pass with no policy-violation escapes; a failing
   regression blocks promotion and can roll a rule back.
-- **Autonomous discovery loop** — the same pipeline also runs a long-horizon loop that
+- **Autonomous discovery loop** - the same pipeline also runs a long-horizon loop that
   observes operational signals (audit log, HIL approvals, shadow outcomes, rollbacks,
   override events) and proposes rule candidates: **new** rules for recurring patterns not
   yet covered, **revisions** for rules whose upstream source changed or whose shadow
@@ -160,8 +160,8 @@ escapes in shadow; regressions demote back to shadow automatically
 ## Human Override
 
 An operator MAY override an accepted rule when it is too aggressive for a specific
-environment. Overrides sit **above** the automated quality gate — an override always wins
-against the promotion decision on the scope it covers — but they never bypass audit or
+environment. Overrides sit **above** the automated quality gate - an override always wins
+against the promotion decision on the scope it covers - but they never bypass audit or
 grounding.
 
 - **Policy-as-code, separate artifact**: an override is a declarative artifact stored

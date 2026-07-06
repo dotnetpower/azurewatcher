@@ -1,10 +1,10 @@
-"""SourceWatcher — cadence-driven re-fetch decision.
+"""SourceWatcher - cadence-driven re-fetch decision.
 
 Pure scheduling logic. Given a :class:`SourceManifest` and the current
 time, decide whether the source is due for re-collection by comparing
 the previous ``SNAPSHOT.json.collected_at`` against the manifest cadence.
 
-Reading ``SNAPSHOT.json`` is the only I/O this module performs — it
+Reading ``SNAPSHOT.json`` is the only I/O this module performs - it
 never fetches, writes, or mutates state. The CLI wrapper
 (:mod:`aiopspilot.rule_catalog.pipeline.watcher_cli`) composes the
 watcher with the existing collector CLI so a Container Apps Job cron
@@ -15,7 +15,7 @@ Phase 2 mapping (``docs/roadmap/phases/phase-2-quality-and-t1.md``
 
     source watcher → collect/normalize → shadow eval → regression gate
 
-This module is the *source watcher* — decide whether to poll — while
+This module is the *source watcher* - decide whether to poll - while
 ``collect_cli`` covers the *collect/normalize* stage. The pipeline
 never promotes automatically; promotion stays a reviewed
 catalog-as-code PR.
@@ -31,13 +31,13 @@ from pathlib import Path
 from aiopspilot.rule_catalog.schema.source_manifest import Cadence, SourceManifest
 
 # Cadence → interval mapping. ``on-demand`` deliberately maps to ``None``
-# — the caller never fires an on-demand source from the watcher; it
+# - the caller never fires an on-demand source from the watcher; it
 # stays manual.
 _CADENCE_INTERVALS: dict[Cadence, timedelta | None] = {
     Cadence.ON_DEMAND: None,
     Cadence.DAILY: timedelta(days=1),
     Cadence.WEEKLY: timedelta(days=7),
-    # "monthly" is 28 days on purpose — the watcher runs on a daily
+    # "monthly" is 28 days on purpose - the watcher runs on a daily
     # cron, so a 30/31-day window would drift; 28 days keeps the
     # decision purely arithmetic and calendar-agnostic.
     Cadence.MONTHLY: timedelta(days=28),
@@ -63,11 +63,11 @@ class SourceWatcher:
     def is_due(self, manifest: SourceManifest, *, now: datetime) -> bool:
         """Return ``True`` when ``manifest`` is due for a re-fetch at ``now``.
 
-        - ``on-demand`` — never due; returns ``False``. Callers invoke
+        - ``on-demand`` - never due; returns ``False``. Callers invoke
           the collector manually for on-demand sources.
-        - ``daily`` / ``weekly`` / ``monthly`` — due when no prior
+        - ``daily`` / ``weekly`` / ``monthly`` - due when no prior
           snapshot exists OR ``now - last_collected_at >= interval``.
-        - Any other cadence — raises :class:`WatcherError`. Every
+        - Any other cadence - raises :class:`WatcherError`. Every
           currently declared :class:`Cadence` value is mapped, so this
           branch is a defensive guard for future enum additions.
         """
@@ -76,14 +76,14 @@ class SourceWatcher:
             return False
         last = self._last_collected_at(manifest.id)
         if last is None:
-            # First-ever collection is always due — no baseline to compare.
+            # First-ever collection is always due - no baseline to compare.
             return True
         # Compare in UTC. A naive ``collected_at`` (older snapshot format)
         # is normalized to UTC in ``_last_collected_at``.
         return (now - last) >= interval
 
     # ------------------------------------------------------------------
-    # Internals — kept public-static so tests can exercise the mapping
+    # Internals - kept public-static so tests can exercise the mapping
     # directly without constructing a manifest.
     # ------------------------------------------------------------------
 
@@ -98,7 +98,7 @@ class SourceWatcher:
         """Newest ``collected_at`` across every snapshot for ``source_id``.
 
         Missing directory, missing ``SNAPSHOT.json``, or malformed
-        provenance all return ``None`` for that revision — the watcher
+        provenance all return ``None`` for that revision - the watcher
         never crashes on a partial snapshot tree.
         """
         source_dir = self.snapshot_root / source_id

@@ -1,4 +1,4 @@
-"""Rule-catalog collector — fetch + verify + snapshot pipeline.
+"""Rule-catalog collector - fetch + verify + snapshot pipeline.
 
 Skeleton in this build (see ``docs/roadmap/rule-catalog-collection.md``
 § Collector Architecture). This package delivers the fetch/verify/snapshot

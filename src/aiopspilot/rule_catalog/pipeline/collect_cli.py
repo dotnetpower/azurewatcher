@@ -9,13 +9,13 @@ Usage
 
 Exits:
 
-- ``0`` — snapshot written (or dry-run summary printed).
-- ``2`` — manifest / fetch / hash-mismatch error.
-- ``64`` — usage error.
+- ``0`` - snapshot written (or dry-run summary printed).
+- ``2`` - manifest / fetch / hash-mismatch error.
+- ``64`` - usage error.
 
 The snapshot lands under
 ``rule-catalog/sources/<id>/<short-revision>/`` next to a
-``SNAPSHOT.json`` provenance file. The T0 catalog is NOT touched — a
+``SNAPSHOT.json`` provenance file. The T0 catalog is NOT touched - a
 future normalization stage promotes snapshots into
 ``rule-catalog/catalog/`` under the same governance pipeline as the
 existing hand-authored rules.
@@ -48,7 +48,7 @@ from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
 
 
 def _repo_root() -> Path:
-    # Walks up from this file until a ``rule-catalog/`` sibling appears —
+    # Walks up from this file until a ``rule-catalog/`` sibling appears -
     # matches the resolution used by the process entrypoint.
     here = Path(__file__).resolve()
     for parent in here.parents:
@@ -224,7 +224,7 @@ def _run_verify(
     return (summary, 0 if verification.passed else 2)
 
 
-if __name__ == "__main__":  # pragma: no cover — process entrypoint
+if __name__ == "__main__":  # pragma: no cover - process entrypoint
     raise SystemExit(main())
 
 

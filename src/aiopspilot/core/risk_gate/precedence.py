@@ -25,7 +25,7 @@ Scope
 
 This module governs **selection** among competing actions. Actual
 serialization on a per-resource key still happens at the executor's
-:class:`~aiopspilot.core.executor.lock.ResourceLockManager` — even after
+:class:`~aiopspilot.core.executor.lock.ResourceLockManager` - even after
 this resolver picks a winner, the executor holds the lock for the whole
 action window per phase-3 § Ordering and locking.
 """
@@ -55,15 +55,15 @@ class PrecedenceOutcome(StrEnum):
     """Terminal outcome for one candidate action after the resolver runs."""
 
     WIN = "win"
-    """Highest precedence on this resource for this window — proceeds
+    """Highest precedence on this resource for this window - proceeds
     to the risk-gate + executor."""
 
     DEFER = "defer"
-    """Lower precedence but safely deferrable — re-evaluated on the
+    """Lower precedence but safely deferrable - re-evaluated on the
     next tick. Not executed now; audited."""
 
     ESCALATE_HIL = "escalate_hil"
-    """Not safely deferrable — hand to HIL. Executor does NOT act."""
+    """Not safely deferrable - hand to HIL. Executor does NOT act."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,7 +114,7 @@ class PrecedenceResolver:
         Candidates are grouped by ``resource_id``. Within a group the
         highest-precedence candidate wins; every other candidate is
         deferred (or escalated to HIL when not ``deferrable``). Groups
-        of size 1 always win — no conflict.
+        of size 1 always win - no conflict.
         """
         candidates_tuple = tuple(candidates)
         decisions: list[PrecedenceDecision] = []
@@ -136,7 +136,7 @@ class PrecedenceResolver:
 
             # Winner: highest precedence rank; tie-break by earliest action_id
             # (deterministic ordering when two actions from the same vertical
-            # collide — extremely rare, still worth pinning).
+            # collide - extremely rare, still worth pinning).
             group_sorted = sorted(
                 group,
                 key=lambda c: (_PRECEDENCE[c.vertical], c.action_id),

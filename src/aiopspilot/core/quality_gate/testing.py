@@ -1,4 +1,4 @@
-"""In-memory fakes for the quality gate seams — used by tests + local dev."""
+"""In-memory fakes for the quality gate seams - used by tests + local dev."""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ class HashedRuleEmbeddingIndex(RuleEmbeddingIndex):
     then increments the bucket ``blake2b(token) mod dim`` for each
     token. The result is a fixed-``dim``-length vector that:
 
-    - depends only on the input tokens (no per-process randomness — we
+    - depends only on the input tokens (no per-process randomness - we
       cannot use built-in :func:`hash`, which is salt-randomized under
       ``PYTHONHASHSEED=random``);
     - preserves the token multiplicity, so shared vocabulary drives
@@ -81,7 +81,7 @@ class HashedRuleEmbeddingIndex(RuleEmbeddingIndex):
     provider behind the same :class:`RuleEmbeddingIndex` Protocol.
     """
 
-    _TOKEN_SPLIT_CHARS = " \t\n\r.,;:/_-()[]{}\"'"  # noqa: S105 — punctuation set, not a secret
+    _TOKEN_SPLIT_CHARS = " \t\n\r.,;:/_-()[]{}\"'"  # noqa: S105 - punctuation set, not a secret
 
     def __init__(self, *, dim: int = 64) -> None:
         if dim < 1:

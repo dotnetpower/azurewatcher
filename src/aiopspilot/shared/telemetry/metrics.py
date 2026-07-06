@@ -19,7 +19,7 @@ _READER: InMemoryMetricReader | None = None
 def configure_metrics(service_name: str, env: str) -> None:
     """Install a :class:`MeterProvider` if one has not been installed yet.
 
-    Idempotent — a repeat call is a no-op.
+    Idempotent - a repeat call is a no-op.
     """
     global _CONFIGURED, _READER
     if _CONFIGURED:
@@ -45,7 +45,7 @@ def get_meter(name: str) -> metrics.Meter:
 def in_memory_reader() -> InMemoryMetricReader | None:
     """Return the in-memory reader installed by :func:`configure_metrics`.
 
-    Test helper — returns ``None`` when metrics have not been configured.
+    Test helper - returns ``None`` when metrics have not been configured.
     """
     return _READER
 

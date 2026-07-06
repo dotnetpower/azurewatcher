@@ -226,7 +226,7 @@ __marimo__/
 examples/
 
 # --------------------------------------------------------------------------
-# Terraform (infra/) — NEVER commit tfvars / state; they carry real
+# Terraform (infra/) - NEVER commit tfvars / state; they carry real
 # subscription / tenant / RG values forbidden by
 # .github/instructions/generic-scope.instructions.md.
 # --------------------------------------------------------------------------
@@ -246,7 +246,7 @@ override.tf.json
 *_override.tf.json
 
 # --------------------------------------------------------------------------
-# Secrets / credentials — the app reads env vars / Key Vault refs only;
+# Secrets / credentials - the app reads env vars / Key Vault refs only;
 # nothing sensitive belongs in the tree.
 # --------------------------------------------------------------------------
 *.pem
@@ -258,7 +258,7 @@ secrets/
 
 
 # --------------------------------------------------------------------------
-# Rule-catalog collector snapshots — the collector writes tamper-evident
+# Rule-catalog collector snapshots - the collector writes tamper-evident
 # per-revision snapshots under `rule-catalog/sources/<id>/<short-rev>/`.
 # The `manifest.yaml` per source is committed; per-run snapshot dirs are
 # not (they carry machine-local absolute paths for `kind=local` and are

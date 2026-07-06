@@ -1,12 +1,12 @@
 """PolicyExemption model + fail-fast loader.
 
-Mirror of ``rule-catalog/schema/exemption.json`` — the JSON Schema is the
+Mirror of ``rule-catalog/schema/exemption.json`` - the JSON Schema is the
 source of truth for structural validation at the boundary; this pydantic
 model layers on invariants the schema cannot express (requester ≠
 approver; expires_at > created_at).
 
 The loader follows the same aggregate-issue pattern as
-:mod:`aiopspilot.shared.config.loader` — every problem is reported in one
+:mod:`aiopspilot.shared.config.loader` - every problem is reported in one
 :class:`ExemptionError` so a reviewer sees the full remediation list in
 one shot.
 """

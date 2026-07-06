@@ -33,7 +33,7 @@ blast_radius:
 description: >-
   Turn on purge protection on a secret-store. Marked irreversible
   because once purge protection is on, the provider does NOT allow
-  turning it off — a subsequent removal would require recreating
+  turning it off - a subsequent removal would require recreating
   the vault (out of this ActionType's scope). Risk-gate MUST route
   this to HIL+quorum until the promotion gate is measured on the
   frozen scenario set.

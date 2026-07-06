@@ -1,18 +1,18 @@
 ---
-title: "Phase 2 — 지속적 규칙 업데이트, Quality Gate, T1"
+title: "Phase 2 - 지속적 규칙 업데이트, Quality Gate, T1"
 translation_of: phase-2-quality-and-t1.md
-translation_source_sha: b6ae6e53112b8e26cd5479183cb93fd243d50176
-translation_revised: 2026-07-05
+translation_source_sha: 3d0fa5a6893522ab54e414e88c0c831b627140e1
+translation_revised: 2026-07-06
 ---
 
-# Phase 2 — 지속적 규칙 업데이트, Quality Gate, T1
+# Phase 2 - 지속적 규칙 업데이트, Quality Gate, T1
 
 **목표**: 결정론 레이어를 신선하게 유지, LLM(T2) 출력을 신뢰할 만하고 안전하게, T1 경량 티어
-추가, P0 베이스라인 대비 auto-resolution 비율 검증 — 그다음 특정 액션을 shadow에서 enforce로
+추가, P0 베이스라인 대비 auto-resolution 비율 검증 - 그다음 특정 액션을 shadow에서 enforce로
 승격. 이 phase는
 [architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) 의
 티어/게이트 규칙과 [llm-strategy-ko.md](../llm-strategy-ko.md) 의 모델-티어 설계 확장.
-커버리지 수치(T1 ~15–20%) 는 보장이 아니라 **검증할 목표**
+커버리지 수치(T1 ~15-20%) 는 보장이 아니라 **검증할 목표**
 ([goals-and-metrics-ko.md](../goals-and-metrics-ko.md)).
 
 ## 산출물
@@ -41,10 +41,10 @@ translation_revised: 2026-07-05
   에 있어 real embedding 모델 / pgvector 없이 재현 가능한 유닛 테스트 가능.
 - **Shadow → enforce 승격**, 액션별, 정책 escape 0으로 측정된 메트릭에 게이팅.
   [`src/aiopspilot/core/risk_gate/`](../../../src/aiopspilot/core/risk_gate/) 가
-  `ActionPromotionRegistry.consider_promotion(metrics)` 를 구현 —
+  `ActionPromotionRegistry.consider_promotion(metrics)` 를 구현 -
   ActionType 의 `promotion_gate` (min_shadow_days / min_samples / min_accuracy /
   max_policy_escapes) 를 측정된 `PromotionMetrics` 에 대해 평가하고 결정된 mode 를 기록.
-  `RiskGate.evaluate` 는 그 레지스트리를 read — shadow-mode ActionType 은 `hil` 반환,
+  `RiskGate.evaluate` 는 그 레지스트리를 read - shadow-mode ActionType 은 `hil` 반환,
   enforce-mode + clean invariants 면 `auto`, 어떤 invariant miss (blast-radius over cap,
   stale precondition, irreversible ActionType) 든 mode 에 관계없이 `hil` 강제.
 
@@ -74,15 +74,15 @@ auto-edit 절대 아님) 로 shadow 기본으로 나감.
 - **Promote | rollback**: 승격은 명시적, 리뷰된 catalog-as-code 머지; **롤백 트리거** 는 실패한
   회귀, shadow-eval escape, 또는 사후 승격 가드 위반이며, 마지막-good 버전된 세트로 되돌림.
 - **새 리소스 타입**: 프로바이더 스키마 변경 감지, 커버되지 않은 리소스 타입 식별, **shadow-only
-  및 HIL-리뷰로 출시되는 규칙 stub 생성** — stub은 절대 auto-enforce 아님.
+  및 HIL-리뷰로 출시되는 규칙 stub 생성** - stub은 절대 auto-enforce 아님.
 
-## LLM Quality Gate (T2 — [llm-strategy-ko.md](../llm-strategy-ko.md) 참조)
+## LLM Quality Gate (T2 - [llm-strategy-ko.md](../llm-strategy-ko.md) 참조)
 
 T2 입력은 **untrusted** ([security-and-identity-ko.md](../security-and-identity-ko.md));
 verifier와 정책 재검사가 권위, 모델 텍스트 아님.
 
 - **Mixed-model 교차 검사**: **2개 이상 독립 모델** 실행(distinct 프로바이더/가중치, 한 base
-  모델의 두 엔드포인트 아님 — correlated 에러가 검사 무력화). 합의는 정규화 구조화 액션에 대해;
+  모델의 두 엔드포인트 아님 - correlated 에러가 검사 무력화). 합의는 정규화 구조화 액션에 대해;
   N ≥ 3 인 경우 설정된 quorum 요구. 어떤 불일치도 **HIL로 escalate**, 절대 auto-resolve 아님.
 - **Verifier**: 어떤 모델과도 독립적인 결정론 검사가 후보 액션을 policy-as-code와 what-if/dry-run
   에 대해 재검증. Verifier 통과만이 액션을 execution-eligible로 만듦.
@@ -99,13 +99,13 @@ verifier와 정책 재검사가 권위, 모델 텍스트 아님.
 - **Abstain 경로**: 규칙 매칭 없음, 임계 아래 유사도, 또는 적용 가능한 학습된 액션 없음
   → **T2로 abstain** ([llm-strategy-ko.md](../llm-strategy-ko.md) 의 T1→T2 경계에 따라).
 - **학습된-액션 재사용 (provenance + 안전)**: 재사용 액션은 provenance(source 인시던트 id, 역사적
-  성공률) 를 운반하고 **실행 전 verifier와 리스크 게이트를 통해 재검증** — 재사용은 auto-trust
+  성공률) 를 운반하고 **실행 전 verifier와 리스크 게이트를 통해 재검증** - 재사용은 auto-trust
   아님.
-- 목표: 프론티어 왕복 없이 ~15–20% 이벤트 흡수, **측정으로 검증**.
+- 목표: 프론티어 왕복 없이 ~15-20% 이벤트 흡수, **측정으로 검증**.
 
 ## 승격 (shadow → enforce)
 
-- **액션별** 승격, 명시적·별도 리뷰 — 절대 능력의 첫 PR과 enforce 번들링 안 함.
+- **액션별** 승격, 명시적·별도 리뷰 - 절대 능력의 첫 PR과 enforce 번들링 안 함.
 - Auto-resolution 비율(metric 2) 과 **가드-메트릭 회귀 없음** 게이트, 같은 고정 시나리오 세트
   버전에서 측정되고 **표본 크기와 신뢰구간** 과 함께 보고
   ([goals-and-metrics-ko.md](../goals-and-metrics-ko.md)); shadow에서 **정책 위반 escape 0**

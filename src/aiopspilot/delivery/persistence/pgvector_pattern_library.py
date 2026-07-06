@@ -1,4 +1,4 @@
-"""PgVectorPatternLibrary — real :class:`PatternLibrary` on Postgres+pgvector.
+"""PgVectorPatternLibrary - real :class:`PatternLibrary` on Postgres+pgvector.
 
 Realizes
 :class:`~aiopspilot.core.tiers.t1_lightweight.tier.PatternLibrary` against
@@ -12,7 +12,7 @@ Notes on the wire choice:
 - psycopg 3 is already a repo dep (see ``pyproject.toml`` W1.5/W1.6). No
   new package lands in the lockfile.
 - pgvector text literal (``'[a,b,c]'::vector``) is used to bind the
-  embedding — this keeps the adapter free of the optional ``pgvector``
+  embedding - this keeps the adapter free of the optional ``pgvector``
   Python package and avoids a new dependency.
 - Cosine distance operator ``<=>`` returns ``1 - cosine_similarity``;
   the adapter returns ``1 - distance`` so the score is comparable to
@@ -20,7 +20,7 @@ Notes on the wire choice:
 - ``ivfflat.probes`` is set ``SET LOCAL`` per query so the composition
   root can tune recall vs latency via config without a REINDEX.
 
-``core/`` never sees this module — the composition root binds it into
+``core/`` never sees this module - the composition root binds it into
 :class:`~aiopspilot.core.tiers.t1_lightweight.tier.T1Tier`.
 """
 
@@ -141,7 +141,7 @@ class PgVectorPatternLibrary(PatternLibrary, PatternLibraryWriter):
             )
             matches.append(SimilarityMatch(action=action, score=float(row["score"])))
         # ORDER BY the cosine-distance operator returns ascending distance
-        # which is equivalent to descending similarity — but be defensive
+        # which is equivalent to descending similarity - but be defensive
         # in case a future rewrite reorders.
         matches.sort(key=lambda m: m.score, reverse=True)
         return tuple(matches)
@@ -196,7 +196,7 @@ class PgVectorPatternLibrary(PatternLibrary, PatternLibraryWriter):
         vector: Sequence[float],
         action: LearnedAction,
     ) -> None:
-        """Realize :class:`PatternLibraryWriter.upsert_pattern` — thin wrapper on :meth:`add`.
+        """Realize :class:`PatternLibraryWriter.upsert_pattern` - thin wrapper on :meth:`add`.
 
         Kept as a distinct method so the write seam stays explicit at
         call sites (the growth intake runner binds against the

@@ -1,4 +1,4 @@
-"""EnvVarConfigProvider — the upstream default :class:`ConfigProvider`.
+"""EnvVarConfigProvider - the upstream default :class:`ConfigProvider`.
 
 Also verifies the DI contract: the same behaviour observed via
 :class:`EnvVarConfigProvider` MUST be reproducible by any fake that
@@ -66,7 +66,7 @@ def test_env_provider_rejects_invalid_enum_value() -> None:
 
 
 class _InMemoryConfigProvider:
-    """Test-only ``ConfigProvider`` — hands back a preassembled AppConfig."""
+    """Test-only ``ConfigProvider`` - hands back a preassembled AppConfig."""
 
     def __init__(self, cfg: AppConfig) -> None:
         self._cfg = cfg
@@ -89,7 +89,7 @@ def test_env_and_in_memory_providers_produce_equivalent_shapes(
     from_env = EnvVarConfigProvider(env=VALID_ENV).get()
     from_fake = _InMemoryConfigProvider(app_config).get()
 
-    # Same structural shape — every top-level section present in both.
+    # Same structural shape - every top-level section present in both.
     assert set(from_env.model_dump().keys()) == set(from_fake.model_dump().keys())
     # Same safety default for autonomy mode.
     assert from_env.runtime.autonomy_mode_default == from_fake.runtime.autonomy_mode_default

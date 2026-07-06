@@ -31,4 +31,4 @@ description: >-
   (object-storage infrastructure encryption, HTTPS-only enforcement,
   minimum TLS version, PostgreSQL SSL enforcement). Forward-only: once
   encryption is enabled, disabling it is a separate governance-gated
-  ActionType — this one never turns it off.
+  ActionType - this one never turns it off.

@@ -23,8 +23,8 @@ implementation of the **same contract**, without editing `core/`.
 
 **Concurrency**: the five provider Protocols are **async by default** (Kafka poll loop,
 Postgres asyncpg, Key Vault HTTP, OIDC token exchange, and inventory-graph queries are all
-I/O-bound). Sync is reserved for CPU / startup-only seams — `SchemaRegistry`,
-`ContractValidator`, `ConfigProvider` — so they do not block the event loop. See
+I/O-bound). Sync is reserved for CPU / startup-only seams - `SchemaRegistry`,
+`ContractValidator`, `ConfigProvider` - so they do not block the event loop. See
 [project-structure.md § Injectable Seams](project-structure.md#injectable-seams) for the
 canonical seam list.
 
@@ -34,14 +34,14 @@ Five contracts govern the CSP-touching surface:
 |---|----------|-----------------|----------------------|
 | 1 | **Event bus** | Apache Kafka wire protocol | Event Hubs (Kafka endpoint on port `9093`) |
 | 2 | **Runtime** | OCI container image + Knative-compatible manifest subset | Container Apps (Consumption, KEDA) |
-| 3 | **Secret** | environment variables (or K8s Secret mount) — never a CSP secret SDK call from the app | Container Apps native secret + Key Vault reference |
+| 3 | **Secret** | environment variables (or K8s Secret mount) - never a CSP secret SDK call from the app | Container Apps native secret + Key Vault reference |
 | 4 | **Workload identity** | OIDC token (federated) | User-assigned Managed Identity + workload identity federation |
 | 5 | **Inventory** | resource-graph query surface returning `(Resource, Link[])` batches over an HTTP + OIDC-bearer wire | Azure Resource Graph (ARG) + Activity Log delta |
 
 Every one of the five MUST NOT leak provider specifics into `core/`. See
 [Anti-Patterns](#anti-patterns) for the concrete violations to reject.
 
-## 1. Event Bus Contract — Kafka Wire Protocol
+## 1. Event Bus Contract - Kafka Wire Protocol
 
 The event bus is expressed as a **Kafka producer/consumer** with a small,
 provider-independent surface (`bootstrap.servers`, `sasl.mechanism`, `security.protocol`,
@@ -77,10 +77,10 @@ same code path serve every target.
 
 - Using Event Hubs through the AMQP native SDK (or the Service Bus SDK). If Event Hubs is
   chosen, **only the Kafka endpoint on `:9093`** is permitted.
-- Using Dapr's pub/sub building block — it adds a sidecar dependency and re-locks the
+- Using Dapr's pub/sub building block - it adds a sidecar dependency and re-locks the
   runtime layer.
 
-## 2. Runtime Contract — OCI Image + Knative-Compatible Manifest
+## 2. Runtime Contract - OCI Image + Knative-Compatible Manifest
 
 The core ships as one or more **OCI container images** and a small **Knative-compatible
 manifest subset** describing traffic, revisions, autoscaling triggers, health probes, and
@@ -89,10 +89,10 @@ env/secret bindings. Provider adapters render this into the CSP-specific resourc
 | CSP / substrate | Runtime | Scale-to-zero | Deployment shape rendered from the contract |
 |---|---|---|---|
 | Azure | **Container Apps** (Consumption + KEDA) | ✓ | `containerapp` resource generated from the manifest via Bicep/Terraform |
-| AWS | **App Runner** (request-based) or **ECS Fargate** + KEDA | App Runner ✓ / Fargate — | rendered from the same manifest |
+| AWS | **App Runner** (request-based) or **ECS Fargate** + KEDA | App Runner ✓ / Fargate - | rendered from the same manifest |
 | GCP | **Cloud Run** (services & jobs) | ✓ | Cloud Run is native Knative; the manifest applies directly |
 | Any K8s (AKS/EKS/GKE) | **Knative Serving** + KEDA | ✓ | manifest applies directly |
-| Fallback | bare `Deployment` + HPA + KEDA | — (idle ≥ 1 replica) | rendered when scale-to-zero is unavailable |
+| Fallback | bare `Deployment` + HPA + KEDA | - (idle ≥ 1 replica) | rendered when scale-to-zero is unavailable |
 
 **Rules (MUST):**
 
@@ -105,7 +105,7 @@ env/secret bindings. Provider adapters render this into the CSP-specific resourc
   Container Apps-only feature (e.g. built-in KEDA scaler references that only exist in
   Container Apps YAML).
 - Where Azure ships a scheduled worker as a Container Apps Job, other providers render the
-  same contract as a K8s `CronJob`, an AWS EventBridge-triggered task, or a Cloud Run Job —
+  same contract as a K8s `CronJob`, an AWS EventBridge-triggered task, or a Cloud Run Job -
   all interchangeable.
 
 **Anti-patterns (MUST NOT):**
@@ -115,7 +115,7 @@ env/secret bindings. Provider adapters render this into the CSP-specific resourc
 - Requiring an Envoy-flavored ingress rule; use a portable ingress abstraction or handle
   the routing in-app.
 
-## 3. Secret Contract — Environment / K8s Secret
+## 3. Secret Contract - Environment / K8s Secret
 
 The application reads **only environment variables** (or, on Kubernetes, files mounted from a
 `Secret`). It **never** calls a CSP secret SDK directly. The injection layer bridges the
@@ -138,7 +138,7 @@ CSP secret backend to the container's environment.
 - **Secret names follow a stable schema** (upper-snake env var names) across all providers so
   the app is provider-blind.
 - **Fail-closed**: if the injection layer cannot resolve a required secret at startup, the
-  process fails fast — it never falls back to a cached or embedded value
+  process fails fast - it never falls back to a cached or embedded value
   ([security-and-identity.md](security-and-identity.md#secrets-and-config)).
 - **Rotation** is the injection layer's job; the app tolerates a rolled secret by re-reading
   env on process restart. Long-lived caches of decrypted secret material are prohibited.
@@ -149,7 +149,7 @@ CSP secret backend to the container's environment.
 - Committing plaintext or encrypted secrets to source (SOPS in git is allowed **only** for
   dev/local; never for staging or prod).
 
-## 4. Workload Identity Contract — OIDC Token
+## 4. Workload Identity Contract - OIDC Token
 
 The executor authenticates to the CSP with a **short-lived OIDC token** obtained from the
 runtime substrate; the token is exchanged for CSP credentials at the adapter boundary. No
@@ -175,22 +175,22 @@ long-lived key or shared secret is held by the executor.
 
 **Anti-patterns (MUST NOT):**
 
-- `DefaultAzureCredential()` or any similarly named SDK entry point in `core/` — that is a
+- `DefaultAzureCredential()` or any similarly named SDK entry point in `core/` - that is a
   vendor SDK call, not the contract. It is allowed **only** in the Azure provider adapter,
   behind the interface.
 - Sharing the executor's identity with the console, ChatOps, or any read-only surface.
 
-## 5. Inventory Contract — Resource Graph
+## 5. Inventory Contract - Resource Graph
 
 The core reasons over an ontology graph of resources and typed edges
 ([llm-strategy.md § Ontology Foundation](llm-strategy.md#ontology-foundation)); the
 **Inventory** contract is how that graph is populated and kept fresh. The core sees a
 single `Inventory` Protocol with two operations returning CSP-neutral records:
 
-- `full_snapshot(since=None) -> AsyncIterator[InventoryBatch]` — the initial or periodic
+- `full_snapshot(since=None) -> AsyncIterator[InventoryBatch]` - the initial or periodic
   reconciliation load, emitted as batches of typed `Resource` records and
   `contains` / `attached_to` / `depends_on` link records.
-- `delta(cursor) -> AsyncIterator[InventoryBatch]` — incremental changes since the given
+- `delta(cursor) -> AsyncIterator[InventoryBatch]` - incremental changes since the given
   cursor, driven by the provider's native change stream.
 
 | CSP / substrate | Inventory source | Delta source | Wire |
@@ -205,7 +205,7 @@ single `Inventory` Protocol with two operations returning CSP-neutral records:
 - The core reads inventory only through the injected `Inventory` interface in
   `shared/providers/` ([project-structure.md § Injectable Seams](project-structure.md#injectable-seams)).
   No `ResourceManagementClient`, `ArmClient`, `boto3.client("config")`,
-  `google.cloud.asset` — no cloud-inventory SDK appears in `core/`.
+  `google.cloud.asset` - no cloud-inventory SDK appears in `core/`.
 - Records are **CSP-neutral** at the wire: `Resource.type` is the canonical `resource_type`
   vocabulary ([rule-catalog-collection.md](rule-catalog-collection.md#collection-sources))
   and link kinds are the ones declared in
@@ -223,7 +223,7 @@ single `Inventory` Protocol with two operations returning CSP-neutral records:
   or the previous graph is retained and the failure is audited.
 - **Deltas flow through the event bus**, not through a separate side-channel. A provider
   change signal (Activity Log, Config item, Asset feed, apiserver watch) is forwarded into
-  a Kafka topic and consumed exactly like any other `Signal` — same idempotency, same DLQ.
+  a Kafka topic and consumed exactly like any other `Signal` - same idempotency, same DLQ.
 - **Unknown `ResourceType` or LinkType** opens an issue and is dropped; the adapter never
   auto-registers a new ontology type at runtime
   ([llm-strategy.md § Fork Extension](llm-strategy.md#fork-extension-self-extending-ontology)).
@@ -251,7 +251,7 @@ contract is what does not change.
 | Contract | Azure realization | Idle cost posture |
 |---|---|---|
 | Event bus | **Event Hubs Standard** (Kafka endpoint on `:9093`, 1 TU, auto-inflate off) | low idle; scales on TU |
-| Runtime | **Container Apps** (Consumption, KEDA scale-to-zero) — one app + sidecars | `$0` when idle |
+| Runtime | **Container Apps** (Consumption, KEDA scale-to-zero) - one app + sidecars | `$0` when idle |
 | Secret | Container Apps native secret + **Key Vault reference** | negligible |
 | Workload identity | **User-assigned MI** + workload identity federation for CI/CD | free |
 | Inventory | **Azure Resource Graph** (initial parallel full-scan sharded by `resource_type`) + **Activity Log** delta forwarded to a Kafka topic | free (ARG); Log-based delta covered by the observability inventory |
@@ -265,7 +265,7 @@ Kafka topic) and never as a runtime dependency of `core/`.
 
 The five wire-level contracts already keep the core CSP-portable. This table lists the
 **Azure-internal** alternates each contract may swap to, without touching `core/`. Swapping
-happens at the **infra module boundary** — a fork picks a different sub-module under
+happens at the **infra module boundary** - a fork picks a different sub-module under
 `infra/modules/<seam>/` (or overrides the DI binding at the composition root when the
 change is purely code-level). Everything in the "What stays" column is contract, not
 implementation, and is preserved across the swap; anything in "What changes" is confined to
@@ -288,7 +288,7 @@ the swapped module and its immediate config.
 **Rules across the whole table (MUST):**
 
 - Every alternate uses the **same output contract** its default module exposes
-  (`endpoint`, `identity_resource_id`, `secret_ref_envelope`, `event_topic_names`, …) so
+  (`endpoint`, `identity_resource_id`, `secret_ref_envelope`, `event_topic_names`, ...) so
   downstream Terraform / `main.tf` composition never branches on the alternate.
 - Alternates ship as **separate Terraform sub-modules** under `infra/modules/<seam>/`,
   selected by a top-level `var.<seam>_kind` (e.g. `var.runtime_kind = "container_apps"`).
@@ -320,7 +320,7 @@ the contract exists so a future adapter is additive.
 
 - Wrapping each CSP's native pub/sub (`Service Bus` + `SQS/SNS` + `Pub/Sub`) behind one
   interface. Ack semantics, ordering keys, DLQ shapes, and exactly-once behavior diverge
-  enough that provider-specific bugs leak through — **use one wire protocol (Kafka) instead**.
+  enough that provider-specific bugs leak through - **use one wire protocol (Kafka) instead**.
 - Introducing **Dapr** as a portability layer. It moves the lock-in from the CSP to Dapr,
   adds a sidecar dependency, and complicates local dev.
 - Using **Event Hubs via the native AMQP SDK** to "save on Kafka client complexity." That
@@ -330,10 +330,10 @@ the contract exists so a future adapter is additive.
 
 ## Related Docs
 
-- [tech-stack.md](tech-stack.md) — the concrete stack that realizes these contracts.
-- [deploy-and-onboard.md](deploy-and-onboard.md#azure-resource-inventory-minimum-set) — the
+- [tech-stack.md](tech-stack.md) - the concrete stack that realizes these contracts.
+- [deploy-and-onboard.md](deploy-and-onboard.md#azure-resource-inventory-minimum-set) - the
   Azure resource inventory rendered from the contracts.
-- [security-and-identity.md](security-and-identity.md) — identity model and secret
+- [security-and-identity.md](security-and-identity.md) - identity model and secret
   handling in depth.
-- [project-structure.md](project-structure.md#injectable-seams) — the DI seams that
+- [project-structure.md](project-structure.md#injectable-seams) - the DI seams that
   expose each contract to the composition root.

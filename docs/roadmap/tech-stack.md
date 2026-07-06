@@ -43,24 +43,24 @@ and the threat model in [security-and-identity.md](security-and-identity.md).
 
 | Concern | Recommendation | Rationale | Alternatives (neutral / OSS) |
 |---------|----------------|-----------|------------------------------|
-| Core engine runtime | **Python (3.12+)** — src-layout under `src/aiopspilot/` | mature LLM / OPA / IaC-scanner SDKs, strong typing via mypy, one language across every subsystem (see [OD-1](#od-1-core-runtime-language)) | TypeScript (Node), Go, .NET — reserved for a future perf-driven split behind the same interface |
+| Core engine runtime | **Python (3.12+)** - src-layout under `src/aiopspilot/` | mature LLM / OPA / IaC-scanner SDKs, strong typing via mypy, one language across every subsystem (see [OD-1](#od-1-core-runtime-language)) | TypeScript (Node), Go, .NET - reserved for a future perf-driven split behind the same interface |
 | Policy engine | **OPA / Rego** | CSP-neutral policy-as-code; reused by T0 and the T2 verifier | Gatekeeper (K8s), Cloud Custodian |
 | IaC | **Terraform** (Azure targeting, HCL) | resolves the OD; Terraform is the entry-command target (`terraform apply`), rendered from the four CSP-neutral contracts in [csp-neutrality.md](csp-neutrality.md); Bicep and OpenTofu remain compatible fallbacks | **OpenTofu** (MPL-2.0 fork) if a strictly OSS toolchain is required; Bicep for Azure-only convenience; Pulumi if a general-purpose language is preferred |
-| Event bus | **Event Hubs** consumed **only via its Kafka endpoint on `:9093`** (Kafka wire protocol is the CSP-neutral contract — see [csp-neutrality.md](csp-neutrality.md#1-event-bus-contract--kafka-wire-protocol)) | one wire protocol serves every managed target (MSK, GCP Managed Kafka, Confluent, Redpanda), so a non-Azure adapter is a config swap | MSK Serverless / GCP Managed Kafka / Confluent / Redpanda / self-hosted Strimzi — non-Azure options are TBD |
+| Event bus | **Event Hubs** consumed **only via its Kafka endpoint on `:9093`** (Kafka wire protocol is the CSP-neutral contract - see [csp-neutrality.md](csp-neutrality.md#1-event-bus-contract--kafka-wire-protocol)) | one wire protocol serves every managed target (MSK, GCP Managed Kafka, Confluent, Redpanda), so a non-Azure adapter is a config swap | MSK Serverless / GCP Managed Kafka / Confluent / Redpanda / self-hosted Strimzi - non-Azure options are TBD |
 | Event/message schema | JSON Schema (or CloudEvents envelope) in a versioned registry | typed, versioned event contracts; enables safe evolution and validation at ingress | Avro/Protobuf + Confluent-compatible registry |
 | Dead-letter handling | Kafka **dead-letter topic** convention (e.g. `<topic>.dlq`) + a replay/redrive worker | no event is silently dropped; poison messages are quarantined and re-processable; identical across providers | vendor-native DLQ **not used** (behavior diverges per provider) |
-| Compute | **Azure Container Apps** (Consumption, KEDA + scale-to-zero) — **one app with sidecar containers** for core subsystems, deployed from an **OCI image + Knative-compatible manifest subset** (see [csp-neutrality.md](csp-neutrality.md#2-runtime-contract--oci-image--knative-compatible-manifest)) | event scaling without always-on cost; the manifest also renders to Cloud Run / App Runner / Knative on any K8s so runtime is portable | Cloud Run (native Knative), App Runner, Knative on AKS/EKS/GKE; AKS when custom networking/DaemonSets/GPU are needed |
-| Light triggers | **Container Apps Jobs** (same environment as Compute); renders to K8s `CronJob` / Cloud Run Job / EventBridge on other targets | out-of-band change detection, cost-anomaly hooks, scheduled probes — avoids provisioning a separate Functions plan | Azure Functions if a native binding is required; Knative eventing |
+| Compute | **Azure Container Apps** (Consumption, KEDA + scale-to-zero) - **one app with sidecar containers** for core subsystems, deployed from an **OCI image + Knative-compatible manifest subset** (see [csp-neutrality.md](csp-neutrality.md#2-runtime-contract--oci-image--knative-compatible-manifest)) | event scaling without always-on cost; the manifest also renders to Cloud Run / App Runner / Knative on any K8s so runtime is portable | Cloud Run (native Knative), App Runner, Knative on AKS/EKS/GKE; AKS when custom networking/DaemonSets/GPU are needed |
+| Light triggers | **Container Apps Jobs** (same environment as Compute); renders to K8s `CronJob` / Cloud Run Job / EventBridge on other targets | out-of-band change detection, cost-anomaly hooks, scheduled probes - avoids provisioning a separate Functions plan | Azure Functions if a native binding is required; Knative eventing |
 | State / audit / KPI | **PostgreSQL** (default) or **Cosmos DB** | append-only audit log, pattern library, KPI store; also hosts the runtime ontology instance state ([llm-strategy.md § Ontology Storage Layout](llm-strategy.md#ontology-storage-layout)) | see [Data Store Selection](#data-store-selection-criteria) |
-| Vector search (T1) | pgvector (co-located with PostgreSQL) | keep embeddings next to audit/state; one datastore to operate | dedicated vector DB (Qdrant/Milvus) at higher scale — see [Vector Search Rationale](#vector-search-rationale) |
-| Secret store | **Container Apps native secret + Key Vault reference** on Azure; app reads env vars only via the injected `SecretProvider` — see [csp-neutrality.md](csp-neutrality.md#3-secret-contract--environment--k8s-secret) | app never imports a secret SDK; on non-Azure targets **External Secrets Operator (ESO)** bridges AWS Secrets Manager / GCP Secret Manager / HashiCorp Vault to the same env contract | ESO + Secrets Manager / GCP Secret Manager / Vault; SOPS + age for dev/local only |
+| Vector search (T1) | pgvector (co-located with PostgreSQL) | keep embeddings next to audit/state; one datastore to operate | dedicated vector DB (Qdrant/Milvus) at higher scale - see [Vector Search Rationale](#vector-search-rationale) |
+| Secret store | **Container Apps native secret + Key Vault reference** on Azure; app reads env vars only via the injected `SecretProvider` - see [csp-neutrality.md](csp-neutrality.md#3-secret-contract--environment--k8s-secret) | app never imports a secret SDK; on non-Azure targets **External Secrets Operator (ESO)** bridges AWS Secrets Manager / GCP Secret Manager / HashiCorp Vault to the same env contract | ESO + Secrets Manager / GCP Secret Manager / Vault; SOPS + age for dev/local only |
 | Feature flags / shadow toggles | OSS flag service (OpenFeature + flagd) | gate shadow-vs-enforce promotion per action without redeploy | config-driven flags in the state store |
-| DB migrations | versioned migrations (Flyway / Alembic / Prisma Migrate) | schema changes are reviewed, ordered, and reversible | — |
+| DB migrations | versioned migrations (Flyway / Alembic / Prisma Migrate) | schema changes are reviewed, ordered, and reversible | - |
 | CI/CD | GitHub Actions or Azure Pipelines | runs lint, tests, coverage gate, secret scan (gitleaks), dependency/SBOM audit | GitLab CI |
 | PR gate | **GitHub App** (Checks API) or Azure DevOps service hooks | audit/rollback/approval already live in git | remediation delivered as PRs regardless of host |
-| HIL channel | **Bot Framework / Teams** Adaptive Cards | reach operators where they are | Slack adapter; email/webhook fallback behind a notifier interface — see [channels-and-notifications.md](channels-and-notifications.md) |
-| LLM access (T2) | provider-agnostic gateway/router over 2+ distinct models | mixed-model cross-check per [llm-strategy.md](llm-strategy.md); models auto-provisioned at bootstrap from a capability-preferences registry and reconciled weekly — [llm-strategy.md § Model Provisioning and Lifecycle](llm-strategy.md#model-provisioning-and-lifecycle) | LiteLLM/OpenRouter-style router |
-| Observability | OpenTelemetry (traces/metrics/logs) → collector → backend (**Log Analytics** with App Insights bound to it — no separate APM resource) | measurement-first requires first-class telemetry; retention defaults to 30 days and is UI-configurable ([deploy-and-onboard.md](deploy-and-onboard.md#azure-resource-inventory-minimum-set)) | Prometheus + Grafana + Tempo/Loki (OSS); vendor APM |
+| HIL channel | **Bot Framework / Teams** Adaptive Cards | reach operators where they are | Slack adapter; email/webhook fallback behind a notifier interface - see [channels-and-notifications.md](channels-and-notifications.md) |
+| LLM access (T2) | provider-agnostic gateway/router over 2+ distinct models | mixed-model cross-check per [llm-strategy.md](llm-strategy.md); models auto-provisioned at bootstrap from a capability-preferences registry and reconciled weekly - [llm-strategy.md § Model Provisioning and Lifecycle](llm-strategy.md#model-provisioning-and-lifecycle) | LiteLLM/OpenRouter-style router |
+| Observability | OpenTelemetry (traces/metrics/logs) → collector → backend (**Log Analytics** with App Insights bound to it - no separate APM resource) | measurement-first requires first-class telemetry; retention defaults to 30 days and is UI-configurable ([deploy-and-onboard.md](deploy-and-onboard.md#azure-resource-inventory-minimum-set)) | Prometheus + Grafana + Tempo/Loki (OSS); vendor APM |
 
 ## Data Store Selection Criteria
 
@@ -68,20 +68,20 @@ The default is **PostgreSQL**; choose per these criteria rather than by preferen
 
 - **Relational + audit integrity**: append-only audit log, foreign keys, and transactional
   writes favor PostgreSQL.
-- **Co-located vectors**: pgvector keeps T1 embeddings in the same store — simpler ops, one
+- **Co-located vectors**: pgvector keeps T1 embeddings in the same store - simpler ops, one
   backup/restore path.
 - **Global distribution / multi-region write / elastic partitioned scale**: favor Cosmos DB
   when write volume or geo-distribution outgrows a single primary.
 - **Portability**: PostgreSQL runs identically across clouds and locally; Cosmos DB is
   Azure-specific and therefore must sit behind the state-store adapter.
-- **Cost model**: PostgreSQL is provisioned/predictable; Cosmos DB is RU-metered — validate
+- **Cost model**: PostgreSQL is provisioned/predictable; Cosmos DB is RU-metered - validate
   against expected audit-write throughput before committing.
 
 ## Vector Search Rationale
 
 - **Start with pgvector**: one datastore, transactional consistency with audit/state, adequate
   for T1 similarity reuse at low-to-moderate corpus sizes.
-- **Graduate to a dedicated vector DB** when any hold: corpus exceeds roughly 10^6–10^7 vectors,
+- **Graduate to a dedicated vector DB** when any hold: corpus exceeds roughly 10^6-10^7 vectors,
   p95 recall/latency targets fail with HNSW/IVFFlat tuning, or embedding refresh contends with
   transactional load.
 - **Embedding model** is a separate decision (local/self-hosted vs hosted API) driven by cost
@@ -99,11 +99,11 @@ The default is **PostgreSQL**; choose per these criteria rather than by preferen
 
 ## IaC Scanners and Rule Sources (OSS)
 
-- **Checkov, tfsec, KICS, Trivy** — IaC/misconfig scanning.
-- **kube-bench** — CIS Kubernetes benchmark checks.
-- **OPA/Gatekeeper** libraries — reusable policy bundles.
-- **OpenCost** — cost/unit-economics signals for FinOps.
-- **Chaos Mesh** (or Azure Chaos Studio) — DR/Chaos experiments.
+- **Checkov, tfsec, KICS, Trivy** - IaC/misconfig scanning.
+- **kube-bench** - CIS Kubernetes benchmark checks.
+- **OPA/Gatekeeper** libraries - reusable policy bundles.
+- **OpenCost** - cost/unit-economics signals for FinOps.
+- **Chaos Mesh** (or Azure Chaos Studio) - DR/Chaos experiments.
 
 These feed the rule catalog ([phase-1-rule-catalog-t0.md](phases/phase-1-rule-catalog-t0.md)).
 
@@ -128,7 +128,7 @@ These feed the rule catalog ([phase-1-rule-catalog-t0.md](phases/phase-1-rule-ca
 - Deterministic engine and risk gate run fully offline (no cloud calls) for fast unit tests.
 - **LLM stays fake by default in dev**: `runtime.env == "dev"` binds the deterministic
   in-memory fakes (`DeterministicEmbeddingModel`, `MatchTypeCrossCheckModel`,
-  `StaticVerifier`, `InMemoryGroundingSource`) — no Azure OpenAI credentials, no live
+  `StaticVerifier`, `InMemoryGroundingSource`) - no Azure OpenAI credentials, no live
   endpoints, no token cost. The Azure-side adapters live under `delivery/azure/llm/` and
   are only imported by the composition root when `llm.mode == "azure"`. Full parity
   contract + work plan: [dev-and-deploy-parity.md](dev-and-deploy-parity.md).
@@ -145,14 +145,14 @@ land under the project structure defined in
 - **Context**: adapters, LLM SDKs, and rule tooling drive the choice.
 - **Options**: TypeScript (Node) · Python · Go.
 - **Criteria**: adapter/SDK maturity, team familiarity, typing/perf headroom.
-- **Status**: **Decided — Python (3.12+), single-language monorepo under `src/aiopspilot/`.**
+- **Status**: **Decided - Python (3.12+), single-language monorepo under `src/aiopspilot/`.**
   Rationale: (i) the richest ecosystem for OPA bindings, LLM providers, and IaC-scanner
   toolchains (Checkov / tfsec / KICS / Trivy) is in Python; (ii) mypy provides sufficient
   typing rigor for the safety core; (iii) one language across every subsystem simplifies the
   ≥ 90% coverage gate on `core/tiers/t0_deterministic` and `core/risk_gate`. A future perf-
   driven split (e.g. Go for `event_ingest`) is additive because subsystems already sit behind
   the interfaces in `shared/`.
-- **Package layout**: Python "src layout" — every runtime module lives at
+- **Package layout**: Python "src layout" - every runtime module lives at
   `src/aiopspilot/<subsystem>/`. The `core/`, `shared/`, `delivery/`, and `rule_catalog/`
   subsystem folders in [project-structure.md](project-structure.md) map to
   `src/aiopspilot/core/`, `src/aiopspilot/shared/`, `src/aiopspilot/delivery/`, and
@@ -170,13 +170,13 @@ land under the project structure defined in
 - **Options**: PostgreSQL + pgvector · Cosmos DB.
 - **Criteria**: see [Data Store Selection](#data-store-selection-criteria) (portability, scale,
   cost model).
-- **Status**: Open — PostgreSQL is the leaning default.
+- **Status**: Open - PostgreSQL is the leaning default.
 
-### OD-3: Multi-cloud event bus (Phase 4 — TBD)
+### OD-3: Multi-cloud event bus (Phase 4 - TBD)
 
 - **Context**: portability beyond Azure's event services. Non-Azure targets are TBD (see
   [Implementation Focus](../../.github/copilot-instructions.md#implementation-focus-must));
   revisit only when a non-Azure adapter is scoped.
 - **Options**: stay on Service Bus + Event Grid · Kafka · NATS JetStream.
 - **Criteria**: ordering + DLQ guarantees, replay needs, operational cost, CSP neutrality.
-- **Status**: Deferred (TBD) — Azure remains the only implemented target.
+- **Status**: Deferred (TBD) - Azure remains the only implemented target.

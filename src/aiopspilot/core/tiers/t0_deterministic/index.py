@@ -10,7 +10,7 @@ P1 W-2 implementation
 The Rule contract today carries ``resource_type`` (a single value) as the
 primary ``applies_to`` axis. Full ontology dispatch (multi-value
 ``applies_to`` × ``triggered_by`` × ``evaluates`` × ``required_interfaces``
-× ``submission_criteria``) is documented and reserved — the loader
+× ``submission_criteria``) is documented and reserved - the loader
 already validates every rule's ``remediates`` cross-reference against the
 ActionType catalog. This module's index widens deterministically as those
 fields land on the Rule model; the public API (:meth:`rules_for_type`,
@@ -23,7 +23,7 @@ Determinism guarantees
   ``docs/roadmap/phases/phase-1-rule-catalog-t0.md § Precedence`` prescribes,
   so a downstream verdict emitter can pick the top match without a
   second sort.
-- Duplicate ``resource_type`` entries are grouped, not overwritten — the
+- Duplicate ``resource_type`` entries are grouped, not overwritten - the
   loader already forbids duplicate ``rule.id`` across files, so grouping
   is safe.
 """
@@ -88,7 +88,7 @@ class RuleIndex:
     ) -> tuple[Rule, ...]:
         """Return every rule that would evaluate for this Signal.
 
-        ``signal_type`` is accepted for API stability — the future
+        ``signal_type`` is accepted for API stability - the future
         ``applies_to ∩ triggered_by`` intersection will filter on it. In
         P1 W-2 we route strictly by ``resource_type`` and treat
         ``signal_type`` as informational so the trust router can already

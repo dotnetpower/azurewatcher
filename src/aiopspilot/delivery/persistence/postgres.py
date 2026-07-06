@@ -1,4 +1,4 @@
-"""PostgresStateStore — real `StateStore` on PostgreSQL via psycopg 3.
+"""PostgresStateStore - real `StateStore` on PostgreSQL via psycopg 3.
 
 Realizes :class:`~aiopspilot.shared.providers.state_store.StateStore`
 against the ``audit_log`` + ``state_kv`` tables created by the alembic
@@ -74,7 +74,7 @@ class PostgresStateStore(StateStore):
         """Append one audit record inside a hash-chained transaction.
 
         The row is refused if a concurrent writer already committed a
-        record with the same ``entry_hash`` — the unique index doubles
+        record with the same ``entry_hash`` - the unique index doubles
         as tamper-evidence and idempotency guard. Callers deduplicating
         on ``idempotency_key`` upstream (event-ingest) will not hit this
         path twice for the same event.

@@ -60,7 +60,7 @@ export function App() {
   }, []);
 
   if (state.status === "loading") {
-    return <div class="empty">Loading…</div>;
+    return <div class="empty">Loading...</div>;
   }
 
   if (state.status === "error") {

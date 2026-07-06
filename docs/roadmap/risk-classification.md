@@ -16,7 +16,7 @@ policy (auto vs HIL) and initial policy approver"* from
 
 ## Where the Table Lives
 
-- **Runtime path**: `rule-catalog/risk-classification.yaml` — catalog-as-code, reviewed via
+- **Runtime path**: `rule-catalog/risk-classification.yaml` - catalog-as-code, reviewed via
   PR like rules/assignments/exemptions/overrides. `aw-approvers` reviewers with an
   **elevated quorum of 2** for any change ([user-rbac-and-identity.md § 5.1](user-rbac-and-identity.md#51-codeowners-single-approver-group-path-based-reviewer-count)).
 - **Policy owner**: the `aw-owners` Entra security group. Ownership sits with Owner-tier
@@ -37,7 +37,7 @@ No new data collection is introduced.
 | `destructive` | bool | ontology `ActionType.operation ∈ {delete, drop, purge, detach}` |
 | `irreversible` | bool | ontology `ActionType.irreversible == true` (a rolled-back state cannot fully restore the pre-action state) |
 | `blast_radius` | enum `resource` \| `resource_group` \| `subscription` | `applies_to` × scope of the affected resource(s); when `ActionType.blast_radius.computation == graph_derived`, the risk-gate walks Resource→Resource links (default `contains` + reverse `depends_on`, depth 2) and maps the affected-resource count to a bucket |
-| `rollback_path` | enum `pr_revert` \| `scripted` \| `pitr` \| `snapshot_restore` \| `state_forward_only` | `remediates` action's rollback contract (no `none` value — every ActionType MUST declare an undo path) |
+| `rollback_path` | enum `pr_revert` \| `scripted` \| `pitr` \| `snapshot_restore` \| `state_forward_only` | `remediates` action's rollback contract (no `none` value - every ActionType MUST declare an undo path) |
 | `reversible` | bool | shortcut for `irreversible == false` |
 | `environment` | enum `prod` \| `non-prod` | see [Environment Detection](#environment-detection) |
 | `data_plane_touched` | bool | ontology `ActionType.interfaces` include `DataPlaneMutating` |
@@ -102,7 +102,7 @@ rules:
 
   # ── FAIL-CLOSE ──
   - default: hil
-    reason: "no matching rule — fail toward safety"
+    reason: "no matching rule - fail toward safety"
 ```
 
 **Rule ordering (MUST)**: `deny` rules come first, then `hil`, then `auto`, then the
@@ -157,7 +157,7 @@ Updating the risk table follows the standard governance PR flow:
 - **Loosening changes** (widening auto, raising cost threshold, removing a deny) require
   an Owner-tier reviewer (member of `aw-owners`) in the quorum.
 - **Tightening changes** (adding a deny, lowering cost threshold, moving auto→HIL) MAY
-  merge with regular quorum — safety-side changes never need Owner approval.
+  merge with regular quorum - safety-side changes never need Owner approval.
 - The table version is bumped on every change and captured in the catalog version, so the
   risk decision that classified any historical action is reconstructable
   ([llm-strategy.md § Signature Composition](llm-strategy.md#signature-composition)).
@@ -178,9 +178,9 @@ propose refinements via the same governance PR flow.
 ## Open Decisions
 
 - [ ] Whether to add a `time_of_day` gate (business hours vs off-hours) as a future
-      dimension — deferred until shadow measurement shows a real need.
+      dimension - deferred until shadow measurement shows a real need.
 - [ ] Whether to compute a numeric `risk_score` in addition to the deterministic rule
-      table (would only kick in on ties or as a tie-breaker — the deterministic table
+      table (would only kick in on ties or as a tie-breaker - the deterministic table
       remains authoritative).
 - [ ] Fork override policy: can a fork *loosen* the upstream defaults (e.g. raise the
       cost threshold), or only tighten? Recommended default: tightening is free,

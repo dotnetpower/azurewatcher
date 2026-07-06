@@ -21,7 +21,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # pgvector extension — idempotent; also seeded by infra/local/init-pgvector.sql.
+    # pgvector extension - idempotent; also seeded by infra/local/init-pgvector.sql.
     op.execute("CREATE EXTENSION IF NOT EXISTS vector;")
 
     op.execute("""
@@ -77,5 +77,5 @@ def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS t2_cache CASCADE;")
     op.execute("DROP TABLE IF EXISTS ontology_embedding CASCADE;")
     op.execute("DROP TABLE IF EXISTS learned_action CASCADE;")
-    # Deliberately do NOT drop the pgvector extension — it is shared and
+    # Deliberately do NOT drop the pgvector extension - it is shared and
     # also seeded by infra/local/init-pgvector.sql for local dev.

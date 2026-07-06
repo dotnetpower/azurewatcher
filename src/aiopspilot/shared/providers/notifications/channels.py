@@ -1,4 +1,4 @@
-"""Six typed Protocols — one per channel vendor.
+"""Six typed Protocols - one per channel vendor.
 
 They share the same shape (``send(NotificationMessage) → DeliveryReceipt``)
 but stay distinct types so the router's channel registry can enforce

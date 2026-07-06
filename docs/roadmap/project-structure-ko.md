@@ -1,7 +1,7 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: 47db6fc2d222dbf83628b60d50467f6bee675e44
+translation_source_sha: 6879bfd088765763d268848b313392dff43ebb19
 translation_revised: 2026-07-06
 ---
 
@@ -51,7 +51,7 @@ aiopspilot/
 │       └── pipeline/          # watch → collect → shadow eval → regression → promote/rollback
 ├── src/aiopspilot/composition.py  # composition root: default_container() 가 모든 seam 을 바인딩
 ├── src/aiopspilot/core/control_loop.py  # P1 파이프라인 오케스트레이터: event_ingest → trust_router → T0 → executor → audit
-├── rule-catalog/              # catalog-as-code 데이터 (YAML) — Python 아님; 파이프라인은 src/aiopspilot/rule_catalog/ 에
+├── rule-catalog/              # catalog-as-code 데이터 (YAML) - Python 아님; 파이프라인은 src/aiopspilot/rule_catalog/ 에
 │   ├── schema/                # JSON Schema 정의 (데이터)
 │   ├── vocabulary/            # canonical CSP-중립 어휘 (resource-types.yaml, ...)
 │   ├── action-types/          # 온톨로지 ActionType 인스턴스 (shadow-default, promotion_gate 필수)
@@ -62,7 +62,7 @@ aiopspilot/
 │   ├── modules/
 │   │   ├── resource-group/          # rg-aiopspilot; deploy-and-onboard-ko.md 에 따라 CAF 명명
 │   │   ├── identity/                # executor 를 위한 user-assigned Managed Identity
-│   │   ├── compute/                 # runtime seam — 대안은 형제 폴더에
+│   │   ├── compute/                 # runtime seam - 대안은 형제 폴더에
 │   │   │   └── container-apps/      # 기본 (Consumption + KEDA)
 │   │   ├── state-store/             # audit + KPI + pgvector
 │   │   │   └── postgres-flex/       # 기본
@@ -76,12 +76,12 @@ aiopspilot/
 │       ├── dev/
 │       ├── staging/
 │       └── prod/
-├── console/                   # 읽기 전용 얇은 SPA (Vite + Preact) — KPI/감사/HIL 큐
+├── console/                   # 읽기 전용 얇은 SPA (Vite + Preact) - KPI/감사/HIL 큐
 │   ├── src/                    # main.tsx, app.tsx, api.ts, auth.ts (MSAL.js), routes/
 │   ├── index.html              # Vite 진입점
 │   ├── package.json            # 의존: preact, @azure/msal-browser
 │   └── vite.config.ts          # 빌드 → console/dist/ (git-ignored)
-├── ui/                        # (미래) 정적 UI 킷 (Calm Slate 테마) — placeholder
+├── ui/                        # (미래) 정적 UI 킷 (Calm Slate 테마) - placeholder
 ├── tests/                     # 크로스-서브시스템 회귀 스위트 + 공유 픽스처
 ├── docs/roadmap/              # 이 로드맵과 설계 문서
 ├── pyproject.toml             # Python 모노레포의 단일 매니페스트
@@ -154,29 +154,29 @@ phase 는 `core/` 를 편집하지 않고 composition root 에서 새 구현을 
 
 | Seam | 인터페이스 (`shared/`) | 계약 | 기본 (상류) | 포크 오버라이드 예시 |
 |------|-----------------------|-----|-------------|---------------------|
-| Event bus | `EventBus` (Kafka 프로듀서/컨슈머) | **CSP-중립성 계약** — [이벤트버스](csp-neutrality-ko.md#1-이벤트버스-계약--kafka-와이어-프로토콜) | SASL/OAUTHBEARER (Entra 토큰 소스) 를 사용하는 librdkafka 기반 클라이언트 | AWS IAM SigV4 인증, GCP IAM 인증, Confluent SASL/PLAIN, self-hosted Kafka mTLS |
-| Runtime | `RuntimeAdapter` (OCI + Knative 호환 매니페스트 렌더링) | **CSP-중립성 계약** — [런타임](csp-neutrality-ko.md#2-런타임-계약--oci-이미지--knative-호환-매니페스트) | Container Apps IaC 렌더러 (Bicep/Terraform) | Cloud Run YAML, App Runner service, 어떤 K8s 위의 Knative Service |
-| Secret & config | `SecretProvider` / `ConfigProvider` | **CSP-중립성 계약** — [시크릿](csp-neutrality-ko.md#3-시크릿-계약--환경변수--k8s-secret) | env + Container Apps KV-reference 브릿지 | ESO + Key Vault / AWS Secrets Manager / GCP Secret Manager / HashiCorp Vault |
-| Workload identity | `WorkloadIdentity` (audience-scoped OIDC 토큰) | **CSP-중립성 계약** — [워크로드 아이덴티티](csp-neutrality-ko.md#4-워크로드-아이덴티티-계약--oidc-토큰) | user-assigned Managed Identity (IMDS → Entra 토큰) | IRSA, GCP Workload Identity Federation, SPIFFE/SPIRE SVID |
+| Event bus | `EventBus` (Kafka 프로듀서/컨슈머) | **CSP-중립성 계약** - [이벤트버스](csp-neutrality-ko.md#1-이벤트버스-계약--kafka-와이어-프로토콜) | SASL/OAUTHBEARER (Entra 토큰 소스) 를 사용하는 librdkafka 기반 클라이언트 | AWS IAM SigV4 인증, GCP IAM 인증, Confluent SASL/PLAIN, self-hosted Kafka mTLS |
+| Runtime | `RuntimeAdapter` (OCI + Knative 호환 매니페스트 렌더링) | **CSP-중립성 계약** - [런타임](csp-neutrality-ko.md#2-런타임-계약--oci-이미지--knative-호환-매니페스트) | Container Apps IaC 렌더러 (Bicep/Terraform) | Cloud Run YAML, App Runner service, 어떤 K8s 위의 Knative Service |
+| Secret & config | `SecretProvider` / `ConfigProvider` | **CSP-중립성 계약** - [시크릿](csp-neutrality-ko.md#3-시크릿-계약--환경변수--k8s-secret) | env + Container Apps KV-reference 브릿지 | ESO + Key Vault / AWS Secrets Manager / GCP Secret Manager / HashiCorp Vault |
+| Workload identity | `WorkloadIdentity` (audience-scoped OIDC 토큰) | **CSP-중립성 계약** - [워크로드 아이덴티티](csp-neutrality-ko.md#4-워크로드-아이덴티티-계약--oidc-토큰) | user-assigned Managed Identity (IMDS → Entra 토큰) | IRSA, GCP Workload Identity Federation, SPIFFE/SPIRE SVID |
 | Cloud provider | provider client | (위 네 개를 사용) | reference/generic Azure 어댑터 | 특정 CSP 어댑터 |
-| **Schema source** | `SchemaRegistry` (원시 JSON Schema 로더) | — | `PackageResourceSchemaRegistry` (패키지 내장 스키마) | 원격 schema-registry 어댑터; content hash 로 핀된 스냅샷 |
-| **Boundary validation** | `ContractValidator` / `EventValidator` (fail-closed 입력 검사) | — | `JsonSchemaContractValidator` + `JsonSchemaEventValidator` (draft-2020-12) | 포크가 `core/` 편집 없이 도메인 특이 체크(예: 소스 allowlist) 추가 가능 |
-| Rule / policy source | rule-catalog + `policies/` 로더 | — | 번들된 범용 규칙 | 고객 규칙 세트 / 임계값 |
-| Delivery adapter | delivery 인터페이스 | — | `gitops-pr` / `chatops` | 다른 PR 호스트 / 채팅 채널 |
-| Risk scoring & thresholds | risk-gate config | — | 범용 임계값 | 고객 리스크 정책 |
-| Model provider | model client (capability별) | — | 설정된 기본 엔드포인트 | 고객 승인 모델 |
-| **실시간 아웃바운드 스트림** | `SseSink` (async publish + async-iterator subscribe, SSE 페이로드) | — | `InMemorySseSink` (테스트/데브); HTTP `text/event-stream` 어댑터는 콘솔 read-only 표면과 함께 랜딩 | 양방향 표면이 필요하면 WebSocket 어댑터로 교체; 헤드리스 observer는 webhook 전용. `shared/streaming/SseBroadcaster` 가 `EventBus` 토픽을 채널로 릴레이. |
-| **Infra module** | `infra/modules/<seam>/` (Terraform 서브-모듈, `var.<seam>_kind` 로 선택) | — | Container Apps + PostgreSQL Flex + Event Hubs Kafka + Key Vault + Log Analytics | [csp-neutrality-ko.md § 승인된 대안 Azure 구현](csp-neutrality-ko.md#승인된-대안-azure-구현approved-alternative-azure-implementations) 에 따라 다른 서브-모듈 선택; 모듈의 output 계약은 고정 유지 |
+| **Schema source** | `SchemaRegistry` (원시 JSON Schema 로더) | - | `PackageResourceSchemaRegistry` (패키지 내장 스키마) | 원격 schema-registry 어댑터; content hash 로 핀된 스냅샷 |
+| **Boundary validation** | `ContractValidator` / `EventValidator` (fail-closed 입력 검사) | - | `JsonSchemaContractValidator` + `JsonSchemaEventValidator` (draft-2020-12) | 포크가 `core/` 편집 없이 도메인 특이 체크(예: 소스 allowlist) 추가 가능 |
+| Rule / policy source | rule-catalog + `policies/` 로더 | - | 번들된 범용 규칙 | 고객 규칙 세트 / 임계값 |
+| Delivery adapter | delivery 인터페이스 | - | `gitops-pr` / `chatops` | 다른 PR 호스트 / 채팅 채널 |
+| Risk scoring & thresholds | risk-gate config | - | 범용 임계값 | 고객 리스크 정책 |
+| Model provider | model client (capability별) | - | 설정된 기본 엔드포인트 | 고객 승인 모델 |
+| **실시간 아웃바운드 스트림** | `SseSink` (async publish + async-iterator subscribe, SSE 페이로드) | - | `InMemorySseSink` (테스트/데브); HTTP `text/event-stream` 어댑터는 콘솔 read-only 표면과 함께 랜딩 | 양방향 표면이 필요하면 WebSocket 어댑터로 교체; 헤드리스 observer는 webhook 전용. `shared/streaming/SseBroadcaster` 가 `EventBus` 토픽을 채널로 릴레이. |
+| **Infra module** | `infra/modules/<seam>/` (Terraform 서브-모듈, `var.<seam>_kind` 로 선택) | - | Container Apps + PostgreSQL Flex + Event Hubs Kafka + Key Vault + Log Analytics | [csp-neutrality-ko.md § 승인된 대안 Azure 구현](csp-neutrality-ko.md#승인된-대안-azure-구현approved-alternative-azure-implementations) 에 따라 다른 서브-모듈 선택; 모듈의 output 계약은 고정 유지 |
 
-모든 seam이 주입되는 인터페이스이므로 고객 추가나 두 번째 클라우드는 구현 등록 문제입니다 —
+모든 seam이 주입되는 인터페이스이므로 고객 추가나 두 번째 클라우드는 구현 등록 문제입니다 -
 위의 엄격한 단방향 의존 방향이 보존됩니다.
 
-**동시성 자세**: 다섯 개의 **I/O provider Protocol** — `EventBus`, `StateStore`,
-`SecretProvider`, `WorkloadIdentity`, `Inventory` — 은 **기본 async** 입니다. 구체 구현 (Kafka
+**동시성 자세**: 다섯 개의 **I/O provider Protocol** - `EventBus`, `StateStore`,
+`SecretProvider`, `WorkloadIdentity`, `Inventory` - 은 **기본 async** 입니다. 구체 구현 (Kafka
 클라이언트, asyncpg, Key Vault HTTP, OIDC 토큰 교환, ARG/HTTP 인벤토리 쿼리) 을 sync 로
 강제하면 event loop 를 블록합니다.
-**CPU / startup seam** — `SchemaRegistry`, `ContractValidator` / `EventValidator`,
-`ConfigProvider` — 은 **sync 유지**: 시작 시 한 번 실행되거나, I/O 없는 순수 CPU 경계
+**CPU / startup seam** - `SchemaRegistry`, `ContractValidator` / `EventValidator`,
+`ConfigProvider` - 은 **sync 유지**: 시작 시 한 번 실행되거나, I/O 없는 순수 CPU 경계
 검증이므로 async 래퍼는 노이즈만 추가합니다. 테스트는 `pytest-asyncio` + `asyncio_mode =
 "auto"` 로 실행되어 평범한 `async def test_...` 가 per-test 마커 없이 동작합니다.
 
@@ -214,7 +214,7 @@ flowchart LR
 - 환경 특이 정보는 모두 **설정** 이며 런타임에 주입됩니다(환경 변수, secret store 참조,
   설정 파일). 소스에는 어떤 고객·테넌트·환경 값도 없습니다.
 - 설정은 시작 시 `shared/config/` 스키마로 검증되며, 잘못되거나 누락된 필수 설정에 대해 **fail
-  fast** — degraded 상태로 시작하지 않습니다.
+  fast** - degraded 상태로 시작하지 않습니다.
 - 시크릿은 주입된 provider를 통해 읽으며, import 시점 전역 읽기 절대 금지, 로그·감사·에러
   메시지에 절대 쓰지 않습니다.
 - 포크는 `core/` 편집 없이 자체 설정과 secret-store 레이어를 공급합니다.

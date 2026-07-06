@@ -1,11 +1,11 @@
-"""Teams implementation of :class:`HilChannel` — Adaptive Card + HMAC auth.
+"""Teams implementation of :class:`HilChannel` - Adaptive Card + HMAC auth.
 
 Realizes the ChatOps A1 (approval) contract for Microsoft Teams. The
 adapter dispatches a v1.5 Adaptive Card via an Incoming Webhook (P1
 default) and MAY be upgraded to a Bot Framework REST call
 (``POST /v3/conversations/{conv}/activities``) when the caller supplies
 a :class:`WorkloadIdentity`. Callback delivery is out of scope for P1
-— :meth:`TeamsHilAdapter.poll` returns :data:`HilDecision.PENDING`
+- :meth:`TeamsHilAdapter.poll` returns :data:`HilDecision.PENDING`
 until the future webhook trigger lands (see
 ``docs/roadmap/deploy-and-onboard.md § Azure Bot Free tier``).
 
@@ -16,24 +16,24 @@ Design boundaries
   ``delivery/chatops/`` and is bound at the composition root through
   the :class:`~aiopspilot.shared.providers.hil_channel.HilChannel`
   Protocol seam.
-- No ``azure-identity`` / ``DefaultAzureCredential`` — when identity is
+- No ``azure-identity`` / ``DefaultAzureCredential`` - when identity is
   required (Bot Framework mode) it flows exclusively through the
   injected :class:`WorkloadIdentity`.
 - HTTP transport is an injected :class:`httpx.AsyncClient`; tests hand
   it a client backed by :class:`httpx.MockTransport`. Production wires
   a long-lived shared client at the composition root.
 
-Wire contract (P1 — Incoming Webhook)
+Wire contract (P1 - Incoming Webhook)
 -------------------------------------
 
 +---------------------------------+----------------------------------------------+
 | Operation                       | HTTP wire                                    |
 +=================================+==============================================+
 | ``send``                        | ``POST {webhook_url}`` with Adaptive Card    |
-| ``poll``                        | *(no-op — always PENDING in P1)*             |
+| ``poll``                        | *(no-op - always PENDING in P1)*             |
 +---------------------------------+----------------------------------------------+
 
-The card body carries an **opaque ``approval_id``** only — the decision
+The card body carries an **opaque ``approval_id``** only - the decision
 endpoint (``aiopspilot-api``) is what actually authorizes an APPROVE.
 See ``docs/roadmap/channels-and-notifications.md § 3
 (Category boundaries MUST)``.
@@ -52,7 +52,7 @@ Two modes, selected by construction:
 - **Bot Framework mode**: when a :class:`WorkloadIdentity` is supplied,
   the adapter attaches a ``Bearer`` token acquired for the
   ``https://api.botframework.com/.default`` audience. Mutually
-  exclusive with a webhook secret — configuration validation rejects a
+  exclusive with a webhook secret - configuration validation rejects a
   ``TeamsHilAdapterConfig`` that sets both.
 
 Safety invariants
@@ -66,7 +66,7 @@ Safety invariants
   cannot flood the audit log.
 - **Body redaction**: the adapter re-scans the rendered card for a
   small set of high-signal secret patterns and refuses to send when a
-  match is found — defense in depth for a caller that forgot to
+  match is found - defense in depth for a caller that forgot to
   redact. See :func:`_scan_for_secrets`.
 """
 
@@ -103,7 +103,7 @@ _ADAPTIVE_CARD_VERSION: Final[str] = "1.5"
 _ADAPTIVE_CARD_CONTENT_TYPE: Final[str] = "application/vnd.microsoft.card.adaptive"
 
 # Small, high-signal secret patterns re-checked before dispatch. This is
-# defense-in-depth — the caller is expected to have redacted already.
+# defense-in-depth - the caller is expected to have redacted already.
 _SECRET_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
     re.compile(r"AccountKey=[A-Za-z0-9+/=]{20,}"),
     re.compile(r"SharedAccessKey=[A-Za-z0-9+/=]{20,}"),
@@ -185,7 +185,7 @@ class TeamsHilAdapter(HilChannel):
         card = _render_adaptive_card(request, config=self._config)
         payload = json.dumps(card, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
-        # Defense in depth — refuse to dispatch a card that still
+        # Defense in depth - refuse to dispatch a card that still
         # carries a known secret pattern.
         secret_hit = _scan_for_secrets(payload.decode("utf-8"))
         if secret_hit is not None:
@@ -224,7 +224,7 @@ class TeamsHilAdapter(HilChannel):
         )
 
     async def poll(self, receipt: HilApprovalReceipt) -> HilResponse:
-        # P1 posture — Incoming Webhook / Bot Framework send-only. The
+        # P1 posture - Incoming Webhook / Bot Framework send-only. The
         # webhook callback trigger that surfaces user clicks is a
         # future upgrade. Until then, poll is a no-op that surfaces
         # PENDING so the caller falls back to the persisted HIL queue.
@@ -251,7 +251,7 @@ class TeamsHilAdapter(HilChannel):
         :data:`HilDecision.TIMEOUT`.
 
         Raises :class:`HilChannelError` when the payload is not a
-        dict — the caller MUST log the error, not silently drop the
+        dict - the caller MUST log the error, not silently drop the
         message.
         """
         if not isinstance(payload, dict):
@@ -334,7 +334,7 @@ class TeamsHilAdapter(HilChannel):
         raw = text.replace("\n", " ")
         if len(raw) <= cap:
             return raw
-        return raw[:cap] + "…"
+        return raw[:cap] + "..."
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +346,7 @@ def _hmac_sha256(*, secret: str, timestamp: str, payload: bytes) -> str:
     """Compute ``hex(HMAC-SHA256(secret, timestamp + \".\" + payload))``.
 
     Binding the timestamp into the digest lets the receiver enforce a
-    replay window without a separate nonce store — the timestamp is
+    replay window without a separate nonce store - the timestamp is
     also present in a request header for the receiver to verify.
     """
     mac = hmac.new(secret.encode("utf-8"), digestmod=hashlib.sha256)
@@ -371,7 +371,7 @@ def _render_adaptive_card(
 ) -> dict[str, Any]:
     """Render one v1.5 Adaptive Card for a Teams channel post.
 
-    The card carries the opaque ``approval_id`` only — the decision
+    The card carries the opaque ``approval_id`` only - the decision
     endpoint re-verifies identity + action hash before honoring the
     click. Buttons are ``Action.Submit`` so the callback lands as a
     JSON body the future webhook receiver can parse via

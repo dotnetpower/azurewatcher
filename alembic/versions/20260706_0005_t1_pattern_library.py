@@ -13,25 +13,25 @@ unit tests; this migration only creates the physical backing.
 
 Columns
 -------
-- ``id`` — UUID primary key (server-assigned).
-- ``signature`` — stable hash of ``(rule_id, action_type, params keys)``;
+- ``id`` - UUID primary key (server-assigned).
+- ``signature`` - stable hash of ``(rule_id, action_type, params keys)``;
   UNIQUE so ``INSERT ... ON CONFLICT`` deduplicates re-seeds and lets a
   future promotion pipeline update the row in place.
-- ``rule_id`` — the deterministic rule that resolved the origin incident.
-- ``action_type`` — the ontology ActionType name the reuse targets.
-- ``params`` — the parameter payload the ActionType renderer needs
+- ``rule_id`` - the deterministic rule that resolved the origin incident.
+- ``action_type`` - the ontology ActionType name the reuse targets.
+- ``params`` - the parameter payload the ActionType renderer needs
   (JSONB so it round-trips without a serializer).
-- ``embedding`` — ``vector(384)`` — matches the local
+- ``embedding`` - ``vector(384)`` - matches the local
   ``sentence-transformers/all-MiniLM-L6-v2`` embedding dimension used
   by the Phase-2 EmbeddingModel adapter. Distinct from the 1536-d
   ``ontology_embedding`` table (OpenAI ``text-embedding-3-small``); the
   T1 library never mixes them.
-- ``source_incident_id`` — audit trail of the origin resolution.
-- ``historical_success_rate`` — float in ``[0, 1]``; the T1 tier's
+- ``source_incident_id`` - audit trail of the origin resolution.
+- ``historical_success_rate`` - float in ``[0, 1]``; the T1 tier's
   ``min_success_rate`` floor consults this before allowing reuse.
-- ``reuse_count`` — how many times the pattern has been re-applied
+- ``reuse_count`` - how many times the pattern has been re-applied
   (informational; the risk-gate does not read it).
-- ``created_at`` — server timestamp for audit / cache eviction.
+- ``created_at`` - server timestamp for audit / cache eviction.
 
 Indexes
 -------
@@ -40,7 +40,7 @@ Indexes
   query latency; ``lists=100`` matches the pgvector recommendation for
   ``rows/1000`` when the library is still small (P2 seeds ~10³
   patterns). Query-time ``ivfflat.probes`` is set by the adapter.
-- ``idx_t1_pattern_library_rule_id`` — the discovery loop scans
+- ``idx_t1_pattern_library_rule_id`` - the discovery loop scans
   per-rule to compute promotion / retirement candidates.
 
 The ``vector`` extension is created here idempotently for callers that
@@ -62,7 +62,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # pgvector extension — idempotent. Also seeded by the base chain and by
+    # pgvector extension - idempotent. Also seeded by the base chain and by
     # infra/local/init-pgvector.sql; re-declared here so this migration is
     # safe to apply against a database with only the state_kv layer.
     op.execute("CREATE EXTENSION IF NOT EXISTS vector;")
@@ -103,6 +103,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Deliberately do NOT drop the ``vector`` extension — it is shared with
+    # Deliberately do NOT drop the ``vector`` extension - it is shared with
     # ontology_embedding + t2_cache. The base chain owns its lifecycle.
     op.execute("DROP TABLE IF EXISTS t1_pattern_library CASCADE;")

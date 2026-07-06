@@ -8,7 +8,7 @@ symbol thanks to the import-lint gate in
 Wire-level flow per publish
 ---------------------------
 
-1. Idempotency probe — search open PRs whose head branch equals
+1. Idempotency probe - search open PRs whose head branch equals
    ``<branch_prefix>/<idempotency_key>``. Match ⇒ return the existing PR
    as ``already_existed=True``, no writes.
 2. Refresh the target branch base (fetch the default branch tip).
@@ -19,7 +19,7 @@ Wire-level flow per publish
 5. Apply labels including ``shadow`` + ``rule:<id>`` + ``action:<type>``.
 
 Every step raises :class:`GitOpsPrError` on non-2xx and includes a
-truncated response snippet — bodies are untrusted GitHub content and are
+truncated response snippet - bodies are untrusted GitHub content and are
 inert data on our side (never instructions).
 
 P1 posture
@@ -28,7 +28,7 @@ P1 posture
 Shadow-only. The publisher rejects an ``enforce``-mode intent that does
 not carry an explicit ``enforce`` label (the executor already guarantees
 shadow labeling; this is defense-in-depth so a hand-crafted intent
-cannot slip past). No merge call, no label removal — the publisher is a
+cannot slip past). No merge call, no label removal - the publisher is a
 write-once contract per
 [`docs/roadmap/phases/phase-1-rule-catalog-t0.md § Remediation PR`].
 """
@@ -67,7 +67,7 @@ class GitOpsPrConfig:
 
     repo: str
     """Repository name; ``core/`` never sees the ``owner/repo`` pair
-    directly — the adapter is the only place it lands."""
+    directly - the adapter is the only place it lands."""
 
     default_branch: str = "main"
     """Base branch the shadow PR targets."""
@@ -84,7 +84,7 @@ class GitOpsPrConfig:
 class GitOpsPrAdapter(RemediationPrPublisher):
     """GitHub REST implementation of :class:`RemediationPrPublisher`.
 
-    The adapter is stateless w.r.t. PRs — every idempotency decision is
+    The adapter is stateless w.r.t. PRs - every idempotency decision is
     delegated to a **remote query** so a process restart cannot cause a
     duplicate publish (matches the write-once contract in
     ``RemediationPrPublisher.publish``).
@@ -129,7 +129,7 @@ class GitOpsPrAdapter(RemediationPrPublisher):
         # 2. Refresh base sha
         base_sha = await self._resolve_base_sha()
 
-        # 3. Ensure branch + commit patch (idempotent — create-if-missing)
+        # 3. Ensure branch + commit patch (idempotent - create-if-missing)
         await self._create_branch(branch=branch, base_sha=base_sha)
         await self._put_contents(
             branch=branch, path=pr.patch_path, content=pr.patch, title=pr.title
@@ -258,7 +258,7 @@ class GitOpsPrAdapter(RemediationPrPublisher):
             await self._post_json(url, body, ok_statuses=(201,))
         except GitOpsPrError as exc:
             if "422" in str(exc):
-                # 422 means the branch already exists — idempotent path.
+                # 422 means the branch already exists - idempotent path.
                 return
             raise
 

@@ -1,6 +1,6 @@
 """Tests for :mod:`aiopspilot.delivery.read_api.read_model`.
 
-Uses the in-memory fake in isolation — no HTTP layer needed here. The
+Uses the in-memory fake in isolation - no HTTP layer needed here. The
 Protocol conformance is asserted so a future Postgres-backed adapter that
 implements the same three methods drops in with the same test contract.
 """

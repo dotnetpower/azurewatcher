@@ -1,4 +1,4 @@
-"""Action builder — turn a T0 Finding into a policy-safe Action.
+"""Action builder - turn a T0 Finding into a policy-safe Action.
 
 The T0 engine emits :class:`Finding` records (rule matches on resources).
 The :class:`ShadowExecutor` consumes :class:`Action` values that carry the
@@ -14,11 +14,11 @@ Design notes
   A replay of the same event produces the same Action id (via
   ``uuid.uuid5``) so the executor's dedupe + the publisher's
   idempotency probe both hit the same cache entry.
-- **Safety invariants** are derived from the ActionType — never
+- **Safety invariants** are derived from the ActionType - never
   guessed. Missing stop_conditions / blast_radius / rollback_contract
   fields raise :class:`ActionBuildError` so a partial ActionType
   cannot slip past.
-- **Shadow-only** — every Action carries :attr:`Mode.SHADOW` in P1.
+- **Shadow-only** - every Action carries :attr:`Mode.SHADOW` in P1.
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ class ActionBuilder:
 
         params: dict[str, Any] = dict(rule.parameters)
         # Finding context (e.g. `deny_reason`) is audit-log data, not a
-        # template placeholder — keeping it out of Action.params means the
+        # template placeholder - keeping it out of Action.params means the
         # template renderer's scalar-only rule stays clean.
 
         return Action(
@@ -126,7 +126,7 @@ def _derive_blast_radius(action_type: OntologyActionType) -> BlastRadius:
     """Flatten :class:`ActionBlastRadius` into the Action's :class:`BlastRadius`."""
     ar = action_type.blast_radius
     if ar is None:
-        # Conservative default when the ActionType omits blast_radius —
+        # Conservative default when the ActionType omits blast_radius -
         # single resource, no rate cap. P2 tightens this.
         return BlastRadius(scope=BlastRadiusScope.RESOURCE, count=1)
 
@@ -134,7 +134,7 @@ def _derive_blast_radius(action_type: OntologyActionType) -> BlastRadius:
         scope = ar.static_bucket or BlastRadiusScope.RESOURCE
         return BlastRadius(scope=scope, count=1)
 
-    # graph_derived — count is bounded by the ActionType cap, real
+    # graph_derived - count is bounded by the ActionType cap, real
     # resolved count comes from the risk-gate at P2. For now, use the
     # authored cap as the maximum affected count.
     return BlastRadius(

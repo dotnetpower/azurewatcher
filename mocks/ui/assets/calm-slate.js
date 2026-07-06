@@ -1,4 +1,4 @@
-// Calm Slate — minimal interactions for the UI kit demo (tabs only).
+// Calm Slate - minimal interactions for the UI kit demo (tabs only).
 // The production console is read-only; this script performs no privileged action.
 (function () {
   "use strict";

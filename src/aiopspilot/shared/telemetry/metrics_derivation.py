@@ -1,6 +1,6 @@
 """Dashboard metrics derived from audit-log entries.
 
-Pure functions — no I/O, no async, no telemetry side effects. Consumers:
+Pure functions - no I/O, no async, no telemetry side effects. Consumers:
 
 - The KPI dashboard (W1.9) renders these numbers.
 - The reference-agent baseline runner (``tools/baseline_run.py``)
@@ -48,7 +48,7 @@ def derive_dashboard_metrics(
     """Derive :class:`DashboardMetrics` from a batch of audit entries.
 
     ``audit_entries`` is expected to be the ``entry`` payload of each
-    audit-log row — i.e. the JSON body committed by the executor when it
+    audit-log row - i.e. the JSON body committed by the executor when it
     finalized a decision. Missing required keys raise ``KeyError`` (the
     metric is undefined without them).
     """
@@ -85,7 +85,7 @@ def derive_dashboard_metrics(
         tier = str(entry["tier"])
         per_tier[tier] = per_tier.get(tier, 0) + 1
 
-        # Metric 4 — a human touchpoint is any HIL approval decision.
+        # Metric 4 - a human touchpoint is any HIL approval decision.
         # Reject / timeout counts as touched too (a human's absence is a decision).
         if decision == "hil" or bool(entry.get("human_touched")):
             human_touched += 1

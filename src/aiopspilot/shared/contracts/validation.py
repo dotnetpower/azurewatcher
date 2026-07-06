@@ -1,9 +1,9 @@
-"""Boundary validation — the DI seam that decides *how untrusted input is checked*.
+"""Boundary validation - the DI seam that decides *how untrusted input is checked*.
 
 Per ``coding-conventions.instructions.md``:
 
 - Validate untrusted input **at system boundaries only** (event ingress, API,
-  config, rule-catalog load) — never sprinkle defensive checks through core.
+  config, rule-catalog load) - never sprinkle defensive checks through core.
 - **Fail closed**: on ambiguity or verification failure, abstain or escalate,
   never execute.
 
@@ -76,7 +76,7 @@ class ContractValidator(Protocol):
 
 @runtime_checkable
 class EventValidator(Protocol):
-    """Domain-specialized alias — validates a single :class:`Event` instance.
+    """Domain-specialized alias - validates a single :class:`Event` instance.
 
     Kept as a distinct Protocol so a fork MAY apply event-specific extra rules
     (e.g. deny event ``source`` values outside an allowlist) without also
@@ -114,7 +114,7 @@ class JsonSchemaContractValidator:
         if validator is None:
             schema = self._registry.get(schema_name, version)
             # Draft202012Validator.check_schema raises if the schema itself is
-            # malformed — that is a startup bug, not a runtime user error.
+            # malformed - that is a startup bug, not a runtime user error.
             Draft202012Validator.check_schema(schema)
             validator = Draft202012Validator(schema)
             self._cache[(schema_name, version)] = validator

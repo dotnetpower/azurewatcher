@@ -2,7 +2,7 @@
 
 Ships in the main package (not under ``tests/``) so a fork MAY reuse
 it as a lightweight backend for a local, throwaway environment. It is
-**not** suitable for production — sent cards vanish on process
+**not** suitable for production - sent cards vanish on process
 restart, and there is no real ChatOps substrate interaction.
 
 Behavior matrix
@@ -11,12 +11,12 @@ Behavior matrix
 The fake tracks every :meth:`HilChannel.send` in an in-process list and
 supports three test knobs:
 
-- :attr:`InMemoryHilChannel.send_error` — if set, ``send`` raises it
+- :attr:`InMemoryHilChannel.send_error` - if set, ``send`` raises it
   exactly once (then clears). Simulates a 4xx / webhook down.
-- :attr:`InMemoryHilChannel.poll_error` — if set, ``poll`` raises it
+- :attr:`InMemoryHilChannel.poll_error` - if set, ``poll`` raises it
   exactly once. Simulates a substrate glitch that trips the caller's
   fallback.
-- :meth:`InMemoryHilChannel.record_response` — pre-programmes the
+- :meth:`InMemoryHilChannel.record_response` - pre-programmes the
   :class:`HilResponse` a subsequent :meth:`poll` returns for one
   ``approval_id``. Without a recorded response, ``poll`` returns a
   fresh :data:`HilDecision.PENDING`.
@@ -58,7 +58,7 @@ class InMemoryHilChannel(HilChannel):
         self._send_error = send_error
         self._poll_error = poll_error
 
-        # Observable state — deliberately public.
+        # Observable state - deliberately public.
         self.sent: list[HilApprovalRequest] = []
         self.receipts: list[HilApprovalReceipt] = []
         self._responses: dict[str, HilResponse] = {}
@@ -110,7 +110,7 @@ class InMemoryHilChannel(HilChannel):
         prior = self._responses.get(receipt.approval_id)
         if prior is not None:
             return prior
-        # No terminal decision yet — surface PENDING so the caller keeps
+        # No terminal decision yet - surface PENDING so the caller keeps
         # polling until TTL. Never a synthetic APPROVE / REJECT.
         return HilResponse(
             approval_id=receipt.approval_id,

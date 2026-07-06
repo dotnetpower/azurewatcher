@@ -1,6 +1,6 @@
-// Rule-catalog source watcher — Container Apps Job that runs the watcher CLI
+// Rule-catalog source watcher - Container Apps Job that runs the watcher CLI
 // on a daily cron. The watcher itself filters by manifest cadence, so the
-// same job picks up weekly / monthly sources on their due day — no per-cadence
+// same job picks up weekly / monthly sources on their due day - no per-cadence
 // job proliferation. See:
 //
 //   src/aiopspilot/rule_catalog/pipeline/watcher_cli.py
@@ -30,7 +30,7 @@ resource "azurerm_container_app_job" "rule_watcher" {
   }
 
   schedule_trigger_config {
-    // 03:00 UTC daily — off-peak for all supported regions. The CLI itself
+    // 03:00 UTC daily - off-peak for all supported regions. The CLI itself
     // filters by cadence, so weekly / monthly sources also fire from here.
     cron_expression          = var.rule_watcher_cron_expression
     replica_completion_count = 1
@@ -46,7 +46,7 @@ resource "azurerm_container_app_job" "rule_watcher" {
       command = ["python", "-m", "aiopspilot.rule_catalog.pipeline.watcher_cli"]
       // Only --verify is passed by default. Snapshots land under
       // /workspace/rule-catalog/sources which is baked into the image alongside
-      // the source manifests. The container writes to an ephemeral path — the
+      // the source manifests. The container writes to an ephemeral path - the
       // actual PR-worthy diff is produced by a follow-up job that reads the
       // audit trail; that seam is deferred and lives outside this module.
       args = ["--verify"]

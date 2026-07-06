@@ -1,4 +1,4 @@
-"""QualityGate — outcome + property invariants."""
+"""QualityGate - outcome + property invariants."""
 
 from __future__ import annotations
 

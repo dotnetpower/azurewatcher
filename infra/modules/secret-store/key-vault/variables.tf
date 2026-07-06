@@ -29,7 +29,7 @@ variable "grant_executor_role" {
     Whether to grant the executor MI 'Key Vault Secrets User' at plan time.
     Kept as an explicit bool so `count` never depends on a resource attribute
     that is unknown-until-apply (the classic Terraform two-stage apply pain).
-    Default true — matches the root wiring that always provisions the MI.
+    Default true - matches the root wiring that always provisions the MI.
   EOT
   type        = bool
   default     = true

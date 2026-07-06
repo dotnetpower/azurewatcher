@@ -16,7 +16,7 @@ from aiopspilot.shared.providers.pattern_library_writer import PatternLibraryWri
 
 
 class DeterministicEmbeddingModel(EmbeddingModel):
-    """Hash-based fake embedding — same input → same vector, no network."""
+    """Hash-based fake embedding - same input → same vector, no network."""
 
     def __init__(self, *, dim: int = 32) -> None:
         self.dim = dim
@@ -35,7 +35,7 @@ class DeterministicEmbeddingModel(EmbeddingModel):
 
 
 class InMemoryPatternLibrary(PatternLibrary, PatternLibraryWriter):
-    """Dict-backed pattern library — brute-force cosine over stored actions."""
+    """Dict-backed pattern library - brute-force cosine over stored actions."""
 
     def __init__(self) -> None:
         self._entries: list[tuple[Sequence[float], LearnedAction]] = []

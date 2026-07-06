@@ -2,7 +2,7 @@
 
 Ships in the main package (not under ``tests/``) so a fork MAY reuse
 these fakes as a lightweight backend for a local, throwaway
-environment. They are **not** suitable for production — no real
+environment. They are **not** suitable for production - no real
 substrate interaction happens.
 
 Every fake exposes the observable state as public attributes so tests
@@ -52,7 +52,7 @@ class FakeDbRestoreAdapter(DbRestoreAdapter):
         self._teardown_error = teardown_error
         self._endpoint = endpoint
 
-        # Observable state — deliberately public.
+        # Observable state - deliberately public.
         self.restored: list[DbRestoreConfig] = []
         self.torn_down: list[DbRestoreHandle] = []
 
@@ -166,7 +166,7 @@ def make_test_config(
     target_resource_group: str | None = None,
     target_location: str = "koreacentral",
 ) -> DbRestoreConfig:
-    """Convenience factory for tests — assembles a valid config.
+    """Convenience factory for tests - assembles a valid config.
 
     Every field defaults to a synthetic, customer-agnostic value so
     tests stay self-contained; callers override only what they care

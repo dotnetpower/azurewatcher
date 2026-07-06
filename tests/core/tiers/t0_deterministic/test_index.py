@@ -1,4 +1,4 @@
-"""RuleIndex — lookup + ordering invariants."""
+"""RuleIndex - lookup + ordering invariants."""
 
 from __future__ import annotations
 

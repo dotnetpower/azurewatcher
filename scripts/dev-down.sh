@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# dev-down.sh — stop the local dev stack, preserving volumes.
+# dev-down.sh - stop the local dev stack, preserving volumes.
 #
 # To wipe volumes as well, run `make dev-nuke`.
 

@@ -5,7 +5,7 @@ title: Goals and Metrics
 
 The roadmap optimizes for **autonomy with proof**. Every autonomy claim is backed by a
 measured baseline; nothing is asserted from estimation. Improvement factors below (`5×`,
-`large reduction`, `1/5`) are **targets**, not achieved results — they may only be stated as
+`large reduction`, `1/5`) are **targets**, not achieved results - they may only be stated as
 achieved once both the reference baseline and the AIOpsPilot treatment have been measured on
 the same scenario set (see [Measurement-First Rule](#measurement-first-rule)).
 
@@ -16,7 +16,7 @@ operationalized by [phase-0-instrumentation.md](phases/phase-0-instrumentation.m
 ## Primary Objective
 
 Minimize human intervention in cloud operations across three initial verticals under an
-AIOps approach — Resilience, Change Safety, and Cost Governance — by resolving most events
+AIOps approach - Resilience, Change Safety, and Cost Governance - by resolving most events
 deterministically (T0/T1) and reserving LLM inference (T2) for the residual ambiguous
 minority, **without regressing the guard metrics**. Autonomy that improves a success metric
 while degrading a guard metric is a failure, not a win.
@@ -78,10 +78,10 @@ metrics, so a gain and a guard breach are never compared across different data.
 
 ## Leading vs Lagging Indicators
 
-Success metrics 1–4 are **lagging** (observable only after enough events resolve). Promotion
+Success metrics 1-4 are **lagging** (observable only after enough events resolve). Promotion
 decisions also watch **leading** indicators that predict guard-metric health earlier:
 
-- per-tier coverage share (T0 70–80%, T1 15–20%, T2 5–10%) drifting out of band,
+- per-tier coverage share (T0 70-80%, T1 15-20%, T2 5-10%) drifting out of band,
 - mixed-model disagreement rate (T2 quality gate) trending up,
 - verifier abstain/fail rate rising,
 - shadow-vs-enforce decision divergence for a candidate action.
@@ -90,10 +90,10 @@ Leading indicators trigger investigation before a lagging guard metric regresses
 
 ## Measurement-First Rule
 
-- No autonomy ships without telemetry to measure its effect (metrics 1–4 and all guard metrics).
+- No autonomy ships without telemetry to measure its effect (metrics 1-4 and all guard metrics).
 - Phase 0 establishes the KPI dashboard and the reference baseline **before** any tier goes live
   ([phase-0-instrumentation.md](phases/phase-0-instrumentation.md)).
-- Multiplier claims (2–4) are only stated after the baseline and the treatment are both measured
+- Multiplier claims (2-4) are only stated after the baseline and the treatment are both measured
   under the identical, frozen scenario-set version.
 - **Statistical validity**: report each factor with a sample size (event count), a confidence
   interval, and the scenario-set version. Differences within the confidence interval are
@@ -106,7 +106,7 @@ Leading indicators trigger investigation before a lagging guard metric regresses
 Every metric maps to a concrete telemetry source so the dashboard is buildable, not aspirational:
 
 - **Structured events + traces** (OpenTelemetry) carry `event_id`, `tier`, `decision`,
-  `mode` (shadow/enforce), and timestamps — sourcing metrics 2, 3a/3b, and leading indicators.
+  `mode` (shadow/enforce), and timestamps - sourcing metrics 2, 3a/3b, and leading indicators.
 - **Append-only audit log** sources human touchpoints (metric 4), rollbacks, and policy escapes.
 - **Cost/usage records** (model tokens, compute time, storage, bus throughput) source metric 1;
   attribution keys spend to the originating `event_id`.
@@ -127,10 +127,10 @@ credited once measured against the baseline. Framing is intentionally "uses the 
 
 | Target | Hypothesized mechanism |
 |--------|------------------------|
-| Auto-resolution ↑ | T0/T1 deterministically close the ~85–90% majority of events; fewer escalations to T2/HIL. |
-| MTTR / lead time ↓ | T0/T1 have no LLM round-trip (ms–s); auto-remediation PRs remove human wait time. |
+| Auto-resolution ↑ | T0/T1 deterministically close the ~85-90% majority of events; fewer escalations to T2/HIL. |
+| MTTR / lead time ↓ | T0/T1 have no LLM round-trip (ms-s); auto-remediation PRs remove human wait time. |
 | Human intervention ↓ | risk gate auto-approves low-risk actions; learned T1 actions avoid repeat human touch. |
-| Cost per unit ↓ | only ~5–10% of events reach a frontier model; OSS/CSP-neutral stack; event-driven scale-to-zero. |
+| Cost per unit ↓ | only ~5-10% of events reach a frontier model; OSS/CSP-neutral stack; event-driven scale-to-zero. |
 
 > Core insight: the gains are hypothesized to come from a structure that **uses the LLM less**,
-> not from a smarter LLM — and this claim stands or falls on the Phase 0 measurement.
+> not from a smarter LLM - and this claim stands or falls on the Phase 0 measurement.

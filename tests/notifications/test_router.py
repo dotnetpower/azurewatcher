@@ -3,20 +3,20 @@
 Coverage plan
 -------------
 
-- **matrix lookup** — a message with a known category lands on the
+- **matrix lookup** - a message with a known category lands on the
   matrix's primary channel.
-- **unknown category → fallback route** — the router uses
+- **unknown category → fallback route** - the router uses
   ``default_route`` and dispatches to *its* primary.
-- **primary fails → fallback succeeds** — router advances through the
+- **primary fails → fallback succeeds** - router advances through the
   fallback list in order and records both attempts.
-- **all channels down → HIL escalate** — every attempted channel raises
+- **all channels down → HIL escalate** - every attempted channel raises
   or returns ``delivered=False``; router calls
   :meth:`FakeHilEscalationSink.escalate` and audits with
   :attr:`RouteOutcome.ESCALATED_TO_HIL`.
-- **trust-tier gate** — a channel whose ``trust_tiers`` does not include
+- **trust-tier gate** - a channel whose ``trust_tiers`` does not include
   the message tier is skipped; if every channel skips, the router
   reports :attr:`RouteOutcome.TRUST_MISMATCH`.
-- **audit is always written** — every terminal outcome appends exactly
+- **audit is always written** - every terminal outcome appends exactly
   one entry to the state store.
 """
 
@@ -308,7 +308,7 @@ class TestMatrixLoader:
 
 
 # ---------------------------------------------------------------------------
-# Router — happy paths
+# Router - happy paths
 # ---------------------------------------------------------------------------
 
 
@@ -356,7 +356,7 @@ class TestRouterMatrixLookup:
 
 
 # ---------------------------------------------------------------------------
-# Router — unknown category falls back through default_route
+# Router - unknown category falls back through default_route
 # ---------------------------------------------------------------------------
 
 
@@ -389,7 +389,7 @@ class TestRouterUnknownCategory:
 
 
 # ---------------------------------------------------------------------------
-# Router — fallback chain
+# Router - fallback chain
 # ---------------------------------------------------------------------------
 
 
@@ -470,7 +470,7 @@ class TestRouterFallback:
 
 
 # ---------------------------------------------------------------------------
-# Router — all channels down → HIL escalate
+# Router - all channels down → HIL escalate
 # ---------------------------------------------------------------------------
 
 
@@ -531,7 +531,7 @@ class TestRouterAllChannelsDown:
 
 
 # ---------------------------------------------------------------------------
-# Router — trust-tier enforcement
+# Router - trust-tier enforcement
 # ---------------------------------------------------------------------------
 
 
@@ -607,7 +607,7 @@ class TestRouterTrustTier:
 
 
 # ---------------------------------------------------------------------------
-# Router — unresolved channel-id
+# Router - unresolved channel-id
 # ---------------------------------------------------------------------------
 
 
@@ -630,7 +630,7 @@ class TestRouterUnresolvedChannel:
         )
         audit = InMemoryStateStore()
         sink = FakeHilEscalationSink()
-        # Empty registry — no channel-ids resolve.
+        # Empty registry - no channel-ids resolve.
         router = NotificationRouter(
             matrix=matrix,
             registry=ChannelRegistry(),
@@ -675,7 +675,7 @@ class TestRouterUnresolvedChannel:
 
 
 # ---------------------------------------------------------------------------
-# Router — audit invariants
+# Router - audit invariants
 # ---------------------------------------------------------------------------
 
 
@@ -731,7 +731,7 @@ class TestRouteSpecDefaults:
 
 
 # ---------------------------------------------------------------------------
-# Fake sanity — arm_delivery_failures / arm_raises input validation
+# Fake sanity - arm_delivery_failures / arm_raises input validation
 # ---------------------------------------------------------------------------
 
 
@@ -747,7 +747,7 @@ class TestFakeChannelInputValidation:
             fake.arm_raises(-1)
 
     async def test_empty_tiers_frozenset_is_accept_any(self) -> None:
-        # A channel with an empty tiers set MUST accept any tier — this
+        # A channel with an empty tiers set MUST accept any tier - this
         # lets a lightweight test-only fake stay minimal.
         fake = FakeWebhookChannel(channel_id="wh", trust_tiers=frozenset())
         registry = ChannelRegistry(channels={fake.channel_id: fake})

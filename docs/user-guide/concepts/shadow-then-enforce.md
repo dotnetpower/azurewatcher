@@ -6,7 +6,7 @@ description: Why every new autonomous action ships in shadow first, and how it e
 # Shadow, then enforce
 
 New autonomous actions in AIOpsPilot never turn on all at once. Each rule,
-detector, and remediation ships in **shadow mode** first — it makes the same
+detector, and remediation ships in **shadow mode** first - it makes the same
 decision it *would* make in production, but the decision is recorded, not
 applied. Only after a measured comparison against the baseline does the
 action earn the right to execute for real.
@@ -45,8 +45,8 @@ bar against the baseline recorded in Phase 0:
 
 - **Agreement rate** with human resolutions above the target threshold.
 - **Zero false positives** in the "auto-execute an unsafe change" class
-  during the shadow window — a single such miss demotes the capability back.
-- **Blast-radius invariants** upheld — no shadow run would have exceeded the
+  during the shadow window - a single such miss demotes the capability back.
+- **Blast-radius invariants** upheld - no shadow run would have exceeded the
   configured scope caps.
 
 Promotion is *explicit*. It is a separate PR, reviewed with its own gate,
@@ -55,8 +55,8 @@ never bundled with the capability's first commit.
 ## What triggers a demotion
 
 The same signals promote and demote. If a live enforced capability starts
-failing its own promotion bar — accuracy drops, a policy-violation escape is
-recorded, or an operator opens an override — automation demotes it back to
+failing its own promotion bar - accuracy drops, a policy-violation escape is
+recorded, or an operator opens an override - automation demotes it back to
 shadow and the on-call team receives a notification. Fixing the regression
 is a new promotion cycle, not a hot-patch.
 
@@ -69,13 +69,13 @@ Two consequences for anyone consuming the system:
   shadow for the configured window and passed a measurable bar.
 - **Rollback is cheap.** Because promotion and demotion move through the
   same pipeline, taking a capability out of enforcement is not a heroic
-  operation — it is the default response to any regression.
+  operation - it is the default response to any regression.
 
 ## Related
 
-- [Deterministic first](../deterministic-first/) — the tiers on which
+- [Deterministic first](../deterministic-first/) - the tiers on which
   shadow-then-enforce runs.
-- [Risk tiers](../risk-tiers/) — what auto-vs-HIL means for the actions a
+- [Risk tiers](../risk-tiers/) - what auto-vs-HIL means for the actions a
   shadow capability produces.
 - Engineering detail: the roadmap's *Safety Invariants* and the phase
   documents' *Exit gate* sections.

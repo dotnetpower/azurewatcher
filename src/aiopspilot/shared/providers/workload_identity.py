@@ -1,4 +1,4 @@
-"""Workload identity — OIDC token issuer; user-assigned MI by default.
+"""Workload identity - OIDC token issuer; user-assigned MI by default.
 
 Realizes the wire-level contract in
 ``docs/roadmap/csp-neutrality.md § Workload Identity Contract``.
@@ -42,7 +42,7 @@ class IdentityToken:
 class WorkloadIdentity(Protocol):
     """Get a short-lived, audience-scoped OIDC token.
 
-    Async by contract — the token exchange is an HTTP round trip (IMDS on
+    Async by contract - the token exchange is an HTTP round trip (IMDS on
     Azure; the AWS STS / GCP token endpoint elsewhere).
     """
 

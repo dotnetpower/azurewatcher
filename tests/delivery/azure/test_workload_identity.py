@@ -1,4 +1,4 @@
-"""ManagedIdentityWorkloadIdentity — httpx-mocked tests."""
+"""ManagedIdentityWorkloadIdentity - httpx-mocked tests."""
 
 from __future__ import annotations
 

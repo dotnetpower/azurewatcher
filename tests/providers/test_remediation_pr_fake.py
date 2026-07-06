@@ -1,4 +1,4 @@
-"""RecordingRemediationPrPublisher — invariant tests for the in-memory fake."""
+"""RecordingRemediationPrPublisher - invariant tests for the in-memory fake."""
 
 from __future__ import annotations
 

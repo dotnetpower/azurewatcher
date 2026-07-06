@@ -1,4 +1,4 @@
-"""PrecedenceResolver — cross-vertical conflict handling."""
+"""PrecedenceResolver - cross-vertical conflict handling."""
 
 from __future__ import annotations
 

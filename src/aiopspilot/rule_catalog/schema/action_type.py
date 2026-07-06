@@ -1,4 +1,4 @@
-"""ActionType catalog loader — reads YAML instances from
+"""ActionType catalog loader - reads YAML instances from
 ``rule-catalog/action-types/`` and validates against the ontology
 ``action-type`` JSON Schema plus the :class:`OntologyActionType` pydantic
 model. Aggregates every issue in a single :class:`ActionTypeCatalogError`.

@@ -1,4 +1,4 @@
-"""Pipeline orchestrator — fetch, verify, snapshot.
+"""Pipeline orchestrator - fetch, verify, snapshot.
 
 Parser + normalization stages ship in follow-up phases; this module
 lands the deterministic side (fetch by pinned revision → hash → write
@@ -40,7 +40,7 @@ class SnapshotReport:
     """Frozen record describing one collector run.
 
     ``mismatch`` is set when the manifest carried an ``expected_sha256``
-    (kind=http) and the computed hash differs — the caller SHOULD abort
+    (kind=http) and the computed hash differs - the caller SHOULD abort
     a promotion when that field is populated.
     """
 
@@ -68,7 +68,7 @@ class CollectorPipeline:
             raise ValueError(f"repo_root MUST be a directory; got {repo_root!r}")
         self._repo_root = repo_root
         self._output_root = output_root or (repo_root / "rule-catalog" / "sources")
-        # A caller MAY pin a specific fetcher (tests) — otherwise the
+        # A caller MAY pin a specific fetcher (tests) - otherwise the
         # dispatcher runs, kind-aware.
         self._fetcher_override = fetcher
 
@@ -156,7 +156,7 @@ class CollectorPipeline:
         content_hash: str,
         file_count: int,
     ) -> None:
-        # Idempotent overwrite — the pipeline's contract is that the same
+        # Idempotent overwrite - the pipeline's contract is that the same
         # (source, revision) always yields the same snapshot bytes; a
         # re-run REPLACES the tree so a mid-flight failure never leaves
         # a half-written directory that later tools would treat as valid.

@@ -13,7 +13,7 @@ per phase-3 doc:
   dependent workload;
 - honor **dependency checks**: a resource with unresolved dependents
   cannot be shut down;
-- **idempotent** and **reversible** — enforced by the executor / PR
+- **idempotent** and **reversible** - enforced by the executor / PR
   publisher layer, so this module only rejects candidates that cannot
   meet the other guardrails.
 
@@ -49,7 +49,7 @@ class FinOpsActionKind(StrEnum):
 class ResourceContext:
     """Everything the FinOps guardrail needs about the target resource.
 
-    Deliberately small — the inventory adapter fills this; ``core/``
+    Deliberately small - the inventory adapter fills this; ``core/``
     never queries Azure directly (see G2 core-imports guard).
     """
 
@@ -72,7 +72,7 @@ class FinOpsCandidate:
     kind: FinOpsActionKind
     resource: ResourceContext
     target_capacity: int | None = None
-    """Non-null on RIGHT_SIZE / AUTOSCALE_ADJUST — the proposed new
+    """Non-null on RIGHT_SIZE / AUTOSCALE_ADJUST - the proposed new
     replica count. MUST be >= min_capacity_floor for the guardrail to
     pass."""
 
@@ -89,7 +89,7 @@ class FinOpsGuardOutcome(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class FinOpsGuardConfig:
-    """Guardrail policy knobs — every value is auditable config."""
+    """Guardrail policy knobs - every value is auditable config."""
 
     exclusion_tag: str = "finops:opt-out"
     """Resources tagged with this MUST NOT be auto-modified."""

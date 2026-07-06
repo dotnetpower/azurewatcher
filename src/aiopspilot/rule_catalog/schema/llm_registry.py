@@ -1,6 +1,6 @@
 """LlmRegistry model + fail-fast loader.
 
-Mirror of ``rule-catalog/schema/llm-registry.schema.json`` — the JSON
+Mirror of ``rule-catalog/schema/llm-registry.schema.json`` - the JSON
 Schema is the source of truth for structural validation; this pydantic
 model layers on invariants the schema cannot express (mixed-model
 publisher distinctness across ``t2.reasoner.primary`` /
@@ -117,7 +117,7 @@ class LlmRegistry(BaseModel):
     def _require_mixed_model_publisher_distinct(self) -> LlmRegistry:
         """Enforce the phase-2 mixed-model invariant declaratively.
 
-        ``hil-only`` mode is a valid opt-out — the primary/secondary
+        ``hil-only`` mode is a valid opt-out - the primary/secondary
         publisher distinctness is not required (there is no secondary).
         For every other mode, the union of first-preferences of the two
         reasoner capabilities MUST NOT share a publisher.
@@ -128,7 +128,7 @@ class LlmRegistry(BaseModel):
         primary = self.models.get(primary_name)
         secondary = self.models.get(secondary_name)
         if primary is None or secondary is None:
-            # Missing capability is a structural error — the resolver will
+            # Missing capability is a structural error - the resolver will
             # abort. We do not raise here so the loader can still surface
             # every other issue; the risk-gate / resolver enforces at
             # deploy time.

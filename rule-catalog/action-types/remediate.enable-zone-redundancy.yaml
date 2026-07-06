@@ -33,5 +33,5 @@ description: >-
   Move a stateful resource (SQL, PostgreSQL, cache, VMSS,
   kubernetes-node-pool) to a zone-redundant SKU / topology. Requires
   a maintenance window because the transition can trigger a brief
-  failover. Rollback is forward-only — reverting to a non-ZR SKU is
+  failover. Rollback is forward-only - reverting to a non-ZR SKU is
   a separate governance-gated action.

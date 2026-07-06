@@ -8,13 +8,13 @@ P1 W-3 Step 3f scope
 
 This module ships the two duties the T0 pipeline needs today:
 
-- **Normalize** — accept a raw payload (already-validated ``Event`` or a
+- **Normalize** - accept a raw payload (already-validated ``Event`` or a
   dict destined for the event schema) and return a typed
   :class:`~aiopspilot.shared.contracts.models.Event` model. Enforcing
   the schema at the ingress boundary is the only place where untrusted
   input meets the type system; downstream code can trust it.
-- **Deduplicate** — reject a second delivery of the same
-  ``idempotency_key`` by returning :data:`None`. In-process for now —
+- **Deduplicate** - reject a second delivery of the same
+  ``idempotency_key`` by returning :data:`None`. In-process for now -
   a Kafka consumer group + persistent dedupe cache lands with W-4.
 
 Correlation-into-incidents is Phase 2 (T1 similarity work); the seam is
@@ -46,7 +46,7 @@ class EventIngest:
     def ingest(self, raw: Event | Mapping[str, Any]) -> Event | None:
         """Return a typed :class:`Event` or ``None`` for a duplicate.
 
-        Never raises for a duplicate — a re-delivery is a valid runtime
+        Never raises for a duplicate - a re-delivery is a valid runtime
         state, not an error. Schema-invalid input raises whatever the
         validator raises (typically a schema error propagated up), so
         the caller can audit the failure at the ingress boundary.

@@ -41,7 +41,7 @@ export default defineConfig({
     starlight({
       title: "AIOpsPilot",
       description:
-        "Autonomous cloud operations control plane — deterministic-first, event-driven, risk-gated.",
+        "Autonomous cloud operations control plane - deterministic-first, event-driven, risk-gated.",
       // Browser language detection is Starlight's default behaviour when
       // multiple locales are configured. Users land on the closest match to
       // their Accept-Language header and can flip via the language switcher.
@@ -78,7 +78,7 @@ export default defineConfig({
       //   4. observes data-theme changes and re-renders every diagram so
       //      switching to dark mode isn't visually jarring.
       // Content lives in an inline module script because Starlight's head
-      // slot inserts raw HTML — Astro's script pipeline is out of scope.
+      // slot inserts raw HTML - Astro's script pipeline is out of scope.
       head: [
         {
           tag: "script",

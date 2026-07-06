@@ -32,4 +32,4 @@ blast_radius:
 description: >-
   Turn on transparent data encryption on a `sql-database` or
   `postgresql-server`. Reverses through a paired disable ActionType
-  (subject to policy — most tenants deny disabling TDE).
+  (subject to policy - most tenants deny disabling TDE).

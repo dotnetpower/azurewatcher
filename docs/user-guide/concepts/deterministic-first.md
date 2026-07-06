@@ -15,12 +15,12 @@ deterministic layer explicitly abstains on.
 If you route every cloud-operations event to a language model, three things
 break:
 
-- **Cost** — inference over the full event volume is expensive and grows with
+- **Cost** - inference over the full event volume is expensive and grows with
   traffic, even though most events are boringly repeatable.
-- **Predictability** — the same event on Monday and Wednesday can get
+- **Predictability** - the same event on Monday and Wednesday can get
   different decisions from the same model. That is fine for a novel case but
   disastrous for a routine one.
-- **Auditability** — "the model chose to auto-approve" is hard to
+- **Auditability** - "the model chose to auto-approve" is hard to
   defend after an incident. "The rule matched policy X, version 1.4" is not.
 
 ## How AIOpsPilot resolves it
@@ -32,29 +32,29 @@ tier competent to decide the case:
 flowchart TB
   E[Incoming event]
   E --> R{Rule catalog<br/>hit?}
-  R -->|yes| T0[T0 · deterministic<br/>target ~70–80%<br/>rule verdict wins]
+  R -->|yes| T0[T0 · deterministic<br/>target ~70-80%<br/>rule verdict wins]
   R -->|no| S{Similar to a<br/>past resolved<br/>incident?}
-  S -->|score ≥ threshold| T1[T1 · lightweight reuse<br/>target ~15–20%<br/>learned action]
-  S -->|no| T2[T2 · deep reasoning<br/>target ~5–10%<br/>frontier LLM + verifier]
+  S -->|score ≥ threshold| T1[T1 · lightweight reuse<br/>target ~15-20%<br/>learned action]
+  S -->|no| T2[T2 · deep reasoning<br/>target ~5-10%<br/>frontier LLM + verifier]
   T0 --> V[Verdict]
   T1 --> V
   T2 --> V
 ```
 
-- **T0 — deterministic (target ~70–80% of events)**. Policy-as-code (OPA),
+- **T0 - deterministic (target ~70-80% of events)**. Policy-as-code (OPA),
   checklists, thresholds, allow/deny lists. If a rule fires, that rule's
   verdict wins. No model call, no ambiguity.
-- **T1 — lightweight reuse (target ~15–20%)**. Embedding similarity to
+- **T1 - lightweight reuse (target ~15-20%)**. Embedding similarity to
   historical incidents, cheap classifiers, small-model retrieval. Still no
   frontier LLM, still fully explainable.
-- **T2 — deep reasoning (target ~5–10%)**. Only novel or intrinsically
+- **T2 - deep reasoning (target ~5-10%)**. Only novel or intrinsically
   ambiguous cases. Frontier LLMs generate; a **verifier** re-checks the
   proposed action against policy-as-code and grounds it in retrieved
   documents. The LLM proposes, the verifier disposes.
 
 ## What this means in practice
 
-- The rule catalog is a **first-class asset**, not a nice-to-have — it
+- The rule catalog is a **first-class asset**, not a nice-to-have - it
   determines how much of the traffic never reaches an LLM.
 - Every T2 decision cites its sources (grounding). If those citations don't
   survive the verifier, the case escalates to a human, not to a "best guess".
@@ -63,7 +63,7 @@ flowchart TB
 
 ## Related
 
-- [Risk tiers](../risk-tiers/) — how the outcome of T0/T1/T2 gets classified
+- [Risk tiers](../risk-tiers/) - how the outcome of T0/T1/T2 gets classified
   into auto vs HIL.
 - Full engineering detail in the roadmap:
   [architecture.instructions.md](../../reference/roadmap/) → *3-Tier Trust

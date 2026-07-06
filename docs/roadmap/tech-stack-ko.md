@@ -1,8 +1,8 @@
 ---
 title: 기술 스택
 translation_of: tech-stack.md
-translation_source_sha: 1be969d0009a1fe7e4b5810bddee52dc85ac18d2
-translation_revised: 2026-07-05
+translation_source_sha: b467e7dca197ababad18f70276dababce38f884c
+translation_revised: 2026-07-06
 ---
 
 # 기술 스택
@@ -44,24 +44,24 @@ translation_revised: 2026-07-05
 
 | 관심사 | 권장 | 근거 | Alternatives (중립 / OSS) |
 |--------|------|------|--------------------------|
-| Core engine 런타임 | **Python (3.12+)** — `src/aiopspilot/` 아래 src-layout | LLM / OPA / IaC-스캐너 SDK가 가장 성숙, mypy로 타이핑 강제 가능, 모든 서브시스템이 한 언어 ([OD-1](#od-1-core-런타임-언어) 참조) | TypeScript (Node), Go, .NET — 동일 인터페이스 뒤에서 향후 성능 기반 분리 시 예비 |
+| Core engine 런타임 | **Python (3.12+)** - `src/aiopspilot/` 아래 src-layout | LLM / OPA / IaC-스캐너 SDK가 가장 성숙, mypy로 타이핑 강제 가능, 모든 서브시스템이 한 언어 ([OD-1](#od-1-core-런타임-언어) 참조) | TypeScript (Node), Go, .NET - 동일 인터페이스 뒤에서 향후 성능 기반 분리 시 예비 |
 | Policy engine | **OPA / Rego** | CSP-중립 policy-as-code; T0와 T2 verifier가 재사용 | Gatekeeper (K8s), Cloud Custodian |
 | IaC | **Terraform** (Azure 대상, HCL) | OD 해결; Terraform이 엔트리 커맨드 대상 (`terraform apply`), [csp-neutrality-ko.md](csp-neutrality-ko.md) 의 4개 CSP-중립 계약에서 렌더링; Bicep과 OpenTofu는 호환 대안 | 엄격한 OSS 툴체인이 필요하면 **OpenTofu** (MPL-2.0 포크); Azure-only 편의는 Bicep; 범용 언어 선호 시 Pulumi |
-| Event bus | **Event Hubs** 를 **`:9093` 의 Kafka endpoint 로만** 소비 (Kafka 와이어 프로토콜이 CSP-중립 계약 — [csp-neutrality-ko.md](csp-neutrality-ko.md#1-이벤트버스-계약--kafka-와이어-프로토콜) 참조) | 하나의 와이어 프로토콜이 모든 관리형 대상 (MSK, GCP Managed Kafka, Confluent, Redpanda) 을 커버 → 비-Azure 어댑터는 config 스왑 | MSK Serverless / GCP Managed Kafka / Confluent / Redpanda / self-hosted Strimzi — 비-Azure 옵션은 TBD |
+| Event bus | **Event Hubs** 를 **`:9093` 의 Kafka endpoint 로만** 소비 (Kafka 와이어 프로토콜이 CSP-중립 계약 - [csp-neutrality-ko.md](csp-neutrality-ko.md#1-이벤트버스-계약--kafka-와이어-프로토콜) 참조) | 하나의 와이어 프로토콜이 모든 관리형 대상 (MSK, GCP Managed Kafka, Confluent, Redpanda) 을 커버 → 비-Azure 어댑터는 config 스왑 | MSK Serverless / GCP Managed Kafka / Confluent / Redpanda / self-hosted Strimzi - 비-Azure 옵션은 TBD |
 | Event/message 스키마 | 버전된 레지스트리에 JSON Schema (또는 CloudEvents envelope) | 타입 있는 버전된 이벤트 계약; 안전한 진화와 인그레스 검증 가능 | Avro/Protobuf + Confluent-호환 레지스트리 |
 | Dead-letter 처리 | Kafka **dead-letter 토픽** 규약 (예: `<topic>.dlq`) + replay/redrive 워커 | 어떤 이벤트도 조용히 드롭되지 않음; poison 메시지는 격리·재처리 가능; 모든 프로바이더에서 동일 | 벤더 native DLQ 는 **미사용** (프로바이더별 동작 상이) |
-| Compute | **Azure Container Apps** (Consumption, KEDA + scale-to-zero) — **하나의 앱 + 사이드카 컨테이너** 로 코어 서브시스템 구성, **OCI 이미지 + Knative 호환 매니페스트 서브셋** 에서 배포 ([csp-neutrality-ko.md](csp-neutrality-ko.md#2-런타임-계약--oci-이미지--knative-호환-매니페스트) 참조) | 항시 비용 없이 이벤트 스케일링; 매니페스트는 Cloud Run / App Runner / 어떤 K8s 위의 Knative 로도 렌더링 → 런타임 이식 가능 | Cloud Run (native Knative), App Runner, AKS/EKS/GKE 위의 Knative; 커스텀 네트워킹/DaemonSets/GPU 필요 시 AKS |
-| 경량 트리거 | **Container Apps Jobs** (Compute와 동일 환경); 다른 대상에서는 K8s `CronJob` / Cloud Run Job / EventBridge 로 렌더링 | out-of-band 변경 감지, 비용 이상 훅, 스케줄 프로브 — 별도 Functions plan 프로비저닝을 회피 | 네이티브 바인딩이 필요하면 Azure Functions; Knative eventing |
+| Compute | **Azure Container Apps** (Consumption, KEDA + scale-to-zero) - **하나의 앱 + 사이드카 컨테이너** 로 코어 서브시스템 구성, **OCI 이미지 + Knative 호환 매니페스트 서브셋** 에서 배포 ([csp-neutrality-ko.md](csp-neutrality-ko.md#2-런타임-계약--oci-이미지--knative-호환-매니페스트) 참조) | 항시 비용 없이 이벤트 스케일링; 매니페스트는 Cloud Run / App Runner / 어떤 K8s 위의 Knative 로도 렌더링 → 런타임 이식 가능 | Cloud Run (native Knative), App Runner, AKS/EKS/GKE 위의 Knative; 커스텀 네트워킹/DaemonSets/GPU 필요 시 AKS |
+| 경량 트리거 | **Container Apps Jobs** (Compute와 동일 환경); 다른 대상에서는 K8s `CronJob` / Cloud Run Job / EventBridge 로 렌더링 | out-of-band 변경 감지, 비용 이상 훅, 스케줄 프로브 - 별도 Functions plan 프로비저닝을 회피 | 네이티브 바인딩이 필요하면 Azure Functions; Knative eventing |
 | State / audit / KPI | **PostgreSQL** (기본) 또는 **Cosmos DB** | append-only 감사 로그, 패턴 라이브러리, KPI 저장; 런타임 온톨로지 인스턴스 상태도 호스팅 ([llm-strategy-ko.md § Ontology Storage Layout](llm-strategy-ko.md#ontology-storage-layout)) | [Data Store Selection](#data-store-selection-criteria) 참조 |
-| Vector 검색 (T1) | pgvector (PostgreSQL과 co-located) | 임베딩을 감사/상태 옆에 유지; 하나의 datastore로 운영 | 큰 스케일에서는 전용 vector DB (Qdrant/Milvus) — [Vector Search Rationale](#vector-search-rationale) 참조 |
-| Secret store | Azure 에서는 **Container Apps native secret + Key Vault reference**; 앱은 주입된 `SecretProvider` 를 통해 env 변수만 읽음 — [csp-neutrality-ko.md](csp-neutrality-ko.md#3-시크릿-계약--환경변수--k8s-secret) 참조 | 앱이 secret SDK 를 import 하지 않음; 비-Azure 대상에서는 **External Secrets Operator (ESO)** 가 AWS Secrets Manager / GCP Secret Manager / HashiCorp Vault 를 동일 env 계약으로 이어줌 | ESO + Secrets Manager / GCP Secret Manager / Vault; dev/local 에서만 SOPS + age |
+| Vector 검색 (T1) | pgvector (PostgreSQL과 co-located) | 임베딩을 감사/상태 옆에 유지; 하나의 datastore로 운영 | 큰 스케일에서는 전용 vector DB (Qdrant/Milvus) - [Vector Search Rationale](#vector-search-rationale) 참조 |
+| Secret store | Azure 에서는 **Container Apps native secret + Key Vault reference**; 앱은 주입된 `SecretProvider` 를 통해 env 변수만 읽음 - [csp-neutrality-ko.md](csp-neutrality-ko.md#3-시크릿-계약--환경변수--k8s-secret) 참조 | 앱이 secret SDK 를 import 하지 않음; 비-Azure 대상에서는 **External Secrets Operator (ESO)** 가 AWS Secrets Manager / GCP Secret Manager / HashiCorp Vault 를 동일 env 계약으로 이어줌 | ESO + Secrets Manager / GCP Secret Manager / Vault; dev/local 에서만 SOPS + age |
 | Feature flags / shadow 토글 | OSS 플래그 서비스 (OpenFeature + flagd) | 재배포 없이 액션별 shadow-vs-enforce 승격 게이팅 | 상태 저장소의 config-driven 플래그 |
-| DB migrations | 버전된 마이그레이션 (Flyway / Alembic / Prisma Migrate) | 스키마 변경이 리뷰·순서·역방향 가능 | — |
+| DB migrations | 버전된 마이그레이션 (Flyway / Alembic / Prisma Migrate) | 스키마 변경이 리뷰·순서·역방향 가능 | - |
 | CI/CD | GitHub Actions 또는 Azure Pipelines | lint, tests, coverage gate, secret scan (gitleaks), 의존성/SBOM 감사 실행 | GitLab CI |
 | PR gate | **GitHub App** (Checks API) 또는 Azure DevOps service hooks | audit/rollback/approval이 이미 git에 존재 | 호스트에 관계없이 remediation은 PR로 전달 |
-| HIL 채널 | **Bot Framework / Teams** Adaptive Cards | 운영자가 있는 곳에서 도달 | Slack 어댑터; notifier 인터페이스 뒤의 email/webhook fallback — [channels-and-notifications-ko.md](channels-and-notifications-ko.md) 참조 |
-| LLM access (T2) | 2개 이상 별개 모델을 감싸는 provider-agnostic 게이트웨이/라우터 | [llm-strategy-ko.md](llm-strategy-ko.md) 의 mixed-model 교차 검사; 모델은 부트스트랩 시 capability-preferences 레지스트리에서 자동 프로비저닝되고 주간 조정 — [llm-strategy-ko.md § Model Provisioning and Lifecycle](llm-strategy-ko.md#model-provisioning-and-lifecycle) | LiteLLM/OpenRouter 스타일 라우터 |
-| Observability | OpenTelemetry (traces/metrics/logs) → collector → backend (**Log Analytics** + 여기에 바인딩된 App Insights — 별도 APM 리소스 없음) | measurement-first는 first-class 원격측정 필요; 보존은 기본 30일, UI에서 설정 가능 ([deploy-and-onboard-ko.md](deploy-and-onboard-ko.md#azure-resource-inventory-minimum-set)) | Prometheus + Grafana + Tempo/Loki (OSS); 벤더 APM |
+| HIL 채널 | **Bot Framework / Teams** Adaptive Cards | 운영자가 있는 곳에서 도달 | Slack 어댑터; notifier 인터페이스 뒤의 email/webhook fallback - [channels-and-notifications-ko.md](channels-and-notifications-ko.md) 참조 |
+| LLM access (T2) | 2개 이상 별개 모델을 감싸는 provider-agnostic 게이트웨이/라우터 | [llm-strategy-ko.md](llm-strategy-ko.md) 의 mixed-model 교차 검사; 모델은 부트스트랩 시 capability-preferences 레지스트리에서 자동 프로비저닝되고 주간 조정 - [llm-strategy-ko.md § Model Provisioning and Lifecycle](llm-strategy-ko.md#model-provisioning-and-lifecycle) | LiteLLM/OpenRouter 스타일 라우터 |
+| Observability | OpenTelemetry (traces/metrics/logs) → collector → backend (**Log Analytics** + 여기에 바인딩된 App Insights - 별도 APM 리소스 없음) | measurement-first는 first-class 원격측정 필요; 보존은 기본 30일, UI에서 설정 가능 ([deploy-and-onboard-ko.md](deploy-and-onboard-ko.md#azure-resource-inventory-minimum-set)) | Prometheus + Grafana + Tempo/Loki (OSS); 벤더 APM |
 
 ## Data Store 선택 기준
 
@@ -69,20 +69,20 @@ translation_revised: 2026-07-05
 
 - **관계형 + 감사 무결성**: append-only 감사 로그, foreign key, 트랜잭션 쓰기는 PostgreSQL을
   선호.
-- **Co-located 벡터**: pgvector가 T1 임베딩을 같은 저장소에 유지 — 운영 단순, 하나의 백업/복원
+- **Co-located 벡터**: pgvector가 T1 임베딩을 같은 저장소에 유지 - 운영 단순, 하나의 백업/복원
   경로.
 - **글로벌 분산 / 멀티 리전 쓰기 / 탄력적 파티션 스케일**: 쓰기 볼륨이나 지리적 분산이 단일
   primary를 초과할 때 Cosmos DB.
 - **이식성**: PostgreSQL은 클라우드 간·로컬에서 동일 동작; Cosmos DB는 Azure 특이라 상태-저장
   어댑터 뒤에 있어야 함.
-- **비용 모델**: PostgreSQL은 provisioned/예측 가능; Cosmos DB는 RU 미터링 — 커밋 전에 예상
+- **비용 모델**: PostgreSQL은 provisioned/예측 가능; Cosmos DB는 RU 미터링 - 커밋 전에 예상
   감사 쓰기 처리량에 대해 검증할 것.
 
 ## Vector 검색 근거
 
 - **pgvector로 시작**: 하나의 datastore, 감사/상태와 트랜잭션 일관성, 낮은-중간 코퍼스 크기에서
   T1 유사도 재사용에 충분.
-- **전용 vector DB로 졸업**: 코퍼스가 대략 10^6–10^7 벡터를 초과하거나, p95 recall/latency 목표가
+- **전용 vector DB로 졸업**: 코퍼스가 대략 10^6-10^7 벡터를 초과하거나, p95 recall/latency 목표가
   HNSW/IVFFlat 튜닝으로 실패하거나, 임베딩 갱신이 트랜잭션 로드와 경합할 때.
 - **임베딩 모델** 은 별도 결정(로컬/자체 호스팅 vs hosted API)이며 비용·프라이버시가 주도합니다.
   같은 LLM-게이트웨이 인터페이스 뒤에 두고 config로 버전 관리합니다.
@@ -100,11 +100,11 @@ translation_revised: 2026-07-05
 
 ## IaC 스캐너와 규칙 소스 (OSS)
 
-- **Checkov, tfsec, KICS, Trivy** — IaC/misconfig 스캔.
-- **kube-bench** — CIS Kubernetes 벤치마크 검사.
-- **OPA/Gatekeeper** 라이브러리 — 재사용 가능한 정책 번들.
-- **OpenCost** — FinOps를 위한 비용/단위 경제 신호.
-- **Chaos Mesh** (또는 Azure Chaos Studio) — DR/Chaos 실험.
+- **Checkov, tfsec, KICS, Trivy** - IaC/misconfig 스캔.
+- **kube-bench** - CIS Kubernetes 벤치마크 검사.
+- **OPA/Gatekeeper** 라이브러리 - 재사용 가능한 정책 번들.
+- **OpenCost** - FinOps를 위한 비용/단위 경제 신호.
+- **Chaos Mesh** (또는 Azure Chaos Studio) - DR/Chaos 실험.
 
 이들은 규칙 카탈로그에 공급됩니다
 ([phase-1-rule-catalog-t0-ko.md](phases/phase-1-rule-catalog-t0-ko.md)).
@@ -118,7 +118,7 @@ translation_revised: 2026-07-05
   게이트의 일부이며,
   [coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md)
   의 테스트 규칙과 정합.
-- 릴리스 아티팩트에 대해 **SBOM** 생성 — 하류 포크 감사 지원.
+- 릴리스 아티팩트에 대해 **SBOM** 생성 - 하류 포크 감사 지원.
 
 ## 로컬 개발
 
@@ -132,7 +132,7 @@ translation_revised: 2026-07-05
   테스트.
 - **Dev에서 LLM은 기본 fake 유지**: `runtime.env == "dev"` 는 결정론적 인-메모리 fake
   (`DeterministicEmbeddingModel`, `MatchTypeCrossCheckModel`, `StaticVerifier`,
-  `InMemoryGroundingSource`) 를 바인딩 — Azure OpenAI 자격증명 없음, 라이브 엔드포인트 없음,
+  `InMemoryGroundingSource`) 를 바인딩 - Azure OpenAI 자격증명 없음, 라이브 엔드포인트 없음,
   토큰 비용 없음. Azure 측 어댑터는 `delivery/azure/llm/` 하위에 살고 composition root가
   `llm.mode == "azure"` 일 때만 import. 전체 parity 컨트랙트 + 작업 계획:
   [dev-and-deploy-parity-ko.md](dev-and-deploy-parity-ko.md).
@@ -148,13 +148,13 @@ translation_revised: 2026-07-05
 - **컨텍스트**: 어댑터, LLM SDK, 규칙 도구가 선택을 주도.
 - **옵션**: TypeScript (Node) · Python · Go.
 - **기준**: 어댑터/SDK 성숙도, 팀 친숙도, 타이핑/성능 헤드룸.
-- **상태**: **결정됨 — Python (3.12+), `src/aiopspilot/` 아래 단일 언어 monorepo.**
+- **상태**: **결정됨 - Python (3.12+), `src/aiopspilot/` 아래 단일 언어 monorepo.**
   근거: (i) OPA 바인딩, LLM provider, IaC 스캐너 툴체인 (Checkov / tfsec / KICS / Trivy) 이
   가장 풍부한 언어가 Python; (ii) mypy로 safety-core 에 필요한 타이핑 강도 확보; (iii) 모든
   서브시스템이 한 언어라 `core/tiers/t0_deterministic` 과 `core/risk_gate` 의 ≥ 90% 커버리지
   게이트가 단순해짐. 향후 성능 기반 분리 (예: `event_ingest` 를 Go 로) 는 서브시스템이 이미
   `shared/` 의 인터페이스 뒤에 있어 추가적으로 가능.
-- **패키지 레이아웃**: Python "src layout" — 모든 런타임 모듈은 `src/aiopspilot/<subsystem>/`
+- **패키지 레이아웃**: Python "src layout" - 모든 런타임 모듈은 `src/aiopspilot/<subsystem>/`
   아래. [project-structure-ko.md](project-structure-ko.md) 의 `core/`, `shared/`, `delivery/`,
   `rule_catalog/` 서브시스템 폴더는 각각 `src/aiopspilot/core/`, `src/aiopspilot/shared/`,
   `src/aiopspilot/delivery/`, `src/aiopspilot/rule_catalog/` 로 매핑됩니다. 디렉토리 이름은
@@ -171,13 +171,13 @@ translation_revised: 2026-07-05
 - **옵션**: PostgreSQL + pgvector · Cosmos DB.
 - **기준**: [Data Store Selection](#data-store-selection-criteria) 참조 (이식성, 스케일, 비용
   모델).
-- **상태**: Open — PostgreSQL이 기본으로 기울어짐.
+- **상태**: Open - PostgreSQL이 기본으로 기울어짐.
 
-### OD-3: 멀티 클라우드 이벤트 버스 (Phase 4 — TBD)
+### OD-3: 멀티 클라우드 이벤트 버스 (Phase 4 - TBD)
 
 - **컨텍스트**: Azure 이벤트 서비스를 넘는 이식성. 비-Azure 대상은 TBD
   ([Implementation Focus](../../.github/copilot-instructions.md#implementation-focus-must));
   비-Azure 어댑터가 스코프에 들어올 때만 재검토.
 - **옵션**: Service Bus + Event Grid 유지 · Kafka · NATS JetStream.
 - **기준**: 순서 + DLQ 보장, 리플레이 필요, 운영 비용, CSP 중립성.
-- **상태**: Deferred (TBD) — Azure만이 유일한 구현 대상.
+- **상태**: Deferred (TBD) - Azure만이 유일한 구현 대상.

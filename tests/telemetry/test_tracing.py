@@ -16,7 +16,7 @@ def _install_in_memory_provider() -> InMemorySpanExporter:
 
     OTel forbids replacing the global provider, so we install one here
     only when nothing else has claimed it. In this suite, the module
-    ``configure_tracing`` may have run in a prior test — either way we
+    ``configure_tracing`` may have run in a prior test - either way we
     add our own SimpleSpanProcessor to the *current* provider so spans
     reach an inspectable exporter.
     """

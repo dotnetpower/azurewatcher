@@ -7,10 +7,10 @@ shadow-only per
 
 Public exports:
 
-- :class:`~aiopspilot.rule_catalog.pipeline.shadow_eval.ShadowEvaluator` —
+- :class:`~aiopspilot.rule_catalog.pipeline.shadow_eval.ShadowEvaluator` -
   replay a candidate rule set against a scenario set in judge-and-log mode.
 - :class:`~aiopspilot.rule_catalog.pipeline.shadow_eval.ShadowEvalReport` /
-  :class:`~aiopspilot.rule_catalog.pipeline.shadow_eval.ScenarioOutcome` —
+  :class:`~aiopspilot.rule_catalog.pipeline.shadow_eval.ScenarioOutcome` -
   measurement types consumed by the regression gate.
 """
 

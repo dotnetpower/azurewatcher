@@ -14,7 +14,7 @@ class ConfigIssue:
     """One problem detected while loading config.
 
     ``key`` uses the dotted config path (``azure.tenant_id``) or an env-var
-    name (``AZURE_TENANT_ID``) — whichever the caller was working with.
+    name (``AZURE_TENANT_ID``) - whichever the caller was working with.
     """
 
     key: str

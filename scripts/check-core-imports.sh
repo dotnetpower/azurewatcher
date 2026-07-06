@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# check-core-imports.sh — enforce the module-boundary rule that keeps the
+# check-core-imports.sh - enforce the module-boundary rule that keeps the
 # control-plane CSP-neutral and UI-agnostic.
 #
 # Rule (see docs/roadmap/project-structure.md § Module Boundaries and
@@ -20,7 +20,7 @@
 #
 # Exit codes: 0 on clean, 1 on any violation.
 #
-# Regression: 2026-07-05 audit — critique G2. Ships alongside the
+# Regression: 2026-07-05 audit - critique G2. Ships alongside the
 # safety-core coverage floor (G1) and the ontology seeding (G4).
 
 set -euo pipefail
@@ -31,7 +31,7 @@ cd "$repo_root"
 # Every Python module under core/, whether tracked, modified, or freshly
 # added. Walking the filesystem (not `git ls-files`) means an
 # uncommitted edit that introduces a banned import still fails locally
-# — matching the developer expectation for pre-commit / pre-push hooks.
+# - matching the developer expectation for pre-commit / pre-push hooks.
 mapfile -t files < <(
   find src/aiopspilot/core -type f -name '*.py' \
     ! -path '*/__pycache__/*' \
@@ -40,12 +40,12 @@ mapfile -t files < <(
 )
 
 if (( ${#files[@]} == 0 )); then
-  echo "check-core-imports: no core/ Python files tracked yet — skipping."
+  echo "check-core-imports: no core/ Python files tracked yet - skipping."
   exit 0
 fi
 
 # One extended regex per banned line shape. Each pattern captures either
-# `import X` or `from X ...`. Comments and docstrings are ignored — we
+# `import X` or `from X ...`. Comments and docstrings are ignored - we
 # only reject actual import statements.
 banned_re='^[[:space:]]*(from|import)[[:space:]]+(httpx|requests|aiohttp|boto3|azure(\.|[[:space:]])|google\.cloud|aiopspilot\.delivery)'
 
@@ -65,7 +65,7 @@ if (( fail )); then
 
 Fix by moving the offending SDK / HTTP / delivery adapter call behind
 one of the CSP-neutral Protocols in src/aiopspilot/shared/providers/
-(see docs/roadmap/csp-neutrality.md § 1–5) and binding the concrete
+(see docs/roadmap/csp-neutrality.md § 1-5) and binding the concrete
 implementation at the composition root.
 EOF
   exit 1

@@ -98,7 +98,7 @@ def _seed_snapshot(
 def test_on_demand_is_never_due(tmp_path: Path) -> None:
     watcher = SourceWatcher(snapshot_root=tmp_path)
     manifest = _build_manifest(Cadence.ON_DEMAND)
-    # Even with no prior snapshot the watcher stays off — on-demand is manual.
+    # Even with no prior snapshot the watcher stays off - on-demand is manual.
     assert watcher.is_due(manifest, now=_NOW) is False
     # And even after seeding an ancient snapshot, still not due.
     _seed_snapshot(
@@ -146,7 +146,7 @@ def test_is_due_boundary(tmp_path: Path, cadence: Cadence, age: timedelta, expec
 
 
 def test_is_due_picks_newest_snapshot(tmp_path: Path) -> None:
-    """Multiple revision dirs — the watcher compares against the newest."""
+    """Multiple revision dirs - the watcher compares against the newest."""
     watcher = SourceWatcher(snapshot_root=tmp_path)
     manifest = _build_manifest(Cadence.DAILY)
     _seed_snapshot(
@@ -181,7 +181,7 @@ def test_is_due_ignores_missing_or_wrong_type_collected_at(tmp_path: Path) -> No
     src_dir = tmp_path / manifest.id / "rev"
     src_dir.mkdir(parents=True)
     (src_dir / "SNAPSHOT.json").write_text(
-        json.dumps({"collected_at": 12345}),  # wrong type — int, not string
+        json.dumps({"collected_at": 12345}),  # wrong type - int, not string
         encoding="utf-8",
     )
     assert watcher.is_due(manifest, now=_NOW) is True
@@ -244,7 +244,7 @@ def test_unknown_cadence_rejected(tmp_path: Path) -> None:
     """A cadence not in the mapping raises :class:`WatcherError`.
 
     The Cadence enum currently covers every mapped value; this test is
-    a defensive guard for future enum additions — the watcher must never
+    a defensive guard for future enum additions - the watcher must never
     silently return ``False`` for an unmapped cadence.
     """
     watcher = SourceWatcher(snapshot_root=tmp_path)
@@ -254,7 +254,7 @@ def test_unknown_cadence_rejected(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# CLI — happy path via LocalDirectoryFetcher
+# CLI - happy path via LocalDirectoryFetcher
 # ---------------------------------------------------------------------------
 
 
@@ -310,7 +310,7 @@ def test_cli_runs_collect_for_due_daily_source(
     assert entry["due"] is True
     assert entry["collect_exit_code"] == 0
     assert entry["collect"]["source_id"] == "watch-src"
-    # Non-dry-run — snapshot should exist under output_root.
+    # Non-dry-run - snapshot should exist under output_root.
     snap_dir = sources_root / "watch-src"
     revisions = [d for d in snap_dir.iterdir() if d.is_dir()]
     assert revisions, "collector should have written a revision dir"
@@ -449,14 +449,14 @@ def test_cli_dry_run_and_verify_flags_forwarded(
 
 
 # ---------------------------------------------------------------------------
-# CLI — fail-fast paths
+# CLI - fail-fast paths
 # ---------------------------------------------------------------------------
 
 
 def test_cli_returns_2_when_collector_fails(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Point at a manifest whose local source path does not exist —
+    """Point at a manifest whose local source path does not exist -
     the collector CLI returns 2 and the watcher propagates that."""
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
@@ -583,7 +583,7 @@ def test_cli_returns_2_on_unknown_cadence(
 def test_cli_defaults_now_to_current_utc(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """When --now is omitted the CLI uses the current UTC time — smoke
+    """When --now is omitted the CLI uses the current UTC time - smoke
     check that the emitted timestamp round-trips as UTC ISO-8601."""
     repo_root, sources_root, _ = _build_repo_layout(tmp_path, cadence="on-demand")
     exit_code = watcher_main(
@@ -632,7 +632,7 @@ def test_cli_repo_root_autodetected(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Omitting --repo-root falls back to the module's auto-detector."""
-    # Use the shipped manifest — the shipped seed cadence is ``on-demand``
+    # Use the shipped manifest - the shipped seed cadence is ``on-demand``
     # so this run should be a no-op (nothing due) and exit 0.
     real_repo_root = Path(__file__).resolve().parents[3]
     real_sources = real_repo_root / "rule-catalog" / "sources"
@@ -654,7 +654,7 @@ def test_cli_repo_root_autodetected(
 
 
 # ---------------------------------------------------------------------------
-# Loader → watcher integration smoke — the shipped manifest still parses.
+# Loader → watcher integration smoke - the shipped manifest still parses.
 # ---------------------------------------------------------------------------
 
 

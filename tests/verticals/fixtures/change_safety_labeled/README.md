@@ -5,7 +5,7 @@ Labeled Activity Log events used by
 to establish the phase-1 out-of-band detection baseline:
 
 > "Out-of-band detection reports precision and recall against a labeled
-> fixture set, with the false-positive suppression rate recorded —
+> fixture set, with the false-positive suppression rate recorded -
 > establishing the detection baseline Phase 2 must not regress."
 
 Every fixture is customer-agnostic (synthetic principals, no real
@@ -14,12 +14,12 @@ tenant/subscription/resource identifiers) per
 
 ## Layout
 
-- `label` — ground-truth attribution
+- `label` - ground-truth attribution
   (`AUTHORIZED` / `SUPPRESSED` / `OUT_OF_BAND`).
-- `event` — an `Event` payload matching the day-zero Activity Log wire
+- `event` - an `Event` payload matching the day-zero Activity Log wire
   contract (`signal_kind = azure.activity_log`, `resource.type`,
   optional `actor.principal_id`, optional `correlation_id`).
-- `narrative` — one-line English description of the case.
+- `narrative` - one-line English description of the case.
 
 The metric harness loads every JSON in this folder, feeds it through a
 single :class:`ChangeSafetyDetector` configured with a fixed known-actor

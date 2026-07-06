@@ -8,7 +8,7 @@
 # Trust tiers (a1..a4) mirror the design contract in
 # `docs/roadmap/channels-and-notifications.md § 3`. The router refuses to
 # send an a1 message on a channel that does not declare a1 (§4). Trust
-# level is preserved on fallback — an a1 primary MUST NOT fall through
+# level is preserved on fallback - an a1 primary MUST NOT fall through
 # to an a2-only channel; validation happens at composition wiring time.
 #
 # `on_all_fail: hil_escalate` is the default: when every configured
@@ -24,12 +24,12 @@ matrix:
   version: 1
 
   # Category the router falls back to when a message carries a name the
-  # matrix does not know. `hil_approval` is the safest default — an
+  # matrix does not know. `hil_approval` is the safest default - an
   # unknown category will page a human rather than get discarded.
   default_route: hil_approval
 
   routes:
-    # A1 — HIL approval (bidirectional, highest auth).
+    # A1 - HIL approval (bidirectional, highest auth).
     hil_approval:
       trust_tier: a1_hil_approval
       primary: teams-hil-prd
@@ -38,7 +38,7 @@ matrix:
         - slack-hil-prd
       on_all_fail: hil_escalate
 
-    # A2 — operational alerts (send-only, low auth).
+    # A2 - operational alerts (send-only, low auth).
     operational_alert:
       trust_tier: a2_operational_alert
       primary: teams-ops-prd
@@ -64,8 +64,8 @@ matrix:
         - email-oncall
       on_all_fail: hil_escalate
 
-    # A3 — chat command responses (bidirectional, medium auth). The
-    # router does not gate role checks — those are per-command (§3.1
+    # A3 - chat command responses (bidirectional, medium auth). The
+    # router does not gate role checks - those are per-command (§3.1
     # of the design doc).
     chat_command_response:
       trust_tier: a3_chat_command
@@ -74,7 +74,7 @@ matrix:
         - slack-hil-prd
       on_all_fail: hil_escalate
 
-    # A4 — digests (send-only, low auth). Seven canonical digests
+    # A4 - digests (send-only, low auth). Seven canonical digests
     # ship in the design doc; each maps to its own route so a fork
     # can retarget without editing code.
     digest_shadow_accuracy_daily:

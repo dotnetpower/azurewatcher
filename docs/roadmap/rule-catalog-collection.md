@@ -7,7 +7,7 @@ How AIOpsPilot **collects** checklists, best practices, policies, and baselines,
 **normalizes** them into machine-readable YAML for the T0 deterministic engine. This document
 answers: *where do rules come from, how are they fetched, and what YAML shape do they take?*
 
-It complements — and does not restate — the normalized schema and conflict handling in
+It complements - and does not restate - the normalized schema and conflict handling in
 [phase-1-rule-catalog-t0.md](phases/phase-1-rule-catalog-t0.md) and the rule-catalog principles
 in [architecture.instructions.md](../../.github/instructions/architecture.instructions.md).
 The continuous update pipeline is [phase-2-quality-and-t1.md](phases/phase-2-quality-and-t1.md).
@@ -27,7 +27,7 @@ Four distinct artifact kinds, each normalized to its own YAML shape but sharing 
 | **Measurement baseline** | recorded KPI values for a reference agent on the frozen scenario set | goals-and-metrics comparison |
 
 The first three feed the deterministic engine. The fourth is the **performance baseline** from
-[phase-0-instrumentation.md](phases/phase-0-instrumentation.md) — a different concept that shares
+[phase-0-instrumentation.md](phases/phase-0-instrumentation.md) - a different concept that shares
 this document only because both are "baselines"; keep them separate in storage and schema.
 
 ## Collection Sources
@@ -45,14 +45,14 @@ schema and stamps `provenance`. `resource-type` is normalized to a CSP-neutral v
 | FinOps / cost | Advisor cost recommendations, cost-anomaly heuristics, FOCUS-aligned tagging/budget controls | JSON / authored | REST API, authored |
 | DR / resilience | resiliency-review checklists, backup/replication controls, chaos-experiment templates | JSON / YAML / docs | REST API, git clone, docs repo |
 | Detection / signals | anomaly baselines and thresholds, forecast targets, correlation keys (feed the detectors in observability-and-detection) | authored / JSON | authored |
-| AWS / GCP (TBD) | AWS Well-Architected / Config managed rules, GCP Recommender / Policy Controller | JSON | REST API, git — **deferred**, non-Azure targets are TBD (see [Implementation Focus](../../.github/copilot-instructions.md#implementation-focus-must)) |
+| AWS / GCP (TBD) | AWS Well-Architected / Config managed rules, GCP Recommender / Policy Controller | JSON | REST API, git - **deferred**, non-Azure targets are TBD (see [Implementation Focus](../../.github/copilot-instructions.md#implementation-focus-must)) |
 
 The FinOps and DR/resilience rows exist because the control plane spans Resilience, Change
 Safety, and Cost Governance; a sources table covering only security/config would leave two of
 the three verticals uncollected. The Detection/signals row supplies the baselines, thresholds,
 and correlation keys
 consumed by [observability-and-detection.md](observability-and-detection.md) (anomaly, forecast,
-correlation, RCA). Mapping controls to regulatory frameworks (NIST/PCI/ISO) is deferred — see
+correlation, RCA). Mapping controls to regulatory frameworks (NIST/PCI/ISO) is deferred - see
 [Open Decisions](#open-decisions).
 
 ### Security Sources (deep)
@@ -73,8 +73,8 @@ enumerated explicitly. Each still normalizes to the common schema with `category
 
 Notes:
 
-- **Freshness**: vulnerability sources (NVD/CVE, KEV, OSV, EPSS) are time-sensitive — they change
-  daily and KEV entries carry remediation due-dates — so their manifests set the shortest watcher
+- **Freshness**: vulnerability sources (NVD/CVE, KEV, OSV, EPSS) are time-sensitive - they change
+  daily and KEV entries carry remediation due-dates - so their manifests set the shortest watcher
   cadence and are the motivating case for the Phase 2 watcher. Phase 1 on-demand fetches are
   treated as potentially stale, not authoritative for currency.
 - **Severity derivation is deterministic**, not ad hoc: for vulnerability rules `severity` is a
@@ -93,8 +93,8 @@ Notes:
 
 ### Database Sources and Rules
 
-Databases are **stateful**, so their rules span three concerns — security, DR, and
-configuration — and must never be treated like stateless resources. This subsection is
+Databases are **stateful**, so their rules span three concerns - security, DR, and
+configuration - and must never be treated like stateless resources. This subsection is
 enumerated because DB coverage is otherwise easy to under-specify.
 
 | Concern | What is collected | Example sources |
@@ -109,7 +109,7 @@ not a vendor resource path), so per-engine CIS controls stay reproducible withou
 path; the DB-security concern maps to `category: security`, DB-DR to `category: reliability`, and
 DB-configuration hardening to `category: config-drift`. DR rules are cross-linked to
 [phase-3-integrated-loop.md](phases/phase-3-integrated-loop.md) (deep DB-DR: restore-into-isolated-env,
-integrity verification, RPO/RTO measurement) — the catalog encodes the *checks* over recorded
+integrity verification, RPO/RTO measurement) - the catalog encodes the *checks* over recorded
 evidence; the phase-3 scheduler runs the *tests* (the rehearsal and failover themselves).
 
 Two DB rule examples (customer-agnostic placeholders):
@@ -172,7 +172,7 @@ provenance:
 > control** (per the definition at the top of this doc): geo-replica presence and
 > replication-lag-within-`max_replica_lag_seconds` are **separate** rules, optionally grouped by
 > a `config-baseline`, not folded into the PITR rule above. The `parameters` field shown here is
-> set per-assignment by an administrator — see [rule-governance.md](rule-governance.md).
+> set per-assignment by an administrator - see [rule-governance.md](rule-governance.md).
 
 ### Licensing (read before adding a source)
 
@@ -181,8 +181,8 @@ provenance:
   or embeddings / vector indexes built from that text**. Store only the **normalized rule logic
   we author** plus a `provenance` reference (URL, resolved commit/digest, version, retrieved-at,
   content hash) pointing back to the licensed source.
-- Each manifest carries two independent fields: `license` — an **SPDX identifier** for OSS
-  (e.g. `Apache-2.0`) or `LicenseRef-reference-only` for restricted sources — and
+- Each manifest carries two independent fields: `license` - an **SPDX identifier** for OSS
+  (e.g. `Apache-2.0`) or `LicenseRef-reference-only` for restricted sources - and
   `redistribution` (`embeddable` | `reference-only`). `redistribution`, not the license name,
   drives enforcement: a `reference-only` source may contribute authored logic plus provenance,
   but its raw content is blocked from the tree.
@@ -190,7 +190,7 @@ provenance:
   source's collector contains verbatim source text, and secret / customer-data scans run on all
   collected output
   ([generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md)).
-- **Untrusted content**: source-provided text (rationale, descriptions) is untrusted input — it
+- **Untrusted content**: source-provided text (rationale, descriptions) is untrusted input - it
   may carry secrets or prompt-injection. It is stored as inert data, length-bounded and scanned,
   is never treated as instructions, and any downstream LLM use of it passes the T2 quality gate
   ([architecture.instructions.md](../../.github/instructions/architecture.instructions.md)).
@@ -212,7 +212,7 @@ source manifest ─► fetch ─► verify ─► parse ─► map to schema ─
   credential); pin to an **immutable** revision (a git commit SHA or artifact digest, not a
   mutable tag/branch) and record the resolved revision; handle pagination and rate limits
   (respect `Retry-After`, back off) for REST sources; and apply a timeout with bounded retry.
-  On fetch failure it **fails closed** — a partial fetch never produces a partial catalog.
+  On fetch failure it **fails closed** - a partial fetch never produces a partial catalog.
   Cadence is on-demand in Phase 1; a scheduled watcher in Phase 2.
 - **verify**: check the fetched artifact's integrity (checksum/signature where the source offers
   one) and record the computed `content_hash`; a mismatch aborts that source.
@@ -240,7 +240,7 @@ with [project-structure.md](project-structure.md).
 
 ## YAML Normalization
 
-Yes — the whole catalog is **YAML**, validated against JSON Schema (JSON Schema is the schema
+Yes - the whole catalog is **YAML**, validated against JSON Schema (JSON Schema is the schema
 language; the documents it validates are YAML) and stored as catalog-as-code. JSON is retained
 only for wire formats (event/message schemas, API bodies) and runtime artifacts
 (`resolved-models.json` in Key Vault); everything a human authors in `rule-catalog/` is YAML.
@@ -249,7 +249,7 @@ only for wire formats (event/message schemas, API bodies) and runtime artifacts
 
 YAML keys are **snake_case**; the normalized schema fields in
 [phase-1-rule-catalog-t0.md](phases/phase-1-rule-catalog-t0.md#normalized-schema) are written
-kebab-case in prose. They are the **same fields** — the mapping is 1:1, so the two docs are not
+kebab-case in prose. They are the **same fields** - the mapping is 1:1, so the two docs are not
 contradictory:
 
 | phase-1 field | YAML key |
@@ -273,15 +273,15 @@ contradictory:
 - `parameters` is an **optional** object of typed inputs to `check_logic` (e.g. a retention
   threshold, a max replication-lag, a CVSS version tag). Defaults live on the rule; an
   administrator overrides them per-assignment without
-  editing the rule — the authoring/assignment model is [rule-governance.md](rule-governance.md).
+  editing the rule - the authoring/assignment model is [rule-governance.md](rule-governance.md).
 - **Ontology dispatch fields** are additive and CI-validated at load: `applies_to`,
   `triggered_by`, `evaluates`, `remediates`, `required_interfaces`, `submission_criteria`.
   They let the runtime traverse from a `Signal` to the exact matching rules with two index
   intersections instead of a scan; the full pipeline lives in
   [llm-strategy.md § Rule-to-Decision Lookup Pipeline](llm-strategy.md#rule-to-decision-lookup-pipeline).
-- **`remediates` vs `remediation` — two fields, one concept:** `remediates` is the
+- **`remediates` vs `remediation` - two fields, one concept:** `remediates` is the
   **ActionType id** (M:1) declaring *which category of mutation* this rule proposes;
-  `remediation` is the concrete *how* — a `{ kind, ref, parameters, cost_impact_monthly }`
+  `remediation` is the concrete *how* - a `{ kind, ref, parameters, cost_impact_monthly }`
   block whose `kind` (`iac-patch`, `scripted`, ...) MUST be compatible with the
   ActionType's `operation`. Both fields are required together on every `rule`. CI rejects
   a rule whose `remediates` resolves to an unknown ActionType or whose `remediation.kind`
@@ -289,7 +289,7 @@ contradictory:
   as a `tag`-shaped patch).
 - **`alternatives[]` (optional):** a rule MAY declare alternative remediation ActionTypes
   ranked by preference; T0 always uses `remediates` (deterministic-first), and only the
-  T2 quality gate — with grounding and mixed-model check — may swap in an alternative,
+  T2 quality gate - with grounding and mixed-model check - may swap in an alternative,
   never a cheaper tier. Each alternative points to a registered ActionType id, never to a
   free-form action.
 
@@ -370,7 +370,7 @@ provenance:
 
 > `remediates` is validated at load time against
 > [`rule-catalog/action-types/`](../../rule-catalog/action-types/) by
-> [`rule_catalog.schema.rule`](../../src/aiopspilot/rule_catalog/schema/rule.py) — an
+> [`rule_catalog.schema.rule`](../../src/aiopspilot/rule_catalog/schema/rule.py) - an
 > unknown ActionType id fails the load, so a rule can never quote a mutation category
 > that has no `rollback_contract` / `promotion_gate` declared. Optional `alternatives`
 > follows the same rule; the shipped
@@ -422,7 +422,7 @@ provenance:
   mapped_by: catalog-team
 ```
 
-### Measurement Baseline (performance reference — separate store)
+### Measurement Baseline (performance reference - separate store)
 
 ```yaml
 id: baseline.reference-agent.2026-07
@@ -441,7 +441,7 @@ provenance:
   measured_by: phase-0
 ```
 
-> Values above are placeholder zeros — real numbers are recorded at measurement time per
+> Values above are placeholder zeros - real numbers are recorded at measurement time per
 > [goals-and-metrics.md](goals-and-metrics.md); this repo never commits customer-measured values.
 > Measurement-baseline entries live in a separate `id` namespace (`baseline.*`) and store
 > (`baselines/`), never mixed with rule `id`s or rule schemas.
@@ -470,11 +470,11 @@ Authored Rego is **not** nested under `rule-catalog/`; it lives in the top-level
 consumed by T0 and the verifier, exactly as in
 [project-structure.md](project-structure.md). `pipeline/` is the Phase 2 continuous updater.
 
-- `vocabulary/resource-types.yaml` — the enumerated CSP-neutral `resource_type` identifier
+- `vocabulary/resource-types.yaml` - the enumerated CSP-neutral `resource_type` identifier
   set every rule quotes from. Rename → catalog-wide migration; add → governance PR. Loader:
   `src/aiopspilot/rule_catalog/schema/resource_type.py`, JSON Schema:
   `src/aiopspilot/rule_catalog/schema/resource_types.schema.json`.
-- `action-types/*.yaml` — one file per ontology `ActionType` instance. `default_mode`
+- `action-types/*.yaml` - one file per ontology `ActionType` instance. `default_mode`
   MUST be `shadow` in upstream and `promotion_gate` MUST be present. Loader:
   `src/aiopspilot/rule_catalog/schema/action_type.py`; JSON Schema is the shared ontology
   schema at `src/aiopspilot/shared/contracts/ontology/action-type.json`.
@@ -511,8 +511,8 @@ human hand-crafting every rule. This is the "Living rules" principle in
 
 ### Loop
 
-A long-horizon loop repeats indefinitely; every cycle keeps the same shared world model — the
-normalized catalog, audit log, incident library, and provenance store — so cycles build on
+A long-horizon loop repeats indefinitely; every cycle keeps the same shared world model - the
+normalized catalog, audit log, incident library, and provenance store - so cycles build on
 each other rather than restart from scratch:
 
 ```text
@@ -520,12 +520,12 @@ sources + operational signals ─► observe ─► hypothesize ─► verify �
                                                             (quality gate)
 ```
 
-- **observe** — the loop reads three feeds side by side, not one at a time:
+- **observe** - the loop reads three feeds side by side, not one at a time:
   1. **Upstream sources** via the collector pipeline above (new/changed controls).
-  2. **Operational signals** — recent audit-log entries, HIL approval patterns, shadow-mode
+  2. **Operational signals** - recent audit-log entries, HIL approval patterns, shadow-mode
      outcomes, rollbacks, and **override events** ([rule-governance.md](rule-governance.md)).
-  3. **The current catalog** — existing rules, their provenance, their measured accuracy.
-- **hypothesize** — an inference stage (an LLM stage, treated like any T2 output) proposes
+  3. **The current catalog** - existing rules, their provenance, their measured accuracy.
+- **hypothesize** - an inference stage (an LLM stage, treated like any T2 output) proposes
   **candidate** entries in three shapes:
   - **new-rule**: a control not yet covered, motivated by a recurring incident/HIL pattern or a
     newly published upstream control.
@@ -533,34 +533,34 @@ sources + operational signals ─► observe ─► hypothesize ─► verify �
     or whose shadow accuracy drifted below threshold.
   - **retirement**: an existing rule that is repeatedly overridden or whose shadow outcomes
     show it is a poor fit for real environments.
-- **verify** — every candidate is inert data until it passes the standard **quality gate**:
+- **verify** - every candidate is inert data until it passes the standard **quality gate**:
   1. strict JSON Schema (`additionalProperties: false`);
-  2. provenance check — `source_url`, `resolved_ref`, `content_hash`, `license`,
+  2. provenance check - `source_url`, `resolved_ref`, `content_hash`, `license`,
      `redistribution` all present and verifiable (a candidate with no grounded provenance is
      rejected outright);
-  3. **mixed-model cross-check** — a second model (different family/vendor) re-derives or
+  3. **mixed-model cross-check** - a second model (different family/vendor) re-derives or
      re-approves the same candidate; disagreement escalates to HIL, never auto-resolves
      ([architecture.instructions.md](../../.github/instructions/architecture.instructions.md));
-  4. deterministic verifier — Rego parses, no duplicate `id`, no conflict with existing rules
+  4. deterministic verifier - Rego parses, no duplicate `id`, no conflict with existing rules
      that would silently weaken a stricter control;
-  5. regression suite — existing fixtures still pass;
-  6. shadow-mode dwell — the candidate runs judge-and-log-only on real traffic for a
+  5. regression suite - existing fixtures still pass;
+  6. shadow-mode dwell - the candidate runs judge-and-log-only on real traffic for a
      configured minimum period and sample size, with accuracy above threshold and zero
      policy-violation escapes.
-- **integrate** — a candidate that clears the gate is promoted per the assignment/effect
+- **integrate** - a candidate that clears the gate is promoted per the assignment/effect
   lifecycle in [rule-governance.md](rule-governance.md) (new-rule/revision lands as an audit
   effect first; a retirement lands as a tombstone). The catalog is only ever mutated by a
   merged catalog-as-code PR, never by the loop directly.
 
 ### Candidate Requirements (MUST)
 
-- Every candidate MUST cite **grounded provenance** — an upstream document URL + resolved
+- Every candidate MUST cite **grounded provenance** - an upstream document URL + resolved
   revision/hash, or a specific incident/HIL/override event id, or a specific
   vulnerability/advisory id. "The model thought of it" is not provenance.
 - Every candidate MUST target the CSP-neutral `resource_type` vocabulary, never a vendor path.
 - Reference-only source text MUST NOT be pasted into the candidate; only authored `check_logic`
   plus a citation, per the [Licensing](#licensing-read-before-adding-a-source) rules.
-- A candidate that fails any gate step becomes an **abstain** — logged with the reason so the
+- A candidate that fails any gate step becomes an **abstain** - logged with the reason so the
   next cycle can revisit it, but never partially applied.
 
 ### Override Feedback
@@ -569,7 +569,7 @@ Overrides are a first-class input to the loop, not a dead-end. When a rule accum
 long-lived or recurring overrides across scopes, the observe stage flags it and the
 hypothesize stage proposes a **revision** (narrow the rule so the override becomes unnecessary)
 or a **retirement** (the rule is systematically a poor fit). Either way the proposal still
-passes the full quality gate. Overrides never mutate the catalog directly — they only supply
+passes the full quality gate. Overrides never mutate the catalog directly - they only supply
 signal.
 
 ### Safety and Trust

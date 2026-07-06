@@ -153,7 +153,7 @@
         "redistribution": {
           "type": "string",
           "enum": ["embeddable", "reference-only"],
-          "description": "Redistribution posture — `embeddable` allows verbatim source text in this repo; `reference-only` allows only authored logic plus a citation."
+          "description": "Redistribution posture - `embeddable` allows verbatim source text in this repo; `reference-only` allows only authored logic plus a citation."
         },
         "retrieved_at": {
           "type": "string",

@@ -98,7 +98,7 @@ def test_tag_owner_template_uses_action_params_over_rule_defaults() -> None:
 
 
 def test_missing_placeholder_raises_render_error() -> None:
-    """`vmss_right_size.tftpl` requires `target_capacity` — omit it."""
+    """`vmss_right_size.tftpl` requires `target_capacity` - omit it."""
     r = _rule(
         rule_id="compute.vm-scale-set.over-provisioned",
         resource_type="compute.vm-scale-set",

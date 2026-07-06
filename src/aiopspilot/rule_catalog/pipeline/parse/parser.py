@@ -13,7 +13,7 @@ Design rules:
 
 - **Parsers are pure functions over the snapshot tree**; they MUST NOT
   reach out to the network or touch state outside the given tree.
-- **Parsers only surface structural failures** — unreadable file, wrong
+- **Parsers only surface structural failures** - unreadable file, wrong
   YAML/JSON shape, top-level mismatch. Semantic errors (unknown
   ActionType, missing Rego file) are the loader's authority.
 - **Parsers are deterministic**: two invocations against the same
@@ -48,7 +48,7 @@ class ParserName(StrEnum):
 
 
 class ParseError(RuntimeError):
-    """Structural parse failure — bad YAML, wrong top-level shape, etc."""
+    """Structural parse failure - bad YAML, wrong top-level shape, etc."""
 
 
 class ParserNotImplementedError(NotImplementedError):
@@ -91,7 +91,7 @@ class Parser(Protocol):
 
     @property
     def name(self) -> ParserName:
-        """Parser id — matches the ``parser`` field on the source manifest."""
+        """Parser id - matches the ``parser`` field on the source manifest."""
         ...
 
     def parse(self, snapshot_tree_root: Path) -> ParseReport:

@@ -1,4 +1,4 @@
-"""Resolver tests — JWT payload decoding, group lookup, break-glass isolation."""
+"""Resolver tests - JWT payload decoding, group lookup, break-glass isolation."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def _b64url(payload: bytes) -> str:
 def _forge_token(claims: dict[str, Any]) -> str:
     """Return a JWS-compact-form token with the given (unsigned) claims.
 
-    Header + signature segments are placeholders — this fixture is for
+    Header + signature segments are placeholders - this fixture is for
     :func:`decode_jwt_payload` which never verifies the signature.
     """
     header = _b64url(b'{"alg":"RS256","typ":"JWT"}')
@@ -83,7 +83,7 @@ class TestDecodeJwtPayload:
             decode_jwt_payload("a.b.c.d")
 
     def test_rejects_non_base64_payload(self) -> None:
-        # A payload that is neither valid base64 nor valid UTF-8/JSON — the
+        # A payload that is neither valid base64 nor valid UTF-8/JSON - the
         # decoder rejects it either way. We assert the wrapping error type,
         # not the specific stage message, so a Python b64 permissiveness
         # change doesn't flap the test.
@@ -248,7 +248,7 @@ class TestResolveFromClaims:
 
     def test_unknown_role_string_dropped_silently(self) -> None:
         # An Entra admin who ships a new App Role value cannot bypass
-        # the code — unknown role strings are ignored.
+        # the code - unknown role strings are ignored.
         resolver = RoleResolver(group_mapping=_mapping())
         p = resolver.resolve_from_claims({"oid": "user-1", "roles": ["SuperAdmin", "Reader"]})
         assert p.roles == frozenset({Role.READER})
@@ -388,7 +388,7 @@ class TestBreakGlassActivation:
             )
 
     def test_default_now_uses_wall_clock(self) -> None:
-        # `now` is optional — omit it to exercise the default branch.
+        # `now` is optional - omit it to exercise the default branch.
         resolver = RoleResolver(group_mapping=_mapping())
         # A far-future expiry keeps this stable even if the test host clock
         # is skewed by minutes.
@@ -414,7 +414,7 @@ class TestBreakGlassActivationDataClass:
         )
         assert activation.is_active_at(start)
         assert activation.is_active_at(start + timedelta(minutes=30))
-        # Exclusive upper bound — activation is not active AT expires_at.
+        # Exclusive upper bound - activation is not active AT expires_at.
         assert not activation.is_active_at(end)
         assert not activation.is_active_at(start - timedelta(seconds=1))
 
@@ -429,7 +429,7 @@ class TestPrincipalHelpers:
 class TestClaimStringifyEdgeCases:
     """Cover the variant claim shapes Entra tokens ship with.
 
-    Realized through :meth:`RoleResolver.resolve_from_claims` — no need to
+    Realized through :meth:`RoleResolver.resolve_from_claims` - no need to
     reach into the private ``_stringify_iter`` helper.
     """
 
@@ -441,7 +441,7 @@ class TestClaimStringifyEdgeCases:
         assert p.roles == frozenset({Role.READER, Role.APPROVER})
 
     def test_non_iterable_role_claim_becomes_empty(self) -> None:
-        # A malformed token that ships `roles: 42` should not crash — the
+        # A malformed token that ships `roles: 42` should not crash - the
         # helper skips non-iterable values. Fallback to `groups` still runs.
         resolver = RoleResolver(group_mapping=_mapping())
         p = resolver.resolve_from_claims({"oid": "u", "roles": 42, "groups": ["reader-group"]})

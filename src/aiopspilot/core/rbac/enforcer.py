@@ -1,19 +1,19 @@
 """Route/handler-level RBAC gate + separation-of-duties check.
 
-Framework-neutral by design — no FastAPI/Starlette import. The three public
+Framework-neutral by design - no FastAPI/Starlette import. The three public
 surfaces are:
 
-- :class:`RoleEnforcer` — the pure decision object: given a
+- :class:`RoleEnforcer` - the pure decision object: given a
   :class:`~aiopspilot.core.rbac.resolver.Principal` and a required role or
   capability, either return ``None`` or raise an
   :class:`AuthorizationError` subclass. The read-API layer wraps this in
   its own FastAPI dependency (see
   :mod:`aiopspilot.delivery.read_api.auth`).
-- :func:`require_roles` / :func:`require_capability` — factory helpers
+- :func:`require_roles` / :func:`require_capability` - factory helpers
   that return a *callable dependency* of shape ``(principal) -> principal``.
   The shape is FastAPI-compatible via ``Depends(...)`` but does not require
   FastAPI to be importable at core-layer parse time.
-- :meth:`RoleEnforcer.no_self_approval` — the audited author-vs-approver
+- :meth:`RoleEnforcer.no_self_approval` - the audited author-vs-approver
   separation check pulled from
   [`user-rbac-and-identity.md § 5.2 Author-is-not-approver`]
   (../../../../docs/roadmap/user-rbac-and-identity.md#52-ci-checks-upstream-provided-fork-configured)
@@ -38,7 +38,7 @@ class AuthorizationError(Exception):
     """Base class for RBAC-layer authorization failures.
 
     Callers (or a FastAPI exception handler) translate this into an HTTP
-    ``403`` response. Never surfaces token contents in ``str(exc)`` — the
+    ``403`` response. Never surfaces token contents in ``str(exc)`` - the
     message is safe to log per :ref:`coding-conventions § Logging`.
     """
 
@@ -70,7 +70,7 @@ class BreakGlassExpiredError(AuthorizationError):
 class RoleEnforcer:
     """Immutable authorizer.
 
-    Instances are cheap — the read-API layer builds one per process and
+    Instances are cheap - the read-API layer builds one per process and
     reuses it for every request. No state is mutated per call, so
     concurrent access is safe.
     """
@@ -85,7 +85,7 @@ class RoleEnforcer:
     def authorize(self, principal: Principal, required_roles: Iterable[Role]) -> None:
         """Raise :class:`RoleRequiredError` unless the principal carries any required role.
 
-        An empty ``required_roles`` iterable is a programmer error — this
+        An empty ``required_roles`` iterable is a programmer error - this
         method raises :class:`ValueError` for it rather than silently
         allowing all callers.
         """
@@ -114,18 +114,18 @@ class RoleEnforcer:
     def no_self_approval(self, approver: Principal, *, submitter_oid: str) -> None:
         """Raise :class:`SelfApprovalError` when the approver authored the change.
 
-        Comparison uses Entra ``oid`` — never ``upn`` or ``email`` — because
+        Comparison uses Entra ``oid`` - never ``upn`` or ``email`` - because
         UPNs can be renamed and emails aliased. Auditors follow the same
         rule (see [`user-rbac-and-identity.md § 10.2`]
         (../../../../docs/roadmap/user-rbac-and-identity.md#102-api-token-validation)).
 
-        A ``submitter_oid`` that is empty or None is a programmer bug — the
+        A ``submitter_oid`` that is empty or None is a programmer bug - the
         caller MUST record submitter identity on the pending item before
         it enters an approval queue.
         """
         if not submitter_oid:
             raise ValueError(
-                "no_self_approval() requires a non-empty submitter_oid — "
+                "no_self_approval() requires a non-empty submitter_oid - "
                 "the pending item must record its author's Entra oid"
             )
         if approver.oid == submitter_oid:
@@ -137,7 +137,7 @@ class RoleEnforcer:
         """Drop :attr:`Role.BREAK_GLASS` when its timebox has elapsed.
 
         If the principal carries the role but no activation stamp, treat it
-        as expired — the resolver only attaches the role via
+        as expired - the resolver only attaches the role via
         :meth:`~aiopspilot.core.rbac.resolver.RoleResolver.activate_break_glass`,
         which always stamps the activation, so an unstamped principal is a
         bug we fail closed on.
@@ -174,7 +174,7 @@ def require_roles(
     The returned callable takes an already-resolved
     :class:`Principal` and returns it unchanged when authorized, so the
     surrounding framework's DI can inject the resolved principal into the
-    handler. Raises :class:`RoleRequiredError` on failure — the read-API
+    handler. Raises :class:`RoleRequiredError` on failure - the read-API
     layer maps that to HTTP 403.
     """
     if not roles:

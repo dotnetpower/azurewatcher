@@ -12,7 +12,7 @@ and interprets the JSON result under the deterministic conventions in
   carried into :attr:`PolicyResult.context` for the audit log.
 
 The evaluator is a pure adapter: it does NOT persist audit records, does NOT
-mutate resources, and does NOT catch semantic errors — a failing subprocess
+mutate resources, and does NOT catch semantic errors - a failing subprocess
 raises :class:`OpaEvaluatorError`, and the T0 engine's own fail-close path
 converts that to an abstain for the specific rule (see
 :class:`aiopspilot.core.tiers.t0_deterministic.T0Engine`).
@@ -57,7 +57,7 @@ class OpaRegoEvaluator:
     """Subprocess-backed :class:`PolicyEvaluator` for the T0 engine.
 
     Bound at the composition root once ``opa`` is installed; the T0 engine
-    itself never imports this module directly — it only knows the
+    itself never imports this module directly - it only knows the
     Protocol.
     """
 
@@ -96,7 +96,7 @@ class OpaRegoEvaluator:
         the same way as :class:`AbstainEvaluator`.
 
         Raises :class:`OpaEvaluatorError` when OPA is invoked but its
-        output is unusable — a corrupt policy file, a timeout, or a
+        output is unusable - a corrupt policy file, a timeout, or a
         subprocess failure. The T0 engine converts that into a fail-close
         abstain for the offending rule; other rules keep evaluating.
         """
@@ -128,7 +128,7 @@ class OpaRegoEvaluator:
         }
 
         try:
-            proc = subprocess.run(  # noqa: S603 — opa binary is resolved via shutil.which
+            proc = subprocess.run(  # noqa: S603 - opa binary is resolved via shutil.which
                 [
                     self._opa,
                     "eval",
@@ -180,7 +180,7 @@ def _interpret_result(parsed: dict[str, Any]) -> PolicyResult | None:
     """Translate the raw ``opa eval`` JSON into a :class:`PolicyResult`.
 
     Undefined query results (empty ``result`` list, empty ``expressions``,
-    or a non-object value) map to :class:`None` — the engine treats that
+    or a non-object value) map to :class:`None` - the engine treats that
     as an abstain, distinguishing "policy did not decide" from
     "policy allowed".
     """

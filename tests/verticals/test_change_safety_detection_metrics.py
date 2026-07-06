@@ -4,7 +4,7 @@ Phase-1 exit criterion (see
 [phase-1-rule-catalog-t0.md](../../docs/roadmap/phases/phase-1-rule-catalog-t0.md)):
 
 > Out-of-band detection reports **precision and recall against a labeled
-> fixture set**, with the false-positive suppression rate recorded —
+> fixture set**, with the false-positive suppression rate recorded -
 > establishing the detection baseline Phase 2 must not regress.
 
 This module realizes the harness. It loads the labeled fixtures under
@@ -165,7 +165,7 @@ def _build_detector() -> ChangeSafetyDetector:
 
 
 # ---------------------------------------------------------------------------
-# Metric helpers (kept in-test — customer-agnostic, no product usage)
+# Metric helpers (kept in-test - customer-agnostic, no product usage)
 # ---------------------------------------------------------------------------
 
 
@@ -219,7 +219,7 @@ def _one_vs_rest(
 
 @pytest.mark.asyncio
 async def test_out_of_band_detection_metrics_baseline() -> None:
-    """P1 detection baseline — precision = recall = 1.0 on the labeled set.
+    """P1 detection baseline - precision = recall = 1.0 on the labeled set.
 
     Any drift here (either a fixture becoming ambiguous or a detector
     change) breaks the baseline. Phase 2 rule / tier work MUST NOT
@@ -252,7 +252,7 @@ async def test_out_of_band_detection_metrics_baseline() -> None:
         )
     }
 
-    # Report — printed on assertion failure only, keeps the test terse
+    # Report - printed on assertion failure only, keeps the test terse
     # when green.
     def _rendered() -> str:
         lines = ["\nper-fixture predictions:"]
@@ -279,7 +279,7 @@ async def test_out_of_band_detection_metrics_baseline() -> None:
         f"(missed OOB = {oob_cell.false_negative})" + _rendered()
     )
 
-    # False-positive suppression rate — share of true-non-OOB events
+    # False-positive suppression rate - share of true-non-OOB events
     # that ended up suppressed or authorized (i.e. NOT flagged OOB).
     non_oob_total = sum(1 for label in labels if label is not ChangeAttribution.OUT_OF_BAND)
     non_oob_correctly_non_oob = sum(
@@ -317,6 +317,6 @@ def test_fixture_class_balance() -> None:
         counts[fixture.label] += 1
     for attribution, count in counts.items():
         assert count >= 4, (
-            f"labeled class {attribution.value} has only {count} fixtures — "
+            f"labeled class {attribution.value} has only {count} fixtures - "
             "need at least 4 for a meaningful baseline"
         )

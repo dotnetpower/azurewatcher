@@ -3,7 +3,7 @@
 Loads a synthetic audit-log trace and asserts that every declared
 dashboard metric is derivable from the fixture. Removing a required
 field from the fixture MUST break the specific metric assertion it
-supports — that is the acceptance criterion for W1.8.
+supports - that is the acceptance criterion for W1.8.
 """
 
 from __future__ import annotations

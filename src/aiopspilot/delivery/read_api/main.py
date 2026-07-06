@@ -1,4 +1,4 @@
-"""Read-only console API — three GET routes, no POST surface.
+"""Read-only console API - three GET routes, no POST surface.
 
 This module is the **only** place Starlette is imported in the codebase.
 The rest of the delivery layer stays framework-agnostic; the app factory
@@ -15,10 +15,10 @@ Contract (`app-shape.instructions.md § Operator console`):
 - **Never** shares an identity with the executor. The API validates the
   caller's Entra token; it does not (and can not) call executor MI.
 - Authenticated **anonymous fallback** is available only when
-  ``AIOPSPILOT_READ_API_DEV_MODE=1`` at process start — used by the
+  ``AIOPSPILOT_READ_API_DEV_MODE=1`` at process start - used by the
   local dev harness (``dev-and-deploy-parity.md``) and by pytest.
 
-Every handler is a plain ``async def`` — the framework-agnostic
+Every handler is a plain ``async def`` - the framework-agnostic
 :class:`~aiopspilot.core.rbac.enforcer.RoleEnforcer` sits behind
 :class:`Authenticator.require_roles`, so tests can drive the same
 handlers without Starlette's request objects.
@@ -65,7 +65,7 @@ class ReadApiConfig:
 
     ``dev_mode`` short-circuits authentication for local development and
     tests. It MUST default to ``False`` and MUST NOT be true in a
-    production composition root — the fork's IaC pipeline enforces that
+    production composition root - the fork's IaC pipeline enforces that
     by never setting ``AIOPSPILOT_READ_API_DEV_MODE`` on deployed
     revisions.
     """
@@ -88,7 +88,7 @@ def build_app(
     """Assemble the ASGI app.
 
     The returned app carries three GET routes plus a ``/healthz`` liveness
-    probe. Nothing else — the read-only invariant is enforced by *not
+    probe. Nothing else - the read-only invariant is enforced by *not
     registering* any mutating route.
     """
     resolved_config = config or ReadApiConfig()
@@ -172,7 +172,7 @@ def build_app(
     middleware: list[Middleware] = []
     if resolved_config.cors_allow_origins:
         # Console SPA cross-origin fetches. `allow_methods=["GET"]` keeps
-        # the pre-flight surface aligned with the read-only invariant —
+        # the pre-flight surface aligned with the read-only invariant -
         # a POST/PUT/DELETE pre-flight will be denied at the middleware.
         middleware.append(
             Middleware(
@@ -204,7 +204,7 @@ def build_app(
 class _BadQueryError(ValueError):
     """Raised inside ``get_*`` when a query string is malformed.
 
-    Caught locally and turned into a ``400`` response — the caller
+    Caught locally and turned into a ``400`` response - the caller
     should not see a stack trace for a typo in ``?limit=``.
     """
 

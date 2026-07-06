@@ -31,7 +31,7 @@ from typing import Final
 class Role(StrEnum):
     """The five human-user roles governed by this module.
 
-    Values are stable string tokens (App Role claim values) — see
+    Values are stable string tokens (App Role claim values) - see
     [`user-rbac-and-identity.md § 4.4 App Roles`]
     (../../../../docs/roadmap/user-rbac-and-identity.md#44-app-roles-token-surface).
     Do NOT rename without a coordinated Entra ID app-registration update.
@@ -47,7 +47,7 @@ class Role(StrEnum):
 class Capability(StrEnum):
     """Individual actions the read API may gate.
 
-    One capability per matrix row. Kept coarse-grained on purpose —
+    One capability per matrix row. Kept coarse-grained on purpose -
     differentiation for high-risk paths comes from
     :func:`aiopspilot.core.rbac.enforcer.RoleEnforcer.no_self_approval`
     and PR-side CI checks, not from adding more capabilities.
@@ -69,7 +69,7 @@ class Capability(StrEnum):
 # The capability bag for each role. The doc's matrix uses ✓/blank; the
 # code encodes the same rows as frozensets so a lookup is O(1). Any
 # change here MUST update
-# `docs/roadmap/user-rbac-and-identity.md § 3` in the same PR — the
+# `docs/roadmap/user-rbac-and-identity.md § 3` in the same PR - the
 # doc row and the frozenset entry are the single source of truth
 # together (see coding-conventions.instructions.md § Documentation).
 _READER_CAPS: Final = frozenset({Capability.VIEW_CONSOLE})
@@ -119,7 +119,7 @@ ROLE_CAPABILITIES: Final[Mapping[Role, frozenset[Capability]]] = MappingProxyTyp
 """Read-only mapping of :class:`Role` → the capability bag it carries.
 
 Wrapped in :class:`types.MappingProxyType` so a caller cannot mutate the
-matrix at runtime — the only way to change a role's bag is a code edit
+matrix at runtime - the only way to change a role's bag is a code edit
 that goes through review.
 """
 
@@ -127,7 +127,7 @@ that goes through review.
 def capabilities_for(roles: Iterable[Role]) -> frozenset[Capability]:
     """Return the union of capabilities held by the given roles.
 
-    An empty iterable returns an empty frozenset — an unassigned user
+    An empty iterable returns an empty frozenset - an unassigned user
     holds no capabilities. Callers MUST NOT infer "at least
     :attr:`Capability.VIEW_CONSOLE`" from a valid Entra sign-in; the
     read API's first-sign-in-denied audit path

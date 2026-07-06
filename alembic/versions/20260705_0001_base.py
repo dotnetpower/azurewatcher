@@ -8,7 +8,7 @@ Establishes the persistent-state schema referenced by
 ``docs/roadmap/project-structure.md`` and the audit hash-chain contract in
 ``docs/roadmap/security-and-identity.md``.
 
-Raw SQL only — no ORM metadata is imported so the schema evolves
+Raw SQL only - no ORM metadata is imported so the schema evolves
 independently of any Python model (the fake ``InMemoryStateStore`` mirrors
 these tables in-memory for tests).
 """

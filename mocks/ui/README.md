@@ -1,13 +1,13 @@
-# Calm Slate — AIOpsPilot UI Kit
+# Calm Slate - AIOpsPilot UI Kit
 
 A static, dependency-free component library and page templates for the AIOpsPilot
 **read-only operator console** and generated reports. The theme is toned-down and
 report-oriented: a desaturated palette, hairline borders, soft shadows, numbered section
-badges — calm and professional, with no primary/neon colors and no top/bottom color bands.
+badges - calm and professional, with no primary/neon colors and no top/bottom color bands.
 
 > This is a static demo (plain HTML/CSS/JS). It is English-only and customer-agnostic; all
 > values shown are synthetic placeholders. It follows the app-shape rule that the console is
-> **read-only** — the pages render state but execute no actions. See
+> **read-only** - the pages render state but execute no actions. See
 > [../.github/instructions/app-shape.instructions.md](../.github/instructions/app-shape.instructions.md).
 
 ## Pages
@@ -21,11 +21,11 @@ badges — calm and professional, with no primary/neon colors and no top/bottom 
 
 ## Assets
 
-- [assets/calm-slate.css](assets/calm-slate.css) — the whole theme: CSS variables (palette),
+- [assets/calm-slate.css](assets/calm-slate.css) - the whole theme: CSS variables (palette),
   layout container (max-width 1160px), section number badges, cards, KPI grid, AS-IS/TO-BE
   comparison, critique table, pill tags, severity badges, trust-tier chips, buttons, forms,
   alerts, tabs, and meters. All classes are prefixed `cs-`.
-- [assets/calm-slate.js](assets/calm-slate.js) — minimal tab switching only; no privileged calls.
+- [assets/calm-slate.js](assets/calm-slate.js) - minimal tab switching only; no privileged calls.
 
 ## Usage
 
@@ -63,6 +63,6 @@ Font stack: `"Segoe UI", "Malgun Gothic", sans-serif`.
 ## Conventions
 
 - English-only content and identifiers; no customer names, ids, endpoints, or secrets.
-- Muted accents carry meaning (severity, trust tier, trend) — never decoration for its own sake.
+- Muted accents carry meaning (severity, trust tier, trend) - never decoration for its own sake.
 - The console demo shows buttons/forms as style samples only; the production console issues no
   privileged calls (approvals flow through ChatOps or a remediation PR).

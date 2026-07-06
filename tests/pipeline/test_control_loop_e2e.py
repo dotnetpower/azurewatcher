@@ -1,4 +1,4 @@
-"""ControlLoop e2e — event_ingest → trust_router → T0 → executor → audit.
+"""ControlLoop e2e - event_ingest → trust_router → T0 → executor → audit.
 
 End-to-end pipeline test against the **shipped** catalog artifacts:
 
@@ -8,17 +8,17 @@ End-to-end pipeline test against the **shipped** catalog artifacts:
 - Real ActionType YAMLs under [`rule-catalog/action-types/`](../../../rule-catalog/action-types/)
 
 OPA is required for the deny-path assertions (the tests are skipped
-gracefully when the `opa` binary is missing — same convention as
+gracefully when the `opa` binary is missing - same convention as
 `tests/core/tiers/t0_deterministic/test_opa_evaluator.py`).
 
 The pipeline sub-tests assert the property invariants documented in
 [phase-1-rule-catalog-t0.md § Autonomy Level]:
 
-- **Shadow-mode never mutates** — every executed action produces a
+- **Shadow-mode never mutates** - every executed action produces a
   ``Mode.SHADOW`` receipt and a shadow-labeled draft PR intent.
 - **Every terminal path writes exactly one audit entry** (routing
   abstain, T0 abstain, execute, dedupe).
-- **Idempotency across replays** — a second delivery of the same event
+- **Idempotency across replays** - a second delivery of the same event
   hits the executor's dedupe cache.
 """
 
@@ -369,7 +369,7 @@ async def test_every_terminal_path_writes_audit(
             idempotency_key="e-b",
             resource_type="object-storage",
             resource_id="rid-b",
-            # Fully compliant snapshot — every shipped object-storage rule
+            # Fully compliant snapshot - every shipped object-storage rule
             # MUST see its expected property; if a new rule adds a property,
             # its compliant value goes here so this path stays a T0 abstain.
             props={
@@ -416,7 +416,7 @@ async def test_every_terminal_path_writes_audit(
 
 
 def test_control_loop_result_is_immutable() -> None:
-    """Frozen dataclass — callers cannot mutate a returned result."""
+    """Frozen dataclass - callers cannot mutate a returned result."""
     result = ControlLoopResult(
         outcome=ControlLoopOutcome.ABSTAINED_ROUTING,
         tier="abstain",
@@ -515,7 +515,7 @@ async def test_action_build_failure_falls_closed_and_audits(
 ) -> None:
     """If ``ActionBuilder`` cannot resolve a finding's ActionType, the
     ControlLoop MUST audit the failure and return
-    :attr:`ABSTAINED_ACTION_BUILD` — no PR opened for that finding."""
+    :attr:`ABSTAINED_ACTION_BUILD` - no PR opened for that finding."""
     from aiopspilot.core.executor.action_builder import ActionBuilder
 
     rules, action_types = shipped_catalog
@@ -548,7 +548,7 @@ async def test_action_build_failure_falls_closed_and_audits(
             idempotency_key="e-noaction",
             resource_type="object-storage",
             resource_id="stg-noaction",
-            # Fully compliant EXCEPT public_access — only the deny rule fires,
+            # Fully compliant EXCEPT public_access - only the deny rule fires,
             # and its ActionType has been stripped so the builder MUST abstain.
             props={
                 "public_access": "enabled",

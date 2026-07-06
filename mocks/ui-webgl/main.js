@@ -1,4 +1,4 @@
-// AIOpsPilot — full-WebGL card UI. Cards fade in cleanly (no particles).
+// AIOpsPilot - full-WebGL card UI. Cards fade in cleanly (no particles).
 // Text is rendered with SDF glyphs (troika-three-text) so it stays crisp at any scale;
 // card backgrounds/shadows use a canvas texture. English-only, customer-agnostic, synthetic.
 
@@ -64,7 +64,7 @@ function crisp(tex) {
 }
 
 // ---------------------------------------------------------------------------
-// Card background texture (shape only — shadow, rounded rect, border, accent bar)
+// Card background texture (shape only - shadow, rounded rect, border, accent bar)
 // ---------------------------------------------------------------------------
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -203,7 +203,7 @@ const loadingEl = document.getElementById("loading");
 setTimeout(() => loadingEl.classList.add("hidden"), 300);
 
 // ---------------------------------------------------------------------------
-// Loop — set opacity on every material in each card group (bg + SDF text)
+// Loop - set opacity on every material in each card group (bg + SDF text)
 // ---------------------------------------------------------------------------
 const clock = new THREE.Clock();
 let startTime = 0;

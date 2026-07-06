@@ -1,6 +1,6 @@
 """Every shipped JSON Schema must itself be a valid draft-2020-12 document.
 
-A malformed schema is a startup bug — this test catches it before the
+A malformed schema is a startup bug - this test catches it before the
 validator ever runs against a real event.
 """
 
@@ -36,7 +36,7 @@ def test_registry_exposes_every_shipped_schema() -> None:
 
 
 def test_every_shipped_schema_declares_semver_id() -> None:
-    """Every schema must carry a semver `$id` — required by our versioning rules."""
+    """Every schema must carry a semver `$id` - required by our versioning rules."""
     registry = PackageResourceSchemaRegistry()
     for name in SCHEMA_NAMES:
         schema = registry.get(name)

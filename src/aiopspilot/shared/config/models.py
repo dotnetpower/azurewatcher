@@ -6,10 +6,10 @@ models are the typed programmatic view used inside the process.
 
 Design rules (see ``coding-conventions.instructions.md``):
 
-- Frozen, ``extra='forbid'`` — no runtime mutation, no drift from schema.
+- Frozen, ``extra='forbid'`` - no runtime mutation, no drift from schema.
 - Fields default only where the schema does; a required field with no default
   MUST make ``AppConfig.model_validate`` fail-closed.
-- No secret material lives here — only *references* (``keyvault_url`` etc.
+- No secret material lives here - only *references* (``keyvault_url`` etc.
   land in a later phase). Secrets are read through the ``SecretProvider``
   seam, never through :class:`AppConfig`.
 """
@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aiopspilot.shared.contracts.models import Mode, SemVer
 
-# Keep the module import surface minimal — ``Mode`` (autonomy mode) is reused
+# Keep the module import surface minimal - ``Mode`` (autonomy mode) is reused
 # so an ``autonomy_mode_default`` sits in the same vocabulary as
 # ``Event.mode`` / ``Action.mode`` and cannot drift out of sync.
 
@@ -67,7 +67,7 @@ class RuleCatalogConfig(_ConfigBase):
     ref: Annotated[str, Field(min_length=1)] = "main"
 
 
-class RuntimeEnv:  # noqa: D401 — tiny wrapper so pydantic keeps a real enum
+class RuntimeEnv:  # noqa: D401 - tiny wrapper so pydantic keeps a real enum
     """Container for the runtime env values so users import a single symbol."""
 
     DEV = "dev"
@@ -116,7 +116,7 @@ class LlmConfig(_ConfigBase):
     def model_post_init(self, __context: object) -> None:
         if self.mode == LlmMode.AZURE and not self.resolved_models_path:
             raise ValueError(
-                "llm.mode='azure' requires llm.resolved_models_path — cannot "
+                "llm.mode='azure' requires llm.resolved_models_path - cannot "
                 "load Azure adapters without the resolver output"
             )
         if len(set(self.capabilities)) != len(self.capabilities):

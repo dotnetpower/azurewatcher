@@ -1,6 +1,6 @@
 ---
 /*
- * StaleTranslationBanner.astro — override of Starlight's Banner slot.
+ * StaleTranslationBanner.astro - override of Starlight's Banner slot.
  *
  * When a Korean translation's `translation_source_sha` no longer
  * matches the current git hash of its English sibling, the mount step
@@ -8,7 +8,7 @@
  * This component reads that list and, when the current page appears in
  * it, renders a prominent banner pointing readers at the up-to-date
  * English source on GitHub. Non-stale pages (and every English page)
- * fall through to Starlight's default Banner behaviour — i.e. respect
+ * fall through to Starlight's default Banner behaviour - i.e. respect
  * the `banner` front-matter field if the doc author set one.
  *
  * Banner text is Korean because stale entries are always Korean pages;

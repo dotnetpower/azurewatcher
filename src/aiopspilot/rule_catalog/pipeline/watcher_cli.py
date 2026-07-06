@@ -15,8 +15,8 @@ CLI for each due source. Produces a JSON summary on stdout.
 
 Exits:
 
-- ``0`` — every due source collected cleanly (or nothing was due).
-- ``2`` — at least one manifest failed to load, one cadence was
+- ``0`` - every due source collected cleanly (or nothing was due).
+- ``2`` - at least one manifest failed to load, one cadence was
   unrecognized, or one collector invocation returned non-zero.
 
 Cron schedule
@@ -26,7 +26,7 @@ The Container Apps Job spec in
 ``infra/modules/compute/container-apps/rule_watcher_job.tf`` runs this
 CLI once a day at ``0 3 * * *`` UTC. The watcher filters by cadence, so
 the same daily job also picks up weekly / monthly sources on their due
-day — no per-cadence job proliferation.
+day - no per-cadence job proliferation.
 
 The CLI never auto-promotes. Snapshots + verify reports land on disk
 and become inputs to the reviewed catalog-as-code PR that governs the
@@ -216,7 +216,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     return exit_code
 
 
-if __name__ == "__main__":  # pragma: no cover — process entrypoint
+if __name__ == "__main__":  # pragma: no cover - process entrypoint
     raise SystemExit(main())
 
 

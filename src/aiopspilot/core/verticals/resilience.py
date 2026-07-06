@@ -1,4 +1,4 @@
-"""DR / Chaos scheduler — window-based test failover + measured RPO/RTO.
+"""DR / Chaos scheduler - window-based test failover + measured RPO/RTO.
 
 Phase 3 § DR / Chaos (see
 [`docs/roadmap/phases/phase-3-integrated-loop.md § DR / Chaos`]).
@@ -16,7 +16,7 @@ requires **all** of:
 - the count of concurrent in-flight experiments stays under
   :attr:`DrSchedulerConfig.max_concurrent_experiments`.
 
-The scheduler is a **pure function of its explicit inputs** — no state
+The scheduler is a **pure function of its explicit inputs** - no state
 mutation, no audit write, and no I/O. ``at`` MAY be omitted, in which
 case the scheduler reads :func:`datetime.now(tz=UTC)` as a convenience
 default so callers can fire-and-forget in production; every test in
@@ -46,7 +46,7 @@ from typing import TYPE_CHECKING, Final
 from aiopspilot.shared.providers.dr_experiment import DrRunHandle, DrRunStatus
 
 if TYPE_CHECKING:
-    # ``DrExperimentRunner`` is only referenced in type annotations —
+    # ``DrExperimentRunner`` is only referenced in type annotations -
     # importing it at runtime would create no cycle, but keeping it
     # under ``TYPE_CHECKING`` documents that this module holds no
     # runtime dependency on the Protocol class itself.
@@ -57,7 +57,7 @@ class SchedulerOutcome(StrEnum):
     """One decision from :meth:`DrScheduler.decide`."""
 
     ALLOWED = "allowed"
-    """Experiment MAY run now — window + freeze + tags + concurrency all clear."""
+    """Experiment MAY run now - window + freeze + tags + concurrency all clear."""
 
     OUTSIDE_WINDOW = "outside_window"
     """No approved maintenance window is active at the given time."""
@@ -108,7 +108,7 @@ class DrExperiment:
     ``has_rollback_path``, ``stop_conditions``, and ``kind`` are the
     per-experiment surface the four safety invariants read before the
     runner is invoked. Defaults are set so existing decision-only
-    callers keep working — but ``DrScheduler.run`` refuses to enforce
+    callers keep working - but ``DrScheduler.run`` refuses to enforce
     a run whose declaration does not satisfy every invariant.
     """
 
@@ -118,7 +118,7 @@ class DrExperiment:
     scheduled_at: datetime | None = None
     provider_ref: str | None = None
     """ARM resource id (or CSP-neutral equivalent) of the experiment
-    resource — Chaos Studio experiment or Site Recovery recovery plan.
+    resource - Chaos Studio experiment or Site Recovery recovery plan.
 
     Required for ``ExecutionMode.ENFORCE``; ``None`` for shadow-only
     scheduler decisions.
@@ -135,7 +135,7 @@ class DrExperiment:
     has_rollback_path: bool = False
     """Rollback invariant: the experiment declares a tested rollback.
 
-    A ``False`` value on ``ExecutionMode.ENFORCE`` short-circuits — a
+    A ``False`` value on ``ExecutionMode.ENFORCE`` short-circuits - a
     run without a rollback is by definition unsafe to auto-execute.
     """
 
@@ -151,7 +151,7 @@ class DrExperiment:
 class ExecutionMode(StrEnum):
     """Whether a scheduler run mutates the substrate or just logs the decision.
 
-    Shadow-mode runs judge-and-log only — the runner is NEVER invoked.
+    Shadow-mode runs judge-and-log only - the runner is NEVER invoked.
     Enforce-mode runs invoke the runner after all four safety
     invariants pass their preflight check.
     """
@@ -196,7 +196,7 @@ class RunOutcome(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class DrSchedulerConfig:
-    """Scheduler policy knobs — every value is auditable config."""
+    """Scheduler policy knobs - every value is auditable config."""
 
     max_concurrent_experiments: int = 1
     """Cap on in-flight runs. Blast-radius limit on the whole tenant."""
@@ -248,7 +248,7 @@ class DrScheduler:
 
     ``decide`` remains pure: it returns a :class:`SchedulerDecision`
     with no I/O and no runner call. ``run`` is the P3 orchestration
-    entry point — it evaluates the decision, enforces the four DR
+    entry point - it evaluates the decision, enforces the four DR
     safety invariants (stop-condition, blast-radius/concurrency,
     rollback, isolation), and only then invokes the injected
     :class:`~aiopspilot.shared.providers.dr_experiment.DrExperimentRunner`.
@@ -341,15 +341,15 @@ class DrScheduler:
 
         Order of operations (each step MUST hold before the next runs):
 
-        1. :meth:`decide` — window / freeze / opt-out / concurrency-cap.
-        2. **Isolation invariant** — refuse a production target.
-        3. **Rollback invariant** — refuse an experiment without a
+        1. :meth:`decide` - window / freeze / opt-out / concurrency-cap.
+        2. **Isolation invariant** - refuse a production target.
+        3. **Rollback invariant** - refuse an experiment without a
            declared rollback contract.
-        4. **Stop-condition invariant** — refuse an experiment without
+        4. **Stop-condition invariant** - refuse an experiment without
            at least one stop-condition.
-        5. **Shadow-vs-enforce mode** — shadow logs only; enforce
+        5. **Shadow-vs-enforce mode** - shadow logs only; enforce
            checks the runner is wired.
-        6. **Runner start → check → (optional) rollback** — invoke the
+        6. **Runner start → check → (optional) rollback** - invoke the
            runner and, on any non-``SUCCEEDED`` terminal state or any
            exception during ``check``, invoke rollback exactly once.
 
@@ -434,13 +434,13 @@ class DrScheduler:
         decision: SchedulerDecision,
         at: datetime,
     ) -> DrRunResult:
-        # Guarded by ``run`` — runner is not None at this point.
+        # Guarded by ``run`` - runner is not None at this point.
         runner = self._runner
-        assert runner is not None  # noqa: S101 — invariant check for mypy
+        assert runner is not None  # noqa: S101 - invariant check for mypy
 
         try:
             handle = await runner.start(experiment)
-        except Exception as exc:  # noqa: BLE001 — runner surface is untyped by Protocol
+        except Exception as exc:  # noqa: BLE001 - runner surface is untyped by Protocol
             return DrRunResult(
                 experiment_id=experiment.experiment_id,
                 outcome=RunOutcome.FAILED,
@@ -456,7 +456,7 @@ class DrScheduler:
         # not mask the original error.
         try:
             status = await runner.check(handle)
-        except Exception as exc:  # noqa: BLE001 — Protocol surface
+        except Exception as exc:  # noqa: BLE001 - Protocol surface
             rollback_error = await _safe_rollback(runner, handle)
             reasons: tuple[str, ...] = ("runner:check_failed",)
             if rollback_error is not None:
@@ -534,7 +534,7 @@ class DrObjectiveReport:
     """Aggregate over a window of :class:`DrRunReport`s vs a stated objective.
 
     Emits median + p90 per phase-3 § RPO/RTO reporting. When the run
-    count is zero, medians default to :data:`_MEDIAN_SENTINEL` — the
+    count is zero, medians default to :data:`_MEDIAN_SENTINEL` - the
     caller renders that as "no data" rather than silently averaging.
     """
 
@@ -565,7 +565,7 @@ def summarize_runs(*, runs: Iterable[DrRunReport], objective: DrObjective) -> Dr
     """Produce an :class:`DrObjectiveReport` from a run list.
 
     Empty run lists return sentinel medians so the caller can render
-    "no data" rather than a false zero — phase-3 § RPO/RTO reporting.
+    "no data" rather than a false zero - phase-3 § RPO/RTO reporting.
     """
     runs_list = list(runs)
     if not runs_list:
@@ -628,7 +628,7 @@ _ROLLBACK_STATUSES: Final[frozenset[DrRunStatus]] = frozenset(
 """Statuses that trigger a rollback invocation.
 
 ``RUNNING`` returning from :meth:`DrExperimentRunner.check` is not a
-rollback trigger — the caller is expected to poll again. The P3
+rollback trigger - the caller is expected to poll again. The P3
 scheduler treats the check as a one-shot query per :meth:`run` call.
 """
 
@@ -645,14 +645,14 @@ def _truncate_error(exc: BaseException) -> str:
     """
     text = str(exc).replace("\n", " ")
     if len(text) > _ERROR_MESSAGE_CAP:
-        return text[:_ERROR_MESSAGE_CAP] + "…"
+        return text[:_ERROR_MESSAGE_CAP] + "..."
     return text
 
 
 async def _safe_rollback(runner: DrExperimentRunner, handle: DrRunHandle) -> BaseException | None:
     """Invoke ``runner.rollback`` and swallow any exception.
 
-    Rollback is best-effort by contract — the Protocol requires
+    Rollback is best-effort by contract - the Protocol requires
     idempotency, but a substrate outage MAY still raise. We record the
     error on the run result so an operator can retry manually, but the
     original failure that triggered the rollback is preserved as the
@@ -660,7 +660,7 @@ async def _safe_rollback(runner: DrExperimentRunner, handle: DrRunHandle) -> Bas
     """
     try:
         await runner.rollback(handle)
-    except Exception as exc:  # noqa: BLE001 — Protocol surface is untyped
+    except Exception as exc:  # noqa: BLE001 - Protocol surface is untyped
         return exc
     return None
 

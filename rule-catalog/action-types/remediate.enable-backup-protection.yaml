@@ -31,4 +31,4 @@ description: >-
   protections on data-plane resources (blob soft-delete, blob
   versioning, PITR on PostgreSQL, geo-redundant backup on SQL,
   snapshot policy on disks). Turning protection off later is a
-  separate governance-gated ActionType — this one is forward-only.
+  separate governance-gated ActionType - this one is forward-only.

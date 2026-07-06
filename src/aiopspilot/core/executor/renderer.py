@@ -1,7 +1,7 @@
 """Remediation-template renderer.
 
 Given a rule + an executor input (action params), load the template file
-referenced by ``rule.remediation.template_ref`` and substitute ``${…}``
+referenced by ``rule.remediation.template_ref`` and substitute ``${...}``
 placeholders. The output is a pure string that the delivery adapter
 attaches to a shadow-mode PR.
 
@@ -14,7 +14,7 @@ Substitution semantics
   partial patch.
 - **No shell / Python evaluation**. Templates never run untrusted code.
 - **String values only**. A non-string value (a nested dict, a list) is
-  rejected — the renderer refuses to guess a JSON serialization that
+  rejected - the renderer refuses to guess a JSON serialization that
   might diverge from what the reviewer expects to see in the PR.
 - **Path safety**. The renderer refuses references outside its
   ``remediation_root`` (absolute paths and ``..`` traversal) even if
@@ -26,7 +26,7 @@ Rationale
 
 Terraform / IaC patches ship as data (see
 [`rule-catalog/remediation/`](../../../../rule-catalog/remediation/README.md));
-substitution keeps them declarative — the renderer's only job is safe
+substitution keeps them declarative - the renderer's only job is safe
 interpolation, so a future non-Terraform template dialect (Bicep, K8s
 YAML) plugs in via a different :attr:`RenderRequest.template_ref` root
 without touching this module.
@@ -60,7 +60,7 @@ class RenderRequest:
     """CSP-neutral resource id from the inventory graph."""
 
     params: dict[str, Any]
-    """``Action.params`` — placeholder values keyed by placeholder name.
+    """``Action.params`` - placeholder values keyed by placeholder name.
 
     Merged with the rule's ``parameters`` block (per-assignment defaults).
     Action params win on conflict; both maps MUST NOT contain secrets.

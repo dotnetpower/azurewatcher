@@ -1,4 +1,4 @@
-"""Config provider — the DI seam that decides *where runtime config comes from*.
+"""Config provider - the DI seam that decides *where runtime config comes from*.
 
 Core modules never read env vars, files, or config services directly; they
 receive an :class:`aiopspilot.shared.config.models.AppConfig` handed to them
@@ -33,7 +33,7 @@ from .models import AppConfig
 
 @runtime_checkable
 class ConfigProvider(Protocol):
-    """Return a fully-validated :class:`AppConfig` — or raise :class:`ConfigError`."""
+    """Return a fully-validated :class:`AppConfig` - or raise :class:`ConfigError`."""
 
     def get(self) -> AppConfig: ...
 
@@ -62,7 +62,7 @@ _ENV_VAR_MAP: tuple[tuple[str, tuple[str, ...], bool], ...] = (
 
 
 class EnvVarConfigProvider:
-    """Default :class:`ConfigProvider` — reads config from process env.
+    """Default :class:`ConfigProvider` - reads config from process env.
 
     Every problem is reported in one shot: missing required vars, invalid
     enum values, schema violations, and pydantic type errors are aggregated

@@ -70,7 +70,7 @@ export function AuditRoute({ client }: Props) {
     }
   };
 
-  if (state.status === "loading") return <div class="empty">Loading…</div>;
+  if (state.status === "loading") return <div class="empty">Loading...</div>;
   if (state.status === "error" && state.items.length === 0) {
     return (
       <div class="empty error">Failed to load audit log: {state.error}</div>

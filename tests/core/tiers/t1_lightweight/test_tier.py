@@ -1,4 +1,4 @@
-"""T1 tier — similarity reuse invariants."""
+"""T1 tier - similarity reuse invariants."""
 
 from __future__ import annotations
 
@@ -160,7 +160,7 @@ async def test_exact_match_reuses_learned_action() -> None:
     assert decision.outcome is T1Outcome.REUSED
     assert decision.best_match is not None
     assert decision.best_match.action.rule_id == "object-storage.public-access.deny"
-    # phase-2 § T1: "reuse is not auto-trust — must go through verifier
+    # phase-2 § T1: "reuse is not auto-trust - must go through verifier
     # and risk gate before it can execute". The tier signals this back
     # via `requires_reverification=True` so a caller can never bypass.
     assert decision.requires_reverification is True

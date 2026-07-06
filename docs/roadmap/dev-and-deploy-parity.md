@@ -1,7 +1,7 @@
 ---
-title: Dev/Deploy Parity — Local Fakes vs Azure-First Provisioning
+title: Dev/Deploy Parity - Local Fakes vs Azure-First Provisioning
 ---
-# Dev/Deploy Parity — Local Fakes vs Azure-First Provisioning
+# Dev/Deploy Parity - Local Fakes vs Azure-First Provisioning
 
 **Goal**: every AIOpsPilot capability MUST run **end-to-end on a developer laptop with zero
 Azure resources**, AND deploy cleanly to Azure where the **deployer's Azure permissions +
@@ -22,7 +22,7 @@ Both modes share **one code path**: only the composition-root bindings differ
 ([project-structure.md § Customization via Dependency Injection](project-structure.md#customization-via-dependency-injection)).
 Adding a real Azure client is a fork-side injection; it MUST NOT edit `core/`.
 
-## Audit — What Works Local, What Needs Azure
+## Audit - What Works Local, What Needs Azure
 
 Snapshot as of 2026-07-05. "Local" = passes on a fresh `git clone` after `bash scripts/dev-up.sh`
 and `uv run pytest` with **no Azure credentials**.
@@ -73,17 +73,17 @@ and `uv run pytest` with **no Azure credentials**.
 
 Every seam that touches an out-of-process dependency MUST provide:
 
-1. **A Protocol in `shared/providers/`** — the neutral wire contract. `core/` imports the
+1. **A Protocol in `shared/providers/`** - the neutral wire contract. `core/` imports the
    Protocol only. This already holds for `EventBus`, `StateStore`, `SecretProvider`,
    `WorkloadIdentity`, `Inventory`, and the LLM seams (`EmbeddingModel`,
    `CrossCheckModel`, `VerifierPolicy`, `GroundingSource`).
-2. **A local-fake implementation** — deterministic, in-process, secret-free. Selected
+2. **A local-fake implementation** - deterministic, in-process, secret-free. Selected
    automatically when `runtime.env == "dev"` OR when `llm.mode == "local-fake"` OR when the
    Azure-side artifact (e.g. `resolved-models.json`) is absent.
-3. **An Azure adapter** — under `delivery/azure/` (never `core/`). Selected when
+3. **An Azure adapter** - under `delivery/azure/` (never `core/`). Selected when
    `runtime.env in ("staging", "prod")` AND the Azure-side artifact exists AND the deployer's
    identity resolved a valid deployment for the capability.
-4. **Fail-fast in the mismatch case** — if `runtime.env == "prod"` and the Azure adapter
+4. **Fail-fast in the mismatch case** - if `runtime.env == "prod"` and the Azure adapter
    cannot resolve a capability, the process refuses to start. Silent fallback to the local
    fake in production is **prohibited** (matches the "no HIL-silent fallback" rule in
    [llm-strategy.md § Bootstrap Provisioner](llm-strategy.md#bootstrap-provisioner)).
@@ -119,11 +119,11 @@ flowchart LR
 
 | Check | Failure mode | Follow-up |
 |-------|--------------|-----------|
-| `az account show` returns a signed-in principal | abort — deployer must run `az login` | one-line diagnostic |
+| `az account show` returns a signed-in principal | abort - deployer must run `az login` | one-line diagnostic |
 | Principal has `Cognitive Services Contributor` (or `Owner`) on the target subscription | skip LLM provisioning, mark all `t2.*` and `t1.judge` capabilities as `hil-only`, emit warning | fork can grant the role and re-run |
 | Region exposes at least one family from each capability's preferences | mark just the affected capability `hil-only`, warn | fork can expand preferences in `llm-registry.yaml` and re-run |
 | Deployer's subscription has quota for the requested `capacity_tpm` | reduce to the largest available capacity ≥ 20% of requested; refuse below that | fork requests quota increase |
-| Mixed-model invariant (`t2.reasoner.primary.publisher != t2.reasoner.secondary.publisher`) after resolution | **abort** — do NOT partially deploy a T2 tier that would fail the quality gate | fork adjusts preferences |
+| Mixed-model invariant (`t2.reasoner.primary.publisher != t2.reasoner.secondary.publisher`) after resolution | **abort** - do NOT partially deploy a T2 tier that would fail the quality gate | fork adjusts preferences |
 
 The resolver's decisions are recorded as **one bootstrap audit entry** with the deployer's
 `object_id`, the region, and the resolved capability map. This entry replays cleanly:
@@ -136,7 +136,7 @@ throughout ([copilot-instructions § Implementation Focus](../../.github/copilot
 
 **Status as of 2026-07-05**: W-A through W-G are **shipped**; W-H (docs sync) shipped
 alongside the initial draft of this document; W-I (reconciler weekly job) remains deferred.
-Each work item below reflects what actually landed — code, tests, and gate coverage.
+Each work item below reflects what actually landed - code, tests, and gate coverage.
 
 ### W-A: Config schema for LLM + dev-mode flag ✅ *(baseline, shipped)*
 
@@ -144,7 +144,7 @@ Each work item below reflects what actually landed — code, tests, and gate cov
   - `mode`: `local-fake` | `azure` (default `local-fake` when `runtime.env == "dev"`).
   - `resolved_models_path`: optional KV secret name or filesystem path.
   - `capabilities`: list of capability names (`t1.embedding`, `t1.judge`,
-    `t2.reasoner.primary`, `t2.reasoner.secondary`) — mirrors the registry.
+    `t2.reasoner.primary`, `t2.reasoner.secondary`) - mirrors the registry.
 - Fail-fast validator: `mode == "azure"` requires `resolved_models_path` present.
 - Tests: schema + pydantic validators.
 
@@ -186,14 +186,14 @@ Each work item below reflects what actually landed — code, tests, and gate cov
 
 ### W-E: Azure OpenAI adapter classes  ✅ *(delivery, shipped)*
 
-- `src/aiopspilot/delivery/azure/llm/embeddings.py` — `AzureOpenAIEmbeddingModel`
+- `src/aiopspilot/delivery/azure/llm/embeddings.py` - `AzureOpenAIEmbeddingModel`
   implementing `EmbeddingModel`, using `openai.AzureOpenAI` (async client) +
   `DefaultAzureCredential`.
-- `src/aiopspilot/delivery/azure/llm/cross_check.py` — `AzureOpenAICrossCheckModel`
+- `src/aiopspilot/delivery/azure/llm/cross_check.py` - `AzureOpenAICrossCheckModel`
   implementing `CrossCheckModel`.
 - Timeout, retry-after honouring, structured output (`response_format={"type":"json_schema"}`)
-  — see [llm-strategy.md § Provider Abstraction](llm-strategy.md#provider-abstraction).
-- Tests: use `httpx.MockTransport` + recorded fixtures — no live network.
+  - see [llm-strategy.md § Provider Abstraction](llm-strategy.md#provider-abstraction).
+- Tests: use `httpx.MockTransport` + recorded fixtures - no live network.
 
 ### W-F: Composition-root wiring  ✅ *(binding, shipped)*
 
@@ -209,9 +209,9 @@ Each work item below reflects what actually landed — code, tests, and gate cov
 
 - `EnvSecretProvider` in `shared/providers/testing/` (renamed to
   `shared/providers/local/` to reflect dev usage).
-- `LocalWorkloadIdentity` — issues an in-memory OIDC token that adapters accept in
+- `LocalWorkloadIdentity` - issues an in-memory OIDC token that adapters accept in
   dev-mode (no network).
-- `FileFixtureInventory` — reads `Resource` records from `tests/scenarios/inventory/*.yaml`
+- `FileFixtureInventory` - reads `Resource` records from `tests/scenarios/inventory/*.yaml`
   so verticals can dry-run without ARG.
 - Tests + docstrings show the exact fork-side pattern.
 
@@ -227,7 +227,7 @@ Each work item below reflects what actually landed — code, tests, and gate cov
 - Update [llm-strategy.md § Bootstrap Provisioner](llm-strategy.md#bootstrap-provisioner)
   to reference this doc for the deployer-permission gates.
 
-### W-I: Reconciler weekly Job  *(later phase — deferred)*
+### W-I: Reconciler weekly Job  *(later phase - deferred)*
 
 Kept as future work. Full design already in
 [llm-strategy.md § Reconciler Job](llm-strategy.md#reconciler-job); ships as a
@@ -241,7 +241,7 @@ Everything above stays customer-agnostic. A fork customises without touching `co
 - Supplying `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` env pointing at the fork's
   subscription. **This repo never stores those values.**
 - Registering additional LLM providers (e.g. Anthropic direct API) by binding a fork-owned
-  `CrossCheckModel` implementation in its composition root — the `azure-foundry` /
+  `CrossCheckModel` implementation in its composition root - the `azure-foundry` /
   `external` / `hil-only` toggle in
   [llm-strategy.md § Mixed-Model Family Strategies](llm-strategy.md#mixed-model-family-strategies).
 
@@ -250,19 +250,19 @@ Everything above stays customer-agnostic. A fork customises without touching `co
 Each work item MUST be provable at CI time:
 
 - `runtime.env == "dev"` end-to-end pytest run **imports zero `delivery.azure.*` modules**
-  (enforced by `scripts/check-core-imports.sh` — extend it to gate `delivery.azure.llm.*`
+  (enforced by `scripts/check-core-imports.sh` - extend it to gate `delivery.azure.llm.*`
   imports on `dev-mode` fixtures).
 - Terraform plan with `enable_llm=false` succeeds on a fresh subscription with only
-  `Reader` role — proving the LLM module is truly opt-in.
+  `Reader` role - proving the LLM module is truly opt-in.
 - Resolver dry-run against a recorded region catalog produces a stable
-  `resolved-models.json` hash — proving idempotency.
+  `resolved-models.json` hash - proving idempotency.
 
 ## Open Questions
 
 - **Where does `resolved-models.json` live at runtime?** Options: Key Vault secret, ACR
   attestation, filesystem in the container image. Preference: Key Vault (fits the existing
   secret contract).
-- **Is a local Ollama / LM Studio path worth adding as a second dev mode?** Not now — the
+- **Is a local Ollama / LM Studio path worth adding as a second dev mode?** Not now - the
   deterministic fake already gives full parity for correctness tests; a "semantic" dev mode
   can land later without churning the composition root.
-- **Reconciler alerts channel** — assumed Teams; confirm at W-I time.
+- **Reconciler alerts channel** - assumed Teams; confirm at W-I time.

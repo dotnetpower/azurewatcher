@@ -3,7 +3,7 @@
 Realizes the wire-level contract the P3 ``DrScheduler`` uses to actually
 drive a chaos experiment or a Site Recovery test failover once the
 scheduler's decision + safety-invariant preflight approve execution.
-The Protocol is intentionally minimal — three async operations that
+The Protocol is intentionally minimal - three async operations that
 map cleanly onto both Azure Chaos Studio and Azure Site Recovery REST
 surfaces, and onto an in-memory fake for unit tests.
 
@@ -29,7 +29,7 @@ Safety invariants
 
 The Protocol is only invoked *after* the four DR safety invariants
 (stop-condition, blast-radius, rollback path, isolation) are enforced
-by the caller. This module carries no policy — it is a delivery
+by the caller. This module carries no policy - it is a delivery
 seam. Any decision to run or not to run lives in
 :class:`~aiopspilot.core.verticals.resilience.DrScheduler`.
 """
@@ -50,15 +50,15 @@ class DrExperimentKind(StrEnum):
 
     Both are addressable via Azure Resource Manager REST; the concrete
     adapter dispatches on this value. Adding a new kind is an
-    intentional, reviewable change (Protocol expansion) — never a
+    intentional, reviewable change (Protocol expansion) - never a
     wildcard on ``experiment.provider_ref``.
     """
 
     CHAOS = "chaos"
-    """Azure Chaos Studio experiment — ``POST .../experiments/{name}/start``."""
+    """Azure Chaos Studio experiment - ``POST .../experiments/{name}/start``."""
 
     SITE_RECOVERY_TEST_FAILOVER = "site_recovery_test_failover"
-    """Azure Site Recovery test failover — ``POST .../plannedFailover``."""
+    """Azure Site Recovery test failover - ``POST .../plannedFailover``."""
 
 
 class DrRunStatus(StrEnum):
@@ -85,7 +85,7 @@ class DrRunStatus(StrEnum):
 class DrRunHandle:
     """Opaque reference to one in-flight DR run.
 
-    Frozen so the caller cannot mutate the pointer to another run — the
+    Frozen so the caller cannot mutate the pointer to another run - the
     handle carries just enough identity for a subsequent
     ``check`` / ``rollback`` round trip. ``provider_ref`` is the ARM
     resource id (or equivalent CSP path) of the experiment resource;
@@ -102,7 +102,7 @@ class DrRunHandle:
     """Absolute URL to poll for run status; ``None`` for synchronous fakes.
 
     Real Azure endpoints return an ``Azure-AsyncOperation`` or
-    ``Location`` header on 202 — the adapter stores that URL here so
+    ``Location`` header on 202 - the adapter stores that URL here so
     ``check`` can poll without recomputing it from the ARM id.
     """
 
@@ -110,7 +110,7 @@ class DrRunHandle:
 class DrRunnerError(RuntimeError):
     """Raised by a :class:`DrExperimentRunner` on any unrecoverable failure.
 
-    The message is safe to log — implementations MUST NOT embed raw
+    The message is safe to log - implementations MUST NOT embed raw
     tokens, subscription ids, or vendor error bodies larger than a short
     truncated snippet.
     """
@@ -145,7 +145,7 @@ class DrExperimentRunner(Protocol):
     | ``rollback``  | ``POST .../cancel``      | ``POST .../plannedFailoverCleanup`` |
     +---------------+--------------------------+-------------------------------+
 
-    ``rollback`` MUST be idempotent — the scheduler calls it on any
+    ``rollback`` MUST be idempotent - the scheduler calls it on any
     non-``SUCCEEDED`` terminal status and on any exception raised
     during ``check``; a rollback on an already-rolled-back run MUST
     NOT raise.
@@ -164,7 +164,7 @@ class DrExperimentRunner(Protocol):
         """Return the current status of the run pointed at by ``handle``.
 
         Raises :class:`DrRunnerError` on transport / auth failure.
-        A polling loop belongs to the caller, not the runner — the
+        A polling loop belongs to the caller, not the runner - the
         Protocol stays a one-shot query so the scheduler owns the
         stop-condition timing.
         """
@@ -176,7 +176,7 @@ class DrExperimentRunner(Protocol):
         Must be idempotent (``rollback`` on a completed / cancelled /
         never-started run MUST NOT raise). Errors that indicate the
         runtime substrate is unreachable MAY raise
-        :class:`DrRunnerError` — the caller escalates to HIL.
+        :class:`DrRunnerError` - the caller escalates to HIL.
         """
         ...
 

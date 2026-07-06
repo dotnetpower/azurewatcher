@@ -61,7 +61,7 @@ def test_cli_writes_report_and_json(tmp_path: Path) -> None:
     report = tmp_path / "report.md"
     payload = tmp_path / "summary.json"
 
-    result = subprocess.run(  # noqa: S603 — controlled subprocess
+    result = subprocess.run(  # noqa: S603 - controlled subprocess
         [
             sys.executable,
             "-m",
@@ -115,7 +115,7 @@ def test_committed_baseline_artifact_matches_a_fresh_run() -> None:
     del fresh_copy["generated_at"]
 
     assert committed_copy == fresh_copy, (
-        "committed docs/baselines/v2026.07.json diverges from a fresh run — "
+        "committed docs/baselines/v2026.07.json diverges from a fresh run - "
         "regenerate with `python -m tools.baseline_run --scenarios "
         "tests/scenarios/v2026.07 --json docs/baselines/v2026.07.json "
         "--report docs/baselines/v2026.07.md` or bump the reference-agent "

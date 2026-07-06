@@ -1,10 +1,10 @@
-"""Config loader — schema check *and* pydantic validation at one boundary.
+"""Config loader - schema check *and* pydantic validation at one boundary.
 
 Every :class:`~aiopspilot.shared.config.provider.ConfigProvider` funnels
 through :func:`load_from_mapping` so config load always applies both:
 
-1. **JSON Schema** (draft-2020-12) — structural + type + enum + pattern.
-2. **pydantic** — additional invariants encoded in the model layer.
+1. **JSON Schema** (draft-2020-12) - structural + type + enum + pattern.
+2. **pydantic** - additional invariants encoded in the model layer.
 
 Both stages aggregate their findings into a single
 :class:`~aiopspilot.shared.config.errors.ConfigError` so an operator sees the
@@ -44,11 +44,11 @@ def load_from_mapping(raw: Mapping[str, Any]) -> AppConfig:
         issues.append(ConfigIssue(key=path, message=err.message))
 
     if issues:
-        # Bail out before pydantic — pydantic errors on missing keys would be
+        # Bail out before pydantic - pydantic errors on missing keys would be
         # redundant with the schema pass and add noise.
         raise ConfigError(issues)
 
-    # 2) pydantic pass — catches invariants the schema can't express (e.g. an
+    # 2) pydantic pass - catches invariants the schema can't express (e.g. an
     # enum coerced from an env-var string).
     try:
         return AppConfig.model_validate(raw)

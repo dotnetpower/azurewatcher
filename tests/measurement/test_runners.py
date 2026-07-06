@@ -1,12 +1,12 @@
-"""Phase-4 measurement runners — unit tests.
+"""Phase-4 measurement runners - unit tests.
 
 Covers the two scheduled runners wired in
 :mod:`aiopspilot.core.measurement.runners`:
 
-- :class:`AutomatedBaselineRunner` — regression triggers a demote via
+- :class:`AutomatedBaselineRunner` - regression triggers a demote via
   :class:`ActionPromotionRegistry`, PASS outcomes do not, and the
   scheduler NEVER auto-promotes.
-- :class:`PatternGrowthIntakeRunner` — accepted intake pushes a pattern
+- :class:`PatternGrowthIntakeRunner` - accepted intake pushes a pattern
   into the writer, rejected outcomes do not, and every ingested pattern
   is stripped down to shadow-mode (``success_rate == 0.0``,
   ``reuse_count == 0``).
@@ -225,7 +225,7 @@ async def test_baseline_pass_writes_pass_audit_and_does_not_demote() -> None:
     assert report.demoted_action_types == ()
     # Registry untouched → mode_of returns SHADOW as the default.
     assert registry.record("remediate.tag-add") is None
-    # Exactly one audit entry — the aggregate run record. PASS never
+    # Exactly one audit entry - the aggregate run record. PASS never
     # writes a per-sample entry (audit trail is only "regression events").
     entries = list(audit.audit_entries)
     assert len(entries) == 1
@@ -308,7 +308,7 @@ async def test_baseline_success_drop_also_triggers_demote() -> None:
 
 
 async def test_baseline_never_promotes() -> None:
-    """The runner is a one-way street to shadow — no PASS sample ever calls promote."""
+    """The runner is a one-way street to shadow - no PASS sample ever calls promote."""
     registry = ActionPromotionRegistry()
     audit = InMemoryStateStore()
 
@@ -511,7 +511,7 @@ async def test_growth_missing_pattern_build_records_skip_but_continues() -> None
     action = _learned_action(signature="pattern-beta")
     builder = _ScriptedBuilder(
         results={
-            "action-1": None,  # builder cannot rebuild — skip
+            "action-1": None,  # builder cannot rebuild - skip
             "action-2": ([0.1, 0.9], action),
         },
     )
@@ -538,11 +538,11 @@ async def test_growth_missing_pattern_build_records_skip_but_continues() -> None
 
     entries = [e["entry"] for e in audit.audit_entries]
     assert len(entries) == 2
-    # First outcome — accepted intake, but builder returned None → not ingested.
+    # First outcome - accepted intake, but builder returned None → not ingested.
     assert entries[0]["intake_outcome"] == IntakeOutcome.ACCEPTED.value
     assert entries[0]["ingested"] is False
     assert entries[0]["reason"] == "pattern_builder_returned_none"
-    # Second outcome — accepted + ingested.
+    # Second outcome - accepted + ingested.
     assert entries[1]["intake_outcome"] == IntakeOutcome.ACCEPTED.value
     assert entries[1]["ingested"] is True
 
@@ -583,7 +583,7 @@ async def test_growth_never_upserts_non_shadow_pattern() -> None:
     assert persisted.signature == "hot-pattern"
     assert persisted.rule_id == hot.rule_id
     assert persisted.action_type == hot.action_type
-    # And the runner did not mutate the builder's original dataclass —
+    # And the runner did not mutate the builder's original dataclass -
     # frozen replace() gives us a fresh instance.
     assert hot.success_rate == 1.0
     assert hot.reuse_count == 999
@@ -619,7 +619,7 @@ async def test_growth_upsert_dedupes_by_signature() -> None:
 
     report = await runner.run_once()
     assert report.accepted_count == 2
-    # Only one persisted row — the second upsert updates in place.
+    # Only one persisted row - the second upsert updates in place.
     assert len(library) == 1
 
 

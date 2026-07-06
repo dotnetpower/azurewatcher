@@ -3,7 +3,7 @@
 OPA / Rego policy-as-code.
 
 Consumed by T0 (`src/aiopspilot/core/tiers/t0_deterministic/`) and by the T2 verifier
-(`src/aiopspilot/core/quality_gate/`). Policies are data, not code paths — adding a
+(`src/aiopspilot/core/quality_gate/`). Policies are data, not code paths - adding a
 policy MUST NOT require an engine change.
 
 ## Layout
@@ -41,7 +41,7 @@ policies/
   falls back to the rule's authored default.
 - Emit a `deny_reason` string on every deny so the audit-log entry carries a
   human-readable citation without extra plumbing.
-- **No I/O, no `http.send`, no `time.now_ns`** — a rule MUST be a pure function of
+- **No I/O, no `http.send`, no `time.now_ns`** - a rule MUST be a pure function of
   its input; time / http-dependent checks belong in an authored evaluator, not in
   Rego.
 
@@ -51,13 +51,13 @@ The OPA/Rego runner
 [`OpaRegoEvaluator`](../src/aiopspilot/core/tiers/t0_deterministic/opa_evaluator.py)
 shells out to `opa eval --stdin-input --format json` under a bounded subprocess
 timeout (default 5 s). It is bound at the composition root through the existing
-`PolicyEvaluator` DI seam — the T0 engine itself never imports it.
+`PolicyEvaluator` DI seam - the T0 engine itself never imports it.
 
 - **Fail-fast at construction**: `MissingOpaBinaryError` is raised when `opa`
   is not on `PATH`. A composition root running in a degraded environment
   (local dev without OPA installed) MUST catch that and bind
   [`AbstainEvaluator`](../src/aiopspilot/core/tiers/t0_deterministic/engine.py)
-  explicitly — auditable degradation, no silent no-op.
+  explicitly - auditable degradation, no silent no-op.
 - **Fail-close per rule**: subprocess timeout, non-zero exit, non-JSON stdout,
   or a missing / traversal-shaped policy reference raises `OpaEvaluatorError`.
   The T0 engine converts that into an abstain **for that rule only**, so a

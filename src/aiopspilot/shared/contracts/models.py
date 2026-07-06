@@ -5,7 +5,7 @@ generated (hand-authored, sha-pinned) Python view. Consumers should:
 
 - Prefer these models for programmatic construction and serialization.
 - Use :mod:`aiopspilot.shared.contracts.validation` when accepting data across
-  an untrusted boundary (event ingress, config load, catalog import) — even
+  an untrusted boundary (event ingress, config load, catalog import) - even
   when the pydantic model succeeds, the JSON Schema re-check guards against a
   drift between the two views.
 
@@ -14,10 +14,10 @@ Dependency-injection notes
 These models are *data*, not services, so they are not themselves DI seams.
 The seams sit next to them:
 
-- :class:`aiopspilot.shared.contracts.registry.SchemaRegistry` — swap the
+- :class:`aiopspilot.shared.contracts.registry.SchemaRegistry` - swap the
   source of raw schemas (default: package resources; a fork MAY point at a
   remote registry).
-- :class:`aiopspilot.shared.contracts.validation.EventValidator` — swap the
+- :class:`aiopspilot.shared.contracts.validation.EventValidator` - swap the
   validation policy (default: JSON Schema draft-2020-12; a fork MAY layer in
   domain-specific checks).
 
@@ -36,7 +36,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
-# Shared enums — kept as StrEnum so JSON serialization matches the schema.
+# Shared enums - kept as StrEnum so JSON serialization matches the schema.
 # ---------------------------------------------------------------------------
 
 
@@ -145,7 +145,7 @@ class Redistribution(StrEnum):
 
     Two independent axes govern a source: ``license`` (an SPDX identifier or
     ``LicenseRef-reference-only``) records **what** the license is;
-    ``redistribution`` records **what the collector may commit** — the
+    ``redistribution`` records **what the collector may commit** - the
     enforcement value, not the license name (see
     ``docs/roadmap/rule-catalog-collection.md § Licensing``).
     """
@@ -336,7 +336,7 @@ class Rule(_Base):
     :class:`OntologyActionType` this rule proposes on match; the catalog
     loader cross-checks it against ``rule-catalog/action-types/`` at load
     time. ``alternatives`` is a preference-ordered list of alternate
-    ActionType names — T0 always uses ``remediates``; only the T2 quality
+    ActionType names - T0 always uses ``remediates``; only the T2 quality
     gate may swap in an alternative. See
     ``docs/roadmap/llm-strategy.md § Rule as Ontology Artifact``.
     """

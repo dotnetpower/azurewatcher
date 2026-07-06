@@ -7,7 +7,7 @@ Redpanda / Event Hubs EventBus (W6.3) will register themselves once they
 land, and they inherit this suite.
 
 Each provider factory is a zero-arg callable that hands back a fresh
-instance — tests never share state between runs.
+instance - tests never share state between runs.
 
 All provider methods are async by contract, so every test function here
 is ``async def``; pytest-asyncio's ``asyncio_mode = "auto"`` picks them up.

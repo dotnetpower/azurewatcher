@@ -1,4 +1,4 @@
-"""Email adapter — Azure Communication Services Email REST API.
+"""Email adapter - Azure Communication Services Email REST API.
 
 Send-only. Never carries an approval action; the adapter refuses A1
 traffic at composition time (the channel's ``trust_tiers`` frozenset
@@ -6,7 +6,7 @@ never includes :attr:`TrustTier.A1_HIL_APPROVAL`).
 
 Wire format: POST ``{endpoint}/emails:send?api-version=2023-03-31``
 with an ``Authorization: Bearer <token>`` header. The bearer token is
-supplied per call — the composition root fetches it through the
+supplied per call - the composition root fetches it through the
 :class:`~aiopspilot.shared.providers.workload_identity.WorkloadIdentity`
 seam and hands it in on adapter construction so this module never
 touches Azure SDKs directly (keeps the CSP-neutrality gate happy).

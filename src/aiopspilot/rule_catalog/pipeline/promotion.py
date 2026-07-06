@@ -1,4 +1,4 @@
-"""Rule promotion controller — write the audit trail for promote/rollback.
+"""Rule promotion controller - write the audit trail for promote/rollback.
 
 Phase 2 continuous-update pipeline stage 5 (see
 [`docs/roadmap/phases/phase-2-quality-and-t1.md § Promote | rollback`]).
@@ -7,7 +7,7 @@ Contract
 --------
 
 Given a :class:`RegressionDecision`, the controller writes an audit
-entry describing the outcome and — on **PASS** — records the promoted
+entry describing the outcome and - on **PASS** - records the promoted
 rule set as the new baseline. On **FAIL**, it writes a rollback audit
 entry and leaves the last-good baseline in place.
 
@@ -21,7 +21,7 @@ Shadow-first invariant
 ----------------------
 
 Every promoted rule set is still delivered in **shadow mode** at the
-executor layer — enforcement requires a separate per-action promotion
+executor layer - enforcement requires a separate per-action promotion
 gate (see P2-D). This controller only moves the *catalog* from
 "candidate" to "baseline"; ActionType-level enforcement stays untouched.
 """
@@ -72,7 +72,7 @@ class PromotionRecord:
 
 @dataclass(frozen=True, slots=True)
 class BaselineState:
-    """In-process baseline pointer — updated on every PROMOTED outcome.
+    """In-process baseline pointer - updated on every PROMOTED outcome.
 
     Kept as a returned value rather than a mutable service so tests can
     assert on the immutability of previous baselines.
@@ -99,8 +99,8 @@ class RulePromotionController:
 
         Returns a tuple of ``(record, baseline)``:
 
-        - ``record`` — always present, describes what was audited.
-        - ``baseline`` — the new baseline on PROMOTED, the previous
+        - ``record`` - always present, describes what was audited.
+        - ``baseline`` - the new baseline on PROMOTED, the previous
           baseline (unchanged) on ROLLED_BACK, or ``None`` when there is
           no baseline yet.
         """
@@ -122,7 +122,7 @@ class RulePromotionController:
             await self._audit(record=record, decision=decision, now=now)
             return record, new_baseline
 
-        # FAIL — preserve the prior baseline (may be None on first run).
+        # FAIL - preserve the prior baseline (may be None on first run).
         record = PromotionRecord(
             outcome=PromotionOutcome.ROLLED_BACK,
             scenario_set_id=decision.scenario_set_id,

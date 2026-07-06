@@ -1,4 +1,4 @@
-"""Composition-root LLM wiring — local-fake vs azure."""
+"""Composition-root LLM wiring - local-fake vs azure."""
 
 from __future__ import annotations
 
@@ -137,7 +137,7 @@ def test_bind_azure_llm_bindings_attaches_adapters(tmp_path: Path) -> None:
 
 def test_bind_accepts_inline_json_in_resolved_models_path() -> None:
     """Container Apps secret refs may deliver the resolver output as an
-    env var — the composition MUST accept the JSON document inline, not
+    env var - the composition MUST accept the JSON document inline, not
     just a filesystem path."""
     container = default_container(
         _config(mode=LlmMode.AZURE, resolved_path=_resolved_models_json())

@@ -1,4 +1,4 @@
-"""Azure OpenAI adapters — real T1/T2 model clients.
+"""Azure OpenAI adapters - real T1/T2 model clients.
 
 These modules live in ``delivery/`` per the module-boundaries rule
 (see ``docs/roadmap/project-structure.md § Module Boundaries``):
@@ -14,14 +14,14 @@ The two exported classes implement Protocols defined in `core/`:
 Every request is authenticated with an OIDC token issued by the
 :class:`~aiopspilot.shared.providers.workload_identity.WorkloadIdentity`
 seam, so the composition root supplies either the Managed-Identity
-adapter (prod) or the deterministic-local adapter (dev) — same code path.
+adapter (prod) or the deterministic-local adapter (dev) - same code path.
 
 Structured output
 -----------------
 
 Cross-check calls demand JSON output via ``response_format={"type":
 "json_object"}`` so the quality-gate can parse without regex. The
-adapter refuses (raises) on non-JSON responses; this is intentional —
+adapter refuses (raises) on non-JSON responses; this is intentional -
 "loose" model output is a hard error under phase-2 § Quality Gate.
 """
 

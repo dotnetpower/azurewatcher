@@ -1,4 +1,4 @@
-"""AzureDrExperimentAdapter — HTTP-level round-trip via httpx.MockTransport.
+"""AzureDrExperimentAdapter - HTTP-level round-trip via httpx.MockTransport.
 
 Verifies the wire contract the P3 executor + risk-gate rely on:
 
@@ -15,7 +15,7 @@ Verifies the wire contract the P3 executor + risk-gate rely on:
   ``/plannedFailoverCleanup`` for Site Recovery; 404 is a legitimate
   idempotent no-op.
 - Non-2xx / non-JSON / transport failures raise :class:`DrRunnerError`
-  with a truncated snippet — no raw response body leaks.
+  with a truncated snippet - no raw response body leaks.
 
 No real Azure endpoints are contacted; every test builds an
 ``httpx.AsyncClient`` on top of :class:`httpx.MockTransport`.
@@ -48,7 +48,7 @@ from aiopspilot.shared.providers.testing.workload_identity import (
 # ---------------------------------------------------------------------------
 
 _AUDIENCE = "https://management.azure.com/.default"
-_TOKEN = "test-token-abc"  # noqa: S105 — deterministic test literal
+_TOKEN = "test-token-abc"  # noqa: S105 - deterministic test literal
 
 _CHAOS_REF = (
     "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/"
@@ -127,7 +127,7 @@ def test_tiny_error_body_cap_is_rejected() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Happy path — Chaos Studio synchronous start
+# Happy path - Chaos Studio synchronous start
 # ---------------------------------------------------------------------------
 
 
@@ -262,7 +262,7 @@ async def test_site_recovery_rollback_hits_cleanup_endpoint() -> None:
 
 
 # ---------------------------------------------------------------------------
-# check() — status reduction
+# check() - status reduction
 # ---------------------------------------------------------------------------
 
 
@@ -344,7 +344,7 @@ async def test_check_reports_running_on_non_dict_payload() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Rollback — idempotent 200 / 202 / 204 / 404
+# Rollback - idempotent 200 / 202 / 204 / 404
 # ---------------------------------------------------------------------------
 
 
@@ -379,13 +379,13 @@ async def test_rollback_raises_on_500() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Failure paths — start
+# Failure paths - start
 # ---------------------------------------------------------------------------
 
 
 async def test_start_raises_on_non_2xx() -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(403, text="Forbidden — RBAC")
+        return httpx.Response(403, text="Forbidden - RBAC")
 
     async with _client(httpx.MockTransport(handler)) as client:
         adapter = _adapter(client)
@@ -424,7 +424,7 @@ async def test_start_requires_provider_ref() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Failure paths — check
+# Failure paths - check
 # ---------------------------------------------------------------------------
 
 
@@ -487,9 +487,9 @@ async def test_start_error_body_is_truncated() -> None:
             await adapter.start(_chaos_experiment())
 
     rendered = str(excinfo.value)
-    # The rendered message includes the "…" ellipsis marker inserted by
+    # The rendered message includes the "..." ellipsis marker inserted by
     # the trimmer; the full 2KB body MUST NOT appear.
-    assert "…" in rendered
+    assert "..." in rendered
     assert rendered.count("x") < len(huge_body)
 
 

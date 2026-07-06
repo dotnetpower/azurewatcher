@@ -75,7 +75,7 @@ class TeamsWebhookChannel:
 def _adaptive_card(message: NotificationMessage) -> dict[str, object]:
     """Wrap ``message`` in a minimal Adaptive Card envelope.
 
-    Kept intentionally small — Teams accepts the ``TextBlock`` +
+    Kept intentionally small - Teams accepts the ``TextBlock`` +
     ``FactSet`` + ``ActionSet`` primitives universally, so a fork can
     override this without changing the adapter.
     """

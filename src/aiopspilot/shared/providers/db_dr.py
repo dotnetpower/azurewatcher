@@ -1,15 +1,15 @@
-"""Deep DB-DR provider Protocols — restore + integrity + smoke.
+"""Deep DB-DR provider Protocols - restore + integrity + smoke.
 
 Realizes the wire-level contract the P3 :class:`DbDrVerifier` uses to
 run the three-phase Deep DB-DR test described in
 [`docs/roadmap/phases/phase-3-integrated-loop.md § Deep DB-DR`]:
 
-    1. Restore a snapshot / PITR into an **isolated environment** — no
+    1. Restore a snapshot / PITR into an **isolated environment** - no
        write path back to production.
-    2. **Verify integrity deterministically** — row counts, cryptographic
+    2. **Verify integrity deterministically** - row counts, cryptographic
        checksums, referential-constraint consistency; any mismatch fails
        the run.
-    3. Run **app-level smoke tests** — representative read + write
+    3. Run **app-level smoke tests** - representative read + write
        operations against the restored copy.
 
 Each phase sits behind its own Protocol so the orchestrator stays
@@ -34,19 +34,19 @@ Design boundaries
 - Handles are frozen: once the restore returns, the caller can hand
   the same handle to the integrity checker and the smoke runner and
   eventually to :meth:`DbRestoreAdapter.teardown`. Adapters are
-  state-free — a shared adapter serves many concurrent verifier runs.
+  state-free - a shared adapter serves many concurrent verifier runs.
 
 Safety invariants
 -----------------
 
-- **Isolation** — the restore contract MUST create a resource in a
+- **Isolation** - the restore contract MUST create a resource in a
   namespace that is not the production one (fresh resource-group /
   fresh cluster / fresh namespace). Concrete adapters enforce this
   before returning the handle.
-- **Fail-closed** — every phase raises :class:`DbDrError` on transport
+- **Fail-closed** - every phase raises :class:`DbDrError` on transport
   failure, auth failure, partial restore, or any state the adapter
   cannot classify. Silent success on a partial restore is a defect.
-- **Idempotent teardown** — :meth:`DbRestoreAdapter.teardown` MUST NOT
+- **Idempotent teardown** - :meth:`DbRestoreAdapter.teardown` MUST NOT
   raise on an already-torn-down handle; the verifier calls it in a
   best-effort ``finally`` clause and cannot mask the primary failure.
 """
@@ -63,7 +63,7 @@ from typing import Protocol, runtime_checkable
 class IntegrityMismatchKind(StrEnum):
     """Enumerates every reason an :class:`IntegrityChecker` may flag a mismatch.
 
-    Kept small on purpose — adding a new kind is a reviewable
+    Kept small on purpose - adding a new kind is a reviewable
     contract change so downstream audit consumers cannot silently miss
     a novel failure category.
     """
@@ -102,7 +102,7 @@ class DbRestoreConfig:
     this is the ARM id of the source server; other adapters resolve
     the value in the same shape.
 
-    ``target_resource_group`` MUST be a fresh, dedicated group — the
+    ``target_resource_group`` MUST be a fresh, dedicated group - the
     Azure adapter refuses a config whose target group name equals the
     source group name to preserve the isolation invariant.
     """
@@ -141,7 +141,7 @@ class IntegrityReport:
 
     ``mismatches`` is exhaustive: every divergence the checker observed
     is recorded so the verifier fails the DR test on ANY mismatch, per
-    phase-3 § Deep DB-DR (record every mismatch — DO NOT average away).
+    phase-3 § Deep DB-DR (record every mismatch - DO NOT average away).
     """
 
     table_row_counts: Mapping[str, int]
@@ -183,7 +183,7 @@ class SmokeReport:
     def passed(self) -> bool:
         """``True`` iff every declared smoke check passed.
 
-        Empty check tuples are treated as ``False`` — a smoke report
+        Empty check tuples are treated as ``False`` - a smoke report
         with zero exercised operations is not a passing signal, it is
         a misconfigured runner.
         """
@@ -198,7 +198,7 @@ class SmokeReport:
 class DbDrError(RuntimeError):
     """Raised on any unrecoverable failure in a DB-DR provider adapter.
 
-    The message is safe to log — implementations MUST NOT embed raw
+    The message is safe to log - implementations MUST NOT embed raw
     tokens, subscription ids, or vendor error bodies larger than a
     short truncated snippet.
     """
@@ -229,7 +229,7 @@ class DbRestoreAdapter(Protocol):
       from the source (isolation invariant). Adapters raise
       :class:`DbDrError` before returning a handle on any partial /
       unfinished restore.
-    - :meth:`teardown` MUST be idempotent — the verifier invokes it in
+    - :meth:`teardown` MUST be idempotent - the verifier invokes it in
       a ``finally`` clause and cannot let a substrate outage mask the
       primary failure.
     """
@@ -249,7 +249,7 @@ class DbRestoreAdapter(Protocol):
 
         Idempotent: a teardown on an already-torn-down or never-created
         environment MUST NOT raise. Real substrate outages MAY raise
-        :class:`DbDrError` — the caller records the error but keeps
+        :class:`DbDrError` - the caller records the error but keeps
         the primary verdict.
         """
         ...
@@ -263,14 +263,14 @@ class IntegrityChecker(Protocol):
     constraint consistency between the restored copy pointed at by the
     handle and the source snapshot. Implementations MUST record every
     observed mismatch on the returned :class:`IntegrityReport`; the
-    verifier fails the run on ANY mismatch — the checker does not
+    verifier fails the run on ANY mismatch - the checker does not
     threshold or average.
     """
 
     async def check(self, handle: DbRestoreHandle) -> IntegrityReport:
         """Return a full :class:`IntegrityReport` for ``handle``.
 
-        Raises :class:`DbDrError` on transport / auth failure — an
+        Raises :class:`DbDrError` on transport / auth failure - an
         exception is NOT a "clean" verdict. The verifier treats a
         raised exception as an abort and tears the environment down.
         """
@@ -290,7 +290,7 @@ class SmokeRunner(Protocol):
     async def run(self, handle: DbRestoreHandle) -> SmokeReport:
         """Exercise the smoke suite and return a :class:`SmokeReport`.
 
-        Raises :class:`DbDrError` on transport / auth failure — an
+        Raises :class:`DbDrError` on transport / auth failure - an
         exception is NOT a "passing" verdict.
         """
         ...
@@ -298,7 +298,7 @@ class SmokeRunner(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class DbDrEvidence:
-    """Structured summary of the three-phase run — safe to persist.
+    """Structured summary of the three-phase run - safe to persist.
 
     Every field is small and log-safe (matches the coding-conventions
     rules on error messages and audit entries). This is what the

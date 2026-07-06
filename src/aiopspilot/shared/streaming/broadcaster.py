@@ -1,4 +1,4 @@
-"""``SseBroadcaster`` — relay events from the internal ``EventBus`` to ``SseSink``.
+"""``SseBroadcaster`` - relay events from the internal ``EventBus`` to ``SseSink``.
 
 The internal Kafka event bus carries machine-to-machine records. The
 outbound SSE stream carries a redacted, JSON-encoded view of the same
@@ -23,7 +23,7 @@ Wiring reference (planned)
 - ``core/risk_gate`` → ``aw.hil.queue`` SSE channel (HIL updates)
 - ``core/tiers/*`` → ``aw.tier.decisions`` SSE channel (KPI dashboard)
 
-The concrete map is a composition-root decision — this module only
+The concrete map is a composition-root decision - this module only
 supplies the mechanism.
 """
 
@@ -67,7 +67,7 @@ class SseBroadcaster:
     async def run(self) -> None:
         """Start one relay task per topic → channel mapping.
 
-        Idempotent — a second call before :meth:`stop` is a no-op. Once
+        Idempotent - a second call before :meth:`stop` is a no-op. Once
         :meth:`stop` runs, the broadcaster is spent and MUST be
         re-instantiated.
         """
@@ -111,7 +111,7 @@ class SseBroadcaster:
                 channel,
             )
             raise
-        except Exception:  # pragma: no cover — real backends surface their own
+        except Exception:  # pragma: no cover - real backends surface their own
             _LOGGER.exception("sse-relay:%s->%s crashed", topic, channel)
             raise
 

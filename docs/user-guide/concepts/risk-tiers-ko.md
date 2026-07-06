@@ -2,8 +2,8 @@
 title: 리스크 티어(Risk tiers)
 description: AIOpsPilot 이 어떤 자율 액션은 자동 실행하고 어떤 것은 사람 승인을 기다리게 하는 결정 방식.
 translation_of: risk-tiers.md
-translation_source_sha: df4a102c1bbceb9ac45174ec5888676034d0318b
-translation_revised: 2026-07-05
+translation_source_sha: 81f117f21afd90c7cea83bd51cfcd38fc4753af1
+translation_revised: 2026-07-06
 ---
 
 # 리스크 티어(Risk tiers)
@@ -32,24 +32,24 @@ flowchart LR
   D --> AUD
 ```
 
-- **AUTO** — 직접 실행해도 안전할 만큼 낮은 리스크. 감사 로그는 여전히 누가, 무엇을,
+- **AUTO** - 직접 실행해도 안전할 만큼 낮은 리스크. 감사 로그는 여전히 누가, 무엇을,
   언제, 왜 를 기록합니다.
-- **HIL** — 운영자가 승인해야 합니다. AIOpsPilot 은 실행을 정지하고 알림 채널(Teams
+- **HIL** - 운영자가 승인해야 합니다. AIOpsPilot 은 실행을 정지하고 알림 채널(Teams
   카드, PR 리뷰, 이메일, 배포에서 구성한 것 무엇이든)로 요청을 올립니다.
-- **DENY** — 하드 규칙이 액션을 무조건 거부합니다. 극단적 경우 Break-Glass 역할이
+- **DENY** - 하드 규칙이 액션을 무조건 거부합니다. 극단적 경우 Break-Glass 역할이
   DENY 를 우회할 수 있지만, 그런 사용은 눈에 띄게 감사됩니다.
 
 ## 무엇이 결정을 HIL 쪽으로 미는가
 
 다음 중 하나라도 있으면 사다리를 올라갑니다:
 
-- **Blast radius** — 프로덕션, 다중 리전, 공유 테넌시 대상은 격리된 개발 리소스보다
+- **Blast radius** - 프로덕션, 다중 리전, 공유 테넌시 대상은 격리된 개발 리소스보다
   더 자주 승인을 요구합니다.
-- **되돌리기 어려움(Reversibility)** — 깨끗한 롤백 경로가 없는 액션(일부 데이터
+- **되돌리기 어려움(Reversibility)** - 깨끗한 롤백 경로가 없는 액션(일부 데이터
   마이그레이션, 리소스 삭제 등)은 기본적으로 HIL 로 앉습니다.
-- **새로움(Novelty)** — trust router 가 T2 로 escalation 한 것은 리스크 게이트가
+- **새로움(Novelty)** - trust router 가 T2 로 escalation 한 것은 리스크 게이트가
   더 엄격하게 받습니다.
-- **신호 소스의 신뢰도** — 합성된 이상 신호는 hardened policy 위반보다 가볍게
+- **신호 소스의 신뢰도** - 합성된 이상 신호는 hardened policy 위반보다 가볍게
   잡힙니다.
 
 ## AUTO 가 요구하는 네 가지
@@ -57,10 +57,10 @@ flowchart LR
 모든 AUTO 액션은 이 네 가지를 모두 함께 보냅니다. 하나라도 빠지면 자동으로 HIL 로
 downgrade 됩니다:
 
-1. **Stop-condition** — 세상이 나쁘게 반응하면 변경을 정지시키는 측정 가능한 상태.
-2. **롤백 경로** — 사전 계산되어 있고, 테스트되어 있으며, 감사 항목에서 참조 가능.
-3. **Blast-radius 제한** — 범위 · 배치 크기 · 속도에 대한 명시적 상한.
-4. **감사 로그 항목** — append-only, immutable, 완전.
+1. **Stop-condition** - 세상이 나쁘게 반응하면 변경을 정지시키는 측정 가능한 상태.
+2. **롤백 경로** - 사전 계산되어 있고, 테스트되어 있으며, 감사 항목에서 참조 가능.
+3. **Blast-radius 제한** - 범위 · 배치 크기 · 속도에 대한 명시적 상한.
+4. **감사 로그 항목** - append-only, immutable, 완전.
 
 넷 중 하나라도 없으면 액션은 정의상 불완전하며 HIL 로 라우팅됩니다. 이건 override
 가 아니라 정의상 게이트입니다.
@@ -73,8 +73,8 @@ Override* 절 참조.
 
 ## 관련
 
-- [결정론 우선](../deterministic-first/) — 어떤 티어가 케이스를 결정할지 라우터가
+- [결정론 우선](../deterministic-first/) - 어떤 티어가 케이스를 결정할지 라우터가
   고르는 방식.
-- [Shadow, then enforce](../shadow-then-enforce/) — 새 액션이 "관찰 전용"에서
+- [Shadow, then enforce](../shadow-then-enforce/) - 새 액션이 "관찰 전용"에서
   "자동 실행"으로 이행하는 방식.
-- [변경 승인](../../guides/approve-change/) — HIL 의 일상 운영자 관점.
+- [변경 승인](../../guides/approve-change/) - HIL 의 일상 운영자 관점.

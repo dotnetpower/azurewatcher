@@ -11,7 +11,7 @@ Design points
 
 - **One shape per channel, six typed Protocols.** Every adapter answers
   a single ``send(NotificationMessage) -> DeliveryReceipt`` call. Six
-  Protocols keep the DI matrix statically typed — the router registers a
+  Protocols keep the DI matrix statically typed - the router registers a
   ``TeamsChannel`` under the ``teams-*`` channel-ids and refuses to bind
   an :class:`EmailChannel` there.
 - **Trust-tier lives on the message.** Every :class:`NotificationMessage`

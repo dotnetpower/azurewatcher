@@ -1,4 +1,4 @@
-"""T0Engine — verdict emission, shadow invariance, fail-closed behavior."""
+"""T0Engine - verdict emission, shadow invariance, fail-closed behavior."""
 
 from __future__ import annotations
 

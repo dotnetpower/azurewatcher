@@ -34,5 +34,5 @@ description: >-
   Switch a resource (secret-store, kubernetes-cluster,
   object-storage) from legacy access-policy or account-key
   authorization to RBAC. Asymmetric rollback because reverting can
-  reintroduce stale key access grants — the paired disable
+  reintroduce stale key access grants - the paired disable
   ActionType is governance-gated.

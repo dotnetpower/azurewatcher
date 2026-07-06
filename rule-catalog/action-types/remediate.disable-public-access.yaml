@@ -37,4 +37,4 @@ description: >-
   Turn off unauthenticated public access on a resource (object-storage,
   sql-database, postgresql-server, nosql-database) without deleting it.
   Reverses via a paired `remediate.enable-public-access` action registered
-  through governance — no destructive undo.
+  through governance - no destructive undo.

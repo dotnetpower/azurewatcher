@@ -1,4 +1,4 @@
-"""T1 lightweight tier — embedding similarity + learned-action reuse.
+"""T1 lightweight tier - embedding similarity + learned-action reuse.
 
 Phase 2 T1 (see
 [`docs/roadmap/phases/phase-2-quality-and-t1.md § T1 Lightweight Tier`]).
@@ -11,7 +11,7 @@ by matching the event's embedding against a pattern library of past
 resolved incidents. A match requires the similarity score to clear a
 **configured threshold** (thresholds are config, not hard-coded). On
 match, T1 returns a *reused* :class:`LearnedAction` whose provenance is
-attached — the action still passes the verifier + risk-gate before it
+attached - the action still passes the verifier + risk-gate before it
 can execute (reuse is not auto-trust).
 
 Below threshold → :attr:`T1Outcome.ABSTAIN` → the trust-router routes
@@ -21,11 +21,11 @@ the event to T2 (LLM reasoning) per
 DI seams
 --------
 
-- :class:`EmbeddingModel` — turn an event/incident text into a vector.
+- :class:`EmbeddingModel` - turn an event/incident text into a vector.
   Real backends (sentence-transformers, OpenAI embeddings) go here; the
   fake in :mod:`.testing` returns a deterministic vector so tests are
   reproducible without network.
-- :class:`PatternLibrary` — pgvector-backed in production; in-memory fake
+- :class:`PatternLibrary` - pgvector-backed in production; in-memory fake
   under :mod:`.testing` for local dev + unit tests.
 
 Neither seam is invoked from ``core/`` directly; the composition root
@@ -57,7 +57,7 @@ class LearnedAction:
     Provenance is mandatory: :attr:`incident_id` (the audit trail id of
     the origin) + :attr:`success_rate` (over prior reuses) let the risk
     gate weigh whether to trust reuse. A reused action is **not
-    auto-trusted** — see the P2 doc.
+    auto-trusted** - see the P2 doc.
     """
 
     signature: str
@@ -98,7 +98,7 @@ class T1Decision:
     """A ``REUSED`` decision MUST be re-validated through the verifier
     and risk-gate before its LearnedAction can execute (phase-2
     § T1 § Learned-action reuse). Always ``True`` for :class:`T1Outcome`
-    values that would drive execution — callers who ignore it are
+    values that would drive execution - callers who ignore it are
     violating the safety contract."""
 
 

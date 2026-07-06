@@ -1,6 +1,6 @@
 """Shared pytest fixtures.
 
-Kept intentionally thin — most subsystem-specific fixtures colocate with the
+Kept intentionally thin - most subsystem-specific fixtures colocate with the
 subsystem under ``tests/<subsystem>/conftest.py``. Only truly cross-cutting
 things (composition helpers, common valid instances) live here.
 """
@@ -22,7 +22,7 @@ def _shutdown_otel_at_session_end() -> Iterator[None]:
 
     Without this fixture, the BatchSpanProcessor's background thread races
     pytest's teardown of stdout and prints a scary (but harmless) traceback
-    on session exit. The shutdown is idempotent — safe to run even when
+    on session exit. The shutdown is idempotent - safe to run even when
     no test touched tracing.
     """
     yield
@@ -67,7 +67,7 @@ def app_config() -> AppConfig:
 
 @pytest.fixture()
 def container(app_config: AppConfig) -> Container:
-    """Upstream default binding — same wiring an entry point receives."""
+    """Upstream default binding - same wiring an entry point receives."""
     return default_container(app_config)
 
 
@@ -171,7 +171,7 @@ class InMemorySchemaRegistry:
 
     def get(
         self, name: str, version: str | None = None
-    ) -> Mapping[str, Any]:  # pragma: no cover — trivial
+    ) -> Mapping[str, Any]:  # pragma: no cover - trivial
         if version is None:
             versions = [v for (n, v) in self._schemas if n == name]
             if not versions:
@@ -186,5 +186,5 @@ class InMemorySchemaRegistry:
             raise SchemaNotFoundError(f"unknown schema: {key}")
         return self._schemas[key]
 
-    def names(self) -> list[str]:  # pragma: no cover — trivial
+    def names(self) -> list[str]:  # pragma: no cover - trivial
         return sorted({n for (n, _v) in self._schemas})

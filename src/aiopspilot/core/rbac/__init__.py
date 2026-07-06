@@ -1,4 +1,4 @@
-"""Human-identity RBAC — the authority for who may do what via the read API.
+"""Human-identity RBAC - the authority for who may do what via the read API.
 
 Governs *human* users only: console sign-in, ChatOps approvers, catalog PR
 authors. Non-human identities (executor Managed Identity, GitHub App,
@@ -11,9 +11,9 @@ Design authority:
 
 Three sub-modules, each with one responsibility (SRP):
 
-- :mod:`.roles` — the 5-role enum + capability matrix (data only, no I/O).
-- :mod:`.resolver` — Entra ID token claims → :class:`~.resolver.Principal`.
-- :mod:`.enforcer` — gate a route/handler by role or capability, and reject
+- :mod:`.roles` - the 5-role enum + capability matrix (data only, no I/O).
+- :mod:`.resolver` - Entra ID token claims → :class:`~.resolver.Principal`.
+- :mod:`.enforcer` - gate a route/handler by role or capability, and reject
   self-approval on a governance action.
 
 Every module is CSP-neutral: no Azure SDK import, no HTTP client, no

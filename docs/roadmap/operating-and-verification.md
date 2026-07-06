@@ -3,7 +3,7 @@ title: Operating and Verification
 ---
 # Operating and Verification
 
-How to know AIOpsPilot is **alive, correct, and behaving** — from a freshly provisioned
+How to know AIOpsPilot is **alive, correct, and behaving** - from a freshly provisioned
 deployment onward. This document is **self-observability**: how the system reports on
 itself. It is distinct from
 [observability-and-detection.md](observability-and-detection.md), which is what the system
@@ -48,8 +48,8 @@ looks healthy**. Mitigation: a periodic canary.
 - A **synthetic event** with a known payload is emitted on a fixed cadence from a canary
   service into the same event bus a real event uses.
 - The canary event carries a marker so the **risk gate always short-circuits it to a no-op
-  audit entry** — it never mutates any resource.
-- The **full loop** — `ingest → correlation → tier decision → audit entry` — MUST complete
+  audit entry** - it never mutates any resource.
+- The **full loop** - `ingest → correlation → tier decision → audit entry` - MUST complete
   within a bounded budget; a failure to complete raises an SLO-burn alert on the
   [operational lane](#alert-routing).
 - The canary is **versioned**, **rate-capped**, and its idempotency key is distinguishable
@@ -66,19 +66,19 @@ Automated tests run against the live deployment after every promotion. A failing
 **aborts the promotion and rolls traffic back**
 ([deployment.md#release-and-rollback](deployment.md#release-and-rollback)).
 
-1. **Adapter reachability** — Kafka round-trip (Event Hubs `:9093` produce + consume on a
+1. **Adapter reachability** - Kafka round-trip (Event Hubs `:9093` produce + consume on a
    probe topic), Key Vault reference resolution, DB write + delete on a probe table, T2 model
    endpoint low-cost ping (per model, including cross-check target).
-2. **Config load** — the deployed image reports its version, catalog ref, and config hash;
+2. **Config load** - the deployed image reports its version, catalog ref, and config hash;
    values match the expected release manifest.
-3. **Canary round-trip** — fire one synthetic event, verify the audit entry lands within
+3. **Canary round-trip** - fire one synthetic event, verify the audit entry lands within
    budget.
-4. **Shadow decision correctness** — a fixture set of representative events is fed in shadow
+4. **Shadow decision correctness** - a fixture set of representative events is fed in shadow
    mode; verdicts match golden expectations (regression suite).
-5. **Kill-switch check** — toggle kill-switch **on**, verify all actions abstain during the
+5. **Kill-switch check** - toggle kill-switch **on**, verify all actions abstain during the
    window (probing with the canary); toggle **off**, verify normal decisions resume. Both
    states leave audit entries.
-6. **HIL dry-run** — a synthetic high-risk finding is routed to the HIL channel, an approver
+6. **HIL dry-run** - a synthetic high-risk finding is routed to the HIL channel, an approver
    approves (in a dry-run harness that does not execute), the audit trail records both hops.
 
 **TBD**: fixture composition, per-step budgets, and the promotion-gate wiring.
@@ -111,7 +111,7 @@ Rules that apply to every alert:
 ## Audit Investigation Flow
 
 Given a correlation id or audit id, the operator walks a fixed path. Each hop is a **stored
-link captured at write time**, not a search — the walk is O(1) lookups.
+link captured at write time**, not a search - the walk is O(1) lookups.
 
 ```mermaid
 flowchart LR
@@ -165,7 +165,7 @@ The system MUST expose, at any time, machine- and human-readable, without specia
 - Deployed image **digest** and semantic version tag.
 - Rule catalog **version tag + content hash**.
 - **Config hash** (a stable sum over live runtime configuration; secrets excluded).
-- Per-rule **effect + enforcement flag** — "what is currently enforced" for each rule /
+- Per-rule **effect + enforcement flag** - "what is currently enforced" for each rule /
   scope.
 - Per-scope **override count** (linked to a list view).
 - **Autonomous discovery loop state** (enabled / disabled, last cycle timestamp, last cycle
@@ -180,7 +180,7 @@ Content only; presentation / dashboard layout is defined separately.
 - [ ] Synthetic canary cadence, payload shape, and round-trip budget.
 - [ ] Smoke-test suite composition (fixture set, per-step budgets, promotion-gate wiring).
 - [ ] Alert channel ownership matrix (fork vs upstream) and the fallback channel selection.
-- [ ] Runbook template — required sections, format, and CI check that a runbook is present
+- [ ] Runbook template - required sections, format, and CI check that a runbook is present
       for every automated action.
 - [ ] Retention window and query model for the audit investigation flow.
 - [ ] Cold-start deadline value (shared with

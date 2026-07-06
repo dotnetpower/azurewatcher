@@ -1,4 +1,4 @@
-"""AzureOpenAIEmbeddingModel — httpx-based embedding client."""
+"""AzureOpenAIEmbeddingModel - httpx-based embedding client."""
 
 from __future__ import annotations
 
@@ -21,14 +21,14 @@ class AzureOpenAIEmbeddingModelConfig:
     """Custom-subdomain URL, e.g. ``https://oai-aiopspilot-dev-krc.openai.azure.com``."""
 
     deployment: str
-    """Deployment name as created by the Terraform module — matches the
+    """Deployment name as created by the Terraform module - matches the
     capability name in ``resolved-models.json``."""
 
     api_version: str = "2024-06-01"
     """Azure OpenAI data-plane API version."""
 
     dim: int = 1536
-    """Vector dimensionality — MUST match the deployed family (e.g. 1536 for
+    """Vector dimensionality - MUST match the deployed family (e.g. 1536 for
     ``text-embedding-3-small``)."""
 
     timeout_seconds: float = 30.0

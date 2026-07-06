@@ -1,4 +1,4 @@
-// Phase-4 continuous-measurement runners — Container Apps Jobs that wire the
+// Phase-4 continuous-measurement runners - Container Apps Jobs that wire the
 // two library-only measurement modules into scheduled processes:
 //
 //   src/aiopspilot/core/measurement/runners.py::AutomatedBaselineRunner
@@ -10,14 +10,14 @@
 //
 // Two jobs, one shared Container Apps environment + user-assigned MI (the
 // same one the core app + rule-watcher already use). No new seams are
-// introduced — cadence + identity + logging are provided by the caller so a
+// introduced - cadence + identity + logging are provided by the caller so a
 // non-Azure adapter can render the same manifest without touching the core.
 //
 // Safety
 // ------
 // * The regression runner NEVER auto-promotes; it only demotes an ActionType
 //   back to shadow through ActionPromotionRegistry.demote(). The cron
-//   therefore fires with the least-privileged executor identity — no extra
+//   therefore fires with the least-privileged executor identity - no extra
 //   Contributor role is needed.
 // * The growth runner ingests candidate patterns in **shadow** mode
 //   (historical_success_rate=0.0); the T1 tier's min_success_rate floor
@@ -40,7 +40,7 @@ resource "azurerm_container_app_job" "baseline_regression" {
   }
 
   schedule_trigger_config {
-    // Daily at 02:00 UTC — off-peak for all supported regions; runs before
+    // Daily at 02:00 UTC - off-peak for all supported regions; runs before
     // the 03:00 UTC rule-watcher so a fresh rule promotion still sees the
     // regression signal from the prior day.
     cron_expression          = var.baseline_cron_expression
@@ -88,7 +88,7 @@ resource "azurerm_container_app_job" "pattern_growth" {
   }
 
   schedule_trigger_config {
-    // Every 15 minutes — "continuous" in the phase-4 sense: the job wakes,
+    // Every 15 minutes - "continuous" in the phase-4 sense: the job wakes,
     // drains, and exits so an idle system scales to zero.
     cron_expression          = var.growth_cron_expression
     replica_completion_count = 1

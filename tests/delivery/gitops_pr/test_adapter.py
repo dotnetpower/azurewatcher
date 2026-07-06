@@ -1,4 +1,4 @@
-"""GitOpsPrAdapter — HTTP-level round-trip via httpx.MockTransport.
+"""GitOpsPrAdapter - HTTP-level round-trip via httpx.MockTransport.
 
 Exercises the wire contract the P2 rollout will rely on:
 
@@ -34,7 +34,7 @@ from aiopspilot.shared.providers.remediation_pr import RemediationPr
 
 OWNER = "acme"
 REPO = "iac"
-TOKEN = "test-token"  # noqa: S105 — deterministic test literal, not a secret
+TOKEN = "test-token"  # noqa: S105 - deterministic test literal, not a secret
 
 
 def _config(**overrides: Any) -> GitOpsPrConfig:
@@ -209,7 +209,7 @@ async def test_full_publish_calls_every_wire_step_in_order() -> None:
     assert receipt.pr_ref == "acme/iac#42"
     assert receipt.url == "https://github.com/acme/iac/pull/42"
 
-    # Ordering assertion — the probe MUST come first; labels MUST come last.
+    # Ordering assertion - the probe MUST come first; labels MUST come last.
     assert seen[0].startswith("GET ") and seen[0].endswith("/pulls")
     assert seen[-1].endswith("/labels")
 

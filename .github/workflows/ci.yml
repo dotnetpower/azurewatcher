@@ -96,6 +96,16 @@ jobs:
       - name: check-english-only.sh
         run: bash scripts/check-english-only.sh
 
+  punctuation:
+    name: ASCII punctuation (no em-dash / smart-quotes / nbsp)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: check-punctuation.sh
+        run: bash scripts/check-punctuation.sh
+
   core-imports:
     name: core/ module-boundary guard (no cloud SDK, no HTTP client)
     runs-on: ubuntu-24.04
@@ -130,7 +140,7 @@ jobs:
 
       - name: pip-audit against pyproject.toml
         # The action's `inputs` must be a project directory (which contains
-        # pyproject.toml), not the file itself — passing `pyproject.toml`
+        # pyproject.toml), not the file itself - passing `pyproject.toml`
         # sends pip-audit into requirements-file mode and it chokes on the
         # first `[project]` table. Repo root has our only pyproject.toml.
         uses: pypa/gh-action-pip-audit@v1.0.8
@@ -191,7 +201,7 @@ jobs:
             echo "Frozen scenario files modified or deleted:"
             printf '  - %s\n' $changed
             echo ""
-            echo "Frozen versions are immutable — create a new version directory instead."
+            echo "Frozen versions are immutable - create a new version directory instead."
             exit 1
           fi
           echo "No frozen scenario files were modified."
@@ -255,7 +265,7 @@ jobs:
       - name: terraform fmt (recursive check)
         run: terraform fmt -check -recursive
 
-      - name: terraform init (no backend — offline validate)
+      - name: terraform init (no backend - offline validate)
         run: terraform init -backend=false
 
       - name: terraform validate

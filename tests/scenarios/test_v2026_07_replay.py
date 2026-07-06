@@ -6,7 +6,7 @@ Purpose
 The v2026.07 scenarios in [`tests/scenarios/v2026.07/`](v2026.07/) are
 **frozen expected-verdict specs** used by the P0 reference-agent
 baseline. Their event bodies intentionally omit ``payload.resource`` and
-their ``citing_rule_ids`` are placeholder names — the frozen artifact
+their ``citing_rule_ids`` are placeholder names - the frozen artifact
 must stay reusable across tiers as P1/P2/P3 land.
 
 This harness satisfies the P1 exit criterion
@@ -40,7 +40,7 @@ For each scenario:
   the pipeline does not crash on incomplete inputs.
 
 The harness uses the **shipped catalog verbatim** (real rule YAMLs,
-Rego policies, Terraform templates, ActionType YAMLs) — the same
+Rego policies, Terraform templates, ActionType YAMLs) - the same
 fixture builder as
 [`tests/pipeline/test_control_loop_e2e.py`](../pipeline/test_control_loop_e2e.py).
 """
@@ -252,7 +252,7 @@ async def test_v2026_07_scenario_replays_through_control_loop(
         pytest.xfail(reason)
 
     # ------------------------------------------------------------------
-    # P1-replayable path — enriched event runs against the real loop.
+    # P1-replayable path - enriched event runs against the real loop.
     # ------------------------------------------------------------------
     loop, publisher, audit = _make_loop(shipped_catalog)
     enriched_event = _merge_enrichment(scenario["event"], overlay)

@@ -1,15 +1,15 @@
-"""ShadowExecutor — safety-invariant property tests.
+"""ShadowExecutor - safety-invariant property tests.
 
 Every property this suite asserts corresponds to a rule in
 [`.github/instructions/coding-conventions.instructions.md § Safety`]:
 
-- shadow-mode NEVER mutates state — enforce-mode Actions are rejected.
+- shadow-mode NEVER mutates state - enforce-mode Actions are rejected.
 - Every terminal path writes exactly one audit entry.
-- Idempotent by ``Action.idempotency_key`` — a re-delivered event
+- Idempotent by ``Action.idempotency_key`` - a re-delivered event
   returns the cached receipt and does NOT republish.
 - Blast-radius over the executor cap → abstain + audit.
 - Render error → abstain + audit, no PR opened.
-- Ordering — actions on the same resource serialize; different
+- Ordering - actions on the same resource serialize; different
   resources run in parallel.
 """
 
@@ -265,7 +265,7 @@ async def test_blast_radius_at_cap_is_allowed() -> None:
 @pytest.mark.asyncio
 async def test_render_error_abstains_and_does_not_publish() -> None:
     """A template whose required placeholder is missing on BOTH the rule
-    and the action MUST abstain — the executor never emits a partial
+    and the action MUST abstain - the executor never emits a partial
     patch and never opens a PR."""
     executor, publisher, _ = _executor()
 

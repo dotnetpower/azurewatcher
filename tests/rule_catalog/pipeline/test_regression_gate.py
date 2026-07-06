@@ -1,4 +1,4 @@
-"""RegressionGate — thresholds + decision invariants."""
+"""RegressionGate - thresholds + decision invariants."""
 
 from __future__ import annotations
 
@@ -102,7 +102,7 @@ def test_passes_when_candidate_coverage_meets_floor() -> None:
 
 
 # ---------------------------------------------------------------------------
-# FAIL paths — each threshold in isolation
+# FAIL paths - each threshold in isolation
 # ---------------------------------------------------------------------------
 
 

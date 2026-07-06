@@ -1,6 +1,6 @@
 """Routing-matrix parsing + validation.
 
-Matrix shape (YAML, config-driven — see
+Matrix shape (YAML, config-driven - see
 ``config/notifications-matrix.yaml`` for the shipped default)::
 
     matrix:
@@ -25,7 +25,7 @@ Matrix shape (YAML, config-driven — see
 Validation happens at load time (fail-fast):
 
 - every route names a real channel-id (checked when the router binds
-  the registry, not here — this module only rejects structural bugs),
+  the registry, not here - this module only rejects structural bugs),
 - ``on_all_fail`` is one of :class:`OnAllFailAction`,
 - the ``default_route`` name references an existing route,
 - ``trust_tier`` is a valid :class:`TrustTier` value.
@@ -47,7 +47,7 @@ from aiopspilot.shared.providers.notifications.base import TrustTier
 class MatrixValidationError(ValueError):
     """Raised when the matrix YAML fails structural validation.
 
-    Never leaks a raw stack trace to the operator — the message is
+    Never leaks a raw stack trace to the operator - the message is
     English and points at the offending route so a fork can fix its
     config without opening the code.
     """
@@ -58,8 +58,8 @@ class OnAllFailAction(StrEnum):
 
     ``HIL_ESCALATE`` is the default and matches the design-doc rule
     "if every configured channel for a category fails, the request
-    queues and pages the operational lane — it never auto-executes"
-    (§1 principle 4). ``DROP`` is deliberately absent — messages are
+    queues and pages the operational lane - it never auto-executes"
+    (§1 principle 4). ``DROP`` is deliberately absent - messages are
     never silently discarded.
     """
 
@@ -89,7 +89,7 @@ class RouteSpec:
 
 @dataclass(frozen=True, slots=True)
 class NotificationMatrix:
-    """The full parsed matrix — routes keyed by ``category``.
+    """The full parsed matrix - routes keyed by ``category``.
 
     ``default_route`` is looked up in :attr:`routes` when a message
     carries a category the matrix does not know. If the fork wants

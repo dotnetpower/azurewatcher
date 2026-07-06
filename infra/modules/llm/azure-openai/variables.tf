@@ -37,7 +37,7 @@ variable "executor_principal_id" {
 }
 
 variable "grant_executor_role" {
-  description = "Explicit bool guarding the role assignment — kept out of `count` conditions on unknown-at-plan-time values."
+  description = "Explicit bool guarding the role assignment - kept out of `count` conditions on unknown-at-plan-time values."
   type        = bool
   default     = true
 }
@@ -45,7 +45,7 @@ variable "grant_executor_role" {
 variable "resolved_capabilities" {
   description = <<-EOT
     Capability deployments to create. Fed from the resolver's
-    resolved-models.json — one entry per resolved capability. Entries with
+    resolved-models.json - one entry per resolved capability. Entries with
     status = "hil-only" MUST be excluded upstream (the module does not
     filter; keeping the boundary explicit).
 

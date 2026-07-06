@@ -40,7 +40,7 @@ def current_correlation_id() -> str | None:
 def with_correlation(correlation_id: str) -> Iterator[None]:
     """Bind ``correlation_id`` to the current context for the duration of the block.
 
-    Nested scopes restore the previous value on exit — nothing leaks.
+    Nested scopes restore the previous value on exit - nothing leaks.
     """
     if not correlation_id:
         raise ValueError("correlation_id MUST be a non-empty string")

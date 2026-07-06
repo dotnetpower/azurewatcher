@@ -3,14 +3,14 @@
 The pipeline uses a fetch adapter picked by :class:`FetchKind`. Three
 implementations ship today:
 
-- :class:`LocalDirectoryFetcher` — copies a filesystem tree into the
+- :class:`LocalDirectoryFetcher` - copies a filesystem tree into the
   snapshot directory. Used by tests and by hand-authored sources that
   live inside this repo.
-- :class:`GitCloneFetcher` — ``git clone --depth 1`` at the pinned
+- :class:`GitCloneFetcher` - ``git clone --depth 1`` at the pinned
   revision, then copies the requested ``subpath`` (or whole tree). Real
   networked adapter used for OSS sources (Gatekeeper library, Checkov,
   tfsec, ...).
-- :class:`HttpDownloadFetcher` — download a single URL over ``http(s)``
+- :class:`HttpDownloadFetcher` - download a single URL over ``http(s)``
   or ``file://``, verify against the manifest's ``expected_sha256`` and
   drop the file into the snapshot tree. Used for tarball / single-file
   sources.
@@ -84,7 +84,7 @@ class LocalDirectoryFetcher(Fetcher):
     def fetch(self, *, config: FetchConfig, dest_root: Path) -> FetchResult:
         if config.kind is not FetchKind.LOCAL:
             raise FetchError(f"LocalDirectoryFetcher does not handle kind={config.kind}")
-        if config.path is None:  # pragma: no cover — schema enforces
+        if config.path is None:  # pragma: no cover - schema enforces
             raise FetchError("LocalDirectoryFetcher requires fetch.path")
 
         source = Path(config.path)
@@ -118,7 +118,7 @@ class GitCloneFetcher(Fetcher):
     Uses ``git clone --depth 1 --branch <sha>`` when possible; falls back
     to ``fetch --depth 1 <sha>`` for hosts that reject a branch=sha shape.
     A malformed revision (mutable ref) is rejected earlier by
-    ``SourceManifest`` — this class only executes what the manifest
+    ``SourceManifest`` - this class only executes what the manifest
     validated.
     """
 
@@ -131,7 +131,7 @@ class GitCloneFetcher(Fetcher):
     def fetch(self, *, config: FetchConfig, dest_root: Path) -> FetchResult:
         if config.kind is not FetchKind.GIT:
             raise FetchError(f"GitCloneFetcher does not handle kind={config.kind}")
-        if config.repo is None or config.revision is None:  # pragma: no cover — schema enforces
+        if config.repo is None or config.revision is None:  # pragma: no cover - schema enforces
             raise FetchError("GitCloneFetcher requires fetch.repo + fetch.revision")
 
         dest_root.mkdir(parents=True, exist_ok=True)
@@ -192,7 +192,7 @@ class GitCloneFetcher(Fetcher):
     ) -> None:
         if mkdir:
             cwd.mkdir(parents=True, exist_ok=True)
-        proc = subprocess.run(  # noqa: S603 — argv is a list, not shell.
+        proc = subprocess.run(  # noqa: S603 - argv is a list, not shell.
             list(argv),
             cwd=cwd,
             capture_output=True,
@@ -220,7 +220,7 @@ class HttpDownloadFetcher(Fetcher):
     The manifest MUST carry ``expected_sha256``; the fetcher rejects the
     download when the computed hash differs so the resolved revision on
     the snapshot is always the operator-declared one. Only ``http``,
-    ``https``, and ``file`` URL schemes are honored — anything else
+    ``https``, and ``file`` URL schemes are honored - anything else
     (``ftp``, ``data``, custom) is refused up front to keep the surface
     predictable and to make tests offline-safe via ``file://`` URLs.
     """
@@ -243,7 +243,7 @@ class HttpDownloadFetcher(Fetcher):
             raise FetchError(f"HttpDownloadFetcher does not handle kind={config.kind}")
         if (
             config.url is None or config.expected_sha256 is None
-        ):  # pragma: no cover — schema enforces
+        ):  # pragma: no cover - schema enforces
             raise FetchError("HttpDownloadFetcher requires fetch.url + fetch.expected_sha256")
 
         scheme = urllib.parse.urlparse(config.url).scheme.lower()
@@ -253,7 +253,7 @@ class HttpDownloadFetcher(Fetcher):
             )
 
         dest_root.mkdir(parents=True, exist_ok=True)
-        # Pick a stable output filename — the last path segment when it
+        # Pick a stable output filename - the last path segment when it
         # looks like a filename, else a synthetic ``payload`` so the
         # snapshot layout stays predictable.
         filename = Path(urllib.parse.urlparse(config.url).path).name or "payload"
@@ -262,7 +262,7 @@ class HttpDownloadFetcher(Fetcher):
         digest = hashlib.sha256()
         try:
             with (
-                urllib.request.urlopen(  # noqa: S310 — scheme allow-list enforced above.
+                urllib.request.urlopen(  # noqa: S310 - scheme allow-list enforced above.
                     config.url, timeout=self._timeout
                 ) as response,
                 target.open("wb") as sink,
@@ -278,7 +278,7 @@ class HttpDownloadFetcher(Fetcher):
 
         actual_sha = digest.hexdigest()
         if actual_sha != config.expected_sha256:
-            # Never leave a mis-hashed payload sitting on disk — a later
+            # Never leave a mis-hashed payload sitting on disk - a later
             # tool could treat it as valid.
             target.unlink(missing_ok=True)
             raise FetchError(

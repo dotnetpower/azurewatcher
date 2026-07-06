@@ -1,4 +1,4 @@
-# RBAC group mapping — Entra ID security groups to human user roles.
+# RBAC group mapping - Entra ID security groups to human user roles.
 #
 # Upstream ships **placeholder** objectIds (all-zero UUIDs). A per-customer
 # fork MUST replace every `<slot>` value with its tenant's real Entra
@@ -20,19 +20,19 @@
 
 rbac:
   entra:
-    # Informational — the API layer validates the token issuer separately;
+    # Informational - the API layer validates the token issuer separately;
     # this value is a cross-check, not the source of truth.
     tenant_id: "00000000-0000-0000-0000-000000000000"
     groups:
-      # `aw-readers`     — view console: KPI dashboard, audit log, shadow.
+      # `aw-readers`     - view console: KPI dashboard, audit log, shadow.
       readers: "00000000-0000-0000-0000-000000000000"
-      # `aw-contributors` — Reader + author draft governance PRs.
+      # `aw-contributors` - Reader + author draft governance PRs.
       contributors: "00000000-0000-0000-0000-000000000000"
-      # `aw-approvers`   — Reader + review/approve governance PRs + runtime HIL.
+      # `aw-approvers`   - Reader + review/approve governance PRs + runtime HIL.
       approvers: "00000000-0000-0000-0000-000000000000"
-      # `aw-owners`      — Approver + kill-switch + membership + infra IaC.
+      # `aw-owners`      - Approver + kill-switch + membership + infra IaC.
       owners: "00000000-0000-0000-0000-000000000000"
-      # `aw-break-glass` — emergency scoped access, hardware-MFA only,
+      # `aw-break-glass` - emergency scoped access, hardware-MFA only,
       # NEVER auto-activated by claims. Elevation requires an
       # operator-recorded incident id + timebox
       # (see RoleResolver.activate_break_glass).

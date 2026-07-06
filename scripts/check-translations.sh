@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# check-translations.sh — enforce the .md + -ko.md pair rule.
+# check-translations.sh - enforce the .md + -ko.md pair rule.
 #
 # Rules (see .github/instructions/language.instructions.md):
 #   1. Every in-scope English `foo.md` MUST have a sibling `foo-ko.md`.

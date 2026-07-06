@@ -1,6 +1,6 @@
 """Slack incoming-webhook adapter (Block Kit body).
 
-Only the ``chat:write`` equivalent (webhook posts) is used — the
+Only the ``chat:write`` equivalent (webhook posts) is used - the
 adapter never authorizes decisions. The webhook URL is a per-channel
 secret loaded via the composition root, same pattern as the Teams
 adapter.

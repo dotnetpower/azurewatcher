@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "type": "module",
   "private": true,
-  "description": "AIOpsPilot operator console — read-only SPA (KPI dashboard, audit log, HIL queue). See app-shape.instructions.md § Operator console.",
+  "description": "AIOpsPilot operator console - read-only SPA (KPI dashboard, audit log, HIL queue). See app-shape.instructions.md § Operator console.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

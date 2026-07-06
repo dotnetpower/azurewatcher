@@ -1,4 +1,4 @@
-"""T0 deterministic engine — verdict and finding models.
+"""T0 deterministic engine - verdict and finding models.
 
 The T0 tier resolves the majority of events without any LLM
 (``docs/roadmap/phases/phase-1-rule-catalog-t0.md``). It emits a
@@ -7,15 +7,15 @@ an :class:`AuditHint` the audit-log writer persists.
 
 Every T0 output is **shadow-mode by construction** in P1: the engine
 judges and logs; it never mutates state. This module defines the data
-types only — the orchestrator (:mod:`.engine`) and the rule-lookup index
+types only - the orchestrator (:mod:`.engine`) and the rule-lookup index
 (:mod:`.index`) are the callers.
 
 Pipeline-stage vocabulary aligns with
 ``docs/roadmap/llm-strategy.md § Pipeline Stages``:
 
-- ``L1_evaluate`` — rule evaluation (this module's normal happy path).
-- ``L1_simulate`` — what-if / dry-run (wired in P1 W-3).
-- ``abstain``    — terminal no-op that escalates to HIL, recorded here
+- ``L1_evaluate`` - rule evaluation (this module's normal happy path).
+- ``L1_simulate`` - what-if / dry-run (wired in P1 W-3).
+- ``abstain``    - terminal no-op that escalates to HIL, recorded here
   when no rule applies OR when a rule's check_logic cannot be evaluated
   deterministically.
 """
@@ -34,7 +34,7 @@ class PipelineStage(StrEnum):
     """Audit vocabulary for the T0 layer.
 
     Kept as a StrEnum so audit-log entries serialize the same identifier
-    the docs use. New stages are added conservatively — an unknown value
+    the docs use. New stages are added conservatively - an unknown value
     is a schema break, not a silent no-op.
     """
 
@@ -75,7 +75,7 @@ class AuditHint:
 
     event_id: str
     pipeline_stage: PipelineStage
-    tier: str  # "t0" — carried as a plain string to avoid Tier import loop.
+    tier: str  # "t0" - carried as a plain string to avoid Tier import loop.
     mode: Mode
     citing_rule_ids: tuple[str, ...] = ()
     reason: str | None = None

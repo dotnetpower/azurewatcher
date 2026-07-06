@@ -1,9 +1,9 @@
-"""FileFixtureInventory — YAML-backed Inventory for dev + tests.
+"""FileFixtureInventory - YAML-backed Inventory for dev + tests.
 
 Realizes :class:`~aiopspilot.shared.providers.inventory.Inventory` by
 streaming a single fixture file as one final :class:`InventoryBatch`.
 Delta is a no-op stream (returns immediately) because a static fixture
-has nothing to delta against — a test that needs an incremental stream
+has nothing to delta against - a test that needs an incremental stream
 supplies its own Inventory fake.
 
 Fixture shape (YAML)::
@@ -115,7 +115,7 @@ class FileFixtureInventory:
         self._resources, self._links = load_inventory_fixture(fixture)
 
     def full_snapshot(self, since: str | None = None) -> AsyncIterator[InventoryBatch]:
-        del since  # fixture is static — no incremental slicing.
+        del since  # fixture is static - no incremental slicing.
         return self._emit_once(cursor="fixture", final=True)
 
     def delta(self, cursor: str) -> AsyncIterator[InventoryBatch]:
@@ -131,8 +131,8 @@ class FileFixtureInventory:
         )
 
     async def _empty(self) -> AsyncIterator[InventoryBatch]:
-        # Yield nothing — a no-op delta stream.
-        if False:  # pragma: no cover — required so the function is an async generator
+        # Yield nothing - a no-op delta stream.
+        if False:  # pragma: no cover - required so the function is an async generator
             yield InventoryBatch()
 
 

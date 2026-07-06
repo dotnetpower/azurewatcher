@@ -2,7 +2,7 @@
 
 Public API. Re-exports the five Protocols corresponding to the wire-level
 contracts in ``docs/roadmap/csp-neutrality.md``. Concrete implementations
-are intentionally not re-exported here — they land in later phases (W1.5
+are intentionally not re-exported here - they land in later phases (W1.5
 for PostgreSQL, W6.2 for in-memory fakes, W6.3 for Docker Compose backends)
 and must be imported from their submodules by the composition root only.
 """

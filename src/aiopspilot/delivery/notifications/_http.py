@@ -23,7 +23,7 @@ _MAX_ERROR_BODY_BYTES = 512
 def truncate(body: str, limit: int = _MAX_ERROR_BODY_BYTES) -> str:
     """Truncate ``body`` to ``limit`` bytes with an explicit marker.
 
-    Response bodies from a vendor are untrusted data — a stray reflection
+    Response bodies from a vendor are untrusted data - a stray reflection
     could carry a secret or a huge payload. Trimming at a fixed limit
     prevents both a leak and a log-flood.
     """

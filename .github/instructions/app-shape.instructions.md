@@ -6,7 +6,7 @@ applyTo: "**"
 # App Shape
 
 Not one big web app. The system is a **headless control plane + thin console + ChatOps**,
-serving three initial verticals under an AIOps approach — Resilience, Change Safety, and
+serving three initial verticals under an AIOps approach - Resilience, Change Safety, and
 Cost Governance. A large always-on UI would contradict the "minimize human intervention"
 goal.
 
@@ -20,11 +20,11 @@ shape maps to environments and CI/CD.
 
 | # | Layer | Shape | Scales to zero | Rationale |
 |---|-------|-------|----------------|-----------|
-| 1 | **Core engine** | headless, event-driven backend (no UI) — trust router, T0/T1/T2, risk gate, executor | yes | wakes on events; Azure adapter today, other CSPs TBD behind the same interface |
-| 2 | **Action delivery** | GitOps / PR-native (GitHub App or Azure DevOps) — actions are remediation PRs/IaC | n/a (git-hosted) | audit, rollback, and approval already exist in git |
-| 3 | **Operator console** | thin, read-only SPA — KPI dashboard, audit log, shadow results, HIL queue view | yes (static hosting) | minimal read surface; never executes actions itself |
-| 4 | **Human channel** | ChatOps (Teams bot + Adaptive Cards) — high-risk HIL approvals and alerts | yes (event-driven) | reach operators where they already are |
-| 5 | **Rule catalog** | catalog-as-code (git repo) — versioned rules | n/a (git-hosted) | the update pipeline lands rules via PR |
+| 1 | **Core engine** | headless, event-driven backend (no UI) - trust router, T0/T1/T2, risk gate, executor | yes | wakes on events; Azure adapter today, other CSPs TBD behind the same interface |
+| 2 | **Action delivery** | GitOps / PR-native (GitHub App or Azure DevOps) - actions are remediation PRs/IaC | n/a (git-hosted) | audit, rollback, and approval already exist in git |
+| 3 | **Operator console** | thin, read-only SPA - KPI dashboard, audit log, shadow results, HIL queue view | yes (static hosting) | minimal read surface; never executes actions itself |
+| 4 | **Human channel** | ChatOps (Teams bot + Adaptive Cards) - high-risk HIL approvals and alerts | yes (event-driven) | reach operators where they already are |
+| 5 | **Rule catalog** | catalog-as-code (git repo) - versioned rules | n/a (git-hosted) | the update pipeline lands rules via PR |
 
 - **Brain = core engine (1); hands = action delivery (2); human touchpoints = console (3) +
   ChatOps (4); memory = rule catalog (5).**
@@ -40,25 +40,25 @@ shape maps to environments and CI/CD.
   calls. Approvals flow through ChatOps or PR, never console buttons.
 - The **executor holds the only privileged identity** (user-assigned Managed Identity, scoped
   to an action whitelist). Console and ChatOps never share it.
-- **Approval and execution are distinct principals** — no self-approval. See
+- **Approval and execution are distinct principals** - no self-approval. See
   [../../docs/roadmap/security-and-identity.md](../../docs/roadmap/security-and-identity.md).
 
-## Azure Mapping (draft — reconfirm preview services at adoption time)
+## Azure Mapping (draft - reconfirm preview services at adoption time)
 
 Azure is the implemented target (see
 [Implementation Focus](../copilot-instructions.md#implementation-focus-must)); the shape stays
 CSP-neutral in design by rendering five wire-level contracts (event bus, runtime, secret,
-workload identity, inventory) into Azure resources — see
+workload identity, inventory) into Azure resources - see
 [../../docs/roadmap/csp-neutrality.md](../../docs/roadmap/csp-neutrality.md). The mapping is
-**minimum-cost-set first** — the concrete inventory, tiers, and rationale live in
+**minimum-cost-set first** - the concrete inventory, tiers, and rationale live in
 [../../docs/roadmap/deploy-and-onboard.md](../../docs/roadmap/deploy-and-onboard.md#azure-resource-inventory-minimum-set).
 Recommended mapping:
 
 - Event bus: **Event Hubs Standard** consumed **only through its Kafka endpoint on `:9093`**
   (Kafka wire protocol is the CSP-neutral contract); Service Bus and Event Grid are **not**
   in the day-zero inventory. Where a native Azure signal is needed (Activity Log, resource
-  events), it is forwarded into a Kafka topic on Event Hubs — the core sees Kafka only.
-- Core consumer: **Azure Container Apps** (Consumption, KEDA scale + scale-to-zero) — **one
+  events), it is forwarded into a Kafka topic on Event Hubs - the core sees Kafka only.
+- Core consumer: **Azure Container Apps** (Consumption, KEDA scale + scale-to-zero) - **one
   app with sidecar containers** for the core subsystems (`event-ingest` primary, others as
   sidecars); AKS only if heavier scaling profiles emerge later. The app ships as an **OCI
   image + a Knative-compatible manifest subset**, rendered into `containerapp` resources by
@@ -83,24 +83,24 @@ Recommended mapping:
 
 ## Failure Modes
 
-- **Console down** — operations continue; core engine, PR gate, and ChatOps are unaffected.
-- **ChatOps down** — high-risk HIL items queue and alert via a fallback; nothing auto-executes
+- **Console down** - operations continue; core engine, PR gate, and ChatOps are unaffected.
+- **ChatOps down** - high-risk HIL items queue and alert via a fallback; nothing auto-executes
   without approval.
-- **Event-bus backpressure** — rely on ordering plus dead-letter queues; the core reprocesses,
+- **Event-bus backpressure** - rely on ordering plus dead-letter queues; the core reprocesses,
   it does not drop events.
 - **Any layer** that triggers a change still owes a stop-condition, rollback path,
   blast-radius limit, and audit entry (see coding-conventions and security-and-identity).
 
 ## Anti-Patterns (avoid)
 
-- **Monolithic web app that does everything** — always-on cost, violates autonomy philosophy,
+- **Monolithic web app that does everything** - always-on cost, violates autonomy philosophy,
   hard to port across clouds.
-- **UI buttons that execute actions** — forces custom audit/rollback and breaks least
+- **UI buttons that execute actions** - forces custom audit/rollback and breaks least
   privilege; PR-native gets audit, rollback, and approval for free.
-- **Always-on polling daemons** — conflicts with the event-driven, scale-to-zero principle.
-- **Shared identity across layers** — a console or bot reusing the executor identity collapses
+- **Always-on polling daemons** - conflicts with the event-driven, scale-to-zero principle.
+- **Shared identity across layers** - a console or bot reusing the executor identity collapses
   the approval/execution boundary.
-- **Actions without a rollback or audit path** — any change delivered outside git must still
+- **Actions without a rollback or audit path** - any change delivered outside git must still
   provide both, or it is incomplete.
 
 > One line: brain = headless event-driven control plane, hands = GitOps/PR,

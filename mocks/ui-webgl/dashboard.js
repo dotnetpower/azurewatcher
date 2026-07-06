@@ -1,5 +1,5 @@
-// AIOpsPilot — full-WebGL operator console (read-only mock).
-// KPIs, trust-tier split, HIL queue, shadow results, and an audit log — all rendered in WebGL.
+// AIOpsPilot - full-WebGL operator console (read-only mock).
+// KPIs, trust-tier split, HIL queue, shadow results, and an audit log - all rendered in WebGL.
 // Card shapes/shadows use canvas textures; all text uses SDF glyphs (troika-three-text) for crisp
 // type. Wheel to scroll, click to replay. English-only, customer-agnostic, synthetic values.
 
@@ -134,7 +134,7 @@ const SEV = { critical: COLOR.dustyRed, high: COLOR.terracotta, medium: COLOR.st
 const TIERC = { T0: COLOR.sage, T1: COLOR.teal, T2: COLOR.plum };
 
 // ---------------------------------------------------------------------------
-// Layout — stacked top→down; wheel scrolls `content`
+// Layout - stacked top→down; wheel scrolls `content`
 // ---------------------------------------------------------------------------
 // Header
 section(0, 4.05, 0.0, (g) => {
@@ -183,7 +183,7 @@ section(2.35, 0.35, 0.34, (g) => {
   const rows = [
     ["Enable PITR on database", "critical", "8m"],
     ["Prod autoscale floor", "high", "21m"],
-    ["Firewall reconcile", "medium", "—"],
+    ["Firewall reconcile", "medium", "-"],
   ];
   rows.forEach(([label, sev, wait], i) => {
     const y = 0.38 - i * 0.52;

@@ -1,9 +1,9 @@
-"""Remediation-PR publisher — CSP-neutral contract for the delivery layer.
+"""Remediation-PR publisher - CSP-neutral contract for the delivery layer.
 
 The executor emits a rendered :class:`RemediationPr` and hands it to a
 :class:`RemediationPrPublisher`. Concrete adapters live under
 ``delivery/gitops_pr/`` and MAY talk to GitHub / Azure DevOps / GitLab.
-``core/`` only knows this Protocol — the same DI pattern the other five
+``core/`` only knows this Protocol - the same DI pattern the other five
 provider Protocols use.
 
 Why a dedicated contract (vs re-using ``EventBus``)
@@ -80,14 +80,14 @@ class RemediationPr:
 
     metadata: Mapping[str, str] = field(default_factory=dict)
     """Optional adapter-neutral k/v pairs (correlation id, tenant label,
-    …). Never carries secrets."""
+    ...). Never carries secrets."""
 
 
 @dataclass(frozen=True, slots=True)
 class PublishReceipt:
     """Adapter-issued receipt for one publish attempt.
 
-    ``pr_ref`` is opaque to ``core/`` — an adapter that talks to GitHub
+    ``pr_ref`` is opaque to ``core/`` - an adapter that talks to GitHub
     might use ``"owner/repo#123"``, an in-memory fake might use a
     monotonically increasing counter. Consumers MUST treat it as a
     correlation string only.
@@ -110,7 +110,7 @@ class RemediationPrPublisher(Protocol):
 
         Implementations MUST:
 
-        - be **idempotent by ``pr.idempotency_key``** — a second call
+        - be **idempotent by ``pr.idempotency_key``** - a second call
           with the same key returns ``already_existed=True`` and MUST
           NOT open a duplicate PR;
         - reject an intent whose ``mode`` is enforce and whose ``labels``

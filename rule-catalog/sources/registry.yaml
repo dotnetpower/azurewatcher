@@ -1,4 +1,4 @@
-# Source registry — normative sources the seed catalog draws from.
+# Source registry - normative sources the seed catalog draws from.
 #
 # Consumed as data by future collection pipelines (see
 # docs/roadmap/rule-catalog-collection.md). The runtime T0 pipeline does
@@ -39,7 +39,7 @@ sources:
     license: LicenseRef-reference-only
     redistribution: reference-only
     scope: >-
-      Five pillars of workload design — Reliability, Security, Cost
+      Five pillars of workload design - Reliability, Security, Cost
       Optimization, Operational Excellence, Performance Efficiency. The
       catalog draws mainly on Reliability (backup, redundancy, RTO/RPO),
       Cost (right-size, orphan cleanup), and Operational Excellence
@@ -52,7 +52,7 @@ sources:
     license: LicenseRef-reference-only
     redistribution: reference-only
     scope: >-
-      Data-plane recommendations Azure emits per subscription — Cost,
+      Data-plane recommendations Azure emits per subscription - Cost,
       Security, Reliability, Operational Excellence, Performance. The
       catalog imports the deterministic subset (idle / orphan / low
       utilization); dynamic recommendations that depend on subscription

@@ -87,7 +87,7 @@ def test_audit_log_derivation_panels_reference_real_fields() -> None:
 
 
 def test_deferred_panels_name_a_source() -> None:
-    """A deferred panel MUST cite where its data will come from — no orphans."""
+    """A deferred panel MUST cite where its data will come from - no orphans."""
     for panel in _load()["panels"]:
         source = panel["source"]
         if source["kind"] == "deferred":

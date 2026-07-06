@@ -1,14 +1,14 @@
 /**
  * Runtime configuration derived from Vite env vars. All values are
  * fork-supplied via `.env.local` (dev) or a Static Web App configuration
- * (prod). No customer identifiers are baked in at build time — the
+ * (prod). No customer identifiers are baked in at build time - the
  * upstream repo ships only schema and empty defaults.
  *
  * See docs/roadmap/user-rbac-and-identity.md § 10.1 for MSAL config.
  */
 
 export interface ConsoleConfig {
-  /** Base URL of the read API (`https://api.<fork>/…`). */
+  /** Base URL of the read API (`https://api.<fork>/...`). */
   readonly readApiBaseUrl: string;
   /** MSAL.js client id (Entra app registration for the SPA). */
   readonly msalClientId: string;

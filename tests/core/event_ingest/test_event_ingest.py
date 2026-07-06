@@ -1,4 +1,4 @@
-"""EventIngest — normalize + deduplicate boundary."""
+"""EventIngest - normalize + deduplicate boundary."""
 
 from __future__ import annotations
 

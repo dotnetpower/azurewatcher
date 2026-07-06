@@ -92,7 +92,7 @@ async def test_send_error_fires_once() -> None:
     with pytest.raises(HilChannelError):
         await channel.send(_request())
 
-    # Second send succeeds — the injected error clears after one raise.
+    # Second send succeeds - the injected error clears after one raise.
     receipt = await channel.send(_request())
     assert receipt.approval_id == "appr-1"
 

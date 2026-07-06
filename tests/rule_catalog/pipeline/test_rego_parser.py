@@ -29,7 +29,7 @@ from aiopspilot.rule_catalog.pipeline.parse import (
 )
 
 # ---------------------------------------------------------------------------
-# Fixture Rego modules — kept as string constants so the test file stays
+# Fixture Rego modules - kept as string constants so the test file stays
 # a single self-contained source of truth for every shape under test.
 # ---------------------------------------------------------------------------
 
@@ -95,7 +95,7 @@ def test_build_parser_accepts_string_name_rego() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Happy path — METADATA present, custom.resource_type lifted
+# Happy path - METADATA present, custom.resource_type lifted
 # ---------------------------------------------------------------------------
 
 
@@ -117,7 +117,7 @@ def test_rego_parser_happy_path_with_metadata(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Fallback — METADATA absent, resource_type defaults to "unknown"
+# Fallback - METADATA absent, resource_type defaults to "unknown"
 # ---------------------------------------------------------------------------
 
 
@@ -154,7 +154,7 @@ def test_rego_parser_fallback_when_resource_type_wrong_type(tmp_path: Path) -> N
 
 
 # ---------------------------------------------------------------------------
-# Recursive walk — subpaths preserved in origin + reference
+# Recursive walk - subpaths preserved in origin + reference
 # ---------------------------------------------------------------------------
 
 
@@ -202,7 +202,7 @@ def test_rego_parser_is_deterministic(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Fail-closed — structural failures
+# Fail-closed - structural failures
 # ---------------------------------------------------------------------------
 
 
@@ -259,7 +259,7 @@ def test_rego_parser_reports_multiple_errors_with_preview(tmp_path: Path) -> Non
 
 
 # ---------------------------------------------------------------------------
-# Malformed structure — the malformed METADATA fixture must fail cleanly
+# Malformed structure - the malformed METADATA fixture must fail cleanly
 # without ever emitting a partial ParsedRule.
 # ---------------------------------------------------------------------------
 
@@ -279,7 +279,7 @@ def test_rego_parser_empty_tree_returns_empty_report(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# LocalDirectoryFetcher-style fixture — proves the parser is drop-in
+# LocalDirectoryFetcher-style fixture - proves the parser is drop-in
 # compatible with a fetcher that vendors an OSS Rego source into the
 # snapshot tree. Deliberately no network / no git.
 # ---------------------------------------------------------------------------

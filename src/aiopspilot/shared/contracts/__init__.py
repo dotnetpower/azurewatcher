@@ -4,7 +4,7 @@ Ontology (Resource / Rule / Signal / Finding) plus event / action / rule
 schemas. Public API. Re-exports the *interfaces* (Protocols, data models,
 errors) that core modules depend on. Concrete implementations
 (``PackageResourceSchemaRegistry``, ``JsonSchemaContractValidator``,
-``JsonSchemaEventValidator``) are **intentionally not re-exported here** — they
+``JsonSchemaEventValidator``) are **intentionally not re-exported here** - they
 must be imported from their submodules by the composition root only, so
 ``core/`` cannot accidentally depend on a concrete adapter (see
 ``docs/roadmap/project-structure.md § Customization via Dependency Injection``).
@@ -55,7 +55,7 @@ from .validation import (
 )
 
 __all__ = [
-    # data — enums
+    # data - enums
     "ActionInterface",
     "BlastRadiusComputation",
     "BlastRadiusScope",
@@ -72,10 +72,10 @@ __all__ = [
     "Severity",
     "StopConditionKind",
     "Tier",
-    # data — aliases
+    # data - aliases
     "IdempotencyKey",
     "SemVer",
-    # data — models
+    # data - models
     "Action",
     "ActionBlastRadius",
     "ActionPrecondition",
@@ -92,7 +92,7 @@ __all__ = [
     "Remediation",
     "RollbackRef",
     "Rule",
-    # DI seams (Protocols only — no concretes)
+    # DI seams (Protocols only - no concretes)
     "ContractValidator",
     "EventValidator",
     "SchemaRegistry",

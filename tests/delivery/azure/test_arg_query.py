@@ -1,4 +1,4 @@
-"""AzureArgQueryFactory — HTTP-level round-trip via httpx.MockTransport.
+"""AzureArgQueryFactory - HTTP-level round-trip via httpx.MockTransport.
 
 Verifies the wire contract the P1 executor + risk-gate rely on:
 
@@ -11,7 +11,7 @@ Verifies the wire contract the P1 executor + risk-gate rely on:
   on ``provider_ref``); untrusted ``props`` are truncated when they exceed
   the byte cap.
 - ``resource_type`` with a ``None`` ``azure_arm_type`` is a legitimate
-  no-op — the factory returns empty tuples so
+  no-op - the factory returns empty tuples so
   :class:`AzureResourceGraphInventory` still emits its ``final=True`` fence.
 
 No real Azure endpoints are contacted; every test builds an
@@ -59,7 +59,7 @@ def _vocab() -> ResourceTypeRegistry:
 
 def _identity(
     audience: str = "https://management.azure.com/.default",
-    token: str = "test-token-xyz",  # noqa: S107 — deterministic test literal, not a secret
+    token: str = "test-token-xyz",  # noqa: S107 - deterministic test literal, not a secret
 ) -> WorkloadIdentity:
     return StaticWorkloadIdentity(audience=audience, token=token)
 
@@ -133,7 +133,7 @@ def test_invalid_config_is_rejected(override: dict[str, Any], message: str) -> N
 
 
 # ---------------------------------------------------------------------------
-# Happy path — single page
+# Happy path - single page
 # ---------------------------------------------------------------------------
 
 
@@ -297,7 +297,7 @@ async def test_pagination_cap_raises() -> None:
 @pytest.mark.asyncio
 async def test_non_2xx_response_raises() -> None:
     def _handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(403, text="Forbidden — insufficient RBAC")
+        return httpx.Response(403, text="Forbidden - insufficient RBAC")
 
     async with _make_client(httpx.MockTransport(_handler)) as client:
         factory = AzureArgQueryFactory(
@@ -431,7 +431,7 @@ async def test_oversize_properties_are_truncated() -> None:
 async def test_resource_type_without_arm_mapping_is_a_noop() -> None:
     """A CSP-neutral type with `azure_arm_type: None` MUST NOT call HTTP.
 
-    We synthesize such an entry to exercise the branch — production
+    We synthesize such an entry to exercise the branch - production
     vocabulary may or may not have one at any point, but the branch MUST
     behave deterministically either way.
     """
@@ -571,7 +571,7 @@ async def test_non_mapping_rows_and_missing_id_are_skipped() -> None:
         resources, _ = await factory.build_query_fn()("object-storage")
 
     # Only the well-formed row survives; the three malformed ones are dropped
-    # silently — no ArgQueryError because that's per-page level, not per-row.
+    # silently - no ArgQueryError because that's per-page level, not per-row.
     assert len(resources) == 1
     assert resources[0].provider_ref is not None
     assert resources[0].provider_ref.endswith("/storageAccounts/keep")
@@ -664,7 +664,7 @@ async def test_row_property_with_null_value_is_dropped() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _extract_rg_contains_links — pure helper, no HTTP
+# _extract_rg_contains_links - pure helper, no HTTP
 # ---------------------------------------------------------------------------
 
 
@@ -751,7 +751,7 @@ def test_extract_rg_contains_deduplicates_repeats_within_shard() -> None:
         "resourceGroups/rg-a/providers/Microsoft.Storage/storageAccounts/s1"
     )
     dup = _record(arm_id=arm_id)
-    # Two records with identical resource_id — the extractor dedupes.
+    # Two records with identical resource_id - the extractor dedupes.
     (edge,) = _extract_rg_contains_links([dup, dup])
     assert edge.from_id == "resource-group/rg-a"
 
@@ -895,7 +895,7 @@ def test_extract_attached_to_returns_empty_when_no_properties() -> None:
         provider_ref="/subscriptions/.../x",
     )
     assert _extract_attached_to_links_from_row({}, child=child, arm_to_neutral=reverse) == ()
-    # Properties present but not a mapping — same result.
+    # Properties present but not a mapping - same result.
     assert (
         _extract_attached_to_links_from_row(
             {"properties": "not a dict"}, child=child, arm_to_neutral=reverse
@@ -906,7 +906,7 @@ def test_extract_attached_to_returns_empty_when_no_properties() -> None:
 
 def test_extract_attached_to_deduplicates_within_row() -> None:
     """Two whitelisted keys pointing at the same target collapse into
-    a single edge — deduplication mirrors the LinkRecord idempotency
+    a single edge - deduplication mirrors the LinkRecord idempotency
     contract on InventoryBatch."""
     from aiopspilot.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
@@ -927,7 +927,7 @@ def test_extract_attached_to_deduplicates_within_row() -> None:
     row = {
         "properties": {
             # Same subnet referenced twice via two whitelisted paths
-            # (contrived — the extractor still dedupes).
+            # (contrived - the extractor still dedupes).
             "subnet": {"id": same_target},
             "networkSecurityGroup": {"id": same_target},  # same target string
         }
@@ -959,7 +959,7 @@ async def test_full_row_emits_contains_and_attached_to_links_together() -> None:
                             "properties": {
                                 # A storage account rarely has a subnet
                                 # attachment, but the extractor is
-                                # property-driven — this exercises the
+                                # property-driven - this exercises the
                                 # end-to-end path deterministically.
                                 "subnet": {
                                     "id": (
@@ -996,7 +996,7 @@ async def test_full_row_emits_contains_and_attached_to_links_together() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _extract_depends_on_links_from_row — soft-dependency whitelist
+# _extract_depends_on_links_from_row - soft-dependency whitelist
 # ---------------------------------------------------------------------------
 
 
@@ -1037,7 +1037,7 @@ def test_extract_depends_on_from_workspace_resource_id() -> None:
     emits `depends_on(setting, log-workspace)`.
 
     Unlike `storageAccount.id`, this path is a top-level ARM-id string
-    (no `.id` wrapper) — the extractor MUST handle both shapes."""
+    (no `.id` wrapper) - the extractor MUST handle both shapes."""
     from aiopspilot.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_depends_on_links_from_row,
@@ -1091,7 +1091,7 @@ def test_extract_depends_on_from_acr_login_server_emits_when_resolver_returns_ar
     """Positive-emission path: monkeypatch the placeholder resolver so
     it returns an ARM id whose type IS in the vocabulary. Uses
     ``Microsoft.Storage/storageAccounts`` as a stand-in target since
-    ``container-registry`` is not (yet) in the vocabulary — the point
+    ``container-registry`` is not (yet) in the vocabulary - the point
     is to exercise the emit branch, not the semantics of ACR."""
     from aiopspilot.delivery.azure import arg_query as arg_query_mod
     from aiopspilot.delivery.azure.arg_query import (
@@ -1124,7 +1124,7 @@ def test_extract_depends_on_from_acr_login_server_emits_when_resolver_returns_ar
 
 def test_extract_depends_on_drops_reference_to_unmapped_type() -> None:
     """A soft-dep reference to an ARM type not in the vocabulary is
-    dropped, not emitted with an unknown to_type — same envelope as
+    dropped, not emitted with an unknown to_type - same envelope as
     `_extract_attached_to_links_from_row`."""
     from aiopspilot.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
@@ -1151,7 +1151,7 @@ def test_extract_depends_on_drops_reference_to_unmapped_type() -> None:
 
 def test_extract_depends_on_drops_reference_without_providers_segment() -> None:
     """A ref value that IS a non-empty string but lacks the
-    ``/providers/`` segment cannot yield an ARM type — the extractor
+    ``/providers/`` segment cannot yield an ARM type - the extractor
     treats it as un-typable and drops it (never emits an edge with
     an unknown ``to_type``)."""
     from aiopspilot.delivery.azure.arg_query import (
@@ -1241,7 +1241,7 @@ def test_extract_depends_on_returns_empty_when_no_properties() -> None:
 
 def test_extract_depends_on_deduplicates_within_row() -> None:
     """Two whitelisted paths pointing at the same target collapse into
-    a single edge — mirrors the `attached_to` dedup contract."""
+    a single edge - mirrors the `attached_to` dedup contract."""
     from aiopspilot.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_depends_on_links_from_row,

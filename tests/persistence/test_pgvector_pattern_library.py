@@ -1,4 +1,4 @@
-"""PgVectorPatternLibrary — unit + integration tests.
+"""PgVectorPatternLibrary - unit + integration tests.
 
 The database-touching paths are gated on ``AIOPSPILOT_DATABASE_URL`` and
 mirror the skip pattern established by
@@ -32,7 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 # ---------------------------------------------------------------------------
-# Offline unit tests — no database required.
+# Offline unit tests - no database required.
 # ---------------------------------------------------------------------------
 
 
@@ -100,7 +100,7 @@ async def test_search_rejects_zero_k() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests — require a live Postgres+pgvector.
+# Integration tests - require a live Postgres+pgvector.
 # ---------------------------------------------------------------------------
 
 pytestmark_integration = pytest.mark.integration
@@ -114,7 +114,7 @@ def _requires_live_db() -> str:
 
 
 def _upgrade_head() -> None:
-    result = subprocess.run(  # noqa: S603 — controlled subprocess
+    result = subprocess.run(  # noqa: S603 - controlled subprocess
         [sys.executable, "-m", "alembic", "upgrade", "head"],
         cwd=REPO_ROOT,
         capture_output=True,
@@ -161,7 +161,7 @@ async def test_add_then_search_returns_nearest_first() -> None:
     far_sig = f"{prefix}-far"
 
     # Distinct vectors so this run's rows are not colliding with rows from
-    # earlier runs of the same test — pgvector cannot break score ties by
+    # earlier runs of the same test - pgvector cannot break score ties by
     # signature, and the shared table is not truncated between tests.
     near_vec = _unit_vector_at(1 + (hash(prefix) % 100))
     far_vec = _unit_vector_at(200 + (hash(prefix) % 100))
@@ -169,14 +169,14 @@ async def test_add_then_search_returns_nearest_first() -> None:
     await library.add(vector=near_vec, action=_seed_action(signature=near_sig))
     await library.add(vector=far_vec, action=_seed_action(signature=far_sig))
 
-    # Query the near vector — the identical pattern must top the ranking.
+    # Query the near vector - the identical pattern must top the ranking.
     near_matches = await library.search(near_vec, k=5)
     assert near_matches, "expected at least one match"
     top = near_matches[0]
     assert top.action.signature == near_sig
     assert top.score == pytest.approx(1.0, abs=1e-6)
 
-    # Query the far vector — the identical far pattern must top *that* ranking.
+    # Query the far vector - the identical far pattern must top *that* ranking.
     # (A shared table across test runs means other orthogonal patterns can
     # crowd the top-k of an unrelated query; this assertion pins the property
     # that "identical vector → score ≈ 1.0", not a global top-k position.)
@@ -205,7 +205,7 @@ async def test_add_upserts_on_signature_conflict() -> None:
     after_first = await library.count()
     assert after_first == baseline_count + 1
 
-    # Second add with same signature — must UPDATE, not duplicate.
+    # Second add with same signature - must UPDATE, not duplicate.
     await library.add(
         vector=_unit_vector_at(0),
         action=_seed_action(signature=signature, success_rate=0.9),

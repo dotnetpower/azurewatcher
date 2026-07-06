@@ -12,7 +12,7 @@ Design boundaries
   ``delivery/azure/`` and is bound at the composition root through the
   :class:`~aiopspilot.shared.providers.dr_experiment.DrExperimentRunner`
   Protocol seam.
-- No ``azure-identity`` / ``DefaultAzureCredential`` — identity flows
+- No ``azure-identity`` / ``DefaultAzureCredential`` - identity flows
   exclusively through :class:`WorkloadIdentity`.
 - HTTP transport is an injected :class:`httpx.AsyncClient`; tests hand
   it a client backed by :class:`httpx.MockTransport`. Production wires
@@ -34,7 +34,7 @@ Wire contract (v1)
 
 All operations honor a per-request timeout from
 :class:`AzureDrExperimentAdapterConfig.timeout_seconds`. LRO polling is
-one-shot per :meth:`check` call by design — the P3 scheduler owns the
+one-shot per :meth:`check` call by design - the P3 scheduler owns the
 poll cadence and stop-condition timing, not this adapter.
 
 Safety invariants
@@ -43,7 +43,7 @@ Safety invariants
 - **Fail-closed**: any non-2xx response, timeout, or malformed body
   raises :class:`DrRunnerError`; the caller escalates to HIL.
 - **Rollback idempotency**: ``rollback`` on an already-cancelled or
-  never-started run returns silently on 200/204/404 — a 4xx that
+  never-started run returns silently on 200/204/404 - a 4xx that
   indicates the experiment never existed is not a rollback failure.
 - **Bounded error bodies**: response text is truncated before it is
   embedded in the raised error, so an oversized vendor error page
@@ -109,7 +109,7 @@ class AzureDrExperimentAdapterConfig:
 
 # Statuses that Chaos Studio and Site Recovery LRO endpoints return in
 # their ``status`` / ``properties.provisioningState`` fields. The mapping
-# is intentionally conservative — an unknown vendor value maps to
+# is intentionally conservative - an unknown vendor value maps to
 # :class:`DrRunStatus.RUNNING` so the caller keeps polling instead of
 # treating novelty as failure. Vendor changes must be reviewed and
 # added here explicitly.
@@ -210,7 +210,7 @@ class AzureDrExperimentAdapter(DrExperimentRunner):
             ) from exc
 
         if response.status_code == 202:
-            # Still in progress — the runtime substrate has not settled
+            # Still in progress - the runtime substrate has not settled
             # the LRO yet.
             return DrRunStatus.RUNNING
         if response.status_code >= 400:
@@ -310,7 +310,7 @@ class AzureDrExperimentAdapter(DrExperimentRunner):
 
     @staticmethod
     def _compose_url(*, provider_ref: str, suffix: str, api_version: str) -> str:
-        # ``provider_ref`` is a full ARM id starting with ``/`` — the
+        # ``provider_ref`` is a full ARM id starting with ``/`` - the
         # ARM control plane is contacted at
         # ``https://management.azure.com`` unless the client has a
         # different ``base_url``. We hand a relative path off to
@@ -326,7 +326,7 @@ class AzureDrExperimentAdapter(DrExperimentRunner):
         raw = text.replace("\n", " ")
         if len(raw) <= cap:
             return raw
-        return raw[:cap] + "…"
+        return raw[:cap] + "..."
 
 
 # ---------------------------------------------------------------------------
@@ -341,7 +341,7 @@ def _infer_kind(experiment: DrExperiment) -> DrExperimentKind:
     Site Recovery Recovery Plan ids contain
     ``/providers/Microsoft.RecoveryServices/vaults/.../replicationRecoveryPlans/``.
     Anything else defaults to ``CHAOS`` so an ambiguous input still gets
-    a deterministic dispatch — the alternative (an exception) would
+    a deterministic dispatch - the alternative (an exception) would
     surface as a runner failure that :class:`DrScheduler.run` cannot
     distinguish from an auth / transport error.
     """
@@ -378,7 +378,7 @@ def _extract_run_pointers(*, response: httpx.Response, provider_ref: str) -> tup
     if status_url is not None:
         return status_url, status_url
     # Synchronous 200 without a body id and without an LRO header. Use
-    # the ARM id itself as the run identifier — the ``check`` fallback
+    # the ARM id itself as the run identifier - the ``check`` fallback
     # queries the resource directly.
     return provider_ref, None
 
@@ -388,12 +388,12 @@ def _map_state(payload: object) -> DrRunStatus:
 
     Two shapes are supported:
 
-    - Chaos Studio ``ExperimentExecutionDetails`` — ``status`` field.
-    - Site Recovery LRO envelope — ``status`` field with the same
+    - Chaos Studio ``ExperimentExecutionDetails`` - ``status`` field.
+    - Site Recovery LRO envelope - ``status`` field with the same
       enumeration; the resource-level GET uses
       ``properties.provisioningState`` instead.
 
-    An unknown value maps to :class:`DrRunStatus.RUNNING` — the caller
+    An unknown value maps to :class:`DrRunStatus.RUNNING` - the caller
     keeps polling; treating novelty as failure would over-rollback.
     """
     if not isinstance(payload, dict):

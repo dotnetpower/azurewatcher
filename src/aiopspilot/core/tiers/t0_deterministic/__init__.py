@@ -1,22 +1,22 @@
-"""T0 deterministic tier — policy evaluation, what-if, drift detection.
+"""T0 deterministic tier - policy evaluation, what-if, drift detection.
 
 Public exports:
 
-- :class:`~aiopspilot.core.tiers.t0_deterministic.engine.T0Engine` — orchestrator.
-- :class:`~aiopspilot.core.tiers.t0_deterministic.engine.PolicyEvaluator` — DI seam
+- :class:`~aiopspilot.core.tiers.t0_deterministic.engine.T0Engine` - orchestrator.
+- :class:`~aiopspilot.core.tiers.t0_deterministic.engine.PolicyEvaluator` - DI seam
   for the check_logic runner (default: :class:`AbstainEvaluator`; the OPA/Rego
   runner :class:`OpaRegoEvaluator` binds at the composition root once ``opa`` is
   installed).
 - :class:`~aiopspilot.core.tiers.t0_deterministic.opa_evaluator.OpaRegoEvaluator`
-  — subprocess-backed evaluator; raises
+  - subprocess-backed evaluator; raises
   :class:`~aiopspilot.core.tiers.t0_deterministic.opa_evaluator.MissingOpaBinaryError`
   when ``opa`` is not on ``PATH`` so the composition root can bind
   :class:`AbstainEvaluator` explicitly (auditable degraded posture).
-- :class:`~aiopspilot.core.tiers.t0_deterministic.index.RuleIndex` — O(indexed) rule lookup.
+- :class:`~aiopspilot.core.tiers.t0_deterministic.index.RuleIndex` - O(indexed) rule lookup.
 - :class:`~aiopspilot.core.tiers.t0_deterministic.models.Finding` /
   :class:`~aiopspilot.core.tiers.t0_deterministic.models.Verdict` /
   :class:`~aiopspilot.core.tiers.t0_deterministic.models.AuditHint` /
-  :class:`~aiopspilot.core.tiers.t0_deterministic.models.PipelineStage` — data types.
+  :class:`~aiopspilot.core.tiers.t0_deterministic.models.PipelineStage` - data types.
 
 See ``docs/roadmap/phases/phase-1-rule-catalog-t0.md`` for the phase-1 T0 spec.
 """

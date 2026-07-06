@@ -1,7 +1,7 @@
 /**
  * MSAL.js wrapper. Handles sign-in redirect, silent token acquisition,
  * and produces the `Authorization: Bearer <token>` header the read API
- * expects. In dev mode the wrapper is a no-op — the API accepts
+ * expects. In dev mode the wrapper is a no-op - the API accepts
  * anonymous requests when `AIOPSPILOT_READ_API_DEV_MODE=1` is set.
  *
  * See docs/roadmap/user-rbac-and-identity.md § 10.1 for the full flow.
@@ -59,7 +59,7 @@ class MsalAuth implements AuthContext {
   }
 
   async initialize(): Promise<void> {
-    // Consume any redirect response first — MSAL requires this before
+    // Consume any redirect response first - MSAL requires this before
     // any silent-acquire call.
     await this.#client.handleRedirectPromise();
     const accounts = this.#client.getAllAccounts();
@@ -98,7 +98,7 @@ export async function initAuth(config: ConsoleConfig): Promise<AuthContext> {
     return new DevModeAuth();
   }
   if (!config.msalClientId || !config.msalTenantId || !config.msalApiScope) {
-    // Fail loud in prod builds — the fork MUST set these envs before
+    // Fail loud in prod builds - the fork MUST set these envs before
     // shipping. The console refuses to load with a clear message rather
     // than silently rendering unauthenticated calls.
     throw new Error(

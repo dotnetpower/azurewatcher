@@ -30,12 +30,12 @@ def test_inventory_protocol_is_importable_and_runtime_checkable() -> None:
     class _Empty:
         def full_snapshot(
             self, since: str | None = None
-        ) -> AsyncIterator[InventoryBatch]:  # pragma: no cover — never invoked
+        ) -> AsyncIterator[InventoryBatch]:  # pragma: no cover - never invoked
             raise NotImplementedError
 
         def delta(
             self, cursor: str
-        ) -> AsyncIterator[InventoryBatch]:  # pragma: no cover — never invoked
+        ) -> AsyncIterator[InventoryBatch]:  # pragma: no cover - never invoked
             raise NotImplementedError
 
     assert isinstance(_Empty(), Inventory)
@@ -62,7 +62,7 @@ def test_link_record_is_frozen() -> None:
 def test_inventory_batch_final_defaults_to_false() -> None:
     """Callers rely on `final=True` as the atomic-promote fence.
 
-    Defaulting to False forces every adapter to opt in — a stream that
+    Defaulting to False forces every adapter to opt in - a stream that
     ends silently must not be treated as complete
     (docs/roadmap/csp-neutrality.md § 5).
     """

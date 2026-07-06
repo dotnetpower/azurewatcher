@@ -106,7 +106,7 @@ def test_scenario_has_english_only_prose(path: Path, raw: dict[str, Any]) -> Non
 
 
 # ---------------------------------------------------------------------------
-# Coverage — success + guard together
+# Coverage - success + guard together
 # ---------------------------------------------------------------------------
 
 

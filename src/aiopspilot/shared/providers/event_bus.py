@@ -1,6 +1,6 @@
-"""Event bus — Kafka-wire by default; DI seam for alternates.
+"""Event bus - Kafka-wire by default; DI seam for alternates.
 
-Async by contract — real Kafka clients pump a poll loop that is coroutine-
+Async by contract - real Kafka clients pump a poll loop that is coroutine-
 friendly, and Event Hubs / Redpanda / Confluent all expose native asyncio
 integrations (`aiokafka`, `confluent-kafka`'s asyncio wrappers, etc.).
 
@@ -67,11 +67,11 @@ class EventBus(Protocol):
         """Return an :class:`AsyncIterator` yielding records for ``topic``.
 
         Each ``__anext__()`` awaits a poll; implementations decide the exact
-        backoff. Consumer offsets are managed under ``group_id`` — at-least-
+        backoff. Consumer offsets are managed under ``group_id`` - at-least-
         once delivery is the guarantee, so the caller MUST enforce
         idempotency on the event's ``idempotency_key``.
 
-        NOTE: this method is NOT itself async — it returns an async iterator
+        NOTE: this method is NOT itself async - it returns an async iterator
         so callers can drive the loop with ``async for envelope in
         bus.subscribe(topic, group)``.
         """

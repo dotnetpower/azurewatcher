@@ -13,7 +13,7 @@ The read API is responsible for **JWT signature + audience + issuer + expiry
 validation** before this module ever sees the claims (see
 [`user-rbac-and-identity.md § 10.2`]
 (../../../../../docs/roadmap/user-rbac-and-identity.md#102-api-token-validation)).
-The verifier is injected — :func:`build_authenticator` accepts a
+The verifier is injected - :func:`build_authenticator` accepts a
 :class:`ClaimsVerifier` callable of shape ``(token) -> claims``. Upstream
 does not ship a real JWKS-fetching verifier; that concrete implementation
 lives in the fork's composition root, alongside its ``httpx`` client and
@@ -52,7 +52,7 @@ Implementations MUST:
 - check ``iss`` matches the fork's Entra tenant issuer;
 - check ``exp`` and ``nbf`` are current.
 
-On any failure, raise :class:`AuthenticationError` — the read-API layer
+On any failure, raise :class:`AuthenticationError` - the read-API layer
 translates that into HTTP ``401``. Do NOT raise :class:`AuthorizationError`
 here; role checks happen later.
 """
@@ -62,7 +62,7 @@ class AuthenticationError(Exception):
     """Bearer token is missing, malformed, or fails signature/claims validation.
 
     Read-API layer maps this to HTTP ``401 Unauthorized``. Never leaks the
-    token contents in ``str(exc)`` — the message is safe to log.
+    token contents in ``str(exc)`` - the message is safe to log.
     """
 
 
@@ -103,7 +103,7 @@ class Authenticator:
             claims = self.verifier(token)
         except AuthenticationError:
             raise
-        except Exception as exc:  # noqa: BLE001 — wrap arbitrary verifier failures
+        except Exception as exc:  # noqa: BLE001 - wrap arbitrary verifier failures
             raise AuthenticationError(f"token verification failed: {type(exc).__name__}") from exc
         try:
             return self.resolver.resolve_from_claims(claims, correlation_id=correlation_id)
@@ -120,7 +120,7 @@ class Authenticator:
         """Authenticate + gate on the given roles in one call.
 
         Convenience for handlers that do not need to distinguish 401 from 403
-        in their own code — the surrounding exception handler still keeps
+        in their own code - the surrounding exception handler still keeps
         them apart because :class:`AuthenticationError` and
         :class:`AuthorizationError` are distinct types.
         """
@@ -159,7 +159,7 @@ class UnsafeClaimsExtractor:
 
     Uses :func:`aiopspilot.core.rbac.resolver.decode_jwt_payload` to pull
     claims out of a JWT without any cryptographic check. **MUST NOT** be
-    wired into a production composition root — the fork's real verifier
+    wired into a production composition root - the fork's real verifier
     (JWKS + audience + issuer + expiry) replaces this.
 
     Kept in-tree so unit tests can exercise the read-API surface without

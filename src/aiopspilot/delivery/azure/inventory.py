@@ -1,6 +1,6 @@
 """Azure Resource Graph (ARG) implementation of the ``Inventory`` Protocol.
 
-This module realizes the 5th CSP-neutral wire contract for Azure — see
+This module realizes the 5th CSP-neutral wire contract for Azure - see
 ``docs/roadmap/csp-neutrality.md § 5. Inventory Contract`` and the Protocol
 in ``src/aiopspilot/shared/providers/inventory.py``.
 
@@ -21,7 +21,7 @@ wired against a real interface:
   stream that ends without it; the stub enforces this on every path.
 - **Idempotent upsert (interface)**: batches are keyed on
   ``resource_id`` for resources and ``(from_id, link_type, to_id)`` for
-  links. Adapters MUST NOT emit duplicates within one snapshot — this
+  links. Adapters MUST NOT emit duplicates within one snapshot - this
   stub deduplicates the synthetic input to make the invariant testable.
 - **Delta stream**: :meth:`AzureResourceGraphInventory.delta` accepts a
   cursor and returns an empty final batch by default; production wiring
@@ -32,12 +32,12 @@ What is deliberately NOT here yet
 
 - No ``azure-mgmt-resourcegraph`` client is instantiated (that lands in
   P1 W-3 together with the OIDC-federated ``WorkloadIdentity`` binding).
-- No Kusto query templates ship — they are configuration, not code.
+- No Kusto query templates ship - they are configuration, not code.
 - No writes into ``ontology_resource`` / ``ontology_link``; the caller
   (event-ingest) is the upsert authority per the Inventory contract.
 - No Azure SDK imports appear anywhere in the module tree yet. When they
   land they stay confined to this file (or a sibling under
-  ``delivery/azure/``) — ``core/`` never imports them.
+  ``delivery/azure/``) - ``core/`` never imports them.
 """
 
 from __future__ import annotations
@@ -74,7 +74,7 @@ class AzureInventoryConfig:
     """Which CSP-neutral ``resource_type`` values to shard the full-scan on.
 
     Sourced from the canonical vocabulary
-    (``rule-catalog/vocabulary/resource-types.yaml``) — a fork narrows
+    (``rule-catalog/vocabulary/resource-types.yaml``) - a fork narrows
     this list at deploy time to scope the initial scan.
     """
 
@@ -90,7 +90,7 @@ class AzureInventoryConfig:
 
     Empty tuple means "single scope resolved from the injected
     :class:`~aiopspilot.shared.providers.workload_identity.WorkloadIdentity`
-    binding at query time" — the adapter never reads a subscription id
+    binding at query time" - the adapter never reads a subscription id
     from an environment variable directly.
     """
 
@@ -127,7 +127,7 @@ class AzureResourceGraphInventory:
         uses to atomically promote the new graph
         (``docs/roadmap/csp-neutrality.md § 5``).
 
-        ``since`` is currently unused — the stub returns the full shard
+        ``since`` is currently unused - the stub returns the full shard
         each call. Production may honor it as an ``since <= last_seen``
         optimization; it MUST NOT substitute for :meth:`delta`.
         """

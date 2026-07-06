@@ -1,10 +1,10 @@
-"""``rego`` parser — reads Rego policy modules from a snapshot tree.
+"""``rego`` parser - reads Rego policy modules from a snapshot tree.
 
 Second concrete parser plugin (after :class:`RuleYamlParser`). It walks
 the snapshot tree **recursively** for ``*.rego`` modules and emits one
 :class:`ParsedRule` per module. Each parsed mapping is deliberately
-partial — enough to identify the module and route to the shipped Rego
-file — and is stamped with ``resource_type: unknown`` when the source
+partial - enough to identify the module and route to the shipped Rego
+file - and is stamped with ``resource_type: unknown`` when the source
 does not declare one. Downstream normalization is a later stage's job;
 this parser only reads what the source provides.
 
@@ -50,7 +50,7 @@ _REGO_GLOB = "*.rego"
 
 # Rego identifier rules: letter or underscore, followed by [A-Za-z0-9_].
 # Package paths are dot-separated identifiers. This is intentionally
-# stricter than the full OPA grammar (no quoted string segments) —
+# stricter than the full OPA grammar (no quoted string segments) -
 # gatekeeper-library and every mainstream OSS policy tree uses plain
 # identifiers, and a stricter match keeps error messages clear.
 _PACKAGE_RE = re.compile(
@@ -69,7 +69,7 @@ class _MetadataError(Exception):
 class RegoParser:
     """Walks a snapshot tree of Rego modules and returns raw mappings.
 
-    The parser is pure over the snapshot tree — it MUST NOT reach out
+    The parser is pure over the snapshot tree - it MUST NOT reach out
     to the network or touch state outside the given path. Two
     invocations against the same tree yield the same ordered tuple.
     """
@@ -146,9 +146,9 @@ def _extract_metadata(text: str) -> Mapping[str, Any] | None:
     """Read an OPA ``# METADATA`` YAML comment block, if present.
 
     Returns ``None`` when no ``# METADATA`` marker is found (the
-    fallback path — id from package, resource_type unknown). Raises
+    fallback path - id from package, resource_type unknown). Raises
     :class:`_MetadataError` on an empty block or non-mapping body, and
-    lets ``yaml.YAMLError`` propagate on malformed YAML — both surface
+    lets ``yaml.YAMLError`` propagate on malformed YAML - both surface
     as ``ParseError`` in :meth:`RegoParser.parse`.
     """
     lines = text.splitlines()

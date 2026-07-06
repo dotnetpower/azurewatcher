@@ -1,10 +1,10 @@
 ---
-title: Phase 4 — Scale (Azure); Multi-Cloud (TBD)
+title: Phase 4 - Scale (Azure); Multi-Cloud (TBD)
 ---
-# Phase 4 — Scale (Azure); Multi-Cloud (TBD)
+# Phase 4 - Scale (Azure); Multi-Cloud (TBD)
 
-**Goal**: keep the Azure baseline honest as the system scales — continuous measurement,
-pattern-library growth, model cost/quality tracking, and performance/scalability — so the
+**Goal**: keep the Azure baseline honest as the system scales - continuous measurement,
+pattern-library growth, model cost/quality tracking, and performance/scalability - so the
 target multipliers stay **validated against the measured baseline** rather than asserted. No
 multiplier is claimed here; Phase 4 keeps the Phase 0 evidence current as the system scales.
 **Multi-cloud expansion is deferred (TBD)**; the sections below marked *TBD (deferred)* are
@@ -12,7 +12,7 @@ retained as forward-looking design and are not built in this roadmap until a non
 is explicitly scoped (see
 [Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must)).
 
-This phase builds on the Phase 0–3 core and does not change it. It realizes the CSP-neutral
+This phase builds on the Phase 0-3 core and does not change it. It realizes the CSP-neutral
 principles in
 [architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) and
 [app-shape.instructions.md](../../../.github/instructions/app-shape.instructions.md) as
@@ -42,7 +42,7 @@ customer-agnostic and Azure-only in intent (multi-cloud deliverables below stay 
   Module:
   [core/measurement/latency_budget.py](../../../src/aiopspilot/core/measurement/latency_budget.py).
 - Scheduled runners that wire the two library-only measurement components into Container
-  Apps Jobs — an automated-baseline regression runner (daily replay of the P0 scenario set,
+  Apps Jobs - an automated-baseline regression runner (daily replay of the P0 scenario set,
   auto-demotes on regression) and a pattern-growth intake runner (drains the audit stream,
   ingests accepted patterns in shadow only, never auto-promotes).
   Module:
@@ -54,7 +54,7 @@ customer-agnostic and Azure-only in intent (multi-cloud deliverables below stay 
   multi-cloud event-bus decision (OD-3 in [tech-stack.md](../tech-stack.md)). These items
   remain as design shape only until non-Azure work is scoped.
 
-## Provider Adapter Boundary (TBD — deferred)
+## Provider Adapter Boundary (TBD - deferred)
 
 > This section is retained as **design invariant** for a future non-Azure target. It is
 > **not built in this phase**; see
@@ -64,15 +64,15 @@ The core engine stays CSP-neutral; a new cloud would be added by implementing ad
 by forking the core. The adapter surface is fixed and each adapter is added behind an existing
 interface (see [project-structure.md](../project-structure.md)):
 
-- **Policy adapter** — evaluates the same OPA/Rego policies with provider-parameterized inputs;
+- **Policy adapter** - evaluates the same OPA/Rego policies with provider-parameterized inputs;
   no per-cloud policy fork.
-- **IaC / executor adapter** — applies remediation via Terraform/OpenTofu providers; emits the
+- **IaC / executor adapter** - applies remediation via Terraform/OpenTofu providers; emits the
   remediation PR, honoring the four safety invariants (stop-condition, rollback, blast-radius,
   audit) per CSP.
-- **Identity adapter** — supplies the scoped execution principal (see below).
-- **Event-source / bus adapter** — normalizes provider events into the versioned internal
+- **Identity adapter** - supplies the scoped execution principal (see below).
+- **Event-source / bus adapter** - normalizes provider events into the versioned internal
   schema at ingress.
-- **State-store adapter** — keeps audit/pattern-library/KPI storage portable.
+- **State-store adapter** - keeps audit/pattern-library/KPI storage portable.
 
 Rigor requirements (apply when a non-Azure adapter is eventually scoped):
 
@@ -82,7 +82,7 @@ Rigor requirements (apply when a non-Azure adapter is eventually scoped):
   behavior (same normalized event → same tier decision → same action shape) across CSPs.
 - Provider selection is configuration, not code branches in the core.
 
-## Multi-Cloud Rule Catalog (TBD — deferred)
+## Multi-Cloud Rule Catalog (TBD - deferred)
 
 > Deferred until a non-Azure target is scoped. Azure remains the only implemented catalog
 > target; see [rule-catalog-collection.md](../rule-catalog-collection.md).
@@ -103,29 +103,29 @@ Rigor requirements (apply when a non-Azure adapter is eventually scoped):
   [phase-2-quality-and-t1.md](phase-2-quality-and-t1.md)); promotion requires the regression
   suite to pass with zero policy-violation escapes.
 
-## Per-CSP Identity and Least Privilege (TBD — deferred)
+## Per-CSP Identity and Least Privilege (TBD - deferred)
 
 > Deferred; Azure identity model applies today (user-assigned Managed Identity, action
-> whitelist, distinct approval/execution principals — see
+> whitelist, distinct approval/execution principals - see
 > [security-and-identity.md](../security-and-identity.md)).
 
 - Each cloud gets its **own scoped execution identity** (e.g. Azure user-assigned Managed
   Identity, AWS IAM role, GCP service account), each restricted to an action whitelist. No
   identity is shared across clouds or across layers.
-- **Approval and execution remain distinct principals** in every cloud — no self-approval — per
+- **Approval and execution remain distinct principals** in every cloud - no self-approval - per
   [security-and-identity.md](../security-and-identity.md).
 - Blast-radius limits (scope/batch/rate caps) are enforced per CSP; a misconfigured adapter
   cannot exceed the whitelist.
 
-## Event Bus Portability (TBD — deferred)
+## Event Bus Portability (TBD - deferred)
 
 > Deferred; on Azure the bus is Service Bus + Event Grid (see
 > [tech-stack.md](../tech-stack.md#od-3-multi-cloud-event-bus-phase-4--tbd)).
 
-- Decide OD-3 by validating whether the Phase 0–3 bus (Service Bus + Event Grid) meets
+- Decide OD-3 by validating whether the Phase 0-3 bus (Service Bus + Event Grid) meets
   multi-cloud needs or whether a portable log/queue (Kafka or NATS JetStream) is required.
 - Decision criteria: **ordering, dead-letter, replay, and idempotency parity** across clouds,
-  operational cost, and CSP neutrality — the bus adapter must preserve per-resource ordering and
+  operational cost, and CSP neutrality - the bus adapter must preserve per-resource ordering and
   at-least-once + idempotent processing regardless of backend.
 - Record the outcome as a decision record and update [tech-stack.md](../tech-stack.md) OD-3.
 
@@ -159,7 +159,7 @@ Rigor requirements (apply when a non-Azure adapter is eventually scoped):
 
 - Feed the pattern library only from **auto-resolved, non-rolled-back, verified** production
   outcomes; failed, reverted, or HIL-overridden actions must not become reusable patterns.
-- New patterns enter in **shadow** and are shadow-evaluated before they can drive a T1 action —
+- New patterns enter in **shadow** and are shadow-evaluated before they can drive a T1 action -
   the library cannot self-promote.
 - Guard against feedback-loop overfitting: validate candidate patterns on a temporal holdout
   (patterns learned before a cutoff, tested after) and monitor the T1 false-positive rate as a
@@ -187,12 +187,12 @@ Rigor requirements (apply when a non-Azure adapter is eventually scoped):
 
 - Continuous measurement shows **no regression** in any guard metric on the stated Azure
   measurement window, with policy-violation escapes held at exactly 0.
-- Multiplier targets (metrics 1–4) are **demonstrated with statistical evidence** (sample
-  size, confidence interval, scenario-set version) against the Azure baseline — reported as
+- Multiplier targets (metrics 1-4) are **demonstrated with statistical evidence** (sample
+  size, confidence interval, scenario-set version) against the Azure baseline - reported as
   multipliers plus absolute values, never asserted.
 - Pattern-library growth raises auto-resolution **without** regressing guard metrics on the
   temporal holdout.
-- **Multi-cloud portability is not an exit criterion for this phase** — it is deferred (TBD)
+- **Multi-cloud portability is not an exit criterion for this phase** - it is deferred (TBD)
   and will be scoped in a future phase (see
   [Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must)).
 

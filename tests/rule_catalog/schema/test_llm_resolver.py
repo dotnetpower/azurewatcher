@@ -1,4 +1,4 @@
-"""Bootstrap resolver — gates + idempotency."""
+"""Bootstrap resolver - gates + idempotency."""
 
 from __future__ import annotations
 
@@ -158,7 +158,7 @@ def test_missing_role_degrades_every_capability_to_hil_only() -> None:
 
 def test_missing_family_marks_only_that_capability_hil() -> None:
     """A region drop that forces the resolver to fall through preferences
-    into a same-publisher family for the secondary reasoner MUST raise —
+    into a same-publisher family for the secondary reasoner MUST raise -
     the invariant is enforced *after* resolve, not just at load time."""
     reg = _registry(
         {
@@ -219,7 +219,7 @@ def test_missing_family_marks_only_that_capability_hil() -> None:
 
 def test_missing_family_hil_only_when_registry_stays_valid() -> None:
     """The region drops the secondary's preferred family; only that
-    capability degrades to HIL_ONLY — the primary + T1 keep working."""
+    capability degrades to HIL_ONLY - the primary + T1 keep working."""
     missing_secondary = _families_full() - {"claude-opus-4"}
     result = resolve(
         registry=_registry(),
@@ -348,7 +348,7 @@ def test_resolved_models_round_trips_json() -> None:
     text = original.to_json()
     restored = ResolvedModels.from_json(text)
     assert restored.to_json() == text
-    # And frozen record equality — every field.
+    # And frozen record equality - every field.
     for a, b in zip(original.capabilities, restored.capabilities, strict=True):
         assert isinstance(a, ResolvedCapability)
         assert a == b

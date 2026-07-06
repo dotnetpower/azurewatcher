@@ -1,4 +1,4 @@
-# Example source manifest — points at this repo's own P1 catalog tree
+# Example source manifest - points at this repo's own P1 catalog tree
 # so the collector CLI can be exercised end-to-end without any external
 # network. Real OSS sources (gatekeeper-library, checkov, ...) ship one
 # manifest per source under `rule-catalog/sources/<id>/manifest.yaml`

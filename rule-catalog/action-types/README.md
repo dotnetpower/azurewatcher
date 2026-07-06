@@ -12,7 +12,7 @@ and is loaded by
 
 1. `default_mode` MUST be `shadow` in the upstream repo (see
    [../../docs/roadmap/llm-strategy.md#actiontype-contract](../../docs/roadmap/llm-strategy.md#actiontype-contract)).
-2. `promotion_gate` MUST specify measurable criteria — a shadow-mode
+2. `promotion_gate` MUST specify measurable criteria - a shadow-mode
    ActionType is not promotable without them.
 3. `rollback_contract` MUST NOT be `none`; the enum
    (`pr_revert` / `scripted` / `pitr` / `snapshot_restore` /

@@ -8,9 +8,9 @@ public read-only stream.
 
 Async by contract (I/O over HTTP). Concrete implementations:
 
-- **Upstream default (test/dev)** — :class:`InMemorySseSink` in
+- **Upstream default (test/dev)** - :class:`InMemorySseSink` in
   ``shared/providers/testing/sse.py`` (fan-out queues).
-- **HTTP server** — lands together with the console read-only surface
+- **HTTP server** - lands together with the console read-only surface
   after W1.4 telemetry is in place; the ASGI framework choice is a fork
   decision (FastAPI / Starlette / Litestar all speak SSE natively).
 
@@ -20,7 +20,7 @@ Real-time updates ride the ``EventBus`` (internal Kafka) end and are
 relayed to ``SseSink`` via
 :class:`aiopspilot.shared.streaming.SseBroadcaster`. Consumers therefore
 subscribe to SSE by channel name (e.g. ``aw.audit.stream``), not to a
-Kafka topic — the relay boundary is where cross-CSP portability meets
+Kafka topic - the relay boundary is where cross-CSP portability meets
 the browser.
 """
 
@@ -57,7 +57,7 @@ class SseSink(Protocol):
         """Fan an :class:`SseEvent` out to every current subscriber of ``channel``.
 
         Semantics are pub/sub: a subscriber that joins after this call
-        will NOT see this event — it starts from the next publish. This
+        will NOT see this event - it starts from the next publish. This
         mirrors standard SSE behaviour where a fresh connection begins
         at the current stream tip.
         """

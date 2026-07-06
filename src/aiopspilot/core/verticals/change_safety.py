@@ -1,13 +1,13 @@
-"""Change Safety vertical — integrated risk classification.
+"""Change Safety vertical - integrated risk classification.
 
 Phase 3 § Change Safety. Change events (drift, config change, IaC diff)
 land on the shared control loop; this vertical classifies them into:
 
-- **low-risk auto** — proceed to executor via the risk-gate (only when
+- **low-risk auto** - proceed to executor via the risk-gate (only when
   the risk-gate itself returns AUTO, i.e. the ActionType is promoted
   to enforce).
-- **HIL** — human-in-the-loop approval required.
-- **timeout / reject** — no-op that still audits.
+- **HIL** - human-in-the-loop approval required.
+- **timeout / reject** - no-op that still audits.
 
 Distinct principals for approval vs execution (per
 [security-and-identity.md § Execution identity]) is enforced by the
@@ -53,7 +53,7 @@ class ChangeContext:
     per phase-3 doc even if the diff itself is trivial."""
 
     target_environment: str
-    """`prod` / `staging` / `dev` — production changes always HIL."""
+    """`prod` / `staging` / `dev` - production changes always HIL."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,7 +107,7 @@ class ChangeSafetyClassifier:
 
         Kept as a helper method (not a public constructor path) so the
         classifier is the only surface that stamps ``ChangeDecision``
-        records — every audit entry is reconstructable from one call.
+        records - every audit entry is reconstructable from one call.
         """
         if outcome not in (
             ChangeDecisionOutcome.REJECT,

@@ -79,7 +79,7 @@ class TestCapabilityMatrix:
         assert Capability.TRIGGER_KILL_SWITCH in owner
         assert Capability.MANAGE_GROUP_MEMBERSHIP in owner
         assert Capability.APPLY_INFRA_IAC in owner
-        # Owner alone does NOT grant emergency access — that stays with
+        # Owner alone does NOT grant emergency access - that stays with
         # BreakGlass (doc § 2 "Break-Glass is NOT nested inside Owner").
         assert Capability.GRANT_EMERGENCY_ACCESS not in owner
 

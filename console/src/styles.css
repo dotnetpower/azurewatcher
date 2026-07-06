@@ -1,4 +1,4 @@
-/* Console SPA styling — deliberately minimal, no design-system dep.
+/* Console SPA styling - deliberately minimal, no design-system dep.
  * The console is a low-frequency, read-only surface for operators; a
  * production fork MAY overlay its own design tokens by targeting the
  * class selectors below.

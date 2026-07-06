@@ -1,4 +1,4 @@
-"""ActionBuilder — safety-invariant mapping from Finding to Action."""
+"""ActionBuilder - safety-invariant mapping from Finding to Action."""
 
 from __future__ import annotations
 
@@ -94,7 +94,7 @@ def _finding(rule: Rule, *, resource_id: str = "rid-1") -> Finding:
 
 
 # ---------------------------------------------------------------------------
-# Happy path — every shipped ActionType produces a valid Action
+# Happy path - every shipped ActionType produces a valid Action
 # ---------------------------------------------------------------------------
 
 
@@ -133,7 +133,7 @@ def test_idempotency_key_derives_from_event_rule_resource() -> None:
 
 def test_finding_context_stays_out_of_action_params() -> None:
     """Finding context (e.g. ``deny_reason``) is audit-log data, not a
-    template placeholder — the ActionBuilder MUST NOT inject it into
+    template placeholder - the ActionBuilder MUST NOT inject it into
     ``Action.params`` or the renderer's scalar-only rule breaks."""
     rule = _rule("r1", "remediate.tag-add", parameters={"tag_name": "owner"})
     builder = ActionBuilder(action_types_by_name=_shipped_action_types())  # type: ignore[arg-type]

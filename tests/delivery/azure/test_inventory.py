@@ -1,11 +1,11 @@
-"""AzureResourceGraphInventory — structural + safety invariants (P1 W-2).
+"""AzureResourceGraphInventory - structural + safety invariants (P1 W-2).
 
 Assertions the stub must satisfy so downstream code can be wired against
 a real interface:
 
 - Full-scan streams end with an atomic-promote fence (``final=True``).
 - Concurrent shard queries respect ``max_concurrent_queries``.
-- On query failure, no ``final=True`` batch is emitted — a caller MUST
+- On query failure, no ``final=True`` batch is emitted - a caller MUST
   retain the previous graph (fail-closed).
 - Duplicate resources / links inside one shard are collapsed
   (idempotent-upsert precondition).

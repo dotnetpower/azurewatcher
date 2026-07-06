@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# check-english-only.sh — enforce the English-only rule outside the
+# check-english-only.sh - enforce the English-only rule outside the
 # -ko.md translation carve-out.
 #
 # Rules (see .github/instructions/language.instructions.md):

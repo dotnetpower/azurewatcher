@@ -1,4 +1,4 @@
-"""Schema registry — the DI seam that decides *where raw JSON schemas come from*.
+"""Schema registry - the DI seam that decides *where raw JSON schemas come from*.
 
 Core modules depend on the :class:`SchemaRegistry` :class:`~typing.Protocol`
 only; a fork registers a concrete implementation at the composition root and
@@ -6,7 +6,7 @@ selects it via config. The upstream default,
 :class:`PackageResourceSchemaRegistry`, loads schemas that ship inside this
 package (``importlib.resources``). A fork MAY plug in a remote registry
 (e.g. a schema-registry service, a git-tracked catalog snapshot) by
-implementing :class:`SchemaRegistry` and registering that binding — no change
+implementing :class:`SchemaRegistry` and registering that binding - no change
 to ``core/`` required.
 
 The registry deliberately hands back *raw JSON dicts*, not pydantic models,
@@ -47,7 +47,7 @@ class SchemaRegistry(Protocol):
         """Return the schema for ``name`` (semver ``version`` optional).
 
         Implementations MUST raise :class:`SchemaNotFoundError` when the
-        requested schema is absent — never return a partial or empty dict.
+        requested schema is absent - never return a partial or empty dict.
         """
         ...
 
@@ -79,7 +79,7 @@ _PACKAGE_SCHEMAS: dict[tuple[str, str], str] = {
 
 
 class PackageResourceSchemaRegistry:
-    """Default :class:`SchemaRegistry` — reads schemas shipped in the package.
+    """Default :class:`SchemaRegistry` - reads schemas shipped in the package.
 
     This implementation is intentionally minimal: no network, no filesystem
     walk, no caching magic. It exists so ``core/`` has a working seam even
@@ -101,7 +101,7 @@ class PackageResourceSchemaRegistry:
         raw = resources.files(self._package).joinpath(rel).read_text(encoding="utf-8")
         loaded = json.loads(raw)
         if not isinstance(loaded, dict):
-            raise SchemaNotFoundError(  # pragma: no cover — schema files are dicts
+            raise SchemaNotFoundError(  # pragma: no cover - schema files are dicts
                 f"schema {name!r} is not a JSON object"
             )
         return loaded

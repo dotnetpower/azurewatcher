@@ -51,7 +51,7 @@
         "resource_ref": {
           "type": "string",
           "minLength": 1,
-          "description": "Optional; narrower still — a single resource."
+          "description": "Optional; narrower still - a single resource."
         }
       },
       "description": "Narrowest applicable target. Subscription-wide exemptions require Owner-tier quorum."
@@ -75,7 +75,7 @@
     "state": {
       "type": "string",
       "enum": ["active", "expired", "revoked"],
-      "description": "Lifecycle state — auto-transitioned to expired by the expiry job."
+      "description": "Lifecycle state - auto-transitioned to expired by the expiry job."
     },
     "created_at": {
       "type": "string",

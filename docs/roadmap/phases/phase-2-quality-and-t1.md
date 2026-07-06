@@ -1,13 +1,13 @@
 ---
-title: "Phase 2 — Continuous Rule Update, Quality Gate, and T1"
+title: "Phase 2 - Continuous Rule Update, Quality Gate, and T1"
 ---
-# Phase 2 — Continuous Rule Update, Quality Gate, and T1
+# Phase 2 - Continuous Rule Update, Quality Gate, and T1
 
 **Goal**: keep the deterministic layer fresh, make LLM (T2) output safe to trust, add the T1
-lightweight tier, and validate the auto-resolution rate against the P0 baseline — then promote
+lightweight tier, and validate the auto-resolution rate against the P0 baseline - then promote
 specific actions from shadow to enforce. This phase expands the tier/gate rules in
 [architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) and
-the model-tier design in [llm-strategy.md](../llm-strategy.md). Coverage figures (T1 ~15–20%)
+the model-tier design in [llm-strategy.md](../llm-strategy.md). Coverage figures (T1 ~15-20%)
 are **targets to validate**, not guarantees ([goals-and-metrics.md](../goals-and-metrics.md)).
 
 ## Deliverables
@@ -40,7 +40,7 @@ are **targets to validate**, not guarantees ([goals-and-metrics.md](../goals-and
   `ActionPromotionRegistry.consider_promotion(metrics)` which evaluates the ActionType's
   `promotion_gate` (min_shadow_days / min_samples / min_accuracy / max_policy_escapes)
   against measured `PromotionMetrics` and records the resulting mode. `RiskGate.evaluate`
-  reads that registry — a shadow-mode ActionType returns `hil`, an enforce-mode
+  reads that registry - a shadow-mode ActionType returns `hil`, an enforce-mode
   ActionType with clean invariants returns `auto`, and any invariant miss (blast-radius
   over cap, stale precondition, irreversible ActionType) forces `hil` regardless of mode.
 
@@ -71,15 +71,15 @@ Every stage writes an audit entry; a rule change is itself a change and ships as
   triggers** are a failed regression, a shadow-eval escape, or a post-promote guard breach, and
   revert to the last-good versioned set.
 - **New resource types**: detect provider schema changes, identify uncovered resource types, and
-  generate **rule stubs that ship shadow-only and HIL-reviewed** — a stub is never auto-enforced.
+  generate **rule stubs that ship shadow-only and HIL-reviewed** - a stub is never auto-enforced.
 
-## LLM Quality Gate (T2 — see [llm-strategy.md](../llm-strategy.md))
+## LLM Quality Gate (T2 - see [llm-strategy.md](../llm-strategy.md))
 
 T2 inputs are **untrusted** ([security-and-identity.md](../security-and-identity.md)); the
 verifier and policy re-check are the authority, not model text.
 
 - **Mixed-model cross-check**: run **two or more independent models** (distinct providers/weights,
-  not two endpoints of one base model — correlated errors defeat the check). Agreement is on the
+  not two endpoints of one base model - correlated errors defeat the check). Agreement is on the
   normalized structured action; with N ≥ 3 require a configured quorum. Any disagreement
   **escalates to HIL**, never auto-resolves.
 - **Verifier**: a deterministic check, independent of any model, re-validates the candidate
@@ -102,12 +102,12 @@ verifier and policy re-check are the authority, not model text.
   → **abstain to T2** (per the T1→T2 boundary in [llm-strategy.md](../llm-strategy.md)).
 - **Learned-action reuse (provenance + safety)**: a reused action carries provenance (source
   incident id, historical success rate) and is **re-validated through the verifier and risk gate
-  before it can execute** — reuse is not auto-trust.
-- Target: absorb ~15–20% of events without a frontier round-trip, **validated by measurement**.
+  before it can execute** - reuse is not auto-trust.
+- Target: absorb ~15-20% of events without a frontier round-trip, **validated by measurement**.
 
 ## Promotion (shadow → enforce)
 
-- Promote **per-action**, explicitly and separately reviewed — never bundle enforce with a
+- Promote **per-action**, explicitly and separately reviewed - never bundle enforce with a
   capability's first PR.
 - Gate on the auto-resolution rate (metric 2) and **no guard-metric regression**, measured on the
   same frozen scenario-set version and reported with a **sample size and confidence interval**

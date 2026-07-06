@@ -1,23 +1,23 @@
-"""LLM quality gate — guards T2 output before it reaches the risk-gate.
+"""LLM quality gate - guards T2 output before it reaches the risk-gate.
 
 Phase 2 quality gate (see
 [`docs/roadmap/phases/phase-2-quality-and-t1.md § LLM Quality Gate`]).
 
 T2 inputs are **untrusted**; the verifier + policy re-check are the
-authority, not model text. The gate composes three independent checks —
+authority, not model text. The gate composes three independent checks -
 **mixed-model cross-check**, **deterministic verifier**, and
-**grounding (RAG citation) validator** — plus a **confidence threshold**
+**grounding (RAG citation) validator** - plus a **confidence threshold**
 derived from verifier / cross-check signals (not the model's self-report).
 
 Outcomes are typed and audited:
 
-- ``eligible`` — verifier passed, cross-check agreed, grounding validated,
+- ``eligible`` - verifier passed, cross-check agreed, grounding validated,
   confidence above threshold. The risk-gate MAY consider auto-execution.
-- ``abstain`` — grounding unavailable, verifier abstained, or confidence
+- ``abstain`` - grounding unavailable, verifier abstained, or confidence
   below threshold. Route to HIL, no auto-action.
-- ``disagree`` — cross-check disagreement. Escalate to HIL, do NOT
+- ``disagree`` - cross-check disagreement. Escalate to HIL, do NOT
   auto-resolve.
-- ``deny`` — verifier explicitly rejected the candidate. No execution.
+- ``deny`` - verifier explicitly rejected the candidate. No execution.
 
 Public shape
 ------------
@@ -56,7 +56,7 @@ class QualityCandidate:
 
     ``action_type`` is the ActionType id the T2 model proposed;
     ``params`` are the free-form parameters the risk-gate would forward.
-    ``cited_rule_ids`` MUST be citations from the rule catalog — the
+    ``cited_rule_ids`` MUST be citations from the rule catalog - the
     grounding validator checks each against the loaded catalog and the
     resource context.
 
@@ -64,7 +64,7 @@ class QualityCandidate:
     coverage, verifier margin, precondition-check pass rate). The gate's
     ``confidence_threshold`` is compared against a single aggregate
     :attr:`aggregate_confidence`; the model's own self-report is NEVER
-    passed here — that's the anti-pattern the gate closes.
+    passed here - that's the anti-pattern the gate closes.
     """
 
     action_type: str
@@ -105,7 +105,7 @@ class QualityDecision:
 
 
 # ---------------------------------------------------------------------------
-# DI seams (Protocols) — a fork implements these with real LLM clients
+# DI seams (Protocols) - a fork implements these with real LLM clients
 # ---------------------------------------------------------------------------
 
 
@@ -165,7 +165,7 @@ class QualityGateConfig:
     require_cross_check_quorum: int = 2
     """Minimum number of cross-check models that MUST agree with the
     candidate's ``action_type``. Independent models (distinct
-    vendors/weights) — see phase-2 § Quality Gate."""
+    vendors/weights) - see phase-2 § Quality Gate."""
 
 
 class QualityGate:

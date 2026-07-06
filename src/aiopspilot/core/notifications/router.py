@@ -2,7 +2,7 @@
 
 The registry is a keyed bag of channel adapters bound at composition
 time. The router picks a route via the matrix, then walks
-``primary → fallback[0] → …`` until either one channel returns
+``primary → fallback[0] → ...`` until either one channel returns
 ``delivered=True`` or the list is exhausted, at which point it escalates
 to the HIL sink.
 
@@ -112,7 +112,7 @@ class ChannelRegistry:
 class NotificationRouter:
     """Dispatches messages according to the matrix + registry.
 
-    Not a Protocol — it is core-owned business logic. Composition wires
+    Not a Protocol - it is core-owned business logic. Composition wires
     an instance with three seams:
 
     - :class:`ChannelRegistry` (adapters),

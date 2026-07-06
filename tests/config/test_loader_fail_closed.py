@@ -40,7 +40,7 @@ def test_valid_full_config_passes() -> None:
     assert isinstance(cfg, AppConfig)
     # Default RG name from the CAF convention is applied automatically.
     assert cfg.azure.resource_group == "rg-aiopspilot"
-    # Autonomy default MUST land on shadow — safety invariant.
+    # Autonomy default MUST land on shadow - safety invariant.
     assert cfg.runtime.autonomy_mode_default is Mode.SHADOW
     # Rule catalog default ref is present.
     assert cfg.rule_catalog.ref == "main"

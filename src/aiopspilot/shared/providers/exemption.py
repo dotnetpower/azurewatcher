@@ -1,11 +1,11 @@
-"""ExemptionRegistry — human-override lookup at the risk-gate.
+"""ExemptionRegistry - human-override lookup at the risk-gate.
 
 Realizes `architecture.instructions.md § Human Override`: an operator MAY
 override an accepted rule via a scoped, policy-as-code override that sits
 **above** the automated quality gate. Overrides are stored as data
 (`rule-catalog/exemptions/*.json`, validated by
 :mod:`aiopspilot.rule_catalog.schema.exemption`) and consumed here at
-runtime — the risk-gate MUST consult this Protocol before it can return
+runtime - the risk-gate MUST consult this Protocol before it can return
 ``AUTO``.
 
 Scope shape
@@ -78,7 +78,7 @@ class ExemptionRegistry(Protocol):
 
 
 # ---------------------------------------------------------------------------
-# In-memory default (upstream) — a fork replaces this with a state-store
+# In-memory default (upstream) - a fork replaces this with a state-store
 # adapter that reads exemption artifacts.
 # ---------------------------------------------------------------------------
 
@@ -142,7 +142,7 @@ class InMemoryExemptionRegistry:
                 scope = f"rg={record.resource_group}"
             else:
                 # An exemption without any scope narrower than the
-                # subscription MUST be rejected — architectural
+                # subscription MUST be rejected - architectural
                 # invariant. Skip such records.
                 continue
             return ExemptionMatch(
@@ -173,7 +173,7 @@ class _EmptyExemptionRegistryProbe:
 
 
 def empty_exemption_registry() -> ExemptionRegistry:
-    """Return a registry that never matches — safe default for tests."""
+    """Return a registry that never matches - safe default for tests."""
     return _EmptyExemptionRegistryProbe()
 
 

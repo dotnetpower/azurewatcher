@@ -1,8 +1,8 @@
 ---
 title: 시작과 라이프사이클(Startup and Lifecycle)
 translation_of: startup-and-lifecycle.md
-translation_source_sha: b4ec210c7981bddbbc78dd62d853a4c1c6e27a96
-translation_revised: 2026-07-05
+translation_source_sha: 32da6d1cde673754e7ac8085776429e1970c8347
+translation_revised: 2026-07-06
 ---
 
 # 시작과 라이프사이클(Startup and Lifecycle)
@@ -24,7 +24,7 @@ Azure 초점: 비-Azure 프로바이더는 TBD
 
 코어 엔진은 Container Apps + **KEDA scale-to-zero** + 이벤트 기반 스케일링으로 실행. 코어는
 **하나의 Container App + 사이드카 컨테이너** (`event-ingest` primary, `trust-router` /
-`executor` / `audit-writer` 사이드카 —
+`executor` / `audit-writer` 사이드카 -
 [deploy-and-onboard-ko.md](deploy-and-onboard-ko.md#compute-shape-sidecar-containers) 참조).
 따라서 "시작"은:
 
@@ -54,11 +54,11 @@ Azure 초점: 비-Azure 프로바이더는 TBD
 
 ## 초기 규칙 카탈로그 상태
 
-상류 리포는 **고객 특이 규칙 없음**. 포크 배포의 첫날 카탈로그는 두 소스에서 채워짐 — 순서:
+상류 리포는 **고객 특이 규칙 없음**. 포크 배포의 첫날 카탈로그는 두 소스에서 채워짐 - 순서:
 
-1. **부트스트랩 시드 세트** (포크 책임) — `content_hash` 와 버전으로 고정된 초기 카탈로그
+1. **부트스트랩 시드 세트** (포크 책임) - `content_hash` 와 버전으로 고정된 초기 카탈로그
    스냅샷, 포크가 자체 catalog-as-code 리포에 커밋.
-2. **자율 컬렉터** (상류) — 첫 성공 컬렉터 실행 후, 상류 소스가
+2. **자율 컬렉터** (상류) - 첫 성공 컬렉터 실행 후, 상류 소스가
    [rule-catalog-collection-ko.md](rule-catalog-collection-ko.md) 에 따라 설정된 주기로 수집.
 
 첫날 카탈로그에 적용되는 규칙:
@@ -72,7 +72,7 @@ Azure 초점: 비-Azure 프로바이더는 TBD
 - **LLM-생성 후보** 는 자율 discovery 루프가 활성화되고 그 quality gate가 사용 가능해지기 전에는
   카탈로그에 진입하지 않음.
 
-**TBD**: 첫날 시드 세트에 어떤 소스가 실리고 정확한 규칙 id — Phase 1의 "소스별 초기 대상 세트
+**TBD**: 첫날 시드 세트에 어떤 소스가 실리고 정확한 규칙 id - Phase 1의 "소스별 초기 대상 세트
 열거"와 동일한 open 항목
 ([phase-1-rule-catalog-t0-ko.md](phases/phase-1-rule-catalog-t0-ko.md)).
 
@@ -80,16 +80,16 @@ Azure 초점: 비-Azure 프로바이더는 TBD
 
 이벤트가 판단되기 전에 ingress는 Azure 신호에 부착되어야 함:
 
-1. **Diagnostic Settings** — 대상 구독과 각 in-scope 리소스 그룹에서, Activity Log(과 리소스별
-   로그)을 **Event Hubs Kafka 토픽** 으로 forward 하는 Diagnostic Settings 활성화 — 이것이
+1. **Diagnostic Settings** - 대상 구독과 각 in-scope 리소스 그룹에서, Activity Log(과 리소스별
+   로그)을 **Event Hubs Kafka 토픽** 으로 forward 하는 Diagnostic Settings 활성화 - 이것이
    CSP-중립 이벤트 버스 계약
    ([csp-neutrality-ko.md § 이벤트버스 계약](csp-neutrality-ko.md#1-이벤트버스-계약--kafka-와이어-프로토콜)).
-2. **Kafka 토픽 + 컨슈머 그룹** — Event Hubs 네임스페이스에 첫날 토픽들을 생성
+2. **Kafka 토픽 + 컨슈머 그룹** - Event Hubs 네임스페이스에 첫날 토픽들을 생성
    (`aw.change.events`, `aw.dr.events`, `aw.finops.events`, 그리고 그들의 `<topic>.dlq`
    형제) 하고 `event-ingest` 를 위한 컨슈머 그룹 등록.
-3. **Idempotency prime** — event-ingest 레이어가 처음 수신 시 모든 들어오는 이벤트에
+3. **Idempotency prime** - event-ingest 레이어가 처음 수신 시 모든 들어오는 이벤트에
    **idempotency 키** 를 스탬프하여 리플레이가 종단 no-op.
-4. **DLQ 도달 가능성 검증** — dead-letter 목적지 (Kafka `<topic>.dlq`) 가 어디에서든
+4. **DLQ 도달 가능성 검증** - dead-letter 목적지 (Kafka `<topic>.dlq`) 가 어디에서든
    enforce가 활성화되기 전에 실행됨 (poison-pill 프로브).
 
 구체적 이벤트 타입과 필터 표현식은 **TBD** 이며
@@ -101,15 +101,15 @@ Azure 초점: 비-Azure 프로바이더는 TBD
 T2가 실행되기 전에 capability→deployment 매핑이 해결되어야 함. 이는 `azd up` 시점에 자동이며
 수동 스텝이 아님:
 
-1. **Resolver가 `rule-catalog/llm-registry.yaml` 에서 실행** — capability별 선호를 읽고,
+1. **Resolver가 `rule-catalog/llm-registry.yaml` 에서 실행** - capability별 선호를 읽고,
    대상 리전의 Azure OpenAI / Foundry 카탈로그를 쿼리, `capacity_tpm` 상한과 함께 capability당
    하나의 deployment 프로비저닝.
-2. **Mixed-model 불변식 검증** — `t2.reasoner.primary.publisher` 는 `t2.reasoner.secondary.
+2. **Mixed-model 불변식 검증** - `t2.reasoner.primary.publisher` 는 `t2.reasoner.secondary.
    publisher` 와 달라야 함, 아니면 부트스트랩 중단 (조용한 same-vendor fallback 없음). 포크의
    `llm.mixed_model_mode` (`azure-foundry` / `external` / `hil-only`) 가 전략 선택.
-3. **`resolved-models.json` 이 Key Vault에 기록** — capability → `{deployment, family,
+3. **`resolved-models.json` 이 Key Vault에 기록** - capability → `{deployment, family,
    version, publisher}`. 이후 모든 감사 엔트리는 케이스를 결정한 정확한 모델을 이름 지음.
-4. **주간 reconciler 활성화** — Container Apps Job이 새 패밀리와 폐기 공지를 감시; 레지스트리에
+4. **주간 reconciler 활성화** - Container Apps Job이 새 패밀리와 폐기 공지를 감시; 레지스트리에
    대해 **draft PR** 을 오픈하지만 라이브 매핑을 절대 auto-swap 하지 않음.
 
 전체 설계: [llm-strategy-ko.md § Model Provisioning and Lifecycle](llm-strategy-ko.md#model-provisioning-and-lifecycle).
@@ -117,7 +117,7 @@ T2가 실행되기 전에 capability→deployment 매핑이 해결되어야 함.
 ## Shadow-First 롤아웃 레시피
 
 모든 새 배포는 전체 footprint에 대해 **shadow-only 모드** 로 랜딩. 승격은 액션별, 규칙별,
-도메인별 — 절대 글로벌 flip 아님. 제안된 마일스톤 (모든 타임라인은 **방향성** ; 게이트는 하드):
+도메인별 - 절대 글로벌 flip 아님. 제안된 마일스톤 (모든 타임라인은 **방향성** ; 게이트는 하드):
 
 | 마일스톤 | 초점 | 진행 게이트 |
 |----------|------|-------------|
@@ -128,7 +128,7 @@ T2가 실행되기 전에 capability→deployment 매핑이 해결되어야 함.
 
 전 구간 적용되는 규칙:
 
-- 어떤 회귀는 승격된 규칙을 **자동으로 shadow로 강등** — 강등은 승격 승인자를 절대 필요로 하지
+- 어떤 회귀는 승격된 규칙을 **자동으로 shadow로 강등** - 강등은 승격 승인자를 절대 필요로 하지
   않아 안전 방향 저하는 항상 빠름
   ([rule-governance-ko.md](rule-governance-ko.md#effects-mode)).
 - Enforce 승격은 제안한 운영자와 **별도 승인** 필요
@@ -172,14 +172,14 @@ T2가 실행되기 전에 capability→deployment 매핑이 해결되어야 함.
 **첫날에 비활성**. 다음 모두 이전에 실행되어선 안 됨:
 
 1. 감사 로그가 최소 **`N` shadow 결정** 을 축적하여 observe 스테이지에 실제 베이스라인 제공.
-   `N` 은 설정 가능; **TBD** — 낮은 수천대 권장.
+   `N` 은 설정 가능; **TBD** - 낮은 수천대 권장.
 2. 최소 하나의 컬렉터가 성공 실행(배선 + provenance 증명).
 3. Mixed-model 교차 검사 대상과 결정론적 verifier가 건강.
 4. Post-deploy smoke 테스트가 green
    ([operating-and-verification-ko.md](operating-and-verification-ko.md#post-deploy-smoke-tests)).
 
 활성화되면 루프는 설정된 주기로 실행. 루프의 후보 규칙은 전체 quality gate를 통과할 때까지
-inert — 루프는 카탈로그를 직접 변형할 수 없음.
+inert - 루프는 카탈로그를 직접 변형할 수 없음.
 
 루프 비활성화는 **정책 토글** ,  코드 변경 아님; 반복되는 override 신호는 다음 활성화를 위해
 감사 로그에 계속 축적됨.
@@ -189,23 +189,23 @@ inert — 루프는 카탈로그를 직접 변형할 수 없음.
 모든 아티팩트는 정의된, 감사 가능한 상태를 진행. 전이가 유일한 이동 방법; 각 전이는 버전되고
 감사됨.
 
-- **Rule / rule-set** — `draft → audit(shadow) ⇄ enforce(deny/remediate) → deprecated`,
+- **Rule / rule-set** - `draft → audit(shadow) ⇄ enforce(deny/remediate) → deprecated`,
   `disabled` 은 어떤 활성 상태에서도 도달 가능
   ([rule-governance-ko.md#lifecycle-and-versioning](rule-governance-ko.md#lifecycle-and-versioning)).
-- **Assignment** — 스코프, `effect`, `enforcement` 플래그에 바인딩. Effects는 승격 게이트 하에
+- **Assignment** - 스코프, `effect`, `enforcement` 플래그에 바인딩. Effects는 승격 게이트 하에
   전이; 회귀는 자동 강등.
-- **Exemption** — `active → expired` (time-boxed; auto-renew 없음)
+- **Exemption** - `active → expired` (time-boxed; auto-renew 없음)
   ([rule-governance-ko.md#exemptions](rule-governance-ko.md#exemptions)).
-- **Override** — `active → removed`; long-lived 가능(강제 만료 없음), 스코프는 resource-group-
+- **Override** - `active → removed`; long-lived 가능(강제 만료 없음), 스코프는 resource-group-
   equivalent 이하이어야 함
   ([rule-governance-ko.md#overrides](rule-governance-ko.md#overrides)).
-- **Action** — `proposed → risk-gated → executed | rejected → rolled-back (해당 시)`. 모든
+- **Action** - `proposed → risk-gated → executed | rejected → rolled-back (해당 시)`. 모든
   상태가 idempotency 키를 운반하여 리플레이는 no-op.
 
 ## Open Decisions
 
 - [ ] 콜드-스타트 데드라인 값과 정확한 콜드-스타트-메트릭 이름.
-- [ ] 첫날 시드 규칙 세트(어떤 소스, 어떤 규칙 id) — Phase 1과 교차 링크.
+- [ ] 첫날 시드 규칙 세트(어떤 소스, 어떤 규칙 id) - Phase 1과 교차 링크.
 - [ ] Discovery-루프 시동 임계 `N` (shadow-decision 카운트) 과 그 회귀-안전 근거.
 - [ ] Kafka 토픽 레이아웃 + Diagnostic-Settings 포워더 필터 형상과 소스별 속도 상한.
 - [ ] 부트스트랩 런북: 포크가 D+0에 도달하기 위한 정확한 명령 시퀀스 (

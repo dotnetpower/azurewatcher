@@ -108,11 +108,20 @@ def count_targets(text: str) -> dict[str, int]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("paths", nargs="*", help="Markdown files (default: all tracked *.md).")
+    ap.add_argument("paths", nargs="*", help="Files (default: all tracked *.md).")
     ap.add_argument(
         "--check",
         action="store_true",
         help="Do not write. Exit 1 if any file would change.",
+    )
+    ap.add_argument(
+        "--whole-file",
+        action="store_true",
+        help=(
+            "Do not skip code fences or inline code. Applies a straight "
+            "str.translate over the entire file. Use for non-markdown source "
+            "files (.py/.yaml/.json/.ts/...) where the whole file is code."
+        ),
     )
     args = ap.parse_args()
 
@@ -122,7 +131,10 @@ def main() -> int:
         if not path.is_file():
             continue
         original = path.read_text(encoding="utf-8")
-        rewritten = process_text(original)
+        if args.whole_file:
+            rewritten = original.translate(TRANSLATE_TABLE)
+        else:
+            rewritten = process_text(original)
         if rewritten != original:
             counts = count_targets(original)
             # Recompute against the delta (prose only) for accurate reporting.

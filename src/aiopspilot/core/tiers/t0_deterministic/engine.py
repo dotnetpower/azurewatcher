@@ -1,11 +1,11 @@
-"""T0 deterministic engine — verdict emitter.
+"""T0 deterministic engine - verdict emitter.
 
 The engine assembles a :class:`Verdict` for one incoming Signal:
 
 1. Look up candidate rules through :class:`RuleIndex` (O(indexed)).
 2. Ask each rule's :class:`PolicyEvaluator` whether the check_logic
    evaluates to *deny* on the current resource properties. In P1 W-2 the
-   default evaluator is :class:`AbstainEvaluator` — it always abstains,
+   default evaluator is :class:`AbstainEvaluator` - it always abstains,
    so the engine emits an :attr:`PipelineStage.ABSTAIN` verdict with the
    candidate rule ids as citations. The OPA/Rego runner lands in P1 W-3
    behind the same Protocol.
@@ -19,7 +19,7 @@ Safety invariants held here (P1, shadow-mode)
 - **Fail-closed**: if an evaluator raises, the engine records an
   ``abstain`` verdict for that rule instead of skipping it silently.
 - **Deterministic ordering**: findings are ordered by severity desc,
-  then rule_id — matches :mod:`.index` ordering.
+  then rule_id - matches :mod:`.index` ordering.
 - **Shadow mode**: every emitted :class:`AuditHint` carries
   ``mode=Mode.SHADOW`` because P1 does not have an enforce path.
 """
@@ -46,7 +46,7 @@ class PolicyEvaluator(Protocol):
 
     Kept as a Protocol so P1 W-3 can swap in an OPA/Rego runner without
     touching :class:`T0Engine`. Implementations MUST be pure functions of
-    ``(rule, resource_props)`` — no I/O, no state — and MUST return
+    ``(rule, resource_props)`` - no I/O, no state - and MUST return
     ``None`` to abstain (grounding unavailable) rather than guessing.
     """
 
@@ -67,7 +67,7 @@ class PolicyResult:
 
 
 class AbstainEvaluator:
-    """Default P1 W-2 evaluator — always abstains.
+    """Default P1 W-2 evaluator - always abstains.
 
     The Rego runner is P1 W-3. Until then, T0 records that the rules
     *would* have been considered and hands the case to HIL through the
@@ -82,7 +82,7 @@ class AbstainEvaluator:
 
 
 class T0Engine:
-    """Deterministic engine — one call, one :class:`Verdict`."""
+    """Deterministic engine - one call, one :class:`Verdict`."""
 
     def __init__(
         self,
@@ -126,7 +126,7 @@ class T0Engine:
             citing.append(rule.id)
             try:
                 result = self._evaluator.evaluate(rule, resource_props)
-            except Exception:  # noqa: BLE001 — fail-closed: log-and-abstain
+            except Exception:  # noqa: BLE001 - fail-closed: log-and-abstain
                 # Fail closed: one bad evaluator MUST NOT crash the loop.
                 # The rule is abstained; the audit hint records that.
                 abstained.append(rule.id)

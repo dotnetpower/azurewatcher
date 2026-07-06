@@ -21,7 +21,7 @@ Timeline suggestions below are directional, not hard rules; **the gates are hard
 
 The core engine runs on Container Apps with **KEDA scale-to-zero** and event-driven scaling.
 The core is a **single Container App with sidecar containers** (`event-ingest` primary,
-`trust-router` / `executor` / `audit-writer` as sidecars — see
+`trust-router` / `executor` / `audit-writer` as sidecars - see
 [deploy-and-onboard.md](deploy-and-onboard.md#compute-shape-sidecar-containers)). "Starting"
 therefore means:
 
@@ -54,11 +54,11 @@ Rules that apply to every cold start:
 ## Initial Rule Catalog State
 
 The upstream repo ships **no customer-specific rules**. On day zero of a fork's deployment
-the catalog is populated from two sources — in order:
+the catalog is populated from two sources - in order:
 
-1. **Bootstrap seed set** (fork responsibility) — an initial catalog snapshot, pinned by
+1. **Bootstrap seed set** (fork responsibility) - an initial catalog snapshot, pinned by
    `content_hash` and version, that the fork commits to its own catalog-as-code repo.
-2. **Autonomous collectors** (upstream) — after the first successful collector run, upstream
+2. **Autonomous collectors** (upstream) - after the first successful collector run, upstream
    sources are ingested at their configured cadence per
    [rule-catalog-collection.md](rule-catalog-collection.md).
 
@@ -73,7 +73,7 @@ Rules that apply to the day-zero catalog:
 - **No LLM-generated candidate** enters the catalog before the autonomous discovery loop has
   been enabled and its quality gate is available.
 
-**TBD**: which sources ship in the day-zero seed set and their exact rule ids — this is the
+**TBD**: which sources ship in the day-zero seed set and their exact rule ids - this is the
 same open item as Phase 1's "initial target set enumerated per source"
 ([phase-1-rule-catalog-t0.md](phases/phase-1-rule-catalog-t0.md)).
 
@@ -81,16 +81,16 @@ same open item as Phase 1's "initial target set enumerated per source"
 
 Before any event can be judged, ingress must be attached to Azure signals:
 
-1. **Diagnostic Settings** — on the target subscription and each in-scope resource group,
+1. **Diagnostic Settings** - on the target subscription and each in-scope resource group,
    enable Diagnostic Settings that forward Activity Log (and any resource-specific logs) into
-   an **Event Hubs Kafka topic** — this is the CSP-neutral event bus contract
+   an **Event Hubs Kafka topic** - this is the CSP-neutral event bus contract
    ([csp-neutrality.md § Event bus contract](csp-neutrality.md#1-event-bus-contract--kafka-wire-protocol)).
-2. **Kafka topics + consumer groups** — create the day-zero topics on the Event Hubs
+2. **Kafka topics + consumer groups** - create the day-zero topics on the Event Hubs
    namespace (`aw.change.events`, `aw.dr.events`, `aw.finops.events`, and their `<topic>.dlq`
    siblings) and register the consumer group for `event-ingest`.
-3. **Idempotency prime** — the event-ingest layer stamps an **idempotency key** on every
+3. **Idempotency prime** - the event-ingest layer stamps an **idempotency key** on every
    incoming event on first receipt so a replay is a no-op end to end.
-4. **DLQ verified reachable** — dead-letter destinations (Kafka `<topic>.dlq`) are exercised
+4. **DLQ verified reachable** - dead-letter destinations (Kafka `<topic>.dlq`) are exercised
    (poison-pill probe) before enforce is enabled anywhere.
 
 Concrete event types and filter expressions are **TBD** and captured in
@@ -101,17 +101,17 @@ Concrete event types and filter expressions are **TBD** and captured in
 Before T2 can run, the capability→deployment mapping MUST be resolved. This is automatic
 at `azd up` time and MUST NOT be a manual step:
 
-1. **Resolver runs from `rule-catalog/llm-registry.yaml`** — reads preferences per
+1. **Resolver runs from `rule-catalog/llm-registry.yaml`** - reads preferences per
    capability, queries the Azure OpenAI / Foundry catalog for the target region, and
    provisions one deployment per capability with its `capacity_tpm` cap.
-2. **Mixed-model invariant verified** — `t2.reasoner.primary.publisher` MUST differ from
+2. **Mixed-model invariant verified** - `t2.reasoner.primary.publisher` MUST differ from
    `t2.reasoner.secondary.publisher`, or the bootstrap aborts (no silent same-vendor
    fallback). Fork's `llm.mixed_model_mode` (`azure-foundry` / `external` / `hil-only`)
    selects the strategy.
-3. **`resolved-models.json` written to Key Vault** — capability → `{deployment, family,
+3. **`resolved-models.json` written to Key Vault** - capability → `{deployment, family,
    version, publisher}`. Every subsequent audit entry names the exact model that decided
    the case.
-4. **Weekly reconciler enabled** — a Container Apps Job watches for newer families and
+4. **Weekly reconciler enabled** - a Container Apps Job watches for newer families and
    deprecation notices; it opens **draft PRs** against the registry but never auto-swaps
    the live mapping.
 
@@ -120,7 +120,7 @@ Full design: [llm-strategy.md § Model Provisioning and Lifecycle](llm-strategy.
 ## Shadow-First Rollout Recipe
 
 Every new deployment lands in **shadow-only mode** for its entire footprint. Promotion is
-per-action, per-rule, per-domain — never a global flip. Suggested milestones (all timelines
+per-action, per-rule, per-domain - never a global flip. Suggested milestones (all timelines
 are **directional**; the gates are hard):
 
 | Milestone | Focus | Gate to advance |
@@ -132,7 +132,7 @@ are **directional**; the gates are hard):
 
 Rules that apply throughout:
 
-- Any regression **auto-demotes** the promoted rule back to shadow — demotion never requires
+- Any regression **auto-demotes** the promoted rule back to shadow - demotion never requires
   the promotion approver, so degradation to safety is always fast
   ([rule-governance.md](rule-governance.md#effects-mode)).
 - Enforce promotion requires a **separate approval** from the operator who proposed it
@@ -179,14 +179,14 @@ The [autonomous rule discovery loop](rule-catalog-collection.md#autonomous-rule-
 **disabled on day zero**. It MUST NOT run before all of the following:
 
 1. The audit log has accumulated at least **`N` shadow decisions**, giving the observe stage a
-   real baseline. `N` is configurable; **TBD** — recommended in the low thousands.
+   real baseline. `N` is configurable; **TBD** - recommended in the low thousands.
 2. At least one collector has run to success (proves the wire-up + provenance).
 3. The mixed-model cross-check target and the deterministic verifier are healthy.
 4. Post-deploy smoke tests are green
    ([operating-and-verification.md](operating-and-verification.md#post-deploy-smoke-tests)).
 
 Once enabled, the loop runs on a configured cadence. A candidate rule from the loop is inert
-until it passes the full quality gate — the loop cannot mutate the catalog directly.
+until it passes the full quality gate - the loop cannot mutate the catalog directly.
 
 Disabling the loop is a **policy toggle**, not a code change; recurring override signals still
 accumulate on the audit log for the next enable.
@@ -196,23 +196,23 @@ accumulate on the audit log for the next enable.
 Every artifact progresses through defined, auditable states. Transitions are the only way to
 move between them; each transition is versioned and audited.
 
-- **Rule / rule-set** — `draft → audit(shadow) ⇄ enforce(deny/remediate) → deprecated`, with
+- **Rule / rule-set** - `draft → audit(shadow) ⇄ enforce(deny/remediate) → deprecated`, with
   `disabled` reachable from any active state
   ([rule-governance.md#lifecycle-and-versioning](rule-governance.md#lifecycle-and-versioning)).
-- **Assignment** — bound to a scope, an `effect`, and an `enforcement` flag. Effects
+- **Assignment** - bound to a scope, an `effect`, and an `enforcement` flag. Effects
   transition under the promotion gate; regressions auto-demote.
-- **Exemption** — `active → expired` (time-boxed; no auto-renew)
+- **Exemption** - `active → expired` (time-boxed; no auto-renew)
   ([rule-governance.md#exemptions](rule-governance.md#exemptions)).
-- **Override** — `active → removed`; may be long-lived (no forced expiry), scope MUST be
+- **Override** - `active → removed`; may be long-lived (no forced expiry), scope MUST be
   resource-group-equivalent or narrower
   ([rule-governance.md#overrides](rule-governance.md#overrides)).
-- **Action** — `proposed → risk-gated → executed | rejected → rolled-back (if applicable)`.
+- **Action** - `proposed → risk-gated → executed | rejected → rolled-back (if applicable)`.
   Every state carries the idempotency key so a replay is a no-op.
 
 ## Open Decisions
 
 - [ ] Cold-start deadline value and the exact cold-start-metric name.
-- [ ] Day-zero seed rule set (which sources, which rule ids) — cross-linked to Phase 1.
+- [ ] Day-zero seed rule set (which sources, which rule ids) - cross-linked to Phase 1.
 - [ ] Discovery-loop kickoff threshold `N` (shadow-decision count) and its regression-safety
       rationale.
 - [ ] Kafka topic layout + Diagnostic-Settings forwarder filter shape and per-source rate caps.

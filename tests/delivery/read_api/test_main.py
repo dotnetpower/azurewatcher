@@ -424,7 +424,7 @@ class TestCors:
             },
         )
         # Starlette returns 405 for OPTIONS on a GET-only route when no CORS
-        # middleware is registered — the key assertion is "no allow-origin".
+        # middleware is registered - the key assertion is "no allow-origin".
         assert "access-control-allow-origin" not in response.headers
 
     def test_cors_configured_allows_console_origin(self, no_dev_env: None) -> None:
@@ -483,7 +483,7 @@ class TestCors:
 
 class TestDevModeEnvValidation:
     def test_env_set_to_other_value_still_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv(_DEV_MODE_ENV, "true")  # not "1" — refused
+        monkeypatch.setenv(_DEV_MODE_ENV, "true")  # not "1" - refused
         resolver = RoleResolver(group_mapping=_mapping())
         auth = build_authenticator(verifier=lambda t: {"oid": "u"}, resolver=resolver)
         with pytest.raises(ValueError, match=_DEV_MODE_ENV):
@@ -495,7 +495,7 @@ class TestDevModeEnvValidation:
 
     def test_env_removed_after_build_still_works(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # dev_mode is bound at build time; removing the env after does not
-        # revoke it. That is intentional — the env check is a boot-time
+        # revoke it. That is intentional - the env check is a boot-time
         # tripwire, not a per-request kill switch.
         monkeypatch.setenv(_DEV_MODE_ENV, "1")
         app, _ = _build_stack(dev_mode=True)

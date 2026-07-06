@@ -9,7 +9,7 @@ Each fake:
   ``provider_message_id``.
 
 Deliberately six concrete classes (one per channel kind) so a test can
-build a heterogenous registry — same as production — and prove the
+build a heterogenous registry - same as production - and prove the
 router picks the right adapter.
 """
 
@@ -33,7 +33,7 @@ from aiopspilot.shared.providers.notifications.base import (
 class _RecordingChannel:
     """Shared behaviour for the six per-kind fakes.
 
-    Not exported directly — the six subclasses each fix a
+    Not exported directly - the six subclasses each fix a
     :class:`ChannelKind` and inherit ``send`` / the recorder.
     """
 

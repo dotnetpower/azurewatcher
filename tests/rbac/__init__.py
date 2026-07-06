@@ -1,1 +1,1 @@
-"""RBAC test package — human-identity model tests."""
+"""RBAC test package - human-identity model tests."""

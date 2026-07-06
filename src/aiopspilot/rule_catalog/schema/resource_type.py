@@ -1,4 +1,4 @@
-"""ResourceTypeRegistry loader — canonical CSP-neutral resource_type vocabulary.
+"""ResourceTypeRegistry loader - canonical CSP-neutral resource_type vocabulary.
 
 Mirrors the JSON Schema at ``resource_types.schema.json`` and adds
 duplicate-id detection (the schema has no ``uniqueItemProperties``

@@ -2,7 +2,7 @@
 
 Public API. Re-exports the *interfaces* and *data models* that core modules
 depend on. Concrete implementations (``EnvVarConfigProvider``) are
-intentionally not re-exported here — they must be imported from their
+intentionally not re-exported here - they must be imported from their
 submodules by the composition root only, so ``core/`` cannot accidentally
 depend on a concrete adapter.
 """

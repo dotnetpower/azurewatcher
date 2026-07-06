@@ -1,6 +1,6 @@
 """Per-resource lock manager for the executor.
 
-Multiple concurrent events may target the same resource — a rotate-secret
+Multiple concurrent events may target the same resource - a rotate-secret
 action and a right-size action on the same Container App, say. Applying
 them in parallel would violate the ordering rule in
 ``architecture.instructions.md § Idempotency, Ordering, and Replay``:
@@ -15,7 +15,7 @@ Design
 - Locks stay in-process; horizontal scaling requires the executor to be
   bounded to a single replica or to use a distributed lock (out of scope
   for P1).
-- The manager MUST be safe to reuse across concurrent tasks — the
+- The manager MUST be safe to reuse across concurrent tasks - the
   per-resource-id dictionary itself is guarded by an internal lock.
 - Locks are held for the *duration of the action*; short critical
   sections keep the throughput acceptable.
@@ -31,7 +31,7 @@ from contextlib import asynccontextmanager
 class ResourceLockManager:
     """Serialize actions per-resource in-process.
 
-    Not persistent — a process restart forgets in-flight locks. That is
+    Not persistent - a process restart forgets in-flight locks. That is
     acceptable because the audit log records every action; a replayed
     event acquires the lock and dedupes on ``idempotency_key`` before
     doing any work.

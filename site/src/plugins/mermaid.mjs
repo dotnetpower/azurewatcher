@@ -1,8 +1,8 @@
-// mermaid.mjs — remark plugin that turns a fenced ```mermaid code block
+// mermaid.mjs - remark plugin that turns a fenced ```mermaid code block
 // into a raw <pre class="mermaid"> node. Two things this buys us:
 //
 // 1. It lands as an HTML node in the mdast tree, so Starlight's default
-//    code renderer (Expressive Code) skips it — otherwise the diagram
+//    code renderer (Expressive Code) skips it - otherwise the diagram
 //    source would appear as a syntax-highlighted code snippet instead
 //    of being handed to mermaid.js at runtime.
 // 2. The `<pre class="mermaid">` shape matches what the mermaid client

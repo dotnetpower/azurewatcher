@@ -1,14 +1,14 @@
-"""Deep DB-DR verifier — restore → integrity → smoke orchestrator.
+"""Deep DB-DR verifier - restore → integrity → smoke orchestrator.
 
 Realizes the phase-3 Deep DB-DR contract in
 [`docs/roadmap/phases/phase-3-integrated-loop.md § Deep DB-DR`]:
 
     1. Restore a snapshot / PITR into an **isolated environment**.
-    2. Verify integrity deterministically — row counts, checksums, FK
+    2. Verify integrity deterministically - row counts, checksums, FK
        consistency. **Any** mismatch fails the run.
-    3. Run app-level smoke tests — representative read + write ops.
+    3. Run app-level smoke tests - representative read + write ops.
 
-The orchestrator is pure — every side effect (substrate mutation,
+The orchestrator is pure - every side effect (substrate mutation,
 audit persistence) sits behind an injected Protocol seam. This
 module contains no HTTP, no SDK, and no I/O of its own; it MUST be
 importable from `core/` without pulling any CSP dependency.
@@ -16,20 +16,20 @@ importable from `core/` without pulling any CSP dependency.
 Safety invariants
 -----------------
 
-- **Fail on ANY integrity mismatch** — the checker returns an
+- **Fail on ANY integrity mismatch** - the checker returns an
   exhaustive :class:`IntegrityReport`; the verifier records every
   mismatch, does not average, and returns
   :attr:`DbDrOutcome.INTEGRITY_FAILED` if the count is nonzero.
-- **Fail-closed on exceptions** — a raised exception from any phase
+- **Fail-closed on exceptions** - a raised exception from any phase
   is an abort, never a "clean" verdict. The verifier tears the
   restored environment down and returns
   :attr:`DbDrOutcome.ABORTED`.
-- **Teardown always runs after a successful restore** — the restored
+- **Teardown always runs after a successful restore** - the restored
   environment is torn down in a ``finally`` clause so a partial pass
   never leaks an isolated resource group. A teardown error is
   recorded on the verdict + audit log but does not mask the primary
   outcome.
-- **Every terminal path writes an audit entry** — start, restore
+- **Every terminal path writes an audit entry** - start, restore
   failure, integrity failure, smoke failure, abort, and success each
   emit exactly one append-only :class:`StateStore` entry with the
   experiment id, outcome, and structured evidence.
@@ -83,9 +83,9 @@ class DbDrVerdict:
     """Frozen record for one :meth:`DbDrVerifier.run` call.
 
     Carries the outcome plus every structured piece of evidence the
-    audit log persists — the report objects, a truncated error string
+    audit log persists - the report objects, a truncated error string
     if applicable, and the wall-clock envelope. Teardown outcome is
-    NOT surfaced on the verdict directly — it lands as a separate
+    NOT surfaced on the verdict directly - it lands as a separate
     audit entry (``teardown_succeeded`` / ``teardown_failed``) so the
     primary outcome stays a single-source-of-truth value.
     """
@@ -101,7 +101,7 @@ class DbDrVerdict:
 
     @property
     def is_pass(self) -> bool:
-        """Convenience — the DR test passed iff outcome is PASSED."""
+        """Convenience - the DR test passed iff outcome is PASSED."""
         return self.outcome is DbDrOutcome.PASSED
 
 
@@ -132,13 +132,13 @@ class DbDrVerifier:
         Order of operations:
 
         1. Audit ``kind=start``.
-        2. :meth:`DbRestoreAdapter.restore` — on failure, audit
+        2. :meth:`DbRestoreAdapter.restore` - on failure, audit
            ``kind=restore_failed`` and return :attr:`RESTORE_FAILED`.
-        3. :meth:`IntegrityChecker.check` — on ANY mismatch, audit
+        3. :meth:`IntegrityChecker.check` - on ANY mismatch, audit
            ``kind=integrity_failed`` and return
            :attr:`INTEGRITY_FAILED`; on exception, audit
            ``kind=aborted`` and return :attr:`ABORTED`.
-        4. :meth:`SmokeRunner.run` — on non-pass, audit
+        4. :meth:`SmokeRunner.run` - on non-pass, audit
            ``kind=smoke_failed`` and return :attr:`SMOKE_FAILED`;
            on exception, audit ``kind=aborted`` and return
            :attr:`ABORTED`.
@@ -166,7 +166,7 @@ class DbDrVerifier:
         # ---------- Phase 1: restore -------------------------------------------------
         try:
             handle = await self._restore.restore(config)
-        except Exception as exc:  # noqa: BLE001 — Protocol surface is untyped
+        except Exception as exc:  # noqa: BLE001 - Protocol surface is untyped
             error = _truncate_error(exc)
             completed_at = datetime.now(tz=UTC)
             await self._audit_event(
@@ -211,7 +211,7 @@ class DbDrVerifier:
         # ---------- Phase 2: integrity check ---------------------------
         try:
             integrity = await self._integrity.check(handle)
-        except Exception as exc:  # noqa: BLE001 — Protocol surface is untyped
+        except Exception as exc:  # noqa: BLE001 - Protocol surface is untyped
             error = _truncate_error(exc)
             completed_at = datetime.now(tz=UTC)
             await self._audit_event(
@@ -233,7 +233,7 @@ class DbDrVerifier:
             )
 
         if not integrity.is_clean:
-            # Record every mismatch — never average away. The audit
+            # Record every mismatch - never average away. The audit
             # payload carries structured evidence so an operator can
             # reproduce the failure from the log alone.
             completed_at = datetime.now(tz=UTC)
@@ -265,7 +265,7 @@ class DbDrVerifier:
         # ---------- Phase 3: smoke tests -------------------------------
         try:
             smoke = await self._smoke.run(handle)
-        except Exception as exc:  # noqa: BLE001 — Protocol surface is untyped
+        except Exception as exc:  # noqa: BLE001 - Protocol surface is untyped
             error = _truncate_error(exc)
             completed_at = datetime.now(tz=UTC)
             await self._audit_event(
@@ -354,7 +354,7 @@ class DbDrVerifier:
         """
         try:
             await self._restore.teardown(handle)
-        except Exception as exc:  # noqa: BLE001 — Protocol surface is untyped
+        except Exception as exc:  # noqa: BLE001 - Protocol surface is untyped
             error = _truncate_error(exc)
             await self._audit_event(
                 experiment_id=handle.experiment_id,
@@ -415,7 +415,7 @@ def _truncate_error(exc: BaseException) -> str:
     """
     text = str(exc).replace("\n", " ")
     if len(text) > _ERROR_MESSAGE_CAP:
-        return text[:_ERROR_MESSAGE_CAP] + "…"
+        return text[:_ERROR_MESSAGE_CAP] + "..."
     return text
 
 

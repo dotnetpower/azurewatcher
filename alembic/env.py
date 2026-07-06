@@ -5,7 +5,7 @@ stays ``None``. The database URL comes from the ``AIOPSPILOT_DATABASE_URL``
 env var; on a fresh clone with `make dev-up` this maps to the docker-compose
 pgvector service.
 
-Only PostgreSQL is supported — the runtime `StateStore` adapter will be
+Only PostgreSQL is supported - the runtime `StateStore` adapter will be
 psycopg-backed, so an alembic run against SQLite would silently drift.
 """
 
@@ -34,7 +34,7 @@ if not _url.startswith(("postgresql://", "postgresql+psycopg://")):
 
 config.set_main_option("sqlalchemy.url", _url)
 
-# Migrations are raw SQL — no ORM metadata to introspect.
+# Migrations are raw SQL - no ORM metadata to introspect.
 target_metadata = None
 
 

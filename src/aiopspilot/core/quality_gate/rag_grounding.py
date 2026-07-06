@@ -1,4 +1,4 @@
-"""RAG-backed :class:`GroundingSource` — the first non-fake grounding leg.
+"""RAG-backed :class:`GroundingSource` - the first non-fake grounding leg.
 
 The T2 quality gate's grounding leg (see
 [`docs/roadmap/phases/phase-2-quality-and-t1.md § LLM Quality Gate`])
@@ -6,7 +6,7 @@ must "validate each cited item exists in the rule catalog and actually
 **supports the claim**". The in-memory grounding source in
 :mod:`~aiopspilot.core.quality_gate.testing` only satisfies half of
 that: it answers "does this rule id exist?" but has no way to say
-"does this rule actually justify the proposed action?" — so a T2
+"does this rule actually justify the proposed action?" - so a T2
 model could cite an authoritative but topically-unrelated rule and
 still pass grounding.
 
@@ -30,11 +30,11 @@ Design notes
   composition root; the upstream default is the deterministic
   :class:`~aiopspilot.core.quality_gate.testing.HashedRuleEmbeddingIndex`.
 - The Protocol :class:`~aiopspilot.core.quality_gate.gate.GroundingSource`
-  is **unchanged** — ``supports`` is an additive method the gate finds
+  is **unchanged** - ``supports`` is an additive method the gate finds
   via duck-typing, so the older ID-exists-only implementations still
   work and older callers do not have to be updated in the same PR.
 - Rule vectors are computed **once at construction** so per-candidate
-  ``supports`` is a single ``encode`` call plus a cosine — bounded and
+  ``supports`` is a single ``encode`` call plus a cosine - bounded and
   synchronous, safe to run inside the gate's event loop.
 """
 
@@ -55,7 +55,7 @@ class RuleEmbeddingIndex(Protocol):
     sentence-transformers, Azure OpenAI embeddings, a hosted vector DB)
     without leaking transport concerns into ``core/``. Both methods
     MUST be deterministic for the same input: reproducibility of the
-    grounding decision is a safety property — a flaky ``encode`` would
+    grounding decision is a safety property - a flaky ``encode`` would
     let the same candidate flip between eligible and ungrounded across
     replays.
     """
@@ -139,7 +139,7 @@ class RagGroundingSource:
         ``action_type`` with a canonical digest of ``params`` and
         ``rule_text`` composes the rule's ``check_logic.reference`` with
         its ``remediates`` ontology dispatch. A rule id that is not in
-        the loaded catalog returns ``False`` — the gate's "unknown"
+        the loaded catalog returns ``False`` - the gate's "unknown"
         branch already surfaces that case, but defending here keeps the
         method usable outside the gate too.
         """
@@ -157,7 +157,7 @@ class RagGroundingSource:
         """Compose ``action_type`` with a canonical digest of ``params``.
 
         ``params`` is stringified as ``key=value`` pairs sorted by key
-        so the digest is stable across dict-insertion order — an
+        so the digest is stable across dict-insertion order - an
         identical candidate MUST embed to an identical vector.
         """
         params_digest = " ".join(f"{k}={candidate.params[k]}" for k in sorted(candidate.params))

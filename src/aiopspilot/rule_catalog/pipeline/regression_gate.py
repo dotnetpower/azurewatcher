@@ -1,4 +1,4 @@
-"""Regression gate — decide promote-vs-rollback for a candidate rule set.
+"""Regression gate - decide promote-vs-rollback for a candidate rule set.
 
 Phase 2 continuous-update pipeline stage 4 (see
 [`docs/roadmap/phases/phase-2-quality-and-t1.md § Regression gate`]).
@@ -9,9 +9,9 @@ Contract
 Given a :class:`ShadowEvalReport` (and a **baseline** report from the
 last-known-good rule set), decide whether the candidate:
 
-- **passes** — no policy-violation escapes, coverage did not regress
+- **passes** - no policy-violation escapes, coverage did not regress
   below the guard threshold, no forbidden guard breach.
-- **fails** — one of the above tripped; the pipeline MUST roll back.
+- **fails** - one of the above tripped; the pipeline MUST roll back.
 
 The gate is a pure function: same inputs → same decision. Config
 thresholds are injected at construction so a fork tightens them without
@@ -29,7 +29,7 @@ from aiopspilot.rule_catalog.pipeline.shadow_eval import ShadowEvalReport
 _DEFAULT_MAX_POLICY_ESCAPES: Final[int] = 0
 _DEFAULT_MIN_COVERAGE_RATIO: Final[float] = 0.95
 """Candidate coverage MUST reach 95% of the baseline coverage (floor of
-0 when the baseline itself is zero — a fresh rollout starts at 0)."""
+0 when the baseline itself is zero - a fresh rollout starts at 0)."""
 
 _DEFAULT_MAX_MISSING_EXPECTED_RULES: Final[int] = 0
 
@@ -37,7 +37,7 @@ _DEFAULT_MAX_MISSING_EXPECTED_RULES: Final[int] = 0
 class RegressionOutcome(StrEnum):
     """Gate outcomes."""
 
-    PASS = "pass"  # noqa: S105 — gate outcome literal, not a secret
+    PASS = "pass"  # noqa: S105 - gate outcome literal, not a secret
     FAIL = "fail"
 
 
@@ -104,7 +104,7 @@ class RegressionGate:
     ) -> RegressionDecision:
         """Return the gate decision.
 
-        ``baseline`` is optional — a first-run rollout has no prior
+        ``baseline`` is optional - a first-run rollout has no prior
         known-good report, in which case the coverage-ratio check is
         skipped (there is nothing to regress against).
         """

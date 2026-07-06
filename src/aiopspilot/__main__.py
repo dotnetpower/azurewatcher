@@ -1,4 +1,4 @@
-"""Process entrypoint — headless control plane bootstrap + event loop.
+"""Process entrypoint - headless control plane bootstrap + event loop.
 
 Loads the composition-root container, finalizes the LLM bindings against
 Managed Identity when ``llm.mode == "azure"``, boots the P1 control
@@ -77,7 +77,7 @@ def _resolve_catalog_root() -> Path:
     - Docker runtime: ``/app/rule-catalog/`` (see Dockerfile).
     - Explicit override via ``AIOPSPILOT_CATALOG_ROOT`` env.
 
-    A missing tree is a fail-fast error — the control loop can't start
+    A missing tree is a fail-fast error - the control loop can't start
     without at least one rule.
     """
     override = os.environ.get("AIOPSPILOT_CATALOG_ROOT")
@@ -144,13 +144,13 @@ def _build_pattern_library() -> PatternLibrary:
     the state store points at, but broken out so a fork can move the
     T1 store to a dedicated instance) switches to
     :class:`PgVectorPatternLibrary`. Without it the in-memory fake is
-    used — the ``PatternLibrary`` Protocol is the contract, so ``core/``
+    used - the ``PatternLibrary`` Protocol is the contract, so ``core/``
     neither knows nor cares which backend is active.
 
     Optional tuning envs (fail-fast on unparseable values):
 
-    - ``AIOPSPILOT_T1_PATTERN_LIBRARY_STATEMENT_TIMEOUT_MS`` — default 15000.
-    - ``AIOPSPILOT_T1_PATTERN_LIBRARY_IVFFLAT_PROBES`` — default 10.
+    - ``AIOPSPILOT_T1_PATTERN_LIBRARY_STATEMENT_TIMEOUT_MS`` - default 15000.
+    - ``AIOPSPILOT_T1_PATTERN_LIBRARY_IVFFLAT_PROBES`` - default 10.
 
     The T1 tier is not yet wired into the P1 control loop; this builder
     is exposed so the composition root can bind it once T1 lands.
@@ -213,7 +213,7 @@ def _build_publisher(http_client: httpx.AsyncClient | None) -> Any:
     bug and raises immediately so the container never masquerades as
     a real GitOps publisher.
 
-    ``http_client`` MUST be non-None when the token is set — the
+    ``http_client`` MUST be non-None when the token is set - the
     adapter never opens its own connection; the composition root owns
     the client lifecycle.
     """
@@ -287,25 +287,25 @@ def _build_hil_channel(http_client: httpx.AsyncClient | None) -> Any:
 
     Presence of ``AIOPSPILOT_CHATOPS_WEBHOOK_URL`` opts into the real
     :class:`TeamsHilAdapter`; missing URL returns ``None`` so the caller
-    falls back to its persisted HIL queue (existing P1 behavior — see
+    falls back to its persisted HIL queue (existing P1 behavior - see
     ``docs/roadmap/channels-and-notifications.md § 6``). The
     ``HilChannel`` Protocol is the contract, so ``core/`` neither knows
     nor cares which backend is active.
 
-    Env vars (Incoming Webhook mode — P1 default):
+    Env vars (Incoming Webhook mode - P1 default):
 
-    - ``AIOPSPILOT_CHATOPS_WEBHOOK_URL`` — Teams channel Incoming
+    - ``AIOPSPILOT_CHATOPS_WEBHOOK_URL`` - Teams channel Incoming
       Webhook URL. **Required to opt in.**
-    - ``AIOPSPILOT_CHATOPS_WEBHOOK_SECRET`` — optional HMAC-SHA256
+    - ``AIOPSPILOT_CHATOPS_WEBHOOK_SECRET`` - optional HMAC-SHA256
       shared secret; when set the adapter attaches an
       ``X-AIOpsPilot-Signature`` header for the receiver to verify.
     - ``AIOPSPILOT_CHATOPS_APPROVE_CALLBACK_URL`` /
-      ``AIOPSPILOT_CHATOPS_REJECT_CALLBACK_URL`` — optional callback
+      ``AIOPSPILOT_CHATOPS_REJECT_CALLBACK_URL`` - optional callback
       URLs rendered as ``Action.Submit`` data on the card buttons.
-    - ``AIOPSPILOT_CHATOPS_TIMEOUT_SECONDS`` — optional per-request
+    - ``AIOPSPILOT_CHATOPS_TIMEOUT_SECONDS`` - optional per-request
       timeout (default 15s).
 
-    ``http_client`` MUST be non-None when the URL is set — the adapter
+    ``http_client`` MUST be non-None when the URL is set - the adapter
     never opens its own connection; the composition root owns the
     client lifecycle.
     """
@@ -405,7 +405,7 @@ def _build_control_loop(
 ) -> ControlLoop:
     """Load rule / action / policy catalogs and wire the P1 control loop.
 
-    ``http_client`` — passed to :func:`_build_publisher` when the
+    ``http_client`` - passed to :func:`_build_publisher` when the
     GitOps env vars opt into the real adapter. ``None`` is fine when
     the container runs in fake-publisher mode (dev / unit tests).
     """
@@ -492,7 +492,7 @@ async def _consume(
         )
         try:
             result = await control_loop.process(envelope.payload)
-        except Exception:  # noqa: BLE001 — fail-close: log-and-continue
+        except Exception:  # noqa: BLE001 - fail-close: log-and-continue
             _LOOP_LOGGER.exception(
                 "control_loop_unhandled_error",
                 extra={"key": envelope.key, "offset": envelope.offset},
@@ -568,7 +568,7 @@ async def _run() -> int:
             # http_client exists before _build_control_loop needs one.
             if os.environ.get("AIOPSPILOT_GITOPS_TOKEN") and http_client is None:
                 http_client = httpx.AsyncClient()
-            # Same for the HIL channel — an Incoming Webhook URL opts in.
+            # Same for the HIL channel - an Incoming Webhook URL opts in.
             if os.environ.get("AIOPSPILOT_CHATOPS_WEBHOOK_URL") and http_client is None:
                 http_client = httpx.AsyncClient()
             control_loop = _build_control_loop(container, http_client=http_client)
@@ -649,5 +649,5 @@ def main() -> int:
         return 0
 
 
-if __name__ == "__main__":  # pragma: no cover — process entrypoint
+if __name__ == "__main__":  # pragma: no cover - process entrypoint
     sys.exit(main())

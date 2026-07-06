@@ -2,13 +2,13 @@
 
 Public surface:
 
-- :mod:`.auth` — extract a :class:`~aiopspilot.core.rbac.resolver.Principal`
+- :mod:`.auth` - extract a :class:`~aiopspilot.core.rbac.resolver.Principal`
   from an HTTP ``Authorization`` header and glue in
   :class:`~aiopspilot.core.rbac.enforcer.RoleEnforcer`. Framework-neutral;
   no ASGI framework is imported at module load.
-- :mod:`.read_model` — projection Protocol + in-memory fake the console
+- :mod:`.read_model` - projection Protocol + in-memory fake the console
   handlers read through.
-- :mod:`.main` — Starlette app factory. This is the ONLY place Starlette
+- :mod:`.main` - Starlette app factory. This is the ONLY place Starlette
   is imported in the codebase; importing this sub-module pulls Starlette
   into the process, so tests that do not need the HTTP layer keep using
   the primitives in :mod:`.auth` / :mod:`.read_model` directly.

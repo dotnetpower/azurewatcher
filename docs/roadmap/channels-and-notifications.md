@@ -3,7 +3,7 @@ title: Channels and Notifications
 ---
 # Channels and Notifications
 
-How AIOpsPilot talks to humans through **non-web-UI channels** — Teams, Slack, email,
+How AIOpsPilot talks to humans through **non-web-UI channels** - Teams, Slack, email,
 webhooks, paging services, SMS. This file is authoritative for the **channel abstraction,
 trust levels, category boundaries, routing policy, and channel-specific rules**. It
 resolves the placeholder "notifier interface" hinted at in
@@ -29,7 +29,7 @@ lives in [user-rbac-and-identity.md](user-rbac-and-identity.md).
    cannot verify the human's Entra identity end-to-end. A less-trusted channel MAY carry
    information but never decisions (§4).
 4. **Fail toward safety.** If every configured channel for a category fails, the request
-   queues and pages the operational lane — it never auto-executes. Fallback within a
+   queues and pages the operational lane - it never auto-executes. Fallback within a
    category preserves the trust tier (§6).
 5. **Redaction is the sender's job.** No secret, credential, PII, subscription id, or raw
    customer payload leaves the trust boundary in a channel message. This applies to every
@@ -66,16 +66,16 @@ flowchart LR
   the human's Entra identity ([user-rbac-and-identity.md](user-rbac-and-identity.md#102-api-token-validation))
   before acting. Adapters never authorize decisions themselves.
 
-## 3. Categories (A1–A4)
+## 3. Categories (A1-A4)
 
 Every channel message carries a **category tag** and must obey that category's rules.
 
 | Category | Direction | Examples | Auth strength needed |
 |----------|-----------|----------|----------------------|
-| **A1 — HIL approval** | bidirectional (decision returned) | high-risk action approval, enforce-promotion approval, exemption approval, override approval | **highest** — verified Entra identity, action-bound, no replay |
-| **A2 — Operational alert** | outbound only | SLO burn, DLQ depth, verifier failure rate, cold-start miss, IaC drift, adapter unhealthy, canary miss | low — informational |
-| **A3 — Chat command** | bidirectional (query/response) | **read**: `/aw status`, `/aw shadow-report`, `/aw override list`, `/aw kill-switch status`. **write (draft-PR only)**: `/aw override draft`, `/aw exemption draft`, `/aw assignment param-tune` | medium — role-gated per command (see §3.1) |
-| **A4 — Digest** | outbound only | daily shadow-accuracy report, weekly override retrospective, weekly enforce-promotion candidates, weekly governance PR aging, weekly exemption expiry lookahead, monthly KPI + cost roundup, break-glass usage summary | low — recipient scope only |
+| **A1 - HIL approval** | bidirectional (decision returned) | high-risk action approval, enforce-promotion approval, exemption approval, override approval | **highest** - verified Entra identity, action-bound, no replay |
+| **A2 - Operational alert** | outbound only | SLO burn, DLQ depth, verifier failure rate, cold-start miss, IaC drift, adapter unhealthy, canary miss | low - informational |
+| **A3 - Chat command** | bidirectional (query/response) | **read**: `/aw status`, `/aw shadow-report`, `/aw override list`, `/aw kill-switch status`. **write (draft-PR only)**: `/aw override draft`, `/aw exemption draft`, `/aw assignment param-tune` | medium - role-gated per command (see §3.1) |
+| **A4 - Digest** | outbound only | daily shadow-accuracy report, weekly override retrospective, weekly enforce-promotion candidates, weekly governance PR aging, weekly exemption expiry lookahead, monthly KPI + cost roundup, break-glass usage summary | low - recipient scope only |
 
 **Category boundaries (MUST)**
 
@@ -83,7 +83,7 @@ Every channel message carries a **category tag** and must obey that category's r
   Block Kit / email body carries an **opaque `approval_id`**; the actual decision is
   posted back to `aiopspilot-api`, which re-authenticates and re-validates
   (`idempotency_key` + `action_hash`) so a leaked message is not a valid approval.
-- **A3 write commands never mutate the live catalog directly** — they produce a draft
+- **A3 write commands never mutate the live catalog directly** - they produce a draft
   PR the same way the console does (§6 in
   [user-rbac-and-identity.md](user-rbac-and-identity.md#6-identity-flow-console--draft-pr--audit)),
   carrying the invoker's Entra OID in the PR trailer. The PR then follows the standard
@@ -112,12 +112,12 @@ and what its authentication can prove.
 | Channel | Entra tenant | Auth path | Categories allowed |
 |---------|--------------|-----------|--------------------|
 | **Teams (same tenant)** | ✓ | Teams SSO → OBO exchange → `aiopspilot-api` token | **A1, A2, A3, A4** |
-| **Teams (guest tenant)** | guest | OBO with guest OID | **A2, A3, A4** (A1 denied — same guest rule as [user-rbac-and-identity.md §10.5](user-rbac-and-identity.md#105-guest-entra-b2b-users)) |
-| **Slack** | ✗ | Slack OAuth; **fork-mandatory** Slack userId ↔ Entra OID mapping; A1 approvals bounce through `aiopspilot-api` for Entra re-auth in the browser | **A1, A2, A3, A4** — A1 enabled in P1 (see §7 Slack notes) |
-| **Email (SMTP / Graph)** | ✗ | send-only, no return channel | **A2, A4 only** — never A1 (magic-link approvals are prohibited) |
+| **Teams (guest tenant)** | guest | OBO with guest OID | **A2, A3, A4** (A1 denied - same guest rule as [user-rbac-and-identity.md §10.5](user-rbac-and-identity.md#105-guest-entra-b2b-users)) |
+| **Slack** | ✗ | Slack OAuth; **fork-mandatory** Slack userId ↔ Entra OID mapping; A1 approvals bounce through `aiopspilot-api` for Entra re-auth in the browser | **A1, A2, A3, A4** - A1 enabled in P1 (see §7 Slack notes) |
+| **Email (SMTP / Graph)** | ✗ | send-only, no return channel | **A2, A4 only** - never A1 (magic-link approvals are prohibited) |
 | **Generic webhook** | ✗ | HMAC-signed, timestamped, replay-guarded | **A2 only** |
 | **PagerDuty / Opsgenie** | ✗ | API key, ack from mobile app | **A2 only** (operational lane paging) |
-| **SMS** | ✗ | — | **A2 only** (minimal payload; break-glass reachability) |
+| **SMS** | ✗ | - | **A2 only** (minimal payload; break-glass reachability) |
 
 **Rules that keep the matrix safe (MUST)**
 
@@ -144,13 +144,13 @@ interface Channel {
   categories: ChannelCategory[];         // which categories this channel is allowed to serve
   trust_level: TrustLevel;
 
-  // A2 / A4 (send-only) — every channel implements
+  // A2 / A4 (send-only) - every channel implements
   send(msg: NotificationMessage): Promise<DeliveryReceipt>;
 
-  // A1 — implemented by approval-capable channels only
+  // A1 - implemented by approval-capable channels only
   awaitDecision?(req: ApprovalRequest, ttl: Duration): Promise<ApprovalOutcome>;
 
-  // A3 — implemented by chat-command-capable channels only
+  // A3 - implemented by chat-command-capable channels only
   registerCommand?(cmd: ChatCommandSpec, handler: CommandHandler): void;
 }
 
@@ -160,7 +160,7 @@ interface NotificationMessage {
   audit_id?: string;
   title: string;
   body_markdown: string;                 // pre-redacted; adapter re-scans for known-secret patterns
-  links: { label: string; url: string }[];    // links only — no inline action buttons for A2/A4
+  links: { label: string; url: string }[];    // links only - no inline action buttons for A2/A4
   severity?: 'info' | 'warn' | 'error' | 'critical';
 }
 
@@ -185,17 +185,17 @@ interface ApprovalRequest {
 ### 5.1 Audience Derivation (channel-as-audience)
 
 Recipient lists are **not** derived per-user by the router. Each channel *is* an audience,
-and membership is managed **outside** the control plane — typically by binding the channel
+and membership is managed **outside** the control plane - typically by binding the channel
 to an Entra security group.
 
 - **Default (Option A)**: a Teams channel/DL is created as a **group-connected team**
   backed by an `aw-*` Entra security group. Membership syncs automatically from Entra
-  (“Owner adds a person to `aw-approvers` in the Portal” → they immediately see the next
+  ("Owner adds a person to `aw-approvers` in the Portal" → they immediately see the next
   digest and every A1/A2/A3 post). This keeps administration in one surface
   ([user-rbac-and-identity.md §4.2](user-rbac-and-identity.md#42-security-groups-slots)).
 - **In-message `@mentions`** call out artifact-owners inside a channel post (e.g. the
   requester of an expiring exemption). Mentions are derived from artifact metadata
-  (`requested_by`, PR author, rule author) already carried in the audit stream — no Graph
+  (`requested_by`, PR author, rule author) already carried in the audit stream - no Graph
   lookup at digest time.
 - **Role-derived direct messaging** is used **only** for break-glass usage summary
   (small, time-critical audience where a channel post is not enough). Every other A4
@@ -239,7 +239,7 @@ channel_routing:
       - slack-hil-prd
     # role check is per-command (§3.1); the router does not re-implement it
 
-  digests:                         # category A4 — seven default digests
+  digests:                         # category A4 - seven default digests
     shadow_accuracy_daily:
       cron: "0 9 * * *"
       audience:
@@ -283,20 +283,20 @@ channel_routing:
 
 **Router rules (MUST)**
 
-- **Category ⊆ channel.categories** — the router refuses to send a message to a channel
+- **Category ⊆ channel.categories** - the router refuses to send a message to a channel
   whose declared categories do not include the message's category. Startup config
   validation rejects a routing entry that pairs a channel with a disallowed category
   (deny-by-default; fail fast).
-- **Trust preservation on fallback** — A1 primary → A1 fallback only. Downgrading to a
+- **Trust preservation on fallback** - A1 primary → A1 fallback only. Downgrading to a
   lower trust level on fallback is a config-load error.
 - **`role-dm` is deny-listed except for `break_glass_usage_summary`.** Any other digest
   attempting `role-dm` fails at config load.
 - **Digests declaring `mention-artifact-owner` MUST specify a valid metadata field**
   (`rule_author`, `override_requester`, `exemption_requester`, `pr_author_and_reviewers`);
   unknown values fail at config load.
-- **Bounded retries** — each adapter declares its own retry budget; router escalates to
+- **Bounded retries** - each adapter declares its own retry budget; router escalates to
   the next channel or to `on_all_fail` on exhaustion.
-- **TTL fail-closed** — an A1 request with no decision by TTL is a no-op + A2 alert +
+- **TTL fail-closed** - an A1 request with no decision by TTL is a no-op + A2 alert +
   audit entry ([security-and-identity.md](security-and-identity.md#hil-approval-integrity)).
 
 ## 7. Channel-Specific Notes
@@ -305,7 +305,7 @@ channel_routing:
 |---------|-------|
 | **Teams** | Adaptive Cards for A1; keep the OAuth scope set minimal (`ChannelMessage.Send.Group` + bot signaling). SSO + OBO already covered in [user-rbac-and-identity.md §10.4](user-rbac-and-identity.md#104-chatops-teams-sign-in). Digest audience is a **group-connected team backed by an `aw-*` Entra security group** so membership follows Entra without a separate list. |
 | **Slack** | Block Kit for A2/A3; the approval callback URL redirects through `aiopspilot-api` so Entra re-auth happens in the browser, not inside Slack. `chat:write` scope only. Fork MUST supply the userId↔OID mapping store; the adapter refuses A1 traffic when a Slack user has no mapped Entra OID. Slack channel membership is administered in Slack; keep it in sync with the corresponding `aw-*` group manually or via SCIM. |
-| **Email** | Send-only. Never include an approval link; digest and alert only. Sender identity is a Graph API mailbox scoped to the notification role. Redaction is mandatory — no correlation payload beyond `audit_id` and dashboard URL. Recommended DL: an **Entra dynamic distribution group** mirroring `aw-approvers` / `aw-owners`. |
+| **Email** | Send-only. Never include an approval link; digest and alert only. Sender identity is a Graph API mailbox scoped to the notification role. Redaction is mandatory - no correlation payload beyond `audit_id` and dashboard URL. Recommended DL: an **Entra dynamic distribution group** mirroring `aw-approvers` / `aw-owners`. |
 | **Generic webhook** | HMAC-SHA256 signature, monotonic timestamp, single-use nonce. Receiver failures never block; core retries per adapter policy and moves on. |
 | **PagerDuty / Opsgenie** | Deduplication key = the observability correlation id so a burst collapses. Runbook URL is required in every alert. |
 | **SMS** | Payload restricted to `<severity> <audit_id> <short-url-to-runbook>`. No secrets, no customer names, no free-form text. Break-glass reachability primarily. |
@@ -317,14 +317,14 @@ channel_routing:
 - If **all A2 channels are down**, adapter health telemetry still lands in observability
   and appears in the console; the kill-switch remains operable through its dedicated
   break-glass path ([security-and-identity.md](security-and-identity.md#rate-limiting-and-kill-switch-dos-and-containment)).
-- Adapter unhealth is itself an A2 signal — a Teams outage that stops A1 delivery pages
+- Adapter unhealth is itself an A2 signal - a Teams outage that stops A1 delivery pages
   the operational lane through the fallback channel.
 
 ## 9. Fork vs Upstream Split
 
 | Item | Upstream (this repo) | Fork |
 |------|----------------------|------|
-| `Channel` interface + `NotificationMessage` / `ApprovalRequest` types | ✓ | — |
+| `Channel` interface + `NotificationMessage` / `ApprovalRequest` types | ✓ | - |
 | Teams adapter (default A1 + A2 + A3 + A4 impl) | ✓ | tenant / group-connected team binding |
 | **Slack adapter with A1 enabled by default (P1)** | ✓ | workspace credentials + userId↔OID mapping (required) |
 | Email / Webhook / Pager / SMS adapters | ✓ (skeletons) | credentials + enablement |
@@ -337,7 +337,7 @@ channel_routing:
 ## 10. Open Decisions
 
 - [ ] Adapter-health alert thresholds and dedupe windows.
-- [ ] Which vendors' incoming webhooks (if any) may open incidents into AIOpsPilot —
+- [ ] Which vendors' incoming webhooks (if any) may open incidents into AIOpsPilot -
       today only observability opens A2 traffic; external webhooks in are separate scope.
 - [ ] The `mention-artifact-owner` behavior when the artifact owner is a **guest** user
       (mention still resolves in Teams, but should the digest suppress or route

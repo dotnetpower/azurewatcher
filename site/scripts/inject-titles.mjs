@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// inject-titles.mjs — one-shot migration that adds a YAML `title`
+// inject-titles.mjs - one-shot migration that adds a YAML `title`
 // frontmatter field to every docs/roadmap/**/*.md and refreshes the
 // paired -ko.md's translation_source_sha to match.
 //
 // Why: Starlight's docsSchema() requires `title`, but the canonical docs
 // were authored with the title as the first Markdown H1 only. Fixing this
-// by editing 48 files by hand is toil and error-prone — this script does
+// by editing 48 files by hand is toil and error-prone - this script does
 // the same edit uniformly, then rehashes the -ko.md pointers so the
 // existing check-translations.sh gate stays green after the migration.
 //
@@ -151,6 +151,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("inject-titles: failed —", err);
+  console.error("inject-titles: failed -", err);
   process.exit(1);
 });

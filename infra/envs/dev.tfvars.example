@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------
-# Example dev tfvars — copy to `dev.tfvars` (git-ignored) and fill.
+# Example dev tfvars - copy to `dev.tfvars` (git-ignored) and fill.
 # Real values MUST NOT be committed (see generic-scope rules).
 # ---------------------------------------------------------------
 
@@ -10,7 +10,7 @@ region_short = "krc"
 # Entra tenant that hosts the executor MI + AAD Postgres auth.
 tenant_id = "00000000-0000-0000-0000-000000000000"
 
-# Postgres admin (bootstrap only — production uses AAD auth).
+# Postgres admin (bootstrap only - production uses AAD auth).
 postgres_admin_login    = "aiopspilotadmin"
 postgres_admin_password = "SET-ME-VIA-VAULT"
 

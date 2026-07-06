@@ -1,4 +1,4 @@
-// AIOpsPilot — UI Cells mock.
+// AIOpsPilot - UI Cells mock.
 //
 // A WebGL2 view of a hierarchical tree (WAF pillars / topology / severity)
 // rendered as weighted Voronoi cells filling the viewport.  On cold start
@@ -28,7 +28,7 @@ const CFG = {
   },
   building: {
     // One isometric building per top-level (depth === 1) cell during
-    // discovery/evaluation — it fills from the base to visualize that
+    // discovery/evaluation - it fills from the base to visualize that
     // cell's aggregate progress.  Sizes are in screen pixels.
     minPx: 40,
     maxPx: 260,
@@ -37,7 +37,7 @@ const CFG = {
     sizeFactor: 0.75,      // fraction of inscribed diameter used as width
   },
   backdrop: {
-    // Phyllotaxis decorative cells that sit OUTSIDE the hex — a soft
+    // Phyllotaxis decorative cells that sit OUTSIDE the hex - a soft
     // organic border that fades in as the view zooms out.
     count: 460,
     innerScale: 1.06,      // seed spiral inner radius as multiple of hexRadius
@@ -180,7 +180,7 @@ function polylabel(poly, precisionMul = 0.001) {
     queue.splice(lo, 0, c);
   };
 
-  // Seed grid — one cell per cellSize × cellSize square covers the
+  // Seed grid - one cell per cellSize × cellSize square covers the
   // bbox with enough spacing that the priority-queue refinement below
   // can find the global optimum in a bounded number of iterations.
   for (let x = minX; x < maxX; x += cellSize) {
@@ -228,7 +228,7 @@ function paletteRGB(g, node) {
   const p = currentPalette;
   if (!p) return [200, 200, 200];
   if (p.mode === 'layered') {
-    // Depth-based colour — every cell at the same depth shares one
+    // Depth-based colour - every cell at the same depth shares one
     // shade, and children switch to a distinct shade as the view zooms
     // in.  Uses node.depth as the layer index.
     const layers = p.layers || [];
@@ -504,7 +504,7 @@ function buildTreeForView(view) {
 }
 
 // ---------------------------------------------------------------------------
-// Layout — weighted Voronoi treemap inside a flat-top hex clip.
+// Layout - weighted Voronoi treemap inside a flat-top hex clip.
 
 function runLayout(rootData) {
   const hex = hexPoints(0, 0, CFG.hexRadius);
@@ -645,7 +645,7 @@ void main(){
   float baseAlpha = a_meta.z;
   float a;
   if (mode >= 1.5) {
-    // Decorative backdrop cells outside the hex — fade IN as we zoom
+    // Decorative backdrop cells outside the hex - fade IN as we zoom
     // out (viewRatio grows) and fade OUT as we zoom in.
     float t = smoothstep(0.35, 0.95, u_viewRatio);
     a = t * baseAlpha;
@@ -710,7 +710,7 @@ float glow(vec2 uv, vec2 c, float r, float s){
 
 void main(){
   vec2 uv = v_uv;
-  // Sci-fi ambient — a lifted mid-navy gradient (no near-black corners
+  // Sci-fi ambient - a lifted mid-navy gradient (no near-black corners
   // so the frame doesn't feel oppressive), with subtle cool glows and
   // a faint square grid.
   vec3 top = vec3(0.18, 0.23, 0.36);
@@ -722,7 +722,7 @@ void main(){
   col += glow(uv, vec2(0.78 + 0.03*cos(t*0.8), 0.30 + 0.03*sin(t*0.9)), 0.50, 0.09) * vec3(0.85, 0.45, 1.00);
   col += glow(uv, vec2(0.55 + 0.02*sin(t*1.1), 0.20 + 0.02*cos(t*0.85)), 0.40, 0.06) * u_accent;
 
-  // Faint grid — thin cyan lines, fading near the centre of the screen.
+  // Faint grid - thin cyan lines, fading near the centre of the screen.
   vec2 g = abs(fract(uv * 42.0) - 0.5);
   float line = 1.0 - smoothstep(0.005, 0.02, min(g.x, g.y));
   float fade = smoothstep(0.20, 0.85, distance(uv, vec2(0.5, 0.5)));
@@ -862,7 +862,7 @@ function nodeFillLevel(n) {
 }
 
 function nodeBaseAlpha(n) {
-  // Fills are translucent so the dark bg reads through — the bright
+  // Fills are translucent so the dark bg reads through - the bright
   // rim (drawn separately) does the heavy lifting for cell identity.
   if (n.depth === 0) return 0.06;
   return 0.42;
@@ -906,7 +906,7 @@ function buildMesh() {
   const nodes = walkNodes(state.tree);
 
   // Fills: per polygon, a triangle fan (center + rim vertices).
-  // Center vertex has higher alpha; rim vertices have lower — gives a
+  // Center vertex has higher alpha; rim vertices have lower - gives a
   // radial "membrane" gradient without a texture.
   const fillArr = [];
   const rimArr = [];
@@ -930,7 +930,7 @@ function buildMesh() {
 
     for (const cell of bd) {
       const poly = cell.polygon;
-      // d3-delaunay closes the polygon (last point == first) — skip it.
+      // d3-delaunay closes the polygon (last point == first) - skip it.
       const len = poly[poly.length - 1][0] === poly[0][0] &&
                   poly[poly.length - 1][1] === poly[0][1]
         ? poly.length - 1 : poly.length;
@@ -998,14 +998,14 @@ function buildMesh() {
 }
 
 function refreshColors() {
-  // Rebuild the mesh — color and fillLevel changes are baked into the VBO.
+  // Rebuild the mesh - color and fillLevel changes are baked into the VBO.
   // For a mock with a few hundred cells this is cheap; for 10k+ we would
   // separate a color-only fast path.
   state.meshDirty = true;
 }
 
 // ---------------------------------------------------------------------------
-// 2D overlay — labels and discovery-phase isometric buildings.
+// 2D overlay - labels and discovery-phase isometric buildings.
 
 const overlayState = {
   canvas: null, ctx: null,
@@ -1123,10 +1123,10 @@ function wrapText(ctx, text, maxWidth, maxLines) {
   if (consumed < words.length && lines.length) {
     const rest = words.slice(consumed).join(' ');
     let last = lines[lines.length - 1] + ' ' + rest;
-    while (last.length > 3 && ctx.measureText(last + '…').width > maxWidth) {
+    while (last.length > 3 && ctx.measureText(last + '...').width > maxWidth) {
       last = last.slice(0, -1);
     }
-    lines[lines.length - 1] = last + '…';
+    lines[lines.length - 1] = last + '...';
   }
   return lines;
 }
@@ -1174,7 +1174,7 @@ function drawOverlay(w, h) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // Labels — anchored at the cell's axis-based visual centre (not the
+  // Labels - anchored at the cell's axis-based visual centre (not the
   // area-mass centroid), sized to the min-extent box guaranteed to fit
   // inside the convex cell.  Parent labels crossfade OUT as children
   // fade IN so we never render two layers at the same cell.
@@ -1209,7 +1209,7 @@ function drawOverlay(w, h) {
     if (!fitted.lines.length || fitted.size < 10) continue;
 
     const alpha = clamp(effReveal, 0, 1);
-    // Pale cyan text with a soft accent glow — evokes a HUD readout.
+    // Pale cyan text with a soft accent glow - evokes a HUD readout.
     ctx.shadowColor = 'rgba(77, 208, 225, 0.55)';
     ctx.shadowBlur = Math.min(18, fitted.size * 0.7);
     ctx.font = `600 ${fitted.size}px -apple-system, "Segoe UI", "Noto Sans KR", sans-serif`;
@@ -1329,7 +1329,7 @@ function applyEvent(type, payload) {
   } else if (type === 'finding') {
     onFinding(payload);
   } else if (type === 'progress') {
-    // Ambient tick — nudge fillLevels for cells that haven't advanced.
+    // Ambient tick - nudge fillLevels for cells that haven't advanced.
     // Ignored for the mock since findings drive fillLevel already.
   } else if (type === 'done') {
     if (state.phase !== 'ready') setPhase('ready');
@@ -1656,7 +1656,7 @@ async function main() {
     setupInteractions();
     document.getElementById('loading').classList.add('hidden');
     requestAnimationFrame(frame);
-    // Boot directly to the READY state — no progress-animation replay.
+    // Boot directly to the READY state - no progress-animation replay.
     // The recorded discovery stream still populates findings so cells
     // have realistic colours, but every event is applied synchronously.
     await bootstrapReadyState();

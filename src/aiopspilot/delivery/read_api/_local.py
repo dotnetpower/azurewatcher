@@ -6,13 +6,13 @@ synthetic entries so the console has something to render.
 
 **Never wire this in production.** The env-var tripwire in
 :func:`aiopspilot.delivery.read_api.main.build_app` refuses to build a
-dev-mode app unless ``AIOPSPILOT_READ_API_DEV_MODE=1`` is set — this
+dev-mode app unless ``AIOPSPILOT_READ_API_DEV_MODE=1`` is set - this
 module also asserts that at build time so a stray production revision
 that boots it fails fast.
 
 Usage (uvicorn's ``--factory`` flag calls :func:`app` at server start,
-so importing this module during unrelated tooling — pytest collection,
-mypy, IDE indexing — has no side effect)::
+so importing this module during unrelated tooling - pytest collection,
+mypy, IDE indexing - has no side effect)::
 
     AIOPSPILOT_READ_API_DEV_MODE=1 \\
         uv run uvicorn 'aiopspilot.delivery.read_api._local:app' \\

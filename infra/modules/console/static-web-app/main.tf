@@ -1,4 +1,4 @@
-# AIOpsPilot console — Azure Static Web App.
+# AIOpsPilot console - Azure Static Web App.
 #
 # Layer 3 (`app-shape.instructions.md § Operator console`). The SPA is
 # read-only; it never issues privileged calls, so no Managed Identity is
@@ -7,7 +7,7 @@
 #
 # NOTE: Deployment is gated by the P1-completion rule (see repo memory
 # `p1-w3-handoff.md` → "P1 완료 전 terraform apply 금지"). This module is
-# scaffolded but NOT wired into `infra/main.tf` yet — a fork enables it
+# scaffolded but NOT wired into `infra/main.tf` yet - a fork enables it
 # by adding `module "console" { source = "./modules/console/static-web-app" ... }`
 # once its Azure Static Web App region and (optional) custom domain are
 # decided.
@@ -23,7 +23,7 @@ resource "azurerm_static_web_app" "console" {
   sku_tier            = var.sku_tier
   sku_size            = var.sku_size
 
-  # No API surface — the console talks to the separate `aiopspilot-api`
+  # No API surface - the console talks to the separate `aiopspilot-api`
   # (Container Apps). The Static Web App's built-in Functions bridge is
   # left off so a fork does not accidentally publish a write endpoint
   # under the same origin.
@@ -32,7 +32,7 @@ resource "azurerm_static_web_app" "console" {
   # Deployment token is retrieved out-of-band by the fork's CI pipeline
   # (`az staticwebapp secrets list --name ... --query properties.apiKey`)
   # and injected into the build step that uploads `console/dist/`. This
-  # module intentionally does NOT bind an app_settings block — every
+  # module intentionally does NOT bind an app_settings block - every
   # console runtime value (MSAL, API base URL) is a build-time env var
   # (`VITE_*`) baked into the static bundle.
   tags = var.tags

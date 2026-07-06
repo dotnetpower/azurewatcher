@@ -1,4 +1,4 @@
-"""Shadow evaluator — replay a candidate rule set against a scenario set.
+"""Shadow evaluator - replay a candidate rule set against a scenario set.
 
 Phase 2 continuous-update pipeline stage 3 (see
 [`docs/roadmap/phases/phase-2-quality-and-t1.md § Shadow eval`]).
@@ -17,7 +17,7 @@ Measured signals per :class:`ShadowEvalReport`:
   fired (compared later against the baseline coverage).
 - **matches / abstains / no-route**: per-tier bucket counts.
 - **policy escapes**: scenarios flagged ``should_trigger_policy_violation``
-  by the expected guard but where the candidate produced NO finding —
+  by the expected guard but where the candidate produced NO finding -
   these MUST be zero for promotion (see phase-2 § Regression gate).
 - **expected mismatches**: scenarios whose ``expected.decision`` /
   ``citing_rule_ids`` disagree with what the candidate produced. Non-fatal
@@ -137,11 +137,11 @@ class ShadowEvalReport:
 
 
 class ShadowEvaluator:
-    """Replay a candidate rule set against a scenario set — judge-and-log only.
+    """Replay a candidate rule set against a scenario set - judge-and-log only.
 
     ``candidate_rules`` is the proposed rule catalog under evaluation.
     ``evaluator`` is the T0 policy evaluator (typically ``OpaRegoEvaluator``
-    when OPA is installed; ``AbstainEvaluator`` otherwise — abstains never
+    when OPA is installed; ``AbstainEvaluator`` otherwise - abstains never
     count as policy-violation escapes, but they DO leave expected-rule
     mismatches visible in the report).
     """
@@ -175,14 +175,14 @@ class ShadowEvaluator:
         """Replay every scenario and return a :class:`ShadowEvalReport`.
 
         Scenarios that fail schema (missing ``event``/``expected``) raise
-        :class:`ShadowEvalError` — the pipeline is fail-closed on a
+        :class:`ShadowEvalError` - the pipeline is fail-closed on a
         malformed set rather than silently under-counting.
         """
         outcomes: list[ScenarioOutcome] = []
         for idx, scenario in enumerate(scenarios):
             if idx >= self._max:
                 raise ShadowEvalError(
-                    f"scenario cap {self._max} exceeded — raise "
+                    f"scenario cap {self._max} exceeded - raise "
                     "max_scenarios_per_replay if the frozen set has grown"
                 )
             outcomes.append(self._evaluate_one(scenario))

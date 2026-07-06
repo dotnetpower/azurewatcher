@@ -1,8 +1,8 @@
-"""EnvSecretProvider — read secrets from a snapshotted mapping.
+"""EnvSecretProvider - read secrets from a snapshotted mapping.
 
 Realizes :class:`aiopspilot.shared.providers.secret_provider.SecretProvider`.
 The default constructor snapshots ``os.environ`` so a mutation after
-startup cannot silently change the resolution — matches the invariant on
+startup cannot silently change the resolution - matches the invariant on
 the config provider.
 
 Never logs secret values.

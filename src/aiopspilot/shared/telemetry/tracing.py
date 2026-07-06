@@ -1,6 +1,6 @@
 """OpenTelemetry tracing wiring.
 
-Day-zero exporter is :class:`ConsoleSpanExporter` — spans print to stderr,
+Day-zero exporter is :class:`ConsoleSpanExporter` - spans print to stderr,
 so a developer running the loop locally sees the tier/gate/audit chain
 without any collector. OTLP export lands with W4.1 (collector deployment).
 
@@ -29,7 +29,7 @@ _CONFIGURED = False
 def configure_tracing(service_name: str, env: str) -> None:
     """Install a :class:`TracerProvider` if one has not been installed yet.
 
-    Idempotent — a repeat call is a no-op. OTel forbids replacing the
+    Idempotent - a repeat call is a no-op. OTel forbids replacing the
     global provider once set.
     """
     global _CONFIGURED

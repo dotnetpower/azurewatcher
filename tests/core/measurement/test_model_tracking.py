@@ -106,7 +106,7 @@ def test_blocked_when_disagreement_rate_regresses() -> None:
 
 
 def test_equal_cost_still_counts_as_beats() -> None:
-    """Equal cost is accepted as 'not worse' — only strictly higher blocks."""
+    """Equal cost is accepted as 'not worse' - only strictly higher blocks."""
     policy = ModelSwapPolicy()
     decision = policy.evaluate(
         incumbent=_obs("m-a", quality=0.70, cost=1.0),

@@ -1,4 +1,4 @@
-"""EventHubsKafkaBus — construction + close guards.
+"""EventHubsKafkaBus - construction + close guards.
 
 Full round-trip against Event Hubs requires a live broker (or an
 aiokafka-compatible mock like ``redpanda`` in dev-up.sh); those cases
@@ -30,7 +30,7 @@ from aiopspilot.shared.providers.workload_identity import IdentityToken, Workloa
 
 
 class _StaticIdentity(WorkloadIdentity):
-    def __init__(self, token: str = "fake-token") -> None:  # noqa: S107 — synthetic test fixture
+    def __init__(self, token: str = "fake-token") -> None:  # noqa: S107 - synthetic test fixture
         self._token = token
         self.calls: list[str] = []
 
@@ -86,7 +86,7 @@ async def test_entra_token_provider_delegates_to_workload_identity() -> None:
     provider = _EntraTokenProvider(identity, "https://evhns-test.servicebus.windows.net/.default")
     token = await provider.token()
     assert token == "entra-token-abc"
-    # Namespace-scoped audience — Event Hubs rejects a generic
+    # Namespace-scoped audience - Event Hubs rejects a generic
     # `https://eventhubs.azure.net` aud with `Invalid tenant name`.
     assert identity.calls == ["https://evhns-test.servicebus.windows.net/.default"]
 
@@ -134,6 +134,6 @@ def test_config_audience_override_wins() -> None:
 @pytest.mark.asyncio
 async def test_close_is_idempotent_before_start() -> None:
     bus = EventHubsKafkaBus(identity=_StaticIdentity(), config=_cfg())
-    # Never started a producer — close MUST not raise.
+    # Never started a producer - close MUST not raise.
     await bus.close()
     await bus.close()

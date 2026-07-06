@@ -1,7 +1,7 @@
-"""``rule-yaml`` parser — the seed-source parser.
+"""``rule-yaml`` parser - the seed-source parser.
 
 Reads every ``*.yaml`` file under the snapshot tree (non-recursive on
-the tree root — matches the on-disk layout of the shipped catalog
+the tree root - matches the on-disk layout of the shipped catalog
 under ``rule-catalog/catalog/``), fails closed on malformed YAML, and
 returns one :class:`ParsedRule` per file. The loader downstream
 validates the mappings against the ``rule/1.0.0`` JSON Schema and
@@ -9,7 +9,7 @@ cross-refs; this parser does NOT.
 
 This parser is the closing half of the seed loop: point the collector
 at the shipped catalog (``aiopspilot-p1-seed`` manifest) and this
-parser hands the same YAMLs back — proving fetch → snapshot → parse
+parser hands the same YAMLs back - proving fetch → snapshot → parse
 round-trips without loss.
 """
 

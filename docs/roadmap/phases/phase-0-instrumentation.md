@@ -1,10 +1,10 @@
 ---
-title: Phase 0 — Instrumentation and Unblocking
+title: Phase 0 - Instrumentation and Unblocking
 ---
-# Phase 0 — Instrumentation and Unblocking
+# Phase 0 - Instrumentation and Unblocking
 
 **Goal**: establish measurement and remove the blockers that would stop any autonomy from
-shipping. No autonomy is built in P0 — this phase makes autonomy *measurable* and
+shipping. No autonomy is built in P0 - this phase makes autonomy *measurable* and
 *policy-compliant*. P0 **establishes** the reference baseline against which later phases prove
 their gains; it does not itself claim any improvement factor.
 
@@ -27,12 +27,12 @@ Each deliverable is a committed, versioned artifact with an acceptance check. De
 
 | # | Deliverable | Acceptance check |
 |---|-------------|------------------|
-| 1 | **Telemetry backbone** — OpenTelemetry wiring plus the audit/state/KPI store, and the versioned event schema in `shared/contracts/` ([project-structure.md](../project-structure.md)). | Schema validates in CI; config fails fast on invalid input; a golden-fixture test reproduces every dashboard metric from recorded telemetry. |
-| 2 | **KPI dashboard** — renders success metrics 1–4, all guard metrics, and the leading indicators ([goals-and-metrics.md#leading-vs-lagging-indicators](../goals-and-metrics.md#leading-vs-lagging-indicators)), each traced to a named telemetry source. | Every panel maps to a source (trace, audit log, or cost record); no panel is manually populated. |
-| 3 | **Baseline report** — the pinned reference agent measured on the frozen scenario set, recorded as a committed artifact with methodology and raw counts. | Reproducible: re-running the pinned agent on the same scenario-set version yields figures within the reported confidence interval. |
-| 4 | **Identity mapping** — provisioned external IdP ↔ Entra ↔ Managed Identity path ([security-and-identity.md#authorization-model](../security-and-identity.md#authorization-model)). | End-to-end path passes an automated least-privilege probe; deny-by-default verified; access recertification scheduled. |
-| 5 | **Policy-exemption workflow** — a requestable, time-boxed, audited, owner-approved exemption path for compliant autonomous deploys. | Workflow is documented with an owner and SLA; a dry-run request is granted and expires under audit, bypassing no control. |
-| 6 | **Local dev preset** — storage / event-bus / secret / workload-identity provider interfaces in `src/aiopspilot/shared/providers/`, an in-memory fake pair for offline unit tests + debug, and a Docker Compose (`infra/local/`) preset that stands up **pgvector + Redpanda** for wire-level integration tests. Realizes the local-development contract in [tech-stack.md § Local Development](../tech-stack.md#local-development) and the DI seams in [project-structure.md § Injectable Seams](../project-structure.md#injectable-seams). | `pytest` runs green with the in-memory fake and requires no Docker; `scripts/dev-up.sh` brings up healthy `pgvector/pgvector:pg16` + `redpandadata/redpanda` containers; the **same contract-test suite** passes against both the fake and the Compose stack. |
+| 1 | **Telemetry backbone** - OpenTelemetry wiring plus the audit/state/KPI store, and the versioned event schema in `shared/contracts/` ([project-structure.md](../project-structure.md)). | Schema validates in CI; config fails fast on invalid input; a golden-fixture test reproduces every dashboard metric from recorded telemetry. |
+| 2 | **KPI dashboard** - renders success metrics 1-4, all guard metrics, and the leading indicators ([goals-and-metrics.md#leading-vs-lagging-indicators](../goals-and-metrics.md#leading-vs-lagging-indicators)), each traced to a named telemetry source. | Every panel maps to a source (trace, audit log, or cost record); no panel is manually populated. |
+| 3 | **Baseline report** - the pinned reference agent measured on the frozen scenario set, recorded as a committed artifact with methodology and raw counts. | Reproducible: re-running the pinned agent on the same scenario-set version yields figures within the reported confidence interval. |
+| 4 | **Identity mapping** - provisioned external IdP ↔ Entra ↔ Managed Identity path ([security-and-identity.md#authorization-model](../security-and-identity.md#authorization-model)). | End-to-end path passes an automated least-privilege probe; deny-by-default verified; access recertification scheduled. |
+| 5 | **Policy-exemption workflow** - a requestable, time-boxed, audited, owner-approved exemption path for compliant autonomous deploys. | Workflow is documented with an owner and SLA; a dry-run request is granted and expires under audit, bypassing no control. |
+| 6 | **Local dev preset** - storage / event-bus / secret / workload-identity provider interfaces in `src/aiopspilot/shared/providers/`, an in-memory fake pair for offline unit tests + debug, and a Docker Compose (`infra/local/`) preset that stands up **pgvector + Redpanda** for wire-level integration tests. Realizes the local-development contract in [tech-stack.md § Local Development](../tech-stack.md#local-development) and the DI seams in [project-structure.md § Injectable Seams](../project-structure.md#injectable-seams). | `pytest` runs green with the in-memory fake and requires no Docker; `scripts/dev-up.sh` brings up healthy `pgvector/pgvector:pg16` + `redpandadata/redpanda` containers; the **same contract-test suite** passes against both the fake and the Compose stack. |
 
 ## Work Items
 
@@ -50,7 +50,7 @@ on day one.
    [goals-and-metrics.md#definitions](../goals-and-metrics.md#definitions) format, and stored as
    customer-agnostic data. The frozen set is used identically for baseline and treatment.
 3. **Baseline measurement**: run the **pinned** reference agent (single-model, no tiering) on
-   the frozen scenario set over a stated measurement window; record success metrics 1–4 **and**
+   the frozen scenario set over a stated measurement window; record success metrics 1-4 **and**
    every guard metric (CFR, false-positive, false-negative, rollback, policy-violation escapes)
    so later phases have a guard baseline, not only a success baseline. Report each figure with
    its sample size, confidence interval, and scenario-set version.
@@ -62,7 +62,7 @@ on day one.
    owner-approved) so autonomous deploys stay compliant with platform policy rather than
    bypassing it; assign an owner and SLA.
 6. **Local dev preset**: publish the provider interfaces (state store, event bus, secret,
-   workload identity) and ship **two** implementations behind each — an in-memory fake for
+   workload identity) and ship **two** implementations behind each - an in-memory fake for
    unit tests / debugger sessions (no Docker required) and a Docker Compose preset
    (pgvector + Redpanda) for wire-level integration tests. A single contract-test suite
    runs against both, so the fake cannot drift from the real backend.
@@ -71,59 +71,59 @@ on day one.
 
 Each Work Item above expands into a set of concrete engineering tasks. Task IDs are stable
 (`Wx.y`) so the sequencing diagram and status tracking reference them uniformly. Sizes
-are a rough capacity signal (**S** ≤ 1 day, **M** 2–5 days, **L** 1–2 weeks); actual
+are a rough capacity signal (**S** ≤ 1 day, **M** 2-5 days, **L** 1-2 weeks); actual
 elapsed time depends on parallelism.
 
 Every task lands **shadow-first** ([architecture.instructions.md § Shadow → Enforce
 Promotion](../../../.github/instructions/architecture.instructions.md#safety-invariants)); no
 enforce-mode capability is in scope for P0.
 
-### WI1 — Telemetry Backbone
+### WI1 - Telemetry Backbone
 
 | Task | Title | Deps | Deliverable | Acceptance | Size |
 |------|-------|------|-------------|------------|------|
-| **W1.1** | Monorepo skeleton | — | Directories from [project-structure.md](../project-structure.md): `core/`, `shared/`, `rule-catalog/`, `delivery/`, `infra/`, `policies/`, `tests/`, `.github/` with placeholder READMEs and lockfile per subsystem | Directory dependency direction enforced by CI (a lint job flags forbidden imports) | S |
+| **W1.1** | Monorepo skeleton | - | Directories from [project-structure.md](../project-structure.md): `core/`, `shared/`, `rule-catalog/`, `delivery/`, `infra/`, `policies/`, `tests/`, `.github/` with placeholder READMEs and lockfile per subsystem | Directory dependency direction enforced by CI (a lint job flags forbidden imports) | S |
 | **W1.2** | Ontology + event contracts | W1.1 | `shared/contracts/ontology/{object-type,link-type,action-type}.json`, `shared/contracts/event/schema.json`; generated types per language | Schema validates in CI (`ajv`); breaking changes bump semver | M |
 | **W1.3** | Config schema + fail-fast loader | W1.1 | `shared/config/schema.json` + loader in the primary core language; env + file provider | Invalid or missing required field aborts startup with a structured error | S |
 | **W1.4** | OpenTelemetry wiring | W1.1 | `shared/telemetry/` traces, metrics, logs; JSON-structured logs with `correlation_id`; collector config in `infra/` | A synthetic event traces end-to-end (ingest → tier → gate → audit) with one correlation id | M |
-| **W1.5** | PostgreSQL DDL — instance + audit | W1.2 | Migration for `ontology_object_type`, `ontology_link_type`, `ontology_resource`, `ontology_finding`, `ontology_link`, `audit_log` (hash-chained) | `flyway`/`alembic` migration runs clean on empty DB; DDL matches [llm-strategy.md § Ontology Storage Layout](../llm-strategy.md#ontology-storage-layout) | M |
-| **W1.6** | PostgreSQL DDL — layered cache | W1.5 | Migration for `learned_action`, `ontology_embedding` (pgvector), `t2_cache` (partition by `catalog_version`) | pgvector extension enabled; HNSW index builds; partition rotation script tested | S |
+| **W1.5** | PostgreSQL DDL - instance + audit | W1.2 | Migration for `ontology_object_type`, `ontology_link_type`, `ontology_resource`, `ontology_finding`, `ontology_link`, `audit_log` (hash-chained) | `flyway`/`alembic` migration runs clean on empty DB; DDL matches [llm-strategy.md § Ontology Storage Layout](../llm-strategy.md#ontology-storage-layout) | M |
+| **W1.6** | PostgreSQL DDL - layered cache | W1.5 | Migration for `learned_action`, `ontology_embedding` (pgvector), `t2_cache` (partition by `catalog_version`) | pgvector extension enabled; HNSW index builds; partition rotation script tested | S |
 | **W1.7** | CI baseline pipeline | W1.1 | `.github/workflows/`: format, lint (English-only + non-ASCII check), secret scan (gitleaks), coverage gate (≥90% on safety-core placeholders), dependency audit | A failing check blocks merge; a placeholder-only PR passes | M |
-| **W1.8** | Golden-fixture metrics test | W1.4, W1.5 | `tests/telemetry/` — a recorded synthetic-event trace + fixture asserting every dashboard metric reproduces from telemetry | Test runs green in CI; removing a trace attribute fails a specific metric assertion | M |
-| **W1.9** | KPI dashboard | W1.4, W1.5, W1.8 | Panels for success 1–4, guard metrics, leading indicators — each with its telemetry-source annotation | No panel is manually populated; a source rename fails the panel's build check | M |
+| **W1.8** | Golden-fixture metrics test | W1.4, W1.5 | `tests/telemetry/` - a recorded synthetic-event trace + fixture asserting every dashboard metric reproduces from telemetry | Test runs green in CI; removing a trace attribute fails a specific metric assertion | M |
+| **W1.9** | KPI dashboard | W1.4, W1.5, W1.8 | Panels for success 1-4, guard metrics, leading indicators - each with its telemetry-source annotation | No panel is manually populated; a source rename fails the panel's build check | M |
 
-### WI2 — Scenario Set (freeze)
+### WI2 - Scenario Set (freeze)
 
 | Task | Title | Deps | Deliverable | Acceptance | Size |
 |------|-------|------|-------------|------------|------|
-| **W2.1** | Scenario schema | W1.2 | `tests/scenarios/schema.json` — event input, expected verdict, domain, tags | Schema validates in CI; unknown domain / verdict values are rejected | S |
-| **W2.2** | Author balanced scenarios | W2.1 | `tests/scenarios/v2026.07/` — Change / DR / FinOps balanced synthetic events (target ≥ N per domain, `N` decided at authoring time) | Balance check in CI: no domain deviates > 10% from the mean count | M |
+| **W2.1** | Scenario schema | W1.2 | `tests/scenarios/schema.json` - event input, expected verdict, domain, tags | Schema validates in CI; unknown domain / verdict values are rejected | S |
+| **W2.2** | Author balanced scenarios | W2.1 | `tests/scenarios/v2026.07/` - Change / DR / FinOps balanced synthetic events (target ≥ N per domain, `N` decided at authoring time) | Balance check in CI: no domain deviates > 10% from the mean count | M |
 | **W2.3** | Freeze + version | W2.2 | Directory `tests/scenarios/v2026.07/` is **immutable** via branch protection; a new set is a new version directory | CI rejects any modification to an existing versioned directory | S |
 | **W2.4** | Scenario coverage tests | W2.2 | Property tests: no customer values, English-only, every scenario has both success and guard expectations | Injecting a non-English string or GUID pattern fails the test | S |
 
-### WI3 — Baseline Measurement (blocked by WI2 freeze)
+### WI3 - Baseline Measurement (blocked by WI2 freeze)
 
 | Task | Title | Deps | Deliverable | Acceptance | Size |
 |------|-------|------|-------------|------------|------|
-| **W3.1** | Pinned reference agent | W1.2, W2.3 | `tools/reference-agent/` — single-model, no tiering wrapper; model id + version pinned; temperature 0; seed fixed | Two runs on the same scenario version produce identical outputs (deterministic) | M |
-| **W3.2** | Baseline runner CLI | W3.1, W1.5 | `tools/baseline-run --scenarios v2026.07 --window 1h` — records success 1–4 + guard metrics + sample size + confidence interval | CLI exit code non-zero on any missing metric | S |
-| **W3.3** | Baseline report artifact | W3.2 | `docs/baselines/v2026.07.md` — methodology, raw counts, environment, CI, sample size | Report is committed and links back to the scenario-set version | S |
+| **W3.1** | Pinned reference agent | W1.2, W2.3 | `tools/reference-agent/` - single-model, no tiering wrapper; model id + version pinned; temperature 0; seed fixed | Two runs on the same scenario version produce identical outputs (deterministic) | M |
+| **W3.2** | Baseline runner CLI | W3.1, W1.5 | `tools/baseline-run --scenarios v2026.07 --window 1h` - records success 1-4 + guard metrics + sample size + confidence interval | CLI exit code non-zero on any missing metric | S |
+| **W3.3** | Baseline report artifact | W3.2 | `docs/baselines/v2026.07.md` - methodology, raw counts, environment, CI, sample size | Report is committed and links back to the scenario-set version | S |
 | **W3.4** | Reproducibility CI | W3.3 | CI job re-runs the pinned agent on `v2026.07` and asserts figures within reported CI | Job fails if the re-run drifts outside the CI band | M |
 
-### WI4 — Identity Blocker (critical path, starts day one)
+### WI4 - Identity Blocker (critical path, starts day one)
 
 | Task | Title | Deps | Deliverable | Acceptance | Size |
 |------|-------|------|-------------|------------|------|
-| **W4.1** | Terraform / Bicep bootstrap modules | — | `infra/` modules for Container Apps env, PostgreSQL Flexible + pgvector, Service Bus, Key Vault, Log Analytics, ACR, Azure OpenAI (per [deploy-and-onboard.md](../deploy-and-onboard.md#azure-resource-inventory-minimum-set)) | `azd up` provisions the minimum inventory in a dev subscription | L |
+| **W4.1** | Terraform / Bicep bootstrap modules | - | `infra/` modules for Container Apps env, PostgreSQL Flexible + pgvector, Service Bus, Key Vault, Log Analytics, ACR, Azure OpenAI (per [deploy-and-onboard.md](../deploy-and-onboard.md#azure-resource-inventory-minimum-set)) | `azd up` provisions the minimum inventory in a dev subscription | L |
 | **W4.2** | Executor MI (Phase 1 shape) | W4.1 | `mi-aw-executor` with RG-scoped built-in role composition per [security-and-identity.md § Identity Mapping (Phased)](../security-and-identity.md#identity-mapping-phased) | Terraform emits the role assignments; `az role assignment list` matches the declared set | M |
 | **W4.3** | Azure Policy deny-by-default | W4.2 | Policy assignment that denies any executor MI action outside the Phase 1 Change allowlist | A probe attempting a non-allowlisted action is denied at the ARM layer | M |
-| **W4.4** | Least-privilege probe | W4.2, W4.3 | `tools/lpp-probe` — asserts allowed actions succeed and denied actions fail; recorded run in CI | Adding a new permission without updating the probe fails CI | S |
+| **W4.4** | Least-privilege probe | W4.2, W4.3 | `tools/lpp-probe` - asserts allowed actions succeed and denied actions fail; recorded run in CI | Adding a new permission without updating the probe fails CI | S |
 | **W4.5** | App registrations (dev) | W4.1 | `aiopspilot-console-spa`, `aiopspilot-api`, `aiopspilot-approval-bot` in the dev tenant with App Roles declared per [user-rbac-and-identity.md § 4.4](../user-rbac-and-identity.md#44-app-roles-token-surface) | A dev user assigned to `Contributor` receives a `roles: ["Contributor"]` token | M |
 | **W4.6** | Entra security groups + App Role binding | W4.5 | 5 groups (`aw-readers/contributors/approvers/owners/break-glass`), each bound to the matching App Role in Enterprise Applications | An unassigned dev user gets HTTP 403 with the "administrator assignment required" body ([user-rbac-and-identity.md § 10.3](../user-rbac-and-identity.md#103-first-sign-in-unassigned-users)) | S |
 | **W4.7** | Conditional Access policies | W4.6 | Phishing-resistant MFA on `aw-approvers`/`aw-owners`; compliant device on `aw-owners`; named-location on `aw-break-glass` | A test approver signing in without FIDO2 is blocked | S |
 | **W4.8** | Recertification schedule | W4.6 | Documented cadence (manual quarterly checklist in `docs/runbooks/`, or Entra Access Review if P2 licensed) | Owner-assigned; the next review date is captured in the audit log | S |
 
-### WI5 — Policy-Exemption Workflow
+### WI5 - Policy-Exemption Workflow
 
 | Task | Title | Deps | Deliverable | Acceptance | Size |
 |------|-------|------|-------------|------------|------|
@@ -131,9 +131,9 @@ enforce-mode capability is in scope for P0.
 | **W5.2** | Requester ≠ approver CI check | W5.1, W4.5 | CI parses PR trailer Entra OID against reviewer OID; blocks self-approval | Author-approves-own-PR test case blocks the merge | S |
 | **W5.3** | Auto-expiry Container Apps Job | W5.1, W4.1 | Daily cron job that emits an audit `expired` entry when `expires_at` passes and re-applies the underlying assignment | Dry-run: create → wait → expire → audit entry present; assignment re-applied | M |
 | **W5.4** | Ahead-of-expiry alert | W5.3 | 14-day lookahead digest ([channels-and-notifications.md § routing](../channels-and-notifications.md#6-routing-policy-config-driven)) `exemption_expiry_lookahead_weekly` wired | Monday morning post lists each expiring exemption with `@mention` to the requester | S |
-| **W5.5** | Owner + SLA documentation | W5.1 | `docs/runbooks/exemption-workflow.md` — owner group, review SLA, escalation path | Owner named; SLA measurable; escalation path resolves | S |
+| **W5.5** | Owner + SLA documentation | W5.1 | `docs/runbooks/exemption-workflow.md` - owner group, review SLA, escalation path | Owner named; SLA measurable; escalation path resolves | S |
 
-### WI6 — Local Dev Preset (offline fakes + Docker Compose)
+### WI6 - Local Dev Preset (offline fakes + Docker Compose)
 
 Realizes the local-development contract in
 [tech-stack.md § Local Development](../tech-stack.md#local-development) using the injectable
@@ -144,7 +144,7 @@ run against.
 
 | Task | Title | Deps | Deliverable | Acceptance | Size |
 |------|-------|------|-------------|------------|------|
-| **W6.1** | Storage / bus / secret / identity provider interfaces | W1.2 | Protocol classes in `src/aiopspilot/shared/providers/` for `StateStore`, `EventBus`, `SecretProvider`, `WorkloadIdentity` — each mapping to one of the four CSP-neutral contracts | `mypy --strict` passes; every core module that touches infra imports **only** these protocols (import-lint rule W1.7 enforces the ban on cloud SDKs in `core/`) | S |
+| **W6.1** | Storage / bus / secret / identity provider interfaces | W1.2 | Protocol classes in `src/aiopspilot/shared/providers/` for `StateStore`, `EventBus`, `SecretProvider`, `WorkloadIdentity` - each mapping to one of the four CSP-neutral contracts | `mypy --strict` passes; every core module that touches infra imports **only** these protocols (import-lint rule W1.7 enforces the ban on cloud SDKs in `core/`) | S |
 | **W6.2** | In-memory fake adapters + shared contract-test suite | W6.1 | `src/aiopspilot/shared/providers/testing/` with in-memory `StateStore` (dict-backed, with hash-chain semantics for audit), `EventBus` (queue + consumer-group), `SecretProvider`, `WorkloadIdentity`; contract tests in `tests/providers/` parameterized over `[fake, postgres, redpanda]` | Contract-test suite runs green against the fake with **zero Docker** and against the Compose stack when Docker is available; the *same* test file passes both matrices | M |
 | **W6.3** | Docker Compose dev preset + wrapper scripts | W6.1 | `infra/local/docker-compose.yml` running `pgvector/pgvector:pg16` and `redpandadata/redpanda:latest` (single-node, no zookeeper); `scripts/dev-up.sh` / `scripts/dev-down.sh` bringing the stack up/down with health checks; `Makefile` targets `dev-up`, `dev-down`, `dev-logs` | Fresh clone: `scripts/dev-up.sh` returns 0 with both containers healthy; `psql` connects on the exposed port and `CREATE EXTENSION vector` succeeds; a Redpanda producer + consumer roundtrip completes on `localhost:9092`. No Azure / cloud calls made | M |
 
@@ -152,7 +152,7 @@ run against.
 
 ```mermaid
 gantt
-    title Phase 0 — Implementation Sequence
+    title Phase 0 - Implementation Sequence
     dateFormat X
     axisFormat %s
 
@@ -212,9 +212,9 @@ gantt
   with a manually populated source; the fixture proves the source graph works.
 - **Any task that adds an executor permission requires updating W4.4** in the same PR.
   CI enforces this.
-- **W6.2 (in-memory fakes) and the Postgres/Redpanda adapter that lands with W1.5–W1.6 MUST
+- **W6.2 (in-memory fakes) and the Postgres/Redpanda adapter that lands with W1.5-W1.6 MUST
   share one contract-test suite.** A test that passes on the fake but fails on the real
-  backend (or vice-versa) means the fake has drifted — fix the fake, not the test.
+  backend (or vice-versa) means the fake has drifted - fix the fake, not the test.
 
 ### Definition of Done (per task)
 
@@ -222,11 +222,11 @@ Each task is done only when:
 
 1. **Code + tests merged** through the standard governance PR flow (author ≠ reviewer,
    `Justification:` on any high-risk diff).
-2. **Docs-after satisfied** — the touched design doc is updated in the same PR
+2. **Docs-after satisfied** - the touched design doc is updated in the same PR
    ([coding-conventions.instructions.md § Documentation Workflow](../../../.github/instructions/coding-conventions.instructions.md#documentation-workflow)).
 3. **Acceptance check passes** as declared in the task table, verified in CI (not by
    local run).
-4. **Shadow-mode default** — if the task introduces any capability that *could* execute,
+4. **Shadow-mode default** - if the task introduces any capability that *could* execute,
    its shipping default is `enforcement: do-not-enforce`.
 5. **Audit-log entry emitted** for any state-changing task at runtime (Terraform apply
    included).
@@ -250,15 +250,15 @@ All criteria are independently verifiable; a phase gate passes only when every b
 - [ ] A **reproducible baseline** exists: the pinned reference agent on the frozen scenario-set
       version yields the same figures within the reported confidence interval on re-run, with
       sample size and version recorded.
-- [ ] The **baseline covers success metrics 1–4 and all guard metrics**, so later shadow →
+- [ ] The **baseline covers success metrics 1-4 and all guard metrics**, so later shadow →
       enforce promotions have both a success and a guard reference.
-- [ ] The **KPI dashboard is live** and shows metrics 1–4, guard metrics, and leading
+- [ ] The **KPI dashboard is live** and shows metrics 1-4, guard metrics, and leading
       indicators, each traced to a telemetry source.
 - [ ] The **identity blocker is resolved**: end-to-end IdP ↔ Entra ↔ Managed Identity path
       provisioned, least-privilege probe passing, deny-by-default confirmed, recertification
-      scheduled — or explicitly waived with a documented, owner-assigned plan.
+      scheduled - or explicitly waived with a documented, owner-assigned plan.
 - [ ] The **policy-exemption workflow** is documented, owner-assigned, and dry-run validated
-      (grant, audit, auto-expire) — or explicitly waived with a documented plan.
+      (grant, audit, auto-expire) - or explicitly waived with a documented plan.
 - [ ] The **local dev preset** works both ways: `pytest` runs green offline against the
       in-memory fakes, **and** `scripts/dev-up.sh` produces a healthy pgvector + Redpanda
       stack against which the same contract-test suite also passes. A developer can debug
@@ -286,7 +286,7 @@ All criteria are independently verifiable; a phase gate passes only when every b
 
 ## Dependencies
 
-- **Upstream**: none — P0 is the root phase. External prerequisites are cloud/IdP access for
+- **Upstream**: none - P0 is the root phase. External prerequisites are cloud/IdP access for
   the identity mapping and a telemetry/store target ([deployment.md](../deployment.md),
   [tech-stack.md](../tech-stack.md)).
 - **Downstream**: P0 telemetry, the frozen scenario set, the measured baseline, and the resolved

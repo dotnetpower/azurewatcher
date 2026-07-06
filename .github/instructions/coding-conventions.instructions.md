@@ -19,12 +19,12 @@ scope), [app-shape.instructions.md](app-shape.instructions.md) (topology), and
 
 The design docs are the single source of truth; code and docs MUST stay in sync.
 
-- **Docs-first (MUST)**: before writing or changing code, read the relevant design docs — the
+- **Docs-first (MUST)**: before writing or changing code, read the relevant design docs - the
   applicable `*.instructions.md` files and the [docs/roadmap/](../../docs/roadmap/README.md)
   documents for the area you are touching (e.g. project structure, the relevant phase,
   rule-catalog collection/governance, security). Code that contradicts the documented design is
-  a defect. If the design itself is wrong, change the doc first — or in the same PR, with
-  justification — before or alongside the code.
+  a defect. If the design itself is wrong, change the doc first - or in the same PR, with
+  justification - before or alongside the code.
 - **Docs-after (MUST)**: after changing code, update the affected documentation in the **same
   PR** so docs never drift from the implementation. Any change to behavior, structure, a public
   interface, a DI seam, a config key, or a schema MUST update the corresponding doc. Reviewers
@@ -44,7 +44,7 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
 
 - **English only** for all artifacts (see [language.instructions.md](language.instructions.md)).
 - **Single Responsibility Principle (MUST)**: every module, class, and function MUST have
-  exactly one reason to change — one clearly stated responsibility. A unit that mixes
+  exactly one reason to change - one clearly stated responsibility. A unit that mixes
   unrelated concerns (e.g. routing + policy evaluation + I/O, or decision + execution +
   audit) MUST be split. A PR that introduces or worsens a multi-responsibility unit is not
   mergeable; extract the extra concerns behind their own interfaces or modules.
@@ -57,7 +57,7 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
   is built until it is scoped in a future phase.
 - Make behavior configuration-driven; do not bury environment specifics in code. Configuration
   MUST be validated against a schema at startup and the process MUST fail fast on invalid config.
-- Customer-specific behavior MUST be supplied by **dependency injection** — a fork registers its
+- Customer-specific behavior MUST be supplied by **dependency injection** - a fork registers its
   implementations at the composition root and selects bindings via config; it MUST NOT edit
   `core/`. See the injectable seams in
   [project-structure.md](../../docs/roadmap/project-structure.md#customization-via-dependency-injection).
@@ -90,7 +90,7 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
   A swap picks a different sub-module under `infra/modules/<seam>/`; the module's output
   contract stays fixed so callers do not branch on the alternate.
 - **Provider Protocols are async by default.** The five I/O-bound seams (`EventBus`,
-  `StateStore`, `SecretProvider`, `WorkloadIdentity`, `Inventory`) MUST be declared `async` —
+  `StateStore`, `SecretProvider`, `WorkloadIdentity`, `Inventory`) MUST be declared `async` -
   real backends (Kafka, asyncpg, Key Vault, OIDC exchange, Azure Resource Graph queries)
   block the event loop otherwise. The three CPU / startup-only seams (`SchemaRegistry`,
   `ContractValidator`, `ConfigProvider`) stay sync. Tests rely on `pytest-asyncio` with
@@ -105,13 +105,13 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
   without all four is incomplete and MUST NOT merge.
 - **ActionType schema is the enforcement surface for those invariants.** New ontology
   `ActionType` declarations MUST supply `rollback_contract` from the enum
-  (`pr_revert` / `scripted` / `pitr` / `snapshot_restore` / `state_forward_only`) — the
+  (`pr_revert` / `scripted` / `pitr` / `snapshot_restore` / `state_forward_only`) - the
   legacy `none` value is gone. A genuinely one-way mutation sets `irreversible: true` and
   is routed HIL+quorum by the risk-gate; it never uses `rollback_contract` to silence the
   invariant. Preconditions and stop_conditions belong on the ActionType, not the executor.
 - Autonomous actions MUST be idempotent: re-delivery of the same event or a retried action
   MUST NOT cause duplicate changes. Use a stable idempotency key and deduplicate on it.
-- Default new actions to **shadow mode** (judge and log only) — every upstream ActionType
+- Default new actions to **shadow mode** (judge and log only) - every upstream ActionType
   declares `default_mode: shadow` and a measurable `promotion_gate`. Promotion to enforce
   is an explicit, separately reviewed change, never bundled with the capability's first PR,
   and MUST measure the promotion_gate on the frozen scenario set before merging.
@@ -130,7 +130,7 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
 ## Determinism and LLM Use
 
 - Prefer a deterministic rule for any repeatable decision. Reach for an LLM only after the
-  T0/T1 tiers cannot resolve the case; target keeping LLM inference at ~5–10% of events.
+  T0/T1 tiers cannot resolve the case; target keeping LLM inference at ~5-10% of events.
 - LLM (T2) output MUST pass the quality gate before it can execute: mixed-model cross-check,
   a verifier that re-validates the proposed action against policy-as-code and what-if, and
   grounding with rule/policy citations. Execution eligibility is granted by deterministic

@@ -13,7 +13,7 @@ scope. It is the right tool when *all* of the following hold:
 
 - The rule is correct in general but wrong for **this** scope.
 - The scope is narrowed to a resource group (or narrower).
-- There is a **plan** to remove the exemption — an exemption is a stall,
+- There is a **plan** to remove the exemption - an exemption is a stall,
   not a fix.
 - The blast radius of leaving the rule off is understood and bounded.
 
@@ -23,13 +23,13 @@ pipeline instead. If the wrong dimension is auto-vs-HIL, tune
 
 ## Roles
 
-- **Requester** — any member of the `aw-contributors` Entra group (or
+- **Requester** - any member of the `aw-contributors` Entra group (or
   above) MAY open an exemption PR.
-- **Approver** — MUST be an `aw-owners` member. **Approver ≠ Requester**
-  — branch protection enforces "author ≠ reviewer", and the exemption
+- **Approver** - MUST be an `aw-owners` member. **Approver ≠ Requester**
+  - branch protection enforces "author ≠ reviewer", and the exemption
   artifact carries `requested_by` and `approved_by` fields the CI check
   inspects for distinct values.
-- **Auditor** — every state transition (active / expired / revoked)
+- **Auditor** - every state transition (active / expired / revoked)
   writes an audit-log entry with the actor principal.
 
 ## Procedure
@@ -56,7 +56,7 @@ pipeline instead. If the wrong dimension is auto-vs-HIL, tune
 - No hard maximum window is codified here; longer windows MUST be
   justified in the PR body.
 - A lookahead notification fires on the default A1 channel 14 days before
-  `expires_at` via the `exemption_expiry_lookahead_weekly` route (W5.4 —
+  `expires_at` via the `exemption_expiry_lookahead_weekly` route (W5.4 -
   depends on the channels adapter; tracked separately).
 
 ## Revocation
@@ -65,7 +65,7 @@ An owner MAY revoke an active exemption by:
 
 1. Editing the artifact to `state=revoked`, setting `revoked_at` and
    `revoked_by`.
-2. Merging the revocation PR — Owner-tier review, no self-approval.
+2. Merging the revocation PR - Owner-tier review, no self-approval.
 
 Revocation flips enforce back on immediately (the moment the catalog
 pipeline observes the state change).
@@ -75,7 +75,7 @@ pipeline observes the state change).
 - If CI is flapping on a request that plainly satisfies the schema, page
   `aw-owners` on the default A1 channel with the CI log attached.
 - If an exemption is denied but the environment is materially at risk,
-  escalate to `aw-break-glass` — under Conditional Access, this is a
+  escalate to `aw-break-glass` - under Conditional Access, this is a
   short-lived, audited grant, not a bypass.
 
 ## References

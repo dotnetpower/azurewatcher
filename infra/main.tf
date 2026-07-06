@@ -27,7 +27,7 @@ locals {
 }
 
 # -----------------------------------------------------------------------
-# Resource Group — the single container per deploy-and-onboard.md.
+# Resource Group - the single container per deploy-and-onboard.md.
 # -----------------------------------------------------------------------
 module "resource_group" {
   source   = "./modules/resource-group"
@@ -37,7 +37,7 @@ module "resource_group" {
 }
 
 # -----------------------------------------------------------------------
-# Observability — Log Analytics first because Container Apps depend on it.
+# Observability - Log Analytics first because Container Apps depend on it.
 # -----------------------------------------------------------------------
 module "log_analytics" {
   source              = "./modules/observability/log-analytics"
@@ -49,7 +49,7 @@ module "log_analytics" {
 }
 
 # -----------------------------------------------------------------------
-# Container Registry — pin-by-digest images live here.
+# Container Registry - pin-by-digest images live here.
 # -----------------------------------------------------------------------
 module "container_registry" {
   source              = "./modules/container-registry"
@@ -60,7 +60,7 @@ module "container_registry" {
 }
 
 # -----------------------------------------------------------------------
-# Executor Managed Identity — RG-scoped, action-whitelisted (Phase 1 = Change).
+# Executor Managed Identity - RG-scoped, action-whitelisted (Phase 1 = Change).
 # -----------------------------------------------------------------------
 module "identity" {
   source              = "./modules/identity/user-assigned-mi"
@@ -71,7 +71,7 @@ module "identity" {
 }
 
 # -----------------------------------------------------------------------
-# Key Vault — secret store. Executor MI has 'Secrets User' via role assignment.
+# Key Vault - secret store. Executor MI has 'Secrets User' via role assignment.
 # -----------------------------------------------------------------------
 module "key_vault" {
   source                = "./modules/secret-store/key-vault"
@@ -84,7 +84,7 @@ module "key_vault" {
 }
 
 # -----------------------------------------------------------------------
-# Event Bus — Event Hubs (Kafka wire on :9093).
+# Event Bus - Event Hubs (Kafka wire on :9093).
 # -----------------------------------------------------------------------
 module "event_bus" {
   source              = "./modules/event-bus/event-hubs-kafka"
@@ -96,7 +96,7 @@ module "event_bus" {
 }
 
 # -----------------------------------------------------------------------
-# State Store — PostgreSQL Flexible with pgvector.
+# State Store - PostgreSQL Flexible with pgvector.
 # -----------------------------------------------------------------------
 module "state_store" {
   source                 = "./modules/state-store/postgres-flex"
@@ -111,7 +111,7 @@ module "state_store" {
 }
 
 # -----------------------------------------------------------------------
-# Compute — Container Apps env + core app + out-of-band job.
+# Compute - Container Apps env + core app + out-of-band job.
 # -----------------------------------------------------------------------
 module "compute" {
   source                = "./modules/compute/container-apps"
@@ -130,7 +130,7 @@ module "compute" {
 
 
 # -----------------------------------------------------------------------
-# LLM — Azure OpenAI (opt-in, docs/roadmap/dev-and-deploy-parity.md § W-D).
+# LLM - Azure OpenAI (opt-in, docs/roadmap/dev-and-deploy-parity.md § W-D).
 # Skipped by default so a Reader-only deployer can plan/apply.
 # -----------------------------------------------------------------------
 module "llm_azure_openai" {
@@ -146,10 +146,10 @@ module "llm_azure_openai" {
 }
 
 # -----------------------------------------------------------------------
-# Phase-4 continuous measurement — two Container Apps Jobs that wire the
+# Phase-4 continuous measurement - two Container Apps Jobs that wire the
 # regression detector + pattern-growth intake into scheduled runs.
 # The jobs share the same Container Apps env + user-assigned MI as the
-# core app + rule watcher (least privilege — no extra role assignments).
+# core app + rule watcher (least privilege - no extra role assignments).
 # -----------------------------------------------------------------------
 module "measurement_runners" {
   source = "./modules/measurement-runners"

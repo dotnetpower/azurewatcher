@@ -7,7 +7,7 @@ resource "azurerm_container_app_environment" "primary" {
 }
 
 # Unified core app. Sidecars for trust-router / executor / audit-writer land as
-# additional `container {}` blocks (localhost IPC) — see deploy-and-onboard.md
+# additional `container {}` blocks (localhost IPC) - see deploy-and-onboard.md
 # § Compute Shape. Day-zero manifest keeps the single container as a placeholder.
 resource "azurerm_container_app" "core" {
   name                         = var.core_app_name

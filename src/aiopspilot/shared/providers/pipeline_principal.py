@@ -1,4 +1,4 @@
-"""PipelinePrincipalRegistry — actor-identity lookup for Change Safety attribution.
+"""PipelinePrincipalRegistry - actor-identity lookup for Change Safety attribution.
 
 Realizes the out-of-band attribution rule from
 ``docs/roadmap/phases/phase-1-rule-catalog-t0.md § Out-of-Band Detection``:
@@ -15,10 +15,10 @@ Design boundaries
   the identities of its own pipelines via configuration.
 - The Protocol is intentionally minimal: one membership check on an
   opaque ``principal_id`` string (typically an object-id / service-
-  principal-id / MSI-id — never a UPN, per
+  principal-id / MSI-id - never a UPN, per
   ``docs/roadmap/security-and-identity.md § no-self-approval``).
 - Lookups are cheap and idempotent; implementations MAY cache but MUST
-  NOT block on network calls at ``contains()`` call time — the caller
+  NOT block on network calls at ``contains()`` call time - the caller
   is on the event-loop.
 
 The in-memory :class:`InMemoryPipelinePrincipalRegistry` fake is shipped
@@ -38,7 +38,7 @@ class PipelinePrincipalRegistry(Protocol):
 
     A truthy result promises that the caller (the change-safety
     detector) MAY treat the associated change as *authorized*. A false
-    result never confirms out-of-band by itself — the detector still
+    result never confirms out-of-band by itself - the detector still
     consults the remediation-PR ledger for a correlation link before
     concluding attribution.
     """
@@ -56,7 +56,7 @@ class PipelinePrincipalRegistry(Protocol):
 
 
 class InMemoryPipelinePrincipalRegistry(PipelinePrincipalRegistry):
-    """Frozen-set backed registry — the upstream default + a test fake.
+    """Frozen-set backed registry - the upstream default + a test fake.
 
     A fork replaces this with a config-driven or state-store adapter
     that hydrates from ``config/pipeline-principals.yaml`` (or the

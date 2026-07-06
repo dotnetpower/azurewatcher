@@ -21,7 +21,7 @@ and [generic-scope.instructions.md](generic-scope.instructions.md) (no customer 
   [User-Facing Doc Translations](#user-facing-doc-translations-ko) carve-out below.
   This applies to:
   - source code, identifiers, comments, and docstrings
-  - `.github/**` (copilot-instructions, instructions/*, workflows, issue/PR templates) —
+  - `.github/**` (copilot-instructions, instructions/*, workflows, issue/PR templates) -
     **English-only, no translations, no exceptions**
   - commit messages, branch names, PR titles and descriptions
   - tests, fixtures, sample data, and config files
@@ -61,7 +61,7 @@ repository where a natural language other than English is permitted in committed
 
 **Out of scope (English-only, no translation)**
 
-- Everything under `.github/**` — `copilot-instructions.md`, `instructions/*.md`,
+- Everything under `.github/**` - `copilot-instructions.md`, `instructions/*.md`,
   workflows, issue and PR templates. These are project guidelines, not user docs.
 - Anything under `mocks/**`, `examples/**`, and any future third-party or vendored path.
 
@@ -112,8 +112,16 @@ repository where a natural language other than English is permitted in committed
 
 - Dates and timestamps use **ISO 8601 / RFC 3339** (`2026-07-03`, `2026-07-03T09:15:00Z`).
 - Use `.` as the decimal separator and no digit-grouping in machine-read values.
-- Prefer plain ASCII punctuation (`-`, `"`, `'`) over smart quotes and em-dashes in code
-  and config; unicode typography in prose is discouraged where it affects diff or grep.
+- **ASCII punctuation only (MUST, CI-enforced).** Use `-`, `"`, `'`, and `...`. The
+  following Unicode characters are BLOCKED in every tracked text file by
+  `scripts/check-punctuation.sh`:
+  - U+2014 EM DASH  and  U+2013 EN DASH  -> use ASCII `-`
+  - U+2026 HORIZONTAL ELLIPSIS  -> use `...`
+  - U+201C / U+201D smart double quotes  -> use ASCII `"`
+  - U+2018 / U+2019 smart single quotes  -> use ASCII `'`
+  - U+00A0 NO-BREAK SPACE (invisible; breaks grep/diff)  -> use a normal space
+  Auto-fix: `python3 scripts/normalize-punctuation.py` (fence-aware for `.md`;
+  add `--whole-file` for source files where the whole content is code).
 
 ## Why
 
@@ -148,6 +156,10 @@ repository where a natural language other than English is permitted in committed
   outside the allowlist. A practical detector is any match of Hangul (`\uAC00-\uD7A3`,
   `\u1100-\u11FF`) or CJK (`\u4E00-\u9FFF`) ranges in tracked text files, **excluding**
   the `-ko.md` translation files defined above.
+- **Punctuation gate**: `scripts/check-punctuation.sh` runs in CI and enforces the
+  ASCII-only punctuation rule above; it blocks em-dash, en-dash, ellipsis,
+  smart-quotes, and no-break-space anywhere in a tracked text file (including inside
+  `-ko.md`, code blocks, and comments).
 - **Translation-pair gate**: `scripts/check-translations.sh` runs in CI and enforces
   the [paired-update rule](#user-facing-doc-translations-ko): every in-scope `foo.md`
   has a `foo-ko.md`, every `foo-ko.md` has front-matter with `translation_of` and

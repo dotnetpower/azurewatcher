@@ -41,13 +41,13 @@ class ModelObservation:
 
 class SwapOutcome(StrEnum):
     NO_CHANGE = "no_change"
-    """Challenger did not beat the incumbent — keep the incumbent."""
+    """Challenger did not beat the incumbent - keep the incumbent."""
 
     ADOPT_CHALLENGER = "adopt_challenger"
     """Challenger cleared BOTH thresholds without guard breach."""
 
     BLOCKED_GUARD_BREACH = "blocked_guard_breach"
-    """Quality/cost improved but a guard metric regressed — hold."""
+    """Quality/cost improved but a guard metric regressed - hold."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,7 +85,7 @@ class ModelSwapPolicy:
     ) -> SwapDecision:
         if incumbent.scenario_set_version != challenger.scenario_set_version:
             raise ValueError(
-                "incumbent and challenger MUST share scenario_set_version — "
+                "incumbent and challenger MUST share scenario_set_version - "
                 f"got {incumbent.scenario_set_version} vs "
                 f"{challenger.scenario_set_version}"
             )

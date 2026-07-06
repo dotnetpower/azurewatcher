@@ -1,11 +1,11 @@
-"""AzureOpenAICrossCheckModel — httpx-based T2 cross-check client.
+"""AzureOpenAICrossCheckModel - httpx-based T2 cross-check client.
 
 Implements :class:`~aiopspilot.core.quality_gate.gate.CrossCheckModel` by
 calling Azure OpenAI ``chat/completions`` with structured JSON output.
 The response MUST contain ``action_type`` and ``params``; anything else
-raises so the caller cannot silently accept a malformed proposal — this
+raises so the caller cannot silently accept a malformed proposal - this
 is the "verifier is the authority" invariant from
-``docs/roadmap/llm-strategy.md § T2 — Reasoning Tier``.
+``docs/roadmap/llm-strategy.md § T2 - Reasoning Tier``.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ class AzureOpenAICrossCheckModelConfig:
         "You are an AIOpsPilot cross-check reviewer. Given a candidate action, "
         "return ONLY a JSON object with fields: action_type (string), params "
         "(object). Do not include markdown fences or commentary. "
-        "The verifier — not your prose — decides eligibility."
+        "The verifier - not your prose - decides eligibility."
     )
 
 

@@ -6,7 +6,7 @@ description: How to narrow, downgrade, or disable an accepted rule for a specifi
 # Override a rule
 
 Sometimes an accepted rule is right in general but wrong for a specific
-scope — a production tier that legitimately needs a wider threshold, a
+scope - a production tier that legitimately needs a wider threshold, a
 dev sandbox where a strict guardrail is more annoying than useful. Rather
 than editing the rule text (which affects everyone) or disabling the rule
 globally, AIOpsPilot supports **scoped overrides** that sit above the
@@ -17,17 +17,17 @@ automated quality gate.
 Overrides are policy-as-code artefacts stored alongside the rule catalog.
 An override on a rule at a given scope can do exactly one of:
 
-- **`disabled`** — the rule stops executing on that scope. Detection still
+- **`disabled`** - the rule stops executing on that scope. Detection still
   runs in shadow (the audit log continues to record what the rule *would*
   have flagged), so the discovery loop can spot recurring override patterns.
-- **`severity-downgrade`** — the rule still fires but with a lower severity
+- **`severity-downgrade`** - the rule still fires but with a lower severity
   (e.g. `critical → medium`), which typically routes it from AUTO or DENY
   to HIL.
-- **`parameter-relaxation`** — a widening of a threshold the rule itself
+- **`parameter-relaxation`** - a widening of a threshold the rule itself
   declares (e.g. cost anomaly `> 20%` becomes `> 40%`). Only the rule's
   declared parameters can be relaxed; the check logic cannot be rewritten.
 
-Anything broader — a global disable across all scopes — is not an override.
+Anything broader - a global disable across all scopes - is not an override.
 It is a rule retirement and must go through the catalog pipeline with its
 own review.
 
@@ -48,11 +48,11 @@ Practically this means:
 
 Every override, regardless of mode, records:
 
-- **Actor** — the operator raising the override.
-- **Approver** — a distinct principal (no self-approval).
-- **Justification** — the reason this scope is different. This text is
+- **Actor** - the operator raising the override.
+- **Approver** - a distinct principal (no self-approval).
+- **Justification** - the reason this scope is different. This text is
   audited and surfaces on any HIL request that the override would touch.
-- **Target rule + scope + mode** — machine-readable so the discovery loop
+- **Target rule + scope + mode** - machine-readable so the discovery loop
   can find the entry.
 
 Overrides may be long-lived. They are not required to carry an expiry, but
@@ -81,14 +81,14 @@ discovery loop as a signal to propose a revision of the rule itself.
 ## When to retire the rule instead
 
 If you find yourself raising the same override on the same rule for many
-scopes, that's the discovery loop's job — but it is also a signal that the
+scopes, that's the discovery loop's job - but it is also a signal that the
 rule itself may need a revision. Rather than accumulate overrides, open a
 PR against the rule catalog with the revised parameters and let it flow
 through the quality gate the same way any rule change does.
 
 ## Related
 
-- [Risk tiers](../../concepts/risk-tiers/) — what "severity" and
+- [Risk tiers](../../concepts/risk-tiers/) - what "severity" and
   auto/HIL/DENY actually mean at execution time.
-- [Read the audit log](../read-audit-log/) — how to see whether an override
+- [Read the audit log](../read-audit-log/) - how to see whether an override
   is actually taking effect.

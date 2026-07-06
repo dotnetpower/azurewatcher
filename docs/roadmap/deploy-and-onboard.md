@@ -14,10 +14,10 @@ Azure focus: this document targets an Azure subscription. Non-Azure providers ar
 All identifiers are synthetic per
 [generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md).
 
-> Concrete SKUs, counts, and region choices are **not yet decided** — they live in
+> Concrete SKUs, counts, and region choices are **not yet decided** - they live in
 > [Open Decisions](#open-decisions). The structure below is stable so a future inventory PR
 > fills the values without reshaping the sections. The **entry command is decided**:
-> `terraform apply` against `infra/` (Terraform HCL) — see
+> `terraform apply` against `infra/` (Terraform HCL) - see
 > [tech-stack.md § OD-1](tech-stack.md#od-1-core-runtime-language) and
 > [Deployment Artifacts](#deployment-artifacts).
 
@@ -26,7 +26,7 @@ All identifiers are synthetic per
 ### Deployer Identity (Azure)
 
 - Subscription-scoped **Owner** or **Contributor + User Access Administrator** on the target
-  resource group — required to create the executor Managed Identity and its scoped role
+  resource group - required to create the executor Managed Identity and its scoped role
   assignments.
 - Ability to grant subscription-scoped roles matching the executor's **action whitelist**
   ([security-and-identity.md](security-and-identity.md)).
@@ -37,14 +37,14 @@ All identifiers are synthetic per
 - Region with confirmed availability of every service in the inventory below.
 - Confirmed quota headroom (Container Apps cores, Event Hubs throughput units, PostgreSQL
   vCores, Key Vault operations).
-- Diagnostic Settings destination (Log Analytics workspace) — new or existing; ownership TBD.
+- Diagnostic Settings destination (Log Analytics workspace) - new or existing; ownership TBD.
 - **TBD**: private-endpoint DNS zone strategy and any pre-existing shared resources.
 
 ### Non-Azure Prerequisites
 
 - A **GitOps host** (GitHub or Azure DevOps organization) with an installed GitHub App or
   service connection scoped to the catalog + fork repos.
-- A **Teams tenant** with a group-connected team for HIL approvals (Teams is the default A1 primary — see [channels-and-notifications.md](channels-and-notifications.md)).
+- A **Teams tenant** with a group-connected team for HIL approvals (Teams is the default A1 primary - see [channels-and-notifications.md](channels-and-notifications.md)).
 - A **Slack workspace** with the AIOpsPilot Slack app installed and the mandatory userId ↔ Entra OID mapping store provisioned; required for the P1 Slack A1 channel ([channels-and-notifications.md#7-channel-specific-notes](channels-and-notifications.md#7-channel-specific-notes)).
 - A **container registry** (ACR or an external registry) that supports signature +
   attestation storage.
@@ -55,7 +55,7 @@ All identifiers are synthetic per
 - IaC in `infra/` (see [project-structure.md](project-structure.md)) is the entry point. Every
   environment is provisioned identically from the same code with per-environment parameters
   and per-environment isolated state.
-- **Entry command**: `terraform apply` against the `infra/` Terraform (HCL) modules — resolves
+- **Entry command**: `terraform apply` against the `infra/` Terraform (HCL) modules - resolves
   the previous OD (`azd up` vs `terraform apply` vs a wrapper). Environment values are supplied
   via `*.tfvars` files that are **never committed** (per
   [generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md));
@@ -69,7 +69,7 @@ All identifiers are synthetic per
 
 Every Azure resource this repo provisions follows the **Microsoft Cloud Adoption Framework
 (CAF)** abbreviation convention. Names are deterministic, deployment-agnostic, and safe to
-grep for — a rename is a Terraform diff, never a hand-edit.
+grep for - a rename is a Terraform diff, never a hand-edit.
 
 Pattern:
 
@@ -77,14 +77,14 @@ Pattern:
 <caf-prefix>-<workload>[-<component>][-<env>][-<region>][-<instance>]
 ```
 
-- **workload** is the fixed literal `aiopspilot` (product name, not a customer identifier —
+- **workload** is the fixed literal `aiopspilot` (product name, not a customer identifier -
   allowed under [generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md)).
 - **component** is added only when one resource kind is provisioned more than once
   (e.g. `ca-aiopspilot-core` vs a future `ca-aiopspilot-worker`).
 - **env** (`dev`/`staging`/`prod`) and **region** (`krc`/`weu`/`eus`) suffixes are added only
   when the resource is deployed side-by-side; the day-zero deployment keeps names
   suffix-free.
-- **instance** (`01`, `02`, …) is added only when multiple copies exist in one env.
+- **instance** (`01`, `02`, ...) is added only when multiple copies exist in one env.
 
 The default **resource group** is `rg-aiopspilot` (fixed by user directive). Everything the
 system provisions lives under that RG unless a resource type requires a subscription-scope
@@ -94,37 +94,37 @@ placement (none today).
 
 | Resource | CAF prefix | Char rules | Example name |
 |----------|------------|------------|--------------|
-| Resource Group | `rg-` | 1–90; alphanumerics + hyphens/underscores | `rg-aiopspilot` |
-| User-assigned Managed Identity | `id-` | 3–128 | `id-aiopspilot-executor` |
-| Container Apps environment | `cae-` | 2–32; alphanumerics + hyphens | `cae-aiopspilot` |
-| Container App (core) | `ca-` | 2–32 | `ca-aiopspilot-core` |
-| Container Apps Job (out-of-band) | `caj-` | 2–32 | `caj-aiopspilot-oob` |
-| Event Hubs namespace | `evhns-` | 6–50 | `evhns-aiopspilot` |
-| PostgreSQL Flexible Server | `psql-` | 3–63; lowercase | `psql-aiopspilot` |
-| Key Vault | `kv-` | 3–24; alphanumerics + hyphens | `kv-aiopspilot` |
-| **Container Registry (ACR)** | `cr` | 5–50; **alphanumeric only, no hyphens** | `craiopspilot` |
-| Log Analytics workspace | `log-` | 4–63 | `log-aiopspilot` |
-| Azure Bot (HIL Adaptive Cards) | `bot-` | 2–64 | `bot-aiopspilot` |
-| Static Web App (read-only console) | `stapp-` | 2–40 | `stapp-aiopspilot` |
+| Resource Group | `rg-` | 1-90; alphanumerics + hyphens/underscores | `rg-aiopspilot` |
+| User-assigned Managed Identity | `id-` | 3-128 | `id-aiopspilot-executor` |
+| Container Apps environment | `cae-` | 2-32; alphanumerics + hyphens | `cae-aiopspilot` |
+| Container App (core) | `ca-` | 2-32 | `ca-aiopspilot-core` |
+| Container Apps Job (out-of-band) | `caj-` | 2-32 | `caj-aiopspilot-oob` |
+| Event Hubs namespace | `evhns-` | 6-50 | `evhns-aiopspilot` |
+| PostgreSQL Flexible Server | `psql-` | 3-63; lowercase | `psql-aiopspilot` |
+| Key Vault | `kv-` | 3-24; alphanumerics + hyphens | `kv-aiopspilot` |
+| **Container Registry (ACR)** | `cr` | 5-50; **alphanumeric only, no hyphens** | `craiopspilot` |
+| Log Analytics workspace | `log-` | 4-63 | `log-aiopspilot` |
+| Azure Bot (HIL Adaptive Cards) | `bot-` | 2-64 | `bot-aiopspilot` |
+| Static Web App (read-only console) | `stapp-` | 2-40 | `stapp-aiopspilot` |
 
 ### Length-safety rules (MUST)
 
 - **ACR names never contain hyphens**; the prefix `cr` is fused with the workload token
-  (`craiopspilot`). When env/region suffixes join, do NOT reintroduce hyphens — use one
+  (`craiopspilot`). When env/region suffixes join, do NOT reintroduce hyphens - use one
   continuous lowercase alphanumeric string (e.g. `craiopspilotdevkrc01`).
-- **Storage account** (if ever added) is 24-char lowercase alphanumeric only — same
-  no-hyphen rule (`staiopspilot…`).
+- **Storage account** (if ever added) is 24-char lowercase alphanumeric only - same
+  no-hyphen rule (`staiopspilot...`).
 - If a legal name exceeds the character limit after adding env/region/instance, use the
-  documented short-name `aip` in place of `aiopspilot` — and only for that resource kind.
+  documented short-name `aip` in place of `aiopspilot` - and only for that resource kind.
   Do not sprinkle `aip` where the full name still fits.
 
 ### What this rule forbids
 
 - **No random or opaque suffixes** in Terraform (`craiopspilotcyutlgcnv3` from a hash source
   is a review blocker). Determinism is a debugging tool.
-- **No customer names or environment values baked into the identifier** — those live in
+- **No customer names or environment values baked into the identifier** - those live in
   `*.tfvars` and the tag map, never in the resource name.
-- **No inline naming logic in Python** — the app reads whatever it is handed via env vars;
+- **No inline naming logic in Python** - the app reads whatever it is handed via env vars;
   the name is decided in `infra/` at plan time.
 
 ## Azure Resource Inventory (minimum set)
@@ -139,40 +139,40 @@ replica caps are still **fork-specific** and tuned per environment; the shape is
 | # | Resource | Tier | Purpose | Notes |
 |---|----------|------|---------|-------|
 | 1 | **Container Apps environment** | Consumption | scale-to-zero compute host | one environment shared by all core services; realizes the [Runtime contract](csp-neutrality.md#2-runtime-contract--oci-image--knative-compatible-manifest) |
-| 2 | **Container App** (unified core) | 1 app, `minReplicas: 0`, KEDA scaler on Kafka lag (Event Hubs) | `event-ingest` (primary) + `trust-router`, `executor`, `audit-writer` as **sidecar containers** | one scale unit, `localhost` IPC — see [Compute Shape](#compute-shape-sidecar-containers); no Dapr, no Envoy-specific ingress |
+| 2 | **Container App** (unified core) | 1 app, `minReplicas: 0`, KEDA scaler on Kafka lag (Event Hubs) | `event-ingest` (primary) + `trust-router`, `executor`, `audit-writer` as **sidecar containers** | one scale unit, `localhost` IPC - see [Compute Shape](#compute-shape-sidecar-containers); no Dapr, no Envoy-specific ingress |
 | 3 | **Container Apps Job** | Consumption | scheduled probes and out-of-band change detection | replaces Azure Functions; shares the environment |
 | 4 | **Event Hubs namespace** | Standard (1 TU, auto-inflate off) | Kafka-wire event bus (endpoint on `:9093`) | realizes the [Event Bus contract](csp-neutrality.md#1-event-bus-contract--kafka-wire-protocol); DLQ is a Kafka `<topic>.dlq` convention, not a native DLQ resource |
 | 5 | **Diagnostic Settings + `azure-events`-style forwarders** | included with Log Analytics / Activity Log | forward Activity Log / resource events into an Event Hubs Kafka topic | replaces standalone Event Grid system topics; the core sees Kafka only |
 | 6 | **PostgreSQL Flexible Server** | Burstable **B1ms**, 1 zone, 7-day backup | audit + KPI + pattern library + **pgvector** T1 embeddings, single store | HA / multi-zone deferred to Phase 4 |
-| 7 | **Key Vault** | Standard | secret backend consumed via **Container Apps native secret + Key Vault reference** — realizes the [Secret contract](csp-neutrality.md#3-secret-contract--environment--k8s-secret) | Premium (HSM) not required; app never calls a secret SDK |
-| 8 | **User-assigned Managed Identity** | — | executor's least-privilege, action-whitelisted identity; realizes the [Workload Identity contract](csp-neutrality.md#4-workload-identity-contract--oidc-token) | Phase 1 ships **one** MI (`mi-aw-executor`) using built-in role composition, RG-scoped; Phase 3 splits into per-domain MIs — see [security-and-identity.md § Identity Mapping (Phased)](security-and-identity.md#identity-mapping-phased) |
+| 7 | **Key Vault** | Standard | secret backend consumed via **Container Apps native secret + Key Vault reference** - realizes the [Secret contract](csp-neutrality.md#3-secret-contract--environment--k8s-secret) | Premium (HSM) not required; app never calls a secret SDK |
+| 8 | **User-assigned Managed Identity** | - | executor's least-privilege, action-whitelisted identity; realizes the [Workload Identity contract](csp-neutrality.md#4-workload-identity-contract--oidc-token) | Phase 1 ships **one** MI (`mi-aw-executor`) using built-in role composition, RG-scoped; Phase 3 splits into per-domain MIs - see [security-and-identity.md § Identity Mapping (Phased)](security-and-identity.md#identity-mapping-phased) |
 | 9 | **Log Analytics workspace** | Pay-as-you-go, **30-day default retention** | traces / metrics / logs / audit-forward; App Insights binds to it | retention is **UI-configurable** post-deploy, defaulting to 30 days |
 | 10 | **Container Registry (ACR)** | Basic (Standard if geo-replication needed later) | signed images + build attestations | pin by digest, never a mutable tag |
-| 11 | **Azure OpenAI / AI Foundry account** (**opt-in**, `var.enable_llm`) | Standard | T1 embedding + T2 mixed-model reasoner deployments (one per capability from `resolved-models.json`) | provisioned only when the deployer holds `Cognitive Services Contributor` on the sub AND the region exposes the preferred family; otherwise the affected capabilities degrade to **`hil-only`** (see [dev-and-deploy-parity.md § Deployer-Scoped LLM Provisioning](dev-and-deploy-parity.md#deployer-scoped-llm-provisioning)). Never deployed in `dev` mode — dev-mode binds deterministic fakes. |
+| 11 | **Azure OpenAI / AI Foundry account** (**opt-in**, `var.enable_llm`) | Standard | T1 embedding + T2 mixed-model reasoner deployments (one per capability from `resolved-models.json`) | provisioned only when the deployer holds `Cognitive Services Contributor` on the sub AND the region exposes the preferred family; otherwise the affected capabilities degrade to **`hil-only`** (see [dev-and-deploy-parity.md § Deployer-Scoped LLM Provisioning](dev-and-deploy-parity.md#deployer-scoped-llm-provisioning)). Never deployed in `dev` mode - dev-mode binds deterministic fakes. |
 
 Additional required elements that **do not incur a billable Azure resource of their own**:
 
-- **App registrations × 3** — split audiences per
+- **App registrations × 3** - split audiences per
   [user-rbac-and-identity.md#41-app-registrations](user-rbac-and-identity.md#41-app-registrations):
   `aiopspilot-console-spa` (SPA sign-in, PKCE), `aiopspilot-api` (Web API audience for
   console + ChatOps backend), and `aiopspilot-approval-bot` (Teams SSO). None hold the
   executor identity.
-- **Entra security groups × 5** — `aw-readers`, `aw-contributors`, `aw-approvers`,
+- **Entra security groups × 5** - `aw-readers`, `aw-contributors`, `aw-approvers`,
   `aw-owners`, `aw-break-glass`. Fork-owned; objectIds injected via config and validated at
   startup ([user-rbac-and-identity.md#42-security-groups-slots](user-rbac-and-identity.md#42-security-groups-slots)).
-- **Conditional Access policies** — phishing-resistant MFA on `aw-approvers`/`aw-owners`,
+- **Conditional Access policies** - phishing-resistant MFA on `aw-approvers`/`aw-owners`,
   compliant-device on `aw-owners`, dedicated hardware token + sign-in alert on
   `aw-break-glass`. Available on Entra ID P1
   ([user-rbac-and-identity.md#43-conditional-access](user-rbac-and-identity.md#43-conditional-access)).
-- **Azure Bot (Free tier)** — Teams Adaptive Cards for HIL approvals.
-- **Static Web Apps (Free tier)** — read-only console hosting; free tier covers the intended
+- **Azure Bot (Free tier)** - Teams Adaptive Cards for HIL approvals.
+- **Static Web Apps (Free tier)** - read-only console hosting; free tier covers the intended
   bandwidth.
-- **Workload identity federation** — CI/CD short-lived OIDC tokens; not a resource, no cost.
+- **Workload identity federation** - CI/CD short-lived OIDC tokens; not a resource, no cost.
 
 Explicitly **not provisioned** on day zero (deferred to a later phase when a measured need
 justifies them):
 
-- **Service Bus namespace and Event Grid custom topics** — the event bus is the Kafka
+- **Service Bus namespace and Event Grid custom topics** - the event bus is the Kafka
   endpoint on Event Hubs ([csp-neutrality.md § Event Bus Contract](csp-neutrality.md#1-event-bus-contract--kafka-wire-protocol));
   Activity Log / resource events are forwarded via Diagnostic Settings into an Event Hubs
   Kafka topic. Event Grid system topics remain available as a signal *source*, but no
@@ -181,7 +181,7 @@ justifies them):
 - Dedicated vector database (pgvector inside PostgreSQL suffices at initial scale).
 - Front Door, Application Gateway, API Management (no public inbound endpoint; console is
   read-only static hosting).
-- Secondary-region resources for DR (Phase 4 — TBD; see
+- Secondary-region resources for DR (Phase 4 - TBD; see
   [Implementation Focus](../../.github/copilot-instructions.md#implementation-focus-must)).
 - Separate Application Insights resource (it binds to the shared Log Analytics workspace).
 
@@ -191,7 +191,7 @@ The core is deployed as **one Container App with sidecar containers**, not one a
 subsystem. This keeps deployment count minimal while preserving the SRP boundaries defined at
 the code level in [project-structure.md](project-structure.md).
 
-- **Primary container**: `event-ingest` — the Kafka consumer (Event Hubs `:9093`) that
+- **Primary container**: `event-ingest` - the Kafka consumer (Event Hubs `:9093`) that
   drives KEDA scale-to-zero via Kafka lag.
 - **Sidecar containers** (same replica pod): `trust-router`, `executor`, `audit-writer`, and
   any other core subsystem.
@@ -199,7 +199,7 @@ the code level in [project-structure.md](project-structure.md).
   external service discovery.
 - **Independence**: each sidecar ships as its own **signed image**; images are versioned and
   rolled independently at the registry level even though they deploy together.
-- **Trade-off (accepted for the initial scale)**: sidecars share one scale unit — when
+- **Trade-off (accepted for the initial scale)**: sidecars share one scale unit - when
   ingress scales up, every sidecar scales with it, and restarts happen together. If any
   sidecar develops a distinct scaling profile, it graduates into its own Container App in a
   later phase. This graduation is **planned**, not a rewrite: sidecars communicate over
@@ -236,7 +236,7 @@ flowchart TD
 
 The upstream repo (this repo) ships everything **customer-agnostic**. A per-customer **fork**
 provides values, secrets, and any customer-specific bindings via dependency injection at the
-composition root — never by editing `core/`
+composition root - never by editing `core/`
 ([generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md)).
 
 | Concern | Upstream (this repo) | Fork (per-customer) |
@@ -271,8 +271,8 @@ full expanded catalog and defaults are authored during the inventory PR.
 | `KAFKA_TOPIC_EVENTS` | env | fork | primary event ingest topic |
 | `KAFKA_TOPIC_DLQ_SUFFIX` | env | fork | dead-letter suffix (default `.dlq`) |
 | `TEAMS_HIL_CHANNEL_ID` | env | fork | HIL routing |
-| `T2_MODEL_ENDPOINT` | env | fork | primary reasoner — populated by the bootstrap resolver from `rule-catalog/llm-registry.yaml`; see [llm-strategy.md § Model Provisioning and Lifecycle](llm-strategy.md#model-provisioning-and-lifecycle) |
-| `T2_MODEL_ENDPOINT_CROSSCHECK` | env | fork | mixed-model cross-check target — distinct publisher enforced at bootstrap |
+| `T2_MODEL_ENDPOINT` | env | fork | primary reasoner - populated by the bootstrap resolver from `rule-catalog/llm-registry.yaml`; see [llm-strategy.md § Model Provisioning and Lifecycle](llm-strategy.md#model-provisioning-and-lifecycle) |
+| `T2_MODEL_ENDPOINT_CROSSCHECK` | env | fork | mixed-model cross-check target - distinct publisher enforced at bootstrap |
 | `LLM_MODE` | env | fork | `local-fake` (default in `dev`) or `azure`. Governs the composition-root binding; see [dev-and-deploy-parity.md § Parity Contract](dev-and-deploy-parity.md#parity-contract-must). |
 | `LLM_RESOLVED_MODELS_PATH` | KV ref | fork | required when `LLM_MODE=azure`; points at the `resolved-models.json` written by the bootstrap resolver |
 | `RULE_CATALOG_REF` | env | fork | git ref of catalog snapshot |
@@ -315,34 +315,34 @@ Every provisioning choice honors these principles; a resource that violates them
 explicit justification in the deployment PR. The **illustrative monthly cost envelope** that
 results from these principles is in [cost-model.md](cost-model.md).
 
-1. **Scale-to-zero first** — idle compute cost MUST be zero. KEDA drives Container Apps and
+1. **Scale-to-zero first** - idle compute cost MUST be zero. KEDA drives Container Apps and
    Container Apps Jobs off **Kafka consumer lag** on the Event Hubs endpoint.
-2. **One region, one zone, non-HA at day zero** — multi-zone and multi-region are Phase 4
+2. **One region, one zone, non-HA at day zero** - multi-zone and multi-region are Phase 4
    (TBD). The initial deployment is a single geographic footprint.
-3. **Managed services collapsed** — pgvector inside PostgreSQL is the vector store; App
+3. **Managed services collapsed** - pgvector inside PostgreSQL is the vector store; App
    Insights binds to the shared Log Analytics workspace; no separate vector DB or APM
    resource is provisioned.
-4. **Basic / Standard tiers by default** — Premium tiers require a stated, measured need. HA
+4. **Basic / Standard tiers by default** - Premium tiers require a stated, measured need. HA
    variants, geo-replication, and private-endpoint premium features are deferred.
-5. **Free tiers where they cover the use case** — Static Web Apps (console), Azure Bot
+5. **Free tiers where they cover the use case** - Static Web Apps (console), Azure Bot
    (HIL Adaptive Cards), and workload identity federation (CI/CD) are all Free tier.
-6. **Monolithic-with-sidecars deployment** — one Container App runs the core subsystems as
+6. **Monolithic-with-sidecars deployment** - one Container App runs the core subsystems as
    sidecars ([Compute Shape](#compute-shape-sidecar-containers)). SRP is enforced at the code
    level; deployment is minimized. Splitting into multiple Container Apps is a **later
    configuration change**, not a rewrite.
-7. **Model budget cap** — T2 inference is designed to reach ~5–10% of events; token/spend
+7. **Model budget cap** - T2 inference is designed to reach ~5-10% of events; token/spend
    budgets are enforced and overflow degrades to HIL, never to uncapped inference.
-8. **Catalog is git-hosted, not a service** — the rule catalog lives in a git repository, not
+8. **Catalog is git-hosted, not a service** - the rule catalog lives in a git repository, not
    a managed store, so no extra Azure resource is needed for catalog storage.
-9. **No public inbound endpoint** — no Application Gateway / Front Door / API Management on
+9. **No public inbound endpoint** - no Application Gateway / Front Door / API Management on
    day zero; ingress is the event bus, egress is allow-listed.
-10. **Deferred DR resources** — secondary-region resources are **not** provisioned initially;
+10. **Deferred DR resources** - secondary-region resources are **not** provisioned initially;
     control-plane DR is planned via IaC + state backups (see
     [deployment.md](deployment.md#control-plane-disaster-recovery)).
 
 ## Open Decisions
 
-- [x] Entry command — **resolved: `terraform apply` against `infra/` (Terraform HCL)**. A
+- [x] Entry command - **resolved: `terraform apply` against `infra/` (Terraform HCL)**. A
       thin wrapper script MAY orchestrate `init → plan → apply → post-provision checks`, but
       the entry point is Terraform. See [Deployment Artifacts](#deployment-artifacts).
 - [ ] Concrete tier values within the minimum set (PostgreSQL storage size, Log Analytics
@@ -354,6 +354,6 @@ results from these principles is in [cost-model.md](cost-model.md).
 - [ ] Kafka topic naming + Diagnostic-Settings forwarding filters, per-domain fan-in shape.
 - [ ] Networking posture: public + IP allowlist vs private endpoints + hub-spoke.
 - [ ] Full runtime config key list (values matrix expanded).
-- [ ] Day-zero seed rule set (which sources, which rule ids) — cross-linked to Phase 1.
+- [ ] Day-zero seed rule set (which sources, which rule ids) - cross-linked to Phase 1.
 - [ ] Sidecar → separate Container App **graduation triggers**: metrics that indicate a
       subsystem needs its own scale unit and privilege boundary.

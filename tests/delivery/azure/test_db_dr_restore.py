@@ -1,4 +1,4 @@
-"""AzureDbDrRestoreAdapter — HTTP-level round-trip via httpx.MockTransport.
+"""AzureDbDrRestoreAdapter - HTTP-level round-trip via httpx.MockTransport.
 
 Verifies the wire contract the P3 Deep DB-DR verifier depends on:
 
@@ -18,7 +18,7 @@ Verifies the wire contract the P3 Deep DB-DR verifier depends on:
 - ``teardown`` DELETEs the target resource group; 404 is an
   idempotent no-op; other 4xx/5xx raise.
 - Non-2xx / non-JSON / transport failures raise :class:`DbDrError`
-  with a truncated snippet — no raw response body leaks.
+  with a truncated snippet - no raw response body leaks.
 
 No real Azure endpoints are contacted; every test builds an
 ``httpx.AsyncClient`` on top of :class:`httpx.MockTransport` and
@@ -52,7 +52,7 @@ from aiopspilot.shared.providers.testing.workload_identity import (
 
 
 _AUDIENCE = "https://management.azure.com/.default"
-_TOKEN = "test-token-abc"  # noqa: S105 — deterministic test literal
+_TOKEN = "test-token-abc"  # noqa: S105 - deterministic test literal
 
 _SUB = "00000000-0000-0000-0000-000000000001"
 _SOURCE_REF = (
@@ -193,7 +193,7 @@ async def test_restore_refuses_source_ref_without_subscription_id() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Happy path — synchronous 201 + resource GET
+# Happy path - synchronous 201 + resource GET
 # ---------------------------------------------------------------------------
 
 
@@ -256,7 +256,7 @@ async def test_naive_point_in_time_is_treated_as_utc() -> None:
             return httpx.Response(201, json={"id": _TARGET_REF})
         return httpx.Response(200, json=_final_body())
 
-    naive = datetime(2026, 7, 6, 12, 34, 56)  # noqa: DTZ001 — deliberate for test
+    naive = datetime(2026, 7, 6, 12, 34, 56)  # noqa: DTZ001 - deliberate for test
     async with _client(httpx.MockTransport(handler)) as client:
         adapter = _adapter(client)
         await adapter.restore(_config(point_in_time_utc=naive))
@@ -266,7 +266,7 @@ async def test_naive_point_in_time_is_treated_as_utc() -> None:
 
 
 # ---------------------------------------------------------------------------
-# LRO happy path — 202 + polls resolve to Succeeded
+# LRO happy path - 202 + polls resolve to Succeeded
 # ---------------------------------------------------------------------------
 
 
@@ -439,7 +439,7 @@ async def test_submit_4xx_raises_with_trimmed_error_body() -> None:
     msg = str(excinfo.value)
     assert "HTTP 400" in msg
     # Trimmed with ellipsis marker; must not contain the full 5000-char body.
-    assert "…" in msg
+    assert "..." in msg
     assert msg.count("X") <= 512
 
 
@@ -486,7 +486,7 @@ async def test_poll_transport_error_raises() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Final resource GET — extraction edge cases
+# Final resource GET - extraction edge cases
 # ---------------------------------------------------------------------------
 
 
@@ -679,7 +679,7 @@ async def test_teardown_rejects_target_ref_without_subscription() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Small helper reachability — error trim path
+# Small helper reachability - error trim path
 # ---------------------------------------------------------------------------
 
 
@@ -691,11 +691,11 @@ async def test_short_error_body_is_not_trimmed() -> None:
         adapter = _adapter(client)
         with pytest.raises(DbDrError, match="tiny") as excinfo:
             await adapter.restore(_config())
-    assert "…" not in str(excinfo.value)
+    assert "..." not in str(excinfo.value)
 
 
 # ---------------------------------------------------------------------------
-# LRO poll body — parser edge cases (empty / non-JSON / non-dict / no state)
+# LRO poll body - parser edge cases (empty / non-JSON / non-dict / no state)
 # ---------------------------------------------------------------------------
 
 
@@ -710,7 +710,7 @@ async def test_lro_poll_empty_body_is_treated_as_in_progress_then_settles() -> N
         if request.url.path.endswith("/operations/emp"):
             call += 1
             if call == 1:
-                # Empty body on a 200 — no state extractable; treat as pending.
+                # Empty body on a 200 - no state extractable; treat as pending.
                 return httpx.Response(200)
             return httpx.Response(200, json={"status": "Succeeded"})
         return httpx.Response(200, json=_final_body())
@@ -776,7 +776,7 @@ async def test_lro_poll_body_without_state_field_is_treated_as_in_progress() -> 
             call += 1
             if call == 1:
                 # Body with no ``status`` and properties.provisioningState of a
-                # non-string type — falls through to the "keep polling" branch.
+                # non-string type - falls through to the "keep polling" branch.
                 return httpx.Response(200, json={"properties": {"provisioningState": 42}})
             return httpx.Response(200, json={"status": "Succeeded"})
         return httpx.Response(200, json=_final_body())

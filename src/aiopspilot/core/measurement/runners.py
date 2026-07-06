@@ -3,15 +3,15 @@
 This module wires the two library-only components in
 :mod:`aiopspilot.core.measurement` into scheduled Container Apps Jobs:
 
-- :class:`AutomatedBaselineRunner` — periodically re-executes the P0
+- :class:`AutomatedBaselineRunner` - periodically re-executes the P0
   scenario set through the current control loop, feeds the observations
   into :class:`~aiopspilot.core.measurement.regression.RegressionDetector`,
   and auto-demotes any ActionType whose regression is a guard-metric
   breach or a success-metric drop.
-- :class:`PatternGrowthIntakeRunner` — drains new executed-action
+- :class:`PatternGrowthIntakeRunner` - drains new executed-action
   outcomes from the audit stream, applies the
   :func:`~aiopspilot.core.measurement.pattern_growth.evaluate_intake`
-  filter, and — on ``ACCEPTED`` — pushes the resulting pattern into the
+  filter, and - on ``ACCEPTED`` - pushes the resulting pattern into the
   T1 library in **shadow** mode.
 
 Design constraints
@@ -29,7 +29,7 @@ Design constraints
   :class:`~aiopspilot.shared.providers.state_store.StateStore`, matching
   the "every autonomous action MUST audit" invariant in
   ``coding-conventions.instructions.md``.
-- ``core/`` never imports a concrete cloud SDK or delivery adapter —
+- ``core/`` never imports a concrete cloud SDK or delivery adapter -
   the scenario replayer, outcome source, pattern builder, and pattern
   library writer are all Protocols bound at the composition root
   (``check-core-imports.sh``).
@@ -40,7 +40,7 @@ Failure modes
 - A scenario replayer that raises fails the run **closed**: no demotion,
   a single audited abort entry so an operator can page on it.
 - A pattern builder that returns ``None`` (missing origin event, unable
-  to embed) records an audited skip and continues — a single unreadable
+  to embed) records an audited skip and continues - a single unreadable
   outcome MUST NOT stall the growth loop.
 """
 
@@ -78,7 +78,7 @@ def _default_clock() -> datetime:
 
 
 # ---------------------------------------------------------------------------
-# Seams — DI Protocols the two runners consume.
+# Seams - DI Protocols the two runners consume.
 # ---------------------------------------------------------------------------
 
 
@@ -86,7 +86,7 @@ def _default_clock() -> datetime:
 class ScenarioReplayer(Protocol):
     """Replay the P0 scenario set + return per-ActionType :class:`MeasurementSample`.
 
-    The replayer OWNS the composition of baseline vs treatment run —
+    The replayer OWNS the composition of baseline vs treatment run -
     concrete implementations:
 
     1. Load the frozen P0 scenario set for a known
@@ -151,7 +151,7 @@ class PatternBuilder(Protocol):
 
 
 # ---------------------------------------------------------------------------
-# AutomatedBaselineRunner — regression detection + auto-demote.
+# AutomatedBaselineRunner - regression detection + auto-demote.
 # ---------------------------------------------------------------------------
 
 
@@ -175,7 +175,7 @@ class AutomatedBaselineRunner:
 
     Wired as a Container Apps Job on a daily cron (see
     ``infra/modules/measurement-runners``). One invocation performs
-    exactly one full replay of the frozen scenario set — the scheduler,
+    exactly one full replay of the frozen scenario set - the scheduler,
     not this class, owns the cadence.
 
     Safety
@@ -318,7 +318,7 @@ class AutomatedBaselineRunner:
 
 
 # ---------------------------------------------------------------------------
-# PatternGrowthIntakeRunner — audit-driven pattern library growth.
+# PatternGrowthIntakeRunner - audit-driven pattern library growth.
 # ---------------------------------------------------------------------------
 
 
@@ -350,7 +350,7 @@ class PatternGrowthIntakeRunner:
     is handed to the :class:`PatternLibraryWriter`, so the T1 tier's
     ``min_success_rate`` floor filters it out of execution until a
     subsequent, measured promotion step lifts it. The
-    :class:`PatternBuilder` may return whatever success rate it likes —
+    :class:`PatternBuilder` may return whatever success rate it likes -
     the runner is the enforcement point.
     """
 

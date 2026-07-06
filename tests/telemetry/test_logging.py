@@ -40,7 +40,7 @@ def test_log_line_is_json_with_required_keys(json_stream: io.StringIO) -> None:
     assert entry["logger"] == "aiopspilot.tests.telemetry"
     assert entry["message"] == "hello world"
     assert entry["correlation_id"] is None
-    # ISO 8601 UTC — 'T' separator, ends with '+00:00' or 'Z'.
+    # ISO 8601 UTC - 'T' separator, ends with '+00:00' or 'Z'.
     ts = str(entry["timestamp"])
     assert "T" in ts and (ts.endswith("+00:00") or ts.endswith("Z"))
 
@@ -62,7 +62,7 @@ def test_extra_fields_survive_serialization(json_stream: io.StringIO) -> None:
 
 
 def test_configure_logging_is_idempotent(json_stream: io.StringIO) -> None:
-    # Reconfigure with a fresh stream — the old handler is replaced,
+    # Reconfigure with a fresh stream - the old handler is replaced,
     # not stacked. Two calls MUST NOT double-emit.
     second = io.StringIO()
     configure_logging(level=logging.DEBUG, stream=second)

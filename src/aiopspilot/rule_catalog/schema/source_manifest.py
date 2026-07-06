@@ -11,7 +11,7 @@ Every source is one YAML file under
 manifest, dispatches on ``fetch.kind`` to a Fetcher, verifies the
 resolved artifact, and writes the snapshot under
 ``rule-catalog/sources/<id>/<revision>/``. Rules never land in the T0
-catalog directly — a separate normalization step (out of scope here)
+catalog directly - a separate normalization step (out of scope here)
 translates parsed snapshots into normalized rule YAML.
 """
 
@@ -78,7 +78,7 @@ class Cadence(StrEnum):
 
 
 class FetchConfig(BaseModel):
-    """Per-kind fetch parameters — validated per-kind via ``model_validator``."""
+    """Per-kind fetch parameters - validated per-kind via ``model_validator``."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 

@@ -1,4 +1,4 @@
-"""ShadowEvaluator — replay + measurement invariants."""
+"""ShadowEvaluator - replay + measurement invariants."""
 
 from __future__ import annotations
 
@@ -182,7 +182,7 @@ def test_unknown_resource_type_scenario_abstains_at_router() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Policy-violation escape detection (no OPA needed — Abstain evaluator)
+# Policy-violation escape detection (no OPA needed - Abstain evaluator)
 # ---------------------------------------------------------------------------
 
 
@@ -319,7 +319,7 @@ def test_evaluate_frozen_scenario_directory_smoke() -> None:
     """Baseline: replay the frozen Phase-0 scenario set without crashing.
 
     Every P0 scenario cites `example.*` rule ids that aren't in the P1
-    shipped catalog, so we expect zero matches — this test guards
+    shipped catalog, so we expect zero matches - this test guards
     against regressions in the loader / router / T0 abstain path, not
     against the P0 baseline coverage (that's a separate measurement).
     """

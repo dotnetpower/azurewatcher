@@ -1,10 +1,10 @@
-"""No-self-approval invariant — separation of author and approver.
+"""No-self-approval invariant - separation of author and approver.
 
 Enforcement lives in TWO places (see security-and-identity.md § HIL
 Approval Integrity + user-rbac-and-identity.md § 5.2 Author-is-not-approver):
 
-- **CI** — on governance PRs, compares Entra OID trailer to reviewer OID.
-- **Runtime** — on HIL approval endpoints, this enforcer runs before the
+- **CI** - on governance PRs, compares Entra OID trailer to reviewer OID.
+- **Runtime** - on HIL approval endpoints, this enforcer runs before the
   API records the approval.
 
 This test module owns the runtime side. It also proves the invariant is
@@ -40,7 +40,7 @@ class TestNoSelfApproval:
             enforcer.no_self_approval(_approver("shared-oid"), submitter_oid="shared-oid")
 
     def test_role_membership_does_not_bypass_check(self) -> None:
-        # Owner + Approver combined — still cannot self-approve.
+        # Owner + Approver combined - still cannot self-approve.
         enforcer = RoleEnforcer()
         p = Principal(oid="oid-1", roles=frozenset({Role.OWNER, Role.APPROVER}))
         with pytest.raises(SelfApprovalError):
@@ -58,7 +58,7 @@ class TestNoSelfApproval:
         enforcer.no_self_approval(approver, submitter_oid="submitter-oid")
 
     def test_different_upn_but_same_oid_is_denied(self) -> None:
-        # Symmetric to the above — OID matches even when UPN differs.
+        # Symmetric to the above - OID matches even when UPN differs.
         enforcer = RoleEnforcer()
         approver = _approver("shared-oid", upn="alice@new.example.com")
         with pytest.raises(SelfApprovalError):
@@ -71,7 +71,7 @@ class TestNoSelfApproval:
 
     def test_self_approval_error_is_authorization_error(self) -> None:
         # A single exception-handler for AuthorizationError SHOULD catch
-        # self-approval failures too — same 403 semantic.
+        # self-approval failures too - same 403 semantic.
         assert issubclass(SelfApprovalError, AuthorizationError)
 
     def test_case_sensitive_oid_comparison(self) -> None:
@@ -80,7 +80,7 @@ class TestNoSelfApproval:
         # NOT accidentally bypass the check.
         enforcer = RoleEnforcer()
         approver = _approver("ABCDEF-1234")
-        # Different case should NOT match — this preserves the "compare
+        # Different case should NOT match - this preserves the "compare
         # what the token gave us" property.
         enforcer.no_self_approval(approver, submitter_oid="abcdef-1234")
 
@@ -89,7 +89,7 @@ class TestNoSelfApprovalAuditIntegration:
     """Show the check is used as an audit-recorded principal step.
 
     The doc says approvals are "audit-recorded principal check"; the
-    enforcer never talks to the audit store itself — the caller wraps
+    enforcer never talks to the audit store itself - the caller wraps
     it. This test locks in that shape by simulating a small caller.
     """
 
@@ -125,7 +125,7 @@ class TestNoSelfApprovalAuditIntegration:
             "outcome": "approved",
         }
 
-        # Self-approval path — audit records the denial with both oids.
+        # Self-approval path - audit records the denial with both oids.
         with pytest.raises(SelfApprovalError):
             audited_approve(
                 approver=_approver("c-oid"),

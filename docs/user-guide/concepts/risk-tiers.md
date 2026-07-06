@@ -30,12 +30,12 @@ flowchart LR
   D --> AUD
 ```
 
-- **AUTO** — safe enough to execute directly. The audit-log entry still
+- **AUTO** - safe enough to execute directly. The audit-log entry still
   records who, what, when, why.
-- **HIL** — an operator has to approve. AIOpsPilot pauses execution and
+- **HIL** - an operator has to approve. AIOpsPilot pauses execution and
   raises a request through the notification channel (Teams card, PR review,
   email, whatever the deployment configured).
-- **DENY** — a hard rule refuses the action outright, regardless of who
+- **DENY** - a hard rule refuses the action outright, regardless of who
   asks. Break-glass exists for the extreme case where a Break-Glass role
   overrides deny; every such use is prominently audited.
 
@@ -43,13 +43,13 @@ flowchart LR
 
 Any of these push a decision up the ladder:
 
-- **Blast radius** — production, multi-region, or shared-tenancy targets
+- **Blast radius** - production, multi-region, or shared-tenancy targets
   demand approval more often than isolated dev resources.
-- **Reversibility** — actions with no clean rollback path (e.g. some data
+- **Reversibility** - actions with no clean rollback path (e.g. some data
   migrations, resource deletions) tend to sit in HIL by default.
-- **Novelty** — anything the trust router had to escalate to T2 gets a
+- **Novelty** - anything the trust router had to escalate to T2 gets a
   stricter risk gate on the way back down.
-- **Signal source trust** — a synthesised anomaly signal weighs less than a
+- **Signal source trust** - a synthesised anomaly signal weighs less than a
   hardened policy violation.
 
 ## What AUTO requires
@@ -57,15 +57,15 @@ Any of these push a decision up the ladder:
 Every AUTO action ships with all four of these; any missing item downgrades
 the action to HIL automatically:
 
-1. **Stop-condition** — a measurable state that halts the change if the
+1. **Stop-condition** - a measurable state that halts the change if the
    world reacts badly.
-2. **Rollback path** — pre-computed, tested, and referenced from the audit
+2. **Rollback path** - pre-computed, tested, and referenced from the audit
    entry.
-3. **Blast-radius limit** — an explicit cap on scope, batch size, or rate.
-4. **Audit-log entry** — append-only, immutable, and complete.
+3. **Blast-radius limit** - an explicit cap on scope, batch size, or rate.
+4. **Audit-log entry** - append-only, immutable, and complete.
 
 If any of the four is missing, the action is by definition incomplete and
-routes to HIL instead. This is not an override — it is a definitional gate.
+routes to HIL instead. This is not an override - it is a definitional gate.
 
 ## Human override is the top-of-stack control
 
@@ -75,9 +75,9 @@ the roadmap's *Human Override* section for the full mechanics.
 
 ## Related
 
-- [Deterministic first](../deterministic-first/) — how the router picks
+- [Deterministic first](../deterministic-first/) - how the router picks
   which tier decides the case in the first place.
-- [Shadow, then enforce](../shadow-then-enforce/) — how a new action moves
+- [Shadow, then enforce](../shadow-then-enforce/) - how a new action moves
   from "watch-only" to "auto-execute".
-- [Approve a change](../../guides/approve-change/) — the operator's
+- [Approve a change](../../guides/approve-change/) - the operator's
   everyday view of HIL.

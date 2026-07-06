@@ -1,22 +1,22 @@
-"""End-to-end tests for :meth:`DrScheduler.run` — safety invariants + runner dispatch.
+"""End-to-end tests for :meth:`DrScheduler.run` - safety invariants + runner dispatch.
 
 Covers the phase-3 DR / Chaos contract in
 [`docs/roadmap/phases/phase-3-integrated-loop.md § DR / Chaos`]:
 
-- **Stop-condition invariant** — enforce refuses without at least one declared
+- **Stop-condition invariant** - enforce refuses without at least one declared
   stop-condition.
-- **Blast-radius / concurrency invariant** — the ``max_concurrent_experiments``
+- **Blast-radius / concurrency invariant** - the ``max_concurrent_experiments``
   cap short-circuits ``run`` with ``NOT_ALLOWED`` when the in-flight count
   is at or above the cap.
-- **Rollback invariant** — enforce refuses without a declared rollback path;
+- **Rollback invariant** - enforce refuses without a declared rollback path;
   when a run fails (either at ``check`` or with an explicit ``FAILED`` /
   ``STOPPED`` status) the scheduler MUST invoke the runner's rollback.
-- **Isolation invariant** — a production target is refused in enforce mode.
+- **Isolation invariant** - a production target is refused in enforce mode.
 
 Every test drives the scheduler with a :class:`FakeDrExperimentRunner` so
 we can assert on the exact sequence of ``start`` / ``check`` / ``rollback``
 calls the runner Protocol receives. Shadow-mode tests assert on ZERO
-runner calls — the "shadow mode never mutates" property from the
+runner calls - the "shadow mode never mutates" property from the
 coding conventions.
 """
 
@@ -99,7 +99,7 @@ def _scheduler(
 
 
 # ---------------------------------------------------------------------------
-# Shadow mode — never invokes the runner
+# Shadow mode - never invokes the runner
 # ---------------------------------------------------------------------------
 
 
@@ -151,7 +151,7 @@ async def test_shadow_mode_works_without_runner_configured() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Enforce mode — happy path
+# Enforce mode - happy path
 # ---------------------------------------------------------------------------
 
 
@@ -176,7 +176,7 @@ async def test_enforce_mode_invokes_start_then_check_on_success() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Enforce mode — failure paths trigger rollback
+# Enforce mode - failure paths trigger rollback
 # ---------------------------------------------------------------------------
 
 
@@ -214,7 +214,7 @@ async def test_enforce_mode_rolls_back_on_stopped_status() -> None:
 
 
 async def test_enforce_mode_no_rollback_when_still_running() -> None:
-    # ``RUNNING`` at the one-shot check is not a rollback trigger — the
+    # ``RUNNING`` at the one-shot check is not a rollback trigger - the
     # caller is expected to schedule another ``run`` later. This shields
     # long LROs from being killed after their first partial poll.
     runner = FakeDrExperimentRunner(status_sequence=(DrRunStatus.RUNNING,))
@@ -308,7 +308,7 @@ async def test_enforce_mode_records_rollback_error_when_check_raises() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Safety invariants — enforced BEFORE the runner is invoked
+# Safety invariants - enforced BEFORE the runner is invoked
 # ---------------------------------------------------------------------------
 
 
@@ -323,7 +323,7 @@ async def test_isolation_invariant_blocks_production_target() -> None:
     )
 
     assert result.outcome is RunOutcome.ISOLATION_VIOLATION
-    # Runner MUST NOT be touched — the invariant is enforced BEFORE dispatch.
+    # Runner MUST NOT be touched - the invariant is enforced BEFORE dispatch.
     assert runner.started == []
 
 
@@ -382,7 +382,7 @@ async def test_enforce_without_runner_configured_short_circuits() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Blast-radius invariant — concurrency cap short-circuits enforce
+# Blast-radius invariant - concurrency cap short-circuits enforce
 # ---------------------------------------------------------------------------
 
 
@@ -418,7 +418,7 @@ async def test_concurrent_cap_allows_run_when_slot_free() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Window / freeze / opt-out — routing to NOT_ALLOWED without runner touch
+# Window / freeze / opt-out - routing to NOT_ALLOWED without runner touch
 # ---------------------------------------------------------------------------
 
 
@@ -444,7 +444,7 @@ async def test_decision_short_circuits_before_invariants(
     )
 
     # The decision blocked the run before the isolation invariant even
-    # got a chance to fire — the outcome is NOT_ALLOWED, not
+    # got a chance to fire - the outcome is NOT_ALLOWED, not
     # ISOLATION_VIOLATION.
     assert result.outcome is RunOutcome.NOT_ALLOWED
     assert result.decision.outcome is scheduler_outcome
@@ -457,7 +457,7 @@ async def test_fake_rejects_empty_status_sequence() -> None:
 
 
 async def test_fake_repeats_last_status_after_sequence_exhausted() -> None:
-    # Two checks on the same run — first returns RUNNING, second (and
+    # Two checks on the same run - first returns RUNNING, second (and
     # every one after) returns SUCCEEDED. Guards against a fake that
     # would raise IndexError once the sequence is exhausted.
     runner = FakeDrExperimentRunner(status_sequence=(DrRunStatus.RUNNING, DrRunStatus.SUCCEEDED))

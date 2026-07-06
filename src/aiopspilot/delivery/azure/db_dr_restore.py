@@ -14,7 +14,7 @@ Design boundaries
   ``delivery/azure/`` and is bound at the composition root through the
   :class:`~aiopspilot.shared.providers.db_dr.DbRestoreAdapter`
   Protocol seam.
-- No ``azure-identity`` / ``DefaultAzureCredential`` — identity flows
+- No ``azure-identity`` / ``DefaultAzureCredential`` - identity flows
   exclusively through
   :class:`~aiopspilot.shared.providers.workload_identity.WorkloadIdentity`.
 - HTTP transport is an injected :class:`httpx.AsyncClient`; tests hand
@@ -41,7 +41,7 @@ Fail-closed rules
 - Any non-2xx submit → :class:`DbDrError`.
 - LRO polling ends on any state that is neither ``Succeeded`` nor a
   known in-progress marker (``InProgress`` / ``Accepted`` /
-  ``Running`` / ``Provisioning``) — a non-terminal + unrecognized
+  ``Running`` / ``Provisioning``) - a non-terminal + unrecognized
   value is treated as failure so a partial restore never returns a
   handle.
 - ``teardown`` swallows 404 (already deleted) but every other 4xx/5xx
@@ -52,7 +52,7 @@ Isolation invariant
 
 The adapter refuses to submit a restore whose ``target_resource_group``
 equals the source's resource group inferred from ``source_ref``. This
-is a belt-and-suspenders check — the P3 orchestrator MUST also ensure
+is a belt-and-suspenders check - the P3 orchestrator MUST also ensure
 the target is not production before invoking the adapter.
 """
 
@@ -87,7 +87,7 @@ _IN_PROGRESS_STATES: Final[frozenset[str]] = frozenset(
 )
 """LRO states that mean "keep polling". Anything outside this set and
 outside :data:`_SUCCEEDED_STATES` is treated as a partial-restore
-failure — the adapter never guesses at "probably fine"."""
+failure - the adapter never guesses at "probably fine"."""
 
 _PHASE: Final[str] = "restore"
 
@@ -456,7 +456,7 @@ class AzureDbDrRestoreAdapter(DbRestoreAdapter):
         raw = text.replace("\n", " ")
         if len(raw) <= cap:
             return raw
-        return raw[:cap] + "…"
+        return raw[:cap] + "..."
 
 
 # ---------------------------------------------------------------------------
@@ -517,7 +517,7 @@ def _extract_resource_group(resource_ref: str) -> str | None:
 def _build_restore_payload(config: DbRestoreConfig) -> dict[str, object]:
     """Serialize the restore POST body.
 
-    ``createMode`` is fixed to ``PointInTimeRestore`` — the adapter
+    ``createMode`` is fixed to ``PointInTimeRestore`` - the adapter
     only supports PITR restore; a full-copy restore would land here as
     a separate ``createMode`` value under an intentional contract diff.
     """
@@ -529,7 +529,7 @@ def _build_restore_payload(config: DbRestoreConfig) -> dict[str, object]:
         # ISO 8601 with a trailing Z per the Azure convention.
         moment = config.point_in_time_utc
         if moment.tzinfo is None:
-            # Treat naive as UTC — the DbRestoreConfig doc says UTC.
+            # Treat naive as UTC - the DbRestoreConfig doc says UTC.
             moment = moment.replace(tzinfo=UTC)
         properties["pointInTimeUTC"] = moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return {"location": config.target_location, "properties": properties}

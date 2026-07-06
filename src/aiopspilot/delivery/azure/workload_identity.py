@@ -1,15 +1,15 @@
-"""ManagedIdentityWorkloadIdentity — production `WorkloadIdentity` adapter.
+"""ManagedIdentityWorkloadIdentity - production `WorkloadIdentity` adapter.
 
 Reaches the Azure Managed Identity token endpoint via ``httpx``; no
-``azure-identity`` SDK is pulled in — the wire contract is documented and
+``azure-identity`` SDK is pulled in - the wire contract is documented and
 stable
 (https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-use-vm-token).
 
 Container Apps injects two environment variables when a user-assigned MI
 is attached to the app:
 
-- ``IDENTITY_ENDPOINT`` — the local token endpoint URL.
-- ``IDENTITY_HEADER`` — the value MSAL must send in the ``X-IDENTITY-HEADER``
+- ``IDENTITY_ENDPOINT`` - the local token endpoint URL.
+- ``IDENTITY_HEADER`` - the value MSAL must send in the ``X-IDENTITY-HEADER``
   request header (proof the caller is inside the pod's namespace).
 
 The adapter reads both at construction, caches tokens per audience until
@@ -58,7 +58,7 @@ class ManagedIdentityWorkloadIdentity:
 
     Fail-fast: :class:`ManagedIdentityConfigurationError` on missing env.
     Every ``get_token`` call round-trips over ``httpx`` unless a cached
-    token has more than :data:`_MIN_TTL_SECONDS` of life left — this
+    token has more than :data:`_MIN_TTL_SECONDS` of life left - this
     matches the Azure guidance to refresh well before expiry.
     """
 
@@ -139,7 +139,7 @@ def _config_from_env(
     header = src.get("IDENTITY_HEADER") or src.get("MSI_SECRET") or ""
     if not endpoint:
         raise ManagedIdentityConfigurationError(
-            "IDENTITY_ENDPOINT (or MSI_ENDPOINT) MUST be set — this adapter "
+            "IDENTITY_ENDPOINT (or MSI_ENDPOINT) MUST be set - this adapter "
             "only runs where an Azure Managed Identity is attached"
         )
     return ManagedIdentityWorkloadIdentityConfig(

@@ -1,4 +1,4 @@
-"""Tests for :class:`RagGroundingSource` — the first non-fake grounding leg.
+"""Tests for :class:`RagGroundingSource` - the first non-fake grounding leg.
 
 Covers:
 
@@ -136,7 +136,7 @@ def test_hashed_index_satisfies_protocol() -> None:
 
 
 # ---------------------------------------------------------------------------
-# RagGroundingSource — protocol methods
+# RagGroundingSource - protocol methods
 # ---------------------------------------------------------------------------
 
 
@@ -164,7 +164,7 @@ def test_rag_grounding_source_rejects_out_of_range_threshold(
 
 
 # ---------------------------------------------------------------------------
-# supports() — true / false / threshold
+# supports() - true / false / threshold
 # ---------------------------------------------------------------------------
 
 
@@ -173,7 +173,7 @@ def test_supports_true_when_candidate_and_rule_share_intent(
 ) -> None:
     """Rule text 'policies/tag/owner.rego remediate.tag-add' vs
     candidate text 'remediate.tag-add tag_name=owner tag_value=team-a'
-    share the tokens ``remediate``, ``tag``, ``add``, and ``owner`` — cosine
+    share the tokens ``remediate``, ``tag``, ``add``, and ``owner`` - cosine
     similarity clears the default 0.5 threshold."""
     rule = _make_rule(
         valid_rule,
@@ -191,7 +191,7 @@ def test_supports_true_when_candidate_and_rule_share_intent(
 
 def test_supports_false_when_candidate_and_rule_diverge(valid_rule: dict[str, Any]) -> None:
     """Rule text about a firewall / network-restrict action has no
-    tokens in common with a tagging candidate — similarity is well
+    tokens in common with a tagging candidate - similarity is well
     below the default threshold, so supports() denies the citation."""
     rule = _make_rule(
         valid_rule,
@@ -223,7 +223,7 @@ def test_supports_false_for_unknown_rule_id(valid_rule: dict[str, Any]) -> None:
 def test_supports_threshold_gate_flips_the_decision(valid_rule: dict[str, Any]) -> None:
     """Two grounding sources over the same (candidate, rule) pair with
     different thresholds return opposite answers around the measured
-    similarity. Proves the threshold is the sole gate — not a hidden
+    similarity. Proves the threshold is the sole gate - not a hidden
     boolean check inside the implementation."""
     rule = _make_rule(
         valid_rule,
@@ -261,7 +261,7 @@ def test_candidate_text_stable_across_param_insertion_order(
     valid_rule: dict[str, Any],
 ) -> None:
     """Reordering ``params`` dict insertion MUST NOT change the
-    similarity — otherwise identical candidates could flip between
+    similarity - otherwise identical candidates could flip between
     grounded and ungrounded across replays, breaking audit
     determinism."""
     rule = _make_rule(valid_rule, rule_id="rule.a")
@@ -269,7 +269,7 @@ def test_candidate_text_stable_across_param_insertion_order(
     grounding = RagGroundingSource(
         rules={"rule.a": rule},
         embedding_index=index,
-        threshold=0.0,  # accept anything — we only check equality below
+        threshold=0.0,  # accept anything - we only check equality below
     )
     forward = QualityCandidate(
         action_type="remediate.tag-add",
@@ -381,7 +381,7 @@ async def test_gate_partial_grounding_still_abstains_with_mix_of_reasons(
 ) -> None:
     """Two citations: one topical (grounded), one off-topic (ungrounded).
     The gate records the ungrounded one but keeps the topical one in
-    ``grounded_rule_ids`` — proves supports() is applied per-citation,
+    ``grounded_rule_ids`` - proves supports() is applied per-citation,
     not as an all-or-nothing gate."""
     tag_rule = _make_rule(
         valid_rule,
@@ -425,7 +425,7 @@ async def test_gate_falls_back_to_id_only_when_grounding_source_has_no_supports(
     valid_rule: dict[str, Any],
 ) -> None:
     """A grounding source that does NOT expose ``supports`` still
-    works — the gate's duck-typed check silently falls back to the
+    works - the gate's duck-typed check silently falls back to the
     ID-exists-only behavior (backward compat)."""
     from aiopspilot.core.quality_gate.testing import InMemoryGroundingSource
 

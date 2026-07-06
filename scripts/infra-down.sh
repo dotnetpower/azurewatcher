@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# infra-down.sh — tear the aiopspilot Azure inventory down.
+# infra-down.sh - tear the aiopspilot Azure inventory down.
 #
 # Guardrails: refuses to run unless
 #   1. AZURE_CONFIG_DIR is unset (default moonchoi profile), AND
@@ -31,7 +31,7 @@ if [[ "${active_sub}" != "${MOONCHOI_SUB}" ]]; then
 fi
 
 if [[ ! -f "${TFVARS}" ]]; then
-  echo "infra-down: ${TFVARS} not found — nothing to tear down (or wrong repo)." >&2
+  echo "infra-down: ${TFVARS} not found - nothing to tear down (or wrong repo)." >&2
   exit 4
 fi
 

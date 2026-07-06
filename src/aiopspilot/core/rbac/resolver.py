@@ -13,7 +13,7 @@ this module never re-hits the network.
 :func:`decode_jwt_payload` is a **pure decoder**: it does the URL-safe
 base64 unpad on the payload segment and returns the JSON claims. It DOES
 NOT verify the signature. Callers MUST NOT feed its output to
-:class:`RoleResolver` without an out-of-band signature check first — the
+:class:`RoleResolver` without an out-of-band signature check first - the
 resolver docstrings repeat this to keep the invariant close to the
 call site.
 
@@ -57,7 +57,7 @@ class BreakGlassActivationError(RuntimeError):
     an empty ``incident_id`` or a non-future ``expires_at``.
 
     Kept separate from :class:`~aiopspilot.core.rbac.enforcer.AuthorizationError`
-    because it fires *before* any authorization decision — the caller made
+    because it fires *before* any authorization decision - the caller made
     a programmer error, not the principal.
     """
 
@@ -78,7 +78,7 @@ class BreakGlassActivation:
     (../../../../docs/roadmap/user-rbac-and-identity.md#107-break-glass-sign-in):
     every break-glass sign-in must record who, why (incident id), and until when.
 
-    Activation is stateless in this data class — the caller (or the fork's
+    Activation is stateless in this data class - the caller (or the fork's
     audit adapter) is responsible for persisting the entry to the audit log
     before wrapping the principal with :meth:`RoleResolver.activate_break_glass`.
     """
@@ -97,7 +97,7 @@ class BreakGlassActivation:
 class Principal:
     """A resolved human identity.
 
-    ``oid`` is the stable Entra user objectId — the identity used by the
+    ``oid`` is the stable Entra user objectId - the identity used by the
     no-self-approval check and every audit entry. ``upn`` and ``email``
     are informational; audit MUST NOT rely on them for identity because
     they can change.
@@ -121,7 +121,7 @@ class Principal:
     def with_break_glass(self, activation: BreakGlassActivation) -> Principal:
         """Return a copy with :attr:`Role.BREAK_GLASS` added and activation stamped.
 
-        Never mutates in place — a fresh :class:`Principal` is returned
+        Never mutates in place - a fresh :class:`Principal` is returned
         so an audit consumer sees the pre-elevation record when it
         matters.
         """
@@ -146,7 +146,7 @@ class Principal:
 class GroupMapping:
     """Immutable Entra ``objectId`` → :class:`Role` mapping.
 
-    Every role slot is required — a fork that fails to supply an entry
+    Every role slot is required - a fork that fails to supply an entry
     gets a startup :class:`ValueError` (fail-fast, deny-by-default).
     Object IDs may be an empty-group placeholder in early forks; use the
     upstream default all-zero UUID for that.
@@ -188,7 +188,7 @@ class GroupMapping:
                   owners: <objectId>
                   break_glass: <objectId>
 
-        A missing slot fails fast with :class:`ValueError` — there is no
+        A missing slot fails fast with :class:`ValueError` - there is no
         "default reader group" that silently opens the read API. Env-var
         overrides let a fork adjust one slot without re-templating YAML::
 
@@ -289,10 +289,10 @@ class RoleResolver:
     [`user-rbac-and-identity.md § 4.4`]
     (../../../../docs/roadmap/user-rbac-and-identity.md#44-app-roles-token-surface)):
 
-    1. **App Roles** (``roles`` claim) — the API-declared surface. Values
+    1. **App Roles** (``roles`` claim) - the API-declared surface. Values
        are matched case-sensitively against :class:`Role` values so an
        unknown role string is dropped, not swallowed.
-    2. **Group membership** (``groups`` claim) — mapped via
+    2. **Group membership** (``groups`` claim) - mapped via
        :class:`GroupMapping`. Used as a fallback when the ``roles`` claim
        is missing or empty (upgrade path for tenants that have not yet
        assigned App Roles).
@@ -316,7 +316,7 @@ class RoleResolver:
         """
         oid = claims.get("oid")
         if not isinstance(oid, str) or not oid:
-            raise ValueError("claims MUST carry a non-empty 'oid' — Entra stable user id")
+            raise ValueError("claims MUST carry a non-empty 'oid' - Entra stable user id")
 
         upn = claims.get("upn") if isinstance(claims.get("upn"), str) else None
         email = claims.get("email") if isinstance(claims.get("email"), str) else None
@@ -324,7 +324,7 @@ class RoleResolver:
         raw_roles = claims.get("roles") or ()
         raw_groups = claims.get("groups") or ()
 
-        # Isolate BreakGlass — see module docstring.
+        # Isolate BreakGlass - see module docstring.
         role_set = frozenset(_parse_role_claim(raw_roles) - {Role.BREAK_GLASS})
         if not role_set:
             role_set = frozenset(self._roles_from_groups(raw_groups) - {Role.BREAK_GLASS})
@@ -367,7 +367,7 @@ class RoleResolver:
         append-only audit log alongside this call.
 
         The principal MUST already carry the ``BreakGlass`` App Role claim
-        in the *token* — the resolver stripped it from the working
+        in the *token* - the resolver stripped it from the working
         :class:`Principal`, but presence in the raw claims means the
         Entra membership check passed. Passing an OID whose token never
         carried it constitutes an authorization bypass, so this method
@@ -401,7 +401,7 @@ class RoleResolver:
 def _parse_role_claim(raw: object) -> frozenset[Role]:
     """Parse a ``roles`` claim into a frozenset of known :class:`Role` values.
 
-    Unknown strings are dropped silently — the claim is trusted for the
+    Unknown strings are dropped silently - the claim is trusted for the
     values it declares, but an Entra admin who invents a new App Role
     value does not gain a runtime capability until this code names it.
     """
@@ -410,7 +410,7 @@ def _parse_role_claim(raw: object) -> frozenset[Role]:
         try:
             values.add(Role(item))
         except ValueError:
-            # Unknown role string — drop, do not raise.
+            # Unknown role string - drop, do not raise.
             continue
     return frozenset(values)
 

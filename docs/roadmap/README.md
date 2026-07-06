@@ -3,13 +3,13 @@ title: AIOpsPilot Roadmap
 ---
 # AIOpsPilot Roadmap
 
-> **Read online:** [dotnetpower.github.io/aiopspilot](https://dotnetpower.github.io/aiopspilot/) —
+> **Read online:** [dotnetpower.github.io/aiopspilot](https://dotnetpower.github.io/aiopspilot/) -
 > this roadmap is also published as a searchable site with sidebar navigation, right-column TOC,
 > full-text search, and Korean/English switcher. The Markdown here is the canonical source;
 > the site mounts these files read-only. See [site/](../../site/README.md) for how the
 > mount and deploy work.
 
-Detailed, phased plan to build the autonomous cloud operations control plane — an **AIOps**
+Detailed, phased plan to build the autonomous cloud operations control plane - an **AIOps**
 approach whose initial verticals are **Resilience**, **Change Safety**, and **Cost
 Governance**. Other AIOps domains (posture management, SRE/SLO, etc.) fit the same
 architecture and are future scope. This folder expands the short-form principles in
@@ -23,13 +23,13 @@ actionable engineering roadmap: from goals and structure through deployment and 
 > [generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md).
 >
 > **Implementation focus:** Azure is the only implemented target. Non-Azure providers and
-> Phase 4 multi-cloud expansion are **TBD** — the CSP-neutral abstractions in these docs
+> Phase 4 multi-cloud expansion are **TBD** - the CSP-neutral abstractions in these docs
 > exist so a future adapter is additive, not a delivery commitment. See
 > [copilot-instructions.md](../../.github/copilot-instructions.md#implementation-focus-must).
 
 ## How to Read This Folder
 
-Reference docs (1–13) describe the system; phase docs (P0–P4) sequence the build. Read the
+Reference docs (1-13) describe the system; phase docs (P0-P4) sequence the build. Read the
 reference docs first, then the phases in order.
 
 | # | Document | What it covers |
@@ -74,10 +74,10 @@ timeline
     P4 Scale : Continuous measurement : Pattern-library and model tracking : Scalability : Multi-cloud expansion (TBD)
 ```
 
-Phases are **strictly sequential** — P0 → P1 → P2 → P3 → P4 — and each phase doc names its
+Phases are **strictly sequential** - P0 → P1 → P2 → P3 → P4 - and each phase doc names its
 predecessor in a *Dependencies* section. Vertical coverage lands incrementally: Change Safety
 in P1, Resilience and Cost Governance in P3. **Multi-cloud is TBD in P4** (Azure is the only implemented
-target — see
+target - see
 [Implementation Focus](../../.github/copilot-instructions.md#implementation-focus-must)).
 
 ## Phase Summary
@@ -97,7 +97,7 @@ criteria and its dependencies.
 
 - **Measurement first**: no autonomy without telemetry; no multiplier or coverage claim without a measured baseline.
 - **Shadow before enforce**: every new action ships judge-only, then is promoted per-action explicitly; regressions demote automatically.
-- **Fail toward safety**: low confidence, verification failure, or budget/rate overflow degrades to HIL — never to an ungated auto-action.
+- **Fail toward safety**: low confidence, verification failure, or budget/rate overflow degrades to HIL - never to an ungated auto-action.
 - **Safety invariants on every action**: stop-condition, rollback path, blast-radius limit, and audit-log entry ([security-and-identity.md](security-and-identity.md)).
 - **Idempotent actions**: re-delivered events and retried actions never double-apply.
 - **Separation of duties**: approval and execution are distinct principals; the console is read-only ([security-and-identity.md](security-and-identity.md)).

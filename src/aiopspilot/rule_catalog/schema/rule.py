@@ -1,4 +1,4 @@
-"""Rule catalog loader — reads normalized `Rule` YAMLs from
+"""Rule catalog loader - reads normalized `Rule` YAMLs from
 ``rule-catalog/catalog/`` and validates each against the shipped
 ``rule/1.0.0`` JSON Schema, the :class:`Rule` pydantic model, and the
 cross-references required by the ontology dispatch layer.
@@ -134,7 +134,7 @@ def _check_policy_reference(
 
     Only checks references that start with ``policies/`` (our convention);
     inline expressions and other reference shapes are left to the runner.
-    ``check_logic.kind == "expression"`` short-circuits — an expression is
+    ``check_logic.kind == "expression"`` short-circuits - an expression is
     not a file path by definition.
     """
     from aiopspilot.shared.contracts.models import CheckLogicKind
@@ -216,7 +216,7 @@ def load_rule_from_mapping(
 
     Fails closed with a :class:`RuleCatalogError` that aggregates JSON
     Schema violations, pydantic issues, and cross-reference misses. The
-    cross-reference sets MUST be supplied — this function does NOT read
+    cross-reference sets MUST be supplied - this function does NOT read
     the ActionType or ResourceType catalogs itself; that is the caller's
     (composition-time) responsibility, so tests can inject stubs.
 
@@ -227,7 +227,7 @@ def load_rule_from_mapping(
     different distribution channel).
 
     ``remediation_root`` follows the same optional pattern for
-    ``remediation.template_ref`` — refs prefixed with ``remediation/``
+    ``remediation.template_ref`` - refs prefixed with ``remediation/``
     MUST resolve to an on-disk template file when the root is provided.
     """
     issues: list[RuleIssue] = []
@@ -287,13 +287,13 @@ def load_rule_catalog(
     error; consistent with the ontology dispatch (M:1 remediates, unique
     rule id) the loader does NOT silently merge same-id entries.
 
-    ``policies_root`` — when provided, every rule's ``check_logic.reference``
+    ``policies_root`` - when provided, every rule's ``check_logic.reference``
     that starts with ``policies/`` MUST resolve to a file that exists
     under ``policies_root``. Missing files fail the load; the check is
     skipped when ``policies_root`` is ``None`` (e.g. tests that stub the
     policy filesystem).
 
-    ``remediation_root`` — same optional pattern for
+    ``remediation_root`` - same optional pattern for
     ``remediation.template_ref`` values that start with ``remediation/``.
     """
     action_type_names = {a.name for a in action_types}

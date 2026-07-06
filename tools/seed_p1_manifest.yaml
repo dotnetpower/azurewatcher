@@ -6,7 +6,7 @@
 #   - rule-catalog/remediation/<template_dir>/<template_stem>.tftpl
 #
 # This file is authored (not generated). It stays in the tree as a
-# machine-readable reference of what a rule "batch" looks like — see
+# machine-readable reference of what a rule "batch" looks like - see
 # rule-catalog/RULE_AUTHORING_GUIDE.md for the manual per-rule flow that
 # every follow-up rule (including LLM-authored ones) MUST use instead.
 #
@@ -17,7 +17,7 @@
 
 rules:
 
-  # ── Batch A — MCSB Identity & Access ──────────────────────────────────
+  # ── Batch A - MCSB Identity & Access ──────────────────────────────────
   - id: secret-store.rbac-authorization.enabled
     source: mcsb
     severity: high
@@ -97,7 +97,7 @@ rules:
     policy_description: |
       A secret-store MUST have purge protection enabled so a soft-deleted
       secret cannot be purged during the retention window. Turning it on
-      is irreversible — the ActionType is HIL-gated until measured.
+      is irreversible - the ActionType is HIL-gated until measured.
     policy_body: |
       default deny := false
 
@@ -184,7 +184,7 @@ rules:
         shared_access_key_enabled = false
       }
 
-  # ── Batch B — MCSB Data Protection ────────────────────────────────────
+  # ── Batch B - MCSB Data Protection ────────────────────────────────────
   - id: object-storage.encryption-at-rest.required
     source: mcsb
     severity: high
@@ -366,7 +366,7 @@ rules:
         value     = "ON"
       }
 
-  # ── Batch C — MCSB Network ────────────────────────────────────────────
+  # ── Batch C - MCSB Network ────────────────────────────────────────────
   - id: network.nsg.no-inbound-any-ssh
     source: mcsb
     severity: high
@@ -562,7 +562,7 @@ rules:
       # The remediation PR removes this resource stanza.
       # No replacement resource is emitted.
 
-  # ── Batch D — WAF Reliability / Backup ────────────────────────────────
+  # ── Batch D - WAF Reliability / Backup ────────────────────────────────
   - id: sql-database.geo-redundant-backup
     source: waf
     severity: high
@@ -741,7 +741,7 @@ rules:
         # remediation PR wires the disk id into var.snapshot_policy_id.
       }
 
-  # ── Batch E — WAF Reliability / Availability ──────────────────────────
+  # ── Batch E - WAF Reliability / Availability ──────────────────────────
   - id: compute.vm-scale-set.zone-redundancy
     source: waf
     severity: high
@@ -903,7 +903,7 @@ rules:
         zones = ["1", "2", "3"]
       }
 
-  # ── Batch F — WAF Cost / Idle & Orphan ────────────────────────────────
+  # ── Batch F - WAF Cost / Idle & Orphan ────────────────────────────────
   - id: compute.vm.idle-detected
     source: azure_advisor
     severity: medium
@@ -1076,7 +1076,7 @@ rules:
         retention_in_days = ${max_retention_days}
       }
 
-  # ── Batch G — WAF Cost / Right-Size ───────────────────────────────────
+  # ── Batch G - WAF Cost / Right-Size ───────────────────────────────────
   - id: compute.vm.low-utilization
     source: azure_advisor
     severity: medium
@@ -1289,7 +1289,7 @@ rules:
         sku_name = var.recommended_sku_name
       }
 
-  # ── Batch H — WAF Ops / Diagnostics ───────────────────────────────────
+  # ── Batch H - WAF Ops / Diagnostics ───────────────────────────────────
   - id: object-storage.diagnostic-settings-required
     source: waf
     severity: medium
@@ -1491,7 +1491,7 @@ rules:
         }
       }
 
-  # ── Batch I — CIS Config Drift / Tagging ──────────────────────────────
+  # ── Batch I - CIS Config Drift / Tagging ──────────────────────────────
   - id: resource-group.owner-tag.required
     source: cis
     severity: low
@@ -1712,7 +1712,7 @@ rules:
         )
       }
 
-  # ── Batch J — WAF Security / Advanced ─────────────────────────────────
+  # ── Batch J - WAF Security / Advanced ─────────────────────────────────
   - id: kubernetes-cluster.rbac-enabled
     source: aks_baseline
     severity: high
@@ -1811,7 +1811,7 @@ rules:
     template_stem: enable_private_cluster
     template_summary: |
       Flip private_cluster_enabled to true; enabling this is forward-
-      only in the provider — a paired disable is HIL-gated.
+      only in the provider - a paired disable is HIL-gated.
     template_body: |
       resource "azurerm_kubernetes_cluster" "${resource_id}" {
         private_cluster_enabled = true

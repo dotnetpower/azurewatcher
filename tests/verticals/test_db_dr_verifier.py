@@ -1,19 +1,19 @@
-"""Deep DB-DR verifier — end-to-end orchestrator tests.
+"""Deep DB-DR verifier - end-to-end orchestrator tests.
 
 Covers the phase-3 Deep DB-DR contract in
 [`docs/roadmap/phases/phase-3-integrated-loop.md § Deep DB-DR`]:
 
-- **Happy path** — restore, integrity, and smoke all succeed; the
+- **Happy path** - restore, integrity, and smoke all succeed; the
   restored environment is torn down; every audit entry lands.
-- **ANY integrity mismatch fails the run** — the verifier does not
+- **ANY integrity mismatch fails the run** - the verifier does not
   average; a single mismatch flips the outcome to
   ``INTEGRITY_FAILED`` and smoke is never invoked.
-- **Smoke failure fails the run** — an empty check list or any
+- **Smoke failure fails the run** - an empty check list or any
   failing check yields ``SMOKE_FAILED``.
-- **Rollback-on-abort** — a raised exception from any phase after
+- **Rollback-on-abort** - a raised exception from any phase after
   restore aborts the run AND tears the restored environment down;
   a raised exception on restore leaves no handle to tear down.
-- **Every terminal path writes an audit entry** — start, one
+- **Every terminal path writes an audit entry** - start, one
   terminal marker (passed / restore_failed / integrity_failed /
   smoke_failed / aborted), and (except on restore_failed) exactly
   one teardown marker.
@@ -144,7 +144,7 @@ def _find_audit_payload(store: InMemoryStateStore, kind: str) -> dict[str, Any]:
 def _assert_contains_in_order(actual: Iterable[str], expected: list[str]) -> None:
     """Assert that ``actual`` contains ``expected`` in the given order.
 
-    Extra entries between the expected markers are allowed — the audit
+    Extra entries between the expected markers are allowed - the audit
     log MAY interleave phase markers, but the terminal marker MUST
     appear after the start marker, etc.
     """
@@ -218,7 +218,7 @@ async def test_audit_chain_is_intact_across_run() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Restore failure — no handle to tear down, no downstream phases
+# Restore failure - no handle to tear down, no downstream phases
 # ---------------------------------------------------------------------------
 
 
@@ -253,7 +253,7 @@ async def test_restore_failure_short_circuits_and_never_teardowns() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Integrity failure — every mismatch is recorded, smoke never runs
+# Integrity failure - every mismatch is recorded, smoke never runs
 # ---------------------------------------------------------------------------
 
 
@@ -269,7 +269,7 @@ async def test_any_integrity_mismatch_fails_the_run_and_records_every_mismatch()
     assert verdict.integrity.mismatch_count == 2
     # Smoke MUST NOT have been invoked when integrity fails.
     assert smoke.smoked == []
-    # Teardown ran exactly once — the environment is cleaned up.
+    # Teardown ran exactly once - the environment is cleaned up.
     assert len(restore.torn_down) == 1
 
     integ = _find_audit_payload(audit, "integrity_failed")
@@ -286,7 +286,7 @@ async def test_any_integrity_mismatch_fails_the_run_and_records_every_mismatch()
 
 
 async def test_single_mismatch_still_fails_the_run() -> None:
-    # Explicitly validates "record it, don't average away" — one
+    # Explicitly validates "record it, don't average away" - one
     # mismatch out of many clean tables still trips INTEGRITY_FAILED.
     report = IntegrityReport(
         table_row_counts={"a": 1, "b": 2, "c": 3, "d": 4},
@@ -337,7 +337,7 @@ async def test_smoke_failure_flips_outcome_and_records_failed_checks() -> None:
 
 
 async def test_empty_smoke_report_counts_as_failure() -> None:
-    # An empty check list is not a passing signal — the runner is
+    # An empty check list is not a passing signal - the runner is
     # misconfigured; the verifier surfaces this as SMOKE_FAILED so
     # the operator investigates rather than silently passing.
     verifier, _audit, _restore, _integrity, _smoke = _make_verifier(
@@ -351,7 +351,7 @@ async def test_empty_smoke_report_counts_as_failure() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Rollback-on-abort — exceptions in later phases tear the environment down
+# Rollback-on-abort - exceptions in later phases tear the environment down
 # ---------------------------------------------------------------------------
 
 
@@ -407,7 +407,7 @@ async def test_teardown_error_is_recorded_but_does_not_change_primary_outcome() 
 
     # Primary outcome is unchanged.
     assert verdict.outcome is DbDrOutcome.PASSED
-    # Teardown was attempted (single call — the injected error clears
+    # Teardown was attempted (single call - the injected error clears
     # after firing so the fake does not spin) but the failure was
     # audited.
     assert restore_adapter.torn_down == []
@@ -481,13 +481,13 @@ def test_db_dr_error_without_status_code() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Helper coverage — naive datetime + long error string
+# Helper coverage - naive datetime + long error string
 # ---------------------------------------------------------------------------
 
 
 async def test_naive_point_in_time_is_serialized_as_utc_in_start_audit() -> None:
     verifier, audit, *_ = _make_verifier()
-    naive = datetime(2026, 7, 6, 12, 34, 56)  # noqa: DTZ001 — intentional
+    naive = datetime(2026, 7, 6, 12, 34, 56)  # noqa: DTZ001 - intentional
     config = DbRestoreConfig(
         experiment_id="exp-naive",
         source_ref=(
@@ -517,8 +517,10 @@ async def test_long_error_message_is_truncated_in_audit_payload() -> None:
 
     assert verdict.outcome is DbDrOutcome.RESTORE_FAILED
     assert verdict.error is not None
-    # Truncation cap is 200 + ellipsis.
-    assert len(verdict.error) <= 201
-    assert verdict.error.endswith("…")
+    # Truncation cap is _ERROR_MESSAGE_CAP (200 chars) + the 3-char
+    # ASCII "..." indicator (per the language policy that forbids
+    # U+2026 HORIZONTAL ELLIPSIS).
+    assert len(verdict.error) <= 203
+    assert verdict.error.endswith("...")
     payload = _find_audit_payload(audit, "restore_failed")
-    assert payload["error"].endswith("…")
+    assert payload["error"].endswith("...")

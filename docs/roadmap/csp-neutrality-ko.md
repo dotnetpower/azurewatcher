@@ -1,8 +1,8 @@
 ---
 title: CSP-중립성 계약
 translation_of: csp-neutrality.md
-translation_source_sha: c9d2e94f2b6a5f4626e2a8cd73dd8283ad5e956b
-translation_revised: 2026-07-05
+translation_source_sha: 1f2fb57d06752dc6939e03bb0e53bd9530406b82
+translation_revised: 2026-07-06
 ---
 
 # CSP-중립성 계약
@@ -25,8 +25,8 @@ fork 나 미래 phase 는 `core/` 를 편집하지 않고 **같은 계약** 의 
 
 **동시성(Concurrency)**: 다섯 개의 provider Protocol 은 **기본 async** 입니다 (Kafka poll
 loop, Postgres asyncpg, Key Vault HTTP, OIDC 토큰 교환, inventory-graph 쿼리는 모두 I/O
-bound). Sync 는 event loop 를 블록하지 않도록 CPU / startup 전용 seam —
-`SchemaRegistry`, `ContractValidator`, `ConfigProvider` — 에만 남겨둡니다. 정본 seam
+bound). Sync 는 event loop 를 블록하지 않도록 CPU / startup 전용 seam -
+`SchemaRegistry`, `ContractValidator`, `ConfigProvider` - 에만 남겨둡니다. 정본 seam
 리스트는
 [project-structure-ko.md § 주입 가능한 Seams](project-structure-ko.md#주입-가능한-seams)
 참조.
@@ -37,14 +37,14 @@ CSP 접촉면을 지배하는 다섯 개의 계약:
 |---|------|---------------------|-------------|
 | 1 | **이벤트 버스** | Apache Kafka 와이어 프로토콜 | Event Hubs (Kafka endpoint on port `9093`) |
 | 2 | **런타임** | OCI 컨테이너 이미지 + Knative 호환 매니페스트 서브셋 | Container Apps (Consumption, KEDA) |
-| 3 | **시크릿** | 환경변수 (또는 K8s Secret 마운트) — 앱에서 CSP secret SDK 호출 안 함 | Container Apps native secret + Key Vault reference |
+| 3 | **시크릿** | 환경변수 (또는 K8s Secret 마운트) - 앱에서 CSP secret SDK 호출 안 함 | Container Apps native secret + Key Vault reference |
 | 4 | **워크로드 아이덴티티** | OIDC 토큰 (federated) | User-assigned Managed Identity + workload identity federation |
 | 5 | **인벤토리** | HTTP + OIDC-bearer 와이어로 `(Resource, Link[])` 배치를 반환하는 리소스-그래프 쿼리 표면 | Azure Resource Graph (ARG) + Activity Log delta |
 
 다섯 개 모두 `core/` 에 provider 특이를 누출하지 MUST NOT.
 거부해야 하는 구체적 위반은 [Anti-Patterns](#anti-patterns) 참조.
 
-## 1. 이벤트버스 계약 — Kafka 와이어 프로토콜
+## 1. 이벤트버스 계약 - Kafka 와이어 프로토콜
 
 이벤트버스는 작고 프로바이더 독립적인 표면 (`bootstrap.servers`, `sasl.mechanism`,
 `security.protocol`, 프로바이더별 토큰/자격증명 소스) 을 가진 **Kafka 프로듀서/컨슈머** 로
@@ -78,10 +78,10 @@ CSP 접촉면을 지배하는 다섯 개의 계약:
 
 - Event Hubs 를 native AMQP SDK (또는 Service Bus SDK) 로 사용. Event Hubs 를 쓸 거면
   **`:9093` 의 Kafka endpoint 만** 허용.
-- Dapr 의 pub/sub building block 사용 — 사이드카 의존성이 추가되고 런타임 레이어를
+- Dapr 의 pub/sub building block 사용 - 사이드카 의존성이 추가되고 런타임 레이어를
   다시 락인.
 
-## 2. 런타임 계약 — OCI 이미지 + Knative 호환 매니페스트
+## 2. 런타임 계약 - OCI 이미지 + Knative 호환 매니페스트
 
 코어는 하나 이상의 **OCI 컨테이너 이미지** 와 traffic / revisions / autoscaling
 트리거 / health probe / env·secret 바인딩을 기술하는 작은 **Knative 호환 매니페스트 서브셋**
@@ -90,10 +90,10 @@ CSP 접촉면을 지배하는 다섯 개의 계약:
 | CSP / 서브스트레이트 | 런타임 | scale-to-zero | 계약에서 렌더링되는 배포 모양 |
 |---|---|---|---|
 | Azure | **Container Apps** (Consumption + KEDA) | ✓ | Bicep/Terraform 이 매니페스트에서 `containerapp` 리소스 생성 |
-| AWS | **App Runner** (요청 기반) 또는 **ECS Fargate** + KEDA | App Runner ✓ / Fargate — | 같은 매니페스트에서 렌더링 |
+| AWS | **App Runner** (요청 기반) 또는 **ECS Fargate** + KEDA | App Runner ✓ / Fargate - | 같은 매니페스트에서 렌더링 |
 | GCP | **Cloud Run** (services & jobs) | ✓ | Cloud Run 은 native Knative; 매니페스트 직접 적용 |
 | Any K8s (AKS/EKS/GKE) | **Knative Serving** + KEDA | ✓ | 매니페스트 직접 적용 |
-| Fallback | bare `Deployment` + HPA + KEDA | — (idle ≥ 1 replica) | scale-to-zero 불가시 렌더링 |
+| Fallback | bare `Deployment` + HPA + KEDA | - (idle ≥ 1 replica) | scale-to-zero 불가시 렌더링 |
 
 **규칙 (MUST):**
 
@@ -104,7 +104,7 @@ CSP 접촉면을 지배하는 다섯 개의 계약:
 - 코어는 Dapr 사이드카, Envoy-특이 ingress annotation, Container Apps 전용 기능 (예:
   Container Apps YAML 에만 존재하는 native KEDA scaler reference) 에 의존하지 **않음**.
 - Azure 에서 스케줄 워커를 Container Apps Job 으로 배송하는 곳에서, 다른 프로바이더는 같은
-  계약을 K8s `CronJob`, AWS EventBridge 트리거 태스크, 또는 Cloud Run Job 으로 렌더링 —
+  계약을 K8s `CronJob`, AWS EventBridge 트리거 태스크, 또는 Cloud Run Job 으로 렌더링 -
   모두 상호교환 가능.
 
 **Anti-patterns (MUST NOT):**
@@ -113,7 +113,7 @@ CSP 접촉면을 지배하는 다섯 개의 계약:
   refs) 을 굽는 것.
 - Envoy 스타일 ingress 규칙 요구; 이식 가능한 ingress 추상화를 쓰거나 앱 안에서 라우팅 처리.
 
-## 3. 시크릿 계약 — 환경변수 / K8s Secret
+## 3. 시크릿 계약 - 환경변수 / K8s Secret
 
 애플리케이션은 **환경변수만** 읽거나, Kubernetes 위에서는 `Secret` 에서 마운트된 파일만
 읽습니다. CSP secret SDK 를 **직접 호출하지 않습니다**. 주입 레이어가 CSP secret backend 를
@@ -133,10 +133,10 @@ CSP 접촉면을 지배하는 다섯 개의 계약:
 - 코어는 `shared/providers/` 의 주입된 `SecretProvider` 인터페이스 **를 통해서만** secret
   을 읽음 ([project-structure-ko.md](project-structure-ko.md#injectable-seams));
   어떤 벤더 SDK 의 `SecretClient` 도 `core/` 에 나타나지 않음.
-- **Secret 이름은 프로바이더 전체에서 안정적 스키마** 를 따름 (upper-snake env var 이름) —
+- **Secret 이름은 프로바이더 전체에서 안정적 스키마** 를 따름 (upper-snake env var 이름) -
   앱이 프로바이더를 모르게.
 - **Fail-closed**: 주입 레이어가 부팅 시 필수 secret 을 해결하지 못하면 프로세스가 fail
-  fast — 캐시된 값이나 임베디드 값으로 fallback 하지 않음
+  fast - 캐시된 값이나 임베디드 값으로 fallback 하지 않음
   ([security-and-identity-ko.md](security-and-identity-ko.md#secrets-and-config)).
 - **로테이션** 은 주입 레이어의 일; 앱은 프로세스 재시작 시 env 를 다시 읽어서 롤된 secret 을
   수용. 복호화된 secret 자재의 장기 캐시는 금지.
@@ -147,7 +147,7 @@ CSP 접촉면을 지배하는 다섯 개의 계약:
 - 평문 또는 암호화된 secret 을 source 에 커밋 (git 내 SOPS 는 dev/local 에서만 허용;
   staging/prod 에서는 절대 안됨).
 
-## 4. 워크로드 아이덴티티 계약 — OIDC 토큰
+## 4. 워크로드 아이덴티티 계약 - OIDC 토큰
 
 executor 는 런타임 서브스트레이트에서 얻은 **짧은 수명의 OIDC 토큰** 으로 CSP 에 인증합니다.
 어댑터 경계에서 이 토큰이 CSP 자격증명으로 교환됩니다. executor 는 장기 키나 공유 시크릿을
@@ -172,21 +172,21 @@ executor 는 런타임 서브스트레이트에서 얻은 **짧은 수명의 OID
 
 **Anti-patterns (MUST NOT):**
 
-- `core/` 안의 `DefaultAzureCredential()` 또는 유사한 이름의 SDK 진입점 — 그건 벤더 SDK
+- `core/` 안의 `DefaultAzureCredential()` 또는 유사한 이름의 SDK 진입점 - 그건 벤더 SDK
   호출이지 계약이 아님. 인터페이스 뒤의 Azure 프로바이더 어댑터에서 **만** 허용.
 - executor 의 신원을 콘솔, ChatOps, 또는 다른 읽기 전용 표면과 공유.
 
-## 5. 인벤토리 계약 — 리소스 그래프
+## 5. 인벤토리 계약 - 리소스 그래프
 
 코어는 리소스와 타입된 엣지의 온톨로지 그래프를 가지고 추론함
 ([llm-strategy-ko.md § 온톨로지 기반](llm-strategy-ko.md#온톨로지-기반)); **인벤토리** 계약은
 그 그래프를 채우고 신선하게 유지하는 방법. 코어는 단일 `Inventory` Protocol 만
 보며 CSP-중립 레코드를 반환하는 두 연산을 가짐:
 
-- `full_snapshot(since=None) -> AsyncIterator[InventoryBatch]` — 초기 또는 주기적
+- `full_snapshot(since=None) -> AsyncIterator[InventoryBatch]` - 초기 또는 주기적
   reconciliation 로드, 타입된 `Resource` 레코드와 `contains` / `attached_to` /
   `depends_on` 링크 레코드 배치로 emit.
-- `delta(cursor) -> AsyncIterator[InventoryBatch]` — 주어진 커서 이후의 증분 변경,
+- `delta(cursor) -> AsyncIterator[InventoryBatch]` - 주어진 커서 이후의 증분 변경,
   provider 의 네이티브 변경 스트림이 구동.
 
 | CSP / 서브스트레이트 | 인벤토리 소스 | Delta 소스 | 와이어 |
@@ -201,11 +201,11 @@ executor 는 런타임 서브스트레이트에서 얻은 **짧은 수명의 OID
 - 코어는 `shared/providers/` 에 주입된 `Inventory` 인터페이스를 통해서만 인벤토리를 읽음
   ([project-structure-ko.md § 주입 가능한 Seams](project-structure-ko.md#주입-가능한-seams)).
   `ResourceManagementClient`, `ArmClient`, `boto3.client("config")`, `google.cloud.asset`
-  — 클라우드-인벤토리 SDK 는 `core/` 에 생김 안 함.
+  - 클라우드-인벤토리 SDK 는 `core/` 에 생김 안 함.
 - 레코드는 와이어에서 **CSP-중립**: `Resource.type` 은 canonical `resource_type`
   어휘 ([rule-catalog-collection-ko.md](rule-catalog-collection-ko.md#수집-소스))
   이며 링크 종류는 `shared/contracts/ontology/link-type.json` 에 선언된 것. 벤더-네이티브
-  id 는 Resource 의 redacted `provider_ref` 필드에 타고 올 수 있음 — 절대 primary key 아님.
+  id 는 Resource 의 redacted `provider_ref` 필드에 타고 올 수 있음 - 절대 primary key 아님.
 - **초기 full snapshot 은 바운드된 동시성으로 병렬화**: 어댑터는 워크로드를
   `ResourceType` 으로 샤딩 (하나의 타입이 너무 넓으면 스코프로 더 세분화), semaphore 하에서
   fan-out 쿼리, 배치를 ingest 파이프라인으로 스트리밍. 코어는 절대 단일-연결 블로킹
@@ -218,7 +218,7 @@ executor 는 런타임 서브스트레이트에서 얻은 **짧은 수명의 OID
   실패가 감사됨.
 - **Delta 는 별도 사이드-채널이 아니라 이벤트 버스를 통해 흐름**. Provider 변경 신호
   (Activity Log, Config item, Asset feed, apiserver watch) 는 Kafka 토픽으로 포워드되어
-  다른 `Signal` 과 정확히 같이 소비 — 동일한 멱등성, 동일한 DLQ.
+  다른 `Signal` 과 정확히 같이 소비 - 동일한 멱등성, 동일한 DLQ.
 - **미인식 `ResourceType` 또는 LinkType** 은 이슈를 열고 드롭됨; 어댑터는 런타임에 새
   온톨로지 타입을 자동 등록하지 않음
   ([llm-strategy-ko.md § 포크 확장](llm-strategy-ko.md#포크-확장-self-extending-온톨로지)).
@@ -244,7 +244,7 @@ executor 는 런타임 서브스트레이트에서 얻은 **짧은 수명의 OID
 | 계약 | Azure 실현 | Idle 비용 자세 |
 |---|---|---|
 | 이벤트버스 | **Event Hubs Standard** (`:9093` Kafka endpoint, 1 TU, auto-inflate off) | 낮은 idle; TU 로 스케일 |
-| 런타임 | **Container Apps** (Consumption, KEDA scale-to-zero) — 앱 하나 + 사이드카 | idle 시 `$0` |
+| 런타임 | **Container Apps** (Consumption, KEDA scale-to-zero) - 앱 하나 + 사이드카 | idle 시 `$0` |
 | 시크릿 | Container Apps native secret + **Key Vault reference** | 무시할 수준 |
 | 워크로드 아이덴티티 | **User-assigned MI** + CI/CD 를 위한 workload identity federation | 무료 |
 | 인벤토리 | **Azure Resource Graph** (`resource_type` 으로 샤딩된 초기 병렬 full-scan) + 이벤트 버스로 포워드된 **Activity Log** delta | ARG 무료; Log 기반 delta 는 observability 인벤토리에 포함 |
@@ -258,7 +258,7 @@ Kafka 와이어 전용입니다. 프로바이더 네이티브 pub/sub 은 오직
 
 다섯 개의 와이어-레벨 계약이 이미 코어를 CSP-이식 가능하게 유지합니다. 이 표는 각 계약이
 `core/` 를 건드리지 않고 스왑할 수 있는 **Azure 내부** 대안을 나열합니다. 스왑은
-**infra 모듈 경계**에서 일어남 — fork 가 `infra/modules/<seam>/` 아래 다른 서브-모듈을
+**infra 모듈 경계**에서 일어남 - fork 가 `infra/modules/<seam>/` 아래 다른 서브-모듈을
 고르거나 (또는 순수 코드 레벨 변경이면 composition root에서 DI 바인딩 오버라이드).
 "유지되는 것" 컬럼의 모든 것은 계약이지 구현이 아니며 스왑 전체에서 보존됩니다;
 "변하는 것" 은 스왑된 모듈과 그 즉시 config 에 국한됩니다.
@@ -280,14 +280,14 @@ Kafka 와이어 전용입니다. 프로바이더 네이티브 pub/sub 은 오직
 **전체 표에 걸친 규칙 (MUST):**
 
 - 모든 대안은 기본 모듈이 노출하는 **같은 output 계약** 을 사용 (`endpoint`,
-  `identity_resource_id`, `secret_ref_envelope`, `event_topic_names`, …) 하므로 downstream
+  `identity_resource_id`, `secret_ref_envelope`, `event_topic_names`, ...) 하므로 downstream
   Terraform / `main.tf` composition 이 대안에 따라 분기하지 않음.
 - 대안은 **별도 Terraform 서브-모듈** 로 `infra/modules/<seam>/` 아래 배송, 최상위
   `var.<seam>_kind` (예: `var.runtime_kind = "container_apps"`) 로 선택.
 - 어떤 대안도
   [deploy-and-onboard-ko.md § 리소스 명명 규약](deploy-and-onboard-ko.md#리소스-명명-규약resource-naming-convention)
   을 지켜야 함; 스왑이 손으로 뽑은 이름을 허용하지 않음.
-- 대안은 **필요할 때 빌드** — W4.1 과 함께 기본만 랜딩. 대안 추가는 자체 PR, 자체 shadow-mode
+- 대안은 **필요할 때 빌드** - W4.1 과 함께 기본만 랜딩. 대안 추가는 자체 PR, 자체 shadow-mode
   검증.
 - 어떤 대안도 `core/` 에 벤더 SDK 의존을 재도입할 수 없음. 이것은 원래의 CSP-중립성 규칙이고
   이깁니다.
@@ -311,7 +311,7 @@ Kafka 와이어 전용입니다. 프로바이더 네이티브 pub/sub 은 오직
 
 - 각 CSP 의 native pub/sub (`Service Bus` + `SQS/SNS` + `Pub/Sub`) 을 하나의 인터페이스
   뒤에 감싸는 것. Ack 시맨틱, ordering key, DLQ 모양, exactly-once 동작이 충분히 다르므로
-  프로바이더 특이 버그가 새어나옴 — **대신 하나의 와이어 프로토콜 (Kafka) 사용**.
+  프로바이더 특이 버그가 새어나옴 - **대신 하나의 와이어 프로토콜 (Kafka) 사용**.
 - **Dapr** 를 portability 레이어로 도입. 락인이 CSP 에서 Dapr 로 옮겨질 뿐이고 사이드카
   의존이 추가되며 로컬 개발이 복잡해짐.
 - "Kafka 클라이언트 복잡성을 아끼려고" **Event Hubs 를 native AMQP SDK 로** 사용. 코드가
@@ -321,9 +321,9 @@ Kafka 와이어 전용입니다. 프로바이더 네이티브 pub/sub 은 오직
 
 ## 관련 문서
 
-- [tech-stack-ko.md](tech-stack-ko.md) — 이 계약을 실현하는 구체 스택.
-- [deploy-and-onboard-ko.md](deploy-and-onboard-ko.md#azure-resource-inventory-minimum-set) —
+- [tech-stack-ko.md](tech-stack-ko.md) - 이 계약을 실현하는 구체 스택.
+- [deploy-and-onboard-ko.md](deploy-and-onboard-ko.md#azure-resource-inventory-minimum-set) -
   계약에서 렌더링되는 Azure 리소스 인벤토리.
-- [security-and-identity-ko.md](security-and-identity-ko.md) — 신원 모델과 secret 취급 심층.
-- [project-structure-ko.md](project-structure-ko.md#injectable-seams) — 각 계약을
+- [security-and-identity-ko.md](security-and-identity-ko.md) - 신원 모델과 secret 취급 심층.
+- [project-structure-ko.md](project-structure-ko.md#injectable-seams) - 각 계약을
   composition root 에 노출하는 DI 씸.

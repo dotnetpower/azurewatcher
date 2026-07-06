@@ -1,17 +1,17 @@
-"""Shadow-mode executor — the safety-invariant enforcement point.
+"""Shadow-mode executor - the safety-invariant enforcement point.
 
 Every autonomous change MUST carry the four invariants declared in
 [`.github/instructions/coding-conventions.instructions.md § Safety`]:
 
-1. **Stop-condition** — comes from the rule's ``ActionType`` (declared at
+1. **Stop-condition** - comes from the rule's ``ActionType`` (declared at
    catalog authoring, enforced at execute time by refusing an :class:`Action`
    whose ``stop_condition`` slot is empty).
-2. **Rollback path** — recorded on the Action + embedded in the shadow PR
+2. **Rollback path** - recorded on the Action + embedded in the shadow PR
    body so an operator can revert with a single follow-up PR.
-3. **Blast-radius limit** — the executor abstains and escalates when the
+3. **Blast-radius limit** - the executor abstains and escalates when the
    Action's :attr:`~aiopspilot.shared.contracts.models.BlastRadius.count`
    or ``rate_per_minute`` exceeds the executor-side cap.
-4. **Audit-log entry** — every terminal outcome (published, dedup-hit,
+4. **Audit-log entry** - every terminal outcome (published, dedup-hit,
    abstain, render error, blast-radius refusal, precondition failure)
    writes one and only one hash-chained record via
    :class:`~aiopspilot.shared.providers.state_store.StateStore.append_audit_entry`.
@@ -139,7 +139,7 @@ class ShadowExecutor:
         """Execute one action against one rule; always writes an audit entry.
 
         Returns an :class:`ExecutionResult` describing the terminal state.
-        Never raises for a business-logic failure — a broken template, a
+        Never raises for a business-logic failure - a broken template, a
         blast-radius overrun, or an enforce-mode Action all fail closed
         into an audited abstain, matching the "fail toward safety" rule
         in ``architecture.instructions.md § Design Principles``.
@@ -163,7 +163,7 @@ class ShadowExecutor:
                 reason=invariant_reason,
             )
 
-        # Idempotency check — MUST happen inside the resource lock so a
+        # Idempotency check - MUST happen inside the resource lock so a
         # racing re-delivery cannot double-publish; but a quick check
         # outside the lock lets an obvious duplicate short-circuit.
         cached = self._dedupe.get(action.idempotency_key)
@@ -342,7 +342,7 @@ def _build_remediation_pr(*, action: Action, rule: Rule, patch: str) -> Remediat
             )
         ),
         "",
-        "Shadow-mode PR — NOT mergeable. Promoted to enforce only after the",
+        "Shadow-mode PR - NOT mergeable. Promoted to enforce only after the",
         "ActionType's `promotion_gate` clears on the frozen scenario set.",
     ]
     body = "\n".join(body_lines)
@@ -363,7 +363,7 @@ def _default_patch_path(*, action: Action, rule: Rule) -> str:
     """Derive a repo-relative Terraform target from the action + rule.
 
     Real deployment maps this to the tenant's IaC repo layout; the
-    executor only produces a stable *hint* — the delivery adapter is
+    executor only produces a stable *hint* - the delivery adapter is
     responsible for the actual branch commit.
     """
     del rule  # reserved for a future rule → path mapping

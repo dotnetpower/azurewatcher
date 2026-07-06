@@ -1,7 +1,7 @@
 """In-memory :class:`SecretProvider` for unit tests + debugger sessions.
 
 Dict-backed, fail-closed on miss. Mirrors the security rules on the
-Protocol: values MUST NOT appear in log lines or audit entries — callers
+Protocol: values MUST NOT appear in log lines or audit entries - callers
 that pass a fake secret still need to redact.
 """
 
@@ -29,7 +29,7 @@ class InMemorySecretProvider(SecretProvider):
     # ---- Test helper ---------------------------------------------------------
 
     def register(self, name: str, value: str) -> None:
-        """Add a secret at test-setup time — never at runtime."""
+        """Add a secret at test-setup time - never at runtime."""
         self._secrets[name] = value
 
 

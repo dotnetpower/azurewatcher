@@ -8,14 +8,14 @@ Seeds the ontology metadata tables so downstream inserts into
 ``ontology_resource`` / ``ontology_link`` do not trip the FK references
 declared in the base migration.
 
-Rows here come from the design docs, not the runtime — the objective is
+Rows here come from the design docs, not the runtime - the objective is
 "deploy-time bootstrap that lets the first Inventory batch land without
 FK violations", not "authoritative catalog":
 
-- ``ontology_object_type`` — the four ontology entities documented in
+- ``ontology_object_type`` - the four ontology entities documented in
   [`docs/roadmap/llm-strategy.md` § Ontology Foundation]:
   ``Resource``, ``Rule``, ``Signal``, ``Finding``.
-- ``ontology_link_type`` — the P1-scoped LinkTypes whose ``from_type`` and
+- ``ontology_link_type`` - the P1-scoped LinkTypes whose ``from_type`` and
   ``to_type`` both resolve to one of the seeded ObjectTypes:
   ``contains`` / ``attached_to`` / ``depends_on`` (Resource↔Resource),
   ``resource_of`` (Signal→Resource), and ``precedes`` / ``follows``
@@ -24,8 +24,8 @@ FK violations", not "authoritative catalog":
   The **Rule-dispatch links** (``applies_to`` → ResourceType,
   ``triggered_by`` → SignalType, ``evaluates`` → Property,
   ``remediates`` → ActionType) and ``overrides`` (Override → Rule)
-  reference ObjectTypes that are NOT yet first-class rows — see
-  [`docs/roadmap/llm-strategy.md` § Fork Extension] — so a schema-level
+  reference ObjectTypes that are NOT yet first-class rows - see
+  [`docs/roadmap/llm-strategy.md` § Fork Extension] - so a schema-level
   seed for them belongs in the follow-up that promotes
   ``ResourceType`` / ``SignalType`` / ``ActionType`` / ``Override`` to
   ontology types. Seeding those links today would violate the FK on
@@ -95,7 +95,7 @@ _OBJECT_TYPES: tuple[tuple[str, str, str, str], ...] = (
 #   name | version | from_type | to_type | cardinality | description
 #
 # Only LinkTypes whose from_type and to_type reference an already-seeded
-# ObjectType are safe to insert here — the base migration declares FKs to
+# ObjectType are safe to insert here - the base migration declares FKs to
 # `ontology_object_type.name`. Rule-dispatch links (`applies_to` →
 # ResourceType, `triggered_by` → SignalType, `evaluates` → Property,
 # `remediates` → ActionType) plus `overrides` (Override → Rule) are

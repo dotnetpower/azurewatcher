@@ -2,7 +2,7 @@
 
 Verifies:
 1. The shipped in-memory fakes satisfy each Protocol structurally (so a
-   ``isinstance(fake, EventBus)`` runtime check succeeds — mypy handles
+   ``isinstance(fake, EventBus)`` runtime check succeeds - mypy handles
    the static side).
 2. Every Protocol is importable from ``aiopspilot.shared.providers``.
 

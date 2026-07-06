@@ -1,4 +1,4 @@
-# WebGL Sand UI — mock
+# WebGL Sand UI - mock
 
 A full-WebGL concept for the AIOpsPilot surface: on a **light, flat canvas**, the title, KPI
 cards, and a status panel **fade in cleanly**. Text is rendered with **SDF glyphs**
@@ -12,7 +12,7 @@ This is an exploratory **mock**, not the production console. The production oper
 thin, read-only DOM SPA (see
 [../../.github/instructions/app-shape.instructions.md](../../.github/instructions/app-shape.instructions.md));
 this WebGL treatment would only ever be an **ambient/visual layer** over that DOM UI, added as a
-progressive enhancement — never the sole interface (accessibility, forms, and tables stay DOM).
+progressive enhancement - never the sole interface (accessibility, forms, and tables stay DOM).
 
 ## Pages
 
@@ -27,7 +27,7 @@ Both are static demos (plain HTML + Three.js from a CDN), no DOM UI beyond a sma
 
 Only the **dashboard** is ported to full WebGL, because it is card/metric-oriented where a WebGL
 treatment reads well. Text-heavy, scroll-heavy surfaces (long tables, forms) stay better as DOM
-(see the DOM kit in [../../ui/](../../ui/README.md)) — porting those to WebGL would mean
+(see the DOM kit in [../../ui/](../../ui/README.md)) - porting those to WebGL would mean
 re-implementing scrolling, text selection, and accessibility for little gain. In production the
 console is a thin, read-only DOM SPA; this WebGL treatment is an exploratory ambient/visual layer
 (see [../../.github/instructions/app-shape.instructions.md](../../.github/instructions/app-shape.instructions.md)).
@@ -46,7 +46,7 @@ python3 -m http.server 8080
 
 - **Clean fade-in**: each card fades in (opacity only, no motion), lightly staggered
   (`main.js` → `order` / `FADE`).
-- **Crisp text**: labels render as **SDF glyphs** via `troika-three-text` — vector-sharp at any
+- **Crisp text**: labels render as **SDF glyphs** via `troika-three-text` - vector-sharp at any
   zoom, unlike baked canvas-texture text. Card shapes/shadows use a crisp-filtered canvas texture.
 - **Hover focus**: moving the pointer over a card lifts and slightly enlarges it.
 - **Click to replay**: resets the fade-in timeline.
@@ -54,8 +54,8 @@ python3 -m http.server 8080
 
 ## Files
 
-- [index.html](index.html) — canvas + import map + light gradient background.
-- [main.js](main.js) — Three.js scene, particle buffers, custom point shader, text planes.
+- [index.html](index.html) - canvas + import map + light gradient background.
+- [main.js](main.js) - Three.js scene, particle buffers, custom point shader, text planes.
 
 ## Notes
 

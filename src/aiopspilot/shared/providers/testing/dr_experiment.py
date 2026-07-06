@@ -2,7 +2,7 @@
 
 Ships in the main package (not under ``tests/``) so a fork MAY reuse
 it as a lightweight backend for a local, throwaway environment. It is
-**not** suitable for production — runs vanish on process restart, and
+**not** suitable for production - runs vanish on process restart, and
 there is no real substrate interaction.
 
 Behavior matrix
@@ -11,11 +11,11 @@ Behavior matrix
 The fake tracks every started run in a dictionary keyed by
 ``handle.run_id`` and supports three test knobs:
 
-- :attr:`FakeDrExperimentRunner.start_error` — if set, ``start`` raises
+- :attr:`FakeDrExperimentRunner.start_error` - if set, ``start`` raises
   it exactly once (then clears). Simulates a 4xx / auth failure.
-- :attr:`FakeDrExperimentRunner.check_error` — if set, ``check`` raises
+- :attr:`FakeDrExperimentRunner.check_error` - if set, ``check`` raises
   it exactly once. Simulates a substrate glitch that trips rollback.
-- :attr:`FakeDrExperimentRunner.status_sequence` — pre-programmed
+- :attr:`FakeDrExperimentRunner.status_sequence` - pre-programmed
   :class:`DrRunStatus` values consumed by successive ``check`` calls;
   the last value is repeated. Defaults to a single ``SUCCEEDED``.
 
@@ -65,7 +65,7 @@ class FakeDrExperimentRunner(DrExperimentRunner):
         self._check_error = check_error
         self._rollback_error = rollback_error
 
-        # Observable state — deliberately public.
+        # Observable state - deliberately public.
         self.started: list[DrRunHandle] = []
         self.checked: list[DrRunHandle] = []
         self.rolled_back: list[DrRunHandle] = []

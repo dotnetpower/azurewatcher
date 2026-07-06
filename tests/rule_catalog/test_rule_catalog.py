@@ -1,4 +1,4 @@
-"""Rule catalog loader — schema + cross-reference invariants.
+"""Rule catalog loader - schema + cross-reference invariants.
 
 Complements ``test_action_type_catalog.py`` and
 ``test_resource_type_registry.py``: exercises rule YAML load, ActionType

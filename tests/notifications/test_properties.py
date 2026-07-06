@@ -93,7 +93,7 @@ class TestAdapterProperties:
         cfg = GenericWebhookConfig(
             channel_id="w-id",
             url="https://x/hook",
-            hmac_secret="s",  # noqa: S106 — test-only literal
+            hmac_secret="s",  # noqa: S106 - test-only literal
             trust_tiers=frozenset({TrustTier.A2_OPERATIONAL_ALERT}),
         )
         adapter = GenericWebhookChannel(config=cfg, http_client=httpx.AsyncClient())

@@ -19,7 +19,7 @@ The five rules here quote the initial ActionType set (`remediate.disable-public-
 `remediate.tag-add`, `remediate.right-size`, `remediate.rotate-secret`,
 `remediate.enable-tde`) so P1 W-2 exercises every ActionType at least once. The
 Rego / IaC-patch templates the `check_logic.reference` / `remediation.template_ref`
-fields point at are stubbed — the actual Rego bodies land with the T0 engine wiring in
+fields point at are stubbed - the actual Rego bodies land with the T0 engine wiring in
 P1 W-3.
 
 - Storage layout: [docs/roadmap/rule-catalog-collection.md](../../docs/roadmap/rule-catalog-collection.md).

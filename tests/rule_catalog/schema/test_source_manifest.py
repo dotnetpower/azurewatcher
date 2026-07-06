@@ -1,4 +1,4 @@
-"""SourceManifest loader — schema + per-kind validators."""
+"""SourceManifest loader - schema + per-kind validators."""
 
 from __future__ import annotations
 

@@ -32,7 +32,7 @@ blast_radius:
   traversal_depth: 2
   traversal_links: [depends_on, attached_to]
 description: >-
-  Tighten network access on a target — remove wide inbound NSG
+  Tighten network access on a target - remove wide inbound NSG
   rules (SSH/RDP from any), require a private-endpoint on a data
   service, disable public network access at the account level.
   Asymmetric rollback because widening back to any-source is a

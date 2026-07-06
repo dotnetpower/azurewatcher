@@ -1,4 +1,4 @@
-// rewrite-links.mjs — remark plugin that rewrites Markdown links so
+// rewrite-links.mjs - remark plugin that rewrites Markdown links so
 // cross-file navigation works on the deployed site.
 //
 // The docs at docs/roadmap/**/*.md are authored to be read on GitHub as
@@ -12,13 +12,13 @@
 //
 //   1. Links whose *original* target resolves to a Markdown file inside
 //      docs/roadmap/ become relative site URLs. `.md` becomes a trailing
-//      slash, `-ko.md` moves under the `/ko/…` locale, and `README.md`
+//      slash, `-ko.md` moves under the `/ko/...` locale, and `README.md`
 //      collapses to the directory index. We compute *relative* URLs so
 //      the same output works regardless of the deploy base path.
 //
 //   2. Links whose original target lands under `.github/**` become an
 //      absolute GitHub blob URL. This is the documented English-only
-//      developer scope, kept off the site on purpose — but readers
+//      developer scope, kept off the site on purpose - but readers
 //      still deserve to reach the source.
 //
 //   3. Anchors, external URLs, and `mailto:` links are untouched.

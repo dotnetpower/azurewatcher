@@ -1,10 +1,10 @@
 ---
-title: Phase 1 — Rule Catalog and T0 Deterministic Engine
+title: Phase 1 - Rule Catalog and T0 Deterministic Engine
 ---
-# Phase 1 — Rule Catalog and T0 Deterministic Engine
+# Phase 1 - Rule Catalog and T0 Deterministic Engine
 
 **Goal**: stand up the deterministic core (T0) that resolves the majority of events without any
-LLM, and deliver the first autonomous vertical — Change Safety — entirely in **shadow mode**
+LLM, and deliver the first autonomous vertical - Change Safety - entirely in **shadow mode**
 (judge and log, never execute). This phase builds coverage and measurement, not enforcement;
 promotion to enforce is out of scope and belongs to
 [phase-2-quality-and-t1.md](phase-2-quality-and-t1.md).
@@ -25,23 +25,23 @@ It consumes the telemetry, baseline, and identity/policy unblocking delivered by
   + what-if + drift), shadow-mode remediation-PR generation, and out-of-band change detection
   for Change Safety.
 - **Out of scope**: any enforce-mode execution, auto-revert, the T1/T2 tiers, the LLM quality
-  gate, and the continuous rule-update pipeline — all deferred to Phase 2.
+  gate, and the continuous rule-update pipeline - all deferred to Phase 2.
 
 ## Deliverables
 
 - **Rule catalog** (catalog-as-code) with a normalized, CSP-neutral schema and multi-source
   collectors that map each source into that schema. The first authored rules ship under
-  [`rule-catalog/catalog/`](../../../rule-catalog/catalog/) — one YAML per rule id, each
+  [`rule-catalog/catalog/`](../../../rule-catalog/catalog/) - one YAML per rule id, each
   exercising exactly one ActionType via the required `remediates` field:
   `object-storage.public-access.deny`, `object-storage.owner-tag.required`,
   `compute.vm-scale-set.over-provisioned`, `secret-store.rotation-overdue`,
   `sql-database.tde-required`. The loader
   [`src/aiopspilot/rule_catalog/schema/rule.py`](../../../src/aiopspilot/rule_catalog/schema/rule.py)
   cross-checks every rule's `remediates` / `alternatives` against the ActionType catalog,
-  `resource_type` against the CSP-neutral vocabulary, **and** — when a `policies_root` is
-  supplied — every `check_logic.reference` that starts with `policies/` against a Rego file
+  `resource_type` against the CSP-neutral vocabulary, **and** - when a `policies_root` is
+  supplied - every `check_logic.reference` that starts with `policies/` against a Rego file
   that exists on disk at load time (fail-closed).
-- **Authored Rego policies** — the five rules above ship with their `check_logic.reference`
+- **Authored Rego policies** - the five rules above ship with their `check_logic.reference`
   Rego bodies under [`policies/`](../../../policies/) (one folder per resource-type family):
   `policies/object_storage/{public_access,owner_tag_required}.rego`,
   `policies/compute/vmss_over_provisioned.rego`,
@@ -51,10 +51,10 @@ It consumes the telemetry, baseline, and identity/policy unblocking delivered by
   `input.parameters.<name>` with an authored default so per-assignment
   overrides ([rule-governance.md](../rule-governance.md)) flow through
   without editing the rule.
-- **Canonical `resource_type` vocabulary** — [`rule-catalog/vocabulary/resource-types.yaml`](../../../rule-catalog/vocabulary/resource-types.yaml)
+- **Canonical `resource_type` vocabulary** - [`rule-catalog/vocabulary/resource-types.yaml`](../../../rule-catalog/vocabulary/resource-types.yaml)
   enumerates the initial CSP-neutral identifier set covering the three verticals; loader +
   JSON Schema in `src/aiopspilot/rule_catalog/schema/`.
-- **Initial ActionType catalog** — five shadow-mode `ActionType` instances under
+- **Initial ActionType catalog** - five shadow-mode `ActionType` instances under
   [`rule-catalog/action-types/`](../../../rule-catalog/action-types/): `remediate.disable-public-access`,
   `remediate.tag-add`, `remediate.right-size`, `remediate.rotate-secret`, `remediate.enable-tde`.
   Each declares `default_mode: shadow` + a measurable `promotion_gate`; the loader enforces the
@@ -66,7 +66,7 @@ It consumes the telemetry, baseline, and identity/policy unblocking delivered by
   orchestrator, and a `PolicyEvaluator` DI seam. Two evaluators land in P1:
   the fail-closed `AbstainEvaluator` (fallback when OPA is not installed) and
   [`OpaRegoEvaluator`](../../../src/aiopspilot/core/tiers/t0_deterministic/opa_evaluator.py)
-  — a subprocess-backed adapter that shells out to `opa eval --stdin-input --format json`
+  - a subprocess-backed adapter that shells out to `opa eval --stdin-input --format json`
   under a bounded timeout, queries `data.aiopspilot.<derived-path>`, and interprets
   `deny` + `deny_reason`. Fail-fast on missing binary; fail-close per rule on timeout,
   non-zero exit, or non-JSON output so one broken policy cannot silence the catalog. CI
@@ -83,17 +83,17 @@ It consumes the telemetry, baseline, and identity/policy unblocking delivered by
   `Action.idempotency_key`, blast-radius caps (`ExecutorConfig.max_affected_resources` /
   `max_rate_per_minute`), shadow-only mode invariant (an `enforce`-mode Action is
   rejected without any mutation), and an append-only audit entry on every terminal
-  path — `PUBLISHED` / `ALREADY_EXISTED` / `ABSTAINED_BLAST_RADIUS` /
+  path - `PUBLISHED` / `ALREADY_EXISTED` / `ABSTAINED_BLAST_RADIUS` /
   `ABSTAINED_RENDER_ERROR` / `REJECTED_MODE` / `REJECTED_INVARIANT`. The delivery
   layer ships
   [`GitOpsPrAdapter`](../../../src/aiopspilot/delivery/gitops_pr/adapter.py), a
   GitHub REST implementation of the CSP-neutral
   [`RemediationPrPublisher`](../../../src/aiopspilot/shared/providers/remediation_pr.py)
-  Protocol — Bearer-authed, probes for an existing open PR before writing,
+  Protocol - Bearer-authed, probes for an existing open PR before writing,
   creates a shadow branch + commits the patch via the Contents API, opens the PR as
   a **draft** with the `shadow` label + `rule:<id>` + `action:<type>`. It never merges
   and never removes the `shadow` label; those paths are Phase 2 promotion territory.
-- **Pipeline orchestrator** —
+- **Pipeline orchestrator** -
   [`ControlLoop`](../../../src/aiopspilot/core/control_loop.py) wires the P1 stages
   end-to-end: [`EventIngest`](../../../src/aiopspilot/core/event_ingest/__init__.py)
   (normalize + dedup by `idempotency_key`) →
@@ -108,7 +108,7 @@ It consumes the telemetry, baseline, and identity/policy unblocking delivered by
   under real OPA (skipped gracefully when `opa` is absent).
 - **Out-of-band change detection** for console/manual changes, with an explicit
   false-positive-suppression strategy.
-- **Inventory adapter (Azure)** — the Azure implementation of the
+- **Inventory adapter (Azure)** - the Azure implementation of the
   [inventory contract](../csp-neutrality.md#5-inventory-contract--resource-graph): an initial
   **parallelized full-scan** against Azure Resource Graph (sharded by `resource_type` with
   bounded concurrency) plus an **Activity-Log-driven delta** consumed off the event bus.
@@ -130,7 +130,7 @@ It consumes the telemetry, baseline, and identity/policy unblocking delivered by
   CSP-neutral records. Link extraction (`contains` / `attached_to` /
   `depends_on`) lands with the risk-gate blast-radius work in P2.
 - **Fixtures and a regression suite** covering the initial rule set and the detection paths.
-- **Frozen scenario replay harness** —
+- **Frozen scenario replay harness** -
   [`tests/scenarios/test_v2026_07_replay.py`](../../../tests/scenarios/test_v2026_07_replay.py)
   parametrizes every scenario under
   [`tests/scenarios/v2026.07/`](../../../tests/scenarios/v2026.07/) through
@@ -188,7 +188,7 @@ Multiple sources routinely emit overlapping rules for one event. Resolution is d
 2. **Precedence** when distinct rules match the same event: order by `severity`, then by
    `source` priority rank; break remaining ties by the higher `version`.
 3. **Unresolved ties or contradictory remediations** (one rule would revert what another
-   applies) **abstain and escalate to HIL** rather than auto-selecting — fail toward safety.
+   applies) **abstain and escalate to HIL** rather than auto-selecting - fail toward safety.
 
 Conflict outcomes are logged with the competing rule ids so precedence decisions are auditable.
 
@@ -203,16 +203,16 @@ pipeline is Phase 2; Phase 1 loads a versioned, manually reviewed catalog.)
 The engine evaluates each normalized, deduplicated event (post `event-ingest`) and produces a
 verdict plus the citing rule ids. Three deterministic checks:
 
-- **Policy evaluation** — run `check-logic` (OPA/Rego) and checklists against the event; a match
+- **Policy evaluation** - run `check-logic` (OPA/Rego) and checklists against the event; a match
   yields a violation with its rule id(s).
-- **What-if (dry-run)** — simulate the candidate remediation's predicted effect *without
+- **What-if (dry-run)** - simulate the candidate remediation's predicted effect *without
   applying it*, to confirm it resolves the violation and to compute the blast radius (scope,
   count, and rate of affected resources).
-- **Drift detection** — compare observed resource state against the declared IaC/desired state;
+- **Drift detection** - compare observed resource state against the declared IaC/desired state;
   report the drift delta (added/removed/changed attributes).
 
 On violation the engine emits a **remediation PR** (see below) rather than executing directly;
-audit, rollback, and approval come free from git. In Phase 1 every verdict is **shadow only** —
+audit, rollback, and approval come free from git. In Phase 1 every verdict is **shadow only** -
 no PR is merged and no state is mutated.
 
 ## Remediation PR (shadow mode)
@@ -222,13 +222,13 @@ invariants from
 [coding-conventions.instructions.md](../../../.github/instructions/coding-conventions.instructions.md),
 so the artifact is enforce-ready when Phase 2 promotes it:
 
-- **Idempotency** — keyed to the event's stable idempotency key; regenerating for the same event
+- **Idempotency** - keyed to the event's stable idempotency key; regenerating for the same event
   produces the same diff and never a duplicate change.
-- **Rollback path** — the PR references the prior desired-state revision so the change is
+- **Rollback path** - the PR references the prior desired-state revision so the change is
   revertible by a single follow-up PR.
-- **Blast-radius limit** — the what-if-computed scope/count/rate is recorded in the PR and
+- **Blast-radius limit** - the what-if-computed scope/count/rate is recorded in the PR and
   capped; a change exceeding the cap is marked HIL-only.
-- **Audit entry** — every generated PR (including no-op and abstain outcomes) writes an
+- **Audit entry** - every generated PR (including no-op and abstain outcomes) writes an
   append-only audit record: event id, tier (`T0`), decision, citing rule ids, idempotency key,
   mode (`shadow`), and rollback reference.
 
@@ -256,7 +256,7 @@ but cannot be merged by the normal flow.
 - Everything ships in **shadow mode**: the engine judges and logs; there is no enforce path.
 - Low-risk auto-merge/reconcile and high-risk HIL routing are wired through the `risk-gate` but
   gated off until Phase 2 promotion.
-- A property-level invariant holds for this phase: **shadow mode never mutates state** — no PR
+- A property-level invariant holds for this phase: **shadow mode never mutates state** - no PR
   is merged and no resource is changed, and this is asserted in tests.
 
 ## Testability
@@ -283,7 +283,7 @@ Each criterion is measurable against the Phase 0 telemetry and scenario set, not
 - Remediation PRs are generated, carry all four safety invariants, and are reviewable; no PR is
   mergeable in shadow.
 - Out-of-band detection reports **precision and recall against a labeled fixture set**, with the
-  false-positive suppression rate recorded — establishing the detection baseline Phase 2 must
+  false-positive suppression rate recorded - establishing the detection baseline Phase 2 must
   not regress.
 - Every terminal path (violation, no-op, abstain, HIL-route) writes an audit entry; audit
   completeness is asserted.

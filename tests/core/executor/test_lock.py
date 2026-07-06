@@ -1,4 +1,4 @@
-"""ResourceLockManager — per-resource serialization invariants."""
+"""ResourceLockManager - per-resource serialization invariants."""
 
 from __future__ import annotations
 

@@ -38,7 +38,7 @@ export function DashboardRoute({ client }: Props) {
     };
   }, [client]);
 
-  if (state.status === "loading") return <div class="empty">Loading…</div>;
+  if (state.status === "loading") return <div class="empty">Loading...</div>;
   if (state.status === "error")
     return <div class="empty error">Failed to load KPIs: {state.message}</div>;
 

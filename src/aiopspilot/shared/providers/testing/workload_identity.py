@@ -21,7 +21,7 @@ class StaticWorkloadIdentity(WorkloadIdentity):
         self,
         *,
         audience: str,
-        token: str = "test-token",  # noqa: S107 — deterministic test literal
+        token: str = "test-token",  # noqa: S107 - deterministic test literal
         ttl: timedelta = timedelta(hours=1),
     ) -> None:
         self._audience = audience

@@ -10,7 +10,7 @@ intentionally simple:
 - **Single decision rule**: always route to HIL. That mirrors a
   conservative "single-model, no tiering" baseline that a human operator
   would sign off on every action.
-- **Deterministic**: no randomness, no wall-clock — two runs on the same
+- **Deterministic**: no randomness, no wall-clock - two runs on the same
   scenario version yield byte-identical results.
 - **Cost-free**: no LLM call, no network. Tests can invoke it in-process.
 
@@ -51,7 +51,7 @@ class ReferenceAgent:
     def decide(self, event: Mapping[str, Any]) -> AgentDecision:  # noqa: ARG002
         """Return the same conservative verdict for every event.
 
-        Ignoring the event body is intentional — the reference agent is a
+        Ignoring the event body is intentional - the reference agent is a
         *fixed* baseline. When a real LLM replaces this stub, it MAY use
         the event body, but its output remains an :class:`AgentDecision`.
         """

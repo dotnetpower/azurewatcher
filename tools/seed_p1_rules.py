@@ -3,14 +3,14 @@
 
 Reads ``tools/seed_p1_manifest.yaml`` and emits, for every entry:
 
-- ``rule-catalog/catalog/<id>.yaml`` — normalized rule
-- ``policies/<policy_dir>/<policy_stem>.rego`` — deterministic check
-- ``rule-catalog/remediation/<template_dir>/<template_stem>.tftpl`` — IaC patch
+- ``rule-catalog/catalog/<id>.yaml`` - normalized rule
+- ``policies/<policy_dir>/<policy_stem>.rego`` - deterministic check
+- ``rule-catalog/remediation/<template_dir>/<template_stem>.tftpl`` - IaC patch
 
 Intent: bootstrap the P1 seed catalog in bulk, then leave the generator
 behind as a machine-readable example of what a rule PR looks like (see
 [rule-catalog/RULE_AUTHORING_GUIDE.md](../rule-catalog/RULE_AUTHORING_GUIDE.md)).
-The pipeline never runs this at runtime — every downstream consumer
+The pipeline never runs this at runtime - every downstream consumer
 reads the emitted YAML / rego / tftpl files directly. Re-runs are
 idempotent (existing files are overwritten to match the manifest).
 
@@ -116,7 +116,7 @@ def _rego_body(entry: dict[str, Any]) -> str:
 def _tftpl_body(entry: dict[str, Any]) -> str:
     header = "\n".join(
         [
-            f"# {entry['remediates']} — Terraform patch template.",
+            f"# {entry['remediates']} - Terraform patch template.",
             "#",
             f"# Referenced by rule `{entry['id']}`.",
             f"# {entry['template_summary']}",

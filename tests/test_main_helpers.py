@@ -2,8 +2,8 @@
 
 The `main()` loop itself is a process orchestrator and requires the
 Azure runtime environment to exercise end-to-end. The functions covered
-here are the pure helpers underneath — path resolution, StateStore
-selection, and the config summary — so a smoke change to the entry
+here are the pure helpers underneath - path resolution, StateStore
+selection, and the config summary - so a smoke change to the entry
 point stays green under the CI coverage floor.
 """
 
@@ -131,7 +131,7 @@ def test_summarize_config_is_secret_free(app_config: AppConfig) -> None:
 
 
 # ---------------------------------------------------------------------------
-# _build_publisher — RemediationPrPublisher selection
+# _build_publisher - RemediationPrPublisher selection
 # ---------------------------------------------------------------------------
 
 
@@ -173,7 +173,7 @@ def test_build_publisher_returns_gitops_when_token_owner_repo_set(
         assert isinstance(publisher, GitOpsPrAdapter)
     finally:
         # AsyncClient.close is async but the object is safe to leak in
-        # tests — the event loop is torn down at test exit. Prefer
+        # tests - the event loop is torn down at test exit. Prefer
         # not spinning up an event loop just for this smoke check.
         pass
 
@@ -229,7 +229,7 @@ def test_build_publisher_honors_env_defaults(monkeypatch: pytest.MonkeyPatch) ->
 
     publisher = _build_publisher(http_client=httpx.AsyncClient())
     assert isinstance(publisher, GitOpsPrAdapter)
-    # Non-secret config surface is inspectable (secrets — token — are not).
+    # Non-secret config surface is inspectable (secrets - token - are not).
     assert publisher._config.default_branch == "trunk"
     assert publisher._config.api_base == "https://ghe.example.com/api/v3"
     assert publisher._config.owner == "example-org"
@@ -237,7 +237,7 @@ def test_build_publisher_honors_env_defaults(monkeypatch: pytest.MonkeyPatch) ->
 
 
 # ---------------------------------------------------------------------------
-# _build_pattern_library — PatternLibrary selection (T1 similarity reuse)
+# _build_pattern_library - PatternLibrary selection (T1 similarity reuse)
 # ---------------------------------------------------------------------------
 
 
@@ -345,7 +345,7 @@ def test_build_pattern_library_rejects_nonpositive_probes(
 
 
 # ---------------------------------------------------------------------------
-# _build_hil_channel — HilChannel selection (ChatOps A1 approvals)
+# _build_hil_channel - HilChannel selection (ChatOps A1 approvals)
 # ---------------------------------------------------------------------------
 
 

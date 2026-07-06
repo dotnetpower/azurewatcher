@@ -2,9 +2,9 @@
 
 Design rules (see ``coding-conventions.instructions.md``):
 
-- Emit **JSON, one object per line** — machines parse, humans grep.
+- Emit **JSON, one object per line** - machines parse, humans grep.
 - Every line carries an ISO 8601 UTC timestamp, log level, logger name,
-  message, and — when set — ``correlation_id`` from
+  message, and - when set - ``correlation_id`` from
   :mod:`aiopspilot.shared.telemetry.correlation`.
 - Never dump raw event payloads or secrets. Callers pass structured
   ``extra`` dicts that they have already redacted.
@@ -114,7 +114,7 @@ def get_logger(name: str) -> logging.Logger:
 def log_extra(**fields: Any) -> Mapping[str, Any]:
     """Small helper so callers write ``logger.info(msg, extra=log_extra(k=v))``.
 
-    Not strictly required — plain ``dict`` works — but keeps call sites
+    Not strictly required - plain ``dict`` works - but keeps call sites
     grep-friendly.
     """
     return dict(fields)

@@ -1,4 +1,4 @@
-"""Change Safety out-of-band detector — attribution + response tests.
+"""Change Safety out-of-band detector - attribution + response tests.
 
 Cover the five contract shapes documented in
 [phase-1-rule-catalog-t0.md § Out-of-Band Detection]:
@@ -128,7 +128,7 @@ def _detector(
 
 
 # ---------------------------------------------------------------------------
-# Attribution — three outcomes
+# Attribution - three outcomes
 # ---------------------------------------------------------------------------
 
 
@@ -314,7 +314,7 @@ async def test_non_activity_log_is_a_no_op() -> None:
     assert decision.outcome is DetectorOutcome.NOT_ACTIVITY_LOG
     assert publisher.records == ()
     assert bus._records.get(OUT_OF_BAND_ALERT_TOPIC) is None  # type: ignore[attr-defined]
-    # NO audit entry — the primary loop writes routing audit after us.
+    # NO audit entry - the primary loop writes routing audit after us.
     assert list(audit.audit_entries) == []
 
 
@@ -422,7 +422,7 @@ async def test_out_of_band_pr_idempotent_on_redelivery() -> None:
     # Publisher deduplicates on idempotency_key so exactly one PR
     # record was appended even though two publish attempts happened.
     assert len(publisher.records) == 1
-    # Two alerts, two audit entries — the alert bus + audit are
+    # Two alerts, two audit entries - the alert bus + audit are
     # append-only regardless of PR dedupe.
     assert len(bus._records[OUT_OF_BAND_ALERT_TOPIC]) == 2  # type: ignore[attr-defined]
 
@@ -478,7 +478,7 @@ async def test_unknown_actor_and_no_correlation_and_past_window_is_out_of_band()
 
 
 # ---------------------------------------------------------------------------
-# All outcomes audited — one entry per non-passthrough call
+# All outcomes audited - one entry per non-passthrough call
 # ---------------------------------------------------------------------------
 
 
@@ -515,7 +515,7 @@ async def test_all_terminal_outcomes_audited_with_mode_shadow() -> None:
 
 
 # ---------------------------------------------------------------------------
-# ControlLoop wiring — detector runs BEFORE trust_router when supplied
+# ControlLoop wiring - detector runs BEFORE trust_router when supplied
 # ---------------------------------------------------------------------------
 
 
@@ -659,7 +659,7 @@ async def test_control_loop_skips_detector_for_non_activity_log_event(tmp_path) 
 
 
 # ---------------------------------------------------------------------------
-# Provider fake sanity — Protocol contracts are honored
+# Provider fake sanity - Protocol contracts are honored
 # ---------------------------------------------------------------------------
 
 

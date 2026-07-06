@@ -133,7 +133,7 @@ def test_right_size_below_floor_is_blocked() -> None:
 
 
 def test_autoscale_adjust_allowed_in_prod_without_scale_down_guard() -> None:
-    """AUTOSCALE_ADJUST is NOT a shutdown/right-size — it is a policy
+    """AUTOSCALE_ADJUST is NOT a shutdown/right-size - it is a policy
     change. It bypasses the production-lock branch on purpose."""
     guard = FinOpsGuard()
     decision = guard.evaluate(
