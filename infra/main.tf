@@ -159,7 +159,16 @@ module "compute" {
   executor_identity_id  = module.identity.resource_id
   image                 = var.core_image
   max_replicas          = var.max_replicas
-  tags                  = local.tags
+
+  # DB-DR drill (opt-in; the fork toggles dr_drill_enabled + supplies the
+  # source server ARM id once the runbook in docs/runbooks/db-dr-drill.md
+  # is signed off. Upstream keeps it disabled.).
+  dr_drill_enabled              = var.dr_drill_enabled
+  dr_drill_job_name             = "caj-${var.workload}${local.full_suffix}-drill"
+  dr_drill_source_server_arm_id = var.dr_drill_source_server_arm_id
+  dr_drill_dry_run              = var.dr_drill_dry_run
+
+  tags = local.tags
 }
 
 

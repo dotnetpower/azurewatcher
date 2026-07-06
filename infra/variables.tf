@@ -137,3 +137,21 @@ variable "measurement_scenario_set_version" {
   default     = "v2026.07"
 }
 
+
+variable "dr_drill_enabled" {
+  description = "Toggle the scheduled DB-DR drill Container Apps Job. Upstream ships false so a generic deploy does not incur drill cost until the fork signs off on the runbook in docs/runbooks/db-dr-drill.md."
+  type        = bool
+  default     = false
+}
+
+variable "dr_drill_source_server_arm_id" {
+  description = "ARM id of the production Postgres Flexible Server whose PITR checkpoint the drill restores. Required when dr_drill_enabled = true."
+  type        = string
+  default     = ""
+}
+
+variable "dr_drill_dry_run" {
+  description = "When true, the drill CLI logs its composed config and exits without touching Azure. Upstream default is true so accidentally enabling the drill does not incur cost; the fork sets false in production."
+  type        = bool
+  default     = true
+}
