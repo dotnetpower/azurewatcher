@@ -44,7 +44,12 @@ class FetchResult:
 
     ``resolved_revision`` is the immutable identifier the pipeline records
     on the snapshot's provenance (git commit sha for git, source path for
-    local, expected_sha256 for http).
+    local, expected_sha256 for http). It maps 1:1 into
+    :attr:`aiopspilot.shared.contracts.models.Provenance.resolved_ref`
+    on any downstream rule authored from this snapshot — the two field
+    names differ because ``resolved_revision`` is the collector's
+    computed value while ``resolved_ref`` is the rule author's declared
+    origin; the value is the same string.
     """
 
     tree_root: Path
