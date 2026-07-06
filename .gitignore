@@ -256,3 +256,12 @@ override.tf.json
 secrets/
 .secrets/
 
+
+# --------------------------------------------------------------------------
+# Rule-catalog collector snapshots — the collector writes tamper-evident
+# per-revision snapshots under `rule-catalog/sources/<id>/<short-rev>/`.
+# The `manifest.yaml` per source is committed; per-run snapshot dirs are
+# not (they carry machine-local absolute paths for `kind=local` and are
+# rebuilt on demand for any environment).
+# --------------------------------------------------------------------------
+rule-catalog/sources/*/*/

@@ -84,8 +84,15 @@
     },
     "parser": {
       "type": "string",
-      "description": "Parser plugin id. Later phases register concrete parsers (`rego`, `azure-policy-json`, `checkov-yaml`, ...); the collector rejects an unknown value at load time.",
-      "minLength": 1
+      "description": "Parser plugin id. Enum-locked; the dispatcher (`build_parser`) resolves each value to a concrete adapter. `rule-yaml` is built in; the rest are declared here so a manifest referencing them fails at collect time with a clear message rather than a silent no-op.",
+      "enum": [
+        "rule-yaml",
+        "rego",
+        "azure-policy-json",
+        "checkov-yaml",
+        "kube-bench",
+        "gatekeeper-templates"
+      ]
     },
     "cadence": {
       "type": "string",
