@@ -44,6 +44,11 @@ from aiopspilot.core.assurance_twin.query import (
     TypedQuery,
     execute_query,
 )
+from aiopspilot.core.assurance_twin.report import (
+    PostureAssessmentReport,
+    PostureVerdict,
+    build_posture_assessment_report,
+)
 
 __all__ = [
     "AbstainCode",
@@ -52,6 +57,8 @@ __all__ = [
     "DeterministicPatternCompiler",
     "InMemoryProjection",
     "NlQueryCompiler",
+    "PostureAssessmentReport",
+    "PostureVerdict",
     "Predicate",
     "PredicateOp",
     "QueryKind",
@@ -61,5 +68,6 @@ __all__ = [
     "QueryVerifier",
     "TypedQuery",
     "build_baseline_projection",
+    "build_posture_assessment_report",
     "execute_query",
 ]
