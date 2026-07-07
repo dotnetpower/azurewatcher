@@ -48,6 +48,8 @@ from .hil_registry import (
     HilPendingItem,
     HilRegistryError,
     MutationTarget,
+    hil_pending_item_from_action,
+    mutation_target_from_execution_path,
 )
 from .iac_review import (
     IacReview,
@@ -174,5 +176,7 @@ __all__ = [
     "SseSink",
     "StateStore",
     "WorkloadIdentity",
+    "hil_pending_item_from_action",
+    "mutation_target_from_execution_path",
     "resolve_cost_impact_monthly",
 ]

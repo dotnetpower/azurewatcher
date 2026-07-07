@@ -32,7 +32,14 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from aiopspilot.shared.contracts.models import (
+        Action,
+        ExecutionPath,
+        OntologyActionType,
+    )
 
 
 class HilApprovalDecision(StrEnum):
@@ -231,6 +238,103 @@ class HilApprovalRegistry(Protocol):
     ) -> HilDecisionReceipt: ...
 
 
+# ---------------------------------------------------------------------------
+# HilPendingItem factories (Wave W2.3g - auto-set mutation_target)
+# ---------------------------------------------------------------------------
+
+
+def mutation_target_from_execution_path(
+    execution_path: ExecutionPath | None,
+) -> MutationTarget | None:
+    """Map an :class:`~aiopspilot.shared.contracts.models.ExecutionPath`
+    onto the caller-facing :class:`MutationTarget`.
+
+    Values follow the R7 collapse in ``implementation-plan.md`` 2.6:
+    ``pr_manual`` shares the ``pr_native`` execution surface (the
+    ``require_manual_merge`` flag governs auto-merge on the same GitOps
+    adapter), so both PR paths render as
+    :attr:`MutationTarget.PR_NATIVE`. Unknown / ``None`` values map to
+    ``None`` so an ActionType predating F1 stays round-trippable.
+
+    Kept as a plain module-level function (no method on the enum) so a
+    caller can consume it without touching the ontology types.
+    """
+
+    if execution_path is None:
+        return None
+    # Deferred import avoids a hard runtime dependency on the pydantic
+    # ontology model from every HIL enqueue call site.
+    from aiopspilot.shared.contracts.models import ExecutionPath
+
+    if execution_path is ExecutionPath.DIRECT_API:
+        return MutationTarget.DIRECT_API
+    if execution_path in (ExecutionPath.PR_NATIVE, ExecutionPath.PR_MANUAL):
+        return MutationTarget.PR_NATIVE
+    return None
+
+
+def hil_pending_item_from_action(
+    *,
+    action: Action,
+    action_type: OntologyActionType | None,
+    approval_id: str,
+    submitter_oid: str,
+    reason: str = "",
+    citing_rule_ids: Sequence[str] | None = None,
+    correlation_id: str | None = None,
+    requested_at: datetime | None = None,
+    action_hash: str = "",
+    metadata: Mapping[str, str] | None = None,
+) -> HilPendingItem:
+    """Assemble a :class:`HilPendingItem` from an
+    :class:`~aiopspilot.shared.contracts.models.Action` and its
+    :class:`~aiopspilot.shared.contracts.models.OntologyActionType`.
+
+    Sets :attr:`HilPendingItem.mutation_target` from
+    ``action_type.execution_path`` via
+    :func:`mutation_target_from_execution_path` so an Approver sees
+    the executor sibling the decision will dispatch to without the
+    call site having to compute the mapping.
+
+    ``action_type=None`` is accepted (the caller may not have resolved
+    the ontology entry) - the pending item's ``mutation_target`` stays
+    ``None`` and everything else is populated from ``action``.
+
+    Callers that seed the item with additional metadata pass it via
+    ``metadata``. This helper does NOT enqueue - it only assembles the
+    frozen record so the registry write is a straightforward
+    ``registry.record_hil(item)`` call.
+    """
+
+    if not approval_id:
+        raise ValueError("approval_id MUST be non-empty")
+    if not submitter_oid:
+        raise ValueError("submitter_oid MUST be non-empty")
+
+    exec_path = getattr(action_type, "execution_path", None)
+    resolved_citing: Sequence[str]
+    if citing_rule_ids is not None:
+        resolved_citing = citing_rule_ids
+    else:
+        resolved_citing = getattr(action, "citing_rules", ()) or ()
+    return HilPendingItem(
+        idempotency_key=str(action.idempotency_key),
+        approval_id=approval_id,
+        event_id=str(action.event_id),
+        action_id=str(action.action_id),
+        action_kind=str(action.action_type),
+        target_resource_ref=str(action.target_resource_ref),
+        reason=reason,
+        submitter_oid=submitter_oid,
+        citing_rule_ids=tuple(resolved_citing),
+        requested_at=requested_at,
+        correlation_id=correlation_id,
+        action_hash=action_hash,
+        mutation_target=mutation_target_from_execution_path(exec_path),
+        metadata=dict(metadata or {}),
+    )
+
+
 __all__ = [
     "HilApprovalDecision",
     "HilApprovalRegistry",
@@ -240,4 +344,6 @@ __all__ = [
     "HilPendingItem",
     "HilRegistryError",
     "MutationTarget",
+    "hil_pending_item_from_action",
+    "mutation_target_from_execution_path",
 ]
