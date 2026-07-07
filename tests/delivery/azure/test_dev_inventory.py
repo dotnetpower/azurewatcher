@@ -9,11 +9,11 @@ from unittest.mock import patch
 
 import pytest
 
-from aiopspilot.delivery.azure.dev_inventory import (
+from fdai.delivery.azure.dev_inventory import (
     AzureCliInventory,
     AzureCliInventoryError,
 )
-from aiopspilot.shared.providers.inventory import InventoryBatch
+from fdai.shared.providers.inventory import InventoryBatch
 
 
 def _completed(
@@ -32,7 +32,7 @@ class TestFullSnapshot:
     def test_yields_final_batch_at_end(self) -> None:
         inv = AzureCliInventory(resource_types=("resource-group",))
         with patch(
-            "aiopspilot.delivery.azure.dev_inventory.subprocess.run",
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
             return_value=_completed("[]"),
         ):
             batches = asyncio.run(_drain(inv))
@@ -57,7 +57,7 @@ class TestFullSnapshot:
         )
         inv = AzureCliInventory(resource_types=("resource-group",))
         with patch(
-            "aiopspilot.delivery.azure.dev_inventory.subprocess.run",
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
             return_value=_completed(payload),
         ):
             batches = asyncio.run(_drain(inv))
@@ -76,7 +76,7 @@ class TestFullSnapshot:
     def test_unknown_resource_type_skipped(self) -> None:
         inv = AzureCliInventory(resource_types=("resource-group", "not-a-type"))
         with patch(
-            "aiopspilot.delivery.azure.dev_inventory.subprocess.run",
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
             return_value=_completed("[]"),
         ) as run:
             batches = asyncio.run(_drain(inv))
@@ -96,7 +96,7 @@ class TestFullSnapshot:
         payload_sa = json.dumps([{"id": sa_id, "name": "sa1"}])
         inv = AzureCliInventory(resource_types=("resource-group", "object-storage"))
         with patch(
-            "aiopspilot.delivery.azure.dev_inventory.subprocess.run",
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
             side_effect=[_completed(payload_rg), _completed(payload_sa)],
         ):
             batches = asyncio.run(_drain(inv))
@@ -117,7 +117,7 @@ class TestFullSnapshot:
             subscription_id="00000000-0000-0000-0000-000000000000",
         )
         with patch(
-            "aiopspilot.delivery.azure.dev_inventory.subprocess.run",
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
             side_effect=_side_effect,
         ):
             asyncio.run(_drain(inv))
@@ -130,7 +130,7 @@ class TestErrorPaths:
     def test_non_zero_exit_raises(self) -> None:
         inv = AzureCliInventory(resource_types=("resource-group",))
         with patch(
-            "aiopspilot.delivery.azure.dev_inventory.subprocess.run",
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
             return_value=_completed("", returncode=1, stderr="run 'az login'"),
         ):
             with pytest.raises(AzureCliInventoryError, match="exited with code 1"):
@@ -139,7 +139,7 @@ class TestErrorPaths:
     def test_missing_az_binary_raises(self) -> None:
         inv = AzureCliInventory(resource_types=("resource-group",))
         with patch(
-            "aiopspilot.delivery.azure.dev_inventory.subprocess.run",
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
             side_effect=FileNotFoundError,
         ):
             with pytest.raises(AzureCliInventoryError, match="not found on PATH"):
@@ -148,7 +148,7 @@ class TestErrorPaths:
     def test_timeout_raises(self) -> None:
         inv = AzureCliInventory(resource_types=("resource-group",))
         with patch(
-            "aiopspilot.delivery.azure.dev_inventory.subprocess.run",
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
             side_effect=subprocess.TimeoutExpired(cmd="az", timeout=30),
         ):
             with pytest.raises(AzureCliInventoryError, match="timed out"):
@@ -157,7 +157,7 @@ class TestErrorPaths:
     def test_non_json_stdout_raises(self) -> None:
         inv = AzureCliInventory(resource_types=("resource-group",))
         with patch(
-            "aiopspilot.delivery.azure.dev_inventory.subprocess.run",
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
             return_value=_completed("not-json"),
         ):
             with pytest.raises(AzureCliInventoryError, match="non-JSON"):
@@ -166,7 +166,7 @@ class TestErrorPaths:
     def test_non_list_json_stdout_raises(self) -> None:
         inv = AzureCliInventory(resource_types=("resource-group",))
         with patch(
-            "aiopspilot.delivery.azure.dev_inventory.subprocess.run",
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
             return_value=_completed('{"not":"a list"}'),
         ):
             with pytest.raises(AzureCliInventoryError, match="non-list"):

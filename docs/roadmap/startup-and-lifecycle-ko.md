@@ -1,13 +1,13 @@
 ---
 title: 시작과 라이프사이클(Startup and Lifecycle)
 translation_of: startup-and-lifecycle.md
-translation_source_sha: 32da6d1cde673754e7ac8085776429e1970c8347
+translation_source_sha: 1a49f45308a638358ddcecb726f0214aa5331374
 translation_revised: 2026-07-07
 ---
 
 # 시작과 라이프사이클(Startup and Lifecycle)
 
-AIOpsPilot가 새로 프로비저닝된 Azure 구독에서 **콜드로 시작해 정상 상태에 도달** 하는 방법.
+FDAI가 새로 프로비저닝된 Azure 구독에서 **콜드로 시작해 정상 상태에 도달** 하는 방법.
 답변: 시스템은 언제 "시작"하는가? 첫날 카탈로그에 무엇이 있는가? 자율 discovery 루프는 언제
 시작하는가? shadow → enforce 라이프사이클은 어떻게 시퀀싱되는가?
 
@@ -157,7 +157,7 @@ T2가 실행되기 전에 capability→deployment 매핑이 해결되어야 함.
    ([user-rbac-and-identity-ko.md#51-codeowners-single-approver-group-path-based-reviewer-count](user-rbac-and-identity-ko.md#51-codeowners-single-approver-group-path-based-reviewer-count)).
 5. executor의 Chat 어댑터 config에 승인자 그룹 id 등록하여 Adaptive Card 승인이 롤 claim을
    검증할 수 있게 함.
-6. **Slack 워크스페이스 프로비저닝** (P1 A1 채널): AIOpsPilot Slack 앱 설치, `chat:write`
+6. **Slack 워크스페이스 프로비저닝** (P1 A1 채널): FDAI Slack 앱 설치, `chat:write`
    부여, 필수 Slack userId ↔ Entra OID 매핑 저장소 채움; 매핑이 비어 있지 않을 때까지 Slack
    어댑터는 A1 트래픽 거부
    ([channels-and-notifications-ko.md#7-channel-specific-notes](channels-and-notifications-ko.md#7-channel-specific-notes)).

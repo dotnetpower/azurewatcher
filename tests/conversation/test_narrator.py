@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.conversation.narrator import (
+from fdai.core.conversation.narrator import (
     DeterministicKeywordNarrator,
     ToolSchema,
     default_tool_schemas,
@@ -122,7 +122,7 @@ class TestToolSchemaDefaults:
         A new verb in coordinator._VERB_PATTERNS MUST also land in
         `default_tool_schemas()` or the narrator prompt is stale.
         """
-        from aiopspilot.core.conversation.coordinator import _VERB_PATTERNS
+        from fdai.core.conversation.coordinator import _VERB_PATTERNS
 
         # tool_name is the target verb we route to; take the unique set.
         coordinator_tool_names = {tool for _pattern, tool in _VERB_PATTERNS}
@@ -170,12 +170,12 @@ class TestToolSchemaDefaults:
 
 class TestCoordinatorNarratorHook:
     def _tools(self):  # type: ignore[no-untyped-def]
-        from aiopspilot.core.conversation import ExploreCatalogTool
+        from fdai.core.conversation import ExploreCatalogTool
 
         return [ExploreCatalogTool(rules=[], action_types=[])]
 
     def _session(self, role: str = "reader"):  # type: ignore[no-untyped-def]
-        from aiopspilot.core.conversation import (
+        from fdai.core.conversation import (
             ConversationSession,
             Principal,
             Role,
@@ -189,7 +189,7 @@ class TestCoordinatorNarratorHook:
         )
 
     def test_no_narrator_leaves_regex_behaviour_intact(self) -> None:
-        from aiopspilot.core.conversation import (
+        from fdai.core.conversation import (
             AbstainResult,
             ConversationCoordinator,
         )
@@ -199,7 +199,7 @@ class TestCoordinatorNarratorHook:
         assert isinstance(result, AbstainResult)
 
     def test_narrator_hits_when_regex_misses(self) -> None:
-        from aiopspilot.core.conversation import (
+        from fdai.core.conversation import (
             ConversationCoordinator,
             DeterministicKeywordNarrator,
             ToolResult,
@@ -224,7 +224,7 @@ class TestCoordinatorNarratorHook:
         assert isinstance(result, ToolResult)
 
     def test_narrator_returning_none_falls_through_to_abstain(self) -> None:
-        from aiopspilot.core.conversation import (
+        from fdai.core.conversation import (
             AbstainResult,
             ConversationCoordinator,
         )
@@ -245,7 +245,7 @@ class TestCoordinatorNarratorHook:
         assert isinstance(result, AbstainResult)
 
     def test_narrator_error_falls_through_to_abstain(self) -> None:
-        from aiopspilot.core.conversation import (
+        from fdai.core.conversation import (
             AbstainResult,
             ConversationCoordinator,
         )
@@ -265,7 +265,7 @@ class TestCoordinatorNarratorHook:
         assert isinstance(result, AbstainResult)
 
     def test_narrator_translation_logged_as_system_turn(self) -> None:
-        from aiopspilot.core.conversation import (
+        from fdai.core.conversation import (
             ConversationCoordinator,
             DeterministicKeywordNarrator,
             default_tool_schemas,

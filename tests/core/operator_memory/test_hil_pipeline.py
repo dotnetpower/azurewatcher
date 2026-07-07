@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`aiopspilot.core.operator_memory.hil_pipeline`."""
+"""Unit tests for :mod:`fdai.core.operator_memory.hil_pipeline`."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from aiopspilot.core.operator_memory import (
+from fdai.core.operator_memory import (
     HilMaterializationError,
     HilRejectMaterial,
     HilRejectMaterializer,
@@ -16,7 +16,7 @@ from aiopspilot.core.operator_memory import (
     OperatorMemoryPolicyError,
     ScopeKind,
 )
-from aiopspilot.shared.providers.hil_channel import HilDecision, HilResponse
+from fdai.shared.providers.hil_channel import HilDecision, HilResponse
 
 
 def _hil_response(
@@ -243,6 +243,6 @@ class TestStoreErrorsPropagateUnchanged:
         # The sanitizer raises InjectionMarkerError, which is a subclass of
         # OperatorMemoryPolicyError. Importing InjectionMarkerError directly
         # keeps the assertion explicit.
-        from aiopspilot.core.operator_memory import InjectionMarkerError
+        from fdai.core.operator_memory import InjectionMarkerError
 
         assert isinstance(info.value, InjectionMarkerError)

@@ -8,10 +8,10 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.rbac.enforcer import RoleEnforcer, RoleRequiredError
-from aiopspilot.core.rbac.resolver import GroupMapping, RoleResolver
-from aiopspilot.core.rbac.roles import Role
-from aiopspilot.delivery.read_api.auth import (
+from fdai.core.rbac.enforcer import RoleEnforcer, RoleRequiredError
+from fdai.core.rbac.resolver import GroupMapping, RoleResolver
+from fdai.core.rbac.roles import Role
+from fdai.delivery.read_api.auth import (
     AuthenticationError,
     Authenticator,
     UnsafeClaimsExtractor,

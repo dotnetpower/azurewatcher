@@ -1,4 +1,4 @@
-# AIOpsPilot - Copilot Instructions
+# FDAI - Copilot Instructions
 
 Autonomous cloud operations control plane - an **AIOps** approach whose initial verticals
 are **Resilience** (disaster recovery and chaos/resilience testing), **Change Safety** (safe
@@ -26,7 +26,7 @@ principles into a phased engineering plan.
 
 ## Implementation Focus (MUST)
 
-- **AIOpsPilot's implemented target is Azure.** All engineering work - provider adapters,
+- **FDAI's implemented target is Azure.** All engineering work - provider adapters,
   event sources, executor identity, rule collectors, and the deployment topology - targets
   Azure first.
 - **Non-Azure providers (AWS, GCP, and multi-cloud expansion) are TBD** and out of scope

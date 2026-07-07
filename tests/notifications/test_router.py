@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.notifications import (
+from fdai.core.notifications import (
     ChannelRegistry,
     MatrixValidationError,
     NotificationMatrix,
@@ -34,13 +34,13 @@ from aiopspilot.core.notifications import (
     RouteSpec,
     load_matrix_from_mapping,
 )
-from aiopspilot.shared.providers.notifications import (
+from fdai.shared.providers.notifications import (
     NotificationMessage,
     Severity,
     TrustTier,
 )
-from aiopspilot.shared.providers.notifications.base import Link
-from aiopspilot.shared.providers.testing.notifications import (
+from fdai.shared.providers.notifications.base import Link
+from fdai.shared.providers.testing.notifications import (
     FakeEmailChannel,
     FakeHilEscalationSink,
     FakePagerDutyChannel,
@@ -48,7 +48,7 @@ from aiopspilot.shared.providers.testing.notifications import (
     FakeTeamsChannel,
     FakeWebhookChannel,
 )
-from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -299,7 +299,7 @@ class TestMatrixLoader:
         # Sanity-check the shipped matrix parses cleanly.
         from pathlib import Path
 
-        from aiopspilot.core.notifications import load_matrix_from_yaml
+        from fdai.core.notifications import load_matrix_from_yaml
 
         repo_matrix = Path(__file__).resolve().parents[2] / "config" / "notifications-matrix.yaml"
         loaded = load_matrix_from_yaml(repo_matrix)

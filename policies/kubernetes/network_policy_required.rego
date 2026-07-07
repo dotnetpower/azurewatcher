@@ -7,7 +7,7 @@
 #   rule_id: kubernetes-cluster.network-policy
 #   severity: high
 #   category: security
-package aiopspilot.kubernetes.network_policy_required
+package fdai.kubernetes.network_policy_required
 
 import rego.v1
 

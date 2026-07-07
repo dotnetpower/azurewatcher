@@ -5,7 +5,7 @@ description: Why every new autonomous action ships in shadow first, and how it e
 
 # Shadow, then enforce
 
-New autonomous actions in AIOpsPilot never turn on all at once. Each rule,
+New autonomous actions in FDAI never turn on all at once. Each rule,
 detector, and remediation ships in **shadow mode** first - it makes the same
 decision it *would* make in production, but the decision is recorded, not
 applied. Only after a measured comparison against the baseline does the

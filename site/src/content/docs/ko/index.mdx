@@ -1,5 +1,5 @@
 ---
-title: AIOpsPilot
+title: FDAI
 description: 결정론 우선(deterministic-first) 자율 클라우드 운영 제어 평면.
 template: splash
 hero:
@@ -19,7 +19,7 @@ import { Card, CardGrid } from "@astrojs/starlight/components";
 import TrustTierFunnel from "../../../components/TrustTierFunnel.astro";
 import ActionOntologyExplorer from "../../../components/ActionOntologyExplorer.astro";
 
-## AIOpsPilot이 이벤트를 해소하는 방식
+## FDAI이 이벤트를 해소하는 방식
 
 <p class="hero-note">하나의 제어 루프: 정규화하고, 신뢰도로 라우팅하고, 리스크로 게이팅하고, 항상 기록으로 남깁니다. LLM은 결정론 티어들이 명시적으로 abstain한 잔여 소수만 봅니다.</p>
 
@@ -49,7 +49,7 @@ flowchart LR
   heading="티어가 부하를 나누는 방식"
   intro="신뢰도로 라우팅한다: 이벤트를 해소할 수 있는 가장 저렴한 티어가 처리한다. 대부분의 이벤트는 모델에 도달하지 않는다."
   inflowLabel="개 이벤트 유입"
-  note="설계 목표이며 측정된 결과가 아닙니다 - AIOpsPilot은 짝을 이룬 기준선 측정 없이 수치를 주장하지 않습니다."
+  note="설계 목표이며 측정된 결과가 아닙니다 - FDAI은 짝을 이룬 기준선 측정 없이 수치를 주장하지 않습니다."
   labels={[
     { label: "결정론적", sub: "규칙 - 정책 - 체크리스트" },
     { label: "경량 재사용", sub: "임베딩 유사도 - 소형 분류기" },
@@ -89,7 +89,7 @@ flowchart LR
   <li>
     <span class="impact-tick" aria-hidden="true">↳</span>
     <em>위 수치는 모두 설계 목표이지 측정된 결과가 아닙니다.</em>
-    AIOpsPilot은 짝을 이룬 기준선 측정 없이 배수를 주장하지 않습니다.
+    FDAI은 짝을 이룬 기준선 측정 없이 배수를 주장하지 않습니다.
   </li>
 </ul>
 

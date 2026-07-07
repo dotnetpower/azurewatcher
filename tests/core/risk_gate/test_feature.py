@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.core.risk_gate.feature import feature_vector_from
-from aiopspilot.core.risk_gate.risk_table import RiskLevel, load_risk_table
-from aiopspilot.shared.contracts.models import (
+from fdai.core.risk_gate.feature import feature_vector_from
+from fdai.core.risk_gate.risk_table import RiskLevel, load_risk_table
+from fdai.shared.contracts.models import (
     ActionBlastRadius,
     ActionInterface,
     BlastRadiusComputation,

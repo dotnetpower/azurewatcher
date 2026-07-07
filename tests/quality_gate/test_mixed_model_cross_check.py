@@ -29,20 +29,20 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.quality_gate import (
+from fdai.core.quality_gate import (
     QualityCandidate,
     QualityGate,
     QualityGateConfig,
     QualityOutcome,
 )
-from aiopspilot.core.quality_gate.gate import CrossCheckModel
-from aiopspilot.core.quality_gate.testing import (
+from fdai.core.quality_gate.gate import CrossCheckModel
+from fdai.core.quality_gate.testing import (
     InMemoryGroundingSource,
     MatchTypeCrossCheckModel,
     MismatchCrossCheckModel,
     StaticVerifier,
 )
-from aiopspilot.shared.contracts.models import Rule
+from fdai.shared.contracts.models import Rule
 
 
 def _candidate(valid_rule: dict[str, object]) -> QualityCandidate:
@@ -158,7 +158,7 @@ def test_resolver_denies_same_publisher_primary_and_secondary() -> None:
     preferences gets a hard failure instead of silently forming a
     correlated pair.
     """
-    from aiopspilot.rule_catalog.schema.llm_resolver import (
+    from fdai.rule_catalog.schema.llm_resolver import (
         CapabilityStatus,
         ResolvedCapability,
         ResolverError,
@@ -191,7 +191,7 @@ def test_resolver_denies_same_publisher_primary_and_secondary() -> None:
 
 def test_resolver_accepts_distinct_publisher_pair() -> None:
     """Two distinct publishers pass the invariant."""
-    from aiopspilot.rule_catalog.schema.llm_resolver import (
+    from fdai.rule_catalog.schema.llm_resolver import (
         CapabilityStatus,
         ResolvedCapability,
         _enforce_mixed_model_invariant,
@@ -227,7 +227,7 @@ def test_resolver_permits_same_publisher_when_one_is_hil_only() -> None:
     that capability already cannot auto-execute. The resolver MUST NOT
     raise in this case.
     """
-    from aiopspilot.rule_catalog.schema.llm_resolver import (
+    from fdai.rule_catalog.schema.llm_resolver import (
         CapabilityStatus,
         ResolvedCapability,
         _enforce_mixed_model_invariant,

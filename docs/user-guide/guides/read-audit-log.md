@@ -5,7 +5,7 @@ description: What the append-only audit log records for every autonomous decisio
 
 # Read the audit log
 
-The audit log is AIOpsPilot's single source of truth for what happened. It
+The audit log is FDAI's single source of truth for what happened. It
 is append-only, immutable, and covers every autonomous decision the control
 plane makes - including the ones that ended in a rejection, a timeout, or a
 no-op. This guide covers what each entry contains and how to walk backwards
@@ -37,7 +37,7 @@ Start with the symptom (a metric spike, an alert, a resource that changed
 unexpectedly) and walk backwards:
 
 1. Find the resource in the audit log. Every mutation shows up whether it
-   originated from AIOpsPilot or from an out-of-band change.
+   originated from FDAI or from an out-of-band change.
 2. Read the latest entry for that resource. It gives you the event id and
    the decision chain that produced the mutation.
 3. Follow the event id backwards. Every event with that id is a related
@@ -45,7 +45,7 @@ unexpectedly) and walk backwards:
    an escalation to T1, and a HIL request, all sharing the id.
 4. Cross-reference the shadow entries. Even actions that were never
    executed show up in shadow mode with their would-have-been decision, so
-   you can see what AIOpsPilot proposed vs what a human actually did.
+   you can see what FDAI proposed vs what a human actually did.
 
 ## Replay and post-incident review
 

@@ -1,6 +1,6 @@
 # UI CLI - operator-console streaming-briefing mock
 
-A static, dependency-free mock of the AIOpsPilot **operator-console CLI**, rendered as a
+A static, dependency-free mock of the FDAI **operator-console CLI**, rendered as a
 terminal that plays a JARVIS-style *streaming briefing*: boot banner, a narrated greeting,
 a throughput chart drawn left-to-right, trust-tier bars filling, then a branch into either
 the human-in-the-loop (**HIL**) approval cards or an all-clear free-chat prompt.
@@ -17,7 +17,7 @@ the human-in-the-loop (**HIL**) approval cards or an all-clear free-chat prompt.
 ## The idea: never a blank prompt
 
 Coding CLIs (Copilot, Claude Code, Gemini) open on an empty cursor - a first-time user does
-not know what to do. AIOpsPilot is the opposite: the control plane is **already running your
+not know what to do. FDAI is the opposite: the control plane is **already running your
 cloud autonomously**, so the console is a **pull-direction** surface. It opens on a briefing
 that answers "what happened, and what needs me?", never on a blank prompt.
 

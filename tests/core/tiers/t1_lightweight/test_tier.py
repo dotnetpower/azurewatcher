@@ -6,18 +6,18 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.tiers.t1_lightweight import (
+from fdai.core.tiers.t1_lightweight import (
     LearnedAction,
     T1Config,
     T1Outcome,
     T1Tier,
     cosine_similarity,
 )
-from aiopspilot.core.tiers.t1_lightweight.testing import (
+from fdai.core.tiers.t1_lightweight.testing import (
     DeterministicEmbeddingModel,
     InMemoryPatternLibrary,
 )
-from aiopspilot.shared.contracts.models import Event
+from fdai.shared.contracts.models import Event
 
 
 def _event(
@@ -123,7 +123,7 @@ async def test_low_success_rate_abstains_even_when_similarity_high() -> None:
     event = _event(payload=payload)
 
     # Seed the library with the exact vector of the query so score ≈ 1.0.
-    from aiopspilot.core.tiers.t1_lightweight.tier import _event_text  # type: ignore
+    from fdai.core.tiers.t1_lightweight.tier import _event_text  # type: ignore
 
     query_vector = await embed.embed(_event_text(event))
     library.add(vector=query_vector, action=_action(success_rate=0.5))
@@ -150,7 +150,7 @@ async def test_exact_match_reuses_learned_action() -> None:
     payload = {"resource": {"type": "object-storage", "props": {"public_access": True}}}
     event = _event(payload=payload)
 
-    from aiopspilot.core.tiers.t1_lightweight.tier import _event_text  # type: ignore
+    from fdai.core.tiers.t1_lightweight.tier import _event_text  # type: ignore
 
     matching_vector = await embed.embed(_event_text(event))
     library.add(vector=matching_vector, action=_action(success_rate=0.99))
@@ -173,7 +173,7 @@ async def test_best_match_is_the_highest_score_neighbour() -> None:
     payload = {"resource": {"type": "object-storage", "props": {"public_access": True}}}
     event = _event(payload=payload)
 
-    from aiopspilot.core.tiers.t1_lightweight.tier import _event_text  # type: ignore
+    from fdai.core.tiers.t1_lightweight.tier import _event_text  # type: ignore
 
     query_vector = await embed.embed(_event_text(event))
     unrelated_vector = await embed.embed("garbage-text-nowhere-near")

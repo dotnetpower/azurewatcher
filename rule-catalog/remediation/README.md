@@ -40,9 +40,9 @@ remediation/
 ## Consumption
 
 The executor loads a template through
-[`aiopspilot.core.executor.renderer`](../../src/aiopspilot/core/executor/renderer.py),
+[`fdai.core.executor.renderer`](../../src/fdai/core/executor/renderer.py),
 substitutes safe `Action.params` values, and hands the rendered text to a
-[`RemediationPrPublisher`](../../src/aiopspilot/shared/providers/remediation_pr.py)
+[`RemediationPrPublisher`](../../src/fdai/shared/providers/remediation_pr.py)
 adapter - which opens a **shadow-labeled draft PR** in P1. Actual merge is
 gated off; phase-2 promotes an action to enforce after the shadow-mode
 metrics clear the promotion gate declared on its `ActionType`.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.conversation import (
+from fdai.core.conversation import (
     DescribeEventTool,
     ExplainVerdictTool,
     Principal,
@@ -14,12 +14,12 @@ from aiopspilot.core.conversation import (
     SystemConsoleTool,
     ToolResult,
 )
-from aiopspilot.core.conversation.system_tools import AuditReader, InventoryProvider
-from aiopspilot.core.tiers.t0_deterministic import T0Engine
-from aiopspilot.core.tiers.t0_deterministic.engine import AbstainEvaluator
-from aiopspilot.core.tiers.t0_deterministic.index import RuleIndex
-from aiopspilot.core.trust_router import TrustRouter
-from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+from fdai.core.conversation.system_tools import AuditReader, InventoryProvider
+from fdai.core.tiers.t0_deterministic import T0Engine
+from fdai.core.tiers.t0_deterministic.engine import AbstainEvaluator
+from fdai.core.tiers.t0_deterministic.index import RuleIndex
+from fdai.core.trust_router import TrustRouter
+from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
 
 @pytest.fixture
@@ -28,12 +28,12 @@ def rules_and_index():
 
     import yaml
 
-    from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-    from aiopspilot.rule_catalog.schema.resource_type import (
+    from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+    from fdai.rule_catalog.schema.resource_type import (
         load_resource_type_registry_from_mapping,
     )
-    from aiopspilot.rule_catalog.schema.rule import load_rule_catalog
-    from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+    from fdai.rule_catalog.schema.rule import load_rule_catalog
+    from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
     repo_root = Path(__file__).resolve().parents[2]
     registry = PackageResourceSchemaRegistry()
@@ -151,7 +151,7 @@ def test_explain_verdict_returns_matched_entries():
                 {
                     "event_id": "00000000-0000-0000-0000-000000000001",
                     "action_kind": "control_loop.abstain",
-                    "actor": "aiopspilot.core.control_loop",
+                    "actor": "fdai.core.control_loop",
                     "decision": "abstain",
                     "recorded_at": "2026-07-06T22:00:00Z",
                     "reason": "t0_no_match",
@@ -159,7 +159,7 @@ def test_explain_verdict_returns_matched_entries():
                 {
                     "event_id": "00000000-0000-0000-0000-000000000002",
                     "action_kind": "control_loop.abstain",
-                    "actor": "aiopspilot.core.control_loop",
+                    "actor": "fdai.core.control_loop",
                     "decision": "abstain",
                     "recorded_at": "2026-07-06T22:01:00Z",
                     "reason": "t0_no_match",
@@ -207,14 +207,14 @@ def test_query_audit_filters_by_decision_and_actor():
                 {
                     "event_id": "00000000-0000-0000-0000-000000000001",
                     "action_kind": "control_loop.abstain",
-                    "actor": "aiopspilot.core.control_loop",
+                    "actor": "fdai.core.control_loop",
                     "decision": "abstain",
                     "recorded_at": "2026-07-06T22:00:00Z",
                 },
                 {
                     "event_id": "00000000-0000-0000-0000-000000000002",
                     "action_kind": "executor.shadow",
-                    "actor": "aiopspilot.core.executor",
+                    "actor": "fdai.core.executor",
                     "decision": "auto",
                     "recorded_at": "2026-07-06T22:01:00Z",
                 },

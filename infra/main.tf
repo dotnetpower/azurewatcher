@@ -14,7 +14,7 @@ locals {
     workload        = var.workload
     env             = var.env == "" ? "day-zero" : var.env
     managed_by      = "terraform"
-    source_of_truth = "aiopspilot"
+    source_of_truth = "fdai"
   }
   tags = merge(local.base_tags, var.additional_tags)
 

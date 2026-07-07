@@ -93,7 +93,7 @@ variable "dr_drill_source_server_arm_id" {
 variable "dr_drill_target_rg_prefix" {
   description = "Prefix for the isolated resource group the drill lands in."
   type        = string
-  default     = "rg-aiopspilot-dr-drill"
+  default     = "rg-fdai-dr-drill"
 }
 
 variable "dr_drill_target_server_prefix" {

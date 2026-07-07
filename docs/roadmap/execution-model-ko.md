@@ -1,20 +1,20 @@
 ---
 title: Execution 모델
 translation_of: execution-model.md
-translation_source_sha: 2c62af9fb183b375bddc5e786430d91b62d7f9f3
+translation_source_sha: fea01f39909a76a6b550f82cc0f1953f33b15bb6
 translation_revised: 2026-07-07
 ---
 
 # Execution 모델
 
-AIOpsPilot 이 액션 실행 **여부** 와 **방법** 을 결정하는 방식. 이 문서는
+FDAI 이 액션 실행 **여부** 와 **방법** 을 결정하는 방식. 이 문서는
 통합 RiskGate, 권위적 [risk-classification.md](risk-classification-ko.md)
 first-match 표가 **6-axis** ActionType ceiling 과 결합하는 방식, 3개의
 executor 경로 (PR-native / direct API / PR-manual), live-blast probe
 combinator, 그리고 live 변경이 만족해야 하는 safety invariant 를
 권위적으로 정의한다.
 
-> 결정-엔진 관계 (권위적): AIOpsPilot 은 **하나의** 결정을 가지며, 그것은
+> 결정-엔진 관계 (권위적): FDAI 은 **하나의** 결정을 가지며, 그것은
 > **두** 입력을 결합해 생성된다. [risk-classification.md](risk-classification-ko.md)
 > first-match 표가 **권위적 baseline** - finding feature vector
 > (`policy_violation`, `destructive`, `irreversible`, `data_plane_touched`,
@@ -42,7 +42,7 @@ combinator, 그리고 live 변경이 만족해야 하는 safety invariant 를
 
 ## 1. 여기서 "execute" 의 의미
 
-이 문서 이전까지, AIOpsPilot 이 하는 모든 것은 **shadow** 였음 - judge
+이 문서 이전까지, FDAI 이 하는 모든 것은 **shadow** 였음 - judge
 하고 log, mutate 절대 안 함. Execute 는 모든 gate 통과 후 executor 가
 mutation surface (git PR merge, Azure ARM API, scripted rollback runner)
 를 실제로 호출하는 것. Shadow mode 는 모든 신규 액션의 기본으로 여전히
@@ -186,7 +186,7 @@ resolved role ([user-rbac-and-identity.md](user-rbac-and-identity-ko.md)
 
 룰-발화 액션의 경우 "principal" 은 executor identity (시스템 MI); 그
 role 은 composition time 에 fixed
-([composition.py](../../src/aiopspilot/composition.py)).
+([composition.py](../../src/fdai/composition.py)).
 
 ### 2.6 Axis G - Environment (prod downgrade)
 
@@ -220,34 +220,34 @@ quorum 과 axis-선언 quorum 의 최대값.
 비용 추정을 가진 `ops.scale-out` 은 절대 `auto` 아님; 이는 `direct_api`
 fast path 를 통해 우회될 수 있는 런타임 ops 에 대해 Cost Governance
 vertical 을 권위적으로 유지. Cost Governance vertical
-([verticals](../../src/aiopspilot/core/verticals)) 이 추정 함수를 소유;
+([verticals](../../src/fdai/core/verticals)) 이 추정 함수를 소유;
 ActionType 은 그것을 참조만 함.
 
 ## 3. 통합 RiskGate
 
 RiskGate 는
-[`src/aiopspilot/core/risk_gate/`](../../src/aiopspilot/core/risk_gate/)
+[`src/fdai/core/risk_gate/`](../../src/fdai/core/risk_gate/)
 에 살고 **두** trigger surface (룰-발화와 오퍼레이터-요청; see
 [action-ontology.md § 4](action-ontology-ko.md#4-트리거-surface))
 의 단일 결정 지점.
 
 > 구현 상태: 순수 combinator 는
-> [`ceiling.py`](../../src/aiopspilot/core/risk_gate/ceiling.py) (6축),
-> [`risk_table.py`](../../src/aiopspilot/core/risk_gate/risk_table.py)
+> [`ceiling.py`](../../src/fdai/core/risk_gate/ceiling.py) (6축),
+> [`risk_table.py`](../../src/fdai/core/risk_gate/risk_table.py)
 > (Axis A first-match 표 + `rule-catalog/risk-classification.yaml`),
-> [`feature.py`](../../src/aiopspilot/core/risk_gate/feature.py)
+> [`feature.py`](../../src/fdai/core/risk_gate/feature.py)
 > (`FeatureVector` 추출기) 로 ship 되고,
-> [`authority.py`](../../src/aiopspilot/core/risk_gate/authority.py)
+> [`authority.py`](../../src/fdai/core/risk_gate/authority.py)
 > `evaluate_execution_authority()` 가 end-to-end 로 통합. 이 함수가 단일
 > 파이프라인 `feature -> table (Axis A) -> 6축 min() -> ExecutionAuthorityDecision`.
-> [`ControlLoop`](../../src/aiopspilot/core/control_loop.py) 이 두 모드로
+> [`ControlLoop`](../../src/fdai/core/control_loop.py) 이 두 모드로
 > 호출한다. risk table 만 배선된 경우 실행 액션당 `risk_gate.shadow_authority`
 > audit 엔트리 1개를 기록 (authority 전용, judge+log, executor 경로 무변경).
 > risk table 과 기존
-> [`gate.py`](../../src/aiopspilot/core/risk_gate/gate.py) `RiskGate` 가
+> [`gate.py`](../../src/fdai/core/risk_gate/gate.py) `RiskGate` 가
 > 모두 배선된 경우, gate (런타임 Action 안전: exemption / precondition /
 > promotion) 와 authority (정책 ceiling) 를
-> [`evaluator.py`](../../src/aiopspilot/core/risk_gate/evaluator.py)
+> [`evaluator.py`](../../src/fdai/core/risk_gate/evaluator.py)
 > `combine()` 이 단일 `UnifiedRiskDecision` 으로 결합하고 (canonical-level
 > `min()`, 두 evaluator 무변경), 루프가 그 위에서 **라우팅**한다: `deny` 나
 > `hil` 결정은 executor 를 건너뛰고 (전체 outcome `DENIED` / `HIL`, PR 미발행),
@@ -290,10 +290,10 @@ class RiskDecision:
   결정론성 (§7) 을 보존하고, `evaluate` 를
   [coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md#safety)
   의 async seam 목록 밖에 두며, 기존 동기
-  [`RiskGate.evaluate`](../../src/aiopspilot/core/risk_gate/gate.py) 와 일치.
+  [`RiskGate.evaluate`](../../src/fdai/core/risk_gate/gate.py) 와 일치.
   Probe 사전-fetch 는 이미 async 인 ControlLoop / coordinator 에서 수행.
 - **기존 `RiskDecision` 으로부터의 마이그레이션.** 오늘
-  [gate.py](../../src/aiopspilot/core/risk_gate/gate.py) 는
+  [gate.py](../../src/fdai/core/risk_gate/gate.py) 는
   `RiskDecision(outcome: RiskDecisionOutcome, ...)` 를 노출. 마이그레이션은
   additive 이며 단계적: (1) `quorum`, `matched_rule_id`, `catalog_version`,
   `resolved_ceiling`, `execution_path` 필드를 safe default 로 추가; (2) 기존
@@ -301,7 +301,7 @@ class RiskDecision:
   derived alias 로 유지; (3) ControlLoop 과 콘솔이 모두 `decision` 을 read
   하면 alias 제거. 각 단계는 §10 의 property test 가 green 인 리뷰 PR.
 - `promotion_state` 는 기존
-  [`ActionPromotionRegistry`](../../src/aiopspilot/core/risk_gate/gate.py)
+  [`ActionPromotionRegistry`](../../src/fdai/core/risk_gate/gate.py)
   로부터 read - shadow-mode ActionType 은 axis 가 permit 하는 것과 관계
   없이 `mode` 를 `shadow` 로 clamp.
 - `execution_path` 는 ActionType 기본이나 axis (전형적으로 role 또는
@@ -408,7 +408,7 @@ RiskGate 는 `pr_manual` 로 downgrade MAY (upgrade 절대 안 함).
 ### 5.1 PR-native (`pr_native`)
 
 - Executor 가
-  [`GitOpsPrAdapter`](../../src/aiopspilot/delivery/gitops_pr/adapter.py)
+  [`GitOpsPrAdapter`](../../src/fdai/delivery/gitops_pr/adapter.py)
   로 PR 빌드.
 - `auto` 결정 시, PR 은 `hil` label 을 carry 안 함 → branch 의
   auto-merge 정책이 accept.
@@ -421,7 +421,7 @@ Best for: configuration 변경, IaC patch, 카탈로그 업데이트, governance
 ### 5.2 Direct API (`direct_api`)
 
 - Executor 가 substrate API 를 직접 호출 (Azure ARM, kubectl,
-  `src/aiopspilot/delivery/` 아래 해당 delivery adapter 를 통한 Redis).
+  `src/fdai/delivery/` 아래 해당 delivery adapter 를 통한 Redis).
 - `auto` 결정 시, call 이 HIL 없이 진행; ActionType 의 `stop_conditions`
   와 `preconditions` 가 call 전후로 executor 에 의해 enforce.
 - `hil` 결정 시, executor 가 HIL item 을 enqueue (PR-manual 큐와 동일

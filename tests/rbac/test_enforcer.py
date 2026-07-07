@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from aiopspilot.core.rbac.enforcer import (
+from fdai.core.rbac.enforcer import (
     AuthorizationError,
     BreakGlassExpiredError,
     RoleEnforcer,
@@ -14,8 +14,8 @@ from aiopspilot.core.rbac.enforcer import (
     require_capability,
     require_roles,
 )
-from aiopspilot.core.rbac.resolver import BreakGlassActivation, Principal
-from aiopspilot.core.rbac.roles import Capability, Role
+from fdai.core.rbac.resolver import BreakGlassActivation, Principal
+from fdai.core.rbac.roles import Capability, Role
 
 
 def _principal(*roles: Role, oid: str = "u1") -> Principal:

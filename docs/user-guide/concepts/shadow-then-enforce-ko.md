@@ -2,13 +2,13 @@
 title: Shadow, then enforce
 description: 왜 모든 새 자율 액션이 shadow로 먼저 배포되고, 어떻게 자동 실행 권한을 얻는가.
 translation_of: shadow-then-enforce.md
-translation_source_sha: 9de4333cfc49caf0fc8a1e8bcd8d6655c818195d
+translation_source_sha: 90bd5dc616e66d052396688701f579438597d557
 translation_revised: 2026-07-07
 ---
 
 # Shadow, then enforce
 
-AIOpsPilot의 새 자율 액션은 한꺼번에 켜지지 않습니다. 모든 규칙 · 탐지기 ·
+FDAI의 새 자율 액션은 한꺼번에 켜지지 않습니다. 모든 규칙 · 탐지기 ·
 remediation은 먼저 **shadow 모드**로 배포됩니다 - 프로덕션에서 내렸을 결정을
 동일하게 계산하지만, 그 결정을 기록만 할 뿐 적용하지 않습니다. 기준선 대비 측정된
 비교를 통과해야만 실제로 실행할 자격을 얻습니다.

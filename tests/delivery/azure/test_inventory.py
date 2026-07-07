@@ -20,12 +20,12 @@ from collections.abc import Sequence
 
 import pytest
 
-from aiopspilot.delivery.azure.inventory import (
+from fdai.delivery.azure.inventory import (
     AzureInventoryConfig,
     AzureResourceGraphInventory,
     ResourceQueryFn,
 )
-from aiopspilot.shared.providers import (
+from fdai.shared.providers import (
     Inventory,
     InventoryBatch,
     LinkRecord,

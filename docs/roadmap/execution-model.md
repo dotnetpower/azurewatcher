@@ -4,14 +4,14 @@ title: Execution Model
 
 # Execution Model
 
-How AIOpsPilot decides **whether** and **how** to run an action. This
+How FDAI decides **whether** and **how** to run an action. This
 document is authoritative for the unified RiskGate, the way the
 authoritative [risk-classification.md](risk-classification.md) first-match
 table combines with the **six-axis** ActionType ceiling, the three
 executor paths (PR-native / direct API / PR-manual), the live-blast probe
 combinator, and the safety invariants a live change must satisfy.
 
-> Decision-engine relationship (authoritative): AIOpsPilot has **one**
+> Decision-engine relationship (authoritative): FDAI has **one**
 > decision, produced by combining **two** inputs. The
 > [risk-classification.md](risk-classification.md) first-match table is the
 > **authoritative baseline** - it consumes the finding feature vector
@@ -41,7 +41,7 @@ Consumers of this model:
 
 ## 1. What "execute" means here
 
-Until this document, everything AIOpsPilot did was **shadow** - judge
+Until this document, everything FDAI did was **shadow** - judge
 and log, never mutate. Execution means that after all gates pass, the
 executor calls the mutation surface (git PR merge, Azure ARM API,
 scripted rollback runner) for real. Shadow mode is still the default
@@ -187,7 +187,7 @@ resolved role (from
 
 For rule-fired actions the "principal" is the executor identity
 (system MI); its role is fixed at composition time
-([composition.py](../../src/aiopspilot/composition.py)).
+([composition.py](../../src/fdai/composition.py)).
 
 ### 2.6 Axis G - Environment (prod downgrade)
 
@@ -224,35 +224,35 @@ ActionType so Axis A (the risk-classification table) can apply the
 threshold cost estimate is never `auto`; this keeps the Cost Governance
 vertical authoritative over runtime ops that would otherwise bypass it
 through the `direct_api` fast path. The Cost Governance vertical
-([verticals](../../src/aiopspilot/core/verticals)) owns the estimate
+([verticals](../../src/fdai/core/verticals)) owns the estimate
 function; the ActionType only references it.
 
 ## 3. Unified RiskGate
 
 The RiskGate lives in
-[`src/aiopspilot/core/risk_gate/`](../../src/aiopspilot/core/risk_gate/)
+[`src/fdai/core/risk_gate/`](../../src/fdai/core/risk_gate/)
 and is the single decision point for **both** trigger surfaces (rule-
 fired and operator-requested; see
 [action-ontology.md § 4](action-ontology.md#4-trigger-surfaces)).
 
 > Implementation status: the pure combinator ships as
-> [`ceiling.py`](../../src/aiopspilot/core/risk_gate/ceiling.py) (the six
-> axes), [`risk_table.py`](../../src/aiopspilot/core/risk_gate/risk_table.py)
+> [`ceiling.py`](../../src/fdai/core/risk_gate/ceiling.py) (the six
+> axes), [`risk_table.py`](../../src/fdai/core/risk_gate/risk_table.py)
 > (Axis A first-match table + `rule-catalog/risk-classification.yaml`), and
-> [`feature.py`](../../src/aiopspilot/core/risk_gate/feature.py) (the
+> [`feature.py`](../../src/fdai/core/risk_gate/feature.py) (the
 > `FeatureVector` extractor), unified end-to-end by
-> [`authority.py`](../../src/aiopspilot/core/risk_gate/authority.py)
+> [`authority.py`](../../src/fdai/core/risk_gate/authority.py)
 > `evaluate_execution_authority()`. That function is the single pipeline
 > `feature -> table (Axis A) -> six-axis min() -> ExecutionAuthorityDecision`.
-> The [`ControlLoop`](../../src/aiopspilot/core/control_loop.py) invokes it in
+> The [`ControlLoop`](../../src/fdai/core/control_loop.py) invokes it in
 > two modes. When only a risk table is wired it records one
 > `risk_gate.shadow_authority` audit entry per executed action (authority-only,
 > judge-and-log, executor path unchanged). When both the risk table and the
-> pre-existing [`gate.py`](../../src/aiopspilot/core/risk_gate/gate.py)
+> pre-existing [`gate.py`](../../src/fdai/core/risk_gate/gate.py)
 > `RiskGate` are wired, the gate (runtime Action safety: exemption /
 > precondition / promotion) and the authority (policy ceiling) are combined
 > into one `UnifiedRiskDecision` by
-> [`evaluator.py`](../../src/aiopspilot/core/risk_gate/evaluator.py)
+> [`evaluator.py`](../../src/fdai/core/risk_gate/evaluator.py)
 > `combine()` (canonical-level `min()`, both evaluators unchanged), and the
 > loop **routes on it**: a `deny` or `hil` decision skips the executor
 > (overall outcome `DENIED` / `HIL`, no PR published), only `auto` proceeds to
@@ -295,11 +295,11 @@ class RiskDecision:
   off the async seam list in
   [coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md#safety),
   and matches the existing synchronous
-  [`RiskGate.evaluate`](../../src/aiopspilot/core/risk_gate/gate.py). The
+  [`RiskGate.evaluate`](../../src/fdai/core/risk_gate/gate.py). The
   probe pre-fetch happens in the ControlLoop / coordinator, which are
   already async.
 - **Migration from the shipped `RiskDecision`.** Today
-  [gate.py](../../src/aiopspilot/core/risk_gate/gate.py) exposes
+  [gate.py](../../src/fdai/core/risk_gate/gate.py) exposes
   `RiskDecision(outcome: RiskDecisionOutcome, ...)`. The migration is
   additive and staged: (1) add `quorum`, `matched_rule_id`,
   `catalog_version`, `resolved_ceiling`, `execution_path` fields with safe
@@ -308,7 +308,7 @@ class RiskDecision:
   ControlLoop and console both read `decision`. Each step is a reviewed PR
   with the property test in §10 green.
 - `promotion_state` is read from the existing
-  [`ActionPromotionRegistry`](../../src/aiopspilot/core/risk_gate/gate.py) -
+  [`ActionPromotionRegistry`](../../src/fdai/core/risk_gate/gate.py) -
   a shadow-mode ActionType clamps `mode` to `shadow` regardless of
   what the axes permit.
 - `execution_path` is the ActionType default unless an axis
@@ -419,7 +419,7 @@ RiskGate may downgrade (never upgrade) to `pr_manual`.
 ### 5.1 PR-native (`pr_native`)
 
 - Executor builds a PR via
-  [`GitOpsPrAdapter`](../../src/aiopspilot/delivery/gitops_pr/adapter.py).
+  [`GitOpsPrAdapter`](../../src/fdai/delivery/gitops_pr/adapter.py).
 - On `auto` decision, the PR carries no `hil` label and the branch's
   auto-merge policy accepts.
 - On `hil` decision, the PR carries the `hil` label and an approver
@@ -432,7 +432,7 @@ governance changes.
 ### 5.2 Direct API (`direct_api`)
 
 - Executor calls the substrate API directly (Azure ARM, kubectl, Redis
-  via the corresponding delivery adapter under `src/aiopspilot/delivery/`).
+  via the corresponding delivery adapter under `src/fdai/delivery/`).
 - On `auto` decision, the call proceeds without HIL; the ActionType's
   `stop_conditions` and `preconditions` are enforced by the executor
   before and during the call.

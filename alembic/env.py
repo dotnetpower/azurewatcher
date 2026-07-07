@@ -1,7 +1,7 @@
 """Alembic environment.
 
 Migrations are **raw SQL** (no ORM model reference), so ``target_metadata``
-stays ``None``. The database URL comes from the ``AIOPSPILOT_DATABASE_URL``
+stays ``None``. The database URL comes from the ``FDAI_DATABASE_URL``
 env var; on a fresh clone with `make dev-up` this maps to the docker-compose
 pgvector service.
 
@@ -22,12 +22,12 @@ config = context.config
 
 # Environment override for the database URL. Defaults to the docker-compose
 # dev stack so `alembic upgrade head` works out of the box.
-_DEFAULT_URL = "postgresql+psycopg://aiopspilot:devonly@localhost:5432/aiopspilot"
-_url = os.environ.get("AIOPSPILOT_DATABASE_URL", _DEFAULT_URL)
+_DEFAULT_URL = "postgresql+psycopg://fdai:devonly@localhost:5432/fdai"
+_url = os.environ.get("FDAI_DATABASE_URL", _DEFAULT_URL)
 
 if not _url.startswith(("postgresql://", "postgresql+psycopg://")):
     print(
-        f"AIOPSPILOT_DATABASE_URL must be a PostgreSQL URL; got: {_url!r}",
+        f"FDAI_DATABASE_URL must be a PostgreSQL URL; got: {_url!r}",
         file=sys.stderr,
     )
     raise SystemExit(2)

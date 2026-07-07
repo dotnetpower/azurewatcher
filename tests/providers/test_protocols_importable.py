@@ -4,7 +4,7 @@ Verifies:
 1. The shipped in-memory fakes satisfy each Protocol structurally (so a
    ``isinstance(fake, EventBus)`` runtime check succeeds - mypy handles
    the static side).
-2. Every Protocol is importable from ``aiopspilot.shared.providers``.
+2. Every Protocol is importable from ``fdai.shared.providers``.
 
 Behavioural tests (publish → subscribe round-trip, audit chain integrity,
 etc.) live in :mod:`tests.providers.test_contracts` so a future
@@ -14,13 +14,13 @@ backend.
 
 from __future__ import annotations
 
-from aiopspilot.shared.providers import (
+from fdai.shared.providers import (
     EventBus,
     SecretProvider,
     StateStore,
     WorkloadIdentity,
 )
-from aiopspilot.shared.providers.testing import (
+from fdai.shared.providers.testing import (
     InMemoryEventBus,
     InMemorySecretProvider,
     InMemoryStateStore,

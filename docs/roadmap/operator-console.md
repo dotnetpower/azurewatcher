@@ -4,7 +4,7 @@ title: Operator Console (Conversational)
 
 # Operator Console (Conversational)
 
-How a human operator talks *back to* AIOpsPilot through a conversational
+How a human operator talks *back to* FDAI through a conversational
 interface - CLI REPL first, Teams / Slack chat next, web chat last. This
 document is authoritative for the **conversational surface**: the layered
 architecture, the tool catalog, the LLM tier model, session persistence,
@@ -26,7 +26,7 @@ contract, but they are distinct integration surfaces.
 
 ## 1. Framing - what this is (and what it is not)
 
-The operator console is **not an autonomous SRE agent**. AIOpsPilot's judgment
+The operator console is **not an autonomous SRE agent**. FDAI's judgment
 authority stays where it already is - the deterministic engine (T0), the
 quality gate (T2 verifier), the risk gate, and the shipped Rego policies.
 The console is the **conversational surface** through which an operator
@@ -59,7 +59,7 @@ useful reference because it defines a category the industry recognises. Our
 console targets the same operator experience with a different judgment
 model.
 
-| Axis | Azure SRE Agent | AIOpsPilot Operator Console |
+| Axis | Azure SRE Agent | FDAI Operator Console |
 |------|-----------------|-----------------------------|
 | Primary judge | LLM agent (with tools) | Deterministic engine + verifier |
 | LLM role | Primary reasoner | Translator + T2 fallback (~5-10% of turns) |
@@ -70,7 +70,7 @@ model.
 | Multi-signal RCA | LLM correlates logs / metrics / traces | System has already correlated at ingest; operator asks *"why did it decide X?"* |
 
 Neither approach is "better" in the abstract; they are different products.
-The operator console is what fits AIOpsPilot's `deterministic-first`
+The operator console is what fits FDAI's `deterministic-first`
 principle and the rule-catalog collection contract.
 
 ### 1.2 Vocabulary added to the shared glossary
@@ -138,7 +138,7 @@ flowchart TD
 
 ### 2.1 Module map
 
-- [`src/aiopspilot/core/conversation/`](../../src/aiopspilot/core/conversation/)
+- [`src/fdai/core/conversation/`](../../src/fdai/core/conversation/)
   - `coordinator.py` - `ConversationCoordinator` (Layer 2 orchestrator).
   - `tools.py` - `ConsoleTool` Protocol + per-tool implementations that
     delegate to Layer 1 modules only.
@@ -146,7 +146,7 @@ flowchart TD
     (t1.judge default, t2.reasoner.primary escalation).
   - `session.py` - `ConversationSession` dataclass; state is projected from
     the append-only audit log.
-- [`src/aiopspilot/delivery/channels/`](../../src/aiopspilot/delivery/channels/)
+- [`src/fdai/delivery/channels/`](../../src/fdai/delivery/channels/)
   - `cli_repl.py` - Day-1 channel adapter (stdin/stdout).
   - `teams_bot.py` - pull-direction Teams adapter (Bot Framework messaging).
   - `slack_bot.py` - pull-direction Slack adapter (Socket Mode).
@@ -243,7 +243,7 @@ receives the same schema via the LLM function-calling contract.
 
 The narrator is the console's LLM layer. It is a **DI seam**
 (`ConversationalModel` Protocol; see §5.1) so a fork can swap providers.
-Upstream binds Azure OpenAI to the deployed `oai-aiopspilot-dev-krc`
+Upstream binds Azure OpenAI to the deployed `oai-fdai-dev-krc`
 account.
 
 ### 4.1 Three tiers (mirrors the trust router)
@@ -366,7 +366,7 @@ class ConversationalModel(Protocol):
 
 The upstream default is
 `AzureOpenAIConversationalModel` under
-[`src/aiopspilot/delivery/azure/llm/conversational.py`](../../src/aiopspilot/delivery/azure/llm/conversational.py)
+[`src/fdai/delivery/azure/llm/conversational.py`](../../src/fdai/delivery/azure/llm/conversational.py)
 (added Day 1). It calls Azure OpenAI chat completions with the function-
 calling contract; the model deployment is selected from
 `resolved-models.json` (`t1.judge` for tier T1, `t2.reasoner.primary` for
@@ -446,7 +446,7 @@ class ConversationSession:
   tier + escalation_trigger) writes one append-only audit entry with
   `action_kind=console.turn`. No new Postgres table.
 - **Week 1**: `operator_memory` (already scaffolded by a parallel session
-  under [`src/aiopspilot/core/operator_memory/`](../../src/aiopspilot/core/operator_memory/))
+  under [`src/fdai/core/operator_memory/`](../../src/fdai/core/operator_memory/))
   becomes the store for **out-of-band operator preferences**: "this
   environment always uses tag X", "quarantine this pattern for
   investigation before firing", "resource Y is a legacy exception". The
@@ -636,7 +636,7 @@ discipline in [phase-0-instrumentation.md](phases/phase-0-instrumentation.md).
 - `CliReplChannel` + `tools/chat.py` entry point.
 - Coordinator writes every turn to the existing audit log.
 - **Exit gate**: a Reader-role operator can complete every Day-1 tool
-  scenario from a CLI REPL against the deployed `rg-aiopspilot-dev-krc`
+  scenario from a CLI REPL against the deployed `rg-fdai-dev-krc`
   environment; unit tests cover RBAC gating, escalation triggers, and
   the verifier re-check invariants.
 
@@ -756,8 +756,8 @@ discipline in [phase-0-instrumentation.md](phases/phase-0-instrumentation.md).
 
 - `POST /hil/{approval_id}/decision`
 - Body: `{"decision": "approve|reject|defer", "justification": "…"}`
-- Headers: `X-AIOpsPilot-Signature: sha256=<hex>`,
-  `X-AIOpsPilot-Timestamp: <RFC3339>`.
+- Headers: `X-FDAI-Signature: sha256=<hex>`,
+  `X-FDAI-Timestamp: <RFC3339>`.
 - Response: `200 {"queued": true, "audit_entry_id": "…"}`.
 
 This is the only exception to the "read API is 3 GET routes only"
@@ -775,7 +775,7 @@ mutation surface itself; approval and execution stay distinct principals.
 The upstream console does **not** ship an MCP server on Day 1. Once the
 in-process tool set is stable and the RBAC matrix is exercised, the
 Week-2+ addition is an MCP server surface at
-`src/aiopspilot/delivery/mcp/server.py` that publishes the same tool
+`src/fdai/delivery/mcp/server.py` that publishes the same tool
 catalog (`list_tools` / `call_tool`) plus the operator-console read
 resources (rule catalog, action types, runbook index) as MCP resources.
 
@@ -789,7 +789,7 @@ process but does not open it publicly.
 **External principal mapping.** An MCP-sourced tool call MUST resolve to a
 concrete `Principal` with a real role before the RBAC gate runs - there is
 no anonymous MCP caller. The MCP server authenticates the calling agent
-(mTLS client cert or an Entra token audience-scoped to `aiopspilot-api`)
+(mTLS client cert or an Entra token audience-scoped to `fdai-api`)
 and maps it to a service `Principal` whose role is assigned exactly like a
 human's (an `aw-*` group / App Role, §5 of
 [user-rbac-and-identity.md](user-rbac-and-identity.md)). An agent with no
@@ -809,7 +809,7 @@ resolved role.
   invariant to a stronger form (paired-approver only). Owner:
   security-and-identity doc author.
 - **OD-C4** - CLI REPL history file location & retention. Default
-  proposal: `~/.aiopspilot/console-history.jsonl`, capped at 10 MiB,
+  proposal: `~/.fdai/console-history.jsonl`, capped at 10 MiB,
   redacted before write. Blocking Day 1 implementation.
 
 ## 16. Related docs

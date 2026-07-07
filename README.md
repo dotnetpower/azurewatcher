@@ -1,4 +1,4 @@
-# AIOpsPilot
+# FDAI
 
 Autonomous cloud operations control plane. It watches Azure events, resolves the
 repeatable ones with rules and policies, and reserves LLM reasoning for the small
@@ -11,7 +11,7 @@ delivered as remediation PRs, so audit and rollback come for free.
 
 ## What can you achieve?
 
-AIOpsPilot ships three initial verticals under one event-driven core. Other AIOps
+FDAI ships three initial verticals under one event-driven core. Other AIOps
 domains (posture management, SRE/SLO) fit the same architecture and are future scope.
 
 ### Change Safety

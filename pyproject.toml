@@ -1,8 +1,8 @@
-# AIOpsPilot - autonomous cloud operations control plane
+# FDAI - autonomous cloud operations control plane
 #
 # Python is the core runtime language for the control plane
 # (see docs/roadmap/tech-stack.md - OD-1 resolved).
-# All executable code lives under src/aiopspilot/ (Python "src layout").
+# All executable code lives under src/fdai/ (Python "src layout").
 # Non-Python trees (rule-catalog/ YAML data, policies/ Rego, infra/ Terraform)
 # live at the repo root - they are data or IaC, not Python packages.
 #
@@ -11,13 +11,13 @@
 # CI tooling (ruff / mypy / pytest / coverage gates) lands in W1.7.
 
 [project]
-name = "aiopspilot"
+name = "fdai"
 version = "0.0.0"
 description = "Autonomous cloud operations control plane"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
-authors = [{ name = "AIOpsPilot maintainers" }]
+authors = [{ name = "FDAI maintainers" }]
 keywords = ["aiops", "control-plane", "gitops", "opa", "shadow-mode"]
 classifiers = [
     "Development Status :: 1 - Planning",
@@ -105,10 +105,10 @@ requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/aiopspilot"]
+packages = ["src/fdai"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/aiopspilot", "README.md", "LICENSE", "pyproject.toml"]
+include = ["src/fdai", "README.md", "LICENSE", "pyproject.toml"]
 
 # ---------------------------------------------------------------------------
 # Dev-tool config lives here so it is picked up as soon as the tools are added
@@ -144,7 +144,7 @@ ignore = []
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src/aiopspilot"]
+files = ["src/fdai"]
 
 # aiokafka ships no py.typed marker and no stub package. It is only imported
 # by `delivery/azure/event_bus.py`; the adapter boundary in composition
@@ -155,10 +155,10 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["tests", "src/aiopspilot"]
+testpaths = ["tests", "src/fdai"]
 addopts = ["-ra", "--strict-markers", "--strict-config"]
 markers = [
-    "integration: requires a live Postgres (pgvector). Skipped unless AIOPSPILOT_DATABASE_URL is set.",
+    "integration: requires a live Postgres (pgvector). Skipped unless FDAI_DATABASE_URL is set.",
 ]
 # Provider Protocols are async by default (I/O-bound: Kafka, Postgres, KV, LLM);
 # `asyncio_mode = "auto"` lets `async def test_...` functions run without a
@@ -169,7 +169,7 @@ asyncio_mode = "auto"
 # a real regression (a warning from OUR code) still surfaces.
 filterwarnings = [
     # starlette 1.3.1 asks TestClient users to switch to httpx2. httpx is used
-    # extensively across src/aiopspilot/delivery/**; migrating to httpx2 is a
+    # extensively across src/fdai/delivery/**; migrating to httpx2 is a
     # separate work item and does not affect correctness.
     "ignore::starlette.exceptions.StarletteDeprecationWarning",
 ]

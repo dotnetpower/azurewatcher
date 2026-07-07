@@ -16,7 +16,7 @@ from typing import Any
 import httpx
 import pytest
 
-from aiopspilot.delivery.notifications import (
+from fdai.delivery.notifications import (
     AzureCommunicationEmailChannel,
     AzureCommunicationEmailConfig,
     AzureCommunicationSmsChannel,
@@ -30,15 +30,15 @@ from aiopspilot.delivery.notifications import (
     TeamsWebhookChannel,
     TeamsWebhookConfig,
 )
-from aiopspilot.delivery.notifications._http import post_json, truncate
-from aiopspilot.shared.providers.notifications import (
+from fdai.delivery.notifications._http import post_json, truncate
+from fdai.shared.providers.notifications import (
     ChannelDeliveryError,
     ChannelUnavailableError,
     NotificationMessage,
     Severity,
     TrustTier,
 )
-from aiopspilot.shared.providers.notifications.base import Link
+from fdai.shared.providers.notifications.base import Link
 
 
 def _message(**overrides: Any) -> NotificationMessage:
@@ -474,8 +474,8 @@ class TestWebhookAdapter:
             receipt = await adapter.send(_message())
         assert receipt.delivered is True
         request = captured[0]
-        assert request.headers.get("X-AIOpsPilot-Signature", "").startswith("sha256=")
-        assert request.headers.get("X-AIOpsPilot-Timestamp")
+        assert request.headers.get("X-FDAI-Signature", "").startswith("sha256=")
+        assert request.headers.get("X-FDAI-Timestamp")
         assert request.headers.get("X-Fork") == "acme"
 
     async def test_raises_delivery_error_on_4xx(self) -> None:

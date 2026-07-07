@@ -2,7 +2,7 @@
  * MSAL.js wrapper. Handles sign-in redirect, silent token acquisition,
  * and produces the `Authorization: Bearer <token>` header the read API
  * expects. In dev mode the wrapper is a no-op - the API accepts
- * anonymous requests when `AIOPSPILOT_READ_API_DEV_MODE=1` is set.
+ * anonymous requests when `FDAI_READ_API_DEV_MODE=1` is set.
  *
  * See docs/roadmap/user-rbac-and-identity.md § 10.1 for the full flow.
  */

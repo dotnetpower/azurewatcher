@@ -55,36 +55,36 @@ from typing import Any
 import pytest
 import yaml
 
-from aiopspilot.core.control_loop import (
+from fdai.core.control_loop import (
     ControlLoop,
     ControlLoopOutcome,
     ControlLoopResult,
 )
-from aiopspilot.core.event_ingest import EventIngest
-from aiopspilot.core.executor import (
+from fdai.core.event_ingest import EventIngest
+from fdai.core.executor import (
     ResourceLockManager,
     ShadowExecutor,
     TemplateRenderer,
 )
-from aiopspilot.core.executor.action_builder import ActionBuilder
-from aiopspilot.core.tiers.t0_deterministic import (
+from fdai.core.executor.action_builder import ActionBuilder
+from fdai.core.tiers.t0_deterministic import (
     OpaRegoEvaluator,
     RuleIndex,
     T0Engine,
 )
-from aiopspilot.core.trust_router import TrustRouter
-from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.core.trust_router import TrustRouter
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
-from aiopspilot.rule_catalog.schema.rule import load_rule_catalog
-from aiopspilot.shared.contracts.models import Mode
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
-from aiopspilot.shared.contracts.validation import (
+from fdai.rule_catalog.schema.rule import load_rule_catalog
+from fdai.shared.contracts.models import Mode
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.validation import (
     JsonSchemaContractValidator,
     JsonSchemaEventValidator,
 )
-from aiopspilot.shared.providers.testing import (
+from fdai.shared.providers.testing import (
     InMemoryStateStore,
     RecordingRemediationPrPublisher,
 )
@@ -195,8 +195,8 @@ def _make_loop(
     # receives no inventory age here (graph_fresh precondition unmet).
     risk_kwargs: dict[str, Any] = {}
     if wire_risk_gate:
-        from aiopspilot.core.risk_gate.gate import ActionPromotionRegistry, RiskGate
-        from aiopspilot.core.risk_gate.risk_table import load_risk_table
+        from fdai.core.risk_gate.gate import ActionPromotionRegistry, RiskGate
+        from fdai.core.risk_gate.risk_table import load_risk_table
 
         risk_kwargs = {
             "risk_table": load_risk_table(REPO_ROOT / "rule-catalog" / "risk-classification.yaml"),

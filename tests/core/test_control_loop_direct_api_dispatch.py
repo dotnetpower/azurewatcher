@@ -20,13 +20,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from aiopspilot.core.control_loop import ControlLoop, _is_execution_success
-from aiopspilot.core.executor import ExecutionResult, ExecutorOutcome
-from aiopspilot.core.executor.direct_api import (
+from fdai.core.control_loop import ControlLoop, _is_execution_success
+from fdai.core.executor import ExecutionResult, ExecutorOutcome
+from fdai.core.executor.direct_api import (
     DirectApiExecutionOutcome,
     DirectApiExecutionResult,
 )
-from aiopspilot.shared.contracts.models import (
+from fdai.shared.contracts.models import (
     Action,
     ActionBlastRadius,
     ActionInterface,

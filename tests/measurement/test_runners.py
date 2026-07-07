@@ -1,7 +1,7 @@
 """Phase-4 measurement runners - unit tests.
 
 Covers the two scheduled runners wired in
-:mod:`aiopspilot.core.measurement.runners`:
+:mod:`fdai.core.measurement.runners`:
 
 - :class:`AutomatedBaselineRunner` - regression triggers a demote via
   :class:`ActionPromotionRegistry`, PASS outcomes do not, and the
@@ -22,11 +22,11 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.core.measurement.pattern_growth import (
+from fdai.core.measurement.pattern_growth import (
     IntakeOutcome,
     OutcomeRecord,
 )
-from aiopspilot.core.measurement.regression import (
+from fdai.core.measurement.regression import (
     GuardKind,
     GuardMetric,
     MeasurementSample,
@@ -34,24 +34,24 @@ from aiopspilot.core.measurement.regression import (
     RegressionOutcome,
     SuccessMetric,
 )
-from aiopspilot.core.measurement.runners import (
+from fdai.core.measurement.runners import (
     AutomatedBaselineRunner,
     OutcomeSource,
     PatternBuilder,
     PatternGrowthIntakeRunner,
     ScenarioReplayer,
 )
-from aiopspilot.core.risk_gate.gate import (
+from fdai.core.risk_gate.gate import (
     ActionModeRecord,
     ActionPromotionRegistry,
     PromotionMetrics,
 )
-from aiopspilot.core.tiers.t1_lightweight.testing import InMemoryPatternLibrary
-from aiopspilot.core.tiers.t1_lightweight.tier import LearnedAction
-from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-from aiopspilot.shared.contracts.models import Mode, OntologyActionType
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
-from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+from fdai.core.tiers.t1_lightweight.testing import InMemoryPatternLibrary
+from fdai.core.tiers.t1_lightweight.tier import LearnedAction
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.shared.contracts.models import Mode, OntologyActionType
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ACTION_TYPES_ROOT = _REPO_ROOT / "rule-catalog" / "action-types"

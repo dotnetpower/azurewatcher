@@ -1,13 +1,13 @@
 ---
 title: 채널과 알림(Channels and Notifications)
 translation_of: channels-and-notifications.md
-translation_source_sha: 6e070ea568beddd31625b19e494450445015ae89
+translation_source_sha: e5d8935fc1182df3b540c946d67429e1c5d43b46
 translation_revised: 2026-07-07
 ---
 
 # 채널과 알림(Channels and Notifications)
 
-AIOpsPilot가 **비-웹-UI 채널** - Teams, Slack, email, webhook, paging 서비스, SMS -
+FDAI가 **비-웹-UI 채널** - Teams, Slack, email, webhook, paging 서비스, SMS -
 을 통해 사람과 소통하는 방법. 이 문서는 **채널 추상화, 신뢰 레벨, 카테고리 경계, 라우팅
 정책, 채널 특이 규칙**의 진실 원본입니다. [tech-stack-ko.md](tech-stack-ko.md) 에서 힌트한
 "notifier 인터페이스" placeholder를 해결하고
@@ -61,7 +61,7 @@ flowchart LR
       CH --> W[webhook adapter]
       CH --> P[pager adapter]
     end
-    T --> API[aiopspilot-api]
+    T --> API[fdai-api]
     S --> API
     API --> RG
 ```
@@ -71,7 +71,7 @@ flowchart LR
   같은 `Channel` 인터페이스를 구현.
 - **channel-router**는 얇은 코어 모듈: 카테고리와 메시지를 받아 포크의 라우팅 config(§6)에
   따라 채널을 선택. 벤더 지식을 보유하지 않음.
-- **어떤 어댑터의 승인 콜백도 `aiopspilot-api`에 랜딩** , 이는 액션 전에 사람의 Entra
+- **어떤 어댑터의 승인 콜백도 `fdai-api`에 랜딩** , 이는 액션 전에 사람의 Entra
   아이덴티티를 재검증
   ([user-rbac-and-identity-ko.md](user-rbac-and-identity-ko.md#102-api-token-validation)).
   어댑터는 절대 자체로 결정을 authorize 하지 않음.
@@ -90,7 +90,7 @@ flowchart LR
 **카테고리 경계 (MUST)**
 
 - **A1 승인은 절대 메시지에 결정 페이로드를 운반하지 않음.** Adaptive Card / Block Kit /
-  email body는 **opaque `approval_id`**을 운반; 실제 결정은 `aiopspilot-api`로 post,
+  email body는 **opaque `approval_id`**을 운반; 실제 결정은 `fdai-api`로 post,
   이것이 재인증하고 재검증 (`idempotency_key` + `action_hash`) 하여 유출된 메시지가 유효한
   승인이 아니게 함.
 - **A3 write 명령은 절대 라이브 카탈로그를 직접 변형하지 않음** - 콘솔과 같은 방식으로 draft
@@ -119,9 +119,9 @@ flowchart LR
 
 | 채널 | Entra tenant | 인증 경로 | 허용 카테고리 |
 |------|--------------|-----------|--------------|
-| **Teams (same tenant)** | ✓ | Teams SSO → OBO 교환 → `aiopspilot-api` 토큰 | **A1, A2, A3, A4** |
+| **Teams (same tenant)** | ✓ | Teams SSO → OBO 교환 → `fdai-api` 토큰 | **A1, A2, A3, A4** |
 | **Teams (guest tenant)** | guest | guest OID로 OBO | **A2, A3, A4** (A1 거부 - [user-rbac-and-identity-ko.md §10.5](user-rbac-and-identity-ko.md#105-guest-entra-b2b-users)와 동일한 guest 규칙) |
-| **Slack** | ✗ | Slack OAuth; **fork-mandatory** Slack userId ↔ Entra OID 매핑; A1 승인은 브라우저에서 Entra 재인증을 위해 `aiopspilot-api`로 바운스 | **A1, A2, A3, A4** - P1에서 A1 활성화(§7 Slack notes 참조) |
+| **Slack** | ✗ | Slack OAuth; **fork-mandatory** Slack userId ↔ Entra OID 매핑; A1 승인은 브라우저에서 Entra 재인증을 위해 `fdai-api`로 바운스 | **A1, A2, A3, A4** - P1에서 A1 활성화(§7 Slack notes 참조) |
 | **Email (SMTP / Graph)** | ✗ | 발신 전용, return 채널 없음 | **A2, A4 only** - 절대 A1 아님 (magic-link 승인 금지) |
 | **Generic webhook** | ✗ | HMAC-signed, timestamped, replay-guarded | **A2 only** |
 | **PagerDuty / Opsgenie** | ✗ | API 키, 모바일 앱에서 ack | **A2 only** (운영 라인 paging) |
@@ -129,7 +129,7 @@ flowchart LR
 
 **매트릭스를 안전하게 유지하는 규칙 (MUST)**
 
-- **Magic-link 승인은 모든 채널에서 금지.** 승인은 항상 `aiopspilot-api`를 통한 재인증된
+- **Magic-link 승인은 모든 채널에서 금지.** 승인은 항상 `fdai-api`를 통한 재인증된
   왕복이 필요.
 - **A1 fallback은 A1-capable 채널 안에 머무름.** 실패한 Teams A1 시도는 절대 email로
   falls through 하지 않음; 다른 A1-capable 채널(Teams standby, 또는 매핑이 있을 때 Slack)
@@ -183,7 +183,7 @@ interface ApprovalRequest {
 ```
 
 - **어댑터는 절대 자체로 결정을 authorize 하지 않음.** `awaitDecision`은 사용자가 클릭한
-  무엇을 반환; 코어 라우터가 그 원시 클릭을 `aiopspilot-api`로 넘기고, 그것이 유일한 권위
+  무엇을 반환; 코어 라우터가 그 원시 클릭을 `fdai-api`로 넘기고, 그것이 유일한 권위
   (아이덴티티 재검증, 재생 검사, 자기승인 없음).
 - **어댑터는 메시지 body를 재스캔** 해야 함 - 알려진 시크릿 패턴에 대해(CI secret 스캐너가
   쓰는 것과 같은 regex 세트) 발송 전에 마지막 방어선으로.
@@ -307,7 +307,7 @@ channel_routing:
 | 채널 | 노트 |
 |------|------|
 | **Teams** | A1에 Adaptive Cards; OAuth 스코프 세트를 최소로 유지(`ChannelMessage.Send.Group` + 봇 시그널링). SSO + OBO는 이미 [user-rbac-and-identity-ko.md §10.4](user-rbac-and-identity-ko.md#104-chatops-teams-sign-in)에 커버. 다이제스트 오디언스는 **`aw-*` Entra 보안 그룹으로 백업된 group-connected 팀** - 멤버십이 별도 리스트 없이 Entra를 따름. |
-| **Slack** | A2/A3에 Block Kit; 승인 콜백 URL은 `aiopspilot-api`를 통해 리다이렉트하여 Entra 재인증이 Slack 안이 아니라 브라우저에서 발생. `chat:write` 스코프만. 포크는 userId↔OID 매핑 저장소를 공급해야 함; Slack 사용자에게 매핑된 Entra OID가 없으면 어댑터는 A1 트래픽 거부. Slack 채널 멤버십은 Slack에서 관리; 해당 `aw-*` 그룹과 수동 또는 SCIM으로 sync 유지. |
+| **Slack** | A2/A3에 Block Kit; 승인 콜백 URL은 `fdai-api`를 통해 리다이렉트하여 Entra 재인증이 Slack 안이 아니라 브라우저에서 발생. `chat:write` 스코프만. 포크는 userId↔OID 매핑 저장소를 공급해야 함; Slack 사용자에게 매핑된 Entra OID가 없으면 어댑터는 A1 트래픽 거부. Slack 채널 멤버십은 Slack에서 관리; 해당 `aw-*` 그룹과 수동 또는 SCIM으로 sync 유지. |
 | **Email** | Send-only. 승인 링크 절대 포함 안 함; 다이제스트와 알림만. 발신자 아이덴티티는 알림 롤에 범위된 Graph API 메일박스. Redaction 필수 - `audit_id`와 대시보드 URL 이상의 상관 페이로드 없음. 권장 DL: `aw-approvers` / `aw-owners`를 미러링하는 **Entra 동적 분배 그룹**. |
 | **Generic webhook** | HMAC-SHA256 서명, 단조 타임스탬프, 단발 nonce. Receiver 실패는 절대 블록 안 함; 코어가 어댑터 정책대로 재시도 후 이동. |
 | **PagerDuty / Opsgenie** | Dedup 키 = observability 상관 id 이므로 버스트가 접힘. 런북 URL은 모든 알림에 필수. |
@@ -340,7 +340,7 @@ channel_routing:
 ## 10. Open Decisions
 
 - [ ] 어댑터-헬스 알림 임계와 dedupe 윈도우.
-- [ ] 어떤 벤더의 incoming webhook (있다면)이 AIOpsPilot에 인시던트를 오픈할 수 있는가 -
+- [ ] 어떤 벤더의 incoming webhook (있다면)이 FDAI에 인시던트를 오픈할 수 있는가 -
       오늘 observability만이 A2 트래픽을 오픈; 외부 webhook in은 별도 범위.
 - [ ] 아티팩트 소유자가 **guest** 사용자일 때의 `mention-artifact-owner` 동작 (Teams에서
       멘션은 여전히 resolve하지만, 정보 유출을 줄이기 위해 다이제스트가 억제하거나 다르게

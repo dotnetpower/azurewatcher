@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`aiopspilot.core.web_search`."""
+"""Unit tests for :mod:`fdai.core.web_search`."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from aiopspilot.core.operator_memory.sanitizer import InjectionMarkerError
-from aiopspilot.core.web_search import (
+from fdai.core.operator_memory.sanitizer import InjectionMarkerError
+from fdai.core.web_search import (
     NoOpWebSearchProvider,
     WebSearchProvider,
     WebSearchQuery,

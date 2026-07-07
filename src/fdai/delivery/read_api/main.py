@@ -1,0 +1,301 @@
+"""Read-only console API - three GET routes, no POST surface.
+
+This module is the **only** place Starlette is imported in the codebase.
+The rest of the delivery layer stays framework-agnostic; the app factory
+takes an :class:`~fdai.delivery.read_api.auth.Authenticator` and a
+:class:`~fdai.delivery.read_api.read_model.ConsoleReadModel` and
+returns a Starlette application ready to be served by any ASGI server
+(uvicorn, hypercorn, granian).
+
+Contract (`app-shape.instructions.md § Operator console`):
+
+- **Never** exposes a mutating route. Only ``GET`` is registered; ``POST``
+  / ``PUT`` / ``DELETE`` / ``PATCH`` return ``405`` from Starlette's
+  built-in method-not-allowed handler.
+- **Never** shares an identity with the executor. The API validates the
+  caller's Entra token; it does not (and can not) call executor MI.
+- Authenticated **anonymous fallback** is available only when
+  ``FDAI_READ_API_DEV_MODE=1`` at process start - used by the
+  local dev harness (``dev-and-deploy-parity.md``) and by pytest.
+
+Every handler is a plain ``async def`` - the framework-agnostic
+:class:`~fdai.core.rbac.enforcer.RoleEnforcer` sits behind
+:class:`Authenticator.require_roles`, so tests can drive the same
+handlers without Starlette's request objects.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Any
+
+from starlette.applications import Starlette
+from starlette.exceptions import HTTPException
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
+from starlette.routing import Route
+
+from fdai.core.rbac.enforcer import RoleRequiredError
+from fdai.core.rbac.roles import Role
+from fdai.delivery.read_api.auth import (
+    AuthenticationError,
+    Authenticator,
+)
+from fdai.delivery.read_api.hil_callback import (
+    HilCallbackConfig,
+    make_hil_callback_route,
+)
+from fdai.delivery.read_api.panels import ReadPanel
+from fdai.delivery.read_api.read_model import (
+    DEFAULT_LIMIT,
+    ConsoleReadModel,
+    clamp_limit,
+)
+from fdai.shared.providers.hil_registry import HilApprovalRegistry
+
+_LOGGER = logging.getLogger(__name__)
+
+_CORE_ROUTE_PATHS: frozenset[str] = frozenset({"/audit", "/kpi", "/hil-queue", "/healthz"})
+
+_READER_ROLES: tuple[Role, ...] = (Role.READER, Role.CONTRIBUTOR, Role.APPROVER, Role.OWNER)
+
+_DEV_MODE_ENV = "FDAI_READ_API_DEV_MODE"
+_DEV_MODE_PRINCIPAL = "dev-anon"
+
+
+@dataclass(frozen=True, slots=True)
+class ReadApiConfig:
+    """Composition-root configuration for :func:`build_app`.
+
+    ``dev_mode`` short-circuits authentication for local development and
+    tests. It MUST default to ``False`` and MUST NOT be true in a
+    production composition root - the fork's IaC pipeline enforces that
+    by never setting ``FDAI_READ_API_DEV_MODE`` on deployed
+    revisions.
+    """
+
+    dev_mode: bool = False
+    """When True, unauthenticated requests are treated as anonymous
+    Readers. Only for local dev + pytest."""
+
+    cors_allow_origins: tuple[str, ...] = ()
+    """Origins the console SPA is served from. Empty tuple disables CORS
+    (same-origin deployment). MUST NOT be ``('*',)`` in production."""
+
+    extra_panels: tuple[ReadPanel, ...] = ()
+    """Fork-supplied read-only console panels (see
+    :mod:`fdai.delivery.read_api.panels`). Empty by default so the
+    upstream UI stays minimal; a fork registers vertical dashboards here.
+    Each panel is registered as a ``GET``-only route, preserving the
+    read-only invariant. The app factory fails fast on a malformed or
+    colliding panel path."""
+
+    hil_callback: HilCallbackConfig | None = None
+    """Opt-in ChatOps HIL callback config. When set, registers a single
+    ``POST /hil/{approval_id}/decision`` route that verifies an HMAC
+    signature over the request body. ``None`` (the default) keeps the
+    read-API strictly GET-only. The route consumes a
+    :class:`~fdai.shared.providers.hil_registry.HilApprovalRegistry`
+    instead of the executor identity, so no privilege boundary is
+    crossed. See Wave W1.3 in
+    [implementation-plan.md](../../../../docs/roadmap/implementation-plan.md)."""
+
+    hil_registry: HilApprovalRegistry | None = None
+    """Registry consumed by the HIL callback route. When
+    ``hil_callback`` is set, this MUST also be set - the app factory
+    fails fast otherwise."""
+
+
+def build_app(
+    *,
+    authenticator: Authenticator,
+    read_model: ConsoleReadModel,
+    config: ReadApiConfig | None = None,
+) -> Starlette:
+    """Assemble the ASGI app.
+
+    The returned app carries three GET routes plus a ``/healthz`` liveness
+    probe. Nothing else - the read-only invariant is enforced by *not
+    registering* any mutating route.
+    """
+    resolved_config = config or ReadApiConfig()
+    if resolved_config.dev_mode and os.environ.get(_DEV_MODE_ENV) != "1":
+        raise ValueError(
+            "ReadApiConfig.dev_mode=True but "
+            f"{_DEV_MODE_ENV} is not set; refusing to build a dev-mode app "
+            "outside an explicit local-dev environment."
+        )
+
+    async def _authorize(request: Request) -> str:
+        """Return the caller's ``oid`` (or ``dev-anon``) or raise 401/403."""
+        if resolved_config.dev_mode:
+            return _DEV_MODE_PRINCIPAL
+        header = request.headers.get("authorization")
+        principal = authenticator.require_roles(header, required=_READER_ROLES)
+        return principal.oid
+
+    # ------------------------------------------------------------------
+    # Handlers
+    # ------------------------------------------------------------------
+
+    async def get_audit(request: Request) -> Response:
+        oid = await _authorize(request)
+        try:
+            limit = _parse_int_query(request, "limit", default=DEFAULT_LIMIT)
+        except _BadQueryError as exc:
+            return _error(400, str(exc))
+        cursor = request.query_params.get("cursor")
+        try:
+            page = await read_model.list_audit(limit=clamp_limit(limit), cursor=cursor)
+        except ValueError as exc:
+            return _error(400, str(exc))
+        _LOGGER.info("audit_page_served", extra={"actor": oid, "returned": len(page.items)})
+        return JSONResponse(page.to_dict())
+
+    async def get_kpi(request: Request) -> Response:
+        oid = await _authorize(request)
+        kpi = await read_model.dashboard_metrics()
+        _LOGGER.info("kpi_served", extra={"actor": oid, "event_count": kpi.event_count})
+        return JSONResponse(kpi.to_dict())
+
+    async def get_hil_queue(request: Request) -> Response:
+        oid = await _authorize(request)
+        try:
+            limit = _parse_int_query(request, "limit", default=DEFAULT_LIMIT)
+        except _BadQueryError as exc:
+            return _error(400, str(exc))
+        page = await read_model.list_hil_queue(limit=clamp_limit(limit))
+        _LOGGER.info(
+            "hil_queue_served",
+            extra={"actor": oid, "returned": len(page.items)},
+        )
+        return JSONResponse(page.to_dict())
+
+    async def healthz(_: Request) -> Response:
+        return JSONResponse({"status": "ok"})
+
+    def _make_panel_handler(panel: ReadPanel) -> Callable[[Request], Awaitable[Response]]:
+        async def get_panel(request: Request) -> Response:
+            oid = await _authorize(request)
+            payload = await panel.render(params=dict(request.query_params))
+            _LOGGER.info("panel_served", extra={"actor": oid, "panel": panel.name})
+            return JSONResponse(dict(payload))
+
+        return get_panel
+
+    # ------------------------------------------------------------------
+    # Exception handlers translate RBAC primitives to HTTP status codes.
+    # ------------------------------------------------------------------
+
+    async def handle_authentication_error(_: Request, exc: Exception) -> Response:
+        return _error(401, str(exc))
+
+    async def handle_authorization_error(_: Request, exc: Exception) -> Response:
+        return _error(403, str(exc))
+
+    async def handle_http_exception(_: Request, exc: Exception) -> Response:
+        if isinstance(exc, HTTPException):
+            return _error(exc.status_code, exc.detail)
+        return _error(500, "internal error")
+
+    routes = [
+        Route("/audit", get_audit, methods=["GET"]),
+        Route("/kpi", get_kpi, methods=["GET"]),
+        Route("/hil-queue", get_hil_queue, methods=["GET"]),
+        Route("/healthz", healthz, methods=["GET"]),
+    ]
+
+    # Fork-supplied panels: registered GET-only, after fail-fast validation
+    # so a colliding or malformed path cannot ship a broken revision.
+    seen_panel_paths: set[str] = set()
+    for panel in resolved_config.extra_panels:
+        path = panel.path
+        if not path.startswith("/"):
+            raise ValueError(f"panel path MUST start with '/', got {path!r} ({panel.name!r})")
+        if path in _CORE_ROUTE_PATHS:
+            raise ValueError(f"panel path {path!r} collides with a core route ({panel.name!r})")
+        if path in seen_panel_paths:
+            raise ValueError(f"duplicate panel path {path!r} ({panel.name!r})")
+        seen_panel_paths.add(path)
+        routes.append(Route(path, _make_panel_handler(panel), methods=["GET"]))
+
+    # Optional HIL callback POST route (Wave W1.3). Fails fast if the
+    # config declares a callback but not a registry - the config error
+    # MUST NOT reach a live deployment.
+    if resolved_config.hil_callback is not None:
+        if resolved_config.hil_registry is None:
+            raise ValueError(
+                "hil_callback set but hil_registry is None; "
+                "both are required to enable the POST callback route"
+            )
+        routes.append(
+            make_hil_callback_route(
+                registry=resolved_config.hil_registry,
+                config=resolved_config.hil_callback,
+            )
+        )
+
+    middleware: list[Middleware] = []
+    if resolved_config.cors_allow_origins:
+        # Console SPA cross-origin fetches. `allow_methods=["GET"]` keeps
+        # the pre-flight surface aligned with the read-only invariant -
+        # a POST/PUT/DELETE pre-flight will be denied at the middleware.
+        middleware.append(
+            Middleware(
+                CORSMiddleware,
+                allow_origins=list(resolved_config.cors_allow_origins),
+                allow_methods=["GET"],
+                allow_headers=["authorization", "content-type"],
+                allow_credentials=False,
+            )
+        )
+
+    return Starlette(
+        debug=False,
+        routes=routes,
+        middleware=middleware,
+        exception_handlers={
+            AuthenticationError: handle_authentication_error,
+            RoleRequiredError: handle_authorization_error,
+            HTTPException: handle_http_exception,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Small helpers
+# ---------------------------------------------------------------------------
+
+
+class _BadQueryError(ValueError):
+    """Raised inside ``get_*`` when a query string is malformed.
+
+    Caught locally and turned into a ``400`` response - the caller
+    should not see a stack trace for a typo in ``?limit=``.
+    """
+
+
+def _parse_int_query(request: Request, name: str, *, default: int) -> int:
+    raw = request.query_params.get(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise _BadQueryError(f"query param {name!r} must be an integer, got {raw!r}") from exc
+
+
+def _error(status: int, message: str) -> JSONResponse:
+    body: dict[str, Any] = {"error": {"status": status, "message": message}}
+    return JSONResponse(body, status_code=status)
+
+
+__all__ = [
+    "ReadApiConfig",
+    "build_app",
+]

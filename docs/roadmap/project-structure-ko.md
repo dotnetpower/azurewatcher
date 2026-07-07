@@ -1,7 +1,7 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: 5a8eb8ad7b0dc28316819da0ee74cb2cc561a27c
+translation_source_sha: 83f6163fe1743e83ac2cd8732eeb20f3956a3c54
 translation_revised: 2026-07-07
 ---
 
@@ -17,8 +17,8 @@ translation_revised: 2026-07-07
 ## 모노레포 레이아웃
 
 ```text
-aiopspilot/
-├── src/aiopspilot/            # Python (3.12+, src-layout); 모노레포 전체가 하나의 언어
+fdai/
+├── src/fdai/            # Python (3.12+, src-layout); 모노레포 전체가 하나의 언어
 │   ├── core/                  # headless 컨트롤 플레인 (UI 없음, 클라우드 SDK 직접 import 없음)
 │   │   ├── event_ingest/      # 버스 컨슈머; 이벤트 스키마로 정규화; idempotency key로 dedup; 관련 이벤트를 인시던트로 상관 연결
 │   │   ├── trust_router/      # 계산된 신뢰도로 각 이벤트를 T0 | T1 | T2 로 라우팅
@@ -50,9 +50,9 @@ aiopspilot/
 │       ├── schema/            # 규칙 스키마 (semver) + 검증
 │       ├── sources/           # 소스별 컴렉터 (WAF, CIS, OPA, IaC scanners, ...)
 │       └── pipeline/          # watch → collect → shadow eval → regression → promote/rollback
-├── src/aiopspilot/composition.py  # composition root: default_container() 가 모든 seam 을 바인딩
-├── src/aiopspilot/core/control_loop.py  # P1 파이프라인 오케스트레이터: event_ingest → trust_router → T0 → executor → audit
-├── rule-catalog/              # catalog-as-code 데이터 (YAML) - Python 아님; 파이프라인은 src/aiopspilot/rule_catalog/ 에
+├── src/fdai/composition.py  # composition root: default_container() 가 모든 seam 을 바인딩
+├── src/fdai/core/control_loop.py  # P1 파이프라인 오케스트레이터: event_ingest → trust_router → T0 → executor → audit
+├── rule-catalog/              # catalog-as-code 데이터 (YAML) - Python 아님; 파이프라인은 src/fdai/rule_catalog/ 에
 │   ├── schema/                # JSON Schema 정의 (데이터)
 │   ├── vocabulary/            # canonical CSP-중립 어휘 (resource-types.yaml, ...)
 │   ├── action-types/          # 온톨로지 ActionType 인스턴스 (shadow-default, promotion_gate 필수)
@@ -61,7 +61,7 @@ aiopspilot/
 ├── policies/                  # T0와 verifier가 소비하는 OPA/Rego policy-as-code
 ├── infra/                     # IaC: Terraform (HCL); 엔트리 커맨드 `terraform apply`
 │   ├── modules/
-│   │   ├── resource-group/          # rg-aiopspilot; deploy-and-onboard-ko.md 에 따라 CAF 명명
+│   │   ├── resource-group/          # rg-fdai; deploy-and-onboard-ko.md 에 따라 CAF 명명
 │   │   ├── identity/                # executor 를 위한 user-assigned Managed Identity
 │   │   ├── compute/                 # runtime seam - 대안은 형제 폴더에
 │   │   │   └── container-apps/      # 기본 (Consumption + KEDA)
@@ -135,12 +135,12 @@ aiopspilot/
 - **Composition root**: `core/` 는 `shared/` 의 CSP-중립 인터페이스에만 의존합니다.
   얇은 조립 루트(`core/` 밖)가 시작 시 구체 구현을 바인딩합니다. `core/` 는 절대 구체
   어댑터를 new-up 하지 않고 의존성을 주입받습니다. 상류 기본 바인더는
-  [`aiopspilot.composition.default_container`](../../src/aiopspilot/composition.py) 이며,
+  [`fdai.composition.default_container`](../../src/fdai/composition.py) 이며,
   포크의 엔트리 포인트는 해당 바인딩을 감싸거나 교체하는 자체 팩토리를 호출합니다.
   구체 어댑터 클래스(예: `PackageResourceSchemaRegistry`, `JsonSchemaContractValidator`)
   는 public 서브-패키지에서 re-export **되지 않습니다**; 해당 서브모듈에서 직접, 그리고
   조립 루트에서만 import 되어야 하므로 `core/` 가 실수로 구체에 의존할 수 없습니다. 상류 기본 바인더는
-  [`aiopspilot.composition.default_container`](../../src/aiopspilot/composition.py) 이며,
+  [`fdai.composition.default_container`](../../src/fdai/composition.py) 이며,
   포크의 엔트리 포인트는 해당 바인딩을 감싸거나 교체하는 자체 팩토리를 호출합니다.
   구체 어댑터 클래스(예: `PackageResourceSchemaRegistry`, `JsonSchemaContractValidator`)
   는 public 서브-패키지에서 re-export **되지 않습니다**; 해당 서브모듈에서 직접, 그리고
@@ -230,7 +230,7 @@ flowchart LR
 ## 저장소 관례(Repository Conventions)
 
 - **Python (3.12+)이 모노레포 전체의 단일 코어 런타임 언어입니다**; 모든 실행 코드는
-  `src/aiopspilot/` 아래에 있습니다 (Python "src layout"). 근거와 선택 필기는
+  `src/fdai/` 아래에 있습니다 (Python "src layout"). 근거와 선택 필기는
   [tech-stack-ko.md § OD-1](tech-stack-ko.md#od-1-core-런타임-언어) 에 있습니다. Python이
   아닌 트리: [rule-catalog/](../../rule-catalog/) (YAML 데이터), [policies/](../../policies/)
   (Rego), [infra/](../../infra/) (Terraform HCL).
@@ -239,18 +239,18 @@ flowchart LR
   폐지되었습니다. 서브시스템 간 경계는 별도 패키지 설치가 아닌 CI 의 import-lint 게이트로
   강제됩니다.
 - 계약(event, action, rule 스키마와 온톨로지 `ObjectType` / `LinkType` / `ActionType`
-  정의)은 `src/aiopspilot/shared/contracts/` (타입)와 `rule-catalog/schema/` (kind별
+  정의)은 `src/fdai/shared/contracts/` (타입)와 `rule-catalog/schema/` (kind별
   JSON Schema)에 있으며 **semver** 버전을 갖고, 메이저 안에서는 backward-compatible
   하게만 변경됩니다; breaking change는 메이저를 올리고 마이그레이션 노트를 제공합니다. 이들
   타입의 런타임 인스턴스 저장은
   [llm-strategy-ko.md § Ontology Storage Layout](llm-strategy-ko.md#ontology-storage-layout)
   에서 다룹니다.
-- `src/aiopspilot/core/tiers/t0_deterministic` (deterministic-engine)과
-  `src/aiopspilot/core/risk_gate` 의 테스트는 안전 코어입니다: ≥ 90% 커버리지 게이트를
+- `src/fdai/core/tiers/t0_deterministic` (deterministic-engine)과
+  `src/fdai/core/risk_gate` 의 테스트는 안전 코어입니다: ≥ 90% 커버리지 게이트를
   유지하고 "high-risk는 절대 auto-execute 하지 않는다", "shadow-mode는 절대 변형하지 않는다",
   "액션 재적용은 no-op이다"를 단언하는 property-based 테스트를 포함합니다. 모든 액션
   경로는 shadow-mode 테스트와 rollback 테스트를 갖습니다.
-- 규칙과 정책 변경은 회귀 테스트와 함께 나갑니다. `src/aiopspilot/rule_catalog/pipeline/`
+- 규칙과 정책 변경은 회귀 테스트와 함께 나갑니다. `src/fdai/rule_catalog/pipeline/`
   승격 게이트는 실패한 회귀 스위트나 정책 위반 escape가 있으면 블록됩니다.
 - CI는 위에서 참조된 게이트(포매터/린터, secret scan, dependency audit, coverage, regression)
   를 리뷰 전에 강제합니다;

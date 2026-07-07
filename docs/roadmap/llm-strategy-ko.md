@@ -1,7 +1,7 @@
 ---
 title: LLM 전략(LLM Strategy)
 translation_of: llm-strategy.md
-translation_source_sha: 9d44b2200744c121d998fa2ace7e220d31bdd30c
+translation_source_sha: b20f7eafe7b7083d42314ca2415f5816ca4efb39
 translation_revised: 2026-07-07
 ---
 
@@ -414,7 +414,7 @@ CI가 거부.
 
 ### ActionType 계약
 
-**ActionType** ([스키마](../../src/aiopspilot/shared/contracts/ontology/action-type.json)) 는
+**ActionType** ([스키마](../../src/fdai/shared/contracts/ontology/action-type.json)) 는
 하나의 CSP-중립 mutation 카테고리와 그 카테고리의 모든 인스턴스에 대한 안전 불변식을 선언.
 `preconditions` / `stop_conditions` / `blast_radius` / `description` 을 제외한 모든 필드는
 필수.

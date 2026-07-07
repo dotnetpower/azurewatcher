@@ -9,17 +9,17 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.shared.config import AppConfig, ConfigError, ConfigProvider
-from aiopspilot.shared.config.provider import EnvVarConfigProvider
+from fdai.shared.config import AppConfig, ConfigError, ConfigProvider
+from fdai.shared.config.provider import EnvVarConfigProvider
 
 VALID_ENV: dict[str, str] = {
     "AZURE_TENANT_ID": "00000000-0000-0000-0000-000000000000",
     "AZURE_SUBSCRIPTION_ID": "00000000-0000-0000-0000-000000000000",
     "AZURE_REGION": "krc",
-    "KAFKA_BOOTSTRAP_SERVERS": "evhns-aiopspilot.example.local:9093",
+    "KAFKA_BOOTSTRAP_SERVERS": "evhns-fdai.example.local:9093",
     "KAFKA_TOPIC_EVENTS": "aw.change.events",
-    "POSTGRES_HOST": "psql-aiopspilot.example.local",
-    "POSTGRES_DATABASE": "aiopspilot",
+    "POSTGRES_HOST": "psql-fdai.example.local",
+    "POSTGRES_DATABASE": "fdai",
     "RUNTIME_ENV": "dev",
 }
 
@@ -30,7 +30,7 @@ def test_env_provider_reads_valid_env() -> None:
     assert cfg.azure.region == "krc"
     assert cfg.kafka.topic_events == "aw.change.events"
     # Default RG is applied even when the env var is omitted.
-    assert cfg.azure.resource_group == "rg-aiopspilot"
+    assert cfg.azure.resource_group == "rg-fdai"
 
 
 def test_env_provider_reports_all_missing_at_once() -> None:

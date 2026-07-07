@@ -3,7 +3,7 @@ title: Deploy and Onboard
 ---
 # Deploy and Onboard
 
-How to provision AIOpsPilot into an Azure subscription and complete first-time onboarding
+How to provision FDAI into an Azure subscription and complete first-time onboarding
 so the system is ready to observe. This file is authoritative for **the concrete deployment
 inventory, the bootstrap sequence, and the fork ↔ core responsibility split**; the deployment
 lifecycle (CI/CD, progressive delivery, rollback, DR) remains in
@@ -45,7 +45,7 @@ All identifiers are synthetic per
 - A **GitOps host** (GitHub or Azure DevOps organization) with an installed GitHub App or
   service connection scoped to the catalog + fork repos.
 - A **Teams tenant** with a group-connected team for HIL approvals (Teams is the default A1 primary - see [channels-and-notifications.md](channels-and-notifications.md)).
-- A **Slack workspace** with the AIOpsPilot Slack app installed and the mandatory userId ↔ Entra OID mapping store provisioned; required for the P1 Slack A1 channel ([channels-and-notifications.md#7-channel-specific-notes](channels-and-notifications.md#7-channel-specific-notes)).
+- A **Slack workspace** with the FDAI Slack app installed and the mandatory userId ↔ Entra OID mapping store provisioned; required for the P1 Slack A1 channel ([channels-and-notifications.md#7-channel-specific-notes](channels-and-notifications.md#7-channel-specific-notes)).
 - A **container registry** (ACR or an external registry) that supports signature +
   attestation storage.
 - **TBD**: OpenTelemetry backend selection (Log Analytics vs Grafana/Tempo vs App Insights).
@@ -77,16 +77,16 @@ Pattern:
 <caf-prefix>-<workload>[-<component>][-<env>][-<region>][-<instance>]
 ```
 
-- **workload** is the fixed literal `aiopspilot` (product name, not a customer identifier -
+- **workload** is the fixed literal `fdai` (product name, not a customer identifier -
   allowed under [generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md)).
 - **component** is added only when one resource kind is provisioned more than once
-  (e.g. `ca-aiopspilot-core` vs a future `ca-aiopspilot-worker`).
+  (e.g. `ca-fdai-core` vs a future `ca-fdai-worker`).
 - **env** (`dev`/`staging`/`prod`) and **region** (`krc`/`weu`/`eus`) suffixes are added only
   when the resource is deployed side-by-side; the day-zero deployment keeps names
   suffix-free.
 - **instance** (`01`, `02`, ...) is added only when multiple copies exist in one env.
 
-The default **resource group** is `rg-aiopspilot` (fixed by user directive). Everything the
+The default **resource group** is `rg-fdai` (fixed by user directive). Everything the
 system provisions lives under that RG unless a resource type requires a subscription-scope
 placement (none today).
 
@@ -94,33 +94,33 @@ placement (none today).
 
 | Resource | CAF prefix | Char rules | Example name |
 |----------|------------|------------|--------------|
-| Resource Group | `rg-` | 1-90; alphanumerics + hyphens/underscores | `rg-aiopspilot` |
-| User-assigned Managed Identity | `id-` | 3-128 | `id-aiopspilot-executor` |
-| Container Apps environment | `cae-` | 2-32; alphanumerics + hyphens | `cae-aiopspilot` |
-| Container App (core) | `ca-` | 2-32 | `ca-aiopspilot-core` |
-| Container Apps Job (out-of-band) | `caj-` | 2-32 | `caj-aiopspilot-oob` |
-| Event Hubs namespace | `evhns-` | 6-50 | `evhns-aiopspilot` |
-| PostgreSQL Flexible Server | `psql-` | 3-63; lowercase | `psql-aiopspilot` |
-| Key Vault | `kv-` | 3-24; alphanumerics + hyphens | `kv-aiopspilot` |
-| **Container Registry (ACR)** | `cr` | 5-50; **alphanumeric only, no hyphens** | `craiopspilot` |
-| Log Analytics workspace | `log-` | 4-63 | `log-aiopspilot` |
-| Azure Bot (HIL Adaptive Cards) | `bot-` | 2-64 | `bot-aiopspilot` |
-| Static Web App (read-only console) | `stapp-` | 2-40 | `stapp-aiopspilot` |
+| Resource Group | `rg-` | 1-90; alphanumerics + hyphens/underscores | `rg-fdai` |
+| User-assigned Managed Identity | `id-` | 3-128 | `id-fdai-executor` |
+| Container Apps environment | `cae-` | 2-32; alphanumerics + hyphens | `cae-fdai` |
+| Container App (core) | `ca-` | 2-32 | `ca-fdai-core` |
+| Container Apps Job (out-of-band) | `caj-` | 2-32 | `caj-fdai-oob` |
+| Event Hubs namespace | `evhns-` | 6-50 | `evhns-fdai` |
+| PostgreSQL Flexible Server | `psql-` | 3-63; lowercase | `psql-fdai` |
+| Key Vault | `kv-` | 3-24; alphanumerics + hyphens | `kv-fdai` |
+| **Container Registry (ACR)** | `cr` | 5-50; **alphanumeric only, no hyphens** | `crfdai` |
+| Log Analytics workspace | `log-` | 4-63 | `log-fdai` |
+| Azure Bot (HIL Adaptive Cards) | `bot-` | 2-64 | `bot-fdai` |
+| Static Web App (read-only console) | `stapp-` | 2-40 | `stapp-fdai` |
 
 ### Length-safety rules (MUST)
 
 - **ACR names never contain hyphens**; the prefix `cr` is fused with the workload token
-  (`craiopspilot`). When env/region suffixes join, do NOT reintroduce hyphens - use one
-  continuous lowercase alphanumeric string (e.g. `craiopspilotdevkrc01`).
+  (`crfdai`). When env/region suffixes join, do NOT reintroduce hyphens - use one
+  continuous lowercase alphanumeric string (e.g. `crfdaidevkrc01`).
 - **Storage account** (if ever added) is 24-char lowercase alphanumeric only - same
-  no-hyphen rule (`staiopspilot...`).
+  no-hyphen rule (`stfdai...`).
 - If a legal name exceeds the character limit after adding env/region/instance, use the
-  documented short-name `aip` in place of `aiopspilot` - and only for that resource kind.
+  documented short-name `aip` in place of `fdai` - and only for that resource kind.
   Do not sprinkle `aip` where the full name still fits.
 
 ### What this rule forbids
 
-- **No random or opaque suffixes** in Terraform (`craiopspilotcyutlgcnv3` from a hash source
+- **No random or opaque suffixes** in Terraform (`crfdaicyutlgcnv3` from a hash source
   is a review blocker). Determinism is a debugging tool.
 - **No customer names or environment values baked into the identifier** - those live in
   `*.tfvars` and the tag map, never in the resource name.
@@ -154,8 +154,8 @@ Additional required elements that **do not incur a billable Azure resource of th
 
 - **App registrations × 3** - split audiences per
   [user-rbac-and-identity.md#41-app-registrations](user-rbac-and-identity.md#41-app-registrations):
-  `aiopspilot-console-spa` (SPA sign-in, PKCE), `aiopspilot-api` (Web API audience for
-  console + ChatOps backend), and `aiopspilot-approval-bot` (Teams SSO). None hold the
+  `fdai-console-spa` (SPA sign-in, PKCE), `fdai-api` (Web API audience for
+  console + ChatOps backend), and `fdai-approval-bot` (Teams SSO). None hold the
   executor identity.
 - **Entra security groups × 5** - `aw-readers`, `aw-contributors`, `aw-approvers`,
   `aw-owners`, `aw-break-glass`. Fork-owned; objectIds injected via config and validated at

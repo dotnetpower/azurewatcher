@@ -1,4 +1,4 @@
-"""CLI wire-up tests for :mod:`aiopspilot.core.measurement.runners_cli`.
+"""CLI wire-up tests for :mod:`fdai.core.measurement.runners_cli`.
 
 The CLI is the entry point the phase-4 Container Apps Jobs
 (``infra/modules/measurement-runners/``) launch. These tests prove:
@@ -19,8 +19,8 @@ from collections.abc import Iterator
 
 import pytest
 
-from aiopspilot.core.measurement import runners_cli
-from aiopspilot.core.measurement.runners_cli import (
+from fdai.core.measurement import runners_cli
+from fdai.core.measurement.runners_cli import (
     _ENV_MODE,
     MeasurementMode,
     main,
@@ -78,6 +78,6 @@ def test_growth_exception_returns_exit_3(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_measurement_mode_enum_covers_both_terraform_values() -> None:
-    """The infra module's Terraform ``AIOPSPILOT_MEASUREMENT_MODE`` env can only
+    """The infra module's Terraform ``FDAI_MEASUREMENT_MODE`` env can only
     be ``baseline`` or ``growth`` — the CLI enum MUST match."""
     assert {m.value for m in MeasurementMode} == {"baseline", "growth"}

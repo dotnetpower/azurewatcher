@@ -7,7 +7,7 @@
 #   rule_id: compute.vm-scale-set.zone-redundancy
 #   severity: high
 #   category: reliability
-package aiopspilot.compute.vmss_zone_redundancy
+package fdai.compute.vmss_zone_redundancy
 
 import rego.v1
 

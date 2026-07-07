@@ -1,5 +1,5 @@
-"""Tests for :mod:`aiopspilot.rule_catalog.pipeline.watcher` +
-:mod:`aiopspilot.rule_catalog.pipeline.watcher_cli`.
+"""Tests for :mod:`fdai.rule_catalog.pipeline.watcher` +
+:mod:`fdai.rule_catalog.pipeline.watcher_cli`.
 
 The truth table covers every :class:`Cadence` value plus the defensive
 guard for an unrecognized cadence, and the CLI happy-path exercises the
@@ -17,9 +17,9 @@ from typing import Any
 import pytest
 import yaml
 
-from aiopspilot.rule_catalog.pipeline.watcher import SourceWatcher, WatcherError
-from aiopspilot.rule_catalog.pipeline.watcher_cli import main as watcher_main
-from aiopspilot.rule_catalog.schema.source_manifest import (
+from fdai.rule_catalog.pipeline.watcher import SourceWatcher, WatcherError
+from fdai.rule_catalog.pipeline.watcher_cli import main as watcher_main
+from fdai.rule_catalog.schema.source_manifest import (
     Cadence,
     SourceManifest,
     load_source_manifest_from_yaml,
@@ -556,7 +556,7 @@ def test_cli_returns_2_on_unknown_cadence(
 ) -> None:
     """Poison the cadence interval table so ``is_due`` raises."""
     repo_root, sources_root, _ = _build_repo_layout(tmp_path)
-    from aiopspilot.rule_catalog.pipeline import watcher as watcher_mod
+    from fdai.rule_catalog.pipeline import watcher as watcher_mod
 
     poisoned: dict[Cadence, timedelta | None] = {}
     monkeypatch.setattr(watcher_mod, "_CADENCE_INTERVALS", poisoned)
@@ -660,7 +660,7 @@ def test_cli_repo_root_autodetected(
 
 def test_shipped_seed_manifest_loads_as_on_demand(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[3]
-    manifest_path = repo_root / "rule-catalog" / "sources" / "aiopspilot-p1-seed" / "manifest.yaml"
+    manifest_path = repo_root / "rule-catalog" / "sources" / "fdai-p1-seed" / "manifest.yaml"
     manifest = load_source_manifest_from_yaml(manifest_path)
     assert manifest.cadence is Cadence.ON_DEMAND
     watcher = SourceWatcher(snapshot_root=tmp_path)

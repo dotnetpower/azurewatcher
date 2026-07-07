@@ -1,13 +1,13 @@
 ---
 title: Action 온톨로지
 translation_of: action-ontology.md
-translation_source_sha: d43a53ee16ba583e7167fb46e5ec8c021f15cc54
+translation_source_sha: 8269676a63de7d860dba45a5295a50a5b50ece2d
 translation_revised: 2026-07-07
 ---
 
 # Action 온톨로지
 
-AIOpsPilot 의 모든 액션 - 룰이 발화시킨 remediation 이든 오퍼레이터가
+FDAI 의 모든 액션 - 룰이 발화시킨 remediation 이든 오퍼레이터가
 요청한 ops task 든 - 는 shipped 온톨로지의 **`ActionType`** entry 하나의
 instance 이다. 이 문서는 스키마, 트리거 축 (`rule_violation` vs
 `operator_request`), tier 및 role 상한, live-probe 참조, 그리고 `core/`
@@ -240,7 +240,7 @@ idempotent call 인 액션 별로 `direct_api` 로 override MAY.
   failover 시 `cost_impact_monthly` 선언 MUST.
 
 **Vertical 매핑.** 각 ops ActionType 은 소유 vertical 로 태깅되어
-[verticals](../../src/aiopspilot/core/verticals) 가 claim 하고 vertical 룰이
+[verticals](../../src/fdai/core/verticals) 가 claim 하고 vertical 룰이
 `remediates:` 할 수 있음: `ops.failover-primary` 와 `ops.restart-service`
 -> Resilience; `ops.scale-in` / `ops.scale-out` -> Cost Governance;
 `ops.drain-connection` / `ops.rotate-cert` -> Change Safety.
@@ -326,7 +326,7 @@ ActionType 은 `trigger_kind=operator_request` 이고 tool 은 `approve` 또는
 1. `list_tools()` 에서 machine-readable shape 로 tool 렌더.
 2. 액션 호출 전 coordinator 경계에서 arguments validate
    ([operator-console.md § 5.2](operator-console-ko.md#52-consoletool)).
-3. 감사-write 경계에서 sensitive field (`x-aiopspilot-redact: true` mark)
+3. 감사-write 경계에서 sensitive field (`x-fdai-redact: true` mark)
    redact.
 
 ### 5.1 예시 - `ops.restart-service`
@@ -359,13 +359,13 @@ argument_schema:
 
 오퍼레이터가 type MAY 하는 secret 또는 PII 를 carry MAY 하는 field (예:
 tool-call 중 password, `restart_reason` 안의 email) 는 redactor 가 audit
-write 전 strip 하도록 `x-aiopspilot-redact` 를 carry SHOULD:
+write 전 strip 하도록 `x-fdai-redact` 를 carry SHOULD:
 
 ```yaml
 properties:
   temp_admin_password:
     type: string
-    x-aiopspilot-redact: true    # verbatim 저장 절대 안 됨
+    x-fdai-redact: true    # verbatim 저장 절대 안 됨
 ```
 
 ## 6. Live blast probe (execution-model.md §6, Month 1+)
@@ -431,7 +431,7 @@ prod_downgrade:
 ### 7.3 Config-driven overlay
 
 - Coarse switch (feature-flag 스타일) 를 위한 env-var toggle:
-  `AIOPSPILOT_OVERRIDE_ACTION_TYPE_<id>_MAX_AUTONOMY=shadow_only`.
+  `FDAI_OVERRIDE_ACTION_TYPE_<id>_MAX_AUTONOMY=shadow_only`.
 - Rare; Rego re-deploy 가 너무 느린 emergency downgrade 를 위해 문서화.
 
 ### 7.4 Runtime override (chat)
@@ -459,7 +459,7 @@ entry 에 기록.
 
 ## 8. 로더 + 검증
 
-- 로더 ([`rule_catalog/schema/action_type.py`](../../src/aiopspilot/rule_catalog/schema/action_type.py))
+- 로더 ([`rule_catalog/schema/action_type.py`](../../src/fdai/rule_catalog/schema/action_type.py))
   는 startup 시 upstream + overrides + Rego reference 를 load.
 - Cross-check (기존 shipping):
   - 모든 룰의 `remediates:` 는 로딩된 ActionType 을 pointing.
@@ -478,10 +478,10 @@ entry 에 기록.
     shipped ActionType 도 `live_probe_ref` 설정 안 하고 `rule-catalog/probes/`
     는 `README.md` placeholder 만 ship 하므로, 이 cross-check 는 Month 1 이
     첫 probe 를 bind 할 때까지 no-op.
-  - `x-aiopspilot-redact: true` 로 flag 된 모든 `argument_schema` property 는
+  - `x-fdai-redact: true` 로 flag 된 모든 `argument_schema` property 는
     leaf `string`/`number` MUST; 로더가 redaction path set 을 수집해 audit
     redactor 에 전달해 값이 verbatim landing 안 함 (§5.2). 알 수 없는
-    `x-aiopspilot-*` extension key 는 fatal load error (오타 guard, 오철자
+    `x-fdai-*` extension key 는 fatal load error (오타 guard, 오철자
     redact 힌트가 secret 을 silently leak 못 하게).
 
 ## 9. 감사 계약

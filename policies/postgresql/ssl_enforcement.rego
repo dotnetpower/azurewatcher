@@ -7,7 +7,7 @@
 #   rule_id: postgresql-server.ssl-enforcement
 #   severity: high
 #   category: security
-package aiopspilot.postgresql.ssl_enforcement
+package fdai.postgresql.ssl_enforcement
 
 import rego.v1
 

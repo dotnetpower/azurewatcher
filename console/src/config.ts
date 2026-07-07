@@ -14,10 +14,10 @@ export interface ConsoleConfig {
   readonly msalClientId: string;
   /** MSAL.js tenant id (single-tenant per fork). */
   readonly msalTenantId: string;
-  /** API audience (`api://<aiopspilot-api-guid>/access`). */
+  /** API audience (`api://<fdai-api-guid>/access`). */
   readonly msalApiScope: string;
   /** When true, MSAL is bypassed and the read API is called anonymously
-   *  (matches `AIOPSPILOT_READ_API_DEV_MODE=1` on the API). */
+   *  (matches `FDAI_READ_API_DEV_MODE=1` on the API). */
   readonly devMode: boolean;
 }
 

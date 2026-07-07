@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://aiopspilot.dev/schemas/rule-catalog/tool/1.0.0",
+  "$id": "https://fdai.dev/schemas/rule-catalog/tool/1.0.0",
   "title": "Tool Artifact",
   "description": "One tool the LLM MAY call. Wave 2.5-A ships the catalog + schema + registry; Wave 2.5-B adds the ToolExecutor and cross-check function-calling integration. See docs/roadmap/prompt-composition.md § Tool use subsystem.",
   "type": "object",

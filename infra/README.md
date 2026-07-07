@@ -19,11 +19,11 @@ the same DI pattern the Python code uses:
 ```
 infra/
 ├── main.tf                 # composition root - picks a sub-module per seam
-├── variables.tf            # workload="aiopspilot", env, region, kind selectors
+├── variables.tf            # workload="fdai", env, region, kind selectors
 ├── outputs.tf              # cross-module contract outputs
 ├── modules/
-│   ├── resource-group/         # rg-aiopspilot
-│   ├── identity/               # id-aiopspilot-executor
+│   ├── resource-group/         # rg-fdai
+│   ├── identity/               # id-fdai-executor
 │   ├── compute/
 │   │   └── container-apps/     # default runtime
 │   ├── state-store/
@@ -54,7 +54,7 @@ uses them or does not.
 
 | Output | Shape | Example |
 |--------|-------|---------|
-| `endpoint` | string | `evhns-aiopspilot.servicebus.windows.net:9093` |
+| `endpoint` | string | `evhns-fdai.servicebus.windows.net:9093` |
 | `identity_resource_id` | string | Azure resource id of a managed identity |
 | `identity_principal_id` | string | OID of the same identity (for role assignments) |
 | `secret_ref_envelope` | object | `{ vault_name, secret_name, key_vault_reference }` |
@@ -72,8 +72,8 @@ secret or an env-var name whose value the app resolves at runtime via the inject
 
 Every resource name follows the CAF convention in
 [deploy-and-onboard.md § Resource Naming Convention](../docs/roadmap/deploy-and-onboard.md#resource-naming-convention).
-The workload token is the fixed literal `aiopspilot`; the default resource group is
-`rg-aiopspilot`. Modules MUST NOT compute names from a random string or a subscription
+The workload token is the fixed literal `fdai`; the default resource group is
+`rg-fdai`. Modules MUST NOT compute names from a random string or a subscription
 hash - a rename is a Terraform diff, not a mystery.
 
 ## What is NOT here yet

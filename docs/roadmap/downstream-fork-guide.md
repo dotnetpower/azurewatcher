@@ -6,7 +6,7 @@ title: Downstream Fork Guide
 
 How to fork this repo, keep the fork clean, and customize per customer.
 This is the single entry point for **fork maintainers** - engineers
-who take the upstream AIOpsPilot and adapt it to one specific
+who take the upstream FDAI and adapt it to one specific
 deployment (a customer tenant, a compliance regime, or a proof-of-
 concept environment).
 
@@ -93,7 +93,7 @@ Do these before your first `git commit` on the fork.
    resource name, an endpoint, or a secret. Load them from
    environment or Key Vault at runtime. Every SDK-family secret
    (API key, connection string, DSN with password) goes through
-   `aiopspilot.shared.providers.secret_provider.SecretProvider` -
+   `fdai.shared.providers.secret_provider.SecretProvider` -
    the Protocol contract forbids logging or persisting the value.
 6. **Create a `fork/` (or `customer/`) top-level directory** for
    fork-owned modules. This is where your composition-root override,
@@ -114,7 +114,7 @@ Do these before your first `git commit` on the fork.
 
 ## 3. The one hard rule
 
-**Never edit files under `src/aiopspilot/core/`.** Everything a
+**Never edit files under `src/fdai/core/`.** Everything a
 fork wants to customize has a seam. If you find yourself wanting to
 edit `core/`, one of two things is happening:
 
@@ -130,7 +130,7 @@ The rule is enforced by two invariants:
 - Upstream's `scripts/check-core-imports.sh` refuses any `core/`
   file that imports from `delivery/*` or from a cloud SDK.
 - The composition root
-  ([`src/aiopspilot/composition.py`](../../src/aiopspilot/composition.py))
+  ([`src/fdai/composition.py`](../../src/fdai/composition.py))
   is the only place where concrete implementations bind to
   Protocols in `shared/providers/`. A fork writes its own
   composition root; it does not edit this file.
@@ -164,14 +164,14 @@ package + entry point).
 
 Each recipe follows the same shape: **when to override**, **the
 seam**, **how to bind**, **how to test**. All snippets assume Python
-3.12+ and the upstream package is importable as `aiopspilot`.
+3.12+ and the upstream package is importable as `fdai`.
 
 ### 5.1 Azure OpenAI adapters (LlmBindings)
 
 **When to override**: pointing at a different Azure OpenAI endpoint,
 a different set of deployments, or a non-Azure LLM provider.
 
-**The seam**: `aiopspilot.composition.LlmBindings` holds
+**The seam**: `fdai.composition.LlmBindings` holds
 `embedding_model`, `cross_check_models`, `critic_model`,
 `judge_model`, and `debate_orchestrator`. The upstream
 `bind_azure_llm_bindings()` factory reads `resolved-models.json` and
@@ -190,8 +190,8 @@ re-running it with unchanged inputs produces the same file.
 **How to bind (Azure endpoint override)**:
 
 Upstream ships a **public composition API** for the full Azure wire-
-up: [`wire_azure_container`](../../src/aiopspilot/composition.py) +
-the declarative [`AzureWireOverrides`](../../src/aiopspilot/composition.py)
+up: [`wire_azure_container`](../../src/fdai/composition.py) +
+the declarative [`AzureWireOverrides`](../../src/fdai/composition.py)
 dataclass. A fork constructs one `AzureWireOverrides` with its
 concrete adapters and passes it in - the function handles the
 composer, tool registry, prompt composition (base / critic / judge),
@@ -200,10 +200,10 @@ and the underlying `bind_azure_llm_bindings()` call in one step.
 ```python
 # fork/composition_root.py
 from pathlib import Path
-from aiopspilot.composition import (
+from fdai.composition import (
     AzureWireOverrides, default_container, wire_azure_container,
 )
-from aiopspilot.core.operator_memory import InMemoryOperatorMemoryStore
+from fdai.core.operator_memory import InMemoryOperatorMemoryStore
 from fork.adapters.scope_resolver import resolve_azure_scope
 
 async def build_container(config, *, identity, http_client):
@@ -230,8 +230,8 @@ pass `InMemoryOperatorMemoryStore()` explicitly - the API refuses
 to default a required seam.
 
 **Backwards compatibility**: upstream's `__main__._finalize_llm_bindings`
-is now a thin wrapper that reads env vars (`AIOPSPILOT_LLM_ENDPOINT`,
-`AIOPSPILOT_CATALOG_ROOT`, `AIOPSPILOT_OPERATOR_MEMORY_DSN`) and
+is now a thin wrapper that reads env vars (`FDAI_LLM_ENDPOINT`,
+`FDAI_CATALOG_ROOT`, `FDAI_OPERATOR_MEMORY_DSN`) and
 delegates to `wire_azure_container`. Existing tests and the
 upstream entry point continue to work unchanged. A fork that
 prefers env-driven wiring MAY call the wrapper; a fork that wants
@@ -260,11 +260,11 @@ unit tests; run your live adapters against
 **When to override**: switching from the shipped `InMemoryOperatorMemoryStore`
 to durable storage.
 
-**The seam**: `aiopspilot.core.operator_memory.OperatorMemoryStore`
+**The seam**: `fdai.core.operator_memory.OperatorMemoryStore`
 Protocol with three async methods: `append`, `list_active_for_scope`,
 `supersede`.
 
-**How to bind (Postgres)**: set the `AIOPSPILOT_OPERATOR_MEMORY_DSN`
+**How to bind (Postgres)**: set the `FDAI_OPERATOR_MEMORY_DSN`
 environment variable; upstream's `_build_operator_memory_store()`
 picks `PostgresOperatorMemoryStore` automatically. No code change
 needed.
@@ -285,7 +285,7 @@ materializer is a pure domain module shipped by upstream; the
 "second approval" channel that triggers it is fork-first because
 the UI varies per deployment (Teams button, git PR, custom CLI).
 
-**The seam**: `aiopspilot.core.operator_memory.HilRejectMaterializer`.
+**The seam**: `fdai.core.operator_memory.HilRejectMaterializer`.
 Construct it with your `OperatorMemoryStore` and call
 `await materializer.materialize(hil_response, second_approver,
 material)` from whatever channel your fork uses.
@@ -300,10 +300,10 @@ fields before calling the materializer.
 # fork/adapters/hil_second_approval.py
 from datetime import UTC, datetime
 
-from aiopspilot.core.operator_memory import (
+from fdai.core.operator_memory import (
     HilRejectMaterial, HilRejectMaterializer, MemoryCategory, ScopeKind,
 )
-from aiopspilot.shared.providers.hil_channel import HilDecision, HilResponse
+from fdai.shared.providers.hil_channel import HilDecision, HilResponse
 
 async def handle_teams_approval_click(payload, *, materializer, second_approver_oid):
     hil_response = HilResponse(
@@ -335,7 +335,7 @@ using `InMemoryOperatorMemoryStore` + a synthetic `HilResponse`.
 `NoOpWebSearchProvider` which returns zero snippets on every query,
 so a fork that does nothing has web search silently disabled.
 
-**The seam**: `aiopspilot.core.web_search.WebSearchProvider`
+**The seam**: `fdai.core.web_search.WebSearchProvider`
 Protocol with one async `search(query) -> WebSearchResult` method.
 
 **How to bind (Bing example)**:
@@ -354,10 +354,10 @@ returned string.
 
 ```python
 # fork/adapters/web_search.py
-from aiopspilot.core.web_search import (
+from fdai.core.web_search import (
     WebSearchProvider, WebSearchQuery, WebSearchResult, WebSnippet
 )
-from aiopspilot.shared.providers.secret_provider import SecretProvider
+from fdai.shared.providers.secret_provider import SecretProvider
 
 class BingWebSearchProvider(WebSearchProvider):
     def __init__(
@@ -402,7 +402,7 @@ fork adds its own adapter-level tests using `httpx.MockTransport`.
 **When to override**: activating any HIL flow. Upstream ships an
 in-memory fake; a real deployment MUST bind a live channel.
 
-**The seam**: `aiopspilot.shared.providers.hil_channel.HilChannel`
+**The seam**: `fdai.shared.providers.hil_channel.HilChannel`
 Protocol with `send` (dispatch Adaptive Card) and `poll` (observe
 decision).
 
@@ -411,7 +411,7 @@ Webhook / Bot Framework REST / Slack Web API / anything you like.
 Pass the instance into your composition root and wire it into the
 control loop where HIL approvals are dispatched.
 
-**How to test**: reuse `aiopspilot.shared.providers.testing.hil_channel.InMemoryHilChannel`
+**How to test**: reuse `fdai.shared.providers.testing.hil_channel.InMemoryHilChannel`
 for the pipeline tests; add wire-level tests for your adapter with
 `httpx.MockTransport`.
 
@@ -431,8 +431,8 @@ Upstream stays CSP-neutral so the parser that turns a
 ```python
 # fork/adapters/scope_resolver.py
 import re
-from aiopspilot.core.operator_memory import OperatorScope
-from aiopspilot.core.quality_gate.gate import QualityCandidate
+from fdai.core.operator_memory import OperatorScope
+from fdai.core.quality_gate.gate import QualityCandidate
 
 _ARM_RE = re.compile(
     r"^/subscriptions/[^/]+/resourceGroups/(?P<rg>[^/]+)"
@@ -474,8 +474,8 @@ declared). A fork's `resolved-models.json` MUST include both for
 **How to bind**: run the LLM resolver CLI against your regional
 catalog fixture so both capabilities appear in
 `resolved-models.json`. The upstream CLI lives at
-[`src/aiopspilot/rule_catalog/schema/llm_resolver_cli.py`](../../src/aiopspilot/rule_catalog/schema/llm_resolver_cli.py);
-invoke it as `uv run python -m aiopspilot.rule_catalog.schema.llm_resolver_cli
+[`src/fdai/rule_catalog/schema/llm_resolver_cli.py`](../../src/fdai/rule_catalog/schema/llm_resolver_cli.py);
+invoke it as `uv run python -m fdai.rule_catalog.schema.llm_resolver_cli
 --registry rule-catalog/llm-registry.yaml --region <your-region>
 --subscription-id <sub> --deployer-object-id <oid> --catalog-fixture
 <fixture.json> --permission-fixture <perm.json> --quota-fixture
@@ -536,8 +536,8 @@ and concatenate. `load_rule_catalog` returns `tuple[Rule, ...]`:
 
 ```python
 from pathlib import Path
-from aiopspilot.core.tiers.t0_deterministic.index import RuleIndex
-from aiopspilot.rule_catalog.schema.rule import load_rule_catalog
+from fdai.core.tiers.t0_deterministic.index import RuleIndex
+from fdai.rule_catalog.schema.rule import load_rule_catalog
 
 upstream_rules = load_rule_catalog(
     Path("rule-catalog/catalog"),
@@ -570,7 +570,7 @@ never raise it, per
 
 **Current state**: **the Rego overlay wire is scoped in the
 execution-model design but the RiskGate module in
-`src/aiopspilot/core/risk_gate/` does not yet load overlay files.**
+`src/fdai/core/risk_gate/` does not yet load overlay files.**
 The two authoritative decision surfaces today are (a) the
 ActionType schema's `ceiling_by_tier` block (edit the shipped
 ontology YAML directly and open an upstream PR if the change is
@@ -632,7 +632,7 @@ test doubles and asserts it satisfies the Protocol shape at
 runtime:
 
 ```python
-from aiopspilot.core.web_search import WebSearchProvider
+from fdai.core.web_search import WebSearchProvider
 
 def test_bing_provider_is_websearch_protocol():
     provider = BingWebSearchProvider(
@@ -682,8 +682,8 @@ seam Protocol's method signature is treated as a breaking change
 even if not tagged as such. The upstream policy is to ship the new
 Protocol alongside the old one for one release, then remove the
 old; a fork should complete the migration within that window.
-Watch `src/aiopspilot/shared/providers/**` and
-`src/aiopspilot/composition.py` diffs on every sync.
+Watch `src/fdai/shared/providers/**` and
+`src/fdai/composition.py` diffs on every sync.
 
 ### 6.2 Sync workflow
 
@@ -718,8 +718,8 @@ Hard don'ts. Any of these is a merge-blocker:
   does not catch customer resource names, hostnames, or bearer
   tokens. The fork MUST layer its own regex gate + an OSS secret
   scanner (see §2 item 4).
-- **Modifying files under `src/aiopspilot/core/**` or
-  `src/aiopspilot/composition.py` in place**. A fork MUST `import`
+- **Modifying files under `src/fdai/core/**` or
+  `src/fdai/composition.py` in place**. A fork MUST `import`
   from these modules (that is the whole point of the seams), but
   MUST NOT edit them. Every customization goes through
   `dataclasses.replace()` on a container returned by

@@ -1,12 +1,12 @@
 ---
 title: 어슈어런스 트윈 (질의가능하고 선제적이며 검증가능한 리뷰)
 translation_of: assurance-twin.md
-translation_source_sha: e25bb882eade9f01c87d851f0d4371d4a0629450
+translation_source_sha: 6dbbd769d40cf5320d8bd48eee94bcd0517f214c
 translation_revised: 2026-07-07
 ---
 # 어슈어런스 트윈 (질의가능하고 선제적이며 검증가능한 리뷰)
 
-"아키텍처 리뷰 에이전트" 요청에 대한 AIOpsPilot의 답은 문서 인덱스에 붙인 챗봇이
+"아키텍처 리뷰 에이전트" 요청에 대한 FDAI의 답은 문서 인덱스에 붙인 챗봇이
 아닙니다. 그것은 **어슈어런스 트윈(Assurance Twin)** 입니다: 거버넌스 대상 구독의
 질의가능하고 온톨로지에 근거한 디지털 트윈으로, 질문에 결정론적으로 답하고, 누가
 요청하기 전에 변경을 리뷰하며, remediation을 제안(실행은 절대 하지 않음)합니다. 모델은

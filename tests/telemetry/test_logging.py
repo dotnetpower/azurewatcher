@@ -8,7 +8,7 @@ import logging
 
 import pytest
 
-from aiopspilot.shared.telemetry import (
+from fdai.shared.telemetry import (
     configure_logging,
     get_logger,
     log_extra,
@@ -30,14 +30,14 @@ def _lines(stream: io.StringIO) -> list[dict[str, object]]:
 
 
 def test_log_line_is_json_with_required_keys(json_stream: io.StringIO) -> None:
-    logger = get_logger("aiopspilot.tests.telemetry")
+    logger = get_logger("fdai.tests.telemetry")
     logger.info("hello world")
 
     lines = _lines(json_stream)
     assert len(lines) == 1
     entry = lines[0]
     assert entry["level"] == "INFO"
-    assert entry["logger"] == "aiopspilot.tests.telemetry"
+    assert entry["logger"] == "fdai.tests.telemetry"
     assert entry["message"] == "hello world"
     assert entry["correlation_id"] is None
     # ISO 8601 UTC - 'T' separator, ends with '+00:00' or 'Z'.
@@ -46,7 +46,7 @@ def test_log_line_is_json_with_required_keys(json_stream: io.StringIO) -> None:
 
 
 def test_correlation_id_flows_into_log_line(json_stream: io.StringIO) -> None:
-    logger = get_logger("aiopspilot.tests.telemetry")
+    logger = get_logger("fdai.tests.telemetry")
     with with_correlation("evt-42"):
         logger.info("processing")
     lines = _lines(json_stream)
@@ -54,7 +54,7 @@ def test_correlation_id_flows_into_log_line(json_stream: io.StringIO) -> None:
 
 
 def test_extra_fields_survive_serialization(json_stream: io.StringIO) -> None:
-    logger = get_logger("aiopspilot.tests.telemetry")
+    logger = get_logger("fdai.tests.telemetry")
     logger.info("with extra", extra=log_extra(tier="t0", decision="auto"))
     lines = _lines(json_stream)
     assert lines[0]["tier"] == "t0"
@@ -67,7 +67,7 @@ def test_configure_logging_is_idempotent(json_stream: io.StringIO) -> None:
     second = io.StringIO()
     configure_logging(level=logging.DEBUG, stream=second)
 
-    logger = get_logger("aiopspilot.tests.telemetry")
+    logger = get_logger("fdai.tests.telemetry")
     logger.info("second stream only")
 
     # First stream got nothing after reconfig.
@@ -83,7 +83,7 @@ def test_logger_exception_serializes_traceback_into_exception_field(
     """`logger.exception(...)` MUST render the traceback under the top-level
     ``exception`` key, not swallow it or crash the formatter.
     """
-    logger = get_logger("aiopspilot.tests.telemetry")
+    logger = get_logger("fdai.tests.telemetry")
     try:
         raise RuntimeError("boom")
     except RuntimeError:

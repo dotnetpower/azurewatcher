@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.risk_gate import (
+from fdai.core.risk_gate import (
     CandidateAction,
     PrecedenceOutcome,
     PrecedenceResolver,

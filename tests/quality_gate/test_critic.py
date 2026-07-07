@@ -1,10 +1,10 @@
-"""Unit tests for :mod:`aiopspilot.core.quality_gate.critic`."""
+"""Unit tests for :mod:`fdai.core.quality_gate.critic`."""
 
 from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.quality_gate.critic import (
+from fdai.core.quality_gate.critic import (
     CriticObjection,
     CriticOutput,
     CriticSeverity,
@@ -158,7 +158,7 @@ class TestCatalogSeed:
 
         import yaml
 
-        from aiopspilot.core.prompts.registry import FileSystemPromptRegistry
+        from fdai.core.prompts.registry import FileSystemPromptRegistry
 
         repo_root = Path(__file__).resolve().parents[2]
         raw = yaml.safe_load(

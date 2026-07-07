@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`aiopspilot.core.tools.executor`.
+"""Unit tests for :mod:`fdai.core.tools.executor`.
 
 Every case builds a bespoke tool catalog in a tmp path (via the same
 helpers as ``test_registry.py``) and pairs it with an
@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from aiopspilot.core.tools import (
+from fdai.core.tools import (
     DefaultToolExecutor,
     FileSystemToolRegistry,
     MissingProviderError,
@@ -23,7 +23,7 @@ from aiopspilot.core.tools import (
     ToolExecutorError,
     UnknownToolError,
 )
-from aiopspilot.core.tools.testing import InMemoryToolProvider, NoOpToolProvider
+from fdai.core.tools.testing import InMemoryToolProvider, NoOpToolProvider
 
 _SCHEMA_PATH = (
     Path(__file__).resolve().parents[3]
@@ -365,8 +365,8 @@ async def test_in_memory_provider_raises_on_missing_prime() -> None:
     """The InMemoryToolProvider MUST fail loudly for unprimed calls so a
     test that forgets a fixture surfaces the omission."""
 
-    from aiopspilot.core.prompts.types import PromptMode
-    from aiopspilot.core.tools.types import CapabilityGate, ToolArtifact
+    from fdai.core.prompts.types import PromptMode
+    from fdai.core.tools.types import CapabilityGate, ToolArtifact
 
     provider = InMemoryToolProvider()
     artifact = ToolArtifact(

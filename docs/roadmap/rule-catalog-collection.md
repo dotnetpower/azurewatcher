@@ -3,7 +3,7 @@ title: Rule Catalog Collection
 ---
 # Rule Catalog Collection
 
-How AIOpsPilot **collects** checklists, best practices, policies, and baselines, and
+How FDAI **collects** checklists, best practices, policies, and baselines, and
 **normalizes** them into machine-readable YAML for the T0 deterministic engine. This document
 answers: *where do rules come from, how are they fetched, and what YAML shape do they take?*
 
@@ -370,7 +370,7 @@ provenance:
 
 > `remediates` is validated at load time against
 > [`rule-catalog/action-types/`](../../rule-catalog/action-types/) by
-> [`rule_catalog.schema.rule`](../../src/aiopspilot/rule_catalog/schema/rule.py) - an
+> [`rule_catalog.schema.rule`](../../src/fdai/rule_catalog/schema/rule.py) - an
 > unknown ActionType id fails the load, so a rule can never quote a mutation category
 > that has no `rollback_contract` / `promotion_gate` declared. Optional `alternatives`
 > follows the same rule; the shipped
@@ -449,7 +449,7 @@ provenance:
 ## Storage Layout
 
 ```
-aiopspilot/
+fdai/
 ├── policies/              # authored check-logic (OPA/Rego), consumed by T0 + verifier;
 │                         #   referenced by check_logic.ref  (top-level, per project-structure)
 └── rule-catalog/          # catalog-as-code (YAML)
@@ -472,12 +472,12 @@ consumed by T0 and the verifier, exactly as in
 
 - `vocabulary/resource-types.yaml` - the enumerated CSP-neutral `resource_type` identifier
   set every rule quotes from. Rename → catalog-wide migration; add → governance PR. Loader:
-  `src/aiopspilot/rule_catalog/schema/resource_type.py`, JSON Schema:
-  `src/aiopspilot/rule_catalog/schema/resource_types.schema.json`.
+  `src/fdai/rule_catalog/schema/resource_type.py`, JSON Schema:
+  `src/fdai/rule_catalog/schema/resource_types.schema.json`.
 - `action-types/*.yaml` - one file per ontology `ActionType` instance. `default_mode`
   MUST be `shadow` in upstream and `promotion_gate` MUST be present. Loader:
-  `src/aiopspilot/rule_catalog/schema/action_type.py`; JSON Schema is the shared ontology
-  schema at `src/aiopspilot/shared/contracts/ontology/action-type.json`.
+  `src/fdai/rule_catalog/schema/action_type.py`; JSON Schema is the shared ontology
+  schema at `src/fdai/shared/contracts/ontology/action-type.json`.
 
 ## Validation and Trust
 

@@ -1,13 +1,13 @@
 ---
 title: 규칙 카탈로그 수집(Rule Catalog Collection)
 translation_of: rule-catalog-collection.md
-translation_source_sha: cf8f7cb9783c244b13970c3c69d97486721bb7ee
+translation_source_sha: 36dad60d05fb2fd47badd7b0ba20c079c28f9fde
 translation_revised: 2026-07-07
 ---
 
 # 규칙 카탈로그 수집(Rule Catalog Collection)
 
-AIOpsPilot가 체크리스트, 모범 사례, 정책, 베이스라인을 어떻게 **수집** 하고 T0 결정론 엔진을
+FDAI가 체크리스트, 모범 사례, 정책, 베이스라인을 어떻게 **수집** 하고 T0 결정론 엔진을
 위해 기계 판독 가능 YAML로 **정규화** 하는가. 이 문서가 답하는 것: *규칙은 어디서 오는가,
 어떻게 fetch되는가, 어떤 YAML 형상을 취하는가?*
 
@@ -365,7 +365,7 @@ provenance:
 ```
 
 > `remediates` 는 load 시점에
-> [`rule_catalog.schema.rule`](../../src/aiopspilot/rule_catalog/schema/rule.py) 이
+> [`rule_catalog.schema.rule`](../../src/fdai/rule_catalog/schema/rule.py) 이
 > [`rule-catalog/action-types/`](../../rule-catalog/action-types/) 에 대해 검증 -
 > 알려지지 않은 ActionType id 는 load 를 실패시켜, 규칙이 `rollback_contract` /
 > `promotion_gate` 를 선언하지 않은 mutation 카테고리를 인용할 수 없도록 강제. 선택적
@@ -445,7 +445,7 @@ provenance:
 ## 저장 레이아웃
 
 ```
-aiopspilot/
+fdai/
 ├── policies/              # authored check-logic (OPA/Rego), T0 + verifier가 소비;
 │                         #   check_logic.ref로 참조  (top-level, project-structure에 따라)
 └── rule-catalog/          # catalog-as-code (YAML)
@@ -468,12 +468,12 @@ Authored Rego는 `rule-catalog/` 아래에 **중첩되지 않음** ; T0와 verif
 
 - `vocabulary/resource-types.yaml` - 모든 규칙이 인용하는 CSP-중립 `resource_type` 식별자
   집합. 이름 변경 → 카탈로그 전역 마이그레이션; 추가 → 거버넌스 PR. Loader:
-  `src/aiopspilot/rule_catalog/schema/resource_type.py`, JSON Schema:
-  `src/aiopspilot/rule_catalog/schema/resource_types.schema.json`.
+  `src/fdai/rule_catalog/schema/resource_type.py`, JSON Schema:
+  `src/fdai/rule_catalog/schema/resource_types.schema.json`.
 - `action-types/*.yaml` - 온톨로지 `ActionType` 인스턴스 파일당 하나. Upstream 에서 `default_mode`
   는 **반드시** `shadow` 여야 하고 `promotion_gate` 필수. Loader:
-  `src/aiopspilot/rule_catalog/schema/action_type.py`; JSON Schema 는 공유 온톨로지 스키마
-  `src/aiopspilot/shared/contracts/ontology/action-type.json`.
+  `src/fdai/rule_catalog/schema/action_type.py`; JSON Schema 는 공유 온톨로지 스키마
+  `src/fdai/shared/contracts/ontology/action-type.json`.
 
 ## 검증과 신뢰
 

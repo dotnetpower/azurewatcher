@@ -1,14 +1,14 @@
 ---
 title: 변경 승인(Approve a change)
-description: AIOpsPilot이 HIL 결정 대기로 큐잉한 변경을 어떻게 리뷰하고 승인(또는 거부)하는가.
+description: FDAI이 HIL 결정 대기로 큐잉한 변경을 어떻게 리뷰하고 승인(또는 거부)하는가.
 translation_of: approve-change.md
-translation_source_sha: afd669dff96b154574abad3def750290d1c230b7
+translation_source_sha: 658b9320640082a059e2013c121ff31d7f9ce875
 translation_revised: 2026-07-07
 ---
 
 # 변경 승인(Approve a change)
 
-제안된 변경이 HIL 티어로 오면 AIOpsPilot은 실행을 정지하고 사람에게 묻습니다. 이
+제안된 변경이 HIL 티어로 오면 FDAI은 실행을 정지하고 사람에게 묻습니다. 이
 가이드는 그 상호작용의 운영자 쪽을 다룹니다 - 요청이 어떻게 생겼는지, 승인 전 무엇을
 확인할지, 각 판정 뒤에 무엇이 일어나는지.
 
@@ -19,7 +19,7 @@ translation_revised: 2026-07-07
 
 - **이벤트 요약** - 변경을 트리거한 것(드리프트, 비용 이상, DR 훈련 등)과 영향을
   받는 리소스.
-- **제안 액션** - AIOpsPilot이 적용하려는 정확한 변경 - 리뷰 가능한 PR 또는
+- **제안 액션** - FDAI이 적용하려는 정확한 변경 - 리뷰 가능한 PR 또는
   직렬화된 액션 봉투.
 - **리스크 분류** - 왜 AUTO가 아니라 HIL 인지의 이유: 티어를 올린 특정 차원(blast
   radius, 새로움, 되돌리기 어려움, 신호 소스).

@@ -23,26 +23,26 @@ from typing import Any
 import pytest
 import yaml
 
-from aiopspilot.core.conversation import Principal, Role
-from aiopspilot.core.conversation.tools import SystemConsoleTool
-from aiopspilot.core.conversation.write_tools import (
+from fdai.core.conversation import Principal, Role
+from fdai.core.conversation.tools import SystemConsoleTool
+from fdai.core.conversation.write_tools import (
     AuditWriter,
     SimulateChangeTool,
 )
-from aiopspilot.core.executor.action_builder import ActionBuilder
-from aiopspilot.core.executor.renderer import TemplateRenderer
-from aiopspilot.core.tiers.t0_deterministic import T0Engine
-from aiopspilot.core.tiers.t0_deterministic.engine import PolicyResult
-from aiopspilot.core.tiers.t0_deterministic.index import RuleIndex
-from aiopspilot.core.trust_router import TrustRouter
-from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.core.executor.action_builder import ActionBuilder
+from fdai.core.executor.renderer import TemplateRenderer
+from fdai.core.tiers.t0_deterministic import T0Engine
+from fdai.core.tiers.t0_deterministic.engine import PolicyResult
+from fdai.core.tiers.t0_deterministic.index import RuleIndex
+from fdai.core.trust_router import TrustRouter
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
-from aiopspilot.rule_catalog.schema.rule import load_rule_catalog
-from aiopspilot.shared.contracts.models import Rule
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
-from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+from fdai.rule_catalog.schema.rule import load_rule_catalog
+from fdai.shared.contracts.models import Rule
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -476,7 +476,7 @@ class TestExtraPayloadAndHelpers:
         assert entry["resource_type"] == "object-storage"
 
     def test_enum_value_helper_handles_none_and_plain_str(self) -> None:
-        from aiopspilot.core.conversation.write_tools import _enum_value
+        from fdai.core.conversation.write_tools import _enum_value
 
         assert _enum_value(None) == ""
         assert _enum_value("plain") == "plain"
@@ -492,8 +492,8 @@ class TestExtraPayloadAndHelpers:
         from datetime import UTC, datetime
         from uuid import uuid4
 
-        from aiopspilot.core.conversation.write_tools import _extract_resource_type
-        from aiopspilot.shared.contracts.models import Event, Mode
+        from fdai.core.conversation.write_tools import _extract_resource_type
+        from fdai.shared.contracts.models import Event, Mode
 
         event = Event(
             schema_version="1.0.0",
@@ -510,7 +510,7 @@ class TestExtraPayloadAndHelpers:
         assert _extract_resource_type(event) == ""
 
     def test_preview_truncates_long_patches(self) -> None:
-        from aiopspilot.core.conversation.write_tools import _preview
+        from fdai.core.conversation.write_tools import _preview
 
         long = "x" * 2000
         preview = _preview(long, max_bytes=100)
@@ -518,7 +518,7 @@ class TestExtraPayloadAndHelpers:
         assert preview.endswith("...")
 
     def test_preview_returns_short_patch_untrimmed(self) -> None:
-        from aiopspilot.core.conversation.write_tools import _preview
+        from fdai.core.conversation.write_tools import _preview
 
         short = "  short patch  "
         assert _preview(short) == "short patch"
@@ -551,7 +551,7 @@ def _snapshot_state(store: InMemoryStateStore) -> dict[str, Any]:
 
 
 def test_module_has_expected_all() -> None:
-    from aiopspilot.core.conversation import write_tools
+    from fdai.core.conversation import write_tools
 
     assert "SimulateChangeTool" in write_tools.__all__
     assert "AuditWriter" in write_tools.__all__
@@ -565,7 +565,7 @@ def test_audit_writer_is_sync_wrap_over_async_state_store() -> None:
     from datetime import UTC, datetime
     from uuid import uuid4
 
-    from aiopspilot.shared.contracts.models import Event, Mode
+    from fdai.shared.contracts.models import Event, Mode
 
     event = Event(
         schema_version="1.0.0",

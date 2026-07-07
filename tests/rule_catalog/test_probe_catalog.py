@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.rule_catalog.schema.probe import (
+from fdai.rule_catalog.schema.probe import (
     ProbeCatalogError,
     load_probe_catalog,
     probe_ids,

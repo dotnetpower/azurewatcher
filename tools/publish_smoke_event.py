@@ -22,7 +22,7 @@ from typing import Any
 from aiokafka import AIOKafkaProducer
 from aiokafka.abc import AbstractTokenProvider
 
-NAMESPACE = "evhns-aiopspilot-dev-krc.servicebus.windows.net"
+NAMESPACE = "evhns-fdai-dev-krc.servicebus.windows.net"
 BOOTSTRAP = f"{NAMESPACE}:9093"
 TOPIC = "aw.change.events"
 

@@ -8,7 +8,7 @@
 #   rule_id: postgresql-server.encryption-at-rest
 #   severity: high
 #   category: security
-package aiopspilot.postgresql.encryption_at_rest
+package fdai.postgresql.encryption_at_rest
 
 import rego.v1
 

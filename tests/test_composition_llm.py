@@ -9,15 +9,15 @@ from typing import Any
 import httpx
 import pytest
 
-from aiopspilot.composition import (
+from fdai.composition import (
     LlmBindings,
     LlmBindingsUnavailableError,
     bind_azure_llm_bindings,
     default_container,
 )
-from aiopspilot.shared.config import AppConfig
-from aiopspilot.shared.config.models import LlmMode
-from aiopspilot.shared.providers.workload_identity import (
+from fdai.shared.config import AppConfig
+from fdai.shared.config.models import LlmMode
+from fdai.shared.providers.workload_identity import (
     IdentityToken,
     WorkloadIdentity,
 )
@@ -44,7 +44,7 @@ def _config(*, mode: str = LlmMode.LOCAL_FAKE, resolved_path: str | None = None)
                 "bootstrap_servers": "example:9093",
                 "topic_events": "aw.change.events",
             },
-            "postgres": {"host": "example.local", "database": "aiopspilot"},
+            "postgres": {"host": "example.local", "database": "fdai"},
             "runtime": {"env": "dev"},
             "llm": llm,
         }
@@ -80,12 +80,12 @@ def test_local_fake_container_never_imports_delivery_azure_llm() -> None:
 
     # Purge cached modules first (safe: we re-import as needed).
     for mod in list(sys.modules):
-        if mod.startswith("aiopspilot.delivery.azure.llm"):
+        if mod.startswith("fdai.delivery.azure.llm"):
             sys.modules.pop(mod, None)
     default_container(_config(mode=LlmMode.LOCAL_FAKE))
-    assert "aiopspilot.delivery.azure.llm" not in sys.modules
-    assert "aiopspilot.delivery.azure.llm.embeddings" not in sys.modules
-    assert "aiopspilot.delivery.azure.llm.cross_check" not in sys.modules
+    assert "fdai.delivery.azure.llm" not in sys.modules
+    assert "fdai.delivery.azure.llm.embeddings" not in sys.modules
+    assert "fdai.delivery.azure.llm.cross_check" not in sys.modules
 
 
 # ---------------------------------------------------------------------------
@@ -231,7 +231,7 @@ def test_bind_hil_only_mode_uses_disagree_fake_for_secondary(tmp_path: Path) -> 
     """`mixed_model_mode='hil-only'` MUST bind cleanly with an
     always-disagree fake as the secondary, so every T2 quality-gate
     call resolves to DISAGREE and routes to HIL by design."""
-    from aiopspilot.core.quality_gate.testing import MismatchCrossCheckModel
+    from fdai.core.quality_gate.testing import MismatchCrossCheckModel
 
     resolved = tmp_path / "resolved-models.json"
     payload = (
@@ -312,7 +312,7 @@ def test_bind_forwards_composer_and_capability_id_to_both_reasoners(
     bindings = finalized.require_llm_bindings()
     primary, secondary = bindings.cross_check_models
     # Narrow to the concrete adapter for private-attribute inspection.
-    from aiopspilot.delivery.azure.llm.cross_check import AzureOpenAICrossCheckModel
+    from fdai.delivery.azure.llm.cross_check import AzureOpenAICrossCheckModel
 
     assert isinstance(primary, AzureOpenAICrossCheckModel)
     assert isinstance(secondary, AzureOpenAICrossCheckModel)
@@ -343,7 +343,7 @@ def test_bind_omits_composer_wiring_when_not_supplied(tmp_path: Path) -> None:
         system_prompt=_TEST_SYSTEM_PROMPT,
     )
     primary, secondary = finalized.require_llm_bindings().cross_check_models
-    from aiopspilot.delivery.azure.llm.cross_check import AzureOpenAICrossCheckModel
+    from fdai.delivery.azure.llm.cross_check import AzureOpenAICrossCheckModel
 
     assert isinstance(primary, AzureOpenAICrossCheckModel)
     assert isinstance(secondary, AzureOpenAICrossCheckModel)
@@ -403,7 +403,7 @@ def test_bind_wires_critic_when_capability_resolves_and_prompt_supplied(
         critic_system_prompt="unit-test critic system prompt",
     )
     bindings = finalized.require_llm_bindings()
-    from aiopspilot.delivery.azure.llm.critic import AzureOpenAICriticModel
+    from fdai.delivery.azure.llm.critic import AzureOpenAICriticModel
 
     assert isinstance(bindings.critic_model, AzureOpenAICriticModel)
 
@@ -531,9 +531,9 @@ def test_debate_orchestrator_auto_constructs_when_both_capabilities_and_prompts(
         judge_system_prompt="unit-test judge",
     )
     bindings = finalized.require_llm_bindings()
-    from aiopspilot.core.quality_gate.debate import DebateOrchestrator
-    from aiopspilot.delivery.azure.llm.critic import AzureOpenAICriticModel
-    from aiopspilot.delivery.azure.llm.judge import AzureOpenAIJudgeModel
+    from fdai.core.quality_gate.debate import DebateOrchestrator
+    from fdai.delivery.azure.llm.critic import AzureOpenAICriticModel
+    from fdai.delivery.azure.llm.judge import AzureOpenAIJudgeModel
 
     assert isinstance(bindings.critic_model, AzureOpenAICriticModel)
     assert isinstance(bindings.judge_model, AzureOpenAIJudgeModel)
@@ -615,9 +615,9 @@ def test_llm_bindings_rejects_manual_orchestrator_without_both_role_models() -> 
     construction so a fork bug is caught at build time, not deep
     inside the orchestrator on the first event."""
 
-    from aiopspilot.core.quality_gate.debate import DebateOrchestrator, DebateOrchestratorConfig
-    from aiopspilot.core.quality_gate.testing import MatchTypeCrossCheckModel
-    from aiopspilot.core.tiers.t1_lightweight.testing import DeterministicEmbeddingModel
+    from fdai.core.quality_gate.debate import DebateOrchestrator, DebateOrchestratorConfig
+    from fdai.core.quality_gate.testing import MatchTypeCrossCheckModel
+    from fdai.core.tiers.t1_lightweight.testing import DeterministicEmbeddingModel
 
     # Fake critic/judge for the orchestrator - never called here.
     class _FakeCritic:
@@ -655,8 +655,8 @@ _SHIPPED_CATALOG_ROOT = _REPO_ROOT / "rule-catalog"
 def test_azure_wire_overrides_rejects_empty_endpoint(tmp_path: Path) -> None:
     """Fork bug: forgot to fill in AzureWireOverrides.endpoint. Caught at
     build time, before any I/O."""
-    from aiopspilot.composition import AzureWireOverrides
-    from aiopspilot.core.operator_memory import InMemoryOperatorMemoryStore
+    from fdai.composition import AzureWireOverrides
+    from fdai.core.operator_memory import InMemoryOperatorMemoryStore
 
     with pytest.raises(ValueError, match="endpoint MUST be non-empty"):
         AzureWireOverrides(
@@ -671,7 +671,7 @@ def test_azure_wire_overrides_rejects_none_operator_memory_store(
 ) -> None:
     """Fork bug: forgot to pass a store. Caught at build time so the
     composer never sees a None-shaped seam."""
-    from aiopspilot.composition import AzureWireOverrides
+    from fdai.composition import AzureWireOverrides
 
     with pytest.raises(ValueError, match="operator_memory_store MUST be"):
         AzureWireOverrides(
@@ -682,8 +682,8 @@ def test_azure_wire_overrides_rejects_none_operator_memory_store(
 
 
 async def test_wire_azure_container_rejects_non_azure_mode(tmp_path: Path) -> None:
-    from aiopspilot.composition import AzureWireOverrides, wire_azure_container
-    from aiopspilot.core.operator_memory import InMemoryOperatorMemoryStore
+    from fdai.composition import AzureWireOverrides, wire_azure_container
+    from fdai.core.operator_memory import InMemoryOperatorMemoryStore
 
     container = default_container(_config(mode=LlmMode.LOCAL_FAKE))
     http = httpx.AsyncClient()
@@ -704,8 +704,8 @@ async def test_wire_azure_container_attaches_full_stack(tmp_path: Path) -> None:
     """End-to-end: default_container + wire_azure_container against the
     shipped rule-catalog produces a container with LLM bindings and a
     populated prompt composer, without touching the __main__ helpers."""
-    from aiopspilot.composition import AzureWireOverrides, wire_azure_container
-    from aiopspilot.core.operator_memory import InMemoryOperatorMemoryStore
+    from fdai.composition import AzureWireOverrides, wire_azure_container
+    from fdai.core.operator_memory import InMemoryOperatorMemoryStore
 
     resolved = tmp_path / "resolved-models.json"
     resolved.write_text(_resolved_models_json(), encoding="utf-8")
@@ -728,8 +728,8 @@ async def test_wire_azure_container_attaches_full_stack(tmp_path: Path) -> None:
 
 async def test_wire_azure_container_propagates_scope_resolver(tmp_path: Path) -> None:
     """A fork's ScopeResolver reaches the cross-check adapters."""
-    from aiopspilot.composition import AzureWireOverrides, wire_azure_container
-    from aiopspilot.core.operator_memory import InMemoryOperatorMemoryStore
+    from fdai.composition import AzureWireOverrides, wire_azure_container
+    from fdai.core.operator_memory import InMemoryOperatorMemoryStore
 
     seen: list[str] = []
 
@@ -762,8 +762,8 @@ async def test_wire_azure_container_propagates_scope_resolver(tmp_path: Path) ->
 
 async def test_wire_azure_container_forwards_tool_providers(tmp_path: Path) -> None:
     """Fork-provided tool providers reach the tool executor."""
-    from aiopspilot.composition import AzureWireOverrides, wire_azure_container
-    from aiopspilot.core.operator_memory import InMemoryOperatorMemoryStore
+    from fdai.composition import AzureWireOverrides, wire_azure_container
+    from fdai.core.operator_memory import InMemoryOperatorMemoryStore
 
     class _FakeProvider:
         async def invoke(self, *args: Any, **kwargs: Any) -> None:  # pragma: no cover

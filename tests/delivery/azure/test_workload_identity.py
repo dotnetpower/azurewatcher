@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 
-from aiopspilot.delivery.azure.workload_identity import (
+from fdai.delivery.azure.workload_identity import (
     ManagedIdentityConfigurationError,
     ManagedIdentityWorkloadIdentity,
     ManagedIdentityWorkloadIdentityConfig,

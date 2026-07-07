@@ -18,11 +18,11 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.quality_gate import (
+from fdai.core.quality_gate import (
     QualityCandidate,
     RuleBasedVerifier,
 )
-from aiopspilot.shared.contracts.models import Rule
+from fdai.shared.contracts.models import Rule
 
 
 def _make_rule(
@@ -214,8 +214,8 @@ async def test_rulebased_verifier_composes_with_quality_gate(
     valid_rule: dict[str, Any],
 ) -> None:
     """End-to-end: gate.evaluate() sees the verifier's True path."""
-    from aiopspilot.core.quality_gate import QualityGate, QualityGateConfig, QualityOutcome
-    from aiopspilot.core.quality_gate.testing import (
+    from fdai.core.quality_gate import QualityGate, QualityGateConfig, QualityOutcome
+    from fdai.core.quality_gate.testing import (
         InMemoryGroundingSource,
         MatchTypeCrossCheckModel,
     )
@@ -248,8 +248,8 @@ async def test_rulebased_verifier_composes_with_quality_gate(
 
 @pytest.mark.asyncio
 async def test_rulebased_verifier_denies_invented_action(valid_rule: dict[str, Any]) -> None:
-    from aiopspilot.core.quality_gate import QualityGate, QualityGateConfig, QualityOutcome
-    from aiopspilot.core.quality_gate.testing import (
+    from fdai.core.quality_gate import QualityGate, QualityGateConfig, QualityOutcome
+    from fdai.core.quality_gate.testing import (
         InMemoryGroundingSource,
         MatchTypeCrossCheckModel,
     )

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from aiopspilot.shared.config import AppConfig
-from aiopspilot.shared.telemetry import (
+from fdai.shared.config import AppConfig
+from fdai.shared.telemetry import (
     configure_telemetry,
     get_meter,
     get_tracer,
@@ -13,8 +13,8 @@ from aiopspilot.shared.telemetry import (
 
 def test_configure_telemetry_wires_everything(app_config: AppConfig) -> None:
     configure_telemetry(app_config)
-    tracer = get_tracer("aiopspilot.tests.setup")
-    meter = get_meter("aiopspilot.tests.setup")
+    tracer = get_tracer("fdai.tests.setup")
+    meter = get_meter("fdai.tests.setup")
 
     with tracer.start_as_current_span("smoke"):
         counter = meter.create_counter("aw.tests.smoke")

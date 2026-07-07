@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from aiopspilot.core.measurement.regression import (
+from fdai.core.measurement.regression import (
     GuardKind,
     GuardMetric,
     MeasurementSample,

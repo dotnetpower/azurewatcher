@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.core.notifications import (
+from fdai.core.notifications import (
     MatrixValidationError,
     load_matrix_from_mapping,
     load_matrix_from_yaml,

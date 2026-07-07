@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fdai.dev/schemas/ontology/link-type/1.0.0",
+  "title": "OntologyLinkType",
+  "description": "Declares a directed relationship between two ObjectTypes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "name",
+    "version",
+    "from_type",
+    "to_type",
+    "cardinality"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "from_type": {
+      "type": "string",
+      "description": "Source ObjectType name."
+    },
+    "to_type": {
+      "type": "string",
+      "description": "Target ObjectType name."
+    },
+    "cardinality": {
+      "type": "string",
+      "enum": [
+        "one_to_one",
+        "one_to_many",
+        "many_to_one",
+        "many_to_many"
+      ]
+    },
+    "is_transitive": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when a chain of this link may be walked recursively (e.g. `contains` from subscription to a leaf resource). The traversal engine only recurses when this is true."
+    },
+    "is_causal": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when this link carries causal semantics (Rule -> Outcome `causes`/`prevents`). T2 reasoning may cite it; deterministic tiers must not treat causality as certainty."
+    },
+    "temporal_order": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when this link's endpoints have a strict time ordering (Finding `precedes`/`follows`). Queries over the link must respect the timestamp on the endpoints."
+    },
+    "description": {
+      "type": "string"
+    }
+  }
+}

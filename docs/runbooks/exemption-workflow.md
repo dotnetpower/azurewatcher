@@ -2,7 +2,7 @@
 
 Time-boxed, audited, owner-approved waiver path for a specific rule
 assignment against a specific scope. Backed by the schema in
-[`rule-catalog/schema/exemption.json`](../../src/aiopspilot/rule_catalog/schema/exemption.schema.json)
+[`rule-catalog/schema/exemption.json`](../../src/fdai/rule_catalog/schema/exemption.schema.json)
 and a CI validator that runs on every PR that touches
 `rule-catalog/exemptions/`.
 
@@ -36,7 +36,7 @@ pipeline instead. If the wrong dimension is auto-vs-HIL, tune
 
 1. **Open a PR** using the `Exemption Request` template.
 2. **Fill the artifact** at `rule-catalog/exemptions/<id>.json` according
-   to the [schema](../../src/aiopspilot/rule_catalog/schema/exemption.schema.json).
+   to the [schema](../../src/fdai/rule_catalog/schema/exemption.schema.json).
 3. **CI runs**:
    - Schema validation (`exemption-check` job).
    - Author-≠-reviewer branch-protection rule (repo settings).
@@ -83,7 +83,7 @@ pipeline observes the state change).
 | Artifact | Path |
 |----------|------|
 | Design: Human Override | [../../.github/instructions/architecture.instructions.md#human-override](../../.github/instructions/architecture.instructions.md#human-override) |
-| Exemption schema | [../../src/aiopspilot/rule_catalog/schema/exemption.schema.json](../../src/aiopspilot/rule_catalog/schema/exemption.schema.json) |
+| Exemption schema | [../../src/fdai/rule_catalog/schema/exemption.schema.json](../../src/fdai/rule_catalog/schema/exemption.schema.json) |
 | CI check (`exemption-check` job) | [../../.github/workflows/ci.yml](../../.github/workflows/ci.yml) |
 | Expiry CLI | [../../scripts/exemption-expire.py](../../scripts/exemption-expire.py) |
 | PR template | [../../.github/PULL_REQUEST_TEMPLATE/exemption.md](../../.github/PULL_REQUEST_TEMPLATE/exemption.md) |

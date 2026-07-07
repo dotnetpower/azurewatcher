@@ -34,6 +34,6 @@ for the full recognition-probe design.
 
 `core/measurement/prompt_probe_loader.py` walks this tree at startup and
 exposes a `ScenarioCatalog` return type. Aggregate errors follow the pattern
-established in `aiopspilot.core.prompts.registry` and
-`aiopspilot.core.tools.registry` so every malformed scenario surfaces in a
+established in `fdai.core.prompts.registry` and
+`fdai.core.tools.registry` so every malformed scenario surfaces in a
 single exception.

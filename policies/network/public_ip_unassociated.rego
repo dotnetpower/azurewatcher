@@ -7,7 +7,7 @@
 #   rule_id: network.public-ip.unassociated
 #   severity: low
 #   category: cost
-package aiopspilot.network.public_ip_unassociated
+package fdai.network.public_ip_unassociated
 
 import rego.v1
 

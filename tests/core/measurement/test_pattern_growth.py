@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from aiopspilot.core.measurement.pattern_growth import (
+from fdai.core.measurement.pattern_growth import (
     HoldoutOutcome,
     IntakeOutcome,
     OutcomeRecord,

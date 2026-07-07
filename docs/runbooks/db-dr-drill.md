@@ -5,9 +5,9 @@ title: Deep DB-DR Restore Drill Runbook
 # Deep DB-DR restore drill runbook
 
 Operator runbook for the phase-3 § Deep DB-DR drill. Turns the shipped
-[`DbDrVerifier`](../../src/aiopspilot/core/verticals/db_dr_verifier.py)
+[`DbDrVerifier`](../../src/fdai/core/verticals/db_dr_verifier.py)
 and its Azure adapter
-([`AzureDbDrRestoreAdapter`](../../src/aiopspilot/delivery/azure/db_dr_restore.py))
+([`AzureDbDrRestoreAdapter`](../../src/fdai/delivery/azure/db_dr_restore.py))
 into a repeatable operational procedure. The drill runs against a
 production PostgreSQL Flexible Server without ever touching production
 data — the restore lands in an **isolated resource group** the drill
@@ -19,7 +19,7 @@ tears down when done.
 - **After schema migration**: within 7 days of every migration that
   changes user-visible tables.
 - **On restore-adapter change**: any commit under
-  [`src/aiopspilot/delivery/azure/db_dr_restore.py`](../../src/aiopspilot/delivery/azure/db_dr_restore.py)
+  [`src/fdai/delivery/azure/db_dr_restore.py`](../../src/fdai/delivery/azure/db_dr_restore.py)
   is a re-run trigger.
 - **On demand**: when incident response needs a fresh RPO/RTO figure.
 
@@ -33,7 +33,7 @@ tears down when done.
    AZURE_CONFIG_DIR` selects the default profile. Confirm the active
    subscription matches your fork's expected id (`az account show`
    returns the subscription you set as
-   `AIOPSPILOT_EXPECTED_SUBSCRIPTION_ID`).
+   `FDAI_EXPECTED_SUBSCRIPTION_ID`).
 4. Isolated resource group name is available in the subscription and
    does NOT clash with the source's resource group. The drill script
    generates a fresh name each run.
@@ -52,9 +52,9 @@ tears down when done.
    drill timestamp so parallel drills do not collide:
 
    ```bash
-   DRILL_RG="rg-aiopspilot-dr-drill-$(date +%Y%m%d-%H%M)"
+   DRILL_RG="rg-fdai-dr-drill-$(date +%Y%m%d-%H%M)"
    az group create -n "$DRILL_RG" -l koreacentral \
-     --tags workload=aiopspilot purpose=dr-drill drill-ts=$(date +%Y-%m-%d)
+     --tags workload=fdai purpose=dr-drill drill-ts=$(date +%Y-%m-%d)
    ```
 
 3. **Trigger the PITR restore.** The target server name is a globally
@@ -62,7 +62,7 @@ tears down when done.
    clash with a previous drill:
 
    ```bash
-   SRC_ID="/subscriptions/<sub>/resourceGroups/rg-aiopspilot-dev-krc/providers/Microsoft.DBforPostgreSQL/flexibleServers/psql-aiopspilot-dev-krc"
+   SRC_ID="/subscriptions/<sub>/resourceGroups/rg-fdai-dev-krc/providers/Microsoft.DBforPostgreSQL/flexibleServers/psql-fdai-dev-krc"
    TARGET="psql-aiop-drill-$(date +%m%d%H%M)"
    az postgres flexible-server restore \
      -g "$DRILL_RG" -n "$TARGET" \
@@ -73,7 +73,7 @@ tears down when done.
 
 4. **Poll until the server is `Ready`.** Restore typically completes
    in 15-40 minutes for a small dev database. The
-   [`AzureDbDrRestoreAdapter`](../../src/aiopspilot/delivery/azure/db_dr_restore.py)
+   [`AzureDbDrRestoreAdapter`](../../src/fdai/delivery/azure/db_dr_restore.py)
    polls the LRO endpoint under a 30-minute budget by default; the
    operator equivalent is:
 
@@ -90,13 +90,13 @@ tears down when done.
    `$RESTORE_TIME`. Any mismatch fails the drill.
 
    The upstream
-   [`DbDrVerifier`](../../src/aiopspilot/core/verticals/db_dr_verifier.py)
+   [`DbDrVerifier`](../../src/fdai/core/verticals/db_dr_verifier.py)
    consumes an
-   [`IntegrityChecker`](../../src/aiopspilot/shared/providers/db_dr.py)
+   [`IntegrityChecker`](../../src/fdai/shared/providers/db_dr.py)
    Protocol seam; the operator equivalent is:
 
    ```bash
-   psql "host=$TARGET.postgres.database.azure.com user=<admin> dbname=aiopspilot sslmode=require" \
+   psql "host=$TARGET.postgres.database.azure.com user=<admin> dbname=fdai sslmode=require" \
      -c "SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY relname;"
    ```
 
@@ -155,4 +155,4 @@ tag `purpose=dr-drill` catch stray drill resource groups older than
 
 - [phase-3-integrated-loop.md § Deep DB-DR (stateful — dedicated design)](../roadmap/phases/phase-3-integrated-loop.md)
 - [security-and-identity.md](../roadmap/security-and-identity.md)
-- [DbDrVerifier module docstring](../../src/aiopspilot/core/verticals/db_dr_verifier.py)
+- [DbDrVerifier module docstring](../../src/fdai/core/verticals/db_dr_verifier.py)

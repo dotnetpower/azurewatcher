@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.shared.providers.observation import (
+from fdai.shared.providers.observation import (
     DeploymentHistoryError,
     DeploymentHistoryProvider,
     DeploymentHistoryResult,
@@ -19,7 +19,7 @@ from aiopspilot.shared.providers.observation import (
     MetricQueryProvider,
     ObservationError,
 )
-from aiopspilot.shared.providers.testing.observation import (
+from fdai.shared.providers.testing.observation import (
     InMemoryDeploymentHistoryProvider,
     InMemoryIncidentCorrelator,
     InMemoryLogQueryProvider,

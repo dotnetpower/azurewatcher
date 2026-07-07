@@ -7,7 +7,7 @@
 #   rule_id: kubernetes-node-pool.multi-zone
 #   severity: high
 #   category: reliability
-package aiopspilot.kubernetes.node_pool_multi_zone
+package fdai.kubernetes.node_pool_multi_zone
 
 import rego.v1
 

@@ -24,6 +24,6 @@ docker compose up -d --wait
 
 echo
 echo "dev-up: OK"
-echo "  postgres:  localhost:5432  (user=aiopspilot db=aiopspilot)"
+echo "  postgres:  localhost:5432  (user=fdai db=fdai)"
 echo "  redpanda:  localhost:19092 (kafka external listener)"
 echo "  admin:     localhost:9644  (redpanda admin API)"

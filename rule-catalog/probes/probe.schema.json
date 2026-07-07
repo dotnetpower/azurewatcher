@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aiopspilot.dev/schemas/probe/1.0.0",
+  "$id": "https://fdai.dev/schemas/probe/1.0.0",
   "title": "LiveBlastProbe",
   "description": "One live-blast probe declaration. Named by ActionType.live_probe_ref. See docs/roadmap/execution-model.md 4 and docs/roadmap/action-ontology.md 6. Month-1+; the risk-gate reads the interpretation function to classify a target as quiet/active/overloaded and cap autonomy accordingly.",
   "type": "object",

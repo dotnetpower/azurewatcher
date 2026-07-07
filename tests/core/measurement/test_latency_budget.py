@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.measurement.latency_budget import (
+from fdai.core.measurement.latency_budget import (
     LatencyBudget,
     LatencyBudgetMonitor,
     LatencyObservation,

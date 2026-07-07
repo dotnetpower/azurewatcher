@@ -10,7 +10,7 @@ Phase-1 exit criterion (see
 This module realizes the harness. It loads the labeled fixtures under
 [`fixtures/change_safety_labeled/`](fixtures/change_safety_labeled/),
 runs each through the real
-:class:`~aiopspilot.core.verticals.change_safety_detector.ChangeSafetyDetector`
+:class:`~fdai.core.verticals.change_safety_detector.ChangeSafetyDetector`
 under a deterministic clock, and computes:
 
 - Per-class confusion matrix (AUTHORIZED / SUPPRESSED / OUT_OF_BAND).
@@ -38,20 +38,20 @@ from uuid import uuid4
 
 import pytest
 
-from aiopspilot.core.verticals.change_safety_detector import (
+from fdai.core.verticals.change_safety_detector import (
     ACTIVITY_LOG_SIGNAL_KIND,
     ChangeAttribution,
     ChangeSafetyDetector,
     ChangeSafetyDetectorConfig,
 )
-from aiopspilot.shared.contracts.models import Event, Mode
-from aiopspilot.shared.providers.pipeline_principal import (
+from fdai.shared.contracts.models import Event, Mode
+from fdai.shared.providers.pipeline_principal import (
     InMemoryPipelinePrincipalRegistry,
 )
-from aiopspilot.shared.providers.remediation_pr_ledger import (
+from fdai.shared.providers.remediation_pr_ledger import (
     InMemoryRemediationPrLedger,
 )
-from aiopspilot.shared.providers.testing import (
+from fdai.shared.providers.testing import (
     InMemoryEventBus,
     InMemoryStateStore,
     RecordingRemediationPrPublisher,

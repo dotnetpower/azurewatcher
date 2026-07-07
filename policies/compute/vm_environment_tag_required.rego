@@ -7,7 +7,7 @@
 #   rule_id: compute.vm.environment-tag.required
 #   severity: low
 #   category: config_drift
-package aiopspilot.compute.vm_environment_tag_required
+package fdai.compute.vm_environment_tag_required
 
 import rego.v1
 

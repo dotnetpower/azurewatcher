@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from aiopspilot.core.risk_gate.authority import evaluate_execution_authority
-from aiopspilot.core.risk_gate.ceiling import AxisLevel
-from aiopspilot.core.risk_gate.evaluator import combine, gate_level
-from aiopspilot.core.risk_gate.gate import RiskDecision, RiskDecisionOutcome
-from aiopspilot.core.risk_gate.risk_table import load_risk_table
-from aiopspilot.shared.contracts.models import (
+from fdai.core.risk_gate.authority import evaluate_execution_authority
+from fdai.core.risk_gate.ceiling import AxisLevel
+from fdai.core.risk_gate.evaluator import combine, gate_level
+from fdai.core.risk_gate.gate import RiskDecision, RiskDecisionOutcome
+from fdai.core.risk_gate.risk_table import load_risk_table
+from fdai.shared.contracts.models import (
     ActionBlastRadius,
     ActionInterface,
     BlastRadiusComputation,

@@ -7,7 +7,7 @@
 #   rule_id: object-storage.cost-center-tag.required
 #   severity: low
 #   category: config_drift
-package aiopspilot.object_storage.cost_center_tag_required
+package fdai.object_storage.cost_center_tag_required
 
 import rego.v1
 

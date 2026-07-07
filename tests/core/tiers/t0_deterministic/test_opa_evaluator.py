@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 import yaml
 
-from aiopspilot.core.tiers.t0_deterministic import (
+from fdai.core.tiers.t0_deterministic import (
     MissingOpaBinaryError,
     OpaEvaluatorError,
     OpaRegoEvaluator,
@@ -25,12 +25,12 @@ from aiopspilot.core.tiers.t0_deterministic import (
     RuleIndex,
     T0Engine,
 )
-from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
-from aiopspilot.rule_catalog.schema.rule import load_rule_catalog
-from aiopspilot.shared.contracts.models import (
+from fdai.rule_catalog.schema.rule import load_rule_catalog
+from fdai.shared.contracts.models import (
     Category,
     CheckLogic,
     CheckLogicKind,
@@ -40,7 +40,7 @@ from aiopspilot.shared.contracts.models import (
     RuleSource,
     Severity,
 )
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 POLICIES_ROOT = REPO_ROOT / "policies"
@@ -153,9 +153,9 @@ def test_non_positive_timeout_is_rejected() -> None:
 
 def test_derive_package_from_relative_path() -> None:
     derived = OpaRegoEvaluator._derive_package(Path("object_storage/public_access.rego"))
-    assert derived == "aiopspilot.object_storage.public_access"
+    assert derived == "fdai.object_storage.public_access"
     derived_two = OpaRegoEvaluator._derive_package(Path("compute/vmss_over_provisioned.rego"))
-    assert derived_two == "aiopspilot.compute.vmss_over_provisioned"
+    assert derived_two == "fdai.compute.vmss_over_provisioned"
 
 
 # ---------------------------------------------------------------------------
@@ -313,8 +313,8 @@ def test_absolute_reference_raises_opa_evaluator_error() -> None:
 @requires_opa
 def test_t0_engine_end_to_end_with_opa_evaluator() -> None:
     """Full round-trip: catalog → index → engine → OpaRegoEvaluator → verdict."""
-    from aiopspilot.core.tiers.t0_deterministic import PipelineStage
-    from aiopspilot.shared.contracts.models import Mode
+    from fdai.core.tiers.t0_deterministic import PipelineStage
+    from fdai.shared.contracts.models import Mode
 
     rules = _load_shipped_rules()
     engine = T0Engine(
@@ -347,7 +347,7 @@ def test_t0_engine_fail_closes_on_broken_policy(tmp_path: Path) -> None:
 
     Property: `shadow_never_mutates` + `one_bad_rule_does_not_hide_others`.
     """
-    from aiopspilot.core.tiers.t0_deterministic import PipelineStage
+    from fdai.core.tiers.t0_deterministic import PipelineStage
 
     # Break just the public-access rego; leave owner-tag intact so
     # the engine's fail-close per-rule path is exercised.
@@ -384,14 +384,14 @@ def test_t0_engine_fail_closes_on_broken_policy(tmp_path: Path) -> None:
 
 
 def test_interpret_result_empty_result_list() -> None:
-    from aiopspilot.core.tiers.t0_deterministic.opa_evaluator import _interpret_result
+    from fdai.core.tiers.t0_deterministic.opa_evaluator import _interpret_result
 
     assert _interpret_result({"result": []}) is None
     assert _interpret_result({}) is None
 
 
 def test_interpret_result_non_object_value() -> None:
-    from aiopspilot.core.tiers.t0_deterministic.opa_evaluator import _interpret_result
+    from fdai.core.tiers.t0_deterministic.opa_evaluator import _interpret_result
 
     # OPA returns a bare value when querying `data.<pkg>.deny` directly;
     # our evaluator queries `data.<pkg>` and expects an object, so a bare
@@ -401,7 +401,7 @@ def test_interpret_result_non_object_value() -> None:
 
 
 def test_interpret_result_denies_and_carries_reason() -> None:
-    from aiopspilot.core.tiers.t0_deterministic.opa_evaluator import _interpret_result
+    from fdai.core.tiers.t0_deterministic.opa_evaluator import _interpret_result
 
     payload: dict[str, Any] = {
         "result": [{"expressions": [{"value": {"deny": True, "deny_reason": "example"}}]}]
@@ -413,7 +413,7 @@ def test_interpret_result_denies_and_carries_reason() -> None:
 
 
 def test_interpret_result_ignores_non_string_reason() -> None:
-    from aiopspilot.core.tiers.t0_deterministic.opa_evaluator import _interpret_result
+    from fdai.core.tiers.t0_deterministic.opa_evaluator import _interpret_result
 
     payload: dict[str, Any] = {
         "result": [{"expressions": [{"value": {"deny": True, "deny_reason": 42}}]}]
@@ -425,7 +425,7 @@ def test_interpret_result_ignores_non_string_reason() -> None:
 
 
 def test_interpret_result_missing_expressions() -> None:
-    from aiopspilot.core.tiers.t0_deterministic.opa_evaluator import _interpret_result
+    from fdai.core.tiers.t0_deterministic.opa_evaluator import _interpret_result
 
     # Some OPA versions may return an empty expressions list on undefined.
     assert _interpret_result({"result": [{}]}) is None

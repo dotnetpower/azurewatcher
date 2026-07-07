@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.verticals.change_safety import (
+from fdai.core.verticals.change_safety import (
     ChangeContext,
     ChangeDecisionOutcome,
     ChangeRisk,

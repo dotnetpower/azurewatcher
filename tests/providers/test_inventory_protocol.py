@@ -3,7 +3,7 @@
 Behavioural tests (adapter round-trip, delta ordering, idempotent
 upsert) land with the Azure adapter in P2. This file asserts:
 
-- The Protocol is importable from `aiopspilot.shared.providers`.
+- The Protocol is importable from `fdai.shared.providers`.
 - The record dataclasses are frozen and inert (no mutable defaults).
 - A trivial in-memory implementation satisfies the Protocol structurally.
 - `InventoryBatch.final` defaults to False so a partial stream can never
@@ -16,7 +16,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from aiopspilot.shared.providers import (
+from fdai.shared.providers import (
     Inventory,
     InventoryBatch,
     LinkRecord,

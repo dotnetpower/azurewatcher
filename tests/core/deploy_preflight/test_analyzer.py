@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from aiopspilot.core.deploy_preflight import (
+from fdai.core.deploy_preflight import (
     PreflightAnalyzer,
     ReadinessVerdict,
 )
-from aiopspilot.shared.contracts.models import Mode
-from aiopspilot.shared.providers.feasibility_probe import (
+from fdai.shared.contracts.models import Mode
+from fdai.shared.providers.feasibility_probe import (
     FindingSeverity,
     PreflightTarget,
     ProbeCategory,
@@ -18,7 +18,7 @@ from aiopspilot.shared.providers.feasibility_probe import (
     ProbeResolution,
     ResolutionKind,
 )
-from aiopspilot.shared.providers.local import (
+from fdai.shared.providers.local import (
     DenylistResourceTypeProbe,
     EgressDenylistProbe,
     ToggleResolution,

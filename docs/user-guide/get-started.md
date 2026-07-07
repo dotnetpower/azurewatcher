@@ -1,11 +1,11 @@
 ---
-title: Get Started with AIOpsPilot
-description: A five-minute orientation to AIOpsPilot - what it is, when it fits, and where to look next.
+title: Get Started with FDAI
+description: A five-minute orientation to FDAI - what it is, when it fits, and where to look next.
 ---
 
-# Get Started with AIOpsPilot
+# Get Started with FDAI
 
-AIOpsPilot is an autonomous cloud operations control plane. It resolves the
+FDAI is an autonomous cloud operations control plane. It resolves the
 repeatable majority of operational events deterministically with rules, policies,
 and typed actions, and reserves LLM inference for the ambiguous residual that
 survives the deterministic gate. Every autonomous action is risk-classified, and
@@ -17,7 +17,7 @@ adapter ships today.
 
 ## What can you achieve?
 
-AIOpsPilot ships three verticals under one event-driven core. Each loads its own
+FDAI ships three verticals under one event-driven core. Each loads its own
 rules and actions but shares the control loop, observability, audit log, and
 risk gate.
 
@@ -75,9 +75,9 @@ Coverage percentages are targets that require a measured baseline before they
 can be claimed
 ([goals-and-metrics](../roadmap/goals-and-metrics.md)).
 
-## When AIOpsPilot fits
+## When FDAI fits
 
-AIOpsPilot is a good fit when all of these are true:
+FDAI is a good fit when all of these are true:
 
 ```mermaid
 flowchart TB
@@ -89,7 +89,7 @@ flowchart TB
   Q3 -->|no| N3[Build the baseline first<br/>Phase 0 exists precisely<br/>for this.]
   Q3 -->|yes| Q4{Are you on Azure?}
   Q4 -->|no| N4[Adapter is TBD for other<br/>CSPs. Not shipped yet.]
-  Q4 -->|yes| OK[AIOpsPilot fits.<br/>Start with Phase 0.]
+  Q4 -->|yes| OK[FDAI fits.<br/>Start with Phase 0.]
 ```
 
 - Operators already spend real time approving or rolling back repeatable
@@ -97,15 +97,15 @@ flowchart TB
 - Your infrastructure is expressed as IaC and policy-as-code, or you are
   moving that way.
 - You have, or can construct, a baseline to measure autonomy gains against.
-  AIOpsPilot never claims a multiplier without a paired measurement.
+  FDAI never claims a multiplier without a paired measurement.
 - Your compliance regime tolerates auto-executed low-risk changes provided
   every action has a stop-condition, rollback path, blast-radius limit, and
   audit-log entry.
 
-## When AIOpsPilot doesn't fit (yet)
+## When FDAI doesn't fit (yet)
 
 - **No IaC or no policy-as-code**: the deterministic tier has nothing to run.
-- **One-off, non-repeatable incidents**: AIOpsPilot's edge comes from
+- **One-off, non-repeatable incidents**: FDAI's edge comes from
   resolving the repeatable majority; the residual novel minority stays with
   humans.
 - **Non-Azure CSPs**: abstractions are neutral by design, but the Azure

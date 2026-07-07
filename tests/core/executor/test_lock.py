@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from aiopspilot.core.executor.lock import ResourceLockManager
+from fdai.core.executor.lock import ResourceLockManager
 
 
 @pytest.mark.asyncio

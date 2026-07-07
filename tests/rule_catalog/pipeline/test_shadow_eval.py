@@ -9,18 +9,18 @@ from typing import Any
 import pytest
 import yaml
 
-from aiopspilot.rule_catalog.pipeline import (
+from fdai.rule_catalog.pipeline import (
     ShadowEvalError,
     ShadowEvalReport,
     ShadowEvaluator,
 )
-from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
-from aiopspilot.rule_catalog.schema.rule import load_rule_catalog
-from aiopspilot.shared.contracts.models import Rule
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.rule_catalog.schema.rule import load_rule_catalog
+from fdai.shared.contracts.models import Rule
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ACTION_TYPES_ROOT = REPO_ROOT / "rule-catalog" / "action-types"
@@ -226,7 +226,7 @@ def test_no_escape_when_no_violation_expected() -> None:
     reason="opa binary missing",
 )
 def test_opa_replay_matches_expected_public_access_rule() -> None:
-    from aiopspilot.core.tiers.t0_deterministic import OpaRegoEvaluator
+    from fdai.core.tiers.t0_deterministic import OpaRegoEvaluator
 
     evaluator = ShadowEvaluator(
         candidate_rules=_shipped_rules(),
@@ -259,7 +259,7 @@ def test_opa_replay_matches_expected_public_access_rule() -> None:
     reason="opa binary missing",
 )
 def test_opa_replay_no_match_when_props_are_compliant() -> None:
-    from aiopspilot.core.tiers.t0_deterministic import OpaRegoEvaluator
+    from fdai.core.tiers.t0_deterministic import OpaRegoEvaluator
 
     evaluator = ShadowEvaluator(
         candidate_rules=_shipped_rules(),
@@ -353,7 +353,7 @@ def test_shadow_eval_report_is_immutable() -> None:
 
 def test_scenario_outcome_derived_properties() -> None:
     """Direct test of the derived-property helpers on ScenarioOutcome."""
-    from aiopspilot.rule_catalog.pipeline import ScenarioOutcome
+    from fdai.rule_catalog.pipeline import ScenarioOutcome
 
     escape = ScenarioOutcome(
         scenario_id="escape",

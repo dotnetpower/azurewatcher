@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.shared.contracts.models import (
+from fdai.shared.contracts.models import (
     Action,
     ActionCategory,
     ActionInterface,
@@ -43,8 +43,8 @@ from aiopspilot.shared.contracts.models import (
     TriggerKind,
     TriggerKindDecl,
 )
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
-from aiopspilot.shared.contracts.validation import JsonSchemaContractValidator
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.validation import JsonSchemaContractValidator
 
 
 def _validator() -> JsonSchemaContractValidator:

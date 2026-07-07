@@ -28,18 +28,18 @@ from datetime import UTC, datetime
 import httpx
 import pytest
 
-from aiopspilot.core.verticals.resilience import DrExperiment
-from aiopspilot.delivery.azure.dr_experiment import (
+from fdai.core.verticals.resilience import DrExperiment
+from fdai.delivery.azure.dr_experiment import (
     AzureDrExperimentAdapter,
     AzureDrExperimentAdapterConfig,
 )
-from aiopspilot.shared.providers.dr_experiment import (
+from fdai.shared.providers.dr_experiment import (
     DrExperimentKind,
     DrRunHandle,
     DrRunnerError,
     DrRunStatus,
 )
-from aiopspilot.shared.providers.testing.workload_identity import (
+from fdai.shared.providers.testing.workload_identity import (
     StaticWorkloadIdentity,
 )
 

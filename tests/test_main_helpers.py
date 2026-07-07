@@ -14,7 +14,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from aiopspilot.__main__ import (
+from fdai.__main__ import (
     _build_audit_store,
     _build_hil_channel,
     _build_pattern_library,
@@ -23,7 +23,7 @@ from aiopspilot.__main__ import (
     _resolve_policies_root,
     _summarize_config,
 )
-from aiopspilot.shared.config import AppConfig
+from fdai.shared.config import AppConfig
 
 
 @pytest.fixture()
@@ -34,14 +34,14 @@ def app_config() -> AppConfig:
             "azure": {
                 "tenant_id": "00000000-0000-0000-0000-000000000000",
                 "subscription_id": "00000000-0000-0000-0000-000000000000",
-                "resource_group": "rg-aiopspilot",
+                "resource_group": "rg-fdai",
                 "region": "krc",
             },
             "kafka": {
                 "bootstrap_servers": "evhns.example:9093",
                 "topic_events": "aw.change.events",
             },
-            "postgres": {"host": "psql.example", "database": "aiopspilot"},
+            "postgres": {"host": "psql.example", "database": "fdai"},
             "runtime": {"env": "dev"},
         }
     )
@@ -58,15 +58,15 @@ def test_resolve_catalog_root_respects_env_override(
 ) -> None:
     override = tmp_path / "custom-catalog"
     (override / "catalog").mkdir(parents=True)
-    monkeypatch.setenv("AIOPSPILOT_CATALOG_ROOT", str(override))
+    monkeypatch.setenv("FDAI_CATALOG_ROOT", str(override))
     assert _resolve_catalog_root() == override
 
 
 def test_resolve_catalog_root_rejects_bad_override(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setenv("AIOPSPILOT_CATALOG_ROOT", str(tmp_path / "does-not-exist"))
-    with pytest.raises(FileNotFoundError, match="AIOPSPILOT_CATALOG_ROOT"):
+    monkeypatch.setenv("FDAI_CATALOG_ROOT", str(tmp_path / "does-not-exist"))
+    with pytest.raises(FileNotFoundError, match="FDAI_CATALOG_ROOT"):
         _resolve_catalog_root()
 
 
@@ -81,7 +81,7 @@ def test_resolve_policies_root_env_override(
 ) -> None:
     override = tmp_path / "policies-x"
     override.mkdir()
-    monkeypatch.setenv("AIOPSPILOT_POLICIES_ROOT", str(override))
+    monkeypatch.setenv("FDAI_POLICIES_ROOT", str(override))
     catalog = _resolve_catalog_root()
     assert _resolve_policies_root(catalog) == override
 
@@ -89,17 +89,17 @@ def test_resolve_policies_root_env_override(
 def test_resolve_policies_root_rejects_bad_override(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setenv("AIOPSPILOT_POLICIES_ROOT", str(tmp_path / "nope"))
-    with pytest.raises(FileNotFoundError, match="AIOPSPILOT_POLICIES_ROOT"):
+    monkeypatch.setenv("FDAI_POLICIES_ROOT", str(tmp_path / "nope"))
+    with pytest.raises(FileNotFoundError, match="FDAI_POLICIES_ROOT"):
         _resolve_policies_root(_resolve_catalog_root())
 
 
 def test_build_audit_store_defaults_to_in_memory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("AIOPSPILOT_STATE_STORE_DSN", raising=False)
+    monkeypatch.delenv("FDAI_STATE_STORE_DSN", raising=False)
     store = _build_audit_store()
-    from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+    from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
     assert isinstance(store, InMemoryStateStore)
 
@@ -107,15 +107,15 @@ def test_build_audit_store_defaults_to_in_memory(
 def test_build_audit_store_selects_postgres_when_dsn_set(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("AIOPSPILOT_STATE_STORE_DSN", "postgresql://user:pw@example:5432/db")
+    monkeypatch.setenv("FDAI_STATE_STORE_DSN", "postgresql://user:pw@example:5432/db")
     store = _build_audit_store()
-    from aiopspilot.delivery.persistence import PostgresStateStore
+    from fdai.delivery.persistence import PostgresStateStore
 
     assert isinstance(store, PostgresStateStore)
 
 
 def test_summarize_config_is_secret_free(app_config: AppConfig) -> None:
-    from aiopspilot.composition import default_container
+    from fdai.composition import default_container
 
     container = default_container(app_config)
     summary = _summarize_config(container)
@@ -137,20 +137,20 @@ def test_summarize_config_is_secret_free(app_config: AppConfig) -> None:
 
 def _clear_gitops_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (
-        "AIOPSPILOT_GITOPS_TOKEN",
-        "AIOPSPILOT_GITOPS_OWNER",
-        "AIOPSPILOT_GITOPS_REPO",
-        "AIOPSPILOT_GITOPS_DEFAULT_BRANCH",
-        "AIOPSPILOT_GITOPS_BRANCH_PREFIX",
-        "AIOPSPILOT_GITOPS_API_BASE",
-        "AIOPSPILOT_GITOPS_TIMEOUT_SECONDS",
+        "FDAI_GITOPS_TOKEN",
+        "FDAI_GITOPS_OWNER",
+        "FDAI_GITOPS_REPO",
+        "FDAI_GITOPS_DEFAULT_BRANCH",
+        "FDAI_GITOPS_BRANCH_PREFIX",
+        "FDAI_GITOPS_API_BASE",
+        "FDAI_GITOPS_TIMEOUT_SECONDS",
     ):
         monkeypatch.delenv(name, raising=False)
 
 
 def test_build_publisher_defaults_to_recording_fake(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_gitops_env(monkeypatch)
-    from aiopspilot.shared.providers.testing.remediation_pr import (
+    from fdai.shared.providers.testing.remediation_pr import (
         RecordingRemediationPrPublisher,
     )
 
@@ -162,10 +162,10 @@ def test_build_publisher_returns_gitops_when_token_owner_repo_set(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _clear_gitops_env(monkeypatch)
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_TOKEN", "ghp_fake")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_OWNER", "example-org")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_REPO", "example-repo")
-    from aiopspilot.delivery.gitops_pr.adapter import GitOpsPrAdapter
+    monkeypatch.setenv("FDAI_GITOPS_TOKEN", "ghp_fake")
+    monkeypatch.setenv("FDAI_GITOPS_OWNER", "example-org")
+    monkeypatch.setenv("FDAI_GITOPS_REPO", "example-repo")
+    from fdai.delivery.gitops_pr.adapter import GitOpsPrAdapter
 
     client = httpx.AsyncClient()
     try:
@@ -180,10 +180,10 @@ def test_build_publisher_returns_gitops_when_token_owner_repo_set(
 
 def test_build_publisher_rejects_partial_config(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_gitops_env(monkeypatch)
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_TOKEN", "ghp_fake")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_OWNER", "example-org")
-    # AIOPSPILOT_GITOPS_REPO deliberately missing
-    with pytest.raises(RuntimeError, match="AIOPSPILOT_GITOPS_OWNER / AIOPSPILOT_GITOPS_REPO"):
+    monkeypatch.setenv("FDAI_GITOPS_TOKEN", "ghp_fake")
+    monkeypatch.setenv("FDAI_GITOPS_OWNER", "example-org")
+    # FDAI_GITOPS_REPO deliberately missing
+    with pytest.raises(RuntimeError, match="FDAI_GITOPS_OWNER / FDAI_GITOPS_REPO"):
         _build_publisher(http_client=httpx.AsyncClient())
 
 
@@ -191,41 +191,41 @@ def test_build_publisher_requires_http_client_when_gitops_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _clear_gitops_env(monkeypatch)
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_TOKEN", "ghp_fake")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_OWNER", "example-org")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_REPO", "example-repo")
+    monkeypatch.setenv("FDAI_GITOPS_TOKEN", "ghp_fake")
+    monkeypatch.setenv("FDAI_GITOPS_OWNER", "example-org")
+    monkeypatch.setenv("FDAI_GITOPS_REPO", "example-repo")
     with pytest.raises(RuntimeError, match="no HTTP client is available"):
         _build_publisher(http_client=None)
 
 
 def test_build_publisher_rejects_non_float_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_gitops_env(monkeypatch)
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_TOKEN", "ghp_fake")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_OWNER", "example-org")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_REPO", "example-repo")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_TIMEOUT_SECONDS", "not-a-number")
+    monkeypatch.setenv("FDAI_GITOPS_TOKEN", "ghp_fake")
+    monkeypatch.setenv("FDAI_GITOPS_OWNER", "example-org")
+    monkeypatch.setenv("FDAI_GITOPS_REPO", "example-repo")
+    monkeypatch.setenv("FDAI_GITOPS_TIMEOUT_SECONDS", "not-a-number")
     with pytest.raises(RuntimeError, match="not a float"):
         _build_publisher(http_client=httpx.AsyncClient())
 
 
 def test_build_publisher_rejects_nonpositive_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_gitops_env(monkeypatch)
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_TOKEN", "ghp_fake")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_OWNER", "example-org")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_REPO", "example-repo")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_TIMEOUT_SECONDS", "0")
+    monkeypatch.setenv("FDAI_GITOPS_TOKEN", "ghp_fake")
+    monkeypatch.setenv("FDAI_GITOPS_OWNER", "example-org")
+    monkeypatch.setenv("FDAI_GITOPS_REPO", "example-repo")
+    monkeypatch.setenv("FDAI_GITOPS_TIMEOUT_SECONDS", "0")
     with pytest.raises(RuntimeError, match="MUST be > 0"):
         _build_publisher(http_client=httpx.AsyncClient())
 
 
 def test_build_publisher_honors_env_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_gitops_env(monkeypatch)
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_TOKEN", "ghp_fake")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_OWNER", "example-org")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_REPO", "example-repo")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_DEFAULT_BRANCH", "trunk")
-    monkeypatch.setenv("AIOPSPILOT_GITOPS_API_BASE", "https://ghe.example.com/api/v3")
-    from aiopspilot.delivery.gitops_pr.adapter import GitOpsPrAdapter
+    monkeypatch.setenv("FDAI_GITOPS_TOKEN", "ghp_fake")
+    monkeypatch.setenv("FDAI_GITOPS_OWNER", "example-org")
+    monkeypatch.setenv("FDAI_GITOPS_REPO", "example-repo")
+    monkeypatch.setenv("FDAI_GITOPS_DEFAULT_BRANCH", "trunk")
+    monkeypatch.setenv("FDAI_GITOPS_API_BASE", "https://ghe.example.com/api/v3")
+    from fdai.delivery.gitops_pr.adapter import GitOpsPrAdapter
 
     publisher = _build_publisher(http_client=httpx.AsyncClient())
     assert isinstance(publisher, GitOpsPrAdapter)
@@ -243,9 +243,9 @@ def test_build_publisher_honors_env_defaults(monkeypatch: pytest.MonkeyPatch) ->
 
 def _clear_pattern_library_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (
-        "AIOPSPILOT_T1_PATTERN_LIBRARY_DSN",
-        "AIOPSPILOT_T1_PATTERN_LIBRARY_STATEMENT_TIMEOUT_MS",
-        "AIOPSPILOT_T1_PATTERN_LIBRARY_IVFFLAT_PROBES",
+        "FDAI_T1_PATTERN_LIBRARY_DSN",
+        "FDAI_T1_PATTERN_LIBRARY_STATEMENT_TIMEOUT_MS",
+        "FDAI_T1_PATTERN_LIBRARY_IVFFLAT_PROBES",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -254,7 +254,7 @@ def test_build_pattern_library_defaults_to_in_memory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _clear_pattern_library_env(monkeypatch)
-    from aiopspilot.core.tiers.t1_lightweight.testing import InMemoryPatternLibrary
+    from fdai.core.tiers.t1_lightweight.testing import InMemoryPatternLibrary
 
     library = _build_pattern_library()
     assert isinstance(library, InMemoryPatternLibrary)
@@ -265,10 +265,10 @@ def test_build_pattern_library_selects_pgvector_when_dsn_set(
 ) -> None:
     _clear_pattern_library_env(monkeypatch)
     monkeypatch.setenv(
-        "AIOPSPILOT_T1_PATTERN_LIBRARY_DSN",
+        "FDAI_T1_PATTERN_LIBRARY_DSN",
         "postgresql://user:pw@example:5432/db",
     )
-    from aiopspilot.delivery.persistence import PgVectorPatternLibrary
+    from fdai.delivery.persistence import PgVectorPatternLibrary
 
     library = _build_pattern_library()
     assert isinstance(library, PgVectorPatternLibrary)
@@ -279,12 +279,12 @@ def test_build_pattern_library_honors_tuning_envs(
 ) -> None:
     _clear_pattern_library_env(monkeypatch)
     monkeypatch.setenv(
-        "AIOPSPILOT_T1_PATTERN_LIBRARY_DSN",
+        "FDAI_T1_PATTERN_LIBRARY_DSN",
         "postgresql://user:pw@example:5432/db",
     )
-    monkeypatch.setenv("AIOPSPILOT_T1_PATTERN_LIBRARY_STATEMENT_TIMEOUT_MS", "5000")
-    monkeypatch.setenv("AIOPSPILOT_T1_PATTERN_LIBRARY_IVFFLAT_PROBES", "25")
-    from aiopspilot.delivery.persistence import PgVectorPatternLibrary
+    monkeypatch.setenv("FDAI_T1_PATTERN_LIBRARY_STATEMENT_TIMEOUT_MS", "5000")
+    monkeypatch.setenv("FDAI_T1_PATTERN_LIBRARY_IVFFLAT_PROBES", "25")
+    from fdai.delivery.persistence import PgVectorPatternLibrary
 
     library = _build_pattern_library()
     assert isinstance(library, PgVectorPatternLibrary)
@@ -297,10 +297,10 @@ def test_build_pattern_library_rejects_non_int_timeout(
 ) -> None:
     _clear_pattern_library_env(monkeypatch)
     monkeypatch.setenv(
-        "AIOPSPILOT_T1_PATTERN_LIBRARY_DSN",
+        "FDAI_T1_PATTERN_LIBRARY_DSN",
         "postgresql://user:pw@example:5432/db",
     )
-    monkeypatch.setenv("AIOPSPILOT_T1_PATTERN_LIBRARY_STATEMENT_TIMEOUT_MS", "abc")
+    monkeypatch.setenv("FDAI_T1_PATTERN_LIBRARY_STATEMENT_TIMEOUT_MS", "abc")
     with pytest.raises(RuntimeError, match="not an integer"):
         _build_pattern_library()
 
@@ -310,10 +310,10 @@ def test_build_pattern_library_rejects_nonpositive_timeout(
 ) -> None:
     _clear_pattern_library_env(monkeypatch)
     monkeypatch.setenv(
-        "AIOPSPILOT_T1_PATTERN_LIBRARY_DSN",
+        "FDAI_T1_PATTERN_LIBRARY_DSN",
         "postgresql://user:pw@example:5432/db",
     )
-    monkeypatch.setenv("AIOPSPILOT_T1_PATTERN_LIBRARY_STATEMENT_TIMEOUT_MS", "0")
+    monkeypatch.setenv("FDAI_T1_PATTERN_LIBRARY_STATEMENT_TIMEOUT_MS", "0")
     with pytest.raises(RuntimeError, match="MUST be >= 1"):
         _build_pattern_library()
 
@@ -323,10 +323,10 @@ def test_build_pattern_library_rejects_non_int_probes(
 ) -> None:
     _clear_pattern_library_env(monkeypatch)
     monkeypatch.setenv(
-        "AIOPSPILOT_T1_PATTERN_LIBRARY_DSN",
+        "FDAI_T1_PATTERN_LIBRARY_DSN",
         "postgresql://user:pw@example:5432/db",
     )
-    monkeypatch.setenv("AIOPSPILOT_T1_PATTERN_LIBRARY_IVFFLAT_PROBES", "not-int")
+    monkeypatch.setenv("FDAI_T1_PATTERN_LIBRARY_IVFFLAT_PROBES", "not-int")
     with pytest.raises(RuntimeError, match="not an integer"):
         _build_pattern_library()
 
@@ -336,10 +336,10 @@ def test_build_pattern_library_rejects_nonpositive_probes(
 ) -> None:
     _clear_pattern_library_env(monkeypatch)
     monkeypatch.setenv(
-        "AIOPSPILOT_T1_PATTERN_LIBRARY_DSN",
+        "FDAI_T1_PATTERN_LIBRARY_DSN",
         "postgresql://user:pw@example:5432/db",
     )
-    monkeypatch.setenv("AIOPSPILOT_T1_PATTERN_LIBRARY_IVFFLAT_PROBES", "0")
+    monkeypatch.setenv("FDAI_T1_PATTERN_LIBRARY_IVFFLAT_PROBES", "0")
     with pytest.raises(RuntimeError, match="MUST be >= 1"):
         _build_pattern_library()
 
@@ -351,11 +351,11 @@ def test_build_pattern_library_rejects_nonpositive_probes(
 
 def _clear_chatops_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (
-        "AIOPSPILOT_CHATOPS_WEBHOOK_URL",
-        "AIOPSPILOT_CHATOPS_WEBHOOK_SECRET",
-        "AIOPSPILOT_CHATOPS_APPROVE_CALLBACK_URL",
-        "AIOPSPILOT_CHATOPS_REJECT_CALLBACK_URL",
-        "AIOPSPILOT_CHATOPS_TIMEOUT_SECONDS",
+        "FDAI_CHATOPS_WEBHOOK_URL",
+        "FDAI_CHATOPS_WEBHOOK_SECRET",
+        "FDAI_CHATOPS_APPROVE_CALLBACK_URL",
+        "FDAI_CHATOPS_REJECT_CALLBACK_URL",
+        "FDAI_CHATOPS_TIMEOUT_SECONDS",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -372,10 +372,10 @@ def test_build_hil_channel_returns_teams_adapter_when_url_set(
 ) -> None:
     _clear_chatops_env(monkeypatch)
     monkeypatch.setenv(
-        "AIOPSPILOT_CHATOPS_WEBHOOK_URL",
+        "FDAI_CHATOPS_WEBHOOK_URL",
         "https://teams.example.com/hook/abc",
     )
-    from aiopspilot.delivery.chatops.teams_adapter import TeamsHilAdapter
+    from fdai.delivery.chatops.teams_adapter import TeamsHilAdapter
 
     channel = _build_hil_channel(http_client=httpx.AsyncClient())
     assert isinstance(channel, TeamsHilAdapter)
@@ -386,7 +386,7 @@ def test_build_hil_channel_requires_http_client_when_enabled(
 ) -> None:
     _clear_chatops_env(monkeypatch)
     monkeypatch.setenv(
-        "AIOPSPILOT_CHATOPS_WEBHOOK_URL",
+        "FDAI_CHATOPS_WEBHOOK_URL",
         "https://teams.example.com/hook/abc",
     )
     with pytest.raises(RuntimeError, match="no HTTP client is available"):
@@ -398,16 +398,16 @@ def test_build_hil_channel_passes_secret_and_callbacks_through(
 ) -> None:
     _clear_chatops_env(monkeypatch)
     monkeypatch.setenv(
-        "AIOPSPILOT_CHATOPS_WEBHOOK_URL",
+        "FDAI_CHATOPS_WEBHOOK_URL",
         "https://teams.example.com/hook/abc",
     )
-    monkeypatch.setenv("AIOPSPILOT_CHATOPS_WEBHOOK_SECRET", "shhh")
+    monkeypatch.setenv("FDAI_CHATOPS_WEBHOOK_SECRET", "shhh")
     monkeypatch.setenv(
-        "AIOPSPILOT_CHATOPS_APPROVE_CALLBACK_URL",
+        "FDAI_CHATOPS_APPROVE_CALLBACK_URL",
         "https://api.example.com/approve",
     )
     monkeypatch.setenv(
-        "AIOPSPILOT_CHATOPS_REJECT_CALLBACK_URL",
+        "FDAI_CHATOPS_REJECT_CALLBACK_URL",
         "https://api.example.com/reject",
     )
 
@@ -425,10 +425,10 @@ def test_build_hil_channel_rejects_non_float_timeout(
 ) -> None:
     _clear_chatops_env(monkeypatch)
     monkeypatch.setenv(
-        "AIOPSPILOT_CHATOPS_WEBHOOK_URL",
+        "FDAI_CHATOPS_WEBHOOK_URL",
         "https://teams.example.com/hook/abc",
     )
-    monkeypatch.setenv("AIOPSPILOT_CHATOPS_TIMEOUT_SECONDS", "not-a-number")
+    monkeypatch.setenv("FDAI_CHATOPS_TIMEOUT_SECONDS", "not-a-number")
     with pytest.raises(RuntimeError, match="not a float"):
         _build_hil_channel(http_client=httpx.AsyncClient())
 
@@ -438,10 +438,10 @@ def test_build_hil_channel_rejects_nonpositive_timeout(
 ) -> None:
     _clear_chatops_env(monkeypatch)
     monkeypatch.setenv(
-        "AIOPSPILOT_CHATOPS_WEBHOOK_URL",
+        "FDAI_CHATOPS_WEBHOOK_URL",
         "https://teams.example.com/hook/abc",
     )
-    monkeypatch.setenv("AIOPSPILOT_CHATOPS_TIMEOUT_SECONDS", "0")
+    monkeypatch.setenv("FDAI_CHATOPS_TIMEOUT_SECONDS", "0")
     with pytest.raises(RuntimeError, match="MUST be > 0"):
         _build_hil_channel(http_client=httpx.AsyncClient())
 
@@ -451,10 +451,10 @@ def test_build_hil_channel_honors_timeout_env(
 ) -> None:
     _clear_chatops_env(monkeypatch)
     monkeypatch.setenv(
-        "AIOPSPILOT_CHATOPS_WEBHOOK_URL",
+        "FDAI_CHATOPS_WEBHOOK_URL",
         "https://teams.example.com/hook/abc",
     )
-    monkeypatch.setenv("AIOPSPILOT_CHATOPS_TIMEOUT_SECONDS", "42.5")
+    monkeypatch.setenv("FDAI_CHATOPS_TIMEOUT_SECONDS", "42.5")
 
     channel = _build_hil_channel(http_client=httpx.AsyncClient())
     assert channel is not None
@@ -469,13 +469,13 @@ def test_build_hil_channel_honors_timeout_env(
 def test_build_operator_memory_store_defaults_to_in_memory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Without ``AIOPSPILOT_OPERATOR_MEMORY_DSN`` the composition root
+    """Without ``FDAI_OPERATOR_MEMORY_DSN`` the composition root
     MUST wire the deterministic in-memory fake so the operator-memory
     layer is fully reachable without a database."""
 
-    monkeypatch.delenv("AIOPSPILOT_OPERATOR_MEMORY_DSN", raising=False)
-    from aiopspilot.__main__ import _build_operator_memory_store
-    from aiopspilot.core.operator_memory import InMemoryOperatorMemoryStore
+    monkeypatch.delenv("FDAI_OPERATOR_MEMORY_DSN", raising=False)
+    from fdai.__main__ import _build_operator_memory_store
+    from fdai.core.operator_memory import InMemoryOperatorMemoryStore
 
     store = _build_operator_memory_store()
     assert isinstance(store, InMemoryOperatorMemoryStore)
@@ -489,11 +489,11 @@ def test_build_operator_memory_store_selects_postgres_when_dsn_set(
     the DSN is validated but no connection is opened here."""
 
     monkeypatch.setenv(
-        "AIOPSPILOT_OPERATOR_MEMORY_DSN",
+        "FDAI_OPERATOR_MEMORY_DSN",
         "postgresql://user:pw@example:5432/db",
     )
-    from aiopspilot.__main__ import _build_operator_memory_store
-    from aiopspilot.delivery.persistence import PostgresOperatorMemoryStore
+    from fdai.__main__ import _build_operator_memory_store
+    from fdai.delivery.persistence import PostgresOperatorMemoryStore
 
     store = _build_operator_memory_store()
     assert isinstance(store, PostgresOperatorMemoryStore)
@@ -506,9 +506,9 @@ def test_build_operator_memory_store_rejects_empty_dsn_via_postgres_config(
     back to in-memory rather than instantiating a broken Postgres
     adapter."""
 
-    monkeypatch.setenv("AIOPSPILOT_OPERATOR_MEMORY_DSN", "")
-    from aiopspilot.__main__ import _build_operator_memory_store
-    from aiopspilot.core.operator_memory import InMemoryOperatorMemoryStore
+    monkeypatch.setenv("FDAI_OPERATOR_MEMORY_DSN", "")
+    from fdai.__main__ import _build_operator_memory_store
+    from fdai.core.operator_memory import InMemoryOperatorMemoryStore
 
     store = _build_operator_memory_store()
     # ``os.environ.get`` returns "" here; ``if dsn:`` treats "" as falsy
@@ -527,10 +527,10 @@ def test_build_direct_api_executor_defaults_to_none(
 ) -> None:
     """No opt-in env -> None. PR-native remains the sole dispatch path."""
 
-    monkeypatch.delenv("AIOPSPILOT_DIRECT_API_FAKE", raising=False)
-    from aiopspilot.__main__ import _build_direct_api_executor
-    from aiopspilot.core.executor.lock import ResourceLockManager
-    from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+    monkeypatch.delenv("FDAI_DIRECT_API_FAKE", raising=False)
+    from fdai.__main__ import _build_direct_api_executor
+    from fdai.core.executor.lock import ResourceLockManager
+    from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
     got = _build_direct_api_executor(
         audit_store=InMemoryStateStore(),
@@ -542,12 +542,12 @@ def test_build_direct_api_executor_defaults_to_none(
 def test_build_direct_api_executor_empty_env_still_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AIOPSPILOT_DIRECT_API_FAKE='' is treated as unset (fail-safe default)."""
+    """FDAI_DIRECT_API_FAKE='' is treated as unset (fail-safe default)."""
 
-    monkeypatch.setenv("AIOPSPILOT_DIRECT_API_FAKE", "")
-    from aiopspilot.__main__ import _build_direct_api_executor
-    from aiopspilot.core.executor.lock import ResourceLockManager
-    from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+    monkeypatch.setenv("FDAI_DIRECT_API_FAKE", "")
+    from fdai.__main__ import _build_direct_api_executor
+    from fdai.core.executor.lock import ResourceLockManager
+    from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
     got = _build_direct_api_executor(
         audit_store=InMemoryStateStore(),
@@ -562,10 +562,10 @@ def test_build_direct_api_executor_arbitrary_value_still_none(
     """Only the literal string '1' opts in; other truthy-looking values
     stay off so a typo cannot silently enable the direct-api path."""
 
-    monkeypatch.setenv("AIOPSPILOT_DIRECT_API_FAKE", "true")
-    from aiopspilot.__main__ import _build_direct_api_executor
-    from aiopspilot.core.executor.lock import ResourceLockManager
-    from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+    monkeypatch.setenv("FDAI_DIRECT_API_FAKE", "true")
+    from fdai.__main__ import _build_direct_api_executor
+    from fdai.core.executor.lock import ResourceLockManager
+    from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
     got = _build_direct_api_executor(
         audit_store=InMemoryStateStore(),
@@ -577,14 +577,14 @@ def test_build_direct_api_executor_arbitrary_value_still_none(
 def test_build_direct_api_executor_opt_in_returns_wrapped_fake(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AIOPSPILOT_DIRECT_API_FAKE='1' -> DirectApiShadowExecutor wrapping
+    """FDAI_DIRECT_API_FAKE='1' -> DirectApiShadowExecutor wrapping
     the RecordingDirectApiExecutor fake."""
 
-    monkeypatch.setenv("AIOPSPILOT_DIRECT_API_FAKE", "1")
-    from aiopspilot.__main__ import _build_direct_api_executor
-    from aiopspilot.core.executor.direct_api import DirectApiShadowExecutor
-    from aiopspilot.core.executor.lock import ResourceLockManager
-    from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+    monkeypatch.setenv("FDAI_DIRECT_API_FAKE", "1")
+    from fdai.__main__ import _build_direct_api_executor
+    from fdai.core.executor.direct_api import DirectApiShadowExecutor
+    from fdai.core.executor.lock import ResourceLockManager
+    from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
     got = _build_direct_api_executor(
         audit_store=InMemoryStateStore(),
@@ -599,10 +599,10 @@ def test_build_direct_api_executor_shares_audit_and_lock(
     """The wrapped executor holds the exact audit_store + resource_lock
     passed in (composition-root contract)."""
 
-    monkeypatch.setenv("AIOPSPILOT_DIRECT_API_FAKE", "1")
-    from aiopspilot.__main__ import _build_direct_api_executor
-    from aiopspilot.core.executor.lock import ResourceLockManager
-    from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+    monkeypatch.setenv("FDAI_DIRECT_API_FAKE", "1")
+    from fdai.__main__ import _build_direct_api_executor
+    from fdai.core.executor.lock import ResourceLockManager
+    from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
     audit = InMemoryStateStore()
     lock = ResourceLockManager()

@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`aiopspilot.core.quality_gate.debate`."""
+"""Unit tests for :mod:`fdai.core.quality_gate.debate`."""
 
 from __future__ import annotations
 
@@ -7,20 +7,20 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.quality_gate.critic import (
+from fdai.core.quality_gate.critic import (
     CriticObjection,
     CriticOutput,
     CriticSeverity,
     CriticStance,
 )
-from aiopspilot.core.quality_gate.debate import (
+from fdai.core.quality_gate.debate import (
     DebateOrchestrator,
     DebateOrchestratorConfig,
     DebateOutcome,
     DebateVerdict,
 )
-from aiopspilot.core.quality_gate.gate import QualityCandidate
-from aiopspilot.core.quality_gate.judge import (
+from fdai.core.quality_gate.gate import QualityCandidate
+from fdai.core.quality_gate.judge import (
     JudgeDecision,
     JudgeOutput,
 )

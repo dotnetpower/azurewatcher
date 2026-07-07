@@ -1,8 +1,8 @@
 // Phase-4 continuous-measurement runners - Container Apps Jobs that wire the
 // two library-only measurement modules into scheduled processes:
 //
-//   src/aiopspilot/core/measurement/runners.py::AutomatedBaselineRunner
-//   src/aiopspilot/core/measurement/runners.py::PatternGrowthIntakeRunner
+//   src/fdai/core/measurement/runners.py::AutomatedBaselineRunner
+//   src/fdai/core/measurement/runners.py::PatternGrowthIntakeRunner
 //
 // See:
 //   docs/roadmap/phases/phase-4-scale.md § Continuous Measurement
@@ -54,15 +54,15 @@ resource "azurerm_container_app_job" "baseline_regression" {
       image   = var.image
       cpu     = 0.5
       memory  = "1Gi"
-      command = ["python", "-m", "aiopspilot.core.measurement.runners_cli"]
+      command = ["python", "-m", "fdai.core.measurement.runners_cli"]
       args    = ["baseline"]
 
       env {
-        name  = "AIOPSPILOT_SCENARIO_SET_VERSION"
+        name  = "FDAI_SCENARIO_SET_VERSION"
         value = var.scenario_set_version
       }
       env {
-        name  = "AIOPSPILOT_MEASUREMENT_MODE"
+        name  = "FDAI_MEASUREMENT_MODE"
         value = "baseline"
       }
     }
@@ -101,11 +101,11 @@ resource "azurerm_container_app_job" "pattern_growth" {
       image   = var.image
       cpu     = 0.25
       memory  = "0.5Gi"
-      command = ["python", "-m", "aiopspilot.core.measurement.runners_cli"]
+      command = ["python", "-m", "fdai.core.measurement.runners_cli"]
       args    = ["growth"]
 
       env {
-        name  = "AIOPSPILOT_MEASUREMENT_MODE"
+        name  = "FDAI_MEASUREMENT_MODE"
         value = "growth"
       }
     }

@@ -1,8 +1,8 @@
-# AIOpsPilot Docs Site
+# FDAI Docs Site
 
-Astro Starlight source for the [AIOpsPilot](../README.md) documentation site.
+Astro Starlight source for the [FDAI](../README.md) documentation site.
 Deployed to GitHub Pages at
-[dotnetpower.github.io/aiopspilot](https://dotnetpower.github.io/aiopspilot/).
+[dotnetpower.github.io/fdai](https://dotnetpower.github.io/fdai/).
 
 Docs sources live in [docs/roadmap](../docs/roadmap/) as the canonical Markdown; this
 folder is a **read-only presentation layer** that mounts those files and adds
@@ -50,7 +50,7 @@ follow-up commits.
 ```bash
 cd site
 npm install
-npm run dev       # http://localhost:4321/aiopspilot/
+npm run dev       # http://localhost:4321/fdai/
 npm run build     # dist/
 npm run preview
 ```
@@ -61,14 +61,14 @@ npm run preview
 override the target URL without editing config:
 
 ```bash
-SITE_URL="https://acme.github.io" BASE_PATH="/aiopspilot" npm run build
+SITE_URL="https://acme.github.io" BASE_PATH="/fdai" npm run build
 ```
 
 ## Scope
 
 The site is a **product-introduction surface**, not a full mirror of the
 repository. It publishes the content a reader needs to understand and configure
-AIOpsPilot, and keeps deep engineering internals on GitHub only.
+FDAI, and keeps deep engineering internals on GitHub only.
 
 - **In (full)**: [docs/user-guide/**](../docs/user-guide/) - Get Started,
   Concepts, and Guides (both English and Korean pairs via i18n).

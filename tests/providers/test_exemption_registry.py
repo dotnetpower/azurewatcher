@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from aiopspilot.shared.providers.exemption import (
+from fdai.shared.providers.exemption import (
     ExemptionRegistry,
     InMemoryExemptionRecord,
     InMemoryExemptionRegistry,

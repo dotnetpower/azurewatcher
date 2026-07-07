@@ -13,12 +13,12 @@ from __future__ import annotations
 
 from itertools import product
 
-from aiopspilot.core.risk_gate.ceiling import (
+from fdai.core.risk_gate.ceiling import (
     AxisLevel,
     resolve_ceiling,
 )
-from aiopspilot.core.risk_gate.risk_table import RiskLevel, RiskTableVerdict
-from aiopspilot.shared.contracts.models import (
+from fdai.core.risk_gate.risk_table import RiskLevel, RiskTableVerdict
+from fdai.shared.contracts.models import (
     ActionBlastRadius,
     Autonomy,
     BlastRadiusComputation,

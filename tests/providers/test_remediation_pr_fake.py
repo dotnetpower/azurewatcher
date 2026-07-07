@@ -6,9 +6,9 @@ from uuid import UUID
 
 import pytest
 
-from aiopspilot.shared.contracts.models import Mode
-from aiopspilot.shared.providers.remediation_pr import RemediationPr
-from aiopspilot.shared.providers.testing.remediation_pr import (
+from fdai.shared.contracts.models import Mode
+from fdai.shared.providers.remediation_pr import RemediationPr
+from fdai.shared.providers.testing.remediation_pr import (
     RecordingRemediationPrPublisher,
 )
 

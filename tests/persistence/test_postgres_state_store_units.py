@@ -2,7 +2,7 @@
 
 The database-touching paths are covered in
 ``tests/persistence/test_postgres_state_store.py`` (skipped unless
-``AIOPSPILOT_DATABASE_URL`` is set). This file exercises the pure
+``FDAI_DATABASE_URL`` is set). This file exercises the pure
 helpers so the adapter's config validation + hash-chain math has
 coverage even without a live DB.
 """
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.delivery.persistence.postgres import (
+from fdai.delivery.persistence.postgres import (
     PostgresStateStore,
     PostgresStateStoreConfig,
     _canonical,

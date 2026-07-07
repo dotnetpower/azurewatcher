@@ -8,17 +8,17 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 
-from aiopspilot.core.quality_gate.critic import (
+from fdai.core.quality_gate.critic import (
     CriticOutput,
     CriticSeverity,
     CriticStance,
 )
-from aiopspilot.core.quality_gate.gate import QualityCandidate
-from aiopspilot.delivery.azure.llm.critic import (
+from fdai.core.quality_gate.gate import QualityCandidate
+from fdai.delivery.azure.llm.critic import (
     AzureOpenAICriticModel,
     AzureOpenAICriticModelConfig,
 )
-from aiopspilot.shared.providers.workload_identity import IdentityToken, WorkloadIdentity
+from fdai.shared.providers.workload_identity import IdentityToken, WorkloadIdentity
 
 _TEST_SYSTEM_PROMPT = "unit-test critic system prompt"
 

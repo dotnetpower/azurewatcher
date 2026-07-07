@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.shared.providers.blast_probe import (
+from fdai.shared.providers.blast_probe import (
     BlastProbeConfigError,
     BlastProbeError,
     BlastProbeTimeoutError,
@@ -20,8 +20,8 @@ from aiopspilot.shared.providers.blast_probe import (
     ProbeResult,
     ProbeVerdict,
 )
-from aiopspilot.shared.providers.testing import NoOpBlastProbe
-from aiopspilot.shared.providers.testing.blast_probe import (
+from fdai.shared.providers.testing import NoOpBlastProbe
+from fdai.shared.providers.testing.blast_probe import (
     NoOpBlastProbe as _AlsoImportable,
 )
 

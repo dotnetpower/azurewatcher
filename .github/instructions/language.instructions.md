@@ -1,5 +1,5 @@
 ---
-description: Language and naming policy for all AIOpsPilot artifacts.
+description: Language and naming policy for all FDAI artifacts.
 applyTo: "**"
 ---
 

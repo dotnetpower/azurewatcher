@@ -8,22 +8,22 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 
-from aiopspilot.core.quality_gate.critic import (
+from fdai.core.quality_gate.critic import (
     CriticObjection,
     CriticOutput,
     CriticSeverity,
     CriticStance,
 )
-from aiopspilot.core.quality_gate.gate import QualityCandidate
-from aiopspilot.core.quality_gate.judge import (
+from fdai.core.quality_gate.gate import QualityCandidate
+from fdai.core.quality_gate.judge import (
     JudgeDecision,
     JudgeOutput,
 )
-from aiopspilot.delivery.azure.llm.judge import (
+from fdai.delivery.azure.llm.judge import (
     AzureOpenAIJudgeModel,
     AzureOpenAIJudgeModelConfig,
 )
-from aiopspilot.shared.providers.workload_identity import IdentityToken, WorkloadIdentity
+from fdai.shared.providers.workload_identity import IdentityToken, WorkloadIdentity
 
 _TEST_SYSTEM_PROMPT = "unit-test judge system prompt"
 

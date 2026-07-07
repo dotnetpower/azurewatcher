@@ -5,14 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from aiopspilot.core.control_loop import (
+from fdai.core.control_loop import (
     _extract_environment,
     build_shadow_authority_audit,
     build_unified_risk_audit,
 )
-from aiopspilot.core.risk_gate.gate import ActionPromotionRegistry, RiskGate
-from aiopspilot.core.risk_gate.risk_table import load_risk_table
-from aiopspilot.shared.contracts.models import (
+from fdai.core.risk_gate.gate import ActionPromotionRegistry, RiskGate
+from fdai.core.risk_gate.risk_table import load_risk_table
+from fdai.shared.contracts.models import (
     Action,
     ActionInterface,
     Event,

@@ -2,7 +2,7 @@
 
 The reference agent is the **fixed comparison system** measured in Phase 0:
 one model, no tiering, no quality gate. Every autonomy claim later stated
-by AIOpsPilot is measured against this agent on the frozen scenario set.
+by FDAI is measured against this agent on the frozen scenario set.
 
 Real deployments will swap this stub for a hosted LLM. Today the stub is
 intentionally simple:

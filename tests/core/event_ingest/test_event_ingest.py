@@ -6,10 +6,10 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.event_ingest import EventIngest
-from aiopspilot.shared.contracts.models import Event, Mode
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
-from aiopspilot.shared.contracts.validation import (
+from fdai.core.event_ingest import EventIngest
+from fdai.shared.contracts.models import Event, Mode
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.validation import (
     ContractValidationError,
     JsonSchemaContractValidator,
     JsonSchemaEventValidator,

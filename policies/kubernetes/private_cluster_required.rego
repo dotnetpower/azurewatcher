@@ -7,7 +7,7 @@
 #   rule_id: kubernetes-cluster.private-cluster
 #   severity: high
 #   category: security
-package aiopspilot.kubernetes.private_cluster_required
+package fdai.kubernetes.private_cluster_required
 
 import rego.v1
 

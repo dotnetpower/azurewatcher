@@ -20,10 +20,10 @@ shadow-before-enforce and safety invariants in
 
 ## Model (three layers, like Azure Policy)
 
-Azure Policy separates *definition* from *assignment* from *exemption*. AIOpsPilot mirrors that
+Azure Policy separates *definition* from *assignment* from *exemption*. FDAI mirrors that
 so administrators get a familiar mental model:
 
-| Azure Policy concept | AIOpsPilot artifact | What it is |
+| Azure Policy concept | FDAI artifact | What it is |
 |----------------------|-----------------------|------------|
 | policy definition | **rule** | a single testable control ([rule-catalog-collection.md](rule-catalog-collection.md)) |
 | initiative (policy set) | **rule set** | a named, versioned group of rules (e.g. a security baseline) |

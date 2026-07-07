@@ -7,7 +7,7 @@
 #   rule_id: secret-store.diagnostic-settings-required
 #   severity: high
 #   category: security
-package aiopspilot.secret_store.diagnostic_settings_required
+package fdai.secret_store.diagnostic_settings_required
 
 import rego.v1
 

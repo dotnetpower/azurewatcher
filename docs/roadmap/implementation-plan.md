@@ -4,7 +4,7 @@ title: Implementation Plan (Standard Set)
 
 # Implementation Plan (Standard Set)
 
-Authoritative sequencing document for the next tranche of AIOpsPilot work.
+Authoritative sequencing document for the next tranche of FDAI work.
 Consolidates the design decisions of 2026-07-06 (the "standard set") and the
 phased wave plan that follows from them.
 
@@ -158,7 +158,7 @@ consolidates them.
 - Composition-root wiring is one Protocol -> one adapter. A fork replaces
   every LLM role by binding a single alternate implementation.
 - The prompt composer
-  ([prompts/composer.py](../../src/aiopspilot/core/prompts/composer.py))
+  ([prompts/composer.py](../../src/fdai/core/prompts/composer.py))
   is the only component that varies system prompt per role; the binding
   is prompt-agnostic.
 
@@ -329,7 +329,7 @@ integration; does not add new autonomy.
   `live_probe_ref`, `provenance`. Loader cross-checks per
   [action-ontology.md § 8](action-ontology.md#8-loader--validation).
 - **F2** `resolved_ceiling` JSON Schema at
-  `src/aiopspilot/shared/contracts/ontology/resolved-ceiling.schema.json`,
+  `src/fdai/shared/contracts/ontology/resolved-ceiling.schema.json`,
   matching the shape in
   [execution-model.md § 8](execution-model.md#8-resolved_ceiling-audit-block)
   with the R1 derivation notation (`derived_from` on Axes D and G).
@@ -454,8 +454,8 @@ prompt-composition Wave 3 step B pipeline slice 3 leftover
   gated OFF by default (opt-in via `ReadApiConfig.hil_callback` +
   `hil_registry`). HMAC-SHA256 over `timestamp.body`, replay window
   configurable (300s default), body size cap, no-self-approval
-  enforcement, and mandatory `X-AIOpsPilot-Signature` +
-  `X-AIOpsPilot-Timestamp` headers - the exact same shape the Teams
+  enforcement, and mandatory `X-FDAI-Signature` +
+  `X-FDAI-Timestamp` headers - the exact same shape the Teams
   adapter signs with. Missing config -> fail-fast at `build_app`; if
   neither `hil_callback` nor `hil_registry` is set the 4 GET routes are
   the only registered surface (existing read-only invariant test
@@ -495,7 +495,7 @@ Follows W1. Implements
   ([action-ontology.md § 3.3](action-ontology.md#33-governance)). All
   `execution_path: pr_native`.
 - **W2.3** Direct-API executor at
-  `src/aiopspilot/core/executor/direct_api.py` with idempotency-key
+  `src/fdai/core/executor/direct_api.py` with idempotency-key
   reuse, `stop_conditions` enforcement, and `mutation_target=direct`
   HIL items. **Shipped**: the CSP-neutral :class:`DirectApiExecutor`
   Protocol + fake (`shared/providers/direct_api.py` +
@@ -504,7 +504,7 @@ Follows W1. Implements
   enum (`SUCCEEDED / ALREADY_APPLIED / PRECONDITION_FAILED / STOPPED
   / FAILED`) - AND the `core/executor/direct_api.py` glue
   (:class:`DirectApiShadowExecutor`) that mirrors
-  :class:`~aiopspilot.core.executor.executor.ShadowExecutor`: same
+  :class:`~fdai.core.executor.executor.ShadowExecutor`: same
   per-resource lock, same blast-radius cap, same four-safety-
   invariant fail-close, same shadow-only refusal for enforce-mode
   Actions. Every terminal path writes exactly one audit entry with
@@ -587,7 +587,7 @@ Follows W2. Implements
   `{resource, resource-group}`, malformed ISO-8601 `expires_at`,
   justification outside `[20, 500]` chars, self-approval, and `'..'`
   in `override_id`. Rendered Rego carries METADATA front-matter +
-  a namespaced `package aiopspilot.action_types.<slug>.<override_slug>`
+  a namespaced `package fdai.action_types.<slug>.<override_slug>`
   + `applies` (action_type/scope match + `now <= expires_at`) + verdict
   block; all string interpolation goes through the backslash +
   double-quote escaper.
@@ -739,7 +739,7 @@ wave does not start until its listed decisions are resolved.
   the no-self-approval invariant to paired-approver-only. Owner:
   security-and-identity doc author.
 - **OD-C4 (blocks D1)** CLI REPL history path and retention. Proposal:
-  `~/.aiopspilot/console-history.jsonl`, capped at 10 MiB, redacted
+  `~/.fdai/console-history.jsonl`, capped at 10 MiB, redacted
   before write.
 - **OD-P1 (blocks W2)** Cost estimator API surface for Axis A. Owner:
   Cost Governance vertical.

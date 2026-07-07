@@ -28,7 +28,7 @@ Two shipped-catalog properties are asserted here:
    ``ungrounded_citation:<rule_id>`` reason.
 
 The tests use the deterministic
-:class:`~aiopspilot.core.quality_gate.testing.HashedRuleEmbeddingIndex`
+:class:`~fdai.core.quality_gate.testing.HashedRuleEmbeddingIndex`
 so they are reproducible without any live embedding backend. A fork
 that swaps in a semantic backend (sentence-transformers, Azure
 OpenAI) gets *stronger* grounding, not weaker — this regression
@@ -43,25 +43,25 @@ from typing import Any
 import pytest
 import yaml
 
-from aiopspilot.core.quality_gate import (
+from fdai.core.quality_gate import (
     QualityCandidate,
     QualityGate,
     QualityGateConfig,
     QualityOutcome,
     RagGroundingSource,
 )
-from aiopspilot.core.quality_gate.testing import (
+from fdai.core.quality_gate.testing import (
     HashedRuleEmbeddingIndex,
     MatchTypeCrossCheckModel,
     StaticVerifier,
 )
-from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
-from aiopspilot.rule_catalog.schema.rule import load_rule_catalog
-from aiopspilot.shared.contracts.models import Rule
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.rule_catalog.schema.rule import load_rule_catalog
+from fdai.shared.contracts.models import Rule
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ACTION_TYPES_ROOT = REPO_ROOT / "rule-catalog" / "action-types"

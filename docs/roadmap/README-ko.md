@@ -1,18 +1,18 @@
 ---
-title: AIOpsPilot 로드맵
+title: FDAI 로드맵
 translation_of: README.md
-translation_source_sha: b11e3401c8ca00aa3cf8a254ed8f0e209bae66c4
+translation_source_sha: 2b9f85c5904082631ddf299f7795156d0153ee21
 translation_revised: 2026-07-07
 ---
 
-# AIOpsPilot 로드맵
+# FDAI 로드맵
 
-AIOpsPilot 뒤편의 엔지니어링 계획. 이 폴더는
+FDAI 뒤편의 엔지니어링 계획. 이 폴더는
 [copilot-instructions.md](../../.github/copilot-instructions.md)의 요약 원칙과
 [architecture.instructions.md](../../.github/instructions/architecture.instructions.md)의
 컨트롤 루프를, 목표·구조·배포·스케일-아웃을 아우르는 단계별 로드맵으로 확장합니다.
 
-> **온라인으로 읽기:** [dotnetpower.github.io/aiopspilot](https://dotnetpower.github.io/aiopspilot/).
+> **온라인으로 읽기:** [dotnetpower.github.io/fdai](https://dotnetpower.github.io/fdai/).
 > 여기의 Markdown이 canonical 소스이며, 사이트는 이 파일들을 사이드바 · 우측 TOC ·
 > 전문 검색 · 한/영 스위처와 함께 읽기 전용으로 마운트합니다. 마운트와 배포 방식은
 > [site/](../../site/README.md) 참조.
@@ -92,7 +92,7 @@ AIOpsPilot 뒤편의 엔지니어링 계획. 이 폴더는
 
 ```mermaid
 timeline
-    title AIOpsPilot Delivery Phases
+    title FDAI Delivery Phases
     P0 Instrumentation : KPI telemetry : Baseline vs reference agent : Unblock identity and policy
     P1 Rule Catalog and T0 : Normalize checklists : Policy-as-code gate : Auto remediation PR : Out-of-band detection
     P2 Quality and T1 : Continuous rule update : LLM quality gate and mixed-model : Embedding pattern reuse : Shadow to enforce

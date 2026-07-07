@@ -19,7 +19,7 @@ from uuid import uuid4
 
 import pytest
 
-from aiopspilot.core.verticals.change_safety_detector import (
+from fdai.core.verticals.change_safety_detector import (
     ACTIVITY_LOG_SIGNAL_KIND,
     OUT_OF_BAND_ALERT_TOPIC,
     ChangeAttribution,
@@ -28,21 +28,21 @@ from aiopspilot.core.verticals.change_safety_detector import (
     ChangeSafetyDetectorConfig,
     DetectorOutcome,
 )
-from aiopspilot.shared.contracts.models import Event, Mode
-from aiopspilot.shared.providers.event_bus import PublishReceipt
-from aiopspilot.shared.providers.pipeline_principal import (
+from fdai.shared.contracts.models import Event, Mode
+from fdai.shared.providers.event_bus import PublishReceipt
+from fdai.shared.providers.pipeline_principal import (
     InMemoryPipelinePrincipalRegistry,
 )
-from aiopspilot.shared.providers.remediation_pr import (
+from fdai.shared.providers.remediation_pr import (
     PublishReceipt as PrPublishReceipt,
 )
-from aiopspilot.shared.providers.remediation_pr import (
+from fdai.shared.providers.remediation_pr import (
     RemediationPr,
 )
-from aiopspilot.shared.providers.remediation_pr_ledger import (
+from fdai.shared.providers.remediation_pr_ledger import (
     InMemoryRemediationPrLedger,
 )
-from aiopspilot.shared.providers.testing import (
+from fdai.shared.providers.testing import (
     InMemoryEventBus,
     InMemoryStateStore,
     RecordingRemediationPrPublisher,
@@ -522,18 +522,18 @@ async def test_all_terminal_outcomes_audited_with_mode_shadow() -> None:
 async def test_control_loop_invokes_detector_before_router_for_activity_log(
     tmp_path,
 ) -> None:
-    from aiopspilot.core.control_loop import ControlLoop, ControlLoopResult
-    from aiopspilot.core.event_ingest import EventIngest
-    from aiopspilot.core.executor import (
+    from fdai.core.control_loop import ControlLoop, ControlLoopResult
+    from fdai.core.event_ingest import EventIngest
+    from fdai.core.executor import (
         ResourceLockManager,
         ShadowExecutor,
         TemplateRenderer,
     )
-    from aiopspilot.core.executor.action_builder import ActionBuilder
-    from aiopspilot.core.tiers.t0_deterministic import RuleIndex, T0Engine
-    from aiopspilot.core.trust_router import TrustRouter
-    from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
-    from aiopspilot.shared.contracts.validation import (
+    from fdai.core.executor.action_builder import ActionBuilder
+    from fdai.core.tiers.t0_deterministic import RuleIndex, T0Engine
+    from fdai.core.trust_router import TrustRouter
+    from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
+    from fdai.shared.contracts.validation import (
         JsonSchemaContractValidator,
         JsonSchemaEventValidator,
     )
@@ -597,18 +597,18 @@ async def test_control_loop_invokes_detector_before_router_for_activity_log(
 
 
 async def test_control_loop_skips_detector_for_non_activity_log_event(tmp_path) -> None:
-    from aiopspilot.core.control_loop import ControlLoop
-    from aiopspilot.core.event_ingest import EventIngest
-    from aiopspilot.core.executor import (
+    from fdai.core.control_loop import ControlLoop
+    from fdai.core.event_ingest import EventIngest
+    from fdai.core.executor import (
         ResourceLockManager,
         ShadowExecutor,
         TemplateRenderer,
     )
-    from aiopspilot.core.executor.action_builder import ActionBuilder
-    from aiopspilot.core.tiers.t0_deterministic import RuleIndex, T0Engine
-    from aiopspilot.core.trust_router import TrustRouter
-    from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
-    from aiopspilot.shared.contracts.validation import (
+    from fdai.core.executor.action_builder import ActionBuilder
+    from fdai.core.tiers.t0_deterministic import RuleIndex, T0Engine
+    from fdai.core.trust_router import TrustRouter
+    from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
+    from fdai.shared.contracts.validation import (
         JsonSchemaContractValidator,
         JsonSchemaEventValidator,
     )

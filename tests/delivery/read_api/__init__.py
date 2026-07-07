@@ -1,1 +1,1 @@
-"""Tests for `aiopspilot.delivery.read_api.auth` - the Bearer + RBAC wire."""
+"""Tests for `fdai.delivery.read_api.auth` - the Bearer + RBAC wire."""

@@ -1,7 +1,7 @@
 ---
 title: 규칙 거버넌스(Rule Governance)
 translation_of: rule-governance.md
-translation_source_sha: c711443b73e0016b693a051c906b00bdf6dc3c95
+translation_source_sha: 39f8dbd0bc3832688e5a478856db7dc560d941ef
 translation_revised: 2026-07-07
 ---
 
@@ -24,10 +24,10 @@ shadow-before-enforce 및 안전 불변식을 준수.
 
 ## 모델 (Azure Policy처럼 세 레이어)
 
-Azure Policy는 *정의* 를 *할당* 과 *예외* 에서 분리. AIOpsPilot가 이를 미러링해 관리자가
+Azure Policy는 *정의* 를 *할당* 과 *예외* 에서 분리. FDAI가 이를 미러링해 관리자가
 익숙한 정신 모델을 가짐:
 
-| Azure Policy 개념 | AIOpsPilot 아티팩트 | 무엇인가 |
+| Azure Policy 개념 | FDAI 아티팩트 | 무엇인가 |
 |------------------|----------------------|---------|
 | policy definition | **rule** | 하나의 테스트 가능한 컨트롤 ([rule-catalog-collection-ko.md](rule-catalog-collection-ko.md)) |
 | initiative (policy set) | **rule set** | 이름 있고 버전된 규칙 그룹 (예: 보안 베이스라인) |

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.rule_catalog.pipeline import (
+from fdai.rule_catalog.pipeline import (
     RegressionDecision,
     RegressionGate,
     RegressionGateConfig,

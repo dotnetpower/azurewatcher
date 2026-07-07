@@ -7,13 +7,13 @@ from uuid import UUID
 
 import pytest
 
-from aiopspilot.core.executor.action_builder import (
+from fdai.core.executor.action_builder import (
     ActionBuilder,
     ActionBuildError,
 )
-from aiopspilot.core.tiers.t0_deterministic.models import Finding
-from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-from aiopspilot.shared.contracts.models import (
+from fdai.core.tiers.t0_deterministic.models import Finding
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.shared.contracts.models import (
     BlastRadiusScope,
     Category,
     CheckLogic,
@@ -29,7 +29,7 @@ from aiopspilot.shared.contracts.models import (
     RuleSource,
     Severity,
 )
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ACTION_TYPES_ROOT = REPO_ROOT / "rule-catalog" / "action-types"
@@ -190,7 +190,7 @@ def test_stop_condition_uses_first_action_type_stop_kind() -> None:
 def test_action_type_without_stop_conditions_raises(tmp_path: Path) -> None:
     """Defense-in-depth: the schema allows an empty stop_conditions list,
     but the builder refuses to synthesize a placeholder."""
-    from aiopspilot.rule_catalog.schema.action_type import load_action_type_from_mapping
+    from fdai.rule_catalog.schema.action_type import load_action_type_from_mapping
 
     raw = {
         "schema_version": "1.0.0",

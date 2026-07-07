@@ -3,7 +3,7 @@ title: Dev/Deploy Parity - Local Fakes vs Azure-First Provisioning
 ---
 # Dev/Deploy Parity - Local Fakes vs Azure-First Provisioning
 
-**Goal**: every AIOpsPilot capability MUST run **end-to-end on a developer laptop with zero
+**Goal**: every FDAI capability MUST run **end-to-end on a developer laptop with zero
 Azure resources**, AND deploy cleanly to Azure where the **deployer's Azure permissions +
 region catalog decide which LLM (and other) resources are provisioned**. Two truths must hold
 at the same time:
@@ -140,7 +140,7 @@ Each work item below reflects what actually landed - code, tests, and gate cover
 
 ### W-A: Config schema for LLM + dev-mode flag ✅ *(baseline, shipped)*
 
-- Add `LlmConfig` to `src/aiopspilot/shared/config/schema.json` + `models.py`:
+- Add `LlmConfig` to `src/fdai/shared/config/schema.json` + `models.py`:
   - `mode`: `local-fake` | `azure` (default `local-fake` when `runtime.env == "dev"`).
   - `resolved_models_path`: optional KV secret name or filesystem path.
   - `capabilities`: list of capability names (`t1.embedding`, `t1.judge`,
@@ -152,13 +152,13 @@ Each work item below reflects what actually landed - code, tests, and gate cover
 
 - New file: `rule-catalog/llm-registry.yaml` with upstream defaults (mini → Opus tier).
 - JSON Schema: `rule-catalog/schema/llm-registry.schema.json`.
-- Python loader: `aiopspilot.rule_catalog.schema.llm_registry` with the aggregating
+- Python loader: `fdai.rule_catalog.schema.llm_registry` with the aggregating
   fail-close pattern used elsewhere (see `exemption.py`).
 - Tests: schema validation, mixed-model invariant check.
 
 ### W-C: Bootstrap resolver CLI  ✅ *(deployer-scoped, shipped)*
 
-- New: `src/aiopspilot/rule_catalog/schema/llm_resolver_cli.py`.
+- New: `src/fdai/rule_catalog/schema/llm_resolver_cli.py`.
 - Inputs: `--registry`, `--region`, `--subscription-id`, `--dry-run`, `--out`.
 - Uses `DefaultAzureCredential` (deployer's cached CLI creds).
 - Queries:
@@ -186,10 +186,10 @@ Each work item below reflects what actually landed - code, tests, and gate cover
 
 ### W-E: Azure OpenAI adapter classes  ✅ *(delivery, shipped)*
 
-- `src/aiopspilot/delivery/azure/llm/embeddings.py` - `AzureOpenAIEmbeddingModel`
+- `src/fdai/delivery/azure/llm/embeddings.py` - `AzureOpenAIEmbeddingModel`
   implementing `EmbeddingModel`, using `openai.AzureOpenAI` (async client) +
   `DefaultAzureCredential`.
-- `src/aiopspilot/delivery/azure/llm/cross_check.py` - `AzureOpenAICrossCheckModel`
+- `src/fdai/delivery/azure/llm/cross_check.py` - `AzureOpenAICrossCheckModel`
   implementing `CrossCheckModel`.
 - Timeout, retry-after honouring, structured output (`response_format={"type":"json_schema"}`)
   - see [llm-strategy.md § Provider Abstraction](llm-strategy.md#provider-abstraction).

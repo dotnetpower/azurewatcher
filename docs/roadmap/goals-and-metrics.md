@@ -6,7 +6,7 @@ title: Goals and Metrics
 The roadmap optimizes for **autonomy with proof**. Every autonomy claim is backed by a
 measured baseline; nothing is asserted from estimation. Improvement factors below (`5×`,
 `large reduction`, `1/5`) are **targets**, not achieved results - they may only be stated as
-achieved once both the reference baseline and the AIOpsPilot treatment have been measured on
+achieved once both the reference baseline and the FDAI treatment have been measured on
 the same scenario set (see [Measurement-First Rule](#measurement-first-rule)).
 
 This document is the source of truth for KPIs. It aligns with the tier coverage targets in
@@ -54,7 +54,7 @@ agent on the same scenario-set version and are directional targets pending measu
 
 Notes:
 - Metric 1 cost includes model inference, compute, storage, and event-bus spend attributable to
-  processing; it excludes fixed platform overhead shared with non-AIOpsPilot workloads.
+  processing; it excludes fixed platform overhead shared with non-FDAI workloads.
 - MTTR and lead time are reported as **median and p90** alongside the mean, because latency
   distributions are skewed and a mean alone hides tail regressions.
 - A `5×` target on a ratio (metric 2) is bounded: report both the multiplier and the absolute

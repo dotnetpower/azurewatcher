@@ -8,7 +8,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from aiopspilot.shared.telemetry import get_tracer, with_correlation
+from fdai.shared.telemetry import get_tracer, with_correlation
 
 
 def _install_in_memory_provider() -> InMemorySpanExporter:
@@ -24,7 +24,7 @@ def _install_in_memory_provider() -> InMemorySpanExporter:
     provider = trace.get_tracer_provider()
     # If this is the default no-op provider, install a real SDK one first.
     if not isinstance(provider, TracerProvider):
-        provider = TracerProvider(resource=Resource.create({"service.name": "aiopspilot-test"}))
+        provider = TracerProvider(resource=Resource.create({"service.name": "fdai-test"}))
         trace.set_tracer_provider(provider)
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     return exporter
@@ -32,7 +32,7 @@ def _install_in_memory_provider() -> InMemorySpanExporter:
 
 def test_span_is_emitted() -> None:
     exporter = _install_in_memory_provider()
-    tracer = get_tracer("aiopspilot.tests.telemetry")
+    tracer = get_tracer("fdai.tests.telemetry")
 
     with tracer.start_as_current_span("t0.evaluate") as span:
         span.set_attribute("aw.tier", "t0")
@@ -50,7 +50,7 @@ def test_correlation_can_be_attached_to_a_span() -> None:
     We record it as a span attribute so the audit trail joins on it.
     """
     exporter = _install_in_memory_provider()
-    tracer = get_tracer("aiopspilot.tests.telemetry")
+    tracer = get_tracer("fdai.tests.telemetry")
 
     with with_correlation("evt-99"), tracer.start_as_current_span("risk.gate") as span:
         span.set_attribute("aw.correlation_id", "evt-99")

@@ -7,7 +7,7 @@
 #   rule_id: network.nsg.no-inbound-any-rdp
 #   severity: high
 #   category: security
-package aiopspilot.network.nsg_no_inbound_any_rdp
+package fdai.network.nsg_no_inbound_any_rdp
 
 import rego.v1
 

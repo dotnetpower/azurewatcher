@@ -1,7 +1,7 @@
 ---
 title: "Phase 2 - 지속적 규칙 업데이트, Quality Gate, T1"
 translation_of: phase-2-quality-and-t1.md
-translation_source_sha: 25a7ab7db5e1ad4f940157a3eb9c904f87283f31
+translation_source_sha: e7e729e82603d93a66e7c2396787cf854f04cf32
 translation_revised: 2026-07-07
 ---
 
@@ -19,7 +19,7 @@ translation_revised: 2026-07-07
 
 - **지속적 규칙-업데이트 파이프라인**(living rules), catalog-as-code PR로 딜리버리.
   결정론 in-process 스테이지는
-  [`src/aiopspilot/rule_catalog/pipeline/`](../../../src/aiopspilot/rule_catalog/pipeline/)
+  [`src/fdai/rule_catalog/pipeline/`](../../../src/fdai/rule_catalog/pipeline/)
   에 랜딩: `ShadowEvaluator` 는 후보 rule set 을 시나리오 세트에 judge-and-log 로 replay,
   `RegressionGate` 는 policy-violation escape 0 + coverage ratio floor + missing-expected-rules
   cap 을 강제, `RulePromotionController` 는 promote/rollback 을 hash-chained audit 기록,
@@ -27,20 +27,20 @@ translation_revised: 2026-07-07
   PR delivery)은 `core/` 편집 없이 이 스테이지에 꽂힘.
 - T2를 방어하는 **LLM quality gate**: mixed-model 교차 검사, 결정론 verifier, grounding. 실행
   자격은 verifier가 부여, **절대 모델이 아님**.
-  [`src/aiopspilot/core/quality_gate/`](../../../src/aiopspilot/core/quality_gate/) 에 세 DI
+  [`src/fdai/core/quality_gate/`](../../../src/fdai/core/quality_gate/) 에 세 DI
   Protocol(`CrossCheckModel`, `VerifierPolicy`, `GroundingSource`) + `QualityGate`
   오케스트레이터 배송(`eligible | abstain | disagree | deny` emit). 모든 심의 in-memory
   fake 는
-  [`quality_gate/testing.py`](../../../src/aiopspilot/core/quality_gate/testing.py)
+  [`quality_gate/testing.py`](../../../src/fdai/core/quality_gate/testing.py)
   에 있어 fork 가 live LLM 없이 composition root 를 smoke.
 - **T1 경량 티어**: 임베딩 유사도 + 안전 재검증된 학습된-액션 재사용.
-  [`src/aiopspilot/core/tiers/t1_lightweight/`](../../../src/aiopspilot/core/tiers/t1_lightweight/)
+  [`src/fdai/core/tiers/t1_lightweight/`](../../../src/fdai/core/tiers/t1_lightweight/)
   가 `T1Tier` 오케스트레이터 + `EmbeddingModel` / `PatternLibrary` 심을 배송; 페이크
   `DeterministicEmbeddingModel` + `InMemoryPatternLibrary` 는
-  [`t1_lightweight/testing.py`](../../../src/aiopspilot/core/tiers/t1_lightweight/testing.py)
+  [`t1_lightweight/testing.py`](../../../src/fdai/core/tiers/t1_lightweight/testing.py)
   에 있어 real embedding 모델 / pgvector 없이 재현 가능한 유닛 테스트 가능.
 - **Shadow → enforce 승격**, 액션별, 정책 escape 0으로 측정된 메트릭에 게이팅.
-  [`src/aiopspilot/core/risk_gate/`](../../../src/aiopspilot/core/risk_gate/) 가
+  [`src/fdai/core/risk_gate/`](../../../src/fdai/core/risk_gate/) 가
   `ActionPromotionRegistry.consider_promotion(metrics)` 를 구현 -
   ActionType 의 `promotion_gate` (min_shadow_days / min_samples / min_accuracy /
   max_policy_escapes) 를 측정된 `PromotionMetrics` 에 대해 평가하고 결정된 mode 를 기록.

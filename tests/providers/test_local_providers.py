@@ -6,22 +6,22 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.shared.providers.inventory import Inventory
-from aiopspilot.shared.providers.local import (
+from fdai.shared.providers.inventory import Inventory
+from fdai.shared.providers.local import (
     EnvSecretProvider,
     FileFixtureInventory,
     LocalWorkloadIdentity,
     LocalWorkloadIdentityConfig,
 )
-from aiopspilot.shared.providers.local.inventory import (
+from fdai.shared.providers.local.inventory import (
     InventoryFixtureError,
     load_inventory_fixture,
 )
-from aiopspilot.shared.providers.secret_provider import (
+from fdai.shared.providers.secret_provider import (
     SecretNotFoundError,
     SecretProvider,
 )
-from aiopspilot.shared.providers.workload_identity import WorkloadIdentity
+from fdai.shared.providers.workload_identity import WorkloadIdentity
 
 # ---------------------------------------------------------------------------
 # EnvSecretProvider
@@ -29,13 +29,13 @@ from aiopspilot.shared.providers.workload_identity import WorkloadIdentity
 
 
 def test_env_secret_provider_satisfies_protocol() -> None:
-    provider: SecretProvider = EnvSecretProvider(env={"AIOPSPILOT_SECRET_KAFKA_TOKEN": "abc"})
+    provider: SecretProvider = EnvSecretProvider(env={"FDAI_SECRET_KAFKA_TOKEN": "abc"})
     assert isinstance(provider, SecretProvider)
 
 
 @pytest.mark.asyncio
 async def test_env_secret_provider_returns_prefixed_value() -> None:
-    provider = EnvSecretProvider(env={"AIOPSPILOT_SECRET_KAFKA_TOKEN": "abc"})
+    provider = EnvSecretProvider(env={"FDAI_SECRET_KAFKA_TOKEN": "abc"})
     assert await provider.get("kafka-token") == "abc"
 
 
@@ -68,7 +68,7 @@ async def test_local_workload_identity_returns_stable_token_per_audience() -> No
     a = await identity.get_token("https://cognitiveservices.azure.com/.default")
     b = await identity.get_token("https://cognitiveservices.azure.com/.default")
     assert a.token == b.token
-    assert a.token.startswith("aiopspilot-local:")
+    assert a.token.startswith("fdai-local:")
 
 
 @pytest.mark.asyncio

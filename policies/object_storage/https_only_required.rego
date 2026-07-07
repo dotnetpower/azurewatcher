@@ -7,7 +7,7 @@
 #   rule_id: object-storage.https-only.required
 #   severity: high
 #   category: security
-package aiopspilot.object_storage.https_only_required
+package fdai.object_storage.https_only_required
 
 import rego.v1
 

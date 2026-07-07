@@ -7,7 +7,7 @@
 #   rule_id: disk.snapshot-policy.required
 #   severity: medium
 #   category: reliability
-package aiopspilot.disk.snapshot_policy_required
+package fdai.disk.snapshot_policy_required
 
 import rego.v1
 

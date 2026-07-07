@@ -7,7 +7,7 @@
 #   rule_id: object-storage.shared-key-access.disabled
 #   severity: high
 #   category: security
-package aiopspilot.object_storage.shared_key_access_disabled
+package fdai.object_storage.shared_key_access_disabled
 
 import rego.v1
 

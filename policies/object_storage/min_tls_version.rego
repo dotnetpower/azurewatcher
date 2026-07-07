@@ -7,7 +7,7 @@
 #   rule_id: object-storage.min-tls-version
 #   severity: medium
 #   category: security
-package aiopspilot.object_storage.min_tls_version
+package fdai.object_storage.min_tls_version
 
 import rego.v1
 

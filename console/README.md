@@ -23,7 +23,7 @@ share the executor identity.
 ## Read-only surface
 
 The SPA talks to exactly three GET routes on the read API
-(`src/aiopspilot/delivery/read_api/main.py`):
+(`src/fdai/delivery/read_api/main.py`):
 
 | Route | Purpose |
 |-------|---------|
@@ -43,7 +43,7 @@ board, a DR-drill history) **without editing `app.tsx` or `shell.tsx`**, through
 two matching seams:
 
 1. **API side** - implement the `ReadPanel` Protocol
-   (`src/aiopspilot/delivery/read_api/panels.py`) and register it at the
+   (`src/fdai/delivery/read_api/panels.py`) and register it at the
    composition root via `ReadApiConfig.extra_panels`. The app factory wraps
    each panel as a **GET-only** route, authorizes it with the same reader-role
    gate as the core routes, and fails fast on a malformed / colliding path -
@@ -94,8 +94,8 @@ console/
 cd console
 npm install
 # Terminal 1: run the read API in dev mode (anonymous auth).
-AIOPSPILOT_READ_API_DEV_MODE=1 \
-    uv run uvicorn 'aiopspilot.delivery.read_api._local:app' \
+FDAI_READ_API_DEV_MODE=1 \
+    uv run uvicorn 'fdai.delivery.read_api._local:app' \
         --factory --port 8000
 
 # Terminal 2: run the SPA against the dev-mode API.
@@ -103,7 +103,7 @@ VITE_DEV_MODE=1 VITE_READ_API_BASE_URL=http://127.0.0.1:8000 npm run dev
 ```
 
 The dev-mode env var is a **boot-time tripwire** - the API refuses to build a
-`dev_mode=True` app unless `AIOPSPILOT_READ_API_DEV_MODE=1` is set. A fork's
+`dev_mode=True` app unless `FDAI_READ_API_DEV_MODE=1` is set. A fork's
 production build pipeline never sets that env var.
 
 ## Production build

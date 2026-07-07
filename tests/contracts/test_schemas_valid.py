@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from jsonschema import Draft202012Validator
 
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 SCHEMA_NAMES = [
     "event",
@@ -42,7 +42,7 @@ def test_every_shipped_schema_declares_semver_id() -> None:
         schema = registry.get(name)
         schema_id = schema.get("$id")
         assert isinstance(schema_id, str), f"{name}: $id missing"
-        # e.g. https://aiopspilot.dev/schemas/event/1.0.0
+        # e.g. https://fdai.dev/schemas/event/1.0.0
         parts = schema_id.rstrip("/").split("/")
         version = parts[-1]
         assert version.count(".") == 2, f"{name}: $id does not end in a semver ({schema_id!r})"

@@ -20,7 +20,7 @@ export function Shell({ activePanelId, auth, children }: ShellProps) {
   return (
     <div class="shell">
       <header class="topbar">
-        <h1>AIOpsPilot Console</h1>
+        <h1>FDAI Console</h1>
         <nav>
           {resolvePanels().map((panel) =>
             navLink(panel.id, panel.label, panel.id === activePanelId),

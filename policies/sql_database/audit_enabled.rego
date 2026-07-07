@@ -7,7 +7,7 @@
 #   rule_id: sql-database.audit-enabled
 #   severity: high
 #   category: security
-package aiopspilot.sql_database.audit_enabled
+package fdai.sql_database.audit_enabled
 
 import rego.v1
 

@@ -20,14 +20,14 @@ from datetime import UTC, datetime
 
 import pytest
 
-from aiopspilot.shared.providers import (
+from fdai.shared.providers import (
     EventBus,
     SecretNotFoundError,
     SecretProvider,
     StateStore,
     WorkloadIdentity,
 )
-from aiopspilot.shared.providers.testing import (
+from fdai.shared.providers.testing import (
     InMemoryEventBus,
     InMemorySecretProvider,
     InMemoryStateStore,

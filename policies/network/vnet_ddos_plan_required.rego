@@ -7,7 +7,7 @@
 #   rule_id: network.vnet.ddos-plan.required
 #   severity: medium
 #   category: security
-package aiopspilot.network.vnet_ddos_plan_required
+package fdai.network.vnet_ddos_plan_required
 
 import rego.v1
 

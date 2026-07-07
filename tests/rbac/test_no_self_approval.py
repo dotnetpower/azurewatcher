@@ -16,13 +16,13 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.rbac.enforcer import (
+from fdai.core.rbac.enforcer import (
     AuthorizationError,
     RoleEnforcer,
     SelfApprovalError,
 )
-from aiopspilot.core.rbac.resolver import Principal
-from aiopspilot.core.rbac.roles import Role
+from fdai.core.rbac.resolver import Principal
+from fdai.core.rbac.roles import Role
 
 
 def _approver(oid: str, *, upn: str | None = None) -> Principal:

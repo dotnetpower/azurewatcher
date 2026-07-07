@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.shared.contracts.models import Action, ExecutionPath, OntologyActionType
-from aiopspilot.shared.providers.hil_registry import (
+from fdai.shared.contracts.models import Action, ExecutionPath, OntologyActionType
+from fdai.shared.providers.hil_registry import (
     HilPendingItem,
     MutationTarget,
     hil_pending_item_from_action,
@@ -35,7 +35,7 @@ def _action() -> Action:
 
 
 def _at(*, execution_path: ExecutionPath | None) -> OntologyActionType:
-    from aiopspilot.shared.contracts.models import (
+    from fdai.shared.contracts.models import (
         ActionBlastRadius,
         ActionInterface,
         BlastRadiusComputation,
@@ -212,7 +212,7 @@ def test_factory_item_seeds_registry_intact() -> None:
 
     import asyncio
 
-    from aiopspilot.shared.providers.testing.hil_registry import (
+    from fdai.shared.providers.testing.hil_registry import (
         InMemoryHilApprovalRegistry,
     )
 

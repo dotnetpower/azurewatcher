@@ -33,16 +33,16 @@ from datetime import UTC, datetime
 import httpx
 import pytest
 
-from aiopspilot.delivery.azure.db_dr_restore import (
+from fdai.delivery.azure.db_dr_restore import (
     AzureDbDrRestoreAdapter,
     AzureDbDrRestoreAdapterConfig,
 )
-from aiopspilot.shared.providers.db_dr import (
+from fdai.shared.providers.db_dr import (
     DbDrError,
     DbRestoreConfig,
     DbRestoreHandle,
 )
-from aiopspilot.shared.providers.testing.workload_identity import (
+from fdai.shared.providers.testing.workload_identity import (
     StaticWorkloadIdentity,
 )
 

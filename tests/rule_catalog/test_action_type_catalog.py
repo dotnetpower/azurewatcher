@@ -15,13 +15,13 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.rule_catalog.schema.action_type import (
+from fdai.rule_catalog.schema.action_type import (
     ActionTypeCatalogError,
     load_action_type_catalog,
     load_action_type_from_mapping,
 )
-from aiopspilot.shared.contracts.models import Mode, Operation, RollbackKind
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.models import Mode, Operation, RollbackKind
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CATALOG_ROOT = REPO_ROOT / "rule-catalog" / "action-types"
@@ -180,7 +180,7 @@ def test_top_level_not_a_mapping_is_rejected(tmp_path: Path) -> None:
 
 
 def test_action_type_names_helper_agrees_with_catalog() -> None:
-    from aiopspilot.rule_catalog.schema.action_type import action_type_names
+    from fdai.rule_catalog.schema.action_type import action_type_names
 
     catalog = load_action_type_catalog(CATALOG_ROOT, schema_registry=_registry())
     names = action_type_names(catalog)
@@ -430,7 +430,7 @@ def test_every_governance_action_type_is_pr_native() -> None:
     execution_path: pr_native - they are catalog-as-code changes and
     MUST land as a reviewed diff.'"""
 
-    from aiopspilot.shared.contracts.models import ExecutionPath
+    from fdai.shared.contracts.models import ExecutionPath
 
     catalog = load_action_type_catalog(CATALOG_ROOT, schema_registry=_registry())
     for action in catalog:
@@ -446,7 +446,7 @@ def test_no_shipped_action_type_uses_pr_manual() -> None:
     """R7 collapsed pr_manual into pr_native + require_manual_merge; no
     upstream ActionType should still use the legacy pr_manual value."""
 
-    from aiopspilot.shared.contracts.models import ExecutionPath
+    from fdai.shared.contracts.models import ExecutionPath
 
     catalog = load_action_type_catalog(CATALOG_ROOT, schema_registry=_registry())
     offenders = [a.name for a in catalog if a.execution_path is ExecutionPath.PR_MANUAL]

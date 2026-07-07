@@ -1,16 +1,16 @@
 ---
-title: AIOpsPilot Roadmap
+title: FDAI Roadmap
 ---
-# AIOpsPilot Roadmap
+# FDAI Roadmap
 
-The engineering plan behind AIOpsPilot. This folder expands the short-form
+The engineering plan behind FDAI. This folder expands the short-form
 principles in [copilot-instructions.md](../../.github/copilot-instructions.md)
 and the control loop in
 [architecture.instructions.md](../../.github/instructions/architecture.instructions.md)
 into an actionable, phased roadmap: from goals and structure through deployment
 and scale-out.
 
-> **Read online:** [dotnetpower.github.io/aiopspilot](https://dotnetpower.github.io/aiopspilot/).
+> **Read online:** [dotnetpower.github.io/fdai](https://dotnetpower.github.io/fdai/).
 > The markdown here is the canonical source; the site mounts these files
 > read-only with sidebar navigation, right-column TOC, full-text search, and a
 > Korean / English switcher. See [site/](../../site/README.md) for how the mount
@@ -94,7 +94,7 @@ build. Read the reference docs first, then the phases in order.
 
 ```mermaid
 timeline
-    title AIOpsPilot Delivery Phases
+    title FDAI Delivery Phases
     P0 Instrumentation : KPI telemetry : Baseline vs reference agent : Unblock identity and policy
     P1 Rule Catalog and T0 : Normalize checklists : Policy-as-code gate : Auto remediation PR : Out-of-band detection
     P2 Quality and T1 : Continuous rule update : LLM quality gate and mixed-model : Embedding pattern reuse : Shadow to enforce

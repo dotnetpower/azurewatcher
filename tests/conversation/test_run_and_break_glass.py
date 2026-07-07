@@ -30,22 +30,22 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.conversation import Principal, Role
-from aiopspilot.core.conversation.tools import SystemConsoleTool
-from aiopspilot.core.conversation.write_tools import (
+from fdai.core.conversation import Principal, Role
+from fdai.core.conversation.tools import SystemConsoleTool
+from fdai.core.conversation.write_tools import (
     ActivateBreakGlassTool,
     AuditWriter,
     RunRunbookTool,
 )
-from aiopspilot.shared.providers.break_glass_pager import (
+from fdai.shared.providers.break_glass_pager import (
     BreakGlassDeliveryError,
     BreakGlassNoChannelError,
 )
-from aiopspilot.shared.providers.runbook_registry import (
+from fdai.shared.providers.runbook_registry import (
     RunbookExecutionError,
     RunbookResult,
 )
-from aiopspilot.shared.providers.testing import (
+from fdai.shared.providers.testing import (
     InMemoryBreakGlassPager,
     InMemoryRunbookRegistry,
     InMemoryStateStore,
@@ -194,7 +194,7 @@ class TestRunRunbookDryRun:
             lambda params, dry_run: RunbookResult(ok=True, summary="never-called"),
         )
         # Force execute() to raise NotFound on the very next call.
-        from aiopspilot.shared.providers.runbook_registry import RunbookNotFoundError
+        from fdai.shared.providers.runbook_registry import RunbookNotFoundError
 
         reg.next_error(RunbookNotFoundError("vanishes"))
         tool, _, store = _build_run_tool(reg)
@@ -314,7 +314,7 @@ class TestBreakGlassProtocol:
     def test_redact_secrets_short_circuits_on_empty(self) -> None:
         """The redaction helper returns empty text unchanged (never
         constructs a spurious REDACTED line for zero input)."""
-        from aiopspilot.core.conversation.write_tools import _redact_secrets
+        from fdai.core.conversation.write_tools import _redact_secrets
 
         assert _redact_secrets("") == ""
 

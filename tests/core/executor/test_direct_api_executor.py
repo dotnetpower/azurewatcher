@@ -23,14 +23,14 @@ from uuid import UUID
 
 import pytest
 
-from aiopspilot.core.executor import (
+from fdai.core.executor import (
     DirectApiExecutionOutcome,
     DirectApiExecutionResult,
     DirectApiShadowExecutor,
     ExecutorConfig,
     ResourceLockManager,
 )
-from aiopspilot.shared.contracts.models import (
+from fdai.shared.contracts.models import (
     Action,
     BlastRadius,
     BlastRadiusScope,
@@ -39,12 +39,12 @@ from aiopspilot.shared.contracts.models import (
     RollbackKind,
     RollbackRef,
 )
-from aiopspilot.shared.providers.direct_api import (
+from fdai.shared.providers.direct_api import (
     DirectApiOutcome,
     DirectApiPreconditionError,
     DirectApiPromotionError,
 )
-from aiopspilot.shared.providers.testing import (
+from fdai.shared.providers.testing import (
     InMemoryStateStore,
     RecordingDirectApiExecutor,
 )
@@ -329,7 +329,7 @@ class TestAdapterOutcomes:
 
     @pytest.mark.asyncio
     async def test_generic_direct_api_error_maps_to_failed(self) -> None:
-        from aiopspilot.shared.providers.direct_api import DirectApiError
+        from fdai.shared.providers.direct_api import DirectApiError
 
         exec_, adapter, _ = _executor()
         adapter.next_error(DirectApiError("transient", "network hiccup"))

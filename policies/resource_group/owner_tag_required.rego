@@ -7,7 +7,7 @@
 #   rule_id: resource-group.owner-tag.required
 #   severity: low
 #   category: config_drift
-package aiopspilot.resource_group.owner_tag_required
+package fdai.resource_group.owner_tag_required
 
 import rego.v1
 

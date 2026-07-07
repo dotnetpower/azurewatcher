@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.shared.config.models import LlmConfig, LlmMode
+from fdai.shared.config.models import LlmConfig, LlmMode
 
 
 def test_default_llm_config_is_local_fake() -> None:

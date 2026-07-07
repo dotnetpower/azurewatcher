@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.risk_gate.risk_table import (
+from fdai.core.risk_gate.risk_table import (
     FeatureVector,
     RiskLevel,
     RiskRule,

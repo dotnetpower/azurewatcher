@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`aiopspilot.core.measurement.prompt_probe_runner`.
+"""Unit tests for :mod:`fdai.core.measurement.prompt_probe_runner`.
 
 Two suites: :class:`TestScoreBatch` covers the pure aggregate that
 turns pre-composed samples into a run report; :class:`TestRunScenarios`
@@ -12,19 +12,19 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.measurement.prompt_probe import (
+from fdai.core.measurement.prompt_probe import (
     ExpectedResponse,
     RequiredField,
 )
-from aiopspilot.core.measurement.prompt_probe_runner import (
+from fdai.core.measurement.prompt_probe_runner import (
     RecognitionSample,
     RecognitionScenario,
     run_scenarios,
     score_batch,
 )
-from aiopspilot.core.operator_memory import OperatorScope
-from aiopspilot.core.prompts.testing import StaticPromptComposer
-from aiopspilot.core.prompts.types import ComposedPrompt, LayerRef, PromptLayer
+from fdai.core.operator_memory import OperatorScope
+from fdai.core.prompts.testing import StaticPromptComposer
+from fdai.core.prompts.types import ComposedPrompt, LayerRef, PromptLayer
 
 
 def _composed(

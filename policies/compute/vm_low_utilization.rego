@@ -8,7 +8,7 @@
 #   rule_id: compute.vm.low-utilization
 #   severity: medium
 #   category: cost
-package aiopspilot.compute.vm_low_utilization
+package fdai.compute.vm_low_utilization
 
 import rego.v1
 

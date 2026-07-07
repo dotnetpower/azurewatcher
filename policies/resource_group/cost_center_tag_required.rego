@@ -7,7 +7,7 @@
 #   rule_id: resource-group.cost-center-tag.required
 #   severity: low
 #   category: config_drift
-package aiopspilot.resource_group.cost_center_tag_required
+package fdai.resource_group.cost_center_tag_required
 
 import rego.v1
 

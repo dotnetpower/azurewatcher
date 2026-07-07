@@ -29,24 +29,24 @@ import httpx
 import pytest
 import yaml
 
-from aiopspilot.delivery.azure.arg_query import (
+from fdai.delivery.azure.arg_query import (
     ArgQueryError,
     AzureArgQueryFactory,
     AzureArgQueryFactoryConfig,
 )
-from aiopspilot.delivery.azure.inventory import (
+from fdai.delivery.azure.inventory import (
     AzureInventoryConfig,
     AzureResourceGraphInventory,
 )
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.rule_catalog.schema.resource_type import (
     ResourceTypeRegistry,
     load_resource_type_registry_from_mapping,
 )
-from aiopspilot.shared.providers.inventory import ResourceRecord
-from aiopspilot.shared.providers.testing.workload_identity import (
+from fdai.shared.providers.inventory import ResourceRecord
+from fdai.shared.providers.testing.workload_identity import (
     StaticWorkloadIdentity,
 )
-from aiopspilot.shared.providers.workload_identity import WorkloadIdentity
+from fdai.shared.providers.workload_identity import WorkloadIdentity
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 VOCABULARY_FILE = REPO_ROOT / "rule-catalog" / "vocabulary" / "resource-types.yaml"
@@ -583,7 +583,7 @@ def test_neutral_id_falls_back_when_no_resource_group_marker() -> None:
     Subscription-scoped resources (rare in the P1 rule set) have no RG
     segment; the helper MUST still return a stable, lowercased id.
     """
-    from aiopspilot.delivery.azure.arg_query import _to_neutral_id
+    from fdai.delivery.azure.arg_query import _to_neutral_id
 
     result = _to_neutral_id(
         "/subscriptions/00000000-0000-0000-0000-000000000001/"
@@ -598,7 +598,7 @@ def test_neutral_id_falls_back_when_no_resource_group_marker() -> None:
 def test_truncate_props_extreme_case_returns_hint_only() -> None:
     """When even dropping `properties` + `tags` can't fit, return the
     minimal audit hint. Guards against a runaway `name`/`location` blob."""
-    from aiopspilot.delivery.azure.arg_query import _truncate_props
+    from fdai.delivery.azure.arg_query import _truncate_props
 
     huge = {
         "name": "n" * 5000,
@@ -612,7 +612,7 @@ def test_truncate_props_extreme_case_returns_hint_only() -> None:
 
 def test_build_query_rejects_single_quote_in_arm_type() -> None:
     """Defense-in-depth against a corrupted vocabulary entry."""
-    from aiopspilot.delivery.azure.arg_query import ArgQueryError
+    from fdai.delivery.azure.arg_query import ArgQueryError
 
     factory = AzureArgQueryFactory(
         identity=_identity(),
@@ -673,7 +673,7 @@ def _record(
     arm_id: str,
     rtype: str = "object-storage",
 ) -> ResourceRecord:
-    from aiopspilot.delivery.azure.arg_query import _to_neutral_id
+    from fdai.delivery.azure.arg_query import _to_neutral_id
 
     return ResourceRecord(
         resource_id=_to_neutral_id(arm_id),
@@ -683,13 +683,13 @@ def _record(
 
 
 def test_extract_rg_contains_returns_empty_for_no_resources() -> None:
-    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+    from fdai.delivery.azure.arg_query import _extract_rg_contains_links
 
     assert _extract_rg_contains_links(()) == ()
 
 
 def test_extract_rg_contains_emits_edge_for_rg_scoped_resource() -> None:
-    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+    from fdai.delivery.azure.arg_query import _extract_rg_contains_links
 
     rec = _record(
         arm_id=(
@@ -709,7 +709,7 @@ def test_extract_rg_contains_emits_edge_for_rg_scoped_resource() -> None:
 def test_extract_rg_contains_skips_resource_group_itself() -> None:
     """A resource-group RECORD has no RG parent within P1 scope
     (its parent is the subscription, which lands in a later phase)."""
-    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+    from fdai.delivery.azure.arg_query import _extract_rg_contains_links
 
     rg_record = _record(
         arm_id=("/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-example"),
@@ -719,7 +719,7 @@ def test_extract_rg_contains_skips_resource_group_itself() -> None:
 
 
 def test_extract_rg_contains_skips_resource_without_provider_ref() -> None:
-    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+    from fdai.delivery.azure.arg_query import _extract_rg_contains_links
 
     hand_crafted = ResourceRecord(
         resource_id="resource-group/rg-x/providers/microsoft.storage/x/y",
@@ -731,7 +731,7 @@ def test_extract_rg_contains_skips_resource_without_provider_ref() -> None:
 
 def test_extract_rg_contains_skips_subscription_scoped_resource() -> None:
     """Role definitions and similar sub-scoped resources have no RG segment."""
-    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+    from fdai.delivery.azure.arg_query import _extract_rg_contains_links
 
     rec = _record(
         arm_id=(
@@ -744,7 +744,7 @@ def test_extract_rg_contains_skips_subscription_scoped_resource() -> None:
 
 def test_extract_rg_contains_deduplicates_repeats_within_shard() -> None:
     """Duplicate `(rg, contains, resource)` triples collapse into one edge."""
-    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+    from fdai.delivery.azure.arg_query import _extract_rg_contains_links
 
     arm_id = (
         "/subscriptions/00000000-0000-0000-0000-000000000001/"
@@ -760,7 +760,7 @@ def test_extract_rg_contains_case_insensitive_marker() -> None:
     """The `/resourceGroups/` marker is matched case-insensitively so a
     provider variation (`/resourcegroups/` seen in some legacy ids)
     still yields an edge."""
-    from aiopspilot.delivery.azure.arg_query import _extract_rg_contains_links
+    from fdai.delivery.azure.arg_query import _extract_rg_contains_links
 
     rec = _record(
         arm_id=(
@@ -780,7 +780,7 @@ def test_extract_rg_contains_case_insensitive_marker() -> None:
 
 
 def test_arm_id_to_type_extracts_top_level_type() -> None:
-    from aiopspilot.delivery.azure.arg_query import _arm_id_to_type
+    from fdai.delivery.azure.arg_query import _arm_id_to_type
 
     arm_id = (
         "/subscriptions/00000000-0000-0000-0000-000000000001/"
@@ -791,7 +791,7 @@ def test_arm_id_to_type_extracts_top_level_type() -> None:
 
 
 def test_arm_id_to_type_extracts_multi_segment_type() -> None:
-    from aiopspilot.delivery.azure.arg_query import _arm_id_to_type
+    from fdai.delivery.azure.arg_query import _arm_id_to_type
 
     arm_id = (
         "/subscriptions/00000000-0000-0000-0000-000000000001/"
@@ -802,14 +802,14 @@ def test_arm_id_to_type_extracts_multi_segment_type() -> None:
 
 
 def test_arm_id_to_type_returns_none_without_providers_segment() -> None:
-    from aiopspilot.delivery.azure.arg_query import _arm_id_to_type
+    from fdai.delivery.azure.arg_query import _arm_id_to_type
 
     assert _arm_id_to_type("/subscriptions/00000000-0000-0000-0000-000000000001") is None
 
 
 def test_extract_attached_to_from_subnet_reference() -> None:
     """A NIC row with properties.subnet.id emits attached_to(nic, subnet)."""
-    from aiopspilot.delivery.azure.arg_query import (
+    from fdai.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_attached_to_links_from_row,
         _to_neutral_id,
@@ -839,7 +839,7 @@ def test_extract_attached_to_from_subnet_reference() -> None:
 
 
 def test_extract_attached_to_from_nsg_reference() -> None:
-    from aiopspilot.delivery.azure.arg_query import (
+    from fdai.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_attached_to_links_from_row,
     )
@@ -863,7 +863,7 @@ def test_extract_attached_to_from_nsg_reference() -> None:
 def test_extract_attached_to_drops_reference_to_unmapped_type() -> None:
     """A referenced ARM type not in the vocabulary is dropped, not
     emitted with an unknown to_type."""
-    from aiopspilot.delivery.azure.arg_query import (
+    from fdai.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_attached_to_links_from_row,
     )
@@ -883,7 +883,7 @@ def test_extract_attached_to_drops_reference_to_unmapped_type() -> None:
 
 
 def test_extract_attached_to_returns_empty_when_no_properties() -> None:
-    from aiopspilot.delivery.azure.arg_query import (
+    from fdai.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_attached_to_links_from_row,
     )
@@ -908,7 +908,7 @@ def test_extract_attached_to_deduplicates_within_row() -> None:
     """Two whitelisted keys pointing at the same target collapse into
     a single edge - deduplication mirrors the LinkRecord idempotency
     contract on InventoryBatch."""
-    from aiopspilot.delivery.azure.arg_query import (
+    from fdai.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_attached_to_links_from_row,
     )
@@ -1003,7 +1003,7 @@ async def test_full_row_emits_contains_and_attached_to_links_together() -> None:
 def test_extract_depends_on_from_storage_account_reference() -> None:
     """A Function / App Service / AKS row with `properties.storageAccount.id`
     emits `depends_on(child, storage)`."""
-    from aiopspilot.delivery.azure.arg_query import (
+    from fdai.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_depends_on_links_from_row,
         _to_neutral_id,
@@ -1038,7 +1038,7 @@ def test_extract_depends_on_from_workspace_resource_id() -> None:
 
     Unlike `storageAccount.id`, this path is a top-level ARM-id string
     (no `.id` wrapper) - the extractor MUST handle both shapes."""
-    from aiopspilot.delivery.azure.arg_query import (
+    from fdai.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_depends_on_links_from_row,
         _to_neutral_id,
@@ -1070,7 +1070,7 @@ def test_extract_depends_on_from_acr_login_server_skipped_when_unresolvable() ->
     lookup returns ``None`` for every value, so the reference is
     silently dropped ("skip if not resolvable"). This proves the code
     path is exercised without emitting spurious edges."""
-    from aiopspilot.delivery.azure.arg_query import (
+    from fdai.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_depends_on_links_from_row,
     )
@@ -1093,8 +1093,8 @@ def test_extract_depends_on_from_acr_login_server_emits_when_resolver_returns_ar
     ``Microsoft.Storage/storageAccounts`` as a stand-in target since
     ``container-registry`` is not (yet) in the vocabulary - the point
     is to exercise the emit branch, not the semantics of ACR."""
-    from aiopspilot.delivery.azure import arg_query as arg_query_mod
-    from aiopspilot.delivery.azure.arg_query import (
+    from fdai.delivery.azure import arg_query as arg_query_mod
+    from fdai.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_depends_on_links_from_row,
     )
@@ -1126,7 +1126,7 @@ def test_extract_depends_on_drops_reference_to_unmapped_type() -> None:
     """A soft-dep reference to an ARM type not in the vocabulary is
     dropped, not emitted with an unknown to_type - same envelope as
     `_extract_attached_to_links_from_row`."""
-    from aiopspilot.delivery.azure.arg_query import (
+    from fdai.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_depends_on_links_from_row,
     )
@@ -1154,7 +1154,7 @@ def test_extract_depends_on_drops_reference_without_providers_segment() -> None:
     ``/providers/`` segment cannot yield an ARM type - the extractor
     treats it as un-typable and drops it (never emits an edge with
     an unknown ``to_type``)."""
-    from aiopspilot.delivery.azure.arg_query import (
+    from fdai.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_depends_on_links_from_row,
     )
@@ -1174,7 +1174,7 @@ def test_extract_depends_on_drops_reference_without_providers_segment() -> None:
 
 
 def test_extract_depends_on_returns_empty_when_no_properties() -> None:
-    from aiopspilot.delivery.azure.arg_query import (
+    from fdai.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_depends_on_links_from_row,
     )
@@ -1242,7 +1242,7 @@ def test_extract_depends_on_returns_empty_when_no_properties() -> None:
 def test_extract_depends_on_deduplicates_within_row() -> None:
     """Two whitelisted paths pointing at the same target collapse into
     a single edge - mirrors the `attached_to` dedup contract."""
-    from aiopspilot.delivery.azure.arg_query import (
+    from fdai.delivery.azure.arg_query import (
         _build_arm_to_neutral_map,
         _extract_depends_on_links_from_row,
     )

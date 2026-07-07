@@ -7,7 +7,7 @@
 #   rule_id: kubernetes-cluster.diagnostic-settings-required
 #   severity: medium
 #   category: reliability
-package aiopspilot.kubernetes.diagnostic_settings_required
+package fdai.kubernetes.diagnostic_settings_required
 
 import rego.v1
 

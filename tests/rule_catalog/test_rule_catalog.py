@@ -12,17 +12,17 @@ from pathlib import Path
 import pytest
 import yaml
 
-from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
-from aiopspilot.rule_catalog.schema.rule import (
+from fdai.rule_catalog.schema.rule import (
     RuleCatalogError,
     load_rule_catalog,
     load_rule_from_mapping,
 )
-from aiopspilot.shared.contracts.models import Category, RuleSource, Severity
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.models import Category, RuleSource, Severity
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ACTION_TYPES_ROOT = REPO_ROOT / "rule-catalog" / "action-types"

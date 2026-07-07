@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`aiopspilot.core.measurement.prompt_probe_loader`."""
+"""Unit tests for :mod:`fdai.core.measurement.prompt_probe_loader`."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from aiopspilot.core.measurement.prompt_probe_loader import (
+from fdai.core.measurement.prompt_probe_loader import (
     ScenarioLoaderError,
     load_scenarios,
 )
-from aiopspilot.core.operator_memory import OperatorScope
+from fdai.core.operator_memory import OperatorScope
 
 _SCHEMA_PATH = (
     Path(__file__).resolve().parents[3]
@@ -240,7 +240,7 @@ def test_prompt_registry_still_loads_with_scenarios_present() -> None:
     would trip prompt-schema validation the way tools/ did before
     step 2.5-A."""
 
-    from aiopspilot.core.prompts.registry import FileSystemPromptRegistry
+    from fdai.core.prompts.registry import FileSystemPromptRegistry
 
     repo_root = Path(__file__).resolve().parents[3]
     reg = FileSystemPromptRegistry(repo_root / "rule-catalog")

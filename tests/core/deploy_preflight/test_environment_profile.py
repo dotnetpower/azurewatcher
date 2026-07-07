@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.deploy_preflight import (
+from fdai.core.deploy_preflight import (
     DeploymentEnvironmentProfile,
     DeploymentEnvironmentProfileCache,
     apply_inventory_delta,

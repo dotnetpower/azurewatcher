@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.core.executor.renderer import (
+from fdai.core.executor.renderer import (
     RenderError,
     RenderRequest,
     TemplateRenderer,
 )
-from aiopspilot.shared.contracts.models import (
+from fdai.shared.contracts.models import (
     Category,
     CheckLogic,
     CheckLogicKind,

@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.shared.config import (
+from fdai.shared.config import (
     AppConfig,
     ConfigError,
     RuntimeConfig,
     load_from_mapping,
 )
-from aiopspilot.shared.config.loader import load_config_from_env
-from aiopspilot.shared.contracts.models import Mode
+from fdai.shared.config.loader import load_config_from_env
+from fdai.shared.contracts.models import Mode
 
 # ---------------------------------------------------------------------------
 # Happy path
@@ -31,16 +31,16 @@ def test_valid_full_config_passes() -> None:
             "region": "krc",
         },
         "kafka": {
-            "bootstrap_servers": "evhns-aiopspilot.example.local:9093",
+            "bootstrap_servers": "evhns-fdai.example.local:9093",
             "topic_events": "aw.change.events",
         },
-        "postgres": {"host": "psql-aiopspilot.example.local", "database": "aiopspilot"},
+        "postgres": {"host": "psql-fdai.example.local", "database": "fdai"},
         "runtime": {"env": "dev"},
     }
     cfg = load_from_mapping(raw)
     assert isinstance(cfg, AppConfig)
     # Default RG name from the CAF convention is applied automatically.
-    assert cfg.azure.resource_group == "rg-aiopspilot"
+    assert cfg.azure.resource_group == "rg-fdai"
     # Autonomy default MUST land on shadow - safety invariant.
     assert cfg.runtime.autonomy_mode_default is Mode.SHADOW
     # Rule catalog default ref is present.
@@ -133,10 +133,10 @@ def _minimal_raw() -> dict[str, dict[str, str] | str]:
             "region": "krc",
         },
         "kafka": {
-            "bootstrap_servers": "evhns-aiopspilot.example.local:9093",
+            "bootstrap_servers": "evhns-fdai.example.local:9093",
             "topic_events": "aw.change.events",
         },
-        "postgres": {"host": "psql-aiopspilot.example.local", "database": "aiopspilot"},
+        "postgres": {"host": "psql-fdai.example.local", "database": "fdai"},
         "runtime": {"env": "dev"},
     }
 
@@ -183,10 +183,10 @@ def test_load_config_from_env_reads_process_env(monkeypatch: pytest.MonkeyPatch)
         "AZURE_TENANT_ID": "00000000-0000-0000-0000-000000000000",
         "AZURE_SUBSCRIPTION_ID": "00000000-0000-0000-0000-000000000000",
         "AZURE_REGION": "krc",
-        "KAFKA_BOOTSTRAP_SERVERS": "evhns-aiopspilot.example.local:9093",
+        "KAFKA_BOOTSTRAP_SERVERS": "evhns-fdai.example.local:9093",
         "KAFKA_TOPIC_EVENTS": "aw.change.events",
-        "POSTGRES_HOST": "psql-aiopspilot.example.local",
-        "POSTGRES_DATABASE": "aiopspilot",
+        "POSTGRES_HOST": "psql-fdai.example.local",
+        "POSTGRES_DATABASE": "fdai",
         "RUNTIME_ENV": "dev",
     }
     for key, value in env.items():

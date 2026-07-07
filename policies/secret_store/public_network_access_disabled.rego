@@ -8,7 +8,7 @@
 #   rule_id: secret-store.public-network-access.disabled
 #   severity: high
 #   category: security
-package aiopspilot.secret_store.public_network_access_disabled
+package fdai.secret_store.public_network_access_disabled
 
 import rego.v1
 

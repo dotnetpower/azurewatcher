@@ -27,11 +27,11 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.verticals.db_dr_verifier import (
+from fdai.core.verticals.db_dr_verifier import (
     DbDrOutcome,
     DbDrVerifier,
 )
-from aiopspilot.shared.providers.db_dr import (
+from fdai.shared.providers.db_dr import (
     DbDrError,
     DbRestoreConfig,
     IntegrityMismatch,
@@ -40,13 +40,13 @@ from aiopspilot.shared.providers.db_dr import (
     SmokeCheck,
     SmokeReport,
 )
-from aiopspilot.shared.providers.testing.db_dr import (
+from fdai.shared.providers.testing.db_dr import (
     FakeDbRestoreAdapter,
     FakeIntegrityChecker,
     FakeSmokeRunner,
     make_test_config,
 )
-from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers

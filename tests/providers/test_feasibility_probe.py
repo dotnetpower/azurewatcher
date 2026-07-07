@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.shared.providers.feasibility_probe import (
+from fdai.shared.providers.feasibility_probe import (
     FeasibilityProbe,
     FindingSeverity,
     PreflightTarget,
@@ -12,7 +12,7 @@ from aiopspilot.shared.providers.feasibility_probe import (
     ProbeFinding,
     ResolutionKind,
 )
-from aiopspilot.shared.providers.local import (
+from fdai.shared.providers.local import (
     DenylistResourceTypeProbe,
     EgressDenylistProbe,
     ToggleResolution,
@@ -130,13 +130,13 @@ def test_finding_to_dict_is_json_friendly() -> None:
 
 
 def probe_evidence():
-    from aiopspilot.shared.providers.feasibility_probe import ProbeEvidence
+    from fdai.shared.providers.feasibility_probe import ProbeEvidence
 
     return ProbeEvidence(source="policy:x", detail="d")
 
 
 def probe_resolution():
-    from aiopspilot.shared.providers.feasibility_probe import ProbeResolution
+    from fdai.shared.providers.feasibility_probe import ProbeResolution
 
     return ProbeResolution(kind=ResolutionKind.MANUAL)
 

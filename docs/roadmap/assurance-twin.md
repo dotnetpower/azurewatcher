@@ -3,7 +3,7 @@ title: Assurance Twin (queryable, proactive, verifiable review)
 ---
 # Assurance Twin (queryable, proactive, verifiable review)
 
-AIOpsPilot's answer to the "architecture review agent" request is not a chatbot
+FDAI's answer to the "architecture review agent" request is not a chatbot
 bolted onto a document index. It is an **Assurance Twin**: a queryable,
 ontology-grounded digital twin of the governed subscription that answers
 questions deterministically, reviews changes before anyone asks, and proposes

@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.rule_catalog.schema.llm_registry import load_llm_registry_from_mapping
-from aiopspilot.rule_catalog.schema.llm_resolver import (
+from fdai.rule_catalog.schema.llm_registry import load_llm_registry_from_mapping
+from fdai.rule_catalog.schema.llm_resolver import (
     CapabilityStatus,
     CatalogQuery,
     PermissionQuery,

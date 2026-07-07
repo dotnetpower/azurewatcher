@@ -7,7 +7,7 @@
 #   rule_id: object-storage.private-endpoint.required
 #   severity: high
 #   category: security
-package aiopspilot.object_storage.private_endpoint_required
+package fdai.object_storage.private_endpoint_required
 
 import rego.v1
 

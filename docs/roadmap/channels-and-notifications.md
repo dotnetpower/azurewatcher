@@ -3,7 +3,7 @@ title: Channels and Notifications
 ---
 # Channels and Notifications
 
-How AIOpsPilot talks to humans through **non-web-UI channels** - Teams, Slack, email,
+How FDAI talks to humans through **non-web-UI channels** - Teams, Slack, email,
 webhooks, paging services, SMS. This file is authoritative for the **channel abstraction,
 trust levels, category boundaries, routing policy, and channel-specific rules**. It
 resolves the placeholder "notifier interface" hinted at in
@@ -60,7 +60,7 @@ flowchart LR
       CH --> W[webhook adapter]
       CH --> P[pager adapter]
     end
-    T --> API[aiopspilot-api]
+    T --> API[fdai-api]
     S --> API
     API --> RG
 ```
@@ -70,7 +70,7 @@ flowchart LR
   `Channel` interface from `shared/providers/`.
 - The **channel-router** is a thin core module: it takes a category and a message and
   picks channels per the fork's routing config (§6). It holds no vendor knowledge.
-- **Approval callbacks from any adapter land at `aiopspilot-api`**, which re-validates
+- **Approval callbacks from any adapter land at `fdai-api`**, which re-validates
   the human's Entra identity ([user-rbac-and-identity.md](user-rbac-and-identity.md#102-api-token-validation))
   before acting. Adapters never authorize decisions themselves.
 
@@ -89,7 +89,7 @@ Every channel message carries a **category tag** and must obey that category's r
 
 - **A1 approvals never carry the decision payload in the message.** The Adaptive Card /
   Block Kit / email body carries an **opaque `approval_id`**; the actual decision is
-  posted back to `aiopspilot-api`, which re-authenticates and re-validates
+  posted back to `fdai-api`, which re-authenticates and re-validates
   (`idempotency_key` + `action_hash`) so a leaked message is not a valid approval.
 - **A3 write commands never mutate the live catalog directly** - they produce a draft
   PR the same way the console does (§6 in
@@ -119,9 +119,9 @@ and what its authentication can prove.
 
 | Channel | Entra tenant | Auth path | Categories allowed |
 |---------|--------------|-----------|--------------------|
-| **Teams (same tenant)** | ✓ | Teams SSO → OBO exchange → `aiopspilot-api` token | **A1, A2, A3, A4** |
+| **Teams (same tenant)** | ✓ | Teams SSO → OBO exchange → `fdai-api` token | **A1, A2, A3, A4** |
 | **Teams (guest tenant)** | guest | OBO with guest OID | **A2, A3, A4** (A1 denied - same guest rule as [user-rbac-and-identity.md §10.5](user-rbac-and-identity.md#105-guest-entra-b2b-users)) |
-| **Slack** | ✗ | Slack OAuth; **fork-mandatory** Slack userId ↔ Entra OID mapping; A1 approvals bounce through `aiopspilot-api` for Entra re-auth in the browser | **A1, A2, A3, A4** - A1 enabled in P1 (see §7 Slack notes) |
+| **Slack** | ✗ | Slack OAuth; **fork-mandatory** Slack userId ↔ Entra OID mapping; A1 approvals bounce through `fdai-api` for Entra re-auth in the browser | **A1, A2, A3, A4** - A1 enabled in P1 (see §7 Slack notes) |
 | **Email (SMTP / Graph)** | ✗ | send-only, no return channel | **A2, A4 only** - never A1 (magic-link approvals aren't supported) |
 | **Generic webhook** | ✗ | HMAC-signed, timestamped, replay-guarded | **A2 only** |
 | **PagerDuty / Opsgenie** | ✗ | API key, ack from mobile app | **A2 only** (operational lane paging) |
@@ -130,7 +130,7 @@ and what its authentication can prove.
 **Rules that keep the matrix safe (MUST)**
 
 - **Magic-link approvals aren't supported across every channel.** Approval always requires
-  a re-authenticated round-trip through `aiopspilot-api`.
+  a re-authenticated round-trip through `fdai-api`.
 - **A1 fallback stays inside A1-capable channels.** A failed Teams A1 attempt never falls
   through to email; it falls to another A1-capable channel (Teams standby, or Slack when
   mapping is present) or to the HIL queue.
@@ -183,7 +183,7 @@ interface ApprovalRequest {
 ```
 
 - **Adapters MUST NOT authorize the decision themselves.** `awaitDecision` returns
-  whatever the user clicks; the core router hands that raw click to `aiopspilot-api`,
+  whatever the user clicks; the core router hands that raw click to `fdai-api`,
   which is the sole authority (identity re-verify, replay check, no-self-approval).
 - **Adapters MUST re-scan the message body** for known secret patterns (same regex set
   used by the CI secret scanner) before dispatching, as a last-line defense.
@@ -312,7 +312,7 @@ channel_routing:
 | Channel | Notes |
 |---------|-------|
 | **Teams** | Adaptive Cards for A1; keep the OAuth scope set minimal (`ChannelMessage.Send.Group` + bot signaling). SSO + OBO already covered in [user-rbac-and-identity.md §10.4](user-rbac-and-identity.md#104-chatops-teams-sign-in). Digest audience is a **group-connected team backed by an `aw-*` Entra security group** so membership follows Entra without a separate list. |
-| **Slack** | Block Kit for A2/A3; the approval callback URL redirects through `aiopspilot-api` so Entra re-auth happens in the browser, not inside Slack. `chat:write` scope only. Fork MUST supply the userId↔OID mapping store; the adapter refuses A1 traffic when a Slack user has no mapped Entra OID. Slack channel membership is administered in Slack; keep it in sync with the corresponding `aw-*` group manually or via SCIM. |
+| **Slack** | Block Kit for A2/A3; the approval callback URL redirects through `fdai-api` so Entra re-auth happens in the browser, not inside Slack. `chat:write` scope only. Fork MUST supply the userId↔OID mapping store; the adapter refuses A1 traffic when a Slack user has no mapped Entra OID. Slack channel membership is administered in Slack; keep it in sync with the corresponding `aw-*` group manually or via SCIM. |
 | **Email** | Send-only. Never include an approval link; digest and alert only. Sender identity is a Graph API mailbox scoped to the notification role. Redaction is mandatory - no correlation payload beyond `audit_id` and dashboard URL. Recommended DL: an **Entra dynamic distribution group** mirroring `aw-approvers` / `aw-owners`. |
 | **Generic webhook** | HMAC-SHA256 signature, monotonic timestamp, single-use nonce. Receiver failures never block; core retries per adapter policy and moves on. |
 | **PagerDuty / Opsgenie** | Deduplication key = the observability correlation id so a burst collapses. Runbook URL is required in every alert. |
@@ -345,7 +345,7 @@ channel_routing:
 ## 10. Open Decisions
 
 - [ ] Adapter-health alert thresholds and dedupe windows.
-- [ ] Which vendors' incoming webhooks (if any) may open incidents into AIOpsPilot -
+- [ ] Which vendors' incoming webhooks (if any) may open incidents into FDAI -
       today only observability opens A2 traffic; external webhooks in are separate scope.
 - [ ] The `mention-artifact-owner` behavior when the artifact owner is a **guest** user
       (mention still resolves in Teams, but should the digest suppress or route

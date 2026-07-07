@@ -1,7 +1,7 @@
 // Deep DB-DR drill - Container Apps Job that runs the scheduled restore
 // -> integrity -> smoke -> teardown cycle documented in
 // docs/runbooks/db-dr-drill.md and implemented in
-// src/aiopspilot/core/verticals/db_dr_drill_cli.py.
+// src/fdai/core/verticals/db_dr_drill_cli.py.
 //
 // The job is opt-in: a fork enables it by setting
 // var.dr_drill_enabled = true and supplying var.dr_drill_source_server_arm_id
@@ -45,30 +45,30 @@ resource "azurerm_container_app_job" "dr_drill" {
       image   = var.image
       cpu     = 0.5
       memory  = "1.0Gi"
-      command = ["python", "-m", "aiopspilot.core.verticals.db_dr_drill_cli"]
+      command = ["python", "-m", "fdai.core.verticals.db_dr_drill_cli"]
 
       env {
-        name  = "AIOPSPILOT_DR_DRILL_SOURCE_SERVER_ARM_ID"
+        name  = "FDAI_DR_DRILL_SOURCE_SERVER_ARM_ID"
         value = var.dr_drill_source_server_arm_id
       }
       env {
-        name  = "AIOPSPILOT_DR_DRILL_TARGET_LOCATION"
+        name  = "FDAI_DR_DRILL_TARGET_LOCATION"
         value = var.location
       }
       env {
-        name  = "AIOPSPILOT_DR_DRILL_TARGET_RG_PREFIX"
+        name  = "FDAI_DR_DRILL_TARGET_RG_PREFIX"
         value = var.dr_drill_target_rg_prefix
       }
       env {
-        name  = "AIOPSPILOT_DR_DRILL_TARGET_SERVER_PREFIX"
+        name  = "FDAI_DR_DRILL_TARGET_SERVER_PREFIX"
         value = var.dr_drill_target_server_prefix
       }
       env {
-        name  = "AIOPSPILOT_DR_DRILL_PITR_OFFSET_MINUTES"
+        name  = "FDAI_DR_DRILL_PITR_OFFSET_MINUTES"
         value = tostring(var.dr_drill_pitr_offset_minutes)
       }
       env {
-        name  = "AIOPSPILOT_DR_DRILL_DRY_RUN"
+        name  = "FDAI_DR_DRILL_DRY_RUN"
         value = var.dr_drill_dry_run ? "1" : "0"
       }
     }

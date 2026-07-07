@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from aiopspilot.rule_catalog.schema.llm_registry import (
+from fdai.rule_catalog.schema.llm_registry import (
     LlmRegistryError,
     MixedModelMode,
     Sku,
@@ -167,7 +167,7 @@ def test_default_llm_capabilities_all_exist_in_upstream_registry() -> None:
     to a nonexistent binding, which the composition root cannot resolve.
     Fails-fast at CI time instead of at process start.
     """
-    from aiopspilot.shared.config.models import _DEFAULT_LLM_CAPABILITIES
+    from fdai.shared.config.models import _DEFAULT_LLM_CAPABILITIES
 
     registry = load_llm_registry_from_yaml(UPSTREAM_REGISTRY)
     missing = sorted(set(_DEFAULT_LLM_CAPABILITIES) - set(registry.models))

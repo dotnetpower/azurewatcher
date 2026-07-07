@@ -1,4 +1,4 @@
-"""Tests for the dev-mode entrypoint at :mod:`aiopspilot.delivery.read_api._local`."""
+"""Tests for the dev-mode entrypoint at :mod:`fdai.delivery.read_api._local`."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import pytest
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
-from aiopspilot.delivery.read_api import _local
+from fdai.delivery.read_api import _local
 
-_DEV_ENV = "AIOPSPILOT_READ_API_DEV_MODE"
+_DEV_ENV = "FDAI_READ_API_DEV_MODE"
 
 
 class TestLocalEntrypoint:

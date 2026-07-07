@@ -8,7 +8,7 @@
 #   rule_id: postgresql-server.point-in-time-restore
 #   severity: high
 #   category: reliability
-package aiopspilot.postgresql.point_in_time_restore
+package fdai.postgresql.point_in_time_restore
 
 import rego.v1
 

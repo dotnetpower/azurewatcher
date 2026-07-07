@@ -6,7 +6,7 @@
 #   rule_id: postgresql-server.diagnostic-settings-required
 #   severity: medium
 #   category: reliability
-package aiopspilot.postgresql.diagnostic_settings_required
+package fdai.postgresql.diagnostic_settings_required
 
 import rego.v1
 

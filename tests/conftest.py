@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.composition import Container, default_container
-from aiopspilot.shared.config import AppConfig
+from fdai.composition import Container, default_container
+from fdai.shared.config import AppConfig
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -40,7 +40,7 @@ def app_config() -> AppConfig:
 
     Kept in code (not env) so the test suite is deterministic regardless of
     the shell environment. Real deployments load from env via
-    :func:`aiopspilot.composition.default_container_from_env`.
+    :func:`fdai.composition.default_container_from_env`.
     """
     return AppConfig.model_validate(
         {
@@ -48,16 +48,16 @@ def app_config() -> AppConfig:
             "azure": {
                 "tenant_id": "00000000-0000-0000-0000-000000000000",
                 "subscription_id": "00000000-0000-0000-0000-000000000000",
-                "resource_group": "rg-aiopspilot",
+                "resource_group": "rg-fdai",
                 "region": "krc",
             },
             "kafka": {
-                "bootstrap_servers": "evhns-aiopspilot.example.local:9093",
+                "bootstrap_servers": "evhns-fdai.example.local:9093",
                 "topic_events": "aw.change.events",
             },
             "postgres": {
-                "host": "psql-aiopspilot.example.local",
-                "database": "aiopspilot",
+                "host": "psql-fdai.example.local",
+                "database": "fdai",
             },
             "rule_catalog": {"ref": "main"},
             "runtime": {"env": "dev"},
@@ -159,7 +159,7 @@ def valid_ontology_action_type() -> dict[str, Any]:
 
 
 class InMemorySchemaRegistry:
-    """Test-only :class:`~aiopspilot.shared.contracts.registry.SchemaRegistry`.
+    """Test-only :class:`~fdai.shared.contracts.registry.SchemaRegistry`.
 
     Kept inside ``tests/`` so it cannot be imported from ``core/`` by accident.
     A permanent, package-level fake lands in ``shared/providers/testing/``
@@ -175,13 +175,13 @@ class InMemorySchemaRegistry:
         if version is None:
             versions = [v for (n, v) in self._schemas if n == name]
             if not versions:
-                from aiopspilot.shared.contracts.registry import SchemaNotFoundError
+                from fdai.shared.contracts.registry import SchemaNotFoundError
 
                 raise SchemaNotFoundError(f"unknown schema name: {name!r}")
             version = max(versions)
         key = (name, version)
         if key not in self._schemas:
-            from aiopspilot.shared.contracts.registry import SchemaNotFoundError
+            from fdai.shared.contracts.registry import SchemaNotFoundError
 
             raise SchemaNotFoundError(f"unknown schema: {key}")
         return self._schemas[key]

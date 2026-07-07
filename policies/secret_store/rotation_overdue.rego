@@ -9,7 +9,7 @@
 #   rule_id: secret-store.rotation-overdue
 #   severity: high
 #   category: security
-package aiopspilot.secret_store.rotation_overdue
+package fdai.secret_store.rotation_overdue
 
 import rego.v1
 

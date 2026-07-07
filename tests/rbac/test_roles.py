@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.rbac.roles import (
+from fdai.core.rbac.roles import (
     ROLE_CAPABILITIES,
     Capability,
     Role,
@@ -30,7 +30,7 @@ class TestRoleEnum:
 
     def test_role_string_values_match_app_role_declarations(self) -> None:
         # Values are the App Role strings assigned in the Entra
-        # `aiopspilot-api` app registration. Renaming ANY of these is a
+        # `fdai-api` app registration. Renaming ANY of these is a
         # coordinated Entra change; the test guards against a silent
         # code-only rename.
         assert Role.READER.value == "Reader"

@@ -7,7 +7,7 @@
 #   rule_id: cache.zone-redundant
 #   severity: high
 #   category: reliability
-package aiopspilot.cache.zone_redundant
+package fdai.cache.zone_redundant
 
 import rego.v1
 

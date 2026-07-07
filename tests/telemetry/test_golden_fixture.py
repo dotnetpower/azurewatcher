@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.shared.telemetry.metrics_derivation import derive_dashboard_metrics
+from fdai.shared.telemetry.metrics_derivation import derive_dashboard_metrics
 
 FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "golden_trace.json"
 

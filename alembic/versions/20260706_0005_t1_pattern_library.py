@@ -5,10 +5,10 @@ Revises: 20260705_0004
 Create Date: 2026-07-06 00:00:00
 
 Backs
-:class:`~aiopspilot.core.tiers.t1_lightweight.tier.PatternLibrary` with a
+:class:`~fdai.core.tiers.t1_lightweight.tier.PatternLibrary` with a
 persistent Postgres+pgvector table so learned actions survive process
 restarts. The in-memory fake in
-:mod:`aiopspilot.core.tiers.t1_lightweight.testing` mirrors the schema for
+:mod:`fdai.core.tiers.t1_lightweight.testing` mirrors the schema for
 unit tests; this migration only creates the physical backing.
 
 Columns

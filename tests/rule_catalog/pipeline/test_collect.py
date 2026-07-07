@@ -15,23 +15,23 @@ from pathlib import Path
 import pytest
 import yaml
 
-from aiopspilot.rule_catalog.pipeline.collect import (
+from fdai.rule_catalog.pipeline.collect import (
     CollectorPipeline,
     HttpDownloadFetcher,
     LocalDirectoryFetcher,
 )
-from aiopspilot.rule_catalog.pipeline.collect.collector import (
+from fdai.rule_catalog.pipeline.collect.collector import (
     _count_files,
     _hash_tree,
     _short_revision,
 )
-from aiopspilot.rule_catalog.pipeline.collect.fetch import (
+from fdai.rule_catalog.pipeline.collect.fetch import (
     FetchError,
     GitCloneFetcher,
     build_fetcher,
 )
-from aiopspilot.rule_catalog.pipeline.collect_cli import main as cli_main
-from aiopspilot.rule_catalog.schema.source_manifest import (
+from fdai.rule_catalog.pipeline.collect_cli import main as cli_main
+from fdai.rule_catalog.schema.source_manifest import (
     FetchConfig,
     FetchKind,
 )
@@ -653,12 +653,12 @@ def test_cli_auto_detects_repo_root_when_omitted(
 
 
 def test_collector_produces_snapshot_of_shipped_seed_manifest(tmp_path: Path) -> None:
-    """The shipped ``aiopspilot-p1-seed`` manifest MUST snapshot without error.
+    """The shipped ``fdai-p1-seed`` manifest MUST snapshot without error.
 
     Uses the real repo root (this file's parent chain) so a regression in
     either the manifest or the LocalDirectoryFetcher shows up here.
     """
-    manifest_path = REPO_ROOT / "rule-catalog" / "sources" / "aiopspilot-p1-seed" / "manifest.yaml"
+    manifest_path = REPO_ROOT / "rule-catalog" / "sources" / "fdai-p1-seed" / "manifest.yaml"
     assert manifest_path.exists(), f"shipped manifest missing: {manifest_path}"
 
     pipeline = CollectorPipeline(
@@ -666,7 +666,7 @@ def test_collector_produces_snapshot_of_shipped_seed_manifest(tmp_path: Path) ->
         output_root=tmp_path / "snapshots",
     )
     report = pipeline.collect_from_manifest_path(manifest_path)
-    assert report.source_id == "aiopspilot-p1-seed"
+    assert report.source_id == "fdai-p1-seed"
     assert report.file_count >= 50, (
         f"seed manifest should carry the 50-rule catalog; saw {report.file_count}"
     )
@@ -680,8 +680,8 @@ def test_collector_records_http_mismatch_when_fetcher_skips_validation(tmp_path:
     the pipeline's own compare against ``expected_sha256`` MUST land the
     mismatch on the report and refuse to materialize a snapshot.
     """
-    from aiopspilot.rule_catalog.pipeline.collect.fetch import FetchResult
-    from aiopspilot.rule_catalog.schema.source_manifest import SourceManifest
+    from fdai.rule_catalog.pipeline.collect.fetch import FetchResult
+    from fdai.rule_catalog.schema.source_manifest import SourceManifest
 
     class _NoValidateHttpFetcher:
         """Stand-in fetcher that returns without verifying the hash."""
@@ -728,7 +728,7 @@ def test_cli_verify_flag_reports_verified_count_on_shipped_seed(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """``--verify`` against the shipped seed manifest exits 0 with issues=[]."""
-    manifest_path = REPO_ROOT / "rule-catalog" / "sources" / "aiopspilot-p1-seed" / "manifest.yaml"
+    manifest_path = REPO_ROOT / "rule-catalog" / "sources" / "fdai-p1-seed" / "manifest.yaml"
     exit_code = cli_main(
         [
             "--manifest",
@@ -932,7 +932,7 @@ def test_cli_repo_root_fallback_uses_cwd_when_no_rule_catalog_found(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``_repo_root`` returns cwd when no ancestor has a ``rule-catalog/`` dir."""
-    from aiopspilot.rule_catalog.pipeline import collect_cli
+    from fdai.rule_catalog.pipeline import collect_cli
 
     # Point Path(__file__) resolution deep into a tmp tree without any
     # ``rule-catalog`` sibling on the way up.

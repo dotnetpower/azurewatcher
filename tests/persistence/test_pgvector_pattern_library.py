@@ -1,6 +1,6 @@
 """PgVectorPatternLibrary - unit + integration tests.
 
-The database-touching paths are gated on ``AIOPSPILOT_DATABASE_URL`` and
+The database-touching paths are gated on ``FDAI_DATABASE_URL`` and
 mirror the skip pattern established by
 ``tests/persistence/test_postgres_state_store.py``. The offline unit
 tests below exercise config validation and the vector encoder so the
@@ -18,12 +18,12 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.core.tiers.t1_lightweight.tier import LearnedAction
-from aiopspilot.delivery.persistence import (
+from fdai.core.tiers.t1_lightweight.tier import LearnedAction
+from fdai.delivery.persistence import (
     PgVectorPatternLibrary,
     PgVectorPatternLibraryConfig,
 )
-from aiopspilot.delivery.persistence.pgvector_pattern_library import (
+from fdai.delivery.persistence.pgvector_pattern_library import (
     _coerce_params,
     _encode_vector,
 )
@@ -107,9 +107,9 @@ pytestmark_integration = pytest.mark.integration
 
 
 def _requires_live_db() -> str:
-    url = os.environ.get("AIOPSPILOT_DATABASE_URL")
+    url = os.environ.get("FDAI_DATABASE_URL")
     if not url:
-        pytest.skip("AIOPSPILOT_DATABASE_URL is unset")
+        pytest.skip("FDAI_DATABASE_URL is unset")
     return url
 
 

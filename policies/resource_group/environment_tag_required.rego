@@ -7,7 +7,7 @@
 #   rule_id: resource-group.environment-tag.required
 #   severity: low
 #   category: config_drift
-package aiopspilot.resource_group.environment_tag_required
+package fdai.resource_group.environment_tag_required
 
 import rego.v1
 

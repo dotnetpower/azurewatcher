@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`aiopspilot.core.prompts.registry`.
+"""Unit tests for :mod:`fdai.core.prompts.registry`.
 
 Every construction is on a tmp catalog root so the tests are fully
 hermetic. The shipped ``rule-catalog/prompts/`` tree gets its own
@@ -14,7 +14,7 @@ from textwrap import dedent
 
 import pytest
 
-from aiopspilot.core.prompts import (
+from fdai.core.prompts import (
     FileSystemPromptRegistry,
     PromptLayer,
     PromptMode,

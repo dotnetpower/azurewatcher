@@ -9,7 +9,7 @@
 #   rule_id: sql-database.tde-required
 #   severity: high
 #   category: security
-package aiopspilot.sql_database.tde_required
+package fdai.sql_database.tde_required
 
 import rego.v1
 

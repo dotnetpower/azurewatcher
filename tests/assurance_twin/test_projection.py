@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.assurance_twin import (
+from fdai.core.assurance_twin import (
     InMemoryProjection,
     build_baseline_projection,
 )
-from aiopspilot.shared.providers.projection import (
+from fdai.shared.providers.projection import (
     Finding,
     InventoryDiff,
     ResourceRef,

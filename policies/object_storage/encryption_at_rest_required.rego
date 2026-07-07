@@ -8,7 +8,7 @@
 #   rule_id: object-storage.encryption-at-rest.required
 #   severity: high
 #   category: security
-package aiopspilot.object_storage.encryption_at_rest_required
+package fdai.object_storage.encryption_at_rest_required
 
 import rego.v1
 

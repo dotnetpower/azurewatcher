@@ -8,7 +8,7 @@
 #   rule_id: cache.tier-overprovisioned
 #   severity: low
 #   category: cost
-package aiopspilot.cache.tier_overprovisioned
+package fdai.cache.tier_overprovisioned
 
 import rego.v1
 

@@ -7,7 +7,7 @@
 #   rule_id: sql-database.diagnostic-settings-required
 #   severity: medium
 #   category: reliability
-package aiopspilot.sql_database.diagnostic_settings_required
+package fdai.sql_database.diagnostic_settings_required
 
 import rego.v1
 

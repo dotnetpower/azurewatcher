@@ -7,9 +7,9 @@ import json
 
 import pytest
 
-from aiopspilot.shared.providers import EventBus, SseEvent, SseSink
-from aiopspilot.shared.providers.testing import InMemoryEventBus, InMemorySseSink
-from aiopspilot.shared.streaming import SseBroadcaster
+from fdai.shared.providers import EventBus, SseEvent, SseSink
+from fdai.shared.providers.testing import InMemoryEventBus, InMemorySseSink
+from fdai.shared.streaming import SseBroadcaster
 
 # ---------------------------------------------------------------------------
 # Structural

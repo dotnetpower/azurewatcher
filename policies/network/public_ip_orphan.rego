@@ -7,7 +7,7 @@
 #   rule_id: network.public-ip.orphan
 #   severity: low
 #   category: cost
-package aiopspilot.network.public_ip_orphan
+package fdai.network.public_ip_orphan
 
 import rego.v1
 

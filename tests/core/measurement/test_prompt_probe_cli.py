@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`aiopspilot.core.measurement.prompt_probe_cli`."""
+"""Unit tests for :mod:`fdai.core.measurement.prompt_probe_cli`."""
 
 from __future__ import annotations
 
@@ -9,12 +9,12 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.core.measurement.prompt_probe_cli import (
+from fdai.core.measurement.prompt_probe_cli import (
     main,
     resolve_catalog_root,
     run_from_catalog,
 )
-from aiopspilot.core.measurement.prompt_probe_testing import AbstainResponder
+from fdai.core.measurement.prompt_probe_testing import AbstainResponder
 
 _SCENARIO_SCHEMA_PATH = (
     Path(__file__).resolve().parents[3]
@@ -63,13 +63,13 @@ class TestResolveCatalogRoot:
     def test_env_override_wins(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         target = tmp_path / "rc"
         target.mkdir()
-        monkeypatch.setenv("AIOPSPILOT_CATALOG_ROOT", str(target))
+        monkeypatch.setenv("FDAI_CATALOG_ROOT", str(target))
         assert resolve_catalog_root() == target
 
     def test_env_pointing_at_missing_dir_fails_fast(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setenv("AIOPSPILOT_CATALOG_ROOT", str(tmp_path / "nonexistent"))
+        monkeypatch.setenv("FDAI_CATALOG_ROOT", str(tmp_path / "nonexistent"))
         with pytest.raises(FileNotFoundError, match="not a directory"):
             resolve_catalog_root()
 
@@ -121,14 +121,14 @@ class TestMainCli:
     def test_missing_catalog_returns_exit_code_2(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setenv("AIOPSPILOT_CATALOG_ROOT", str(tmp_path / "nope"))
+        monkeypatch.setenv("FDAI_CATALOG_ROOT", str(tmp_path / "nope"))
         assert main() == 2
 
     def test_empty_catalog_prints_one_kpi_row(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         _stage_minimal_catalog(tmp_path)
-        monkeypatch.setenv("AIOPSPILOT_CATALOG_ROOT", str(tmp_path / "rule-catalog"))
+        monkeypatch.setenv("FDAI_CATALOG_ROOT", str(tmp_path / "rule-catalog"))
         buf = io.StringIO()
         with redirect_stdout(buf):
             exit_code = main()
@@ -159,7 +159,7 @@ class TestMainCli:
         catalog_dir = tmp_path / "rule-catalog" / "prompts" / "scenarios" / "catalog"
         catalog_dir.mkdir()
         (catalog_dir / "s1.v1.yaml").write_text(yaml.safe_dump(scenario_body, sort_keys=False))
-        monkeypatch.setenv("AIOPSPILOT_CATALOG_ROOT", str(tmp_path / "rule-catalog"))
+        monkeypatch.setenv("FDAI_CATALOG_ROOT", str(tmp_path / "rule-catalog"))
         buf = io.StringIO()
         with redirect_stdout(buf):
             exit_code = main()

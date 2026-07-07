@@ -23,18 +23,18 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.conversation import Principal, Role
-from aiopspilot.core.conversation.tools import SystemConsoleTool
-from aiopspilot.core.conversation.write_tools import (
+from fdai.core.conversation import Principal, Role
+from fdai.core.conversation.tools import SystemConsoleTool
+from fdai.core.conversation.write_tools import (
     ApproveHilTool,
     AuditWriter,
     ListHilTool,
 )
-from aiopspilot.shared.providers.hil_registry import (
+from fdai.shared.providers.hil_registry import (
     HilApprovalDecision,
     HilPendingItem,
 )
-from aiopspilot.shared.providers.testing import (
+from fdai.shared.providers.testing import (
     InMemoryHilApprovalRegistry,
     InMemoryStateStore,
 )
@@ -384,7 +384,7 @@ class TestApproveHilFailClosed:
         tool, store = _build_approve_tool(reg)
         # Force record_decision to raise HilItemNotFoundError as if the item
         # disappeared mid-call.
-        from aiopspilot.shared.providers.hil_registry import HilItemNotFoundError
+        from fdai.shared.providers.hil_registry import HilItemNotFoundError
 
         reg.next_error(HilItemNotFoundError("ik-1"))
         r = tool.call(
@@ -399,7 +399,7 @@ class TestApproveHilFailClosed:
     def test_generic_registry_error_bubbles_as_error(self) -> None:
         reg = _build_registry([_item()])
         tool, store = _build_approve_tool(reg)
-        from aiopspilot.shared.providers.hil_registry import HilRegistryError
+        from fdai.shared.providers.hil_registry import HilRegistryError
 
         reg.next_error(HilRegistryError("transient", "network hiccup"))
         r = tool.call(
@@ -450,7 +450,7 @@ class TestInMemoryRegistryContract:
 
     @pytest.mark.asyncio
     async def test_conflicting_decision_raises_already_resolved(self) -> None:
-        from aiopspilot.shared.providers.hil_registry import HilItemAlreadyResolvedError
+        from fdai.shared.providers.hil_registry import HilItemAlreadyResolvedError
 
         reg = InMemoryHilApprovalRegistry()
         reg.seed([_item()])
@@ -468,7 +468,7 @@ class TestInMemoryRegistryContract:
 
     @pytest.mark.asyncio
     async def test_record_decision_on_missing_key_raises_not_found(self) -> None:
-        from aiopspilot.shared.providers.hil_registry import HilItemNotFoundError
+        from fdai.shared.providers.hil_registry import HilItemNotFoundError
 
         reg = InMemoryHilApprovalRegistry()  # empty
         with pytest.raises(HilItemNotFoundError):

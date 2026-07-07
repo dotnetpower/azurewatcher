@@ -8,16 +8,16 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 
-from aiopspilot.core.quality_gate.gate import QualityCandidate
-from aiopspilot.delivery.azure.llm.cross_check import (
+from fdai.core.quality_gate.gate import QualityCandidate
+from fdai.delivery.azure.llm.cross_check import (
     AzureOpenAICrossCheckModel,
     AzureOpenAICrossCheckModelConfig,
 )
-from aiopspilot.delivery.azure.llm.embeddings import (
+from fdai.delivery.azure.llm.embeddings import (
     AzureOpenAIEmbeddingModel,
     AzureOpenAIEmbeddingModelConfig,
 )
-from aiopspilot.shared.providers.workload_identity import IdentityToken, WorkloadIdentity
+from fdai.shared.providers.workload_identity import IdentityToken, WorkloadIdentity
 
 # Non-empty placeholder for the required Wave 2 `system_prompt` field.
 # Real prompts come from ``rule-catalog/prompts/`` via PromptComposer; the
@@ -314,7 +314,7 @@ class _RecordingExecutor:
 
     async def dispatch(self, *, tool_id: str, arguments):  # noqa: ANN001
         self.calls.append((tool_id, dict(arguments)))
-        from aiopspilot.core.tools import ToolResult
+        from fdai.core.tools import ToolResult
 
         if tool_id not in self._responses:
             raise KeyError(f"no canned response for {tool_id!r}")
@@ -330,8 +330,8 @@ class _RecordingExecutor:
 def _enforce_tool_artifact(tool_id: str = "rule.query"):
     """Build an enforce-mode ToolArtifact for the adapter to advertise."""
 
-    from aiopspilot.core.prompts.types import PromptMode
-    from aiopspilot.core.tools import CapabilityGate, ToolArtifact
+    from fdai.core.prompts.types import PromptMode
+    from fdai.core.tools import CapabilityGate, ToolArtifact
 
     return ToolArtifact(
         id=tool_id,
@@ -357,8 +357,8 @@ def _enforce_tool_artifact(tool_id: str = "rule.query"):
 
 
 def _shadow_tool_artifact(tool_id: str = "state.query"):
-    from aiopspilot.core.prompts.types import PromptMode
-    from aiopspilot.core.tools import CapabilityGate, ToolArtifact
+    from fdai.core.prompts.types import PromptMode
+    from fdai.core.tools import CapabilityGate, ToolArtifact
 
     return ToolArtifact(
         id=tool_id,
@@ -680,8 +680,8 @@ class _RecordingComposer:
     """
 
     def __init__(self) -> None:
-        from aiopspilot.core.operator_memory import OperatorScope
-        from aiopspilot.core.prompts.types import ComposedPrompt
+        from fdai.core.operator_memory import OperatorScope
+        from fdai.core.prompts.types import ComposedPrompt
 
         self._ComposedPrompt = ComposedPrompt
         self._OperatorScope = OperatorScope
@@ -690,7 +690,7 @@ class _RecordingComposer:
     async def compose(
         self, *, capability_id: str, scope: object = None
     ) -> object:  # ComposedPrompt but avoiding forward-ref juggling in tests
-        from aiopspilot.core.prompts.types import LayerRef, PromptLayer
+        from fdai.core.prompts.types import LayerRef, PromptLayer
 
         self.calls.append((capability_id, scope))
         marker = "scoped" if scope is not None else "no-scope"
@@ -756,7 +756,7 @@ async def test_cross_check_composes_prompt_per_event() -> None:
 async def test_cross_check_scope_resolver_feeds_composer() -> None:
     """When ``scope_resolver`` is wired, the derived scope reaches the composer."""
 
-    from aiopspilot.core.operator_memory import OperatorScope
+    from fdai.core.operator_memory import OperatorScope
 
     captured: list[httpx.Request] = []
     transport = _mock_cross_check_transport(

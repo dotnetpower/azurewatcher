@@ -7,7 +7,7 @@
 #   rule_id: network.nsg.no-inbound-any-ssh
 #   severity: high
 #   category: security
-package aiopspilot.network.nsg_no_inbound_any_ssh
+package fdai.network.nsg_no_inbound_any_ssh
 
 import rego.v1
 

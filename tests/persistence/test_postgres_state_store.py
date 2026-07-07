@@ -1,8 +1,8 @@
 """Integration test - PostgresStateStore round-trip against a live DB.
 
-Skipped unless ``AIOPSPILOT_DATABASE_URL`` is set (same guard as the
+Skipped unless ``FDAI_DATABASE_URL`` is set (same guard as the
 migrations test). The docker-compose dev stack (`make dev-up`) exposes
-the URL as ``postgresql+psycopg://aiopspilot:devonly@localhost:5432/aiopspilot``.
+the URL as ``postgresql+psycopg://fdai:devonly@localhost:5432/fdai``.
 
 The tests here:
 
@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.delivery.persistence import PostgresStateStore, PostgresStateStoreConfig
+from fdai.delivery.persistence import PostgresStateStore, PostgresStateStoreConfig
 
 pytestmark = pytest.mark.integration
 
@@ -30,9 +30,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _requires_live_db() -> str:
-    url = os.environ.get("AIOPSPILOT_DATABASE_URL")
+    url = os.environ.get("FDAI_DATABASE_URL")
     if not url:
-        pytest.skip("AIOPSPILOT_DATABASE_URL is unset")
+        pytest.skip("FDAI_DATABASE_URL is unset")
     return url
 
 

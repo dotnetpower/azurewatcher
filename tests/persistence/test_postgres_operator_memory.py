@@ -1,6 +1,6 @@
 """PostgresOperatorMemoryStore - unit + integration tests.
 
-The database-touching paths are gated on ``AIOPSPILOT_DATABASE_URL`` and
+The database-touching paths are gated on ``FDAI_DATABASE_URL`` and
 mirror the skip pattern established by
 ``tests/persistence/test_postgres_state_store.py``. The offline unit
 tests below exercise config validation, the shared policy validator,
@@ -19,21 +19,21 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.core.operator_memory import (
+from fdai.core.operator_memory import (
     InMemoryOperatorMemoryStore,
     OperatorMemoryEntry,
     OperatorMemoryPolicyError,
 )
-from aiopspilot.core.operator_memory.types import (
+from fdai.core.operator_memory.types import (
     MemoryCategory,
     MemorySource,
     ScopeKind,
 )
-from aiopspilot.delivery.persistence import (
+from fdai.delivery.persistence import (
     PostgresOperatorMemoryStore,
     PostgresOperatorMemoryStoreConfig,
 )
-from aiopspilot.delivery.persistence.postgres_operator_memory import (
+from fdai.delivery.persistence.postgres_operator_memory import (
     _coerce_uuid,
     _coerce_uuid_optional,
     _row_to_entry,
@@ -223,9 +223,9 @@ pytestmark_integration = pytest.mark.integration
 
 
 def _requires_live_db() -> str:
-    url = os.environ.get("AIOPSPILOT_DATABASE_URL")
+    url = os.environ.get("FDAI_DATABASE_URL")
     if not url:
-        pytest.skip("AIOPSPILOT_DATABASE_URL is unset")
+        pytest.skip("FDAI_DATABASE_URL is unset")
     return url
 
 

@@ -7,7 +7,7 @@
 #   rule_id: log-workspace.retention-excessive
 #   severity: low
 #   category: cost
-package aiopspilot.log_workspace.retention_excessive
+package fdai.log_workspace.retention_excessive
 
 import rego.v1
 

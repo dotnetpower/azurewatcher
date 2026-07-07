@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.assurance_twin import (
+from fdai.core.assurance_twin import (
     ReviewOutcome,
     publish_review,
 )
-from aiopspilot.shared.contracts.models import Mode
-from aiopspilot.shared.providers.iac_review import (
+from fdai.shared.contracts.models import Mode
+from fdai.shared.providers.iac_review import (
     IacReview,
     IacReviewPublishError,
     ReviewReceipt,
 )
-from aiopspilot.shared.providers.projection import Finding, ResourceRef
-from aiopspilot.shared.providers.testing.iac_review import InMemoryIacReviewPublisher
+from fdai.shared.providers.projection import Finding, ResourceRef
+from fdai.shared.providers.testing.iac_review import InMemoryIacReviewPublisher
 
 
 def _finding(rule: str = "r-1", ref: str = "vm-a", severity: str = "high") -> Finding:

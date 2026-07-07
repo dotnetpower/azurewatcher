@@ -12,8 +12,8 @@ Module names and the control loop follow
 ## Monorepo Layout
 
 ```text
-aiopspilot/
-├── src/aiopspilot/            # Python (3.12+, src-layout); one language across the monorepo
+fdai/
+├── src/fdai/            # Python (3.12+, src-layout); one language across the monorepo
 │   ├── core/                  # headless control plane (no UI, no direct cloud SDK imports)
 │   │   ├── event_ingest/      # bus consumers; normalize to event schema; dedup by idempotency key; correlate related events into incidents
 │   │   ├── trust_router/      # routes each event to T0 | T1 | T2 by computed confidence
@@ -45,9 +45,9 @@ aiopspilot/
 │       ├── schema/            # rule schema (semver) + validation
 │       ├── sources/           # per-source collectors (WAF, CIS, OPA, IaC scanners, ...)
 │       └── pipeline/          # watch → collect → shadow eval → regression → promote/rollback
-├── src/aiopspilot/composition.py  # composition root: default_container() binds every seam
-├── src/aiopspilot/core/control_loop.py  # P1 pipeline orchestrator: event_ingest → trust_router → T0 → executor → audit
-├── rule-catalog/              # catalog-as-code DATA (YAML) - no Python; pipeline lives in src/aiopspilot/rule_catalog/
+├── src/fdai/composition.py  # composition root: default_container() binds every seam
+├── src/fdai/core/control_loop.py  # P1 pipeline orchestrator: event_ingest → trust_router → T0 → executor → audit
+├── rule-catalog/              # catalog-as-code DATA (YAML) - no Python; pipeline lives in src/fdai/rule_catalog/
 │   ├── schema/                # JSON Schema definitions (data)
 │   ├── vocabulary/            # canonical CSP-neutral vocabularies (resource-types.yaml, ...)
 │   ├── action-types/          # ontology ActionType instances (shadow-default, promotion_gate-required)
@@ -56,7 +56,7 @@ aiopspilot/
 ├── policies/                  # OPA/Rego policy-as-code consumed by T0 and the verifier
 ├── infra/                     # IaC: Terraform (HCL); entry command `terraform apply`
 │   ├── modules/
-│   │   ├── resource-group/          # rg-aiopspilot; CAF-named per deploy-and-onboard.md
+│   │   ├── resource-group/          # rg-fdai; CAF-named per deploy-and-onboard.md
 │   │   ├── identity/                # user-assigned Managed Identity for the executor
 │   │   ├── compute/                 # runtime seam - alternates in siblings
 │   │   │   └── container-apps/      # default (Consumption + KEDA)
@@ -133,7 +133,7 @@ clean (see the fork model in
 - **Composition root**: `core/` depends only on the CSP-neutral interfaces in `shared/`. A thin
   composition root (outside `core/`) binds concrete implementations at startup. `core/` never
   news-up a concrete adapter; it receives its dependencies. The upstream default binder is
-  [`aiopspilot.composition.default_container`](../../src/aiopspilot/composition.py); a fork's
+  [`fdai.composition.default_container`](../../src/fdai/composition.py); a fork's
   entry point calls its own factory that wraps or replaces those bindings. Concrete adapter
   classes (e.g. `PackageResourceSchemaRegistry`, `JsonSchemaContractValidator`) are
   **not** re-exported from public sub-packages; they must be imported directly from their
@@ -225,7 +225,7 @@ flowchart LR
 ## Repository Conventions
 
 - **Python (3.12+) is the single core runtime language** for the whole monorepo; all
-  executable code lives under `src/aiopspilot/` (Python "src layout"). Rationale and the
+  executable code lives under `src/fdai/` (Python "src layout"). Rationale and the
   historical choice matrix are in [tech-stack.md § OD-1](tech-stack.md#od-1-core-runtime-language).
   Non-Python trees are: [rule-catalog/](../../rule-catalog/) (YAML data), [policies/](../../policies/)
   (Rego), and [infra/](../../infra/) (Terraform HCL).
@@ -234,18 +234,18 @@ flowchart LR
   layout and is retired for the Python monorepo. Boundaries between subsystems are enforced
   by an import-lint gate in CI, not by separate package installs.
 - Contracts (event, action, rule schemas, and ontology `ObjectType` / `LinkType` /
-  `ActionType` definitions) live in `src/aiopspilot/shared/contracts/` (types) and
+  `ActionType` definitions) live in `src/fdai/shared/contracts/` (types) and
   `rule-catalog/schema/` (per-kind JSON Schema), carry a **semver** version, and change
   only in a backward-compatible way within a major version; breaking changes bump the
   major and ship a migration note. Runtime instance storage for those types is covered in
   [llm-strategy.md § Ontology Storage Layout](llm-strategy.md#ontology-storage-layout).
-- Tests for `src/aiopspilot/core/tiers/t0_deterministic` (the deterministic-engine) and
-  `src/aiopspilot/core/risk_gate` are the safety core: they hold a ≥ 90% coverage gate
+- Tests for `src/fdai/core/tiers/t0_deterministic` (the deterministic-engine) and
+  `src/fdai/core/risk_gate` are the safety core: they hold a ≥ 90% coverage gate
   and include property-based tests asserting "high-risk never auto-executes", "shadow-mode
   never mutates", and "re-applying an action is a no-op". Every action path also has a
   shadow-mode test and a rollback test.
 - Rule and policy changes ship with a regression test; the
-  `src/aiopspilot/rule_catalog/pipeline/` promotion gate blocks on a failing regression
+  `src/fdai/rule_catalog/pipeline/` promotion gate blocks on a failing regression
   suite or any policy-violation escape.
 - CI enforces the gates referenced above-formatter/linter, secret scanning, dependency audit,
   coverage, and regression-before review; see

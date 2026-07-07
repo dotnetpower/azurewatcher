@@ -3,7 +3,7 @@
 // same job picks up weekly / monthly sources on their due day - no per-cadence
 // job proliferation. See:
 //
-//   src/aiopspilot/rule_catalog/pipeline/watcher_cli.py
+//   src/fdai/rule_catalog/pipeline/watcher_cli.py
 //   docs/roadmap/phases/phase-2-quality-and-t1.md § Continuous Rule Update Pipeline
 //
 // The job never auto-promotes: it produces snapshots + verify reports under
@@ -43,7 +43,7 @@ resource "azurerm_container_app_job" "rule_watcher" {
       image   = var.image
       cpu     = 0.25
       memory  = "0.5Gi"
-      command = ["python", "-m", "aiopspilot.rule_catalog.pipeline.watcher_cli"]
+      command = ["python", "-m", "fdai.rule_catalog.pipeline.watcher_cli"]
       // Only --verify is passed by default. Snapshots land under
       // /workspace/rule-catalog/sources which is baked into the image alongside
       // the source manifests. The container writes to an ephemeral path - the

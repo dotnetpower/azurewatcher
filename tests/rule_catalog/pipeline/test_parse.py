@@ -7,7 +7,7 @@ Covers:
   including duplicate-id detection.
 
 The happy path exercises the shipped ``rule-catalog/catalog/`` - closing
-the "collect → parse → verify" loop on the ``aiopspilot-p1-seed``
+the "collect → parse → verify" loop on the ``fdai-p1-seed``
 source without touching the network.
 """
 
@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from aiopspilot.rule_catalog.pipeline.parse import (
+from fdai.rule_catalog.pipeline.parse import (
     ParsedRule,
     ParseError,
     ParserName,
@@ -27,11 +27,11 @@ from aiopspilot.rule_catalog.pipeline.parse import (
     build_parser,
     verify_parsed_rules,
 )
-from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CATALOG_ROOT = REPO_ROOT / "rule-catalog" / "catalog"

@@ -19,7 +19,7 @@ def test_cli_help_exits_zero(capsys):
         chat_cli.main(["--help"])
     assert exc_info.value.code == 0
     out = capsys.readouterr().out
-    assert "aiopspilot-chat" in out
+    assert "fdai-chat" in out
     assert "--role" in out
     assert "--json" in out
 
@@ -45,7 +45,7 @@ def test_cli_text_mode_banner_then_response(monkeypatch, capsys):
     rc = chat_cli.main(["--role", "reader"])
     assert rc == 0
     out = capsys.readouterr().out
-    assert "aiopspilot-chat:" in out
+    assert "fdai-chat:" in out
     assert "tools:" in out
     # Response has [ok] or [abstain] prefix.
     assert "[ok]" in out or "[abstain]" in out

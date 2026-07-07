@@ -1,15 +1,15 @@
-"""Unit tests for :mod:`aiopspilot.core.measurement.prompt_probe_emit`."""
+"""Unit tests for :mod:`fdai.core.measurement.prompt_probe_emit`."""
 
 from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.measurement.prompt_probe import (
+from fdai.core.measurement.prompt_probe import (
     CitationScores,
     RecognitionResult,
     summarize_recognition,
 )
-from aiopspilot.core.measurement.prompt_probe_emit import (
+from fdai.core.measurement.prompt_probe_emit import (
     METRIC_ADHERENCE_PASS_RATE,
     METRIC_ADHERENCE_VIOLATION_COUNT,
     METRIC_CANARY_ECHO_RATE,
@@ -18,7 +18,7 @@ from aiopspilot.core.measurement.prompt_probe_emit import (
     RowUnit,
     emit_kpi_rows,
 )
-from aiopspilot.core.measurement.prompt_probe_runner import RecognitionRunReport
+from fdai.core.measurement.prompt_probe_runner import RecognitionRunReport
 
 
 def _report(*results: RecognitionResult) -> RecognitionRunReport:

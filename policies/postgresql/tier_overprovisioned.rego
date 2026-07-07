@@ -7,7 +7,7 @@
 #   rule_id: postgresql-server.tier-overprovisioned
 #   severity: medium
 #   category: cost
-package aiopspilot.postgresql.tier_overprovisioned
+package fdai.postgresql.tier_overprovisioned
 
 import rego.v1
 

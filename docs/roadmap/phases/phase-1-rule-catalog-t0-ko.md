@@ -1,7 +1,7 @@
 ---
 title: Phase 1 - 규칙 카탈로그와 T0 결정론적 엔진
 translation_of: phase-1-rule-catalog-t0.md
-translation_source_sha: 8fcb1bf18d1a0327dca68ef376a2128606d1859d
+translation_source_sha: d632910d270780d77236b4721b536bb92860734f
 translation_revised: 2026-07-07
 ---
 
@@ -36,7 +36,7 @@ Change Safety - 를 완전히 **shadow 모드**(judge와 log, 실행 없음) 로
   ActionType 을 exercise: `object-storage.public-access.deny`,
   `object-storage.owner-tag.required`, `compute.vm-scale-set.over-provisioned`,
   `secret-store.rotation-overdue`, `sql-database.tde-required`. loader
-  [`src/aiopspilot/rule_catalog/schema/rule.py`](../../../src/aiopspilot/rule_catalog/schema/rule.py)
+  [`src/fdai/rule_catalog/schema/rule.py`](../../../src/fdai/rule_catalog/schema/rule.py)
   가 load 시점에 모든 규칙의 `remediates` / `alternatives` 를 ActionType 카탈로그와,
   `resource_type` 을 CSP-중립 어휘와 cross-check, **그리고** `policies_root` 가 주어지면
   `policies/` 로 시작하는 모든 `check_logic.reference` 를 디스크에 실제로 존재하는 Rego 파일과
@@ -52,7 +52,7 @@ Change Safety - 를 완전히 **shadow 모드**(judge와 log, 실행 없음) 로
   ([rule-governance-ko.md](../rule-governance-ko.md)) 가 규칙 편집 없이 흐르도록 함.
 - **Canonical `resource_type` 어휘** - [`rule-catalog/vocabulary/resource-types.yaml`](../../../rule-catalog/vocabulary/resource-types.yaml)
   가 3개 vertical 을 커버하는 초기 CSP-중립 식별자 집합을 열거; loader + JSON Schema 는
-  `src/aiopspilot/rule_catalog/schema/`.
+  `src/fdai/rule_catalog/schema/`.
 - **초기 ActionType 카탈로그** - [`rule-catalog/action-types/`](../../../rule-catalog/action-types/)
   아래 5 개 shadow-mode `ActionType` 인스턴스: `remediate.disable-public-access`,
   `remediate.tag-add`, `remediate.right-size`, `remediate.rotate-secret`,
@@ -61,13 +61,13 @@ Change Safety - 를 완전히 **shadow 모드**(judge와 log, 실행 없음) 로
   배송되는 것을 차단.
 - **T0 결정론 엔진**: policy-as-code 게이트(OPA/Rego) + what-if(dry-run) + drift 감지, 모든
   이벤트에 대해 판정과 인용 규칙 id emit.
-  [`src/aiopspilot/core/tiers/t0_deterministic/`](../../../src/aiopspilot/core/tiers/t0_deterministic/)
+  [`src/fdai/core/tiers/t0_deterministic/`](../../../src/fdai/core/tiers/t0_deterministic/)
   는 `resource_type` 으로 키잉된 `RuleIndex` (severity-desc 정렬), `T0Engine` 오케스트레이터,
   그리고 `PolicyEvaluator` DI 심을 배송. P1 에 evaluator 두 개가 랜딩:
   fail-closed `AbstainEvaluator` (OPA 미설치 환경 대응 fallback) 와
-  [`OpaRegoEvaluator`](../../../src/aiopspilot/core/tiers/t0_deterministic/opa_evaluator.py)
+  [`OpaRegoEvaluator`](../../../src/fdai/core/tiers/t0_deterministic/opa_evaluator.py)
   - bounded 타임아웃 하에 `opa eval --stdin-input --format json` 을 subprocess 로 호출,
-  `data.aiopspilot.<derived-path>` 를 query 해서 `deny` + `deny_reason` 을 해석하는 어댑터.
+  `data.fdai.<derived-path>` 를 query 해서 `deny` + `deny_reason` 을 해석하는 어댑터.
   바이너리 부재는 fail-fast, 타임아웃/비정상 종료/non-JSON 은 rule 단위 fail-close 라서
   깨진 정책 하나가 카탈로그 전체를 침묵시킬 수 없음. CI 는 checksum-pinned OPA 를 설치
   ([`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)).
@@ -76,7 +76,7 @@ Change Safety - 를 완전히 **shadow 모드**(judge와 log, 실행 없음) 로
   [`rule-catalog/remediation/`](../../../rule-catalog/remediation/) 아래 shipped rule
   하나당 하나씩 배송; loader 는 load 시점에 모든 `remediation.template_ref` 가 디스크에
   존재하는지 cross-check (fail-closed, `check_logic.reference` gate 와 대칭). Executor
-  ([`src/aiopspilot/core/executor/`](../../../src/aiopspilot/core/executor/))
+  ([`src/fdai/core/executor/`](../../../src/fdai/core/executor/))
   가 나갈 때 모든 safety invariant 를 강제:
   `ResourceLockManager` 로 per-resource 직렬화, `Action.idempotency_key` 로 in-process
   dedup, blast-radius cap (`ExecutorConfig.max_affected_resources` /
@@ -84,20 +84,20 @@ Change Safety - 를 완전히 **shadow 모드**(judge와 log, 실행 없음) 로
   reject), 그리고 모든 terminal path 에 append-only audit entry -
   `PUBLISHED` / `ALREADY_EXISTED` / `ABSTAINED_BLAST_RADIUS` /
   `ABSTAINED_RENDER_ERROR` / `REJECTED_MODE` / `REJECTED_INVARIANT`. 딜리버리 레이어는
-  [`GitOpsPrAdapter`](../../../src/aiopspilot/delivery/gitops_pr/adapter.py) 를 배송 -
+  [`GitOpsPrAdapter`](../../../src/fdai/delivery/gitops_pr/adapter.py) 를 배송 -
   CSP-중립
-  [`RemediationPrPublisher`](../../../src/aiopspilot/shared/providers/remediation_pr.py)
+  [`RemediationPrPublisher`](../../../src/fdai/shared/providers/remediation_pr.py)
   Protocol 의 GitHub REST 구현: Bearer 인증, write 전 open PR 존재 probe, shadow branch
   생성 + Contents API 로 patch commit, PR 을 **draft** 로 open + `shadow` 라벨 +
   `rule:<id>` + `action:<type>`. 머지 안 함, `shadow` 라벨 제거 안 함; 그 경로는 Phase 2
   promotion 영역.
 - **파이프라인 오케스트레이터** -
-  [`ControlLoop`](../../../src/aiopspilot/core/control_loop.py) 이 P1 스테이지를 end-to-end
-  로 배선: [`EventIngest`](../../../src/aiopspilot/core/event_ingest/__init__.py)
+  [`ControlLoop`](../../../src/fdai/core/control_loop.py) 이 P1 스테이지를 end-to-end
+  로 배선: [`EventIngest`](../../../src/fdai/core/event_ingest/__init__.py)
   (`idempotency_key` 로 normalize + dedup) →
-  [`TrustRouter`](../../../src/aiopspilot/core/trust_router/__init__.py) (event 의
+  [`TrustRouter`](../../../src/fdai/core/trust_router/__init__.py) (event 의
   `resource_type` 이 rule 과 매칭되면 T0 로 route, 아니면 abstain) → `T0Engine` →
-  [`ActionBuilder`](../../../src/aiopspilot/core/executor/action_builder.py) (Finding →
+  [`ActionBuilder`](../../../src/fdai/core/executor/action_builder.py) (Finding →
   `Action`, safety invariants 는 ActionType 에서 파생) → `ShadowExecutor`. 모든 terminal
   outcome (`DEDUPED` / `ABSTAINED_ROUTING` / `ABSTAINED_T0` / `EXECUTED` /
   `ABSTAINED_ACTION_BUILD`) 이 append-only audit record 를 write; 배송된 rules + Rego +
@@ -111,12 +111,12 @@ Change Safety - 를 완전히 **shadow 모드**(judge와 log, 실행 없음) 로
   동시성) + 이벤트 버스에서 소비하는 **Activity-Log 구동 delta**. `ontology_resource` +
   `ontology_link` (`contains`, `attached_to`, `depends_on`) 을 채워서 T0 가 CSP-중립 리소스
   id 를 인용하고 risk-gate 가 그래프 위에서 실제 blast radius 를 계산할 수 있게 함. Protocol
-  스캐폴드는 [`src/aiopspilot/shared/providers/inventory.py`](../../../src/aiopspilot/shared/providers/inventory.py)
+  스캐폴드는 [`src/fdai/shared/providers/inventory.py`](../../../src/fdai/shared/providers/inventory.py)
   에 존재; Azure 어댑터
-  [`src/aiopspilot/delivery/azure/inventory.py`](../../../src/aiopspilot/delivery/azure/inventory.py)
+  [`src/fdai/delivery/azure/inventory.py`](../../../src/fdai/delivery/azure/inventory.py)
   는 bounded-concurrency 병렬 샤드 구조, `final=True` atomic-promote 펜스, 그리고
   idempotent-upsert dedup 사전 조건을 제공하고, 실제 Kusto-over-ARG REST 배선은
-  [`src/aiopspilot/delivery/azure/arg_query.py`](../../../src/aiopspilot/delivery/azure/arg_query.py)
+  [`src/fdai/delivery/azure/arg_query.py`](../../../src/fdai/delivery/azure/arg_query.py)
   의 `AzureArgQueryFactory` 가 담당 - CSP-중립 `resource_type` 을 vocabulary 의 `azure_arm_type`
   으로 resolve, 주입된 `WorkloadIdentity` 로부터 받은 OIDC 토큰으로
   `POST /providers/Microsoft.ResourceGraph/resources` 호출, bounded page cap 하에서

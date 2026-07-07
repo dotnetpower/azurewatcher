@@ -1,10 +1,10 @@
-"""Unit tests for :mod:`aiopspilot.core.operator_memory.sanitizer`."""
+"""Unit tests for :mod:`fdai.core.operator_memory.sanitizer`."""
 
 from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.operator_memory import (
+from fdai.core.operator_memory import (
     InjectionMarkerError,
     detect_injection_markers,
     wrap_operator_note,

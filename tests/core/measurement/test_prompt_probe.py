@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`aiopspilot.core.measurement.prompt_probe`.
+"""Unit tests for :mod:`fdai.core.measurement.prompt_probe`.
 
 Every case exercises the pure evaluator functions with hand-crafted
 inputs so a regression narrows immediately to the offending helper.
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.measurement.prompt_probe import (
+from fdai.core.measurement.prompt_probe import (
     CitationScores,
     ExpectedResponse,
     RequiredField,
@@ -283,7 +283,7 @@ class TestSummarizeRecognition:
         canary_echoes: dict[str, bool] | None = None,
         citations: CitationScores | None = None,
     ):
-        from aiopspilot.core.measurement.prompt_probe import RecognitionResult
+        from fdai.core.measurement.prompt_probe import RecognitionResult
 
         return RecognitionResult(
             adherence_pass=adherence_pass,
@@ -293,7 +293,7 @@ class TestSummarizeRecognition:
         )
 
     def test_empty_batch_returns_neutral_summary(self) -> None:
-        from aiopspilot.core.measurement.prompt_probe import summarize_recognition
+        from fdai.core.measurement.prompt_probe import summarize_recognition
 
         summary = summarize_recognition([])
         assert summary.sample_count == 0
@@ -306,7 +306,7 @@ class TestSummarizeRecognition:
         assert summary.mean_citation_f1 is None
 
     def test_all_pass_reports_one(self) -> None:
-        from aiopspilot.core.measurement.prompt_probe import summarize_recognition
+        from fdai.core.measurement.prompt_probe import summarize_recognition
 
         summary = summarize_recognition([self._result(), self._result(), self._result()])
         assert summary.sample_count == 3
@@ -314,7 +314,7 @@ class TestSummarizeRecognition:
         assert summary.adherence_violation_counts == {}
 
     def test_adherence_rate_is_fractional(self) -> None:
-        from aiopspilot.core.measurement.prompt_probe import summarize_recognition
+        from fdai.core.measurement.prompt_probe import summarize_recognition
 
         summary = summarize_recognition(
             [
@@ -325,7 +325,7 @@ class TestSummarizeRecognition:
         assert summary.adherence_pass_rate == pytest.approx(0.5)
 
     def test_violation_codes_are_counted_across_samples(self) -> None:
-        from aiopspilot.core.measurement.prompt_probe import summarize_recognition
+        from fdai.core.measurement.prompt_probe import summarize_recognition
 
         summary = summarize_recognition(
             [
@@ -353,7 +353,7 @@ class TestSummarizeRecognition:
         layer that only appeared in tool-manifest-enabled samples is
         scored against the runs that could have echoed it."""
 
-        from aiopspilot.core.measurement.prompt_probe import summarize_recognition
+        from fdai.core.measurement.prompt_probe import summarize_recognition
 
         summary = summarize_recognition(
             [
@@ -371,7 +371,7 @@ class TestSummarizeRecognition:
         """A sample without any canary echoes MUST NOT force a
         zero-denominator entry into the rate map."""
 
-        from aiopspilot.core.measurement.prompt_probe import summarize_recognition
+        from fdai.core.measurement.prompt_probe import summarize_recognition
 
         summary = summarize_recognition(
             [
@@ -386,7 +386,7 @@ class TestSummarizeRecognition:
         """Samples where the caller passed no expected ids MUST NOT
         dilute the F1 average; only scored samples count."""
 
-        from aiopspilot.core.measurement.prompt_probe import summarize_recognition
+        from fdai.core.measurement.prompt_probe import summarize_recognition
 
         summary = summarize_recognition(
             [
@@ -399,7 +399,7 @@ class TestSummarizeRecognition:
         assert summary.mean_citation_f1 == pytest.approx(0.75)
 
     def test_citation_mean_is_none_when_no_sample_scored(self) -> None:
-        from aiopspilot.core.measurement.prompt_probe import summarize_recognition
+        from fdai.core.measurement.prompt_probe import summarize_recognition
 
         summary = summarize_recognition(
             [

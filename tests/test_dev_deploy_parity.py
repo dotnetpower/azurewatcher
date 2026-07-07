@@ -12,15 +12,15 @@ The unit tests in :mod:`tests.test_composition_llm` cover the two ends
 (local-fake, azure) individually. This test proves the **runtime env
 shape** that a live Azure Container Apps deployment injects into the
 process is understood by
-:func:`aiopspilot.composition.default_container_from_env` with zero
+:func:`fdai.composition.default_container_from_env` with zero
 production-only branches.
 
 The env values match the actually deployed resources under
-``rg-aiopspilot-dev-krc`` (moonchoi subscription) as of the P1 deploy —
+``rg-fdai-dev-krc`` (moonchoi subscription) as of the P1 deploy —
 Postgres FQDN, Event Hubs Kafka endpoint, tenant/subscription ids,
 Container App identity. If a fork drifts one of those env-var *names*,
 the deployed process fails-closed at import via
-:class:`aiopspilot.shared.config.errors.ConfigError`; this test proves
+:class:`fdai.shared.config.errors.ConfigError`; this test proves
 the shape upstream ships.
 """
 
@@ -30,13 +30,13 @@ from collections.abc import Mapping
 
 import pytest
 
-from aiopspilot.composition import Container, default_container
-from aiopspilot.shared.config.loader import load_from_mapping
-from aiopspilot.shared.config.models import AppConfig, LlmMode
-from aiopspilot.shared.config.provider import EnvVarConfigProvider
+from fdai.composition import Container, default_container
+from fdai.shared.config.loader import load_from_mapping
+from fdai.shared.config.models import AppConfig, LlmMode
+from fdai.shared.config.provider import EnvVarConfigProvider
 
 # ---------------------------------------------------------------------------
-# Live-deploy env shape - generic rg-aiopspilot-dev-krc-shaped env with
+# Live-deploy env shape - generic rg-fdai-dev-krc-shaped env with
 # placeholder GUIDs. The fork substitutes real tenant/subscription ids at
 # deploy time; tests only verify the config loader round-trips the shape.
 # ---------------------------------------------------------------------------
@@ -44,14 +44,14 @@ from aiopspilot.shared.config.provider import EnvVarConfigProvider
 _LIVE_DEPLOY_ENV_LOCAL_FAKE: Mapping[str, str] = {
     "AZURE_TENANT_ID": "00000000-0000-0000-0000-000000000001",
     "AZURE_SUBSCRIPTION_ID": "00000000-0000-0000-0000-000000000002",
-    "AZURE_RESOURCE_GROUP": "rg-aiopspilot-dev-krc",
+    "AZURE_RESOURCE_GROUP": "rg-fdai-dev-krc",
     "AZURE_REGION": "koreacentral",
-    "KAFKA_BOOTSTRAP_SERVERS": "evhns-aiopspilot-dev-krc.servicebus.windows.net:9093",
+    "KAFKA_BOOTSTRAP_SERVERS": "evhns-fdai-dev-krc.servicebus.windows.net:9093",
     "KAFKA_SECURITY_PROTOCOL": "SASL_SSL",
     "KAFKA_SASL_MECHANISM": "OAUTHBEARER",
     "KAFKA_TOPIC_EVENTS": "aw.change.events",
-    "POSTGRES_HOST": "psql-aiopspilot-dev-krc.postgres.database.azure.com",
-    "POSTGRES_DATABASE": "aiopspilot",
+    "POSTGRES_HOST": "psql-fdai-dev-krc.postgres.database.azure.com",
+    "POSTGRES_DATABASE": "fdai",
     "RUNTIME_ENV": "dev",
     "LLM_MODE": "local-fake",
 }
@@ -79,7 +79,7 @@ def test_live_deploy_env_shape_local_fake_binds_container() -> None:
 
     assert str(config.azure.tenant_id) == "00000000-0000-0000-0000-000000000001"
     assert str(config.azure.subscription_id) == "00000000-0000-0000-0000-000000000002"
-    assert config.azure.resource_group == "rg-aiopspilot-dev-krc"
+    assert config.azure.resource_group == "rg-fdai-dev-krc"
     assert config.azure.region == "koreacentral"
     assert config.kafka.bootstrap_servers.endswith(":9093")
     assert config.postgres.host.endswith("postgres.database.azure.com")
@@ -108,7 +108,7 @@ def test_live_deploy_env_shape_azure_mode_defers_llm_binding() -> None:
     container: Container = default_container(config)
     assert container.llm_bindings is None
 
-    from aiopspilot.composition import LlmBindingsUnavailableError
+    from fdai.composition import LlmBindingsUnavailableError
 
     with pytest.raises(LlmBindingsUnavailableError):
         container.require_llm_bindings()
@@ -120,7 +120,7 @@ def test_missing_required_env_key_fails_closed() -> None:
     A drift in the deployed env (e.g. Container App template renames
     ``POSTGRES_HOST``) MUST fail-close, not silently degrade.
     """
-    from aiopspilot.shared.config.errors import ConfigError
+    from fdai.shared.config.errors import ConfigError
 
     incomplete = dict(_LIVE_DEPLOY_ENV_LOCAL_FAKE)
     del incomplete["POSTGRES_HOST"]

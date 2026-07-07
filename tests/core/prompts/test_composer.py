@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`aiopspilot.core.prompts.composer`.
+"""Unit tests for :mod:`fdai.core.prompts.composer`.
 
 Tests build a bespoke catalog per case (via the tmp_path helpers reused
 from ``test_registry.py``) so the assembled output is fully controlled.
@@ -13,13 +13,13 @@ from textwrap import dedent
 
 import pytest
 
-from aiopspilot.core.prompts import (
+from fdai.core.prompts import (
     ComposedPrompt,
     DefaultPromptComposer,
     FileSystemPromptRegistry,
     PromptLayer,
 )
-from aiopspilot.core.prompts.testing import StaticPromptComposer
+from fdai.core.prompts.testing import StaticPromptComposer
 
 _SCHEMA_PATH = (
     Path(__file__).resolve().parents[3]
@@ -318,7 +318,7 @@ async def test_shipped_shadow_pack_lands_only_in_dev_mode() -> None:
 class _FakeToolRegistry:
     """Minimal in-memory ToolRegistry so composer tests do not touch disk.
 
-    Structurally satisfies :class:`aiopspilot.core.tools.ToolRegistry`;
+    Structurally satisfies :class:`fdai.core.tools.ToolRegistry`;
     the composer only calls :meth:`artifacts`, so :meth:`get` is a
     stub that fails loudly if any future composer version reaches for
     it (a signal to update these tests together with the composer).
@@ -343,8 +343,8 @@ def _fake_tool(tool_id: str, *, default_mode: str = "enforce", version: int = 1)
     the frozen dataclass constructor is happy.
     """
 
-    from aiopspilot.core.prompts.types import PromptMode
-    from aiopspilot.core.tools import CapabilityGate, ToolArtifact
+    from fdai.core.prompts.types import PromptMode
+    from fdai.core.tools import CapabilityGate, ToolArtifact
 
     return ToolArtifact(
         id=tool_id,
@@ -479,7 +479,7 @@ async def test_shipped_tools_appear_in_dev_composer_only() -> None:
     MUST.
     """
 
-    from aiopspilot.core.tools import FileSystemToolRegistry
+    from fdai.core.tools import FileSystemToolRegistry
 
     repo_root = Path(__file__).resolve().parents[3]
     prompt_registry = FileSystemPromptRegistry(repo_root / "rule-catalog")
@@ -513,7 +513,7 @@ async def test_shipped_tools_appear_in_dev_composer_only() -> None:
 async def _memory_store_with(*entries):
     """Helper - append every entry to a fresh in-memory store."""
 
-    from aiopspilot.core.operator_memory import InMemoryOperatorMemoryStore
+    from fdai.core.operator_memory import InMemoryOperatorMemoryStore
 
     store = InMemoryOperatorMemoryStore()
     for entry in entries:
@@ -533,7 +533,7 @@ def _mem_entry(
     from datetime import UTC, datetime
     from uuid import uuid4
 
-    from aiopspilot.core.operator_memory import (
+    from fdai.core.operator_memory import (
         MemoryCategory,
         MemorySource,
         OperatorMemoryEntry,
@@ -555,7 +555,7 @@ def _mem_entry(
 
 @pytest.mark.asyncio
 async def test_compose_emits_no_memory_layer_when_no_store(tmp_path: Path) -> None:
-    from aiopspilot.core.operator_memory import OperatorScope
+    from fdai.core.operator_memory import OperatorScope
 
     _write_schema(tmp_path)
     _write_prompt(tmp_path, "base", "hello.v1.yaml", _base("t2.reasoner.primary", "BASE"))
@@ -572,7 +572,7 @@ async def test_compose_emits_no_memory_layer_when_no_store(tmp_path: Path) -> No
 
 @pytest.mark.asyncio
 async def test_compose_emits_no_memory_layer_when_no_scope(tmp_path: Path) -> None:
-    from aiopspilot.core.operator_memory import ScopeKind
+    from fdai.core.operator_memory import ScopeKind
 
     _write_schema(tmp_path)
     _write_prompt(tmp_path, "base", "hello.v1.yaml", _base("t2.reasoner.primary", "BASE"))
@@ -597,7 +597,7 @@ async def test_compose_emits_no_memory_layer_when_no_scope(tmp_path: Path) -> No
 
 @pytest.mark.asyncio
 async def test_compose_emits_no_memory_layer_when_store_empty(tmp_path: Path) -> None:
-    from aiopspilot.core.operator_memory import InMemoryOperatorMemoryStore, OperatorScope
+    from fdai.core.operator_memory import InMemoryOperatorMemoryStore, OperatorScope
 
     _write_schema(tmp_path)
     _write_prompt(tmp_path, "base", "hello.v1.yaml", _base("t2.reasoner.primary", "BASE"))
@@ -616,7 +616,7 @@ async def test_compose_emits_no_memory_layer_when_store_empty(tmp_path: Path) ->
 
 @pytest.mark.asyncio
 async def test_compose_emits_memory_layer_for_matching_rg(tmp_path: Path) -> None:
-    from aiopspilot.core.operator_memory import OperatorScope, ScopeKind
+    from fdai.core.operator_memory import OperatorScope, ScopeKind
 
     _write_schema(tmp_path)
     _write_prompt(tmp_path, "base", "hello.v1.yaml", _base("t2.reasoner.primary", "BASE"))
@@ -650,7 +650,7 @@ async def test_compose_skips_memory_for_different_scope(tmp_path: Path) -> None:
     is asked about ``rg-b``. Scope isolation is the whole point of the
     Human Override contract."""
 
-    from aiopspilot.core.operator_memory import OperatorScope, ScopeKind
+    from fdai.core.operator_memory import OperatorScope, ScopeKind
 
     _write_schema(tmp_path)
     _write_prompt(tmp_path, "base", "hello.v1.yaml", _base("t2.reasoner.primary", "BASE"))
@@ -680,7 +680,7 @@ async def test_compose_merges_rg_then_resource_notes(tmp_path: Path) -> None:
     note AFTER the resource-group note so it lands closer to the model
     turn."""
 
-    from aiopspilot.core.operator_memory import OperatorScope, ScopeKind
+    from fdai.core.operator_memory import OperatorScope, ScopeKind
 
     _write_schema(tmp_path)
     _write_prompt(tmp_path, "base", "hello.v1.yaml", _base("t2.reasoner.primary", "BASE"))
@@ -714,7 +714,7 @@ async def test_compose_ignores_superseded_and_expired_notes(tmp_path: Path) -> N
     from datetime import UTC, datetime, timedelta
     from uuid import uuid4
 
-    from aiopspilot.core.operator_memory import (
+    from fdai.core.operator_memory import (
         InMemoryOperatorMemoryStore,
         MemoryCategory,
         MemorySource,
@@ -789,7 +789,7 @@ async def test_compose_wraps_every_note_with_trusted_false(tmp_path: Path) -> No
     """XML wrap must survive concatenation - each entry gets its own
     ``<operator_note trusted="false" ...>`` envelope."""
 
-    from aiopspilot.core.operator_memory import OperatorScope, ScopeKind
+    from fdai.core.operator_memory import OperatorScope, ScopeKind
 
     _write_schema(tmp_path)
     _write_prompt(tmp_path, "base", "hello.v1.yaml", _base("t2.reasoner.primary", "BASE"))
@@ -833,7 +833,7 @@ async def test_compose_omits_canary_when_no_generator(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_compose_stamps_canary_per_layer(tmp_path: Path) -> None:
-    from aiopspilot.core.measurement.prompt_probe import DeterministicCanaryGenerator
+    from fdai.core.measurement.prompt_probe import DeterministicCanaryGenerator
 
     _write_schema(tmp_path)
     _write_prompt(tmp_path, "base", "hello.v1.yaml", _base("t2.reasoner.primary", "BASE_BODY"))
@@ -874,7 +874,7 @@ async def test_compose_updates_layer_manifest_token_estimate_after_canary(tmp_pa
     recognition-probe KPIs would credit the composer with fewer
     tokens than the model actually saw."""
 
-    from aiopspilot.core.measurement.prompt_probe import DeterministicCanaryGenerator
+    from fdai.core.measurement.prompt_probe import DeterministicCanaryGenerator
 
     _write_schema(tmp_path)
     _write_prompt(tmp_path, "base", "hello.v1.yaml", _base("t2.reasoner.primary", "B"))
@@ -902,8 +902,8 @@ async def test_compose_stamps_canary_on_synthetic_operator_memory_layer(tmp_path
     from datetime import UTC, datetime
     from uuid import uuid4
 
-    from aiopspilot.core.measurement.prompt_probe import DeterministicCanaryGenerator
-    from aiopspilot.core.operator_memory import (
+    from fdai.core.measurement.prompt_probe import DeterministicCanaryGenerator
+    from fdai.core.operator_memory import (
         InMemoryOperatorMemoryStore,
         MemoryCategory,
         MemorySource,
@@ -954,7 +954,7 @@ def test_secrets_canary_generator_produces_unique_tokens() -> None:
     even for the same layer id, so an attacker cannot pre-compute a
     canary echo."""
 
-    from aiopspilot.core.measurement.prompt_probe import SecretsCanaryGenerator
+    from fdai.core.measurement.prompt_probe import SecretsCanaryGenerator
 
     gen = SecretsCanaryGenerator()
     tokens = {gen.next_token(layer_id="base") for _ in range(100)}
@@ -965,7 +965,7 @@ def test_secrets_canary_generator_produces_unique_tokens() -> None:
 
 
 def test_deterministic_canary_generator_returns_stub_for_unprimed_layer() -> None:
-    from aiopspilot.core.measurement.prompt_probe import DeterministicCanaryGenerator
+    from fdai.core.measurement.prompt_probe import DeterministicCanaryGenerator
 
     gen = DeterministicCanaryGenerator(tokens={"base": "CN_KNOWN"})
     assert gen.next_token(layer_id="base") == "CN_KNOWN"

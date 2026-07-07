@@ -7,7 +7,7 @@
 #   rule_id: kubernetes-cluster.rbac-enabled
 #   severity: high
 #   category: security
-package aiopspilot.kubernetes.rbac_enabled
+package fdai.kubernetes.rbac_enabled
 
 import rego.v1
 

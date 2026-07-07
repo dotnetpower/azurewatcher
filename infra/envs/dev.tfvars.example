@@ -11,7 +11,7 @@ region_short = "krc"
 tenant_id = "00000000-0000-0000-0000-000000000000"
 
 # Postgres admin (bootstrap only - production uses AAD auth).
-postgres_admin_login    = "aiopspilotadmin"
+postgres_admin_login    = "fdaiadmin"
 postgres_admin_password = "SET-ME-VIA-VAULT"
 
 # Core control-plane image reference (pin by digest for prod).

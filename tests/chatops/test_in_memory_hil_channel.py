@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from aiopspilot.shared.providers.hil_channel import (
+from fdai.shared.providers.hil_channel import (
     HilApprovalReceipt,
     HilApprovalRequest,
     HilChannel,
@@ -14,7 +14,7 @@ from aiopspilot.shared.providers.hil_channel import (
     HilDecision,
     HilResponse,
 )
-from aiopspilot.shared.providers.testing.hil_channel import InMemoryHilChannel
+from fdai.shared.providers.testing.hil_channel import InMemoryHilChannel
 
 
 def _request(approval_id: str = "appr-1") -> HilApprovalRequest:

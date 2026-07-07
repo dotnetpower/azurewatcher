@@ -6,9 +6,9 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.tiers.t0_deterministic.index import RuleIndex
-from aiopspilot.core.trust_router import RoutingTier, TrustRouter
-from aiopspilot.shared.contracts.models import (
+from fdai.core.tiers.t0_deterministic.index import RuleIndex
+from fdai.core.trust_router import RoutingTier, TrustRouter
+from fdai.shared.contracts.models import (
     Category,
     CheckLogic,
     CheckLogicKind,

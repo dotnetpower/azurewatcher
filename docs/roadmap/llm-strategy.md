@@ -433,7 +433,7 @@ microseconds to milliseconds.
 
 ### ActionType Contract
 
-An **ActionType** ([schema](../../src/aiopspilot/shared/contracts/ontology/action-type.json))
+An **ActionType** ([schema](../../src/fdai/shared/contracts/ontology/action-type.json))
 declares one CSP-neutral mutation category and the safety invariants for every instance
 of it. All fields except `preconditions` / `stop_conditions` / `blast_radius` /
 `description` are required.

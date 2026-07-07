@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.rule_catalog.schema.resource_type import (
     ResourceTypeRegistry,
     ResourceTypeRegistryError,
     load_resource_type_registry_from_mapping,

@@ -7,7 +7,7 @@
 #   rule_id: compute.vm.idle-detected
 #   severity: medium
 #   category: cost
-package aiopspilot.compute.vm_idle_detected
+package fdai.compute.vm_idle_detected
 
 import rego.v1
 

@@ -2,17 +2,17 @@
 
 Covers:
 
-- :class:`~aiopspilot.core.quality_gate.testing.HashedRuleEmbeddingIndex`
+- :class:`~fdai.core.quality_gate.testing.HashedRuleEmbeddingIndex`
   determinism, zero-vector handling, cosine correctness, and construction
   guards.
-- :meth:`~aiopspilot.core.quality_gate.rag_grounding.RagGroundingSource.supports`
+- :meth:`~fdai.core.quality_gate.rag_grounding.RagGroundingSource.supports`
   returning ``True`` for a topically-related citation, ``False`` for an
   off-topic citation, and the threshold cutoff around a specific pair.
-- :class:`~aiopspilot.core.quality_gate.rag_grounding.RagGroundingSource`
+- :class:`~fdai.core.quality_gate.rag_grounding.RagGroundingSource`
   still satisfying the base :class:`GroundingSource` Protocol
   (``known_rule_ids`` + ``get``) so the gate's ID-exists-only branch
   keeps working.
-- Composition with :class:`~aiopspilot.core.quality_gate.QualityGate`:
+- Composition with :class:`~fdai.core.quality_gate.QualityGate`:
   an off-topic citation surfaces ``ungrounded_citation:<rule_id>`` in
   the decision reasons and drives the outcome to
   :attr:`QualityOutcome.ABSTAIN`; a topical citation still yields
@@ -25,7 +25,7 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.quality_gate import (
+from fdai.core.quality_gate import (
     GroundingSource,
     QualityCandidate,
     QualityGate,
@@ -34,12 +34,12 @@ from aiopspilot.core.quality_gate import (
     RagGroundingSource,
     RuleEmbeddingIndex,
 )
-from aiopspilot.core.quality_gate.testing import (
+from fdai.core.quality_gate.testing import (
     HashedRuleEmbeddingIndex,
     MatchTypeCrossCheckModel,
     StaticVerifier,
 )
-from aiopspilot.shared.contracts.models import Rule
+from fdai.shared.contracts.models import Rule
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -427,7 +427,7 @@ async def test_gate_falls_back_to_id_only_when_grounding_source_has_no_supports(
     """A grounding source that does NOT expose ``supports`` still
     works - the gate's duck-typed check silently falls back to the
     ID-exists-only behavior (backward compat)."""
-    from aiopspilot.core.quality_gate.testing import InMemoryGroundingSource
+    from fdai.core.quality_gate.testing import InMemoryGroundingSource
 
     rule = _make_rule(valid_rule, rule_id="rule.a")
     gate = QualityGate(

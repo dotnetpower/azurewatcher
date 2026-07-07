@@ -1,6 +1,6 @@
-# Calm Slate - AIOpsPilot UI Kit
+# Calm Slate - FDAI UI Kit
 
-A static, dependency-free component library and page templates for the AIOpsPilot
+A static, dependency-free component library and page templates for the FDAI
 **read-only operator console** and generated reports. The theme is toned-down and
 report-oriented: a desaturated palette, hairline borders, soft shadows, numbered section
 badges - calm and professional, with no primary/neon colors and no top/bottom color bands.

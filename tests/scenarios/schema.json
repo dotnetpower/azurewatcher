@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aiopspilot.dev/schemas/scenario/1.0.0",
+  "$id": "https://fdai.dev/schemas/scenario/1.0.0",
   "title": "Scenario",
   "description": "One frozen input+expected pair replayable by any tier under the same conditions. Kept synthetic and English-only per generic-scope.instructions.md.",
   "type": "object",
@@ -45,7 +45,7 @@
     },
     "event": {
       "type": "object",
-      "description": "Event payload conforming to https://aiopspilot.dev/schemas/event/1.0.0.",
+      "description": "Event payload conforming to https://fdai.dev/schemas/event/1.0.0.",
       "additionalProperties": true
     },
     "expected": {

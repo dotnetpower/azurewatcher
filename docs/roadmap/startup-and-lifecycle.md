@@ -3,7 +3,7 @@ title: Startup and Lifecycle
 ---
 # Startup and Lifecycle
 
-How AIOpsPilot **starts from cold and reaches steady state** on a freshly provisioned Azure
+How FDAI **starts from cold and reaches steady state** on a freshly provisioned Azure
 subscription. Answers: when does the system "start"? What is in the catalog on day zero?
 When does the autonomous discovery loop begin? How is the shadow → enforce lifecycle
 sequenced?
@@ -162,7 +162,7 @@ Steps (fork responsibility):
    ([user-rbac-and-identity.md#51-codeowners-single-approver-group-path-based-reviewer-count](user-rbac-and-identity.md#51-codeowners-single-approver-group-path-based-reviewer-count)).
 5. Register the approver group id in the executor's Chat adapter config so Adaptive Card
    approvals can validate role claims.
-6. **Provision the Slack workspace** (P1 A1 channel): install the AIOpsPilot Slack app,
+6. **Provision the Slack workspace** (P1 A1 channel): install the FDAI Slack app,
    grant `chat:write`, populate the mandatory Slack userId ↔ Entra OID mapping store; the
    Slack adapter refuses A1 traffic until the mapping is non-empty
    ([channels-and-notifications.md#7-channel-specific-notes](channels-and-notifications.md#7-channel-specific-notes)).

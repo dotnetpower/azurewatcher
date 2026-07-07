@@ -9,7 +9,7 @@ Sometimes an accepted rule is right in general but wrong for a specific
 scope - a production tier that legitimately needs a wider threshold, a
 dev sandbox where a strict guardrail is more annoying than useful. Rather
 than editing the rule text (which affects everyone) or disabling the rule
-globally, AIOpsPilot supports **scoped overrides** that sit above the
+globally, FDAI supports **scoped overrides** that sit above the
 automated quality gate.
 
 ## What an override can do
@@ -63,7 +63,7 @@ discovery loop as a signal to propose a revision of the rule itself.
 
 - **The audit record.** Every finding that the override intercepted is
   still logged with the reason it was suppressed. Overrides never make an
-  event invisible; they change what AIOpsPilot does about it.
+  event invisible; they change what FDAI does about it.
 - **Rule updates from upstream.** Because the override is a separate
   artefact, upstream rule updates flow through without touching the
   override.

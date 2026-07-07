@@ -33,17 +33,17 @@ from typing import Any
 import httpx
 import pytest
 
-from aiopspilot.delivery.chatops.teams_adapter import (
+from fdai.delivery.chatops.teams_adapter import (
     TeamsHilAdapter,
     TeamsHilAdapterConfig,
 )
-from aiopspilot.shared.providers.hil_channel import (
+from fdai.shared.providers.hil_channel import (
     HilApprovalReceipt,
     HilApprovalRequest,
     HilChannelError,
     HilDecision,
 )
-from aiopspilot.shared.providers.testing.workload_identity import (
+from fdai.shared.providers.testing.workload_identity import (
     StaticWorkloadIdentity,
 )
 
@@ -285,8 +285,8 @@ async def test_send_without_secret_has_no_signature_header() -> None:
         adapter = _adapter(client)
         await adapter.send(_request())
 
-    assert "X-AIOpsPilot-Signature" not in seen[0].headers
-    assert "X-AIOpsPilot-Timestamp" not in seen[0].headers
+    assert "X-FDAI-Signature" not in seen[0].headers
+    assert "X-FDAI-Timestamp" not in seen[0].headers
     assert "Authorization" not in seen[0].headers
 
 
@@ -302,8 +302,8 @@ async def test_send_with_secret_attaches_hmac_signature() -> None:
         await adapter.send(_request())
 
     req = seen[0]
-    signature_header = req.headers["X-AIOpsPilot-Signature"]
-    timestamp_header = req.headers["X-AIOpsPilot-Timestamp"]
+    signature_header = req.headers["X-FDAI-Signature"]
+    timestamp_header = req.headers["X-FDAI-Timestamp"]
     assert signature_header.startswith("sha256=")
     hex_digest = signature_header.removeprefix("sha256=")
     assert len(hex_digest) == 64
@@ -335,7 +335,7 @@ async def test_send_bot_framework_mode_attaches_bearer() -> None:
         await adapter.send(_request())
 
     assert seen[0].headers["Authorization"] == f"Bearer {_BEARER}"
-    assert "X-AIOpsPilot-Signature" not in seen[0].headers
+    assert "X-FDAI-Signature" not in seen[0].headers
 
 
 # ---------------------------------------------------------------------------

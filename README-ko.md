@@ -1,10 +1,10 @@
 ---
 translation_of: README.md
-translation_source_sha: 4c0dbab52dcb9242a87369338822ebbc25423190
+translation_source_sha: 97950aa5df1f431f0c3d8765789b4e6989b28c5e
 translation_revised: 2026-07-07
 ---
 
-# AIOpsPilot
+# FDAI
 
 자율 클라우드 운영 컨트롤 플레인. Azure 이벤트를 지켜보다가 반복 가능한 것은 규칙과
 정책으로 결정론적으로 해결하고, LLM 추론은 남은 소수의 모호한 케이스에만 사용합니다.
@@ -16,7 +16,7 @@ LLM)이고, 자율 액션은 반드시 shadow 모드로 먼저 배포되며, 규
 
 ## 무엇을 얻을 수 있나
 
-AIOpsPilot은 하나의 이벤트 기반 코어 위에 세 개의 초기 버티컬을 얹습니다. 다른 AIOps
+FDAI은 하나의 이벤트 기반 코어 위에 세 개의 초기 버티컬을 얹습니다. 다른 AIOps
 도메인(posture management, SRE/SLO)은 같은 아키텍처에 맞으며 향후 범위입니다.
 
 ### Change Safety

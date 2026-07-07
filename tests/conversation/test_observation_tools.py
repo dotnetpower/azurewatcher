@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from aiopspilot.core.conversation import (
+from fdai.core.conversation import (
     CorrelateIncidentTool,
     QueryDeploymentsTool,
     QueryLogTool,
     QueryMetricTool,
 )
-from aiopspilot.core.conversation.session import Principal, Role
-from aiopspilot.shared.providers.observation import (
+from fdai.core.conversation.session import Principal, Role
+from fdai.shared.providers.observation import (
     DeploymentHistoryError,
     DeploymentRecord,
     IncidentCorrelation,
@@ -18,7 +18,7 @@ from aiopspilot.shared.providers.observation import (
     LogQueryResult,
     MetricQueryError,
 )
-from aiopspilot.shared.providers.testing.observation import (
+from fdai.shared.providers.testing.observation import (
     InMemoryDeploymentHistoryProvider,
     InMemoryIncidentCorrelator,
     InMemoryLogQueryProvider,

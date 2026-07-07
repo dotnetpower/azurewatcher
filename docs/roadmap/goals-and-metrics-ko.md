@@ -1,7 +1,7 @@
 ---
 title: 목표와 메트릭
 translation_of: goals-and-metrics.md
-translation_source_sha: 09c87ef59567e49b9a79aa8c0e8a817bf6288acb
+translation_source_sha: a9262a6d11ecc15a441b0294bc80caf33fc7f903
 translation_revised: 2026-07-07
 ---
 
@@ -10,7 +10,7 @@ translation_revised: 2026-07-07
 로드맵은 **증명이 있는 자율성(autonomy with proof)**을 최적화합니다. 모든 자율성 주장은
 측정된 베이스라인으로 뒷받침되며, 어떤 것도 추정으로 단언되지 않습니다. 아래의 개선 배수
 (`5×`, `large reduction`, `1/5`)는 달성된 결과가 아니라 **목표(targets)** 이며 - 동일한
-시나리오 세트에서 레퍼런스 베이스라인과 AIOpsPilot 트리트먼트가 **모두 측정된 후에만**
+시나리오 세트에서 레퍼런스 베이스라인과 FDAI 트리트먼트가 **모두 측정된 후에만**
 달성으로 언급할 수 있습니다 ([Measurement-First Rule](#measurement-first-rule) 참조).
 
 이 문서는 KPI의 진실 원본(source of truth)입니다.
@@ -58,7 +58,7 @@ translation_revised: 2026-07-07
 
 주의:
 - 메트릭 1의 비용은 처리에 귀속되는 모델 추론, 컴퓨트, 저장소, 이벤트 버스 지출을 포함합니다.
-  AIOpsPilot가 아닌 워크로드와 공유되는 고정 플랫폼 오버헤드는 제외합니다.
+  FDAI가 아닌 워크로드와 공유되는 고정 플랫폼 오버헤드는 제외합니다.
 - MTTR과 lead time은 mean과 함께 **median과 p90**을 보고합니다. 지연 분포가 편향돼 있어 평균만
   으로는 꼬리(regression)를 감춥니다.
 - 비율(metric 2)에서의 `5×` 목표는 상한이 있습니다 - 배수와 절대 비율을 함께 보고합니다.

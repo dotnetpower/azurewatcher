@@ -62,7 +62,7 @@ jobs:
         # per subsystem in unit tests, not in this global gate.
         run: >
           uv run pytest -q
-          --cov=src/aiopspilot
+          --cov=src/fdai
           --cov-branch
           --cov-report=term-missing
           --cov-report=xml
@@ -182,7 +182,7 @@ jobs:
             echo "No exemption artifacts to validate."
             exit 0
           fi
-          uv run python -m aiopspilot.rule_catalog.schema.exemption_cli "${files[@]}"
+          uv run python -m fdai.rule_catalog.schema.exemption_cli "${files[@]}"
 
   freeze-scenarios:
     name: Frozen scenario-set immutability (PR only)
@@ -224,19 +224,19 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg16
         env:
-          POSTGRES_USER: aiopspilot
+          POSTGRES_USER: fdai
           POSTGRES_PASSWORD: ci
-          POSTGRES_DB: aiopspilot
+          POSTGRES_DB: fdai
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U aiopspilot -d aiopspilot"
+          --health-cmd "pg_isready -U fdai -d fdai"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 20
 
     env:
-      AIOPSPILOT_DATABASE_URL: postgresql+psycopg://aiopspilot:ci@localhost:5432/aiopspilot
+      FDAI_DATABASE_URL: postgresql+psycopg://fdai:ci@localhost:5432/fdai
 
     steps:
       - name: Checkout

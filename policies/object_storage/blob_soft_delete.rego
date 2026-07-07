@@ -7,7 +7,7 @@
 #   rule_id: object-storage.soft-delete-blob
 #   severity: high
 #   category: reliability
-package aiopspilot.object_storage.blob_soft_delete
+package fdai.object_storage.blob_soft_delete
 
 import rego.v1
 

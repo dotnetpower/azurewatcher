@@ -152,7 +152,7 @@
 /*
  * Impact list - Palantir-style bullet list with a hairline separator
  * between entries and a coloured arrow marker on the left. Used on the
- * landing page to highlight the design targets AIOpsPilot commits to.
+ * landing page to highlight the design targets FDAI commits to.
  * Scoped to splash so interior <ul> elements stay untouched.
  */
 [data-page-layout="splash"] .impact-list {

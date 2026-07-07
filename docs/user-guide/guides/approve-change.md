@@ -1,11 +1,11 @@
 ---
 title: Approve a change
-description: How to review and approve (or reject) a change AIOpsPilot has queued for human-in-the-loop decision.
+description: How to review and approve (or reject) a change FDAI has queued for human-in-the-loop decision.
 ---
 
 # Approve a change
 
-When a proposed change lands in the HIL tier, AIOpsPilot pauses execution and
+When a proposed change lands in the HIL tier, FDAI pauses execution and
 asks a human. This guide walks through the operator's side of that
 interaction - what the request looks like, what to check before approving,
 and what happens after each verdict.
@@ -18,7 +18,7 @@ Every HIL request carries the same core payload regardless of channel:
 
 - **Event summary** - what triggered the change (drift, cost anomaly, DR
   drill, etc.) and which resource is affected.
-- **Proposed action** - the exact change AIOpsPilot would apply, either as a
+- **Proposed action** - the exact change FDAI would apply, either as a
   ready-to-review PR or as a serialised action envelope.
 - **Risk classification** - why this landed in HIL rather than AUTO: the
   specific dimension (blast radius, novelty, reversibility, signal source)

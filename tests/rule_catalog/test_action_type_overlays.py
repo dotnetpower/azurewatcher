@@ -12,11 +12,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from aiopspilot.rule_catalog.schema.action_type import (
+from fdai.rule_catalog.schema.action_type import (
     ActionTypeCatalogError,
     load_action_type_catalog,
 )
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 
 def _write_yaml(path: Path, data: dict) -> None:

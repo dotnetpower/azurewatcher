@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from aiopspilot.rule_catalog.schema.source_manifest import (
+from fdai.rule_catalog.schema.source_manifest import (
     Cadence,
     FetchKind,
     ManifestError,
@@ -125,7 +125,7 @@ def test_shipped_seed_manifest_loads() -> None:
     """The example seed manifest committed with this cycle MUST load clean."""
     repo_root = Path(__file__).resolve().parents[3]
     manifest = load_source_manifest_from_yaml(
-        repo_root / "rule-catalog" / "sources" / "aiopspilot-p1-seed" / "manifest.yaml"
+        repo_root / "rule-catalog" / "sources" / "fdai-p1-seed" / "manifest.yaml"
     )
-    assert manifest.id == "aiopspilot-p1-seed"
+    assert manifest.id == "fdai-p1-seed"
     assert manifest.fetch.kind is FetchKind.LOCAL

@@ -18,7 +18,7 @@ import re
 
 import pytest
 
-from aiopspilot.core.conversation.coordinator import (
+from fdai.core.conversation.coordinator import (
     _VERB_PATTERNS,
     _extract_query,
     _extract_tool_arguments,

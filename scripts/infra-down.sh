@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# infra-down.sh - tear the aiopspilot Azure inventory down.
+# infra-down.sh - tear the fdai Azure inventory down.
 #
 # Guardrails: refuses to run unless
 #   1. AZURE_CONFIG_DIR is unset (default profile), AND
 #   2. `az account show` returns the subscription id in
-#      $AIOPSPILOT_EXPECTED_SUBSCRIPTION_ID (required env var).
+#      $FDAI_EXPECTED_SUBSCRIPTION_ID (required env var).
 #
 # The expected subscription id is NOT hardcoded here so this script stays
 # customer-agnostic per generic-scope.instructions.md; every operator
@@ -22,21 +22,21 @@ set -euo pipefail
 <<<<<<< Updated upstream
 readonly MOONCHOI_SUB="00000000-0000-0000-0000-000000000002"
 =======
-if [[ -z "${AIOPSPILOT_EXPECTED_SUBSCRIPTION_ID:-}" ]]; then
-  echo "infra-down: AIOPSPILOT_EXPECTED_SUBSCRIPTION_ID is not set." >&2
+if [[ -z "${FDAI_EXPECTED_SUBSCRIPTION_ID:-}" ]]; then
+  echo "infra-down: FDAI_EXPECTED_SUBSCRIPTION_ID is not set." >&2
   echo "            Export the subscription id you expect to tear down, e.g.:" >&2
-  echo "              export AIOPSPILOT_EXPECTED_SUBSCRIPTION_ID='<your-sub-guid>'" >&2
+  echo "              export FDAI_EXPECTED_SUBSCRIPTION_ID='<your-sub-guid>'" >&2
   exit 1
 fi
 
-readonly EXPECTED_SUB="${AIOPSPILOT_EXPECTED_SUBSCRIPTION_ID}"
+readonly EXPECTED_SUB="${FDAI_EXPECTED_SUBSCRIPTION_ID}"
 >>>>>>> Stashed changes
 readonly REPO_ROOT="$(git rev-parse --show-toplevel)"
 readonly TFVARS="${REPO_ROOT}/infra/envs/dev.tfvars"
 
 if [[ -n "${AZURE_CONFIG_DIR:-}" ]]; then
   echo "infra-down: refusing to run with AZURE_CONFIG_DIR set (\"${AZURE_CONFIG_DIR}\")." >&2
-  echo "            aiopspilot lives in the default profile; unset first." >&2
+  echo "            fdai lives in the default profile; unset first." >&2
   exit 2
 fi
 
@@ -60,11 +60,11 @@ if [[ -z "${TF_VAR_postgres_admin_password:-}" ]]; then
   exit 5
 fi
 
-echo "infra-down: destroying aiopspilot resources on subscription ${EXPECTED_SUB}..."
+echo "infra-down: destroying fdai resources on subscription ${EXPECTED_SUB}..."
 echo "infra-down: this will destroy 19 resources (RG + everything inside)."
 
-read -r -p "infra-down: type 'destroy-aiopspilot' to proceed: " confirm
-if [[ "${confirm}" != "destroy-aiopspilot" ]]; then
+read -r -p "infra-down: type 'destroy-fdai' to proceed: " confirm
+if [[ "${confirm}" != "destroy-fdai" ]]; then
   echo "infra-down: aborted." >&2
   exit 6
 fi

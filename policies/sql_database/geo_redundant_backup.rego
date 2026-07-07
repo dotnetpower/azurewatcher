@@ -8,7 +8,7 @@
 #   rule_id: sql-database.geo-redundant-backup
 #   severity: high
 #   category: reliability
-package aiopspilot.sql_database.geo_redundant_backup
+package fdai.sql_database.geo_redundant_backup
 
 import rego.v1
 

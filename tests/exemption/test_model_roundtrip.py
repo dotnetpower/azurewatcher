@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.rule_catalog.schema.exemption import (
+from fdai.rule_catalog.schema.exemption import (
     Exemption,
     ExemptionError,
     ExemptionState,
@@ -21,7 +21,7 @@ def _valid_raw() -> dict[str, Any]:
         "rule_id": "example.tag.owner-required",
         "scope": {
             "subscription_id": "00000000-0000-0000-0000-000000000000",
-            "resource_group": "rg-aiopspilot",
+            "resource_group": "rg-fdai",
         },
         "justification": "Waived while an owner tag lookup service is being provisioned.",
         "requested_by": "00000000-0000-0000-0000-000000000001",
@@ -36,7 +36,7 @@ def test_valid_exemption_roundtrips() -> None:
     exemption = load_exemption_from_mapping(_valid_raw())
     assert isinstance(exemption, Exemption)
     assert exemption.state is ExemptionState.ACTIVE
-    assert exemption.scope.resource_group == "rg-aiopspilot"
+    assert exemption.scope.resource_group == "rg-fdai"
 
 
 def test_missing_justification_is_rejected() -> None:

@@ -24,13 +24,13 @@ from uuid import UUID
 import httpx
 import pytest
 
-from aiopspilot.delivery.gitops_pr import (
+from fdai.delivery.gitops_pr import (
     GitOpsPrAdapter,
     GitOpsPrConfig,
     GitOpsPrError,
 )
-from aiopspilot.shared.contracts.models import Mode
-from aiopspilot.shared.providers.remediation_pr import RemediationPr
+from fdai.shared.contracts.models import Mode
+from fdai.shared.providers.remediation_pr import RemediationPr
 
 OWNER = "acme"
 REPO = "iac"
@@ -169,7 +169,7 @@ async def test_full_publish_calls_every_wire_step_in_order() -> None:
         # 3. Create branch
         if method == "POST" and path.endswith("/git/refs"):
             body = json.loads(request.content.decode("utf-8"))
-            assert body["ref"] == "refs/heads/aiopspilot/shadow/k1"
+            assert body["ref"] == "refs/heads/fdai/shadow/k1"
             assert body["sha"] == "deadbeef"
             return httpx.Response(201, json={"ref": body["ref"]})
         # 4a. Contents GET (existing file? → 404 = new file)
@@ -180,14 +180,14 @@ async def test_full_publish_calls_every_wire_step_in_order() -> None:
             body = json.loads(request.content.decode("utf-8"))
             decoded = base64.b64decode(body["content"]).decode("utf-8")
             assert 'resource "azurerm_storage_account"' in decoded
-            assert body["branch"] == "aiopspilot/shadow/k1"
+            assert body["branch"] == "fdai/shadow/k1"
             return httpx.Response(201, json={"commit": {"sha": "cafe"}})
         # 5. Open draft PR
         if method == "POST" and path.endswith("/pulls"):
             body = json.loads(request.content.decode("utf-8"))
             assert body["draft"] is True
             assert body["base"] == "main"
-            assert body["head"] == "aiopspilot/shadow/k1"
+            assert body["head"] == "fdai/shadow/k1"
             return httpx.Response(
                 201,
                 json={

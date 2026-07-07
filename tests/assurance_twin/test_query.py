@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 import yaml
 
-from aiopspilot.core.assurance_twin import (
+from fdai.core.assurance_twin import (
     AbstainCode,
     AbstainResult,
     DeterministicPatternCompiler,
@@ -27,11 +27,11 @@ from aiopspilot.core.assurance_twin import (
     build_baseline_projection,
     execute_query,
 )
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.rule_catalog.schema.resource_type import (
     ResourceTypeRegistry,
     load_resource_type_registry_from_mapping,
 )
-from aiopspilot.shared.providers.projection import ResourceRef
+from fdai.shared.providers.projection import ResourceRef
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VOCABULARY_FILE = REPO_ROOT / "rule-catalog" / "vocabulary" / "resource-types.yaml"

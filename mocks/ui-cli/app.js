@@ -1,5 +1,5 @@
 /*
- * AIOpsPilot operator-console CLI - design mock (static, no deps).
+ * FDAI operator-console CLI - design mock (static, no deps).
  *
  * Plays a JARVIS-style streaming briefing: boot banner -> greeting -> throughput
  * chart drawn left-to-right -> tier bars filling -> branch (HIL approval cards or

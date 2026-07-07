@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from aiopspilot.core.risk_gate.override_writer import (
+from fdai.core.risk_gate.override_writer import (
     Axis,
     OverrideRequest,
     OverrideWriterError,
@@ -23,7 +23,7 @@ def _valid_request(**overrides: object) -> OverrideRequest:
         axis=Axis.CEILING,
         target_level=TargetLevel.ENFORCE_HIL,
         scope=Scope.RESOURCE,
-        scope_ref="rg/aiopspilot/vm-a",
+        scope_ref="rg/fdai/vm-a",
         expires_at="2026-12-31T00:00:00Z",
         justification="prod nightly outage - reduce autonomy for one week.",
         requester_id="user-alpha",
@@ -45,14 +45,14 @@ def test_render_writes_metadata_and_rego_document() -> None:
     # Metadata block front-matter.
     assert content.startswith("# METADATA")
     # Package name uses only [a-z0-9_] segments.
-    m = re.search(r"^package (aiopspilot\.action_types\.[a-z0-9_.]+)$", content, re.MULTILINE)
+    m = re.search(r"^package (fdai\.action_types\.[a-z0-9_.]+)$", content, re.MULTILINE)
     assert m is not None
     package = m.group(1)
-    assert package == "aiopspilot.action_types.ops_scale_out.ovr_001"
+    assert package == "fdai.action_types.ops_scale_out.ovr_001"
     # Applicability guard.
     assert 'input.action_type == "ops.scale-out"' in content
     assert 'input.scope.kind == "resource"' in content
-    assert 'input.scope.ref == "rg/aiopspilot/vm-a"' in content
+    assert 'input.scope.ref == "rg/fdai/vm-a"' in content
     assert 'input.now <= "2026-12-31T00:00:00Z"' in content
     # Verdict block carries the enum values verbatim.
     assert '"axis": "ceiling"' in content

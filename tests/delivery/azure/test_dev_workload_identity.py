@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from aiopspilot.delivery.azure.dev_workload_identity import (
+from fdai.delivery.azure.dev_workload_identity import (
     AzureCliCredentialError,
     AzureCliWorkloadIdentity,
 )
@@ -31,7 +31,7 @@ class TestGetTokenSync:
     def test_returns_token_and_caches(self) -> None:
         wi = AzureCliWorkloadIdentity()
         with patch(
-            "aiopspilot.delivery.azure.dev_workload_identity.subprocess.run",
+            "fdai.delivery.azure.dev_workload_identity.subprocess.run",
             return_value=_completed(_valid_payload()),
         ) as run:
             first = wi.get_token_sync("https://cognitiveservices.azure.com/.default")
@@ -48,7 +48,7 @@ class TestGetTokenSync:
         soon = (datetime.now(tz=UTC) + timedelta(seconds=30)).isoformat()
         later = (datetime.now(tz=UTC) + timedelta(hours=24)).isoformat()
         with patch(
-            "aiopspilot.delivery.azure.dev_workload_identity.subprocess.run",
+            "fdai.delivery.azure.dev_workload_identity.subprocess.run",
             side_effect=[
                 _completed(_valid_payload(expires_on=soon)),
                 _completed(json.dumps({"accessToken": "tok-fresh", "expiresOn": later})),
@@ -67,7 +67,7 @@ class TestGetTokenSync:
     def test_non_zero_exit_raises_credential_error(self) -> None:
         wi = AzureCliWorkloadIdentity()
         with patch(
-            "aiopspilot.delivery.azure.dev_workload_identity.subprocess.run",
+            "fdai.delivery.azure.dev_workload_identity.subprocess.run",
             return_value=_completed(
                 "",
                 returncode=1,
@@ -80,7 +80,7 @@ class TestGetTokenSync:
     def test_missing_executable_raises_credential_error(self) -> None:
         wi = AzureCliWorkloadIdentity(executable="/no/such/az")
         with patch(
-            "aiopspilot.delivery.azure.dev_workload_identity.subprocess.run",
+            "fdai.delivery.azure.dev_workload_identity.subprocess.run",
             side_effect=FileNotFoundError,
         ):
             with pytest.raises(AzureCliCredentialError, match="not found on PATH"):
@@ -89,7 +89,7 @@ class TestGetTokenSync:
     def test_timeout_raises_credential_error(self) -> None:
         wi = AzureCliWorkloadIdentity()
         with patch(
-            "aiopspilot.delivery.azure.dev_workload_identity.subprocess.run",
+            "fdai.delivery.azure.dev_workload_identity.subprocess.run",
             side_effect=subprocess.TimeoutExpired(cmd="az", timeout=30),
         ):
             with pytest.raises(AzureCliCredentialError, match="timed out"):
@@ -98,7 +98,7 @@ class TestGetTokenSync:
     def test_non_json_stdout_raises_credential_error(self) -> None:
         wi = AzureCliWorkloadIdentity()
         with patch(
-            "aiopspilot.delivery.azure.dev_workload_identity.subprocess.run",
+            "fdai.delivery.azure.dev_workload_identity.subprocess.run",
             return_value=_completed("not-json"),
         ):
             with pytest.raises(AzureCliCredentialError, match="non-JSON"):
@@ -107,7 +107,7 @@ class TestGetTokenSync:
     def test_missing_access_token_raises_credential_error(self) -> None:
         wi = AzureCliWorkloadIdentity()
         with patch(
-            "aiopspilot.delivery.azure.dev_workload_identity.subprocess.run",
+            "fdai.delivery.azure.dev_workload_identity.subprocess.run",
             return_value=_completed(json.dumps({"expiresOn": "2099-01-01T00:00:00Z"})),
         ):
             with pytest.raises(AzureCliCredentialError, match="missing accessToken"):
@@ -116,7 +116,7 @@ class TestGetTokenSync:
     def test_missing_expires_on_raises_credential_error(self) -> None:
         wi = AzureCliWorkloadIdentity()
         with patch(
-            "aiopspilot.delivery.azure.dev_workload_identity.subprocess.run",
+            "fdai.delivery.azure.dev_workload_identity.subprocess.run",
             return_value=_completed(json.dumps({"accessToken": "x"})),
         ):
             with pytest.raises(AzureCliCredentialError, match="missing expiresOn"):
@@ -132,7 +132,7 @@ class TestGetTokenSync:
             }
         )
         with patch(
-            "aiopspilot.delivery.azure.dev_workload_identity.subprocess.run",
+            "fdai.delivery.azure.dev_workload_identity.subprocess.run",
             return_value=_completed(payload),
         ):
             token = wi.get_token_sync("s")
@@ -148,7 +148,7 @@ class TestGetTokenSync:
             }
         )
         with patch(
-            "aiopspilot.delivery.azure.dev_workload_identity.subprocess.run",
+            "fdai.delivery.azure.dev_workload_identity.subprocess.run",
             return_value=_completed(payload),
         ):
             token = wi.get_token_sync("s")
@@ -168,7 +168,7 @@ class TestGetTokenSync:
             return _completed(_valid_payload())
 
         with patch(
-            "aiopspilot.delivery.azure.dev_workload_identity.subprocess.run",
+            "fdai.delivery.azure.dev_workload_identity.subprocess.run",
             side_effect=_side_effect,
         ):
             wi.get_token_sync("https://cognitiveservices.azure.com/.default")

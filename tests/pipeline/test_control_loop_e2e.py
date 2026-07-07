@@ -31,37 +31,37 @@ from typing import Any
 import pytest
 import yaml
 
-from aiopspilot.core.control_loop import (
+from fdai.core.control_loop import (
     ControlLoop,
     ControlLoopOutcome,
     ControlLoopResult,
 )
-from aiopspilot.core.event_ingest import EventIngest
-from aiopspilot.core.executor import (
+from fdai.core.event_ingest import EventIngest
+from fdai.core.executor import (
     ExecutorOutcome,
     ResourceLockManager,
     ShadowExecutor,
     TemplateRenderer,
 )
-from aiopspilot.core.executor.action_builder import ActionBuilder
-from aiopspilot.core.tiers.t0_deterministic import (
+from fdai.core.executor.action_builder import ActionBuilder
+from fdai.core.tiers.t0_deterministic import (
     OpaRegoEvaluator,
     RuleIndex,
     T0Engine,
 )
-from aiopspilot.core.trust_router import TrustRouter
-from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.core.trust_router import TrustRouter
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
-from aiopspilot.rule_catalog.schema.rule import load_rule_catalog
-from aiopspilot.shared.contracts.models import Mode
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
-from aiopspilot.shared.contracts.validation import (
+from fdai.rule_catalog.schema.rule import load_rule_catalog
+from fdai.shared.contracts.models import Mode
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.validation import (
     JsonSchemaContractValidator,
     JsonSchemaEventValidator,
 )
-from aiopspilot.shared.providers.testing import (
+from fdai.shared.providers.testing import (
     InMemoryStateStore,
     RecordingRemediationPrPublisher,
 )
@@ -292,7 +292,7 @@ async def test_shadow_authority_recorded_when_risk_table_wired(
 ) -> None:
     """With a risk table injected, every executed action also records a
     shadow-parallel execution-authority decision on the audit log."""
-    from aiopspilot.core.risk_gate.risk_table import load_risk_table
+    from fdai.core.risk_gate.risk_table import load_risk_table
 
     table = load_risk_table(REPO_ROOT / "rule-catalog" / "risk-classification.yaml")
     loop, _publisher, audit = _make_loop(shipped_catalog, risk_table=table)
@@ -321,7 +321,7 @@ async def test_shadow_authority_skipped_when_action_type_unknown(
 ) -> None:
     """If the executed action's ActionType is not loaded, the shadow-authority
     record is skipped (fail-open on the observability path, never on execution)."""
-    from aiopspilot.core.risk_gate.risk_table import load_risk_table
+    from fdai.core.risk_gate.risk_table import load_risk_table
 
     table = load_risk_table(REPO_ROOT / "rule-catalog" / "risk-classification.yaml")
     loop, _publisher, audit = _make_loop(shipped_catalog, risk_table=table)
@@ -346,8 +346,8 @@ async def test_unified_risk_audit_recorded_when_gate_and_table_wired(
 ) -> None:
     """With BOTH a risk table and a RiskGate wired, the loop records the
     unified gate x authority decision (not the authority-only entry)."""
-    from aiopspilot.core.risk_gate.gate import ActionPromotionRegistry, RiskGate
-    from aiopspilot.core.risk_gate.risk_table import load_risk_table
+    from fdai.core.risk_gate.gate import ActionPromotionRegistry, RiskGate
+    from fdai.core.risk_gate.risk_table import load_risk_table
 
     table = load_risk_table(REPO_ROOT / "rule-catalog" / "risk-classification.yaml")
     gate = RiskGate(registry=ActionPromotionRegistry())
@@ -383,13 +383,13 @@ async def test_deny_routing_skips_pr(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A gate DENY routes the action to DENIED: no PR published, outcome DENIED."""
-    from aiopspilot.core.risk_gate.gate import (
+    from fdai.core.risk_gate.gate import (
         ActionPromotionRegistry,
         RiskDecision,
         RiskDecisionOutcome,
         RiskGate,
     )
-    from aiopspilot.core.risk_gate.risk_table import load_risk_table
+    from fdai.core.risk_gate.risk_table import load_risk_table
 
     table = load_risk_table(REPO_ROOT / "rule-catalog" / "risk-classification.yaml")
     gate = RiskGate(registry=ActionPromotionRegistry())
@@ -657,7 +657,7 @@ async def test_action_build_failure_falls_closed_and_audits(
     """If ``ActionBuilder`` cannot resolve a finding's ActionType, the
     ControlLoop MUST audit the failure and return
     :attr:`ABSTAINED_ACTION_BUILD` - no PR opened for that finding."""
-    from aiopspilot.core.executor.action_builder import ActionBuilder
+    from fdai.core.executor.action_builder import ActionBuilder
 
     rules, action_types = shipped_catalog
     index = RuleIndex.build(rules)
@@ -714,6 +714,6 @@ async def test_action_build_failure_falls_closed_and_audits(
 
 
 def test_is_execution_success_ignores_non_outcome_objects() -> None:
-    from aiopspilot.core.control_loop import _is_execution_success
+    from fdai.core.control_loop import _is_execution_success
 
     assert _is_execution_success("not-a-result") is False

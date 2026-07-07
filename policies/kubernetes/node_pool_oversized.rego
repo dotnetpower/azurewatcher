@@ -8,7 +8,7 @@
 #   rule_id: kubernetes-node-pool.oversized
 #   severity: medium
 #   category: cost
-package aiopspilot.kubernetes.node_pool_oversized
+package fdai.kubernetes.node_pool_oversized
 
 import rego.v1
 

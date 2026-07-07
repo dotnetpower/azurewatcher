@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from aiopspilot.delivery.azure.event_bus import (
+from fdai.delivery.azure.event_bus import (
     EventHubsKafkaBus,
     EventHubsKafkaBusConfig,
     _decode,  # type: ignore[attr-defined]
@@ -26,7 +26,7 @@ from aiopspilot.delivery.azure.event_bus import (
     _encode,  # type: ignore[attr-defined]
     _EntraTokenProvider,  # type: ignore[attr-defined]
 )
-from aiopspilot.shared.providers.workload_identity import IdentityToken, WorkloadIdentity
+from fdai.shared.providers.workload_identity import IdentityToken, WorkloadIdentity
 
 
 class _StaticIdentity(WorkloadIdentity):
@@ -93,7 +93,7 @@ async def test_entra_token_provider_delegates_to_workload_identity() -> None:
 
 def test_audience_defaults_to_namespace_fqdn() -> None:
     """The default audience MUST be derived from the bootstrap host."""
-    from aiopspilot.delivery.azure.event_bus import (  # type: ignore[attr-defined]
+    from fdai.delivery.azure.event_bus import (  # type: ignore[attr-defined]
         _audience_from_bootstrap,
     )
 
@@ -111,7 +111,7 @@ def test_audience_defaults_to_namespace_fqdn() -> None:
 
 
 def test_audience_from_bootstrap_rejects_empty() -> None:
-    from aiopspilot.delivery.azure.event_bus import (  # type: ignore[attr-defined]
+    from fdai.delivery.azure.event_bus import (  # type: ignore[attr-defined]
         _audience_from_bootstrap,
     )
 

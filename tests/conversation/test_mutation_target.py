@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from aiopspilot.core.conversation import ListHilTool, Principal, Role
-from aiopspilot.core.conversation.write_tools import _project_pending_item
-from aiopspilot.shared.providers.hil_registry import (
+from fdai.core.conversation import ListHilTool, Principal, Role
+from fdai.core.conversation.write_tools import _project_pending_item
+from fdai.shared.providers.hil_registry import (
     HilPendingItem,
     MutationTarget,
 )
-from aiopspilot.shared.providers.testing.hil_registry import InMemoryHilApprovalRegistry
+from fdai.shared.providers.testing.hil_registry import InMemoryHilApprovalRegistry
 
 
 def _pending(
@@ -58,7 +58,7 @@ def test_mutation_target_enum_matches_execution_path_values() -> None:
     """String values MUST match ExecutionPath so a fork can cast one to
     the other without a lookup table (contract with W2.3d)."""
 
-    from aiopspilot.shared.contracts.models import ExecutionPath
+    from fdai.shared.contracts.models import ExecutionPath
 
     assert MutationTarget.PR_NATIVE.value == ExecutionPath.PR_NATIVE.value
     assert MutationTarget.DIRECT_API.value == ExecutionPath.DIRECT_API.value

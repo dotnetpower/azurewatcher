@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from aiopspilot.delivery.notifications import (
+from fdai.delivery.notifications import (
     AzureCommunicationEmailChannel,
     AzureCommunicationEmailConfig,
     AzureCommunicationSmsChannel,
@@ -19,13 +19,13 @@ from aiopspilot.delivery.notifications import (
     TeamsWebhookChannel,
     TeamsWebhookConfig,
 )
-from aiopspilot.shared.providers.notifications import (
+from fdai.shared.providers.notifications import (
     ChannelDeliveryError,
     ChannelKind,
     NotificationMessage,
     TrustTier,
 )
-from aiopspilot.shared.providers.testing.notifications import (
+from fdai.shared.providers.testing.notifications import (
     FakeEmailChannel,
     FakePagerDutyChannel,
     FakeSlackChannel,

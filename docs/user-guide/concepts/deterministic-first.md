@@ -1,11 +1,11 @@
 ---
 title: Deterministic first
-description: Why AIOpsPilot resolves the repeatable majority with rules and reserves LLM inference for the ambiguous minority.
+description: Why FDAI resolves the repeatable majority with rules and reserves LLM inference for the ambiguous minority.
 ---
 
 # Deterministic first
 
-**Deterministic first** is AIOpsPilot's central design commitment: any event
+**Deterministic first** is FDAI's central design commitment: any event
 that a policy, rule, or checklist can decide is decided that way, and no LLM
 runs on it. LLM inference is reserved for the residual minority that the
 deterministic layer explicitly abstains on.
@@ -23,7 +23,7 @@ break:
 - **Auditability** - "the model chose to auto-approve" is hard to
   defend after an incident. "The rule matched policy X, version 1.4" is not.
 
-## How AIOpsPilot resolves it
+## How FDAI resolves it
 
 Every incoming event flows through a **trust router** that picks the lowest
 tier competent to decide the case:

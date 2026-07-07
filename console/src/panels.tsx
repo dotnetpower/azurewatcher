@@ -7,7 +7,7 @@
  * does NOT edit `app.tsx` or `shell.tsx`. It appends a `ConsolePanel` to
  * `EXTRA_PANELS` (or injects one at build time) and, on the API side,
  * registers a matching `ReadPanel`
- * (`src/aiopspilot/delivery/read_api/panels.py`).
+ * (`src/fdai/delivery/read_api/panels.py`).
  *
  * Every panel is read-only. A panel renders data fetched through the
  * GET-only `ReadApiClient`; there is no mutating back-channel. Approvals

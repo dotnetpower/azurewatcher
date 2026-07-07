@@ -7,7 +7,7 @@
 #   rule_id: sql-database.tier-overprovisioned
 #   severity: medium
 #   category: cost
-package aiopspilot.sql_database.tier_overprovisioned
+package fdai.sql_database.tier_overprovisioned
 
 import rego.v1
 

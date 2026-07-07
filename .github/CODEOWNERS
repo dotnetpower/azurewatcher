@@ -8,4 +8,4 @@
 /rule-catalog/risk-classification.yaml    @dotnetpower/aiopspilot-owners
 
 # Risk-gate policy changes always want Owner review.
-/src/aiopspilot/core/risk_gate/    @dotnetpower/aiopspilot-owners
+/src/fdai/core/risk_gate/    @dotnetpower/aiopspilot-owners

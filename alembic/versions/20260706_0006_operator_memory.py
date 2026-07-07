@@ -5,11 +5,11 @@ Revises: 20260706_0005
 Create Date: 2026-07-06 00:00:00
 
 Backs
-:class:`~aiopspilot.core.operator_memory.store.OperatorMemoryStore` with a
+:class:`~fdai.core.operator_memory.store.OperatorMemoryStore` with a
 persistent Postgres table so scope-narrowed operator notes survive
 process restarts and can be queried by the composer on every T2 event
 (Wave 3 step C-2). The in-memory implementation in
-:mod:`aiopspilot.core.operator_memory.store.InMemoryOperatorMemoryStore`
+:mod:`fdai.core.operator_memory.store.InMemoryOperatorMemoryStore`
 mirrors the schema; this migration only creates the physical backing.
 
 Columns

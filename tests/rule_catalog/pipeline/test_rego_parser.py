@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.rule_catalog.pipeline.parse import (
+from fdai.rule_catalog.pipeline.parse import (
     ParseError,
     ParserName,
     RegoParser,

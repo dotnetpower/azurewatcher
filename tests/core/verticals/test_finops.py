@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.verticals.finops import (
+from fdai.core.verticals.finops import (
     FinOpsActionKind,
     FinOpsCandidate,
     FinOpsEnvironment,

@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.rbac.resolver import (
+from fdai.core.rbac.resolver import (
     BreakGlassActivation,
     BreakGlassActivationError,
     GroupMapping,
@@ -18,7 +18,7 @@ from aiopspilot.core.rbac.resolver import (
     RoleResolver,
     decode_jwt_payload,
 )
-from aiopspilot.core.rbac.roles import Role
+from fdai.core.rbac.roles import Role
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -168,7 +168,7 @@ class TestGroupMappingFromConfig:
             GroupMapping.from_config(cfg, environ={})
 
     def test_env_var_overrides_yaml(self) -> None:
-        env = {"AIOPSPILOT_RBAC_OWNERS_GROUP_ID": "override-owner"}
+        env = {"FDAI_RBAC_OWNERS_GROUP_ID": "override-owner"}
         mapping = GroupMapping.from_config(self._base_config(), environ=env)
         assert mapping.owner_group_id == "override-owner"
         # Other slots unaffected.
@@ -177,7 +177,7 @@ class TestGroupMappingFromConfig:
     def test_env_var_can_supply_missing_slot(self) -> None:
         cfg = self._base_config()
         del cfg["rbac"]["entra"]["groups"]["break_glass"]
-        env = {"AIOPSPILOT_RBAC_BREAK_GLASS_GROUP_ID": "env-bg"}
+        env = {"FDAI_RBAC_BREAK_GLASS_GROUP_ID": "env-bg"}
         mapping = GroupMapping.from_config(cfg, environ=env)
         assert mapping.break_glass_group_id == "env-bg"
 
@@ -208,7 +208,7 @@ class TestGroupMappingFromConfig:
         )
         mapping = GroupMapping.from_config(
             raw,
-            environ={"AIOPSPILOT_RBAC_APPROVERS_GROUP_ID": "override-approver"},
+            environ={"FDAI_RBAC_APPROVERS_GROUP_ID": "override-approver"},
         )
         # Placeholder for four slots.
         assert mapping.reader_group_id == "00000000-0000-0000-0000-000000000000"

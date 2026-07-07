@@ -7,7 +7,7 @@
 #   rule_id: network.load-balancer.unused-backend
 #   severity: low
 #   category: cost
-package aiopspilot.network.lb_unused_backend
+package fdai.network.lb_unused_backend
 
 import rego.v1
 

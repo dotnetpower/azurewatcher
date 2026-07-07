@@ -1,13 +1,13 @@
 ---
 title: 운영과 검증(Operating and Verification)
 translation_of: operating-and-verification.md
-translation_source_sha: b7b51cd5c2e5c48fd66d2d4f130abf8e1e19afd5
+translation_source_sha: d1ec7cb82bd4bdcb7b7064344f3b0f198d9ab466
 translation_revised: 2026-07-07
 ---
 
 # 운영과 검증(Operating and Verification)
 
-새로 프로비저닝된 배포부터 AIOpsPilot가 **살아 있고, 올바르며, 정상 동작 중**인지 어떻게
+새로 프로비저닝된 배포부터 FDAI가 **살아 있고, 올바르며, 정상 동작 중**인지 어떻게
 아는가. 이 문서는 **자체 관측성(self-observability)** : 시스템이 자신에 대해 어떻게 보고하는가.
 시스템이 **감시하는 환경에 대해 감지하는 것**인
 [observability-and-detection-ko.md](observability-and-detection-ko.md) 와 구별됩니다. 프레젠테이션

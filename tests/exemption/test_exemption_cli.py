@@ -15,7 +15,7 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.rule_catalog.schema import exemption_cli
+from fdai.rule_catalog.schema import exemption_cli
 
 
 def _valid_raw() -> dict[str, Any]:
@@ -25,7 +25,7 @@ def _valid_raw() -> dict[str, Any]:
         "rule_id": "example.tag.owner-required",
         "scope": {
             "subscription_id": "00000000-0000-0000-0000-000000000000",
-            "resource_group": "rg-aiopspilot",
+            "resource_group": "rg-fdai",
         },
         "justification": "Waived while an owner tag lookup service is being provisioned.",
         "requested_by": "00000000-0000-0000-0000-000000000001",

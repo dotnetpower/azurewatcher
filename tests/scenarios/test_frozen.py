@@ -14,8 +14,8 @@ from typing import Any, cast
 import pytest
 from jsonschema import Draft202012Validator
 
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
-from aiopspilot.shared.contracts.validation import JsonSchemaContractValidator
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.validation import JsonSchemaContractValidator
 
 SCENARIO_DIR = Path(__file__).resolve().parent / "v2026.07"
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.json"

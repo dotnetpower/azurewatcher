@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.measurement.model_tracking import (
+from fdai.core.measurement.model_tracking import (
     ModelObservation,
     ModelSwapConfig,
     ModelSwapPolicy,

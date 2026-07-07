@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.tiers.t0_deterministic import (
+from fdai.core.tiers.t0_deterministic import (
     AbstainEvaluator,
     PipelineStage,
     PolicyResult,
@@ -15,7 +15,7 @@ from aiopspilot.core.tiers.t0_deterministic import (
     T0Engine,
     Verdict,
 )
-from aiopspilot.shared.contracts.models import (
+from fdai.shared.contracts.models import (
     Category,
     CheckLogic,
     CheckLogicKind,

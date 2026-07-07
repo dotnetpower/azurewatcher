@@ -343,9 +343,9 @@ promotion gates to hold.
 | 2.5-B step 2a | Async `ToolExecutor` + `ToolProvider` seam + `DefaultToolExecutor` with schema validation, shadow guard, wrapper enforcement, and five typed fail-closed errors (`UnknownToolError`, `ShadowToolBlockedError`, `ToolArgumentValidationError`, `MissingProviderError`, `ProviderCallError`) | yes |
 | 2.5-B step 2b | `AzureOpenAICrossCheckModel` emits `tools=[...]` for enforce-mode tools, routes model-issued `tool_calls` through the executor in a bounded multi-turn loop, and rejects unknown function names / malformed arguments / half-wired setups fail-closed | yes |
 | 3 step A | `core/operator_memory/` types + async `OperatorMemoryStore` Protocol + `InMemoryOperatorMemoryStore` + `wrap_operator_note` / `detect_injection_markers` sanitizer + write-time policy checks (scope <= resource-group, distinct approver, append-only supersede, optional TTL, injection-marker rejection) | yes |
-| 3 step B store | `PostgresOperatorMemoryStore` + alembic migration `20260706_0006_operator_memory` (append-only table, CHECK constraints mirroring the Python policy, `(scope_kind, scope_ref)` scope-lookup index, TTL + supersede semantics parity with `InMemoryOperatorMemoryStore`, integration tests skipped when `AIOPSPILOT_DATABASE_URL` unset) | yes |
+| 3 step B store | `PostgresOperatorMemoryStore` + alembic migration `20260706_0006_operator_memory` (append-only table, CHECK constraints mirroring the Python policy, `(scope_kind, scope_ref)` scope-lookup index, TTL + supersede semantics parity with `InMemoryOperatorMemoryStore`, integration tests skipped when `FDAI_DATABASE_URL` unset) | yes |
 | 3 step B pipeline slice 1 | `HilRejectMaterializer` core module that turns a `HilResponse(decision=REJECT, reason=...)` + a distinct `second_approver` into a stored `OperatorMemoryEntry` via the injected `OperatorMemoryStore`; five pipeline-level error codes (`wrong_decision`, `empty_reason`, `missing_first_approver`, `missing_second_approver`, `same_principal`) fail-fast before the store is touched, and store-side policy errors (duplicate id, injection marker) surface unchanged | yes |
-| 3 step B pipeline slice 2 | Composition-root wire: `_build_operator_memory_store()` picks Postgres via `AIOPSPILOT_OPERATOR_MEMORY_DSN` or the in-memory fake by default, and `_finalize_llm_bindings` hands the store to `DefaultPromptComposer` so the operator-memory layer is fully reachable end-to-end without a database (an entry a fork appends via `HilRejectMaterializer` becomes visible to the composer immediately) | yes |
+| 3 step B pipeline slice 2 | Composition-root wire: `_build_operator_memory_store()` picks Postgres via `FDAI_OPERATOR_MEMORY_DSN` or the in-memory fake by default, and `_finalize_llm_bindings` hands the store to `DefaultPromptComposer` so the operator-memory layer is fully reachable end-to-end without a database (an entry a fork appends via `HilRejectMaterializer` becomes visible to the composer immediately) | yes |
 | 3 step B pipeline slice 3 | Second-approval channel that actually invokes the materializer (Teams Adaptive Card / git PR / fork-authored CLI). Kept fork-first because the approval channel varies per deployment; upstream ships the `HilRejectMaterializer` seam and the operator-memory store, not a specific UI | planned |
 | 3 step C-1 | `DefaultPromptComposer` accepts optional `operator_memory_store` + `scope` and emits an operator-memory layer; every entry is wrapped via `wrap_operator_note`, hierarchy resolution places resource-group notes before resource notes | yes |
 | 3 step C-2 | `AzureOpenAICrossCheckModel` calls the composer per-event (with an optional fork-supplied `ScopeResolver` deriving the `OperatorScope` from the candidate) instead of once at startup, so operator memory actually reaches the model | yes |
@@ -355,7 +355,7 @@ promotion gates to hold.
 | 3 step D-2b-ii-alpha | `RecognitionScenario` / `RecognitionSample` / `RecognitionRunReport` + `ScenarioResponder` Protocol + `score_batch` (pure) + `run_scenarios` (composer + responder orchestration; composer canaries auto-promoted into scoring) | yes |
 | 3 step D-2b-ii-beta | `rule-catalog/prompts/scenarios/` scaffold + `scenario.schema.json` + `load_scenarios(catalog_root)` file-system loader (aggregate-error surface, filename `<id>.v<version>.yaml`, empty catalog legal) | yes |
 | 3 step D-2b-ii-gamma-1 | `emit_kpi_rows(report)` target-neutral KPI row emitter + `KpiRow` / `RowUnit` types + stable metric name constants (`prompt.recognition.*`) | yes |
-| 3 step D-2b-ii-gamma-2 | `AbstainResponder` + `RecordingResponder` testing helpers + `python -m aiopspilot.core.measurement.prompt_probe_cli` (loads scenarios + composer, runs against AbstainResponder, prints one JSON KpiRow per line to stdout) | yes |
+| 3 step D-2b-ii-gamma-2 | `AbstainResponder` + `RecordingResponder` testing helpers + `python -m fdai.core.measurement.prompt_probe_cli` (loads scenarios + composer, runs against AbstainResponder, prints one JSON KpiRow per line to stdout) | yes |
 | 4 alpha | Critic role scaffolding: `CriticStance` / `CriticSeverity` / `CriticObjection` / `CriticOutput` / `CriticVerdict` types + `CriticModel` Protocol + `evaluate_critic_output()` pure evaluator + `rule-catalog/prompts/base/t2-critic.v1.yaml` (`default_mode: shadow`, `applies_to: [t2.critic]`). No live wire into the QualityGate; sits dormant until Wave 4.5 lands the debate orchestrator | yes |
 | 4 beta-1 | `AzureOpenAICriticModel` httpx adapter implementing the `CriticModel` Protocol via Azure OpenAI ``chat/completions`` with structured JSON output; strict fail-closed parser (unknown stance / severity / missing fields / non-string citation / blank description all raise). Not yet wired into composition root - the shipped catalog seed stays `default_mode: shadow` | yes |
 | 4 beta-2 | `t2.critic` capability added to `rule-catalog/llm-registry.yaml` (`invocation: on_disagreement`, Anthropic-first preference so publisher stays distinct from the Proposer). `LlmBindings` gains an optional `critic_model` field; `bind_azure_llm_bindings` binds `AzureOpenAICriticModel` when the capability resolves AND the caller supplied a `critic_system_prompt` (composed from the shipped catalog seed). Startup log gains a `critic_prompt_composed` structured entry when the compose step succeeds | yes |
@@ -376,7 +376,7 @@ Wave 1 introduces the seam without changing runtime behavior.
   artifacts.
 - `rule-catalog/prompts/base/t2-cross-check.v1.yaml` - the extracted T2 base
   prompt.
-- `src/aiopspilot/core/prompts/` - `PromptRegistry` Protocol,
+- `src/fdai/core/prompts/` - `PromptRegistry` Protocol,
   `FileSystemPromptRegistry` implementation, aggregate-error validation.
 - `bind_azure_llm_bindings` accepts an optional `system_prompt` and threads it
   through every cross-check config.
@@ -387,9 +387,9 @@ Wave 1 introduces the seam without changing runtime behavior.
 
 Wave 2 completes the seam by turning prompt assembly into a proper composer.
 
-- `src/aiopspilot/core/prompts/composer.py` - `PromptComposer` async
+- `src/fdai/core/prompts/composer.py` - `PromptComposer` async
   Protocol + `DefaultPromptComposer` (Base + Task Skill Pack assembly).
-- `src/aiopspilot/core/prompts/testing.py` - `StaticPromptComposer` fake so
+- `src/fdai/core/prompts/testing.py` - `StaticPromptComposer` fake so
   fork tests can inject a canned prompt without touching the catalog.
 - `PromptRegistry.get_packs(capability_id)` - returns every task-pack
   artifact bound to a capability, keeping only the highest version per id.
@@ -423,7 +423,7 @@ Tool-manifest injection and the executor land in Wave 2.5-B.
   registry accepts the file.
 - `rule-catalog/prompts/tools/README.md` - directory contract mirroring
   the prompts subsystem README.
-- `src/aiopspilot/core/tools/` (renamed from the earlier
+- `src/fdai/core/tools/` (renamed from the earlier
   `core/prompts/tool_registry.py`) - `ToolArtifact`, `CapabilityGate`,
   `ToolRegistry` Protocol, and `FileSystemToolRegistry` with
   aggregate-error validation. Empty catalogs load without error so a
@@ -458,7 +458,7 @@ Wave 2.5-B step 2a introduces the executor seam so a tool call can be
 dispatched end-to-end without touching the Azure OpenAI adapter yet.
 Step 2b threads model-issued `tool_calls` through this executor.
 
-- `src/aiopspilot/core/tools/executor.py` - `ToolExecutor` async
+- `src/fdai/core/tools/executor.py` - `ToolExecutor` async
   Protocol + `DefaultToolExecutor` upstream implementation + the
   `ToolProvider` seam a fork implements per tool group. Every failure
   surfaces as one of five typed subclasses of `ToolExecutorError`
@@ -466,7 +466,7 @@ Step 2b threads model-issued `tool_calls` through this executor.
   `ToolArgumentValidationError`, `MissingProviderError`,
   `ProviderCallError`) so callers route to HIL rather than swallowing
   a partial result.
-- `src/aiopspilot/core/tools/testing.py` - `InMemoryToolProvider`
+- `src/fdai/core/tools/testing.py` - `InMemoryToolProvider`
   (canned responses keyed by tool id + sorted argument tuple, calls
   recorded for assertions) and `NoOpToolProvider` (refuses every call;
   the upstream default when a fork promotes a tool without wiring its
@@ -543,12 +543,12 @@ and the composer can be built on a stable surface. The Postgres store,
 the HIL second-approval workflow, and the composer integration land in
 later steps of Wave 3.
 
-- `src/aiopspilot/core/operator_memory/types.py` - `OperatorMemoryEntry`
+- `src/fdai/core/operator_memory/types.py` - `OperatorMemoryEntry`
   frozen dataclass + three enums: `ScopeKind` (values LIMITED to
   `resource-group` and `resource`; broader scopes are rejected because
   disabling a rule org-wide is a rule retirement, not an override),
   `MemorySource`, `MemoryCategory`.
-- `src/aiopspilot/core/operator_memory/store.py` - `OperatorMemoryStore`
+- `src/fdai/core/operator_memory/store.py` - `OperatorMemoryStore`
   async Protocol + `InMemoryOperatorMemoryStore` upstream default. Every
   write runs the same policy validator so callers cannot bypass the
   Human Override contract by touching the store directly. Policy codes
@@ -556,7 +556,7 @@ later steps of Wave 3.
   telemetry (`empty_body`, `empty_scope_ref`, `scope_too_wide`,
   `missing_author`, `missing_approver`, `self_approval`, `invalid_ttl`,
   `duplicate_id`, `already_superseded`).
-- `src/aiopspilot/core/operator_memory/sanitizer.py` -
+- `src/fdai/core/operator_memory/sanitizer.py` -
   `detect_injection_markers` scans bodies for a curated list of
   prompt-injection patterns (case-insensitive; "ignore previous",
   "system:", role-hijack tokens); `wrap_operator_note` renders every
@@ -597,7 +597,7 @@ separate follow-up and is still `planned` in the rollout table.
   UPDATE is on `superseded_by` inside a `FOR UPDATE`-locked
   transaction, and the store returns `already_superseded` rather than
   overwriting the pointer.
-- `src/aiopspilot/delivery/persistence/postgres_operator_memory.py` -
+- `src/fdai/delivery/persistence/postgres_operator_memory.py` -
   `PostgresOperatorMemoryStore` realises the same async
   `OperatorMemoryStore` Protocol as the in-memory fake. The DSN +
   `statement_timeout_ms` contract matches `PostgresStateStore` so the
@@ -618,7 +618,7 @@ separate follow-up and is still `planned` in the rollout table.
   parses ISO-8601 / UUID string columns defensively so JSON
   export/import round-trips land on the right Python types.
 - Integration tests (`tests/persistence/test_postgres_operator_memory.py`)
-  follow the same skip-on-`AIOPSPILOT_DATABASE_URL`-unset pattern as
+  follow the same skip-on-`FDAI_DATABASE_URL`-unset pattern as
   the pgvector + state-store adapters; they cover append + list +
   supersede + expiry + duplicate-id + unknown-id-lookup on a live
   Postgres. Offline unit tests exercise config validation, the
@@ -635,7 +635,7 @@ step is the "brain" - the same class handles the second-approval
 logic whether the trigger is a Teams Adaptive Card button, a
 reconciler poll, or a fork-authored CLI.
 
-- `src/aiopspilot/core/operator_memory/hil_pipeline.py` -
+- `src/fdai/core/operator_memory/hil_pipeline.py` -
   `HilRejectMaterializer(*, store, entry_id_fn=uuid4, now_fn=None)`
   exposes one async method, `materialize(*, hil_response,
   second_approver, material)`. Deterministic hooks
@@ -665,8 +665,8 @@ reconciler poll, or a fork-authored CLI.
   `injection_marker_detected`, `duplicate_id`) is what the caller
   sees - the materializer never swallows or re-codes those.
 - Kept `core/`-safe: the module imports only from
-  `aiopspilot.core.operator_memory` and
-  `aiopspilot.shared.providers.hil_channel` (a Protocol package),
+  `fdai.core.operator_memory` and
+  `fdai.shared.providers.hil_channel` (a Protocol package),
   so `scripts/check-core-imports.sh` continues to pass. No
   `delivery.*` import lands.
 
@@ -680,9 +680,9 @@ second-approval channel; this slice is the connecting tissue that
 makes an entry appended by one path immediately visible to the
 composer on the next event.
 
-- `_build_operator_memory_store()` in `src/aiopspilot/__main__.py`
+- `_build_operator_memory_store()` in `src/fdai/__main__.py`
   mirrors the existing `_build_audit_store()` pattern: when
-  `AIOPSPILOT_OPERATOR_MEMORY_DSN` is set (populated by the
+  `FDAI_OPERATOR_MEMORY_DSN` is set (populated by the
   container's Key Vault secret ref) the wire returns a
   `PostgresOperatorMemoryStore`; otherwise the deterministic
   `InMemoryOperatorMemoryStore` fake is used so the composer's
@@ -787,7 +787,7 @@ Wave 3 step D-1 lands the pure evaluator half of the recognition-probe
 KPI. Step D-2 teaches the composer to insert canary tokens per layer
 and wires the numbers into a dashboard scenario runner.
 
-- `src/aiopspilot/core/measurement/prompt_probe.py` - four typed
+- `src/fdai/core/measurement/prompt_probe.py` - four typed
   input / output dataclasses (`RequiredField`, `ExpectedResponse`,
   `CitationScores`, `RecognitionResult`) plus four pure evaluators:
   `evaluate_adherence` (JSON validity + per-field
@@ -879,7 +879,7 @@ and live scenario execution. The catalog-as-code YAML format, the
 CLI, and the dashboard emission ship in the ``beta`` / ``gamma`` sub
 -steps.
 
-- `src/aiopspilot/core/measurement/prompt_probe_runner.py` -
+- `src/fdai/core/measurement/prompt_probe_runner.py` -
   `RecognitionSample` (composed prompt + response + expected),
   `RecognitionRunReport` (per-sample results + KPI summary in one
   bundle), `RecognitionScenario` (composable spec: capability id +
@@ -920,7 +920,7 @@ can author independently of any live composer or responder.
   known `expected_type` (`string` / `object` / `array`).
 - `rule-catalog/prompts/scenarios/README.md` - directory contract
   mirroring the prompts + tools subsystem READMEs.
-- `src/aiopspilot/core/measurement/prompt_probe_loader.py` -
+- `src/fdai/core/measurement/prompt_probe_loader.py` -
   `load_scenarios(catalog_root) -> tuple[RecognitionScenario, ...]`
   with the same aggregate-error surface as the prompt and tool
   registries. Empty catalog is legal so a fork can adopt the seam
@@ -935,7 +935,7 @@ Wave 3 step D-2b-ii-gamma-1 lands the pure KPI row emitter that turns
 a `RecognitionRunReport` into a target-neutral list of metric rows.
 Step gamma-2 wires the CLI to consume them.
 
-- `src/aiopspilot/core/measurement/prompt_probe_emit.py` -
+- `src/fdai/core/measurement/prompt_probe_emit.py` -
   `KpiRow(metric, value, unit, dimensions)` + `RowUnit` enum
   (`ratio`, `count`) + five metric name constants
   (`prompt.recognition.sample_count`,
@@ -973,7 +973,7 @@ the smoke-runnable CLI and its responder helpers. Dashboard panels
 that name the recognition metrics land alongside the P0 KPI dashboard
 in a follow-up doc edit; this step focuses on the runtime.
 
-- `src/aiopspilot/core/measurement/prompt_probe_testing.py` -
+- `src/fdai/core/measurement/prompt_probe_testing.py` -
   `AbstainResponder` returns a canned ``hil.escalate`` JSON action
   on every call so the upstream CLI is smoke-runnable without any
   live model, and `RecordingResponder` pops canned answers from a
@@ -983,12 +983,12 @@ in a follow-up doc edit; this step focuses on the runtime.
   so every ``respond`` call returns byte-identical text; a shadow
   run comparing responses across time cannot see spurious
   variation.
-- `src/aiopspilot/core/measurement/prompt_probe_cli.py` -
+- `src/fdai/core/measurement/prompt_probe_cli.py` -
   `run_from_catalog(catalog_root, responder)` wires a
   `FileSystemPromptRegistry` + `DefaultPromptComposer`, calls
   `load_scenarios(catalog_root)`, and delegates to
   `run_scenarios`. `main()` is the sync entry point behind
-  ``python -m aiopspilot.core.measurement.prompt_probe_cli``.
+  ``python -m fdai.core.measurement.prompt_probe_cli``.
 - CLI exit codes match the existing `runners_cli.py` contract:
   ``0`` = run completed (empty catalog is a valid outcome, prints
   the ``sample_count = 0`` row), ``2`` = catalog root missing,
@@ -1011,7 +1011,7 @@ step is deliberately dormant so the types + evaluator can be
 consumed by fork-authored probes and future orchestrator code
 without any risk to the current T2 flow.
 
-- `src/aiopspilot/core/quality_gate/critic.py` -
+- `src/fdai/core/quality_gate/critic.py` -
   `CriticStance` (`agree` / `challenge` / `abstain`),
   `CriticSeverity` (`low` / `medium` / `high`),
   `CriticObjection` (frozen dataclass with `__post_init__` refusing
@@ -1050,7 +1050,7 @@ without any risk to the current T2 flow.
   threads into the audit trail and into a Wave 4.5 Proposer
   retry.
 - Kept `core/`-safe: the module imports only from
-  `aiopspilot.core.quality_gate.gate` and stdlib; no
+  `fdai.core.quality_gate.gate` and stdlib; no
   `delivery.*`, no LLM SDK. `scripts/check-core-imports.sh`
   continues to pass at 74 files.
 
@@ -1065,7 +1065,7 @@ change. Wave 4 beta-2 will add the `t2.critic` capability entry to
 `llm-registry.yaml` and thread the adapter through the composition
 root.
 
-- `src/aiopspilot/delivery/azure/llm/critic.py` -
+- `src/fdai/delivery/azure/llm/critic.py` -
   `AzureOpenAICriticModelConfig` (endpoint, deployment,
   **required** `system_prompt`, api_version, temperature,
   max_tokens, timeout_seconds) + `AzureOpenAICriticModel` with a
@@ -1150,7 +1150,7 @@ Critic. The Judge is intentionally a smaller model (bound to
 design; the tier drop keeps the Judge's per-event cost bounded even
 when the Proposer / Critic pair is expensive.
 
-- `src/aiopspilot/core/quality_gate/judge.py` -
+- `src/fdai/core/quality_gate/judge.py` -
   `JudgeDecision` (`accept` / `revise_and_retry` /
   `escalate_hil`), `JudgeOutput` (frozen dataclass whose
   `__post_init__` refuses a blank justification),
@@ -1172,8 +1172,8 @@ when the Proposer / Critic pair is expensive.
   parseable output. The `t1.judge` capability already exists in
   `llm-registry.yaml` so no registry change is needed.
 - Kept `core/`-safe: imports only from
-  `aiopspilot.core.quality_gate.gate` +
-  `aiopspilot.core.quality_gate.critic` (both peer modules) plus
+  `fdai.core.quality_gate.gate` +
+  `fdai.core.quality_gate.critic` (both peer modules) plus
   stdlib.
 
 ## Wave 4.5 beta - what shipped
@@ -1181,7 +1181,7 @@ when the Proposer / Critic pair is expensive.
 Wave 4.5 beta lands the Azure Judge adapter, mirroring the Wave 4
 beta-1 shape.
 
-- `src/aiopspilot/delivery/azure/llm/judge.py` -
+- `src/fdai/delivery/azure/llm/judge.py` -
   `AzureOpenAIJudgeModelConfig` (endpoint, deployment,
   **required** `system_prompt`, api_version, temperature,
   max_tokens, timeout_seconds) + `AzureOpenAIJudgeModel` with a
@@ -1214,7 +1214,7 @@ Wave 4.5 chapter for `core/`; Wave 4.5 delta will wire the
 orchestrator into the live `QualityGate` when both capabilities
 resolve.
 
-- `src/aiopspilot/core/quality_gate/debate.py` -
+- `src/fdai/core/quality_gate/debate.py` -
   `DebateOrchestrator(*, critic, judge, config=None)`;
   `DebateOrchestratorConfig(max_rounds=1)` with a strict
   `__post_init__` that refuses any value outside `[0, 1]` for
@@ -1302,7 +1302,7 @@ lets a fork exercise the routing matrix in shadow probes and lets
 the promotion gate collect signal before any event actually flows
 through the debate.
 
-- `src/aiopspilot/core/quality_gate/debate_router.py` -
+- `src/fdai/core/quality_gate/debate_router.py` -
   `DebateRoute` (`debate` / `skip`) enum,
   `DebateRoutingDecision` (route + reason + snapshotted
   ``action_type`` + metadata) frozen dataclass,
@@ -1329,7 +1329,7 @@ through the debate.
      `cross_check_disagreement` (the primary trigger);
   6. Otherwise -> SKIP with reason `default_skip`.
 - Kept `core/`-safe: imports only from
-  `aiopspilot.core.quality_gate.gate` and stdlib; no
+  `fdai.core.quality_gate.gate` and stdlib; no
   `delivery.*`, no LLM SDK. `scripts/check-core-imports.sh`
   continues to pass.
 - 11 tests in `tests/quality_gate/test_debate_router.py` cover
@@ -1380,9 +1380,9 @@ shape when no debate params are passed, so every existing
     the audit trail;
   - `PROCEED` with other soft issues **degrades to `ABSTAIN`**
     - the debate is one axis; every other check still applies.
-- Deferred imports (`from aiopspilot.core.quality_gate.debate
+- Deferred imports (`from fdai.core.quality_gate.debate
   import DebateVerdict`, `from
-  aiopspilot.core.quality_gate.debate_router import DebateRoute,
+  fdai.core.quality_gate.debate_router import DebateRoute,
   decide_debate_route`) live inside `evaluate()` to break the
   module-level cycle (both `debate` and `debate_router` import
   `QualityCandidate` from `gate`).
@@ -1402,7 +1402,7 @@ providers (Bing, SerpAPI, curated crawler) stay fork-only per the
 [Web search policy](#web-search-policy); this step ships the
 contract every future adapter honors.
 
-- `src/aiopspilot/core/web_search/types.py` -
+- `src/fdai/core/web_search/types.py` -
   `WebSearchQuery` (frozen dataclass with `__post_init__` refusing
   blank text, zero max_results, zero budget_ms; caller-supplied
   `allowed_domains` tuple + `metadata`),
@@ -1412,14 +1412,14 @@ contract every future adapter honors.
   `WebSearchResult` (frozen envelope carrying the originating
   query, retrieved snippets, and audit-friendly `reasons` tuple
   so an operator sees why the search degraded).
-- `src/aiopspilot/core/web_search/provider.py` -
+- `src/fdai/core/web_search/provider.py` -
   `WebSearchProvider` `@runtime_checkable` Protocol with a single
   async `search(query) -> WebSearchResult` method (secrets like
   API keys stay in adapter constructors, out of the Protocol
   surface), and `NoOpWebSearchProvider` - the deny-by-default
   shipped fake that returns `snippets=()` with
   `reasons=("no_op_provider",)` for every query.
-- `src/aiopspilot/core/web_search/sanitizer.py` -
+- `src/fdai/core/web_search/sanitizer.py` -
   `WebSnippetPolicyError` with structured codes (`off_allowlist`,
   `empty_allowlist`, `injection_markers_detected`),
   `detect_snippet_injection_markers()` that reuses the
@@ -1432,7 +1432,7 @@ contract every future adapter honors.
   envelope with XML-escaped body + attributes so a snippet cannot
   forge the closing tag.
 - Kept `core/`-safe: imports only from stdlib and
-  `aiopspilot.core.operator_memory.sanitizer` (for the shared
+  `fdai.core.operator_memory.sanitizer` (for the shared
   marker list). No LLM SDK, no `delivery.*`.
   `scripts/check-core-imports.sh` continues to pass.
 - 19 tests in `tests/core/web_search/test_web_search.py` cover

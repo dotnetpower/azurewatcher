@@ -1,16 +1,16 @@
-"""Unit tests for :mod:`aiopspilot.core.quality_gate.debate_router`."""
+"""Unit tests for :mod:`fdai.core.quality_gate.debate_router`."""
 
 from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.quality_gate.debate_router import (
+from fdai.core.quality_gate.debate_router import (
     DebateRoute,
     DebateRouterConfig,
     DebateRoutingDecision,
     decide_debate_route,
 )
-from aiopspilot.core.quality_gate.gate import QualityCandidate
+from fdai.core.quality_gate.gate import QualityCandidate
 
 
 def _candidate(action_type: str = "remediate.tag-add") -> QualityCandidate:

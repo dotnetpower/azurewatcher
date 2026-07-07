@@ -1,13 +1,13 @@
 ---
 title: 관측성과 감지(Observability and Detection)
 translation_of: observability-and-detection.md
-translation_source_sha: 1b56df380bfda0cd758ee401538f1cbdaedfd840
+translation_source_sha: c6a11731a6b9f507e0c2f8b95b17dc5816f1bce9
 translation_revised: 2026-07-07
 ---
 
 # 관측성과 감지(Observability and Detection)
 
-AIOpsPilot가 원시 원격측정을 컨트롤 루프가 액션할 수 있는 **finding** 으로 어떻게 바꾸는가:
+FDAI가 원시 원격측정을 컨트롤 루프가 액션할 수 있는 **finding** 으로 어떻게 바꾸는가:
 **이벤트 상관관계**, **이상 감지**, **예측 / 예보**, **근본원인 분석(RCA)**. 이들은 AIOps
 플랫폼이 제공하리라 기대되는 감지 신호이며 - **결정론 우선을 깨지 않고** 여기에 추가됩니다:
 모든 신호는 기존 `trust-router → tiers → risk-gate → executor → audit` 경로를 통해 흐르는

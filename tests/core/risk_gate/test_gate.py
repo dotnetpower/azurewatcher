@@ -9,19 +9,19 @@ from typing import Any
 import pytest
 import yaml
 
-from aiopspilot.core.risk_gate import (
+from fdai.core.risk_gate import (
     ActionPromotionRegistry,
     PromotionMetrics,
     RiskDecisionOutcome,
     RiskGate,
     RiskGateConfig,
 )
-from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
-from aiopspilot.rule_catalog.schema.rule import load_rule_catalog
-from aiopspilot.shared.contracts.models import (
+from fdai.rule_catalog.schema.rule import load_rule_catalog
+from fdai.shared.contracts.models import (
     Action,
     BlastRadius,
     BlastRadiusScope,
@@ -32,7 +32,7 @@ from aiopspilot.shared.contracts.models import (
     RollbackRef,
     Rule,
 )
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ACTION_TYPES_ROOT = REPO_ROOT / "rule-catalog" / "action-types"
@@ -357,7 +357,7 @@ def test_promotion_registry_record_returns_current_state() -> None:
 
 
 def test_duration_since_is_non_negative() -> None:
-    from aiopspilot.core.risk_gate import duration_since
+    from fdai.core.risk_gate import duration_since
 
     past = datetime.now(tz=UTC).replace(year=2024)
     delta = duration_since(past)
@@ -463,8 +463,8 @@ def test_upstream_abstain_yields_to_hil_when_other_reason_present() -> None:
 def test_declared_graph_fresh_seconds_raises_when_value_is_non_numeric() -> None:
     """A malformed ActionType (graph_fresh precondition without a numeric
     value) MUST surface at first use - never silently defaulted."""
-    from aiopspilot.core.risk_gate.gate import _declared_graph_fresh_seconds
-    from aiopspilot.shared.contracts.models import (
+    from fdai.core.risk_gate.gate import _declared_graph_fresh_seconds
+    from fdai.shared.contracts.models import (
         ActionPrecondition,
         PreconditionKind,
     )
@@ -494,7 +494,7 @@ def test_active_exemption_short_circuits_to_abstain() -> None:
     """A scoped human-override MUST suppress execution even when every
     other check would have returned AUTO (architecture.instructions
     § Human Override)."""
-    from aiopspilot.shared.providers.exemption import (
+    from fdai.shared.providers.exemption import (
         InMemoryExemptionRecord,
         InMemoryExemptionRegistry,
     )
@@ -538,7 +538,7 @@ def test_active_exemption_short_circuits_to_abstain() -> None:
 def test_no_exemption_match_yields_normal_outcome() -> None:
     """A registry with no matching exemption MUST not affect the
     outcome - proves the override path is scope-bounded."""
-    from aiopspilot.shared.providers.exemption import (
+    from fdai.shared.providers.exemption import (
         InMemoryExemptionRecord,
         InMemoryExemptionRegistry,
     )
@@ -581,7 +581,7 @@ def test_no_exemption_match_yields_normal_outcome() -> None:
 
 def test_exemption_registry_extract_resource_group_helper() -> None:
     """The ARM-id parser used at the risk-gate MUST cope with real ARM ids."""
-    from aiopspilot.core.risk_gate.gate import _extract_resource_group
+    from fdai.core.risk_gate.gate import _extract_resource_group
 
     arm_id = (
         "/subscriptions/00000000-0000-0000-0000-000000000000/"

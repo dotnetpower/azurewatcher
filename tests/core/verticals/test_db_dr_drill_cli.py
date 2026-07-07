@@ -1,4 +1,4 @@
-"""Tests for :mod:`aiopspilot.core.verticals.db_dr_drill_cli`.
+"""Tests for :mod:`fdai.core.verticals.db_dr_drill_cli`.
 
 Cover the env-var contract, dry-run wire-up, and fail-fast exit codes.
 Live-restore composition is fork territory (upstream would need real
@@ -12,8 +12,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from aiopspilot.core.verticals import db_dr_drill_cli
-from aiopspilot.core.verticals.db_dr_drill_cli import (
+from fdai.core.verticals import db_dr_drill_cli
+from fdai.core.verticals.db_dr_drill_cli import (
     _ENV_DRY_RUN,
     _ENV_LOCATION,
     _ENV_PITR_OFFSET,
@@ -61,7 +61,7 @@ def test_build_config_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg is not None
     assert cfg.target_location == "koreacentral"
     assert cfg.experiment_id.startswith("db-dr-drill-2026")
-    assert cfg.target_resource_group.startswith("rg-aiopspilot-dr-drill-2026")
+    assert cfg.target_resource_group.startswith("rg-fdai-dr-drill-2026")
     assert cfg.target_server_name.startswith("psql-drill-")
     assert cfg.point_in_time_utc == _FIXED_NOW - timedelta(minutes=30)
 

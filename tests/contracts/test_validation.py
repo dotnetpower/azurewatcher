@@ -12,11 +12,11 @@ from typing import Any, cast
 
 import pytest
 
-from aiopspilot.shared.contracts.registry import (
+from fdai.shared.contracts.registry import (
     PackageResourceSchemaRegistry,
     SchemaRegistry,
 )
-from aiopspilot.shared.contracts.validation import (
+from fdai.shared.contracts.validation import (
     ContractValidationError,
     JsonSchemaContractValidator,
     JsonSchemaEventValidator,

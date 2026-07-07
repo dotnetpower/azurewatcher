@@ -33,7 +33,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from aiopspilot.core.conversation import (
+from fdai.core.conversation import (
     AbstainResult,
     ActivateBreakGlassTool,
     ApproveHilTool,
@@ -61,46 +61,46 @@ from aiopspilot.core.conversation import (
     ToolResult,
     default_tool_schemas,
 )
-from aiopspilot.core.executor.action_builder import ActionBuilder
-from aiopspilot.core.executor.renderer import TemplateRenderer
-from aiopspilot.core.operator_memory.store import InMemoryOperatorMemoryStore
-from aiopspilot.core.tiers.t0_deterministic import T0Engine
-from aiopspilot.core.tiers.t0_deterministic.engine import AbstainEvaluator
-from aiopspilot.core.tiers.t0_deterministic.index import RuleIndex
-from aiopspilot.core.trust_router import TrustRouter
-from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.core.executor.action_builder import ActionBuilder
+from fdai.core.executor.renderer import TemplateRenderer
+from fdai.core.operator_memory.store import InMemoryOperatorMemoryStore
+from fdai.core.tiers.t0_deterministic import T0Engine
+from fdai.core.tiers.t0_deterministic.engine import AbstainEvaluator
+from fdai.core.tiers.t0_deterministic.index import RuleIndex
+from fdai.core.trust_router import TrustRouter
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
-from aiopspilot.rule_catalog.schema.rule import load_rule_catalog
-from aiopspilot.shared.contracts.models import OntologyActionType, Rule
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
-from aiopspilot.shared.providers.testing.break_glass_pager import (
+from fdai.rule_catalog.schema.rule import load_rule_catalog
+from fdai.shared.contracts.models import OntologyActionType, Rule
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.providers.testing.break_glass_pager import (
     InMemoryBreakGlassPager,
 )
-from aiopspilot.shared.providers.testing.hil_registry import (
+from fdai.shared.providers.testing.hil_registry import (
     InMemoryHilApprovalRegistry,
 )
-from aiopspilot.shared.providers.testing.observation import (
+from fdai.shared.providers.testing.observation import (
     InMemoryDeploymentHistoryProvider,
     InMemoryIncidentCorrelator,
     InMemoryLogQueryProvider,
     InMemoryMetricQueryProvider,
 )
-from aiopspilot.shared.providers.testing.runbook_registry import (
+from fdai.shared.providers.testing.runbook_registry import (
     InMemoryRunbookRegistry,
 )
-from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
 
 def _repo_root() -> Path:
     """Locate the repo root by walking up looking for ``rule-catalog/``."""
 
-    override = os.environ.get("AIOPSPILOT_CATALOG_ROOT")
+    override = os.environ.get("FDAI_CATALOG_ROOT")
     if override:
         candidate = Path(override)
         if not candidate.is_dir():
-            raise FileNotFoundError(f"AIOPSPILOT_CATALOG_ROOT={override!r} is not a directory")
+            raise FileNotFoundError(f"FDAI_CATALOG_ROOT={override!r} is not a directory")
         return candidate.parent
     here = Path(__file__).resolve()
     for parent in [here.parent, *here.parents]:
@@ -109,7 +109,7 @@ def _repo_root() -> Path:
     for absolute in (Path("/app"), Path.cwd()):
         if (absolute / "rule-catalog" / "catalog").is_dir():
             return absolute
-    raise FileNotFoundError("Could not locate rule-catalog/. Set AIOPSPILOT_CATALOG_ROOT.")
+    raise FileNotFoundError("Could not locate rule-catalog/. Set FDAI_CATALOG_ROOT.")
 
 
 def _load_catalogs(repo_root: Path) -> tuple[list[Rule], list[OntologyActionType]]:
@@ -304,25 +304,25 @@ def _build_inventory() -> Any:
 
     - Default: :class:`_EmptyInventory` (zero rows). CLI works without
       any Azure access.
-    - ``AIOPSPILOT_USE_AZURE_INVENTORY=1``:
+    - ``FDAI_USE_AZURE_INVENTORY=1``:
       :class:`AzureCliInventory` shells to ``az group list`` /
       ``az resource list`` using the operator's ``az login`` profile.
       Subscription defaults to whatever ``az account show`` reports;
-      override via ``AIOPSPILOT_AZURE_SUBSCRIPTION_ID``.
+      override via ``FDAI_AZURE_SUBSCRIPTION_ID``.
 
     Fail-soft: any import / construction error falls back to
     ``_EmptyInventory`` with a stderr warning so the REPL stays usable
     when the operator has not run ``az login``.
     """
-    flag = os.environ.get("AIOPSPILOT_USE_AZURE_INVENTORY", "").strip().lower()
+    flag = os.environ.get("FDAI_USE_AZURE_INVENTORY", "").strip().lower()
     if flag not in {"1", "true", "yes"}:
         return _EmptyInventory()
     try:
-        from aiopspilot.delivery.azure.dev_inventory import AzureCliInventory
+        from fdai.delivery.azure.dev_inventory import AzureCliInventory
     except ImportError as exc:  # pragma: no cover
         sys.stderr.write(f"chat: azure inventory unavailable ({exc}); using empty.\n")
         return _EmptyInventory()
-    sub = os.environ.get("AIOPSPILOT_AZURE_SUBSCRIPTION_ID") or None
+    sub = os.environ.get("FDAI_AZURE_SUBSCRIPTION_ID") or None
     return AzureCliInventory(subscription_id=sub)
 
 
@@ -333,40 +333,40 @@ def _build_narrator() -> Narrator | None:
       table). Zero external dependency, so the CLI always accepts at
       least the curated set of Korean / English phrases even without
       an LLM binding.
-    - ``LLM_MODE=azure`` + ``AIOPSPILOT_LLM_ENDPOINT=<url>``:
+    - ``LLM_MODE=azure`` + ``FDAI_LLM_ENDPOINT=<url>``:
       :class:`AzureOpenAINarratorModel` fronted by
       :class:`AzureCliWorkloadIdentity` (piggybacks on ``az login``).
       Deployment name defaults to ``t2.reasoner.primary`` (matches
       llm-registry.yaml); override via
-      ``AIOPSPILOT_LLM_NARRATOR_DEPLOYMENT``.
-    - ``AIOPSPILOT_LLM_MODE=none``: no narrator (regex-only).
+      ``FDAI_LLM_NARRATOR_DEPLOYMENT``.
+    - ``FDAI_LLM_MODE=none``: no narrator (regex-only).
 
     Fail-soft: any Azure adapter construction error falls back to the
     deterministic narrator with a warning on stderr - the CLI must
     stay usable when 'az login' has not been run.
     """
-    mode = os.environ.get("LLM_MODE") or os.environ.get("AIOPSPILOT_LLM_MODE") or "local"
+    mode = os.environ.get("LLM_MODE") or os.environ.get("FDAI_LLM_MODE") or "local"
     if mode == "none":
         return None
     if mode.lower() != "azure":
         return DeterministicKeywordNarrator()
 
-    endpoint = os.environ.get("AIOPSPILOT_LLM_ENDPOINT", "").strip()
+    endpoint = os.environ.get("FDAI_LLM_ENDPOINT", "").strip()
     if not endpoint:
         sys.stderr.write(
-            "chat: LLM_MODE=azure requires AIOPSPILOT_LLM_ENDPOINT "
-            "(e.g. https://oai-aiopspilot-dev-krc.openai.azure.com/); "
+            "chat: LLM_MODE=azure requires FDAI_LLM_ENDPOINT "
+            "(e.g. https://oai-fdai-dev-krc.openai.azure.com/); "
             "falling back to deterministic keyword narrator.\n"
         )
         return DeterministicKeywordNarrator()
-    deployment = os.environ.get("AIOPSPILOT_LLM_NARRATOR_DEPLOYMENT", "t2.reasoner.primary")
+    deployment = os.environ.get("FDAI_LLM_NARRATOR_DEPLOYMENT", "t2.reasoner.primary")
     try:
         import httpx
 
-        from aiopspilot.delivery.azure.dev_workload_identity import (
+        from fdai.delivery.azure.dev_workload_identity import (
             AzureCliWorkloadIdentity,
         )
-        from aiopspilot.delivery.azure.llm.narrator import (
+        from fdai.delivery.azure.llm.narrator import (
             AzureOpenAINarratorModel,
             AzureOpenAINarratorModelConfig,
         )
@@ -382,8 +382,8 @@ def _build_narrator() -> Narrator | None:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="aiopspilot-chat",
-        description="AIOpsPilot operator console REPL (Day 1).",
+        prog="fdai-chat",
+        description="FDAI operator console REPL (Day 1).",
     )
     parser.add_argument(
         "--role",
@@ -407,7 +407,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Override the rule-catalog root directory. "
-            "Same effect as setting AIOPSPILOT_CATALOG_ROOT."
+            "Same effect as setting FDAI_CATALOG_ROOT."
         ),
     )
     return parser
@@ -418,7 +418,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.catalog_root:
-        os.environ["AIOPSPILOT_CATALOG_ROOT"] = args.catalog_root
+        os.environ["FDAI_CATALOG_ROOT"] = args.catalog_root
 
     try:
         repo_root = _repo_root()
@@ -448,7 +448,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.json_mode:
         narrator_label = type(narrator).__name__ if narrator is not None else "regex-only"
         sys.stdout.write(
-            f"aiopspilot-chat: session={session.session_id[:8]} "
+            f"fdai-chat: session={session.session_id[:8]} "
             f"role={principal.role.value} "
             f"rules={len(rules)} action_types={len(action_types)} "
             f"narrator={narrator_label}\n"

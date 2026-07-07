@@ -8,12 +8,12 @@ from typing import Any
 import httpx
 import pytest
 
-from aiopspilot.core.conversation.narrator import default_tool_schemas
-from aiopspilot.delivery.azure.llm.narrator import (
+from fdai.core.conversation.narrator import default_tool_schemas
+from fdai.delivery.azure.llm.narrator import (
     AzureOpenAINarratorModel,
     AzureOpenAINarratorModelConfig,
 )
-from aiopspilot.shared.providers.workload_identity import IdentityToken
+from fdai.shared.providers.workload_identity import IdentityToken
 
 
 class _FakeIdentity:

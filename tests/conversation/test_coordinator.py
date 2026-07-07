@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.conversation import (
+from fdai.core.conversation import (
     AbstainResult,
     ConversationCoordinator,
     ConversationSession,
@@ -145,7 +145,7 @@ def test_coordinator_rbac_gate_denies_below_floor():
 
     from typing import Any
 
-    from aiopspilot.core.conversation.tools import ToolResult as _ToolResult
+    from fdai.core.conversation.tools import ToolResult as _ToolResult
 
     class _ApproverOnlyTool:
         name = "explore_catalog"

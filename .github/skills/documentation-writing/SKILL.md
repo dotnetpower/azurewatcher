@@ -1,7 +1,7 @@
 ---
 name: documentation-writing
 description: |
-  Comprehensive guide for writing AIOpsPilot documentation with the tone,
+  Comprehensive guide for writing FDAI documentation with the tone,
   structure, and terminology of Microsoft Learn (learn.microsoft.com). Use
   this skill when authoring, reviewing, or correcting any tracked markdown
   file in the repository. Complements
@@ -13,7 +13,7 @@ version: 1.0.0
 scope: repository
 ---
 
-# Documentation Writing (AIOpsPilot)
+# Documentation Writing (FDAI)
 
 This skill is the long-form authoring guide for every markdown doc in the
 repo. It defines the doc tiers, structural patterns, Microsoft-Learn-inspired
@@ -125,10 +125,10 @@ to do Y" (second person, reader-directed) wherever a reader is the audience.
 
 | Third-person | Reader-directed |
 |--------------|-----------------|
-| `The trust router computes a confidence and routes the event.` | `AIOpsPilot picks the lowest tier that can decide the event.` |
+| `The trust router computes a confidence and routes the event.` | `FDAI picks the lowest tier that can decide the event.` |
 | `Every event flows through a trust router.` | `You send an event, and the trust router picks the right tier.` |
 | `The core sits behind provider adapters.` | `Azure calls go through provider adapters so you can swap the cloud later without a rewrite.` |
-| `AIOpsPilot resolves the repeatable majority.` | `AIOpsPilot helps you resolve the repeatable majority of events with rules, and reserves LLM inference for the ambiguous minority.` |
+| `FDAI resolves the repeatable majority.` | `FDAI helps you resolve the repeatable majority of events with rules, and reserves LLM inference for the ambiguous minority.` |
 
 ### 3. Hard-line phrases
 
@@ -173,7 +173,7 @@ files are exempt.
   clause-stacked sentence.
 - When contrasting, use "In contrast," or "By comparison,", not " - ".
 - When introducing a list, use a full lead-in sentence ending in a colon:
-  `Common uses of AIOpsPilot include:`.
+  `Common uses of FDAI include:`.
 
 ### 6. Korean-side tone (KO docs)
 
@@ -259,7 +259,7 @@ Before merging a PR that touches a `.md` file:
   [../../../docs/roadmap/README.md](../../../docs/roadmap/README.md).
 - Tier B canonical: any of the numbered reference docs 1-18 under
   [../../../docs/roadmap/](../../../docs/roadmap/README.md).
-- Tier C canonical: [../../../src/aiopspilot/core/README.md](../../../src/aiopspilot/core/README.md).
+- Tier C canonical: [../../../src/fdai/core/README.md](../../../src/fdai/core/README.md).
 - Tone reference: paired Microsoft Learn overview pages (Container Apps,
   AKS, Azure Monitor, Managed Identities, WAF Reliability) at
   [learn.microsoft.com](https://learn.microsoft.com/).

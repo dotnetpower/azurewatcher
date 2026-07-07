@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from aiopspilot.core.verticals.resilience import (
+from fdai.core.verticals.resilience import (
     DrExperiment,
     DrObjective,
     DrObjectiveReport,

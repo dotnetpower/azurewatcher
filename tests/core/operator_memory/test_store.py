@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`aiopspilot.core.operator_memory.store`."""
+"""Unit tests for :mod:`fdai.core.operator_memory.store`."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from aiopspilot.core.operator_memory import (
+from fdai.core.operator_memory import (
     InjectionMarkerError,
     InMemoryOperatorMemoryStore,
     MemoryCategory,

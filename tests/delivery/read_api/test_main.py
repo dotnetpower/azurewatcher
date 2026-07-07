@@ -1,4 +1,4 @@
-"""Tests for :mod:`aiopspilot.delivery.read_api.main`.
+"""Tests for :mod:`fdai.delivery.read_api.main`.
 
 Exercises the Starlette app through :class:`starlette.testclient.TestClient`.
 No live network; no live Postgres. The in-memory fake
@@ -27,21 +27,21 @@ import pytest
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
-from aiopspilot.core.rbac.enforcer import RoleEnforcer
-from aiopspilot.core.rbac.resolver import GroupMapping, RoleResolver
-from aiopspilot.delivery.read_api.auth import (
+from fdai.core.rbac.enforcer import RoleEnforcer
+from fdai.core.rbac.resolver import GroupMapping, RoleResolver
+from fdai.delivery.read_api.auth import (
     AuthenticationError,
     Authenticator,
     build_authenticator,
 )
-from aiopspilot.delivery.read_api.main import ReadApiConfig, build_app
-from aiopspilot.delivery.read_api.panels import ExampleFinOpsPanel
-from aiopspilot.delivery.read_api.read_model import (
+from fdai.delivery.read_api.main import ReadApiConfig, build_app
+from fdai.delivery.read_api.panels import ExampleFinOpsPanel
+from fdai.delivery.read_api.read_model import (
     HilQueueItem,
     InMemoryConsoleReadModel,
 )
 
-_DEV_MODE_ENV = "AIOPSPILOT_READ_API_DEV_MODE"
+_DEV_MODE_ENV = "FDAI_READ_API_DEV_MODE"
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +93,7 @@ def _build_stack(
     else:
         # Prod-shape verifier fake: decodes forged claims (already used in
         # test_auth.py); real fork wires JWKS-backed verification.
-        from aiopspilot.delivery.read_api.auth import UnsafeClaimsExtractor
+        from fdai.delivery.read_api.auth import UnsafeClaimsExtractor
 
         verifier = UnsafeClaimsExtractor()
     authenticator = build_authenticator(verifier=verifier, resolver=resolver)
@@ -589,7 +589,7 @@ class TestExtensionPanels:
     def test_panel_requires_reader_role(self, no_dev_env: None) -> None:
         del no_dev_env
         resolver = RoleResolver(group_mapping=_mapping())
-        from aiopspilot.delivery.read_api.auth import UnsafeClaimsExtractor
+        from fdai.delivery.read_api.auth import UnsafeClaimsExtractor
 
         authenticator = build_authenticator(verifier=UnsafeClaimsExtractor(), resolver=resolver)
         app = build_app(

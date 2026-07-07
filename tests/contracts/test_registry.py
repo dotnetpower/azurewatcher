@@ -13,7 +13,7 @@ from typing import cast
 
 import pytest
 
-from aiopspilot.shared.contracts.registry import (
+from fdai.shared.contracts.registry import (
     PackageResourceSchemaRegistry,
     SchemaNotFoundError,
     SchemaRegistry,
@@ -76,8 +76,8 @@ def test_registry_names_covers_expected_set(
 
 def test_default_container_wires_the_upstream_seam(app_config: object) -> None:
     """The composition root MUST bind the upstream default when handed a valid config."""
-    from aiopspilot.composition import default_container
-    from aiopspilot.shared.config import AppConfig
+    from fdai.composition import default_container
+    from fdai.shared.config import AppConfig
 
     assert isinstance(app_config, AppConfig)
     container = default_container(app_config)

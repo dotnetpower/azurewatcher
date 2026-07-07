@@ -1,6 +1,6 @@
 # Rule Authoring Guide
 
-How to author a new rule for the AIOpsPilot catalog. This guide is the
+How to author a new rule for the FDAI catalog. This guide is the
 canonical procedure every rule PR MUST follow - hand-authored, generated,
 or LLM-proposed. The T0 pipeline runs entirely **LLM-free**: rules produce
 verdicts through OPA/Rego evaluation, so a well-authored rule turns a
@@ -50,7 +50,7 @@ half-finished rule always fails a specific test, never leaks into runtime.
 
 ### 3. Write the Rego policy
 
-- Package name convention: `aiopspilot.<snake_dir>.<file_stem>` so the
+- Package name convention: `fdai.<snake_dir>.<file_stem>` so the
   package path uniquely maps to the file.
 - Use `default deny := false` and one or more `deny if { ... }` rules.
 - Read observed props from `input.resource.props.<field>`; the T0 engine
@@ -73,7 +73,7 @@ Minimum shape:
 #   rule_id: <matches the YAML id>
 #   severity: high
 #   category: security
-package aiopspilot.<snake_dir>.<file_stem>
+package fdai.<snake_dir>.<file_stem>
 
 import rego.v1
 

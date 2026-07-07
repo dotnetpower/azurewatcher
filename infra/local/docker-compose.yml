@@ -2,26 +2,26 @@
 #
 # Ports are bound to 127.0.0.1 only so a laptop on a hostile network does
 # NOT expose the dev cluster. If you need to reach the cluster from a
-# container network in another compose file, join the `aiopspilot-local`
+# container network in another compose file, join the `fdai-local`
 # external network there.
 
-name: aiopspilot-local
+name: fdai-local
 
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: aiopspilot-postgres
+    container_name: fdai-postgres
     environment:
-      POSTGRES_USER: aiopspilot
+      POSTGRES_USER: fdai
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devonly}
-      POSTGRES_DB: aiopspilot
+      POSTGRES_DB: fdai
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./init-pgvector.sql:/docker-entrypoint-initdb.d/00-vector.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aiopspilot -d aiopspilot"]
+      test: ["CMD-SHELL", "pg_isready -U fdai -d fdai"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -30,7 +30,7 @@ services:
 
   redpanda:
     image: redpandadata/redpanda:latest
-    container_name: aiopspilot-redpanda
+    container_name: fdai-redpanda
     # Single-node dev mode. Dual Kafka listener:
     #   internal (29092): reachable from the compose network at redpanda:29092
     #   external (19092): reachable from the host at localhost:19092
@@ -63,10 +63,10 @@ services:
 
 volumes:
   pgdata:
-    name: aiopspilot-pgdata
+    name: fdai-pgdata
   redpandadata:
-    name: aiopspilot-redpandadata
+    name: fdai-redpandadata
 
 networks:
   default:
-    name: aiopspilot-local
+    name: fdai-local

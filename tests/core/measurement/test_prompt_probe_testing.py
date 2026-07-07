@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`aiopspilot.core.measurement.prompt_probe_testing`."""
+"""Unit tests for :mod:`fdai.core.measurement.prompt_probe_testing`."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ import json
 
 import pytest
 
-from aiopspilot.core.measurement.prompt_probe_testing import (
+from fdai.core.measurement.prompt_probe_testing import (
     AbstainResponder,
     RecordingResponder,
 )
-from aiopspilot.core.prompts.types import ComposedPrompt, LayerRef, PromptLayer
+from fdai.core.prompts.types import ComposedPrompt, LayerRef, PromptLayer
 
 
 def _composed(system_text: str = "sys") -> ComposedPrompt:

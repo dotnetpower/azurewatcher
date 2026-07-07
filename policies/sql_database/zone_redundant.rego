@@ -6,7 +6,7 @@
 #   rule_id: sql-database.zone-redundant
 #   severity: high
 #   category: reliability
-package aiopspilot.sql_database.zone_redundant
+package fdai.sql_database.zone_redundant
 
 import rego.v1
 

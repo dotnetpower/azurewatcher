@@ -20,7 +20,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from aiopspilot.rule_catalog.schema.exemption import (
+from fdai.rule_catalog.schema.exemption import (
     Exemption,
     ExemptionError,
     ExemptionState,

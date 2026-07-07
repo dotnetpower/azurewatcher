@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://aiopspilot.dev/schemas/rule-catalog/prompt/1.0.0",
+  "$id": "https://fdai.dev/schemas/rule-catalog/prompt/1.0.0",
   "title": "Prompt Artifact",
   "description": "One layer of the composable T2 prompt. Base and pack layers are catalog-as-code; runtime layers (domain context, operator memory, agent transcript) are data and are not authored as prompt artifacts. See docs/roadmap/prompt-composition.md for the full layer catalog and role x layer matrix.",
   "type": "object",

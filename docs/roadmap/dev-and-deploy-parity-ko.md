@@ -1,13 +1,13 @@
 ---
 title: Dev/Deploy Parity - 로컬 Fake vs Azure-First 프로비저닝
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: abaa856d45ea639e726088d97858f36bde2c4b34
+translation_source_sha: cb50c1473801f91ddc5bf7de6cb4c52800cfa92b
 translation_revised: 2026-07-07
 ---
 
 # Dev/Deploy Parity - 로컬 Fake vs Azure-First 프로비저닝
 
-**목표**: AIOpsPilot의 모든 기능이 **개발자 랩탑에서 Azure 리소스 하나 없이 종단으로
+**목표**: FDAI의 모든 기능이 **개발자 랩탑에서 Azure 리소스 하나 없이 종단으로
 동작**해야 하고, 동시에 Azure에 배포하면 **배포자의 Azure 권한과 리전 카탈로그가 어떤 LLM
 (기타 리소스 포함) 이 프로비저닝될지를 결정**해야 한다. 두 명제가 동시에 참이어야 함:
 
@@ -141,7 +141,7 @@ resolver 재실행 시 동일 매핑 산출 (idempotent).
 
 ### W-A: LLM용 Config schema + dev-mode 플래그 ✅  *(baseline, 배포)*
 
-- `src/aiopspilot/shared/config/schema.json` + `models.py` 에 `LlmConfig` 추가:
+- `src/fdai/shared/config/schema.json` + `models.py` 에 `LlmConfig` 추가:
   - `mode`: `local-fake` | `azure` (`runtime.env == "dev"` 일 때 default `local-fake`).
   - `resolved_models_path`: 옵셔널 KV secret 이름 또는 파일시스템 경로.
   - `capabilities`: capability 이름 리스트 (`t1.embedding`, `t1.judge`,
@@ -153,13 +153,13 @@ resolver 재실행 시 동일 매핑 산출 (idempotent).
 
 - 신규 파일: 업스트림 기본값 있는 `rule-catalog/llm-registry.yaml` (mini → Opus tier).
 - JSON Schema: `rule-catalog/schema/llm-registry.schema.json`.
-- Python 로더: `aiopspilot.rule_catalog.schema.llm_registry` - 다른 곳에서 쓰는 aggregating
+- Python 로더: `fdai.rule_catalog.schema.llm_registry` - 다른 곳에서 쓰는 aggregating
   fail-close 패턴 사용 (`exemption.py` 참고).
 - 테스트: schema 검증, mixed-model 불변식 체크.
 
 ### W-C: Bootstrap resolver CLI ✅ *(배포자-스코프, 배포)*
 
-- 신규: `src/aiopspilot/rule_catalog/schema/llm_resolver_cli.py`.
+- 신규: `src/fdai/rule_catalog/schema/llm_resolver_cli.py`.
 - 입력: `--registry`, `--region`, `--subscription-id`, `--dry-run`, `--out`.
 - `DefaultAzureCredential` 사용 (배포자의 캐시된 CLI 자격).
 - 조회:
@@ -185,9 +185,9 @@ resolver 재실행 시 동일 매핑 산출 (idempotent).
 
 ### W-E: Azure OpenAI 어댑터 클래스 ✅ *(delivery, 배포)*
 
-- `src/aiopspilot/delivery/azure/llm/embeddings.py` - `EmbeddingModel` 을 구현하는
+- `src/fdai/delivery/azure/llm/embeddings.py` - `EmbeddingModel` 을 구현하는
   `AzureOpenAIEmbeddingModel`, `openai.AzureOpenAI` (async 클라이언트) + `DefaultAzureCredential`.
-- `src/aiopspilot/delivery/azure/llm/cross_check.py` - `CrossCheckModel` 구현
+- `src/fdai/delivery/azure/llm/cross_check.py` - `CrossCheckModel` 구현
   `AzureOpenAICrossCheckModel`.
 - 타임아웃, retry-after honouring, structured output (`response_format={"type":"json_schema"}`)
   - [llm-strategy.md § Provider Abstraction](llm-strategy-ko.md#provider-abstraction) 참조.

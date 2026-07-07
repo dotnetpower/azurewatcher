@@ -4,15 +4,15 @@
 # fork MUST replace every `<slot>` value with its tenant's real Entra
 # security-group objectId before deploying. Missing or blank slots cause
 # a fail-fast startup error (see
-# `src/aiopspilot/core/rbac/resolver.py::GroupMapping.from_config`).
+# `src/fdai/core/rbac/resolver.py::GroupMapping.from_config`).
 #
 # Env-var overrides (any one slot may be overridden without editing YAML):
 #
-#     AIOPSPILOT_RBAC_READERS_GROUP_ID
-#     AIOPSPILOT_RBAC_CONTRIBUTORS_GROUP_ID
-#     AIOPSPILOT_RBAC_APPROVERS_GROUP_ID
-#     AIOPSPILOT_RBAC_OWNERS_GROUP_ID
-#     AIOPSPILOT_RBAC_BREAK_GLASS_GROUP_ID
+#     FDAI_RBAC_READERS_GROUP_ID
+#     FDAI_RBAC_CONTRIBUTORS_GROUP_ID
+#     FDAI_RBAC_APPROVERS_GROUP_ID
+#     FDAI_RBAC_OWNERS_GROUP_ID
+#     FDAI_RBAC_BREAK_GLASS_GROUP_ID
 #
 # Design authority: docs/roadmap/user-rbac-and-identity.md § 4.2 Security
 # Groups (slots). Placeholder policy: generic-scope.instructions.md

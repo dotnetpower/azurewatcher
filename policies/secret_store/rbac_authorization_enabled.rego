@@ -8,7 +8,7 @@
 #   rule_id: secret-store.rbac-authorization.enabled
 #   severity: high
 #   category: security
-package aiopspilot.secret_store.rbac_authorization_enabled
+package fdai.secret_store.rbac_authorization_enabled
 
 import rego.v1
 

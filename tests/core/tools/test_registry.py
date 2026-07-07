@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`aiopspilot.core.tools.registry`.
+"""Unit tests for :mod:`fdai.core.tools.registry`.
 
 Every case builds a bespoke catalog in a tmp path so the tests are
 hermetic. A small integration case at the end confirms the shipped
@@ -15,8 +15,8 @@ from textwrap import dedent
 import pytest
 import yaml
 
-from aiopspilot.core.prompts.types import PromptMode
-from aiopspilot.core.tools import (
+from fdai.core.prompts.types import PromptMode
+from fdai.core.tools import (
     FileSystemToolRegistry,
     ToolRegistryError,
 )

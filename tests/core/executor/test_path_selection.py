@@ -19,12 +19,12 @@ from itertools import product
 
 import pytest
 
-from aiopspilot.core.executor import (
+from fdai.core.executor import (
     ExecutionPathSelectionError,
     is_strictly_stricter_than,
     strictest_execution_path,
 )
-from aiopspilot.shared.contracts.models import ExecutionPath
+from fdai.shared.contracts.models import ExecutionPath
 
 _PATHS: tuple[ExecutionPath, ...] = (
     ExecutionPath.DIRECT_API,

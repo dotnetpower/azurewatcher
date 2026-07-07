@@ -5,17 +5,17 @@ import { remarkStripFirstH1 } from "./src/plugins/strip-first-h1.mjs";
 import { remarkMermaid } from "./src/plugins/mermaid.mjs";
 import { remarkRewriteLinks } from "./src/plugins/rewrite-links.mjs";
 
-// GitHub Pages project page: https://dotnetpower.github.io/aiopspilot/
+// GitHub Pages project page: https://dotnetpower.github.io/fdai/
 // Overridable at build time via SITE_URL / BASE_PATH env vars so a fork can
 // deploy under a different owner or path without editing this file.
 //
 // Base path defaults by environment:
 //   - astro dev  (NODE_ENV=development) -> "/"          so localhost:4321/roadmap/ works
-//   - astro build (NODE_ENV=production) -> "/aiopspilot" (GitHub Pages project page)
+//   - astro build (NODE_ENV=production) -> "/fdai" (GitHub Pages project page)
 // An explicit BASE_PATH env always wins, so CI can override either way.
 const SITE_URL = process.env.SITE_URL ?? "https://dotnetpower.github.io";
 const IS_PROD = process.env.NODE_ENV === "production";
-const BASE_PATH = process.env.BASE_PATH ?? (IS_PROD ? "/aiopspilot" : "/");
+const BASE_PATH = process.env.BASE_PATH ?? (IS_PROD ? "/fdai" : "/");
 
 export default defineConfig({
   site: SITE_URL,
@@ -39,7 +39,7 @@ export default defineConfig({
   },
   integrations: [
     starlight({
-      title: "AIOpsPilot",
+      title: "FDAI",
       description:
         "Autonomous cloud operations control plane - deterministic-first, event-driven, risk-gated.",
       // Browser language detection is Starlight's default behaviour when

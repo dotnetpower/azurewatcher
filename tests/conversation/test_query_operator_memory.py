@@ -8,10 +8,10 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from aiopspilot.core.conversation import QueryOperatorMemoryTool
-from aiopspilot.core.conversation.session import Principal, Role
-from aiopspilot.core.operator_memory.store import InMemoryOperatorMemoryStore
-from aiopspilot.core.operator_memory.types import (
+from fdai.core.conversation import QueryOperatorMemoryTool
+from fdai.core.conversation.session import Principal, Role
+from fdai.core.operator_memory.store import InMemoryOperatorMemoryStore
+from fdai.core.operator_memory.types import (
     MemoryCategory,
     MemorySource,
     OperatorMemoryEntry,

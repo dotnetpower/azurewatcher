@@ -27,7 +27,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-privileged-access
     policy_dir: secret_store
     policy_stem: rbac_authorization_enabled
-    policy_package: aiopspilot.secret_store.rbac_authorization_enabled
+    policy_package: fdai.secret_store.rbac_authorization_enabled
     policy_title: Require RBAC authorization on secret-store
     policy_description: |
       A secret-store MUST use RBAC authorization; legacy access-policies
@@ -60,7 +60,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-backup-and-recovery
     policy_dir: secret_store
     policy_stem: soft_delete_enabled
-    policy_package: aiopspilot.secret_store.soft_delete_enabled
+    policy_package: fdai.secret_store.soft_delete_enabled
     policy_title: Require soft-delete on secret-store
     policy_description: |
       A secret-store MUST have soft-delete enabled so a purge is
@@ -92,7 +92,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-backup-and-recovery
     policy_dir: secret_store
     policy_stem: purge_protection_enabled
-    policy_package: aiopspilot.secret_store.purge_protection_enabled
+    policy_package: fdai.secret_store.purge_protection_enabled
     policy_title: Require purge protection on secret-store
     policy_description: |
       A secret-store MUST have purge protection enabled so a soft-deleted
@@ -126,7 +126,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-identity-management
     policy_dir: compute
     policy_stem: vm_managed_identity_assigned
-    policy_package: aiopspilot.compute.vm_managed_identity_assigned
+    policy_package: fdai.compute.vm_managed_identity_assigned
     policy_title: Require a managed-identity on compute.vm
     policy_description: |
       A compute.vm MUST have a system- or user-assigned managed-identity
@@ -161,7 +161,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-identity-management
     policy_dir: object_storage
     policy_stem: shared_key_access_disabled
-    policy_package: aiopspilot.object_storage.shared_key_access_disabled
+    policy_package: fdai.object_storage.shared_key_access_disabled
     policy_title: Disallow shared-key access on object-storage
     policy_description: |
       An object-storage account MUST NOT accept shared-key auth; every
@@ -194,7 +194,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-data-protection
     policy_dir: object_storage
     policy_stem: encryption_at_rest_required
-    policy_package: aiopspilot.object_storage.encryption_at_rest_required
+    policy_package: fdai.object_storage.encryption_at_rest_required
     policy_title: Require infrastructure encryption on object-storage
     policy_description: |
       An object-storage account MUST have infrastructure encryption
@@ -227,7 +227,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-data-protection
     policy_dir: object_storage
     policy_stem: https_only_required
-    policy_package: aiopspilot.object_storage.https_only_required
+    policy_package: fdai.object_storage.https_only_required
     policy_title: Require HTTPS-only traffic on object-storage
     policy_description: |
       An object-storage account MUST reject HTTP; plaintext traffic to
@@ -261,7 +261,7 @@ rules:
       min_tls_version: "TLS1_2"
     policy_dir: object_storage
     policy_stem: min_tls_version
-    policy_package: aiopspilot.object_storage.min_tls_version
+    policy_package: fdai.object_storage.min_tls_version
     policy_title: Require min TLS 1.2 on object-storage
     policy_description: |
       An object-storage account MUST require TLS 1.2 or higher; older
@@ -298,7 +298,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-logging-threat-detection
     policy_dir: sql_database
     policy_stem: audit_enabled
-    policy_package: aiopspilot.sql_database.audit_enabled
+    policy_package: fdai.sql_database.audit_enabled
     policy_title: Require auditing on sql-database
     policy_description: |
       A sql-database MUST have auditing enabled routing to a log-workspace
@@ -337,7 +337,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-data-protection
     policy_dir: postgresql
     policy_stem: ssl_enforcement
-    policy_package: aiopspilot.postgresql.ssl_enforcement
+    policy_package: fdai.postgresql.ssl_enforcement
     policy_title: Require SSL enforcement on postgresql-server
     policy_description: |
       A postgresql-server MUST enforce SSL; unencrypted client traffic
@@ -376,7 +376,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-network-security
     policy_dir: network
     policy_stem: nsg_no_inbound_any_ssh
-    policy_package: aiopspilot.network.nsg_no_inbound_any_ssh
+    policy_package: fdai.network.nsg_no_inbound_any_ssh
     policy_title: Disallow any-source inbound SSH on network.nsg
     policy_description: |
       A network.nsg MUST NOT allow inbound TCP/22 from any source. Public
@@ -422,7 +422,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-network-security
     policy_dir: network
     policy_stem: nsg_no_inbound_any_rdp
-    policy_package: aiopspilot.network.nsg_no_inbound_any_rdp
+    policy_package: fdai.network.nsg_no_inbound_any_rdp
     policy_title: Disallow any-source inbound RDP on network.nsg
     policy_description: |
       A network.nsg MUST NOT allow inbound TCP/3389 from any source.
@@ -467,7 +467,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-network-security
     policy_dir: object_storage
     policy_stem: private_endpoint_required
-    policy_package: aiopspilot.object_storage.private_endpoint_required
+    policy_package: fdai.object_storage.private_endpoint_required
     policy_title: Require a private-endpoint on object-storage
     policy_description: |
       An object-storage account holding data MUST be reachable only
@@ -505,7 +505,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-network-security
     policy_dir: network
     policy_stem: vnet_ddos_plan_required
-    policy_package: aiopspilot.network.vnet_ddos_plan_required
+    policy_package: fdai.network.vnet_ddos_plan_required
     policy_title: Require a DDoS protection plan on network.vnet
     policy_description: |
       A network.vnet holding internet-exposed workloads MUST be attached
@@ -540,7 +540,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
     policy_dir: network
     policy_stem: public_ip_orphan
-    policy_package: aiopspilot.network.public_ip_orphan
+    policy_package: fdai.network.public_ip_orphan
     policy_title: Remove orphaned network.public-ip
     policy_description: |
       A network.public-ip that is not associated to any resource is
@@ -572,7 +572,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/backup-recovery
     policy_dir: sql_database
     policy_stem: geo_redundant_backup
-    policy_package: aiopspilot.sql_database.geo_redundant_backup
+    policy_package: fdai.sql_database.geo_redundant_backup
     policy_title: Require geo-redundant backup on sql-database
     policy_description: |
       A sql-database that stores customer-facing data MUST use
@@ -607,7 +607,7 @@ rules:
       min_retention_days: 7
     policy_dir: postgresql
     policy_stem: point_in_time_restore
-    policy_package: aiopspilot.postgresql.point_in_time_restore
+    policy_package: fdai.postgresql.point_in_time_restore
     policy_title: Require adequate PITR window on postgresql-server
     policy_description: |
       A postgresql-server MUST retain at least the operator-configured
@@ -646,7 +646,7 @@ rules:
       retention_days: 14
     policy_dir: object_storage
     policy_stem: blob_soft_delete
-    policy_package: aiopspilot.object_storage.blob_soft_delete
+    policy_package: fdai.object_storage.blob_soft_delete
     policy_title: Require blob soft-delete on object-storage
     policy_description: |
       An object-storage account MUST have blob soft-delete enabled so
@@ -682,7 +682,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/storage/blobs/versioning-overview
     policy_dir: object_storage
     policy_stem: blob_versioning
-    policy_package: aiopspilot.object_storage.blob_versioning
+    policy_package: fdai.object_storage.blob_versioning
     policy_title: Require blob versioning on object-storage
     policy_description: |
       An object-storage account MUST have blob versioning enabled so
@@ -716,7 +716,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/backup-recovery
     policy_dir: disk
     policy_stem: snapshot_policy_required
-    policy_package: aiopspilot.disk.snapshot_policy_required
+    policy_package: fdai.disk.snapshot_policy_required
     policy_title: Require a snapshot policy on disk
     policy_description: |
       A disk holding stateful data MUST be enrolled in a snapshot
@@ -751,7 +751,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/redundancy
     policy_dir: compute
     policy_stem: vmss_zone_redundancy
-    policy_package: aiopspilot.compute.vmss_zone_redundancy
+    policy_package: fdai.compute.vmss_zone_redundancy
     policy_title: Require zone redundancy on compute.vm-scale-set
     policy_description: |
       A compute.vm-scale-set MUST span at least two availability zones
@@ -783,7 +783,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/redundancy
     policy_dir: kubernetes
     policy_stem: node_pool_multi_zone
-    policy_package: aiopspilot.kubernetes.node_pool_multi_zone
+    policy_package: fdai.kubernetes.node_pool_multi_zone
     policy_title: Require multi-zone kubernetes-node-pool
     policy_description: |
       A kubernetes-node-pool MUST span at least two availability zones
@@ -815,7 +815,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/redundancy
     policy_dir: postgresql
     policy_stem: high_availability
-    policy_package: aiopspilot.postgresql.high_availability
+    policy_package: fdai.postgresql.high_availability
     policy_title: Require zone-redundant HA on postgresql-server
     policy_description: |
       A postgresql-server MUST run in zone-redundant HA mode to survive
@@ -849,7 +849,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/redundancy
     policy_dir: sql_database
     policy_stem: zone_redundant
-    policy_package: aiopspilot.sql_database.zone_redundant
+    policy_package: fdai.sql_database.zone_redundant
     policy_title: Require zone-redundant sql-database
     policy_description: |
       A sql-database MUST run in a zone-redundant configuration.
@@ -880,7 +880,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/well-architected/reliability/redundancy
     policy_dir: cache
     policy_stem: zone_redundant
-    policy_package: aiopspilot.cache.zone_redundant
+    policy_package: fdai.cache.zone_redundant
     policy_title: Require zone-redundant cache
     policy_description: |
       A cache MUST span at least two availability zones so a zone
@@ -916,7 +916,7 @@ rules:
       network_p95_bytes: 1024
     policy_dir: compute
     policy_stem: vm_idle_detected
-    policy_package: aiopspilot.compute.vm_idle_detected
+    policy_package: fdai.compute.vm_idle_detected
     policy_title: Flag idle compute.vm
     policy_description: |
       A compute.vm with CPU p95 below the operator threshold AND
@@ -956,7 +956,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
     policy_dir: disk
     policy_stem: unattached
-    policy_package: aiopspilot.disk.unattached
+    policy_package: fdai.disk.unattached
     policy_title: Remove unattached disk
     policy_description: |
       A disk that is not attached to any compute resource is billed
@@ -986,7 +986,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
     policy_dir: network
     policy_stem: lb_unused_backend
-    policy_package: aiopspilot.network.lb_unused_backend
+    policy_package: fdai.network.lb_unused_backend
     policy_title: Remove load-balancer with empty backend pool
     policy_description: |
       A load-balancer whose backend pool is empty routes to nothing;
@@ -1016,7 +1016,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/advisor/advisor-cost-recommendations
     policy_dir: network
     policy_stem: public_ip_unassociated
-    policy_package: aiopspilot.network.public_ip_unassociated
+    policy_package: fdai.network.public_ip_unassociated
     policy_title: Remove unassociated Standard public IP
     policy_description: |
       A Standard-tier public IP that is not associated to any resource
@@ -1049,7 +1049,7 @@ rules:
       max_retention_days: 90
     policy_dir: log_workspace
     policy_stem: retention_excessive
-    policy_package: aiopspilot.log_workspace.retention_excessive
+    policy_package: fdai.log_workspace.retention_excessive
     policy_title: Cap retention on log-workspace
     policy_description: |
       A log-workspace MUST NOT retain data beyond the operator-configured
@@ -1089,7 +1089,7 @@ rules:
       memory_p95_threshold: 30
     policy_dir: compute
     policy_stem: vm_low_utilization
-    policy_package: aiopspilot.compute.vm_low_utilization
+    policy_package: fdai.compute.vm_low_utilization
     policy_title: Right-size low-utilisation compute.vm
     policy_description: |
       A compute.vm running well below CPU and memory thresholds is a
@@ -1135,7 +1135,7 @@ rules:
       min_headroom_nodes: 2
     policy_dir: kubernetes
     policy_stem: node_pool_oversized
-    policy_package: aiopspilot.kubernetes.node_pool_oversized
+    policy_package: fdai.kubernetes.node_pool_oversized
     policy_title: Right-size oversized kubernetes-node-pool
     policy_description: |
       A kubernetes-node-pool running well below CPU threshold with more
@@ -1179,7 +1179,7 @@ rules:
       dtu_p95_threshold: 20
     policy_dir: sql_database
     policy_stem: tier_overprovisioned
-    policy_package: aiopspilot.sql_database.tier_overprovisioned
+    policy_package: fdai.sql_database.tier_overprovisioned
     policy_title: Right-size over-provisioned sql-database
     policy_description: |
       A sql-database whose DTU/vCore p95 sits below the operator
@@ -1217,7 +1217,7 @@ rules:
       cpu_p95_threshold: 20
     policy_dir: postgresql
     policy_stem: tier_overprovisioned
-    policy_package: aiopspilot.postgresql.tier_overprovisioned
+    policy_package: fdai.postgresql.tier_overprovisioned
     policy_title: Right-size over-provisioned postgresql-server
     policy_description: |
       A postgresql-server whose CPU p95 sits below the operator
@@ -1256,7 +1256,7 @@ rules:
       min_hit_rate: 0.99
     policy_dir: cache
     policy_stem: tier_overprovisioned
-    policy_package: aiopspilot.cache.tier_overprovisioned
+    policy_package: fdai.cache.tier_overprovisioned
     policy_title: Right-size over-provisioned cache
     policy_description: |
       A cache with high hit-rate AND low server load p95 is a candidate
@@ -1299,7 +1299,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/well-architected/operational-excellence/observability
     policy_dir: object_storage
     policy_stem: diagnostic_settings_required
-    policy_package: aiopspilot.object_storage.diagnostic_settings_required
+    policy_package: fdai.object_storage.diagnostic_settings_required
     policy_title: Require diagnostic-settings on object-storage
     policy_description: |
       An object-storage account MUST route storage/blob logs to a
@@ -1343,7 +1343,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/well-architected/operational-excellence/observability
     policy_dir: kubernetes
     policy_stem: diagnostic_settings_required
-    policy_package: aiopspilot.kubernetes.diagnostic_settings_required
+    policy_package: fdai.kubernetes.diagnostic_settings_required
     policy_title: Require diagnostic-settings on kubernetes-cluster
     policy_description: |
       A kubernetes-cluster MUST route audit and controller-manager
@@ -1384,7 +1384,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/well-architected/operational-excellence/observability
     policy_dir: sql_database
     policy_stem: diagnostic_settings_required
-    policy_package: aiopspilot.sql_database.diagnostic_settings_required
+    policy_package: fdai.sql_database.diagnostic_settings_required
     policy_title: Require diagnostic-settings on sql-database
     policy_description: |
       A sql-database MUST route audit and metric logs to a
@@ -1425,7 +1425,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/well-architected/operational-excellence/observability
     policy_dir: postgresql
     policy_stem: diagnostic_settings_required
-    policy_package: aiopspilot.postgresql.diagnostic_settings_required
+    policy_package: fdai.postgresql.diagnostic_settings_required
     policy_title: Require diagnostic-settings on postgresql-server
     policy_description: |
       A postgresql-server MUST route log-plane events to a log-workspace.
@@ -1462,7 +1462,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-logging-threat-detection
     policy_dir: secret_store
     policy_stem: diagnostic_settings_required
-    policy_package: aiopspilot.secret_store.diagnostic_settings_required
+    policy_package: fdai.secret_store.diagnostic_settings_required
     policy_title: Require diagnostic-settings on secret-store
     policy_description: |
       A secret-store MUST route AuditEvent logs to a log-workspace so
@@ -1504,7 +1504,7 @@ rules:
     provenance_url: https://www.cisecurity.org/benchmark/azure
     policy_dir: resource_group
     policy_stem: owner_tag_required
-    policy_package: aiopspilot.resource_group.owner_tag_required
+    policy_package: fdai.resource_group.owner_tag_required
     policy_title: Owner tag required on resource-group
     policy_description: |
       Every resource-group MUST carry an `owner` tag so ownership is
@@ -1548,7 +1548,7 @@ rules:
     provenance_url: https://www.cisecurity.org/benchmark/azure
     policy_dir: resource_group
     policy_stem: cost_center_tag_required
-    policy_package: aiopspilot.resource_group.cost_center_tag_required
+    policy_package: fdai.resource_group.cost_center_tag_required
     policy_title: Cost-center tag required on resource-group
     policy_description: |
       Every resource-group MUST carry a `cost_center` tag so spend is
@@ -1592,7 +1592,7 @@ rules:
     provenance_url: https://www.cisecurity.org/benchmark/azure
     policy_dir: resource_group
     policy_stem: environment_tag_required
-    policy_package: aiopspilot.resource_group.environment_tag_required
+    policy_package: fdai.resource_group.environment_tag_required
     policy_title: Environment tag required on resource-group
     policy_description: |
       Every resource-group MUST carry an `environment` tag so
@@ -1636,7 +1636,7 @@ rules:
     provenance_url: https://www.cisecurity.org/benchmark/azure
     policy_dir: object_storage
     policy_stem: cost_center_tag_required
-    policy_package: aiopspilot.object_storage.cost_center_tag_required
+    policy_package: fdai.object_storage.cost_center_tag_required
     policy_title: Cost-center tag required on object-storage
     policy_description: |
       Every object-storage account MUST carry a `cost_center` tag so
@@ -1680,7 +1680,7 @@ rules:
     provenance_url: https://www.cisecurity.org/benchmark/azure
     policy_dir: compute
     policy_stem: vm_environment_tag_required
-    policy_package: aiopspilot.compute.vm_environment_tag_required
+    policy_package: fdai.compute.vm_environment_tag_required
     policy_title: Environment tag required on compute.vm
     policy_description: |
       Every compute.vm MUST carry an `environment` tag so lifecycle
@@ -1722,7 +1722,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/architecture/reference-architectures/containers/aks/baseline-aks
     policy_dir: kubernetes
     policy_stem: rbac_enabled
-    policy_package: aiopspilot.kubernetes.rbac_enabled
+    policy_package: fdai.kubernetes.rbac_enabled
     policy_title: Require Azure RBAC on kubernetes-cluster
     policy_description: |
       A kubernetes-cluster MUST use Azure RBAC integration; kubectl
@@ -1758,7 +1758,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/architecture/reference-architectures/containers/aks/baseline-aks
     policy_dir: kubernetes
     policy_stem: network_policy_required
-    policy_package: aiopspilot.kubernetes.network_policy_required
+    policy_package: fdai.kubernetes.network_policy_required
     policy_title: Require a network policy engine on kubernetes-cluster
     policy_description: |
       A kubernetes-cluster MUST run a network-policy engine (calico or
@@ -1793,7 +1793,7 @@ rules:
     provenance_url: https://learn.microsoft.com/azure/architecture/reference-architectures/containers/aks/baseline-aks
     policy_dir: kubernetes
     policy_stem: private_cluster_required
-    policy_package: aiopspilot.kubernetes.private_cluster_required
+    policy_package: fdai.kubernetes.private_cluster_required
     policy_title: Require private API server on kubernetes-cluster
     policy_description: |
       A kubernetes-cluster serving workloads MUST have the API server
@@ -1826,7 +1826,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-data-protection
     policy_dir: postgresql
     policy_stem: encryption_at_rest
-    policy_package: aiopspilot.postgresql.encryption_at_rest
+    policy_package: fdai.postgresql.encryption_at_rest
     policy_title: Require encryption at rest on postgresql-server
     policy_description: |
       A postgresql-server MUST have encryption at rest enabled; the
@@ -1861,7 +1861,7 @@ rules:
     provenance_url: https://learn.microsoft.com/security/benchmark/azure/mcsb-network-security
     policy_dir: secret_store
     policy_stem: public_network_access_disabled
-    policy_package: aiopspilot.secret_store.public_network_access_disabled
+    policy_package: fdai.secret_store.public_network_access_disabled
     policy_title: Disallow public network access on secret-store
     policy_description: |
       A secret-store MUST NOT accept traffic from the public internet;

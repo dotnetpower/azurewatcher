@@ -7,7 +7,7 @@
 #   rule_id: postgresql-server.high-availability
 #   severity: high
 #   category: reliability
-package aiopspilot.postgresql.high_availability
+package fdai.postgresql.high_availability
 
 import rego.v1
 

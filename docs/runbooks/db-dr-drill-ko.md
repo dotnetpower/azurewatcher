@@ -1,16 +1,16 @@
 ---
 title: Deep DB-DR 복원 훈련 런북
 translation_of: db-dr-drill.md
-translation_source_sha: 272aed706ff74cacddcf7c442ef14729a766254f
+translation_source_sha: dc248a72e9840a347ad27f9d90a298cac55c61be
 translation_revised: 2026-07-07
 ---
 
 # Deep DB-DR 복원 훈련 런북
 
 Phase-3 § Deep DB-DR 훈련을 위한 운영자 런북. 배송된
-[`DbDrVerifier`](../../src/aiopspilot/core/verticals/db_dr_verifier.py)와
+[`DbDrVerifier`](../../src/fdai/core/verticals/db_dr_verifier.py)와
 Azure 어댑터
-([`AzureDbDrRestoreAdapter`](../../src/aiopspilot/delivery/azure/db_dr_restore.py))를
+([`AzureDbDrRestoreAdapter`](../../src/fdai/delivery/azure/db_dr_restore.py))를
 반복 가능한 운영 절차로 만듭니다. 훈련은 프로덕션 PostgreSQL Flexible Server에
 대해 실행되지만 프로덕션 데이터는 절대 건드리지 않습니다. 복원은 훈련이 끝나면
 자동으로 정리되는 **격리된 리소스 그룹**에 랜딩됩니다.
@@ -21,7 +21,7 @@ Azure 어댑터
 - **스키마 마이그레이션 이후**: 사용자 노출 테이블을 변경한 마이그레이션은 7일
   이내 재실행.
 - **복원 어댑터 변경 시**:
-  [`src/aiopspilot/delivery/azure/db_dr_restore.py`](../../src/aiopspilot/delivery/azure/db_dr_restore.py)
+  [`src/fdai/delivery/azure/db_dr_restore.py`](../../src/fdai/delivery/azure/db_dr_restore.py)
   아래 어떤 커밋이든 재실행 트리거.
 - **필요 시**: 인시던트 대응에서 최신 RPO/RTO 수치가 필요할 때.
 
@@ -32,7 +32,7 @@ Azure 어댑터
    의도한 복원 시점보다 오래된 `backup.earliestRestoreDate`를 반환해야 합니다.
 3. 운영자의 Azure CLI 프로파일이 배포 프로파일임 - `env -u AZURE_CONFIG_DIR`가 기본
    프로파일을 선택합니다. `az account show`가 포크에서 설정한
-   `AIOPSPILOT_EXPECTED_SUBSCRIPTION_ID`와 일치하는 서브스크립션을 반환하는지 확인합니다.
+   `FDAI_EXPECTED_SUBSCRIPTION_ID`와 일치하는 서브스크립션을 반환하는지 확인합니다.
 4. 격리 리소스 그룹 이름이 서브스크립션에서 사용 가능하고 원본 리소스 그룹과
    충돌하지 않음. 훈련 스크립트가 매 실행마다 새 이름을 생성합니다.
 
@@ -49,16 +49,16 @@ Azure 어댑터
    담은 이름을 씁니다.
 
    ```bash
-   DRILL_RG="rg-aiopspilot-dr-drill-$(date +%Y%m%d-%H%M)"
+   DRILL_RG="rg-fdai-dr-drill-$(date +%Y%m%d-%H%M)"
    az group create -n "$DRILL_RG" -l koreacentral \
-     --tags workload=aiopspilot purpose=dr-drill drill-ts=$(date +%Y-%m-%d)
+     --tags workload=fdai purpose=dr-drill drill-ts=$(date +%Y-%m-%d)
    ```
 
 3. **PITR 복원 트리거.** 타겟 서버 이름은 전역 고유 Azure 식별자이므로 이전
    훈련과 충돌하지 않도록 타임스탬프를 포함합니다.
 
    ```bash
-   SRC_ID="/subscriptions/<sub>/resourceGroups/rg-aiopspilot-dev-krc/providers/Microsoft.DBforPostgreSQL/flexibleServers/psql-aiopspilot-dev-krc"
+   SRC_ID="/subscriptions/<sub>/resourceGroups/rg-fdai-dev-krc/providers/Microsoft.DBforPostgreSQL/flexibleServers/psql-fdai-dev-krc"
    TARGET="psql-aiop-drill-$(date +%m%d%H%M)"
    az postgres flexible-server restore \
      -g "$DRILL_RG" -n "$TARGET" \
@@ -69,7 +69,7 @@ Azure 어댑터
 
 4. **서버가 `Ready` 상태가 될 때까지 폴링.** 작은 dev 데이터베이스는 보통
    15-40분 안에 복원이 끝납니다.
-   [`AzureDbDrRestoreAdapter`](../../src/aiopspilot/delivery/azure/db_dr_restore.py)는
+   [`AzureDbDrRestoreAdapter`](../../src/fdai/delivery/azure/db_dr_restore.py)는
    기본 30분 예산 내에서 LRO 엔드포인트를 폴링합니다. 운영자용 등가 명령은
    다음과 같습니다.
 
@@ -86,12 +86,12 @@ Azure 어댑터
    실패입니다.
 
    상위의
-   [`DbDrVerifier`](../../src/aiopspilot/core/verticals/db_dr_verifier.py)는
-   [`IntegrityChecker`](../../src/aiopspilot/shared/providers/db_dr.py)
+   [`DbDrVerifier`](../../src/fdai/core/verticals/db_dr_verifier.py)는
+   [`IntegrityChecker`](../../src/fdai/shared/providers/db_dr.py)
    Protocol seam을 소비합니다. 운영자용 등가 명령은 다음과 같습니다.
 
    ```bash
-   psql "host=$TARGET.postgres.database.azure.com user=<admin> dbname=aiopspilot sslmode=require" \
+   psql "host=$TARGET.postgres.database.azure.com user=<admin> dbname=fdai sslmode=require" \
      -c "SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY relname;"
    ```
 
@@ -143,4 +143,4 @@ Azure 어댑터
 
 - [phase-3-integrated-loop-ko.md § Deep DB-DR (stateful - 전용 설계)](../roadmap/phases/phase-3-integrated-loop-ko.md)
 - [security-and-identity-ko.md](../roadmap/security-and-identity-ko.md)
-- [DbDrVerifier 모듈 docstring](../../src/aiopspilot/core/verticals/db_dr_verifier.py)
+- [DbDrVerifier 모듈 docstring](../../src/fdai/core/verticals/db_dr_verifier.py)

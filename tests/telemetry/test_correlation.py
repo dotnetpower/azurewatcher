@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.shared.telemetry import current_correlation_id, with_correlation
+from fdai.shared.telemetry import current_correlation_id, with_correlation
 
 
 def test_default_is_none() -> None:

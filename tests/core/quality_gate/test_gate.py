@@ -4,20 +4,20 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.quality_gate import (
+from fdai.core.quality_gate import (
     QualityCandidate,
     QualityDecision,
     QualityGate,
     QualityGateConfig,
     QualityOutcome,
 )
-from aiopspilot.core.quality_gate.testing import (
+from fdai.core.quality_gate.testing import (
     InMemoryGroundingSource,
     MatchTypeCrossCheckModel,
     MismatchCrossCheckModel,
     StaticVerifier,
 )
-from aiopspilot.shared.contracts.models import (
+from fdai.shared.contracts.models import (
     Category,
     CheckLogic,
     CheckLogicKind,
@@ -337,7 +337,7 @@ class _StubCritic:
     """
 
     def __init__(self, stance: str = "agree") -> None:
-        from aiopspilot.core.quality_gate.critic import (
+        from fdai.core.quality_gate.critic import (
             CriticObjection,
             CriticOutput,
             CriticSeverity,
@@ -368,7 +368,7 @@ class _StubJudge:
     """Deterministic Judge stub. Default: ACCEPT (grounded)."""
 
     def __init__(self, decision: str = "accept") -> None:
-        from aiopspilot.core.quality_gate.judge import JudgeDecision, JudgeOutput
+        from fdai.core.quality_gate.judge import JudgeDecision, JudgeOutput
 
         if decision == "accept":
             self._output = JudgeOutput(
@@ -389,7 +389,7 @@ class _StubJudge:
 
 
 def _build_debate(critic_stance: str = "agree", judge_decision: str = "accept"):
-    from aiopspilot.core.quality_gate.debate import (
+    from fdai.core.quality_gate.debate import (
         DebateOrchestrator,
         DebateOrchestratorConfig,
     )
@@ -414,7 +414,7 @@ def test_gate_rejects_half_wired_debate_orchestrator_missing_router() -> None:
 
 
 def test_gate_rejects_half_wired_router_config_missing_orchestrator() -> None:
-    from aiopspilot.core.quality_gate.debate_router import DebateRouterConfig
+    from fdai.core.quality_gate.debate_router import DebateRouterConfig
 
     with pytest.raises(ValueError, match="together"):
         QualityGate(
@@ -429,7 +429,7 @@ def test_gate_rejects_half_wired_router_config_missing_orchestrator() -> None:
 
 @pytest.mark.asyncio
 async def test_debate_proceed_flips_disagreement_to_eligible() -> None:
-    from aiopspilot.core.quality_gate.debate_router import DebateRouterConfig
+    from fdai.core.quality_gate.debate_router import DebateRouterConfig
 
     gate = QualityGate(
         verifier=StaticVerifier(outcome=True),
@@ -453,7 +453,7 @@ async def test_debate_proceed_flips_disagreement_to_eligible() -> None:
 
 @pytest.mark.asyncio
 async def test_debate_abort_keeps_disagreement_outcome() -> None:
-    from aiopspilot.core.quality_gate.debate_router import DebateRouterConfig
+    from fdai.core.quality_gate.debate_router import DebateRouterConfig
 
     gate = QualityGate(
         verifier=StaticVerifier(outcome=True),
@@ -476,7 +476,7 @@ async def test_debate_router_skip_leaves_outcome_as_disagree() -> None:
     """When the router turns off debate (killswitch), disagreement
     stays DISAGREE; no orchestrator call is recorded."""
 
-    from aiopspilot.core.quality_gate.debate_router import DebateRouterConfig
+    from fdai.core.quality_gate.debate_router import DebateRouterConfig
 
     gate = QualityGate(
         verifier=StaticVerifier(outcome=True),
@@ -502,7 +502,7 @@ async def test_debate_proceed_with_other_soft_issue_still_abstains() -> None:
     the outcome MUST NOT be ELIGIBLE. The debate is one axis; every
     other check still applies."""
 
-    from aiopspilot.core.quality_gate.debate_router import DebateRouterConfig
+    from fdai.core.quality_gate.debate_router import DebateRouterConfig
 
     gate = QualityGate(
         verifier=StaticVerifier(outcome=True),
@@ -526,7 +526,7 @@ async def test_debate_proceed_with_other_soft_issue_still_abstains() -> None:
 
 @pytest.mark.asyncio
 async def test_debate_judge_escalate_hil_keeps_disagreement() -> None:
-    from aiopspilot.core.quality_gate.debate_router import DebateRouterConfig
+    from fdai.core.quality_gate.debate_router import DebateRouterConfig
 
     gate = QualityGate(
         verifier=StaticVerifier(outcome=True),

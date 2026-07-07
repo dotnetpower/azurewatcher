@@ -21,7 +21,7 @@ baseline on the same scenario-set version" is a *live-deploy* claim that
 this test does not substitute for. What it does prove is that the
 promotion + demotion state machine works on the shipped ActionType
 YAMLs, so a fork can hand it real measured metrics via a
-:class:`~aiopspilot.core.measurement.regression.RegressionDetector` and
+:class:`~fdai.core.measurement.regression.RegressionDetector` and
 get a deterministic outcome.
 """
 
@@ -31,16 +31,16 @@ from pathlib import Path
 
 import pytest
 
-from aiopspilot.core.risk_gate import (
+from fdai.core.risk_gate import (
     ActionPromotionRegistry,
     PromotionMetrics,
 )
-from aiopspilot.rule_catalog.schema.action_type import (
+from fdai.rule_catalog.schema.action_type import (
     OntologyActionType,
     load_action_type_catalog,
 )
-from aiopspilot.shared.contracts.models import Mode
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.shared.contracts.models import Mode
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ACTION_TYPES_ROOT = REPO_ROOT / "rule-catalog" / "action-types"

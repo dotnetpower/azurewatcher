@@ -26,7 +26,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from aiopspilot.core.verticals.resilience import (
+from fdai.core.verticals.resilience import (
     DrExperiment,
     DrScheduler,
     DrSchedulerConfig,
@@ -35,8 +35,8 @@ from aiopspilot.core.verticals.resilience import (
     RunOutcome,
     SchedulerOutcome,
 )
-from aiopspilot.shared.providers.dr_experiment import DrRunStatus
-from aiopspilot.shared.providers.testing.dr_experiment import (
+from fdai.shared.providers.dr_experiment import DrRunStatus
+from fdai.shared.providers.testing.dr_experiment import (
     FakeDrExperimentRunner,
 )
 

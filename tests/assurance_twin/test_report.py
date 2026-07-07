@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.assurance_twin import (
+from fdai.core.assurance_twin import (
     PostureAssessmentReport,
     PostureVerdict,
     build_posture_assessment_report,
 )
-from aiopspilot.shared.contracts.models import Mode
-from aiopspilot.shared.providers.projection import Finding, ResourceRef
+from fdai.shared.contracts.models import Mode
+from fdai.shared.providers.projection import Finding, ResourceRef
 
 
 def _f(rule: str, ref: str, severity: str, reason: str = "reason") -> Finding:

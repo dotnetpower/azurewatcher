@@ -24,29 +24,29 @@ and shadow-mode rules in [security-and-identity.md](../security-and-identity.md)
 ## Deliverables
 
 The module reference lists the primary Python package that carries the deliverable in
-[`src/aiopspilot/`](../project-structure.md); every module listed here is
+[`src/fdai/`](../project-structure.md); every module listed here is
 customer-agnostic and Azure-only in intent (multi-cloud deliverables below stay TBD).
 
 - Continuous measurement/improvement loop on the Azure baseline with automatic regression
   demotion.
   Module:
-  [core/measurement/regression.py](../../../src/aiopspilot/core/measurement/regression.py).
+  [core/measurement/regression.py](../../../src/fdai/core/measurement/regression.py).
 - Pattern-library (T1) growth with anti-overfitting guards.
   Module:
-  [core/measurement/pattern_growth.py](../../../src/aiopspilot/core/measurement/pattern_growth.py).
+  [core/measurement/pattern_growth.py](../../../src/fdai/core/measurement/pattern_growth.py).
 - Model cost/quality tracking with measurement-driven swaps.
   Module:
-  [core/measurement/model_tracking.py](../../../src/aiopspilot/core/measurement/model_tracking.py).
+  [core/measurement/model_tracking.py](../../../src/fdai/core/measurement/model_tracking.py).
 - Scalability/performance validation on Azure (per-tier latency budgets, event-driven
   scale-to-zero preserved).
   Module:
-  [core/measurement/latency_budget.py](../../../src/aiopspilot/core/measurement/latency_budget.py).
+  [core/measurement/latency_budget.py](../../../src/fdai/core/measurement/latency_budget.py).
 - Scheduled runners that wire the two library-only measurement components into Container
   Apps Jobs - an automated-baseline regression runner (daily replay of the P0 scenario set,
   auto-demotes on regression) and a pattern-growth intake runner (drains the audit stream,
   ingests accepted patterns in shadow only, never auto-promotes).
   Module:
-  [core/measurement/runners.py](../../../src/aiopspilot/core/measurement/runners.py).
+  [core/measurement/runners.py](../../../src/fdai/core/measurement/runners.py).
   Infra:
   [infra/modules/measurement-runners/](../../../infra/modules/measurement-runners/).
 - **TBD (deferred)**: multi-cloud expansion of policy and execution via **provider adapters**

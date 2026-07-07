@@ -7,7 +7,7 @@
 #   rule_id: secret-store.soft-delete.enabled
 #   severity: high
 #   category: security
-package aiopspilot.secret_store.soft_delete_enabled
+package fdai.secret_store.soft_delete_enabled
 
 import rego.v1
 

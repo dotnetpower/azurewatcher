@@ -3,9 +3,9 @@
 # -----------------------------------------------------------------------
 
 variable "workload" {
-  description = "Workload token used in every resource name. Fixed to 'aiopspilot' by generic-scope.instructions.md; no customer identifier."
+  description = "Workload token used in every resource name. Fixed to 'fdai' by generic-scope.instructions.md; no customer identifier."
   type        = string
-  default     = "aiopspilot"
+  default     = "fdai"
 }
 
 variable "env" {
@@ -121,7 +121,7 @@ variable "enable_llm" {
 }
 
 variable "resolved_capabilities" {
-  description = "Resolved LLM capabilities produced by the bootstrap resolver (aiopspilot.rule_catalog.schema.llm_resolver_cli). Entries with status='hil-only' MUST be filtered out before being passed here."
+  description = "Resolved LLM capabilities produced by the bootstrap resolver (fdai.rule_catalog.schema.llm_resolver_cli). Entries with status='hil-only' MUST be filtered out before being passed here."
   type = list(object({
     name         = string
     family       = string

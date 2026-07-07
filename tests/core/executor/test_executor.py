@@ -21,14 +21,14 @@ from typing import Any
 
 import pytest
 
-from aiopspilot.core.executor import (
+from fdai.core.executor import (
     ExecutorConfig,
     ExecutorOutcome,
     ResourceLockManager,
     ShadowExecutor,
     TemplateRenderer,
 )
-from aiopspilot.shared.contracts.models import (
+from fdai.shared.contracts.models import (
     Action,
     BlastRadius,
     BlastRadiusScope,
@@ -46,7 +46,7 @@ from aiopspilot.shared.contracts.models import (
     RuleSource,
     Severity,
 )
-from aiopspilot.shared.providers.testing import (
+from fdai.shared.providers.testing import (
     InMemoryStateStore,
     RecordingRemediationPrPublisher,
 )
@@ -427,7 +427,7 @@ def test_missing_safety_invariant_helper_covers_every_branch() -> None:
     """
     from types import SimpleNamespace
 
-    from aiopspilot.core.executor.executor import _missing_safety_invariant
+    from fdai.core.executor.executor import _missing_safety_invariant
 
     def _stub(**overrides: Any) -> Any:
         defaults: dict[str, Any] = {

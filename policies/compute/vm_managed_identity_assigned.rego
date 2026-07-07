@@ -7,7 +7,7 @@
 #   rule_id: compute.vm.managed-identity.assigned
 #   severity: medium
 #   category: security
-package aiopspilot.compute.vm_managed_identity_assigned
+package fdai.compute.vm_managed_identity_assigned
 
 import rego.v1
 

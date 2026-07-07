@@ -2,7 +2,7 @@
 #
 # Multi-stage:
 #   1. base + uv install → resolve + install dependencies with a lockfile.
-#   2. runtime → copy only site-packages + the aiopspilot package.
+#   2. runtime → copy only site-packages + the fdai package.
 #
 # Notes:
 # - No cloud SDK is required at runtime for local-fake mode; httpx +
@@ -37,13 +37,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:${PATH}"
 
-RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin aiopspilot
+RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin fdai
 
 WORKDIR /app
-COPY --from=builder --chown=aiopspilot:aiopspilot /app/.venv /app/.venv
-COPY --from=builder --chown=aiopspilot:aiopspilot /app/src /app/src
-COPY --chown=aiopspilot:aiopspilot rule-catalog/ /app/rule-catalog/
-COPY --chown=aiopspilot:aiopspilot policies/ /app/policies/
+COPY --from=builder --chown=fdai:fdai /app/.venv /app/.venv
+COPY --from=builder --chown=fdai:fdai /app/src /app/src
+COPY --chown=fdai:fdai rule-catalog/ /app/rule-catalog/
+COPY --chown=fdai:fdai policies/ /app/policies/
 
 USER 10001
-ENTRYPOINT ["python", "-m", "aiopspilot"]
+ENTRYPOINT ["python", "-m", "fdai"]

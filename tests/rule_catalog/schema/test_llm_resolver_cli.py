@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from aiopspilot.rule_catalog.schema.llm_resolver import CapabilityStatus
-from aiopspilot.rule_catalog.schema.llm_resolver_cli import main
+from fdai.rule_catalog.schema.llm_resolver import CapabilityStatus
+from fdai.rule_catalog.schema.llm_resolver_cli import main
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY = REPO_ROOT / "rule-catalog" / "llm-registry.yaml"

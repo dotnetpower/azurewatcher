@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.shared.contracts.models import (
+from fdai.shared.contracts.models import (
     ActionBlastRadius,
     ActionInterface,
     BlastRadiusComputation,
@@ -14,13 +14,13 @@ from aiopspilot.shared.contracts.models import (
     PromotionGate,
     RollbackKind,
 )
-from aiopspilot.shared.providers.cost_estimator import (
+from fdai.shared.providers.cost_estimator import (
     CostConfidence,
     CostEstimate,
     CostEstimatorError,
     resolve_cost_impact_monthly,
 )
-from aiopspilot.shared.providers.testing.cost_estimator import InMemoryCostEstimator
+from fdai.shared.providers.testing.cost_estimator import InMemoryCostEstimator
 
 
 def _at(name: str = "ops.scale-out") -> OntologyActionType:

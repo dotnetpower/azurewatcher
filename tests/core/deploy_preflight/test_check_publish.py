@@ -4,19 +4,19 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.deploy_preflight import (
+from fdai.core.deploy_preflight import (
     DeploymentReadinessReport,
     PreflightCheckOutcome,
     ReadinessVerdict,
     publish_preflight_check,
 )
-from aiopspilot.shared.contracts.models import Mode
-from aiopspilot.shared.providers.preflight_check import (
+from fdai.shared.contracts.models import Mode
+from fdai.shared.providers.preflight_check import (
     PreflightCheck,
     PreflightCheckPublishError,
     PreflightCheckReceipt,
 )
-from aiopspilot.shared.providers.testing.preflight_check import (
+from fdai.shared.providers.testing.preflight_check import (
     InMemoryPreflightCheckPublisher,
 )
 
@@ -182,7 +182,7 @@ async def test_shadow_and_enforce_reports_both_publish() -> None:
 
 
 def test_result_dataclass_defaults() -> None:
-    from aiopspilot.core.deploy_preflight.check_publish import PreflightCheckResult
+    from fdai.core.deploy_preflight.check_publish import PreflightCheckResult
 
     r = PreflightCheckResult(outcome=PreflightCheckOutcome.POSTED)
     assert r.receipt is None

@@ -1,14 +1,14 @@
 ---
 title: 결정론 우선(Deterministic first)
-description: AIOpsPilot이 반복 가능한 다수는 규칙으로 해소하고 애매한 소수만 LLM 추론에 넘기는 이유.
+description: FDAI이 반복 가능한 다수는 규칙으로 해소하고 애매한 소수만 LLM 추론에 넘기는 이유.
 translation_of: deterministic-first.md
-translation_source_sha: 621072cb5d38f4e0374f7a78be419940f1f5a097
+translation_source_sha: 48f8389465c2aba42cb530f421ab92062f1e2f5a
 translation_revised: 2026-07-07
 ---
 
 # 결정론 우선(Deterministic first)
 
-**결정론 우선(Deterministic first)**은 AIOpsPilot의 중심 설계 원칙입니다. 정책 ·
+**결정론 우선(Deterministic first)**은 FDAI의 중심 설계 원칙입니다. 정책 ·
 규칙 · 체크리스트로 결정할 수 있는 이벤트는 그렇게 결정하고, LLM은 이 층에서
 명시적으로 abstain 한 잔여 소수에서만 돌립니다.
 
@@ -23,7 +23,7 @@ translation_revised: 2026-07-07
 - **감사 가능성** - 사고 후 "모델이 auto-approve 하기로 골랐다"는 방어하기 어렵고,
   "정책 X (버전 1.4) 규칙이 매칭됐다"는 그렇지 않습니다.
 
-## AIOpsPilot이 해결하는 방식
+## FDAI이 해결하는 방식
 
 들어오는 모든 이벤트는 **trust router**를 거쳐 케이스를 결정할 수 있는 가장 낮은
 티어에 라우팅됩니다:

@@ -11,7 +11,7 @@ from jsonschema import Draft202012Validator
 
 def _load_schema() -> dict[str, Any]:
     raw = (
-        resources.files("aiopspilot.rule_catalog.schema")
+        resources.files("fdai.rule_catalog.schema")
         .joinpath("exemption.schema.json")
         .read_text(encoding="utf-8")
     )

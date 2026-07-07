@@ -7,7 +7,7 @@
 #   rule_id: object-storage.diagnostic-settings-required
 #   severity: medium
 #   category: reliability
-package aiopspilot.object_storage.diagnostic_settings_required
+package fdai.object_storage.diagnostic_settings_required
 
 import rego.v1
 

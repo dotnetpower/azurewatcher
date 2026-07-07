@@ -1,4 +1,4 @@
-# AIOpsPilot console - Azure Static Web App.
+# FDAI console - Azure Static Web App.
 #
 # Layer 3 (`app-shape.instructions.md § Operator console`). The SPA is
 # read-only; it never issues privileged calls, so no Managed Identity is
@@ -23,7 +23,7 @@ resource "azurerm_static_web_app" "console" {
   sku_tier            = var.sku_tier
   sku_size            = var.sku_size
 
-  # No API surface - the console talks to the separate `aiopspilot-api`
+  # No API surface - the console talks to the separate `fdai-api`
   # (Container Apps). The Static Web App's built-in Functions bridge is
   # left off so a fork does not accidentally publish a write endpoint
   # under the same origin.

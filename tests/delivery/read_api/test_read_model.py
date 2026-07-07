@@ -1,4 +1,4 @@
-"""Tests for :mod:`aiopspilot.delivery.read_api.read_model`.
+"""Tests for :mod:`fdai.delivery.read_api.read_model`.
 
 Uses the in-memory fake in isolation - no HTTP layer needed here. The
 Protocol conformance is asserted so a future Postgres-backed adapter that
@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from aiopspilot.delivery.read_api.read_model import (
+from fdai.delivery.read_api.read_model import (
     DEFAULT_LIMIT,
     MAX_LIMIT,
     AuditItem,

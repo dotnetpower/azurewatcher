@@ -16,19 +16,19 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.conversation import (
+from fdai.core.conversation import (
     ExploreCatalogTool,
     Principal,
     Role,
     SystemConsoleTool,
     ToolResult,
 )
-from aiopspilot.rule_catalog.schema.action_type import load_action_type_catalog
-from aiopspilot.rule_catalog.schema.resource_type import (
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
-from aiopspilot.rule_catalog.schema.rule import load_rule_catalog
-from aiopspilot.shared.contracts.registry import PackageResourceSchemaRegistry
+from fdai.rule_catalog.schema.rule import load_rule_catalog
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 
 @pytest.fixture(scope="module")

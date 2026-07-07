@@ -1,11 +1,11 @@
 ---
 title: Risk tiers
-description: How AIOpsPilot decides which autonomous actions execute automatically and which wait for a human.
+description: How FDAI decides which autonomous actions execute automatically and which wait for a human.
 ---
 
 # Risk tiers
 
-Not every decision AIOpsPilot makes should auto-execute. **Risk tiers** are
+Not every decision FDAI makes should auto-execute. **Risk tiers** are
 how the control plane decides whether an action ships without a human, waits
 for a human-in-the-loop (HIL) approval, or is refused outright.
 
@@ -32,7 +32,7 @@ flowchart LR
 
 - **AUTO** - safe enough to execute directly. The audit-log entry still
   records who, what, when, why.
-- **HIL** - an operator has to approve. AIOpsPilot pauses execution and
+- **HIL** - an operator has to approve. FDAI pauses execution and
   raises a request through the notification channel (Teams card, PR review,
   email, whatever the deployment configured).
 - **DENY** - a hard rule refuses the action outright, regardless of who

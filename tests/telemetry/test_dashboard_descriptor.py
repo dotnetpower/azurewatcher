@@ -22,7 +22,7 @@ from typing import Any, cast
 
 import pytest
 
-from aiopspilot.shared.telemetry.metrics_derivation import DashboardMetrics
+from fdai.shared.telemetry.metrics_derivation import DashboardMetrics
 
 DESCRIPTOR_PATH = Path(__file__).resolve().parents[2] / "docs" / "dashboards" / "phase-0-kpi.json"
 

@@ -7,7 +7,7 @@
 #   rule_id: disk.unattached
 #   severity: low
 #   category: cost
-package aiopspilot.disk.unattached
+package fdai.disk.unattached
 
 import rego.v1
 

@@ -7,7 +7,7 @@
 #   rule_id: object-storage.versioning-enabled
 #   severity: medium
 #   category: reliability
-package aiopspilot.object_storage.blob_versioning
+package fdai.object_storage.blob_versioning
 
 import rego.v1
 

@@ -13,8 +13,8 @@ from uuid import UUID
 
 import pytest
 
-from aiopspilot.shared.contracts.models import Mode
-from aiopspilot.shared.providers.direct_api import (
+from fdai.shared.contracts.models import Mode
+from fdai.shared.providers.direct_api import (
     DirectApiError,
     DirectApiExecutor,
     DirectApiOutcome,
@@ -23,8 +23,8 @@ from aiopspilot.shared.providers.direct_api import (
     DirectApiReceipt,
     DirectApiRequest,
 )
-from aiopspilot.shared.providers.testing import RecordingDirectApiExecutor
-from aiopspilot.shared.providers.testing.direct_api import (
+from fdai.shared.providers.testing import RecordingDirectApiExecutor
+from fdai.shared.providers.testing.direct_api import (
     RecordingDirectApiExecutor as _AlsoImportable,
 )
 

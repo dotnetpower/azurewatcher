@@ -8,7 +8,7 @@
 #   rule_id: secret-store.purge-protection.enabled
 #   severity: high
 #   category: security
-package aiopspilot.secret_store.purge_protection_enabled
+package fdai.secret_store.purge_protection_enabled
 
 import rego.v1
 

@@ -4,7 +4,7 @@ title: Action Ontology
 
 # Action Ontology
 
-Every AIOpsPilot action - whether a rule-fired remediation or an operator-
+Every FDAI action - whether a rule-fired remediation or an operator-
 requested ops task - is one instance of an **`ActionType`** entry in the
 shipped ontology. This document is authoritative for the schema, the
 trigger axis (`rule_violation` vs `operator_request`), the tier and role
@@ -243,7 +243,7 @@ Operator-requested runtime actions. Shipped Day 1:
   MUST declare `cost_impact_monthly` when failover targets a larger tier.
 
 **Vertical mapping.** Each ops ActionType is tagged with the owning
-vertical so the [verticals](../../src/aiopspilot/core/verticals) can claim
+vertical so the [verticals](../../src/fdai/core/verticals) can claim
 it and a vertical rule can `remediates:` it: `ops.failover-primary` and
 `ops.restart-service` -> Resilience; `ops.scale-in` / `ops.scale-out` ->
 Cost Governance; `ops.drain-connection` / `ops.rotate-cert` -> Change
@@ -333,7 +333,7 @@ the operator's tool_call arguments and MUST declare an
 2. Validate arguments at the coordinator boundary
    ([operator-console.md § 5.2](operator-console.md#52-consoletool)) before
    calling the action.
-3. Redact sensitive fields (mark with `x-aiopspilot-redact: true`) at
+3. Redact sensitive fields (mark with `x-fdai-redact: true`) at
    the audit-write boundary.
 
 ### 5.1 Example - `ops.restart-service`
@@ -367,14 +367,14 @@ argument_schema:
 
 Fields the operator may type that could carry secrets or PII (e.g. a
 password mid-tool-call, an email inside a `restart_reason`) SHOULD carry
-`x-aiopspilot-redact` so the redactor strips them before the audit
+`x-fdai-redact` so the redactor strips them before the audit
 write:
 
 ```yaml
 properties:
   temp_admin_password:
     type: string
-    x-aiopspilot-redact: true    # never persisted verbatim
+    x-fdai-redact: true    # never persisted verbatim
 ```
 
 ## 6. Live blast probe (§6 of execution-model.md, Month 1+)
@@ -441,7 +441,7 @@ prod_downgrade:
 ### 7.3 Config-driven overlay
 
 - Env-var toggles for coarse switches (feature-flag style):
-  `AIOPSPILOT_OVERRIDE_ACTION_TYPE_<id>_MAX_AUTONOMY=shadow_only`.
+  `FDAI_OVERRIDE_ACTION_TYPE_<id>_MAX_AUTONOMY=shadow_only`.
 - Rare; documented for emergency downgrades where a Rego re-deploy is
   too slow.
 
@@ -472,7 +472,7 @@ overlay layer on the audit entry.
 
 ## 8. Loader + validation
 
-- The loader ([`rule_catalog/schema/action_type.py`](../../src/aiopspilot/rule_catalog/schema/action_type.py))
+- The loader ([`rule_catalog/schema/action_type.py`](../../src/fdai/rule_catalog/schema/action_type.py))
   loads upstream + overrides + Rego references at startup.
 - Cross-checks (already shipped):
   - Every `remediates:` on a rule points to a loaded ActionType.
@@ -494,10 +494,10 @@ overlay layer on the audit entry.
     is fatal. On Day 1 no shipped ActionType sets `live_probe_ref` and
     `rule-catalog/probes/` ships with only a `README.md` placeholder, so
     this cross-check is a no-op until Month 1 binds the first probe.
-  - Every `argument_schema` property flagged `x-aiopspilot-redact: true`
+  - Every `argument_schema` property flagged `x-fdai-redact: true`
     MUST be a leaf `string`/`number`; the loader collects the redaction
     path set and hands it to the audit redactor so the value never lands
-    verbatim (§5.2). Any unknown `x-aiopspilot-*` extension key is a fatal
+    verbatim (§5.2). Any unknown `x-fdai-*` extension key is a fatal
     load error (typo guard, so a misspelled redact hint cannot silently
     leak a secret).
 

@@ -9,7 +9,7 @@
 #   rule_id: object-storage.public-access.deny
 #   severity: high
 #   category: security
-package aiopspilot.object_storage.public_access
+package fdai.object_storage.public_access
 
 import rego.v1
 

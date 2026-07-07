@@ -1,8 +1,8 @@
 """Integration test - runs ``alembic upgrade head`` against a live Postgres.
 
-Skipped unless ``AIOPSPILOT_DATABASE_URL`` is set. The docker-compose dev
+Skipped unless ``FDAI_DATABASE_URL`` is set. The docker-compose dev
 stack (``make dev-up``) exposes the URL as
-``postgresql+psycopg://aiopspilot:devonly@localhost:5432/aiopspilot``.
+``postgresql+psycopg://fdai:devonly@localhost:5432/fdai``.
 
 The test:
 
@@ -44,9 +44,9 @@ EXPECTED_TABLES = {
 
 
 def _requires_live_db() -> str:
-    url = os.environ.get("AIOPSPILOT_DATABASE_URL")
+    url = os.environ.get("FDAI_DATABASE_URL")
     if not url:
-        pytest.skip("AIOPSPILOT_DATABASE_URL is unset")
+        pytest.skip("FDAI_DATABASE_URL is unset")
     return url
 
 

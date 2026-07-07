@@ -9,7 +9,7 @@
 #   rule_id: compute.vm-scale-set.over-provisioned
 #   severity: medium
 #   category: cost
-package aiopspilot.compute.vmss_over_provisioned
+package fdai.compute.vmss_over_provisioned
 
 import rego.v1
 

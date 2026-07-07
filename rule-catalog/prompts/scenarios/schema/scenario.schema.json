@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://aiopspilot.dev/schemas/rule-catalog/scenario/1.0.0",
+  "$id": "https://fdai.dev/schemas/rule-catalog/scenario/1.0.0",
   "title": "Recognition Scenario",
   "description": "One authored scenario the recognition-probe runner (Wave 3 step D-2b-ii) executes. Each scenario names a capability, an optional scope, and the ground-truth contract the model response is scored against.",
   "type": "object",

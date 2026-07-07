@@ -10,14 +10,14 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from starlette.testclient import TestClient
 
-from aiopspilot.delivery.read_api.auth import build_authenticator
-from aiopspilot.delivery.read_api.hil_callback import (
+from fdai.delivery.read_api.auth import build_authenticator
+from fdai.delivery.read_api.hil_callback import (
     HilCallbackConfig,
 )
-from aiopspilot.delivery.read_api.main import ReadApiConfig, build_app
-from aiopspilot.delivery.read_api.read_model import InMemoryConsoleReadModel
-from aiopspilot.shared.providers.hil_registry import HilPendingItem
-from aiopspilot.shared.providers.testing.hil_registry import InMemoryHilApprovalRegistry
+from fdai.delivery.read_api.main import ReadApiConfig, build_app
+from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
+from fdai.shared.providers.hil_registry import HilPendingItem
+from fdai.shared.providers.testing.hil_registry import InMemoryHilApprovalRegistry
 
 SECRET = "shared-secret-for-tests"
 
@@ -133,8 +133,8 @@ def test_approve_records_decision_via_registry() -> None:
     body = json.dumps(body_payload).encode()
     timestamp = datetime.now(UTC).isoformat()
     headers = {
-        "x-aiopspilot-timestamp": timestamp,
-        "x-aiopspilot-signature": _sign(SECRET, timestamp, body),
+        "x-fdai-timestamp": timestamp,
+        "x-fdai-signature": _sign(SECRET, timestamp, body),
         "content-type": "application/json",
     }
     response = client.post("/hil/appr-1/decision", content=body, headers=headers)
@@ -163,8 +163,8 @@ def test_second_call_after_resolution_returns_404() -> None:
     ).encode()
     timestamp = datetime.now(UTC).isoformat()
     headers = {
-        "x-aiopspilot-timestamp": timestamp,
-        "x-aiopspilot-signature": _sign(SECRET, timestamp, body),
+        "x-fdai-timestamp": timestamp,
+        "x-fdai-signature": _sign(SECRET, timestamp, body),
         "content-type": "application/json",
     }
 
@@ -206,8 +206,8 @@ def test_bad_hmac_returns_401() -> None:
         "/hil/appr-1/decision",
         content=body,
         headers={
-            "x-aiopspilot-timestamp": timestamp,
-            "x-aiopspilot-signature": "sha256=deadbeef",
+            "x-fdai-timestamp": timestamp,
+            "x-fdai-signature": "sha256=deadbeef",
             "content-type": "application/json",
         },
     )
@@ -229,8 +229,8 @@ def test_replay_window_enforced() -> None:
         "/hil/appr-1/decision",
         content=body,
         headers={
-            "x-aiopspilot-timestamp": old,
-            "x-aiopspilot-signature": _sign(SECRET, old, body),
+            "x-fdai-timestamp": old,
+            "x-fdai-signature": _sign(SECRET, old, body),
             "content-type": "application/json",
         },
     )
@@ -249,8 +249,8 @@ def test_signature_wrong_algorithm_prefix_returns_401() -> None:
         "/hil/appr-1/decision",
         content=body,
         headers={
-            "x-aiopspilot-timestamp": timestamp,
-            "x-aiopspilot-signature": "md5=deadbeef",
+            "x-fdai-timestamp": timestamp,
+            "x-fdai-signature": "md5=deadbeef",
             "content-type": "application/json",
         },
     )
@@ -268,8 +268,8 @@ def test_naive_timestamp_rejected() -> None:
         "/hil/appr-1/decision",
         content=body,
         headers={
-            "x-aiopspilot-timestamp": naive_ts,
-            "x-aiopspilot-signature": _sign(SECRET, naive_ts, body),
+            "x-fdai-timestamp": naive_ts,
+            "x-fdai-signature": _sign(SECRET, naive_ts, body),
             "content-type": "application/json",
         },
     )
@@ -292,8 +292,8 @@ def test_bad_json_body_returns_400() -> None:
         "/hil/appr-1/decision",
         content=body,
         headers={
-            "x-aiopspilot-timestamp": timestamp,
-            "x-aiopspilot-signature": _sign(SECRET, timestamp, body),
+            "x-fdai-timestamp": timestamp,
+            "x-fdai-signature": _sign(SECRET, timestamp, body),
             "content-type": "application/json",
         },
     )
@@ -311,8 +311,8 @@ def test_unknown_decision_returns_400() -> None:
         "/hil/appr-1/decision",
         content=body,
         headers={
-            "x-aiopspilot-timestamp": timestamp,
-            "x-aiopspilot-signature": _sign(SECRET, timestamp, body),
+            "x-fdai-timestamp": timestamp,
+            "x-fdai-signature": _sign(SECRET, timestamp, body),
             "content-type": "application/json",
         },
     )
@@ -330,8 +330,8 @@ def test_missing_actor_oid_returns_400() -> None:
         "/hil/appr-1/decision",
         content=body,
         headers={
-            "x-aiopspilot-timestamp": timestamp,
-            "x-aiopspilot-signature": _sign(SECRET, timestamp, body),
+            "x-fdai-timestamp": timestamp,
+            "x-fdai-signature": _sign(SECRET, timestamp, body),
             "content-type": "application/json",
         },
     )
@@ -360,8 +360,8 @@ def test_body_too_large_returns_400() -> None:
         "/hil/appr-1/decision",
         content=body,
         headers={
-            "x-aiopspilot-timestamp": timestamp,
-            "x-aiopspilot-signature": _sign(SECRET, timestamp, body),
+            "x-fdai-timestamp": timestamp,
+            "x-fdai-signature": _sign(SECRET, timestamp, body),
             "content-type": "application/json",
         },
     )
@@ -390,8 +390,8 @@ def test_self_approval_is_403() -> None:
         "/hil/appr-1/decision",
         content=body,
         headers={
-            "x-aiopspilot-timestamp": timestamp,
-            "x-aiopspilot-signature": _sign(SECRET, timestamp, body),
+            "x-fdai-timestamp": timestamp,
+            "x-fdai-signature": _sign(SECRET, timestamp, body),
             "content-type": "application/json",
         },
     )
@@ -412,8 +412,8 @@ def test_unknown_approval_id_is_404() -> None:
         "/hil/missing/decision",
         content=body,
         headers={
-            "x-aiopspilot-timestamp": timestamp,
-            "x-aiopspilot-signature": _sign(SECRET, timestamp, body),
+            "x-fdai-timestamp": timestamp,
+            "x-fdai-signature": _sign(SECRET, timestamp, body),
             "content-type": "application/json",
         },
     )

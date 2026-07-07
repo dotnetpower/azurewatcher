@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiopspilot.core.conversation.coordinator import (
+from fdai.core.conversation.coordinator import (
     _VERB_PATTERNS,
     _extract_query,
     _extract_tool_arguments,
@@ -227,7 +227,7 @@ class TestActivateBreakGlassArgs:
 
 
 def test_end_to_end_list_hil_through_coordinator() -> None:
-    from aiopspilot.core.conversation import (
+    from fdai.core.conversation import (
         ConversationCoordinator,
         ConversationSession,
         ListHilTool,
@@ -235,7 +235,7 @@ def test_end_to_end_list_hil_through_coordinator() -> None:
         Role,
         ToolResult,
     )
-    from aiopspilot.shared.providers.testing import InMemoryHilApprovalRegistry
+    from fdai.shared.providers.testing import InMemoryHilApprovalRegistry
 
     reg = InMemoryHilApprovalRegistry()
     tool = ListHilTool(registry=reg)
@@ -252,7 +252,7 @@ def test_end_to_end_list_hil_through_coordinator() -> None:
 
 
 def test_end_to_end_break_glass_through_coordinator() -> None:
-    from aiopspilot.core.conversation import (
+    from fdai.core.conversation import (
         ActivateBreakGlassTool,
         AuditWriter,
         ConversationCoordinator,
@@ -261,7 +261,7 @@ def test_end_to_end_break_glass_through_coordinator() -> None:
         Role,
         ToolResult,
     )
-    from aiopspilot.shared.providers.testing import (
+    from fdai.shared.providers.testing import (
         InMemoryBreakGlassPager,
         InMemoryStateStore,
     )

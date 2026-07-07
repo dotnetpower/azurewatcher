@@ -8,7 +8,7 @@
 #   rule_id: object-storage.owner-tag.required
 #   severity: low
 #   category: config_drift
-package aiopspilot.object_storage.owner_tag_required
+package fdai.object_storage.owner_tag_required
 
 import rego.v1
 
