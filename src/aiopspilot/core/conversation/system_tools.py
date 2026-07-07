@@ -42,6 +42,13 @@ from aiopspilot.core.operator_memory.types import ScopeKind
 from aiopspilot.core.tiers.t0_deterministic import T0Engine
 from aiopspilot.core.trust_router import RoutingTier, TrustRouter
 from aiopspilot.shared.contracts.models import Event, Mode
+from aiopspilot.shared.providers.observation import (
+    DeploymentHistoryProvider,
+    IncidentCorrelator,
+    LogQueryProvider,
+    MetricQueryProvider,
+    ObservationError,
+)
 
 
 @runtime_checkable
@@ -714,12 +721,334 @@ def _project_memory_entry(entry: Any) -> dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# Observation-depth tools  (Wave M1.5)
+# ---------------------------------------------------------------------------
+#
+# Four Reader-floor read tools that consume the observation-depth
+# Protocols shipped in ``shared/providers/observation.py``. Every tool:
+#
+# - is read-only (``side_effect_class == 'read'``);
+# - never writes an audit entry (the coordinator writes ``console.turn``
+#   on its own);
+# - catches :class:`ObservationError` and returns an ``abstain`` result
+#   with a preview describing the abstain cause - the caller (narrator
+#   or CLI) never sees a raw traceback.
+#
+# The Protocols themselves are CSP-neutral; real adapters (Azure Monitor,
+# deployment-history join) live in ``delivery/`` and are fork-authored.
+
+
+class QueryLogTool:
+    """Run a bounded log query and return the raw rows.
+
+    Arguments (``arguments`` mapping):
+
+    - ``query`` (str, required) - opaque KQL / adapter-defined query.
+    - ``window`` (str, required) - opaque time window
+      (``PT1H``, ``P1D``, or the adapter's own shape).
+    - ``max_rows`` (int, optional; default 100, capped 500).
+    """
+
+    name = "query_log"
+    description = (
+        "Run a bounded log query and return the rows. Read-only; abstains when the provider raises."
+    )
+    rbac_floor: Role = Role.READER
+    side_effect_class: SideEffectClass = "read"
+
+    def __init__(self, *, provider: LogQueryProvider) -> None:
+        self._provider = provider
+
+    def call(
+        self,
+        *,
+        arguments: Mapping[str, Any],
+        principal: Principal,  # noqa: ARG002 - RBAC applied by coordinator
+    ) -> ToolResult:
+        import asyncio
+
+        query = _require_str(arguments, "query").strip()
+        window = _require_str(arguments, "window").strip()
+        if not query:
+            return ToolResult(status="error", preview="query_log requires a non-empty 'query'")
+        if not window:
+            return ToolResult(status="error", preview="query_log requires a non-empty 'window'")
+        max_rows = _optional_int(arguments, "max_rows", default=100, minimum=1, maximum=500)
+
+        try:
+            result = asyncio.run(
+                self._provider.query_log(query=query, window=window, max_rows=max_rows)
+            )
+        except ObservationError as exc:
+            return ToolResult(
+                status="abstain",
+                preview=f"query_log abstains: {exc}",
+                data={"query": query, "window": window},
+            )
+        except RuntimeError as exc:
+            return ToolResult(status="error", preview=f"query_log event-loop reuse: {exc}")
+
+        rows = [dict(r) for r in result.rows]
+        preview = f"query_log[{window}]: {len(rows)} row(s)" + (
+            " (truncated)" if result.truncated else ""
+        )
+        return ToolResult(
+            status="ok" if rows else "abstain",
+            data={
+                "query": query,
+                "window": window,
+                "rows": rows,
+                "truncated": result.truncated,
+                "scanned_records": result.scanned_records,
+            },
+            preview=preview,
+        )
+
+
+class QueryMetricTool:
+    """Return a metric aggregation over a bounded window.
+
+    Arguments:
+
+    - ``namespace`` (str, required) - e.g.
+      ``Microsoft.Compute/virtualMachines``.
+    - ``metric`` (str, required) - e.g. ``Percentage CPU``.
+    - ``aggregation`` (str, required) - e.g. ``Average`` / ``Total``.
+    - ``window`` (str, required) - opaque time window.
+    """
+
+    name = "query_metric"
+    description = (
+        "Return a metric aggregation timeseries. Read-only; abstains when the provider raises."
+    )
+    rbac_floor: Role = Role.READER
+    side_effect_class: SideEffectClass = "read"
+
+    def __init__(self, *, provider: MetricQueryProvider) -> None:
+        self._provider = provider
+
+    def call(
+        self,
+        *,
+        arguments: Mapping[str, Any],
+        principal: Principal,  # noqa: ARG002 - RBAC applied by coordinator
+    ) -> ToolResult:
+        import asyncio
+
+        namespace = _require_str(arguments, "namespace").strip()
+        metric = _require_str(arguments, "metric").strip()
+        aggregation = _require_str(arguments, "aggregation").strip()
+        window = _require_str(arguments, "window").strip()
+        for name_, value in (
+            ("namespace", namespace),
+            ("metric", metric),
+            ("aggregation", aggregation),
+            ("window", window),
+        ):
+            if not value:
+                return ToolResult(
+                    status="error",
+                    preview=f"query_metric requires a non-empty {name_!r}",
+                )
+
+        try:
+            result = asyncio.run(
+                self._provider.query_metric(
+                    namespace=namespace,
+                    metric=metric,
+                    aggregation=aggregation,
+                    window=window,
+                )
+            )
+        except ObservationError as exc:
+            return ToolResult(
+                status="abstain",
+                preview=f"query_metric abstains: {exc}",
+                data={
+                    "namespace": namespace,
+                    "metric": metric,
+                    "aggregation": aggregation,
+                    "window": window,
+                },
+            )
+        except RuntimeError as exc:
+            return ToolResult(status="error", preview=f"query_metric event-loop reuse: {exc}")
+
+        points = [{"timestamp": p.timestamp, "value": p.value} for p in result.points]
+        preview = f"query_metric[{namespace}/{metric}]: {len(points)} point(s)"
+        return ToolResult(
+            status="ok" if points else "abstain",
+            data={
+                "namespace": namespace,
+                "metric": metric,
+                "aggregation": aggregation,
+                "window": window,
+                "points": points,
+            },
+            preview=preview,
+        )
+
+
+class QueryDeploymentsTool:
+    """Return the deployment history for a window (optionally filtered).
+
+    Arguments:
+
+    - ``window`` (str, required) - opaque time window.
+    - ``resource_ref`` (str, optional) - filter to deployments that
+      touched this resource ref.
+    """
+
+    name = "query_deployments"
+    description = (
+        "Return deployment records over a time window, optionally filtered "
+        "by resource_ref. Read-only; abstains when the provider raises."
+    )
+    rbac_floor: Role = Role.READER
+    side_effect_class: SideEffectClass = "read"
+
+    def __init__(self, *, provider: DeploymentHistoryProvider) -> None:
+        self._provider = provider
+
+    def call(
+        self,
+        *,
+        arguments: Mapping[str, Any],
+        principal: Principal,  # noqa: ARG002 - RBAC applied by coordinator
+    ) -> ToolResult:
+        import asyncio
+
+        window = _require_str(arguments, "window").strip()
+        if not window:
+            return ToolResult(
+                status="error", preview="query_deployments requires a non-empty 'window'"
+            )
+        resource_ref = _optional_str(arguments, "resource_ref", default="") or None
+        if resource_ref is not None and not resource_ref.strip():
+            resource_ref = None
+
+        try:
+            result = asyncio.run(
+                self._provider.query_deployments(window=window, resource_ref=resource_ref)
+            )
+        except ObservationError as exc:
+            return ToolResult(
+                status="abstain",
+                preview=f"query_deployments abstains: {exc}",
+                data={"window": window, "resource_ref": resource_ref},
+            )
+        except RuntimeError as exc:
+            return ToolResult(status="error", preview=f"query_deployments event-loop reuse: {exc}")
+
+        records = [_project_deployment_record(r) for r in result.records]
+        preview = f"query_deployments[{window}]: {len(records)} deployment(s)"
+        return ToolResult(
+            status="ok" if records else "abstain",
+            data={
+                "window": window,
+                "resource_ref": resource_ref,
+                "records": records,
+            },
+            preview=preview,
+            evidence_refs=tuple(f"deployment:{r['deployment_ref']}" for r in records),
+        )
+
+
+class CorrelateIncidentTool:
+    """Return the multi-signal correlation for one incident id.
+
+    Arguments:
+
+    - ``incident_id`` (str, required) - opaque incident id.
+    """
+
+    name = "correlate_incident"
+    description = (
+        "Return the multi-signal correlation (events, audit, logs, metrics, "
+        "deployments) for one incident_id. Read-only; abstains when the "
+        "correlator raises."
+    )
+    rbac_floor: Role = Role.READER
+    side_effect_class: SideEffectClass = "read"
+
+    def __init__(self, *, correlator: IncidentCorrelator) -> None:
+        self._correlator = correlator
+
+    def call(
+        self,
+        *,
+        arguments: Mapping[str, Any],
+        principal: Principal,  # noqa: ARG002 - RBAC applied by coordinator
+    ) -> ToolResult:
+        import asyncio
+
+        incident_id = _require_str(arguments, "incident_id").strip()
+        if not incident_id:
+            return ToolResult(
+                status="error",
+                preview="correlate_incident requires a non-empty 'incident_id'",
+            )
+
+        try:
+            corr = asyncio.run(self._correlator.correlate(incident_id=incident_id))
+        except ObservationError as exc:
+            return ToolResult(
+                status="abstain",
+                preview=f"correlate_incident abstains: {exc}",
+                data={"incident_id": incident_id},
+            )
+        except RuntimeError as exc:
+            return ToolResult(
+                status="error",
+                preview=f"correlate_incident event-loop reuse: {exc}",
+            )
+
+        preview = (
+            f"correlate_incident[{incident_id}]: "
+            f"{len(corr.events)} evt / {len(corr.audit_entries)} audit / "
+            f"{len(corr.log_hits)} log / {len(corr.metric_points)} metric / "
+            f"{len(corr.deployments)} deploy"
+        )
+        return ToolResult(
+            status="ok",
+            data={
+                "incident_id": corr.incident_id,
+                "events": [dict(e) for e in corr.events],
+                "audit_entries": [dict(e) for e in corr.audit_entries],
+                "log_hits": [dict(e) for e in corr.log_hits],
+                "metric_points": [
+                    {"timestamp": p.timestamp, "value": p.value} for p in corr.metric_points
+                ],
+                "deployments": [_project_deployment_record(d) for d in corr.deployments],
+            },
+            preview=preview,
+            evidence_refs=(f"incident:{corr.incident_id}",),
+        )
+
+
+def _project_deployment_record(record: Any) -> dict[str, Any]:
+    """Project one :class:`DeploymentRecord` into a JSON-friendly dict."""
+
+    return {
+        "deployment_ref": record.deployment_ref,
+        "timestamp": record.timestamp,
+        "author": record.author,
+        "resource_refs": list(record.resource_refs),
+        "status": record.status,
+    }
+
+
 __all__ = [
     "AuditReader",
+    "CorrelateIncidentTool",
     "DescribeEventTool",
     "ExplainVerdictTool",
     "InventoryProvider",
     "QueryAuditTool",
+    "QueryDeploymentsTool",
     "QueryInventoryTool",
+    "QueryLogTool",
+    "QueryMetricTool",
     "QueryOperatorMemoryTool",
 ]

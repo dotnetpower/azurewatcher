@@ -47,11 +47,15 @@ from aiopspilot.core.conversation.session import (
 )
 from aiopspilot.core.conversation.system_tools import (
     AuditReader,
+    CorrelateIncidentTool,
     DescribeEventTool,
     ExplainVerdictTool,
     InventoryProvider,
     QueryAuditTool,
+    QueryDeploymentsTool,
     QueryInventoryTool,
+    QueryLogTool,
+    QueryMetricTool,
     QueryOperatorMemoryTool,
 )
 from aiopspilot.core.conversation.tools import (
@@ -78,6 +82,7 @@ __all__ = [
     "ConversationCoordinator",
     "ConversationSession",
     "CoordinatorConfig",
+    "CorrelateIncidentTool",
     "DescribeEventTool",
     "ExplainVerdictTool",
     "ExploreCatalogTool",
@@ -85,7 +90,10 @@ __all__ = [
     "ListHilTool",
     "Principal",
     "QueryAuditTool",
+    "QueryDeploymentsTool",
     "QueryInventoryTool",
+    "QueryLogTool",
+    "QueryMetricTool",
     "QueryOperatorMemoryTool",
     "Role",
     "RunRunbookTool",
