@@ -39,6 +39,13 @@ from aiopspilot.core.conversation.coordinator import (
     ConversationCoordinator,
     CoordinatorConfig,
 )
+from aiopspilot.core.conversation.narrator import (
+    DeterministicKeywordNarrator,
+    Narrator,
+    ToolSchema,
+    default_tool_schemas,
+    format_prompt_tool_list,
+)
 from aiopspilot.core.conversation.session import (
     ConversationSession,
     Principal,
@@ -84,10 +91,12 @@ __all__ = [
     "CoordinatorConfig",
     "CorrelateIncidentTool",
     "DescribeEventTool",
+    "DeterministicKeywordNarrator",
     "ExplainVerdictTool",
     "ExploreCatalogTool",
     "InventoryProvider",
     "ListHilTool",
+    "Narrator",
     "Principal",
     "QueryAuditTool",
     "QueryDeploymentsTool",
@@ -100,5 +109,8 @@ __all__ = [
     "SimulateChangeTool",
     "SystemConsoleTool",
     "ToolResult",
+    "ToolSchema",
     "Turn",
+    "default_tool_schemas",
+    "format_prompt_tool_list",
 ]

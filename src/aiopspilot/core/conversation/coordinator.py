@@ -30,6 +30,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from aiopspilot.core.conversation.narrator import Narrator, ToolSchema
 from aiopspilot.core.conversation.session import (
     ConversationSession,
     Principal,
@@ -155,11 +156,17 @@ class ConversationCoordinator:
         *,
         tools: Sequence[SystemConsoleTool],
         config: CoordinatorConfig | None = None,
+        narrator: Narrator | None = None,
+        narrator_tool_schemas: Sequence[ToolSchema] | None = None,
     ) -> None:
         self._tools: dict[str, SystemConsoleTool] = {tool.name: tool for tool in tools}
         if not self._tools:
             raise ValueError("ConversationCoordinator MUST have at least one tool")
         self._config = config or CoordinatorConfig()
+        self._narrator = narrator
+        self._narrator_tool_schemas: tuple[ToolSchema, ...] = (
+            tuple(narrator_tool_schemas) if narrator_tool_schemas is not None else ()
+        )
 
     @property
     def tool_names(self) -> tuple[str, ...]:
@@ -197,6 +204,25 @@ class ConversationCoordinator:
         session.append(inbound)
 
         match = self._match_intent(message)
+        if match is None or match.confidence < self._config.chat_t0_confidence_threshold:
+            translated = self._narrator_translate(
+                message, principal_role=session.principal.role.value
+            )
+            if translated is not None:
+                # Narrator returned a T0-parseable verb string; re-match
+                # under the SAME regex the operator would face. Log the
+                # translation as a system turn so the audit trail keeps
+                # both the original utterance and the narrator's output.
+                session.append(
+                    Turn(
+                        turn_id=str(uuid.uuid4()),
+                        direction="system",
+                        content=f"narrator translated to: {translated}",
+                        tier="T0",
+                    )
+                )
+                match = self._match_intent(translated)
+
         if match is None or match.confidence < self._config.chat_t0_confidence_threshold:
             visible = self.list_tools_for(session.principal)
             abstain = AbstainResult(
@@ -306,6 +332,31 @@ class ConversationCoordinator:
             )
 
         return None
+
+    def _narrator_translate(self, message: str, *, principal_role: str) -> str | None:
+        """Ask the narrator (if wired) to turn ``message`` into a T0 verb string.
+
+        Fail-closed: any narrator error is swallowed and the coordinator
+        continues to the abstain branch - the operator would prefer to
+        see the tool inventory over a stack trace. Narrator errors are
+        logged as a system turn so a session inspector can see what
+        happened.
+        """
+
+        if self._narrator is None:
+            return None
+        try:
+            translated = self._narrator.translate(
+                utterance=message,
+                tools=self._narrator_tool_schemas,
+                principal_role=principal_role,
+            )
+        except Exception:  # noqa: BLE001 - narrator MUST NOT crash the REPL
+            return None
+        if translated is None:
+            return None
+        stripped = translated.strip()
+        return stripped or None
 
 
 def _extract_tool_arguments(tool_name: str, query: str) -> dict[str, Any]:
