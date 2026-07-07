@@ -232,3 +232,126 @@ def test_rule_violation_without_argument_schema_is_fine() -> None:
     raw = _ops_mapping(trigger_kind={"kind": "rule_violation"})
     model = load_action_type_from_mapping(raw, schema_registry=_registry())
     assert model.argument_schema is None
+
+
+# --- M1.3: live_probe_ref cross-check against probe catalog ---
+
+PROBES_ROOT = REPO_ROOT / "rule-catalog" / "probes"
+
+
+def test_shipped_action_types_pass_live_probe_cross_check() -> None:
+    """Every shipped ``live_probe_ref`` resolves to a shipped probe id.
+
+    Wired via ``load_action_type_catalog(..., probes_root=...)``; the
+    cross-check is Wave M1.3 in the implementation plan. Regression guard
+    against a misspelled reference.
+    """
+
+    catalog = load_action_type_catalog(
+        CATALOG_ROOT,
+        schema_registry=_registry(),
+        probes_root=PROBES_ROOT,
+    )
+    # At least one shipped ActionType wires a live probe (ops.scale-in +
+    # ops.restart-service after Wave M1.3).
+    refs = [a.live_probe_ref for a in catalog if a.live_probe_ref is not None]
+    assert refs, "expected at least one ActionType with a live_probe_ref"
+
+
+def test_unknown_live_probe_ref_is_rejected(tmp_path: Path) -> None:
+    """A live_probe_ref pointing at an unknown probe fails the load."""
+
+    bad = tmp_path / "action-types"
+    bad.mkdir()
+    (bad / "ops.example.yaml").write_text(
+        (
+            'schema_version: "1.0.0"\n'
+            "name: ops.example\n"
+            'version: "1.0.0"\n'
+            "operation: restart\n"
+            "interfaces:\n- ControlPlane\n"
+            "rollback_contract: state_forward_only\n"
+            "irreversible: true\n"
+            "default_mode: shadow\n"
+            "promotion_gate:\n"
+            "  min_shadow_days: 14\n"
+            "  min_samples: 30\n"
+            "  min_accuracy: 0.98\n"
+            "  max_policy_escapes: 0\n"
+            "category: ops\n"
+            "trigger_kind:\n  kind: rule_violation\n"
+            "execution_path: direct_api\n"
+            "live_probe_ref: probe_that_does_not_exist\n"
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ActionTypeCatalogError) as info:
+        load_action_type_catalog(
+            bad,
+            schema_registry=_registry(),
+            probes_root=PROBES_ROOT,
+        )
+    joined = " ".join(i.message for i in info.value.issues)
+    assert "probe_that_does_not_exist" in joined
+    assert "live_probe_ref" in " ".join(i.key for i in info.value.issues)
+
+
+def test_live_probe_ref_check_is_skipped_when_probes_root_is_none() -> None:
+    """Backward compatibility: existing callers pass no ``probes_root``.
+
+    The load must still succeed even when a live_probe_ref points at an
+    id no longer present in the probe catalog - callers that pass
+    ``probes_root=None`` explicitly opt out of the cross-check.
+    """
+
+    catalog = load_action_type_catalog(CATALOG_ROOT, schema_registry=_registry(), probes_root=None)
+    assert catalog  # smoke
+
+
+def test_probes_root_broken_reports_probe_load_error(tmp_path: Path) -> None:
+    """A broken probe catalog surfaces as an ActionTypeCatalogError.
+
+    Fail-closed - do not silently disable the cross-check when the
+    probe catalog itself is invalid.
+    """
+
+    action_types_dir = tmp_path / "action-types"
+    action_types_dir.mkdir()
+    (action_types_dir / "ops.example.yaml").write_text(
+        (
+            'schema_version: "1.0.0"\n'
+            "name: ops.example\n"
+            'version: "1.0.0"\n'
+            "operation: restart\n"
+            "interfaces:\n- ControlPlane\n"
+            "rollback_contract: state_forward_only\n"
+            "irreversible: true\n"
+            "default_mode: shadow\n"
+            "promotion_gate:\n"
+            "  min_shadow_days: 14\n"
+            "  min_samples: 30\n"
+            "  min_accuracy: 0.98\n"
+            "  max_policy_escapes: 0\n"
+            "category: ops\n"
+            "trigger_kind:\n  kind: rule_violation\n"
+            "execution_path: direct_api\n"
+            "live_probe_ref: vm_traffic_last_5m\n"
+        ),
+        encoding="utf-8",
+    )
+    broken_probes = tmp_path / "probes"
+    broken_probes.mkdir()
+    # Copy schema so the loader enters strict mode, then plant a bad manifest.
+    schema_src = PROBES_ROOT / "probe.schema.json"
+    (broken_probes / "probe.schema.json").write_text(
+        schema_src.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (broken_probes / "bad.yaml").write_text("id: []\n", encoding="utf-8")  # id must be a string
+    with pytest.raises(ActionTypeCatalogError) as info:
+        load_action_type_catalog(
+            action_types_dir,
+            schema_registry=_registry(),
+            probes_root=broken_probes,
+        )
+    joined = " ".join(i.key for i in info.value.issues)
+    assert "probes" in joined

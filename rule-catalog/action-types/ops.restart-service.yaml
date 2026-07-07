@@ -64,3 +64,4 @@ argument_schema:
 prod_downgrade:
   mode: enforce_hil
   detection_ref: risk-classification/env-detector
+live_probe_ref: vm_traffic_last_5m

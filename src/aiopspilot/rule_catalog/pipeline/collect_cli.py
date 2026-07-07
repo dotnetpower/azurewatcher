@@ -198,7 +198,12 @@ def _run_verify(
         return ({"error": message, "issues": []}, 2)
 
     schema_registry = PackageResourceSchemaRegistry()
-    action_types = load_action_type_catalog(action_types_root, schema_registry=schema_registry)
+    probes_root = catalog_root / "probes"
+    action_types = load_action_type_catalog(
+        action_types_root,
+        schema_registry=schema_registry,
+        probes_root=probes_root if probes_root.is_dir() else None,
+    )
     with vocab_file.open("r", encoding="utf-8") as fh:
         resource_types = load_resource_type_registry_from_mapping(yaml.safe_load(fh))
 

@@ -14,6 +14,11 @@ from typing import Any
 import yaml
 from jsonschema import Draft202012Validator
 
+from aiopspilot.rule_catalog.schema.probe import (
+    ProbeCatalogError,
+    load_probe_catalog,
+    probe_ids,
+)
 from aiopspilot.shared.contracts.models import Mode, OntologyActionType, TriggerKind
 from aiopspilot.shared.contracts.registry import SchemaRegistry
 
@@ -124,6 +129,7 @@ def load_action_type_catalog(
     *,
     schema_registry: SchemaRegistry,
     overlay_root: Path | None = None,
+    probes_root: Path | None = None,
 ) -> tuple[OntologyActionType, ...]:
     """Load every ActionType YAML under ``root`` (non-recursive).
 
@@ -141,6 +147,14 @@ def load_action_type_catalog(
     ActionType. Overlay precedence is the R1 rule: file-overlay wins on
     every key it declares; upstream stays for every key the overlay
     omits.
+
+    ``probes_root`` is optional; when provided, every ActionType with a
+    ``live_probe_ref`` is cross-checked against the probe catalog at
+    ``probes_root``. An unknown probe id is a hard load error so a
+    misspelled reference is caught at startup, not at first probe call
+    ([implementation-plan.md](../../../../docs/roadmap/implementation-plan.md)
+    Wave M1.3). The cross-check is skipped when ``probes_root`` is
+    ``None`` (e.g. tests that stub the probe catalog).
     """
     aggregated: list[ActionTypeIssue] = []
     loaded: list[OntologyActionType] = []
@@ -237,10 +251,56 @@ def load_action_type_catalog(
             )
         )
 
+    if probes_root is not None:
+        aggregated.extend(_check_live_probe_refs(loaded, probes_root, seen_names))
+
     if aggregated:
         raise ActionTypeCatalogError(aggregated)
 
     return tuple(loaded)
+
+
+def _check_live_probe_refs(
+    action_types: list[OntologyActionType],
+    probes_root: Path,
+    origin_by_name: Mapping[str, str],
+) -> list[ActionTypeIssue]:
+    """Cross-check every ``live_probe_ref`` against the probe catalog.
+
+    Fail-closed on a probe-catalog load error so a broken probe manifest
+    does not silently disable the cross-check.
+    """
+
+    try:
+        catalog = load_probe_catalog(probes_root)
+    except ProbeCatalogError as exc:
+        return [
+            ActionTypeIssue(
+                key="probes",
+                message=(
+                    "probe catalog failed to load; live_probe_ref cross-check "
+                    f"could not run ({exc})"
+                ),
+            )
+        ]
+    known_ids = probe_ids(catalog)
+
+    issues: list[ActionTypeIssue] = []
+    for at in action_types:
+        if at.live_probe_ref is None:
+            continue
+        if at.live_probe_ref not in known_ids:
+            origin = origin_by_name.get(at.name, "<unknown>")
+            issues.append(
+                ActionTypeIssue(
+                    key=f"{origin}:live_probe_ref",
+                    message=(
+                        f"unknown probe id {at.live_probe_ref!r} "
+                        "(not registered in rule-catalog/probes/)"
+                    ),
+                )
+            )
+    return issues
 
 
 def _deep_merge_overlay(upstream: Mapping[str, Any], overlay: Mapping[str, Any]) -> dict[str, Any]:
