@@ -515,3 +515,101 @@ def test_build_operator_memory_store_rejects_empty_dsn_via_postgres_config(
     # so we land on the in-memory branch. Guarding against a future
     # regression that would accept "" as a real DSN.
     assert isinstance(store, InMemoryOperatorMemoryStore)
+
+
+# ---------------------------------------------------------------------------
+# _build_direct_api_executor - direct-api sibling selection (Wave W2.3e)
+# ---------------------------------------------------------------------------
+
+
+def test_build_direct_api_executor_defaults_to_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No opt-in env -> None. PR-native remains the sole dispatch path."""
+
+    monkeypatch.delenv("AIOPSPILOT_DIRECT_API_FAKE", raising=False)
+    from aiopspilot.__main__ import _build_direct_api_executor
+    from aiopspilot.core.executor.lock import ResourceLockManager
+    from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+
+    got = _build_direct_api_executor(
+        audit_store=InMemoryStateStore(),
+        resource_lock=ResourceLockManager(),
+    )
+    assert got is None
+
+
+def test_build_direct_api_executor_empty_env_still_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AIOPSPILOT_DIRECT_API_FAKE='' is treated as unset (fail-safe default)."""
+
+    monkeypatch.setenv("AIOPSPILOT_DIRECT_API_FAKE", "")
+    from aiopspilot.__main__ import _build_direct_api_executor
+    from aiopspilot.core.executor.lock import ResourceLockManager
+    from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+
+    got = _build_direct_api_executor(
+        audit_store=InMemoryStateStore(),
+        resource_lock=ResourceLockManager(),
+    )
+    assert got is None
+
+
+def test_build_direct_api_executor_arbitrary_value_still_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only the literal string '1' opts in; other truthy-looking values
+    stay off so a typo cannot silently enable the direct-api path."""
+
+    monkeypatch.setenv("AIOPSPILOT_DIRECT_API_FAKE", "true")
+    from aiopspilot.__main__ import _build_direct_api_executor
+    from aiopspilot.core.executor.lock import ResourceLockManager
+    from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+
+    got = _build_direct_api_executor(
+        audit_store=InMemoryStateStore(),
+        resource_lock=ResourceLockManager(),
+    )
+    assert got is None
+
+
+def test_build_direct_api_executor_opt_in_returns_wrapped_fake(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AIOPSPILOT_DIRECT_API_FAKE='1' -> DirectApiShadowExecutor wrapping
+    the RecordingDirectApiExecutor fake."""
+
+    monkeypatch.setenv("AIOPSPILOT_DIRECT_API_FAKE", "1")
+    from aiopspilot.__main__ import _build_direct_api_executor
+    from aiopspilot.core.executor.direct_api import DirectApiShadowExecutor
+    from aiopspilot.core.executor.lock import ResourceLockManager
+    from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+
+    got = _build_direct_api_executor(
+        audit_store=InMemoryStateStore(),
+        resource_lock=ResourceLockManager(),
+    )
+    assert isinstance(got, DirectApiShadowExecutor)
+
+
+def test_build_direct_api_executor_shares_audit_and_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The wrapped executor holds the exact audit_store + resource_lock
+    passed in (composition-root contract)."""
+
+    monkeypatch.setenv("AIOPSPILOT_DIRECT_API_FAKE", "1")
+    from aiopspilot.__main__ import _build_direct_api_executor
+    from aiopspilot.core.executor.lock import ResourceLockManager
+    from aiopspilot.shared.providers.testing.state_store import InMemoryStateStore
+
+    audit = InMemoryStateStore()
+    lock = ResourceLockManager()
+    got = _build_direct_api_executor(audit_store=audit, resource_lock=lock)
+    assert got is not None
+    # Introspect the private fields to prove the contract; the test is
+    # OK to touch these because it lives in the same repo and the
+    # composition wire is safety-critical.
+    assert got._audit_store is audit
+    assert got._resource_lock is lock

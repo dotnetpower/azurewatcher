@@ -45,6 +45,7 @@ from .core.control_loop import ControlLoop
 from .core.event_ingest import EventIngest
 from .core.executor import ShadowExecutor
 from .core.executor.action_builder import ActionBuilder
+from .core.executor.direct_api import DirectApiShadowExecutor
 from .core.executor.lock import ResourceLockManager
 from .core.executor.renderer import TemplateRenderer
 from .core.tiers.t0_deterministic import T0Engine
@@ -63,6 +64,7 @@ from .rule_catalog.schema.resource_type import (
 from .rule_catalog.schema.rule import load_rule_catalog
 from .shared.config.models import LlmMode
 from .shared.providers.event_bus import EventBus
+from .shared.providers.testing.direct_api import RecordingDirectApiExecutor
 from .shared.providers.testing.remediation_pr import RecordingRemediationPrPublisher
 from .shared.providers.testing.state_store import InMemoryStateStore
 from .shared.providers.workload_identity import WorkloadIdentity
@@ -448,6 +450,38 @@ async def _finalize_llm_bindings(
     )
 
 
+def _build_direct_api_executor(
+    *,
+    audit_store: Any,
+    resource_lock: ResourceLockManager,
+) -> DirectApiShadowExecutor | None:
+    """Select the direct-API executor for this process.
+
+    Opt-in via ``AIOPSPILOT_DIRECT_API_FAKE=1``: composes a
+    :class:`RecordingDirectApiExecutor` fake behind the
+    :class:`DirectApiShadowExecutor` so an operator can exercise the
+    ``execution_path: direct_api`` dispatch path end-to-end without a
+    substrate SDK. Absent -> returns ``None`` so :class:`ControlLoop`
+    falls back to PR-native routing (the P1 default).
+
+    A real Azure ARM adapter is fork-authored and lands under
+    ``delivery/azure/direct_api/``; when it arrives, this helper grows
+    an additional env-gated branch mirroring the ``_build_publisher``
+    shape.
+    """
+
+    if os.environ.get("AIOPSPILOT_DIRECT_API_FAKE", "").strip() != "1":
+        _LOGGER.info("direct_api_backend", extra={"backend": "none"})
+        return None
+
+    _LOGGER.info("direct_api_backend", extra={"backend": "recording"})
+    return DirectApiShadowExecutor(
+        executor=RecordingDirectApiExecutor(),
+        audit_store=audit_store,
+        resource_lock=resource_lock,
+    )
+
+
 def _build_control_loop(
     container: Container,
     *,
@@ -511,6 +545,10 @@ def _build_control_loop(
         renderer=renderer,
         resource_lock=resource_lock,
     )
+    direct_api_executor = _build_direct_api_executor(
+        audit_store=audit_store,
+        resource_lock=resource_lock,
+    )
 
     return ControlLoop(
         event_ingest=event_ingest,
@@ -520,6 +558,8 @@ def _build_control_loop(
         executor=executor,
         audit_store=audit_store,
         rules_by_id={r.id: r for r in rules},
+        action_types_by_name=action_types_by_name,
+        direct_api_executor=direct_api_executor,
     )
 
 
