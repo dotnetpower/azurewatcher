@@ -41,13 +41,18 @@ from aiopspilot.core.conversation import (
     ConversationCoordinator,
     ConversationSession,
     CoordinatorConfig,
+    CorrelateIncidentTool,
     DescribeEventTool,
     ExplainVerdictTool,
     ExploreCatalogTool,
     ListHilTool,
     Principal,
     QueryAuditTool,
+    QueryDeploymentsTool,
     QueryInventoryTool,
+    QueryLogTool,
+    QueryMetricTool,
+    QueryOperatorMemoryTool,
     Role,
     RunRunbookTool,
     SimulateChangeTool,
@@ -55,6 +60,7 @@ from aiopspilot.core.conversation import (
 )
 from aiopspilot.core.executor.action_builder import ActionBuilder
 from aiopspilot.core.executor.renderer import TemplateRenderer
+from aiopspilot.core.operator_memory.store import InMemoryOperatorMemoryStore
 from aiopspilot.core.tiers.t0_deterministic import T0Engine
 from aiopspilot.core.tiers.t0_deterministic.engine import AbstainEvaluator
 from aiopspilot.core.tiers.t0_deterministic.index import RuleIndex
@@ -71,6 +77,12 @@ from aiopspilot.shared.providers.testing.break_glass_pager import (
 )
 from aiopspilot.shared.providers.testing.hil_registry import (
     InMemoryHilApprovalRegistry,
+)
+from aiopspilot.shared.providers.testing.observation import (
+    InMemoryDeploymentHistoryProvider,
+    InMemoryIncidentCorrelator,
+    InMemoryLogQueryProvider,
+    InMemoryMetricQueryProvider,
 )
 from aiopspilot.shared.providers.testing.runbook_registry import (
     InMemoryRunbookRegistry,
@@ -245,12 +257,25 @@ def _build_tools(
     runbook_registry = InMemoryRunbookRegistry()
     break_glass_pager = InMemoryBreakGlassPager()
 
+    # W1.6 + M1.5c read-tool dependencies. Every backend is a fake so
+    # the CLI works out of the box; a fork replaces via DI.
+    operator_memory_store = InMemoryOperatorMemoryStore()
+    log_query_provider = InMemoryLogQueryProvider()
+    metric_query_provider = InMemoryMetricQueryProvider()
+    deployment_history_provider = InMemoryDeploymentHistoryProvider()
+    incident_correlator = InMemoryIncidentCorrelator()
+
     tools: list[Any] = [
         ExploreCatalogTool(rules=rules, action_types=action_types),
         DescribeEventTool(trust_router=trust_router, t0_engine=t0_engine),
         ExplainVerdictTool(audit_reader=audit_store),
         QueryAuditTool(audit_reader=audit_store),
         QueryInventoryTool(inventory=inventory),
+        QueryOperatorMemoryTool(store=operator_memory_store),
+        QueryLogTool(provider=log_query_provider),
+        QueryMetricTool(provider=metric_query_provider),
+        QueryDeploymentsTool(provider=deployment_history_provider),
+        CorrelateIncidentTool(correlator=incident_correlator),
         SimulateChangeTool(
             trust_router=trust_router,
             t0_engine=t0_engine,

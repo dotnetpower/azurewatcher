@@ -83,6 +83,27 @@ _VERB_PATTERNS: tuple[tuple[str, str], ...] = (
     # query_inventory: query_inventory <resource_type> [substring]
     (r"^\s*(?P<verb>query[_\s-]?inventory)\b\s*(?P<rest>.*)$", "query_inventory"),
     (r"^\s*(?P<verb>list[_\s-]?resources)\b\s*(?P<rest>.*)$", "query_inventory"),
+    # query_operator_memory: query_operator_memory scope_kind=... scope_ref=...
+    (
+        r"^\s*(?P<verb>query[_\s-]?operator[_\s-]?memory)\b\s*(?P<rest>.*)$",
+        "query_operator_memory",
+    ),
+    (r"^\s*(?P<verb>operator[_\s-]?memory)\b\s*(?P<rest>.*)$", "query_operator_memory"),
+    # Observation-depth read tools (Wave M1.5c).
+    (r"^\s*(?P<verb>query[_\s-]?log)\b\s*(?P<rest>.*)$", "query_log"),
+    (r"^\s*(?P<verb>logs?)\b\s*(?P<rest>.*)$", "query_log"),
+    (r"^\s*(?P<verb>query[_\s-]?metric)\b\s*(?P<rest>.*)$", "query_metric"),
+    (r"^\s*(?P<verb>metrics?)\b\s*(?P<rest>.*)$", "query_metric"),
+    (
+        r"^\s*(?P<verb>query[_\s-]?deployments?)\b\s*(?P<rest>.*)$",
+        "query_deployments",
+    ),
+    (r"^\s*(?P<verb>list[_\s-]?deployments?)\b\s*(?P<rest>.*)$", "query_deployments"),
+    (
+        r"^\s*(?P<verb>correlate[_\s-]?incident)\b\s*(?P<rest>.*)$",
+        "correlate_incident",
+    ),
+    (r"^\s*(?P<verb>correlate)\b\s*(?P<rest>.*)$", "correlate_incident"),
     # simulate_change: simulate_change <JSON scenario>
     #   Anchored BEFORE the more specific approve_hil so a stray
     #   "simulate" verb never falls through.
@@ -320,6 +341,63 @@ def _extract_tool_arguments(tool_name: str, query: str) -> dict[str, Any]:
             args["resource_type"] = positional[0]
         if "id_substring" not in args and len(positional) >= 2:
             args["id_substring"] = positional[1]
+        return args
+    if tool_name == "query_operator_memory":
+        args = _parse_kv_tokens(query)
+        positional = [tok for tok in query.split() if "=" not in tok]
+        if "scope_kind" not in args and positional:
+            args["scope_kind"] = positional[0]
+        if "scope_ref" not in args and len(positional) >= 2:
+            args["scope_ref"] = positional[1]
+        if "limit" in args:
+            try:
+                args["limit"] = int(args["limit"])
+            except (TypeError, ValueError):
+                pass
+        return args
+    if tool_name == "query_log":
+        args = _parse_kv_tokens(query)
+        # Positional shorthand: ``query_log "<query>" <window>``.
+        # Because the query MAY contain spaces, only accept it via kv or
+        # via a single quoted-then-trimmed token here.
+        positional = [tok for tok in query.split() if "=" not in tok]
+        if "window" not in args and positional:
+            # Last positional token is the window (per doc pattern).
+            args["window"] = positional[-1]
+        if "query" not in args and len(positional) >= 2:
+            args["query"] = " ".join(positional[:-1])
+        if "max_rows" in args:
+            try:
+                args["max_rows"] = int(args["max_rows"])
+            except (TypeError, ValueError):
+                pass
+        return args
+    if tool_name == "query_metric":
+        args = _parse_kv_tokens(query)
+        # Positional shorthand:
+        #   query_metric <namespace> <metric> <aggregation> <window>
+        positional = [tok for tok in query.split() if "=" not in tok]
+        for idx, key in enumerate(("namespace", "metric", "aggregation", "window")):
+            if key not in args and len(positional) > idx:
+                args[key] = positional[idx]
+        return args
+    if tool_name == "query_deployments":
+        args = _parse_kv_tokens(query)
+        positional = [tok for tok in query.split() if "=" not in tok]
+        if "window" not in args and positional:
+            args["window"] = positional[0]
+        if "resource_ref" not in args and len(positional) >= 2:
+            args["resource_ref"] = positional[1]
+        return args
+    if tool_name == "correlate_incident":
+        args = _parse_kv_tokens(query)
+        positional = [tok for tok in query.split() if "=" not in tok]
+        if "incident_id" not in args and positional:
+            args["incident_id"] = positional[0]
+        # If the whole query has no kv and no positional, still expose
+        # the raw text so the tool surfaces a useful error.
+        if "incident_id" not in args and query.strip():
+            args["incident_id"] = query.strip()
         return args
     if tool_name == "simulate_change":
         # Accept a JSON-shaped scenario ("simulate_change {...}") OR
