@@ -248,7 +248,7 @@ def _build_tools(
     t0_engine = T0Engine(index=rule_index, evaluator=AbstainEvaluator())
     audit_store = InMemoryStateStore()
     audit_writer = AuditWriter(audit_store=audit_store)
-    inventory = _EmptyInventory()
+    inventory = _build_inventory()
 
     # Write-tool dependencies.
     action_types_by_name = {a.name: a for a in action_types}
@@ -297,6 +297,33 @@ def _build_tools(
         ActivateBreakGlassTool(pager=break_glass_pager, audit_writer=audit_writer),
     ]
     return tools
+
+
+def _build_inventory() -> Any:
+    """Select an :class:`Inventory` adapter based on env vars.
+
+    - Default: :class:`_EmptyInventory` (zero rows). CLI works without
+      any Azure access.
+    - ``AIOPSPILOT_USE_AZURE_INVENTORY=1``:
+      :class:`AzureCliInventory` shells to ``az group list`` /
+      ``az resource list`` using the operator's ``az login`` profile.
+      Subscription defaults to whatever ``az account show`` reports;
+      override via ``AIOPSPILOT_AZURE_SUBSCRIPTION_ID``.
+
+    Fail-soft: any import / construction error falls back to
+    ``_EmptyInventory`` with a stderr warning so the REPL stays usable
+    when the operator has not run ``az login``.
+    """
+    flag = os.environ.get("AIOPSPILOT_USE_AZURE_INVENTORY", "").strip().lower()
+    if flag not in {"1", "true", "yes"}:
+        return _EmptyInventory()
+    try:
+        from aiopspilot.delivery.azure.dev_inventory import AzureCliInventory
+    except ImportError as exc:  # pragma: no cover
+        sys.stderr.write(f"chat: azure inventory unavailable ({exc}); using empty.\n")
+        return _EmptyInventory()
+    sub = os.environ.get("AIOPSPILOT_AZURE_SUBSCRIPTION_ID") or None
+    return AzureCliInventory(subscription_id=sub)
 
 
 def _build_narrator() -> Narrator | None:
