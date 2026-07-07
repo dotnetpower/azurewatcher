@@ -355,3 +355,119 @@ def test_probes_root_broken_reports_probe_load_error(tmp_path: Path) -> None:
         )
     joined = " ".join(i.key for i in info.value.issues)
     assert "probes" in joined
+
+
+# --- W2.1/W2.2: doc-declared ops.* + governance.* completeness ---
+
+
+# Sourced from docs/roadmap/action-ontology.md 3.2. Any addition to the
+# doc's ops.* list MUST land a matching YAML; any addition to the YAML
+# MUST update the doc.
+_DOC_OPS_ACTION_TYPES: frozenset[str] = frozenset(
+    {
+        "ops.restart-service",
+        "ops.scale-out",
+        "ops.scale-in",
+        "ops.flush-cache",
+        "ops.drain-connection",
+        "ops.rotate-cert",
+        "ops.failover-primary",
+    }
+)
+
+# Sourced from docs/roadmap/action-ontology.md 3.3. Same drift guard.
+_DOC_GOVERNANCE_ACTION_TYPES: frozenset[str] = frozenset(
+    {
+        "governance.promote-action-type",
+        "governance.retire-rule",
+        "governance.grant-exemption",
+        "governance.override-ceiling",
+    }
+)
+
+
+def test_every_doc_declared_ops_action_type_ships_as_yaml() -> None:
+    catalog = load_action_type_catalog(CATALOG_ROOT, schema_registry=_registry())
+    shipped_ops = {a.name for a in catalog if a.name.startswith("ops.")}
+    missing = _DOC_OPS_ACTION_TYPES - shipped_ops
+    assert not missing, (
+        f"action-ontology.md 3.2 declares these ops.* actions but no YAML ships: {sorted(missing)}"
+    )
+
+
+def test_no_extra_ops_action_type_undocumented() -> None:
+    catalog = load_action_type_catalog(CATALOG_ROOT, schema_registry=_registry())
+    shipped_ops = {a.name for a in catalog if a.name.startswith("ops.")}
+    extra = shipped_ops - _DOC_OPS_ACTION_TYPES
+    assert not extra, (
+        "these ops.* YAMLs are not documented in action-ontology.md 3.2: "
+        f"{sorted(extra)}. Update the doc OR the YAML."
+    )
+
+
+def test_every_doc_declared_governance_action_type_ships_as_yaml() -> None:
+    catalog = load_action_type_catalog(CATALOG_ROOT, schema_registry=_registry())
+    shipped_gov = {a.name for a in catalog if a.name.startswith("governance.")}
+    missing = _DOC_GOVERNANCE_ACTION_TYPES - shipped_gov
+    assert not missing, (
+        "action-ontology.md 3.3 declares these governance.* actions but no YAML ships: "
+        f"{sorted(missing)}"
+    )
+
+
+def test_no_extra_governance_action_type_undocumented() -> None:
+    catalog = load_action_type_catalog(CATALOG_ROOT, schema_registry=_registry())
+    shipped_gov = {a.name for a in catalog if a.name.startswith("governance.")}
+    extra = shipped_gov - _DOC_GOVERNANCE_ACTION_TYPES
+    assert not extra, (
+        "these governance.* YAMLs are not documented in action-ontology.md 3.3: "
+        f"{sorted(extra)}. Update the doc OR the YAML."
+    )
+
+
+def test_every_governance_action_type_is_pr_native() -> None:
+    """action-ontology.md 3.3: 'Governance actions always use
+    execution_path: pr_native - they are catalog-as-code changes and
+    MUST land as a reviewed diff.'"""
+
+    from aiopspilot.shared.contracts.models import ExecutionPath
+
+    catalog = load_action_type_catalog(CATALOG_ROOT, schema_registry=_registry())
+    for action in catalog:
+        if not action.name.startswith("governance."):
+            continue
+        assert action.execution_path is ExecutionPath.PR_NATIVE, (
+            f"{action.name}: governance actions MUST declare "
+            f"execution_path: pr_native (got {action.execution_path!r})"
+        )
+
+
+def test_no_shipped_action_type_uses_pr_manual() -> None:
+    """R7 collapsed pr_manual into pr_native + require_manual_merge; no
+    upstream ActionType should still use the legacy pr_manual value."""
+
+    from aiopspilot.shared.contracts.models import ExecutionPath
+
+    catalog = load_action_type_catalog(CATALOG_ROOT, schema_registry=_registry())
+    offenders = [a.name for a in catalog if a.execution_path is ExecutionPath.PR_MANUAL]
+    assert not offenders, (
+        "R7 (implementation-plan.md 2.6) collapsed pr_manual into pr_native + "
+        f"require_manual_merge; these YAMLs still use pr_manual: {sorted(offenders)}"
+    )
+
+
+def test_every_ops_and_governance_declares_execution_path() -> None:
+    """Post-F1 backfill invariant: every shipped ops.* and governance.*
+    ActionType declares an explicit execution_path (loader accepts None
+    for pre-F1 remediate.* rows during migration)."""
+
+    catalog = load_action_type_catalog(CATALOG_ROOT, schema_registry=_registry())
+    missing = [
+        a.name
+        for a in catalog
+        if a.name.startswith(("ops.", "governance.")) and a.execution_path is None
+    ]
+    assert not missing, (
+        "these ops./governance ActionTypes lack execution_path: "
+        f"{sorted(missing)}. Add 'execution_path: pr_native' or 'direct_api'."
+    )
