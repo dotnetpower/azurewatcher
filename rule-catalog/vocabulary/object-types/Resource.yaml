@@ -1,0 +1,38 @@
+# Upstream built-in ObjectType: Resource.
+#
+# A `Resource` is a target under governance - typically a cloud resource
+# (Azure VM, AKS cluster, Storage account). Provider adapters populate
+# Resource instances via the CSP-neutral `Inventory` contract; core never
+# reads a vendor SDK for them. See
+# `docs/roadmap/llm-strategy.md § Ontology Foundation`.
+#
+# Property list is deliberately minimal - it covers the fields the core
+# dispatch layer relies on (`id`, `type`, `parent_id`). A fork MAY add a
+# fork-local ObjectType subtype for a specialized resource class instead
+# of extending this declaration.
+schema_version: "1.0.0"
+name: Resource
+version: "1.0.0"
+key: id
+description: A target under governance; typically a CSP resource populated by the inventory adapter.
+properties:
+  id:
+    type: string
+    required: true
+    description: Stable, opaque identifier assigned by the inventory adapter (CSP-neutral).
+  type:
+    type: string
+    required: true
+    description: Resource subtype id from rule-catalog/vocabulary/resource-types.yaml (e.g. object-storage, kubernetes-cluster).
+  name:
+    type: string
+    required: false
+    description: Human-readable name emitted by the source system; never a customer-identifying value in tests or fixtures.
+  parent_id:
+    type: string
+    required: false
+    description: Optional parent Resource id used by the `contains` link (subscription -> resource-group -> resource).
+  properties:
+    type: object
+    required: false
+    description: Open-shape bag of adapter-projected resource properties consumed by policy-as-code (Rego) and the assurance twin.

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fdai.dev/schemas/slo/1.0.0",
   "title": "SLO",
-  "description": "Workload-facing Service Level Objective. Distinct from the control-plane SLOs in docs/roadmap/deployment.md (which measure FDAI itself); this schema describes the SLIs / objectives / error budgets of the workloads FDAI operates on, so incident priority and change-freeze decisions can be ranked by real user impact. Design contract: docs/roadmap/sre-agent-scope.md § 3.3.",
+  "description": "Workload-facing Service Level Objective. Distinct from the control-plane SLOs in docs/roadmap/deployment.md (which measure FDAI itself); this schema describes the SLIs / objectives / error budgets of the workloads FDAI operates on, so incident priority and change-freeze decisions can be ranked by real user impact. Design contract: docs/roadmap/scope-expansion.md § 3.3.",
   "type": "object",
   "additionalProperties": false,
   "required": [

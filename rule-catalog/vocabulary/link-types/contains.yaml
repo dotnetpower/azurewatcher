@@ -1,0 +1,14 @@
+# LinkType: contains (Resource -> Resource, M:1, transitive)
+#
+# Ownership / scope containment: subscription -> resource-group ->
+# resource, VNet -> subnet, cluster -> node-pool. Marked transitive so
+# a recursive CTE walks the whole chain. Populated by the inventory
+# adapter, never by core code.
+schema_version: "1.0.0"
+name: contains
+version: "1.0.0"
+from_type: Resource
+to_type: Resource
+cardinality: many_to_one
+is_transitive: true
+description: Ownership / scope containment; recursive traversal walks the whole chain.

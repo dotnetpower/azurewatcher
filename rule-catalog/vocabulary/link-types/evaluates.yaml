@@ -1,0 +1,13 @@
+# LinkType: evaluates (Rule -> Resource, M:M)
+#
+# Which Resource properties the Rule reads. Populated at rule-load
+# time from the Rule's declared property references so a fork-added
+# rule that reads an unmodeled property is caught at load, not at
+# first evaluation.
+schema_version: "1.0.0"
+name: evaluates
+version: "1.0.0"
+from_type: Rule
+to_type: Resource
+cardinality: many_to_many
+description: Which Resource properties the Rule reads.

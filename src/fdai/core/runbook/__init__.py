@@ -1,6 +1,6 @@
 """Runbook DAG orchestrator - linear sequence + on-failure branch.
 
-Design contract: ``docs/roadmap/sre-agent-scope.md § 3.4``.
+Design contract: ``docs/roadmap/scope-expansion.md § 3.4``.
 
 The upstream MVP is intentionally minimal: an ordered list of
 ``RunbookStep`` entries where each step names one ActionType from the

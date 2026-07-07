@@ -1,0 +1,45 @@
+# ops.publish-change-summary - rendered Markdown change summary.
+#
+# Referenced by rule `ops.change-summary`. The executor substitutes the
+# ${...} placeholders with values from the ActionType arguments and the
+# audit-log projection; a fork that ships a Confluence page publisher
+# substitutes this template file with an equivalent storage-format XML
+# body without touching the ActionType, the rule, or the Rego policy.
+# ---
+# ChangeSummary: `${scope_ref}` (last ${window_hours}h)
+
+**Generated at**: `${generated_at}`
+**Window**: `${window_start}` -> `${window_end}` (UTC)
+**Resources touched**: ${resource_count}
+**Change events**: ${change_count}
+
+## What changed
+
+The table below aggregates every resource-mutation event emitted by
+the inventory adapter within the window, grouped by resource id.
+Each entry cites the ActionType, the mode (shadow / enforce), and the
+audit-log record id so a reviewer can drill into the underlying
+decision.
+
+| Resource | ActionType | Mode | Correlation |
+|----------|------------|------|-------------|
+${change_rows}
+
+## How to read this
+
+- Rows are sorted by ``observed_at``, oldest first. A resource that
+  changed multiple times appears once per event.
+- ``Mode`` is the mode at the time of the change, not the current
+  ActionType default. A row marked ``enforce`` means the mutation was
+  auto-applied; ``shadow`` means the executor judged and logged only.
+- ``Correlation`` is the audit-log record id; look it up via the
+  read-API ``/audit/{id}`` route for the full evidence chain (rule id,
+  policy verdict, blast-radius trace).
+
+## Follow-ups
+
+- Any row with a stop-condition or rollback flag is out of scope for
+  the summary body and MUST be triaged out-of-band via the audit log.
+- This document is a projection of state at generation time; it does
+  NOT itself trigger any action. Approve / reject the underlying
+  changes through their own audit records, not by editing this file.

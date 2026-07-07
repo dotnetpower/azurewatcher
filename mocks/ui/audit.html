@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Audit - FDAI Console</title>
+  <link rel="stylesheet" href="assets/calm-slate.css" />
+</head>
+<body>
+  <header class="cs-topbar">
+    <div class="cs-container cs-topbar-inner">
+      <span class="cs-brand"><span class="cs-brand-mark">AW</span> FDAI</span>
+      <nav class="cs-nav">
+        <a href="live.html">Live</a>
+        <a href="dashboard.html">Overview</a>
+        <a href="hil.html">HIL</a>
+        <a href="promotion.html">Promotion</a>
+        <a href="rules.html">Rules</a>
+        <a href="actions.html">Actions</a>
+        <a href="audit.html" class="cs-active">Audit</a>
+        <a href="report.html">Report</a>
+        <a href="index.html">Kit</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="cs-container cs-page">
+    <div class="cs-page-header cs-mb-16">
+      <div class="cs-eyebrow">Append-only</div>
+      <h1>Audit log</h1>
+      <p class="cs-lead">Source of truth for every terminal path - execute, reject, timeout, abstain,
+        deny, override change, promotion, demotion. The log is deterministically replayable
+        (judge-only); replay never re-executes an action.</p>
+    </div>
+
+    <div class="cs-readonly-banner">
+      <strong>Every action carries all four.</strong> Event id, tier, gate decision, mode, actor
+      identity, timestamp, idempotency key, rollback reference - together they let any autonomous
+      change be reconstructed.
+    </div>
+
+    <!-- Filter -->
+    <div class="cs-filterbar">
+      <span class="cs-fb-label">Decision</span>
+      <div class="cs-chipset">
+        <button class="cs-chip cs-active">All</button>
+        <button class="cs-chip">Auto</button>
+        <button class="cs-chip">HIL</button>
+        <button class="cs-chip">Abstain</button>
+        <button class="cs-chip">Deny</button>
+        <button class="cs-chip">Rollback</button>
+      </div>
+      <span class="cs-fb-label" style="margin-left:8px">Mode</span>
+      <div class="cs-chipset">
+        <button class="cs-chip cs-active">All</button>
+        <button class="cs-chip">Shadow</button>
+        <button class="cs-chip">Enforce</button>
+      </div>
+      <span class="cs-fb-label" style="margin-left:8px">Tier</span>
+      <div class="cs-chipset">
+        <button class="cs-chip cs-active">All</button>
+        <button class="cs-chip">T0</button>
+        <button class="cs-chip">T1</button>
+        <button class="cs-chip">T2</button>
+      </div>
+      <label class="cs-fb-search">
+        <span class="cs-muted" style="font-size:13px">&#128269;</span>
+        <input type="text" placeholder="event id, correlation id, actor, rule" />
+      </label>
+    </div>
+
+    <!-- Volume strip -->
+    <div class="cs-grid cs-grid-4 cs-mb-24">
+      <div class="cs-card cs-kpi"><div class="cs-kpi-accent"></div><span class="cs-kpi-label">Entries (24h)</span><span class="cs-kpi-value">1,842</span><span class="cs-kpi-foot">write-only, immutable</span></div>
+      <div class="cs-card cs-kpi"><div class="cs-kpi-accent is-sage"></div><span class="cs-kpi-label">Auto</span><span class="cs-kpi-value">84%</span><span class="cs-kpi-foot">executor</span></div>
+      <div class="cs-card cs-kpi"><div class="cs-kpi-accent is-terracotta"></div><span class="cs-kpi-label">HIL / abstain / deny</span><span class="cs-kpi-value">16%</span><span class="cs-kpi-foot">terminal, no-op</span></div>
+      <div class="cs-card cs-kpi"><div class="cs-kpi-accent"></div><span class="cs-kpi-label">Rollbacks</span><span class="cs-kpi-value">7</span><span class="cs-kpi-foot">each triggers a re-shadow proposal</span></div>
+    </div>
+
+    <!-- Detail table -->
+    <section class="cs-section" style="margin-top:8px">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">1</span>
+        <div class="cs-section-title"><h2>Entries</h2><p class="cs-desc">Time-descending. Each row links to its full JSON entry.</p></div>
+      </div>
+      <div class="cs-table-wrap">
+        <table class="cs-table">
+          <thead>
+            <tr>
+              <th style="width:170px">Time (UTC)</th>
+              <th>Event / rule</th>
+              <th>Tier</th>
+              <th>Decision</th>
+              <th>Mode</th>
+              <th>Actor</th>
+              <th>Rollback</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="cs-muted cs-mono">2026-07-08T09:15:04Z</td>
+              <td>
+                <code>storage.public-blob.deny</code>
+                <div class="cs-muted" style="font-size:12px">evt-01H7A4X... &middot; corr-01H7A40... &middot; idem-3d9a</div>
+              </td>
+              <td><span class="cs-tier t0">T0</span></td>
+              <td>remediation-pr opened <span class="cs-muted">(PR #2148)</span></td>
+              <td><span class="cs-mode enforce">enforce</span></td>
+              <td class="cs-muted">executor / MI</td>
+              <td class="cs-muted">pr_revert</td>
+            </tr>
+            <tr>
+              <td class="cs-muted cs-mono">2026-07-08T09:14:52Z</td>
+              <td>
+                <code>compute.autoscale.floor.min-2</code>
+                <div class="cs-muted" style="font-size:12px">evt-01H7A4Y... &middot; corr-01H7A41... &middot; similarity 0.87</div>
+              </td>
+              <td><span class="cs-tier t1">T1</span></td>
+              <td>reused learned action</td>
+              <td><span class="cs-mode shadow">shadow</span></td>
+              <td class="cs-muted">shadow-judge</td>
+              <td class="cs-muted">n/a</td>
+            </tr>
+            <tr>
+              <td class="cs-muted cs-mono">2026-07-08T09:14:31Z</td>
+              <td>
+                <code>network.firewall.orphan-rule</code>
+                <div class="cs-muted" style="font-size:12px">evt-01H7A4Z... &middot; verifier disagreement 2/3</div>
+              </td>
+              <td><span class="cs-tier t2">T2</span></td>
+              <td>abstain &rarr; HIL <span class="cs-muted">(hil-01H7A4Z)</span></td>
+              <td><span class="cs-mode hil">HIL</span></td>
+              <td class="cs-muted">quality-gate</td>
+              <td class="cs-muted">n/a</td>
+            </tr>
+            <tr>
+              <td class="cs-muted cs-mono">2026-07-08T09:13:58Z</td>
+              <td>
+                <code>cost.rightsize.candidate</code>
+                <div class="cs-muted" style="font-size:12px">evt-01H7A50... &middot; policy: cost-cap</div>
+              </td>
+              <td><span class="cs-tier t0">T0</span></td>
+              <td>no-op (compliant)</td>
+              <td><span class="cs-mode na">n/a</span></td>
+              <td class="cs-muted">router</td>
+              <td class="cs-muted">n/a</td>
+            </tr>
+            <tr>
+              <td class="cs-muted cs-mono">2026-07-08T09:13:21Z</td>
+              <td>
+                <code>k8s.rbac.cluster-admin.narrow</code>
+                <div class="cs-muted" style="font-size:12px">evt-01H7A51... &middot; blocked by policy</div>
+              </td>
+              <td><span class="cs-tier t0">T0</span></td>
+              <td>deny (policy)</td>
+              <td><span class="cs-mode deny">deny</span></td>
+              <td class="cs-muted">risk-gate</td>
+              <td class="cs-muted">n/a</td>
+            </tr>
+            <tr>
+              <td class="cs-muted cs-mono">2026-07-08T09:11:03Z</td>
+              <td>
+                <code>governance.exemption.grant</code>
+                <div class="cs-muted" style="font-size:12px">rule: storage.public-blob.deny &middot; scope: rg-public-docs</div>
+              </td>
+              <td class="cs-muted">n/a</td>
+              <td>override create &middot; downgrade critical &rarr; medium</td>
+              <td><span class="cs-mode enforce">enforce</span></td>
+              <td class="cs-muted">operator (two principals)</td>
+              <td class="cs-muted">pr_revert</td>
+            </tr>
+            <tr>
+              <td class="cs-muted cs-mono">2026-07-08T08:41:52Z</td>
+              <td>
+                <code>compute.autoscale.raise-floor</code>
+                <div class="cs-muted" style="font-size:12px">evt-01H7A22... &middot; stop-condition triggered</div>
+              </td>
+              <td><span class="cs-tier t2">T2</span></td>
+              <td>rollback executed <span class="cs-muted">(PR #2131 revert)</span></td>
+              <td><span class="cs-mode enforce">enforce</span></td>
+              <td class="cs-muted">executor / MI</td>
+              <td class="cs-muted">scripted (ok)</td>
+            </tr>
+            <tr>
+              <td class="cs-muted cs-mono">2026-07-08T07:58:11Z</td>
+              <td>
+                <code>hil-01H7A20</code>
+                <div class="cs-muted" style="font-size:12px">TTL expired</div>
+              </td>
+              <td><span class="cs-tier t1">T1</span></td>
+              <td>HIL timeout &rarr; no-op</td>
+              <td><span class="cs-mode hil">HIL</span></td>
+              <td class="cs-muted">coordinator</td>
+              <td class="cs-muted">n/a</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="cs-flex cs-flex-between cs-mb-0" style="margin-top:12px">
+        <span class="cs-muted" style="font-size:13px">Showing 8 of 1,842 entries in the last 24h.</span>
+        <span class="cs-muted"><a class="cs-link" href="#">Export CSV</a> &middot; <a class="cs-link" href="#">Replay (judge-only)</a></span>
+      </div>
+    </section>
+
+    <!-- One entry, expanded -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">2</span>
+        <div class="cs-section-title"><h2>Entry format</h2><p class="cs-desc">Every entry is a single JSON document. Fields are stable and CSP-neutral.</p></div>
+      </div>
+      <div class="cs-card">
+<pre style="margin:0;font-family:'Cascadia Code','Consolas',monospace;font-size:13px;line-height:1.55;color:var(--cs-text);background:var(--cs-shade);padding:16px;border-radius:9px;overflow:auto"><span class="cs-muted">{</span>
+  <span class="cs-muted">"ts":</span>            "2026-07-08T09:15:04Z",
+  <span class="cs-muted">"event_id":</span>      "evt-01H7A4X...",
+  <span class="cs-muted">"correlation_id":</span> "corr-01H7A40...",
+  <span class="cs-muted">"idempotency_key":</span> "idem-3d9a",
+  <span class="cs-muted">"rule":</span>          "storage.public-blob.deny",
+  <span class="cs-muted">"action_type":</span>   "storage.public-blob.disable",
+  <span class="cs-muted">"tier":</span>          "T0",
+  <span class="cs-muted">"gate_decision":</span> "auto",
+  <span class="cs-muted">"mode":</span>          "enforce",
+  <span class="cs-muted">"risk_tier":</span>     "low",
+  <span class="cs-muted">"actor":</span>         "executor/mi:autonomy-executor",
+  <span class="cs-muted">"blast_radius":</span>  { "resources": 1, "downstream": 0 },
+  <span class="cs-muted">"rollback_ref":</span>  "pr#2148:revert",
+  <span class="cs-muted">"verifier":</span>      { "schema": "pass", "policy": "pass", "what_if": "pass", "security_scan": "pass" }
+<span class="cs-muted">}</span></pre>
+      </div>
+    </section>
+
+    <!-- Retention & guarantees -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">3</span>
+        <div class="cs-section-title"><h2>Guarantees</h2><p class="cs-desc">What the audit log promises and what it does not.</p></div>
+      </div>
+      <div class="cs-grid cs-grid-2">
+        <div class="cs-alert is-success"><div class="cs-alert-bar"></div><div>
+          <h4>Append-only, ordered</h4>
+          <p>Entries mutating one resource are serialized on a per-resource key. Concurrent actions on the same resource are mutually excluded.</p>
+        </div></div>
+        <div class="cs-alert is-info"><div class="cs-alert-bar"></div><div>
+          <h4>Idempotent replay</h4>
+          <p>Re-delivery uses the idempotency key; a retried action never double-applies. Replay is judge-only and never re-executes.</p>
+        </div></div>
+        <div class="cs-alert is-warn"><div class="cs-alert-bar"></div><div>
+          <h4>Secrets never here</h4>
+          <p>No connection strings, tokens, tenant / subscription / resource ids. Actor identity is by role, not by principal-id.</p>
+        </div></div>
+        <div class="cs-alert is-info"><div class="cs-alert-bar"></div><div>
+          <h4>Rollback linked</h4>
+          <p>Every enforce entry references its rollback path (<code>pr_revert</code>, <code>scripted</code>, <code>pitr</code>, <code>snapshot_restore</code>, or <code>state_forward_only</code>).</p>
+        </div></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="cs-footer">
+    <div class="cs-container cs-flex-between cs-wrap">
+      <span>FDAI console mock - Calm Slate. Read-only surface, synthetic values.</span>
+      <span class="cs-muted">generic-scope &middot; no customer data</span>
+    </div>
+  </footer>
+</body>
+</html>

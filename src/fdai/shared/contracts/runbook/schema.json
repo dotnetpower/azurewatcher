@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fdai.dev/schemas/runbook/1.0.0",
   "title": "Runbook",
-  "description": "Ordered sequence of ActionType steps with an optional on-failure branch. Design contract: docs/roadmap/sre-agent-scope.md § 3.4. Minimum viable scope in P1: linear sequence + one `on_failure` branch id (a full DAG is deferred until two callers need it).",
+  "description": "Ordered sequence of ActionType steps with an optional on-failure branch. Design contract: docs/roadmap/scope-expansion.md § 3.4. Minimum viable scope in P1: linear sequence + one `on_failure` branch id (a full DAG is deferred until two callers need it).",
   "type": "object",
   "additionalProperties": false,
   "required": [

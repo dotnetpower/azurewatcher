@@ -241,13 +241,20 @@ Operator-requested runtime actions. Shipped Day 1:
 - `ops.rotate-cert` - rotate a TLS cert (App Gateway / Front Door).
 - `ops.failover-primary` - trigger a failover on a replicated resource.
   MUST declare `cost_impact_monthly` when failover targets a larger tier.
+- `ops.publish-change-summary` - render a rendered Markdown change
+  summary for a resource-group over a bounded time window and hand it
+  to the delivery adapter. Reference example of a non-Resource
+  business-object flow; the paired ObjectType `ChangeSummary` and
+  LinkType `summarizes` are the copy-ready scaffold in
+  [downstream-fork-example-vertical.md](downstream-fork-example-vertical.md).
 
 **Vertical mapping.** Each ops ActionType is tagged with the owning
 vertical so the [verticals](../../src/fdai/core/verticals) can claim
 it and a vertical rule can `remediates:` it: `ops.failover-primary` and
 `ops.restart-service` -> Resilience; `ops.scale-in` / `ops.scale-out` ->
 Cost Governance; `ops.drain-connection` / `ops.rotate-cert` -> Change
-Safety. `ops.flush-cache` is cross-vertical (operator-triggered only).
+Safety. `ops.flush-cache` and `ops.publish-change-summary` are
+cross-vertical (operator-triggered).
 
 Default `execution_path: direct_api` (ops are latency-sensitive; PR
 overhead defeats the purpose). A fork MAY force `pr_manual` for a

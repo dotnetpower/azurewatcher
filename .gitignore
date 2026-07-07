@@ -276,3 +276,6 @@ rule-catalog/sources/*/*/
 # --------------------------------------------------------------------------
 resolved-models.json
 resolved-models*.json
+
+# Validation script artifacts (scripts/validate-catalog-full.py)
+logs/validation/

@@ -1,14 +1,14 @@
 ---
 title: 리스크 티어(Risk tiers)
-description: FDAI이 어떤 자율 액션은 자동 실행하고 어떤 것은 사람 승인을 기다리게 하는 결정 방식.
+description: FDAI가 어떤 자율 액션은 자동 실행하고 어떤 것은 사람 승인을 기다리게 하는 결정 방식.
 translation_of: risk-tiers.md
 translation_source_sha: 588b82eb5b995ddab0641027f071ddfb9ebabd94
-translation_revised: 2026-07-07
+translation_revised: 2026-07-08
 ---
 
 # 리스크 티어(Risk tiers)
 
-FDAI이 내리는 모든 결정이 자동 실행되어야 하는 건 아닙니다. **리스크 티어**
+FDAI가 내리는 모든 결정이 자동 실행되어야 하는 건 아닙니다. **리스크 티어**
 는 제어 평면이 액션을 사람 없이 배포할지, 사람의 HIL(human-in-the-loop) 승인을
 기다릴지, 아니면 아예 거부할지 결정하는 방식입니다.
 
@@ -33,8 +33,8 @@ flowchart LR
 ```
 
 - **AUTO** - 직접 실행해도 안전할 만큼 낮은 리스크. 감사 로그는 여전히 누가, 무엇을,
-  언제, 왜 를 기록합니다.
-- **HIL** - 운영자가 승인해야 합니다. FDAI은 실행을 정지하고 알림 채널(Teams
+  언제, 왜를 기록합니다.
+- **HIL** - 운영자가 승인해야 합니다. FDAI는 실행을 정지하고 알림 채널(Teams
   카드, PR 리뷰, 이메일, 배포에서 구성한 것 무엇이든)로 요청을 올립니다.
 - **DENY** - 하드 규칙이 액션을 무조건 거부합니다. 극단적 경우 Break-Glass 역할이
   DENY를 우회할 수 있지만, 그런 사용은 눈에 띄게 감사됩니다.
@@ -49,8 +49,8 @@ flowchart LR
   마이그레이션, 리소스 삭제 등)은 기본적으로 HIL로 앉습니다.
 - **새로움(Novelty)** - trust router가 T2로 escalation 한 것은 리스크 게이트가
   더 엄격하게 받습니다.
-- **신호 소스의 신뢰도** - 합성된 이상 신호는 hardened policy 위반보다 가볍게
-  잡힙니다.
+- **신호 소스의 신뢰도** - 합성된 이상 신호는 hardened policy 위반보다 비중이 낮게
+  처리됩니다.
 
 ## AUTO가 요구하는 네 가지
 

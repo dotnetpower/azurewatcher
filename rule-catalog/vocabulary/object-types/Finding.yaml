@@ -1,0 +1,41 @@
+# Upstream built-in ObjectType: Finding.
+#
+# A `Finding` is a Rule match on a Resource at a point in time, with
+# context and severity. Findings are derived at runtime and persisted
+# in the audit store; they are the primary object the risk-gate,
+# executor, and audit log operate on.
+#
+# Multi-step workflows (e.g. an architecture-review lifecycle) MAY
+# ride on a fork-local ObjectType that references a Finding via a
+# fork-registered LinkType; the built-in Finding stays lifecycle-free
+# so the audit log remains append-only and non-mutable.
+schema_version: "1.0.0"
+name: Finding
+version: "1.0.0"
+key: id
+description: Rule match on a Resource at a point in time, with context and severity.
+properties:
+  id:
+    type: string
+    required: true
+    description: Idempotent Finding id derived from (rule_id, resource_id, evaluation_ts); retries MUST reuse it.
+  rule_id:
+    type: string
+    required: true
+    description: Rule id that produced this Finding.
+  resource_id:
+    type: string
+    required: true
+    description: Resource id the Finding is about.
+  severity:
+    type: string
+    required: true
+    description: Effective severity after per-scope overrides (Severity enum value).
+  evaluation_ts:
+    type: datetime
+    required: true
+    description: RFC 3339 UTC timestamp when the rule was evaluated.
+  context:
+    type: object
+    required: false
+    description: Open-shape context bag captured by the tier that produced the Finding.

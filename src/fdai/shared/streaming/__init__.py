@@ -7,5 +7,10 @@ routing) at its own composition root.
 """
 
 from .broadcaster import SseBroadcaster
+from .stage_publisher import EventBusStagePublisher, SseSinkStagePublisher
 
-__all__ = ["SseBroadcaster"]
+__all__ = [
+    "EventBusStagePublisher",
+    "SseBroadcaster",
+    "SseSinkStagePublisher",
+]

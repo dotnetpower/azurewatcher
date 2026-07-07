@@ -1,0 +1,15 @@
+# LinkType: summarizes (ChangeSummary -> Resource, M:M)
+#
+# Every `ChangeSummary` reports on the change events of one or more
+# Resources contained in its `scope_ref` subtree. This link records the
+# Resource set that actually contributed change events to the summary
+# (the derived set, not the full contents of the scope) so the
+# assurance twin and the operator console can dispatch "what changed"
+# queries directly against the report instance.
+schema_version: "1.0.0"
+name: summarizes
+version: "1.0.0"
+from_type: ChangeSummary
+to_type: Resource
+cardinality: many_to_many
+description: Which Resources contributed change events to a ChangeSummary.

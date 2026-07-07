@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Actions - FDAI Console</title>
+  <link rel="stylesheet" href="assets/calm-slate.css" />
+</head>
+<body>
+  <header class="cs-topbar">
+    <div class="cs-container cs-topbar-inner">
+      <span class="cs-brand"><span class="cs-brand-mark">AW</span> FDAI</span>
+      <nav class="cs-nav">
+        <a href="live.html">Live</a>
+        <a href="dashboard.html">Overview</a>
+        <a href="hil.html">HIL</a>
+        <a href="promotion.html">Promotion</a>
+        <a href="rules.html">Rules</a>
+        <a href="actions.html" class="cs-active">Actions</a>
+        <a href="audit.html">Audit</a>
+        <a href="report.html">Report</a>
+        <a href="index.html">Kit</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="cs-container cs-page">
+    <div class="cs-page-header cs-mb-16">
+      <div class="cs-eyebrow">Action ontology</div>
+      <h1>Actions</h1>
+      <p class="cs-lead">The catalog of everything autonomy is <em>allowed</em> to do. Each row is one
+        <code>ActionType</code> - trigger, execution path, rollback contract, blast-radius cap,
+        stop-condition, and default mode. Nothing runs unless it appears here.</p>
+    </div>
+
+    <div class="cs-readonly-banner">
+      <strong>Schema is the enforcement surface.</strong> The safety invariants are declared here,
+      not in the executor. A missing field blocks the ActionType from being registered.
+    </div>
+
+    <!-- Summary strip -->
+    <div class="cs-grid cs-grid-4 cs-mb-24">
+      <div class="cs-card cs-kpi">
+        <div class="cs-kpi-accent"></div>
+        <span class="cs-kpi-label">Total ActionTypes</span>
+        <span class="cs-kpi-value">46</span>
+        <span class="cs-kpi-foot">v2026.07 ontology</span>
+      </div>
+      <div class="cs-card cs-kpi">
+        <div class="cs-kpi-accent is-sage"></div>
+        <span class="cs-kpi-label">Remediation</span>
+        <span class="cs-kpi-value">31</span>
+        <span class="cs-kpi-foot">rule-fired</span>
+      </div>
+      <div class="cs-card cs-kpi">
+        <div class="cs-kpi-accent"></div>
+        <span class="cs-kpi-label">Ops</span>
+        <span class="cs-kpi-value">11</span>
+        <span class="cs-kpi-foot">operator-requested</span>
+      </div>
+      <div class="cs-card cs-kpi">
+        <div class="cs-kpi-accent is-plum"></div>
+        <span class="cs-kpi-label">Governance</span>
+        <span class="cs-kpi-value">4</span>
+        <span class="cs-kpi-foot">catalog / exemption</span>
+      </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="cs-filterbar">
+      <span class="cs-fb-label">Category</span>
+      <div class="cs-chipset">
+        <button class="cs-chip cs-active">All</button>
+        <button class="cs-chip">Remediation</button>
+        <button class="cs-chip">Ops</button>
+        <button class="cs-chip">Governance</button>
+      </div>
+      <span class="cs-fb-label" style="margin-left:8px">Trigger</span>
+      <div class="cs-chipset">
+        <button class="cs-chip cs-active">All</button>
+        <button class="cs-chip">rule_violation</button>
+        <button class="cs-chip">operator_request</button>
+        <button class="cs-chip">both</button>
+      </div>
+      <span class="cs-fb-label" style="margin-left:8px">Execution</span>
+      <div class="cs-chipset">
+        <button class="cs-chip cs-active">All</button>
+        <button class="cs-chip">pr_native</button>
+        <button class="cs-chip">direct_api</button>
+        <button class="cs-chip">pr_manual</button>
+      </div>
+      <label class="cs-fb-search">
+        <span class="cs-muted" style="font-size:13px">&#128269;</span>
+        <input type="text" placeholder="filter by ActionType id" />
+      </label>
+    </div>
+
+    <!-- Table -->
+    <section class="cs-section" style="margin-top:8px">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">1</span>
+        <div class="cs-section-title"><h2>Catalog</h2><p class="cs-desc">One row per ActionType. The rightmost column shows the default mode - new types ship in shadow.</p></div>
+      </div>
+      <div class="cs-table-wrap">
+        <table class="cs-table">
+          <thead>
+            <tr>
+              <th>ActionType</th>
+              <th>Category</th>
+              <th>Trigger</th>
+              <th>Execution</th>
+              <th>Rollback</th>
+              <th>Irreversible</th>
+              <th>Default</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>database.enable-pitr</code><div class="cs-muted" style="font-size:12px">enable point-in-time recovery on a managed database</div></td>
+              <td><span class="cs-cat remediation">remediation</span></td>
+              <td>rule_violation</td>
+              <td>pr_native</td>
+              <td>pr_revert</td>
+              <td class="cs-muted">no</td>
+              <td><span class="cs-mode enforce">enforce</span></td>
+            </tr>
+            <tr>
+              <td><code>compute.autoscale.raise-floor</code><div class="cs-muted" style="font-size:12px">raise the minimum replica count on a workload</div></td>
+              <td><span class="cs-cat ops">ops</span></td>
+              <td>both</td>
+              <td>direct_api</td>
+              <td>scripted</td>
+              <td class="cs-muted">no</td>
+              <td><span class="cs-mode shadow">shadow</span></td>
+            </tr>
+            <tr>
+              <td><code>storage.public-blob.deny</code><div class="cs-muted" style="font-size:12px">disable anonymous public access on a blob container</div></td>
+              <td><span class="cs-cat remediation">remediation</span></td>
+              <td>rule_violation</td>
+              <td>pr_native</td>
+              <td>pr_revert</td>
+              <td class="cs-muted">no</td>
+              <td><span class="cs-mode enforce">enforce</span></td>
+            </tr>
+            <tr>
+              <td><code>identity.cert.rotate</code><div class="cs-muted" style="font-size:12px">rotate an expiring signing certificate</div></td>
+              <td><span class="cs-cat remediation">remediation</span></td>
+              <td>rule_violation</td>
+              <td>pr_native</td>
+              <td>pr_revert &middot; snapshot_restore</td>
+              <td class="cs-muted">no</td>
+              <td><span class="cs-mode shadow">shadow</span></td>
+            </tr>
+            <tr>
+              <td><code>cost.rightsize.downshift-cpu</code><div class="cs-muted" style="font-size:12px">reduce a workload's CPU tier based on measured utilization</div></td>
+              <td><span class="cs-cat remediation">remediation</span></td>
+              <td>rule_violation</td>
+              <td>pr_manual</td>
+              <td>pr_revert</td>
+              <td class="cs-muted">no</td>
+              <td><span class="cs-mode shadow">shadow</span></td>
+            </tr>
+            <tr>
+              <td><code>ops.pod.restart</code><div class="cs-muted" style="font-size:12px">restart a pod (operator-only)</div></td>
+              <td><span class="cs-cat ops">ops</span></td>
+              <td>operator_request</td>
+              <td>direct_api</td>
+              <td>state_forward_only</td>
+              <td><span class="cs-guard warn">true</span></td>
+              <td><span class="cs-mode hil">HIL+quorum</span></td>
+            </tr>
+            <tr>
+              <td><code>governance.exemption.grant</code><div class="cs-muted" style="font-size:12px">grant a scoped override on an accepted rule</div></td>
+              <td><span class="cs-cat governance">governance</span></td>
+              <td>operator_request</td>
+              <td>pr_native</td>
+              <td>pr_revert</td>
+              <td class="cs-muted">no</td>
+              <td><span class="cs-mode enforce">enforce</span></td>
+            </tr>
+            <tr>
+              <td><code>governance.actiontype.promote</code><div class="cs-muted" style="font-size:12px">promote a shadow ActionType to enforce</div></td>
+              <td><span class="cs-cat governance">governance</span></td>
+              <td>operator_request</td>
+              <td>pr_native</td>
+              <td>pr_revert</td>
+              <td class="cs-muted">no</td>
+              <td><span class="cs-mode hil">HIL</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Anatomy of an ActionType -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">2</span>
+        <div class="cs-section-title"><h2>Anatomy of an ActionType</h2><p class="cs-desc">Every entry declares these fields. The risk gate uses them to route auto / HIL / abstain / deny.</p></div>
+      </div>
+      <div class="cs-card">
+        <h3 class="cs-mb-8"><code>database.enable-pitr</code></h3>
+        <div class="cs-meta">
+          <div><span>Category</span><span><span class="cs-cat remediation">remediation</span></span></div>
+          <div><span>Trigger</span><span>rule_violation</span></div>
+          <div><span>Execution path</span><span>pr_native</span></div>
+          <div><span>Rollback contract</span><span>pr_revert (tested)</span></div>
+          <div><span>Irreversible</span><span>false</span></div>
+          <div><span>Blast-radius cap</span><span>1 resource, 0 downstream</span></div>
+          <div><span>Stop-condition</span><span>backup lag &gt; 60s</span></div>
+          <div><span>Precondition</span><span>resource state == Available</span></div>
+          <div><span>Default mode</span><span><span class="cs-mode enforce">enforce</span></span></div>
+          <div><span>Promotion gate</span><span>accuracy &ge; 95%, escapes = 0</span></div>
+          <div><span>Rule bindings</span><span><code>database.pitr.required</code></span></div>
+          <div><span>Grounded by</span><span>WAF-Reliability RL-04</span></div>
+        </div>
+        <p class="cs-help" style="margin-top:12px">The <code>rollback_contract</code> is one of
+          <code>pr_revert</code>, <code>scripted</code>, <code>pitr</code>, <code>snapshot_restore</code>,
+          or <code>state_forward_only</code>. A one-way mutation must set
+          <code>irreversible: true</code> - it does not use <code>state_forward_only</code> to silence
+          the invariant.</p>
+      </div>
+    </section>
+
+    <!-- Six-axis risk classification -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">3</span>
+        <div class="cs-section-title"><h2>Six-axis risk ceiling</h2><p class="cs-desc">The risk gate never raises autonomy above what these six axes allow, even if the rule table would.</p></div>
+      </div>
+      <div class="cs-table-wrap">
+        <table class="cs-table">
+          <thead>
+            <tr><th>Axis</th><th>Value on <code>database.enable-pitr</code></th><th>Contribution</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Blast radius</td><td>1 resource, 0 downstream</td><td><span class="cs-risk low">low</span></td></tr>
+            <tr><td>Reversibility</td><td>pr_revert (tested)</td><td><span class="cs-risk low">low</span></td></tr>
+            <tr><td>Data sensitivity</td><td>enables recovery only</td><td><span class="cs-risk low">low</span></td></tr>
+            <tr><td>Execution path</td><td>pr_native</td><td><span class="cs-risk low">low</span></td></tr>
+            <tr><td>Change velocity</td><td>1 target / event</td><td><span class="cs-risk low">low</span></td></tr>
+            <tr><td>Deployment stage</td><td>production</td><td><span class="cs-risk medium">medium</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cs-help" style="margin-top:12px">The ceiling is the highest single-axis contribution.
+        Here that pins the item at <span class="cs-risk medium">medium</span> - which under the
+        first-match risk-classification table routes to HIL. Neither surface may over-ride the other.</p>
+    </section>
+  </main>
+
+  <footer class="cs-footer">
+    <div class="cs-container cs-flex-between cs-wrap">
+      <span>FDAI console mock - Calm Slate. Read-only surface, synthetic values.</span>
+      <span class="cs-muted">generic-scope &middot; no customer data</span>
+    </div>
+  </footer>
+</body>
+</html>

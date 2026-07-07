@@ -20,6 +20,7 @@ import type { ReadApiClient } from "./api";
 import { AuditRoute } from "./routes/audit";
 import { DashboardRoute } from "./routes/dashboard";
 import { HilQueueRoute } from "./routes/hil-queue";
+import { LiveRoute } from "./routes/live";
 
 /** Props every panel component receives. Read-only client only. */
 export interface PanelProps {
@@ -35,7 +36,7 @@ export interface ConsolePanel {
   readonly component: ComponentType<PanelProps>;
 }
 
-/** The three panels the upstream console always ships. */
+/** The four panels the upstream console always ships. */
 const DASHBOARD_PANEL: ConsolePanel = {
   id: "dashboard",
   label: "Dashboard",
@@ -43,6 +44,7 @@ const DASHBOARD_PANEL: ConsolePanel = {
 };
 
 export const CORE_PANELS: readonly ConsolePanel[] = [
+  { id: "live", label: "Live", component: LiveRoute },
   DASHBOARD_PANEL,
   { id: "audit", label: "Audit", component: AuditRoute },
   { id: "hil-queue", label: "HIL Queue", component: HilQueueRoute },

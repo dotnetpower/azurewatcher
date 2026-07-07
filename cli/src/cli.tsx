@@ -12,8 +12,6 @@
  *   tsx src/cli.tsx --surface=cli --mode=all-clear
  */
 
-import React from "react";
-
 import { fetchSnapshot } from "./data/read-api.js";
 import { sampleBriefing, type BriefingMode } from "./data/sample-briefing.js";
 import type { Block } from "./view-model/blocks.js";
@@ -89,11 +87,23 @@ switch (surface) {
     break;
   case "cli":
   default: {
-    // Load Ink only for the terminal surface. The App is an interactive REPL:
-    // it prints the briefing, then keeps a live prompt (it does not exit).
-    const { render } = await import("ink");
-    const { App } = await import("./renderers/ink/App.js");
-    render(React.createElement(App, { blocks, payload, apiUrl: liveApi }));
+    if (source === "api" && liveApi && process.stdin.isTTY) {
+      // Live data: a one-screen cockpit fed by the real pipeline over SSE.
+      const { startCockpit } = await import("./cockpit.js");
+      await startCockpit({ apiUrl: liveApi, payload: null });
+    } else {
+      // Sample data (or non-TTY): Ink briefing once, then the bottom-fixed REPL.
+      const { renderBriefing } = await import(
+        "./renderers/ink/briefing-oneshot.js"
+      );
+      await renderBriefing(blocks);
+      const { startRepl } = await import("./repl.js");
+      await startRepl({ apiUrl: liveApi, payload: payload ?? null });
+    }
     break;
   }
 }
+
+// A CLI is done once its work is done. `fetch` (undici) keeps keep-alive sockets
+// referenced, which would otherwise delay exit, so exit explicitly.
+process.exit(0);

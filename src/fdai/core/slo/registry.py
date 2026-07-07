@@ -1,7 +1,7 @@
 """SLO registry - load YAML SLO definitions from a catalog directory.
 
 The catalog is fork-hosted: upstream ships **zero** SLOs
-(:doc:`docs/roadmap/sre-agent-scope.md § 3.3 <../../../../docs/roadmap/sre-agent-scope.md>`).
+(:doc:`docs/roadmap/scope-expansion.md § 3.3 <../../../../docs/roadmap/scope-expansion.md>`).
 A fork drops ``<slo-id>.yaml`` files under ``rule-catalog/slo/`` and
 the composition root binds a registry pointing at that directory.
 

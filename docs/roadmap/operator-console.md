@@ -26,12 +26,12 @@ contract, but they are distinct integration surfaces.
 
 ## 1. Framing - what this is (and what it is not)
 
-The operator console is **not an autonomous SRE agent**. FDAI's judgment
-authority stays where it already is - the deterministic engine (T0), the
-quality gate (T2 verifier), the risk gate, and the shipped Rego policies.
-The console is the **conversational surface** through which an operator
-inspects that judgment, simulates change, and approves what the system has
-already queued.
+The operator console does **not** carry judgment authority. FDAI's
+judgment stays where it already is - the deterministic engine (T0),
+the quality gate (T2 verifier), the risk gate, and the shipped Rego
+policies. The console is the **conversational surface** through which
+an operator inspects that judgment, simulates change, and approves
+what the system has already queued.
 
 Three properties follow directly:
 
@@ -51,29 +51,7 @@ Three properties follow directly:
   conversations lives in `audit_log` + `operator_memory` where it is
   auditable, exportable, and CSP-neutral.
 
-### 1.1 Comparison with Azure SRE Agent
-
-Azure SRE Agent
-([sre.azure.com/docs/overview](https://sre.azure.com/docs/overview)) is a
-useful reference because it defines a category the industry recognises. Our
-console targets the same operator experience with a different judgment
-model.
-
-| Axis | Azure SRE Agent | FDAI Operator Console |
-|------|-----------------|-----------------------------|
-| Primary judge | LLM agent (with tools) | Deterministic engine + verifier |
-| LLM role | Primary reasoner | Translator + T2 fallback (~5-10% of turns) |
-| Growth | LLM learns team patterns | Rule catalog + `operator_memory` accumulates |
-| Tool extension | MCP connectors (external protocol) | Rule catalog + ActionType + optional MCP (Week 2+) |
-| Trust signal | LLM self-confidence | Rule severity + shadow → enforce metric + verifier pass |
-| Session persistence | Model-side memory | Append-only audit log + `operator_memory` |
-| Multi-signal RCA | LLM correlates logs / metrics / traces | System has already correlated at ingest; operator asks *"why did it decide X?"* |
-
-Neither approach is "better" in the abstract; they are different products.
-The operator console is what fits FDAI's `deterministic-first`
-principle and the rule-catalog collection contract.
-
-### 1.2 Vocabulary added to the shared glossary
+### 1.1 Vocabulary added to the shared glossary
 
 The following tokens are added to the shared vocabulary in
 [architecture.instructions.md](../../.github/instructions/architecture.instructions.md)
@@ -216,10 +194,10 @@ Two clarifications on the write set:
 | `query_deployments(window)` | Git + ARM deployment-history join. | Reader | new `DeploymentHistoryAdapter` |
 | `correlate_incident(incident_id)` | Multi-signal correlation over ingest events + audit + inventory + logs + metrics for one incident id. | Reader | Above three + `event_ingest` |
 
-The Month-1 additions are the concessions that bring the console close to
-the "Autonomous Incident Response" narrative in Azure SRE Agent - but they
-still surface **already-correlated** results; the correlator lives in
-Layer 1, not inside the narrator.
+The Month-1 additions bring the console close to a multi-signal
+incident-response experience, but they still surface
+**already-correlated** results; the correlator lives in Layer 1, not
+inside the narrator.
 
 ### 3.4 Tool discovery contract
 
@@ -783,7 +761,7 @@ resources (rule catalog, action types, runbook index) as MCP resources.
 The MCP layer is **additive**: the same coordinator handles MCP-sourced
 tool calls exactly as CLI/Teams-sourced ones, and the RBAC gate stays
 identical. A fork MAY expose the MCP server to external agents (Claude
-Code, Copilot Chat, Azure SRE Agent itself) at their discretion; the
+Code, Copilot Chat, or any other MCP client) at their discretion; the
 upstream surface documents the wire contract and ships the server
 process but does not open it publicly.
 

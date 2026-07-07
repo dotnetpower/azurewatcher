@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Console - Calm Slate</title>
+  <title>Overview - FDAI Console</title>
   <link rel="stylesheet" href="assets/calm-slate.css" />
 </head>
 <body>
@@ -11,104 +11,324 @@
     <div class="cs-container cs-topbar-inner">
       <span class="cs-brand"><span class="cs-brand-mark">AW</span> FDAI</span>
       <nav class="cs-nav">
-        <a href="index.html">Overview</a>
-        <a href="components.html">Components</a>
+        <a href="live.html">Live</a>
+        <a href="dashboard.html" class="cs-active">Overview</a>
+        <a href="hil.html">HIL</a>
+        <a href="promotion.html">Promotion</a>
+        <a href="rules.html">Rules</a>
+        <a href="actions.html">Actions</a>
+        <a href="audit.html">Audit</a>
         <a href="report.html">Report</a>
-        <a href="dashboard.html" class="cs-active">Console</a>
+        <a href="index.html">Kit</a>
       </nav>
     </div>
   </header>
 
   <main class="cs-container cs-page">
-    <div class="cs-page-header cs-mb-24">
+    <div class="cs-page-header cs-mb-16">
       <div class="cs-eyebrow">Operator Console · Read-only</div>
-      <h1>Control-plane status</h1>
-      <p class="cs-lead">The console renders state, the HIL queue, shadow results, and the audit
-        log. It issues no privileged calls - approvals happen in ChatOps or via a remediation PR.</p>
-      <div class="cs-flex cs-wrap cs-gap-12" style="margin-top:12px">
-        <span class="cs-status ok">Core engine: healthy</span>
-        <span class="cs-status ok">Event bus: draining</span>
-        <span class="cs-status wait">HIL queue: 2 pending</span>
-        <span class="cs-status idle">Scale: idle (0 replicas)</span>
-      </div>
+      <h1>Overview</h1>
+      <p class="cs-lead">One-screen state of the control plane: KPIs against a pinned reference,
+        trust-tier and risk-gate distribution, shadow / enforce mix, and the queue that needs a
+        human. Approvals happen in ChatOps or via a remediation PR - never here.</p>
     </div>
 
-    <!-- KPIs -->
+    <div class="cs-readonly-banner">
+      <strong>Read-only.</strong> This surface renders state. It never issues a privileged call;
+      the executor identity is not shared with the console.
+    </div>
+
+    <div class="cs-flex cs-wrap cs-gap-12 cs-mb-24">
+      <span class="cs-status ok">Core engine: healthy</span>
+      <span class="cs-status ok">Event bus: draining</span>
+      <span class="cs-status wait">HIL queue: 3 pending</span>
+      <span class="cs-status idle">Scale: idle (0 replicas)</span>
+      <span class="cs-tag">scenario-set <code>v2026.07</code></span>
+      <span class="cs-tag">reference-agent <code>ref-2026.06</code></span>
+      <span class="cs-tag">window <strong>30d</strong></span>
+    </div>
+
+    <!-- Primary KPIs -->
     <section class="cs-section">
       <div class="cs-section-head">
         <span class="cs-badge-num">1</span>
-        <div class="cs-section-title"><h2>Live KPIs</h2><p class="cs-desc">Last 24 hours.</p></div>
+        <div class="cs-section-title"><h2>Success metrics</h2><p class="cs-desc">Measured against the pinned reference agent on the same scenario set. Targets, not guarantees.</p></div>
       </div>
       <div class="cs-grid cs-grid-4">
-        <div class="cs-card cs-kpi"><div class="cs-kpi-accent"></div><span class="cs-kpi-label">Events processed</span><span class="cs-kpi-value">12,480</span><span class="cs-kpi-foot">deduplicated</span></div>
-        <div class="cs-card cs-kpi"><div class="cs-kpi-accent is-sage"></div><span class="cs-kpi-label">Auto-resolved</span><span class="cs-kpi-value">88%</span><span class="cs-kpi-foot"><span class="cs-trend up">▲</span> T0 + T1</span></div>
-        <div class="cs-card cs-kpi"><div class="cs-kpi-accent is-plum"></div><span class="cs-kpi-label">Reached T2</span><span class="cs-kpi-value">6.9%</span><span class="cs-kpi-foot">quality-gated</span></div>
-        <div class="cs-card cs-kpi"><div class="cs-kpi-accent is-terracotta"></div><span class="cs-kpi-label">Rollback rate</span><span class="cs-kpi-value">0.2%</span><span class="cs-kpi-foot"><span class="cs-trend flat">- stable</span></span></div>
+        <div class="cs-card cs-kpi">
+          <div class="cs-kpi-accent is-sage"></div>
+          <span class="cs-kpi-label">Auto-resolution rate</span>
+          <span class="cs-kpi-value">87.4%</span>
+          <span class="cs-kpi-foot"><span class="cs-trend up">&#9650; 4.2×</span> vs reference</span>
+        </div>
+        <div class="cs-card cs-kpi">
+          <div class="cs-kpi-accent"></div>
+          <span class="cs-kpi-label">MTTR (median / p90)</span>
+          <span class="cs-kpi-value">3m 12s <small class="cs-muted" style="font-size:14px;font-weight:500">/ 11m</small></span>
+          <span class="cs-kpi-foot"><span class="cs-trend up">&#9660; 0.28× baseline</span></span>
+        </div>
+        <div class="cs-card cs-kpi">
+          <div class="cs-kpi-accent"></div>
+          <span class="cs-kpi-label">Change lead time (median / p90)</span>
+          <span class="cs-kpi-value">4m 47s <small class="cs-muted" style="font-size:14px;font-weight:500">/ 18m</small></span>
+          <span class="cs-kpi-foot"><span class="cs-trend up">&#9660; 0.22× baseline</span></span>
+        </div>
+        <div class="cs-card cs-kpi">
+          <div class="cs-kpi-accent is-terracotta"></div>
+          <span class="cs-kpi-label">Human touchpoints / 100 events</span>
+          <span class="cs-kpi-value">1.9</span>
+          <span class="cs-kpi-foot"><span class="cs-trend up">&#9660; 0.19× baseline</span></span>
+        </div>
       </div>
     </section>
 
-    <!-- HIL queue + tier split -->
+    <!-- Guard metrics -->
     <section class="cs-section">
       <div class="cs-section-head">
         <span class="cs-badge-num">2</span>
-        <div class="cs-section-title"><h2>Human-in-the-loop queue</h2><p class="cs-desc">High-risk items awaiting approval. Actioned in ChatOps, not here.</p></div>
+        <div class="cs-section-title"><h2>Guard metrics</h2><p class="cs-desc">These must not regress. A breach demotes the offending action back to shadow automatically.</p></div>
       </div>
-      <div class="cs-grid" style="grid-template-columns: 1.6fr 1fr;">
-        <div class="cs-table-wrap">
-          <table class="cs-table">
-            <thead><tr><th>Event</th><th>Severity</th><th>Tier</th><th>Waiting</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr><td>Enable PITR on managed database</td><td><span class="cs-sev critical">critical</span></td><td><span class="cs-tier t1">T1</span></td><td class="cs-muted">8m</td><td><span class="cs-status wait">pending</span></td></tr>
-              <tr><td>Production autoscale floor change</td><td><span class="cs-sev high">high</span></td><td><span class="cs-tier t2">T2</span></td><td class="cs-muted">21m</td><td><span class="cs-status wait">pending</span></td></tr>
-              <tr><td>Firewall rule reconcile</td><td><span class="cs-sev medium">medium</span></td><td><span class="cs-tier t0">T0</span></td><td class="cs-muted">-</td><td><span class="cs-status ok">approved</span></td></tr>
-            </tbody>
-          </table>
+      <div class="cs-grid cs-grid-4">
+        <div class="cs-card cs-kpi">
+          <div class="cs-kpi-accent is-sage"></div>
+          <span class="cs-kpi-label">Change failure rate</span>
+          <span class="cs-kpi-value">2.1%</span>
+          <span class="cs-kpi-foot"><span class="cs-guard ok">&#8804; baseline</span></span>
         </div>
-        <div class="cs-card">
-          <h3>Tier split</h3>
-          <div class="cs-mb-16"><div class="cs-flex-between cs-mb-8"><span><span class="cs-tier t0">T0</span> deterministic</span><span class="cs-muted">76%</span></div><div class="cs-meter is-sage"><span style="width:76%"></span></div></div>
-          <div class="cs-mb-16"><div class="cs-flex-between cs-mb-8"><span><span class="cs-tier t1">T1</span> lightweight</span><span class="cs-muted">17%</span></div><div class="cs-meter"><span style="width:17%"></span></div></div>
-          <div><div class="cs-flex-between cs-mb-8"><span><span class="cs-tier t2">T2</span> reasoning</span><span class="cs-muted">7%</span></div><div class="cs-meter is-terracotta"><span style="width:7%"></span></div></div>
+        <div class="cs-card cs-kpi">
+          <div class="cs-kpi-accent is-sage"></div>
+          <span class="cs-kpi-label">False-positive rate</span>
+          <span class="cs-kpi-value">0.6%</span>
+          <span class="cs-kpi-foot"><span class="cs-guard ok">within budget</span></span>
+        </div>
+        <div class="cs-card cs-kpi">
+          <div class="cs-kpi-accent is-terracotta"></div>
+          <span class="cs-kpi-label">Rollback rate</span>
+          <span class="cs-kpi-value">0.4%</span>
+          <span class="cs-kpi-foot"><span class="cs-guard warn">+0.1pp vs baseline</span></span>
+        </div>
+        <div class="cs-card cs-kpi">
+          <div class="cs-kpi-accent is-sage"></div>
+          <span class="cs-kpi-label">Policy-violation escapes</span>
+          <span class="cs-kpi-value">0</span>
+          <span class="cs-kpi-foot"><span class="cs-guard ok">required for release</span></span>
         </div>
       </div>
     </section>
 
-    <!-- Shadow results -->
+    <!-- Trust-tier + risk-gate distribution -->
     <section class="cs-section">
       <div class="cs-section-head">
         <span class="cs-badge-num">3</span>
-        <div class="cs-section-title"><h2>Shadow results</h2><p class="cs-desc">New capabilities judge and log only, before any enforce promotion.</p></div>
+        <div class="cs-section-title"><h2>Routing &amp; gate decisions</h2><p class="cs-desc">How the last 24h of events were resolved - by tier, and by risk-gate outcome.</p></div>
       </div>
-      <div class="cs-grid cs-grid-3">
-        <div class="cs-card"><div class="cs-flex-between cs-mb-8"><span class="cs-tag is-sage">accuracy</span><strong>98.6%</strong></div><div class="cs-meter is-sage"><span style="width:98%"></span></div><p class="cs-help">Over 7-day shadow window.</p></div>
-        <div class="cs-card"><div class="cs-flex-between cs-mb-8"><span class="cs-tag is-steel">policy escapes</span><strong>0</strong></div><div class="cs-meter"><span style="width:2%"></span></div><p class="cs-help">Required for enforce promotion.</p></div>
-        <div class="cs-card"><div class="cs-flex-between cs-mb-8"><span class="cs-tag is-terracotta">disagreement</span><strong>3.4%</strong></div><div class="cs-meter is-terracotta"><span style="width:34%"></span></div><p class="cs-help">Mixed-model cross-check; escalates to HIL.</p></div>
+      <div class="cs-grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="cs-card">
+          <div class="cs-flex-between cs-mb-8"><h3 class="cs-mb-0">Trust tier</h3><span class="cs-muted">12,480 events</span></div>
+          <div class="cs-stackbar">
+            <span class="is-t0" style="width:74%"></span>
+            <span class="is-t1" style="width:19%"></span>
+            <span class="is-t2" style="width:7%"></span>
+          </div>
+          <div class="cs-stackbar-legend">
+            <span><span class="dot" style="background:var(--cs-sage)"></span><strong>74%</strong> T0 deterministic</span>
+            <span><span class="dot" style="background:var(--cs-teal)"></span><strong>19%</strong> T1 lightweight</span>
+            <span><span class="dot" style="background:var(--cs-plum)"></span><strong>7%</strong> T2 reasoning</span>
+          </div>
+        </div>
+        <div class="cs-card">
+          <div class="cs-flex-between cs-mb-8"><h3 class="cs-mb-0">Risk-gate outcome</h3><span class="cs-muted">last 24h</span></div>
+          <div class="cs-stackbar">
+            <span class="is-auto" style="width:84%"></span>
+            <span class="is-hil" style="width:11%"></span>
+            <span class="is-abstain" style="width:4%"></span>
+            <span class="is-deny" style="width:1%"></span>
+          </div>
+          <div class="cs-stackbar-legend">
+            <span><span class="dot" style="background:var(--cs-sage)"></span><strong>84%</strong> auto</span>
+            <span><span class="dot" style="background:var(--cs-terracotta)"></span><strong>11%</strong> HIL</span>
+            <span><span class="dot" style="background:var(--cs-plum)"></span><strong>4%</strong> abstain</span>
+            <span><span class="dot" style="background:var(--cs-dusty-red)"></span><strong>1%</strong> deny</span>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- Audit log -->
+    <!-- Modes + queues -->
     <section class="cs-section">
       <div class="cs-section-head">
         <span class="cs-badge-num">4</span>
-        <div class="cs-section-title"><h2>Audit log</h2><p class="cs-desc">Append-only. Every terminal path writes an entry.</p></div>
+        <div class="cs-section-title"><h2>Modes &amp; queues</h2><p class="cs-desc">Shadow vs enforce mix, and the HIL work waiting on a human. Detail on <a href="promotion.html">Promotion</a> and <a href="hil.html">HIL</a>.</p></div>
+      </div>
+      <div class="cs-grid cs-grid-3">
+        <div class="cs-card">
+          <h3 class="cs-mb-8">Action mode</h3>
+          <div class="cs-flex cs-wrap cs-gap-8 cs-mb-16">
+            <span class="cs-mode shadow">shadow <strong style="margin-left:6px">12</strong></span>
+            <span class="cs-mode enforce">enforce <strong style="margin-left:6px">31</strong></span>
+            <span class="cs-mode hil">HIL <strong style="margin-left:6px">3</strong></span>
+          </div>
+          <p class="cs-help">New capabilities ship in shadow and are promoted explicitly per the promotion gate.</p>
+          <a href="promotion.html" class="cs-link">See promotion gate &rarr;</a>
+        </div>
+        <div class="cs-card">
+          <h3 class="cs-mb-8">HIL queue</h3>
+          <p class="cs-mb-8"><strong style="font-size:22px">3</strong> <span class="cs-muted">pending</span></p>
+          <div class="cs-flex cs-wrap cs-gap-8 cs-mb-16">
+            <span class="cs-risk critical">1 critical</span>
+            <span class="cs-risk high">1 high</span>
+            <span class="cs-risk medium">1 medium</span>
+          </div>
+          <p class="cs-help">Two approvers plus break-glass for HIGH+; self-approval is blocked.</p>
+          <a href="hil.html" class="cs-link">Open queue &rarr;</a>
+        </div>
+        <div class="cs-card">
+          <h3 class="cs-mb-8">Verticals</h3>
+          <div class="cs-flex cs-wrap cs-gap-8 cs-mb-16">
+            <span class="cs-vert resilience">Resilience &middot; 4.8k evt</span>
+            <span class="cs-vert change">Change safety &middot; 6.1k evt</span>
+            <span class="cs-vert cost">Cost governance &middot; 1.6k evt</span>
+          </div>
+          <p class="cs-help">Volumes over the measurement window per initial vertical.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- HIL queue summary (top 3) -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">5</span>
+        <div class="cs-section-title"><h2>Needs a human (top 3)</h2><p class="cs-desc">High-risk items handed to a human. Actioned in ChatOps or via a remediation PR, never here.</p></div>
+      </div>
+
+      <div class="cs-hcard is-critical">
+        <div class="cs-hcard-rail"></div>
+        <div class="cs-hcard-body">
+          <div class="cs-hcard-head">
+            <h3 class="cs-hcard-title">Enable point-in-time recovery on managed database</h3>
+            <span class="cs-risk critical">critical</span>
+            <span class="cs-tier t1">T1</span>
+            <span class="cs-cat remediation">remediation</span>
+            <span class="cs-vert resilience">resilience</span>
+          </div>
+          <p class="cs-mb-0 cs-muted">Similarity match with a prior incident (score 0.93); verifier passed schema + policy + what-if.</p>
+          <div class="cs-hcard-foot">
+            <span>waiting <strong style="color:var(--cs-text)">8m</strong></span>
+            <span>2 approvers &middot; break-glass allowed</span>
+            <span class="cs-mono">evt-01H7A4X-...</span>
+            <span style="margin-left:auto"><a class="cs-link" href="hil.html">details &rarr;</a></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cs-hcard is-high">
+        <div class="cs-hcard-rail"></div>
+        <div class="cs-hcard-body">
+          <div class="cs-hcard-head">
+            <h3 class="cs-hcard-title">Raise production autoscale floor from 2 to 4</h3>
+            <span class="cs-risk high">high</span>
+            <span class="cs-tier t2">T2</span>
+            <span class="cs-cat ops">ops</span>
+            <span class="cs-vert change">change safety</span>
+          </div>
+          <p class="cs-mb-0 cs-muted">T2 reasoning grounded on WAF-Reliability RL-08 and prior autoscale incident; mixed-model agreement.</p>
+          <div class="cs-hcard-foot">
+            <span>waiting <strong style="color:var(--cs-text)">21m</strong></span>
+            <span>2 approvers &middot; break-glass allowed</span>
+            <span class="cs-mono">evt-01H7A4Y-...</span>
+            <span style="margin-left:auto"><a class="cs-link" href="hil.html">details &rarr;</a></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cs-hcard is-medium">
+        <div class="cs-hcard-rail"></div>
+        <div class="cs-hcard-body">
+          <div class="cs-hcard-head">
+            <h3 class="cs-hcard-title">Rotate expiring signing certificate</h3>
+            <span class="cs-risk medium">medium</span>
+            <span class="cs-tier t0">T0</span>
+            <span class="cs-cat remediation">remediation</span>
+            <span class="cs-vert change">change safety</span>
+          </div>
+          <p class="cs-mb-0 cs-muted">Deterministic rule <code>cert.expiry.30d</code>; awaiting owner review before enforce promotion.</p>
+          <div class="cs-hcard-foot">
+            <span>waiting <strong style="color:var(--cs-text)">1h 04m</strong></span>
+            <span>1 approver</span>
+            <span class="cs-mono">evt-01H7A4Z-...</span>
+            <span style="margin-left:auto"><a class="cs-link" href="hil.html">details &rarr;</a></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Recent audit -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">6</span>
+        <div class="cs-section-title"><h2>Recent audit</h2><p class="cs-desc">Append-only. Every terminal path writes an entry - including reject, timeout, abstain, deny.</p></div>
       </div>
       <div class="cs-table-wrap">
         <table class="cs-table">
-          <thead><tr><th>Time (UTC)</th><th>Event id</th><th>Tier</th><th>Decision</th><th>Mode</th></tr></thead>
+          <thead>
+            <tr><th style="width:180px">Time (UTC)</th><th>Event</th><th>Tier</th><th>Decision</th><th>Mode</th><th>Actor</th></tr>
+          </thead>
           <tbody>
-            <tr><td class="cs-muted">2026-07-03T09:15:04Z</td><td><code>evt-0001</code></td><td><span class="cs-tier t0">T0</span></td><td>remediation-pr opened</td><td><span class="cs-tag is-sage">shadow</span></td></tr>
-            <tr><td class="cs-muted">2026-07-03T09:14:52Z</td><td><code>evt-0002</code></td><td><span class="cs-tier t1">T1</span></td><td>reused learned action</td><td><span class="cs-tag is-steel">enforce</span></td></tr>
-            <tr><td class="cs-muted">2026-07-03T09:14:31Z</td><td><code>evt-0003</code></td><td><span class="cs-tier t2">T2</span></td><td>abstain → HIL</td><td><span class="cs-tag">n/a</span></td></tr>
-            <tr><td class="cs-muted">2026-07-03T09:13:58Z</td><td><code>evt-0004</code></td><td><span class="cs-tier t0">T0</span></td><td>no-op (compliant)</td><td><span class="cs-tag is-sage">shadow</span></td></tr>
+            <tr>
+              <td class="cs-muted cs-mono">2026-07-08T09:15:04Z</td>
+              <td>storage.public-blob.exposed <span class="cs-muted">(rg &lsquo;webapp&rsquo;)</span></td>
+              <td><span class="cs-tier t0">T0</span></td>
+              <td>remediation-pr opened</td>
+              <td><span class="cs-mode enforce">enforce</span></td>
+              <td class="cs-muted">executor / MI</td>
+            </tr>
+            <tr>
+              <td class="cs-muted cs-mono">2026-07-08T09:14:52Z</td>
+              <td>compute.autoscale.floor-drift</td>
+              <td><span class="cs-tier t1">T1</span></td>
+              <td>reused learned action</td>
+              <td><span class="cs-mode shadow">shadow</span></td>
+              <td class="cs-muted">shadow-judge</td>
+            </tr>
+            <tr>
+              <td class="cs-muted cs-mono">2026-07-08T09:14:31Z</td>
+              <td>network.firewall.rule-change</td>
+              <td><span class="cs-tier t2">T2</span></td>
+              <td>abstain &rarr; HIL</td>
+              <td><span class="cs-mode hil">HIL</span></td>
+              <td class="cs-muted">quality-gate</td>
+            </tr>
+            <tr>
+              <td class="cs-muted cs-mono">2026-07-08T09:13:58Z</td>
+              <td>cost.rightsizing.candidate</td>
+              <td><span class="cs-tier t0">T0</span></td>
+              <td>no-op (compliant)</td>
+              <td><span class="cs-mode na">n/a</span></td>
+              <td class="cs-muted">router</td>
+            </tr>
+            <tr>
+              <td class="cs-muted cs-mono">2026-07-08T09:13:21Z</td>
+              <td>k8s.rbac.privileged-scope</td>
+              <td><span class="cs-tier t0">T0</span></td>
+              <td>deny (policy)</td>
+              <td><span class="cs-mode deny">deny</span></td>
+              <td class="cs-muted">risk-gate</td>
+            </tr>
           </tbody>
         </table>
       </div>
-      <div class="cs-alert is-info" style="margin-top:16px"><div class="cs-alert-bar"></div><div><p>This surface is read-only. To approve or reject a HIL item, use the ChatOps card - the console never executes actions.</p></div></div>
+      <div class="cs-flex cs-flex-between cs-mb-0" style="margin-top:12px">
+        <span class="cs-muted" style="font-size:13px">Showing 5 of 1,842 entries.</span>
+        <a href="audit.html" class="cs-link">Open full audit &rarr;</a>
+      </div>
     </section>
   </main>
 
   <footer class="cs-footer">
-    <div class="cs-container"><span>FDAI UI kit - Calm Slate theme. Read-only console demo.</span></div>
+    <div class="cs-container cs-flex-between cs-wrap">
+      <span>FDAI console mock - Calm Slate. Read-only surface, synthetic values, English-only.</span>
+      <span class="cs-muted">generic-scope &middot; no customer data</span>
+    </div>
   </footer>
 </body>
 </html>

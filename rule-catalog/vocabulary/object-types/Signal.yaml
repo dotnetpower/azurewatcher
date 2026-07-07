@@ -1,0 +1,32 @@
+# Upstream built-in ObjectType: Signal.
+#
+# A `Signal` is a typed observation entering the control loop -
+# Activity Log line, drift diff, cost anomaly, canary result. Every
+# Signal MUST resolve to a Resource via the `resource_of` LinkType.
+# Signals feed the trust-router; they never mutate state on their own.
+schema_version: "1.0.0"
+name: Signal
+version: "1.0.0"
+key: id
+description: Typed observation entering event-ingest; primitive that the trust-router routes.
+properties:
+  id:
+    type: string
+    required: true
+    description: Stable idempotency key for the Signal; retries MUST reuse the same id.
+  signal_type:
+    type: string
+    required: true
+    description: Signal subtype id (e.g. activity_log.change, cost.anomaly, drift.detected).
+  observed_at:
+    type: datetime
+    required: true
+    description: RFC 3339 UTC timestamp when the source system emitted the observation.
+  resource_id:
+    type: string
+    required: false
+    description: Target Resource id when the Signal is resource-scoped; empty for tenant-level signals.
+  payload:
+    type: object
+    required: false
+    description: Open-shape adapter payload consumed by the event validator and downstream tiers.

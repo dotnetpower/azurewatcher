@@ -50,6 +50,12 @@ from fdai.delivery.read_api.hil_callback import (
     HilCallbackConfig,
     make_hil_callback_route,
 )
+from fdai.delivery.read_api.live_stream import (
+    LiveEmitter,
+    LiveStreamConfig,
+    SyntheticLiveEmitter,
+    make_live_stream_route,
+)
 from fdai.delivery.read_api.panels import ReadPanel
 from fdai.delivery.read_api.read_model import (
     DEFAULT_LIMIT,
@@ -57,6 +63,8 @@ from fdai.delivery.read_api.read_model import (
     clamp_limit,
 )
 from fdai.shared.providers.hil_registry import HilApprovalRegistry
+from fdai.shared.providers.sse import SseSink
+from fdai.shared.providers.testing.sse import InMemorySseSink
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -109,6 +117,15 @@ class ReadApiConfig:
     """Registry consumed by the HIL callback route. When
     ``hil_callback`` is set, this MUST also be set - the app factory
     fails fast otherwise."""
+
+    live_stream: LiveStreamConfig | None = None
+    """Opt-in live SSE fan-out. When set, registers a ``GET`` streaming
+    route (default ``/live/stream``) that broadcasts control-plane
+    events to any subscriber. The default is ``None`` - upstream ships
+    strictly three GET routes; a fork (or the dev harness in
+    :mod:`fdai.delivery.read_api._local`) opts in. See
+    :mod:`fdai.delivery.read_api.live_stream` for the read-only /
+    fan-out contract."""
 
 
 def build_app(
@@ -240,6 +257,38 @@ def build_app(
             )
         )
 
+    # Optional live SSE fan-out. Same reader-role gate as snapshot routes.
+    # The sink is the fan-out point: real pipeline stages publish onto it
+    # via SseSinkStagePublisher (or EventBusStagePublisher + broadcaster);
+    # the route below is one of that sink's consumers.
+    live_sink: SseSink | None = None
+    live_emitter: LiveEmitter | None = None
+    if resolved_config.live_stream is not None:
+        live_cfg = resolved_config.live_stream
+        if live_cfg.path in _CORE_ROUTE_PATHS:
+            raise ValueError(f"live_stream.path {live_cfg.path!r} collides with a core route")
+        if live_cfg.path in seen_panel_paths:
+            raise ValueError(f"live_stream.path {live_cfg.path!r} collides with a panel path")
+        live_sink = live_cfg.sink if live_cfg.sink is not None else InMemorySseSink()
+        if live_cfg.emitter_factory is not None:
+            live_emitter = live_cfg.emitter_factory(live_sink, live_cfg.channel)
+        elif live_cfg.sink is None:
+            # Dev-friendly default: no external sink supplied means no real
+            # publishers are wired, so start a synthetic emitter so the
+            # console has something to render. When a fork supplies its own
+            # sink (real publishers already write to it) we do NOT stack a
+            # synthetic emitter on top.
+            live_emitter = SyntheticLiveEmitter(sink=live_sink, channel=live_cfg.channel)
+        routes.append(
+            make_live_stream_route(
+                sink=live_sink,
+                channel=live_cfg.channel,
+                path=live_cfg.path,
+                keepalive_seconds=live_cfg.keepalive_seconds,
+                authorize=_authorize,
+            )
+        )
+
     middleware: list[Middleware] = []
     if resolved_config.cors_allow_origins:
         # Console SPA cross-origin fetches. `allow_methods=["GET"]` keeps
@@ -255,6 +304,21 @@ def build_app(
             )
         )
 
+    # Lifespan for the optional live emitter. Starlette collects
+    # per-app resources here so uvicorn / hypercorn / granian all handle
+    # startup + shutdown identically.
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def lifespan(_app: Starlette):  # type: ignore[no-untyped-def]
+        if live_emitter is not None:
+            await live_emitter.start()
+        try:
+            yield
+        finally:
+            if live_emitter is not None:
+                await live_emitter.stop()
+
     return Starlette(
         debug=False,
         routes=routes,
@@ -264,6 +328,7 @@ def build_app(
             RoleRequiredError: handle_authorization_error,
             HTTPException: handle_http_exception,
         },
+        lifespan=lifespan,
     )
 
 

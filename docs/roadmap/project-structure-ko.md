@@ -1,8 +1,8 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: 9b6fa91d9d89ba8b9a4524273d04a815f718b4a7
-translation_revised: 2026-07-07
+translation_source_sha: 4c529c54b971953e37f3b47ae347917aba1f585e
+translation_revised: 2026-07-08
 ---
 
 # 프로젝트 구조
@@ -40,12 +40,13 @@ fdai/
 │   │   ├── providers/         # CSP-중립 클라우드 프로바이더 인터페이스 (어댑터가 구현)
 │   │   │                      #   event_bus.py, secret_provider.py, state_store.py,
 │   │   │                      #   workload_identity.py, inventory.py
-│   │   ├── streaming/         # SSE broadcaster (Kafka → 외부 text/event-stream 릴레이)
+│   │   ├── streaming/         # (future) 다른 소비자가 생기면 shared Kafka -> SSE 릴레이; 현재는 read-api 가 자체 허브 (`delivery/read_api/live_stream.py`) 를 소유
 │   │   ├── telemetry/         # 구조화 로깅, 트레이싱, 메트릭 헬퍼
 │   │   └── config/            # config 스키마 + 시작 시 검증 (fail-fast)
 │   ├── delivery/              # 액션 딜리버리 어댑터 (공유 인터페이스 뒤)
 │   │   ├── gitops_pr/         # remediation-pr 어댑터: GitHub App / Azure DevOps, Checks API
-│   │   └── chatops/           # 채널 어댑터 (Teams / Slack / email / webhook / pager / SMS)
+│   │   ├── chatops/           # 채널 어댑터 (Teams / Slack / email / webhook / pager / SMS)
+│   │   └── read_api/          # 얇은 GET-only ASGI (`/audit`, `/kpi`, `/hil-queue`, `/healthz`) + opt-in SSE fan-out (`live_stream.py` 의 `/live/stream`)
 │   └── rule_catalog/          # rule-catalog 파이프라인 코드
 │       ├── schema/            # 규칙 스키마 (semver) + 검증
 │       ├── sources/           # 소스별 컴렉터 (WAF, CIS, OPA, IaC scanners, ...)
@@ -54,7 +55,7 @@ fdai/
 ├── src/fdai/core/control_loop.py  # P1 파이프라인 오케스트레이터: event_ingest → trust_router → T0 → executor → audit
 ├── rule-catalog/              # catalog-as-code 데이터 (YAML) - Python 아님; 파이프라인은 src/fdai/rule_catalog/ 에
 │   ├── schema/                # JSON Schema 정의 (데이터)
-│   ├── vocabulary/            # canonical CSP-중립 어휘 (resource-types.yaml, ...)
+│   ├── vocabulary/            # canonical CSP-중립 어휘: resource-types.yaml, object-types/, link-types/
 │   ├── action-types/          # 온톨로지 ActionType 인스턴스 (shadow-default, promotion_gate 필수)
 │   ├── exemptions/            # 시간-바운드 감사된 예외 아티팩트
 │   └── sources/               # 소스별 규칙 스냅샷 + provenance
@@ -172,10 +173,12 @@ phase 는 `core/` 를 편집하지 않고 composition root 에서 새 구현을 
 | **Schema source** | `SchemaRegistry` (원시 JSON Schema 로더) | - | `PackageResourceSchemaRegistry` (패키지 내장 스키마) | 원격 schema-registry 어댑터; content hash 로 핀된 스냅샷 |
 | **Boundary validation** | `ContractValidator` / `EventValidator` (fail-closed 입력 검사) | - | `JsonSchemaContractValidator` + `JsonSchemaEventValidator` (draft-2020-12) | 포크가 `core/` 편집 없이 도메인 특이 체크(예: 소스 allowlist) 추가 가능 |
 | Rule / policy source | rule-catalog + `policies/` 로더 | - | 번들된 범용 규칙 | 고객 규칙 세트 / 임계값 |
+| **Ontology ObjectType / LinkType** | `src/fdai/rule_catalog/schema/`의 `load_object_type_catalog(root, *, schema_registry)` 및 `load_link_type_catalog(root, *, schema_registry, object_types=...)` | - | upstream ObjectType 4개(`Resource`, `Rule`, `Signal`, `Finding`)와 `rule-catalog/vocabulary/{object-types,link-types}/` 아래의 LinkType들. 엔트리포인트가 `Container.ontology_object_types` / `Container.ontology_link_types`로 주입 | fork는 자체 YAML 디렉토리(예: `fork/vocabulary/object-types/ArchitectureProposal.yaml`)를 추가로 로드해 두 루트를 concatenate 후 `dataclasses.replace(container, ontology_object_types=..., ontology_link_types=...)`로 주입. 두 루트 간 `name` 중복은 fail-close. 자세한 절차는 [downstream-fork-seam-recipes-ko.md § 5.8a](downstream-fork-seam-recipes-ko.md#58a-ontology-object-type--link-type-additions). |
 | Delivery adapter | delivery 인터페이스 | - | `gitops-pr` / `chatops` | 다른 PR 호스트 / 채팅 채널 |
 | Risk scoring & thresholds | risk-gate config | - | 범용 임계값 | 고객 리스크 정책 |
 | Model provider | model client (capability별) | - | 설정된 기본 엔드포인트 | 고객 승인 모델 |
 | **실시간 아웃바운드 스트림** | `SseSink` (async publish + async-iterator subscribe, SSE 페이로드) | - | `InMemorySseSink` (테스트/데브); HTTP `text/event-stream` 어댑터는 콘솔 read-only 표면과 함께 랜딩 | 양방향 표면이 필요하면 WebSocket 어댑터로 교체; 헤드리스 observer는 webhook 전용. `shared/streaming/SseBroadcaster` 가 `EventBus` 토픽을 채널로 릴레이. |
+| **파이프라인 스테이지 발행자** | `StagePublisher` (`shared/providers/stage_publisher.py`) 의 `emit(StageEvent)` | - | `NullStagePublisher` (기본 - 스테이지 코드가 관찰 사이드이펙트 없이 실행되도록 유지) | 인프로세스 데브 / 단일 레플리카: `SseSinkStagePublisher` 가 `SseSink` 로 바로 fan-out. 멀티 레플리카 프로덕션: `EventBusStagePublisher` 가 Kafka 토픽(기본 `aw.pipeline.stages`) 에 발행하고 기존 `SseBroadcaster` 가 모든 레플리카가 소비하는 SSE 채널로 릴레이. 파이프라인 스테이지 (`event_ingest`, `trust_router`, T0/T1/T2, `risk_gate`, `executor`, `audit`) 가 프로토콜을 받도록 backward-compat - 업스트림 기본은 아무 것도 emit 하지 않음. |
 | **콘솔 read 패널** | `ReadPanel` (`delivery/read_api/panels.py`) | - | 코어 라우트만 (`/audit`, `/kpi`, `/hil-queue`); `ExampleFinOpsPanel` 은 참조용으로 제공되지만 UI 최소화를 위해 **미등록** | 포크가 `ReadApiConfig.extra_panels` (각각 GET 전용 라우트로 래핑, 빌드 시 path 검증) + 콘솔 `panels.tsx` 레지스트리 항목으로 버티컬 대시보드(FinOps 비용, 드리프트 보드, DR 드릴 이력) 추가 |
 | **Infra module** | `infra/modules/<seam>/` (Terraform 서브-모듈, `var.<seam>_kind` 로 선택) | - | Container Apps + PostgreSQL Flex + Event Hubs Kafka + Key Vault + Log Analytics | [csp-neutrality-ko.md § 승인된 대안 Azure 구현](csp-neutrality-ko.md#승인된-대안-azure-구현approved-alternative-azure-implementations) 에 따라 다른 서브-모듈 선택; 모듈의 output 계약은 고정 유지 |
 

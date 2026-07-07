@@ -1,8 +1,8 @@
 ---
 title: Rule-catalog profile 및 collector
 translation_of: rule-catalog-profiles.md
-translation_source_sha: 4e40ee264b8d6a49ea9535b7aafe9c4557fcf7b7
-translation_revised: 2026-07-07
+translation_source_sha: a9167143dc919d1f510b9c9eb207a11ea1aaaddc
+translation_revised: 2026-07-08
 ---
 # Rule-catalog profile 및 collector
 
@@ -21,13 +21,13 @@ FDAI rule catalog 는 세 tier 의 콘텐츠를 갖는다:
    아래 - 두 tier 중 어디에서든 rule id 를 참조하는 named bundle.
    Operator / fork 가 curated subset 을 한 단계로 활성화하는 방법.
 
-이 문서는 [sre-agent-scope.md § 3](sre-agent-scope-ko.md) 의 전략적
+이 문서는 [scope-expansion.md § 3](scope-expansion-ko.md) 의 전략적
 결정에 따른 profile 계층 및 upstream 이 ship 하는 모든 collector 의
 design contract 이다.
 
 ## 1. Profiles
 
-Design contract: [sre-agent-scope.md § 3](sre-agent-scope-ko.md),
+Design contract: [scope-expansion.md § 3](scope-expansion-ko.md),
 profile schema:
 [`shared/contracts/profile/schema.json`](../../src/fdai/shared/contracts/profile/schema.json).
 

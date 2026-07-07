@@ -2,7 +2,7 @@
 title: 구현 계획 (표준 세트)
 translation_of: implementation-plan.md
 translation_source_sha: e1c0f6c13cc9e4c3edf02505d6ffd723033b87af
-translation_revised: 2026-07-07
+translation_revised: 2026-07-08
 ---
 
 # 구현 계획 (표준 세트)

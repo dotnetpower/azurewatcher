@@ -304,7 +304,7 @@ class Event(_Base):
 
 
 # ---------------------------------------------------------------------------
-# Incident (first-class correlation entity - see docs/roadmap/sre-agent-scope.md
+# Incident (first-class correlation entity - see docs/roadmap/scope-expansion.md
 # § 3.1). Groups many Events / Findings / Actions under one lifecycle so
 # postmortems, on-call handoffs, and after-action reviews have a durable
 # anchor. The state machine is enforced by ``core/incident``; this model is
@@ -526,6 +526,9 @@ class OntologyLinkType(_Base):
     from_type: Annotated[str, Field(min_length=1)]
     to_type: Annotated[str, Field(min_length=1)]
     cardinality: LinkCardinality
+    is_transitive: bool = False
+    is_causal: bool = False
+    temporal_order: bool = False
     description: str | None = None
 
 

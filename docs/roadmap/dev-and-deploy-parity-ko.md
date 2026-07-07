@@ -2,7 +2,7 @@
 title: Dev/Deploy Parity - 로컬 Fake vs Azure-First 프로비저닝
 translation_of: dev-and-deploy-parity.md
 translation_source_sha: cb50c1473801f91ddc5bf7de6cb4c52800cfa92b
-translation_revised: 2026-07-07
+translation_revised: 2026-07-08
 ---
 
 # Dev/Deploy Parity - 로컬 Fake vs Azure-First 프로비저닝

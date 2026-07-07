@@ -79,6 +79,13 @@ from fdai.shared.providers.cost_estimator import (
     CostEstimator,
     resolve_cost_impact_monthly,
 )
+from fdai.shared.providers.stage_publisher import (
+    NullStagePublisher,
+    StageEvent,
+    StageName,
+    StagePhase,
+    StagePublisher,
+)
 from fdai.shared.providers.state_store import StateStore
 
 
@@ -182,6 +189,7 @@ class ControlLoop:
         cost_estimator: CostEstimator | None = None,
         direct_api_executor: DirectApiShadowExecutor | None = None,
         t1_engine: T1Tier | None = None,
+        stage_publisher: StagePublisher | None = None,
     ) -> None:
         self._event_ingest = event_ingest
         self._trust_router = trust_router
@@ -215,7 +223,7 @@ class ControlLoop:
         # as before, so composing without a direct-API adapter is a
         # supported (and default) configuration.
         self._direct_api_executor = direct_api_executor
-        # Optional T1 similarity tier (sre-agent-scope.md § 3.7). When
+        # Optional T1 similarity tier (scope-expansion.md § 3.7). When
         # wired, T0 abstains fall through to T1 for a similarity /
         # learned-action reuse *log* (shadow-only in P1 - the
         # ``requires_reverification=True`` invariant on
@@ -224,11 +232,27 @@ class ControlLoop:
         # keeps the loop backward-compatible: T0 abstain returns
         # :attr:`ABSTAINED_T0` and ``t1_decision`` is ``None``.
         self._t1_engine = t1_engine
+        # Optional stage publisher (Wave W-live). When wired, the loop
+        # emits one :class:`StageEvent` at every observable stage
+        # transition (``ingest``, ``route``, ``verify``, ``gate``,
+        # ``execute``, ``audit``). The default
+        # :class:`NullStagePublisher` discards - preserving the
+        # backward-compatible no-observation behaviour. A composition
+        # root that wants live observability binds
+        # :class:`~fdai.shared.streaming.stage_publisher.SseSinkStagePublisher`
+        # (in-process) or
+        # :class:`~fdai.shared.streaming.stage_publisher.EventBusStagePublisher`
+        # (multi-replica via Kafka + broadcaster).
+        self._stage_publisher: StagePublisher = stage_publisher or NullStagePublisher()
 
     async def process(self, raw_event: Event | Mapping[str, Any]) -> ControlLoopResult:
         # 1. Ingest + dedupe
         event = self._event_ingest.ingest(raw_event)
         if event is None:
+            # No usable Event -> no stable id to emit against, so we do
+            # NOT publish a stage event on the dedupe path. Duplicates
+            # are also no-op for the audit log (the earlier delivery
+            # owns the audit row).
             return ControlLoopResult(
                 outcome=ControlLoopOutcome.DEDUPED,
                 tier="abstain",
@@ -236,6 +260,20 @@ class ControlLoop:
                 resource_type=None,
                 reason="duplicate_idempotency_key",
             )
+
+        # Stable ids for every emit below. Fall back to event_id when
+        # the event carries no correlation_id (single-shot events).
+        event_id = str(event.event_id)
+        correlation_id = event.correlation_id or event_id
+
+        # ingest.done - the event survived dedup and is a valid Event.
+        await self._emit_stage(
+            event_id=event_id,
+            correlation_id=correlation_id,
+            stage=StageName.INGEST,
+            phase=StagePhase.DONE,
+            detail={"event_type": event.event_type},
+        )
 
         # 1a. Optional Change Safety out-of-band detector.
         #
@@ -254,11 +292,29 @@ class ControlLoop:
         # 2. Route
         decision = self._trust_router.route(event)
         if decision.tier is RoutingTier.ABSTAIN:
+            await self._emit_stage(
+                event_id=event_id,
+                correlation_id=correlation_id,
+                stage=StageName.ROUTE,
+                phase=StagePhase.DONE,
+                detail={
+                    "routed_to": "abstain",
+                    "resource_type": decision.resource_type,
+                    "reason": decision.reason or "trust_router_abstain",
+                },
+            )
             await self._write_abstain_audit(
                 event=event,
                 decision=decision,
                 reason=decision.reason or "trust_router_abstain",
                 stage="trust_router",
+            )
+            await self._emit_stage(
+                event_id=event_id,
+                correlation_id=correlation_id,
+                stage=StageName.AUDIT,
+                phase=StagePhase.DONE,
+                detail={"outcome": ControlLoopOutcome.ABSTAINED_ROUTING.value},
             )
             return ControlLoopResult(
                 outcome=ControlLoopOutcome.ABSTAINED_ROUTING,
@@ -276,6 +332,19 @@ class ControlLoop:
             # this branch is unreachable via the public API.
             raise RuntimeError("trust router returned T0 without a resource_type")
 
+        # route.done - routed to a real tier.
+        await self._emit_stage(
+            event_id=event_id,
+            correlation_id=correlation_id,
+            stage=StageName.ROUTE,
+            phase=StagePhase.DONE,
+            detail={
+                "routed_to": decision.tier.value,
+                "resource_type": decision.resource_type,
+                "candidate_rule_ids": list(decision.candidate_rule_ids),
+            },
+        )
+
         # 3. Evaluate T0
         resource_props = _extract_resource_props(event.payload)
         resource_id = _extract_resource_id(event, decision)
@@ -288,6 +357,18 @@ class ControlLoop:
             signal_type=event.event_type,
         )
         citing = verdict.audit_hint.citing_rule_ids if verdict.audit_hint else ()
+        # verify.done for T0 - always emit once T0 has evaluated.
+        await self._emit_stage(
+            event_id=event_id,
+            correlation_id=correlation_id,
+            stage=StageName.VERIFY,
+            phase=StagePhase.DONE,
+            detail={
+                "tier": "t0",
+                "matched": verdict.matched,
+                "citing_rule_ids": list(citing),
+            },
+        )
         if not verdict.matched:
             await self._write_abstain_audit(
                 event=event,
@@ -312,12 +393,31 @@ class ControlLoop:
             t1_decision: T1Decision | None = None
             if self._t1_engine is not None:
                 t1_decision = await self._t1_engine.evaluate(event=event)
+                # verify.done for T1 - captures the similarity outcome.
+                await self._emit_stage(
+                    event_id=event_id,
+                    correlation_id=correlation_id,
+                    stage=StageName.VERIFY,
+                    phase=StagePhase.DONE,
+                    detail={
+                        "tier": "t1",
+                        "t1_outcome": t1_decision.outcome.value,
+                        "reason": t1_decision.reason,
+                    },
+                )
                 await self._write_t1_audit(
                     event=event,
                     decision=decision,
                     t1=t1_decision,
                 )
                 if t1_decision.outcome is T1Outcome.REUSED:
+                    await self._emit_stage(
+                        event_id=event_id,
+                        correlation_id=correlation_id,
+                        stage=StageName.AUDIT,
+                        phase=StagePhase.DONE,
+                        detail={"outcome": ControlLoopOutcome.T1_REUSE_LOGGED.value},
+                    )
                     return ControlLoopResult(
                         outcome=ControlLoopOutcome.T1_REUSE_LOGGED,
                         tier="t1",
@@ -329,6 +429,13 @@ class ControlLoop:
                         change_safety_decision=cs_decision,
                         t1_decision=t1_decision,
                     )
+                await self._emit_stage(
+                    event_id=event_id,
+                    correlation_id=correlation_id,
+                    stage=StageName.AUDIT,
+                    phase=StagePhase.DONE,
+                    detail={"outcome": ControlLoopOutcome.T1_ABSTAINED.value},
+                )
                 return ControlLoopResult(
                     outcome=ControlLoopOutcome.T1_ABSTAINED,
                     tier="t1",
@@ -341,6 +448,13 @@ class ControlLoop:
                     t1_decision=t1_decision,
                 )
 
+            await self._emit_stage(
+                event_id=event_id,
+                correlation_id=correlation_id,
+                stage=StageName.AUDIT,
+                phase=StagePhase.DONE,
+                detail={"outcome": ControlLoopOutcome.ABSTAINED_T0.value},
+            )
             return ControlLoopResult(
                 outcome=ControlLoopOutcome.ABSTAINED_T0,
                 tier="t0",
@@ -368,6 +482,14 @@ class ControlLoop:
                 )
             except ActionBuildError as exc:
                 # Fail-closed for this finding; other findings keep going.
+                await self._emit_stage(
+                    event_id=event_id,
+                    correlation_id=correlation_id,
+                    stage=StageName.GATE,
+                    phase=StagePhase.FAILED,
+                    detail={"rule_id": finding.rule_id, "stage": "action_build"},
+                    error=str(exc),
+                )
                 await self._write_abstain_audit(
                     event=event,
                     decision=decision,
@@ -380,6 +502,24 @@ class ControlLoop:
                 continue
 
             unified = await self._evaluate_and_audit(event=event, action=action, rule=rule)
+            gate_decision = (
+                "deny"
+                if unified is not None and unified.is_denied
+                else "hil"
+                if unified is not None and unified.requires_hil
+                else "auto"
+            )
+            await self._emit_stage(
+                event_id=event_id,
+                correlation_id=correlation_id,
+                stage=StageName.GATE,
+                phase=StagePhase.DONE,
+                detail={
+                    "rule_id": finding.rule_id,
+                    "action_type": action.action_type,
+                    "gate_decision": gate_decision,
+                },
+            )
             if unified is not None and (unified.is_denied or unified.requires_hil):
                 # Routed to HIL / denied by the unified risk gate: do NOT
                 # publish a PR. The audit entry (written above) records why.
@@ -387,6 +527,30 @@ class ControlLoop:
                 continue
             result = await self._dispatch_action(action=action, rule=rule)
             exec_results.append(result)
+            # execute.done / execute.failed per action.
+            exec_success = _is_execution_success(result)
+            exec_stage_detail: dict[str, Any] = {
+                "rule_id": finding.rule_id,
+                "action_type": action.action_type,
+                "mode": Mode.SHADOW.value,
+            }
+            if exec_success:
+                await self._emit_stage(
+                    event_id=event_id,
+                    correlation_id=correlation_id,
+                    stage=StageName.EXECUTE,
+                    phase=StagePhase.DONE,
+                    detail=exec_stage_detail,
+                )
+            else:
+                await self._emit_stage(
+                    event_id=event_id,
+                    correlation_id=correlation_id,
+                    stage=StageName.EXECUTE,
+                    phase=StagePhase.FAILED,
+                    detail=exec_stage_detail,
+                    error=getattr(result, "reason", None) or "execution_failed",
+                )
 
         # If EVERY finding hit a build error, treat the overall outcome
         # as ABSTAINED_ACTION_BUILD so a monitor can page on it.
@@ -403,6 +567,15 @@ class ControlLoop:
             ControlLoopOutcome.HIL: "hil",
             ControlLoopOutcome.EXECUTED: "auto",
         }.get(overall, "abstain")
+        # audit.done - seals the pipeline so the live view can settle a
+        # tile on the final decision word.
+        await self._emit_stage(
+            event_id=event_id,
+            correlation_id=correlation_id,
+            stage=StageName.AUDIT,
+            phase=StagePhase.DONE,
+            detail={"outcome": overall.value, "decision": decision_word},
+        )
         return ControlLoopResult(
             outcome=overall,
             tier="t0",
@@ -413,6 +586,39 @@ class ControlLoop:
             event_id=str(event.event_id),
             change_safety_decision=cs_decision,
         )
+
+    # ------------------------------------------------------------------
+    # stage-publisher helper
+    # ------------------------------------------------------------------
+
+    async def _emit_stage(
+        self,
+        *,
+        event_id: str,
+        correlation_id: str,
+        stage: StageName,
+        phase: StagePhase,
+        detail: Mapping[str, Any] | None = None,
+        error: str | None = None,
+    ) -> None:
+        """Construct + emit one :class:`StageEvent`.
+
+        Never raises: the adapters swallow their own transport errors,
+        and a bad :class:`StageEvent` construction (invariant violation)
+        is logged and dropped so the pipeline keeps going.
+        """
+        try:
+            evt = StageEvent(
+                event_id=event_id,
+                correlation_id=correlation_id,
+                stage=stage,
+                phase=phase,
+                detail=dict(detail) if detail else {},
+                error=error,
+            )
+        except ValueError:  # pragma: no cover - defence in depth
+            return
+        await self._stage_publisher.emit(evt)
 
     # ------------------------------------------------------------------
     # audit helper

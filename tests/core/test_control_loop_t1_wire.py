@@ -1,6 +1,6 @@
 """ControlLoop T1 wire test.
 
-Covers the sre-agent-scope.md § 3.7 wiring: when ``t1_engine`` is
+Covers the scope-expansion.md § 3.7 wiring: when ``t1_engine`` is
 supplied, a T0 abstain routes through T1 for a shadow-only reuse log.
 T1's reuse verdict does NOT execute in P1 (the
 :attr:`requires_reverification` invariant on

@@ -1,0 +1,13 @@
+# LinkType: triggered_by (Rule -> Signal, M:M)
+#
+# Which signal subtypes cause a Rule to be evaluated. Used by
+# `event-ingest` and the trust-router to build the index that turns a
+# Signal into a candidate Rule set via two index intersections
+# (`triggered_by` and `applies_to`).
+schema_version: "1.0.0"
+name: triggered_by
+version: "1.0.0"
+from_type: Rule
+to_type: Signal
+cardinality: many_to_many
+description: Which signal subtypes cause the Rule to be evaluated.

@@ -1,14 +1,14 @@
 ---
 title: 변경 승인(Approve a change)
-description: FDAI이 HIL 결정 대기로 큐잉한 변경을 어떻게 리뷰하고 승인(또는 거부)하는가.
+description: FDAI가 HIL 결정 대기로 큐잉한 변경을 어떻게 리뷰하고 승인(또는 거부)하는가.
 translation_of: approve-change.md
 translation_source_sha: 658b9320640082a059e2013c121ff31d7f9ce875
-translation_revised: 2026-07-07
+translation_revised: 2026-07-08
 ---
 
 # 변경 승인(Approve a change)
 
-제안된 변경이 HIL 티어로 오면 FDAI은 실행을 정지하고 사람에게 묻습니다. 이
+제안된 변경이 HIL 티어로 오면 FDAI는 실행을 정지하고 사람에게 묻습니다. 이
 가이드는 그 상호작용의 운영자 쪽을 다룹니다 - 요청이 어떻게 생겼는지, 승인 전 무엇을
 확인할지, 각 판정 뒤에 무엇이 일어나는지.
 
@@ -19,7 +19,7 @@ translation_revised: 2026-07-07
 
 - **이벤트 요약** - 변경을 트리거한 것(드리프트, 비용 이상, DR 훈련 등)과 영향을
   받는 리소스.
-- **제안 액션** - FDAI이 적용하려는 정확한 변경 - 리뷰 가능한 PR 또는
+- **제안 액션** - FDAI가 적용하려는 정확한 변경 - 리뷰 가능한 PR 또는
   직렬화된 액션 봉투.
 - **리스크 분류** - 왜 AUTO가 아니라 HIL 인지의 이유: 티어를 올린 특정 차원(blast
   radius, 새로움, 되돌리기 어려움, 신호 소스).
@@ -36,8 +36,8 @@ translation_revised: 2026-07-07
    분류 규칙 자체를 봐야 합니다 - 눈감고 승인하지 말고 거부 + escalation.
 2. **Blast radius** - 범위 상한("이 리소스 그룹만", "VM 5개 배치" 등)이 실제로
    바꾸고 싶은 것과 맞는지 확인.
-3. **롤백 경로** - 롤백 미리보기는 비어있지 않고 그럴듯해야 합니다. 비었거나 손짓
-   같은 롤백은 액션의 설계 버그이지 승인으로 우회할 것이 아닙니다.
+3. **롤백 경로** - 롤백 미리보기는 비어있지 않고 그럴듯해야 합니다. 비었거나 대충
+   얼버무린 롤백은 액션의 설계 버그이지 승인으로 우회할 것이 아닙니다.
 4. **Stop-condition** - 이미 보고 있는 메트릭에서 관찰 가능해야 합니다. 볼 수 없는
    메트릭을 참조하면 거부.
 5. **Grounding (T2만)** - T2 결정이면 감사 로그 항목의 인용된 규칙 · 문서가 제안
@@ -65,5 +65,5 @@ Break-Glass 사용은 눈에 띄게 감사되고, 온콜 팀에 알림이 가며
 |-----------|------|
 | 지금 보고 있는 분류가 만들어진 방식 | [../concepts/risk-tiers-ko.md](../concepts/risk-tiers-ko.md) |
 | 판정 후 실제로 무엇이 일어났는지 추적 | [read-audit-log-ko.md](read-audit-log-ko.md) |
-| 같은 규칙이 계속 나쁜 HIL 카드를 낳을 때 | [override-a-rule-ko.md](override-a-rule-ko.md) |
+| 같은 규칙이 계속 나쁜 HIL 카드를 만들어낼 때 | [override-a-rule-ko.md](override-a-rule-ko.md) |
 | HIL 요청을 나르는 채널 | [../../roadmap/channels-and-notifications-ko.md](../../roadmap/channels-and-notifications-ko.md) |

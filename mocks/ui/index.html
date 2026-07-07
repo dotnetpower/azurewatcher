@@ -11,10 +11,15 @@
     <div class="cs-container cs-topbar-inner">
       <span class="cs-brand"><span class="cs-brand-mark">AW</span> FDAI</span>
       <nav class="cs-nav">
-        <a href="index.html" class="cs-active">Overview</a>
-        <a href="components.html">Components</a>
+        <a href="live.html">Live</a>
+        <a href="dashboard.html">Overview</a>
+        <a href="hil.html">HIL</a>
+        <a href="promotion.html">Promotion</a>
+        <a href="rules.html">Rules</a>
+        <a href="actions.html">Actions</a>
+        <a href="audit.html">Audit</a>
         <a href="report.html">Report</a>
-        <a href="dashboard.html">Console</a>
+        <a href="index.html" class="cs-active">Kit</a>
       </nav>
     </div>
   </header>
@@ -72,24 +77,60 @@
         <span class="cs-badge-num">2</span>
         <div class="cs-section-title">
           <h2>Pages</h2>
-          <p class="cs-desc">Three demo surfaces built from the same kit.</p>
+          <p class="cs-desc">The read-only operator console (six screens) plus the report and the component gallery.</p>
         </div>
       </div>
-      <div class="cs-grid cs-grid-3">
-        <a class="cs-card cs-card-hover" href="components.html" style="text-decoration:none;color:inherit">
+
+      <h3 class="cs-mb-8">Operator console</h3>
+      <div class="cs-grid cs-grid-3 cs-mb-24">
+        <a class="cs-card cs-card-hover" href="live.html" style="text-decoration:none;color:inherit">
           <div class="cs-kpi-accent"></div>
-          <h3>Components</h3>
-          <p class="cs-muted cs-mb-0">KPI cards, tables, tags, severity badges, alerts, forms, tabs, tiers.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="report.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-terracotta"></div>
-          <h3>Report</h3>
-          <p class="cs-muted cs-mb-0">Numbered sections, KPI grid, AS-IS/TO-BE compare, critique table.</p>
+          <h3>Live <span class="cs-live-heartbeat" style="display:inline-block;vertical-align:middle;margin-left:8px" aria-hidden="true"></span></h3>
+          <p class="cs-muted cs-mb-0">Activity swarm - every tile is one control-plane action flowing through T0, T1, or T2.</p>
         </a>
         <a class="cs-card cs-card-hover" href="dashboard.html" style="text-decoration:none;color:inherit">
           <div class="cs-kpi-accent is-sage"></div>
-          <h3>Operator console</h3>
-          <p class="cs-muted cs-mb-0">Read-only KPIs, HIL queue, shadow results, audit log.</p>
+          <h3>Overview</h3>
+          <p class="cs-muted cs-mb-0">KPIs, guard metrics, tier &amp; risk-gate distribution, top HIL items, recent audit.</p>
+        </a>
+        <a class="cs-card cs-card-hover" href="hil.html" style="text-decoration:none;color:inherit">
+          <div class="cs-kpi-accent is-terracotta"></div>
+          <h3>HIL queue</h3>
+          <p class="cs-muted cs-mb-0">Plain-first approval cards - what, why, confidence, safety, who approves.</p>
+        </a>
+        <a class="cs-card cs-card-hover" href="promotion.html" style="text-decoration:none;color:inherit">
+          <div class="cs-kpi-accent is-teal"></div>
+          <h3>Promotion</h3>
+          <p class="cs-muted cs-mb-0">Shadow &rarr; enforce candidates and the four gate checks; auto-demotion path.</p>
+        </a>
+        <a class="cs-card cs-card-hover" href="rules.html" style="text-decoration:none;color:inherit">
+          <div class="cs-kpi-accent"></div>
+          <h3>Rules</h3>
+          <p class="cs-muted cs-mb-0">Catalog, collected candidates from the discovery loop, and scoped overrides.</p>
+        </a>
+        <a class="cs-card cs-card-hover" href="actions.html" style="text-decoration:none;color:inherit">
+          <div class="cs-kpi-accent is-plum"></div>
+          <h3>Actions</h3>
+          <p class="cs-muted cs-mb-0">ActionType ontology - trigger, execution path, rollback contract, six-axis risk ceiling.</p>
+        </a>
+        <a class="cs-card cs-card-hover" href="audit.html" style="text-decoration:none;color:inherit">
+          <div class="cs-kpi-accent is-terracotta"></div>
+          <h3>Audit</h3>
+          <p class="cs-muted cs-mb-0">Append-only stream: execute, reject, timeout, abstain, deny, override, rollback.</p>
+        </a>
+      </div>
+
+      <h3 class="cs-mb-8">Report &amp; kit</h3>
+      <div class="cs-grid cs-grid-2">
+        <a class="cs-card cs-card-hover" href="report.html" style="text-decoration:none;color:inherit">
+          <div class="cs-kpi-accent is-terracotta"></div>
+          <h3>Report</h3>
+          <p class="cs-muted cs-mb-0">Weekly review - numbered sections, headline metrics, AS-IS / TO-BE, findings table.</p>
+        </a>
+        <a class="cs-card cs-card-hover" href="components.html" style="text-decoration:none;color:inherit">
+          <div class="cs-kpi-accent"></div>
+          <h3>Components</h3>
+          <p class="cs-muted cs-mb-0">KPI cards, tables, tags, severity badges, alerts, forms, tabs, tier chips.</p>
         </a>
       </div>
     </section>

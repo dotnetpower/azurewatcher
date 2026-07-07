@@ -1,0 +1,13 @@
+# LinkType: attached_to (Resource -> Resource, M:1)
+#
+# Lifetime-bound attachment: NIC -> VM, disk -> VM, private-endpoint
+# -> target. Removing the parent breaks the child. Not transitive:
+# `attached_to` chains are unusual and the traversal engine treats
+# each hop as an independent check.
+schema_version: "1.0.0"
+name: attached_to
+version: "1.0.0"
+from_type: Resource
+to_type: Resource
+cardinality: many_to_one
+description: Lifetime-bound attachment; removing the parent breaks the child.

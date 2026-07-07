@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rules - FDAI Console</title>
+  <link rel="stylesheet" href="assets/calm-slate.css" />
+  <script defer src="assets/calm-slate.js"></script>
+</head>
+<body>
+  <header class="cs-topbar">
+    <div class="cs-container cs-topbar-inner">
+      <span class="cs-brand"><span class="cs-brand-mark">AW</span> FDAI</span>
+      <nav class="cs-nav">
+        <a href="live.html">Live</a>
+        <a href="dashboard.html">Overview</a>
+        <a href="hil.html">HIL</a>
+        <a href="promotion.html">Promotion</a>
+        <a href="rules.html" class="cs-active">Rules</a>
+        <a href="actions.html">Actions</a>
+        <a href="audit.html">Audit</a>
+        <a href="report.html">Report</a>
+        <a href="index.html">Kit</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="cs-container cs-page">
+    <div class="cs-page-header cs-mb-16">
+      <div class="cs-eyebrow">Rule catalog</div>
+      <h1>Rules</h1>
+      <p class="cs-lead">The living catalog: accepted rules that gate autonomy, collected candidates
+        proposed by the discovery loop, and scoped overrides that narrow or downgrade a rule for a
+        specific environment.</p>
+    </div>
+
+    <div class="cs-readonly-banner">
+      <strong>Catalog-as-code.</strong> Every rule and override is a versioned artifact. This page
+      renders the current state; changes land as PRs against the catalog repo.
+    </div>
+
+    <!-- Tabs -->
+    <div class="cs-tabs" data-cs-tabs role="tablist">
+      <button class="cs-tab cs-active" data-cs-tab="rules-catalog">Catalog <span class="cs-muted" style="font-weight:400">&middot; 214</span></button>
+      <button class="cs-tab" data-cs-tab="rules-collected">Collected <span class="cs-muted" style="font-weight:400">&middot; 37</span></button>
+      <button class="cs-tab" data-cs-tab="rules-overrides">Overrides &amp; exemptions <span class="cs-muted" style="font-weight:400">&middot; 9</span></button>
+    </div>
+
+    <!-- Tab: Catalog -->
+    <div id="rules-catalog" class="cs-tabpanel cs-active">
+      <div class="cs-filterbar">
+        <span class="cs-fb-label">Source</span>
+        <div class="cs-chipset">
+          <button class="cs-chip cs-active">All</button>
+          <button class="cs-chip">WAF</button>
+          <button class="cs-chip">MCSB</button>
+          <button class="cs-chip">CIS</button>
+          <button class="cs-chip">OPA</button>
+          <button class="cs-chip">Checkov</button>
+          <button class="cs-chip">kube-bench</button>
+        </div>
+        <span class="cs-fb-label" style="margin-left:8px">Severity</span>
+        <div class="cs-chipset">
+          <button class="cs-chip cs-active">All</button>
+          <button class="cs-chip">Critical</button>
+          <button class="cs-chip">High</button>
+          <button class="cs-chip">Medium</button>
+          <button class="cs-chip">Low</button>
+        </div>
+        <label class="cs-fb-search">
+          <span class="cs-muted" style="font-size:13px">&#128269;</span>
+          <input type="text" placeholder="id, resource-type, keyword" />
+        </label>
+      </div>
+
+      <div class="cs-table-wrap">
+        <table class="cs-table">
+          <thead>
+            <tr>
+              <th>Rule</th>
+              <th>Source</th>
+              <th>Severity</th>
+              <th>Resource</th>
+              <th>Vertical</th>
+              <th style="width:110px">Shadow acc.</th>
+              <th style="width:90px">Overrides</th>
+              <th style="width:90px">Version</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>storage.public-blob.deny</code><div class="cs-muted" style="font-size:12px">provenance: WAF-Sec &middot; CIS 3.1</div></td>
+              <td><span class="cs-tag">WAF</span> <span class="cs-tag">CIS</span></td>
+              <td><span class="cs-sev critical">critical</span></td>
+              <td><code>object-storage</code></td>
+              <td><span class="cs-vert change">change</span></td>
+              <td>99.8%</td>
+              <td>1</td>
+              <td class="cs-muted">v3</td>
+            </tr>
+            <tr>
+              <td><code>database.pitr.required</code><div class="cs-muted" style="font-size:12px">provenance: WAF-Rel RL-04</div></td>
+              <td><span class="cs-tag">WAF</span></td>
+              <td><span class="cs-sev high">high</span></td>
+              <td><code>sql-database</code></td>
+              <td><span class="cs-vert resilience">resilience</span></td>
+              <td>98.9%</td>
+              <td>0</td>
+              <td class="cs-muted">v2</td>
+            </tr>
+            <tr>
+              <td><code>compute.autoscale.floor.min-2</code><div class="cs-muted" style="font-size:12px">provenance: WAF-Rel RL-08 &middot; SLO</div></td>
+              <td><span class="cs-tag">WAF</span></td>
+              <td><span class="cs-sev high">high</span></td>
+              <td><code>compute</code></td>
+              <td><span class="cs-vert change">change</span></td>
+              <td>96.1%</td>
+              <td>2</td>
+              <td class="cs-muted">v4</td>
+            </tr>
+            <tr>
+              <td><code>k8s.rbac.cluster-admin.narrow</code><div class="cs-muted" style="font-size:12px">provenance: MCSB IM-2 &middot; kube-bench</div></td>
+              <td><span class="cs-tag">MCSB</span> <span class="cs-tag">kube-bench</span></td>
+              <td><span class="cs-sev critical">critical</span></td>
+              <td><code>kubernetes</code></td>
+              <td><span class="cs-vert change">change</span></td>
+              <td>94.4%</td>
+              <td>0</td>
+              <td class="cs-muted">v1</td>
+            </tr>
+            <tr>
+              <td><code>cost.rightsize.candidate</code><div class="cs-muted" style="font-size:12px">provenance: Advisor + FinOps rules</div></td>
+              <td><span class="cs-tag">Advisor</span></td>
+              <td><span class="cs-sev medium">medium</span></td>
+              <td><code>compute</code></td>
+              <td><span class="cs-vert cost">cost</span></td>
+              <td>87.9%</td>
+              <td>3</td>
+              <td class="cs-muted">v2</td>
+            </tr>
+            <tr>
+              <td><code>network.firewall.orphan-rule</code><div class="cs-muted" style="font-size:12px">provenance: Checkov CKV_AZR_...</div></td>
+              <td><span class="cs-tag">Checkov</span></td>
+              <td><span class="cs-sev medium">medium</span></td>
+              <td><code>network</code></td>
+              <td><span class="cs-vert change">change</span></td>
+              <td>99.4%</td>
+              <td>1</td>
+              <td class="cs-muted">v1</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="cs-flex cs-flex-between cs-mb-0" style="margin-top:12px">
+        <span class="cs-muted" style="font-size:13px">Showing 6 of 214 rules across 7 sources.</span>
+        <a href="#" class="cs-link">Open rule schema &rarr;</a>
+      </div>
+    </div>
+
+    <!-- Tab: Collected -->
+    <div id="rules-collected" class="cs-tabpanel">
+      <div class="cs-alert is-info cs-mb-24">
+        <div class="cs-alert-bar"></div>
+        <div>
+          <h4>Discovery loop</h4>
+          <p>Candidates proposed from operational signals - HIL patterns, shadow outcomes, active
+             overrides, upstream source updates. Every candidate carries <code>provenance</code>
+             and must pass the same quality gate as any authored rule before it enters the catalog.</p>
+        </div>
+      </div>
+
+      <div class="cs-table-wrap">
+        <table class="cs-table">
+          <thead>
+            <tr>
+              <th>Candidate</th>
+              <th>Origin</th>
+              <th>Kind</th>
+              <th>Signals</th>
+              <th style="width:110px">Cross-check</th>
+              <th style="width:110px">Regression</th>
+              <th style="width:140px">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>keyvault.access.grant-narrow</code><div class="cs-muted" style="font-size:12px">candidate rule</div></td>
+              <td>HIL pattern (7 approvals)</td>
+              <td><span class="cs-cat governance">new</span></td>
+              <td>3 similar events / 30d</td>
+              <td><span class="cs-status ok">agree</span></td>
+              <td><span class="cs-status ok">pass</span></td>
+              <td><span class="cs-status wait">shadow ready</span></td>
+            </tr>
+            <tr>
+              <td><code>compute.autoscale.floor.min-2 v5</code><div class="cs-muted" style="font-size:12px">revision (widen resource-type)</div></td>
+              <td>upstream: WAF-Rel RL-08 rev</td>
+              <td><span class="cs-cat remediation">revision</span></td>
+              <td>upstream source updated</td>
+              <td><span class="cs-status ok">agree</span></td>
+              <td><span class="cs-status ok">pass</span></td>
+              <td><span class="cs-status ok">promote via PR</span></td>
+            </tr>
+            <tr>
+              <td><code>cost.rightsize.candidate</code><div class="cs-muted" style="font-size:12px">retirement proposal</div></td>
+              <td>active overrides on 4 tenants</td>
+              <td><span class="cs-cat governance">retire</span></td>
+              <td>rec. override density &gt; 60%</td>
+              <td><span class="cs-status wait">split</span></td>
+              <td><span class="cs-status wait">n/a</span></td>
+              <td><span class="cs-status err">needs review</span></td>
+            </tr>
+            <tr>
+              <td><code>network.dns.public-resolver.deny</code><div class="cs-muted" style="font-size:12px">candidate rule</div></td>
+              <td>shadow-mode outcome</td>
+              <td><span class="cs-cat remediation">new</span></td>
+              <td>12 similar events / 30d</td>
+              <td><span class="cs-status ok">agree</span></td>
+              <td><span class="cs-status wait">pending</span></td>
+              <td><span class="cs-status wait">running</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: Overrides -->
+    <div id="rules-overrides" class="cs-tabpanel">
+      <div class="cs-alert is-warn cs-mb-24">
+        <div class="cs-alert-bar"></div>
+        <div>
+          <h4>Overrides sit above the gate</h4>
+          <p>An override narrows, downgrades, or disables a rule for a bounded scope
+             (resource-group or narrower). It never edits rule text and never suppresses the audit
+             record of the underlying finding. Detection keeps running - only execution is
+             suppressed on the scope.</p>
+        </div>
+      </div>
+
+      <div class="cs-filterbar">
+        <span class="cs-fb-label">Mode</span>
+        <div class="cs-chipset">
+          <button class="cs-chip cs-active">All</button>
+          <button class="cs-chip">Disabled</button>
+          <button class="cs-chip">Downgrade</button>
+          <button class="cs-chip">Relax</button>
+        </div>
+        <span class="cs-fb-label" style="margin-left:8px">Scope</span>
+        <div class="cs-chipset">
+          <button class="cs-chip cs-active">All</button>
+          <button class="cs-chip">Resource-group</button>
+          <button class="cs-chip">Resource</button>
+        </div>
+      </div>
+
+      <div class="cs-table-wrap">
+        <table class="cs-table">
+          <thead>
+            <tr>
+              <th>Rule</th>
+              <th>Mode</th>
+              <th>Scope</th>
+              <th>Reason</th>
+              <th>Approver</th>
+              <th style="width:110px">Age</th>
+              <th style="width:110px">Shadow hits</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>storage.public-blob.deny</code></td>
+              <td><span class="cs-mode enforce">downgrade</span> critical &rarr; medium</td>
+              <td>resource-group <code>rg-public-docs</code></td>
+              <td>public marketing bucket by design</td>
+              <td class="cs-muted">two distinct principals</td>
+              <td class="cs-muted">61d</td>
+              <td>4</td>
+            </tr>
+            <tr>
+              <td><code>compute.autoscale.floor.min-2</code></td>
+              <td><span class="cs-mode shadow">relax</span> floor = 1</td>
+              <td>resource-group <code>rg-batch-eu</code></td>
+              <td>nightly batch tier - single replica ok</td>
+              <td class="cs-muted">two distinct principals</td>
+              <td class="cs-muted">18d</td>
+              <td>1</td>
+            </tr>
+            <tr>
+              <td><code>cost.rightsize.candidate</code></td>
+              <td><span class="cs-mode deny">disabled</span></td>
+              <td>resource <code>db-billing-prod-01</code></td>
+              <td>vendor-recommended sizing</td>
+              <td class="cs-muted">two distinct principals</td>
+              <td class="cs-muted">124d</td>
+              <td>0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="cs-help" style="margin-top:12px">Recurring or long-lived overrides feed the discovery loop, which may propose a rule
+        revision or retirement. Every create / modify / remove of an override is an append-only
+        audit entry.</p>
+    </div>
+
+  </main>
+
+  <footer class="cs-footer">
+    <div class="cs-container cs-flex-between cs-wrap">
+      <span>FDAI console mock - Calm Slate. Read-only surface, synthetic values.</span>
+      <span class="cs-muted">generic-scope &middot; no customer data</span>
+    </div>
+  </footer>
+</body>
+</html>

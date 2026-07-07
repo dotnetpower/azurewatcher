@@ -1,12 +1,12 @@
 ---
 translation_of: README.md
 translation_source_sha: 981195af1620010f2678923174b7082f0bf72dba
-translation_revised: 2026-07-07
+translation_revised: 2026-07-08
 ---
 
 # FDAI
 
-**Forward Deployed AI for Cloud Ops.** FDAI 는 클라우드 안에 상주하는 자율
+**Forward Deployed AI for Cloud Ops.** FDAI는 클라우드 안에 상주하는 자율
 컨트롤 플레인입니다. Azure 이벤트를 지켜보다가 반복 가능한 것은 규칙과
 정책으로 결정론적으로 해결하고, LLM 추론은 남은 소수의 모호한 케이스에만 사용합니다.
 그래서 대부분의 운영은 사람 검토 없이 굴러갑니다.
@@ -17,7 +17,7 @@ LLM)이고, 자율 액션은 반드시 shadow 모드로 먼저 배포되며, 규
 
 ## 무엇을 얻을 수 있나
 
-FDAI은 하나의 이벤트 기반 코어 위에 세 개의 초기 버티컬을 얹습니다. 다른 AIOps
+FDAI는 하나의 이벤트 기반 코어 위에 세 개의 초기 버티컬을 얹습니다. 다른 AIOps
 도메인(posture management, SRE/SLO)은 같은 아키텍처에 맞으며 향후 범위입니다.
 
 ### Change Safety
@@ -36,18 +36,18 @@ request(remediation PR)를 병합하고 감사 엔트리를 기록.
 예약된 재해 복구 훈련, DB DR 훈련, blast-radius가 한정된 카오스 실험. 스케줄러가
 주기를 담당하고, risk gate가 범위를 담당하며, 감사 로그가 증거를 담당합니다.
 
-예시: 야간 잡이 critical DB에서 PITR 갭을 발견 -> agent가 훈련 창구에 pair된 복원
-훈련을 스케줄링 -> RPO/RTO 목표에 대해 복원 성공 -> 감사 엔트리로 컴플라이언스 증거
-확보.
+예시: 야간 잡이 critical DB에서 PITR 갭을 발견 -> agent가 훈련 시간대 안에서
+페어링된 복원 훈련을 스케줄링 -> RPO/RTO 목표에 대해 복원 성공 -> 감사 엔트리로
+컴플라이언스 증거 확보.
 
 ### Cost Governance
 
 지출 이상 탐지, 사이즈 최적화 권고, 저위험 하위집합(유휴 디스크 정리, 미사용 public
 IP 해제, orphan NIC 제거) 자동 실행.
 
-예시: 비용 이상 탐지기가 캐시 티어 과잉 프로비저닝에서 발화 -> T0 규칙 매칭 ->
+예시: 비용 이상 탐지기가 캐시 티어 과잉 프로비저닝에서 트리거 -> T0 규칙 매칭 ->
 2주 shadow로 정확도 증명 -> enforce로 승격 -> 롤백 경로를 갖춘 사이즈 최적화
-remediation PR이 나감.
+remediation PR이 나갑니다.
 
 ### Rule Catalog That Grows Itself
 
@@ -56,8 +56,9 @@ CIS, Advisor, OPA/Gatekeeper, Checkov, tfsec, KICS, Trivy, kube-bench)와 운영
 신호(HIL 패턴, shadow 정확도 드리프트, 오버라이드)를 관찰하여 새 규칙 / 개정 / 폐기
 후보를 같은 quality gate로 제안합니다.
 
-예시: shadow 엔트리가 연속 3건에서 정상 트래픽에 발화 -> discovery loop가 드리프트
-플래그 -> 임계값을 조정한 개정 PR과 새 regression suite가 함께 랜딩.
+예시: 연속 3건의 shadow 엔트리가 정상 트래픽에 대해 규칙 발동을 보임 -> discovery
+loop가 드리프트를 플래그 -> 임계값을 강화한 개정 PR이 새 regression suite와 함께
+도입됩니다.
 
 ## 여러분의 스택 전반에서 동작
 

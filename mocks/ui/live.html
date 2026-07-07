@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live - FDAI Console</title>
+  <link rel="stylesheet" href="assets/calm-slate.css" />
+</head>
+<body>
+  <header class="cs-topbar">
+    <div class="cs-container cs-topbar-inner">
+      <span class="cs-brand"><span class="cs-brand-mark">AW</span> FDAI</span>
+      <nav class="cs-nav">
+        <a href="live.html" class="cs-active">Live</a>
+        <a href="dashboard.html">Overview</a>
+        <a href="hil.html">HIL</a>
+        <a href="promotion.html">Promotion</a>
+        <a href="rules.html">Rules</a>
+        <a href="actions.html">Actions</a>
+        <a href="audit.html">Audit</a>
+        <a href="report.html">Report</a>
+        <a href="index.html">Kit</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="cs-container cs-page cs-live-page">
+    <div class="cs-live-header">
+      <div>
+        <div class="cs-eyebrow">Live &middot; autonomy at work</div>
+        <h1 class="cs-live-title">Control plane <span class="cs-live-heartbeat" aria-hidden="true"></span></h1>
+      </div>
+      <div class="cs-live-controls">
+        <button class="cs-btn is-sm" id="live-pause" type="button" aria-pressed="false">Pause</button>
+        <button class="cs-btn is-sm" id="live-rate" type="button">Rate: 1x</button>
+        <span class="cs-tag">scenario <code>v2026.07</code></span>
+        <span class="cs-tag">window <strong>60s</strong></span>
+      </div>
+    </div>
+
+    <p class="cs-live-lead">Every tile is one control-plane action: an event flowed through the
+      trust router, was resolved by T0 rule, T1 similarity, or T2 grounded reasoning, and its
+      outcome was gated and audited. This screen is a translator - it never executes anything.</p>
+
+    <!-- KPI strip -->
+    <div class="cs-live-kpis">
+      <div class="cs-live-kpi">
+        <span class="cs-live-kpi-label">Events / sec</span>
+        <span class="cs-live-kpi-value" id="k-eps">0<small>/s &middot; 60s avg</small></span>
+        <canvas class="cs-live-spark" data-spark="eps" width="600" height="34" aria-hidden="true"></canvas>
+      </div>
+      <div class="cs-live-kpi">
+        <span class="cs-live-kpi-label">Gate mix (60s)</span>
+        <span class="cs-live-kpi-value">
+          <span id="k-auto">0%</span> <small>auto</small>
+        </span>
+        <div class="cs-stackbar cs-live-stack" id="k-mix" aria-hidden="true">
+          <span class="is-auto" style="width:0%"></span>
+          <span class="is-hil" style="width:0%"></span>
+          <span class="is-abstain" style="width:0%"></span>
+          <span class="is-deny" style="width:0%"></span>
+        </div>
+      </div>
+      <div class="cs-live-kpi">
+        <span class="cs-live-kpi-label">Tier mix (60s)</span>
+        <span class="cs-live-kpi-value" style="gap:6px">
+          <span class="cs-tier t0" id="k-t0">T0 0%</span>
+          <span class="cs-tier t1" id="k-t1">T1 0%</span>
+          <span class="cs-tier t2" id="k-t2">T2 0%</span>
+        </span>
+        <div class="cs-stackbar cs-live-stack" id="k-tier" aria-hidden="true">
+          <span class="is-t0" style="width:0%"></span>
+          <span class="is-t1" style="width:0%"></span>
+          <span class="is-t2" style="width:0%"></span>
+        </div>
+      </div>
+      <div class="cs-live-kpi">
+        <span class="cs-live-kpi-label">Guard status</span>
+        <div class="cs-live-guards">
+          <span class="cs-guard ok" title="Change failure rate">CFR</span>
+          <span class="cs-guard ok" title="False-positive rate">FPR</span>
+          <span class="cs-guard ok" title="Rollback rate">RB</span>
+          <span class="cs-guard ok" title="Policy-violation escapes">ESC</span>
+        </div>
+        <span class="cs-help" style="margin-top:6px">within budget vs baseline</span>
+      </div>
+    </div>
+
+    <!-- Swarm grid -->
+    <div class="cs-swarm" id="swarm" aria-label="live control-plane activity"></div>
+
+    <!-- Ticker -->
+    <div class="cs-ticker">
+      <div class="cs-ticker-head">Audit stream <span class="cs-muted">&middot; append-only</span></div>
+      <ol class="cs-ticker-list" id="ticker"></ol>
+    </div>
+
+    <p class="cs-help" style="margin-top:14px">
+      Distribution follows the deterministic-first target: T0 dominates, T2 is a small minority.
+      Any HIL (amber) or deny (red) tile links back to the same audit entry a human would see on
+      the <a href="hil.html">HIL page</a> and the <a href="audit.html">audit stream</a>.
+    </p>
+  </main>
+
+  <footer class="cs-footer">
+    <div class="cs-container cs-flex-between cs-wrap">
+      <span>FDAI console mock - Calm Slate. Read-only surface, synthetic values.</span>
+      <span class="cs-muted">generic-scope &middot; no customer data</span>
+    </div>
+  </footer>
+
+  <script src="assets/live.js" defer></script>
+</body>
+</html>

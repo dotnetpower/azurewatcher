@@ -1,6 +1,6 @@
 """Incident lifecycle - first-class correlation entity.
 
-Design contract: ``docs/roadmap/sre-agent-scope.md § 3.1``.
+Design contract: ``docs/roadmap/scope-expansion.md § 3.1``.
 
 Public surface:
 

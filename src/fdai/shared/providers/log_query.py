@@ -1,6 +1,6 @@
 """External log ingestion - CSP-neutral wire contract (Layer-0 seam #7).
 
-Design contract: ``docs/roadmap/sre-agent-scope.md § 3.2``.
+Design contract: ``docs/roadmap/scope-expansion.md § 3.2``.
 
 Consumes structured log records from the customer's log backend
 (Log Analytics KQL, Loki LogQL, Elasticsearch, CloudWatch Logs) so RCA

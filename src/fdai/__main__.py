@@ -28,6 +28,7 @@ import logging
 import os
 import signal
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +59,8 @@ from .core.tiers.t1_lightweight.testing import InMemoryPatternLibrary
 from .core.tiers.t1_lightweight.tier import PatternLibrary
 from .core.trust_router import TrustRouter
 from .rule_catalog.schema.action_type import load_action_type_catalog
+from .rule_catalog.schema.link_type import load_link_type_catalog
+from .rule_catalog.schema.object_type import load_object_type_catalog
 from .rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
@@ -490,6 +493,8 @@ def _build_control_loop(
     policies_root = _resolve_policies_root(catalog_root)
     action_types_root = catalog_root / "action-types"
     vocabulary_file = catalog_root / "vocabulary" / "resource-types.yaml"
+    object_types_root = catalog_root / "vocabulary" / "object-types"
+    link_types_root = catalog_root / "vocabulary" / "link-types"
     remediation_root = catalog_root / "remediation"
     rules_root = catalog_root / "catalog"
 
@@ -502,6 +507,32 @@ def _build_control_loop(
     )
     with vocabulary_file.open("r", encoding="utf-8") as fh:
         resource_types = load_resource_type_registry_from_mapping(yaml.safe_load(fh))
+
+    # Ontology ObjectType / LinkType catalogs (fail-closed if directories
+    # exist but any file is invalid). Missing directories are tolerated
+    # so unit tests running against a stub catalog root do not require
+    # every fixture to ship the vocabulary tree.
+    ontology_object_types = (
+        load_object_type_catalog(object_types_root, schema_registry=registry)
+        if object_types_root.is_dir()
+        else ()
+    )
+    ontology_link_types = (
+        load_link_type_catalog(
+            link_types_root,
+            schema_registry=registry,
+            object_types=ontology_object_types,
+        )
+        if link_types_root.is_dir() and ontology_object_types
+        else ()
+    )
+    if ontology_object_types or ontology_link_types:
+        container = replace(
+            container,
+            ontology_object_types=ontology_object_types,
+            ontology_link_types=ontology_link_types,
+        )
+
     rules = load_rule_catalog(
         rules_root,
         schema_registry=registry,

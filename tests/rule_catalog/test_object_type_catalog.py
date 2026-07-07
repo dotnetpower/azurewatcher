@@ -1,0 +1,110 @@
+"""Ontology ObjectType catalog loader tests.
+
+Covers:
+- The four upstream ObjectTypes load cleanly.
+- Duplicate `name` across files fails-closed with an aggregated error.
+- `key` MUST name a declared property (cross-reference the schema alone
+  cannot express).
+- JSON Schema violations surface with file + JSON pointer origin.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from fdai.rule_catalog.schema.object_type import (
+    ObjectTypeCatalogError,
+    load_object_type_catalog,
+    load_object_type_from_mapping,
+    object_type_names,
+)
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CATALOG_ROOT = REPO_ROOT / "rule-catalog" / "vocabulary" / "object-types"
+
+
+def _registry() -> PackageResourceSchemaRegistry:
+    return PackageResourceSchemaRegistry()
+
+
+def test_shipped_object_types_load() -> None:
+    catalog = load_object_type_catalog(CATALOG_ROOT, schema_registry=_registry())
+    names = object_type_names(catalog)
+    # Four built-ins plus the shipped ChangeSummary reference example.
+    assert names == {"Resource", "Rule", "Signal", "Finding", "ChangeSummary"}
+
+
+def test_every_shipped_object_type_has_id_key() -> None:
+    catalog = load_object_type_catalog(CATALOG_ROOT, schema_registry=_registry())
+    # The four built-ins all use `id` as their unique-instance key. A
+    # fork MAY choose a different key for its own ObjectType; this test
+    # only asserts the shipped invariant, not a universal rule.
+    for entry in catalog:
+        assert entry.key == "id", f"{entry.name}: shipped built-in must key on 'id'"
+
+
+def test_key_must_name_a_declared_property() -> None:
+    raw = {
+        "schema_version": "1.0.0",
+        "name": "BrokenType",
+        "version": "1.0.0",
+        "key": "not_declared",
+        "properties": {
+            "id": {"type": "string", "required": True},
+        },
+    }
+    with pytest.raises(ObjectTypeCatalogError) as info:
+        load_object_type_from_mapping(raw, schema_registry=_registry())
+    joined = " ".join(i.message for i in info.value.issues).lower()
+    assert "not_declared" in joined
+    assert "not a declared property" in joined
+
+
+def test_duplicate_name_across_files_fails(tmp_path: Path) -> None:
+    body = (
+        'schema_version: "1.0.0"\n'
+        "name: Dupe\n"
+        'version: "1.0.0"\n'
+        "key: id\n"
+        "properties:\n"
+        "  id:\n"
+        "    type: string\n"
+        "    required: true\n"
+    )
+    (tmp_path / "one.yaml").write_text(body)
+    (tmp_path / "two.yaml").write_text(body)
+
+    with pytest.raises(ObjectTypeCatalogError) as info:
+        load_object_type_catalog(tmp_path, schema_registry=_registry())
+    joined = " ".join(i.message for i in info.value.issues).lower()
+    assert "duplicate objecttype name 'dupe'" in joined
+
+
+def test_invalid_name_pattern_fails(tmp_path: Path) -> None:
+    # Name MUST start with a capital letter and be PascalCase.
+    (tmp_path / "bad.yaml").write_text(
+        (
+            'schema_version: "1.0.0"\n'
+            "name: lowerBad\n"
+            'version: "1.0.0"\n'
+            "key: id\n"
+            "properties:\n"
+            "  id:\n"
+            "    type: string\n"
+        )
+    )
+    with pytest.raises(ObjectTypeCatalogError) as info:
+        load_object_type_catalog(tmp_path, schema_registry=_registry())
+    keys = " ".join(i.key for i in info.value.issues)
+    assert "bad.yaml:name" in keys
+
+
+def test_top_level_must_be_a_mapping(tmp_path: Path) -> None:
+    (tmp_path / "list.yaml").write_text("- not\n- a\n- mapping\n")
+    with pytest.raises(ObjectTypeCatalogError) as info:
+        load_object_type_catalog(tmp_path, schema_registry=_registry())
+    joined = " ".join(i.message for i in info.value.issues).lower()
+    assert "top-level must be a mapping" in joined

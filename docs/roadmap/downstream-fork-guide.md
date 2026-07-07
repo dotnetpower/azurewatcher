@@ -31,10 +31,7 @@ procedural recipes.
 2. [Day-1 checklist](#2-day-1-checklist)
 3. [The one hard rule](#3-the-one-hard-rule)
 4. [Repo layout for a fork](#4-repo-layout-for-a-fork)
-5. [Seam recipes](#5-seam-recipes)
-   (LLM · OperatorMemoryStore · HilRejectMaterializer · WebSearch ·
-   HilChannel · ScopeResolver · Critic+Judge · Rule catalog · Rego
-   overlays · Runtime failure modes · Testing end-to-end)
+5. [Seam recipes and example vertical](#5-seam-recipes-and-example-vertical) - links out to companion docs
 6. [Upstream sync + version-pinning strategy](#6-upstream-sync-procedure)
 7. [Anti-patterns](#7-anti-patterns)
 8. [Where to go next](#8-where-to-go-next)
@@ -160,501 +157,55 @@ Everything under `fork/` is customer-owned. Upstream files remain
 byte-identical except for `pyproject.toml` (a fork MAY add its own
 package + entry point).
 
-## 5. Seam recipes
-
-Each recipe follows the same shape: **when to override**, **the
-seam**, **how to bind**, **how to test**. All snippets assume Python
-3.12+ and the upstream package is importable as `fdai`.
-
-### 5.1 Azure OpenAI adapters (LlmBindings)
-
-**When to override**: pointing at a different Azure OpenAI endpoint,
-a different set of deployments, or a non-Azure LLM provider.
-
-**The seam**: `fdai.composition.LlmBindings` holds
-`embedding_model`, `cross_check_models`, `critic_model`,
-`judge_model`, and `debate_orchestrator`. The upstream
-`bind_azure_llm_bindings()` factory reads `resolved-models.json` and
-wires Azure OpenAI adapters.
-
-**`resolved-models.json` is a runtime secret, not a checked-in
-artifact.** It is produced by the bootstrap `llm_resolver_cli`
-(see 5.7), stored in Key Vault, and mounted at the container path
-named by `LLM_RESOLVED_MODELS_PATH` (e.g.
-`/mnt/secrets/resolved-models.json`). A fork MUST NOT commit this
-file: it embeds the deployer's subscription id, deployment names,
-and region metadata. Regenerate it when the llm-registry, quota,
-or region availability changes; the resolver is idempotent -
-re-running it with unchanged inputs produces the same file.
-
-**How to bind (Azure endpoint override)**:
-
-Upstream ships a **public composition API** for the full Azure wire-
-up: [`wire_azure_container`](../../src/fdai/composition.py) +
-the declarative [`AzureWireOverrides`](../../src/fdai/composition.py)
-dataclass. A fork constructs one `AzureWireOverrides` with its
-concrete adapters and passes it in - the function handles the
-composer, tool registry, prompt composition (base / critic / judge),
-and the underlying `bind_azure_llm_bindings()` call in one step.
-
-```python
-# fork/composition_root.py
-from pathlib import Path
-from fdai.composition import (
-    AzureWireOverrides, default_container, wire_azure_container,
-)
-from fdai.core.operator_memory import InMemoryOperatorMemoryStore
-from fork.adapters.scope_resolver import resolve_azure_scope
-
-async def build_container(config, *, identity, http_client):
-    container = default_container(config)
-    return await wire_azure_container(
-        container,
-        http_client=http_client,
-        identity=identity,
-        overrides=AzureWireOverrides(
-            endpoint="https://oai-customer-x.openai.azure.com",
-            catalog_root=Path("rule-catalog"),
-            operator_memory_store=InMemoryOperatorMemoryStore(),
-            scope_resolver=resolve_azure_scope,   # fork-owned (see 5.6)
-            # tool_providers=... to light up function calling (see below)
-        ),
-    )
-```
-
-The `AzureWireOverrides` `__post_init__` fail-closes on an empty
-`endpoint` or a `None` `operator_memory_store` so the fork bug is
-caught at construction time, not deep inside the composer on the
-first event. A fork that does not use operator memory MUST still
-pass `InMemoryOperatorMemoryStore()` explicitly - the API refuses
-to default a required seam.
-
-**Backwards compatibility**: upstream's `__main__._finalize_llm_bindings`
-is now a thin wrapper that reads env vars (`FDAI_LLM_ENDPOINT`,
-`FDAI_CATALOG_ROOT`, `FDAI_OPERATOR_MEMORY_DSN`) and
-delegates to `wire_azure_container`. Existing tests and the
-upstream entry point continue to work unchanged. A fork that
-prefers env-driven wiring MAY call the wrapper; a fork that wants
-programmatic composition uses `wire_azure_container` directly.
-
-**How to bind (non-Azure LLM)**: implement the four Protocols
-(`EmbeddingModel`, `CrossCheckModel`, `CriticModel`, `JudgeModel`),
-construct an `LlmBindings` directly, and swap it in:
-
-```python
-new_bindings = LlmBindings(
-    embedding_model=MyBedrockEmbeddings(),
-    cross_check_models=(MyProposer(), MyDoubleChecker()),
-)
-return replace(container, llm_bindings=new_bindings)
-```
-
-**How to test**: reuse the upstream in-memory fakes
-(`MatchTypeCrossCheckModel`, `DeterministicEmbeddingModel`) for
-unit tests; run your live adapters against
-`httpx.MockTransport` for wire-level checks (see
-`tests/delivery/azure/llm/test_adapters.py`).
-
-### 5.2 OperatorMemoryStore (in-memory / Postgres / custom)
-
-**When to override**: switching from the shipped `InMemoryOperatorMemoryStore`
-to durable storage.
-
-**The seam**: `fdai.core.operator_memory.OperatorMemoryStore`
-Protocol with three async methods: `append`, `list_active_for_scope`,
-`supersede`.
-
-**How to bind (Postgres)**: set the `FDAI_OPERATOR_MEMORY_DSN`
-environment variable; upstream's `_build_operator_memory_store()`
-picks `PostgresOperatorMemoryStore` automatically. No code change
-needed.
-
-**How to bind (custom store)**: implement the Protocol, pass the
-instance into `DefaultPromptComposer(operator_memory_store=...)` at
-your composition root.
-
-**How to test**: reuse `InMemoryOperatorMemoryStore` in unit tests;
-if you shipped a custom store, mirror the shape of
-`tests/persistence/test_postgres_operator_memory.py` (offline
-policy tests + integration tests gated on a DSN env var).
-
-### 5.3 HilRejectMaterializer + second-approval channel
-
-**When to override**: activating the operator-memory pipeline. The
-materializer is a pure domain module shipped by upstream; the
-"second approval" channel that triggers it is fork-first because
-the UI varies per deployment (Teams button, git PR, custom CLI).
-
-**The seam**: `fdai.core.operator_memory.HilRejectMaterializer`.
-Construct it with your `OperatorMemoryStore` and call
-`await materializer.materialize(hil_response, second_approver,
-material)` from whatever channel your fork uses.
-
-**How to bind (Teams Adaptive Card callback)**:
-
-A Teams webhook delivers raw JSON, not a Python `HilResponse`
-object - the callback reconstructs the response from the payload
-fields before calling the materializer.
-
-```python
-# fork/adapters/hil_second_approval.py
-from datetime import UTC, datetime
-
-from fdai.core.operator_memory import (
-    HilRejectMaterial, HilRejectMaterializer, MemoryCategory, ScopeKind,
-)
-from fdai.shared.providers.hil_channel import HilDecision, HilResponse
-
-async def handle_teams_approval_click(payload, *, materializer, second_approver_oid):
-    hil_response = HilResponse(
-        approval_id=payload["approval_id"],
-        decision=HilDecision.REJECT,        # only rejected reasons materialise
-        approver_id=payload["first_approver_oid"],
-        received_at=datetime.now(tz=UTC),
-        reason=payload["reject_reason"],    # pre-redacted upstream
-    )
-    material = HilRejectMaterial(
-        scope_kind=ScopeKind.RESOURCE_GROUP,
-        scope_ref=payload["resource_group_ref"],
-        category=MemoryCategory.PREFERENCE,
-        source_ref=f"hil.reject:{payload['approval_id']}",
-    )
-    return await materializer.materialize(
-        hil_response=hil_response,
-        second_approver=second_approver_oid,
-        material=material,
-    )
-```
-
-**How to test**: mirror `tests/core/operator_memory/test_hil_pipeline.py`
-using `InMemoryOperatorMemoryStore` + a synthetic `HilResponse`.
-
-### 5.4 WebSearchProvider
-
-**When to override**: activating web search. Upstream ships
-`NoOpWebSearchProvider` which returns zero snippets on every query,
-so a fork that does nothing has web search silently disabled.
-
-**The seam**: `fdai.core.web_search.WebSearchProvider`
-Protocol with one async `search(query) -> WebSearchResult` method.
-
-**How to bind (Bing example)**:
-
-**Two allowlists layer**: `query.allowed_domains` (per-event scope,
-set by the caller) and `self._deploy_allowlist` (deploy-time
-curated primary sources set by the fork's platform team). The
-provider MUST return snippets whose `domain` sits in the
-**intersection** of both - the query narrows a per-event slice,
-the deploy allowlist puts an absolute upper bound.
-
-The Bing API key is a live secret: resolve it through the shipped
-`SecretProvider` seam at composition time, never as a checked-in
-literal. The provider's Protocol contract forbids logging the
-returned string.
-
-```python
-# fork/adapters/web_search.py
-from fdai.core.web_search import (
-    WebSearchProvider, WebSearchQuery, WebSearchResult, WebSnippet
-)
-from fdai.shared.providers.secret_provider import SecretProvider
-
-class BingWebSearchProvider(WebSearchProvider):
-    def __init__(
-        self,
-        *,
-        secret_provider: SecretProvider,
-        secret_name: str,
-        deploy_allowlist: frozenset[str],
-    ) -> None:
-        self._secret_provider = secret_provider
-        self._secret_name = secret_name
-        self._deploy_allowlist = deploy_allowlist  # curated primary sources
-
-    async def search(self, query: WebSearchQuery) -> WebSearchResult:
-        api_key = await self._secret_provider.get(self._secret_name)
-        # `api_key` is scoped to this call; never log it, never store it
-        # on `self`, never include it in a WebSearchResult reasons tuple.
-        effective = self._deploy_allowlist & set(query.allowed_domains)
-        if not effective:
-            return WebSearchResult(
-                query=query, reasons=("allowlist_intersection_empty",),
-            )
-        # 1. POST query.text to Bing API with self._api_key.
-        # 2. Drop every hit whose domain is not in ``effective``.
-        # 3. Build a WebSnippet tuple, respecting query.max_results and
-        #    query.budget_ms as a soft deadline.
-        # 4. Return WebSearchResult(query=query, snippets=(...)).
-        return WebSearchResult(query=query, snippets=())  # fork fills the body
-```
-
-**Every snippet MUST pass through `wrap_web_snippet(snippet=...,
-allowed_domains=query.allowed_domains)` before injection into a
-model turn** - the shipped sanitizer runs the domain allowlist,
-injection-marker detection, and `trusted="false"` XML envelope.
-
-**How to test**: mirror `tests/core/web_search/test_web_search.py`.
-The upstream tests cover the sanitizer + `NoOpWebSearchProvider`; a
-fork adds its own adapter-level tests using `httpx.MockTransport`.
-
-### 5.5 HilChannel (Teams / Slack / custom)
-
-**When to override**: activating any HIL flow. Upstream ships an
-in-memory fake; a real deployment MUST bind a live channel.
-
-**The seam**: `fdai.shared.providers.hil_channel.HilChannel`
-Protocol with `send` (dispatch Adaptive Card) and `poll` (observe
-decision).
-
-**How to bind**: implement the two methods against Teams Incoming
-Webhook / Bot Framework REST / Slack Web API / anything you like.
-Pass the instance into your composition root and wire it into the
-control loop where HIL approvals are dispatched.
-
-**How to test**: reuse `fdai.shared.providers.testing.hil_channel.InMemoryHilChannel`
-for the pipeline tests; add wire-level tests for your adapter with
-`httpx.MockTransport`.
-
-### 5.6 ScopeResolver (ARM id -> OperatorScope)
-
-**When to override**: activating operator memory for real events.
-Upstream stays CSP-neutral so the parser that turns a
-`QualityCandidate.target_resource_ref` into an
-`OperatorScope(resource_group_ref, resource_ref)` is fork-first.
-
-**The seam**: a plain callable
-`Callable[[QualityCandidate], OperatorScope | None]` passed as
-`scope_resolver=` to `bind_azure_llm_bindings()`.
-
-**How to bind**:
-
-```python
-# fork/adapters/scope_resolver.py
-import re
-from fdai.core.operator_memory import OperatorScope
-from fdai.core.quality_gate.gate import QualityCandidate
-
-_ARM_RE = re.compile(
-    r"^/subscriptions/[^/]+/resourceGroups/(?P<rg>[^/]+)"
-    r"(?:/providers/[^/]+/[^/]+/(?P<name>[^/]+))?"
-)
-
-def resolve_azure_scope(candidate: QualityCandidate) -> OperatorScope | None:
-    match = _ARM_RE.match(candidate.target_resource_ref)
-    if match is None:
-        return None
-    return OperatorScope(
-        resource_group_ref=match.group("rg"),
-        resource_ref=match.group("name"),  # None when the id stops at the RG
-    )
-```
-
-Then at your composition root:
-
-```python
-return bind_azure_llm_bindings(
-    ..., scope_resolver=resolve_azure_scope,
-)
-```
-
-**How to test**: pure unit tests over your parser (ARM id in,
-`OperatorScope` out); no upstream test dependency.
-
-### 5.7 CriticModel + JudgeModel (debate activation)
-
-**When to override**: activating the debate loop.
-
-**The seam**: two capabilities in
-[`rule-catalog/llm-registry.yaml`](../../rule-catalog/llm-registry.yaml):
-`t2.critic` (already declared by upstream) and `t1.judge` (already
-declared). A fork's `resolved-models.json` MUST include both for
-`bind_azure_llm_bindings` to auto-construct the
-`DebateOrchestrator`.
-
-**How to bind**: run the LLM resolver CLI against your regional
-catalog fixture so both capabilities appear in
-`resolved-models.json`. The upstream CLI lives at
-[`src/fdai/rule_catalog/schema/llm_resolver_cli.py`](../../src/fdai/rule_catalog/schema/llm_resolver_cli.py);
-invoke it as `uv run python -m fdai.rule_catalog.schema.llm_resolver_cli
---registry rule-catalog/llm-registry.yaml --region <your-region>
---subscription-id <sub> --deployer-object-id <oid> --catalog-fixture
-<fixture.json> --permission-fixture <perm.json> --quota-fixture
-<quota.json> --out /path/to/resolved-models.json`. If your region
-cannot host one of the capabilities, the capability lands in
-`hil-only` status and the orchestrator stays unbound - graceful
-degrade.
-
-**Router config**: an opt-in denylist / allowlist of ActionType ids
-lives on `DebateRouterConfig`. Construct one at composition time and
-pass it to `QualityGate(debate_router_config=...)` alongside the
-orchestrator. See
-[prompt-composition.md § Wave 4.5 delta-2a](prompt-composition.md#wave-45-delta-2a---what-shipped)
-for the precedence rules.
-
-**How to test**: reuse `_StubCritic` / `_StubJudge` patterns from
-`tests/core/quality_gate/test_gate.py`. The escalation matrix
-(PROCEED / ABORT / router killswitch) is already covered upstream;
-a fork's tests focus on its live adapters.
-
-### 5.8 Rule catalog additions
-
-**When to override**: adding customer-specific rules.
-
-**The seam**: `rule-catalog/catalog/` YAML files consumed by
-`load_rule_catalog(...)`. A fork ships its own directory (say,
-`fork/rules/`) and passes it to a **separate** `load_rule_catalog`
-call.
-
-**Duplicate `id` is a hard error**. `load_rule_catalog` fail-
-closes on same-id entries across files, even across roots - the
-ontology dispatch relies on `id` being globally unique. This
-means:
-
-- To ADD a rule: give it a fork-unique id (e.g. prefix with your
-  fork's namespace, `customer-x.storage.owner-tag.required`) and
-  ship it in `fork/rules/`. This is the only supported case.
-  **Managed-service teams maintaining multiple forks** SHOULD adopt a
-  two-level convention: `<tenant-code>.<domain>.<name>` where
-  `<tenant-code>` is a short opaque code (never the customer name),
-  registered once at the top of the fork's rule catalog as a
-  reserved namespace. Two forks that pick the same `<tenant-code>`
-  are a merge-time id collision, which is why the code should be a
-  short random string, not a semantic label.
-- To DISABLE an upstream rule: do not ship a same-id override.
-  Use the exemption workflow
-  ([`rule-catalog/exemptions/`](../../rule-catalog/exemptions/) +
-  [`docs/runbooks/exemption-workflow.md`](../runbooks/exemption-workflow.md))
-  which is the audited, time-boxed way to suppress a rule for a
-  scope.
-- To CHANGE an upstream rule's behaviour: open an upstream issue -
-  do not fork-patch. The upstream rule catalog is customer-
-  agnostic; a customer-specific change to its behaviour is a
-  signal the rule needs a config knob upstream.
-
-**How to bind**: extend your composition root to load both catalogs
-and concatenate. `load_rule_catalog` returns `tuple[Rule, ...]`:
-
-```python
-from pathlib import Path
-from fdai.core.tiers.t0_deterministic.index import RuleIndex
-from fdai.rule_catalog.schema.rule import load_rule_catalog
-
-upstream_rules = load_rule_catalog(
-    Path("rule-catalog/catalog"),
-    schema_registry=registry,
-    action_types=action_types,
-    resource_types=resource_types,
-    policies_root=Path("policies"),
-    remediation_root=Path("rule-catalog/remediation"),
-)
-fork_rules = load_rule_catalog(
-    Path("fork/rules"),
-    schema_registry=registry,
-    action_types=action_types,
-    resource_types=resource_types,
-)
-index = RuleIndex.build(upstream_rules + fork_rules)
-```
-
-**How to test**: reuse the shipped rule-loader tests as a template
-(`tests/rule_catalog/schema/test_rule.py`); add a fork-specific
-fixture directory and a smoke test that both catalogs load without
-id conflicts.
-
-### 5.9 Risk overlays (Rego)
-
-**When to override**: tightening the RiskGate ceiling per
-environment / customer (a Rego overlay can only lower autonomy,
-never raise it, per
-[execution-model.md § Unified RiskGate](execution-model.md#3-unified-riskgate)).
-
-**Current state**: **the Rego overlay wire is scoped in the
-execution-model design but the RiskGate module in
-`src/fdai/core/risk_gate/` does not yet load overlay files.**
-The two authoritative decision surfaces today are (a) the
-ActionType schema's `ceiling_by_tier` block (edit the shipped
-ontology YAML directly and open an upstream PR if the change is
-customer-agnostic) and (b) `DebateRouterConfig`'s
-`always_for_action_types` / `never_for_action_types` (see 5.7).
-
-**Fork guidance until the overlay wire lands**: encode the
-intended tighter ceiling as an ActionType-level `ceiling_by_tier`
-override in your fork's rule catalog additions (5.8), OR use the
-`never_for_action_types` denylist on `DebateRouterConfig` to block
-debate promotion for the ActionType entirely.
-
-**Tracking**: the overlay wire is planned as a follow-up to Wave
-4.5 delta-2b; when it lands this section will document the
-`RiskGate(overlay_path=...)` binding.
-
-### 5.10 Runtime failure modes and abstain contracts
-
-Every seam has a documented behaviour when its live adapter fails
-at runtime. A fork's adapters MUST honour these contracts so the
-control loop degrades to HIL rather than into an ungated action.
-
-| Seam | Live adapter fails | Expected behaviour |
-|------|--------------------|--------------------|
-| `EmbeddingModel` / `CrossCheckModel` | HTTP error, timeout | Raise; upstream catches and abstains the quality candidate (HIL). Never return a synthesised empty response. |
-| `CriticModel` / `JudgeModel` | HTTP error, quota | Raise; `DebateOrchestrator` catches and returns `debate_status="unresolved"` which routes to HIL. |
-| `WebSearchProvider` | HTTP error, timeout | Return `WebSearchResult(query=query, snippets=(), reasons=("<provider-error>",))`. Do not raise - snippets are supplementary evidence, not a gate. |
-| `HilChannel.send` | Delivery fails | Raise; upstream logs and the audit trail marks the approval as `dispatch_failed`. The action stays pending; no auto-execute. |
-| `HilChannel.poll` | Backend unreachable | Raise; upstream keeps the approval in `pending` on next tick. |
-| `OperatorMemoryStore` | DB down at write | Raise; the materializer rolls back the second-approver record and the reject stays as an audit-only event. |
-| `OperatorMemoryStore` | DB down at read | Return `()`; the composer proceeds with an empty operator-memory block. Prompt composition MUST survive an empty store. |
-| `SecretProvider.get` | Secret missing / KV down | Raise `SecretNotFoundError`; startup fails fast. A missing secret is never silently defaulted. |
-| `ScopeResolver` | Cannot parse the resource ref | Return `None`; the materializer skips operator-memory attachment for that event but the action itself is not blocked. |
-
-The common invariant: **never fabricate a success on a live-adapter
-error**. If the fork's adapter cannot honour the contract row above,
-escalate to HIL at the earliest observable point.
-
-### 5.11 Testing your fork end-to-end
-
-A fork's test suite has two roles: (a) prove the fork's live
-adapters honour their Protocols, (b) prove upstream contracts still
-hold after any composition-root changes. Keep the two separated so
-CI can triage which side broke.
-
-**Recommended layout**:
-
-```
-fork/
-  tests/
-    adapters/        # wire-level tests for your live adapters
-    composition/     # tests that exercise your composition_root end-to-end
-    contract/        # thin Protocol conformance tests (see below)
-```
-
-**Protocol conformance test pattern** - for every seam your fork
-replaces, write a one-page test that instantiates your adapter with
-test doubles and asserts it satisfies the Protocol shape at
-runtime:
-
-```python
-from fdai.core.web_search import WebSearchProvider
-
-def test_bing_provider_is_websearch_protocol():
-    provider = BingWebSearchProvider(
-        secret_provider=StubSecretProvider({"bing": "test"}),
-        secret_name="bing",
-        deploy_allowlist=frozenset({"example.com"}),
-    )
-    assert isinstance(provider, WebSearchProvider)  # runtime_checkable
-```
-
-**Running both suites**:
-
-```bash
-uv run pytest -q tests/ fork/tests/       # full CI run
-uv run pytest -q tests/                   # upstream contract regression only
-uv run pytest -q fork/tests/              # fork adapter check only
-```
-
-**Inherit pytest-asyncio auto-mode** in your fork's `pyproject.toml`
-under `[tool.pytest.ini_options]`: `asyncio_mode = "auto"`. Upstream
-sets this to keep async seam tests marker-free; a fork that omits it
-will see mysterious "async function not awaited" warnings.
+## 5. Seam recipes and example vertical
+
+The per-seam cookbook lives in a companion file:
+[downstream-fork-seam-recipes.md](downstream-fork-seam-recipes.md).
+Each recipe follows the same shape - **when to override**, **the
+seam**, **how to bind**, **how to test** - and every snippet
+assumes Python 3.12+ and the upstream package importable as
+`fdai`. The recipes are organised in bind-order (you typically
+land ObjectType before the Rule that references it, ActionType
+before the Rule that names it, and so on):
+
+| Recipe | Topic |
+|--------|-------|
+| [5.1](downstream-fork-seam-recipes.md#51-azure-openai-adapters-llmbindings) | Azure OpenAI adapters (`LlmBindings`) |
+| [5.2](downstream-fork-seam-recipes.md#52-operatormemorystore-in-memory--postgres--custom) | `OperatorMemoryStore` (in-memory / Postgres / custom) |
+| [5.3](downstream-fork-seam-recipes.md#53-hilrejectmaterializer--second-approval-channel) | `HilRejectMaterializer` + second-approval channel |
+| [5.4](downstream-fork-seam-recipes.md#54-websearchprovider) | `WebSearchProvider` |
+| [5.5](downstream-fork-seam-recipes.md#55-hilchannel-teams--slack--custom) | `HilChannel` (Teams / Slack / custom) |
+| [5.6](downstream-fork-seam-recipes.md#56-scoperesolver-arm-id---operatorscope) | `ScopeResolver` (ARM id → `OperatorScope`) |
+| [5.7](downstream-fork-seam-recipes.md#57-criticmodel--judgemodel-debate-activation) | `CriticModel` + `JudgeModel` (debate activation) |
+| [5.8](downstream-fork-seam-recipes.md#58-rule-catalog-additions) | Rule catalog additions |
+| [5.8a](downstream-fork-seam-recipes.md#58a-ontology-object-type--link-type-additions) | Ontology `ObjectType` / `LinkType` additions |
+| [5.9](downstream-fork-seam-recipes.md#59-risk-overlays-rego) | Risk overlays (Rego) |
+| [5.10](downstream-fork-seam-recipes.md#510-runtime-failure-modes-and-abstain-contracts) | Runtime failure modes and abstain contracts |
+| [5.11](downstream-fork-seam-recipes.md#511-testing-your-fork-end-to-end) | Testing your fork end-to-end |
+| [5.12](downstream-fork-seam-recipes.md#512-actiontype-catalog-additions) | `ActionType` catalog additions |
+| [5.13](downstream-fork-seam-recipes.md#513-delivery-adapter-custom-publisher) | Delivery adapter (custom publisher) |
+| [5.14](downstream-fork-seam-recipes.md#514-console-readpanel-additions) | Console `ReadPanel` additions |
+| [5.15](downstream-fork-seam-recipes.md#515-fork-entry-point-entrypy) | Fork entry point (`entry.py`) |
+
+**Building a new business-object vertical**: a fork that adds a
+non-Resource ObjectType lifecycle (architecture-review proposal,
+compliance-attestation record, incident-postmortem workflow) has a
+stitched-together walkthrough in
+[downstream-fork-example-vertical.md](downstream-fork-example-vertical.md).
+It uses a generic `GovernanceProposal` example and cross-references
+every recipe above in the order they are needed.
+
+**Copy-ready shipped example**: upstream also ships a smaller
+end-to-end reference - the **`ops.change-summary`** on-demand
+`resource-group` change-summary generator. Six files
+(ObjectType `ChangeSummary`, LinkType `summarizes`, ActionType
+`ops.publish-change-summary`, rule `ops.change-summary`, Rego,
+Markdown template) plus one test file
+([`tests/verticals/test_change_summary_example.py`](../../tests/verticals/test_change_summary_example.py))
+form the minimum working scaffold. Fork copies the six files, renames
+to its own business object, and has a green baseline before adding
+lifecycle. The walkthrough above shows what grows on top when the
+workflow needs reviewers and multi-step approval.
 
 ## 6. Upstream sync procedure
 

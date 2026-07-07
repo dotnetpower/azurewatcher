@@ -2,7 +2,7 @@
 title: Execution 모델
 translation_of: execution-model.md
 translation_source_sha: fea01f39909a76a6b550f82cc0f1953f33b15bb6
-translation_revised: 2026-07-07
+translation_revised: 2026-07-08
 ---
 
 # Execution 모델

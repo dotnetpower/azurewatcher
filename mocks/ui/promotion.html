@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Promotion - FDAI Console</title>
+  <link rel="stylesheet" href="assets/calm-slate.css" />
+</head>
+<body>
+  <header class="cs-topbar">
+    <div class="cs-container cs-topbar-inner">
+      <span class="cs-brand"><span class="cs-brand-mark">AW</span> FDAI</span>
+      <nav class="cs-nav">
+        <a href="live.html">Live</a>
+        <a href="dashboard.html">Overview</a>
+        <a href="hil.html">HIL</a>
+        <a href="promotion.html" class="cs-active">Promotion</a>
+        <a href="rules.html">Rules</a>
+        <a href="actions.html">Actions</a>
+        <a href="audit.html">Audit</a>
+        <a href="report.html">Report</a>
+        <a href="index.html">Kit</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="cs-container cs-page">
+    <div class="cs-page-header cs-mb-16">
+      <div class="cs-eyebrow">Shadow &rarr; Enforce</div>
+      <h1>Promotion gate</h1>
+      <p class="cs-lead">Every new capability ships judge-and-log in <span class="cs-mode shadow">shadow</span>.
+        Promotion to <span class="cs-mode enforce">enforce</span> is explicit, per ActionType, and only
+        passes if the promotion gate is green on the frozen scenario set: measured accuracy, zero
+        policy-violation escapes, no guard-metric regression.</p>
+    </div>
+
+    <div class="cs-readonly-banner">
+      <strong>Promotion is a PR, not a button.</strong> This page shows candidates and their gates.
+      The actual promotion is a reviewed change in the ontology repo.
+    </div>
+
+    <!-- Summary strip -->
+    <div class="cs-grid cs-grid-4 cs-mb-24">
+      <div class="cs-card cs-kpi">
+        <div class="cs-kpi-accent is-teal"></div>
+        <span class="cs-kpi-label">In shadow</span>
+        <span class="cs-kpi-value">12</span>
+        <span class="cs-kpi-foot">7-day rolling</span>
+      </div>
+      <div class="cs-card cs-kpi">
+        <div class="cs-kpi-accent"></div>
+        <span class="cs-kpi-label">Ready for promotion</span>
+        <span class="cs-kpi-value">3</span>
+        <span class="cs-kpi-foot">gate green</span>
+      </div>
+      <div class="cs-card cs-kpi">
+        <div class="cs-kpi-accent is-terracotta"></div>
+        <span class="cs-kpi-label">Blocked</span>
+        <span class="cs-kpi-value">2</span>
+        <span class="cs-kpi-foot">guard breach or low accuracy</span>
+      </div>
+      <div class="cs-card cs-kpi">
+        <div class="cs-kpi-accent"></div>
+        <span class="cs-kpi-label">Demoted (last 30d)</span>
+        <span class="cs-kpi-value">1</span>
+        <span class="cs-kpi-foot">auto-rollback to shadow</span>
+      </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="cs-filterbar">
+      <span class="cs-fb-label">Status</span>
+      <div class="cs-chipset">
+        <button class="cs-chip cs-active">All</button>
+        <button class="cs-chip">Ready</button>
+        <button class="cs-chip">Blocked</button>
+        <button class="cs-chip">Demoted</button>
+      </div>
+      <span class="cs-fb-label" style="margin-left:8px">Category</span>
+      <div class="cs-chipset">
+        <button class="cs-chip cs-active">All</button>
+        <button class="cs-chip">Remediation</button>
+        <button class="cs-chip">Ops</button>
+        <button class="cs-chip">Governance</button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <section class="cs-section" style="margin-top:8px">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">1</span>
+        <div class="cs-section-title"><h2>Candidates</h2><p class="cs-desc">One row per <code>ActionType</code>. Click a row to open the shadow log.</p></div>
+      </div>
+      <div class="cs-table-wrap">
+        <table class="cs-table">
+          <thead>
+            <tr>
+              <th>ActionType</th>
+              <th>Category</th>
+              <th style="width:90px">Samples</th>
+              <th style="width:110px">Accuracy</th>
+              <th style="width:110px">Escapes</th>
+              <th style="width:130px">Guard delta</th>
+              <th style="width:160px">Gate</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>database.enable-pitr</code><div class="cs-muted" style="font-size:12px">shadow since 2026-06-14</div></td>
+              <td><span class="cs-cat remediation">remediation</span></td>
+              <td>184</td>
+              <td><strong>98.9%</strong></td>
+              <td><strong>0</strong></td>
+              <td><span class="cs-guard ok">within budget</span></td>
+              <td><span class="cs-status ok">gate green</span><div class="cs-muted" style="font-size:12px">promote via PR</div></td>
+            </tr>
+            <tr>
+              <td><code>compute.autoscale.raise-floor</code><div class="cs-muted" style="font-size:12px">shadow since 2026-06-22</div></td>
+              <td><span class="cs-cat ops">ops</span></td>
+              <td>96</td>
+              <td><strong>96.1%</strong></td>
+              <td><strong>0</strong></td>
+              <td><span class="cs-guard ok">within budget</span></td>
+              <td><span class="cs-status ok">gate green</span><div class="cs-muted" style="font-size:12px">promote via PR</div></td>
+            </tr>
+            <tr>
+              <td><code>network.firewall.deny-orphan</code><div class="cs-muted" style="font-size:12px">shadow since 2026-06-08</div></td>
+              <td><span class="cs-cat remediation">remediation</span></td>
+              <td>412</td>
+              <td><strong>99.4%</strong></td>
+              <td><strong>0</strong></td>
+              <td><span class="cs-guard ok">within budget</span></td>
+              <td><span class="cs-status ok">gate green</span><div class="cs-muted" style="font-size:12px">promote via PR</div></td>
+            </tr>
+            <tr>
+              <td><code>cost.rightsize.downshift-cpu</code><div class="cs-muted" style="font-size:12px">shadow since 2026-06-30</div></td>
+              <td><span class="cs-cat remediation">remediation</span></td>
+              <td>58</td>
+              <td><strong>87.9%</strong></td>
+              <td><strong>0</strong></td>
+              <td><span class="cs-guard warn">CFR +0.6pp</span></td>
+              <td><span class="cs-status wait">blocked</span><div class="cs-muted" style="font-size:12px">accuracy &lt; 95%</div></td>
+            </tr>
+            <tr>
+              <td><code>identity.cert.rotate</code><div class="cs-muted" style="font-size:12px">shadow since 2026-06-27</div></td>
+              <td><span class="cs-cat remediation">remediation</span></td>
+              <td>73</td>
+              <td><strong>93.1%</strong></td>
+              <td><strong>1</strong></td>
+              <td><span class="cs-guard brk">escapes &gt; 0</span></td>
+              <td><span class="cs-status err">blocked</span><div class="cs-muted" style="font-size:12px">zero-escape required</div></td>
+            </tr>
+            <tr>
+              <td><code>k8s.rbac.narrow-cluster-admin</code><div class="cs-muted" style="font-size:12px">demoted 2026-07-02</div></td>
+              <td><span class="cs-cat governance">governance</span></td>
+              <td>132</td>
+              <td><strong>94.4%</strong></td>
+              <td><strong>0</strong></td>
+              <td><span class="cs-guard brk">FPR +1.4pp</span></td>
+              <td><span class="cs-status err">demoted</span><div class="cs-muted" style="font-size:12px">back to shadow</div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- What the gate actually checks -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">2</span>
+        <div class="cs-section-title"><h2>What the gate checks</h2><p class="cs-desc">All four must be green at the same scenario-set version. A single amber demotes.</p></div>
+      </div>
+      <div class="cs-grid cs-grid-2">
+        <div class="cs-alert is-success"><div class="cs-alert-bar"></div><div>
+          <h4>Accuracy against reference</h4>
+          <p>Shadow verdict matches the pinned reference agent on the frozen scenario set (per
+             ActionType threshold, usually &ge; 95%).</p>
+        </div></div>
+        <div class="cs-alert is-info"><div class="cs-alert-bar"></div><div>
+          <h4>Zero policy-violation escapes</h4>
+          <p>Any shadow verdict that would have violated a Rego policy blocks promotion outright -
+             not softenable by average accuracy.</p>
+        </div></div>
+        <div class="cs-alert is-warn"><div class="cs-alert-bar"></div><div>
+          <h4>Guard metrics within budget</h4>
+          <p>Change failure rate, false-positive rate, and rollback rate must not exceed the
+             baseline plus their alert budget on the same window.</p>
+        </div></div>
+        <div class="cs-alert is-success"><div class="cs-alert-bar"></div><div>
+          <h4>Safety invariants complete</h4>
+          <p>The ActionType declares its stop-condition, rollback contract, blast-radius cap, and
+             audit hook - and each has a passing test.</p>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- Demotion path -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">3</span>
+        <div class="cs-section-title"><h2>Automatic demotion</h2><p class="cs-desc">Regression in enforce demotes back to shadow without a human step.</p></div>
+      </div>
+      <div class="cs-card">
+        <div class="cs-flex cs-wrap cs-gap-12">
+          <span class="cs-tag is-steel">detect regression</span>
+          <span class="cs-muted">&rarr;</span>
+          <span class="cs-tag is-terracotta">demote to shadow</span>
+          <span class="cs-muted">&rarr;</span>
+          <span class="cs-tag">audit entry (with cause)</span>
+          <span class="cs-muted">&rarr;</span>
+          <span class="cs-tag is-plum">re-open promotion candidate</span>
+        </div>
+        <p class="cs-help" style="margin-top:12px">Cause of demotion is one of: guard-metric breach, policy-violation escape, or a per-ActionType stop-condition trigger. The audit entry links the offending event.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="cs-footer">
+    <div class="cs-container cs-flex-between cs-wrap">
+      <span>FDAI console mock - Calm Slate. Read-only surface, synthetic values.</span>
+      <span class="cs-muted">generic-scope &middot; no customer data</span>
+    </div>
+  </footer>
+</body>
+</html>

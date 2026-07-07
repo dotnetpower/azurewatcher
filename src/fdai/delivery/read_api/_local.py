@@ -30,11 +30,18 @@ from fdai.delivery.read_api.auth import (
     UnsafeClaimsExtractor,
     build_authenticator,
 )
+from fdai.delivery.read_api.live_control_loop import (
+    ControlLoopEmitterUnavailable,
+    build_control_loop_emitter,
+)
+from fdai.delivery.read_api.live_stream import LiveEmitter, LiveStreamConfig, SyntheticLiveEmitter
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
 from fdai.delivery.read_api.read_model import (
     HilQueueItem,
     InMemoryConsoleReadModel,
 )
+from fdai.shared.providers.sse import SseSink
+from fdai.shared.providers.testing.sse import InMemorySseSink
 
 _DEV_ENV = "FDAI_READ_API_DEV_MODE"
 
@@ -107,6 +114,48 @@ def app() -> Starlette:
             cors_allow_origins=(
                 "http://127.0.0.1:5173",
                 "http://localhost:5173",
+                "http://127.0.0.1:8090",
+                "http://localhost:8090",
             ),
+            live_stream=_build_live_stream_config(),
         ),
+    )
+
+
+def _build_live_stream_config() -> LiveStreamConfig:
+    """Compose the live-stream config for the dev harness.
+
+    Preferred: attach a real :class:`ControlLoopLiveEmitter` so the
+    console shows stage frames produced by the actual pipeline. If the
+    shipped rule catalog cannot be composed (missing files, YAML errors)
+    the emitter factory raises :class:`ControlLoopEmitterUnavailable`
+    and we fall back to :class:`SyntheticLiveEmitter`, which emits the
+    same wire format from a hardcoded distribution so the FE is never
+    dark.
+
+    The sink is created once here so it can be shared by the route
+    consumer and (in a future round) any additional publisher we bolt
+    on the same channel.
+    """
+
+    sink: SseSink = InMemorySseSink()
+    channel = "aw.pipeline.stages"
+
+    def _factory(sink_arg: SseSink, channel_arg: str) -> LiveEmitter:
+        try:
+            return build_control_loop_emitter(
+                sink_arg,
+                channel_arg,
+                events_per_second=8.0,
+            )
+        except ControlLoopEmitterUnavailable:
+            # Rule catalog not available; keep the console populated
+            # with the hardcoded distribution.
+            return SyntheticLiveEmitter(sink=sink_arg, channel=channel_arg)
+
+    return LiveStreamConfig(
+        path="/live/stream",
+        channel=channel,
+        sink=sink,
+        emitter_factory=_factory,
     )

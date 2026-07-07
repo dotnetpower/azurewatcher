@@ -1,6 +1,6 @@
 """Workload SLO subsystem - SLI / Objective / ErrorBudget / BurnRate.
 
-Design contract: ``docs/roadmap/sre-agent-scope.md § 3.3``.
+Design contract: ``docs/roadmap/scope-expansion.md § 3.3``.
 
 **Distinct from control-plane SLOs** documented in
 [deployment.md](../../../../docs/roadmap/deployment.md), which measure

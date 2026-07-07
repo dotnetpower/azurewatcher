@@ -35,12 +35,13 @@ fdai/
 │   │   ├── providers/         # CSP-neutral cloud provider interfaces (adapters implement them)
 │   │   │                      #   event_bus.py, secret_provider.py, state_store.py,
 │   │   │                      #   workload_identity.py, inventory.py
-│   │   ├── streaming/         # SSE broadcaster (Kafka → outbound text/event-stream relay)
+│   │   ├── streaming/         # (future) shared Kafka -> SSE relay if other consumers need it; today the read-api owns its hub in `delivery/read_api/live_stream.py`
 │   │   ├── telemetry/         # structured logging, tracing, metric helpers
 │   │   └── config/            # config schema + startup validation (fail-fast)
 │   ├── delivery/              # action delivery adapters (behind one shared interface)
 │   │   ├── gitops_pr/         # remediation-pr adapter: GitHub App / Azure DevOps, Checks API
-│   │   └── chatops/           # channel adapters (Teams / Slack / email / webhook / pager / SMS)
+│   │   ├── chatops/           # channel adapters (Teams / Slack / email / webhook / pager / SMS)
+│   │   └── read_api/          # thin GET-only ASGI (`/audit`, `/kpi`, `/hil-queue`, `/healthz`) + opt-in SSE fan-out (`/live/stream` via `live_stream.py`)
 │   └── rule_catalog/          # rule-catalog PIPELINE code
 │       ├── schema/            # rule schema (semver) + validation
 │       ├── sources/           # per-source collectors (WAF, CIS, OPA, IaC scanners, ...)
@@ -49,7 +50,7 @@ fdai/
 ├── src/fdai/core/control_loop.py  # P1 pipeline orchestrator: event_ingest → trust_router → T0 → executor → audit
 ├── rule-catalog/              # catalog-as-code DATA (YAML) - no Python; pipeline lives in src/fdai/rule_catalog/
 │   ├── schema/                # JSON Schema definitions (data)
-│   ├── vocabulary/            # canonical CSP-neutral vocabularies (resource-types.yaml, ...)
+│   ├── vocabulary/            # canonical CSP-neutral vocabularies: resource-types.yaml, object-types/, link-types/
 │   ├── action-types/          # ontology ActionType instances (shadow-default, promotion_gate-required)
 │   ├── exemptions/            # time-boxed audited exemption artifacts
 │   └── sources/               # per-source rule snapshots + provenance
@@ -167,10 +168,12 @@ non-Azure phase registers a new implementation at the composition root without e
 | **Schema source** | `SchemaRegistry` (raw JSON Schema loader) | - | `PackageResourceSchemaRegistry` (schemas ship inside the package) | remote schema-registry adapter; snapshot pinned by content hash |
 | **Boundary validation** | `ContractValidator` / `EventValidator` (fail-closed input check) | - | `JsonSchemaContractValidator` + `JsonSchemaEventValidator` (draft-2020-12) | fork MAY layer domain-specific checks (e.g. source allowlist) without editing `core/` |
 | Rule / policy source | rule-catalog + `policies/` loader | - | bundled generic rules | customer rule set / thresholds |
+| **Ontology ObjectType / LinkType** | `load_object_type_catalog(root, *, schema_registry)` and `load_link_type_catalog(root, *, schema_registry, object_types=...)` in `src/fdai/rule_catalog/schema/` | - | four upstream ObjectTypes (`Resource`, `Rule`, `Signal`, `Finding`) and the shipped LinkTypes under `rule-catalog/vocabulary/{object-types,link-types}/`, loaded into `Container.ontology_object_types` / `Container.ontology_link_types` by the entry point | fork ships additional YAML under a fork-local directory (e.g. `fork/vocabulary/object-types/ArchitectureProposal.yaml`), loads both roots at its composition root, and passes the concatenated tuples via `dataclasses.replace(container, ontology_object_types=..., ontology_link_types=...)`. Duplicate `name` across roots fails-closed. See [downstream-fork-seam-recipes.md § 5.8a](downstream-fork-seam-recipes.md#58a-ontology-object-type--link-type-additions). |
 | Delivery adapter | delivery interface | - | `gitops-pr` / `chatops` | a different PR host / chat channel |
 | Risk scoring & thresholds | risk-gate config | - | generic thresholds | customer risk policy |
 | Model provider | model client (per capability) | - | configured default endpoints | customer-approved models |
 | **Real-time outbound stream** | `SseSink` (async publish + async-iterator subscribe over an SSE-shaped payload) | - | `InMemorySseSink` (test/dev); HTTP `text/event-stream` adapter lands with the console read-only surface | replace with a WebSocket adapter for a two-way surface; a webhook-only variant for headless observers. `shared/streaming/SseBroadcaster` relays `EventBus` topics into channels. |
+| **Pipeline stage publisher** | `StagePublisher` (in `shared/providers/stage_publisher.py`) with `emit(StageEvent)` | - | `NullStagePublisher` (discards; keeps stage code side-effect-free by default) | in-process dev / single-replica: `SseSinkStagePublisher` fans out directly onto `SseSink`. Multi-replica prod: `EventBusStagePublisher` writes to a Kafka topic (default `aw.pipeline.stages`) and the existing `SseBroadcaster` relays that topic to the SSE channel every replica consumes. Pipeline stages (`event_ingest`, `trust_router`, T0/T1/T2, `risk_gate`, `executor`, `audit`) accept the Protocol so wiring is fully backward-compatible - the upstream default emits nothing. |
 | **Console read panel** | `ReadPanel` (in `delivery/read_api/panels.py`) | - | core routes only (`/audit`, `/kpi`, `/hil-queue`); `ExampleFinOpsPanel` ships as reference but is **not** registered, so the upstream UI stays minimal | fork adds vertical dashboards (FinOps cost, drift board, DR-drill history) via `ReadApiConfig.extra_panels` (each wrapped as a GET-only route, path validated at build) + a matching entry in the console `panels.tsx` registry |
 | **Infra module** | `infra/modules/<seam>/` (Terraform sub-module selected by `var.<seam>_kind`) | - | Container Apps + PostgreSQL Flex + Event Hubs Kafka + Key Vault + Log Analytics | pick a different sub-module per [csp-neutrality.md § Approved Alternative Azure Implementations](csp-neutrality.md#approved-alternative-azure-implementations); the module's output contract stays fixed |
 

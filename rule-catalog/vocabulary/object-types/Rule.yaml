@@ -1,0 +1,34 @@
+# Upstream built-in ObjectType: Rule.
+#
+# A `Rule` is a deterministic control with a declared intent
+# (`applies_to`, `evaluates`, `remediates`). The concrete Rule catalog
+# lives in `rule-catalog/catalog/` and is loaded via
+# `fdai.rule_catalog.schema.rule.load_rule_catalog`; this ObjectType
+# declaration exists so the ontology loaders can validate LinkTypes
+# whose endpoints reference `Rule` (e.g. `remediates`, `overrides`).
+schema_version: "1.0.0"
+name: Rule
+version: "1.0.0"
+key: id
+description: Deterministic control with a declared intent; instances live in rule-catalog/catalog/.
+properties:
+  id:
+    type: string
+    required: true
+    description: Fork-unique rule id, kebab-cased with dot-separated namespaces (e.g. object-storage.public-access.deny).
+  version:
+    type: string
+    required: true
+    description: Semver rule version; a change to check_logic or remediation MUST bump this.
+  severity:
+    type: string
+    required: true
+    description: Severity level from the ontology `Severity` enum (info | low | medium | high | critical).
+  resource_type:
+    type: string
+    required: true
+    description: Primary target subtype from rule-catalog/vocabulary/resource-types.yaml.
+  remediates:
+    type: string
+    required: true
+    description: ActionType name (M:1) this rule proposes on match; resolved against rule-catalog/action-types/.

@@ -21,6 +21,7 @@ from .remediation_pr import RecordingRemediationPrPublisher
 from .runbook_registry import InMemoryRunbookRegistry
 from .secret_provider import InMemorySecretProvider
 from .sse import InMemorySseSink
+from .stage_publisher import RecordingStagePublisher
 from .state_store import InMemoryStateStore
 from .workload_identity import StaticWorkloadIdentity
 
@@ -35,5 +36,6 @@ __all__ = [
     "NoOpBlastProbe",
     "RecordingDirectApiExecutor",
     "RecordingRemediationPrPublisher",
+    "RecordingStagePublisher",
     "StaticWorkloadIdentity",
 ]

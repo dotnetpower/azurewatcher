@@ -1,8 +1,8 @@
 ---
 title: Action 온톨로지
 translation_of: action-ontology.md
-translation_source_sha: 63b842d1bfc04e0a627f7a6c55b52538fcda2309
-translation_revised: 2026-07-07
+translation_source_sha: 8174ef2ced2e0a3afaaa59a82b6f975975b5f5ac
+translation_revised: 2026-07-08
 ---
 
 # Action 온톨로지
@@ -238,13 +238,20 @@ idempotent call 인 액션 별로 `direct_api` 로 override MAY.
 - `ops.rotate-cert` - TLS cert 회전 (App Gateway / Front Door).
 - `ops.failover-primary` - 복제 리소스에서 failover 트리거. 더 큰 tier 로
   failover 시 `cost_impact_monthly` 선언 MUST.
+- `ops.publish-change-summary` - resource-group 에 대해 정해진 시간
+  범위의 변경 이력을 rendered Markdown 요약으로 만들어 delivery adapter 에
+  전달. Non-Resource 비즈니스-오브젝트 flow 의 reference 예제; 짝을 이루는
+  ObjectType `ChangeSummary` 와 LinkType `summarizes` 가 copy-ready
+  scaffold ([downstream-fork-example-vertical-ko.md](downstream-fork-example-vertical-ko.md)
+  참조).
 
 **Vertical 매핑.** 각 ops ActionType 은 소유 vertical 로 태깅되어
 [verticals](../../src/fdai/core/verticals) 가 claim 하고 vertical 룰이
 `remediates:` 할 수 있음: `ops.failover-primary` 와 `ops.restart-service`
 -> Resilience; `ops.scale-in` / `ops.scale-out` -> Cost Governance;
 `ops.drain-connection` / `ops.rotate-cert` -> Change Safety.
-`ops.flush-cache` 는 cross-vertical (오퍼레이터-트리거만).
+`ops.flush-cache` 와 `ops.publish-change-summary` 는 cross-vertical
+(오퍼레이터-트리거).
 
 기본 `execution_path: direct_api` (ops 는 latency-sensitive; PR overhead
 는 목적을 defeat). Fork 는 모든 runtime change 가 reviewable diff 로

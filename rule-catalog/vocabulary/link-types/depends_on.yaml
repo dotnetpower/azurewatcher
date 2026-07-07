@@ -1,0 +1,13 @@
+# LinkType: depends_on (Resource -> Resource, M:M)
+#
+# Logical reference required for correct operation: ContainerApp ->
+# Key-Vault / ACR / Postgres, managed-identity -> app. A broken edge
+# degrades the dependent, not the target - risk-gate uses this
+# asymmetry to compute blast radius direction.
+schema_version: "1.0.0"
+name: depends_on
+version: "1.0.0"
+from_type: Resource
+to_type: Resource
+cardinality: many_to_many
+description: Logical reference required for correct operation; broken edge degrades the dependent.

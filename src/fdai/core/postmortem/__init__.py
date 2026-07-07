@@ -1,6 +1,6 @@
 """Postmortem / PIR draft generator.
 
-Design contract: ``docs/roadmap/sre-agent-scope.md § 3.6``.
+Design contract: ``docs/roadmap/scope-expansion.md § 3.6``.
 
 Consumes an :class:`~fdai.shared.contracts.models.Incident` and a
 timeline of audit rows to produce a structured markdown draft. The

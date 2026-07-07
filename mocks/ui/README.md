@@ -12,20 +12,37 @@ badges - calm and professional, with no primary/neon colors and no top/bottom co
 
 ## Pages
 
+Operator console (read-only, seven screens):
+
 | File | Purpose |
 |------|---------|
-| [index.html](index.html) | theme overview: palette, page index, design principles |
-| [components.html](components.html) | component gallery: KPI cards, tables, tags, severity, alerts, forms, tabs, tiers, meters |
-| [report.html](report.html) | report layout: numbered sections, KPI grid, AS-IS/TO-BE compare, critique table |
-| [dashboard.html](dashboard.html) | read-only operator console: KPIs, HIL queue, shadow results, audit log |
+| [live.html](live.html) | Live cockpit - activity swarm of tiles for control-plane events flowing through T0 / T1 / T2, KPI strip with sparkline, audit ticker |
+| [dashboard.html](dashboard.html) | Overview - success/guard KPIs, trust-tier + risk-gate distribution, mode mix, top HIL items, recent audit |
+| [hil.html](hil.html) | HIL queue - plain-first approval cards with safety facts, filters by risk / category / vertical |
+| [promotion.html](promotion.html) | Shadow to enforce candidates and the four gate checks (accuracy, escapes, guard budget, safety invariants) |
+| [rules.html](rules.html) | Rule catalog: accepted rules, discovery-loop candidates, scoped overrides |
+| [actions.html](actions.html) | ActionType ontology - trigger, execution path, rollback contract, six-axis risk ceiling |
+| [audit.html](audit.html) | Append-only stream - execute, reject, timeout, abstain, deny, override change, rollback |
+
+Report and kit:
+
+| File | Purpose |
+|------|---------|
+| [report.html](report.html) | Weekly review layout: numbered sections, KPI grid, AS-IS / TO-BE compare, critique table |
+| [components.html](components.html) | Component gallery: KPI cards, tables, tags, severity, alerts, forms, tabs, tier chips, meters |
+| [index.html](index.html) | Kit landing: palette, page index, design principles |
 
 ## Assets
 
 - [assets/calm-slate.css](assets/calm-slate.css) - the whole theme: CSS variables (palette),
   layout container (max-width 1160px), section number badges, cards, KPI grid, AS-IS/TO-BE
   comparison, critique table, pill tags, severity badges, trust-tier chips, buttons, forms,
-  alerts, tabs, and meters. All classes are prefixed `cs-`.
+  alerts, tabs, meters, and the Live cockpit (activity swarm, sparkline strip, audit ticker).
+  All classes are prefixed `cs-`.
 - [assets/calm-slate.js](assets/calm-slate.js) - minimal tab switching only; no privileged calls.
+- [assets/live.js](assets/live.js) - Live cockpit only. Generates synthetic control-plane events,
+  routes them through T0 / T1 / T2 with the roadmap's distribution, and renders the swarm,
+  sparkline, and audit ticker. Pure client-side, no backend.
 
 ## Usage
 

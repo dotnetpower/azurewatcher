@@ -1,0 +1,12 @@
+# LinkType: resource_of (Signal -> Resource, M:1)
+#
+# Every resource-scoped Signal MUST resolve to exactly one Resource.
+# Tenant-level Signals (e.g. subscription-wide cost anomalies) omit
+# this link; the trust-router treats them as tenant-scoped.
+schema_version: "1.0.0"
+name: resource_of
+version: "1.0.0"
+from_type: Signal
+to_type: Resource
+cardinality: many_to_one
+description: Which Resource the Signal is about.

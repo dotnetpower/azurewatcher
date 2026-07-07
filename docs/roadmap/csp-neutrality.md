@@ -30,7 +30,7 @@ not block the event loop. See
 canonical seam list.
 
 Eight contracts govern the CSP-touching surface (five wire-level foundations plus three
-telemetry-ingestion seams added per [sre-agent-scope.md § 3.2](sre-agent-scope.md)):
+telemetry-ingestion seams added per [scope-expansion.md § 3.2](scope-expansion.md)):
 
 | # | Contract | Wire / artifact | Azure implementation |
 |---|----------|-----------------|----------------------|
@@ -289,7 +289,7 @@ without knowing which backend recorded it.
 - The three telemetry-ingestion Protocols exist so anomaly detection, SLO burn-rate
   evaluation, and RCA can ground on real telemetry rather than only on rule / policy
   citations. Their design contract lives in
-  [sre-agent-scope.md § 3.2](sre-agent-scope.md).
+  [scope-expansion.md § 3.2](scope-expansion.md).
 - Upstream defaults are no-op providers so downstream consumers can be authored
   against a stable interface before any concrete adapter is wired.
 - Vendor SDK imports stay confined to `delivery/<vendor>/`; `core/` imports only the

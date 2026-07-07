@@ -22,11 +22,11 @@ The FDAI rule catalog has three tiers of content:
 
 This document is the design contract for the profile layer and every
 collector shipped by upstream, per the strategic decisions in
-[sre-agent-scope.md § 3](sre-agent-scope.md).
+[scope-expansion.md § 3](scope-expansion.md).
 
 ## 1. Profiles
 
-Design contract: [sre-agent-scope.md § 3](sre-agent-scope.md), profile
+Design contract: [scope-expansion.md § 3](scope-expansion.md), profile
 schema: [`shared/contracts/profile/schema.json`](../../src/fdai/shared/contracts/profile/schema.json).
 
 - **Upstream ships three canonical profiles**:

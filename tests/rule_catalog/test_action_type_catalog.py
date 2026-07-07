@@ -372,6 +372,7 @@ _DOC_OPS_ACTION_TYPES: frozenset[str] = frozenset(
         "ops.drain-connection",
         "ops.rotate-cert",
         "ops.failover-primary",
+        "ops.publish-change-summary",
     }
 )
 

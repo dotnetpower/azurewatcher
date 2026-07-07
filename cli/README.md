@@ -55,38 +55,81 @@ A `Block` carries meaning and data plus a semantic `Tone` (`t0`, `high`, `good`,
 ...). Each renderer maps `Tone` to its own affordance: Ink -> hex, Slack -> emoji
 and button style, Teams -> Adaptive Card color enum.
 
-## Interactive (the Ink surface)
+## Interactive (briefing + bottom-fixed REPL)
 
-The `cli` surface is a **REPL**, not a one-shot print. It streams the briefing,
-then keeps a live prompt at the bottom - like a coding CLI (Copilot / Claude
-Code). It does not exit after the briefing.
+The `cli` surface draws the briefing once with Ink (colour, cards, bars), then
+runs an interactive REPL ([src/repl.ts](src/repl.ts)) with a **bottom-fixed
+input box** - like a coding CLI: the conversation scrolls in the top area and the
+prompt stays pinned to the last two lines.
 
-- Type a question, a card number (`1`-`3`) to dig into a decision, or `a` / `r` /
-  `w` to act on a card; the reply streams in and the exchange is committed to the
-  scroll-up log (it survives exit).
-- `/exit` (or `/quit`) leaves. `Esc` clears the line.
+- The briefing is rich terminal UI, so Ink renders it (committed to the
+  scrollback via `<Static>`, see
+  [src/renderers/ink/briefing-oneshot.tsx](src/renderers/ink/briefing-oneshot.tsx)).
+- The **input** is not an Ink widget. Ink repaints the whole frame, which fights
+  the terminal's input cursor and pushes **IME composition (Korean and other
+  languages) to the wrong place**. Instead the REPL uses a DEC **scroll region**
+  to split the screen (conversation on top, fixed input box on the bottom) and
+  edits the line in raw mode, keeping the **real terminal cursor at the caret** -
+  so Korean composes exactly where you type, and the input never drifts.
+- Editing shortcuts: Left/Right move the cursor, Ctrl+A/Ctrl+E jump to start/end,
+  Backspace and Ctrl+W (word) and Ctrl+U (line) delete, Up/Down recall history.
+
+Usage:
+
+- Type a question, a card number to dig into a decision, or `a` / `r` / `w`; the
+  reply streams into the conversation above the input box.
+- `/exit` (or `/quit`, Ctrl+C) leaves.
 - Read-only: it only looks things up unless you ask it to act, and acting is
-  PR-native. Replies here are synthesized from the synthetic payload and marked
-  `(mock)` - there is no live backend yet.
-- Input uses Ink's built-in `useInput` (no extra deps). Without a TTY (piped/CI)
-  it prints the briefing and exits instead of blocking.
+  PR-native. Answers come from the narrator seam (deterministic, or the LLM when
+  configured - see below).
+- Without a TTY (piped/CI) it prints the briefing and exits instead of blocking.
 
 The other surfaces (`text`, `slack`, `teams`) are one-shot: they emit their
 format to stdout from the same block IR.
 
-## Data source: sample or the live read API
+## Data source: sample or the live pipeline
 
-`--source` selects where the briefing data comes from - the block IR and every
-renderer are identical either way:
+`--source` selects where the data comes from:
 
 - `--source=sample` (default) - synthetic data from `data/sample-briefing.ts`
-  (`--mode=needs-me|all-clear`).
-- `--source=api` - the live read-only console API (`/kpi`, `/hil-queue`,
-  `/audit`); `--api=<url>` sets the base URL (default `http://127.0.0.1:8010`).
-  The briefing is compiled by `view-model/build-from-readmodel.ts`, and the
-  interactive narrator answers `kpi` / `hil queue` / `recent audit` questions by
-  calling those same endpoints live (a deterministic tool router; the LLM
-  narrator is a fork drop-in). Nothing here mutates - read-only.
+  (`--mode=needs-me|all-clear`). Renders the block-IR briefing + the bottom-fixed
+  REPL.
+- `--source=api` - the live read-only console API; `--api=<url>` sets the base
+  URL (default `http://127.0.0.1:8010`). In a terminal this opens a **live
+  cockpit** ([src/cockpit.ts](src/cockpit.ts)): a single alternate-screen view
+  fed by the read API's `/live/stream` (SSE), where each frame is a **real
+  StageEvent from an actual `ControlLoop` run** (real rule catalog, T0 engine,
+  Rego). The top shows live counters (events, per-tier routing, gate, exec,
+  audit) and a recent-activity feed; the bottom is the fixed input box. This is
+  real pipeline data, not the seeded `/kpi` aggregates. Piped/non-TTY falls back
+  to the one-shot briefing. Nothing here mutates - read-only.
+
+## Narrator (natural language)
+
+Questions typed at the prompt go through the **narrator seam**
+([src/narrator](src/narrator)). The narrator is a *translator, not a judge*: it
+turns a question into read-only `console-tool` calls (`get_kpi`,
+`get_hil_queue`, `get_recent_audit`) and answers only from their results - it
+never acts (approvals are PR-native) and never invents numbers.
+
+Two implementations share one interface, chosen at startup:
+
+- **deterministic** (default, zero config) - keyword routing over the tools.
+  Handles `kpi` / `hil queue` / `recent audit`, card numbers, and `a`/`r`/`w`;
+  other phrasings get a live-state summary.
+- **llm** - an OpenAI-compatible model that understands free-form natural
+  language (any language, including Korean) and calls the same tools. Enabled
+  when these env vars are set (the key only ever comes from the environment):
+
+  ```bash
+  export FDAI_NARRATOR_BASE_URL=https://api.openai.com/v1   # or Azure endpoint
+  export FDAI_NARRATOR_API_KEY=...                          # required
+  export FDAI_NARRATOR_MODEL=gpt-4o-mini                    # or Azure deployment
+  export FDAI_NARRATOR_PROVIDER=openai                      # openai | azure
+  # Azure only: FDAI_NARRATOR_API_VERSION=2024-08-01-preview
+  ```
+
+  The active narrator is shown in the prompt hint (`narrator: deterministic|llm`).
 
 Start the dev read API first:
 
@@ -130,12 +173,15 @@ tsx src/cli.tsx --surface=slack --mode=all-clear
 | [src/view-model/build-briefing.ts](src/view-model/build-briefing.ts) | the single compiler: contract -> `Block[]` |
 | [src/view-model/build-from-readmodel.ts](src/view-model/build-from-readmodel.ts) | compile a live read-API snapshot -> `Block[]` |
 | [src/data/read-api.ts](src/data/read-api.ts) | read-only client for the console API (`/kpi`, `/hil-queue`, `/audit`) |
+| [src/narrator/](src/narrator/) | narrator seam: read-only tools + deterministic / LLM implementations + factory |
 | [src/data/sample-briefing.ts](src/data/sample-briefing.ts) | synthetic payload for both modes |
-| [src/renderers/ink/](src/renderers/ink/) | terminal renderer (React/Ink) + tone->hex theme |
+| [src/renderers/ink/](src/renderers/ink/) | terminal briefing renderer (React/Ink) + tone->hex theme |
 | [src/renderers/text.ts](src/renderers/text.ts) | plain-text renderer |
 | [src/renderers/slack.ts](src/renderers/slack.ts) | Slack Block Kit renderer |
 | [src/renderers/teams.ts](src/renderers/teams.ts) | Teams Adaptive Card renderer |
 | [src/renderers/shared/](src/renderers/shared/) | ascii bar chart + sparkline helpers |
+| [src/repl.ts](src/repl.ts) | interactive readline REPL (IME-safe input; narrator answers) |
+| [src/cockpit.ts](src/cockpit.ts) | live one-screen cockpit fed by the real pipeline over SSE (`--source=api`) |
 | [src/cli.tsx](src/cli.tsx) | entrypoint: build once, render per `--surface` |
 
 ## Boundaries

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HIL Queue - FDAI Console</title>
+  <link rel="stylesheet" href="assets/calm-slate.css" />
+</head>
+<body>
+  <header class="cs-topbar">
+    <div class="cs-container cs-topbar-inner">
+      <span class="cs-brand"><span class="cs-brand-mark">AW</span> FDAI</span>
+      <nav class="cs-nav">
+        <a href="live.html">Live</a>
+        <a href="dashboard.html">Overview</a>
+        <a href="hil.html" class="cs-active">HIL</a>
+        <a href="promotion.html">Promotion</a>
+        <a href="rules.html">Rules</a>
+        <a href="actions.html">Actions</a>
+        <a href="audit.html">Audit</a>
+        <a href="report.html">Report</a>
+        <a href="index.html">Kit</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="cs-container cs-page">
+    <div class="cs-page-header cs-mb-16">
+      <div class="cs-eyebrow">Human-in-the-loop &middot; Read-only</div>
+      <h1>HIL queue</h1>
+      <p class="cs-lead">Items the risk gate handed to a human. Every card is plain-first: what it does,
+        why, confidence, safety facts, and how to approve. Approvals never happen here - they open a
+        pull request or an Adaptive Card in Teams.</p>
+    </div>
+
+    <div class="cs-readonly-banner">
+      <strong>Approval mechanics.</strong> Two distinct approvers for high risk plus a break-glass
+      channel; self-approval is blocked; every reject / timeout is audited. The console just shows
+      the state.
+    </div>
+
+    <!-- Filter bar -->
+    <div class="cs-filterbar">
+      <span class="cs-fb-label">Risk</span>
+      <div class="cs-chipset">
+        <button class="cs-chip cs-active">All</button>
+        <button class="cs-chip">Critical</button>
+        <button class="cs-chip">High</button>
+        <button class="cs-chip">Medium</button>
+        <button class="cs-chip">Low</button>
+      </div>
+      <span class="cs-fb-label" style="margin-left:8px">Category</span>
+      <div class="cs-chipset">
+        <button class="cs-chip cs-active">All</button>
+        <button class="cs-chip">Remediation</button>
+        <button class="cs-chip">Ops</button>
+        <button class="cs-chip">Governance</button>
+      </div>
+      <span class="cs-fb-label" style="margin-left:8px">Vertical</span>
+      <div class="cs-chipset">
+        <button class="cs-chip cs-active">All</button>
+        <button class="cs-chip">Resilience</button>
+        <button class="cs-chip">Change</button>
+        <button class="cs-chip">Cost</button>
+      </div>
+      <label class="cs-fb-search">
+        <span class="cs-muted" style="font-size:13px">&#128269;</span>
+        <input type="text" placeholder="filter by event id, resource, rule" />
+      </label>
+    </div>
+
+    <!-- Summary bar -->
+    <div class="cs-flex cs-wrap cs-gap-12 cs-mb-24">
+      <span class="cs-tag is-steel"><strong>3</strong> pending</span>
+      <span class="cs-risk critical">1 critical</span>
+      <span class="cs-risk high">1 high</span>
+      <span class="cs-risk medium">1 medium</span>
+      <span class="cs-tag">TTL median <strong>2h</strong></span>
+      <span class="cs-tag">timeout &rarr; audit + drop</span>
+    </div>
+
+    <!-- Card 1: Critical -->
+    <div class="cs-hcard is-critical">
+      <div class="cs-hcard-rail"></div>
+      <div class="cs-hcard-body">
+        <div class="cs-hcard-head">
+          <h3 class="cs-hcard-title">Enable point-in-time recovery on managed database</h3>
+          <span class="cs-risk critical">critical</span>
+          <span class="cs-tier t1">T1</span>
+          <span class="cs-cat remediation">remediation</span>
+          <span class="cs-vert resilience">resilience</span>
+        </div>
+        <p class="cs-mb-0"><strong>What:</strong> turn on 7-day PITR for the production billing database.</p>
+        <p class="cs-mb-0"><strong>Why:</strong> a similar incident 12 days ago required a same-day
+          rollback that was blocked by missing PITR. Similarity score 0.93; verifier passed schema,
+          policy, and what-if.</p>
+
+        <div class="cs-meta">
+          <div><span>ActionType</span><span><code>database.enable-pitr</code></span></div>
+          <div><span>Execution path</span><span>pr_native</span></div>
+          <div><span>Blast radius</span><span>1 resource, 0 downstream</span></div>
+          <div><span>Rollback</span><span>pr_revert (tested)</span></div>
+          <div><span>Stop-condition</span><span>backup lag &gt; 60s</span></div>
+          <div><span>Confidence</span><span>0.93 (T1 similarity)</span></div>
+          <div><span>Approvers</span><span>2 distinct &middot; break-glass allowed</span></div>
+          <div><span>Grounded on</span><span><code>waf.reliability.rl-04</code></span></div>
+        </div>
+
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">8m</strong></span>
+          <span>TTL <strong style="color:var(--cs-text)">1h 52m</strong> left</span>
+          <span class="cs-mono">evt-01H7A4X-...</span>
+          <span style="margin-left:auto">Approve in <a class="cs-link" href="#">Teams</a> &middot; <a class="cs-link" href="#">PR #2148</a></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2: High -->
+    <div class="cs-hcard is-high">
+      <div class="cs-hcard-rail"></div>
+      <div class="cs-hcard-body">
+        <div class="cs-hcard-head">
+          <h3 class="cs-hcard-title">Raise production autoscale floor from 2 to 4</h3>
+          <span class="cs-risk high">high</span>
+          <span class="cs-tier t2">T2</span>
+          <span class="cs-cat ops">ops</span>
+          <span class="cs-vert change">change safety</span>
+        </div>
+        <p class="cs-mb-0"><strong>What:</strong> raise the minimum replica count on <code>web-frontend</code> from 2 to 4.</p>
+        <p class="cs-mb-0"><strong>Why:</strong> T2 reasoner grounded on WAF-Reliability RL-08 and
+          three similar autoscale incidents. Mixed-model agreement (2 providers). Verifier passed.</p>
+
+        <div class="cs-meta">
+          <div><span>ActionType</span><span><code>compute.autoscale.raise-floor</code></span></div>
+          <div><span>Execution path</span><span>direct_api</span></div>
+          <div><span>Blast radius</span><span>1 workload &middot; +2 replicas</span></div>
+          <div><span>Rollback</span><span>scripted (reset floor)</span></div>
+          <div><span>Stop-condition</span><span>error-rate &gt; 2% in 5m</span></div>
+          <div><span>Confidence</span><span>0.87 (T2 reasoning)</span></div>
+          <div><span>Approvers</span><span>2 distinct &middot; break-glass allowed</span></div>
+          <div><span>Grounded on</span><span><code>waf.reliability.rl-08</code>, <code>slo.web.err-p99</code></span></div>
+        </div>
+
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">21m</strong></span>
+          <span>TTL <strong style="color:var(--cs-text)">1h 39m</strong> left</span>
+          <span class="cs-mono">evt-01H7A4Y-...</span>
+          <span style="margin-left:auto">Approve in <a class="cs-link" href="#">Teams</a> &middot; <a class="cs-link" href="#">PR #2149</a></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3: Medium -->
+    <div class="cs-hcard is-medium">
+      <div class="cs-hcard-rail"></div>
+      <div class="cs-hcard-body">
+        <div class="cs-hcard-head">
+          <h3 class="cs-hcard-title">Rotate expiring signing certificate</h3>
+          <span class="cs-risk medium">medium</span>
+          <span class="cs-tier t0">T0</span>
+          <span class="cs-cat remediation">remediation</span>
+          <span class="cs-vert change">change safety</span>
+          <span class="cs-mode shadow">shadow</span>
+        </div>
+        <p class="cs-mb-0"><strong>What:</strong> rotate certificate <code>svc-signing-2026</code> before it expires on 2026-07-19.</p>
+        <p class="cs-mb-0"><strong>Why:</strong> deterministic rule <code>cert.expiry.30d</code>. In
+          shadow mode - owner review requested before enforce promotion.</p>
+
+        <div class="cs-meta">
+          <div><span>ActionType</span><span><code>identity.cert.rotate</code></span></div>
+          <div><span>Execution path</span><span>pr_native</span></div>
+          <div><span>Blast radius</span><span>1 secret &middot; 4 consumers</span></div>
+          <div><span>Rollback</span><span>pr_revert &middot; snapshot_restore</span></div>
+          <div><span>Stop-condition</span><span>consumer handshake failure</span></div>
+          <div><span>Confidence</span><span>1.00 (deterministic)</span></div>
+          <div><span>Approvers</span><span>1</span></div>
+          <div><span>Grounded on</span><span><code>identity.cert.expiry.30d</code></span></div>
+        </div>
+
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">1h 04m</strong></span>
+          <span>TTL <strong style="color:var(--cs-text)">22h 56m</strong> left</span>
+          <span class="cs-mono">evt-01H7A4Z-...</span>
+          <span style="margin-left:auto">Approve in <a class="cs-link" href="#">Teams</a> &middot; <a class="cs-link" href="#">PR #2150</a></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rules of the queue -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">A</span>
+        <div class="cs-section-title"><h2>Rules of this queue</h2><p class="cs-desc">Hard invariants - the console shows state; the risk-gate and the executor enforce them.</p></div>
+      </div>
+      <div class="cs-grid cs-grid-2">
+        <div class="cs-alert is-info"><div class="cs-alert-bar"></div><div>
+          <h4>Approval &ne; execution</h4>
+          <p>Approver and executor are distinct principals; no self-approval. The executor holds the
+             only privileged identity.</p>
+        </div></div>
+        <div class="cs-alert is-warn"><div class="cs-alert-bar"></div><div>
+          <h4>Break-glass is audited</h4>
+          <p>HIGH+ items may bypass the second approver via break-glass, but every use is a
+             post-hoc-reviewed audit entry.</p>
+        </div></div>
+        <div class="cs-alert is-info"><div class="cs-alert-bar"></div><div>
+          <h4>Timeout &ne; approval</h4>
+          <p>A TTL expiry is a no-op with an audit entry, not an implicit yes.</p>
+        </div></div>
+        <div class="cs-alert is-success"><div class="cs-alert-bar"></div><div>
+          <h4>Every item has all four</h4>
+          <p>Stop-condition, rollback path, blast-radius cap, and audit entry - missing one blocks
+             the enforce promotion.</p>
+        </div></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="cs-footer">
+    <div class="cs-container cs-flex-between cs-wrap">
+      <span>FDAI console mock - Calm Slate. Read-only surface, synthetic values.</span>
+      <span class="cs-muted">generic-scope &middot; no customer data</span>
+    </div>
+  </footer>
+</body>
+</html>
