@@ -22,6 +22,13 @@ from .break_glass_pager import (
     BreakGlassPager,
     BreakGlassPagerError,
 )
+from .cost_estimator import (
+    CostConfidence,
+    CostEstimate,
+    CostEstimator,
+    CostEstimatorError,
+    resolve_cost_impact_monthly,
+)
 from .direct_api import (
     DirectApiError,
     DirectApiExecutor,
@@ -75,6 +82,10 @@ __all__ = [
     "BreakGlassNoChannelError",
     "BreakGlassPager",
     "BreakGlassPagerError",
+    "CostConfidence",
+    "CostEstimate",
+    "CostEstimator",
+    "CostEstimatorError",
     "DirectApiError",
     "DirectApiExecutor",
     "DirectApiOutcome",
@@ -119,4 +130,5 @@ __all__ = [
     "SseSink",
     "StateStore",
     "WorkloadIdentity",
+    "resolve_cost_impact_monthly",
 ]
