@@ -564,3 +564,84 @@ def test_load_rule_catalog_threads_remediation_root(tmp_path: Path) -> None:
         )
     joined = " ".join(i.message for i in info.value.issues).lower()
     assert "remediation template file not found" in joined
+
+
+# ---------------------------------------------------------------------------
+# Orphan drift-guards (asset shipped without a rule reference)
+# ---------------------------------------------------------------------------
+
+
+def test_every_shipped_remediation_template_is_referenced_by_a_rule() -> None:
+    """Every `rule-catalog/remediation/**/*.tftpl` MUST be referenced by
+    exactly the rule set - no orphaned templates left over from deleted
+    or renamed rules.
+
+    Rationale: 55 shipped policies map 1:1 to 55 shipped templates. An
+    unreferenced template is either dead code (delete it) or a missing
+    rule (author the rule). Both are catalog-hygiene defects; failing
+    the CI is cheaper than discovering a silent misalignment during a
+    live remediation.
+    """
+    templates = {
+        p.relative_to(REPO_ROOT / "rule-catalog").as_posix()
+        for p in REMEDIATION_ROOT.rglob("*.tftpl")
+    }
+    refs = set()
+    for yaml_path in RULES_ROOT.glob("*.yaml"):
+        raw = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        tref = (raw.get("remediation") or {}).get("template_ref")
+        if tref:
+            refs.add(tref)
+
+    orphans = sorted(templates - refs)
+    assert not orphans, (
+        f"{len(orphans)} shipped remediation template(s) are not referenced "
+        f"by any rule.remediation.template_ref: {orphans}"
+    )
+
+
+def test_every_shipped_policy_is_referenced_by_a_rule() -> None:
+    """Every `policies/**/*.rego` MUST be referenced by at least one rule's
+    `check_logic.reference`.
+
+    Rationale: same as templates - a policy no rule loads never fires.
+    Orphan policies are dead code and a review-blindspot for the
+    security-review lane.
+    """
+    policies = {p.relative_to(REPO_ROOT).as_posix() for p in POLICIES_ROOT.rglob("*.rego")}
+    refs = set()
+    for yaml_path in RULES_ROOT.glob("*.yaml"):
+        raw = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        pref = (raw.get("check_logic") or {}).get("reference")
+        if pref:
+            refs.add(pref)
+
+    orphans = sorted(policies - refs)
+    assert not orphans, (
+        f"{len(orphans)} shipped Rego policy(ies) are not referenced by any "
+        f"rule.check_logic.reference: {orphans}"
+    )
+
+
+def test_shipped_catalog_has_a_one_to_one_asset_to_rule_mapping() -> None:
+    """Rule count MUST equal shipped template count and shipped policy count.
+
+    Regression guard for the "one rule = one policy + one template" P1
+    seeding contract (see docs/roadmap/phase-1-rule-catalog-t0.md).
+    A future N:1 mapping (multiple rules sharing one template) MUST
+    update this test and the seeding guide together.
+    """
+    action_types = _load_action_types()
+    resource_types = _load_resource_types()
+    rules = load_rule_catalog(
+        RULES_ROOT,
+        schema_registry=_registry(),
+        action_types=action_types,
+        resource_types=resource_types,
+    )
+    templates = list(REMEDIATION_ROOT.rglob("*.tftpl"))
+    policies = list(POLICIES_ROOT.rglob("*.rego"))
+    assert len(rules) == len(templates) == len(policies), (
+        f"catalog size drift: rules={len(rules)}, templates={len(templates)}, "
+        f"policies={len(policies)}"
+    )

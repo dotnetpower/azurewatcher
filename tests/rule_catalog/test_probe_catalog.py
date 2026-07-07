@@ -82,3 +82,41 @@ def test_duplicate_id_rejected(tmp_path):
     with pytest.raises(ProbeCatalogError) as exc_info:
         load_probe_catalog(tmp_path)
     assert "duplicate probe id" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# Doc-catalog drift-guard (M1.2 starter probes)
+# ---------------------------------------------------------------------------
+
+# Locked list from docs/roadmap/implementation-plan.md § Wave M1 - M1.2.
+# Editing either side without the other = merge-blocker.
+_M1_2_STARTER_PROBES = frozenset({"vm_traffic_last_5m", "storage_access_log", "lb_backend_health"})
+
+
+def test_every_m1_2_doc_declared_starter_probe_ships_as_yaml() -> None:
+    """implementation-plan.md § M1.2 -> shipped YAML: no gap allowed."""
+    catalog = load_probe_catalog(_PROBES_ROOT)
+    shipped = probe_ids(catalog)
+    missing = sorted(_M1_2_STARTER_PROBES - shipped)
+    assert not missing, (
+        f"implementation-plan.md declares starter probes not shipped as YAML: "
+        f"{missing}. Author the probe under rule-catalog/probes/ or update the "
+        f"doc."
+    )
+
+
+def test_no_extra_shipped_probe_undocumented() -> None:
+    """shipped YAML -> implementation-plan.md § M1.2: no drift the other way.
+
+    Adding a fourth starter probe requires an implementation-plan.md
+    edit (and this test update) in the same PR so the docs-first rule
+    holds.
+    """
+    catalog = load_probe_catalog(_PROBES_ROOT)
+    shipped = probe_ids(catalog)
+    extra = sorted(shipped - _M1_2_STARTER_PROBES)
+    assert not extra, (
+        f"shipped probe(s) not documented in implementation-plan.md § M1.2: "
+        f"{extra}. Document them (docs-first) before shipping, or delete the "
+        f"YAML."
+    )
