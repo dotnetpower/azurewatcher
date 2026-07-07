@@ -187,6 +187,37 @@ class TestGroupMappingFromConfig:
         with pytest.raises(TypeError):
             as_dict["hijack"] = Role.OWNER  # type: ignore[index]
 
+    def test_shipped_rbac_groups_yaml_loads_with_env_overrides(self) -> None:
+        """Drift-guard for `config/rbac-groups.yaml`.
+
+        The shipped YAML holds all-zero placeholder objectIds (generic-scope
+        rule). Rather than accepting the placeholders at rest (they would be
+        indistinguishable from a "forgot to fork" bug), the loader treats
+        every non-blank string value as authoritative, so placeholders load.
+        The test also confirms that env-var overrides work against the
+        real file layout on disk so a fork can flip one slot at a time
+        without editing the YAML.
+        """
+        from pathlib import Path
+
+        import yaml
+
+        repo_root = Path(__file__).resolve().parents[2]
+        raw = yaml.safe_load(
+            (repo_root / "config" / "rbac-groups.yaml").read_text(encoding="utf-8")
+        )
+        mapping = GroupMapping.from_config(
+            raw,
+            environ={"AIOPSPILOT_RBAC_APPROVERS_GROUP_ID": "override-approver"},
+        )
+        # Placeholder for four slots.
+        assert mapping.reader_group_id == "00000000-0000-0000-0000-000000000000"
+        assert mapping.contributor_group_id == "00000000-0000-0000-0000-000000000000"
+        assert mapping.owner_group_id == "00000000-0000-0000-0000-000000000000"
+        assert mapping.break_glass_group_id == "00000000-0000-0000-0000-000000000000"
+        # Env override wins on the fifth slot.
+        assert mapping.approver_group_id == "override-approver"
+
 
 # ---------------------------------------------------------------------------
 # RoleResolver.resolve_from_claims

@@ -151,3 +151,29 @@ def test_yaml_loader_reads_round_trip(tmp_path: Path) -> None:
     p.write_text(yaml.safe_dump(_minimal()), encoding="utf-8")
     registry = load_llm_registry_from_yaml(p)
     assert "t1.embedding" in registry.models
+
+
+# ---------------------------------------------------------------------------
+# Config <-> registry drift-guard
+# ---------------------------------------------------------------------------
+
+
+def test_default_llm_capabilities_all_exist_in_upstream_registry() -> None:
+    """Every capability in the upstream config default (`_DEFAULT_LLM_CAPABILITIES`)
+    MUST be declared in `rule-catalog/llm-registry.yaml`.
+
+    Regression guard: renaming or removing a registry capability without
+    updating `_DEFAULT_LLM_CAPABILITIES` would leave a boot-time reference
+    to a nonexistent binding, which the composition root cannot resolve.
+    Fails-fast at CI time instead of at process start.
+    """
+    from aiopspilot.shared.config.models import _DEFAULT_LLM_CAPABILITIES
+
+    registry = load_llm_registry_from_yaml(UPSTREAM_REGISTRY)
+    missing = sorted(set(_DEFAULT_LLM_CAPABILITIES) - set(registry.models))
+    assert not missing, (
+        f"config default lists capabilities not declared in the upstream "
+        f"llm-registry: {missing}. Add the capability to the registry, "
+        f"remove it from _DEFAULT_LLM_CAPABILITIES, or fork-override the "
+        f"registry."
+    )
