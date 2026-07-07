@@ -13,6 +13,11 @@ Full design: ``docs/roadmap/deployment-preflight.md``.
 from __future__ import annotations
 
 from aiopspilot.core.deploy_preflight.analyzer import PreflightAnalyzer
+from aiopspilot.core.deploy_preflight.check_publish import (
+    PreflightCheckOutcome,
+    PreflightCheckResult,
+    publish_preflight_check,
+)
 from aiopspilot.core.deploy_preflight.environment_profile import (
     DeploymentEnvironmentProfile,
     DeploymentEnvironmentProfileCache,
@@ -29,7 +34,10 @@ __all__ = [
     "DeploymentEnvironmentProfileCache",
     "DeploymentReadinessReport",
     "PreflightAnalyzer",
+    "PreflightCheckOutcome",
+    "PreflightCheckResult",
     "ReadinessVerdict",
     "apply_inventory_delta",
     "build_profile",
+    "publish_preflight_check",
 ]

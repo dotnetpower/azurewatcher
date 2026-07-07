@@ -72,6 +72,12 @@ from .observation import (
     MetricQueryResult,
     ObservationError,
 )
+from .preflight_check import (
+    PreflightCheck,
+    PreflightCheckPublisher,
+    PreflightCheckPublishError,
+    PreflightCheckReceipt,
+)
 from .remediation_pr import (
     PublishReceipt as PrPublishReceipt,
 )
@@ -143,6 +149,10 @@ __all__ = [
     "MetricQueryResult",
     "ObservationError",
     "PrPublishReceipt",
+    "PreflightCheck",
+    "PreflightCheckPublishError",
+    "PreflightCheckPublisher",
+    "PreflightCheckReceipt",
     "ProbeQuery",
     "ProbeResult",
     "ProbeVerdict",
