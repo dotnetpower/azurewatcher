@@ -19,6 +19,7 @@ CSP-neutral.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -80,10 +81,12 @@ class CircuitBreaker:
         self._consecutive_failures = 0
         self._opened_at = 0.0
         self._half_open_calls = 0
+        self._half_open_since = 0.0
 
     @property
     def state(self) -> CircuitState:
         self._maybe_half_open()
+        self._maybe_reopen_stuck_probe()
         return self._state
 
     def _maybe_half_open(self) -> None:
@@ -93,17 +96,48 @@ class CircuitBreaker:
         ):
             self._state = CircuitState.HALF_OPEN
             self._half_open_calls = 0
+            self._half_open_since = self._clock()
+
+    def _maybe_reopen_stuck_probe(self) -> None:
+        """Re-open if a reserved HALF_OPEN probe never resolved.
+
+        A probe reserved via :meth:`allow` that is never followed by
+        ``on_success``/``on_failure`` (a hung or lost downstream call)
+        would otherwise wedge the breaker HALF_OPEN forever, refusing all
+        traffic. After another ``reset_timeout_s`` with an outstanding
+        probe, re-trip so the cooldown restarts and a fresh probe is
+        eventually allowed.
+        """
+        if (
+            self._state is CircuitState.HALF_OPEN
+            and self._half_open_calls > 0
+            and self._clock() - self._half_open_since >= self._config.reset_timeout_s
+        ):
+            self._trip()
 
     def allow(self) -> bool:
         """Return True if a call may proceed (and reserve a probe slot)."""
         self._maybe_half_open()
+        self._maybe_reopen_stuck_probe()
         if self._state is CircuitState.OPEN:
             return False
         if self._state is CircuitState.HALF_OPEN:
             if self._half_open_calls >= self._config.half_open_max_calls:
                 return False
+            if self._half_open_calls == 0:
+                self._half_open_since = self._clock()
             self._half_open_calls += 1
         return True
+
+    def _release_probe(self) -> None:
+        """Free a reserved HALF_OPEN probe slot without scoring it.
+
+        Used when a probe call is cancelled (not a downstream failure):
+        the reservation is returned so a later probe can retry, and the
+        breaker is neither closed nor re-opened by the cancellation.
+        """
+        if self._state is CircuitState.HALF_OPEN and self._half_open_calls > 0:
+            self._half_open_calls -= 1
 
     def on_success(self) -> None:
         self._consecutive_failures = 0
@@ -121,6 +155,7 @@ class CircuitBreaker:
     def _trip(self) -> None:
         self._state = CircuitState.OPEN
         self._opened_at = self._clock()
+        self._half_open_calls = 0
 
     async def call(self, fn: Callable[..., Awaitable[_T]], *args: object, **kwargs: object) -> _T:
         """Guard an async call; raise :class:`CircuitOpenError` when OPEN."""
@@ -128,6 +163,12 @@ class CircuitBreaker:
             raise CircuitOpenError(f"{self._name} circuit is open")
         try:
             result = await fn(*args, **kwargs)
+        except asyncio.CancelledError:
+            # Cancellation is not a downstream failure: release the probe
+            # reservation so the breaker does not wedge HALF_OPEN, and do
+            # not count it against the failure threshold.
+            self._release_probe()
+            raise
         except Exception:
             self.on_failure()
             raise

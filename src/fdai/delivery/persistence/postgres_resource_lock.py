@@ -52,6 +52,10 @@ class PostgresAdvisoryResourceLockConfig:
     """Max wait to acquire before failing closed. ``0`` waits forever
     (matching the in-process ``asyncio.Lock`` semantics)."""
 
+    connect_timeout_s: int = 10
+    """Bound the TCP/auth handshake so a dead DB fails fast instead of
+    hanging the event loop before the lock wait even begins."""
+
 
 class PostgresAdvisoryResourceLock:
     """Distributed :class:`ResourceLock` via Postgres session advisory locks."""
@@ -61,11 +65,17 @@ class PostgresAdvisoryResourceLock:
             raise ValueError("PostgresAdvisoryResourceLockConfig.dsn MUST NOT be empty")
         if config.lock_timeout_ms < 0:
             raise ValueError("lock_timeout_ms MUST be >= 0")
+        if config.connect_timeout_s < 1:
+            raise ValueError("connect_timeout_s MUST be >= 1")
         self._config = config
 
     @asynccontextmanager
     async def acquire(self, resource_id: str) -> AsyncIterator[None]:
-        async with await psycopg.AsyncConnection.connect(self._config.dsn, autocommit=True) as conn:
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            autocommit=True,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
             if self._config.lock_timeout_ms > 0:
                 # set_config takes bind params (plain SET does not); bound
                 # to the session so the advisory-lock wait is capped.

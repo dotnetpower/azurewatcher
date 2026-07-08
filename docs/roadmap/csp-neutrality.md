@@ -72,8 +72,10 @@ same code path serve every target.
 - **Schema evolution** is guarded by `check_schema_compatibility`
   (`shared/contracts/compatibility.py`): each versioned schema
   (`event/1.0.0` -> `event/1.1.0`) is immutable, and a catalog-validation gate
-  rejects a bump that is not additive-only (a removed field, a type change, a
-  newly-required field, or a narrowed enum is `BREAKING`). This keeps a rolling
+  rejects a bump that is not additive-only (a removed field, a changed or
+  newly-added type or `enum` constraint, a newly-required field, or a
+  narrowed enum is `BREAKING`, including changes nested inside an object
+  property or an array's `items`). This keeps a rolling
   deploy or mixed-version replicas from silently failing to decode - old and new
   producers/consumers stay interoperable.
 - **DLQ** = a Kafka **dead-letter topic** with a naming convention (e.g. `<topic>.dlq`)

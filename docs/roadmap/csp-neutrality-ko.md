@@ -1,7 +1,7 @@
 ---
 title: CSP-중립성 계약
 translation_of: csp-neutrality.md
-translation_source_sha: 51b1152acce6a269897a9197d8229de96aa73569
+translation_source_sha: c04e6ad891cbe3a5684a26d60d7bc25d253031d1
 translation_revised: 2026-07-08
 ---
 
@@ -74,8 +74,9 @@ seam):
 - **스키마 진화** 는 `check_schema_compatibility`
   (`shared/contracts/compatibility.py`)로 가드된다: 버전별 스키마
   (`event/1.0.0` -> `event/1.1.0`)는 불변이며, catalog-validation 게이트가
-  additive-only 가 아닌 bump(필드 제거, 타입 변경, 신규 required, enum 축소는
-  `BREAKING`)를 거부한다. 이로써 rolling deploy 나 혼합 버전 replica 가 조용히
+  additive-only 가 아닌 bump(필드 제거, 타입/`enum` 제약의 변경 또는 신규
+  추가, 신규 required, enum 축소는 `BREAKING`이며 object 속성이나 array
+  `items` 내부 중첩 변경도 포함)를 거부한다. 이로써 rolling deploy 나 혼합 버전 replica 가 조용히
   디코딩 실패하는 것을 막아 - 구/신 producer/consumer 가 상호운용을 유지한다.
 - **DLQ** = 명명 규약을 따르는 Kafka **dead-letter topic** (예: `<topic>.dlq`) + redrive
   워커; native DLQ 를 제공하는 프로바이더 (Event Hubs 는 제공 안함) 도 동작을 균일하게

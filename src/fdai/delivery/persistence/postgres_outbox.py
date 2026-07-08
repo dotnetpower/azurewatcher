@@ -57,6 +57,10 @@ class PostgresOutboxStoreConfig:
 
     dsn: str
     statement_timeout_ms: int = 15_000
+    connect_timeout_s: int = 10
+    """Bound the TCP/auth handshake so a dead DB fails fast instead of
+    hanging the event loop (``statement_timeout`` only starts *after*
+    connect succeeds)."""
 
 
 class PostgresOutboxStore:
@@ -67,6 +71,8 @@ class PostgresOutboxStore:
             raise ValueError("PostgresOutboxStoreConfig.dsn MUST NOT be empty")
         if config.statement_timeout_ms < 1:
             raise ValueError("statement_timeout_ms MUST be >= 1")
+        if config.connect_timeout_s < 1:
+            raise ValueError("connect_timeout_s MUST be >= 1")
         self._config = config
         self._ready = False
 
@@ -81,7 +87,10 @@ class PostgresOutboxStore:
 
     async def claim(self, key: str) -> OutboxClaim:
         async with await psycopg.AsyncConnection.connect(
-            self._config.dsn, autocommit=True, row_factory=dict_row
+            self._config.dsn,
+            autocommit=True,
+            row_factory=dict_row,
+            connect_timeout=self._config.connect_timeout_s,
         ) as conn:
             await self._prepare(conn)
             cur = await conn.execute(_CLAIM_SQL, (key,))
@@ -100,7 +109,11 @@ class PostgresOutboxStore:
             return OutboxClaim(status=OutboxStatus.IN_PROGRESS)
 
     async def complete(self, key: str, result: Mapping[str, Any]) -> None:
-        async with await psycopg.AsyncConnection.connect(self._config.dsn, autocommit=True) as conn:
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            autocommit=True,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
             await self._prepare(conn)
             await conn.execute(_COMPLETE_SQL, (key, json.dumps(dict(result))))
 

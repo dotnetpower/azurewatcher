@@ -13,10 +13,14 @@ two JSON Schemas and reports whether the change is additive-only
 (``COMPATIBLE``) or ``BREAKING``, using the standard additive-evolution
 rules (a superset of Avro/Confluent BACKWARD compatibility):
 
-- **Breaking**: a field removed; a field's ``type`` changed; a field made
-  newly ``required``; an ``enum`` narrowed (allowed values removed).
+- **Breaking**: a field removed; a field's ``type`` changed or newly
+  constrained (old was unconstrained); a field made newly ``required``;
+  an ``enum`` narrowed (values removed) or newly added where none existed;
+  a breaking change nested inside an object property or an array's
+  ``items`` schema.
 - **Compatible**: a new optional field added; ``enum`` values added; a
-  required field relaxed to optional.
+  required field relaxed to optional; a ``type`` or ``enum`` constraint
+  removed (widening).
 
 A catalog-validation CI gate calls :func:`check_schema_compatibility` for
 each ``name/N`` -> ``name/N+1`` pair to block an incompatible bump before
@@ -108,17 +112,28 @@ def _diff(old: Mapping[str, Any], new: Mapping[str, Any], *, prefix: str) -> lis
         n = new_props[name]
         path = f"{prefix}{name}"
         ot, nt = o.get("type"), n.get("type")
-        if ot is not None and nt is not None and ot != nt:
+        if nt is not None and (ot is None or _type_set(ot) != _type_set(nt)):
+            # A newly-added type constraint (old was unconstrained) OR a
+            # changed type set narrows what old data / producers may send.
+            # A *removed* type constraint (nt is None) only widens, so it
+            # is not breaking. Type sets are order-normalized so
+            # ``["string","null"]`` == ``["null","string"]``.
+            detail = "type constraint added" if ot is None else f"type {ot!r} -> {nt!r}"
+            changes.append(
+                SchemaChange(path=path, kind="type_changed", breaking=True, detail=detail)
+            )
+        oe, ne = o.get("enum"), n.get("enum")
+        if isinstance(ne, list) and not isinstance(oe, list):
+            # An enum where none existed constrains previously-valid data.
             changes.append(
                 SchemaChange(
                     path=path,
-                    kind="type_changed",
+                    kind="enum_added",
                     breaking=True,
-                    detail=f"type {ot!r} -> {nt!r}",
+                    detail=f"enum constraint added: {sorted(str(v) for v in ne)}",
                 )
             )
-        oe, ne = o.get("enum"), n.get("enum")
-        if isinstance(oe, list) and isinstance(ne, list):
+        elif isinstance(oe, list) and isinstance(ne, list):
             removed = {str(v) for v in oe} - {str(v) for v in ne}
             if removed:
                 changes.append(
@@ -131,8 +146,21 @@ def _diff(old: Mapping[str, Any], new: Mapping[str, Any], *, prefix: str) -> lis
                 )
         if _is_object(o) and _is_object(n):
             changes.extend(_diff(o, n, prefix=f"{path}."))
+        elif o.get("type") == "array" and n.get("type") == "array":
+            oi, ni = o.get("items"), n.get("items")
+            if isinstance(oi, Mapping) and isinstance(ni, Mapping):
+                # Recurse into element schemas so a breaking change inside
+                # an array's items (removed/narrowed field or type) is caught.
+                changes.extend(_diff(oi, ni, prefix=f"{path}[]."))
 
     return changes
+
+
+def _type_set(type_value: Any) -> frozenset[str]:
+    """Normalize a JSON Schema ``type`` (str or list) to a set of names."""
+    if isinstance(type_value, list):
+        return frozenset(str(t) for t in type_value)
+    return frozenset({str(type_value)})
 
 
 def _props(schema: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:

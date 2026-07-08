@@ -33,11 +33,19 @@ class BackpressureConfig:
     max_queued: int = 128
     """Waiters allowed to queue for a slot before new arrivals are shed."""
 
+    acquire_timeout_s: float | None = None
+    """Optional bound on how long a queued waiter parks for a slot. When
+    set, a waiter that is not admitted within the timeout sheds (raises
+    :class:`LoadShedError`) instead of blocking forever behind a hung
+    in-flight unit. ``None`` waits indefinitely (the semaphore's default)."""
+
     def __post_init__(self) -> None:
         if self.max_concurrency < 1:
             raise ValueError("max_concurrency MUST be >= 1")
         if self.max_queued < 0:
             raise ValueError("max_queued MUST be >= 0")
+        if self.acquire_timeout_s is not None and self.acquire_timeout_s <= 0:
+            raise ValueError("acquire_timeout_s MUST be > 0 when set")
 
 
 @dataclass
@@ -69,7 +77,18 @@ class Backpressure:
             raise LoadShedError(f"saturated: {self._in_flight} in-flight, {self._waiting} queued")
         self._waiting += 1
         try:
-            await self._sem.acquire()
+            timeout = self.config.acquire_timeout_s
+            if timeout is not None:
+                try:
+                    await asyncio.wait_for(self._sem.acquire(), timeout=timeout)
+                except TimeoutError:
+                    self.shed_count += 1
+                    raise LoadShedError(
+                        f"slot acquire timed out after {timeout}s "
+                        f"({self._in_flight} in-flight, {self._waiting} queued)"
+                    ) from None
+            else:
+                await self._sem.acquire()
         finally:
             self._waiting -= 1
         self._in_flight += 1

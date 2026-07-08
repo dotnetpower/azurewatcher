@@ -78,3 +78,46 @@ def test_nested_object_breaking_change_is_detected() -> None:
     assert report.level is CompatibilityLevel.BREAKING
     assert report.breaking_changes[0].path == "meta.a"
     assert report.breaking_changes[0].kind == "type_changed"
+
+
+def test_adding_enum_where_none_existed_is_breaking() -> None:
+    # H4: constraining a previously-free field to an enum invalidates data
+    # that was valid before.
+    old = _obj({"color": {"type": "string"}})
+    new = _obj({"color": {"type": "string", "enum": ["red", "green"]}})
+    report = check_schema_compatibility(old, new)
+    assert report.level is CompatibilityLevel.BREAKING
+    assert report.breaking_changes[0].kind == "enum_added"
+
+
+def test_adding_type_where_none_existed_is_breaking() -> None:
+    # H5: a field with no type accepted anything; adding a type narrows it.
+    old = _obj({"a": {"description": "anything"}})
+    new = _obj({"a": {"type": "string"}})
+    report = check_schema_compatibility(old, new)
+    assert report.level is CompatibilityLevel.BREAKING
+    assert report.breaking_changes[0].kind == "type_changed"
+
+
+def test_type_list_reorder_is_not_breaking() -> None:
+    # H6: type is a set; order must not produce a false positive.
+    old = _obj({"a": {"type": ["string", "null"]}})
+    new = _obj({"a": {"type": ["null", "string"]}})
+    assert check_schema_compatibility(old, new).is_compatible
+
+
+def test_removing_type_constraint_is_compatible() -> None:
+    # H5 inverse: widening (dropping the type) is safe.
+    old = _obj({"a": {"type": "string"}})
+    new = _obj({"a": {"description": "now anything"}})
+    assert check_schema_compatibility(old, new).is_compatible
+
+
+def test_breaking_change_inside_array_items_is_detected() -> None:
+    # H7: a removed field inside an array's element schema is breaking.
+    old = _obj({"tags": {"type": "array", "items": _obj({"k": {"type": "string"}})}})
+    new = _obj({"tags": {"type": "array", "items": _obj({})}})
+    report = check_schema_compatibility(old, new)
+    assert report.level is CompatibilityLevel.BREAKING
+    assert report.breaking_changes[0].path == "tags[].k"
+    assert report.breaking_changes[0].kind == "field_removed"

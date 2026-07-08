@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from fdai.shared.resilience.circuit_breaker import (
@@ -123,3 +125,47 @@ def test_snapshot_exposes_state() -> None:
     assert snap["name"] == "github"
     assert snap["state"] == "closed"
     assert snap["consecutive_failures"] == 0
+
+
+async def test_cancelled_probe_releases_slot_without_scoring() -> None:
+    # H2: a cancelled probe in HALF_OPEN is not a downstream failure. The
+    # reserved probe slot MUST be released so the breaker does not wedge,
+    # and the cancel MUST NOT count against the failure threshold.
+    clock = _Clock()
+    cb = CircuitBreaker(
+        config=CircuitBreakerConfig(failure_threshold=1, reset_timeout_s=5),
+        clock=clock,
+    )
+    cb.on_failure()  # OPEN
+    clock.advance(5)  # -> HALF_OPEN
+    assert cb.state is CircuitState.HALF_OPEN
+
+    async def _cancelled() -> None:
+        raise asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        await cb.call(_cancelled)
+    # Still HALF_OPEN (not re-opened, not closed) and the probe slot is free,
+    # so a fresh probe is admitted rather than being refused.
+    assert cb.state is CircuitState.HALF_OPEN
+    assert cb.allow() is True
+
+
+def test_stuck_half_open_probe_reopens_after_timeout() -> None:
+    # H3: a probe reserved via allow() that never resolves would otherwise
+    # wedge the breaker HALF_OPEN forever. After another reset_timeout with an
+    # outstanding probe it re-trips so a fresh cooldown/probe cycle resumes.
+    clock = _Clock()
+    cb = CircuitBreaker(
+        config=CircuitBreakerConfig(failure_threshold=1, reset_timeout_s=5),
+        clock=clock,
+    )
+    cb.on_failure()  # OPEN
+    clock.advance(5)  # -> HALF_OPEN
+    assert cb.allow() is True  # reserve a probe, never resolved
+    assert cb.allow() is False  # probe budget exhausted
+    clock.advance(5)  # stuck probe outlives another cooldown
+    assert cb.state is CircuitState.OPEN  # re-tripped, not wedged
+    clock.advance(5)  # new cooldown elapses
+    assert cb.state is CircuitState.HALF_OPEN
+    assert cb.allow() is True  # a fresh probe is admitted

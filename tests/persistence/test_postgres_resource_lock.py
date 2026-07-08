@@ -62,7 +62,7 @@ def test_config_rejects_negative_timeout() -> None:
 def test_acquire_issues_lock_and_unlock(monkeypatch: pytest.MonkeyPatch) -> None:
     conns: list[_FakeConn] = []
 
-    async def _connect(_dsn: str, autocommit: bool = False) -> _FakeConn:
+    async def _connect(_dsn: str, autocommit: bool = False, **_kwargs: object) -> _FakeConn:
         conn = _FakeConn()
         conns.append(conn)
         return conn
@@ -90,7 +90,7 @@ def test_acquire_issues_lock_and_unlock(monkeypatch: pytest.MonkeyPatch) -> None
 def test_acquire_skips_timeout_when_zero(monkeypatch: pytest.MonkeyPatch) -> None:
     conns: list[_FakeConn] = []
 
-    async def _connect(_dsn: str, autocommit: bool = False) -> _FakeConn:
+    async def _connect(_dsn: str, autocommit: bool = False, **_kwargs: object) -> _FakeConn:
         conn = _FakeConn()
         conns.append(conn)
         return conn

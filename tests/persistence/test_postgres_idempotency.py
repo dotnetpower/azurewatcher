@@ -122,3 +122,25 @@ def test_postgres_seen_returns_stored_payload(monkeypatch: pytest.MonkeyPatch) -
     store = PostgresIdempotencyStore(config=PostgresIdempotencyStoreConfig(dsn="postgresql://x"))
     got = asyncio.run(store.seen("k"))
     assert got == {"outcome": "published"}
+
+
+def test_postgres_config_rejects_bad_connect_timeout() -> None:
+    # H9: connect_timeout bounds the handshake; a non-positive value is invalid.
+    with pytest.raises(ValueError, match="connect_timeout_s"):
+        PostgresIdempotencyStore(
+            config=PostgresIdempotencyStoreConfig(dsn="postgresql://x", connect_timeout_s=0)
+        )
+
+
+def test_postgres_seen_fails_loud_on_non_object_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    # H8: a stored non-object result must NOT be masked as a miss (which would
+    # silently re-execute a mutation); fail loud so the drift is visible.
+    conn = _FakeConn(row={"result": ["not", "an", "object"]}, rowcount=0)
+
+    async def _connect(*_a: object, **_k: object) -> _FakeConn:
+        return conn
+
+    monkeypatch.setattr(psycopg.AsyncConnection, "connect", _connect)
+    store = PostgresIdempotencyStore(config=PostgresIdempotencyStoreConfig(dsn="postgresql://x"))
+    with pytest.raises(ValueError, match="non-object result"):
+        asyncio.run(store.seen("k"))

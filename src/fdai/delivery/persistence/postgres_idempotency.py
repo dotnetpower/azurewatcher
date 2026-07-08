@@ -45,6 +45,10 @@ class PostgresIdempotencyStoreConfig:
 
     dsn: str
     statement_timeout_ms: int = 15_000
+    connect_timeout_s: int = 10
+    """Bound the TCP/auth handshake so a dead DB fails fast instead of
+    hanging the event loop (``statement_timeout`` only starts *after*
+    connect succeeds)."""
 
 
 class PostgresIdempotencyStore:
@@ -55,6 +59,8 @@ class PostgresIdempotencyStore:
             raise ValueError("PostgresIdempotencyStoreConfig.dsn MUST NOT be empty")
         if config.statement_timeout_ms < 1:
             raise ValueError("statement_timeout_ms MUST be >= 1")
+        if config.connect_timeout_s < 1:
+            raise ValueError("connect_timeout_s MUST be >= 1")
         self._config = config
         self._ready = False
 
@@ -72,7 +78,10 @@ class PostgresIdempotencyStore:
 
     async def seen(self, key: str) -> Mapping[str, Any] | None:
         async with await psycopg.AsyncConnection.connect(
-            self._config.dsn, autocommit=True, row_factory=dict_row
+            self._config.dsn,
+            autocommit=True,
+            row_factory=dict_row,
+            connect_timeout=self._config.connect_timeout_s,
         ) as conn:
             await self._set_statement_timeout(conn)
             await self._ensure_table(conn)
@@ -81,10 +90,23 @@ class PostgresIdempotencyStore:
             if row is None:
                 return None
             result = row["result"]
-            return dict(result) if isinstance(result, dict) else None
+            if not isinstance(result, dict):
+                # ``record`` only ever stores a JSON object. A non-object
+                # here means data corruption or an out-of-band writer;
+                # masking it as a miss would silently re-execute a
+                # mutation. Fail loud so the operator sees the drift.
+                raise ValueError(
+                    f"idempotency row for key {key!r} holds a non-object result "
+                    f"({type(result).__name__}); refusing to treat a hit as a miss"
+                )
+            return dict(result)
 
     async def record(self, key: str, result: Mapping[str, Any]) -> bool:
-        async with await psycopg.AsyncConnection.connect(self._config.dsn, autocommit=True) as conn:
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            autocommit=True,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
             await self._set_statement_timeout(conn)
             await self._ensure_table(conn)
             cur = await conn.execute(_INSERT_SQL, (key, json.dumps(dict(result))))

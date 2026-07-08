@@ -46,9 +46,18 @@ class DegradationController:
             raise ValueError("open_threshold MUST be >= 1")
 
     def open_circuits(self) -> list[str]:
-        """Names of the currently-OPEN (or half-open probing) breakers."""
+        """Names of breakers that are not fully CLOSED (OPEN or HALF_OPEN).
+
+        A HALF_OPEN breaker is still *probing* - recovery is unconfirmed
+        until a probe succeeds and it CLOSES. Counting HALF_OPEN as
+        degraded keeps the system from resuming enforce-mode autonomy the
+        instant a cooldown elapses, before the dependency is proven
+        healthy. That is the "fail toward safety" rule at system scope.
+        """
         return [
-            name for name, breaker in self.breakers.items() if breaker.state is CircuitState.OPEN
+            name
+            for name, breaker in self.breakers.items()
+            if breaker.state is not CircuitState.CLOSED
         ]
 
     @property
