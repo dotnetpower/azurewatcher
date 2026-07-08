@@ -124,7 +124,7 @@ injection ([security-and-identity.md](security-and-identity.md)).
 - All model calls go through a **provider-neutral client** in `shared/` so models can be
   swapped without touching `core/tiers`.
 - Configure models by capability, not hard-coded name: `t1.embedding`, `t1.judge`,
-  `t2.reasoner.primary`, `t2.reasoner.secondary`.
+  `t2.reasoner.primary`, `t2.reasoner.secondary`, `t2.rca`.
 - **Client contract**: enforce request timeouts, structured/JSON-schema output, token
   accounting, and reproducible settings (temperature 0 and a fixed seed where supported) so
   cross-checks and replays are comparable.
@@ -187,6 +187,10 @@ Rules the registry enforces (MUST, at config load):
   provisioning a capacity below the fork's measured minimum is a config-load error.
 - **Escalated capability is opt-in per invocation** (`invocation: on_disagreement`); it is
   not called on every T2 request and never bypasses the quality gate.
+- **RCA reasoner is opt-in per invocation** (`invocation: on_novel_case`, capability
+  `t2.rca`); it fires only on a novel incident the deterministic tiers could not resolve,
+  and its output is refused unless grounded on the supplied evidence (see
+  [observability-and-detection.md](observability-and-detection.md) section 4).
 
 ### Bootstrap Provisioner
 
@@ -246,6 +250,36 @@ return quorum_result(cand_a, cand_b)
 - A missing deployment is treated as an outage: the request routes to HIL and emits an
   operational alert (A2 per [channels-and-notifications.md](channels-and-notifications.md#3-categories-a1a4)).
   A silent switch to a different capability isn't supported.
+
+### Narrator Latency Routing (T1-Only)
+
+The console chat backend (`fdai.delivery.read_api.chat.LatencyRoutedChatBackend`)
+wraps N deployments of the `t1.judge` mini stack and per turn picks the candidate with
+the lowest rolling p50 latency. It ships enabled whenever the resolver emits two or
+more entries under `resolved-models.json`'s `narrator_candidates` array; a single
+entry falls back to the plain `AzureAdChatBackend` (see the "Auto-populate narrator"
+subsection of [dev-and-deploy-parity.md](dev-and-deploy-parity.md)).
+
+The router is scoped to **T1 narrator traffic only** and MUST NOT be extended to
+T2 capabilities without a separate design review. Two hard constraints keep the
+T1 vs T2 boundary intact:
+
+- **Mixed-model invariant** ([architecture.instructions.md § Quality Gate](../../.github/instructions/architecture.instructions.md#llm-quality-gate-required-for-t2)):
+  `t2.reasoner.primary.publisher != t2.reasoner.secondary.publisher`. A latency
+  router optimises for speed of an individual call, which conflicts with the
+  requirement to always run two *distinct* families in parallel. A "fastest T2"
+  policy would silently collapse the cross-check to whichever family happened to
+  win the last round, defeating the whole point of the quality gate.
+- **Judge/critic determinism**: the composer binds `t1.judge`, `t2.critic`, and
+  the debate orchestrator to specific deployment names in
+  [composition.py](../../src/fdai/composition.py). Swapping the *judge* deployment
+  mid-run without a config-level opt-in is a behaviour change we do not want to
+  hide inside a routing wrapper.
+
+If a fork wants a latency-routed *judge*, that is a governance-level change:
+declare a new capability (e.g. `t1.judge.fast-pool`) with its own quality gate,
+route via the composer, and audit the swap - do not thread it through the
+narrator router.
 
 ### Reconciler Job
 

@@ -1,7 +1,7 @@
 ---
 title: LLM 전략(LLM Strategy)
 translation_of: llm-strategy.md
-translation_source_sha: b20f7eafe7b7083d42314ca2415f5816ca4efb39
+translation_source_sha: 87d0ba39bf43346614eddbb7be93f4b08c9f7ef3
 translation_revised: 2026-07-08
 ---
 
@@ -122,7 +122,7 @@ flowchart TD
 - 모든 모델 호출은 `shared/` 의 **provider-neutral 클라이언트** 를 통해 감 - 모델이 `core/tiers`
   를 만지지 않고 스왑 가능.
 - 모델을 하드코딩 이름이 아니라 capability로 설정: `t1.embedding`, `t1.judge`,
-  `t2.reasoner.primary`, `t2.reasoner.secondary`.
+  `t2.reasoner.primary`, `t2.reasoner.secondary`, `t2.rca`.
 - **클라이언트 계약**: 요청 timeout, 구조화/JSON-schema 출력, 토큰 회계, 재현 가능 설정
   (지원되는 곳에서 temperature 0 + 고정 seed) 강제 - 그래서 교차 검사와 리플레이가 비교 가능.
 - **버전된 매핑**: capability→구체-모델 매핑은 버전됨; 결정에 사용된 정확한 모델 ID와 config
@@ -182,6 +182,9 @@ models:
   최소 아래 용량 프로비저닝은 config-load 에러.
 - **Escalated capability는 invocation별 opt-in** (`invocation: on_disagreement`); 모든 T2
   요청에 호출되지 않고 절대 quality gate를 우회하지 않음.
+- **RCA reasoner는 invocation별 opt-in** (`invocation: on_novel_case`, capability
+  `t2.rca`); 결정론적 tier가 해결하지 못한 novel incident에만 발화하며, 제공된 evidence에
+  grounded 되지 않으면 그 출력은 거부됨 (observability-and-detection.md section 4 참조).
 
 ### 부트스트랩 Provisioner
 
@@ -238,6 +241,32 @@ return quorum_result(cand_a, cand_b)
 - `core/` 에 모델 id가 나타나지 않음.
 - 누락 deployment는 outage로 취급: 요청은 HIL로 라우팅되고 운영 알림 emit(A2, [channels-and-notifications-ko.md](channels-and-notifications-ko.md#3-categories-a1a4)
   에 따라). 다른 capability로의 조용한 스위치는 금지.
+
+### Narrator Latency Routing (T1 전용)
+
+콘솔 chat 백엔드(`fdai.delivery.read_api.chat.LatencyRoutedChatBackend`)는
+`t1.judge` mini 스택의 N개 deployment 를 감싸서 매 turn 마다 rolling p50 지연이
+가장 낮은 후보를 pick. 리졸버가 `resolved-models.json` 의 `narrator_candidates`
+배열을 2개 이상 emit할 때 자동 활성화; 1개 이하이면 plain `AzureAdChatBackend`
+로 fallback ([dev-and-deploy-parity-ko.md](dev-and-deploy-parity-ko.md) 의
+"Auto-populate narrator" 참조).
+
+라우터는 **T1 narrator 트래픽 전용** 이며, 별도 설계 리뷰 없이 T2 capability
+로 확장 금지. T1/T2 경계를 지키는 두 하드 제약:
+
+- **Mixed-model invariant** ([architecture.instructions.md § Quality Gate](../../.github/instructions/architecture.instructions.md#llm-quality-gate-required-for-t2)):
+  `t2.reasoner.primary.publisher != t2.reasoner.secondary.publisher`. 지연
+  라우터는 개별 호출 속도를 최적화하므로, 항상 서로 *다른* family 두 개를
+  병렬로 돌려야 한다는 요구와 충돌. "가장 빠른 T2" 정책은 마지막 라운드에서
+  이긴 family로 cross-check 를 조용히 collapse 시켜 quality gate 를 통째로 무력화.
+- **Judge/critic 결정성**: composer 는 [composition.py](../../src/fdai/composition.py)
+  에서 `t1.judge`, `t2.critic`, debate orchestrator 를 특정 deployment 이름에
+  바인딩. config 레벨 opt-in 없이 *judge* deployment 를 런타임 중에 바꾸는
+  건 라우팅 wrapper 안에 숨기고 싶지 않은 동작 변경.
+
+포크가 지연-라우팅된 *judge* 를 원한다면, 그건 거버넌스 레벨 변경:
+새 capability(예: `t1.judge.fast-pool`)를 quality gate 와 함께 선언하고
+composer 로 라우팅, 스왑을 감사. narrator 라우터를 통해 쓰레딩하지 말 것.
 
 ### Reconciler Job
 
