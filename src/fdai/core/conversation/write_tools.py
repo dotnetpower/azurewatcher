@@ -662,7 +662,19 @@ class ApproveHilTool:
 
         # No-self-approval invariant. Comparison uses Principal.id which
         # the console coordinator populates from the Entra 'oid' claim.
-        if principal.id and principal.id == item.submitter_oid:
+        # Fail closed when the pending item carries no submitter identity:
+        # the invariant cannot be verified, so an approval MUST NOT proceed
+        # (matches RbacEnforcer.no_self_approval, which raises on an empty
+        # submitter_oid rather than silently allowing the approval).
+        if not item.submitter_oid:
+            return ToolResult(
+                status="error",
+                preview=(
+                    "approve_hil: pending item is missing submitter_oid; the "
+                    "no_self_approval invariant cannot be verified (fail-closed)"
+                ),
+            )
+        if principal.id == item.submitter_oid:
             return ToolResult(
                 status="error",
                 preview=(

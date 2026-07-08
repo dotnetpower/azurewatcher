@@ -326,6 +326,22 @@ class TestApproveHilFailClosed:
         assert list(store.audit_entries) == []
         assert reg.resolved == ()
 
+    def test_missing_submitter_oid_fails_closed(self) -> None:
+        # A pending item with no submitter identity cannot have the
+        # no_self_approval invariant verified, so the approval MUST fail
+        # closed (matches RbacEnforcer.no_self_approval, which raises on an
+        # empty submitter_oid rather than letting the approval through).
+        reg = _build_registry([_item(submitter_oid="")])
+        tool, store = _build_approve_tool(reg)
+        r = tool.call(
+            arguments={"idempotency_key": "ik-1", "decision": "approve"},
+            principal=_principal(oid="some-approver"),
+        )
+        assert r.status == "error"
+        assert "submitter_oid" in r.preview
+        assert list(store.audit_entries) == []
+        assert reg.resolved == ()
+
     def test_conflicting_re_decision_errors_and_audits_the_conflict(self) -> None:
         """The registry raises HilItemAlreadyResolvedError for a conflicting
         decision. The tool audits the conflict so the trail records the
