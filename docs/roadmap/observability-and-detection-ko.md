@@ -1,7 +1,7 @@
 ---
 title: 관측성과 감지(Observability and Detection)
 translation_of: observability-and-detection.md
-translation_source_sha: 828dbb83cbd148cdf9243500c86b7f09192d8485
+translation_source_sha: 1cf96f15ce23027e25b9d9f59b6f19836422f572
 translation_revised: 2026-07-08
 ---
 
@@ -108,6 +108,22 @@ FDAI가 원시 원격측정을 컨트롤 루프가 액션할 수 있는 **findin
   - 두 detector 가 어긋날 수 없다. phase 별 cold-start 는 독립적이고(얇은
   일요일 baseline 이 월요일 데이터를 빌리지 않는다), phase 는 finding 의
   `window_bucket` 에 기록되며, finding 은 여전히 shadow 모드 이벤트다.
+- **다변량 fusion**: `core/detection/composite.py`
+  (`CompositeAnomalyDetector`) 은 조직의 on-call 이 손으로 읽는
+  compound-degradation 신호다 - 진짜 인시던트는 *상관된* 스트림이 함께
+  발화하는 것(latency up **그리고** error-rate up **그리고** saturation
+  high)이지 하나의 noisy metric 이 아니다. 이것은 **fuser 이지 새 baseline 이
+  아니다**: 한 resource + window 에 대해 이미 생산된 per-metric
+  `AnomalyFinding` 객체를 소비하고, 설정된 **quorum** 개가 발화할 때만
+  `CompositeAnomalyFinding` (`event_type="anomaly.composite"`)을 raise 한다.
+  quorum 미만이면 abstain(단일 noisy 스트림은 compound anomaly 가 아니다 -
+  false-positive 억제); quorum 이상이면 *amplify* 한다(severity 가 동시 member
+  의 breadth 와 그 root-sum-square 합성 magnitude 둘 다로 escalate 하므로,
+  compound degradation 이 어떤 단일 member 보다 상위). 중복 metric 은 가장
+  강한 occurrence 로 collapse 되어 re-emit 된 스트림이 quorum 을 부풀릴 수
+  없고, flat-baseline member 는 고정 weight 를 기여하며, fusion 은 member
+  순서와 무관하게 결정론적이다. composite 는 여전히 risk gate 가 관장하는
+  shadow-mode finding 이다 - 더 강하게 감지할 뿐, 행동하지 않는다.
 
 ## 3. 예측 / 예보(Predictive / Forecasting)
 

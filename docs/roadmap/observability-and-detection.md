@@ -111,6 +111,24 @@ performance, reliability, security, and cost.
   thin Sunday baseline never borrows Monday's data), the phase is
   recorded on the finding's `window_bucket`, and the finding is still a
   shadow-mode event.
+- **Multivariate fusion**: `core/detection/composite.py`
+  (`CompositeAnomalyDetector`) is the compound-degradation signal an
+  organization's on-call reads by hand - a real incident is *correlated*
+  streams firing together (latency up **and** error-rate up **and**
+  saturation high), not one noisy metric. It is a **fuser, not a new
+  baseline**: it consumes the per-metric `AnomalyFinding` objects already
+  produced for one resource + window and raises a
+  `CompositeAnomalyFinding` (`event_type="anomaly.composite"`) only when a
+  configured **quorum** of them fire. Below quorum it abstains (a single
+  noisy stream is not a compound anomaly - false-positive suppression);
+  at quorum and above it *amplifies* (severity escalates with both the
+  breadth of concurrent members and their root-sum-square combined
+  magnitude, so a compound degradation outranks any single member).
+  Duplicate metrics collapse to their strongest occurrence so a re-emitted
+  stream cannot inflate the quorum, a flat-baseline member contributes a
+  fixed weight, and the fusion is deterministic regardless of member
+  order. The composite is still a shadow-mode finding governed by the risk
+  gate - it detects harder, it does not act.
 
 ## 3. Predictive / Forecasting
 
