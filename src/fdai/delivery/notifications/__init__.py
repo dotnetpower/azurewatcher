@@ -20,6 +20,7 @@ are untrusted), and translates non-2xx into
 """
 
 from .email import AzureCommunicationEmailChannel, AzureCommunicationEmailConfig
+from .hil_sink import StateStoreHilEscalationSink
 from .pagerduty import PagerDutyEventsV2Channel, PagerDutyEventsV2Config
 from .slack import SlackWebhookChannel, SlackWebhookConfig
 from .sms import AzureCommunicationSmsChannel, AzureCommunicationSmsConfig
@@ -37,6 +38,7 @@ __all__ = [
     "PagerDutyEventsV2Config",
     "SlackWebhookChannel",
     "SlackWebhookConfig",
+    "StateStoreHilEscalationSink",
     "TeamsWebhookChannel",
     "TeamsWebhookConfig",
 ]

@@ -78,17 +78,25 @@ build. Read the reference docs first, then the phases in order.
 | 20 | [action-ontology.md](action-ontology.md) | ActionType schema (remediation + ops + governance), trigger axis, tier / role / prod / live-probe ceilings, fork override seams |
 | 21 | [execution-model.md](execution-model.md) | Unified RiskGate, 5-axis authority matrix, three executor paths (PR-native / direct API / PR-manual), live-blast probe combinator, resolved_ceiling audit block |
 
+### Agent organization
+
+| # | Document | What it covers |
+|---|----------|----------------|
+| 22 | [agent-pantheon.md](agent-pantheon.md) | fixed 15-agent pantheon (Odin / Thor / Forseti / ...) as ontology first-class citizens: org chart, single-writer topics, two-port model (typed pub/sub + conversational NL), NL query orchestration with fingerprint dedup, per-user context, extended ActionType roles (initiator / judge / approver / executor / auditor), lifecycle state machine, Heimdall-driven privilege-escalation monitoring |
+| 23 | [agent-workflows.md](agent-workflows.md) | the 10 cross-agent workflows the pantheon composes into product capabilities: cost-aware remediation, predictive scale, DR drill orchestration, override -> discovery, security escalation, handoff -> capability, agent health degradation, judgment coherence audit, rollback rehearsal, retrospective what-if. Each has trigger + sequence diagram + exit criteria + promotion gate |
+
 ### Prompt subsystem
 
 | # | Document | What it covers |
 |---|----------|----------------|
-| 22 | [prompt-composition.md](prompt-composition.md) | evolving system prompt: role x layer matrix, tools / web search, debate orchestrator, recognition measurement |
+| 24 | [prompt-composition.md](prompt-composition.md) | evolving system prompt: role x layer matrix, tools / web search, debate orchestrator, recognition measurement |
 
 ### Sequencing (cross-doc plan)
 
 | # | Document | What it covers |
 |---|----------|----------------|
-| 23 | [implementation-plan.md](implementation-plan.md) | authoritative sequencing across all the 2026-07-06 tranche docs: the six standard-set design decisions (R1 axis derivation, R2 ConsoleTool as ActionType projection, R3 unified LlmBinding, R4 shared projection primitive, R6 operator_memory as materialized view, R7 pr_manual as a flag) and the wave plan (F -> D1 -> W1 -> W2 -> M1, plus Twin and Preflight tracks) |
+| 25 | [implementation-plan.md](implementation-plan.md) | authoritative sequencing across all the 2026-07-06 tranche docs: the six standard-set design decisions (R1 axis derivation, R2 ConsoleTool as ActionType projection, R3 unified LlmBinding, R4 shared projection primitive, R6 operator_memory as materialized view, R7 pr_manual as a flag) and the wave plan (F -> D1 -> W1 -> W2 -> M1, plus Twin and Preflight tracks) |
+| 26 | [agent-pantheon-implementation.md](agent-pantheon-implementation.md) | pantheon rollout wave plan (W0 docs -> W1 scaffolding -> W2 governance -> W3 pipeline -> W4 interface -> W5 specialists -> W6 handoff / security -> W7 workflows -> W8 KPI + promotion + degradation drills); every wave has a measurable exit gate and preserves the pantheon invariants (single-writer topics, judge != executor, Saga / Vidar hard dependency) |
 
 ## Phase timeline
 

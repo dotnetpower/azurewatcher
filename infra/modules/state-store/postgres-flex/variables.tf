@@ -59,3 +59,43 @@ variable "tags" {
   default     = {}
 }
 
+variable "allow_azure_services_firewall" {
+  description = <<-EOT
+    When true (day-zero default), install a firewall rule that lets any
+    Microsoft-owned outbound IP reach the server. Required for the
+    Container App we wire in `infra/main.tf` to open a connection at all;
+    turning this off without also wiring a `delegated_subnet_id` will make
+    every `FDAI_*_DSN` path fall back to in-memory silently. Flip to
+    false only after the VNet-integrated variant is in place.
+  EOT
+  type        = bool
+  default     = true
+}
+
+# ---------------------------------------------------------------------------
+# Network + backup posture knobs. Defaults preserve day-zero connectivity;
+# flip these once a private endpoint or VNet integration is in place.
+# ---------------------------------------------------------------------------
+variable "public_network_access_enabled" {
+  description = "When false, Postgres refuses every public-plane connection. Requires `delegated_subnet_id` (out of scope for the flat module) so callers can reach it. Prod hardening flag, off day-zero."
+  type        = bool
+  default     = true
+}
+
+variable "backup_retention_days" {
+  description = "Postgres Flexible Server backup retention in days. 7-35 range enforced by Azure."
+  type        = number
+  default     = 7
+
+  validation {
+    condition     = var.backup_retention_days >= 7 && var.backup_retention_days <= 35
+    error_message = "backup_retention_days must be between 7 and 35."
+  }
+}
+
+variable "geo_redundant_backup_enabled" {
+  description = "Enable geo-redundant backup (paired region). Adds cost; prod default should typically be true once RTO/RPO SLO is signed off."
+  type        = bool
+  default     = false
+}
+

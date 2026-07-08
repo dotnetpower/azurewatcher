@@ -1,0 +1,44 @@
+# Upstream built-in ObjectType: RuleCandidate.
+#
+# A `RuleCandidate` is a proposed rule (new, revision, or retirement)
+# produced by Norns from operational signals: recurring handoffs,
+# override patterns, coherence drift, or workflow post-mortems. Mimir
+# takes candidates through the standard promotion pipeline.
+schema_version: "1.0.0"
+name: RuleCandidate
+version: "1.0.0"
+key: id
+description: Proposed rule (new / revision / retirement) produced by Norns; consumed by Mimir.
+properties:
+  id:
+    type: string
+    required: true
+    description: Opaque local id (candidate_id in payload).
+  proposal_kind:
+    type: string
+    required: true
+    description: One of `new`, `revision`, `retirement`.
+  target_rule_id:
+    type: string
+    required: false
+    description: For revision or retirement, the existing rule id being changed.
+  source_signal:
+    type: string
+    required: true
+    description: What produced the candidate (handoff_fingerprint, override_pattern, coherence_drift, workflow_postmortem).
+  evidence:
+    type: object
+    required: true
+    description: Structured evidence (fingerprint, override counts, drift stats). Mimir uses this in shadow evaluation.
+  proposed_shape:
+    type: object
+    required: false
+    description: Suggested rule YAML skeleton; Mimir refines before promotion.
+  proposed_by:
+    type: string
+    required: true
+    description: Agent name that produced this candidate (typically Norns; may be Mimir for auto-drafts).
+  proposed_at:
+    type: string
+    required: true
+    description: ISO 8601 timestamp.

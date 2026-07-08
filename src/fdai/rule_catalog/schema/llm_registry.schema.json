@@ -44,7 +44,7 @@
           },
           "sku": {"type": "string", "enum": ["Standard", "GlobalStandard", "ProvisionedManaged"]},
           "capacity_tpm": {"type": "integer", "minimum": 1000},
-          "invocation": {"type": "string", "enum": ["always", "on_disagreement"]}
+          "invocation": {"type": "string", "enum": ["always", "on_disagreement", "on_novel_case"]}
         }
       },
       "patternProperties": {
@@ -74,7 +74,7 @@
             "capacity_tpm": {"type": "integer", "minimum": 1000},
             "invocation": {
               "type": "string",
-              "enum": ["always", "on_disagreement"],
+              "enum": ["always", "on_disagreement", "on_novel_case"],
               "default": "always"
             }
           }

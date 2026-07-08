@@ -20,8 +20,7 @@ for the full design.
 ## Contract
 
 - File name: `<id>.v<version>.yaml`. `id` and `version` in the front-matter MUST
-  match the file name.
-- Every artifact carries `provenance.source` so a reader can see where the text
+  match the file name.- Every artifact carries `provenance.source` so a reader can see where the text
   came from (mirrors the rule-catalog provenance rule in
   [architecture.instructions.md](../../.github/instructions/architecture.instructions.md)).
 - New prompts default to `default_mode: shadow`. Promotion to `enforce` is a
@@ -34,3 +33,14 @@ for the full design.
 `core/prompts/registry.py` walks this tree at startup and exposes a
 `PromptRegistry` Protocol. The composition root passes resolved bodies into the
 Azure OpenAI adapters; `core/` never opens these files directly.
+
+## Operator-console narrator
+
+`base/operator-console-narrator.v1.yaml` (base) and
+`packs/operator-console-cli.v1.yaml` (CLI surface overlay) are the shared,
+UI-agnostic prompt for the read-only operator-console narrator. They are bound to
+the `console.narrator` capability - not any T2 capability - so they are indexed
+by the registry but never enter T2 quality-gate composition. Every narrator
+surface loads them from here: the CLI cockpit via `cli/src/narrator/prompt-store.ts`
+and the read-API chat backend via this registry. Edit the YAML, not the
+per-surface code, so the narrator behaves identically everywhere.

@@ -234,7 +234,11 @@ examples/
 *.tfvars.json
 !*.tfvars.example
 .terraform/
-.terraform.lock.hcl
+# .terraform.lock.hcl is intentionally NOT ignored: per HashiCorp guidance,
+# the provider lock file must be committed so every contributor and every CI
+# run resolves the exact same provider versions and checksums. Removing this
+# entry re-enables that reproducibility guarantee. See
+# https://developer.hashicorp.com/terraform/language/files/dependency-lock.
 *.tfstate
 *.tfstate.*
 *.tfstate.backup

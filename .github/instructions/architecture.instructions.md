@@ -169,6 +169,51 @@ The unified risk decision combines the authoritative `risk-classification` first
 with a never-raising six-axis ActionType ceiling (see the risk-gate references in the roadmap);
 neither raises autonomy above the other.
 
+## Agent Pantheon
+
+The control loop is owned by a fixed set of 15 named agents that live as first-class
+`Agent` objects in the ontology. The pantheon is customer-agnostic and defined upstream
+only: forks configure it (bindings, enable/disable, rate limits) but MUST NOT add,
+remove, or rename agents. Full design, org chart, topic contract, and per-agent
+responsibilities live in [../../docs/roadmap/agent-pantheon.md](../../docs/roadmap/agent-pantheon.md).
+
+The names below are the canonical identifiers used in code, config, audit entries, and
+docs. Reuse them verbatim.
+
+- **Odin** (Master Planner) - cross-vertical arbitration; final tie-breaker before Forseti
+  finalizes a verdict.
+- **Thor** (Responder) - dispatcher of verdicts and sole privileged executor principal;
+  MUST NOT judge.
+- **Forseti** (Judge) - issues the `Verdict` (auto / hil / deny) after mixed-model
+  cross-check, verifier, and grounding; reports to Odin, not Thor.
+- **Huginn** (Event Collector), **Heimdall** (Observer) - sensing; deterministic-first,
+  MUST NOT invoke an LLM synchronously in the hot-path.
+- **Var** (Approver) - HIL approval principal; MUST stay distinct from Thor.
+- **Vidar** (Recovery) - rollback and DR failover principal.
+- **Bragi** (Narrator) - conversational-port translator only; a Bragi that calls an
+  executor directly is a defect.
+- **Saga** (Auditor) - append-only audit and Handoff-to-GitHub-issue executor.
+- **Mimir** (Rule Steward), **Norns** (Learner), **Muninn** (Memory) - governance staff.
+- **Njord** (Cost), **Freyr** (Capacity), **Loki** (Chaos) - domain specialists;
+  advisory to Forseti, they do not execute.
+
+Two-port model: every agent exposes a **typed pub/sub port** (schema-checked, hot-path,
+deterministic-first) and a **conversational port** (natural language, LLM-backed, for
+operator questions and agent-to-agent introspection). The two ports share nothing except
+the correlation trace; a conversational request that asks for an action MUST re-enter
+the typed pipeline (no bypass).
+
+Every `ActionType` binds five agent roles: `initiators`, `judge`, `executor`, `approver`,
+`auditor`. The registry rejects any lifecycle event whose `producer_principal` does not
+match the declared role. The `executor`, `judge`, `approver`, `auditor`, and `initiators`
+fields are fork-locked (see the fork boundaries in
+[../../docs/roadmap/agent-pantheon.md](../../docs/roadmap/agent-pantheon.md#10-fork-customization)).
+
+Handoff, security notification, and privilege-escalation monitoring all flow through the
+same lifecycle and audit machinery - no side-channel side-effects. When an agent cannot
+resolve a request, Saga materializes a `HandoffEscalation` into a GitHub issue with
+fingerprint-based deduplication.
+
 ## Safety Invariants
 
 Every autonomous action MUST have: a **stop-condition**, a tested **rollback path**, a

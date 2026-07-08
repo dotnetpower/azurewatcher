@@ -1,0 +1,68 @@
+"""Mimir - Rule Steward (Wave 2 behavior).
+
+Mimir tracks rule shadow / enforce promotion. Wave 2 exposes a minimal
+in-memory promotion tracker; the concrete rule catalog loader stays in
+:mod:`fdai.rule_catalog`. Mimir's job here is the promotion state
+machine and the RuleCandidate intake.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from fdai.agents.base import Agent
+from fdai.agents.pantheon import _MIMIR
+
+
+@dataclass(frozen=True, slots=True)
+class RulePromotion:
+    rule_id: str
+    state: str  # shadow | enforce | retired
+    source: str  # handoff | override | manual | coherence
+    updated_at: str | None
+
+
+class Mimir(Agent):
+    """Wave-2 Mimir: promotion state + candidate intake."""
+
+    def __init__(self) -> None:
+        super().__init__(spec=_MIMIR)
+        self._promotions: dict[str, RulePromotion] = {}
+        self._pending_candidates: list[dict[str, Any]] = []
+
+    async def on_typed_message(self, topic: str, payload: dict[str, Any]) -> None:
+        if topic == "object.rule-candidate":
+            self._pending_candidates.append(dict(payload))
+
+    def pending_candidates(self) -> tuple[dict[str, Any], ...]:
+        return tuple(self._pending_candidates)
+
+    def promote(
+        self,
+        rule_id: str,
+        *,
+        source: str,
+        updated_at: str | None = None,
+    ) -> RulePromotion:
+        promo = RulePromotion(
+            rule_id=rule_id, state="enforce", source=source, updated_at=updated_at
+        )
+        self._promotions[rule_id] = promo
+        self._pending_candidates = [
+            c for c in self._pending_candidates if c.get("target_rule_id") != rule_id
+        ]
+        return promo
+
+    def revoke(self, rule_id: str, *, updated_at: str | None = None) -> RulePromotion:
+        promo = RulePromotion(
+            rule_id=rule_id, state="retired", source="manual", updated_at=updated_at
+        )
+        self._promotions[rule_id] = promo
+        return promo
+
+    def status(self, rule_id: str) -> RulePromotion | None:
+        return self._promotions.get(rule_id)
+
+
+__all__ = ["Mimir", "RulePromotion"]

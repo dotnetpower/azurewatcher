@@ -1,7 +1,7 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: 4c529c54b971953e37f3b47ae347917aba1f585e
+translation_source_sha: fe00cbabcf2d82e4e197956b3902c4e6b98a8bec
 translation_revised: 2026-07-08
 ---
 
@@ -20,45 +20,85 @@ translation_revised: 2026-07-08
 fdai/
 ├── src/fdai/            # Python (3.12+, src-layout); 모노레포 전체가 하나의 언어
 │   ├── core/                  # headless 컨트롤 플레인 (UI 없음, 클라우드 SDK 직접 import 없음)
-│   │   ├── event_ingest/      # 버스 컨슈머; 이벤트 스키마로 정규화; idempotency key로 dedup; 관련 이벤트를 인시던트로 상관 연결
-│   │   ├── trust_router/      # 계산된 신뢰도로 각 이벤트를 T0 | T1 | T2 로 라우팅
+│   │   ├── event_ingest/       # 버스 컨슈머; 이벤트 스키마로 정규화; idempotency key로 dedup; 관련 이벤트를 인시던트로 상관 연결
+│   │   ├── trust_router/       # 계산된 신뢰도로 각 이벤트를 T0 | T1 | T2 로 라우팅
 │   │   ├── tiers/
-│   │   │   ├── t0_deterministic/  # deterministic-engine: policy, checklist, what-if, drift eval
-│   │   │   ├── t1_lightweight/    # 임베딩 유사도, 학습된 액션 재사용, 소형 모델 분류
-│   │   │   └── t2_reasoning/      # 신규/모호 케이스에만 사용하는 프론티어 모델 추론
-│   │   ├── quality_gate/      # mixed-model 교차 검사, verifier, grounding (T2 방어)
-│   │   ├── risk_gate/         # 리스크 스코어링; auto vs HIL; 4개 안전 불변식 강제
-│   │   ├── executor/          # 리소스별 락, 딜리버리 어댑터로 멱등 적용
-│   │   ├── audit/             # append-only 감사 로그, 추적 상태, KPI/메트릭 발행
-│   │   └── assurance_twin/    # 읽기 전용 온톨로지 트윈: text-to-query 리뷰 / Q&A / assessment (제안만, 실행 안 함)
+│   │   │   ├── t0_deterministic/    # deterministic-engine: policy, checklist, what-if, drift eval
+│   │   │   ├── t1_lightweight/      # 임베딩 유사도, 학습된 액션 재사용, 소형 모델 분류
+│   │   │   └── t2_reasoning/        # 신규/모호 케이스에만 사용하는 프론티어 모델 추론
+│   │   ├── prompts/            # catalog-as-code 프롬프트 컴포저 (`rule-catalog/prompts/` 로드, T2에 공급)
+│   │   ├── tools/              # T2 툴 카탈로그 레지스트리 + `ToolExecutor` (shadow-mode 게이팅)
+│   │   ├── web_search/         # 최후 수단 웹 검색 seam (`NoOpWebSearchProvider` 기본; 도메인 allowlist + sanitizer)
+│   │   ├── operator_memory/    # HIL 승인된 오퍼레이터 메모리를 untrusted `<operator_note>` 데이터로 주입
+│   │   ├── quality_gate/       # mixed-model 교차 검사, verifier, grounding (T2 방어)
+│   │   ├── rca/                # 루트 원인 분석 (T0 deterministic + seam 뒤의 T2 reasoner; grounding-gated)
+│   │   ├── risk_gate/          # 통합 authority: 리스크 스코어 + auto vs HIL vs deny; 4개 안전 불변식 강제
+│   │   ├── rbac/               # 리드 API 를 위한 사람 RBAC (5개 롤 매트릭스, resolver, enforcer)
+│   │   ├── hil_resume/         # HIL 승인 라운드트립: park, 채널로 push, 결정 시 resume
+│   │   ├── executor/           # 리소스별 락, 딜리버리 어댑터로 멱등 적용
+│   │   ├── audit/              # append-only 해시 체인 감사 로그 + KPI/메트릭 발행
+│   │   ├── notifications/      # notifications matrix 위에 얹은 채널 라우팅 레이어
+│   │   ├── detection/          # 아웃-오브-밴드 anomaly / forecast 파인딩 프로듀서 (event-ingest 로 재진입)
+│   │   ├── incident/           # 인시던트 라이프사이클 레지스트리 + 상태 머신 (open → triaging → mitigated → resolved → closed)
+│   │   ├── slo/                # 워크로드 SLO / burn-rate 평가기 (컨트롤 플레인 SLO 와는 구분)
+│   │   ├── runbook/            # 런북 오케스트레이터 (선형 시퀀스 + on-failure 브랜치)
+│   │   ├── postmortem/         # LLM 옵션 postmortem / PIR 드래프트 생성기
+│   │   ├── rule_catalog_profiles/  # 프로파일 / 팩 레이어 - 이름 붙은 룰 번들 (`extends` 체인 + overrides)
+│   │   ├── measurement/        # Phase-4 지속 측정 (regression, pattern growth, model tracking, latency budget, prompt probe, runners)
+│   │   ├── deploy_preflight/   # 배포 전 feasibility 프로브 → grounded readiness 리포트
+│   │   ├── assurance_twin/     # 읽기 전용 온톨로지 트윈: text-to-query 리뷰 / Q&A / assessment (제안만, 실행 안 함)
+│   │   ├── conversation/       # 오퍼레이터 콘솔 코디네이터 (Layer 2): 자연어 턴 → 하나의 read-only 툴 콜
+│   │   ├── verticals/          # Resilience / Change Safety / Cost Governance (P3 통합 지점)
+│   │   ├── control_loop.py     # P1 파이프라인 오케스트레이터: event_ingest → trust_router → T0 → executor → audit
+│   │   └── ontology_explorer.py    # 로드된 ObjectType / LinkType 카탈로그를 결정론적 Mermaid 로 렌더
 │   ├── shared/                # 크로스컷팅; core/ 로부터 import 금지
-│   │   ├── contracts/         # models.py + registry.py + validation.py + JSON 스키마들
-│   │   │   ├── event/         # event/schema.json
-│   │   │   ├── action/        # action/schema.json
-│   │   │   ├── rule/          # rule/schema.json
-│   │   │   └── ontology/      # object-type / link-type / action-type JSON 스키마
-│   │   ├── providers/         # CSP-중립 클라우드 프로바이더 인터페이스 (어댑터가 구현)
-│   │   │                      #   event_bus.py, secret_provider.py, state_store.py,
-│   │   │                      #   workload_identity.py, inventory.py
-│   │   ├── streaming/         # (future) 다른 소비자가 생기면 shared Kafka -> SSE 릴레이; 현재는 read-api 가 자체 허브 (`delivery/read_api/live_stream.py`) 를 소유
-│   │   ├── telemetry/         # 구조화 로깅, 트레이싱, 메트릭 헬퍼
-│   │   └── config/            # config 스키마 + 시작 시 검증 (fail-fast)
+│   │   ├── contracts/          # models.py + registry.py + validation.py + JSON 스키마들
+│   │   │   ├── event/          # event/schema.json
+│   │   │   ├── action/         # action/schema.json
+│   │   │   ├── rule/           # rule/schema.json
+│   │   │   └── ontology/       # object-type / link-type / action-type JSON 스키마
+│   │   ├── ontology/           # 런타임 온톨로지 헬퍼 (ACL, 감사 purposes, purpose taxonomy)
+│   │   ├── providers/          # CSP-중립 클라우드 프로바이더 인터페이스 (어댑터가 구현)
+│   │   │                       #   event_bus.py, secret_provider.py, state_store.py,
+│   │   │                       #   workload_identity.py, inventory.py + LLM / 채널 / RBAC / feasibility-probe seam
+│   │   │                       # `providers/local/` = dev-mode 페이크 (`EnvSecretProvider`, `LocalWorkloadIdentity`, `FileFixtureInventory`);
+│   │   │                       # `providers/testing/` = 테스트 스위트 전반에서 쓰이는 인-메모리 페이크 (prod 에서는 바인딩 안 됨)
+│   │   ├── streaming/          # `SseBroadcaster` + `StagePublisher`: EventBus 토픽을 SSE 채널로 릴레이
+│   │   ├── telemetry/          # 구조화 로깅, 트레이싱, 메트릭 헬퍼
+│   │   └── config/             # config 스키마 + 시작 시 검증 (fail-fast)
 │   ├── delivery/              # 액션 딜리버리 어댑터 (공유 인터페이스 뒤)
-│   │   ├── gitops_pr/         # remediation-pr 어댑터: GitHub App / Azure DevOps, Checks API
-│   │   ├── chatops/           # 채널 어댑터 (Teams / Slack / email / webhook / pager / SMS)
-│   │   └── read_api/          # 얇은 GET-only ASGI (`/audit`, `/kpi`, `/hil-queue`, `/healthz`) + opt-in SSE fan-out (`live_stream.py` 의 `/live/stream`)
-│   └── rule_catalog/          # rule-catalog 파이프라인 코드
-│       ├── schema/            # 규칙 스키마 (semver) + 검증
-│       ├── sources/           # 소스별 컴렉터 (WAF, CIS, OPA, IaC scanners, ...)
-│       └── pipeline/          # watch → collect → shadow eval → regression → promote/rollback
-├── src/fdai/composition.py  # composition root: default_container() 가 모든 seam 을 바인딩
-├── src/fdai/core/control_loop.py  # P1 파이프라인 오케스트레이터: event_ingest → trust_router → T0 → executor → audit
+│   │   ├── gitops_pr/          # remediation-pr 어댑터: GitHub App / Azure DevOps, Checks API
+│   │   ├── chatops/            # 채널 어댑터 (Teams / Slack / email / webhook / pager / SMS)
+│   │   ├── notifications/      # 채널별 sender (email HTTP, HIL sink) - `shared/providers` seam 이 배선
+│   │   ├── persistence/        # `shared/providers` 상태 seam 의 Postgres / pgvector 구체 구현
+│   │   ├── azure/              # Azure 전용 SDK 어댑터 (`azure-*` import 이 허용된 유일한 트리)
+│   │   └── read_api/           # 얇은 GET-only ASGI (`/audit`, `/kpi`, `/hil-queue`, `/healthz`, live 컨트롤 루프, ontology 그래프, promotion-gate, ...) + opt-in SSE fan-out (`live_stream.py` 의 `/live/stream`)
+│   ├── rule_catalog/          # rule-catalog 파이프라인 코드
+│   │   ├── schema/             # 룰 + 온톨로지 (ObjectType / LinkType / ActionType) 스키마 + 검증
+│   │   ├── sources/            # 소스별 컬렉터 (WAF, CIS, OPA, IaC scanners, ...)
+│   │   ├── pipeline/           # watch → collect → shadow eval → regression → promote/rollback
+│   │   └── codegen/            # 저작 헬퍼 (`new_action_type`, `new_object_type`) - 스캐폴드 생성만, 라이브 카탈로그 변경 안 함
+│   ├── agents/                # 판테온 런타임 - 15개 이름있는 에이전트 모듈 (odin / thor / forseti / huginn / heimdall / ...), 타입드 토픽 + 버스, 어댑터 + 레지스트리; [agent-pantheon-ko.md](agent-pantheon-ko.md) 참조
+│   ├── composition.py         # composition root: `default_container()` 가 모든 seam 을 바인딩
+│   └── __main__.py            # 진입점 (P1 컨트롤 루프 기동)
 ├── rule-catalog/              # catalog-as-code 데이터 (YAML) - Python 아님; 파이프라인은 src/fdai/rule_catalog/ 에
-│   ├── schema/                # JSON Schema 정의 (데이터)
-│   ├── vocabulary/            # canonical CSP-중립 어휘: resource-types.yaml, object-types/, link-types/
-│   ├── action-types/          # 온톨로지 ActionType 인스턴스 (shadow-default, promotion_gate 필수)
-│   ├── exemptions/            # 시간-바운드 감사된 예외 아티팩트
-│   └── sources/               # 소스별 규칙 스냅샷 + provenance
+│   ├── schema/                 # JSON Schema 정의 (데이터)
+│   ├── vocabulary/             # canonical CSP-중립 어휘: resource-types.yaml, object-types/, link-types/
+│   ├── action-types/           # 업스트림 온톨로지 ActionType 인스턴스 (shadow-default, promotion_gate 필수)
+│   ├── action-types-custom/    # 포크 전용 ActionType 추가 (업스트림 CI 에서 deny-list)
+│   ├── action-types-overrides/ # 업스트림 ActionType 의 스코프 오버라이드 (≤ resource-group 스코프)
+│   ├── profiles/               # 이름 붙은 룰 팩 (업스트림)
+│   ├── profiles-overrides/     # profiles 의 포크 오버레이
+│   ├── prompts/                # catalog-as-code 프롬프트 조각 (태스크 팩, 툴, 페르소나)
+│   ├── remediation/            # remediation-plan 아티팩트
+│   ├── operator-console/       # `SystemConsoleTool` descriptor 번들
+│   ├── probes/                 # deploy-preflight feasibility 프로브 descriptor
+│   ├── catalog/                # 정규화된 룰 (promotion 후, catalog-of-record)
+│   ├── collected/              # 정규화 전 원본 업스트림 소스 스냅샷
+│   ├── exemptions/             # 시간-바운드 감사된 예외 아티팩트
+│   ├── sources/                # 소스별 룰 스냅샷 + provenance
+│   ├── llm-registry.yaml       # capability 별 LLM 바인딩 레지스트리 (데이터, composition 시점에 해석)
+│   └── risk-classification.yaml # authoritative first-match 리스크 분류 테이블 (risk-classification-ko.md 참조)
 ├── policies/                  # T0와 verifier가 소비하는 OPA/Rego policy-as-code
 ├── infra/                     # IaC: Terraform (HCL); 엔트리 커맨드 `terraform apply`
 │   ├── modules/
@@ -66,14 +106,22 @@ fdai/
 │   │   ├── identity/                # executor 를 위한 user-assigned Managed Identity
 │   │   ├── compute/                 # runtime seam - 대안은 형제 폴더에
 │   │   │   └── container-apps/      # 기본 (Consumption + KEDA)
+│   │   ├── container-registry/      # compute 이미지용 ACR
 │   │   ├── state-store/             # audit + KPI + pgvector
 │   │   │   └── postgres-flex/       # 기본
 │   │   ├── event-bus/               # Kafka 와이어
 │   │   │   └── event-hubs-kafka/    # 기본 (Event Hubs, :9093)
 │   │   ├── secret-store/            # env + Key Vault reference 브릿지
 │   │   │   └── key-vault/           # 기본
-│   │   └── observability/           # Log Analytics + 여기 바인딩된 App Insights
-│   │       └── log-analytics/       # 기본
+│   │   ├── observability/           # Log Analytics + 여기 바인딩된 App Insights
+│   │   │   └── log-analytics/       # 기본
+│   │   ├── llm/                     # 배포자 스코프 LLM 프로비저닝 (dev-and-deploy parity 계약)
+│   │   │   └── azure-openai/        # 기본 Azure OpenAI 디플로이먼트 세트
+│   │   ├── measurement-runners/     # 자동 regression + pattern-growth 러너용 Container Apps Jobs
+│   │   ├── preflight-toggles/       # preflight blocker 를 Terraform 토글로 매핑하는 피처 플래그 표면
+│   │   └── console/                 # 읽기 전용 SPA 를 호스팅하는 Static Web App
+│   │       └── static-web-app/      # 기본
+│   ├── local/                       # 로컬 개발용 IaC (docker-compose, testcontainers 배선; Azure 에 apply 안 함)
 │   └── envs/                        # 환경별 tfvars (git-ignored; 커밋 금지)
 │       ├── dev/
 │       ├── staging/
@@ -88,8 +136,9 @@ fdai/
 │   ├── src/renderers/          # ink (터미널) / text / slack (Block Kit) / teams (Adaptive Card)
 │   ├── src/cli.tsx             # 진입점: 브리핑을 한 번 빌드하고 --surface 별로 렌더
 │   └── package.json            # 의존: ink, react (tsx로 실행, 빌드 단계 없음)
+├── site/                      # Astro / Starlight 문서 사이트 (docs/**/*.md 를 i18n + 검색으로 렌더)
 ├── ui/                        # (미래) 정적 UI 킷 (Calm Slate 테마) - placeholder
-├── tests/                     # 크로스-서브시스템 회귀 스위트 + 공유 픽스처
+├── tests/                     # 크로스-서브시스템 회귀 스위트 + 공유 픽스처 (단위 테스트는 서브시스템 옆에 배치)
 ├── docs/roadmap/              # 이 로드맵과 설계 문서
 ├── pyproject.toml             # Python 모노레포의 단일 매니페스트
 └── .github/                   # instructions/ 와 workflows/ (CI: lint, secret-scan, coverage)

@@ -257,7 +257,7 @@ async def test_out_of_band_detection_metrics_baseline() -> None:
     def _rendered() -> str:
         lines = ["\nper-fixture predictions:"]
         for fixture_id, expected, got in per_fixture:
-            marker = "✓" if expected is got else "✗"
+            marker = "OK  " if expected is got else "MISS"
             lines.append(f"  {marker} {fixture_id}: expected {expected.value}, got {got.value}")
         lines.append("\nper-class metrics:")
         for attribution, cell in metrics.items():

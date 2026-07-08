@@ -49,6 +49,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from fdai.core.hil_resume import HilResumeCoordinator, ResolveOutcome, ResolveResult
+from fdai.shared.providers.hil_channel import HilDecision
 from fdai.shared.providers.hil_registry import (
     HilApprovalDecision,
     HilApprovalRegistry,
@@ -128,10 +130,42 @@ class HilCallbackNotFoundError(HilCallbackError):
     kind = "not_found"
 
 
+_DECISION_TO_CHANNEL: dict[HilApprovalDecision, HilDecision] = {
+    HilApprovalDecision.APPROVE: HilDecision.APPROVE,
+    HilApprovalDecision.REJECT: HilDecision.REJECT,
+}
+
+
+def _coordinator_response(approval_id: str, result: ResolveResult) -> Response:
+    """Map a coordinator :class:`ResolveResult` onto the callback response.
+
+    The coordinator has already audited the terminal decision; this only
+    renders the HTTP status. Self-approval and conflicting-decision are
+    the two refusals that carry a non-200 status (mirroring the registry
+    path); every applied decision (executed / rejected / timeout /
+    already-resolved / execute-failed) is a 200 with the outcome word so
+    the caller can display it.
+    """
+    outcome = result.outcome
+    if outcome is ResolveOutcome.SELF_APPROVAL_REFUSED:
+        return _error(
+            403,
+            "self_approval_forbidden",
+            "no_self_approval - approver equals the parked submitter",
+        )
+    if outcome is ResolveOutcome.CONFLICTING_DECISION:
+        return _error(409, "already_resolved", result.reason or "conflicting decision")
+    return JSONResponse(
+        {"approval_id": approval_id, "outcome": outcome.value, "path": "coordinator"},
+        status_code=200,
+    )
+
+
 def make_hil_callback_route(
     *,
     registry: HilApprovalRegistry,
     config: HilCallbackConfig,
+    coordinator: HilResumeCoordinator | None = None,
     now: Callable[[], datetime] | None = None,
 ) -> Route:
     """Return the single ``POST /hil/{approval_id}/decision`` Route.
@@ -153,6 +187,23 @@ def make_hil_callback_route(
             return _error(exc.status_code, exc.kind, str(exc))
 
         approval_id = request.path_params["approval_id"]
+
+        # Coordinator (park and resume) path takes precedence: an action
+        # the control loop routed to HIL is parked in the StateStore, not
+        # the registry. When a park exists for this approval_id the
+        # coordinator applies the decision (APPROVE re-dispatches to the
+        # executor, REJECT/records) and we return. A NOT_FOUND means no
+        # park - fall through to the registry path below (console-pull
+        # approvals raised via approve_hil).
+        if coordinator is not None:
+            resolve_result = await coordinator.resolve(
+                approval_id=approval_id,
+                decision=_DECISION_TO_CHANNEL[payload.decision],
+                approver_oid=payload.actor_oid,
+                reason=payload.justification,
+            )
+            if resolve_result.outcome is not ResolveOutcome.NOT_FOUND:
+                return _coordinator_response(approval_id, resolve_result)
 
         # Load the pending item so we can enforce no_self_approval BEFORE
         # touching the registry write path.
@@ -235,6 +286,21 @@ async def _authenticate_and_parse(
 
     # Enforce replay window before spending crypto cycles.
     _reject_replay(timestamp=timestamp, clock=clock, max_skew=config.max_skew_seconds)
+
+    # Reject oversize requests BEFORE buffering the body - checking
+    # Content-Length up front prevents an attacker from forcing us to
+    # read gigabytes into memory just to `len(raw)` after the fact. A
+    # missing / non-numeric header falls through to the post-read check.
+    declared_len = request.headers.get("content-length")
+    if declared_len is not None:
+        try:
+            if int(declared_len) > config.max_body_bytes:
+                raise HilCallbackBadRequestError(
+                    f"content-length {declared_len} exceeds max size "
+                    f"({config.max_body_bytes} bytes)"
+                )
+        except ValueError:
+            pass
 
     raw = await request.body()
     if len(raw) > config.max_body_bytes:

@@ -288,6 +288,17 @@ control loop where HIL approvals are dispatched.
 for the pipeline tests; add wire-level tests for your adapter with
 `httpx.MockTransport`.
 
+**Control-loop wiring (upstream-assisted)**: `__main__` auto-binds a
+`HilResumeCoordinator` (park the action + push an A1 approval card) as
+soon as `FDAI_CHATOPS_WEBHOOK_URL` is set - a fork supplies only the
+webhook, no code change. For A2 operational-alert push on every terminal
+decision, assemble a `NotificationRouter` (`fdai.core.notifications`)
+from your channel adapters (`fdai.delivery.notifications.*`), the
+upstream `StateStoreHilEscalationSink` (the `on_all_fail` fail-safe
+queue), and your matrix override (real channel ids for the placeholders
+in `config/notifications-matrix.yaml`), then pass it as
+`notification_router=` into the control loop.
+
 ### 5.6 ScopeResolver (ARM id -> OperatorScope)
 
 **When to override**: activating operator memory for real events.

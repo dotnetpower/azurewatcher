@@ -53,6 +53,7 @@ from .core.quality_gate.debate import DebateOrchestrator, DebateOrchestratorConf
 from .core.quality_gate.gate import CrossCheckModel
 from .core.quality_gate.judge import JudgeModel
 from .core.quality_gate.testing import MatchTypeCrossCheckModel, MismatchCrossCheckModel
+from .core.rca import LlmRcaReasoner, RcaReasoner
 from .core.tiers.t1_lightweight.testing import DeterministicEmbeddingModel
 from .core.tiers.t1_lightweight.tier import EmbeddingModel
 from .rule_catalog.schema.llm_resolver import (
@@ -129,6 +130,7 @@ class LlmBindings:
     critic_model: CriticModel | None = None
     judge_model: JudgeModel | None = None
     debate_orchestrator: DebateOrchestrator | None = None
+    rca_reasoner: RcaReasoner | None = None
 
     def __post_init__(self) -> None:
         if not self.cross_check_models:
@@ -232,6 +234,7 @@ def bind_azure_llm_bindings(
     scope_resolver: Any | None = None,
     critic_system_prompt: str | None = None,
     judge_system_prompt: str | None = None,
+    rca_system_prompt: str | None = None,
 ) -> Container:
     """Return a new :class:`Container` with the Azure OpenAI adapters attached.
 
@@ -309,6 +312,10 @@ def bind_azure_llm_bindings(
     from .delivery.azure.llm.judge import (
         AzureOpenAIJudgeModel,
         AzureOpenAIJudgeModelConfig,
+    )
+    from .delivery.azure.llm.rca_model import (
+        AzureOpenAIRcaModel,
+        AzureOpenAIRcaModelConfig,
     )
 
     if not system_prompt:
@@ -463,12 +470,33 @@ def bind_azure_llm_bindings(
             judge=judge_model,
             config=DebateOrchestratorConfig(max_rounds=1),
         )
+    # RCA T2 reasoner: opt-in, symmetric to Critic / Judge. Bind the real
+    # ``AzureOpenAIRcaModel`` behind ``LlmRcaReasoner`` only when the
+    # ``t2.rca`` capability resolves AND the caller supplied an
+    # ``rca_system_prompt``. Missing either keeps ``rca_reasoner = None`` so
+    # ``RcaCoordinator.has_t2`` is False and novel-case T2 RCA stays dark
+    # (the deterministic T0 RCA path is unaffected).
+    rca_cap = _capability(resolved, "t2.rca")
+    rca_reasoner: RcaReasoner | None = None
+    if rca_cap is not None and rca_system_prompt:
+        rca_reasoner = LlmRcaReasoner(
+            model=AzureOpenAIRcaModel(
+                identity=identity,
+                http_client=http_client,
+                config=AzureOpenAIRcaModelConfig(
+                    endpoint=endpoint,
+                    deployment=rca_cap.name,
+                    system_prompt=rca_system_prompt,
+                ),
+            )
+        )
     bindings = LlmBindings(
         embedding_model=embedding,
         cross_check_models=(primary, secondary),
         critic_model=critic_model,
         judge_model=judge_model,
         debate_orchestrator=debate_orchestrator,
+        rca_reasoner=rca_reasoner,
     )
     return replace(container, llm_bindings=bindings)
 
@@ -531,12 +559,24 @@ def default_container_from_env() -> Container:
 
     Side-effect: configures process-wide telemetry (JSON logging + OTel
     tracer/meter providers) before returning. Idempotent.
+
+    ``FDAI_LOG_LEVEL`` (default ``INFO``) picks the root logger level so
+    a fork can dial verbosity without editing code. Unrecognized values
+    fall back to ``INFO`` rather than failing startup - telemetry is a
+    diagnostic, not a control-loop dependency.
     """
     config = load_config_from_env()
     # Wire telemetry once, before any provider emits log or span.
+    import logging
+    import os
+
     from .shared.telemetry.setup import configure_telemetry
 
-    configure_telemetry(config)
+    level_name = os.environ.get("FDAI_LOG_LEVEL", "INFO").upper().strip()
+    level = getattr(logging, level_name, logging.INFO)
+    if not isinstance(level, int):
+        level = logging.INFO
+    configure_telemetry(config, level=level)
     return default_container(config)
 
 
@@ -698,6 +738,25 @@ async def wire_azure_container(
             },
         )
 
+    # RCA T2 reasoner prompt (symmetric to Critic / Judge). Missing prompt
+    # is logged and skipped; the bind step then leaves
+    # ``LlmBindings.rca_reasoner = None`` and T2 RCA stays dark.
+    rca_system_prompt: str | None = None
+    try:
+        rca_composed = await composer.compose(capability_id="t2.rca")
+    except LookupError:
+        _LOGGER.info("rca_prompt_missing", extra={"capability_id": "t2.rca"})
+    else:
+        rca_system_prompt = rca_composed.system_text
+        _LOGGER.info(
+            "rca_prompt_composed",
+            extra={
+                "capability_id": "t2.rca",
+                "layer_count": len(rca_composed.layer_manifest),
+                "token_estimate": rca_composed.token_estimate,
+            },
+        )
+
     _LOGGER.info(
         "prompt_composed",
         extra={
@@ -722,6 +781,7 @@ async def wire_azure_container(
         scope_resolver=overrides.scope_resolver,
         critic_system_prompt=critic_system_prompt,
         judge_system_prompt=judge_system_prompt,
+        rca_system_prompt=rca_system_prompt,
     )
 
 

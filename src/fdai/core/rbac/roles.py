@@ -66,9 +66,9 @@ class Capability(StrEnum):
     APPLY_INFRA_IAC = "apply-infra-iac"
 
 
-# The capability bag for each role. The doc's matrix uses ✓/blank; the
-# code encodes the same rows as frozensets so a lookup is O(1). Any
-# change here MUST update
+# The capability bag for each role. The doc's matrix uses check-mark /
+# blank cells; the code encodes the same rows as frozensets so a lookup is
+# O(1). Any change here MUST update
 # `docs/roadmap/user-rbac-and-identity.md § 3` in the same PR - the
 # doc row and the frozenset entry are the single source of truth
 # together (see coding-conventions.instructions.md § Documentation).

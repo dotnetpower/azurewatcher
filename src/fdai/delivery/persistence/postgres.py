@@ -33,6 +33,12 @@ from fdai.shared.providers.state_store import StateStore
 
 _GENESIS_HASH: Final[str] = "0" * 64
 
+# Deterministic 63-bit signed key for `pg_advisory_xact_lock`. Chosen once
+# so every FDAI process contends on the same lock when appending to the
+# hash-chained audit log; a different codebase deriving its own key from
+# the string "fdai.audit_log" cannot collide by accident.
+_AUDIT_APPEND_LOCK_KEY: Final[int] = 0x0FDA10AAAAAA01
+
 
 def _canonical(entry: Mapping[str, Any]) -> str:
     """Deterministic JSON serialization matching :class:`InMemoryStateStore`."""
@@ -91,6 +97,18 @@ class PostgresStateStore(StateStore):
         async with await psycopg.AsyncConnection.connect(self._config.dsn) as conn:
             async with conn.transaction():
                 await self._set_statement_timeout(conn)
+                # Serialize concurrent hash-chain appenders. Without this
+                # advisory lock two writers can both read the same
+                # `previous_hash`, compute two distinct child hashes, and
+                # INSERT twice - forking the chain silently (the UNIQUE
+                # index on `entry_hash` does not catch this because the
+                # two hashes are different). `pg_advisory_xact_lock` is
+                # released automatically at transaction end, so the lock
+                # never leaks across a crash.
+                await conn.execute(
+                    "SELECT pg_advisory_xact_lock(%s)",
+                    (_AUDIT_APPEND_LOCK_KEY,),
+                )
                 cur = await conn.execute(
                     "SELECT entry_hash FROM audit_log ORDER BY seq DESC LIMIT 1"
                 )

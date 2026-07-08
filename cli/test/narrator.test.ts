@@ -7,8 +7,15 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
-import { createNarrator, readLlmConfig } from "../src/narrator/index.js";
+import {
+  createNarrator,
+  readLlmConfig,
+  resolveDiskLlmConfig,
+} from "../src/narrator/index.js";
 import { DeterministicNarrator } from "../src/narrator/deterministic.js";
 import { LlmNarrator } from "../src/narrator/llm.js";
 import { runTool } from "../src/narrator/tools.js";
@@ -20,10 +27,14 @@ const sampleCtx: NarratorContext = {
   payload: sampleBriefing("needs-me"),
 };
 
+// Point disk resolution at a path that does not exist so the tests stay
+// hermetic regardless of a local (gitignored) resolved-models.json.
+const NO_DISK = { LLM_RESOLVED_MODELS_PATH: "/nonexistent-fdai/resolved-models.json" };
+
 describe("readLlmConfig + createNarrator", () => {
   it("returns null and a deterministic narrator with no env", () => {
     expect(readLlmConfig({})).toBeNull();
-    expect(createNarrator({}).kind).toBe("deterministic");
+    expect(createNarrator(NO_DISK).kind).toBe("deterministic");
   });
 
   it("parses a full config and selects the LLM narrator", () => {
@@ -35,6 +46,7 @@ describe("readLlmConfig + createNarrator", () => {
     const cfg = readLlmConfig(env);
     expect(cfg).not.toBeNull();
     expect(cfg?.provider).toBe("openai");
+    expect(cfg?.auth).toBe("api-key");
     expect(createNarrator(env).kind).toBe("llm");
   });
 
@@ -49,9 +61,34 @@ describe("readLlmConfig + createNarrator", () => {
   });
 
   it("stays deterministic when the config is partial", () => {
-    expect(createNarrator({ FDAI_NARRATOR_API_KEY: "only-key" }).kind).toBe(
-      "deterministic",
+    expect(
+      createNarrator({ FDAI_NARRATOR_API_KEY: "only-key", ...NO_DISK }).kind,
+    ).toBe("deterministic");
+  });
+
+  it("resolves a keyless azure-ad narrator from resolved-models.json", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fdai-narr-"));
+    const file = path.join(dir, "resolved-models.json");
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        narrator: { endpoint: "https://example.openai.azure.com/", deployment: "gpt-4o-mini" },
+      }),
     );
+    const cfg = resolveDiskLlmConfig({ LLM_RESOLVED_MODELS_PATH: file });
+    expect(cfg?.provider).toBe("azure");
+    expect(cfg?.auth).toBe("azure-ad");
+    expect(cfg?.model).toBe("gpt-4o-mini");
+    expect(createNarrator({ LLM_RESOLVED_MODELS_PATH: file }).kind).toBe("llm");
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("ignores resolved-models.json without a narrator block", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fdai-narr-"));
+    const file = path.join(dir, "resolved-models.json");
+    fs.writeFileSync(file, JSON.stringify({ region: "koreacentral" }));
+    expect(resolveDiskLlmConfig({ LLM_RESOLVED_MODELS_PATH: file })).toBeNull();
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });
 
@@ -95,6 +132,32 @@ describe("console tools", () => {
 
   it("throws on an unknown tool", async () => {
     await expect(runTool("nope", {}, sampleCtx)).rejects.toThrow(/unknown/);
+  });
+
+  it("set_view drives an attached screen and is read-only", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    const ctx: NarratorContext = {
+      ...sampleCtx,
+      screen: {
+        setView: (patch) => {
+          calls.push(patch);
+          return "Showing OVERVIEW.";
+        },
+      },
+    };
+    const out = await runTool("set_view", { mode: "overview" }, ctx);
+    expect(out).toBe("Showing OVERVIEW.");
+    expect(calls).toEqual([{ mode: "overview" }]);
+  });
+
+  it("set_view is a no-op without a screen", async () => {
+    const out = await runTool("set_view", { mode: "overview" }, sampleCtx);
+    expect(out).toContain("no screen attached");
+  });
+
+  it("query_inventory asks for a kql query when none is given", async () => {
+    const out = await runTool("query_inventory", {}, sampleCtx);
+    expect(out).toContain("kql");
   });
 });
 

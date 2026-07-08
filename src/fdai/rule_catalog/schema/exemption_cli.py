@@ -47,18 +47,18 @@ def main(argv: list[str] | None = None) -> int:
             raw = _load_json_file(path)
             load_exemption_from_mapping(raw)
         except FileNotFoundError:
-            print(f"❌ {path}: file not found", file=sys.stderr)
+            print(f"[FAIL] {path}: file not found", file=sys.stderr)
             failures += 1
         except (json.JSONDecodeError, ValueError) as exc:
-            print(f"❌ {path}: {exc}", file=sys.stderr)
+            print(f"[FAIL] {path}: {exc}", file=sys.stderr)
             failures += 1
         except ExemptionError as exc:
-            print(f"❌ {path}: exemption validation failed", file=sys.stderr)
+            print(f"[FAIL] {path}: exemption validation failed", file=sys.stderr)
             for issue in exc.issues:
                 print(f"    - {issue.key}: {issue.message}", file=sys.stderr)
             failures += 1
         else:
-            print(f"✓ {path}")
+            print(f"[OK] {path}")
 
     if failures:
         print(f"\nexemption-check: FAILED - {failures} file(s) invalid.", file=sys.stderr)

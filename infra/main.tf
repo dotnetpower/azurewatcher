@@ -1,6 +1,8 @@
 # -----------------------------------------------------------------------
 # Deterministic name suffixes.
 # -----------------------------------------------------------------------
+data "azurerm_client_config" "current" {}
+
 locals {
   env_suffix    = var.env == "" ? "" : "-${var.env}"
   region_suffix = var.region_short == "" ? "" : "-${var.region_short}"
@@ -57,6 +59,17 @@ module "container_registry" {
   location            = var.region
   resource_group_name = module.resource_group.name
   tags                = local.tags
+}
+
+# Grant the executor MI `AcrPull` so the Container App can pull an image
+# a fork pushes to this ACR. Upstream's default `core_image` points at
+# `mcr.microsoft.com/...` (anonymous pull, no role needed), but the
+# role assignment is idempotent and lets a fork override `core_image`
+# with an ACR-hosted digest without extra IAM work.
+resource "azurerm_role_assignment" "executor_acr_pull" {
+  scope                = module.container_registry.id
+  role_definition_name = "AcrPull"
+  principal_id         = module.identity.principal_id
 }
 
 # -----------------------------------------------------------------------
@@ -129,6 +142,17 @@ module "event_bus" {
   tags                = local.tags
 }
 
+# Executor MI needs both send and receive on the namespace: the control
+# loop consumes ingress topics via the Kafka wire on :9093 AND publishes
+# DLQ / derived events. `Azure Event Hubs Data Owner` covers both without
+# splitting into two role assignments; the namespace has
+# `local_authentication_enabled = false` so this is the only path in.
+resource "azurerm_role_assignment" "executor_eventhubs_data_owner" {
+  scope                = module.event_bus.namespace_id
+  role_definition_name = "Azure Event Hubs Data Owner"
+  principal_id         = module.identity.principal_id
+}
+
 # -----------------------------------------------------------------------
 # State Store - PostgreSQL Flexible with pgvector.
 # -----------------------------------------------------------------------
@@ -142,6 +166,56 @@ module "state_store" {
   administrator_password = var.postgres_admin_password
   database_name          = var.workload
   tags                   = local.tags
+}
+
+# -----------------------------------------------------------------------
+# Persistence DSNs - Key Vault-backed secrets consumed by the core app.
+#
+# Provisioning the secrets from the same apply requires the caller to hold
+# `Key Vault Secrets Officer` on the vault. `kv_officer_self` grants it to
+# the apply principal (the executing Entra identity) so the secret create
+# does not race against a manual out-of-band RBAC step. This role is scoped
+# to the vault only and never granted to the executor MI - executor keeps
+# read-only `Secrets User` from the KV module.
+#
+# Day-zero the three DSNs point at the same database (deploy-and-onboard.md
+# § PostgreSQL Flexible Server "single store"); a fork MAY split them
+# without touching the core, because each is a separate env var.
+# -----------------------------------------------------------------------
+resource "azurerm_role_assignment" "kv_officer_self" {
+  scope                = module.key_vault.id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
+resource "azurerm_key_vault_secret" "state_store_dsn" {
+  name         = "fdai-state-store-dsn"
+  value        = module.state_store.application_dsn
+  key_vault_id = module.key_vault.id
+  content_type = "postgres-dsn"
+  tags         = local.tags
+
+  depends_on = [azurerm_role_assignment.kv_officer_self]
+}
+
+resource "azurerm_key_vault_secret" "operator_memory_dsn" {
+  name         = "fdai-operator-memory-dsn"
+  value        = module.state_store.application_dsn
+  key_vault_id = module.key_vault.id
+  content_type = "postgres-dsn"
+  tags         = local.tags
+
+  depends_on = [azurerm_role_assignment.kv_officer_self]
+}
+
+resource "azurerm_key_vault_secret" "pattern_library_dsn" {
+  name         = "fdai-pattern-library-dsn"
+  value        = module.state_store.application_dsn
+  key_vault_id = module.key_vault.id
+  content_type = "postgres-dsn"
+  tags         = local.tags
+
+  depends_on = [azurerm_role_assignment.kv_officer_self]
 }
 
 # -----------------------------------------------------------------------
@@ -160,6 +234,24 @@ module "compute" {
   image                 = var.core_image
   max_replicas          = var.max_replicas
 
+  # Required config env vars - `EnvVarConfigProvider` fails-fast if any is
+  # unset, so wire them all from the surrounding infra outputs.
+  azure_tenant_id         = var.tenant_id
+  azure_subscription_id   = data.azurerm_client_config.current.subscription_id
+  azure_resource_group    = module.resource_group.name
+  azure_region            = var.region
+  kafka_bootstrap_servers = module.event_bus.kafka_bootstrap
+  kafka_topic_events      = local.event_topics[0]
+  postgres_host           = module.state_store.fqdn
+  postgres_database       = module.state_store.database_name
+  runtime_env             = var.env == "" ? "dev" : var.env
+  autonomy_mode_default   = "shadow"
+
+  # Persistence DSNs (KV-backed; executor MI reads at runtime).
+  state_store_dsn_secret_id     = azurerm_key_vault_secret.state_store_dsn.id
+  operator_memory_dsn_secret_id = azurerm_key_vault_secret.operator_memory_dsn.id
+  pattern_library_dsn_secret_id = azurerm_key_vault_secret.pattern_library_dsn.id
+
   # DB-DR drill (opt-in; the fork toggles dr_drill_enabled + supplies the
   # source server ARM id once the runbook in docs/runbooks/db-dr-drill.md
   # is signed off. Upstream keeps it disabled.).
@@ -169,6 +261,27 @@ module "compute" {
   dr_drill_dry_run              = var.dr_drill_dry_run
 
   tags = local.tags
+
+  # Wait for every runtime prerequisite:
+  #   - KV secrets present and the executor MI has Secrets User on them.
+  #   - Postgres firewall lets the Container App outbound IPs in
+  #     (`module.state_store` is a superset that also covers the DB + the
+  #     server itself; using the module handle keeps this correct if the
+  #     firewall resource gets renamed).
+  #   - Event Hubs Data Owner effective for Kafka OAUTHBEARER.
+  #   - AcrPull effective on the ACR (matters once the fork's image is
+  #     pushed there; upstream default pulls from MCR which needs no role).
+  # Without these `depends_on` edges Terraform can create the Container
+  # App revision first, watch it crash-loop on missing IAM, and only
+  # then finish the role assignments a minute or two later.
+  depends_on = [
+    module.state_store,
+    azurerm_key_vault_secret.state_store_dsn,
+    azurerm_key_vault_secret.operator_memory_dsn,
+    azurerm_key_vault_secret.pattern_library_dsn,
+    azurerm_role_assignment.executor_eventhubs_data_owner,
+    azurerm_role_assignment.executor_acr_pull,
+  ]
 }
 
 

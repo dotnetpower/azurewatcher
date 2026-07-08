@@ -38,7 +38,6 @@ from fdai.core.executor.executor import (
     ExecutorConfig,
     _missing_safety_invariant,
 )
-from fdai.core.executor.lock import ResourceLockManager
 from fdai.shared.contracts.models import Action, Mode
 from fdai.shared.providers.direct_api import (
     DirectApiError,
@@ -124,7 +123,7 @@ class DirectApiShadowExecutor:
         *,
         executor: DirectApiExecutor,
         audit_store: StateStore,
-        resource_lock: ResourceLockManager,
+        resource_lock: ResourceLock,
         config: ExecutorConfig | None = None,
     ) -> None:
         self._executor = executor

@@ -220,7 +220,8 @@ flowchart TD
     A[Prerequisites resolved] --> B[IaC provision core resources]
     B --> C[Create executor MI plus scoped role assignments]
     C --> D[Deploy signed image to Container Apps in shadow-only]
-    D --> E[Attach Diagnostic Settings and Kafka topic forwarders]
+    D --> D1[Run alembic upgrade head against the provisioned Postgres]
+    D1 --> E[Attach Diagnostic Settings and Kafka topic forwarders]
     E --> F[Seed rule catalog with day-zero rule set]
     F --> G[Register HIL approvers and ChatOps channel]
     G --> H[Run post-deploy smoke tests]
@@ -229,6 +230,11 @@ flowchart TD
 
 - **Shadow-only on first deploy**: no rule / action starts in enforce mode, ever. Promotion is
   a separate act ([rule-governance.md](rule-governance.md)).
+- **Migrations MUST run before the first control-loop tick**. The Container App itself does
+  not migrate on start (to keep replicas identical + prevent races). Run
+  `alembic upgrade head` from a workstation or a CI job that can reach the provisioned
+  Postgres FQDN with the admin DSN. The 6 migrations under `alembic/versions/` are
+  reversible - a broken deploy can `alembic downgrade -1` back to the prior baseline.
 - Post-deploy smoke tests and the synthetic canary are defined in
   [operating-and-verification.md](operating-and-verification.md).
 
@@ -265,9 +271,9 @@ full expanded catalog and defaults are authored during the inventory PR.
 | `KAFKA_SECURITY_PROTOCOL` | env | fork | `SASL_SSL` on Azure; provider-specific value elsewhere |
 | `KAFKA_SASL_MECHANISM` | env | fork | `OAUTHBEARER` on Azure |
 | `KEYVAULT_URL` | env | fork | executor MI has GET on secrets |
-| `POSTGRES_HOST` | env | fork | non-secret |
-| `POSTGRES_DB` | env | fork | non-secret |
-| `POSTGRES_AUTH` | KV ref | fork | prefer federated / MI, otherwise short-lived secret |
+| `FDAI_STATE_STORE_DSN` | KV ref | upstream | Postgres connection URI for audit + KPI; wired by `infra/main.tf` `azurerm_key_vault_secret.state_store_dsn` from `module.state_store.application_dsn`, exposed to the Container App via `secret{}` + `env{}` (see [project-structure.md](project-structure.md) `infra/modules/compute/container-apps/`). Empty at runtime => in-memory fallback. |
+| `FDAI_OPERATOR_MEMORY_DSN` | KV ref | upstream | Postgres DSN for HIL-approved operator memory. Same source as `FDAI_STATE_STORE_DSN` day-zero (single Flexible Server); a fork MAY split it later without touching core code. |
+| `FDAI_T1_PATTERN_LIBRARY_DSN` | KV ref | upstream | Postgres DSN for the pgvector-backed T1 pattern library. Same source day-zero; wired identically. |
 | `KAFKA_TOPIC_EVENTS` | env | fork | primary event ingest topic |
 | `KAFKA_TOPIC_DLQ_SUFFIX` | env | fork | dead-letter suffix (default `.dlq`) |
 | `TEAMS_HIL_CHANNEL_ID` | env | fork | HIL routing |
@@ -277,6 +283,19 @@ full expanded catalog and defaults are authored during the inventory PR.
 | `LLM_RESOLVED_MODELS_PATH` | KV ref | fork | required when `LLM_MODE=azure`; points at the `resolved-models.json` written by the bootstrap resolver |
 | `RULE_CATALOG_REF` | env | fork | git ref of catalog snapshot |
 | `AUTONOMY_MODE_DEFAULT` | env | fork | MUST default to `shadow` |
+| `FDAI_LOG_LEVEL` | env | upstream | Python logger level for the core app (`DEBUG` / `INFO` / `WARNING` / `ERROR`). Default `INFO`. |
+| `FDAI_READ_API_DEV_MODE` | env | dev-only | `1` bypasses Entra JWT validation in the read API for local dev. MUST NOT be set in staging / prod. |
+| `FDAI_POLICIES_ROOT` | env | fork | absolute path to the OPA / Rego bundle root consumed by T0 and the verifier. Defaults to the in-repo `policies/` when unset. |
+| `FDAI_MI_CLIENT_ID` | env | upstream | executor user-assigned MI client id (populated by Container Apps from the assigned identity). Used by `WorkloadIdentity` for the audience-scoped OIDC exchange. |
+| `FDAI_MEASUREMENT_MODE` | env | upstream | `shadow` (default) or `enforce` - governs the Container Apps Jobs runners in `infra/modules/measurement-runners/`. |
+| `FDAI_DIRECT_API_FAKE` | env | dev-only | `1` swaps the executor direct-API path for the in-memory fake; used by tests and local dev. |
+| `FDAI_PROFILE_ID` | env | fork | selects one profile from `rule-catalog/profiles/` (see [rule-catalog-profiles.md](rule-catalog-profiles.md)). **Composition-root wiring pending** as of 2026-07. |
+| `FDAI_NARRATOR_PROVIDER` / `FDAI_NARRATOR_BASE_URL` / `FDAI_NARRATOR_MODEL` / `FDAI_NARRATOR_API_VERSION` / `FDAI_NARRATOR_API_KEY` | env + KV ref | fork | Operator-console narrator translator config (see [operator-console.md](operator-console.md)); `API_KEY` MUST go through KV. Empty provider = deterministic fallback. |
+| `FDAI_CHATOPS_APPROVE_CALLBACK_URL` / `FDAI_CHATOPS_REJECT_CALLBACK_URL` / `FDAI_CHATOPS_WEBHOOK_SECRET` / `FDAI_CHATOPS_TIMEOUT_SECONDS` | env + KV ref | fork | Chatops HIL callback endpoints and the shared webhook secret; the secret MUST go through KV. |
+| `FDAI_GITOPS_API_BASE` / `FDAI_GITOPS_DEFAULT_BRANCH` / `FDAI_GITOPS_BRANCH_PREFIX` / `FDAI_GITOPS_TIMEOUT_SECONDS` | env | fork | `gitops-pr` adapter target repo config (GitHub App / Azure DevOps). Auth secrets flow through the platform's App installation, not env vars. |
+| `FDAI_RBAC_READERS_GROUP_ID` / `FDAI_RBAC_CONTRIBUTORS_GROUP_ID` / `FDAI_RBAC_APPROVERS_GROUP_ID` / `FDAI_RBAC_OWNERS_GROUP_ID` / `FDAI_RBAC_BREAK_GLASS_GROUP_ID` | env | fork | Entra ID group object ids for the five human roles (see [user-rbac-and-identity.md](user-rbac-and-identity.md)). Unset group = role unassigned. |
+| `FDAI_DR_DRILL_SOURCE_SERVER_ARM_ID` / `FDAI_DR_DRILL_TARGET_LOCATION` / `FDAI_DR_DRILL_TARGET_RG_PREFIX` / `FDAI_DR_DRILL_TARGET_SERVER_PREFIX` / `FDAI_DR_DRILL_PITR_OFFSET_MINUTES` / `FDAI_DR_DRILL_DRY_RUN` | env | fork | DB-DR drill job config (see [../runbooks/db-dr-drill.md](../runbooks/db-dr-drill.md)); `DRY_RUN=true` upstream default keeps the job idempotent. |
+| `FDAI_SECRET_KAFKA_TOKEN` / other `FDAI_SECRET_*` | KV ref | fork | generic escape hatch for a secret consumed by an adapter that does not yet have a dedicated env-var name; every `FDAI_SECRET_*` value MUST come from KV. |
 
 Rules that apply to every key:
 

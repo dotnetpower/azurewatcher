@@ -33,8 +33,25 @@ def _registry() -> PackageResourceSchemaRegistry:
 def test_shipped_object_types_load() -> None:
     catalog = load_object_type_catalog(CATALOG_ROOT, schema_registry=_registry())
     names = object_type_names(catalog)
-    # Four built-ins plus the shipped ChangeSummary reference example.
-    assert names == {"Resource", "Rule", "Signal", "Finding", "ChangeSummary"}
+    # Four control-loop built-ins plus the ChangeSummary reference plus the
+    # eight pantheon object types
+    # (docs/roadmap/agent-pantheon.md § 5, docs/roadmap/agent-pantheon-implementation.md Wave 0).
+    assert names == {
+        "Resource",
+        "Rule",
+        "Signal",
+        "Finding",
+        "ChangeSummary",
+        # Pantheon (docs/roadmap/agent-pantheon.md)
+        "Agent",
+        "Conversation",
+        "Turn",
+        "UserPreference",
+        "SecurityEvent",
+        "Issue",
+        "RuleCandidate",
+        "HandoffEscalation",
+    }
 
 
 def test_every_shipped_object_type_has_id_key() -> None:
@@ -86,7 +103,7 @@ def test_duplicate_name_across_files_fails(tmp_path: Path) -> None:
 def test_invalid_name_pattern_fails(tmp_path: Path) -> None:
     # Name MUST start with a capital letter and be PascalCase.
     (tmp_path / "bad.yaml").write_text(
-        (
+        
             'schema_version: "1.0.0"\n'
             "name: lowerBad\n"
             'version: "1.0.0"\n'
@@ -94,7 +111,7 @@ def test_invalid_name_pattern_fails(tmp_path: Path) -> None:
             "properties:\n"
             "  id:\n"
             "    type: string\n"
-        )
+        
     )
     with pytest.raises(ObjectTypeCatalogError) as info:
         load_object_type_catalog(tmp_path, schema_registry=_registry())

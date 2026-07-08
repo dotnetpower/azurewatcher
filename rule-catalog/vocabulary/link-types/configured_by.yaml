@@ -1,0 +1,14 @@
+# LinkType: configured_by (Agent -> UserPreference, M:M)
+#
+# Fork-configured knobs (rate limits, LLM bindings, enabled flag) live
+# in UserPreference records that pantheon Agents read at startup and
+# on hot-reload. Modeled M:M because one preference can drive multiple
+# agents (e.g. shared LLM binding) and one agent may consult multiple
+# preferences.
+schema_version: "1.0.0"
+name: configured_by
+version: "1.0.0"
+from_type: Agent
+to_type: UserPreference
+cardinality: many_to_many
+description: UserPreference records that configure a pantheon Agent.

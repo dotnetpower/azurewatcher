@@ -1,0 +1,13 @@
+# LinkType: proposes (RuleCandidate -> Rule, M:1)
+#
+# The catalog's autonomous discovery loop (architecture.instructions.md
+# - Living rules) emits RuleCandidate objects that, on quality-gate
+# promotion, become Rules. Modeled as M:1 because multiple candidates
+# may merge into a single promoted Rule (dedup + refinement).
+schema_version: "1.0.0"
+name: proposes
+version: "1.0.0"
+from_type: RuleCandidate
+to_type: Rule
+cardinality: many_to_one
+description: RuleCandidate proposed by the discovery loop; promoted to a Rule via the quality gate.

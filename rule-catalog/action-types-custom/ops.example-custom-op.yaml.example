@@ -1,0 +1,68 @@
+# Example custom ActionType (fork copy-paste template).
+#
+# This file carries the `.yaml.example` suffix so the catalog loader
+# (which globs `*.yaml`) never loads it. To use it in a downstream fork,
+# copy it into the fork's own custom catalog root, drop the `.example`
+# suffix, and replace the placeholder `name`, `description`, and
+# `argument_schema` with the real ActionType. Keep `default_mode: shadow`
+# and every `ceiling_by_tier` at `shadow_only` until a measured shadow
+# window justifies promotion.
+#
+# See action-types-custom/README.md for how a fork concatenates this
+# root with the upstream catalog.
+schema_version: 1.0.0
+name: ops.example-custom-op
+version: 1.0.0
+operation: create
+interfaces:
+- ControlPlane
+- IdempotentByKey
+rollback_contract: pr_revert
+irreversible: false
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 14
+  min_samples: 30
+  min_accuracy: 0.98
+  max_policy_escapes: 0
+preconditions:
+- kind: no_conflicting_open_action_on_resource
+stop_conditions:
+- kind: provider_api_error_streak
+  count: 3
+- kind: time_box_exceeded_seconds
+  seconds: 300
+blast_radius:
+  computation: static_enum
+  static_bucket: resource
+description: Placeholder custom ops ActionType shipped as a fork template. Replace this
+  description with what the fork-specific action does and how its delivery adapter applies
+  and reverts the change. Rolls back by reverting the paired remediation PR.
+category: ops
+trigger_kind:
+  kind: both
+execution_path: pr_native
+ceiling_by_tier:
+  t0:
+    max_autonomy: shadow_only
+    min_role: contributor
+  t1:
+    max_autonomy: shadow_only
+    min_role: contributor
+  t2:
+    max_autonomy: shadow_only
+    min_role: contributor
+argument_schema:
+  type: object
+  additionalProperties: false
+  required:
+  - target_resource_ref
+  properties:
+    target_resource_ref:
+      type: string
+      minLength: 1
+      description: CSP-neutral resource ref the action targets. Replace with the real
+        arguments the fork-specific action needs.
+prod_downgrade:
+  mode: enforce_hil
+  detection_ref: risk-classification/env-detector

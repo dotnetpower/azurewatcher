@@ -488,6 +488,56 @@ call under that key so the manual PR path cannot double-apply the same
 mutation; a subsequent retry observes the key and is a no-op on whichever
 path already succeeded.
 
+### 5.5 HIL approval round-trip (park and resume)
+
+When the RiskGate returns `hil`, the executor does not run and the
+control loop does not block on a human. The `HilResumeCoordinator`
+(`core/hil_resume`) applies a **park and return** model:
+
+1. **park** - the full `Action` (+ rule id, submitter, correlation id)
+   is serialized into the `StateStore` under an opaque `approval_id`
+   with `status=pending`;
+2. **push** - an A1 approval card is dispatched via the `HilChannel`
+   (Teams / Slack); a delivery failure leaves the action parked and
+   recoverable, never executed;
+3. **audit** - a `hil.requested` entry is written, then
+   `ControlLoop.process(...)` returns `hil` without blocking.
+
+A later decision (a ChatOps callback or a poll) drives
+`HilResumeCoordinator.resolve(approval_id, decision, approver_oid)`:
+
+- **APPROVE** - the parked `Action` is restored (`model_validate`) and
+  re-dispatched through the same executor selection (§5.4); one
+  `hil.approved.executed` audit entry is written.
+- **REJECT** / **TIMEOUT** - recorded, never executed (fail-closed).
+- **idempotent** - the park flips to `status=resolved` on the first
+  terminal decision; a duplicate decision is a no-op and a conflicting
+  decision is refused, so an approval can never double-apply.
+- **no self-approval** - `approver_oid == submitter_oid` is refused
+  before any execution; the loop parks with a system submitter identity
+  so any real approver is distinct.
+
+This closes the loop between the `hil` verdict (§2) and an approved
+action actually running, without a blocking wait or an ungated
+auto-execution. The read-API HIL callback
+(`POST /hil/{approval_id}/decision`) drives the resolve trigger: an
+inbound decision hits the coordinator first (park path - `APPROVE`
+re-dispatches to the executor), and falls through to the registry for
+console-pull approvals raised via `approve_hil`. The coordinator is
+transport-neutral. `__main__` wires it into the control loop when a
+ChatOps channel is configured (`FDAI_CHATOPS_WEBHOOK_URL`), so a `hil`
+verdict parks the action and pushes an A1 card; absent, the loop records
+the verdict and falls back to the persisted queue. The read-API server
+supplies the same coordinator to the callback route so an inbound
+decision resolves the park.
+
+**Notify-on-decision.** The same loop also emits an A2 operational-alert
+on every terminal decision (`executed` / `hil` / `denied`) through the
+notification router - outbound-only, informational, and never carrying
+approval buttons (see
+[channels-and-notifications.md § 3](channels-and-notifications.md)). The
+router is an optional seam: absent, the loop behaves exactly as before.
+
 ## 6. Safety invariants (unchanged + one extension)
 
 Every executed action already carries the four autonomy invariants

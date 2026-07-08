@@ -1,7 +1,7 @@
 ---
 title: 채널과 알림(Channels and Notifications)
 translation_of: channels-and-notifications.md
-translation_source_sha: e5d8935fc1182df3b540c946d67429e1c5d43b46
+translation_source_sha: 21c6e1e8dde2bf5589eef1b32db0073861d7ee01
 translation_revised: 2026-07-08
 ---
 
@@ -332,6 +332,7 @@ channel_routing:
 | **A1 기본 활성화된 Slack 어댑터 (P1)** | ✓ | workspace 자격증명 + userId↔OID 매핑(필수) |
 | Email / Webhook / Pager / SMS 어댑터 | ✓ (스켈레톤) | 자격증명 + 활성화 |
 | 라우팅-config 스키마 + 시작 검증 | ✓ | 실제 라우팅 값 in `rule-catalog/channel-routing/` |
+| HIL escalation sink (`on_all_fail` fail-safe 큐) | ✓ (`StateStoreHilEscalationSink` - StateStore 기반, tenant-무관) | 자체 큐 백엔드(선택) |
 | 7개 기본 다이제스트 + 오디언스 파생 규칙 | ✓ | cron 타임존, 채널 id, 다이제스트별 on/off |
 | Secret-scan regex 세트(어댑터가 재사용) | ✓ | 필요 시 패턴 확장 |
 | Slack userId ↔ Entra OID 매핑 **인터페이스** | ✓ | 매핑 데이터(P1 A1에 필수) |

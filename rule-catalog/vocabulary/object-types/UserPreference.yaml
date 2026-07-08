@@ -1,0 +1,31 @@
+# Upstream built-in ObjectType: UserPreference.
+#
+# A `UserPreference` scopes per-user Bragi behavior: locale, verbosity,
+# and consent for Norns learner access. Default `share_with_learner:
+# false`. See docs/roadmap/agent-pantheon.md § 6.5.
+schema_version: "1.0.0"
+name: UserPreference
+version: "1.0.0"
+key: id
+description: Per-user Bragi personalization + Norns learner opt-in state.
+properties:
+  id:
+    type: string
+    required: true
+    description: RBAC-scoped user identifier (user_id in payload). Doubles as the instance key.
+  locale:
+    type: string
+    required: false
+    description: BCP 47 tag (e.g. en, ko). Bragi renders responses in this locale.
+  verbosity:
+    type: string
+    required: false
+    description: One of `concise`, `detailed`. Controls Bragi answer density.
+  share_with_learner:
+    type: boolean
+    required: false
+    description: Opt-in for Norns turn-body access. Default false (metadata-only).
+  updated_at:
+    type: string
+    required: false
+    description: ISO 8601 timestamp of most recent preference update.

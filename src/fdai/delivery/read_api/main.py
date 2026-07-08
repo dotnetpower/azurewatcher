@@ -28,8 +28,8 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass, field
 from typing import Any
 
 from starlette.applications import Starlette
@@ -40,6 +40,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from fdai.core.hil_resume import HilResumeCoordinator
 from fdai.core.rbac.enforcer import RoleRequiredError
 from fdai.core.rbac.roles import Role
 from fdai.delivery.read_api.auth import (
@@ -74,6 +75,63 @@ _READER_ROLES: tuple[Role, ...] = (Role.READER, Role.CONTRIBUTOR, Role.APPROVER,
 
 _DEV_MODE_ENV = "FDAI_READ_API_DEV_MODE"
 _DEV_MODE_PRINCIPAL = "dev-anon"
+
+
+class _SecurityHeadersMiddleware:
+    """Attach conservative security headers to every response.
+
+    Kept as a pure ASGI middleware (not `starlette.BaseHTTPMiddleware`) so
+    it never buffers the response body - critical for the SSE routes
+    served by ``live_stream.py`` which stream indefinitely.
+
+    Headers set:
+
+    - ``X-Content-Type-Options: nosniff`` - block MIME sniffing.
+    - ``X-Frame-Options: DENY`` - refuse framing (the SPA is same-origin).
+    - ``Referrer-Policy: no-referrer`` - no leak of internal URLs.
+    - ``Cache-Control: no-store`` - the console shows live state; a
+      cached audit response is misleading and stale.
+    - ``Strict-Transport-Security: max-age=31536000; includeSubDomains``
+      - forces HTTPS on every subsequent request.
+
+    ``Cache-Control`` is intentionally not applied to ``/live/stream``
+    responses since they already set their own ``no-cache, no-transform``
+    header - we do not override an explicit choice made by the route.
+    """
+
+    def __init__(self, app: Callable[..., Awaitable[None]]) -> None:
+        self._app = app
+
+    async def __call__(self, scope: Mapping[str, Any], receive: Any, send: Any) -> None:
+        if scope.get("type") != "http":
+            await self._app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Mapping[str, Any]) -> None:
+            if message.get("type") == "http.response.start":
+                # Copy so we do not mutate a shared reference.
+                headers = list(message.get("headers") or [])
+                existing_names = {name.lower() for name, _ in headers}
+
+                def _add_if_absent(name: bytes, value: bytes) -> None:
+                    if name.lower() not in existing_names:
+                        headers.append((name, value))
+
+                _add_if_absent(b"x-content-type-options", b"nosniff")
+                _add_if_absent(b"x-frame-options", b"DENY")
+                _add_if_absent(b"referrer-policy", b"no-referrer")
+                _add_if_absent(b"cache-control", b"no-store")
+                _add_if_absent(
+                    b"strict-transport-security",
+                    b"max-age=31536000; includeSubDomains",
+                )
+                new_message = dict(message)
+                new_message["headers"] = headers
+                await send(new_message)
+            else:
+                await send(message)
+
+        await self._app(scope, receive, send_with_headers)
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +176,13 @@ class ReadApiConfig:
     ``hil_callback`` is set, this MUST also be set - the app factory
     fails fast otherwise."""
 
+    hil_coordinator: HilResumeCoordinator | None = None
+    """Optional park-and-resume coordinator for the HIL callback route.
+    When set, an inbound decision is applied to a control-loop-parked
+    action first (APPROVE re-dispatches it to the executor); an
+    approval with no matching park falls through to the registry path.
+    ``None`` keeps the callback registry-only (console-pull approvals)."""
+
     live_stream: LiveStreamConfig | None = None
     """Opt-in live SSE fan-out. When set, registers a ``GET`` streaming
     route (default ``/live/stream``) that broadcasts control-plane
@@ -126,6 +191,82 @@ class ReadApiConfig:
     :mod:`fdai.delivery.read_api._local`) opts in. See
     :mod:`fdai.delivery.read_api.live_stream` for the read-only /
     fan-out contract."""
+
+    blast_radius_graph: Any = None
+    """Opt-in blast-radius simulator. When set (an
+    :class:`~fdai.core.risk_gate.blast_radius_simulator.OntologyGraph`),
+    registers ``GET /simulate/blast-radius``. Read-only projection: the
+    caller supplies a target Resource id + traversal spec, gets back
+    the depth-N reachable subgraph. The default is ``None`` so upstream
+    stays minimal; a fork wires its Postgres-backed graph adapter here.
+    See :mod:`fdai.delivery.read_api.blast_radius`."""
+
+    ontology_object_types: tuple[Any, ...] = ()
+    """Opt-in ontology explorer input. Tuple of
+    :class:`~fdai.shared.contracts.models.OntologyObjectType`. When
+    combined with :attr:`ontology_link_types`, the app registers
+    ``GET /ontology/graph`` returning a Mermaid ``classDiagram`` plus
+    node/edge counts. Empty by default."""
+
+    ontology_link_types: tuple[Any, ...] = ()
+    """Opt-in ontology explorer input. Tuple of
+    :class:`~fdai.shared.contracts.models.OntologyLinkType`. See
+    :attr:`ontology_object_types` for the pairing contract."""
+
+    promotion_gate_action_types: tuple[Any, ...] = ()
+    """Opt-in promotion-gate dashboard input: tuple of
+    :class:`~fdai.shared.contracts.models.OntologyActionType`."""
+
+    promotion_gate_source: Any = None
+    """Opt-in promotion-gate dashboard input:
+    :class:`~fdai.core.measurement.promotion_gate.ShadowVerdictSource`.
+    When BOTH this and :attr:`promotion_gate_action_types` are set,
+    the app registers ``GET /kpi/promotion-gates``."""
+
+    trace_reader: Any = None
+    """Opt-in rule-fire trace viewer. When set (an
+    :class:`~fdai.core.audit.rule_fire_trace.AuditTraceReader`),
+    registers ``GET /audit/{correlation_id}/trace``. The reader plugs
+    into any audit backing store; the shipped
+    :class:`~fdai.core.audit.rule_fire_trace.ConsoleReadModelTraceReader`
+    wraps the existing :class:`ConsoleReadModel` and works with the
+    in-memory store out of the box."""
+
+    bitemporal_reader: Any = None
+    """Opt-in bitemporal snapshot route. When set (an
+    :class:`~fdai.core.audit.rule_fire_trace.AuditTraceReader`),
+    registers ``GET /audit/{correlation_id}/bitemporal``. Typically the
+    same reader used for :attr:`trace_reader`."""
+
+    what_if_reader: Any = None
+    """Opt-in what-if replay route reader. When BOTH this and
+    :attr:`what_if_evaluators` are set, registers
+    ``GET /audit/{correlation_id}/what-if?scenario=<name>``."""
+
+    what_if_evaluators: Mapping[str, Any] = field(default_factory=dict)
+    """Named pre-registered
+    :class:`~fdai.core.audit.what_if_replay.WhatIfEvaluator` implementations.
+    Empty by default so upstream stays minimal; a fork registers each
+    scenario at composition-root time."""
+
+    chat: Any = None
+    """Opt-in CommandDeck chat backend. When set (an implementer of
+    :class:`~fdai.delivery.read_api.chat.ChatBackend`), registers
+    ``POST /chat`` for the console's screen-aware conversational
+    surface. The backend is a read-only translator - it never issues a
+    privileged call. Wire :class:`~fdai.delivery.read_api.chat.OpenAiCompatibleChatBackend`
+    (or a fork adapter) at composition root; leave ``None`` to keep the
+    endpoint unregistered (the FE deck then falls back to its built-in
+    deterministic answerer)."""
+
+    expose_pantheon: bool = False
+    """Opt-in pantheon graph + workflows endpoints. When True, registers
+    two read-only routes: ``GET /pantheon/graph`` (15 agents, org chart
+    edges, owned object types, LLM hot-path flag) and
+    ``GET /pantheon/workflows`` (10 cross-agent workflow catalog). Both
+    are pure projections of the in-memory pantheon registry
+    (``fdai.agents``); no state, no side effects. Reader-role gate.
+    See :mod:`fdai.delivery.read_api.pantheon`."""
 
 
 def build_app(
@@ -147,6 +288,29 @@ def build_app(
             f"{_DEV_MODE_ENV} is not set; refusing to build a dev-mode app "
             "outside an explicit local-dev environment."
         )
+    # Defense in depth: even if a fork mistakenly wires dev_mode=True
+    # AND FDAI_READ_API_DEV_MODE=1 in staging / prod, we refuse to boot.
+    # Auth-off in staging / prod is a security-critical misconfiguration,
+    # not a warning-level condition.
+    if resolved_config.dev_mode:
+        runtime_env = os.environ.get("RUNTIME_ENV", "").strip().lower()
+        if runtime_env in ("staging", "prod"):
+            raise ValueError(
+                f"dev_mode is prohibited in RUNTIME_ENV={runtime_env!r}. "
+                "The read API MUST require signed Entra tokens outside dev."
+            )
+
+    # Reject CORS wildcards outside dev. `allow_origins=('*',)` combined
+    # with any future credentialed request is a cross-origin data leak;
+    # the doc already says "MUST NOT be ('*',) in production" but the
+    # code enforces it here so a bad tfvars can never ship.
+    if "*" in resolved_config.cors_allow_origins:
+        runtime_env = os.environ.get("RUNTIME_ENV", "").strip().lower()
+        if runtime_env in ("staging", "prod"):
+            raise ValueError(
+                "cors_allow_origins MUST NOT contain '*' outside dev "
+                f"(RUNTIME_ENV={runtime_env!r})."
+            )
 
     async def _authorize(request: Request) -> str:
         """Return the caller's ``oid`` (or ``dev-anon``) or raise 401/403."""
@@ -254,6 +418,7 @@ def build_app(
             make_hil_callback_route(
                 registry=resolved_config.hil_registry,
                 config=resolved_config.hil_callback,
+                coordinator=resolved_config.hil_coordinator,
             )
         )
 
@@ -289,16 +454,228 @@ def build_app(
             )
         )
 
+    # Optional blast-radius simulator. Reader-role gate, GET-only, and
+    # collision-checked against every other route registered so far.
+    if resolved_config.blast_radius_graph is not None:
+        from fdai.delivery.read_api.blast_radius import (
+            DEFAULT_ROUTE_PATH as _BR_PATH,
+        )
+        from fdai.delivery.read_api.blast_radius import (
+            make_blast_radius_route,
+        )
+
+        if _BR_PATH in _CORE_ROUTE_PATHS:
+            raise ValueError(
+                f"blast-radius path {_BR_PATH!r} collides with a core route"
+            )
+        if _BR_PATH in seen_panel_paths:
+            raise ValueError(
+                f"blast-radius path {_BR_PATH!r} collides with a panel path"
+            )
+        routes.append(
+            make_blast_radius_route(
+                graph=resolved_config.blast_radius_graph,
+                authorize=_authorize,
+            )
+        )
+
+    # Optional ontology explorer. Both ObjectType and LinkType tuples
+    # MUST be non-empty for the graph to make sense.
+    if resolved_config.ontology_object_types and resolved_config.ontology_link_types:
+        from fdai.delivery.read_api.ontology_graph import (
+            DEFAULT_ROUTE_PATH as _OG_PATH,
+        )
+        from fdai.delivery.read_api.ontology_graph import (
+            make_ontology_graph_route,
+        )
+
+        if _OG_PATH in _CORE_ROUTE_PATHS:
+            raise ValueError(
+                f"ontology-graph path {_OG_PATH!r} collides with a core route"
+            )
+        if _OG_PATH in seen_panel_paths:
+            raise ValueError(
+                f"ontology-graph path {_OG_PATH!r} collides with a panel path"
+            )
+        routes.append(
+            make_ontology_graph_route(
+                object_types=resolved_config.ontology_object_types,
+                link_types=resolved_config.ontology_link_types,
+                authorize=_authorize,
+            )
+        )
+
+    # Optional promotion-gate dashboard.
+    if (
+        resolved_config.promotion_gate_action_types
+        and resolved_config.promotion_gate_source is not None
+    ):
+        from fdai.delivery.read_api.promotion_gates import (
+            DEFAULT_ROUTE_PATH as _PG_PATH,
+        )
+        from fdai.delivery.read_api.promotion_gates import (
+            make_promotion_gates_route,
+        )
+
+        if _PG_PATH in _CORE_ROUTE_PATHS:
+            raise ValueError(
+                f"promotion-gates path {_PG_PATH!r} collides with a core route"
+            )
+        if _PG_PATH in seen_panel_paths:
+            raise ValueError(
+                f"promotion-gates path {_PG_PATH!r} collides with a panel path"
+            )
+        routes.append(
+            make_promotion_gates_route(
+                action_types=resolved_config.promotion_gate_action_types,
+                source=resolved_config.promotion_gate_source,
+                authorize=_authorize,
+            )
+        )
+
+    # Optional pantheon graph + workflows routes. Pantheon data is
+    # in-memory and upstream-fixed, so the endpoints just serialize
+    # the registry - no external inputs beyond a config flag.
+    if resolved_config.expose_pantheon:
+        from fdai.delivery.read_api.pantheon import (
+            GRAPH_ROUTE_PATH as _PT_GRAPH_PATH,
+        )
+        from fdai.delivery.read_api.pantheon import (
+            WORKFLOWS_ROUTE_PATH as _PT_WF_PATH,
+        )
+        from fdai.delivery.read_api.pantheon import (
+            make_pantheon_graph_route,
+            make_pantheon_workflows_route,
+        )
+
+        for _pt_path in (_PT_GRAPH_PATH, _PT_WF_PATH):
+            if _pt_path in _CORE_ROUTE_PATHS:
+                raise ValueError(
+                    f"pantheon path {_pt_path!r} collides with a core route"
+                )
+            if _pt_path in seen_panel_paths:
+                raise ValueError(
+                    f"pantheon path {_pt_path!r} collides with a panel path"
+                )
+        routes.append(make_pantheon_graph_route(authorize=_authorize))
+        routes.append(make_pantheon_workflows_route(authorize=_authorize))
+
+    # Optional rule-fire trace viewer.
+    if resolved_config.trace_reader is not None:
+        from fdai.delivery.read_api.rule_fire_trace import (
+            make_rule_fire_trace_route,
+        )
+
+        # Path contains a template so collision is on the literal prefix
+        # ``/audit/`` rather than the full template - keep parity with
+        # the core `/audit` list route (they are siblings, both GETs, so
+        # no conflict).
+        routes.append(
+            make_rule_fire_trace_route(
+                reader=resolved_config.trace_reader,
+                authorize=_authorize,
+            )
+        )
+
+    # Optional bitemporal snapshot route.
+    if resolved_config.bitemporal_reader is not None:
+        from fdai.delivery.read_api.bitemporal import make_bitemporal_route
+
+        routes.append(
+            make_bitemporal_route(
+                reader=resolved_config.bitemporal_reader,
+                authorize=_authorize,
+            )
+        )
+
+    # Optional what-if replay route.
+    if (
+        resolved_config.what_if_reader is not None
+        and resolved_config.what_if_evaluators
+    ):
+        from fdai.delivery.read_api.what_if import make_what_if_route
+
+        routes.append(
+            make_what_if_route(
+                reader=resolved_config.what_if_reader,
+                evaluators=dict(resolved_config.what_if_evaluators),
+                authorize=_authorize,
+            )
+        )
+
+    # Optional CommandDeck chat backend. Registered POST-only; the
+    # backend is a read-only translator (see chat.py). Reader role is
+    # required by ``authorize`` so the endpoint stays behind the same
+    # RBAC gate as the snapshot routes.
+    if resolved_config.chat is not None:
+        from fdai.delivery.read_api.chat import (
+            DEFAULT_ROUTE_PATH as _CHAT_PATH,
+        )
+        from fdai.delivery.read_api.chat import (
+            describe_backend as _describe_backend,
+        )
+        from fdai.delivery.read_api.chat import (
+            make_chat_health_route,
+            make_chat_route,
+        )
+
+        if _CHAT_PATH in _CORE_ROUTE_PATHS:
+            raise ValueError(f"chat path {_CHAT_PATH!r} collides with a core route")
+        if _CHAT_PATH in seen_panel_paths:
+            raise ValueError(f"chat path {_CHAT_PATH!r} collides with a panel path")
+        routes.append(
+            make_chat_route(
+                backend=resolved_config.chat,
+                authorize=_authorize,
+            )
+        )
+        routes.append(
+            make_chat_health_route(
+                backend=resolved_config.chat,
+                authorize=_authorize,
+            )
+        )
+        # Loud, single-line startup log so the operator sees at a
+        # glance whether the LLM narrator is wired.
+        _desc = _describe_backend(resolved_config.chat)
+        if _desc.get("available"):
+            _LOGGER.warning(
+                "CommandDeck chat backend ready: mode=%s model=%s endpoint=%s",
+                _desc.get("mode"),
+                _desc.get("model"),
+                _desc.get("endpoint"),
+            )
+        else:
+            _LOGGER.warning(
+                "CommandDeck chat backend NOT wired - the FE will fall back "
+                "to the deterministic answerer. Set FDAI_NARRATOR_* env vars "
+                "or ship resolved-models.json to enable the LLM path."
+            )
+
     middleware: list[Middleware] = []
+    # Baseline security headers on every response. Cheap defence in depth;
+    # each header covers a class of well-known browser-side attacks
+    # (MIME sniffing, clickjacking, cross-window leaks) that Starlette
+    # does not add by default. `Cache-Control: no-store` prevents any
+    # intermediary from caching audit / KPI payloads that reflect the
+    # current control-plane state.
+    middleware.append(
+        Middleware(
+            _SecurityHeadersMiddleware,
+        )
+    )
     if resolved_config.cors_allow_origins:
-        # Console SPA cross-origin fetches. `allow_methods=["GET"]` keeps
-        # the pre-flight surface aligned with the read-only invariant -
-        # a POST/PUT/DELETE pre-flight will be denied at the middleware.
+        # Console SPA cross-origin fetches. The base surface is GET-only;
+        # POST is opened up ONLY when a chat backend is wired, and only
+        # for the /chat translator (which never mutates state).
+        allow_methods = ["GET"]
+        if resolved_config.chat is not None:
+            allow_methods.append("POST")
         middleware.append(
             Middleware(
                 CORSMiddleware,
                 allow_origins=list(resolved_config.cors_allow_origins),
-                allow_methods=["GET"],
+                allow_methods=allow_methods,
                 allow_headers=["authorization", "content-type"],
                 allow_credentials=False,
             )

@@ -244,6 +244,22 @@ class CeilingRole(StrEnum):
     OWNER = "owner"
 
 
+CEILING_ROLE_RANK: dict[CeilingRole, int] = {
+    CeilingRole.READER: 0,
+    CeilingRole.CONTRIBUTOR: 1,
+    CeilingRole.APPROVER: 2,
+    CeilingRole.OWNER: 3,
+}
+"""Numeric rank for :class:`CeilingRole` comparisons.
+
+``a >= b`` at the role level is ``CEILING_ROLE_RANK[a] >= CEILING_ROLE_RANK[b]``.
+Shared so ``shared/`` and ``core/`` can both order roles without either
+side depending on the other. Kept as a module-level dict rather than an
+:class:`~enum.IntEnum` because :class:`CeilingRole` MUST serialize as a
+string in every audit / config artifact.
+"""
+
+
 class ExecutionPath(StrEnum):
     """How the executor applies an action (execution-model.md 5)."""
 
@@ -508,6 +524,10 @@ class PropertyDecl(_Base):
     type: PropertyType
     required: bool = False
     description: str | None = None
+    access_scope: CeilingRole = CeilingRole.READER
+    purpose_binding: list[Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]] = Field(
+        default_factory=list
+    )
 
 
 class OntologyObjectType(_Base):

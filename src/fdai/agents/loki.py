@@ -1,0 +1,114 @@
+"""Loki - Chaos (Wave 5 behavior).
+
+Loki schedules chaos experiments with a bounded blast_radius and
+NEVER auto-executes. Every proposed experiment routes through Forseti
+and Var as an HIL action; Loki merely emits the proposal.
+
+Blast-radius accounting is deterministic: no matter how many
+proposals come in per unit time, the cumulative in-flight target count
+is capped by :pyattr:`blast_radius_cap`.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from fdai.agents.base import Agent
+from fdai.agents.bus import PantheonBus
+from fdai.agents.pantheon import _LOKI
+
+
+@dataclass
+class ChaosProposal:
+    experiment_id: str
+    action_type: str
+    targets: tuple[str, ...]
+    accepted: bool
+    reason: str
+
+
+class Loki(Agent):
+    """Wave-5 Loki: chaos scheduler with blast-radius cap."""
+
+    def __init__(
+        self,
+        *,
+        bus: PantheonBus | None = None,
+        blast_radius_cap: int = 3,
+    ) -> None:
+        super().__init__(spec=_LOKI)
+        self.bus = bus
+        self._cap = blast_radius_cap
+        self._in_flight_targets: set[str] = set()
+        self.proposals: list[ChaosProposal] = []
+
+    def bind_bus(self, bus: PantheonBus) -> None:
+        self.bus = bus
+
+    # ---- experiment scheduling ----------------------------------------
+
+    async def propose_experiment(
+        self,
+        *,
+        experiment_id: str,
+        action_type: str,
+        targets: tuple[str, ...],
+        correlation_id: str = "",
+    ) -> ChaosProposal:
+        # Enforce cap BEFORE emitting anything so a proposal storm does
+        # not exceed the declared radius.
+        available = self._cap - len(self._in_flight_targets)
+        if available <= 0:
+            proposal = ChaosProposal(
+                experiment_id=experiment_id,
+                action_type=action_type,
+                targets=(),
+                accepted=False,
+                reason="blast_radius_full",
+            )
+            self.proposals.append(proposal)
+            return proposal
+        selected = tuple(t for t in targets if t not in self._in_flight_targets)[
+            :available
+        ]
+        if not selected:
+            proposal = ChaosProposal(
+                experiment_id=experiment_id,
+                action_type=action_type,
+                targets=(),
+                accepted=False,
+                reason="no_new_targets",
+            )
+            self.proposals.append(proposal)
+            return proposal
+        self._in_flight_targets.update(selected)
+        proposal = ChaosProposal(
+            experiment_id=experiment_id,
+            action_type=action_type,
+            targets=selected,
+            accepted=True,
+            reason="within_radius",
+        )
+        self.proposals.append(proposal)
+        if self.bus is not None:
+            await self.bus.publish(
+                "Loki",
+                "object.chaos-experiment",
+                {
+                    "producer_principal": "Loki",
+                    "correlation_id": correlation_id or experiment_id,
+                    "experiment_id": experiment_id,
+                    "action_type": action_type,
+                    "targets": list(selected),
+                    "blast_radius_used": len(selected),
+                },
+            )
+        return proposal
+
+    def release_targets(self, targets: tuple[str, ...]) -> None:
+        """Called after experiment completion (Wave 5 test helper)."""
+        for t in targets:
+            self._in_flight_targets.discard(t)
+
+
+__all__ = ["Loki", "ChaosProposal"]

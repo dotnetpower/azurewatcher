@@ -43,6 +43,10 @@ from fdai.delivery.azure.llm.judge import (
     AzureOpenAIJudgeModel,
     AzureOpenAIJudgeModelConfig,
 )
+from fdai.delivery.azure.llm.rca_model import (
+    AzureOpenAIRcaModel,
+    AzureOpenAIRcaModelConfig,
+)
 
 __all__ = [
     "AzureOpenAICriticModel",
@@ -53,4 +57,6 @@ __all__ = [
     "AzureOpenAIEmbeddingModelConfig",
     "AzureOpenAIJudgeModel",
     "AzureOpenAIJudgeModelConfig",
+    "AzureOpenAIRcaModel",
+    "AzureOpenAIRcaModelConfig",
 ]

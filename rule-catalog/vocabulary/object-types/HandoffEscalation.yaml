@@ -1,0 +1,49 @@
+# Upstream built-in ObjectType: HandoffEscalation.
+#
+# A `HandoffEscalation` is the intent event any agent publishes when it
+# cannot resolve a request through T0 / T1 / T2. Saga executes
+# `governance.escalate-to-github-issue` in response, materializing the
+# escalation as an Issue with fingerprint dedup. See agent-pantheon.md
+# § 6.4.
+schema_version: "1.0.0"
+name: HandoffEscalation
+version: "1.0.0"
+key: id
+description: Intent event emitted by any agent that abstains; Saga materializes into an Issue.
+properties:
+  id:
+    type: string
+    required: true
+    description: Opaque local id (escalation_id in payload).
+  correlation_id:
+    type: string
+    required: true
+    description: Correlation id of the request the agent could not resolve.
+  emitting_agent:
+    type: string
+    required: true
+    description: Name of the Agent that abstained.
+  intent_category:
+    type: string
+    required: true
+    description: Classified intent (used in fingerprint - see agent-pantheon.md § 6.4).
+  resource_type:
+    type: string
+    required: false
+    description: Ontology resource type touched by the request (used in fingerprint).
+  normalized_selector:
+    type: string
+    required: false
+    description: Selector abstraction (e.g. `public_network_field`); NOT a raw resource id.
+  failure_reason_code:
+    type: string
+    required: true
+    description: Machine-readable abstain reason (no_owned_data, low_confidence, unsupported_intent, ...).
+  context:
+    type: object
+    required: false
+    description: Structured context Saga will attach as the Issue comment body.
+  emitted_at:
+    type: string
+    required: true
+    description: ISO 8601 timestamp.

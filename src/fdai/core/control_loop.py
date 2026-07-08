@@ -37,13 +37,14 @@ Every :meth:`ControlLoop.process` call:
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-from fdai.core.event_ingest import EventIngest
+from fdai.core.event_ingest import EventCorrelator, EventIngest
 from fdai.core.executor import ExecutionResult, ExecutorOutcome, ShadowExecutor
 from fdai.core.executor.action_builder import ActionBuilder, ActionBuildError
 from fdai.core.executor.direct_api import (
@@ -51,6 +52,9 @@ from fdai.core.executor.direct_api import (
     DirectApiExecutionResult,
     DirectApiShadowExecutor,
 )
+from fdai.core.hil_resume import HilResumeCoordinator
+from fdai.core.notifications.router import NotificationRouter
+from fdai.core.rca import Citation, CitationKind, RcaCoordinator
 from fdai.core.risk_gate.authority import (
     ExecutionAuthorityDecision,
     evaluate_execution_authority,
@@ -79,6 +83,11 @@ from fdai.shared.providers.cost_estimator import (
     CostEstimator,
     resolve_cost_impact_monthly,
 )
+from fdai.shared.providers.notifications.base import (
+    NotificationMessage,
+    Severity,
+    TrustTier,
+)
 from fdai.shared.providers.stage_publisher import (
     NullStagePublisher,
     StageEvent,
@@ -87,6 +96,14 @@ from fdai.shared.providers.stage_publisher import (
     StagePublisher,
 )
 from fdai.shared.providers.state_store import StateStore
+
+_LOGGER = logging.getLogger(__name__)
+
+# Submitter identity recorded on a HIL park raised by the autonomous
+# control loop. The loop has no human principal (the event was detected,
+# not operator-requested), so any real approver differs from this value
+# and the no-self-approval invariant is satisfied structurally.
+_HIL_SYSTEM_SUBMITTER = "system:control-loop"
 
 
 class ControlLoopOutcome(StrEnum):
@@ -190,6 +207,10 @@ class ControlLoop:
         direct_api_executor: DirectApiShadowExecutor | None = None,
         t1_engine: T1Tier | None = None,
         stage_publisher: StagePublisher | None = None,
+        notification_router: NotificationRouter | None = None,
+        hil_resume_coordinator: HilResumeCoordinator | None = None,
+        rca_coordinator: RcaCoordinator | None = None,
+        event_correlator: EventCorrelator | None = None,
     ) -> None:
         self._event_ingest = event_ingest
         self._trust_router = trust_router
@@ -244,6 +265,37 @@ class ControlLoop:
         # :class:`~fdai.shared.streaming.stage_publisher.EventBusStagePublisher`
         # (multi-replica via Kafka + broadcaster).
         self._stage_publisher: StagePublisher = stage_publisher or NullStagePublisher()
+        # Optional A2 operational-alert push (Notify-on-decision). When
+        # wired, the loop dispatches one outbound, informational alert
+        # per terminal decision (executed / hil / denied) through the
+        # notification router. Absent -> no push (backward-compatible).
+        # Push is best-effort: a delivery failure NEVER invalidates the
+        # already-audited control decision (the router itself fails
+        # toward safety by escalating to its HIL sink).
+        self._notification_router = notification_router
+        # Optional HIL approval round-trip coordinator (Notify-on-decision
+        # step B). When wired, an action the risk gate routes to HIL is
+        # parked and an A1 approval card is dispatched instead of the
+        # decision ending at a bare audit row. Absent -> the loop records
+        # the HIL decision and stops there (backward-compatible; the
+        # action simply awaits a pull-side approve_hil). Parking is
+        # best-effort at the loop boundary: a park/push failure is logged
+        # and never turns a HIL verdict into an execution.
+        self._hil_resume_coordinator = hil_resume_coordinator
+        # Optional RCA coordinator (observability-and-detection.md 4).
+        # When wired, each T0 finding gets a deterministic root-cause
+        # hypothesis appended to the audit trail (the "why" behind the
+        # decision). It never changes the executor path - RCA answers
+        # "why", the risk gate answers "execute". Absent -> no RCA audit
+        # (backward-compatible). Best-effort: an RCA failure never blocks
+        # the control decision.
+        self._rca_coordinator = rca_coordinator
+        # Optional event correlator (observability-and-detection.md 1).
+        # When wired, each event is anchored to a deterministic incident
+        # id (correlation key + time window) so the RCA audit ties the
+        # findings of one incident together. Absent -> no incident id on
+        # the RCA audit (backward-compatible).
+        self._event_correlator = event_correlator
 
     async def process(self, raw_event: Event | Mapping[str, Any]) -> ControlLoopResult:
         # 1. Ingest + dedupe
@@ -265,6 +317,7 @@ class ControlLoop:
         # the event carries no correlation_id (single-shot events).
         event_id = str(event.event_id)
         correlation_id = event.correlation_id or event_id
+        incident_id = self._correlate_incident_id(event)
 
         # ingest.done - the event survived dedup and is a valid Event.
         await self._emit_stage(
@@ -380,6 +433,9 @@ class ControlLoop:
                 ),
                 stage="t0_evaluate",
             )
+            await self._analyze_t2_rca_on_abstain(
+                event=event, decision=decision, incident_id=incident_id
+            )
 
             # 3a. Optional T1 similarity fallback. When wired, T0
             # abstains fall through to T1 for a learned-action reuse
@@ -476,6 +532,13 @@ class ControlLoop:
                     f"rule {finding.rule_id!r} appears in T0 findings but is "
                     "not in the rules_by_id map"
                 )
+            await self._analyze_and_audit_rca(
+                event=event,
+                finding=finding,
+                rule=rule,
+                resource_type=decision.resource_type,
+                incident_id=incident_id,
+            )
             try:
                 action = self._action_builder.build_from_finding(
                     event=event, finding=finding, rule=rule
@@ -524,6 +587,16 @@ class ControlLoop:
                 # Routed to HIL / denied by the unified risk gate: do NOT
                 # publish a PR. The audit entry (written above) records why.
                 routed.append("deny" if unified.is_denied else "hil")
+                if (
+                    unified.requires_hil
+                    and not unified.is_denied
+                    and self._hil_resume_coordinator is not None
+                ):
+                    await self._request_hil_approval(
+                        action=action,
+                        rule=rule,
+                        correlation_id=correlation_id,
+                    )
                 continue
             result = await self._dispatch_action(action=action, rule=rule)
             exec_results.append(result)
@@ -576,6 +649,14 @@ class ControlLoop:
             phase=StagePhase.DONE,
             detail={"outcome": overall.value, "decision": decision_word},
         )
+        await self._notify_decision(
+            event=event,
+            correlation_id=correlation_id,
+            overall=overall,
+            decision_word=decision_word,
+            resource_type=decision.resource_type,
+            citing_rule_ids=tuple(f.rule_id for f in verdict.findings),
+        )
         return ControlLoopResult(
             outcome=overall,
             tier="t0",
@@ -586,6 +667,250 @@ class ControlLoop:
             event_id=str(event.event_id),
             change_safety_decision=cs_decision,
         )
+
+    # ------------------------------------------------------------------
+    # notification helper (A2 operational-alert, Notify-on-decision)
+    # ------------------------------------------------------------------
+
+    async def _notify_decision(
+        self,
+        *,
+        event: Event,
+        correlation_id: str,
+        overall: ControlLoopOutcome,
+        decision_word: str,
+        resource_type: str | None,
+        citing_rule_ids: tuple[str, ...],
+    ) -> None:
+        """Push one outbound A2 operational-alert for a terminal decision.
+
+        No-op unless a :class:`NotificationRouter` is wired. Only the
+        three actionable outcomes (``EXECUTED`` / ``HIL`` / ``DENIED``)
+        notify - abstain, dedupe, and T1-shadow paths are silent so a
+        healthy no-op stream never pages the ops lane.
+
+        The message body is intentionally generic (decision, resource
+        *type*, citing rule ids, shadow mode) and carries NO
+        customer-identifying value - no resource id, tenant, or payload
+        (per generic-scope + channels-and-notifications.md 1.5). A2 is
+        outbound-only: the message carries links only, never approval
+        buttons; the HIL approval round-trip is the separate A1 channel.
+
+        Best-effort: any dispatch error is logged and swallowed so a
+        notification outage cannot invalidate the already-audited
+        control decision.
+        """
+        if self._notification_router is None:
+            return
+        severity_by_outcome = {
+            ControlLoopOutcome.EXECUTED: Severity.INFO,
+            ControlLoopOutcome.HIL: Severity.WARN,
+            ControlLoopOutcome.DENIED: Severity.ERROR,
+        }
+        severity = severity_by_outcome.get(overall)
+        if severity is None:
+            return  # not an actionable terminal outcome; stay silent
+        rules_line = ", ".join(citing_rule_ids) if citing_rule_ids else "n/a"
+        body_markdown = (
+            f"**Decision:** {decision_word}\n\n"
+            f"**Resource type:** {resource_type or 'n/a'}\n\n"
+            f"**Citing rules:** {rules_line}\n\n"
+            f"**Mode:** {Mode.SHADOW.value}"
+        )
+        message = NotificationMessage(
+            category="operational_alert",
+            trust_tier=TrustTier.A2_OPERATIONAL_ALERT,
+            correlation_id=correlation_id,
+            title=f"FDAI decision: {decision_word} ({resource_type or 'unknown'})",
+            body_markdown=body_markdown,
+            severity=severity,
+            metadata={
+                "outcome": overall.value,
+                "decision": decision_word,
+                "event_id": str(event.event_id),
+            },
+        )
+        try:
+            await self._notification_router.dispatch(message)
+        except Exception:  # noqa: BLE001 - push is best-effort; decision already audited
+            _LOGGER.warning(
+                "notify_decision_dispatch_failed",
+                extra={
+                    "correlation_id": correlation_id,
+                    "outcome": overall.value,
+                },
+                exc_info=True,
+            )
+
+    # ------------------------------------------------------------------
+    # HIL approval round-trip (Notify-on-decision step B)
+    # ------------------------------------------------------------------
+
+    async def _request_hil_approval(
+        self,
+        *,
+        action: Action,
+        rule: Rule,
+        correlation_id: str,
+    ) -> None:
+        """Park a HIL-routed action and push an A1 approval card.
+
+        Best-effort at the loop boundary: a park/push failure is logged
+        and swallowed. A failure NEVER turns a HIL verdict into an
+        execution - the action simply stays un-parked and the HIL audit
+        row (already written by the gate) records that no PR was
+        published. The parked action awaits an explicit approve/reject
+        via :meth:`HilResumeCoordinator.resolve`.
+        """
+        if self._hil_resume_coordinator is None:  # pragma: no cover - guarded by caller
+            return
+        try:
+            await self._hil_resume_coordinator.request_approval(
+                action=action,
+                rule=rule,
+                submitter_oid=_HIL_SYSTEM_SUBMITTER,
+                correlation_id=correlation_id,
+            )
+        except Exception:  # noqa: BLE001 - park/push best-effort; HIL stays fail-closed
+            _LOGGER.warning(
+                "hil_request_approval_failed",
+                extra={
+                    "correlation_id": correlation_id,
+                    "action_type": action.action_type,
+                },
+                exc_info=True,
+            )
+
+    # ------------------------------------------------------------------
+    # RCA helper (deterministic T0 root-cause -> audit)
+    # ------------------------------------------------------------------
+
+    def _correlate_incident_id(self, event: Event) -> str | None:
+        """Anchor an event to a deterministic incident id, or ``None``.
+
+        No-op unless an :class:`EventCorrelator` is wired. An
+        uncorrelatable event (no correlation_id, no resource ref) yields
+        ``None`` so the RCA audit simply omits the incident context.
+        Pure and side-effect-free - the id is derived from the event's
+        keys + window bucket.
+        """
+        if self._event_correlator is None:
+            return None
+        result = self._event_correlator.correlate(event)
+        return result.incident_id if result.correlated else None
+
+    async def _analyze_and_audit_rca(
+        self,
+        *,
+        event: Event,
+        finding: Any,
+        rule: Rule,
+        resource_type: str | None,
+        incident_id: str | None = None,
+    ) -> None:
+        """Append a deterministic T0 root-cause hypothesis to the audit.
+
+        No-op unless an :class:`RcaCoordinator` is wired. The hypothesis
+        is the "why" behind the finding (the matched rule names the
+        violated control); it never changes the executor path. Best-
+        effort: any failure is logged and swallowed so RCA can never
+        block or invalidate the control decision.
+        """
+        if self._rca_coordinator is None:
+            return
+        try:
+            result = self._rca_coordinator.analyze_t0(
+                rule=rule,
+                resource_type=resource_type or "unknown",
+                event_id=str(event.event_id),
+            )
+            hypothesis = result.hypothesis
+            await self._audit_store.append_audit_entry(
+                {
+                    "event_id": str(event.event_id),
+                    "idempotency_key": f"{event.idempotency_key}:rca:{finding.rule_id}",
+                    "actor": "fdai.core.rca",
+                    "action_kind": "rca.hypothesis",
+                    "mode": Mode.SHADOW.value,
+                    "rule_id": finding.rule_id,
+                    "incident_id": incident_id,
+                    "rca_outcome": result.outcome.value,
+                    "rca_reason": result.reason,
+                    "rca_tier": hypothesis.tier.value if hypothesis else None,
+                    "rca_cause": hypothesis.cause if hypothesis else None,
+                    "rca_confidence": hypothesis.confidence if hypothesis else None,
+                    "rca_citations": (
+                        [{"kind": c.kind.value, "ref": c.ref} for c in hypothesis.citations]
+                        if hypothesis
+                        else []
+                    ),
+                    "rca_remediation_ref": hypothesis.remediation_ref if hypothesis else None,
+                    "recorded_at": datetime.now(tz=UTC).isoformat(),
+                }
+            )
+        except Exception:  # noqa: BLE001 - RCA is best-effort; decision path unaffected
+            _LOGGER.warning(
+                "rca_analyze_failed",
+                extra={"event_id": str(event.event_id), "rule_id": finding.rule_id},
+                exc_info=True,
+            )
+
+    async def _analyze_t2_rca_on_abstain(
+        self,
+        *,
+        event: Event,
+        decision: RoutingDecision,
+        incident_id: str | None,
+    ) -> None:
+        """Append a grounded T2 root-cause hypothesis for a novel case.
+
+        No-op unless an :class:`RcaCoordinator` with a T2 reasoner is
+        wired (a deployment without an LLM never emits T2 noise). The
+        reasoner's answer is grounded on the event/telemetry evidence
+        supplied here and passes the grounding gate; an ungrounded or
+        abstaining reasoner records an abstain. Best-effort - T2 RCA
+        never blocks or changes the already-abstained control decision.
+        """
+        if self._rca_coordinator is None or not self._rca_coordinator.has_t2:
+            return
+        resource = event.resource_ref or _extract_resource_id(event, decision)
+        candidates = [Citation(kind=CitationKind.EVENT, ref=str(event.event_id))]
+        if resource:
+            candidates.append(Citation(kind=CitationKind.TELEMETRY, ref=resource))
+        try:
+            summary = f"novel {event.event_type} on {decision.resource_type or 'unknown'}"
+            result = await self._rca_coordinator.analyze_t2(
+                incident_summary=summary,
+                candidate_citations=tuple(candidates),
+            )
+            hypothesis = result.hypothesis
+            await self._audit_store.append_audit_entry(
+                {
+                    "event_id": str(event.event_id),
+                    "idempotency_key": f"{event.idempotency_key}:rca_t2",
+                    "actor": "fdai.core.rca",
+                    "action_kind": "rca.hypothesis",
+                    "mode": Mode.SHADOW.value,
+                    "incident_id": incident_id,
+                    "rca_outcome": result.outcome.value,
+                    "rca_reason": result.reason,
+                    "rca_tier": hypothesis.tier.value if hypothesis else "t2",
+                    "rca_cause": hypothesis.cause if hypothesis else None,
+                    "rca_confidence": hypothesis.confidence if hypothesis else None,
+                    "rca_citations": (
+                        [{"kind": c.kind.value, "ref": c.ref} for c in hypothesis.citations]
+                        if hypothesis
+                        else []
+                    ),
+                    "recorded_at": datetime.now(tz=UTC).isoformat(),
+                }
+            )
+        except Exception:  # noqa: BLE001 - T2 RCA best-effort; decision path unaffected
+            _LOGGER.warning(
+                "rca_t2_analyze_failed",
+                extra={"event_id": str(event.event_id)},
+                exc_info=True,
+            )
 
     # ------------------------------------------------------------------
     # stage-publisher helper

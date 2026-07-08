@@ -1,0 +1,48 @@
+# Upstream built-in ObjectType: Turn.
+#
+# A `Turn` is one exchange within a Conversation. Append-only. Includes
+# the routing decision (primary agent, contributors, score) so the audit
+# reader can reconstruct how a natural-language response was assembled.
+# See docs/roadmap/agent-pantheon.md § 6.3.
+schema_version: "1.0.0"
+name: Turn
+version: "1.0.0"
+key: id
+description: One exchange in a Conversation; append-only; carries routing decision.
+properties:
+  id:
+    type: string
+    required: true
+    description: Opaque turn identifier (turn_id in payload); stable within the parent Conversation.
+  session_id:
+    type: string
+    required: true
+    description: Parent Conversation session id.
+  turn_index:
+    type: integer
+    required: true
+    description: Zero-based position within the Conversation.
+  question:
+    type: string
+    required: true
+    description: Operator natural-language input.
+  primary_agent:
+    type: string
+    required: true
+    description: Name of the Agent that led the response (winner of Bragi routing).
+  contributors:
+    type: array
+    required: false
+    description: Names of Agents that provided typed-query inputs to primary_agent.
+  answer:
+    type: string
+    required: false
+    description: Rendered natural-language answer returned to the operator.
+  score_breakdown:
+    type: object
+    required: false
+    description: Bragi routing scores (specificity, ownership, recency, confidence, tie_break) - see agent-pantheon.md § 6.3.
+  trace_ref:
+    type: string
+    required: false
+    description: Correlation id chain linking this turn to any typed-port events it triggered.

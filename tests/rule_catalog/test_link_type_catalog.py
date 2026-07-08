@@ -142,14 +142,14 @@ def test_duplicate_name_across_files_fails(tmp_path: Path) -> None:
 def test_invalid_name_pattern_fails(tmp_path: Path) -> None:
     # Name MUST be snake_case starting with a lowercase letter.
     (tmp_path / "bad.yaml").write_text(
-        (
+        
             'schema_version: "1.0.0"\n'
             "name: BadCamelCase\n"
             'version: "1.0.0"\n'
             "from_type: Resource\n"
             "to_type: Resource\n"
             "cardinality: many_to_many\n"
-        )
+        
     )
     with pytest.raises(LinkTypeCatalogError) as info:
         load_link_type_catalog(

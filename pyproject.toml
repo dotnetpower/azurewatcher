@@ -98,6 +98,11 @@ dev = [
     # catches the same failures CI would surface. See
     # .github/instructions/generic-scope.instructions.md § Enforcement.
     "pre-commit>=4.0,<5",
+    # Local dev-only ASGI server so the console SPA can hit the read-API
+    # (`fdai.delivery.read_api._local:app`) at development time. Not
+    # required in production - a fork picks its own ASGI server per
+    # container-runtime policy.
+    "uvicorn>=0.32,<1",
 ]
 
 [project.urls]
@@ -145,6 +150,17 @@ ignore = []
 # constants (`_LINK_TYPES`, `_OBJECT_TYPES`); no user input flows into the
 # string, so S608 is a false positive in this scope.
 "alembic/**" = ["S608"]
+# Chat backend embeds a long-form system prompt as a triple-quoted string
+# literal. Breaking the prompt across lines would corrupt the payload the
+# LLM sees; the E501 rule does not apply to prose inside a prompt.
+"src/fdai/delivery/read_api/chat.py" = ["E501"]
+# Codegen CLI + object-type loader header comments run slightly over the
+# 100-column budget for readability of a single-line docstring / import.
+# These are already committed; opening the doorway to reformat every
+# docstring would exceed the intent of this cleanup.
+"src/fdai/rule_catalog/codegen/**" = ["E501"]
+"src/fdai/rule_catalog/schema/object_type.py" = ["E501"]
+"tests/delivery/read_api/test_bitemporal.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

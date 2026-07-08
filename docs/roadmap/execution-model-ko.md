@@ -1,7 +1,7 @@
 ---
 title: Execution 모델
 translation_of: execution-model.md
-translation_source_sha: fea01f39909a76a6b550f82cc0f1953f33b15bb6
+translation_source_sha: 1a6efa69c8fd4f34a9308ef1a7d6e6ceca1e300e
 translation_revised: 2026-07-08
 ---
 
@@ -470,6 +470,55 @@ final_path = strictest(requested_path, forced_path)
 로 degrade 될 때 (§11), fallback PR 은 액션의 안정된 idempotency key 를
 재사용. direct-API adapter 는 시도-및-실패한 call 을 그 key 하에 기록하여
 manual PR 경로가 동일 mutation 을 double-apply 할 수 없도록 함.
+
+### 5.5 HIL 승인 왕복 (park and resume)
+
+RiskGate 가 `hil` 을 반환하면 executor 는 실행되지 않고 control loop 은
+사람을 기다리며 block 하지 않는다. `HilResumeCoordinator`
+(`core/hil_resume`) 는 **park and return** 모델을 적용한다:
+
+1. **park** - 전체 `Action` (+ rule id, submitter, correlation id) 을
+   opaque `approval_id` 하에 `status=pending` 으로 `StateStore` 에
+   직렬화;
+2. **push** - `HilChannel` (Teams / Slack) 로 A1 승인 카드 dispatch;
+   배달 실패는 액션을 parked + 복구 가능 상태로 남기며 실행하지 않음;
+3. **audit** - `hil.requested` 엔트리 기록 후
+   `ControlLoop.process(...)` 는 block 없이 `hil` 반환.
+
+이후 결정(ChatOps callback 또는 poll)이
+`HilResumeCoordinator.resolve(approval_id, decision, approver_oid)` 를
+구동한다:
+
+- **APPROVE** - parked `Action` 을 복원(`model_validate`)해 동일한
+  executor selection (§5.4) 으로 재-dispatch; `hil.approved.executed`
+  audit 엔트리 하나 기록.
+- **REJECT** / **TIMEOUT** - 기록하되 실행 안 함 (fail-closed).
+- **idempotent** - park 는 첫 terminal 결정에서 `status=resolved` 로
+  전환; 중복 결정은 no-op, 상충 결정은 거부되어 승인이 double-apply
+  될 수 없음.
+- **self-approval 금지** - `approver_oid == submitter_oid` 는 실행 전에
+  거부; loop 은 system submitter 신원으로 park 하므로 실제 approver 는
+  항상 구별됨.
+
+이것으로 `hil` verdict (§2) 와 승인된 액션의 실제 실행 사이가, blocking
+wait 나 gate 없는 auto-execute 없이 이어진다. read-API HIL callback
+(`POST /hil/{approval_id}/decision`) 이 resolve trigger 를 구동한다:
+인바운드 결정은 coordinator 를 먼저 거치고(park 경로 - `APPROVE` 는
+executor 로 재-dispatch), park 가 없으면 `approve_hil` 로 올라온
+console-pull 승인을 위해 registry 경로로 fall through 한다. coordinator 는
+transport-neutral 이다. ChatOps 채널이 설정되면(`FDAI_CHATOPS_WEBHOOK_URL`)
+`__main__` 이 이것을 control loop 에 wire 하여 `hil` verdict 가 액션을 park
+하고 A1 카드를 push 한다; 없으면 loop 은 verdict 를 기록하고 영속화된
+queue 로 fall back 한다. read-API 서버는 동일한 coordinator 를 callback
+route 에 공급하여 인바운드 결정이 park 를 resolve 한다.
+
+**Notify-on-decision.** 동일한 loop 은 모든 terminal 결정
+(`executed` / `hil` / `denied`) 마다 notification router 를 통해 A2
+operational-alert 도 emit 한다 - outbound-only, 정보성이며 승인 버튼을
+절대 싣지 않음 (
+[channels-and-notifications-ko.md § 3](channels-and-notifications-ko.md)
+참조). router 는 optional seam 이다: 없으면 loop 은 이전과 정확히 동일하게
+동작한다.
 
 ## 6. 안전 invariant (변경 없음 + 하나 확장)
 

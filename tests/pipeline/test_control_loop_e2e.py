@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -36,7 +37,7 @@ from fdai.core.control_loop import (
     ControlLoopOutcome,
     ControlLoopResult,
 )
-from fdai.core.event_ingest import EventIngest
+from fdai.core.event_ingest import EventCorrelator, EventIngest
 from fdai.core.executor import (
     ExecutorOutcome,
     ResourceLockManager,
@@ -44,6 +45,8 @@ from fdai.core.executor import (
     TemplateRenderer,
 )
 from fdai.core.executor.action_builder import ActionBuilder
+from fdai.core.notifications.router import NotificationRouter
+from fdai.core.rca import RcaCoordinator, RcaTier, RootCauseHypothesis
 from fdai.core.tiers.t0_deterministic import (
     OpaRegoEvaluator,
     RuleIndex,
@@ -55,11 +58,16 @@ from fdai.rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
 from fdai.rule_catalog.schema.rule import load_rule_catalog
-from fdai.shared.contracts.models import Mode
+from fdai.shared.contracts.models import Event, Mode
 from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 from fdai.shared.contracts.validation import (
     JsonSchemaContractValidator,
     JsonSchemaEventValidator,
+)
+from fdai.shared.providers.notifications.base import (
+    NotificationMessage,
+    Severity,
+    TrustTier,
 )
 from fdai.shared.providers.testing import (
     InMemoryStateStore,
@@ -102,6 +110,9 @@ def _make_loop(
     with_opa: bool = True,
     risk_table: Any = None,
     risk_gate: Any = None,
+    notification_router: NotificationRouter | None = None,
+    rca_coordinator: RcaCoordinator | None = None,
+    event_correlator: EventCorrelator | None = None,
 ) -> tuple[ControlLoop, RecordingRemediationPrPublisher, InMemoryStateStore]:
     rules, action_types = shipped_catalog
     index = RuleIndex.build(rules)
@@ -131,6 +142,9 @@ def _make_loop(
             {a.name: a for a in action_types} if risk_table is not None else None
         ),
         risk_gate=risk_gate,
+        notification_router=notification_router,
+        rca_coordinator=rca_coordinator,
+        event_correlator=event_correlator,
     )
     return loop, publisher, audit
 
@@ -717,3 +731,342 @@ def test_is_execution_success_ignores_non_outcome_objects() -> None:
     from fdai.core.control_loop import _is_execution_success
 
     assert _is_execution_success("not-a-result") is False
+
+
+# ---------------------------------------------------------------------------
+# Notify-on-decision (A2 operational-alert push)
+# ---------------------------------------------------------------------------
+
+
+class _SpyRouter(NotificationRouter):
+    """Captures dispatched messages without touching real channels.
+
+    Deliberately skips ``super().__init__`` - the spy needs no matrix /
+    registry / audit / sink; it only records the messages the control
+    loop hands it (and can be told to raise to exercise the best-effort
+    swallow path).
+    """
+
+    def __init__(self, *, raise_on_dispatch: bool = False) -> None:
+        self.messages: list[NotificationMessage] = []
+        self._raise = raise_on_dispatch
+
+    async def dispatch(self, message: NotificationMessage):  # type: ignore[override]
+        if self._raise:
+            raise RuntimeError("channel down")
+        self.messages.append(message)
+        return None  # type: ignore[return-value]
+
+
+def _ingest_for_notify(
+    loop: ControlLoop,
+    *,
+    event_id: str = "00000000-0000-0000-0000-000000000090",
+    key: str = "e-notify",
+) -> Event:
+    ingested = loop._event_ingest.ingest(  # noqa: SLF001 - test needs a real Event
+        _make_event(
+            event_id=event_id,
+            idempotency_key=key,
+            resource_type="object-storage",
+            resource_id="r-notify",
+            props={},
+        )
+    )
+    assert ingested is not None
+    return ingested
+
+
+@pytest.mark.asyncio
+async def test_notify_decision_executed_pushes_a2_info(
+    shipped_catalog: tuple[Any, Any],
+) -> None:
+    spy = _SpyRouter()
+    loop, _, _ = _make_loop(shipped_catalog, with_opa=False, notification_router=spy)
+    event = _ingest_for_notify(loop)
+    await loop._notify_decision(  # noqa: SLF001 - exercising the private helper directly
+        event=event,
+        correlation_id="c1",
+        overall=ControlLoopOutcome.EXECUTED,
+        decision_word="auto",
+        resource_type="object-storage",
+        citing_rule_ids=("rule-a", "rule-b"),
+    )
+    assert len(spy.messages) == 1
+    m = spy.messages[0]
+    assert m.category == "operational_alert"
+    assert m.trust_tier is TrustTier.A2_OPERATIONAL_ALERT
+    assert m.severity is Severity.INFO
+    assert m.correlation_id == "c1"
+    assert m.metadata["outcome"] == ControlLoopOutcome.EXECUTED.value
+    # Generic body only - no customer-identifying value (no resource id).
+    assert "r-notify" not in m.body_markdown
+    assert "rule-a" in m.body_markdown
+
+
+@pytest.mark.asyncio
+async def test_notify_decision_hil_warns(shipped_catalog: tuple[Any, Any]) -> None:
+    spy = _SpyRouter()
+    loop, _, _ = _make_loop(shipped_catalog, with_opa=False, notification_router=spy)
+    event = _ingest_for_notify(loop)
+    await loop._notify_decision(  # noqa: SLF001
+        event=event,
+        correlation_id="c1",
+        overall=ControlLoopOutcome.HIL,
+        decision_word="hil",
+        resource_type="object-storage",
+        citing_rule_ids=("rule-a",),
+    )
+    assert spy.messages[0].severity is Severity.WARN
+
+
+@pytest.mark.asyncio
+async def test_notify_decision_denied_errors(shipped_catalog: tuple[Any, Any]) -> None:
+    spy = _SpyRouter()
+    loop, _, _ = _make_loop(shipped_catalog, with_opa=False, notification_router=spy)
+    event = _ingest_for_notify(loop)
+    await loop._notify_decision(  # noqa: SLF001
+        event=event,
+        correlation_id="c1",
+        overall=ControlLoopOutcome.DENIED,
+        decision_word="deny",
+        resource_type="object-storage",
+        citing_rule_ids=(),
+    )
+    assert spy.messages[0].severity is Severity.ERROR
+    # Empty citing set renders the 'n/a' placeholder, never an empty crash.
+    assert "n/a" in spy.messages[0].body_markdown
+
+
+@pytest.mark.asyncio
+async def test_notify_decision_abstain_is_silent(
+    shipped_catalog: tuple[Any, Any],
+) -> None:
+    spy = _SpyRouter()
+    loop, _, _ = _make_loop(shipped_catalog, with_opa=False, notification_router=spy)
+    event = _ingest_for_notify(loop)
+    await loop._notify_decision(  # noqa: SLF001
+        event=event,
+        correlation_id="c1",
+        overall=ControlLoopOutcome.ABSTAINED_T0,
+        decision_word="abstain",
+        resource_type="object-storage",
+        citing_rule_ids=(),
+    )
+    assert spy.messages == []
+
+
+@pytest.mark.asyncio
+async def test_notify_router_none_is_noop(shipped_catalog: tuple[Any, Any]) -> None:
+    loop, _, _ = _make_loop(shipped_catalog, with_opa=False, notification_router=None)
+    event = _ingest_for_notify(loop)
+    # Must not raise despite an EXECUTED outcome and no router wired.
+    await loop._notify_decision(  # noqa: SLF001
+        event=event,
+        correlation_id="c1",
+        overall=ControlLoopOutcome.EXECUTED,
+        decision_word="auto",
+        resource_type="object-storage",
+        citing_rule_ids=("rule-a",),
+    )
+
+
+@pytest.mark.asyncio
+async def test_notify_dispatch_error_is_swallowed(
+    shipped_catalog: tuple[Any, Any],
+) -> None:
+    spy = _SpyRouter(raise_on_dispatch=True)
+    loop, _, _ = _make_loop(shipped_catalog, with_opa=False, notification_router=spy)
+    event = _ingest_for_notify(loop)
+    # A dispatch failure MUST NOT propagate - the decision is already audited.
+    await loop._notify_decision(  # noqa: SLF001
+        event=event,
+        correlation_id="c1",
+        overall=ControlLoopOutcome.EXECUTED,
+        decision_word="auto",
+        resource_type="object-storage",
+        citing_rule_ids=("rule-a",),
+    )
+
+
+@pytest.mark.asyncio
+async def test_process_abstain_does_not_push(shipped_catalog: tuple[Any, Any]) -> None:
+    """Routing-abstain path stays silent even with a router wired."""
+    spy = _SpyRouter()
+    loop, _, _ = _make_loop(shipped_catalog, with_opa=False, notification_router=spy)
+    result = await loop.process(
+        {
+            "schema_version": "1.0.0",
+            "event_id": "00000000-0000-0000-0000-000000000091",
+            "idempotency_key": "e-abstain-notify",
+            "source": "example_activity_log",
+            "event_type": "config_changed",
+            "detected_at": "2026-07-05T08:00:00Z",
+            "ingested_at": "2026-07-05T08:00:01Z",
+            "mode": "shadow",
+        }
+    )
+    assert result.outcome is ControlLoopOutcome.ABSTAINED_ROUTING
+    assert spy.messages == []
+
+
+# ---------------------------------------------------------------------------
+# RCA audit (deterministic T0 root-cause on each finding)
+# ---------------------------------------------------------------------------
+
+
+def _first_rule(loop: ControlLoop) -> Any:
+    return next(iter(loop._rules_by_id.values()))  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_rca_hypothesis_appended_for_finding(
+    shipped_catalog: tuple[Any, Any],
+) -> None:
+    coordinator = RcaCoordinator()
+    loop, _, audit = _make_loop(shipped_catalog, with_opa=False, rca_coordinator=coordinator)
+    event = _ingest_for_notify(loop)
+    rule = _first_rule(loop)
+    await loop._analyze_and_audit_rca(  # noqa: SLF001 - exercising the private helper
+        event=event,
+        finding=SimpleNamespace(rule_id=rule.id),
+        rule=rule,
+        resource_type="object-storage",
+    )
+    rca_entries = [
+        e["entry"] for e in audit.audit_entries if e["entry"].get("action_kind") == "rca.hypothesis"
+    ]
+    assert len(rca_entries) == 1
+    entry = rca_entries[0]
+    assert entry["rca_outcome"] == "grounded"
+    assert entry["rca_tier"] == "t0"
+    assert entry["rca_remediation_ref"] == rule.remediates
+    assert entry["rca_citations"][0]["ref"] == rule.id
+    assert rule.id in entry["rca_cause"]
+
+
+@pytest.mark.asyncio
+async def test_rca_none_appends_no_audit(shipped_catalog: tuple[Any, Any]) -> None:
+    loop, _, audit = _make_loop(shipped_catalog, with_opa=False, rca_coordinator=None)
+    event = _ingest_for_notify(loop)
+    rule = _first_rule(loop)
+    await loop._analyze_and_audit_rca(  # noqa: SLF001
+        event=event,
+        finding=SimpleNamespace(rule_id=rule.id),
+        rule=rule,
+        resource_type="object-storage",
+    )
+    rca_entries = [
+        e for e in audit.audit_entries if e["entry"].get("action_kind") == "rca.hypothesis"
+    ]
+    assert rca_entries == []
+
+
+# ---------------------------------------------------------------------------
+# Event correlation wiring (incident_id on the RCA audit)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_correlate_incident_id_from_correlator(
+    shipped_catalog: tuple[Any, Any],
+) -> None:
+    loop, _, _ = _make_loop(shipped_catalog, with_opa=False, event_correlator=EventCorrelator())
+    event = _ingest_for_notify(loop)
+    incident_id = loop._correlate_incident_id(event)  # noqa: SLF001
+    assert incident_id is not None
+
+
+@pytest.mark.asyncio
+async def test_correlate_none_without_correlator(
+    shipped_catalog: tuple[Any, Any],
+) -> None:
+    loop, _, _ = _make_loop(shipped_catalog, with_opa=False, event_correlator=None)
+    event = _ingest_for_notify(loop)
+    assert loop._correlate_incident_id(event) is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_rca_audit_carries_incident_id(shipped_catalog: tuple[Any, Any]) -> None:
+    loop, _, audit = _make_loop(shipped_catalog, with_opa=False, rca_coordinator=RcaCoordinator())
+    event = _ingest_for_notify(loop)
+    rule = _first_rule(loop)
+    await loop._analyze_and_audit_rca(  # noqa: SLF001
+        event=event,
+        finding=SimpleNamespace(rule_id=rule.id),
+        rule=rule,
+        resource_type="object-storage",
+        incident_id="incident-123",
+    )
+    rca_entries = [
+        e["entry"] for e in audit.audit_entries if e["entry"].get("action_kind") == "rca.hypothesis"
+    ]
+    assert len(rca_entries) == 1
+    assert rca_entries[0]["incident_id"] == "incident-123"
+
+
+# ---------------------------------------------------------------------------
+# T2 RCA on a novel (T0 no-match) case, gated by a wired reasoner
+# ---------------------------------------------------------------------------
+
+
+class _StubT2Reasoner:
+    """Fake RcaReasoner citing the first supplied candidate (grounded)."""
+
+    async def reason(self, *, incident_summary: str, candidate_citations: Any) -> Any:
+        if not candidate_citations:
+            return None
+        return RootCauseHypothesis(
+            tier=RcaTier.T2,
+            cause="novel cause hypothesis",
+            confidence=0.8,
+            citations=(candidate_citations[0],),
+        )
+
+
+@pytest.mark.asyncio
+async def test_t2_rca_audited_on_abstain_with_reasoner(
+    shipped_catalog: tuple[Any, Any],
+) -> None:
+    # No OPA -> T0 abstains (no rule verdict); a wired T2 reasoner then
+    # produces a grounded root-cause hypothesis on the novel case.
+    coordinator = RcaCoordinator(reasoner=_StubT2Reasoner())
+    loop, _, audit = _make_loop(
+        shipped_catalog,
+        with_opa=False,
+        rca_coordinator=coordinator,
+        event_correlator=EventCorrelator(),
+    )
+    await loop.process(
+        _make_event(
+            idempotency_key="t2-1",
+            resource_type="object-storage",
+            resource_id="r-x",
+            props={},
+        )
+    )
+    t2_entries = [
+        e["entry"] for e in audit.audit_entries if e["entry"].get("action_kind") == "rca.hypothesis"
+    ]
+    assert len(t2_entries) == 1
+    assert t2_entries[0]["rca_tier"] == "t2"
+    assert t2_entries[0]["rca_outcome"] == "grounded"
+    assert t2_entries[0]["incident_id"] is not None
+
+
+@pytest.mark.asyncio
+async def test_t2_rca_skipped_without_reasoner(shipped_catalog: tuple[Any, Any]) -> None:
+    # RcaCoordinator without a reasoner -> T2 RCA is skipped (no noise).
+    loop, _, audit = _make_loop(shipped_catalog, with_opa=False, rca_coordinator=RcaCoordinator())
+    await loop.process(
+        _make_event(
+            idempotency_key="t2-2",
+            resource_type="object-storage",
+            resource_id="r-y",
+            props={},
+        )
+    )
+    t2_entries = [
+        e for e in audit.audit_entries if e["entry"].get("action_kind") == "rca.hypothesis"
+    ]
+    assert t2_entries == []

@@ -35,6 +35,8 @@ from typing import Any
 import httpx
 import yaml
 
+from .agents.divergence import ShadowDivergenceLedger
+from .agents.runtime import PantheonRuntime
 from .composition import (
     AzureWireOverrides,
     Container,
@@ -42,13 +44,15 @@ from .composition import (
     default_container_from_env,
     wire_azure_container,
 )
-from .core.control_loop import ControlLoop
-from .core.event_ingest import EventIngest
+from .core.control_loop import ControlLoop, ControlLoopOutcome, ControlLoopResult
+from .core.event_ingest import EventCorrelator, EventIngest
 from .core.executor import ShadowExecutor
 from .core.executor.action_builder import ActionBuilder
 from .core.executor.direct_api import DirectApiShadowExecutor
 from .core.executor.lock import ResourceLockManager
 from .core.executor.renderer import TemplateRenderer
+from .core.hil_resume import HilResumeCoordinator
+from .core.rca import RcaCoordinator
 from .core.tiers.t0_deterministic import T0Engine
 from .core.tiers.t0_deterministic.index import RuleIndex
 from .core.tiers.t0_deterministic.opa_evaluator import (
@@ -74,6 +78,25 @@ from .shared.providers.workload_identity import WorkloadIdentity
 
 _LOGGER = logging.getLogger("fdai.startup")
 _LOOP_LOGGER = logging.getLogger("fdai.control_loop")
+
+
+def _new_http_client() -> httpx.AsyncClient:
+    """Build the shared :class:`httpx.AsyncClient` with sensible timeouts.
+
+    httpx's default is a global 5-second timeout on every phase, which is
+    too aggressive for LLM completions (T2 reasoners can legitimately
+    stream for tens of seconds) and for the GitOps + Chatops adapters that
+    hit third-party APIs behind rate limiters. The per-phase budget below
+    keeps the connect phase snappy (fail fast on DNS / TCP) while giving
+    the read phase enough headroom for realistic responses.
+
+    Every adapter that needs one MUST use this helper instead of
+    ``httpx.AsyncClient()`` so timeouts stay uniform and diff-reviewable.
+    """
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=5.0, read=60.0, write=15.0, pool=5.0),
+        follow_redirects=False,
+    )
 
 
 def _resolve_catalog_root() -> Path:
@@ -133,7 +156,7 @@ def _build_audit_store() -> Any:
     fake is used. The ``StateStore`` Protocol is the contract, so core
     code neither knows nor cares which backend is active.
     """
-    dsn = os.environ.get("FDAI_STATE_STORE_DSN")
+    dsn = os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
     if dsn:
         from .delivery.persistence import PostgresStateStore, PostgresStateStoreConfig
 
@@ -162,7 +185,7 @@ def _build_operator_memory_store() -> Any:
 
     from .core.operator_memory import InMemoryOperatorMemoryStore
 
-    dsn = os.environ.get("FDAI_OPERATOR_MEMORY_DSN")
+    dsn = os.environ.get("FDAI_OPERATOR_MEMORY_DSN", "").strip()
     if dsn:
         from .delivery.persistence import (
             PostgresOperatorMemoryStore,
@@ -574,6 +597,40 @@ def _build_control_loop(
         resource_lock=resource_lock,
     )
 
+    # Detection-and-explanation seams (observability-and-detection.md).
+    # EventCorrelator groups an event storm into one incident id; the
+    # RcaCoordinator adds the deterministic T0 "why" per finding and,
+    # when the Azure T2 RCA reasoner is bound (``t2.rca`` capability +
+    # prompt), a grounded T2 hypothesis on novel (T0 no-match) cases.
+    # Both are read-only explanation surfaces - never a new autonomy
+    # path - so they are safe to wire unconditionally.
+    event_correlator = EventCorrelator()
+    rca_reasoner = (
+        container.llm_bindings.rca_reasoner if container.llm_bindings is not None else None
+    )
+    rca_coordinator = RcaCoordinator(reasoner=rca_reasoner)
+
+    # HIL approval round-trip (Notify-on-decision step B). Opt-in: only
+    # when a HIL channel is configured (``FDAI_CHATOPS_WEBHOOK_URL``)
+    # does the loop park a HIL-routed action and push an A1 approval
+    # card. Absent -> ``None`` so the loop records the HIL verdict and
+    # stops at the persisted queue (backward-compatible). Parking never
+    # turns a HIL verdict into an execution - the coordinator holds the
+    # no-self-approval + idempotency invariants.
+    hil_channel = _build_hil_channel(http_client)
+    hil_resume_coordinator = (
+        HilResumeCoordinator(
+            state_store=audit_store,
+            executor=executor,
+            hil_channel=hil_channel,
+            rules_by_id={r.id: r for r in rules},
+            direct_api_executor=direct_api_executor,
+            action_types_by_name=action_types_by_name,
+        )
+        if hil_channel is not None
+        else None
+    )
+
     return ControlLoop(
         event_ingest=event_ingest,
         trust_router=trust_router,
@@ -584,6 +641,9 @@ def _build_control_loop(
         rules_by_id={r.id: r for r in rules},
         action_types_by_name=action_types_by_name,
         direct_api_executor=direct_api_executor,
+        event_correlator=event_correlator,
+        rca_coordinator=rca_coordinator,
+        hil_resume_coordinator=hil_resume_coordinator,
     )
 
 
@@ -594,6 +654,7 @@ async def _consume(
     group_id: str,
     control_loop: ControlLoop,
     stop: asyncio.Event,
+    divergence: ShadowDivergenceLedger | None = None,
 ) -> None:
     """Feed every Kafka envelope through the P1 control loop.
 
@@ -601,6 +662,10 @@ async def _consume(
     never raises for business errors, so a bad event still writes an
     audit entry and the consumer keeps committing offsets to avoid
     poison-message deadlocks.
+
+    When a ``divergence`` ledger is wired, the authoritative P1 decision
+    is recorded against the event's correlation id so it can be joined
+    with the pantheon's shadow verdict (shadow-before-enforce baseline).
     """
     async for envelope in bus.subscribe(topic, group_id):
         if stop.is_set():
@@ -617,6 +682,17 @@ async def _consume(
                 extra={"key": envelope.key, "offset": envelope.offset},
             )
             continue
+        if divergence is not None:
+            payload = envelope.payload
+            correlation_id = str(
+                payload.get("correlation_id")
+                or payload.get("event_id")
+                or payload.get("id")
+                or envelope.key
+            )
+            divergence.record_authoritative(
+                correlation_id, _authoritative_decision(result)
+            )
         _LOOP_LOGGER.info(
             "event_processed",
             extra={
@@ -629,6 +705,38 @@ async def _consume(
         )
 
 
+def _authoritative_decision(result: ControlLoopResult) -> str:
+    """Normalize a P1 :class:`ControlLoopResult` to the shared decision
+    vocabulary used by the pantheon (``auto`` / ``hil`` / ``deny`` /
+    ``dedupe`` / ``abstain``) so the two sides are directly comparable."""
+    outcome = result.outcome
+    if outcome == ControlLoopOutcome.EXECUTED:
+        return "auto"
+    if outcome == ControlLoopOutcome.HIL:
+        return "hil"
+    if outcome == ControlLoopOutcome.DENIED:
+        return "deny"
+    if outcome == ControlLoopOutcome.DEDUPED:
+        return "dedupe"
+    return "abstain"
+
+
+def _log_pantheon_exit(task: asyncio.Task[None]) -> None:
+    """Done-callback for the isolated pantheon task.
+
+    A pantheon crash or early exit is surfaced here without touching the
+    P1 wait set, so the shadow overlay can never take the primary control
+    plane down with it.
+    """
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        _LOGGER.error("pantheon_runtime_failed", exc_info=exc)
+    else:
+        _LOGGER.warning("pantheon_runtime_exited_early")
+
+
 async def _run() -> int:
     container = default_container_from_env()
     summary = _summarize_config(container)
@@ -637,6 +745,9 @@ async def _run() -> int:
     http_client: httpx.AsyncClient | None = None
     identity: WorkloadIdentity | None = None
     bus: EventBus | None = None
+    pantheon_runtime: PantheonRuntime | None = None
+    pantheon_heartbeat: float | None = None
+    divergence_ledger: ShadowDivergenceLedger | None = None
 
     try:
         if container.config.llm.mode == LlmMode.AZURE:
@@ -644,7 +755,7 @@ async def _run() -> int:
                 ManagedIdentityWorkloadIdentity,
             )
 
-            http_client = httpx.AsyncClient()
+            http_client = _new_http_client()
             identity = ManagedIdentityWorkloadIdentity(http_client=http_client)
             container = await _finalize_llm_bindings(
                 container, http_client=http_client, identity=identity
@@ -673,7 +784,7 @@ async def _run() -> int:
                 )
 
                 if http_client is None:
-                    http_client = httpx.AsyncClient()
+                    http_client = _new_http_client()
                 identity = ManagedIdentityWorkloadIdentity(http_client=http_client)
 
             bus = EventHubsKafkaBus(
@@ -686,18 +797,11 @@ async def _run() -> int:
             # A GitOps token opts into the real publisher; ensure an
             # http_client exists before _build_control_loop needs one.
             if os.environ.get("FDAI_GITOPS_TOKEN") and http_client is None:
-                http_client = httpx.AsyncClient()
+                http_client = _new_http_client()
             # Same for the HIL channel - an Incoming Webhook URL opts in.
             if os.environ.get("FDAI_CHATOPS_WEBHOOK_URL") and http_client is None:
-                http_client = httpx.AsyncClient()
+                http_client = _new_http_client()
             control_loop = _build_control_loop(container, http_client=http_client)
-            # Build the HIL channel adjacent to the control loop so the
-            # startup log makes the wiring visible. The channel is
-            # bound at the composition root but not yet consumed by the
-            # P1 loop (risk-gate integration lands in a later phase);
-            # a ``None`` return keeps the existing HIL-queue fallback.
-            _hil_channel = _build_hil_channel(http_client)
-            del _hil_channel  # binding is a future control-loop concern
             _LOGGER.info(
                 "control_loop_ready",
                 extra={
@@ -705,6 +809,71 @@ async def _run() -> int:
                     "group_id": "fdai-core",
                 },
             )
+
+            # Optional pantheon: the 15 named agents consume the same
+            # ingress topic under distinct consumer groups (fan-out) and
+            # react immediately. Opt-in via FDAI_START_PANTHEON and shadow
+            # by default - the agents use in-memory audit / issue / admin
+            # adapters and Thor's executor stays in shadow, so running it
+            # beside the P1 loop adds no autonomous mutation. See
+            # docs/roadmap/agent-pantheon-implementation.md.
+            start_pantheon = os.environ.get("FDAI_START_PANTHEON", "").lower() in (
+                "1",
+                "true",
+            )
+            if start_pantheon:
+                pantheon_enforce = os.environ.get(
+                    "FDAI_PANTHEON_ENFORCE", ""
+                ).lower() in ("1", "true")
+                disabled_raw = os.environ.get(
+                    "FDAI_PANTHEON_DISABLED_AGENTS", ""
+                ).strip()
+                disabled_agents = (
+                    frozenset(
+                        n.strip() for n in disabled_raw.split(",") if n.strip()
+                    )
+                    if disabled_raw
+                    else None
+                )
+                # Shared ledger: the pantheon observer records its shadow
+                # verdict, the P1 consumer records the authoritative
+                # decision; joined by correlation id to measure shadow
+                # agreement (the promotion baseline).
+                divergence_ledger = ShadowDivergenceLedger()
+                pantheon_runtime = PantheonRuntime.build(
+                    provider=bus,
+                    raw_event_topic=container.config.kafka.topic_events,
+                    enforce=pantheon_enforce,
+                    disabled_agents=disabled_agents,
+                    divergence=divergence_ledger,
+                )
+                hb_raw = os.environ.get("FDAI_PANTHEON_HEARTBEAT_SECONDS", "").strip()
+                if hb_raw:
+                    try:
+                        pantheon_heartbeat = float(hb_raw)
+                    except ValueError as hb_exc:
+                        raise RuntimeError(
+                            f"FDAI_PANTHEON_HEARTBEAT_SECONDS={hb_raw!r} is not a float"
+                        ) from hb_exc
+                    if pantheon_heartbeat <= 0:
+                        raise RuntimeError(
+                            "FDAI_PANTHEON_HEARTBEAT_SECONDS MUST be > 0; "
+                            f"got {pantheon_heartbeat}"
+                        )
+                _LOGGER.info(
+                    "pantheon_ready",
+                    extra={
+                        "agents": len(pantheon_runtime.agents),
+                        "subscriptions": pantheon_runtime.subscription_count,
+                        "enforce": pantheon_enforce,
+                        "heartbeat_s": pantheon_heartbeat,
+                    },
+                )
+        elif os.environ.get("FDAI_START_PANTHEON", "").lower() in ("1", "true"):
+            # Pantheon needs the same Kafka bus the consumer builds; without
+            # FDAI_START_CONSUMER there is no bus to bind to. Warn rather
+            # than silently no-op so a miswired container is visible.
+            _LOGGER.warning("pantheon_requested_without_consumer")
 
         stop = asyncio.Event()
         loop = asyncio.get_running_loop()
@@ -724,15 +893,32 @@ async def _run() -> int:
                     group_id="fdai-core",
                     control_loop=control_loop,
                     stop=stop,
+                    divergence=divergence_ledger,
                 )
             )
             wait_task = asyncio.create_task(stop.wait())
+
+            # Blast-radius isolation: the pantheon runs OUTSIDE the P1 wait
+            # set. A pantheon crash is logged via a done-callback but MUST
+            # NOT bring down the P1 control plane; P1 shutdown cancels it
+            # in turn. The pantheon is a shadow overlay, never a dependency
+            # of the primary pipeline.
+            pantheon_task: asyncio.Task[None] | None = None
+            if pantheon_runtime is not None:
+                pantheon_task = asyncio.create_task(
+                    pantheon_runtime.run(heartbeat_interval=pantheon_heartbeat),
+                    name="pantheon-runtime",
+                )
+                pantheon_task.add_done_callback(_log_pantheon_exit)
+
             done, _pending = await asyncio.wait(
                 {consumer_task, wait_task},
                 return_when=asyncio.FIRST_COMPLETED,
             )
             consumer_task.cancel()
             wait_task.cancel()
+            if pantheon_task is not None:
+                pantheon_task.cancel()
             for task in done:
                 exc = task.exception()
                 if exc is not None:
@@ -743,6 +929,11 @@ async def _run() -> int:
         _LOGGER.info("shutdown_complete")
         return 0
     finally:
+        if pantheon_runtime is not None:
+            try:
+                await pantheon_runtime.stop()
+            except Exception:  # noqa: BLE001
+                _LOGGER.warning("pantheon_stop_failed", exc_info=True)
         if bus is not None:
             close = getattr(bus, "close", None)
             if callable(close):
@@ -758,9 +949,17 @@ async def _run() -> int:
 
 
 def main() -> int:
+    # Bootstrap the plain-text formatter for the tiny window before
+    # `default_container_from_env()` swaps in the marked JSON handler via
+    # `configure_telemetry`. `force=True` guarantees that if the caller
+    # already installed a root handler (uvicorn, pytest fixtures) we
+    # override cleanly instead of stacking - otherwise every log line
+    # would emit twice, once as plain text and once as JSON, once the
+    # composition root wires the JSON formatter.
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)sZ %(levelname)s %(name)s :: %(message)s",
+        force=True,
     )
     try:
         return asyncio.run(_run())

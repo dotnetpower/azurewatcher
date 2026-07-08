@@ -1,29 +1,34 @@
 import { useEffect, useState } from "preact/hooks";
 import type { ReadApiClient } from "../api";
 import type { DashboardKpi } from "../types";
+import {
+  AsyncBoundary,
+  DataTable,
+  KpiCard,
+  KpiGrid,
+  PageHeader,
+  type AsyncState,
+  type Column,
+} from "../components/ui";
+import { usePublishViewContext } from "../deck/context";
 
 interface Props {
   readonly client: ReadApiClient;
 }
-
-type State =
-  | { readonly status: "loading" }
-  | { readonly status: "ready"; readonly kpi: DashboardKpi }
-  | { readonly status: "error"; readonly message: string };
 
 function formatShare(x: number): string {
   return `${(x * 100).toFixed(1)}%`;
 }
 
 export function DashboardRoute({ client }: Props) {
-  const [state, setState] = useState<State>({ status: "loading" });
+  const [state, setState] = useState<AsyncState<DashboardKpi>>({ status: "loading" });
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const kpi = await client.dashboardMetrics();
-        if (!cancelled) setState({ status: "ready", kpi });
+        if (!cancelled) setState({ status: "ready", data: kpi });
       } catch (err) {
         if (!cancelled) {
           setState({
@@ -38,68 +43,121 @@ export function DashboardRoute({ client }: Props) {
     };
   }, [client]);
 
-  if (state.status === "loading") return <div class="empty">Loading...</div>;
-  if (state.status === "error")
-    return <div class="empty error">Failed to load KPIs: {state.message}</div>;
-
-  const kpi = state.kpi;
   return (
     <div class="stack">
-      <section class="grid">
-        <div class="card kpi">
-          <span class="label">Events (audit)</span>
-          <span class="value">{kpi.event_count}</span>
-        </div>
-        <div class="card kpi">
-          <span class="label">Shadow share</span>
-          <span class="value">{formatShare(kpi.shadow_share)}</span>
-        </div>
-        <div class="card kpi">
-          <span class="label">Enforce share</span>
-          <span class="value">{formatShare(kpi.enforce_share)}</span>
-        </div>
-        <div class="card kpi">
-          <span class="label">HIL pending</span>
-          <span class="value">{kpi.hil_pending}</span>
-        </div>
-      </section>
+      <PageHeader
+        title="Dashboard"
+        subtitle={
+          <>
+            Rolled-up control-plane KPIs sourced from the append-only audit log.
+            Numbers refresh on panel reload; no polling.
+          </>
+        }
+      />
+      <AsyncBoundary state={state} resourceLabel="dashboard KPIs">
+        {(kpi) => <DashboardBody kpi={kpi} />}
+      </AsyncBoundary>
+    </div>
+  );
+}
 
-      <section class="card">
-        <h2>Actions by kind</h2>
-        <KeyValueTable data={kpi.by_action_kind} />
-      </section>
+function DashboardBody({ kpi }: { readonly kpi: DashboardKpi }) {
+  usePublishViewContext(
+    () => ({
+      routeId: "dashboard",
+      routeLabel: "Dashboard",
+      headline: `${kpi.event_count} events - shadow ${formatShare(kpi.shadow_share)} - HIL pending ${kpi.hil_pending}`,
+      capturedAt: new Date().toISOString(),
+      facts: [
+        { key: "event_count", value: kpi.event_count, group: "kpi" },
+        { key: "shadow_share", value: formatShare(kpi.shadow_share), group: "kpi" },
+        { key: "enforce_share", value: formatShare(kpi.enforce_share), group: "kpi" },
+        { key: "hil_pending", value: kpi.hil_pending, group: "kpi" },
+        { key: "last_recorded_at", value: kpi.last_recorded_at, group: "kpi" },
+      ],
+      records: {
+        by_action_kind: Object.entries(kpi.by_action_kind)
+          .sort(([, a], [, b]) => b - a)
+          .map(([key, count]) => ({ key, count })),
+        by_outcome: Object.entries(kpi.by_outcome)
+          .sort(([, a], [, b]) => b - a)
+          .map(([key, count]) => ({ key, count })),
+      },
+    }),
+    [kpi],
+  );
+  return (
+    <div class="stack">
+      <KpiGrid>
+        <KpiCard
+          label="Events (audit)"
+          value={kpi.event_count}
+          hint="terminal audit entries"
+        />
+        <KpiCard
+          label="Shadow share"
+          value={formatShare(kpi.shadow_share)}
+          hint="judge-only, no mutation"
+          tone={kpi.shadow_share > 0.95 ? "positive" : "default"}
+        />
+        <KpiCard
+          label="Enforce share"
+          value={formatShare(kpi.enforce_share)}
+          hint="promoted to production"
+        />
+        <KpiCard
+          label="HIL pending"
+          value={kpi.hil_pending}
+          tone={kpi.hil_pending > 0 ? "warning" : "positive"}
+          hint={kpi.hil_pending > 0 ? "needs a human approver" : "no waiting approvals"}
+        />
+      </KpiGrid>
 
-      <section class="card">
-        <h2>Outcomes</h2>
-        <KeyValueTable data={kpi.by_outcome} />
-      </section>
+      <div class="two-col">
+        <section class="stack-section">
+          <h3 class="section-title">Actions by kind</h3>
+          <CountTable data={kpi.by_action_kind} keyLabel="Action kind" />
+        </section>
+        <section class="stack-section">
+          <h3 class="section-title">Outcomes</h3>
+          <CountTable data={kpi.by_outcome} keyLabel="Outcome" />
+        </section>
+      </div>
 
       {kpi.last_recorded_at !== null ? (
-        <p class="muted">Last audit entry: {kpi.last_recorded_at}</p>
+        <p class="muted footnote">Last audit entry: {kpi.last_recorded_at}</p>
       ) : null}
     </div>
   );
 }
 
-function KeyValueTable({ data }: { readonly data: Record<string, number> }) {
-  const entries = Object.entries(data).sort(([, a], [, b]) => b - a);
-  if (entries.length === 0) return <div class="muted">No data yet.</div>;
+interface KeyCount {
+  readonly key: string;
+  readonly count: number;
+}
+
+function CountTable({
+  data,
+  keyLabel,
+}: {
+  readonly data: Record<string, number>;
+  readonly keyLabel: string;
+}) {
+  const rows: readonly KeyCount[] = Object.entries(data)
+    .sort(([, a], [, b]) => b - a)
+    .map(([key, count]) => ({ key, count }));
+
+  const columns: readonly Column<KeyCount>[] = [
+    { key: "k", header: keyLabel, render: (r) => r.key, cellClass: "mono" },
+    { key: "c", header: "Count", render: (r) => r.count, cellClass: "num", headerClass: "num" },
+  ];
+
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Key</th>
-          <th>Count</th>
-        </tr>
-      </thead>
-      <tbody>
-        {entries.map(([key, value]) => (
-          <tr key={key}>
-            <td class="mono">{key}</td>
-            <td>{value}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <DataTable
+      columns={columns}
+      rows={rows}
+      keyOf={(r) => r.key}
+      empty="No data yet."
+    />
   );
 }

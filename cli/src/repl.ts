@@ -96,7 +96,7 @@ export async function startRepl(ctx: NarratorContext): Promise<void> {
 
   const streamAnswer = async (text: string): Promise<void> => {
     write(`${ESC}8`);
-    write(`${TEAL}\u25c7${RESET} `);
+    write(`${TEAL}\u203a${RESET} `);
     const chars = [...text];
     const step = Math.max(1, Math.round(chars.length / 60));
     for (let i = 0; i < chars.length; i += step) {

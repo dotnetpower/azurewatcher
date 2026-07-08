@@ -1,0 +1,31 @@
+# Upstream reference purpose registry.
+#
+# Purposes are opaque, CSP-neutral codes a caller declares on any query
+# that reads ObjectType properties gated by
+# `purpose_binding`. The projection layer rejects a declared purpose
+# that is not in this registry, and the projection audit record cites
+# the purpose so an auditor can reconstruct why data was surfaced.
+#
+# Fork extension: a fork ships additional purposes under
+# `fork/vocabulary/purposes.yaml` and concatenates the two registries
+# at composition-root time. Duplicate ids across roots are rejected.
+#
+# Adding a purpose is a governance change (docs + tests updated in the
+# same PR). Naming rule: kebab-snake, lowercase, human-legible, never
+# customer-identifying.
+purposes:
+  - id: audit-review
+    description: A named auditor is reviewing controls, findings, or actions for compliance evidence.
+    audit_required: true
+  - id: incident-response
+    description: An on-call engineer is diagnosing an active or recent incident and needs cross-resource context.
+    audit_required: true
+  - id: compliance-report
+    description: A recurring compliance report (SOC 2, HIPAA, PCI) is being generated for an external audience.
+    audit_required: true
+  - id: capacity-planning
+    description: A capacity planner is forecasting demand and reads resource utilisation across the fleet.
+    audit_required: true
+  - id: cost-analysis
+    description: A finops analyst is investigating spend anomalies or optimisation opportunities.
+    audit_required: true

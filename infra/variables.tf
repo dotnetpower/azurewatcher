@@ -43,12 +43,27 @@ variable "postgres_admin_login" {
   description = "Postgres Flexible Server administrator login. Supplied via tfvars only."
   type        = string
   sensitive   = true
+
+  validation {
+    # Azure Postgres Flex rejects short logins and the reserved 'azure_superuser'
+    # / 'admin' / 'root' family; catch the obvious bad values before an apply.
+    condition     = length(var.postgres_admin_login) >= 4 && !contains(["admin", "root", "postgres", "azure_superuser"], lower(var.postgres_admin_login))
+    error_message = "postgres_admin_login must be at least 4 chars and not one of admin / root / postgres / azure_superuser."
+  }
 }
 
 variable "postgres_admin_password" {
   description = "Postgres Flexible Server administrator password. Supplied via tfvars only."
   type        = string
   sensitive   = true
+
+  validation {
+    # Reject the tfvars.example placeholder and obvious short strings; this is
+    # not a strength policy (Azure enforces its own), just a guard against a
+    # 'forgot to replace SET-ME-VIA-VAULT' apply that would 500-error midway.
+    condition     = length(var.postgres_admin_password) >= 12 && var.postgres_admin_password != "SET-ME-VIA-VAULT"
+    error_message = "postgres_admin_password must be at least 12 characters and MUST be replaced from the tfvars.example placeholder."
+  }
 }
 
 # -----------------------------------------------------------------------
@@ -56,7 +71,16 @@ variable "postgres_admin_password" {
 # -----------------------------------------------------------------------
 
 variable "core_image" {
-  description = "Container image reference for the core control-plane app. Pin by digest for production; a tag is acceptable for dev only."
+  description = <<-EOT
+    Container image reference for the core control-plane app. The default
+    `mcr.microsoft.com/azure-cli:latest` is a **placeholder** used so
+    `terraform apply` succeeds without a pre-built image; that image's
+    ENTRYPOINT is `az`, so the deployed replica will exit immediately
+    and Container Apps will restart-loop until a fork overrides this
+    value with an image built from the repo Dockerfile
+    (ENTRYPOINT `python -m fdai`). Pin by digest for production; a tag
+    is acceptable for dev only.
+  EOT
   type        = string
   default     = "mcr.microsoft.com/azure-cli:latest"
 }

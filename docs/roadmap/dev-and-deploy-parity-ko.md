@@ -1,7 +1,7 @@
 ---
 title: Dev/Deploy Parity - 로컬 Fake vs Azure-First 프로비저닝
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: cb50c1473801f91ddc5bf7de6cb4c52800cfa92b
+translation_source_sha: 3b31d59fde36a0bf17dd708065459fb2807629ff
 translation_revised: 2026-07-08
 ---
 
@@ -208,8 +208,7 @@ resolver 재실행 시 동일 매핑 산출 (idempotent).
 - `shared/providers/testing/` 의 `EnvSecretProvider` (dev 사용 반영해
   `shared/providers/local/` 로 이름 변경).
 - `LocalWorkloadIdentity` - dev-mode에서 어댑터가 수락하는 인-메모리 OIDC 토큰 issue (네트워크 없음).
-- `FileFixtureInventory` - `tests/scenarios/inventory/*.yaml` 에서 `Resource` 레코드 읽기 →
-  ARG 없이도 verticals dry-run.
+- `FileFixtureInventory` - fork 가 생성자에 넘긴 어떤 YAML fixture 든 (`fixture=Path(...)`) 에서 `Resource` 레코드를 읽는다. 업스트림은 시드 fixture 를 배송하지 않으며, 권장 컨벤션은 `tests/scenarios/inventory/*.yaml` (frozen scenario replay 옆) 이라 verticals 가 ARG 없이 dry-run 가능.
 - 테스트 + docstring이 정확한 fork-side 패턴 시연.
 
 ### W-H: 문서 동기화  *(이 phase)*

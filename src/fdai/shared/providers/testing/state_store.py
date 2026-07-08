@@ -39,7 +39,21 @@ class InMemoryStateStore(StateStore):
     :meth:`verify_chain`.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_audit_entries: int | None = None) -> None:
+        """Create a new store.
+
+        :param max_audit_entries: optional ring-buffer cap on the audit
+            chain. ``None`` (the default) keeps the historical unbounded
+            behaviour tests rely on. Long-running dev pumps (see
+            ``ControlLoopLiveEmitter``) MUST pass a positive cap so a
+            multi-hour session does not grow the audit list without
+            bound (~2.2 MB/min at 3 eps). When the cap is exceeded the
+            oldest half of the audit is dropped in one shot so the
+            trim runs O(1) amortised.
+        """
+        if max_audit_entries is not None and max_audit_entries < 1:
+            raise ValueError("max_audit_entries MUST be >= 1 when set")
+        self._max_audit_entries = max_audit_entries
         self._state: dict[str, Mapping[str, Any]] = {}
         self._audit: list[dict[str, Any]] = []
         self._incident_transitions: dict[str, dict[str, Any]] = {}
@@ -56,6 +70,13 @@ class InMemoryStateStore(StateStore):
                 "entry_hash": _next_hash(previous, entry),
             }
             self._audit.append(stored)
+            # Bounded mode: drop the oldest half in one shot when we
+            # cross the cap. Amortised O(1) per append; keeps chain
+            # verification honest against the retained tail only.
+            cap = self._max_audit_entries
+            if cap is not None and len(self._audit) > cap:
+                drop = len(self._audit) - cap // 2
+                del self._audit[:drop]
 
     async def read_state(self, key: str) -> Mapping[str, Any] | None:
         return deepcopy(self._state.get(key)) if key in self._state else None

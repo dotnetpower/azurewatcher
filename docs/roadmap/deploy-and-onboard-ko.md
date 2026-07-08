@@ -1,7 +1,7 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: 45f25898d4a162e46031be34b76fbcbfb90d8b4d
+translation_source_sha: 7b8e36c1e7c5c0f9e4e842bdd36fce7c34f3f5d9
 translation_revised: 2026-07-08
 ---
 
@@ -213,7 +213,8 @@ flowchart TD
     A[Prerequisites resolved] --> B[IaC provision core resources]
     B --> C[Create executor MI plus scoped role assignments]
     C --> D[Deploy signed image to Container Apps in shadow-only]
-    D --> E[Attach Diagnostic Settings and Kafka topic forwarders]
+    D --> D1[Run alembic upgrade head against the provisioned Postgres]
+    D1 --> E[Attach Diagnostic Settings and Kafka topic forwarders]
     E --> F[Seed rule catalog with day-zero rule set]
     F --> G[Register HIL approvers and ChatOps channel]
     G --> H[Run post-deploy smoke tests]
@@ -222,6 +223,11 @@ flowchart TD
 
 - **첫 배포에서 shadow-only**: 어떤 규칙/액션도 절대 enforce 모드로 시작하지 않음. 승격은
   별개의 행위 ([rule-governance-ko.md](rule-governance-ko.md)).
+- **첫 컨트롤 루프 tick 전에 마이그레이션이 반드시 실행되어야 함**. Container App 은
+  startup 시 마이그레이션을 실행하지 않음 (replica 간 일관성 유지 + race 방지).
+  프로비저닝된 Postgres FQDN 에 admin DSN 으로 접속 가능한 워크스테이션 또는 CI 잡에서
+  `alembic upgrade head` 를 실행. `alembic/versions/` 아래 6개 마이그레이션은 모두
+  reversible - 잘못된 배포는 `alembic downgrade -1` 로 이전 baseline 으로 롤백 가능.
 - Post-deploy smoke 테스트와 합성 카나리는
   [operating-and-verification-ko.md](operating-and-verification-ko.md)에 정의.
 
@@ -257,9 +263,9 @@ flowchart TD
 | `KAFKA_SECURITY_PROTOCOL` | env | fork | Azure 에서 `SASL_SSL`; 다른 곳에서는 프로바이더별 값 |
 | `KAFKA_SASL_MECHANISM` | env | fork | Azure 에서 `OAUTHBEARER` |
 | `KEYVAULT_URL` | env | fork | executor MI가 시크릿에 GET |
-| `POSTGRES_HOST` | env | fork | 비-시크릿 |
-| `POSTGRES_DB` | env | fork | 비-시크릿 |
-| `POSTGRES_AUTH` | KV ref | fork | federated / MI 선호, 아니면 단명 시크릿 |
+| `FDAI_STATE_STORE_DSN` | KV ref | upstream | audit + KPI 용 Postgres 연결 URI. `infra/main.tf` 의 `azurerm_key_vault_secret.state_store_dsn` 이 `module.state_store.application_dsn` 으로부터 배선하고, Container App 은 `secret{}` + `env{}` 로 노출 ([project-structure-ko.md](project-structure-ko.md) 의 `infra/modules/compute/container-apps/` 참조). 런타임에 값이 없으면 in-memory 폴백. |
+| `FDAI_OPERATOR_MEMORY_DSN` | KV ref | upstream | HIL 승인 operator memory 용 Postgres DSN. day-zero 는 `FDAI_STATE_STORE_DSN` 과 동일 소스 (단일 Flexible Server); fork 는 core 를 건드리지 않고 나중에 분리 가능. |
+| `FDAI_T1_PATTERN_LIBRARY_DSN` | KV ref | upstream | pgvector 기반 T1 패턴 라이브러리 용 Postgres DSN. day-zero 동일 소스, 동일 배선. |
 | `KAFKA_TOPIC_EVENTS` | env | fork | 주 이벤트 ingest 토픽 |
 | `KAFKA_TOPIC_DLQ_SUFFIX` | env | fork | dead-letter suffix (기본 `.dlq`) |
 | `TEAMS_HIL_CHANNEL_ID` | env | fork | HIL 라우팅 |
@@ -269,6 +275,19 @@ flowchart TD
 | `LLM_RESOLVED_MODELS_PATH` | KV ref | fork | `LLM_MODE=azure` 시 필수; 부트스트랩 resolver가 쓴 `resolved-models.json`을 가리킴 |
 | `RULE_CATALOG_REF` | env | fork | 카탈로그 스냅샷 git ref |
 | `AUTONOMY_MODE_DEFAULT` | env | fork | **반드시** `shadow` 기본값 |
+| `FDAI_LOG_LEVEL` | env | upstream | 코어 앱의 Python 로거 레벨 (`DEBUG` / `INFO` / `WARNING` / `ERROR`). 기본 `INFO`. |
+| `FDAI_READ_API_DEV_MODE` | env | dev-only | `1` 은 로컬 개발용으로 read API 의 Entra JWT 검증을 우회. staging / prod 에서 **금지**. |
+| `FDAI_POLICIES_ROOT` | env | fork | T0 와 verifier 가 소비하는 OPA / Rego 번들 루트의 절대 경로. 미설정 시 in-repo `policies/` 를 기본값. |
+| `FDAI_MI_CLIENT_ID` | env | upstream | executor user-assigned MI client id (Container Apps 가 할당된 identity 로부터 채움). `WorkloadIdentity` 가 audience-scoped OIDC exchange 에 사용. |
+| `FDAI_MEASUREMENT_MODE` | env | upstream | `shadow` (기본) 또는 `enforce` - `infra/modules/measurement-runners/` 의 Container Apps Jobs 러너를 지배. |
+| `FDAI_DIRECT_API_FAKE` | env | dev-only | `1` 은 executor direct-API 경로를 in-memory fake 로 스왑; 테스트와 로컬 개발용. |
+| `FDAI_PROFILE_ID` | env | fork | `rule-catalog/profiles/` 에서 한 프로파일을 선택 ([rule-catalog-profiles-ko.md](rule-catalog-profiles-ko.md) 참조). **2026-07 기준 composition-root 배선 대기.** |
+| `FDAI_NARRATOR_PROVIDER` / `FDAI_NARRATOR_BASE_URL` / `FDAI_NARRATOR_MODEL` / `FDAI_NARRATOR_API_VERSION` / `FDAI_NARRATOR_API_KEY` | env + KV ref | fork | Operator-console narrator translator 설정 ([operator-console-ko.md](operator-console-ko.md) 참조); `API_KEY` 는 반드시 KV 경유. 빈 provider = 결정론적 폴백. |
+| `FDAI_CHATOPS_APPROVE_CALLBACK_URL` / `FDAI_CHATOPS_REJECT_CALLBACK_URL` / `FDAI_CHATOPS_WEBHOOK_SECRET` / `FDAI_CHATOPS_TIMEOUT_SECONDS` | env + KV ref | fork | Chatops HIL 콜백 엔드포인트와 공유 webhook secret; secret 은 반드시 KV 경유. |
+| `FDAI_GITOPS_API_BASE` / `FDAI_GITOPS_DEFAULT_BRANCH` / `FDAI_GITOPS_BRANCH_PREFIX` / `FDAI_GITOPS_TIMEOUT_SECONDS` | env | fork | `gitops-pr` 어댑터 target repo 설정 (GitHub App / Azure DevOps). 인증 secret 은 플랫폼 App installation 을 통해 흐르고 env var 아님. |
+| `FDAI_RBAC_READERS_GROUP_ID` / `FDAI_RBAC_CONTRIBUTORS_GROUP_ID` / `FDAI_RBAC_APPROVERS_GROUP_ID` / `FDAI_RBAC_OWNERS_GROUP_ID` / `FDAI_RBAC_BREAK_GLASS_GROUP_ID` | env | fork | 5개 human role 의 Entra ID group object id ([user-rbac-and-identity-ko.md](user-rbac-and-identity-ko.md) 참조). 미설정 group = role 미할당. |
+| `FDAI_DR_DRILL_SOURCE_SERVER_ARM_ID` / `FDAI_DR_DRILL_TARGET_LOCATION` / `FDAI_DR_DRILL_TARGET_RG_PREFIX` / `FDAI_DR_DRILL_TARGET_SERVER_PREFIX` / `FDAI_DR_DRILL_PITR_OFFSET_MINUTES` / `FDAI_DR_DRILL_DRY_RUN` | env | fork | DB-DR drill job 설정 ([../runbooks/db-dr-drill-ko.md](../runbooks/db-dr-drill-ko.md) 참조); `DRY_RUN=true` upstream 기본으로 job 이 idempotent 유지. |
+| `FDAI_SECRET_KAFKA_TOKEN` / 기타 `FDAI_SECRET_*` | KV ref | fork | 전용 env var 이름이 아직 없는 어댑터가 소비하는 secret 을 위한 generic escape hatch; 모든 `FDAI_SECRET_*` 값은 반드시 KV 경유. |
 
 모든 키에 적용되는 규칙:
 

@@ -1,0 +1,14 @@
+# LinkType: has_turn (Conversation -> Turn, 1:M)
+#
+# Structural containment for the conversational surface: one
+# Conversation owns an ordered append-only list of Turns
+# (operator-console.md). Modeled here so the operator console can walk
+# a conversation without joining through a hidden foreign key on Turn.
+schema_version: "1.0.0"
+name: has_turn
+version: "1.0.0"
+from_type: Conversation
+to_type: Turn
+cardinality: one_to_many
+temporal_order: true
+description: Ordered turns owned by a Conversation (append-only).

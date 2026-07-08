@@ -25,9 +25,17 @@ class RecordingRemediationPrPublisher(RemediationPrPublisher):
 
     Tests treat it as the source of truth for "what would the delivery
     layer have posted"; the executor never sees a raw HTTP client.
+
+    Bounded mode: pass ``max_records`` to cap the retained history and
+    dedupe cache. Required for long-running dev pumps
+    (:class:`~fdai.delivery.read_api.live_control_loop.ControlLoopLiveEmitter`);
+    tests leave it ``None`` for the historical unbounded semantics.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_records: int | None = None) -> None:
+        if max_records is not None and max_records < 1:
+            raise ValueError("max_records MUST be >= 1 when set")
+        self._max_records = max_records
         self._records: list[RemediationPr] = []
         self._by_key: dict[str, PublishReceipt] = {}
         self._counter = count(1)
@@ -50,6 +58,16 @@ class RecordingRemediationPrPublisher(RemediationPrPublisher):
         receipt = PublishReceipt(pr_ref=pr_ref, url=f"https://example.com/pr/{pr_ref}")
         self._by_key[pr.idempotency_key] = receipt
         self._records.append(pr)
+        # Bounded mode: drop the oldest half in one shot when we cross
+        # the cap. Also drop the corresponding dedupe keys so the two
+        # structures stay coherent.
+        cap = self._max_records
+        if cap is not None and len(self._records) > cap:
+            drop = len(self._records) - cap // 2
+            dropped = self._records[:drop]
+            del self._records[:drop]
+            for old in dropped:
+                self._by_key.pop(old.idempotency_key, None)
         return receipt
 
     # ------------------------------------------------------------------

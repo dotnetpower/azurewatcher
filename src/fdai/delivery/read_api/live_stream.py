@@ -76,7 +76,6 @@ import asyncio
 import json
 import logging
 import random
-import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -189,10 +188,16 @@ class SyntheticLiveEmitter(LiveEmitter):
 
     sink: SseSink
     channel: str = "aw.pipeline.stages"
-    events_per_second: float = 20.0
+    events_per_second: float = 5.0
     """Baseline rate at which whole (route -> ... -> execute) sequences
     are produced. Each sequence emits several stage events (begin +
-    done per stage), so wire traffic is a small multiple of this."""
+    done per stage), so wire traffic is a small multiple of this.
+
+    Default lowered from 20.0 to 5.0 because a background tab
+    left open for hours at 20/sec fanned enough React renders to
+    OOM the browser on the Live cockpit before the reducer + view-
+    context throttles landed. Even 5.0 needs the client-side batching
+    in ``console/src/routes/live.tsx`` - keep it low."""
 
     tier_weights: Mapping[str, float] = field(
         default_factory=lambda: {"t0": 0.75, "t1": 0.18, "t2": 0.07}
@@ -466,34 +471,78 @@ def make_live_stream_route(
         _LOGGER.info("live_stream_open", extra={"actor": oid, "channel": channel})
 
         async def stream() -> AsyncIterator[bytes]:
-            keepalive_at = time.monotonic() + keepalive_seconds
             hello = _encode_sse_frame(
                 {"event": "hello", "ts": _iso_ts_utc(), "channel": channel},
                 kind="hello",
             )
             yield hello
-            iterator = sink.subscribe(channel).__aiter__()
+
+            # Multiplex sink-events + keepalive comments onto a single
+            # queue. The sink iterator is NEVER wrapped in
+            # ``asyncio.wait_for`` because that would cancel the
+            # underlying async-generator on timeout - triggering its
+            # ``finally`` and detaching the subscriber (subtle: an
+            # async generator whose ``__anext__`` coroutine gets cancelled
+            # runs its ``finally`` and next ``__anext__`` raises
+            # ``StopAsyncIteration``). Instead, two background tasks push
+            # onto the queue and the outer loop only reads.
+            out_queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=1024)
+            stop = asyncio.Event()
+
+            async def event_pump() -> None:
+                try:
+                    async for event in sink.subscribe(channel):
+                        if stop.is_set():
+                            break
+                        try:
+                            out_queue.put_nowait(_encode_sse_event(event))
+                        except asyncio.QueueFull:
+                            # Slow client fell behind; drop this frame
+                            # rather than block. Reconnect via
+                            # ``Last-Event-ID`` will resume on servers
+                            # that support replay (upstream today has
+                            # audit-log as its replay source).
+                            pass
+                except asyncio.CancelledError:
+                    raise
+
+            async def keepalive_pump() -> None:
+                try:
+                    while not stop.is_set():
+                        await asyncio.sleep(keepalive_seconds)
+                        if stop.is_set():
+                            break
+                        try:
+                            out_queue.put_nowait(_KEEPALIVE_COMMENT)
+                        except asyncio.QueueFull:
+                            pass
+                except asyncio.CancelledError:
+                    raise
+
+            event_task = asyncio.create_task(event_pump(), name="fdai.live.event-pump")
+            keepalive_task = asyncio.create_task(keepalive_pump(), name="fdai.live.keepalive")
+
             try:
                 while True:
-                    timeout = max(0.05, keepalive_at - time.monotonic())
+                    # ``wait_for`` on ``out_queue.get()`` is safe: the queue is a
+                    # normal ``asyncio.Queue`` (no generator ``finally``), so
+                    # cancellation on timeout costs nothing.
                     try:
-                        event = await asyncio.wait_for(iterator.__anext__(), timeout=timeout)
+                        chunk = await asyncio.wait_for(out_queue.get(), timeout=1.0)
                     except TimeoutError:
-                        yield _KEEPALIVE_COMMENT
-                        keepalive_at = time.monotonic() + keepalive_seconds
-                        continue
-                    except StopAsyncIteration:
-                        break
-                    yield _encode_sse_event(event)
+                        # No event and no keepalive yet - fall through
+                        # to the disconnect check so a lingering socket
+                        # is reaped promptly.
+                        chunk = None
+                    if chunk is not None:
+                        yield chunk
                     if await request.is_disconnected():
                         break
             finally:
-                aclose = getattr(iterator, "aclose", None)
-                if aclose is not None:
-                    try:
-                        await aclose()
-                    except Exception:  # noqa: BLE001 - cleanup path
-                        _LOGGER.debug("live_stream_aclose_error", exc_info=True)
+                stop.set()
+                event_task.cancel()
+                keepalive_task.cancel()
+                await asyncio.gather(event_task, keepalive_task, return_exceptions=True)
                 _LOGGER.info("live_stream_close", extra={"actor": oid, "channel": channel})
 
         return StreamingResponse(

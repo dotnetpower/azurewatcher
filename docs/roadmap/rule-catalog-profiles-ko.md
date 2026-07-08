@@ -1,7 +1,7 @@
 ---
 title: Rule-catalog profile 및 collector
 translation_of: rule-catalog-profiles.md
-translation_source_sha: a9167143dc919d1f510b9c9eb207a11ea1aaaddc
+translation_source_sha: 0cc11eb1881431f4a0536827f22032ffd7aad3d4
 translation_revised: 2026-07-08
 ---
 # Rule-catalog profile 및 collector
@@ -152,6 +152,15 @@ rules:
 Composition root 는 `FDAI_PROFILE_ID=customer-a` 를 읽고 resolved
 profile 을 startup 시 `ControlLoop` / `T0Engine` / `RiskGate` 에
 handoff.
+
+> **배선 상태 (2026-07):** `ProfileRegistry` 라이브러리
+> (`src/fdai/core/rule_catalog_profiles/`) 는 shipped 되고 테스트
+> 커버 완료. 하지만 composition root 는 아직 `FDAI_PROFILE_ID` 를
+> 읽지 않는다. 이 knob 이 런타임에 효과를 내려면
+> [`src/fdai/composition.py`](../../src/fdai/composition.py) 에
+> `resolve()` 호출이 추가되어야 한다. 지금 당장 profile 레이어가
+> 필요한 fork 는 upstream default binder 가 배선되기 전까지
+> wrapping factory 로 자체 resolved profile 을 바인딩 가능.
 
 ## 5. 이 문서가 아닌 것
 

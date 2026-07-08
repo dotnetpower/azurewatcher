@@ -1,7 +1,7 @@
 ---
 title: 구현 계획 (표준 세트)
 translation_of: implementation-plan.md
-translation_source_sha: e1c0f6c13cc9e4c3edf02505d6ffd723033b87af
+translation_source_sha: 4b87035f7e51bf7c113e051c49f60f30a286439b
 translation_revised: 2026-07-08
 ---
 
@@ -316,7 +316,7 @@ PR이 아래 중 어느 것이라도 바뀐 것으로 읽는다면 그 독해가
   `argument_schema`, `live_probe_ref`, `provenance`. 로더 cross-check
   는 [action-ontology.md § 8](action-ontology.md#8-loader--validation).
 - **F2** `resolved_ceiling` JSON Schema를
-  `src/fdai/shared/contracts/ontology/resolved-ceiling.schema.json`
+  `src/fdai/shared/contracts/ontology/resolved-ceiling.json`
   에 배치.
   [execution-model.md § 8](execution-model.md#8-resolved_ceiling-audit-block)
   의 모양을 R1 파생 표기(축 D와 G의 `derived_from`)와 함께 반영.

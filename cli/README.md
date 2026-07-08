@@ -1,6 +1,7 @@
 # operator-console CLI (Ink)
 
-The real FDAI **operator-console** as a terminal app, built on
+The real FDAI (**Forward Deployed AI for Cloud Ops**) **operator-console** as a
+terminal app, built on
 [Ink](https://github.com/vadimdemedes/ink) (React for the terminal). It is the
 runnable successor to the design mock at [../mocks/ui-cli](../mocks/ui-cli).
 
@@ -95,14 +96,79 @@ format to stdout from the same block IR.
   (`--mode=needs-me|all-clear`). Renders the block-IR briefing + the bottom-fixed
   REPL.
 - `--source=api` - the live read-only console API; `--api=<url>` sets the base
-  URL (default `http://127.0.0.1:8010`). In a terminal this opens a **live
+  URL (default `http://127.0.0.1:8010`). In a terminal this opens the **live
   cockpit** ([src/cockpit.ts](src/cockpit.ts)): a single alternate-screen view
   fed by the read API's `/live/stream` (SSE), where each frame is a **real
   StageEvent from an actual `ControlLoop` run** (real rule catalog, T0 engine,
-  Rego). The top shows live counters (events, per-tier routing, gate, exec,
-  audit) and a recent-activity feed; the bottom is the fixed input box. This is
-  real pipeline data, not the seeded `/kpi` aggregates. Piped/non-TTY falls back
-  to the one-shot briefing. Nothing here mutates - read-only.
+  Rego). The header reads `Forward Deployed AI - Cloud Ops - read-only`, followed
+  by a plain-language summary of what has been handled (fixed-rules vs stepped
+  back vs auto-applied vs awaiting you) and a standing trust line (read-only,
+  every change opens a pull request, shadow-first, fully audited). The feed
+  narrates each event in operator language (`auto-applied as a shadow pull
+  request`, `stepped back - no matching rule yet`) joined across route + verify +
+  audit, tagged with the tier that decided it. The bottom is a fixed input box
+  whose answers **stream** in. This is real pipeline data, not the seeded `/kpi`
+  aggregates; questions about live state are answered from the cockpit's own
+  counters so what it says always matches what is on screen. Piped/non-TTY falls
+  back to the one-shot briefing. Nothing here mutates - read-only.
+
+  **Views (natural-language screen control).** The main panel is a switchable
+  component, driven by plain language (English or Korean):
+
+  - `stream` - the live scrolling op feed (default).
+  - `overview` - a calm dashboard (routing-mix bars, a throughput sparkline,
+    outcome counters, top resource types) instead of a firehose.
+  - `focus <type>` - the feed filtered to one resource type (`focus network`).
+  - `pause` / `resume` - freeze or resume the feed (events still count).
+
+  Say things like `overview`, `stream`, `pause`, `focus network`, `clear`. These
+  are parsed locally (instant, no model). When the LLM narrator is active it can
+  also arrange the view for free-form phrasings (e.g. "show me a chart") via a
+  read-only `set_view` tool - it changes only what is displayed, never a
+  resource. The active view is shown as a badge in the header bar.
+
+  **Live inventory (read-only).** The narrator can answer questions the event
+  stream cannot - "list the resource groups", "which VMs are running" - by
+  querying **Azure Resource Graph** (the Inventory seam) with the `query_inventory`
+  tool. It authenticates with an Azure AD token from your existing `az login`
+  (no key, no env), runs a read-only Kusto query, and answers from the rows.
+  Strictly read-only (ARG cannot mutate); results are row-capped. This is
+  distinct from `get_live_overview`, which reports what the pipeline has
+  *processed* (event counts, resource types), not what exists in the
+  subscription. Policy evaluation (does a resource violate a rule) is a separate
+  concern handled by OPA over the fetched resources - not this query surface.
+
+  **Diagnostics.** For a symptom on a real resource - "the DB is slow", "my
+  deploy did not apply", "what changed" - the narrator diagnoses with read-only
+  Azure signals: `query_inventory` checks current state/`provisioningState` (and
+  container-app `latestRevisionName`), Resource Health, and the `resourcechanges`
+  table (what changed recently); `get_metrics` reads **Azure Monitor** metrics
+  (CPU, DTU, response time, requests) to confirm a performance symptom with real
+  numbers; `get_activity_log` reads the **Azure Activity Log** for failed
+  operations and recent changes ("why did the deploy fail", "recent errors");
+  `get_cost` reads **Cost Management** for spend ("this month's cost", "most
+  expensive resource group / service"); `get_quota` reads **Compute usages** for
+  capacity headroom ("is there quota left", "vCPU headroom"). Security-posture
+  questions (public exposure, open NSG rules, encryption) are answered from
+  Resource Graph. The narrator runs a **bounded multi-round tool loop**, so it can
+  chain (find the resource id, then read its metrics) before answering. It never
+  conflates the control plane's own pipeline telemetry with the operator's
+  resources, and it is honest when a signal is not available. It also keeps a
+  short **conversation history**, so follow-ups resolve against what was just
+  discussed ("show the resource groups" -> "which has the most?" -> "its cost?").
+
+  Unlike the briefing (which uses Ink), the live cockpit is a hand-rolled
+  raw-ANSI renderer: Ink repaints the whole tree on every change, which moves the
+  hardware cursor and makes a CJK/IME preedit jump away from the caret. The
+  cockpit instead addresses rows directly, keeps the real cursor at the input
+  caret, and draws each frame into one buffer flushed inside a DEC 2026
+  synchronized-update pair (`\e[?2026h`/`\e[?2026l`) so the terminal applies a
+  whole frame atomically (no row-by-row tearing). Terminals without mode 2026
+  ignore the markers. The activity feed is a hardware **scroll region**
+  (DECSTBM): a new op scrolls the region up one line and draws only the new row,
+  so records glide upward instead of the whole feed repainting. The cursor is
+  never hidden/shown per frame (that resets the terminal's blink timer), so the
+  caret blinks steadily while the feed moves underneath it.
 
 ## Narrator (natural language)
 
@@ -112,24 +178,85 @@ turns a question into read-only `console-tool` calls (`get_kpi`,
 `get_hil_queue`, `get_recent_audit`) and answers only from their results - it
 never acts (approvals are PR-native) and never invents numbers.
 
+The narrator is **read-only and never acts.** Any request to change, fix, delete,
+restart, scale, or approve a resource is refused with a plain explanation
+(remediation is a reviewed pull request; HIL approvals happen via PR or ChatOps).
+Questions about how the system works or what it guarantees - rollback, safety
+invariants, trust tiers, the LLM quality gate, shadow-vs-enforce, rules and
+overrides, the verticals, and which agent judges/approves/executes - are answered
+from a grounded `describe_guarantees` tool, never invented. When a live data
+source is not wired in (active overrides, a live anomaly/drift feed), the
+narrator says so honestly rather than reusing unrelated numbers.
+
+**UI-agnostic by design.** The narrator and its data tools (`query_inventory`,
+`get_metrics`, `get_cost`, `get_quota`, `get_activity_log`, `describe_guarantees`)
+are pure data - they have no dependency on the CLI cockpit and are reused by any
+surface (CLI, a future web console, ChatOps). UI-specific behavior is supplied
+through optional `NarratorContext` fields (`screen` for `set_view`, `live` for the
+on-screen counters, `history` for follow-ups); a different UI provides its own or
+omits them. The tools are covered by network-free contract tests
+([test/tools-azure.test.ts](test/tools-azure.test.ts)), so the data layer stays
+correct as the UI evolves.
+
+**The narrator prompt lives in the ontology, not in code.** It is authored once
+as catalog-as-code YAML under
+[../rule-catalog/prompts](../rule-catalog/prompts): a UI-agnostic base
+(`base/operator-console-narrator.v1.yaml`) plus a CLI surface overlay
+(`packs/operator-console-cli.v1.yaml`), both bound to the `console.narrator`
+capability so they never enter T2 quality-gate composition. This CLI loads and
+composes them via [src/narrator/prompt-store.ts](src/narrator/prompt-store.ts);
+the Python read-API chat backend loads the same base through
+`core/prompts/registry.py`. So every surface shares one prompt source of truth -
+edit the YAML, not the TypeScript.
+
+**The tool contracts are shared too.** Each data tool's model-facing `description`
+and `input_schema` live in the ontology manifest
+[../rule-catalog/operator-console/tools.v1.yaml](../rule-catalog/operator-console/tools.v1.yaml)
+(outside `prompts/`, so the prompt/T2-tool registries never mis-parse it). This
+CLI loads them via [src/narrator/tool-store.ts](src/narrator/tool-store.ts) and
+keeps only the `run` implementation in TypeScript; a web console or the Python
+backend loads the same manifest and supplies its own `run`. The CLI-only
+`set_view` display control stays in code (it is a surface affordance, not a
+shared data tool).
+
 Two implementations share one interface, chosen at startup:
 
-- **deterministic** (default, zero config) - keyword routing over the tools.
-  Handles `kpi` / `hil queue` / `recent audit`, card numbers, and `a`/`r`/`w`;
-  other phrasings get a live-state summary.
+- **deterministic** (fallback, zero external dependency) - keyword routing over
+  the tools. Handles `kpi` / `hil queue` / `recent audit`, card numbers, and
+  `a`/`r`/`w`; other phrasings get a live-state summary.
 - **llm** - an OpenAI-compatible model that understands free-form natural
-  language (any language, including Korean) and calls the same tools. Enabled
-  when these env vars are set (the key only ever comes from the environment):
+  language (any language, including Korean) and calls the same tools. It is
+  selected automatically, in this order:
 
-  ```bash
-  export FDAI_NARRATOR_BASE_URL=https://api.openai.com/v1   # or Azure endpoint
-  export FDAI_NARRATOR_API_KEY=...                          # required
-  export FDAI_NARRATOR_MODEL=gpt-4o-mini                    # or Azure deployment
-  export FDAI_NARRATOR_PROVIDER=openai                      # openai | azure
-  # Azure only: FDAI_NARRATOR_API_VERSION=2024-08-01-preview
-  ```
+  1. **Zero config (keyless, preferred)** - when `resolved-models.json` (the
+     pipeline's env-specific resolver output, found via `LLM_RESOLVED_MODELS_PATH`
+     or searched upward from the cwd) carries a `narrator` block, the narrator
+     talks to Azure OpenAI using an **Azure AD token minted from your existing
+     `az login`** (`az account get-access-token`). No API key, no env exports.
 
-  The active narrator is shown in the prompt hint (`narrator: deterministic|llm`).
+     ```json
+     { "narrator": { "endpoint": "https://<res>.openai.azure.com/",
+                     "deployment": "gpt-4o-mini",
+                     "api_version": "2024-08-01-preview" } }
+     ```
+
+     `resolved-models.json` is gitignored (it is env-specific and may carry
+     customer-identifying values), so the endpoint never lands in the repo.
+  2. **Explicit env config** (overrides the above; the key only ever comes from
+     the environment):
+
+     ```bash
+     export FDAI_NARRATOR_BASE_URL=https://api.openai.com/v1   # or Azure endpoint
+     export FDAI_NARRATOR_API_KEY=...                          # required
+     export FDAI_NARRATOR_MODEL=gpt-4o-mini                    # or Azure deployment
+     export FDAI_NARRATOR_PROVIDER=openai                      # openai | azure
+     # Azure only: FDAI_NARRATOR_API_VERSION=2024-08-01-preview
+     ```
+  3. **Pipeline endpoint var** - `FDAI_LLM_ENDPOINT` + `FDAI_NARRATOR_MODEL`
+     (Azure via `az login`, keyless).
+
+  The active narrator is shown in the prompt hint (`narrator` vs `AI narrator`).
+  With none of these resolvable, the deterministic narrator is used.
 
 Start the dev read API first:
 

@@ -58,6 +58,13 @@ single **incident** so downstream tiers reason about one thing, not a storm.
   gain, and no data is lost - members stay linked in the audit.
 - **Output**: one correlated incident event carrying its member event ids and a stable
   idempotency key; ordering/idempotency keys are preserved.
+- **Upstream implementation**: `core/event_ingest/correlator.py`
+  (`EventCorrelator`) derives the incident anchor deterministically from
+  an event's correlation-id (or resource ref) plus a time-window bucket
+  via `incident_id_for`; a burst sharing a key in one window collapses to
+  one incident and a new window opens a linked follow-on. An event with
+  no anchor is reported `correlated=False` (never dropped). The keys feed
+  `IncidentRegistry.open`, which accumulates membership idempotently.
 
 ## 2. Anomaly Detection
 
@@ -85,6 +92,12 @@ performance, reliability, security, and cost.
   regress - both map to guard metrics in [goals-and-metrics.md](goals-and-metrics.md).
 - **Output**: an anomaly finding that re-enters `event-ingest` (for an idempotency key and
   dedup) and then the trust router like any event.
+- **Upstream implementation**: `core/detection/anomaly.py`
+  (`MetricAnomalyDetector`) ships the deterministic z-score baseline
+  described above - cold-start abstain, flat-baseline safety, and
+  severity from deviation magnitude - and normalizes each finding to an
+  `Event(event_type="anomaly.finding")` in shadow mode via `to_event`,
+  keyed by `detector + metric + window` so repeated ticks dedup.
 
 ## 3. Predictive / Forecasting
 
@@ -110,6 +123,15 @@ capacity bottlenecks and service failures" use case - kept deterministic-first.
   prediction has positive lead time above an actionable minimum) and score **precision/recall**,
   where a true positive is a predicted breach whose actual breach occurs within the horizon. A
   missed breach is a false negative (guard metric); a poor forecaster stays in shadow.
+- **Upstream implementation**: `core/detection/forecast.py`
+  (`LinearForecastDetector`) ships a least-squares linear forecaster -
+  cold-start and weak-fit (low R-squared) inputs abstain,
+  direction-gated rising/falling breach projection, and a positive lead
+  time (breach ETA) bounded by the horizon. Each forecast normalizes to
+  an `Event(event_type="forecast.finding")` in shadow mode via
+  `to_event`, keyed by `detector + metric + window` so repeated ticks
+  dedup; severity scales with imminence (lead / horizon). It shares the
+  `MetricSample` series type with the anomaly detector (`core/detection/series.py`).
 
 ## 4. Root-Cause Analysis
 
@@ -133,6 +155,40 @@ Make RCA a first-class output of the tiers instead of an implicit side effect.
 - An RCA that cannot be grounded **abstains** and routes to HIL.
 - The correlated incident (section 1) is the RCA input, so RCA reasons over one incident, not a
   storm of duplicates.
+- **Upstream implementation**: `core/rca/` ships the RCA contract
+  (`RootCauseHypothesis` + `Citation`), the deterministic **T0** cause
+  (`t0_root_cause`, grounded on the matched rule with confidence 1.0 and
+  its remediation), and the **grounding gate** (`enforce_grounding`,
+  which abstains to HIL on any ungrounded or below-confidence
+  hypothesis). The **T2** reasoner is the `RcaReasoner` Protocol seam - a
+  fork plugs a mixed-model, RAG-grounded producer (via `core/quality_gate`)
+  behind it. Upstream ships `core/rca/llm.py` (`LlmRcaReasoner` + the
+  `RcaModel` seam) whose deterministic parser refuses a malformed answer,
+  a fabricated citation (prompt injection), or an ungrounded answer - the
+  model proposes, the parser and grounding gate decide. The Azure T2
+  binding is `delivery/azure/llm/rca_model.py` (`AzureOpenAIRcaModel`), an
+  `RcaModel` adapter that calls Azure OpenAI over its managed-identity
+  token and returns raw JSON for the upstream parser to validate. The
+  composition root binds it from the `t2.rca` capability in
+  `resolved-models.json` (`bind_azure_llm_bindings`), symmetric to the
+  Critic and Judge bindings - a missing capability or prompt leaves
+  `LlmBindings.rca_reasoner = None` so T2 RCA stays dark and only T0 RCA
+  runs. `__main__` injects the resulting `RcaCoordinator` (and the
+  `EventCorrelator`) into the `ControlLoop`. Its
+  output still
+  passes the grounding gate and the risk-gate verifier, never executing
+  on the model's prose alone. The
+  `RcaCoordinator` orchestrates all three tiers - T0, **T1**
+  correlation-reuse (a prior resolved incident's cause, abstaining when
+  it is stale against current evidence), and T2 (a citation outside the
+  supplied evidence is refused as fabricated). It is wired into the
+  `ControlLoop`, which appends one deterministic T0 `rca.hypothesis`
+  audit entry per finding, carrying the correlated `incident_id` (from
+  `EventCorrelator`, section 1) so an incident's findings tie together -
+  the "why", never a new execution path. When a T2 reasoner is wired, a
+  novel (T0 no-match) case additionally gets a grounded T2
+  `rca.hypothesis` (or an abstain), reasoner-gated so a deployment
+  without an LLM emits no T2 noise.
 
 ## Plugging Into the Control Loop
 

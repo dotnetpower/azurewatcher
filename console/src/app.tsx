@@ -4,6 +4,8 @@ import type { AuthContext } from "./auth";
 import { initAuth } from "./auth";
 import { loadConfig, type ConsoleConfig } from "./config";
 import { Shell } from "./components/shell";
+import { CommandDeck } from "./deck/command-deck";
+import { ViewContextProvider } from "./deck/context";
 import { LoginRoute } from "./routes/login";
 import { DEFAULT_PANEL_ID, panelForId, resolvePanels } from "./panels";
 
@@ -16,9 +18,18 @@ interface AppState {
 }
 
 function currentPanelId(): string {
-  const hash = window.location.hash.replace(/^#\/?/, "");
-  const known = resolvePanels().some((p) => p.id === hash);
-  return known ? hash : DEFAULT_PANEL_ID;
+  // Some hosting / port-forwarding layers URL-encode the ``/`` inside
+  // the hash (``#/live`` becomes ``#%2Flive``). Decode first so the
+  // hash router does not fall back to the default panel unexpectedly.
+  let hash = window.location.hash;
+  try {
+    hash = decodeURIComponent(hash);
+  } catch {
+    /* keep raw hash if it is not a valid URI component */
+  }
+  const cleaned = hash.replace(/^#\/?/, "");
+  const known = resolvePanels().some((p) => p.id === cleaned);
+  return known ? cleaned : DEFAULT_PANEL_ID;
 }
 
 export function App() {
@@ -81,8 +92,11 @@ export function App() {
   const PanelComponent = panel.component;
 
   return (
-    <Shell activePanelId={panel.id} auth={auth}>
-      <PanelComponent client={client} />
-    </Shell>
+    <ViewContextProvider>
+      <Shell activePanelId={panel.id} auth={auth}>
+        <PanelComponent client={client} />
+      </Shell>
+      <CommandDeck />
+    </ViewContextProvider>
   );
 }

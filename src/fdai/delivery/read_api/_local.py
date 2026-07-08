@@ -21,29 +21,59 @@ mypy, IDE indexing - has no side effect)::
 
 from __future__ import annotations
 
+import logging
 import os
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
 
 from starlette.applications import Starlette
 
-from fdai.core.rbac.resolver import GroupMapping, RoleResolver
-from fdai.delivery.read_api.auth import (
+# Dev harness: make our own INFO logs visible so live-stream open/close
+# events show up alongside uvicorn's access log.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(name)s: %(message)s")
+
+from fdai.core.audit.what_if_replay import WhatIfEvaluator  # noqa: E402
+from fdai.core.measurement.promotion_gate import (  # noqa: E402
+    InMemoryShadowVerdictSource,
+    ShadowVerdictRecord,
+)
+from fdai.core.rbac.resolver import GroupMapping, RoleResolver  # noqa: E402
+from fdai.core.risk_gate.blast_radius_simulator import (  # noqa: E402
+    InMemoryOntologyGraph,
+    OntologyGraph,
+)
+from fdai.delivery.read_api.auth import (  # noqa: E402
     UnsafeClaimsExtractor,
     build_authenticator,
 )
-from fdai.delivery.read_api.live_control_loop import (
+from fdai.delivery.read_api.live_control_loop import (  # noqa: E402
     ControlLoopEmitterUnavailable,
     build_control_loop_emitter,
 )
-from fdai.delivery.read_api.live_stream import LiveEmitter, LiveStreamConfig, SyntheticLiveEmitter
-from fdai.delivery.read_api.main import ReadApiConfig, build_app
-from fdai.delivery.read_api.read_model import (
+from fdai.delivery.read_api.live_stream import (  # noqa: E402
+    LiveEmitter,
+    LiveStreamConfig,
+    SyntheticLiveEmitter,
+)
+from fdai.delivery.read_api.main import ReadApiConfig, build_app  # noqa: E402
+from fdai.delivery.read_api.read_model import (  # noqa: E402
     HilQueueItem,
     InMemoryConsoleReadModel,
 )
-from fdai.shared.providers.sse import SseSink
-from fdai.shared.providers.testing.sse import InMemorySseSink
+from fdai.delivery.read_api.rule_fire_trace_reader import (  # noqa: E402
+    ConsoleReadModelTraceReader,
+)
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog  # noqa: E402
+from fdai.rule_catalog.schema.link_type import load_link_type_catalog  # noqa: E402
+from fdai.rule_catalog.schema.object_type import load_object_type_catalog  # noqa: E402
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry  # noqa: E402
+from fdai.shared.providers.sse import SseSink  # noqa: E402
+from fdai.shared.providers.testing.sse import InMemorySseSink  # noqa: E402
 
 _DEV_ENV = "FDAI_READ_API_DEV_MODE"
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def _seed(read_model: InMemoryConsoleReadModel) -> None:
@@ -82,6 +112,120 @@ def _seed(read_model: InMemoryConsoleReadModel) -> None:
             correlation_id="corr-dev-0001",
         )
     )
+    _seed_trace(read_model, "corr-dev-0001")
+
+
+def _seed_trace(read_model: InMemoryConsoleReadModel, correlation: str) -> None:
+    """Seed a full pipeline trace under ``correlation`` so the trace / bitemporal
+    / what-if routes have a rich sample record to render."""
+    base = datetime(2026, 7, 6, 10, 10, 0, tzinfo=UTC)
+    steps: tuple[dict[str, Any], ...] = (
+        {
+            "pipeline_stage": "event_ingest",
+            "action_kind": "event.received",
+            "payload": {
+                "resource": {
+                    "resource_id": "vm-1",
+                    "type": "compute.vm",
+                    "props": {"tier": "S1", "region": "eastus"},
+                }
+            },
+            "state": {"tier": "S1"},
+            "effective_at": base.isoformat(),
+        },
+        {
+            "pipeline_stage": "L1_evaluate",
+            "action_kind": "trust_router.route",
+            "decision": "match",
+            "reason": "public_access_enabled",
+        },
+        {
+            "pipeline_stage": "risk_gate",
+            "action_kind": "risk_gate.evaluate",
+            "decision": "escalate_hil",
+            "reason": "blast-radius exceeds executor cap",
+            "state": {"tier": "S2", "region": "eastus"},
+            "effective_at": (base + timedelta(minutes=5)).isoformat(),
+        },
+        {
+            "pipeline_stage": "escalate",
+            "action_kind": "restrict-network-access",
+            "decision": "hil_pending",
+            "reason": "awaiting human approval",
+            "mode": "shadow",
+        },
+    )
+    for offset, entry in enumerate(steps):
+        entry_copy = dict(entry)
+        entry_copy["correlation_id"] = correlation
+        entry_copy["recorded_at"] = (base + timedelta(seconds=offset)).isoformat()
+        read_model.record_audit_entry(entry_copy)
+
+
+def _synthetic_verdicts() -> list[ShadowVerdictRecord]:
+    """A demo distribution: some reviewed-and-agreed, one policy escape."""
+    now = datetime.now(tz=UTC)
+    verdicts: list[ShadowVerdictRecord] = []
+    for offset in range(30):
+        verdicts.append(
+            ShadowVerdictRecord(
+                action_type_name="ops.publish-change-summary",
+                observed_at=now - timedelta(days=15 + offset % 3),
+                was_policy_escape=False,
+                operator_reviewed=True,
+                operator_agreed=True,
+            )
+        )
+    verdicts.append(
+        ShadowVerdictRecord(
+            action_type_name="remediate.disable-public-access",
+            observed_at=now - timedelta(days=1),
+            was_policy_escape=True,
+            operator_reviewed=True,
+            operator_agreed=False,
+        )
+    )
+    return verdicts
+
+
+def _build_blast_radius_graph() -> OntologyGraph:
+    """Small synthetic graph so the console's simulator has something to render."""
+    return InMemoryOntologyGraph(
+        edges={
+            ("sub-dev", "contains"): ("rg-alpha", "rg-beta"),
+            ("rg-alpha", "contains"): ("vnet-alpha", "vm-1"),
+            ("vnet-alpha", "contains"): ("subnet-alpha",),
+            ("subnet-alpha", "contains"): ("vm-1", "vm-2"),
+            ("rg-beta", "contains"): ("stg-beta",),
+            ("vm-1", "depends_on"): ("stg-beta", "kv-shared"),
+            ("vm-2", "depends_on"): ("kv-shared",),
+        },
+        link_types=frozenset({"contains", "depends_on", "attached_to"}),
+    )
+
+
+class _DemoTighterTagsEvaluator:
+    """Toy :class:`WhatIfEvaluator` for the dev harness.
+
+    Denies whenever the reconstructed event's props do not carry an
+    ``owner`` tag, so a fork engineer can eyeball the what-if diff
+    against the shipped rules that already deny on the same property.
+    """
+
+    def evaluate(
+        self, resource_type: str, resource_props: Mapping[str, Any]
+    ) -> Sequence[Mapping[str, Any]]:
+        del resource_type  # this scenario is type-agnostic
+        tags = resource_props.get("tags") or {}
+        if isinstance(tags, dict) and tags.get("owner"):
+            return ()
+        return (
+            {
+                "rule_id": "dev.tighter-tags.owner-required",
+                "denied": True,
+                "reason": "missing_owner_tag",
+            },
+        )
 
 
 def app() -> Starlette:
@@ -106,6 +250,39 @@ def app() -> Starlette:
         verifier=UnsafeClaimsExtractor(),
         resolver=resolver,
     )
+
+    # Load the shipped ontology + action-type catalogs so the console's
+    # explorer / promotion-gate dashboards render out of the box.
+    schema_registry = PackageResourceSchemaRegistry()
+    object_types_root = _REPO_ROOT / "rule-catalog" / "vocabulary" / "object-types"
+    link_types_root = _REPO_ROOT / "rule-catalog" / "vocabulary" / "link-types"
+    action_types_root = _REPO_ROOT / "rule-catalog" / "action-types"
+
+    ontology_object_types: tuple[Any, ...] = ()
+    ontology_link_types: tuple[Any, ...] = ()
+    action_types: tuple[Any, ...] = ()
+    if object_types_root.is_dir():
+        ontology_object_types = load_object_type_catalog(
+            object_types_root, schema_registry=schema_registry
+        )
+        if link_types_root.is_dir():
+            ontology_link_types = load_link_type_catalog(
+                link_types_root,
+                schema_registry=schema_registry,
+                object_types=ontology_object_types,
+            )
+    if action_types_root.is_dir():
+        action_types = load_action_type_catalog(
+            action_types_root,
+            schema_registry=schema_registry,
+            probes_root=None,
+        )
+
+    trace_reader = ConsoleReadModelTraceReader(read_model)
+    what_if_evaluators: dict[str, WhatIfEvaluator] = {
+        "tighter-tags": _DemoTighterTagsEvaluator(),
+    }
+
     return build_app(
         authenticator=authenticator,
         read_model=read_model,
@@ -118,8 +295,46 @@ def app() -> Starlette:
                 "http://localhost:8090",
             ),
             live_stream=_build_live_stream_config(),
+            blast_radius_graph=_build_blast_radius_graph(),
+            ontology_object_types=tuple(ontology_object_types),
+            ontology_link_types=tuple(ontology_link_types),
+            promotion_gate_action_types=tuple(action_types),
+            promotion_gate_source=InMemoryShadowVerdictSource(
+                verdicts=_synthetic_verdicts()
+            ),
+            trace_reader=trace_reader,
+            bitemporal_reader=trace_reader,
+            what_if_reader=trace_reader,
+            what_if_evaluators=what_if_evaluators,
+            chat=_build_chat_backend(),
+            expose_pantheon=True,
         ),
     )
+
+
+def _build_chat_backend() -> Any:
+    """Resolve a CommandDeck chat backend from env vars.
+
+    The dev harness ALWAYS wires a chat config (never ``None``) so the
+    ``/chat`` route is always registered. When no upstream LLM is
+    configured, ``backend_from_env`` returns a :class:`DisabledChatBackend`;
+    the endpoint then responds with ``501`` and the FE falls back to
+    its built-in deterministic answerer.
+
+    Resolution order (see ``chat.backend_from_env`` for the full contract):
+
+    1. ``FDAI_NARRATOR_BASE_URL`` + ``FDAI_NARRATOR_API_KEY`` +
+       ``FDAI_NARRATOR_MODEL`` (API-key path - matches CLI narrator).
+    2. ``resolved-models.json`` with a ``narrator`` block + a working
+       ``az login`` (keyless Azure AD path - what a developer with the
+       CLI narrator already gets for free).
+    3. Otherwise disabled - the FE keeps working via the deterministic
+       fallback.
+    """
+
+    from fdai.delivery.read_api.chat import backend_from_env
+
+    return backend_from_env()
 
 
 def _build_live_stream_config() -> LiveStreamConfig:
@@ -146,12 +361,16 @@ def _build_live_stream_config() -> LiveStreamConfig:
             return build_control_loop_emitter(
                 sink_arg,
                 channel_arg,
-                events_per_second=8.0,
+                events_per_second=3.0,
             )
         except ControlLoopEmitterUnavailable:
             # Rule catalog not available; keep the console populated
-            # with the hardcoded distribution.
-            return SyntheticLiveEmitter(sink=sink_arg, channel=channel_arg)
+            # with the hardcoded distribution. Match the rate we use
+            # for the real emitter so the dev cockpit paces the same
+            # whether or not the catalog compiled.
+            return SyntheticLiveEmitter(
+                sink=sink_arg, channel=channel_arg, events_per_second=3.0
+            )
 
     return LiveStreamConfig(
         path="/live/stream",

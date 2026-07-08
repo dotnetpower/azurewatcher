@@ -337,6 +337,7 @@ channel_routing:
 | **Slack adapter with A1 enabled by default (P1)** | ✓ | workspace credentials + userId↔OID mapping (required) |
 | Email / Webhook / Pager / SMS adapters | ✓ (skeletons) | credentials + enablement |
 | Routing-config schema + startup validation | ✓ | actual routing values in `rule-catalog/channel-routing/` |
+| HIL escalation sink (`on_all_fail` fail-safe queue) | ✓ (`StateStoreHilEscalationSink` - StateStore-backed, tenant-agnostic) | own queue backend (optional) |
 | Seven default digests + audience derivation rules | ✓ | cron timezone, channel ids, on/off per digest |
 | Secret-scan regex set (reused by adapters) | ✓ | extend patterns if needed |
 | Slack userId ↔ Entra OID mapping **interface** | ✓ | mapping data (mandatory for P1 A1) |

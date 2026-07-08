@@ -1,0 +1,15 @@
+# LinkType: owns (Agent -> Resource, M:M)
+#
+# Data-ownership relationship: each Resource under governance is written
+# to by exactly one pantheon Agent (the schema registry enforces
+# `producer_principal` against the Agent's `owns` list). Modeled as
+# M:M so an Agent can own multiple Resources and multiple Agents can
+# observe (via `subscribes`) the same Resource - subscription is NOT
+# ownership.
+schema_version: "1.0.0"
+name: owns
+version: "1.0.0"
+from_type: Agent
+to_type: Resource
+cardinality: many_to_many
+description: Which Resources a pantheon Agent is the sole writer of.

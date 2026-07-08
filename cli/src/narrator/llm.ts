@@ -7,12 +7,20 @@
  * actions (the console is read-only). One tool round is executed, then the model
  * answers from the tool results.
  *
- * Works with OpenAI (`Authorization: Bearer`) and Azure OpenAI (`api-key` header
- * + deployment-in-URL). Configured entirely from env - see `createNarrator`.
+ * Works with OpenAI (`Authorization: Bearer <key>`) and Azure OpenAI. For Azure
+ * it authenticates either with an API key (`api-key` header) or, keyless, with
+ * an Azure AD bearer token minted from the operator's existing `az login`
+ * (`az account get-access-token`) - so natural language works with zero secrets
+ * in the environment. Configured from env or `resolved-models.json` - see
+ * `createNarrator`.
  */
 
-import { CONSOLE_TOOLS, runTool } from "./tools.js";
-import type { Narrator, NarratorContext } from "./types.js";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+import { CLI_CONSOLE_TOOLS, CONSOLE_TOOLS, runTool } from "./tools.js";
+import { loadBaseNarratorPrompt, loadCliNarratorPrompt } from "./prompt-store.js";
+import type { ConsoleTool, Narrator, NarratorContext } from "./types.js";
 
 export interface LlmConfig {
   provider: "openai" | "azure";
@@ -20,6 +28,49 @@ export interface LlmConfig {
   apiKey: string;
   model: string;
   apiVersion: string;
+  /** How to authenticate. `azure-ad` mints a token from `az login` per request. */
+  auth: "api-key" | "azure-ad";
+}
+
+const execFileAsync = promisify(execFile);
+
+// Azure AD (Entra) resource for the Azure OpenAI data plane. Public, identical
+// for every tenant - not a customer-identifying value.
+const AAD_AOAI_RESOURCE = "https://cognitiveservices.azure.com";
+
+let tokenCache: { token: string; expiresAt: number } | null = null;
+
+/** Mint an Azure AD bearer token from the operator's `az login`, cached until
+ * shortly before expiry. Requires the Azure CLI to be installed and logged in. */
+async function azureAdToken(): Promise<string> {
+  const now = Date.now();
+  if (tokenCache && tokenCache.expiresAt - 60_000 > now) return tokenCache.token;
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync(
+      "az",
+      [
+        "account",
+        "get-access-token",
+        "--resource",
+        AAD_AOAI_RESOURCE,
+        "--query",
+        "accessToken",
+        "-o",
+        "tsv",
+      ],
+      { timeout: 20_000 },
+    ));
+  } catch (err) {
+    throw new Error(
+      `could not get an Azure AD token via 'az' (run 'az login'): ${(err as Error).message}`,
+    );
+  }
+  const token = stdout.trim();
+  if (!token) throw new Error("'az account get-access-token' returned no token (run 'az login')");
+  // az tokens are typically valid ~60-90 min; cache conservatively for 50.
+  tokenCache = { token, expiresAt: now + 50 * 60_000 };
+  return token;
 }
 
 interface ToolCall {
@@ -39,14 +90,6 @@ interface ChatResponse {
   choices: Array<{ message: ChatMessage }>;
 }
 
-const SYSTEM_PROMPT =
-  "You are the FDAI operator-console narrator. Your role is to translate the " +
-  "operator's question (in any language, including Korean) into read-only tool " +
-  "calls and to answer ONLY from the tool results. Never invent numbers or " +
-  "facts; if the tools do not contain the answer, say so plainly. You never take " +
-  "actions - the console is read-only and approvals happen through pull requests. " +
-  "Reply in the operator's language, concisely.";
-
 export class LlmNarrator implements Narrator {
   readonly kind = "llm";
 
@@ -63,21 +106,25 @@ export class LlmNarrator implements Narrator {
     return `${this.cfg.baseUrl.replace(/\/$/, "")}/chat/completions`;
   }
 
-  private headers(): Record<string, string> {
+  private async headers(): Promise<Record<string, string>> {
     const common = { "content-type": "application/json" };
-    return this.cfg.provider === "azure"
-      ? { ...common, "api-key": this.cfg.apiKey }
-      : { ...common, authorization: `Bearer ${this.cfg.apiKey}` };
+    if (this.cfg.provider === "azure") {
+      if (this.cfg.auth === "azure-ad") {
+        return { ...common, authorization: `Bearer ${await azureAdToken()}` };
+      }
+      return { ...common, "api-key": this.cfg.apiKey };
+    }
+    return { ...common, authorization: `Bearer ${this.cfg.apiKey}` };
   }
 
   private async post(
     messages: ChatMessage[],
-    withTools: boolean,
+    tools: readonly ConsoleTool[] | null,
   ): Promise<ChatMessage> {
     const body: Record<string, unknown> = { messages, temperature: 0 };
     if (this.cfg.provider === "openai") body.model = this.cfg.model;
-    if (withTools) {
-      body.tools = CONSOLE_TOOLS.map((t) => ({
+    if (tools) {
+      body.tools = tools.map((t) => ({
         type: "function",
         function: {
           name: t.name,
@@ -89,7 +136,7 @@ export class LlmNarrator implements Narrator {
     }
     const res = await fetch(this.url(), {
       method: "POST",
-      headers: this.headers(),
+      headers: await this.headers(),
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -103,38 +150,43 @@ export class LlmNarrator implements Narrator {
   }
 
   async answer(query: string, ctx: NarratorContext): Promise<string> {
+    const cli = !!ctx.screen;
+    const tools = cli ? CLI_CONSOLE_TOOLS : CONSOLE_TOOLS;
+    const systemPrompt = cli ? loadCliNarratorPrompt() : loadBaseNarratorPrompt();
     const messages: ChatMessage[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
+      ...(ctx.history ?? []).slice(-6).map((h) => ({ role: h.role, content: h.content }) as ChatMessage),
       { role: "user", content: query },
     ];
+    // Multi-round tool loop so the model can chain calls (e.g. query_inventory to
+    // find a resource id, then get_metrics on it) before answering. Bounded.
+    const MAX_ROUNDS = 4;
     try {
-      const first = await this.post(messages, true);
-      if (!first.tool_calls || first.tool_calls.length === 0) {
-        return first.content ?? "(no answer)";
-      }
-      // Execute the requested read-only tools and feed results back once.
-      messages.push(first);
-      for (const call of first.tool_calls) {
-        let args: Record<string, unknown> = {};
-        try {
-          args = JSON.parse(call.function.arguments || "{}");
-        } catch {
-          args = {};
+      for (let round = 0; round < MAX_ROUNDS; round++) {
+        const offerTools = round < MAX_ROUNDS - 1 ? tools : null;
+        const msg = await this.post(messages, offerTools);
+        if (!msg.tool_calls || msg.tool_calls.length === 0) {
+          return msg.content ?? "(no answer)";
         }
-        let result: string;
-        try {
-          result = await runTool(call.function.name, args, ctx);
-        } catch (err) {
-          result = `error: ${(err as Error).message}`;
+        messages.push(msg);
+        for (const call of msg.tool_calls) {
+          let args: Record<string, unknown> = {};
+          try {
+            args = JSON.parse(call.function.arguments || "{}");
+          } catch {
+            args = {};
+          }
+          let result: string;
+          try {
+            result = await runTool(call.function.name, args, ctx);
+          } catch (err) {
+            result = `error: ${(err as Error).message}`;
+          }
+          messages.push({ role: "tool", tool_call_id: call.id, content: result });
         }
-        messages.push({
-          role: "tool",
-          tool_call_id: call.id,
-          content: result,
-        });
       }
-      const second = await this.post(messages, false);
-      return second.content ?? "(no answer)";
+      const final = await this.post(messages, null);
+      return final.content ?? "(no answer)";
     } catch (err) {
       return `(narrator error) ${(err as Error).message}`;
     }

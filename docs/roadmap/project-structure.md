@@ -15,45 +15,85 @@ Module names and the control loop follow
 fdai/
 ├── src/fdai/            # Python (3.12+, src-layout); one language across the monorepo
 │   ├── core/                  # headless control plane (no UI, no direct cloud SDK imports)
-│   │   ├── event_ingest/      # bus consumers; normalize to event schema; dedup by idempotency key; correlate related events into incidents
-│   │   ├── trust_router/      # routes each event to T0 | T1 | T2 by computed confidence
+│   │   ├── event_ingest/       # bus consumers; normalize to event schema; dedup by idempotency key; correlate related events into incidents
+│   │   ├── trust_router/       # routes each event to T0 | T1 | T2 by computed confidence
 │   │   ├── tiers/
-│   │   │   ├── t0_deterministic/  # deterministic-engine: policy, checklist, what-if, drift eval
-│   │   │   ├── t1_lightweight/    # embedding similarity, learned-action reuse, small-model classify
-│   │   │   └── t2_reasoning/      # frontier-model reasoning for novel/ambiguous cases only
-│   │   ├── quality_gate/      # mixed-model cross-check, verifier, grounding (guards T2)
-│   │   ├── risk_gate/         # risk scoring; auto vs HIL; enforces the four safety invariants
-│   │   ├── executor/          # per-resource lock, idempotent apply via delivery adapters
-│   │   ├── audit/             # append-only audit log, tracked state, KPI/metric emission
-│   │   └── assurance_twin/    # read-only ontology twin: text-to-query review / Q&A / assessment (proposes, never executes)
+│   │   │   ├── t0_deterministic/    # deterministic-engine: policy, checklist, what-if, drift eval
+│   │   │   ├── t1_lightweight/      # embedding similarity, learned-action reuse, small-model classify
+│   │   │   └── t2_reasoning/        # frontier-model reasoning for novel/ambiguous cases only
+│   │   ├── prompts/            # catalog-as-code prompt composer (loads `rule-catalog/prompts/`, supplies T2)
+│   │   ├── tools/              # T2 tool-catalog registry + `ToolExecutor` (shadow-mode gated)
+│   │   ├── web_search/         # last-resort web-search seam (`NoOpWebSearchProvider` default; domain allowlist + sanitizer)
+│   │   ├── operator_memory/    # HIL-approved operator memory injected as untrusted `<operator_note>` data
+│   │   ├── quality_gate/       # mixed-model cross-check, verifier, grounding (guards T2)
+│   │   ├── rca/                # root-cause analysis (T0 deterministic + T2 reasoner behind seam; grounding-gated)
+│   │   ├── risk_gate/          # unified authority: risk score + auto vs HIL vs deny; enforces the four safety invariants
+│   │   ├── rbac/               # human RBAC for the read API (5-role matrix, resolver, enforcer)
+│   │   ├── hil_resume/         # HIL approval round-trip: park, push to channel, resume on decision
+│   │   ├── executor/           # per-resource lock, idempotent apply via delivery adapters
+│   │   ├── audit/              # append-only, hash-chained audit log + KPI/metric emission
+│   │   ├── notifications/      # channel-routing layer over the notifications matrix
+│   │   ├── detection/          # out-of-band anomaly / forecast finding producers (re-enter event-ingest)
+│   │   ├── incident/           # incident lifecycle registry + state machine (open → triaging → mitigated → resolved → closed)
+│   │   ├── slo/                # workload SLO / burn-rate evaluator (distinct from control-plane SLOs)
+│   │   ├── runbook/            # runbook orchestrator (linear sequence + on-failure branch)
+│   │   ├── postmortem/         # LLM-optional postmortem / PIR draft generator
+│   │   ├── rule_catalog_profiles/  # profile / pack layer - named rule bundles with `extends` chains + overrides
+│   │   ├── measurement/        # Phase-4 continuous measurement (regression, pattern growth, model tracking, latency budget, prompt probe, runners)
+│   │   ├── deploy_preflight/   # pre-deployment feasibility probes → grounded readiness report
+│   │   ├── assurance_twin/     # read-only ontology twin: text-to-query review / Q&A / assessment (proposes, never executes)
+│   │   ├── conversation/       # operator-console coordinator (Layer 2): NL turn → one read-only tool call
+│   │   ├── verticals/          # Resilience / Change Safety / Cost Governance (P3 integration surface)
+│   │   ├── control_loop.py     # P1 pipeline orchestrator: event_ingest → trust_router → T0 → executor → audit
+│   │   └── ontology_explorer.py    # deterministic Mermaid renderer for the loaded ObjectType / LinkType catalog
 │   ├── shared/                # cross-cutting; MUST NOT import from core/
-│   │   ├── contracts/         # models.py + registry.py + validation.py + JSON Schemas
-│   │   │   ├── event/         # event/schema.json
-│   │   │   ├── action/        # action/schema.json
-│   │   │   ├── rule/          # rule/schema.json
-│   │   │   └── ontology/      # object-type / link-type / action-type JSON Schemas
-│   │   ├── providers/         # CSP-neutral cloud provider interfaces (adapters implement them)
-│   │   │                      #   event_bus.py, secret_provider.py, state_store.py,
-│   │   │                      #   workload_identity.py, inventory.py
-│   │   ├── streaming/         # (future) shared Kafka -> SSE relay if other consumers need it; today the read-api owns its hub in `delivery/read_api/live_stream.py`
-│   │   ├── telemetry/         # structured logging, tracing, metric helpers
-│   │   └── config/            # config schema + startup validation (fail-fast)
+│   │   ├── contracts/          # models.py + registry.py + validation.py + JSON Schemas
+│   │   │   ├── event/          # event/schema.json
+│   │   │   ├── action/         # action/schema.json
+│   │   │   ├── rule/           # rule/schema.json
+│   │   │   └── ontology/       # object-type / link-type / action-type JSON Schemas
+│   │   ├── ontology/           # runtime ontology helpers (ACL, audit purposes, purpose taxonomy)
+│   │   ├── providers/          # CSP-neutral cloud provider interfaces (adapters implement them)
+│   │   │                       #   event_bus.py, secret_provider.py, state_store.py,
+│   │   │                       #   workload_identity.py, inventory.py + LLM / channel / RBAC / feasibility-probe seams
+│   │   │                       # `providers/local/` = dev-mode fakes (`EnvSecretProvider`, `LocalWorkloadIdentity`, `FileFixtureInventory`);
+│   │   │                       # `providers/testing/` = in-memory fakes used across the test suite (never bound in prod)
+│   │   ├── streaming/          # `SseBroadcaster` + `StagePublisher`: relay EventBus topics → SSE channels
+│   │   ├── telemetry/          # structured logging, tracing, metric helpers
+│   │   └── config/             # config schema + startup validation (fail-fast)
 │   ├── delivery/              # action delivery adapters (behind one shared interface)
-│   │   ├── gitops_pr/         # remediation-pr adapter: GitHub App / Azure DevOps, Checks API
-│   │   ├── chatops/           # channel adapters (Teams / Slack / email / webhook / pager / SMS)
-│   │   └── read_api/          # thin GET-only ASGI (`/audit`, `/kpi`, `/hil-queue`, `/healthz`) + opt-in SSE fan-out (`/live/stream` via `live_stream.py`)
-│   └── rule_catalog/          # rule-catalog PIPELINE code
-│       ├── schema/            # rule schema (semver) + validation
-│       ├── sources/           # per-source collectors (WAF, CIS, OPA, IaC scanners, ...)
-│       └── pipeline/          # watch → collect → shadow eval → regression → promote/rollback
-├── src/fdai/composition.py  # composition root: default_container() binds every seam
-├── src/fdai/core/control_loop.py  # P1 pipeline orchestrator: event_ingest → trust_router → T0 → executor → audit
+│   │   ├── gitops_pr/          # remediation-pr adapter: GitHub App / Azure DevOps, Checks API
+│   │   ├── chatops/            # channel adapters (Teams / Slack / email / webhook / pager / SMS)
+│   │   ├── notifications/      # per-channel senders (email HTTP, HIL sink) wired by `shared/providers` seams
+│   │   ├── persistence/        # Postgres / pgvector concrete implementations of `shared/providers` state seams
+│   │   ├── azure/              # Azure-specific SDK adapters (the only tree allowed to import `azure-*`)
+│   │   └── read_api/           # thin GET-only ASGI (`/audit`, `/kpi`, `/hil-queue`, `/healthz`, live control-loop, ontology graph, promotion-gates, ...) + opt-in SSE fan-out (`/live/stream` via `live_stream.py`)
+│   ├── rule_catalog/          # rule-catalog PIPELINE code
+│   │   ├── schema/             # rule + ontology (ObjectType / LinkType / ActionType) schemas + validation
+│   │   ├── sources/            # per-source collectors (WAF, CIS, OPA, IaC scanners, ...)
+│   │   ├── pipeline/           # watch → collect → shadow eval → regression → promote/rollback
+│   │   └── codegen/            # authoring helpers (`new_action_type`, `new_object_type`) - generate scaffolds, never mutate the live catalog
+│   ├── agents/                # pantheon runtime - 15 named agent modules (odin / thor / forseti / huginn / heimdall / ...), typed topics + bus, adapters + registry; see [agent-pantheon.md](agent-pantheon.md)
+│   ├── composition.py         # composition root: `default_container()` binds every seam
+│   └── __main__.py            # entry point (starts the P1 control loop)
 ├── rule-catalog/              # catalog-as-code DATA (YAML) - no Python; pipeline lives in src/fdai/rule_catalog/
-│   ├── schema/                # JSON Schema definitions (data)
-│   ├── vocabulary/            # canonical CSP-neutral vocabularies: resource-types.yaml, object-types/, link-types/
-│   ├── action-types/          # ontology ActionType instances (shadow-default, promotion_gate-required)
-│   ├── exemptions/            # time-boxed audited exemption artifacts
-│   └── sources/               # per-source rule snapshots + provenance
+│   ├── schema/                 # JSON Schema definitions (data)
+│   ├── vocabulary/             # canonical CSP-neutral vocabularies: resource-types.yaml, object-types/, link-types/
+│   ├── action-types/           # upstream ontology ActionType instances (shadow-default, promotion_gate-required)
+│   ├── action-types-custom/    # fork-only ActionType additions (deny-listed in upstream CI)
+│   ├── action-types-overrides/ # scoped overrides to upstream ActionTypes (≤ resource-group scope)
+│   ├── profiles/               # named rule packs (upstream)
+│   ├── profiles-overrides/     # fork overlay for profiles
+│   ├── prompts/                # catalog-as-code prompt fragments (task packs, tools, personas)
+│   ├── remediation/            # remediation-plan artifacts
+│   ├── operator-console/       # `SystemConsoleTool` descriptor bundles
+│   ├── probes/                 # deploy-preflight feasibility-probe descriptors
+│   ├── catalog/                # normalized rules (post-promotion, catalog-of-record)
+│   ├── collected/              # raw upstream source snapshots pre-normalization
+│   ├── exemptions/             # time-boxed audited exemption artifacts
+│   ├── sources/                # per-source rule snapshots + provenance
+│   ├── llm-registry.yaml       # per-capability LLM binding registry (data, resolved at composition time)
+│   └── risk-classification.yaml # authoritative first-match risk-classification table (see risk-classification.md)
 ├── policies/                  # OPA/Rego policy-as-code consumed by T0 and the verifier
 ├── infra/                     # IaC: Terraform (HCL); entry command `terraform apply`
 │   ├── modules/
@@ -61,14 +101,22 @@ fdai/
 │   │   ├── identity/                # user-assigned Managed Identity for the executor
 │   │   ├── compute/                 # runtime seam - alternates in siblings
 │   │   │   └── container-apps/      # default (Consumption + KEDA)
+│   │   ├── container-registry/      # ACR for the compute image
 │   │   ├── state-store/             # audit + KPI + pgvector
 │   │   │   └── postgres-flex/       # default
 │   │   ├── event-bus/               # Kafka wire
 │   │   │   └── event-hubs-kafka/    # default (Event Hubs, :9093)
 │   │   ├── secret-store/            # env + Key Vault reference bridge
 │   │   │   └── key-vault/           # default
-│   │   └── observability/           # Log Analytics + App Insights bound to it
-│   │       └── log-analytics/       # default
+│   │   ├── observability/           # Log Analytics + App Insights bound to it
+│   │   │   └── log-analytics/       # default
+│   │   ├── llm/                     # deployer-scoped LLM provisioning (dev-and-deploy parity contract)
+│   │   │   └── azure-openai/        # default Azure OpenAI deployment set
+│   │   ├── measurement-runners/     # Container Apps Jobs for automated regression + pattern-growth runners
+│   │   ├── preflight-toggles/       # feature-flag surface mapping preflight blockers → Terraform toggles
+│   │   └── console/                 # Static Web App hosting for the read-only SPA
+│   │       └── static-web-app/      # default
+│   ├── local/                       # local-dev IaC (docker-compose, testcontainers wiring; not applied to Azure)
 │   └── envs/                        # per-env tfvars (git-ignored; never committed)
 │       ├── dev/
 │       ├── staging/
@@ -83,8 +131,9 @@ fdai/
 │   ├── src/renderers/          # ink (terminal) / text / slack (Block Kit) / teams (Adaptive Card)
 │   ├── src/cli.tsx             # entrypoint: build briefing once, render per --surface
 │   └── package.json            # deps: ink, react (run with tsx, no build step)
+├── site/                      # Astro / Starlight docs site (renders docs/**/*.md with i18n + search)
 ├── ui/                        # (future) static UI kit (Calm Slate theme) - placeholder
-├── tests/                     # cross-subsystem regression suites + shared fixtures
+├── tests/                     # cross-subsystem regression suites + shared fixtures (unit tests colocate)
 ├── docs/roadmap/              # this roadmap and design docs
 ├── pyproject.toml             # single manifest for the Python monorepo
 └── .github/                   # instructions/ and workflows/ (CI: lint, secret-scan, coverage)

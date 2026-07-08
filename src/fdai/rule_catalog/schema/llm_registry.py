@@ -77,6 +77,7 @@ class Sku(StrEnum):
 class Invocation(StrEnum):
     ALWAYS = "always"
     ON_DISAGREEMENT = "on_disagreement"
+    ON_NOVEL_CASE = "on_novel_case"
 
 
 class FamilyPreference(BaseModel):

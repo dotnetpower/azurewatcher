@@ -1,7 +1,7 @@
 ---
 title: Fork Seam Recipe 조리서
 translation_of: downstream-fork-seam-recipes.md
-translation_source_sha: b153c450362e8f254971cd0e04ab3cd3fc39c4ad
+translation_source_sha: 70bef74067b3f513b5687d4e4417580ac6363d90
 translation_revised: 2026-07-08
 ---
 
@@ -280,6 +280,16 @@ instance 전달, HIL 승인이 dispatch되는 control loop에 wire.
 **테스트 방법**: 파이프라인 테스트에는
 `fdai.shared.providers.testing.hil_channel.InMemoryHilChannel`
 재사용; `httpx.MockTransport`로 어댑터의 wire-level 테스트 추가.
+
+**Control-loop wiring (upstream-보조)**: `FDAI_CHATOPS_WEBHOOK_URL` 이
+설정되는 즉시 `__main__` 이 `HilResumeCoordinator` (액션 park + A1 승인
+카드 push) 를 자동 바인드한다 - 포크는 webhook 만 공급하면 되며 코드
+변경 없음. 모든 terminal 결정에 대한 A2 operational-alert push 는
+채널 어댑터(`fdai.delivery.notifications.*`), upstream
+`StateStoreHilEscalationSink` (`on_all_fail` fail-safe 큐), 포크의 matrix
+override (`config/notifications-matrix.yaml` 의 placeholder 를 실제 channel
+id 로) 로 `NotificationRouter` (`fdai.core.notifications`) 를 조립해
+`notification_router=` 로 control loop 에 전달한다.
 
 ### 5.6 ScopeResolver (ARM id -> OperatorScope)
 

@@ -58,6 +58,26 @@
           },
           "description": {
             "type": "string"
+          },
+          "access_scope": {
+            "type": "string",
+            "enum": [
+              "reader",
+              "contributor",
+              "approver",
+              "owner"
+            ],
+            "default": "reader",
+            "description": "Minimum RBAC role required to view this property in read-only projections (console panels, assurance twin answers, exported reports). Enforced at read time by the projection layer, never bypassed by the executor. `reader` (default) means visible to any authenticated caller; a stricter value redacts the property for lower-role callers."
+          },
+          "purpose_binding": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "description": "Optional purpose codes a query MUST declare via `--purpose` to read this property. When set, a query without a matching purpose receives the redacted placeholder. Empty (default) means no purpose gate."
           }
         }
       }

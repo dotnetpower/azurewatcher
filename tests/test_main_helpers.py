@@ -15,6 +15,7 @@ import httpx
 import pytest
 
 from fdai.__main__ import (
+    _authoritative_decision,
     _build_audit_store,
     _build_hil_channel,
     _build_pattern_library,
@@ -23,6 +24,7 @@ from fdai.__main__ import (
     _resolve_policies_root,
     _summarize_config,
 )
+from fdai.core.control_loop import ControlLoopOutcome, ControlLoopResult
 from fdai.shared.config import AppConfig
 
 
@@ -196,6 +198,27 @@ def test_build_publisher_requires_http_client_when_gitops_enabled(
     monkeypatch.setenv("FDAI_GITOPS_REPO", "example-repo")
     with pytest.raises(RuntimeError, match="no HTTP client is available"):
         _build_publisher(http_client=None)
+
+
+@pytest.mark.parametrize(
+    ("outcome", "expected"),
+    [
+        (ControlLoopOutcome.EXECUTED, "auto"),
+        (ControlLoopOutcome.HIL, "hil"),
+        (ControlLoopOutcome.DENIED, "deny"),
+        (ControlLoopOutcome.DEDUPED, "dedupe"),
+        (ControlLoopOutcome.ABSTAINED_ROUTING, "abstain"),
+        (ControlLoopOutcome.ABSTAINED_T0, "abstain"),
+        (ControlLoopOutcome.T1_REUSE_LOGGED, "abstain"),
+    ],
+)
+def test_authoritative_decision_normalizes_outcomes(
+    outcome: ControlLoopOutcome, expected: str
+) -> None:
+    result = ControlLoopResult(
+        outcome=outcome, tier="t0", decision="x", resource_type=None
+    )
+    assert _authoritative_decision(result) == expected
 
 
 def test_build_publisher_rejects_non_float_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -613,3 +636,38 @@ def test_build_direct_api_executor_shares_audit_and_lock(
     # composition wire is safety-critical.
     assert got._audit_store is audit
     assert got._resource_lock is lock
+
+
+# ---------------------------------------------------------------------------
+# _build_control_loop - detection/HIL seams wiring
+# ---------------------------------------------------------------------------
+
+
+def test_build_control_loop_wires_rca_and_correlator(
+    monkeypatch: pytest.MonkeyPatch, app_config: AppConfig
+) -> None:
+    """The loop always carries an RCA coordinator + event correlator
+    (read-only explanation seams), regardless of the HIL channel."""
+    monkeypatch.delenv("FDAI_CHATOPS_WEBHOOK_URL", raising=False)
+    from fdai.__main__ import _build_control_loop
+    from fdai.composition import default_container
+
+    loop = _build_control_loop(default_container(app_config), http_client=None)
+    assert loop._rca_coordinator is not None
+    assert loop._event_correlator is not None
+    # No HIL channel configured -> no round-trip coordinator (falls back
+    # to the persisted HIL queue).
+    assert loop._hil_resume_coordinator is None
+
+
+def test_build_control_loop_wires_hil_coordinator_when_webhook_set(
+    monkeypatch: pytest.MonkeyPatch, app_config: AppConfig
+) -> None:
+    """Setting the ChatOps webhook opts the loop into the HIL approval
+    round-trip: a HIL-routed action parks + pushes an A1 card."""
+    monkeypatch.setenv("FDAI_CHATOPS_WEBHOOK_URL", "https://example.com/webhook")
+    from fdai.__main__ import _build_control_loop
+    from fdai.composition import default_container
+
+    loop = _build_control_loop(default_container(app_config), http_client=httpx.AsyncClient())
+    assert loop._hil_resume_coordinator is not None

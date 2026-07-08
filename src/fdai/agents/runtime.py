@@ -1,0 +1,363 @@
+"""Composition-root wiring for the pantheon runtime.
+
+The pantheon subclasses ship their behavior wave-by-wave, but until this
+module they were only ever wired together inside tests. ``PantheonRuntime``
+is the seam that lets the headless control plane
+(:mod:`fdai.__main__`) run all 15 agents against a real
+:class:`~fdai.shared.providers.event_bus.EventBus` provider:
+
+- instantiate the 15 agents (:func:`fdai.agents.factory.instantiate_pantheon`),
+- bind every publishing agent to a single
+  :class:`~fdai.agents.bus_bridge.EventBusBridge` over the injected
+  provider,
+- register each agent's declared typed subscriptions
+  (``AgentSpec.subscribes``) so a published ``object.<type>`` record
+  fans out to every subscriber immediately (distinct Kafka consumer
+  groups),
+- route raw ingress events (the same topic the P1 control loop consumes)
+  into Huginn, the Event Collector, which normalizes and republishes them
+  as ``object.event``.
+
+The runtime is **shadow by default**: it forces Thor into shadow mode
+(``enforce=False``) so the pantheon never double-executes alongside the
+P1 control loop, and the agents use the in-memory audit / issue / admin
+adapters from :mod:`fdai.agents.adapters`. A fork promotes to enforce
+explicitly (``enforce=True``) and swaps the in-memory adapters for
+durable backends by injecting its own ``Saga`` - see
+``docs/roadmap/agent-pantheon-implementation.md``.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from collections import Counter
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from typing import Any
+
+from fdai.agents.base import Agent
+from fdai.agents.bragi import Bragi, Turn
+from fdai.agents.bus_bridge import EventBusBridge
+from fdai.agents.divergence import ShadowDivergenceLedger
+from fdai.agents.factory import instantiate_pantheon
+from fdai.agents.huginn import Huginn
+from fdai.agents.pantheon import HARD_DEPENDENCY_AGENTS, PANTHEON_NAMES
+from fdai.agents.registry import PantheonRegistry, load_pantheon
+from fdai.agents.saga import Saga
+from fdai.agents.thor import ActionRunStore, Thor
+from fdai.shared.providers.event_bus import EventBus
+
+_LOG = logging.getLogger(__name__)
+
+_INGRESS_PRINCIPAL = "Huginn"
+_DEFAULT_GROUP_PREFIX = "fdai-pantheon"
+_OBSERVER_PRINCIPAL = "runtime-observer"
+
+
+@dataclass
+class PantheonRuntime:
+    """Live wiring of the 15 pantheon agents over an ``EventBus`` provider.
+
+    Build with :meth:`build`, then drive the perpetual consumer with
+    :meth:`run` (cancel via :meth:`stop`). ``run`` blocks forever against
+    a real broker - one Kafka consumer task per (topic, agent) pair - so
+    the caller runs it as a background task alongside the P1 control loop.
+    """
+
+    bridge: EventBusBridge
+    agents: dict[str, Agent]
+    raw_event_topic: str
+    subscription_count: int
+    enforce: bool
+    _ingress_dropped: int = 0
+    shadow_decisions: Counter[str] = field(default_factory=Counter)
+    disabled: frozenset[str] = frozenset()
+    divergence: ShadowDivergenceLedger | None = None
+    _bragi: Bragi | None = None
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        provider: EventBus,
+        raw_event_topic: str,
+        registry: PantheonRegistry | None = None,
+        enforce: bool = False,
+        consumer_group_prefix: str = _DEFAULT_GROUP_PREFIX,
+        saga: Saga | None = None,
+        disabled_agents: frozenset[str] | None = None,
+        divergence: ShadowDivergenceLedger | None = None,
+        thor_state_store: ActionRunStore | None = None,
+    ) -> PantheonRuntime:
+        """Instantiate + wire the pantheon against ``provider``.
+
+        ``raw_event_topic`` is the ingress topic (the same
+        ``kafka.topic_events`` the P1 loop consumes); its records are fed
+        into Huginn under a distinct consumer group, so the pantheon runs
+        as a parallel shadow of the P1 pipeline rather than stealing its
+        records.
+
+        ``enforce`` defaults to ``False`` (shadow): Thor is forced
+        judge-and-log only so the pantheon never mutates alongside the P1
+        loop. Set ``True`` only after an explicit, separately reviewed
+        promotion.
+
+        ``saga`` injects a durable auditor (a fork wires an append-only
+        StateStore-backed ``Saga``); the default is the in-memory audit
+        chain, adequate for shadow but lost on restart.
+
+        ``disabled_agents`` lets a fork run a partial pantheon
+        (agent-pantheon.md 10). Unknown names and the hard-dependency
+        agents (Saga / Vidar) are rejected - disabling audit or rollback
+        would break the mutation safety invariants. Disabling Huginn
+        turns off ingress (warned), which effectively idles the pantheon.
+        """
+        if not raw_event_topic or not raw_event_topic.strip():
+            raise ValueError("raw_event_topic MUST be a non-empty topic name")
+
+        disabled = frozenset(disabled_agents or frozenset())
+        unknown = disabled - PANTHEON_NAMES
+        if unknown:
+            raise ValueError(f"unknown agents in disabled set: {sorted(unknown)}")
+        forbidden = disabled & HARD_DEPENDENCY_AGENTS
+        if forbidden:
+            raise ValueError(
+                "hard-dependency agents cannot be disabled (audit / rollback "
+                f"are mutation safety invariants): {sorted(forbidden)}"
+            )
+
+        reg = registry or load_pantheon()
+        bridge = EventBusBridge(
+            provider=provider,
+            registry=reg,
+            consumer_group_prefix=consumer_group_prefix,
+        )
+        instantiated = instantiate_pantheon()
+        if saga is not None:
+            instantiated["Saga"] = saga
+
+        # Safety: force Thor to shadow unless an explicit promotion opts
+        # into enforce. Without this the pantheon Thor would auto-execute
+        # every 'auto' verdict in parallel with the P1 loop - a double
+        # mutation and a "shadow before enforce" violation.
+        thor = instantiated["Thor"]
+        if isinstance(thor, Thor):
+            thor.set_shadow(not enforce)
+            if thor_state_store is not None:
+                thor.set_state_store(thor_state_store)
+
+        # Apply the disabled filter: disabled agents are neither bound nor
+        # subscribed, so nobody publishes their owned topics and their
+        # handlers never fire.
+        agents = {n: a for n, a in instantiated.items() if n not in disabled}
+
+        # Bind every active agent to the shared bridge. base Agent.bind_bus
+        # is a safe setter, so agents that never publish simply hold an
+        # unused reference rather than needing special-casing.
+        for agent in agents.values():
+            agent.bind_bus(bridge)
+
+        # Register each active agent's declared typed subscriptions.
+        # Subscription has no single-writer check (only publish does), so a
+        # topic may fan out to several agents (e.g. object.event ->
+        # Heimdall + Forseti).
+        subscription_count = 0
+        for name, agent in agents.items():
+            for topic in agent.spec.subscribes:
+                bridge.subscribe(topic, name, agent.on_typed_message)
+                subscription_count += 1
+
+        # Conversational port: wire Bragi (the narrator) to every other
+        # active agent's conversational handler, so an operator NL query
+        # routes to the right primary agent. Deterministic + LLM-free at
+        # this layer (routing is keyword/similarity); agents answer via
+        # their own on_conversation_turn. Absent when Bragi is disabled.
+        bragi_ref: Bragi | None = None
+        maybe_bragi = agents.get("Bragi")
+        if isinstance(maybe_bragi, Bragi):
+            bragi_ref = maybe_bragi
+            for name, agent in agents.items():
+                if name != "Bragi":
+                    bragi_ref.register_responder(name, agent.on_conversation_turn)
+
+        huginn_active = _INGRESS_PRINCIPAL in agents
+        runtime = cls(
+            bridge=bridge,
+            agents=agents,
+            raw_event_topic=raw_event_topic,
+            subscription_count=subscription_count + (1 if huginn_active else 0),
+            enforce=enforce,
+            disabled=disabled,
+            divergence=divergence,
+            _bragi=bragi_ref,
+        )
+
+        if saga is None and enforce:
+            # Enforce means the pantheon may mutate, but the default Saga
+            # keeps its audit chain in memory - lost on restart. An
+            # append-only audit is a hard safety invariant for any
+            # autonomous action, so flag the gap loudly rather than
+            # enforcing without durable audit.
+            _LOG.warning(
+                "pantheon_enforce_without_durable_saga",
+                extra={"remedy": "inject a StateStore-backed Saga via build(saga=...)"},
+            )
+
+        # Ingress: raw events on the P1 topic -> Huginn.ingest -> normalized
+        # object.event (published via the bound bridge). Huginn's spec
+        # subscribes to nothing (it is fed from external adapters), so the
+        # ingress bridge is wired explicitly here. If Huginn is disabled
+        # there is no ingress - the pantheon idles.
+        if huginn_active:
+            bridge.subscribe(
+                raw_event_topic, _INGRESS_PRINCIPAL, runtime._make_ingress(agents)
+            )
+        else:
+            _LOG.warning("pantheon_ingress_disabled_no_huginn")
+
+        # Shadow observation: a dedicated observer consumer group tallies
+        # what the pantheon *would* decide (verdict risk split + ActionRun
+        # terminal states) so "shadow before enforce" has a measurable
+        # baseline. A distinct group means it never steals records from
+        # the real subscribers (Thor / Saga / Odin / Var).
+        bridge.subscribe("object.verdict", _OBSERVER_PRINCIPAL, runtime._observe_verdict)
+        bridge.subscribe(
+            "object.action-run", _OBSERVER_PRINCIPAL, runtime._observe_action_run
+        )
+
+        _LOG.info(
+            "pantheon_wired",
+            extra={
+                "agents": len(agents),
+                "disabled": sorted(disabled),
+                "subscriptions": runtime.subscription_count,
+                "raw_event_topic": raw_event_topic,
+                "enforce": enforce,
+            },
+        )
+        return runtime
+
+    async def run(self, *, heartbeat_interval: float | None = None) -> None:
+        """Start the perpetual consumer (one task per subscription).
+
+        ``heartbeat_interval`` (seconds) optionally starts a companion
+        task that logs :meth:`health` on a fixed cadence - the minimal
+        form of Heimdall's per-minute agent-health probe until the full
+        probe lands. ``None`` disables it.
+        """
+        await self._rehydrate()
+        if heartbeat_interval is None or heartbeat_interval <= 0:
+            await self.bridge.run()
+            return
+        heartbeat = asyncio.create_task(
+            self._heartbeat(heartbeat_interval), name="pantheon-heartbeat"
+        )
+        try:
+            await self.bridge.run()
+        finally:
+            heartbeat.cancel()
+            try:
+                await heartbeat
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001, S110 - cleanup
+                pass
+
+    async def stop(self) -> None:
+        """Cancel every consumer task and drain cleanly."""
+        await self.bridge.stop()
+
+    async def ask(
+        self, *, session_id: str, user_id: str, question: str
+    ) -> Turn | None:
+        """Operator conversational-port entry point.
+
+        Routes a natural-language question through Bragi to the right
+        primary agent, tracking a per-user session (Bragi enforces the
+        no-cross-user invariant). Returns ``None`` when Bragi is disabled
+        (the conversational port is off). Distinct from the typed
+        pub/sub port: a conversational request that wants an action must
+        re-enter the typed pipeline, never bypass it.
+        """
+        if self._bragi is None:
+            return None
+        return await self._bragi.ask(
+            session_id=session_id, user_id=user_id, question=question
+        )
+
+    async def _rehydrate(self) -> None:
+        """Restore durable agent state (in-flight ActionRuns) on startup.
+
+        Runs before the consumer starts so a restart cannot start a
+        second run on a resource that already had one in flight. No-op
+        when no durable store is wired.
+        """
+        thor = self.agents.get("Thor")
+        if isinstance(thor, Thor):
+            restored = await thor.rehydrate()
+            if restored:
+                _LOG.info("pantheon_thor_rehydrated", extra={"in_flight_runs": restored})
+
+    def health(self) -> dict[str, Any]:
+        """Return a health snapshot (agents, mode, bridge metrics).
+
+        Includes a per-agent ``agent_health`` map so Heimdall's probe (and
+        the KPI collectors) can see individual agent state - active
+        ActionRuns, dedup pressure, etc. - not just bridge-level counters.
+        """
+        snap = self.bridge.snapshot()
+        return {
+            "agents": len(self.agents),
+            "disabled": sorted(self.disabled),
+            "enforce": self.enforce,
+            "ingress_dropped": self._ingress_dropped,
+            "shadow_decisions": dict(self.shadow_decisions),
+            "agent_health": {name: a.health() for name, a in self.agents.items()},
+            "divergence": self.divergence.report() if self.divergence else None,
+            "conversational_port": self._bragi is not None,
+            **snap,
+        }
+
+    async def _heartbeat(self, interval: float) -> None:
+        while True:
+            await asyncio.sleep(interval)
+            _LOG.info("pantheon_heartbeat", extra=self.health())
+
+    async def _observe_verdict(self, _topic: str, payload: dict[str, Any]) -> None:
+        risk = str(payload.get("risk_verdict", "unknown"))
+        self.shadow_decisions[f"verdict:{risk}"] += 1
+        if self.divergence is not None:
+            self.divergence.record_pantheon(
+                str(payload.get("correlation_id", "")), risk
+            )
+
+    async def _observe_action_run(self, _topic: str, payload: dict[str, Any]) -> None:
+        self.shadow_decisions[f"action_run:{payload.get('state', 'unknown')}"] += 1
+
+    def _make_ingress(
+        self, agents: dict[str, Agent]
+    ) -> Callable[[str, dict[str, Any]], Awaitable[None]]:
+        """Return the raw-event handler that feeds Huginn.
+
+        Huginn.ingest normalizes + dedups + republishes as ``object.event``.
+        A raw event missing a stable key is dropped with a warning (not
+        dead-lettered): the P1 loop still processes the same record, so
+        flooding the DLQ from the shadow pantheon would be noise.
+        """
+        huginn = agents[_INGRESS_PRINCIPAL]
+        if not isinstance(huginn, Huginn):  # pragma: no cover - factory guarantees it
+            raise TypeError("Huginn agent is missing from the pantheon")
+
+        async def _ingress(_topic: str, payload: dict[str, Any]) -> None:
+            try:
+                await huginn.ingest(payload)
+            except ValueError as exc:
+                self._ingress_dropped += 1
+                _LOG.warning(
+                    "pantheon_ingress_unkeyed_event",
+                    extra={"error": str(exc), "raw_event_topic": self.raw_event_topic},
+                )
+
+        return _ingress
+
+
+__all__ = ["PantheonRuntime"]

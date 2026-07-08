@@ -45,7 +45,6 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Final
 
-from fdai.core.executor.lock import ResourceLockManager
 from fdai.core.executor.renderer import (
     RenderError,
     RenderRequest,
@@ -124,7 +123,7 @@ class ShadowExecutor:
         publisher: RemediationPrPublisher,
         audit_store: StateStore,
         renderer: TemplateRenderer,
-        resource_lock: ResourceLockManager,
+        resource_lock: ResourceLock,
         config: ExecutorConfig | None = None,
     ) -> None:
         self._publisher = publisher

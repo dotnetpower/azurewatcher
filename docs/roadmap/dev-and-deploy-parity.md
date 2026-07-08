@@ -211,8 +211,7 @@ Each work item below reflects what actually landed - code, tests, and gate cover
   `shared/providers/local/` to reflect dev usage).
 - `LocalWorkloadIdentity` - issues an in-memory OIDC token that adapters accept in
   dev-mode (no network).
-- `FileFixtureInventory` - reads `Resource` records from `tests/scenarios/inventory/*.yaml`
-  so verticals can dry-run without ARG.
+- `FileFixtureInventory` - reads `Resource` records from any YAML fixture the fork passes to its constructor (`fixture=Path(...)`); upstream ships zero seed fixtures, and the recommended convention is `tests/scenarios/inventory/*.yaml` alongside the frozen scenario replay so verticals can dry-run without ARG.
 - Tests + docstrings show the exact fork-side pattern.
 
 ### W-H: Docs sync  *(this phase)*

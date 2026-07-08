@@ -91,12 +91,25 @@ def configure_logging(
     Idempotent: repeated calls replace the previous handler, they do not
     stack. That matters because a fork's entry point may call the
     composition root more than once.
+
+    On first install this also removes any `logging.basicConfig`-style
+    :class:`logging.StreamHandler` that lives on the root logger without
+    our marker. That plain-text handler is typically installed by the
+    process entry point *before* the composition root runs; leaving it
+    behind would double every log line (once plain, once JSON) because
+    root-attached handlers all fire per record.
     """
     root = logging.getLogger()
     root.setLevel(level)
 
     for existing in list(root.handlers):
         if getattr(existing, _HANDLER_MARKER, False):
+            root.removeHandler(existing)
+            continue
+        # Cull the classic `basicConfig` StreamHandler so JSON output is
+        # not shadowed by a duplicate plain-text line. Anything more
+        # exotic (a custom fork handler, a Sentry handler) is preserved.
+        if type(existing) is logging.StreamHandler:  # noqa: E721 - exact-type match
             root.removeHandler(existing)
 
     handler = logging.StreamHandler(stream or sys.stdout)

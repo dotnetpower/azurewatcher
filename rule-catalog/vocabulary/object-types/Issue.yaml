@@ -1,0 +1,52 @@
+# Upstream built-in ObjectType: Issue.
+#
+# An `Issue` is FDAI's internal mirror of a GitHub Issue created by Saga
+# via the `governance.escalate-to-github-issue` action. Fingerprint-based
+# dedup collapses repeated occurrences into one Issue + N comments. See
+# agent-pantheon.md § 6.4.
+schema_version: "1.0.0"
+name: Issue
+version: "1.0.0"
+key: id
+description: FDAI mirror of a GitHub issue created via escalate_to_github_issue; dedup by fingerprint.
+properties:
+  id:
+    type: string
+    required: true
+    description: Opaque local id (issue_id in payload).
+  fingerprint:
+    type: string
+    required: true
+    description: SHA1 of `intent_category + resource_type + normalized_selector + primary_agent + failure_reason_code`. Label hash never carries customer identifiers.
+  github_number:
+    type: integer
+    required: false
+    description: Number assigned by the GitHub App; empty during shadow-mode dry runs.
+  status:
+    type: string
+    required: true
+    description: One of `open`, `closed`.
+  first_seen:
+    type: string
+    required: true
+    description: ISO 8601 timestamp of first occurrence.
+  last_seen:
+    type: string
+    required: true
+    description: ISO 8601 timestamp of most recent occurrence.
+  occurrence_count:
+    type: integer
+    required: true
+    description: Monotonic occurrence count; incremented on every repeat.
+  primary_agent:
+    type: string
+    required: false
+    description: Name of the Agent whose abstain triggered the escalation.
+  correlation_ids:
+    type: array
+    required: false
+    description: Correlation ids of the recorded occurrences; each comment references one.
+  closed_by_pr:
+    type: string
+    required: false
+    description: PR url that promoted the resolving rule / capability (present only when status = closed).

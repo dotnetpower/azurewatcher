@@ -1,0 +1,97 @@
+"""Njord - Cost / FinOps (Wave 5 behavior).
+
+Njord ingests cost samples, detects anomalies against a rolling
+baseline, and provides a cost-impact advisor hook that Forseti calls
+during verdict composition.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from statistics import mean
+from typing import Any
+
+from fdai.agents.base import Agent
+from fdai.agents.bus import PantheonBus
+from fdai.agents.pantheon import _NJORD
+
+
+@dataclass(frozen=True, slots=True)
+class CostEstimate:
+    action_type: str
+    monthly_delta_usd: float
+    confidence: float
+
+
+class Njord(Agent):
+    """Wave-5 Njord: cost ingestion + anomaly + advisor."""
+
+    def __init__(
+        self,
+        *,
+        bus: PantheonBus | None = None,
+        anomaly_ratio: float = 1.5,
+        cost_table: dict[str, float] | None = None,
+    ) -> None:
+        super().__init__(spec=_NJORD)
+        self.bus = bus
+        self._anomaly_ratio = anomaly_ratio
+        self._samples: dict[str, list[float]] = {}
+        # Per-action monthly cost delta baseline (fork adapter replaces).
+        self._cost_table = cost_table or {
+            "ops.restart-service": 0.0,
+            "remediate.disable-public-access": 0.0,
+            "remediate.enable-encryption": 3.5,
+            "remediate.resize_vm_up": 45.0,
+            "remediate.resize_vm_down": -25.0,
+        }
+
+    def bind_bus(self, bus: PantheonBus) -> None:
+        self.bus = bus
+
+    # ---- ingestion -----------------------------------------------------
+
+    async def ingest_cost_sample(
+        self,
+        *,
+        scope: str,
+        amount_usd: float,
+        correlation_id: str = "",
+        resource_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        history = self._samples.setdefault(scope, [])
+        anomaly_payload: dict[str, Any] | None = None
+        if len(history) >= 3:
+            baseline = mean(history[-30:])
+            if baseline > 0 and amount_usd > baseline * self._anomaly_ratio:
+                anomaly_payload = {
+                    "producer_principal": "Njord",
+                    "correlation_id": correlation_id or scope,
+                    "scope": scope,
+                    "resource_id": resource_id or scope,
+                    "amount_usd": amount_usd,
+                    "baseline_usd": baseline,
+                    "ratio": amount_usd / baseline,
+                    # Cost pressure recommends shrinking to save spend; this
+                    # can conflict with a capacity scale_up (Forseti arbitrates).
+                    "recommendation": "scale_down",
+                }
+                if self.bus is not None:
+                    await self.bus.publish("Njord", "object.cost-anomaly", anomaly_payload)
+        history.append(amount_usd)
+        return anomaly_payload
+
+    # ---- advisor hook --------------------------------------------------
+
+    def cost_impact(self, action_type: str) -> CostEstimate:
+        """Return a Forseti-consumable cost annotation for an action."""
+        delta = self._cost_table.get(action_type, 0.0)
+        confidence = 0.9 if action_type in self._cost_table else 0.3
+        return CostEstimate(
+            action_type=action_type,
+            monthly_delta_usd=delta,
+            confidence=confidence,
+        )
+
+
+__all__ = ["Njord", "CostEstimate"]

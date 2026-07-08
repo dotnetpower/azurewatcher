@@ -795,3 +795,127 @@ async def test_wire_azure_container_forwards_tool_providers(tmp_path: Path) -> N
     # reaching into implementation, but the fact that wire succeeded with
     # a non-empty mapping already exercises the branch that used to
     # hardcode ``providers={}`` in __main__.
+
+
+# ---------------------------------------------------------------------------
+# T2 RCA reasoner binding is opt-in (capability + system prompt), symmetric
+# to the Critic / Judge bindings.
+# ---------------------------------------------------------------------------
+
+
+def _resolved_models_json_with_rca() -> str:
+    """Resolver output that additionally declares the ``t2.rca``
+    capability so the RCA T2 reasoner can bind."""
+
+    return """{
+  "schema_version": "1.0.0",
+  "region": "koreacentral",
+  "subscription_id": "00000000-0000-0000-0000-000000000000",
+  "deployer_object_id": "00000000-0000-0000-0000-000000000001",
+  "mixed_model_mode": "azure-foundry",
+  "capabilities": [
+    {"name": "t1.embedding", "status": "resolved", "publisher": "OpenAI",
+     "family": "text-embedding-3-small", "sku": "Standard",
+     "capacity_tpm": 100000, "invocation": "always", "reasons": []},
+    {"name": "t2.reasoner.primary", "status": "resolved", "publisher": "OpenAI",
+     "family": "gpt-4o", "sku": "Standard",
+     "capacity_tpm": 20000, "invocation": "always", "reasons": []},
+    {"name": "t2.reasoner.secondary", "status": "resolved",
+     "publisher": "Anthropic", "family": "claude-opus-4", "sku": "Standard",
+     "capacity_tpm": 10000, "invocation": "always", "reasons": []},
+    {"name": "t2.rca", "status": "resolved", "publisher": "OpenAI",
+     "family": "gpt-4o", "sku": "Standard",
+     "capacity_tpm": 5000, "invocation": "on_novel_case", "reasons": []}
+  ]
+}
+"""
+
+
+def test_bind_wires_rca_reasoner_when_capability_resolves_and_prompt_supplied(
+    tmp_path: Path,
+) -> None:
+    resolved = tmp_path / "resolved-models.json"
+    resolved.write_text(_resolved_models_json_with_rca(), encoding="utf-8")
+    container = default_container(_config(mode=LlmMode.AZURE, resolved_path=str(resolved)))
+    http = httpx.AsyncClient(transport=httpx.MockTransport(lambda _r: httpx.Response(200)))
+    finalized = bind_azure_llm_bindings(
+        container,
+        identity=_StaticIdentity(),
+        http_client=http,
+        endpoint="https://oai-test.openai.azure.com",
+        system_prompt=_TEST_SYSTEM_PROMPT,
+        rca_system_prompt="unit-test rca system prompt",
+    )
+    bindings = finalized.require_llm_bindings()
+    from fdai.core.rca import LlmRcaReasoner
+
+    assert isinstance(bindings.rca_reasoner, LlmRcaReasoner)
+
+
+def test_bind_leaves_rca_reasoner_none_when_capability_missing(tmp_path: Path) -> None:
+    """Baseline resolver output (no ``t2.rca``) MUST NOT bind an RCA
+    reasoner even when the caller supplies a prompt - so a deployment
+    without the capability keeps T2 RCA dark and only T0 RCA runs."""
+
+    resolved = tmp_path / "resolved-models.json"
+    resolved.write_text(_resolved_models_json(), encoding="utf-8")
+    container = default_container(_config(mode=LlmMode.AZURE, resolved_path=str(resolved)))
+    http = httpx.AsyncClient(transport=httpx.MockTransport(lambda _r: httpx.Response(200)))
+    finalized = bind_azure_llm_bindings(
+        container,
+        identity=_StaticIdentity(),
+        http_client=http,
+        endpoint="https://oai-test.openai.azure.com",
+        system_prompt=_TEST_SYSTEM_PROMPT,
+        rca_system_prompt="unit-test rca system prompt",
+    )
+    assert finalized.require_llm_bindings().rca_reasoner is None
+
+
+def test_bind_leaves_rca_reasoner_none_when_prompt_missing(tmp_path: Path) -> None:
+    """Capability resolved but no ``rca_system_prompt`` supplied -> no
+    reasoner. Lets a deployment ship the capability before authoring
+    the RCA prompt without failing startup."""
+
+    resolved = tmp_path / "resolved-models.json"
+    resolved.write_text(_resolved_models_json_with_rca(), encoding="utf-8")
+    container = default_container(_config(mode=LlmMode.AZURE, resolved_path=str(resolved)))
+    http = httpx.AsyncClient(transport=httpx.MockTransport(lambda _r: httpx.Response(200)))
+    finalized = bind_azure_llm_bindings(
+        container,
+        identity=_StaticIdentity(),
+        http_client=http,
+        endpoint="https://oai-test.openai.azure.com",
+        system_prompt=_TEST_SYSTEM_PROMPT,
+        # rca_system_prompt omitted
+    )
+    assert finalized.require_llm_bindings().rca_reasoner is None
+
+
+async def test_wire_azure_container_binds_rca_reasoner_from_shipped_prompt(
+    tmp_path: Path,
+) -> None:
+    """End-to-end: with the ``t2.rca`` capability resolved and the
+    shipped ``base/t2-rca.v1.yaml`` prompt, wire_azure_container composes
+    the RCA base layer and binds a live ``LlmRcaReasoner`` - proving the
+    composer resolves the prompt via ``applies_to`` and the bind step
+    attaches the adapter."""
+    from fdai.composition import AzureWireOverrides, wire_azure_container
+    from fdai.core.operator_memory import InMemoryOperatorMemoryStore
+    from fdai.core.rca import LlmRcaReasoner
+
+    resolved = tmp_path / "resolved-models.json"
+    resolved.write_text(_resolved_models_json_with_rca(), encoding="utf-8")
+    container = default_container(_config(mode=LlmMode.AZURE, resolved_path=str(resolved)))
+    http = httpx.AsyncClient(transport=httpx.MockTransport(lambda _r: httpx.Response(200)))
+    finalized = await wire_azure_container(
+        container,
+        http_client=http,
+        identity=_StaticIdentity(),
+        overrides=AzureWireOverrides(
+            endpoint="https://oai-fork.openai.azure.com",
+            catalog_root=_SHIPPED_CATALOG_ROOT,
+            operator_memory_store=InMemoryOperatorMemoryStore(),
+        ),
+    )
+    assert isinstance(finalized.require_llm_bindings().rca_reasoner, LlmRcaReasoner)

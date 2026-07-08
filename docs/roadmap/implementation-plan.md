@@ -329,7 +329,7 @@ integration; does not add new autonomy.
   `live_probe_ref`, `provenance`. Loader cross-checks per
   [action-ontology.md § 8](action-ontology.md#8-loader--validation).
 - **F2** `resolved_ceiling` JSON Schema at
-  `src/fdai/shared/contracts/ontology/resolved-ceiling.schema.json`,
+  `src/fdai/shared/contracts/ontology/resolved-ceiling.json`,
   matching the shape in
   [execution-model.md § 8](execution-model.md#8-resolved_ceiling-audit-block)
   with the R1 derivation notation (`derived_from` on Axes D and G).

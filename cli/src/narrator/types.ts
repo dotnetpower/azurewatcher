@@ -24,6 +24,27 @@ export interface NarratorContext {
   apiUrl: string | null;
   /** Sample payload when `apiUrl` is null; null when live. */
   payload: BriefingPayload | null;
+  /** Optional screen controller (CLI cockpit only). Lets the narrator switch
+   * the on-screen view/component from natural language. Read-only: it changes
+   * only what is displayed, never a cloud resource. */
+  screen?: ScreenController | null;
+  /** Optional live-state provider (CLI cockpit only): a compact snapshot of the
+   * cockpit's own counters (handled, tiers, outcomes, resource-type mix), so
+   * the narrator answers from what is on screen, not the mock seed. */
+  live?: { overview: () => string } | null;
+  /** Optional recent conversation (most recent last), so follow-up questions
+   * ("the biggest one?", "why?") resolve against what was just discussed. */
+  history?: Array<{ role: "user" | "assistant"; content: string }> | null;
+}
+
+/** A read-only handle to the cockpit's on-screen view (CLI only). */
+export interface ScreenController {
+  /** Switch the visible component; returns a short confirmation string. */
+  setView(patch: {
+    mode?: "stream" | "overview" | "focus";
+    focus?: string;
+    paused?: boolean;
+  }): string;
 }
 
 /** One read-only console tool the narrator may call. */

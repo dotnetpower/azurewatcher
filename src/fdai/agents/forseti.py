@@ -1,0 +1,279 @@
+"""Forseti - Judge (Wave 3 behavior).
+
+Forseti issues verdicts (auto / hil / deny) based on:
+- a rule-match table (deterministic keyword -> ActionType id)
+- a risk_verdict table (deterministic ActionType id -> auto/hil/deny)
+- an RBAC hook (initiator principal + role → deny + SecurityEvent)
+
+Wave 3 keeps rule matching intentionally simple; the real T0 loader is
+in :mod:`fdai.rule_catalog`. Mixed-model cross-check and grounding
+(T2) land in later waves.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from fdai.agents.base import Agent
+from fdai.agents.bus import PantheonBus
+from fdai.agents.pantheon import _FORSETI
+
+# ---------------------------------------------------------------------------
+# Deterministic tables (wave 3 defaults)
+# ---------------------------------------------------------------------------
+
+# ``event_type -> proposed ActionType id`` (rule match). Wave 3 uses a
+# tiny in-memory table; real T0 loader consumes rule catalog YAML.
+_RULE_MATCH: dict[str, str] = {
+    "public_network_enabled": "remediate.disable-public-access",
+    "unencrypted_disk": "remediate.enable-encryption",
+    "restart_needed": "ops.restart-service",
+    "cost_spike": "governance.notify-admin-privilege-violation",  # placeholder
+    "chaos_experiment_request": "ops.restart-service",
+}
+
+# ``ActionType id -> default risk verdict`` (deterministic per
+# rule-catalog/risk-classification.yaml). Wave 3 hard-codes a small
+# lookup; real loader parses the full first-match table.
+_RISK_VERDICT: dict[str, str] = {
+    "remediate.disable-public-access": "auto",
+    "remediate.enable-encryption": "hil",
+    "ops.restart-service": "auto",
+    "governance.notify-admin-privilege-violation": "auto",
+    "ops.failover-primary": "hil",
+    "remediate.delete-storage": "deny",  # irreversible
+}
+
+
+# ---------------------------------------------------------------------------
+# RBAC (wave 3 minimal model)
+# ---------------------------------------------------------------------------
+
+# principal -> set of allowed action ids. Fork RBAC seam replaces this.
+_DEFAULT_RBAC: dict[str, frozenset[str]] = {
+    "operator@example.com": frozenset(_RISK_VERDICT.keys())
+    - {"remediate.delete-storage"},
+    "guest@example.com": frozenset({"ops.restart-service"}),
+}
+
+
+class Forseti(Agent):
+    """Wave-3 Forseti: rule match + risk verdict + RBAC + SecurityEvent."""
+
+    def __init__(
+        self,
+        *,
+        bus: PantheonBus | None = None,
+        rbac: dict[str, frozenset[str]] | None = None,
+    ) -> None:
+        super().__init__(spec=_FORSETI)
+        self.bus = bus
+        self._rbac = rbac if rbac is not None else _DEFAULT_RBAC
+        # Latest arbitration winner per correlation id (populated when Odin
+        # resolves a cross-vertical conflict Forseti raised).
+        self.arbitrations: dict[str, str] = {}
+        # Accumulated domain advice per resource id: {resource: {domain:
+        # recommendation}}. Fed by object.cost-anomaly / capacity-forecast
+        # so conflicting advice arriving on separate signals still triggers
+        # arbitration.
+        self._domain_advice: dict[str, dict[str, str]] = {}
+        # Measured impact magnitude per (resource, domain) in [0, 1], derived
+        # from the signal (cost overspend ratio, capacity forecast util). Fed
+        # to Odin so arbitration weighs magnitude, not just priority.
+        self._domain_impact: dict[str, dict[str, float]] = {}
+
+    def bind_bus(self, bus: PantheonBus) -> None:
+        self.bus = bus
+
+    # ---- typed port ----------------------------------------------------
+
+    async def on_typed_message(self, topic: str, payload: dict[str, Any]) -> None:
+        if topic in ("object.event", "object.anomaly", "object.drift"):
+            await self.maybe_request_arbitration(payload)
+            await self.judge(payload)
+        elif topic == "object.cost-anomaly":
+            await self._ingest_domain_signal("cost", payload)
+        elif topic == "object.capacity-forecast":
+            await self._ingest_domain_signal("capacity", payload)
+        elif topic == "object.arbitration-decision":
+            self._record_arbitration(payload)
+
+    # ---- cross-vertical arbitration -----------------------------------
+
+    async def maybe_request_arbitration(
+        self, event: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Raise an ArbitrationRequest when inline domain advice conflicts.
+
+        Domain specialists (Njord / Freyr / Loki) may attach advice to an
+        event under ``domain_advice`` (``{domain: recommendation}``). When
+        two or more domains disagree on the same resource, Forseti - the
+        sole writer of ``object.arbitration-request`` - asks Odin to break
+        the tie by priority. Unanimous or single-domain advice needs no
+        arbitration.
+        """
+        advice = event.get("domain_advice")
+        if not isinstance(advice, dict) or len(advice) < 2:
+            return None
+        normalized = {str(k): str(v) for k, v in advice.items()}
+        if not _is_conflict(normalized):
+            return None
+        return await self._emit_arbitration_request(
+            resource_id=event.get("resource_id"),
+            advice=normalized,
+            correlation_id=str(event.get("correlation_id", "")),
+        )
+
+    async def _ingest_domain_signal(
+        self, domain: str, payload: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Accumulate a domain recommendation and arbitrate on conflict.
+
+        Cost anomalies and capacity forecasts arrive as separate signals;
+        Forseti keys them by resource id so a cost 'scale_down' and a
+        capacity 'scale_up' on the same resource surface as a conflict.
+        """
+        resource_id = str(payload.get("resource_id") or payload.get("scope") or "")
+        recommendation = str(payload.get("recommendation", ""))
+        if not resource_id or not recommendation:
+            return None
+        advice = self._domain_advice.setdefault(resource_id, {})
+        advice[domain] = recommendation
+        impacts = self._domain_impact.setdefault(resource_id, {})
+        impacts[domain] = _signal_impact(domain, payload)
+        if not _is_conflict(advice):
+            return None
+        return await self._emit_arbitration_request(
+            resource_id=resource_id,
+            advice=dict(advice),
+            correlation_id=str(payload.get("correlation_id", "")),
+            impacts=dict(impacts),
+        )
+
+    async def _emit_arbitration_request(
+        self,
+        *,
+        resource_id: Any,
+        advice: dict[str, str],
+        correlation_id: str,
+        impacts: dict[str, float] | None = None,
+    ) -> dict[str, Any]:
+        request = {
+            "producer_principal": "Forseti",
+            "correlation_id": correlation_id,
+            "resource_id": resource_id,
+            "domains_in_conflict": sorted(advice),
+            "advice": advice,
+            "impacts": impacts or {},
+        }
+        if self.bus is not None:
+            await self.bus.publish("Forseti", "object.arbitration-request", request)
+        return request
+
+    def _record_arbitration(self, decision: dict[str, Any]) -> None:
+        correlation_id = str(decision.get("correlation_id", ""))
+        if correlation_id:
+            self.arbitrations[correlation_id] = str(decision.get("winning_domain", ""))
+
+    # ---- judgment ------------------------------------------------------
+
+    async def judge(self, event: dict[str, Any]) -> dict[str, Any] | None:
+        """Emit a Verdict on the bus. Returns the verdict payload."""
+        event_type = str(event.get("event_type", ""))
+        action_type = _RULE_MATCH.get(event_type)
+        if action_type is None:
+            # No rule match -> abstain (Wave 3 does not escalate to T2 yet).
+            return None
+
+        initiator = str(event.get("initiator_principal", event.get("producer_principal", "")))
+        risk_verdict = _RISK_VERDICT.get(action_type, "hil")
+
+        # RBAC check: if initiator is set (e.g. operator-requested action),
+        # verify permission. Rule-fired actions have no operator initiator;
+        # they are always subject to risk_verdict only.
+        if initiator and initiator in self._rbac:
+            allowed = self._rbac[initiator]
+            if action_type not in allowed:
+                await self._emit_security_event(
+                    event=event,
+                    initiator=initiator,
+                    action_type=action_type,
+                )
+                risk_verdict = "deny"
+
+        verdict = {
+            "producer_principal": "Forseti",
+            "correlation_id": event.get("correlation_id", ""),
+            "resource_id": event.get("resource_id"),
+            "action_type": action_type,
+            "risk_verdict": risk_verdict,
+            "reason": "rule_match" if risk_verdict != "deny" else "rbac_insufficient",
+        }
+        if self.bus is not None:
+            await self.bus.publish("Forseti", "object.verdict", verdict)
+        return verdict
+
+    async def _emit_security_event(
+        self,
+        *,
+        event: dict[str, Any],
+        initiator: str,
+        action_type: str,
+    ) -> None:
+        if self.bus is None:
+            return
+        await self.bus.publish(
+            "Forseti",
+            "object.security-event",
+            {
+                "producer_principal": "Forseti",
+                "correlation_id": event.get("correlation_id", ""),
+                "event_type": "privilege_escalation_attempt",
+                "initiator_principal": initiator,
+                "attempted_action": action_type,
+                "target_resource": event.get("resource_id"),
+                "severity_hint": "high"
+                if action_type == "remediate.delete-storage"
+                else "medium",
+            },
+        )
+
+
+__all__ = ["Forseti"]
+
+
+def _is_conflict(advice: dict[str, str]) -> bool:
+    """True when >=2 domains give >=2 distinct actionable recommendations.
+
+    ``hold`` is not actionable, so it never creates a conflict on its own.
+    """
+    active = {domain: rec for domain, rec in advice.items() if rec != "hold"}
+    return len(active) >= 2 and len(set(active.values())) >= 2
+
+
+def _signal_impact(domain: str, payload: dict[str, Any]) -> float:
+    """Derive an impact magnitude in [0, 1] from a domain signal.
+
+    An explicit ``impact`` field wins. Otherwise a cost signal derives it
+    from the overspend ``ratio`` (ratio 2.0 -> 1.0, 1.5 -> 0.5) and a
+    capacity signal from ``forecast_util`` (already normalized). Absent
+    any magnitude the impact defaults to 1.0 so the call collapses to the
+    priority order.
+    """
+    explicit = payload.get("impact")
+    if explicit is not None:
+        try:
+            return max(0.0, min(1.0, float(explicit)))
+        except (TypeError, ValueError):
+            pass
+    if domain == "cost" and "ratio" in payload:
+        try:
+            return max(0.0, min(1.0, float(payload["ratio"]) - 1.0))
+        except (TypeError, ValueError):
+            return 1.0
+    if domain == "capacity" and "forecast_util" in payload:
+        try:
+            return max(0.0, min(1.0, float(payload["forecast_util"])))
+        except (TypeError, ValueError):
+            return 1.0
+    return 1.0

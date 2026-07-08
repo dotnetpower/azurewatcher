@@ -1,7 +1,7 @@
 ---
 title: FDAI 로드맵
 translation_of: README.md
-translation_source_sha: 2b9f85c5904082631ddf299f7795156d0153ee21
+translation_source_sha: 67a0cee190a44f59d70da617dd6ce27e3ef15461
 translation_revised: 2026-07-08
 ---
 
@@ -76,17 +76,25 @@ FDAI 뒤편의 엔지니어링 계획. 이 폴더는
 | 20 | [action-ontology-ko.md](action-ontology-ko.md) | ActionType 스키마 (remediation + ops + governance), trigger 축, tier / role / prod / live-probe 상한, fork override seam |
 | 21 | [execution-model-ko.md](execution-model-ko.md) | 통합 RiskGate, 5-axis authority 매트릭스, 3개 executor 경로 (PR-native / direct API / PR-manual), live-blast probe combinator, resolved_ceiling audit 블록 |
 
+### 에이전트 조직
+
+| # | 문서 | 다루는 내용 |
+|---|------|-------------|
+| 22 | [agent-pantheon-ko.md](agent-pantheon-ko.md) | 온톨로지 first-class citizen 으로 고정된 15개 판테온 (Odin / Thor / Forseti / ...): 조직도, single-writer topic, two-port 모델 (typed pub/sub + conversational NL), fingerprint dedup 이 붙은 NL query 오케스트레이션, 사용자별 컨텍스트, 확장된 ActionType 역할 (initiator / judge / approver / executor / auditor), lifecycle 상태 머신, Heimdall 기반 권한 초과 감시 |
+| 23 | [agent-workflows-ko.md](agent-workflows-ko.md) | 판테온이 제품 capability 로 조합하는 10개 cross-agent 워크플로우: cost-aware remediation, predictive scale, DR drill orchestration, override -> discovery, security escalation, handoff -> capability, agent health degradation, judgment coherence audit, rollback rehearsal, retrospective what-if. 각 워크플로우는 trigger + sequence diagram + exit criteria + promotion gate 보유 |
+
 ### 프롬프트 서브시스템
 
 | # | 문서 | 다루는 내용 |
 |---|------|-------------|
-| 22 | [prompt-composition-ko.md](prompt-composition-ko.md) | 진화하는 시스템 프롬프트: role x layer 매트릭스, 툴 / 웹 검색, debate orchestrator, 인식 측정 |
+| 24 | [prompt-composition-ko.md](prompt-composition-ko.md) | 진화하는 시스템 프롬프트: role x layer 매트릭스, 툴 / 웹 검색, debate orchestrator, 인식 측정 |
 
 ### 순서 확정 (문서 통합 플랜)
 
 | # | 문서 | 다루는 내용 |
 |---|------|-------------|
-| 23 | [implementation-plan-ko.md](implementation-plan-ko.md) | 2026-07-06 트랜치 문서 전반에 걸친 순서 확정. 여섯 개의 표준 세트 설계 결정(R1 축 파생, R2 ConsoleTool = ActionType 프로젝션, R3 통합 LlmBinding, R4 공유 projection 프리미티브, R6 operator_memory = 감사 로그 view, R7 pr_manual = 플래그)과 웨이브 플랜 (F -> D1 -> W1 -> W2 -> M1, Twin과 Preflight 병렬 트랙 포함) |
+| 25 | [implementation-plan-ko.md](implementation-plan-ko.md) | 2026-07-06 트랜치 문서 전반에 걸친 순서 확정. 여섯 개의 표준 세트 설계 결정(R1 축 파생, R2 ConsoleTool = ActionType 프로젝션, R3 통합 LlmBinding, R4 공유 projection 프리미티브, R6 operator_memory = 감사 로그 view, R7 pr_manual = 플래그)과 웨이브 플랜 (F -> D1 -> W1 -> W2 -> M1, Twin과 Preflight 병렬 트랙 포함) |
+| 26 | [agent-pantheon-implementation-ko.md](agent-pantheon-implementation-ko.md) | 판테온 롤아웃 웨이브 계획 (W0 docs -> W1 scaffolding -> W2 governance -> W3 pipeline -> W4 interface -> W5 specialists -> W6 handoff / security -> W7 workflows -> W8 KPI + promotion + degradation drill); 모든 웨이브는 측정 가능한 exit gate 를 가지며 판테온 invariant (single-writer topic, judge != executor, Saga / Vidar hard dependency) 를 유지 |
 
 ## 페이즈 타임라인
 

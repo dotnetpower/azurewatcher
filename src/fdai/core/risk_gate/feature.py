@@ -23,9 +23,30 @@ from fdai.shared.contracts.models import (
 )
 
 # Operations that are inherently destructive (risk-classification.md
-# `destructive` dimension).
+# `destructive` dimension). Every Operation is classified EXACTLY ONCE as
+# destructive or non-destructive so a new verb added to the Operation enum
+# forces an explicit decision here - the completeness test in
+# test_feature.py fails if a member is unclassified, instead of the verb
+# silently defaulting to non-destructive and escaping the
+# risk-classification `destructive` gate (action-ontology critique #13).
 _DESTRUCTIVE_OPS: frozenset[Operation] = frozenset(
     {Operation.DELETE, Operation.DROP, Operation.PURGE, Operation.DETACH}
+)
+_NON_DESTRUCTIVE_OPS: frozenset[Operation] = frozenset(
+    {
+        Operation.CREATE,
+        Operation.UPDATE,
+        Operation.DISABLE,
+        Operation.ENABLE,
+        Operation.TAG,
+        Operation.SCALE,
+        Operation.RESTART,
+        Operation.FAILOVER,
+        Operation.ROTATE,
+        Operation.REVERT,
+        Operation.ATTACH,
+        Operation.QUARANTINE,
+    }
 )
 
 

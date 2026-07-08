@@ -19,7 +19,13 @@ from fdai.rule_catalog.schema.probe import (
     load_probe_catalog,
     probe_ids,
 )
-from fdai.shared.contracts.models import Mode, OntologyActionType, TriggerKind
+from fdai.shared.contracts.models import (
+    ActionInterface,
+    Mode,
+    OntologyActionType,
+    Operation,
+    TriggerKind,
+)
 from fdai.shared.contracts.registry import SchemaRegistry
 
 _ACTION_TYPE_SCHEMA_NAME = "ontology/action-type"
@@ -387,6 +393,20 @@ def _check_catalog_policy(
                         "argument_schema MUST set type: object and "
                         "additionalProperties: false so the console cannot pass "
                         "unspecified arguments (action-ontology.md 5)"
+                    ),
+                )
+            )
+        if at.operation in (Operation.DROP, Operation.PURGE) and (
+            ActionInterface.DATA_PLANE_MUTATING not in at.interfaces
+        ):
+            issues.append(
+                ActionTypeIssue(
+                    key=f"{origin}:interfaces",
+                    message=(
+                        "operation drop/purge destroys data/schema and MUST declare "
+                        "the DataPlaneMutating interface so the risk gate applies the "
+                        "data-plane HIL gate; omitting it would silently downgrade the "
+                        "risk classification (action-ontology.md 8)"
                     ),
                 )
             )

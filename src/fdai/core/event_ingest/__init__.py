@@ -30,10 +30,11 @@ from collections import OrderedDict
 from collections.abc import Mapping
 from typing import Any, Final
 
+from fdai.core.event_ingest.correlator import CorrelationResult, EventCorrelator
 from fdai.shared.contracts.models import Event
 from fdai.shared.contracts.validation import EventValidator
 
-__all__ = ["EventIngest"]
+__all__ = ["CorrelationResult", "EventCorrelator", "EventIngest"]
 
 # Default bound on the in-process dedupe cache. Guards against unbounded
 # growth in a long-running process while staying deep enough to cover a

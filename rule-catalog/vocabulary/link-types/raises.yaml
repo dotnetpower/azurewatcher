@@ -1,0 +1,14 @@
+# LinkType: raises (Agent -> Issue, M:M)
+#
+# When an Agent cannot resolve a request within its scope it raises
+# an Issue via Saga (`Handoff-to-GitHub-issue`). Modeled here so the
+# operator console can trace "which Agent raised this Issue?" without
+# reading Saga's audit trail. Cardinality is M:M because a single Issue
+# may aggregate observations from multiple Agents.
+schema_version: "1.0.0"
+name: raises
+version: "1.0.0"
+from_type: Agent
+to_type: Issue
+cardinality: many_to_many
+description: Agents that raised or contributed observations to an Issue.

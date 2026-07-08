@@ -1,0 +1,15 @@
+# LinkType: reports_to (Agent -> Agent, M:1)
+#
+# The org-chart parent of a pantheon agent. See
+# docs/roadmap/agent-pantheon.md - Odin is the only agent with no
+# `reports_to`; every other pantheon role reports to exactly one
+# ancestor. Modeled here as a LinkType so tooling (assurance twin,
+# operator console org chart) can traverse the chain without hard-
+# coding the property name on ObjectType Agent.
+schema_version: "1.0.0"
+name: reports_to
+version: "1.0.0"
+from_type: Agent
+to_type: Agent
+cardinality: many_to_one
+description: Org-chart parent of a pantheon Agent (self-reference).
