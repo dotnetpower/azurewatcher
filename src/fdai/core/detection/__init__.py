@@ -10,15 +10,18 @@ from __future__ import annotations
 
 from fdai.core.detection.anomaly import AnomalyFinding, MetricAnomalyDetector
 from fdai.core.detection.forecast import ForecastFinding, LinearForecastDetector
+from fdai.core.detection.forecast_band import ForecastBand, prediction_band
 from fdai.core.detection.seasonal import PhaseFn, SeasonalAnomalyDetector
 from fdai.core.detection.series import MetricSample
 
 __all__ = [
     "AnomalyFinding",
+    "ForecastBand",
     "ForecastFinding",
     "LinearForecastDetector",
     "MetricAnomalyDetector",
     "MetricSample",
     "PhaseFn",
     "SeasonalAnomalyDetector",
+    "prediction_band",
 ]

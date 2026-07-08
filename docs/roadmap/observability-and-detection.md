@@ -145,6 +145,21 @@ capacity bottlenecks and service failures" use case - kept deterministic-first.
   `to_event`, keyed by `detector + metric + window` so repeated ticks
   dedup; severity scales with imminence (lead / horizon). It shares the
   `MetricSample` series type with the anomaly detector (`core/detection/series.py`).
+- **Prediction-interval band (false-positive suppression)**:
+  `core/detection/forecast_band.py` (`prediction_band`) adds the
+  uncertainty band a point forecast lacks. A noisy series can cross the
+  threshold on the center line yet stay inside normal variation; the band
+  widens with the fitted `residual_std` **and** with how far into the
+  future the projection reaches, and a breach is only **confident** when
+  the pessimistic edge of the interval (the lower edge for a rising
+  breach, the upper edge for a falling one) still crosses at a configured
+  confidence level (`0.80`-`0.99`). It is a **suppressor, never an
+  amplifier**: it can downgrade a point-estimate breach to "not confident"
+  (hold in shadow / abstain, protecting the false-positive guard metric),
+  but it never manufactures a breach the point forecast did not predict.
+  A perfect fit (`residual_std == 0`) collapses the band to the point
+  estimate; an unknown confidence level is rejected rather than silently
+  defaulted.
 
 ## 4. Root-Cause Analysis
 
