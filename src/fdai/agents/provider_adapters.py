@@ -17,12 +17,22 @@ so agent code does not branch on backend.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import asyncio
+import logging
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from typing import Any
 
 from fdai.agents.adapters import AuditEntry, _digest
 from fdai.agents.thor import ActionRun
 from fdai.shared.providers.state_store import StateStore
+
+_LOG = logging.getLogger(__name__)
+
+# Distinctive one-key envelope used to round-trip a non-dict value through
+# the Mapping-only StateStore contract. Using a reserved sentinel key (not
+# a plausible user key like "value") lets ``get`` unwrap unambiguously.
+_SCALAR_ENVELOPE_KEY = "__fdai_scalar__"
 
 
 @dataclass
@@ -119,14 +129,24 @@ class StateStoreKvAdapter:
 
     async def get(self, bucket: str, key: str) -> Any | None:
         value = await self.store.read_state(f"{bucket}|{key}")
+        # Symmetric unwrap: a scalar written via ``put`` was wrapped in a
+        # reserved one-key envelope; return the original scalar so the
+        # round-trip is value-preserving (a dict written as-is is returned
+        # unchanged because it lacks the sentinel key).
+        if isinstance(value, Mapping) and set(value.keys()) == {_SCALAR_ENVELOPE_KEY}:
+            return value[_SCALAR_ENVELOPE_KEY]
         return value
 
     async def put(self, bucket: str, key: str, value: Any) -> None:
-        # StateStore expects a Mapping; wrap primitives so the write
-        # always satisfies the contract.
-        if not isinstance(value, dict):
-            value = {"value": value}
-        await self.store.write_state(f"{bucket}|{key}", value)
+        # StateStore expects a Mapping; wrap a non-dict in a reserved
+        # one-key envelope so ``get`` can unwrap it back to the original
+        # scalar (see :meth:`get`).
+        stored: Mapping[str, Any]
+        if isinstance(value, Mapping):
+            stored = value
+        else:
+            stored = {_SCALAR_ENVELOPE_KEY: value}
+        await self.store.write_state(f"{bucket}|{key}", stored)
 
 
 @dataclass
@@ -143,6 +163,11 @@ class StateStoreActionRunStore:
     store: StateStore
     index_key: str = "thor:active-index"
     run_prefix: str = "thor:run|"
+    # Serializes the index read-modify-write so two concurrent save/delete
+    # calls cannot lose an update (which would orphan an in-flight run so
+    # it is never rehydrated after a restart). Single-replica correctness;
+    # a multi-replica deployment needs store-level atomicity.
+    _index_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
 
     async def _read_index(self) -> list[str]:
         raw = await self.store.read_state(self.index_key)
@@ -156,24 +181,36 @@ class StateStoreActionRunStore:
 
     async def save(self, run: ActionRun) -> None:
         await self.store.write_state(f"{self.run_prefix}{run.correlation_id}", run.to_dict())
-        ids = await self._read_index()
-        if run.correlation_id not in ids:
-            ids.append(run.correlation_id)
-            await self._write_index(ids)
+        async with self._index_lock:
+            ids = await self._read_index()
+            if run.correlation_id not in ids:
+                ids.append(run.correlation_id)
+                await self._write_index(ids)
 
     async def load_active(self) -> list[ActionRun]:
         runs: list[ActionRun] = []
         for cid in await self._read_index():
             raw = await self.store.read_state(f"{self.run_prefix}{cid}")
-            if raw:
+            if not raw:
+                continue
+            try:
                 runs.append(ActionRun.from_dict(dict(raw)))
+            except (KeyError, ValueError, TypeError):
+                # A single corrupt / schema-drifted row MUST NOT abort the
+                # whole rehydration (which would leave every in-flight run
+                # unrecovered). Skip and log it; the rest still restore.
+                _LOG.exception(
+                    "action_run_rehydrate_skip_corrupt",
+                    extra={"correlation_id": cid},
+                )
         return runs
 
     async def delete(self, correlation_id: str) -> None:
-        ids = await self._read_index()
-        if correlation_id in ids:
-            ids.remove(correlation_id)
-            await self._write_index(ids)
+        async with self._index_lock:
+            ids = await self._read_index()
+            if correlation_id in ids:
+                ids.remove(correlation_id)
+                await self._write_index(ids)
 
 
 __all__ = [

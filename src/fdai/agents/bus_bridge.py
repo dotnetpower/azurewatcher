@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
@@ -63,6 +64,7 @@ class BridgeMetrics:
     consumers_started: int = 0
     consumers_crashed: int = 0
     consumers_restarted: int = 0
+    consumers_gave_up: int = 0
     delivered: int = 0
     handler_errors: int = 0
     dead_lettered: int = 0
@@ -74,6 +76,7 @@ class BridgeMetrics:
             "consumers_started": self.consumers_started,
             "consumers_crashed": self.consumers_crashed,
             "consumers_restarted": self.consumers_restarted,
+            "consumers_gave_up": self.consumers_gave_up,
             "delivered": self.delivered,
             "handler_errors": self.handler_errors,
             "dead_lettered": self.dead_lettered,
@@ -243,6 +246,7 @@ class EventBusBridge:
                 self.metrics.consumers_crashed += 1
                 attempt += 1
                 if attempt > self.max_consumer_restarts:
+                    self.metrics.consumers_gave_up += 1
                     _LOG.exception(
                         "pantheon_consumer_gave_up",
                         extra={
@@ -256,6 +260,12 @@ class EventBusBridge:
                     self.restart_backoff_base * (2 ** (attempt - 1)),
                     self.restart_backoff_max,
                 )
+                # Full jitter (AWS-style): spread simultaneous restarts so a
+                # broker outage that crashes many consumers at once does not
+                # produce a synchronized retry storm on recovery. Jitter is
+                # non-security (retry timing, not entropy), so ``random`` is
+                # fine.
+                backoff = random.uniform(0.0, backoff)  # noqa: S311 - retry jitter, not crypto
                 self.metrics.consumers_restarted += 1
                 _LOG.warning(
                     "pantheon_consumer_restarting",

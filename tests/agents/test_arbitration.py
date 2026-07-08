@@ -365,3 +365,32 @@ def test_non_finite_weight_config_is_rejected() -> None:
 
     with pytest.raises(ValueError, match="finite and >= 0"):
         MultiObjectiveArbiter(weights={"cost": float("inf")})
+
+
+def test_forseti_clears_advice_after_arbitration() -> None:
+    # H7: once a conflict is surfaced, the accumulated advice must be
+    # consumed - otherwise the stale opposing recommendation re-triggers a
+    # duplicate arbitration on the next signal, and the maps leak.
+    bus = _bus()
+    forseti = Forseti()
+    forseti.bind_bus(bus)
+
+    async def _run() -> int:
+        await forseti._ingest_domain_signal(
+            "cost", {"resource_id": "vm-1", "recommendation": "scale_down"}
+        )
+        await forseti._ingest_domain_signal(
+            "capacity", {"resource_id": "vm-1", "recommendation": "scale_up"}
+        )
+        # Conflict surfaced -> advice consumed for vm-1.
+        assert "vm-1" not in forseti._domain_advice
+        assert "vm-1" not in forseti._domain_impact
+        before = len(bus.messages_on("object.arbitration-request"))
+        # A fresh single signal must NOT immediately re-fire an arbitration.
+        await forseti._ingest_domain_signal(
+            "cost", {"resource_id": "vm-1", "recommendation": "scale_down"}
+        )
+        after = len(bus.messages_on("object.arbitration-request"))
+        return after - before
+
+    assert asyncio.run(_run()) == 0  # no duplicate arbitration

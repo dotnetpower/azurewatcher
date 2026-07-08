@@ -140,12 +140,20 @@ class Forseti(Agent):
         impacts[domain] = _signal_impact(domain, payload)
         if not _is_conflict(advice):
             return None
-        return await self._emit_arbitration_request(
+        request = await self._emit_arbitration_request(
             resource_id=resource_id,
             advice=dict(advice),
             correlation_id=str(payload.get("correlation_id", "")),
             impacts=dict(impacts),
         )
+        # Consume the accumulated advice once the conflict is surfaced.
+        # Leaving it in place would (a) grow both maps without bound over
+        # every resource ever seen (memory leak) and (b) make the stale
+        # opposing recommendation re-trigger a duplicate arbitration on the
+        # very next signal for this resource. Fresh signals re-accumulate.
+        self._domain_advice.pop(resource_id, None)
+        self._domain_impact.pop(resource_id, None)
+        return request
 
     async def _emit_arbitration_request(
         self,

@@ -158,3 +158,74 @@ def test_runtime_rehydrates_thor_on_run() -> None:
     thor = runtime.agents["Thor"]
     assert isinstance(thor, Thor)
     assert "c9" in thor.action_runs
+
+
+def test_action_run_index_survives_concurrent_saves() -> None:
+    # H3: concurrent index read-modify-write must not lose an entry (which
+    # would orphan an in-flight run from rehydration).
+    store = InMemoryStateStore()
+    runstore = StateStoreActionRunStore(store=store)
+
+    async def _run() -> set[str]:
+        runs = [
+            ActionRun(
+                correlation_id=f"c{i}",
+                action_type="restart",
+                resource_id=f"r{i}",
+                state=ActionRunState.VERDICTED,
+                verdict="auto",
+            )
+            for i in range(25)
+        ]
+        await asyncio.gather(*(runstore.save(r) for r in runs))
+        active = await runstore.load_active()
+        return {r.correlation_id for r in active}
+
+    got = asyncio.run(_run())
+    assert got == {f"c{i}" for i in range(25)}
+
+
+def test_load_active_skips_corrupt_row() -> None:
+    # H4: one corrupt / schema-drifted row must not abort the whole
+    # rehydration - the valid runs still restore.
+    store = InMemoryStateStore()
+    runstore = StateStoreActionRunStore(store=store)
+
+    async def _run() -> list[str]:
+        good = ActionRun(
+            correlation_id="good",
+            action_type="restart",
+            resource_id="r1",
+            state=ActionRunState.VERDICTED,
+            verdict="auto",
+        )
+        await runstore.save(good)
+        # Inject a corrupt row + index entry directly (missing required keys).
+        await store.write_state("thor:run|bad", {"correlation_id": "bad"})
+        await store.write_state("thor:active-index", {"ids": ["good", "bad"]})
+        return [r.correlation_id for r in await runstore.load_active()]
+
+    got = asyncio.run(_run())
+    assert got == ["good"]  # bad row skipped, not fatal
+
+
+def test_thor_evicts_terminal_runs_over_cap() -> None:
+    # H8: the in-memory run map is bounded - terminal runs are evicted once
+    # over the cap, active runs are always kept, health counts only active.
+    thor = Thor(shadow_by_default=True)
+    thor._max_retained_runs = 3
+
+    async def _run() -> None:
+        for i in range(6):
+            await thor.dispatch_verdict(
+                {
+                    "correlation_id": f"c{i}",
+                    "action_type": "restart",
+                    "risk_verdict": "auto",
+                    "resource_id": f"r{i}",
+                }
+            )
+
+    asyncio.run(_run())
+    assert len(thor.action_runs) <= 3  # bounded, not 6
+    assert thor.health()["active_runs"] == 0  # all terminal

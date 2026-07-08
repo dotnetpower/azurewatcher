@@ -78,7 +78,10 @@ class InMemoryBus:
             PublishedMessage(topic=topic, payload=dict(payload), principal=principal)
         )
         for _, handler in self.subscribers.get(topic, []):
-            await handler(topic, payload)
+            # Hand each subscriber its own copy so a handler that mutates the
+            # payload cannot contaminate later subscribers or the caller's
+            # object (the Kafka-backed bridge copies per delivery too).
+            await handler(topic, dict(payload))
 
     def clear_history(self) -> None:
         self.published.clear()

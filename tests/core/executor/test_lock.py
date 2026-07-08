@@ -16,7 +16,9 @@ async def test_locks_are_created_lazily_per_resource() -> None:
 
     async with lock.acquire("rid-a"):
         assert lock.snapshot() == {"rid-a": True}
-    assert lock.snapshot() == {"rid-a": False}
+    # Refcount hits zero on exit, so the entry is evicted (no unbounded
+    # growth over many distinct resource ids).
+    assert lock.snapshot() == {}
 
 
 @pytest.mark.asyncio
@@ -72,4 +74,5 @@ async def test_snapshot_reflects_current_locked_state() -> None:
     assert lock.snapshot() == {"held": True}
     release.set()
     await task
-    assert lock.snapshot() == {"held": False}
+    # Evicted once the holder releases (refcount zero).
+    assert lock.snapshot() == {}

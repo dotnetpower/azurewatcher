@@ -141,6 +141,11 @@ class Thor(Agent):
         self._state_store = state_store
         self.action_runs: dict[str, ActionRun] = {}
         self._resource_locks: set[str] = set()
+        # Cap the in-memory run map so a long-running dispatcher cannot leak
+        # one entry per correlation id forever. Only TERMINAL runs are
+        # evicted (oldest first) once over the cap; active runs are always
+        # retained (they back the per-resource mutex and approval lookup).
+        self._max_retained_runs = 10_000
 
     def bind_bus(self, bus: PantheonBus) -> None:
         self.bus = bus
@@ -177,10 +182,12 @@ class Thor(Agent):
 
     def health(self) -> dict[str, Any]:
         """Expose dispatcher state for Heimdall's probe / runtime health."""
+        active = sum(1 for r in self.action_runs.values() if r.state not in _TERMINAL_STATES)
         return {
             "agent": "Thor",
             "status": "ok",
-            "active_runs": len(self.action_runs),
+            "active_runs": active,
+            "retained_runs": len(self.action_runs),
             "locked_resources": len(self._resource_locks),
             "shadow_forced": self._shadow_by_default,
         }
@@ -288,6 +295,25 @@ class Thor(Agent):
         if resource_id:
             self._resource_locks.discard(str(resource_id))
 
+    def _evict_terminal_overflow(self) -> None:
+        """Bound ``action_runs`` by evicting the oldest terminal runs.
+
+        Active (non-terminal) runs are never evicted - they back the
+        per-resource mutex and HIL approval lookup. Only once the map
+        exceeds the retention cap are the oldest *terminal* runs dropped
+        (dict-insertion order), so recent history stays inspectable while
+        memory stays bounded over a long-running dispatcher.
+        """
+        if len(self.action_runs) <= self._max_retained_runs:
+            return
+        overflow = len(self.action_runs) - self._max_retained_runs
+        for cid, run in list(self.action_runs.items()):
+            if overflow <= 0:
+                break
+            if run.state in _TERMINAL_STATES:
+                del self.action_runs[cid]
+                overflow -= 1
+
     def _find_active_run(self, resource_id: str) -> ActionRun | None:
         for run in self.action_runs.values():
             if run.resource_id == resource_id and run.state not in {
@@ -310,6 +336,7 @@ class Thor(Agent):
                 await self._state_store.delete(run.correlation_id)
             else:
                 await self._state_store.save(run)
+        self._evict_terminal_overflow()
         if self.bus is None:
             return
         payload = {

@@ -303,11 +303,27 @@ class PantheonRuntime:
             "enforce": self.enforce,
             "ingress_dropped": self._ingress_dropped,
             "shadow_decisions": dict(self.shadow_decisions),
-            "agent_health": {name: a.health() for name, a in self.agents.items()},
+            "agent_health": {
+                name: self._safe_agent_health(name, a) for name, a in self.agents.items()
+            },
             "divergence": self.divergence.report() if self.divergence else None,
             "conversational_port": self._bragi is not None,
             **snap,
         }
+
+    @staticmethod
+    def _safe_agent_health(name: str, agent: Agent) -> dict[str, Any]:
+        """Read one agent's health, isolating a raising probe.
+
+        A single agent whose ``health()`` raises MUST NOT collapse the
+        whole snapshot (which Heimdall's probe and the heartbeat depend
+        on); surface the error for that agent instead.
+        """
+        try:
+            return agent.health()
+        except Exception as exc:  # noqa: BLE001 - health probe must not crash
+            _LOG.warning("pantheon_agent_health_error", extra={"agent": name, "error": str(exc)})
+            return {"agent": name, "status": "error", "error": str(exc)}
 
     async def _heartbeat(self, interval: float) -> None:
         while True:

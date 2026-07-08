@@ -447,7 +447,9 @@ def test_state_store_kv_wraps_primitives_for_protocol() -> None:
         return await kv.get("counters", "hits")
 
     got = asyncio.run(_put_get())
-    assert got == {"value": 42}
+    # A scalar round-trips back to the original value (symmetric wrap/unwrap),
+    # not a leaked envelope dict.
+    assert got == 42
 
 
 # ---------------------------------------------------------------------------
@@ -480,3 +482,36 @@ def test_forseti_publishes_verdict_over_provider_event_bus() -> None:
     verdict = asyncio.run(_first_verdict())
     assert verdict["risk_verdict"] == "auto"
     assert verdict["producer_principal"] == "Forseti"
+
+
+def test_in_memory_bus_isolates_payload_per_subscriber() -> None:
+    # H9: each subscriber gets its own copy, so a handler that mutates the
+    # payload cannot contaminate a later subscriber (or the caller).
+    from fdai.agents.bus import InMemoryBus
+
+    bus = InMemoryBus(registry=load_pantheon())
+    observed: dict[str, object] = {}
+
+    async def _mutator(_topic: str, payload: dict[str, object]) -> None:
+        payload["injected"] = "x"  # a buggy subscriber mutates in place
+
+    async def _observer(_topic: str, payload: dict[str, object]) -> None:
+        observed.update(payload)
+
+    bus.subscribe("object.arbitration-request", "Odin", _mutator)
+    bus.subscribe("object.arbitration-request", "Saga", _observer)
+
+    async def _run() -> None:
+        await bus.publish("Forseti", "object.arbitration-request", {"resource_id": "vm-1"})
+
+    asyncio.run(_run())
+    assert "injected" not in observed  # second subscriber saw a clean copy
+
+
+def test_bridge_metrics_expose_consumers_gave_up() -> None:
+    # H10: a permanently-dead subscription is observable via a dedicated
+    # counter, not silently folded into consumers_crashed.
+    from fdai.agents.bus_bridge import BridgeMetrics
+
+    snap = BridgeMetrics().as_dict()
+    assert snap["consumers_gave_up"] == 0

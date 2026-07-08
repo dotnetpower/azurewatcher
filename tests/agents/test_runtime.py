@@ -447,3 +447,18 @@ def test_heartbeat_logs_health(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level("INFO"):
         asyncio.run(_drive())
     assert any(r.message == "pantheon_heartbeat" for r in caplog.records)
+
+
+def test_health_isolates_a_raising_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    # H6: one agent whose health() raises must not collapse the whole
+    # snapshot (Heimdall's probe / the heartbeat depend on it).
+    provider = InMemoryEventBus()
+    runtime = PantheonRuntime.build(provider=provider, raw_event_topic=_RAW_TOPIC)
+    name, agent = next(iter(runtime.agents.items()))
+
+    def _boom() -> dict[str, object]:
+        raise RuntimeError("probe down")
+
+    monkeypatch.setattr(agent, "health", _boom)
+    health = runtime.health()  # must not raise
+    assert health["agent_health"][name]["status"] == "error"
