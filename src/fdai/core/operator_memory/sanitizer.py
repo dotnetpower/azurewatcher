@@ -18,6 +18,7 @@ the same defense without shared mutable state.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from typing import Final
 
@@ -72,14 +73,20 @@ def detect_injection_markers(body: str) -> tuple[str, ...]:
     Empty tuple means the body is safe by this defense. Callers that
     want to fail fast raise :class:`InjectionDetected` from the
     returned tuple.
+
+    The body is lower-cased and its internal whitespace is collapsed to
+    single spaces before matching, so trivial obfuscation - extra
+    spaces, tabs, or newlines between the marker words
+    (``"ignore   previous"``, ``"ignore\\nprevious"``) - cannot slip a
+    known injection phrase past the write-time quarantine gate.
     """
 
     if not body:
         return ()
-    lowered = body.lower()
+    normalized = re.sub(r"\s+", " ", body.lower())
     hits: list[str] = []
     for marker in _INJECTION_MARKERS:
-        if marker in lowered:
+        if marker in normalized:
             hits.append(marker)
     return tuple(hits)
 
