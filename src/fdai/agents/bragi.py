@@ -94,9 +94,7 @@ class Bragi(Agent):
 
         # Tie-break: specificity (already in score) > layer precedence.
         winner, tie_break = _pick_winner(scores)
-        contributors = tuple(
-            name for name in scores if name != winner
-        )
+        contributors = tuple(name for name in scores if name != winner)
         return RoutingDecision(
             primary_agent=winner,
             scores=scores,
@@ -119,9 +117,7 @@ class Bragi(Agent):
             ConversationSession(session_id=session_id, user_id=user_id),
         )
         if session.user_id != user_id:
-            raise PermissionError(
-                f"session {session_id!r} belongs to a different user"
-            )
+            raise PermissionError(f"session {session_id!r} belongs to a different user")
         decision = self.route(question)
         answer: dict[str, Any]
         if decision.primary_agent is None:

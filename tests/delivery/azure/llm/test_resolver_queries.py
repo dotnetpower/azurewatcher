@@ -54,9 +54,7 @@ class _FakeSubprocess:
 @pytest.fixture
 def fake_subprocess(monkeypatch: pytest.MonkeyPatch) -> _FakeSubprocess:
     fake = _FakeSubprocess(responses=[])
-    monkeypatch.setattr(
-        "fdai.delivery.azure.llm.resolver_queries.subprocess.run", fake
-    )
+    monkeypatch.setattr("fdai.delivery.azure.llm.resolver_queries.subprocess.run", fake)
     return fake
 
 
@@ -82,9 +80,7 @@ class TestCatalogQuery:
         assert "koreacentral" in argv
         assert "--query" in argv
 
-    def test_returns_empty_when_no_families(
-        self, fake_subprocess: _FakeSubprocess
-    ) -> None:
+    def test_returns_empty_when_no_families(self, fake_subprocess: _FakeSubprocess) -> None:
         fake_subprocess._responses = [_CompletedProc(returncode=0, stdout="[]")]
         catalog = AzureCliCatalogQuery()
         assert catalog.families_in_region("koreacentral") == set()
@@ -107,9 +103,7 @@ class TestCatalogQuery:
             AzureCliCatalogQuery().families_in_region("koreacentral")
 
     def test_raises_on_non_json(self, fake_subprocess: _FakeSubprocess) -> None:
-        fake_subprocess._responses = [
-            _CompletedProc(returncode=0, stdout="not json")
-        ]
+        fake_subprocess._responses = [_CompletedProc(returncode=0, stdout="not json")]
         with pytest.raises(AzureCliResolverError, match="non-JSON"):
             AzureCliCatalogQuery().families_in_region("koreacentral")
 
@@ -122,15 +116,11 @@ class TestCatalogQuery:
 
 
 class TestPermissionQuery:
-    def test_non_empty_result_means_role_held(
-        self, fake_subprocess: _FakeSubprocess
-    ) -> None:
+    def test_non_empty_result_means_role_held(self, fake_subprocess: _FakeSubprocess) -> None:
         fake_subprocess._responses = [
             _CompletedProc(
                 returncode=0,
-                stdout=json.dumps(
-                    [{"principalId": "00000000-0000-0000-0000-000000000001"}]
-                ),
+                stdout=json.dumps([{"principalId": "00000000-0000-0000-0000-000000000001"}]),
             )
         ]
         assert AzureCliPermissionQuery().principal_has_cognitive_services_contributor(
@@ -144,9 +134,7 @@ class TestPermissionQuery:
         scope_idx = argv.index("--scope")
         assert argv[scope_idx + 1].startswith("/subscriptions/")
 
-    def test_empty_result_means_role_absent(
-        self, fake_subprocess: _FakeSubprocess
-    ) -> None:
+    def test_empty_result_means_role_absent(self, fake_subprocess: _FakeSubprocess) -> None:
         fake_subprocess._responses = [_CompletedProc(returncode=0, stdout="[]")]
         assert not AzureCliPermissionQuery().principal_has_cognitive_services_contributor(
             subscription_id="00000000-0000-0000-0000-000000000000",
@@ -154,9 +142,7 @@ class TestPermissionQuery:
         )
 
     def test_raises_on_nonzero_exit(self, fake_subprocess: _FakeSubprocess) -> None:
-        fake_subprocess._responses = [
-            _CompletedProc(returncode=2, stderr="forbidden")
-        ]
+        fake_subprocess._responses = [_CompletedProc(returncode=2, stderr="forbidden")]
         with pytest.raises(AzureCliResolverError):
             AzureCliPermissionQuery().principal_has_cognitive_services_contributor(
                 subscription_id="00000000-0000-0000-0000-000000000000",
@@ -165,9 +151,7 @@ class TestPermissionQuery:
 
 
 class TestQuotaQuery:
-    def test_parses_family_from_last_dotted_segment(
-        self, fake_subprocess: _FakeSubprocess
-    ) -> None:
+    def test_parses_family_from_last_dotted_segment(self, fake_subprocess: _FakeSubprocess) -> None:
         fake_subprocess._responses = [
             _CompletedProc(
                 returncode=0,
@@ -203,9 +187,7 @@ class TestQuotaQuery:
             == 200_000
         )
 
-    def test_second_call_uses_region_cache(
-        self, fake_subprocess: _FakeSubprocess
-    ) -> None:
+    def test_second_call_uses_region_cache(self, fake_subprocess: _FakeSubprocess) -> None:
         fake_subprocess._responses = [
             _CompletedProc(
                 returncode=0,
@@ -229,9 +211,7 @@ class TestQuotaQuery:
         )
         assert len(fake_subprocess.calls) == 1
 
-    def test_missing_family_returns_zero(
-        self, fake_subprocess: _FakeSubprocess
-    ) -> None:
+    def test_missing_family_returns_zero(self, fake_subprocess: _FakeSubprocess) -> None:
         fake_subprocess._responses = [_CompletedProc(returncode=0, stdout="[]")]
         assert (
             AzureCliQuotaQuery().available_capacity_tpm(
@@ -240,9 +220,7 @@ class TestQuotaQuery:
             == 0
         )
 
-    def test_unparseable_entry_contributes_zero(
-        self, fake_subprocess: _FakeSubprocess
-    ) -> None:
+    def test_unparseable_entry_contributes_zero(self, fake_subprocess: _FakeSubprocess) -> None:
         fake_subprocess._responses = [
             _CompletedProc(
                 returncode=0,
@@ -268,9 +246,7 @@ class TestQuotaQuery:
         )
 
     def test_raises_on_nonzero_exit(self, fake_subprocess: _FakeSubprocess) -> None:
-        fake_subprocess._responses = [
-            _CompletedProc(returncode=1, stderr="unauthorized")
-        ]
+        fake_subprocess._responses = [_CompletedProc(returncode=1, stderr="unauthorized")]
         with pytest.raises(AzureCliResolverError):
             AzureCliQuotaQuery().available_capacity_tpm(
                 region="koreacentral", publisher="OpenAI", family="gpt-4o-mini"

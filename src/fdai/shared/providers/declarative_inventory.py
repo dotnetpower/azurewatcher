@@ -145,9 +145,7 @@ def _load_fixture(
     resources_raw = raw.get("resources", [])
     links_raw = raw.get("links", [])
     if not isinstance(resources_raw, list) or not isinstance(links_raw, list):
-        raise DeclarativeInventoryError(
-            "'resources' and 'links' MUST be lists"
-        )
+        raise DeclarativeInventoryError("'resources' and 'links' MUST be lists")
 
     seen_ids: set[str] = set()
     resource_types_by_id: dict[str, str] = {}
@@ -174,9 +172,7 @@ def _load_fixture(
         if not isinstance(props, dict):
             raise DeclarativeInventoryError(f"resources[{idx}].props MUST be a mapping")
         if parent_id is not None and not isinstance(parent_id, str):
-            raise DeclarativeInventoryError(
-                f"resources[{idx}].parent_id MUST be a string"
-            )
+            raise DeclarativeInventoryError(f"resources[{idx}].parent_id MUST be a string")
         seen_ids.add(resource_id)
         resource_types_by_id[resource_id] = resource_type
         merged_props = dict(props)

@@ -37,9 +37,7 @@ def _hourly(values_by_hour: dict[int, list[float]]) -> list[MetricSample]:
     out: list[MetricSample] = []
     for hour, values in values_by_hour.items():
         for day, value in enumerate(values):
-            out.append(
-                MetricSample(timestamp=base + timedelta(days=day, hours=hour), value=value)
-            )
+            out.append(MetricSample(timestamp=base + timedelta(days=day, hours=hour), value=value))
     return out
 
 
@@ -48,13 +46,17 @@ def test_periodic_peak_is_not_anomalous_within_its_phase() -> None:
     det = _detector()
     # Hour 9 baseline is high (~100); hour 3 baseline is low (~10).
     history = _hourly({9: [98, 100, 102, 99, 101], 3: [9, 10, 11, 10, 10]})
-    observed = MetricSample(
-        timestamp=datetime(2026, 1, 10, 9, tzinfo=UTC), value=100.0
+    observed = MetricSample(timestamp=datetime(2026, 1, 10, 9, tzinfo=UTC), value=100.0)
+    assert (
+        det.evaluate(
+            metric="rps",
+            resource_ref="svc-1",
+            history=history,
+            observed=observed,
+            window_bucket="w",
+        )
+        is None
     )
-    assert det.evaluate(
-        metric="rps", resource_ref="svc-1", history=history, observed=observed,
-        window_bucket="w",
-    ) is None
 
 
 def test_flat_baseline_ignores_other_phases() -> None:
@@ -68,10 +70,16 @@ def test_flat_baseline_ignores_other_phases() -> None:
     history = _hourly({9: [100, 100, 100, 100, 100], 3: [10, 10, 10, 10, 10]})
     # Observed at hour 3, value 10 -> matches hour-3 baseline -> no finding.
     observed = MetricSample(timestamp=datetime(2026, 1, 20, 3, tzinfo=UTC), value=10.0)
-    assert det.evaluate(
-        metric="rps", resource_ref="svc-1", history=history, observed=observed,
-        window_bucket="w",
-    ) is None
+    assert (
+        det.evaluate(
+            metric="rps",
+            resource_ref="svc-1",
+            history=history,
+            observed=observed,
+            window_bucket="w",
+        )
+        is None
+    )
 
 
 def test_in_phase_deviation_fires() -> None:
@@ -79,7 +87,10 @@ def test_in_phase_deviation_fires() -> None:
     history = _hourly({9: [98, 100, 102, 99, 101]})  # hour-9 mean ~100
     observed = MetricSample(timestamp=datetime(2026, 1, 10, 9, tzinfo=UTC), value=500.0)
     finding = det.evaluate(
-        metric="rps", resource_ref="svc-1", history=history, observed=observed,
+        metric="rps",
+        resource_ref="svc-1",
+        history=history,
+        observed=observed,
         window_bucket="w",
     )
     assert finding is not None
@@ -93,10 +104,16 @@ def test_per_phase_cold_start_abstains() -> None:
     # Hour 9 has 5 samples; hour 14 has only 2 -> hour-14 observation abstains.
     history = _hourly({9: [98, 100, 102, 99, 101], 14: [50, 52]})
     observed = MetricSample(timestamp=datetime(2026, 1, 10, 14, tzinfo=UTC), value=900.0)
-    assert det.evaluate(
-        metric="rps", resource_ref="svc-1", history=history, observed=observed,
-        window_bucket="w",
-    ) is None
+    assert (
+        det.evaluate(
+            metric="rps",
+            resource_ref="svc-1",
+            history=history,
+            observed=observed,
+            window_bucket="w",
+        )
+        is None
+    )
 
 
 def test_finding_normalizes_to_shadow_event() -> None:
@@ -104,7 +121,10 @@ def test_finding_normalizes_to_shadow_event() -> None:
     history = _hourly({9: [98, 100, 102, 99, 101]})
     observed = MetricSample(timestamp=datetime(2026, 1, 10, 9, tzinfo=UTC), value=500.0)
     finding = det.evaluate(
-        metric="rps", resource_ref="svc-1", history=history, observed=observed,
+        metric="rps",
+        resource_ref="svc-1",
+        history=history,
+        observed=observed,
         window_bucket="w",
     )
     assert finding is not None
@@ -123,10 +143,16 @@ def test_day_of_week_phase() -> None:
         for w, v in enumerate([200, 205, 198, 202])
     ]
     observed = MetricSample(timestamp=base + timedelta(weeks=5), value=201.0)
-    assert det.evaluate(
-        metric="rps", resource_ref="svc-1", history=history, observed=observed,
-        window_bucket="w",
-    ) is None
+    assert (
+        det.evaluate(
+            metric="rps",
+            resource_ref="svc-1",
+            history=history,
+            observed=observed,
+            window_bucket="w",
+        )
+        is None
+    )
 
 
 def test_unknown_phase_rejected() -> None:

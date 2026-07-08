@@ -170,5 +170,3 @@ def test_every_shipped_irreversible_action_routes_to_hil_quorum() -> None:
         verdict = table.evaluate(fv)
         assert verdict.decision is RiskLevel.HIL, f"{action.name}: irreversible MUST be HIL"
         assert verdict.quorum >= 2, f"{action.name}: irreversible MUST require quorum >= 2"
-
-

@@ -75,9 +75,7 @@ def make_pantheon_graph_route(
         agents = [_serialize_agent(s) for s in PANTHEON_SPECS]
         # Derived org-chart edges (reports_to relationships).
         edges = [
-            {"from": s.reports_to, "to": s.name}
-            for s in PANTHEON_SPECS
-            if s.reports_to is not None
+            {"from": s.reports_to, "to": s.name} for s in PANTHEON_SPECS if s.reports_to is not None
         ]
         return JSONResponse(
             {
@@ -87,9 +85,7 @@ def make_pantheon_graph_route(
                 "hard_dependency_agents": sorted(
                     s.name for s in PANTHEON_SPECS if s.hard_dependency
                 ),
-                "hot_path_llm_agents": sorted(
-                    s.name for s in PANTHEON_SPECS if s.hot_path_llm
-                ),
+                "hot_path_llm_agents": sorted(s.name for s in PANTHEON_SPECS if s.hot_path_llm),
                 "mermaid": _render_org_chart_mermaid(),
             }
         )

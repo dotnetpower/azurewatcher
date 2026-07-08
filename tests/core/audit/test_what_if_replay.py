@@ -110,9 +110,7 @@ def test_replay_with_what_if_returns_verdicts_and_original_kinds() -> None:
         ),
     ]
     evaluator = _StubEvaluator(
-        verdicts=[
-            {"rule_id": "fork-x.new-rule", "denied": True, "reason": "missing_owner_tag"}
-        ]
+        verdicts=[{"rule_id": "fork-x.new-rule", "denied": True, "reason": "missing_owner_tag"}]
     )
     report = replay_with_what_if("c-1", items, evaluator)
     assert isinstance(report.event, ReconstructedEvent)

@@ -98,9 +98,7 @@ class EventBusBridge:
     restart_backoff_base: float = 0.5
     restart_backoff_max: float = 30.0
     shutdown_timeout: float = 5.0
-    _subs: dict[str, list[tuple[str, Handler]]] = field(
-        default_factory=lambda: defaultdict(list)
-    )
+    _subs: dict[str, list[tuple[str, Handler]]] = field(default_factory=lambda: defaultdict(list))
     _tasks: list[asyncio.Task[None]] = field(default_factory=list)
     metrics: BridgeMetrics = field(default_factory=BridgeMetrics)
 
@@ -155,9 +153,7 @@ class EventBusBridge:
         :meth:`_consume`; this method surfaces only a summary.
         """
         if self._tasks:
-            raise RuntimeError(
-                "EventBusBridge.run() is already running; call stop() first"
-            )
+            raise RuntimeError("EventBusBridge.run() is already running; call stop() first")
         for topic, subs in self._subs.items():
             for agent_name, handler in subs:
                 group_id = f"{self.consumer_group_prefix}.{agent_name}"
@@ -179,8 +175,7 @@ class EventBusBridge:
             crashed = sum(
                 1
                 for r in results
-                if isinstance(r, BaseException)
-                and not isinstance(r, asyncio.CancelledError)
+                if isinstance(r, BaseException) and not isinstance(r, asyncio.CancelledError)
             )
             if crashed:
                 _LOG.error(

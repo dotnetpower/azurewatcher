@@ -120,9 +120,7 @@ class Agent:
 
     # --- conversational port (LLM-backed NL Q&A) -----------------------
 
-    async def on_conversation_turn(
-        self, question: str, context: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def on_conversation_turn(self, question: str, context: dict[str, Any]) -> dict[str, Any]:
         """Answer a natural-language query directed at this agent.
 
         Every agent MUST implement this in a later wave. Wave 1 stubs

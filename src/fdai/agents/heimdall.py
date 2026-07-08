@@ -71,7 +71,7 @@ class Heimdall(Agent):
         history.append(str(event.get("event_type", "generic")))
         if len(history) < self._rate_threshold:
             return
-        window_tail = list(history)[-self._rate_threshold:]
+        window_tail = list(history)[-self._rate_threshold :]
         if len(set(window_tail)) == 1 and self.bus is not None:
             anomaly = {
                 "producer_principal": "Heimdall",
@@ -93,8 +93,7 @@ class Heimdall(Agent):
         matches = sum(
             1
             for e in self._security_recent
-            if e.get("initiator_principal") == initiator
-            and e.get("attempted_action") == action
+            if e.get("initiator_principal") == initiator and e.get("attempted_action") == action
         )
         severity: str
         if hint == "critical" or _is_irreversible(action):
@@ -117,9 +116,7 @@ class Heimdall(Agent):
         self._alert_counters[(initiator, action)] += 1
         return severity
 
-    async def _maybe_send_admin_card(
-        self, event: dict[str, Any], severity: str
-    ) -> None:
+    async def _maybe_send_admin_card(self, event: dict[str, Any], severity: str) -> None:
         """Send an admin card, deduped by (initiator, action) within window."""
         initiator = str(event.get("initiator_principal", ""))
         action = str(event.get("attempted_action", ""))

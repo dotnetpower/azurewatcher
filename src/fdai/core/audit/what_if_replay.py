@@ -59,9 +59,7 @@ class EventReconstructionError(LookupError):
     """Raised when the audit trail does not carry enough to rebuild the event."""
 
 
-def reconstruct_event(
-    correlation_id: str, items: Sequence[AuditItemLike]
-) -> ReconstructedEvent:
+def reconstruct_event(correlation_id: str, items: Sequence[AuditItemLike]) -> ReconstructedEvent:
     """Pull the earliest audit item's ``payload.resource`` block.
 
     The first audit entry for a correlation id is (by convention) the
@@ -69,9 +67,7 @@ def reconstruct_event(
     Missing / malformed payloads raise :class:`EventReconstructionError`.
     """
     if not items:
-        raise EventReconstructionError(
-            f"no audit items for correlation_id {correlation_id!r}"
-        )
+        raise EventReconstructionError(f"no audit items for correlation_id {correlation_id!r}")
     sorted_items = sorted(items, key=lambda i: i.seq)
     first = sorted_items[0]
     entry = dict(first.entry)
@@ -85,9 +81,7 @@ def reconstruct_event(
     resource_type = str(resource.get("type") or "")
     props = resource.get("props") or {}
     if not resource_id or not resource_type or not isinstance(props, Mapping):
-        raise EventReconstructionError(
-            "payload.resource MUST contain resource_id, type, and props"
-        )
+        raise EventReconstructionError("payload.resource MUST contain resource_id, type, and props")
     return ReconstructedEvent(
         correlation_id=correlation_id,
         resource_id=resource_id,

@@ -105,9 +105,7 @@ def test_window_days_validated() -> None:
     catalog = _catalog()
     client = _client(InMemoryShadowVerdictSource(), catalog)
     assert client.get("/kpi/promotion-gates", params={"window_days": "0"}).status_code == 400
-    assert (
-        client.get("/kpi/promotion-gates", params={"window_days": "abc"}).status_code == 400
-    )
+    assert client.get("/kpi/promotion-gates", params={"window_days": "abc"}).status_code == 400
 
 
 def test_route_absent_when_source_not_configured() -> None:

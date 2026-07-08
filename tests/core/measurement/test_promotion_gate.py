@@ -108,9 +108,7 @@ def test_accuracy_below_min_blocks_promotion() -> None:
     verdicts = []
     approved = int(gate.min_samples * 0.5)  # 50% agreement < 0.98 threshold
     for _ in range(approved):
-        verdicts.append(
-            _verdict("ops.publish-change-summary", days_ago=(gate.min_shadow_days + 1))
-        )
+        verdicts.append(_verdict("ops.publish-change-summary", days_ago=(gate.min_shadow_days + 1)))
     for _ in range(gate.min_samples - approved):
         verdicts.append(
             _verdict(
@@ -129,10 +127,7 @@ def test_insufficient_shadow_days_blocks_promotion() -> None:
     action = _load_action("ops.publish-change-summary")
     gate = action.promotion_gate
     # Every verdict from the last 24h - well below min_shadow_days.
-    verdicts = [
-        _verdict("ops.publish-change-summary", days_ago=1)
-        for _ in range(gate.min_samples)
-    ]
+    verdicts = [_verdict("ops.publish-change-summary", days_ago=1) for _ in range(gate.min_samples)]
     evaluator = PromotionGateEvaluator(now_fn=_now_fixed)
     progress = evaluator.evaluate(action, verdicts=verdicts)
     assert progress.ready is False

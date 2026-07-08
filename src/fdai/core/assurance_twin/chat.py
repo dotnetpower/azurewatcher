@@ -170,9 +170,7 @@ def append_assistant_answer(
     empty answer body; use :func:`append_assistant_abstain` instead).
     """
     if not grounding:
-        raise GroundingRequiredError(
-            "assistant message MUST cite at least one ontology query path"
-        )
+        raise GroundingRequiredError("assistant message MUST cite at least one ontology query path")
     message = ChatMessage(
         role=ChatRole.ASSISTANT,
         text=text,

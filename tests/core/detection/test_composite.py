@@ -178,9 +178,7 @@ def test_to_event_is_shadow_mode_composite() -> None:
 def test_fusion_is_deterministic_regardless_of_input_order() -> None:
     det = CompositeAnomalyDetector(detector_id="comp-1", quorum=2)
     findings = [_finding("latency"), _finding("error_rate"), _finding("cpu")]
-    first = det.fuse(
-        resource_ref="res-a", window_bucket="2026-07-07T12", findings=findings
-    )
+    first = det.fuse(resource_ref="res-a", window_bucket="2026-07-07T12", findings=findings)
     second = det.fuse(
         resource_ref="res-a",
         window_bucket="2026-07-07T12",

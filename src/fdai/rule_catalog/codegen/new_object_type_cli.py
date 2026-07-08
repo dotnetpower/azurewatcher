@@ -36,9 +36,7 @@ from fdai.rule_catalog.codegen.new_object_type import (
 def _parse_property(raw: str) -> PropertySpec:
     parts = _split_top_level(raw, ":")
     if len(parts) < 2:
-        raise argparse.ArgumentTypeError(
-            f"--property {raw!r} MUST be at least 'name:type'"
-        )
+        raise argparse.ArgumentTypeError(f"--property {raw!r} MUST be at least 'name:type'")
     name, type_str, *rest = parts
     required = False
     description: str | None = None
@@ -57,9 +55,7 @@ def _parse_property(raw: str) -> PropertySpec:
         elif key == "purpose-binding":
             purpose_binding = tuple(p.strip() for p in value.split(",") if p.strip())
         else:
-            raise argparse.ArgumentTypeError(
-                f"--property {raw!r}: unknown attribute {key!r}"
-            )
+            raise argparse.ArgumentTypeError(f"--property {raw!r}: unknown attribute {key!r}")
     return PropertySpec(
         name=name.strip(),
         type=type_str.strip(),
@@ -94,7 +90,9 @@ def build_parser() -> argparse.ArgumentParser:
         description="Scaffold a new ontology ObjectType YAML.",
     )
     parser.add_argument("--name", required=True, help="PascalCase ObjectType name.")
-    parser.add_argument("--key", required=True, help="Property that uniquely identifies an instance.")
+    parser.add_argument(
+        "--key", required=True, help="Property that uniquely identifies an instance."
+    )
     parser.add_argument(
         "--property",
         dest="properties",
@@ -103,9 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=_parse_property,
         help="Repeatable. name:type[:required=true][:description=...][:access-scope=<role>][:purpose-binding=a,b]",
     )
-    parser.add_argument(
-        "--description", default=None, help="One-line ObjectType description."
-    )
+    parser.add_argument("--description", default=None, help="One-line ObjectType description.")
     parser.add_argument(
         "--out",
         default=None,
@@ -138,9 +134,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     out_path = Path(args.out)
     if out_path.exists() and not args.overwrite:
-        raise SystemExit(
-            f"{out_path} already exists; pass --overwrite to replace."
-        )
+        raise SystemExit(f"{out_path} already exists; pass --overwrite to replace.")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(yaml_text)
     print(f"wrote {out_path}", file=sys.stderr)

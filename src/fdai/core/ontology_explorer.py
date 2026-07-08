@@ -98,10 +98,7 @@ def _property_lines(ot: OntologyObjectType, limit: int) -> list[str]:
     """Emit ``+<name>: <type>[!]`` lines, deterministically ordered."""
     all_props = sorted(ot.properties.items())
     shown = all_props[:limit]
-    lines = [
-        f"+{name}: {decl.type.value}{'!' if decl.required else ''}"
-        for name, decl in shown
-    ]
+    lines = [f"+{name}: {decl.type.value}{'!' if decl.required else ''}" for name, decl in shown]
     remaining = len(all_props) - len(shown)
     if remaining > 0:
         lines.append(f"+... {remaining} more")

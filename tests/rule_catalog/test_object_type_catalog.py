@@ -103,15 +103,13 @@ def test_duplicate_name_across_files_fails(tmp_path: Path) -> None:
 def test_invalid_name_pattern_fails(tmp_path: Path) -> None:
     # Name MUST start with a capital letter and be PascalCase.
     (tmp_path / "bad.yaml").write_text(
-        
-            'schema_version: "1.0.0"\n'
-            "name: lowerBad\n"
-            'version: "1.0.0"\n'
-            "key: id\n"
-            "properties:\n"
-            "  id:\n"
-            "    type: string\n"
-        
+        'schema_version: "1.0.0"\n'
+        "name: lowerBad\n"
+        'version: "1.0.0"\n'
+        "key: id\n"
+        "properties:\n"
+        "  id:\n"
+        "    type: string\n"
     )
     with pytest.raises(ObjectTypeCatalogError) as info:
         load_object_type_catalog(tmp_path, schema_registry=_registry())

@@ -69,9 +69,7 @@ def test_what_if_route_returns_replay_report() -> None:
         verdicts=[{"rule_id": "fork-x.new-rule", "denied": True, "reason": "policy"}]
     )
     with _client(model, {"tighter-tags": evaluator}) as client:
-        resp = client.get(
-            "/audit/corr-1/what-if", params={"scenario": "tighter-tags"}
-        )
+        resp = client.get("/audit/corr-1/what-if", params={"scenario": "tighter-tags"})
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["scenario"] == "tighter-tags"
@@ -83,9 +81,7 @@ def test_what_if_route_404_on_unknown_scenario() -> None:
     model = InMemoryConsoleReadModel()
     _seed_ingest(model, "corr-1")
     with _client(model, {"only-one": _StubEvaluator()}) as client:
-        resp = client.get(
-            "/audit/corr-1/what-if", params={"scenario": "does-not-exist"}
-        )
+        resp = client.get("/audit/corr-1/what-if", params={"scenario": "does-not-exist"})
     assert resp.status_code == 404
 
 
@@ -100,9 +96,7 @@ def test_what_if_route_400_on_missing_scenario() -> None:
 def test_what_if_route_404_on_unknown_correlation() -> None:
     model = InMemoryConsoleReadModel()
     with _client(model, {"only-one": _StubEvaluator()}) as client:
-        resp = client.get(
-            "/audit/nope/what-if", params={"scenario": "only-one"}
-        )
+        resp = client.get("/audit/nope/what-if", params={"scenario": "only-one"})
     assert resp.status_code == 404
 
 
@@ -114,9 +108,7 @@ def test_what_if_route_422_when_event_cannot_be_reconstructed() -> None:
         action_kind="event.received",
     )
     with _client(model, {"only-one": _StubEvaluator()}) as client:
-        resp = client.get(
-            "/audit/corr-noent/what-if", params={"scenario": "only-one"}
-        )
+        resp = client.get("/audit/corr-noent/what-if", params={"scenario": "only-one"})
     assert resp.status_code == 422
 
 
@@ -134,7 +126,5 @@ def test_what_if_route_absent_when_evaluators_empty() -> None:
         ),
     )
     with TestClient(app) as client:
-        resp = client.get(
-            "/audit/corr-1/what-if", params={"scenario": "any"}
-        )
+        resp = client.get("/audit/corr-1/what-if", params={"scenario": "any"})
     assert resp.status_code == 404

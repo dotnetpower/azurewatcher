@@ -575,7 +575,6 @@ def test_catalog_t2_ceiling_above_shadow_only_is_rejected(tmp_path: Path) -> Non
     assert "ceiling_by_tier.t2.max_autonomy" in keys
 
 
-
 def test_argument_schema_without_additional_properties_false_is_rejected(
     tmp_path: Path,
 ) -> None:
@@ -618,9 +617,7 @@ def test_argument_schema_hardened_loads(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("operation", ["drop", "purge"])
-def test_drop_purge_without_data_plane_mutating_is_rejected(
-    tmp_path: Path, operation: str
-) -> None:
+def test_drop_purge_without_data_plane_mutating_is_rejected(tmp_path: Path, operation: str) -> None:
     """drop/purge destroy data/schema and MUST declare DataPlaneMutating so
     the data-plane HIL gate applies; omitting it silently downgrades the
     risk classification (action-ontology critique #14)."""
@@ -827,9 +824,7 @@ def test_docs_site_action_ontology_ts_names_exist_in_catalog() -> None:
     if not ts_path.exists():
         pytest.skip("docs-site action-ontology.ts not present")
     text = ts_path.read_text(encoding="utf-8")
-    ts_names = {
-        n for n in re.findall(r'name:\s*"([a-z][a-z0-9_.\-]+)"', text) if "." in n
-    }
+    ts_names = {n for n in re.findall(r'name:\s*"([a-z][a-z0-9_.\-]+)"', text) if "." in n}
     assert ts_names, "expected the showcase to list at least one ActionType name"
     catalog = load_action_type_catalog(CATALOG_ROOT, schema_registry=_registry())
     shipped = {a.name for a in catalog}
@@ -838,7 +833,3 @@ def test_docs_site_action_ontology_ts_names_exist_in_catalog() -> None:
         "site/src/data/action-ontology.ts references ActionType names absent from "
         f"the shipped catalog (drift - refresh the showcase): {sorted(drifted)}"
     )
-
-
-
-

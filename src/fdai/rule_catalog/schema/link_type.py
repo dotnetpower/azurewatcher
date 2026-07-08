@@ -116,9 +116,7 @@ def load_link_type_from_mapping(
             issues.append(LinkTypeIssue(key=f"{origin}:<root>", message=str(exc)))
         raise LinkTypeCatalogError(issues) from exc
 
-    xref_issues = _cross_reference_issues(
-        model, origin=origin, object_type_names=object_type_names
-    )
+    xref_issues = _cross_reference_issues(model, origin=origin, object_type_names=object_type_names)
     if xref_issues:
         raise LinkTypeCatalogError(xref_issues)
 
@@ -155,9 +153,7 @@ def load_link_type_catalog(
             aggregated.append(LinkTypeIssue(key=path.name, message=f"invalid YAML: {exc}"))
             continue
         if not isinstance(raw, Mapping):
-            aggregated.append(
-                LinkTypeIssue(key=path.name, message="top-level must be a mapping")
-            )
+            aggregated.append(LinkTypeIssue(key=path.name, message="top-level must be a mapping"))
             continue
         try:
             model = load_link_type_from_mapping(

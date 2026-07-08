@@ -29,9 +29,7 @@ def _registry() -> Any:
             "schema_version": "1.0.0",
             "models": {
                 "t1.embedding": {
-                    "preferences": [
-                        {"publisher": "OpenAI", "family": "text-embedding-3-small"}
-                    ],
+                    "preferences": [{"publisher": "OpenAI", "family": "text-embedding-3-small"}],
                     "capacity_tpm": 100_000,
                 },
                 "t1.judge": {
@@ -48,9 +46,7 @@ def _registry() -> Any:
                     "capacity_tpm": 20_000,
                 },
                 "t2.reasoner.secondary": {
-                    "preferences": [
-                        {"publisher": "Anthropic", "family": "claude-opus-4"}
-                    ],
+                    "preferences": [{"publisher": "Anthropic", "family": "claude-opus-4"}],
                     "capacity_tpm": 10_000,
                 },
             },
@@ -71,9 +67,7 @@ class _Quota(QuotaQuery):
     def __init__(self, table: dict[str, int]) -> None:
         self._table = table
 
-    def available_capacity_tpm(
-        self, *, region: str, publisher: str, family: str
-    ) -> int:
+    def available_capacity_tpm(self, *, region: str, publisher: str, family: str) -> int:
         del region, publisher
         return self._table.get(family, 0)
 
@@ -269,7 +263,10 @@ class TestCollectNarratorDeployments:
             endpoint=_ENDPOINT,
         )
         deployments = collect_narrator_deployments(
-            registry=_registry(), region=_REGION, catalog=catalog, quota=quota,
+            registry=_registry(),
+            region=_REGION,
+            catalog=catalog,
+            quota=quota,
         )
         assert {c.deployment for c in candidates} == {d.name for d in deployments}
 
@@ -299,9 +296,7 @@ class TestCollectNarratorDeployments:
                         "capacity_tpm": 20_000,
                     },
                     "t2.reasoner.secondary": {
-                        "preferences": [
-                            {"publisher": "Anthropic", "family": "claude-opus-4"}
-                        ],
+                        "preferences": [{"publisher": "Anthropic", "family": "claude-opus-4"}],
                         "capacity_tpm": 10_000,
                     },
                 },
@@ -311,5 +306,8 @@ class TestCollectNarratorDeployments:
         quota = _Quota({"gpt-5.4-mini": 200_000, "gpt-5-4-mini": 200_000})
         with pytest.raises(ResolverError, match="collision"):
             collect_narrator_deployments(
-                registry=registry, region=_REGION, catalog=catalog, quota=quota,
+                registry=registry,
+                region=_REGION,
+                catalog=catalog,
+                quota=quota,
             )

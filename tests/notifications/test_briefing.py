@@ -117,9 +117,7 @@ def test_flat_small_cost_change_alone_is_not_significant() -> None:
         _quiet_input().__class__(
             window_label="2026-W30",
             incidents=IncidentTally(by_severity={}, opened=0, resolved=0),
-            actions=ActionTally(
-                auto_executed=0, hil_approved=0, rolled_back=0, shadow_only=0
-            ),
+            actions=ActionTally(auto_executed=0, hil_approved=0, rolled_back=0, shadow_only=0),
             cost=CostSnapshot(current_run_rate=100.0, delta_pct=0.4, top_drivers=()),
         )
     )
@@ -134,9 +132,7 @@ def test_flat_small_cost_change_alone_is_not_significant() -> None:
 
 def test_guard_breaches_become_escalations_and_headline() -> None:
     composer = StakeholderBriefingComposer()
-    briefing = composer.compose(
-        _busy_input(guard_breaches=("rollback rate 0.12 > baseline 0.05",))
-    )
+    briefing = composer.compose(_busy_input(guard_breaches=("rollback rate 0.12 > baseline 0.05",)))
     assert briefing.escalations == ("rollback rate 0.12 > baseline 0.05",)
     assert "guard-metric breach" in briefing.content
     assert "rollback rate 0.12" in briefing.sections["guardrails"]

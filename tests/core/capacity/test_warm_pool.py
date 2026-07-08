@@ -45,9 +45,7 @@ def test_off_hours_forces_warm_even_at_low_severity() -> None:
 
 def test_multiple_triggers_all_recorded() -> None:
     policy = WarmCapacityPolicy()
-    decision = policy.decide(
-        severity=IncidentSeverity.SEV1, storm_active=True, off_hours=True
-    )
+    decision = policy.decide(severity=IncidentSeverity.SEV1, storm_active=True, off_hours=True)
     assert decision.warm_required is True
     assert len(decision.triggers) == 3
 
@@ -79,9 +77,7 @@ def test_sev2_is_warm_by_default_threshold() -> None:
 
 
 def test_config_can_raise_severity_threshold() -> None:
-    policy = WarmCapacityPolicy(
-        WarmCapacityConfig(warm_at_or_above_severity=IncidentSeverity.SEV1)
-    )
+    policy = WarmCapacityPolicy(WarmCapacityConfig(warm_at_or_above_severity=IncidentSeverity.SEV1))
     # Now only SEV1 warrants warm on severity alone.
     assert policy.decide(severity=IncidentSeverity.SEV2).warm_required is False
     assert policy.decide(severity=IncidentSeverity.SEV1).warm_required is True

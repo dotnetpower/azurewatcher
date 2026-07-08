@@ -42,9 +42,7 @@ def _graph_diamond() -> InMemoryOntologyGraph:
 def test_bfs_reaches_full_chain_within_depth() -> None:
     report = simulate_blast_radius(
         _graph_chain(),
-        BlastRadiusRequest(
-            target="sub", traversal_depth=4, traversal_links=("contains",)
-        ),
+        BlastRadiusRequest(target="sub", traversal_depth=4, traversal_links=("contains",)),
     )
     ids = [n.resource_id for n in report.reached]
     assert ids == ["sub", "rg", "vnet", "subnet", "vm"]
@@ -57,9 +55,7 @@ def test_bfs_reaches_full_chain_within_depth() -> None:
 def test_bfs_truncates_at_depth_cap() -> None:
     report = simulate_blast_radius(
         _graph_chain(),
-        BlastRadiusRequest(
-            target="sub", traversal_depth=2, traversal_links=("contains",)
-        ),
+        BlastRadiusRequest(target="sub", traversal_depth=2, traversal_links=("contains",)),
     )
     ids = {n.resource_id for n in report.reached}
     # sub -> rg -> vnet reached; subnet + vm truncated by depth.
@@ -71,9 +67,7 @@ def test_bfs_truncates_at_depth_cap() -> None:
 def test_bfs_deduplicates_diamond_and_records_first_hop() -> None:
     report = simulate_blast_radius(
         _graph_diamond(),
-        BlastRadiusRequest(
-            target="A", traversal_depth=2, traversal_links=("depends_on",)
-        ),
+        BlastRadiusRequest(target="A", traversal_depth=2, traversal_links=("depends_on",)),
     )
     ids = {n.resource_id: n.depth for n in report.reached}
     assert ids == {"A": 0, "B": 1, "C": 1, "D": 2}
@@ -85,9 +79,7 @@ def test_bfs_deduplicates_diamond_and_records_first_hop() -> None:
 def test_bfs_records_every_traversed_edge_including_diamond() -> None:
     report = simulate_blast_radius(
         _graph_diamond(),
-        BlastRadiusRequest(
-            target="A", traversal_depth=2, traversal_links=("depends_on",)
-        ),
+        BlastRadiusRequest(target="A", traversal_depth=2, traversal_links=("depends_on",)),
     )
     # Four edges: A->B, A->C, B->D, C->D. Order is depth-first-by-BFS,
     # so the two hops at depth 1 come before the two at depth 2.
@@ -110,17 +102,13 @@ def test_bfs_respects_link_type_filter() -> None:
     )
     only_contains = simulate_blast_radius(
         graph,
-        BlastRadiusRequest(
-            target="root", traversal_depth=1, traversal_links=("contains",)
-        ),
+        BlastRadiusRequest(target="root", traversal_depth=1, traversal_links=("contains",)),
     )
     assert {n.resource_id for n in only_contains.reached} == {"root", "child"}
 
     only_depends = simulate_blast_radius(
         graph,
-        BlastRadiusRequest(
-            target="root", traversal_depth=1, traversal_links=("depends_on",)
-        ),
+        BlastRadiusRequest(target="root", traversal_depth=1, traversal_links=("depends_on",)),
     )
     assert {n.resource_id for n in only_depends.reached} == {"root", "dependency"}
 
@@ -165,9 +153,7 @@ def test_zero_depth_rejected() -> None:
     with pytest.raises(ValueError):
         simulate_blast_radius(
             _graph_chain(),
-            BlastRadiusRequest(
-                target="sub", traversal_depth=0, traversal_links=("contains",)
-            ),
+            BlastRadiusRequest(target="sub", traversal_depth=0, traversal_links=("contains",)),
         )
 
 
@@ -175,18 +161,14 @@ def test_empty_traversal_links_rejected() -> None:
     with pytest.raises(ValueError):
         simulate_blast_radius(
             _graph_chain(),
-            BlastRadiusRequest(
-                target="sub", traversal_depth=1, traversal_links=()
-            ),
+            BlastRadiusRequest(target="sub", traversal_depth=1, traversal_links=()),
         )
 
 
 def test_report_as_json_is_client_safe() -> None:
     report = simulate_blast_radius(
         _graph_chain(),
-        BlastRadiusRequest(
-            target="sub", traversal_depth=2, traversal_links=("contains",)
-        ),
+        BlastRadiusRequest(target="sub", traversal_depth=2, traversal_links=("contains",)),
     )
     payload = report.as_json()
     # Round-trip through json module to prove it is truly serialisable.
@@ -203,23 +185,17 @@ def test_report_as_json_is_client_safe() -> None:
 
 def test_determinism_same_input_same_output() -> None:
     graph = _graph_diamond()
-    req = BlastRadiusRequest(
-        target="A", traversal_depth=3, traversal_links=("depends_on",)
-    )
+    req = BlastRadiusRequest(target="A", traversal_depth=3, traversal_links=("depends_on",))
     first = simulate_blast_radius(graph, req)
     second = simulate_blast_radius(graph, req)
     assert first.as_json() == second.as_json()
 
 
 def test_target_with_no_outgoing_edges() -> None:
-    graph = InMemoryOntologyGraph(
-        edges={}, link_types=frozenset({"contains"})
-    )
+    graph = InMemoryOntologyGraph(edges={}, link_types=frozenset({"contains"}))
     report = simulate_blast_radius(
         graph,
-        BlastRadiusRequest(
-            target="lone", traversal_depth=3, traversal_links=("contains",)
-        ),
+        BlastRadiusRequest(target="lone", traversal_depth=3, traversal_links=("contains",)),
     )
     assert [n.resource_id for n in report.reached] == ["lone"]
     assert report.affected_count() == 0

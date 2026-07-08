@@ -27,9 +27,7 @@ def test_render_produces_loader_valid_yaml() -> None:
     )
     text = render_action_type_yaml(spec)
     doc = yaml.safe_load(text)
-    model = load_action_type_from_mapping(
-        doc, schema_registry=PackageResourceSchemaRegistry()
-    )
+    model = load_action_type_from_mapping(doc, schema_registry=PackageResourceSchemaRegistry())
     assert model.name == "governance.assign-reviewers"
     assert model.default_mode.value == "shadow"
 

@@ -36,9 +36,7 @@ _ACTION_TYPE_SCHEMA_NAME = "ontology/action-type"
 # Anything else that looks like an ``x-fdai-*`` key is a typo and is a
 # fatal load error, so a misspelled redact hint cannot silently leak a
 # secret (action-ontology.md 5.2 / 8).
-_ALLOWED_ARG_EXTENSION_KEYS: frozenset[str] = frozenset(
-    {"x-fdai-redact", "x-fdai-audit-safe"}
-)
+_ALLOWED_ARG_EXTENSION_KEYS: frozenset[str] = frozenset({"x-fdai-redact", "x-fdai-audit-safe"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -366,8 +364,7 @@ def _check_catalog_policy(
                 ActionTypeIssue(
                     key=f"{origin}:execution_path",
                     message=(
-                        "catalog ActionType MUST declare execution_path "
-                        "(execution-model.md 5)"
+                        "catalog ActionType MUST declare execution_path (execution-model.md 5)"
                     ),
                 )
             )
@@ -583,9 +580,7 @@ def argument_schema_redaction_paths(action_type: OntologyActionType) -> frozense
     if action_type.argument_schema is None:
         return frozenset()
     paths: set[str] = set()
-    _walk_argument_schema_props(
-        action_type.argument_schema, "", action_type.name, [], paths
-    )
+    _walk_argument_schema_props(action_type.argument_schema, "", action_type.name, [], paths)
     return frozenset(paths)
 
 

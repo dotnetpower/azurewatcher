@@ -105,9 +105,7 @@ class CompositeAnomalyDetector:
         cannot inflate the quorum. Below quorum -> ``None`` (a single
         noisy stream is not a compound anomaly).
         """
-        members = _dedupe_strongest(
-            [f for f in findings if f.resource_ref == resource_ref]
-        )
+        members = _dedupe_strongest([f for f in findings if f.resource_ref == resource_ref])
         if len(members) < self._quorum:
             return None
 
@@ -185,8 +183,7 @@ class CompositeAnomalyDetector:
         return str(
             uuid5(
                 NAMESPACE_URL,
-                f"fdai-composite:{self._detector_id}:{resource_ref}:"
-                f"{window_bucket}:{members}",
+                f"fdai-composite:{self._detector_id}:{resource_ref}:{window_bucket}:{members}",
             )
         )
 

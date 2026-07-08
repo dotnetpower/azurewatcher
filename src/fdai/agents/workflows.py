@@ -35,10 +35,7 @@ WORKFLOWS: tuple[WorkflowSpec, ...] = (
         participating_agents=("Heimdall", "Njord", "Forseti", "Thor", "Saga"),
         trigger="object.drift or object.anomaly with a matched rule",
         default_mode="shadow",
-        promotion_gate=(
-            "14d shadow; Njord cost forecast MAPE < 20%; "
-            "zero missing cost_annotation"
-        ),
+        promotion_gate=("14d shadow; Njord cost forecast MAPE < 20%; zero missing cost_annotation"),
     ),
     WorkflowSpec(
         id="predictive-scale",
@@ -47,10 +44,7 @@ WORKFLOWS: tuple[WorkflowSpec, ...] = (
         participating_agents=("Freyr", "Heimdall", "Njord", "Odin", "Forseti", "Thor"),
         trigger="Freyr forecast threshold breach within predictive_horizon",
         default_mode="shadow",
-        promotion_gate=(
-            "30d shadow; Freyr forecast MAPE < 15%; "
-            "false-positive scale rate < 5%"
-        ),
+        promotion_gate=("30d shadow; Freyr forecast MAPE < 15%; false-positive scale rate < 5%"),
     ),
     WorkflowSpec(
         id="dr-drill-orchestration",
@@ -93,8 +87,7 @@ WORKFLOWS: tuple[WorkflowSpec, ...] = (
         trigger="Saga writes object.issue (via escalate_to_github_issue)",
         default_mode="shadow",
         promotion_gate=(
-            "90d shadow; conversion (handoff -> promoted rule) baseline; "
-            "false-close rate < 2%"
+            "90d shadow; conversion (handoff -> promoted rule) baseline; false-close rate < 2%"
         ),
     ),
     WorkflowSpec(

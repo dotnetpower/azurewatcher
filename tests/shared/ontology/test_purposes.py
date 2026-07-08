@@ -104,9 +104,7 @@ def test_validate_declared_purposes_rejects_unknown() -> None:
 
 def test_validate_declared_purposes_normalises_whitespace_and_empties() -> None:
     registry = load_purpose_registry(UPSTREAM_REGISTRY)
-    got = validate_declared_purposes(
-        [" audit-review ", "", "incident-response"], registry
-    )
+    got = validate_declared_purposes([" audit-review ", "", "incident-response"], registry)
     assert got == frozenset({"audit-review", "incident-response"})
 
 

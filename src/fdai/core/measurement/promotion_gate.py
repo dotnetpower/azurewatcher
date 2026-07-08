@@ -166,9 +166,7 @@ class PromotionGateEvaluator:
 
         results: list[PromotionGateProgress] = []
         for at in action_types:
-            verdicts = list(
-                source.list_recent(action_type_name=at.name, since=since)
-            )
+            verdicts = list(source.list_recent(action_type_name=at.name, since=since))
             results.append(self.evaluate(at, verdicts))
         return tuple(results)
 

@@ -60,7 +60,9 @@ class TestRouterConstruction:
 
 
 class TestRouterWarmupAndSelection:
-    async def _make_router(self) -> tuple[
+    async def _make_router(
+        self,
+    ) -> tuple[
         LatencyRoutedChatBackend, _FixedLatencyBackend, _FixedLatencyBackend, _FixedLatencyBackend
     ]:
         fast = _FixedLatencyBackend(model="fast", delay_ms=5)

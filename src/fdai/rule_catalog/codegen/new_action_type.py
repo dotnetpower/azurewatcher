@@ -21,9 +21,22 @@ _NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_.\-]{0,79}$")
 
 _ALLOWED_OPERATIONS: frozenset[str] = frozenset(
     {
-        "create", "update", "delete", "disable", "enable", "tag", "drop",
-        "purge", "scale", "restart", "failover", "rotate", "revert",
-        "attach", "detach", "quarantine",
+        "create",
+        "update",
+        "delete",
+        "disable",
+        "enable",
+        "tag",
+        "drop",
+        "purge",
+        "scale",
+        "restart",
+        "failover",
+        "rotate",
+        "revert",
+        "attach",
+        "detach",
+        "quarantine",
     }
 )
 
@@ -33,25 +46,25 @@ _ALLOWED_ROLLBACK: frozenset[str] = frozenset(
 
 _ALLOWED_CATEGORIES: frozenset[str] = frozenset({"remediation", "ops", "governance"})
 
-_ALLOWED_TRIGGERS: frozenset[str] = frozenset(
-    {"rule_violation", "operator_request", "both"}
-)
+_ALLOWED_TRIGGERS: frozenset[str] = frozenset({"rule_violation", "operator_request", "both"})
 
 _ALLOWED_INTERFACES: frozenset[str] = frozenset(
     {
-        "ControlPlane", "DataPlaneMutating", "IdempotentByKey", "RateLimited",
-        "RequiresInventoryFresh", "GraphTraversalRequired", "CrossResource",
-        "AsymmetricRollback", "RequiresMaintenanceWindow",
+        "ControlPlane",
+        "DataPlaneMutating",
+        "IdempotentByKey",
+        "RateLimited",
+        "RequiresInventoryFresh",
+        "GraphTraversalRequired",
+        "CrossResource",
+        "AsymmetricRollback",
+        "RequiresMaintenanceWindow",
     }
 )
 
-_ALLOWED_ROLES: frozenset[str] = frozenset(
-    {"reader", "contributor", "approver", "owner"}
-)
+_ALLOWED_ROLES: frozenset[str] = frozenset({"reader", "contributor", "approver", "owner"})
 
-_ALLOWED_TIER_CEILING: frozenset[str] = frozenset(
-    {"enforce_auto", "enforce_hil", "shadow_only"}
-)
+_ALLOWED_TIER_CEILING: frozenset[str] = frozenset({"enforce_auto", "enforce_hil", "shadow_only"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,31 +109,21 @@ class ActionTypeSpec:
 
     def __post_init__(self) -> None:
         if not _NAME_PATTERN.match(self.name):
-            raise ValueError(
-                f"ActionType name {self.name!r} MUST match {_NAME_PATTERN.pattern}"
-            )
+            raise ValueError(f"ActionType name {self.name!r} MUST match {_NAME_PATTERN.pattern}")
         if self.operation not in _ALLOWED_OPERATIONS:
-            raise ValueError(
-                f"operation {self.operation!r} not in {sorted(_ALLOWED_OPERATIONS)!r}"
-            )
+            raise ValueError(f"operation {self.operation!r} not in {sorted(_ALLOWED_OPERATIONS)!r}")
         if self.rollback_contract not in _ALLOWED_ROLLBACK:
             raise ValueError(
-                f"rollback_contract {self.rollback_contract!r} not in "
-                f"{sorted(_ALLOWED_ROLLBACK)!r}"
+                f"rollback_contract {self.rollback_contract!r} not in {sorted(_ALLOWED_ROLLBACK)!r}"
             )
         if self.category not in _ALLOWED_CATEGORIES:
-            raise ValueError(
-                f"category {self.category!r} not in {sorted(_ALLOWED_CATEGORIES)!r}"
-            )
+            raise ValueError(f"category {self.category!r} not in {sorted(_ALLOWED_CATEGORIES)!r}")
         if self.trigger_kind not in _ALLOWED_TRIGGERS:
             raise ValueError(
-                f"trigger_kind {self.trigger_kind!r} not in "
-                f"{sorted(_ALLOWED_TRIGGERS)!r}"
+                f"trigger_kind {self.trigger_kind!r} not in {sorted(_ALLOWED_TRIGGERS)!r}"
             )
         if self.default_mode not in ("shadow", "enforce"):
-            raise ValueError(
-                f"default_mode {self.default_mode!r} MUST be shadow|enforce"
-            )
+            raise ValueError(f"default_mode {self.default_mode!r} MUST be shadow|enforce")
         if self.default_mode == "enforce":
             raise ValueError(
                 "default_mode='enforce' is forbidden for a scaffolded ActionType; "
@@ -128,14 +131,11 @@ class ActionTypeSpec:
             )
         if self.prod_downgrade_mode not in ("enforce_hil", "shadow_only"):
             raise ValueError(
-                f"prod_downgrade_mode {self.prod_downgrade_mode!r} MUST be "
-                "enforce_hil|shadow_only"
+                f"prod_downgrade_mode {self.prod_downgrade_mode!r} MUST be enforce_hil|shadow_only"
             )
         for iface in self.interfaces:
             if iface not in _ALLOWED_INTERFACES:
-                raise ValueError(
-                    f"interface {iface!r} not in {sorted(_ALLOWED_INTERFACES)!r}"
-                )
+                raise ValueError(f"interface {iface!r} not in {sorted(_ALLOWED_INTERFACES)!r}")
         if not self.interfaces:
             raise ValueError("ActionType MUST declare at least one interface")
         for ceiling in (self.ceiling_t0, self.ceiling_t1, self.ceiling_t2):
@@ -145,13 +145,9 @@ class ActionTypeSpec:
                     f"{sorted(_ALLOWED_TIER_CEILING)!r}"
                 )
             if ceiling.min_role not in _ALLOWED_ROLES:
-                raise ValueError(
-                    f"min_role {ceiling.min_role!r} not in {sorted(_ALLOWED_ROLES)!r}"
-                )
+                raise ValueError(f"min_role {ceiling.min_role!r} not in {sorted(_ALLOWED_ROLES)!r}")
         if self.trigger_kind in ("operator_request", "both") and not self.argument_schema:
-            raise ValueError(
-                "trigger_kind 'operator_request' / 'both' MUST supply argument_schema"
-            )
+            raise ValueError("trigger_kind 'operator_request' / 'both' MUST supply argument_schema")
 
 
 def render_action_type_yaml(spec: ActionTypeSpec) -> str:
@@ -206,9 +202,7 @@ def render_action_type_yaml(spec: ActionTypeSpec) -> str:
     if spec.argument_schema is not None:
         doc["argument_schema"] = spec.argument_schema
 
-    load_action_type_from_mapping(
-        doc, schema_registry=PackageResourceSchemaRegistry()
-    )
+    load_action_type_from_mapping(doc, schema_registry=PackageResourceSchemaRegistry())
 
     header = _render_header(spec)
     body = yaml.safe_dump(doc, sort_keys=False, default_flow_style=False)

@@ -76,10 +76,7 @@ class Norns(Agent):
         if not fp:
             return
         self._fingerprint_counter[fp] += 1
-        if (
-            self._fingerprint_counter[fp] >= self._promotion_threshold
-            and fp not in self._proposed
-        ):
+        if self._fingerprint_counter[fp] >= self._promotion_threshold and fp not in self._proposed:
             self._proposed.add(fp)
             self.pending_candidates.append(
                 {

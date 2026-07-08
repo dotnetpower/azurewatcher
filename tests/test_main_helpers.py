@@ -215,9 +215,7 @@ def test_build_publisher_requires_http_client_when_gitops_enabled(
 def test_authoritative_decision_normalizes_outcomes(
     outcome: ControlLoopOutcome, expected: str
 ) -> None:
-    result = ControlLoopResult(
-        outcome=outcome, tier="t0", decision="x", resource_type=None
-    )
+    result = ControlLoopResult(outcome=outcome, tier="t0", decision="x", resource_type=None)
     assert _authoritative_decision(result) == expected
 
 

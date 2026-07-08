@@ -77,8 +77,7 @@ def prediction_band(
     if z is None:
         supported = ", ".join(sorted(_Z_BY_LEVEL))
         raise ValueError(
-            f"unsupported confidence_level '{confidence_level}'; "
-            f"supported: {supported}"
+            f"unsupported confidence_level '{confidence_level}'; supported: {supported}"
         )
 
     horizon = finding.horizon_seconds

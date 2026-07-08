@@ -210,9 +210,7 @@ class PantheonRuntime:
         # ingress bridge is wired explicitly here. If Huginn is disabled
         # there is no ingress - the pantheon idles.
         if huginn_active:
-            bridge.subscribe(
-                raw_event_topic, _INGRESS_PRINCIPAL, runtime._make_ingress(agents)
-            )
+            bridge.subscribe(raw_event_topic, _INGRESS_PRINCIPAL, runtime._make_ingress(agents))
         else:
             _LOG.warning("pantheon_ingress_disabled_no_huginn")
 
@@ -222,9 +220,7 @@ class PantheonRuntime:
         # baseline. A distinct group means it never steals records from
         # the real subscribers (Thor / Saga / Odin / Var).
         bridge.subscribe("object.verdict", _OBSERVER_PRINCIPAL, runtime._observe_verdict)
-        bridge.subscribe(
-            "object.action-run", _OBSERVER_PRINCIPAL, runtime._observe_action_run
-        )
+        bridge.subscribe("object.action-run", _OBSERVER_PRINCIPAL, runtime._observe_action_run)
 
         _LOG.info(
             "pantheon_wired",
@@ -266,9 +262,7 @@ class PantheonRuntime:
         """Cancel every consumer task and drain cleanly."""
         await self.bridge.stop()
 
-    async def ask(
-        self, *, session_id: str, user_id: str, question: str
-    ) -> Turn | None:
+    async def ask(self, *, session_id: str, user_id: str, question: str) -> Turn | None:
         """Operator conversational-port entry point.
 
         Routes a natural-language question through Bragi to the right
@@ -280,9 +274,7 @@ class PantheonRuntime:
         """
         if self._bragi is None:
             return None
-        return await self._bragi.ask(
-            session_id=session_id, user_id=user_id, question=question
-        )
+        return await self._bragi.ask(session_id=session_id, user_id=user_id, question=question)
 
     async def _rehydrate(self) -> None:
         """Restore durable agent state (in-flight ActionRuns) on startup.
@@ -326,9 +318,7 @@ class PantheonRuntime:
         risk = str(payload.get("risk_verdict", "unknown"))
         self.shadow_decisions[f"verdict:{risk}"] += 1
         if self.divergence is not None:
-            self.divergence.record_pantheon(
-                str(payload.get("correlation_id", "")), risk
-            )
+            self.divergence.record_pantheon(str(payload.get("correlation_id", "")), risk)
 
     async def _observe_action_run(self, _topic: str, payload: dict[str, Any]) -> None:
         self.shadow_decisions[f"action_run:{payload.get('state', 'unknown')}"] += 1

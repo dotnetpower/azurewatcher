@@ -139,9 +139,7 @@ def load_object_type_catalog(
             aggregated.append(ObjectTypeIssue(key=path.name, message=f"invalid YAML: {exc}"))
             continue
         if not isinstance(raw, Mapping):
-            aggregated.append(
-                ObjectTypeIssue(key=path.name, message="top-level must be a mapping")
-            )
+            aggregated.append(ObjectTypeIssue(key=path.name, message="top-level must be a mapping"))
             continue
         try:
             model = load_object_type_from_mapping(

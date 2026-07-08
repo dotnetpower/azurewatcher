@@ -53,8 +53,9 @@ def test_all_and_enabled_are_id_sorted() -> None:
         [
             _descriptor("compliance", category=Category.COMPLIANCE),
             _descriptor("security-posture"),
-            _descriptor("patch-mgmt", category=Category.RELIABILITY, enabled=False,
-                        rule_source_ids=()),
+            _descriptor(
+                "patch-mgmt", category=Category.RELIABILITY, enabled=False, rule_source_ids=()
+            ),
         ]
     )
     assert [d.vertical_id for d in reg.all()] == [
@@ -97,7 +98,7 @@ def test_non_ascii_id_is_rejected() -> None:
     # test: an id that must be rejected because config/audit/metrics keys
     # MUST be ASCII (encoded per language.instructions.md fixture rule).
     with pytest.raises(VerticalRegistrationError, match="ASCII"):
-        reg.register(_descriptor("\uBCF4\uC548"))
+        reg.register(_descriptor("\ubcf4\uc548"))
 
 
 def test_enabled_without_rule_source_is_rejected() -> None:

@@ -66,9 +66,7 @@ class PantheonRegistry:
         """
         owner = self._owner_of_topic.get(topic)
         if owner is None:
-            raise PantheonRegistryError(
-                f"topic {topic!r} has no declared owner in the pantheon"
-            )
+            raise PantheonRegistryError(f"topic {topic!r} has no declared owner in the pantheon")
         if owner != principal:
             raise PantheonRegistryError(
                 f"agent {principal!r} is not the owner of topic {topic!r} (owner is {owner!r})"
@@ -97,9 +95,7 @@ def _validate(specs: tuple[AgentSpec, ...]) -> None:
             issues.append(f"agent {spec.name!r} is not in the canonical pantheon set")
 
         if spec.reports_to is not None and spec.reports_to not in PANTHEON_NAMES:
-            issues.append(
-                f"agent {spec.name!r} reports_to unknown agent {spec.reports_to!r}"
-            )
+            issues.append(f"agent {spec.name!r} reports_to unknown agent {spec.reports_to!r}")
 
         for obj in spec.owns:
             prior = owners_by_object_type.get(obj)
@@ -114,9 +110,7 @@ def _validate(specs: tuple[AgentSpec, ...]) -> None:
         for topic in spec.publishes:
             prior_t = owners_by_topic.get(topic)
             if prior_t is not None:
-                issues.append(
-                    f"topic {topic!r} is owned by both {prior_t!r} and {spec.name!r}"
-                )
+                issues.append(f"topic {topic!r} is owned by both {prior_t!r} and {spec.name!r}")
             else:
                 owners_by_topic[topic] = spec.name
 

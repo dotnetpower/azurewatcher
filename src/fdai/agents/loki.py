@@ -68,9 +68,7 @@ class Loki(Agent):
             )
             self.proposals.append(proposal)
             return proposal
-        selected = tuple(t for t in targets if t not in self._in_flight_targets)[
-            :available
-        ]
+        selected = tuple(t for t in targets if t not in self._in_flight_targets)[:available]
         if not selected:
             proposal = ChaosProposal(
                 experiment_id=experiment_id,

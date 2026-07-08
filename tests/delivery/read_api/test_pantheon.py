@@ -39,9 +39,21 @@ def test_pantheon_graph_returns_all_fifteen_agents() -> None:
     assert body["agent_count"] == 15
     names = {a["name"] for a in body["agents"]}
     expected = {
-        "Odin", "Thor", "Forseti", "Huginn", "Heimdall", "Vidar",
-        "Var", "Bragi", "Saga", "Mimir", "Muninn", "Norns",
-        "Njord", "Freyr", "Loki",
+        "Odin",
+        "Thor",
+        "Forseti",
+        "Huginn",
+        "Heimdall",
+        "Vidar",
+        "Var",
+        "Bragi",
+        "Saga",
+        "Mimir",
+        "Muninn",
+        "Norns",
+        "Njord",
+        "Freyr",
+        "Loki",
     }
     assert names == expected
 
@@ -79,11 +91,26 @@ def test_pantheon_workflows_include_primary_agent_and_gate() -> None:
     client = _client(expose=True)
     body = client.get("/pantheon/workflows").json()
     for w in body["workflows"]:
-        assert w["primary_agent"] in {a for a in [
-            "Odin", "Thor", "Forseti", "Huginn", "Heimdall", "Vidar",
-            "Var", "Bragi", "Saga", "Mimir", "Muninn", "Norns",
-            "Njord", "Freyr", "Loki",
-        ]}
+        assert w["primary_agent"] in {
+            a
+            for a in [
+                "Odin",
+                "Thor",
+                "Forseti",
+                "Huginn",
+                "Heimdall",
+                "Vidar",
+                "Var",
+                "Bragi",
+                "Saga",
+                "Mimir",
+                "Muninn",
+                "Norns",
+                "Njord",
+                "Freyr",
+                "Loki",
+            ]
+        }
         assert w["promotion_gate"]  # non-empty string
 
 

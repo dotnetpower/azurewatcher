@@ -189,9 +189,7 @@ def test_mimir_accepts_and_drains_rule_candidates() -> None:
     assert status is not None
     assert status.state == "enforce"
     # promoted candidate is removed from the pending list
-    assert all(
-        c.get("target_rule_id") != "storage.public.deny" for c in mimir.pending_candidates()
-    )
+    assert all(c.get("target_rule_id") != "storage.public.deny" for c in mimir.pending_candidates())
 
 
 def test_mimir_quarantines_ungrounded_candidate() -> None:
@@ -431,9 +429,7 @@ def test_norns_fingerprint_learner_still_isolated() -> None:
     for _ in range(3):
         asyncio.run(norns.on_typed_message("object.issue", {"fingerprint": "fp-x"}))
     asyncio.run(
-        norns.on_typed_message(
-            "object.action-run", {"action_type": "a", "result": "success"}
-        )
+        norns.on_typed_message("object.action-run", {"action_type": "a", "result": "success"})
     )
     new_rules = [c for c in norns.pending_candidates if c["proposal_kind"] == "new"]
     assert len(new_rules) == 1

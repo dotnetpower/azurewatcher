@@ -22,9 +22,7 @@ _ALLOWED_TYPES: frozenset[str] = frozenset(
     {"string", "integer", "number", "boolean", "object", "array", "datetime"}
 )
 
-_ALLOWED_SCOPES: frozenset[str] = frozenset(
-    {"reader", "contributor", "approver", "owner"}
-)
+_ALLOWED_SCOPES: frozenset[str] = frozenset({"reader", "contributor", "approver", "owner"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,8 +52,7 @@ class ObjectTypeSpec:
     def __post_init__(self) -> None:
         if not _PASCAL_CASE.match(self.name):
             raise ValueError(
-                f"ObjectType name {self.name!r} MUST be PascalCase matching "
-                f"{_PASCAL_CASE.pattern}"
+                f"ObjectType name {self.name!r} MUST be PascalCase matching {_PASCAL_CASE.pattern}"
             )
         if not self.properties:
             raise ValueError("ObjectType MUST declare at least one property")
@@ -71,9 +68,7 @@ class ObjectTypeSpec:
 
 def _validate_property(prop: PropertySpec) -> None:
     if not _LOWER_SNAKE_KEBAB.match(prop.name):
-        raise ValueError(
-            f"property name {prop.name!r} MUST match {_LOWER_SNAKE_KEBAB.pattern}"
-        )
+        raise ValueError(f"property name {prop.name!r} MUST match {_LOWER_SNAKE_KEBAB.pattern}")
     if prop.type not in _ALLOWED_TYPES:
         raise ValueError(
             f"property {prop.name!r} type {prop.type!r} not in {sorted(_ALLOWED_TYPES)!r}"
@@ -122,9 +117,7 @@ def render_object_type_yaml(spec: ObjectTypeSpec) -> str:
     doc["properties"] = properties
 
     # Round-trip through the loader to catch any renderer regression.
-    load_object_type_from_mapping(
-        doc, schema_registry=PackageResourceSchemaRegistry()
-    )
+    load_object_type_from_mapping(doc, schema_registry=PackageResourceSchemaRegistry())
 
     header = _render_header(spec)
     body = yaml.safe_dump(doc, sort_keys=False, default_flow_style=False)

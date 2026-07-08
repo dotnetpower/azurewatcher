@@ -27,9 +27,7 @@ def _dev_mode(monkeypatch: pytest.MonkeyPatch) -> None:
 def _catalog() -> tuple:
     registry = PackageResourceSchemaRegistry()
     objects = load_object_type_catalog(OBJECT_TYPES_ROOT, schema_registry=registry)
-    links = load_link_type_catalog(
-        LINK_TYPES_ROOT, schema_registry=registry, object_types=objects
-    )
+    links = load_link_type_catalog(LINK_TYPES_ROOT, schema_registry=registry, object_types=objects)
     return objects, links
 
 

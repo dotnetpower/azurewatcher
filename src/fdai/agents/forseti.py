@@ -51,8 +51,7 @@ _RISK_VERDICT: dict[str, str] = {
 
 # principal -> set of allowed action ids. Fork RBAC seam replaces this.
 _DEFAULT_RBAC: dict[str, frozenset[str]] = {
-    "operator@example.com": frozenset(_RISK_VERDICT.keys())
-    - {"remediate.delete-storage"},
+    "operator@example.com": frozenset(_RISK_VERDICT.keys()) - {"remediate.delete-storage"},
     "guest@example.com": frozenset({"ops.restart-service"}),
 }
 
@@ -100,9 +99,7 @@ class Forseti(Agent):
 
     # ---- cross-vertical arbitration -----------------------------------
 
-    async def maybe_request_arbitration(
-        self, event: dict[str, Any]
-    ) -> dict[str, Any] | None:
+    async def maybe_request_arbitration(self, event: dict[str, Any]) -> dict[str, Any] | None:
         """Raise an ArbitrationRequest when inline domain advice conflicts.
 
         Domain specialists (Njord / Freyr / Loki) may attach advice to an
@@ -232,9 +229,7 @@ class Forseti(Agent):
                 "initiator_principal": initiator,
                 "attempted_action": action_type,
                 "target_resource": event.get("resource_id"),
-                "severity_hint": "high"
-                if action_type == "remediate.delete-storage"
-                else "medium",
+                "severity_hint": "high" if action_type == "remediate.delete-storage" else "medium",
             },
         )
 

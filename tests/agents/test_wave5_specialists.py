@@ -139,15 +139,9 @@ def test_loki_release_targets_frees_slots() -> None:
     reg = load_pantheon()
     bus = InMemoryBus(registry=reg)
     loki = Loki(bus=bus, blast_radius_cap=1)
-    asyncio.run(
-        loki.propose_experiment(
-            experiment_id="e1", action_type="x", targets=("t1",)
-        )
-    )
+    asyncio.run(loki.propose_experiment(experiment_id="e1", action_type="x", targets=("t1",)))
     loki.release_targets(("t1",))
     third = asyncio.run(
-        loki.propose_experiment(
-            experiment_id="e2", action_type="x", targets=("t2",)
-        )
+        loki.propose_experiment(experiment_id="e2", action_type="x", targets=("t2",))
     )
     assert third.accepted

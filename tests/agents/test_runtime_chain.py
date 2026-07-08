@@ -42,9 +42,7 @@ class LiveInMemoryEventBus(EventBus):
         self._offsets: dict[tuple[str, str], int] = {}
         self._lock = Lock()
 
-    async def publish(
-        self, topic: str, key: str, payload: Mapping[str, Any]
-    ) -> PublishReceipt:
+    async def publish(self, topic: str, key: str, payload: Mapping[str, Any]) -> PublishReceipt:
         with self._lock:
             queue = self._records.setdefault(topic, [])
             offset = len(queue)
@@ -54,9 +52,7 @@ class LiveInMemoryEventBus(EventBus):
     def subscribe(self, topic: str, group_id: str) -> AsyncIterator[EventEnvelope]:
         return self._subscribe(topic, group_id)
 
-    async def _subscribe(
-        self, topic: str, group_id: str
-    ) -> AsyncIterator[EventEnvelope]:
+    async def _subscribe(self, topic: str, group_id: str) -> AsyncIterator[EventEnvelope]:
         while True:
             record: tuple[str, dict[str, Any]] | None = None
             offset = 0
@@ -124,9 +120,7 @@ def test_full_shadow_chain_propagates_over_live_bus() -> None:
     # Forseti judged the ingested event as an auto remediation...
     assert runtime.shadow_decisions["verdict:auto"] >= 1
     # ...Thor ran it in shadow, producing the ActionRun lifecycle...
-    assert any(
-        k.startswith("action_run:") for k in runtime.shadow_decisions
-    )
+    assert any(k.startswith("action_run:") for k in runtime.shadow_decisions)
     # ...and Saga audited the correlation end to end.
     saga = runtime.agents["Saga"]
     assert isinstance(saga, Saga)
@@ -163,4 +157,3 @@ def test_bridge_run_rejects_reentry_while_running() -> None:
         return raised
 
     assert asyncio.run(_drive()) is True
-

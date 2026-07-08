@@ -92,9 +92,7 @@ def test_effective_cutoff_excludes_future_effective() -> None:
     ]
     # We know about both entries (as_of after both recorded_at) but only
     # the earlier one takes effect within the effective cutoff.
-    snap = snapshot_at(
-        "res-1", items, as_of=_at(2026, 7, 1), effective=_at(2026, 3, 1)
-    )
+    snap = snapshot_at("res-1", items, as_of=_at(2026, 7, 1), effective=_at(2026, 3, 1))
     assert snap.state == {"tier": "S1"}
     # Provenance includes both because both were KNOWN to the system by
     # as_of; the effective filter only affected which state contributed.

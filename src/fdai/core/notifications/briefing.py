@@ -160,8 +160,7 @@ def _render_headline(bi: BriefingInput, *, significant: bool) -> str:
     if not significant:
         return "No significant operational activity in this window."
     parts = [
-        f"{bi.incidents.opened} incident(s) opened, "
-        f"{bi.incidents.resolved} resolved",
+        f"{bi.incidents.opened} incident(s) opened, {bi.incidents.resolved} resolved",
         f"{bi.actions.auto_executed} action(s) auto-executed, "
         f"{bi.actions.hil_approved} via HIL approval",
     ]
@@ -178,24 +177,15 @@ def _render_incidents(tally: IncidentTally) -> str:
         return "No incidents in this window."
     if tally.by_severity:
         breakdown = ", ".join(
-            f"`{sev}`: {count}"
-            for sev, count in sorted(tally.by_severity.items())
+            f"`{sev}`: {count}" for sev, count in sorted(tally.by_severity.items())
         )
     else:
         breakdown = "no per-severity breakdown recorded"
-    return (
-        f"{tally.opened} opened, {tally.resolved} resolved. "
-        f"By severity: {breakdown}."
-    )
+    return f"{tally.opened} opened, {tally.resolved} resolved. By severity: {breakdown}."
 
 
 def _render_actions(tally: ActionTally) -> str:
-    if not (
-        tally.auto_executed
-        or tally.hil_approved
-        or tally.rolled_back
-        or tally.shadow_only
-    ):
+    if not (tally.auto_executed or tally.hil_approved or tally.rolled_back or tally.shadow_only):
         return "No actions taken in this window."
     return (
         f"{tally.auto_executed} auto-executed, {tally.hil_approved} HIL-approved, "
@@ -218,10 +208,7 @@ def _render_cost(cost: CostSnapshot | None) -> str:
 def _render_risks(risks: Sequence[ForecastRisk]) -> str:
     if not risks:
         return "No forward-looking risks above threshold."
-    lines = [
-        f"- **{r.label}** (horizon `{r.horizon}`): {r.detail}"
-        for r in risks
-    ]
+    lines = [f"- **{r.label}** (horizon `{r.horizon}`): {r.detail}" for r in risks]
     return "\n".join(lines)
 
 

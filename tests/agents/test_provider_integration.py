@@ -51,9 +51,7 @@ def test_bridge_rejects_wrong_owner_publish() -> None:
     provider = InMemoryEventBus()
     bridge = EventBusBridge(provider=provider, registry=reg)
     with pytest.raises(PantheonRegistryError, match="not the owner"):
-        asyncio.run(
-            bridge.publish("Bragi", "object.verdict", {"correlation_id": "c"})
-        )
+        asyncio.run(bridge.publish("Bragi", "object.verdict", {"correlation_id": "c"}))
 
 
 def test_bridge_injects_producer_principal_in_payload() -> None:
@@ -63,6 +61,7 @@ def test_bridge_injects_producer_principal_in_payload() -> None:
     asyncio.run(
         bridge.publish("Thor", "object.action-run", {"correlation_id": "c", "resource_id": "r"})
     )
+
     # Peek via a fresh consumer group
     async def _first_record() -> dict:
         async for env in provider.subscribe("object.action-run", "test"):
@@ -109,9 +108,7 @@ def test_bridge_run_dispatches_to_registered_subscriber() -> None:
 
     async def _drive() -> None:
         # Publish first so the queue has a record.
-        await bridge.publish(
-            "Huginn", "object.event", {"correlation_id": "c", "event_type": "e"}
-        )
+        await bridge.publish("Huginn", "object.event", {"correlation_id": "c", "event_type": "e"})
         # Run consumers briefly, then stop.
         run_task = asyncio.create_task(bridge.run())
         # Yield control so the consumer(s) can drain.
@@ -142,9 +139,7 @@ def test_bridge_dead_letters_on_handler_failure() -> None:
     bridge.subscribe("object.event", "Heimdall", boom)
 
     async def _drive() -> None:
-        await bridge.publish(
-            "Huginn", "object.event", {"correlation_id": "c", "event_type": "e"}
-        )
+        await bridge.publish("Huginn", "object.event", {"correlation_id": "c", "event_type": "e"})
         run_task = asyncio.create_task(bridge.run())
         for _ in range(20):
             await asyncio.sleep(0)
@@ -189,9 +184,7 @@ def test_bridge_isolates_crashed_consumer_from_siblings() -> None:
     bridge.subscribe("object.event", "Forseti", good)
 
     async def _drive() -> None:
-        await bridge.publish(
-            "Huginn", "object.event", {"correlation_id": "c", "event_type": "e"}
-        )
+        await bridge.publish("Huginn", "object.event", {"correlation_id": "c", "event_type": "e"})
         run_task = asyncio.create_task(bridge.run())
         for _ in range(30):
             await asyncio.sleep(0)
@@ -227,9 +220,7 @@ def test_bridge_isolates_dead_letter_failure() -> None:
     bridge.subscribe("object.event", "Heimdall", boom)
 
     async def _drive() -> None:
-        await bridge.publish(
-            "Huginn", "object.event", {"correlation_id": "c", "event_type": "e"}
-        )
+        await bridge.publish("Huginn", "object.event", {"correlation_id": "c", "event_type": "e"})
         run_task = asyncio.create_task(bridge.run())
         for _ in range(30):
             await asyncio.sleep(0)
@@ -323,9 +314,7 @@ def test_consumer_self_heals_after_transient_subscribe_failure() -> None:
     bridge.subscribe("object.event", "Heimdall", handler)
 
     async def _drive() -> None:
-        await bridge.publish(
-            "Huginn", "object.event", {"correlation_id": "c", "event_type": "e"}
-        )
+        await bridge.publish("Huginn", "object.event", {"correlation_id": "c", "event_type": "e"})
         await _spin(bridge)
 
     asyncio.run(_drive())

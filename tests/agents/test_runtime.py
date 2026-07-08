@@ -84,9 +84,7 @@ def test_shadow_by_default_forces_thor_shadow() -> None:
 
 def test_enforce_true_disables_forced_shadow() -> None:
     provider = InMemoryEventBus()
-    runtime = PantheonRuntime.build(
-        provider=provider, raw_event_topic=_RAW_TOPIC, enforce=True
-    )
+    runtime = PantheonRuntime.build(provider=provider, raw_event_topic=_RAW_TOPIC, enforce=True)
     assert runtime.enforce is True
     thor = runtime.agents["Thor"]
     assert isinstance(thor, Thor)
@@ -182,29 +180,21 @@ def test_disabling_huginn_idles_ingress(caplog: pytest.LogCaptureFixture) -> Non
         )
     assert "Huginn" not in runtime.agents
     assert _RAW_TOPIC not in runtime.bridge._subs  # no ingress wired
-    assert any(
-        r.message == "pantheon_ingress_disabled_no_huginn" for r in caplog.records
-    )
+    assert any(r.message == "pantheon_ingress_disabled_no_huginn" for r in caplog.records)
 
 
 def test_injected_saga_replaces_the_default() -> None:
     provider = InMemoryEventBus()
     custom = Saga()
-    runtime = PantheonRuntime.build(
-        provider=provider, raw_event_topic=_RAW_TOPIC, saga=custom
-    )
+    runtime = PantheonRuntime.build(provider=provider, raw_event_topic=_RAW_TOPIC, saga=custom)
     assert runtime.agents["Saga"] is custom
 
 
 def test_enforce_without_durable_saga_warns(caplog: pytest.LogCaptureFixture) -> None:
     provider = InMemoryEventBus()
     with caplog.at_level("WARNING"):
-        PantheonRuntime.build(
-            provider=provider, raw_event_topic=_RAW_TOPIC, enforce=True
-        )
-    assert any(
-        "pantheon_enforce_without_durable_saga" in r.message for r in caplog.records
-    )
+        PantheonRuntime.build(provider=provider, raw_event_topic=_RAW_TOPIC, enforce=True)
+    assert any("pantheon_enforce_without_durable_saga" in r.message for r in caplog.records)
 
 
 def test_enforce_with_injected_saga_does_not_warn(
@@ -218,9 +208,7 @@ def test_enforce_with_injected_saga_does_not_warn(
             enforce=True,
             saga=Saga(),
         )
-    assert not any(
-        "pantheon_enforce_without_durable_saga" in r.message for r in caplog.records
-    )
+    assert not any("pantheon_enforce_without_durable_saga" in r.message for r in caplog.records)
 
 
 def test_health_snapshot_reports_agents_mode_and_metrics() -> None:
@@ -459,4 +447,3 @@ def test_heartbeat_logs_health(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level("INFO"):
         asyncio.run(_drive())
     assert any(r.message == "pantheon_heartbeat" for r in caplog.records)
-

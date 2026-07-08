@@ -299,9 +299,7 @@ def app() -> Starlette:
             ontology_object_types=tuple(ontology_object_types),
             ontology_link_types=tuple(ontology_link_types),
             promotion_gate_action_types=tuple(action_types),
-            promotion_gate_source=InMemoryShadowVerdictSource(
-                verdicts=_synthetic_verdicts()
-            ),
+            promotion_gate_source=InMemoryShadowVerdictSource(verdicts=_synthetic_verdicts()),
             trace_reader=trace_reader,
             bitemporal_reader=trace_reader,
             what_if_reader=trace_reader,
@@ -368,9 +366,7 @@ def _build_live_stream_config() -> LiveStreamConfig:
             # with the hardcoded distribution. Match the rate we use
             # for the real emitter so the dev cockpit paces the same
             # whether or not the catalog compiled.
-            return SyntheticLiveEmitter(
-                sink=sink_arg, channel=channel_arg, events_per_second=3.0
-            )
+            return SyntheticLiveEmitter(sink=sink_arg, channel=channel_arg, events_per_second=3.0)
 
     return LiveStreamConfig(
         path="/live/stream",

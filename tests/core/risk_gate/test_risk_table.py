@@ -197,7 +197,6 @@ def test_default_auto_is_rejected() -> None:
     assert any("MUST NOT be `auto`" in i for i in info.value.issues)
 
 
-
 def test_multiple_defaults_are_rejected() -> None:
     raw = {
         "version": "1.0.0",

@@ -59,9 +59,7 @@ def _run_az(argv: Sequence[str], *, timeout: float) -> str:
             f"'{argv[0]}' not found on PATH; install the Azure CLI"
         ) from exc
     except subprocess.TimeoutExpired as exc:
-        raise AzureCliResolverError(
-            f"'{' '.join(argv)}' timed out after {timeout}s"
-        ) from exc
+        raise AzureCliResolverError(f"'{' '.join(argv)}' timed out after {timeout}s") from exc
     if proc.returncode != 0:
         stderr = (proc.stderr or "").strip()
         raise AzureCliResolverError(

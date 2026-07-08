@@ -126,10 +126,7 @@ class WarmCapacityPolicy:
         warm_required = bool(triggers)
         min_replicas = cfg.warm_min_replicas if warm_required else cfg.cold_min_replicas
         if warm_required:
-            reason = (
-                f"warm required (min_replicas={min_replicas}): "
-                + "; ".join(triggers)
-            )
+            reason = f"warm required (min_replicas={min_replicas}): " + "; ".join(triggers)
         else:
             reason = (
                 f"scale-to-zero acceptable (min_replicas={min_replicas}): "

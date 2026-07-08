@@ -138,9 +138,7 @@ class BlastRadiusRequest:
     traversal_links: tuple[str, ...]
 
 
-def simulate_blast_radius(
-    graph: OntologyGraph, request: BlastRadiusRequest
-) -> BlastRadiusReport:
+def simulate_blast_radius(graph: OntologyGraph, request: BlastRadiusRequest) -> BlastRadiusReport:
     """Compute the depth-N reachable set from ``request.target``.
 
     Deterministic BFS ordered by (depth, link-type order in
@@ -156,14 +154,10 @@ def simulate_blast_radius(
         raise ValueError("traversal_links MUST NOT be empty")
     for link_type in request.traversal_links:
         if not graph.has_link_type(link_type):
-            raise UnknownLinkTypeError(
-                f"link type {link_type!r} not declared in the ontology"
-            )
+            raise UnknownLinkTypeError(f"link type {link_type!r} not declared in the ontology")
 
     seen: dict[str, ReachedNode] = {
-        request.target: ReachedNode(
-            resource_id=request.target, depth=0, via_link_type=None
-        )
+        request.target: ReachedNode(resource_id=request.target, depth=0, via_link_type=None)
     }
     edges: list[TraversedEdge] = []
     truncated = False
@@ -199,13 +193,12 @@ def simulate_blast_radius(
                     else:
                         # Frontier node - track truncation so the caller
                         # knows the depth cap may be hiding more nodes.
-                        truncated = _check_truncation(
-                            graph, neighbor, request.traversal_links, seen
-                        ) or truncated
+                        truncated = (
+                            _check_truncation(graph, neighbor, request.traversal_links, seen)
+                            or truncated
+                        )
 
-    reached_sorted = tuple(
-        sorted(seen.values(), key=lambda n: (n.depth, n.resource_id))
-    )
+    reached_sorted = tuple(sorted(seen.values(), key=lambda n: (n.depth, n.resource_id)))
     return BlastRadiusReport(
         target=request.target,
         traversal_depth=request.traversal_depth,

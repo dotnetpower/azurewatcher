@@ -64,9 +64,7 @@ def test_odin_resolves_conflict_by_priority() -> None:
     bus = _bus()
     odin = Odin(bus=bus)
     decision = asyncio.run(
-        odin.arbitrate(
-            {"correlation_id": "c", "domains_in_conflict": ["capacity", "cost"]}
-        )
+        odin.arbitrate({"correlation_id": "c", "domains_in_conflict": ["capacity", "cost"]})
     )
     # cost outranks capacity in the default priority order.
     assert decision.winning_domain == "cost"

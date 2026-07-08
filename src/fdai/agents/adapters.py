@@ -21,6 +21,7 @@ from typing import Any
 # Audit chain (Saga)
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True, slots=True)
 class AuditEntry:
     seq: int
@@ -113,6 +114,7 @@ class InMemoryAuditChain:
 # Muninn state store
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class InMemoryStateStore:
     """Muninn's key-value context store.
@@ -140,6 +142,7 @@ class InMemoryStateStore:
 # ---------------------------------------------------------------------------
 # GitHub Issue adapter (used by Saga)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class GitHubIssue:
@@ -200,6 +203,7 @@ class InMemoryGithubIssueAdapter:
 # ChatOps admin channel (used by Var)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class AdminCard:
     severity: str
@@ -221,6 +225,7 @@ class InMemoryAdminChannel:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _digest(obj: Any) -> str:
     """Stable JSON-based SHA256 digest, used for audit chain integrity."""

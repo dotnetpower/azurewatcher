@@ -77,8 +77,7 @@ class UnknownPurposeError(ValueError):
         self.known = known
         preview = ", ".join(sorted(unknown))
         super().__init__(
-            f"unknown purpose(s) declared: {preview!r} "
-            f"(registered: {sorted(known)!r})"
+            f"unknown purpose(s) declared: {preview!r} (registered: {sorted(known)!r})"
         )
 
 
@@ -112,8 +111,7 @@ def load_purpose_registry_from_mapping(raw: Mapping[str, Any]) -> PurposeRegistr
                 PurposeIssue(
                     key=f"{origin}.id",
                     message=(
-                        f"id {entry_id!r} MUST match kebab_snake pattern "
-                        f"{_PURPOSE_PATTERN.pattern}"
+                        f"id {entry_id!r} MUST match kebab_snake pattern {_PURPOSE_PATTERN.pattern}"
                     ),
                 )
             )

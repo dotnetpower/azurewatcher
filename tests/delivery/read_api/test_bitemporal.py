@@ -126,5 +126,7 @@ def test_bitemporal_route_absent_when_reader_not_configured() -> None:
         config=ReadApiConfig(dev_mode=True),
     )
     with TestClient(app) as client:
-        resp = client.get("/audit/x/bitemporal", params={"resource_id": "y", "as_of": "2026-01-01T00:00:00Z"})
+        resp = client.get(
+            "/audit/x/bitemporal", params={"resource_id": "y", "as_of": "2026-01-01T00:00:00Z"}
+        )
     assert resp.status_code == 404

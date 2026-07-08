@@ -33,9 +33,7 @@ def test_render_produces_loader_valid_yaml() -> None:
     text = render_object_type_yaml(spec)
     doc = _load_yaml(text)
     # Round-trip through the loader as an extra safety layer.
-    model = load_object_type_from_mapping(
-        doc, schema_registry=PackageResourceSchemaRegistry()
-    )
+    model = load_object_type_from_mapping(doc, schema_registry=PackageResourceSchemaRegistry())
     assert model.name == "Widget"
     assert model.key == "id"
     assert set(model.properties.keys()) == {"id", "label"}
