@@ -759,4 +759,40 @@ def test_constrained_string_needs_no_redaction_mark(tmp_path: Path) -> None:
     assert {a.name for a in catalog} == {"ops.example"}
 
 
+# --- #17: near-duplicate ActionType names ---
+
+
+def test_near_duplicate_names_collide(tmp_path: Path) -> None:
+    """Two names differing only by separator (ops.example vs ops-example)
+    are rejected as a typo-squatting hazard (critique #17)."""
+
+    root = tmp_path / "action-types"
+    root.mkdir()
+    (root / "a.yaml").write_text(_complete_ops_yaml(), encoding="utf-8")
+    (root / "b.yaml").write_text(
+        _complete_ops_yaml().replace("name: ops.example", "name: ops-example"),
+        encoding="utf-8",
+    )
+    with pytest.raises(ActionTypeCatalogError) as info:
+        load_action_type_catalog(root, schema_registry=_registry())
+    joined = " ".join(i.message for i in info.value.issues)
+    assert "collides with" in joined
+
+
+# --- #27: restrict_to_scenarios entries ---
+
+
+def test_empty_restrict_to_scenarios_entry_is_rejected(tmp_path: Path) -> None:
+    """A blank scenario id in restrict_to_scenarios is a defect (critique #27)."""
+
+    body = _complete_ops_yaml(omit="trigger_kind") + (
+        "trigger_kind:\n  kind: rule_violation\n  restrict_to_scenarios:\n  - ''\n"
+    )
+    root = _write_catalog(tmp_path, body)
+    with pytest.raises(ActionTypeCatalogError) as info:
+        load_action_type_catalog(root, schema_registry=_registry())
+    assert "restrict_to_scenarios" in " ".join(i.key for i in info.value.issues)
+
+
+
 

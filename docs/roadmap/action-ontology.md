@@ -577,6 +577,19 @@ what the 7.1 overlay layer is for). See
     schema) MUST declare the `DataPlaneMutating` interface, so the risk
     gate applies the data-plane HIL gate. Omitting it would silently
     downgrade the risk classification.
+  - Two ActionType names that differ only by separator or case
+    (`ops.restart-service` vs `ops.restart_service`) are rejected as a
+    typo-squatting hazard: the file-overlay layer matches by exact name,
+    so a near-miss would silently become a phantom custom ActionType.
+  - Every `trigger_kind.restrict_to_scenarios` entry MUST be a non-empty
+    scenario id.
+- Risk-table fail-close (`load_risk_table`): the single `default` rule in
+  `risk-classification.yaml` MUST NOT be `auto`. An unmatched event fails
+  toward safety (`hil` or `deny`), which is what makes an `env_scope: any`
+  ActionType safe to defer prod handling to the table (§2) - the
+  `hil-prod` rule plus this non-auto default together guarantee a prod
+  event never auto-executes just because the ActionType omitted a
+  `prod_downgrade`.
   This gate runs only on the real catalog roots (upstream +
   `action-types-custom/`); `load_action_type_from_mapping` stays
   permissive so a unit-test model fixture needs only the pydantic-

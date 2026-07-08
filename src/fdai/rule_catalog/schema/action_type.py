@@ -6,6 +6,7 @@ model. Aggregates every issue in a single :class:`ActionTypeCatalogError`.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -268,6 +269,7 @@ def load_action_type_catalog(
     if probes_root is not None:
         aggregated.extend(_check_live_probe_refs(loaded, probes_root, seen_names))
 
+    aggregated.extend(_check_name_collisions(seen_names))
     aggregated.extend(_check_catalog_policy(loaded, seen_names))
 
     if aggregated:
@@ -418,6 +420,57 @@ def _check_catalog_policy(
                     ),
                 )
             )
+        tk = at.trigger_kind
+        if tk is not None:
+            for scenario in tk.restrict_to_scenarios:
+                if not isinstance(scenario, str) or not scenario.strip():
+                    issues.append(
+                        ActionTypeIssue(
+                            key=f"{origin}:trigger_kind.restrict_to_scenarios",
+                            message=(
+                                "restrict_to_scenarios entries MUST be non-empty "
+                                "scenario ids (action-ontology.md 1)"
+                            ),
+                        )
+                    )
+    return issues
+
+
+def _canonical_action_name(name: str) -> str:
+    """Collapse separators and case so near-duplicate names collide."""
+
+    return re.sub(r"[-_.]+", "-", name.lower())
+
+
+def _check_name_collisions(origin_by_name: Mapping[str, str]) -> list[ActionTypeIssue]:
+    """Reject two distinct ActionType names that differ only by separator or
+    case (e.g. ``ops.restart-service`` vs ``ops.restart_service``).
+
+    Near-duplicate names are a typo-squatting hazard: the file-overlay layer
+    matches by exact name, so a near-miss silently becomes a phantom custom
+    ActionType instead of tightening the intended one, and an operator
+    reading an audit entry cannot tell the two apart
+    (action-ontology critique #17).
+    """
+
+    by_canonical: dict[str, list[str]] = {}
+    for name in origin_by_name:
+        by_canonical.setdefault(_canonical_action_name(name), []).append(name)
+    issues: list[ActionTypeIssue] = []
+    for _canonical, names in sorted(by_canonical.items()):
+        if len(names) > 1:
+            joined = ", ".join(sorted(names))
+            for name in sorted(names):
+                issues.append(
+                    ActionTypeIssue(
+                        key=f"{origin_by_name[name]}:name",
+                        message=(
+                            f"ActionType name {name!r} collides with {{{joined}}} "
+                            "(names differing only by separator or case are rejected "
+                            "as a typo-squatting hazard) (action-ontology.md 2)"
+                        ),
+                    )
+                )
     return issues
 
 

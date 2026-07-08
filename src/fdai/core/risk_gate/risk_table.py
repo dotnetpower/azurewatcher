@@ -260,6 +260,13 @@ def load_risk_table_from_mapping(raw: Any) -> RiskTable:
     _validate_ordering(rules, issues)
     if default_count != 1:
         issues.append(f"exactly one `default` rule required, found {default_count}")
+    default_rules = [r for r in rules if r.is_default]
+    if default_rules and default_rules[0].decision is RiskLevel.AUTO:
+        issues.append(
+            "the `default` (fail-close) rule MUST NOT be `auto`; an unmatched event MUST "
+            "fail toward safety (hil or deny). Otherwise an ActionType with env_scope=any "
+            "that defers prod handling to this table would auto-execute in prod"
+        )
     if issues:
         raise RiskTableError(issues)
     return RiskTable(version=str(version), owner_group=str(owner_group), rules=tuple(rules))

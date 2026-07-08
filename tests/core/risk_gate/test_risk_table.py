@@ -179,6 +179,25 @@ def test_missing_default_is_rejected() -> None:
     assert any("default" in i for i in info.value.issues)
 
 
+def test_default_auto_is_rejected() -> None:
+    """The fail-close default MUST NOT be `auto`; an unmatched event MUST
+    fail toward safety, else an env_scope=any ActionType deferring prod to
+    this table would auto-execute in prod (action-ontology critique #3)."""
+
+    raw = {
+        "version": "1.0.0",
+        "owner_group": "aw-owners",
+        "rules": [
+            {"id": "a", "if": {"destructive": True}, "decision": "hil", "reason": "y"},
+            {"id": "d", "default": "auto", "reason": "fail open - forbidden"},
+        ],
+    }
+    with pytest.raises(RiskTableError) as info:
+        load_risk_table_from_mapping(raw)
+    assert any("MUST NOT be `auto`" in i for i in info.value.issues)
+
+
+
 def test_multiple_defaults_are_rejected() -> None:
     raw = {
         "version": "1.0.0",

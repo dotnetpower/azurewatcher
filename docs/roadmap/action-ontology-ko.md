@@ -1,7 +1,7 @@
 ---
 title: Action 온톨로지
 translation_of: action-ontology.md
-translation_source_sha: 547bad7adffd0f2be9ce14bf66da1d00216adf98
+translation_source_sha: 62625d8852cc53719fb9e5fc534dc83af058f29d
 translation_revised: 2026-07-08
 ---
 
@@ -557,6 +557,18 @@ ActionType 을 조용히 shadow 할 수 없다 (shadowing 은 7.1 overlay 계층
   - `operation: drop` 또는 `operation: purge` (둘 다 데이터/스키마 파괴) 는
     `DataPlaneMutating` interface 선언 MUST - risk gate 가 data-plane HIL
     gate 를 적용하도록. 누락 시 risk 분류가 silently 하향됨.
+  - separator 나 case 만 다른 두 ActionType name (`ops.restart-service` vs
+    `ops.restart_service`) 은 typo-squatting hazard 로 reject: file-overlay
+    layer 가 exact name 으로 매칭하므로 near-miss 가 silently phantom
+    custom ActionType 가 됨.
+  - 모든 `trigger_kind.restrict_to_scenarios` entry 는 non-empty scenario
+    id MUST.
+- Risk-table fail-close (`load_risk_table`): `risk-classification.yaml` 의
+  단일 `default` rule 은 `auto` MUST NOT. 매칭 안 된 event 는 safety 쪽으로
+  fail (`hil` 또는 `deny`) - 이것이 `env_scope: any` ActionType 가 prod
+  처리를 table 에 defer 해도 안전한 이유 (§2). `hil-prod` rule 과 이
+  non-auto default 이 함께 prod event 가 ActionType 의 `prod_downgrade`
+  누락 때문에 auto-execute 되는 일을 막음.
   이 gate 는 실제 카탈로그 root (upstream + `action-types-custom/`) 에서만
   동작; `load_action_type_from_mapping` 은 permissive 하게 유지되어 unit-test
   model fixture 는 pydantic-required field 만 있으면 됨. `blast_radius` 없이

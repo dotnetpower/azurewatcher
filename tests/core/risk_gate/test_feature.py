@@ -148,3 +148,27 @@ def test_every_operation_is_classified_destructive_or_not() -> None:
     assert not overlap, f"Operation classified as both: {sorted(o.value for o in overlap)}"
     assert classified == all_ops
 
+
+def test_every_shipped_irreversible_action_routes_to_hil_quorum() -> None:
+    """Every shipped irreversible ActionType MUST route to HIL with quorum
+    >= 2 through the feature extractor + risk table, regardless of its other
+    dimensions (action-ontology critique #25 - irreversible is never
+    silenced by the rollback_contract value)."""
+
+    from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+    from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
+
+    catalog_root = REPO_ROOT / "rule-catalog" / "action-types"
+    table = load_risk_table(TABLE_PATH)
+    catalog = load_action_type_catalog(
+        catalog_root, schema_registry=PackageResourceSchemaRegistry()
+    )
+    irreversible = [a for a in catalog if a.irreversible]
+    assert irreversible, "expected at least one shipped irreversible ActionType"
+    for action in irreversible:
+        fv = feature_vector_from(action, environment="non-prod")
+        verdict = table.evaluate(fv)
+        assert verdict.decision is RiskLevel.HIL, f"{action.name}: irreversible MUST be HIL"
+        assert verdict.quorum >= 2, f"{action.name}: irreversible MUST require quorum >= 2"
+
+
