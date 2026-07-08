@@ -146,6 +146,30 @@ blunt priority table:
 The arbiter takes no LLM call and no I/O; it is pure and deterministic
 given its config and inputs.
 
+### 3.2 Discovery-loop learners (Norns)
+
+Norns closes the learning loop shown as `Saga -. signals .-> Norns` in
+the relationship diagram. It never mutates the catalog or any threshold
+directly - every output is an inert `RuleCandidate` proposal that must
+pass the quality gate. Three deterministic (T0) learners run:
+
+- **Fingerprint aggregator** - a repeated handoff fingerprint proposes a
+  *new* rule (Wave 2 baseline).
+- **Outcome-threshold learner** - when an action's measured rollback
+  rate over a minimum sample exceeds the alarm rate, Norns proposes a
+  *threshold_adjustment* that **raises** the action's confidence bar so
+  it escalates to HIL more often. Learning only ever moves the threshold
+  in the safer direction; a relaxation is never auto-proposed.
+- **Override learner** - recurring operator overrides on the same rule
+  propose a *revision* (or a *retirement* when the overrides `disabled`
+  it), realizing the "recurring overrides signal a revise/retire" rule
+  from `architecture.instructions.md`. The proposal carries the override
+  count and latest mode as grounding.
+
+Every proposal records numeric evidence (sample size, rollback rate,
+override count) so Mimir and the quality gate can judge it on measured
+data, not assertion.
+
 ## 4. Agent catalog
 
 Layer: `1` = domain specialist, `2` = pipeline (sensing / judgment /

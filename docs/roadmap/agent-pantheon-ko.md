@@ -1,7 +1,7 @@
 ---
 title: 에이전트 판테온
 translation_of: agent-pantheon.md
-translation_source_sha: 63918096dfa92250440a57233802d21733a9f7d4
+translation_source_sha: 5fe059bbbf21287f9794dd737590fc57466ca9e7
 translation_revised: 2026-07-08
 ---
 
@@ -140,6 +140,26 @@ graph LR
   `object.arbitration-decision`에 기록하므로 결과는 근거가 있고 감사 가능하다.
 
 중재기는 LLM 호출도 I/O도 없다; 설정과 입력이 주어지면 순수하고 결정론적이다.
+
+### 3.2 발견 루프 학습기 (Norns)
+
+Norns는 관계도의 `Saga -. signals .-> Norns`로 표시된 학습 루프를 닫는다.
+카탈로그나 임계값을 직접 변경하지 않는다 - 모든 출력은 품질게이트를 통과해야
+하는 비활성(inert) `RuleCandidate` 제안이다. 결정론적(T0) 학습기 셋이 돈다:
+
+- **Fingerprint 집계기** - 반복되는 handoff fingerprint가 *new* 규칙을 제안한다
+  (Wave 2 기준선).
+- **결과-임계값 학습기** - 어떤 액션의 측정된 롤백률이 최소 표본 위에서 경보율을
+  초과하면, Norns는 그 액션의 신뢰도 문턱을 **올려** HIL로 더 자주 상향되게 하는
+  *threshold_adjustment*를 제안한다. 학습은 항상 임계값을 더 안전한 방향으로만
+  움직인다; 완화는 절대 자동 제안하지 않는다.
+- **Override 학습기** - 같은 규칙에 대한 반복적 운영자 override는 *revision*(또는
+  override가 `disabled`이면 *retirement*)을 제안하며, `architecture.instructions.md`의
+  "반복 override는 개정/폐기 신호" 규칙을 실현한다. 제안은 근거로 override 횟수와
+  최신 모드를 담는다.
+
+모든 제안은 수치 근거(표본 크기, 롤백률, override 횟수)를 기록하므로 Mimir와
+품질게이트가 주장이 아니라 측정 데이터로 판단할 수 있다.
 
 Layer: `1` = domain specialist, `2` = pipeline (sensing / judgment /
 operations / interface), `3` = governance staff.

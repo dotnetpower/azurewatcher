@@ -288,3 +288,120 @@ def test_end_to_end_handoff_flow_via_bus() -> None:
     mimir.promote("auto-generated", source="handoff")
     saga.close_issue(fingerprint=fp, closed_by_pr="https://example.invalid/pr/1")
     assert saga.github.issues[fp].open is False
+
+
+# ---------------------------------------------------------------------------
+# Norns - outcome-threshold learner (rubric C2 / #22)
+# ---------------------------------------------------------------------------
+
+
+def _run_outcomes(norns: Norns, target: str, *, rollbacks: int, successes: int) -> None:
+    for _ in range(rollbacks):
+        asyncio.run(
+            norns.on_typed_message(
+                "object.action-run", {"action_type": target, "result": "rollback"}
+            )
+        )
+    for _ in range(successes):
+        asyncio.run(
+            norns.on_typed_message(
+                "object.action-run", {"action_type": target, "result": "success"}
+            )
+        )
+
+
+def test_norns_proposes_threshold_adjustment_on_high_rollback() -> None:
+    norns = Norns(min_outcome_samples=10, rollback_alarm_rate=0.2)
+    # 4 rollbacks / 10 total = 0.4 > 0.2 alarm.
+    _run_outcomes(norns, "remediate.resize-vm-up", rollbacks=4, successes=6)
+    proposals = [
+        c for c in norns.pending_candidates if c["proposal_kind"] == "threshold_adjustment"
+    ]
+    assert len(proposals) == 1
+    ev = proposals[0]["evidence"]
+    assert ev["target"] == "remediate.resize-vm-up"
+    assert ev["sample_size"] == 10
+    assert ev["rollback_rate"] == 0.4
+    assert proposals[0]["suggested_change"] == "raise_confidence_threshold"
+
+
+def test_norns_no_threshold_proposal_below_min_samples() -> None:
+    norns = Norns(min_outcome_samples=20, rollback_alarm_rate=0.2)
+    _run_outcomes(norns, "remediate.x", rollbacks=3, successes=2)  # 5 < 20
+    assert norns.pending_candidates == []
+    assert norns.outcome_rate("remediate.x") == 0.6
+
+
+def test_norns_no_threshold_proposal_when_rollback_low() -> None:
+    norns = Norns(min_outcome_samples=10, rollback_alarm_rate=0.2)
+    _run_outcomes(norns, "remediate.safe", rollbacks=1, successes=19)  # 0.05 < 0.2
+    assert norns.pending_candidates == []
+
+
+def test_norns_threshold_proposal_dedups() -> None:
+    norns = Norns(min_outcome_samples=10, rollback_alarm_rate=0.2)
+    _run_outcomes(norns, "remediate.y", rollbacks=5, successes=5)
+    _run_outcomes(norns, "remediate.y", rollbacks=5, successes=5)  # keep firing
+    proposals = [
+        c for c in norns.pending_candidates if c["proposal_kind"] == "threshold_adjustment"
+    ]
+    assert len(proposals) == 1  # proposed once, then deduped
+
+
+# ---------------------------------------------------------------------------
+# Norns - override learner (rubric C2 / #22)
+# ---------------------------------------------------------------------------
+
+
+def test_norns_proposes_retirement_on_recurring_disable_override() -> None:
+    norns = Norns(override_retire_threshold=3)
+    for _ in range(3):
+        asyncio.run(
+            norns.on_typed_message(
+                "object.override",
+                {"rule_id": "net.public.deny", "mode": "disabled", "event": "create"},
+            )
+        )
+    proposals = [c for c in norns.pending_candidates if c["proposal_kind"] == "retirement"]
+    assert len(proposals) == 1
+    assert proposals[0]["target_rule_id"] == "net.public.deny"
+    assert norns.override_count("net.public.deny") == 3
+
+
+def test_norns_proposes_revision_on_recurring_downgrade_override() -> None:
+    norns = Norns(override_retire_threshold=3)
+    for _ in range(3):
+        asyncio.run(
+            norns.on_typed_message(
+                "object.override",
+                {"rule_id": "disk.encrypt", "mode": "severity-downgrade", "event": "create"},
+            )
+        )
+    proposals = [c for c in norns.pending_candidates if c["proposal_kind"] == "revision"]
+    assert len(proposals) == 1
+    assert proposals[0]["target_rule_id"] == "disk.encrypt"
+
+
+def test_norns_override_below_threshold_no_proposal() -> None:
+    norns = Norns(override_retire_threshold=5)
+    for _ in range(4):
+        asyncio.run(
+            norns.on_typed_message(
+                "object.override", {"rule_id": "r1", "mode": "disabled", "event": "create"}
+            )
+        )
+    assert norns.pending_candidates == []
+
+
+def test_norns_fingerprint_learner_still_isolated() -> None:
+    """Outcome/override learners do not perturb the fingerprint learner."""
+    norns = Norns(promotion_threshold=3)
+    for _ in range(3):
+        asyncio.run(norns.on_typed_message("object.issue", {"fingerprint": "fp-x"}))
+    asyncio.run(
+        norns.on_typed_message(
+            "object.action-run", {"action_type": "a", "result": "success"}
+        )
+    )
+    new_rules = [c for c in norns.pending_candidates if c["proposal_kind"] == "new"]
+    assert len(new_rules) == 1
