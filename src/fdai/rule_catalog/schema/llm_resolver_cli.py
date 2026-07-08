@@ -111,20 +111,30 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--catalog-fixture",
         type=Path,
-        required=True,
+        default=None,
         help="JSON file: {region: [family, ...]} - offline stand-in for the catalog API.",
     )
     parser.add_argument(
         "--permission-fixture",
         type=Path,
-        required=True,
+        default=None,
         help="JSON file: {subscription_id: [principal_object_id, ...]} - role holders.",
     )
     parser.add_argument(
         "--quota-fixture",
         type=Path,
-        required=True,
+        default=None,
         help="JSON list: [{region, publisher, family, capacity_tpm}, ...].",
+    )
+    parser.add_argument(
+        "--use-azure-cli",
+        action="store_true",
+        help=(
+            "Query the real Azure catalog / role assignments / quota via the "
+            "``az`` CLI instead of fixtures. Requires ``az login`` to have "
+            "already produced a valid token; fails-closed on any subprocess or "
+            "JSON error. Mutually exclusive with the ``--*-fixture`` flags."
+        ),
     )
     parser.add_argument(
         "--out",
@@ -164,6 +174,67 @@ def _load_json_file(path: Path) -> object:
         return json.load(fh)
 
 
+class _ArgValidationError(ValueError):
+    """Raised when CLI arg combinations are inconsistent (mutex, missing, ...)."""
+
+
+def _build_queries(
+    args: argparse.Namespace,
+) -> tuple[CatalogQuery, PermissionQuery, QuotaQuery]:
+    """Build the three resolver queries from either fixtures or the az CLI.
+
+    Two modes are mutually exclusive:
+
+    - **fixture mode** (default): all three ``--*-fixture`` paths MUST
+      be provided; each is JSON-decoded and wrapped in the local
+      ``_Fixture*`` classes. Used by CI + offline dev.
+    - **az CLI mode** (``--use-azure-cli``): the three fixture flags
+      MUST be omitted; each query hits ``az cognitiveservices ...`` /
+      ``az role assignment ...`` via
+      :mod:`fdai.delivery.azure.llm.resolver_queries`. Requires an
+      existing ``az login`` (respects ``AZURE_CONFIG_DIR``).
+    """
+    fixture_flags = [args.catalog_fixture, args.permission_fixture, args.quota_fixture]
+    fixtures_given = any(f is not None for f in fixture_flags)
+    if args.use_azure_cli and fixtures_given:
+        raise _ArgValidationError(
+            "--use-azure-cli is mutually exclusive with --catalog-fixture / "
+            "--permission-fixture / --quota-fixture"
+        )
+    if not args.use_azure_cli and not all(f is not None for f in fixture_flags):
+        raise _ArgValidationError(
+            "fixture mode requires --catalog-fixture, --permission-fixture, "
+            "and --quota-fixture (or pass --use-azure-cli)"
+        )
+    if args.use_azure_cli:
+        from fdai.delivery.azure.llm.resolver_queries import (
+            AzureCliCatalogQuery,
+            AzureCliPermissionQuery,
+            AzureCliQuotaQuery,
+        )
+
+        return AzureCliCatalogQuery(), AzureCliPermissionQuery(), AzureCliQuotaQuery()
+
+    catalog_data = _load_json_file(args.catalog_fixture)
+    permission_data = _load_json_file(args.permission_fixture)
+    quota_data = _load_json_file(args.quota_fixture)
+    if not isinstance(catalog_data, dict):
+        raise _ArgValidationError(
+            "--catalog-fixture MUST be a JSON object mapping region -> families"
+        )
+    if not isinstance(permission_data, dict):
+        raise _ArgValidationError(
+            "--permission-fixture MUST be a JSON object mapping subscription_id -> holders"
+        )
+    if not isinstance(quota_data, list):
+        raise _ArgValidationError("--quota-fixture MUST be a JSON array of quota entries")
+    return (
+        _FixtureCatalog(catalog_data),
+        _FixturePermission(permission_data),
+        _FixtureQuota(quota_data),
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -175,27 +246,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     try:
-        catalog_data = _load_json_file(args.catalog_fixture)
-        permission_data = _load_json_file(args.permission_fixture)
-        quota_data = _load_json_file(args.quota_fixture)
-    except (OSError, ValueError) as exc:
-        print(f"error: failed to load fixture: {exc}", file=sys.stderr)
-        return 2
-
-    if not isinstance(catalog_data, dict):
-        print(
-            "error: --catalog-fixture MUST be a JSON object mapping region -> families",
-            file=sys.stderr,
-        )
-        return 2
-    if not isinstance(permission_data, dict):
-        print(
-            "error: --permission-fixture MUST be a JSON object mapping subscription_id -> holders",
-            file=sys.stderr,
-        )
-        return 2
-    if not isinstance(quota_data, list):
-        print("error: --quota-fixture MUST be a JSON array of quota entries", file=sys.stderr)
+        catalog_query, permission_query, quota_query = _build_queries(args)
+    except _ArgValidationError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
 
     try:
@@ -204,9 +257,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             region=args.region,
             subscription_id=args.subscription_id,
             deployer_object_id=args.deployer_object_id,
-            catalog=_FixtureCatalog(catalog_data),
-            permission=_FixturePermission(permission_data),
-            quota=_FixtureQuota(quota_data),
+            catalog=catalog_query,
+            permission=permission_query,
+            quota=quota_query,
         )
     except ResolverError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -216,8 +269,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     # provided an endpoint. Kept out of ``resolve()`` so the pure resolver
     # stays orthogonal to how the console consumes the output.
     if args.narrator_endpoint:
-        catalog_query = _FixtureCatalog(catalog_data)
-        quota_query = _FixtureQuota(quota_data)
         winner, candidates = collect_narrator(
             registry=registry,
             region=args.region,

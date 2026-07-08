@@ -129,3 +129,32 @@ def test_cli_omits_narrator_fields_by_default(tmp_path: Path) -> None:
     text = (tmp_path / "resolved-models.json").read_text(encoding="utf-8")
     assert "narrator" not in text
     assert "narrator_candidates" not in text
+
+
+def test_cli_rejects_use_azure_cli_with_fixtures(tmp_path: Path) -> None:
+    """--use-azure-cli and fixture flags are mutually exclusive."""
+    argv = [
+        *_base_argv(tmp_path, "permission.granted.json"),
+        "--use-azure-cli",
+    ]
+    assert main(argv) == 2  # ArgValidationError -> exit 2
+
+
+def test_cli_rejects_missing_fixture_when_not_using_azure_cli(tmp_path: Path) -> None:
+    """Fixture mode requires all three fixture files."""
+    argv = [
+        "--registry",
+        str(REGISTRY),
+        "--region",
+        "koreacentral",
+        "--subscription-id",
+        "00000000-0000-0000-0000-000000000000",
+        "--deployer-object-id",
+        "00000000-0000-0000-0000-000000000001",
+        # Only one fixture supplied - the other two are missing.
+        "--catalog-fixture",
+        str(FIXTURES / "catalog.example.json"),
+        "--out",
+        str(tmp_path / "resolved-models.json"),
+    ]
+    assert main(argv) == 2
