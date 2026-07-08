@@ -553,14 +553,28 @@ def collect_narrator_deployments(
     if spec is None or not prefs:
         return ()
     out: list[ResolvedCapability] = []
+    seen_names: dict[str, str] = {}
     for pref in prefs:
+        deployment_name = narrator_deployment_name(pref.family)
+        # Guard against two distinct families collapsing onto the same
+        # URL-safe deployment name (e.g. ``gpt-5.4-mini`` vs a future
+        # ``gpt-5-4-mini`` variant). Detect at CLI time so the operator
+        # gets a legible error instead of a downstream ValueError at
+        # read-api startup or a silent Terraform 409.
+        if deployment_name in seen_names:
+            raise ResolverError(
+                f"narrator_deployment_name collision: family {pref.family!r} "
+                f"and {seen_names[deployment_name]!r} both normalise to "
+                f"{deployment_name!r}. Adjust llm-registry.yaml preferences."
+            )
+        seen_names[deployment_name] = pref.family
         available = quota.available_capacity_tpm(
             region=region, publisher=pref.publisher, family=pref.family
         )
         effective = min(spec.capacity_tpm, available)
         out.append(
             ResolvedCapability(
-                name=narrator_deployment_name(pref.family),
+                name=deployment_name,
                 status=CapabilityStatus.RESOLVED,
                 publisher=pref.publisher,
                 family=pref.family,

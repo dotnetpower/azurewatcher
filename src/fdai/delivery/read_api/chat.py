@@ -172,7 +172,7 @@ class OpenAiCompatibleChatBackend:
         if not config.model:
             raise ValueError("model MUST NOT be empty")
         self._config = config
-        self._http = http_client if http_client is not None else httpx.AsyncClient()
+        self._http = http_client if http_client is not None else httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=60.0, write=15.0, pool=5.0), follow_redirects=False)
 
     def _url(self) -> str:
         base = self._config.base_url.rstrip("/")
@@ -548,7 +548,7 @@ class AzureAdChatBackend:
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._timeout = timeout_seconds
-        self._http = http_client if http_client is not None else httpx.AsyncClient()
+        self._http = http_client if http_client is not None else httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=60.0, write=15.0, pool=5.0), follow_redirects=False)
         # Lazy identity - defer import so this module stays importable
         # in tests that never touch Azure.
         self._identity_cached: Any = None
@@ -689,6 +689,12 @@ class LatencyRoutedChatBackend:
         self._samples: dict[str, deque[int]] = {
             name: deque(maxlen=_ROUTER_WINDOW_SIZE) for name, _ in candidates
         }
+        # Concurrency fairness: N async turns arriving simultaneously during
+        # warm-up would all read the same "coldest" candidate from _pick()
+        # and stampede one backend. Counting outstanding picks per name lets
+        # _pick() treat "in flight" as pseudo-samples so concurrent warm-up
+        # turns spread across all candidates.
+        self._in_flight: dict[str, int] = {name: 0 for name, _ in candidates}
 
     # ------------------------------------------------------------------ public
     def stats(self) -> list[dict[str, Any]]:
@@ -722,6 +728,23 @@ class LatencyRoutedChatBackend:
                 out.append(be._endpoint)  # noqa: SLF001 - deliberate peek
         return out
 
+    async def aclose(self) -> None:
+        """Close every candidate's ``httpx.AsyncClient`` (best-effort).
+
+        Idempotent: safe to call multiple times or on a router whose
+        backends never opened a client. Never raises - a stuck close
+        on one client MUST NOT prevent siblings from cleaning up.
+        """
+        for _, backend in self._candidates:
+            client = getattr(backend, "_http", None)
+            aclose = getattr(client, "aclose", None)
+            if aclose is None:
+                continue
+            try:
+                await aclose()
+            except Exception as exc:  # pragma: no cover - defensive path
+                _LOG.warning("router.aclose: candidate client failed to close: %s", exc)
+
     # ------------------------------------------------------------------ Protocol
     async def answer(
         self,
@@ -731,15 +754,23 @@ class LatencyRoutedChatBackend:
         history: list[dict[str, str]],
     ) -> dict[str, Any]:
         name, backend = self._pick()
+        self._in_flight[name] += 1
         started = time.monotonic()
         try:
             reply = await backend.answer(
                 prompt=prompt, view_context=view_context, history=history
             )
-        except Exception:
+        except Exception as exc:
             # Penalize so the broken candidate cycles out; still re-raise.
             self._samples[name].append(_ROUTER_FAILURE_PENALTY_MS)
+            _LOG.warning(
+                "router.candidate_failed",
+                extra={"candidate": name, "error_type": type(exc).__name__},
+            )
+            self._log_all_penalised_if_saturated()
             raise
+        finally:
+            self._in_flight[name] = max(0, self._in_flight[name] - 1)
         latency = int((time.monotonic() - started) * 1000)
         self._samples[name].append(latency)
         reason = "warmup" if len(self._samples[name]) <= _ROUTER_WARMUP_SAMPLES else "lowest-p50"
@@ -755,22 +786,51 @@ class LatencyRoutedChatBackend:
         return out
 
     # ------------------------------------------------------------------ internal
+    def _effective_sample_count(self, name: str) -> int:
+        """Samples + in-flight picks - used by warm-up fairness."""
+        return len(self._samples[name]) + self._in_flight[name]
+
     def _pick(self) -> tuple[str, ChatBackend]:
         # Warm-up: pick the candidate with the fewest samples first, then
-        # by name so the pick is deterministic for tests + audit.
+        # by name so the pick is deterministic for tests + audit. In-flight
+        # picks count as samples so N concurrent warm-up turns spread
+        # across candidates instead of stampeding the first one.
         cold = [
             (name, be)
             for name, be in self._candidates
-            if len(self._samples[name]) < _ROUTER_WARMUP_SAMPLES
+            if self._effective_sample_count(name) < _ROUTER_WARMUP_SAMPLES
         ]
         if cold:
-            cold.sort(key=lambda x: (len(self._samples[x[0]]), x[0]))
+            cold.sort(key=lambda x: (self._effective_sample_count(x[0]), x[0]))
             return cold[0]
-        # Steady state: min p50, tie-broken by name.
+        # Steady state: min p50 (in-flight breaks ties among equal p50s so
+        # a burst of requests does not all land on the same candidate),
+        # then by name.
         return min(
             self._candidates,
-            key=lambda x: (_p50(self._samples[x[0]]), x[0]),
+            key=lambda x: (
+                _p50(self._samples[x[0]]),
+                self._in_flight[x[0]],
+                x[0],
+            ),
         )
+
+    def _log_all_penalised_if_saturated(self) -> None:
+        """Emit an alert-worthy line when every candidate has a penalty on its window.
+
+        Kept separate from the per-call warning so operators see a
+        single distinct signal ("all upstreams down") instead of N
+        duplicated per-candidate warnings.
+        """
+        all_penalised = all(
+            samples and max(samples) >= _ROUTER_FAILURE_PENALTY_MS
+            for samples in self._samples.values()
+        )
+        if all_penalised:
+            _LOG.error(
+                "router.all_candidates_penalised",
+                extra={"candidates": [name for name, _ in self._candidates]},
+            )
 
 
 def _p50(samples: deque[int]) -> float:
@@ -824,6 +884,15 @@ def make_chat_route(
         await authorize(request)
 
         # Bound the body up-front so a malicious page cannot inflate cost.
+        # Preflight Content-Length so an attacker cannot force us to
+        # buffer megabytes just to reject on `len(body_bytes)`.
+        declared_len = request.headers.get("content-length")
+        if declared_len is not None:
+            try:
+                if int(declared_len) > max_body_bytes:
+                    raise HTTPException(status_code=413, detail="chat body too large")
+            except ValueError:
+                pass
         body_bytes = await request.body()
         if len(body_bytes) > max_body_bytes:
             raise HTTPException(status_code=413, detail="chat body too large")

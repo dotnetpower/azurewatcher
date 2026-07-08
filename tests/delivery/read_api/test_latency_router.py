@@ -145,4 +145,69 @@ class TestRouterFailureHandling:
         stats = {c["deployment"]: c for c in router.stats()}
         assert stats["bad"]["samples"] == 1
         assert stats["bad"]["p50_ms"] is not None
+        assert stats["bad"]["p95_ms"] is not None
         assert stats["bad"]["p50_ms"] >= 20_000  # penalty is 30_000ms
+
+
+class TestRouterConcurrencyFairness:
+    """Concurrent turns during warm-up MUST spread across candidates.
+
+    Without in-flight accounting, N async turns arriving at once all read
+    the same "coldest" candidate from ``_pick`` and stampede one backend,
+    starving the warm-up rotation.
+    """
+
+    async def test_concurrent_warmup_spreads_across_candidates(self) -> None:
+        # Each backend sleeps enough that all three warm-up picks are
+        # in-flight simultaneously when the next pick happens.
+        fast = _FixedLatencyBackend(model="fast", delay_ms=30)
+        mid = _FixedLatencyBackend(model="mid", delay_ms=30)
+        slow = _FixedLatencyBackend(model="slow", delay_ms=30)
+        router = LatencyRoutedChatBackend(
+            candidates=[("fast", fast), ("mid", mid), ("slow", slow)],
+        )
+        # Fire three warm-up picks in parallel.
+        await asyncio.gather(
+            router.answer(prompt="a", view_context={}, history=[]),
+            router.answer(prompt="b", view_context={}, history=[]),
+            router.answer(prompt="c", view_context={}, history=[]),
+        )
+        # Every candidate saw exactly one call - not three on "fast".
+        assert fast.calls == 1
+        assert mid.calls == 1
+        assert slow.calls == 1
+
+
+class TestRouterCleanup:
+    class _WithClient:
+        def __init__(self) -> None:
+            self.closed = False
+            self._http = self  # so getattr(backend, "_http", None) returns it
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+        async def answer(
+            self,
+            *,
+            prompt: str,  # noqa: ARG002
+            view_context: dict[str, Any],  # noqa: ARG002
+            history: list[dict[str, str]],  # noqa: ARG002
+        ) -> dict[str, Any]:  # pragma: no cover - unused in this test
+            return {"answer": "ok", "model": "x"}
+
+    async def test_aclose_closes_every_candidate_client(self) -> None:
+        a = self._WithClient()
+        b = self._WithClient()
+        router = LatencyRoutedChatBackend(candidates=[("a", a), ("b", b)])
+        await router.aclose()
+        assert a.closed is True
+        assert b.closed is True
+
+    async def test_aclose_tolerates_backends_without_client(self) -> None:
+        # A backend that never allocated a client (no ``_http`` attr) must
+        # not break the cleanup path.
+        a = _FixedLatencyBackend(model="a", delay_ms=1)
+        b = _FixedLatencyBackend(model="b", delay_ms=1)
+        router = LatencyRoutedChatBackend(candidates=[("a", a), ("b", b)])
+        await router.aclose()  # must not raise

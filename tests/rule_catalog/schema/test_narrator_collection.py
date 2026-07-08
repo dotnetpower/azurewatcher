@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from fdai.rule_catalog.schema.llm_registry import load_llm_registry_from_mapping
 from fdai.rule_catalog.schema.llm_resolver import (
     CapabilityStatus,
@@ -11,6 +13,7 @@ from fdai.rule_catalog.schema.llm_resolver import (
     NarratorCandidate,
     QuotaQuery,
     ResolvedModels,
+    ResolverError,
     collect_narrator,
     collect_narrator_deployments,
     narrator_deployment_name,
@@ -269,3 +272,44 @@ class TestCollectNarratorDeployments:
             registry=_registry(), region=_REGION, catalog=catalog, quota=quota,
         )
         assert {c.deployment for c in candidates} == {d.name for d in deployments}
+
+    def test_raises_on_deployment_name_collision(self) -> None:
+        """Two distinct families normalising to the same deployment name MUST fail early."""
+        registry = load_llm_registry_from_mapping(
+            {
+                "schema_version": "1.0.0",
+                "models": {
+                    "t1.embedding": {
+                        "preferences": [
+                            {"publisher": "OpenAI", "family": "text-embedding-3-small"}
+                        ],
+                        "capacity_tpm": 100_000,
+                    },
+                    # Both dotted and dashed forms of the same model land on
+                    # ``narrator-gpt-5-4-mini`` after normalisation.
+                    "t1.judge": {
+                        "preferences": [
+                            {"publisher": "OpenAI", "family": "gpt-5.4-mini"},
+                            {"publisher": "OpenAI", "family": "gpt-5-4-mini"},
+                        ],
+                        "capacity_tpm": 200_000,
+                    },
+                    "t2.reasoner.primary": {
+                        "preferences": [{"publisher": "OpenAI", "family": "gpt-4o"}],
+                        "capacity_tpm": 20_000,
+                    },
+                    "t2.reasoner.secondary": {
+                        "preferences": [
+                            {"publisher": "Anthropic", "family": "claude-opus-4"}
+                        ],
+                        "capacity_tpm": 10_000,
+                    },
+                },
+            }
+        )
+        catalog = _Catalog({"gpt-5.4-mini", "gpt-5-4-mini"})
+        quota = _Quota({"gpt-5.4-mini": 200_000, "gpt-5-4-mini": 200_000})
+        with pytest.raises(ResolverError, match="collision"):
+            collect_narrator_deployments(
+                registry=registry, region=_REGION, catalog=catalog, quota=quota,
+            )
