@@ -84,9 +84,7 @@ class PostgresIdempotencyStore:
             return dict(result) if isinstance(result, dict) else None
 
     async def record(self, key: str, result: Mapping[str, Any]) -> bool:
-        async with await psycopg.AsyncConnection.connect(
-            self._config.dsn, autocommit=True
-        ) as conn:
+        async with await psycopg.AsyncConnection.connect(self._config.dsn, autocommit=True) as conn:
             await self._set_statement_timeout(conn)
             await self._ensure_table(conn)
             cur = await conn.execute(_INSERT_SQL, (key, json.dumps(dict(result))))

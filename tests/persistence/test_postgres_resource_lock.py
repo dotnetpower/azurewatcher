@@ -49,17 +49,13 @@ def test_postgres_lock_satisfies_protocol() -> None:
 
 def test_config_rejects_empty_dsn() -> None:
     with pytest.raises(ValueError, match="dsn"):
-        PostgresAdvisoryResourceLock(
-            config=PostgresAdvisoryResourceLockConfig(dsn="")
-        )
+        PostgresAdvisoryResourceLock(config=PostgresAdvisoryResourceLockConfig(dsn=""))
 
 
 def test_config_rejects_negative_timeout() -> None:
     with pytest.raises(ValueError, match="lock_timeout_ms"):
         PostgresAdvisoryResourceLock(
-            config=PostgresAdvisoryResourceLockConfig(
-                dsn="postgresql://x", lock_timeout_ms=-1
-            )
+            config=PostgresAdvisoryResourceLockConfig(dsn="postgresql://x", lock_timeout_ms=-1)
         )
 
 
@@ -73,9 +69,7 @@ def test_acquire_issues_lock_and_unlock(monkeypatch: pytest.MonkeyPatch) -> None
 
     monkeypatch.setattr(psycopg.AsyncConnection, "connect", _connect)
     lock = PostgresAdvisoryResourceLock(
-        config=PostgresAdvisoryResourceLockConfig(
-            dsn="postgresql://x", lock_timeout_ms=5000
-        )
+        config=PostgresAdvisoryResourceLockConfig(dsn="postgresql://x", lock_timeout_ms=5000)
     )
 
     async def _use() -> None:
@@ -103,9 +97,7 @@ def test_acquire_skips_timeout_when_zero(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setattr(psycopg.AsyncConnection, "connect", _connect)
     lock = PostgresAdvisoryResourceLock(
-        config=PostgresAdvisoryResourceLockConfig(
-            dsn="postgresql://x", lock_timeout_ms=0
-        )
+        config=PostgresAdvisoryResourceLockConfig(dsn="postgresql://x", lock_timeout_ms=0)
     )
 
     async def _use() -> None:

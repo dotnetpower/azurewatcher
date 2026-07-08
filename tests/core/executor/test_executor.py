@@ -517,9 +517,7 @@ async def test_dedupe_cache_evicts_oldest_entry_when_over_cap() -> None:
     # `_by_key` ledger persists so it reports the retry as
     # ``already_existed`` - the ExecutionResult still surfaces the
     # ALREADY_EXISTED outcome distinct from PUBLISHED.
-    retry = await executor.execute(
-        action=_action(idempotency_key="evict-a"), rule=_rule()
-    )
+    retry = await executor.execute(action=_action(idempotency_key="evict-a"), rule=_rule())
     assert retry.outcome is ExecutorOutcome.ALREADY_EXISTED
 
     # After the retry, the newly touched key sits at the tail of the
@@ -553,9 +551,7 @@ async def test_audit_failure_does_not_poison_dedupe_cache() -> None:
     )
 
     with pytest.raises(RuntimeError, match="audit store unavailable"):
-        await executor.execute(
-            action=_action(idempotency_key="poison-test"), rule=_rule()
-        )
+        await executor.execute(action=_action(idempotency_key="poison-test"), rule=_rule())
 
     # Cache MUST NOT carry the failed key - a retry would otherwise
     # short-circuit past the audit path and never persist the record.

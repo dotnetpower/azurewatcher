@@ -100,9 +100,7 @@ class PostgresOutboxStore:
             return OutboxClaim(status=OutboxStatus.IN_PROGRESS)
 
     async def complete(self, key: str, result: Mapping[str, Any]) -> None:
-        async with await psycopg.AsyncConnection.connect(
-            self._config.dsn, autocommit=True
-        ) as conn:
+        async with await psycopg.AsyncConnection.connect(self._config.dsn, autocommit=True) as conn:
             await self._prepare(conn)
             await conn.execute(_COMPLETE_SQL, (key, json.dumps(dict(result))))
 

@@ -23,7 +23,8 @@ Design notes
   row simply means the next retry re-executes (still idempotent thanks
   to the audit log's UNIQUE ``entry_hash`` guard).
 
-The runtime adapter :class:`~fdai.delivery.persistence.postgres_idempotency.PostgresIdempotencyStore`
+The runtime adapter
+:class:`~fdai.delivery.persistence.postgres_idempotency.PostgresIdempotencyStore`
 still issues ``CREATE TABLE IF NOT EXISTS`` at first use so ad-hoc / dev
 deploys work without running Alembic; when Alembic is run first this
 migration is authoritative and the runtime CREATE is a no-op.

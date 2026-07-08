@@ -199,9 +199,7 @@ def _build_resource_lock() -> ResourceLock:
             f"FDAI_RESOURCE_LOCK_TIMEOUT_MS={timeout_raw!r} is not an integer"
         ) from exc
     if timeout_ms < 0:
-        raise RuntimeError(
-            f"FDAI_RESOURCE_LOCK_TIMEOUT_MS MUST be >= 0; got {timeout_ms}"
-        )
+        raise RuntimeError(f"FDAI_RESOURCE_LOCK_TIMEOUT_MS MUST be >= 0; got {timeout_ms}")
 
     _LOGGER.info("resource_lock_backend", extra={"backend": "postgres-advisory"})
     return PostgresAdvisoryResourceLock(
@@ -765,9 +763,7 @@ async def _consume(
                 or payload.get("id")
                 or envelope.key
             )
-            divergence.record_authoritative(
-                correlation_id, _authoritative_decision(result)
-            )
+            divergence.record_authoritative(correlation_id, _authoritative_decision(result))
         _LOOP_LOGGER.info(
             "event_processed",
             extra={
@@ -897,16 +893,13 @@ async def _run() -> int:
                 "true",
             )
             if start_pantheon:
-                pantheon_enforce = os.environ.get(
-                    "FDAI_PANTHEON_ENFORCE", ""
-                ).lower() in ("1", "true")
-                disabled_raw = os.environ.get(
-                    "FDAI_PANTHEON_DISABLED_AGENTS", ""
-                ).strip()
+                pantheon_enforce = os.environ.get("FDAI_PANTHEON_ENFORCE", "").lower() in (
+                    "1",
+                    "true",
+                )
+                disabled_raw = os.environ.get("FDAI_PANTHEON_DISABLED_AGENTS", "").strip()
                 disabled_agents = (
-                    frozenset(
-                        n.strip() for n in disabled_raw.split(",") if n.strip()
-                    )
+                    frozenset(n.strip() for n in disabled_raw.split(",") if n.strip())
                     if disabled_raw
                     else None
                 )
@@ -932,8 +925,7 @@ async def _run() -> int:
                         ) from hb_exc
                     if pantheon_heartbeat <= 0:
                         raise RuntimeError(
-                            "FDAI_PANTHEON_HEARTBEAT_SECONDS MUST be > 0; "
-                            f"got {pantheon_heartbeat}"
+                            f"FDAI_PANTHEON_HEARTBEAT_SECONDS MUST be > 0; got {pantheon_heartbeat}"
                         )
                 _LOGGER.info(
                     "pantheon_ready",

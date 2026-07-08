@@ -65,9 +65,7 @@ class PostgresAdvisoryResourceLock:
 
     @asynccontextmanager
     async def acquire(self, resource_id: str) -> AsyncIterator[None]:
-        async with await psycopg.AsyncConnection.connect(
-            self._config.dsn, autocommit=True
-        ) as conn:
+        async with await psycopg.AsyncConnection.connect(self._config.dsn, autocommit=True) as conn:
             if self._config.lock_timeout_ms > 0:
                 # set_config takes bind params (plain SET does not); bound
                 # to the session so the advisory-lock wait is capped.

@@ -94,9 +94,7 @@ def test_postgres_record_returns_true_on_insert(monkeypatch: pytest.MonkeyPatch)
         return conn
 
     monkeypatch.setattr(psycopg.AsyncConnection, "connect", _connect)
-    store = PostgresIdempotencyStore(
-        config=PostgresIdempotencyStoreConfig(dsn="postgresql://x")
-    )
+    store = PostgresIdempotencyStore(config=PostgresIdempotencyStoreConfig(dsn="postgresql://x"))
     inserted = asyncio.run(store.record("k", {"outcome": "published"}))
     assert inserted is True
     assert any("ON CONFLICT" in sql for sql, _ in conn.executed)
@@ -109,9 +107,7 @@ def test_postgres_record_returns_false_on_conflict(monkeypatch: pytest.MonkeyPat
         return conn
 
     monkeypatch.setattr(psycopg.AsyncConnection, "connect", _connect)
-    store = PostgresIdempotencyStore(
-        config=PostgresIdempotencyStoreConfig(dsn="postgresql://x")
-    )
+    store = PostgresIdempotencyStore(config=PostgresIdempotencyStoreConfig(dsn="postgresql://x"))
     inserted = asyncio.run(store.record("k", {"outcome": "published"}))
     assert inserted is False
 
@@ -123,8 +119,6 @@ def test_postgres_seen_returns_stored_payload(monkeypatch: pytest.MonkeyPatch) -
         return conn
 
     monkeypatch.setattr(psycopg.AsyncConnection, "connect", _connect)
-    store = PostgresIdempotencyStore(
-        config=PostgresIdempotencyStoreConfig(dsn="postgresql://x")
-    )
+    store = PostgresIdempotencyStore(config=PostgresIdempotencyStoreConfig(dsn="postgresql://x"))
     got = asyncio.run(store.seen("k"))
     assert got == {"outcome": "published"}

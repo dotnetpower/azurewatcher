@@ -354,9 +354,7 @@ class DirectApiShadowExecutor:
         # retry does not re-hit the substrate. After the audit write for
         # the same reason _remember is.
         if self._idempotency is not None and outcome in _DA_MUTATION_OUTCOMES:
-            await self._idempotency.record(
-                action.idempotency_key, _da_result_to_payload(result)
-            )
+            await self._idempotency.record(action.idempotency_key, _da_result_to_payload(result))
         return result
 
     def _remember(self, key: str, result: DirectApiExecutionResult) -> None:

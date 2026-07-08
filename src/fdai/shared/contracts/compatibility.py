@@ -71,9 +71,7 @@ def check_schema_compatibility(
     return CompatibilityReport(level=level, changes=tuple(changes))
 
 
-def _diff(
-    old: Mapping[str, Any], new: Mapping[str, Any], *, prefix: str
-) -> list[SchemaChange]:
+def _diff(old: Mapping[str, Any], new: Mapping[str, Any], *, prefix: str) -> list[SchemaChange]:
     changes: list[SchemaChange] = []
     old_props = _props(old)
     new_props = _props(new)
@@ -150,9 +148,7 @@ def _required(schema: Mapping[str, Any]) -> list[str]:
 
 
 def _is_object(schema: Mapping[str, Any]) -> bool:
-    return schema.get("type") == "object" or isinstance(
-        schema.get("properties"), Mapping
-    )
+    return schema.get("type") == "object" or isinstance(schema.get("properties"), Mapping)
 
 
 __all__ = [

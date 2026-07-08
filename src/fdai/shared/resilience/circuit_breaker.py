@@ -122,9 +122,7 @@ class CircuitBreaker:
         self._state = CircuitState.OPEN
         self._opened_at = self._clock()
 
-    async def call(
-        self, fn: Callable[..., Awaitable[_T]], *args: object, **kwargs: object
-    ) -> _T:
+    async def call(self, fn: Callable[..., Awaitable[_T]], *args: object, **kwargs: object) -> _T:
         """Guard an async call; raise :class:`CircuitOpenError` when OPEN."""
         if not self.allow():
             raise CircuitOpenError(f"{self._name} circuit is open")

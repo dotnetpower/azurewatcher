@@ -48,9 +48,7 @@ class DegradationController:
     def open_circuits(self) -> list[str]:
         """Names of the currently-OPEN (or half-open probing) breakers."""
         return [
-            name
-            for name, breaker in self.breakers.items()
-            if breaker.state is CircuitState.OPEN
+            name for name, breaker in self.breakers.items() if breaker.state is CircuitState.OPEN
         ]
 
     @property

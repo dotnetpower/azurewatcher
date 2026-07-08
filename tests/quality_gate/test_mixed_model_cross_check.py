@@ -277,9 +277,7 @@ async def test_model_votes_provenance_is_captured(
     assert len(decision.model_votes) == 3
     assert sum(1 for v in decision.model_votes if v.agreed) == 2
     assert all(v.model_id for v in decision.model_votes)  # ids captured
-    assert any(
-        v.proposed_action_type == "remediate.tag-add" for v in decision.model_votes
-    )
+    assert any(v.proposed_action_type == "remediate.tag-add" for v in decision.model_votes)
 
 
 # ---------------------------------------------------------------------------

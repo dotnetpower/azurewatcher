@@ -66,9 +66,7 @@ class Backpressure:
             and self._waiting >= self.config.max_queued
         ):
             self.shed_count += 1
-            raise LoadShedError(
-                f"saturated: {self._in_flight} in-flight, {self._waiting} queued"
-            )
+            raise LoadShedError(f"saturated: {self._in_flight} in-flight, {self._waiting} queued")
         self._waiting += 1
         try:
             await self._sem.acquire()

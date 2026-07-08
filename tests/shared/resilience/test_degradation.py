@@ -29,9 +29,7 @@ def test_degraded_when_a_breaker_opens() -> None:
 
 
 def test_open_threshold_requires_enough_open_circuits() -> None:
-    dc = DegradationController(
-        breakers={"a": _tripped(), "b": CircuitBreaker()}, open_threshold=2
-    )
+    dc = DegradationController(breakers={"a": _tripped(), "b": CircuitBreaker()}, open_threshold=2)
     assert dc.mode is SystemMode.NORMAL  # only 1 open, threshold is 2
 
 

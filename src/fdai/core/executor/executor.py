@@ -343,9 +343,7 @@ class ShadowExecutor:
         # retry does not re-publish. Recorded AFTER the audit write for
         # the same reason _remember is (a failed audit must re-execute).
         if self._idempotency is not None and outcome in _MUTATION_OUTCOMES:
-            await self._idempotency.record(
-                action.idempotency_key, _result_to_payload(result)
-            )
+            await self._idempotency.record(action.idempotency_key, _result_to_payload(result))
         return result
 
     def _remember(self, key: str, result: ExecutionResult) -> None:
