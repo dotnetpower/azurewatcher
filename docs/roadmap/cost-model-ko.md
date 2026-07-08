@@ -1,7 +1,7 @@
 ---
 title: 비용 모델 (예시)
 translation_of: cost-model.md
-translation_source_sha: 00b4b4d940f3d18bcaebccd4b6933b6f143ed5cf
+translation_source_sha: 52aa3d6759f4028ccf88c75181d74d82606377dc
 translation_revised: 2026-07-08
 ---
 
@@ -144,6 +144,20 @@ Reasoning-tier (T2) 추론은 **Azure 리소스 라인이 아님** - [llm-strate
 | **Container Apps min-replicas = 0 도처에** | 이미 기본값; 유지 | 콜드스타트 지연은 [operating-and-verification-ko.md](operating-and-verification-ko.md#self-health-signals) 로 계산 |
 | **MCAPS / Founder Hub / free trial 크레딧** | 초기 몇 달을 완전히 상쇄 | 자격은 시간 제한; 지속적 레버 아님 |
 | 콘솔 이미지를 GHCR로 이동 | ACR Basic (~$5/월) 절감 | 레지스트리 혼합 - 포크가 Azure에 밀접 통합되어 있지 않을 때만 가치 (포크는 ACR 선택 - [deploy-and-onboard-ko.md](deploy-and-onboard-ko.md#azure-resource-inventory-minimum-set) 참조) |
+
+### Warm-capacity 정책 (cold-start vs MTTR)
+
+Scale-to-zero 가 기본이지만, 일괄 min-replicas = 0 은 긴급 recovery 의 MTTR 에
+cold-start 지연을 떠넘긴다 - SEV1 failover 는 컨테이너 부팅을 기다릴 수 없다.
+`core/capacity/warm_pool.py` (`WarmCapacityPolicy`) 가 그 tension 을 결정론적으로
+해소한다: cold start 를 흡수할 수 없는 작업 - 설정된 severity 이상(기본 SEV2)의
+incident, active event storm(cold start 로 serialize 될 remediation burst), 그리고
+off-hours(콘솔에 이미 warm 한 사람이 없어 autonomous recovery 가 유일한 fast path)
+- 에만 **warm** lane (min-replicas > 0)을 권고하고, 나머지는 전부 scale-to-zero 에
+남긴다. threshold 는 fork-tunable config 이고, 정책은 순수 권고다: deployment layer
+가 plan time 에 `min_replicas` floor 를 읽고 runtime 이 action class 별
+`warm_required` 를 읽는다. 이는 idle-cost envelope 을 온전히 유지하면서 중요한
+곳의 recovery latency 를 보호한다.
 
 ## Envelope이 다루지 않는 것
 

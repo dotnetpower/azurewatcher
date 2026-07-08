@@ -148,6 +148,22 @@ specific trade-off documented so the choice is not made blind.
 | **MCAPS / Founder Hub / free trial credits** | offsets first months entirely | eligibility is time-boxed; not a durable lever |
 | **Move console images to GHCR** | saves ACR Basic (~$5/mo) | mixes registries - only worth it if the fork is not tightly Azure-integrated (fork chose ACR - see [deploy-and-onboard.md](deploy-and-onboard.md#azure-resource-inventory-minimum-set)) |
 
+### Warm-capacity policy (cold-start vs MTTR)
+
+Scale-to-zero is the default, but blanket min-replicas = 0 pushes cold-start
+latency onto MTTR for urgent recovery - a SEV1 failover cannot wait for a
+container to boot. `core/capacity/warm_pool.py` (`WarmCapacityPolicy`) resolves
+the tension deterministically: it recommends a **warm** lane (min-replicas > 0)
+only for the work that cannot absorb a cold start - incidents at or above a
+configured severity (default SEV2), an active event storm (a burst of
+remediations that would otherwise serialize on cold starts), and off-hours (when
+no human is already warm at the console so autonomous recovery is the only fast
+path) - and leaves everything else on scale-to-zero. The thresholds are
+fork-tunable config, and the policy is a pure recommendation: the deployment
+layer reads the `min_replicas` floor at plan time and the runtime reads
+`warm_required` per action class. This keeps the idle-cost envelope intact while
+protecting recovery latency where it matters.
+
 ## What the Envelope Does Not Cover
 
 Costs deliberately outside this document:
