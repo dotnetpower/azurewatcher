@@ -275,6 +275,33 @@ accepts `t0_engine`. Five scenarios in
 - No changes to the trust-router's public contract; existing tests
   regress unchanged.
 
+### 3.8 Vertical registry (new-domain onboarding seam)
+
+**Problem.** FDAI ships three verticals (Resilience, Change Safety, Cost
+Governance), but "replace an organization" means the set must grow -
+security posture, compliance, patch management - **without editing
+`core/`**. Today the three are composed directly; there is no declared
+seam for a fork to onboard a fourth.
+
+**Design.**
+
+- **Module**: `core/verticals/registry.py` with a `VerticalRegistry` that
+  holds inert `VerticalDescriptor`s (`vertical_id`, `display_name`,
+  `category`, `rule_source_ids`, `enabled`, `default_mode`). A fork
+  registers a descriptor at the composition root; the control loop
+  enumerates the registry instead of hard-coding the three.
+- **Validating, not a plugin loader.** Registration rejects a
+  misconfigured onboarding at once: a duplicate or non-ASCII
+  `vertical_id`, an **enabled** vertical that names no rule source (a
+  domain that detects nothing), or a descriptor that tries to onboard
+  directly in enforce mode. `register_all` aborts on the first failure so
+  a partial batch cannot half-register.
+- **Shadow-first by construction.** `default_mode` defaults to
+  `Mode.SHADOW` and MUST stay shadow at onboarding - promotion to enforce
+  is a separate reviewed change, so onboarding can never silently enable
+  autonomous action. Enumeration (`all`, `enabled`) is id-sorted and
+  deterministic.
+
 ## 4. Rollout order and safety mode
 
 Every subsystem above ships in **shadow mode** first

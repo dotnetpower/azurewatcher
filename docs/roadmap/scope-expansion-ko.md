@@ -1,7 +1,7 @@
 ---
 title: 스코프 개선 및 구조적 갭
 translation_of: scope-expansion.md
-translation_source_sha: 44286223c42d2b744c8aec3f9c9f3226b03979fc
+translation_source_sha: e596e544de244c25dff29fd903117d998bdc4668
 translation_revised: 2026-07-08
 ---
 # 스코프 개선 및 구조적 갭
@@ -273,6 +273,30 @@ action) 을 가지고 있지만 synthesizer 가 없다.
   dry-run 이 필요하고 P3 backlog 로 유지).
 - Trust-router 의 public contract 에 변경 없음; 기존 테스트는 unchanged
   regress.
+
+### 3.8 Vertical registry (new-domain 온보딩 seam)
+
+**Problem.** FDAI 는 세 vertical (Resilience, Change Safety, Cost
+Governance)을 ship 하지만, "조직 대체"는 그 집합이 **`core/` 편집 없이**
+security posture, compliance, patch management 로 커져야 함을 의미한다. 오늘은
+셋이 직접 composed 되며, fork 가 네 번째를 onboard 할 선언된 seam 이 없다.
+
+**Design.**
+
+- **Module**: `core/verticals/registry.py` 의 `VerticalRegistry` 가 inert
+  `VerticalDescriptor` (`vertical_id`, `display_name`, `category`,
+  `rule_source_ids`, `enabled`, `default_mode`)를 보유한다. fork 가
+  composition root 에서 descriptor 를 등록하고, control loop 은 셋을
+  hard-code 하는 대신 registry 를 enumerate 한다.
+- **Validating, plugin loader 아님.** 등록은 misconfigured onboarding 을
+  즉시 reject 한다: 중복이거나 non-ASCII 인 `vertical_id`, rule source 를
+  명명하지 않은 **enabled** vertical (아무것도 감지하지 않는 도메인), 또는
+  enforce mode 로 직접 onboard 하려는 descriptor. `register_all` 은 첫 실패에서
+  abort 하므로 부분 batch 가 half-register 될 수 없다.
+- **구성상 shadow-first.** `default_mode` 는 `Mode.SHADOW` 로 default 되고
+  onboarding 시 shadow 로 유지되어야 한다 - enforce 로의 promotion 은 별도
+  reviewed change 이므로, onboarding 이 절대 autonomous action 을 silently
+  enable 할 수 없다. Enumeration (`all`, `enabled`)은 id-sorted 이고 결정론적이다.
 
 ## 4. Rollout 순서 및 safety mode
 
