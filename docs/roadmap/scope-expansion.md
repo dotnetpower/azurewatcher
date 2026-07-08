@@ -89,6 +89,27 @@ machine, and no lifecycle hook. As a result:
   candidate transitions; the incident module is the sole writer that
   can call `append_incident_transition`.
 
+**Storm handling.** When one root fault fans out into many correlated
+incidents, firing every remediation at once multiplies blast radius,
+races on shared dependencies, and buries the operator. `core/incident/storm.py`
+(`StormCoordinator`) is a deterministic, I/O-free incident-command
+planner that a human commander's judgment is distilled into:
+
+- **Storm detection** counts signals inside a sliding window; a count at
+  or above the threshold is a storm.
+- **Priority sequencing** orders remediations by severity (SEV1 first),
+  then blast radius, then a stable id, so the plan is reproducible.
+- **Concurrency cap** splits the ordered plan into capped waves; under a
+  storm the cap tightens (default 1 = strictly serial) so a fan-out does
+  not execute in parallel.
+- **Dynamic HIL** returns a `StormPolicy` that, while a storm is active,
+  raises the approval bar (escalate at or above a configured severity) so
+  nothing high-impact auto-executes mid-storm.
+
+The coordinator is advisory - the risk gate and executor consume its
+`StormPolicy` and ordered plan; it never executes, holds a lock, or calls
+a model, so it stays under the `core/` import rule.
+
 ### 3.2 Telemetry ingestion seam (Layer-0 expansion)
 
 **Problem.** [csp-neutrality.md](csp-neutrality.md) declares five

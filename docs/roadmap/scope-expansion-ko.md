@@ -1,7 +1,7 @@
 ---
 title: 스코프 개선 및 구조적 갭
 translation_of: scope-expansion.md
-translation_source_sha: 5fe27a596895d2e6485029f67312186dc84cc86f
+translation_source_sha: 3813a9249e41aab816aff86528f0d9ca0e9b89b0
 translation_revised: 2026-07-08
 ---
 # 스코프 개선 및 구조적 갭
@@ -90,6 +90,26 @@ machine 도, lifecycle hook 도 없다. 결과적으로:
 - **Ownership**: `core/incident/` (신규 패키지). Vertical 은 candidate
   transition 을 emit; incident 모듈만이
   `append_incident_transition` 을 호출할 수 있는 유일한 writer.
+
+**Storm 처리.** 하나의 근본 결함이 다수의 상관 incident 로 fan-out 될 때,
+모든 remediation 을 한꺼번에 발화하면 blast radius 가 배가되고 공유
+의존성에서 race 가 나며 운영자를 파묻어 버린다. `core/incident/storm.py`
+(`StormCoordinator`) 는 인간 지휘관의 판단을 증류한 결정론적이고 I/O 없는
+incident-command 플래너다:
+
+- **Storm 감지** 는 sliding window 안의 signal 을 세고, threshold 이상의
+  count 는 storm 이다.
+- **우선순위 시퀀싱** 은 remediation 을 severity(SEV1 우선), 그다음 blast
+  radius, 그다음 stable id 순으로 정렬해 계획을 재현 가능하게 한다.
+- **동시성 캡** 은 정렬된 계획을 capped wave 로 나눈다; storm 중에는 캡이
+  더 조여진다(기본 1 = 엄격한 직렬) 그래서 fan-out 이 병렬로 실행되지 않는다.
+- **동적 HIL** 은 `StormPolicy` 를 반환하며, storm 이 활성인 동안 승인 기준을
+  올려(설정된 severity 이상에서 상향) 고영향 액션이 storm 중 자동 실행되지
+  않게 한다.
+
+이 coordinator 는 advisory 다 - risk gate 와 executor 가 그
+`StormPolicy` 와 정렬된 계획을 소비한다; 스스로 실행하거나 lock 을 잡거나
+model 을 호출하지 않으므로 `core/` import 규칙 아래 머문다.
 
 ### 3.2 Telemetry ingestion seam (Layer-0 확장)
 

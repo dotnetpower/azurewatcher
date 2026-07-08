@@ -29,6 +29,12 @@ from .state_machine import (
     IncidentTransition,
     IncidentTransitionError,
 )
+from .storm import (
+    RemediationStep,
+    StormCoordinator,
+    StormPolicy,
+    StormSignal,
+)
 
 __all__ = [
     "LEGAL_TRANSITIONS",
@@ -36,5 +42,9 @@ __all__ = [
     "IncidentStateMachine",
     "IncidentTransition",
     "IncidentTransitionError",
+    "RemediationStep",
+    "StormCoordinator",
+    "StormPolicy",
+    "StormSignal",
     "incident_id_for",
 ]
