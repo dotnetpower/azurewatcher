@@ -234,6 +234,24 @@ findings, actions) but no synthesizer.
   approval reuses the existing gate. This intentionally reuses the
   `pr_native` execution path from
   [action-ontology.md](action-ontology.md).
+- **Knowledge extraction (reusable lesson)**:
+  `core/postmortem/learning.py` (`PostmortemKnowledgeExtractor`) mines a
+  *resolved* incident plus its audit timeline into an inert
+  `PostmortemLearning` candidate - the "when this pattern happened, this
+  action resolved it" knowledge an organization otherwise keeps only in
+  an engineer's head. It is deterministic and **fail-closed**: it emits a
+  learning only when the audit trail carries a recorded root cause *and*
+  at least one successfully executed (enforce-mode, success-outcome)
+  action, and **abstains** otherwise - never fabricating a lesson. The
+  learning generalizes away from specific resource ids (it anchors on
+  correlation-key *prefixes*, so `resource:vm-a` contributes the reusable
+  anchor `resource`, not `vm-a`), carries a deterministic `signature` so
+  the discovery loop can deduplicate recurring patterns, and ships a
+  grounded `provenance` so it clears the same `CandidateGuard` as any
+  other rule candidate. The output is knowledge, not an action and not a
+  catalog edit: it feeds the memory / discovery loop
+  ([rule-catalog-collection.md](rule-catalog-collection.md)) and must
+  clear the standard quality gate before it can influence the catalog.
 
 ### 3.7 T1 / T2 tiers wired into `ControlLoop`
 

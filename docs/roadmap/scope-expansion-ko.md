@@ -1,7 +1,7 @@
 ---
 title: 스코프 개선 및 구조적 갭
 translation_of: scope-expansion.md
-translation_source_sha: 3813a9249e41aab816aff86528f0d9ca0e9b89b0
+translation_source_sha: 44286223c42d2b744c8aec3f9c9f3226b03979fc
 translation_revised: 2026-07-08
 ---
 # 스코프 개선 및 구조적 갭
@@ -234,6 +234,23 @@ action) 을 가지고 있지만 synthesizer 가 없다.
   아래의 git-managed location 에 write, review / approval 이 기존
   gate 재사용. [action-ontology.md](action-ontology-ko.md) 의
   `pr_native` execution path 를 의도적으로 재사용.
+- **Knowledge extraction (재사용 lesson)**:
+  `core/postmortem/learning.py` (`PostmortemKnowledgeExtractor`) 가
+  *resolved* incident 와 그 audit timeline 을 inert `PostmortemLearning`
+  candidate 로 mining 한다 - 조직이 원래 엔지니어 머릿속에만 두는 "이
+  패턴이 발생했을 때 이 action 이 해결했다" 는 지식이다. 결정론적이며
+  **fail-closed**: audit trail 에 기록된 root cause *와* 최소 하나의
+  성공적으로 실행된(enforce-mode, success-outcome) action 이 있을 때만
+  learning 을 emit 하고, 그렇지 않으면 **abstain** - lesson 을 절대
+  fabricate 하지 않는다. learning 은 특정 resource id 로부터 일반화한다
+  (correlation-key *prefix* 로 anchor 하므로 `resource:vm-a` 는
+  `vm-a` 가 아니라 재사용 가능한 anchor `resource` 를 기여), discovery
+  loop 이 반복 패턴을 dedup 할 수 있도록 결정론적 `signature` 를
+  carry 하며, 다른 rule candidate 와 동일한 `CandidateGuard` 를 통과하도록
+  grounded `provenance` 를 ship 한다. 출력은 action 도 catalog edit 도
+  아닌 지식이다: memory / discovery loop
+  ([rule-catalog-collection.md](rule-catalog-collection-ko.md)) 에
+  feed 되고 catalog 에 영향을 주기 전 표준 quality gate 를 통과해야 한다.
 
 ### 3.7 T1 / T2 tier 를 `ControlLoop` 로 wire
 

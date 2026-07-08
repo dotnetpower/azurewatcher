@@ -25,10 +25,16 @@ from .draft import (
     PostmortemGenerator,
     PostmortemLlm,
 )
+from .learning import (
+    PostmortemKnowledgeExtractor,
+    PostmortemLearning,
+)
 
 __all__ = [
     "AuditRow",
     "PostmortemDraft",
     "PostmortemGenerator",
+    "PostmortemKnowledgeExtractor",
+    "PostmortemLearning",
     "PostmortemLlm",
 ]
