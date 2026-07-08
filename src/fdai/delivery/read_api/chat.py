@@ -692,12 +692,19 @@ class LatencyRoutedChatBackend:
 
     # ------------------------------------------------------------------ public
     def stats(self) -> list[dict[str, Any]]:
-        """Snapshot of per-candidate p50 + sample count (JSON-safe)."""
+        """Snapshot of per-candidate rolling latency stats (JSON-safe).
+
+        Each entry carries the raw rolling window (``history_ms``) plus
+        precomputed p50 / p95 so the FE can render a sparkline without
+        re-doing the maths per repaint.
+        """
         return [
             {
                 "deployment": name,
                 "p50_ms": _p50(self._samples[name]),
+                "p95_ms": _p95(self._samples[name]),
                 "samples": len(self._samples[name]),
+                "history_ms": list(self._samples[name]),
             }
             for name, _ in self._candidates
         ]
@@ -773,6 +780,22 @@ def _p50(samples: deque[int]) -> float:
     xs = sorted(samples)
     n = len(xs)
     return float(xs[n // 2]) if n % 2 == 1 else (xs[n // 2 - 1] + xs[n // 2]) / 2
+
+
+def _p95(samples: deque[int]) -> float:
+    """95th-percentile of the rolling window; ``inf`` when empty.
+
+    With the default 8-sample window p95 sits at the max element (index
+    7 by nearest-rank on N=8: ceil(0.95*8) - 1 = 7). Kept as its own
+    helper so a future window resize does not silently change semantics.
+    """
+    if not samples:
+        return float("inf")
+    xs = sorted(samples)
+    n = len(xs)
+    # Nearest-rank method (RFC-style).
+    rank = max(0, min(n - 1, int(-(-95 * n // 100)) - 1))
+    return float(xs[rank])
 
 
 # ---------------------------------------------------------------------------

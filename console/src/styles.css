@@ -524,3 +524,78 @@ pre {
     transition: none;
   }
 }
+
+/* Command-deck latency router sparklines --------------------------------
+ * Small strip rendered under a routed reply so operators see p50 / p95 /
+ * rolling window per candidate mini model. The chosen candidate wears the
+ * accent color. Kept self-contained so the styles ship independently of
+ * the broader deck refactor in progress.
+ */
+.deck-router {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+}
+.deck-router-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 2px;
+}
+.deck-router-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 1 1 auto;
+}
+.deck-router-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  min-width: 128px;
+}
+.deck-router-card-active {
+  border-color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+}
+.deck-router-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+}
+.deck-router-name {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--fg);
+}
+.deck-router-metric {
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.deck-router-foot {
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.deck-spark {
+  display: block;
+  width: 100%;
+  height: 20px;
+}
+.deck-spark polyline { stroke: var(--fg-muted); }
+.deck-spark-active polyline { stroke: var(--accent-strong); stroke-width: 1.8; }
+.deck-spark-baseline { stroke: var(--border); stroke-width: 1; }

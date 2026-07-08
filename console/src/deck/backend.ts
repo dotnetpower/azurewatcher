@@ -26,7 +26,10 @@ export interface BackendTurn {
 export interface RouterCandidate {
   readonly deployment: string;
   readonly p50_ms: number | null;
+  readonly p95_ms: number | null;
   readonly samples: number;
+  /** Raw rolling window (most-recent last) - drives the sparkline strip. */
+  readonly history_ms: readonly number[];
 }
 
 /** Router snapshot attached to a chat reply / health descriptor. */
@@ -223,9 +226,16 @@ function parseRouter(raw: unknown): RouterSnapshot | undefined {
     if (deployment === null) continue;
     const p50 =
       typeof cr.p50_ms === "number" && Number.isFinite(cr.p50_ms) ? cr.p50_ms : null;
+    const p95 =
+      typeof cr.p95_ms === "number" && Number.isFinite(cr.p95_ms) ? cr.p95_ms : null;
     const samples =
       typeof cr.samples === "number" && Number.isFinite(cr.samples) ? cr.samples : 0;
-    candidates.push({ deployment, p50_ms: p50, samples });
+    const historyRaw = Array.isArray(cr.history_ms) ? cr.history_ms : [];
+    const history: number[] = [];
+    for (const h of historyRaw) {
+      if (typeof h === "number" && Number.isFinite(h) && h >= 0) history.push(h);
+    }
+    candidates.push({ deployment, p50_ms: p50, p95_ms: p95, samples, history_ms: history });
   }
   return { chose, reason, candidates };
 }

@@ -22,6 +22,7 @@ import {
   probeBackend,
   type BackendHealth,
   type BackendTurn,
+  type RouterCandidate,
   type RouterSnapshot,
 } from "./backend";
 import { useViewContext } from "./context";
@@ -55,8 +56,9 @@ function routerTooltip(router: RouterSnapshot | undefined): string | undefined {
   if (!router) return undefined;
   const lines = router.candidates.map((c) => {
     const p50 = c.p50_ms === null ? "-" : `${Math.round(c.p50_ms)}ms`;
+    const p95 = c.p95_ms === null ? "-" : `${Math.round(c.p95_ms)}ms`;
     const marker = c.deployment === router.chose ? "* " : "  ";
-    return `${marker}${c.deployment} · p50 ${p50} · n=${c.samples}`;
+    return `${marker}${c.deployment} · p50 ${p50} · p95 ${p95} · n=${c.samples}`;
   });
   return `auto-router (${router.reason}) chose ${router.chose}\n${lines.join("\n")}`;
 }
@@ -308,6 +310,7 @@ function TurnBubble({
           <p key={i} class="deck-turn-line">{line}</p>
         ))}
       </div>
+      {turn.router ? <RouterSparklineStrip router={turn.router} /> : null}
       {turn.citations && turn.citations.length > 0 ? (
         <ul class="deck-turn-citations" aria-label="citations">
           {turn.citations.map((c, i) => (
@@ -404,6 +407,89 @@ function PendingBubble() {
         </span>
       </div>
     </article>
+  );
+}
+
+/**
+ * Small SVG strip that renders one sparkline per routed candidate so the
+ * operator can see at a glance which mini is trending fastest. The chosen
+ * candidate is highlighted; empty windows show a placeholder line.
+ */
+function RouterSparklineStrip({ router }: { readonly router: RouterSnapshot }) {
+  // Shared vertical scale so the sparklines compare like-for-like across
+  // candidates. Fall back to 100ms so an all-fast set still gets a visible
+  // baseline instead of collapsing to a flat line at the top.
+  const globalMax = Math.max(
+    100,
+    ...router.candidates.flatMap((c) => c.history_ms.map((v) => v)),
+  );
+  return (
+    <div class="deck-router" role="group" aria-label="latency router">
+      <span class="deck-router-title muted">router</span>
+      <ul class="deck-router-list">
+        {router.candidates.map((c) => (
+          <li
+            key={c.deployment}
+            class={`deck-router-card${c.deployment === router.chose ? " deck-router-card-active" : ""}`}
+          >
+            <div class="deck-router-head">
+              <span class="deck-router-name">{c.deployment}</span>
+              <span class="deck-router-metric muted">
+                p50 {c.p50_ms === null ? "-" : `${Math.round(c.p50_ms)}ms`}
+              </span>
+            </div>
+            <Sparkline
+              history={c.history_ms}
+              globalMax={globalMax}
+              highlighted={c.deployment === router.chose}
+            />
+            <div class="deck-router-foot muted">
+              n={c.samples}
+              {c.p95_ms !== null ? ` · p95 ${Math.round(c.p95_ms)}ms` : ""}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function Sparkline({
+  history,
+  globalMax,
+  highlighted,
+}: {
+  readonly history: readonly number[];
+  readonly globalMax: number;
+  readonly highlighted: boolean;
+}) {
+  const w = 96;
+  const h = 20;
+  if (history.length === 0) {
+    return (
+      <svg class="deck-spark" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
+        <line x1="0" y1={h - 1} x2={w} y2={h - 1} class="deck-spark-baseline" />
+      </svg>
+    );
+  }
+  const denom = Math.max(1, history.length - 1);
+  const points = history
+    .map((v, i) => {
+      const x = (i / denom) * (w - 2) + 1;
+      const y = h - 1 - (Math.min(v, globalMax) / globalMax) * (h - 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg
+      class={`deck-spark${highlighted ? " deck-spark-active" : ""}`}
+      width={w}
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      aria-hidden="true"
+    >
+      <polyline points={points} fill="none" stroke-width="1.5" />
+    </svg>
   );
 }
 

@@ -111,6 +111,23 @@ class TestRouterWarmupAndSelection:
         assert stats["fast"]["samples"] >= 2
         assert stats["fast"]["p50_ms"] < stats["slow"]["p50_ms"]
 
+    async def test_stats_expose_p95_and_history_for_sparkline(self) -> None:
+        router, *_ = await self._make_router()
+        # Run enough turns to fill the rolling window at least partially.
+        for _ in range(9):
+            await router.answer(prompt="hi", view_context={}, history=[])
+        stats = {c["deployment"]: c for c in router.stats()}
+        for name in ("fast", "mid", "slow"):
+            entry = stats[name]
+            assert entry["samples"] == len(entry["history_ms"])
+            assert entry["samples"] > 0
+            # p95 >= p50 by definition (nearest-rank).
+            assert entry["p95_ms"] >= entry["p50_ms"]
+            # history_ms carries integers in the router's window bounds.
+            for sample in entry["history_ms"]:
+                assert isinstance(sample, int)
+                assert sample >= 0
+
 
 class TestRouterFailureHandling:
     async def test_failure_penalizes_candidate_and_reraises(self) -> None:
