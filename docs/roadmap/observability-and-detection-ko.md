@@ -1,7 +1,7 @@
 ---
 title: 관측성과 감지(Observability and Detection)
 translation_of: observability-and-detection.md
-translation_source_sha: a5da89fbae1f01758d31b14bf61c95ea4d16d42e
+translation_source_sha: a20be4ca1bf8508f7cd93a4d8bbc4d44e84ff148
 translation_revised: 2026-07-08
 ---
 
@@ -97,6 +97,17 @@ FDAI가 원시 원격측정을 컨트롤 루프가 액션할 수 있는 **findin
   크기 기반 severity - 그리고 각 finding 을 `to_event` 로 shadow 모드의
   `Event(event_type="anomaly.finding")` 로 정규화하며, `detector + metric
   + window` 로 keying 해 반복 tick 을 dedup 한다.
+- **계절성(Seasonality)**: `core/detection/seasonal.py`
+  (`SeasonalAnomalyDetector`) 는 주기적 형태를 가진 metric 을 처리해,
+  정상적인 phase 별 peak(월요일 아침 트래픽 스파이크, 야간 배치 작업)이
+  24x7 통합 평균 대비 발화하지 않도록 한다. history 를 설정된 **phase**
+  (`hour_of_day`, `day_of_week`, `hour_of_week`, 또는 커스텀 함수)로
+  버킷팅하고, 관측 샘플을 *같은* phase 의 과거 샘플하고만 비교한다. base
+  detector 를 감싸는 얇은 wrapper 로 - history 를 phase 로 필터링하고
+  z-score, cold-start-abstain, flat-baseline, event 정규화 로직을 위임한다
+  - 두 detector 가 어긋날 수 없다. phase 별 cold-start 는 독립적이고(얇은
+  일요일 baseline 이 월요일 데이터를 빌리지 않는다), phase 는 finding 의
+  `window_bucket` 에 기록되며, finding 은 여전히 shadow 모드 이벤트다.
 
 ## 3. 예측 / 예보(Predictive / Forecasting)
 

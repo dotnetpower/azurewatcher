@@ -98,6 +98,19 @@ performance, reliability, security, and cost.
   severity from deviation magnitude - and normalizes each finding to an
   `Event(event_type="anomaly.finding")` in shadow mode via `to_event`,
   keyed by `detector + metric + window` so repeated ticks dedup.
+- **Seasonality**: `core/detection/seasonal.py`
+  (`SeasonalAnomalyDetector`) handles metrics with a periodic shape so a
+  normal per-phase peak (a Monday-morning traffic spike, a nightly batch
+  job) does not fire against a pooled 24x7 mean. It buckets history by a
+  configured **phase** (`hour_of_day`, `day_of_week`, `hour_of_week`, or
+  a custom function) and compares the observed sample only against past
+  samples in the *same* phase. It is a thin wrapper over the base
+  detector - it filters history to the phase and delegates the z-score,
+  cold-start-abstain, flat-baseline, and event-normalization logic - so
+  the two detectors cannot drift. Per-phase cold-start is independent (a
+  thin Sunday baseline never borrows Monday's data), the phase is
+  recorded on the finding's `window_bucket`, and the finding is still a
+  shadow-mode event.
 
 ## 3. Predictive / Forecasting
 
