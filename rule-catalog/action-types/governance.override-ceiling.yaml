@@ -72,11 +72,13 @@ argument_schema:
       - resource-group
     scope_ref:
       type: string
+      x-fdai-audit-safe: true
       minLength: 1
     expires_at:
       type: string
       format: date-time
     justification:
       type: string
+      x-fdai-audit-safe: true
       minLength: 20
       maxLength: 500

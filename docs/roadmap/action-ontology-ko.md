@@ -1,7 +1,7 @@
 ---
 title: Action 온톨로지
 translation_of: action-ontology.md
-translation_source_sha: efcf4d10d01e702207101ee043084bfc7c2f47bb
+translation_source_sha: 547bad7adffd0f2be9ce14bf66da1d00216adf98
 translation_revised: 2026-07-08
 ---
 
@@ -374,16 +374,36 @@ argument_schema:
 
 ### 5.2 Redaction 힌트
 
-오퍼레이터가 type MAY 하는 secret 또는 PII 를 carry MAY 하는 field (예:
-tool-call 중 password, `restart_reason` 안의 email) 는 redactor 가 audit
-write 전 strip 하도록 `x-fdai-redact` 를 carry SHOULD:
+Redaction 은 **denylist 가 아니라 allowlist**: 모든 free-text string
+property (`enum`, `pattern`, `const`, `format` 제약 없는 `string`) 는 두
+힌트 중 정확히 하나를 선언 MUST - secret 이나 PII 를 carry MAY 하는 field
+가 verbatim 저장으로 절대 default 되지 않도록:
+
+- `x-fdai-redact: true` - redactor 가 audit write 전 값을 strip. leaf
+  `string`/`number` property 에만 유효.
+- `x-fdai-audit-safe: true` - 저자가 값이 저장 안전하다고 assert (resource
+  ref, justification, region 이름 등).
+
+힌트 둘 다 없는 free-text string 은 fatal load error. property 는 둘 다
+설정 MUST NOT. 이 둘 외 `x-fdai-*` key 는 fatal typo guard - 오철자
+`x-fdai-redcat` 가 secret 을 silently redact 실패 못 하게. 제약된 string
+(enum/pattern/format) 과 non-string type 은 힌트 불필요.
 
 ```yaml
 properties:
   temp_admin_password:
     type: string
-    x-fdai-redact: true    # verbatim 저장 절대 안 됨
+    x-fdai-redact: true       # verbatim 저장 절대 안 됨
+  restart_reason:
+    type: string
+    minLength: 10
+    x-fdai-audit-safe: true   # justification 은 저장 안전
 ```
+
+로더는 모든 `x-fdai-redact` path 를 set 으로 수집해
+`argument_schema_redaction_paths(action_type)` 로 노출; audit redactor 가
+`operator_request` argument blob 을 append-only 로그에 저장하기 전 그 path
+들을 strip.
 
 ## 6. Live blast probe (execution-model.md §6, Month 1+)
 

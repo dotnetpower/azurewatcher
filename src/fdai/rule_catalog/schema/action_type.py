@@ -30,6 +30,14 @@ from fdai.shared.contracts.registry import SchemaRegistry
 
 _ACTION_TYPE_SCHEMA_NAME = "ontology/action-type"
 
+# The only extension keys allowed inside an ``argument_schema`` property.
+# Anything else that looks like an ``x-fdai-*`` key is a typo and is a
+# fatal load error, so a misspelled redact hint cannot silently leak a
+# secret (action-ontology.md 5.2 / 8).
+_ALLOWED_ARG_EXTENSION_KEYS: frozenset[str] = frozenset(
+    {"x-fdai-redact", "x-fdai-audit-safe"}
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ActionTypeIssue:
@@ -383,19 +391,19 @@ def _check_catalog_policy(
                 )
             )
         asch = at.argument_schema
-        if asch is not None and (
-            asch.get("type") != "object" or asch.get("additionalProperties") is not False
-        ):
-            issues.append(
-                ActionTypeIssue(
-                    key=f"{origin}:argument_schema",
-                    message=(
-                        "argument_schema MUST set type: object and "
-                        "additionalProperties: false so the console cannot pass "
-                        "unspecified arguments (action-ontology.md 5)"
-                    ),
+        if asch is not None:
+            if asch.get("type") != "object" or asch.get("additionalProperties") is not False:
+                issues.append(
+                    ActionTypeIssue(
+                        key=f"{origin}:argument_schema",
+                        message=(
+                            "argument_schema MUST set type: object and "
+                            "additionalProperties: false so the console cannot pass "
+                            "unspecified arguments (action-ontology.md 5)"
+                        ),
+                    )
                 )
-            )
+            _walk_argument_schema_props(asch, "", origin, issues, set())
         if at.operation in (Operation.DROP, Operation.PURGE) and (
             ActionInterface.DATA_PLANE_MUTATING not in at.interfaces
         ):
@@ -411,6 +419,107 @@ def _check_catalog_policy(
                 )
             )
     return issues
+
+
+def _walk_argument_schema_props(
+    node: Mapping[str, Any],
+    path: str,
+    origin: str,
+    issues: list[ActionTypeIssue],
+    redaction_paths: set[str],
+) -> None:
+    """Recursively validate ``argument_schema`` redaction hints and collect
+    the dotted paths flagged ``x-fdai-redact: true``.
+
+    Enforces (action-ontology.md 5.2 / 8):
+    - Only ``x-fdai-redact`` / ``x-fdai-audit-safe`` extension keys exist;
+      any other ``x-fdai-*`` key is a fatal typo guard.
+    - A property MUST NOT set both hints.
+    - ``x-fdai-redact: true`` is only valid on a leaf ``string``/``number``
+      property (redacting a whole object would drop audit-relevant keys).
+    """
+
+    props = node.get("properties")
+    if not isinstance(props, Mapping):
+        return
+    for name, prop in props.items():
+        if not isinstance(prop, Mapping):
+            continue
+        child = f"{path}.{name}" if path else str(name)
+        ext = {k for k in prop if isinstance(k, str) and k.startswith("x-fdai")}
+        for unknown in sorted(ext - _ALLOWED_ARG_EXTENSION_KEYS):
+            issues.append(
+                ActionTypeIssue(
+                    key=f"{origin}:argument_schema.{child}",
+                    message=(
+                        f"unknown extension key {unknown!r}; only x-fdai-redact / "
+                        "x-fdai-audit-safe are allowed so a misspelled redact hint "
+                        "cannot silently leak a secret (action-ontology.md 5.2)"
+                    ),
+                )
+            )
+        redact = prop.get("x-fdai-redact") is True
+        safe = prop.get("x-fdai-audit-safe") is True
+        ptype = prop.get("type")
+        is_object = ptype == "object" or "properties" in prop
+        if redact and safe:
+            issues.append(
+                ActionTypeIssue(
+                    key=f"{origin}:argument_schema.{child}",
+                    message=(
+                        "property MUST NOT set both x-fdai-redact and "
+                        "x-fdai-audit-safe (a field is either redacted or audit-safe)"
+                    ),
+                )
+            )
+        if redact:
+            if is_object or ptype not in ("string", "number"):
+                issues.append(
+                    ActionTypeIssue(
+                        key=f"{origin}:argument_schema.{child}",
+                        message=(
+                            "x-fdai-redact: true MUST be on a leaf string/number "
+                            "property (action-ontology.md 5.2)"
+                        ),
+                    )
+                )
+            else:
+                redaction_paths.add(child)
+        # Allowlist, not denylist: a free-text string (no content constraint)
+        # can carry a secret or PII typed mid-tool-call, so the author MUST
+        # explicitly declare whether it is redacted or audit-safe. A new
+        # free-text field can no longer default to being persisted verbatim
+        # (action-ontology critique #22).
+        constrained = any(k in prop for k in ("enum", "pattern", "const", "format"))
+        if ptype == "string" and not is_object and not constrained and not redact and not safe:
+            issues.append(
+                ActionTypeIssue(
+                    key=f"{origin}:argument_schema.{child}",
+                    message=(
+                        "free-text string property MUST declare x-fdai-redact: true "
+                        "(strip before audit) or x-fdai-audit-safe: true (safe to "
+                        "persist); an unconstrained string can carry a secret typed "
+                        "mid-tool-call (action-ontology.md 5.2)"
+                    ),
+                )
+            )
+        if is_object:
+            _walk_argument_schema_props(prop, child, origin, issues, redaction_paths)
+
+
+def argument_schema_redaction_paths(action_type: OntologyActionType) -> frozenset[str]:
+    """Return the dotted ``argument_schema`` paths flagged ``x-fdai-redact:
+    true``. The audit redactor strips these before an ``operator_request``
+    argument blob is persisted so a secret typed mid-tool-call never lands
+    verbatim in the append-only audit log (action-ontology.md 5.2)."""
+
+    if action_type.argument_schema is None:
+        return frozenset()
+    paths: set[str] = set()
+    _walk_argument_schema_props(
+        action_type.argument_schema, "", action_type.name, [], paths
+    )
+    return frozenset(paths)
 
 
 def _deep_merge_overlay(upstream: Mapping[str, Any], overlay: Mapping[str, Any]) -> dict[str, Any]:
@@ -439,6 +548,7 @@ __all__ = [
     "ActionTypeCatalogError",
     "ActionTypeIssue",
     "action_type_names",
+    "argument_schema_redaction_paths",
     "load_action_type_catalog",
     "load_action_type_from_mapping",
 ]

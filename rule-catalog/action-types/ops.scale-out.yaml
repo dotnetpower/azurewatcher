@@ -49,6 +49,7 @@ argument_schema:
   properties:
     target_resource_ref:
       type: string
+      x-fdai-audit-safe: true
       minLength: 1
     replica_count:
       type: integer
@@ -56,6 +57,7 @@ argument_schema:
       maximum: 1000
     reason:
       type: string
+      x-fdai-audit-safe: true
       minLength: 10
       maxLength: 200
 prod_downgrade:

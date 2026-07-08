@@ -382,17 +382,37 @@ argument_schema:
 
 ### 5.2 Redaction hints
 
-Fields the operator may type that could carry secrets or PII (e.g. a
-password mid-tool-call, an email inside a `restart_reason`) SHOULD carry
-`x-fdai-redact` so the redactor strips them before the audit
-write:
+Redaction is an **allowlist, not a denylist**: every free-text string
+property (a `string` with no `enum`, `pattern`, `const`, or `format`
+constraint) MUST declare exactly one of two hints, so a field that could
+carry a secret or PII can never default to being persisted verbatim:
+
+- `x-fdai-redact: true` - the redactor strips the value before the audit
+  write. Valid only on a leaf `string`/`number` property.
+- `x-fdai-audit-safe: true` - the author asserts the value is safe to
+  persist (a resource ref, a justification, a region name).
+
+A free-text string with neither hint is a fatal load error. A property
+MUST NOT set both. Any `x-fdai-*` key other than these two is a fatal
+typo guard, so a misspelled `x-fdai-redcat` cannot silently fail to
+redact a secret. Constrained strings (enum/pattern/format) and
+non-string types need no hint.
 
 ```yaml
 properties:
   temp_admin_password:
     type: string
-    x-fdai-redact: true    # never persisted verbatim
+    x-fdai-redact: true       # never persisted verbatim
+  restart_reason:
+    type: string
+    minLength: 10
+    x-fdai-audit-safe: true   # justification is safe to keep
 ```
+
+The loader collects every `x-fdai-redact` path into a set exposed by
+`argument_schema_redaction_paths(action_type)`; the audit redactor strips
+those paths before an `operator_request` argument blob is persisted to the
+append-only log.
 
 ## 6. Live blast probe (§6 of execution-model.md, Month 1+)
 

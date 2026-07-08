@@ -589,7 +589,8 @@ def test_argument_schema_hardened_loads(tmp_path: Path) -> None:
         "  additionalProperties: false\n"
         "  required:\n  - target_resource_ref\n"
         "  properties:\n"
-        "    target_resource_ref:\n      type: string\n      minLength: 1\n"
+        "    target_resource_ref:\n"
+        "      type: string\n      minLength: 1\n      x-fdai-audit-safe: true\n"
     )
     body = _complete_ops_yaml(omit="trigger_kind") + arg
     root = _write_catalog(tmp_path, body)
@@ -627,4 +628,135 @@ def test_drop_purge_with_data_plane_mutating_loads(tmp_path: Path, operation: st
     root = _write_catalog(tmp_path, body)
     catalog = load_action_type_catalog(root, schema_registry=_registry())
     assert {a.name for a in catalog} == {"ops.example"}
+
+
+# --- #22: argument_schema redaction hints ---
+
+
+def _ops_with_arg_schema(arg_body: str) -> str:
+    """Baseline ops YAML with an operator_request trigger + argument_schema."""
+
+    return (
+        _complete_ops_yaml(omit="trigger_kind")
+        + "trigger_kind:\n  kind: operator_request\n"
+        + arg_body
+    )
+
+
+def test_unknown_x_fdai_extension_key_is_rejected(tmp_path: Path) -> None:
+    """A misspelled x-fdai-* key is a fatal typo guard so it cannot silently
+    fail to redact a secret (action-ontology.md 5.2)."""
+
+    arg = (
+        "argument_schema:\n"
+        "  type: object\n"
+        "  additionalProperties: false\n"
+        "  properties:\n"
+        "    secret_field:\n"
+        "      type: string\n"
+        "      x-fdai-redcat: true\n"  # typo: redcat
+    )
+    root = _write_catalog(tmp_path, _ops_with_arg_schema(arg))
+    with pytest.raises(ActionTypeCatalogError) as info:
+        load_action_type_catalog(root, schema_registry=_registry())
+    joined = " ".join(i.message for i in info.value.issues)
+    assert "x-fdai-redcat" in joined
+    assert "unknown extension key" in joined
+
+
+def test_x_fdai_redact_on_non_leaf_is_rejected(tmp_path: Path) -> None:
+    """x-fdai-redact on a whole object would drop audit-relevant keys."""
+
+    arg = (
+        "argument_schema:\n"
+        "  type: object\n"
+        "  additionalProperties: false\n"
+        "  properties:\n"
+        "    payload:\n"
+        "      type: object\n"
+        "      x-fdai-redact: true\n"
+        "      properties:\n"
+        "        inner:\n          type: string\n          x-fdai-audit-safe: true\n"
+    )
+    root = _write_catalog(tmp_path, _ops_with_arg_schema(arg))
+    with pytest.raises(ActionTypeCatalogError) as info:
+        load_action_type_catalog(root, schema_registry=_registry())
+    joined = " ".join(i.message for i in info.value.issues)
+    assert "leaf string/number" in joined
+
+
+def test_property_with_both_redact_and_audit_safe_is_rejected(tmp_path: Path) -> None:
+    arg = (
+        "argument_schema:\n"
+        "  type: object\n"
+        "  additionalProperties: false\n"
+        "  properties:\n"
+        "    field:\n"
+        "      type: string\n"
+        "      x-fdai-redact: true\n"
+        "      x-fdai-audit-safe: true\n"
+    )
+    root = _write_catalog(tmp_path, _ops_with_arg_schema(arg))
+    with pytest.raises(ActionTypeCatalogError) as info:
+        load_action_type_catalog(root, schema_registry=_registry())
+    joined = " ".join(i.message for i in info.value.issues)
+    assert "MUST NOT set both" in joined
+
+
+def test_argument_schema_redaction_paths_collects_flagged_leaves(tmp_path: Path) -> None:
+    from fdai.rule_catalog.schema.action_type import argument_schema_redaction_paths
+
+    arg = (
+        "argument_schema:\n"
+        "  type: object\n"
+        "  additionalProperties: false\n"
+        "  properties:\n"
+        "    target_resource_ref:\n"
+        "      type: string\n      x-fdai-audit-safe: true\n"
+        "    temp_admin_password:\n"
+        "      type: string\n      x-fdai-redact: true\n"
+    )
+    root = _write_catalog(tmp_path, _ops_with_arg_schema(arg))
+    catalog = load_action_type_catalog(root, schema_registry=_registry())
+    (action,) = catalog
+    assert argument_schema_redaction_paths(action) == frozenset({"temp_admin_password"})
+
+
+def test_unmarked_free_text_string_is_rejected(tmp_path: Path) -> None:
+    """A free-text string with neither x-fdai-redact nor x-fdai-audit-safe is
+    rejected - the author MUST decide (allowlist, not denylist) so a secret
+    typed mid-tool-call is never persisted by default (critique #22)."""
+
+    arg = (
+        "argument_schema:\n"
+        "  type: object\n"
+        "  additionalProperties: false\n"
+        "  properties:\n"
+        "    reason:\n"
+        "      type: string\n      minLength: 10\n"  # free-text, no mark
+    )
+    root = _write_catalog(tmp_path, _ops_with_arg_schema(arg))
+    with pytest.raises(ActionTypeCatalogError) as info:
+        load_action_type_catalog(root, schema_registry=_registry())
+    joined = " ".join(i.message for i in info.value.issues)
+    assert "free-text string property MUST declare" in joined
+
+
+def test_constrained_string_needs_no_redaction_mark(tmp_path: Path) -> None:
+    """A string constrained by enum/pattern/format is not free-text, so it
+    needs no redaction decision."""
+
+    arg = (
+        "argument_schema:\n"
+        "  type: object\n"
+        "  additionalProperties: false\n"
+        "  properties:\n"
+        "    mode:\n"
+        "      type: string\n      enum:\n      - shadow\n      - enforce\n"
+    )
+    root = _write_catalog(tmp_path, _ops_with_arg_schema(arg))
+    catalog = load_action_type_catalog(root, schema_registry=_registry())
+    assert {a.name for a in catalog} == {"ops.example"}
+
+
 

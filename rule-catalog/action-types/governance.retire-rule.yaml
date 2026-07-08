@@ -57,5 +57,6 @@ argument_schema:
       description: shadow_only keeps the rule evaluating; retired removes it entirely.
     justification:
       type: string
+      x-fdai-audit-safe: true
       minLength: 20
       maxLength: 500

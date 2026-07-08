@@ -48,6 +48,7 @@ argument_schema:
   properties:
     target_resource_ref:
       type: string
+      x-fdai-audit-safe: true
       minLength: 1
     scope:
       type: string
@@ -58,9 +59,11 @@ argument_schema:
       default: all
     key_prefix:
       type: string
+      x-fdai-audit-safe: true
       default: ''
     reason:
       type: string
+      x-fdai-audit-safe: true
       minLength: 10
       maxLength: 200
 prod_downgrade:

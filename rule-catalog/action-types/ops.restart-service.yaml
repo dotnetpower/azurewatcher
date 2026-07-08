@@ -49,10 +49,12 @@ argument_schema:
   properties:
     target_resource_ref:
       type: string
+      x-fdai-audit-safe: true
       minLength: 1
       description: CSP-neutral resource id (e.g. 'example-rg/aks/cluster/pod-x').
     restart_reason:
       type: string
+      x-fdai-audit-safe: true
       minLength: 10
       maxLength: 200
       description: Human-readable justification; recorded in the audit trail.

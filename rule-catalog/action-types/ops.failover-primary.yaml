@@ -50,12 +50,15 @@ argument_schema:
   properties:
     target_resource_ref:
       type: string
+      x-fdai-audit-safe: true
       minLength: 1
     target_region:
       type: string
+      x-fdai-audit-safe: true
       minLength: 1
     reason:
       type: string
+      x-fdai-audit-safe: true
       minLength: 20
       maxLength: 500
 prod_downgrade:

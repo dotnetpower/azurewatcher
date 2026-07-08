@@ -81,6 +81,7 @@ argument_schema:
         overlay). Wildcards / substitutions / paths are rejected by the pattern.
     justification:
       type: string
+      x-fdai-audit-safe: true
       minLength: 8
       maxLength: 512
       description: Free-text reason the operator is invoking this placeholder path.

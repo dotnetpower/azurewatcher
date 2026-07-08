@@ -50,6 +50,7 @@ argument_schema:
   properties:
     target_resource_ref:
       type: string
+      x-fdai-audit-safe: true
       minLength: 1
       description: CSP-neutral resource ref (typically a resource-group ref) whose subtree the summary covers.
     window_hours:

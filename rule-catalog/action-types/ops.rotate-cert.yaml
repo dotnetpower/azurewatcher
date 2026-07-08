@@ -49,12 +49,15 @@ argument_schema:
   properties:
     target_resource_ref:
       type: string
+      x-fdai-audit-safe: true
       minLength: 1
     cert_source_uri:
       type: string
+      x-fdai-redact: true
       minLength: 1
     reason:
       type: string
+      x-fdai-audit-safe: true
       minLength: 10
       maxLength: 200
 prod_downgrade:
