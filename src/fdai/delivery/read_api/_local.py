@@ -80,6 +80,7 @@ from fdai.rule_catalog.schema.resource_type import (  # noqa: E402
     load_resource_type_registry_from_mapping,
 )
 from fdai.rule_catalog.schema.rule import load_rule_catalog  # noqa: E402
+from fdai.rule_catalog.schema.workflow import load_workflow_catalog  # noqa: E402
 from fdai.shared.contracts.models import Rule  # noqa: E402
 from fdai.shared.contracts.registry import PackageResourceSchemaRegistry  # noqa: E402
 from fdai.shared.providers.sse import SseSink  # noqa: E402
@@ -671,10 +672,29 @@ def app() -> Starlette:
     if action_types:
         from fdai.delivery.read_api.workflow_authoring import WorkflowAuthoringConfig
 
+        _rule_ids = frozenset(r.id for r in rule_catalog_rules if getattr(r, "id", None))
+        # Load the shipped built-in Workflow catalog so the builder can list
+        # and inspect them read-only. Defensive: a load failure MUST NOT take
+        # down the dev server (the list just stays empty).
+        built_in_workflows: tuple[Any, ...] = ()
+        workflows_root = _REPO_ROOT / "rule-catalog" / "workflows"
+        if workflows_root.is_dir():
+            try:
+                built_in_workflows = load_workflow_catalog(
+                    workflows_root,
+                    schema_registry=schema_registry,
+                    action_type_names={at.name for at in action_types},
+                    rule_ids=set(_rule_ids) if _rule_ids else None,
+                )
+            except Exception:  # noqa: BLE001 - dev harness resilience only
+                logging.getLogger(__name__).warning("workflow_catalog_load_failed", exc_info=True)
+                built_in_workflows = ()
+
         workflow_authoring = WorkflowAuthoringConfig(
             schema_registry=schema_registry,
             action_types=tuple(action_types),
-            rule_ids=frozenset(r.id for r in rule_catalog_rules if getattr(r, "id", None)),
+            rule_ids=_rule_ids,
+            workflows=tuple(built_in_workflows),
         )
 
     return build_app(

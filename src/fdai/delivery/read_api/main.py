@@ -661,14 +661,18 @@ def build_app(
             ACTION_TYPES_ROUTE_PATH as _WF_AT_PATH,
         )
         from fdai.delivery.read_api.workflow_authoring import (
+            CATALOG_ROUTE_PATH as _WF_CAT_PATH,
+        )
+        from fdai.delivery.read_api.workflow_authoring import (
             VALIDATE_ROUTE_PATH as _WF_VAL_PATH,
         )
         from fdai.delivery.read_api.workflow_authoring import (
             make_action_types_route,
+            make_workflow_catalog_route,
             make_workflow_validate_route,
         )
 
-        for _wf_path in (_WF_AT_PATH, _WF_VAL_PATH):
+        for _wf_path in (_WF_AT_PATH, _WF_VAL_PATH, _WF_CAT_PATH):
             if _wf_path in _CORE_ROUTE_PATHS:
                 raise ValueError(f"workflow authoring path {_wf_path!r} collides with a core route")
             if _wf_path in seen_panel_paths:
@@ -680,6 +684,11 @@ def build_app(
         )
         routes.append(
             make_workflow_validate_route(
+                config=resolved_config.workflow_authoring, authorize=_authorize
+            )
+        )
+        routes.append(
+            make_workflow_catalog_route(
                 config=resolved_config.workflow_authoring, authorize=_authorize
             )
         )

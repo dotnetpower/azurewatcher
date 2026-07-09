@@ -12,10 +12,12 @@ from fdai.delivery.read_api.main import ReadApiConfig, build_app
 from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
 from fdai.delivery.read_api.workflow_authoring import WorkflowAuthoringConfig
 from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.rule_catalog.schema.workflow import load_workflow_catalog
 from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ACTION_TYPES_ROOT = REPO_ROOT / "rule-catalog" / "action-types"
+WORKFLOWS_ROOT = REPO_ROOT / "rule-catalog" / "workflows"
 
 
 @pytest.fixture(autouse=True)
@@ -28,10 +30,17 @@ def _authoring_config() -> WorkflowAuthoringConfig:
     action_types = load_action_type_catalog(
         ACTION_TYPES_ROOT, schema_registry=registry, probes_root=None
     )
+    workflows = load_workflow_catalog(
+        WORKFLOWS_ROOT,
+        schema_registry=registry,
+        action_type_names={at.name for at in action_types},
+        rule_ids=None,
+    )
     return WorkflowAuthoringConfig(
         schema_registry=registry,
         action_types=action_types,
         rule_ids=frozenset(),
+        workflows=workflows,
     )
 
 
@@ -78,6 +87,7 @@ def test_authoring_endpoints_unregistered_by_default() -> None:
     client = _client(authoring=False)
     assert client.get("/workflows/action-types").status_code == 404
     assert client.post("/workflows/validate", json={}).status_code == 404
+    assert client.get("/workflows/catalog").status_code == 404
 
 
 def test_action_types_palette_lists_the_catalog() -> None:
@@ -139,3 +149,25 @@ def test_validate_rejects_a_non_object_body() -> None:
 def test_validate_route_is_post_only() -> None:
     client = _client(authoring=True)
     assert client.get("/workflows/validate").status_code == 405
+
+
+def test_catalog_lists_built_in_workflows_read_only() -> None:
+    client = _client(authoring=True)
+    resp = client.get("/workflows/catalog")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["count"] == len(body["workflows"])
+    assert body["count"] > 0
+    names = [w["name"] for w in body["workflows"]]
+    assert names == sorted(names)
+    entry = body["workflows"][0]
+    # Full read-only content: structured fields + the raw catalog YAML.
+    for key in ("name", "version", "trigger", "default_mode", "promotion_gate", "steps"):
+        assert key in entry
+    assert entry["step_count"] == len(entry["steps"])
+    assert entry["yaml"].startswith("schema_version:")
+
+
+def test_catalog_route_is_get_only() -> None:
+    client = _client(authoring=True)
+    assert client.post("/workflows/catalog").status_code == 405

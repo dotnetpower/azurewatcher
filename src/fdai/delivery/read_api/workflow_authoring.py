@@ -16,6 +16,10 @@ an operator uses to map a custom business process onto the ontology:
   registers no side effect, and never creates a PR - the console copies
   the previewed YAML into a remediation PR through the git-native path,
   never a console button (app-shape.instructions.md § Operator console).
+- ``GET  /workflows/catalog`` - the shipped (built-in) Workflow catalog.
+  A read-only projection of the loaded Workflow catalog so the builder
+  can list every built-in process and show its full content (trigger,
+  steps, promotion gate, YAML) before an operator drafts a new one.
 
 Both routes require the Reader role and are opt-in through
 :class:`~fdai.delivery.read_api.main.ReadApiConfig.workflow_authoring`
@@ -45,6 +49,7 @@ from fdai.shared.contracts.registry import SchemaRegistry
 
 ACTION_TYPES_ROUTE_PATH = "/workflows/action-types"
 VALIDATE_ROUTE_PATH = "/workflows/validate"
+CATALOG_ROUTE_PATH = "/workflows/catalog"
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,12 +61,15 @@ class WorkflowAuthoringConfig:
     empty the validator skips the guard cross-check (a caller that has not
     loaded the rule catalog passes an empty set rather than fail a draft
     that names a real guard), matching the ``rule_ids=None`` contract of
-    :func:`load_workflow_from_mapping`.
+    :func:`load_workflow_from_mapping`. ``workflows`` is the loaded
+    built-in Workflow catalog, served read-only by the catalog route so
+    the builder can list and inspect shipped processes.
     """
 
     schema_registry: SchemaRegistry
     action_types: tuple[OntologyActionType, ...]
     rule_ids: frozenset[str] = field(default_factory=frozenset)
+    workflows: tuple[Workflow, ...] = ()
 
 
 def _serialize_action_type(at: OntologyActionType) -> dict[str, object]:
@@ -94,13 +102,13 @@ def _serialize_action_type(at: OntologyActionType) -> dict[str, object]:
     }
 
 
-def _workflow_to_yaml(workflow: Workflow) -> str:
-    """Render a validated Workflow to canonical catalog-as-code YAML.
+def _workflow_ordered_mapping(workflow: Workflow) -> dict[str, Any]:
+    """Build the canonical catalog-as-code mapping for a Workflow.
 
     Field order matches the shipped workflow files under
-    ``rule-catalog/workflows/`` so the preview is copy-paste ready for a
-    remediation PR. ``None`` values are dropped; a step's optional fields
-    are emitted only when set.
+    ``rule-catalog/workflows/``. ``None`` values are dropped; a step's
+    optional fields are emitted only when set. Shared by the YAML preview
+    and the read-only catalog projection so both stay in lockstep.
     """
     ordered: dict[str, Any] = {
         "schema_version": str(workflow.schema_version),
@@ -138,7 +146,30 @@ def _workflow_to_yaml(workflow: Workflow) -> str:
     ordered["steps"] = steps
     if workflow.anti_scope is not None:
         ordered["anti_scope"] = workflow.anti_scope
-    return yaml.safe_dump(ordered, sort_keys=False, allow_unicode=False, width=80)
+    return ordered
+
+
+def _workflow_to_yaml(workflow: Workflow) -> str:
+    """Render a validated Workflow to canonical catalog-as-code YAML.
+
+    The preview is copy-paste ready for a remediation PR.
+    """
+    return yaml.safe_dump(
+        _workflow_ordered_mapping(workflow), sort_keys=False, allow_unicode=False, width=80
+    )
+
+
+def _serialize_workflow(workflow: Workflow) -> dict[str, Any]:
+    """Project one built-in Workflow to a read-only catalog entry.
+
+    Carries the full structured content (so the console can render a
+    property table) plus the canonical YAML (so it can show the raw
+    catalog-as-code form), never a mutable handle.
+    """
+    mapping = _workflow_ordered_mapping(workflow)
+    mapping["step_count"] = len(workflow.steps)
+    mapping["yaml"] = _workflow_to_yaml(workflow)
+    return mapping
 
 
 def make_action_types_route(
@@ -212,10 +243,36 @@ def make_workflow_validate_route(
     return Route(path, handler, methods=["POST"])
 
 
+def make_workflow_catalog_route(
+    *,
+    config: WorkflowAuthoringConfig,
+    authorize: Callable[[Request], Awaitable[str]],
+    path: str = CATALOG_ROUTE_PATH,
+) -> Route:
+    """Return the ``GET /workflows/catalog`` built-in-workflow route.
+
+    A read-only projection of the loaded Workflow catalog, name-ordered so
+    the console can list every shipped process and inspect its full
+    content before an operator drafts a new one.
+    """
+    catalog = sorted(
+        (_serialize_workflow(w) for w in config.workflows),
+        key=lambda entry: str(entry["name"]),
+    )
+
+    async def handler(request: Request) -> Response:
+        await authorize(request)
+        return JSONResponse({"workflows": catalog, "count": len(catalog)})
+
+    return Route(path, handler, methods=["GET"])
+
+
 __all__ = [
     "ACTION_TYPES_ROUTE_PATH",
+    "CATALOG_ROUTE_PATH",
     "VALIDATE_ROUTE_PATH",
     "WorkflowAuthoringConfig",
     "make_action_types_route",
+    "make_workflow_catalog_route",
     "make_workflow_validate_route",
 ]
