@@ -1,0 +1,173 @@
+"""T2Tier - propose + quality-gate, outcome mapping and real-gate integration.
+
+The mapping matrix (gate outcome -> tier outcome) is exercised with a trivial
+fake gate; one integration test drives a real QualityGate wired with the
+quality-gate testing fakes to prove the composition holds. Async tests run
+under asyncio_mode="auto".
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from fdai.core.quality_gate.gate import (
+    QualityCandidate,
+    QualityDecision,
+    QualityGate,
+    QualityOutcome,
+)
+from fdai.core.quality_gate.testing import (
+    MatchTypeCrossCheckModel,
+    MismatchCrossCheckModel,
+    StaticVerifier,
+)
+from fdai.core.tiers.t2_reasoning import T2Outcome, T2Tier
+from fdai.shared.contracts.models import Event, Mode
+
+
+def _event() -> Event:
+    return Event(
+        schema_version="1.0.0",
+        event_id="00000000-0000-0000-0000-000000000042",  # type: ignore[arg-type]
+        idempotency_key="t2-evt",
+        source="example_detector",
+        event_type="novel_anomaly",
+        detected_at="2026-07-09T12:00:00Z",  # type: ignore[arg-type]
+        ingested_at="2026-07-09T12:00:01Z",  # type: ignore[arg-type]
+        mode=Mode.SHADOW,
+    )
+
+
+def _candidate(*, confidence: dict[str, float] | None = None) -> QualityCandidate:
+    return QualityCandidate(
+        action_type="remediate.tag-add",
+        target_resource_ref="resource:example/rg/x",
+        params={"tag": "owner"},
+        cited_rule_ids=("r1",),
+        confidence_signals=confidence if confidence is not None else {"a": 0.8, "b": 0.9},
+    )
+
+
+class _Proposer:
+    def __init__(self, candidate: QualityCandidate | None) -> None:
+        self._candidate = candidate
+
+    async def propose(self, *, event: Event) -> QualityCandidate | None:
+        del event
+        return self._candidate
+
+
+class _FakeGate:
+    def __init__(self, outcome: QualityOutcome) -> None:
+        self._outcome = outcome
+
+    async def evaluate(self, candidate: QualityCandidate) -> QualityDecision:
+        return QualityDecision(outcome=self._outcome, candidate=candidate)
+
+
+class _Grounding:
+    """Minimal GroundingSource: r1 exists, no topical `supports` hook."""
+
+    def known_rule_ids(self) -> set[str]:
+        return {"r1"}
+
+    def get(self, rule_id: str):  # noqa: ANN201 - Protocol conformance
+        del rule_id
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Outcome mapping (fake gate)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("gate_outcome", "expected"),
+    [
+        (QualityOutcome.ELIGIBLE, T2Outcome.PROPOSED),
+        (QualityOutcome.ABSTAIN, T2Outcome.ESCALATE),
+        (QualityOutcome.DISAGREE, T2Outcome.ESCALATE),
+        (QualityOutcome.DENY, T2Outcome.DENIED),
+    ],
+)
+async def test_gate_outcome_maps_to_tier_outcome(
+    gate_outcome: QualityOutcome, expected: T2Outcome
+) -> None:
+    tier = T2Tier(proposer=_Proposer(_candidate()), quality_gate=_FakeGate(gate_outcome))
+    decision = await tier.evaluate(event=_event())
+    assert decision.outcome is expected
+    assert decision.candidate is not None
+    assert decision.quality_decision is not None
+    assert decision.eligible_for_risk_gate is (expected is T2Outcome.PROPOSED)
+
+
+async def test_proposer_abstain_yields_tier_abstain() -> None:
+    tier = T2Tier(proposer=_Proposer(None), quality_gate=_FakeGate(QualityOutcome.ELIGIBLE))
+    decision = await tier.evaluate(event=_event())
+    assert decision.outcome is T2Outcome.ABSTAIN
+    assert decision.candidate is None
+    assert decision.quality_decision is None
+    assert decision.reason == "t2_proposer_abstained"
+    assert decision.eligible_for_risk_gate is False
+
+
+# ---------------------------------------------------------------------------
+# Real QualityGate integration
+# ---------------------------------------------------------------------------
+
+
+async def test_real_gate_eligible_path_proposes() -> None:
+    gate = QualityGate(
+        verifier=StaticVerifier(outcome=True),
+        cross_check_models=(
+            MatchTypeCrossCheckModel(model_id="m1"),
+            MatchTypeCrossCheckModel(model_id="m2"),
+        ),
+        grounding=_Grounding(),
+    )
+    tier = T2Tier(proposer=_Proposer(_candidate()), quality_gate=gate)
+    decision = await tier.evaluate(event=_event())
+    assert decision.outcome is T2Outcome.PROPOSED
+    assert decision.reason == "quality_gate_eligible"
+
+
+async def test_real_gate_denies_when_verifier_rejects() -> None:
+    gate = QualityGate(
+        verifier=StaticVerifier(outcome=False),
+        cross_check_models=(
+            MatchTypeCrossCheckModel(model_id="m1"),
+            MatchTypeCrossCheckModel(model_id="m2"),
+        ),
+        grounding=_Grounding(),
+    )
+    tier = T2Tier(proposer=_Proposer(_candidate()), quality_gate=gate)
+    decision = await tier.evaluate(event=_event())
+    assert decision.outcome is T2Outcome.DENIED
+
+
+async def test_real_gate_escalates_on_cross_check_disagreement() -> None:
+    gate = QualityGate(
+        verifier=StaticVerifier(outcome=True),
+        cross_check_models=(
+            MatchTypeCrossCheckModel(model_id="m1"),
+            MismatchCrossCheckModel(model_id="m2"),
+        ),
+        grounding=_Grounding(),
+    )
+    tier = T2Tier(proposer=_Proposer(_candidate()), quality_gate=gate)
+    decision = await tier.evaluate(event=_event())
+    assert decision.outcome is T2Outcome.ESCALATE
+
+
+async def test_real_gate_escalates_on_low_confidence() -> None:
+    gate = QualityGate(
+        verifier=StaticVerifier(outcome=True),
+        cross_check_models=(
+            MatchTypeCrossCheckModel(model_id="m1"),
+            MatchTypeCrossCheckModel(model_id="m2"),
+        ),
+        grounding=_Grounding(),
+    )
+    tier = T2Tier(proposer=_Proposer(_candidate(confidence={"a": 0.2})), quality_gate=gate)
+    decision = await tier.evaluate(event=_event())
+    assert decision.outcome is T2Outcome.ESCALATE

@@ -33,7 +33,7 @@ control loop live in
 | **Runbook orchestration** | **New primitive layer.** See § 3.4. | Present ActionTypes are leaves; a runbook is a DAG over ActionTypes with a rollback branch. |
 | **On-call schedule** | **New provider.** See § 3.5. | HIL routing today is role-based, not schedule-based. Break-glass pager exists but knows nothing about who is on shift. |
 | **Postmortem draft** | **New core module.** See § 3.6. | Fed by Incident + audit trail. LLM-optional (template-based default). |
-| **Full T1/T2 wiring into ControlLoop** | **T1 wired; T2 pending.** See § 3.7. | `ControlLoop.__init__` accepts an optional `t1_engine` and the loop runs `T0.abstain -> T1.reuse-log` (shadow-only). T2 remains: `core/tiers/t2_reasoning/` is still a stub, so there is no `t2_engine` yet. |
+| **Full T1/T2 wiring into ControlLoop** | **T1 wired; T2 library built, wiring pending.** See § 3.7. | `ControlLoop.__init__` accepts an optional `t1_engine` and the loop runs `T0.abstain -> T1.reuse-log` (shadow-only). `core/tiers/t2_reasoning/` now ships `T2Tier` (propose + quality-gate); wiring `t2_engine` into `ControlLoop` remains. |
 
 ## 2. Explicitly-deferred axes (not in this expansion)
 
@@ -255,24 +255,29 @@ findings, actions) but no synthesizer.
 
 ### 3.7 T1 / T2 tiers wired into `ControlLoop`
 
-**Status.** T1 is wired; T2 remains. `ControlLoop.__init__` accepts an
-optional `t1_engine` (Protocol-typed `T1Tier`), and `process` runs
+**Status.** T1 is wired; the T2 tier library now exists but is not yet
+wired into the loop. `ControlLoop.__init__` accepts an optional
+`t1_engine` (Protocol-typed `T1Tier`), and `process` runs
 `T0.abstain -> T1.reuse-log`: a T1 similarity hit is recorded as
 `T1_REUSE_LOGGED` and never executed in P1 (a reuse must clear the
 verifier + risk-gate first, which is P2). Each tier hop writes its own
-audit entry, so the decision stays reconstructable. What is **not** yet
-built is T2: `core/tiers/t2_reasoning/` is a stub (no engine), so
-`ControlLoop` has no `t2_engine` parameter.
+audit entry, so the decision stays reconstructable. `core/tiers/t2_reasoning/`
+now ships `T2Tier` - a small orchestrator that asks a `T2Proposer` for a
+candidate and runs it through the existing `QualityGate` (mixed-model
+cross-check + verifier + grounding), mapping the gate verdict to
+`PROPOSED` / `ESCALATE` / `DENIED` / `ABSTAIN`. What remains is wiring:
+`ControlLoop` has no `t2_engine` parameter yet.
 
 **Remaining design (T2).**
 
-- Build the `t2_reasoning` tier library first (it is a stub today).
 - Add an optional `t2_engine` parameter to `ControlLoop.__init__`
-  (Protocol-typed, no concrete class import in `core/control_loop.py`
-  beyond the Protocol).
+  (Protocol-typed `T2Tier`, no concrete class import in
+  `core/control_loop.py` beyond the Protocol).
 - Flow: `T1.abstain -> T2.propose + quality-gate -> risk-gate`. The
   quality gate (mixed-model cross-check, verifier, grounding) grants
-  execution eligibility; the model never does.
+  execution eligibility; the model never does. Only a gate `ELIGIBLE`
+  verdict (`T2Outcome.PROPOSED`) reaches the risk-gate; `ESCALATE` /
+  `DENIED` / `ABSTAIN` never auto-execute.
 
 **Scenario replay.** The frozen scenarios in
 [tests/scenarios/v2026.07/](../../tests/scenarios/v2026.07/) are enriched
