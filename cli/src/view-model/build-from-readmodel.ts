@@ -9,12 +9,16 @@
 
 import type { Block, RiskLevel, Tone } from "./blocks.js";
 import type { ReadModelSnapshot } from "../data/read-api.js";
+import { t } from "../i18n/index.js";
 
+// Tier labels are sourced from the i18n catalog (English is the source of
+// truth; a locale falls back to English). Default locale keeps the rendered
+// output byte-identical to the previous hard-coded labels.
 const TIER_META: Record<string, { label: string; tone: Tone; order: number }> = {
-  t0: { label: "Handled by fixed rules", tone: "t0", order: 0 },
-  t1: { label: "Matched a past case", tone: "t1", order: 1 },
-  t2: { label: "Needed AI reasoning", tone: "t2", order: 2 },
-  abstain: { label: "Abstained", tone: "dim", order: 3 },
+  t0: { label: t("tier.t0"), tone: "t0", order: 0 },
+  t1: { label: t("tier.t1"), tone: "t1", order: 1 },
+  t2: { label: t("tier.t2"), tone: "t2", order: 2 },
+  abstain: { label: t("tier.abstain"), tone: "dim", order: 3 },
 };
 
 function humanize(actionKind: string): string {

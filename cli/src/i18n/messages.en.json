@@ -1,0 +1,8 @@
+{
+  "tier": {
+    "t0": "Handled by fixed rules",
+    "t1": "Matched a past case",
+    "t2": "Needed AI reasoning",
+    "abstain": "Abstained"
+  }
+}
