@@ -88,8 +88,8 @@ jobs:
         run: terraform validate
 
       - name: Terraform plan
-        run: terraform plan -input=false -out=dev.plan
+        run: terraform plan -input=false -lock-timeout=300s -out=dev.plan
 
       - name: Terraform apply
         if: ${{ inputs.apply }}
-        run: terraform apply -input=false dev.plan
+        run: terraform apply -input=false -lock-timeout=300s dev.plan

@@ -138,6 +138,13 @@ resource "azurerm_linux_virtual_machine" "runner" {
     runner_token = var.github_runner_token
     runner_user  = var.runner_admin_username
   }))
+
+  # Do not replace the runner on a cloud-init edit or a new "latest" image:
+  # replacing the VM destroys the registered GitHub runner (and any in-flight
+  # job). Re-provision deliberately (taint) when the bootstrap really changes.
+  lifecycle {
+    ignore_changes = [custom_data, source_image_reference[0].version]
+  }
 }
 
 # -----------------------------------------------------------------------
@@ -153,17 +160,10 @@ data "azurerm_resource_group" "app" {
   name  = var.app_resource_group_name
 }
 
-# The apply principal (operator laptop on first bootstrap) needs AAD data-plane
-# access on the state account so the provider's post-create blob readiness poll
-# (AAD, not key) succeeds - key auth is policy-forbidden.
-data "azurerm_client_config" "current" {}
-
-resource "azurerm_role_assignment" "bootstrap_state_blob" {
-  scope                = data.azurerm_storage_account.state.id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = data.azurerm_client_config.current.object_id
-}
-
+# Only the runner needs data-plane access to the state account (Storage Blob
+# Data Contributor below). The bootstrap operator (laptop) reads the account
+# via a control-plane data source only, so no laptop blob-data grant is issued
+# - the tfstate (which carries secrets) stays reachable by the runner alone.
 resource "azurerm_role_assignment" "runner_app_contributor" {
   count                = var.create_runner_vm ? 1 : 0
   scope                = data.azurerm_resource_group.app[0].id
