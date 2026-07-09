@@ -269,7 +269,7 @@ resource "azurerm_key_vault_secret" "state_store_dsn" {
   content_type = "postgres-dsn"
   tags         = local.tags
 
-  depends_on = [azurerm_role_assignment.kv_officer_self, module.kv_private_endpoint]
+  depends_on = [azurerm_role_assignment.kv_officer_self, module.kv_private_endpoint, azurerm_virtual_network_peering.spoke_to_hub, azurerm_virtual_network_peering.hub_to_spoke]
 }
 
 resource "azurerm_key_vault_secret" "operator_memory_dsn" {
@@ -279,7 +279,7 @@ resource "azurerm_key_vault_secret" "operator_memory_dsn" {
   content_type = "postgres-dsn"
   tags         = local.tags
 
-  depends_on = [azurerm_role_assignment.kv_officer_self, module.kv_private_endpoint]
+  depends_on = [azurerm_role_assignment.kv_officer_self, module.kv_private_endpoint, azurerm_virtual_network_peering.spoke_to_hub, azurerm_virtual_network_peering.hub_to_spoke]
 }
 
 resource "azurerm_key_vault_secret" "pattern_library_dsn" {
@@ -289,7 +289,7 @@ resource "azurerm_key_vault_secret" "pattern_library_dsn" {
   content_type = "postgres-dsn"
   tags         = local.tags
 
-  depends_on = [azurerm_role_assignment.kv_officer_self, module.kv_private_endpoint]
+  depends_on = [azurerm_role_assignment.kv_officer_self, module.kv_private_endpoint, azurerm_virtual_network_peering.spoke_to_hub, azurerm_virtual_network_peering.hub_to_spoke]
 }
 
 # -----------------------------------------------------------------------
