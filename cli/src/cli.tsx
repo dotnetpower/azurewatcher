@@ -93,7 +93,7 @@ switch (surface) {
     if (source === "api" && liveApi && process.stdin.isTTY) {
       // Live data: a one-screen cockpit fed by the real pipeline over SSE.
       const { startCockpit } = await import("./cockpit.js");
-      await startCockpit({ apiUrl: liveApi, payload: null });
+      await startCockpit({ apiUrl: liveApi, payload: null, locale });
     } else {
       // Sample data (or non-TTY): Ink briefing once, then the bottom-fixed REPL.
       const { renderBriefing } = await import(
@@ -101,7 +101,7 @@ switch (surface) {
       );
       await renderBriefing(blocks);
       const { startRepl } = await import("./repl.js");
-      await startRepl({ apiUrl: liveApi, payload: payload ?? null });
+      await startRepl({ apiUrl: liveApi, payload: payload ?? null, locale });
     }
     break;
   }
