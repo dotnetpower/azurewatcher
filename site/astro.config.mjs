@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
+import remarkCjkFriendly from "remark-cjk-friendly";
 import { remarkStripFirstH1 } from "./src/plugins/strip-first-h1.mjs";
 import { remarkMermaid } from "./src/plugins/mermaid.mjs";
 import { remarkRewriteLinks } from "./src/plugins/rewrite-links.mjs";
@@ -34,8 +35,19 @@ export default defineConfig({
   // GitHub reading) into site-relative URLs, and re-points `.github/**`
   // links at GitHub blob URLs since the site intentionally does not
   // publish that scope.
+  // remarkCjkFriendly relaxes CommonMark's emphasis flanking rules so
+  // `**bold**` works when a Korean particle attaches directly after the
+  // closing delimiter (e.g. a Hangul josa immediately following `**`).
+  // Without it, a closing `**` sandwiched between punctuation and a
+  // Hangul letter is treated as both left- and right-flanking and cannot
+  // close, leaking a literal `**` into the rendered text.
   markdown: {
-    remarkPlugins: [remarkStripFirstH1, remarkMermaid, remarkRewriteLinks],
+    remarkPlugins: [
+      remarkCjkFriendly,
+      remarkStripFirstH1,
+      remarkMermaid,
+      remarkRewriteLinks,
+    ],
   },
   integrations: [
     starlight({
