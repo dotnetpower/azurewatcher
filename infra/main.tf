@@ -166,6 +166,42 @@ module "kv_private_endpoint" {
   subresource_name      = "vault"
   private_dns_zone_name = "privatelink.vaultcore.azure.net"
   tags                  = local.tags
+
+  # Link the KV private DNS zone to the ops/hub VNet too, so the deploy runner
+  # (which lives in the peered ops VNet) resolves the vault privately and can
+  # write the persistence DSN secrets during apply.
+  extra_vnet_links = var.runner_vnet_id != "" ? { ops = var.runner_vnet_id } : {}
+}
+
+# -----------------------------------------------------------------------
+# Spoke <-> hub VNet peering. Lets the deploy runner in the ops/hub VNet
+# route to the app's private endpoints (Key Vault). Both directions are
+# created here (the app owns the spoke side; the hub side is a child of the
+# ops VNet, referenced by name + RG from the bootstrap outputs). Gated on a
+# private-networking deploy that supplied the ops VNet coordinates.
+# -----------------------------------------------------------------------
+locals {
+  peer_hub = var.enable_private_networking && var.runner_vnet_id != "" && var.runner_vnet_name != "" && var.ops_resource_group_name != ""
+}
+
+resource "azurerm_virtual_network_peering" "spoke_to_hub" {
+  count                        = local.peer_hub ? 1 : 0
+  name                         = "peer-to-ops"
+  resource_group_name          = module.resource_group.name
+  virtual_network_name         = module.network[0].vnet_name
+  remote_virtual_network_id    = var.runner_vnet_id
+  allow_virtual_network_access = true
+  allow_forwarded_traffic      = true
+}
+
+resource "azurerm_virtual_network_peering" "hub_to_spoke" {
+  count                        = local.peer_hub ? 1 : 0
+  name                         = "peer-to-${var.workload}${local.full_suffix}"
+  resource_group_name          = var.ops_resource_group_name
+  virtual_network_name         = var.runner_vnet_name
+  remote_virtual_network_id    = module.network[0].vnet_id
+  allow_virtual_network_access = true
+  allow_forwarded_traffic      = true
 }
 
 # -----------------------------------------------------------------------

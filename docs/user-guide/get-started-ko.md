@@ -3,15 +3,23 @@ title: FDAI 시작하기
 description: FDAI 5분 오리엔테이션 - 무엇인지, 언제 적합한지, 다음으로 어디를 볼지.
 translation_of: get-started.md
 translation_source_sha: a6aac1213a8e454a3cb14d5f0097a5b786f98f5e
-translation_revised: 2026-07-09
+translation_revised: 2026-07-10
 ---
 
 # FDAI 시작하기
 
-FDAI는 자율 클라우드 운영 컨트롤 플레인입니다. 운영 이벤트 중 반복 가능한 다수를
-규칙·정책·타입 있는 액션으로 결정론적으로 해소하고, 결정론 게이트를 통과한 애매한
-소수만 LLM 추론으로 넘깁니다. 모든 자율 액션은 리스크 분류를 거치며, 안전 임계값을 넘는
-것은 반드시 HIL(human-in-the-loop) 승인 대기로 넘어갑니다.
+FDAI(Forward Deployed AI)는 자율 클라우드 운영 컨트롤 플레인입니다. 운영 이벤트 중
+반복 가능한 다수를 규칙·정책·타입 있는 액션으로 결정론적으로 해소하고, 결정론 게이트를
+통과한 애매한 소수만 LLM 추론으로 넘깁니다. 모든 자율 액션은 리스크 분류를 거치며, 안전
+임계값을 넘는 것은 반드시 HIL(human-in-the-loop) 승인 대기로 넘어갑니다.
+
+FDAI는 **여러분의 클라우드 안에 사는, 전문화된 에이전트들의 조직**이라고 생각하면
+됩니다. 에이전트들은 리소스 변경을 감지하고, 버전 있는 규칙 카탈로그에 비추어 각 변경을
+판단하고, 안전한 다수를 실행하고, 위험한 소수만 여러분에게 올립니다. 여러분은 이 전체
+시스템을 **승인 또는 거절** 수준에서 운영합니다. 잡무가 아니라 결정을 요청받습니다.
+짐작으로 SRE 업무를 대신 돌리는 일은 없습니다. 모든 액션은 자체 stop-condition,
+롤백 경로, blast-radius 제한, 감사 기록을 지닌 타입 있는 **온톨로지** 엔트리의
+인스턴스입니다.
 
 레퍼런스 구현 대상은 Azure입니다. 다른 CSP를 추가할 수 있도록 클라우드 중립 seam을
 유지하지만, 지금 시점에 비-Azure 어댑터는 없습니다.
@@ -71,6 +79,33 @@ event -> event-ingest -> trust-router -> T0 | T1 | (T2 -> quality-gate)
 커버리지 백분율은 측정된 베이스라인 위에서만 주장 가능한 설계 목표입니다
 ([goals-and-metrics-ko](../roadmap/goals-and-metrics-ko.md)).
 
+이 루프 위에 두 가지가 얹혀 시스템을 운영 가능하게 만듭니다:
+
+- **타입 있는 액션 온톨로지.** FDAI가 할 수 있는 모든 변경 - 드리프트된 설정 교정,
+  서비스 재시작, DR 훈련 실행 - 은 catalog-as-code 온톨로지의 `ActionType` 엔트리
+  입니다. 규칙이 발동하거나 운영자가 요청하면, 그 타입이 타입의 안전 계약을 물려받는
+  구체적 액션으로 *인스턴스화*됩니다.
+  [concepts/ontology-driven-automation-ko.md](concepts/ontology-driven-automation-ko.md) 참고.
+- **에이전트들의 조직.** 이름 있는 에이전트 집합이 루프를 소유합니다. 일부는 감지하고,
+  하나는 판단하고, 하나는 실행하고, 하나는 여러분의 승인을 담당하고, 하나는 감사를
+  기록합니다. 무언가 깨지면 협력해 해결하고 위험한 소수만 여러분에게 알립니다.
+  [concepts/agents-and-self-healing-ko.md](concepts/agents-and-self-healing-ko.md) 참고.
+
+## 여러분의 스택 전반에서 동작
+
+FDAI는 이벤트 기반이고 중립적 추상화 뒤에 있어, 이미 운영 중인 것들에 꽂힙니다:
+
+- **Azure 리소스** - 구현된 대상. 컴퓨트·스토리지·데이터베이스·네트워킹·아이덴티티·
+  Kubernetes가 제공되는 규칙 카탈로그와 액션 온톨로지로 커버됩니다.
+- **이벤트 버스** - Kafka 호환 스트림(Kafka 엔드포인트의 Event Hubs)이 리소스 변경
+  신호·activity-log 이벤트·탐지기 finding을 루프로 실어 나릅니다.
+- **policy-as-code** - 규칙은 CSP 중립 스키마로 정규화되어 OPA/Rego로 평가되므로,
+  결정론 티어가 기계 판독 가능한 정책 위에서 돌아갑니다.
+- **전달 채널** - 액션은 remediation PR(GitOps)로 나가고, HIL 승인은 Teams 또는
+  Slack Adaptive Card로 도착합니다. 감사와 롤백은 git에서 공짜로 옵니다.
+- **운영자 콘솔** - 읽기 전용 콘솔과 대화형 narrator로, executor의 특권 아이덴티티를
+  절대 쥐지 않으면서 질문하고 승인·거절할 수 있습니다.
+
 ## FDAI가 적합한 경우
 
 모두 참일 때 잘 맞습니다:
@@ -117,8 +152,11 @@ flowchart TB
 
 | 학습 대상 | 문서 |
 |-----------|------|
+| FDAI가 자동화하는 SRE 기능 | [concepts/sre-foundations-ko.md](concepts/sre-foundations-ko.md) |
 | 왜 결정론 우선인가 | [concepts/deterministic-first-ko.md](concepts/deterministic-first-ko.md) |
 | 세 신뢰 티어의 상세 | [concepts/risk-tiers-ko.md](concepts/risk-tiers-ko.md) |
+| 액션 온톨로지가 자동화를 이끄는 방식 | [concepts/ontology-driven-automation-ko.md](concepts/ontology-driven-automation-ko.md) |
+| 에이전트들이 협력하고 자가 치유하는 방식 | [concepts/agents-and-self-healing-ko.md](concepts/agents-and-self-healing-ko.md) |
 | Shadow 모드 롤아웃과 승격 | [concepts/shadow-then-enforce-ko.md](concepts/shadow-then-enforce-ko.md) |
 | 운영자 관점의 변경 승인 | [guides/approve-change-ko.md](guides/approve-change-ko.md) |
 | 감사 로그 읽기 | [guides/read-audit-log-ko.md](guides/read-audit-log-ko.md) |

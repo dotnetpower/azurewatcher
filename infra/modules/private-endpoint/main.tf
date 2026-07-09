@@ -25,6 +25,18 @@ resource "azurerm_private_dns_zone_virtual_network_link" "this" {
   tags                  = var.tags
 }
 
+# Additional VNet links (e.g. a peered ops/hub VNet) so a runner outside the
+# app VNet resolves this private endpoint. Keyed by a stable link name.
+resource "azurerm_private_dns_zone_virtual_network_link" "extra" {
+  for_each              = var.extra_vnet_links
+  name                  = "${var.name}-${each.key}-link"
+  resource_group_name   = var.resource_group_name
+  private_dns_zone_name = azurerm_private_dns_zone.this.name
+  virtual_network_id    = each.value
+  registration_enabled  = false
+  tags                  = var.tags
+}
+
 resource "azurerm_private_endpoint" "this" {
   name                = var.name
   location            = var.location

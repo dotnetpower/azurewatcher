@@ -5,11 +5,20 @@ description: A five-minute orientation to FDAI - what it is, when it fits, and w
 
 # Get Started with FDAI
 
-FDAI is an autonomous cloud operations control plane. It resolves the
-repeatable majority of operational events deterministically with rules, policies,
-and typed actions, and reserves LLM inference for the ambiguous residual that
-survives the deterministic gate. Every autonomous action is risk-classified, and
-anything above the safe threshold pauses for human-in-the-loop (HIL) approval.
+FDAI (Forward Deployed AI) is an autonomous cloud operations control plane. It
+resolves the repeatable majority of operational events deterministically with
+rules, policies, and typed actions, and reserves LLM inference for the ambiguous
+residual that survives the deterministic gate. Every autonomous action is
+risk-classified, and anything above the safe threshold pauses for
+human-in-the-loop (HIL) approval.
+
+Think of FDAI as an **organization of specialized agents that lives inside your
+cloud**. The agents sense resource changes, judge each one against a versioned
+catalog of rules, execute the safe majority, and escalate the risky few to you.
+You operate the whole system at the level of **approve or reject** - you are
+asked for decisions, not toil. Nothing runs the SRE handbook for you by
+guesswork: every action is an instance of a typed **ontology** entry that carries
+its own stop-condition, rollback path, blast-radius limit, and audit record.
 
 The reference implementation targets Azure. The design keeps a cloud-neutral seam
 so other CSPs are additive rather than requiring a core rewrite, but no non-Azure
@@ -75,6 +84,40 @@ Coverage percentages are targets that require a measured baseline before they
 can be claimed
 ([goals-and-metrics](../roadmap/goals-and-metrics.md)).
 
+Two things ride on top of that loop and make it operable:
+
+- **A typed action ontology.** Every change FDAI can make - remediate a
+  drifted config, restart a service, run a DR drill - is an `ActionType`
+  entry in a catalog-as-code ontology. When a rule fires or an operator asks,
+  the type is *instantiated* into a concrete action that inherits the type's
+  safety contract. See
+  [concepts/ontology-driven-automation.md](concepts/ontology-driven-automation.md).
+- **An organization of agents.** A fixed set of named agents owns the loop:
+  some sense, one judges, one executes, one carries your approval, one records
+  the audit. When something breaks, they collaborate to resolve it and only
+  page you for the high-risk few. See
+  [concepts/agents-and-self-healing.md](concepts/agents-and-self-healing.md).
+
+## Works across your stack
+
+FDAI is event-driven and sits behind neutral abstractions, so it plugs into
+what you already run:
+
+- **Azure resources** - the implemented target. Compute, storage, databases,
+  networking, identity, and Kubernetes are covered by the shipped rule catalog
+  and action ontology.
+- **Event bus** - a Kafka-compatible stream (Event Hubs on the Kafka
+  endpoint) carries resource-change signals, activity-log events, and detector
+  findings into the loop.
+- **Policy-as-code** - rules normalize to a CSP-neutral schema and evaluate
+  through OPA/Rego, so the deterministic tier runs on machine-readable policy.
+- **Delivery channels** - actions ship as remediation PRs (GitOps), and HIL
+  approvals reach you as Teams or Slack Adaptive Cards. Audit and rollback come
+  from git for free.
+- **Operator console** - a read-only console and a conversational narrator let
+  you ask questions and approve or reject, without ever holding the executor's
+  privileged identity.
+
 ## When FDAI fits
 
 FDAI is a good fit when all of these are true:
@@ -125,8 +168,11 @@ flowchart TB
 
 | To learn about | Read |
 |----------------|------|
+| The SRE functions FDAI automates | [concepts/sre-foundations.md](concepts/sre-foundations.md) |
 | Why deterministic first | [concepts/deterministic-first.md](concepts/deterministic-first.md) |
 | The three trust tiers in depth | [concepts/risk-tiers.md](concepts/risk-tiers.md) |
+| How the action ontology drives automation | [concepts/ontology-driven-automation.md](concepts/ontology-driven-automation.md) |
+| How agents collaborate and self-heal | [concepts/agents-and-self-healing.md](concepts/agents-and-self-healing.md) |
 | Shadow-mode rollout and promotion | [concepts/shadow-then-enforce.md](concepts/shadow-then-enforce.md) |
 | Approving a change on the operator side | [guides/approve-change.md](guides/approve-change.md) |
 | Reading the audit log | [guides/read-audit-log.md](guides/read-audit-log.md) |

@@ -1,6 +1,8 @@
 ---
 title: Risk tiers
 description: How FDAI decides which autonomous actions execute automatically and which wait for a human.
+sidebar:
+  order: 3
 ---
 
 # Risk tiers

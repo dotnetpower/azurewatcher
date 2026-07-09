@@ -189,3 +189,28 @@ variable "enable_private_networking" {
   default     = false
 }
 
+# ---------------------------------------------------------------------------
+# Ops/hub VNet peering (private-networking deploys via the bootstrap runner).
+# Supplied from `infra/bootstrap` outputs (ops_vnet_id / ops_vnet_name /
+# ops_resource_group_name). When set with enable_private_networking, the app
+# spoke VNet peers to the ops hub both ways and links its private DNS zones to
+# the ops VNet so the runner resolves the app's private endpoints.
+# ---------------------------------------------------------------------------
+variable "runner_vnet_id" {
+  description = "Ops/hub VNet resource id (from infra/bootstrap output ops_vnet_id). Empty disables peering + DNS linking."
+  type        = string
+  default     = ""
+}
+
+variable "runner_vnet_name" {
+  description = "Ops/hub VNet name (from infra/bootstrap output ops_vnet_name). Needed to create the hub->spoke peering on the ops VNet."
+  type        = string
+  default     = ""
+}
+
+variable "ops_resource_group_name" {
+  description = "Ops/hub resource group name (from infra/bootstrap output ops_resource_group_name). Holds the ops VNet the hub->spoke peering attaches to."
+  type        = string
+  default     = ""
+}
+

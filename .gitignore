@@ -242,11 +242,18 @@ examples/
 *.tfstate
 *.tfstate.*
 *.tfstate.backup
+# Saved plan files (terraform plan -out=...) are binary build artifacts that
+# must never be committed - they can embed provider data and secrets.
+*.plan
 crash.log
 crash.*.log
 override.tf
 override.tf.json
 *_override.tf
+# CI activates remote state by copying backend.azurerm.tf.example -> backend.tf
+# at init time. The activated file is per-run / per-host and must never be
+# committed (local dev stays on the default local backend).
+infra/backend.tf
 *_override.tf.json
 
 # --------------------------------------------------------------------------

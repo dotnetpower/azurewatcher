@@ -22,3 +22,19 @@ additional_tags = {
   environment_class = "dev"
 }
 
+# ---------------------------------------------------------------
+# Private-networking deploy (policy-locked "private-everything"
+# tenants). When true, the deploy MUST run from the bootstrap
+# runner inside the ops VNet - the laptop cannot write KV secrets
+# to a private-only vault. See infra/bootstrap/README.md.
+# ---------------------------------------------------------------
+# enable_private_networking = true
+
+# Ops/hub VNet coordinates (from `terraform -chdir=infra/bootstrap output`):
+#   ops_vnet_id             -> runner_vnet_id
+#   ops_vnet_name           -> runner_vnet_name
+#   ops_resource_group_name -> ops_resource_group_name
+# runner_vnet_id          = "/subscriptions/.../virtualNetworks/vnet-fdai-ops-krc"
+# runner_vnet_name        = "vnet-fdai-ops-krc"
+# ops_resource_group_name = "rg-fdai-ops-krc"
+

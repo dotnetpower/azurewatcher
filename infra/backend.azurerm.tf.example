@@ -1,0 +1,24 @@
+# Remote state backend for CI / private-networking deploys.
+#
+# NOT active by default: local dev keeps local state (no backend block ->
+# terraform defaults to the local backend). The CI workflow activates remote
+# state by copying this file to `backend.tf` before init:
+#
+#   cp backend.azurerm.tf.example backend.tf
+#   terraform init \
+#     -backend-config="resource_group_name=<ops_rg>" \
+#     -backend-config="storage_account_name=<state_sa>" \
+#     -backend-config="container_name=tfstate" \
+#     -backend-config="key=fdai-dev.tfstate"
+#
+# The storage account + container come from `infra/bootstrap` (see its
+# `backend_config_hint` output). The runner reaches the (private) state
+# account over the blob private endpoint in the ops VNet.
+
+terraform {
+  backend "azurerm" {
+    # All fields supplied via -backend-config at init time (partial config)
+    # so no environment-specific value is baked into tracked code.
+    use_azuread_auth = true
+  }
+}

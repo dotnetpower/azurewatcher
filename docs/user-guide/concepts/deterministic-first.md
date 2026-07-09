@@ -1,6 +1,8 @@
 ---
 title: Deterministic first
 description: Why FDAI resolves the repeatable majority with rules and reserves LLM inference for the ambiguous minority.
+sidebar:
+  order: 2
 ---
 
 # Deterministic first

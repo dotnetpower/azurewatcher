@@ -1,6 +1,8 @@
 ---
 title: Shadow, then enforce
 description: Why every new autonomous action ships in shadow first, and how it earns the right to auto-execute.
+sidebar:
+  order: 6
 ---
 
 # Shadow, then enforce

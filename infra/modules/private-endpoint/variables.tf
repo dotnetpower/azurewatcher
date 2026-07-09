@@ -36,6 +36,12 @@ variable "private_dns_zone_name" {
   type        = string
 }
 
+variable "extra_vnet_links" {
+  description = "Additional VNets to link the private DNS zone to (link_name -> vnet_id). Use this to let a runner in a peered hub VNet resolve the private endpoint (e.g. { ops = <ops_vnet_id> })."
+  type        = map(string)
+  default     = {}
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
