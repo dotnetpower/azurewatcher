@@ -9,6 +9,19 @@ the existing :class:`~fdai.core.runbook.runner.RunbookRunner` executes.
 
 from __future__ import annotations
 
+from .approval import (
+    ApprovalPlan,
+    ApprovalPlanError,
+    StepApproval,
+    WorkflowApprovalPlanner,
+)
 from .compiler import CompiledWorkflow, compile_workflow
 
-__all__ = ["CompiledWorkflow", "compile_workflow"]
+__all__ = [
+    "ApprovalPlan",
+    "ApprovalPlanError",
+    "CompiledWorkflow",
+    "StepApproval",
+    "WorkflowApprovalPlanner",
+    "compile_workflow",
+]
