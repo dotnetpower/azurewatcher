@@ -3,7 +3,12 @@ resource "azurerm_container_app_environment" "primary" {
   location                   = var.location
   resource_group_name        = var.resource_group_name
   log_analytics_workspace_id = var.log_workspace_id
-  tags                       = var.tags
+  # VNet integration for private-networking tenants: when a delegated infra
+  # subnet is supplied the environment joins the VNet, so the app's Key Vault
+  # references resolve the KV private endpoint. Null keeps the public (no-VNet)
+  # environment used on an unrestricted tenant.
+  infrastructure_subnet_id = var.infrastructure_subnet_id
+  tags                     = var.tags
 }
 
 # ---------------------------------------------------------------------------

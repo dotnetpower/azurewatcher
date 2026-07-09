@@ -179,3 +179,13 @@ variable "dr_drill_dry_run" {
   type        = bool
   default     = true
 }
+
+# ---------------------------------------------------------------------------
+# Private networking (policy-locked tenants).
+# ---------------------------------------------------------------------------
+variable "enable_private_networking" {
+  description = "When true, provision a VNet + a Key Vault private endpoint + private DNS and bind the Container App Environment to a delegated subnet, and lock the Key Vault to private access. Required on any tenant that enforces 'Key Vault public network access disabled'. When false (day-zero default) the deploy stays fully public. See docs/roadmap/deploy-and-onboard.md (private-networking layer). NOTE: with this enabled, `terraform apply` MUST run from a host with VNet line-of-sight to the KV private endpoint (a CI runner or jumpbox inside the VNet); the operator laptop cannot write secrets to a private-only vault."
+  type        = bool
+  default     = false
+}
+

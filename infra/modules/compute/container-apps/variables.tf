@@ -3,6 +3,12 @@ variable "env_name" {
   type        = string
 }
 
+variable "infrastructure_subnet_id" {
+  description = "Delegated subnet the Container App Environment binds for VNet integration (private-networking tenants). Null keeps the environment on the Azure-managed public network."
+  type        = string
+  default     = null
+}
+
 variable "core_app_name" {
   description = "Container App name for the unified core (CAF: ca-<workload>[-env][-region]-core)."
   type        = string

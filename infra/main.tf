@@ -39,6 +39,20 @@ module "resource_group" {
 }
 
 # -----------------------------------------------------------------------
+# Private networking (policy-locked tenants) - VNet + delegated subnets.
+# Only instantiated when enable_private_networking = true; the default
+# public path never creates a VNet (see variables.tf).
+# -----------------------------------------------------------------------
+module "network" {
+  count               = var.enable_private_networking ? 1 : 0
+  source              = "./modules/network"
+  name                = "vnet-${var.workload}${local.full_suffix}"
+  location            = var.region
+  resource_group_name = module.resource_group.name
+  tags                = local.tags
+}
+
+# -----------------------------------------------------------------------
 # Observability - Log Analytics first because Container Apps depend on it.
 # -----------------------------------------------------------------------
 module "log_analytics" {
@@ -128,6 +142,30 @@ module "key_vault" {
   tenant_id             = var.tenant_id
   executor_principal_id = module.identity.principal_id
   tags                  = local.tags
+
+  # Private-networking tenants lock the vault: no public plane access, and
+  # network ACLs default-deny (the private endpoint below is the only path in).
+  # The public path keeps the day-zero Enabled + Allow posture.
+  public_network_access_enabled = !var.enable_private_networking
+  network_acls_default_action   = var.enable_private_networking ? "Deny" : "Allow"
+}
+
+# Key Vault private endpoint + private DNS (privatelink.vaultcore.azure.net).
+# Only when private networking is on; this is what lets a VNet-resident deploy
+# host (CI runner / jumpbox) and the VNet-integrated Container App reach the
+# locked vault.
+module "kv_private_endpoint" {
+  count                 = var.enable_private_networking ? 1 : 0
+  source                = "./modules/private-endpoint"
+  name                  = "pe-kv-${var.workload}${local.full_suffix}"
+  location              = var.region
+  resource_group_name   = module.resource_group.name
+  subnet_id             = module.network[0].pe_subnet_id
+  vnet_id               = module.network[0].vnet_id
+  target_resource_id    = module.key_vault.id
+  subresource_name      = "vault"
+  private_dns_zone_name = "privatelink.vaultcore.azure.net"
+  tags                  = local.tags
 }
 
 # -----------------------------------------------------------------------
@@ -195,7 +233,7 @@ resource "azurerm_key_vault_secret" "state_store_dsn" {
   content_type = "postgres-dsn"
   tags         = local.tags
 
-  depends_on = [azurerm_role_assignment.kv_officer_self]
+  depends_on = [azurerm_role_assignment.kv_officer_self, module.kv_private_endpoint]
 }
 
 resource "azurerm_key_vault_secret" "operator_memory_dsn" {
@@ -205,7 +243,7 @@ resource "azurerm_key_vault_secret" "operator_memory_dsn" {
   content_type = "postgres-dsn"
   tags         = local.tags
 
-  depends_on = [azurerm_role_assignment.kv_officer_self]
+  depends_on = [azurerm_role_assignment.kv_officer_self, module.kv_private_endpoint]
 }
 
 resource "azurerm_key_vault_secret" "pattern_library_dsn" {
@@ -215,7 +253,7 @@ resource "azurerm_key_vault_secret" "pattern_library_dsn" {
   content_type = "postgres-dsn"
   tags         = local.tags
 
-  depends_on = [azurerm_role_assignment.kv_officer_self]
+  depends_on = [azurerm_role_assignment.kv_officer_self, module.kv_private_endpoint]
 }
 
 # -----------------------------------------------------------------------
@@ -233,6 +271,11 @@ module "compute" {
   executor_identity_id  = module.identity.resource_id
   image                 = var.core_image
   max_replicas          = var.max_replicas
+
+  # Private-networking: bind the Container App Environment to the delegated
+  # infra subnet so the app's Key Vault references resolve the KV private
+  # endpoint over the VNet. Null on the public path (no VNet integration).
+  infrastructure_subnet_id = var.enable_private_networking ? module.network[0].infra_subnet_id : null
 
   # Wire the private ACR so image pulls authenticate via the executor MI
   # (which already holds `AcrPull` on this ACR). If the fork points

@@ -38,7 +38,17 @@ All identifiers are synthetic per
 - Confirmed quota headroom (Container Apps cores, Event Hubs throughput units, PostgreSQL
   vCores, Key Vault operations).
 - Diagnostic Settings destination (Log Analytics workspace) - new or existing; ownership TBD.
-- **TBD**: private-endpoint DNS zone strategy and any pre-existing shared resources.
+- **Private networking (policy-locked tenants).** Tenants that enforce "Key Vault public
+  network access disabled" (common in enterprise / managed tenants) set
+  `enable_private_networking = true`: the deploy provisions a VNet + a Key Vault private
+  endpoint on `privatelink.vaultcore.azure.net` with a linked private DNS zone, binds the
+  Container App Environment to a delegated infrastructure subnet, and locks the vault to
+  private access. Because a private-only vault is unreachable from an operator laptop,
+  `terraform apply` MUST then run from a host with VNet line-of-sight to the endpoint - a
+  CI runner or a jumpbox inside the VNet (the executor writes the DSN secrets from there).
+  ACR / Event Hubs / Postgres private endpoints reuse the same generic
+  `modules/private-endpoint` module and are added the same way when a tenant restricts them
+  too.
 
 ### Non-Azure Prerequisites
 
