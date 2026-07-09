@@ -1708,6 +1708,25 @@ pre {
 .overview-tier.ok { color: #2f8f5a; background: rgba(47, 143, 90, 0.12); }
 .overview-tier.warn { color: #b57339; background: rgba(181, 115, 57, 0.14); }
 
+/* Living rule catalog line - the discovery-loop story (active / promoted /
+   candidate rules), so the Overview shows the catalog stays fresh. */
+.overview-rules {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px;
+  margin: 6px 0 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--fg-muted);
+}
+.overview-rules-stat b {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  margin-right: 3px;
+}
+
 /* DataTable ----------------------------------------------------------- */
 .data-table-wrap {
   border: 1px solid var(--border);
@@ -1972,6 +1991,9 @@ pre {
 .input-bad { border-color: color-mix(in oklab, #d92d20 55%, var(--border)); }
 .step-card-incomplete { border-left: 3px solid color-mix(in oklab, #d9822b 70%, var(--border)); }
 .badge.tag { background: color-mix(in oklab, var(--fg-muted) 14%, transparent); color: var(--fg-muted); }
+.list-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.list-toolbar .form-input { max-width: 340px; }
+.step-connector { text-align: center; font-size: 11.5px; color: var(--fg-muted); margin: 2px 0; letter-spacing: 0.04em; }
 
 
 

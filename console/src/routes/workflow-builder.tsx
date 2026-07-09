@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { Fragment } from "preact";
 import type { ReadApiClient } from "../api";
 import { AsyncBoundary, CopyButton, PageHeader, type AsyncState } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
@@ -354,7 +355,23 @@ function BuiltInList({
   readonly onClone: (w: WorkflowCatalogEntry) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
   const current = workflows.find((w) => w.name === selected) ?? null;
+
+  const needle = filter.trim().toLowerCase();
+  const shown = needle
+    ? workflows.filter((w) => {
+        const trig = w.trigger.kind === "signal" ? w.trigger.signal_type ?? "" : w.trigger.schedule ?? "";
+        return (
+          w.name.toLowerCase().includes(needle) ||
+          w.trigger.kind.includes(needle) ||
+          trig.toLowerCase().includes(needle) ||
+          w.default_mode.includes(needle)
+        );
+      })
+    : workflows;
+  const shadowCount = workflows.filter((w) => w.default_mode !== "enforce").length;
+  const enforceCount = workflows.length - shadowCount;
 
   return (
     <div class="stack">
@@ -376,48 +393,63 @@ function BuiltInList({
         {workflows.length === 0 ? (
           <p class="muted small">No built-in workflows are served on this deployment.</p>
         ) : (
-          <div class="scroll">
-            <table class="data-table data-table-clickable">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Trigger</th>
-                  <th>Steps</th>
-                  <th>Mode</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {workflows.map((w) => {
-                  const isOpen = w.name === selected;
-                  const toggle = () => setSelected(isOpen ? null : w.name);
-                  return (
-                    <tr
-                      key={w.name}
-                      class={isOpen ? "row-active" : ""}
-                      onClick={toggle}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          toggle();
-                        }
-                      }}
-                      tabIndex={0}
-                      role="button"
-                      aria-expanded={isOpen}
-                      style="cursor: pointer"
-                    >
-                      <td class="mono">{w.name}</td>
-                      <td class="mono muted">
-                        <span class="badge tag">{w.trigger.kind}</span>{" "}
-                        {w.trigger.kind === "signal" ? w.trigger.signal_type : w.trigger.schedule}
-                      </td>
-                      <td>{w.step_count}</td>
-                      <td>
-                        <span
-                          class={w.default_mode === "enforce" ? "badge enforce" : "badge shadow"}
-                        >
-                          {w.default_mode}
+          <>
+            <div class="list-toolbar">
+              <input
+                class="form-input"
+                type="search"
+                value={filter}
+                placeholder="Filter by name, trigger, or mode..."
+                aria-label="Filter workflows"
+                onInput={(e) => setFilter((e.target as HTMLInputElement).value)}
+              />
+              <span class="muted small">
+                Showing {shown.length} of {workflows.length} - {shadowCount} shadow,{" "}
+                {enforceCount} enforce
+              </span>
+            </div>
+            <div class="scroll">
+              <table class="data-table data-table-clickable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Trigger</th>
+                    <th>Steps</th>
+                    <th>Mode</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((w) => {
+                    const isOpen = w.name === selected;
+                    const toggle = () => setSelected(isOpen ? null : w.name);
+                    return (
+                      <tr
+                        key={w.name}
+                        class={isOpen ? "row-active" : ""}
+                        onClick={toggle}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggle();
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        aria-expanded={isOpen}
+                        style="cursor: pointer"
+                      >
+                        <td class="mono">{w.name}</td>
+                        <td class="mono muted">
+                          <span class="badge tag">{w.trigger.kind}</span>{" "}
+                          {w.trigger.kind === "signal" ? w.trigger.signal_type : w.trigger.schedule}
+                        </td>
+                        <td>{w.step_count}</td>
+                        <td>
+                          <span
+                            class={w.default_mode === "enforce" ? "badge enforce" : "badge shadow"}
+                          >
+                            {w.default_mode}
                         </span>
                       </td>
                       <td class="chevron-col">
@@ -428,7 +460,8 @@ function BuiltInList({
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </section>
 
@@ -544,6 +577,13 @@ function BuilderBody({
   const [transportError, setTransportError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  // Move focus to the first field when the builder opens (keyboard + SR
+  // users land on the form, not the top of the page).
+  useEffect(() => {
+    nameRef.current?.focus();
+  }, []);
 
   // Bring the validation outcome into view - on a long form the result
   // section sits below the fold and is easy to miss.
@@ -698,12 +738,18 @@ function BuilderBody({
           <label class="form-field">
             <span class="form-label">Name (dotted id)</span>
             <input
+              ref={nameRef}
+              id="wf-name"
+              aria-describedby="wf-name-hint"
               class={form.name.trim() !== "" && !nameValid ? "form-input mono input-bad" : "form-input mono"}
               value={form.name}
               placeholder="cost-aware-remediation"
               onInput={(e) => patch({ name: (e.target as HTMLInputElement).value })}
             />
-            <span class={form.name.trim() !== "" && !nameValid ? "field-hint hint-bad" : "field-hint"}>
+            <span
+              id="wf-name-hint"
+              class={form.name.trim() !== "" && !nameValid ? "field-hint hint-bad" : "field-hint"}
+            >
               {form.name.trim() !== "" && !nameValid
                 ? "Lowercase letters/digits/._- only, must start with a letter (max 80)."
                 : "Lowercase dotted id, e.g. cost-aware-remediation."}
@@ -809,12 +855,10 @@ function BuilderBody({
             const laterIds = stepIds.slice(index + 1);
             const stepIncomplete = step.id.trim() === "" || step.action_type_ref.trim() === "";
             return (
-              <div
-                class={stepIncomplete ? "step-card step-card-incomplete" : "step-card"}
-                key={step.key}
-              >
-                <div class="step-card-head">
-                  <span class="badge">#{index + 1}</span>
+              <Fragment key={step.key}>
+                <div class={stepIncomplete ? "step-card step-card-incomplete" : "step-card"}>
+                  <div class="step-card-head">
+                    <span class="badge">#{index + 1}</span>
                   <div class="step-move">
                     {stepIncomplete ? (
                       <span class="field-hint hint-bad">needs id + ActionType</span>
@@ -923,7 +967,13 @@ function BuilderBody({
                   </label>
                 </div>
                 {at ? <ActionTypeHint at={at} /> : null}
-              </div>
+                </div>
+                {index < form.steps.length - 1 ? (
+                  <div class="step-connector" aria-hidden="true">
+                    then ↓
+                  </div>
+                ) : null}
+              </Fragment>
             );
           })}
         </div>
@@ -1011,14 +1061,18 @@ function BuilderBody({
           <code> rule-catalog/workflows/&lt;name&gt;.yaml</code> file and open as a PR.
         </p>
         {!ready ? (
-          <p class="field-hint hint-bad">Before validating, add {missing.join(", ")}.</p>
+          <p class="field-hint hint-bad" role="status">
+            Before validating, add {missing.join(", ")}.
+          </p>
         ) : null}
         {transportError ? (
-          <div class="empty error">
+          <div class="empty error" role="alert">
             <p class="mono">{transportError}</p>
           </div>
         ) : null}
-        {result ? <ValidationResult result={result} name={form.name} /> : null}
+        <div aria-live="polite">
+          {result ? <ValidationResult result={result} name={form.name} /> : null}
+        </div>
       </section>
     </div>
   );
