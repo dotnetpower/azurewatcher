@@ -89,9 +89,14 @@ const FRAG = `
           float dist = length(d);
           float core = smoothstep(0.06 * (0.5 + b), 0.0, dist);
           float halo = smoothstep(0.22 * (0.4 + b), 0.0, dist) * 0.25;
-          vec3 warm  = vec3(1.0, 0.82, 0.62);
-          vec3 cool  = vec3(0.70, 0.84, 1.0);
-          vec3 sc    = mix(warm, cool, temp);
+          // Most stars read near-white; only ~1/10 pick up a faint red or
+          // blue tint (chosen per-cell, hue by temperature).
+          float colored = step(0.9, hash(cid + 7.3));
+          vec3 white = vec3(0.96, 0.97, 1.0);
+          vec3 red   = vec3(1.00, 0.62, 0.55);
+          vec3 blue  = vec3(0.60, 0.76, 1.0);
+          vec3 tint  = mix(red, blue, step(0.5, temp));
+          vec3 sc    = mix(white, tint, colored * 0.6);
           acc += (core + halo) * tw * (0.35 + b) * sc;
         }
       }
@@ -166,10 +171,6 @@ const FRAG = `
     vec2 suv = vec2(uv.x, uv.y - scrollOff);
     col += starLayer(suv * vec2(u_res.x / u_res.y, 1.0), 120.0, 0.10, 11.0, 6.0);
     col += starLayer(suv * vec2(u_res.x / u_res.y, 1.0),  70.0, 0.07, 47.0, 1.0);
-    col += starLayer(suv * vec2(u_res.x / u_res.y, 1.0),  38.0, 0.05, 91.0, 0.7) * 1.4;
-    vec3 coreStars = starLayer(suv * vec2(u_res.x / u_res.y, 1.0),
-                               22.0, 0.14, 137.0, 0.35);
-    col += coreStars * smoothstep(0.75, 0.05, coreShape) * 1.6 * heroFade;
 
     float vig = smoothstep(1.25, 0.35, length(uv - 0.5) * 1.4);
     col *= mix(0.55, 1.0, vig);
