@@ -1,0 +1,24 @@
+# Copy to bootstrap.tfvars (gitignored) and fill in. NEVER commit real values.
+#
+#   cp bootstrap.tfvars.example bootstrap.tfvars
+#   terraform -chdir=infra/bootstrap init
+#   terraform -chdir=infra/bootstrap apply -var-file=bootstrap.tfvars
+
+env          = "dev"
+region       = "koreacentral"
+region_short = "krc"
+
+# The app deploy's resource group (rg-<workload>-<env>-<region_short>).
+app_resource_group_name = "rg-fdai-dev-krc"
+
+# SSH public key for the runner admin (Azure requires one even with no public IP).
+runner_ssh_public_key = "ssh-ed25519 AAAA... you@example.com"
+
+# Optional: auto-register the runner. Leave empty to register manually
+# (recommended - the GitHub token is short-lived and lands in VM custom_data).
+github_runner_url   = "" # e.g. https://github.com/<owner>/<repo>
+github_runner_token = "" # short-lived; prefer manual `./config.sh` on the VM
+
+# Set false on the very first apply if you want the state backend + networking
+# before the runner VM.
+create_runner_vm = true

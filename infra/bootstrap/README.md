@@ -1,0 +1,63 @@
+# Bootstrap (ops / hub) layer
+
+On a policy-locked tenant that forces **every data service to private**
+(`publicNetworkAccess: Disabled` on Key Vault *and* storage), a laptop cannot
+write Key Vault secrets or reach a terraform remote-state backend. The deploy
+must run from **inside the VNet**. This layer stands up the durable hub that
+makes that possible, and it survives app rebuilds.
+
+## What it creates
+
+| Resource | Why |
+|----------|-----|
+| Ops resource group `rg-<workload>-ops-<region_short>` | Separate from the app RG so it outlives app teardowns. |
+| Ops (hub) VNet + `snet-runner` + `snet-pe` | Stable network the runner lives in. |
+| State storage account (private) + `tfstate` container | Terraform remote backend the runner reaches over a private endpoint. |
+| Blob private endpoint + `privatelink.blob.core.windows.net` | Private resolution of the state account from the ops VNet. |
+| Runner VM (no public IP) + system-assigned MI | The only host with line-of-sight to the app's private endpoints. |
+| Role assignments | Runner MI -> Contributor on the app RG + Storage Blob Data Contributor on the state account. |
+
+The app config (`../`) peers its spoke VNet to `ops_vnet_id`, links its
+private DNS zones to the ops VNet, and grants `runner_principal_id` **Key Vault
+Secrets Officer** on the app vault.
+
+## Usage
+
+```bash
+cp bootstrap.tfvars.example bootstrap.tfvars   # fill in, gitignored
+terraform -chdir=infra/bootstrap init
+terraform -chdir=infra/bootstrap apply -var-file=bootstrap.tfvars
+terraform -chdir=infra/bootstrap output backend_config_hint
+```
+
+State for THIS layer stays local (it holds only infrastructure handles, no app
+secrets). The `backend_config_hint` output feeds the app config's
+`terraform init -backend-config=...` and the CI workflow.
+
+## Runner registration
+
+Two options:
+
+1. **Manual (recommended)** - leave `github_runner_token` empty, then on the VM
+   (reach it via `az vm run-command invoke` or Azure Bastion):
+
+   ```bash
+   cd ~/actions-runner
+   sudo -u <runner_user> ./config.sh --url https://github.com/<owner>/<repo> \
+     --token <short-lived-token> --labels self-hosted,fdai-deploy
+   sudo ./svc.sh install <runner_user> && sudo ./svc.sh start
+   ```
+
+2. **Auto** - pass `github_runner_url` + `github_runner_token`. The token is
+   short-lived (~1h) and lands in the VM's `custom_data`; prefer manual for
+   long-lived hygiene.
+
+The runner authenticates to Azure with `az login --identity` (its system MI) -
+no cloud credentials are stored on the box.
+
+## Security notes
+
+- The runner MI is Contributor on the app RG only (blast radius = one env).
+- No public IP; access is Bastion / run-command / serial console.
+- The state account is private + versioned; a bad apply is recoverable.
+- `bootstrap.tfvars` and `*.tfstate` are gitignored - never commit them.

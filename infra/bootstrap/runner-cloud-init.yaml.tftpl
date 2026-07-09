@@ -1,0 +1,76 @@
+#cloud-config
+# Self-hosted deploy runner bootstrap. Installs terraform + azure-cli + the
+# GitHub Actions runner, then (if a registration token was supplied) registers
+# and starts the runner as a systemd service under ${runner_user}.
+#
+# The runner authenticates to Azure via the VM's system-assigned managed
+# identity (`az login --identity`), so no cloud credentials are baked in.
+# The GitHub registration token (when passed) is short-lived (~1h); prefer
+# manual registration for long-lived security. See infra/bootstrap/README.md.
+
+package_update: true
+packages:
+  - curl
+  - unzip
+  - jq
+  - apt-transport-https
+  - ca-certificates
+  - gnupg
+  - lsb-release
+
+write_files:
+  - path: /opt/runner-setup/install.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      RUNNER_USER="${runner_user}"
+      RUNNER_URL="${runner_url}"
+      RUNNER_TOKEN="${runner_token}"
+      RUNNER_HOME="/home/$RUNNER_USER/actions-runner"
+
+      # --- Terraform (HashiCorp apt repo) ---
+      install -d -m 0755 /etc/apt/keyrings
+      curl -fsSL https://apt.releases.hashicorp.com/gpg |
+        gpg --dearmor -o /etc/apt/keyrings/hashicorp.gpg
+      echo "deb [signed-by=/etc/apt/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+        > /etc/apt/sources.list.d/hashicorp.list
+
+      # --- Azure CLI (Microsoft apt repo) ---
+      curl -fsSL https://packages.microsoft.com/keys/microsoft.asc |
+        gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg
+      echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" \
+        > /etc/apt/sources.list.d/azure-cli.list
+
+      apt-get update -y
+      apt-get install -y terraform azure-cli git
+
+      # --- GitHub Actions runner ---
+      install -d -o "$RUNNER_USER" -g "$RUNNER_USER" "$RUNNER_HOME"
+      cd "$RUNNER_HOME"
+      RUNNER_VERSION="$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | jq -r .tag_name | sed 's/^v//')"
+      curl -fsSL -o runner.tar.gz \
+        "https://github.com/actions/runner/releases/download/v$${RUNNER_VERSION}/actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz"
+      tar xzf runner.tar.gz
+      rm -f runner.tar.gz
+      chown -R "$RUNNER_USER":"$RUNNER_USER" "$RUNNER_HOME"
+
+      if [ -n "$RUNNER_URL" ] && [ -n "$RUNNER_TOKEN" ]; then
+        sudo -u "$RUNNER_USER" ./config.sh \
+          --unattended \
+          --url "$RUNNER_URL" \
+          --token "$RUNNER_TOKEN" \
+          --name "$(hostname)" \
+          --labels self-hosted,fdai-deploy \
+          --replace
+        ./svc.sh install "$RUNNER_USER"
+        ./svc.sh start
+      else
+        echo "No registration token supplied - register manually:" \
+          "cd $RUNNER_HOME && sudo -u $RUNNER_USER ./config.sh --url <repo-url> --token <token>"
+      fi
+
+runcmd:
+  - /opt/runner-setup/install.sh 2>&1 | tee /var/log/runner-setup.log
