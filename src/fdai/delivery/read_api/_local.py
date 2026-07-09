@@ -65,6 +65,9 @@ from fdai.delivery.read_api.live_stream import (  # noqa: E402
     SyntheticLiveEmitter,
 )
 from fdai.delivery.read_api.main import ReadApiConfig, build_app  # noqa: E402
+from fdai.delivery.read_api.measurement_summary import (  # noqa: E402
+    AutonomyMeasurementPanel,
+)
 from fdai.delivery.read_api.panels import ExampleFinOpsPanel  # noqa: E402
 from fdai.delivery.read_api.read_model import (  # noqa: E402
     HilQueueItem,
@@ -722,7 +725,10 @@ def app() -> Starlette:
             rule_catalog_findings_summary_provider=rule_catalog_findings_summary_provider,
             promotion_gate_action_types=tuple(action_types),
             promotion_gate_source=InMemoryShadowVerdictSource(verdicts=_synthetic_verdicts()),
-            extra_panels=(ExampleFinOpsPanel(read_model),),
+            extra_panels=(
+                ExampleFinOpsPanel(read_model),
+                AutonomyMeasurementPanel(read_model),
+            ),
             trace_reader=trace_reader,
             bitemporal_reader=trace_reader,
             what_if_reader=trace_reader,
