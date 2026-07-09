@@ -2230,6 +2230,101 @@ pre {
   color: var(--fg);
 }
 .deck-turn-line:last-child { margin-bottom: 0; }
+
+/* Rich answer content: prose + tables + inline bar charts
+   (deck/rich-content.tsx). Honest-data only: every cell / bar value is text
+   the backend returned, grounded in the screen snapshot. */
+.deck-rich { display: flex; flex-direction: column; gap: 10px; }
+.deck-rich .deck-turn-line:not(:last-child) { margin-bottom: 4px; }
+
+.deck-table-wrap { overflow-x: auto; }
+.deck-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.deck-table th,
+.deck-table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.deck-table thead th {
+  background: color-mix(in oklab, var(--accent) 10%, var(--bg-elevated));
+  color: var(--fg);
+  font-weight: 600;
+}
+.deck-table tbody tr:last-child td { border-bottom: 0; }
+.deck-table tbody tr:hover td { background: color-mix(in oklab, var(--accent) 6%, transparent); }
+
+.deck-chart {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+}
+.deck-chart-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  margin-bottom: 8px;
+}
+.deck-chart-bars { display: flex; flex-direction: column; gap: 6px; }
+.deck-chart-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(56px, 22%) 1fr auto;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+}
+.deck-chart-label {
+  font-size: 12px;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.deck-chart-track {
+  height: 14px;
+  border-radius: 7px;
+  background: color-mix(in oklab, var(--fg-muted) 16%, transparent);
+  overflow: hidden;
+}
+.deck-chart-fill {
+  display: block;
+  height: 100%;
+  border-radius: 7px;
+  background: var(--accent);
+  transition: width 320ms cubic-bezier(0.4, 0, 0.2, 1), filter 120ms;
+}
+.deck-chart-row.is-hover .deck-chart-fill { filter: brightness(1.15) saturate(1.1); }
+.deck-chart-val {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-muted);
+  min-width: 34px;
+  text-align: right;
+}
+.deck-chart-tip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 22%;
+  z-index: 5;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--fg);
+  color: var(--bg-elevated);
+  font-size: 11.5px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
 .deck-turn-citations {
   display: flex;
   flex-wrap: wrap;

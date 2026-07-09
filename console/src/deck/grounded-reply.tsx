@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useState } from "preact/hooks";
+import { RichContent } from "./rich-content";
 
 /** One cited source (label + optional value), matching the deck Turn shape. */
 interface Citation {
@@ -69,14 +70,18 @@ export function GroundedReply({
   return (
     <div class="deck-gr">
       <div class="deck-turn-body">
-        {lines.map((line, i) => (
-          <p key={i} class="deck-turn-line">
-            {line}
-            {streaming && i === lines.length - 1 ? (
-              <span class="deck-gr-caret" aria-hidden="true" />
-            ) : null}
-          </p>
-        ))}
+        {streaming ? (
+          lines.map((line, i) => (
+            <p key={i} class="deck-turn-line">
+              {line}
+              {i === lines.length - 1 ? (
+                <span class="deck-gr-caret" aria-hidden="true" />
+              ) : null}
+            </p>
+          ))
+        ) : (
+          <RichContent text={text} />
+        )}
       </div>
 
       {!streaming && cites.length > 0 ? (
