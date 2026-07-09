@@ -21,8 +21,10 @@ from fdai.delivery.read_api.chat import (
     _GLOSSARY,
     DEFAULT_MAX_CONTEXT_BYTES,
     DEFAULT_MAX_HISTORY_TURNS,
+    DEFAULT_MAX_RECORDS_PER_KEY,
     _build_messages,
     _is_concept_query,
+    _trim_view_context,
 )
 
 _GLOSSARY_MARKER = _GLOSSARY.splitlines()[0]
@@ -61,12 +63,21 @@ CONCEPT_QUERIES: list[str] = [
     "glossary please",
     "explain the difference between shadow and enforce",
     "what is a gate decision",
+    "why do we use an ontology?",
+    "how does the risk gate work?",
+    "what's the difference between auto and hil?",
+    "what is the purpose of a rule catalog?",
     "\uc124\uba85\ud574\uc918 T2\uac00 \ubb50\uc57c",  # "explain, what is T2"
     "HIL\uc774 \ubb54\uc9c0?",  # "what is HIL?"
     "shadow mode\uc758 \uc758\ubbf8\uac00 \ubb54\uc57c?",  # "what does shadow mode mean?"
     "\uac1c\ub150 \uc124\uba85 \ud574\uc918",  # "explain the concept"
     "abstain \uc815\uc758",  # "abstain definition"
     "T0\ub780 \ubb34\uc5c7\uc778\uac00",  # "what is T0"
+    "\uc774\uac78 \uc65c \uc4f0\ub294\uac70\uc57c?",  # "why do we use this?" (screenshot case)
+    "T2\ub294 \uc5b4\ub5bb\uac8c \ub3d9\uc791\ud574?",  # "how does T2 work?"
+    "shadow\ub791 enforce \ucc28\uc774\uac00 \ubb50\uc57c",  # difference: shadow vs enforce
+    "HIL \uc5ed\ud560\uc774 \ubb54\uc9c0",  # "what is HIL's role"
+    "\ubb34\uc2a8 \ub73b\uc774\uc57c abstain",  # "what does abstain mean"
 ]
 
 # Data / screen questions -> glossary MUST be omitted (lean prompt). Note the
@@ -170,3 +181,68 @@ def test_braces_in_snapshot_do_not_break_formatting() -> None:
 def test_long_prompt_is_truncated_to_cap() -> None:
     msgs = _build_messages("z" * 9_000, {}, [])
     assert len(msgs[-1]["content"]) == 4_000
+
+
+# ---------------------------------------------------------------------------
+# Records diet - keep the dynamic snapshot from dominating token cost
+# ---------------------------------------------------------------------------
+
+
+def _rules_snapshot(n: int) -> dict[str, object]:
+    """A rules-route-shaped snapshot carrying ``n`` record rows."""
+    return {
+        "routeId": "rules",
+        "facts": [{"key": "total_rules", "value": n}],
+        "records": {
+            "rules": [
+                {
+                    "id": f"rule-{i:04d}",
+                    "origin": "active",
+                    "severity": "high",
+                    "category": "network",
+                    "resource_type": "microsoft.network/networksecuritygroups",
+                    "source": "azure-waf",
+                    "remediation": "remediate.nsg-tighten",
+                    "monthly_cost_usd": None,
+                }
+                for i in range(n)
+            ]
+        },
+    }
+
+
+def test_records_over_cap_are_trimmed_with_hint() -> None:
+    ctx = _rules_snapshot(120)
+    trimmed = _trim_view_context(ctx)
+    assert len(trimmed["records"]["rules"]) == DEFAULT_MAX_RECORDS_PER_KEY
+    assert trimmed["_records_truncated"] is True
+    # Original object is not mutated.
+    assert len(ctx["records"]["rules"]) == 120
+    assert "_records_truncated" not in ctx
+
+
+def test_records_under_cap_untouched() -> None:
+    ctx = _rules_snapshot(10)
+    trimmed = _trim_view_context(ctx)
+    assert trimmed is ctx
+    assert "_records_truncated" not in trimmed
+
+
+def test_trimming_shrinks_the_prompt_materially() -> None:
+    big = _rules_snapshot(120)
+    # Size of the system prompt WITH vs WITHOUT the diet (bypass by pre-trimming
+    # a copy large enough that the diet is a no-op is not meaningful; instead
+    # compare the raw snapshot dump to the built, trimmed prompt).
+    raw = json.dumps(big, ensure_ascii=False)
+    system = _system_of(_build_messages("which rules are active?", big, []))
+    assert "_records_truncated" in system
+    # The trimmed prompt embeds far less than the full 120-row dump.
+    assert len(system) < len(raw)
+
+
+def test_records_diet_applies_in_build_messages() -> None:
+    system = _system_of(_build_messages("list rules", _rules_snapshot(200), []))
+    # Only the sampled rows are present; a row beyond the cap is absent.
+    assert "rule-0000" in system
+    assert f"rule-{DEFAULT_MAX_RECORDS_PER_KEY - 1:04d}" in system
+    assert f"rule-{DEFAULT_MAX_RECORDS_PER_KEY:04d}" not in system

@@ -54,6 +54,13 @@ DEFAULT_ROUTE_PATH: Final[str] = "/chat"
 DEFAULT_MAX_BODY_BYTES: Final[int] = 200_000
 DEFAULT_MAX_CONTEXT_BYTES: Final[int] = 60_000
 DEFAULT_MAX_HISTORY_TURNS: Final[int] = 8
+DEFAULT_MAX_RECORDS_PER_KEY: Final[int] = 40
+"""Cap on how many rows of any one ``records`` array in the view snapshot are
+forwarded to the model. The page may render hundreds of rows (e.g. a rule
+catalog page); sending them all makes the snapshot JSON - not the static
+prompt - dominate per-turn token cost. A representative sample plus a
+``_records_truncated`` hint keeps grounding honest while trimming tokens; the
+operator narrows to off-sample rows via the page's own search/filter."""
 DEFAULT_MAX_HISTORY_ITEMS: Final[int] = 200
 """Hard cap on the number of history entries the route will parse into
 memory before slicing to :data:`DEFAULT_MAX_HISTORY_TURNS`. The
@@ -86,7 +93,7 @@ snapshot of the rendered page follows; ground every answer STRICTLY in it.
 Rules:
 - Reply in the operator's language, mirroring their question.
 - Cite exact numbers/labels from the snapshot; NEVER invent facts.
-- The snapshot may hold a `records` collection (`records.rules`, `records.items`, ...) of rows visible now; search and quote matching rows - do not claim missing info when a row is present.
+- The snapshot may hold a `records` collection (`records.rules`, `records.items`, ...) of rows visible now; search and quote matching rows - do not claim missing info when a row is present. If `_records_truncated` is true, only a sample is shown - point the operator to the page's search/filter for anything not in it.
 - If a specific entry is absent but this page has a search/filter (the Rules catalog has a search box plus origin/category/severity/source filters), tell the operator to use it; only point to another route (Live/Dashboard/Audit/HIL/Ontology/Blast Radius/Promotion/Trace) when the topic truly belongs there.
 - Be concise: 1-4 short sentences unless asked for detail.
 - Read-only: never propose actions, approvals, or writes; you translate, you do not judge.
@@ -115,17 +122,21 @@ FDAI glossary (use only to define a term on request):
 # Concept-question detection. The Korean markers are written as \\uXXXX escapes
 # so the source file stays ASCII (english-only CI gate) while still matching
 # Hangul at runtime - the language-policy "quoted data" exception, since we are
-# detecting the operator's own-language phrasing. The escapes decode to, in
-# order: intent = explain / meaning / sense / concept / definition; phrasing =
-# "what" (interrogative) / what (casual) / which.
+# detecting the operator's own-language phrasing. The escapes decode to:
+#   intent   = explain / meaning / sense / concept / definition / role /
+#              difference / purpose / why
+#   phrasing = "what" (interrogative) / what (casual) / which / how / what-kind
 _CONCEPT_INTENT: Final = re.compile(
-    r"\b(explain|define|definition|glossary|mean|meaning)\b"
-    "|\uc124\uba85|\uc758\ubbf8|\ub73b|\uac1c\ub150|\uc815\uc758",
+    r"\b(explain|define|definition|glossary|mean|meaning|purpose|difference"
+    r"|overview)\b|\bwhy\b|\brole of\b"
+    "|\uc124\uba85|\uc758\ubbf8|\ub73b|\uac1c\ub150|\uc815\uc758"
+    "|\uc5ed\ud560|\ucc28\uc774|\uc6a9\ub3c4|\uc65c",
     re.IGNORECASE,
 )
 _CONCEPT_PHRASING: Final = re.compile(
     r"\bwhat\s+(is|are|does|do)\b|\bwhats\b|\bwhat's\b"
-    "|\ubb34\uc5c7|\ubb50|\ubb54",
+    r"|\bhow\s+(does|do|is|are|to)\b"
+    "|\ubb34\uc5c7|\ubb50|\ubb54|\uc5b4\ub5bb\uac8c|\ubb34\uc2a8",
     re.IGNORECASE,
 )
 _DATA_WORD: Final = re.compile(
@@ -148,6 +159,36 @@ def _is_concept_query(prompt: str) -> bool:
     return bool(_CONCEPT_PHRASING.search(prompt) and not _DATA_WORD.search(prompt))
 
 
+def _trim_view_context(
+    view_context: dict[str, Any], *, max_records: int = DEFAULT_MAX_RECORDS_PER_KEY
+) -> dict[str, Any]:
+    """Cap each ``records`` array to a representative sample.
+
+    The rendered page can publish hundreds of rows; forwarding them all lets
+    the snapshot JSON dominate the prompt. Trim each array to ``max_records``
+    and flag ``_records_truncated`` so the model knows to point the operator at
+    the page's search/filter for the rest. Returns the input unchanged when no
+    array exceeds the cap (no needless copy).
+    """
+    records = view_context.get("records")
+    if not isinstance(records, dict):
+        return view_context
+    trimmed: dict[str, Any] = {}
+    changed = False
+    for key, rows in records.items():
+        if isinstance(rows, list) and len(rows) > max_records:
+            trimmed[key] = rows[:max_records]
+            changed = True
+        else:
+            trimmed[key] = rows
+    if not changed:
+        return view_context
+    new_ctx = dict(view_context)
+    new_ctx["records"] = trimmed
+    new_ctx["_records_truncated"] = True
+    return new_ctx
+
+
 def _build_messages(
     prompt: str,
     view_context: dict[str, Any],
@@ -161,6 +202,7 @@ def _build_messages(
     (:class:`OpenAiCompatibleChatBackend`, :class:`AzureAdChatBackend`, and the
     streaming path) build byte-identical, minimal prompts.
     """
+    view_context = _trim_view_context(view_context)
     snapshot_json = json.dumps(view_context, ensure_ascii=False)
     # Bound the payload we send to the model.
     if len(snapshot_json) > DEFAULT_MAX_CONTEXT_BYTES:
