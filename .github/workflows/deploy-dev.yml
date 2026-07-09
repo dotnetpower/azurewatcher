@@ -1,0 +1,86 @@
+name: deploy-dev
+
+# Deploys the dev environment from a self-hosted runner inside the ops VNet.
+# On a policy-locked ("private-everything") tenant this is the ONLY host with
+# line-of-sight to the app's private endpoints (Key Vault, state storage), so
+# the deploy cannot run on a GitHub-hosted runner or an operator laptop.
+#
+# Prerequisites (see infra/bootstrap/README.md):
+#   - `infra/bootstrap` applied: ops VNet + state storage + registered runner
+#     with labels [self-hosted, fdai-deploy] and a system-assigned MI holding
+#     Contributor on the app RG + Storage Blob Data Contributor on the state SA.
+#   - Repo variables (Settings > Secrets and variables > Actions > Variables):
+#       ARM_SUBSCRIPTION_ID, AZURE_REGION, AZURE_REGION_SHORT, AZURE_TENANT_ID,
+#       OPS_RESOURCE_GROUP_NAME, OPS_VNET_ID, OPS_VNET_NAME, STATE_STORAGE_ACCOUNT
+#   - Repo secrets:
+#       POSTGRES_ADMIN_LOGIN, POSTGRES_ADMIN_PASSWORD
+#
+# Default run is plan-only (shadow). Set the `apply` input to true to enforce.
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply the plan (true) or plan-only (false, default)."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    runs-on: [self-hosted, fdai-deploy]
+    defaults:
+      run:
+        working-directory: infra
+    env:
+      # AAD auth for both the azurerm provider and the state backend blob,
+      # using the runner's system-assigned managed identity (az login below).
+      ARM_USE_AZUREAD: "true"
+      ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+      # tfvars-equivalent inputs (non-secret via Variables, secret via Secrets).
+      TF_VAR_env: dev
+      TF_VAR_region: ${{ vars.AZURE_REGION }}
+      TF_VAR_region_short: ${{ vars.AZURE_REGION_SHORT }}
+      TF_VAR_tenant_id: ${{ vars.AZURE_TENANT_ID }}
+      TF_VAR_enable_private_networking: "true"
+      TF_VAR_runner_vnet_id: ${{ vars.OPS_VNET_ID }}
+      TF_VAR_runner_vnet_name: ${{ vars.OPS_VNET_NAME }}
+      TF_VAR_ops_resource_group_name: ${{ vars.OPS_RESOURCE_GROUP_NAME }}
+      TF_VAR_postgres_admin_login: ${{ secrets.POSTGRES_ADMIN_LOGIN }}
+      TF_VAR_postgres_admin_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (runner managed identity)
+        run: az login --identity --allow-no-subscriptions
+
+      - name: Activate remote state backend
+        run: cp backend.azurerm.tf.example backend.tf
+
+      - name: Terraform init
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ vars.OPS_RESOURCE_GROUP_NAME }}" \
+            -backend-config="storage_account_name=${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=fdai-dev.tfstate"
+
+      - name: Terraform format check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        run: terraform plan -input=false -out=dev.plan
+
+      - name: Terraform apply
+        if: ${{ inputs.apply }}
+        run: terraform apply -input=false dev.plan
