@@ -44,6 +44,13 @@ narrator-is-a-translator contract in
 It answers questions grounded in only what is on screen (the published
 `ViewSnapshot`) and never issues a privileged call.
 
+The chat backend (`src/fdai/delivery/read_api/chat.py`) keeps each turn's
+system prompt lean for cost and latency: compact base instructions, the FDAI
+glossary appended only for concept questions (EN + KO), and every `records`
+array capped to a representative sample (with a `_records_truncated` hint) so
+the snapshot JSON does not dominate the token budget - the operator narrows to
+off-sample rows via the page's own search/filter.
+
 While a turn is pending, the deck renders a **retrieval trace**
 (`src/deck/retrieval-trace.tsx`) in place of a bare typing indicator. It streams
 the read-only sources the deck is grounding on - the current screen snapshot

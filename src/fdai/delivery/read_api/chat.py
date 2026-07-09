@@ -30,6 +30,13 @@ Contract:
 Prompt strategy: the deck's own ``ViewSnapshot`` (facts + records) is
 serialised into the system prompt with strict grounding instructions.
 The model MUST answer from that JSON only, in the operator's language.
+The prompt is kept lean for cost/latency (see :func:`_build_messages`):
+the base instructions are compact, the FDAI glossary is appended ONLY for
+concept questions (:func:`_is_concept_query`, EN + KO), and each ``records``
+array is capped to a representative sample (:func:`_trim_view_context`)
+with a ``_records_truncated`` hint so the snapshot JSON does not dominate
+the token budget - the operator narrows to off-sample rows via the page's
+own search/filter.
 """
 
 from __future__ import annotations
