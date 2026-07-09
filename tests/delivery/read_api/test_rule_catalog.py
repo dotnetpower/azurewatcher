@@ -344,6 +344,65 @@ def test_detail_explanation_absent_without_metadata() -> None:
     assert exp["source"] is None
 
 
+def test_detail_explanation_from_azure_policy_params() -> None:
+    rule = _rule(
+        "azure-builtin.demo",
+        severity=Severity.MEDIUM,
+        category=Category.SECURITY,
+        source=RuleSource.AZURE_POLICY,
+        resource_type="azure.resource",
+    )
+    rule = rule.model_copy(
+        update={
+            "parameters": {
+                "azure_policy_display_name": "Audit VMs without managed disks",
+                "azure_policy_effect_default": "Audit",
+                "azure_policy_category": "Compute",
+            }
+        }
+    )
+    auth = build_authenticator(verifier=lambda t: {"oid": "u"}, resolver=lambda claims: None)
+    app = build_app(
+        authenticator=auth,
+        read_model=InMemoryConsoleReadModel(),
+        config=ReadApiConfig(dev_mode=True, rule_catalog_collected_rules=(rule,)),
+    )
+    exp = TestClient(app).get("/rules/azure-builtin.demo").json()["explanation"]
+    assert exp["source"] == "azure_policy"
+    assert exp["title"] == "Audit VMs without managed disks"
+    assert exp["details"]["azure_policy_effect_default"] == "Audit"
+
+
+def test_detail_explanation_from_kube_bench_params() -> None:
+    rule = _rule(
+        "kube-bench.demo",
+        severity=Severity.MEDIUM,
+        category=Category.SECURITY,
+        source=RuleSource.KUBE_BENCH,
+        resource_type="kubernetes-node-pool",
+    )
+    rule = rule.model_copy(
+        update={
+            "parameters": {
+                "kube_bench_id": "4.1.2",
+                "kube_bench_ruleset": "rke2-cis-1.8",
+                "kube_bench_audit": "stat -c %U:%G /var/lib/kubelet",
+                "kube_bench_scored": True,
+            }
+        }
+    )
+    auth = build_authenticator(verifier=lambda t: {"oid": "u"}, resolver=lambda claims: None)
+    app = build_app(
+        authenticator=auth,
+        read_model=InMemoryConsoleReadModel(),
+        config=ReadApiConfig(dev_mode=True, rule_catalog_collected_rules=(rule,)),
+    )
+    exp = TestClient(app).get("/rules/kube-bench.demo").json()["explanation"]
+    assert exp["source"] == "kube_bench"
+    assert exp["title"] == "CIS rke2-cis-1.8 4.1.2"
+    assert "stat" in exp["details"]["kube_bench_audit"]
+
+
 def test_findings_not_evaluated_without_provider() -> None:
     body = _client().get("/rules/disk.unattached/findings", params={"origin": "active"}).json()
     assert body["evaluated"] is False
