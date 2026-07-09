@@ -116,6 +116,47 @@ def test_data_query_omits_glossary(query: str) -> None:
     assert _GLOSSARY_MARKER not in system
 
 
+# Precision guard: prompts that LOOK conceptual ("what is / how ...") but carry
+# a data word must stay on the lean path (no glossary), EN + KO.
+PRECISION_DATA_QUERIES: list[str] = [
+    "what is the total count?",
+    "what is the eps rate?",
+    "what is the share of shadow mode?",
+    "how many are pending?",
+    "what is the number of failed tiles?",
+    "how many rows are loaded?",
+    "\ucd1d \uac1c\uc218\uac00 \uba87 \uac1c\uc57c?",  # "what is the total count?"
+    "\uba87 \uac1c\uc778\uc9c0 \uc54c\ub824\uc918",  # "tell me how many"
+]
+
+
+@pytest.mark.parametrize("query", PRECISION_DATA_QUERIES)
+def test_data_lookalikes_stay_lean(query: str) -> None:
+    assert _is_concept_query(query) is False
+    assert _GLOSSARY_MARKER not in _system_of(_build_messages(query, {}, []))
+
+
+# Capability parity: the on-demand glossary must still carry every core term the
+# old always-on prompt defined - compression moved the glossary, it did not drop
+# any definition. Asserted on the concept path (where the glossary is injected).
+_GLOSSARY_TERMS: list[str] = [
+    "ActionType",
+    "T0/T1/T2",
+    "Gate decision",
+    "Shadow vs enforce",
+    "HIL",
+    "Verticals",
+    "Safety invariants",
+    "Rule catalog",
+]
+
+
+def test_glossary_preserves_all_core_terms() -> None:
+    system = _system_of(_build_messages("explain the FDAI glossary", {}, []))
+    for term in _GLOSSARY_TERMS:
+        assert term in system, f"glossary term dropped: {term!r}"
+
+
 # ---------------------------------------------------------------------------
 # Prompt size / efficiency regression
 # ---------------------------------------------------------------------------
