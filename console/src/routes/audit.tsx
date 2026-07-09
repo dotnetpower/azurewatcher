@@ -11,6 +11,7 @@ import {
   type PillKind,
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
+import { t } from "../i18n";
 
 interface Props {
   readonly client: ReadApiClient;
@@ -76,7 +77,7 @@ export function AuditRoute({ client }: Props) {
   return (
     <div class="stack">
       <PageHeader
-        title="Audit log"
+        title={t("route.audit")}
         subtitle="Append-only record of every terminal control-plane decision. Read-only; entries are never edited or deleted."
       />
       <AsyncBoundary state={state} resourceLabel="audit log">

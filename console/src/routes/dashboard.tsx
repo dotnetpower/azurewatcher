@@ -11,6 +11,7 @@ import {
   type Column,
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
+import { t } from "../i18n";
 
 interface Props {
   readonly client: ReadApiClient;
@@ -46,7 +47,7 @@ export function DashboardRoute({ client }: Props) {
   return (
     <div class="stack">
       <PageHeader
-        title="Dashboard"
+        title={t("route.dashboard")}
         subtitle={
           <>
             Rolled-up control-plane KPIs sourced from the append-only audit log.

@@ -1,0 +1,11 @@
+{
+  "route": {
+    "dashboard": "대시보드",
+    "hilQueue": "HIL 대기열",
+    "blastRadius": "영향 범위",
+    "audit": "감사 로그",
+    "ontology": "온톨로지",
+    "pantheon": "판테온",
+    "promotionGates": "승급 게이트"
+  }
+}

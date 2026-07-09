@@ -1,0 +1,12 @@
+{
+  "route": {
+    "dashboard": "Dashboard",
+    "hilQueue": "HIL queue",
+    "blastRadius": "Blast radius",
+    "audit": "Audit log",
+    "ontology": "Ontology",
+    "pantheon": "Pantheon",
+    "promotionGates": "Promotion gates",
+    "ruleTrace": "Trace"
+  }
+}

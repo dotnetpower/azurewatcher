@@ -12,6 +12,7 @@ import {
   type PillKind,
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
+import { t } from "../i18n";
 
 /**
  * Rule-fire trace viewer panel. Given a correlation id, calls
@@ -65,7 +66,7 @@ export function RuleTraceRoute({ client }: Props) {
   return (
     <div class="stack">
       <PageHeader
-        title="Trace"
+        title={t("route.ruleTrace")}
         subtitle='Reconstruct the pipeline path for one correlation id. Read-only projection over the audit log; the trace is never re-executed.'
       />
 

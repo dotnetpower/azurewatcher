@@ -14,6 +14,7 @@ import {
   type OntologyNode,
 } from "../components/ontology-graph";
 import { usePublishViewContext } from "../deck/context";
+import { t } from "../i18n";
 
 /**
  * Ontology explorer panel. Fetches ``GET /ontology/graph`` and renders
@@ -81,7 +82,7 @@ export function OntologyRoute({ client }: Props) {
   return (
     <div class="stack">
       <PageHeader
-        title="Ontology"
+        title={t("route.ontology")}
         subtitle="ObjectTypes and LinkTypes registered on this deployment, rendered as a Mermaid classDiagram."
         actions={
           <label class="inline-toggle">

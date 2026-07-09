@@ -11,6 +11,7 @@ import {
   type Column,
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
+import { t } from "../i18n";
 
 interface Props {
   readonly client: ReadApiClient;
@@ -44,7 +45,7 @@ export function HilQueueRoute({ client }: Props) {
   return (
     <div class="stack">
       <PageHeader
-        title="HIL queue"
+        title={t("route.hilQueue")}
         subtitle={
           <>
             High-risk actions waiting for a human approver. Approvals flow through

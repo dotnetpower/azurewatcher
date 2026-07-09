@@ -9,6 +9,7 @@ import {
 } from "../components/ui";
 import { MermaidDiagram } from "../components/mermaid-diagram";
 import { usePublishViewContext } from "../deck/context";
+import { t } from "../i18n";
 
 /**
  * Pantheon panel. Fetches ``GET /pantheon/graph`` and
@@ -106,7 +107,7 @@ export function PantheonRoute({ client }: Props) {
   return (
     <div class="stack">
       <PageHeader
-        title="Pantheon"
+        title={t("route.pantheon")}
         subtitle="15 named agents that own the runtime control plane + 10 cross-agent workflows they compose."
       />
       <AsyncBoundary state={state} resourceLabel="pantheon">

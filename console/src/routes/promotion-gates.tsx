@@ -11,6 +11,7 @@ import {
   type Column,
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
+import { t } from "../i18n";
 
 /**
  * Promotion-gate dashboard panel. Fetches ``GET /kpi/promotion-gates``
@@ -74,7 +75,7 @@ export function PromotionGatesRoute({ client }: Props) {
   return (
     <div class="stack">
       <PageHeader
-        title="Promotion gates"
+        title={t("route.promotionGates")}
         subtitle="Per-ActionType readiness against each shipped promotion_gate. Actions promote from shadow to enforce only when every gap is closed."
       />
       <AsyncBoundary state={state} resourceLabel="promotion gates">

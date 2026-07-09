@@ -10,6 +10,7 @@ import {
   type Column,
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
+import { t } from "../i18n";
 
 /**
  * Blast-radius simulator panel. Wraps ``GET /simulate/blast-radius`` -
@@ -87,7 +88,7 @@ export function BlastRadiusRoute({ client }: Props) {
   return (
     <div class="stack">
       <PageHeader
-        title="Blast radius"
+        title={t("route.blastRadius")}
         subtitle="Simulate the reachable subgraph before approving a change. Read-only projection over the ontology - no resources are touched."
       />
 
