@@ -328,6 +328,34 @@ def _seed(read_model: InMemoryConsoleReadModel) -> None:
          900,
          {"resource": "dev-vm-07", "state": "stopped_allocated", "idle_days": "9"},
          {"pr": "#487", "mode": "shadow", "estimated_savings": "45.5"}),
+        # -- Resilience vertical: a zone-redundancy PR, a shadow DR drill, and a
+        #    restore awaiting approval, so the Overview resilience card shows
+        #    events + auto-resolved + one open risk instead of zeros.
+        ("Thor", "t0", "enable-zone-redundancy", "shadow_pr_opened", "11:10:00", "corr-h",
+         "Opened remediation PR to enable zone redundancy on prod PostgreSQL",
+         "Detected prod-pg-01 running single-zone; rendered the Terraform diff to "
+         "enable zone redundancy, ran what-if (no downtime), and opened "
+         "remediation PR #490 in shadow.",
+         1000,
+         {"resource": "prod-pg-01", "change": "zone_redundant=true",
+          "delivery": "pr_native"},
+         {"pr": "#490", "mode": "shadow"}),
+        ("Vidar", "t0", "dr-failover-drill", "verified", "11:11:00", "corr-i",
+         "Ran a shadow DR failover drill and verified RTO",
+         "Executed a shadow disaster-recovery failover drill for the prod region "
+         "pair; measured recovery time under the RTO target and logged the "
+         "result. No production traffic was moved.",
+         1400,
+         {"region_pair": "krc/krs", "rto_target_s": "300"},
+         {"rto_measured_s": "228", "within_target": "true"}),
+        ("Var", "t2", "restore-from-backup", "awaiting_approval", "11:12:00", "corr-j",
+         "High-risk restore queued for a human approver",
+         "A point-in-time restore of prod-pg-01 was proposed after a suspected "
+         "logical corruption; it is data-plane and irreversible, so it parks in "
+         "the HIL queue for a human approver rather than auto-executing.",
+         80,
+         {"resource": "prod-pg-01", "risk": "high", "data_plane": "true"},
+         {"queue": "hil", "state": "awaiting_approval"}),
     )
     base_day = "2026-07-06T"
     # transit (event_ts -> received) and scheduling (received -> started) delays.
