@@ -13,6 +13,29 @@ It does not govern live maintainer chat. Related rules live in
 [coding-conventions.instructions.md](coding-conventions.instructions.md) (commits/PRs)
 and [generic-scope.instructions.md](generic-scope.instructions.md) (no customer data).
 
+## Language Layers (L0 - L3)
+
+FDAI is **bilingual (English + Korean) on the surfaces humans read**, and
+**English-only on the surfaces machines read**. Four layers, each with its own rule.
+When in doubt, ask: "who reads this - a machine, a developer, or an end user?"
+
+| Layer | Surface | Language rule |
+|-------|---------|---------------|
+| **L0 machine / audit** | code identifiers, comments, docstrings, logs, error codes, **audit entries, event payloads, generated PR titles/bodies, policy (Rego), config keys** | **English only, permanently. Never localized.** |
+| **L1 developer docs** | root `README.md`, `docs/**/*.md` | English canonical + `foo-ko.md` sibling (see [-ko.md](#user-facing-doc-translations-ko)). |
+| **L2 product surfaces** | operator console, CLI, ChatOps cards, notifications, the docs site | **Source strings English** + per-surface locale catalogs, localized at render time (see [Product i18n](#product-i18n-l2)). |
+| **L3 conversational** | Bragi narrator answers | Rendered in the operator's locale; the intent, tool calls, verdict, and audit underneath stay L0 (English). |
+
+**Why L0 stays English forever:** audit, logs, and events MUST stay
+machine-parseable, grep-able, and deterministically replayable across every fork and
+cloud. Localizing them would break replay, correlation, and compliance review.
+Freezing L0 to English also **shrinks the translation surface to only what a human
+actually reads** (L2/L3) - which is what makes multilingual support safe and cheap.
+
+The `## Rule` section below is the L0 + L1-source rule (English-only for everything
+committed and emitted, minus the carve-outs). L2/L3 localization is layered on top via
+message catalogs, never by translating an L0 string in place.
+
 ## Rule
 
 - **English is the only allowed natural language** for everything committed to this
@@ -108,6 +131,41 @@ repository where a natural language other than English is permitted in committed
   `.github/**` (English-only) stay pointing to the English file.
 - Formats stay identical: ISO 8601 dates, ASCII punctuation, no smart quotes.
 
+## Product i18n (L2)
+
+L2 surfaces (operator console, CLI, ChatOps cards, notifications, the docs site) MAY
+be localized. This operationalizes the [Localization](#allowed-exceptions) exception:
+
+- **Source strings are English.** Every user-facing string starts as an English key in
+  a message catalog, never a hard-coded literal inside a component or template.
+- **One catalog pair per surface.** `messages.en.json` (source) + `messages.ko.json`
+  (translation), or the surface's native i18n format (e.g. Astro Starlight locales for
+  the docs site). Catalogs live in a dedicated resource path, never inline in code.
+- **English fallback is mandatory.** A missing or empty translation key renders the
+  English source - never a blank, the key name, or an error. A partial `ko` catalog
+  ships fine.
+- **Locale resolution order:** explicit user preference (`UserPreference.locale`) ->
+  request `Accept-Language` -> default `en`.
+- **Catalog parity (CI):** every key in `messages.ko.json` MUST exist in
+  `messages.en.json` (no orphan translations); the `en` catalog is the source of truth,
+  mirroring the `-ko.md` SHA gate. A `ko` catalog MAY lag (fallback covers it) but MUST
+  NOT invent keys the `en` catalog does not have.
+- **Allowlist:** a locale resource file that carries Hangul is added to the
+  `scripts/check-english-only.sh` allowlist with a one-line reason, exactly like the
+  site `ko/` locale and the `-ko.md` carve-out.
+- **Do NOT localize L0 in place.** When an L0 record (audit entry, log line, event
+  payload, PR body, Rego, error code, identifier) surfaces inside a localized L2 view,
+  the view localizes the **labels around it**, never the machine record itself.
+
+### L3 - conversational (Bragi narrator)
+
+Bragi renders its final natural-language answer in the operator's locale
+(`UserPreference.locale`), but everything beneath the answer - the intent it translates
+into, the tool calls, the verdict, and the audit entry - stays L0 English. The narrator
+is a **presentation translator**, matching its "translator only" role in
+[architecture.instructions.md](architecture.instructions.md); a localized phrasing MUST
+NOT change what the typed pipeline decides.
+
 ## Formats (machine-parseable)
 
 - Dates and timestamps use **ISO 8601 / RFC 3339** (`2026-07-03`, `2026-07-03T09:15:00Z`).
@@ -176,5 +234,8 @@ repository where a natural language other than English is permitted in committed
   and correct it before merge, per
   [coding-conventions.instructions.md](coding-conventions.instructions.md).
 
-> One line: English is canonical; `docs/**/*.md` and root `README.md` ship as
-> `.md` + `-ko.md` pairs; `.github/**` and code stay English-only.
+> One line: **L0** (code, audit, logs, events, PR bodies, policy) is English forever;
+> **L1** docs ship `.md` + `-ko.md` pairs; **L2** product surfaces localize via
+> English-source message catalogs with mandatory English fallback; **L3** the Bragi
+> narrator renders in the operator's locale over an English pipeline. `.github/**` and
+> code stay English-only.

@@ -19,9 +19,15 @@ principles into a phased engineering plan.
 
 ## Language Policy (MUST)
 
-- **All project artifacts are English-only**: source code, comments, identifiers, commit
-  messages, PR descriptions, docs, tests, fixtures, config, and every file in this repo.
-- **Korean is used only in live chat with the maintainer**, never in committed artifacts.
+- **Four language layers.** **L0** machine/audit surfaces (code, identifiers, logs,
+  error codes, audit entries, event payloads, generated PR bodies, Rego policy, config
+  keys) are **English-only, permanently** - never localized (machine-parseable,
+  replayable, CSP-neutral). **L1** developer docs ship English `.md` + `-ko.md` pairs.
+  **L2** product surfaces (console, CLI, ChatOps, notifications, site) localize via
+  English-source message catalogs with mandatory English fallback. **L3** the Bragi
+  narrator renders in the operator's locale over an English pipeline.
+- **Korean is used in live maintainer chat, in `-ko.md` docs, and in allowlisted L2
+  locale catalogs** - never in L0 (code, audit, logs, events, commits, `.github/**`).
 - Rationale and full rules: [instructions/language.instructions.md](instructions/language.instructions.md).
 
 ## Implementation Focus (MUST)
