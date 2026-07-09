@@ -52,6 +52,9 @@ from fdai.delivery.read_api.auth import (  # noqa: E402
     UnsafeClaimsExtractor,
     build_authenticator,
 )
+from fdai.delivery.read_api.entra_verifier import (  # noqa: E402
+    EntraJwtVerifier,
+)
 from fdai.delivery.read_api.live_control_loop import (  # noqa: E402
     ControlLoopEmitterUnavailable,
     build_control_loop_emitter,
@@ -82,6 +85,7 @@ from fdai.shared.providers.sse import SseSink  # noqa: E402
 from fdai.shared.providers.testing.sse import InMemorySseSink  # noqa: E402
 
 _DEV_ENV = "FDAI_READ_API_DEV_MODE"
+_LOCAL_ENTRA_ENV = "FDAI_READ_API_LOCAL_ENTRA"
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 
 # One seed audit row: (agent, tier, action_kind, outcome, finished_hhmmss,
@@ -458,28 +462,69 @@ class _DemoTighterTagsEvaluator:
         )
 
 
+def _group_mapping_from_env(environ: Mapping[str, str] | None = None) -> GroupMapping:
+    """Return the Entra group -> role map for the local harness.
+
+    App Roles (the ``roles`` claim) are the primary path the resolver uses,
+    so the group ids only matter as a fallback. When all five
+    ``FDAI_RBAC_*_GROUP_ID`` env vars are set, use them; otherwise fall back
+    to the all-zero placeholders (sufficient for a real-login test where the
+    signed-in user is assigned an App Role, not just a group).
+    """
+    env = environ if environ is not None else os.environ
+    slots = {
+        "reader": "FDAI_RBAC_READERS_GROUP_ID",
+        "contributor": "FDAI_RBAC_CONTRIBUTORS_GROUP_ID",
+        "approver": "FDAI_RBAC_APPROVERS_GROUP_ID",
+        "owner": "FDAI_RBAC_OWNERS_GROUP_ID",
+        "break_glass": "FDAI_RBAC_BREAK_GLASS_GROUP_ID",
+    }
+    resolved = {name: (env.get(key) or "").strip() for name, key in slots.items()}
+    if all(resolved.values()):
+        return GroupMapping(
+            reader_group_id=resolved["reader"],
+            contributor_group_id=resolved["contributor"],
+            approver_group_id=resolved["approver"],
+            owner_group_id=resolved["owner"],
+            break_glass_group_id=resolved["break_glass"],
+        )
+    return GroupMapping(
+        reader_group_id="00000000-0000-0000-0000-000000000001",
+        contributor_group_id="00000000-0000-0000-0000-000000000002",
+        approver_group_id="00000000-0000-0000-0000-000000000003",
+        owner_group_id="00000000-0000-0000-0000-000000000004",
+        break_glass_group_id="00000000-0000-0000-0000-000000000005",
+    )
+
+
 def app() -> Starlette:
     """Factory. uvicorn invokes this once at server start with ``--factory``."""
-    if os.environ.get(_DEV_ENV) != "1":
+    dev_mode = os.environ.get(_DEV_ENV) == "1"
+    local_entra = os.environ.get(_LOCAL_ENTRA_ENV) == "1"
+    if not dev_mode and not local_entra:
         raise RuntimeError(
-            f"fdai.delivery.read_api._local requires {_DEV_ENV}=1; "
-            "this module is a local dev entrypoint and MUST NOT boot in production."
+            f"fdai.delivery.read_api._local requires {_DEV_ENV}=1 (auth bypassed) "
+            f"or {_LOCAL_ENTRA_ENV}=1 (real Entra sign-in against seed data); this "
+            "module is a local dev entrypoint and MUST NOT boot in production."
         )
     read_model = InMemoryConsoleReadModel()
     _seed(read_model)
-    resolver = RoleResolver(
-        group_mapping=GroupMapping(
-            reader_group_id="00000000-0000-0000-0000-000000000001",
-            contributor_group_id="00000000-0000-0000-0000-000000000002",
-            approver_group_id="00000000-0000-0000-0000-000000000003",
-            owner_group_id="00000000-0000-0000-0000-000000000004",
-            break_glass_group_id="00000000-0000-0000-0000-000000000005",
+    resolver = RoleResolver(group_mapping=_group_mapping_from_env())
+    # dev_mode (auth off) wins when both flags are set. Otherwise this is the
+    # local real-login harness: verify genuine Entra access tokens against the
+    # tenant JWKS (FDAI_ENTRA_TENANT_ID + FDAI_API_AUDIENCE required) while the
+    # console still renders the in-memory seed above - so an engineer can drive
+    # the full MSAL sign-in + App-Role gate locally without a live audit store.
+    if dev_mode:
+        authenticator = build_authenticator(
+            verifier=UnsafeClaimsExtractor(),
+            resolver=resolver,
         )
-    )
-    authenticator = build_authenticator(
-        verifier=UnsafeClaimsExtractor(),
-        resolver=resolver,
-    )
+    else:
+        authenticator = build_authenticator(
+            verifier=EntraJwtVerifier.from_env(),
+            resolver=resolver,
+        )
 
     # Load the shipped ontology + action-type catalogs so the console's
     # explorer / promotion-gate dashboards render out of the box.
@@ -588,7 +633,7 @@ def app() -> Starlette:
         authenticator=authenticator,
         read_model=read_model,
         config=ReadApiConfig(
-            dev_mode=True,
+            dev_mode=dev_mode,
             cors_allow_origins=(
                 "http://127.0.0.1:5173",
                 "http://localhost:5173",

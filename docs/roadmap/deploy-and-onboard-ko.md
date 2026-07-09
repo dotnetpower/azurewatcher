@@ -1,7 +1,7 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: 87a5f30e08178a53dc80a21cc2539a19dd4ce1a0
+translation_source_sha: 62836821f61cbf54c3fc75cbf2217ac9c4c433ce
 translation_revised: 2026-07-09
 ---
 
@@ -277,6 +277,7 @@ flowchart TD
 | `AUTONOMY_MODE_DEFAULT` | env | fork | **반드시** `shadow` 기본값 |
 | `FDAI_LOG_LEVEL` | env | upstream | 코어 앱의 Python 로거 레벨 (`DEBUG` / `INFO` / `WARNING` / `ERROR`). 기본 `INFO`. |
 | `FDAI_READ_API_DEV_MODE` | env | dev-only | `1` 은 로컬 개발용으로 read API 의 Entra JWT 검증을 우회. staging / prod 에서 **금지**. |
+| `FDAI_READ_API_LOCAL_ENTRA` | env | dev-only | `1` 은 로컬 seed 하네스를 **실제** Entra JWT 검증과 함께 실행(`FDAI_ENTRA_TENANT_ID` + `FDAI_API_AUDIENCE` 필요)해 로컬에서 사인인 테스트 가능. dev-mode 와 상호배타; staging / prod 에서 **금지**. |
 | `FDAI_POLICIES_ROOT` | env | fork | T0 와 verifier 가 소비하는 OPA / Rego 번들 루트의 절대 경로. 미설정 시 in-repo `policies/` 를 기본값. |
 | `FDAI_MI_CLIENT_ID` | env | upstream | executor user-assigned MI client id (Container Apps 가 할당된 identity 로부터 채움). `WorkloadIdentity` 가 audience-scoped OIDC exchange 에 사용. |
 | `FDAI_MEASUREMENT_MODE` | env | upstream | `shadow` (기본) 또는 `enforce` - `infra/modules/measurement-runners/` 의 Container Apps Jobs 러너를 지배. |

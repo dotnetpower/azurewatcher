@@ -220,6 +220,48 @@ The dev-mode env var is a **boot-time tripwire** - the API refuses to build a
 `dev_mode=True` app unless `FDAI_READ_API_DEV_MODE=1` is set. A fork's
 production build pipeline never sets that env var.
 
+## Local sign-in test (real Entra)
+
+To exercise the **actual** MSAL sign-in + JWT verification + App-Role gate
+locally - not the anonymous bypass - run the same seed harness with
+`FDAI_READ_API_LOCAL_ENTRA=1` instead of `FDAI_READ_API_DEV_MODE`. The API then
+verifies genuine Entra access tokens against the tenant JWKS
+([`entra_verifier.py`](../src/fdai/delivery/read_api/entra_verifier.py)) while
+still serving the in-memory seed, so no live audit store is needed.
+
+Prerequisite - two Entra app registrations in your tenant (see
+[user-rbac-and-identity.md § 10](../docs/roadmap/user-rbac-and-identity.md#10-sign-in-flow-reference)):
+
+1. **SPA app** (`fdai-console-spa`): platform *Single-page application*, redirect
+   URI `http://localhost:5173`. Note its client id.
+2. **API app** (`fdai-api`): Application ID URI `api://<api-guid>`, one exposed
+   scope `access`, and App Roles `Reader` / `Contributor` / `Approver` / `Owner`.
+   Assign your user the `Reader` (or higher) App Role in *Enterprise
+   applications*.
+
+```sh
+# Terminal 1: read API with REAL Entra verification (seed data).
+FDAI_READ_API_LOCAL_ENTRA=1 \
+    FDAI_ENTRA_TENANT_ID=<tenant-guid> \
+    FDAI_API_AUDIENCE=api://<api-guid> \
+    uv run uvicorn 'fdai.delivery.read_api._local:app' \
+        --factory --port 8000
+
+# Terminal 2: SPA in NON-dev mode - MSAL actually signs you in.
+VITE_DEV_MODE=0 \
+    VITE_READ_API_BASE_URL=http://127.0.0.1:8000 \
+    VITE_MSAL_CLIENT_ID=<spa-client-id> \
+    VITE_MSAL_TENANT_ID=<tenant-guid> \
+    VITE_MSAL_API_SCOPE=api://<api-guid>/access \
+    npm run dev
+```
+
+Open `http://localhost:5173`, click **Sign in with Entra ID**, complete the
+Entra prompt, and the console loads the seed behind your real token. An
+unauthenticated call returns `401`; a signed-in user with no App Role gets `403`
+(assign a role to fix). This proves the production auth path end-to-end without
+deploying anything.
+
 ## Production build
 
 ```sh

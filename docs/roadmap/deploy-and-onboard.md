@@ -285,6 +285,7 @@ full expanded catalog and defaults are authored during the inventory PR.
 | `AUTONOMY_MODE_DEFAULT` | env | fork | MUST default to `shadow` |
 | `FDAI_LOG_LEVEL` | env | upstream | Python logger level for the core app (`DEBUG` / `INFO` / `WARNING` / `ERROR`). Default `INFO`. |
 | `FDAI_READ_API_DEV_MODE` | env | dev-only | `1` bypasses Entra JWT validation in the read API for local dev. MUST NOT be set in staging / prod. |
+| `FDAI_READ_API_LOCAL_ENTRA` | env | dev-only | `1` runs the local seed harness with **real** Entra JWT verification (requires `FDAI_ENTRA_TENANT_ID` + `FDAI_API_AUDIENCE`) so sign-in can be tested locally. Mutually exclusive with dev-mode; MUST NOT be set in staging / prod. |
 | `FDAI_POLICIES_ROOT` | env | fork | absolute path to the OPA / Rego bundle root consumed by T0 and the verifier. Defaults to the in-repo `policies/` when unset. |
 | `FDAI_MI_CLIENT_ID` | env | upstream | executor user-assigned MI client id (populated by Container Apps from the assigned identity). Used by `WorkloadIdentity` for the audience-scoped OIDC exchange. |
 | `FDAI_MEASUREMENT_MODE` | env | upstream | `shadow` (default) or `enforce` - governs the Container Apps Jobs runners in `infra/modules/measurement-runners/`. |
