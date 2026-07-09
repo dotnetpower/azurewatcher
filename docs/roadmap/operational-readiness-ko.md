@@ -1,7 +1,7 @@
 ---
 title: 운영 준비성 리뷰 (dev-to-ops 핸드오프 게이트)
 translation_of: operational-readiness.md
-translation_source_sha: 85dacb5484ea5d73176c7838d99ede824d9de861
+translation_source_sha: 2ae1815de00c345e5fab34601a37fa02bcc9d385
 translation_revised: 2026-07-09
 ---
 # 운영 준비성 리뷰 (dev-to-ops 핸드오프 게이트)
@@ -158,9 +158,10 @@ ORR 은 environment promotion(dev -> staging -> prod) 의 강제 지점입니다
 조여집니다: `prod` 로의 promotion 은 프로파일 기본값과 무관하게 어떤 `critical`
 finding 도 blocking 으로 취급하며, 모든 mutating ActionType 이 이미 선언하는
 prod-downgrade posture 를 재사용합니다
-([risk-classification.md](risk-classification-ko.md)). environment 모델 자체는
-[scope-expansion.md](scope-expansion-ko.md) 에 명세됩니다; ORR 은 그것을
-consume 하며, 정의하지 않습니다.
+([risk-classification.md](risk-classification-ko.md)). environment 분류기와 그것이
+consume 하는 promotion 순서는
+[risk-classification.md § Environment Promotion](risk-classification-ko.md#환경-승격environment-promotion-핸드오프-대상)
+에 명세됩니다; ORR 은 그것을 consume 하며, 정의하지 않습니다.
 
 ## 모듈 배치
 
@@ -203,5 +204,5 @@ import 합니다([project-structure.md](project-structure-ko.md#module-boundarie
 | 재사용하는 단일 배포 feasibility 패스 | [deployment-preflight.md](deployment-preflight-ko.md) |
 | 아이덴티티 차원이 발동하는 RBAC 최소권한 규칙 | [rule-catalog-collection.md](rule-catalog-collection-ko.md) |
 | 게이트를 실행하는 cross-agent 워크플로우 | [agent-workflows.md § 11](agent-workflows-ko.md#11-operational-readiness-handoff) |
-| 게이트가 consume 하는 environment 모델 | [scope-expansion.md](scope-expansion-ko.md) |
+| 게이트가 consume 하는 environment 모델 | [risk-classification.md § Environment Promotion](risk-classification-ko.md#환경-승격environment-promotion-핸드오프-대상) |
 | 제안된 각 fix 가 resolve 하는 risk classification | [risk-classification.md](risk-classification-ko.md) |

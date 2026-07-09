@@ -200,5 +200,5 @@ It holds no cloud SDK and no privileged identity.
 | The single-deploy feasibility pass it reuses | [deployment-preflight.md](deployment-preflight.md) |
 | The RBAC least-privilege rules the identity dimension fires | [rule-catalog-collection.md](rule-catalog-collection.md) |
 | The cross-agent workflow that runs the gate | [agent-workflows.md § 11](agent-workflows.md#11-operational-readiness-handoff) |
-| The environment model the gate consumes | [scope-expansion.md](scope-expansion.md) |
+| The environment model the gate consumes | [risk-classification.md § Environment Promotion](risk-classification.md#environment-promotion-handoff-target) |
 | The risk classification each proposed fix resolves against | [risk-classification.md](risk-classification.md) |

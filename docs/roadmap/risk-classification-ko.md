@@ -1,7 +1,7 @@
 ---
 title: 리스크 분류 (auto vs HIL vs deny)
 translation_of: risk-classification.md
-translation_source_sha: ab5dc0c204759f70721365b35c89786bb989d53c
+translation_source_sha: f2ea058d103595c1a37913f1b1ac1c53be7ce18e
 translation_revised: 2026-07-09
 ---
 
@@ -146,6 +146,32 @@ catch-all. First-match wins이므로 가장 엄격한 적용 가능한 규칙이
 강제: Azure Policy 할당이 `environment` 태그 없이 리소스 그룹 생성을 거부해야 하며, 그래서
 거버넌스된 환경에서는 fail-safe 경로가 절대 적용되지 않습니다. 정책 할당은
 [phase-1-rule-catalog-t0-ko.md](phases/phase-1-rule-catalog-t0-ko.md)의 Phase 1 산출물입니다.
+
+## 환경 승격(Environment Promotion, 핸드오프 대상)
+
+위의 binary `prod` / `non-prod` 축은 authoritative 런타임 분류기입니다. dev-to-ops
+핸드오프 게이트([operational-readiness.md](operational-readiness-ko.md))는 런타임 축이
+싣지 않는 한 가지가 필요합니다: 방향(direction). 그것은 `ownership_transfer` signal 의
+**대상(target)** environment 를 읽고, 그 이전이 *prod 를 향한* 승격인지로 gate 합니다.
+
+단일 정의를 유지하기 위해, lifecycle 단계는 분류기가 이미 인식하는 정확한 태그 값에 대한
+순서(ordering) 입니다 - 새 태그 없음, second classifier 없음:
+
+`dev < test < staging < qa < prod`
+
+- `dev`, `test`, `staging`, `qa` 단계는 모두 런타임 축에서 `non-prod` 로 resolve 됩니다;
+  순서는 핸드오프 시점에 "대상 단계가 `prod` 인가" 만 답하는 데 사용됩니다.
+- **대상 단계가 `prod`** 인 이전은 production 으로의 승격입니다: ORR 은 활성 프로파일
+  기본값과 무관하게 어떤 `critical` finding 도 `blocking` 으로 취급하며, `prod_downgrade`
+  와 동일한 fail-safe posture 를 재사용합니다(downgrade 는 절대 autonomy 를 올리지 않음).
+- 누락 또는 인식되지 않은 대상 단계는 `prod` 로 resolve 됩니다(Environment Detection 과
+  동일한 fail-safe). 따라서 태그 없는 핸드오프는 가장 엄격한 수준에서 gate 됩니다.
+- 순서는 절대 autonomy 를 넓히지 않습니다: 더 낮은 대상 단계가 런타임 축이 gate 했을 auto
+  경로를 unlock 하지 않습니다.
+
+순서는 ORR 게이트만 consume 하는 문서 수준 계약입니다; `risk-classification.yaml` 에
+런타임 축을 추가하지 않습니다. 런타임 리스크 테이블은 여전히 `environment: prod | non-prod`
+만 봅니다.
 
 ## 비용 영향 임계값
 

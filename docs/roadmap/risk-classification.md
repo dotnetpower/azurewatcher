@@ -145,6 +145,34 @@ Enforcement: an Azure Policy assignment SHOULD deny resource-group creation with
 policy assignment is a Phase 1 deliverable in
 [phase-1-rule-catalog-t0.md](phases/phase-1-rule-catalog-t0.md).
 
+## Environment Promotion (handoff target)
+
+The binary `prod` / `non-prod` axis above is the authoritative runtime classifier. The
+dev-to-ops handoff gate ([operational-readiness.md](operational-readiness.md)) needs one
+thing the runtime axis does not carry: a direction. It reads the **target** environment on
+the `ownership_transfer` signal and gates on whether the transfer is a promotion *toward
+prod*.
+
+To keep a single definition, the lifecycle stages are an ordering over the exact tag
+values the classifier already recognizes - no new tag, no second classifier:
+
+`dev < test < staging < qa < prod`
+
+- The stages `dev`, `test`, `staging`, `qa` all resolve to `non-prod` on the runtime
+  axis; the ordering is used only to answer "is the target stage `prod`" at handoff time.
+- A transfer whose **target stage is `prod`** is a promotion into production: the ORR
+  treats any `critical` finding as `blocking` regardless of the active profile default,
+  reusing the same fail-safe posture as `prod_downgrade` (a downgrade never raises
+  autonomy).
+- A missing or unrecognized target stage resolves to `prod`, the same fail-safe as
+  Environment Detection, so an un-tagged handoff is gated at the strictest level.
+- The ordering never widens autonomy: a lower target stage never unlocks an auto path the
+  runtime axis would have gated.
+
+The ordering is a doc-level contract consumed only by the ORR gate; it adds no runtime axis
+to `risk-classification.yaml`. The runtime risk table still sees only
+`environment: prod | non-prod`.
+
 ## Cost Impact Threshold
 
 - **Auto ceiling**: **$100 / month** per action.
