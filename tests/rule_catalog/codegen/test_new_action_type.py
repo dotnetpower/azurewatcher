@@ -45,6 +45,20 @@ def test_spec_rejects_enforce_default_mode() -> None:
         )
 
 
+def test_spec_rejects_name_with_trailing_newline() -> None:
+    # The name anchor is \Z (not $), so a trailing newline cannot slip a
+    # malformed identifier past validation ($ would match before a \n).
+    with pytest.raises(ValueError, match="MUST match"):
+        ActionTypeSpec(
+            name="ops.scale\n",
+            operation="create",
+            interfaces=("ControlPlane",),
+            rollback_contract="pr_revert",
+            category="ops",
+            description="d",
+        )
+
+
 def test_spec_rejects_missing_argument_schema_for_operator_request() -> None:
     with pytest.raises(ValueError, match="argument_schema"):
         ActionTypeSpec(

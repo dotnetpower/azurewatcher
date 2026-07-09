@@ -29,6 +29,19 @@ def _config(path: Path) -> DeclarativeInventoryConfig:
     )
 
 
+def test_config_rejects_non_positive_batch_size(tmp_path: Path) -> None:
+    # batch_size is a range() step and a batching bound: 0 raises ValueError
+    # mid-iteration; a negative value drops the terminal final=True batch.
+    for bad in (0, -1):
+        with pytest.raises(DeclarativeInventoryError, match="batch_size"):
+            DeclarativeInventoryConfig(
+                fixture_path=tmp_path / "inv.yaml",
+                known_resource_types=frozenset(),
+                known_link_types=frozenset(),
+                batch_size=bad,
+            )
+
+
 async def _collect_snapshot(inv: DeclarativeInventory) -> list:
     batches = []
     async for batch in inv.full_snapshot():

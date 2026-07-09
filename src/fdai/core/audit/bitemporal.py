@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Protocol, runtime_checkable
 
 from fdai.core.audit.rule_fire_trace import AuditItemLike
@@ -84,8 +84,15 @@ def snapshot_at(
     """
     if not resource_id:
         raise BitemporalQueryError("resource_id MUST be non-empty")
+    # Normalize the query cutoffs to tz-aware (naive -> UTC). Audit
+    # timestamps are written UTC-aware repo-wide, but as_of/effective are
+    # caller params with no tz discipline; a naive one would make the
+    # comparisons below raise TypeError (offset-naive vs offset-aware)
+    # instead of yielding a clean snapshot.
+    as_of = _ensure_aware(as_of)
     if effective is None:
         effective = as_of
+    effective = _ensure_aware(effective)
     if effective > as_of:
         # Business time in the future of system time makes no sense:
         # we would be asking "what state took effect by <effective>
@@ -125,13 +132,23 @@ def snapshot_at(
     )
 
 
+def _ensure_aware(dt: datetime) -> datetime:
+    """Coerce a naive datetime to UTC (the repo-wide convention).
+
+    Keeps every bitemporal comparison offset-aware so a naive cutoff or a
+    naive ``effective_at`` written by a fork adapter cannot raise
+    ``TypeError`` mid-fold.
+    """
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+
 def _parse_ts(raw: str | datetime | None) -> datetime | None:
     if raw is None:
         return None
     if isinstance(raw, datetime):
-        return raw
+        return _ensure_aware(raw)
     try:
-        return datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        return _ensure_aware(datetime.fromisoformat(str(raw).replace("Z", "+00:00")))
     except ValueError:
         return None
 

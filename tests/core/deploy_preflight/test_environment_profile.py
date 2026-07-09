@@ -221,6 +221,17 @@ def test_get_fresh_returns_none_when_timestamp_unparseable() -> None:
     assert got is None
 
 
+def test_get_fresh_returns_none_on_mixed_naive_aware_timestamps() -> None:
+    # An aware captured_at compared against a naive 'now' makes the delta
+    # subtraction raise TypeError (offset-naive minus offset-aware); both
+    # shapes are within the documented ISO domain, so get_fresh MUST fail
+    # closed to a re-probe (None) rather than propagate the error.
+    cache = DeploymentEnvironmentProfileCache()
+    cache.upsert(_profile("s", captured_at="2026-07-07T00:00:00Z"))  # aware
+    got = cache.get_fresh("s", now="2026-07-07T00:00:30", max_age_seconds=60)  # naive
+    assert got is None
+
+
 def test_get_fresh_rejects_negative_ttl() -> None:
     cache = DeploymentEnvironmentProfileCache()
     with pytest.raises(ValueError, match="non-negative"):

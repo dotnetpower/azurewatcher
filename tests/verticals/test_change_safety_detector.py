@@ -243,6 +243,26 @@ async def test_suppressed_inside_settling_window() -> None:
     assert entries[0]["entry"]["attribution"] == "suppressed"
 
 
+async def test_naive_detected_at_does_not_crash_settling_window() -> None:
+    # Event.detected_at is not tz-validated by the model, so a producer may
+    # emit a naive ISO stamp. The settling-window subtraction MUST NOT raise
+    # TypeError (offset-naive minus offset-aware); a naive stamp is treated
+    # as UTC, so one 10s before an aware 'now' is still suppressed (60s window).
+    naive_detected = datetime(2026, 7, 7, 8, 0, 0)  # no tzinfo
+    detector, publisher, bus, audit = _detector(
+        now=datetime(2026, 7, 7, 8, 0, 10, tzinfo=UTC),
+    )
+    event = _event(
+        actor="unknown-actor",
+        idempotency_key="settling-naive",
+        detected_at=naive_detected,
+    )
+
+    decision = await detector.detect(event)  # must not raise TypeError
+
+    assert decision.outcome is DetectorOutcome.SUPPRESSED
+
+
 async def test_settling_window_per_resource_type_override() -> None:
     detected = FIXED_DETECTED_AT
     detector, publisher, _, audit = _detector(

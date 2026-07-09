@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -22,6 +22,7 @@ from fdai.shared.providers.stage_publisher import (
     StageEvent,
     StageName,
     StagePhase,
+    _iso,
 )
 from fdai.shared.providers.testing import (
     InMemoryEventBus,
@@ -297,3 +298,17 @@ class TestEventBusStagePublisher:
                 phase=StagePhase.DONE,
             )
         )
+
+
+def test_iso_converts_non_utc_aware_to_true_utc() -> None:
+    # StageEvent only validates that ts is aware (any offset). 14:00 at
+    # +09:00 is 05:00Z; _iso MUST report the true UTC instant, not stamp a
+    # literal Z onto the local wall-clock components.
+    kst = timezone(timedelta(hours=9))
+    ts = datetime(2026, 7, 9, 14, 0, 0, tzinfo=kst)
+    assert _iso(ts) == "2026-07-09T05:00:00.000Z"
+
+
+def test_iso_utc_is_unchanged() -> None:
+    ts = datetime(2026, 7, 9, 5, 0, 0, tzinfo=UTC)
+    assert _iso(ts) == "2026-07-09T05:00:00.000Z"

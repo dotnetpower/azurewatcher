@@ -17,7 +17,7 @@ import yaml
 from fdai.rule_catalog.schema.action_type import load_action_type_from_mapping
 from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
-_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_.\-]{0,79}$")
+_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_.\-]{0,79}\Z")
 
 _ALLOWED_OPERATIONS: frozenset[str] = frozenset(
     {

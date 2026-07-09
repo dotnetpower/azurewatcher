@@ -185,7 +185,12 @@ class DeploymentEnvironmentProfileCache:
             return None
         try:
             age = _iso_delta_seconds(entry.captured_at, now)
-        except ValueError:
+        except (ValueError, TypeError):
+            # Fail closed: an unparseable timestamp (ValueError) OR a mixed
+            # naive/aware pair (TypeError from subtracting offset-naive and
+            # offset-aware datetimes - both shapes are within the documented
+            # ISO domain) is treated as stale, so the caller re-probes
+            # rather than trusting a freshness check that could not be made.
             return None
         if age > max_age_seconds:
             return None

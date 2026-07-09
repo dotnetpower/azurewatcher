@@ -399,7 +399,15 @@ class ChangeSafetyDetector:
         # per-resource-type debounce horizon relative to now.
         window = self._config.window_for(resource_type)
         now = self._clock()
-        age = now - event.detected_at
+        # ``Event.detected_at`` is not tz-validated by the model, so a
+        # producer that emits a naive ISO timestamp would make this
+        # subtraction raise TypeError (offset-naive minus offset-aware) and
+        # abort the control-loop pass. Treat a naive stamp as UTC (the
+        # repo-wide convention) so detection stays robust.
+        detected_at = event.detected_at
+        if detected_at.tzinfo is None:
+            detected_at = detected_at.replace(tzinfo=UTC)
+        age = now - detected_at
         if age < window:
             seconds = int(window.total_seconds())
             return (

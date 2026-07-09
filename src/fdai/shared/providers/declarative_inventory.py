@@ -57,6 +57,13 @@ class DeclarativeInventoryConfig:
     known_link_types: frozenset[str]
     batch_size: int = 200
 
+    def __post_init__(self) -> None:
+        # batch_size is a ``range`` step and a batching bound: 0 raises
+        # ValueError mid-iteration and a negative value emits no final
+        # (terminal) batch, so a consumer keyed on ``final`` never completes.
+        if self.batch_size < 1:
+            raise DeclarativeInventoryError("batch_size MUST be >= 1")
+
 
 class DeclarativeInventory:
     """Static-file :class:`~fdai.shared.providers.inventory.Inventory`.

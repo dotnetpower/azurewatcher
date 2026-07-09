@@ -166,6 +166,11 @@ class NullStagePublisher:
 def _iso(ts: datetime) -> str:
     # Millisecond-precision ISO-8601 with a trailing ``Z``. Same format
     # the audit log + live console use so timestamps compare directly.
+    # Convert to UTC first: ``StageEvent`` only validates that ``ts`` is
+    # aware (any offset), so stamping a literal ``Z`` onto the raw
+    # wall-clock components of a non-UTC datetime would misreport the
+    # instant on the wire.
+    ts = ts.astimezone(UTC)
     return ts.strftime("%Y-%m-%dT%H:%M:%S.") + f"{ts.microsecond // 1000:03d}Z"
 
 

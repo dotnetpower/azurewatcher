@@ -54,6 +54,37 @@ def test_snapshot_folds_state_in_effective_time_order() -> None:
     assert snap.source_seqs == (1, 2)
 
 
+def test_snapshot_coerces_naive_query_cutoff_to_utc() -> None:
+    # as_of passed naive (no tz) must be coerced to UTC, not raise TypeError
+    # against the UTC-aware audit timestamps.
+    items = [
+        _StubAuditItem(
+            seq=1,
+            correlation_id=None,
+            entry={"state": {"tier": "S1"}, "effective_at": _iso(2026, 1, 1)},
+            recorded_at=_iso(2026, 1, 2),
+        ),
+    ]
+    naive_as_of = datetime(2026, 3, 1, 0, 0, 0)  # no tzinfo
+    snap = snapshot_at("res-1", items, as_of=naive_as_of)  # must not raise
+    assert snap.state == {"tier": "S1"}
+
+
+def test_snapshot_coerces_naive_effective_at_in_entry() -> None:
+    # A fork adapter that writes a naive effective_at must not trip the
+    # eff_ts > effective comparison with a TypeError.
+    items = [
+        _StubAuditItem(
+            seq=1,
+            correlation_id=None,
+            entry={"state": {"tier": "S1"}, "effective_at": "2026-01-01T00:00:00"},  # naive
+            recorded_at=_iso(2026, 1, 2),
+        ),
+    ]
+    snap = snapshot_at("res-1", items, as_of=_at(2026, 3, 1))  # must not raise
+    assert snap.state == {"tier": "S1"}
+
+
 def test_as_of_cuts_off_later_records() -> None:
     items = [
         _StubAuditItem(

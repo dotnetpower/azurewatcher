@@ -15,8 +15,8 @@ import yaml
 from fdai.rule_catalog.schema.object_type import load_object_type_from_mapping
 from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
-_PASCAL_CASE = re.compile(r"^[A-Z][A-Za-z0-9]{0,63}$")
-_LOWER_SNAKE_KEBAB = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
+_PASCAL_CASE = re.compile(r"^[A-Z][A-Za-z0-9]{0,63}\Z")
+_LOWER_SNAKE_KEBAB = re.compile(r"^[a-z][a-z0-9_-]{0,63}\Z")
 
 _ALLOWED_TYPES: frozenset[str] = frozenset(
     {"string", "integer", "number", "boolean", "object", "array", "datetime"}
