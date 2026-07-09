@@ -83,6 +83,16 @@ const KNOWN_SIGNAL_VALUES: ReadonlySet<string> = new Set(
   SIGNAL_TYPE_OPTIONS.map((o) => o.value),
 );
 
+/** Common cron presets so an operator does not have to hand-write a
+ * 5-field expression for the usual cadences. */
+const SCHEDULE_PRESETS: readonly { readonly label: string; readonly value: string }[] = [
+  { label: "Every hour", value: "0 * * * *" },
+  { label: "Every day 03:00", value: "0 3 * * *" },
+  { label: "Every Monday 03:00", value: "0 3 * * 1" },
+  { label: "Every Sunday 03:00", value: "0 3 * * 0" },
+  { label: "First of month 03:00", value: "0 3 1 * *" },
+];
+
 const INITIAL_FORM: FormState = {
   name: "",
   version: "1.0.0",
@@ -485,6 +495,7 @@ function WorkflowDetail({
               <th>Guard</th>
               <th>Compensated by</th>
               <th>On failure</th>
+              <th>Params</th>
             </tr>
           </thead>
           <tbody>
@@ -496,6 +507,7 @@ function WorkflowDetail({
                 <td class="mono muted">{s.guard_rule_ref ?? "-"}</td>
                 <td class="mono muted">{s.compensated_by ?? "-"}</td>
                 <td class="mono muted">{s.on_failure ?? "-"}</td>
+                <td class="mono muted">{formatParams(s.params)}</td>
               </tr>
             ))}
           </tbody>
@@ -530,6 +542,7 @@ function BuilderBody({
   const [result, setResult] = useState<ValidateResponse | null>(null);
   const [validating, setValidating] = useState(false);
   const [transportError, setTransportError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
 
   // Bring the validation outcome into view - on a long form the result
@@ -545,9 +558,28 @@ function BuilderBody({
     [palette],
   );
 
+  // ActionType options grouped by category so the step dropdowns are
+  // scannable (30+ actions in one flat list is a guessing game).
+  const groupedPalette = useMemo(() => {
+    const byCat = new Map<string, ActionTypePaletteEntry[]>();
+    for (const p of palette) {
+      const cat = p.category ?? "other";
+      const arr = byCat.get(cat);
+      if (arr) arr.push(p);
+      else byCat.set(cat, [p]);
+    }
+    return [...byCat.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [palette]);
+
+  function requestBack(): void {
+    if (dirty && !window.confirm("Discard this draft and return to the list?")) return;
+    onBack();
+  }
+
   function patch(fields: Partial<FormState>): void {
     setForm((prev) => ({ ...prev, ...fields }));
     setResult(null);
+    setDirty(true);
   }
 
   function patchStep(key: number, fields: Partial<DraftStep>): void {
@@ -556,17 +588,20 @@ function BuilderBody({
       steps: prev.steps.map((s) => (s.key === key ? { ...s, ...fields } : s)),
     }));
     setResult(null);
+    setDirty(true);
   }
 
   function addStep(): void {
     setForm((prev) => ({ ...prev, steps: [...prev.steps, emptyStep(nextKey)] }));
     setNextKey((k) => k + 1);
     setResult(null);
+    setDirty(true);
   }
 
   function removeStep(key: number): void {
     setForm((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.key !== key) }));
     setResult(null);
+    setDirty(true);
   }
 
   function moveStep(index: number, delta: number): void {
@@ -582,6 +617,7 @@ function BuilderBody({
       return { ...prev, steps: next };
     });
     setResult(null);
+    setDirty(true);
   }
 
   async function onValidate(): Promise<void> {
@@ -603,6 +639,7 @@ function BuilderBody({
     setNextKey(1);
     setResult(null);
     setTransportError(null);
+    setDirty(false);
   }
 
   const stepIds = form.steps.map((s) => s.id.trim()).filter(Boolean);
@@ -625,7 +662,7 @@ function BuilderBody({
   return (
     <div class="stack">
       <div class="section-header">
-        <button type="button" class="btn btn-small" onClick={onBack}>
+        <button type="button" class="btn btn-small" onClick={requestBack}>
           ← Back to built-in workflows
         </button>
       </div>
@@ -639,6 +676,15 @@ function BuilderBody({
         rollback come for free. New workflows start in <span class="badge shadow">shadow</span>{" "}
         mode (judge and log, no changes) until a separate promotion PR.
       </div>
+
+      {palette.length === 0 ? (
+        <div class="empty error">
+          <p class="mono">
+            No ActionTypes are served on this deployment, so steps cannot be mapped. Wire the
+            ActionType catalog (ReadApiConfig.workflow_authoring) to author workflows.
+          </p>
+        </div>
+      ) : null}
 
       {/* Metadata */}
       <section class="stack-section">
@@ -714,6 +760,21 @@ function BuilderBody({
           ) : (
             <label class="form-field">
               <span class="form-label">Schedule (cron)</span>
+              <select
+                class="form-input"
+                value={SCHEDULE_PRESETS.some((p) => p.value === form.schedule) ? form.schedule : ""}
+                onChange={(e) => {
+                  const v = (e.target as HTMLSelectElement).value;
+                  if (v) patch({ schedule: v });
+                }}
+              >
+                <option value="">Presets...</option>
+                {SCHEDULE_PRESETS.map((p) => (
+                  <option value={p.value} key={p.value}>
+                    {p.label} ({p.value})
+                  </option>
+                ))}
+              </select>
               <input
                 class="form-input mono"
                 value={form.schedule}
@@ -811,11 +872,7 @@ function BuilderBody({
                       }
                     >
                       <option value="">(select an ActionType)</option>
-                      {palette.map((p) => (
-                        <option value={p.name} key={p.name}>
-                          {p.name}
-                        </option>
-                      ))}
+                      <ActionTypeOptions grouped={groupedPalette} />
                     </select>
                   </label>
                   <label class="form-field">
@@ -842,11 +899,7 @@ function BuilderBody({
                       }
                     >
                       <option value="">(none)</option>
-                      {palette.map((p) => (
-                        <option value={p.name} key={p.name}>
-                          {p.name}
-                        </option>
-                      ))}
+                      <ActionTypeOptions grouped={groupedPalette} />
                     </select>
                   </label>
                   <label class="form-field">
@@ -971,6 +1024,36 @@ function BuilderBody({
   );
 }
 
+/** Render the ActionType palette as category-grouped <optgroup>s for a
+ * step dropdown. Shared by the action_type_ref and compensated_by selects. */
+function ActionTypeOptions({
+  grouped,
+}: {
+  readonly grouped: readonly (readonly [string, readonly ActionTypePaletteEntry[]])[];
+}) {
+  return (
+    <>
+      {grouped.map(([cat, entries]) => (
+        <optgroup label={cat} key={cat}>
+          {entries.map((p) => (
+            <option value={p.name} key={p.name}>
+              {p.name}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </>
+  );
+}
+
+/** Render a step's params map as a compact "k=v, k=v" string, or "-". */
+function formatParams(params: Record<string, string | number | boolean> | undefined): string {
+  if (!params) return "-";
+  const pairs = Object.entries(params);
+  if (pairs.length === 0) return "-";
+  return pairs.map(([k, v]) => `${k}=${v}`).join(", ");
+}
+
 function ActionTypeHint({ at }: { readonly at: ActionTypePaletteEntry }) {
   return (
     <div class="at-hint">
@@ -1067,6 +1150,15 @@ function ValidationResult({
   }
   const fileName = `${name.trim() || "workflow"}.yaml`;
   const yaml = result.yaml_preview ?? "";
+  function download(): void {
+    const blob = new Blob([yaml], { type: "text/yaml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   return (
     <div class="stack">
       <div class="badge enforce">Valid - ready for a remediation PR</div>
@@ -1077,6 +1169,9 @@ function ValidationResult({
       </p>
       <div class="code-actions">
         <CopyButton text={yaml} label="Copy YAML" />
+        <button type="button" class="btn btn-small" onClick={download}>
+          Download {fileName}
+        </button>
       </div>
       <pre class="mono scroll code-block">{yaml}</pre>
     </div>
