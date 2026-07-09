@@ -316,10 +316,23 @@ An operator authors a custom business process through the console's
 maps the process onto the ontology and is **read-only by construction**: it
 validates and previews, it never commits.
 
-Two opt-in, Reader-gated read API routes back it, both pure projections that
+The view has two modes. The default is a **read-only list of the built-in
+workflows**: every shipped process with its trigger, step count, and mode, and
+a per-row detail panel (property table, steps table, anti-scope, and the raw
+catalog YAML). Authoring is an explicit choice behind a **New workflow** button
+that opens the guided builder form; the form carries a `Back to built-in
+workflows` control, an intro callout, and numbered per-section help so it is
+self-explanatory.
+
+Three opt-in, Reader-gated read API routes back it, all pure projections that
 write no state (see
 [`workflow_authoring.py`](../../src/fdai/delivery/read_api/workflow_authoring.py)):
 
+- **`GET /workflows/catalog`** - the built-in Workflow catalog. A read-only
+  projection of the loaded `Workflow` catalog carrying each workflow's full
+  content (trigger, steps, promotion gate, `step_count`, and the canonical
+  YAML) so the console can list and inspect shipped processes before an
+  operator drafts a new one.
 - **`GET /workflows/action-types`** - the `ActionType` palette. A projection of
   the loaded `ActionType` catalog (name, category, `rollback_contract`,
   `irreversible`, `default_mode`, and the tiers whose ceiling escalates to HIL)
@@ -334,15 +347,16 @@ write no state (see
 
 Both routes are opt-in through
 [`ReadApiConfig.workflow_authoring`](../../src/fdai/delivery/read_api/main.py)
-(a `WorkflowAuthoringConfig` carrying the loaded palette, rule ids, and schema
-registry); unset upstream so the console stays minimal, wired in the local dev
-harness so the view renders out of the box.
+(a `WorkflowAuthoringConfig` carrying the loaded palette, built-in workflows,
+rule ids, and schema registry); unset upstream so the console stays minimal,
+wired in the local dev harness so the view renders out of the box.
 
 The console keeps the read-only invariant
 ([app-shape.instructions.md](../../.github/instructions/app-shape.instructions.md)):
-the palette is a GET through the GET-only `ReadApiClient`, and the validate call
-is the single non-GET the console makes - a read-only validator that lives
-outside `ReadApiClient` (mirroring the chat backend) and changes no state. There
+the palette and catalog are GETs through the GET-only `ReadApiClient`, and the
+validate call is the single non-GET the console makes - a read-only validator
+that lives outside `ReadApiClient` (mirroring the chat backend) and changes no
+state. There
 is no console button that commits. A valid draft yields YAML the operator copies
 into `rule-catalog/workflows/<name>.yaml` and lands as a remediation PR through
 the git-native path, so audit, review, and rollback come for free. New drafts

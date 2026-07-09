@@ -1,7 +1,7 @@
 ---
 title: 프로세스 자동화(Process Automation)
 translation_of: process-automation.md
-translation_source_sha: 73df044a109f797f32df45283dadf9b2b0046020
+translation_source_sha: f8e7e3b030fdc86cd2a79aad978217987df106dc
 translation_revised: 2026-07-10
 ---
 
@@ -303,10 +303,21 @@ malformed 워크플로는 첫 dispatch 가 아니라 부팅을 막는다.
 표면은 프로세스를 온톨로지에 매핑하며 **구조적으로 read-only** 다: 검증하고
 미리보기할 뿐 커밋하지 않는다.
 
-두 개의 opt-in, Reader-gated read API 라우트가 이를 뒷받침하며, 둘 다 상태를
+뷰에는 두 모드가 있다. 기본은 **빌트인 워크플로의 read-only 목록**이다: 각
+출시 프로세스를 trigger, step 수, mode 와 함께 보여주고, 행마다 상세 패널
+(속성 테이블, 스텝 테이블, anti-scope, 원본 카탈로그 YAML) 을 편다. 저작은
+**New workflow** 버튼 뒤의 명시적 선택이며, 이 폼은 `Back to built-in
+workflows` 컨트롤, 소개 콜아웃, 섹션별 번호가 매겨진 도움말을 실어 스스로
+설명된다.
+
+세 개의 opt-in, Reader-gated read API 라우트가 이를 뒷받침하며, 모두 상태를
 쓰지 않는 순수 projection 이다 (see
 [`workflow_authoring.py`](../../src/fdai/delivery/read_api/workflow_authoring.py)):
 
+- **`GET /workflows/catalog`** - 빌트인 Workflow 카탈로그. 로드된 `Workflow`
+  카탈로그의 read-only projection 으로 각 워크플로의 전체 내용 (trigger, steps,
+  promotion gate, `step_count`, canonical YAML) 을 실어, 오퍼레이터가 새로
+  작성하기 전에 콘솔이 출시 프로세스를 목록화하고 확인할 수 있게 한다.
 - **`GET /workflows/action-types`** - `ActionType` 팔레트. 로드된 `ActionType`
   카탈로그의 projection (name, category, `rollback_contract`, `irreversible`,
   `default_mode`, 그리고 ceiling 이 HIL 로 에스컬레이션하는 tier) 이라, 빌더가
@@ -319,21 +330,21 @@ malformed 워크플로는 첫 dispatch 가 아니라 부팅을 막는다.
   cross-reference) 을 실행하는 순수 함수이며, 집계된 이슈와 canonical YAML
   미리보기를 반환한다. 아무것도 mutate 하지 않고 PR 도 만들지 않는다.
 
-두 라우트는
+세 라우트는
 [`ReadApiConfig.workflow_authoring`](../../src/fdai/delivery/read_api/main.py)
-(로드된 팔레트, rule id, schema registry 를 담은 `WorkflowAuthoringConfig`) 를
-통해 opt-in 이다; upstream 에선 unset 이라 콘솔이 minimal 로 유지되고, 로컬 dev
-하네스에는 배선되어 뷰가 곧바로 렌더된다.
+(로드된 팔레트, 빌트인 워크플로, rule id, schema registry 를 담은
+`WorkflowAuthoringConfig`) 를 통해 opt-in 이다; upstream 에선 unset 이라 콘솔이
+minimal 로 유지되고, 로컬 dev 하네스에는 배선되어 뷰가 곧바로 렌더된다.
 
 콘솔은 read-only 불변식을 유지한다
 ([app-shape.instructions.md](../../.github/instructions/app-shape.instructions.md)):
-팔레트는 GET-only `ReadApiClient` 를 통한 GET 이고, validate 호출은 콘솔이
-만드는 유일한 non-GET 이다 - `ReadApiClient` 밖에 사는 (chat backend 를 미러)
-read-only 검증기로 어떤 상태도 바꾸지 않는다. 커밋하는 콘솔 버튼은 없다. 유효한
-draft 는 오퍼레이터가 `rule-catalog/workflows/<name>.yaml` 로 복사해 git-native
-경로의 remediation PR 로 랜딩하는 YAML 을 낸다 - 그래서 audit, review, rollback
-이 공짜로 따라온다. 새 draft 는 `shadow` 로 잠긴다; enforce 승격은
-[6절](#6-거버넌스) 의 별도 거버넌스 PR 로 남는다.
+팔레트와 카탈로그는 GET-only `ReadApiClient` 를 통한 GET 이고, validate 호출은
+콘솔이 만드는 유일한 non-GET 이다 - `ReadApiClient` 밖에 사는 (chat backend 를
+미러) read-only 검증기로 어떤 상태도 바꾸지 않는다. 커밋하는 콘솔 버튼은 없다.
+유효한 draft 는 오퍼레이터가 `rule-catalog/workflows/<name>.yaml` 로 복사해
+git-native 경로의 remediation PR 로 랜딩하는 YAML 을 낸다 - 그래서 audit,
+review, rollback 이 공짜로 따라온다. 새 draft 는 `shadow` 로 잠긴다; enforce
+승격은 [6절](#6-거버넌스) 의 별도 거버넌스 PR 로 남는다.
 
 ## 9. agent-workflows.md 와의 관계
 
