@@ -1242,6 +1242,13 @@ pre {
 .data-table-clickable tbody tr:hover .row-chevron,
 .data-table tbody tr.row-active .row-chevron { color: var(--accent); }
 
+/* Affected-resource count badge on list rows. */
+.affected-badge {
+  display: inline-block; min-width: 20px; padding: 1px 7px;
+  border-radius: 999px; font-size: 12px; font-weight: 600; text-align: center;
+  color: #b42318; background: color-mix(in oklab, #d92d20 14%, transparent);
+}
+
 .form-grid {
   display: grid; gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

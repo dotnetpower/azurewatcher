@@ -261,6 +261,13 @@ class ReadApiConfig:
     an inventory-evaluation source (assurance_twin / T0 over real
     inventory)."""
 
+    rule_catalog_findings_summary_provider: Any = None
+    """Opt-in count source for ``GET /rules/findings-summary`` (the
+    at-a-glance affected-count badge on the list). A callable ``() ->
+    awaitable[mapping[rule_id, int]]``. ``None`` (default) makes the
+    endpoint report ``evaluated=false``; a fork wires the same
+    inventory-evaluation source as :attr:`rule_catalog_findings_provider`."""
+
     promotion_gate_action_types: tuple[Any, ...] = ()
     """Opt-in promotion-gate dashboard input: tuple of
     :class:`~fdai.shared.contracts.models.OntologyActionType`."""
@@ -564,10 +571,13 @@ def build_app(
             FINDINGS_ROUTE_PATH as _RC_FINDINGS_PATH,
         )
         from fdai.delivery.read_api.rule_catalog import (
+            FINDINGS_SUMMARY_ROUTE_PATH as _RC_SUMMARY_PATH,
+        )
+        from fdai.delivery.read_api.rule_catalog import (
             make_rule_catalog_routes,
         )
 
-        for _rc in (_RC_PATH, _RC_DETAIL_PATH, _RC_FINDINGS_PATH):
+        for _rc in (_RC_PATH, _RC_DETAIL_PATH, _RC_FINDINGS_PATH, _RC_SUMMARY_PATH):
             if _rc in _CORE_ROUTE_PATHS:
                 raise ValueError(f"rule-catalog path {_rc!r} collides with a core route")
             if _rc in seen_panel_paths:
@@ -580,6 +590,7 @@ def build_app(
                 policies_root=resolved_config.rule_catalog_policies_root,
                 remediation_root=resolved_config.rule_catalog_remediation_root,
                 findings_provider=resolved_config.rule_catalog_findings_provider,
+                findings_summary_provider=resolved_config.rule_catalog_findings_summary_provider,
             )
         )
 

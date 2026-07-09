@@ -341,17 +341,27 @@ def app() -> Starlette:
     # active catalog + policies + OPA binary are all present; otherwise
     # the findings endpoint honestly reports "not evaluated here".
     rule_catalog_findings_provider: Any = None
+    rule_catalog_findings_summary_provider: Any = None
     if rule_catalog_rules and policies_root.is_dir():
         try:
-            from fdai.delivery.read_api.demo_findings import build_demo_findings_provider
+            from fdai.delivery.read_api.demo_findings import (
+                build_demo_findings_provider,
+                build_demo_findings_summary_provider,
+            )
 
+            _rules_by_id = {r.id: r for r in rule_catalog_rules}
             rule_catalog_findings_provider = build_demo_findings_provider(
-                rules_by_id={r.id: r for r in rule_catalog_rules},
+                rules_by_id=_rules_by_id,
+                policies_root=policies_root,
+            )
+            rule_catalog_findings_summary_provider = build_demo_findings_summary_provider(
+                rules_by_id=_rules_by_id,
                 policies_root=policies_root,
             )
         except MissingOpaBinaryError:
             logging.getLogger(__name__).info("demo_findings_disabled_no_opa")
             rule_catalog_findings_provider = None
+            rule_catalog_findings_summary_provider = None
 
     return build_app(
         authenticator=authenticator,
@@ -375,6 +385,7 @@ def app() -> Starlette:
                 remediation_root if remediation_root.is_dir() else None
             ),
             rule_catalog_findings_provider=rule_catalog_findings_provider,
+            rule_catalog_findings_summary_provider=rule_catalog_findings_summary_provider,
             promotion_gate_action_types=tuple(action_types),
             promotion_gate_source=InMemoryShadowVerdictSource(verdicts=_synthetic_verdicts()),
             trace_reader=trace_reader,

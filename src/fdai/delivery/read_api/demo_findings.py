@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from fdai.core.tiers.t0_deterministic.opa_evaluator import OpaRegoEvaluator
-from fdai.delivery.read_api.rule_catalog import FindingsProvider
+from fdai.delivery.read_api.rule_catalog import FindingsProvider, FindingsSummaryProvider
 from fdai.shared.contracts.models import Rule
 
 # Fixed observation time keeps the demo deterministic (no wall-clock).
@@ -249,8 +249,59 @@ def build_demo_findings_provider(
     return provider
 
 
+def build_demo_findings_summary_provider(
+    *,
+    rules_by_id: Mapping[str, Rule],
+    policies_root: Path,
+    evaluator: Any = None,
+    inventory: Sequence[SyntheticResource] = SYNTHETIC_INVENTORY,
+) -> FindingsSummaryProvider:
+    """Return a :data:`FindingsSummaryProvider` (``rule_id -> count``).
+
+    Evaluates every rule against the synthetic inventory once, lazily on
+    the first call, and caches the result for the process lifetime so the
+    console's count badge costs nothing on boot or list load - the FE
+    fetches this after the list renders and the badges fill in.
+    """
+
+    resolved_evaluator = evaluator or OpaRegoEvaluator(policies_root=policies_root)
+    cache: dict[str, int] = {}
+    computed = False
+
+    def _compute() -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for rule in rules_by_id.values():
+            n = 0
+            for res in inventory:
+                if res.resource_type != rule.resource_type:
+                    continue
+                try:
+                    result = resolved_evaluator.evaluate(rule, res.props)
+                except Exception:  # noqa: BLE001 - one bad eval must not fail the summary
+                    logging.getLogger(__name__).debug(
+                        "demo_summary_eval_failed rule=%s", rule.id, exc_info=True
+                    )
+                    continue
+                if result is not None and result.denied:
+                    n += 1
+            if n:
+                counts[rule.id] = n
+        return counts
+
+    async def summary() -> Mapping[str, int]:
+        nonlocal computed
+        if not computed:
+            result = await asyncio.to_thread(_compute)
+            cache.update(result)
+            computed = True
+        return dict(cache)
+
+    return summary
+
+
 __all__ = [
     "SYNTHETIC_INVENTORY",
     "SyntheticResource",
     "build_demo_findings_provider",
+    "build_demo_findings_summary_provider",
 ]

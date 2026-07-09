@@ -241,6 +241,28 @@ export function RuleCatalogRoute({ client }: Props) {
     };
   }, [client, filters, offset]);
 
+  // Affected-resource counts per rule (active tier), fetched once after
+  // the list renders. Non-blocking: badges fill in when it resolves;
+  // upstream (no provider) returns evaluated=false -> no badges.
+  const [affectedCounts, setAffectedCounts] = useState<Readonly<Record<string, number>>>({});
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await client.panel<{
+          readonly evaluated: boolean;
+          readonly counts: Readonly<Record<string, number>>;
+        }>("/rules/findings-summary");
+        if (!cancelled && data.evaluated) setAffectedCounts(data.counts);
+      } catch {
+        /* summary is best-effort - the list works without badges */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
+
   function updateFilter(patch: Partial<Filters>): void {
     setFilters((f) => ({ ...f, ...patch }));
     setOffset(0);
@@ -377,6 +399,7 @@ export function RuleCatalogRoute({ client }: Props) {
         searchInput={searchInput}
         loading={status === "loading"}
         selected={selected}
+        affectedCounts={affectedCounts}
         onSelect={selectRule}
         onFilter={updateFilter}
         onSearch={setSearchInput}
@@ -395,6 +418,7 @@ function RuleCatalogBody({
   searchInput,
   loading,
   selected,
+  affectedCounts,
   onSelect,
   onFilter,
   onSearch,
@@ -405,6 +429,7 @@ function RuleCatalogBody({
   readonly searchInput: string;
   readonly loading: boolean;
   readonly selected: Selection | null;
+  readonly affectedCounts: Readonly<Record<string, number>>;
   readonly onSelect: (sel: Selection) => void;
   readonly onFilter: (patch: Partial<Filters>) => void;
   readonly onSearch: (next: string) => void;
@@ -483,6 +508,16 @@ function RuleCatalogBody({
       },
       { key: "source", header: "Source", render: (r) => r.source },
       {
+        key: "affected",
+        header: "Affected",
+        headerClass: "num",
+        cellClass: "num",
+        render: (r) => {
+          const n = affectedCounts[r.id];
+          return n ? <span class="affected-badge" title={`${n} resource(s) violate this rule`}>{n}</span> : null;
+        },
+      },
+      {
         key: "chevron",
         header: "",
         headerClass: "chevron-col",
@@ -490,7 +525,7 @@ function RuleCatalogBody({
         render: () => <span class="row-chevron" aria-hidden="true">›</span>,
       },
     ],
-    [],
+    [affectedCounts],
   );
 
   const pageStart = data.filtered_total === 0 ? 0 : data.offset + 1;

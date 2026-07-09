@@ -39,6 +39,7 @@ from fdai.shared.contracts.models import Rule
 DEFAULT_ROUTE_PATH = "/rules"
 DETAIL_ROUTE_PATH = "/rules/{rule_id}"
 FINDINGS_ROUTE_PATH = "/rules/{rule_id}/findings"
+FINDINGS_SUMMARY_ROUTE_PATH = "/rules/findings-summary"
 
 DEFAULT_LIMIT = 100
 MAX_LIMIT = 500
@@ -50,6 +51,12 @@ MAX_FINDINGS = 200
 # "not evaluated here" state), a fork wires an inventory-evaluation
 # source (assurance_twin / T0 engine over real inventory).
 FindingsProvider = Callable[[str, str], Awaitable[Sequence[Mapping[str, Any]]]]
+
+# A findings-summary provider returns ``rule_id -> violating-resource
+# count`` for every rule it can evaluate (active tier only). It powers
+# the at-a-glance count badge on the list. Same opt-in contract as
+# :data:`FindingsProvider`; upstream ships none.
+FindingsSummaryProvider = Callable[[], Awaitable[Mapping[str, int]]]
 
 # Cap a resolved policy / template body so a pathological file cannot
 # force the API to buffer megabytes into one JSON response.
@@ -300,9 +307,11 @@ def make_rule_catalog_routes(
     policies_root: Path | None = None,
     remediation_root: Path | None = None,
     findings_provider: FindingsProvider | None = None,
+    findings_summary_provider: FindingsSummaryProvider | None = None,
     path: str = DEFAULT_ROUTE_PATH,
     detail_path: str = DETAIL_ROUTE_PATH,
     findings_path: str = FINDINGS_ROUTE_PATH,
+    findings_summary_path: str = FINDINGS_SUMMARY_ROUTE_PATH,
 ) -> list[Route]:
     """Return the list + detail routes serving the rule catalog.
 
@@ -418,6 +427,13 @@ def make_rule_catalog_routes(
         payload["explanation"] = _build_explanation(rule, check_body)
         return JSONResponse(payload)
 
+    async def summary_handler(request: Request) -> Response:
+        await authorize(request)
+        if findings_summary_provider is None:
+            return JSONResponse({"evaluated": False, "counts": {}})
+        counts = dict(await findings_summary_provider())
+        return JSONResponse({"evaluated": True, "rule_count": len(counts), "counts": counts})
+
     async def findings_handler(request: Request) -> Response:
         await authorize(request)
         rule_id = request.path_params["rule_id"]
@@ -456,6 +472,7 @@ def make_rule_catalog_routes(
 
     return [
         Route(path, endpoint=list_handler, methods=["GET"]),
+        Route(findings_summary_path, endpoint=summary_handler, methods=["GET"]),
         Route(findings_path, endpoint=findings_handler, methods=["GET"]),
         Route(detail_path, endpoint=detail_handler, methods=["GET"]),
     ]

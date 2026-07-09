@@ -443,3 +443,37 @@ def test_findings_unknown_rule_404() -> None:
 
 def test_findings_is_get_only() -> None:
     assert _client().post("/rules/disk.unattached/findings").status_code == 405
+
+
+def test_findings_summary_not_evaluated_without_provider() -> None:
+    body = _client().get("/rules/findings-summary").json()
+    assert body["evaluated"] is False
+    assert body["counts"] == {}
+
+
+def test_findings_summary_from_provider() -> None:
+    async def summary() -> dict[str, int]:
+        return {"disk.unattached": 1, "object-storage.public-access.deny": 2}
+
+    auth = build_authenticator(verifier=lambda t: {"oid": "u"}, resolver=lambda claims: None)
+    app = build_app(
+        authenticator=auth,
+        read_model=InMemoryConsoleReadModel(),
+        config=ReadApiConfig(
+            dev_mode=True,
+            rule_catalog_rules=_active(),
+            rule_catalog_findings_summary_provider=summary,
+        ),
+    )
+    body = TestClient(app).get("/rules/findings-summary").json()
+    assert body["evaluated"] is True
+    assert body["rule_count"] == 2
+    assert body["counts"]["object-storage.public-access.deny"] == 2
+
+
+def test_findings_summary_path_not_shadowed_by_detail() -> None:
+    # `/rules/findings-summary` must resolve to the summary route, not
+    # be captured by `/rules/{rule_id}` as rule_id="findings-summary".
+    resp = _client().get("/rules/findings-summary")
+    assert resp.status_code == 200
+    assert "counts" in resp.json()
