@@ -27,6 +27,7 @@ Public surface:
 from __future__ import annotations
 
 from .burn_rate import BurnRate, BurnRateAlert, BurnRateBreach, BurnRateEvaluator
+from .metric_source import BurnRateEvaluation, MetricBurnRateSource
 from .models import SLI, SLO, ErrorBudget, SLIKind
 from .registry import SloRegistry, SloRegistryError
 
@@ -36,8 +37,10 @@ __all__ = [
     "BurnRate",
     "BurnRateAlert",
     "BurnRateBreach",
+    "BurnRateEvaluation",
     "BurnRateEvaluator",
     "ErrorBudget",
+    "MetricBurnRateSource",
     "SLIKind",
     "SloRegistry",
     "SloRegistryError",

@@ -357,15 +357,17 @@ means only the seam is designed (§ 2 / § 3), not wired.
 | Posture review / architecture Q&A | Covered | `core/assurance_twin/`, [assurance-twin.md](assurance-twin.md) |
 | **Dev-to-ops handoff (policy + RBAC review)** | Covered | [operational-readiness.md](operational-readiness.md) (ORR) |
 | **Identity / RBAC least-privilege posture** | Covered | workload RBAC rule pack (`*.role-assignment.*`) + `remediate.right-size-role` |
-| SLO / error budget | Partial | `core/slo/` (§ 3.3); real burn-rate needs § 3.2 telemetry |
-| Monitoring / alerting (external signal ingestion) | Partial | correlation + detection shipped; external metric / log / trace ingestion is the § 3.2 seam, not yet wired |
+| SLO / error budget | Partial | `core/slo/`: `MetricBurnRateSource` bridges the § 3.2 metric seam to the burn-rate evaluator (fail-closed on missing / inconsistent data); a real vendor `MetricProvider` adapter + scheduled evaluation remain |
+| Monitoring / alerting (external signal ingestion) | Partial | `core/detection/` correlation shipped; the § 3.2 metric / log / trace Protocols + in-memory bindings exist, a real vendor adapter is not yet wired |
 | On-call schedule / paging | Deferred | § 3.5 seam; PagerDuty / OpsGenie adapters land in a fork (§ 2) |
 | Status page / stakeholder broadcast | Deferred | § 2 (Incident object is the prerequisite) |
 | DORA change-failure-rate / deploy-frequency | Deferred | § 2 (needs a git-history reader) |
 
-The two `Partial` rows share one prerequisite - the § 3.2 telemetry
-ingestion seam - so wiring it is the single highest-leverage step toward
-full baseline SRE coverage. The `Deferred` rows are seams by design, not
-gaps in the control loop: each lands additively in a fork or a later
-phase without a `core/` rewrite.
+The two `Partial` rows now share a single remaining prerequisite - a real
+vendor `MetricProvider` adapter bound at the composition root. The § 3.2
+Protocols, their in-memory bindings, and the `core/slo/` bridge that consumes
+them all exist; only the concrete backend and a scheduled evaluation loop are
+left, and both land additively (a fork adapter + a phase task) without a
+`core/` rewrite. The `Deferred` rows are seams by design, not gaps in the
+control loop.
 
