@@ -48,6 +48,59 @@ export interface FinOpsPayload {
   readonly sampled_events: number;
 }
 
+/** One success metric measured against the reference-agent baseline.
+ * `direction` says which way is better, so the console can render the
+ * improvement factor correctly (higher-is-better vs lower-is-better). */
+export interface MetricVsBaseline {
+  readonly value: number;
+  readonly baseline: number;
+  readonly direction: "higher" | "lower";
+}
+
+/** One guard metric with its veto threshold (goals-and-metrics guards). */
+export interface GuardMetric {
+  readonly key: string;
+  readonly value: number;
+  readonly baseline: number;
+  readonly threshold: number;
+  readonly ok: boolean;
+}
+
+/** Per-vertical activity split (Resilience / Change Safety / Cost). */
+export interface VerticalSummary {
+  readonly key: string;
+  readonly events: number;
+  readonly auto_resolved: number;
+  readonly open_risks: number;
+  readonly monthly_savings: number;
+}
+
+/**
+ * Autonomy measurement summary (`GET /kpi/autonomy`,
+ * `AutonomyMeasurementPanel`). The goals-and-metrics surface: success
+ * metrics vs baseline, guard metrics, per-vertical split, tier mix vs
+ * band, and an auto-resolution trend. `synthetic` is true in the dev
+ * harness (no real measurement pipeline); opt-in like finops (404 => the
+ * Overview falls back to the audit-only summary).
+ */
+export interface AutonomyPayload {
+  readonly synthetic: boolean;
+  readonly window_days: number;
+  readonly success: {
+    readonly auto_resolution_rate: MetricVsBaseline;
+    readonly human_touchpoints_per_100: MetricVsBaseline;
+    readonly mttr_seconds: MetricVsBaseline;
+    readonly change_lead_time_seconds: MetricVsBaseline;
+  };
+  readonly guards: readonly GuardMetric[];
+  readonly verticals: readonly VerticalSummary[];
+  readonly tier: {
+    readonly mix: Record<string, number>;
+    readonly bands: Record<string, readonly [number, number]>;
+  };
+  readonly trend: Record<string, readonly number[]>;
+}
+
 export interface HilQueueItem {
   readonly idempotency_key: string;
   readonly event_id: string;

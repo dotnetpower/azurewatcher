@@ -1,7 +1,12 @@
 import { useEffect, useState } from "preact/hooks";
 import type { ReadApiClient } from "../api";
 import { ReadApiError } from "../api";
-import type { DashboardKpi, FinOpsPayload } from "../types";
+import type {
+  AutonomyPayload,
+  DashboardKpi,
+  FinOpsPayload,
+  MetricVsBaseline,
+} from "../types";
 import {
   AsyncBoundary,
   DataTable,
@@ -45,6 +50,7 @@ interface OverviewData {
   readonly kpi: DashboardKpi;
   readonly finops: FinOpsPayload | null;
   readonly gates: GatesSummary | null;
+  readonly autonomy: AutonomyPayload | null;
 }
 
 function formatShare(x: number): string {
@@ -84,7 +90,16 @@ export function DashboardRoute({ client }: Props) {
           if (!(err instanceof ReadApiError && (err.status === 404 || err.status === 501)))
             throw err;
         }
-        if (!cancelled) setState({ status: "ready", data: { kpi, finops, gates } });
+        // Autonomy measurement summary (success vs baseline, guards,
+        // verticals, tier, trend). Opt-in: 404/501 => audit-only fallback.
+        let autonomy: AutonomyPayload | null = null;
+        try {
+          autonomy = await client.autonomy();
+        } catch (err) {
+          if (!(err instanceof ReadApiError && (err.status === 404 || err.status === 501)))
+            throw err;
+        }
+        if (!cancelled) setState({ status: "ready", data: { kpi, finops, gates, autonomy } });
       } catch (err) {
         if (!cancelled) {
           setState({
@@ -110,7 +125,7 @@ export function DashboardRoute({ client }: Props) {
 }
 
 function OverviewBody({ data }: { readonly data: OverviewData }) {
-  const { kpi, finops, gates } = data;
+  const { kpi, finops, gates, autonomy } = data;
 
   const tierTotal = Object.values(kpi.by_tier).reduce((a, b) => a + b, 0);
   const t0Share = tierTotal > 0 ? Math.round(((kpi.by_tier.t0 ?? 0) / tierTotal) * 100) : 0;
@@ -165,6 +180,8 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
 
   return (
     <div class="stack">
+      {autonomy ? <AutonomyHero autonomy={autonomy} /> : null}
+      {autonomy ? <SuccessMetrics success={autonomy.success} /> : null}
       <section class="overview-triad" aria-label="health, risk and cost summary">
         <KpiCard
           label={t("overview.health.label")}
@@ -238,6 +255,104 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
       {kpi.last_recorded_at !== null ? (
         <p class="muted footnote">Last audit entry: {kpi.last_recorded_at}</p>
       ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Autonomy summary sub-components (success metrics vs baseline)
+// ---------------------------------------------------------------------------
+
+function fmtDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = seconds / 60;
+  if (minutes < 60) return `${Math.round(minutes)}m`;
+  return `${(minutes / 60).toFixed(1)}h`;
+}
+
+/** Improvement factor vs baseline, oriented by the metric's direction
+ * (higher-is-better -> value/baseline; lower-is-better -> baseline/value).
+ * `null` when either side is non-positive (avoid a meaningless ratio). */
+function improvementFactor(m: MetricVsBaseline): number | null {
+  if (m.baseline <= 0 || m.value <= 0) return null;
+  return m.direction === "higher" ? m.value / m.baseline : m.baseline / m.value;
+}
+
+function AutonomyHero({ autonomy }: { readonly autonomy: AutonomyPayload }) {
+  return (
+    <section class="overview-hero" aria-label="autonomy summary">
+      <div>
+        <h3 class="overview-hero-title">{t("overview.hero.title")}</h3>
+        <p class="overview-hero-sub muted">
+          {t("overview.hero.window", { days: autonomy.window_days })}
+        </p>
+      </div>
+      {autonomy.synthetic ? (
+        <span class="overview-synthetic" title={t("overview.hero.syntheticHint")}>
+          {t("overview.hero.synthetic")}
+        </span>
+      ) : null}
+    </section>
+  );
+}
+
+function SuccessMetrics({ success }: { readonly success: AutonomyPayload["success"] }) {
+  const auto = success.auto_resolution_rate;
+  const touch = success.human_touchpoints_per_100;
+  const mttr = success.mttr_seconds;
+  const lead = success.change_lead_time_seconds;
+  return (
+    <section class="overview-metrics" aria-label="success metrics vs baseline">
+      <SuccessMetric
+        label={t("overview.metric.autoRes")}
+        value={`${Math.round(auto.value * 100)}%`}
+        metric={auto}
+        baselineText={`${Math.round(auto.baseline * 100)}%`}
+      />
+      <SuccessMetric
+        label={t("overview.metric.touchpoints")}
+        value={touch.value.toFixed(1)}
+        metric={touch}
+        baselineText={touch.baseline.toFixed(1)}
+      />
+      <SuccessMetric
+        label={t("overview.metric.mttr")}
+        value={fmtDuration(mttr.value)}
+        metric={mttr}
+        baselineText={fmtDuration(mttr.baseline)}
+      />
+      <SuccessMetric
+        label={t("overview.metric.leadTime")}
+        value={fmtDuration(lead.value)}
+        metric={lead}
+        baselineText={fmtDuration(lead.baseline)}
+      />
+    </section>
+  );
+}
+
+function SuccessMetric({
+  label,
+  value,
+  metric,
+  baselineText,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly metric: MetricVsBaseline;
+  readonly baselineText: string;
+}) {
+  const factor = improvementFactor(metric);
+  return (
+    <div class="card overview-metric">
+      <span class="overview-metric-label">{label}</span>
+      <span class="overview-metric-value">{value}</span>
+      <span class="overview-metric-sub muted">
+        {t("overview.metric.vsBaseline", { baseline: baselineText })}
+        {factor !== null ? (
+          <span class="overview-metric-factor"> {factor.toFixed(1)}x</span>
+        ) : null}
+      </span>
     </div>
   );
 }

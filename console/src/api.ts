@@ -11,6 +11,7 @@ import type { ConsoleConfig } from "./config";
 import type {
   ApiError,
   AuditPage,
+  AutonomyPayload,
   DashboardKpi,
   FinOpsPayload,
   HilQueuePage,
@@ -43,6 +44,15 @@ export class ReadApiClient {
    */
   async finops(): Promise<FinOpsPayload> {
     return this.#get<FinOpsPayload>("/finops");
+  }
+
+  /**
+   * Fetch the autonomy measurement summary (`GET /kpi/autonomy`). Opt-in
+   * like {@link finops}; callers MUST tolerate a 404 as "measurement
+   * surface not served here".
+   */
+  async autonomy(): Promise<AutonomyPayload> {
+    return this.#get<AutonomyPayload>("/kpi/autonomy");
   }
 
   async listHilQueue(opts: { limit?: number } = {}): Promise<HilQueuePage> {

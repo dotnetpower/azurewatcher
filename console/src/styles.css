@@ -1493,6 +1493,76 @@ pre {
 .kpi-tone-warning  .kpi-card-value { color: #b57339; }
 .kpi-tone-danger   .kpi-card-value { color: var(--danger); }
 
+/* Autonomy hero + success metrics vs baseline (goals-and-metrics). The
+   metrics sit above the triad because "how much better than a human /
+   single-model baseline" is the headline an approver wants first. */
+.overview-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+.overview-hero-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+.overview-hero-sub {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+}
+.overview-synthetic {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  border: 1px dashed var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.overview-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 16px 18px;
+  min-height: 104px;
+  justify-content: center;
+}
+.overview-metric-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.overview-metric-value {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.overview-metric-sub {
+  font-size: 11.5px;
+}
+.overview-metric-factor {
+  color: #2f8f5a;
+  font-weight: 700;
+}
+@media (max-width: 900px) {
+  .overview-metrics { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 520px) {
+  .overview-metrics { grid-template-columns: 1fr; }
+}
+
 /* Overview triad - approver-facing health / risk / cost summary. Larger
    than the detail KpiGrid so the three axes read at a glance from across
    a room (an approver's first question is is-it-healthy / any-risk /
@@ -1806,6 +1876,7 @@ pre {
 }
 .prop { display: flex; flex-direction: column; gap: 3px; }
 .prop-label { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--fg-muted); }
+.field-hint { font-size: 11.5px; color: var(--fg-muted); line-height: 1.4; }
 
 
 

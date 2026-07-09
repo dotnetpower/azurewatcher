@@ -61,6 +61,19 @@
   },
   "overview": {
     "subtitle": "Healthy, risk, and cost at a glance - from the append-only audit log. Refreshes on reload; no polling.",
+    "hero": {
+      "title": "Autonomous cloud operations",
+      "window": "Proven over the last {days} days",
+      "synthetic": "demo data",
+      "syntheticHint": "Dev harness: synthetic measurement, not a measured claim"
+    },
+    "metric": {
+      "autoRes": "Auto-resolution",
+      "touchpoints": "Human touchpoints / 100",
+      "mttr": "MTTR",
+      "leadTime": "Change lead time",
+      "vsBaseline": "vs {baseline} baseline"
+    },
     "health": {
       "label": "System health",
       "healthy": "Healthy",

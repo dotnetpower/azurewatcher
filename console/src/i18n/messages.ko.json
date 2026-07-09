@@ -57,6 +57,19 @@
   },
   "overview": {
     "subtitle": "감사 로그 기반 건강도 / 위험 / 비용 요약. 새로고침 시 갱신, 폴링 없음.",
+    "hero": {
+      "title": "자율 클라우드 운영",
+      "window": "지난 {days}일 실측",
+      "synthetic": "데모 데이터",
+      "syntheticHint": "개발 하네스: 합성 측정값, 실측 주장 아님"
+    },
+    "metric": {
+      "autoRes": "자동 해결",
+      "touchpoints": "사람 개입 / 100건",
+      "mttr": "평균 복구시간",
+      "leadTime": "변경 리드타임",
+      "vsBaseline": "기준 {baseline} 대비"
+    },
     "health": {
       "label": "시스템 상태",
       "healthy": "정상",
