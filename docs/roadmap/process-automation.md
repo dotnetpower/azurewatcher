@@ -190,6 +190,21 @@ Event that clears `event-ingest` is matched against the
 resource + timestamp taken from the Event). An event matching no Workflow starts
 nothing.
 
+### 4.2 Guard evaluation (seam)
+
+A step's `guard_rule_ref` is the deterministic "when" for the step - a
+policy-as-code predicate, never model text. The orchestrator exposes a
+[`WorkflowGuardEvaluator`](../../src/fdai/core/workflow/orchestrator.py) seam
+(async, deterministic, side-effect free). The upstream default injects **no**
+evaluator: a guard is load-validated against the rule catalog but recorded as
+`guard_evaluated: false` at run time, so upstream stays behaviourally neutral. A
+fork (or the future enforce path) binds a concrete OPA-backed evaluator through
+this seam. When an evaluator is bound and a step's guard returns false, the
+shadow run records `guard_passed: false` and treats the step as a judged no-op
+(reason `guard_blocked_shadow_noop`) - the run continues, nothing mutates. Every
+`workflow.step` audit row carries `guard_rule_ref` / `guard_evaluated` /
+`guard_passed` so a reviewer sees exactly which guard gated which step.
+
 
 ## 5. Saga compensation
 

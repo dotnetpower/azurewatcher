@@ -210,3 +210,99 @@ async def test_unknown_action_type_step_fails_closed() -> None:
     )
     assert result.outcome is RunbookStepOutcome.FAILURE
     assert result.reason == "unknown_action_type"
+
+
+class _StubGuard:
+    """Deterministic guard evaluator for tests - returns a fixed verdict and
+    records the calls it saw."""
+
+    def __init__(self, *, verdict: bool) -> None:
+        self._verdict = verdict
+        self.calls: list[tuple[str, str]] = []
+
+    async def evaluate(self, *, rule_id: str, step_id: str, process_id: str) -> bool:
+        self.calls.append((rule_id, step_id))
+        return self._verdict
+
+
+def _workflow_with_guard() -> Workflow:
+    return Workflow(
+        schema_version="1.0.0",
+        name="guarded-flow",
+        version="1.0.0",
+        trigger=WorkflowTrigger(kind=WorkflowTriggerKind.SIGNAL, signal_type="object.drift"),
+        default_mode=Mode.SHADOW,
+        promotion_gate=PromotionGate(
+            min_shadow_days=14, min_samples=100, min_accuracy=0.95, max_policy_escapes=0
+        ),
+        steps=[
+            WorkflowStep(
+                id="guarded",
+                action_type_ref="remediate.auto",
+                guard_rule_ref="some.guard.rule",
+            ),
+        ],
+    )
+
+
+def _orchestrator_with_guard(
+    audit: InMemoryStateStore, guard: _StubGuard | None
+) -> WorkflowOrchestrator:
+    planner = WorkflowApprovalPlanner(
+        action_types=_ACTION_TYPES,
+        group_mapping=_group_mapping(),
+        matrix=_matrix(),
+    )
+    return WorkflowOrchestrator(
+        planner=planner,
+        action_types=_ACTION_TYPES,
+        audit_store=audit,
+        guard_evaluator=guard,
+    )
+
+
+def _guarded_step_entry(audit: InMemoryStateStore) -> dict:
+    return next(
+        row["entry"]
+        for row in audit.audit_entries
+        if row["entry"]["action_kind"] == "workflow.step" and row["entry"]["step_id"] == "guarded"
+    )
+
+
+async def test_guard_pass_proceeds_and_records() -> None:
+    audit = InMemoryStateStore()
+    guard = _StubGuard(verdict=True)
+    run = await _orchestrator_with_guard(audit, guard).run(
+        _workflow_with_guard(), target_resource_id="res-1", trigger_ts=_TRIGGER_TS
+    )
+    assert run.status is ProcessStatus.SUCCEEDED
+    assert guard.calls == [("some.guard.rule", "guarded")]
+    entry = _guarded_step_entry(audit)
+    assert entry["guard_evaluated"] is True
+    assert entry["guard_passed"] is True
+    assert run.step_results[0].reason == "shadow_judge_and_log"
+
+
+async def test_guard_block_is_a_shadow_noop_not_a_failure() -> None:
+    audit = InMemoryStateStore()
+    guard = _StubGuard(verdict=False)
+    run = await _orchestrator_with_guard(audit, guard).run(
+        _workflow_with_guard(), target_resource_id="res-1", trigger_ts=_TRIGGER_TS
+    )
+    # A blocked guard is a judged no-op; the run still succeeds.
+    assert run.status is ProcessStatus.SUCCEEDED
+    assert run.step_results[0].reason == "guard_blocked_shadow_noop"
+    entry = _guarded_step_entry(audit)
+    assert entry["guard_evaluated"] is True
+    assert entry["guard_passed"] is False
+
+
+async def test_no_evaluator_leaves_guard_unevaluated() -> None:
+    audit = InMemoryStateStore()
+    await _orchestrator_with_guard(audit, None).run(
+        _workflow_with_guard(), target_resource_id="res-1", trigger_ts=_TRIGGER_TS
+    )
+    entry = _guarded_step_entry(audit)
+    assert entry["guard_rule_ref"] == "some.guard.rule"
+    assert entry["guard_evaluated"] is False
+    assert entry["guard_passed"] is None

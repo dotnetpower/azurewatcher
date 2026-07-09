@@ -21,6 +21,7 @@ from .orchestrator import (
     ProcessRun,
     ProcessStatus,
     ShadowWorkflowStepExecutor,
+    WorkflowGuardEvaluator,
     WorkflowOrchestrator,
     derive_process_id,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "ShadowWorkflowStepExecutor",
     "StepApproval",
     "WorkflowApprovalPlanner",
+    "WorkflowGuardEvaluator",
     "WorkflowOrchestrator",
     "WorkflowTriggerCoordinator",
     "WorkflowTriggerIndex",

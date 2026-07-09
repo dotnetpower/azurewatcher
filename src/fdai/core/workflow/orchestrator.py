@@ -32,6 +32,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Protocol, runtime_checkable
 from uuid import NAMESPACE_URL, uuid5
 
 from fdai.core.runbook.models import RunbookStep, RunbookStepOutcome, RunbookStepResult
@@ -42,6 +43,22 @@ from fdai.shared.contracts.models import OntologyActionType, Workflow
 from fdai.shared.providers.state_store import StateStore
 
 _ACTOR = "fdai.core.workflow.orchestrator"
+
+
+@runtime_checkable
+class WorkflowGuardEvaluator(Protocol):
+    """Evaluate a step's ``guard_rule_ref`` at run time.
+
+    A guard is the deterministic "when" for a step - a policy-as-code predicate,
+    never model text. The upstream default injects no evaluator, so a guard is
+    load-validated but recorded as ``not_evaluated`` at run time; a fork (or the
+    enforce path) binds a concrete OPA-backed evaluator via this seam. The
+    implementation MUST be deterministic and side-effect free.
+    """
+
+    async def evaluate(self, *, rule_id: str, step_id: str, process_id: str) -> bool:
+        """Return True when the guard permits the step to proceed."""
+        ...
 
 
 class ProcessStatus(StrEnum):
@@ -71,7 +88,14 @@ class ShadowWorkflowStepExecutor:
     step without mutating. It has no path to a publisher or executor, so the
     shadow invariant is structural, not conventional."""
 
-    __slots__ = ("_process_id", "_action_types", "_audit", "_approvals")
+    __slots__ = (
+        "_process_id",
+        "_action_types",
+        "_audit",
+        "_approvals",
+        "_guards",
+        "_guard_evaluator",
+    )
 
     def __init__(
         self,
@@ -80,15 +104,28 @@ class ShadowWorkflowStepExecutor:
         action_types: Mapping[str, OntologyActionType],
         audit_store: StateStore,
         approvals: Mapping[str, StepApproval],
+        guards: Mapping[str, str] | None = None,
+        guard_evaluator: WorkflowGuardEvaluator | None = None,
     ) -> None:
         self._process_id = process_id
         self._action_types = action_types
         self._audit = audit_store
         self._approvals = approvals
+        self._guards = guards or {}
+        self._guard_evaluator = guard_evaluator
 
     async def execute(self, *, runbook_id: str, step: RunbookStep) -> RunbookStepResult:
         approval = self._approvals.get(step.id)
         known = step.action_type in self._action_types
+        guard_ref = self._guards.get(step.id)
+
+        guard_evaluated = False
+        guard_passed: bool | None = None
+        if guard_ref is not None and self._guard_evaluator is not None:
+            guard_evaluated = True
+            guard_passed = await self._guard_evaluator.evaluate(
+                rule_id=guard_ref, step_id=step.id, process_id=self._process_id
+            )
 
         await self._audit.append_audit_entry(
             {
@@ -106,6 +143,9 @@ class ShadowWorkflowStepExecutor:
                 ),
                 "approver_group": approval.entra_group_ref if approval else None,
                 "notify_channels": list(approval.notify_channels) if approval else [],
+                "guard_rule_ref": guard_ref,
+                "guard_evaluated": guard_evaluated,
+                "guard_passed": guard_passed,
                 "recorded_at": datetime.now(tz=UTC).isoformat(),
             }
         )
@@ -116,6 +156,15 @@ class ShadowWorkflowStepExecutor:
                 action_type=step.action_type,
                 outcome=RunbookStepOutcome.FAILURE,
                 reason="unknown_action_type",
+            )
+        if guard_evaluated and guard_passed is False:
+            # The guard blocked the step. In shadow the action would not apply,
+            # so this is a judged no-op, not a run failure - the run continues.
+            return RunbookStepResult(
+                step_id=step.id,
+                action_type=step.action_type,
+                outcome=RunbookStepOutcome.SUCCESS,
+                reason="guard_blocked_shadow_noop",
             )
         return RunbookStepResult(
             step_id=step.id,
@@ -139,7 +188,7 @@ class WorkflowOrchestrator:
     """Run a Workflow in shadow: plan approvals, then walk the compiled Runbook
     with a non-mutating step executor, auditing the whole run."""
 
-    __slots__ = ("_planner", "_action_types", "_audit")
+    __slots__ = ("_planner", "_action_types", "_audit", "_guard_evaluator")
 
     def __init__(
         self,
@@ -147,10 +196,12 @@ class WorkflowOrchestrator:
         planner: WorkflowApprovalPlanner,
         action_types: Mapping[str, OntologyActionType],
         audit_store: StateStore,
+        guard_evaluator: WorkflowGuardEvaluator | None = None,
     ) -> None:
         self._planner = planner
         self._action_types = action_types
         self._audit = audit_store
+        self._guard_evaluator = guard_evaluator
 
     async def run(
         self,
@@ -184,11 +235,14 @@ class WorkflowOrchestrator:
         )
 
         compiled = compile_workflow(workflow)
+        guards = {s.id: s.guard_rule_ref for s in workflow.steps if s.guard_rule_ref is not None}
         executor = ShadowWorkflowStepExecutor(
             process_id=process_id,
             action_types=self._action_types,
             audit_store=self._audit,
             approvals=approvals,
+            guards=guards,
+            guard_evaluator=self._guard_evaluator,
         )
         runner = RunbookRunner(executor=executor, audit_store=self._audit)
         result = await runner.run(compiled.runbook)
@@ -211,6 +265,7 @@ __all__ = [
     "ProcessRun",
     "ProcessStatus",
     "ShadowWorkflowStepExecutor",
+    "WorkflowGuardEvaluator",
     "WorkflowOrchestrator",
     "derive_process_id",
 ]
