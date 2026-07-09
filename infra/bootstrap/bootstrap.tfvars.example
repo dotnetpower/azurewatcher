@@ -11,6 +11,9 @@ region_short = "krc"
 # The app deploy's resource group (rg-<workload>-<env>-<region_short>).
 app_resource_group_name = "rg-fdai-dev-krc"
 
+# State storage account name printed by ./create-state-account.sh (run it first).
+state_storage_account_name = "st...."
+
 # SSH public key for the runner admin (Azure requires one even with no public IP).
 runner_ssh_public_key = "ssh-ed25519 AAAA... you@example.com"
 

@@ -6,22 +6,12 @@
 locals {
   suffix = "${var.workload}-${var.env}-${var.region_short}"
 
-  # Storage account names: 3-24 lowercase alphanumeric, no hyphens.
-  # tf<workload><env><region_short> + 4 random hex for global uniqueness.
-  sa_prefix = lower("st${var.workload}tf${var.env}${var.region_short}")
-
   tags = merge({
     workload   = var.workload
     env        = var.env
     managed_by = "terraform"
     layer      = "ops-bootstrap"
   }, var.additional_tags)
-}
-
-# 4 hex chars keep the storage account name globally unique + deterministic
-# once created (persisted in this layer's local state).
-resource "random_id" "sa" {
-  byte_length = 2
 }
 
 # -----------------------------------------------------------------------
@@ -61,33 +51,20 @@ resource "azurerm_subnet" "pe" {
 }
 
 # -----------------------------------------------------------------------
-# Terraform remote-state storage. Policy-locked to private (public disabled);
-# only the runner (via the blob PE below) reaches it. Versioning on so a bad
-# apply is recoverable.
+# Terraform remote-state storage. Created OUT OF BAND with `az` (control
+# plane only) because terraform's post-create blob readiness poll cannot
+# reach a private + key-disabled account from the operator laptop. See
+# create-state-account.sh / README.md. Terraform only references it (data
+# source), so no data-plane call happens from the laptop.
 # -----------------------------------------------------------------------
-resource "azurerm_storage_account" "state" {
-  name                            = "${local.sa_prefix}${random_id.sa.hex}"
-  resource_group_name             = azurerm_resource_group.ops.name
-  location                        = var.region
-  account_tier                    = "Standard"
-  account_replication_type        = "LRS"
-  account_kind                    = "StorageV2"
-  min_tls_version                 = "TLS1_2"
-  public_network_access_enabled   = false
-  allow_nested_items_to_be_public = false
-  shared_access_key_enabled       = true
-  tags                            = local.tags
-
-  blob_properties {
-    versioning_enabled = true
-  }
+data "azurerm_storage_account" "state" {
+  name                = var.state_storage_account_name
+  resource_group_name = azurerm_resource_group.ops.name
 }
 
-resource "azurerm_storage_container" "state" {
-  name                  = var.state_container_name
-  storage_account_id    = azurerm_storage_account.state.id
-  container_access_type = "private"
-}
+# The state container is also created data-plane (from the runner, inside the
+# VNet, over the blob PE) by the deploy workflow:
+#   az storage container create --account-name <sa> --name tfstate --auth-mode login
 
 # Blob private endpoint + privatelink.blob DNS, linked to the ops VNet so the
 # runner resolves the state account privately.
@@ -98,7 +75,7 @@ module "state_blob_pe" {
   resource_group_name   = azurerm_resource_group.ops.name
   subnet_id             = azurerm_subnet.pe.id
   vnet_id               = azurerm_virtual_network.ops.id
-  target_resource_id    = azurerm_storage_account.state.id
+  target_resource_id    = data.azurerm_storage_account.state.id
   subresource_name      = "blob"
   private_dns_zone_name = "privatelink.blob.core.windows.net"
   tags                  = local.tags
@@ -176,6 +153,17 @@ data "azurerm_resource_group" "app" {
   name  = var.app_resource_group_name
 }
 
+# The apply principal (operator laptop on first bootstrap) needs AAD data-plane
+# access on the state account so the provider's post-create blob readiness poll
+# (AAD, not key) succeeds - key auth is policy-forbidden.
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_role_assignment" "bootstrap_state_blob" {
+  scope                = data.azurerm_storage_account.state.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
 resource "azurerm_role_assignment" "runner_app_contributor" {
   count                = var.create_runner_vm ? 1 : 0
   scope                = data.azurerm_resource_group.app[0].id
@@ -185,7 +173,17 @@ resource "azurerm_role_assignment" "runner_app_contributor" {
 
 resource "azurerm_role_assignment" "runner_state_blob" {
   count                = var.create_runner_vm ? 1 : 0
-  scope                = azurerm_storage_account.state.id
+  scope                = data.azurerm_storage_account.state.id
   role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_linux_virtual_machine.runner[0].identity[0].principal_id
+}
+
+# Network Contributor on the ops RG so the runner's app apply can create the
+# hub->spoke VNet peering and the ops-side private DNS zone links (the app
+# spoke VNet id only exists after that apply, so these cross into the ops RG).
+resource "azurerm_role_assignment" "runner_ops_network" {
+  count                = var.create_runner_vm ? 1 : 0
+  scope                = azurerm_resource_group.ops.id
+  role_definition_name = "Network Contributor"
   principal_id         = azurerm_linux_virtual_machine.runner[0].identity[0].principal_id
 }

@@ -25,6 +25,15 @@ Secrets Officer** on the app vault.
 
 ```bash
 cp bootstrap.tfvars.example bootstrap.tfvars   # fill in, gitignored
+
+# 1. Create the state storage account with `az` (control plane only). A
+#    private + key-disabled account cannot complete terraform's data-plane
+#    readiness poll from a laptop, so it is created out of band and terraform
+#    references it via a data source. Copy the printed name into bootstrap.tfvars
+#    (state_storage_account_name).
+OPS_RG=rg-fdai-ops-krc REGION=koreacentral ./create-state-account.sh
+
+# 2. Apply the ops layer (VNet, blob PE, runner VM, role assignments).
 terraform -chdir=infra/bootstrap init
 terraform -chdir=infra/bootstrap apply -var-file=bootstrap.tfvars
 terraform -chdir=infra/bootstrap output backend_config_hint
@@ -32,7 +41,8 @@ terraform -chdir=infra/bootstrap output backend_config_hint
 
 State for THIS layer stays local (it holds only infrastructure handles, no app
 secrets). The `backend_config_hint` output feeds the app config's
-`terraform init -backend-config=...` and the CI workflow.
+`terraform init -backend-config=...` and the CI workflow. The `tfstate`
+container is created from the runner (over the blob PE) by the deploy workflow.
 
 ## Runner registration
 

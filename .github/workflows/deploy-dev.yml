@@ -61,6 +61,15 @@ jobs:
       - name: Azure login (runner managed identity)
         run: az login --identity --allow-no-subscriptions
 
+      - name: Ensure state container
+        # Created data-plane from the runner (inside the VNet, over the blob
+        # private endpoint) since the account is private + key-auth is
+        # policy-forbidden. Idempotent.
+        run: |
+          az storage container create \
+            --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            --name tfstate --auth-mode login --only-show-errors
+
       - name: Activate remote state backend
         run: cp backend.azurerm.tf.example backend.tf
 

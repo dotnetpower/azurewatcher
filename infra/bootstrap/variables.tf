@@ -52,6 +52,11 @@ variable "state_container_name" {
   default     = "tfstate"
 }
 
+variable "state_storage_account_name" {
+  description = "Name of the terraform remote-state storage account. Created OUT OF BAND with `az` (see create-state-account.sh) because a private + key-disabled account cannot complete terraform's data-plane readiness poll from the operator laptop. Terraform references it via data source only."
+  type        = string
+}
+
 variable "runner_vm_size" {
   description = "Runner VM size. B-series is enough for terraform + a self-hosted runner."
   type        = string

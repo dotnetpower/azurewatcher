@@ -16,13 +16,13 @@ output "ops_vnet_name" {
 }
 
 output "state_storage_account_name" {
-  value       = azurerm_storage_account.state.name
+  value       = data.azurerm_storage_account.state.name
   description = "Terraform remote-state storage account. Feed to `terraform init -backend-config` in the app config / CI workflow."
 }
 
 output "state_container_name" {
-  value       = azurerm_storage_container.state.name
-  description = "Blob container holding the app's terraform state."
+  value       = var.state_container_name
+  description = "Blob container holding the app's terraform state. Created from the runner (az storage container create --auth-mode login)."
 }
 
 output "runner_principal_id" {
@@ -36,6 +36,6 @@ output "runner_vm_name" {
 }
 
 output "backend_config_hint" {
-  value       = "resource_group_name=${azurerm_resource_group.ops.name} storage_account_name=${azurerm_storage_account.state.name} container_name=${azurerm_storage_container.state.name} key=${var.workload}-${var.env}.tfstate"
+  value       = "resource_group_name=${azurerm_resource_group.ops.name} storage_account_name=${data.azurerm_storage_account.state.name} container_name=${var.state_container_name} key=${var.workload}-${var.env}.tfstate"
   description = "Copy into `terraform init -backend-config=...` for the app config."
 }
