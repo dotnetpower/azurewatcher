@@ -115,6 +115,13 @@
           "on_failure": {
             "type": ["string", "null"],
             "description": "Step id to run when this step fails. MUST reference an existing step id in the same workflow when set."
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": ["string", "number", "integer", "boolean"]
+            },
+            "description": "Optional scalar arguments for the step. String values MAY carry ${event.resource_ref} / ${event.trigger_ts} / ${event.event_type} tokens the orchestrator substitutes from the triggering event at run time."
           }
         }
       }

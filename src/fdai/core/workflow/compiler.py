@@ -64,7 +64,7 @@ def compile_workflow(workflow: Workflow) -> CompiledWorkflow:
         RunbookStep(
             id=step.id,
             action_type=step.action_type_ref,
-            params={},
+            params=dict(step.params),
             on_failure=step.on_failure,
         )
         for step in workflow.steps

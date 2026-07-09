@@ -687,6 +687,7 @@ class WorkflowStep(_Base):
     guard_rule_ref: str | None = None
     compensated_by: str | None = None
     on_failure: str | None = None
+    params: dict[str, str | int | float | bool] = Field(default_factory=dict)
 
 
 class Workflow(_Base):

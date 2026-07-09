@@ -28,6 +28,7 @@ shadow" invariant in architecture.instructions.md.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -43,6 +44,24 @@ from fdai.shared.contracts.models import OntologyActionType, Workflow
 from fdai.shared.providers.state_store import StateStore
 
 _ACTOR = "fdai.core.workflow.orchestrator"
+
+_PARAM_TOKEN = re.compile(r"\$\{([a-z0-9_.]+)\}")
+
+
+def _resolve_params(params: Mapping[str, object], context: Mapping[str, str]) -> dict[str, object]:
+    """Substitute ``${token}`` in string param values from ``context``.
+
+    Only string values are templated; a token with no context entry is left
+    verbatim so the unresolved reference is visible in the audit rather than
+    silently blanked. Non-string values pass through unchanged.
+    """
+    resolved: dict[str, object] = {}
+    for key, value in params.items():
+        if isinstance(value, str):
+            resolved[key] = _PARAM_TOKEN.sub(lambda m: context.get(m.group(1), m.group(0)), value)
+        else:
+            resolved[key] = value
+    return resolved
 
 
 @runtime_checkable
@@ -124,6 +143,7 @@ class ShadowWorkflowStepExecutor:
         "_approvals",
         "_guards",
         "_guard_evaluator",
+        "_params",
     )
 
     def __init__(
@@ -135,6 +155,7 @@ class ShadowWorkflowStepExecutor:
         approvals: Mapping[str, StepApproval],
         guards: Mapping[str, str] | None = None,
         guard_evaluator: WorkflowGuardEvaluator | None = None,
+        params: Mapping[str, Mapping[str, object]] | None = None,
     ) -> None:
         self._process_id = process_id
         self._action_types = action_types
@@ -142,6 +163,7 @@ class ShadowWorkflowStepExecutor:
         self._approvals = approvals
         self._guards = guards or {}
         self._guard_evaluator = guard_evaluator
+        self._params = params or {}
 
     async def execute(self, *, runbook_id: str, step: RunbookStep) -> RunbookStepResult:
         approval = self._approvals.get(step.id)
@@ -175,6 +197,7 @@ class ShadowWorkflowStepExecutor:
                 "guard_rule_ref": guard_ref,
                 "guard_evaluated": guard_evaluated,
                 "guard_passed": guard_passed,
+                "params": dict(self._params.get(step.id, {})),
                 "recorded_at": datetime.now(tz=UTC).isoformat(),
             }
         )
@@ -238,9 +261,16 @@ class WorkflowOrchestrator:
         *,
         target_resource_id: str,
         trigger_ts: datetime,
+        context: Mapping[str, str] | None = None,
     ) -> ProcessRun:
         """Execute ``workflow`` in shadow over ``target_resource_id`` and return
-        the :class:`ProcessRun`. Never mutates a resource."""
+        the :class:`ProcessRun`. Never mutates a resource.
+
+        ``context`` supplies additional ``${token}`` values for step param
+        substitution (e.g. ``event.event_type`` from the coordinator); the
+        target resource and trigger timestamp are always available as
+        ``event.resource_ref`` / ``event.trigger_ts``.
+        """
         plan = self._planner.plan(workflow)
         approvals = {s.step_id: s for s in plan.steps}
         process_id = derive_process_id(
@@ -250,6 +280,13 @@ class WorkflowOrchestrator:
         )
         started_at = datetime.now(tz=UTC)
         first_step = workflow.steps[0].id
+        subst_context: dict[str, str] = {
+            "event.resource_ref": target_resource_id,
+            "event.trigger_ts": trigger_ts.isoformat(),
+        }
+        if context:
+            subst_context.update(context)
+        resolved_params = {s.id: _resolve_params(s.params, subst_context) for s in workflow.steps}
 
         await self._audit.append_audit_entry(
             {
@@ -289,6 +326,7 @@ class WorkflowOrchestrator:
             approvals=approvals,
             guards=guards,
             guard_evaluator=self._guard_evaluator,
+            params=resolved_params,
         )
         runner = RunbookRunner(executor=executor, audit_store=self._audit)
         result = await runner.run(compiled.runbook)

@@ -72,6 +72,8 @@ steps:
     guard_rule_ref: null                     # optional Rule id that gates the step
     compensated_by: null                     # optional ActionType to undo this step
     on_failure: null                         # optional step id to run on failure
+    params:                                  # optional scalar args; strings may template
+      reason: "drift on ${event.resource_ref}"
   - id: apply_rightsize
     action_type_ref: remediate.right-size
     on_failure: null
@@ -100,6 +102,12 @@ Field rules the loader enforces:
 - Upstream workflows MUST set `default_mode: shadow`. A workflow that ships
   `enforce` is a schema violation upstream; promotion to enforce is a separate,
   gated governance PR.
+- `params`, when set, is a map of scalar (string / number / boolean) arguments
+  for the step. A string value MAY carry `${event.resource_ref}` /
+  `${event.trigger_ts}` / `${event.event_type}` tokens the orchestrator
+  substitutes from the triggering event at run time; an unknown token is left
+  verbatim so the unresolved reference is visible in the audit. The resolved
+  params are recorded on the `workflow.step` audit row.
 
 ### 2.1 Known limitations (P1)
 

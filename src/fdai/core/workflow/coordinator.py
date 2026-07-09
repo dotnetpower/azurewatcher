@@ -80,6 +80,7 @@ class WorkflowTriggerCoordinator:
                 workflow,
                 target_resource_id=target,
                 trigger_ts=event.detected_at,
+                context={"event.event_type": event.event_type},
             )
             runs.append(run)
         return tuple(runs)

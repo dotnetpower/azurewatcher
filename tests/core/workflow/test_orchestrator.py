@@ -321,3 +321,65 @@ async def test_process_persisted_as_ontology_row() -> None:
     assert record["status"] == "succeeded"
     assert record["target_resource_id"] == "res-1"
     assert record["current_step"] == ""
+
+
+def _workflow_with_params() -> Workflow:
+    return Workflow(
+        schema_version="1.0.0",
+        name="param-flow",
+        version="1.0.0",
+        trigger=WorkflowTrigger(kind=WorkflowTriggerKind.SIGNAL, signal_type="object.drift"),
+        default_mode=Mode.SHADOW,
+        promotion_gate=PromotionGate(
+            min_shadow_days=14, min_samples=100, min_accuracy=0.95, max_policy_escapes=0
+        ),
+        steps=[
+            WorkflowStep(
+                id="p",
+                action_type_ref="remediate.auto",
+                params={
+                    "reason": "drift on ${event.resource_ref} (${event.event_type})",
+                    "unknown": "${event.nope}",
+                    "count": 3,
+                    "enabled": True,
+                },
+            ),
+        ],
+    )
+
+
+def _param_entry(audit: InMemoryStateStore) -> dict:
+    return next(
+        row["entry"]
+        for row in audit.audit_entries
+        if row["entry"]["action_kind"] == "workflow.step" and row["entry"]["step_id"] == "p"
+    )
+
+
+async def test_params_substituted_from_event_context() -> None:
+    audit = InMemoryStateStore()
+    await _orchestrator(audit).run(
+        _workflow_with_params(),
+        target_resource_id="res-1",
+        trigger_ts=_TRIGGER_TS,
+        context={"event.event_type": "object.drift"},
+    )
+    params = _param_entry(audit)["params"]
+    # Known tokens substituted from context; base event.resource_ref works too.
+    assert params["reason"] == "drift on res-1 (object.drift)"
+    # An unknown token is left verbatim (visible, not silently blanked).
+    assert params["unknown"] == "${event.nope}"
+    # Non-string values pass through unchanged.
+    assert params["count"] == 3
+    assert params["enabled"] is True
+
+
+async def test_params_default_empty_when_absent() -> None:
+    audit = InMemoryStateStore()
+    await _orchestrator(audit).run(_workflow(), target_resource_id="res-1", trigger_ts=_TRIGGER_TS)
+    step_rows = [
+        row["entry"]
+        for row in audit.audit_entries
+        if row["entry"]["action_kind"] == "workflow.step"
+    ]
+    assert all(row["params"] == {} for row in step_rows)
