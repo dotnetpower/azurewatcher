@@ -75,6 +75,42 @@ const STATUS_LABEL: Record<LiveConnectionStatus, string> = {
 
 type FilterKind = "all" | "hil" | "deny" | "failed";
 
+/**
+ * Per-tier events/sec history: three parallel arrays of {@link RATE_BUCKETS}
+ * one-second buckets (oldest first). The trust router routes every event to
+ * exactly one tier, so the sparkline plots T0 / T1 / T2 as separate series
+ * rather than one opaque total.
+ */
+interface RateBuckets {
+  readonly t0: readonly number[];
+  readonly t1: readonly number[];
+  readonly t2: readonly number[];
+}
+
+const RATE_TIER_KEYS = ["t0", "t1", "t2"] as const;
+type RateTierKey = (typeof RATE_TIER_KEYS)[number];
+
+function emptyRateBuckets(): RateBuckets {
+  const zeros = () => new Array(RATE_BUCKETS).fill(0) as readonly number[];
+  return { t0: zeros(), t1: zeros(), t2: zeros() };
+}
+
+/** Shift a bucket array left by `rolls` seconds, padding zeros on the right. */
+function rollBucketArray(arr: readonly number[], rolls: number): readonly number[] {
+  if (rolls <= 0) return arr;
+  if (rolls >= arr.length) return new Array(arr.length).fill(0) as readonly number[];
+  return [...arr.slice(rolls), ...new Array(rolls).fill(0)] as readonly number[];
+}
+
+function rollRateBuckets(b: RateBuckets, rolls: number): RateBuckets {
+  if (rolls <= 0) return b;
+  return {
+    t0: rollBucketArray(b.t0, rolls),
+    t1: rollBucketArray(b.t1, rolls),
+    t2: rollBucketArray(b.t2, rolls),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -109,8 +145,8 @@ interface LiveState {
   readonly ratePings: readonly number[];
   readonly tierCounts: Readonly<Record<string, number>>;
   readonly gateCounts: Readonly<Record<string, number>>;
-  /** 60 one-second buckets, oldest first. */
-  readonly rateBuckets: readonly number[];
+  /** 60 one-second buckets per tier, oldest first. */
+  readonly rateBuckets: RateBuckets;
   readonly rateBucketAt: number;
   readonly selectedEventId: string | null;
   readonly filter: FilterKind;
@@ -131,7 +167,7 @@ function makeInitialState(): LiveState {
     ratePings: [],
     tierCounts: {},
     gateCounts: {},
-    rateBuckets: new Array(RATE_BUCKETS).fill(0) as readonly number[],
+    rateBuckets: emptyRateBuckets(),
     rateBucketAt: now,
     selectedEventId: null,
     filter: "all",
@@ -159,12 +195,13 @@ function reducer(state: LiveState, action: Action): LiveState {
     const cutoff = action.now - RATE_WINDOW_MS;
     const pings = state.ratePings.filter((t) => t >= cutoff);
     // Roll the sparkline buckets forward by one per real second passed.
-    let buckets = state.rateBuckets;
     let bucketAt = state.rateBucketAt;
+    let rolls = 0;
     while (action.now - bucketAt >= 1000) {
-      buckets = [...buckets.slice(1), 0];
+      rolls += 1;
       bucketAt += 1000;
     }
+    const buckets = rolls > 0 ? rollRateBuckets(state.rateBuckets, rolls) : state.rateBuckets;
     return { ...state, ratePings: pings, rateBuckets: buckets, rateBucketAt: bucketAt, now: action.now };
   }
 
@@ -267,8 +304,12 @@ function applyEvent(state: LiveState, evt: LiveStageEvent): LiveState {
   // event contributes exactly once - matching audit-log semantics.
   const shouldCount = evt.stage === "audit" && evt.phase === "done";
   const ratePings = shouldCount ? [...state.ratePings, now] : state.ratePings;
-  const rateBuckets = shouldCount
-    ? updateLastBucket(state.rateBuckets)
+  const bumpTier =
+    shouldCount && (RATE_TIER_KEYS as readonly string[]).includes(next.tier ?? "")
+      ? (next.tier as RateTierKey)
+      : null;
+  const rateBuckets = bumpTier
+    ? { ...state.rateBuckets, [bumpTier]: bumpLastBucket(state.rateBuckets[bumpTier]) }
     : state.rateBuckets;
   const tierCounts =
     shouldCount && next.tier
@@ -295,11 +336,18 @@ function applyEvent(state: LiveState, evt: LiveStageEvent): LiveState {
   };
 }
 
-function updateLastBucket(buckets: readonly number[]): readonly number[] {
+function bumpLastBucket(buckets: readonly number[]): readonly number[] {
   const out = buckets.slice();
   const idx = out.length - 1;
   out[idx] = (out[idx] ?? 0) + 1;
   return out;
+}
+
+/** Total events in the 60s window for one tier (drives the sparkline legend). */
+function sumBuckets(buckets: readonly number[]): number {
+  let total = 0;
+  for (const v of buckets) total += v;
+  return total;
 }
 
 function pickString(detail: Record<string, unknown>, key: string): string | undefined {
@@ -736,6 +784,11 @@ export function LiveRoute({ client }: Props) {
           <span class="label">Events / sec (60s)</span>
           <span class="value">{eps}</span>
           <Sparkline buckets={state.rateBuckets} />
+          <div class="live-spark-legend" aria-hidden="true">
+            <span class="live-spark-key t0"><i />T0 <b>{sumBuckets(state.rateBuckets.t0)}</b></span>
+            <span class="live-spark-key t1"><i />T1 <b>{sumBuckets(state.rateBuckets.t1)}</b></span>
+            <span class="live-spark-key t2"><i />T2 <b>{sumBuckets(state.rateBuckets.t2)}</b></span>
+          </div>
         </div>
         <div class="card kpi">
           <span class="label">Tier mix (60s)</span>
@@ -892,17 +945,23 @@ export function LiveRoute({ client }: Props) {
               const gate = evt.detail?.gate_decision as string | undefined;
               const rule = evt.detail?.rule as string | undefined;
               const action = evt.detail?.action_type as string | undefined;
+              const scope = evt.detail?.scope as string | undefined;
+              const outcome = evt.detail?.outcome as string | undefined;
               return (
                 <li key={`${evt.event_id}-${evt.stage}-${evt.phase}-${evt.ts}`}>
-                  <span class="muted">{shortTime(evt.ts)}</span>{" "}
+                  <span class="muted">{shortTime(evt.ts)}</span>
                   <span class={`live-tier live-tier-${tier}`}>
                     {tier === "abstain" ? "N/A" : tier.toUpperCase()}
-                  </span>{" "}
-                  <code>{evt.event_id.slice(0, 8)}</code>{" "}
+                  </span>
+                  <code>{evt.event_id.slice(0, 8)}</code>
                   <span class="live-ticker-stage">{evt.stage}.{evt.phase}</span>
-                  {action ? <> · <strong>{action}</strong></> : null}
-                  {rule && rule !== action ? <span class="muted"> ({rule})</span> : null}
-                  {gate ? <> · <span class={`live-gate live-gate-${gate}`}>{gate}</span></> : null}
+                  {action ? <strong>{action}</strong> : null}
+                  {scope ? <span class="live-ticker-scope">@{scope}</span> : null}
+                  {rule && rule !== action ? <span class="muted">({rule})</span> : null}
+                  {gate ? <span class={`live-gate live-gate-${gate}`}>{gate}</span> : null}
+                  {outcome && outcome !== gate ? (
+                    <span class={`live-ticker-tail ${outcome}`}>{outcome}</span>
+                  ) : null}
                 </li>
               );
             })}
@@ -1025,16 +1084,21 @@ function matchesFilter(tile: TileState, filter: FilterKind): boolean {
   return true;
 }
 
-function Sparkline({ buckets }: { readonly buckets: readonly number[] }) {
-  const max = Math.max(1, ...buckets);
+function Sparkline({ buckets }: { readonly buckets: RateBuckets }) {
   const width = 240;
-  const height = 40;
-  const stepX = width / (buckets.length - 1 || 1);
-  const points = buckets.map(
-    (v, i) => [i * stepX, height - (v / max) * (height - 2) - 1] as const,
-  );
-  const line = points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const area = `0,${height} ${line} ${width},${height}`;
+  const height = 44;
+  const pad = 3;
+  const series = [buckets.t0, buckets.t1, buckets.t2];
+  const n = buckets.t0.length;
+  // Shared scale so the three tiers stay comparable; a small headroom keeps
+  // the dominant T0 line off the top edge for a calmer read.
+  const max = Math.max(1, ...buckets.t0, ...buckets.t1, ...buckets.t2) * 1.15;
+  const stepX = width / (n - 1 || 1);
+  const base = height - pad;
+  const span = height - pad * 2;
+  const cls = ["live-spark-t0", "live-spark-t1", "live-spark-t2"] as const;
+  const pathOf = (arr: readonly number[]) =>
+    arr.map((v, i) => `${(i * stepX).toFixed(1)},${(base - (v / max) * span).toFixed(1)}`).join(" ");
   return (
     <svg
       class="live-spark"
@@ -1042,8 +1106,15 @@ function Sparkline({ buckets }: { readonly buckets: readonly number[] }) {
       preserveAspectRatio="none"
       aria-hidden="true"
     >
-      <polygon points={area} class="live-spark-area" />
-      <polyline points={line} fill="none" stroke="currentColor" stroke-width="1.6" />
+      {series.map((arr, i) => {
+        const line = pathOf(arr);
+        return (
+          <>
+            <polygon points={`0,${height} ${line} ${width},${height}`} class={`live-spark-area ${cls[i]}-area`} />
+            <polyline points={line} fill="none" class={cls[i]} stroke-width="1.6" />
+          </>
+        );
+      })}
     </svg>
   );
 }

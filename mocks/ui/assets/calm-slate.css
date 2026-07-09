@@ -329,6 +329,7 @@ code { font-family: "Cascadia Code", "Consolas", monospace; font-size: .88em; ba
 .cs-vert.resilience { color: var(--cs-teal); border-color: rgba(79,132,126,.30); }
 .cs-vert.change { color: var(--cs-steel); border-color: rgba(68,104,142,.30); }
 .cs-vert.cost { color: var(--cs-terracotta); border-color: rgba(188,116,73,.30); }
+.cs-tk-row2 .cs-vert { flex: 0 0 auto; padding: 1px 7px; font-size: 10px; }
 
 /* Filter bar - segmented chips + search field, all read-only demo */
 .cs-filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); margin-bottom: 18px; }
@@ -417,7 +418,14 @@ code { font-family: "Cascadia Code", "Consolas", monospace; font-size: .88em; ba
 .cs-live-kpi-label { font-size: 11.5px; color: var(--cs-text-soft); letter-spacing: .04em; text-transform: uppercase; }
 .cs-live-kpi-value { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; display: inline-flex; align-items: baseline; gap: 8px; }
 .cs-live-kpi-value small { color: var(--cs-text-soft); font-weight: 500; font-size: 12px; }
-.cs-live-kpi .cs-live-spark { width: 100%; height: 34px; margin-top: 4px; }
+.cs-live-kpi .cs-live-spark { width: 100%; height: 48px; margin-top: 4px; }
+.cs-live-spark-legend { display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
+.cs-spark-key { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--cs-text-soft); letter-spacing: .01em; }
+.cs-spark-key i { width: 9px; height: 3px; border-radius: 2px; display: inline-block; }
+.cs-spark-key.t0 i { background: var(--cs-sage); }
+.cs-spark-key.t1 i { background: var(--cs-teal); }
+.cs-spark-key.t2 i { background: var(--cs-plum); }
+.cs-spark-key b { color: var(--cs-text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .cs-live-stack { height: 8px; margin-top: 6px; }
 .cs-live-guards { display: inline-flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .cs-live-guards .cs-guard { font-size: 10.5px; padding: 2px 8px; letter-spacing: .05em; }
@@ -505,17 +513,53 @@ code { font-family: "Cascadia Code", "Consolas", monospace; font-size: .88em; ba
 .cs-ticker { border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); box-shadow: var(--cs-shadow); overflow: hidden; margin-top: 6px; }
 .cs-ticker-head { padding: 8px 14px; border-bottom: 1px solid var(--cs-hairline); font-size: 12px; color: var(--cs-text-soft); background: var(--cs-shade); display: flex; align-items: center; gap: 8px; }
 .cs-ticker-head::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--cs-sage); animation: cs-hb 1.6s ease-out infinite; }
+.cs-ticker-live { margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--cs-sage); }
+
+/* Floating audit dock: pinned above the bottom chat area, fades top/bottom
+   so the append-only stream reads as a calm rotating feed. */
+.cs-ticker--dock {
+  position: fixed;
+  right: 24px;
+  bottom: var(--cs-dock-gap, 96px);
+  width: 400px;
+  max-width: calc(100vw - 48px);
+  z-index: 60;
+  margin-top: 0;
+  box-shadow: 0 14px 40px rgba(46, 54, 64, .18);
+}
+.cs-ticker-viewport {
+  max-height: 264px;
+  overflow: hidden;
+  padding: 2px 0;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 15%, #000 85%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 15%, #000 85%, transparent 100%);
+}
+@media (max-width: 900px) {
+  .cs-ticker--dock { position: static; width: auto; max-width: none; box-shadow: var(--cs-shadow); }
+  .cs-ticker--dock .cs-ticker-viewport { -webkit-mask-image: none; mask-image: none; max-height: none; }
+}
+
 .cs-ticker-list { list-style: none; margin: 0; padding: 4px 0; font-family: "Cascadia Code","Consolas",monospace; font-size: 11.5px; }
-.cs-ticker-list li { padding: 3px 14px; color: var(--cs-text); border-bottom: 1px dashed transparent; display: flex; gap: 10px; align-items: baseline; animation: cs-tick-in .25s ease-out; }
-.cs-ticker-list li .t { color: var(--cs-text-soft); }
+.cs-ticker-list li { padding: 6px 14px; color: var(--cs-text); border-bottom: 1px solid var(--cs-hairline); display: flex; flex-direction: column; gap: 3px; animation: cs-tick-in .28s ease-out; }
+.cs-ticker-list li:last-child { border-bottom: 0; }
+.cs-tk-row1 { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.cs-tk-row2 { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; min-width: 0; color: var(--cs-text-soft); font-size: 10.5px; }
+.cs-ticker-list li .t { flex: 0 0 auto; color: var(--cs-text-soft); }
 .cs-ticker-list li .tier { flex: 0 0 auto; }
-.cs-ticker-list li .rule { flex: 1 1 auto; color: var(--cs-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cs-ticker-list li .out { flex: 0 0 auto; font-weight: 600; }
+.cs-tk-rule { flex: 1 1 auto; min-width: 0; color: var(--cs-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-tk-id { flex: 0 1 auto; color: var(--cs-steel); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-tk-scope { flex: 0 1 auto; color: var(--cs-text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-tk-lat { flex: 0 0 auto; color: var(--cs-text-soft); font-variant-numeric: tabular-nums; }
+.cs-tk-mode { flex: 0 0 auto; margin-left: auto; padding: 0 7px; border-radius: 5px; font-size: 9.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border: 1px solid var(--cs-hairline); }
+.cs-tk-mode.enforce { color: var(--cs-sage); border-color: rgba(94,130,89,.35); background: rgba(94,130,89,.10); }
+.cs-tk-mode.shadow { color: var(--cs-teal); border-color: rgba(79,132,126,.35); background: rgba(79,132,126,.10); }
+.cs-tk-mode.gated { color: var(--cs-plum); border-color: rgba(123,108,156,.35); background: rgba(123,108,156,.10); }
+.cs-ticker-list li .out { flex: 0 0 auto; font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: .04em; }
 .cs-ticker-list li .out.auto { color: var(--cs-sage); }
 .cs-ticker-list li .out.hil { color: var(--cs-terracotta); }
 .cs-ticker-list li .out.abstain { color: var(--cs-plum); }
 .cs-ticker-list li .out.deny { color: var(--cs-dusty-red); }
-@keyframes cs-tick-in { from { transform: translateY(-4px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes cs-tick-in { from { transform: translateY(-8px); } to { transform: translateY(0); } }
 
 /* Reduced-motion: freeze everything to final state */
 @media (prefers-reduced-motion: reduce) {

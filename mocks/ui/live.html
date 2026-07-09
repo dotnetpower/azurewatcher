@@ -47,7 +47,12 @@
       <div class="cs-live-kpi">
         <span class="cs-live-kpi-label">Events / sec</span>
         <span class="cs-live-kpi-value" id="k-eps">0<small>/s &middot; 60s avg</small></span>
-        <canvas class="cs-live-spark" data-spark="eps" width="600" height="34" aria-hidden="true"></canvas>
+        <canvas class="cs-live-spark" data-spark="eps" width="600" height="48" aria-hidden="true"></canvas>
+        <div class="cs-live-spark-legend" aria-hidden="true">
+          <span class="cs-spark-key t0"><i></i>T0 <b id="k-eps-t0">0</b></span>
+          <span class="cs-spark-key t1"><i></i>T1 <b id="k-eps-t1">0</b></span>
+          <span class="cs-spark-key t2"><i></i>T2 <b id="k-eps-t2">0</b></span>
+        </div>
       </div>
       <div class="cs-live-kpi">
         <span class="cs-live-kpi-label">Gate mix (60s)</span>
@@ -89,10 +94,15 @@
     <!-- Swarm grid -->
     <div class="cs-swarm" id="swarm" aria-label="live control-plane activity"></div>
 
-    <!-- Ticker -->
-    <div class="cs-ticker">
-      <div class="cs-ticker-head">Audit stream <span class="cs-muted">&middot; append-only</span></div>
-      <ol class="cs-ticker-list" id="ticker"></ol>
+    <!-- Ticker (floating audit dock - sits above the chat area, fades top/bottom) -->
+    <div class="cs-ticker cs-ticker--dock" id="audit-dock">
+      <div class="cs-ticker-head">
+        Audit stream <span class="cs-muted">&middot; append-only</span>
+        <span class="cs-ticker-live">live</span>
+      </div>
+      <div class="cs-ticker-viewport">
+        <ol class="cs-ticker-list" id="ticker"></ol>
+      </div>
     </div>
 
     <p class="cs-help" style="margin-top:14px">

@@ -24,7 +24,7 @@
   var FADE_1_MS = 900;
   var FADE_2_MS = 1600;
   var RETIRE_MS = 2400;
-  var TICKER_MAX = 8;
+  var TICKER_MAX = 12;
   var SPARK_BUCKETS = 60; // one second per bucket
   var SPARK_BUCKET_MS = 1000;
 
@@ -288,14 +288,40 @@
   var tickerCount = 0;
   function pushTicker(slot) {
     var li = document.createElement("li");
+    var ev = slot.ev;
     var d = new Date();
-    var tspan = '<span class="t">' + timeStr(d) + '</span>';
-    var tier = slot.ev.tier;
-    var tierHtml = '<span class="cs-tier ' + tier + ' tier">' + tier.toUpperCase() + '</span>';
-    var idHtml = '<span class="t">' + slot.ev.id + '</span>';
-    var ruleHtml = '<span class="rule">' + slot.ev.sample.rule + ' -&gt; ' + slot.ev.sample.at + '</span>';
-    var outHtml = '<span class="out ' + slot.ev.outcome + '">' + slot.ev.outcome + '</span>';
-    li.innerHTML = tspan + tierHtml + idHtml + ruleHtml + outHtml;
+    var tier = ev.tier;
+    var s = ev.sample;
+
+    // Derive a mode chip: executed (auto) actions run in enforce, with a
+    // realistic slice still in shadow; gated outcomes (hil/abstain/deny) did
+    // not execute, so they carry a neutral "gated" chip.
+    var mode, modeClass;
+    if (ev.outcome === "auto") {
+      var shadow = (parseInt(ev.id.slice(-1), 16) % 4) === 0;
+      mode = shadow ? "shadow" : "enforce";
+      modeClass = shadow ? "shadow" : "enforce";
+    } else {
+      mode = "gated";
+      modeClass = "gated";
+    }
+
+    var row1 = ''
+      + '<div class="cs-tk-row1">'
+      +   '<span class="cs-tier ' + tier + ' tier">' + tier.toUpperCase() + '</span>'
+      +   '<span class="cs-tk-rule" title="' + s.rule + ' -&gt; ' + s.at + '">' + s.rule + ' &rarr; ' + s.at + '</span>'
+      +   '<span class="out ' + ev.outcome + '">' + ev.outcome + '</span>'
+      + '</div>';
+    var row2 = ''
+      + '<div class="cs-tk-row2">'
+      +   '<span class="t">' + timeStr(d) + '</span>'
+      +   '<span class="cs-tk-id">' + ev.id + '</span>'
+      +   '<span class="cs-vert ' + s.vertical + '">' + s.vertical + '</span>'
+      +   '<span class="cs-tk-scope">' + s.scope + '</span>'
+      +   '<span class="cs-tk-lat">' + ev.total + 'ms</span>'
+      +   '<span class="cs-tk-mode ' + modeClass + '">' + mode + '</span>'
+      + '</div>';
+    li.innerHTML = row1 + row2;
     ticker.insertBefore(li, ticker.firstChild);
     tickerCount++;
     while (ticker.children.length > TICKER_MAX) ticker.removeChild(ticker.lastChild);
@@ -324,6 +350,9 @@
 
   // ---------- render KPIs ----------
   var kEps = document.getElementById("k-eps");
+  var kEpsT0 = document.getElementById("k-eps-t0");
+  var kEpsT1 = document.getElementById("k-eps-t1");
+  var kEpsT2 = document.getElementById("k-eps-t2");
   var kAuto = document.getElementById("k-auto");
   var kT0 = document.getElementById("k-t0");
   var kT1 = document.getElementById("k-t1");
@@ -335,6 +364,9 @@
     var t = windowTotals();
     var eps = (t.total / SPARK_BUCKETS).toFixed(1);
     kEps.firstChild.nodeValue = eps;
+    if (kEpsT0) kEpsT0.textContent = (t.t0 / SPARK_BUCKETS).toFixed(1);
+    if (kEpsT1) kEpsT1.textContent = (t.t1 / SPARK_BUCKETS).toFixed(1);
+    if (kEpsT2) kEpsT2.textContent = (t.t2 / SPARK_BUCKETS).toFixed(1);
     var outcomeTotal = t.auto + t.hil + t.abstain + t.deny;
     kAuto.textContent = pct(t.auto, outcomeTotal) + "%";
     kT0.textContent = "T0 " + pct(t.t0, t.total) + "%";
@@ -366,6 +398,18 @@
     hairline: readColor("--cs-hairline") || "#E3E1DE"
   };
 
+  function hexToRgba(hex, alpha) {
+    var h = String(hex).trim().replace("#", "");
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var r = parseInt(h.slice(0, 2), 16);
+    var g = parseInt(h.slice(2, 4), 16);
+    var b = parseInt(h.slice(4, 6), 16);
+    // Guard against a non-hex CSS variable (e.g. a fork overriding with rgb()):
+    // fall back to a neutral translucent fill instead of emitting rgba(NaN,...).
+    if (isNaN(r) || isNaN(g) || isNaN(b)) return "rgba(120,120,120," + alpha + ")";
+    return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+  }
+
   function resizeSpark() {
     if (!spark) return;
     var dpr = window.devicePixelRatio || 1;
@@ -381,34 +425,61 @@
     var w = spark.clientWidth;
     var h = spark.clientHeight;
     sparkCtx.clearRect(0, 0, w, h);
-    // Baseline
-    sparkCtx.strokeStyle = COL.hairline;
-    sparkCtx.lineWidth = 1;
-    sparkCtx.beginPath();
-    sparkCtx.moveTo(0, h - 0.5);
-    sparkCtx.lineTo(w, h - 0.5);
-    sparkCtx.stroke();
 
     var n = buckets.length;
+    // Shared scale so the three tiers stay comparable; a small headroom
+    // keeps the dominant T0 line off the top edge for a calmer read.
     var max = 1;
     for (var i = 0; i < n; i++) if (buckets[i].total > max) max = buckets[i].total;
+    max = max * 1.15;
+    var pad = 3;                 // vertical breathing room
+    var base = h - pad;          // y for value 0
+    var span = h - pad * 2;      // usable height
     var stepX = w / (n - 1);
 
-    function drawSeries(field, color) {
-      sparkCtx.strokeStyle = color;
-      sparkCtx.lineWidth = 1.4;
+    function yFor(v) { return base - (v / max) * span; }
+
+    // Build a smoothed path (quadratic through bucket midpoints) so the
+    // line reads as a calm curve instead of a jagged polyline.
+    function tracePath(field) {
+      var pts = [];
+      for (var i = 0; i < n; i++) pts.push({ x: i * stepX, y: yFor(buckets[i][field]) });
       sparkCtx.beginPath();
-      for (var i = 0; i < n; i++) {
-        var v = buckets[i][field];
-        var x = i * stepX;
-        var y = h - (v / max) * (h - 2) - 1;
-        if (i === 0) sparkCtx.moveTo(x, y); else sparkCtx.lineTo(x, y);
+      sparkCtx.moveTo(pts[0].x, pts[0].y);
+      for (var j = 0; j < pts.length - 1; j++) {
+        var mx = (pts[j].x + pts[j + 1].x) / 2;
+        var my = (pts[j].y + pts[j + 1].y) / 2;
+        sparkCtx.quadraticCurveTo(pts[j].x, pts[j].y, mx, my);
       }
+      var last = pts[pts.length - 1];
+      sparkCtx.lineTo(last.x, last.y);
+      return last;
+    }
+
+    function drawSeries(field, color, fillAlpha) {
+      // Area fill first (very light), then the stroke on top.
+      var last = tracePath(field);
+      sparkCtx.lineTo(last.x, base);
+      sparkCtx.lineTo(0, base);
+      sparkCtx.closePath();
+      sparkCtx.fillStyle = hexToRgba(color, fillAlpha);
+      sparkCtx.fill();
+
+      tracePath(field);
+      sparkCtx.strokeStyle = color;
+      sparkCtx.lineWidth = 1.75;
+      sparkCtx.lineJoin = "round";
+      sparkCtx.lineCap = "round";
       sparkCtx.stroke();
     }
-    drawSeries("t0", COL.t0);
-    drawSeries("t1", COL.t1);
-    drawSeries("t2", COL.t2);
+
+    sparkCtx.save();
+    sparkCtx.lineWidth = 1.75;
+    // Draw largest tier first so the smaller ones sit legibly on top.
+    drawSeries("t0", COL.t0, 0.10);
+    drawSeries("t1", COL.t1, 0.12);
+    drawSeries("t2", COL.t2, 0.14);
+    sparkCtx.restore();
   }
 
   // ---------- controls ----------
