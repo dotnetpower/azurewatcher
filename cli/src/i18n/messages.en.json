@@ -92,6 +92,15 @@
       "focusing": "Focusing on {focus} resources.",
       "whichResource": "Which resource type? e.g. 'focus network'."
     },
-    "showing": "Showing {badge}."
+    "showing": "Showing {badge}.",
+    "answer": {
+      "awaitingSome": "{count} item(s) are awaiting your approval - the risk gate raised them because they exceed the auto-apply limit. Approving opens a pull request; you cannot approve your own request.",
+      "awaitingNone": "Nothing is awaiting your approval right now. Everything resolved automatically or was safely stepped back.",
+      "abstain": "{count} events were stepped back - no matching rule yet, or not enough signal to route. Stepping back is deliberate: I never guess a change.",
+      "trust": "Everything here is read-only. Routine events resolve with fixed rules and past matches; anything new stays in shadow mode until proven. Every change I propose opens a pull request with a rollback path, a blast-radius limit, and an audit entry - never applied without your review.",
+      "recent": "Most recent: {last}.",
+      "nothingYet": "nothing yet",
+      "kpi": "Handled {handled} events live so far - {t0} with fixed rules (T0), {t1} by past match (T1), {t2} by reasoning (T2), {abstain} stepped back. {auto} were auto-applied as shadow pull requests, {awaiting} awaiting your approval, {undone} undone. Nothing changes until you merge a PR."
+    }
   }
 }

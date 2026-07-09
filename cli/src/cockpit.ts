@@ -223,6 +223,59 @@ export function parseScreenCommand(
   return null;
 }
 
+/** Live counters the cockpit's local answerer reads. Passed as a snapshot so
+ * `localAnswer` stays pure and testable. */
+export interface CockpitStats {
+  readonly handled: number;
+  readonly byTier: Record<string, number>;
+  readonly awaitingYou: number;
+  readonly autoApplied: number;
+  readonly undone: number;
+  readonly activity: readonly { readonly resource: string; readonly text: string }[];
+}
+
+/** Answer a state/trust question from the LIVE cockpit counters (never a mock
+ * seed), so what I say matches what is on screen. Returns null to let the
+ * narrator handle anything outside live state. Pure over the query, the stats
+ * snapshot, and the locale. */
+export function localAnswer(q: string, stats: CockpitStats, locale: Locale): string | null {
+  const norm = q.toLowerCase().trim();
+  const { handled, byTier, awaitingYou, autoApplied, undone, activity } = stats;
+  if (/(awaiting|approval|hil|queue|decision|need you|escalat)/.test(norm)) {
+    return awaitingYou > 0
+      ? t("cockpit.answer.awaitingSome", locale, { count: awaitingYou })
+      : t("cockpit.answer.awaitingNone", locale);
+  }
+  if (/(abstain|stepped|skip|no rule|why not)/.test(norm)) {
+    return t("cockpit.answer.abstain", locale, { count: byTier.abstain ?? 0 });
+  }
+  if (/(safe|trust|read.?only|audit|rollback|how do you|guarantee)/.test(norm)) {
+    return t("cockpit.answer.trust", locale);
+  }
+  if (/(recent|activity|last|what did you|history)/.test(norm)) {
+    const last = activity
+      .slice(-3)
+      .map((a) => `${a.resource} ${a.text.split(" - ")[0]}`)
+      .join("; ");
+    return t("cockpit.answer.recent", locale, {
+      last: last || t("cockpit.answer.nothingYet", locale),
+    });
+  }
+  if (/(kpi|status|summary|how many|handl|doing|happening|now|minute|overview|health)/.test(norm)) {
+    return t("cockpit.answer.kpi", locale, {
+      handled,
+      t0: byTier.t0 ?? 0,
+      t1: byTier.t1 ?? 0,
+      t2: byTier.t2 ?? 0,
+      abstain: byTier.abstain ?? 0,
+      auto: autoApplied,
+      awaiting: awaitingYou,
+      undone,
+    });
+  }
+  return null;
+}
+
 async function consumeSse(
   url: string,
   onFrame: (f: StageFrame) => void,
@@ -651,39 +704,8 @@ export async function startCockpit(ctx: NarratorContext): Promise<void> {
     `By resource type: ${topResourcesText(10)}. ` +
     `These are live event types from the stream, not a named resource-group inventory.`;
 
-  /** Answer state/trust questions from the LIVE cockpit data (never the mock
-   * seed), so what I say always matches what is on screen. Returns null to let
-   * the narrator handle anything outside live state. */
-  const localAnswer = (q: string): string | null => {
-    const t = q.toLowerCase().trim();
-    if (/(awaiting|approval|hil|queue|decision|need you|escalat)/.test(t)) {
-      return awaitingYou > 0
-        ? `${awaitingYou} item(s) are awaiting your approval - the risk gate raised them because they exceed the auto-apply limit. Approving opens a pull request; you cannot approve your own request.`
-        : `Nothing is awaiting your approval right now. Everything resolved automatically or was safely stepped back.`;
-    }
-    if (/(abstain|stepped|skip|no rule|why not)/.test(t)) {
-      return `${byTier.abstain ?? 0} events were stepped back - no matching rule yet, or not enough signal to route. Stepping back is deliberate: I never guess a change.`;
-    }
-    if (/(safe|trust|read.?only|audit|rollback|how do you|guarantee)/.test(t)) {
-      return `Everything here is read-only. Routine events resolve with fixed rules and past matches; anything new stays in shadow mode until proven. Every change I propose opens a pull request with a rollback path, a blast-radius limit, and an audit entry - never applied without your review.`;
-    }
-    if (/(recent|activity|last|what did you|history)/.test(t)) {
-      const last = activity
-        .slice(-3)
-        .map((a) => `${a.resource} ${a.text.split(" - ")[0]}`)
-        .join("; ");
-      return `Most recent: ${last || "nothing yet"}.`;
-    }
-    if (/(kpi|status|summary|how many|handl|doing|happening|now|minute|overview|health)/.test(t)) {
-      return (
-        `Handled ${handled} events live so far - ${byTier.t0 ?? 0} with fixed rules (T0), ` +
-        `${byTier.t1 ?? 0} by past match (T1), ${byTier.t2 ?? 0} by reasoning (T2), ${byTier.abstain ?? 0} stepped back. ` +
-        `${autoApplied} were auto-applied as shadow pull requests, ${awaitingYou} awaiting your approval, ${undone} undone. ` +
-        `Nothing changes until you merge a PR.`
-      );
-    }
-    return null;
-  };
+  // ---- local answerer ------------------------------------------------------
+  // `localAnswer` is a module-level pure function over a stats snapshot.
 
   const streamReveal = async (): Promise<void> => {
     const total = [...answerTarget].length;
@@ -740,7 +762,7 @@ export async function startCockpit(ctx: NarratorContext): Promise<void> {
       return;
     }
     // 2. Grounded live-state answers.
-    const local = localAnswer(q);
+    const local = localAnswer(q, { handled, byTier, awaitingYou, autoApplied, undone, activity }, locale);
     if (local !== null) {
       thinking = false;
       answerTarget = local;
