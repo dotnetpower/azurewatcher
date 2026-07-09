@@ -125,6 +125,64 @@ SYNTHETIC_INVENTORY: tuple[SyntheticResource, ...] = (
             "role_assignments": [{"scope": "subscription", "role_name": "Owner"}],
         },
     ),
+    SyntheticResource(
+        resource_id=_rid("Microsoft.ContainerService/managedClusters", "demo-aks-open"),
+        resource_name="demo-aks-open",
+        resource_type="kubernetes-cluster",
+        props={
+            "private_cluster_enabled": False,
+            "azure_rbac_enabled": False,
+            "network_policy": False,
+            "diagnostic_settings": [],
+        },
+    ),
+    SyntheticResource(
+        resource_id=_rid("Microsoft.ContainerService/managedClusters/agentPools", "demo-nodepool"),
+        resource_name="demo-nodepool",
+        resource_type="kubernetes-node-pool",
+        props={"availability_zones": []},
+    ),
+    SyntheticResource(
+        resource_id=_rid("Microsoft.Cache/redis", "demo-cache-single"),
+        resource_name="demo-cache-single",
+        resource_type="cache",
+        props={"zones": []},
+    ),
+    SyntheticResource(
+        resource_id=_rid("Microsoft.Network/networkSecurityGroups", "demo-nsg-open"),
+        resource_name="demo-nsg-open",
+        resource_type="network.nsg",
+        props={
+            "security_rules": [
+                {
+                    "direction": "Inbound",
+                    "access": "Allow",
+                    "protocol": "Tcp",
+                    "destination_port_range": "22",
+                    "source_address_prefix": "*",
+                },
+                {
+                    "direction": "Inbound",
+                    "access": "Allow",
+                    "protocol": "Tcp",
+                    "destination_port_range": "3389",
+                    "source_address_prefix": "*",
+                },
+            ],
+        },
+    ),
+    SyntheticResource(
+        resource_id=_rid("Microsoft.Network/publicIPAddresses", "demo-pip-orphan"),
+        resource_name="demo-pip-orphan",
+        resource_type="network.public-ip",
+        props={"associated_resource_id": "", "sku_tier": "Standard"},
+    ),
+    SyntheticResource(
+        resource_id=_rid("Microsoft.Compute/virtualMachines", "demo-vm-noid"),
+        resource_name="demo-vm-noid",
+        resource_type="compute.vm",
+        props={"identity_type": "None"},
+    ),
 )
 
 
