@@ -140,43 +140,97 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
   const savings = finops ? finops.estimated_monthly_savings : null;
 
   usePublishViewContext(
-    () => ({
-      routeId: "dashboard",
-      routeLabel: "Overview",
-      headline:
-        `health ${healthy ? "healthy" : "attention"} - ` +
-        `${kpi.hil_pending} HIL pending - ` +
-        (savings !== null ? `${formatUsd(savings)}/mo saved` : "cost n/a"),
-      capturedAt: new Date().toISOString(),
-      facts: [
-        { key: "health", value: healthy ? "healthy" : "attention", group: "overview" },
-        { key: "event_count", value: kpi.event_count, group: "overview" },
-        { key: "shadow_share", value: formatShare(kpi.shadow_share), group: "overview" },
-        { key: "t0_share", value: `${t0Share}%`, group: "overview" },
-        { key: "hil_pending", value: kpi.hil_pending, group: "overview" },
-        {
-          key: "monthly_savings",
-          value: savings !== null ? formatUsd(savings) : "n/a",
-          group: "cost",
+    () => {
+      // The Overview renders an autonomy hero, success-metrics-vs-baseline,
+      // per-vertical cards, and guard bands from the /kpi/autonomy panel.
+      // Publish that surface (not just the audit KPIs) so the deck can answer
+      // "what is the auto-resolution rate / savings per vertical / are the
+      // guards ok?". `synthetic` is surfaced so the deck can flag dev values.
+      const autonomyFacts: {
+        key: string;
+        value: string | number | boolean | null;
+        group?: string;
+      }[] = autonomy
+        ? [
+            { key: "measurement_synthetic", value: autonomy.synthetic, group: "autonomy" },
+            { key: "auto_resolution_rate", value: autonomy.success.auto_resolution_rate.value, group: "autonomy" },
+            { key: "auto_resolution_baseline", value: autonomy.success.auto_resolution_rate.baseline, group: "autonomy" },
+            { key: "human_touchpoints_per_100", value: autonomy.success.human_touchpoints_per_100.value, group: "autonomy" },
+            { key: "mttr_seconds", value: autonomy.success.mttr_seconds.value, group: "autonomy" },
+            { key: "change_lead_time_seconds", value: autonomy.success.change_lead_time_seconds.value, group: "autonomy" },
+          ]
+        : [];
+      const autonomyRecords: Record<string, readonly Record<string, unknown>[]> = autonomy
+        ? {
+            success_metrics: (
+              [
+                ["auto_resolution_rate", autonomy.success.auto_resolution_rate],
+                ["human_touchpoints_per_100", autonomy.success.human_touchpoints_per_100],
+                ["mttr_seconds", autonomy.success.mttr_seconds],
+                ["change_lead_time_seconds", autonomy.success.change_lead_time_seconds],
+              ] as const
+            ).map(([metric, m]) => ({
+              metric,
+              value: m.value,
+              baseline: m.baseline,
+              better_when: m.direction,
+            })),
+            verticals: autonomy.verticals.map((v) => ({
+              vertical: v.key,
+              events: v.events,
+              auto_resolved: v.auto_resolved,
+              open_risks: v.open_risks,
+              monthly_savings: v.monthly_savings,
+            })),
+            guards: autonomy.guards.map((g) => ({
+              key: g.key,
+              value: g.value,
+              baseline: g.baseline,
+              threshold: g.threshold,
+              ok: g.ok,
+            })),
+          }
+        : {};
+      return {
+        routeId: "dashboard",
+        routeLabel: "Overview",
+        headline:
+          `health ${healthy ? "healthy" : "attention"} - ` +
+          `${kpi.hil_pending} HIL pending - ` +
+          (savings !== null ? `${formatUsd(savings)}/mo saved` : "cost n/a"),
+        capturedAt: new Date().toISOString(),
+        facts: [
+          { key: "health", value: healthy ? "healthy" : "attention", group: "overview" },
+          { key: "event_count", value: kpi.event_count, group: "overview" },
+          { key: "shadow_share", value: formatShare(kpi.shadow_share), group: "overview" },
+          { key: "t0_share", value: `${t0Share}%`, group: "overview" },
+          { key: "hil_pending", value: kpi.hil_pending, group: "overview" },
+          {
+            key: "monthly_savings",
+            value: savings !== null ? formatUsd(savings) : "n/a",
+            group: "cost",
+          },
+          { key: "cost_actions", value: finops ? finops.total_actions : 0, group: "cost" },
+          { key: "policy_escapes", value: policyEscapes ?? "n/a", group: "guards" },
+          {
+            key: "promotion_ready",
+            value: gateTotal !== null ? `${readyCount}/${gateTotal}` : "n/a",
+            group: "guards",
+          },
+          ...autonomyFacts,
+        ],
+        records: {
+          by_action_kind: Object.entries(kpi.by_action_kind)
+            .sort(([, a], [, b]) => b - a)
+            .map(([key, count]) => ({ key, count })),
+          by_outcome: Object.entries(kpi.by_outcome)
+            .sort(([, a], [, b]) => b - a)
+            .map(([key, count]) => ({ key, count })),
+          ...autonomyRecords,
         },
-        { key: "cost_actions", value: finops ? finops.total_actions : 0, group: "cost" },
-        { key: "policy_escapes", value: policyEscapes ?? "n/a", group: "guards" },
-        {
-          key: "promotion_ready",
-          value: gateTotal !== null ? `${readyCount}/${gateTotal}` : "n/a",
-          group: "guards",
-        },
-      ],
-      records: {
-        by_action_kind: Object.entries(kpi.by_action_kind)
-          .sort(([, a], [, b]) => b - a)
-          .map(([key, count]) => ({ key, count })),
-        by_outcome: Object.entries(kpi.by_outcome)
-          .sort(([, a], [, b]) => b - a)
-          .map(([key, count]) => ({ key, count })),
-      },
-    }),
-    [kpi, finops, gates, healthy, savings, t0Share],
+      };
+    },
+    [kpi, finops, gates, autonomy, healthy, savings, t0Share],
   );
 
   return (

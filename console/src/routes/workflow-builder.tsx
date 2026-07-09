@@ -289,7 +289,11 @@ function WorkflowShell({ data }: { readonly data: CombinedData }) {
         : {
             workflows: data.workflows.map((w) => ({
               name: w.name,
-              steps: String(w.step_count),
+              description: w.description ?? "-",
+              trigger:
+                w.trigger.kind === "signal" ? w.trigger.signal_type : w.trigger.schedule,
+              steps: w.step_count,
+              step_actions: w.steps.map((s) => s.action_type_ref).join(" -> "),
               mode: w.default_mode,
             })),
           };
