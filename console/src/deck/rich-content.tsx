@@ -47,10 +47,11 @@ hljs.registerLanguage("dockerfile", dockerfile);
 hljs.registerLanguage("xml", xml);
 hljs.registerLanguage("html", xml);
 
-function TextBlock({ text }: { readonly text: string }) {
+function TextBlock({ text, caret = false }: { readonly text: string; readonly caret?: boolean }) {
+  const lines = text.split("\n");
   return (
     <>
-      {text.split("\n").map((line, i) => (
+      {lines.map((line, i) => (
         <p key={i} class="deck-turn-line">
           {parseInline(line).map((run, j) =>
             run.t === "code" ? (
@@ -63,6 +64,9 @@ function TextBlock({ text }: { readonly text: string }) {
               <span key={j}>{run.s}</span>
             ),
           )}
+          {caret && i === lines.length - 1 ? (
+            <span class="deck-gr-caret" aria-hidden="true" />
+          ) : null}
         </p>
       ))}
     </>
@@ -298,14 +302,32 @@ function LineChart({ spec }: { readonly spec: ChartSpec }) {
   );
 }
 
-/** Render an answer string as prose + tables + charts. */
-export function RichContent({ text }: { readonly text: string }) {
+/**
+ * Render an answer string as prose + tables + charts + code. When `streaming`,
+ * a caret trails the content (inline on a prose tail, on its own line when the
+ * tail is a still-building table / code / chart) so a partially arrived table
+ * renders live and grows row by row instead of showing raw markdown until the
+ * turn completes.
+ */
+export function RichContent({
+  text,
+  streaming = false,
+}: {
+  readonly text: string;
+  readonly streaming?: boolean;
+}) {
   const segments = parseAnswer(text);
-  if (segments.length === 0) return null;
+  if (segments.length === 0) {
+    return streaming ? <span class="deck-gr-caret" aria-hidden="true" /> : null;
+  }
+  const lastIsText = segments[segments.length - 1]?.kind === "text";
   return (
     <div class="deck-rich">
       {segments.map((seg, i) => {
-        if (seg.kind === "text") return <TextBlock key={i} text={seg.text} />;
+        const isLast = i === segments.length - 1;
+        if (seg.kind === "text") {
+          return <TextBlock key={i} text={seg.text} caret={streaming && isLast} />;
+        }
         if (seg.kind === "table") {
           return <TableBlock key={i} headers={seg.headers} rows={seg.rows} />;
         }
@@ -313,6 +335,7 @@ export function RichContent({ text }: { readonly text: string }) {
         if (seg.spec.type === "line") return <LineChart key={i} spec={seg.spec} />;
         return <MiniChart key={i} spec={seg.spec} />;
       })}
+      {streaming && !lastIsText ? <span class="deck-gr-caret" aria-hidden="true" /> : null}
     </div>
   );
 }

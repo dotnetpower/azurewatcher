@@ -65,23 +65,11 @@ export function GroundedReply({
 
   const rolled = Math.max(0, shownCites - VISIBLE);
   const visibleCites = cites.slice(0, shownCites);
-  const lines = text.split("\n");
 
   return (
     <div class="deck-gr">
       <div class="deck-turn-body">
-        {streaming ? (
-          lines.map((line, i) => (
-            <p key={i} class="deck-turn-line">
-              {line}
-              {i === lines.length - 1 ? (
-                <span class="deck-gr-caret" aria-hidden="true" />
-              ) : null}
-            </p>
-          ))
-        ) : (
-          <RichContent text={text} />
-        )}
+        <RichContent text={text} streaming={streaming} />
       </div>
 
       {!streaming && cites.length > 0 ? (
