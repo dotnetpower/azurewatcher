@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Pantheon - Icon Set (draft)</title>
+  <style>
+    :root {
+      --bg: #0b0f16;
+      --panel: #121826;
+      --panel-2: #0f1420;
+      --line: #1e2838;
+      --text: #e7edf6;
+      --muted: #8896ab;
+      /* role-group accents */
+      --gold: #e5c76b;      /* Odin */
+      --amber: #f5a623;     /* operations line: Thor, Vidar, Bragi, Var */
+      --sky: #4ea8ff;       /* judgment: Forseti */
+      --teal: #2dd4bf;      /* sensing: Huginn, Heimdall */
+      --violet: #a78bfa;    /* governance staff: Mimir, Muninn, Saga, Norns */
+      --green: #4ade80;     /* Njord (cost) */
+      --indigo: #818cf8;    /* Freyr (capacity) */
+      --rose: #fb7185;      /* Loki (chaos) */
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 600px at 20% -10%, #16203010, transparent), var(--bg);
+      color: var(--text);
+      font: 14px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
+      padding: 40px 32px 64px;
+    }
+    header { max-width: 1100px; margin: 0 auto 28px; }
+    h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: .3px; }
+    .lead { color: var(--muted); margin: 0; max-width: 720px; }
+    .toolbar { max-width: 1100px; margin: 18px auto 0; display: flex; gap: 10px; flex-wrap: wrap; }
+    .toolbar button {
+      background: var(--panel); color: var(--text); border: 1px solid var(--line);
+      border-radius: 8px; padding: 7px 12px; font-size: 13px; cursor: pointer;
+    }
+    .toolbar button:hover { border-color: #33415a; }
+    .grid {
+      max-width: 1100px; margin: 24px auto 0;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px;
+    }
+    .card {
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--line); border-radius: 14px; padding: 18px 16px 14px;
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      transition: transform .12s ease, border-color .12s ease;
+    }
+    .card:hover { transform: translateY(-2px); border-color: #33415a; }
+    .badge {
+      width: 64px; height: 64px; border-radius: 16px; display: grid; place-items: center;
+      background: #0c1220; border: 1px solid var(--line); margin-bottom: 12px;
+      box-shadow: inset 0 0 20px #00000040;
+    }
+    .badge svg { width: 34px; height: 34px; }
+    .name { font-weight: 650; font-size: 15px; }
+    .role { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .glyph { color: var(--muted); font-size: 11px; margin-top: 8px; opacity: .8; }
+    .group-tag {
+      font-size: 10px; text-transform: uppercase; letter-spacing: .8px;
+      padding: 2px 7px; border-radius: 999px; margin-top: 10px; border: 1px solid transparent;
+    }
+    footer { max-width: 1100px; margin: 34px auto 0; color: var(--muted); font-size: 12.5px; }
+    code { background: #0c1220; border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Agent Pantheon - Icon Set (draft)</h1>
+    <p class="lead">A cohesive 24x24 line-icon set for the 15 named agents. Each glyph pairs the
+      agent's Norse symbol with its pipeline role. Accent color follows the org-chart group
+      (operations, judgment, governance staff, sensing, domain specialists). Stroke-based so it
+      scales to any size and recolors with one CSS variable.</p>
+  </header>
+
+  <div class="toolbar">
+    <button onclick="setSize(28)">28px</button>
+    <button onclick="setSize(34)">34px</button>
+    <button onclick="setSize(48)">48px</button>
+    <button onclick="toggleBg()">Toggle background</button>
+  </div>
+
+  <main class="grid" id="grid"></main>
+
+  <footer>
+    <p>Draft v1. Every icon is inline SVG (<code>viewBox="0 0 24 24"</code>, <code>stroke: currentColor</code>,
+      no fill) so it inherits text color. Say which ones to refine and I can split them into individual
+      <code>.svg</code> files under <code>console/public/agent-icons/</code> or wire them into the console
+      / docs site.</p>
+  </footer>
+
+  <script>
+    // Each entry: name, role, mythic glyph note, accent var, and the inner SVG markup.
+    const S = 'stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+    const agents = [
+      { name: 'Odin', role: 'Master Planner', group: 'command', accent: 'gold',
+        glyph: 'all-seeing eye',
+        svg: `<path d="M2.6 12c3-4.4 15.8-4.4 18.8 0-3 4.4-15.8 4.4-18.8 0Z"/><circle cx="12" cy="12" r="2.6"/><path d="M12 2.4v2.2"/><path d="M6.6 5.4 8 6.9"/><path d="M17.4 5.4 16 6.9"/>` },
+      { name: 'Thor', role: 'Responder', group: 'ops', accent: 'amber',
+        glyph: 'Mjolnir hammer',
+        svg: `<rect x="6.4" y="4.4" width="11.2" height="5.4" rx="1.3"/><path d="M9.2 4.6v5"/><path d="M14.8 4.6v5"/><path d="M12 9.8v9.4"/><path d="M9.4 19.4h5.2"/>` },
+      { name: 'Forseti', role: 'Judge', group: 'judgment', accent: 'sky',
+        glyph: 'scales of justice',
+        svg: `<path d="M12 4.4v13.4"/><path d="M9.4 18h5.2"/><path d="M5 7.4h14"/><path d="M5 7.4 3 11.4h4Z"/><path d="M19 7.4 17 11.4h4Z"/><circle cx="12" cy="6" r="1.1"/>` },
+      { name: 'Huginn', role: 'Event Collector', group: 'sensing', accent: 'teal',
+        glyph: 'thought raven',
+        svg: `<path d="M2.8 12.2c3 .3 5.1-1 6.6-3"/><path d="M21.2 12.2c-3 .3-5.1-1-6.6-3"/><path d="M9 9.2c1-1.5 2-2.2 3-2.2s2 .7 3 2.2"/><circle cx="12" cy="6.2" r=".9"/><path d="M12.6 5.8 14.2 5"/><circle cx="19" cy="5.6" r="1.5"/>` },
+      { name: 'Heimdall', role: 'Observer', group: 'sensing', accent: 'teal',
+        glyph: 'watch radar',
+        svg: `<circle cx="12" cy="14.5" r="1.6"/><path d="M8.2 14.5a3.8 3.8 0 0 1 7.6 0"/><path d="M5.4 14.5a6.6 6.6 0 0 1 13.2 0"/><path d="M12 4.4v2.2"/>` },
+      { name: 'Var', role: 'Approver', group: 'ops', accent: 'amber',
+        glyph: 'oath ring + check',
+        svg: `<circle cx="12" cy="12" r="8"/><path d="M8.4 12.4 11 15l4.6-5.2"/>` },
+      { name: 'Vidar', role: 'Recovery', group: 'ops', accent: 'amber',
+        glyph: 'shield + undo',
+        svg: `<path d="M12 3 19 6v5c0 4.6-3 7.7-7 9.2-4-1.5-7-4.6-7-9.2V6Z"/><path d="M9.4 11.6a2.7 2.7 0 1 0 1-2.3"/><path d="M9.2 8.2v2.6h2.6"/>` },
+      { name: 'Bragi', role: 'Narrator', group: 'ops', accent: 'amber',
+        glyph: 'speech + song',
+        svg: `<path d="M4 5.2h16v9.4H9l-4 3v-3H4Z"/><path d="M11 8v4.4"/><circle cx="9.6" cy="12.6" r="1.1"/><path d="M11 8l3-.7v3.9"/><circle cx="12.6" cy="11.6" r="1.1"/>` },
+      { name: 'Saga', role: 'Auditor', group: 'governance', accent: 'violet',
+        glyph: 'ledger scroll',
+        svg: `<path d="M7.5 4.5H15a2 2 0 0 1 2 2v13l-2-1.4-2 1.4-2-1.4-2 1.4V6.5a2 2 0 0 0-2-2Z"/><path d="M6 4.5a2 2 0 0 0 0 4h1.5"/><path d="M10 9h4.5"/><path d="M10 12h4.5"/>` },
+      { name: 'Mimir', role: 'Rule Steward', group: 'governance', accent: 'violet',
+        glyph: 'book of wisdom',
+        svg: `<path d="M12 6.6C10 5.1 6.6 5.1 4.6 5.7V17c2-.6 5.4-.6 7.4 1 2-1.6 5.4-1.6 7.4-1V5.7C17.4 5.1 14 5.1 12 6.6Z"/><path d="M12 6.6V18"/><path d="M6.6 9.2l1.2 1.2 2.2-2.2"/>` },
+      { name: 'Norns', role: 'Learner', group: 'governance', accent: 'violet',
+        glyph: 'threads of fate',
+        svg: `<circle cx="7" cy="4.4" r="1"/><circle cx="12" cy="4.4" r="1"/><circle cx="17" cy="4.4" r="1"/><path d="M7 5.6c0 4 5 3 5 6.6"/><path d="M17 5.6c0 4-5 3-5 6.6"/><path d="M12 5.6v6.6"/><path d="M12 12.2v7.4"/>` },
+      { name: 'Muninn', role: 'Memory', group: 'governance', accent: 'violet',
+        glyph: 'memory raven',
+        svg: `<path d="M2.8 12.2c3 .3 5.1-1 6.6-3"/><path d="M21.2 12.2c-3 .3-5.1-1-6.6-3"/><path d="M9 9.2c1-1.5 2-2.2 3-2.2s2 .7 3 2.2"/><circle cx="12" cy="6.2" r=".9"/><path d="M12.6 5.8 14.2 5"/><circle cx="18.8" cy="5.6" r="1.6" fill="currentColor" stroke="none"/>` },
+      { name: 'Njord', role: 'Cost', group: 'domain', accent: 'green',
+        glyph: 'coin + tide',
+        svg: `<circle cx="12" cy="9.4" r="5.6"/><path d="M12 6.6v5.6"/><path d="M10.2 7.7h3a1.15 1.15 0 0 1 0 2.3h-1.9a1.15 1.15 0 0 0 0 2.3h3"/><path d="M4 18.6c2-1.4 4-1.4 6 0s4 1.4 6 0 3-.9 4-.4"/>` },
+      { name: 'Freyr', role: 'Capacity', group: 'domain', accent: 'indigo',
+        glyph: 'harvest + sun',
+        svg: `<path d="M5.6 20v-6.4"/><path d="M10.6 20V9.2"/><path d="M15.6 20v-4"/><circle cx="18" cy="6" r="2"/><path d="M18 2.6v1.1"/><path d="M18 8.3v1.1"/><path d="M14.6 6h1.1"/><path d="M20.3 6h1.1"/>` },
+      { name: 'Loki', role: 'Chaos', group: 'domain', accent: 'rose',
+        glyph: 'trickster flame',
+        svg: `<path d="M12 2.8c3 3 5 5.2 5 9a5 5 0 0 1-10 0c0-2 .9-3.2 2-4.2.4 1.6 1.4 2.2 2 2.2 1 0 1.6-1 1-3.2.6.6 1 .3 0-3.8Z"/><path d="M12 19.8a2.6 2.6 0 0 0 2.6-2.6c0-1.6-1.6-2.6-2.6-4.2"/>` },
+    ];
+
+    const groupLabel = {
+      command: 'command', ops: 'operations', judgment: 'judgment',
+      sensing: 'sensing', governance: 'governance', domain: 'domain'
+    };
+    const groupBg = {
+      command: 'gold', ops: 'amber', judgment: 'sky',
+      sensing: 'teal', governance: 'violet', domain: 'muted'
+    };
+
+    const grid = document.getElementById('grid');
+    for (const a of agents) {
+      const accent = `var(--${a.accent})`;
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="badge" style="color:${accent}">
+          <svg viewBox="0 0 24 24" ${S.replace('stroke-width="1.6"','stroke-width="1.6"')}>${a.svg}</svg>
+        </div>
+        <div class="name">${a.name}</div>
+        <div class="role">${a.role}</div>
+        <div class="glyph">${a.glyph}</div>
+        <div class="group-tag" style="color:${accent};border-color:${accent}44;background:${accent}12">
+          ${groupLabel[a.group]}
+        </div>`;
+      grid.appendChild(card);
+    }
+
+    function setSize(px) {
+      document.querySelectorAll('.badge svg').forEach(s => { s.style.width = px + 'px'; s.style.height = px + 'px'; });
+    }
+    let darkBg = true;
+    function toggleBg() {
+      darkBg = !darkBg;
+      document.querySelectorAll('.badge').forEach(b => { b.style.background = darkBg ? '#0c1220' : '#f4f6fb'; });
+      document.body.style.background = darkBg ? '' : '#e9edf4';
+      document.body.style.color = darkBg ? '' : '#0b0f16';
+    }
+  </script>
+</body>
+</html>
