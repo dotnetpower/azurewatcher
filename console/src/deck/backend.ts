@@ -151,6 +151,13 @@ export async function askBackend(
     return { ...local, source: "deterministic (LLM not configured)" };
   }
 
+  if (response.status === 422) {
+    // Prompt refused by the upstream content/jailbreak filter - a safe,
+    // expected block (not an outage). Label it distinctly.
+    const local = deterministicAnswer(prompt, snapshot);
+    return { ...local, source: "deterministic (blocked by content policy)" };
+  }
+
   if (!response.ok) {
     // Upstream error - deterministic fallback for this turn only. We do
     // NOT cache: transient upstream hiccups must self-heal.
