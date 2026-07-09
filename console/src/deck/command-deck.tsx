@@ -129,6 +129,17 @@ export function CommandDeck() {
     return () => window.removeEventListener("keydown", handler);
   }, [open, openDeck, closeDeck]);
 
+  // Navigation dismisses the deck. The overlay sits above the left-rail
+  // popover (z-index 80 vs 40), so while it is open a menu click only
+  // swaps the panel hidden behind it and looks unresponsive. Closing the
+  // deck on any hash change surfaces the freshly navigated panel.
+  useEffect(() => {
+    if (!open) return;
+    const onHashChange = () => closeDeck();
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [open, closeDeck]);
+
   // Autoscroll transcript on new turn.
   useEffect(() => {
     if (!scrollerRef.current) return;
