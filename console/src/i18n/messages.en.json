@@ -8,5 +8,43 @@
     "pantheon": "Pantheon",
     "promotionGates": "Promotion gates",
     "ruleTrace": "Trace"
+  },
+  "nav": {
+    "group": {
+      "now": "Now",
+      "history": "History",
+      "knowledge": "Knowledge",
+      "safety": "Safety",
+      "overview": "Overview"
+    },
+    "groupHint": {
+      "now": "Real-time control-plane state",
+      "history": "Audit and post-hoc traces",
+      "knowledge": "What the system knows",
+      "safety": "Promotion and blast-radius decisions",
+      "overview": "KPIs and rolled-up summaries"
+    },
+    "panel": {
+      "live": "Live",
+      "hilQueue": "Approvals",
+      "audit": "Audit log",
+      "trace": "Trace",
+      "ontology": "Ontology",
+      "pantheon": "Agents",
+      "blastRadius": "Blast radius",
+      "promotionGates": "Promotion gates",
+      "dashboard": "Dashboard"
+    },
+    "panelSub": {
+      "live": "Real-time pipeline activity",
+      "hilQueue": "High-risk actions waiting for a human approver (HIL)",
+      "audit": "Append-only record of every terminal decision",
+      "trace": "Reconstruct one correlation id end-to-end",
+      "ontology": "Resource + link graph (classDiagram)",
+      "pantheon": "15 named autonomous agents (Pantheon)",
+      "blastRadius": "Simulate reachable subgraph before a change",
+      "promotionGates": "Per-ActionType readiness for shadow → enforce",
+      "dashboard": "Rolled-up KPIs sourced from the audit log"
+    }
   }
 }

@@ -24,6 +24,7 @@
 
 import type { ComponentType } from "preact";
 import type { ReadApiClient } from "./api";
+import { t } from "./i18n";
 import { AuditRoute } from "./routes/audit";
 import { BlastRadiusRoute } from "./routes/blast-radius";
 import { DashboardRoute } from "./routes/dashboard";
@@ -54,11 +55,11 @@ export interface PanelGroupMeta {
 }
 
 export const PANEL_GROUPS: readonly PanelGroupMeta[] = [
-  { id: "now", label: "Now", hint: "Real-time control-plane state" },
-  { id: "history", label: "History", hint: "Audit and post-hoc traces" },
-  { id: "knowledge", label: "Knowledge", hint: "What the system knows" },
-  { id: "safety", label: "Safety", hint: "Promotion and blast-radius decisions" },
-  { id: "overview", label: "Overview", hint: "KPIs and rolled-up summaries" },
+  { id: "now", label: t("nav.group.now"), hint: t("nav.groupHint.now") },
+  { id: "history", label: t("nav.group.history"), hint: t("nav.groupHint.history") },
+  { id: "knowledge", label: t("nav.group.knowledge"), hint: t("nav.groupHint.knowledge") },
+  { id: "safety", label: t("nav.group.safety"), hint: t("nav.groupHint.safety") },
+  { id: "overview", label: t("nav.group.overview"), hint: t("nav.groupHint.overview") },
 ];
 
 export interface ConsolePanel {
@@ -81,8 +82,8 @@ export interface ConsolePanel {
 
 const DASHBOARD_PANEL: ConsolePanel = {
   id: "dashboard",
-  label: "Dashboard",
-  subtitle: "Rolled-up KPIs sourced from the audit log",
+  label: t("nav.panel.dashboard"),
+  subtitle: t("nav.panelSub.dashboard"),
   group: "overview",
   component: DashboardRoute,
 };
@@ -92,60 +93,60 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
   // ── Now ─────────────────────────────────────────────────────────────
   {
     id: "live",
-    label: "Live",
-    subtitle: "Real-time pipeline activity",
+    label: t("nav.panel.live"),
+    subtitle: t("nav.panelSub.live"),
     group: "now",
     component: LiveRoute,
   },
   {
     id: "hil-queue",
-    label: "Approvals",
-    subtitle: "High-risk actions waiting for a human approver (HIL)",
+    label: t("nav.panel.hilQueue"),
+    subtitle: t("nav.panelSub.hilQueue"),
     group: "now",
     component: HilQueueRoute,
   },
   // ── History ─────────────────────────────────────────────────────────
   {
     id: "audit",
-    label: "Audit log",
-    subtitle: "Append-only record of every terminal decision",
+    label: t("nav.panel.audit"),
+    subtitle: t("nav.panelSub.audit"),
     group: "history",
     component: AuditRoute,
   },
   {
     id: "trace",
-    label: "Trace",
-    subtitle: "Reconstruct one correlation id end-to-end",
+    label: t("nav.panel.trace"),
+    subtitle: t("nav.panelSub.trace"),
     group: "history",
     component: RuleTraceRoute,
   },
   // ── Knowledge ───────────────────────────────────────────────────────
   {
     id: "ontology",
-    label: "Ontology",
-    subtitle: "Resource + link graph (classDiagram)",
+    label: t("nav.panel.ontology"),
+    subtitle: t("nav.panelSub.ontology"),
     group: "knowledge",
     component: OntologyRoute,
   },
   {
     id: "pantheon",
-    label: "Agents",
-    subtitle: "15 named autonomous agents (Pantheon)",
+    label: t("nav.panel.pantheon"),
+    subtitle: t("nav.panelSub.pantheon"),
     group: "knowledge",
     component: PantheonRoute,
   },
   // ── Safety ──────────────────────────────────────────────────────────
   {
     id: "blast-radius",
-    label: "Blast radius",
-    subtitle: "Simulate reachable subgraph before a change",
+    label: t("nav.panel.blastRadius"),
+    subtitle: t("nav.panelSub.blastRadius"),
     group: "safety",
     component: BlastRadiusRoute,
   },
   {
     id: "promotion-gates",
-    label: "Promotion gates",
-    subtitle: "Per-ActionType readiness for shadow → enforce",
+    label: t("nav.panel.promotionGates"),
+    subtitle: t("nav.panelSub.promotionGates"),
     group: "safety",
     component: PromotionGatesRoute,
   },

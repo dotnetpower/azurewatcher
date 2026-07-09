@@ -7,5 +7,40 @@
     "ontology": "온톨로지",
     "pantheon": "판테온",
     "promotionGates": "승급 게이트"
+  },
+  "nav": {
+    "group": {
+      "now": "실시간",
+      "history": "이력",
+      "knowledge": "지식",
+      "safety": "안전",
+      "overview": "개요"
+    },
+    "groupHint": {
+      "now": "실시간 컨트롤 플레인 상태",
+      "history": "감사 및 사후 추적",
+      "knowledge": "시스템이 아는 것",
+      "safety": "승급 및 영향 범위 결정",
+      "overview": "KPI 및 롤업 요약"
+    },
+    "panel": {
+      "live": "실시간",
+      "hilQueue": "승인",
+      "audit": "감사 로그",
+      "trace": "추적",
+      "ontology": "온톨로지",
+      "pantheon": "에이전트",
+      "blastRadius": "영향 범위",
+      "promotionGates": "승급 게이트",
+      "dashboard": "대시보드"
+    },
+    "panelSub": {
+      "live": "실시간 파이프라인 활동",
+      "hilQueue": "사람 승인자를 기다리는 고위험 작업 (HIL)",
+      "audit": "모든 종단 결정의 추가 전용 기록",
+      "ontology": "리소스 + 링크 그래프 (classDiagram)",
+      "pantheon": "15개의 명명된 자율 에이전트 (판테온)",
+      "dashboard": "감사 로그에서 집계한 KPI"
+    }
   }
 }
