@@ -1,0 +1,21 @@
+{
+  "scenario_id": "dr.replica-lag-degraded.001",
+  "shipped_rule_id": "postgresql-server.high-availability",
+  "wire_risk_gate": true,
+  "event_payload_resource": {
+    "resource_id": "example-pg-replica",
+    "type": "postgresql-server",
+    "props": {
+      "ha_mode": "Disabled",
+      "encryption_at_rest_enabled": true,
+      "ssl_enforcement": "enabled",
+      "backup_retention_days": 35,
+      "cpu_p95_percent": 80,
+      "diagnostic_settings": ["example-ds"]
+    }
+  },
+  "expected_control_loop_outcome": "hil",
+  "expected_decision": "hil",
+  "expected_citing_rule_id_present": "postgresql-server.high-availability",
+  "note": "Maps the placeholder rule id `example.dr.replica-lag-threshold` to the shipped high-severity `postgresql-server.high-availability` (a degraded replica with no zone-redundant HA is the DR-reliability gap the scenario models). Props fire ONLY high-availability: ha_mode=Disabled trips it, while encryption_at_rest_enabled=true, ssl_enforcement=enabled, backup_retention_days=35 (>= min 7), cpu_p95_percent=80 (>= 20), and a non-empty diagnostic_settings satisfy the co-resident postgresql rules. wire_risk_gate=true routes the remediate.enable-zone-redundancy action (t0 ceiling enforce_hil) to HIL, so no shadow PR is published - matching the frozen guard.should_execute=false and decision=hil."
+}

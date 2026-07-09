@@ -279,10 +279,11 @@ built is T2: `core/tiers/t2_reasoning/` is a stub (no engine), so
 at T0 through overlays under
 [tests/scenarios/enrichment/v2026.07/](../../tests/scenarios/enrichment/v2026.07/)
 wherever a shipped rule maps - e.g.
-`finops.stop-idle-dev-vm-off-hours.003` fires `compute.vm.idle-detected`.
+`finops.stop-idle-dev-vm-off-hours.003` fires `compute.vm.idle-detected`
+and `dr.replica-lag-degraded.001` fires
+`postgresql-server.high-availability` (HIL via the risk-gate).
 Scenarios still lacking an overlay stay `xfail`:
-`dr.chaos-experiment-novel.003` (needs T2),
-`dr.replica-lag-degraded.001` (needs an authored overlay), and
+`dr.chaos-experiment-novel.003` (needs T2) and
 `dr.backup-vault-restore-rehearsal.002` /
 `change.drift-manual-portal-edit.003` (need a shipped rule authored).
 
