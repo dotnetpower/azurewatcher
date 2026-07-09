@@ -1,0 +1,12 @@
+# remediate.right-size-role - Terraform patch template.
+#
+# Referenced by rule `subscription.role-assignment.no-guest-privileged`.
+# The PR removes the guest principal's privileged subscription-scoped assignment.
+# Removal is expressed as deletion of the azurerm_role_assignment block; the
+# ActionType rollback_contract (state_forward_only) re-grants via an inverse
+# action if the access is later found to be required.
+
+# This PR removes the privileged subscription-scoped assignment "${assignment_id}"
+# that granted "${current_role}" to guest principal "${principal_id}". No
+# replacement grant is rendered - a guest that needs access is re-granted the
+# least-privilege role at the narrowest scope through a separate reviewed change.

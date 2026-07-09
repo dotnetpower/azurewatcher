@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+id: managed-identity.role-assignment.no-privileged-subscription-scope
+version: 1.0.0
+source: mcsb
+severity: critical
+category: security
+resource_type: managed-identity
+check_logic:
+  kind: rego
+  reference: policies/managed_identity/no_privileged_subscription_scope.rego
+remediation:
+  template_ref: remediation/managed_identity/no_privileged_subscription_scope.tftpl
+  cost_impact_monthly_usd: 0.0
+remediates: remediate.right-size-role
+provenance:
+  source_url: https://learn.microsoft.com/azure/role-based-access-control/best-practices
+  resolved_ref: '0000000000000000000000000000000000000000'
+  content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  license: LicenseRef-reference-only
+  redistribution: reference-only
+  retrieved_at: '2026-07-09T00:00:00Z'

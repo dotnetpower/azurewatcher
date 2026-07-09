@@ -1,0 +1,56 @@
+schema_version: 1.0.0
+name: remediate.right-size-role
+version: 1.0.0
+operation: update
+interfaces:
+- ControlPlane
+- IdempotentByKey
+- RequiresInventoryFresh
+- AsymmetricRollback
+rollback_contract: state_forward_only
+irreversible: false
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 30
+  min_samples: 30
+  min_accuracy: 0.99
+  max_policy_escapes: 0
+preconditions:
+- kind: graph_fresh_within_seconds
+  value: 300
+- kind: no_conflicting_open_action_on_resource
+stop_conditions:
+- kind: dependent_resource_degraded
+- kind: provider_api_error_streak
+  count: 2
+- kind: time_box_exceeded_seconds
+  seconds: 600
+blast_radius:
+  computation: static_enum
+  static_bucket: resource_group
+description: >-
+  Narrow an over-broad identity grant to least privilege: reduce a workload
+  identity or principal from a privileged subscription-scoped role to the least
+  sufficient role at the narrowest sufficient scope, strip wildcard actions from
+  a custom role definition, convert standing privileged access to just-in-time
+  eligible access, or remove an excess Owner assignment. Asymmetric rollback
+  because widening a grant back is a separate governance-gated action; reverting
+  the remediation PR re-adds the prior assignment but cannot restore access that
+  had already lapsed.
+category: remediation
+trigger_kind:
+  kind: rule_violation
+execution_path: pr_native
+ceiling_by_tier:
+  t0:
+    max_autonomy: enforce_hil
+    min_role: approver
+  t1:
+    max_autonomy: shadow_only
+    min_role: approver
+  t2:
+    max_autonomy: shadow_only
+    min_role: approver
+prod_downgrade:
+  mode: enforce_hil
+  detection_ref: risk-classification/env-detector

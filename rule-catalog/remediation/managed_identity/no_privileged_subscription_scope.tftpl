@@ -1,0 +1,17 @@
+# remediate.right-size-role - Terraform patch template.
+#
+# Referenced by rule `managed-identity.role-assignment.no-privileged-subscription-scope`.
+# The PR removes the subscription-scoped privileged assignment and re-grants the
+# least-privilege role at the narrowest sufficient scope. Scope and role are
+# supplied by the executor from the finding; the operator confirms the target
+# role in review before merge.
+
+# The over-broad subscription-scoped assignment "${assignment_id}" is removed by
+# this PR (delete the azurerm_role_assignment block that granted
+# "${current_role}" at subscription scope to identity "${resource_id}").
+
+resource "azurerm_role_assignment" "${resource_id}_least_privilege" {
+  scope                = "${target_scope}"
+  role_definition_name = "${target_role}"
+  principal_id         = "${principal_id}"
+}

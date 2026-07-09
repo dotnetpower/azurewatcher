@@ -1,0 +1,11 @@
+# remediate.right-size-role - Terraform patch template.
+#
+# Referenced by rule `resource-group.role-assignment.owner-count-within-limit`.
+# The PR removes the excess Owner assignments above the bounded maximum,
+# retaining the accountable owners identified in the finding. Removal is
+# expressed as deletion of the surplus azurerm_role_assignment blocks.
+
+# This PR removes the surplus Owner assignments at resource-group scope
+# "${resource_id}" so the retained Owner count is at or below
+# ${max_owner_count}. The assignments to remove are enumerated in the finding
+# ("${surplus_assignment_ids}"); the accountable owners are kept.

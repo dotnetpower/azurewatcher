@@ -1,0 +1,14 @@
+# remediate.right-size-role - Terraform patch template.
+#
+# Referenced by rule `subscription.role-assignment.no-standing-privileged-access`.
+# The PR converts a standing (permanent) privileged assignment into a
+# just-in-time eligible assignment. The eligible-assignment resource and its
+# activation policy are supplied by the executor from the finding.
+
+resource "azurerm_pim_eligible_role_assignment" "${resource_id}_jit" {
+  scope              = "${target_scope}"
+  role_definition_id = "${role_definition_id}"
+  principal_id       = "${principal_id}"
+
+  # The paired standing assignment "${assignment_id}" is removed by this PR.
+}

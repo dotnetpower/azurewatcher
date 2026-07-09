@@ -64,3 +64,20 @@ rules:
     mode: enforce
   - id: postgresql-server.high-availability
     mode: enforce
+  # Workload RBAC least-privilege. Shadow-first: promotion to enforce is a
+  # separate, measured change once the promotion_gate is met on the frozen
+  # scenario set (never bundled with the rule's first PR).
+  - id: managed-identity.role-assignment.no-privileged-subscription-scope
+    mode: shadow
+    severity_override: critical
+  - id: subscription.role-assignment.no-guest-privileged
+    mode: shadow
+    severity_override: critical
+  - id: managed-identity.role-assignment.no-wildcard-action
+    mode: shadow
+    severity_override: high
+  - id: subscription.role-assignment.no-standing-privileged-access
+    mode: shadow
+    severity_override: high
+  - id: resource-group.role-assignment.owner-count-within-limit
+    mode: shadow

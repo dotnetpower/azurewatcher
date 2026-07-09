@@ -1,0 +1,19 @@
+# remediate.right-size-role - Terraform patch template.
+#
+# Referenced by rule `managed-identity.role-assignment.no-wildcard-action`.
+# The PR replaces the wildcard custom role with an explicit least-privilege
+# action set. The concrete actions are supplied by the executor from the
+# finding; the operator confirms the enumerated actions in review before merge.
+
+resource "azurerm_role_definition" "${resource_id}_least_privilege" {
+  name        = "${target_role}"
+  scope       = "${target_scope}"
+  description = "Least-privilege replacement for a wildcard-action grant."
+
+  permissions {
+    # Wildcard "*" removed. Explicit actions rendered from the finding:
+    actions      = ${explicit_actions}
+    not_actions  = []
+    data_actions = ${explicit_data_actions}
+  }
+}

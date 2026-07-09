@@ -83,3 +83,18 @@ rules:
     mode: shadow
   - id: resource-group.cost-center-tag.required
     mode: shadow
+  # Workload RBAC least-privilege (identity handoff posture)
+  - id: managed-identity.role-assignment.no-privileged-subscription-scope
+    mode: shadow
+    severity_override: critical
+  - id: managed-identity.role-assignment.no-wildcard-action
+    mode: shadow
+    severity_override: high
+  - id: subscription.role-assignment.no-guest-privileged
+    mode: shadow
+    severity_override: critical
+  - id: subscription.role-assignment.no-standing-privileged-access
+    mode: shadow
+    severity_override: high
+  - id: resource-group.role-assignment.owner-count-within-limit
+    mode: shadow
