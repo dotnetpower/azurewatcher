@@ -8,7 +8,8 @@
     "pantheon": "판테온",
     "promotionGates": "승급 게이트",
     "agentActivity": "에이전트 활동",
-    "rules": "규칙"
+    "rules": "규칙",
+    "workflowBuilder": "워크플로우 빌더"
   },
   "nav": {
     "group": {
@@ -36,7 +37,8 @@
       "blastRadius": "영향 범위",
       "promotionGates": "승급 게이트",
       "dashboard": "개요",
-      "rules": "규칙"
+      "rules": "규칙",
+      "workflowBuilder": "워크플로우 빌더"
     },
     "panelSub": {
       "live": "실시간 파이프라인 활동",
@@ -46,8 +48,12 @@
       "ontology": "리소스 + 링크 그래프 (classDiagram)",
       "pantheon": "15개의 명명된 자율 에이전트 (판테온)",
       "dashboard": "감사 로그 기반 건강도 / 위험 / 비용",
-      "rules": "규칙 카탈로그의 모든 정책, 패싯별"
+      "rules": "규칙 카탈로그의 모든 정책, 패싯별",
+      "workflowBuilder": "사용자 정의 비즈니스 프로세스를 온톨로지 ActionType에 매핑"
     }
+  },
+  "workflowBuilder": {
+    "subtitle": "순서가 있는 단계를 온톨로지 ActionType에 매핑해 사용자 정의 비즈니스 프로세스를 작성합니다. 검증과 미리보기 전용 - 콘솔은 커밋하지 않으며, YAML을 remediation PR로 복사하세요."
   },
   "overview": {
     "subtitle": "감사 로그 기반 건강도 / 위험 / 비용 요약. 새로고침 시 갱신, 폴링 없음.",

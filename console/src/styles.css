@@ -1728,6 +1728,35 @@ pre {
 }
 .form-grid.inline label { flex: 1 1 260px; }
 
+/* Workflow builder (routes/workflow-builder.tsx) ----------------------- */
+.form-field { display: flex; flex-direction: column; gap: 4px; }
+.form-field-wide { grid-column: 1 / -1; }
+.form-label { font-size: 12.5px; color: var(--fg-muted); }
+.form-input {
+  background: var(--bg); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 5px 8px; font-size: 13px; font-family: inherit;
+  width: 100%; box-sizing: border-box;
+}
+.step-card {
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; background: color-mix(in oklab, var(--bg) 92%, transparent);
+}
+.step-card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.step-move { display: flex; gap: 6px; }
+.at-hint {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);
+}
+.code-actions { display: flex; gap: 8px; }
+.small { font-size: 12px; }
+.btn-danger { color: #b42318; border-color: color-mix(in oklab, #d92d20 40%, var(--border)); }
+.btn-danger:hover:not(:disabled) { background: color-mix(in oklab, #d92d20 12%, transparent); }
+
+
 /* =========================================================================
  * Command Deck (deck/command-deck.tsx)
  *

@@ -7,6 +7,7 @@ import { Shell } from "./components/shell";
 import { CommandDeck } from "./deck/command-deck";
 import { ViewContextProvider } from "./deck/context";
 import { deckUserFromAuth, setDeckUser } from "./deck/deck-user";
+import { setWorkflowAuth } from "./workflow/validate";
 import { LoginRoute } from "./routes/login";
 import { DEFAULT_PANEL_ID, panelForId, resolvePanels } from "./panels";
 
@@ -47,6 +48,9 @@ export function App() {
         // Expose the signed-in operator's roles to the chat deck so it can
         // answer capability questions ("what can I do?").
         setDeckUser(deckUserFromAuth(auth));
+        // Thread the operator's bearer token to the workflow-builder's
+        // validate POST (the one non-GET, read-only call the console makes).
+        setWorkflowAuth(auth);
         if (!cancelled) {
           setState({ status: "ready", config, auth, client });
         }

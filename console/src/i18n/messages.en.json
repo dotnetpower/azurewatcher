@@ -9,7 +9,8 @@
     "promotionGates": "Promotion gates",
     "ruleTrace": "Trace",
     "agentActivity": "Agent activity",
-    "rules": "Rules"
+    "rules": "Rules",
+    "workflowBuilder": "Workflow builder"
   },
   "nav": {
     "group": {
@@ -37,7 +38,8 @@
       "blastRadius": "Blast radius",
       "promotionGates": "Promotion gates",
       "dashboard": "Overview",
-      "rules": "Rules"
+      "rules": "Rules",
+      "workflowBuilder": "Workflow builder"
     },
     "panelSub": {
       "live": "Real-time pipeline activity",
@@ -50,8 +52,12 @@
       "blastRadius": "Simulate reachable subgraph before a change",
       "promotionGates": "Per-ActionType readiness for shadow → enforce",
       "dashboard": "Healthy, risk, and cost, sourced from the audit log",
-      "rules": "Every policy in the rule catalog, faceted"
+      "rules": "Every policy in the rule catalog, faceted",
+      "workflowBuilder": "Map a custom business process onto ontology ActionTypes"
     }
+  },
+  "workflowBuilder": {
+    "subtitle": "Author a custom business process by mapping ordered steps onto ontology ActionTypes. Validation and preview only - the console does not commit; copy the YAML into a remediation PR."
   },
   "overview": {
     "subtitle": "Healthy, risk, and cost at a glance - from the append-only audit log. Refreshes on reload; no polling.",

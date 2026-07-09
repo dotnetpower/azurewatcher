@@ -36,6 +36,7 @@ import { PantheonRoute } from "./routes/pantheon";
 import { PromotionGatesRoute } from "./routes/promotion-gates";
 import { RuleCatalogRoute } from "./routes/rule-catalog";
 import { RuleTraceRoute } from "./routes/rule-trace";
+import { WorkflowBuilderRoute } from "./routes/workflow-builder";
 
 /** Props every panel component receives. Read-only client only. */
 export interface PanelProps {
@@ -150,6 +151,13 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
     subtitle: t("nav.panelSub.rules"),
     group: "knowledge",
     component: RuleCatalogRoute,
+  },
+  {
+    id: "workflow-builder",
+    label: t("nav.panel.workflowBuilder"),
+    subtitle: t("nav.panelSub.workflowBuilder"),
+    group: "knowledge",
+    component: WorkflowBuilderRoute,
   },
   // ── Safety ──────────────────────────────────────────────────────────
   {
