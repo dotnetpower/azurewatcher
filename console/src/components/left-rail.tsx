@@ -46,6 +46,7 @@ export function LeftRail({ activePanelId }: Props) {
   const [state, setState] = useState<ActiveGroupState>({ group: null, pinned: false });
   const closeTimer = useRef<number | null>(null);
   const iconRefs = useRef(new Map<PanelGroup, HTMLButtonElement | null>());
+  const navRef = useRef<HTMLElement | null>(null);
 
   const activeGroup = useMemo<PanelGroup | null>(() => {
     for (const g of PANEL_GROUPS) {
@@ -101,6 +102,22 @@ export function LeftRail({ activePanelId }: Props) {
     };
   }, [state.group, closeAll, cancelClose]);
 
+  // Dismiss the popover when the operator interacts anywhere outside the
+  // rail (content area, header, deck). Without this a pinned popover -
+  // e.g. after a keyboard toggle - could linger over the content even
+  // once the operator has clicked away.
+  useEffect(() => {
+    if (state.group === null) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (navRef.current && target && !navRef.current.contains(target)) {
+        closeAll();
+      }
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [state.group, closeAll]);
+
   const focusGroupBy = useCallback(
     (from: PanelGroup, delta: number) => {
       const idx = PANEL_GROUPS.findIndex((g) => g.id === from);
@@ -115,7 +132,7 @@ export function LeftRail({ activePanelId }: Props) {
   );
 
   return (
-    <nav class="left-rail" aria-label="Primary navigation">
+    <nav ref={navRef} class="left-rail" aria-label="Primary navigation">
       <ul class="left-rail-list">
         {PANEL_GROUPS.map((g) => {
           const panels = panelsInGroup(g.id);
@@ -141,13 +158,15 @@ export function LeftRail({ activePanelId }: Props) {
                 onBlur={scheduleClose}
                 onClick={() => {
                   // Click on a group icon = jump to its first sub-panel.
-                  // The popover still opens (pinned) so the operator
-                  // sees siblings, but they no longer need a second
-                  // click just to enter the group.
+                  // The popover stays open only while the pointer keeps
+                  // hovering (NOT pinned) so it dismisses itself the
+                  // moment the operator moves into the content or clicks
+                  // away. A pinned-open click used to leave the flyout
+                  // lingering over the content after navigation.
                   if (firstPanel && activePanelId !== firstPanel.id) {
                     window.location.hash = `#/${firstPanel.id}`;
                   }
-                  openGroup(g.id, { pin: true });
+                  openGroup(g.id);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "ArrowDown") {
