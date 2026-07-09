@@ -94,8 +94,10 @@ Field rules the loader enforces:
 - `compensated_by`, when set, MUST also resolve to an `ActionType` name. It is
   the saga rollback action for that step (see [section 5](#5-saga-compensation)).
 - `on_failure`, when set, MUST reference an existing step `id` in the same
-  workflow, exactly like a [`Runbook`](../../src/fdai/core/runbook/models.py)
-  step.
+  workflow that appears **later** in the step list (never itself or an earlier
+  step), exactly like a [`Runbook`](../../src/fdai/core/runbook/models.py)
+  step. A backward fallback would make the runner re-run an already-applied
+  step, so it is rejected at load.
 - `guard_rule_ref`, when set, MUST resolve to a Rule id from the loaded rule
   catalog. The guard is the deterministic "when" for the step - a
   policy-as-code predicate, never model text.
@@ -307,7 +309,47 @@ against the rule catalog, and it enforces the upstream shadow-default policy.
 The entry point loads the catalog at startup so a malformed workflow blocks
 boot rather than surfacing at first dispatch.
 
-## 8. Relationship to agent-workflows.md
+## 8. Authoring surface (console workflow-builder)
+
+An operator authors a custom business process through the console's
+**workflow-builder** view, not by hand-writing YAML from memory. The surface
+maps the process onto the ontology and is **read-only by construction**: it
+validates and previews, it never commits.
+
+Two opt-in, Reader-gated read API routes back it, both pure projections that
+write no state (see
+[`workflow_authoring.py`](../../src/fdai/delivery/read_api/workflow_authoring.py)):
+
+- **`GET /workflows/action-types`** - the `ActionType` palette. A projection of
+  the loaded `ActionType` catalog (name, category, `rollback_contract`,
+  `irreversible`, `default_mode`, and the tiers whose ceiling escalates to HIL)
+  so the builder offers a typed dropdown per step. Picking from the palette is
+  what makes a step's `action_type_ref` resolvable at load time - the builder
+  cannot invent an unknown reference.
+- **`POST /workflows/validate`** - a pure function that runs the same
+  [`load_workflow_from_mapping`](../../src/fdai/rule_catalog/schema/workflow.py)
+  the catalog loader uses (JSON Schema + the `Workflow` pydantic structural
+  invariants + `ActionType` / rule cross-reference), and returns the aggregated
+  issues plus a canonical YAML preview. It mutates nothing and creates no PR.
+
+Both routes are opt-in through
+[`ReadApiConfig.workflow_authoring`](../../src/fdai/delivery/read_api/main.py)
+(a `WorkflowAuthoringConfig` carrying the loaded palette, rule ids, and schema
+registry); unset upstream so the console stays minimal, wired in the local dev
+harness so the view renders out of the box.
+
+The console keeps the read-only invariant
+([app-shape.instructions.md](../../.github/instructions/app-shape.instructions.md)):
+the palette is a GET through the GET-only `ReadApiClient`, and the validate call
+is the single non-GET the console makes - a read-only validator that lives
+outside `ReadApiClient` (mirroring the chat backend) and changes no state. There
+is no console button that commits. A valid draft yields YAML the operator copies
+into `rule-catalog/workflows/<name>.yaml` and lands as a remediation PR through
+the git-native path, so audit, review, and rollback come for free. New drafts
+are locked to `shadow`; promotion to enforce stays the separate governance PR of
+[section 6](#6-governance).
+
+## 9. Relationship to agent-workflows.md
 
 [agent-workflows.md](agent-workflows.md) is the design reference: the eleven
 workflows, their agents, their sequence diagrams, and their exit criteria. This
@@ -316,7 +358,7 @@ stay in sync: a new workflow lands as a doc entry in agent-workflows.md and a
 catalog YAML under [`rule-catalog/workflows/`](../../rule-catalog/workflows/),
 in the same PR.
 
-## 9. Anti-patterns
+## 10. Anti-patterns
 
 - **A workflow that declares a new mutation primitive.** Steps reference the
   existing `ActionType` catalog; a missing capability is an upstream
