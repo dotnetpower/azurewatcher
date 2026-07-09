@@ -182,6 +182,7 @@ FDAI operator capabilities (answer here when the operator asks what they can do 
 - Owner: + trigger the kill-switch, grant emergency access, manage group membership, apply infra IaC.
 - BreakGlass: emergency-only, activated out of band (incident id + timebox), never from the console.
 The console itself is READ-ONLY and issues no privileged calls; execution is autonomous via the executor and changes land as PRs. If `_user.roles` is empty or absent, the operator has no App Role assigned yet - read-only view until an Owner assigns one. Address the operator by their `_user.name` when present.
+For "who is the Owner / who is the admin / who can approve" role-identity questions: describe that role's abilities from the list above, and explain that specific membership is managed in the tenant's Entra ID security groups (aw-readers, aw-contributors, aw-approvers, aw-owners, aw-break-glass) - this read-only console does not list group members, so the operator confirms who holds a role with their Entra / identity admin. NEVER invent or name specific people.
 
 """
 
@@ -193,14 +194,42 @@ _CAPABILITY_INTENT: Final = re.compile(
     r"|\bmy (permission|role|access|capabilit)\w*\b"
     r"|\bcan i (do|approve|edit|change|write|execute|promote|run)\b"
     r"|\bwhat can i\b"
+    r"|\bwho (can|could|may) (approve|reject|edit|change|write|execute|promote|deploy|run|do|trigger|manage)\b"
     "|\uad8c\ud55c|\uc5ed\ud560|\ud560 \uc218 \uc788",
+    re.IGNORECASE,
+)
+
+# Role-identity questions ("who is the Owner", "who can approve", "who is the
+# admin", "\uad00\ub9ac\uc790\uac00 \ub204\uad6c\uc57c") also route to the capability block: they ask about the
+# RBAC role model, which the block explains (each role's abilities + that
+# membership lives in the tenant's Entra security groups, not a console list).
+# Detection is gated on a role/ability token AND a "who" token so audit-style
+# "who approved this?" data questions stay lean. Korean markers are \\uXXXX
+# escapes (owner / admin / operator / approver / approve / who) - the
+# language-policy "quoted data" case.
+_ROLE_TOKEN: Final = re.compile(
+    r"\bowner|\badmin(istrator)?|\bapprover|\breader|\bcontributor|\bbreak.?glass"
+    "|\uc624\ub108|\uc18c\uc720\uc790|\uad00\ub9ac\uc790|\uc6b4\uc601\uc790"
+    "|\uc2b9\uc778\uc790|\uc2b9\uc778 \uad8c\ud55c",
+    re.IGNORECASE,
+)
+_WHO_TOKEN: Final = re.compile(
+    r"\bwho (is|are|can|has|have|holds?)\b|\ub204\uad6c|\ub204\uac00",
     re.IGNORECASE,
 )
 
 
 def _is_capability_query(prompt: str) -> bool:
-    """True when the operator asks about their own permissions / abilities."""
-    return bool(_CAPABILITY_INTENT.search(prompt))
+    """True when the operator asks about the RBAC role model.
+
+    Two shapes route to the capability block: a direct "what can I do / my
+    permissions" question, or a role-identity question ("who is the Owner",
+    "who is the admin") - the latter needs both a role/ability token and a
+    "who" token so audit-style "who approved this?" data questions stay lean.
+    """
+    if _CAPABILITY_INTENT.search(prompt):
+        return True
+    return bool(_ROLE_TOKEN.search(prompt) and _WHO_TOKEN.search(prompt))
 
 
 def _trim_view_context(

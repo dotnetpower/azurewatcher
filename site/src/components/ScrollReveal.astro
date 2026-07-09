@@ -1,0 +1,133 @@
+---
+/*
+ * ScrollReveal.astro - a scroll-driven "assemble" motion for the landing
+ * page. As each section scrolls into view its blocks fade up, un-blur, and
+ * settle into place; grouped children (cards in a grid, timeline steps,
+ * trust-bar pills) cascade with a small per-item stagger so a section reads
+ * as if it is being assembled rather than simply appearing.
+ *
+ * Progressive enhancement, not a dependency:
+ *   - No JavaScript -> nothing is hidden, the page renders exactly as
+ *     authored (the pre-hide CSS is gated behind the `sr-active` class the
+ *     script only adds once it runs).
+ *   - prefers-reduced-motion: reduce -> the script no-ops and content stays
+ *     fully visible; the pre-hide CSS is gated behind the same media query.
+ *
+ * The component only tags elements inside `.sl-markdown-content`, so the
+ * Starlight header, search, and language switcher are never touched. Drop
+ * `<ScrollReveal />` into a splash page (English and Korean both work - the
+ * selectors are structural, never language-dependent).
+ */
+---
+
+<style is:global>
+  @media (prefers-reduced-motion: no-preference) {
+    /* Pre-hide only once the script has confirmed it is active, so a
+       non-JS render never leaves content stuck at opacity 0. */
+    html.sr-active .sr {
+      opacity: 0;
+      transform: translateY(30px) scale(0.965);
+      filter: blur(5px);
+      transition:
+        opacity 0.72s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 0.72s cubic-bezier(0.22, 1, 0.36, 1),
+        filter 0.72s ease-out;
+      transition-delay: var(--sr-delay, 0ms);
+      will-change: opacity, transform;
+    }
+    html.sr-active .sr.sr-in {
+      opacity: 1;
+      transform: none;
+      filter: none;
+    }
+  }
+</style>
+
+<script>
+  // Assemble-on-scroll. See the component header for the progressive
+  // enhancement contract. Everything below is a no-op under reduced motion.
+  //
+  // The reveal test is a plain viewport-rect check driven by scroll/resize,
+  // not IntersectionObserver or requestAnimationFrame: both are throttled or
+  // paused while a tab is backgrounded, which could otherwise leave a
+  // never-focused first paint stuck at opacity 0. A synchronous rect read
+  // always settles.
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  function activate() {
+    if (reduce.matches) return;
+
+    document.documentElement.classList.add("sr-active");
+
+    const scope =
+      document.querySelector(".sl-markdown-content") ?? document.body;
+
+    // [selector, per-item stagger in ms]. A 0 step means "reveal as one
+    // block"; a positive step cascades siblings that share a parent.
+    const groups: [string, number][] = [
+      ["h2", 0],
+      [".hero-note", 0],
+      [".act", 0],
+      [".hc-dims > .dim", 85],
+      [".cc-chips > .chip", 70],
+      [".hc-agents > .agent-chip", 70],
+      [".trust-bar > li", 55],
+      [".loop-step", 85],
+      [".impact-list > li", 70],
+      [".card", 90],
+      [".phase-timeline > li", 110],
+      [".cta-row > *", 80],
+      [".trust-tier-funnel", 0],
+      [".ao-explorer", 0],
+    ];
+
+    const seen = new Set<Element>();
+    for (const [selector, step] of groups) {
+      const perParent = new Map<Element | null, number>();
+      scope.querySelectorAll(selector).forEach((el) => {
+        if (seen.has(el)) return;
+        seen.add(el);
+        el.classList.add("sr");
+        if (step > 0) {
+          const key = el.parentElement;
+          const i = perParent.get(key) ?? 0;
+          perParent.set(key, i + 1);
+          const delay = Math.min(i * step, 520);
+          (el as HTMLElement).style.setProperty("--sr-delay", `${delay}ms`);
+        }
+      });
+    }
+
+    let pending = new Set<Element>(scope.querySelectorAll(".sr"));
+
+    const sweep = () => {
+      // Reveal once the element's top clears 92% of the viewport height, so
+      // a section starts assembling just as it scrolls into frame.
+      const trigger = window.innerHeight * 0.92;
+      for (const el of pending) {
+        if (el.getBoundingClientRect().top < trigger) {
+          el.classList.add("sr-in");
+          pending.delete(el);
+        }
+      }
+      if (pending.size === 0) {
+        window.removeEventListener("scroll", sweep);
+        window.removeEventListener("resize", sweep);
+      }
+    };
+
+    // Plain scroll/resize listeners drive the sweep synchronously. A
+    // background tab pauses rAF, so relying on it could trap a never-focused
+    // first paint at opacity 0; a direct rect read always settles.
+    window.addEventListener("scroll", sweep, { passive: true });
+    window.addEventListener("resize", sweep, { passive: true });
+    // Reveal whatever is already on screen at first paint.
+    sweep();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", activate, { once: true });
+  } else {
+    activate();
+  }
+</script>

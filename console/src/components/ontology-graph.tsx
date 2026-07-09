@@ -145,6 +145,7 @@ interface GraphLinkDatum {
 
 export function OntologyGraph({ nodes, edges }: Props) {
   const mountRef = useRef<HTMLDivElement | null>(null);
+  const hudRef = useRef<HTMLDivElement | null>(null);
   const instanceRef = useRef<any>(null);
   const hoverIdRef = useRef<string | null>(null);
   // Focus ref mirrors pinnedNode for the imperative update paths
@@ -195,11 +196,12 @@ export function OntologyGraph({ nodes, edges }: Props) {
       inMap.set(e.to_type, inn);
       inIndex.set(`${e.from_type}|${e.name}|${e.to_type}`, iIdx);
     }
-    // Compute a front/back layer split so the graph acquires a real
-    // z-axis: the top 5 most-connected nodes stay on the FRONT plane
-    // at full size; the remaining 8 recede to a BACK plane farther
-    // from the camera and slightly smaller.
-    const FRONT_LAYER_COUNT = 5;
+    // All nodes render on ONE front plane at full size. An earlier
+    // front/back split pushed the lower-degree cards onto a receding
+    // plane where perspective + fog made them look permanently hazy /
+    // washed out. A single crisp plane (with only a small per-node z
+    // jitter for parallax) keeps every card equally sharp and readable.
+    const FRONT_LAYER_COUNT = nodes.length;
     const rankedForLayer = nodes
       .map((n) => ({
         name: n.name,
@@ -296,13 +298,14 @@ export function OntologyGraph({ nodes, edges }: Props) {
       const mutedColor = isDark ? "#a4abb8" : "#575d69";
 
       const width = mount.clientWidth || 720;
-      const height = 820;
+      const height = mount.clientHeight || 720;
 
       // ---------------------------------------------------------------
-      // Sprite factory: render each card to an offscreen canvas at
-      // hi-DPI so text stays crisp, then wrap it in a THREE.Sprite so
-      // the card ALWAYS faces the camera (billboard). Sprites keep
-      // the cards flat 2D even as the scene rotates in 3D.
+      // Card factory: render each card to an offscreen canvas at
+      // hi-DPI so text stays crisp, then map it onto a plane MESH.
+      // A mesh (rather than a billboard Sprite) lets a card take a
+      // real 3D tilt on hover; the camera is a fixed near-front view,
+      // so at rest the plane reads exactly like a flat 2D card.
       // ---------------------------------------------------------------
       const cardSpriteCache = new Map<string, any>();
       const emptyNbhd = new Map<string, Set<string>>();
@@ -329,20 +332,51 @@ export function OntologyGraph({ nodes, edges }: Props) {
         const savedX = (node as any).x;
         const savedY = (node as any).y;
         const savedLayer = node.layer;
+        // One global light source for the WHOLE board: derive this
+        // card's light direction from its world position, so every
+        // card's specular points at the same distant light and the
+        // reflections line up into one coherent source instead of an
+        // identical stamp repeated on every card.
+        const wx = (node as any).fx ?? savedX ?? 0;
+        const wy = (node as any).fy ?? savedY ?? 0;
+        const lvx = -520 - wx;
+        const lvy = 660 - wy;
+        const llen = Math.hypot(lvx, lvy) || 1;
+        // world +Y is up, canvas +y is down -> flip y into canvas space.
+        const lightDir = { x: lvx / llen, y: -lvy / llen };
         (node as any).x = cw / 2;
         (node as any).y = ch / 2;
         (node as any).layer = "front";
+        // Ontology cards always render as a dark "smoked glass" slab in
+        // BOTH themes - dark coloured glass with light text keeps a
+        // strong, readable, consistent glass-slide look on a light or
+        // dark page (a light-tinted body washed the colour out and hurt
+        // text contrast). The scene background still follows the theme;
+        // only the cards are pinned to the dark palette.
         drawNodeChip(ctx, node, 1, {
-          labelColor,
-          mutedColor,
-          isDark,
+          labelColor: "#eef2f8",
+          mutedColor: "#9aa6b6",
+          isDark: true,
           hoverId: null,
           neighbourhood: emptyNbhd,
+          lightDir,
         });
         (node as any).x = savedX;
         (node as any).y = savedY;
         (node as any).layer = savedLayer;
         ctx.filter = "none";
+      }
+
+      // Cover-Flow resting tilt: each card sits angled toward the board
+      // centre by its X position (left cards face right, right cards
+      // face left, the centre card is flat). Hovering straightens the
+      // hovered card to face the viewer.
+      const BASE_TILT_MAX = 0.4;    // radians (~23deg) at the far edges
+      const BASE_TILT_SPREAD = 300; // world-X where the tilt maxes out
+      function baseTiltFor(node: any): number {
+        const fx = node?.fx ?? node?.x ?? 0;
+        const t = Math.max(-1, Math.min(1, -fx / BASE_TILT_SPREAD));
+        return t * BASE_TILT_MAX;
       }
 
       function makeCardSprite(node: GraphNodeDatum): any {
@@ -371,19 +405,28 @@ export function OntologyGraph({ nodes, edges }: Props) {
         // card visibly runs OVER that card - the user asked for the
         // back plane to look like it sits behind the link ribbon.
         const isBackNode = node.layer === "back";
-        const mat = new THREE.SpriteMaterial({
+        // Plane MESH (not a billboard Sprite) so the card can take a
+        // REAL 3D tilt on hover. The camera is a fixed near-front view,
+        // so a plane facing +Z looks identical to the old billboard at
+        // rest; DoubleSide keeps it visible if the scene is spun.
+        const mat = new THREE.MeshBasicMaterial({
           map: tex,
           transparent: true,
-          // Fully opaque so front cards read as solid glass panels
-          // instead of the washed-out translucent look. Depth recede
-          // for back cards is carried by their smaller sprite scale.
+          // Fully opaque so cards read as solid glass panels instead of
+          // the washed-out translucent look.
           opacity: 1,
           depthWrite: !isBackNode,
           depthTest: true,
           alphaTest: 0.05,
+          side: THREE.DoubleSide,
         });
-        const sprite = new THREE.Sprite(mat);
+        const geo = new THREE.PlaneGeometry(1, 1);
+        const sprite = new THREE.Mesh(geo, mat);
         sprite.renderOrder = isBackNode ? 0 : 2;
+        // Resting Cover-Flow tilt derived from the card's board position.
+        const baseTilt = baseTiltFor(node);
+        sprite.rotation.y = baseTilt;
+        sprite.userData.baseTilt = baseTilt;
         const spriteScale = nodeSpriteScale(node);
         sprite.scale.set(cw * spriteScale, ch * spriteScale, 1);
         sprite.userData.baseScaleX = cw * spriteScale;
@@ -414,11 +457,15 @@ export function OntologyGraph({ nodes, edges }: Props) {
       // Hover no longer affects visuals - only click drives focus. The
       // hover state is still used for the pointer cursor.
       // ---------------------------------------------------------------
-      const SPRITE_BASE_OPACITY = 0.85;
+      // Idle cards are FULLY opaque so the dark glass reads crisp on any
+      // page background - a sub-1 base let the light page bleed through
+      // and made every card look hazy ("foggy"). Blur + dim only kick in
+      // for the unfocused subgraph AFTER the operator clicks a node.
+      const SPRITE_BASE_OPACITY = 1.0;
       const SPRITE_FOCUS_OPACITY = 1.0;
-      const SPRITE_DIM_OPACITY = 0.30;
-      const FOCUS_Z = 60;    // pulled forward to (roughly) the front layer
-      const DIM_Z = -260;    // pushed way back so the subgraph pops out
+      const SPRITE_DIM_OPACITY = 0.32;
+      const FOCUS_Z = 24;    // gentle nudge forward (was 60, far enough
+      const DIM_Z = -70;     // to occlude its own links at close zoom)
       function applyClickFocus(): void {
         const focusId = focusIdRef.current;
         const nbrs = focusId ? neighbourhoods.get(focusId) : null;
@@ -475,15 +522,33 @@ export function OntologyGraph({ nodes, edges }: Props) {
       // Cards are ≤ ~280 px which at 0.55 sprite scale = ~154 world
       // units tall - a 240 unit row leaves 86 units of breathing room.
       // ---------------------------------------------------------------
-      const cols = 4;
-      const rows = 4;
-      const spacingX = 175;
+      const cols = 5;
+      const rows = 3;
+      const spacingX = 155;
       const spacingY = 235;
+      // Lift the WHOLE grid into Y+ (offset) so even the bottom row's
+      // cards sit above y=0. The camera then frames the grid centre and
+      // the bottom of the frame lands near y=0 - it never dips into the
+      // empty negative-Y area (the operator asked to keep both cards and
+      // camera out of Y-). 13 nodes spread across a wide 5x3 grid using
+      // the ample horizontal room; the two empty slots are bottom-far.
+      const GRID_Y_OFFSET = 180;
+      const GRID_CENTER_Y = ((rows - 1) / 2) * spacingY + GRID_Y_OFFSET;
+      // Straight-on FRONT view: aim right at the grid centre so the
+      // camera can sit at the SAME height (a horizontal line of sight,
+      // no bird's-eye tilt) and all three rows frame symmetrically.
+      const CAM_TARGET_Y = GRID_CENTER_Y;
+      // Slot order (col,row) filled by the degree-ranked nodes, centre-out.
+      // Hubs (highest degree) take the middle row; the low-degree tail
+      // (SecurityEvent, Turn, UserPreference, ...) spreads to the wide
+      // side columns rather than dropping into a Y- bottom row.
       const spiralOrder: readonly [number, number][] = [
-        [1, 1], [2, 1], [1, 2], [2, 2],
-        [0, 1], [3, 1], [0, 2], [3, 2],
-        [1, 0], [2, 0], [1, 3], [2, 3],
-        [0, 0], [3, 0], [0, 3], [3, 3],
+        [2, 1], [1, 1], [3, 1],
+        [2, 2], [2, 0],
+        [1, 2], [3, 2], [1, 0], [3, 0],
+        [0, 1], [4, 1],
+        [0, 2], [4, 2],
+        [0, 0], [4, 0],
       ];
       const sortedByDegree = [...(graphData.nodes as any[])].sort(
         (a, b) => (b.degree ?? 0) - (a.degree ?? 0),
@@ -495,8 +560,8 @@ export function OntologyGraph({ nodes, edges }: Props) {
         const slot = spiralOrder[i] ?? [0, 0];
         const col = slot[0];
         const row = slot[1];
-        const x = (col - 1.5) * spacingX;
-        const y = -(row - 1.5) * spacingY;
+        const x = (col - (cols - 1) / 2) * spacingX;
+        const y = row * spacingY + GRID_Y_OFFSET;
         // Small per-node Z jitter so cards on the same layer are not
         // all at IDENTICAL z. Adds parallax when the camera pans -
         // sells the "cards floating in space" feel.
@@ -587,6 +652,69 @@ export function OntologyGraph({ nodes, edges }: Props) {
       }
 
       // ---------------------------------------------------------------
+      // Hover behaviour: cards rest at a Cover-Flow Y-yaw (baseTilt) and
+      // the hovered card STRAIGHTENS to face the viewer flat (rotation
+      // 0), easing in/out. On mouse-out it eases back to its resting
+      // tilt. Cards are plane meshes so this is a genuine 3D rotation.
+      // ---------------------------------------------------------------
+      let tiltedNodeId: string | null = null;
+      let hoverLeaveTimer = 0;
+      const tiltAnims = new Map<string, number>();
+      function animateSpriteTilt(sprite: any, target: number): void {
+        if (!sprite?.rotation) return;
+        const startRot = sprite.rotation.y ?? 0;
+        if (Math.abs(startRot - target) < 0.0015) {
+          sprite.rotation.y = target;
+          return;
+        }
+        const start = performance.now();
+        const dur = 190;
+        const key = sprite.uuid;
+        const prev = tiltAnims.get(key);
+        if (prev !== undefined) cancelAnimationFrame(prev);
+        function tick() {
+          const t = Math.min(1, (performance.now() - start) / dur);
+          const e = 1 - Math.pow(1 - t, 3);
+          sprite.rotation.y = startRot + (target - startRot) * e;
+          if (t < 1) tiltAnims.set(key, requestAnimationFrame(tick));
+          else tiltAnims.delete(key);
+        }
+        tiltAnims.set(key, requestAnimationFrame(tick));
+      }
+      function commitTilt(nodeId: string | null): void {
+        if (nodeId === tiltedNodeId) return;
+        // Ease the previously hovered card back to its resting tilt.
+        if (tiltedNodeId) {
+          const prev = cardSpriteCache.get(tiltedNodeId);
+          if (prev) animateSpriteTilt(prev, prev.userData?.baseTilt ?? 0);
+        }
+        tiltedNodeId = nodeId;
+        // Straighten the hovered card so it faces the viewer flat.
+        if (nodeId) {
+          const sp = cardSpriteCache.get(nodeId);
+          if (sp) animateSpriteTilt(sp, 0);
+        }
+      }
+      function applyHoverTilt(nodeId: string | null): void {
+        // Debounce hover-LEAVE. Straightening a card can momentarily
+        // move its (now-flat) face off the cursor, so force-graph reports
+        // a hover miss for a frame; without this the card would flip
+        // straight->tilted->straight forever near its left/right edge.
+        if (nodeId) {
+          if (hoverLeaveTimer) {
+            window.clearTimeout(hoverLeaveTimer);
+            hoverLeaveTimer = 0;
+          }
+          commitTilt(nodeId);
+        } else if (!hoverLeaveTimer) {
+          hoverLeaveTimer = window.setTimeout(() => {
+            hoverLeaveTimer = 0;
+            commitTilt(null);
+          }, 180);
+        }
+      }
+
+      // ---------------------------------------------------------------
       // Create the 3D graph. Links are drawn with a fully custom
       // THREE object per link so their endpoints can land on the
       // EXACT text row where the link name is written on each card,
@@ -605,10 +733,25 @@ export function OntologyGraph({ nodes, edges }: Props) {
 
         const isSelfLoop = src.id === tgt.id;
 
-        const s = anchorForOutgoing(src, link.outgoingIndex ?? 0);
-        // Both anchors are on the LEFT edge (source and target) so
-        // links visibly emanate from the text rows that name them.
-        const e = anchorForIncoming(tgt, link.incomingIndex ?? 0);
+        // Pick the edge each end leaves from so the line flows straight
+        // at its partner: the source exits the edge that faces the
+        // target, and the target receives on the edge that faces the
+        // source. Cards in the same column (or a self-loop) both use
+        // the left edge, giving a tidy side arc instead of a zero-width
+        // vertical overlap.
+        const dx = (tgt.x ?? 0) - (src.x ?? 0);
+        let srcSide: -1 | 1;
+        let tgtSide: -1 | 1;
+        if (isSelfLoop || Math.abs(dx) < 1) {
+          srcSide = -1;
+          tgtSide = -1;
+        } else {
+          srcSide = dx > 0 ? 1 : -1;
+          tgtSide = dx > 0 ? -1 : 1;
+        }
+
+        const s = anchorForOutgoing(src, link.outgoingIndex ?? 0, srcSide);
+        const e = anchorForIncoming(tgt, link.incomingIndex ?? 0, tgtSide);
 
         // Deterministic per-link phase from the row indices so re-renders
         // produce the same offsets (no jitter between frames).
@@ -686,36 +829,36 @@ export function OntologyGraph({ nodes, edges }: Props) {
         const cone = groupObj.userData.cone;
         const baseOpacity = groupObj.userData.isSelfLoop
           ? (isDark ? 0.9 : 0.85)
-          : (isDark ? 0.5 : 0.4);
+          : (isDark ? 0.6 : 0.55);
         const hotOpacity = 1;
         // Belt-and-suspenders hide: set the group AND every child
         // AND drive material opacity to 0 AND shrink the group to
         // a point. Any one of these should hide the link; combined
         // they defeat whatever pass keeps 3d-force-graph's line
         // remnants visible after focus.
-        const hideThisLink = anyFocus && !involved;
-        groupObj.visible = !hideThisLink;
-        // scale.set(0) collapses the group to a single point so even
-        // if some render path ignores `.visible`, the geometry has
-        // zero area and never paints pixels.
-        if (hideThisLink) groupObj.scale.set(0, 0, 0);
-        else groupObj.scale.set(1, 1, 1);
+        // Keep EVERY link connected on focus - the focused subgraph
+        // brightens and the rest just fades back. Dim links stay
+        // clearly visible (not near-zero) so clicking an unrelated /
+        // dimmed card never reads as "every connection broke".
+        const dimOpacity = isDark ? 0.3 : 0.26;
+        groupObj.visible = true;
+        groupObj.scale.set(1, 1, 1);
         if (line) {
-          line.visible = !hideThisLink;
+          line.visible = true;
           if (line.material) {
-            line.material.opacity = hideThisLink
-              ? 0
-              : involved ? hotOpacity : baseOpacity;
+            line.material.opacity = !anyFocus
+              ? baseOpacity
+              : involved ? hotOpacity : dimOpacity;
             line.material.transparent = true;
             line.material.needsUpdate = true;
           }
         }
         if (cone) {
-          cone.visible = !hideThisLink;
+          cone.visible = true;
           if (cone.material) {
-            cone.material.opacity = hideThisLink
-              ? 0
-              : involved ? 1 : (isDark ? 0.85 : 0.75);
+            cone.material.opacity = !anyFocus
+              ? (isDark ? 0.85 : 0.75)
+              : involved ? 1 : dimOpacity;
             cone.material.transparent = true;
             cone.material.needsUpdate = true;
           }
@@ -889,23 +1032,26 @@ export function OntologyGraph({ nodes, edges }: Props) {
         // "wrong" links when a focus is pinned. We also mirror the
         // change onto group.visible in updateLinkEndpoints for the
         // rAF-driven animation frames.
-        .linkVisibility((l: any) => {
-          const focusId = focusIdRef.current;
-          if (!focusId) return true;
-          return isInvolved(l, focusId);
-        })
+        // Links are never hidden - focus only changes their opacity
+        // (see updateLinkEndpoints), so connections stay drawn on click.
+        .linkVisibility(() => true)
         .enableNodeDrag(true)
         .onNodeHover((n: any) => {
-          // Hover is intentionally passive - the pointer cursor is
-          // the only feedback so the user does not confuse hover
-          // with a real selection. Click is what commits focus.
+          // Cursor feedback + a slight rightward tilt on the hovered
+          // card for a tactile, physical glass-card response.
           document.body.style.cursor = n ? "pointer" : "default";
+          applyHoverTilt(n?.id ?? null);
         })
         .onNodeClick((n: any) => {
-          // Sticky click focus: pin the node, pull its subgraph
-          // forward on the z-axis, dim + blur everything else.
-          setPinnedNode(n.id);
-          focusIdRef.current = n.id;
+          // Sticky click focus with toggle: clicking the already-
+          // focused card clears the focus. Because the cards fill the
+          // viewport, an empty-background click is nearly unhittable,
+          // so this toggle is the reliable "deselect" path (otherwise
+          // a stray click lands on a dimmed card and re-focuses it,
+          // which read as "all the links broke").
+          const next = focusIdRef.current === n.id ? null : n.id;
+          setPinnedNode(next);
+          focusIdRef.current = next;
           applyClickFocus();
           refreshLinkParticles();
         })
@@ -932,11 +1078,7 @@ export function OntologyGraph({ nodes, edges }: Props) {
         // to a new function reference makes force-graph re-evaluate
         // link visibility on the next tick / render.
         try {
-          Graph.linkVisibility((l: any) => {
-            const focusId = focusIdRef.current;
-            if (!focusId) return true;
-            return isInvolved(l, focusId);
-          });
+          Graph.linkVisibility(() => true);
         } catch {
           /* ignore */
         }
@@ -953,10 +1095,8 @@ export function OntologyGraph({ nodes, edges }: Props) {
           for (const link of links) {
             const grp = (link as any).__threeObj;
             if (!grp) continue;
-            const focusId = focusIdRef.current;
-            const involved = !focusId || isInvolved(link, focusId);
-            grp.visible = involved;
-            grp.scale.set(involved ? 1 : 0, involved ? 1 : 0, involved ? 1 : 0);
+            grp.visible = true;
+            grp.scale.set(1, 1, 1);
           }
         }
         try {
@@ -982,9 +1122,12 @@ export function OntologyGraph({ nodes, edges }: Props) {
       // ---------------------------------------------------------------
       const scene = Graph.scene();
 
-      // Exponential fog. Density 0.0007 tuned so back-layer cards
-      // visibly recede without their text becoming unreadable.
-      scene.fog = new THREE.FogExp2(bgColor, 0.0007);
+      // Very light exponential fog. Density kept low (was 0.0007, which
+      // washed the back-layer cards toward the pale page colour and made
+      // them look foggy) - just enough atmosphere to hint depth while
+      // every card's text stays crisp. Depth is carried mainly by the
+      // back cards' smaller scale and the floor/wall grids, not fog.
+      scene.fog = new THREE.FogExp2(bgColor, 0.0002);
 
       const floorMajor = isDark ? 0x4f9df5 : 0x5a80c0;
       const floorMinor = isDark ? 0x2a3040 : 0xc8d0e0;
@@ -1022,10 +1165,14 @@ export function OntologyGraph({ nodes, edges }: Props) {
       // rotation covers both axes even when polar is clamped, so we
       // bypass it entirely to guarantee horizontal-only spin.
       // ---------------------------------------------------------------
-      const INITIAL_CAM: [number, number, number] = [0, 10, 780];
+      // Resting view = the straight-on 2x framing; Reset returns here.
+      const INITIAL_CAM: [number, number, number] = [0, CAM_TARGET_Y, 540];
+      // The intro starts wider (whole graph in view) and glides in to
+      // the resting 2x view for a subtle "zoom-in on load" reveal.
+      const INTRO_CAM: [number, number, number] = [0, CAM_TARGET_Y, 900];
       Graph.cameraPosition(
-        { x: INITIAL_CAM[0], y: INITIAL_CAM[1], z: INITIAL_CAM[2] },
-        { x: 0, y: 0, z: 0 },
+        { x: INTRO_CAM[0], y: INTRO_CAM[1], z: INTRO_CAM[2] },
+        { x: 0, y: CAM_TARGET_Y, z: 0 },
         0,
       );
       let mouseDragCleanup: (() => void) | null = null;
@@ -1037,7 +1184,13 @@ export function OntologyGraph({ nodes, edges }: Props) {
           // horizontal-only motion.
           ctrls.enableRotate = false;
           ctrls.zoomSpeed = 0.35;
-          ctrls.panSpeed = 0.3;
+          // Pan (LEFT drag on the background) felt too fast: with
+          // world-space panning the motion scales with the camera
+          // distance (z ~ 780), so a small drag flung the scene.
+          // screenSpacePanning maps the drag to the view plane instead,
+          // and a low panSpeed keeps it calm and controllable.
+          ctrls.screenSpacePanning = true;
+          ctrls.panSpeed = 0.1;
           if ((THREE as any).MOUSE) {
             ctrls.mouseButtons = {
               LEFT: (THREE as any).MOUSE.PAN,
@@ -1056,6 +1209,46 @@ export function OntologyGraph({ nodes, edges }: Props) {
         let lastX = 0;
         const cam = Graph.camera?.();
         const target = ctrls?.target;
+        // Bottom-right HUD: zoom multiplier (relative to the initial
+        // camera distance) + live camera coordinates. Updated straight
+        // on the DOM node from the OrbitControls 'change' event so it
+        // never triggers a React re-render on every wheel tick.
+        // Fixed 1x reference distance so the zoom multiplier is an
+        // ABSOLUTE magnification (2x really is twice as close), not a
+        // value re-anchored to whatever the current default happens to
+        // be. The default camera sits at ~this distance, so it reads 1x;
+        // scrolling in raises it (2x, 4x, ...), out lowers it.
+        const ZOOM_BASE_DISTANCE = 1080;
+        const updateHud = (): void => {
+          if (!cam || !target || !hudRef.current) return;
+          const ddx = cam.position.x - target.x;
+          const ddy = cam.position.y - target.y;
+          const ddz = cam.position.z - target.z;
+          const dist = Math.hypot(ddx, ddy, ddz) || 1;
+          const zoom = ZOOM_BASE_DISTANCE / dist;
+          hudRef.current.textContent =
+            `zoom ${zoom.toFixed(2)}x   cam ${cam.position.x.toFixed(0)}, ` +
+            `${cam.position.y.toFixed(0)}, ${cam.position.z.toFixed(0)}`;
+        };
+        ctrls?.addEventListener?.("change", updateHud);
+        updateHud();
+        // Load reveal: glide from the wide intro framing to the resting
+        // 2x view shortly after mount, driving the HUD through the tween.
+        window.setTimeout(() => {
+          Graph.cameraPosition(
+            { x: INITIAL_CAM[0], y: INITIAL_CAM[1], z: INITIAL_CAM[2] },
+            { x: 0, y: CAM_TARGET_Y, z: 0 },
+            470,
+          );
+          const introStart = performance.now();
+          const introTick = () => {
+            updateHud();
+            if (performance.now() - introStart < 560) {
+              requestAnimationFrame(introTick);
+            }
+          };
+          requestAnimationFrame(introTick);
+        }, 350);
         const onMouseDown = (ev: MouseEvent) => {
           if (ev.button !== 1) return; // middle only
           midActive = true;
@@ -1080,6 +1273,7 @@ export function OntologyGraph({ nodes, edges }: Props) {
           // Y stays untouched - guarantees no pitch change.
           cam.lookAt(target);
           ctrls?.update?.();
+          updateHud();
         };
         const onMouseUp = (ev: MouseEvent) => {
           if (ev.button === 1) midActive = false;
@@ -1097,6 +1291,7 @@ export function OntologyGraph({ nodes, edges }: Props) {
           window.removeEventListener("mousemove", onMouseMove);
           window.removeEventListener("mouseup", onMouseUp);
           mount.removeEventListener("auxclick", onAuxDown);
+          ctrls?.removeEventListener?.("change", updateHud);
         };
       } catch {
         /* ignore */
@@ -1112,7 +1307,7 @@ export function OntologyGraph({ nodes, edges }: Props) {
         try {
           Graph.cameraPosition(
             { x: INITIAL_CAM[0], y: INITIAL_CAM[1], z: INITIAL_CAM[2] },
-            { x: 0, y: 0, z: 0 },
+            { x: 0, y: CAM_TARGET_Y, z: 0 },
             600,
           );
         } catch {
@@ -1137,7 +1332,7 @@ export function OntologyGraph({ nodes, edges }: Props) {
         if (!mountRef.current || !instanceRef.current) return;
         instanceRef.current
           .width(mountRef.current.clientWidth || 720)
-          .height(height);
+          .height(mountRef.current.clientHeight || 720);
       });
       ro.observe(mount);
       (Graph as any).__ro = ro;
@@ -1207,6 +1402,7 @@ export function OntologyGraph({ nodes, edges }: Props) {
   return (
     <div class="ontology-orbit">
       <div class="ontology-orbit-canvas-wrap">
+        <div class="ontology-orbit-stage">
         <div ref={mountRef} class="ontology-webgl-mount" />
         {isLoading ? (
           <div class="ontology-webgl-overlay">
@@ -1246,6 +1442,8 @@ export function OntologyGraph({ nodes, edges }: Props) {
             <span>Reset</span>
           </button>
         ) : null}
+          <div ref={hudRef} class="ontology-orbit-hud" aria-hidden="true" />
+        </div>
         <div class="ontology-orbit-legend" aria-hidden="true">
           {Object.values(CLUSTERS)
             .filter(
@@ -1423,14 +1621,20 @@ function rowYOffset(
 
 /**
  * World-space anchor point for the start of an outgoing link.
- * Placed at the LEFT edge of the source card so ALL link endpoints
- * (outgoing + incoming) live on the same side of every card - that
- * way the arrows visibly sprout from the text rows that name them,
- * consistent across the whole graph.
+ * ``side`` picks which vertical edge the link leaves from: -1 = left,
+ * +1 = right. updateLinkEndpoints chooses the side that faces the
+ * target card so the line flows DIRECTLY toward its destination
+ * instead of every link bundling onto the left edge and arcing back.
+ * The vertical offset still lands on the named text row so the arrow
+ * visibly sprouts from the row that labels it.
  */
-function anchorForOutgoing(node: any, outIndex: number): { x: number; y: number; z: number } {
+function anchorForOutgoing(
+  node: any,
+  outIndex: number,
+  side: -1 | 1 = -1,
+): { x: number; y: number; z: number } {
   const scale = nodeSpriteScale(node);
-  const xOff = -(nodeW(node) * scale) / 2;
+  const xOff = (side * (nodeW(node) * scale)) / 2;
   const yOff = rowYOffset(node, "out", outIndex);
   return {
     x: (node.x ?? 0) + xOff,
@@ -1440,16 +1644,17 @@ function anchorForOutgoing(node: any, outIndex: number): { x: number; y: number;
 }
 
 /**
- * World-space anchor point for the end of an incoming link.
- * Placed at the LEFT edge of the target card so it matches the
- * source anchor policy above.
+ * World-space anchor point for the end of an incoming link. ``side``
+ * mirrors anchorForOutgoing: the target receives the line on the edge
+ * that faces the source card (-1 = left, +1 = right).
  */
 function anchorForIncoming(
   node: any,
   inIndex: number,
+  side: -1 | 1 = -1,
 ): { x: number; y: number; z: number } {
   const scale = nodeSpriteScale(node);
-  const xOff = -(nodeW(node) * scale) / 2;
+  const xOff = (side * (nodeW(node) * scale)) / 2;
   const yOff = rowYOffset(node, "in", inIndex);
   return {
     x: (node.x ?? 0) + xOff,
@@ -1486,6 +1691,8 @@ function drawNodeChip(
     readonly isDark: boolean;
     readonly hoverId: string | null;
     readonly neighbourhood: ReadonlyMap<string, Set<string>>;
+    /** Card->light unit vector in canvas space (single global light). */
+    readonly lightDir?: { readonly x: number; readonly y: number };
   },
 ) {
   // Card dims come from the node datum so each card can be a
@@ -1560,33 +1767,60 @@ function drawNodeChip(
     tint.addColorStop(0, withAlpha(node.color, 0.2));
     tint.addColorStop(1, withAlpha(node.color, 0.38));
   } else {
-    tint.addColorStop(0, withAlpha(node.color, 0.16));
-    tint.addColorStop(1, withAlpha(node.color, 0.34));
+    tint.addColorStop(0, withAlpha(node.color, 0.38));
+    tint.addColorStop(1, withAlpha(node.color, 0.58));
   }
   ctx.fillStyle = tint;
   roundedRect(ctx, x, y, w, h, 12);
   ctx.fill();
-  // 3) Glass top-highlight - a faint bright line just inside the top
-  //    edge sells the reflective glass surface.
+  // 3) Glass gloss - a SINGLE global light source. The specular is a
+  //    directional gradient pointing at one fixed light (lightDir is
+  //    computed per card from its world position), so the highlights
+  //    across all cards line up into one coherent reflection rather
+  //    than an identical per-card stamp.
+  const ld = opts.lightDir ?? { x: -0.6, y: -0.78 };
   ctx.save();
   roundedRect(ctx, x, y, w, h, 12);
   ctx.clip();
-  ctx.strokeStyle = opts.isDark
-    ? "rgba(255,255,255,0.16)"
-    : "rgba(255,255,255,0.9)";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(x + 3, y + 1.5);
-  ctx.lineTo(x + w - 3, y + 1.5);
-  ctx.stroke();
+  const cxp = x + w / 2;
+  const cyp = y + h / 2;
+  const R = Math.max(w, h) * 0.78;
+  // 3a) Directional sheen - bright on the light-facing side, fading
+  //     across the slab.
+  const spec = ctx.createLinearGradient(
+    cxp + ld.x * R, cyp + ld.y * R,
+    cxp - ld.x * R, cyp - ld.y * R,
+  );
+  spec.addColorStop(0, "rgba(255,255,255,0.22)");
+  spec.addColorStop(0.3, "rgba(255,255,255,0.05)");
+  spec.addColorStop(0.62, "rgba(255,255,255,0)");
+  ctx.fillStyle = spec;
+  roundedRect(ctx, x, y, w, h, 12);
+  ctx.fill();
+  // 3b) Glint - a soft hot-spot near the light-facing corner.
+  const hx = cxp + ld.x * (w * 0.44);
+  const hy = cyp + ld.y * (h * 0.44);
+  const hot = ctx.createRadialGradient(hx, hy, 0, hx, hy, Math.min(w, h) * 0.55);
+  hot.addColorStop(0, "rgba(255,255,255,0.18)");
+  hot.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = hot;
+  roundedRect(ctx, x, y, w, h, 12);
+  ctx.fill();
+  // 3c) Bottom underglow - a soft inner shadow that gives the slab depth.
+  const underglow = ctx.createLinearGradient(0, y + h * 0.65, 0, y + h);
+  underglow.addColorStop(0, "rgba(0,0,0,0)");
+  underglow.addColorStop(1, opts.isDark ? "rgba(0,0,0,0.3)" : "rgba(30,40,60,0.12)");
+  ctx.fillStyle = underglow;
+  roundedRect(ctx, x, y, w, h, 12);
+  ctx.fill();
   ctx.restore();
 
   // Border - strong metallic edge so cards separate cleanly against
   // the link ribbon behind them.
   ctx.lineWidth = isHover ? 2.6 : isBack ? 1.4 : 1.8;
   ctx.strokeStyle = isBack
-    ? withAlpha(node.color, 0.85)
-    : withAlpha(node.color, opts.isDark ? 1 : 0.95);
+    ? (opts.isDark ? withAlpha(node.color, 0.85) : shade(node.color, 0.72))
+    : (opts.isDark ? withAlpha(node.color, 1) : shade(node.color, 0.62));
   if (isOrphan) ctx.setLineDash([3, 3]);
   roundedRect(ctx, x, y, w, h, 12);
   ctx.stroke();
@@ -1596,11 +1830,27 @@ function drawNodeChip(
   // instantly and the card gains a strong top-down hierarchy.
   const headerH = HEADER_H;
   const header = ctx.createLinearGradient(0, y, 0, y + headerH);
-  header.addColorStop(0, withAlpha(node.color, opts.isDark ? 0.98 : 0.95));
-  header.addColorStop(1, withAlpha(node.color, opts.isDark ? 0.72 : 0.74));
+  // Light mode uses a darkened ink of the hue so the white title clears
+  // WCAG AA 4.5:1 (raw mid-tone hues gave white ~3.6:1). Dark mode keeps
+  // the vivid strip since white already reads on the deep panel.
+  header.addColorStop(0, opts.isDark ? withAlpha(node.color, 0.98) : shade(node.color, 0.82));
+  header.addColorStop(1, opts.isDark ? withAlpha(node.color, 0.72) : shade(node.color, 0.6));
   ctx.fillStyle = header;
   roundedRectTop(ctx, x, y, w, headerH, 12);
   ctx.fill();
+  // Header gloss - a bright band across the top of the strip so the
+  //  header reads like a curved glass button catching the light.
+  ctx.save();
+  roundedRectTop(ctx, x, y, w, headerH, 12);
+  ctx.clip();
+  const headerGloss = ctx.createLinearGradient(0, y, 0, y + headerH);
+  headerGloss.addColorStop(0, "rgba(255,255,255,0.32)");
+  headerGloss.addColorStop(0.5, "rgba(255,255,255,0.06)");
+  headerGloss.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = headerGloss;
+  roundedRectTop(ctx, x, y, w, headerH, 12);
+  ctx.fill();
+  ctx.restore();
 
   // Header title. White on the saturated header strip for maximum
   // contrast, with a soft shadow so it stays legible on any hue.
@@ -1626,6 +1876,10 @@ function drawNodeChip(
   const rowItemFont =
     "500 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
   const contentMax = w - bodyPadX * 2;
+  // Accessible accent: a darkened ink of the hue for the row icons and
+  // count labels on a light card. The raw hue sat on a same-hue body at
+  // ~3:1; shading it down to ~0.5 lifts small-text contrast past AA.
+  const accentInk = opts.isDark ? node.color : shade(node.color, 0.5);
 
   const sections: readonly [string, string, readonly string[]][] = [
     ["P", `${node.propertyCount} properties`, node.properties],
@@ -1656,11 +1910,11 @@ function drawNodeChip(
     }
     // Row header: coloured icon + count label.
     ctx.font = rowLabelFont;
-    ctx.fillStyle = node.color;
+    ctx.fillStyle = accentInk;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     ctx.fillText(icon, x + bodyPadX, cursorY);
-    ctx.fillStyle = opts.mutedColor;
+    ctx.fillStyle = opts.isDark ? opts.mutedColor : accentInk;
     ctx.fillText(header, x + bodyPadX + 14, cursorY);
 
     // Row items: shown up to MAX_ITEMS_PER_SECTION, then a "+N more"
@@ -2061,6 +2315,26 @@ function withAlpha(hex: string, alpha: number): string {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * Darken (f < 1, toward black) or lighten (f > 1, toward white) a
+ * ``#rrggbb`` colour. Used to derive an accessible "ink" shade of a
+ * cluster hue for text/icons/borders on a light card, so coloured
+ * accents clear the WCAG AA contrast bar instead of ghosting into the
+ * same-hue body.
+ */
+function shade(hex: string, f: number): string {
+  if (!hex.startsWith("#") || hex.length !== 7) return hex;
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  if (f <= 1) {
+    return `rgb(${clamp(r * f)}, ${clamp(g * f)}, ${clamp(b * f)})`;
+  }
+  const t = f - 1;
+  return `rgb(${clamp(r + (255 - r) * t)}, ${clamp(g + (255 - g) * t)}, ${clamp(b + (255 - b) * t)})`;
 }
 
 function initialFocus(

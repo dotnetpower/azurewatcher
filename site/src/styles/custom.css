@@ -245,6 +245,10 @@ html[data-has-hero] .sl-markdown-content h2 {
   font-size: clamp(1.7rem, 3vw, 2.35rem);
   line-height: 1.15;
   letter-spacing: -0.01em;
+  /* Legibility over the nebula comes from a layered halo on the glyphs,
+     not a backing plate - keeps the heading edge from looking like a box. */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 2px 14px rgba(4, 7, 15, 0.7),
+    0 0 30px rgba(5, 9, 20, 0.5);
 }
 html[data-has-hero] .sl-markdown-content strong {
   color: #ffffff;
@@ -267,7 +271,13 @@ html[data-has-hero] .hero-note {
   max-width: 50rem;
   margin-top: 0;
   margin-bottom: 1.75rem;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+  /*
+   * No panel behind the standfirst - a layered dark halo hugs the glyphs
+   * so the sentence lifts off the nebula without a box that would outgrow
+   * the surrounding cards.
+   */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 2px 10px rgba(0, 0, 0, 0.6),
+    0 0 24px rgba(5, 9, 20, 0.55);
 }
 /*
  * Trust bar: a row of credibility pills placed directly under the hero
@@ -474,5 +484,277 @@ header.header site-search,
 header.header site-search button {
   width: 100%;
   max-width: none;
+}
+
+/*
+ * Lifecycle story arc - the landing's narrative spine.
+ *
+ * Three acts follow one workload from the first commit to production:
+ *   I  - the org reviews every change and nudges you in your channel
+ *   II - the dev-to-ops handoff (ORR) reviews itself and asks only for
+ *        an approval
+ *   III- the same org runs the control loop in production
+ *
+ * Each act is an `.act` block with a numbered kicker, a title, a lead
+ * paragraph, and one illustrative card (a channel notification for act I,
+ * a ReadinessReport for act II). The cards are static mockups - never live
+ * data - styled to read like the real Teams/Slack message and the real
+ * handoff report. The ScrollReveal component assembles them on scroll.
+ */
+.story-arc {
+  display: grid;
+  gap: 2.75rem;
+  margin: 1.5rem 0 2.5rem;
+}
+.act {
+  display: grid;
+  gap: 1.1rem;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+@media (min-width: 50rem) {
+  .act {
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 2rem;
+    align-items: center;
+  }
+  /* Alternate the card to the left on the even act for a woven rhythm. */
+  .act.act--flip .act-copy {
+    order: 2;
+  }
+}
+.act-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7cc4ff;
+}
+.act-kicker .act-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 170, 255, 0.45);
+  background: rgba(10, 16, 30, 0.6);
+  color: #dbe9ff;
+  font-size: 0.8rem;
+}
+.act-title {
+  margin: 0.5rem 0 0;
+  font-size: 1.55rem;
+  line-height: 1.2;
+  color: #f0f5ff;
+}
+.act-lead {
+  margin: 0.65rem 0 0;
+  color: #c4d2ec;
+  font-size: 1.02rem;
+  line-height: 1.6;
+}
+.act-lead strong {
+  color: #eaf2ff;
+}
+.act-lead code {
+  color: #9fd2ff;
+}
+
+/* Shared glass panel for the act mockup cards. */
+.channel-card,
+.handoff-card {
+  border-radius: 0.9rem;
+  border: 1px solid rgba(120, 170, 255, 0.22);
+  background: rgba(10, 16, 30, 0.62);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.4);
+  padding: 1.15rem 1.25rem;
+}
+
+/* Act I - a Teams / Slack style proactive notification. */
+.channel-card .cc-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.cc-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  color: #eaf2ff;
+}
+.cc-agent::before {
+  content: "";
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #35b4e3, #7cc4ff);
+  box-shadow: 0 0 10px rgba(124, 196, 255, 0.7);
+}
+.cc-meta {
+  font-size: 0.78rem;
+  color: #8ea3c6;
+}
+.cc-body {
+  margin: 0.7rem 0 0;
+  color: #d6e2f7;
+  line-height: 1.55;
+}
+.cc-body code {
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.3rem;
+  background: rgba(120, 170, 255, 0.12);
+  color: #9fd2ff;
+  font-size: 0.9em;
+}
+.cc-chips,
+.hc-agents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+}
+.chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.chip--sec {
+  color: #ffd7a6;
+  background: rgba(255, 176, 87, 0.12);
+  border-color: rgba(255, 176, 87, 0.35);
+}
+.chip--cost {
+  color: #b7f0c8;
+  background: rgba(88, 214, 141, 0.12);
+  border-color: rgba(88, 214, 141, 0.35);
+}
+.chip--rel {
+  color: #b8d4ff;
+  background: rgba(120, 170, 255, 0.12);
+  border-color: rgba(120, 170, 255, 0.35);
+}
+.cc-foot {
+  margin: 0.8rem 0 0;
+  font-size: 0.82rem;
+  color: #8ea3c6;
+}
+
+/* Act II - the Operational Readiness Review handoff card. */
+.handoff-card .hc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.hc-title {
+  font-weight: 700;
+  color: #eaf2ff;
+}
+.verdict {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.24rem 0.66rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: var(--sl-font-mono, monospace);
+}
+.verdict--clear {
+  color: #b7f0c8;
+  background: rgba(88, 214, 141, 0.14);
+  border-color: rgba(88, 214, 141, 0.4);
+}
+.verdict--needs {
+  color: #ffe0a3;
+  background: rgba(255, 191, 105, 0.14);
+  border-color: rgba(255, 191, 105, 0.4);
+}
+.verdict--blocked {
+  color: #ffb4b4;
+  background: rgba(255, 120, 120, 0.14);
+  border-color: rgba(255, 120, 120, 0.4);
+}
+.hc-dims {
+  list-style: none;
+  margin: 0.95rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.hc-dims .dim {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(120, 170, 255, 0.14);
+  background: rgba(6, 11, 22, 0.5);
+}
+.dim-name {
+  font-family: var(--sl-font-mono, monospace);
+  font-size: 0.85rem;
+  color: #cdddf6;
+}
+.dim-mark {
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+.dim.ok .dim-mark {
+  color: #7fe0a0;
+}
+.dim.warn .dim-mark {
+  color: #ffcf87;
+}
+.dim.warn {
+  border-color: rgba(255, 191, 105, 0.3);
+}
+.agent-chip {
+  font-size: 0.74rem;
+  color: #c4d6f5;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 170, 255, 0.25);
+  background: rgba(10, 16, 30, 0.55);
+}
+.agent-chip strong {
+  color: #7cc4ff;
+  font-weight: 700;
+}
+.hc-action {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(120, 170, 255, 0.14);
+}
+.hc-approve {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: #ffffff;
+  padding: 0.5rem 1.05rem;
+  border-radius: 0.55rem;
+  background: linear-gradient(120deg, #0078d4, #35b4e3);
+  box-shadow: 0 6px 16px rgba(0, 120, 212, 0.35);
+}
+.hc-note {
+  font-size: 0.8rem;
+  color: #8ea3c6;
 }
 

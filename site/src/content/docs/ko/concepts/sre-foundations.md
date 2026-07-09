@@ -1,0 +1,1 @@
+../../../../../../docs/user-guide/concepts/sre-foundations-ko.md

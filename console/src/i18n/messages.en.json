@@ -53,11 +53,11 @@
       "promotionGates": "Per-ActionType readiness for shadow → enforce",
       "dashboard": "Healthy, risk, and cost, sourced from the audit log",
       "rules": "Every policy in the rule catalog, faceted",
-      "workflowBuilder": "Map a custom business process onto ontology ActionTypes"
+      "workflowBuilder": "Browse built-in workflows or author a new ontology-mapped one"
     }
   },
   "workflowBuilder": {
-    "subtitle": "Author a custom business process by mapping ordered steps onto ontology ActionTypes. Validation and preview only - the console does not commit; copy the YAML into a remediation PR."
+    "subtitle": "Browse the built-in workflows read-only, or start a new one. A workflow is an ordered list of steps mapped onto ontology ActionTypes. Authoring validates and previews only - the console does not commit; copy the YAML into a remediation PR."
   },
   "overview": {
     "subtitle": "Healthy, risk, and cost at a glance - from the append-only audit log. Refreshes on reload; no polling.",

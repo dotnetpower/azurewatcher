@@ -1,1 +1,0 @@
-../../../../../docs/user-guide/concepts/deterministic-first-ko.md

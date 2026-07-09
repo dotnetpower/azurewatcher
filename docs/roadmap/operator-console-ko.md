@@ -2,7 +2,7 @@
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
 translation_source_sha: a3dd5c68b2cf9b7ee68cb6ec71ce139118ee928c
-translation_revised: 2026-07-09
+translation_revised: 2026-07-10
 ---
 
 # 오퍼레이터 콘솔 (Conversational)

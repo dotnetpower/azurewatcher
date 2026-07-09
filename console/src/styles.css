@@ -168,6 +168,13 @@ a:hover {
   background: var(--bg-elevated);
   z-index: 25;
 }
+/* While the command deck overlay (z-index 80) is open, lift the persistent
+   rail above it so its navigation popover - which opens into the overlay
+   region - stacks in front of the chat and stays clickable. Scoped to the
+   open state so the rule-detail drawer scrim still dims the rail normally. */
+body.deck-open .left-rail {
+  z-index: 90;
+}
 .left-rail-list {
   list-style: none;
   margin: 0;
@@ -1785,6 +1792,20 @@ pre {
 .small { font-size: 12px; }
 .btn-danger { color: #b42318; border-color: color-mix(in oklab, #d92d20 40%, var(--border)); }
 .btn-danger:hover:not(:disabled) { background: color-mix(in oklab, #d92d20 12%, transparent); }
+.callout {
+  border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: 6px; padding: 10px 14px;
+  background: color-mix(in oklab, var(--accent) 6%, transparent);
+  font-size: 13px; line-height: 1.5;
+}
+.section-subtitle { font-size: 13px; font-weight: 600; margin: 12px 0 6px; }
+.prop-grid {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+.prop { display: flex; flex-direction: column; gap: 3px; }
+.prop-label { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--fg-muted); }
+
 
 
 /* =========================================================================

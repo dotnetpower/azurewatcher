@@ -100,13 +100,13 @@ _AUTO = _action(
 _ACTION_TYPES = {a.name: a for a in (_GATED, _AUTO)}
 
 
-def _workflow() -> Workflow:
+def _workflow(*, default_mode: Mode = Mode.SHADOW) -> Workflow:
     return Workflow(
         schema_version="1.0.0",
         name="sample-flow",
         version="1.0.0",
         trigger=WorkflowTrigger(kind=WorkflowTriggerKind.SIGNAL, signal_type="object.drift"),
-        default_mode=Mode.SHADOW,
+        default_mode=default_mode,
         promotion_gate=PromotionGate(
             min_shadow_days=14, min_samples=100, min_accuracy=0.95, max_policy_escapes=0
         ),
@@ -159,6 +159,28 @@ async def test_audit_trail_shape() -> None:
         entry = row["entry"]
         if entry["action_kind"].startswith("workflow."):
             assert entry["mode"] == "shadow"
+
+
+async def test_declared_mode_recorded_even_when_enforce() -> None:
+    # An enforce-declared workflow still runs in shadow here (the executor
+    # structurally cannot mutate), but the declared mode is surfaced in the
+    # process-plan audit so a silent "declared enforce, ran shadow" is visible
+    # to a reviewer rather than masked by the hardcoded run mode.
+    audit = InMemoryStateStore()
+    await _orchestrator(audit).run(
+        _workflow(default_mode=Mode.ENFORCE),
+        target_resource_id="res-1",
+        trigger_ts=_TRIGGER_TS,
+    )
+    plan_entries = [
+        row["entry"]
+        for row in audit.audit_entries
+        if row["entry"]["action_kind"] == "workflow.process-plan"
+    ]
+    assert len(plan_entries) == 1
+    assert plan_entries[0]["declared_mode"] == "enforce"
+    # The run itself is still shadow - no mutation path exists.
+    assert plan_entries[0]["mode"] == "shadow"
 
 
 async def test_gated_step_carries_approver_assignment_into_audit() -> None:

@@ -696,8 +696,9 @@ class Workflow(_Base):
     Ordered list of :class:`WorkflowStep`, each referencing one ontology
     ActionType, plus a trigger, a promotion gate, and a default mode.
     Structural invariants (unique step ids; every ``on_failure`` target
-    exists) are enforced here; cross-references to the ActionType and rule
-    catalogs are enforced by the loader in
+    exists and appears later in the list, so a fallback never re-runs an
+    already-applied step) are enforced here; cross-references to the
+    ActionType and rule catalogs are enforced by the loader in
     :mod:`fdai.rule_catalog.schema.workflow`.
     """
 
@@ -718,17 +719,25 @@ class Workflow(_Base):
             if step.id in seen:
                 raise ValueError(f"duplicate step id {step.id!r}")
             seen.add(step.id)
-        for step in self.steps:
-            if step.on_failure is not None:
-                if step.on_failure == step.id:
-                    raise ValueError(
-                        f"step {step.id!r} on_failure points at itself; "
-                        "a step cannot be its own failure fallback"
-                    )
-                if step.on_failure not in seen:
-                    raise ValueError(
-                        f"step {step.id!r} on_failure -> unknown step {step.on_failure!r}"
-                    )
+        index_by_id = {step.id: i for i, step in enumerate(self.steps)}
+        for i, step in enumerate(self.steps):
+            if step.on_failure is None:
+                continue
+            if step.on_failure == step.id:
+                raise ValueError(
+                    f"step {step.id!r} on_failure points at itself; "
+                    "a step cannot be its own failure fallback"
+                )
+            if step.on_failure not in seen:
+                raise ValueError(
+                    f"step {step.id!r} on_failure -> unknown step {step.on_failure!r}"
+                )
+            if index_by_id[step.on_failure] <= i:
+                raise ValueError(
+                    f"step {step.id!r} on_failure -> {step.on_failure!r} must appear "
+                    "later in the workflow; a backward fallback would re-run an "
+                    "already-applied step"
+                )
         return self
 
 

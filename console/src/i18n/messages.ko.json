@@ -49,11 +49,11 @@
       "pantheon": "15개의 명명된 자율 에이전트 (판테온)",
       "dashboard": "감사 로그 기반 건강도 / 위험 / 비용",
       "rules": "규칙 카탈로그의 모든 정책, 패싯별",
-      "workflowBuilder": "사용자 정의 비즈니스 프로세스를 온톨로지 ActionType에 매핑"
+      "workflowBuilder": "빌트인 워크플로우를 둘러보거나 온톨로지에 매핑된 새 워크플로우를 작성"
     }
   },
   "workflowBuilder": {
-    "subtitle": "순서가 있는 단계를 온톨로지 ActionType에 매핑해 사용자 정의 비즈니스 프로세스를 작성합니다. 검증과 미리보기 전용 - 콘솔은 커밋하지 않으며, YAML을 remediation PR로 복사하세요."
+    "subtitle": "빌트인 워크플로우를 read-only로 둘러보거나 새로 시작하세요. 워크플로우는 온톨로지 ActionType에 매핑된 순서 있는 단계 목록입니다. 작성은 검증과 미리보기 전용 - 콘솔은 커밋하지 않으며 YAML을 remediation PR로 복사합니다."
   },
   "overview": {
     "subtitle": "감사 로그 기반 건강도 / 위험 / 비용 요약. 새로고침 시 갱신, 폴링 없음.",

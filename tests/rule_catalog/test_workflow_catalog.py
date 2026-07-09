@@ -223,6 +223,23 @@ def test_self_referential_on_failure_fails() -> None:
     assert "points at itself" in joined
 
 
+def test_backward_on_failure_fails() -> None:
+    # A fallback that points at an EARLIER step would make the runner re-run an
+    # already-applied step (double execution once the enforce path lands); the
+    # forward-only invariant rejects it at load.
+    raw = _base_mapping()
+    raw["steps"] = [
+        {"id": "first", "action_type_ref": "remediate.tag-add"},
+        {"id": "second", "action_type_ref": "remediate.tag-add", "on_failure": "first"},
+    ]
+    with pytest.raises(WorkflowCatalogError) as info:
+        load_workflow_from_mapping(
+            raw, schema_registry=_registry(), action_type_names={"remediate.tag-add"}
+        )
+    joined = " ".join(i.message for i in info.value.issues).lower()
+    assert "must appear later" in joined
+
+
 def test_signal_trigger_requires_signal_type() -> None:
     raw = _base_mapping()
     raw["trigger"] = {"kind": "signal"}

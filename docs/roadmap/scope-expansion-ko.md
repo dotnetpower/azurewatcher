@@ -2,7 +2,7 @@
 title: 스코프 개선 및 구조적 갭
 translation_of: scope-expansion.md
 translation_source_sha: 65958ad6c61abc2e744d6434d6bffc05a75358a3
-translation_revised: 2026-07-09
+translation_revised: 2026-07-10
 ---
 # 스코프 개선 및 구조적 갭
 

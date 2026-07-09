@@ -152,12 +152,25 @@ CAPABILITY_QUERIES: list[str] = [
     "\ub0b4\uac00 \ubb50 \ud560 \uc218 \uc788\uc5b4?",  # "what can I do?"
     "\ub0b4 \uad8c\ud55c\uc774 \ubb54\uc9c0?",  # "what are my permissions?"
     "\ub0b4 \uc5ed\ud560\uc774 \ubb54\uc57c?",  # "what is my role?"
+    # Role-identity questions ("who is the Owner / admin", "who can approve")
+    # also route to the capability block - they ask about the RBAC role model.
+    "who is the owner?",
+    "who can approve items?",
+    "who can trigger the kill-switch?",
+    "Owner\uac00 \ub204\uad6c\uc57c?",  # "who is the Owner?"
+    "\uc2dc\uc2a4\ud15c \uad00\ub9ac\uc790\ub294 \ub204\uad6c\uc57c?",  # "who is the system admin?"
+    "approver\ub294 \ub204\uad6c\uc778\uac00\uc694?",  # "who is the approver?"
 ]
 
 CAPABILITY_NON_QUERIES: list[str] = [
     "how many rules are active?",
     "what is the shadow share?",
     "explain T2",
+    # Audit-style "who did X" (past tense) is a data question, not a role
+    # question - it must stay lean (no capability block).
+    "who approved this action?",
+    # "who approved this action?" (KO)
+    "\ub204\uac00 \uc774 \uc561\uc158\uc744 \uc2b9\uc778\ud588\uc5b4?",
 ]
 
 
@@ -179,6 +192,17 @@ def test_capabilities_can_reference_user_roles_in_snapshot() -> None:
     assert _CAPABILITY_MARKER in system
     # The _user block is part of the serialised snapshot the narrator reads.
     assert "Approver" in system
+
+
+def test_role_identity_query_gets_membership_guidance() -> None:
+    # A "who is the Owner" question injects the capability block, which tells
+    # the narrator that membership lives in the tenant's Entra security groups
+    # (so it explains the role instead of deflecting or naming people).
+    system = _system_of(_build_messages("who is the owner?", {"routeId": "live"}, []))
+    assert _CAPABILITY_MARKER in system
+    assert "Entra" in system
+    assert "aw-owners" in system
+    assert "NEVER invent or name specific people" in system
 
 
 # Capability parity: the on-demand glossary must still carry every core term the

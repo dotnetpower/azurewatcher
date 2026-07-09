@@ -22,11 +22,18 @@ import {
   type ActionTypePaletteEntry,
   type ActionTypePaletteResponse,
   type ValidateResponse,
+  type WorkflowCatalogEntry,
+  type WorkflowCatalogResponse,
   validateWorkflowDraft,
 } from "../workflow/validate";
 
 interface Props {
   readonly client: ReadApiClient;
+}
+
+interface CombinedData {
+  readonly palette: readonly ActionTypePaletteEntry[];
+  readonly workflows: readonly WorkflowCatalogEntry[];
 }
 
 interface DraftStep {
@@ -110,15 +117,23 @@ function buildDraft(form: FormState): Record<string, unknown> {
 }
 
 export function WorkflowBuilderRoute({ client }: Props) {
-  const [state, setState] = useState<AsyncState<ActionTypePaletteResponse>>({ status: "loading" });
+  const [state, setState] = useState<AsyncState<CombinedData>>({ status: "loading" });
 
   useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
     (async () => {
       try {
-        const data = await client.panel<ActionTypePaletteResponse>("/workflows/action-types");
-        if (!cancelled) setState({ status: "ready", data });
+        const [palette, catalog] = await Promise.all([
+          client.panel<ActionTypePaletteResponse>("/workflows/action-types"),
+          client.panel<WorkflowCatalogResponse>("/workflows/catalog"),
+        ]);
+        if (!cancelled) {
+          setState({
+            status: "ready",
+            data: { palette: palette.action_types, workflows: catalog.workflows },
+          });
+        }
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
@@ -126,8 +141,8 @@ export function WorkflowBuilderRoute({ client }: Props) {
             setState({
               status: "unavailable",
               message:
-                "The workflow authoring route is not wired on this deployment. " +
-                "Set ReadApiConfig.workflow_authoring in the composition root to enable it.",
+                "The workflow authoring routes are not wired on this deployment. " +
+                "Set ReadApiConfig.workflow_authoring in the composition root to enable them.",
             });
           } else {
             setState({ status: "error", message });
@@ -144,33 +159,214 @@ export function WorkflowBuilderRoute({ client }: Props) {
     <div class="stack">
       <PageHeader title={t("route.workflowBuilder")} subtitle={t("workflowBuilder.subtitle")} />
       <AsyncBoundary state={state} resourceLabel="workflow builder">
-        {(data) => <BuilderBody palette={data.action_types} />}
+        {(data) => <WorkflowShell data={data} />}
       </AsyncBoundary>
     </div>
   );
 }
 
-function BuilderBody({ palette }: { readonly palette: readonly ActionTypePaletteEntry[] }) {
-  const [form, setForm] = useState<FormState>(INITIAL_FORM);
-  const [nextKey, setNextKey] = useState(1);
-  const [result, setResult] = useState<ValidateResponse | null>(null);
-  const [validating, setValidating] = useState(false);
-  const [transportError, setTransportError] = useState<string | null>(null);
+/** Top-level view switch: the read-only built-in list, or the new-workflow
+ * builder. Authoring is deliberately gated behind an explicit "New
+ * workflow" action so the default surface is safe inspection. */
+function WorkflowShell({ data }: { readonly data: CombinedData }) {
+  const [mode, setMode] = useState<"list" | "new">("list");
 
   usePublishViewContext(
     () => ({
       routeId: "workflow-builder",
       routeLabel: "Workflow builder",
-      headline: `${palette.length} ActionTypes - ${form.steps.length} steps drafted`,
+      headline: `${data.workflows.length} built-in workflows - ${data.palette.length} ActionTypes`,
       capturedAt: new Date().toISOString(),
       facts: [
-        { key: "palette_size", value: palette.length, group: "workflow" },
-        { key: "step_count", value: form.steps.length, group: "workflow" },
-        { key: "workflow_name", value: form.name || "(unnamed)", group: "workflow" },
+        { key: "built_in_count", value: data.workflows.length, group: "workflow" },
+        { key: "palette_size", value: data.palette.length, group: "workflow" },
+        { key: "mode", value: mode, group: "workflow" },
       ],
+      records: {
+        workflows: data.workflows.map((w) => ({
+          name: w.name,
+          steps: String(w.step_count),
+          mode: w.default_mode,
+        })),
+      },
     }),
-    [palette.length, form.steps.length, form.name],
+    [data.workflows, data.palette.length, mode],
   );
+
+  if (mode === "new") {
+    return <BuilderBody palette={data.palette} onBack={() => setMode("list")} />;
+  }
+  return <BuiltInList workflows={data.workflows} onNew={() => setMode("new")} />;
+}
+
+/** Read-only list of shipped workflows + a details drawer per row. */
+function BuiltInList({
+  workflows,
+  onNew,
+}: {
+  readonly workflows: readonly WorkflowCatalogEntry[];
+  readonly onNew: () => void;
+}) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const current = workflows.find((w) => w.name === selected) ?? null;
+
+  return (
+    <div class="stack">
+      <div class="callout">
+        <strong>What is this?</strong> A workflow is a built-in business process - an ordered
+        list of steps, each one mapped to a governed ontology <code>ActionType</code>. The same
+        trust-routing control loop dispatches every step, so each step keeps its safety
+        invariants (stop-condition, rollback, blast-radius cap, audit). Browse the shipped
+        workflows below read-only, or start a new one.
+      </div>
+
+      <section class="stack-section">
+        <div class="section-header">
+          <h3 class="section-title">Built-in workflows ({workflows.length})</h3>
+          <button type="button" class="btn" onClick={onNew}>
+            + New workflow
+          </button>
+        </div>
+        {workflows.length === 0 ? (
+          <p class="muted small">No built-in workflows are served on this deployment.</p>
+        ) : (
+          <div class="scroll">
+            <table class="data-table data-table-clickable">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Trigger</th>
+                  <th>Steps</th>
+                  <th>Mode</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {workflows.map((w) => (
+                  <tr
+                    key={w.name}
+                    class={w.name === selected ? "row-active" : ""}
+                    onClick={() => setSelected(w.name === selected ? null : w.name)}
+                    style="cursor: pointer"
+                  >
+                    <td class="mono">{w.name}</td>
+                    <td class="mono muted">
+                      {w.trigger.kind === "signal" ? w.trigger.signal_type : w.trigger.schedule}
+                    </td>
+                    <td>{w.step_count}</td>
+                    <td>
+                      <span
+                        class={w.default_mode === "enforce" ? "badge enforce" : "badge shadow"}
+                      >
+                        {w.default_mode}
+                      </span>
+                    </td>
+                    <td class="chevron-col">
+                      <span class="row-chevron">{w.name === selected ? "▾" : "▸"}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {current ? <WorkflowDetail workflow={current} /> : null}
+    </div>
+  );
+}
+
+/** Read-only detail: property table + steps + raw catalog YAML. */
+function WorkflowDetail({ workflow }: { readonly workflow: WorkflowCatalogEntry }) {
+  const gate = workflow.promotion_gate;
+  return (
+    <section class="stack-section">
+      <h3 class="section-title mono">{workflow.name}</h3>
+      {workflow.description ? <p class="muted">{workflow.description}</p> : null}
+      <div class="prop-grid">
+        <div class="prop">
+          <span class="prop-label">Version</span>
+          <span class="mono">{workflow.version}</span>
+        </div>
+        <div class="prop">
+          <span class="prop-label">Trigger</span>
+          <span class="mono">
+            {workflow.trigger.kind}:{" "}
+            {workflow.trigger.kind === "signal"
+              ? workflow.trigger.signal_type
+              : workflow.trigger.schedule}
+          </span>
+        </div>
+        <div class="prop">
+          <span class="prop-label">Default mode</span>
+          <span class={workflow.default_mode === "enforce" ? "badge enforce" : "badge shadow"}>
+            {workflow.default_mode}
+          </span>
+        </div>
+        <div class="prop">
+          <span class="prop-label">Promotion gate</span>
+          <span class="mono small">
+            {gate.min_shadow_days}d, {gate.min_samples} samples, acc &ge; {gate.min_accuracy},
+            escapes &le; {gate.max_policy_escapes}
+          </span>
+        </div>
+      </div>
+
+      <h4 class="section-subtitle">Steps ({workflow.steps.length})</h4>
+      <div class="scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Step id</th>
+              <th>ActionType</th>
+              <th>Guard</th>
+              <th>Compensated by</th>
+              <th>On failure</th>
+            </tr>
+          </thead>
+          <tbody>
+            {workflow.steps.map((s, i) => (
+              <tr key={s.id}>
+                <td>{i + 1}</td>
+                <td class="mono">{s.id}</td>
+                <td class="mono">{s.action_type_ref}</td>
+                <td class="mono muted">{s.guard_rule_ref ?? "-"}</td>
+                <td class="mono muted">{s.compensated_by ?? "-"}</td>
+                <td class="mono muted">{s.on_failure ?? "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {workflow.anti_scope ? (
+        <p class="muted small">
+          <strong>Anti-scope:</strong> {workflow.anti_scope}
+        </p>
+      ) : null}
+
+      <div class="code-actions">
+        <CopyButton text={workflow.yaml} label="Copy YAML" />
+      </div>
+      <pre class="mono scroll code-block">{workflow.yaml}</pre>
+    </section>
+  );
+}
+
+function BuilderBody({
+  palette,
+  onBack,
+}: {
+  readonly palette: readonly ActionTypePaletteEntry[];
+  readonly onBack: () => void;
+}) {
+  const [form, setForm] = useState<FormState>(INITIAL_FORM);
+  const [nextKey, setNextKey] = useState(1);
+  const [result, setResult] = useState<ValidateResponse | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [transportError, setTransportError] = useState<string | null>(null);
 
   const paletteByName = useMemo(
     () => new Map(palette.map((p) => [p.name, p])),
@@ -234,9 +430,30 @@ function BuilderBody({ palette }: { readonly palette: readonly ActionTypePalette
 
   return (
     <div class="stack">
+      <div class="section-header">
+        <button type="button" class="btn btn-small" onClick={onBack}>
+          ← Back to built-in workflows
+        </button>
+      </div>
+
+      <div class="callout">
+        <strong>New workflow.</strong> Fill in the fields below to draft a custom business
+        process. Each step maps to one governed ontology <code>ActionType</code>; you never write
+        raw mutation logic. When you validate, the server checks the draft against the same rules
+        the catalog loader uses and returns a ready-to-commit YAML. The console does not deploy it
+        - you copy the YAML into <code>rule-catalog/workflows/</code> and open a PR, so review and
+        rollback come for free. New workflows start in <span class="badge shadow">shadow</span>{" "}
+        mode (judge and log, no changes) until a separate promotion PR.
+      </div>
+
       {/* Metadata */}
       <section class="stack-section">
-        <h3 class="section-title">Workflow metadata</h3>
+        <h3 class="section-title">1. Workflow metadata</h3>
+        <p class="muted small">
+          <strong>Name</strong> is the stable id and audit key (lowercase dotted, e.g.{" "}
+          <code>cost-aware-remediation</code>). <strong>Description</strong> is a one-line summary
+          (&le; 200 chars).
+        </p>
         <div class="form-grid">
           <label class="form-field">
             <span class="form-label">Name (dotted id)</span>
@@ -268,7 +485,11 @@ function BuilderBody({ palette }: { readonly palette: readonly ActionTypePalette
 
       {/* Trigger */}
       <section class="stack-section">
-        <h3 class="section-title">Trigger</h3>
+        <h3 class="section-title">2. Trigger</h3>
+        <p class="muted small">
+          When the workflow runs. <strong>Signal</strong> starts it on an event type (e.g.{" "}
+          <code>object.drift</code>); <strong>schedule</strong> starts it on a cron expression.
+        </p>
         <div class="form-grid">
           <label class="form-field">
             <span class="form-label">Kind</span>
@@ -310,15 +531,18 @@ function BuilderBody({ palette }: { readonly palette: readonly ActionTypePalette
       {/* Steps */}
       <section class="stack-section">
         <div class="section-header">
-          <h3 class="section-title">Steps ({form.steps.length})</h3>
+          <h3 class="section-title">3. Steps ({form.steps.length})</h3>
           <button type="button" class="btn btn-small" onClick={addStep}>
             + Add step
           </button>
         </div>
         <p class="muted small">
-          Each step maps to one ontology ActionType; it inherits that action's four safety
-          invariants (stop-condition, rollback, blast-radius cap, audit). An
-          <code> on_failure</code> target must be a later step.
+          The ordered actions the workflow runs. Each step maps to one ontology ActionType (pick
+          from the dropdown) and inherits that action's four safety invariants (stop-condition,
+          rollback, blast-radius cap, audit). Optional per step: a <strong>guard</strong> rule
+          that gates it, a <strong>compensated by</strong> action that undoes it on rollback, and
+          an <strong>on failure</strong> fallback (must be a later step). The card shows the
+          selected action's safety posture.
         </p>
         <div class="stack">
           {form.steps.map((step, index) => {
@@ -449,11 +673,12 @@ function BuilderBody({ palette }: { readonly palette: readonly ActionTypePalette
 
       {/* Promotion gate */}
       <section class="stack-section">
-        <h3 class="section-title">Promotion gate</h3>
+        <h3 class="section-title">4. Promotion gate</h3>
         <p class="muted small">
-          New workflows ship in <span class="badge shadow">shadow</span> mode (judge and log,
-          no mutation). Promotion to enforce is a separate governance PR that measures this
-          gate.
+          The bar the workflow must clear before it can be promoted from{" "}
+          <span class="badge shadow">shadow</span> (judge and log, no mutation) to enforce. Promotion
+          is always a separate governance PR that measures these thresholds - the builder only
+          records them.
         </p>
         <div class="form-grid">
           <label class="form-field">
@@ -507,12 +732,21 @@ function BuilderBody({ palette }: { readonly palette: readonly ActionTypePalette
       {/* Validate + result */}
       <section class="stack-section">
         <div class="section-header">
-          <h3 class="section-title">Validate &amp; export</h3>
+          <h3 class="section-title">5. Validate &amp; export</h3>
           <button type="button" class="btn" onClick={onValidate} disabled={validating}>
             {validating ? "Validating..." : "Validate draft"}
           </button>
         </div>
-        {transportError ? <div class="empty error"><p class="mono">{transportError}</p></div> : null}
+        <p class="muted small">
+          Runs the draft through the server-side workflow validator. If anything is wrong you get a
+          list of exactly what and where; if it passes you get a canonical YAML to copy into a
+          <code> rule-catalog/workflows/&lt;name&gt;.yaml</code> file and open as a PR.
+        </p>
+        {transportError ? (
+          <div class="empty error">
+            <p class="mono">{transportError}</p>
+          </div>
+        ) : null}
         {result ? <ValidationResult result={result} name={form.name} /> : null}
       </section>
     </div>

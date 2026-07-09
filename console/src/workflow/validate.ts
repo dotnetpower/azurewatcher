@@ -40,6 +40,45 @@ export interface ActionTypePaletteResponse {
   readonly count: number;
 }
 
+/** One step of a built-in workflow (read-only catalog projection). */
+export interface WorkflowCatalogStep {
+  readonly id: string;
+  readonly action_type_ref: string;
+  readonly guard_rule_ref?: string;
+  readonly compensated_by?: string;
+  readonly on_failure?: string;
+  readonly params?: Record<string, string | number | boolean>;
+}
+
+/** One built-in workflow with its full read-only content. */
+export interface WorkflowCatalogEntry {
+  readonly schema_version: string;
+  readonly name: string;
+  readonly version: string;
+  readonly description?: string;
+  readonly trigger: {
+    readonly kind: string;
+    readonly signal_type?: string;
+    readonly schedule?: string;
+  };
+  readonly default_mode: string;
+  readonly promotion_gate: {
+    readonly min_shadow_days: number;
+    readonly min_samples: number;
+    readonly min_accuracy: number;
+    readonly max_policy_escapes: number;
+  };
+  readonly steps: readonly WorkflowCatalogStep[];
+  readonly anti_scope?: string;
+  readonly step_count: number;
+  readonly yaml: string;
+}
+
+export interface WorkflowCatalogResponse {
+  readonly workflows: readonly WorkflowCatalogEntry[];
+  readonly count: number;
+}
+
 /** One validation issue keyed to a draft path. */
 export interface WorkflowIssue {
   readonly key: string;

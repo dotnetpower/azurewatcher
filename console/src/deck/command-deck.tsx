@@ -102,6 +102,19 @@ export function CommandDeck() {
     setOpen(false);
   }, []);
 
+  // While the deck overlay is open, mark the document so the persistent left
+  // rail can stack above the overlay (see `body.deck-open .left-rail` in
+  // styles.css). The rail's navigation popover opens into the overlay region;
+  // because the rail is a lower stacking context, without this the popover
+  // renders BEHIND the chat and cannot be clicked. Scoped to the open state so
+  // the rule-detail drawer scrim (which should dim the rail) is unaffected.
+  useEffect(() => {
+    const cls = "deck-open";
+    if (open) document.body.classList.add(cls);
+    else document.body.classList.remove(cls);
+    return () => document.body.classList.remove(cls);
+  }, [open]);
+
   // Keyboard: Cmd/Ctrl+K, `/` opens; Escape closes.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -129,10 +142,10 @@ export function CommandDeck() {
     return () => window.removeEventListener("keydown", handler);
   }, [open, openDeck, closeDeck]);
 
-  // Navigation dismisses the deck. The overlay sits above the left-rail
-  // popover (z-index 80 vs 40), so while it is open a menu click only
-  // swaps the panel hidden behind it and looks unresponsive. Closing the
-  // deck on any hash change surfaces the freshly navigated panel.
+  // Navigation dismisses the deck. While the deck is open the left rail is
+  // lifted above the overlay (body.deck-open) so its navigation popover is
+  // clickable; selecting an item changes the hash, and closing the deck here
+  // surfaces the freshly navigated panel.
   useEffect(() => {
     if (!open) return;
     const onHashChange = () => closeDeck();

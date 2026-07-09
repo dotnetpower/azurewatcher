@@ -293,6 +293,7 @@ class WorkflowOrchestrator:
                 "actor": _ACTOR,
                 "action_kind": "workflow.process-plan",
                 "mode": "shadow",
+                "declared_mode": workflow.default_mode.value,
                 "process_id": process_id,
                 "workflow": workflow.name,
                 "target_resource_id": target_resource_id,

@@ -1,1 +1,0 @@
-../../../../../docs/user-guide/concepts/risk-tiers-ko.md

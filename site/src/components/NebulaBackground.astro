@@ -158,6 +158,16 @@ const {
       float scrollOff = u_scroll / u_res.y;
       vec2 p  = (gl_FragCoord.xy - 0.5 * u_res.xy) / u_res.y;
       p.y -= scrollOff;
+      // The Orion core bloom and the lower-left rose lobe are anchored to
+      // the viewport (screen UV), so without this they would stay glued to
+      // the screen as a bright blob while the content scrolls past them.
+      // Fade those anchored highlights down - and calm the whole field a
+      // touch - once the page scrolls past the first viewport, so the hero
+      // stays vivid but content sections sit on a quiet, legible backdrop.
+      // A floor keeps ~22% of the core warmth throughout so the nebula never
+      // collapses to a black void below the fold.
+      float heroFade  = mix(0.22, 1.0, 1.0 - smoothstep(0.25, 1.05, scrollOff));
+      float fieldCalm = mix(1.0, 0.80, smoothstep(0.35, 1.20, scrollOff));
       float t = u_time * 0.006;
 
       vec2 q = vec2(fbm(p * 2.6 + t), fbm(p * 2.6 - t + 5.2));
@@ -233,11 +243,11 @@ const {
       //   1. Reflection halo (blue-tinted, wispy, cloud-masked)
       //   2. Warm dust rim just outside the ionisation front
       //   3. Bright hot pink core bloom (additive)
-      col = mix(col, reflectCol, coreHalo * 0.32);
-      col += dust * coreHalo * smoothstep(0.30, 0.85, mDust) * 0.45;
-      col += coreCol * coreBloom * (0.40 + coreWisp * 0.20);
+      col = mix(col, reflectCol, coreHalo * 0.32 * heroFade);
+      col += dust * coreHalo * smoothstep(0.30, 0.85, mDust) * 0.45 * heroFade;
+      col += coreCol * coreBloom * (0.40 + coreWisp * 0.20) * heroFade;
       // Lower-left rose lobe, cloud-masked so it only shows in nebulosity.
-      col = mix(col, loCol, loGlow * 0.45);
+      col = mix(col, loCol, loGlow * 0.45 * heroFade);
 
       col *= 0.42 + 0.70 * f;
       col *= u_intensity;
@@ -254,10 +264,12 @@ const {
       // clear source for the surrounding ionisation.
       vec3 coreStars = starLayer(suv * vec2(u_res.x / u_res.y, 1.0),
                                  22.0, 0.14, 137.0, 0.35);
-      col += coreStars * smoothstep(0.75, 0.05, coreShape) * 1.6;
+      col += coreStars * smoothstep(0.75, 0.05, coreShape) * 1.6 * heroFade;
 
       float vig = smoothstep(1.25, 0.35, length(uv - 0.5) * 1.4);
       col *= mix(0.55, 1.0, vig);
+      // Calm the field below the hero so content text stays legible over it.
+      col *= fieldCalm;
 
       col = col / (col + 0.55);
       col = pow(col, vec3(0.85));
