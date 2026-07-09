@@ -237,6 +237,45 @@ describe("LlmNarrator tool-calling loop (fetch stubbed)", () => {
     expect(toolMsg?.content).toMatch(/events=1204/);
   });
 
+  it("injects an L3 locale directive for ko, none for en", async () => {
+    const bodies: Array<{ messages: Array<{ role: string; content: string }> }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: { body: string }) => {
+        bodies.push(JSON.parse(init.body));
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { role: "assistant", content: "ok" } }],
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+    const narrator = new LlmNarrator({
+      provider: "openai",
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: "sk-test",
+      model: "gpt-4o-mini",
+      apiVersion: "2024-08-01-preview",
+    });
+
+    await narrator.answer("status?", sampleCtx); // en (default)
+    await narrator.answer("status?", { ...sampleCtx, locale: "ko" });
+
+    const systemMsgs = (b: (typeof bodies)[number]) =>
+      b.messages.filter((m) => m.role === "system");
+    // en: only the base prompt, no added locale directive.
+    expect(systemMsgs(bodies[0]!)).toHaveLength(1);
+    expect(systemMsgs(bodies[0]!).map((m) => m.content).join("\n")).not.toMatch(
+      /exactly as provided/,
+    );
+    // ko: an extra directive that names Korean and preserves the pipeline.
+    expect(systemMsgs(bodies[1]!)).toHaveLength(2);
+    const koDirective = systemMsgs(bodies[1]!)[1]!.content;
+    expect(koDirective).toContain("Korean");
+    expect(koDirective).toMatch(/exactly as provided/);
+  });
+
   it("degrades to an error string when the model call fails", async () => {
     vi.stubGlobal(
       "fetch",

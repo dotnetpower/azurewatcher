@@ -21,6 +21,22 @@ import { promisify } from "node:util";
 import { CLI_CONSOLE_TOOLS, CONSOLE_TOOLS, runTool } from "./tools.js";
 import { loadBaseNarratorPrompt, loadCliNarratorPrompt } from "./prompt-store.js";
 import type { ConsoleTool, Narrator, NarratorContext } from "./types.js";
+import type { Locale } from "../i18n/index.js";
+
+/**
+ * L3 render directive: instruct the model to answer in the operator locale
+ * while keeping the English pipeline (ids, numbers, tool output) verbatim.
+ * The directive itself is an English machine instruction (a prompt is L0
+ * config), naming only the target language.
+ */
+export function localeDirective(locale: Exclude<Locale, "en">): string {
+  const language: Record<Exclude<Locale, "en">, string> = { ko: "Korean" };
+  return (
+    `Respond to the operator in ${language[locale]}. ` +
+    `Keep all numbers, identifiers, resource names, and quoted tool output ` +
+    `exactly as provided - do not translate or reformat them.`
+  );
+}
 
 export interface LlmConfig {
   provider: "openai" | "azure";
@@ -153,8 +169,15 @@ export class LlmNarrator implements Narrator {
     const cli = !!ctx.screen;
     const tools = cli ? CLI_CONSOLE_TOOLS : CONSOLE_TOOLS;
     const systemPrompt = cli ? loadCliNarratorPrompt() : loadBaseNarratorPrompt();
+    const locale = ctx.locale ?? "en";
     const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
+      // L3: render the final answer in the operator locale while the pipeline
+      // (tool calls, ids, numbers, grounding) stays English. English needs no
+      // directive - the base prompt is already English.
+      ...(locale === "en"
+        ? []
+        : [{ role: "system", content: localeDirective(locale) } as ChatMessage]),
       ...(ctx.history ?? []).slice(-6).map((h) => ({ role: h.role, content: h.content }) as ChatMessage),
       { role: "user", content: query },
     ];
