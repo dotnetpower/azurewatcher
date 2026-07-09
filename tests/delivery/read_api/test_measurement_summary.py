@@ -22,6 +22,9 @@ async def test_render_shape_and_synthetic_flag() -> None:
     panel = AutonomyMeasurementPanel(InMemoryConsoleReadModel())
     out = await panel.render(params={})
     assert out["synthetic"] is True
+    assert out["sample_size"] == 1284
+    assert out["confidence"] == 0.95
+    assert out["rules"] == {"active": 47, "candidates_30d": 6, "promoted_30d": 3}
     assert set(out["success"]) == {
         "auto_resolution_rate",
         "human_touchpoints_per_100",

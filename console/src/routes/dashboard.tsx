@@ -239,6 +239,8 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
 
       {autonomy ? <TierBands tier={autonomy.tier} /> : null}
 
+      {autonomy ? <LivingRules rules={autonomy.rules} /> : null}
+
       <h3 class="section-title">{t("overview.detail")}</h3>
       <KpiGrid>
         <KpiCard label="Events (audit)" value={kpi.event_count} hint="terminal audit entries" />
@@ -357,7 +359,13 @@ function AutonomyHero({ autonomy }: { readonly autonomy: AutonomyPayload }) {
       <div>
         <h3 class="overview-hero-title">{t("overview.hero.title")}</h3>
         <p class="overview-hero-sub muted">
-          {t("overview.hero.window", { days: autonomy.window_days })}
+          {t("overview.hero.window", {
+            days: autonomy.window_days,
+            samples: autonomy.sample_size.toLocaleString("en-US"),
+          })}
+          {autonomy.confidence !== null
+            ? ` - ${t("overview.hero.confidence", { pct: Math.round(autonomy.confidence * 100) })}`
+            : ""}
         </p>
       </div>
       {trend && trend.length >= 2 ? (
@@ -514,6 +522,25 @@ function TierBands({ tier }: { readonly tier: AutonomyPayload["tier"] }) {
           </span>
         );
       })}
+    </section>
+  );
+}
+
+/** Living rule catalog: how many rules are active, promoted recently, and
+ * proposed by the discovery loop - the product's "rules stay fresh" story. */
+function LivingRules({ rules }: { readonly rules: AutonomyPayload["rules"] }) {
+  return (
+    <section class="overview-rules" aria-label="living rule catalog">
+      <span class="overview-guards-label">{t("overview.rules.label")}</span>
+      <span class="overview-rules-stat">
+        <b>{rules.active}</b> {t("overview.rules.active")}
+      </span>
+      <span class="overview-rules-stat">
+        <b>{rules.promoted_30d}</b> {t("overview.rules.promoted")}
+      </span>
+      <span class="overview-rules-stat muted">
+        <b>{rules.candidates_30d}</b> {t("overview.rules.candidates")}
+      </span>
     </section>
   );
 }

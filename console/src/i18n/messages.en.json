@@ -63,7 +63,8 @@
     "subtitle": "Healthy, risk, and cost at a glance - from the append-only audit log. Refreshes on reload; no polling.",
     "hero": {
       "title": "Autonomous cloud operations",
-      "window": "Proven over the last {days} days",
+      "window": "Proven over the last {days} days - {samples} events",
+      "confidence": "{pct}% confidence",
       "synthetic": "demo data",
       "syntheticHint": "Dev harness: synthetic measurement, not a measured claim"
     },
@@ -123,6 +124,12 @@
     "tier": {
       "label": "Trust tiers",
       "band": "target {range}"
+    },
+    "rules": {
+      "label": "Living rules",
+      "active": "active",
+      "promoted": "promoted (30d)",
+      "candidates": "candidates"
     },
     "detail": "Detailed metrics"
   }

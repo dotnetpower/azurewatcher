@@ -86,6 +86,13 @@ export interface VerticalSummary {
 export interface AutonomyPayload {
   readonly synthetic: boolean;
   readonly window_days: number;
+  readonly sample_size: number;
+  readonly confidence: number | null;
+  readonly rules: {
+    readonly active: number;
+    readonly candidates_30d: number;
+    readonly promoted_30d: number;
+  };
   readonly success: {
     readonly auto_resolution_rate: MetricVsBaseline;
     readonly human_touchpoints_per_100: MetricVsBaseline;

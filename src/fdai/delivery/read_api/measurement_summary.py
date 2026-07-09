@@ -79,6 +79,9 @@ def _vertical_of(action_kind: str) -> str:
 # shape + a plausible story. They are NOT a measured claim.
 _DEMO_MEASUREMENT: Mapping[str, Any] = {
     "window_days": 30,
+    "sample_size": 1284,
+    "confidence": 0.95,
+    "rules": {"active": 47, "candidates_30d": 6, "promoted_30d": 3},
     "success": {
         "auto_resolution_rate": {"value": 0.92, "baseline": 0.18, "direction": "higher"},
         "human_touchpoints_per_100": {"value": 1.1, "baseline": 5.8, "direction": "lower"},
@@ -160,6 +163,9 @@ class AutonomyMeasurementPanel:
         return {
             "synthetic": True,
             "window_days": self._measurement.get("window_days", 30),
+            "sample_size": self._measurement.get("sample_size", 0),
+            "confidence": self._measurement.get("confidence"),
+            "rules": dict(self._measurement.get("rules", {})),
             "success": self._measurement.get("success", {}),
             "guards": list(self._measurement.get("guards", [])),
             "verticals": [
