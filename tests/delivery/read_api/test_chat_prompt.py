@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from starlette.exceptions import HTTPException
 
 from fdai.delivery.read_api.chat import (
     _GLOSSARY,
@@ -24,6 +25,7 @@ from fdai.delivery.read_api.chat import (
     DEFAULT_MAX_RECORDS_PER_KEY,
     _build_messages,
     _is_concept_query,
+    _raise_upstream_error,
     _trim_view_context,
 )
 
@@ -320,3 +322,40 @@ def test_records_diet_applies_in_build_messages() -> None:
     assert "rule-0000" in system
     assert f"rule-{DEFAULT_MAX_RECORDS_PER_KEY - 1:04d}" in system
     assert f"rule-{DEFAULT_MAX_RECORDS_PER_KEY:04d}" not in system
+
+
+# ---------------------------------------------------------------------------
+# Upstream error mapping - content-policy block vs genuine outage
+# ---------------------------------------------------------------------------
+
+# Bodies an upstream content / jailbreak filter returns on a 400 (safe block).
+_CONTENT_FILTER_BODIES: list[str] = [
+    '{"error":{"code":"content_filter","message":"blocked"}}',
+    '{"error":{"innererror":{"code":"ResponsibleAIPolicyViolation"}}}',
+    '{"error":{"message":"jailbreak detected"}}',
+    '{"error":{"message":"Azure OpenAI content management policy triggered"}}',
+]
+
+
+@pytest.mark.parametrize("body", _CONTENT_FILTER_BODIES)
+def test_content_policy_block_maps_to_422(body: str) -> None:
+    with pytest.raises(HTTPException) as ei:
+        _raise_upstream_error(400, body)
+    assert ei.value.status_code == 422
+    assert "content policy" in ei.value.detail
+
+
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [
+        (400, '{"error":{"message":"bad request, missing field"}}'),  # 400 but not policy
+        (429, "rate limited"),
+        (500, "internal server error"),
+        (503, "service unavailable"),
+    ],
+)
+def test_genuine_upstream_faults_map_to_502(status: int, body: str) -> None:
+    with pytest.raises(HTTPException) as ei:
+        _raise_upstream_error(status, body)
+    assert ei.value.status_code == 502
+    assert ei.value.detail == "chat upstream error"

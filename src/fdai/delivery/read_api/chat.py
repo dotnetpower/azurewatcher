@@ -49,7 +49,7 @@ import time
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Final, Protocol
+from typing import Any, Final, NoReturn, Protocol
 
 import httpx
 from starlette.exceptions import HTTPException
@@ -226,6 +226,35 @@ def _build_messages(
     return messages
 
 
+# Markers Azure OpenAI / OpenAI put in a 400 body when the request or reply is
+# refused by the content / jailbreak filter (not an outage - an expected,
+# safe policy block). Lower-cased substring match.
+_CONTENT_FILTER_MARKERS: Final[tuple[str, ...]] = (
+    "content_filter",
+    "responsibleaipolicy",
+    "jailbreak",
+    "content management policy",
+)
+
+
+def _raise_upstream_error(status_code: int, body_text: str) -> NoReturn:
+    """Map an upstream ``>=400`` to an :class:`HTTPException`.
+
+    A content-policy block (a jailbreak / disallowed prompt the upstream filter
+    refused) is distinguished from a genuine upstream fault: the former is
+    expected and safe, so it is logged at ``info`` and surfaced as ``422`` with
+    a clear reason; the latter stays a ``502`` outage. Either way the deck falls
+    back to its deterministic answerer, so the operator is never left blank -
+    the distinction is for honest telemetry and messaging, not control flow.
+    """
+    snippet = body_text[:200]
+    if status_code == 400 and any(m in snippet.lower() for m in _CONTENT_FILTER_MARKERS):
+        _LOG.info("chat request blocked by upstream content policy")
+        raise HTTPException(status_code=422, detail="chat request blocked by content policy")
+    _LOG.warning("chat backend upstream returned %s (body=%s)", status_code, snippet)
+    raise HTTPException(status_code=502, detail="chat upstream error")
+
+
 class ChatBackend(Protocol):
     """Async chat backend seam.
 
@@ -384,12 +413,7 @@ class OpenAiCompatibleChatBackend:
             _LOG.warning("chat backend HTTP error: %s", exc)
             raise HTTPException(status_code=502, detail="chat upstream unreachable") from exc
         if response.status_code >= 400:
-            _LOG.warning(
-                "chat backend upstream returned %s (body=%s)",
-                response.status_code,
-                response.text[:200],
-            )
-            raise HTTPException(status_code=502, detail="chat upstream error")
+            _raise_upstream_error(response.status_code, response.text)
         try:
             envelope = response.json()
         except ValueError as exc:
@@ -753,12 +777,7 @@ class AzureAdChatBackend:
             _LOG.warning("chat backend HTTP error: %s", exc)
             raise HTTPException(status_code=502, detail="chat upstream unreachable") from exc
         if response.status_code >= 400:
-            _LOG.warning(
-                "chat backend upstream returned %s (body=%s)",
-                response.status_code,
-                response.text[:200],
-            )
-            raise HTTPException(status_code=502, detail="chat upstream error")
+            _raise_upstream_error(response.status_code, response.text)
         try:
             envelope = response.json()
         except ValueError as exc:
@@ -822,13 +841,8 @@ class AzureAdChatBackend:
                 timeout=self._timeout,
             ) as response:
                 if response.status_code >= 400:
-                    detail = (await response.aread())[:200]
-                    _LOG.warning(
-                        "chat stream upstream returned %s (body=%s)",
-                        response.status_code,
-                        detail,
-                    )
-                    raise HTTPException(status_code=502, detail="chat upstream error")
+                    err_body = (await response.aread()).decode("utf-8", "replace")
+                    _raise_upstream_error(response.status_code, err_body)
                 async for line in response.aiter_lines():
                     if not line.startswith("data:"):
                         continue
