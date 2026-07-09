@@ -26,6 +26,8 @@ import {
   type RouterSnapshot,
 } from "./backend";
 import { useViewContext } from "./context";
+import { GroundedReply } from "./grounded-reply";
+import { RetrievalTrace } from "./retrieval-trace";
 
 interface Turn {
   readonly id: string;
@@ -220,7 +222,7 @@ export function CommandDeck() {
               {turns.map((t) => (
                 <TurnBubble key={t.id} turn={t} onPickFollowUp={submit} />
               ))}
-              {pending ? <PendingBubble /> : null}
+              {pending ? <RetrievalTrace snapshot={snapshot} health={health} /> : null}
             </section>
 
             <aside class="deck-digest" aria-label="what the deck sees">
@@ -291,6 +293,7 @@ function TurnBubble({
   readonly turn: Turn;
   readonly onPickFollowUp: (t: string) => void;
 }) {
+  const isDeck = turn.role === "deck";
   return (
     <article class={`deck-turn deck-turn-${turn.role}`}>
       <header class="deck-turn-head">
@@ -305,24 +308,21 @@ function TurnBubble({
         ) : null}
         <span class="deck-turn-time muted">{turn.at}</span>
       </header>
-      <div class="deck-turn-body">
-        {turn.text.split("\n").map((line, i) => (
-          <p key={i} class="deck-turn-line">{line}</p>
-        ))}
-      </div>
-      {turn.router ? <RouterSparklineStrip router={turn.router} /> : null}
-      {turn.citations && turn.citations.length > 0 ? (
-        <ul class="deck-turn-citations" aria-label="citations">
-          {turn.citations.map((c, i) => (
-            <li key={i} class="deck-citation">
-              <span class="deck-citation-label">{c.label}</span>
-              {c.value !== undefined ? (
-                <span class="deck-citation-value">{c.value}</span>
-              ) : null}
-            </li>
+      {isDeck ? (
+        <GroundedReply
+          turnId={turn.id}
+          text={turn.text}
+          citations={turn.citations}
+          source={turn.source}
+        />
+      ) : (
+        <div class="deck-turn-body">
+          {turn.text.split("\n").map((line, i) => (
+            <p key={i} class="deck-turn-line">{line}</p>
           ))}
-        </ul>
-      ) : null}
+        </div>
+      )}
+      {turn.router ? <RouterSparklineStrip router={turn.router} /> : null}
       {turn.followUps && turn.followUps.length > 0 ? (
         <ul class="deck-followups" aria-label="suggested follow-ups">
           {turn.followUps.map((f) => (
@@ -389,24 +389,6 @@ function BackendBadge({
       <span class="deck-backend-dot" />
       <span class="deck-backend-label">deterministic</span>
     </span>
-  );
-}
-
-function PendingBubble() {
-  return (
-    <article class="deck-turn deck-turn-deck deck-turn-pending" aria-live="polite">
-      <header class="deck-turn-head">
-        <span class="deck-turn-role">deck</span>
-        <span class="deck-turn-time muted">thinking</span>
-      </header>
-      <div class="deck-turn-body">
-        <span class="deck-typing" aria-hidden="true">
-          <span class="deck-typing-dot" />
-          <span class="deck-typing-dot" />
-          <span class="deck-typing-dot" />
-        </span>
-      </div>
-    </article>
   );
 }
 

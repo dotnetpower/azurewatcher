@@ -1883,24 +1883,192 @@ pre {
   margin-right: auto;
   margin-left: 8px;
 }
-.deck-typing {
-  display: inline-flex;
-  gap: 4px;
-  padding: 6px 0;
+
+/* Retrieval trace (deck/retrieval-trace.tsx) - the pending "preparing
+ * answer" surface. Streams the read-only sources the deck grounds on
+ * (the current screen snapshot) in a slot-machine window. */
+.deck-rt {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--accent) 4%, var(--bg-elevated));
+  overflow: hidden;
 }
-.deck-typing-dot {
-  width: 6px;
-  height: 6px;
+.deck-rt-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.deck-rt-spin {
+  width: 13px;
+  height: 13px;
   border-radius: 50%;
-  background: var(--fg-muted);
-  animation: deck-typing 1s ease-in-out infinite;
+  border: 2px solid color-mix(in oklab, var(--accent) 30%, transparent);
+  border-top-color: var(--accent);
+  animation: deck-rt-rot 0.7s linear infinite;
 }
-.deck-typing-dot:nth-child(2) { animation-delay: 0.15s; }
-.deck-typing-dot:nth-child(3) { animation-delay: 0.3s; }
-@keyframes deck-typing {
-  0%, 60%, 100% { transform: scale(0.6); opacity: 0.4; }
-  30% { transform: scale(1); opacity: 1; }
+@keyframes deck-rt-rot { to { transform: rotate(360deg); } }
+.deck-rt-title { font-weight: 700; font-size: 12.5px; color: var(--fg); }
+.deck-rt-sub { font-size: 11.5px; }
+
+.deck-rt-stages { list-style: none; margin: 0; padding: 5px 6px 2px; }
+.deck-rt-stage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 7px;
+  font-size: 12px;
+  opacity: 0;
+  transform: translateY(4px);
+  animation: deck-rt-rise 0.28s ease forwards;
 }
+@keyframes deck-rt-rise { to { opacity: 1; transform: none; } }
+.deck-rt-ico {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 5px;
+  background: color-mix(in oklab, var(--fg-muted) 22%, transparent);
+}
+.deck-rt-stage.is-done .deck-rt-ico {
+  background: color-mix(in oklab, var(--tier-t0, #4dab7a) 30%, transparent);
+}
+.deck-rt-stage.is-active .deck-rt-ico {
+  background: color-mix(in oklab, var(--accent) 30%, transparent);
+}
+.deck-rt-slabel { font-weight: 600; color: var(--fg); }
+.deck-rt-detail { font-size: 11.5px; }
+.deck-rt-side {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--fg-muted) 14%, transparent);
+  color: var(--fg-muted);
+}
+.deck-rt-side-read { background: color-mix(in oklab, var(--accent) 14%, transparent); color: var(--accent); }
+.deck-rt-side-route { background: color-mix(in oklab, var(--tier-t1, #4f9fa5) 16%, transparent); color: var(--tier-t1, #4f9fa5); }
+.deck-rt-check { margin-left: auto; color: var(--tier-t0, #4dab7a); font-weight: 700; }
+
+.deck-rt-sources { padding: 2px 12px 12px; }
+.deck-rt-sources-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  margin: 4px 0 6px;
+}
+/* Slot window: only ~3 cards show; the track rolls upward as sources
+ * arrive, with top/bottom fade masks for the slot-machine feel. */
+.deck-rt-slot {
+  height: 108px;
+  overflow: hidden;
+  position: relative;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 20%, #000 86%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0, #000 20%, #000 86%, transparent 100%);
+}
+.deck-rt-strip {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: transform 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+.deck-rt-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+  animation: deck-rt-pop 0.26s ease forwards;
+}
+@keyframes deck-rt-pop { to { opacity: 1; transform: none; } }
+.deck-rt-badge {
+  flex: none;
+  min-width: 40px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  background: color-mix(in oklab, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+.deck-rt-txt {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+}
+.deck-rt-k { font-size: 12px; color: var(--fg-muted); white-space: nowrap; }
+.deck-rt-v {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Grounded reply (deck/grounded-reply.tsx) - the streamed answer, the
+ * "Grounded on N sources" pill, and the expandable citation slot. */
+.deck-gr { display: flex; flex-direction: column; gap: 8px; }
+.deck-gr-caret {
+  display: inline-block;
+  width: 6px;
+  height: 13px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--accent);
+  animation: deck-gr-blink 0.9s step-end infinite;
+}
+@keyframes deck-gr-blink { 50% { opacity: 0; } }
+.deck-gr-pill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--fg);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.deck-gr-pill:hover { border-color: var(--fg-muted); }
+.deck-gr-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.deck-gr-check { color: var(--tier-t0, #4dab7a); font-weight: 800; }
+.deck-gr-pill strong { font-variant-numeric: tabular-nums; }
+.deck-gr-src {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+}
+.deck-gr-more { color: var(--accent); font-weight: 600; }
+.deck-gr-slot { align-self: stretch; }
+
 .deck-turn-time {
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

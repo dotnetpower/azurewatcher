@@ -35,6 +35,25 @@ No mutating verb (`POST` / `PUT` / `DELETE` / `PATCH`) is called anywhere in
 `src/**`. The pytest suite for the API enforces `405` on mutating verbs
 (`tests/delivery/read_api/test_main.py::TestReadOnlyInvariant`).
 
+## Command deck (conversational surface)
+
+The deck (`src/deck/`) is a screen-aware, read-only conversational surface: the
+narrator (Bragi) is a **translator, not a judge**, matching the
+narrator-is-a-translator contract in
+[`.github/instructions/architecture.instructions.md`](../.github/instructions/architecture.instructions.md).
+It answers questions grounded in only what is on screen (the published
+`ViewSnapshot`) and never issues a privileged call.
+
+While a turn is pending, the deck renders a **retrieval trace**
+(`src/deck/retrieval-trace.tsx`) in place of a bare typing indicator. It streams
+the read-only sources the deck is grounding on - the current screen snapshot
+facts - in a slot-machine window, alongside the stages it can honestly report
+from data it already holds (`Read this screen` from the snapshot, `Route` /
+`Consult backend` from the backend health descriptor). It fabricates nothing:
+every row comes from the live `ViewSnapshot` or `BackendHealth`. When the chat
+backend later streams real per-stage retrieval events (SSE), `retrieval-trace.tsx`
+is the seam that renders them.
+
 ## Extending the console (fork panels)
 
 The upstream console ships a deliberately minimal UI - the three core panels
