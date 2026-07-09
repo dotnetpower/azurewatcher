@@ -44,14 +44,18 @@ first) and a **Waterfall** master-detail. The waterfall's left column is a
 compact, collapsible incident tree (grouped by `correlation_id`); selecting a
 step opens a large detail pane on the right that renders the append-only entry
 verbatim - a lifecycle stepper (event sent -> received -> work started ->
-finished, with per-hop latency), the narrative of what the agent did, its
-structured inputs / outputs, and the full record (tier, mode, outcome,
-decision, hashes). Agent chips (coloured by cognitive layer) filter both
-layouts, and every entry deep-links to its full pipeline trace via
-`#/trace?correlation=<id>`. The dev read-API seed
+finished, with per-hop latency), the narrative of what the agent did, any
+agent-to-agent conversation (the conversational-port turns exchanged while
+doing the work, shown as `from -> to` bubbles), its structured inputs /
+outputs, and the full record (tier, mode, outcome, decision, hashes). A small
+speech-bubble badge on a left row marks the steps that carry a conversation.
+Agent chips (coloured by cognitive layer) filter both layouts, and every entry
+deep-links to its full pipeline trace via `#/trace?correlation=<id>`. The dev
+read-API seed
 ([`src/fdai/delivery/read_api/_local.py`](../src/fdai/delivery/read_api/_local.py))
 attributes each row to its producing agent and carries the lifecycle
-timestamps + inputs / outputs so the pane renders a realistic sample.
+timestamps + inputs / outputs + conversation so the pane renders a realistic
+sample.
 
 Beyond the three always-on routes above, the app factory registers several
 **opt-in** GET routes when their inputs are wired at the composition root

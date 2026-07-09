@@ -141,6 +141,28 @@ function entryMap(item: AuditItem, key: string): ReadonlyArray<readonly [string,
   return pairs.length > 0 ? pairs : null;
 }
 
+/** One agent-to-agent conversational-port turn. */
+interface AgentTurn {
+  readonly from: string;
+  readonly to: string;
+  readonly text: string;
+}
+
+/** Read the agent-to-agent conversation attached to a row, or null. */
+function entryConversation(item: AuditItem): readonly AgentTurn[] | null {
+  const value = item.entry["conversation"];
+  if (!Array.isArray(value)) return null;
+  const turns = value.filter(
+    (t): t is AgentTurn =>
+      t !== null &&
+      typeof t === "object" &&
+      typeof (t as AgentTurn).from === "string" &&
+      typeof (t as AgentTurn).to === "string" &&
+      typeof (t as AgentTurn).text === "string",
+  );
+  return turns.length > 0 ? turns : null;
+}
+
 /** HH:MM:SS.mmm local clock for the precise lifecycle stepper. */
 function clockMs(iso: string): string {
   const d = new Date(iso);
@@ -392,6 +414,22 @@ function TimelineRow({ item }: { readonly item: AuditItem }) {
 // span we can derive without inventing durations.
 // ---------------------------------------------------------------------------
 
+/** Small speech-bubble glyph marking a row that carries an agent-to-agent
+ * conversation. Inline SVG (no emoji in code per the language policy). */
+function ChatGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
+      <path
+        d="M2 3.2h12v7.2H7.4L4.4 13v-2.6H2z"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.3"
+        stroke-linejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Minimum bar width (percent of the group span) so a near-instant hand-off
  * still renders a clickable sliver. */
 const MIN_BAR_PCT = 2.5;
@@ -535,6 +573,7 @@ function Waterfall({
                     const dimmed = selected !== null && bar.agent !== selected;
                     const active = selectedSeq === bar.item.seq;
                     const work = entryNum(bar.item, "duration_ms");
+                    const convo = entryConversation(bar.item);
                     return (
                       <li class="waterfall-lane" key={bar.item.seq}>
                         <button
@@ -551,6 +590,17 @@ function Waterfall({
                           </span>
                           <span class="waterfall-action mono muted">
                             {bar.item.action_kind}
+                          </span>
+                          <span class="waterfall-conv">
+                            {convo ? (
+                              <span
+                                class="waterfall-conv-badge"
+                                title={`${convo.length} agent-to-agent message(s)`}
+                              >
+                                <ChatGlyph />
+                                {convo.length}
+                              </span>
+                            ) : null}
                           </span>
                           <span class="waterfall-mini" aria-hidden="true">
                             <span
@@ -650,6 +700,7 @@ function StepDetail({ item, onClose }: { readonly item: AuditItem; readonly onCl
   const queueMs = entryNum(item, "queue_ms");
   const inputs = entryMap(item, "inputs");
   const outputs = entryMap(item, "outputs");
+  const conversation = entryConversation(item);
   const phases = lifecycleOf(item);
 
   const record: readonly (readonly [string, ComponentChildren])[] = [
@@ -720,6 +771,31 @@ function StepDetail({ item, onClose }: { readonly item: AuditItem; readonly onCl
         <section class="waterfall-section">
           <h3 class="waterfall-section-title">What it did</h3>
           <p class="waterfall-detail-text">{detail}</p>
+        </section>
+      ) : null}
+
+      {conversation ? (
+        <section class="waterfall-section">
+          <h3 class="waterfall-section-title">
+            Agent conversation
+            <span class="waterfall-conv-count">{conversation.length}</span>
+          </h3>
+          <ol class="waterfall-chat">
+            {conversation.map((turn, idx) => (
+              <li class="waterfall-chat-turn" key={idx} data-layer={layerOf(turn.from)}>
+                <div class="waterfall-chat-meta">
+                  <span class="waterfall-chat-from" data-layer={layerOf(turn.from)}>
+                    {turn.from}
+                  </span>
+                  <span class="waterfall-chat-arrow" aria-hidden="true">-&gt;</span>
+                  <span class="waterfall-chat-to" data-layer={layerOf(turn.to)}>
+                    {turn.to}
+                  </span>
+                </div>
+                <p class="waterfall-chat-text">{turn.text}</p>
+              </li>
+            ))}
+          </ol>
         </section>
       ) : null}
 
