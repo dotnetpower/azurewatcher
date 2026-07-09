@@ -9,6 +9,7 @@
 
 import type { Narrator, NarratorContext } from "./types.js";
 import { runTool } from "./tools.js";
+import { t as translate } from "../i18n/index.js";
 
 export class DeterministicNarrator implements Narrator {
   readonly kind = "deterministic";
@@ -16,6 +17,7 @@ export class DeterministicNarrator implements Narrator {
   async answer(query: string, ctx: NarratorContext): Promise<string> {
     const t = query.toLowerCase().trim();
     const num = Number(t);
+    const locale = ctx.locale ?? "en";
     try {
       // Card selection (sample mode carries rich HIL detail).
       const p = ctx.payload;
@@ -27,20 +29,24 @@ export class DeterministicNarrator implements Narrator {
         num <= p.hil.length
       ) {
         const item = p.hil[num - 1]!;
-        return (
-          `${item.title} (${item.actionType}). ${item.why} ` +
-          `Confidence: ${item.basis} (${item.basisTech}). Safety: ${item.safety} ` +
-          `Approving opens a pull request - ${item.who}`
-        );
+        return translate("narrator.cardDetail", locale, {
+          title: item.title,
+          actionType: item.actionType,
+          why: item.why,
+          basis: item.basis,
+          basisTech: item.basisTech,
+          safety: item.safety,
+          who: item.who,
+        });
       }
       if (t === "a" || t === "approve") {
-        return "(read-only) Approving opens a pull request; nothing changes until it is merged, and you cannot approve your own request.";
+        return translate("narrator.approveHint", locale);
       }
       if (t === "r" || t === "decline") {
-        return "(read-only) Declined and logged. Nothing changes.";
+        return translate("narrator.declineHint", locale);
       }
       if (t === "w" || t === "explain") {
-        return "Pick a card number to see the reasoning behind it.";
+        return translate("narrator.explainHint", locale);
       }
 
       if (/(kpi|status|metric|dashboard|health|summary|how many)/.test(t)) {
@@ -56,24 +62,24 @@ export class DeterministicNarrator implements Narrator {
       // Sample-only narrative intents (nice-to-have colour in the mock).
       if (!ctx.apiUrl && p) {
         if (t.includes("payment") || t.includes("restart")) {
-          return "payments-api restarted after two out-of-memory events in the last hour (incident #1204). There is a pending proposal to raise its memory 512 MB -> 1 GB (card 1), 91% similar to incident #0847.";
+          return translate("narrator.samplePayments", locale);
         }
         if (t.includes("spend") || t.includes("cost") || t.includes("budget")) {
-          return "Spending is flat versus last week in this synthetic dataset. One cost rule ('idle disk cleanup') is finishing a 30-day trial with 41/41 correct (card 3).";
+          return translate("narrator.sampleSpend", locale);
         }
         if (t.includes("rule") || t.includes("trial") || t.includes("shadow")) {
-          return `${p.shadowCandidates} rules are in trial (shadow mode) - they watch and log but do not act yet. One is ready to promote to live (card 3).`;
+          return translate("narrator.sampleRules", locale, {
+            shadow: p.shadowCandidates,
+          });
         }
       }
 
       const kpi = await runTool("get_kpi", {}, ctx);
-      return (
-        `I match keywords like kpi / hil queue / recent audit, or a card number. ` +
-        `Right now: ${kpi}. Free-form natural language (including Korean) is answered ` +
-        `by the LLM narrator - set FDAI_NARRATOR_* to enable it.`
-      );
+      return translate("narrator.fallback", locale, { kpi });
     } catch (err) {
-      return `(error) ${(err as Error).message}`;
+      return translate("narrator.error", locale, {
+        message: (err as Error).message,
+      });
     }
   }
 }

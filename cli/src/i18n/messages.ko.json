@@ -42,5 +42,13 @@
     "nothingSignoff": "지금 승인이 필요한 항목이 없습니다. 모두 처리되었고, 모든 변경은 되돌릴 수 있습니다.",
     "lookInto": "살펴보고 싶은 것이 있나요? 예를 들면:",
     "typeQuestion": "질문을 입력하세요"
+  },
+  "narrator": {
+    "cardDetail": "{title} ({actionType}). {why} 신뢰도: {basis} ({basisTech}). 안전성: {safety} 승인하면 풀 리퀘스트가 열립니다 - {who}",
+    "approveHint": "(읽기 전용) 승인하면 풀 리퀘스트가 열립니다. 병합 전까지는 아무것도 바뀌지 않으며, 자신의 요청은 승인할 수 없습니다.",
+    "declineHint": "(읽기 전용) 거절되어 기록되었습니다. 바뀌는 것은 없습니다.",
+    "explainHint": "카드 번호를 고르면 그 근거를 볼 수 있습니다.",
+    "fallback": "kpi / hil queue / recent audit 같은 키워드나 카드 번호를 인식합니다. 현재: {kpi}. 자유 형식 자연어(한국어 포함)는 LLM 내레이터가 답합니다 - FDAI_NARRATOR_*를 설정해 활성화하세요.",
+    "error": "(오류) {message}"
   }
 }

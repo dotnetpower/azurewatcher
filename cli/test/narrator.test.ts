@@ -112,6 +112,24 @@ describe("DeterministicNarrator (sample context)", () => {
     expect(a).toContain("pull request");
   });
 
+  it("renders answers in the ctx locale (ko), English by default", async () => {
+    const en = await n.answer("a", sampleCtx);
+    const ko = await n.answer("a", { ...sampleCtx, locale: "ko" });
+    // Default English hint is unchanged.
+    expect(en).toContain("(read-only)");
+    // ko is localized: differs from English and drops the English marker.
+    expect(ko).not.toBe(en);
+    expect(ko).not.toContain("(read-only)");
+    expect(ko.length).toBeGreaterThan(0);
+  });
+
+  it("falls back to English for a lagging locale key (sample colour)", async () => {
+    // ko does not translate `narrator.samplePayments`; the English source
+    // renders (mandatory fallback), never a blank.
+    const ko = await n.answer("payments", { ...sampleCtx, locale: "ko" });
+    expect(ko).toContain("payments-api");
+  });
+
   it("falls back with live state + LLM hint for free-form input", async () => {
     const a = await n.answer("\uc548\ub155", sampleCtx); // Korean
     expect(a).toContain("events=");

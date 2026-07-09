@@ -17,6 +17,7 @@
  */
 
 import type { BriefingPayload } from "../view-model/contract.js";
+import type { Locale } from "../i18n/index.js";
 
 /** What the narrator can see: a live read API, or the synthetic sample. */
 export interface NarratorContext {
@@ -24,6 +25,9 @@ export interface NarratorContext {
   apiUrl: string | null;
   /** Sample payload when `apiUrl` is null; null when live. */
   payload: BriefingPayload | null;
+  /** Operator locale for rendered answers (L3). Defaults to `en`; a lagging
+   * key falls back to English. Data values (ids, counts) are never translated. */
+  locale?: Locale;
   /** Optional screen controller (CLI cockpit only). Lets the narrator switch
    * the on-screen view/component from natural language. Read-only: it changes
    * only what is displayed, never a cloud resource. */
