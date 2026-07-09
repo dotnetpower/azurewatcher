@@ -56,6 +56,7 @@ from fdai.core.executor.direct_api import (
     DirectApiExecutionResult,
     DirectApiShadowExecutor,
 )
+from fdai.core.oncall import OnCallResolution, OnCallResolver
 from fdai.shared.contracts.models import (
     Action,
     ExecutionPath,
@@ -81,6 +82,24 @@ _STATUS_RESOLVED = "resolved"
 
 def _park_key(approval_id: str) -> str:
     return f"{_PARK_PREFIX}{approval_id}"
+
+
+def _on_call_detail(resolution: OnCallResolution | None) -> dict[str, Any] | None:
+    """Serialize an on-call resolution for the park record + audit entry.
+
+    ``None`` when no on-call resolver is configured (the coordinator routes by
+    role exactly as before). Otherwise a flat, secret-free dict recording who
+    was on shift - or why the resolver fell back to role-based routing.
+    """
+    if resolution is None:
+        return None
+    return {
+        "rotation": resolution.rotation,
+        "primary_oid": resolution.primary_oid,
+        "secondary_oid": resolution.secondary_oid,
+        "from_schedule": resolution.from_schedule,
+        "fallback_reason": resolution.fallback_reason,
+    }
 
 
 class RequestOutcome(StrEnum):
@@ -153,6 +172,8 @@ class HilResumeCoordinator:
         direct_api_executor: DirectApiShadowExecutor | None = None,
         action_types_by_name: Mapping[str, OntologyActionType] | None = None,
         actor: str = "fdai.core.hil_resume",
+        on_call_resolver: OnCallResolver | None = None,
+        on_call_rotation: str | None = None,
     ) -> None:
         self._state_store = state_store
         self._executor = executor
@@ -163,6 +184,21 @@ class HilResumeCoordinator:
             dict(action_types_by_name) if action_types_by_name is not None else {}
         )
         self._actor = actor
+        self._on_call_resolver = on_call_resolver
+        self._on_call_rotation = on_call_rotation
+
+    async def _resolve_on_call(self) -> OnCallResolution | None:
+        """Resolve the current on-call responder, or ``None`` when unconfigured.
+
+        Fail-safe by construction: :class:`OnCallResolver` never raises, so a
+        schedule-provider outage degrades to a role-based fallback recorded on
+        the resolution - it never blocks parking a HIL request.
+        """
+        if self._on_call_resolver is None or self._on_call_rotation is None:
+            return None
+        return await self._on_call_resolver.resolve(
+            rotation=self._on_call_rotation, at=datetime.now(tz=UTC)
+        )
 
     # ------------------------------------------------------------------
     # request (park + push)
@@ -187,6 +223,7 @@ class HilResumeCoordinator:
         (no execution until an explicit APPROVE).
         """
         aid = approval_id or uuid4().hex
+        on_call = await self._resolve_on_call()
         parked = {
             "status": _STATUS_PENDING,
             "approval_id": aid,
@@ -197,6 +234,7 @@ class HilResumeCoordinator:
             "correlation_id": correlation_id,
             "idempotency_key": action.idempotency_key,
             "parked_at": datetime.now(tz=UTC).isoformat(),
+            "on_call": _on_call_detail(on_call),
         }
         await self._state_store.write_state(_park_key(aid), parked)
         await self._audit(
@@ -208,6 +246,7 @@ class HilResumeCoordinator:
                 "action_type": action.action_type,
                 "rule_id": rule.id,
                 "submitter_oid": submitter_oid,
+                "on_call": _on_call_detail(on_call),
             },
         )
 

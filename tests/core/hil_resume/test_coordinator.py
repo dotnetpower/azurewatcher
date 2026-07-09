@@ -14,6 +14,7 @@ Asserts the step-B contract from
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,7 @@ from fdai.core.hil_resume import (
     RequestOutcome,
     ResolveOutcome,
 )
+from fdai.core.oncall import OnCallResolver
 from fdai.shared.contracts.models import (
     Action,
     BlastRadius,
@@ -47,6 +49,7 @@ from fdai.shared.contracts.models import (
     Severity,
 )
 from fdai.shared.providers.hil_channel import HilChannelError, HilDecision
+from fdai.shared.providers.oncall_schedule import OnCallShift, StaticOnCallSchedule
 from fdai.shared.providers.testing import (
     InMemoryStateStore,
     RecordingRemediationPrPublisher,
@@ -157,6 +160,95 @@ async def _park(
         correlation_id="c1",
         approval_id=approval_id,
     )
+
+
+_ROTATION = "sre-primary"
+
+
+def _oncall_coordinator(
+    *, schedule: StaticOnCallSchedule | None, rotation: str | None = _ROTATION
+) -> tuple[HilResumeCoordinator, InMemoryStateStore]:
+    publisher = RecordingRemediationPrPublisher()
+    store = InMemoryStateStore()
+    executor = ShadowExecutor(
+        publisher=publisher,
+        audit_store=store,
+        renderer=TemplateRenderer(remediation_root=REMEDIATION_ROOT),
+        resource_lock=ResourceLockManager(),
+    )
+    coordinator = HilResumeCoordinator(
+        state_store=store,
+        executor=executor,
+        hil_channel=InMemoryHilChannel(),
+        rules_by_id={_RULE_ID: _rule()},
+        on_call_resolver=OnCallResolver(schedule) if schedule is not None else None,
+        on_call_rotation=rotation,
+    )
+    return coordinator, store
+
+
+async def test_no_resolver_records_no_on_call() -> None:
+    coordinator, _publisher, store, _channel = _coordinator()
+    await coordinator.request_approval(
+        action=_action(),
+        rule=_rule(),
+        submitter_oid=_SUBMITTER,
+        correlation_id="c1",
+        approval_id="aid-oc0",
+    )
+    parked = await store.read_state("hil_park:aid-oc0")
+    assert parked is not None
+    assert parked["on_call"] is None
+
+
+async def test_live_shift_records_responder_on_park_and_audit() -> None:
+    now = datetime.now(tz=UTC)
+    schedule = StaticOnCallSchedule(
+        [
+            OnCallShift(
+                rotation=_ROTATION,
+                primary_oid="oid-primary",
+                secondary_oid="oid-secondary",
+                start=now - timedelta(hours=1),
+                until=now + timedelta(hours=1),
+            )
+        ]
+    )
+    coordinator, store = _oncall_coordinator(schedule=schedule)
+    await coordinator.request_approval(
+        action=_action(),
+        rule=_rule(),
+        submitter_oid=_SUBMITTER,
+        correlation_id="c1",
+        approval_id="aid-oc1",
+    )
+    parked = await store.read_state("hil_park:aid-oc1")
+    assert parked is not None
+    on_call = parked["on_call"]
+    assert on_call["from_schedule"] is True
+    assert on_call["primary_oid"] == "oid-primary"
+    assert on_call["secondary_oid"] == "oid-secondary"
+    assert on_call["fallback_reason"] is None
+    audit = [
+        e["entry"] for e in store.audit_entries if e["entry"].get("action_kind") == "hil.requested"
+    ]
+    assert audit[0]["on_call"]["primary_oid"] == "oid-primary"
+
+
+async def test_no_coverage_records_fallback_reason() -> None:
+    # An empty schedule -> no coverage -> fail-safe fallback, still parks.
+    coordinator, store = _oncall_coordinator(schedule=StaticOnCallSchedule([]))
+    await coordinator.request_approval(
+        action=_action(),
+        rule=_rule(),
+        submitter_oid=_SUBMITTER,
+        correlation_id="c1",
+        approval_id="aid-oc2",
+    )
+    parked = await store.read_state("hil_park:aid-oc2")
+    assert parked is not None
+    assert parked["on_call"]["from_schedule"] is False
+    assert parked["on_call"]["fallback_reason"] == "no_coverage"
 
 
 @pytest.mark.asyncio
