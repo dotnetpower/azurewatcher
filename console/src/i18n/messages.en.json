@@ -74,6 +74,15 @@
       "leadTime": "Change lead time",
       "vsBaseline": "vs {baseline} baseline"
     },
+    "vertical": {
+      "resilience": "Resilience",
+      "change_safety": "Change Safety",
+      "cost": "Cost Governance",
+      "events": "events",
+      "auto": "auto-resolved",
+      "risks": "{count} need attention",
+      "clear": "all clear"
+    },
     "health": {
       "label": "System health",
       "healthy": "Healthy",

@@ -70,6 +70,15 @@
       "leadTime": "변경 리드타임",
       "vsBaseline": "기준 {baseline} 대비"
     },
+    "vertical": {
+      "resilience": "복원력",
+      "change_safety": "변경 안전",
+      "cost": "비용 거버넌스",
+      "events": "건 처리",
+      "auto": "자동 해결",
+      "risks": "{count}건 조치 필요",
+      "clear": "이상 없음"
+    },
     "health": {
       "label": "시스템 상태",
       "healthy": "정상",

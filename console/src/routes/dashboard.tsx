@@ -6,6 +6,7 @@ import type {
   DashboardKpi,
   FinOpsPayload,
   MetricVsBaseline,
+  VerticalSummary,
 } from "../types";
 import {
   AsyncBoundary,
@@ -182,6 +183,7 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
     <div class="stack">
       {autonomy ? <AutonomyHero autonomy={autonomy} /> : null}
       {autonomy ? <SuccessMetrics success={autonomy.success} /> : null}
+      {autonomy ? <VerticalCards verticals={autonomy.verticals} /> : null}
       <section class="overview-triad" aria-label="health, risk and cost summary">
         <KpiCard
           label={t("overview.health.label")}
@@ -353,6 +355,47 @@ function SuccessMetric({
           <span class="overview-metric-factor"> {factor.toFixed(1)}x</span>
         ) : null}
       </span>
+    </div>
+  );
+}
+
+/** Per-vertical activity: which of the three verticals is doing what, and
+ * where a human still needs to look (open risks). */
+function VerticalCards({ verticals }: { readonly verticals: readonly VerticalSummary[] }) {
+  return (
+    <section class="overview-verticals" aria-label="per-vertical activity">
+      {verticals.map((v) => (
+        <VerticalCard key={v.key} v={v} />
+      ))}
+    </section>
+  );
+}
+
+function VerticalCard({ v }: { readonly v: VerticalSummary }) {
+  const hasRisk = v.open_risks > 0;
+  return (
+    <div class={`card overview-vertical overview-vertical-${v.key}`}>
+      <div class="overview-vertical-head">
+        <span class="overview-vertical-name">{t(`overview.vertical.${v.key}`)}</span>
+        {hasRisk ? (
+          <span class="overview-vertical-risk">
+            {t("overview.vertical.risks", { count: v.open_risks })}
+          </span>
+        ) : (
+          <span class="overview-vertical-clear muted">{t("overview.vertical.clear")}</span>
+        )}
+      </div>
+      <div class="overview-vertical-stats">
+        <span>
+          <b>{v.events}</b> {t("overview.vertical.events")}
+        </span>
+        <span>
+          <b>{v.auto_resolved}</b> {t("overview.vertical.auto")}
+        </span>
+        {v.monthly_savings > 0 ? (
+          <span class="overview-vertical-savings">{formatUsd(v.monthly_savings)}/mo</span>
+        ) : null}
+      </div>
     </div>
   );
 }
