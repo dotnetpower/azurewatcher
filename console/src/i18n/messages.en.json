@@ -74,6 +74,9 @@
       "leadTime": "Change lead time",
       "vsBaseline": "vs {baseline} baseline"
     },
+    "trend": {
+      "autoRes": "Auto-resolution 30d"
+    },
     "vertical": {
       "resilience": "Resilience",
       "change_safety": "Change Safety",

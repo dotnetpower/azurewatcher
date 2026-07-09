@@ -70,6 +70,9 @@
       "leadTime": "변경 리드타임",
       "vsBaseline": "기준 {baseline} 대비"
     },
+    "trend": {
+      "autoRes": "자동 해결 30일"
+    },
     "vertical": {
       "resilience": "복원력",
       "change_safety": "변경 안전",

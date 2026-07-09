@@ -298,7 +298,60 @@ function improvementFactor(m: MetricVsBaseline): number | null {
   return m.direction === "higher" ? m.value / m.baseline : m.baseline / m.value;
 }
 
+/** A compact auto-resolution trend line drawn from the measurement series.
+ * Rendered in the hero so "is autonomy improving" reads at a glance. */
+function TrendSpark({
+  series,
+  label,
+}: {
+  readonly series: readonly number[];
+  readonly label: string;
+}) {
+  const w = 128;
+  const h = 30;
+  const max = Math.max(...series);
+  const min = Math.min(...series);
+  const range = max - min || 1;
+  const points = series
+    .map((v, i) => {
+      const x = (i / (series.length - 1)) * w;
+      const y = h - ((v - min) / range) * h;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const first = series[0] ?? 0;
+  const last = series[series.length - 1] ?? 0;
+  const deltaPp = Math.round((last - first) * 100);
+  return (
+    <div class="overview-trend">
+      <span class="overview-trend-label muted">{label}</span>
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        class="overview-trend-svg"
+        aria-hidden="true"
+        preserveAspectRatio="none"
+      >
+        <polyline
+          points={points}
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linejoin="round"
+          stroke-linecap="round"
+        />
+      </svg>
+      <span class={`overview-trend-delta ${deltaPp >= 0 ? "up" : "down"}`}>
+        {deltaPp >= 0 ? "+" : ""}
+        {deltaPp}pp
+      </span>
+    </div>
+  );
+}
+
 function AutonomyHero({ autonomy }: { readonly autonomy: AutonomyPayload }) {
+  const trend = autonomy.trend.auto_resolution_rate;
   return (
     <section class="overview-hero" aria-label="autonomy summary">
       <div>
@@ -307,6 +360,9 @@ function AutonomyHero({ autonomy }: { readonly autonomy: AutonomyPayload }) {
           {t("overview.hero.window", { days: autonomy.window_days })}
         </p>
       </div>
+      {trend && trend.length >= 2 ? (
+        <TrendSpark series={trend} label={t("overview.trend.autoRes")} />
+      ) : null}
       {autonomy.synthetic ? (
         <span class="overview-synthetic" title={t("overview.hero.syntheticHint")}>
           {t("overview.hero.synthetic")}
