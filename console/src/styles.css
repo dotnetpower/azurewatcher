@@ -1667,6 +1667,27 @@ pre {
 .overview-guard.bad { color: var(--danger); background: rgba(200, 60, 60, 0.14); }
 .overview-guards-note { margin-left: auto; }
 
+/* Trust-tier mix vs target band (leading indicator). A tier out of band
+   is flagged amber - an early warning before a lagging guard regresses. */
+.overview-tiers {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  margin: 6px 0 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+.overview-tier {
+  padding: 2px 9px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.overview-tier.ok { color: #2f8f5a; background: rgba(47, 143, 90, 0.12); }
+.overview-tier.warn { color: #b57339; background: rgba(181, 115, 57, 0.14); }
+
 /* DataTable ----------------------------------------------------------- */
 .data-table-wrap {
   border: 1px solid var(--border);

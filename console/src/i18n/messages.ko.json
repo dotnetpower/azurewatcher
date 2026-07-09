@@ -100,6 +100,23 @@
       "escapes": "정책위반 탈출 {count}",
       "ready": "{ready}/{total} 강제 승격 준비"
     },
+    "guard": {
+      "cfr": "변경실패율",
+      "false_positive": "오탐율",
+      "false_negative": "미탐율",
+      "rollback": "롤백율"
+    },
+    "guardFull": {
+      "policy_escapes": "정책위반 탈출 (0이어야 함)",
+      "cfr": "변경 실패율",
+      "false_positive": "오탐율",
+      "false_negative": "미탐율",
+      "rollback": "롤백율"
+    },
+    "tier": {
+      "label": "신뢰 등급",
+      "band": "목표 {range}"
+    },
     "detail": "상세 지표"
   }
 }

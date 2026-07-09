@@ -104,6 +104,23 @@
       "escapes": "Policy escapes {count}",
       "ready": "{ready}/{total} ready to enforce"
     },
+    "guard": {
+      "cfr": "CFR",
+      "false_positive": "FP",
+      "false_negative": "FN",
+      "rollback": "Rollback"
+    },
+    "guardFull": {
+      "policy_escapes": "Policy-violation escapes (must be 0)",
+      "cfr": "Change failure rate",
+      "false_positive": "False-positive rate",
+      "false_negative": "False-negative rate",
+      "rollback": "Rollback rate"
+    },
+    "tier": {
+      "label": "Trust tiers",
+      "band": "target {range}"
+    },
     "detail": "Detailed metrics"
   }
 }

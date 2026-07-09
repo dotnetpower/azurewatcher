@@ -209,17 +209,35 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
         />
       </section>
 
-      {gates ? (
+      {gates || autonomy ? (
         <section class="overview-guards" aria-label="release guards">
           <span class="overview-guards-label">{t("overview.guards.label")}</span>
-          <span class={`overview-guard ${policyEscapes === 0 ? "ok" : "bad"}`}>
-            {t("overview.guards.escapes", { count: policyEscapes ?? 0 })}
-          </span>
-          <span class="overview-guards-note muted">
-            {t("overview.guards.ready", { ready: readyCount ?? 0, total: gateTotal ?? 0 })}
-          </span>
+          {policyEscapes !== null ? (
+            <GuardChip
+              label={t("overview.guards.escapes", { count: policyEscapes })}
+              title={t("overview.guardFull.policy_escapes")}
+              ok={policyEscapes === 0}
+            />
+          ) : null}
+          {autonomy
+            ? autonomy.guards.map((g) => (
+                <GuardChip
+                  key={g.key}
+                  label={`${t(`overview.guard.${g.key}`)} ${(g.value * 100).toFixed(1)}%`}
+                  title={t(`overview.guardFull.${g.key}`)}
+                  ok={g.ok}
+                />
+              ))
+            : null}
+          {gates ? (
+            <span class="overview-guards-note muted">
+              {t("overview.guards.ready", { ready: readyCount ?? 0, total: gateTotal ?? 0 })}
+            </span>
+          ) : null}
         </section>
       ) : null}
+
+      {autonomy ? <TierBands tier={autonomy.tier} /> : null}
 
       <h3 class="section-title">{t("overview.detail")}</h3>
       <KpiGrid>
@@ -397,6 +415,50 @@ function VerticalCard({ v }: { readonly v: VerticalSummary }) {
         ) : null}
       </div>
     </div>
+  );
+}
+
+function GuardChip({
+  label,
+  title,
+  ok,
+}: {
+  readonly label: string;
+  readonly title: string;
+  readonly ok: boolean;
+}) {
+  return (
+    <span class={`overview-guard ${ok ? "ok" : "bad"}`} title={title}>
+      {label}
+    </span>
+  );
+}
+
+/** Trust-tier mix against the target band (leading indicator): a tier
+ * drifting out of its band is an early warning, so it is flagged. */
+function TierBands({ tier }: { readonly tier: AutonomyPayload["tier"] }) {
+  const keys = ["t0", "t1", "t2"] as const;
+  return (
+    <section class="overview-tiers" aria-label="trust tier mix vs target band">
+      <span class="overview-guards-label">{t("overview.tier.label")}</span>
+      {keys.map((k) => {
+        const share = tier.mix[k] ?? 0;
+        const band = tier.bands[k];
+        const inBand = band ? share >= band[0] && share <= band[1] : true;
+        const bandText = band
+          ? `${Math.round(band[0] * 100)}-${Math.round(band[1] * 100)}%`
+          : "";
+        return (
+          <span
+            key={k}
+            class={`overview-tier ${inBand ? "ok" : "warn"}`}
+            title={bandText ? t("overview.tier.band", { range: bandText }) : ""}
+          >
+            {k.toUpperCase()} {Math.round(share * 100)}%
+          </span>
+        );
+      })}
+    </section>
   );
 }
 
