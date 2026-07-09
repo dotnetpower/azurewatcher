@@ -145,6 +145,45 @@ function CodeBlock({ lang, code }: { readonly lang: string; readonly code: strin
   );
 }
 
+// Distinct hues so a multi-category chart is readable; rotated by bar index.
+const CHART_PALETTE = [
+  "#4c8dff",
+  "#22c55e",
+  "#f5a623",
+  "#a855f7",
+  "#ec4899",
+  "#14b8a6",
+  "#e5484d",
+  "#64748b",
+];
+
+// Domain labels that carry a conventional color (severity, gate decision,
+// outcome). Matched as a whole word or substring of the bar label.
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: "#e5484d",
+  high: "#f5a623",
+  medium: "#4c8dff",
+  low: "#8b98a5",
+  error: "#e5484d",
+  warning: "#f5a623",
+  deny: "#e5484d",
+  hil: "#f5a623",
+  abstain: "#64748b",
+  auto: "#22c55e",
+  ok: "#22c55e",
+  pass: "#22c55e",
+  fail: "#e5484d",
+};
+
+function barColor(d: ChartDatum, i: number): string {
+  if (d.color) return d.color;
+  const key = d.label.toLowerCase().trim();
+  for (const [word, color] of Object.entries(SEVERITY_COLORS)) {
+    if (key === word || key.includes(word)) return color;
+  }
+  return CHART_PALETTE[i % CHART_PALETTE.length] ?? "#4c8dff";
+}
+
 function MiniChart({ spec }: { readonly spec: ChartSpec }) {
   const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(...spec.data.map((d) => Math.abs(d.value)), 1);
@@ -171,7 +210,10 @@ function MiniChart({ spec }: { readonly spec: ChartSpec }) {
                 {d.label}
               </span>
               <span class="deck-chart-track">
-                <span class="deck-chart-fill" style={{ width: `${pct}%` }} />
+                <span
+                  class="deck-chart-fill"
+                  style={{ width: `${pct}%`, background: barColor(d, i) }}
+                />
               </span>
               <span class="deck-chart-val">{fmt(d)}</span>
               {hover === i ? (

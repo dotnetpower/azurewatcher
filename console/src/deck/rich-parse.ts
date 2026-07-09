@@ -11,6 +11,8 @@
 export interface ChartDatum {
   readonly label: string;
   readonly value: number;
+  /** Optional explicit bar color; only a safe hex value is accepted. */
+  readonly color?: string;
 }
 
 export interface ChartSpec {
@@ -32,6 +34,9 @@ const TABLE_SEP = /^\s*\|?[\s:|-]*-{2,}[\s:|-]*\|?\s*$/;
 // Any fenced block open, capturing the info string (language / "chart").
 const FENCE_OPEN = /^\s*```([\w+#.-]*)\s*$/;
 const FENCE_CLOSE = /^\s*```\s*$/;
+// A safe CSS hex color (#rgb or #rrggbb); anything else is rejected to keep
+// untrusted chart JSON from injecting arbitrary style values.
+const SAFE_HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 function splitCells(line: string): string[] {
   const m = line.match(TABLE_ROW);
@@ -54,7 +59,8 @@ function parseChart(raw: string): ChartSpec | null {
     if (d && typeof d === "object") {
       const r = d as Record<string, unknown>;
       if (typeof r.label === "string" && typeof r.value === "number" && Number.isFinite(r.value)) {
-        data.push({ label: r.label, value: r.value });
+        const color = typeof r.color === "string" && SAFE_HEX.test(r.color) ? r.color : undefined;
+        data.push({ label: r.label, value: r.value, ...(color ? { color } : {}) });
       }
     }
   }

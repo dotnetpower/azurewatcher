@@ -154,6 +154,19 @@ describe("parseAnswer - charts", () => {
     const md = '```chart\n{"type":"bar","data":[]}\n```';
     expect(kinds(parseAnswer(md))).toEqual(["text"]);
   });
+
+  it("accepts a safe hex color and rejects an unsafe one", () => {
+    const md =
+      '```chart\n{"type":"bar","data":[{"label":"a","value":1,"color":"#e5484d"},{"label":"b","value":2,"color":"red; background:url(x)"}]}\n```';
+    const seg = parseAnswer(md)[0]!;
+    if (seg.kind === "chart") {
+      expect(seg.spec.data[0]).toEqual({ label: "a", value: 1, color: "#e5484d" });
+      expect(seg.spec.data[1]).toEqual({ label: "b", value: 2 });
+      expect("color" in seg.spec.data[1]!).toBe(false);
+    } else {
+      throw new Error("expected chart");
+    }
+  });
 });
 
 describe("parseAnswer - mixed documents", () => {
