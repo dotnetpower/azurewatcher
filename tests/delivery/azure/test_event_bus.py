@@ -67,12 +67,20 @@ def test_decode_returns_empty_dict_for_none() -> None:
 
 
 def test_decode_wraps_non_dict_payload() -> None:
-    assert _decode(b'"just-a-string"') == {"_wrapped": "just-a-string"}
+    result = _decode(b'"just-a-string"')
+    assert result["_wrapped"] == "just-a-string"
+    # A non-object payload is a poison message: mark it so downstream
+    # can filter without re-parsing.
+    assert result.get("_decode_error") is True
 
 
 def test_decode_raw_fallback_on_bad_json() -> None:
     result = _decode(b"not-json{")
     assert "_raw" in result
+    # Invalid JSON MUST carry the decode-error sentinel so downstream
+    # ``payload.get("resource")`` lookups do not silently succeed against
+    # a malformed message.
+    assert result.get("_decode_error") is True
 
 
 def test_decode_key_utf8() -> None:

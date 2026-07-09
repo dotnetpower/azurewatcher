@@ -67,6 +67,7 @@ export default defineConfig({
       components: {
         Banner: "./src/components/StaleTranslationBanner.astro",
         Hero: "./src/components/CustomHero.astro",
+        SiteTitle: "./src/components/SiteTitle.astro",
       },
       // Client-side Mermaid renderer. Loaded from jsDelivr as an ES module
       // so it stays out of the site's build graph (build-time SVG via

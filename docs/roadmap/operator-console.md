@@ -734,10 +734,15 @@ discipline in [phase-0-instrumentation.md](phases/phase-0-instrumentation.md).
 ### 13.3 Read-API approval callback (Week 1)
 
 - `POST /hil/{approval_id}/decision`
-- Body: `{"decision": "approve|reject|defer", "justification": "…"}`
+- Body: `{"decision": "approve|reject|defer", "justification": "..."}`
 - Headers: `X-FDAI-Signature: sha256=<hex>`,
   `X-FDAI-Timestamp: <RFC3339>`.
-- Response: `200 {"queued": true, "audit_entry_id": "…"}`.
+- Signature material: `HMAC-SHA256(secret, timestamp . approval_id . body)`
+  where the three parts are joined by a literal `.` separator. Binding
+  the URL path `approval_id` into the digest blocks a captured valid
+  message from being replayed against a different pending item (URL
+  swap). The bot MUST include the same `approval_id` it puts in the URL.
+- Response: `200 {"queued": true, "audit_entry_id": "..."}`.
 
 This is the only exception to the "read API is 3 GET routes only"
 invariant currently enforced by the read-API tests; the invariant test

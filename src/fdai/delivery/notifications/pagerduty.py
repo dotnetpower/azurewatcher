@@ -54,6 +54,10 @@ class PagerDutyEventsV2Channel:
             raise ValueError("timeout_seconds MUST be > 0")
         if not config.routing_key:
             raise ValueError("routing_key MUST NOT be empty")
+        if not config.events_url.startswith("https://"):
+            # The Events API v2 endpoint is HTTPS; refusing anything else
+            # keeps the routing_key from leaking over plaintext.
+            raise ValueError("events_url MUST use https:// scheme")
         if TrustTier.A1_HIL_APPROVAL in config.trust_tiers:
             raise ValueError("PagerDuty MUST NOT carry A1 approvals")
         self._config: Final = config

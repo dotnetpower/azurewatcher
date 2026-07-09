@@ -213,3 +213,50 @@ class TestRouterCleanup:
         b = _FixedLatencyBackend(model="b", delay_ms=1)
         router = LatencyRoutedChatBackend(candidates=[("a", a), ("b", b)])
         await router.aclose()  # must not raise
+
+
+class TestRouterBenchmark:
+    async def test_benchmark_measures_all_and_returns_fastest(self) -> None:
+        from fdai.delivery.read_api.chat import _ROUTER_WARMUP_SAMPLES
+
+        fast = _FixedLatencyBackend(model="fast", delay_ms=5)
+        slow = _FixedLatencyBackend(model="slow", delay_ms=40)
+        router = LatencyRoutedChatBackend(candidates=[("fast", fast), ("slow", slow)])
+        chose = await router.benchmark()
+        # Every candidate was probed enough to clear warm-up, and the fastest
+        # (by measured p50) is the pick.
+        assert fast.calls == _ROUTER_WARMUP_SAMPLES
+        assert slow.calls == _ROUTER_WARMUP_SAMPLES
+        assert chose == "fast"
+        by_name = {s["deployment"]: s for s in router.stats()}
+        assert by_name["fast"]["samples"] == _ROUTER_WARMUP_SAMPLES
+        assert by_name["slow"]["samples"] == _ROUTER_WARMUP_SAMPLES
+
+    async def test_benchmark_penalises_a_failing_candidate(self) -> None:
+        ok = _FixedLatencyBackend(model="ok", delay_ms=5)
+        broken = _RaisingBackend(model="broken")
+        router = LatencyRoutedChatBackend(candidates=[("ok", ok), ("broken", broken)])
+        chose = await router.benchmark()
+        # A failing candidate still records (penalty) samples and never wins.
+        assert chose == "ok"
+        by_name = {s["deployment"]: s for s in router.stats()}
+        assert by_name["broken"]["p50_ms"] is not None
+        assert by_name["broken"]["p50_ms"] >= 30_000
+
+
+class TestCompletionBodyParams:
+    def test_classic_models_use_max_tokens_and_temperature(self) -> None:
+        from fdai.delivery.read_api.chat import _completion_body_params
+
+        for model in ("gpt-4o-mini", "gpt-4.1-mini", "gpt-4o"):
+            params = _completion_body_params(model, temperature=0.2, max_tokens=800)
+            assert params == {"temperature": 0.2, "max_tokens": 800}
+
+    def test_new_models_use_max_completion_tokens_and_no_temperature(self) -> None:
+        from fdai.delivery.read_api.chat import _completion_body_params
+
+        for model in ("gpt-5-mini", "gpt-5-nano", "o3-mini", "o4-mini", "o1"):
+            params = _completion_body_params(model, temperature=0.2, max_tokens=800)
+            assert params == {"max_completion_tokens": 800}
+            assert "temperature" not in params
+

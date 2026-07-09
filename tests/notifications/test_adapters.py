@@ -743,3 +743,97 @@ class TestSmsAdapter:
                 token_provider=lambda: "",
             )
             await adapter.send(_message())
+
+
+# ---------------------------------------------------------------------------
+# HTTPS scheme enforcement (fail-closed at construction)
+# ---------------------------------------------------------------------------
+
+
+class TestHttpsSchemeEnforcement:
+    """Every outbound adapter MUST reject a non-``https://`` URL.
+
+    A plain-HTTP webhook, an ``http://`` PagerDuty override, or an ACS
+    endpoint that lands on ``ws://`` / ``file://`` would leak the audit
+    correlation id and payload in the clear on the wire. The config
+    dataclasses validate this at construction; these regression tests
+    lock the behavior so a future refactor cannot silently drop the
+    guard on any of the six adapters.
+    """
+
+    def test_teams_rejects_non_https_webhook(self) -> None:
+        http = httpx.AsyncClient()
+        for bad in ("http://example.com/wh", "ws://example.com/wh", "file:///wh"):
+            with pytest.raises(ValueError, match="https"):
+                TeamsWebhookChannel(
+                    config=TeamsWebhookConfig(
+                        channel_id="t",
+                        webhook_url=bad,
+                        trust_tiers=frozenset(),
+                    ),
+                    http_client=http,
+                )
+
+    def test_slack_rejects_non_https_webhook(self) -> None:
+        http = httpx.AsyncClient()
+        for bad in ("http://hooks.slack.example/wh", "ws://hooks.slack.example/wh"):
+            with pytest.raises(ValueError, match="https"):
+                SlackWebhookChannel(
+                    config=SlackWebhookConfig(
+                        channel_id="s",
+                        webhook_url=bad,
+                        trust_tiers=frozenset(),
+                    ),
+                    http_client=http,
+                )
+
+    def test_webhook_rejects_non_https_url(self) -> None:
+        http = httpx.AsyncClient()
+        for bad in ("http://example.com/hook", "file:///tmp/hook"):
+            with pytest.raises(ValueError, match="https"):
+                GenericWebhookChannel(
+                    config=GenericWebhookConfig(
+                        channel_id="w",
+                        url=bad,
+                        hmac_secret="secret",  # noqa: S106
+                    ),
+                    http_client=http,
+                )
+
+    def test_pagerduty_rejects_non_https_events_url(self) -> None:
+        http = httpx.AsyncClient()
+        with pytest.raises(ValueError, match="https"):
+            PagerDutyEventsV2Channel(
+                config=PagerDutyEventsV2Config(
+                    channel_id="p",
+                    routing_key="rk",
+                    events_url="http://events.example/enqueue",
+                    trust_tiers=frozenset(),
+                ),
+                http_client=http,
+            )
+
+    def test_email_rejects_non_https_endpoint(self) -> None:
+        http = httpx.AsyncClient()
+        with pytest.raises(ValueError, match="https"):
+            AzureCommunicationEmailChannel(
+                config=AzureCommunicationEmailConfig(
+                    channel_id="e",
+                    endpoint="http://acs.example",
+                    recipient_addresses=("ops@example.com",),
+                ),
+                http_client=http,
+            )
+
+    def test_sms_rejects_non_https_endpoint(self) -> None:
+        http = httpx.AsyncClient()
+        with pytest.raises(ValueError, match="https"):
+            AzureCommunicationSmsChannel(
+                config=AzureCommunicationSmsConfig(
+                    channel_id="s",
+                    endpoint="http://acs.example",
+                    from_phone_number="+10000000000",
+                    to_phone_numbers=("+10000000001",),
+                ),
+                http_client=http,
+            )

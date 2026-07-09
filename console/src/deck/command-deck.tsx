@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import {
-  askBackend,
+  askBackendStream,
   probeBackend,
   type BackendHealth,
   type BackendTurn,
@@ -37,6 +37,8 @@ interface Turn {
   readonly followUps?: readonly string[];
   readonly source?: string;
   readonly router?: RouterSnapshot;
+  /** True while a deck reply is still streaming tokens in. */
+  readonly streaming?: boolean;
   readonly at: string;
 }
 
@@ -147,20 +149,45 @@ export function CommandDeck() {
       content: t.text,
     }));
     try {
-      const reply = await askBackend(text, snapshot, history);
-      const deckTurnBase: Turn = {
-        id: newId(),
-        role: "deck",
-        text: reply.text,
-        citations: reply.citations,
-        followUps: reply.followUps,
-        source: reply.source,
-        at: shortTime(),
+      const deckId = newId();
+      let started = false;
+      let acc = "";
+      // Reveal the streaming reply bubble on the first token (until then the
+      // RetrievalTrace "preparing answer" surface stays up).
+      const ensureTurn = () => {
+        if (started) return;
+        started = true;
+        setPending(false);
+        setTurns((prev) => [
+          ...prev,
+          { id: deckId, role: "deck", text: "", streaming: true, at: shortTime() },
+        ]);
       };
-      const deckTurn: Turn = reply.router
-        ? { ...deckTurnBase, router: reply.router }
-        : deckTurnBase;
-      setTurns((prev) => [...prev, deckTurn]);
+      const reply = await askBackendStream(text, snapshot, history, {
+        onToken: (delta) => {
+          acc += delta;
+          ensureTurn();
+          setTurns((prev) =>
+            prev.map((t) => (t.id === deckId ? { ...t, text: acc } : t)),
+          );
+        },
+      });
+      ensureTurn();
+      setTurns((prev) =>
+        prev.map((t) =>
+          t.id === deckId
+            ? {
+                ...t,
+                text: reply.text,
+                streaming: false,
+                citations: reply.citations,
+                followUps: reply.followUps,
+                source: reply.source,
+                ...(reply.router ? { router: reply.router } : {}),
+              }
+            : t,
+        ),
+      );
     } finally {
       setPending(false);
       focusInput();
@@ -216,6 +243,7 @@ export function CommandDeck() {
 
           <div class="deck-body">
             <section class="deck-transcript" ref={scrollerRef} aria-label="conversation">
+              <RouterAnnouncement health={health} />
               {turns.length === 0 ? (
                 <IntroPanel snapshotPresent={snapshot !== null} onPick={submit} />
               ) : null}
@@ -314,6 +342,7 @@ function TurnBubble({
           text={turn.text}
           citations={turn.citations}
           source={turn.source}
+          streaming={turn.streaming === true}
         />
       ) : (
         <div class="deck-turn-body">
@@ -339,6 +368,42 @@ function TurnBubble({
         </ul>
       ) : null}
     </article>
+  );
+}
+
+/**
+ * One-time system banner announcing the auto-selected fastest mini model.
+ * Renders only when the backend wired the latency router; every number is a
+ * real measurement from ``GET /chat/health`` (per-candidate rolling p50).
+ */
+function RouterAnnouncement({ health }: { readonly health: BackendHealth | null }) {
+  const router = health?.router;
+  if (!router || router.candidates.length < 2) return null;
+  const ranked = [...router.candidates]
+    .filter((c) => c.p50_ms !== null)
+    .sort((a, b) => (a.p50_ms ?? 0) - (b.p50_ms ?? 0));
+  const chosen = router.candidates.find((c) => c.deployment === router.chose);
+  const chosenP50 = chosen?.p50_ms ?? null;
+  return (
+    <div class="deck-router-note" role="status">
+      <span class="deck-router-note-glyph" aria-hidden="true">⚡</span>
+      <div class="deck-router-note-body">
+        <p class="deck-router-note-lead">
+          Switched to the fastest model: <strong>{router.chose}</strong>
+          {chosenP50 !== null ? (
+            <span class="muted"> · p50 {Math.round(chosenP50)}ms</span>
+          ) : null}
+        </p>
+        {ranked.length > 0 ? (
+          <p class="deck-router-note-sub muted">
+            Auto-measured {router.candidates.length} mini models:{" "}
+            {ranked
+              .map((c) => `${c.deployment} ${Math.round(c.p50_ms ?? 0)}ms`)
+              .join(" · ")}
+          </p>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

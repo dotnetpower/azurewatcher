@@ -140,3 +140,70 @@ def test_config_rejects_empty_header() -> None:
             http_client=httpx.AsyncClient(),
             config=_cfg(header=""),
         )
+
+
+@pytest.mark.asyncio
+async def test_concurrent_get_token_calls_share_one_imds_roundtrip() -> None:
+    """A burst of concurrent callers for the same audience MUST NOT
+    stampede the IMDS endpoint.
+
+    Regression against the double-checked-locking bug: without a
+    per-audience lock, ``asyncio.gather`` of N callers on a cold cache
+    fires N HTTP requests and races on the cache write. The lock folds
+    the second-onward caller onto the cached result the first caller
+    stores.
+    """
+    import asyncio
+
+    hit_count = 0
+
+    async def handler(_req: httpx.Request) -> httpx.Response:
+        nonlocal hit_count
+        hit_count += 1
+        # Simulate IMDS network latency so the second caller has time
+        # to enter the critical section.
+        await asyncio.sleep(0.01)
+        return httpx.Response(
+            200,
+            json={"access_token": "abc", "expires_on": _future_epoch(3600)},
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        identity = ManagedIdentityWorkloadIdentity(http_client=http, config=_cfg())
+        tokens = await asyncio.gather(
+            identity.get_token("aud-a"),
+            identity.get_token("aud-a"),
+            identity.get_token("aud-a"),
+            identity.get_token("aud-a"),
+        )
+    assert all(t.token == "abc" for t in tokens)
+    assert hit_count == 1
+
+
+@pytest.mark.asyncio
+async def test_concurrent_get_token_calls_across_audiences_are_independent() -> None:
+    """Concurrent callers on *different* audiences MUST NOT block each
+    other - each audience has its own lock.
+    """
+    import asyncio
+
+    hit_count = 0
+
+    async def handler(req: httpx.Request) -> httpx.Response:
+        nonlocal hit_count
+        hit_count += 1
+        resource = req.url.params.get("resource") or ""
+        return httpx.Response(
+            200,
+            json={"access_token": f"tok-{resource}", "expires_on": _future_epoch(3600)},
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        identity = ManagedIdentityWorkloadIdentity(http_client=http, config=_cfg())
+        tokens = await asyncio.gather(
+            identity.get_token("aud-a"),
+            identity.get_token("aud-b"),
+            identity.get_token("aud-c"),
+        )
+    assert {t.token for t in tokens} == {"tok-aud-a", "tok-aud-b", "tok-aud-c"}
+    assert hit_count == 3

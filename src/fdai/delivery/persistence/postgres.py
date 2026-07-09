@@ -61,6 +61,11 @@ class PostgresStateStoreConfig:
     """Applied via ``SET LOCAL`` on every operation; fails fast rather than
     blocking the event loop on a stuck query."""
 
+    connect_timeout_s: int = 10
+    """Bound the TCP + auth handshake so a dead DB fails fast instead of
+    hanging the event loop for ~2 minutes on the kernel TCP retry budget
+    (``statement_timeout`` only starts *after* connect succeeds)."""
+
 
 class PostgresStateStore(StateStore):
     """Async :class:`StateStore` implementation for PostgreSQL."""
@@ -70,6 +75,8 @@ class PostgresStateStore(StateStore):
             raise ValueError("PostgresStateStoreConfig.dsn MUST NOT be empty")
         if config.statement_timeout_ms < 1:
             raise ValueError("statement_timeout_ms MUST be >= 1")
+        if config.connect_timeout_s < 1:
+            raise ValueError("connect_timeout_s MUST be >= 1")
         self._config = config
 
     # ------------------------------------------------------------------
@@ -94,7 +101,10 @@ class PostgresStateStore(StateStore):
         if mode not in ("shadow", "enforce"):
             raise ValueError(f"audit entry mode MUST be 'shadow'|'enforce', got {mode!r}")
 
-        async with await psycopg.AsyncConnection.connect(self._config.dsn) as conn:
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
             async with conn.transaction():
                 await self._set_statement_timeout(conn)
                 # Serialize concurrent hash-chain appenders. Without this
@@ -137,7 +147,9 @@ class PostgresStateStore(StateStore):
 
     async def read_state(self, key: str) -> Mapping[str, Any] | None:
         async with await psycopg.AsyncConnection.connect(
-            self._config.dsn, row_factory=dict_row
+            self._config.dsn,
+            row_factory=dict_row,
+            connect_timeout=self._config.connect_timeout_s,
         ) as conn:
             async with conn.transaction():
                 await self._set_statement_timeout(conn)
@@ -153,7 +165,10 @@ class PostgresStateStore(StateStore):
         )
 
     async def write_state(self, key: str, value: Mapping[str, Any]) -> None:
-        async with await psycopg.AsyncConnection.connect(self._config.dsn) as conn:
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
             async with conn.transaction():
                 await self._set_statement_timeout(conn)
                 await conn.execute(
@@ -197,7 +212,9 @@ class PostgresStateStore(StateStore):
         """
         previous = _GENESIS_HASH
         async with await psycopg.AsyncConnection.connect(
-            self._config.dsn, row_factory=dict_row
+            self._config.dsn,
+            row_factory=dict_row,
+            connect_timeout=self._config.connect_timeout_s,
         ) as conn:
             await self._set_statement_timeout(conn)
             async with conn.cursor(name="fdai_verify_chain") as cur:

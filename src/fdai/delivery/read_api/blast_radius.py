@@ -57,16 +57,24 @@ def make_blast_radius_route(
         target = request.query_params.get("target")
         if not target:
             return _error(400, "query param 'target' is required")
+        if len(target) > 512:
+            return _error(400, "query param 'target' is too long")
 
         depth_raw = request.query_params.get("depth", str(DEFAULT_DEPTH))
         try:
             depth = int(depth_raw)
         except ValueError:
             return _error(400, f"query param 'depth' MUST be an integer, got {depth_raw!r}")
+        if depth < 1 or depth > 8:
+            return _error(400, "query param 'depth' MUST be in [1, 8]")
 
         links = tuple(request.query_params.getlist("link"))
         if not links:
             return _error(400, "query param 'link' is required (repeatable)")
+        if len(links) > 32:
+            return _error(400, "too many 'link' parameters (max 32)")
+        if any(len(name) > 128 for name in links):
+            return _error(400, "'link' name is too long (max 128 chars)")
 
         try:
             report = simulate_blast_radius(

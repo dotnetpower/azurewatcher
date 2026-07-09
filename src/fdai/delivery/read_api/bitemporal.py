@@ -44,10 +44,14 @@ def make_bitemporal_route(
         correlation_id = request.path_params.get("correlation_id", "")
         if not correlation_id:
             return _error(400, "correlation_id path parameter is required")
+        if len(correlation_id) > 256:
+            return _error(400, "correlation_id is too long")
 
         resource_id = request.query_params.get("resource_id", "")
         if not resource_id:
             return _error(400, "query param 'resource_id' is required")
+        if len(resource_id) > 512:
+            return _error(400, "resource_id is too long")
 
         as_of_raw = request.query_params.get("as_of")
         if not as_of_raw:
@@ -66,9 +70,7 @@ def make_bitemporal_route(
             return _error(404, f"no audit items for correlation_id {correlation_id!r}")
 
         try:
-            snap = snapshot_at(
-                resource_id, items, as_of=as_of, effective=effective
-            )
+            snap = snapshot_at(resource_id, items, as_of=as_of, effective=effective)
         except BitemporalQueryError as exc:
             return _error(400, str(exc))
 

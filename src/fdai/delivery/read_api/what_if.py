@@ -53,10 +53,17 @@ def make_what_if_route(
         correlation_id = request.path_params.get("correlation_id", "")
         if not correlation_id:
             return _error(400, "correlation_id path parameter is required")
+        # Bound the input so an attacker cannot amplify a 4xx into a
+        # megabyte-scale reflected error body or log line. Real
+        # correlation ids are UUIDs / event-id shapes < 128 chars.
+        if len(correlation_id) > 256:
+            return _error(400, "correlation_id is too long")
 
         scenario = request.query_params.get("scenario", "")
         if not scenario:
             return _error(400, "query param 'scenario' is required")
+        if len(scenario) > 128:
+            return _error(400, "scenario is too long")
         evaluator = evaluators.get(scenario)
         if evaluator is None:
             return _error(

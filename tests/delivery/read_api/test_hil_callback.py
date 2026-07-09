@@ -53,9 +53,17 @@ from fdai.shared.providers.testing.hil_registry import InMemoryHilApprovalRegist
 SECRET = "shared-secret-for-tests"
 
 
-def _sign(secret: str, timestamp: str, body: bytes) -> str:
+def _sign(secret: str, timestamp: str, body: bytes, *, approval_id: str) -> str:
+    """Mirror :func:`fdai.delivery.read_api.hil_callback._compute_hmac`.
+
+    The URL ``approval_id`` MUST be part of the signed material so a
+    captured message cannot be replayed against a different pending item
+    (URL swap attack).
+    """
     mac = hmac.new(secret.encode(), digestmod=hashlib.sha256)
     mac.update(timestamp.encode())
+    mac.update(b".")
+    mac.update(approval_id.encode())
     mac.update(b".")
     mac.update(body)
     return f"sha256={mac.hexdigest()}"
@@ -167,7 +175,7 @@ def test_approve_records_decision_via_registry() -> None:
     timestamp = datetime.now(UTC).isoformat()
     headers = {
         "x-fdai-timestamp": timestamp,
-        "x-fdai-signature": _sign(SECRET, timestamp, body),
+        "x-fdai-signature": _sign(SECRET, timestamp, body, approval_id="appr-1"),
         "content-type": "application/json",
     }
     response = client.post("/hil/appr-1/decision", content=body, headers=headers)
@@ -197,7 +205,7 @@ def test_second_call_after_resolution_returns_404() -> None:
     timestamp = datetime.now(UTC).isoformat()
     headers = {
         "x-fdai-timestamp": timestamp,
-        "x-fdai-signature": _sign(SECRET, timestamp, body),
+        "x-fdai-signature": _sign(SECRET, timestamp, body, approval_id="appr-1"),
         "content-type": "application/json",
     }
 
@@ -263,7 +271,7 @@ def test_replay_window_enforced() -> None:
         content=body,
         headers={
             "x-fdai-timestamp": old,
-            "x-fdai-signature": _sign(SECRET, old, body),
+            "x-fdai-signature": _sign(SECRET, old, body, approval_id="appr-1"),
             "content-type": "application/json",
         },
     )
@@ -290,6 +298,44 @@ def test_signature_wrong_algorithm_prefix_returns_401() -> None:
     assert response.status_code == 401
 
 
+def test_url_path_swap_is_rejected() -> None:
+    """A signature valid for one ``approval_id`` MUST NOT verify against
+    a different path.
+
+    Regression against a captured-message URL-swap attack: the caller
+    signs ``timestamp . approval_id . body``, so replaying the exact
+    same body + signature against a different pending item's URL breaks
+    the HMAC and returns 401.
+    """
+    registry = InMemoryHilApprovalRegistry()
+    # Seed two pending items so the target path resolves to a real item
+    # (otherwise a 404 would mask the auth check).
+    registry.seed([
+        _pending(approval_id="appr-1", idempotency_key="idem-1"),
+        _pending(approval_id="appr-2", idempotency_key="idem-2"),
+    ])
+    app = _build_app_with_callback(registry)
+    client = TestClient(app)
+    body = json.dumps(
+        {"decision": "approve", "actor_oid": "u", "justification": "reviewed"}
+    ).encode()
+    timestamp = datetime.now(UTC).isoformat()
+    # Signature is computed with approval_id="appr-1"...
+    signature = _sign(SECRET, timestamp, body, approval_id="appr-1")
+    # ...but the URL swaps in "appr-2", which MUST fail the HMAC compare.
+    response = client.post(
+        "/hil/appr-2/decision",
+        content=body,
+        headers={
+            "x-fdai-timestamp": timestamp,
+            "x-fdai-signature": signature,
+            "content-type": "application/json",
+        },
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["kind"] == "unauthorized"
+
+
 def test_naive_timestamp_rejected() -> None:
     registry = InMemoryHilApprovalRegistry()
     registry.seed([_pending()])
@@ -302,7 +348,7 @@ def test_naive_timestamp_rejected() -> None:
         content=body,
         headers={
             "x-fdai-timestamp": naive_ts,
-            "x-fdai-signature": _sign(SECRET, naive_ts, body),
+            "x-fdai-signature": _sign(SECRET, naive_ts, body, approval_id="appr-1"),
             "content-type": "application/json",
         },
     )
@@ -326,7 +372,7 @@ def test_bad_json_body_returns_400() -> None:
         content=body,
         headers={
             "x-fdai-timestamp": timestamp,
-            "x-fdai-signature": _sign(SECRET, timestamp, body),
+            "x-fdai-signature": _sign(SECRET, timestamp, body, approval_id="appr-1"),
             "content-type": "application/json",
         },
     )
@@ -345,7 +391,7 @@ def test_unknown_decision_returns_400() -> None:
         content=body,
         headers={
             "x-fdai-timestamp": timestamp,
-            "x-fdai-signature": _sign(SECRET, timestamp, body),
+            "x-fdai-signature": _sign(SECRET, timestamp, body, approval_id="appr-1"),
             "content-type": "application/json",
         },
     )
@@ -364,7 +410,7 @@ def test_missing_actor_oid_returns_400() -> None:
         content=body,
         headers={
             "x-fdai-timestamp": timestamp,
-            "x-fdai-signature": _sign(SECRET, timestamp, body),
+            "x-fdai-signature": _sign(SECRET, timestamp, body, approval_id="appr-1"),
             "content-type": "application/json",
         },
     )
@@ -394,7 +440,7 @@ def test_body_too_large_returns_400() -> None:
         content=body,
         headers={
             "x-fdai-timestamp": timestamp,
-            "x-fdai-signature": _sign(SECRET, timestamp, body),
+            "x-fdai-signature": _sign(SECRET, timestamp, body, approval_id="appr-1"),
             "content-type": "application/json",
         },
     )
@@ -424,7 +470,7 @@ def test_self_approval_is_403() -> None:
         content=body,
         headers={
             "x-fdai-timestamp": timestamp,
-            "x-fdai-signature": _sign(SECRET, timestamp, body),
+            "x-fdai-signature": _sign(SECRET, timestamp, body, approval_id="appr-1"),
             "content-type": "application/json",
         },
     )
@@ -446,7 +492,7 @@ def test_unknown_approval_id_is_404() -> None:
         content=body,
         headers={
             "x-fdai-timestamp": timestamp,
-            "x-fdai-signature": _sign(SECRET, timestamp, body),
+            "x-fdai-signature": _sign(SECRET, timestamp, body, approval_id="missing"),
             "content-type": "application/json",
         },
     )
@@ -549,7 +595,7 @@ def _post(
         content=body,
         headers={
             "x-fdai-timestamp": timestamp,
-            "x-fdai-signature": _sign(SECRET, timestamp, body),
+            "x-fdai-signature": _sign(SECRET, timestamp, body, approval_id=approval_id),
             "content-type": "application/json",
         },
     )

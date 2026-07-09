@@ -986,6 +986,15 @@ async def _run() -> int:
             wait_task.cancel()
             if pantheon_task is not None:
                 pantheon_task.cancel()
+            # Await the cancels so cleanup can drain the consumer's
+            # ``async for`` + finally (which stops the AIOKafkaConsumer)
+            # before we tear down the bus / HTTP client in the outer
+            # ``finally``. Without this a cancelled consumer can be
+            # racing the aiokafka close and log noisy warnings on exit.
+            cleanup_tasks: list[asyncio.Task[Any]] = [consumer_task, wait_task]
+            if pantheon_task is not None:
+                cleanup_tasks.append(pantheon_task)
+            await asyncio.gather(*cleanup_tasks, return_exceptions=True)
             for task in done:
                 exc = task.exception()
                 if exc is not None:

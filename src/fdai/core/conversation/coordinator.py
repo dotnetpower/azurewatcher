@@ -24,6 +24,7 @@ Design invariants enforced here:
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from collections.abc import Sequence
@@ -42,6 +43,8 @@ from fdai.core.conversation.tools import (
     SystemConsoleTool,
     ToolResult,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -352,6 +355,16 @@ class ConversationCoordinator:
                 principal_role=principal_role,
             )
         except Exception:  # noqa: BLE001 - narrator MUST NOT crash the REPL
+            # Log-and-degrade: the narrator (LLM translator) can raise
+            # for reasons operators care about (transport error, quota,
+            # malformed schema). Silently returning None hides that
+            # signal - a WARNING lets the REPL keep going while still
+            # surfacing the root cause to the audit stream.
+            _LOGGER.warning(
+                "narrator_translate_failed",
+                extra={"principal_role": principal_role or None},
+                exc_info=True,
+            )
             return None
         if translated is None:
             return None

@@ -22,9 +22,6 @@ interface Citation {
   readonly value?: string;
 }
 
-/** Answer text reveal cadence. */
-const STREAM_STEP_CHARS = 3;
-const STREAM_INTERVAL_MS = 16;
 /** Citation slot-machine cadence + window (shared pitch with styles.css). */
 const CITE_INTERVAL_MS = 90;
 const VISIBLE = 3;
@@ -35,30 +32,16 @@ export function GroundedReply({
   text,
   citations,
   source,
+  streaming,
 }: {
   readonly turnId: string;
   readonly text: string;
   readonly citations: readonly Citation[] | undefined;
   readonly source: string | undefined;
+  /** True while the answer is still streaming tokens in from the backend. */
+  readonly streaming: boolean;
 }) {
   const cites = citations ?? [];
-
-  // Type the answer in, token by token, once per turn.
-  const [shownChars, setShownChars] = useState(0);
-  useEffect(() => {
-    setShownChars(0);
-    if (text.length === 0) return;
-    let i = 0;
-    const id = window.setInterval(() => {
-      i += STREAM_STEP_CHARS;
-      setShownChars(i);
-      if (i >= text.length) window.clearInterval(id);
-    }, STREAM_INTERVAL_MS);
-    return () => window.clearInterval(id);
-  }, [turnId, text.length]);
-
-  const streaming = shownChars < text.length;
-  const body = text.slice(0, shownChars);
 
   // Expandable citation slot-machine: roll the cards in when opened.
   const [open, setOpen] = useState(false);
@@ -81,14 +64,15 @@ export function GroundedReply({
 
   const rolled = Math.max(0, shownCites - VISIBLE);
   const visibleCites = cites.slice(0, shownCites);
+  const lines = text.split("\n");
 
   return (
     <div class="deck-gr">
       <div class="deck-turn-body">
-        {body.split("\n").map((line, i) => (
+        {lines.map((line, i) => (
           <p key={i} class="deck-turn-line">
             {line}
-            {streaming && i === body.split("\n").length - 1 ? (
+            {streaming && i === lines.length - 1 ? (
               <span class="deck-gr-caret" aria-hidden="true" />
             ) : null}
           </p>

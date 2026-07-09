@@ -134,3 +134,36 @@ def test_postgres_complete_upserts_done(monkeypatch: pytest.MonkeyPatch) -> None
     store = PostgresOutboxStore(config=PostgresOutboxStoreConfig(dsn="postgresql://x"))
     asyncio.run(store.complete("k", {"outcome": "dispatched"}))
     assert any("status = 'done'" in sql for sql, _ in conn.executed)
+
+
+def test_postgres_complete_sql_freezes_done_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A duplicate ``complete()`` MUST NOT overwrite a DONE row.
+
+    Guard: the emitted UPSERT carries ``WHERE action_outbox.status <> 'done'``,
+    so PostgreSQL treats the second call as a no-op instead of clobbering the
+    original outcome. Regression against a silent exactly-once violation.
+    """
+    conn = _FakeConn(claim_rowcount=1, select_row=None)
+    _patch(monkeypatch, conn)
+    store = PostgresOutboxStore(config=PostgresOutboxStoreConfig(dsn="postgresql://x"))
+    asyncio.run(store.complete("k", {"outcome": "dispatched"}))
+    complete_sql = next(
+        sql for sql, _ in conn.executed if "status = 'done'" in sql and "UPDATE" in sql
+    )
+    assert "status <> 'done'" in complete_sql
+
+
+def test_in_memory_complete_freezes_done_rows() -> None:
+    """In-memory backend MUST also freeze terminal rows to match Postgres."""
+    store = InMemoryOutboxStore()
+
+    async def _run() -> None:
+        await store.claim("k")
+        await store.complete("k", {"outcome": "original"})
+        # A buggy duplicate ``complete()`` MUST NOT overwrite the outcome.
+        await store.complete("k", {"outcome": "clobbered"})
+        claim = await store.claim("k")
+        assert claim.status is OutboxStatus.DONE
+        assert claim.result == {"outcome": "original"}
+
+    asyncio.run(_run())

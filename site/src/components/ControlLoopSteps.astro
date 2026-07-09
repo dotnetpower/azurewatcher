@@ -1,0 +1,151 @@
+---
+/*
+ * ControlLoopSteps.astro - a commercial-style "how it works" flow for
+ * the landing page, replacing the developer-facing mermaid diagram.
+ *
+ * Renders the five stages of the control loop as a horizontal row of
+ * glass cards (Ingest -> Route -> Gate -> Execute -> Audit), each with a
+ * number, an icon, a title, and a one-line description. On narrow
+ * screens the row reflows to two columns, then one.
+ *
+ * All display strings are props so the component source stays
+ * English-only; the Korean landing passes Korean strings. The icon per
+ * step is fixed by position, so a locale only overrides text.
+ */
+interface Step {
+  label: string;
+  desc: string;
+}
+
+interface Props {
+  steps?: Step[];
+}
+
+const {
+  steps = [
+    { label: "Ingest", desc: "Normalise, dedup, and correlate raw events into incidents." },
+    { label: "Route", desc: "The trust router scores confidence and picks the cheapest tier: T0, T1, or T2." },
+    { label: "Gate", desc: "The risk gate rules auto, HIL, or deny; T2 first clears the quality gate." },
+    { label: "Execute", desc: "The executor applies the change with a stop-condition, rollback, and blast-radius limit." },
+    { label: "Audit", desc: "Every decision - including no-ops - is appended to the immutable audit log." },
+  ],
+} = Astro.props as Props;
+
+// Fixed per-position icons (24x24 stroke paths). Index-aligned to the
+// five stages; a locale never changes these.
+const icons = [
+  // Ingest - inbound tray
+  '<path d="M3 12h4l2 3h6l2-3h4"/><path d="M5 12V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7"/>',
+  // Route - branch/split
+  '<circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M8 6h4a4 4 0 0 1 4 4M8 18h4a4 4 0 0 0 4-4"/>',
+  // Gate - shield check
+  '<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  // Execute - bolt
+  '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+  // Audit - log/list
+  '<path d="M5 3h11l3 3v15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8 8h7M8 12h7M8 16h4"/>',
+];
+---
+
+<section class="loop-steps" aria-label="Control loop stages">
+  <ol class="loop-steps-row">
+    {
+      steps.map((s, i) => (
+        <li class="loop-step">
+          <div class="loop-step-head">
+            <svg
+              class="loop-step-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              set:html={icons[i] ?? ""}
+            />
+            <span class="loop-step-num">{`0${i + 1}`}</span>
+          </div>
+          <h3>{s.label}</h3>
+          <p>{s.desc}</p>
+        </li>
+      ))
+    }
+  </ol>
+</section>
+
+<style>
+  .loop-steps {
+    margin: 1.5rem 0 2.5rem;
+  }
+  .loop-steps-row {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.7rem;
+  }
+  /* Two columns on tablets, one on phones. */
+  @media (max-width: 60rem) {
+    .loop-steps-row {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (max-width: 34rem) {
+    .loop-steps-row {
+      grid-template-columns: 1fr;
+    }
+  }
+  .loop-step {
+    position: relative;
+    border-radius: 0.8rem;
+    padding: 1.05rem 0.95rem;
+    background: rgba(10, 16, 30, 0.55);
+    border: 1px solid rgba(120, 170, 255, 0.18);
+    backdrop-filter: blur(10px) saturate(130%);
+    -webkit-backdrop-filter: blur(10px) saturate(130%);
+  }
+  /* Flow arrow between cards on the wide (5-across) layout only. */
+  @media (min-width: 60.01rem) {
+    .loop-step:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      right: -0.5rem;
+      top: 1.6rem;
+      width: 0.5rem;
+      height: 0.5rem;
+      border-top: 1.5px solid rgba(120, 170, 255, 0.5);
+      border-right: 1.5px solid rgba(120, 170, 255, 0.5);
+      transform: rotate(45deg);
+    }
+  }
+  .loop-step-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6rem;
+  }
+  .loop-step-icon {
+    width: 1.55rem;
+    height: 1.55rem;
+    color: #50e6ff;
+  }
+  .loop-step-num {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: rgba(140, 175, 230, 0.6);
+  }
+  .loop-step h3 {
+    font-size: 1rem;
+    margin: 0 0 0.3rem;
+    color: #f3f7ff;
+  }
+  .loop-step p {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    margin: 0;
+    color: #b9c6de;
+  }
+</style>

@@ -1,7 +1,7 @@
 ---
 translation_of: README.md
 translation_source_sha: 981195af1620010f2678923174b7082f0bf72dba
-translation_revised: 2026-07-08
+translation_revised: 2026-07-09
 ---
 
 # FDAI

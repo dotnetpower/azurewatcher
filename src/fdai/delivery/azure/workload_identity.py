@@ -20,6 +20,7 @@ records the rest of the app already understands.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -78,6 +79,22 @@ class ManagedIdentityWorkloadIdentity:
         self._config = cfg
         self._http = http_client
         self._cache: dict[str, IdentityToken] = {}
+        # One asyncio Lock per audience. Without this, N concurrent
+        # callers requesting the same audience would each fire a
+        # separate IMDS round-trip on a cold cache - IMDS rate-limits
+        # per-instance, so a burst on startup can flap. Serializing
+        # per-audience folds the second-onwards caller onto the cached
+        # result the first caller stores.
+        self._audience_locks: dict[str, asyncio.Lock] = {}
+        self._registry_lock = asyncio.Lock()
+
+    async def _audience_lock(self, audience: str) -> asyncio.Lock:
+        async with self._registry_lock:
+            lock = self._audience_locks.get(audience)
+            if lock is None:
+                lock = asyncio.Lock()
+                self._audience_locks[audience] = lock
+            return lock
 
     async def get_token(self, audience: str) -> IdentityToken:
         cached = self._cache.get(audience)
@@ -85,6 +102,17 @@ class ManagedIdentityWorkloadIdentity:
         if cached is not None and cached.expires_at > now + timedelta(seconds=_MIN_TTL_SECONDS):
             return cached
 
+        lock = await self._audience_lock(audience)
+        async with lock:
+            # Re-check under the lock: another coroutine may have
+            # populated the cache while we were awaiting the lock.
+            cached = self._cache.get(audience)
+            now = datetime.now(tz=UTC)
+            if cached is not None and cached.expires_at > now + timedelta(seconds=_MIN_TTL_SECONDS):
+                return cached
+            return await self._fetch_and_cache(audience)
+
+    async def _fetch_and_cache(self, audience: str) -> IdentityToken:
         params: dict[str, str] = {
             "api-version": _API_VERSION,
             "resource": _audience_to_resource(audience),

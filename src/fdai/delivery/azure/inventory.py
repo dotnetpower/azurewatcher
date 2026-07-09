@@ -155,10 +155,14 @@ class AzureResourceGraphInventory:
         except BaseException:
             # Fail-closed: cancel outstanding shards so a partial snapshot
             # never quietly lands. The caller retains the previous graph
-            # because we never yielded a `final=True` batch.
+            # because we never yielded a `final=True` batch. Await the
+            # cancels so shard sockets close before the exception unwinds
+            # past our generator - otherwise aiohttp / httpx warn about
+            # unfinished coroutines on shutdown.
             for t in tasks:
                 if not t.done():
                     t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
             raise
 
         yield InventoryBatch(final=True)

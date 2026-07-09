@@ -3,7 +3,7 @@ title: Shadow, then enforce
 description: 왜 모든 새 자율 액션이 shadow로 먼저 배포되고, 어떻게 자동 실행 권한을 얻는가.
 translation_of: shadow-then-enforce.md
 translation_source_sha: 90bd5dc616e66d052396688701f579438597d557
-translation_revised: 2026-07-08
+translation_revised: 2026-07-09
 ---
 
 # Shadow, then enforce

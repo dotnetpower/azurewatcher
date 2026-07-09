@@ -229,8 +229,8 @@ async def _iter_consumer(
     await consumer.start()
     try:
         async for message in consumer:
-            payload = _decode(message.value)
             key = _decode_key(message.key)
+            payload = _decode(message.value, topic=message.topic, key=key)
             yield EventEnvelope(
                 topic=message.topic,
                 key=key,
@@ -250,15 +250,34 @@ def _encode(payload: Mapping[str, Any]) -> bytes:
     return json.dumps(dict(payload), separators=(",", ":"), sort_keys=True).encode("utf-8")
 
 
-def _decode(value: bytes | None) -> Mapping[str, Any]:
+def _decode(value: bytes | None, *, topic: str = "", key: str = "") -> Mapping[str, Any]:
+    """Best-effort JSON decode; log-and-flag malformed payloads.
+
+    Kafka delivers raw bytes; if a producer ships an invalid or non-object
+    JSON payload we cannot drop the message silently (that hides operator
+    signal) and cannot raise from a hot-path generator (that stalls the
+    consumer group). Instead we emit a WARNING with the topic and key so
+    an operator can locate the poison message, and return a sentinel
+    envelope shape that downstream ``payload.get("resource")`` lookups
+    resolve to ``None`` - the trust router abstains and the risk gate's
+    fail-toward-safety path takes it from there.
+    """
     if value is None:
         return {}
     try:
         parsed = json.loads(value)
     except json.JSONDecodeError:
-        return {"_raw": value.decode("utf-8", errors="replace")}
+        _LOGGER.warning(
+            "event_bus_decode_error",
+            extra={"topic": topic, "key": key, "bytes": len(value)},
+        )
+        return {"_raw": value.decode("utf-8", errors="replace"), "_decode_error": True}
     if not isinstance(parsed, dict):
-        return {"_wrapped": parsed}
+        _LOGGER.warning(
+            "event_bus_non_object_payload",
+            extra={"topic": topic, "key": key, "type": type(parsed).__name__},
+        )
+        return {"_wrapped": parsed, "_decode_error": True}
     return parsed
 
 

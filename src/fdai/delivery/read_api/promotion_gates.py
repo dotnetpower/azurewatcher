@@ -52,15 +52,19 @@ def make_promotion_gates_route(
                 return _error(400, "window_days MUST be an integer")
             if window_days < 1:
                 return _error(400, "window_days MUST be >= 1")
+            if window_days > 365:
+                # Cap at one year so a caller cannot request a datetime
+                # arithmetic that overflows / returns unbounded rows.
+                return _error(400, "window_days MUST be <= 365")
 
         filter_name = request.query_params.get("action_type")
+        if filter_name is not None and len(filter_name) > 256:
+            return _error(400, "action_type filter is too long")
         target = [at for at in action_types if filter_name is None or at.name == filter_name]
         if filter_name is not None and not target:
             return _error(404, f"unknown action_type {filter_name!r}")
 
-        rows = evaluator.evaluate_many(
-            target, source=source, window_days=window_days
-        )
+        rows = evaluator.evaluate_many(target, source=source, window_days=window_days)
         return JSONResponse(
             {
                 "window_days": window_days,

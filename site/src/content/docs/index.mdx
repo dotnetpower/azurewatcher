@@ -1,9 +1,10 @@
 ---
-title: FDAI
-description: Forward Deployed AI for Cloud Ops - deterministic-first, event-driven, risk-gated.
+title: Forward Deployed Agents
+description: Forward Deployed Agents - deterministic-first, event-driven, risk-gated cloud operations.
 template: splash
 hero:
-  tagline: FDAI is an autonomous control plane that lives inside your cloud. It resolves most events deterministically with rules and policies, reserves LLM reasoning for the small ambiguous residual, and delivers every change as a shadow-first remediation PR - so most operations run without a human in the loop.
+  title: An autonomous agent org that lives in your cloud
+  tagline: An org of 15 specialized AI agents that runs your cloud operations. Deploy the agent pantheon into your own environment and each agent takes its role - sensing, judging, executing, approving, auditing - so one org covers Cloud Ops and SRE, deterministic-first and risk-gated, with minimal human intervention.
   actions:
     - text: Get started
       link: /get-started/
@@ -22,36 +23,25 @@ hero:
 import { Card, CardGrid } from "@astrojs/starlight/components";
 import TrustTierFunnel from "../../components/TrustTierFunnel.astro";
 import ActionOntologyExplorer from "../../components/ActionOntologyExplorer.astro";
+import ControlLoopSteps from "../../components/ControlLoopSteps.astro";
 
-## How FDAI resolves events
+<ul class="trust-bar">
+  <li>Azure-native</li>
+  <li>Deterministic-first</li>
+  <li>Shadow-first, then enforce</li>
+  <li>Every action audited</li>
+  <li>Human-in-the-loop on high risk</li>
+</ul>
 
-<p class="hero-note">A single control loop: normalise, route by confidence, gate by risk, and always audit. LLMs only see the residual minority that the deterministic tiers explicitly abstain on.</p>
+## How Forward Deployed Agents resolve events
 
-```mermaid
-flowchart LR
-  E[Event bus<br/>Kafka on Event Hubs] --> IN[Event ingest<br/>normalise · dedup · correlate]
-  IN --> TR{Trust router<br/>compute confidence}
-  TR -->|rule match| T0[T0 · deterministic<br/>~70-80% target]
-  TR -->|similar to past| T1[T1 · lightweight reuse<br/>~15-20%]
-  TR -->|novel / ambiguous| T2[T2 · reasoning<br/>~5-10%]
-  T2 --> QG{{Quality gate<br/>mixed-model · verifier · grounding}}
-  T0 --> RG{Risk gate}
-  T1 --> RG
-  QG -->|pass| RG
-  QG -->|abstain| HIL
-  RG -->|auto| EX[Executor<br/>stop-condition · rollback · blast-radius]
-  RG -->|hil| HIL[Human approval<br/>Teams · PR · email]
-  RG -->|deny| DENY[No-op<br/>audit]
-  HIL -->|approve| EX
-  HIL -->|reject / timeout| DENY
-  EX --> DEL[GitOps / PR delivery]
-  DEL --> AUD[(Append-only audit log)]
-  DENY --> AUD
-```
+<p class="hero-note">One control loop, from signal to audit. Every event is normalised, routed by confidence, and gated by risk - and language models are reserved for the ambiguous few that the deterministic tiers deliberately defer.</p>
+
+<ControlLoopSteps />
 
 <TrustTierFunnel />
 
-## What autonomy earns you (design targets)
+## What autonomy earns you
 
 <ul class="impact-list">
   <li>
@@ -86,12 +76,12 @@ flowchart LR
   <li>
     <span class="impact-tick" aria-hidden="true">↳</span>
     <em>All figures above are design targets, not measured results.</em>
-    FDAI never claims a multiplier without a paired baseline
+    Forward Deployed Agents never claim a multiplier without a paired baseline
     measurement.
   </li>
 </ul>
 
-## Three domains, one control plane
+## One core, three domains
 
 <p class="hero-note">Each domain shares the same event-driven, risk-gated core; they differ only in the rules and actions they load.</p>
 
@@ -107,13 +97,38 @@ flowchart LR
   </Card>
 </CardGrid>
 
+## Meet the agent organization
+
+<p class="hero-note">Fifteen named agents run the control plane as a single organization - each owns a role and hands off through a schema-checked event bus. It is an org chart, not a metaphor: the judge never executes, and every action is initiated, judged, approved, executed, and audited by distinct agents.</p>
+
+<CardGrid>
+  <Card title="Odin - command" icon="star">
+    The master planner. Cross-vertical arbitration and the final tie-break before a verdict is finalised.
+  </Card>
+  <Card title="Judgment and execution" icon="approve-check">
+    **Forseti** judges (auto / HIL / deny), **Thor** dispatches and executes, **Var** carries the human approval, **Vidar** owns rollback and DR failover. No agent both judges and executes.
+  </Card>
+  <Card title="Sensing" icon="magnifier">
+    **Huginn** collects and correlates events; **Heimdall** watches health and drift. Deterministic-first - never an LLM in the hot path.
+  </Card>
+  <Card title="Conversation and audit" icon="comment">
+    **Bragi** translates operator questions into tool calls; **Saga** writes the append-only audit trail and escalates handoffs.
+  </Card>
+  <Card title="Governance" icon="setting">
+    **Mimir** stewards the rule catalog, **Norns** learns from outcomes, **Muninn** holds long-term memory.
+  </Card>
+  <Card title="Domain specialists" icon="puzzle">
+    **Njord** (cost), **Freyr** (capacity), and **Loki** (chaos) advise the judge with domain analysis - they never execute directly.
+  </Card>
+</CardGrid>
+
 ## The action ontology
 
 <ActionOntologyExplorer />
 
 ## Delivery phases
 
-<p class="hero-note">Strictly sequential - each phase names its predecessor. Read the reference docs first, then the phases in order.</p>
+<p class="hero-note">Sequential by design - each phase builds on the one before it. Read the reference docs first, then follow the phases in order.</p>
 
 <ol class="phase-timeline">
   <li>
@@ -151,6 +166,16 @@ flowchart LR
     <p>Continuous measurement, pattern-library growth, model cost/quality tracking, scalability. Multi-cloud expansion is TBD.</p>
   </li>
 </ol>
+
+## Ready to put the org to work?
+
+<p class="hero-note">Deploy the agent organization into your own Azure environment, start every action in shadow, and promote to enforce once the numbers hold.</p>
+
+<div class="cta-row">
+  <a class="cta-btn cta-btn--primary" href={`${import.meta.env.BASE_URL}get-started/`}>Get started</a>
+  <a class="cta-btn" href={`${import.meta.env.BASE_URL}reference/roadmap/`}>Read the roadmap</a>
+  <a class="cta-btn" href="https://github.com/dotnetpower/fdai">View on GitHub</a>
+</div>
 
 :::note[Scope reminder]
 This repo is **generic and customer-agnostic**. Everything is parameterised;

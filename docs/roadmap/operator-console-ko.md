@@ -1,8 +1,8 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: 812f1f6cec24a7358d19e42850d6d2dfe72c4fe7
-translation_revised: 2026-07-08
+translation_source_sha: a3dd5c68b2cf9b7ee68cb6ec71ce139118ee928c
+translation_revised: 2026-07-09
 ---
 
 # 오퍼레이터 콘솔 (Conversational)
@@ -702,10 +702,15 @@ pull adapter 추가. 콘솔은 이제:
 ### 13.3 Read-API approval callback (Week 1)
 
 - `POST /hil/{approval_id}/decision`
-- Body: `{"decision": "approve|reject|defer", "justification": "…"}`
+- Body: `{"decision": "approve|reject|defer", "justification": "..."}`
 - Header: `X-FDAI-Signature: sha256=<hex>`,
   `X-FDAI-Timestamp: <RFC3339>`.
-- Response: `200 {"queued": true, "audit_entry_id": "…"}`.
+- Signature 재료: `HMAC-SHA256(secret, timestamp . approval_id . body)`.
+  세 부분은 literal `.` separator 로 join. URL path `approval_id` 를
+  digest 에 bind 하면, 캡처된 유효 메시지를 다른 pending item 으로 replay
+  (URL swap) 할 수 없음. bot은 URL 에 넣은 `approval_id` 를 서명 재료에도
+  반드시 동일하게 포함해야 함.
+- Response: `200 {"queued": true, "audit_entry_id": "..."}`.
 
 이것은 현재 read-API test가 강제하는 "read API는 3 GET route only"
 invariant에 대한 유일한 예외; invariant test는 Week 1 landing 시

@@ -71,3 +71,29 @@ class TestChatRouteLatencySurface:
         client = TestClient(_app(_DisabledBackend()))
         resp = client.post("/chat", json={"prompt": "hi", "view_context": {}, "history": []})
         assert resp.status_code == 501
+
+
+class TestChatRouteInputCaps:
+    """Bounded-input regression: a pathological body must 4xx instead of
+    forcing the interpreter to allocate a large intermediate list."""
+
+    def test_history_list_over_hard_cap_is_400(self) -> None:
+        backend = _RecordingBackend(model="gpt-x", delay_ms=0)
+        client = TestClient(_app(backend))
+        # 201 items exceeds DEFAULT_MAX_HISTORY_ITEMS=200; each turn is
+        # small enough that the body-byte cap is not hit first.
+        huge = [{"role": "user", "content": "x"}] * 201
+        resp = client.post(
+            "/chat",
+            json={"prompt": "hi", "view_context": {}, "history": huge},
+        )
+        assert resp.status_code == 400
+
+    def test_history_not_a_list_is_400(self) -> None:
+        backend = _RecordingBackend(model="gpt-x", delay_ms=0)
+        client = TestClient(_app(backend))
+        resp = client.post(
+            "/chat",
+            json={"prompt": "hi", "view_context": {}, "history": "not-a-list"},
+        )
+        assert resp.status_code == 400

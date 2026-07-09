@@ -1,0 +1,58 @@
+---
+/*
+ * SiteTitle.astro - Starlight header brand override.
+ *
+ * Shows the abbreviation "FDAI" as the primary wordmark with the full
+ * name "Forward Deployed Agents" as a small caps subtitle beneath it.
+ * Replaces Starlight's default text-only site title.
+ *
+ * The home link must respect both Astro's configured `base` (e.g.
+ * "/fdai/" on the GitHub Pages project page) and the active locale so
+ * the Korean header links back to the Korean landing. Starlight exposes
+ * the current route via `Astro.locals.starlightRoute`.
+ */
+const route = Astro.locals.starlightRoute;
+const locale = route?.locale; // undefined on the root (English) locale
+const base = import.meta.env.BASE_URL; // trailing-slash form, e.g. "/fdai/"
+const home = locale ? `${base}${locale}/` : base;
+---
+
+<a href={home} class="fda-brand" aria-label="Forward Deployed Agents home">
+  <span class="fda-abbr">FDAI</span>
+  <span class="fda-full">Forward Deployed Agents</span>
+</a>
+
+<style>
+  .fda-brand {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    line-height: 1.04;
+    text-decoration: none;
+    gap: 0.1rem;
+  }
+  .fda-abbr {
+    font-weight: 700;
+    font-size: clamp(1rem, 1.4vw, 1.25rem);
+    letter-spacing: 0.02em;
+    background: linear-gradient(90deg, var(--sl-color-text-accent), #50e6ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .fda-full {
+    font-size: 0.62rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--sl-color-gray-3);
+    white-space: nowrap;
+  }
+  /* On very narrow headers the subtitle would crowd the nav, so it is
+     dropped below the abbreviation's breakpoint. */
+  @media (max-width: 34rem) {
+    .fda-full {
+      display: none;
+    }
+  }
+</style>

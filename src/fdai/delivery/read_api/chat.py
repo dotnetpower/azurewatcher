@@ -39,22 +39,43 @@ import logging
 import os
 import time
 from collections import deque
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Final, Protocol
 
 import httpx
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Route
 
 DEFAULT_ROUTE_PATH: Final[str] = "/chat"
 DEFAULT_MAX_BODY_BYTES: Final[int] = 200_000
 DEFAULT_MAX_CONTEXT_BYTES: Final[int] = 60_000
 DEFAULT_MAX_HISTORY_TURNS: Final[int] = 8
+DEFAULT_MAX_HISTORY_ITEMS: Final[int] = 200
+"""Hard cap on the number of history entries the route will parse into
+memory before slicing to :data:`DEFAULT_MAX_HISTORY_TURNS`. The
+body-byte cap already bounds total bytes, but a payload full of tiny
+one-character turns could still allocate a large list of dicts; this
+cap keeps that pathological shape out of the interpreter."""
 
 _LOG = logging.getLogger(__name__)
+
+
+def _default_chat_http_client() -> httpx.AsyncClient:
+    """Build the fallback :class:`httpx.AsyncClient` for chat backends.
+
+    Explicit per-phase timeouts (httpx's global default 5s is too short
+    for LLM completion streams) and ``follow_redirects=False`` (an
+    OpenAI-compatible endpoint should not silently 3xx to elsewhere).
+    Centralised so the two fallback sites in this module stay in sync.
+    """
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=5.0, read=60.0, write=15.0, pool=5.0),
+        follow_redirects=False,
+    )
+
 
 _SYSTEM_PROMPT = """\
 You are the FDAI console assistant, part of a read-only operator surface.
@@ -148,6 +169,29 @@ class OpenAiCompatibleChatBackendConfig:
     timeout_seconds: float = 30.0
 
 
+# Newer Azure OpenAI models (gpt-5*, o-series reasoning) reject the legacy
+# ``max_tokens`` + custom ``temperature`` and require ``max_completion_tokens``
+# with the default temperature. Classic chat models (gpt-4o*, gpt-4.1*) keep
+# the legacy shape. Matched by deployment/model name prefix so per-candidate
+# config selects the right body automatically.
+_COMPLETION_TOKEN_PARAM_MODELS: Final[tuple[str, ...]] = ("gpt-5", "o1", "o3", "o4")
+
+
+def _completion_body_params(
+    model: str, *, temperature: float, max_tokens: int
+) -> dict[str, Any]:
+    """Build the token/temperature fields for a chat-completions body.
+
+    Returns ``{"max_completion_tokens": N}`` for models that require it
+    (gpt-5*, o-series reasoning) - which also reject a custom ``temperature`` -
+    and the legacy ``{"temperature": t, "max_tokens": N}`` for classic chat
+    models (gpt-4o*, gpt-4.1*).
+    """
+    if model.lower().startswith(_COMPLETION_TOKEN_PARAM_MODELS):
+        return {"max_completion_tokens": max_tokens}
+    return {"temperature": temperature, "max_tokens": max_tokens}
+
+
 class OpenAiCompatibleChatBackend:
     """Chat backend that proxies to any OpenAI-compatible chat/completions.
 
@@ -172,7 +216,7 @@ class OpenAiCompatibleChatBackend:
         if not config.model:
             raise ValueError("model MUST NOT be empty")
         self._config = config
-        self._http = http_client if http_client is not None else httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=60.0, write=15.0, pool=5.0), follow_redirects=False)
+        self._http = http_client if http_client is not None else _default_chat_http_client()
 
     def _url(self) -> str:
         base = self._config.base_url.rstrip("/")
@@ -215,8 +259,11 @@ class OpenAiCompatibleChatBackend:
 
         body: dict[str, Any] = {
             "messages": messages,
-            "temperature": self._config.temperature,
-            "max_tokens": self._config.max_tokens,
+            **_completion_body_params(
+                self._config.model,
+                temperature=self._config.temperature,
+                max_tokens=self._config.max_tokens,
+            ),
         }
         if self._config.provider == "openai":
             body["model"] = self._config.model
@@ -548,7 +595,7 @@ class AzureAdChatBackend:
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._timeout = timeout_seconds
-        self._http = http_client if http_client is not None else httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=60.0, write=15.0, pool=5.0), follow_redirects=False)
+        self._http = http_client if http_client is not None else _default_chat_http_client()
         # Lazy identity - defer import so this module stays importable
         # in tests that never touch Azure.
         self._identity_cached: Any = None
@@ -570,9 +617,7 @@ class AzureAdChatBackend:
         import asyncio
 
         try:
-            token = await asyncio.to_thread(
-                self._identity().get_token_sync, _COGNITIVE_SCOPE
-            )
+            token = await asyncio.to_thread(self._identity().get_token_sync, _COGNITIVE_SCOPE)
         except Exception as exc:  # AzureCliCredentialError, missing binary, etc.
             _LOG.warning("chat backend az-login failed: %s", exc)
             raise HTTPException(status_code=502, detail="chat auth failed") from exc
@@ -591,8 +636,11 @@ class AzureAdChatBackend:
 
         body: dict[str, Any] = {
             "messages": messages,
-            "temperature": self._temperature,
-            "max_tokens": self._max_tokens,
+            **_completion_body_params(
+                self._deployment,
+                temperature=self._temperature,
+                max_tokens=self._max_tokens,
+            ),
         }
         url = f"{self._endpoint}/openai/deployments/{self._deployment}/chat/completions"
         headers = {
@@ -630,6 +678,95 @@ class AzureAdChatBackend:
         if not isinstance(content, str):
             raise HTTPException(status_code=502, detail="chat upstream returned no content")
         return {"answer": content.strip(), "model": self._deployment}
+
+    async def answer_stream(
+        self,
+        *,
+        prompt: str,
+        view_context: dict[str, Any],
+        history: list[dict[str, str]],
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Stream the answer token by token via Azure OpenAI ``stream=true``.
+
+        Yields ``{"type": "token", "delta": str}`` per content chunk, then a
+        terminal ``{"type": "done", "answer": str, "model": str}``. Auth /
+        body building mirror :meth:`answer`; only the transport differs.
+        Read-only - no state mutation, no privileged call.
+        """
+        import asyncio
+
+        try:
+            token = await asyncio.to_thread(self._identity().get_token_sync, _COGNITIVE_SCOPE)
+        except Exception as exc:
+            _LOG.warning("chat backend az-login failed: %s", exc)
+            raise HTTPException(status_code=502, detail="chat auth failed") from exc
+
+        snapshot_json = json.dumps(view_context, ensure_ascii=False)
+        if len(snapshot_json) > DEFAULT_MAX_CONTEXT_BYTES:
+            snapshot_json = snapshot_json[:DEFAULT_MAX_CONTEXT_BYTES] + "...(truncated)"
+        system = _SYSTEM_PROMPT.format(snapshot_json=snapshot_json)
+        messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+        for turn in history[-DEFAULT_MAX_HISTORY_TURNS:]:
+            role = turn.get("role")
+            content = turn.get("content")
+            if role in {"user", "assistant"} and isinstance(content, str) and content:
+                messages.append({"role": role, "content": content[:4000]})
+        messages.append({"role": "user", "content": prompt[:4000]})
+
+        body: dict[str, Any] = {
+            "messages": messages,
+            "stream": True,
+            **_completion_body_params(
+                self._deployment,
+                temperature=self._temperature,
+                max_tokens=self._max_tokens,
+            ),
+        }
+        url = f"{self._endpoint}/openai/deployments/{self._deployment}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {token.token}",
+            "Content-Type": "application/json",
+        }
+        collected: list[str] = []
+        try:
+            async with self._http.stream(
+                "POST",
+                url,
+                params={"api-version": self._api_version},
+                headers=headers,
+                json=body,
+                timeout=self._timeout,
+            ) as response:
+                if response.status_code >= 400:
+                    detail = (await response.aread())[:200]
+                    _LOG.warning(
+                        "chat stream upstream returned %s (body=%s)",
+                        response.status_code,
+                        detail,
+                    )
+                    raise HTTPException(status_code=502, detail="chat upstream error")
+                async for line in response.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[len("data:") :].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        obj = json.loads(data)
+                    except ValueError:
+                        continue
+                    choices = obj.get("choices")
+                    if not isinstance(choices, list) or not choices:
+                        continue
+                    delta = choices[0].get("delta") if isinstance(choices[0], dict) else None
+                    piece = delta.get("content") if isinstance(delta, dict) else None
+                    if isinstance(piece, str) and piece:
+                        collected.append(piece)
+                        yield {"type": "token", "delta": piece}
+        except httpx.HTTPError as exc:
+            _LOG.warning("chat stream HTTP error: %s", exc)
+            raise HTTPException(status_code=502, detail="chat upstream unreachable") from exc
+        yield {"type": "done", "answer": "".join(collected).strip(), "model": self._deployment}
 
 
 # ---------------------------------------------------------------------------
@@ -728,6 +865,41 @@ class LatencyRoutedChatBackend:
                 out.append(be._endpoint)  # noqa: SLF001 - deliberate peek
         return out
 
+    async def benchmark(self, *, prompt: str = "ping", rounds: int | None = None) -> str:
+        """Measure every candidate up front so the fastest pick is known
+        before the first operator turn.
+
+        Fires ``rounds`` minimal requests at each candidate concurrently and
+        records real latency into the same rolling window :meth:`answer`
+        uses, so a subsequent ``GET /chat/health`` reports the measured
+        fastest. ``rounds`` defaults to :data:`_ROUTER_WARMUP_SAMPLES` so
+        every candidate clears warm-up and the returned pick reflects p50
+        ranking rather than the deterministic warm-up order. Best-effort: a
+        candidate that errors gets the standard failure penalty and rotates
+        out, exactly as in steady state. Returns the deployment name the
+        router would now pick.
+        """
+        import asyncio
+
+        effective_rounds = _ROUTER_WARMUP_SAMPLES if rounds is None else max(1, rounds)
+
+        async def _probe(name: str, backend: ChatBackend) -> None:
+            started = time.monotonic()
+            try:
+                await backend.answer(prompt=prompt, view_context={}, history=[])
+            except Exception as exc:  # noqa: BLE001 - best-effort probe
+                self._samples[name].append(_ROUTER_FAILURE_PENALTY_MS)
+                _LOG.warning(
+                    "router.benchmark_candidate_failed",
+                    extra={"candidate": name, "error_type": type(exc).__name__},
+                )
+                return
+            self._samples[name].append(int((time.monotonic() - started) * 1000))
+
+        for _ in range(effective_rounds):
+            await asyncio.gather(*(_probe(name, be) for name, be in self._candidates))
+        return self.current_pick_name()
+
     async def aclose(self) -> None:
         """Close every candidate's ``httpx.AsyncClient`` (best-effort).
 
@@ -757,9 +929,7 @@ class LatencyRoutedChatBackend:
         self._in_flight[name] += 1
         started = time.monotonic()
         try:
-            reply = await backend.answer(
-                prompt=prompt, view_context=view_context, history=history
-            )
+            reply = await backend.answer(prompt=prompt, view_context=view_context, history=history)
         except Exception as exc:
             # Penalize so the broken candidate cycles out; still re-raise.
             self._samples[name].append(_ROUTER_FAILURE_PENALTY_MS)
@@ -784,6 +954,70 @@ class LatencyRoutedChatBackend:
             "candidates": self.stats(),
         }
         return out
+
+    async def answer_stream(
+        self,
+        *,
+        prompt: str,
+        view_context: dict[str, Any],
+        history: list[dict[str, str]],
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Stream from the fastest candidate, recording its latency.
+
+        Delegates to the picked candidate's ``answer_stream`` when it
+        supports streaming, else falls back to a single-shot ``answer``
+        emitted as one token. The terminal ``done`` event is enriched with
+        the router snapshot so the FE badge stays consistent.
+        """
+        name, backend = self._pick()
+        self._in_flight[name] += 1
+        started = time.monotonic()
+        try:
+            stream = getattr(backend, "answer_stream", None)
+            if stream is not None:
+                async for event in stream(
+                    prompt=prompt, view_context=view_context, history=history
+                ):
+                    if event.get("type") == "done":
+                        event = dict(event)
+                        event["model"] = name
+                        event["router"] = {
+                            "chose": name,
+                            "reason": (
+                                "warmup"
+                                if len(self._samples[name]) < _ROUTER_WARMUP_SAMPLES
+                                else "lowest-p50"
+                            ),
+                            "candidates": self.stats(),
+                        }
+                    yield event
+            else:
+                reply = await backend.answer(
+                    prompt=prompt, view_context=view_context, history=history
+                )
+                answer = reply.get("answer", "")
+                if isinstance(answer, str) and answer:
+                    yield {"type": "token", "delta": answer}
+                yield {
+                    "type": "done",
+                    "answer": answer,
+                    "model": name,
+                    "router": {
+                        "chose": name,
+                        "reason": "lowest-p50",
+                        "candidates": self.stats(),
+                    },
+                }
+        except Exception as exc:
+            self._samples[name].append(_ROUTER_FAILURE_PENALTY_MS)
+            _LOG.warning(
+                "router.stream_candidate_failed",
+                extra={"candidate": name, "error_type": type(exc).__name__},
+            )
+            raise
+        finally:
+            self._in_flight[name] = max(0, self._in_flight[name] - 1)
+        self._samples[name].append(int((time.monotonic() - started) * 1000))
 
     # ------------------------------------------------------------------ internal
     def _effective_sample_count(self, name: str) -> int:
@@ -914,6 +1148,18 @@ def make_chat_route(
         history_raw = body.get("history", [])
         if not isinstance(history_raw, list):
             raise HTTPException(status_code=400, detail="history MUST be a list")
+        # Bound the input list BEFORE materializing dicts - a pathological
+        # payload of 10k+ one-char turns would slip past the body-byte cap
+        # (each turn is ~20 bytes) and force the interpreter to allocate a
+        # huge intermediate list only to slice to the last 8.
+        if len(history_raw) > DEFAULT_MAX_HISTORY_ITEMS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"history exceeds cap ({len(history_raw)} > "
+                    f"{DEFAULT_MAX_HISTORY_ITEMS})"
+                ),
+            )
         history: list[dict[str, str]] = []
         for turn in history_raw:
             if isinstance(turn, dict):
@@ -943,5 +1189,121 @@ def make_chat_route(
         enriched: dict[str, Any] = dict(reply)
         enriched["latency_ms"] = latency_ms
         return JSONResponse(enriched)
+
+    return Route(path, handler, methods=["POST"])
+
+
+DEFAULT_STREAM_PATH: Final[str] = "/chat/stream"
+
+
+def _sse(event: str, data: dict[str, Any]) -> bytes:
+    """Format one Server-Sent Event frame (``event:`` + ``data:`` + blank)."""
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode()
+
+
+def make_chat_stream_route(
+    *,
+    backend: ChatBackend,
+    authorize: AuthorizeFn,
+    path: str = DEFAULT_STREAM_PATH,
+    max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
+) -> Route:
+    """Build the ``POST /chat/stream`` route (Server-Sent Events).
+
+    Streams the narrator answer token by token as ``event: token`` frames,
+    then a terminal ``event: done`` frame carrying the full answer, model,
+    router snapshot, and latency. On failure mid-stream an ``event: error``
+    frame is emitted and the stream closes. Backends that do not implement
+    ``answer_stream`` fall back to a single-shot ``answer`` emitted as one
+    token + done, so the FE can always consume the same protocol.
+
+    Read-only in the FDAI sense - no state mutation, no privileged call.
+    """
+
+    async def handler(request: Request) -> StreamingResponse:
+        await authorize(request)
+
+        declared_len = request.headers.get("content-length")
+        if declared_len is not None:
+            try:
+                if int(declared_len) > max_body_bytes:
+                    raise HTTPException(status_code=413, detail="chat body too large")
+            except ValueError:
+                pass
+        body_bytes = await request.body()
+        if len(body_bytes) > max_body_bytes:
+            raise HTTPException(status_code=413, detail="chat body too large")
+        try:
+            body = json.loads(body_bytes.decode("utf-8")) if body_bytes else {}
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise HTTPException(status_code=400, detail="chat body MUST be JSON") from exc
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="chat body MUST be a JSON object")
+        prompt = body.get("prompt")
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise HTTPException(status_code=400, detail="prompt MUST be a non-empty string")
+        view_context = body.get("view_context")
+        if view_context is None:
+            view_context = {}
+        if not isinstance(view_context, dict):
+            raise HTTPException(status_code=400, detail="view_context MUST be an object")
+        history_raw = body.get("history", [])
+        if not isinstance(history_raw, list):
+            raise HTTPException(status_code=400, detail="history MUST be a list")
+        if len(history_raw) > DEFAULT_MAX_HISTORY_ITEMS:
+            raise HTTPException(status_code=400, detail="history exceeds cap")
+        history: list[dict[str, str]] = []
+        for turn in history_raw:
+            if isinstance(turn, dict):
+                role = turn.get("role")
+                content = turn.get("content")
+                if isinstance(role, str) and isinstance(content, str):
+                    history.append({"role": role, "content": content})
+
+        clean_prompt = prompt.strip()
+
+        async def event_source() -> AsyncIterator[bytes]:
+            started = time.monotonic()
+            stream = getattr(backend, "answer_stream", None)
+            try:
+                if stream is not None:
+                    async for event in stream(
+                        prompt=clean_prompt, view_context=view_context, history=history
+                    ):
+                        etype = event.get("type")
+                        if etype == "token":
+                            yield _sse("token", {"delta": event.get("delta", "")})
+                        elif etype == "done":
+                            payload = {k: v for k, v in event.items() if k != "type"}
+                            payload["latency_ms"] = int((time.monotonic() - started) * 1000)
+                            yield _sse("done", payload)
+                else:
+                    reply = await backend.answer(
+                        prompt=clean_prompt, view_context=view_context, history=history
+                    )
+                    answer = reply.get("answer", "")
+                    if isinstance(answer, str) and answer:
+                        yield _sse("token", {"delta": answer})
+                    yield _sse(
+                        "done",
+                        {
+                            "answer": answer,
+                            "model": reply.get("model"),
+                            "latency_ms": int((time.monotonic() - started) * 1000),
+                        },
+                    )
+            except ChatBackendUnavailableError:
+                yield _sse("error", {"detail": "chat backend not configured"})
+            except HTTPException as exc:
+                yield _sse("error", {"detail": str(exc.detail)})
+            except Exception as exc:  # noqa: BLE001 - surface as a stream error, never 500 mid-stream
+                _LOG.warning("chat stream failed: %s", type(exc).__name__)
+                yield _sse("error", {"detail": "chat stream failed"})
+
+        return StreamingResponse(
+            event_source(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+        )
 
     return Route(path, handler, methods=["POST"])

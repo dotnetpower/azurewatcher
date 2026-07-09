@@ -3,7 +3,7 @@ title: 리스크 티어(Risk tiers)
 description: FDAI가 어떤 자율 액션은 자동 실행하고 어떤 것은 사람 승인을 기다리게 하는 결정 방식.
 translation_of: risk-tiers.md
 translation_source_sha: 588b82eb5b995ddab0641027f071ddfb9ebabd94
-translation_revised: 2026-07-08
+translation_revised: 2026-07-09
 ---
 
 # 리스크 티어(Risk tiers)

@@ -8,7 +8,7 @@ provider protocols in later waves.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from fdai.agents.base import Agent
@@ -29,10 +29,18 @@ class RollbackRecord:
 class Vidar(Agent):
     """Wave-3 Vidar: rollback executor. Hard dependency for Thor."""
 
+    #: Cap the in-process ledger so a long-running pantheon replica does
+    #: not leak. The durable rollback trail is Saga's audit-chain; this
+    #: list is only a shadow / observability convenience so callers can
+    #: `snapshot()` recent rollback decisions in tests. FIFO eviction on
+    #: overflow keeps the tail (most recent) while the durable chain
+    #: retains full history.
+    _MAX_RECORDS: int = 10_000
+
     def __init__(self, *, bus: PantheonBus | None = None) -> None:
         super().__init__(spec=_VIDAR)
         self.bus = bus
-        self.records: list[RollbackRecord] = field(default_factory=list) if False else []
+        self.records: list[RollbackRecord] = []
 
     def bind_bus(self, bus: PantheonBus) -> None:
         self.bus = bus
@@ -55,6 +63,10 @@ class Vidar(Agent):
             notes="in-memory rollback (Wave 3)",
         )
         self.records.append(rec)
+        # FIFO cap - drop the oldest 25% in one shot to amortise the cost.
+        if len(self.records) > self._MAX_RECORDS:
+            keep_from = len(self.records) - (self._MAX_RECORDS * 3 // 4)
+            del self.records[:keep_from]
         if self.bus is not None:
             await self.bus.publish(
                 "Vidar",

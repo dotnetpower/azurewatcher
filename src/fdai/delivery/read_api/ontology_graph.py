@@ -49,6 +49,13 @@ def make_ontology_graph_route(
                 {"error": {"status": 400, "message": "property_limit MUST be >= 1"}},
                 status_code=400,
             )
+        if property_limit > 100:
+            # Cap the render cost - a caller asking for a 1000-property
+            # graph per node forces the SPA to buffer megabytes of nodes.
+            return JSONResponse(
+                {"error": {"status": 400, "message": "property_limit MUST be <= 100"}},
+                status_code=400,
+            )
 
         rendered = render_ontology_mermaid(
             object_types,

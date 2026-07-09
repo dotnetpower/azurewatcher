@@ -234,6 +234,12 @@ module "compute" {
   image                 = var.core_image
   max_replicas          = var.max_replicas
 
+  # Wire the private ACR so image pulls authenticate via the executor MI
+  # (which already holds `AcrPull` on this ACR). If the fork points
+  # `core_image` at a public registry (mcr.microsoft.com / Docker Hub)
+  # the Container App simply ignores this block - the pull is anonymous.
+  acr_login_server = module.container_registry.login_server
+
   # Required config env vars - `EnvVarConfigProvider` fails-fast if any is
   # unset, so wire them all from the surrounding infra outputs.
   azure_tenant_id         = var.tenant_id

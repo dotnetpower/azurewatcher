@@ -2,7 +2,7 @@
 title: 규칙 거버넌스(Rule Governance)
 translation_of: rule-governance.md
 translation_source_sha: 39f8dbd0bc3832688e5a478856db7dc560d941ef
-translation_revised: 2026-07-08
+translation_revised: 2026-07-09
 ---
 
 # 규칙 거버넌스(Rule Governance)

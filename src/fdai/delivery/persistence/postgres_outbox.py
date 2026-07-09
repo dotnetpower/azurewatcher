@@ -43,11 +43,17 @@ _CLAIM_SQL = (
 
 _SELECT_SQL = "SELECT status, result FROM action_outbox WHERE idempotency_key = %s"
 
+# ``complete`` MUST be a one-way transition: an already-DONE row keeps its
+# original ``result`` and ``completed_at`` even if a duplicate ``complete()``
+# is issued. The ``WHERE action_outbox.status <> 'done'`` predicate freezes
+# terminal rows so a buggy retry cannot silently overwrite the recorded
+# outcome (exactly-once).
 _COMPLETE_SQL = (
     "INSERT INTO action_outbox (idempotency_key, status, result, completed_at) "
     "VALUES (%s, 'done', %s, now()) "
     "ON CONFLICT (idempotency_key) DO UPDATE "
-    "SET status = 'done', result = EXCLUDED.result, completed_at = now()"
+    "SET status = 'done', result = EXCLUDED.result, completed_at = now() "
+    "WHERE action_outbox.status <> 'done'"
 )
 
 

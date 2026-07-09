@@ -30,6 +30,12 @@ class InMemoryOutboxStore:
         return OutboxClaim(status=OutboxStatus.IN_PROGRESS)
 
     async def complete(self, key: str, result: Mapping[str, Any]) -> None:
+        row = self._rows.get(key)
+        # Freeze terminal rows: a duplicate ``complete()`` on an already-DONE
+        # key MUST NOT overwrite the recorded outcome. Mirrors the Postgres
+        # backend's ``WHERE action_outbox.status <> 'done'`` guard.
+        if row is not None and row["status"] == OutboxStatus.DONE:
+            return
         self._rows[key] = {
             "status": OutboxStatus.DONE,
             "result": deepcopy(dict(result)),

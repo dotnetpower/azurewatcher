@@ -73,6 +73,10 @@ function healthUrl(): string {
   return `${chatUrl()}/health`;
 }
 
+function streamUrl(): string {
+  return `${chatUrl()}/stream`;
+}
+
 function toBackendHistory(history: readonly BackendTurn[]): BackendTurn[] {
   // Only user/assistant pairs, most recent 8 turns.
   return history.slice(-8).map((t) => ({ role: t.role, content: t.content }));
@@ -193,6 +197,140 @@ export async function askBackend(
           value: f.value === null ? "-" : String(f.value),
         }))
       : [],
+    followUps: [],
+    source,
+  };
+  return router ? { ...base, router } : base;
+}
+
+/** Synthesize the client-side "grounded on" citations from the snapshot -
+ *  LLM replies do not carry structured citations, so the deck shows the facts
+ *  the model was told (matching :func:`askBackend`). */
+function snapshotCitations(
+  snapshot: ViewSnapshot | null,
+): readonly { readonly label: string; readonly value?: string }[] {
+  if (!snapshot) return [];
+  return snapshot.facts.slice(0, 6).map((f) => ({
+    label: f.key,
+    value: f.value === null ? "-" : String(f.value),
+  }));
+}
+
+/** Callbacks for :func:`askBackendStream`. */
+export interface StreamCallbacks {
+  /** Fired for each streamed token delta (append to the live reply). */
+  readonly onToken: (delta: string) => void;
+}
+
+/**
+ * Ask the chat backend over SSE (`POST /chat/stream`), streaming tokens as
+ * they arrive. Resolves to the same shape as :func:`askBackend` once the
+ * terminal `done` frame lands. Falls back to the deterministic answerer -
+ * emitting the whole answer through `onToken` once - on any transport error
+ * or an `error` frame, so the deck always renders something.
+ */
+export async function askBackendStream(
+  prompt: string,
+  snapshot: ViewSnapshot | null,
+  history: readonly BackendTurn[],
+  cb: StreamCallbacks,
+): Promise<Answer & { readonly source: string; readonly router?: RouterSnapshot }> {
+  const fallback = (why: string): Answer & { readonly source: string } => {
+    const local = deterministicAnswer(prompt, snapshot);
+    cb.onToken(local.text);
+    return { ...local, source: `deterministic (${why})` };
+  };
+
+  let response: Response;
+  try {
+    response = await fetch(streamUrl(), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        prompt,
+        view_context: snapshot ?? {},
+        history: toBackendHistory(history),
+      }),
+    });
+  } catch {
+    return fallback("offline");
+  }
+  if (response.status === 404 || response.status === 501) {
+    return fallback("LLM not configured");
+  }
+  if (!response.ok || response.body === null) {
+    return fallback(`backend ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let answerText = "";
+  let doneData: Record<string, unknown> | null = null;
+  let errored = false;
+
+  const handleFrame = (frame: string): void => {
+    let event = "message";
+    const dataLines: string[] = [];
+    for (const line of frame.split("\n")) {
+      if (line.startsWith("event:")) event = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+    }
+    if (dataLines.length === 0) return;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(dataLines.join("\n"));
+    } catch {
+      return;
+    }
+    const obj =
+      typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
+    if (event === "token") {
+      const delta = typeof obj.delta === "string" ? obj.delta : "";
+      if (delta) {
+        answerText += delta;
+        cb.onToken(delta);
+      }
+    } else if (event === "done") {
+      doneData = obj;
+    } else if (event === "error") {
+      errored = true;
+    }
+  };
+
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let idx: number;
+      while ((idx = buffer.indexOf("\n\n")) !== -1) {
+        handleFrame(buffer.slice(0, idx));
+        buffer = buffer.slice(idx + 2);
+      }
+    }
+  } catch {
+    if (answerText === "") return fallback("stream interrupted");
+  }
+  if (buffer.trim().length > 0) handleFrame(buffer);
+
+  if (errored && answerText === "") return fallback("stream error");
+  if (answerText === "" && doneData === null) return fallback("empty stream");
+
+  const done: Record<string, unknown> = doneData ?? {};
+  const finalText = typeof done.answer === "string" && done.answer ? done.answer : answerText;
+  const model = typeof done.model === "string" ? done.model : "llm";
+  const latencyMs =
+    typeof done.latency_ms === "number" && Number.isFinite(done.latency_ms)
+      ? done.latency_ms
+      : null;
+  const router = parseRouter(done.router);
+  const chosen = router?.chose ?? model;
+  const source =
+    latencyMs !== null && latencyMs >= 0 ? `llm:${chosen} · ${latencyMs}ms` : `llm:${chosen}`;
+  const base: Answer & { readonly source: string } = {
+    text: finalText,
+    citations: snapshotCitations(snapshot),
     followUps: [],
     source,
   };

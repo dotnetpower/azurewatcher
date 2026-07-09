@@ -164,6 +164,13 @@ class TeamsHilAdapter(HilChannel):
     ) -> None:
         if not config.webhook_url or not config.webhook_url.strip():
             raise ValueError("webhook_url MUST NOT be empty")
+        if not config.webhook_url.startswith("https://"):
+            # Refuse non-TLS and ambiguous schemes (`http://`, `file://`, etc.)
+            # up front: a Teams / Slack Incoming Webhook is always HTTPS,
+            # and a misconfigured `http://` variant would leak the HMAC
+            # signature over the wire. Fail-closed at construction rather
+            # than at first send.
+            raise ValueError("webhook_url MUST use https:// scheme")
         if config.timeout_seconds <= 0:
             raise ValueError("timeout_seconds MUST be > 0")
         if config.max_error_body_bytes < 64:

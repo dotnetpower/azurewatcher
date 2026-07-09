@@ -71,6 +71,11 @@ class PgVectorPatternLibraryConfig:
     """Applied via ``SET LOCAL`` on every operation; fails fast rather
     than blocking the event loop on a stuck query."""
 
+    connect_timeout_s: int = 10
+    """Bound the TCP + auth handshake so a dead DB fails fast instead of
+    hanging the event loop for ~2 minutes on the kernel TCP retry budget
+    (``statement_timeout`` only starts *after* connect succeeds)."""
+
     ivfflat_probes: int = 10
     """Query-time recall knob. Higher → more IVFFlat lists scanned per
     query (better recall, higher latency). pgvector defaults to 1; the
@@ -85,6 +90,8 @@ class PgVectorPatternLibrary(PatternLibrary, PatternLibraryWriter):
             raise ValueError("PgVectorPatternLibraryConfig.dsn MUST NOT be empty")
         if config.statement_timeout_ms < 1:
             raise ValueError("statement_timeout_ms MUST be >= 1")
+        if config.connect_timeout_s < 1:
+            raise ValueError("connect_timeout_s MUST be >= 1")
         if config.ivfflat_probes < 1:
             raise ValueError("ivfflat_probes MUST be >= 1")
         self._config = config
@@ -106,7 +113,9 @@ class PgVectorPatternLibrary(PatternLibrary, PatternLibraryWriter):
             raise ValueError("k MUST be >= 1")
         literal = _encode_vector(query_vector)
         async with await psycopg.AsyncConnection.connect(
-            self._config.dsn, row_factory=dict_row
+            self._config.dsn,
+            row_factory=dict_row,
+            connect_timeout=self._config.connect_timeout_s,
         ) as conn:
             async with conn.transaction():
                 await self._set_session_knobs(conn)
@@ -159,7 +168,10 @@ class PgVectorPatternLibrary(PatternLibrary, PatternLibraryWriter):
         without breaking the pgvector index.
         """
         literal = _encode_vector(vector)
-        async with await psycopg.AsyncConnection.connect(self._config.dsn) as conn:
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
             async with conn.transaction():
                 await self._set_session_knobs(conn)
                 await conn.execute(
@@ -207,7 +219,10 @@ class PgVectorPatternLibrary(PatternLibrary, PatternLibraryWriter):
 
     async def count(self) -> int:
         """Return the number of persisted patterns (test / diagnostic use)."""
-        async with await psycopg.AsyncConnection.connect(self._config.dsn) as conn:
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
             await self._set_session_knobs(conn)
             cur = await conn.execute("SELECT COUNT(*) FROM t1_pattern_library")
             row = await cur.fetchone()

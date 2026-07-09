@@ -12,10 +12,12 @@ Security model
 --------------
 
 - **HMAC-authenticated**: caller signs the request as
-  ``HMAC-SHA256(secret, f"{timestamp}.{body}")`` and sends the digest in
-  the ``X-FDAI-Signature: sha256=<hex>`` header alongside a
-  ``X-FDAI-Timestamp``. The Teams push channel uses the exact
-  same shape (see
+  ``HMAC-SHA256(secret, f"{timestamp}.{approval_id}.{body}")`` and sends
+  the digest in the ``X-FDAI-Signature: sha256=<hex>`` header alongside
+  a ``X-FDAI-Timestamp``. Binding the URL path ``approval_id`` into the
+  signed material prevents a captured valid message from being replayed
+  against a different pending item (URL swap). The Teams push channel
+  uses the exact same shape (see
   :mod:`fdai.delivery.chatops.teams_adapter`).
 - **Replay window**: requests older than ``max_skew_seconds`` (default
   300s) are rejected with 401.
@@ -177,16 +179,23 @@ def make_hil_callback_route(
     clock = now or _default_clock
 
     async def handler(request: Request) -> Response:
+        approval_id = request.path_params["approval_id"]
+        # Bound the input BEFORE the crypto path so an attacker cannot
+        # amplify a 4xx path-param into a megabyte-scale error reply /
+        # log line or force us to feed a huge string into the HMAC.
+        # Real approval ids are UUIDs.
+        if len(approval_id) > 128:
+            return _error(400, "bad_request", "approval_id is too long")
+
         try:
             payload = await _authenticate_and_parse(
                 request=request,
                 config=config,
                 clock=clock,
+                approval_id=approval_id,
             )
         except HilCallbackError as exc:
             return _error(exc.status_code, exc.kind, str(exc))
-
-        approval_id = request.path_params["approval_id"]
 
         # Coordinator (park and resume) path takes precedence: an action
         # the control loop routed to HIL is parked in the StateStore, not
@@ -278,6 +287,7 @@ async def _authenticate_and_parse(
     request: Request,
     config: HilCallbackConfig,
     clock: Callable[[], datetime],
+    approval_id: str,
 ) -> _CallbackBody:
     signature = request.headers.get("x-fdai-signature", "")
     timestamp = request.headers.get("x-fdai-timestamp", "")
@@ -308,7 +318,12 @@ async def _authenticate_and_parse(
             f"body exceeds max size ({len(raw)} > {config.max_body_bytes} bytes)"
         )
 
-    expected = _compute_hmac(secret=config.secret, timestamp=timestamp, payload=raw)
+    expected = _compute_hmac(
+        secret=config.secret,
+        timestamp=timestamp,
+        approval_id=approval_id,
+        payload=raw,
+    )
     if not signature.startswith("sha256="):
         raise HilCallbackUnauthorizedError("signature MUST use sha256=<hex> shape")
     provided = signature[len("sha256=") :]
@@ -367,9 +382,17 @@ def _reject_replay(
         raise HilCallbackUnauthorizedError(f"timestamp skew {delta:.0f}s exceeds max {max_skew}s")
 
 
-def _compute_hmac(*, secret: str, timestamp: str, payload: bytes) -> str:
+def _compute_hmac(*, secret: str, timestamp: str, approval_id: str, payload: bytes) -> str:
+    """Sign the callback with the URL ``approval_id`` bound in.
+
+    Binding ``approval_id`` prevents a captured valid callback message
+    from being replayed against a different pending item by swapping the
+    URL path. Wire format: ``HMAC-SHA256(secret, timestamp . approval_id . payload)``.
+    """
     mac = hmac.new(secret.encode("utf-8"), digestmod=hashlib.sha256)
     mac.update(timestamp.encode("utf-8"))
+    mac.update(b".")
+    mac.update(approval_id.encode("utf-8"))
     mac.update(b".")
     mac.update(payload)
     return mac.hexdigest()

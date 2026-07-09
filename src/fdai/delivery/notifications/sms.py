@@ -53,6 +53,8 @@ class AzureCommunicationSmsChannel:
             raise ValueError("timeout_seconds MUST be > 0")
         if not config.endpoint:
             raise ValueError("endpoint MUST NOT be empty")
+        if not config.endpoint.startswith("https://"):
+            raise ValueError("endpoint MUST use https:// scheme")
         if not config.from_phone_number:
             raise ValueError("from_phone_number MUST NOT be empty")
         if not config.to_phone_numbers:

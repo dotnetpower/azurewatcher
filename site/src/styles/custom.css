@@ -54,7 +54,7 @@
  */
 .hero-note {
   color: var(--sl-color-gray-3);
-  margin-top: -0.5rem;
+  margin-top: 0.35rem;
 }
 
 /*
@@ -198,3 +198,281 @@
   justify-content: center;
   overflow-x: auto;
 }
+
+/*
+ * Landing-page cosmic backdrop.
+ *
+ * The landing page (and only the landing page - Starlight sets
+ * `data-has-hero` on <html> for pages with a hero) is rendered over the
+ * procedural nebula (NebulaBackground.astro, mounted fixed on <body>).
+ * To reveal it we clear the opaque body background and let the fixed
+ * canvas show through. Interior doc pages have no hero, so they are
+ * untouched and keep their normal theme background.
+ */
+html[data-has-hero] {
+  background-color: #05070f; /* deep-space fallback behind the nebula */
+}
+html[data-has-hero] body {
+  background-color: transparent;
+}
+
+/*
+ * The page now always sits on the dark cosmos, so landing content is
+ * forced to legible light text in BOTH colour themes (a reader on the
+ * light theme still sees the landing over the nebula). Scoped to
+ * `data-has-hero` so interior docs keep their theme-driven colours.
+ */
+html[data-has-hero] .sl-markdown-content {
+  color: #dbe5f6;
+  /* A soft dark shadow keeps every line legible over the brightest
+     patches of the nebula without a heavy backing plate. */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+html[data-has-hero] .sl-markdown-content :is(h1, h2, h3, h4),
+html[data-has-hero] .hero h1 {
+  color: #f3f7ff;
+  text-shadow: 0 2px 14px rgba(4, 7, 15, 0.6);
+}
+/*
+ * Section rhythm: each H2 opens a new story block, so it gets generous
+ * top space, a clear size step above body, and scroll-margin so anchor
+ * jumps do not hide the heading under the sticky header.
+ */
+html[data-has-hero] .sl-markdown-content h2 {
+  margin-top: 4rem;
+  margin-bottom: 0.85rem;
+  scroll-margin-top: 5rem;
+  font-size: clamp(1.7rem, 3vw, 2.35rem);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+html[data-has-hero] .sl-markdown-content strong {
+  color: #ffffff;
+}
+html[data-has-hero] .hero-note,
+html[data-has-hero] .impact-list li em,
+html[data-has-hero] .phase-exit,
+html[data-has-hero] .phase-timeline li.future .phase-label {
+  color: #c6d4ee;
+}
+/*
+ * Section intro notes read as elegant standfirst lines: brighter ink,
+ * an airier line-height, and a capped measure so a sentence never runs
+ * the full width of the page over the nebula.
+ */
+html[data-has-hero] .hero-note {
+  color: #d2ddf3;
+  font-size: 1.12rem;
+  line-height: 1.75;
+  max-width: 50rem;
+  margin-top: 0;
+  margin-bottom: 1.75rem;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+}
+/*
+ * Trust bar: a row of credibility pills placed directly under the hero
+ * (Azure-native, deterministic-first, shadow-first, audited, HIL). Glass
+ * pills with a small glowing accent dot, vertically centred, so they
+ * read as a quiet enterprise signal rather than loud badges.
+ */
+.trust-bar {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0;
+  margin: 0 0 2.75rem;
+}
+.trust-bar li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0.42rem 0.95rem;
+  border-radius: 999px;
+  color: #cdd9ef;
+  background: rgba(10, 16, 30, 0.55);
+  border: 1px solid rgba(120, 170, 255, 0.25);
+  backdrop-filter: blur(8px) saturate(130%);
+  -webkit-backdrop-filter: blur(8px) saturate(130%);
+  transition:
+    border-color 160ms ease,
+    color 160ms ease;
+}
+.trust-bar li::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #50e6ff;
+  box-shadow: 0 0 6px rgba(80, 230, 255, 0.7);
+}
+.trust-bar li:hover {
+  border-color: rgba(120, 170, 255, 0.55);
+  color: #eef4ff;
+}
+/*
+ * Closing CTA row: a primary Azure-gradient button plus two glass
+ * secondary buttons, mirroring the hero actions so the page ends on a
+ * clear next step.
+ */
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin: 1.5rem 0 2.75rem;
+}
+.cta-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.7rem 1.45rem;
+  border-radius: 0.6rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  border: 1px solid rgba(120, 170, 255, 0.3);
+  color: #dbe5f6;
+  background: rgba(10, 16, 30, 0.5);
+  backdrop-filter: blur(8px) saturate(130%);
+  -webkit-backdrop-filter: blur(8px) saturate(130%);
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+.cta-btn:hover {
+  border-color: rgba(120, 170, 255, 0.6);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+.cta-btn--primary {
+  background: linear-gradient(120deg, #0078d4, #35b4e3);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(0, 120, 212, 0.35);
+}
+.cta-btn--primary:hover {
+  background: linear-gradient(120deg, #1888e4, #45c4f3);
+  color: #ffffff;
+}
+
+/*
+ * Content blocks become translucent dark glass so text stays readable
+ * over the nebula and the landing reads like a cockpit rather than a
+ * flat document. Cards, asides, mermaid frames, and code blocks share
+ * the same glass treatment.
+ */
+html[data-has-hero] .card,
+html[data-has-hero] .starlight-aside,
+html[data-has-hero] pre.mermaid,
+html[data-has-hero] .sl-markdown-content pre:not(.mermaid) {
+  background: rgba(10, 16, 30, 0.55);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  border: 1px solid rgba(120, 170, 255, 0.18);
+}
+html[data-has-hero] .card .card-title,
+html[data-has-hero] .card p {
+  color: #e6edfb;
+}
+/* Agent names (and other bold lead-ins) inside cards glow in the brand
+   cyan so the named roles read as first-class entities. */
+html[data-has-hero] .card p strong {
+  color: #7cc4ff;
+  font-weight: 700;
+}
+/*
+ * Two-layer readability rule: dense list content (the impact list and
+ * the phase timeline) carries small text, so it sits on its own dark
+ * glass panel instead of directly over the bright nebula. Large titles
+ * and standfirst lines stay on the background; small dense text does
+ * not.
+ */
+html[data-has-hero] .impact-list,
+html[data-has-hero] .phase-timeline {
+  background: rgba(10, 16, 30, 0.55);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  border: 1px solid rgba(120, 170, 255, 0.18);
+  border-radius: 0.9rem;
+  padding: 0.5rem 1.6rem;
+  list-style: none;
+}
+html[data-has-hero] .impact-list li {
+  list-style: none;
+}
+/* Impact-list arrow ticks glow in the brand cyan so the eye tracks each
+   design target down the list. */
+html[data-has-hero] .impact-tick {
+  color: #50e6ff;
+}
+html[data-has-hero] .phase-timeline {
+  padding: 1.5rem 1.6rem 0.5rem;
+}
+
+/* Hairline separators tuned for the dark cosmic backdrop. */
+html[data-has-hero] .impact-list,
+html[data-has-hero] .impact-list li,
+html[data-has-hero] .phase-timeline {
+  border-color: rgba(140, 175, 230, 0.22);
+}
+
+/*
+ * Piano-black top bar with a fine chrome accent line, echoing the
+ * brushed-metal trim inlay set into a piano-black console. Global (both
+ * the landing and interior docs) so the chrome line reads as a
+ * consistent brand detail. The bar itself carries a faint top sheen
+ * (inset highlight) so it looks lacquered rather than flat matte.
+ */
+header.header {
+  background: linear-gradient(180deg, #0d0e11 0%, #060708 100%);
+  border-bottom: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 6px 20px rgba(0, 0, 0, 0.4);
+}
+/* Fine chrome accent line along the bottom edge of the black bar. */
+header.header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(196, 202, 214, 0.1) 12%,
+    rgba(228, 233, 242, 0.72) 50%,
+    rgba(196, 202, 214, 0.1) 88%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+/* Keep the header's controls legible on the black bar in both themes. */
+header.header :is(a, button, .social-icons a) {
+  color: #e6e9f0;
+}
+/*
+ * Header layout: a symmetric 3-column grid keeps Search centred. The
+ * centre track is widened (up to 650px) and Search fills it, so the box
+ * is a comfortable size instead of the tiny default pill.
+ */
+header.header .header {
+  grid-template-columns: 1fr minmax(0, 650px) 1fr;
+}
+header.header .right-group {
+  justify-self: end;
+}
+header.header .sl-flex:has(> site-search),
+header.header site-search,
+header.header site-search button {
+  width: 100%;
+  max-width: none;
+}
+

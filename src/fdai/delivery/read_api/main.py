@@ -331,6 +331,11 @@ def build_app(
         except _BadQueryError as exc:
             return _error(400, str(exc))
         cursor = request.query_params.get("cursor")
+        if cursor is not None and len(cursor) > 1024:
+            # Real cursors are opaque tokens under 200 bytes; anything
+            # larger is either a client bug or a probe. Cap so the log
+            # line + downstream store lookup stay bounded.
+            return _error(400, "cursor is too long")
         try:
             page = await read_model.list_audit(limit=clamp_limit(limit), cursor=cursor)
         except ValueError as exc:
@@ -465,13 +470,9 @@ def build_app(
         )
 
         if _BR_PATH in _CORE_ROUTE_PATHS:
-            raise ValueError(
-                f"blast-radius path {_BR_PATH!r} collides with a core route"
-            )
+            raise ValueError(f"blast-radius path {_BR_PATH!r} collides with a core route")
         if _BR_PATH in seen_panel_paths:
-            raise ValueError(
-                f"blast-radius path {_BR_PATH!r} collides with a panel path"
-            )
+            raise ValueError(f"blast-radius path {_BR_PATH!r} collides with a panel path")
         routes.append(
             make_blast_radius_route(
                 graph=resolved_config.blast_radius_graph,
@@ -490,13 +491,9 @@ def build_app(
         )
 
         if _OG_PATH in _CORE_ROUTE_PATHS:
-            raise ValueError(
-                f"ontology-graph path {_OG_PATH!r} collides with a core route"
-            )
+            raise ValueError(f"ontology-graph path {_OG_PATH!r} collides with a core route")
         if _OG_PATH in seen_panel_paths:
-            raise ValueError(
-                f"ontology-graph path {_OG_PATH!r} collides with a panel path"
-            )
+            raise ValueError(f"ontology-graph path {_OG_PATH!r} collides with a panel path")
         routes.append(
             make_ontology_graph_route(
                 object_types=resolved_config.ontology_object_types,
@@ -518,13 +515,9 @@ def build_app(
         )
 
         if _PG_PATH in _CORE_ROUTE_PATHS:
-            raise ValueError(
-                f"promotion-gates path {_PG_PATH!r} collides with a core route"
-            )
+            raise ValueError(f"promotion-gates path {_PG_PATH!r} collides with a core route")
         if _PG_PATH in seen_panel_paths:
-            raise ValueError(
-                f"promotion-gates path {_PG_PATH!r} collides with a panel path"
-            )
+            raise ValueError(f"promotion-gates path {_PG_PATH!r} collides with a panel path")
         routes.append(
             make_promotion_gates_route(
                 action_types=resolved_config.promotion_gate_action_types,
@@ -550,13 +543,9 @@ def build_app(
 
         for _pt_path in (_PT_GRAPH_PATH, _PT_WF_PATH):
             if _pt_path in _CORE_ROUTE_PATHS:
-                raise ValueError(
-                    f"pantheon path {_pt_path!r} collides with a core route"
-                )
+                raise ValueError(f"pantheon path {_pt_path!r} collides with a core route")
             if _pt_path in seen_panel_paths:
-                raise ValueError(
-                    f"pantheon path {_pt_path!r} collides with a panel path"
-                )
+                raise ValueError(f"pantheon path {_pt_path!r} collides with a panel path")
         routes.append(make_pantheon_graph_route(authorize=_authorize))
         routes.append(make_pantheon_workflows_route(authorize=_authorize))
 
@@ -589,10 +578,7 @@ def build_app(
         )
 
     # Optional what-if replay route.
-    if (
-        resolved_config.what_if_reader is not None
-        and resolved_config.what_if_evaluators
-    ):
+    if resolved_config.what_if_reader is not None and resolved_config.what_if_evaluators:
         from fdai.delivery.read_api.what_if import make_what_if_route
 
         routes.append(
@@ -617,6 +603,7 @@ def build_app(
         from fdai.delivery.read_api.chat import (
             make_chat_health_route,
             make_chat_route,
+            make_chat_stream_route,
         )
 
         if _CHAT_PATH in _CORE_ROUTE_PATHS:
@@ -625,6 +612,12 @@ def build_app(
             raise ValueError(f"chat path {_CHAT_PATH!r} collides with a panel path")
         routes.append(
             make_chat_route(
+                backend=resolved_config.chat,
+                authorize=_authorize,
+            )
+        )
+        routes.append(
+            make_chat_stream_route(
                 backend=resolved_config.chat,
                 authorize=_authorize,
             )
@@ -690,9 +683,29 @@ def build_app(
     async def lifespan(_app: Starlette):  # type: ignore[no-untyped-def]
         if live_emitter is not None:
             await live_emitter.start()
+        # Warm the latency router (if wired) so GET /chat/health reports the
+        # measured-fastest mini before the first operator turn. Fire-and-forget
+        # so startup is never blocked on LLM round-trips.
+        bench_task = None
+        chat_backend = resolved_config.chat
+        if _is_routed_chat_backend(chat_backend):
+            import asyncio
+
+            async def _warm_router() -> None:
+                try:
+                    chose = await chat_backend.benchmark()  # type: ignore[union-attr]
+                    _LOGGER.warning(
+                        "CommandDeck router benchmarked - fastest candidate: %s", chose
+                    )
+                except Exception as exc:  # noqa: BLE001 - best-effort warm-up
+                    _LOGGER.warning("CommandDeck router benchmark failed: %s", exc)
+
+            bench_task = asyncio.create_task(_warm_router())
         try:
             yield
         finally:
+            if bench_task is not None:
+                bench_task.cancel()
             if live_emitter is not None:
                 await live_emitter.stop()
 
@@ -712,6 +725,18 @@ def build_app(
 # ---------------------------------------------------------------------------
 # Small helpers
 # ---------------------------------------------------------------------------
+
+
+def _is_routed_chat_backend(backend: object) -> bool:
+    """True when the chat backend is the latency-routed multi-candidate one.
+
+    Lazy import keeps ``chat`` optional for builds that never wire a narrator.
+    """
+    if backend is None:
+        return False
+    from fdai.delivery.read_api.chat import LatencyRoutedChatBackend
+
+    return isinstance(backend, LatencyRoutedChatBackend)
 
 
 class _BadQueryError(ValueError):

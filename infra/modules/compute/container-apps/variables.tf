@@ -44,15 +44,49 @@ variable "executor_identity_id" {
   type        = string
 }
 
+variable "extra_identity_ids" {
+  description = <<-EOT
+    Additional user-assigned MI resource ids to attach alongside the
+    executor MI. Populate with the per-vertical MIs (change / resilience /
+    finops) from `infra/main.tf` when a fork wires vertical-specific
+    delivery adapters that need to `assume` those identities. Empty by
+    default so upstream stays single-MI.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "image" {
   description = "Container image reference. Pin by digest in prod."
   type        = string
+}
+
+variable "acr_login_server" {
+  description = <<-EOT
+    Login server host of the private ACR that holds `var.image`
+    (e.g. "crfdaidev.azurecr.io"). When non-empty, a `registry {}`
+    block is attached to the Container App and image pull authenticates
+    via the executor MI (which the root module grants `AcrPull` on).
+    Leave empty for public images (MCR / Docker Hub); the day-zero
+    default `mcr.microsoft.com/azure-cli:latest` requires no auth.
+  EOT
+  type        = string
+  default     = ""
 }
 
 variable "max_replicas" {
   description = "KEDA scale ceiling."
   type        = number
   default     = 3
+
+  validation {
+    # Container Apps hard limit is 300 replicas per revision. A day-zero
+    # ceiling of 3 is a safe default; a fork raises it deliberately. A
+    # ``0`` here would make the app unreachable, and an unbounded number
+    # would let a burst blow through cost guardrails.
+    condition     = var.max_replicas >= 1 && var.max_replicas <= 300
+    error_message = "max_replicas must be between 1 and 300 (Container Apps limit)."
+  }
 }
 
 variable "core_cpu" {

@@ -34,6 +34,8 @@ def make_rule_fire_trace_route(
         correlation_id = request.path_params.get("correlation_id", "")
         if not correlation_id:
             return _error(400, "correlation_id path parameter is required")
+        if len(correlation_id) > 256:
+            return _error(400, "correlation_id is too long")
 
         items = await reader.read_items(correlation_id)
         trace = build_rule_fire_trace(correlation_id, items)

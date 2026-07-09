@@ -101,6 +101,12 @@ class GitOpsPrAdapter(RemediationPrPublisher):
             raise ValueError("timeout_seconds MUST be > 0")
         if not token or not token.strip():
             raise ValueError("token MUST NOT be empty")
+        if not config.api_base.startswith("https://"):
+            # The GitHub API and every Azure DevOps / GHE-Enterprise clone
+            # of it MUST be reached over TLS - the caller's PAT / GitHub-
+            # App JWT would leak on `http://`. Refuse construction so a
+            # misconfigured tfvars can never ship a token in the clear.
+            raise ValueError("api_base MUST use https:// scheme")
         self._config: Final[GitOpsPrConfig] = config
         self._http: Final[httpx.AsyncClient] = http_client
         self._token: Final[str] = token

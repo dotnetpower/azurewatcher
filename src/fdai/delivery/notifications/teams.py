@@ -45,6 +45,8 @@ class TeamsWebhookChannel:
             raise ValueError("timeout_seconds MUST be > 0")
         if not config.webhook_url:
             raise ValueError("webhook_url MUST NOT be empty")
+        if not config.webhook_url.startswith("https://"):
+            raise ValueError("webhook_url MUST use https:// scheme")
         self._config: Final = config
         self._http: Final = http_client
 

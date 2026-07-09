@@ -2,7 +2,7 @@
 title: LLM 전략(LLM Strategy)
 translation_of: llm-strategy.md
 translation_source_sha: 67f38a1c0d6df6e45dd91146266ccb64aff7027d
-translation_revised: 2026-07-08
+translation_revised: 2026-07-09
 ---
 
 # LLM 전략(LLM Strategy)

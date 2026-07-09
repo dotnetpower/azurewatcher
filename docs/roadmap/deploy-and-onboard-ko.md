@@ -2,7 +2,7 @@
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
 translation_source_sha: 7b8e36c1e7c5c0f9e4e842bdd36fce7c34f3f5d9
-translation_revised: 2026-07-08
+translation_revised: 2026-07-09
 ---
 
 # 배포와 온보딩(Deploy and Onboard)

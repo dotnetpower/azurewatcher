@@ -59,6 +59,12 @@ class GenericWebhookChannel:
             raise ValueError("timeout_seconds MUST be > 0")
         if not config.url:
             raise ValueError("url MUST NOT be empty")
+        if not config.url.startswith("https://"):
+            # The HMAC signature protects the body, not the transport;
+            # http:// still leaks the URL, method, and headers to any
+            # on-path observer. Refuse construction so a fork cannot
+            # accidentally sign over cleartext.
+            raise ValueError("url MUST use https:// scheme")
         if not config.hmac_secret:
             raise ValueError("hmac_secret MUST NOT be empty")
         if TrustTier.A1_HIL_APPROVAL in config.trust_tiers:

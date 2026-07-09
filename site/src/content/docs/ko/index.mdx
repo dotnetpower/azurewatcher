@@ -1,9 +1,10 @@
 ---
-title: FDAI
-description: Forward Deployed AI for Cloud Ops - 결정론 우선, 이벤트 기반, 리스크 게이트.
+title: Forward Deployed Agents
+description: Forward Deployed Agents - 결정론 우선, 이벤트 기반, 리스크 게이트.
 template: splash
 hero:
-  tagline: FDAI 는 클라우드 안에 상주하는 자율 컨트롤 플레인입니다. 대부분의 이벤트는 규칙과 정책으로 결정론적으로 해결하고, 남은 소수의 모호한 케이스에만 LLM 추론을 예약합니다. 모든 변경은 shadow-first remediation PR 로 배송되어, 대부분의 운영이 사람 없이 굴러갑니다.
+  title: 클라우드에 상주하는 자율 에이전트 조직
+  tagline: 당신의 클라우드 운영을 책임지는 15개 전문 AI 에이전트 조직입니다. 에이전트 팬테온을 당신의 환경에 배포하면, 각 에이전트가 자기 역할(감지, 판단, 실행, 승인, 감사)을 맡아 하나의 조직으로 Cloud Ops 와 SRE 를 커버합니다. 결정론 우선, 리스크 게이트, 최소한의 사람 개입으로.
   actions:
     - text: 로드맵 읽기
       link: /ko/reference/roadmap/
@@ -18,38 +19,35 @@ hero:
 import { Card, CardGrid } from "@astrojs/starlight/components";
 import TrustTierFunnel from "../../../components/TrustTierFunnel.astro";
 import ActionOntologyExplorer from "../../../components/ActionOntologyExplorer.astro";
+import ControlLoopSteps from "../../../components/ControlLoopSteps.astro";
 
-## FDAI이 이벤트를 해소하는 방식
+<ul class="trust-bar">
+  <li>Azure 네이티브</li>
+  <li>결정론 우선</li>
+  <li>Shadow 먼저, 그다음 enforce</li>
+  <li>모든 액션 감사</li>
+  <li>고위험은 HIL</li>
+</ul>
 
-<p class="hero-note">하나의 제어 루프: 정규화하고, 신뢰도로 라우팅하고, 리스크로 게이팅하고, 항상 기록으로 남깁니다. LLM은 결정론 티어들이 명시적으로 abstain한 잔여 소수만 봅니다.</p>
+## Forward Deployed Agents가 이벤트를 해소하는 방식
 
-```mermaid
-flowchart LR
-  E[이벤트 버스<br/>Event Hubs 위 Kafka] --> IN[Event ingest<br/>정규화 · 중복제거 · 상관관계]
-  IN --> TR{Trust router<br/>신뢰도 계산}
-  TR -->|규칙 히트| T0[T0 · 결정론<br/>목표 ~70-80%]
-  TR -->|과거와 유사| T1[T1 · 경량 재사용<br/>~15-20%]
-  TR -->|새롭거나 애매| T2[T2 · 추론<br/>~5-10%]
-  T2 --> QG{{품질 게이트<br/>mixed-model · verifier · grounding}}
-  T0 --> RG{리스크 게이트}
-  T1 --> RG
-  QG -->|통과| RG
-  QG -->|abstain| HIL
-  RG -->|auto| EX[Executor<br/>stop-condition · 롤백 · blast-radius]
-  RG -->|hil| HIL[사람 승인<br/>Teams · PR · 이메일]
-  RG -->|deny| DENY[No-op<br/>실행 기록]
-  HIL -->|승인| EX
-  HIL -->|거부 / 타임아웃| DENY
-  EX --> DEL[GitOps / PR 전달]
-  DEL --> AUD[(append-only 실행 기록)]
-  DENY --> AUD
-```
+<p class="hero-note">신호부터 감사까지, 하나의 제어 루프. 모든 이벤트는 정규화되고, 신뢰도로 라우팅되고, 리스크로 게이팅됩니다 - 그리고 언어 모델은 결정론 티어가 의도적으로 넘긴 소수의 모호한 케이스에만 쓰입니다.</p>
+
+<ControlLoopSteps
+  steps={[
+    { label: "수집", desc: "원시 이벤트를 정규화, 중복 제거, 상관관계로 묶어 인시던트로 만듭니다." },
+    { label: "라우팅", desc: "트러스트 라우터가 신뢰도를 계산해 가장 저렴한 티어(T0, T1, T2)를 고릅니다." },
+    { label: "게이트", desc: "리스크 게이트가 auto, HIL, deny 를 판정하고, T2 는 먼저 품질 게이트를 통과합니다." },
+    { label: "실행", desc: "실행기가 stop-condition, 롬백, blast-radius 제한과 함께 변경을 적용합니다." },
+    { label: "감사", desc: "no-op 을 포함한 모든 결정이 불변 감사 로그에 기록됩니다." },
+  ]}
+/>
 
 <TrustTierFunnel
   heading="티어가 부하를 나누는 방식"
   intro="신뢰도로 라우팅한다: 이벤트를 해소할 수 있는 가장 저렴한 티어가 처리한다. 대부분의 이벤트는 모델에 도달하지 않는다."
   inflowLabel="개 이벤트 유입"
-  note="설계 목표이며 측정된 결과가 아닙니다 - FDAI은 짝을 이룬 기준선 측정 없이 수치를 주장하지 않습니다."
+  note="설계 목표이며 측정된 결과가 아닙니다 - Forward Deployed Agents는 짝을 이룬 기준선 측정 없이 수치를 주장하지 않습니다."
   labels={[
     { label: "결정론적", sub: "규칙 - 정책 - 체크리스트" },
     { label: "경량 재사용", sub: "임베딩 유사도 - 소형 분류기" },
@@ -57,7 +55,7 @@ flowchart LR
   ]}
 />
 
-## 자율성이 여러분에게 주는 것 (설계 목표)
+## 자율성이 여러분에게 주는 것
 
 <ul class="impact-list">
   <li>
@@ -89,11 +87,11 @@ flowchart LR
   <li>
     <span class="impact-tick" aria-hidden="true">↳</span>
     <em>위 수치는 모두 설계 목표이지 측정된 결과가 아닙니다.</em>
-    FDAI은 짝을 이룬 기준선 측정 없이 배수를 주장하지 않습니다.
+    Forward Deployed Agents는 짝을 이룬 기준선 측정 없이 배수를 주장하지 않습니다.
   </li>
 </ul>
 
-## 세 도메인, 하나의 제어 평면
+## 하나의 코어, 세 도메인
 
 <p class="hero-note">세 도메인 모두 같은 이벤트 기반 · 리스크 게이트 코어를 공유한다. 다른 것은 각 도메인이 로드하는 규칙과 액션뿐이다.</p>
 
@@ -106,6 +104,31 @@ flowchart LR
   </Card>
   <Card title="Cost Governance · Phase 3" icon="approve-check">
     비용 이상 탐지, 라이트사이징 PR, 리소스 그룹별 예산 가드레일. 리스크 분류에 따라 auto vs HIL로 나뉜다.
+  </Card>
+</CardGrid>
+
+## 에이전트 조직을 만나보세요
+
+<p class="hero-note">15개의 이름을 가진 에이전트가 하나의 조직으로 제어 루프를 운영합니다 - 각자 역할을 맡고 스키마 검증된 이벤트 버스로 인계합니다. 은유가 아니라 조직도입니다: 판단자는 실행하지 않으며, 모든 액션은 서로 다른 에이전트가 개시, 판단, 승인, 실행, 감사합니다.</p>
+
+<CardGrid>
+  <Card title="Odin - 지휘" icon="star">
+    마스터 플래너. 버티컬 간 중재와 판정 확정 전 최종 타이브레이크.
+  </Card>
+  <Card title="판단과 실행" icon="approve-check">
+    **Forseti**가 판단(auto / HIL / deny), **Thor**가 디스패치·실행, **Var**가 사람 승인, **Vidar**가 롤백·DR 페일오버를 담당합니다. 어떤 에이전트도 판단과 실행을 겸하지 않습니다.
+  </Card>
+  <Card title="감지" icon="magnifier">
+    **Huginn**이 이벤트를 수집·상관하고, **Heimdall**이 상태와 드리프트를 관측합니다. 결정론 우선 - 핫패스에 LLM은 없습니다.
+  </Card>
+  <Card title="대화와 감사" icon="comment">
+    **Bragi**가 운영자 질문을 도구 호출로 번역하고, **Saga**가 append-only 감사 로그를 쓰고 인계를 에스컬레이션합니다.
+  </Card>
+  <Card title="거버넌스" icon="setting">
+    **Mimir**가 룰 카탈로그를 관리하고, **Norns**가 결과에서 학습하며, **Muninn**이 장기 기억을 보유합니다.
+  </Card>
+  <Card title="도메인 전문가" icon="puzzle">
+    **Njord**(비용), **Freyr**(용량), **Loki**(카오스)가 도메인 분석으로 판단자를 보조합니다 - 직접 실행하지 않습니다.
   </Card>
 </CardGrid>
 
@@ -133,7 +156,7 @@ flowchart LR
 
 ## 배포 단계 (Delivery Phases)
 
-<p class="hero-note">엄격한 순차 진행 - 각 단계는 이전 단계를 지명한다. 참조 문서를 먼저 읽고 단계 문서를 순서대로 따라가세요.</p>
+<p class="hero-note">설계상 순차적입니다 - 각 단계는 이전 단계 위에 쌓입니다. 참조 문서를 먼저 읽고 단계 문서를 순서대로 따라가세요.</p>
 
 <ol class="phase-timeline">
   <li>
@@ -171,6 +194,16 @@ flowchart LR
     <p>지속 측정, 패턴 라이브러리 성장, 모델 비용/품질 추적, 확장성. 멀티 클라우드 확장은 TBD.</p>
   </li>
 </ol>
+
+## 이제 조직을 투입할 준비가 되셨나요?
+
+<p class="hero-note">에이전트 조직을 여러분의 Azure 환경에 배포하고, 모든 액션을 shadow로 시작한 뒤, 수치가 뒷받침되면 enforce로 승격하세요.</p>
+
+<div class="cta-row">
+  <a class="cta-btn cta-btn--primary" href={`${import.meta.env.BASE_URL}ko/get-started/`}>시작하기</a>
+  <a class="cta-btn" href={`${import.meta.env.BASE_URL}ko/reference/roadmap/`}>로드맵 읽기</a>
+  <a class="cta-btn" href="https://github.com/dotnetpower/fdai">GitHub에서 보기</a>
+</div>
 
 :::note[스코프 안내]
 이 리포지토리는 **범용이자 고객 비의존적(customer-agnostic)** 이다. 모든 값은

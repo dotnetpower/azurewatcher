@@ -175,11 +175,23 @@ class EventBusBridge:
         )
         try:
             results = await asyncio.gather(*self._tasks, return_exceptions=True)
-            crashed = sum(
-                1
-                for r in results
-                if isinstance(r, BaseException) and not isinstance(r, asyncio.CancelledError)
-            )
+            crashed = 0
+            for task, result in zip(self._tasks, results, strict=True):
+                if isinstance(result, BaseException) and not isinstance(
+                    result, asyncio.CancelledError
+                ):
+                    crashed += 1
+                    # Log each crashing consumer distinctly so an operator
+                    # can identify *which* topic wedged. A bare aggregate
+                    # count buries the root cause under a summary.
+                    _LOG.error(
+                        "pantheon_bridge_consumer_crashed",
+                        extra={
+                            "task_name": task.get_name(),
+                            "error_type": type(result).__name__,
+                            "error": str(result),
+                        },
+                    )
             if crashed:
                 _LOG.error(
                     "pantheon_bridge_consumers_crashed",

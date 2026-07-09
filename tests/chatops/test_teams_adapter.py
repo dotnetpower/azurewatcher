@@ -128,6 +128,22 @@ def test_whitespace_webhook_url_is_rejected() -> None:
         )
 
 
+def test_non_https_webhook_url_is_rejected() -> None:
+    """Refuse `http://` and other schemes at construction so a fork
+    misconfiguration cannot send the HMAC-signed body over cleartext."""
+
+    for url in (
+        "http://example.com/webhook",
+        "ws://example.com/webhook",
+        "file:///tmp/webhook",  # noqa: S108 - path is a fixture URL, not a real /tmp write
+    ):
+        with pytest.raises(ValueError, match="webhook_url MUST use https"):
+            TeamsHilAdapter(
+                config=TeamsHilAdapterConfig(webhook_url=url),
+                http_client=httpx.AsyncClient(),
+            )
+
+
 def test_zero_timeout_is_rejected() -> None:
     with pytest.raises(ValueError, match="timeout_seconds MUST be > 0"):
         TeamsHilAdapter(

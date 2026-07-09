@@ -42,7 +42,25 @@ resource "azurerm_container_app" "core" {
 
   identity {
     type         = "UserAssigned"
-    identity_ids = [var.executor_identity_id]
+    identity_ids = concat([var.executor_identity_id], var.extra_identity_ids)
+  }
+
+  # -------------------------------------------------------------------------
+  # ACR registry auth via user-assigned MI.
+  #
+  # Set `acr_login_server` (e.g. "crfdaidev.azurecr.io") when the image
+  # comes from a private ACR; Container Apps then uses the executor MI
+  # (already granted `AcrPull` at the root module) instead of admin
+  # credentials. Empty string means the image is public (MCR / Docker
+  # Hub) and no auth is needed - the upstream default day-zero image is
+  # `mcr.microsoft.com/azure-cli:latest`, which pulls anonymously.
+  # -------------------------------------------------------------------------
+  dynamic "registry" {
+    for_each = var.acr_login_server == "" ? [] : [1]
+    content {
+      server   = var.acr_login_server
+      identity = var.executor_identity_id
+    }
   }
 
   # -------------------------------------------------------------------------
@@ -166,7 +184,7 @@ resource "azurerm_container_app_job" "oob" {
 
   identity {
     type         = "UserAssigned"
-    identity_ids = [var.executor_identity_id]
+    identity_ids = concat([var.executor_identity_id], var.extra_identity_ids)
   }
 
   schedule_trigger_config {

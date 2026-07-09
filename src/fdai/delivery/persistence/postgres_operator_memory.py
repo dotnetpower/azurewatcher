@@ -62,6 +62,11 @@ class PostgresOperatorMemoryStoreConfig:
     """Applied via ``SET LOCAL`` on every operation; fails fast rather than
     blocking the event loop on a stuck query."""
 
+    connect_timeout_s: int = 10
+    """Bound the TCP + auth handshake so a dead DB fails fast instead of
+    hanging the event loop for ~2 minutes on the kernel TCP retry budget
+    (``statement_timeout`` only starts *after* connect succeeds)."""
+
 
 class PostgresOperatorMemoryStore(OperatorMemoryStore):
     """Async :class:`OperatorMemoryStore` implementation for PostgreSQL."""
@@ -71,6 +76,8 @@ class PostgresOperatorMemoryStore(OperatorMemoryStore):
             raise ValueError("PostgresOperatorMemoryStoreConfig.dsn MUST NOT be empty")
         if config.statement_timeout_ms < 1:
             raise ValueError("statement_timeout_ms MUST be >= 1")
+        if config.connect_timeout_s < 1:
+            raise ValueError("connect_timeout_s MUST be >= 1")
         self._config: Final[PostgresOperatorMemoryStoreConfig] = config
 
     # ------------------------------------------------------------------
@@ -79,7 +86,10 @@ class PostgresOperatorMemoryStore(OperatorMemoryStore):
 
     async def append(self, entry: OperatorMemoryEntry) -> OperatorMemoryEntry:
         _reject_policy_violations(entry)
-        async with await psycopg.AsyncConnection.connect(self._config.dsn) as conn:
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
             async with conn.transaction():
                 await self._set_statement_timeout(conn)
                 try:
@@ -122,7 +132,9 @@ class PostgresOperatorMemoryStore(OperatorMemoryStore):
         self, *, scope_kind: ScopeKind, scope_ref: str
     ) -> tuple[OperatorMemoryEntry, ...]:
         async with await psycopg.AsyncConnection.connect(
-            self._config.dsn, row_factory=dict_row
+            self._config.dsn,
+            row_factory=dict_row,
+            connect_timeout=self._config.connect_timeout_s,
         ) as conn:
             async with conn.transaction():
                 await self._set_statement_timeout(conn)
@@ -147,7 +159,10 @@ class PostgresOperatorMemoryStore(OperatorMemoryStore):
         return tuple(_row_to_entry(row) for row in rows)
 
     async def supersede(self, *, entry_id: UUID, superseded_by: UUID) -> None:
-        async with await psycopg.AsyncConnection.connect(self._config.dsn) as conn:
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
             async with conn.transaction():
                 await self._set_statement_timeout(conn)
                 cur = await conn.execute(

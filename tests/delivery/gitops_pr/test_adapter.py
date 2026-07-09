@@ -98,6 +98,19 @@ def test_empty_token_is_rejected() -> None:
         GitOpsPrAdapter(config=_config(), http_client=httpx.AsyncClient(), token="  ")
 
 
+def test_non_https_api_base_is_rejected() -> None:
+    """A plain-HTTP GitHub Enterprise override would leak the PAT and audit
+    correlation id on the wire; the adapter MUST reject it at construction.
+    """
+    for bad in ("http://api.example.com", "ws://api.example.com", "file:///api"):
+        with pytest.raises(ValueError, match="https"):
+            GitOpsPrAdapter(
+                config=_config(api_base=bad),
+                http_client=httpx.AsyncClient(),
+                token=TOKEN,
+            )
+
+
 # ---------------------------------------------------------------------------
 # Enforce label guard
 # ---------------------------------------------------------------------------

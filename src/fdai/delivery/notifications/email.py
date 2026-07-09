@@ -65,6 +65,11 @@ class AzureCommunicationEmailChannel:
             raise ValueError("timeout_seconds MUST be > 0")
         if not config.endpoint:
             raise ValueError("endpoint MUST NOT be empty")
+        if not config.endpoint.startswith("https://"):
+            # Azure Communication Services email endpoint is always
+            # HTTPS; refuse http:// so a fork misconfiguration does not
+            # push a bearer token in the clear.
+            raise ValueError("endpoint MUST use https:// scheme")
         if not config.recipient_addresses:
             raise ValueError("at least one recipient_addresses entry is required")
         if TrustTier.A1_HIL_APPROVAL in config.trust_tiers:

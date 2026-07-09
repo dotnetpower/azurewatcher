@@ -2,7 +2,7 @@
 title: 리스크 분류 (auto vs HIL vs deny)
 translation_of: risk-classification.md
 translation_source_sha: ab5dc0c204759f70721365b35c89786bb989d53c
-translation_revised: 2026-07-08
+translation_revised: 2026-07-09
 ---
 
 # 리스크 분류 (auto vs HIL vs deny)
