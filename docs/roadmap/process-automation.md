@@ -166,6 +166,23 @@ hold per step: a stop-condition, a rollback contract, a blast-radius cap, and
 an audit-log entry. The runner adds one aggregate `runbook.terminal` audit row
 so a reviewer can reconstruct the whole run by id.
 
+### 4.1 Shadow orchestrator (P1)
+
+The [`WorkflowOrchestrator`](../../src/fdai/core/workflow/orchestrator.py) is the
+first live consumer. It plans approvals ([section 6.1](#61-approver-assignment)),
+derives an idempotent `Process` id from `(workflow, target_resource_id,
+trigger_ts)`, compiles the workflow, and walks it with the
+[`ShadowWorkflowStepExecutor`](../../src/fdai/core/workflow/orchestrator.py) - a
+`StepExecutor` that has no publisher, no direct-API executor, and no resource
+lock, so it **structurally cannot mutate**. Each step is judged and logged (with
+its resolved approver assignment) and reported `SUCCESS`; the run emits a
+`workflow.process-plan` audit row, one `workflow.step` row per step, and the
+runner's `runbook.terminal`. Promotion to a live executor that re-enters the
+risk-gate -> executor -> delivery path is a separate, gated change; until then a
+workflow run cannot change cloud state, matching the shadow-before-enforce
+invariant.
+
+
 ## 5. Saga compensation
 
 A multi-step process that fails partway MUST be able to undo the steps that

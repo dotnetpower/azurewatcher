@@ -1,7 +1,7 @@
 ---
 title: 프로세스 자동화(Process Automation)
 translation_of: process-automation.md
-translation_source_sha: 1f6403cda3918e3e83f7e368f6989d5af66562aa
+translation_source_sha: 1ddc64b1a44d5cef06f0fc935a6be648068acf1e
 translation_revised: 2026-07-09
 ---
 
@@ -164,6 +164,21 @@ risk-gate 우회도 없다. 이는 행동 요청은 typed 파이프라인에 재
 stop-condition, rollback contract, blast-radius cap, audit-log 엔트리. 러너는
 리뷰어가 id 로 전체 실행을 재구성할 수 있도록 하나의 집계 `runbook.terminal`
 audit row 를 추가한다.
+
+### 4.1 Shadow 오케스트레이터 (P1)
+
+[`WorkflowOrchestrator`](../../src/fdai/core/workflow/orchestrator.py) 가 첫
+라이브 소비자다. 승인을 계획하고 ([6.1절](#61-승인자-할당approver-assignment)),
+`(workflow, target_resource_id, trigger_ts)` 에서 idempotent `Process` id 를
+파생하고, 워크플로를 컴파일한 뒤
+[`ShadowWorkflowStepExecutor`](../../src/fdai/core/workflow/orchestrator.py) 로
+걷는다 - 이 `StepExecutor` 는 publisher 도, direct-API executor 도, resource lock
+도 없어서 **구조적으로 mutation 이 불가능**하다. 각 스텝은 (해결된 승인자 할당과
+함께) judge-and-log 되어 `SUCCESS` 로 보고되고, 실행은 `workflow.process-plan`
+audit row 하나, 스텝마다 `workflow.step` row 하나, 러너의 `runbook.terminal` 을
+emit 한다. risk-gate -> executor -> delivery 경로에 재진입하는 라이브 executor 로의
+승격은 별도의 gated 변경이다; 그 전까지 워크플로 실행은 클라우드 상태를 바꿀 수
+없으며, 이는 shadow-before-enforce 불변식과 일치한다.
 
 ## 5. saga 보상(saga compensation)
 

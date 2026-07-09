@@ -16,12 +16,24 @@ from .approval import (
     WorkflowApprovalPlanner,
 )
 from .compiler import CompiledWorkflow, compile_workflow
+from .orchestrator import (
+    ProcessRun,
+    ProcessStatus,
+    ShadowWorkflowStepExecutor,
+    WorkflowOrchestrator,
+    derive_process_id,
+)
 
 __all__ = [
     "ApprovalPlan",
     "ApprovalPlanError",
     "CompiledWorkflow",
+    "ProcessRun",
+    "ProcessStatus",
+    "ShadowWorkflowStepExecutor",
     "StepApproval",
     "WorkflowApprovalPlanner",
+    "WorkflowOrchestrator",
     "compile_workflow",
+    "derive_process_id",
 ]
