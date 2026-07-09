@@ -286,9 +286,15 @@ Flags (via `tsx src/cli.tsx`):
 - `--surface=cli|text|slack|teams` - which renderer.
 - `--mode=needs-me|all-clear` - which world state (HIL decisions pending, or nothing
   to sign off).
+- `--locale=en|ko` - which language the narration renders in (default `en`; also
+  reads `FDAI_LOCALE`). Strings come from the message catalog in
+  [src/i18n](src/i18n); a key missing from a locale falls back to English, never a
+  blank. Data values (operator name, window label, resource ids) are never
+  translated.
 
 ```bash
 tsx src/cli.tsx --surface=slack --mode=all-clear
+tsx src/cli.tsx --surface=text --locale=ko
 ```
 
 ## Files
@@ -299,6 +305,7 @@ tsx src/cli.tsx --surface=slack --mode=all-clear
 | [src/view-model/blocks.ts](src/view-model/blocks.ts) | the presentation-neutral block IR (`Block`, `Tone`) |
 | [src/view-model/build-briefing.ts](src/view-model/build-briefing.ts) | the single compiler: contract -> `Block[]` |
 | [src/view-model/build-from-readmodel.ts](src/view-model/build-from-readmodel.ts) | compile a live read-API snapshot -> `Block[]` |
+| [src/i18n/](src/i18n/) | L2 message catalogs (`messages.en.json` source + `messages.ko.json`) and the `t()` helper (dot-path lookup, `{name}` params, English fallback) |
 | [src/data/read-api.ts](src/data/read-api.ts) | read-only client for the console API (`/kpi`, `/hil-queue`, `/audit`) |
 | [src/narrator/](src/narrator/) | narrator seam: read-only tools + deterministic / LLM implementations + factory |
 | [src/data/sample-briefing.ts](src/data/sample-briefing.ts) | synthetic payload for both modes |
