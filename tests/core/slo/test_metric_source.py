@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 
 from fdai.core.slo import MetricBurnRateSource
 from fdai.core.slo.models import SLI, SLO, BurnRateAlertDef, SLIKind
+from fdai.shared.contracts.models import Mode
 from fdai.shared.providers.metric import (
     MetricPoint,
     NoopMetricProvider,
@@ -128,3 +129,58 @@ async def test_labels_prefilter_is_passed_through() -> None:
         _slo(labels={"resource_id": "vm-01"}), now=_NOW
     )
     assert result.insufficient_data is True
+
+
+# ---------------------------------------------------------------------------
+# to_events - breach normalization into slo.error_budget_burn events
+# ---------------------------------------------------------------------------
+
+
+async def test_breach_normalizes_to_error_budget_burn_event() -> None:
+    provider = StaticMetricProvider([_point("good_events", 980.0), _point("total_events", 1000.0)])
+    source = MetricBurnRateSource(provider)
+    slo = _slo()
+    result = await source.evaluate(slo, now=_NOW)
+    events = source.to_events(result, slo=slo)
+    assert len(events) == 1
+    event = events[0]
+    assert event.event_type == "slo.error_budget_burn"
+    assert event.mode is Mode.SHADOW
+    assert event.resource_ref == "api.checkout.availability"
+    assert event.payload["slo_id"] == "api.checkout.availability"
+    assert event.payload["alert"] == "fast-burn"
+
+
+async def test_breach_event_idempotency_stable_within_minute() -> None:
+    provider = StaticMetricProvider([_point("good_events", 980.0), _point("total_events", 1000.0)])
+    source = MetricBurnRateSource(provider)
+    slo = _slo()
+    first = source.to_events(await source.evaluate(slo, now=_NOW), slo=slo)
+    second = source.to_events(await source.evaluate(slo, now=_NOW.replace(second=30)), slo=slo)
+    assert first[0].idempotency_key == second[0].idempotency_key
+
+
+async def test_resource_ref_taken_from_label_when_present() -> None:
+    provider = StaticMetricProvider(
+        [
+            _point("good_events", 980.0, labels={"resource_id": "vm-01"}),
+            _point("total_events", 1000.0, labels={"resource_id": "vm-01"}),
+        ]
+    )
+    source = MetricBurnRateSource(provider)
+    slo = _slo(labels={"resource_id": "vm-01"})
+    events = source.to_events(await source.evaluate(slo, now=_NOW), slo=slo)
+    assert events[0].resource_ref == "vm-01"
+
+
+async def test_no_breach_emits_no_event() -> None:
+    provider = StaticMetricProvider([_point("good_events", 999.0), _point("total_events", 1000.0)])
+    source = MetricBurnRateSource(provider)
+    slo = _slo()
+    assert source.to_events(await source.evaluate(slo, now=_NOW), slo=slo) == ()
+
+
+async def test_insufficient_data_emits_no_event() -> None:
+    source = MetricBurnRateSource(NoopMetricProvider())
+    slo = _slo()
+    assert source.to_events(await source.evaluate(slo, now=_NOW), slo=slo) == ()

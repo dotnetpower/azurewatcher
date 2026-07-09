@@ -29,11 +29,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
+from fdai.shared.contracts.models import Event, Mode
 from fdai.shared.providers.metric import MetricProvider, MetricQuery
 
 from .burn_rate import BurnRateBreach, BurnRateEvaluator, build_alerts
 from .models import SLO
+
+_DEFAULT_SOURCE = "fdai.core.slo.burn_rate"
+_EVENT_TYPE = "slo.error_budget_burn"
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +48,7 @@ class BurnRateEvaluation:
     slo_id: str
     breaches: tuple[BurnRateBreach, ...]
     insufficient_data: bool
+    evaluated_at: datetime
 
     @property
     def breached(self) -> bool:
@@ -63,9 +69,11 @@ class MetricBurnRateSource:
         metric_provider: MetricProvider,
         *,
         evaluator: BurnRateEvaluator | None = None,
+        source: str = _DEFAULT_SOURCE,
     ) -> None:
         self._metrics = metric_provider
         self._evaluator = evaluator if evaluator is not None else BurnRateEvaluator()
+        self._source = source
 
     async def evaluate(self, slo: SLO, *, now: datetime) -> BurnRateEvaluation:
         """Evaluate ``slo``'s burn-rate alerts against metrics up to ``now``.
@@ -78,7 +86,9 @@ class MetricBurnRateSource:
         """
         windows = _required_windows(slo)
         if not windows:
-            return BurnRateEvaluation(slo_id=slo.id, breaches=(), insufficient_data=False)
+            return BurnRateEvaluation(
+                slo_id=slo.id, breaches=(), insufficient_data=False, evaluated_at=now
+            )
 
         samples: dict[int, tuple[int, int]] = {}
         insufficient = False
@@ -91,14 +101,75 @@ class MetricBurnRateSource:
             samples[window_minutes] = (good, total)
 
         if insufficient:
-            return BurnRateEvaluation(slo_id=slo.id, breaches=(), insufficient_data=True)
+            return BurnRateEvaluation(
+                slo_id=slo.id, breaches=(), insufficient_data=True, evaluated_at=now
+            )
 
         alerts = build_alerts(slo=slo, samples=samples)
         return BurnRateEvaluation(
             slo_id=slo.id,
             breaches=self._evaluator.evaluate(alerts),
             insufficient_data=False,
+            evaluated_at=now,
         )
+
+    def to_events(
+        self,
+        evaluation: BurnRateEvaluation,
+        *,
+        slo: SLO,
+        mode: Mode = Mode.SHADOW,
+    ) -> tuple[Event, ...]:
+        """Normalize each burn-rate breach into an ``slo.error_budget_burn`` Event.
+
+        One Event per fired alert, re-entering ``event-ingest`` like any other
+        finding (never a side channel; it never auto-remediates on its own) so
+        the trust-router / risk-gate / executor path governs the response. The
+        idempotency key is derived from ``slo + alert + minute-bucket`` so
+        repeated evaluation ticks inside the same minute deduplicate while a
+        later re-breach still fires. Returns an empty tuple when the evaluation
+        did not breach (an abstained / insufficient-data evaluation emits
+        nothing - fail-closed).
+        """
+        if not evaluation.breaches:
+            return ()
+        at = evaluation.evaluated_at
+        bucket = at.replace(second=0, microsecond=0).isoformat()
+        resource_ref = slo.sli.labels.get("resource_id") or slo.id
+        events: list[Event] = []
+        for breach in evaluation.breaches:
+            alert_def = breach.alert.alert
+            idempotency_key = str(
+                uuid5(NAMESPACE_URL, f"fdai-slo-burn:{slo.id}:{alert_def.name}:{bucket}")
+            )
+            payload: dict[str, object] = {
+                "kind": "slo_burn",
+                "slo_id": slo.id,
+                "alert": alert_def.name,
+                "severity": alert_def.severity,
+                "burn_rate_threshold": alert_def.burn_rate_threshold,
+                "short_window_minutes": alert_def.short_window_minutes,
+                "long_window_minutes": alert_def.long_window_minutes,
+                "short_rate": breach.short_rate,
+                "long_rate": breach.long_rate,
+                "objective_ratio": slo.objective_ratio,
+                "resource": {"resource_ref": resource_ref},
+            }
+            events.append(
+                Event(
+                    schema_version="1.0.0",
+                    event_id=uuid4(),
+                    idempotency_key=idempotency_key,
+                    source=self._source,
+                    event_type=_EVENT_TYPE,
+                    resource_ref=resource_ref,
+                    payload=payload,
+                    detected_at=at,
+                    ingested_at=at,
+                    mode=mode,
+                )
+            )
+        return tuple(events)
 
     async def _count(
         self,
