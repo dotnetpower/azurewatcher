@@ -2283,6 +2283,43 @@ pre {
 .deck-gr-more { color: var(--accent); font-weight: 600; }
 .deck-gr-slot { align-self: stretch; }
 
+/* Grounded-sources list (deck/grounded-reply.tsx): full list, scrolls if long. */
+.deck-gr-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--fg-muted) 5%, transparent);
+}
+.deck-gr-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 5px;
+}
+.deck-gr-item:hover { background: color-mix(in oklab, var(--accent) 8%, transparent); }
+.deck-gr-k {
+  flex: 0 0 auto;
+  min-width: 96px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.deck-gr-v {
+  flex: 1 1 auto;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+}
+
 .deck-turn-time {
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

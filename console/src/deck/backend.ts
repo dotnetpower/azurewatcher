@@ -195,15 +195,9 @@ export async function askBackend(
       : `llm:${chosen}`;
   const base = {
     text: answerText,
-    // LLM replies do not carry structured citations yet; the deck falls
-    // back to showing 4-6 facts from the snapshot as a "grounded on"
-    // strip so the operator still sees what the model was told.
-    citations: snapshot
-      ? snapshot.facts.slice(0, 6).map((f) => ({
-          label: f.key,
-          value: f.value === null ? "-" : String(f.value),
-        }))
-      : [],
+    // LLM replies do not carry structured citations; the deck grounds the
+    // reply on the snapshot the model was given (see snapshotCitations).
+    citations: snapshotCitations(snapshot),
     followUps: [],
     source,
   };
@@ -211,16 +205,29 @@ export async function askBackend(
 }
 
 /** Synthesize the client-side "grounded on" citations from the snapshot -
- *  LLM replies do not carry structured citations, so the deck shows the facts
- *  the model was told (matching :func:`askBackend`). */
+ *  LLM replies do not carry structured citations, so the deck grounds on what
+ *  the model was told: the screen it read, the facts on it, and the record
+ *  collections it could search. The deck (GroundedReply) then narrows these to
+ *  the ones the answer actually references. */
 function snapshotCitations(
   snapshot: ViewSnapshot | null,
 ): readonly { readonly label: string; readonly value?: string }[] {
   if (!snapshot) return [];
-  return snapshot.facts.slice(0, 6).map((f) => ({
-    label: f.key,
-    value: f.value === null ? "-" : String(f.value),
-  }));
+  const cites: { readonly label: string; readonly value?: string }[] = [
+    // Always cite the screen the answer is grounded on (kept even when the
+    // answer references none of the individual facts).
+    { label: "screen", value: `${snapshot.routeLabel} - ${snapshot.headline}` },
+  ];
+  for (const f of snapshot.facts.slice(0, 12)) {
+    cites.push({ label: f.key, value: f.value === null ? "-" : String(f.value) });
+  }
+  const records = snapshot.records ?? {};
+  for (const [key, rows] of Object.entries(records)) {
+    if (Array.isArray(rows) && rows.length > 0) {
+      cites.push({ label: `records.${key}`, value: `${rows.length} row(s)` });
+    }
+  }
+  return cites;
 }
 
 /** Callbacks for :func:`askBackendStream`. */

@@ -14,19 +14,9 @@
  * privileged calls, only self-cancelling timers.
  */
 
-import { useEffect, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 import { RichContent } from "./rich-content";
-
-/** One cited source (label + optional value), matching the deck Turn shape. */
-interface Citation {
-  readonly label: string;
-  readonly value?: string;
-}
-
-/** Citation slot-machine cadence + window (shared pitch with styles.css). */
-const CITE_INTERVAL_MS = 90;
-const VISIBLE = 3;
-const CARD_PITCH_PX = 40;
+import { relevantCitations, type Citation } from "./citations";
 
 export function GroundedReply({
   turnId,
@@ -42,29 +32,9 @@ export function GroundedReply({
   /** True while the answer is still streaming tokens in from the backend. */
   readonly streaming: boolean;
 }) {
-  const cites = citations ?? [];
-
-  // Expandable citation slot-machine: roll the cards in when opened.
+  void turnId;
   const [open, setOpen] = useState(false);
-  const [shownCites, setShownCites] = useState(0);
-  useEffect(() => {
-    if (!open || cites.length === 0) {
-      setShownCites(0);
-      return;
-    }
-    setShownCites(1);
-    if (cites.length <= 1) return;
-    let i = 1;
-    const id = window.setInterval(() => {
-      i += 1;
-      setShownCites(i);
-      if (i >= cites.length) window.clearInterval(id);
-    }, CITE_INTERVAL_MS);
-    return () => window.clearInterval(id);
-  }, [open, cites.length]);
-
-  const rolled = Math.max(0, shownCites - VISIBLE);
-  const visibleCites = cites.slice(0, shownCites);
+  const cites = relevantCitations(citations ?? [], text);
 
   return (
     <div class="deck-gr">
@@ -92,24 +62,14 @@ export function GroundedReply({
           </button>
 
           {open ? (
-            <div class="deck-rt-slot deck-gr-slot">
-              <ul
-                class="deck-rt-strip"
-                style={{ transform: `translateY(${-rolled * CARD_PITCH_PX}px)` }}
-              >
-                {visibleCites.map((c, i) => (
-                  <li key={`${c.label}-${i}`} class="deck-rt-card">
-                    <span class="deck-rt-badge">{i + 1}</span>
-                    <span class="deck-rt-txt">
-                      <span class="deck-rt-k">{c.label}</span>
-                      {c.value !== undefined ? (
-                        <span class="deck-rt-v">{c.value}</span>
-                      ) : null}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <ul class="deck-gr-list">
+              {cites.map((c, i) => (
+                <li key={`${c.label}-${i}`} class="deck-gr-item">
+                  <span class="deck-gr-k">{c.label}</span>
+                  {c.value !== undefined ? <span class="deck-gr-v">{c.value}</span> : null}
+                </li>
+              ))}
+            </ul>
           ) : null}
         </>
       ) : null}
