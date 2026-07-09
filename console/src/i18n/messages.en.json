@@ -77,6 +77,11 @@
       "actions": "{count} cost actions",
       "unavailable": "Cost panel not enabled"
     },
+    "guards": {
+      "label": "Guards",
+      "escapes": "Policy escapes {count}",
+      "ready": "{ready}/{total} ready to enforce"
+    },
     "detail": "Detailed metrics"
   }
 }

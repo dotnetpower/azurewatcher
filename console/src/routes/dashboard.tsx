@@ -25,9 +25,26 @@ interface Props {
  * (production, or a fork that has not registered it); the cost axis then
  * renders "not enabled" instead of failing the whole page.
  */
+/**
+ * Aggregate promotion-gate signal behind the release guard row. `null`
+ * when the gate route is not wired on this deployment (404/501). A
+ * `policy_escapes` sum > 0 blocks release per goals-and-metrics (escapes
+ * MUST be exactly 0), so it also fails the health axis.
+ */
+interface GateRow {
+  readonly policy_escapes: number;
+  readonly ready: boolean;
+}
+interface GatesSummary {
+  readonly rows: readonly GateRow[];
+  readonly ready_count: number;
+  readonly blocked_count: number;
+}
+
 interface OverviewData {
   readonly kpi: DashboardKpi;
   readonly finops: FinOpsPayload | null;
+  readonly gates: GatesSummary | null;
 }
 
 function formatShare(x: number): string {
@@ -58,7 +75,16 @@ export function DashboardRoute({ client }: Props) {
         } catch (err) {
           if (!(err instanceof ReadApiError && err.status === 404)) throw err;
         }
-        if (!cancelled) setState({ status: "ready", data: { kpi, finops } });
+        // Promotion-gate summary powers the release guard (policy escapes
+        // MUST be 0). Opt-in like finops: 404/501 degrades to no guard row.
+        let gates: GatesSummary | null = null;
+        try {
+          gates = await client.panel<GatesSummary>("/kpi/promotion-gates");
+        } catch (err) {
+          if (!(err instanceof ReadApiError && (err.status === 404 || err.status === 501)))
+            throw err;
+        }
+        if (!cancelled) setState({ status: "ready", data: { kpi, finops, gates } });
       } catch (err) {
         if (!cancelled) {
           setState({
@@ -84,11 +110,17 @@ export function DashboardRoute({ client }: Props) {
 }
 
 function OverviewBody({ data }: { readonly data: OverviewData }) {
-  const { kpi, finops } = data;
+  const { kpi, finops, gates } = data;
 
   const tierTotal = Object.values(kpi.by_tier).reduce((a, b) => a + b, 0);
   const t0Share = tierTotal > 0 ? Math.round(((kpi.by_tier.t0 ?? 0) / tierTotal) * 100) : 0;
-  const healthy = kpi.shadow_share >= 0.95 && kpi.hil_pending === 0;
+  const policyEscapes = gates ? gates.rows.reduce((sum, r) => sum + r.policy_escapes, 0) : null;
+  const readyCount = gates ? gates.ready_count : null;
+  const gateTotal = gates ? gates.rows.length : null;
+  // A policy escape blocks release (goals-and-metrics: escapes MUST be 0),
+  // so it fails the health axis just like a pending human approval does.
+  const healthy =
+    kpi.shadow_share >= 0.95 && kpi.hil_pending === 0 && (policyEscapes ?? 0) === 0;
   const savings = finops ? finops.estimated_monthly_savings : null;
 
   usePublishViewContext(
@@ -112,6 +144,12 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
           group: "cost",
         },
         { key: "cost_actions", value: finops ? finops.total_actions : 0, group: "cost" },
+        { key: "policy_escapes", value: policyEscapes ?? "n/a", group: "guards" },
+        {
+          key: "promotion_ready",
+          value: gateTotal !== null ? `${readyCount}/${gateTotal}` : "n/a",
+          group: "guards",
+        },
       ],
       records: {
         by_action_kind: Object.entries(kpi.by_action_kind)
@@ -122,7 +160,7 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
           .map(([key, count]) => ({ key, count })),
       },
     }),
-    [kpi, finops, healthy, savings, t0Share],
+    [kpi, finops, gates, healthy, savings, t0Share],
   );
 
   return (
@@ -151,6 +189,18 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
           }
         />
       </section>
+
+      {gates ? (
+        <section class="overview-guards" aria-label="release guards">
+          <span class="overview-guards-label">{t("overview.guards.label")}</span>
+          <span class={`overview-guard ${policyEscapes === 0 ? "ok" : "bad"}`}>
+            {t("overview.guards.escapes", { count: policyEscapes ?? 0 })}
+          </span>
+          <span class="overview-guards-note muted">
+            {t("overview.guards.ready", { ready: readyCount ?? 0, total: gateTotal ?? 0 })}
+          </span>
+        </section>
+      ) : null}
 
       <h3 class="section-title">{t("overview.detail")}</h3>
       <KpiGrid>

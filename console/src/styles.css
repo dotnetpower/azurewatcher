@@ -1509,6 +1509,36 @@ pre {
   .overview-triad { grid-template-columns: 1fr; }
 }
 
+/* Release guard row - the measured guard that gates shadow -> enforce.
+   Policy escapes MUST be 0 (goals-and-metrics); a non-zero count turns
+   red to signal release is blocked. */
+.overview-guards {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  margin: 6px 0 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+.overview-guards-label {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.overview-guard {
+  padding: 2px 9px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.overview-guard.ok { color: #2f8f5a; background: rgba(47, 143, 90, 0.12); }
+.overview-guard.bad { color: var(--danger); background: rgba(200, 60, 60, 0.14); }
+.overview-guards-note { margin-left: auto; }
+
 /* DataTable ----------------------------------------------------------- */
 .data-table-wrap {
   border: 1px solid var(--border);

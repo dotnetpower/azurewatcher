@@ -73,6 +73,11 @@
       "actions": "비용 조치 {count}건",
       "unavailable": "비용 패널 미사용"
     },
+    "guards": {
+      "label": "가드",
+      "escapes": "정책위반 탈출 {count}",
+      "ready": "{ready}/{total} 강제 승격 준비"
+    },
     "detail": "상세 지표"
   }
 }
