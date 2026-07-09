@@ -1,6 +1,6 @@
 # operator-console CLI (Ink)
 
-The real FDAI (**Forward Deployed AI for Cloud Ops**) **operator-console** as a
+The real FDAI (**Forward Deployed Agents for Cloud Ops**) **operator-console** as a
 terminal app, built on
 [Ink](https://github.com/vadimdemedes/ink) (React for the terminal). It is the
 runnable successor to the design mock at [../mocks/ui-cli](../mocks/ui-cli).
@@ -100,7 +100,7 @@ format to stdout from the same block IR.
   cockpit** ([src/cockpit.ts](src/cockpit.ts)): a single alternate-screen view
   fed by the read API's `/live/stream` (SSE), where each frame is a **real
   StageEvent from an actual `ControlLoop` run** (real rule catalog, T0 engine,
-  Rego). The header reads `Forward Deployed AI - Cloud Ops - read-only`, followed
+  Rego). The header reads `Forward Deployed Agents - Cloud Ops - read-only`, followed
   by a plain-language summary of what has been handled (fixed-rules vs stepped
   back vs auto-applied vs awaiting you) and a standing trust line (read-only,
   every change opens a pull request, shadow-first, fully audited). The feed

@@ -1,5 +1,5 @@
 /**
- * Live cockpit - the operator surface for Forward Deployed AI.
+ * Live cockpit - the operator surface for Forward Deployed Agents.
  *
  * A single alternate-screen view fed by the read API's `/live/stream` (SSE),
  * where every frame is a REAL StageEvent from an actual ControlLoop run (real
@@ -493,7 +493,7 @@ export async function startCockpit(ctx: NarratorContext): Promise<void> {
       // Row 1: deep-teal header bar (title + status + active view, all inline).
       band(
         1,
-        ` ${BOLD}${ON_HEADER}Forward Deployed AI${NOBOLD}${sub} \u00b7 Cloud Ops` +
+        ` ${BOLD}${ON_HEADER}Forward Deployed Agents${NOBOLD}${sub} \u00b7 Cloud Ops` +
           `   ${sub}read-only \u00b7 ${status} \u00b7 ${ON_HEADER}${BOLD}${viewBadge(view, locale)}${NOBOLD}`,
         BG_HEADER,
       );
