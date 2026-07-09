@@ -202,6 +202,40 @@ declared-but-not-yet-dispatched field is inert by construction and cannot act.
   catalog root and registers them through the same loader seam; it never edits
   `core/`.
 
+### 6.1 Approver assignment
+
+A workflow step that routes to HIL needs a concrete answer to "who approves,
+and how are they reached". Process automation does not add a new approval
+surface; it bridges a workflow to the existing HIL machinery through the
+[`WorkflowApprovalPlanner`](../../src/fdai/core/workflow/approval.py).
+
+Given a `Workflow`, the planner produces a deterministic, read-only
+`ApprovalPlan` - one `StepApproval` per step:
+
+- **Is it a gate?** A step is an approval gate when its `ActionType`
+  `ceiling_by_tier` has any `enforce_hil` tier, or its `prod_downgrade`
+  collapses to `enforce_hil`. This is the same source of truth the risk-gate
+  uses; the planner never invents a second rule.
+- **Who approves?** The required human role is the highest `min_role` across the
+  HIL tiers, resolved to its Entra security-group objectId via the RBAC
+  [`GroupMapping`](../../src/fdai/core/rbac/resolver.py) (the `aw-approvers` or
+  `aw-owners` group). No-self-approval is carried forward on every gated step.
+- **How are they reached?** The A1 `hil_approval` route from the
+  [notifications matrix](../../config/notifications-matrix.yaml) - Teams primary,
+  Slack / email fallback. The concrete adapters implement the
+  [`HilChannel`](../../src/fdai/shared/providers/hil_channel.py) seam:
+  [`TeamsHilAdapter`](../../src/fdai/delivery/chatops/teams_adapter.py) and
+  [`SlackHilAdapter`](../../src/fdai/delivery/chatops/slack_adapter.py) (Adaptive
+  Card / Block Kit, HMAC-signed, fail-closed). Email is a send-only alert lane,
+  not an A1 approval back-channel.
+
+The plan is a design-time / shadow-time projection: it says who *would* approve
+each step. Runtime assignment (the specific on-call OID, the parked action, the
+pushed card, the resume on decision) stays with the existing
+[`HilResumeCoordinator`](../../src/fdai/core/hil_resume/coordinator.py) and
+[`OnCallResolver`](../../src/fdai/core/oncall/resolver.py); wiring the plan into
+a live run is the process-orchestrator work still ahead (see [section 5](#5-saga-compensation)).
+
 ## 7. Loader and CI validation
 
 [`load_workflow_catalog`](../../src/fdai/rule_catalog/schema/workflow.py) is

@@ -1,7 +1,7 @@
 ---
 title: 프로세스 자동화(Process Automation)
 translation_of: process-automation.md
-translation_source_sha: ec50935ed2ee32b917765aed8d5b9ebb2b03e1f3
+translation_source_sha: 1f6403cda3918e3e83f7e368f6989d5af66562aa
 translation_revised: 2026-07-09
 ---
 
@@ -196,6 +196,38 @@ declared-versus-live 경계와 동일하다 ([action-ontology.md § 12.1](action
   계속 기록해 discovery 루프에 공급한다.
 - **주입에 의한 fork 커스터마이즈.** fork 는 자기 카탈로그 루트 아래 자기
   워크플로를 추가하고 동일 로더 seam 을 통해 등록한다; `core/` 를 편집하지 않는다.
+
+### 6.1 승인자 할당(approver assignment)
+
+HIL 로 라우팅되는 워크플로 스텝은 "누가 승인하고, 어떻게 도달하는가"에 대한 구체적
+답이 필요하다. 프로세스 자동화는 새 approval 표면을 추가하지 않는다;
+[`WorkflowApprovalPlanner`](../../src/fdai/core/workflow/approval.py) 를 통해
+워크플로를 기존 HIL 기계장치에 연결한다.
+
+`Workflow` 가 주어지면 플래너는 결정론적, read-only `ApprovalPlan` 을 만든다 -
+스텝마다 하나의 `StepApproval`:
+
+- **게이트인가?** 스텝의 `ActionType` `ceiling_by_tier` 에 `enforce_hil` 티어가
+  하나라도 있거나 `prod_downgrade` 가 `enforce_hil` 로 collapse 하면 승인 게이트다.
+  이는 risk-gate 가 쓰는 것과 동일한 source of truth 다; 플래너는 두 번째 규칙을
+  만들지 않는다.
+- **누가 승인하나?** 필요한 human 역할은 HIL 티어 전반의 최상위 `min_role` 이며,
+  RBAC [`GroupMapping`](../../src/fdai/core/rbac/resolver.py) 을 통해 Entra
+  security-group objectId (`aw-approvers` 또는 `aw-owners` 그룹)로 resolve 된다.
+  no-self-approval 은 모든 게이트 스텝에 이어진다.
+- **어떻게 도달하나?** [notifications matrix](../../config/notifications-matrix.yaml)
+  의 A1 `hil_approval` 라우트 - Teams primary, Slack / email fallback. 구체
+  어댑터는 [`HilChannel`](../../src/fdai/shared/providers/hil_channel.py) seam 을
+  구현한다: [`TeamsHilAdapter`](../../src/fdai/delivery/chatops/teams_adapter.py)
+  와 [`SlackHilAdapter`](../../src/fdai/delivery/chatops/slack_adapter.py)
+  (Adaptive Card / Block Kit, HMAC 서명, fail-closed). email 은 send-only alert
+  레인이지 A1 승인 back-channel 이 아니다.
+
+이 플랜은 design-time / shadow-time projection 이다: 각 스텝을 누가 승인할지를
+말한다. 런타임 할당 (구체 on-call OID, 파킹된 액션, 푸시된 카드, 결정 시 resume)은
+기존 [`HilResumeCoordinator`](../../src/fdai/core/hil_resume/coordinator.py) 와
+[`OnCallResolver`](../../src/fdai/core/oncall/resolver.py) 가 계속 소유한다; 플랜을
+라이브 실행에 배선하는 것은 아직 남은 process-orchestrator 작업이다 ([5절](#5-saga-보상saga-compensation) 참조).
 
 ## 7. 로더와 CI 검증
 
