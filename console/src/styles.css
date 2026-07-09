@@ -2339,6 +2339,36 @@ pre {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+/* Line / time-series chart (SVG). */
+.deck-line-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.deck-line-path {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.deck-line-dot {
+  fill: var(--bg-elevated);
+  stroke: var(--accent);
+  stroke-width: 2;
+  transition: r 120ms;
+}
+.deck-line-tip {
+  fill: var(--fg);
+  font-size: 9px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.deck-line-xlabel {
+  fill: var(--fg-muted);
+  font-size: 7px;
+}
+
 /* Syntax-highlighted code block (deck/rich-content.tsx, highlight.js). A fixed
    dark slab so code reads the same in light or dark app theme. */
 .deck-code {
@@ -3033,10 +3063,25 @@ main { padding-bottom: 60px !important; }
 }
 
 /* Waterfall (per-incident agent hand-off cascade) ------------------------- */
+.waterfall-wrap {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.waterfall-wrap-detail {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+}
+@media (max-width: 900px) {
+  .waterfall-wrap-detail {
+    grid-template-columns: 1fr;
+  }
+}
 .waterfall {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
 }
 .waterfall-group {
   border: 1px solid var(--border);
@@ -3044,12 +3089,38 @@ main { padding-bottom: 60px !important; }
   background: var(--bg-elevated);
   padding: 12px 14px 14px;
 }
+.waterfall-group-collapsed {
+  padding-bottom: 12px;
+}
 .waterfall-group-head {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 10px;
+}
+.waterfall-group-collapsed .waterfall-group-head {
+  margin-bottom: 0;
+}
+.waterfall-toggle {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: inherit;
+}
+.waterfall-chevron {
+  font-size: 9px;
+  color: var(--fg-muted);
+  transition: transform 0.12s ease;
+  display: inline-block;
+}
+.waterfall-chevron-open {
+  transform: rotate(90deg);
 }
 .waterfall-corr {
   font-size: 12.5px;
@@ -3069,13 +3140,29 @@ main { padding-bottom: 60px !important; }
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
 }
-.waterfall-lane {
+.waterfall-row {
+  appearance: none;
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  padding: 3px 6px 3px 18px;
   display: grid;
   grid-template-columns: minmax(150px, 210px) 1fr;
   gap: 12px;
   align-items: center;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, border-color 0.1s;
+}
+.waterfall-row:hover {
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+}
+.waterfall-row-active {
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--border));
 }
 .waterfall-label {
   display: flex;
@@ -3097,6 +3184,7 @@ main { padding-bottom: 60px !important; }
 }
 .waterfall-track {
   position: relative;
+  display: block;
   height: 22px;
   border-radius: 6px;
   background: color-mix(in oklab, var(--border) 35%, transparent);
@@ -3125,5 +3213,78 @@ main { padding-bottom: 60px !important; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Step detail drawer (click a lane) --------------------------------------- */
+.waterfall-detail {
+  position: sticky;
+  top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  padding: 12px 14px 14px;
+  min-width: 0;
+}
+.waterfall-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.waterfall-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.waterfall-detail-close {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg-muted);
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  line-height: 1;
+  font-size: 15px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.waterfall-detail-close:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+.waterfall-detail-grid {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.waterfall-detail-row {
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+.waterfall-detail-row dt {
+  font-size: 11.5px;
+  color: var(--fg-muted);
+}
+.waterfall-detail-row dd {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.waterfall-hash {
+  font-size: 11px;
+  color: var(--fg-muted);
 }
 

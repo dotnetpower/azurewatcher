@@ -40,10 +40,12 @@ The **History > Agent activity** panel
 same `GET /audit` route - no new backend route. It reconstructs a per-agent
 view (which pantheon agent did what, when, and how) by grouping audit rows on
 their `actor`, and offers two toggled layouts: a **Timeline** (vertical, newest
-first) and a **Waterfall** that groups rows by `correlation_id` (incident) and
-lays each agent step on a shared horizontal time axis, so the pantheon hand-off
-cascade reads left to right. Agent chips (coloured by cognitive layer) filter
-both layouts, and every entry deep-links to its full pipeline trace via
+first) and a **Waterfall** that groups rows by `correlation_id` (incident) into
+collapsible trees and lays each agent step on a shared horizontal time axis, so
+the pantheon hand-off cascade reads left to right. Clicking a step opens a
+detail drawer with the full append-only entry (tier, mode, outcome, decision,
+reason, summary, hashes). Agent chips (coloured by cognitive layer) filter both
+layouts, and every entry deep-links to its full pipeline trace via
 `#/trace?correlation=<id>`.
 
 Beyond the three always-on routes above, the app factory registers several

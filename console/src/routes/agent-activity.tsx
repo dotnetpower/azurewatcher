@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useMemo, useState } from "preact/hooks";
+import type { ComponentChildren } from "preact";
 import type { ReadApiClient } from "../api";
 import type { AuditItem } from "../types";
 import {
@@ -412,6 +413,18 @@ function Waterfall({
   readonly selected: string | null;
 }) {
   const groups = useMemo(() => buildGroups(items), [items]);
+  // Collapsed correlation ids (default: all expanded). Chevron toggles a group.
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  // The audit row whose detail drawer is open, by stable `seq`.
+  const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
+
+  const toggle = (correlation: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(correlation)) next.delete(correlation);
+      else next.add(correlation);
+      return next;
+    });
 
   // When an agent is filtered, keep only incidents that agent touched (so the
   // hand-off context around it stays visible) and dim the other lanes.
@@ -421,6 +434,12 @@ function Waterfall({
         ? groups
         : groups.filter((g) => g.bars.some((b) => b.agent === selected)),
     [groups, selected],
+  );
+
+  const selectedItem = useMemo(
+    () =>
+      selectedSeq === null ? null : (items.find((i) => i.seq === selectedSeq) ?? null),
+    [items, selectedSeq],
   );
 
   if (shown.length === 0) {
@@ -433,50 +452,169 @@ function Waterfall({
   }
 
   return (
-    <div class="waterfall" aria-label="Agent activity waterfall">
-      {shown.map((g) => (
-        <section class="waterfall-group" key={g.correlation}>
-          <header class="waterfall-group-head">
-            <a
-              class="waterfall-corr mono"
-              href={`#/trace?correlation=${encodeURIComponent(g.correlation)}`}
-              title="Open this correlation in the Trace panel"
+    <div class={`waterfall-wrap ${selectedItem ? "waterfall-wrap-detail" : ""}`}>
+      <div class="waterfall" aria-label="Agent activity waterfall">
+        {shown.map((g) => {
+          const isCollapsed = collapsed.has(g.correlation);
+          return (
+            <section
+              class={`waterfall-group ${isCollapsed ? "waterfall-group-collapsed" : ""}`}
+              key={g.correlation}
             >
-              {g.correlation}
-            </a>
-            <span class="waterfall-span mono muted">
-              {stamp(new Date(g.startMs).toISOString())} · {g.bars.length} step(s) ·{" "}
-              {fmtDur(g.spanMs)}
-            </span>
-          </header>
-          <ol class="waterfall-lanes">
-            {g.bars.map((bar) => {
-              const dimmed = selected !== null && bar.agent !== selected;
-              return (
-                <li class="waterfall-lane" key={bar.item.seq}>
-                  <div class="waterfall-label" title={bar.agent}>
-                    <span class="agent-dot" data-layer={bar.layer} aria-hidden="true" />
-                    <span class="waterfall-agent" data-layer={bar.layer}>
-                      {bar.agent}
-                    </span>
-                    <span class="waterfall-action mono muted">{bar.item.action_kind}</span>
-                  </div>
-                  <div class="waterfall-track">
-                    <div
-                      class={`waterfall-bar ${dimmed ? "waterfall-bar-dim" : ""}`}
-                      data-layer={bar.layer}
-                      style={`left:${bar.leftPct.toFixed(2)}%;width:${bar.widthPct.toFixed(2)}%`}
-                      title={`${bar.agent} · ${bar.item.action_kind} · ${stamp(bar.item.recorded_at)}`}
-                    >
-                      <span class="waterfall-bar-time mono">{stamp(bar.item.recorded_at)}</span>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-      ))}
+              <div class="waterfall-group-head">
+                <button
+                  type="button"
+                  class="waterfall-toggle"
+                  aria-expanded={!isCollapsed}
+                  aria-label={isCollapsed ? "Expand incident" : "Collapse incident"}
+                  onClick={() => toggle(g.correlation)}
+                >
+                  <span class={`waterfall-chevron ${isCollapsed ? "" : "waterfall-chevron-open"}`} aria-hidden="true">
+                    ▶
+                  </span>
+                  <a
+                    class="waterfall-corr mono"
+                    href={`#/trace?correlation=${encodeURIComponent(g.correlation)}`}
+                    title="Open this correlation in the Trace panel"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {g.correlation}
+                  </a>
+                </button>
+                <span class="waterfall-span mono muted">
+                  {stamp(new Date(g.startMs).toISOString())} · {g.bars.length} step(s) ·{" "}
+                  {fmtDur(g.spanMs)}
+                </span>
+              </div>
+              {isCollapsed ? null : (
+                <ol class="waterfall-lanes">
+                  {g.bars.map((bar) => {
+                    const dimmed = selected !== null && bar.agent !== selected;
+                    const active = selectedSeq === bar.item.seq;
+                    return (
+                      <li class="waterfall-lane" key={bar.item.seq}>
+                        <button
+                          type="button"
+                          class={`waterfall-row ${active ? "waterfall-row-active" : ""}`}
+                          aria-pressed={active}
+                          onClick={() =>
+                            setSelectedSeq((s) => (s === bar.item.seq ? null : bar.item.seq))
+                          }
+                        >
+                          <span class="waterfall-label" title={bar.agent}>
+                            <span class="agent-dot" data-layer={bar.layer} aria-hidden="true" />
+                            <span class="waterfall-agent" data-layer={bar.layer}>
+                              {bar.agent}
+                            </span>
+                            <span class="waterfall-action mono muted">
+                              {bar.item.action_kind}
+                            </span>
+                          </span>
+                          <span class="waterfall-track">
+                            <span
+                              class={`waterfall-bar ${dimmed ? "waterfall-bar-dim" : ""}`}
+                              data-layer={bar.layer}
+                              style={`left:${bar.leftPct.toFixed(2)}%;width:${bar.widthPct.toFixed(2)}%`}
+                            >
+                              <span class="waterfall-bar-time mono">
+                                {stamp(bar.item.recorded_at)}
+                              </span>
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </section>
+          );
+        })}
+      </div>
+      {selectedItem ? (
+        <StepDetail item={selectedItem} onClose={() => setSelectedSeq(null)} />
+      ) : null}
     </div>
+  );
+}
+
+/** Read a string field from the audit entry payload, or null. */
+function entryStr(item: AuditItem, key: string): string | null {
+  const value = item.entry[key];
+  return typeof value === "string" ? value : null;
+}
+
+/** Full local date + time for the detail header. */
+function fullStamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString();
+}
+
+/**
+ * Detail drawer for one selected audit row - the "click a step, see what
+ * exactly it did" surface. It renders the append-only entry's fields
+ * verbatim (no re-derivation) so the drawer is a faithful read of the record.
+ */
+function StepDetail({ item, onClose }: { readonly item: AuditItem; readonly onClose: () => void }) {
+  const agent = agentOf(item);
+  const layer = layerOf(agent);
+  const tier = tierOf(item);
+  const outcome = outcomeOf(item);
+  const summary = summaryOf(item);
+  const decision = entryStr(item, "decision");
+  const reason = entryStr(item, "reason");
+  const stage = entryStr(item, "pipeline_stage");
+
+  const rows: readonly (readonly [string, ComponentChildren])[] = [
+    ["Agent", <span class="waterfall-agent" data-layer={layer}>{agent}</span>],
+    ["Action", <span class="mono">{item.action_kind}</span>],
+    ["When", <span class="mono">{fullStamp(item.recorded_at)}</span>],
+    ["Tier", tier ? <span class="mono">{tier}</span> : null],
+    ["Mode", <StatusPill kind={modePill(item.mode)} label={item.mode} />],
+    ["Outcome", outcome ? <StatusPill kind={outcomePill(outcome)} label={outcome} /> : null],
+    ["Decision", decision ? <span class="mono">{decision}</span> : null],
+    ["Pipeline stage", stage ? <span class="mono">{stage}</span> : null],
+    ["Reason", reason],
+    ["Summary", summary],
+    [
+      "Correlation",
+      item.correlation_id ? (
+        <a
+          class="mono"
+          href={`#/trace?correlation=${encodeURIComponent(item.correlation_id)}`}
+          title="Open this correlation in the Trace panel"
+        >
+          {item.correlation_id}
+        </a>
+      ) : null,
+    ],
+    ["Seq", <span class="mono">{item.seq}</span>],
+    ["Entry hash", <span class="mono waterfall-hash">{item.entry_hash}</span>],
+    ["Prev hash", <span class="mono waterfall-hash">{item.previous_hash}</span>],
+  ];
+
+  return (
+    <aside class="waterfall-detail" aria-label="Step detail">
+      <header class="waterfall-detail-head">
+        <span class="waterfall-detail-title">
+          <span class="agent-dot" data-layer={layer} aria-hidden="true" />
+          {agent} · <span class="mono">{item.action_kind}</span>
+        </span>
+        <button type="button" class="waterfall-detail-close" onClick={onClose} aria-label="Close detail">
+          ×
+        </button>
+      </header>
+      <dl class="waterfall-detail-grid">
+        {rows.map(([label, value]) =>
+          value === null || value === undefined ? null : (
+            <div class="waterfall-detail-row" key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ),
+        )}
+      </dl>
+    </aside>
   );
 }
