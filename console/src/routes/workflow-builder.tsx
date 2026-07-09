@@ -64,6 +64,25 @@ function emptyStep(key: number): DraftStep {
   return { key, id: "", action_type_ref: "", guard_rule_ref: "", compensated_by: "", on_failure: "" };
 }
 
+/** Curated signal types a workflow can trigger on - the sensing /
+ * detection topics the control plane publishes (`fdai.agents.topics`).
+ * `signal_type` is a free string server-side (no registry yet), so the
+ * builder offers these as clear suggestions plus a custom escape hatch. */
+const CUSTOM_SIGNAL = "__custom__";
+const SIGNAL_TYPE_OPTIONS: readonly { readonly value: string; readonly hint: string }[] = [
+  { value: "object.drift", hint: "Declared vs actual state drifted (config drift)" },
+  { value: "object.anomaly", hint: "An anomaly detector flagged a resource" },
+  { value: "object.event", hint: "A normalized inbound event cleared ingest" },
+  { value: "object.forecast", hint: "A predictive forecast crossed a threshold" },
+  { value: "object.cost-anomaly", hint: "Cost anomaly detected (FinOps / Njord)" },
+  { value: "object.capacity-forecast", hint: "Capacity / scaling forecast (Freyr)" },
+  { value: "object.security-event", hint: "A security event was raised" },
+  { value: "object.resilience-score", hint: "Resilience score changed (DR / chaos)" },
+];
+const KNOWN_SIGNAL_VALUES: ReadonlySet<string> = new Set(
+  SIGNAL_TYPE_OPTIONS.map((o) => o.value),
+);
+
 const INITIAL_FORM: FormState = {
   name: "",
   version: "1.0.0",
@@ -78,6 +97,29 @@ const INITIAL_FORM: FormState = {
   antiScope: "",
   steps: [emptyStep(0)],
 };
+
+/** Static description of every field in the new-workflow builder, published to
+ * the deck's view snapshot (as `records.form_fields`) so the console assistant
+ * can answer "what do I enter / select here?" grounded in the real form rather
+ * than deflecting. Order mirrors the on-screen sections. */
+const BUILDER_FORM_FIELDS: readonly Record<string, string>[] = [
+  { section: "1. Metadata", field: "name", required: "yes", note: "stable dotted id and audit key, lowercase, e.g. cost-aware-remediation" },
+  { section: "1. Metadata", field: "version", required: "yes", note: "semver; defaults to 1.0.0" },
+  { section: "1. Metadata", field: "description", required: "no", note: "one-line summary, 200 chars or fewer" },
+  { section: "2. Trigger", field: "kind", required: "yes", note: "signal (run on an event) or schedule (run on a cron)" },
+  { section: "2. Trigger", field: "signal_type", required: "when kind=signal", note: "what happened that starts the workflow; pick a detection signal from trigger_signal_options or choose Custom" },
+  { section: "2. Trigger", field: "schedule", required: "when kind=schedule", note: "standard 5-field cron, e.g. 0 3 * * 1 = 03:00 every Monday" },
+  { section: "3. Steps", field: "step.id", required: "yes", note: "unique id for the step, e.g. annotate_cost" },
+  { section: "3. Steps", field: "step.action_type_ref", required: "yes", note: "pick one ontology ActionType from the action_types palette" },
+  { section: "3. Steps", field: "step.guard_rule_ref", required: "no", note: "optional policy rule that gates the step" },
+  { section: "3. Steps", field: "step.compensated_by", required: "no", note: "optional ActionType that undoes this step on rollback" },
+  { section: "3. Steps", field: "step.on_failure", required: "no", note: "optional fallback; must be a later step id" },
+  { section: "4. Promotion gate", field: "min_shadow_days", required: "yes", note: "days in shadow before promotion is allowed; default 14" },
+  { section: "4. Promotion gate", field: "min_samples", required: "yes", note: "minimum shadow samples; default 100" },
+  { section: "4. Promotion gate", field: "min_accuracy", required: "yes", note: "accuracy bar between 0 and 1; default 0.95" },
+  { section: "4. Promotion gate", field: "max_policy_escapes", required: "yes", note: "maximum allowed policy-violation escapes; default 0" },
+  { section: "4. Promotion gate", field: "anti_scope", required: "no", note: "optional note on what this workflow must NOT do" },
+];
 
 /** Assemble the JSON draft the validate endpoint expects, dropping empty
  * optional fields so the server sees a clean mapping. */
@@ -172,25 +214,59 @@ function WorkflowShell({ data }: { readonly data: CombinedData }) {
   const [mode, setMode] = useState<"list" | "new">("list");
 
   usePublishViewContext(
-    () => ({
-      routeId: "workflow-builder",
-      routeLabel: "Workflow builder",
-      headline: `${data.workflows.length} built-in workflows - ${data.palette.length} ActionTypes`,
-      capturedAt: new Date().toISOString(),
-      facts: [
-        { key: "built_in_count", value: data.workflows.length, group: "workflow" },
-        { key: "palette_size", value: data.palette.length, group: "workflow" },
-        { key: "mode", value: mode, group: "workflow" },
-      ],
-      records: {
-        workflows: data.workflows.map((w) => ({
-          name: w.name,
-          steps: String(w.step_count),
-          mode: w.default_mode,
-        })),
-      },
-    }),
-    [data.workflows, data.palette.length, mode],
+    () => {
+      const isNew = mode === "new";
+      // In the builder ("new") the operator is filling a form; ground the deck
+      // in the form schema, the selectable trigger signals, and the ActionType
+      // palette so "what do I enter / select here?" is answerable. In the list
+      // view, ground it in the shipped workflows instead.
+      const records: Record<string, readonly Record<string, unknown>[]> = isNew
+        ? {
+            form_fields: BUILDER_FORM_FIELDS,
+            trigger_signal_options: [
+              ...SIGNAL_TYPE_OPTIONS.map((o) => ({ value: o.value, hint: o.hint })),
+              { value: "(custom)", hint: "choose Custom to type any other signal_type string" },
+            ],
+            action_types: data.palette.map((p) => ({
+              name: p.name,
+              category: p.category ?? "-",
+              rollback: p.rollback_contract,
+              hil_tiers: p.hil_tiers.length > 0 ? p.hil_tiers.join(",") : "none",
+              summary: p.description ?? "-",
+            })),
+          }
+        : {
+            workflows: data.workflows.map((w) => ({
+              name: w.name,
+              steps: String(w.step_count),
+              mode: w.default_mode,
+            })),
+          };
+      return {
+        routeId: "workflow-builder",
+        routeLabel: "Workflow builder",
+        headline: isNew
+          ? `New-workflow builder open - fill the form; ${data.palette.length} ActionTypes to choose from`
+          : `${data.workflows.length} built-in workflows - ${data.palette.length} ActionTypes`,
+        capturedAt: new Date().toISOString(),
+        facts: [
+          { key: "built_in_count", value: data.workflows.length, group: "workflow" },
+          { key: "palette_size", value: data.palette.length, group: "workflow" },
+          { key: "mode", value: isNew ? "new (builder form open)" : "list", group: "workflow" },
+          ...(isNew
+            ? [
+                {
+                  key: "default_mode",
+                  value: "shadow (locked; promotion is a separate PR)",
+                  group: "workflow",
+                },
+              ]
+            : []),
+        ],
+        records,
+      };
+    },
+    [data.workflows, data.palette, mode],
   );
 
   if (mode === "new") {
@@ -487,8 +563,11 @@ function BuilderBody({
       <section class="stack-section">
         <h3 class="section-title">2. Trigger</h3>
         <p class="muted small">
-          When the workflow runs. <strong>Signal</strong> starts it on an event type (e.g.{" "}
-          <code>object.drift</code>); <strong>schedule</strong> starts it on a cron expression.
+          When the workflow runs. <strong>Signal</strong> starts it when the control plane
+          publishes a matching event (a <em>signal type</em>); <strong>schedule</strong> starts it
+          on a cron expression. The signal type is <em>what happened</em> that should kick off the
+          process - pick one of the detection signals below (e.g. <code>object.drift</code> = a
+          resource drifted from its declared state), or choose <em>Custom</em> to type another.
         </p>
         <div class="form-grid">
           <label class="form-field">
@@ -500,20 +579,15 @@ function BuilderBody({
                 patch({ triggerKind: (e.target as HTMLSelectElement).value as "signal" | "schedule" })
               }
             >
-              <option value="signal">signal</option>
-              <option value="schedule">schedule</option>
+              <option value="signal">signal - run on an event</option>
+              <option value="schedule">schedule - run on a cron</option>
             </select>
           </label>
           {form.triggerKind === "signal" ? (
-            <label class="form-field">
-              <span class="form-label">Signal type</span>
-              <input
-                class="form-input mono"
-                value={form.signalType}
-                placeholder="object.drift"
-                onInput={(e) => patch({ signalType: (e.target as HTMLInputElement).value })}
-              />
-            </label>
+            <SignalTypeField
+              value={form.signalType}
+              onChange={(v) => patch({ signalType: v })}
+            />
           ) : (
             <label class="form-field">
               <span class="form-label">Schedule (cron)</span>
@@ -523,6 +597,7 @@ function BuilderBody({
                 placeholder="0 3 * * 1"
                 onInput={(e) => patch({ schedule: (e.target as HTMLInputElement).value })}
               />
+              <span class="field-hint">Standard 5-field cron. Example: 0 3 * * 1 = 03:00 every Monday.</span>
             </label>
           )}
         </div>
@@ -764,6 +839,52 @@ function ActionTypeHint({ at }: { readonly at: ActionTypePaletteEntry }) {
       ) : null}
       {at.description ? <span class="muted small">{at.description}</span> : null}
     </div>
+  );
+}
+
+/** Signal-type picker: a dropdown of the control plane's detection
+ * signals plus a Custom escape hatch (the field is a free string
+ * server-side). Shows the selected signal's plain-language meaning. */
+function SignalTypeField({
+  value,
+  onChange,
+}: {
+  readonly value: string;
+  readonly onChange: (v: string) => void;
+}) {
+  const isKnown = KNOWN_SIGNAL_VALUES.has(value);
+  const selectValue = isKnown ? value : CUSTOM_SIGNAL;
+  const activeHint = SIGNAL_TYPE_OPTIONS.find((o) => o.value === value)?.hint;
+  return (
+    <label class="form-field">
+      <span class="form-label">Signal type</span>
+      <select
+        class="form-input mono"
+        value={selectValue}
+        onChange={(e) => {
+          const v = (e.target as HTMLSelectElement).value;
+          onChange(v === CUSTOM_SIGNAL ? "" : v);
+        }}
+      >
+        {SIGNAL_TYPE_OPTIONS.map((o) => (
+          <option value={o.value} key={o.value}>
+            {o.value} - {o.hint}
+          </option>
+        ))}
+        <option value={CUSTOM_SIGNAL}>Custom (type your own)...</option>
+      </select>
+      {selectValue === CUSTOM_SIGNAL ? (
+        <input
+          class="form-input mono"
+          value={value}
+          placeholder="object.my-signal"
+          onInput={(e) => onChange((e.target as HTMLInputElement).value)}
+        />
+      ) : null}
+      <span class="field-hint">
+        {activeHint ?? "A custom event type the control plane publishes (object.<kebab-name>)."}
+      </span>
+    </label>
   );
 }
 
