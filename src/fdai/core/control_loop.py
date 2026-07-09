@@ -53,6 +53,7 @@ from fdai.core.executor.direct_api import (
     DirectApiShadowExecutor,
 )
 from fdai.core.hil_resume import HilResumeCoordinator
+from fdai.core.notifications.renderer import default_catalog
 from fdai.core.notifications.router import NotificationRouter
 from fdai.core.rca import Citation, CitationKind, RcaCoordinator
 from fdai.core.risk_gate.authority import (
@@ -64,6 +65,7 @@ from fdai.core.risk_gate.gate import RiskGate
 from fdai.core.risk_gate.risk_table import RiskTable
 from fdai.core.tiers.t0_deterministic import T0Engine
 from fdai.core.tiers.t1_lightweight.tier import T1Decision, T1Outcome, T1Tier
+from fdai.core.tiers.t2_reasoning import T2Decision, T2Outcome, T2Tier
 from fdai.core.trust_router import RoutingDecision, RoutingTier, TrustRouter
 from fdai.core.verticals.change_safety_detector import (
     ChangeSafetyDecision,
@@ -149,6 +151,29 @@ class ControlLoopOutcome(StrEnum):
     Only reachable when ``t1_engine`` is wired in - otherwise the
     caller sees :attr:`ABSTAINED_T0` and ``t1_decision`` is ``None``."""
 
+    T2_PROPOSED_LOGGED = "t2_proposed_logged"
+    """T0 (and T1, if wired) abstained; the T2 tier proposed a candidate
+    that cleared the quality gate (mixed-model cross-check + verifier +
+    grounding). Shadow-only in this wiring: the eligible candidate is
+    recorded on the audit trail but does NOT execute - building an
+    :class:`Action` from the candidate and routing it through the
+    risk-gate is a separate step (P2/P3 backlog), mirroring the
+    shadow-only :attr:`T1_REUSE_LOGGED`. Only reachable when ``t2_engine``
+    is wired in."""
+
+    T2_ESCALATED = "t2_escalated"
+    """The T2 quality gate abstained or the mixed-model cross-check
+    disagreed; the case escalates to HIL. Logged only in this wiring.
+    Only reachable when ``t2_engine`` is wired in."""
+
+    T2_DENIED = "t2_denied"
+    """The T2 quality gate's verifier explicitly rejected the candidate;
+    no execution. Only reachable when ``t2_engine`` is wired in."""
+
+    T2_ABSTAINED = "t2_abstained"
+    """The T2 proposer produced no candidate (nothing to gate). Only
+    reachable when ``t2_engine`` is wired in."""
+
 
 @dataclass(frozen=True, slots=True)
 class ControlLoopResult:
@@ -185,6 +210,20 @@ class ControlLoopResult:
     outcome without walking the audit chain. ``None`` means the T1
     engine was not consulted for this event."""
 
+    t2_decision: T2Decision | None = None
+    """When ``t2_engine`` was wired AND T0 (and T1, if wired) abstained,
+    the T2 tier is consulted and its decision (``PROPOSED`` / ``ESCALATE``
+    / ``DENIED`` / ``ABSTAIN``) is surfaced here. ``None`` means the T2
+    engine was not consulted for this event."""
+
+
+_T2_OUTCOME_MAP: Mapping[T2Outcome, ControlLoopOutcome] = {
+    T2Outcome.PROPOSED: ControlLoopOutcome.T2_PROPOSED_LOGGED,
+    T2Outcome.ESCALATE: ControlLoopOutcome.T2_ESCALATED,
+    T2Outcome.DENIED: ControlLoopOutcome.T2_DENIED,
+    T2Outcome.ABSTAIN: ControlLoopOutcome.T2_ABSTAINED,
+}
+
 
 class ControlLoop:
     """One-call orchestrator for the P1 pipeline."""
@@ -206,6 +245,7 @@ class ControlLoop:
         cost_estimator: CostEstimator | None = None,
         direct_api_executor: DirectApiShadowExecutor | None = None,
         t1_engine: T1Tier | None = None,
+        t2_engine: T2Tier | None = None,
         stage_publisher: StagePublisher | None = None,
         notification_router: NotificationRouter | None = None,
         hil_resume_coordinator: HilResumeCoordinator | None = None,
@@ -253,7 +293,16 @@ class ControlLoop:
         # keeps the loop backward-compatible: T0 abstain returns
         # :attr:`ABSTAINED_T0` and ``t1_decision`` is ``None``.
         self._t1_engine = t1_engine
-        # Optional stage publisher (Wave W-live). When wired, the loop
+        # Optional T2 reasoning tier (scope-expansion.md § 3.7). When
+        # wired, an event that T0 (and T1, if wired) abstained on falls
+        # through to T2: the injected T2Proposer proposes a candidate and
+        # the existing QualityGate (mixed-model cross-check + verifier +
+        # grounding) judges it. Shadow-only in this wiring - every T2
+        # verdict is audited but nothing executes (building an Action
+        # from the eligible candidate + routing it through the risk-gate
+        # is a separate P2/P3 step, mirroring the shadow-only T1 reuse).
+        # Absent keeps the loop backward-compatible.
+        self._t2_engine = t2_engine
         # emits one :class:`StageEvent` at every observable stage
         # transition (``ingest``, ``route``, ``verify``, ``gate``,
         # ``execute``, ``audit``). The default
@@ -485,6 +534,18 @@ class ControlLoop:
                         change_safety_decision=cs_decision,
                         t1_decision=t1_decision,
                     )
+                if (
+                    t2_result := await self._consult_t2(
+                        event=event,
+                        decision=decision,
+                        citing=citing,
+                        cs_decision=cs_decision,
+                        t1_decision=t1_decision,
+                        event_id=event_id,
+                        correlation_id=correlation_id,
+                    )
+                ) is not None:
+                    return t2_result
                 await self._emit_stage(
                     event_id=event_id,
                     correlation_id=correlation_id,
@@ -504,6 +565,18 @@ class ControlLoop:
                     t1_decision=t1_decision,
                 )
 
+            if (
+                t2_result := await self._consult_t2(
+                    event=event,
+                    decision=decision,
+                    citing=citing,
+                    cs_decision=cs_decision,
+                    t1_decision=None,
+                    event_id=event_id,
+                    correlation_id=correlation_id,
+                )
+            ) is not None:
+                return t2_result
             await self._emit_stage(
                 event_id=event_id,
                 correlation_id=correlation_id,
@@ -711,18 +784,24 @@ class ControlLoop:
         if severity is None:
             return  # not an actionable terminal outcome; stay silent
         rules_line = ", ".join(citing_rule_ids) if citing_rule_ids else "n/a"
-        body_markdown = (
-            f"**Decision:** {decision_word}\n\n"
-            f"**Resource type:** {resource_type or 'n/a'}\n\n"
-            f"**Citing rules:** {rules_line}\n\n"
-            f"**Mode:** {Mode.SHADOW.value}"
-        )
+        notify_params = {
+            "decision": decision_word,
+            "resource_title": resource_type or "unknown",
+            "resource_body": resource_type or "n/a",
+            "rules": rules_line,
+            "mode": Mode.SHADOW.value,
+        }
+        # Render English here for the audit entry + as the fallback; the router
+        # re-renders per destination-channel locale (notifications Option C).
+        title, body_markdown = default_catalog().render("decision", notify_params, "en")
         message = NotificationMessage(
             category="operational_alert",
             trust_tier=TrustTier.A2_OPERATIONAL_ALERT,
             correlation_id=correlation_id,
-            title=f"FDAI decision: {decision_word} ({resource_type or 'unknown'})",
+            title=title,
             body_markdown=body_markdown,
+            template_key="decision",
+            params=notify_params,
             severity=severity,
             metadata={
                 "outcome": overall.value,
@@ -1062,6 +1141,111 @@ class ControlLoop:
                 "t1_reason": t1.reason,
                 "t1_reasons": list(t1.reasons),
                 "t1_best_match": best_summary,
+                "resource_type": decision.resource_type,
+                "recorded_at": datetime.now(tz=UTC).isoformat(),
+            }
+        )
+
+    async def _consult_t2(
+        self,
+        *,
+        event: Event,
+        decision: RoutingDecision,
+        citing: tuple[str, ...],
+        cs_decision: ChangeSafetyDecision | None,
+        t1_decision: T1Decision | None,
+        event_id: str,
+        correlation_id: str | None,
+    ) -> ControlLoopResult | None:
+        """Consult the T2 reasoning tier after T0 (and T1) abstained.
+
+        Returns a T2 :class:`ControlLoopResult` when ``t2_engine`` is wired,
+        or ``None`` when it is not (the caller then falls through to its
+        existing T1-abstained / T0-abstained return - backward-compatible).
+
+        Shadow-only: every T2 verdict is audited but nothing executes here.
+        The audit ``decision`` stays ``abstain`` for all four outcomes because
+        no action was built or routed - the outcome enum + ``t2_decision``
+        carry the actual gate verdict, exactly as :attr:`T1_REUSE_LOGGED`
+        records a reuse without executing it.
+        """
+        if self._t2_engine is None:
+            return None
+        t2_decision = await self._t2_engine.evaluate(event=event)
+        await self._emit_stage(
+            event_id=event_id,
+            correlation_id=correlation_id,
+            stage=StageName.VERIFY,
+            phase=StagePhase.DONE,
+            detail={
+                "tier": "t2",
+                "t2_outcome": t2_decision.outcome.value,
+                "reason": t2_decision.reason,
+            },
+        )
+        await self._write_t2_audit(event=event, decision=decision, t2=t2_decision)
+        outcome = _T2_OUTCOME_MAP[t2_decision.outcome]
+        await self._emit_stage(
+            event_id=event_id,
+            correlation_id=correlation_id,
+            stage=StageName.AUDIT,
+            phase=StagePhase.DONE,
+            detail={"outcome": outcome.value},
+        )
+        return ControlLoopResult(
+            outcome=outcome,
+            tier="t2",
+            decision="abstain",
+            resource_type=decision.resource_type,
+            citing_rule_ids=citing,
+            reason=t2_decision.reason,
+            event_id=str(event.event_id),
+            change_safety_decision=cs_decision,
+            t1_decision=t1_decision,
+            t2_decision=t2_decision,
+        )
+
+    async def _write_t2_audit(
+        self,
+        *,
+        event: Event,
+        decision: RoutingDecision,
+        t2: T2Decision,
+    ) -> None:
+        """Record the T2 reasoning outcome as a shadow-only audit row.
+
+        Captures the gate verdict, the proposed ActionType + cited rules
+        (when a candidate exists), and the aggregate confidence the gate
+        derived - never the model's self-report - so a T2 judgment is
+        reconstructable from the audit chain without the model text.
+        """
+        candidate_summary: dict[str, Any] | None = None
+        if t2.candidate is not None:
+            candidate_summary = {
+                "action_type": t2.candidate.action_type,
+                "target_resource_ref": t2.candidate.target_resource_ref,
+                "cited_rule_ids": list(t2.candidate.cited_rule_ids),
+            }
+        quality_summary: dict[str, Any] | None = None
+        if t2.quality_decision is not None:
+            quality_summary = {
+                "quality_outcome": t2.quality_decision.outcome.value,
+                "grounded_rule_ids": list(t2.quality_decision.grounded_rule_ids),
+                "aggregate_confidence": t2.quality_decision.aggregate_confidence,
+                "reasons": list(t2.quality_decision.reasons),
+            }
+        await self._audit_store.append_audit_entry(
+            {
+                "event_id": str(event.event_id),
+                "idempotency_key": event.idempotency_key,
+                "actor": "fdai.core.control_loop",
+                "action_kind": "control_loop.t2_evaluate",
+                "mode": Mode.SHADOW.value,
+                "stage": "t2_reasoning",
+                "t2_outcome": t2.outcome.value,
+                "t2_reason": t2.reason,
+                "t2_candidate": candidate_summary,
+                "t2_quality": quality_summary,
                 "resource_type": decision.resource_type,
                 "recorded_at": datetime.now(tz=UTC).isoformat(),
             }

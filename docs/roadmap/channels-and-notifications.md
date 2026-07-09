@@ -380,3 +380,27 @@ channel_routing:
       differently to reduce information leakage?).
 - [ ] `kpi_and_cost_monthly` GitHub-Issue archive: destination repo/path (defaults to the
       catalog-as-code repo, `docs/kpi-archive/`).
+
+## 11. Localization (L2)
+
+Notifications are an **L2 product surface** (see
+[language.instructions.md](../../.github/instructions/language.instructions.md)):
+the source strings are English, and a channel MAY render them in another locale.
+
+- **How it renders (Option C).** `core` never bakes a final localized string.
+  Every `NotificationMessage` carries a `template_key` plus typed `params`; the
+  router renders `title` / `body_markdown` from the catalog
+  (`src/fdai/core/notifications/messages.{en,ko}.json`) in the destination
+  channel's locale, just before `send`. Adapters are untouched - they still
+  consume `title` / `body_markdown`.
+- **Only labels localize.** The L0 values (decision word, rule ids, resource
+  type, mode) are substituted verbatim in every language, so the machine-readable
+  data is identical. The **audit entry always uses the English message**, so
+  replay and correlation stay language-neutral.
+- **Mandatory English fallback.** A missing locale key or field renders the
+  English source; a missing English key renders the key itself (never a blank).
+- **Locale is a channel property.** Notifications fan out, so the locale is set
+  per channel in `config/notifications-matrix.yaml` under `matrix.channels`
+  (`<channel-id>: { locale: ko }`), not per operator. A channel without an entry
+  renders in English.
+

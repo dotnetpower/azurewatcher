@@ -1,7 +1,7 @@
 ---
 title: 채널과 알림(Channels and Notifications)
 translation_of: channels-and-notifications.md
-translation_source_sha: 11d0a1713e99172366f5b8474e196e95dd91a40b
+translation_source_sha: faa0121bc660c0fc4c4bd15e94afbd0a404f640b
 translation_revised: 2026-07-09
 ---
 
@@ -370,3 +370,25 @@ channel_routing:
       라우팅해야 하는가?).
 - [ ] `kpi_and_cost_monthly` GitHub-Issue 아카이브: 대상 리포/경로 (기본은 catalog-as-code
       리포, `docs/kpi-archive/`).
+
+## 11. Localization (L2)
+
+알림은 **L2 제품 표면**이다(참고:
+[language.instructions.md](../../.github/instructions/language.instructions.md)):
+소스 문자열은 영어이며, 채널은 이를 다른 로케일로 렌더링할 수 있다.
+
+- **렌더링 방식(Option C).** `core`는 최종 현지화 문자열을 절대 baked하지 않는다.
+  모든 `NotificationMessage`는 `template_key`와 타입화된 `params`를 실어 나르고,
+  라우터가 `send` 직전에 대상 채널의 로케일로 카탈로그
+  (`src/fdai/core/notifications/messages.{en,ko}.json`)에서 `title` /
+  `body_markdown`을 렌더링한다. 어댑터는 그대로다 - 여전히 `title` /
+  `body_markdown`을 소비한다.
+- **라벨만 현지화된다.** L0 값(decision word, rule id, 리소스 유형, mode)은 모든
+  언어에서 verbatim으로 치환되므로 기계가 읽는 데이터는 동일하다. **감사 항목은
+  항상 영어 메시지를 사용**하므로 replay와 correlation은 언어 중립으로 유지된다.
+- **영어 폴백은 필수.** 로케일 키/필드가 없으면 영어 소스를, 영어 키마저 없으면
+  키 자체를 렌더링한다(빈칸 없음).
+- **로케일은 채널 속성.** 알림은 fan-out이므로 로케일은 오퍼레이터별이 아니라
+  `config/notifications-matrix.yaml`의 `matrix.channels`에서 채널별로 설정한다
+  (`<channel-id>: { locale: ko }`). 항목이 없는 채널은 영어로 렌더링된다.
+
