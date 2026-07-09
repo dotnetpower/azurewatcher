@@ -64,15 +64,45 @@ const AGENT_LAYER: Readonly<Record<string, string>> = {
 
 const SYSTEM_AGENT = "System";
 
-/** Resolve the acting agent for one audit row. */
-function agentOf(item: AuditItem): string {
+/**
+ * Resolve the acting producer for one audit row.
+ *
+ * Attribution is defensive because the row shape differs by environment:
+ * - The dev seed stamps a pantheon agent as ``actor`` (Odin, Forseti, ...).
+ * - The live control loop stamps a dotted service ``actor``
+ *   (``fdai.core.control_loop``, ``fdai.core.rca``, ...) and MAY stamp the
+ *   owning agent as ``entry.producer_principal`` once the pantheon drives the
+ *   hot path.
+ *
+ * Priority: known-agent ``actor`` -> ``producer_principal`` (agent, else any
+ * non-empty label) -> humanized service ``actor`` -> ``System``. This keeps
+ * the waterfall segmented by its real producer in live instead of collapsing
+ * every core row into one ``System`` bucket.
+ */
+export function agentOf(item: AuditItem): string {
   if (item.actor in AGENT_LAYER) return item.actor;
   const principal = item.entry["producer_principal"];
-  if (typeof principal === "string" && principal in AGENT_LAYER) return principal;
+  if (typeof principal === "string" && principal.trim()) {
+    return principal in AGENT_LAYER ? principal : principal.trim();
+  }
+  if (item.actor && item.actor.trim()) return humanizeActor(item.actor);
   return SYSTEM_AGENT;
 }
 
-function layerOf(agent: string): string {
+/** Shorten a dotted service actor for display: ``fdai.core.control_loop`` ->
+ * ``core.control_loop``. Non-dotted actors pass through unchanged. */
+function humanizeActor(actor: string): string {
+  const parts = actor.split(".");
+  if (parts.length >= 2 && parts[0] === "fdai") return parts.slice(1).join(".");
+  return actor;
+}
+
+/** True when the label is one of the 15 fixed pantheon agents. */
+function isKnownAgent(label: string): boolean {
+  return label in AGENT_LAYER;
+}
+
+export function layerOf(agent: string): string {
   return AGENT_LAYER[agent] ?? "system";
 }
 
@@ -149,7 +179,7 @@ interface AgentTurn {
 }
 
 /** Read the agent-to-agent conversation attached to a row, or null. */
-function entryConversation(item: AuditItem): readonly AgentTurn[] | null {
+export function entryConversation(item: AuditItem): readonly AgentTurn[] | null {
   const value = item.entry["conversation"];
   if (!Array.isArray(value)) return null;
   const turns = value.filter(
@@ -256,13 +286,16 @@ function ActivityBody({ data }: BodyProps) {
       const agent = agentOf(item);
       counts.set(agent, (counts.get(agent) ?? 0) + 1);
     }
-    // Known agents first (in count order), System last.
-    return [...counts.entries()]
-      .sort((a, b) => {
-        if (a[0] === SYSTEM_AGENT) return 1;
-        if (b[0] === SYSTEM_AGENT) return -1;
-        return b[1] - a[1];
-      });
+    // Order: known pantheon agents first (by count), then service producers
+    // (by count), then the System catch-all last.
+    const rank = (label: string): number =>
+      label === SYSTEM_AGENT ? 2 : isKnownAgent(label) ? 0 : 1;
+    return [...counts.entries()].sort((a, b) => {
+      const ra = rank(a[0]);
+      const rb = rank(b[0]);
+      if (ra !== rb) return ra - rb;
+      return b[1] - a[1];
+    });
   }, [data.items]);
 
   const visible = useMemo(
@@ -655,7 +688,7 @@ interface LifecyclePhase {
 /** Build the send -> receive -> start -> finish lifecycle from the entry's
  * trace fields. Missing fields collapse gracefully (phases with no timestamp
  * are dropped) so an un-enriched row still renders its `recorded_at`. */
-function lifecycleOf(item: AuditItem): readonly LifecyclePhase[] {
+export function lifecycleOf(item: AuditItem): readonly LifecyclePhase[] {
   const sent = entryStr(item, "event_ts");
   const received = entryStr(item, "received_at");
   const started = entryStr(item, "started_at");

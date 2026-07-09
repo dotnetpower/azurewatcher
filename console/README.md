@@ -57,6 +57,28 @@ attributes each row to its producing agent and carries the lifecycle
 timestamps + inputs / outputs + conversation so the pane renders a realistic
 sample.
 
+**Dev seed vs live.** The panel is data-driven and degrades gracefully - it
+reuses the always-on `GET /audit` route in every environment, and each detail
+section renders only when its field is present. The audit shapes differ:
+
+| Field | Dev seed (`_local.py`) | Live control loop |
+|-------|------------------------|-------------------|
+| `actor` | pantheon agent (`Odin`, ...) | dotted service (`fdai.core.control_loop`) |
+| `producer_principal` | agent name | absent today (stamped once the pantheon drives the hot path) |
+| `tier`, `mode`, `action_kind`, `correlation_id` | present | present |
+| `event_ts` / `received_at` / `started_at` / `finished_at`, `inputs` / `outputs`, `conversation`, `summary` / `detail` | present | not emitted yet |
+
+So in live the panel still renders and stays segmented by real producer -
+`agentOf()` attributes a row to its `producer_principal` when set, else
+humanizes the service `actor` (`fdai.core.rca` -> `core.rca`) rather than
+collapsing every core row into `System`. The lifecycle stepper shows the one
+`Finished` node it can derive from `recorded_at`, and the conversation /
+inputs / outputs / narrative sections are omitted until the pipeline emits
+them. Making those live is core + pantheon work (agents stamping
+`producer_principal` and lifecycle spans; the conversational port emitting
+turns), tracked in the agent-pantheon roadmap - not a console change.
+`src/routes/agent-activity.test.ts` pins this tolerance to both shapes.
+
 Beyond the three always-on routes above, the app factory registers several
 **opt-in** GET routes when their inputs are wired at the composition root
 (ontology graph, pantheon, blast-radius, promotion gates, rule-fire trace, and
