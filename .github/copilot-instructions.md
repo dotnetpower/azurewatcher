@@ -68,6 +68,7 @@ principles into a phased engineering plan.
 - [instructions/language.instructions.md](instructions/language.instructions.md) - language & naming rules.
 - [instructions/generic-scope.instructions.md](instructions/generic-scope.instructions.md) - customer-agnostic scope and fork model.
 - [instructions/architecture.instructions.md](instructions/architecture.instructions.md) - 3-tier trust routing, control loop, rule catalog.
+- [instructions/agent-pantheon.instructions.md](instructions/agent-pantheon.instructions.md) - the 15-agent pantheon roles/permissions and the MUST rules for changing any `src/fdai/agents/**` code (auto-loads when editing agent code).
 - [instructions/app-shape.instructions.md](instructions/app-shape.instructions.md) - deployment topology and anti-patterns.
 - [instructions/coding-conventions.instructions.md](instructions/coding-conventions.instructions.md) - code style, safety, and testing rules.
 - [instructions/documentation-style.instructions.md](instructions/documentation-style.instructions.md) - required layout for every markdown doc (Tier A entry points, Tier B reference, Tier C subsystem READMEs). Full authoring reference in the [documentation-writing skill](skills/documentation-writing/SKILL.md).

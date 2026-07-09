@@ -176,6 +176,9 @@ The control loop is owned by a fixed set of 15 named agents that live as first-c
 only: forks configure it (bindings, enable/disable, rate limits) but MUST NOT add,
 remove, or rename agents. Full design, org chart, topic contract, and per-agent
 responsibilities live in [../../docs/roadmap/agent-pantheon.md](../../docs/roadmap/agent-pantheon.md).
+When editing agent code under `src/fdai/agents/**`, the role table and the MUST rules
+in [agent-pantheon.instructions.md](agent-pantheon.instructions.md) apply (it auto-loads
+for that path).
 
 The names below are the canonical identifiers used in code, config, audit entries, and
 docs. Reuse them verbatim.
