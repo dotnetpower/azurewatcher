@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { ReadApiClient } from "../api";
 import {
   AsyncBoundary,
@@ -43,16 +43,32 @@ interface Props {
   readonly client: ReadApiClient;
 }
 
+/**
+ * Read a ``?correlation=`` deep-link value from the hash query string.
+ * The Agent activity timeline links here (``#/trace?correlation=...``)
+ * so an operator can jump from one agent's action straight into its
+ * full pipeline trace.
+ */
+function correlationFromHash(): string {
+  const hash = window.location.hash;
+  const q = hash.indexOf("?");
+  if (q < 0) return "";
+  const params = new URLSearchParams(hash.slice(q + 1));
+  return params.get("correlation") ?? "";
+}
+
 export function RuleTraceRoute({ client }: Props) {
-  const [correlationId, setCorrelationId] = useState("corr-dev-0001");
+  const [correlationId, setCorrelationId] = useState(
+    () => correlationFromHash() || "corr-dev-0001",
+  );
   const [state, setState] = useState<AsyncState<TraceResponse>>({ status: "idle" });
 
-  async function fetchTrace(): Promise<void> {
-    if (!correlationId) return;
+  async function fetchTrace(id: string = correlationId): Promise<void> {
+    if (!id) return;
     setState({ status: "loading" });
     try {
       const data = await client.panel<TraceResponse>(
-        `/audit/${encodeURIComponent(correlationId)}/trace`,
+        `/audit/${encodeURIComponent(id)}/trace`,
       );
       setState({ status: "ready", data });
     } catch (err) {
@@ -62,6 +78,17 @@ export function RuleTraceRoute({ client }: Props) {
       });
     }
   }
+
+  // Auto-fetch when arriving via a deep link (or when the deep-link
+  // correlation changes while this panel stays mounted).
+  useEffect(() => {
+    const deepLinked = correlationFromHash();
+    if (deepLinked) {
+      setCorrelationId(deepLinked);
+      void fetchTrace(deepLinked);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div class="stack">

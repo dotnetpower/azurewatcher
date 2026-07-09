@@ -25,6 +25,7 @@
 import type { ComponentType } from "preact";
 import type { ReadApiClient } from "./api";
 import { t } from "./i18n";
+import { AgentActivityRoute } from "./routes/agent-activity";
 import { AuditRoute } from "./routes/audit";
 import { BlastRadiusRoute } from "./routes/blast-radius";
 import { DashboardRoute } from "./routes/dashboard";
@@ -107,6 +108,13 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
     component: HilQueueRoute,
   },
   // ── History ─────────────────────────────────────────────────────────
+  {
+    id: "agent-activity",
+    label: t("nav.panel.agentActivity"),
+    subtitle: t("nav.panelSub.agentActivity"),
+    group: "history",
+    component: AgentActivityRoute,
+  },
   {
     id: "audit",
     label: t("nav.panel.audit"),

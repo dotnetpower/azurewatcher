@@ -86,28 +86,59 @@ _REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def _seed(read_model: InMemoryConsoleReadModel) -> None:
-    """Seed audit entries (with trust tiers) + one pending HIL so the SPA renders data."""
-    # (tier, action_kind, outcome, recorded_at time) - a realistic T0-heavy split.
-    entries: tuple[tuple[str, str, str, str], ...] = (
-        ("t0", "control_loop.abstain", "abstained_t0", "10:00:00"),
-        ("t0", "enable-encryption", "shadow_pr_opened", "10:05:00"),
-        ("t0", "tag-compliance", "shadow_pr_opened", "10:12:00"),
-        ("t0", "control_loop.abstain", "abstained_t0", "10:20:00"),
-        ("t0", "right-size-disk", "shadow_pr_opened", "10:31:00"),
-        ("t0", "close-idle-endpoint", "shadow_pr_opened", "10:38:00"),
-        ("t1", "reuse-learned-action", "shadow_pr_opened", "10:42:00"),
-        ("t1", "correlate-incident", "matched_prior", "10:48:00"),
-        ("t2", "root-cause-reasoning", "escalated_hil", "10:55:00"),
+    """Seed audit entries (with trust tiers) + one pending HIL so the SPA renders data.
+
+    Each entry is attributed to the pantheon agent that produced it
+    (``actor`` == ``producer_principal``) so the agent-activity timeline
+    can reconstruct "which agent did what, when, and how". The tier /
+    outcome / mode split stays realistic (T0-heavy) so the KPI dashboard
+    keeps rendering a plausible distribution from the same rows.
+    """
+    # (agent, tier, action_kind, outcome, recorded_at time, correlation, summary)
+    entries: tuple[tuple[str, str, str, str, str, str, str], ...] = (
+        ("Huginn", "t0", "event.ingest", "normalized", "10:00:00", "corr-a",
+         "Normalized 1 Activity Log event into a finding"),
+        ("Heimdall", "t0", "anomaly.detect", "within_threshold", "10:02:00", "corr-a",
+         "Metric anomaly check: no deviation over threshold"),
+        ("Forseti", "t0", "verdict.issue", "auto", "10:05:00", "corr-a",
+         "Deterministic rule matched; verdict=auto"),
+        ("Thor", "t0", "enable-encryption", "shadow_pr_opened", "10:06:00", "corr-a",
+         "Opened remediation PR to enable encryption at rest"),
+        ("Saga", "t0", "audit.record", "recorded", "10:06:30", "corr-a",
+         "Appended terminal decision to the audit log"),
+        ("Njord", "t0", "cost.anomaly", "finding_raised", "10:12:00", "corr-b",
+         "Idle public endpoint flagged for cost review"),
+        ("Forseti", "t0", "verdict.issue", "auto", "10:13:00", "corr-b",
+         "Cost rule matched; verdict=auto (shadow)"),
+        ("Thor", "t0", "close-idle-endpoint", "shadow_pr_opened", "10:14:00", "corr-b",
+         "Opened remediation PR to close idle endpoint"),
+        ("Freyr", "t0", "capacity.forecast", "forecast_ok", "10:20:00", "corr-c",
+         "7-day capacity forecast within headroom"),
+        ("Muninn", "t1", "similarity.recall", "matched_prior", "10:42:00", "corr-d",
+         "Recalled a resolved incident with 0.91 similarity"),
+        ("Norns", "t1", "reuse-learned-action", "shadow_pr_opened", "10:43:00", "corr-d",
+         "Reused a learned action from the matched incident"),
+        ("Odin", "t2", "arbitrate.cross-vertical", "resolved", "10:54:00", "corr-e",
+         "Arbitrated resilience-vs-cost conflict before verdict"),
+        ("Forseti", "t2", "root-cause-reasoning", "escalated_hil", "10:55:00", "corr-e",
+         "Novel case: mixed-model cross-check disagreed; escalated to HIL"),
+        ("Var", "t2", "hil.await", "awaiting_approval", "10:55:30", "corr-e",
+         "High-risk action queued for a human approver"),
     )
-    for i, (tier, action_kind, outcome, hhmmss) in enumerate(entries, start=1):
+    for i, (agent, tier, action_kind, outcome, hhmmss, correlation, summary) in enumerate(
+        entries, start=1
+    ):
         read_model.record_audit_entry(
             {
                 "event_id": f"00000000-0000-0000-0000-{i:012d}",
-                "actor": "fdai.core.control_loop",
+                "correlation_id": correlation,
+                "actor": agent,
+                "producer_principal": agent,
                 "action_kind": action_kind,
                 "mode": "shadow",
                 "outcome": outcome,
                 "tier": tier,
+                "summary": summary,
                 "recorded_at": f"2026-07-06T{hhmmss}+00:00",
             }
         )

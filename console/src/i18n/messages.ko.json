@@ -7,6 +7,7 @@
     "ontology": "온톨로지",
     "pantheon": "판테온",
     "promotionGates": "승급 게이트",
+    "agentActivity": "에이전트 활동",
     "rules": "규칙"
   },
   "nav": {
@@ -29,6 +30,7 @@
       "hilQueue": "승인",
       "audit": "감사 로그",
       "trace": "추적",
+      "agentActivity": "에이전트 활동",
       "ontology": "온톨로지",
       "pantheon": "에이전트",
       "blastRadius": "영향 범위",
@@ -40,6 +42,7 @@
       "live": "실시간 파이프라인 활동",
       "hilQueue": "사람 승인자를 기다리는 고위험 작업 (HIL)",
       "audit": "모든 종단 결정의 추가 전용 기록",
+      "agentActivity": "에이전트별 타임라인: 어떤 에이전트가 무엇을 언제 어떻게 했는지",
       "ontology": "리소스 + 링크 그래프 (classDiagram)",
       "pantheon": "15개의 명명된 자율 에이전트 (판테온)",
       "dashboard": "감사 로그에서 집계한 KPI",

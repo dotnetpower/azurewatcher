@@ -8,6 +8,7 @@
     "pantheon": "Pantheon",
     "promotionGates": "Promotion gates",
     "ruleTrace": "Trace",
+    "agentActivity": "Agent activity",
     "rules": "Rules"
   },
   "nav": {
@@ -30,6 +31,7 @@
       "hilQueue": "Approvals",
       "audit": "Audit log",
       "trace": "Trace",
+      "agentActivity": "Agent activity",
       "ontology": "Ontology",
       "pantheon": "Agents",
       "blastRadius": "Blast radius",
@@ -42,6 +44,7 @@
       "hilQueue": "High-risk actions waiting for a human approver (HIL)",
       "audit": "Append-only record of every terminal decision",
       "trace": "Reconstruct one correlation id end-to-end",
+      "agentActivity": "Per-agent timeline: which agent did what, when, and how",
       "ontology": "Resource + link graph (classDiagram)",
       "pantheon": "15 named autonomous agents (Pantheon)",
       "blastRadius": "Simulate reachable subgraph before a change",
