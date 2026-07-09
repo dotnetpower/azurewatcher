@@ -139,6 +139,32 @@ interface Filters {
 
 const EMPTY_FILTERS: Filters = { origin: "", category: "", severity: "", source: "", q: "" };
 
+/** Parse the selected rule from the URL hash query (deep-link support). */
+function selectionFromHash(): Selection | null {
+  const hash = window.location.hash;
+  const qi = hash.indexOf("?");
+  if (qi < 0) return null;
+  const params = new URLSearchParams(hash.slice(qi + 1));
+  const id = params.get("rule");
+  if (!id) return null;
+  return { id, origin: params.get("origin") ?? "" };
+}
+
+/** Reflect the selected rule into the URL hash so it is shareable and
+ * the browser back button closes the drawer. */
+function writeSelectionToHash(sel: Selection | null): void {
+  const base = "#/rules";
+  if (sel === null) {
+    if (window.location.hash.startsWith(base) && window.location.hash.includes("?")) {
+      window.location.hash = base;
+    }
+    return;
+  }
+  const q = new URLSearchParams({ rule: sel.id });
+  if (sel.origin) q.set("origin", sel.origin);
+  window.location.hash = `${base}?${q.toString()}`;
+}
+
 const SEVERITY_PILL: Record<string, PillKind> = {
   critical: "danger",
   high: "warning",
@@ -222,7 +248,27 @@ export function RuleCatalogRoute({ client }: Props) {
 
   // Row selection -> detail drawer. Fetches GET /rules/{id} with the
   // row origin so an id shared across tiers resolves unambiguously.
-  const [selected, setSelected] = useState<Selection | null>(null);
+  // Selection is mirrored into the URL hash (deep-link / shareable).
+  const [selected, setSelected] = useState<Selection | null>(selectionFromHash);
+
+  function selectRule(sel: Selection | null): void {
+    setSelected(sel);
+    writeSelectionToHash(sel);
+  }
+
+  // React to back/forward + external hash edits (open or close the drawer).
+  // Preserve the previous object reference when the selection content is
+  // unchanged so writing the hash after a click does not trigger a refetch.
+  useEffect(() => {
+    const onHashChange = () =>
+      setSelected((prev) => {
+        const next = selectionFromHash();
+        if (prev?.id === next?.id && prev?.origin === next?.origin) return prev;
+        return next;
+      });
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
   const [detail, setDetail] = useState<DetailState>({ status: "loading" });
   useEffect(() => {
     if (selected === null) return;
@@ -284,7 +330,7 @@ export function RuleCatalogRoute({ client }: Props) {
   useEffect(() => {
     if (selected === null) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSelected(null);
+      if (e.key === "Escape") selectRule(null);
     };
     window.addEventListener("keydown", onKey);
     document.body.classList.add("scroll-locked");
@@ -331,13 +377,13 @@ export function RuleCatalogRoute({ client }: Props) {
         searchInput={searchInput}
         loading={status === "loading"}
         selected={selected}
-        onSelect={setSelected}
+        onSelect={selectRule}
         onFilter={updateFilter}
         onSearch={setSearchInput}
         onPage={setOffset}
       />
       {selected !== null ? (
-        <RuleDetailDrawer detail={detail} findings={findings} onClose={() => setSelected(null)} />
+        <RuleDetailDrawer detail={detail} findings={findings} onClose={() => selectRule(null)} />
       ) : null}
     </div>
   );
@@ -590,9 +636,12 @@ function RuleDetailDrawer({
           <h3 class="mono">
             {detail.status === "ready" ? detail.data.id : "Rule detail"}
           </h3>
-          <button type="button" class="btn" onClick={onClose} aria-label="Close">
-            Close
-          </button>
+          <div class="rule-drawer-actions">
+            <CopyButton text={window.location.href} label="Copy link" />
+            <button type="button" class="btn" onClick={onClose} aria-label="Close">
+              Close
+            </button>
+          </div>
         </header>
         <div class="rule-drawer-body">
           {detail.status === "loading" ? (

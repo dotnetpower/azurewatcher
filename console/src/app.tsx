@@ -27,7 +27,7 @@ function currentPanelId(): string {
   } catch {
     /* keep raw hash if it is not a valid URI component */
   }
-  const cleaned = hash.replace(/^#\/?/, "");
+  const cleaned = hash.replace(/^#\/?/, "").replace(/\?.*$/, "");
   const known = resolvePanels().some((p) => p.id === cleaned);
   return known ? cleaned : DEFAULT_PANEL_ID;
 }
