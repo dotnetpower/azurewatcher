@@ -3626,3 +3626,209 @@ main { padding-bottom: 60px !important; }
   color: var(--fg-muted);
 }
 
+/* ----------------------------------------------------------------------
+   Sign-in screen - deep-space nebula backdrop + glass card.
+   Pure CSS, no image assets. Self-contained dark scene regardless of the
+   app theme (the console proper is only reached after sign-in).
+   ---------------------------------------------------------------------- */
+.login-cosmos {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 50% -10%, #10193a 0%, #070914 55%, #04050c 100%);
+  color: #e8ecf6;
+  isolation: isolate;
+}
+
+/* Decorative sky layer holding the nebula blobs + star fields. */
+.login-sky {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Soft coloured nebula clouds - large blurred radial blobs that drift. */
+.login-sky .neb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.55;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+.neb-a {
+  width: 46vmax;
+  height: 46vmax;
+  top: -12vmax;
+  left: -8vmax;
+  background: radial-gradient(circle at 40% 40%, #7b5cff 0%, rgba(123, 92, 255, 0) 68%);
+  animation: neb-drift-a 34s ease-in-out infinite alternate;
+}
+.neb-b {
+  width: 40vmax;
+  height: 40vmax;
+  right: -10vmax;
+  top: 6vmax;
+  background: radial-gradient(circle at 50% 50%, #1fb6c9 0%, rgba(31, 182, 201, 0) 66%);
+  animation: neb-drift-b 42s ease-in-out infinite alternate;
+}
+.neb-c {
+  width: 52vmax;
+  height: 52vmax;
+  left: 50%;
+  bottom: -26vmax;
+  transform: translateX(-50%);
+  background: radial-gradient(circle at 50% 50%, #e0468a 0%, rgba(224, 70, 138, 0) 60%);
+  opacity: 0.4;
+  animation: neb-drift-c 48s ease-in-out infinite alternate;
+}
+
+/* Star fields via layered radial-gradient dots on a tiled background. */
+.login-stars {
+  position: absolute;
+  inset: -2px;
+  background-repeat: repeat;
+}
+.login-stars-far {
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.7) 50%, transparent 51%),
+    radial-gradient(1px 1px at 75% 15%, rgba(255, 255, 255, 0.6) 50%, transparent 51%),
+    radial-gradient(1px 1px at 45% 65%, rgba(255, 255, 255, 0.55) 50%, transparent 51%),
+    radial-gradient(1px 1px at 88% 78%, rgba(255, 255, 255, 0.6) 50%, transparent 51%),
+    radial-gradient(1px 1px at 12% 82%, rgba(255, 255, 255, 0.5) 50%, transparent 51%),
+    radial-gradient(1px 1px at 60% 42%, rgba(255, 255, 255, 0.5) 50%, transparent 51%);
+  background-size: 320px 320px;
+  opacity: 0.7;
+  animation: star-twinkle 6s ease-in-out infinite alternate;
+}
+.login-stars-near {
+  background-image:
+    radial-gradient(1.6px 1.6px at 30% 20%, #ffffff 50%, transparent 51%),
+    radial-gradient(1.6px 1.6px at 68% 55%, #dfeaff 50%, transparent 51%),
+    radial-gradient(1.6px 1.6px at 15% 60%, #ffffff 50%, transparent 51%),
+    radial-gradient(1.6px 1.6px at 85% 35%, #cfe0ff 50%, transparent 51%);
+  background-size: 500px 500px;
+  opacity: 0.85;
+  animation: star-twinkle 4.5s ease-in-out infinite alternate-reverse;
+}
+
+/* Glass card floating over the scene. */
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: min(92vw, 400px);
+  padding: 40px 36px 30px;
+  text-align: center;
+  border-radius: 18px;
+  background: rgba(18, 24, 46, 0.55);
+  border: 1px solid rgba(150, 170, 255, 0.22);
+  box-shadow:
+    0 24px 70px rgba(4, 6, 16, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  animation: login-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.login-mark {
+  display: inline-flex;
+  color: #bcd3ff;
+  filter: drop-shadow(0 0 14px rgba(79, 157, 245, 0.55));
+  animation: mark-spin 60s linear infinite;
+}
+
+.login-title {
+  margin: 14px 0 2px;
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: #f3f6ff;
+}
+.login-subtitle {
+  margin: 0 0 26px;
+  font-size: 13px;
+  color: #a8b4d6;
+}
+
+.login-signin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0a0f22;
+  cursor: pointer;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #e7eefc 100%);
+  box-shadow:
+    0 0 0 1px rgba(120, 150, 255, 0.35),
+    0 10px 30px rgba(79, 157, 245, 0.35);
+  transition: transform 0.12s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.login-signin:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+  box-shadow:
+    0 0 0 1px rgba(150, 175, 255, 0.6),
+    0 14px 40px rgba(79, 157, 245, 0.55);
+}
+.login-signin:active {
+  transform: translateY(0);
+}
+.login-signin:focus-visible {
+  outline: 2px solid #8fb4ff;
+  outline-offset: 3px;
+}
+
+.login-foot {
+  margin: 22px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #8793b5;
+}
+
+@keyframes login-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes neb-drift-a {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(6vmax, 4vmax) scale(1.12); }
+}
+@keyframes neb-drift-b {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(-5vmax, 5vmax) scale(1.08); }
+}
+@keyframes neb-drift-c {
+  from { transform: translateX(-50%) translateY(0) scale(1); }
+  to { transform: translateX(-50%) translateY(-5vmax) scale(1.1); }
+}
+@keyframes star-twinkle {
+  from { opacity: 0.45; }
+  to { opacity: 0.9; }
+}
+@keyframes mark-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neb-a,
+  .neb-b,
+  .neb-c,
+  .login-stars-far,
+  .login-stars-near,
+  .login-mark,
+  .login-card {
+    animation: none;
+  }
+}
+
