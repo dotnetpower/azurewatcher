@@ -357,7 +357,7 @@ means only the seam is designed (§ 2 / § 3), not wired.
 | Posture review / architecture Q&A | Covered | `core/assurance_twin/`, [assurance-twin.md](assurance-twin.md) |
 | **Dev-to-ops handoff (policy + RBAC review)** | Covered | [operational-readiness.md](operational-readiness.md) (ORR) |
 | **Identity / RBAC least-privilege posture** | Covered | workload RBAC rule pack (`*.role-assignment.*`) + `remediate.right-size-role` |
-| SLO / error budget | Partial | `core/slo/`: `MetricBurnRateSource` bridges the § 3.2 metric seam to the burn-rate evaluator (fail-closed on missing / inconsistent data); a real vendor `MetricProvider` adapter + scheduled evaluation remain |
+| SLO / error budget | Partial | `core/slo/`: `MetricBurnRateSource` bridges the § 3.2 metric seam to the burn-rate evaluator and `SloBurnRunner.run_once` publishes `slo.error_budget_burn` events (fail-closed on missing data); only a real vendor `MetricProvider` adapter + an infra cron trigger remain |
 | Monitoring / alerting (external signal ingestion) | Partial | `core/detection/` correlation shipped; the § 3.2 metric / log / trace Protocols + in-memory bindings exist, a real vendor adapter is not yet wired |
 | On-call schedule / paging | Deferred | § 3.5 seam; PagerDuty / OpsGenie adapters land in a fork (§ 2) |
 | Status page / stakeholder broadcast | Deferred | § 2 (Incident object is the prerequisite) |
@@ -365,9 +365,10 @@ means only the seam is designed (§ 2 / § 3), not wired.
 
 The two `Partial` rows now share a single remaining prerequisite - a real
 vendor `MetricProvider` adapter bound at the composition root. The § 3.2
-Protocols, their in-memory bindings, and the `core/slo/` bridge that consumes
-them all exist; only the concrete backend and a scheduled evaluation loop are
-left, and both land additively (a fork adapter + a phase task) without a
+Protocols, their in-memory bindings, the `core/slo/` bridge that consumes them,
+and the `SloBurnRunner` that publishes breach events all exist; only the
+concrete backend and the out-of-band cron trigger that calls `run_once` are
+left, and both land additively (a fork adapter + an infra job) without a
 `core/` rewrite. The `Deferred` rows are seams by design, not gaps in the
 control loop.
 

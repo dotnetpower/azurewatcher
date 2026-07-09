@@ -30,10 +30,12 @@ from .burn_rate import BurnRate, BurnRateAlert, BurnRateBreach, BurnRateEvaluato
 from .metric_source import BurnRateEvaluation, MetricBurnRateSource
 from .models import SLI, SLO, ErrorBudget, SLIKind
 from .registry import SloRegistry, SloRegistryError
+from .runner import SLO_BURN_EVENT_TOPIC, SloBurnRunner, SloBurnRunReport
 
 __all__ = [
     "SLI",
     "SLO",
+    "SLO_BURN_EVENT_TOPIC",
     "BurnRate",
     "BurnRateAlert",
     "BurnRateBreach",
@@ -42,6 +44,8 @@ __all__ = [
     "ErrorBudget",
     "MetricBurnRateSource",
     "SLIKind",
+    "SloBurnRunReport",
+    "SloBurnRunner",
     "SloRegistry",
     "SloRegistryError",
 ]
