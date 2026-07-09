@@ -187,3 +187,14 @@ resource "azurerm_role_assignment" "runner_ops_network" {
   role_definition_name = "Network Contributor"
   principal_id         = azurerm_linux_virtual_machine.runner[0].identity[0].principal_id
 }
+
+# User Access Administrator on the app RG so the runner can manage the role
+# assignments the app config declares (kv_officer_self grants the apply
+# principal Key Vault Secrets Officer; the executor MI role bindings on ACR /
+# Event Hubs / KV). Contributor alone lacks Microsoft.Authorization/* .
+resource "azurerm_role_assignment" "runner_app_uaa" {
+  count                = var.create_runner_vm ? 1 : 0
+  scope                = data.azurerm_resource_group.app[0].id
+  role_definition_name = "User Access Administrator"
+  principal_id         = azurerm_linux_virtual_machine.runner[0].identity[0].principal_id
+}
