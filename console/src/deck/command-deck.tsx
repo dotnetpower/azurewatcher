@@ -22,7 +22,6 @@ import {
   probeBackend,
   type BackendHealth,
   type BackendTurn,
-  type RouterCandidate,
   type RouterSnapshot,
 } from "./backend";
 import { useViewContext } from "./context";
@@ -223,6 +222,7 @@ export function CommandDeck() {
         <kbd class="deck-invoke-kbd">
           {navigator.platform.toLowerCase().includes("mac") ? "⌘K" : "Ctrl K"}
         </kbd>
+        <kbd class="deck-invoke-kbd">/</kbd>
       </button>
 
       {open ? (
@@ -243,7 +243,6 @@ export function CommandDeck() {
 
           <div class="deck-body">
             <section class="deck-transcript" ref={scrollerRef} aria-label="conversation">
-              <RouterAnnouncement health={health} />
               {turns.length === 0 ? (
                 <IntroPanel snapshotPresent={snapshot !== null} onPick={submit} />
               ) : null}
@@ -274,9 +273,9 @@ export function CommandDeck() {
             <textarea
               ref={inputRef}
               class="deck-input"
-              placeholder="Ask about tiles, verticals, HIL, audit, promotion... (Enter to send, Shift+Enter for newline, Esc to close)"
+              placeholder="Ask anything (Enter to send, Shift+Enter for newline, Esc to close)"
               value={draft}
-              rows={2}
+              rows={1}
               onInput={(e) => setDraft((e.target as HTMLTextAreaElement).value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -351,7 +350,6 @@ function TurnBubble({
           ))}
         </div>
       )}
-      {turn.router ? <RouterSparklineStrip router={turn.router} /> : null}
       {turn.followUps && turn.followUps.length > 0 ? (
         <ul class="deck-followups" aria-label="suggested follow-ups">
           {turn.followUps.map((f) => (
@@ -368,42 +366,6 @@ function TurnBubble({
         </ul>
       ) : null}
     </article>
-  );
-}
-
-/**
- * One-time system banner announcing the auto-selected fastest mini model.
- * Renders only when the backend wired the latency router; every number is a
- * real measurement from ``GET /chat/health`` (per-candidate rolling p50).
- */
-function RouterAnnouncement({ health }: { readonly health: BackendHealth | null }) {
-  const router = health?.router;
-  if (!router || router.candidates.length < 2) return null;
-  const ranked = [...router.candidates]
-    .filter((c) => c.p50_ms !== null)
-    .sort((a, b) => (a.p50_ms ?? 0) - (b.p50_ms ?? 0));
-  const chosen = router.candidates.find((c) => c.deployment === router.chose);
-  const chosenP50 = chosen?.p50_ms ?? null;
-  return (
-    <div class="deck-router-note" role="status">
-      <span class="deck-router-note-glyph" aria-hidden="true">⚡</span>
-      <div class="deck-router-note-body">
-        <p class="deck-router-note-lead">
-          Switched to the fastest model: <strong>{router.chose}</strong>
-          {chosenP50 !== null ? (
-            <span class="muted"> · p50 {Math.round(chosenP50)}ms</span>
-          ) : null}
-        </p>
-        {ranked.length > 0 ? (
-          <p class="deck-router-note-sub muted">
-            Auto-measured {router.candidates.length} mini models:{" "}
-            {ranked
-              .map((c) => `${c.deployment} ${Math.round(c.p50_ms ?? 0)}ms`)
-              .join(" · ")}
-          </p>
-        ) : null}
-      </div>
-    </div>
   );
 }
 
@@ -457,89 +419,6 @@ function BackendBadge({
   );
 }
 
-/**
- * Small SVG strip that renders one sparkline per routed candidate so the
- * operator can see at a glance which mini is trending fastest. The chosen
- * candidate is highlighted; empty windows show a placeholder line.
- */
-function RouterSparklineStrip({ router }: { readonly router: RouterSnapshot }) {
-  // Shared vertical scale so the sparklines compare like-for-like across
-  // candidates. Fall back to 100ms so an all-fast set still gets a visible
-  // baseline instead of collapsing to a flat line at the top.
-  const globalMax = Math.max(
-    100,
-    ...router.candidates.flatMap((c) => c.history_ms.map((v) => v)),
-  );
-  return (
-    <div class="deck-router" role="group" aria-label="latency router">
-      <span class="deck-router-title muted">router</span>
-      <ul class="deck-router-list">
-        {router.candidates.map((c) => (
-          <li
-            key={c.deployment}
-            class={`deck-router-card${c.deployment === router.chose ? " deck-router-card-active" : ""}`}
-          >
-            <div class="deck-router-head">
-              <span class="deck-router-name">{c.deployment}</span>
-              <span class="deck-router-metric muted">
-                p50 {c.p50_ms === null ? "-" : `${Math.round(c.p50_ms)}ms`}
-              </span>
-            </div>
-            <Sparkline
-              history={c.history_ms}
-              globalMax={globalMax}
-              highlighted={c.deployment === router.chose}
-            />
-            <div class="deck-router-foot muted">
-              n={c.samples}
-              {c.p95_ms !== null ? ` · p95 ${Math.round(c.p95_ms)}ms` : ""}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function Sparkline({
-  history,
-  globalMax,
-  highlighted,
-}: {
-  readonly history: readonly number[];
-  readonly globalMax: number;
-  readonly highlighted: boolean;
-}) {
-  const w = 96;
-  const h = 20;
-  if (history.length === 0) {
-    return (
-      <svg class="deck-spark" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-        <line x1="0" y1={h - 1} x2={w} y2={h - 1} class="deck-spark-baseline" />
-      </svg>
-    );
-  }
-  const denom = Math.max(1, history.length - 1);
-  const points = history
-    .map((v, i) => {
-      const x = (i / denom) * (w - 2) + 1;
-      const y = h - 1 - (Math.min(v, globalMax) / globalMax) * (h - 2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  return (
-    <svg
-      class={`deck-spark${highlighted ? " deck-spark-active" : ""}`}
-      width={w}
-      height={h}
-      viewBox={`0 0 ${w} ${h}`}
-      aria-hidden="true"
-    >
-      <polyline points={points} fill="none" stroke-width="1.5" />
-    </svg>
-  );
-}
-
 function IntroPanel({
   snapshotPresent,
   onPick,
@@ -575,6 +454,40 @@ function IntroPanel({
   );
 }
 
+/**
+ * Short human descriptions for the "What I see" digest keys, shown as a fast
+ * hover tooltip. Returns "" for keys we do not describe (no tooltip rendered).
+ * English source strings (L2 product surface).
+ */
+const FACT_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  eps: "Events per second the control loop is processing (60s rolling).",
+  "session.total": "Total events seen since this live session started.",
+  "session.duration": "How long this live session has been running.",
+  "tiles.active": "Tiles currently showing an in-flight action.",
+  "tiles.empty": "Unused tiles in the cockpit grid.",
+  "tiles.shadow": "Tiles running in shadow mode (judge-and-log, no execution).",
+  "tier.t0": "Share routed to T0 - deterministic policy (target 70-80%).",
+  "tier.t1": "Share routed to T1 - lightweight similarity / small model (15-20%).",
+  "tier.t2": "Share routed to T2 - frontier-model reasoning, novel cases only (5-10%).",
+  "gate.auto": "Actions the risk gate auto-executed (low risk).",
+  "gate.hil": "Actions routed to human-in-the-loop approval (high risk).",
+  "gate.abstain": "Cases the gate abstained on - no autonomous action taken.",
+  "gate.deny": "Actions the gate denied outright.",
+  "attention.total": "Items currently needing operator attention.",
+  "attention.hil": "Items waiting on a human approval.",
+  "attention.deny": "Denied actions flagged for review.",
+  "attention.failed": "Actions that failed during execution.",
+  "attention.stuck": "Actions stuck without progress past their budget.",
+  "verticals.change": "Change Safety events (safe change, drift remediation).",
+  "verticals.resilience": "Resilience events (disaster recovery, chaos testing).",
+  "verticals.cost": "Cost Governance events (FinOps).",
+  "verticals.unknown": "Events not yet classified into a vertical.",
+};
+
+function factDescription(key: string): string {
+  return FACT_DESCRIPTIONS[key] ?? "";
+}
+
 function DigestList({ snapshot }: { readonly snapshot: ReturnType<typeof useViewContext> }) {
   const grouped = useMemo(() => {
     if (snapshot === null) return new Map<string, readonly { key: string; value: unknown }[]>();
@@ -607,12 +520,20 @@ function DigestList({ snapshot }: { readonly snapshot: ReturnType<typeof useView
         <section key={group} class="deck-digest-group">
           <h4 class="deck-digest-group-title">{group}</h4>
           <dl class="deck-digest-list">
-            {facts.map((f) => (
-              <div key={f.key} class="deck-digest-row">
-                <dt>{f.key}</dt>
-                <dd>{f.value === null ? "-" : String(f.value)}</dd>
-              </div>
-            ))}
+            {facts.map((f) => {
+              const desc = factDescription(f.key);
+              return (
+                <div key={f.key} class="deck-digest-row">
+                  <dt>{f.key}</dt>
+                  <dd>{f.value === null ? "-" : String(f.value)}</dd>
+                  {desc ? (
+                    <span class="deck-digest-tip" role="tooltip">
+                      {desc}
+                    </span>
+                  ) : null}
+                </div>
+              );
+            })}
           </dl>
         </section>
       ))}
