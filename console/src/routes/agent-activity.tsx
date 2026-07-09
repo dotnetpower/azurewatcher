@@ -145,11 +145,23 @@ function entryMap(item: AuditItem, key: string): ReadonlyArray<readonly [string,
 function clockMs(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
+  const mmm = String(d.getMilliseconds()).padStart(3, "0");
+  return `${hms(iso)}.${mmm}`;
+}
+
+/** HH:MM:SS 24-hour local clock - compact enough for a left-list row. */
+function hms(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
   const ss = String(d.getSeconds()).padStart(2, "0");
-  const mmm = String(d.getMilliseconds()).padStart(3, "0");
-  return `${hh}:${mm}:${ss}.${mmm}`;
+  return `${hh}:${mm}:${ss}`;
+}
+
+/** The clock at which this step began work (started_at, else recorded_at). */
+function startClockOf(item: AuditItem): string {
+  return hms(entryStr(item, "started_at") ?? item.recorded_at);
 }
 
 /** Compact human duration for a millisecond span (e.g. "1m 30s", "820ms"). */
@@ -513,8 +525,8 @@ function Waterfall({
                     {g.correlation}
                   </a>
                 </button>
-                <span class="waterfall-span mono muted">
-                  {g.bars.length} · {fmtDur(g.spanMs)}
+                <span class="waterfall-span mono muted" title={`${g.bars.length} step(s) · ${fmtDur(g.spanMs)}`}>
+                  {startClockOf(g.bars[0]!.item)} · {g.bars.length}
                 </span>
               </div>
               {isCollapsed ? null : (
@@ -547,8 +559,11 @@ function Waterfall({
                               style={`left:${bar.leftPct.toFixed(2)}%;width:${bar.widthPct.toFixed(2)}%`}
                             />
                           </span>
-                          <span class="waterfall-dur mono muted">
-                            {work !== null ? fmtDur(work) : stamp(bar.item.recorded_at)}
+                          <span
+                            class="waterfall-time mono muted"
+                            title={work !== null ? `started ${startClockOf(bar.item)} · worked ${fmtDur(work)}` : undefined}
+                          >
+                            {startClockOf(bar.item)}
                           </span>
                         </button>
                       </li>

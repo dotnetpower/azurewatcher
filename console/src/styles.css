@@ -3151,7 +3151,7 @@ main { padding-bottom: 60px !important; }
   border-radius: 6px;
   padding: 4px 7px;
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) 46px auto;
+  grid-template-columns: auto auto minmax(0, 1fr) 40px 58px;
   gap: 7px;
   align-items: center;
   cursor: pointer;
@@ -3197,10 +3197,11 @@ main { padding-bottom: 60px !important; }
   border-radius: 4px;
   background: var(--layer, var(--accent));
 }
-.waterfall-dur {
+.waterfall-time {
   font-size: 10.5px;
   text-align: right;
   flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Step detail pane (right, large) ----------------------------------------- */
