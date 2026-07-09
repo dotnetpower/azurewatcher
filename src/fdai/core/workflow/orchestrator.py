@@ -62,14 +62,43 @@ class WorkflowGuardEvaluator(Protocol):
 
 
 class ProcessStatus(StrEnum):
-    """Terminal status of a shadow :class:`Process` run.
+    """Status of a shadow :class:`Process` run.
 
-    Mirrors the ``Process`` ObjectType ``status`` values; a shadow run only ever
-    reaches ``SUCCEEDED`` or ``FAILED`` (compensation is inert in P1).
+    Mirrors the ``Process`` ObjectType ``status`` values; a shadow run moves
+    ``RUNNING`` -> ``SUCCEEDED`` / ``FAILED`` (compensation is inert in P1).
     """
 
+    RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+
+
+_PROCESS_KEY_PREFIX = "process:"
+
+
+def process_state_key(process_id: str) -> str:
+    """State-store key holding the :class:`Process` record for ``process_id``."""
+    return f"{_PROCESS_KEY_PREFIX}{process_id}"
+
+
+def _process_record(
+    *,
+    process_id: str,
+    workflow_name: str,
+    status: ProcessStatus,
+    current_step: str,
+    target_resource_id: str,
+    started_at: datetime,
+) -> dict[str, object]:
+    """Build a ``Process`` ObjectType row (process-automation.md 3.1)."""
+    return {
+        "id": process_id,
+        "workflow_ref": workflow_name,
+        "status": status.value,
+        "current_step": current_step,
+        "target_resource_id": target_resource_id,
+        "started_at": started_at.isoformat(),
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,6 +248,8 @@ class WorkflowOrchestrator:
             target_resource_id=target_resource_id,
             trigger_ts=trigger_ts,
         )
+        started_at = datetime.now(tz=UTC)
+        first_step = workflow.steps[0].id
 
         await self._audit.append_audit_entry(
             {
@@ -232,6 +263,21 @@ class WorkflowOrchestrator:
                 "plan": plan.to_audit_dict(),
                 "recorded_at": datetime.now(tz=UTC).isoformat(),
             }
+        )
+
+        # Persist the Process ObjectType row (running); the terminal write below
+        # overwrites it. This is the runtime writer for the Process ontology
+        # type (process-automation.md 3.1).
+        await self._audit.write_state(
+            process_state_key(process_id),
+            _process_record(
+                process_id=process_id,
+                workflow_name=workflow.name,
+                status=ProcessStatus.RUNNING,
+                current_step=first_step,
+                target_resource_id=target_resource_id,
+                started_at=started_at,
+            ),
         )
 
         compiled = compile_workflow(workflow)
@@ -251,6 +297,17 @@ class WorkflowOrchestrator:
             ProcessStatus.SUCCEEDED
             if result.terminal_outcome is RunbookStepOutcome.SUCCESS
             else ProcessStatus.FAILED
+        )
+        await self._audit.write_state(
+            process_state_key(process_id),
+            _process_record(
+                process_id=process_id,
+                workflow_name=workflow.name,
+                status=status,
+                current_step="",
+                target_resource_id=target_resource_id,
+                started_at=started_at,
+            ),
         )
         return ProcessRun(
             process_id=process_id,

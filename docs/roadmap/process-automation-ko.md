@@ -1,7 +1,7 @@
 ---
 title: 프로세스 자동화(Process Automation)
 translation_of: process-automation.md
-translation_source_sha: 74da39fd2190c2c461873586cff112c0c6341418
+translation_source_sha: fab01f8362bfecad8e52b69d9bab60ddb90323b9
 translation_revised: 2026-07-09
 ---
 
@@ -176,9 +176,12 @@ audit row 를 추가한다.
 도 없어서 **구조적으로 mutation 이 불가능**하다. 각 스텝은 (해결된 승인자 할당과
 함께) judge-and-log 되어 `SUCCESS` 로 보고되고, 실행은 `workflow.process-plan`
 audit row 하나, 스텝마다 `workflow.step` row 하나, 러너의 `runbook.terminal` 을
-emit 한다. risk-gate -> executor -> delivery 경로에 재진입하는 라이브 executor 로의
-승격은 별도의 gated 변경이다; 그 전까지 워크플로 실행은 클라우드 상태를 바꿀 수
-없으며, 이는 shadow-before-enforce 불변식과 일치한다.
+emit 한다. 이 실행은 `Process` ObjectType ([3.1절](#31-process-objecttype))의 런타임
+writer 이기도 하다: state store 의 `process:<id>` 아래에 `Process` row 를 persist
+한다 - 시작 시 `running`, 종료 시 terminal `succeeded` / `failed`. risk-gate ->
+executor -> delivery 경로에 재진입하는 라이브 executor 로의 승격은 별도의 gated
+변경이다; 그 전까지 워크플로 실행은 클라우드 상태를 바꿀 수 없으며, 이는
+shadow-before-enforce 불변식과 일치한다.
 
 이벤트 진입점은
 [`WorkflowTriggerCoordinator`](../../src/fdai/core/workflow/coordinator.py) 다:

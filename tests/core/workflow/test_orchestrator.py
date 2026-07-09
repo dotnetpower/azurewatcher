@@ -19,6 +19,7 @@ from fdai.core.workflow.orchestrator import (
     ShadowWorkflowStepExecutor,
     WorkflowOrchestrator,
     derive_process_id,
+    process_state_key,
 )
 from fdai.shared.contracts.models import (
     Autonomy,
@@ -306,3 +307,17 @@ async def test_no_evaluator_leaves_guard_unevaluated() -> None:
     assert entry["guard_rule_ref"] == "some.guard.rule"
     assert entry["guard_evaluated"] is False
     assert entry["guard_passed"] is None
+
+
+async def test_process_persisted_as_ontology_row() -> None:
+    audit = InMemoryStateStore()
+    run = await _orchestrator(audit).run(
+        _workflow(), target_resource_id="res-1", trigger_ts=_TRIGGER_TS
+    )
+    record = await audit.read_state(process_state_key(run.process_id))
+    assert record is not None
+    assert record["id"] == run.process_id
+    assert record["workflow_ref"] == "sample-flow"
+    assert record["status"] == "succeeded"
+    assert record["target_resource_id"] == "res-1"
+    assert record["current_step"] == ""

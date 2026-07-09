@@ -24,6 +24,7 @@ from .orchestrator import (
     WorkflowGuardEvaluator,
     WorkflowOrchestrator,
     derive_process_id,
+    process_state_key,
 )
 from .trigger_index import WorkflowTriggerIndex
 
@@ -42,4 +43,5 @@ __all__ = [
     "WorkflowTriggerIndex",
     "compile_workflow",
     "derive_process_id",
+    "process_state_key",
 ]

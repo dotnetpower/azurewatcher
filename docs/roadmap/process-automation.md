@@ -177,7 +177,10 @@ trigger_ts)`, compiles the workflow, and walks it with the
 lock, so it **structurally cannot mutate**. Each step is judged and logged (with
 its resolved approver assignment) and reported `SUCCESS`; the run emits a
 `workflow.process-plan` audit row, one `workflow.step` row per step, and the
-runner's `runbook.terminal`. Promotion to a live executor that re-enters the
+runner's `runbook.terminal`. The run is also the runtime writer for the `Process`
+ObjectType ([section 3.1](#31-process-objecttype)): it persists a `Process` row
+under `process:<id>` in the state store, `running` at start and the terminal
+`succeeded` / `failed` at the end. Promotion to a live executor that re-enters the
 risk-gate -> executor -> delivery path is a separate, gated change; until then a
 workflow run cannot change cloud state, matching the shadow-before-enforce
 invariant.
