@@ -65,6 +65,30 @@ const STAGE_ORDER: readonly LiveStageName[] = [
   "audit",
 ];
 
+/** Human label per pipeline stage, for the agent-relay tooltip. */
+const STAGE_LABEL: Record<LiveStageName, string> = {
+  ingest: "Ingest",
+  route: "Route",
+  verify: "Verify",
+  gate: "Gate",
+  execute: "Execute",
+  audit: "Audit",
+};
+
+/** Pantheon agent -> role, shown in the relay tooltip so an operator can
+ * read who owns each step without leaving the tile. */
+const AGENT_ROLE: Record<string, string> = {
+  Huginn: "Event Collector",
+  Heimdall: "Observer",
+  Forseti: "Judge",
+  Thor: "Responder",
+  Var: "Approver",
+  Vidar: "Recovery",
+  Saga: "Auditor",
+  Odin: "Master Planner",
+  Bragi: "Narrator",
+};
+
 const STATUS_LABEL: Record<LiveConnectionStatus, string> = {
   idle: "idle",
   connecting: "connecting",
@@ -126,6 +150,8 @@ interface TileState {
   readonly gate_decision: string | undefined;
   readonly outcome: string | undefined;
   readonly stages_completed: ReadonlySet<LiveStageName>;
+  readonly stage_agents: ReadonlyMap<LiveStageName, string>;
+  readonly last_agent: string | undefined;
   readonly last_stage: LiveStageName;
   readonly last_phase: LiveStagePhase;
   readonly first_seen_at: number;
@@ -249,6 +275,7 @@ function applyEvent(state: LiveState, evt: LiveStageEvent): LiveState {
   const resourceType = pickString(detail, "resource_type");
   const gateDecision = pickString(detail, "gate_decision");
   const outcome = pickString(detail, "outcome");
+  const agent = pickString(detail, "producer_principal");
 
   if (slotIndex < 0) {
     slotIndex = pickSlot(state, now);
@@ -276,6 +303,11 @@ function applyEvent(state: LiveState, evt: LiveStageEvent): LiveState {
     stages_completed.add(evt.stage);
   }
 
+  const stage_agents = new Map(previous?.stage_agents ?? []);
+  if (agent && (evt.phase === "done" || evt.phase === "failed")) {
+    stage_agents.set(evt.stage, agent);
+  }
+
   const next: TileState = {
     event_id: evt.event_id,
     vertical: vertical ?? previous?.vertical,
@@ -287,6 +319,8 @@ function applyEvent(state: LiveState, evt: LiveStageEvent): LiveState {
     gate_decision: gateDecision ?? previous?.gate_decision,
     outcome: outcome ?? previous?.outcome,
     stages_completed,
+    stage_agents,
+    last_agent: agent ?? previous?.last_agent,
     last_stage: evt.stage,
     last_phase: evt.phase,
     first_seen_at: previous?.first_seen_at ?? now,
@@ -665,6 +699,30 @@ export function LiveRoute({ client }: Props) {
           { key: "verticals.resilience", value: verticalCounts.resilience ?? 0, group: "verticals" },
           { key: "verticals.cost", value: verticalCounts.cost ?? 0, group: "verticals" },
           { key: "verticals.unknown", value: verticalCounts.unknown ?? 0, group: "verticals" },
+          // The active outcome filter and the currently selected tile, so the
+          // deck can answer "what is this tile / why is it failed?" after a
+          // click and knows which subset the operator is looking at. Every
+          // tile's full detail is already in records.tiles for cross-lookup.
+          { key: "view.filter", value: state.filter, group: "view" },
+          { key: "selected_event", value: state.selectedEventId ?? "(none)", group: "selection" },
+          ...(selectedTile
+            ? [
+                { key: "selected_action_type", value: selectedTile.action_type ?? "(none)", group: "selection" },
+                { key: "selected_tier", value: selectedTile.tier ?? "(none)", group: "selection" },
+                { key: "selected_gate", value: selectedTile.gate_decision ?? "(none)", group: "selection" },
+                { key: "selected_vertical", value: selectedTile.vertical ?? "unknown", group: "selection" },
+                { key: "selected_rule", value: selectedTile.rule ?? "(none)", group: "selection" },
+                {
+                  key: "selected_status",
+                  value: selectedTile.failed
+                    ? "failed"
+                    : selectedTile.completed
+                      ? "completed"
+                      : "in-progress",
+                  group: "selection",
+                },
+              ]
+            : []),
         ],
         records: {
           tiles: state.tiles
@@ -710,6 +768,9 @@ export function LiveRoute({ client }: Props) {
       verticalCounts,
       shadowCount,
       activeTileCount,
+      state.filter,
+      state.selectedEventId,
+      selectedTile,
     ],
   );
 
@@ -1075,7 +1136,11 @@ function LiveTile({ tile, filter, selected, now, onClick }: TileProps) {
       onClick={onClick}
       aria-label={`${tile.action_type ?? "(routing)"} on ${tile.resource_type ?? "unknown"}`}
     >
-      <StageDots completed={tile.stages_completed} last_stage={tile.last_stage} />
+      <StageDots
+        completed={tile.stages_completed}
+        last_stage={tile.last_stage}
+        stage_agents={tile.stage_agents}
+      />
       <div class="live-tile-top">
         <span class="live-tile-action" title={tile.rule ?? tile.action_type}>
           {heading}
@@ -1087,6 +1152,18 @@ function LiveTile({ tile, filter, selected, now, onClick }: TileProps) {
         <span class="muted">{tile.scope ? ` · ${tile.scope}` : ""}</span>
       </div>
       <div class="live-tile-foot">
+        {tile.last_agent ? (
+          <span
+            class="live-tile-agent"
+            title={
+              AGENT_ROLE[tile.last_agent]
+                ? `${tile.last_agent} - ${AGENT_ROLE[tile.last_agent]}`
+                : tile.last_agent
+            }
+          >
+            {tile.last_agent}
+          </span>
+        ) : null}
         {gate ? (
           <span class={`live-gate live-gate-${gate}`}>{gate}</span>
         ) : (
@@ -1107,18 +1184,27 @@ function LiveTile({ tile, filter, selected, now, onClick }: TileProps) {
 function StageDots({
   completed,
   last_stage,
+  stage_agents,
 }: {
   readonly completed: ReadonlySet<LiveStageName>;
   readonly last_stage: LiveStageName;
+  readonly stage_agents: ReadonlyMap<LiveStageName, string>;
 }) {
   return (
-    <div class="live-tile-progress" aria-hidden="true">
-      {STAGE_ORDER.map((stage) => (
-        <span
-          key={stage}
-          class={`live-tile-dot ${completed.has(stage) ? "done" : ""} ${last_stage === stage ? "current" : ""}`}
-        />
-      ))}
+    <div class="live-tile-progress" aria-label="agent relay">
+      {STAGE_ORDER.map((stage) => {
+        const relayAgent = stage_agents.get(stage);
+        const tip = relayAgent
+          ? `${STAGE_LABEL[stage]} - ${relayAgent}${AGENT_ROLE[relayAgent] ? ` (${AGENT_ROLE[relayAgent]})` : ""}`
+          : STAGE_LABEL[stage];
+        return (
+          <span
+            key={stage}
+            class={`live-tile-dot ${completed.has(stage) ? "done" : ""} ${last_stage === stage ? "current" : ""}`}
+            title={tip}
+          />
+        );
+      })}
     </div>
   );
 }

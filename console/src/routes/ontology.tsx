@@ -108,20 +108,46 @@ function OntologyBody({
   readonly data: OntologyGraphResponse;
 }) {
   usePublishViewContext(
-    () => ({
-      routeId: "ontology",
-      routeLabel: "Ontology",
-      headline: `${data.object_type_count} ObjectTypes - ${data.link_type_count} LinkTypes`,
-      capturedAt: new Date().toISOString(),
-      facts: [
-        { key: "object_type_count", value: data.object_type_count, group: "graph" },
-        { key: "link_type_count", value: data.link_type_count, group: "graph" },
-      ],
-      records: {
-        object_types: data.object_types.map((name) => ({ name })),
-        link_types: data.link_types.map((name) => ({ name })),
-      },
-    }),
+    () => {
+      // Ground the deck in the rendered graph, not just the two counts:
+      // each ObjectType with its property count + description, and every
+      // relationship (LinkType edge) with its from/to types and cardinality
+      // so "what is X / what does X connect to?" is answerable. Structured
+      // nodes/edges are absent on old servers - fall back to bare names.
+      const objectTypeRecords =
+        data.nodes && data.nodes.length > 0
+          ? data.nodes.map((n) => ({
+              name: n.name,
+              properties: n.property_count,
+              description: n.description ?? "-",
+            }))
+          : data.object_types.map((name) => ({ name }));
+      const relationshipRecords =
+        data.edges && data.edges.length > 0
+          ? data.edges.map((e) => ({
+              link: e.name,
+              from: e.from_type,
+              to: e.to_type,
+              cardinality: e.cardinality,
+              causal: e.is_causal,
+              description: e.description ?? "-",
+            }))
+          : data.link_types.map((name) => ({ name }));
+      return {
+        routeId: "ontology",
+        routeLabel: "Ontology",
+        headline: `${data.object_type_count} ObjectTypes - ${data.link_type_count} LinkTypes`,
+        capturedAt: new Date().toISOString(),
+        facts: [
+          { key: "object_type_count", value: data.object_type_count, group: "graph" },
+          { key: "link_type_count", value: data.link_type_count, group: "graph" },
+        ],
+        records: {
+          object_types: objectTypeRecords,
+          relationships: relationshipRecords,
+        },
+      };
+    },
     [data],
   );
   return (

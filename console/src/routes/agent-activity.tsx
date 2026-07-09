@@ -367,9 +367,21 @@ function ActivityBody({ data }: BodyProps) {
       ],
       records: {
         by_agent: perAgent.map(([agent, count]) => ({ agent, count })),
+        // The visible timeline rows (respecting the agent filter) so the deck
+        // can answer "what did this agent do / what happened when?" from real
+        // activity, not just the per-agent counts. Newest-first; capped so the
+        // snapshot stays lean (the page's filter narrows to older rows).
+        activity: visible.slice(0, 40).map((item) => ({
+          agent: agentOf(item),
+          action_kind: item.action_kind,
+          mode: item.mode,
+          recorded_at: item.recorded_at,
+          correlation_id: item.correlation_id ?? "-",
+          event_id: item.event_id,
+        })),
       },
     }),
-    [data.items, perAgent, selected],
+    [data.items, perAgent, selected, visible],
   );
 
   if (data.items.length === 0) {
