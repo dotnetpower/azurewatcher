@@ -70,6 +70,7 @@ def test_registry_names_covers_expected_set(
         "incident",
         "slo",
         "runbook",
+        "workflow",
         "profile",
         "ontology/object-type",
         "ontology/link-type",

@@ -1,0 +1,23 @@
+schema_version: "1.0.0"
+name: predictive-scale
+version: "1.0.0"
+description: >-
+  Scale out proactively before a forecast trips a saturation threshold, with a
+  scale-in saga compensation if the run fails.
+trigger:
+  kind: schedule
+  schedule: "0 * * * *"
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 14
+  min_samples: 100
+  min_accuracy: 0.95
+  max_policy_escapes: 0
+steps:
+  - id: scale_out
+    action_type_ref: ops.scale-out
+    guard_rule_ref: null
+    compensated_by: ops.scale-in
+    on_failure: null
+anti_scope: >-
+  Not a reactive scaler; Heimdall handles saturation already detected.

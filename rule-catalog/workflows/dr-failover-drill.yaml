@@ -1,0 +1,28 @@
+schema_version: "1.0.0"
+name: dr-failover-drill
+version: "1.0.0"
+description: >-
+  Rehearse a disaster-recovery failover: drain the primary, fail over, and
+  keep a fail-back saga compensation ready.
+trigger:
+  kind: schedule
+  schedule: "0 3 * * 0"
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 30
+  min_samples: 20
+  min_accuracy: 0.98
+  max_policy_escapes: 0
+steps:
+  - id: drain_primary
+    action_type_ref: ops.drain-connection
+    guard_rule_ref: null
+    compensated_by: null
+    on_failure: null
+  - id: failover
+    action_type_ref: ops.failover-primary
+    guard_rule_ref: null
+    compensated_by: ops.failover-primary
+    on_failure: null
+anti_scope: >-
+  A rehearsal, not an incident response; it never runs on a live outage.

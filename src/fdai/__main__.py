@@ -69,6 +69,7 @@ from .rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,
 )
 from .rule_catalog.schema.rule import load_rule_catalog
+from .rule_catalog.schema.workflow import load_workflow_catalog
 from .shared.config.models import LlmMode
 from .shared.providers.event_bus import EventBus
 from .shared.providers.idempotency import IdempotencyStore
@@ -635,6 +636,25 @@ def _build_control_loop(
         remediation_root=remediation_root,
     )
     index = RuleIndex.build(rules)
+
+    # Workflow catalog (fail-closed if the directory exists but any file is
+    # invalid). Cross-references every step's action_type_ref / compensated_by
+    # against the ActionType catalog and every guard_rule_ref against the rule
+    # catalog, so a malformed workflow blocks boot rather than surfacing at
+    # first dispatch (docs/roadmap/process-automation.md 7).
+    workflows_root = catalog_root / "workflows"
+    workflows = (
+        load_workflow_catalog(
+            workflows_root,
+            schema_registry=registry,
+            action_type_names={a.name for a in action_types},
+            rule_ids={r.id for r in rules},
+        )
+        if workflows_root.is_dir()
+        else ()
+    )
+    if workflows:
+        container = replace(container, workflows=workflows)
 
     try:
         evaluator: Any = OpaRegoEvaluator(policies_root=policies_root)

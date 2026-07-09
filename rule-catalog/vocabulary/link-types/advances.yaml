@@ -1,0 +1,16 @@
+# LinkType: advances (Process -> Finding, M:M, temporal)
+#
+# The ordered Findings a Process advanced through during its run. The
+# `temporal_order` flag means a query over this link MUST respect the
+# Finding timestamps, so a replay reconstructs the process step sequence
+# in the order it happened.
+#
+# See docs/roadmap/process-automation.md 3.2.
+schema_version: "1.0.0"
+name: advances
+version: "1.0.0"
+from_type: Process
+to_type: Finding
+cardinality: many_to_many
+temporal_order: true
+description: The ordered Findings a Process advanced through during its run.

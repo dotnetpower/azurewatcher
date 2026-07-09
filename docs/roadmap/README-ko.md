@@ -1,7 +1,7 @@
 ---
 title: FDAI 로드맵
 translation_of: README.md
-translation_source_sha: 0c2f90a3fb7d2563ad38bad65fa3853d524c1dd4
+translation_source_sha: daf78b8b38e7bce59916886d8d78a95ebf627c9f
 translation_revised: 2026-07-09
 ---
 
@@ -83,6 +83,7 @@ FDAI 뒤편의 엔지니어링 계획. 이 폴더는
 |---|------|-------------|
 | 22 | [agent-pantheon-ko.md](agent-pantheon-ko.md) | 온톨로지 first-class citizen 으로 고정된 15개 판테온 (Odin / Thor / Forseti / ...): 조직도, single-writer topic, two-port 모델 (typed pub/sub + conversational NL), fingerprint dedup 이 붙은 NL query 오케스트레이션, 사용자별 컨텍스트, 확장된 ActionType 역할 (initiator / judge / approver / executor / auditor), lifecycle 상태 머신, Heimdall 기반 권한 초과 감시 |
 | 23 | [agent-workflows-ko.md](agent-workflows-ko.md) | 판테온이 제품 capability 로 조합하는 10개 cross-agent 워크플로우: cost-aware remediation, predictive scale, DR drill orchestration, override -> discovery, security escalation, handoff -> capability, agent health degradation, judgment coherence audit, rollback rehearsal, retrospective what-if. 각 워크플로우는 trigger + sequence diagram + exit criteria + promotion gate 보유 |
+| 23b | [process-automation-ko.md](process-automation-ko.md) | agent-workflows.md 의 머신-리더블 대응물: Workflow 카탈로그 스키마 (`rule-catalog/workflows/` 아래 catalog-as-code), `Process` ObjectType + `targets` / `advances` LinkType, compile-to-Runbook 컨트롤 루프 배선, saga 보상, shadow-first 거버넌스. 비즈니스 프로세스는 trust-router 가 한 번에 하나씩 dispatch 하는 `ActionType` 스텝의 순서 리스트다 |
 
 ### 프롬프트 서브시스템
 

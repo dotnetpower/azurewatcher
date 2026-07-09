@@ -35,7 +35,8 @@ def test_shipped_object_types_load() -> None:
     names = object_type_names(catalog)
     # Four control-loop built-ins plus the ChangeSummary reference plus the
     # eight pantheon object types
-    # (docs/roadmap/agent-pantheon.md § 5, docs/roadmap/agent-pantheon-implementation.md Wave 0).
+    # (docs/roadmap/agent-pantheon.md § 5, docs/roadmap/agent-pantheon-implementation.md Wave 0)
+    # plus the Process runtime object (docs/roadmap/process-automation.md 3.1).
     assert names == {
         "Resource",
         "Rule",
@@ -51,6 +52,8 @@ def test_shipped_object_types_load() -> None:
         "Issue",
         "RuleCandidate",
         "HandoffEscalation",
+        # Process automation (docs/roadmap/process-automation.md)
+        "Process",
     }
 
 

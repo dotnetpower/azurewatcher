@@ -18,6 +18,11 @@ and is promoted per-workflow after Wave 8 measures its KPIs.
 > (see [agent-pantheon.md § 6.1](agent-pantheon.md#61-typed-port)). No
 > workflow uses direct RPC between agents. HIL steps go through Var; audit
 > goes through Saga. There are no shortcuts.
+>
+> **Machine-readable form.** Each workflow below compiles to a catalog entry
+> under [`rule-catalog/workflows/`](../../rule-catalog/workflows/); the schema,
+> the `Process` ObjectType, and the compile-to-Runbook wiring are defined in
+> [process-automation.md](process-automation.md).
 
 ## 0. Workflow shape
 

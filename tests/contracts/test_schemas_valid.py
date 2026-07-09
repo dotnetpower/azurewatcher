@@ -18,6 +18,7 @@ SCHEMA_NAMES = [
     "incident",
     "slo",
     "runbook",
+    "workflow",
     "profile",
     "ontology/object-type",
     "ontology/link-type",

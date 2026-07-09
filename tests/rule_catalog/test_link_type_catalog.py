@@ -54,6 +54,9 @@ def test_shipped_link_types_load() -> None:
         "attached_to",
         "depends_on",
         "precedes",
+        # Process automation (docs/roadmap/process-automation.md 3.2)
+        "targets",
+        "advances",
     }
 
 

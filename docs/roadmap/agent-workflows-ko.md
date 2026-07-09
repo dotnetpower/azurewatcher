@@ -1,7 +1,7 @@
 ---
 title: 에이전트 워크플로우
 translation_of: agent-workflows.md
-translation_source_sha: 6e1bd03df3dcaf6c37984de19af114167a18362a
+translation_source_sha: 8472e7a1e31f5caf9d3f61c769e226a413df33cb
 translation_revised: 2026-07-09
 ---
 
@@ -21,6 +21,11 @@ translation_revised: 2026-07-09
 > ([agent-pantheon.md § 6.1](agent-pantheon-ko.md#61-typed-port) 참고).
 > 어떤 워크플로우도 에이전트 간 직접 RPC 를 사용하지 않는다. HIL 스텝은
 > Var 를 통과; audit 는 Saga 를 통과. 지름길 없음.
+>
+> **머신-리더블 형태.** 아래 각 워크플로우는
+> [`rule-catalog/workflows/`](../../rule-catalog/workflows/) 아래 카탈로그
+> 엔트리로 컴파일된다; 스키마, `Process` ObjectType, compile-to-Runbook
+> 배선은 [process-automation.md](process-automation-ko.md) 에 정의된다.
 
 ## 0. 워크플로우 shape
 

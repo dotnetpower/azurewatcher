@@ -42,6 +42,10 @@ from fdai.shared.contracts.models import (
     TierCeiling,
     TriggerKind,
     TriggerKindDecl,
+    Workflow,
+    WorkflowStep,
+    WorkflowTrigger,
+    WorkflowTriggerKind,
 )
 from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 from fdai.shared.contracts.validation import JsonSchemaContractValidator
@@ -185,3 +189,33 @@ def test_prod_downgrade_rejects_enforce_auto() -> None:
     """A prod downgrade can only lower autonomy, never raise it to enforce_auto."""
     with pytest.raises(ValueError, match="never raises autonomy"):
         ProdDowngrade(mode=Autonomy.ENFORCE_AUTO, detection_ref="env_detectors/x")
+
+
+def test_workflow_model_round_trips_through_schema() -> None:
+    """The Workflow pydantic view survives the JSON Schema round-trip."""
+    wf = Workflow(
+        schema_version="1.0.0",
+        name="cost-aware-remediation",
+        version="1.0.0",
+        trigger=WorkflowTrigger(kind=WorkflowTriggerKind.SIGNAL, signal_type="object.drift"),
+        default_mode=Mode.SHADOW,
+        promotion_gate=PromotionGate(
+            min_shadow_days=14, min_samples=100, min_accuracy=0.95, max_policy_escapes=0
+        ),
+        steps=[
+            WorkflowStep(id="annotate_cost", action_type_ref="remediate.tag-add"),
+            WorkflowStep(
+                id="apply_rightsize",
+                action_type_ref="remediate.right-size",
+                compensated_by="remediate.right-size",
+            ),
+        ],
+        description="Annotate a right-size remediation with its cost impact.",
+    )
+    _validator().validate("workflow", _dump(wf))
+
+
+def test_workflow_schedule_trigger_requires_schedule() -> None:
+    """A schedule-triggered Workflow MUST carry a schedule payload."""
+    with pytest.raises(ValueError, match="schedule"):
+        WorkflowTrigger(kind=WorkflowTriggerKind.SCHEDULE)

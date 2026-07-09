@@ -1,0 +1,14 @@
+# LinkType: targets (Process -> Resource, M:1)
+#
+# The primary Resource a Process operates on. Lets the risk-gate compute
+# a blast radius over the process target and lets a graph query find every
+# Process currently targeting a given Resource.
+#
+# See docs/roadmap/process-automation.md 3.2.
+schema_version: "1.0.0"
+name: targets
+version: "1.0.0"
+from_type: Process
+to_type: Resource
+cardinality: many_to_one
+description: The primary Resource a Process operates on.

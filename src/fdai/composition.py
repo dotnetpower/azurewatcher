@@ -63,7 +63,7 @@ from .rule_catalog.schema.llm_resolver import (
 )
 from .shared.config.loader import load_config_from_env
 from .shared.config.models import AppConfig, LlmMode
-from .shared.contracts.models import OntologyLinkType, OntologyObjectType
+from .shared.contracts.models import OntologyLinkType, OntologyObjectType, Workflow
 from .shared.contracts.registry import (
     PackageResourceSchemaRegistry,
     SchemaRegistry,
@@ -166,6 +166,7 @@ class Container:
     feasibility_probes: tuple[FeasibilityProbe, ...] = ()
     ontology_object_types: tuple[OntologyObjectType, ...] = ()
     ontology_link_types: tuple[OntologyLinkType, ...] = ()
+    workflows: tuple[Workflow, ...] = ()
     llm_bindings: LlmBindings | None = field(default=None)
 
     def require_llm_bindings(self) -> LlmBindings:
