@@ -1,9 +1,9 @@
 import type { AuthContext } from "../auth";
 
 /**
- * Sign-in screen. A deep-space nebula backdrop (pure CSS, no assets) with a
- * centered glass card carrying the FDAI mark and the Entra sign-in button.
- * The nebula layers are decorative (`aria-hidden`) and honour
+ * Sign-in screen. A vivid deep-space nebula backdrop (pure CSS, no assets)
+ * with a centered glass card carrying the FDAI title and the Entra sign-in
+ * button. The nebula layers are decorative (`aria-hidden`) and honour
  * `prefers-reduced-motion`.
  */
 export function LoginRoute({ auth }: { readonly auth: AuthContext }) {
@@ -13,50 +13,15 @@ export function LoginRoute({ auth }: { readonly auth: AuthContext }) {
         <span class="neb neb-a" />
         <span class="neb neb-b" />
         <span class="neb neb-c" />
+        <span class="neb neb-d" />
+        <span class="login-aurora" />
         <span class="login-stars login-stars-far" />
+        <span class="login-stars login-stars-mid" />
         <span class="login-stars login-stars-near" />
       </div>
 
       <main class="login-card" role="main">
-        <div class="login-mark" aria-hidden="true">
-          <svg viewBox="0 0 64 64" width="48" height="48">
-            <defs>
-              <radialGradient id="fdai-core" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stop-color="#cfe4ff" />
-                <stop offset="55%" stop-color="#4f9df5" />
-                <stop offset="100%" stop-color="#2b7fe0" />
-              </radialGradient>
-            </defs>
-            {/* orbital rings + a bright core - a small constellation glyph */}
-            <ellipse
-              cx="32"
-              cy="32"
-              rx="26"
-              ry="11"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.4"
-              opacity="0.55"
-              transform="rotate(-24 32 32)"
-            />
-            <ellipse
-              cx="32"
-              cy="32"
-              rx="26"
-              ry="11"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.4"
-              opacity="0.35"
-              transform="rotate(38 32 32)"
-            />
-            <circle cx="32" cy="32" r="8" fill="url(#fdai-core)" />
-            <circle cx="9" cy="24" r="1.6" fill="currentColor" />
-            <circle cx="54" cy="41" r="1.4" fill="currentColor" />
-            <circle cx="44" cy="12" r="1.2" fill="currentColor" />
-          </svg>
-        </div>
-
+        <p class="login-eyebrow">Operator sign-in</p>
         <h1 class="login-title">FDAI Console</h1>
         <p class="login-subtitle">Autonomous cloud operations control plane</p>
 
