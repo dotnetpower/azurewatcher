@@ -25,6 +25,7 @@ import logging
 import os
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,12 @@ from fdai.core.audit.what_if_replay import WhatIfEvaluator  # noqa: E402
 from fdai.core.measurement.promotion_gate import (  # noqa: E402
     InMemoryShadowVerdictSource,
     ShadowVerdictRecord,
+)
+from fdai.core.metering import (  # noqa: E402
+    InMemoryMeteringSink,
+    InvocationMode,
+    LlmInvocation,
+    TokenUsage,
 )
 from fdai.core.rbac.resolver import GroupMapping, RoleResolver  # noqa: E402
 from fdai.core.risk_gate.blast_radius_simulator import (  # noqa: E402
@@ -64,6 +71,7 @@ from fdai.delivery.read_api.live_stream import (  # noqa: E402
     LiveStreamConfig,
     SyntheticLiveEmitter,
 )
+from fdai.delivery.read_api.llm_cost import LlmCostPanel  # noqa: E402
 from fdai.delivery.read_api.main import ReadApiConfig, build_app  # noqa: E402
 from fdai.delivery.read_api.measurement_summary import (  # noqa: E402
     AutonomyMeasurementPanel,
@@ -489,6 +497,40 @@ def _synthetic_verdicts() -> list[ShadowVerdictRecord]:
     return verdicts
 
 
+def _synthetic_llm_invocations() -> tuple[LlmInvocation, ...]:
+    """Clearly-labelled demo metering so the dev console renders a cost view.
+
+    The dev harness runs fake LLM bindings, so no real tokens are spent.
+    These synthetic records let the ``/kpi/llm-cost`` panel show its
+    per-conversation / daily / monthly shape; the panel reports
+    ``source: "synthetic-dev"`` so the numbers are never mistaken for
+    measured spend (the same honesty contract as the autonomy panel).
+    """
+    now = datetime.now(tz=UTC)
+    plan = [
+        ("evt-cost-anomaly-01", "t2.reasoner.primary", "gpt-4o", 3200, 480, 0, "0.0128"),
+        ("evt-cost-anomaly-01", "t2.reasoner.secondary", "claude-opus-4", 3200, 510, 0, "0.0863"),
+        ("evt-drift-02", "t2.reasoner.primary", "gpt-4o", 2800, 300, 1, "0.0100"),
+        ("evt-drift-02", "t2.reasoner.secondary", "claude-opus-4", 2800, 260, 1, "0.0615"),
+        ("evt-rca-03", "t2.rca", "gpt-4o", 1500, 220, 2, "0.0060"),
+    ]
+    records: list[LlmInvocation] = []
+    for corr, capability_id, model_key, prompt, completion, days_ago, cost in plan:
+        records.append(
+            LlmInvocation(
+                occurred_at=now - timedelta(days=days_ago),
+                correlation_id=corr,
+                capability_id=capability_id,
+                model_key=model_key,
+                tier="T2",
+                mode=InvocationMode.ENFORCE,
+                usage=TokenUsage(prompt_tokens=prompt, completion_tokens=completion),
+                cost=Decimal(cost),
+            )
+        )
+    return tuple(records)
+
+
 def _build_blast_radius_graph() -> OntologyGraph:
     """Small synthetic graph so the console's simulator has something to render."""
     return InMemoryOntologyGraph(
@@ -756,6 +798,10 @@ def app() -> Starlette:
             extra_panels=(
                 ExampleFinOpsPanel(read_model),
                 AutonomyMeasurementPanel(read_model),
+                LlmCostPanel(
+                    InMemoryMeteringSink(initial=_synthetic_llm_invocations()),
+                    source="synthetic-dev",
+                ),
             ),
             trace_reader=trace_reader,
             bitemporal_reader=trace_reader,

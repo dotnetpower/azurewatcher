@@ -22,6 +22,7 @@ record silently.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Protocol, runtime_checkable
 
 from fdai.core.metering.records import LlmInvocation
@@ -53,8 +54,8 @@ class InMemoryMeteringSink:
     and the read-API cost panel (read).
     """
 
-    def __init__(self) -> None:
-        self._records: list[LlmInvocation] = []
+    def __init__(self, initial: Iterable[LlmInvocation] = ()) -> None:
+        self._records: list[LlmInvocation] = list(initial)
 
     async def record(self, invocation: LlmInvocation) -> None:
         self._records.append(invocation)

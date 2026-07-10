@@ -48,6 +48,9 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
+from .core.metering.emitter import MeteringEmitter
+from .core.metering.pricing import PricingTable
+from .core.metering.sink import MeteringSink
 from .core.quality_gate.critic import CriticModel
 from .core.quality_gate.debate import DebateOrchestrator, DebateOrchestratorConfig
 from .core.quality_gate.gate import CrossCheckModel
@@ -255,6 +258,8 @@ def bind_azure_llm_bindings(
     critic_system_prompt: str | None = None,
     judge_system_prompt: str | None = None,
     rca_system_prompt: str | None = None,
+    metering_sink: MeteringSink | None = None,
+    pricing: PricingTable | None = None,
 ) -> Container:
     """Return a new :class:`Container` with the Azure OpenAI adapters attached.
 
@@ -359,6 +364,24 @@ def bind_azure_llm_bindings(
     primary_cap = _capability(resolved, "t2.reasoner.primary")
     secondary_cap = _capability(resolved, "t2.reasoner.secondary")
 
+    def _emitter_for(capability_id: str, cap: ResolvedCapability) -> MeteringEmitter | None:
+        """Build a T2 metering emitter for one capability, or None when metering is off.
+
+        ``model_key`` is the resolved model family (``gpt-4o``, matching
+        ``rule-catalog/llm-pricing.yaml``); it falls back to the
+        capability/deployment name when no family is recorded so an
+        unpriced call is still counted (with an unknown cost).
+        """
+        if metering_sink is None:
+            return None
+        return MeteringEmitter(
+            sink=metering_sink,
+            capability_id=capability_id,
+            model_key=(cap.family or cap.name),
+            tier="T2",
+            pricing=pricing,
+        )
+
     if embedding_cap is None:
         raise LlmBindingsUnavailableError(
             "resolved-models.json lacks a bindable 't1.embedding' capability"
@@ -385,6 +408,7 @@ def bind_azure_llm_bindings(
                     prompt_composer=prompt_composer,
                     capability_id=("t2.reasoner.primary" if prompt_composer is not None else None),
                     scope_resolver=scope_resolver,
+                    metering=_emitter_for("t2.reasoner.primary", primary_cap),
                 )
             else:
                 primary_model = MatchTypeCrossCheckModel(model_id="hil-only-primary-noop")
@@ -433,6 +457,7 @@ def bind_azure_llm_bindings(
         prompt_composer=prompt_composer,
         capability_id=("t2.reasoner.primary" if prompt_composer is not None else None),
         scope_resolver=scope_resolver,
+        metering=_emitter_for("t2.reasoner.primary", primary_cap),
     )
     secondary = AzureOpenAICrossCheckModel(
         identity=identity,
@@ -447,6 +472,7 @@ def bind_azure_llm_bindings(
         prompt_composer=prompt_composer,
         capability_id=("t2.reasoner.secondary" if prompt_composer is not None else None),
         scope_resolver=scope_resolver,
+        metering=_emitter_for("t2.reasoner.secondary", secondary_cap),
     )
     # Wave 4 beta-2: opt-in Critic binding. Only bind when both the
     # ``t2.critic`` capability resolves AND the caller supplied a
@@ -508,6 +534,7 @@ def bind_azure_llm_bindings(
                     deployment=rca_cap.name,
                     system_prompt=rca_system_prompt,
                 ),
+                metering=_emitter_for("t2.rca", rca_cap),
             )
         )
     bindings = LlmBindings(
@@ -760,6 +787,8 @@ class AzureWireOverrides:
     operator_memory_store: OperatorMemoryStore
     tool_providers: Mapping[str, Any] | None = None
     scope_resolver: Any | None = None
+    metering_sink: MeteringSink | None = None
+    pricing: PricingTable | None = None
 
     def __post_init__(self) -> None:
         if not self.endpoint:
@@ -917,6 +946,8 @@ async def wire_azure_container(
         critic_system_prompt=critic_system_prompt,
         judge_system_prompt=judge_system_prompt,
         rca_system_prompt=rca_system_prompt,
+        metering_sink=overrides.metering_sink,
+        pricing=overrides.pricing,
     )
 
 

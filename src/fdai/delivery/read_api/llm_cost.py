@@ -38,11 +38,16 @@ _GROUPS: frozenset[str] = frozenset({_GROUP_DAY, _GROUP_MONTH, _GROUP_CONVERSATI
 class LlmCostPanel:
     """Read-only per-conversation / daily / monthly LLM token + cost view."""
 
-    def __init__(self, reader: MeteringReader, *, path: str = "/kpi/llm-cost") -> None:
+    def __init__(
+        self, reader: MeteringReader, *, path: str = "/kpi/llm-cost", source: str = "metering"
+    ) -> None:
         if not path.startswith("/"):
             raise ValueError(f"LlmCostPanel path MUST start with '/', got {path!r}")
+        if not source:
+            raise ValueError("source MUST NOT be empty")
         self._reader = reader
         self._path = path
+        self._source = source
 
     @property
     def path(self) -> str:
@@ -57,13 +62,14 @@ class LlmCostPanel:
 
         ``?group=day|month|conversation`` narrows the payload to one
         grouping; omitting it returns all three plus the grand total. The
-        numbers are measured, so the panel is honestly labelled
-        ``source: "metering"`` (contrast the synthetic autonomy panel).
+        numbers come straight from recorded usage, so the payload is
+        honestly labelled with the injected ``source`` (``"metering"`` for
+        a real store, e.g. ``"synthetic-dev"`` in the dev harness).
         """
         records = await self._reader.invocations()
         total = summarize_total(records)
         payload: dict[str, Any] = {
-            "source": "metering",
+            "source": self._source,
             "currency": total.currency,
             "invocations": total.invocations,
             "total": dict(summaries_as_mapping([total])[0]),
