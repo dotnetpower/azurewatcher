@@ -28,6 +28,13 @@ from fdai.core.deploy_preflight.report import (
     DeploymentReadinessReport,
     ReadinessVerdict,
 )
+from fdai.core.deploy_preflight.reassemble import (
+    ReanalyzeFn,
+    ReassemblyOutcome,
+    ReassemblyReason,
+    ReassemblyStatus,
+    reassemble,
+)
 
 __all__ = [
     "DeploymentEnvironmentProfile",
@@ -37,7 +44,12 @@ __all__ = [
     "PreflightCheckOutcome",
     "PreflightCheckResult",
     "ReadinessVerdict",
+    "ReanalyzeFn",
+    "ReassemblyOutcome",
+    "ReassemblyReason",
+    "ReassemblyStatus",
     "apply_inventory_delta",
     "build_profile",
     "publish_preflight_check",
+    "reassemble",
 ]
