@@ -17,6 +17,7 @@ from fdai.shared.providers.tool import (
     ToolCallOutcome,
     ToolCallRequest,
     ToolError,
+    ToolExecutor,
     ToolPromotionError,
 )
 
@@ -356,3 +357,80 @@ async def test_ledger_record_failure_still_reports_success() -> None:
 
     assert receipt.outcome is ToolCallOutcome.SUCCEEDED
     assert "ledger" in (receipt.detail or "").lower()
+
+
+# ---------------------------------------------------------------------------
+# Protocol conformance + end-to-end through the core tool-call executor
+# ---------------------------------------------------------------------------
+
+
+def test_mcp_executor_satisfies_tool_executor_protocol() -> None:
+    ex = McpToolExecutor(config=_config(), http_client=httpx.AsyncClient())
+    assert isinstance(ex, ToolExecutor)
+
+
+@pytest.mark.asyncio
+async def test_shadow_action_through_core_executor_makes_no_network_call() -> None:
+    """End-to-end: a shadow tool_call Action dispatched by the core
+    ToolCallShadowExecutor to the MCP adapter is a real no-op - the MCP
+    server is never hit, and the core writes one tool_call audit entry."""
+    from uuid import UUID
+
+    from fdai.core.executor import (
+        ExecutorConfig,
+        ResourceLockManager,
+        ToolCallExecutionOutcome,
+        ToolCallShadowExecutor,
+    )
+    from fdai.shared.contracts.models import (
+        Action,
+        BlastRadius,
+        BlastRadiusScope,
+        Operation,
+        RollbackKind,
+        RollbackRef,
+    )
+    from fdai.shared.providers.testing import InMemoryStateStore
+
+    called = {"n": 0}
+
+    async def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover - must not run
+        called["n"] += 1
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": {}})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    mcp = McpToolExecutor(config=_config(), http_client=client)
+    audit = InMemoryStateStore()
+    core = ToolCallShadowExecutor(
+        executor=mcp,
+        audit_store=audit,
+        resource_lock=ResourceLockManager(),
+        config=ExecutorConfig(),
+    )
+    action = Action(
+        schema_version="1.0.0",
+        action_id=UUID("00000000-0000-0000-0000-000000000010"),
+        idempotency_key="mcp-e2e-1",
+        event_id=UUID("00000000-0000-0000-0000-000000000011"),
+        action_type=_ACTION_TYPE,
+        target_resource_ref="ticket-queue",
+        operation=Operation.CREATE,
+        params={"summary": "disk full"},
+        stop_condition="tool_time_box_exceeded",
+        rollback_ref=RollbackRef(kind=RollbackKind.STATE_FORWARD_ONLY, reference="close-ticket"),
+        blast_radius=BlastRadius(scope=BlastRadiusScope.RESOURCE, count=1, rate_per_minute=5),
+        mode=Mode.SHADOW,
+        citing_rules=[_ACTION_TYPE],
+        created_at="2026-07-10T00:00:00Z",  # type: ignore[arg-type]
+    )
+    try:
+        result = await core.execute(action=action)
+    finally:
+        await client.aclose()
+
+    assert result.outcome is ToolCallExecutionOutcome.DISPATCHED
+    assert called["n"] == 0  # shadow: the MCP server is never contacted
+    entries = list(audit.audit_entries)
+    assert len(entries) == 1
+    entry = entries[0].get("entry", entries[0]) if isinstance(entries[0], dict) else entries[0]
+    assert entry["execution_path"] == "tool_call"
