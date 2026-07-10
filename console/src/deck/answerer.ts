@@ -340,8 +340,11 @@ function resolveDeckMeta(q: string, snapshot: ViewSnapshot): Answer | null {
   }
 
   // "How do I search / filter / export / open X" - short "look at the header/
-  // detail drawer" hint. Very narrow so screen data questions are not caught.
-  if (/\bhow (do|can) i (search|filter|export|open|drill|navigate)\b/.test(q)) {
+  // detail drawer" hint. Very narrow so screen data questions are not caught:
+  // requires the verb to sit at the tail of the query (with '?' / EOL / a
+  // 'here / this / the page / the screen' anchor), so 'how do I search rules
+  // for foo?' (with a specific object) falls through to the data path.
+  if (/\bhow (do|can) i (search|filter|export|open|drill|navigate)(\s+(here|through this|on (this|the) (page|screen)|the (page|screen)|this))?\s*\??\s*$/.test(q)) {
     const hint = ROUTE_ACTION_HINTS[snapshot.routeId];
     return {
       text:

@@ -387,3 +387,42 @@ describe("catalog list ambiguity guard (round 6)", () => {
     expect(a.text).toContain("auditor");
   });
 });
+
+describe("deck-meta 'how do I' false-positive guard (round 7)", () => {
+  function rulesSnap(): ViewSnapshot {
+    return {
+      routeId: "rules",
+      routeLabel: "Rules",
+      headline: "3 rules",
+      capturedAt: "2026-07-06T11:00:00+00:00",
+      facts: [],
+      records: {
+        rules: [
+          { id: "r-1", severity: "high", category: "network", source: "azure-waf" },
+        ],
+      },
+    };
+  }
+
+  test("'how do I search?' (bare) still hits the deck-meta hint", () => {
+    const a = answer("how do I search?", rulesSnap());
+    expect(a.text.toLowerCase()).toContain("search");
+    expect(a.text.toLowerCase()).toContain("header");
+  });
+
+  test("'how do I search here?' hits deck-meta", () => {
+    const a = answer("how do I search here?", rulesSnap());
+    expect(a.text.toLowerCase()).toContain("header");
+  });
+
+  test("'how do I search rules for foo?' falls through to data path", () => {
+    const a = answer("how do I search rules for foo?", rulesSnap());
+    // NOT the deck-meta 'header + detail drawer' hint.
+    expect(a.text.toLowerCase()).not.toContain("detail drawer");
+  });
+
+  test("'how do I filter by severity high?' falls through to data path", () => {
+    const a = answer("how do I filter by severity high?", rulesSnap());
+    expect(a.text.toLowerCase()).not.toContain("detail drawer");
+  });
+});
