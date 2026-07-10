@@ -19,7 +19,10 @@ Safety semantics
   MUST NOT invoke the MCP tool and MUST NOT write the idempotency ledger -
   it returns a planned receipt describing what *would* run. This keeps the
   shadow-first invariant in ``architecture.instructions.md`` honest even
-  though the caller still calls ``execute``.
+  though the caller still calls ``execute``. An ActionType that is not in
+  ``tool_map`` still fails closed with a ``config`` :class:`ToolError`
+  even in shadow, so a mis-wired ``tool_map`` surfaces before enforce
+  rather than at the first real invocation.
 - **Enforce requires the label.** An ``enforce`` request without the
   ``enforce`` label raises :class:`ToolPromotionError`, mirroring the
   direct-API promotion contract.
@@ -55,6 +58,7 @@ from fdai.shared.providers.workload_identity import WorkloadIdentity
 _LOGGER = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT_SECONDS: Final[float] = 30.0
+_DEFAULT_MAX_RESPONSE_BYTES: Final[int] = 5_000_000
 
 
 @runtime_checkable
@@ -107,9 +111,16 @@ class McpToolExecutorConfig:
 
     timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS
 
+    max_response_bytes: int = _DEFAULT_MAX_RESPONSE_BYTES
+    """Hard cap on the MCP response body. A larger body fails closed with
+    a protocol :class:`ToolError` before it is parsed, so a misbehaving or
+    hostile server cannot exhaust memory through the JSON decoder."""
+
     def __post_init__(self) -> None:
         if not self.server_url:
             raise ValueError("McpToolExecutorConfig.server_url MUST be non-empty")
+        if self.max_response_bytes < 1:
+            raise ValueError("McpToolExecutorConfig.max_response_bytes MUST be >= 1")
 
 
 class McpToolExecutor:
@@ -166,7 +177,7 @@ class McpToolExecutor:
         if request.mode is Mode.SHADOW:
             return ToolCallReceipt(
                 outcome=ToolCallOutcome.SUCCEEDED,
-                receipt_ref=f"shadow:{mcp_tool}",
+                receipt_ref=f"shadow:{mcp_tool}:{request.idempotency_key}",
                 detail=f"shadow: would call MCP tool {mcp_tool!r} (no side effect)",
             )
 
@@ -200,13 +211,25 @@ class McpToolExecutor:
                 message=f"MCP request failed for tool {mcp_tool!r}: {exc}",
             ) from exc
 
-        if response.status_code >= 400:
+        if not response.is_success:
             snippet = response.text[:200].replace("\n", " ")
             raise ToolError(
                 kind="http",
                 message=(
                     f"MCP server returned HTTP {response.status_code} for "
                     f"tool {mcp_tool!r}: {snippet!r}"
+                ),
+            )
+
+        # Cap the body BEFORE parsing so a hostile/misbehaving server
+        # cannot exhaust memory through the JSON decoder.
+        if len(response.content) > self._config.max_response_bytes:
+            raise ToolError(
+                kind="protocol",
+                message=(
+                    f"MCP response for tool {mcp_tool!r} is "
+                    f"{len(response.content)} bytes, over the "
+                    f"{self._config.max_response_bytes}-byte cap"
                 ),
             )
 

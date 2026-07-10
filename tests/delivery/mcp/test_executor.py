@@ -271,6 +271,67 @@ async def test_non_json_response_is_protocol_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_oversized_response_fails_closed() -> None:
+    big = {"jsonrpc": "2.0", "id": 1, "result": {"content": "x" * 5000}}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=big)
+
+    ledger = InMemoryMcpLedger()
+    ex, client = _executor(handler, _config(max_response_bytes=100), ledger=ledger)
+    try:
+        with pytest.raises(ToolError) as exc:
+            await ex.execute(_request(mode=Mode.ENFORCE, labels=("shadow", "enforce")))
+        assert exc.value.kind == "protocol"
+    finally:
+        await client.aclose()
+    assert await ledger.seen("k1") is None
+
+
+@pytest.mark.asyncio
+async def test_redirect_status_fails_closed() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"location": "https://elsewhere/rpc"})
+
+    ex, client = _executor(handler)
+    try:
+        with pytest.raises(ToolError) as exc:
+            await ex.execute(_request(mode=Mode.ENFORCE, labels=("shadow", "enforce")))
+        assert exc.value.kind == "http"
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_shadow_receipt_ref_carries_idempotency_key() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": {}})
+
+    ex, client = _executor(handler)
+    try:
+        receipt = await ex.execute(_request(mode=Mode.SHADOW, key="k-abc"))
+    finally:
+        await client.aclose()
+    assert receipt.receipt_ref == f"shadow:{_MCP_TOOL}:k-abc"
+
+
+@pytest.mark.asyncio
+async def test_unmapped_action_type_in_shadow_also_fails_closed() -> None:
+    """A mis-wired tool_map is caught in shadow, before any enforce."""
+
+    async def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        return httpx.Response(200, json={})
+
+    ex, client = _executor(handler, _config(tool_map={}))
+    try:
+        with pytest.raises(ToolError) as exc:
+            await ex.execute(_request(mode=Mode.SHADOW))
+        assert exc.value.kind == "config"
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_ledger_record_failure_still_reports_success() -> None:
     """The tool already ran when the ledger write happens. A ledger
     failure must NOT surface as FAILED - that would make the caller retry
