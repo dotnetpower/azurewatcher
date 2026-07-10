@@ -14,6 +14,26 @@
  */
 
 import type { GlossaryTerm, ViewSnapshot } from "./context";
+import { TERMS, agentTerm } from "./glossary";
+
+/** Static, universal glossary the deck falls back to when no route has
+ *  published a snapshot yet - so a bare "what is HIL?" is answered even from
+ *  the empty deck instead of a "open a route first" shrug. */
+const STATIC_GLOSSARY: readonly GlossaryTerm[] = [
+  TERMS.correlationId,
+  TERMS.eventId,
+  TERMS.actionKind,
+  TERMS.tier,
+  TERMS.mode,
+  TERMS.outcome,
+  TERMS.gateDecision,
+  TERMS.waterfall,
+  TERMS.hil,
+  TERMS.shadowMode,
+  TERMS.actionType,
+  TERMS.blastRadius,
+  agentTerm(),
+];
 
 export interface Citation {
   /** Label the deck shows next to the cited value, e.g. "eps · 4.2". */
@@ -31,16 +51,34 @@ export interface Answer {
   readonly followUps: readonly string[];
 }
 
+const NO_CONTEXT_FOLLOWUPS: readonly string[] = [
+  "what is HIL?",
+  "what is a correlation id?",
+  "what is the trust router?",
+  "what is shadow mode?",
+];
+
 const NO_CONTEXT: Answer = {
   text:
     "No route has published a view snapshot yet. Open Live, Dashboard, " +
-    "Audit, HIL, Trace, Blast Radius, Promotion, or Ontology and try again.",
+    "Audit, HIL, Trace, Blast Radius, Promotion, or Ontology and try again. " +
+    "You can still ask FDAI concept questions (e.g. 'what is HIL?').",
   citations: [],
-  followUps: [],
+  followUps: NO_CONTEXT_FOLLOWUPS,
 };
 
 export function answer(query: string, snapshot: ViewSnapshot | null): Answer {
-  if (snapshot === null) return NO_CONTEXT;
+  if (snapshot === null) {
+    // No route open yet - still resolve FDAI concept questions from the
+    // static universal glossary so an early "what is HIL?" gets a real
+    // answer instead of a "open a route first" shrug.
+    const q = query.toLowerCase().trim();
+    if (q.length > 0) {
+      const hit = resolveStaticGlossary(q);
+      if (hit) return hit;
+    }
+    return NO_CONTEXT;
+  }
   const q = query.toLowerCase().trim();
   if (q.length === 0) {
     return {
@@ -173,6 +211,27 @@ function resolveGlossary(q: string, snapshot: ViewSnapshot): Answer | null {
     /\uBB34\uC5C7|\uBB50|\uBB54|\uBB34\uC2A8|\uC124\uBA85|\uC758\uBBF8|\uB73B/.test(q);
   if (!asking) return null;
   for (const term of glossary) {
+    const names = [term.term.toLowerCase(), term.tech?.toLowerCase()].filter(
+      (n): n is string => Boolean(n),
+    );
+    if (names.some((n) => q.includes(n))) return explainTerm(term);
+  }
+  return null;
+}
+
+/**
+ * Resolve a term question from the static universal glossary - used when NO
+ * route has published a snapshot yet, so early "what is HIL?" still gets a
+ * real definition instead of a "open a route first" shrug. Same asking-gate
+ * as :func:`resolveGlossary` so a passing mention like "mode" is not
+ * hijacked into a definition.
+ */
+function resolveStaticGlossary(q: string): Answer | null {
+  const asking =
+    /\bwhat\b|\bwhich\b|\bexplain\b|\bdefine\b|\bmean(s|ing)?\b|\bwhats\b|\bwhat's\b/.test(q) ||
+    /\uBB34\uC5C7|\uBB50|\uBB54|\uBB34\uC2A8|\uC124\uBA85|\uC758\uBBF8|\uB73B/.test(q);
+  if (!asking) return null;
+  for (const term of STATIC_GLOSSARY) {
     const names = [term.term.toLowerCase(), term.tech?.toLowerCase()].filter(
       (n): n is string => Boolean(n),
     );

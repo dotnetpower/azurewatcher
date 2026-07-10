@@ -173,3 +173,27 @@ describe("screen-agnostic (no bespoke enhancer)", () => {
     expect(a.text).toContain("Agent pantheon");
   });
 });
+
+describe("no-snapshot fallback (static universal glossary)", () => {
+  test("answers 'what is HIL' with no snapshot from static glossary", () => {
+    const a = answer("what is HIL?", null);
+    expect(a.text.toLowerCase()).toContain("human-in-the-loop");
+  });
+
+  test("answers 'what is a correlation id' with no snapshot", () => {
+    const a = answer("what is a correlation id?", null);
+    expect(a.text.toLowerCase()).toContain("incident key");
+  });
+
+  test("Korean 'what is HIL' resolves with no snapshot", () => {
+    const a = answer("HIL\uc774 \ubb54\uc9c0?", null);
+    expect(a.text.toLowerCase()).toContain("human-in-the-loop");
+  });
+
+  test("bare non-concept query with no snapshot returns intro with follow-ups", () => {
+    const a = answer("hello", null);
+    expect(a.text).toMatch(/No route has published/);
+    expect(a.followUps.length).toBeGreaterThan(0);
+    expect(a.followUps.some((f) => /HIL/i.test(f))).toBe(true);
+  });
+});
