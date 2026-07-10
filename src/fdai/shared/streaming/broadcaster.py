@@ -32,13 +32,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
 from fdai.shared.providers.event_bus import EventBus, EventEnvelope
 from fdai.shared.providers.sse import SseEvent, SseSink
 
 _LOGGER = logging.getLogger(__name__)
+
+# An SSE `id:` derived from an untrusted event payload is stripped of CR/LF
+# (SSE line terminators) and length-capped at the trust boundary so a
+# hostile correlation_id cannot smuggle SSE fields downstream.
+_MAX_ID_CHARS = 512
 
 
 class SseBroadcaster:
@@ -52,14 +57,20 @@ class SseBroadcaster:
         topic_channel_map: Mapping[str, str],
         event_type: str = "envelope",
         group_id_prefix: str = "fdai-sse",
+        retry_backoff_seconds: float = 1.0,
+        sleeper: Callable[[float], Awaitable[None]] | None = None,
     ) -> None:
         if not topic_channel_map:
             raise ValueError("topic_channel_map MUST NOT be empty")
+        if retry_backoff_seconds < 0:
+            raise ValueError("retry_backoff_seconds MUST be >= 0")
         self._event_bus = event_bus
         self._sse_sink = sse_sink
         self._topic_channel_map = dict(topic_channel_map)
         self._event_type = event_type
         self._group_id_prefix = group_id_prefix
+        self._retry_backoff_seconds = retry_backoff_seconds
+        self._sleeper: Callable[[float], Awaitable[None]] = sleeper or asyncio.sleep
         self._tasks: list[asyncio.Task[None]] = []
         self._started = False
         self._stopped = False
@@ -101,19 +112,27 @@ class SseBroadcaster:
         self._tasks.clear()
 
     async def _relay_topic(self, topic: str, channel: str, group_id: str) -> None:
-        try:
-            async for envelope in self._event_bus.subscribe(topic, group_id):
-                await self._sse_sink.publish(channel, self._envelope_to_sse(envelope))
-        except asyncio.CancelledError:
-            _LOGGER.debug(
-                "sse-relay:%s->%s cancelled",
-                topic,
-                channel,
-            )
-            raise
-        except Exception:  # pragma: no cover - real backends surface their own
-            _LOGGER.exception("sse-relay:%s->%s crashed", topic, channel)
-            raise
+        # A transient backend error MUST NOT permanently silence a channel:
+        # log it and re-subscribe after a bounded backoff. Cancellation
+        # (via ``stop``) breaks the retry loop cleanly. A normal end of the
+        # subscription (generator exhausted) returns.
+        while True:
+            try:
+                async for envelope in self._event_bus.subscribe(topic, group_id):
+                    await self._sse_sink.publish(channel, self._envelope_to_sse(envelope))
+                return
+            except asyncio.CancelledError:
+                _LOGGER.debug("sse-relay:%s->%s cancelled", topic, channel)
+                raise
+            except Exception:
+                _LOGGER.warning(
+                    "sse-relay:%s->%s error; retrying after %ss",
+                    topic,
+                    channel,
+                    self._retry_backoff_seconds,
+                    exc_info=True,
+                )
+                await self._sleeper(self._retry_backoff_seconds)
 
     def _envelope_to_sse(self, envelope: EventEnvelope) -> SseEvent:
         # Correlation id is optional; every audit-linked event carries it.
@@ -136,12 +155,20 @@ class SseBroadcaster:
 
 def _extract_correlation_id(payload: Mapping[str, Any]) -> str | None:
     value = payload.get("correlation_id")
-    return value if isinstance(value, str) and value else None
+    return _sanitize_id(value) if isinstance(value, str) else None
 
 
 def _extract_event_id(payload: Mapping[str, Any]) -> str | None:
     value = payload.get("event_id")
-    return value if isinstance(value, str) and value else None
+    return _sanitize_id(value) if isinstance(value, str) else None
+
+
+def _sanitize_id(value: str) -> str | None:
+    """Trust-boundary clean of a payload-derived SSE id (no CR/LF, capped)."""
+    flattened = value.replace("\r\n", " ").replace("\r", " ").replace("\n", " ").strip()
+    if not flattened:
+        return None
+    return flattened[:_MAX_ID_CHARS]
 
 
 __all__ = ["SseBroadcaster"]

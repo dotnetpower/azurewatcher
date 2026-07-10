@@ -523,6 +523,16 @@ def make_live_stream_route(
                             pass
                 except asyncio.CancelledError:
                     raise
+                except Exception:
+                    # A sink / backend error MUST close the stream, not
+                    # leave it half-dead (only keepalives, no events). Signal
+                    # stop so the outer loop exits and the client reconnects.
+                    _LOGGER.warning(
+                        "live_stream_event_pump_failed",
+                        extra={"channel": channel},
+                        exc_info=True,
+                    )
+                    stop.set()
 
             async def keepalive_pump() -> None:
                 try:
@@ -554,6 +564,11 @@ def make_live_stream_route(
                         chunk = None
                     if chunk is not None:
                         yield chunk
+                    # A pump that failed (or was told to stop) signals via
+                    # ``stop``; drain what is queued, then exit so a
+                    # half-dead stream never lingers.
+                    if stop.is_set() and out_queue.empty():
+                        break
                     if await request.is_disconnected():
                         break
             finally:
@@ -584,19 +599,65 @@ def make_live_stream_route(
 def _encode_sse_frame(payload: Mapping[str, Any], *, kind: str = "control") -> bytes:
     """Encode one dict as a full SSE frame (used for the boot hello)."""
     body = json.dumps(payload, separators=(",", ":"))
-    return f"event: {kind}\ndata: {body}\n\n".encode()
+    name = _sse_field(kind) or "message"
+    lines = [f"event: {name}", *_sse_data_lines(body)]
+    return ("\n".join(lines) + "\n\n").encode()
 
 
 def _encode_sse_event(event: SseEvent) -> bytes:
-    """Encode one :class:`SseEvent` in the wire format the FE consumes."""
+    """Encode one :class:`SseEvent` in the wire format the FE consumes.
+
+    Hardened against SSE frame injection: ``id`` / ``event`` are stripped
+    of CR/LF (a newline there would smuggle extra SSE fields or split the
+    frame into a forged event), ``data`` is emitted as spec-correct
+    multi-line ``data:`` fields (an embedded newline can never terminate
+    the event early), and every field is length-capped so one hostile
+    event cannot produce an unbounded frame. ``retry`` is emitted only
+    for a non-negative integer.
+    """
     parts: list[str] = []
     if event.id:
-        parts.append(f"id: {event.id}")
-    parts.append(f"event: {event.event}")
-    parts.append(f"data: {event.data}")
-    if event.retry_ms is not None:
-        parts.append(f"retry: {event.retry_ms}")
+        field = _sse_field(event.id)
+        if field:
+            parts.append(f"id: {field}")
+    parts.append(f"event: {_sse_field(event.event) or 'message'}")
+    parts.extend(_sse_data_lines(event.data))
+    if event.retry_ms is not None and event.retry_ms >= 0:
+        parts.append(f"retry: {int(event.retry_ms)}")
     return ("\n".join(parts) + "\n\n").encode()
+
+
+# SSE line terminators per the WHATWG spec: a CR, LF, or CRLF ends a field
+# line. A value carrying any of them could smuggle fields or split the
+# frame, so id / event are flattened to spaces and data is re-emitted as
+# proper multi-line `data:` fields.
+_MAX_SSE_FIELD_CHARS = 8192
+"""Length cap for a single `id:` / `event:` line."""
+
+_MAX_SSE_DATA_CHARS = 256 * 1024
+"""Byte-ish cap (chars) for one event's `data` payload."""
+
+
+def _sse_field(value: str) -> str:
+    """Sanitize an ``id`` / ``event`` value: no CR/LF, length-capped."""
+    flattened = value.replace("\r\n", " ").replace("\r", " ").replace("\n", " ").strip()
+    if len(flattened) > _MAX_SSE_FIELD_CHARS:
+        flattened = flattened[:_MAX_SSE_FIELD_CHARS]
+    return flattened
+
+
+def _sse_data_lines(data: str) -> list[str]:
+    """Render ``data`` as one or more spec-correct ``data:`` lines.
+
+    An embedded CR / LF / CRLF becomes a separate ``data:`` field (which
+    the client rejoins with ``\\n``) instead of a raw newline that would
+    prematurely terminate the event - the frame-splitting injection. The
+    whole payload is capped first so a huge event cannot be amplified into
+    an unbounded number of lines.
+    """
+    capped = data if len(data) <= _MAX_SSE_DATA_CHARS else data[:_MAX_SSE_DATA_CHARS]
+    normalized = capped.replace("\r\n", "\n").replace("\r", "\n")
+    return [f"data: {line}" for line in normalized.split("\n")]
 
 
 def _iso_ts_utc() -> str:
