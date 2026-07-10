@@ -14,7 +14,7 @@ T" is exhaustively testable without real time or a broker.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -77,13 +77,13 @@ class SchedulerService:
         *,
         store: ScheduleStore,
         event_bus: EventBus,
-        clock=None,
+        clock: Callable[[], datetime] | None = None,
         topic: str = SCHEDULE_EVENT_TOPIC,
         mode: Mode = Mode.SHADOW,
     ) -> None:
         self._store = store
         self._bus = event_bus
-        self._clock = clock or (lambda: datetime.now(tz=UTC))
+        self._clock: Callable[[], datetime] = clock or (lambda: datetime.now(tz=UTC))
         self._topic = topic
         self._mode = mode
 

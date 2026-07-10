@@ -245,6 +245,33 @@ async def test_non_numeric_value_fails_closed() -> None:
         await client.aclose()
 
 
+@pytest.mark.asyncio
+async def test_non_finite_value_fails_closed() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_table([["2026-07-10T00:01:00Z", "NaN", "vm-a"]]))
+
+    provider, client = _provider(handler)
+    try:
+        with pytest.raises(MetricProviderError, match="non-finite metric value"):
+            await _drain(provider)
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_ragged_row_fails_closed_not_indexerror() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        # Row shorter than the 3 declared columns - must fail closed, not IndexError.
+        return httpx.Response(200, json=_table([["2026-07-10T00:01:00Z"]]))
+
+    provider, client = _provider(handler)
+    try:
+        with pytest.raises(MetricProviderError, match="fewer cells than columns"):
+            await _drain(provider)
+    finally:
+        await client.aclose()
+
+
 def test_config_rejects_empty_workspace_and_bad_max_rows() -> None:
     with pytest.raises(ValueError, match="workspace_id"):
         AzureMonitorLogsConfig(workspace_id="", queries={})

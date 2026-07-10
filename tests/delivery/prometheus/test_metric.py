@@ -167,6 +167,44 @@ async def test_unknown_metric_fails_closed() -> None:
         await client.aclose()
 
 
+@pytest.mark.asyncio
+async def test_non_finite_samples_are_skipped() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "status": "success",
+                "data": {
+                    "resultType": "matrix",
+                    "result": [
+                        {
+                            "metric": {"pod": "a"},
+                            "values": [
+                                [1_700_000_000, "NaN"],
+                                [1_700_000_060, "3.0"],
+                                [1_700_000_120, "+Inf"],
+                            ],
+                        }
+                    ],
+                },
+            },
+        )
+
+    provider, client = _provider(handler)
+    since = datetime(2026, 7, 10, tzinfo=UTC)
+    try:
+        points = [
+            p async for p in provider.query(
+                MetricQuery(metric_name=_METRIC, since=since, until=since + timedelta(minutes=5))
+            )
+        ]
+    finally:
+        await client.aclose()
+
+    # NaN and +Inf dropped; only the finite sample survives.
+    assert [p.value for p in points] == [3.0]
+
+
 def test_config_validation() -> None:
     with pytest.raises(ValueError, match="base_url"):
         PrometheusMetricConfig(base_url="", queries={})

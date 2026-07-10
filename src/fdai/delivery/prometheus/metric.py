@@ -30,6 +30,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from math import isfinite
 from typing import Any, Final
 
 import httpx
@@ -207,6 +208,11 @@ def _samples(series: Mapping[str, Any], result_type: Any) -> list[tuple[datetime
             value = float(val_raw)
         except (TypeError, ValueError) as exc:
             raise MetricProviderError(f"non-numeric Prometheus sample: {pair!r}") from exc
+        # Prometheus returns NaN / +-Inf for stale or gapped series. Those are
+        # "no data", not real observations - skip them rather than let a NaN
+        # poison anomaly detection (nan breaks every comparison).
+        if not isfinite(value):
+            continue
         out.append((at, value))
     return out
 

@@ -48,7 +48,8 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
+from math import isfinite
 from typing import Any, Final
 
 import httpx
@@ -136,9 +137,14 @@ def _coerce_value(raw: Any) -> float:
     if isinstance(raw, bool):  # bool is an int subclass - reject to avoid 0/1 surprises
         raise MetricProviderError(f"boolean where numeric metric expected: {raw!r}")
     try:
-        return float(raw)
+        value = float(raw)
     except (TypeError, ValueError) as exc:
         raise MetricProviderError(f"non-numeric metric value: {raw!r}") from exc
+    # NaN / +-Inf would silently poison anomaly detection (nan breaks every
+    # comparison, inf breaks every sum). Fail closed so the caller abstains.
+    if not isfinite(value):
+        raise MetricProviderError(f"non-finite metric value: {raw!r}")
+    return value
 
 
 class AzureMonitorLogsMetricProvider:
@@ -241,6 +247,10 @@ class AzureMonitorLogsMetricProvider:
             name: _require_column(index, name, query.metric_name)
             for name in template.label_columns
         }
+        # Largest cell index any row must supply; a ragged/hostile row shorter
+        # than this would otherwise raise IndexError - an unexpected exception
+        # that bypasses the fail-closed MetricProviderError contract.
+        needed = max(ts_i, val_i, *label_i.values())
 
         if len(rows) > self._config.max_rows:
             raise MetricProviderError(
@@ -253,6 +263,11 @@ class AzureMonitorLogsMetricProvider:
             if not isinstance(row, list):
                 raise MetricProviderError(
                     f"Log Analytics row is not an array for {query.metric_name!r}"
+                )
+            if len(row) <= needed:
+                raise MetricProviderError(
+                    f"Log Analytics row has fewer cells than columns for "
+                    f"{query.metric_name!r}"
                 )
             labels = {name: str(row[i]) for name, i in label_i.items()}
             if not _labels_match(labels, query.labels):
@@ -275,11 +290,17 @@ def _build_timespan(since: datetime | None, until: datetime | None) -> str | Non
 
     Both bounds present -> a closed interval. Only one present -> None, so
     the KQL template's own time filter governs (avoids an open-ended
-    server scan). None/None -> None.
+    server scan). None/None -> None. A naive datetime is coerced to UTC so
+    the ``timespan`` is never sent without a zone (Azure would otherwise
+    interpret it ambiguously).
     """
     if since is not None and until is not None:
-        return f"{since.isoformat()}/{until.isoformat()}"
+        return f"{_as_utc(since).isoformat()}/{_as_utc(until).isoformat()}"
     return None
+
+
+def _as_utc(dt: datetime) -> datetime:
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
 
 def _column_index(columns: list[Any]) -> dict[str, int]:
