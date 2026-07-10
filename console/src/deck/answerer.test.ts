@@ -337,3 +337,53 @@ describe("static glossary false-positive guard (round 5)", () => {
     expect(a.text).toMatch(/No route has published/);
   });
 });
+
+describe("catalog list ambiguity guard (round 6)", () => {
+  test("'list roles' (no scope word) on rules page falls through to enhancer", () => {
+    const snap: ViewSnapshot = {
+      routeId: "rules",
+      routeLabel: "Rules",
+      headline: "3 rules",
+      capturedAt: "2026-07-06T11:00:00+00:00",
+      facts: [],
+      records: {
+        rules: [{ id: "r-1", role: "network-admin" }],
+      },
+    };
+    const a = answer("list roles", snap);
+    // NOT the RBAC catalog reply (which mentions Owner/BreakGlass).
+    expect(a.text).not.toContain("BreakGlass");
+  });
+
+  test("'list the roles' (scoped) still returns the RBAC catalog", () => {
+    const a = answer("list the roles", null);
+    expect(a.text).toContain("Owner");
+    expect(a.text).toContain("BreakGlass");
+  });
+
+  test("'list agents' (no scope) does NOT hit the pantheon catalog", () => {
+    const snap: ViewSnapshot = {
+      routeId: "audit",
+      routeLabel: "Audit",
+      headline: "0 rows",
+      capturedAt: "2026-07-06T11:00:00+00:00",
+      facts: [],
+      records: { items: [{ agent: "Njord" }] },
+    };
+    const a = answer("list agents", snap);
+    // Deterministic answerAudit path or generic; NOT the 15-agent catalog.
+    expect(a.text).not.toContain("Odin");
+  });
+
+  test("'list the pantheon' (unambiguous token) always returns 15 agents", () => {
+    const a = answer("list the pantheon", null);
+    expect(a.text).toContain("Odin");
+    expect(a.text).toContain("Loki");
+  });
+
+  test("'list ActionType roles' (unambiguous) always returns the 5 roles", () => {
+    const a = answer("list actiontype roles", null);
+    expect(a.text).toContain("initiators");
+    expect(a.text).toContain("auditor");
+  });
+});

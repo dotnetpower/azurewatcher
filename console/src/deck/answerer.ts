@@ -426,23 +426,45 @@ function _listAnswer(title: string, items: readonly string[]): Answer {
 /** Catalog list questions ("list the 15 agents", "list the tiers", "list all
  *  roles", "list the verticals", "list the safety invariants"). Answered from
  *  the fixed architecture, so a screen with no records still gets the list. */
+/** Catalog list questions ("list the 15 agents", "list the tiers", "list all
+ *  roles", "list the verticals", "list the safety invariants"). Answered from
+ *  the fixed architecture, so a screen with no records still gets the list.
+ *
+ *  Ambiguity guard: for common English nouns (roles, tiers, agents, verticals),
+ *  a definite-scope word ('the / all / every / 15 / 5 / four / three') is
+ *  required so 'list roles' as a screen column-list on the Rules route still
+ *  falls through to the per-route enhancer. Unambiguous FDAI-specific tokens
+ *  (pantheon, actiontype, rbac) fire without the scope word. */
 function resolveList(q: string): Answer | null {
   const listVerb =
     /\blist\b|\bshow\b|\bwhat are (the |all )?/.test(q) ||
     /\ubaa9\ub85d|\ubcf4\uc5ec\uc918/.test(q); // KO: list / show
   if (!listVerb) return null;
-  // ActionType roles first: the query "list actiontype roles" also contains
-  // the word "roles" and would otherwise land on the RBAC branch.
+
+  // Unambiguous, FDAI-specific catalog tokens fire without a scope word.
   if (/\bactiontype\b|\baction type\b|\baction-type\b|\baction_type\b|\baction (kind|role)/.test(q)) {
     return _listAnswer("The five roles every ActionType binds", ACTION_TYPE_ROLES);
   }
-  if (/\bagent(s)?\b|\bpantheon\b|\uc5d0\uc774\uc804\ud2b8/.test(q)) {
+  if (/\bpantheon\b/.test(q)) {
+    return _listAnswer("The 15 pantheon agents", PANTHEON_AGENTS);
+  }
+  if (/\brbac\b/.test(q)) {
+    return _listAnswer("The RBAC roles (Entra App Roles, cumulative)", RBAC_ROLES);
+  }
+
+  // Ambiguous catalog tokens require a definite-scope word so a screen
+  // column-list ('list roles' on a page with a role column) still falls
+  // through to the per-route enhancer.
+  const scoped = /\bthe\b|\ball\b|\bevery\b|\b15\b|\b5\b|\bfour\b|\bthree\b/.test(q);
+  if (!scoped) return null;
+
+  if (/\bagent(s)?\b|\uc5d0\uc774\uc804\ud2b8/.test(q)) {
     return _listAnswer("The 15 pantheon agents", PANTHEON_AGENTS);
   }
   if (/\btier(s)?\b|\bt0\b|\bt1\b|\bt2\b|\ud2f0\uc5b4/.test(q)) {
     return _listAnswer("The three trust tiers", TRUST_TIERS);
   }
-  if (/\brole(s)?\b|\brbac\b|\bpermission(s)?\b|\uc5ed\ud560/.test(q)) {
+  if (/\brole(s)?\b|\bpermission(s)?\b|\uc5ed\ud560/.test(q)) {
     return _listAnswer("The RBAC roles (Entra App Roles, cumulative)", RBAC_ROLES);
   }
   if (/\bvertical(s)?\b|\ubc84\ud2f0\uceec/.test(q)) {
