@@ -28,6 +28,7 @@ from fdai.core.metering.aggregate import (
     summarize_by_month,
     summarize_total,
 )
+from fdai.core.metering.emitter import MeteringEmitter
 from fdai.core.metering.pricing import ModelPricing, PricingTable
 from fdai.core.metering.records import InvocationMode, LlmInvocation
 from fdai.core.metering.sink import InMemoryMeteringSink, MeteringReader, MeteringSink
@@ -37,6 +38,7 @@ __all__ = [
     "InMemoryMeteringSink",
     "InvocationMode",
     "LlmInvocation",
+    "MeteringEmitter",
     "MeteringReader",
     "MeteringSink",
     "ModelPricing",

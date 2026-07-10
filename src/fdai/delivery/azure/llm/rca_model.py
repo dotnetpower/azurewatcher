@@ -24,7 +24,9 @@ from typing import Any, Final
 
 import httpx
 
+from fdai.core.metering.emitter import MeteringEmitter
 from fdai.core.rca import Citation
+from fdai.delivery.azure.llm.usage import extract_usage
 from fdai.shared.providers.workload_identity import WorkloadIdentity
 
 _COGNITIVE_SCOPE: Final[str] = "https://cognitiveservices.azure.com/.default"
@@ -57,6 +59,7 @@ class AzureOpenAIRcaModel:
         identity: WorkloadIdentity,
         http_client: httpx.AsyncClient,
         config: AzureOpenAIRcaModelConfig,
+        metering: MeteringEmitter | None = None,
     ) -> None:
         if not config.endpoint.startswith(("https://", "http://")):
             raise ValueError("endpoint MUST be an absolute https URL")
@@ -73,6 +76,7 @@ class AzureOpenAIRcaModel:
         self._identity = identity
         self._http = http_client
         self._config = config
+        self._metering = metering
 
     async def propose_cause(
         self,
@@ -109,7 +113,12 @@ class AzureOpenAIRcaModel:
             timeout=self._config.timeout_seconds,
         )
         response.raise_for_status()
-        return _extract_content(response.json())
+        envelope = response.json()
+        if self._metering is not None:
+            usage = extract_usage(envelope)
+            if usage is not None:
+                await self._metering.emit_safe(usage)
+        return _extract_content(envelope)
 
 
 def _build_user_prompt(incident_summary: str, candidate_citations: Sequence[Citation]) -> str:

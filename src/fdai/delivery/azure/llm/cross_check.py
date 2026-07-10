@@ -34,11 +34,14 @@ from typing import Any, Final
 
 import httpx
 
+from fdai.core.metering.emitter import MeteringEmitter
+from fdai.core.metering.usage import TokenUsage
 from fdai.core.operator_memory import OperatorScope
 from fdai.core.prompts.composer import PromptComposer
 from fdai.core.prompts.types import PromptMode
 from fdai.core.quality_gate.gate import QualityCandidate
 from fdai.core.tools import ToolExecutor, ToolRegistry
+from fdai.delivery.azure.llm.usage import extract_usage
 from fdai.shared.providers.workload_identity import WorkloadIdentity
 
 _COGNITIVE_SCOPE: Final[str] = "https://cognitiveservices.azure.com/.default"
@@ -101,6 +104,7 @@ class AzureOpenAICrossCheckModel:
         prompt_composer: PromptComposer | None = None,
         capability_id: str | None = None,
         scope_resolver: ScopeResolver | None = None,
+        metering: MeteringEmitter | None = None,
     ) -> None:
         if not config.endpoint.startswith(("https://", "http://")):
             raise ValueError("endpoint MUST be an absolute https URL")
@@ -147,6 +151,7 @@ class AzureOpenAICrossCheckModel:
         self._prompt_composer: Final[PromptComposer | None] = prompt_composer
         self._capability_id: Final[str | None] = capability_id
         self._scope_resolver: Final[ScopeResolver | None] = scope_resolver
+        self._metering: Final[MeteringEmitter | None] = metering
 
         # Snapshot the enforce-mode tools at construction so the
         # advertised manifest is deterministic per model instance and
@@ -202,6 +207,7 @@ class AzureOpenAICrossCheckModel:
         # ``max_tool_iterations`` bounds the number of tool-dispatch
         # rounds; the final answer turn is always reachable after the
         # last permitted tool round, so we allow one extra loop cycle.
+        total_usage = TokenUsage.zero()
         for iteration in range(self._config.max_tool_iterations + 1):
             body: dict[str, Any] = {
                 "messages": messages,
@@ -224,6 +230,9 @@ class AzureOpenAICrossCheckModel:
             )
             response.raise_for_status()
             envelope = response.json()
+            call_usage = extract_usage(envelope)
+            if call_usage is not None:
+                total_usage = total_usage + call_usage
             message = _extract_message(envelope)
 
             tool_calls = message.get("tool_calls") or []
@@ -246,6 +255,8 @@ class AzureOpenAICrossCheckModel:
                 continue
 
             content = message.get("content")
+            if self._metering is not None:
+                await self._metering.emit_safe(total_usage)
             return _parse_final_answer(content)
 
         # The loop always either returns or raises inside the body; we
