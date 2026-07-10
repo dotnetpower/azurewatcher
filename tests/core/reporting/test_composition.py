@@ -7,7 +7,11 @@ from pathlib import Path
 
 import pytest
 
+from fdai.core.report_feed.feed import ReportFeed, StaticSignalSource
 from fdai.core.reporting.composition import default_reporting_engine
+from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
+from fdai.shared.providers.log_query import StaticLogQueryProvider
+from fdai.shared.providers.metric import StaticMetricProvider
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REPORTS_ROOT = REPO_ROOT / "rule-catalog" / "reports"
@@ -74,6 +78,24 @@ widgets:
         rendered = _sync_render(engine, "signal-feed-overview")
         window_hours = (rendered.time_range[1] - rendered.time_range[0]).total_seconds() / 3600
         assert window_hours == pytest.approx(24.0)
+
+    def test_supplied_providers_wire_real_datasources(self) -> None:
+        # When every seam is supplied the helper registers the real
+        # datasource for each well-known name (not the Noop stub), so a
+        # report that reads them renders against live data.
+        engine, _ = default_reporting_engine(
+            reports_root=REPORTS_ROOT,
+            audit_reader=InMemoryConsoleReadModel(),
+            report_feed=ReportFeed((StaticSignalSource("t", []),)),
+            metric_provider=StaticMetricProvider([]),
+            log_query_provider=StaticLogQueryProvider([]),
+        )
+        names = set(engine.datasource_registry().names())
+        assert {"audit", "report_feed", "metric", "log_query"} <= names
+        # The sample catalog still validates and renders end to end.
+        rendered = _sync_render(engine, "shadow-mode-daily")
+        for widget in rendered.widgets:
+            assert widget.error is None
 
 
 def _sync_render(engine, report_id: str):

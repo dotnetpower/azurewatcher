@@ -21,6 +21,7 @@ from fdai.core.reporting.widgets import (
     GeomapBuilder,
     HostmapBuilder,
     IframeBuilder,
+    ListStreamBuilder,
     PieChartBuilder,
     ProgressBarBuilder,
     RetentionBuilder,
@@ -28,6 +29,7 @@ from fdai.core.reporting.widgets import (
     ServiceSummaryBuilder,
     SparklineBuilder,
     SplitGraphBuilder,
+    TopListBuilder,
     TopologyMapBuilder,
     default_widget_builders,
 )
@@ -93,6 +95,62 @@ class TestListsExpansion:
         assert result["counts_by_severity"]["critical"] == 2
         # Newest-first ordering by timestamp field.
         assert result["items"][0]["msg"] == "b"
+
+    def test_event_stream_unknown_severity_folds_into_info(self) -> None:
+        data = DataSet(
+            rows=(
+                {"at": "2026-01-02", "severity": "bogus", "msg": "a"},
+                {"at": "2026-01-03", "msg": "b"},
+            )
+        )
+        result = EventStreamBuilder().build(spec=_spec("event_stream"), data=data)
+        # An unrecognized (or absent) severity is counted as 'info'.
+        assert result["counts_by_severity"]["info"] == 2
+
+    def test_top_list_numeric_guard_ranks_non_numeric_to_tail(self) -> None:
+        # bool, NaN, Inf-string, and non-numeric strings all normalize to
+        # -inf so they sink to the bottom of a desc ranking instead of
+        # scrambling the sort; a real number ranks first.
+        data = DataSet(
+            rows=(
+                {"name": "num", "value": 10},
+                {"name": "flag", "value": True},
+                {"name": "nan", "value": float("nan")},
+                {"name": "infstr", "value": "inf"},
+                {"name": "text", "value": "oops"},
+            )
+        )
+        result = TopListBuilder().build(spec=_spec("top_list"), data=data)
+        assert result["rows"][0]["name"] == "num"
+        assert result["total_rows"] == 5
+
+    def test_clamp_limit_handles_bad_zero_and_oversized(self) -> None:
+        rows = tuple({"value": i} for i in range(30))
+
+        def _n(limit: object) -> int:
+            spec = _spec("top_list", limit=limit)
+            return len(TopListBuilder().build(spec=spec, data=DataSet(rows=rows))["rows"])
+
+        # Non-integer limit -> hard ceiling (all 30 rows fit under it).
+        assert _n("abc") == 30
+        # Zero clamps up to 1.
+        assert _n(0) == 1
+        # Oversized clamps down to the ceiling (>= 30, so all rows fit).
+        assert _n(999999) == 30
+
+    def test_list_stream_bool_timestamp_sorts_deterministically(self) -> None:
+        # A boolean in the timestamp cell must not raise; it groups into
+        # the non-numeric bucket rather than crashing the sort.
+        data = DataSet(
+            rows=(
+                {"at": 100.0, "msg": "numeric"},
+                {"at": True, "msg": "boolean"},
+                {"at": "2026-01-01", "msg": "iso"},
+            )
+        )
+        result = ListStreamBuilder().build(spec=_spec("list_stream"), data=data)
+        assert result["total_rows"] == 3
+        assert {item["msg"] for item in result["items"]} == {"numeric", "boolean", "iso"}
 
 
 class TestFlowsExpansion:
