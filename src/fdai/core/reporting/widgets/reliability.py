@@ -1,7 +1,5 @@
-"""Reliability-family widget builders: slo_summary.
-
-Sits by itself for now; a future ``check_status`` / ``monitor_summary``
-builder lives here too when we wire those signals.
+"""Reliability-family widget builders: slo_summary, alert_status,
+check_status, service_summary, flame_graph.
 
 Widget ``data`` schemas:
 
@@ -9,6 +7,13 @@ Widget ``data`` schemas:
   "error_budget_remaining", "burn_rate"?, "window"?}``. Every numeric
   field is either a fraction in ``[0, 1]`` or ``None`` (the datasource
   did not supply it).
+- ``alert_status``: ``{"active": [{"id", "severity", "title"}],
+  "counts_by_severity": {"critical": n, ...}}``.
+- ``check_status``: ``{"checks": [{"name", "status", "message"?}],
+  "summary": {"ok": n, "warn": n, "fail": n}}``.
+- ``service_summary``: ``{"service", "red": {"requests_rps",
+  "error_rate", "latency_p50", "latency_p99"}, "health"}``.
+- ``flame_graph``: ``{"root": {name, value, children: [...]}}``.
 """
 
 from __future__ import annotations
@@ -48,4 +53,140 @@ class SloSummaryBuilder:
         return payload
 
 
-__all__ = ["SloSummaryBuilder"]
+_KNOWN_SEVERITIES: tuple[str, ...] = ("critical", "high", "medium", "low", "info")
+_KNOWN_CHECK_STATUSES: tuple[str, ...] = ("ok", "warn", "fail", "unknown")
+_KNOWN_HEALTHS: frozenset[str] = frozenset({"healthy", "degraded", "unhealthy", "unknown"})
+
+
+class AlertStatusBuilder:
+    """Roll active alerts up by severity and expose the raw list."""
+
+    type_name = "alert_status"
+
+    def build(self, *, spec: WidgetSpec, data: DataSet) -> Mapping[str, Any]:
+        del spec
+        counts = dict.fromkeys(_KNOWN_SEVERITIES, 0)
+        active: list[dict[str, Any]] = []
+        for row in data.rows:
+            severity = str(row.get("severity", "info")).lower()
+            if severity not in counts:
+                severity = "info"
+            counts[severity] += 1
+            active.append(
+                {
+                    "id": row.get("id"),
+                    "severity": severity,
+                    "title": row.get("title"),
+                    "resource": row.get("resource"),
+                    "at": row.get("at"),
+                }
+            )
+        return {"active": active, "counts_by_severity": counts, "total": len(active)}
+
+
+class CheckStatusBuilder:
+    """Render a health-check grid + ok/warn/fail summary."""
+
+    type_name = "check_status"
+
+    def build(self, *, spec: WidgetSpec, data: DataSet) -> Mapping[str, Any]:
+        del spec
+        summary = dict.fromkeys(_KNOWN_CHECK_STATUSES, 0)
+        checks: list[dict[str, Any]] = []
+        for row in data.rows:
+            status = str(row.get("status", "unknown")).lower()
+            if status not in summary:
+                status = "unknown"
+            summary[status] += 1
+            checks.append(
+                {
+                    "name": row.get("name"),
+                    "status": status,
+                    "message": row.get("message"),
+                    "at": row.get("at"),
+                }
+            )
+        return {"checks": checks, "summary": summary}
+
+
+class ServiceSummaryBuilder:
+    """Render a single service's RED metrics + coarse health label.
+
+    Expects a single row with ``service`` / ``requests_rps`` /
+    ``error_rate`` / ``latency_p50`` / ``latency_p99`` / ``health``
+    fields (missing fields degrade to ``None``).
+    """
+
+    type_name = "service_summary"
+
+    def build(self, *, spec: WidgetSpec, data: DataSet) -> Mapping[str, Any]:
+        del spec
+        row: Mapping[str, Any] = data.rows[0] if data.rows else {}
+        health = str(row.get("health", "unknown")).lower()
+        if health not in _KNOWN_HEALTHS:
+            health = "unknown"
+        return {
+            "service": row.get("service"),
+            "red": {
+                "requests_rps": row.get("requests_rps"),
+                "error_rate": row.get("error_rate"),
+                "latency_p50": row.get("latency_p50"),
+                "latency_p99": row.get("latency_p99"),
+            },
+            "health": health,
+            "measured": bool(data.rows),
+        }
+
+
+class FlameGraphBuilder:
+    """Render a nested flame graph.
+
+    Expects rows shaped ``{"name", "value", "parent"?}``. Rows with
+    ``parent=None`` (or missing) become root frames; other rows attach
+    under their parent by name. Duplicate ``name`` values are summed
+    into the same node (single-stack assumption). This is the
+    CSP-neutral equivalent of the profiling flame-graph shape.
+    """
+
+    type_name = "flame_graph"
+
+    def build(self, *, spec: WidgetSpec, data: DataSet) -> Mapping[str, Any]:
+        del spec
+        nodes: dict[str, dict[str, Any]] = {}
+        child_names: set[str] = set()
+        for row in data.rows:
+            name = str(row.get("name", "")).strip()
+            if not name:
+                continue
+            node = nodes.setdefault(
+                name, {"name": name, "value": 0.0, "children": []}
+            )
+            try:
+                node["value"] += float(row.get("value") or 0)
+            except (TypeError, ValueError):
+                pass
+            parent = row.get("parent")
+            if parent is None:
+                continue
+            parent_name = str(parent)
+            parent_node = nodes.setdefault(
+                parent_name,
+                {"name": parent_name, "value": 0.0, "children": []},
+            )
+            if node not in parent_node["children"]:
+                parent_node["children"].append(node)
+            child_names.add(name)
+        return {
+            "roots": [
+                node for name, node in nodes.items() if name not in child_names
+            ]
+        }
+
+
+__all__ = [
+    "AlertStatusBuilder",
+    "CheckStatusBuilder",
+    "FlameGraphBuilder",
+    "ServiceSummaryBuilder",
+    "SloSummaryBuilder",
+]

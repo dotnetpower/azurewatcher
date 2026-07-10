@@ -167,6 +167,117 @@ class BarChartBuilder:
         return {"bars": bars}
 
 
+class PieChartBuilder:
+    """Render categorical rows as pie slices with pre-computed percentages."""
+
+    type_name = "pie_chart"
+
+    def build(self, *, spec: WidgetSpec, data: DataSet) -> Mapping[str, Any]:
+        label_field = str(spec.options.get("label_field", "label"))
+        value_field = str(spec.options.get("value_field", "value"))
+        slices: list[dict[str, Any]] = []
+        total = 0.0
+        for row in data.rows:
+            value = _as_number(row.get(value_field))
+            if value is None:
+                continue
+            slices.append({"label": row.get(label_field), "value": value})
+            total += float(value)
+        for entry in slices:
+            entry["percent"] = (float(entry["value"]) / total) if total > 0 else 0.0
+        return {"slices": slices, "total": total}
+
+
+class ScatterPlotBuilder:
+    """Render rows as (x, y) points, optionally colored by a group label."""
+
+    type_name = "scatter_plot"
+
+    def build(self, *, spec: WidgetSpec, data: DataSet) -> Mapping[str, Any]:
+        x_field = str(spec.options.get("x_field", "x"))
+        y_field = str(spec.options.get("y_field", "y"))
+        group_field = spec.options.get("group_field")
+        points: list[dict[str, Any]] = []
+        for row in data.rows:
+            x = _as_number(row.get(x_field))
+            y = _as_number(row.get(y_field))
+            if x is None or y is None:
+                continue
+            point: dict[str, Any] = {"x": x, "y": y}
+            if group_field and group_field in row:
+                point["group"] = row.get(group_field)
+            points.append(point)
+        return {"points": points}
+
+
+class SparklineBuilder:
+    """Compact inline series - one value per point per series."""
+
+    type_name = "sparkline"
+
+    def build(self, *, spec: WidgetSpec, data: DataSet) -> Mapping[str, Any]:
+        del spec
+        series = []
+        for s in data.series:
+            values = [p[1] for p in s.points]
+            series.append(
+                {
+                    "label": s.label,
+                    "values": values,
+                    "min": min(values) if values else None,
+                    "max": max(values) if values else None,
+                    "last": values[-1] if values else None,
+                }
+            )
+        return {"series": series}
+
+
+class GaugeBuilder:
+    """Needle gauge from ``value`` + ``options.min`` + ``options.max``."""
+
+    type_name = "gauge"
+
+    def build(self, *, spec: WidgetSpec, data: DataSet) -> Mapping[str, Any]:
+        value = _as_number(data.scalar)
+        low = _as_number(spec.options.get("min"))
+        low_v = 0.0 if low is None else float(low)
+        high = _as_number(spec.options.get("max"))
+        high_v = 100.0 if high is None else float(high)
+        ratio: float | None = None
+        if value is not None and high_v != low_v:
+            ratio = max(0.0, min(1.0, (float(value) - low_v) / (high_v - low_v)))
+        return {
+            "value": value,
+            "min": low_v,
+            "max": high_v,
+            "ratio": ratio,
+            "unit": spec.options.get("unit"),
+        }
+
+
+class ProgressBarBuilder:
+    """Horizontal progress bar (current vs. target); ratio clamped [0, 1]."""
+
+    type_name = "progress_bar"
+
+    def build(self, *, spec: WidgetSpec, data: DataSet) -> Mapping[str, Any]:
+        current_raw = _as_number(data.scalar)
+        current = 0.0 if current_raw is None else float(current_raw)
+        target_raw = _as_number(spec.options.get("target"))
+        target = 0.0 if target_raw is None else float(target_raw)
+        ratio: float | None
+        if target == 0:
+            ratio = None
+        else:
+            ratio = max(0.0, min(1.0, current / target))
+        return {
+            "current": current,
+            "target": target,
+            "ratio": ratio,
+            "unit": spec.options.get("unit"),
+        }
+
+
 def _extract_pair(data: DataSet) -> tuple[float | int | None, float | int | None]:
     """Return ``(previous, current)`` from either rows or a series."""
     if len(data.rows) >= 2:
@@ -198,7 +309,12 @@ __all__ = [
     "BarChartBuilder",
     "ChangeBuilder",
     "DistributionBuilder",
+    "GaugeBuilder",
     "HeatmapBuilder",
+    "PieChartBuilder",
+    "ProgressBarBuilder",
     "QueryValueBuilder",
+    "ScatterPlotBuilder",
+    "SparklineBuilder",
     "TimeseriesBuilder",
 ]

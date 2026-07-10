@@ -114,6 +114,38 @@ def _extension(path: str) -> str:
 
 __all__ = [
     "FreeTextBuilder",
+    "IframeBuilder",
     "ImageBuilder",
     "NoteBuilder",
 ]
+
+
+class IframeBuilder:
+    """Embed an external page via ``<iframe>``.
+
+    Rejects non-https URLs. The FE MUST render the frame with a
+    restrictive ``sandbox`` attribute (this builder does not force one
+    since sandbox flags are FE-owned); it does forward the ``sandbox``
+    option so a report author can specify the exact allowlist.
+
+    Widget ``data``: ``{"src", "height"?, "sandbox"?}``.
+    """
+
+    type_name = "iframe"
+
+    def build(self, *, spec: WidgetSpec, data: DataSet) -> Mapping[str, Any]:
+        del data
+        src = str(spec.options.get("src", "")).strip()
+        parsed = urlparse(src)
+        # Iframes carry more attack surface than <img>; only https over
+        # a real host is accepted (no empty-scheme same-origin).
+        if parsed.scheme != "https" or not parsed.netloc:
+            return {"src": None, "error": "unsupported url scheme"}
+        payload: dict[str, Any] = {"src": src}
+        height = spec.options.get("height")
+        if isinstance(height, (int, float)) and not isinstance(height, bool):
+            payload["height"] = int(height)
+        sandbox = spec.options.get("sandbox")
+        if isinstance(sandbox, str) and sandbox:
+            payload["sandbox"] = sandbox
+        return payload

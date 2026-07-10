@@ -126,7 +126,43 @@ def _numeric(value: Any) -> float:
 
 
 __all__ = [
+    "EventStreamBuilder",
     "ListStreamBuilder",
     "TableBuilder",
     "TopListBuilder",
 ]
+
+
+class EventStreamBuilder:
+    """Severity-tagged event stream.
+
+    Same shape as :class:`ListStreamBuilder` plus a
+    ``counts_by_severity`` roll-up (``critical`` / ``high`` / ``medium``
+    / ``low`` / ``info``) so a FE can render both the feed and a
+    summary chip.
+    """
+
+    type_name = "event_stream"
+
+    _SEVERITIES: tuple[str, ...] = ("critical", "high", "medium", "low", "info")
+
+    def build(self, *, spec: WidgetSpec, data: DataSet) -> Mapping[str, Any]:
+        timestamp_field = str(spec.options.get("timestamp_field", "at"))
+        severity_field = str(spec.options.get("severity_field", "severity"))
+        limit = _clamp_limit(spec.options.get("limit", 50))
+        ordered = sorted(
+            data.rows,
+            key=lambda row: str(row.get(timestamp_field, "")),
+            reverse=True,
+        )
+        counts = dict.fromkeys(self._SEVERITIES, 0)
+        for row in data.rows:
+            severity = str(row.get(severity_field, "info")).lower()
+            if severity not in counts:
+                severity = "info"
+            counts[severity] += 1
+        return {
+            "items": [dict(row) for row in ordered[:limit]],
+            "counts_by_severity": counts,
+            "total_rows": len(data.rows),
+        }

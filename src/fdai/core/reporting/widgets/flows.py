@@ -126,6 +126,44 @@ def _numeric_or_none(value: Any) -> float | int | None:
 
 __all__ = [
     "FunnelBuilder",
+    "RetentionBuilder",
     "SankeyBuilder",
     "TreemapBuilder",
 ]
+
+
+class RetentionBuilder:
+    """Cohort retention grid.
+
+    Expects rows shaped ``{"cohort", "period", "value"}``. Groups by
+    cohort and produces one row per cohort with a period-indexed value
+    list. The FE renders the triangle grid. Field names overridable via
+    ``options``.
+    """
+
+    type_name = "retention"
+
+    def build(self, *, spec: WidgetSpec, data: DataSet) -> Mapping[str, Any]:
+        cohort_field = str(spec.options.get("cohort_field", "cohort"))
+        period_field = str(spec.options.get("period_field", "period"))
+        value_field = str(spec.options.get("value_field", "value"))
+        by_cohort: dict[str, dict[Any, Any]] = {}
+        periods: set[Any] = set()
+        for row in data.rows:
+            cohort = row.get(cohort_field)
+            period = row.get(period_field)
+            value = row.get(value_field)
+            if cohort is None or period is None:
+                continue
+            periods.add(period)
+            by_cohort.setdefault(str(cohort), {})[period] = value
+        ordered_periods = sorted(periods, key=lambda p: (isinstance(p, str), p))
+        rows: list[dict[str, Any]] = []
+        for cohort_name in sorted(by_cohort):
+            rows.append(
+                {
+                    "cohort": cohort_name,
+                    "values": [by_cohort[cohort_name].get(p) for p in ordered_periods],
+                }
+            )
+        return {"periods": ordered_periods, "rows": rows}

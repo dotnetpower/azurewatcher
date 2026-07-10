@@ -19,11 +19,23 @@ from fdai.core.reporting.contracts import WidgetBuilder
 from fdai.core.reporting.registry import WidgetRegistry
 from fdai.core.reporting.widgets.annotations import (
     FreeTextBuilder,
+    IframeBuilder,
     ImageBuilder,
     NoteBuilder,
 )
+from fdai.core.reporting.widgets.architecture import (
+    GeomapBuilder,
+    HostmapBuilder,
+    TopologyMapBuilder,
+)
+from fdai.core.reporting.widgets.composite import SplitGraphBuilder
+from fdai.core.reporting.widgets.cost import (
+    BudgetSummaryBuilder,
+    CostSummaryBuilder,
+)
 from fdai.core.reporting.widgets.flows import (
     FunnelBuilder,
+    RetentionBuilder,
     SankeyBuilder,
     TreemapBuilder,
 )
@@ -31,22 +43,36 @@ from fdai.core.reporting.widgets.graphs import (
     BarChartBuilder,
     ChangeBuilder,
     DistributionBuilder,
+    GaugeBuilder,
     HeatmapBuilder,
+    PieChartBuilder,
+    ProgressBarBuilder,
     QueryValueBuilder,
+    ScatterPlotBuilder,
+    SparklineBuilder,
     TimeseriesBuilder,
 )
 from fdai.core.reporting.widgets.lists import (
+    EventStreamBuilder,
     ListStreamBuilder,
     TableBuilder,
     TopListBuilder,
 )
-from fdai.core.reporting.widgets.reliability import SloSummaryBuilder
+from fdai.core.reporting.widgets.reliability import (
+    AlertStatusBuilder,
+    CheckStatusBuilder,
+    FlameGraphBuilder,
+    ServiceSummaryBuilder,
+    SloSummaryBuilder,
+)
 
 
 def default_widget_builders() -> Iterable[WidgetBuilder]:
     """Return one instance of every upstream widget builder.
 
-    ``group`` is intentionally absent - the engine special-cases it.
+    ``group`` and ``tabs`` are intentionally absent - the engine
+    special-cases them via
+    :data:`~fdai.core.reporting.widgets.composite.GROUP_LIKE_WIDGET_TYPES`.
     """
     return (
         # graphs
@@ -56,20 +82,40 @@ def default_widget_builders() -> Iterable[WidgetBuilder]:
         DistributionBuilder(),
         HeatmapBuilder(),
         BarChartBuilder(),
+        PieChartBuilder(),
+        ScatterPlotBuilder(),
+        SparklineBuilder(),
+        GaugeBuilder(),
+        ProgressBarBuilder(),
         # lists
         TableBuilder(),
         TopListBuilder(),
         ListStreamBuilder(),
+        EventStreamBuilder(),
         # flows
         FunnelBuilder(),
         SankeyBuilder(),
         TreemapBuilder(),
+        RetentionBuilder(),
         # reliability
         SloSummaryBuilder(),
-        # annotations
+        AlertStatusBuilder(),
+        CheckStatusBuilder(),
+        ServiceSummaryBuilder(),
+        FlameGraphBuilder(),
+        # architecture
+        HostmapBuilder(),
+        TopologyMapBuilder(),
+        GeomapBuilder(),
+        # cost
+        CostSummaryBuilder(),
+        BudgetSummaryBuilder(),
+        # composite / annotations
+        SplitGraphBuilder(),
         FreeTextBuilder(),
         NoteBuilder(),
         ImageBuilder(),
+        IframeBuilder(),
     )
 
 

@@ -54,13 +54,12 @@ from fdai.core.reporting.registry import (
     WidgetRegistry,
 )
 from fdai.core.reporting.substitution import substitute
+from fdai.core.reporting.widgets.composite import GROUP_LIKE_WIDGET_TYPES
 
 _LOGGER = logging.getLogger(__name__)
 
 Clock = Callable[[], datetime]
 """Deterministic-clock seam for tests / replay."""
-
-_GROUP_WIDGET_TYPE = "group"
 
 
 class ReportEngine:
@@ -253,8 +252,9 @@ class ReportEngine:
         variables: Mapping[str, str],
         semaphore: asyncio.Semaphore | None,
     ) -> RenderedWidget:
-        # Group widgets are composite - recurse; no datasource call.
-        if widget_spec.type == _GROUP_WIDGET_TYPE:
+        # Composite widgets (group / tabs) are special-cased - no
+        # datasource call; recurse into declared children.
+        if widget_spec.type in GROUP_LIKE_WIDGET_TYPES:
             children = await self._render_widgets(
                 widget_spec.children,
                 since=since,
@@ -264,7 +264,7 @@ class ReportEngine:
             )
             return RenderedWidget(
                 id=widget_spec.id,
-                type=_GROUP_WIDGET_TYPE,
+                type=widget_spec.type,
                 title=widget_spec.title,
                 data={},
                 options=widget_spec.options,
