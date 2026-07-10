@@ -1,0 +1,45 @@
+id: metric-explorer
+version: 1.0.0
+name: Metric Explorer
+description: |
+  Generic parameterized report over the MetricProvider seam. Substitute
+  the metric_name variable to render any CSP-neutral metric as a
+  grouped time series plus a summed scalar.
+
+  Serves as the "wire your first metric" reference: point metric_name
+  at any name your MetricProvider adapter recognises (Prometheus,
+  Log Analytics KQL bridge, ...) and both widgets render live data.
+tags:
+  - metrics
+  - generic
+time_range:
+  last: 1h
+
+variables:
+  - name: metric_name
+    default: fdai.audit.entries.count
+    description: >
+      Metric to plot. Whatever the wired MetricProvider recognises.
+  - name: group_by
+    default: mode
+    description: >
+      Label key to bucket points into named series (single-key form).
+
+widgets:
+  - id: total
+    type: query_value
+    title: Sum over window
+    query:
+      datasource: metric
+      parameters:
+        metric_name: fdai.audit.entries.count
+        projection: scalar_sum
+
+  - id: trend
+    type: timeseries
+    title: Points over time
+    query:
+      datasource: metric
+      parameters:
+        metric_name: fdai.audit.entries.count
+        group_by: [mode]

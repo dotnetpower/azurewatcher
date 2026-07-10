@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fdai.dev/schemas/report",
+  "title": "FDAI - Report Definition",
+  "description": "One report loaded from rule-catalog/reports/<id>.yaml. See docs/roadmap/reporting-subsystem.md for the render pipeline.",
+  "type": "object",
+  "required": ["id", "version", "name", "time_range", "widgets"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "description": "Stable identifier used in the URL and audit key.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,63}$"
+    },
+    "version": {
+      "description": "Semantic version of the report definition.",
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "name": {
+      "description": "Human-readable title.",
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "description": "Multi-line prose shown at the top of the render.",
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": []
+    },
+    "time_range": {"$ref": "#/$defs/time_range"},
+    "variables": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/variable"},
+      "default": []
+    },
+    "widgets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/widget"}
+    }
+  },
+  "$defs": {
+    "time_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "oneOf": [
+        {"required": ["last"]},
+        {"required": ["relative_duration"]},
+        {"required": ["since", "until"]},
+        {"required": ["since"]}
+      ],
+      "properties": {
+        "since": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "until": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "relative_duration": {
+          "description": "Duration ending at now. Format: <n>[smhdw].",
+          "type": "string",
+          "pattern": "^\\d+[smhdw]$"
+        },
+        "last": {
+          "description": "Alias for relative_duration.",
+          "type": "string",
+          "pattern": "^\\d+[smhdw]$"
+        }
+      }
+    },
+    "variable": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "default": {"type": "string"},
+        "values": {
+          "type": "array",
+          "items": {"type": "string"},
+          "default": []
+        },
+        "description": {"type": "string"}
+      }
+    },
+    "widget": {
+      "type": "object",
+      "required": ["id", "type", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "title": {"type": "string"},
+        "query": {"$ref": "#/$defs/query"},
+        "options": {
+          "type": "object",
+          "default": {}
+        },
+        "children": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/widget"},
+          "default": []
+        }
+      }
+    },
+    "query": {
+      "type": "object",
+      "required": ["datasource"],
+      "additionalProperties": false,
+      "properties": {
+        "datasource": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "parameters": {
+          "type": "object",
+          "default": {}
+        }
+      }
+    }
+  }
+}

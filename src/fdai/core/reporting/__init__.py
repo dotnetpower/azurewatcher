@@ -29,6 +29,13 @@ console invariant in ``app-shape.instructions.md``.
 
 from __future__ import annotations
 
+from fdai.core.reporting.catalog import (
+    ReportCatalogError,
+    ReportCatalogIssue,
+    default_report_schema_path,
+    load_report_catalog,
+    load_report_from_mapping,
+)
 from fdai.core.reporting.contracts import (
     DataSourceNotFoundError,
     FormatEncoder,
@@ -72,6 +79,8 @@ __all__ = [
     "RenderedReport",
     "RenderedWidget",
     "ReportCatalog",
+    "ReportCatalogError",
+    "ReportCatalogIssue",
     "ReportDataSource",
     "ReportEngine",
     "ReportNotFoundError",
@@ -86,4 +95,7 @@ __all__ = [
     "WidgetRegistry",
     "WidgetSpec",
     "WidgetTypeNotFoundError",
+    "default_report_schema_path",
+    "load_report_catalog",
+    "load_report_from_mapping",
 ]

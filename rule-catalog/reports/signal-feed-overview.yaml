@@ -1,0 +1,69 @@
+id: signal-feed-overview
+version: 1.0.0
+name: Signal Feed Overview
+description: |
+  Aggregate rollup of the report signal feed (SRE-agent slide 22).
+  Splits by category (workload / security), severity, and lists the
+  freshest signals so an operator can jump straight to the loudest
+  ones.
+tags:
+  - detection
+  - signals
+time_range:
+  last: 24h
+
+variables:
+  - name: category
+    default: all
+    values: [all, workload, security]
+    description: >
+      Narrow the feed to one category. "all" (the default) does not
+      filter.
+
+widgets:
+  - id: total-signals
+    type: query_value
+    title: Signals in window
+    query:
+      datasource: report_feed
+      parameters:
+        projection: count_total
+
+  - id: by-category
+    type: bar_chart
+    title: Signals by category
+    query:
+      datasource: report_feed
+      parameters:
+        projection: count_by_category
+
+  - id: by-severity
+    type: bar_chart
+    title: Signals by severity
+    query:
+      datasource: report_feed
+      parameters:
+        projection: count_by_severity
+
+  - id: by-kind
+    type: top_list
+    title: Signals by producer kind
+    query:
+      datasource: report_feed
+      parameters:
+        projection: count_by_kind
+    options:
+      rank_by: value
+      order: desc
+      limit: 10
+
+  - id: latest
+    type: list_stream
+    title: Latest signals
+    query:
+      datasource: report_feed
+      parameters:
+        projection: rows
+    options:
+      timestamp_field: at
+      limit: 25

@@ -1,0 +1,67 @@
+id: shadow-mode-daily
+version: 1.0.0
+name: Shadow-Mode Daily Rollup
+description: |
+  Yesterday's shadow-mode activity. Answers "how many decisions would
+  have executed, split by action kind and actor, and which rules
+  fired the most?"
+tags:
+  - control-loop
+  - shadow-mode
+time_range:
+  last: 1d
+
+widgets:
+  - id: total-shadow
+    type: query_value
+    title: Shadow-mode entries (24h)
+    query:
+      datasource: audit
+      parameters:
+        projection: count_total
+    options:
+      unit: entries
+
+  - id: enforce-vs-shadow
+    type: bar_chart
+    title: Enforce vs shadow
+    query:
+      datasource: audit
+      parameters:
+        projection: count_by_mode
+
+  - id: by-action-kind
+    type: top_list
+    title: Top action kinds
+    query:
+      datasource: audit
+      parameters:
+        projection: count_by_action_kind
+    options:
+      rank_by: value
+      order: desc
+      limit: 10
+
+  - id: by-actor
+    type: top_list
+    title: Top actors
+    query:
+      datasource: audit
+      parameters:
+        projection: count_by_actor
+    options:
+      rank_by: value
+      order: desc
+      limit: 10
+
+  - id: recent-entries
+    type: list_stream
+    title: Recent audit entries
+    query:
+      datasource: audit
+      parameters:
+        projection: rows
+        limit: 200
+    options:
+      timestamp_field: at
+      limit: 50
