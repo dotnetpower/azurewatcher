@@ -41,10 +41,16 @@ interface ActiveGroupState {
 }
 
 const CLOSE_DELAY_MS = 180;
+/** Hover-intent delay before a group popover opens. A short dwell keeps the
+ *  flyout from flashing open when the pointer merely crosses the rail on its
+ *  way elsewhere (a frequent accidental trigger reported by operators).
+ *  Keyboard focus still opens immediately - that is an explicit intent. */
+const OPEN_DELAY_MS = 140;
 
 export function LeftRail({ activePanelId }: Props) {
   const [state, setState] = useState<ActiveGroupState>({ group: null, pinned: false });
   const closeTimer = useRef<number | null>(null);
+  const openTimer = useRef<number | null>(null);
   const iconRefs = useRef(new Map<PanelGroup, HTMLButtonElement | null>());
   const navRef = useRef<HTMLElement | null>(null);
 
@@ -63,28 +69,51 @@ export function LeftRail({ activePanelId }: Props) {
     }
   }, []);
 
+  const cancelOpen = useCallback(() => {
+    if (openTimer.current !== null) {
+      window.clearTimeout(openTimer.current);
+      openTimer.current = null;
+    }
+  }, []);
+
   const scheduleClose = useCallback(() => {
     cancelClose();
+    cancelOpen();
     closeTimer.current = window.setTimeout(() => {
       setState((prev) => (prev.pinned ? prev : { group: null, pinned: false }));
     }, CLOSE_DELAY_MS);
-  }, [cancelClose]);
+  }, [cancelClose, cancelOpen]);
 
   const openGroup = useCallback(
     (g: PanelGroup, { pin }: { pin: boolean } = { pin: false }) => {
       cancelClose();
+      cancelOpen();
       setState((prev) => ({
         group: g,
         pinned: pin ? !(prev.group === g && prev.pinned) : prev.pinned,
       }));
     },
-    [cancelClose],
+    [cancelClose, cancelOpen],
+  );
+
+  /** Open a group after the hover-intent dwell (pointer path only). */
+  const scheduleOpen = useCallback(
+    (g: PanelGroup) => {
+      cancelClose();
+      cancelOpen();
+      openTimer.current = window.setTimeout(() => {
+        openTimer.current = null;
+        setState((prev) => ({ group: g, pinned: prev.pinned }));
+      }, OPEN_DELAY_MS);
+    },
+    [cancelClose, cancelOpen],
   );
 
   const closeAll = useCallback(() => {
     cancelClose();
+    cancelOpen();
     setState({ group: null, pinned: false });
-  }, [cancelClose]);
+  }, [cancelClose, cancelOpen]);
 
   // Escape / cleanup on unmount.
   useEffect(() => {
@@ -99,8 +128,9 @@ export function LeftRail({ activePanelId }: Props) {
     return () => {
       window.removeEventListener("keydown", onKey);
       cancelClose();
+      cancelOpen();
     };
-  }, [state.group, closeAll, cancelClose]);
+  }, [state.group, closeAll, cancelClose, cancelOpen]);
 
   // Dismiss the popover when the operator interacts anywhere outside the
   // rail (content area, header, deck). Without this a pinned popover -
@@ -152,7 +182,7 @@ export function LeftRail({ activePanelId }: Props) {
                 aria-label={`${g.label} - ${g.hint}`}
                 aria-expanded={isOpen}
                 aria-haspopup="true"
-                onMouseEnter={() => openGroup(g.id)}
+                onMouseEnter={() => scheduleOpen(g.id)}
                 onMouseLeave={scheduleClose}
                 onFocus={() => openGroup(g.id)}
                 onBlur={scheduleClose}

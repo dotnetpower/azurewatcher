@@ -13,7 +13,11 @@
  */
 const route = Astro.locals.starlightRoute;
 const locale = route?.locale; // undefined on the root (English) locale
-const base = import.meta.env.BASE_URL; // trailing-slash form, e.g. "/fdai/"
+// import.meta.env.BASE_URL is not guaranteed to carry a trailing slash
+// (a production build with base "/fdai" yields "/fdai"), so normalize it
+// before appending the locale - otherwise the Korean brand link becomes
+// "/fdaiko/" (a 404) instead of "/fdai/ko/".
+const base = import.meta.env.BASE_URL.replace(/\/?$/, "/"); // e.g. "/fdai/"
 const home = locale ? `${base}${locale}/` : base;
 ---
 

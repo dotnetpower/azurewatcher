@@ -33,6 +33,7 @@ import {
 } from "./draft-history";
 import { GroundedReply } from "./grounded-reply";
 import { RetrievalTrace } from "./retrieval-trace";
+import { introSuggestions } from "./intro-suggestions";
 import { isNearBottom } from "./scroll-stick";
 import { parseTurns, serializeTurns, TRANSCRIPT_KEY } from "./transcript-store";
 
@@ -474,7 +475,7 @@ export function CommandDeck() {
               onScroll={onTranscriptScroll}
             >
               {turns.length === 0 ? (
-                <IntroPanel snapshotPresent={snapshot !== null} onPick={submit} />
+                <IntroPanel snapshot={snapshot} onPick={submit} />
               ) : null}
               {turns.map((t, i) => (
                 <TurnBubble

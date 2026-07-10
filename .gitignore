@@ -225,6 +225,9 @@ __marimo__/
 # Local design mockups and throwaway experiments (not shipped)
 examples/
 
+# Internal-only notes (maintainer scratch, not shipped docs)
+docs/internals/
+
 # --------------------------------------------------------------------------
 # Terraform (infra/) - NEVER commit tfvars / state; they carry real
 # subscription / tenant / RG values forbidden by

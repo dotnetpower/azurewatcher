@@ -6,6 +6,7 @@
   "description": "FDAI documentation site (Astro Starlight, GitHub Pages).",
   "scripts": {
     "mount-docs": "node scripts/mount-docs.mjs",
+    "gen-og": "node scripts/gen-og-image.mjs",
     "predev": "npm run mount-docs",
     "prebuild": "npm run mount-docs",
     "prestart": "npm run mount-docs",
