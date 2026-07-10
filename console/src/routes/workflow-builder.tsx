@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Fragment } from "preact";
 import type { ReadApiClient } from "../api";
+import { loadConfig } from "../config";
 import { AsyncBoundary, CopyButton, PageHeader, type AsyncState } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
@@ -222,6 +223,31 @@ function humanizeIssueKey(key: string): string {
   const noPrefix = key.replace(/^draft:/, "").trim();
   if (noPrefix === "" || noPrefix === "<root>") return "workflow";
   return noPrefix.replace(/\./g, " > ").replace(/_/g, " ");
+}
+
+/** Build a GitHub "new file" URL that pre-fills the workflow YAML at its
+ * catalog path, so a validated draft becomes a PR in one click. Returns
+ * null when the repo is not a valid `owner/repo`. Pure and exported for
+ * tests; the config-reading wrapper is `githubNewFileUrl`. */
+export function buildGithubNewFileUrl(
+  repo: string,
+  branch: string,
+  filePath: string,
+  yaml: string,
+): string | null {
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo.trim())) return null;
+  const params = new URLSearchParams({ filename: filePath, value: yaml });
+  return `https://github.com/${repo.trim()}/new/${encodeURIComponent(
+    branch.trim() || "main",
+  )}?${params.toString()}`;
+}
+
+/** Config-reading wrapper: returns the new-file URL when a catalog repo is
+ * configured, else null (the console then falls back to copy / download).
+ * The console never commits - this only opens GitHub in a new tab. */
+function githubNewFileUrl(filePath: string, yaml: string): string | null {
+  const cfg = loadConfig();
+  return buildGithubNewFileUrl(cfg.workflowCatalogRepo, cfg.workflowCatalogBranch, filePath, yaml);
 }
 
 /** Turn a dotted workflow name ("cost-aware-remediation") into a readable
@@ -1773,6 +1799,8 @@ function ValidationResult({
   }
   const fileName = `${name.trim() || "workflow"}.yaml`;
   const yaml = result.yaml_preview ?? "";
+  const filePath = `rule-catalog/workflows/${fileName}`;
+  const prUrl = githubNewFileUrl(filePath, yaml);
   function download(): void {
     const blob = new Blob([yaml], { type: "text/yaml" });
     const url = URL.createObjectURL(blob);
@@ -1786,16 +1814,34 @@ function ValidationResult({
     <div class="stack">
       <div class="badge enforce">Valid - ready for a remediation PR</div>
       <p class="muted small">
-        Copy this into <code class="mono">rule-catalog/workflows/{fileName}</code> and open a
-        remediation PR. The console does not commit - authoring stays git-native so audit,
-        review, and rollback come for free.
+        {prUrl
+          ? "Your draft is valid. Open a pull request to propose it - the console never commits, so review, audit, and rollback come for free."
+          : null}
+        {prUrl ? null : (
+          <>
+            Copy this into <code class="mono">{filePath}</code> and open a remediation PR. The
+            console does not commit - authoring stays git-native so audit, review, and rollback
+            come for free.
+          </>
+        )}
       </p>
       <div class="code-actions">
+        {prUrl ? (
+          <a class="btn" href={prUrl} target="_blank" rel="noopener noreferrer">
+            Open a PR on GitHub →
+          </a>
+        ) : null}
         <CopyButton text={yaml} label="Copy YAML" />
         <button type="button" class="btn btn-small" onClick={download}>
           Download {fileName}
         </button>
       </div>
+      {prUrl ? (
+        <p class="field-hint">
+          Opens GitHub in a new tab with <code class="mono">{filePath}</code> pre-filled. Review,
+          then "Propose new file" to create the PR.
+        </p>
+      ) : null}
       <pre class="mono scroll code-block">{yaml}</pre>
     </div>
   );

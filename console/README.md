@@ -353,3 +353,5 @@ CI env):
 | `VITE_MSAL_API_SCOPE` | API audience scope (e.g. `api://<api-guid>/access`). |
 | `VITE_DEV_MODE` | `1` to bypass MSAL. Never set in production. |
 | `VITE_CONSOLE_BASE_PATH` | Optional subpath if not served at origin root. |
+| `VITE_WORKFLOW_CATALOG_REPO` | Optional `owner/repo` of the catalog repo. When set, a validated workflow draft shows a one-click "Open a PR on GitHub" (new-file link); the console still never commits. |
+| `VITE_WORKFLOW_CATALOG_BRANCH` | Branch the new-file PR link targets (default `main`). |

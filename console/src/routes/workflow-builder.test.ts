@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { humanizeName, suggestDraftFromText, suggestStepId } from "./workflow-builder";
+import {
+  buildGithubNewFileUrl,
+  humanizeName,
+  suggestDraftFromText,
+  suggestStepId,
+} from "./workflow-builder";
 import type { ActionTypePaletteEntry } from "../workflow/validate";
 
 /**
@@ -114,5 +119,31 @@ describe("suggestDraftFromText", () => {
     const s = suggestDraftFromText("right-size and scale out and restart", PALETTE);
     const ids = s!.form.steps.map((st) => st.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe("buildGithubNewFileUrl", () => {
+  test("returns null when the repo is not owner/repo", () => {
+    expect(buildGithubNewFileUrl("", "main", "p.yaml", "x")).toBeNull();
+    expect(buildGithubNewFileUrl("not-a-repo", "main", "p.yaml", "x")).toBeNull();
+    expect(buildGithubNewFileUrl("a/b/c", "main", "p.yaml", "x")).toBeNull();
+  });
+
+  test("builds a new-file URL with url-encoded filename + content", () => {
+    const url = buildGithubNewFileUrl(
+      "acme/fdai",
+      "main",
+      "rule-catalog/workflows/x.yaml",
+      "name: x\n",
+    );
+    expect(url).not.toBeNull();
+    expect(url!.startsWith("https://github.com/acme/fdai/new/main?")).toBe(true);
+    expect(url).toContain("filename=rule-catalog%2Fworkflows%2Fx.yaml");
+    expect(url).toContain("value=name%3A+x%0A");
+  });
+
+  test("defaults an empty branch to main", () => {
+    const url = buildGithubNewFileUrl("acme/fdai", "", "x.yaml", "x");
+    expect(url!).toContain("/new/main?");
   });
 });
