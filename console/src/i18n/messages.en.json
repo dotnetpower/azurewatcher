@@ -10,7 +10,8 @@
     "ruleTrace": "Trace",
     "agentActivity": "Agent activity",
     "rules": "Rules",
-    "workflowBuilder": "Workflow builder"
+    "workflowBuilder": "Workflow builder",
+    "llmCost": "LLM cost"
   },
   "nav": {
     "group": {
@@ -39,7 +40,8 @@
       "promotionGates": "Promotion gates",
       "dashboard": "Overview",
       "rules": "Rules",
-      "workflowBuilder": "Workflow builder"
+      "workflowBuilder": "Workflow builder",
+      "llmCost": "LLM cost"
     },
     "panelSub": {
       "live": "Real-time pipeline activity",
@@ -53,7 +55,8 @@
       "promotionGates": "Per-ActionType readiness for shadow → enforce",
       "dashboard": "Healthy, risk, and cost, sourced from the audit log",
       "rules": "Every policy in the rule catalog, faceted",
-      "workflowBuilder": "Browse built-in workflows or author a new ontology-mapped one"
+      "workflowBuilder": "Browse built-in workflows or author a new ontology-mapped one",
+      "llmCost": "Token usage and spend per conversation, day, and month"
     }
   },
   "workflowBuilder": {

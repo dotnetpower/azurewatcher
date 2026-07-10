@@ -9,7 +9,8 @@
     "promotionGates": "승급 게이트",
     "agentActivity": "에이전트 활동",
     "rules": "규칙",
-    "workflowBuilder": "워크플로우 빌더"
+    "workflowBuilder": "워크플로우 빌더",
+    "llmCost": "LLM 비용"
   },
   "nav": {
     "group": {
@@ -38,7 +39,8 @@
       "promotionGates": "승급 게이트",
       "dashboard": "개요",
       "rules": "규칙",
-      "workflowBuilder": "워크플로우 빌더"
+      "workflowBuilder": "워크플로우 빌더",
+      "llmCost": "LLM 비용"
     },
     "panelSub": {
       "live": "실시간 파이프라인 활동",
@@ -49,7 +51,8 @@
       "pantheon": "15개의 명명된 자율 에이전트 (판테온)",
       "dashboard": "감사 로그 기반 건강도 / 위험 / 비용",
       "rules": "규칙 카탈로그의 모든 정책, 패싯별",
-      "workflowBuilder": "빌트인 워크플로우를 둘러보거나 온톨로지에 매핑된 새 워크플로우를 작성"
+      "workflowBuilder": "빌트인 워크플로우를 둘러보거나 온톨로지에 매핑된 새 워크플로우를 작성",
+      "llmCost": "대화 / 일 / 월별 토큰 사용량과 비용"
     }
   },
   "workflowBuilder": {

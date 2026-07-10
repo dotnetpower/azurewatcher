@@ -31,6 +31,7 @@ import { BlastRadiusRoute } from "./routes/blast-radius";
 import { DashboardRoute } from "./routes/dashboard";
 import { HilQueueRoute } from "./routes/hil-queue";
 import { LiveRoute } from "./routes/live";
+import { LlmCostRoute } from "./routes/llm-cost";
 import { OntologyRoute } from "./routes/ontology";
 import { PantheonRoute } from "./routes/pantheon";
 import { PromotionGatesRoute } from "./routes/promotion-gates";
@@ -176,6 +177,13 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
   },
   // ── Overview ────────────────────────────────────────────────────────
   DASHBOARD_PANEL,
+  {
+    id: "llm-cost",
+    label: t("nav.panel.llmCost"),
+    subtitle: t("nav.panelSub.llmCost"),
+    group: "overview",
+    component: LlmCostRoute,
+  },
 ];
 
 /**
