@@ -70,9 +70,7 @@ def test_pricing_table_unpriced_returns_none() -> None:
 
 
 def test_float_price_routed_through_str() -> None:
-    table = PricingTable.from_mapping(
-        {"m": {"input_per_1k": 0.1, "output_per_1k": 0.2}}
-    )
+    table = PricingTable.from_mapping({"m": {"input_per_1k": 0.1, "output_per_1k": 0.2}})
     pricing = table.pricing_for("m")
     assert pricing is not None
     # 0.1 via str(Decimal) is exact, not 0.1000000000000000055...

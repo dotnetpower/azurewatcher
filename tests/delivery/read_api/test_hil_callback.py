@@ -310,10 +310,12 @@ def test_url_path_swap_is_rejected() -> None:
     registry = InMemoryHilApprovalRegistry()
     # Seed two pending items so the target path resolves to a real item
     # (otherwise a 404 would mask the auth check).
-    registry.seed([
-        _pending(approval_id="appr-1", idempotency_key="idem-1"),
-        _pending(approval_id="appr-2", idempotency_key="idem-2"),
-    ])
+    registry.seed(
+        [
+            _pending(approval_id="appr-1", idempotency_key="idem-1"),
+            _pending(approval_id="appr-2", idempotency_key="idem-2"),
+        ]
+    )
     app = _build_app_with_callback(registry)
     client = TestClient(app)
     body = json.dumps(

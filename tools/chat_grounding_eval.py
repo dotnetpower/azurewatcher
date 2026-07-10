@@ -166,9 +166,7 @@ CASES: list[Case] = [
     ),
     Case("t0_share", "what is the T0 share?", _LIVE, expect_substrings=("78%",)),
     Case("t2_share", "what is the T2 tier share?", _LIVE, expect_substrings=("5%",)),
-    Case(
-        "audit_latest", "who logged the latest audit entry?", _AUDIT, expect_substrings=("thor",)
-    ),
+    Case("audit_latest", "who logged the latest audit entry?", _AUDIT, expect_substrings=("thor",)),
     Case(
         "audit_mode_ko",
         "\ucd5c\uadfc \ud56d\ubaa9\uc740 \uc5b4\ub5a4 \ubaa8\ub4dc\uc57c?",  # KO: latest mode?

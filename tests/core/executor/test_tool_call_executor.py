@@ -138,9 +138,7 @@ class TestHappyPath:
     @pytest.mark.asyncio
     async def test_action_params_forwarded_as_arguments(self) -> None:
         exec_, adapter, _ = _executor()
-        await exec_.execute(
-            action=_action(params={"report_kind": "cost_report", "window_days": 7})
-        )
+        await exec_.execute(action=_action(params={"report_kind": "cost_report", "window_days": 7}))
         request = adapter.records[0]
         assert request.arguments == {"report_kind": "cost_report", "window_days": 7}
         assert request.action_type_name == "tool.generate-pdf"

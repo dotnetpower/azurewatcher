@@ -69,7 +69,6 @@ _ROLE_RANK: dict[str, int] = {
 _EXECUTE_ROLE_FLOOR = "contributor"
 
 
-
 @dataclass
 class RoutingDecision:
     primary_agent: str | None
@@ -332,7 +331,7 @@ class Bragi(Agent):
                 question=question,
                 initiator_role=initiator_role,
             )
-            answer = {
+            answer: dict[str, Any] = {
                 "answer": None,
                 "primary_agent": None,
                 "requires_typed_pipeline": True,
@@ -348,7 +347,6 @@ class Bragi(Agent):
             session.turns.append(turn)
             return turn
         decision = self.route(question)
-        answer: dict[str, Any]
         if decision.primary_agent is None:
             answer = {
                 "answer": None,
@@ -438,7 +436,7 @@ def _resource_of(question: str) -> str | None:
     """
     for token in re.findall(r"[a-z0-9-]+", question.lower()):
         if len(token) >= 3 and ("-" in token or any(c.isdigit() for c in token)):
-            return token
+            return str(token)
     return None
 
 

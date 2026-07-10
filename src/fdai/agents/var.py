@@ -186,10 +186,7 @@ class Var(Agent):
                 "(distinct principal from the executor)."
             )
         else:
-            answer = (
-                f"{len(pending)} HIL approval(s) pending: "
-                f"{', '.join(sorted(pending))}."
-            )
+            answer = f"{len(pending)} HIL approval(s) pending: {', '.join(sorted(pending))}."
         return IntrospectionResult(answer=answer, facts=facts)
 
 

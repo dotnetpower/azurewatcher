@@ -330,9 +330,7 @@ def make_rule_catalog_routes(
 
     # Deterministic order: severity desc, then id asc. Stable across
     # reloads regardless of file iteration order.
-    indexed.sort(
-        key=lambda ir: (-_SEVERITY_RANK.get(ir.severity, 0), str(ir.payload["id"]))
-    )
+    indexed.sort(key=lambda ir: (-_SEVERITY_RANK.get(ir.severity, 0), str(ir.payload["id"])))
 
     # Detail lookup. ``by_key`` is exact (origin+id); ``by_id`` is a
     # fallback when the caller does not pass an origin. Active is added

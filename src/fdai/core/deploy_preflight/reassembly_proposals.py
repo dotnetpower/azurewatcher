@@ -109,8 +109,7 @@ def build_toggle_proposals(
         # module is guaranteed non-empty by the loop's autofix eligibility gate.
         module = toggle.module or ""
         toggle_reason = reason or (
-            f"preflight active reassembly cleared blocker {toggle.finding_id} "
-            f"via {module}"
+            f"preflight active reassembly cleared blocker {toggle.finding_id} via {module}"
         )
         proposals.append(
             ToggleActionProposal(

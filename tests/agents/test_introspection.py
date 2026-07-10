@@ -87,4 +87,3 @@ class TestBaseIntrospect:
         assert result.abstain_reason is None
         assert result.facts["agent"] == "Muninn"
         assert result.facts["owns"] == list(_MUNINN.owns)
-

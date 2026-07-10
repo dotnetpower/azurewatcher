@@ -69,9 +69,9 @@ def _table(rows: list[list[object]]) -> dict[str, object]:
     }
 
 
-def _provider(handler, cfg: AzureMonitorLogsConfig | None = None) -> tuple[
-    AzureMonitorLogsMetricProvider, httpx.AsyncClient
-]:
+def _provider(
+    handler, cfg: AzureMonitorLogsConfig | None = None
+) -> tuple[AzureMonitorLogsMetricProvider, httpx.AsyncClient]:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     provider = AzureMonitorLogsMetricProvider(
         config=cfg or _config(),
@@ -154,12 +154,18 @@ async def test_timespan_included_only_when_both_bounds_present() -> None:
     since = datetime(2026, 7, 10, tzinfo=UTC)
     until = since + timedelta(hours=1)
     try:
-        _ = [p async for p in provider.query(
-            MetricQuery(metric_name="http.server.request.duration", since=since, until=until)
-        )]
-        _ = [p async for p in provider.query(
-            MetricQuery(metric_name="http.server.request.duration", since=since)
-        )]
+        _ = [
+            p
+            async for p in provider.query(
+                MetricQuery(metric_name="http.server.request.duration", since=since, until=until)
+            )
+        ]
+        _ = [
+            p
+            async for p in provider.query(
+                MetricQuery(metric_name="http.server.request.duration", since=since)
+            )
+        ]
     finally:
         await client.aclose()
 

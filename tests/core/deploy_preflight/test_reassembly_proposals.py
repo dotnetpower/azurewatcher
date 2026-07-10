@@ -46,9 +46,7 @@ def test_one_proposal_per_toggle() -> None:
 
 
 def test_proposal_dict_shape_matches_argument_schema() -> None:
-    outcome = _cleared(
-        _toggle("f0", "compute", {"disk_provisioning": "attach_existing"})
-    )
+    outcome = _cleared(_toggle("f0", "compute", {"disk_provisioning": "attach_existing"}))
     proposal = build_toggle_proposals(outcome, initiator_principal="control-plane")[0]
     envelope = proposal.to_dict()
     assert envelope["action_type"] == ACTION_TYPE
@@ -86,9 +84,7 @@ def test_idempotency_key_deterministic_and_distinct() -> None:
 
 def test_explicit_reason_overrides_default() -> None:
     outcome = _cleared(_toggle("f0", "compute", {"a": "1"}))
-    proposal = build_toggle_proposals(
-        outcome, initiator_principal="cp", reason="operator asked"
-    )[0]
+    proposal = build_toggle_proposals(outcome, initiator_principal="cp", reason="operator asked")[0]
     assert proposal.reason == "operator asked"
 
 
@@ -107,9 +103,7 @@ async def test_submit_hands_each_proposal_to_sink_in_order() -> None:
         _toggle("f1", "registry", {"registry_source": "acr_mirror"}),
     )
     sink = _RecordingSink()
-    results = await submit_toggle_proposals(
-        outcome, sink=sink, initiator_principal="control-plane"
-    )
+    results = await submit_toggle_proposals(outcome, sink=sink, initiator_principal="control-plane")
     assert len(results) == 2
     assert all(r["submitted"] for r in results)  # type: ignore[index]
     assert [e["params"]["finding_id"] for e in sink.received] == ["f0", "f1"]
@@ -121,9 +115,7 @@ async def test_submit_nothing_for_escalated() -> None:
         status=ReassemblyStatus.ESCALATED, reason=ReassemblyReason.NON_CONVERGENT
     )
     sink = _RecordingSink()
-    results = await submit_toggle_proposals(
-        outcome, sink=sink, initiator_principal="cp"
-    )
+    results = await submit_toggle_proposals(outcome, sink=sink, initiator_principal="cp")
     assert results == ()
     assert sink.received == []
 

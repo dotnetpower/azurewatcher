@@ -121,9 +121,7 @@ def _app(sub: ConsoleActionSubmitter, principal: Principal) -> Starlette:
     async def _authz(_req: Request) -> Principal:
         return principal
 
-    return Starlette(
-        routes=[make_console_action_route(submitter=sub, authorize_principal=_authz)]
-    )
+    return Starlette(routes=[make_console_action_route(submitter=sub, authorize_principal=_authz)])
 
 
 def test_route_contributor_gets_200_submitted() -> None:
@@ -200,4 +198,3 @@ def test_build_app_omits_action_route_when_not_wired(_dev_mode: None) -> None:
     client, _bus = _built_client(wire_action=False)
     resp = client.post("/chat/action", json={"prompt": "restart svc-1"})
     assert resp.status_code == 404
-

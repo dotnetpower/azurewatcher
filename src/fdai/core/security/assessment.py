@@ -143,9 +143,7 @@ def build_security_assessment(
 def _summary(*, verdict: SecurityVerdict, counts: Mapping[Severity, int], total: int) -> str:
     if total == 0:
         return "No security findings in scope."
-    parts = ", ".join(
-        f"{counts[s]} {s}" for s in reversed(_SEVERITY_ORDER) if counts[s] > 0
-    )
+    parts = ", ".join(f"{counts[s]} {s}" for s in reversed(_SEVERITY_ORDER) if counts[s] > 0)
     return f"{verdict.value.upper()}: {total} finding(s) ({parts})."
 
 

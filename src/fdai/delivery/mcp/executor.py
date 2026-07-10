@@ -167,10 +167,7 @@ class McpToolExecutor:
         if mcp_tool is None:
             raise ToolError(
                 kind="config",
-                message=(
-                    f"no MCP tool mapped for ActionType "
-                    f"{request.action_type_name!r}"
-                ),
+                message=(f"no MCP tool mapped for ActionType {request.action_type_name!r}"),
             )
 
         # 3. Shadow is a real no-op: never invoke, never record the ledger.
@@ -284,8 +281,7 @@ class McpToolExecutor:
             raise ToolError(
                 kind="protocol",
                 message=(
-                    f"MCP response for tool {mcp_tool!r} carries neither a "
-                    f"'result' nor an 'error'"
+                    f"MCP response for tool {mcp_tool!r} carries neither a 'result' nor an 'error'"
                 ),
             )
 

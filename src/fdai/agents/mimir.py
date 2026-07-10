@@ -94,9 +94,7 @@ class Mimir(Agent):
         rules = mentioned(question, self._promotions)
         if rules:
             promo = self._promotions[rules[0]]
-            facts.update(
-                {"rule_id": promo.rule_id, "state": promo.state, "source": promo.source}
-            )
+            facts.update({"rule_id": promo.rule_id, "state": promo.state, "source": promo.source})
             answer = f"Rule {promo.rule_id!r} is {promo.state} (source: {promo.source})."
             return IntrospectionResult(answer=answer, facts=facts)
         answer = (

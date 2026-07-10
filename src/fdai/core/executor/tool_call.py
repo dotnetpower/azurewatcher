@@ -196,8 +196,7 @@ class ToolCallShadowExecutor:
                 action=action,
                 outcome=ToolCallExecutionOutcome.REJECTED_MODE,
                 reason=(
-                    "enforce mode is out of scope in P1 "
-                    "(execution-model.md 5.6 promotion contract)"
+                    "enforce mode is out of scope in P1 (execution-model.md 5.6 promotion contract)"
                 ),
             )
 
@@ -302,9 +301,7 @@ class ToolCallShadowExecutor:
         mapping: dict[ToolCallOutcome, ToolCallExecutionOutcome] = {
             ToolCallOutcome.SUCCEEDED: ToolCallExecutionOutcome.DISPATCHED,
             ToolCallOutcome.ALREADY_APPLIED: ToolCallExecutionOutcome.ALREADY_APPLIED,
-            ToolCallOutcome.PRECONDITION_FAILED: (
-                ToolCallExecutionOutcome.ABSTAINED_PRECONDITION
-            ),
+            ToolCallOutcome.PRECONDITION_FAILED: (ToolCallExecutionOutcome.ABSTAINED_PRECONDITION),
             ToolCallOutcome.STOPPED: ToolCallExecutionOutcome.STOPPED,
             ToolCallOutcome.FAILED: ToolCallExecutionOutcome.FAILED,
         }

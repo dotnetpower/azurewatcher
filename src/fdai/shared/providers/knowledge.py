@@ -206,10 +206,7 @@ class EmbeddingKnowledgeSource:
         if k <= 0 or not self._index:
             return ()
         query_vector = tuple(await self._embedder.embed(query))
-        scored = [
-            (cosine_similarity(query_vector, vector), chunk)
-            for chunk, vector in self._index
-        ]
+        scored = [(cosine_similarity(query_vector, vector), chunk) for chunk, vector in self._index]
         scored.sort(key=lambda pair: pair[0], reverse=True)
         return tuple(
             KnowledgeChunk(

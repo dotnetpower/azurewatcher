@@ -55,9 +55,7 @@ def test_correlate_resource_overlap_boosts_score() -> None:
         _change(30, cid="no-overlap"),
         _change(30, cid="overlap", hints=("vm-a",)),
     ]
-    result = correlate_changes(
-        changes, incident_at=_INCIDENT_AT, incident_resources=("vm-a",)
-    )
+    result = correlate_changes(changes, incident_at=_INCIDENT_AT, incident_resources=("vm-a",))
     top = result[0]
     assert top.change.change_id == "overlap"
     assert top.resource_overlap == ("vm-a",)

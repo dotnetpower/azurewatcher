@@ -151,9 +151,7 @@ class GitHubChangeFeed:
                 break
         return records
 
-    def _map_deployment(
-        self, row: Any, *, resource_hint: str | None
-    ) -> ChangeRecord | None:
+    def _map_deployment(self, row: Any, *, resource_hint: str | None) -> ChangeRecord | None:
         if not isinstance(row, Mapping):
             return None
         at = _parse_ts(row.get("created_at"))

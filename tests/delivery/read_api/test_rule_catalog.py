@@ -191,9 +191,7 @@ def test_pagination_pages_through_filtered_set() -> None:
 
 
 def test_rule_summary_shape() -> None:
-    disk = next(
-        r for r in _client().get("/rules").json()["rules"] if r["id"] == "disk.unattached"
-    )
+    disk = next(r for r in _client().get("/rules").json()["rules"] if r["id"] == "disk.unattached")
     assert disk["origin"] == "active"
     assert disk["severity"] == "low"
     assert disk["category"] == "cost"

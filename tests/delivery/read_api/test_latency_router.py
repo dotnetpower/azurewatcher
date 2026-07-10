@@ -259,4 +259,3 @@ class TestCompletionBodyParams:
             params = _completion_body_params(model, temperature=0.2, max_tokens=800)
             assert params == {"max_completion_tokens": 800}
             assert "temperature" not in params
-

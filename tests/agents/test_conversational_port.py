@@ -80,9 +80,7 @@ def test_ask_refuses_action_intent_and_routes_to_typed_pipeline() -> None:
     # pantheon here wires the proposal sink, so the request is SUBMITTED, not
     # merely signalled - and the port never executes it.
     runtime = _runtime()
-    turn = asyncio.run(
-        runtime.ask(session_id="s1", user_id="u1", question="restart svc-1 now")
-    )
+    turn = asyncio.run(runtime.ask(session_id="s1", user_id="u1", question="restart svc-1 now"))
     assert turn is not None
     assert turn.answer["answer"] is None  # the port did not answer/execute
     assert turn.answer["requires_typed_pipeline"] is True
@@ -125,9 +123,7 @@ def test_introspect_a2a_threads_correlation_trace() -> None:
 
 def test_introspect_a2a_refuses_action_intent() -> None:
     runtime = _runtime()
-    result = asyncio.run(
-        runtime.introspect("Thor", "restart vm-1", requester="Odin")
-    )
+    result = asyncio.run(runtime.introspect("Thor", "restart vm-1", requester="Odin"))
     assert result is not None
     assert result["abstain_reason"] == "requires_typed_pipeline"
     assert result["requester"] == "Odin"
@@ -135,9 +131,7 @@ def test_introspect_a2a_refuses_action_intent() -> None:
 
 def test_introspect_a2a_unknown_agent_abstains() -> None:
     runtime = _runtime()
-    result = asyncio.run(
-        runtime.introspect("Bragi", "anything", requester="Odin")
-    )
+    result = asyncio.run(runtime.introspect("Bragi", "anything", requester="Odin"))
     # Bragi does not register itself as a responder.
     assert result is not None
     assert result["abstain_reason"] == "responder_not_registered"

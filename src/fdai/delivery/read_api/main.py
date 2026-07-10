@@ -407,9 +407,7 @@ def build_app(
         mode is refused outside local by :func:`build_app`).
         """
         if resolved_config.dev_mode:
-            return Principal(
-                oid=_DEV_MODE_PRINCIPAL, roles=frozenset({Role.CONTRIBUTOR})
-            )
+            return Principal(oid=_DEV_MODE_PRINCIPAL, roles=frozenset({Role.CONTRIBUTOR}))
         header = request.headers.get("authorization")
         return authenticator.require_roles(header, required=_READER_ROLES)
 
@@ -704,9 +702,7 @@ def build_app(
             if _wf_path in seen_panel_paths:
                 raise ValueError(f"workflow authoring path {_wf_path!r} collides with a panel path")
         routes.append(
-            make_action_types_route(
-                config=resolved_config.workflow_authoring, authorize=_authorize
-            )
+            make_action_types_route(config=resolved_config.workflow_authoring, authorize=_authorize)
         )
         routes.append(
             make_workflow_validate_route(
@@ -890,10 +886,8 @@ def build_app(
 
             async def _warm_router() -> None:
                 try:
-                    chose = await chat_backend.benchmark()  # type: ignore[union-attr]
-                    _LOGGER.warning(
-                        "CommandDeck router benchmarked - fastest candidate: %s", chose
-                    )
+                    chose = await chat_backend.benchmark()
+                    _LOGGER.warning("CommandDeck router benchmarked - fastest candidate: %s", chose)
                 except Exception as exc:  # noqa: BLE001 - best-effort warm-up
                     _LOGGER.warning("CommandDeck router benchmark failed: %s", exc)
 

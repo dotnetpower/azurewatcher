@@ -111,9 +111,7 @@ def test_workflow_step_can_reference_a_tool_action_type() -> None:
     raw = _base_mapping()
     raw["name"] = "generate-resilience-report"
     raw["steps"] = [{"id": "render", "action_type_ref": "tool.generate-pdf"}]
-    wf = load_workflow_from_mapping(
-        raw, schema_registry=_registry(), action_type_names=names
-    )
+    wf = load_workflow_from_mapping(raw, schema_registry=_registry(), action_type_names=names)
     assert wf.steps[0].action_type_ref == "tool.generate-pdf"
     assert wf.default_mode is Mode.SHADOW
 

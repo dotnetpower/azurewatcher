@@ -33,9 +33,7 @@ from fdai.shared.providers.feasibility_probe import (
 _CLOCK = "2026-07-10T00:00:00+00:00"
 
 
-def _toggle_finding(
-    fid: str, set_vars: dict[str, str], *, autofix: bool = True
-) -> ProbeFinding:
+def _toggle_finding(fid: str, set_vars: dict[str, str], *, autofix: bool = True) -> ProbeFinding:
     return ProbeFinding(
         id=fid,
         category=ProbeCategory.POLICY_GUARDRAIL,
@@ -187,9 +185,7 @@ async def test_max_iterations_escalates() -> None:
         _report(_toggle_finding("f2", {"c": "1"})),
         _report(_toggle_finding("f3", {"d": "1"})),
     )
-    outcome = await reassemble(
-        initial_report=initial, reanalyze=reanalyze, max_iterations=3
-    )
+    outcome = await reassemble(initial_report=initial, reanalyze=reanalyze, max_iterations=3)
     assert outcome.status is ReassemblyStatus.ESCALATED
     assert outcome.reason is ReassemblyReason.MAX_ITERATIONS
     assert outcome.iterations == 3
@@ -208,6 +204,4 @@ async def test_reanalyze_raise_propagates_fail_closed() -> None:
 
 async def test_max_iterations_must_be_positive() -> None:
     with pytest.raises(ValueError, match="max_iterations MUST be >= 1"):
-        await reassemble(
-            initial_report=_report(), reanalyze=_ScriptedReanalyze(), max_iterations=0
-        )
+        await reassemble(initial_report=_report(), reanalyze=_ScriptedReanalyze(), max_iterations=0)

@@ -49,9 +49,9 @@ def _request(
     )
 
 
-def _executor(handler, cfg: McpToolExecutorConfig | None = None, ledger=None) -> tuple[
-    McpToolExecutor, httpx.AsyncClient
-]:
+def _executor(
+    handler, cfg: McpToolExecutorConfig | None = None, ledger=None
+) -> tuple[McpToolExecutor, httpx.AsyncClient]:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     ex = McpToolExecutor(config=cfg or _config(), http_client=client, ledger=ledger)
     return ex, client

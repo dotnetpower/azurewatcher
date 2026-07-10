@@ -128,16 +128,12 @@ class Saga(Agent):
                 {
                     "correlation_id": corr[0],
                     "matched_entries": [
-                        {"seq": e.seq, "principal": e.principal, "topic": e.topic}
-                        for e in scoped
+                        {"seq": e.seq, "principal": e.principal, "topic": e.topic} for e in scoped
                     ],
                 }
             )
             actors = ", ".join(sorted({e.principal for e in scoped})) or "none"
-            answer = (
-                f"Correlation {corr[0]!r}: {len(scoped)} audit entr(ies), "
-                f"actor(s): {actors}."
-            )
+            answer = f"Correlation {corr[0]!r}: {len(scoped)} audit entr(ies), actor(s): {actors}."
             return IntrospectionResult(answer=answer, facts=facts)
         if not entries:
             answer = (

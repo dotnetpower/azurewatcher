@@ -70,9 +70,7 @@ class MeteringEmitter:
         self._warned_unpriced = False
         self._warned_uncorrelated = False
 
-    async def emit_safe(
-        self, usage: TokenUsage, *, correlation_id: str | None = None
-    ) -> None:
+    async def emit_safe(self, usage: TokenUsage, *, correlation_id: str | None = None) -> None:
         """Record ``usage`` for the bound capability; never raise on failure.
 
         When no ``correlation_id`` is passed the emitter reads the one
@@ -94,15 +92,9 @@ class MeteringEmitter:
                 )
         try:
             pricing_entry = (
-                self._pricing.pricing_for(self._model_key)
-                if self._pricing is not None
-                else None
+                self._pricing.pricing_for(self._model_key) if self._pricing is not None else None
             )
-            if (
-                self._pricing is not None
-                and pricing_entry is None
-                and not self._warned_unpriced
-            ):
+            if self._pricing is not None and pricing_entry is None and not self._warned_unpriced:
                 self._warned_unpriced = True
                 _log.warning(
                     "metering: pricing table has no entry for model_key=%s "
@@ -126,8 +118,7 @@ class MeteringEmitter:
             await self._sink.record(record)
         except Exception:
             _log.warning(
-                "metering: failed to record invocation for correlation_id=%s "
-                "capability_id=%s",
+                "metering: failed to record invocation for correlation_id=%s capability_id=%s",
                 corr,
                 self._capability_id,
                 exc_info=True,

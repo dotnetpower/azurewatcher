@@ -140,7 +140,7 @@ def leading_verb(question: str) -> str | None:
     for token in _WORD_RE.findall(question.lower()):
         if token in _FILLER_PREFIX:
             continue
-        return token
+        return str(token)
     return None
 
 

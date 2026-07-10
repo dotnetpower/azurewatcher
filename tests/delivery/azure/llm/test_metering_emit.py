@@ -28,9 +28,7 @@ from fdai.delivery.azure.llm.rca_model import AzureOpenAIRcaModel, AzureOpenAIRc
 from fdai.shared.providers.workload_identity import IdentityToken, WorkloadIdentity
 from fdai.shared.telemetry.correlation import with_correlation
 
-_PRICING = PricingTable.from_mapping(
-    {"gpt-4o": {"input_per_1k": "2.50", "output_per_1k": "10.00"}}
-)
+_PRICING = PricingTable.from_mapping({"gpt-4o": {"input_per_1k": "2.50", "output_per_1k": "10.00"}})
 
 
 class _StaticIdentity(WorkloadIdentity):

@@ -44,16 +44,22 @@ async def test_render_shape_and_synthetic_flag() -> None:
 async def test_render_derives_verticals_and_savings_from_audit() -> None:
     rm = InMemoryConsoleReadModel()
     rm.record_audit_entry(
-        {"action_kind": "right_size", "outcome": "shadow_pr_opened", "tier": "t0",
-         "estimated_savings": 128.0}
+        {
+            "action_kind": "right_size",
+            "outcome": "shadow_pr_opened",
+            "tier": "t0",
+            "estimated_savings": 128.0,
+        }
     )
     rm.record_audit_entry(
-        {"action_kind": "shutdown", "outcome": "shadow_pr_opened", "tier": "t0",
-         "estimated_savings": 45.5}
+        {
+            "action_kind": "shutdown",
+            "outcome": "shadow_pr_opened",
+            "tier": "t0",
+            "estimated_savings": 45.5,
+        }
     )
-    rm.record_audit_entry(
-        {"action_kind": "enable-encryption", "outcome": "auto", "tier": "t0"}
-    )
+    rm.record_audit_entry({"action_kind": "enable-encryption", "outcome": "auto", "tier": "t0"})
     rm.record_audit_entry(
         {"action_kind": "hil.await", "outcome": "awaiting_approval", "tier": "t2"}
     )

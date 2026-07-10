@@ -149,9 +149,7 @@ class PrometheusMetricProvider:
     def _map_payload(self, *, payload: Any, query: MetricQuery) -> list[MetricPoint]:
         if not isinstance(payload, Mapping) or payload.get("status") != "success":
             status = payload.get("status") if isinstance(payload, Mapping) else "unknown"
-            raise MetricProviderError(
-                f"Prometheus status {status!r} for {query.metric_name!r}"
-            )
+            raise MetricProviderError(f"Prometheus status {status!r} for {query.metric_name!r}")
         data = payload.get("data")
         result = data.get("result") if isinstance(data, Mapping) else None
         result_type = data.get("resultType") if isinstance(data, Mapping) else None
@@ -165,9 +163,7 @@ class PrometheusMetricProvider:
             if not isinstance(series, Mapping):
                 continue
             labels = {
-                str(k): str(v)
-                for k, v in (series.get("metric") or {}).items()
-                if k != "__name__"
+                str(k): str(v) for k, v in (series.get("metric") or {}).items() if k != "__name__"
             }
             if not _labels_match(labels, query.labels):
                 continue

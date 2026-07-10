@@ -731,9 +731,7 @@ class Workflow(_Base):
                     "a step cannot be its own failure fallback"
                 )
             if step.on_failure not in seen:
-                raise ValueError(
-                    f"step {step.id!r} on_failure -> unknown step {step.on_failure!r}"
-                )
+                raise ValueError(f"step {step.id!r} on_failure -> unknown step {step.on_failure!r}")
             if index_by_id[step.on_failure] <= i:
                 raise ValueError(
                     f"step {step.id!r} on_failure -> {step.on_failure!r} must appear "

@@ -173,4 +173,3 @@ def test_cost_precision_is_capped() -> None:
     short = _priced("e2", "0.50", "USD", InvocationMode.ENFORCE)
     short_row = summaries_as_mapping([summarize_total([short])])[0]
     assert short_row["cost"] == "0.50"
-

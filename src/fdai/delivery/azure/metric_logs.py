@@ -172,9 +172,7 @@ class AzureMonitorLogsMetricProvider:
         for point in points:
             yield point
 
-    async def _run(
-        self, *, query: MetricQuery, template: MetricKqlTemplate
-    ) -> list[MetricPoint]:
+    async def _run(self, *, query: MetricQuery, template: MetricKqlTemplate) -> list[MetricPoint]:
         url = (
             f"{self._config.endpoint.rstrip('/')}"
             f"{self._config.api_path}"
@@ -236,16 +234,13 @@ class AzureMonitorLogsMetricProvider:
         columns = table.get("columns") if isinstance(table, Mapping) else None
         rows = table.get("rows") if isinstance(table, Mapping) else None
         if not isinstance(columns, list) or not isinstance(rows, list):
-            raise MetricProviderError(
-                f"Log Analytics table malformed for {query.metric_name!r}"
-            )
+            raise MetricProviderError(f"Log Analytics table malformed for {query.metric_name!r}")
 
         index = _column_index(columns)
         ts_i = _require_column(index, template.timestamp_column, query.metric_name)
         val_i = _require_column(index, template.value_column, query.metric_name)
         label_i = {
-            name: _require_column(index, name, query.metric_name)
-            for name in template.label_columns
+            name: _require_column(index, name, query.metric_name) for name in template.label_columns
         }
         # Largest cell index any row must supply; a ragged/hostile row shorter
         # than this would otherwise raise IndexError - an unexpected exception
@@ -266,8 +261,7 @@ class AzureMonitorLogsMetricProvider:
                 )
             if len(row) <= needed:
                 raise MetricProviderError(
-                    f"Log Analytics row has fewer cells than columns for "
-                    f"{query.metric_name!r}"
+                    f"Log Analytics row has fewer cells than columns for {query.metric_name!r}"
                 )
             labels = {name: str(row[i]) for name, i in label_i.items()}
             if not _labels_match(labels, query.labels):

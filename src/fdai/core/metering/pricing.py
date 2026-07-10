@@ -105,9 +105,7 @@ class PricingTable:
                 ) from exc
             currency_raw = spec.get("currency", "USD")
             if not isinstance(currency_raw, str) or not currency_raw:
-                raise ValueError(
-                    f"pricing entry {model_key!r} currency MUST be a non-empty string"
-                )
+                raise ValueError(f"pricing entry {model_key!r} currency MUST be a non-empty string")
             table[model_key] = ModelPricing(
                 input_per_1k=input_per_1k,
                 output_per_1k=output_per_1k,
@@ -132,9 +130,7 @@ def _to_decimal(value: object) -> Decimal:
         # Route floats through str so 0.15 does not become 0.1500000000...
         parsed = Decimal(str(value))
     else:
-        raise ValueError(
-            f"price MUST be a number or numeric string, got {type(value).__name__}"
-        )
+        raise ValueError(f"price MUST be a number or numeric string, got {type(value).__name__}")
     if not parsed.is_finite():
         # 'NaN' / 'Infinity' parse cleanly but are not valid prices.
         raise ValueError(f"price {value!r} MUST be finite (not NaN/Infinity)")

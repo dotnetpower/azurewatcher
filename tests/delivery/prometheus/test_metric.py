@@ -25,9 +25,9 @@ def _config(**overrides: object) -> PrometheusMetricConfig:
     return PrometheusMetricConfig(**base)  # type: ignore[arg-type]
 
 
-def _provider(handler, cfg: PrometheusMetricConfig | None = None) -> tuple[
-    PrometheusMetricProvider, httpx.AsyncClient
-]:
+def _provider(
+    handler, cfg: PrometheusMetricConfig | None = None
+) -> tuple[PrometheusMetricProvider, httpx.AsyncClient]:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     return PrometheusMetricProvider(config=cfg or _config(), http_client=client), client
 
@@ -58,9 +58,12 @@ async def test_range_query_maps_matrix_samples() -> None:
     since = datetime(2026, 7, 10, tzinfo=UTC)
     until = since + timedelta(minutes=5)
     try:
-        points = [p async for p in provider.query(
-            MetricQuery(metric_name=_METRIC, since=since, until=until)
-        )]
+        points = [
+            p
+            async for p in provider.query(
+                MetricQuery(metric_name=_METRIC, since=since, until=until)
+            )
+        ]
     finally:
         await client.aclose()
 
@@ -81,9 +84,7 @@ async def test_instant_query_when_no_window() -> None:
                 "status": "success",
                 "data": {
                     "resultType": "vector",
-                    "result": [
-                        {"metric": {"pod": "b"}, "value": [1_700_000_000, "7.0"]}
-                    ],
+                    "result": [{"metric": {"pod": "b"}, "value": [1_700_000_000, "7.0"]}],
                 },
             },
         )
@@ -118,9 +119,9 @@ async def test_labels_filter_in_memory() -> None:
 
     provider, client = _provider(handler)
     try:
-        points = [p async for p in provider.query(
-            MetricQuery(metric_name=_METRIC, labels={"pod": "b"})
-        )]
+        points = [
+            p async for p in provider.query(MetricQuery(metric_name=_METRIC, labels={"pod": "b"}))
+        ]
     finally:
         await client.aclose()
 
@@ -194,7 +195,8 @@ async def test_non_finite_samples_are_skipped() -> None:
     since = datetime(2026, 7, 10, tzinfo=UTC)
     try:
         points = [
-            p async for p in provider.query(
+            p
+            async for p in provider.query(
                 MetricQuery(metric_name=_METRIC, since=since, until=since + timedelta(minutes=5))
             )
         ]

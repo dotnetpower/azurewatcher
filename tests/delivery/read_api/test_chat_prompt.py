@@ -378,7 +378,6 @@ def test_snapshot_purpose_and_glossary_are_forwarded() -> None:
     assert "incident key grouping every agent step" in system
 
 
-
 # ---------------------------------------------------------------------------
 # Records diet - keep the dynamic snapshot from dominating token cost
 # ---------------------------------------------------------------------------

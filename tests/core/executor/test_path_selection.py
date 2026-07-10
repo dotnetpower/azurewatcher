@@ -126,12 +126,8 @@ class TestToolCallOffLadder:
         )
 
     def test_tool_call_with_none_returns_tool_call(self) -> None:
-        assert (
-            strictest_execution_path(ExecutionPath.TOOL_CALL, None) is ExecutionPath.TOOL_CALL
-        )
-        assert (
-            strictest_execution_path(None, ExecutionPath.TOOL_CALL) is ExecutionPath.TOOL_CALL
-        )
+        assert strictest_execution_path(ExecutionPath.TOOL_CALL, None) is ExecutionPath.TOOL_CALL
+        assert strictest_execution_path(None, ExecutionPath.TOOL_CALL) is ExecutionPath.TOOL_CALL
 
     @pytest.mark.parametrize("substrate", _PATHS)
     def test_mixing_tool_call_with_a_substrate_path_fails_closed(
@@ -143,9 +139,7 @@ class TestToolCallOffLadder:
             strictest_execution_path(substrate, ExecutionPath.TOOL_CALL)
 
     @pytest.mark.parametrize("substrate", _PATHS)
-    def test_is_strictly_stricter_than_refuses_tool_call(
-        self, substrate: ExecutionPath
-    ) -> None:
+    def test_is_strictly_stricter_than_refuses_tool_call(self, substrate: ExecutionPath) -> None:
         with pytest.raises(ExecutionPathSelectionError):
             is_strictly_stricter_than(ExecutionPath.TOOL_CALL, substrate)
         with pytest.raises(ExecutionPathSelectionError):

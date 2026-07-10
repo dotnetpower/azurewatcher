@@ -350,9 +350,7 @@ def test_tool_style_auto_table_is_capped_at_hil_by_ceiling() -> None:
     )
     rc = resolve_ceiling(
         tier=Tier.T0,
-        action_type=_at(
-            execution_path=ExecutionPath.TOOL_CALL, blast=blast, ceiling=ceiling
-        ),
+        action_type=_at(execution_path=ExecutionPath.TOOL_CALL, blast=blast, ceiling=ceiling),
         risk_table=RiskTableResult(level="auto"),
         principal_role=CeilingRole.OWNER,
         env="non_prod",

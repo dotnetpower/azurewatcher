@@ -101,9 +101,7 @@ def _group_by(
     grouped: dict[str, list[LlmInvocation]] = {}
     for record in records:
         grouped.setdefault(key_of(record), []).append(record)
-    return tuple(
-        _summarize_group(key, grouped[key]) for key in sorted(grouped)
-    )
+    return tuple(_summarize_group(key, grouped[key]) for key in sorted(grouped))
 
 
 def summarize_by_conversation(

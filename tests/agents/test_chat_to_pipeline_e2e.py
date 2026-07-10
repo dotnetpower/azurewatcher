@@ -53,9 +53,7 @@ class _Harness:
 
     def ask(self, question: str, *, user: str = _OPERATOR, role: str | None = None):
         return asyncio.run(
-            self.bragi.ask(
-                session_id="s1", user_id=user, question=question, initiator_role=role
-            )
+            self.bragi.ask(session_id="s1", user_id=user, question=question, initiator_role=role)
         )
 
     def bragi_published(self) -> list:
@@ -163,4 +161,3 @@ def test_contributor_role_may_submit_an_action() -> None:
     assert turn.answer["submitted"] is True
     corr = turn.answer["correlation_id"]
     assert h.thor.action_runs[corr].state == ActionRunState.SUCCEEDED
-
