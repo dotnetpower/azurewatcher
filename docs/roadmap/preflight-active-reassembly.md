@@ -103,7 +103,10 @@ routes every action through the typed pipeline, see
 The declaration (authored under `rule-catalog/action-types/`):
 
 - `category: remediation`
-- `trigger_kind: rule_violation` - a preflight blocking finding is the trigger.
+- `trigger_kind: both` - the preflight loop initiates it automatically on a
+  blocking finding, and an operator MAY request a specific toggle; it is
+  parametric (`argument_schema`: `scope`, `finding_id`, `toggle_module`,
+  `set_vars`, `reason`), so it is not a static resource-posture rule.
 - `execution_path: pr_native` - the change is a tfvars-override PR against the
   infra repo, never a direct substrate mutation.
 - `rollback_contract: pr_revert` - reverting the PR restores the prior tfvars;

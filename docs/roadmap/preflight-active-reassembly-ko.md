@@ -1,7 +1,7 @@
 ---
 title: 프리플라이트 능동 플랜 재조립 (policy blocker에서 재렌더된 terraform으로)
 translation_of: preflight-active-reassembly.md
-translation_source_sha: d00593d72f35ec3a41edc86bfe93625b8be0e4d2
+translation_source_sha: 9cf4912d898bc581c34f1d8ac53f135474b29925
 translation_revised: 2026-07-10
 ---
 # 프리플라이트 능동 플랜 재조립 (policy blocker에서 재렌더된 terraform으로)
@@ -100,7 +100,10 @@ terraform plan (JSON)
 선언 (`rule-catalog/action-types/` 아래에서 작성):
 
 - `category: remediation`
-- `trigger_kind: rule_violation` - preflight blocking finding이 트리거입니다.
+- `trigger_kind: both` - preflight 루프가 blocking finding에 대해 자동으로
+  개시하며, 오퍼레이터가 특정 토글을 요청할 수 있습니다. 파라메트릭합니다
+  (`argument_schema`: `scope`, `finding_id`, `toggle_module`, `set_vars`,
+  `reason`), 따라서 정적 리소스-posture 규칙이 아닙니다.
 - `execution_path: pr_native` - 변경은 infra 리포에 대한 tfvars-override PR이며, 직접
   substrate mutation이 아닙니다.
 - `rollback_contract: pr_revert` - PR을 revert하면 이전 tfvars가 복원됩니다. 재조립은
