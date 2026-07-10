@@ -8,6 +8,7 @@ console.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -85,7 +86,7 @@ class ListStreamBuilder:
         limit = _clamp_limit(spec.options.get("limit", 50))
         ordered = sorted(
             data.rows,
-            key=lambda row: str(row.get(timestamp_field, "")),
+            key=lambda row: _timestamp_sort_key(row.get(timestamp_field, "")),
             reverse=True,
         )
         return {
@@ -118,11 +119,29 @@ def _numeric(value: Any) -> float:
     if isinstance(value, bool):
         return 0.0
     if isinstance(value, (int, float)):
-        return float(value)
+        # Non-finite (NaN/Inf) as a sort key scrambles ordering because
+        # every NaN comparison is False; push it to the tail instead.
+        return float(value) if math.isfinite(value) else float("-inf")
     try:
-        return float(value)
+        result = float(value)
     except (TypeError, ValueError):
         return float("-inf")
+    return result if math.isfinite(result) else float("-inf")
+
+
+def _timestamp_sort_key(value: Any) -> tuple[int, float, str]:
+    """Order-stable sort key for a timestamp cell.
+
+    A numeric (epoch) timestamp sorts numerically - ``str()`` would order
+    ``9`` after ``100`` - while an ISO-8601 / textual timestamp sorts
+    lexicographically (which is chronological for ISO-8601). Mixed types
+    are grouped deterministically rather than raising.
+    """
+    if isinstance(value, bool):
+        return (1, 0.0, str(value))
+    if isinstance(value, (int, float)) and math.isfinite(value):
+        return (0, float(value), "")
+    return (1, 0.0, str(value))
 
 
 __all__ = [
@@ -152,7 +171,7 @@ class EventStreamBuilder:
         limit = _clamp_limit(spec.options.get("limit", 50))
         ordered = sorted(
             data.rows,
-            key=lambda row: str(row.get(timestamp_field, "")),
+            key=lambda row: _timestamp_sort_key(row.get(timestamp_field, "")),
             reverse=True,
         )
         counts = dict.fromkeys(self._SEVERITIES, 0)

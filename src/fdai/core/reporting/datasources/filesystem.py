@@ -70,9 +70,7 @@ class FilesystemManifestDataSource:
                 {
                     "path": str(resolved.relative_to(self._root)),
                     "size": resolved.stat().st_size,
-                    "at": datetime.fromtimestamp(
-                        resolved.stat().st_mtime, tz=UTC
-                    ).isoformat(),
+                    "at": datetime.fromtimestamp(resolved.stat().st_mtime, tz=UTC).isoformat(),
                 }
             )
             if len(entries) >= _MAX_ENTRIES:

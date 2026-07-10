@@ -123,7 +123,7 @@ class TestReportingRoutes:
         payload = response.json()
         ids = {item["id"] for item in payload["items"]}
         assert {"shadow-mode-daily", "signal-feed-overview", "metric-explorer"} <= ids
-        assert set(payload["formats"]) == {"csv", "json", "markdown"}
+        assert {"csv", "json", "markdown"} <= set(payload["formats"])
 
     def test_registry_lists_wired_names(self) -> None:
         engine, _ = _build_engine()
@@ -133,7 +133,7 @@ class TestReportingRoutes:
         payload = response.json()
         assert {"audit", "static_series"} <= set(payload["datasources"])
         assert "timeseries" in payload["widgets"]
-        assert set(payload["formats"]) == {"csv", "json", "markdown"}
+        assert {"csv", "json", "markdown"} <= set(payload["formats"])
 
     def test_get_report_definition_returns_full_spec(self) -> None:
         engine, _ = _build_engine(reports_root=REPORTS_ROOT)

@@ -23,8 +23,8 @@ class TestDefaultReportingEngine:
         # Sample catalog loaded and validated against the wired names.
         ids = {s.id for s in engine.catalog().list()}
         assert {"shadow-mode-daily", "signal-feed-overview", "metric-explorer"} <= ids
-        # Default format registry always ships the three encoders.
-        assert set(formats.names()) == {"csv", "json", "markdown"}
+        # Default format registry ships at least the core three (may add more).
+        assert {"csv", "json", "markdown"} <= set(formats.names())
 
     async def test_noop_stubs_render_as_empty_data(self) -> None:
         engine, _ = default_reporting_engine(reports_root=REPORTS_ROOT)

@@ -224,9 +224,7 @@ def _count_by_correlation(rows: Sequence[AuditRow]) -> DataSet:
     ordered = sorted(counts.items(), key=lambda pair: pair[1], reverse=True)
     return DataSet(
         columns=("correlation_id", "value"),
-        rows=tuple(
-            {"correlation_id": k, "value": v, "label": k} for k, v in ordered
-        ),
+        rows=tuple({"correlation_id": k, "value": v, "label": k} for k, v in ordered),
     )
 
 
@@ -248,9 +246,7 @@ def _series_bucket(rows: Sequence[AuditRow], *, bucket: str) -> DataSet:
         stamp = key_dt.isoformat()
         buckets[stamp] = buckets.get(stamp, 0) + 1
     ordered = sorted(buckets.items())
-    points = tuple(
-        (datetime.fromisoformat(k).timestamp(), float(v)) for k, v in ordered
-    )
+    points = tuple((datetime.fromisoformat(k).timestamp(), float(v)) for k, v in ordered)
     return DataSet(
         series=(Series(label=f"count_{bucket}ly", points=points),),
         metadata={"bucket": bucket, "count": len(ordered)},

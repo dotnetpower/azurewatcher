@@ -111,9 +111,7 @@ class GeomapBuilder:
                     }
                 )
             elif region_field in row:
-                areas.append(
-                    {"region": row.get(region_field), "value": row.get(value_field)}
-                )
+                areas.append({"region": row.get(region_field), "value": row.get(value_field)})
         return {"points": points, "areas": areas}
 
 

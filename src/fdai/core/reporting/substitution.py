@@ -66,9 +66,7 @@ def _substitute_string(value: str, variables: Mapping[str, str]) -> str:
         if name is None:  # pragma: no cover - re guarantees one branch
             return raw
         if name not in variables:
-            raise VariableRejectedError(
-                f"query references undeclared variable {name!r}"
-            )
+            raise VariableRejectedError(f"query references undeclared variable {name!r}")
         return str(variables[name])
 
     return _TOKEN_RE.sub(_sub, value)

@@ -105,6 +105,10 @@ def build_reporting_routes(
     endpoint_paths = {
         f"{prefix}",
         f"{prefix}/registry",
+        f"{prefix}/formats",
+        f"{prefix}/widget-types",
+        f"{prefix}/datasources",
+        f"{prefix}/health",
     }
     if core_paths is not None:
         for path in endpoint_paths:
@@ -151,6 +155,30 @@ def build_reporting_routes(
         _LOGGER.info("reporting_registry_served", extra={"actor": oid})
         return JSONResponse(payload)
 
+    async def list_formats(request: Request) -> Response:
+        oid = await authorize(request)
+        items = [
+            {"name": encoder.name, "content_type": encoder.content_type}
+            for encoder in (formats.get(name) for name in formats.names())
+        ]
+        _LOGGER.info("reporting_formats_served", extra={"actor": oid})
+        return JSONResponse({"items": items})
+
+    async def list_widget_types(request: Request) -> Response:
+        oid = await authorize(request)
+        _LOGGER.info("reporting_widget_types_served", extra={"actor": oid})
+        return JSONResponse({"items": list(engine.widget_registry().types())})
+
+    async def list_datasource_names(request: Request) -> Response:
+        oid = await authorize(request)
+        _LOGGER.info("reporting_datasources_served", extra={"actor": oid})
+        return JSONResponse({"items": list(engine.datasource_registry().names())})
+
+    async def get_health(request: Request) -> Response:
+        oid = await authorize(request)
+        _LOGGER.info("reporting_health_served", extra={"actor": oid})
+        return JSONResponse(engine.health())
+
     async def get_report(request: Request) -> Response:
         oid = await authorize(request)
         report_id = request.path_params["report_id"]
@@ -193,9 +221,7 @@ def build_reporting_routes(
         # so `curl -O`, "save as", and the console download button pick
         # a stable filename per (report_id, format).
         if format_name != "json":
-            headers["Content-Disposition"] = (
-                f'attachment; filename="{report_id}.{format_name}"'
-            )
+            headers["Content-Disposition"] = f'attachment; filename="{report_id}.{format_name}"'
         _LOGGER.info(
             "reporting_rendered",
             extra={
@@ -210,6 +236,10 @@ def build_reporting_routes(
     return [
         Route(f"{prefix}", list_reports, methods=["GET"]),
         Route(f"{prefix}/registry", get_registry, methods=["GET"]),
+        Route(f"{prefix}/formats", list_formats, methods=["GET"]),
+        Route(f"{prefix}/widget-types", list_widget_types, methods=["GET"]),
+        Route(f"{prefix}/datasources", list_datasource_names, methods=["GET"]),
+        Route(f"{prefix}/health", get_health, methods=["GET"]),
         Route(
             f"{prefix}/{{report_id:str}}",
             get_report,

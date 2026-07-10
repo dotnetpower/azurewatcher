@@ -7,6 +7,7 @@ static config).
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import Any
 
@@ -76,11 +77,14 @@ def _numeric(value: Any) -> float | int | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        return value
+        return value if math.isfinite(value) else None
     try:
-        return float(value)
+        result = float(value)
     except (TypeError, ValueError):
         return None
+    # Reject 'nan' / 'inf' string inputs too: float() parses them, but a
+    # non-finite amount poisons the total and serializes to invalid JSON.
+    return result if math.isfinite(result) else None
 
 
 __all__ = ["BudgetSummaryBuilder", "CostSummaryBuilder"]

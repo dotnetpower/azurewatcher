@@ -193,8 +193,7 @@ def load_report_catalog(
             (
                 ReportCatalogIssue(
                     str(root),
-                    f"directory contains {len(candidates)} report files; "
-                    f"max_files={max_files}",
+                    f"directory contains {len(candidates)} report files; max_files={max_files}",
                 ),
             )
         )

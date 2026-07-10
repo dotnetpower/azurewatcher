@@ -22,6 +22,7 @@ Widget ``data`` schemas:
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import Any
 
@@ -176,16 +177,23 @@ class PieChartBuilder:
         label_field = str(spec.options.get("label_field", "label"))
         value_field = str(spec.options.get("value_field", "value"))
         slices: list[dict[str, Any]] = []
-        total = 0.0
+        magnitude_total = 0.0
+        signed_total = 0.0
         for row in data.rows:
             value = _as_number(row.get(value_field))
             if value is None:
                 continue
             slices.append({"label": row.get(label_field), "value": value})
-            total += float(value)
+            magnitude_total += abs(float(value))
+            signed_total += float(value)
+        # Percent is derived from magnitude, not the signed sum, so a
+        # negative or mixed-sign dataset cannot produce a percent > 1 or a
+        # divide-by-(near-zero-)signed-total artifact.
         for entry in slices:
-            entry["percent"] = (float(entry["value"]) / total) if total > 0 else 0.0
-        return {"slices": slices, "total": total}
+            entry["percent"] = (
+                (abs(float(entry["value"])) / magnitude_total) if magnitude_total > 0 else 0.0
+            )
+        return {"slices": slices, "total": signed_total}
 
 
 class ScatterPlotBuilder:
@@ -219,7 +227,11 @@ class SparklineBuilder:
         del spec
         series = []
         for s in data.series:
-            values = [p[1] for p in s.points]
+            # Only finite numeric values feed min/max/last: a None or a
+            # non-numeric point would raise TypeError under min()/max(),
+            # and a NaN/Inf would poison the summary + JSON. Filtering
+            # keeps a partially-bad series renderable instead of erroring.
+            values = [v for v in (_as_number(p[1]) for p in s.points) if v is not None]
             series.append(
                 {
                     "label": s.label,
@@ -294,7 +306,9 @@ def _as_number(value: Any) -> float | int | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        return value
+        # Reject NaN / +-Inf: they poison sums and serialize to invalid
+        # JSON (RFC 8259 has no NaN/Infinity token).
+        return value if math.isfinite(value) else None
     return None
 
 

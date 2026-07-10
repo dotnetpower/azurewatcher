@@ -142,6 +142,7 @@ def _count_by_dataset(
         metadata=dict(metadata),
     )
 
+
 def _latest_per_resource(
     signals: Sequence[ReportSignal],
     *,
@@ -185,5 +186,6 @@ def _latest_per_resource(
         ),
         metadata=dict(metadata),
     )
+
 
 __all__ = ["ReportFeedDataSource"]

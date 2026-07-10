@@ -17,6 +17,7 @@ Widget ``data`` schemas:
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import Any
 
@@ -117,11 +118,14 @@ def _numeric_or_none(value: Any) -> float | int | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        return value
+        return value if math.isfinite(value) else None
     try:
-        return float(value)
+        result = float(value)
     except (TypeError, ValueError):
         return None
+    # Reject 'nan' / 'inf' strings: a non-finite weight breaks funnel
+    # ratios / treemap sort and serializes to invalid JSON.
+    return result if math.isfinite(result) else None
 
 
 __all__ = [

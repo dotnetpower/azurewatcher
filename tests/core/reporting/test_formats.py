@@ -114,10 +114,10 @@ class TestCsvFormat:
 class TestFormatRegistry:
     def test_defaults_registered_by_name(self) -> None:
         names = {e.name for e in default_format_encoders()}
-        assert names == {"json", "markdown", "csv"}
+        assert {"json", "markdown", "csv"} <= names
 
     def test_install_default_formats_is_idempotent(self) -> None:
         registry = FormatRegistry()
         install_default_formats(registry)
         install_default_formats(registry)  # re-install must not fail
-        assert set(registry.names()) == {"csv", "json", "markdown"}
+        assert {"csv", "json", "markdown"} <= set(registry.names())

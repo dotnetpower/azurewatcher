@@ -18,6 +18,7 @@ Widget ``data`` schemas:
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import Any
 
@@ -153,34 +154,57 @@ class FlameGraphBuilder:
     def build(self, *, spec: WidgetSpec, data: DataSet) -> Mapping[str, Any]:
         del spec
         nodes: dict[str, dict[str, Any]] = {}
-        child_names: set[str] = set()
+        parent_of: dict[str, str] = {}
         for row in data.rows:
             name = str(row.get("name", "")).strip()
             if not name:
                 continue
-            node = nodes.setdefault(
-                name, {"name": name, "value": 0.0, "children": []}
-            )
+            node = nodes.setdefault(name, {"name": name, "value": 0.0, "children": []})
             try:
-                node["value"] += float(row.get("value") or 0)
+                value = float(row.get("value") or 0)
             except (TypeError, ValueError):
-                pass
+                value = 0.0
+            if math.isfinite(value):
+                node["value"] += value
             parent = row.get("parent")
             if parent is None:
                 continue
-            parent_name = str(parent)
-            parent_node = nodes.setdefault(
-                parent_name,
-                {"name": parent_name, "value": 0.0, "children": []},
-            )
-            if node not in parent_node["children"]:
-                parent_node["children"].append(node)
-            child_names.add(name)
-        return {
-            "roots": [
-                node for name, node in nodes.items() if name not in child_names
-            ]
-        }
+            parent_name = str(parent).strip()
+            # Skip a self-parent edge (a 1-cycle). First declared parent
+            # wins so the tree is deterministic across row order.
+            if not parent_name or parent_name == name:
+                continue
+            nodes.setdefault(parent_name, {"name": parent_name, "value": 0.0, "children": []})
+            parent_of.setdefault(name, parent_name)
+        # Attach children, skipping any edge that would close a cycle, so
+        # the emitted structure is always a forest of trees. A cyclic
+        # parent chain (A->B->A) would otherwise build a self-referential
+        # object that raises ``ValueError: Circular reference`` at
+        # ``json.dumps`` time - OUTSIDE the engine's per-widget isolation,
+        # failing the whole report.
+        child_names: set[str] = set()
+        for child_name, parent_name in parent_of.items():
+            if _closes_cycle(child_name, parent_name, parent_of):
+                continue
+            nodes[parent_name]["children"].append(nodes[child_name])
+            child_names.add(child_name)
+        return {"roots": [node for name, node in nodes.items() if name not in child_names]}
+
+
+def _closes_cycle(child: str, parent: str, parent_of: Mapping[str, str]) -> bool:
+    """True when attaching ``child`` under ``parent`` would form a cycle.
+
+    Walks the parent chain up from ``parent``; if it reaches ``child``
+    (or revisits a node) the edge would close a loop and MUST be dropped.
+    """
+    seen: set[str] = set()
+    cursor: str | None = parent
+    while cursor is not None:
+        if cursor == child or cursor in seen:
+            return True
+        seen.add(cursor)
+        cursor = parent_of.get(cursor)
+    return False
 
 
 __all__ = [

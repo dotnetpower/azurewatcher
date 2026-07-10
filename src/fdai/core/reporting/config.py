@@ -52,21 +52,15 @@ class ReportEngineConfig:
             if timeout <= 0:
                 raise ValueError("per_widget_timeout_seconds MUST be > 0")
             if timeout > _HARD_TIMEOUT_SECONDS:
-                raise ValueError(
-                    f"per_widget_timeout_seconds MUST be <= {_HARD_TIMEOUT_SECONDS}"
-                )
+                raise ValueError(f"per_widget_timeout_seconds MUST be <= {_HARD_TIMEOUT_SECONDS}")
         if self.max_concurrent_widgets is not None:
             concurrency = int(self.max_concurrent_widgets)
             if concurrency <= 0:
                 raise ValueError("max_concurrent_widgets MUST be > 0")
             if concurrency > _HARD_CONCURRENCY_CEILING:
-                raise ValueError(
-                    f"max_concurrent_widgets MUST be <= {_HARD_CONCURRENCY_CEILING}"
-                )
+                raise ValueError(f"max_concurrent_widgets MUST be <= {_HARD_CONCURRENCY_CEILING}")
         if not (1 <= self.max_widgets_per_report <= _HARD_WIDGET_CEILING):
-            raise ValueError(
-                f"max_widgets_per_report MUST be in [1, {_HARD_WIDGET_CEILING}]"
-            )
+            raise ValueError(f"max_widgets_per_report MUST be in [1, {_HARD_WIDGET_CEILING}]")
         if self.max_error_message_chars < 32:
             raise ValueError("max_error_message_chars MUST be >= 32")
 

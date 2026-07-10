@@ -192,8 +192,7 @@ class ReportEngine:
                 candidate = overrides[name]
                 if var.values and candidate not in var.values:
                     raise VariableRejectedError(
-                        f"variable {name!r}={candidate!r} not in allowlist "
-                        f"{sorted(var.values)!r}"
+                        f"variable {name!r}={candidate!r} not in allowlist {sorted(var.values)!r}"
                     )
                 resolved[name] = candidate
             elif var.default is not None:
