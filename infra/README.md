@@ -6,6 +6,13 @@ Renders the four CSP-neutrality contracts (event bus / runtime / secret / worklo
 identity) into Azure resources. Entry command: `terraform apply` per
 [docs/roadmap/deploy-and-onboard.md](../docs/roadmap/deploy-and-onboard.md).
 
+## Turnkey path (`azd`)
+
+For a one-command experience, [`azure.yaml`](../azure.yaml) drives this Terraform
+through the Azure Developer CLI. `scripts/azd-up.sh` (or `make azd-up`) runs a
+non-mutating `azd provision --preview` by default; set `FDAI_AZD_CONFIRM=1` to
+run a real `azd up`. The two-gate design keeps an accidental apply impossible.
+
 Environment values (subscription id, tenant id, resource group, etc.) are supplied
 at apply time via env vars / tfvars files that are **never committed** - the repo
 stays customer-agnostic per

@@ -6,7 +6,7 @@
 # Real deployment lives under `infra/` (Terraform); see the roadmap.
 
 .PHONY: dev-up dev-down dev-logs dev-nuke help \
-        lint format test gates check pre-commit-install
+        lint format test gates check pre-commit-install azd-up
 
 help: ## show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -22,6 +22,9 @@ dev-logs: ## tail postgres + redpanda logs (optional: SERVICE=postgres)
 
 dev-nuke: ## stop the stack AND drop its volumes (fresh state next `dev-up`)
 	@docker compose -f infra/local/docker-compose.yml down -v
+
+azd-up: ## turnkey provision preview (azd + Terraform); FDAI_AZD_CONFIRM=1 to apply
+	@scripts/azd-up.sh
 
 # ---------------------------------------------------------------------------
 # CI-parity targets. Each mirrors one job in .github/workflows/ci.yml so a
