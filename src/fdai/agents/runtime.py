@@ -180,6 +180,15 @@ class PantheonRuntime:
             for name, agent in agents.items():
                 if name != "Bragi":
                     bragi_ref.register_responder(name, agent.on_conversation_turn)
+            # Conversational-port re-entry (agent-pantheon.md 7.7): an operator
+            # command routes into the typed pipeline through Huginn (the sole
+            # writer of object.event). Bragi builds the ActionProposal and
+            # submits it here - it never calls an executor. Absent when Huginn
+            # is disabled (ingress off), in which case an action request falls
+            # back to the requires_typed_pipeline signal.
+            maybe_huginn = agents.get(_INGRESS_PRINCIPAL)
+            if isinstance(maybe_huginn, Huginn):
+                bragi_ref.register_proposal_sink(maybe_huginn.ingest)
 
         huginn_active = _INGRESS_PRINCIPAL in agents
         runtime = cls(

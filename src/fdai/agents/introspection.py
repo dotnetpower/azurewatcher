@@ -76,6 +76,7 @@ _ACTION_VERBS: frozenset[str] = frozenset(
         "resize",
         "failover",
         "remediate",
+        "encrypt",
         "execute",
         "run",
         "apply",
@@ -125,12 +126,22 @@ def is_action_intent(question: str) -> bool:
     (agent-pantheon.md 7.7). Interrogatives ("what/why/who/show/list/...")
     fall through as introspection.
     """
-    tokens = _WORD_RE.findall(question.lower())
-    for token in tokens:
+    verb = leading_verb(question)
+    return verb is not None and verb in _ACTION_VERBS
+
+
+def leading_verb(question: str) -> str | None:
+    """Return the first non-filler token of ``question`` (lower-cased), or None.
+
+    Shared by :func:`is_action_intent` and Bragi's proposal translation so the
+    "is this a command?" test and the "which action?" mapping read the same
+    leading verb (e.g. ``restart`` from ``please restart vm-1``).
+    """
+    for token in _WORD_RE.findall(question.lower()):
         if token in _FILLER_PREFIX:
             continue
-        return token in _ACTION_VERBS
-    return False
+        return token
+    return None
 
 
 def mentioned(question: str, candidates: Any) -> list[str]:
@@ -181,6 +192,7 @@ __all__ = [
     "REQUIRES_TYPED_PIPELINE",
     "NO_DATA",
     "is_action_intent",
+    "leading_verb",
     "mentioned",
     "capability_facts",
     "capability_sentence",

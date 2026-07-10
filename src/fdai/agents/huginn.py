@@ -75,6 +75,16 @@ class Huginn(Agent):
             "event_type": raw.get("event_type", "generic"),
             "attributes": dict(raw.get("attributes", {})),
         }
+        # Pass through operator-proposal fields when present so Forseti can
+        # judge an operator-initiated action (conversational port re-entry,
+        # agent-pantheon.md 7.7): the initiator RBAC check keys on
+        # ``initiator_principal`` and the verdict can name a direct
+        # ``action_type``. A rule-fired ingest carries none of these keys and
+        # is byte-for-byte unaffected.
+        for passthrough in ("initiator_principal", "action_type", "params", "operator_initiated"):
+            value = raw.get(passthrough)
+            if value is not None:
+                payload[passthrough] = value
         if self.bus is not None:
             await self.bus.publish("Huginn", "object.event", payload)
         return payload

@@ -189,18 +189,29 @@ class Forseti(Agent):
 
     async def judge(self, event: dict[str, Any]) -> dict[str, Any] | None:
         """Emit a Verdict on the bus. Returns the verdict payload."""
-        event_type = str(event.get("event_type", ""))
-        action_type = _RULE_MATCH.get(event_type)
+        # An operator proposal (conversational-port re-entry, 7.7) names the
+        # ActionType directly; a rule-fired signal carries an ``event_type``
+        # Forseti maps to one. Prefer the direct action_type, fall back to the
+        # rule-match table.
+        action_type = event.get("action_type")
+        if action_type is None:
+            event_type = str(event.get("event_type", ""))
+            action_type = _RULE_MATCH.get(event_type)
         if action_type is None:
             # No rule match -> abstain (Wave 3 does not escalate to T2 yet).
             return None
+        action_type = str(action_type)
 
         initiator = str(event.get("initiator_principal", event.get("producer_principal", "")))
         risk_verdict = _RISK_VERDICT.get(action_type, "hil")
 
         # RBAC check: if initiator is set (e.g. operator-requested action),
         # verify permission. Rule-fired actions have no operator initiator;
-        # they are always subject to risk_verdict only.
+        # they are always subject to risk_verdict only. An operator-initiated
+        # proposal whose initiator is unknown to the RBAC seam fails closed to
+        # ``deny`` (never silently allowed) - the conversational port must not
+        # widen privilege.
+        rbac_denied = False
         if initiator and initiator in self._rbac:
             allowed = self._rbac[initiator]
             if action_type not in allowed:
@@ -210,14 +221,30 @@ class Forseti(Agent):
                     action_type=action_type,
                 )
                 risk_verdict = "deny"
+                rbac_denied = True
+        elif event.get("operator_initiated") and initiator not in self._rbac:
+            await self._emit_security_event(
+                event=event,
+                initiator=initiator,
+                action_type=action_type,
+            )
+            risk_verdict = "deny"
+            rbac_denied = True
 
+        if risk_verdict == "deny":
+            reason = "rbac_insufficient" if rbac_denied else "risk_deny"
+        else:
+            reason = "rule_match"
         verdict = {
             "producer_principal": "Forseti",
             "correlation_id": event.get("correlation_id", ""),
             "resource_id": event.get("resource_id"),
             "action_type": action_type,
             "risk_verdict": risk_verdict,
-            "reason": "rule_match" if risk_verdict != "deny" else "rbac_insufficient",
+            "reason": reason,
+            # Propagate the operator initiator (None for rule-fired) so the
+            # approver principal downstream can enforce no-self-approval.
+            "initiator_principal": event.get("initiator_principal"),
         }
         if self.bus is not None:
             await self.bus.publish("Forseti", "object.verdict", verdict)

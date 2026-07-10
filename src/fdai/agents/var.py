@@ -28,6 +28,7 @@ class PendingHilTicket:
     action_type: str
     resource_id: str | None
     quorum_required: int
+    initiator_principal: str | None = None
     approvers: list[str] = field(default_factory=list)
     rejected: bool = False
 
@@ -66,6 +67,7 @@ class Var(Agent):
             action_type=str(payload.get("action_type", "")),
             resource_id=payload.get("resource_id"),
             quorum_required=int(payload.get("quorum_required", 1)),
+            initiator_principal=payload.get("initiator_principal"),
         )
 
     # ---- HIL decision --------------------------------------------------
@@ -83,6 +85,15 @@ class Var(Agent):
         if decision == "reject":
             ticket.rejected = True
         elif decision == "approve":
+            # No self-approval: the operator who initiated the action can never
+            # approve it (approval and initiation are distinct principals - a
+            # pantheon safety invariant, agent-pantheon.md). Enforced here even
+            # if the entry RBAC gate was bypassed upstream.
+            if ticket.initiator_principal and approver == ticket.initiator_principal:
+                raise ValueError(
+                    f"principal {approver!r} cannot approve an action it initiated "
+                    f"({correlation_id!r}): no self-approval"
+                )
             if approver in ticket.approvers:
                 raise ValueError(
                     f"principal {approver!r} cannot self-approve twice on {correlation_id!r}"

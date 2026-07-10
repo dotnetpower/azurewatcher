@@ -16,15 +16,43 @@ conversational-port smoke tests.
 from __future__ import annotations
 
 import re
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 from fdai.agents.base import Agent
-from fdai.agents.introspection import IntrospectionResult, capability_facts, is_action_intent
+from fdai.agents.introspection import (
+    IntrospectionResult,
+    capability_facts,
+    is_action_intent,
+    leading_verb,
+)
 from fdai.agents.pantheon import _BRAGI, PANTHEON_SPECS
 
 AnswerFn = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
+
+#: A proposal sink accepts one raw operator ActionProposal and hands it to the
+#: typed pipeline (the composition root wires this to ``Huginn.ingest`` - the
+#: sole writer of ``object.event``). Returns the normalized event payload, or
+#: ``None`` when the collector deduplicated it. Bragi NEVER calls an executor
+#: (agent-pantheon.md 7.7); it only submits through this sink.
+ProposalSink = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]]
+
+#: Deterministic verb -> ActionType mapping for operator conversational
+#: requests (Wave 4, LLM-free). The verb is the leading imperative token that
+#: :func:`~fdai.agents.introspection.is_action_intent` already recognised; a
+#: verb with no mapping abstains rather than guessing an action.
+_INTENT_ACTION: dict[str, str] = {
+    "restart": "ops.restart-service",
+    "reboot": "ops.restart-service",
+    "failover": "ops.failover-primary",
+    "delete": "remediate.delete-storage",
+    "destroy": "remediate.delete-storage",
+    "drop": "remediate.delete-storage",
+    "encrypt": "remediate.enable-encryption",
+}
+
 
 
 @dataclass
@@ -65,11 +93,108 @@ class Bragi(Agent):
         super().__init__(spec=_BRAGI)
         self._sessions: dict[str, ConversationSession] = {}
         self._agent_responders: dict[str, AnswerFn] = {}
+        self._proposal_sink: ProposalSink | None = None
+        # Per-correlation pipeline progress, appended as verdict / action-run
+        # states arrive on the typed port, so an operator can be told where
+        # their submitted action is (submitted -> verdicted -> hil_pending ->
+        # executing -> succeeded / denied). Bounded by eviction is a follow-up;
+        # a conversation is short-lived.
+        self._progress: dict[str, list[dict[str, Any]]] = {}
 
     # ---- registration --------------------------------------------------
 
     def register_responder(self, agent_name: str, fn: AnswerFn) -> None:
         self._agent_responders[agent_name] = fn
+
+    def register_proposal_sink(self, fn: ProposalSink) -> None:
+        """Wire the typed-pipeline entry (composition root binds Huginn.ingest).
+
+        Without a sink, an action request falls back to the
+        ``requires_typed_pipeline`` signal (no pipeline available) so behavior
+        is unchanged where the pantheon is not wired.
+        """
+        self._proposal_sink = fn
+
+    # ---- action proposal (conversational-port re-entry, 7.7) -----------
+
+    async def submit_action_proposal(
+        self, *, session_id: str, user_id: str, question: str
+    ) -> dict[str, Any]:
+        """Translate an operator command into a typed ActionProposal.
+
+        Builds a proposal whose ``initiator_principal`` is the operator (never
+        Bragi), names the ActionType the leading verb maps to, and hands it to
+        the typed pipeline through the wired sink (Huginn -> Forseti -> Var ->
+        Thor). Returns a status envelope with the ``correlation_id`` the
+        operator can track; it NEVER executes the action itself.
+        """
+        correlation_id = f"conv-{uuid.uuid4()}"
+        verb = leading_verb(question)
+        action_type = _INTENT_ACTION.get(verb or "")
+        if action_type is None:
+            # A recognised command verb with no ActionType mapping: abstain
+            # rather than guess. The operator is told it is unsupported.
+            return {
+                "submitted": False,
+                "abstain_reason": "unmapped_action_intent",
+                "correlation_id": correlation_id,
+            }
+        if self._proposal_sink is None:
+            # No pipeline wired (pantheon not composed): signal re-entry.
+            return {
+                "submitted": False,
+                "abstain_reason": "requires_typed_pipeline",
+                "correlation_id": correlation_id,
+                "action_type": action_type,
+            }
+        proposal: dict[str, Any] = {
+            "idempotency_key": correlation_id,
+            "correlation_id": correlation_id,
+            "initiator_principal": user_id,
+            "operator_initiated": True,
+            "action_type": action_type,
+            "resource_id": _resource_of(question),
+            "event_type": "operator_request",
+            "params": {"question": question, "session_id": session_id},
+        }
+        await self._proposal_sink(proposal)
+        self._progress.setdefault(correlation_id, []).append(
+            {"topic": "object.conversation", "state": "submitted", "action_type": action_type}
+        )
+        return {
+            "submitted": True,
+            "correlation_id": correlation_id,
+            "action_type": action_type,
+            "initiator_principal": user_id,
+        }
+
+    # ---- typed port (progress rendering) -------------------------------
+
+    async def on_typed_message(self, topic: str, payload: dict[str, Any]) -> None:
+        """Record pipeline progress for a submitted proposal.
+
+        Bragi subscribes to ``object.verdict`` and ``object.action-run`` only
+        to render progress back to the operator (agent-pantheon.md 7.7 - Bragi
+        renders, never executes). It appends the state; it publishes nothing.
+        """
+        if topic not in ("object.verdict", "object.action-run"):
+            return None
+        correlation_id = str(payload.get("correlation_id", ""))
+        if not correlation_id:
+            return None
+        self._progress.setdefault(correlation_id, []).append(
+            {
+                "topic": topic,
+                "state": payload.get("state") or payload.get("risk_verdict"),
+                "action_type": payload.get("action_type"),
+                "outcome": payload.get("outcome"),
+            }
+        )
+        return None
+
+    def progress_for(self, correlation_id: str) -> list[dict[str, Any]]:
+        """The recorded pipeline progress for one submitted proposal."""
+        return list(self._progress.get(correlation_id, []))
 
     # ---- agent-to-agent introspection ----------------------------------
 
@@ -162,14 +287,17 @@ class Bragi(Agent):
         # MUST-NOT-bypass (agent-pantheon.md 7.7): a command ("restart vm-1")
         # is not answered by the conversational port. Bragi translates it into
         # a typed ActionProposal whose initiator is the operator and hands it
-        # to the pipeline (judge / approve / execute). Here we only signal that
-        # re-entry; the port never executes.
+        # to the pipeline (Huginn -> Forseti judge -> Var approve -> Thor
+        # execute). Bragi never calls an executor; it only submits + renders.
         if is_action_intent(question):
+            result = await self.submit_action_proposal(
+                session_id=session_id, user_id=user_id, question=question
+            )
             answer = {
                 "answer": None,
                 "primary_agent": None,
-                "abstain_reason": "requires_typed_pipeline",
                 "requires_typed_pipeline": True,
+                **result,
             }
             turn = Turn(
                 turn_index=len(session.turns),
@@ -243,6 +371,20 @@ class Bragi(Agent):
 
 
 _WORD = re.compile(r"[a-z0-9]+")
+
+
+def _resource_of(question: str) -> str | None:
+    """Best-effort resource id from an operator command.
+
+    The first token that looks like a resource identifier (contains a hyphen
+    or a digit, e.g. ``vm-1`` / ``prod-pg-01``). Deterministic and
+    conservative: returns ``None`` when nothing resembles an id, so the
+    proposal carries no resource rather than a wrong guess.
+    """
+    for token in re.findall(r"[a-z0-9-]+", question.lower()):
+        if len(token) >= 3 and ("-" in token or any(c.isdigit() for c in token)):
+            return token
+    return None
 
 
 def _tokenize(text: str) -> set[str]:

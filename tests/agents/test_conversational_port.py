@@ -74,16 +74,22 @@ def test_ask_answers_from_owned_state_not_stub() -> None:
 
 
 def test_ask_refuses_action_intent_and_routes_to_typed_pipeline() -> None:
-    # A command ("restart ...") is not answered by the conversational port;
-    # it abstains with requires_typed_pipeline (agent-pantheon.md 7.7).
+    # A command ("restart ...") is not answered or executed by the
+    # conversational port; Bragi translates it into a typed ActionProposal and
+    # submits it to the pipeline via Huginn (agent-pantheon.md 7.7). The full
+    # pantheon here wires the proposal sink, so the request is SUBMITTED, not
+    # merely signalled - and the port never executes it.
     runtime = _runtime()
     turn = asyncio.run(
-        runtime.ask(session_id="s1", user_id="u1", question="restart the service now")
+        runtime.ask(session_id="s1", user_id="u1", question="restart svc-1 now")
     )
     assert turn is not None
-    # Whatever it routes to, the port refuses to execute.
-    assert turn.answer["abstain_reason"] == "requires_typed_pipeline"
+    assert turn.answer["answer"] is None  # the port did not answer/execute
     assert turn.answer["requires_typed_pipeline"] is True
+    assert turn.answer["submitted"] is True
+    assert turn.answer["action_type"] == "ops.restart-service"
+    assert turn.answer["correlation_id"].startswith("conv-")
+    assert turn.answer["initiator_principal"] == "u1"
 
 
 # ---------------------------------------------------------------------------

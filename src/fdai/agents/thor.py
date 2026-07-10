@@ -68,6 +68,7 @@ class ActionRun:
     shadow_mode: bool = False
     quorum_required: int = 1
     outcome: str | None = None
+    initiator_principal: str | None = None
     rollback_ref: str | None = None
     history: list[ActionRunState] = field(default_factory=list)
 
@@ -86,6 +87,7 @@ class ActionRun:
             "shadow_mode": self.shadow_mode,
             "quorum_required": self.quorum_required,
             "outcome": self.outcome,
+            "initiator_principal": self.initiator_principal,
             "rollback_ref": self.rollback_ref,
             "history": [s.value for s in self.history],
         }
@@ -101,6 +103,7 @@ class ActionRun:
             shadow_mode=bool(data.get("shadow_mode", False)),
             quorum_required=int(data.get("quorum_required", 1)),
             outcome=data.get("outcome"),
+            initiator_principal=data.get("initiator_principal"),
             rollback_ref=data.get("rollback_ref"),
         )
         run.history = [ActionRunState(s) for s in data.get("history", [])]
@@ -233,6 +236,7 @@ class Thor(Agent):
             state=ActionRunState.VERDICTED,
             verdict=risk_verdict,
             shadow_mode=shadow_mode,
+            initiator_principal=verdict.get("initiator_principal"),
         )
         self.action_runs[correlation] = run
         if resource_id:
@@ -354,6 +358,7 @@ class Thor(Agent):
             "outcome": run.outcome,
             "verdict": run.verdict,
             "quorum_required": run.quorum_required,
+            "initiator_principal": run.initiator_principal,
         }
         await self.bus.publish("Thor", "object.action-run", payload)
 
