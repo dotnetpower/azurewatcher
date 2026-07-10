@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 
 from fdai.core.irp.coordinator import ApprovalDecision, MitigationProposal
@@ -38,7 +39,7 @@ _DECISION_MAP: dict[HilDecision, ApprovalDecision] = {
 class HilChannelApprovalGate:
     """Route IRP proposals through the shared HIL channel seam."""
 
-    __slots__ = ("_channel", "_interval", "_sleeper", "_ttl")
+    __slots__ = ("_channel", "_interval", "_monotonic", "_sleeper", "_ttl")
 
     def __init__(
         self,
@@ -47,6 +48,7 @@ class HilChannelApprovalGate:
         poll_interval_seconds: float = 5.0,
         ttl_seconds: int = 1800,
         sleeper: Callable[[float], Awaitable[None]] | None = None,
+        monotonic: Callable[[], float] | None = None,
     ) -> None:
         if poll_interval_seconds <= 0:
             raise ValueError("poll_interval_seconds MUST be positive")
@@ -56,6 +58,10 @@ class HilChannelApprovalGate:
         self._interval = poll_interval_seconds
         self._ttl = ttl_seconds
         self._sleeper: Callable[[float], Awaitable[None]] = sleeper or asyncio.sleep
+        # Wall-clock (monotonic) deadline, not a poll count: a slow ``poll``
+        # would otherwise let the loop run for max_polls * (poll_time +
+        # interval), far exceeding the declared TTL stop-condition.
+        self._monotonic: Callable[[], float] = monotonic or time.monotonic
 
     async def request(self, proposal: MitigationProposal) -> ApprovalDecision:
         card = HilApprovalRequest(
@@ -76,7 +82,10 @@ class HilChannelApprovalGate:
             return ApprovalDecision.TIMEOUT
 
         max_polls = max(1, int(self._ttl / self._interval))
-        for attempt in range(max_polls):
+        deadline = self._monotonic() + self._ttl
+        for _attempt in range(max_polls):
+            if self._monotonic() >= deadline:
+                return ApprovalDecision.TIMEOUT
             try:
                 response = await self._channel.poll(receipt)
             except HilChannelError:
@@ -85,9 +94,12 @@ class HilChannelApprovalGate:
             mapped = _DECISION_MAP.get(response.decision)
             if mapped is not None:
                 return mapped
-            # PENDING - wait then poll again, unless this was the last attempt.
-            if attempt < max_polls - 1:
-                await self._sleeper(self._interval)
+            # PENDING - wait then poll again, clamped so a sleep never
+            # overshoots the TTL deadline.
+            remaining = deadline - self._monotonic()
+            if remaining <= 0:
+                return ApprovalDecision.TIMEOUT
+            await self._sleeper(min(self._interval, remaining))
         return ApprovalDecision.TIMEOUT
 
 
