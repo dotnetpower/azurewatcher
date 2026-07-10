@@ -8,6 +8,8 @@ from typing import Final
 
 import httpx
 
+from fdai.core.metering.emitter import MeteringEmitter
+from fdai.delivery.azure.llm.usage import extract_usage
 from fdai.shared.providers.workload_identity import WorkloadIdentity
 
 _COGNITIVE_SCOPE: Final[str] = "https://cognitiveservices.azure.com/.default"
@@ -48,6 +50,7 @@ class AzureOpenAIEmbeddingModel:
         identity: WorkloadIdentity,
         http_client: httpx.AsyncClient,
         config: AzureOpenAIEmbeddingModelConfig,
+        metering: MeteringEmitter | None = None,
     ) -> None:
         if not config.endpoint.startswith(("https://", "http://")):
             raise ValueError("endpoint MUST be an absolute https URL")
@@ -60,6 +63,7 @@ class AzureOpenAIEmbeddingModel:
         self._identity: Final[WorkloadIdentity] = identity
         self._http: Final[httpx.AsyncClient] = http_client
         self._config: Final[AzureOpenAIEmbeddingModelConfig] = config
+        self._metering: Final[MeteringEmitter | None] = metering
         # `EmbeddingModel` Protocol declares `dim: int` as a settable
         # attribute; expose it as a plain instance variable rather than a
         # read-only property so structural-typing checks accept the class.
@@ -86,6 +90,10 @@ class AzureOpenAIEmbeddingModel:
         )
         response.raise_for_status()
         body = response.json()
+        if self._metering is not None:
+            usage = extract_usage(body)
+            if usage is not None:
+                await self._metering.emit_safe(usage)
         try:
             vector = body["data"][0]["embedding"]
         except (KeyError, IndexError, TypeError) as exc:

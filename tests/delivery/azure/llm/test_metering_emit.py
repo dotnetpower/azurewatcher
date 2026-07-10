@@ -177,3 +177,88 @@ async def test_no_metering_wired_is_a_noop() -> None:
         )
         action_type, _ = await adapter.propose(_candidate())
     assert action_type == "n"
+
+
+async def test_cross_check_records_usage_even_when_final_answer_is_malformed() -> None:
+    # H7: tokens are recorded on the failure path too (malformed answer
+    # routes to HIL), so spend is not under-reported.
+    import pytest
+
+    sink = InMemoryMeteringSink()
+
+    async def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                # Missing "action_type" -> _parse_final_answer raises.
+                "choices": [{"message": {"content": json.dumps({"params": {}})}}],
+                "usage": {"prompt_tokens": 900, "completion_tokens": 100},
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        adapter = AzureOpenAICrossCheckModel(
+            identity=_StaticIdentity(),
+            http_client=http,
+            config=AzureOpenAICrossCheckModelConfig(
+                endpoint="https://oai-test.openai.azure.com",
+                deployment="t2-primary",
+                system_prompt="unit-test system prompt",
+            ),
+            metering=_emitter(sink),
+        )
+        with with_correlation("evt-fail"), pytest.raises(RuntimeError):
+            await adapter.propose(_candidate())
+
+    (record,) = await sink.invocations()
+    assert record.correlation_id == "evt-fail"
+    assert record.usage.total_tokens == 1000
+
+
+async def test_embeddings_records_usage() -> None:
+    # H5: T1 embedding spend is metered like the T2 reasoners.
+    from fdai.delivery.azure.llm.embeddings import (
+        AzureOpenAIEmbeddingModel,
+        AzureOpenAIEmbeddingModelConfig,
+    )
+
+    sink = InMemoryMeteringSink()
+
+    async def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "data": [{"embedding": [0.1] * 8, "index": 0}],
+                "usage": {"prompt_tokens": 42, "total_tokens": 42},
+            },
+        )
+
+    emitter = MeteringEmitter(
+        sink=sink,
+        capability_id="t1.embedding",
+        model_key="text-embedding-3-small",
+        tier="T1",
+        pricing=PricingTable.from_mapping(
+            {"text-embedding-3-small": {"input_per_1k": "0.02", "output_per_1k": "0"}}
+        ),
+        mode=InvocationMode.ENFORCE,
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        adapter = AzureOpenAIEmbeddingModel(
+            identity=_StaticIdentity(),
+            http_client=http,
+            config=AzureOpenAIEmbeddingModelConfig(
+                endpoint="https://oai-test.openai.azure.com",
+                deployment="t1-embedding",
+                dim=8,
+            ),
+            metering=emitter,
+        )
+        with with_correlation("evt-embed"):
+            await adapter.embed("hello")
+
+    (record,) = await sink.invocations()
+    assert record.tier == "T1"
+    assert record.usage == TokenUsage(prompt_tokens=42, completion_tokens=0)
+    # 42/1000 * 0.02 = 0.00084
+    assert record.cost == Decimal("0.00084")

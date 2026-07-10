@@ -207,61 +207,70 @@ class AzureOpenAICrossCheckModel:
         # ``max_tool_iterations`` bounds the number of tool-dispatch
         # rounds; the final answer turn is always reachable after the
         # last permitted tool round, so we allow one extra loop cycle.
+        #
+        # Metering is emitted in ``finally`` so the tokens spent are
+        # recorded on EVERY exit path - success, a tool-loop overflow, a
+        # provider error, or a malformed final answer that routes to HIL.
+        # Skipping metering on the failure paths would under-report real
+        # spend (H7). ``emit_safe`` never raises, so the finally cannot
+        # mask the original exception.
         total_usage = TokenUsage.zero()
-        for iteration in range(self._config.max_tool_iterations + 1):
-            body: dict[str, Any] = {
-                "messages": messages,
-                "temperature": self._config.temperature,
-                "max_tokens": self._config.max_tokens,
-                "response_format": {"type": "json_object"},
-            }
-            if self._tools_param is not None:
-                body["tools"] = self._tools_param
-                body["tool_choice"] = "auto"
-            response = await self._http.post(
-                url,
-                params={"api-version": self._config.api_version},
-                headers={
-                    "Authorization": f"Bearer {token.token}",
-                    "Content-Type": "application/json",
-                },
-                json=body,
-                timeout=self._config.timeout_seconds,
-            )
-            response.raise_for_status()
-            envelope = response.json()
-            call_usage = extract_usage(envelope)
-            if call_usage is not None:
-                total_usage = total_usage + call_usage
-            message = _extract_message(envelope)
+        try:
+            for iteration in range(self._config.max_tool_iterations + 1):
+                body: dict[str, Any] = {
+                    "messages": messages,
+                    "temperature": self._config.temperature,
+                    "max_tokens": self._config.max_tokens,
+                    "response_format": {"type": "json_object"},
+                }
+                if self._tools_param is not None:
+                    body["tools"] = self._tools_param
+                    body["tool_choice"] = "auto"
+                response = await self._http.post(
+                    url,
+                    params={"api-version": self._config.api_version},
+                    headers={
+                        "Authorization": f"Bearer {token.token}",
+                        "Content-Type": "application/json",
+                    },
+                    json=body,
+                    timeout=self._config.timeout_seconds,
+                )
+                response.raise_for_status()
+                envelope = response.json()
+                call_usage = extract_usage(envelope)
+                if call_usage is not None:
+                    total_usage = total_usage + call_usage
+                message = _extract_message(envelope)
 
-            tool_calls = message.get("tool_calls") or []
-            if tool_calls:
-                if iteration >= self._config.max_tool_iterations:
-                    raise RuntimeError(
-                        "cross-check model exceeded max_tool_iterations="
-                        f"{self._config.max_tool_iterations}"
-                    )
-                if self._tool_executor is None:
-                    raise RuntimeError(
-                        "cross-check model returned tool_calls but no ToolExecutor is wired"
-                    )
-                # Preserve the assistant turn so the API sees the tool
-                # ids that the tool messages below refer to.
-                messages.append({"role": "assistant", "tool_calls": tool_calls})
-                for call in tool_calls:
-                    tool_message = await self._dispatch_tool_call(call)
-                    messages.append(tool_message)
-                continue
+                tool_calls = message.get("tool_calls") or []
+                if tool_calls:
+                    if iteration >= self._config.max_tool_iterations:
+                        raise RuntimeError(
+                            "cross-check model exceeded max_tool_iterations="
+                            f"{self._config.max_tool_iterations}"
+                        )
+                    if self._tool_executor is None:
+                        raise RuntimeError(
+                            "cross-check model returned tool_calls but no ToolExecutor is wired"
+                        )
+                    # Preserve the assistant turn so the API sees the tool
+                    # ids that the tool messages below refer to.
+                    messages.append({"role": "assistant", "tool_calls": tool_calls})
+                    for call in tool_calls:
+                        tool_message = await self._dispatch_tool_call(call)
+                        messages.append(tool_message)
+                    continue
 
-            content = message.get("content")
+                content = message.get("content")
+                return _parse_final_answer(content)
+
+            # The loop always either returns or raises inside the body;
+            # we never fall through, but mypy needs the explicit sentinel.
+            raise RuntimeError("cross-check loop terminated without a final answer")
+        finally:
             if self._metering is not None:
                 await self._metering.emit_safe(total_usage)
-            return _parse_final_answer(content)
-
-        # The loop always either returns or raises inside the body; we
-        # never fall through, but mypy needs the explicit sentinel.
-        raise RuntimeError("cross-check loop terminated without a final answer")
 
     async def _resolve_system_prompt(self, candidate: QualityCandidate) -> str:
         """Return the system message for one ``propose()`` call.

@@ -364,8 +364,10 @@ def bind_azure_llm_bindings(
     primary_cap = _capability(resolved, "t2.reasoner.primary")
     secondary_cap = _capability(resolved, "t2.reasoner.secondary")
 
-    def _emitter_for(capability_id: str, cap: ResolvedCapability) -> MeteringEmitter | None:
-        """Build a T2 metering emitter for one capability, or None when metering is off.
+    def _emitter_for(
+        capability_id: str, cap: ResolvedCapability, tier: str
+    ) -> MeteringEmitter | None:
+        """Build a metering emitter for one capability, or None when metering is off.
 
         ``model_key`` is the resolved model family (``gpt-4o``, matching
         ``rule-catalog/llm-pricing.yaml``); it falls back to the
@@ -378,7 +380,7 @@ def bind_azure_llm_bindings(
             sink=metering_sink,
             capability_id=capability_id,
             model_key=(cap.family or cap.name),
-            tier="T2",
+            tier=tier,
             pricing=pricing,
         )
 
@@ -408,7 +410,7 @@ def bind_azure_llm_bindings(
                     prompt_composer=prompt_composer,
                     capability_id=("t2.reasoner.primary" if prompt_composer is not None else None),
                     scope_resolver=scope_resolver,
-                    metering=_emitter_for("t2.reasoner.primary", primary_cap),
+                    metering=_emitter_for("t2.reasoner.primary", primary_cap, "T2"),
                 )
             else:
                 primary_model = MatchTypeCrossCheckModel(model_id="hil-only-primary-noop")
@@ -420,6 +422,7 @@ def bind_azure_llm_bindings(
                     deployment=embedding_cap.name,
                     dim=_default_dim_for_family(embedding_cap.family or ""),
                 ),
+                metering=_emitter_for("t1.embedding", embedding_cap, "T1"),
             )
             bindings = LlmBindings(
                 embedding_model=embedding,
@@ -443,6 +446,7 @@ def bind_azure_llm_bindings(
             deployment=embedding_cap.name,
             dim=_default_dim_for_family(embedding_cap.family or ""),
         ),
+        metering=_emitter_for("t1.embedding", embedding_cap, "T1"),
     )
     primary = AzureOpenAICrossCheckModel(
         identity=identity,
@@ -457,7 +461,7 @@ def bind_azure_llm_bindings(
         prompt_composer=prompt_composer,
         capability_id=("t2.reasoner.primary" if prompt_composer is not None else None),
         scope_resolver=scope_resolver,
-        metering=_emitter_for("t2.reasoner.primary", primary_cap),
+        metering=_emitter_for("t2.reasoner.primary", primary_cap, "T2"),
     )
     secondary = AzureOpenAICrossCheckModel(
         identity=identity,
@@ -472,7 +476,7 @@ def bind_azure_llm_bindings(
         prompt_composer=prompt_composer,
         capability_id=("t2.reasoner.secondary" if prompt_composer is not None else None),
         scope_resolver=scope_resolver,
-        metering=_emitter_for("t2.reasoner.secondary", secondary_cap),
+        metering=_emitter_for("t2.reasoner.secondary", secondary_cap, "T2"),
     )
     # Wave 4 beta-2: opt-in Critic binding. Only bind when both the
     # ``t2.critic`` capability resolves AND the caller supplied a
@@ -534,7 +538,7 @@ def bind_azure_llm_bindings(
                     deployment=rca_cap.name,
                     system_prompt=rca_system_prompt,
                 ),
-                metering=_emitter_for("t2.rca", rca_cap),
+                metering=_emitter_for("t2.rca", rca_cap, "T2"),
             )
         )
     bindings = LlmBindings(
