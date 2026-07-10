@@ -89,6 +89,11 @@ repository where a natural language other than English is permitted in committed
 
 - Everything under `.github/**` - `copilot-instructions.md`, `instructions/*.md`,
   workflows, issue and PR templates. These are project guidelines, not user docs.
+- Everything under `docs/internals/**` - internal engineering notes (gap
+  analyses, summaries of external material, working design memos). These are
+  team-facing engineering artifacts, not published user docs, so they stay
+  English-only like `.github/**`. A `-ko.md` sibling is permitted but never
+  required there.
 - Anything under `mocks/**`, `examples/**`, and any future third-party or vendored path.
 
 **File-pair convention**

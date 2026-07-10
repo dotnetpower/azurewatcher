@@ -13,7 +13,9 @@
 #
 # Scope:
 #   Included: root README.md, everything under docs/**/*.md
-#   Excluded: .github/**, mocks/**, examples/**, node_modules/**, site/**
+#   Excluded: .github/**, docs/internals/** (English-only internal engineering
+#             notes, like .github/**), mocks/**, examples/**, node_modules/**,
+#             site/**
 #
 # Exit codes: 0 on success, 1 on any violation.
 
@@ -29,6 +31,7 @@ report() { echo "check-translations: $*" >&2; errors=$((errors + 1)); }
 mapfile -t english_docs < <(
   { echo "README.md"; find docs -type f -name '*.md' 2>/dev/null; } \
     | grep -Ev '(^|/)[^/]+-ko\.md$' \
+    | grep -Ev '^docs/internals/' \
     | sort -u
 )
 
