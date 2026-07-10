@@ -39,6 +39,11 @@ from fdai.core.conversation.coordinator import (
     ConversationCoordinator,
     CoordinatorConfig,
 )
+from fdai.core.conversation.creation import (
+    CreateIncidentCommand,
+    CreateScheduledTaskCommand,
+    CreationForbiddenError,
+)
 from fdai.core.conversation.narrator import (
     DeterministicKeywordNarrator,
     Narrator,
@@ -90,6 +95,9 @@ __all__ = [
     "ConversationSession",
     "CoordinatorConfig",
     "CorrelateIncidentTool",
+    "CreateIncidentCommand",
+    "CreateScheduledTaskCommand",
+    "CreationForbiddenError",
     "DescribeEventTool",
     "DeterministicKeywordNarrator",
     "ExplainVerdictTool",
