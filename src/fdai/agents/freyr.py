@@ -14,6 +14,7 @@ from fdai.agents.bus import PantheonBus
 from fdai.agents.introspection import (
     IntrospectionResult,
     capability_facts,
+    capped_list,
     mentioned,
 )
 from fdai.agents.pantheon import _FREYR
@@ -106,7 +107,8 @@ class Freyr(Agent):
     async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
         facts = {
             **capability_facts(self.spec),
-            "tracked_resources": sorted(self._samples),
+            "tracked_resources": capped_list(sorted(self._samples)),
+            "tracked_resources_count": len(self._samples),
             "scale_up_threshold": self._up,
             "scale_down_threshold": self._down,
         }

@@ -179,3 +179,16 @@ def test_introspect_facts_lists_are_capped() -> None:
     result = asyncio.run(njord.on_conversation_turn("cost overview", {}))
     assert len(result["facts"]["tracked_scopes"]) == 20
     assert result["facts"]["tracked_scopes_count"] == 30
+
+
+def test_introspect_freyr_facts_lists_are_capped() -> None:
+    # Freyr exposes tracked resource ids; the list is bounded with a true
+    # count, consistent with the other domain agents (H5).
+    from fdai.agents.freyr import Freyr
+
+    freyr = Freyr()
+    for i in range(30):
+        asyncio.run(freyr.ingest_utilization(resource_id=f"res-{i:02d}", utilization=0.5))
+    result = asyncio.run(freyr.on_conversation_turn("capacity overview", {}))
+    assert len(result["facts"]["tracked_resources"]) == 20
+    assert result["facts"]["tracked_resources_count"] == 30
