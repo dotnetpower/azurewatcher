@@ -75,6 +75,22 @@ class ReassemblyReason(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class AppliedToggle:
+    """One capability-mode toggle the loop applied to clear a blocking finding.
+
+    Retains the per-toggle provenance the executor needs to render exactly one
+    ``remediate.apply-preflight-toggle`` Action per toggle (granularity A): the
+    ``finding_id`` it resolves, the infra ``module`` it targets, the ``set_vars``
+    override it applies, and the ``scope`` the plan lands in.
+    """
+
+    finding_id: str
+    module: str | None
+    set_vars: Mapping[str, str]
+    scope: str
+
+
+@dataclass(frozen=True, slots=True)
 class ReassemblyOutcome:
     """The decision the loop reached - a side-effect-free value.
 
@@ -82,6 +98,10 @@ class ReassemblyOutcome:
     render into a remediation PR when ``status`` is ``CLEARED``. On escalation
     it holds whatever was accumulated before the loop gave up (useful context
     for the ``hil`` item) and MUST NOT be applied autonomously.
+
+    ``applied_toggles`` is the per-toggle breakdown of the same work, one entry
+    per blocking finding the loop cleared. It is the input to the one-Action-
+    per-toggle proposal builder; on escalation it is context only.
     """
 
     status: ReassemblyStatus
@@ -89,15 +109,18 @@ class ReassemblyOutcome:
     overrides: Mapping[str, str] = field(default_factory=dict)
     iterations: int = 0
     final_report: DeploymentReadinessReport | None = None
+    applied_toggles: tuple[AppliedToggle, ...] = ()
 
 
 def _autofix_overrides(finding: ProbeFinding) -> dict[str, str] | None:
     """Return the tfvars overrides for an autofix toggle finding, else ``None``.
 
     Eligibility gate (see the design doc): the resolution MUST be a
-    ``TERRAFORM_TOGGLE`` with ``autofix`` set and a non-empty ``set_vars``.
-    A ``MANUAL`` resolution or a non-autofix toggle returns ``None`` so the
-    loop routes the whole pass to ``hil``.
+    ``TERRAFORM_TOGGLE`` with ``autofix`` set, a non-empty ``set_vars``, and a
+    named ``module`` (needed to render a schema-valid
+    ``remediate.apply-preflight-toggle`` Action per toggle). A ``MANUAL``
+    resolution, a non-autofix toggle, or a toggle with no module returns
+    ``None`` so the loop routes the whole pass to ``hil``.
     """
 
     resolution = finding.resolution
@@ -105,6 +128,7 @@ def _autofix_overrides(finding: ProbeFinding) -> dict[str, str] | None:
         resolution.kind is ResolutionKind.TERRAFORM_TOGGLE
         and resolution.autofix
         and resolution.set_vars
+        and resolution.module
     ):
         return dict(resolution.set_vars)
     return None
@@ -120,8 +144,9 @@ async def reassemble(
 
     Returns a :class:`ReassemblyOutcome`. Never mutates anything and never
     applies an override itself - it decides the reassembly and hands the
-    accumulated overrides back to the caller. Propagates any exception raised
-    by ``reanalyze`` (fail-closed: the caller degrades to ``hil``).
+    accumulated overrides (and their per-toggle breakdown) back to the caller.
+    Propagates any exception raised by ``reanalyze`` (fail-closed: the caller
+    degrades to ``hil``).
     """
 
     if max_iterations < 1:
@@ -129,6 +154,7 @@ async def reassemble(
 
     report = initial_report
     overrides: dict[str, str] = {}
+    applied: list[AppliedToggle] = []
     # finding id -> the set of toggles already proposed for it, so a repeated
     # proposal (a toggle that did not clear its finding) is caught as non-convergence.
     proposed: dict[str, set[frozenset[tuple[str, str]]]] = {}
@@ -142,10 +168,11 @@ async def reassemble(
                 overrides=dict(overrides),
                 iterations=iterations,
                 final_report=report,
+                applied_toggles=tuple(applied),
             )
 
         # All-or-nothing: every blocking finding MUST have an autofix toggle.
-        pass_toggles: dict[str, dict[str, str]] = {}
+        pass_toggles: dict[str, tuple[ProbeFinding, dict[str, str]]] = {}
         for finding in report.blocking_findings:
             toggle = _autofix_overrides(finding)
             if toggle is None:
@@ -155,12 +182,13 @@ async def reassemble(
                     overrides=dict(overrides),
                     iterations=iterations,
                     final_report=report,
+                    applied_toggles=tuple(applied),
                 )
-            pass_toggles[finding.id] = toggle
+            pass_toggles[finding.id] = (finding, toggle)
 
         # Non-convergence: the same toggle proposed twice for one finding means
         # applying it did not clear that finding - stop before flip-flopping.
-        for finding_id, toggle in pass_toggles.items():
+        for finding_id, (_finding, toggle) in pass_toggles.items():
             key = frozenset(toggle.items())
             if key in proposed.get(finding_id, set()):
                 return ReassemblyOutcome(
@@ -169,6 +197,7 @@ async def reassemble(
                     overrides=dict(overrides),
                     iterations=iterations,
                     final_report=report,
+                    applied_toggles=tuple(applied),
                 )
             proposed.setdefault(finding_id, set()).add(key)
 
@@ -179,11 +208,20 @@ async def reassemble(
                 overrides=dict(overrides),
                 iterations=iterations,
                 final_report=report,
+                applied_toggles=tuple(applied),
             )
 
         prior_blocking = len(report.blocking_findings)
-        for toggle in pass_toggles.values():
+        for finding_id, (finding, toggle) in pass_toggles.items():
             overrides.update(toggle)
+            applied.append(
+                AppliedToggle(
+                    finding_id=finding_id,
+                    module=finding.resolution.module,
+                    set_vars=dict(toggle),
+                    scope=report.scope,
+                )
+            )
         iterations += 1
 
         report = await reanalyze(dict(overrides))
@@ -195,10 +233,12 @@ async def reassemble(
                 overrides=dict(overrides),
                 iterations=iterations,
                 final_report=report,
+                applied_toggles=tuple(applied),
             )
 
 
 __all__ = [
+    "AppliedToggle",
     "ReanalyzeFn",
     "ReassemblyOutcome",
     "ReassemblyReason",

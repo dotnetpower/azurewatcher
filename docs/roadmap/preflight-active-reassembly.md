@@ -135,6 +135,21 @@ otherwise the finding degrades to guidance + `hil`:
 `autofix: false` toggles still render a *proposed* diff, but as review guidance
 on the PR, not an auto-opened remediation - the operator flips the variable.
 
+### Action Granularity: One Action per Toggle
+
+A reassembly can apply several toggles (across findings and iterations). Each
+applied toggle becomes **its own** `remediate.apply-preflight-toggle` Action -
+not one bundled Action per pass. This keeps the ActionType's `argument_schema`
+single-toggle (`finding_id` + `toggle_module` + `set_vars`), so audit, rollback
+(`pr_revert`), and blast-radius stay at toggle granularity and map 1:1 to the
+finding each toggle resolves. The loop retains the per-toggle provenance
+(`AppliedToggle`: `finding_id`, `module`, `set_vars`, `scope`); the proposal
+builder ([reassembly_proposals.py](../../src/fdai/core/deploy_preflight/reassembly_proposals.py))
+renders one proposal per toggle and submits each through the same typed pipeline
+seam an operator command re-enters (`ProposalSink` -> Huginn -> Forseti -> Thor),
+shadow-first. An escalated outcome yields no proposals - the caller routes it to
+`hil`.
+
 ## What Can and Cannot Be Reassembled
 
 Honesty about the boundary is a safety property, not a caveat:
@@ -182,8 +197,9 @@ category is explicitly promoted to enforce.
 | Report -> PR check publish | [core/deploy_preflight/check_publish.py](../../src/fdai/core/deploy_preflight/check_publish.py) | shipped (report only) |
 | Convergence loop + stop-conditions | [core/deploy_preflight/reassemble.py](../../src/fdai/core/deploy_preflight/reassemble.py) | shipped |
 | `remediate.apply-preflight-toggle` ActionType | [rule-catalog/action-types/](../../rule-catalog/action-types/remediate.apply-preflight-toggle.yaml) | shipped |
+| Overrides -> Action proposals (one per toggle) | [core/deploy_preflight/reassembly_proposals.py](../../src/fdai/core/deploy_preflight/reassembly_proposals.py) | shipped |
 | Reference consumer wiring (one toggle) | [infra/modules/preflight-toggles/reference-disk-consumer/](../../infra/modules/preflight-toggles/reference-disk-consumer/README.md) | shipped (fork copies it) |
-| **Overrides -> executor `Action` render + PR open** | `core/deploy_preflight/` + composition root | **remaining** |
+| **Composition wiring: `ProposalSink` + live trigger** | composition root + `delivery/azure/preflight/` | **remaining** |
 
 `core/` sees only the `FeasibilityProbe` Protocol and the
 `RemediationPrPublisher` seam; the reassembly loop constructs no cloud SDK
@@ -201,11 +217,13 @@ Each is separately reviewable:
    re-verified", "regression -> hil", "fail-closed on a raising reanalyze". *(shipped)*
 4. One reference consumer wiring (the `disk_provisioning` toggle) under `infra/`
    so a fork has a copy-paste starting point. *(shipped)*
-5. The overrides-to-executor step: render the accumulated overrides into a
-   `remediate.apply-preflight-toggle` `Action` and open the tfvars-override PR
-   through the executor (shadow-first). *(remaining)*
-6. Live Azure adapters that feed real policy findings into the loop (after the
-   preflight live adapters land, shadow-first).
+5. The overrides-to-executor step: render each applied toggle into a
+   `remediate.apply-preflight-toggle` proposal (one Action per toggle,
+   granularity A) and submit through the typed pipeline seam. *(shipped)*
+6. Composition wiring (bind the `ProposalSink` to Huginn ingest) plus live
+   Azure adapters that feed real policy findings into the loop and open the
+   tfvars-override PR (after the preflight live adapters land, shadow-first).
+   *(remaining)*
 
 ## References
 

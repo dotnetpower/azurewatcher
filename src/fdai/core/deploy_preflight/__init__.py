@@ -24,32 +24,46 @@ from fdai.core.deploy_preflight.environment_profile import (
     apply_inventory_delta,
     build_profile,
 )
-from fdai.core.deploy_preflight.report import (
-    DeploymentReadinessReport,
-    ReadinessVerdict,
-)
 from fdai.core.deploy_preflight.reassemble import (
+    AppliedToggle,
     ReanalyzeFn,
     ReassemblyOutcome,
     ReassemblyReason,
     ReassemblyStatus,
     reassemble,
 )
+from fdai.core.deploy_preflight.reassembly_proposals import (
+    ACTION_TYPE,
+    ProposalSink,
+    ToggleActionProposal,
+    build_toggle_proposals,
+    submit_toggle_proposals,
+)
+from fdai.core.deploy_preflight.report import (
+    DeploymentReadinessReport,
+    ReadinessVerdict,
+)
 
 __all__ = [
+    "ACTION_TYPE",
+    "AppliedToggle",
     "DeploymentEnvironmentProfile",
     "DeploymentEnvironmentProfileCache",
     "DeploymentReadinessReport",
     "PreflightAnalyzer",
     "PreflightCheckOutcome",
     "PreflightCheckResult",
+    "ProposalSink",
     "ReadinessVerdict",
     "ReanalyzeFn",
     "ReassemblyOutcome",
     "ReassemblyReason",
     "ReassemblyStatus",
+    "ToggleActionProposal",
     "apply_inventory_delta",
     "build_profile",
+    "build_toggle_proposals",
     "publish_preflight_check",
     "reassemble",
+    "submit_toggle_proposals",
 ]

@@ -1,7 +1,7 @@
 ---
 title: 프리플라이트 능동 플랜 재조립 (policy blocker에서 재렌더된 terraform으로)
 translation_of: preflight-active-reassembly.md
-translation_source_sha: c6bb14b73d9c817fd63eb078080f01b0ab814f65
+translation_source_sha: 2f5a282a5c31e15ba385ce7ef96a53291d7b718c
 translation_revised: 2026-07-10
 ---
 # 프리플라이트 능동 플랜 재조립 (policy blocker에서 재렌더된 terraform으로)
@@ -132,6 +132,19 @@ guidance + `hil`로 격하됩니다:
 `autofix: false` 토글은 여전히 *제안된* diff를 렌더하지만, 자동으로 열리는 remediation이
 아니라 PR 위의 리뷰 guidance로서입니다 - 오퍼레이터가 변수를 뒤집습니다.
 
+### Action 입도: 토글당 Action 1개
+
+하나의 재조립은 여러 토글을 적용할 수 있습니다(여러 finding·여러 iteration). 적용된 각
+토글은 패스당 묶음 Action이 아니라 **각자** `remediate.apply-preflight-toggle` Action이
+됩니다. 이렇게 하면 ActionType의 `argument_schema`가 단일 토글(`finding_id` +
+`toggle_module` + `set_vars`)로 유지되어, 감사·롤백(`pr_revert`)·blast-radius가 토글
+입도로 남고 각 토글이 해소하는 finding에 1:1로 매핑됩니다. 루프는 토글별 provenance를
+유지하며(`AppliedToggle`: `finding_id`, `module`, `set_vars`, `scope`), proposal
+빌더([reassembly_proposals.py](../../src/fdai/core/deploy_preflight/reassembly_proposals.py))가
+토글당 proposal 하나를 렌더하여, 오퍼레이터 명령이 재진입하는 것과 같은 타입드 파이프라인
+seam(`ProposalSink` -> Huginn -> Forseti -> Thor)을 통해 shadow-first로 제출합니다.
+escalate된 outcome은 proposal을 내지 않습니다 - 호출자가 `hil`로 라우팅합니다.
+
 ## 무엇을 재조립할 수 있고 없는가
 
 경계에 대한 정직함은 부수 조건이 아니라 안전 속성입니다:
@@ -178,8 +191,9 @@ draft입니다.
 | 리포트 -> PR 체크 게시 | [core/deploy_preflight/check_publish.py](../../src/fdai/core/deploy_preflight/check_publish.py) | 완료 (리포트만) |
 | 수렴 루프 + stop-condition | [core/deploy_preflight/reassemble.py](../../src/fdai/core/deploy_preflight/reassemble.py) | 완료 |
 | `remediate.apply-preflight-toggle` ActionType | [rule-catalog/action-types/](../../rule-catalog/action-types/remediate.apply-preflight-toggle.yaml) | 완료 |
+| overrides -> Action proposal (토글당 하나) | [core/deploy_preflight/reassembly_proposals.py](../../src/fdai/core/deploy_preflight/reassembly_proposals.py) | 완료 |
 | 참조 consumer 배선 (토글 하나) | [infra/modules/preflight-toggles/reference-disk-consumer/](../../infra/modules/preflight-toggles/reference-disk-consumer/README.md) | 완료 (포크가 복사) |
-| **overrides -> executor `Action` 렌더 + PR 오픈** | `core/deploy_preflight/` + composition root | **남음** |
+| **composition 배선: `ProposalSink` + 라이브 트리거** | composition root + `delivery/azure/preflight/` | **남음** |
 
 `core/`는 `FeasibilityProbe` Protocol과 `RemediationPrPublisher` seam만 봅니다.
 재조립 루프는 어떤 클라우드 SDK도 구성하지 않고 PR을 직접 열지 않습니다 - override를
@@ -196,11 +210,12 @@ draft입니다.
    "raise하는 reanalyze에 fail-closed". *(완료)*
 4. `infra/` 아래 참조 consumer 배선 하나(`disk_provisioning` 토글)로 포크가 복사-붙여넣기
    시작점을 갖게 함. *(완료)*
-5. overrides-to-executor 단계: 누적된 override를 `remediate.apply-preflight-toggle`
-   `Action`으로 렌더하고 executor를 통해 tfvars-override PR을 엽니다 (shadow-first).
-   *(남음)*
-6. 실제 policy finding을 루프에 공급하는 라이브 Azure 어댑터 (preflight 라이브 어댑터
-   착지 후, shadow-first).
+5. overrides-to-executor 단계: 적용된 각 토글을 `remediate.apply-preflight-toggle`
+   proposal로 렌더하고(토글당 Action 1개, granularity A) 타입드 파이프라인 seam을 통해
+   제출합니다. *(완료)*
+6. composition 배선(`ProposalSink`을 Huginn ingest에 연결) + 실제 policy finding을
+   루프에 공급하고 tfvars-override PR을 여는 라이브 Azure 어댑터 (preflight 라이브
+   어댑터 착지 후, shadow-first). *(남음)*
 
 ## 참조
 
