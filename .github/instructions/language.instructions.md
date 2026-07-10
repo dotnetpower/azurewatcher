@@ -47,13 +47,16 @@ message catalogs, never by translating an L0 string in place.
   - `.github/**` (copilot-instructions, instructions/*, workflows, issue/PR templates) -
     **English-only, no translations, no exceptions**
   - commit messages, branch names, PR titles and descriptions
+  - **GitHub issues** - titles, descriptions, labels, and comments are **English-only,
+    always**, with no exceptions (issues are project-tracking artifacts, not user docs;
+    they are never translated)
   - tests, fixtures, sample data, and config files
   - log messages, error strings, audit entries, and source strings for user-facing text
 - **Identifiers, filenames, and branch names must be ASCII** (`a-z A-Z 0-9 _ - .`).
   No accented letters, CJK, or emoji in code symbols or paths.
 - **Korean is allowed only in interactive maintainer chat** and in the
   `-ko.md` translation files defined below. It must never appear in code, config,
-  commits, tests, or `.github/**`.
+  commits, GitHub issues, tests, or `.github/**`.
 
 ## Allowed Exceptions
 
