@@ -222,7 +222,7 @@ class Forseti(Agent):
                 )
                 risk_verdict = "deny"
                 rbac_denied = True
-        elif event.get("operator_initiated") and initiator not in self._rbac:
+        elif event.get("operator_initiated") is True and initiator not in self._rbac:
             await self._emit_security_event(
                 event=event,
                 initiator=initiator,

@@ -51,6 +51,16 @@ _LOG = logging.getLogger(__name__)
 DEFAULT_ACTION_PATH: Final[str] = "/chat/action"
 DEFAULT_MAX_BODY_BYTES: Final[int] = 8_000
 
+#: Hard caps on operator-supplied values that ride into the proposal (and thus
+#: into every downstream store and the audit log). The body-byte cap already
+#: bounds the request; these bound the individual fields so one large value
+#: cannot bloat the pipeline / audit or become a pathological bus partition key.
+MAX_PROMPT_CHARS: Final[int] = 4_000
+MAX_QUESTION_CHARS: Final[int] = 2_000
+MAX_RESOURCE_ID_CHARS: Final[int] = 200
+MAX_IDEMPOTENCY_CHARS: Final[int] = 200
+MAX_SESSION_ID_CHARS: Final[int] = 200
+
 #: The capability an operator MUST hold to submit an action proposal. Contributor
 #: and above carry it; a Reader does not (see rbac/roles.py capability matrix).
 _SUBMIT_CAPABILITY: Final[Capability] = Capability.AUTHOR_DRAFT_PR
@@ -70,23 +80,45 @@ class ConsoleActionSubmitter:
     event_bus: EventBus
     raw_event_topic: str
 
+    def __post_init__(self) -> None:
+        # Fail fast at composition: an empty topic would publish proposals into
+        # a nameless stream the pantheon never consumes.
+        if not self.raw_event_topic or not self.raw_event_topic.strip():
+            raise ValueError("raw_event_topic MUST be a non-empty topic name")
+
     async def submit(
         self,
         *,
         question: str,
         principal: Principal,
         session_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Submit an operator command, or refuse it. Returns a status envelope.
 
+        - Blank principal id -> ``{"submitted": False,
+          "reason": "invalid_principal"}`` (fail closed; nothing publishes).
         - No ``author-draft-pr`` capability -> ``{"submitted": False,
           "reason": "rbac_capability"}`` (Reader is refused; nothing publishes).
         - Command verb maps to no ActionType -> ``{"submitted": False,
           "reason": "unmapped_action_intent"}``.
         - Otherwise publishes the proposal and returns ``{"submitted": True,
           "correlation_id": ..., "action_type": ...}``.
+
+        ``idempotency_key`` (client-supplied, optional) becomes the proposal's
+        dedup key so a retried submit collapses at Huginn instead of enqueuing a
+        second action. Absent, a fresh key is used (each call is distinct).
         """
         correlation_id = f"conv-{uuid.uuid4()}"
+        # Fail closed on a malformed principal - never publish an action with an
+        # empty initiator (which would only be denied downstream anyway).
+        if not principal.oid or not principal.oid.strip():
+            _LOG.info("console action refused: blank principal oid")
+            return {
+                "submitted": False,
+                "reason": "invalid_principal",
+                "correlation_id": correlation_id,
+            }
         if not has_capability(principal.roles, _SUBMIT_CAPABILITY):
             _LOG.info("console action refused: principal lacks %s", _SUBMIT_CAPABILITY.value)
             return {
@@ -102,19 +134,25 @@ class ConsoleActionSubmitter:
                 "reason": "unmapped_action_intent",
                 "correlation_id": correlation_id,
             }
+        # Bound operator-supplied values before they ride into the pipeline.
+        bounded_resource = resource_id[:MAX_RESOURCE_ID_CHARS] if resource_id else None
+        bounded_question = question[:MAX_QUESTION_CHARS]
+        bounded_session = session_id[:MAX_SESSION_ID_CHARS] if session_id else None
+        client_key = (idempotency_key or "").strip()[:MAX_IDEMPOTENCY_CHARS]
+        dedup_key = client_key or correlation_id
         proposal: dict[str, Any] = {
-            "idempotency_key": correlation_id,
+            "idempotency_key": dedup_key,
             "correlation_id": correlation_id,
             "initiator_principal": principal.oid,
             "operator_initiated": True,
             "action_type": action_type,
-            "resource_id": resource_id,
+            "resource_id": bounded_resource,
             "event_type": "operator_request",
-            "params": {"question": question, "session_id": session_id},
+            "params": {"question": bounded_question, "session_id": bounded_session},
         }
         # Key by resource (per-resource ordering) so concurrent proposals on
-        # the same resource serialize; fall back to the correlation id.
-        key = resource_id or correlation_id
+        # the same resource serialize; fall back to the dedup key.
+        key = bounded_resource or dedup_key
         await self.event_bus.publish(self.raw_event_topic, key, proposal)
         _LOG.info(
             "console action submitted: action_type=%s correlation_id=%s",
@@ -125,7 +163,7 @@ class ConsoleActionSubmitter:
             "submitted": True,
             "correlation_id": correlation_id,
             "action_type": action_type,
-            "resource_id": resource_id,
+            "resource_id": bounded_resource,
         }
 
 
@@ -174,14 +212,23 @@ def make_console_action_route(
         prompt = body.get("prompt")
         if not isinstance(prompt, str) or not prompt.strip():
             raise HTTPException(status_code=400, detail="prompt MUST be a non-empty string")
+        if len(prompt) > MAX_PROMPT_CHARS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"prompt exceeds cap ({len(prompt)} > {MAX_PROMPT_CHARS})",
+            )
         session_id = body.get("session_id")
         if session_id is not None and not isinstance(session_id, str):
             raise HTTPException(status_code=400, detail="session_id MUST be a string")
+        idempotency_key = body.get("idempotency_key")
+        if idempotency_key is not None and not isinstance(idempotency_key, str):
+            raise HTTPException(status_code=400, detail="idempotency_key MUST be a string")
 
         result = await submitter.submit(
             question=prompt.strip(),
             principal=principal,
             session_id=session_id,
+            idempotency_key=idempotency_key,
         )
         status_code = 403 if result.get("reason") == "rbac_capability" else 200
         return JSONResponse(result, status_code=status_code)

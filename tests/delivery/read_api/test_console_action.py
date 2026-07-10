@@ -198,3 +198,72 @@ def test_build_app_omits_action_route_when_not_wired(_dev_mode: None) -> None:
     client, _bus = _built_client(wire_action=False)
     resp = client.post("/chat/action", json={"prompt": "restart svc-1"})
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Hardening
+# ---------------------------------------------------------------------------
+
+
+def test_empty_topic_is_rejected_at_construction() -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(ValueError, match="non-empty topic"):
+        ConsoleActionSubmitter(event_bus=InMemoryEventBus(), raw_event_topic="  ")
+
+
+def test_blank_principal_oid_fails_closed() -> None:
+    sub, bus = _submitter()
+    blank = Principal(oid="  ", roles=frozenset({Role.CONTRIBUTOR}))
+    res = asyncio.run(sub.submit(question="restart svc-1", principal=blank))
+    assert res["submitted"] is False
+    assert res["reason"] == "invalid_principal"
+    assert asyncio.run(_drain(bus, _TOPIC)) == []
+
+
+def test_client_idempotency_key_becomes_the_proposal_dedup_key() -> None:
+    sub, bus = _submitter()
+    res = asyncio.run(
+        sub.submit(
+            question="restart svc-1",
+            principal=_principal("u", Role.CONTRIBUTOR),
+            idempotency_key="dup-1",
+        )
+    )
+    assert res["submitted"] is True
+    envs = asyncio.run(_drain(bus, _TOPIC))
+    assert envs[0].payload["idempotency_key"] == "dup-1"
+    # correlation_id stays server-generated and distinct from the dedup key.
+    assert envs[0].payload["correlation_id"] != "dup-1"
+
+
+def test_oversized_operator_values_are_bounded_in_the_proposal() -> None:
+    sub, bus = _submitter()
+    huge = "restart svc-1 " + ("x" * 10_000)
+    res = asyncio.run(
+        sub.submit(
+            question=huge,
+            principal=_principal("u", Role.CONTRIBUTOR),
+            session_id="s" * 5_000,
+            idempotency_key="k" * 5_000,
+        )
+    )
+    assert res["submitted"] is True
+    payload = asyncio.run(_drain(bus, _TOPIC))[0].payload
+    assert len(payload["params"]["question"]) <= 2_000
+    assert len(payload["params"]["session_id"]) <= 200
+    assert len(payload["idempotency_key"]) <= 200
+
+
+def test_route_rejects_oversized_prompt() -> None:
+    sub, _bus = _submitter()
+    client = TestClient(_app(sub, _principal("u", Role.CONTRIBUTOR)))
+    resp = client.post("/chat/action", json={"prompt": "restart " + ("x" * 5_000)})
+    assert resp.status_code == 400
+
+
+def test_route_rejects_non_string_idempotency_key() -> None:
+    sub, _bus = _submitter()
+    client = TestClient(_app(sub, _principal("u", Role.CONTRIBUTOR)))
+    resp = client.post("/chat/action", json={"prompt": "restart svc-1", "idempotency_key": 5})
+    assert resp.status_code == 400

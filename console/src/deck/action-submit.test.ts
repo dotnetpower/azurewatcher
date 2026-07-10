@@ -81,6 +81,18 @@ describe("submitAction", () => {
     expect(r.status).toBe(0);
     expect(r.reason).toBe("error");
   });
+
+  test("sends a stable idempotency key so retries dedup server-side", async () => {
+    const spy = vi.fn(async () =>
+      fakeResponse(200, { submitted: true, action_type: "ops.restart-service" }),
+    );
+    vi.stubGlobal("fetch", spy);
+    await submitAction("restart svc-1", "s1");
+    const body = JSON.parse(spy.mock.calls[0]![1]!.body as string);
+    expect(typeof body.idempotency_key).toBe("string");
+    expect(body.idempotency_key.length).toBeGreaterThan(0);
+    expect(body.prompt).toBe("restart svc-1");
+  });
 });
 
 describe("renderActionResult", () => {

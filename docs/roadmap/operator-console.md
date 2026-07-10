@@ -842,10 +842,15 @@ same topic the pantheon's Huginn ingests) and holds no executor identity - the
 same precedent as the HIL approval callback (13.3). Forseti judges the proposal,
 Var approves a high-risk one, and only Thor executes (shadow-first).
 
-- **Endpoint**: `POST /chat/action`, body `{"prompt": str, "session_id": str?}`.
-  Registered only when `ReadApiConfig.console_action` wires a
-  `ConsoleActionSubmitter` (`src/fdai/delivery/read_api/console_action.py`);
-  absent, the console has no action-submit surface.
+- **Endpoint**: `POST /chat/action`, body `{"prompt": str, "session_id": str?,
+  "idempotency_key": str?}`. Registered only when `ReadApiConfig.console_action`
+  wires a `ConsoleActionSubmitter`
+  (`src/fdai/delivery/read_api/console_action.py`); absent, the console has no
+  action-submit surface. Operator-supplied values are bounded (prompt <= 4000,
+  question <= 2000, resource id / session id / idempotency key <= 200 chars) so
+  one large value cannot bloat the pipeline or audit. The client `idempotency_key`
+  becomes the proposal's dedup key, so a retried or duplicated submit collapses
+  at Huginn instead of enqueuing a second action.
 - **Server-derived RBAC**. The operator's role comes from the validated bearer
   token (`Principal.roles`), never client JSON. Submitting requires the
   `author-draft-pr` capability (Contributor and above); a Reader is refused with

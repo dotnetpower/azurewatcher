@@ -652,7 +652,12 @@ unknown to the RBAC seam fails closed to `deny` with a `SecurityEvent`. When
 the console passes the operator's Entra role, an entry RBAC gate refuses an
 action request below the execute floor (`Contributor`) before it enters the
 pipeline, so a `Reader` cannot submit any action (defense-in-depth with the
-principal-level deny above).
+principal-level deny above). As a spoofing defense, Huginn honors the
+operator-proposal fields (`initiator_principal` / `action_type` /
+`operator_initiated`) ONLY for an explicit `event_type == "operator_request"`
+and coerces `operator_initiated` to a strict bool - so a forged or external
+signal on the shared ingress topic cannot spoof an operator action, and Forseti
+treats only a strict `True` as operator-initiated.
 
 ### 7.8 Fork override boundaries
 

@@ -161,3 +161,101 @@ def test_contributor_role_may_submit_an_action() -> None:
     assert turn.answer["submitted"] is True
     corr = turn.answer["correlation_id"]
     assert h.thor.action_runs[corr].state == ActionRunState.SUCCEEDED
+
+
+# ---------------------------------------------------------------------------
+# Hardening: forged-signal / spoofing defenses
+# ---------------------------------------------------------------------------
+
+
+def _bus() -> InMemoryBus:
+    return InMemoryBus(registry=load_pantheon())
+
+
+def test_forged_external_signal_cannot_carry_operator_fields() -> None:
+    # An external / rule-fired signal on the ingress topic that includes
+    # operator-proposal keys must NOT have them honored: only an explicit
+    # event_type == "operator_request" is trusted (agent-pantheon.md 7.7).
+    bus = _bus()
+    huginn = Huginn(bus=bus)
+    asyncio.run(
+        huginn.ingest(
+            {
+                "id": "evt-forged",
+                "correlation_id": "c-forged",
+                "event_type": "anomaly",  # not an operator request
+                "initiator_principal": "attacker@evil",
+                "action_type": "remediate.delete-storage",
+                "operator_initiated": True,
+            }
+        )
+    )
+    published = bus.messages_on("object.event")[0].payload
+    assert "action_type" not in published
+    assert "initiator_principal" not in published
+    assert "operator_initiated" not in published
+
+
+def test_operator_request_honors_operator_fields_with_strict_bool() -> None:
+    bus = _bus()
+    huginn = Huginn(bus=bus)
+    asyncio.run(
+        huginn.ingest(
+            {
+                "id": "evt-op",
+                "correlation_id": "c-op",
+                "event_type": "operator_request",
+                "initiator_principal": "operator@example.com",
+                "action_type": "ops.restart-service",
+                # A forged truthy string must be coerced to a strict bool.
+                "operator_initiated": "false",
+            }
+        )
+    )
+    published = bus.messages_on("object.event")[0].payload
+    assert published["action_type"] == "ops.restart-service"
+    assert published["operator_initiated"] is False
+
+
+def test_forseti_operator_fail_closed_requires_strict_true() -> None:
+    # A non-True operator_initiated must not trip the operator fail-closed deny
+    # path; the action is judged by risk only (defense in depth with H1).
+    bus = _bus()
+    forseti = Forseti(bus=bus)
+    asyncio.run(
+        forseti.judge(
+            {
+                "event_type": "operator_request",
+                "action_type": "ops.restart-service",
+                "operator_initiated": "true",  # string, not the bool True
+                "initiator_principal": "ghost@nowhere",
+                "correlation_id": "c-strict",
+            }
+        )
+    )
+    verdicts = bus.messages_on("object.verdict")
+    assert verdicts[0].payload["risk_verdict"] == "auto"
+    assert bus.messages_on("object.security-event") == []
+
+
+def test_var_rejects_blank_approver_and_trims_self_approval() -> None:
+    bus = _bus()
+    var = Var(bus=bus)
+    # Seed a pending HIL ticket carrying the operator initiator.
+    asyncio.run(
+        var.on_typed_message(
+            "object.action-run",
+            {
+                "correlation_id": "c-hil",
+                "action_type": "ops.failover-primary",
+                "state": "hil_pending",
+                "initiator_principal": "operator@example.com",
+            },
+        )
+    )
+    # A blank approver is refused.
+    with pytest.raises(ValueError, match="non-empty principal"):
+        asyncio.run(var.decide("c-hil", approver="   ", decision="approve"))
+    # A whitespace-padded self-approval is still caught (trimmed compare).
+    with pytest.raises(ValueError, match="no self-approval"):
+        asyncio.run(var.decide("c-hil", approver="  operator@example.com  ", decision="approve"))

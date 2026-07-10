@@ -429,6 +429,15 @@ function actionUrl(): string {
   return `${chatUrl()}/action`;
 }
 
+/** A stable idempotency key for one submit attempt, so a duplicated / retried
+ *  request collapses server-side (Huginn dedup) instead of enqueuing a second
+ *  action. Uses crypto.randomUUID when available, else a timestamp+random. */
+function newIdempotencyKey(): string {
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+  if (c?.randomUUID) return `act-${c.randomUUID()}`;
+  return `act-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /** Result of submitting an operator command to the typed pipeline. */
 export interface ActionSubmitResult {
   /** True when the proposal was accepted and published for judgment. */
@@ -464,7 +473,11 @@ export async function submitAction(
     response = await fetch(actionUrl(), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ prompt, session_id: sessionId ?? undefined }),
+      body: JSON.stringify({
+        prompt,
+        session_id: sessionId ?? undefined,
+        idempotency_key: newIdempotencyKey(),
+      }),
     });
   } catch {
     return { submitted: false, status: 0, reason: "error" };
