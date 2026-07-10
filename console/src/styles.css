@@ -3095,6 +3095,20 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
   filter: brightness(1.08);
 }
 
+/* Motion-sensitivity: collapse every command-deck animation to a jump-cut so
+   the conversational surface is usable with `prefers-reduced-motion: reduce`. */
+@media (prefers-reduced-motion: reduce) {
+  .deck-overlay,
+  .deck-backend-probing,
+  .deck-rt-spin,
+  .deck-rt-stage,
+  .deck-rt-card,
+  .deck-gr-caret,
+  .deck-chart-skel-fill {
+    animation: none !important;
+  }
+}
+
 /* Give the app content room so the invoke bar never overlaps the sticky
    Live ticker or dashboard footnote. */
 main { padding-bottom: 60px !important; }
