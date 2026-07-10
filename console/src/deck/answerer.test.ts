@@ -426,3 +426,51 @@ describe("deck-meta 'how do I' false-positive guard (round 7)", () => {
     expect(a.text.toLowerCase()).not.toContain("detail drawer");
   });
 });
+
+describe("routeLabel resilience (round 8)", () => {
+  test("empty routeLabel does not crash the deck-meta path", () => {
+    const snap: ViewSnapshot = {
+      routeId: "live",
+      routeLabel: "",
+      headline: "no header",
+      capturedAt: "2026-07-06T11:00:00+00:00",
+      facts: [],
+      records: {},
+    };
+    const a = answer("what can I do here?", snap);
+    expect(typeof a.text).toBe("string");
+    expect(a.text.length).toBeGreaterThan(0);
+    // Deck-meta still fires; hint still comes from the routeId map.
+    expect(a.text.toLowerCase()).toContain("read-only");
+  });
+
+  test("routeId unknown to ROUTE_ACTION_HINTS still returns a generic answer", () => {
+    const snap: ViewSnapshot = {
+      routeId: "future-unmapped-route",
+      routeLabel: "Custom",
+      headline: "-",
+      capturedAt: "2026-07-06T11:00:00+00:00",
+      facts: [],
+      records: {},
+    };
+    const a = answer("what can I do here?", snap);
+    // Falls back to generic 'this console is read-only' branch.
+    expect(a.text.toLowerCase()).toContain("read-only");
+    expect(a.text).toContain("Custom");
+  });
+
+  test("very long routeLabel is safely embedded (no injection)", () => {
+    const snap: ViewSnapshot = {
+      routeId: "live",
+      // The text is data, not markup - the deck renders it as text so any
+      // HTML-like content is safe. Guard just proves we don't crash.
+      routeLabel: "<script>alert(1)</script>".repeat(10),
+      headline: "-",
+      capturedAt: "2026-07-06T11:00:00+00:00",
+      facts: [],
+      records: {},
+    };
+    const a = answer("help", snap);
+    expect(typeof a.text).toBe("string");
+  });
+});
