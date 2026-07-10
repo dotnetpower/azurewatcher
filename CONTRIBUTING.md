@@ -97,6 +97,38 @@ make test
 make dev-down                     # stops (volumes preserved)
 ```
 
+## Opening issues
+
+Issues are English-only project-tracking artifacts (never translated - see
+[language.instructions.md](.github/instructions/language.instructions.md)).
+**Always apply at least one domain label** so triage and filtering work; the
+catalog uses a `prefix:` convention so related labels group together.
+
+Pick labels along these axes (add as many as apply):
+
+| Group | Labels | When to use |
+|-------|--------|-------------|
+| `area:` (subsystem) | `core-engine`, `trust-router`, `rule-catalog`, `risk-gate`, `quality-gate`, `executor`, `deploy-preflight`, `assurance-twin`, `agents`, `operator-console`, `chatops`, `detection`, `infra`, `delivery` | the subsystem the issue touches - **at least one is expected** |
+| `tier:` | `T0`, `T1`, `T2` | when the issue is specific to a trust tier |
+| `vertical:` | `resilience`, `change-safety`, `cost-governance` | the product vertical it serves |
+| safety / governance | `safety-invariant`, `shadow-mode`, `hil`, `security`, `rule-governance` | when a safety or governance concern is central |
+| cross-cutting | `i18n`, `csp-neutral`, `discovery-loop`, `needs-live-azure`, `shadow-to-enforce` | translation, provider-neutrality, discovery, or work that needs a live Azure setup / an enforce-promotion gate |
+| type (built-in) | `bug`, `enhancement`, `documentation`, `question`, `help wanted` | the nature of the work |
+
+Guidance:
+
+- A good default is **one `area:` + one type** label; add `tier:` / `vertical:`
+  / safety labels when they are central to the issue.
+- Use `needs-live-azure` for anything that cannot be validated without a live
+  (or emulated) Azure policy / resource setup, so those are easy to batch.
+- Do NOT invent one-off labels; extend the catalog with a short PR that also
+  updates this table and the label set (`gh label create`).
+- Never put customer-identifying values in an issue title, body, or label
+  ([generic-scope.instructions.md](.github/instructions/generic-scope.instructions.md)).
+
+Do NOT open a public issue for a security finding - see
+[Reporting security issues](#reporting-security-issues) below.
+
 ## Pull requests
 
 Follow the

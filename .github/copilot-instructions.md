@@ -109,5 +109,9 @@ principles into a phased engineering plan.
   [docs/roadmap](../docs/roadmap/README.md)) before writing code, and update the affected docs
   in the same PR after changing code. Docs and code never drift.
 - Validate at system boundaries only; do not add defensive checks for impossible states.
+- When opening a GitHub issue, apply the domain labels from the
+  [CONTRIBUTING label catalog](../CONTRIBUTING.md#opening-issues) - at least one
+  `area:` plus a type, adding `tier:` / `vertical:` / safety / cross-cutting
+  labels when central. Issues are English-only and never carry customer values.
 - Do not claim performance multipliers or other quantified gains without a stated, measured
   baseline.
