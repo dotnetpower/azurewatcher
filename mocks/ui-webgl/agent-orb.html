@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FDAI - Agent Orb (design draft)</title>
+    <!--
+      FDAI agent-orb design draft ("Her"-style presence for 15 agents).
+
+      Concept: hybrid E -> B.
+        E) At rest, the orb is ONE continuous luminous ribbon - a clean
+           figure-eight (lemniscate, echoing Her's OS1 glyph) gently perturbed
+           by 15 harmonics, one per pantheon agent. Fifteen become one line.
+        B) On attention (hover / click / an agent acting), the ribbon UNFOLDS
+           into 15 orbiting motes so the individual agents are legible, then
+           folds back.
+
+      Truthful, not decorative: an agent that "acts" brightens its own harmonic
+      (ribbon bulges toward it) and its own mote (flares + trails). A warm gold
+      presence over the cool nebula - Her's warmth, our cosmos.
+
+      Dependency-free: raw-WebGL nebula backdrop + a Canvas2D orb. Synthetic,
+      English-only. prefers-reduced-motion aware.
+      Run: python3 -m http.server 8899  ->  /agent-orb.html
+    -->
+    <style>
+      html, body { margin: 0; height: 100%; background: #04060d; color: #f3ecdf;
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif; overflow: hidden; }
+      canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+      #nebula { z-index: 0; }
+      #orb { z-index: 1; }
+
+      #caption {
+        position: fixed; left: 50%; bottom: 22%; transform: translateX(-50%); z-index: 2;
+        text-align: center; font-weight: 200; font-size: clamp(16px, 2vw, 22px);
+        letter-spacing: 0.04em; color: rgba(247, 240, 226, 0.9);
+        text-shadow: 0 2px 30px rgba(0,0,0,0.7); opacity: 0; transition: opacity 700ms ease;
+        pointer-events: none;
+      }
+      #caption.on { opacity: 1; }
+
+      /* 15 agent chips - click to make one act; they glow when active. */
+      #chips {
+        position: fixed; left: 0; right: 0; bottom: 5%; z-index: 3;
+        display: flex; flex-wrap: wrap; gap: 8px 10px; justify-content: center;
+        padding: 0 6vw; pointer-events: auto;
+      }
+      .chip {
+        font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+        color: rgba(243, 236, 223, 0.42); cursor: pointer; user-select: none;
+        padding: 4px 2px; transition: color 400ms ease, text-shadow 400ms ease;
+      }
+      .chip:hover { color: rgba(243, 236, 223, 0.8); }
+      .chip.act { color: #ffe6b0; text-shadow: 0 0 14px rgba(255, 200, 120, 0.8); }
+
+      #hint {
+        position: fixed; top: 22px; left: 0; right: 0; z-index: 3; text-align: center;
+        font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+        color: rgba(243, 236, 223, 0.35); font-weight: 200; pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="nebula" aria-hidden="true"></canvas>
+    <canvas id="orb"></canvas>
+    <div id="hint">hover to unfold - click a name to let one speak</div>
+    <div id="caption"></div>
+    <div id="chips"></div>
+
+    <script>
+      // ---------------- Nebula backdrop (dimmed) ----------------
+      (function () {
+        const canvas = document.getElementById("nebula");
+        const gl = canvas.getContext("webgl", { antialias: false, alpha: false });
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const vert = `attribute vec2 a; void main(){ gl_Position=vec4(a,0.0,1.0); }`;
+        const frag = `
+          precision highp float; uniform vec2 u_res; uniform float u_time;
+          float hash(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
+          vec2 hash2(vec2 p){ return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453); }
+          float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
+            float a=hash(i),b=hash(i+vec2(1.,0.)),c=hash(i+vec2(0.,1.)),d=hash(i+vec2(1.,1.));
+            return mix(mix(a,b,f.x),mix(c,d,f.x),f.y); }
+          float fbm(vec2 p){ float v=0.,amp=0.5; for(int i=0;i<6;i++){ v+=amp*noise(p); p*=2.02; amp*=0.5;} return v; }
+          vec3 starLayer(vec2 uv,float scale,float density,float seed){
+            vec2 g=uv*scale+seed; vec2 id=floor(g); vec2 f=fract(g); vec3 acc=vec3(0.);
+            for(int y=-1;y<=1;y++){ for(int x=-1;x<=1;x++){
+              vec2 o=vec2(float(x),float(y)); vec2 cid=id+o; float present=hash(cid+seed*3.7);
+              if(present>1.0-density){ vec2 pos=hash2(cid+1.3); float b=hash(cid+2.1);
+                float ph=hash(cid+3.4)*6.2831; float sp=0.4+hash(cid+4.7)*3.2; float temp=hash(cid+5.9);
+                float tw=0.45+0.55*sin(u_time*sp+ph); vec2 d=f-(o+pos); float dist=length(d);
+                float core=smoothstep(0.06*(0.5+b),0.0,dist); float halo=smoothstep(0.22*(0.4+b),0.0,dist)*0.25;
+                vec3 warm=vec3(1.,0.82,0.62); vec3 cool=vec3(0.70,0.84,1.); vec3 sc=mix(warm,cool,temp);
+                acc+=(core+halo)*tw*(0.35+b)*sc; } } } return acc; }
+          void main(){
+            vec2 uv=gl_FragCoord.xy/u_res.xy; vec2 p=(gl_FragCoord.xy-0.5*u_res.xy)/u_res.y; float t=u_time*0.01;
+            vec2 q=vec2(fbm(p*2.6+t),fbm(p*2.6-t+5.2));
+            vec2 r=vec2(fbm(p*2.6+q*1.8+t*1.3),fbm(p*2.6+q*1.8-t*0.7));
+            float f=fbm(p*2.6+r*2.0);
+            float mHa=fbm(p*2.2+r+vec2(3.1,t)); float mOiii=fbm(p*2.5+r+vec2(-4.0,-t*0.8));
+            float mDust=fbm(p*1.8+q+vec2(8.0,t*0.5)); float mMag=fbm(p*2.7+r+vec2(-1.5,t*1.1));
+            float mBlue=fbm(p*2.3+q+vec2(5.5,-t));
+            vec3 space=vec3(0.010,0.015,0.038); vec3 hAlpha=vec3(0.88,0.16,0.28);
+            vec3 oIII=vec3(0.08,0.78,0.72); vec3 dust=vec3(0.92,0.64,0.30);
+            vec3 magenta=vec3(0.72,0.24,0.66); vec3 azure=vec3(0.00,0.47,0.83); vec3 cyan=vec3(0.34,0.92,1.00);
+            vec3 col=space;
+            col=mix(col,azure,smoothstep(0.45,0.90,mBlue)*0.5);
+            col=mix(col,hAlpha,smoothstep(0.55,0.95,mHa)*0.42);
+            col=mix(col,oIII,smoothstep(0.55,0.95,mOiii)*0.4);
+            col=mix(col,dust,smoothstep(0.62,0.97,mDust)*0.34);
+            col=mix(col,magenta,smoothstep(0.60,0.95,mMag)*0.26);
+            col=mix(col,cyan,pow(smoothstep(0.70,1.0,f),2.0)*0.34);
+            col*=0.55+0.85*f;
+            col+=starLayer(uv*vec2(u_res.x/u_res.y,1.0),120.0,0.10,11.0);
+            col+=starLayer(uv*vec2(u_res.x/u_res.y,1.0),70.0,0.07,47.0);
+            col+=starLayer(uv*vec2(u_res.x/u_res.y,1.0),38.0,0.05,91.0)*1.4;
+            float vig=smoothstep(1.25,0.35,length(uv-0.5)*1.4); col*=mix(0.5,1.0,vig);
+            // Dimmed so the warm orb reads clearly on top.
+            col *= 0.5;
+            col=col/(col+0.6); col=pow(col,vec3(0.9));
+            gl_FragColor=vec4(col,1.0);
+          }`;
+        function compile(t,s){ const sh=gl.createShader(t); gl.shaderSource(sh,s); gl.compileShader(sh);
+          if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); return sh; }
+        const prog=gl.createProgram(); gl.attachShader(prog,compile(gl.VERTEX_SHADER,vert));
+        gl.attachShader(prog,compile(gl.FRAGMENT_SHADER,frag)); gl.linkProgram(prog); gl.useProgram(prog);
+        const b=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b);
+        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+        const loc=gl.getAttribLocation(prog,"a"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+        const uRes=gl.getUniformLocation(prog,"u_res"), uTime=gl.getUniformLocation(prog,"u_time");
+        function rz(){ const dpr=Math.min(devicePixelRatio||1,2); canvas.width=innerWidth*dpr|0; canvas.height=innerHeight*dpr|0; gl.viewport(0,0,canvas.width,canvas.height); }
+        addEventListener("resize",rz); rz(); const s=performance.now();
+        function fr(n){ gl.uniform2f(uRes,canvas.width,canvas.height); gl.uniform1f(uTime,(n-s)/1000); gl.drawArrays(gl.TRIANGLES,0,3); if(!reduceMotion) requestAnimationFrame(fr); }
+        if(reduceMotion){ gl.uniform2f(uRes,canvas.width,canvas.height); gl.uniform1f(uTime,6.0); gl.drawArrays(gl.TRIANGLES,0,3);} else requestAnimationFrame(fr);
+      })();
+
+      // ---------------- Agent orb (Canvas 2D) ----------------
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const cv = document.getElementById("orb");
+      const ctx = cv.getContext("2d");
+
+      // The 15 pantheon agents, with the role verb they "speak" and a tier that
+      // nudges orbit radius (senses inner, specialists outer). Harmonic index
+      // hk gives each its own ripple on the single ribbon.
+      const AGENTS = [
+        { id: "Odin",     verb: "is weighing the whole picture", tier: 0, hk: 1 },
+        { id: "Forseti",  verb: "is deliberating",               tier: 1, hk: 2 },
+        { id: "Thor",     verb: "is ready to act",               tier: 1, hk: 3 },
+        { id: "Var",      verb: "is holding for approval",       tier: 1, hk: 2 },
+        { id: "Huginn",   verb: "is listening",                  tier: 2, hk: 4 },
+        { id: "Heimdall", verb: "is watching",                   tier: 2, hk: 4 },
+        { id: "Vidar",    verb: "stands by to recover",          tier: 3, hk: 5 },
+        { id: "Bragi",    verb: "is translating",                tier: 3, hk: 3 },
+        { id: "Saga",     verb: "is remembering",                tier: 3, hk: 5 },
+        { id: "Mimir",    verb: "is consulting the rules",       tier: 4, hk: 6 },
+        { id: "Norns",    verb: "is learning",                   tier: 4, hk: 6 },
+        { id: "Muninn",   verb: "is recalling",                  tier: 4, hk: 7 },
+        { id: "Njord",    verb: "is weighing cost",              tier: 5, hk: 7 },
+        { id: "Freyr",    verb: "is checking capacity",          tier: 5, hk: 8 },
+        { id: "Loki",     verb: "is probing for weakness",       tier: 5, hk: 8 },
+      ];
+      const N = AGENTS.length;
+      // per-agent runtime state
+      const st = AGENTS.map((a, i) => ({
+        act: 0,                       // 0..1 activation (eased)
+        hue: 44 - 10 + (i / (N - 1)) * 20, // gold -> amber-rose, one warm family
+        phase: (i / N) * Math.PI * 2,
+        orbSpeed: 0.05 + (i % 5) * 0.011 + (i % 3) * 0.004, // incommensurate-ish
+        orbR: 0.62 + a.tier * 0.055,  // tier -> radius
+        radBreath: 0.5 + Math.random(),
+      }));
+
+      // Base lemniscate (Gerono figure-eight), horizontal like Her's glyph.
+      function base(s) {
+        return { x: Math.sin(s), y: Math.sin(s) * Math.cos(s) };
+      }
+
+      let unfold = 0, unfoldTarget = 0; // 0 = ribbon, 1 = motes
+      let hovering = false;
+
+      function resize() {
+        const dpr = Math.min(devicePixelRatio || 1, 2);
+        cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      addEventListener("resize", resize); resize();
+
+      let t0 = performance.now(), tPrev = t0;
+      function frame(now) {
+        const dt = Math.min((now - tPrev) / 1000, 0.05); tPrev = now;
+        const t = (now - t0) / 1000;
+        const W = innerWidth, H = innerHeight;
+        const cx = W / 2, cy = H * 0.46;
+        const R = Math.min(W, H) * 0.19;
+
+        // ease global + per-agent activation
+        unfoldTarget = hovering ? 1 : (anyActive() ? 0.6 : 0);
+        unfold += (unfoldTarget - unfold) * (1 - Math.exp(-dt * 3));
+        for (const s of st) s.act += ((s.target || 0) - s.act) * (1 - Math.exp(-dt * 2.5));
+
+        // slow heartbeat breathing
+        const beat = 0.5 + 0.5 * Math.sin(t * 0.7);
+        const breath = 1 + 0.03 * Math.sin(t * 0.9);
+
+        ctx.clearRect(0, 0, W, H);
+        ctx.globalCompositeOperation = "lighter";
+
+        drawRibbon(cx, cy, R * breath, t, 1 - unfold, beat);
+        drawMotes(cx, cy, R * breath, t, unfold);
+
+        ctx.globalCompositeOperation = "source-over";
+        if (!reduceMotion) requestAnimationFrame(frame);
+      }
+
+      function anyActive() { return st.some((s) => (s.target || 0) > 0.01 || s.act > 0.02); }
+
+      // ----- E: the single ribbon (figure-8 + 15 harmonic perturbations) -----
+      function drawRibbon(cx, cy, R, t, alpha, beat) {
+        if (alpha < 0.01) return;
+        const M = 260;
+        const pts = [];
+        for (let i = 0; i <= M; i++) {
+          const s = (i / M) * Math.PI * 2;
+          const p = base(s);
+          // tangent -> normal
+          const p2 = base(s + 0.01);
+          let nx = -(p2.y - p.y), ny = (p2.x - p.x);
+          const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+          // sum of 15 harmonics displaces the ribbon along its normal -
+          // kept subtle so an active agent nudges the glyph, never deforms it
+          let d = 0;
+          for (let k = 0; k < N; k++) {
+            const a = st[k];
+            const amp = 0.012 + st[k].act * 0.06;
+            d += amp * Math.sin(AGENTS[k].hk * s + a.phase + t * (0.5 + AGENTS[k].hk * 0.05));
+          }
+          const x = cx + (p.x * 1.15 + nx * d) * R;
+          const y = cy + (p.y * 1.9 + ny * d) * R; // stretch y so the 8 reads
+          pts.push([x, y]);
+        }
+        // glow: several passes, wide+dim to narrow+bright
+        const passes = [
+          { w: 22, a: 0.05 }, { w: 12, a: 0.08 }, { w: 6, a: 0.14 }, { w: 2.2, a: 0.9 },
+        ];
+        for (const ps of passes) {
+          ctx.beginPath();
+          ctx.moveTo(pts[0][0], pts[0][1]);
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+          ctx.strokeStyle = `hsla(43, 95%, ${60 + beat * 8}%, ${ps.a * alpha})`;
+          ctx.lineWidth = ps.w; ctx.lineCap = "round"; ctx.lineJoin = "round";
+          ctx.stroke();
+        }
+      }
+
+      // ----- B: 15 orbiting motes -----
+      function drawMotes(cx, cy, R, t, alpha) {
+        if (alpha < 0.01) return;
+        for (let k = 0; k < N; k++) {
+          const a = st[k];
+          // ribbon anchor (where the mote lives when folded)
+          const s = (k / N) * Math.PI * 2;
+          const bp = base(s);
+          const rx = cx + bp.x * 1.15 * R, ry = cy + bp.y * 1.9 * R;
+          // orbit target
+          const ang = a.phase + t * a.orbSpeed * 6;
+          const rr = R * (a.orbR + 0.04 * Math.sin(t * 0.5 * a.radBreath + a.phase));
+          const ox = cx + Math.cos(ang) * rr * 1.25;
+          const oy = cy + Math.sin(ang) * rr * 0.85;
+          // blend fold->orbit
+          const x = rx + (ox - rx) * alpha;
+          const y = ry + (oy - ry) * alpha;
+          const flare = a.act;
+          const size = (2.6 + flare * 6) * (AGENTS[k].tier === 0 ? 1.5 : 1);
+          const light = 62 + flare * 26;
+          ctx.beginPath();
+          ctx.arc(x, y, size, 0, Math.PI * 2);
+          ctx.shadowBlur = 16 + flare * 40; ctx.shadowColor = `hsla(${a.hue}, 95%, 70%, 0.9)`;
+          ctx.fillStyle = `hsla(${a.hue}, 95%, ${light}%, ${(0.62 + flare * 0.38) * alpha})`;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
+
+      requestAnimationFrame(frame);
+      if (reduceMotion) { const n = performance.now(); frame(n + 16); }
+
+      // ---------------- interaction ----------------
+      const captionEl = document.getElementById("caption");
+      const chipsEl = document.getElementById("chips");
+      let capTimer;
+      function speak(i) {
+        st[i].target = 1;
+        chips[i].classList.add("act");
+        captionEl.classList.remove("on");
+        clearTimeout(capTimer);
+        capTimer = setTimeout(() => {
+          captionEl.textContent = `${AGENTS[i].id} ${AGENTS[i].verb}.`;
+          captionEl.classList.add("on");
+        }, 260);
+        clearTimeout(st[i]._off);
+        st[i]._off = setTimeout(() => { st[i].target = 0; chips[i].classList.remove("act"); }, 2600);
+      }
+
+      const chips = AGENTS.map((a, i) => {
+        const el = document.createElement("div");
+        el.className = "chip"; el.textContent = a.id;
+        el.addEventListener("click", () => speak(i));
+        chipsEl.appendChild(el);
+        return el;
+      });
+
+      cv.addEventListener("pointerenter", () => { hovering = true; });
+      cv.addEventListener("pointerleave", () => { hovering = false; });
+
+      // Ambient life: let one agent speak now and then, so it feels alive.
+      if (!reduceMotion) {
+        setInterval(() => {
+          if (Math.random() < 0.5) speak((Math.random() * N) | 0);
+        }, 4600);
+      }
+    </script>
+  </body>
+</html>
