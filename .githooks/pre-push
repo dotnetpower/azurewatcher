@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# Pre-push hook - lightweight gate for trunk-based (no-branch) collaboration.
+#
+# Purpose: several people push straight to `main`, so this hook keeps that
+# safe by (1) refusing to push when the local branch is behind the remote
+# (pull --rebase first, so conflicts surface locally instead of as a
+# rejected non-fast-forward push), (2) blocking leftover merge-conflict
+# markers, and (3) running a fast ruff lint on only the changed Python
+# files. It is intentionally light - no full test suite, no mypy, no build.
+#
+# Install:  git config core.hooksPath .githooks   (or: make hooks-install)
+# Bypass:   git push --no-verify        (git-native, one-off)
+#           FDAI_SKIP_PUSH_CHECKS=1 git push
+set -uo pipefail
+
+if [ "${FDAI_SKIP_PUSH_CHECKS:-0}" = "1" ]; then
+  echo "pre-push: skipped (FDAI_SKIP_PUSH_CHECKS=1)"
+  exit 0
+fi
+
+remote_name="${1:-origin}"
+branch="$(git symbolic-ref --short HEAD 2>/dev/null || echo "")"
+
+echo "pre-push: lightweight checks (branch: ${branch:-detached})..."
+
+# ---------------------------------------------------------------------------
+# 1. Sync guard - block the push when local is behind the remote branch.
+# ---------------------------------------------------------------------------
+range=""
+if [ -n "$branch" ]; then
+  if git fetch --quiet "$remote_name" "$branch" 2>/dev/null; then
+    behind="$(git rev-list --count HEAD..FETCH_HEAD 2>/dev/null || echo 0)"
+    if [ "$behind" -gt 0 ]; then
+      echo "pre-push: BLOCKED - local '$branch' is $behind commit(s) behind $remote_name/$branch."
+      echo "  Run:  git pull --rebase        (then push again)"
+      echo "  Skip: FDAI_SKIP_PUSH_CHECKS=1 git push   (or: git push --no-verify)"
+      exit 1
+    fi
+    range="FETCH_HEAD..HEAD"
+  else
+    echo "pre-push: note - '$branch' not on $remote_name yet (new branch); skipping sync + diff checks."
+  fi
+fi
+
+# Nothing more to check for a brand-new branch with no remote counterpart.
+if [ -z "$range" ]; then
+  echo "pre-push: OK"
+  exit 0
+fi
+
+# Files changed in the commits being pushed (skip deletions).
+mapfile -t changed < <(git diff --name-only --diff-filter=d "$range" 2>/dev/null || true)
+if [ "${#changed[@]}" -eq 0 ]; then
+  echo "pre-push: OK (no file changes to lint)"
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Merge-conflict marker guard.
+# ---------------------------------------------------------------------------
+markers=""
+for f in "${changed[@]}"; do
+  [ -f "$f" ] || continue
+  hit="$(grep -HnE '^(<<<<<<< |>>>>>>> |=======$)' "$f" 2>/dev/null || true)"
+  [ -n "$hit" ] && markers="${markers}${hit}"$'\n'
+done
+if [ -n "$markers" ]; then
+  echo "pre-push: BLOCKED - merge-conflict markers found:"
+  printf '%s' "$markers"
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Fast ruff lint on changed Python files under src/ and tests/.
+# ---------------------------------------------------------------------------
+py=()
+for f in "${changed[@]}"; do
+  case "$f" in
+    src/*.py | tests/*.py) [ -f "$f" ] && py+=("$f") ;;
+  esac
+done
+if [ "${#py[@]}" -gt 0 ]; then
+  echo "pre-push: ruff check on ${#py[@]} changed Python file(s)..."
+  if command -v uv >/dev/null 2>&1; then
+    if ! uv run ruff check "${py[@]}"; then
+      echo "pre-push: BLOCKED - ruff check failed. Fix, or run: uv run ruff check --fix ${py[*]}"
+      exit 1
+    fi
+  else
+    echo "pre-push: note - uv not found; skipping ruff lint."
+  fi
+fi
+
+echo "pre-push: OK"
+exit 0

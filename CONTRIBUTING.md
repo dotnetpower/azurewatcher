@@ -20,12 +20,32 @@ if you have not already.
 ```bash
 uv sync --extra dev              # installs the runtime + dev deps
 uv run pre-commit install        # or: make pre-commit-install
+make hooks-install               # enable the shared pre-push hook
 ```
 
 `pre-commit install` wires
 [`.pre-commit-config.yaml`](.pre-commit-config.yaml) into `.git/hooks`,
 so every commit runs the same gates CI runs (ruff format + check,
 plus the five repo-hygiene scripts under `scripts/check-*.sh`).
+
+`make hooks-install` points `core.hooksPath` at the tracked
+[`.githooks/`](.githooks/) directory, enabling
+[`.githooks/pre-push`](.githooks/pre-push). Because we collaborate
+directly on `main` (no feature branches), the pre-push hook keeps that
+safe and fast: it refuses to push when your local branch is **behind**
+`origin` (pull --rebase first, so conflicts surface locally instead of
+as a rejected push), blocks leftover merge-conflict markers, and runs
+`ruff check` on only the changed Python files. It is intentionally
+light - no test suite, no mypy, no build. Bypass once with
+`git push --no-verify` or `FDAI_SKIP_PUSH_CHECKS=1 git push`.
+
+Opening the repo in VS Code also runs two folderOpen tasks (see
+[`.vscode/tasks.json`](.vscode/tasks.json)): `hooks: install` wires the
+pre-push hook automatically, and `git: auto-pull` fetches every few
+minutes and rebases your local `main` **only when the working tree is
+clean** - keeping everyone close to the remote. Run `git: pull now`
+(rebase, autostash) from the task list any time you want to sync
+manually. Allow automatic tasks when VS Code prompts.
 
 ## Everyday workflow
 

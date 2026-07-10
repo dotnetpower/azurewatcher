@@ -6,7 +6,7 @@
 # Real deployment lives under `infra/` (Terraform); see the roadmap.
 
 .PHONY: dev-up dev-down dev-logs dev-nuke help \
-        lint format test gates check pre-commit-install azd-up
+        lint format test gates check pre-commit-install hooks-install azd-up
 
 help: ## show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -54,4 +54,9 @@ check: lint gates test ## full local CI parity: lint + gates + test
 
 pre-commit-install: ## install .pre-commit-config.yaml hooks into .git/hooks
 	uv run pre-commit install
+
+hooks-install: ## enable the shared pre-push hook (git config core.hooksPath .githooks)
+	git config core.hooksPath .githooks
+	chmod +x .githooks/* scripts/git-auto-pull.sh 2>/dev/null || true
+	@echo "pre-push hook enabled (core.hooksPath=.githooks). Bypass once with: git push --no-verify"
 
