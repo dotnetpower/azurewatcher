@@ -166,6 +166,16 @@ export function CommandDeck() {
     scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
   }, [turns.length]);
 
+  // Auto-grow the input to fit its content (capped by the CSS max-height, past
+  // which it scrolls). Runs whenever the draft changes or the overlay opens so
+  // a recalled multi-line prompt is fully visible without manual resizing.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft, open]);
+
   const submit = useCallback(async (raw: string) => {
     const text = raw.trim();
     if (text.length === 0 || pending) return;

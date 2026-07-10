@@ -3010,6 +3010,8 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
   background: var(--bg);
   color: var(--fg);
   min-height: 40px;
+  max-height: 180px;
+  overflow-y: auto;
 }
 .deck-input:focus {
   outline: none;
