@@ -93,6 +93,18 @@ def test_what_if_route_400_on_missing_scenario() -> None:
     assert resp.status_code == 400
 
 
+def test_what_if_route_400_on_oversized_correlation_and_scenario() -> None:
+    model = InMemoryConsoleReadModel()
+    _seed_ingest(model, "corr-1")
+    with _client(model, {"only-one": _StubEvaluator()}) as client:
+        # correlation_id over the 256-char cap (reflected-error amplification guard).
+        r1 = client.get(f"/audit/{'c' * 257}/what-if", params={"scenario": "only-one"})
+        assert r1.status_code == 400
+        # scenario over the 128-char cap.
+        r2 = client.get("/audit/corr-1/what-if", params={"scenario": "s" * 129})
+        assert r2.status_code == 400
+
+
 def test_what_if_route_404_on_unknown_correlation() -> None:
     model = InMemoryConsoleReadModel()
     with _client(model, {"only-one": _StubEvaluator()}) as client:

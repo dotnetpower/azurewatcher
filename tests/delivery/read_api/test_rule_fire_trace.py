@@ -121,6 +121,23 @@ def test_trace_route_404_on_unknown_correlation() -> None:
     assert resp.status_code == 404
 
 
+def test_trace_route_400_on_oversized_correlation() -> None:
+    model = InMemoryConsoleReadModel()
+    auth = build_authenticator(verifier=lambda t: {"oid": "u"}, resolver=lambda claims: None)
+    app = build_app(
+        authenticator=auth,
+        read_model=model,
+        config=ReadApiConfig(
+            dev_mode=True,
+            trace_reader=ConsoleReadModelTraceReader(model),
+        ),
+    )
+    with TestClient(app) as client:
+        # correlation_id over the 256-char cap is rejected before any read.
+        resp = client.get(f"/audit/{'c' * 257}/trace")
+    assert resp.status_code == 400
+
+
 def test_trace_route_absent_when_reader_not_configured() -> None:
     auth = build_authenticator(verifier=lambda t: {"oid": "u"}, resolver=lambda claims: None)
     app = build_app(
