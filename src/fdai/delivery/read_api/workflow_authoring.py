@@ -31,6 +31,7 @@ testable exactly like the pantheon projections.
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -46,6 +47,13 @@ from fdai.rule_catalog.schema.workflow import (
 )
 from fdai.shared.contracts.models import OntologyActionType, Workflow
 from fdai.shared.contracts.registry import SchemaRegistry
+
+_LOGGER = logging.getLogger(__name__)
+
+# Cap the validate request body. A workflow draft is a few KB at most; 256 KB
+# is a generous ceiling that still fails closed against an oversized or
+# malicious payload before it is buffered into memory + parsed.
+_MAX_VALIDATE_BODY_BYTES = 256 * 1024
 
 ACTION_TYPES_ROUTE_PATH = "/workflows/action-types"
 VALIDATE_ROUTE_PATH = "/workflows/validate"
@@ -211,8 +219,20 @@ def make_workflow_validate_route(
 
     async def handler(request: Request) -> Response:
         await authorize(request)
+        # Fail closed on an oversized body before buffering / parsing it.
+        content_length = request.headers.get("content-length")
+        if content_length is not None:
+            try:
+                declared = int(content_length)
+            except ValueError:
+                return JSONResponse({"error": "invalid content-length"}, status_code=400)
+            if declared > _MAX_VALIDATE_BODY_BYTES:
+                return JSONResponse({"error": "request body too large"}, status_code=413)
+        raw = await request.body()
+        if len(raw) > _MAX_VALIDATE_BODY_BYTES:
+            return JSONResponse({"error": "request body too large"}, status_code=413)
         try:
-            body = json.loads(await request.body())
+            body = json.loads(raw)
         except json.JSONDecodeError as exc:
             return JSONResponse(
                 {"error": f"request body is not valid JSON: {exc}"}, status_code=400
@@ -238,6 +258,12 @@ def make_workflow_validate_route(
                     "yaml_preview": None,
                 }
             )
+        except Exception:  # noqa: BLE001 - boundary hardening: never 500 on untrusted input
+            # The loader is designed to aggregate every issue into a
+            # WorkflowCatalogError; anything else is unexpected. Fail closed
+            # with a safe message and no stack leak, and log for triage.
+            _LOGGER.warning("workflow_validate_unexpected_error", exc_info=True)
+            return JSONResponse({"error": "could not validate the draft"}, status_code=422)
         return JSONResponse({"valid": True, "issues": [], "yaml_preview": _workflow_to_yaml(model)})
 
     return Route(path, handler, methods=["POST"])

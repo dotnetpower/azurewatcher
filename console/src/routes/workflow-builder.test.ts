@@ -146,4 +146,9 @@ describe("buildGithubNewFileUrl", () => {
     const url = buildGithubNewFileUrl("acme/fdai", "", "x.yaml", "x");
     expect(url!).toContain("/new/main?");
   });
+
+  test("returns null when the URL would exceed the safe length ceiling", () => {
+    const huge = "a".repeat(8000);
+    expect(buildGithubNewFileUrl("acme/fdai", "main", "x.yaml", huge)).toBeNull();
+  });
 });

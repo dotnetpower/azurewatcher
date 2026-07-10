@@ -146,6 +146,14 @@ def test_validate_rejects_a_non_object_body() -> None:
     assert resp.status_code == 400
 
 
+def test_validate_rejects_an_oversized_body() -> None:
+    client = _client(authoring=True)
+    # A body over the 256 KB cap is refused with 413 before parsing.
+    oversized = {"blob": "x" * (256 * 1024 + 16)}
+    resp = client.post("/workflows/validate", json=oversized)
+    assert resp.status_code == 413
+
+
 def test_validate_route_is_post_only() -> None:
     client = _client(authoring=True)
     assert client.get("/workflows/validate").status_code == 405

@@ -193,8 +193,11 @@ const NAME_PATTERN = /^[a-z][a-z0-9_.-]{0,79}$/;
 /** Turn a built-in workflow into an editable draft so an operator can
  * clone-and-tweak instead of starting from a blank form. */
 function catalogToForm(w: WorkflowCatalogEntry): FormState {
+  // Keep the "-copy" name within the 80-char id limit so the clone still
+  // passes the server name pattern.
+  const copyName = `${w.name}-copy`;
   return {
-    name: `${w.name}-copy`,
+    name: copyName.length <= 80 ? copyName : `${w.name.slice(0, 75)}-copy`,
     version: w.version,
     description: w.description ?? "",
     triggerKind: w.trigger.kind === "schedule" ? "schedule" : "signal",
@@ -237,9 +240,14 @@ export function buildGithubNewFileUrl(
 ): string | null {
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo.trim())) return null;
   const params = new URLSearchParams({ filename: filePath, value: yaml });
-  return `https://github.com/${repo.trim()}/new/${encodeURIComponent(
+  const url = `https://github.com/${repo.trim()}/new/${encodeURIComponent(
     branch.trim() || "main",
   )}?${params.toString()}`;
+  // GitHub / browsers reject very long URLs (the YAML rides in ?value=). Above
+  // a safe ceiling, fall back to copy / download rather than open a broken or
+  // truncated new-file link.
+  if (url.length > 7000) return null;
+  return url;
 }
 
 /** Config-reading wrapper: returns the new-file URL when a catalog repo is
@@ -1137,6 +1145,9 @@ function BuilderBody({
   const [dirty, setDirty] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  // Monotonic token: bumped on every validate AND every edit, so a slow
+  // validate response that arrives after the draft changed is discarded.
+  const validateTokenRef = useRef(0);
 
   // Move focus to the first field when the builder opens (keyboard + SR
   // users land on the form, not the top of the page).
@@ -1175,10 +1186,16 @@ function BuilderBody({
     onBack();
   }
 
-  function patch(fields: Partial<FormState>): void {
-    setForm((prev) => ({ ...prev, ...fields }));
+  function invalidateAfterEdit(): void {
     setResult(null);
     setDirty(true);
+    // Any edit supersedes an in-flight validate response (stale-result guard).
+    validateTokenRef.current += 1;
+  }
+
+  function patch(fields: Partial<FormState>): void {
+    setForm((prev) => ({ ...prev, ...fields }));
+    invalidateAfterEdit();
   }
 
   function patchStep(key: number, fields: Partial<DraftStep>): void {
@@ -1186,21 +1203,18 @@ function BuilderBody({
       ...prev,
       steps: prev.steps.map((s) => (s.key === key ? { ...s, ...fields } : s)),
     }));
-    setResult(null);
-    setDirty(true);
+    invalidateAfterEdit();
   }
 
   function addStep(): void {
     setForm((prev) => ({ ...prev, steps: [...prev.steps, emptyStep(nextKey)] }));
     setNextKey((k) => k + 1);
-    setResult(null);
-    setDirty(true);
+    invalidateAfterEdit();
   }
 
   function removeStep(key: number): void {
     setForm((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.key !== key) }));
-    setResult(null);
-    setDirty(true);
+    invalidateAfterEdit();
   }
 
   function moveStep(index: number, delta: number): void {
@@ -1215,8 +1229,7 @@ function BuilderBody({
       next[target] = a;
       return { ...prev, steps: next };
     });
-    setResult(null);
-    setDirty(true);
+    invalidateAfterEdit();
   }
 
   function selectStep(key: number): void {
@@ -1227,16 +1240,22 @@ function BuilderBody({
   }
 
   async function onValidate(): Promise<void> {
+    // Guard against a stale response overwriting a newer edit: each run gets a
+    // token; a resolved request only applies if it is still the latest.
+    const token = validateTokenRef.current + 1;
+    validateTokenRef.current = token;
     setValidating(true);
     setTransportError(null);
     setResult(null);
     try {
       const res = await validateWorkflowDraft(buildDraft(form));
+      if (validateTokenRef.current !== token) return;
       setResult(res);
     } catch (err) {
+      if (validateTokenRef.current !== token) return;
       setTransportError(err instanceof Error ? err.message : String(err));
     } finally {
-      setValidating(false);
+      if (validateTokenRef.current === token) setValidating(false);
     }
   }
 
@@ -1812,7 +1831,9 @@ function ValidationResult({
     a.href = url;
     a.download = fileName;
     a.click();
-    URL.revokeObjectURL(url);
+    // Revoke after a tick so the download has started (immediate revoke can
+    // cancel it in some browsers).
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   return (
     <div class="stack">

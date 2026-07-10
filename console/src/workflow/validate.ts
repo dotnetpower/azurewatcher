@@ -121,17 +121,35 @@ export async function validateWorkflowDraft(
   const authHeader = authContext ? await authContext.getAuthorizationHeader() : null;
   if (authHeader !== null) headers["authorization"] = authHeader;
 
-  const response = await fetch(validateUrl(), {
-    method: "POST",
-    headers,
-    body: JSON.stringify(draft),
-    credentials: "omit",
-  });
+  // Bound the request so a slow / hung server cannot leave the UI stuck in a
+  // "Validating..." state forever.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  let response: Response;
+  try {
+    response = await fetch(validateUrl(), {
+      method: "POST",
+      headers,
+      body: JSON.stringify(draft),
+      credentials: "omit",
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error("Validation timed out. Check the API and try again.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
   if (response.status === 404) {
     throw new Error(
       "The workflow authoring route is not wired on this deployment. " +
         "Set ReadApiConfig.workflow_authoring in the composition root to enable it.",
     );
+  }
+  if (response.status === 413) {
+    throw new Error("The draft is too large to validate. Reduce the number of steps.");
   }
   if (response.status === 400) {
     // Malformed request body (not the same as a failed validation).
