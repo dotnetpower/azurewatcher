@@ -136,17 +136,22 @@ FDAI glossary (use only to define a term on request; the snapshot's own `glossar
 # Hangul at runtime - the language-policy "quoted data" exception, since we are
 # detecting the operator's own-language phrasing. The escapes decode to:
 #   intent   = explain / meaning / sense / concept / definition / role /
-#              difference / purpose / why
+#              difference / purpose / why / example / compare / summary /
+#              arrange (organize) / when
 #   phrasing = "what" (interrogative) / what (casual) / which / how / what-kind
 _CONCEPT_INTENT: Final = re.compile(
     r"\b(explain|define|definition|glossary|mean|meaning|purpose|difference"
-    r"|overview)\b|\bwhy\b|\brole of\b"
+    r"|overview|compare|comparison|example|examples|summari[sz]e|summary"
+    r"|describe|walk (me|us) through|tell me about)\b"
+    r"|\bwhy\b|\brole of\b"
+    r"|\bwhen (should|do i|to)\b"
     "|\uc124\uba85|\uc758\ubbf8|\ub73b|\uac1c\ub150|\uc815\uc758"
-    "|\uc5ed\ud560|\ucc28\uc774|\uc6a9\ub3c4|\uc65c",
+    "|\uc5ed\ud560|\ucc28\uc774|\uc6a9\ub3c4|\uc65c"
+    "|\uc608\uc2dc|\ube44\uad50|\uc694\uc57d|\uc815\ub9ac|\uc5b8\uc81c",
     re.IGNORECASE,
 )
 _CONCEPT_PHRASING: Final = re.compile(
-    r"\bwhat\s+(is|are|does|do)\b|\bwhats\b|\bwhat's\b"
+    r"\bwhat\s+(is|are|does|do|kind|type)\b|\bwhats\b|\bwhat's\b"
     r"|\bhow\s+(does|do|is|are|to)\b"
     "|\ubb34\uc5c7|\ubb50|\ubb54|\uc5b4\ub5bb\uac8c|\ubb34\uc2a8",
     re.IGNORECASE,
@@ -189,15 +194,22 @@ For "who is the Owner / who is the admin / who can approve" role-identity questi
 """
 
 # Capability-question detection (what can I do / my permissions / my role).
-# Korean markers are \\uXXXX escapes (permission / role / "can do") to keep the
-# source ASCII while matching Hangul - the language-policy "quoted data" case.
+# Korean markers are \\uXXXX escapes (permission / role / "can do" / "role list"
+# / "permission list" / "how to get") to keep the source ASCII while matching
+# Hangul - the language-policy "quoted data" case.
 _CAPABILITY_INTENT: Final = re.compile(
     r"\bwhat (can|could) i do\b|\bwhat am i allowed\b|\bam i allowed\b"
     r"|\bmy (permission|role|access|capabilit)\w*\b"
     r"|\bcan i (do|approve|edit|change|write|execute|promote|run)\b"
     r"|\bwhat can i\b"
     r"|\bwho (can|could|may) (approve|reject|edit|change|write|execute|promote|deploy|run|do|trigger|manage)\b"
-    "|\uad8c\ud55c|\uc5ed\ud560|\ud560 \uc218 \uc788",
+    r"|\bwhat (does|do) (a |an |the )?(owner|admin(istrator)?|approver|reader|contributor|break.?glass)s? do\b"
+    r"|\bhow (do|can) i (get|obtain|request|earn|receive) (a |an |the )?(role|permission|access|capabilit\w+)\b"
+    r"|\blist (my |the |all )?(role|permission|capabilit\w+)s?\b"
+    r"|\bwhat (roles?|permissions?|capabilit\w+) (are|exist|do|does)\b"
+    "|\uad8c\ud55c|\uc5ed\ud560|\ud560 \uc218 \uc788"
+    "|\uc5ed\ud560 \ubaa9\ub85d|\uad8c\ud55c \ubaa9\ub85d"
+    "|\uad8c\ud55c\uc744 \uc5b4\ub5bb\uac8c|\uad8c\ud55c \uc5b4\ub5bb\uac8c",
     re.IGNORECASE,
 )
 
@@ -219,19 +231,51 @@ _WHO_TOKEN: Final = re.compile(
     r"\bwho (is|are|can|has|have|holds?)\b|\ub204\uad6c|\ub204\uac00",
     re.IGNORECASE,
 )
+# A "role-description" question ("what does an Owner do", "explain the
+# Approver", "\uc624\ub108\ub294 \ubb50 \ud574") pairs with a role token to route to the capability
+# block - the RBAC role model is the right place to answer, not the generic
+# FDAI glossary. Kept narrower than _CONCEPT_INTENT so past-tense audit
+# questions ("who approved this?") don't get swept in.
+_ROLE_EXPLAIN_INTENT: Final = re.compile(
+    r"\b(explain|describe|what does|what do|what is|what are"
+    r"|role of|purpose of|kind of)\b"
+    "|\ubb50 \ud574|\ubb50 \ud558\ub294|\uc5b4\ub5a4 \uc77c|\uc124\uba85",
+    re.IGNORECASE,
+)
+# "How do I get / obtain / request a permission" paired with a role token
+# routes to the capability block ("how do I get the Approver role?",
+# "how can I obtain owner permission?"). Split from _ROLE_EXPLAIN_INTENT so
+# a bare "how do I get to the audit page?" (no role token) stays lean.
+_HOW_TO_GET_INTENT: Final = re.compile(
+    r"\bhow (do|can) i (get|obtain|request|earn|receive|become)\b"
+    "|\uc5b4\ub5bb\uac8c \uc5bb|\uc5b4\ub5bb\uac8c \ubc1b",
+    re.IGNORECASE,
+)
 
 
 def _is_capability_query(prompt: str) -> bool:
     """True when the operator asks about the RBAC role model.
 
-    Two shapes route to the capability block: a direct "what can I do / my
-    permissions" question, or a role-identity question ("who is the Owner",
-    "who is the admin") - the latter needs both a role/ability token and a
-    "who" token so audit-style "who approved this?" data questions stay lean.
+    Three shapes route to the capability block:
+    1. a direct "what can I do / my permissions / list roles" question,
+    2. a role-identity question ("who is the Owner") - role token + who token,
+    3. a role-description question ("what does an Owner do", "explain the
+       Approver") - role token + role-explain intent,
+    4. a "how do I get X" question paired with a role token
+       ("how can I obtain owner permission?").
+    Audit-style "who approved this?" data questions stay lean because
+    _WHO_TOKEN excludes past-tense "who approved" and _ROLE_EXPLAIN_INTENT
+    requires an explanatory verb (not a bare past action).
     """
     if _CAPABILITY_INTENT.search(prompt):
         return True
-    return bool(_ROLE_TOKEN.search(prompt) and _WHO_TOKEN.search(prompt))
+    if _ROLE_TOKEN.search(prompt) and (
+        _WHO_TOKEN.search(prompt)
+        or _ROLE_EXPLAIN_INTENT.search(prompt)
+        or _HOW_TO_GET_INTENT.search(prompt)
+    ):
+        return True
+    return False
 
 
 def _trim_view_context(

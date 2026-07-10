@@ -84,6 +84,25 @@ CONCEPT_QUERIES: list[str] = [
     "shadow\ub791 enforce \ucc28\uc774\uac00 \ubb50\uc57c",  # difference: shadow vs enforce
     "HIL \uc5ed\ud560\uc774 \ubb54\uc9c0",  # "what is HIL's role"
     "\ubb34\uc2a8 \ub73b\uc774\uc57c abstain",  # "what does abstain mean"
+    # Broader intent verbs: compare / example / summary / describe /
+    # walk-through / tell-me-about / when-should + KO equivalents.
+    "compare shadow and enforce",
+    "give an example of a T2 case",
+    "summarize the tiers",
+    "summarise the tiers",
+    "describe the risk gate",
+    "walk me through the control loop",
+    "walk us through a promotion",
+    "tell me about the ontology",
+    "when should I promote a rule?",
+    "when to escalate to HIL",
+    "what kind of events go to T2?",
+    "what type of decisions does the gate make?",
+    "T2 \uc608\uc2dc \uc904\ub798?",  # "give a T2 example"
+    "shadow enforce \ube44\uad50\ud574\uc918",  # "compare shadow and enforce"
+    "\ud2f0\uc5b4 \uc694\uc57d\ud574\uc918",  # "summarize the tiers"
+    "\uc815\ub9ac\ud574\uc918 HIL",  # "arrange/summarize HIL"
+    "\uc5b8\uc81c HIL\ub85c \uac00\uc57c \ud574?",  # "when should we go HIL?"
 ]
 
 # Data / screen questions -> glossary MUST be omitted (lean prompt). Note the
@@ -160,6 +179,26 @@ CAPABILITY_QUERIES: list[str] = [
     "Owner\uac00 \ub204\uad6c\uc57c?",  # "who is the Owner?"
     "\uc2dc\uc2a4\ud15c \uad00\ub9ac\uc790\ub294 \ub204\uad6c\uc57c?",  # "who is the system admin?"
     "approver\ub294 \ub204\uad6c\uc778\uac00\uc694?",  # "who is the approver?"
+    # Role-description questions ("what does an Owner do", "explain the
+    # Approver") also route to capability - the RBAC role model is the right
+    # place to answer, not the generic FDAI glossary.
+    "what does an Owner do?",
+    "what do Approvers do here?",
+    "what does the Reader role do?",
+    "explain the Approver",
+    "describe the Contributor role",
+    "role of the Owner",
+    "how do I get the Approver role?",
+    "how can I obtain owner permission?",
+    "list the roles",
+    "list all permissions",
+    "what roles exist?",
+    "what permissions are there?",
+    "Owner\ub294 \ubb50 \ud574?",  # "what does the Owner do?"
+    "approver\ub294 \ubb50 \ud558\ub294 \uc5ed\ud560?",  # "what role does approver do?"
+    "\uad8c\ud55c \ubaa9\ub85d \ubcf4\uc5ec\uc918",  # "show the permission list"
+    "\uc5ed\ud560 \ubaa9\ub85d",  # "role list"
+    "owner \uad8c\ud55c \uc5b4\ub5bb\uac8c \uc5bb\uc5b4?",  # "how do I get owner permission?"
 ]
 
 CAPABILITY_NON_QUERIES: list[str] = [
