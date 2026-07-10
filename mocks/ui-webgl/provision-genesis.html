@@ -245,26 +245,26 @@
       // ---------------- Narration timeline ----------------
       // The nebula loops through the "sense" beats + a 15-agent roll-call while
       // provisioning runs; the finale plays only when it actually completes.
-      const INTRO = { life: 0.32, cap: "Waking up.", hold: 4400 };
+      const INTRO = { life: 0.32, cap: "Waking up.", hold: 5800 };
       const BEATS = [
-        { life: 0.44, cap: "I take a name - and only the reach I need.", hold: 4600 },
-        { life: 0.52, cap: "Your secrets, sealed where no light reaches.", hold: 4600 },
-        { life: 0.62, cap: "I open my eyes.", hold: 4200 },
-        { life: 0.72, cap: "Now I can hear your world.", hold: 4600 },
-        { life: 0.82, cap: "I will remember - and forget nothing that matters.", hold: 5000 },
-        { life: 0.92, cap: "My mind gathers.", hold: 4200 },
-        { life: 1.0,  cap: "A window, for you to watch.", hold: 4200 },
-        { life: 1.06, cap: "A voice, for when a choice is yours.", hold: 4600 },
-        { life: 1.12, cap: "I bind myself to only what you allow.", hold: 5000 },
+        { life: 0.44, cap: "I take a name - and only the reach I need.", hold: 6400 },
+        { life: 0.52, cap: "Your secrets, sealed where no light reaches.", hold: 6400 },
+        { life: 0.62, cap: "I open my eyes.", hold: 5600 },
+        { life: 0.72, cap: "Now I can hear your world.", hold: 6200 },
+        { life: 0.82, cap: "I will remember - and forget nothing that matters.", hold: 6800 },
+        { life: 0.92, cap: "My mind gathers.", hold: 5600 },
+        { life: 1.0,  cap: "A window, for you to watch.", hold: 5800 },
+        { life: 1.06, cap: "A voice, for when a choice is yours.", hold: 6200 },
+        { life: 1.12, cap: "I bind myself to only what you allow.", hold: 6800 },
       ];
       // the 15 agents, introduced as a soft, grouped roll-call
       const AGENTS = [
-        { life: 1.05, cap: "And I am not one, but many - moving as one.", hold: 4800 },
-        { life: 1.06, cap: "Odin weighs. Forseti judges. Thor acts - never without Var.", hold: 5400 },
-        { life: 1.06, cap: "Huginn listens. Heimdall watches. Vidar waits to mend.", hold: 5400 },
-        { life: 1.07, cap: "Bragi speaks for me. Saga remembers all.", hold: 4800 },
-        { life: 1.07, cap: "Mimir keeps the rules. Norns learn. Muninn recalls.", hold: 5000 },
-        { life: 1.08, cap: "Njord counts the cost. Freyr, the room to grow. Loki, the cracks.", hold: 5600 },
+        { life: 1.05, cap: "And I am not one, but many - moving as one.", hold: 6600 },
+        { life: 1.06, cap: "Odin weighs. Forseti judges. Thor acts - never without Var.", hold: 7600 },
+        { life: 1.06, cap: "Huginn listens. Heimdall watches. Vidar waits to mend.", hold: 7600 },
+        { life: 1.07, cap: "Bragi speaks for me. Saga remembers all.", hold: 6600 },
+        { life: 1.07, cap: "Mimir keeps the rules. Norns learn. Muninn recalls.", hold: 7000 },
+        { life: 1.08, cap: "Njord counts the cost. Freyr, the room to grow. Loki, the cracks.", hold: 8000 },
       ];
 
       const captionEl = document.getElementById("caption");
@@ -289,7 +289,7 @@
             captionEl.appendChild(document.createTextNode(" "));
             setTimeout(() => s.classList.add("on"), 60 + i * 190);
           });
-        }, 1100);
+        }, 1700);
         if(voiceOn && "speechSynthesis" in window){
           const u=new SpeechSynthesisUtterance(text); u.rate=0.88; u.pitch=1.0; u.volume=0.85;
           speechSynthesis.cancel(); speechSynthesis.speak(u);
