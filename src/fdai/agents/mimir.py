@@ -16,6 +16,7 @@ from fdai.agents.candidate_guard import CandidateGuard
 from fdai.agents.introspection import (
     IntrospectionResult,
     capability_facts,
+    capped_list,
     mentioned,
 )
 from fdai.agents.pantheon import _MIMIR
@@ -87,7 +88,8 @@ class Mimir(Agent):
     async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
         facts = {
             **capability_facts(self.spec),
-            "tracked_rules": sorted(self._promotions),
+            "tracked_rules": capped_list(sorted(self._promotions)),
+            "tracked_rules_count": len(self._promotions),
             "pending_candidates": len(self._pending_candidates),
             "quarantined_candidates": len(self._quarantined_candidates),
         }

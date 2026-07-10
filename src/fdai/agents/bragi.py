@@ -28,7 +28,7 @@ from fdai.agents.introspection import (
     is_action_intent,
     leading_verb,
 )
-from fdai.agents.pantheon import _BRAGI, PANTHEON_SPECS
+from fdai.agents.pantheon import _BRAGI, PANTHEON_NAMES, PANTHEON_SPECS
 
 AnswerFn = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 
@@ -250,6 +250,10 @@ class Bragi(Agent):
         only thing the two ports share; the response carries ``requester``
         so the audit trail shows which agent asked.
         """
+        if requester not in PANTHEON_NAMES:
+            # A2A is pantheon-internal: an unknown requester would poison the
+            # audit trail (spoofed "who asked"). Reject at the boundary.
+            raise ValueError(f"unknown requester agent: {requester!r}")
         ctx: dict[str, Any] = {**(context or {}), "requester": requester, "a2a": True}
         responder = self._agent_responders.get(agent_name)
         if responder is None:
@@ -262,6 +266,9 @@ class Bragi(Agent):
                 "trace_ref": str(ctx.get("correlation_id") or ""),
             }
         answer = await responder(question, ctx)
+        # Defensive copy: never mutate a dict the responder may still own
+        # (a fork responder could return a cached / shared object).
+        answer = dict(answer)
         answer.setdefault("primary_agent", agent_name)
         answer["requester"] = requester
         return answer

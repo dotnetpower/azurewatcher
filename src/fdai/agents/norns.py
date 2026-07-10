@@ -28,7 +28,7 @@ from collections import Counter
 from typing import Any
 
 from fdai.agents.base import Agent
-from fdai.agents.introspection import IntrospectionResult, capability_facts
+from fdai.agents.introspection import IntrospectionResult, capability_facts, capped_list
 from fdai.agents.pantheon import _NORNS
 
 # Adverse outcomes that count against an action's success record.
@@ -204,7 +204,8 @@ class Norns(Agent):
             **capability_facts(self.spec),
             "fingerprints_tracked": len(self._fingerprint_counter),
             "pending_candidates": len(self.pending_candidates),
-            "outcomes_tracked": sorted(self._outcomes),
+            "outcomes_tracked": capped_list(sorted(self._outcomes)),
+            "outcomes_tracked_count": len(self._outcomes),
         }
         if not self._fingerprint_counter and not self.pending_candidates:
             answer = (

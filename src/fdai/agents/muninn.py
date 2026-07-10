@@ -14,6 +14,7 @@ from fdai.agents.base import Agent
 from fdai.agents.introspection import (
     IntrospectionResult,
     capability_facts,
+    capped_list,
     mentioned,
 )
 from fdai.agents.pantheon import _MUNINN
@@ -42,7 +43,8 @@ class Muninn(Agent):
         data = self.state_store.data
         facts = {
             **capability_facts(self.spec),
-            "buckets": sorted(data),
+            "buckets": capped_list(sorted(data)),
+            "buckets_count": len(data),
             "total_keys": sum(len(v) for v in data.values()),
         }
         buckets = mentioned(question, data)

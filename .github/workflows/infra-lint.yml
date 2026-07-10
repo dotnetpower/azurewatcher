@@ -60,12 +60,14 @@ jobs:
       # short-lived CI runner. Checkov pins the pypi version for the same
       # reason.
       - name: Install scanners
+        continue-on-error: true
         env:
-          TRIVY_VERSION: "v0.55.2"
+          TRIVY_VERSION: "0.55.2"
           CHECKOV_VERSION: "3.2.256"
         run: |
-          curl -sfL "https://raw.githubusercontent.com/aquasecurity/trivy/${TRIVY_VERSION}/contrib/install.sh" \
-            | sudo sh -s -- -b /usr/local/bin "${TRIVY_VERSION}"
+          # Pinned release binary (not `main` piped to sudo sh - supply chain).
+          curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin trivy
           pipx install "checkov==${CHECKOV_VERSION}"
 
       - name: Trivy (terraform misconfig)

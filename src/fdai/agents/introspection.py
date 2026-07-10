@@ -36,6 +36,11 @@ REQUIRES_TYPED_PIPELINE = "requires_typed_pipeline"
 #: Abstain reason when the agent has no data for the question.
 NO_DATA = "no_data"
 
+#: Abstain reason when an agent's ``introspect`` raised - the shared port
+#: degrades to an honest abstain instead of crashing (see
+#: :meth:`fdai.agents.base.Agent.on_conversation_turn`).
+INTROSPECTION_ERROR = "introspection_error"
+
 
 @dataclass(frozen=True, slots=True)
 class IntrospectionResult:
@@ -114,7 +119,64 @@ _FILLER_PREFIX: frozenset[str] = frozenset(
     {"please", "can", "could", "would", "you", "kindly", "pls", "hey", "ok", "okay"}
 )
 
+# Verbs that double as a noun / adjective, so a leading occurrence is NOT
+# automatically a command ("set of rules?", "run status?", "update history?").
+# For these, only an imperative phrasing (no question mark, no interrogative
+# marker) counts as a mutation command - otherwise it is introspection. Every
+# entry is also in ``_ACTION_VERBS`` so a genuine command still maps.
+_AMBIGUOUS_ACTION_VERBS: frozenset[str] = frozenset(
+    {"set", "start", "stop", "update", "run", "apply", "patch", "drain"}
+)
+
+# Interrogative markers that flip an ambiguous-verb lead back to a question.
+_QUESTION_MARKERS: frozenset[str] = frozenset(
+    {
+        "what",
+        "why",
+        "who",
+        "how",
+        "when",
+        "which",
+        "where",
+        "whose",
+        "whom",
+        "is",
+        "are",
+        "was",
+        "were",
+        "do",
+        "does",
+        "did",
+        "show",
+        "list",
+        "tell",
+        "explain",
+        "describe",
+        "status",
+        "count",
+        "many",
+        "much",
+        "any",
+    }
+)
+
+#: Defensive cap on how much of a question is tokenized. The conversational
+#: port is an operator / agent input boundary; an unbounded question would let
+#: a caller inflate tokenization cost. A real NL query is far shorter.
+_MAX_QUESTION_LEN = 2000
+
+#: Cap on how many owned identifiers an agent lists inside ``facts``. Bounds
+#: both the payload size and the incidental exposure of every id; the paired
+#: count field still reports the true total, and the operator narrows to a
+#: specific id by naming it (see :func:`mentioned`).
+_FACTS_LIST_CAP = 20
+
 _WORD_RE = re.compile(r"[a-z0-9-]+")
+
+
+def _tokens(question: str) -> list[str]:
+    """Tokenize a bounded prefix of ``question`` (defensive input cap)."""
+    return _WORD_RE.findall(question[:_MAX_QUESTION_LEN].lower())
 
 
 def is_action_intent(question: str) -> bool:
@@ -124,10 +186,20 @@ def is_action_intent(question: str) -> bool:
     (after stripping polite filler) means the request wants to *change*
     something, which the conversational port MUST NOT do itself
     (agent-pantheon.md 7.7). Interrogatives ("what/why/who/show/list/...")
-    fall through as introspection.
+    fall through as introspection. A verb that doubles as a noun
+    ("set of rules?", "run status?") is a command only when phrased
+    imperatively - no question mark and no interrogative marker.
     """
     verb = leading_verb(question)
-    return verb is not None and verb in _ACTION_VERBS
+    if verb is None:
+        return False
+    if verb in _AMBIGUOUS_ACTION_VERBS:
+        if "?" in question[:_MAX_QUESTION_LEN]:
+            return False
+        if any(token in _QUESTION_MARKERS for token in _tokens(question)):
+            return False
+        return True
+    return verb in _ACTION_VERBS
 
 
 def leading_verb(question: str) -> str | None:
@@ -137,7 +209,7 @@ def leading_verb(question: str) -> str | None:
     "is this a command?" test and the "which action?" mapping read the same
     leading verb (e.g. ``restart`` from ``please restart vm-1``).
     """
-    for token in _WORD_RE.findall(question.lower()):
+    for token in _tokens(question):
         if token in _FILLER_PREFIX:
             continue
         return str(token)
@@ -152,8 +224,23 @@ def mentioned(question: str, candidates: Any) -> list[str]:
     (e.g. "cost for rg-abc" -> the ``rg-abc`` scope). Order follows
     ``candidates`` for determinism.
     """
-    tokens = {t for t in _WORD_RE.findall(question.lower())}
+    tokens = set(_tokens(question))
     return [c for c in candidates if str(c).lower() in tokens]
+
+
+def capped_list(items: Any) -> list[str]:
+    """Return the first :data:`_FACTS_LIST_CAP` items as strings.
+
+    Bounds both the ``facts`` payload size and the incidental exposure of
+    every owned identifier when an agent lists what it tracks. The paired
+    count field an agent emits still reports the true total.
+    """
+    out: list[str] = []
+    for index, item in enumerate(items):
+        if index >= _FACTS_LIST_CAP:
+            break
+        out.append(str(item))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -191,9 +278,11 @@ __all__ = [
     "IntrospectionResult",
     "REQUIRES_TYPED_PIPELINE",
     "NO_DATA",
+    "INTROSPECTION_ERROR",
     "is_action_intent",
     "leading_verb",
     "mentioned",
+    "capped_list",
     "capability_facts",
     "capability_sentence",
 ]

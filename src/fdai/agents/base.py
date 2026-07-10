@@ -8,11 +8,13 @@ is the immutable declaration read by the registry - see
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from fdai.agents.introspection import (
+    INTROSPECTION_ERROR,
     REQUIRES_TYPED_PIPELINE,
     IntrospectionResult,
     capability_facts,
@@ -22,6 +24,8 @@ from fdai.agents.introspection import (
 
 if TYPE_CHECKING:
     from fdai.agents.bus import PantheonBus
+
+_LOG = logging.getLogger(__name__)
 
 
 class Layer(StrEnum):
@@ -164,7 +168,19 @@ class Agent:
                 context,
                 requires_typed_pipeline=True,
             )
-        result = await self.introspect(question, context)
+        try:
+            result = await self.introspect(question, context)
+        except Exception as exc:  # noqa: BLE001 - port availability guard
+            # One agent's introspection bug MUST NOT crash the shared
+            # conversational port (an operator ask or an A2A introspection
+            # would take the whole port down). Degrade to an honest abstain
+            # and log the failure by type only - never the exception value,
+            # which may carry owned data.
+            _LOG.warning(
+                "introspect_failed",
+                extra={"agent": self.spec.name, "error_type": type(exc).__name__},
+            )
+            result = IntrospectionResult.abstain(INTROSPECTION_ERROR)
         return self._conversation_envelope(result, context)
 
     async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:

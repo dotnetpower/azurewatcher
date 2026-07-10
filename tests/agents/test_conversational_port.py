@@ -141,3 +141,41 @@ def test_introspect_a2a_none_when_bragi_disabled() -> None:
     runtime = _runtime(disabled_agents=frozenset({"Bragi"}))
     result = asyncio.run(runtime.introspect("Njord", "cost", requester="Forseti"))
     assert result is None
+
+
+def test_introspect_a2a_rejects_unknown_requester() -> None:
+    # A2A is pantheon-internal; an unknown requester would poison the audit
+    # trail, so it is rejected at the boundary (H3).
+    runtime = _runtime()
+    with pytest.raises(ValueError, match="unknown requester"):
+        asyncio.run(runtime.introspect("Njord", "cost", requester="Sauron"))
+
+
+def test_introspect_a2a_does_not_mutate_responder_dict() -> None:
+    # Bragi must not mutate a dict a fork responder may still own (H4).
+    from fdai.agents.bragi import Bragi
+
+    bragi = Bragi()
+    shared = {"answer": "cached"}
+
+    async def responder(question: str, context: dict) -> dict:
+        return shared
+
+    bragi.register_responder("Njord", responder)
+    out = asyncio.run(bragi.introspect_agent("Njord", "cost", requester="Forseti"))
+    assert out["requester"] == "Forseti"
+    assert "requester" not in shared
+    assert "primary_agent" not in shared
+
+
+def test_introspect_facts_lists_are_capped() -> None:
+    # An agent listing owned identifiers bounds the list and reports the true
+    # count separately (H5).
+    from fdai.agents.njord import Njord
+
+    njord = Njord()
+    for i in range(30):
+        asyncio.run(njord.ingest_cost_sample(scope=f"scope-{i:02d}", amount_usd=1.0))
+    result = asyncio.run(njord.on_conversation_turn("cost overview", {}))
+    assert len(result["facts"]["tracked_scopes"]) == 20
+    assert result["facts"]["tracked_scopes_count"] == 30

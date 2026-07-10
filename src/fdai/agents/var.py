@@ -17,6 +17,7 @@ from fdai.agents.bus import PantheonBus
 from fdai.agents.introspection import (
     IntrospectionResult,
     capability_facts,
+    capped_list,
     mentioned,
 )
 from fdai.agents.pantheon import _VAR
@@ -88,17 +89,23 @@ class Var(Agent):
             # No self-approval: the operator who initiated the action can never
             # approve it (approval and initiation are distinct principals - a
             # pantheon safety invariant, agent-pantheon.md). Enforced here even
-            # if the entry RBAC gate was bypassed upstream.
-            if ticket.initiator_principal and approver == ticket.initiator_principal:
+            # if the entry RBAC gate was bypassed upstream. Compare trimmed so
+            # a whitespace-padded principal cannot slip past, and reject a blank
+            # approver outright.
+            approver_norm = approver.strip()
+            if not approver_norm:
+                raise ValueError(f"approver MUST be a non-empty principal on {correlation_id!r}")
+            initiator_norm = (ticket.initiator_principal or "").strip()
+            if initiator_norm and approver_norm == initiator_norm:
                 raise ValueError(
-                    f"principal {approver!r} cannot approve an action it initiated "
+                    f"principal {approver_norm!r} cannot approve an action it initiated "
                     f"({correlation_id!r}): no self-approval"
                 )
-            if approver in ticket.approvers:
+            if approver_norm in ticket.approvers:
                 raise ValueError(
-                    f"principal {approver!r} cannot self-approve twice on {correlation_id!r}"
+                    f"principal {approver_norm!r} cannot self-approve twice on {correlation_id!r}"
                 )
-            ticket.approvers.append(approver)
+            ticket.approvers.append(approver_norm)
         else:
             raise ValueError(f"unknown decision {decision!r}")
 
@@ -159,7 +166,7 @@ class Var(Agent):
         facts = {
             **capability_facts(self.spec),
             "pending_hil": len(pending),
-            "correlations": sorted(pending),
+            "correlations": capped_list(sorted(pending)),
         }
         corr = mentioned(question, pending)
         if corr:

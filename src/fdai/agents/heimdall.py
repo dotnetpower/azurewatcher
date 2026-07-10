@@ -18,6 +18,7 @@ from fdai.agents.bus import PantheonBus
 from fdai.agents.introspection import (
     IntrospectionResult,
     capability_facts,
+    capped_list,
     mentioned,
 )
 from fdai.agents.pantheon import _HEIMDALL
@@ -149,7 +150,8 @@ class Heimdall(Agent):
     async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
         facts = {
             **capability_facts(self.spec),
-            "watched_resources": sorted(self._recent_events),
+            "watched_resources": capped_list(sorted(self._recent_events)),
+            "watched_resources_count": len(self._recent_events),
             "security_events_window": len(self._security_recent),
             "rate_threshold": self._rate_threshold,
         }

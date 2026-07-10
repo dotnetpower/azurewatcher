@@ -6,8 +6,10 @@ import asyncio
 
 from fdai.agents.base import Agent
 from fdai.agents.introspection import (
+    INTROSPECTION_ERROR,
     capability_facts,
     capability_sentence,
+    capped_list,
     is_action_intent,
     mentioned,
 )
@@ -47,6 +49,32 @@ class TestActionIntentGuard:
         assert is_action_intent("") is False
         assert is_action_intent("???") is False
 
+    def test_ambiguous_verb_with_question_mark_is_introspection(self) -> None:
+        # Verbs that double as nouns are commands only when imperative.
+        for question in (
+            "set of pending approvals?",
+            "run status?",
+            "update history?",
+            "start time of the run?",
+        ):
+            assert is_action_intent(question) is False
+
+    def test_ambiguous_verb_with_interrogative_marker_is_introspection(self) -> None:
+        assert is_action_intent("run which experiments completed") is False
+        assert is_action_intent("stop what is the condition") is False
+
+    def test_ambiguous_verb_imperative_is_still_action(self) -> None:
+        assert is_action_intent("update the rule threshold") is True
+        assert is_action_intent("stop the service") is True
+        assert is_action_intent("run the experiment now") is True
+
+    def test_long_question_is_bounded(self) -> None:
+        # A pathological question must not blow up tokenization; the leading
+        # verb is still read and matching still terminates.
+        pathological = "restart " + "x" * 100_000
+        assert is_action_intent(pathological) is True
+        assert mentioned(pathological, ["y"]) == []
+
 
 class TestMentioned:
     def test_matches_named_candidate_tokens(self) -> None:
@@ -60,6 +88,19 @@ class TestMentioned:
 
     def test_no_match_returns_empty(self) -> None:
         assert mentioned("nothing relevant here", ["rg-abc"]) == []
+
+
+class TestCappedList:
+    """Bounds facts payload size and incidental identifier exposure."""
+
+    def test_caps_at_twenty_items(self) -> None:
+        assert len(capped_list(range(100))) == 20
+
+    def test_short_list_unchanged(self) -> None:
+        assert capped_list(["a", "b"]) == ["a", "b"]
+
+    def test_items_are_stringified(self) -> None:
+        assert capped_list([1, 2]) == ["1", "2"]
 
 
 class TestCapability:
@@ -87,3 +128,16 @@ class TestBaseIntrospect:
         assert result.abstain_reason is None
         assert result.facts["agent"] == "Muninn"
         assert result.facts["owns"] == list(_MUNINN.owns)
+
+    def test_conversation_port_isolates_a_raising_introspect(self) -> None:
+        # One agent's introspection bug must not crash the shared port: it
+        # degrades to an honest abstain (H2).
+        agent = Agent(spec=_MUNINN)
+
+        async def boom(question: str, context: dict) -> object:
+            raise RuntimeError("secret-bearing failure")
+
+        agent.introspect = boom  # type: ignore[method-assign]
+        result = asyncio.run(agent.on_conversation_turn("state?", {}))
+        assert result["answer"] is None
+        assert result["abstain_reason"] == INTROSPECTION_ERROR

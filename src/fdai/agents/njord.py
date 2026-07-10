@@ -16,6 +16,7 @@ from fdai.agents.bus import PantheonBus
 from fdai.agents.introspection import (
     IntrospectionResult,
     capability_facts,
+    capped_list,
     mentioned,
 )
 from fdai.agents.pantheon import _NJORD
@@ -112,7 +113,8 @@ class Njord(Agent):
     async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
         facts = {
             **capability_facts(self.spec),
-            "tracked_scopes": sorted(self._samples),
+            "tracked_scopes": capped_list(sorted(self._samples)),
+            "tracked_scopes_count": len(self._samples),
             "anomaly_ratio": self._anomaly_ratio,
             "known_action_costs": dict(self._cost_table),
         }
