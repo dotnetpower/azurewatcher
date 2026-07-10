@@ -70,10 +70,13 @@ const NO_CONTEXT: Answer = {
 export function answer(query: string, snapshot: ViewSnapshot | null): Answer {
   if (snapshot === null) {
     // No route open yet - still resolve FDAI concept questions from the
-    // static universal glossary so an early "what is HIL?" gets a real
-    // answer instead of a "open a route first" shrug.
+    // static universal glossary and catalog list questions ('list the
+    // agents / tiers / roles') so early questions get real answers instead
+    // of a "open a route first" shrug.
     const q = query.toLowerCase().trim();
     if (q.length > 0) {
+      const list = resolveList(q);
+      if (list) return list;
       const hit = resolveStaticGlossary(q);
       if (hit) return hit;
     }
@@ -107,6 +110,8 @@ export function answer(query: string, snapshot: ViewSnapshot | null): Answer {
   // per-route branch here.
   const deckMetaHit = resolveDeckMeta(q, snapshot);
   if (deckMetaHit) return deckMetaHit;
+  const listHit = resolveList(q);
+  if (listHit) return listHit;
   const causalHit = resolveCausal(q, snapshot);
   if (causalHit) return causalHit;
   const glossaryHit = resolveGlossary(q, snapshot);
@@ -339,6 +344,106 @@ function resolveDeckMeta(q: string, snapshot: ViewSnapshot): Answer | null {
       citations: [{ label: "route", value: snapshot.routeLabel }],
       followUps: [],
     };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Catalog list resolvers - concrete lists that don't depend on the snapshot.
+// "list the agents / tiers / roles / verticals / safety invariants / ActionType
+// roles" answered from the fixed architecture (never invented). Guarded by an
+// explicit "list" verb + a catalog keyword so screen data lists ('list rules',
+// 'list tiles') fall through to the per-route enhancer.
+// ---------------------------------------------------------------------------
+
+const PANTHEON_AGENTS: readonly string[] = [
+  "Odin (Master Planner - arbitrates cross-vertical, final tie-breaker)",
+  "Thor (Responder - dispatcher + only privileged executor; never judges)",
+  "Forseti (Judge - issues Verdict after mixed-model cross-check + verifier + grounding)",
+  "Huginn (Event Collector - deterministic-first sensing, no LLM in hot-path)",
+  "Heimdall (Observer - deterministic-first sensing, no LLM in hot-path)",
+  "Var (Approver - HIL approval principal; distinct from Thor, no self-approval)",
+  "Vidar (Recovery - rollback + DR failover principal)",
+  "Bragi (Narrator - conversational-port translator only, never executes)",
+  "Saga (Auditor - append-only audit + Handoff-to-GitHub-issue executor)",
+  "Mimir (Rule Steward - governance staff)",
+  "Norns (Learner - governance staff)",
+  "Muninn (Memory - governance staff)",
+  "Njord (Cost specialist - advisory to Forseti)",
+  "Freyr (Capacity specialist - advisory to Forseti)",
+  "Loki (Chaos specialist - advisory to Forseti)",
+];
+
+const TRUST_TIERS: readonly string[] = [
+  "T0 - deterministic policy / checklist (target 70-80%): policy eval, config drift, what-if.",
+  "T1 - lightweight similarity + small model (15-20%): reuse of past incident actions.",
+  "T2 - frontier-LLM reasoning (5-10%, novel only): must clear the quality gate before executing.",
+];
+
+const RBAC_ROLES: readonly string[] = [
+  "Reader - view every screen (read-only) and ask this deck.",
+  "Contributor - + author draft remediation / governance PRs.",
+  "Approver - + review governance PRs and approve/reject runtime HIL, exemptions, overrides, quorum promotions (via Teams/ChatOps, never self-approval).",
+  "Owner - + kill-switch, emergency access, group membership, infra IaC.",
+  "BreakGlass - emergency-only, activated out of band (incident id + timebox).",
+];
+
+const VERTICALS: readonly string[] = [
+  "Change Safety (safe change + drift remediation)",
+  "Resilience (disaster recovery + chaos/resilience testing)",
+  "Cost Governance (FinOps)",
+];
+
+const SAFETY_INVARIANTS: readonly string[] = [
+  "stop-condition (kill-switch for the action)",
+  "rollback path (tested; declared by rollback_contract)",
+  "blast-radius cap (scope / batch / rate)",
+  "audit-log entry (append-only)",
+];
+
+const ACTION_TYPE_ROLES: readonly string[] = [
+  "initiators (who may raise this action)",
+  "judge (Forseti - who decides auto/hil/deny/abstain)",
+  "executor (Thor - the sole privileged mutator)",
+  "approver (Var - required for high-risk / HIL)",
+  "auditor (Saga - append-only audit + Handoff)",
+];
+
+function _listAnswer(title: string, items: readonly string[]): Answer {
+  return {
+    text: `${title}:\n` + items.map((s) => `- ${s}`).join("\n"),
+    citations: [{ label: title, value: `${items.length} item(s)` }],
+    followUps: [],
+  };
+}
+
+/** Catalog list questions ("list the 15 agents", "list the tiers", "list all
+ *  roles", "list the verticals", "list the safety invariants"). Answered from
+ *  the fixed architecture, so a screen with no records still gets the list. */
+function resolveList(q: string): Answer | null {
+  const listVerb =
+    /\blist\b|\bshow\b|\bwhat are (the |all )?/.test(q) ||
+    /\ubaa9\ub85d|\ubcf4\uc5ec\uc918/.test(q); // KO: list / show
+  if (!listVerb) return null;
+  // ActionType roles first: the query "list actiontype roles" also contains
+  // the word "roles" and would otherwise land on the RBAC branch.
+  if (/\bactiontype\b|\baction type\b|\baction-type\b|\baction_type\b|\baction (kind|role)/.test(q)) {
+    return _listAnswer("The five roles every ActionType binds", ACTION_TYPE_ROLES);
+  }
+  if (/\bagent(s)?\b|\bpantheon\b|\uc5d0\uc774\uc804\ud2b8/.test(q)) {
+    return _listAnswer("The 15 pantheon agents", PANTHEON_AGENTS);
+  }
+  if (/\btier(s)?\b|\bt0\b|\bt1\b|\bt2\b|\ud2f0\uc5b4/.test(q)) {
+    return _listAnswer("The three trust tiers", TRUST_TIERS);
+  }
+  if (/\brole(s)?\b|\brbac\b|\bpermission(s)?\b|\uc5ed\ud560/.test(q)) {
+    return _listAnswer("The RBAC roles (Entra App Roles, cumulative)", RBAC_ROLES);
+  }
+  if (/\bvertical(s)?\b|\ubc84\ud2f0\uceec/.test(q)) {
+    return _listAnswer("The three initial verticals", VERTICALS);
+  }
+  if (/\bsafety\b|\binvariant(s)?\b|\uc548\uc804/.test(q)) {
+    return _listAnswer("The four safety invariants", SAFETY_INVARIANTS);
   }
   return null;
 }

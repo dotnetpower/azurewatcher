@@ -243,3 +243,72 @@ describe("deck-meta (help / what can I do here)", () => {
     expect(a.text.toLowerCase()).not.toContain("read-only");
   });
 });
+
+describe("catalog list resolvers (list agents / tiers / roles / verticals)", () => {
+  test("'list the agents' returns the 15 pantheon members", () => {
+    const a = answer("list the agents", null);
+    expect(a.text).toContain("Odin");
+    expect(a.text).toContain("Forseti");
+    expect(a.text).toContain("Bragi");
+    // All 15 named.
+    for (const name of ["Odin", "Thor", "Forseti", "Huginn", "Heimdall", "Var", "Vidar", "Bragi", "Saga", "Mimir", "Norns", "Muninn", "Njord", "Freyr", "Loki"]) {
+      expect(a.text).toContain(name);
+    }
+  });
+
+  test("'list the tiers' returns T0/T1/T2 with definitions", () => {
+    const a = answer("list the tiers", null);
+    expect(a.text).toContain("T0");
+    expect(a.text).toContain("T1");
+    expect(a.text).toContain("T2");
+    expect(a.text).toMatch(/70-80/);
+  });
+
+  test("'list all roles' returns the 5 RBAC roles", () => {
+    const a = answer("list all roles", null);
+    for (const r of ["Reader", "Contributor", "Approver", "Owner", "BreakGlass"]) {
+      expect(a.text).toContain(r);
+    }
+  });
+
+  test("'list the verticals' returns Change/Resilience/Cost", () => {
+    const a = answer("list the verticals", null);
+    for (const v of ["Change Safety", "Resilience", "Cost Governance"]) {
+      expect(a.text).toContain(v);
+    }
+  });
+
+  test("'list the safety invariants' returns all four", () => {
+    const a = answer("list the safety invariants", null);
+    expect(a.text).toMatch(/stop-condition/i);
+    expect(a.text).toMatch(/rollback/i);
+    expect(a.text).toMatch(/blast-radius/i);
+    expect(a.text).toMatch(/audit/i);
+  });
+
+  test("'list ActionType roles' returns the 5 bound roles", () => {
+    const a = answer("list actiontype roles", null);
+    expect(a.text).toContain("initiators");
+    expect(a.text).toContain("executor");
+    expect(a.text).toContain("approver");
+  });
+
+  test("'list rules' on the rules route does NOT hit the catalog list", () => {
+    const snap: ViewSnapshot = {
+      routeId: "rules",
+      routeLabel: "Rules",
+      headline: "10 rules",
+      capturedAt: "2026-07-06T11:00:00+00:00",
+      facts: [],
+      records: {
+        rules: [
+          { id: "r-1", severity: "high", category: "network", source: "azure-waf" },
+        ],
+      },
+    };
+    const a = answer("list rules", snap);
+    // Falls through to answerRules (not the catalog Roles list).
+    expect(a.text).not.toContain("Reader");
+    expect(a.text).not.toContain("Owner");
+  });
+});
