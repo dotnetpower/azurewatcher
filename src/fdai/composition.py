@@ -79,10 +79,14 @@ from .shared.providers.exemption import (
     empty_exemption_registry,
 )
 from .shared.providers.feasibility_probe import FeasibilityProbe
+from .shared.providers.metric import MetricProvider, NoopMetricProvider
 from .shared.providers.workload_identity import WorkloadIdentity
 
 if TYPE_CHECKING:
+    import httpx
+
     from .core.operator_memory import OperatorMemoryStore
+    from .delivery.azure.metric_logs import AzureMonitorLogsConfig
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -168,6 +172,7 @@ class Container:
     ontology_link_types: tuple[OntologyLinkType, ...] = ()
     workflows: tuple[Workflow, ...] = ()
     llm_bindings: LlmBindings | None = field(default=None)
+    metric_provider: MetricProvider = field(default_factory=NoopMetricProvider)
 
     def require_llm_bindings(self) -> LlmBindings:
         """Return :attr:`llm_bindings` or raise :class:`LlmBindingsUnavailableError`."""
@@ -500,6 +505,33 @@ def bind_azure_llm_bindings(
         rca_reasoner=rca_reasoner,
     )
     return replace(container, llm_bindings=bindings)
+
+
+def bind_azure_monitor_logs(
+    container: Container,
+    *,
+    config: AzureMonitorLogsConfig,
+    identity: WorkloadIdentity,
+    http_client: httpx.AsyncClient,
+) -> Container:
+    """Return a new :class:`Container` with the live Azure Monitor Logs
+    metric adapter bound in place of the default :class:`NoopMetricProvider`.
+
+    Kept symmetric to :func:`bind_azure_llm_bindings`: an entry point that
+    runs against real Azure telemetry constructs the adapter and swaps it
+    in via :func:`dataclasses.replace`. Dev / local-fake runs never call
+    this, so ``container.metric_provider`` stays the no-op default and the
+    dev-to-deploy parity contract holds. ``core/`` never imports the
+    concrete adapter - only this composition-root helper does.
+    """
+    from .delivery.azure.metric_logs import AzureMonitorLogsMetricProvider
+
+    provider = AzureMonitorLogsMetricProvider(
+        config=config,
+        identity=identity,
+        http_client=http_client,
+    )
+    return replace(container, metric_provider=provider)
 
 
 def _load_resolved_models(path_or_ref: str) -> ResolvedModels:

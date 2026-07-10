@@ -132,10 +132,14 @@ forecast, and RCA cannot ground on real telemetry.
 - Wire contract count grows **5 → 8**; [csp-neutrality.md](csp-neutrality.md)
   is updated in the same PR that introduces the seams.
 - **Default upstream binding**: local no-op providers that return
-  empty iterators. Real adapters (Azure Monitor, Log Analytics) land
-  in `delivery/azure/` in a follow-up work item; the seam is enough
-  for the anomaly / forecast / RCA subsystems to be authored against
-  a stable interface.
+  empty iterators. The first live `MetricProvider` adapter has landed -
+  `delivery/azure/metric_logs.py` (`AzureMonitorLogsMetricProvider`,
+  Log Analytics KQL over the query REST API), bound at the composition
+  root via `bind_azure_monitor_logs` and defaulting to `Noop` in dev so
+  the parity contract holds. The remaining `LogQueryProvider` /
+  `TraceQueryProvider` adapters land in follow-up work items; the seam is
+  enough for the anomaly / forecast / RCA subsystems to be authored
+  against a stable interface.
 - **Where the data flows**: providers produce structured records that
   become `Event` objects on the internal bus, so the trust-router and
   risk-gate stay the sole authority for what runs autonomously.

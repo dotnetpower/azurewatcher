@@ -1,7 +1,7 @@
 ---
 title: 스코프 개선 및 구조적 갭
 translation_of: scope-expansion.md
-translation_source_sha: 65958ad6c61abc2e744d6434d6bffc05a75358a3
+translation_source_sha: d305aed2b4194da017143301dc9a5b12cdc728b1
 translation_revised: 2026-07-10
 ---
 # 스코프 개선 및 구조적 갭
@@ -133,8 +133,12 @@ anomaly, forecast, RCA 는 real telemetry 위에 ground 할 수 없음.
 - Wire contract 수가 **5 → 8** 로 증가; [csp-neutrality.md](csp-neutrality-ko.md)
   는 seam 을 introduce 하는 동일 PR 에서 update.
 - **Default upstream binding**: 빈 iterator 를 반환하는 local no-op
-  provider. Real adapter (Azure Monitor, Log Analytics) 는 이어지는
-  work item 에서 `delivery/azure/` 로 land; seam 만으로도 anomaly /
+  provider. 첫 live `MetricProvider` adapter 가 land 했다 -
+  `delivery/azure/metric_logs.py` (`AzureMonitorLogsMetricProvider`,
+  query REST API 위의 Log Analytics KQL). composition root 에서
+  `bind_azure_monitor_logs` 로 bind 되고 dev 에서는 `Noop` 이 기본이라
+  parity 계약이 유지된다. 남은 `LogQueryProvider` / `TraceQueryProvider`
+  adapter 는 이어지는 work item 에서 land; seam 만으로도 anomaly /
   forecast / RCA subsystem 이 안정된 interface 에 대해 author 되기에
   충분.
 - **데이터가 흐르는 곳**: provider 는 structured record 를 produce 하고
