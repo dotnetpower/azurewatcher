@@ -140,7 +140,12 @@ blunt priority table:
 
 - Each domain has a configured **weight** (derived from the priority order
   `resilience > security > change_safety > cost > capacity` by default;
-  fork config overrides). The score is `weight * impact`.
+  fork config overrides). The score is `weight * impact`. Weights may be
+  a static dict, or a fork-supplied `weight_fn(priority) -> dict` (for
+  example, `weights_from_priority_curved(curve="convex")` to emphasize
+  the top priority, or `curve="concave"` to flatten the spread). The
+  curve helper anchors the top weight to `1.0` and the bottom to `0.4`,
+  so the HIL band and margin arithmetic stay calibrated across curves.
 - The winner is the highest score. With equal impacts this reproduces the
   legacy priority winner exactly, so the arbiter is a strict superset of
   the old table - no behavior regresses.

@@ -206,6 +206,7 @@ def test_domain_signals_drive_arbitration_end_to_end() -> None:
 from fdai.agents.arbitration import (  # noqa: E402
     MultiObjectiveArbiter,
     weights_from_priority,
+    weights_from_priority_curved,
 )
 
 
@@ -467,3 +468,114 @@ def test_forseti_clears_advice_after_arbitration() -> None:
         return after - before
 
     assert asyncio.run(_run()) == 0  # no duplicate arbitration
+
+
+# ---------------------------------------------------------------------------
+# Pluggable weight function (issue #2)
+# ---------------------------------------------------------------------------
+
+
+def test_curved_linear_matches_default() -> None:
+    """`linear` curve reproduces the default `weights_from_priority` exactly."""
+    priority = ("resilience", "security", "change_safety", "cost", "capacity")
+    linear = weights_from_priority(priority)
+    curved = weights_from_priority_curved(priority, curve="linear")
+    assert curved == linear
+
+
+def test_curved_convex_widens_top_gap() -> None:
+    """A convex curve puts more distance between top-1 and top-2."""
+    priority = ("resilience", "security", "change_safety", "cost", "capacity")
+    linear = weights_from_priority_curved(priority, curve="linear")
+    convex = weights_from_priority_curved(priority, curve="convex", convexity=2.0)
+    # Top and bottom anchors are preserved (calibration).
+    assert convex[priority[0]] == 1.0
+    assert convex[priority[-1]] == linear[priority[-1]]
+    # A convex curve puts the second priority CLOSER to top-1 (weight
+    # advantage over the rest grows), so the linear gap is smaller here.
+    assert convex[priority[1]] > linear[priority[1]]
+    # Weights are still monotonically non-increasing along priority.
+    values = [convex[p] for p in priority]
+    assert values == sorted(values, reverse=True)
+
+
+def test_curved_concave_flattens_top_gap() -> None:
+    """A concave curve narrows the advantage of the top priority."""
+    priority = ("resilience", "security", "change_safety", "cost", "capacity")
+    linear = weights_from_priority_curved(priority, curve="linear")
+    concave = weights_from_priority_curved(priority, curve="concave", convexity=0.5)
+    assert concave[priority[0]] == 1.0
+    assert concave[priority[-1]] == linear[priority[-1]]
+    # A concave curve drops the second priority further from top-1.
+    assert concave[priority[1]] < linear[priority[1]]
+    values = [concave[p] for p in priority]
+    assert values == sorted(values, reverse=True)
+
+
+def test_curved_rejects_unknown_curve_name() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="unknown curve"):
+        weights_from_priority_curved(("a", "b"), curve="wobbly")
+
+
+def test_curved_rejects_invalid_convexity() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="convex curve requires"):
+        weights_from_priority_curved(("a", "b"), curve="convex", convexity=1.0)
+    with pytest.raises(ValueError, match="concave curve requires"):
+        weights_from_priority_curved(("a", "b"), curve="concave", convexity=1.5)
+
+
+def test_arbiter_accepts_weight_fn_callable() -> None:
+    """A fork can supply any pure function from priority to weights."""
+    priority = ("resilience", "security", "change_safety", "cost", "capacity")
+
+    def convex_fn(p: tuple[str, ...]) -> dict[str, float]:
+        return weights_from_priority_curved(p, curve="convex", convexity=2.5)
+
+    arbiter = MultiObjectiveArbiter(priority=priority, weight_fn=convex_fn)
+    assert arbiter.weights == convex_fn(priority)
+
+
+def test_arbiter_rejects_weights_and_weight_fn_together() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="either 'weights' or 'weight_fn'"):
+        MultiObjectiveArbiter(
+            weights={"cost": 0.5},
+            weight_fn=lambda p: {"cost": 0.5},
+        )
+
+
+def test_arbiter_rejects_non_dict_weight_fn_output() -> None:
+    import pytest
+
+    def bad_fn(p: tuple[str, ...]) -> dict[str, float]:
+        return [("cost", 0.5)]  # type: ignore[return-value]
+
+    with pytest.raises(ValueError, match="must return a dict"):
+        MultiObjectiveArbiter(weight_fn=bad_fn)
+
+
+def test_arbiter_validates_weight_fn_output_finiteness() -> None:
+    """A weight_fn that returns a NaN/negative weight fails at construction."""
+    import pytest
+
+    with pytest.raises(ValueError, match="finite and >= 0"):
+        MultiObjectiveArbiter(weight_fn=lambda p: {"cost": float("nan")})
+    with pytest.raises(ValueError, match="finite and >= 0"):
+        MultiObjectiveArbiter(weight_fn=lambda p: {"cost": -0.5})
+
+
+def test_convex_arbiter_still_picks_priority_winner_on_equal_impact() -> None:
+    """A curved config still reproduces priority-order winner with equal impacts."""
+    priority = ("resilience", "security", "change_safety", "cost", "capacity")
+    arbiter = MultiObjectiveArbiter(
+        priority=priority,
+        weight_fn=lambda p: weights_from_priority_curved(p, curve="convex", convexity=2.5),
+    )
+    outcome = arbiter.resolve(("cost", "capacity"))
+    assert outcome.winner == "cost"  # cost outranks capacity
+    assert outcome.escalate_hil is False

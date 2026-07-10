@@ -30,6 +30,7 @@ given its config and inputs.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 
 # Default cross-vertical priority order (highest first). Fork config
@@ -84,6 +85,59 @@ def weights_from_priority(
     return {domain: round(1.0 - step * i, 6) for i, domain in enumerate(priority)}
 
 
+def weights_from_priority_curved(
+    priority: tuple[str, ...],
+    *,
+    curve: str = "linear",
+    convexity: float = 2.0,
+) -> dict[str, float]:
+    """Derive descending weights along a configurable curve.
+
+    - ``linear`` reproduces :func:`weights_from_priority` exactly (the
+      default, so the arbiter's default behavior does not change).
+    - ``convex`` (``convexity > 1``) puts extra emphasis on the top
+      priority: a higher-priority domain's weight advantage grows.
+      Useful when the fork wants "resilience really is more important
+      than everything else" without hard-coding it in code.
+    - ``concave`` (``0 < convexity < 1``) flattens the spread so the top
+      priority is not dominant. Useful when the fork wants closer-to-
+      equal weights across verticals while still keeping priority-order
+      tie-breaking.
+
+    The curve is applied to a rank-normalized position ``t in [0, 1]``:
+    weight = ``round(1.0 - 0.6 * t**convexity, 6)``. That preserves the
+    top weight of ``1.0`` and the bottom weight of ``0.4`` used by the
+    linear default, so the arbiter's HIL band and margin arithmetic stay
+    calibrated regardless of curve choice. Equal-impact conflicts still
+    reproduce the priority-order winner exactly.
+
+    Both curve name and convexity are validated at call time so a
+    misconfigured fork fails fast instead of silently reversing order.
+    """
+    n = len(priority)
+    if n == 0:
+        return {}
+    if n == 1:
+        return {priority[0]: 1.0}
+    if curve == "linear":
+        exponent = 1.0
+    elif curve == "convex":
+        if not math.isfinite(convexity) or convexity <= 1.0:
+            raise ValueError(f"convex curve requires convexity > 1.0 (got {convexity!r})")
+        exponent = convexity
+    elif curve == "concave":
+        if not math.isfinite(convexity) or not 0.0 < convexity < 1.0:
+            raise ValueError(f"concave curve requires 0 < convexity < 1 (got {convexity!r})")
+        exponent = convexity
+    else:
+        raise ValueError(f"unknown curve {curve!r} (expected 'linear', 'convex', or 'concave')")
+    weights: dict[str, float] = {}
+    for i, domain in enumerate(priority):
+        t = i / (n - 1)
+        weights[domain] = round(1.0 - 0.6 * (t**exponent), 6)
+    return weights
+
+
 class MultiObjectiveArbiter:
     """Deterministic weighted arbiter with HIL escalation on close calls."""
 
@@ -92,9 +146,27 @@ class MultiObjectiveArbiter:
         *,
         priority: tuple[str, ...] = _DEFAULT_PRIORITY,
         weights: dict[str, float] | None = None,
+        weight_fn: Callable[[tuple[str, ...]], dict[str, float]] | None = None,
         hil_margin: float = _DEFAULT_HIL_MARGIN,
     ) -> None:
-        resolved_weights = weights if weights is not None else weights_from_priority(priority)
+        # Config resolution: explicit ``weights`` wins (static override),
+        # then a ``weight_fn`` (pluggable curve or fork-supplied learner
+        # output that must still be a pure function of ``priority``), then
+        # the linear default. Passing both is a config error - the intent
+        # is ambiguous.
+        if weights is not None and weight_fn is not None:
+            raise ValueError("pass either 'weights' or 'weight_fn', not both")
+        if weights is not None:
+            resolved_weights = weights
+        elif weight_fn is not None:
+            resolved_weights = weight_fn(priority)
+            if not isinstance(resolved_weights, dict):
+                raise ValueError(
+                    "weight_fn must return a dict[str, float] "
+                    f"(got {type(resolved_weights).__name__})"
+                )
+        else:
+            resolved_weights = weights_from_priority(priority)
         # Fail fast on a misconfigured weight table: a non-finite or
         # negative weight would produce NaN / negative scores that corrupt
         # ranking and the margin calculation. Config errors must not reach
@@ -213,6 +285,7 @@ __all__ = [
     "ArbitrationOutcome",
     "MultiObjectiveArbiter",
     "weights_from_priority",
+    "weights_from_priority_curved",
     "_DEFAULT_PRIORITY",
     "_DEFAULT_HIL_MARGIN",
 ]
