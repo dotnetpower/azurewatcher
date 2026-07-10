@@ -79,6 +79,7 @@ export function CommandDeck() {
   const [turns, setTurns] = useState<readonly Turn[]>([]);
   const [pending, setPending] = useState(false);
   const [health, setHealth] = useState<BackendHealth | null>(null);
+  const [srStatus, setSrStatus] = useState("");
   const historyRef = useRef(EMPTY_HISTORY);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -184,6 +185,7 @@ export function CommandDeck() {
     setDraft("");
     historyRef.current = recordHistory(historyRef.current, text);
     setPending(true);
+    setSrStatus("Retrieving answer...");
     // Build the history the backend sees (excluding this turn).
     const history: BackendTurn[] = turns.map((t) => ({
       role: t.role === "operator" ? "user" : "assistant",
@@ -199,6 +201,7 @@ export function CommandDeck() {
         if (started) return;
         started = true;
         setPending(false);
+        setSrStatus("Assistant is answering...");
         setTurns((prev) => [
           ...prev,
           { id: deckId, role: "deck", text: "", streaming: true, at: shortTime() },
@@ -231,6 +234,7 @@ export function CommandDeck() {
       );
     } finally {
       setPending(false);
+      setSrStatus("Answer ready.");
       focusInput();
     }
   }, [snapshot, focusInput, pending, turns]);
@@ -305,7 +309,7 @@ export function CommandDeck() {
       </button>
 
       {open ? (
-        <div class="deck-overlay" role="dialog" aria-label="Command deck">
+        <div class="deck-overlay" role="dialog" aria-modal="true" aria-label="Command deck">
           <div class="deck-header">
             <div class="deck-header-title">
               <span class="deck-header-glyph" aria-hidden="true">◆</span>
@@ -320,8 +324,20 @@ export function CommandDeck() {
             </button>
           </div>
 
+          <div class="sr-only" role="status" aria-live="polite">
+            {srStatus}
+          </div>
+
           <div class="deck-body">
-            <section class="deck-transcript" ref={scrollerRef} aria-label="conversation">
+            <section
+              class="deck-transcript"
+              ref={scrollerRef}
+              aria-label="conversation"
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions"
+              aria-busy={pending}
+            >
               {turns.length === 0 ? (
                 <IntroPanel snapshotPresent={snapshot !== null} onPick={submit} />
               ) : null}
