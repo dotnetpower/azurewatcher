@@ -34,6 +34,7 @@ interface Summary {
   readonly cost: string;
   readonly currency: string;
   readonly has_unpriced: boolean;
+  readonly has_mixed_currency: boolean;
 }
 
 interface Response {
@@ -41,7 +42,10 @@ interface Response {
   readonly currency: string;
   readonly invocations: number;
   readonly total: Summary;
+  readonly by_mode: readonly Summary[];
   readonly by_conversation: readonly Summary[];
+  readonly by_conversation_truncated: boolean;
+  readonly conversation_count: number;
   readonly by_day: readonly Summary[];
   readonly by_month: readonly Summary[];
 }
@@ -159,6 +163,16 @@ function LlmCostBody({ data }: { readonly data: Response }) {
       </KpiGrid>
 
       <section class="stack">
+        <h3>Shadow vs enforce</h3>
+        <DataTable
+          rows={data.by_mode}
+          columns={_summaryColumns("Mode")}
+          keyOf={(r) => r.key}
+          empty="No LLM usage recorded yet"
+        />
+      </section>
+
+      <section class="stack">
         <h3>Per month</h3>
         <DataTable
           rows={data.by_month}
@@ -180,6 +194,12 @@ function LlmCostBody({ data }: { readonly data: Response }) {
 
       <section class="stack">
         <h3>Per conversation</h3>
+        {data.by_conversation_truncated ? (
+          <p class="muted">
+            Showing the costliest {data.by_conversation.length} of {data.conversation_count}{" "}
+            conversations.
+          </p>
+        ) : null}
         <DataTable
           rows={data.by_conversation}
           columns={_summaryColumns("Correlation id")}
