@@ -17,6 +17,7 @@ under ``delivery/persistence`` without touching this module.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -105,7 +106,7 @@ class InMemoryCodeRepoStore:
 class KnowledgeRegistry:
     """Register + index knowledge documents and list what is connected."""
 
-    __slots__ = ("_clock", "_source", "_store")
+    __slots__ = ("_clock", "_lock", "_source", "_store")
 
     def __init__(
         self,
@@ -117,6 +118,11 @@ class KnowledgeRegistry:
         self._source = source
         self._store = store or InMemoryKnowledgeRegistryStore()
         self._clock: Callable[[], datetime] = clock or (lambda: datetime.now(tz=UTC))
+        # Serialize register() so two concurrent calls for the same doc_id
+        # cannot both pass the exists() check and double-ingest the document
+        # into the knowledge source (which would pollute RAG grounding with
+        # duplicate chunks).
+        self._lock = asyncio.Lock()
 
     async def register(
         self,
@@ -129,22 +135,23 @@ class KnowledgeRegistry:
         registered_by: str,
     ) -> RegisteredDocument:
         """Ingest one document into the knowledge source and record it."""
-        if await self._store.exists(doc_id):
-            raise DuplicateRegistrationError(f"doc_id already registered: {doc_id}")
-        chunk_count = await self._source.ingest(
-            [KnowledgeDocument(doc_id=doc_id, text=text, source_ref=source_ref)]
-        )
-        record = RegisteredDocument(
-            doc_id=doc_id,
-            source_ref=source_ref,
-            kind=kind,
-            title=title,
-            chunk_count=chunk_count,
-            registered_by=registered_by,
-            registered_at=self._clock(),
-        )
-        await self._store.add(record)
-        return record
+        async with self._lock:
+            if await self._store.exists(doc_id):
+                raise DuplicateRegistrationError(f"doc_id already registered: {doc_id}")
+            chunk_count = await self._source.ingest(
+                [KnowledgeDocument(doc_id=doc_id, text=text, source_ref=source_ref)]
+            )
+            record = RegisteredDocument(
+                doc_id=doc_id,
+                source_ref=source_ref,
+                kind=kind,
+                title=title,
+                chunk_count=chunk_count,
+                registered_by=registered_by,
+                registered_at=self._clock(),
+            )
+            await self._store.add(record)
+            return record
 
     async def list_registered(self) -> Sequence[RegisteredDocument]:
         return await self._store.list_all()
@@ -157,7 +164,7 @@ class KnowledgeRegistry:
 class CodeRepoRegistry:
     """Register + list + enable/disable code repositories (no secrets)."""
 
-    __slots__ = ("_clock", "_store")
+    __slots__ = ("_clock", "_lock", "_store")
 
     def __init__(
         self,
@@ -167,6 +174,9 @@ class CodeRepoRegistry:
     ) -> None:
         self._store = store or InMemoryCodeRepoStore()
         self._clock: Callable[[], datetime] = clock or (lambda: datetime.now(tz=UTC))
+        # Serialize register()/set_enabled() so concurrent same-repo_id calls
+        # cannot bypass the duplicate check or race a read-modify-write toggle.
+        self._lock = asyncio.Lock()
 
     async def register(
         self,
@@ -178,27 +188,29 @@ class CodeRepoRegistry:
         default_branch: str = "main",
         secret_ref: str | None = None,
     ) -> CodeRepoRegistration:
-        if await self._store.get(repo_id) is not None:
-            raise DuplicateRegistrationError(f"repo_id already registered: {repo_id}")
-        record = CodeRepoRegistration(
-            repo_id=repo_id,
-            provider=provider,
-            repository=repository,
-            default_branch=default_branch,
-            registered_by=registered_by,
-            registered_at=self._clock(),
-            secret_ref=secret_ref,
-        )
-        await self._store.add(record)
-        return record
+        async with self._lock:
+            if await self._store.get(repo_id) is not None:
+                raise DuplicateRegistrationError(f"repo_id already registered: {repo_id}")
+            record = CodeRepoRegistration(
+                repo_id=repo_id,
+                provider=provider,
+                repository=repository,
+                default_branch=default_branch,
+                registered_by=registered_by,
+                registered_at=self._clock(),
+                secret_ref=secret_ref,
+            )
+            await self._store.add(record)
+            return record
 
     async def set_enabled(self, repo_id: str, *, enabled: bool) -> CodeRepoRegistration:
-        record = await self._store.get(repo_id)
-        if record is None:
-            raise RegistrationNotFoundError(repo_id)
-        updated = replace(record, enabled=enabled)
-        await self._store.replace(updated)
-        return updated
+        async with self._lock:
+            record = await self._store.get(repo_id)
+            if record is None:
+                raise RegistrationNotFoundError(repo_id)
+            updated = replace(record, enabled=enabled)
+            await self._store.replace(updated)
+            return updated
 
     async def list_all(self) -> Sequence[CodeRepoRegistration]:
         return await self._store.list_all()
