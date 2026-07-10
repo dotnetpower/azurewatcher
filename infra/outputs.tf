@@ -129,3 +129,8 @@ output "llm_capacity_units" {
   description = "Map of capability name -> provisioned capacity units (thousand TPM)."
   value       = length(module.llm_azure_openai) > 0 ? module.llm_azure_openai[0].capacity_units : {}
 }
+
+output "monitoring_action_group_id" {
+  description = "Action group id for Azure Monitor alerts (null when enable_monitoring = false)."
+  value       = var.enable_monitoring ? module.monitoring[0].action_group_id : null
+}

@@ -406,3 +406,28 @@ module "measurement_runners" {
   tags                         = local.tags
 }
 
+# -----------------------------------------------------------------------
+# Monitoring (opt-in) - action group + metric alerts + diagnostic settings
+# for the control-plane resources. Alerts are a human signal only; they never
+# take an autonomous action (risk-gated autonomy). Skipped by default.
+# -----------------------------------------------------------------------
+module "monitoring" {
+  count  = var.enable_monitoring ? 1 : 0
+  source = "./modules/observability/monitoring"
+
+  workload                   = var.workload
+  resource_group_name        = module.resource_group.name
+  log_analytics_workspace_id = module.log_analytics.workspace_id
+  action_group_name          = "ag-${var.workload}${local.full_suffix}"
+  action_group_short_name    = substr(var.workload, 0, 12)
+  alert_email                = var.alert_email
+  alert_webhook_url          = var.alert_webhook_url
+
+  postgres_id            = module.state_store.id
+  key_vault_id           = module.key_vault.id
+  event_hub_namespace_id = module.event_bus.namespace_id
+  container_app_id       = module.compute.core_app_id
+
+  tags = local.tags
+}
+

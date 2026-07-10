@@ -214,3 +214,27 @@ variable "ops_resource_group_name" {
   default     = ""
 }
 
+# ---------------------------------------------------------------------------
+# Monitoring (opt-in). When enabled, provision an action group + metric alerts
+# + diagnostic settings for the control-plane resources. Alerts are a human
+# signal only - they never take an autonomous action.
+# ---------------------------------------------------------------------------
+variable "enable_monitoring" {
+  description = "Provision the monitoring module (action group + metric alerts + diagnostic settings). Default false so a day-zero deploy stays alert-free until an alert destination is configured."
+  type        = bool
+  default     = false
+}
+
+variable "alert_email" {
+  description = "Email that receives Azure Monitor alerts (used when enable_monitoring = true). Empty = no email receiver."
+  type        = string
+  default     = ""
+}
+
+variable "alert_webhook_url" {
+  description = "Webhook (Teams/Slack/PagerDuty ingest) for Azure Monitor alerts. Empty = none. Never commit a populated value; supply via tfvars/CI secret."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
