@@ -148,6 +148,34 @@ every row comes from the live `ViewSnapshot` or `BackendHealth`. When the chat
 backend later streams real per-stage retrieval events (SSE), `retrieval-trace.tsx`
 is the seam that renders them.
 
+### Conversation UX affordances
+
+The deck input and transcript behave like a familiar chat/terminal surface, all
+read-only and grounded:
+
+- **History recall** - Arrow-Up / Arrow-Down walk previously submitted prompts
+  (shell-style), stashing the live draft. Pure reducer in
+  [`src/deck/draft-history.ts`](src/deck/draft-history.ts).
+- **Auto-growing input** - the textarea grows to fit a multi-line draft up to a
+  capped height, then scrolls.
+- **Stop** - an in-flight streaming reply can be cancelled; whatever streamed so
+  far is kept and labelled `stopped` (the backend threads an `AbortSignal`
+  through `askBackendStream`).
+- **Copy / Regenerate** - each completed reply exposes a Copy button and a
+  Regenerate button that re-asks the operator question that produced it.
+- **Smart autoscroll** - the transcript follows streaming tokens only while the
+  operator is reading the latest turn; scrolling up to re-read an earlier answer
+  suppresses the follow and surfaces a `Jump to latest` control. Geometry lives
+  in [`src/deck/scroll-stick.ts`](src/deck/scroll-stick.ts).
+- **Accessibility** - the overlay is an `aria-modal` dialog with a Tab focus
+  trap and focus restoration on close; the transcript is an `aria-live` log and
+  a visually-hidden `role="status"` region announces retrieving / answering /
+  ready transitions.
+- **Reload survival** - completed turns are mirrored into tab-scoped
+  `sessionStorage` (defensive parse, capped) so an accidental refresh does not
+  lose the conversation. Serialisation core in
+  [`src/deck/transcript-store.ts`](src/deck/transcript-store.ts).
+
 ## Extending the console (fork panels)
 
 The upstream console ships a deliberately minimal UI - the three core panels
