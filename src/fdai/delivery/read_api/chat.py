@@ -84,10 +84,14 @@ def _default_chat_http_client() -> httpx.AsyncClient:
     Explicit per-phase timeouts (httpx's global default 5s is too short
     for LLM completion streams) and ``follow_redirects=False`` (an
     OpenAI-compatible endpoint should not silently 3xx to elsewhere).
-    Centralised so the two fallback sites in this module stay in sync.
+    Read timeout accommodates reasoning models (gpt-5, o1/o3/o4) that
+    can take 60-90s to emit the first token; the streaming route layers
+    an SSE heartbeat on top to keep HTTP intermediaries from closing an
+    idle connection. Centralised so the two fallback sites in this
+    module stay in sync.
     """
     return httpx.AsyncClient(
-        timeout=httpx.Timeout(connect=5.0, read=60.0, write=15.0, pool=5.0),
+        timeout=httpx.Timeout(connect=5.0, read=120.0, write=15.0, pool=5.0),
         follow_redirects=False,
     )
 
@@ -527,7 +531,10 @@ class OpenAiCompatibleChatBackendConfig:
     api_version: str = "2024-08-01-preview"
     temperature: float = 0.2
     max_tokens: int = 800
-    timeout_seconds: float = 30.0
+    # 90s accommodates reasoning models (gpt-5, o1/o3/o4) that can take
+    # 60-90s to emit the first token. The SSE route layers a heartbeat on
+    # top so HTTP intermediaries do not drop an idle connection.
+    timeout_seconds: float = 90.0
 
 
 # Newer Azure OpenAI models (gpt-5*, o-series reasoning) reject the legacy
@@ -925,7 +932,9 @@ class AzureAdChatBackend:
         api_version: str = "2024-08-01-preview",
         temperature: float = 0.2,
         max_tokens: int = 800,
-        timeout_seconds: float = 30.0,
+        # 90s: reasoning models (gpt-5, o1/o3/o4) can take 60-90s to first
+        # token; the SSE route layers a heartbeat on top for intermediaries.
+        timeout_seconds: float = 90.0,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
         if not endpoint.startswith(("https://", "http://")):
@@ -1504,11 +1513,73 @@ def make_chat_route(
 
 
 DEFAULT_STREAM_PATH: Final[str] = "/chat/stream"
+DEFAULT_STREAM_HEARTBEAT_S: Final[float] = 15.0
+"""Interval between SSE keep-alive comment frames when the upstream is
+still thinking (no token yet). Comment frames (``: ping``) are ignored
+by the browser EventSource but keep proxies (nginx, ALB, Cloudflare)
+from closing an idle connection. Reasoning models (gpt-5, o1/o3/o4)
+can take 60-90s to emit the first token, well past a typical 60s
+idle-timeout, so a periodic ping is required for reliable streaming."""
 
 
 def _sse(event: str, data: dict[str, Any]) -> bytes:
     """Format one Server-Sent Event frame (``event:`` + ``data:`` + blank)."""
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode()
+
+
+def _sse_heartbeat() -> bytes:
+    """SSE comment frame - ignored by ``EventSource``, kept by intermediaries."""
+    return b": ping\n\n"
+
+
+async def _with_sse_heartbeats(
+    source: AsyncIterator[dict[str, Any]],
+    *,
+    interval: float,
+) -> AsyncIterator[dict[str, Any] | None]:
+    """Yield items from ``source``; emit ``None`` every ``interval`` idle seconds.
+
+    Uses a queue-backed pump so the underlying async iterator is never
+    cancelled mid-await (which could drop the next token). ``None`` items
+    are the caller's heartbeat sentinel - callers translate them into an
+    SSE comment frame, real dict items into ``event:``/``data:`` frames.
+    """
+    import asyncio
+
+    queue: asyncio.Queue[tuple[str, dict[str, Any] | None]] = asyncio.Queue()
+    _END: Final = "end"
+    _ITEM: Final = "item"
+    _ERR: Final = "err"
+
+    async def _pump() -> None:
+        try:
+            async for x in source:
+                await queue.put((_ITEM, x))
+        except BaseException as exc:  # re-raise on the consumer side
+            await queue.put((_ERR, {"__exc__": repr(exc)}))
+            return
+        await queue.put((_END, None))
+
+    pump_task = asyncio.create_task(_pump())
+    try:
+        while True:
+            try:
+                kind, val = await asyncio.wait_for(queue.get(), timeout=interval)
+            except asyncio.TimeoutError:
+                yield None  # heartbeat
+                continue
+            if kind == _END:
+                return
+            if kind == _ERR:
+                # Surface the pumped exception to the consumer's try/except.
+                raise RuntimeError(f"stream source failed: {val}")
+            yield val
+    finally:
+        pump_task.cancel()
+        try:
+            await pump_task
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001
+            pass
 
 
 def make_chat_stream_route(
@@ -1577,9 +1648,19 @@ def make_chat_stream_route(
             stream = getattr(backend, "answer_stream", None)
             try:
                 if stream is not None:
-                    async for event in stream(
+                    upstream = stream(
                         prompt=clean_prompt, view_context=view_context, history=history
+                    )
+                    async for event in _with_sse_heartbeats(
+                        upstream, interval=DEFAULT_STREAM_HEARTBEAT_S
                     ):
+                        if event is None:
+                            # Idle keep-alive: nothing arrived in the last
+                            # `interval` seconds - emit a comment frame so
+                            # proxies do not drop the connection while the
+                            # reasoning model is still thinking.
+                            yield _sse_heartbeat()
+                            continue
                         etype = event.get("type")
                         if etype == "token":
                             yield _sse("token", {"delta": event.get("delta", "")})

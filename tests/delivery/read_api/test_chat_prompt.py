@@ -610,3 +610,52 @@ def test_malformed_locale_falls_back_to_english() -> None:
 def test_locale_directive_composes_with_user_turn() -> None:
     msgs = _messages("explain T2", {"_locale": "ko"}, [])
     assert msgs[-1] == {"role": "user", "content": "explain T2"}
+
+
+# ---------------------------------------------------------------------------
+# SSE heartbeat helper - long-thinking streams keep intermediaries warm
+# ---------------------------------------------------------------------------
+
+
+async def _collect_heartbeats(source_gen, interval=0.05):
+    from fdai.delivery.read_api.chat import _with_sse_heartbeats
+    out = []
+    async for e in _with_sse_heartbeats(source_gen(), interval=interval):
+        out.append(e)
+    return out
+
+
+async def test_heartbeat_wraps_prompt_stream_and_forwards_items() -> None:
+    async def _src():
+        yield {"type": "token", "delta": "hi"}
+        yield {"type": "done", "answer": "hi"}
+
+    got = await _collect_heartbeats(_src, interval=1.0)
+    assert got == [
+        {"type": "token", "delta": "hi"},
+        {"type": "done", "answer": "hi"},
+    ]
+
+
+async def test_heartbeat_emits_none_on_idle_gap() -> None:
+    import asyncio
+
+    async def _src():
+        await asyncio.sleep(0.12)  # > interval, forces a heartbeat
+        yield {"type": "done", "answer": "ok"}
+
+    got = await _collect_heartbeats(_src, interval=0.05)
+    # At least one None sentinel before the terminal item, then the item.
+    assert None in got
+    assert got[-1] == {"type": "done", "answer": "ok"}
+
+
+async def test_heartbeat_forwards_pump_exception() -> None:
+    import pytest as _pytest
+
+    async def _src():
+        yield {"type": "token", "delta": "ok"}
+        raise RuntimeError("upstream boom")
+
+    with _pytest.raises(RuntimeError, match="upstream boom"):
+        await _collect_heartbeats(_src, interval=1.0)
