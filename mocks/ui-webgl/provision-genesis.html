@@ -5,75 +5,118 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>FDAI - Genesis (provisioning prototype)</title>
     <!--
-      FDAI provisioning prototype - "Genesis", nebula-only cut.
+      FDAI provisioning prototype - "Genesis", cinematic-restraint cut (Direction A).
 
-      Design intent: "Her", not a dashboard. The living nebula IS the presence -
-      no foreground stars, no HUD, no constellation. Provisioning is felt as the
-      nebula slowly coming to life (a `u_life` uniform, 0 -> 1) plus one quiet
-      line of narration at a time. The honest failure is a soft, warm dip in the
-      light and a sentence - never an alarm.
+      Design intent: "Her", not a dashboard. The living nebula IS the presence.
+      Provisioning is felt as the nebula coming to life (a `u_life` uniform,
+      0 -> 1) plus one quiet line of narration at a time. Elegance comes from
+      restraint: a refined serif, a word-by-word reveal, a soft letterbox +
+      film grain + vignette, unhurried pacing with real stillness between lines,
+      and a single closing gesture - the light gathers and a faint wordmark
+      resolves. The honest failure is a warm dip in the light and one sentence.
 
-      Still driven by a `provision.*` timeline (faked here) that maps 1:1 to the
-      SSE stream the console will emit, so the calm stays truthful.
-
-      Dependency-free: one raw-WebGL fragment shader (from nebula-demo.html) +
-      a little vanilla JS. English-only, customer-agnostic, synthetic.
-      prefers-reduced-motion aware.
+      Driven by a `provision.*` timeline (faked here) that maps 1:1 to the SSE
+      stream the console will emit, so the calm stays truthful. English-only,
+      customer-agnostic, synthetic. prefers-reduced-motion aware. The serif is
+      loaded from Google Fonts with a Georgia fallback (offline-safe).
       Run: python3 -m http.server 8899  ->  /provision-genesis.html
     -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&display=swap"
+      rel="stylesheet"
+    />
     <style>
-      html, body {
-        margin: 0; height: 100%; background: #04060d; color: #eaf2ff;
-        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-        overflow: hidden;
-      }
+      :root { --serif: "Cormorant Garamond", Georgia, "Times New Roman", serif; --ink: 245, 246, 255; }
+      html, body { margin: 0; height: 100%; background: #04060d; color: rgb(var(--ink)); overflow: hidden; }
       #nebula { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
 
-      /* One quiet line at a time, centered low, generous space. Smooth cross-fade. */
-      #caption {
-        position: fixed; left: 50%; bottom: 16%; transform: translateX(-50%);
-        z-index: 2; max-width: min(28ch, 82vw); text-align: center;
-        font-weight: 200; font-size: clamp(20px, 2.6vw, 30px); line-height: 1.5;
-        letter-spacing: 0.015em; color: rgba(238, 244, 255, 0.94);
-        text-shadow: 0 2px 44px rgba(0, 0, 0, 0.65);
-        opacity: 0; transition: opacity 1000ms ease; pointer-events: none;
+      /* soft cinematic vignette */
+      #vignette {
+        position: fixed; inset: 0; z-index: 2; pointer-events: none; opacity: 0;
+        transition: opacity 2400ms ease;
+        background: radial-gradient(ellipse at 50% 46%, rgba(2,4,10,0) 42%, rgba(2,4,10,0.55) 100%);
       }
-      #caption.on { opacity: 1; }
+      body.started #vignette { opacity: 1; }
 
-      /* Minimal entry: a faint invitation, nebula fully visible behind it. */
+      /* film grain - animated SVG turbulence, very faint */
+      #grain {
+        position: fixed; inset: -50%; z-index: 3; pointer-events: none; opacity: 0;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        background-size: 150px 150px; mix-blend-mode: soft-light;
+        transition: opacity 2000ms ease; animation: grain 0.7s steps(2) infinite;
+      }
+      body.started #grain { opacity: 0.05; }
+      @keyframes grain { 0% { transform: translate(0,0); } 100% { transform: translate(-7px, 5px); } }
+
+      /* letterbox bars */
+      .bar { position: fixed; left: 0; right: 0; height: 7vh; background: #02040a; z-index: 4;
+        opacity: 0; transition: opacity 1600ms ease; pointer-events: none; }
+      .bar.top { top: 0; } .bar.bottom { bottom: 0; }
+      body.started .bar { opacity: 0.96; }
+
+      /* narration - refined serif, revealed word by word */
+      #caption {
+        position: fixed; left: 50%; bottom: 20%; transform: translateX(-50%); z-index: 5;
+        max-width: min(24ch, 82vw); text-align: center; font-family: var(--serif);
+        font-weight: 300; font-size: clamp(26px, 3.6vw, 46px); line-height: 1.45;
+        letter-spacing: 0.02em; color: rgba(var(--ink), 0.92);
+        text-shadow: 0 2px 40px rgba(0,0,0,0.6); pointer-events: none;
+      }
+      #caption .w {
+        display: inline-block; opacity: 0; transform: translateY(8px); filter: blur(6px);
+        transition: opacity 1300ms cubic-bezier(.2,.6,.2,1),
+                    transform 1300ms cubic-bezier(.2,.6,.2,1), filter 1300ms ease;
+      }
+      #caption .w.on { opacity: 1; transform: none; filter: blur(0); }
+
+      /* closing wordmark */
+      #wordmark {
+        position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5;
+        font-family: var(--serif); font-weight: 300; font-size: clamp(30px, 5vw, 64px);
+        letter-spacing: 0.7em; text-indent: 0.7em; color: rgba(var(--ink), 0.9);
+        opacity: 0; pointer-events: none;
+        transition: opacity 2600ms ease, letter-spacing 2600ms ease;
+      }
+      #wordmark.on { opacity: 0.9; letter-spacing: 0.34em; }
+
+      /* minimal entry + replay */
       #enter {
-        position: fixed; inset: 0; z-index: 3; display: grid; place-items: end center;
-        padding-bottom: 16%; cursor: pointer; transition: opacity 1200ms ease;
+        position: fixed; inset: 0; z-index: 6; display: grid; place-items: end center;
+        padding-bottom: 20%; cursor: pointer; transition: opacity 1400ms ease;
       }
       #enter.hide { opacity: 0; pointer-events: none; }
       #enter span {
-        font-weight: 200; font-size: clamp(14px, 1.9vw, 18px);
-        letter-spacing: 0.36em; text-transform: uppercase;
-        color: rgba(238, 244, 255, 0.6); animation: breathe 5.5s ease-in-out infinite;
+        font-family: var(--serif); font-style: italic; font-weight: 300;
+        font-size: clamp(16px, 2vw, 22px); letter-spacing: 0.28em; color: rgba(var(--ink), 0.6);
+        animation: breathe 6s ease-in-out infinite;
       }
-      @keyframes breathe { 0%,100% { opacity: 0.35; } 50% { opacity: 0.8; } }
+      @keyframes breathe { 0%,100% { opacity: 0.3; } 50% { opacity: 0.75; } }
 
       #again {
-        position: fixed; left: 50%; bottom: 7%; transform: translateX(-50%); z-index: 2;
-        font-weight: 200; font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase;
-        color: rgba(238, 244, 255, 0.4); cursor: pointer; opacity: 0;
-        transition: opacity 1200ms ease; pointer-events: none;
+        position: fixed; left: 50%; bottom: 8%; transform: translateX(-50%); z-index: 5;
+        font-family: var(--serif); font-style: italic; font-weight: 300; font-size: 15px;
+        letter-spacing: 0.24em; color: rgba(var(--ink), 0.4); cursor: pointer; opacity: 0;
+        transition: opacity 1400ms ease; pointer-events: none;
       }
       #again.on { opacity: 1; pointer-events: auto; }
-      #again:hover { color: rgba(238, 244, 255, 0.78); }
+      #again:hover { color: rgba(var(--ink), 0.78); }
     </style>
   </head>
   <body>
     <canvas id="nebula" aria-hidden="true"></canvas>
+    <div id="vignette"></div>
+    <div id="grain"></div>
+    <div class="bar top"></div>
+    <div class="bar bottom"></div>
     <div id="caption"></div>
+    <div id="wordmark">FDAI</div>
     <div id="again">begin again</div>
     <div id="enter"><span>touch to begin</span></div>
 
     <script>
       // ---------------- Living nebula (raw WebGL) ----------------
-      // Fragment shader adapted from site/public/nebula-demo.html, with one
-      // added uniform `u_life` (0..1.2): as it rises the clouds brighten, the
-      // colours deepen, and the core swells - the nebula "comes to life".
       const canvas = document.getElementById("nebula");
       const gl = canvas.getContext("webgl", { antialias: false, alpha: false });
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -99,16 +142,15 @@
               vec3 warm=vec3(1.,0.82,0.62); vec3 cool=vec3(0.70,0.84,1.); vec3 sc=mix(warm,cool,temp);
               acc+=(core+halo)*tw*(0.35+b)*sc; } } } return acc; }
         void main(){
-          vec2 uv=gl_FragCoord.xy/u_res.xy; vec2 p=(gl_FragCoord.xy-0.5*u_res.xy)/u_res.y; float t=u_time*0.012;
-          float life=clamp(u_life,0.0,1.25);
+          vec2 uv=gl_FragCoord.xy/u_res.xy; vec2 p=(gl_FragCoord.xy-0.5*u_res.xy)/u_res.y; float t=u_time*0.011;
+          float life=clamp(u_life,0.0,1.4);
           vec2 q=vec2(fbm(p*2.6+t),fbm(p*2.6-t+5.2));
           vec2 r=vec2(fbm(p*2.6+q*1.8+t*1.3),fbm(p*2.6+q*1.8-t*0.7));
           float f=fbm(p*2.6+r*2.0);
           float mHa=fbm(p*2.2+r+vec2(3.1,t)); float mOiii=fbm(p*2.5+r+vec2(-4.0,-t*0.8));
           float mDust=fbm(p*1.8+q+vec2(8.0,t*0.5)); float mMag=fbm(p*2.7+r+vec2(-1.5,t*1.1));
           float mBlue=fbm(p*2.3+q+vec2(5.5,-t));
-          // The core drifts toward the centre and swells as life rises.
-          vec2 coreCentre=mix(vec2(0.50,0.74), vec2(0.50,0.56), life*0.85);
+          vec2 coreCentre=mix(vec2(0.50,0.74), vec2(0.50,0.54), clamp(life,0.0,1.0)*0.9);
           float coreAspect=u_res.x/u_res.y;
           vec2 coreOff=(uv-coreCentre)*vec2(coreAspect*0.55,1.0); float coreDist=length(coreOff);
           float coreWisp=fbm(p*1.4+vec2(t*0.4,-t*0.3)); float coreShape=coreDist*(0.72+coreWisp*0.35);
@@ -118,19 +160,18 @@
           vec3 oIII=vec3(0.08,0.78,0.72); vec3 dust=vec3(0.92,0.64,0.30);
           vec3 magenta=vec3(0.72,0.24,0.66); vec3 azure=vec3(0.00,0.47,0.83); vec3 cyan=vec3(0.34,0.92,1.00);
           vec3 coreCol=vec3(1.00,0.42,0.58); vec3 reflectCol=vec3(0.38,0.58,1.00);
-          // emission deepens with life
-          float em = 0.7 + life*0.6;
+          // slightly disciplined saturation: one cool base, warming with life
+          float em = 0.62 + life*0.58;
           vec3 col=space;
           col=mix(col,azure,smoothstep(0.45,0.90,mBlue)*0.55*em);
-          col=mix(col,hAlpha,smoothstep(0.55,0.95,mHa)*0.50*em);
-          col=mix(col,oIII,smoothstep(0.55,0.95,mOiii)*0.45*em);
-          col=mix(col,dust,smoothstep(0.62,0.97,mDust)*0.40*em);
-          col=mix(col,magenta,smoothstep(0.60,0.95,mMag)*0.30*em);
-          col=mix(col,cyan,pow(smoothstep(0.70,1.0,f),2.0)*0.40*em);
+          col=mix(col,hAlpha,smoothstep(0.55,0.95,mHa)*0.46*em);
+          col=mix(col,oIII,smoothstep(0.55,0.95,mOiii)*0.42*em);
+          col=mix(col,dust,smoothstep(0.62,0.97,mDust)*0.38*em);
+          col=mix(col,magenta,smoothstep(0.60,0.95,mMag)*0.26*em);
+          col=mix(col,cyan,pow(smoothstep(0.70,1.0,f),2.0)*0.38*em);
           col=mix(col,reflectCol,coreHalo*0.55);
           col+=dust*coreHalo*smoothstep(0.35,0.85,mDust)*0.35;
-          // the core bloom grows with life - this is the "presence" waking
-          col+=coreCol*coreBloom*(0.75+coreWisp*0.35)*(0.55+life*0.9);
+          col+=coreCol*coreBloom*(0.75+coreWisp*0.35)*(0.5+life*1.0);
           col*=0.55+0.85*f;
           col+=starLayer(uv*vec2(u_res.x/u_res.y,1.0),120.0,0.10,11.0);
           col+=starLayer(uv*vec2(u_res.x/u_res.y,1.0),70.0,0.07,47.0);
@@ -138,9 +179,8 @@
           vec3 coreStars=starLayer(uv*vec2(u_res.x/u_res.y,1.0),22.0,0.14,137.0);
           col+=coreStars*smoothstep(0.75,0.05,coreShape)*1.6;
           float vig=smoothstep(1.25,0.35,length(uv-0.5)*1.4); col*=mix(0.55,1.0,vig);
-          // overall luminance rises smoothly as the system comes alive
-          col *= mix(0.82, 1.16, life);
-          col=col/(col+0.55); col=pow(col,vec3(0.85));
+          col *= mix(0.8, 1.18, clamp(life,0.0,1.0)) + max(0.0, life-1.0)*0.5;
+          col=col/(col+0.55); col=pow(col,vec3(0.86));
           gl_FragColor=vec4(col,1.0);
         }`;
 
@@ -163,59 +203,74 @@
         gl.viewport(0,0,canvas.width,canvas.height); }
       addEventListener("resize",resize); resize();
 
-      // life: eased toward lifeTarget every frame so every change is smooth.
-      // Before "touch to begin" the nebula sits calm and visible at rest.
-      let life = 0.28, lifeTarget = 0.28;
+      // life eases toward lifeTarget every frame so every change is smooth.
+      let life = 0.26, lifeTarget = 0.26;
       const start=performance.now(); let last=start;
       function frame(now){
         const dt=Math.min((now-last)/1000,0.05); last=now;
-        life += (lifeTarget - life) * (1 - Math.exp(-dt * 1.4));
+        life += (lifeTarget - life) * (1 - Math.exp(-dt * 1.1)); // slower, more graceful
         gl.uniform2f(uRes,canvas.width,canvas.height);
         gl.uniform1f(uTime,(now-start)/1000);
         gl.uniform1f(uLife,life);
         gl.drawArrays(gl.TRIANGLES,0,3);
         if(!reduceMotion) requestAnimationFrame(frame);
       }
-      if(reduceMotion){ life=0.9; gl.uniform2f(uRes,canvas.width,canvas.height);
+      if(reduceMotion){ life=0.95; gl.uniform2f(uRes,canvas.width,canvas.height);
         gl.uniform1f(uTime,8.0); gl.uniform1f(uLife,life); gl.drawArrays(gl.TRIANGLES,0,3); }
       else requestAnimationFrame(frame);
 
       // ---------------- Narration timeline ----------------
-      // Sparse, calm. `life` sets how alive the nebula is at each beat; the
-      // failure is a gentle dip, acknowledged by one sentence.
+      // Sparse, unhurried. `life` sets how alive the nebula is at each beat.
       const T = [
-        { life: 0.42, cap: "Waking up.", hold: 3200 },
-        { life: 0.58, cap: "I can see your estate now.", hold: 3400 },
-        { life: 0.34, cap: "Something isn't ready. I'll wait, and try again.", hold: 3600 },
-        { life: 0.7,  cap: "There.", hold: 2800 },
-        { life: 0.95, cap: "I'm thinking now.", hold: 3400 },
-        { life: 1.16, cap: "I'm here. Whenever you need me.", hold: 0 },
+        { life: 0.42, cap: "Waking up.", hold: 4200 },
+        { life: 0.58, cap: "I can see your estate now.", hold: 4600 },
+        { life: 0.34, cap: "Something isn't ready yet. I will wait.", hold: 4800 },
+        { life: 0.72, cap: "There.", hold: 3600 },
+        { life: 0.98, cap: "I am awake now.", hold: 4400 },
+        { life: 1.16, cap: "I am here. Whenever you need me.", hold: 3400 },
       ];
 
       const captionEl = document.getElementById("caption");
       const enterEl = document.getElementById("enter");
       const againEl = document.getElementById("again");
-      let voiceOn = false, running = false, capTimer = null;
+      const wordmarkEl = document.getElementById("wordmark");
+      let running = false, capTimer = null, voiceOn = false;
 
+      // reveal a line word by word (each word rises + de-blurs)
       function say(text){
-        if(!text) return;
-        captionEl.classList.remove("on");           // fade out (1s, matches CSS)
         clearTimeout(capTimer);
-        capTimer = setTimeout(() => {               // swap only after fully faded
-          captionEl.textContent = text; captionEl.classList.add("on");
-        }, 1000);
+        captionEl.querySelectorAll(".w").forEach((w) => w.classList.remove("on")); // fade out
+        capTimer = setTimeout(() => {
+          captionEl.innerHTML = "";
+          if(!text) return;
+          text.split(" ").forEach((word, i) => {
+            const s = document.createElement("span");
+            s.className = "w"; s.textContent = word;
+            captionEl.appendChild(s);
+            captionEl.appendChild(document.createTextNode(" "));
+            setTimeout(() => s.classList.add("on"), 60 + i * 170);
+          });
+        }, 850);
         if(voiceOn && "speechSynthesis" in window){
-          const u=new SpeechSynthesisUtterance(text); u.rate=0.9; u.pitch=1.0; u.volume=0.85;
+          const u=new SpeechSynthesisUtterance(text); u.rate=0.88; u.pitch=1.0; u.volume=0.85;
           speechSynthesis.cancel(); speechSynthesis.speak(u);
         }
       }
-      const sleep = (ms)=>new Promise(r=>setTimeout(r, reduceMotion ? Math.min(ms,500) : ms));
+      const sleep = (ms)=>new Promise(r=>setTimeout(r, reduceMotion ? Math.min(ms,700) : ms));
 
       async function run(){
-        if(running) return; running = true; againEl.classList.remove("on");
-        await sleep(600);
+        if(running) return; running = true;
+        againEl.classList.remove("on"); wordmarkEl.classList.remove("on");
+        document.body.classList.add("started");  // fade in letterbox + grain + vignette
+        await sleep(1400);
         for(const step of T){ lifeTarget = step.life; say(step.cap); await sleep(step.hold); }
-        setTimeout(()=>againEl.classList.add("on"), 2400);
+        // closing gesture: fade the words, gather the light, resolve the wordmark
+        say("");
+        await sleep(1100);
+        lifeTarget = 1.34; await sleep(1200);     // the light gathers
+        lifeTarget = 1.0;                          // and settles
+        setTimeout(()=>wordmarkEl.classList.add("on"), 500);
+        setTimeout(()=>againEl.classList.add("on"), 3400);
         running = false;
       }
 
