@@ -14,6 +14,7 @@ the whole investigation or fabricates a finding.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import Callable, Sequence
@@ -93,7 +94,7 @@ def correlate(timeline: Sequence[TimelineEntry]) -> tuple[tuple[str, ...], str |
 class InvestigationCoordinator:
     """Orchestrate per-resource analyzers into one grounded report."""
 
-    __slots__ = ("_analyzers", "_monotonic", "_wall_clock")
+    __slots__ = ("_analyzers", "_analyzer_timeout", "_monotonic", "_wall_clock")
 
     def __init__(
         self,
@@ -101,6 +102,7 @@ class InvestigationCoordinator:
         analyzers: Sequence[ResourceAnalyzer],
         monotonic: Callable[[], float] | None = None,
         wall_clock: Callable[[], datetime] | None = None,
+        analyzer_timeout_seconds: float | None = None,
     ) -> None:
         # Index analyzers by the single resource kind each declares.
         self._analyzers: dict[str, ResourceAnalyzer] = {
@@ -108,6 +110,9 @@ class InvestigationCoordinator:
         }
         self._monotonic: Callable[[], float] = monotonic or time.monotonic
         self._wall_clock: Callable[[], datetime] = wall_clock or (lambda: datetime.now(tz=UTC))
+        if analyzer_timeout_seconds is not None and analyzer_timeout_seconds <= 0:
+            raise ValueError("analyzer_timeout_seconds MUST be positive when set")
+        self._analyzer_timeout = analyzer_timeout_seconds
 
     async def investigate(self, request: InvestigationRequest) -> InvestigationReport:
         started = self._monotonic()
@@ -124,10 +129,16 @@ class InvestigationCoordinator:
                 continue
             matched += 1
             try:
-                result = await analyzer.analyze(
-                    resource_ref=resource_ref,
-                    window_seconds=request.window_seconds,
+                result = await self._run_analyzer(
+                    analyzer, resource_ref=resource_ref, window=request.window_seconds
                 )
+            except TimeoutError:
+                errors.append((resource_ref, "timeout"))
+                _LOGGER.warning(
+                    "analyzer_timeout",
+                    extra={"resource_ref": resource_ref, "kind": resource_kind},
+                )
+                continue
             except Exception as exc:  # noqa: BLE001 - isolate one analyzer failure
                 errors.append((resource_ref, f"{type(exc).__name__}:{exc}"))
                 _LOGGER.warning(
@@ -165,6 +176,20 @@ class InvestigationCoordinator:
             budget_seconds=request.budget_seconds,
             analyzer_errors=tuple(errors),
         )
+
+    async def _run_analyzer(
+        self, analyzer: ResourceAnalyzer, *, resource_ref: str, window: float
+    ) -> Sequence[AnalyzerFinding]:
+        """Run one analyzer, enforcing the hard timeout when configured.
+
+        Without a timeout a hanging metric backend would block the whole
+        investigation indefinitely; ``asyncio.wait_for`` bounds it and the
+        caller records a ``timeout`` error (-> PARTIAL).
+        """
+        coro = analyzer.analyze(resource_ref=resource_ref, window_seconds=window)
+        if self._analyzer_timeout is None:
+            return await coro
+        return await asyncio.wait_for(coro, timeout=self._analyzer_timeout)
 
     @staticmethod
     def _classify(

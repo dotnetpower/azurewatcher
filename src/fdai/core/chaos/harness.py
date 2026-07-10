@@ -117,14 +117,13 @@ class FaultInjectionHarness:
                 error=f"no_injector_for_fault_type:{scenario.fault_type}",
             )
 
-        injected = False
-        stopped = False
+        injected_targets: list[str] = []
         detected = False
         error: str | None = None
         try:
             for target in targets:
                 await injector.inject(target=target, params=scenario.params)
-            injected = True
+                injected_targets.append(target)
             await self._sleeper(scenario.duration_seconds)
             detected = await self._probe.observed(signal=scenario.expected_signal, targets=targets)
         except Exception as exc:  # noqa: BLE001 - fail closed, always roll back
@@ -134,9 +133,14 @@ class FaultInjectionHarness:
                 extra={"experiment_id": experiment_id, "scenario": scenario.scenario_id},
             )
         finally:
-            if injected:
-                stopped = await self._stop_all(injector, targets)
+            # Always roll back every target that was actually injected, even
+            # on a partial injection (target 1 ok, target 2 raised) - leaving a
+            # live fault would violate the always-rollback safety invariant.
+            stopped = True
+            if injected_targets:
+                stopped = await self._stop_all(injector, injected_targets)
 
+        injected = bool(injected_targets)
         if error is not None:
             outcome = ExperimentOutcome.ABORTED
         elif detected:

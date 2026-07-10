@@ -71,9 +71,8 @@ class HilChannelApprovalGate:
         )
         try:
             receipt = await self._channel.send(card)
-        except HilChannelError as exc:
+        except HilChannelError:
             _LOGGER.warning("irp_hil_send_failed", extra={"approval_id": card.approval_id})
-            _ = exc
             return ApprovalDecision.TIMEOUT
 
         max_polls = max(1, int(self._ttl / self._interval))
