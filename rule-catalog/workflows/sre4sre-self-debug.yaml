@@ -1,0 +1,23 @@
+schema_version: "1.0.0"
+name: sre4sre-self-debug
+version: "1.0.0"
+description: >-
+  Self-debug (SRE4SRE): on a detected control-plane defect, open a fix PR so the
+  platform helps repair itself. Shadow-default; the PR is a reviewed artifact.
+trigger:
+  kind: signal
+  signal_type: control_plane.defect
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 14
+  min_samples: 30
+  min_accuracy: 0.98
+  max_policy_escapes: 0
+steps:
+  - id: open_fix_pr
+    action_type_ref: tool.open-fix-pr
+    guard_rule_ref: null
+    compensated_by: null
+    on_failure: null
+anti_scope: >-
+  Not a substrate change; it only opens a PR a human reviews and merges.

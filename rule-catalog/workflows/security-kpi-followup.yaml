@@ -1,0 +1,23 @@
+schema_version: "1.0.0"
+name: security-kpi-followup
+version: "1.0.0"
+description: >-
+  Security agent: on a cadence, track security KPIs and file a follow-up item for
+  each open gap. Shadow-default; the follow-up is a closable tracked artifact.
+trigger:
+  kind: schedule
+  schedule: "0 6 * * 1"
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 14
+  min_samples: 30
+  min_accuracy: 0.98
+  max_policy_escapes: 0
+steps:
+  - id: file_security_followup
+    action_type_ref: tool.file-security-followup
+    guard_rule_ref: null
+    compensated_by: null
+    on_failure: null
+anti_scope: >-
+  Not a remediation path; it only files a tracked security follow-up item.

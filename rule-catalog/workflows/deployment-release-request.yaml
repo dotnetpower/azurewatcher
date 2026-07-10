@@ -1,0 +1,23 @@
+schema_version: "1.0.0"
+name: deployment-release-request
+version: "1.0.0"
+description: >-
+  Deployment agent: on a ready release, open a deployment PR for the target
+  environment. Shadow-default; the deploy lands as a reviewed remediation PR.
+trigger:
+  kind: signal
+  signal_type: release.ready
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 14
+  min_samples: 30
+  min_accuracy: 0.98
+  max_policy_escapes: 0
+steps:
+  - id: request_release
+    action_type_ref: tool.request-release
+    guard_rule_ref: null
+    compensated_by: null
+    on_failure: null
+anti_scope: >-
+  Not an unattended deploy; it opens a release PR a human approves and merges.

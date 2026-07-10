@@ -1,0 +1,65 @@
+schema_version: 1.0.0
+name: tool.request-release
+version: 1.0.0
+operation: create
+interfaces:
+- IdempotentByKey
+rollback_contract: state_forward_only
+irreversible: false
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 14
+  min_samples: 30
+  min_accuracy: 0.98
+  max_policy_escapes: 0
+preconditions: []
+stop_conditions:
+- kind: time_box_exceeded_seconds
+  seconds: 120
+- kind: provider_api_error_streak
+  count: 3
+blast_radius:
+  computation: static_enum
+  static_bucket: resource
+description: 'Open a deployment / release pull request for an environment (the
+  deployment-agent pattern). tool_call path: the executor invokes a registered
+  request-release function via the ToolExecutor Protocol rather than mutating a
+  substrate; the actual deploy still lands as a reviewed remediation PR. Rollback
+  is state_forward_only - close the release PR without merging.'
+category: tool
+trigger_kind:
+  kind: both
+execution_path: tool_call
+ceiling_by_tier:
+  t0:
+    max_autonomy: enforce_hil
+    min_role: approver
+  t1:
+    max_autonomy: shadow_only
+    min_role: approver
+  t2:
+    max_autonomy: shadow_only
+    min_role: owner
+argument_schema:
+  type: object
+  additionalProperties: false
+  required:
+  - release_ref
+  - environment
+  - reason
+  properties:
+    release_ref:
+      type: string
+      x-fdai-audit-safe: true
+      minLength: 1
+    environment:
+      type: string
+      enum:
+      - dev
+      - staging
+      - prod
+    reason:
+      type: string
+      x-fdai-audit-safe: true
+      minLength: 10
+      maxLength: 200

@@ -1,0 +1,23 @@
+schema_version: "1.0.0"
+name: scheduled-error-triage
+version: "1.0.0"
+description: >-
+  Scheduled error-fixing: on a cadence, scan telemetry for recurring errors and
+  open a fix PR for each. Shadow-default; the risk gate governs any change.
+trigger:
+  kind: schedule
+  schedule: "0 * * * *"
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 14
+  min_samples: 30
+  min_accuracy: 0.98
+  max_policy_escapes: 0
+steps:
+  - id: open_fix_pr
+    action_type_ref: tool.open-fix-pr
+    guard_rule_ref: null
+    compensated_by: null
+    on_failure: null
+anti_scope: >-
+  Not a live incident responder; a scheduled triage that only proposes fix PRs.
