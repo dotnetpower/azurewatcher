@@ -22,6 +22,16 @@ from fdai.agents.pantheon import _HUGINN
 # still makes safe - at-least-once is the bus contract).
 _DEDUP_CAPACITY = 100_000
 
+#: Bound each ingress string field so a single pathological signal cannot bloat
+#: the pipeline / audit or become a huge bus partition key. Applies to every
+#: ingested event, not just operator proposals.
+_MAX_FIELD_CHARS = 512
+
+
+def _bound(value: Any) -> Any:
+    """Truncate a string value to the ingress field cap; pass non-strings."""
+    return value[:_MAX_FIELD_CHARS] if isinstance(value, str) else value
+
 
 class Huginn(Agent):
     """Wave-3 Huginn: normalize + dedup + publish."""
@@ -59,6 +69,7 @@ class Huginn(Agent):
         key = str(raw.get("idempotency_key") or raw.get("id") or raw.get("event_id", ""))
         if not key:
             raise ValueError("event missing idempotency_key / id / event_id")
+        key = key[:_MAX_FIELD_CHARS]
         if key in self._seen_keys:
             self._seen_keys.move_to_end(key)
             return None
@@ -68,11 +79,11 @@ class Huginn(Agent):
 
         payload: dict[str, Any] = {
             "producer_principal": "Huginn",
-            "correlation_id": str(raw.get("correlation_id", key)),
+            "correlation_id": str(raw.get("correlation_id", key))[:_MAX_FIELD_CHARS],
             "idempotency_key": key,
-            "resource_id": raw.get("resource_id"),
-            "resource_type": raw.get("resource_type"),
-            "event_type": raw.get("event_type", "generic"),
+            "resource_id": _bound(raw.get("resource_id")),
+            "resource_type": _bound(raw.get("resource_type")),
+            "event_type": str(raw.get("event_type", "generic"))[:_MAX_FIELD_CHARS],
             "attributes": dict(raw.get("attributes", {})),
         }
         # Operator-proposal fields (`initiator_principal`, `action_type`,
@@ -88,7 +99,7 @@ class Huginn(Agent):
             for passthrough in ("initiator_principal", "action_type", "params"):
                 value = raw.get(passthrough)
                 if value is not None:
-                    payload[passthrough] = value
+                    payload[passthrough] = _bound(value)
             payload["operator_initiated"] = raw.get("operator_initiated") is True
         if self.bus is not None:
             await self.bus.publish("Huginn", "object.event", payload)

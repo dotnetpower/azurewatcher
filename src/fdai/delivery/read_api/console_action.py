@@ -139,7 +139,16 @@ class ConsoleActionSubmitter:
         bounded_question = question[:MAX_QUESTION_CHARS]
         bounded_session = session_id[:MAX_SESSION_ID_CHARS] if session_id else None
         client_key = (idempotency_key or "").strip()[:MAX_IDEMPOTENCY_CHARS]
-        dedup_key = client_key or correlation_id
+        # Namespace the dedup key by the initiator so one operator cannot reuse
+        # (or guess) another operator's idempotency key to suppress their action
+        # at Huginn. Absent a client key, fall back to the unique correlation.
+        # The whole key is bounded so a long oid + key cannot become a huge bus
+        # partition value.
+        dedup_key = (
+            f"{principal.oid}::{client_key}"[:MAX_IDEMPOTENCY_CHARS]
+            if client_key
+            else correlation_id
+        )
         proposal: dict[str, Any] = {
             "idempotency_key": dedup_key,
             "correlation_id": correlation_id,

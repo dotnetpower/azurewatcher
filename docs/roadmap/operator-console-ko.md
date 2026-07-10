@@ -1,8 +1,8 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: a76ab66d2f32ff32e1b76d46166451384dd4e981
-translation_revised: 2026-07-10
+translation_source_sha: 59d4b5be553993bc7e76e2f62b5e427926270c31
+translation_revised: 2026-07-11
 ---
 
 # 오퍼레이터 콘솔 (Conversational)
@@ -811,8 +811,11 @@ high-risk를 승인하며, Thor만 실행한다(shadow-first).
   없으면 콘솔에 action-submit surface가 없다. 오퍼레이터 제공 값은
   bound된다(prompt <= 4000, question <= 2000, resource id / session id /
   idempotency key <= 200자) - 하나의 큰 값이 파이프라인/audit 을 bloat 하지
-  못하게. 클라이언트 `idempotency_key` 는 proposal 의 dedup 키가 되어, 재시도/
-  중복 제출이 두 번째 action 을 enqueue 하지 않고 Huginn 에서 collapse 된다.
+  못하게. 클라이언트 `idempotency_key` 는 proposal 의 dedup 키가 되어(initiator 로
+  namespace 되므로 한 operator 가 다른 operator 의 키를 재사용해 그의 action 을
+  suppress 할 수 없다), 재시도/중복 제출이 두 번째 action 을 enqueue 하지 않고
+  Huginn 에서 collapse 된다; Thor 는 correlation 단위로 추가 멱등이므로
+  at-least-once 재전달이 double-execute 되지 않는다.
 - **서버 파생 RBAC**. 오퍼레이터 role은 검증된 bearer token(`Principal.roles`)
   에서 오며, 클라이언트 JSON이 아니다. 제출은 `author-draft-pr` capability
   (Contributor 이상)를 요구; Reader는 아무것도 발행되기 전에

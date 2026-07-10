@@ -53,6 +53,28 @@ _INTENT_ACTION: dict[str, str] = {
     "encrypt": "remediate.enable-encryption",
 }
 
+#: Bounds on operator-supplied values that ride into a proposal, and on the
+#: in-memory maps a long-lived Bragi accumulates, so a conversational port that
+#: runs for weeks cannot leak one entry per session / correlation forever or let
+#: one large value bloat the pipeline + audit.
+_MAX_QUESTION_CHARS = 2_000
+_MAX_RESOURCE_CHARS = 200
+_MAX_SESSION_CHARS = 200
+_MAX_SESSIONS = 1_000
+_MAX_PROGRESS_KEYS = 5_000
+
+
+def _evict_oldest(mapping: dict[str, Any], cap: int, *, keep: str | None = None) -> None:
+    """Bound ``mapping`` to ``cap`` entries, dropping oldest-first (insertion
+    order), never evicting ``keep`` (the entry currently being written)."""
+    while len(mapping) > cap:
+        for key in mapping:
+            if key != keep:
+                del mapping[key]
+                break
+        else:  # only `keep` remains - nothing more to drop
+            break
+
 #: Role rank for the entry RBAC gate on execute-class conversational requests
 #: (mirrors user-rbac-and-identity.md: Reader < Contributor < Approver < Owner).
 #: An operator below the floor cannot even submit an action - it is refused
@@ -183,14 +205,18 @@ class Bragi(Agent):
             "initiator_principal": user_id,
             "operator_initiated": True,
             "action_type": action_type,
-            "resource_id": resource_id,
+            "resource_id": resource_id[:_MAX_RESOURCE_CHARS] if resource_id else None,
             "event_type": "operator_request",
-            "params": {"question": question, "session_id": session_id},
+            "params": {
+                "question": question[:_MAX_QUESTION_CHARS],
+                "session_id": session_id[:_MAX_SESSION_CHARS],
+            },
         }
         await self._proposal_sink(proposal)
         self._progress.setdefault(correlation_id, []).append(
             {"topic": "object.conversation", "state": "submitted", "action_type": action_type}
         )
+        _evict_oldest(self._progress, _MAX_PROGRESS_KEYS, keep=correlation_id)
         return {
             "submitted": True,
             "correlation_id": correlation_id,
@@ -220,6 +246,7 @@ class Bragi(Agent):
                 "outcome": payload.get("outcome"),
             }
         )
+        _evict_oldest(self._progress, _MAX_PROGRESS_KEYS, keep=correlation_id)
         return None
 
     def progress_for(self, correlation_id: str) -> list[dict[str, Any]]:
@@ -326,6 +353,9 @@ class Bragi(Agent):
         )
         if session.user_id != user_id:
             raise PermissionError(f"session {session_id!r} belongs to a different user")
+        # Bound the session map so a long-lived narrator cannot leak one entry
+        # per session id forever (evicts oldest, never the active session).
+        _evict_oldest(self._sessions, _MAX_SESSIONS, keep=session_id)
         # MUST-NOT-bypass (agent-pantheon.md 7.7): a command ("restart vm-1")
         # is not answered by the conversational port. Bragi translates it into
         # a typed ActionProposal whose initiator is the operator and hands it

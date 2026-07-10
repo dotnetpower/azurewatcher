@@ -216,6 +216,16 @@ class Thor(Agent):
         risk_verdict = str(verdict.get("risk_verdict", "hil"))
         resource_id = verdict.get("resource_id")
 
+        # Idempotency: at-least-once delivery means the same verdict can arrive
+        # twice. Keying the run by correlation is not enough - a re-delivery
+        # after the first run terminated (lock released) would start a SECOND
+        # run and re-execute. Return the existing run for a correlation we have
+        # already dispatched, so a duplicate verdict is a no-op (defense in
+        # depth with the event idempotency_key dedup at ingress).
+        existing_by_corr = self.action_runs.get(correlation)
+        if existing_by_corr is not None:
+            return existing_by_corr
+
         # Per-resource mutex: refuse to start a new run while another is
         # active on the same resource. Second dispatcher waits for the
         # first to terminate before starting.

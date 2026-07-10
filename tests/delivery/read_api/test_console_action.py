@@ -232,7 +232,9 @@ def test_client_idempotency_key_becomes_the_proposal_dedup_key() -> None:
     )
     assert res["submitted"] is True
     envs = asyncio.run(_drain(bus, _TOPIC))
-    assert envs[0].payload["idempotency_key"] == "dup-1"
+    # The dedup key is namespaced by the initiator so one operator cannot reuse
+    # another's key to suppress their action.
+    assert envs[0].payload["idempotency_key"] == "u::dup-1"
     # correlation_id stays server-generated and distinct from the dedup key.
     assert envs[0].payload["correlation_id"] != "dup-1"
 

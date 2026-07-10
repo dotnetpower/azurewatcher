@@ -849,8 +849,11 @@ Var approves a high-risk one, and only Thor executes (shadow-first).
   action-submit surface. Operator-supplied values are bounded (prompt <= 4000,
   question <= 2000, resource id / session id / idempotency key <= 200 chars) so
   one large value cannot bloat the pipeline or audit. The client `idempotency_key`
-  becomes the proposal's dedup key, so a retried or duplicated submit collapses
-  at Huginn instead of enqueuing a second action.
+  becomes the proposal's dedup key (namespaced by the initiator, so one operator
+  cannot reuse another's key to suppress their action), so a retried or
+  duplicated submit collapses at Huginn instead of enqueuing a second action;
+  Thor is additionally idempotent per correlation so an at-least-once
+  re-delivery never double-executes.
 - **Server-derived RBAC**. The operator's role comes from the validated bearer
   token (`Principal.roles`), never client JSON. Submitting requires the
   `author-draft-pr` capability (Contributor and above); a Reader is refused with

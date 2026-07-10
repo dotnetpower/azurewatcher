@@ -34,8 +34,25 @@ class PendingHilTicket:
     rejected: bool = False
 
 
+def _evict_oldest_ticket(mapping: dict[Any, Any], cap: int, *, keep: Any = None) -> None:
+    """Bound ``mapping`` to ``cap`` entries, dropping oldest-first (insertion
+    order), never evicting ``keep`` (the entry just written)."""
+    while len(mapping) > cap:
+        for key in mapping:
+            if key != keep:
+                del mapping[key]
+                break
+        else:  # only `keep` remains
+            break
+
+
 class Var(Agent):
     """Wave-3 HIL approval + Wave-6 admin channel delivery."""
+
+    #: Bound the in-memory maps so a long-lived approver cannot leak one entry
+    #: per never-decided HIL item / admin card forever (oldest-first eviction).
+    _MAX_PENDING = 5_000
+    _MAX_CARDS = 5_000
 
     def __init__(
         self,
@@ -63,13 +80,19 @@ class Var(Agent):
         correlation = str(payload.get("correlation_id", ""))
         if not correlation or correlation in self._pending:
             return
+        # Clamp quorum to a floor of 1: a forged / malformed action-run must
+        # never yield a zero-or-negative quorum that would approve with no
+        # approver (the two-approver requirement for irreversible actions is
+        # set by Forseti; this only prevents a downgrade below one).
+        quorum = max(1, int(payload.get("quorum_required", 1)))
         self._pending[correlation] = PendingHilTicket(
             correlation_id=correlation,
             action_type=str(payload.get("action_type", "")),
             resource_id=payload.get("resource_id"),
-            quorum_required=int(payload.get("quorum_required", 1)),
+            quorum_required=quorum,
             initiator_principal=payload.get("initiator_principal"),
         )
+        _evict_oldest_ticket(self._pending, self._MAX_PENDING, keep=correlation)
 
     # ---- HIL decision --------------------------------------------------
 
@@ -157,6 +180,7 @@ class Var(Agent):
         )
         self.admin_channel.send(card)
         self._last_cards[key] = card
+        _evict_oldest_ticket(self._last_cards, self._MAX_CARDS, keep=key)
         return card
 
     # ---- conversational port -------------------------------------------

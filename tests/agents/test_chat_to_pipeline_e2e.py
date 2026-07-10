@@ -259,3 +259,115 @@ def test_var_rejects_blank_approver_and_trims_self_approval() -> None:
     # A whitespace-padded self-approval is still caught (trimmed compare).
     with pytest.raises(ValueError, match="no self-approval"):
         asyncio.run(var.decide("c-hil", approver="  operator@example.com  ", decision="approve"))
+
+
+# ---------------------------------------------------------------------------
+# Hardening pass 2: idempotency, quorum floor, ingress bounds, leak caps
+# ---------------------------------------------------------------------------
+
+
+def test_thor_dispatch_verdict_is_idempotent_per_correlation() -> None:
+    # At-least-once delivery: a re-delivered verdict for a correlation already
+    # dispatched must be a no-op, never a second execution.
+    bus = _bus()
+    calls: list[dict] = []
+
+    async def exec_fn(ctx: dict) -> bool:
+        calls.append(ctx)
+        return True
+
+    thor = Thor(bus=bus, executor=exec_fn)  # enforce (not shadow) -> real exec
+    verdict = {
+        "correlation_id": "c-idem",
+        "action_type": "ops.restart-service",
+        "risk_verdict": "auto",
+        "resource_id": "vm-1",
+    }
+    run1 = asyncio.run(thor.dispatch_verdict(verdict))
+    run2 = asyncio.run(thor.dispatch_verdict(verdict))
+    assert run1 is run2
+    assert len(calls) == 1  # executed once despite the duplicate verdict
+
+
+def test_var_clamps_quorum_to_a_floor_of_one() -> None:
+    bus = _bus()
+    var = Var(bus=bus)
+    asyncio.run(
+        var.on_typed_message(
+            "object.action-run",
+            {
+                "correlation_id": "c-q",
+                "action_type": "ops.restart-service",
+                "state": "hil_pending",
+                "quorum_required": 0,  # forged / malformed downgrade
+                "initiator_principal": "op@example.com",
+            },
+        )
+    )
+    assert var._pending["c-q"].quorum_required == 1
+    result = asyncio.run(var.decide("c-q", approver="approver@example.com", decision="approve"))
+    assert result is not None
+    assert result["state"] == "approved"
+
+
+def test_huginn_bounds_oversized_ingress_fields() -> None:
+    bus = _bus()
+    huginn = Huginn(bus=bus)
+    asyncio.run(
+        huginn.ingest(
+            {
+                "id": "e-big",
+                "event_type": "operator_request",
+                "action_type": "x" * 5_000,
+                "initiator_principal": "op@example.com",
+                "operator_initiated": True,
+                "resource_id": "r" * 5_000,
+            }
+        )
+    )
+    payload = bus.messages_on("object.event")[0].payload
+    assert len(payload["action_type"]) <= 512
+    assert len(payload["resource_id"]) <= 512
+
+
+def test_var_pending_map_is_bounded() -> None:
+    bus = _bus()
+    var = Var(bus=bus)
+    var._MAX_PENDING = 2  # instance override of the class cap
+    for i in range(5):
+        asyncio.run(
+            var.on_typed_message(
+                "object.action-run",
+                {
+                    "correlation_id": f"c-{i}",
+                    "action_type": "ops.restart-service",
+                    "state": "hil_pending",
+                    "initiator_principal": "op@example.com",
+                },
+            )
+        )
+    assert len(var._pending) == 2
+
+
+def test_bragi_progress_map_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    from fdai.agents import bragi as bragi_mod
+
+    monkeypatch.setattr(bragi_mod, "_MAX_PROGRESS_KEYS", 2)
+    b = Bragi()
+    for i in range(5):
+        asyncio.run(
+            b.on_typed_message(
+                "object.verdict", {"correlation_id": f"c-{i}", "risk_verdict": "auto"}
+            )
+        )
+    assert len(b._progress) == 2
+
+
+def test_bragi_session_map_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    from fdai.agents import bragi as bragi_mod
+
+    monkeypatch.setattr(bragi_mod, "_MAX_SESSIONS", 2)
+    b = Bragi()
+    for i in range(5):
+        asyncio.run(b.ask(session_id=f"s-{i}", user_id="u", question="what is the action status"))
+    assert len(b._sessions) <= 2
