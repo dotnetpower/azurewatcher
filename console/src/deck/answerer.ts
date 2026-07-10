@@ -105,6 +105,8 @@ export function answer(query: string, snapshot: ViewSnapshot | null): Answer {
   // and any future screen). A screen becomes explainable by declaring its
   // purpose/glossary and keeping causal fields in its records, not by adding a
   // per-route branch here.
+  const deckMetaHit = resolveDeckMeta(q, snapshot);
+  if (deckMetaHit) return deckMetaHit;
   const causalHit = resolveCausal(q, snapshot);
   if (causalHit) return causalHit;
   const glossaryHit = resolveGlossary(q, snapshot);
@@ -236,6 +238,107 @@ function resolveStaticGlossary(q: string): Answer | null {
       (n): n is string => Boolean(n),
     );
     if (names.some((n) => q.includes(n))) return explainTerm(term);
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Deck-meta resolvers - "help", "what can I do here", "how do I search"
+// ---------------------------------------------------------------------------
+
+/** Per-route "what can I do on this screen" hints. Kept declarative + English
+ *  source so the same map serves the deterministic answerer AND the LLM path
+ *  (route hints are injected into the snapshot the model reads). */
+const ROUTE_ACTION_HINTS: Readonly<Record<string, string>> = {
+  live:
+    "Live cockpit: watch tiles as events flow in, click a tile to open its trace, " +
+    "hover a tile to see its action + resource, and read the tier/gate mix at the top.",
+  dashboard:
+    "Dashboard: read shadow vs enforce share, top action kinds, and HIL pending; " +
+    "narrow the window from the header controls; drill into a bar to jump to Audit.",
+  audit:
+    "Audit: search rows by seq/correlation/action, filter by mode (shadow/enforce), " +
+    "click a row to open its trace; export is via the header if enabled.",
+  rules:
+    "Rules: search by id/category/severity, click a rule to open its detail drawer " +
+    "with provenance + remediation + shadow accuracy; enable/disable is governance-only.",
+  "hil-queue":
+    "HIL queue: read pending approvals and their risk reason; approvals happen in " +
+    "Teams/ChatOps Adaptive Cards, never in this console (approve/reject are external).",
+  "promotion-gates":
+    "Promotion gates: see which ActionTypes are ready to promote and which are blocked; " +
+    "promotion itself is a governance PR (this console only shows the readiness).",
+  "blast-radius":
+    "Blast radius: pick an action to see the resources it could touch and whether the " +
+    "traversal hit the cap; this is a preview - the risk gate enforces the cap.",
+  trace:
+    "Trace: reconstruct the full chain for one correlation id - detection, judgment, " +
+    "approval, execution, audit. Follow the ordered rows to read the hand-off cascade.",
+  ontology:
+    "Ontology: browse ObjectTypes / LinkTypes / ActionTypes; open one to see its " +
+    "declared roles (initiators, judge, executor, approver, auditor) and rollback contract.",
+  pantheon:
+    "Agent pantheon: the 15 named agents that own the loop; hover an agent to see " +
+    "its two-port responsibilities and its typed contract.",
+  "agent-activity":
+    "Agent activity: per-agent timeline from the audit log; group by correlation id " +
+    "to see the hand-off cascade for one incident.",
+  "workflow-builder":
+    "Workflow builder: compose a pipeline; save produces a governance PR - nothing " +
+    "runs from this screen directly.",
+  provision:
+    "Provision: watch a bootstrap pipeline (plan/apply); progress streams live; " +
+    "no privileged action runs from the console (executor holds the only identity).",
+};
+
+/** Deck / operator-meta questions ("help", "what can I do here", "how do I
+ *  search / export / filter"). Kept read-only + narrow so genuine data queries
+ *  are not hijacked. Returns null for anything not clearly a deck-meta ask. */
+function resolveDeckMeta(q: string, snapshot: ViewSnapshot): Answer | null {
+  // Help / "what can you do" - describe the deck itself.
+  if (/^\??help\?*$|^\?+$|\bwhat can you (do|help)\b|\bhow (do|can) i use (the deck|this deck|you)\b/.test(q)) {
+    return {
+      text:
+        "I'm the FDAI console deck - a read-only screen-aware translator. " +
+        "Ask me about anything on the current page (numbers, rows, chips, terms, " +
+        "why an incident started, who can approve what). I ground every answer in " +
+        "the snapshot on the right of this overlay; I never execute an action. " +
+        "Try: 'what is HIL?', 'why did corr-j start?', 'what can I do here?'.",
+      citations: [{ label: "route", value: snapshot.routeLabel }],
+      followUps: [
+        "what can I do here?",
+        "what do you see on this screen?",
+        "what is HIL?",
+      ],
+    };
+  }
+
+  // "What can I do here?" - per-route action hint (deterministic; the LLM
+  // path additionally injects the RBAC capability block).
+  if (/\bwhat can i do (here|on (this|the) (page|screen))\b|\bwhat.*(can i do here)\b|\bwhat.*this (page|screen) for\b/.test(q)) {
+    const hint = ROUTE_ACTION_HINTS[snapshot.routeId];
+    const generic =
+      "This console is read-only: you can search, filter, and drill into rows to " +
+      "understand an incident; nothing executes from a button here. Approvals happen " +
+      "in Teams/ChatOps, and changes are delivered as governance PRs.";
+    return {
+      text: hint ? `${hint} ${generic}` : `${snapshot.routeLabel}: ${generic}`,
+      citations: [{ label: "route", value: snapshot.routeLabel }],
+      followUps: ["what is HIL?", "what does an Approver do?"],
+    };
+  }
+
+  // "How do I search / filter / export / open X" - short "look at the header/
+  // detail drawer" hint. Very narrow so screen data questions are not caught.
+  if (/\bhow (do|can) i (search|filter|export|open|drill|navigate)\b/.test(q)) {
+    const hint = ROUTE_ACTION_HINTS[snapshot.routeId];
+    return {
+      text:
+        (hint ? `${hint} ` : "") +
+        "Search + filter live in the header of each list; click a row to open its detail drawer.",
+      citations: [{ label: "route", value: snapshot.routeLabel }],
+      followUps: [],
+    };
   }
   return null;
 }

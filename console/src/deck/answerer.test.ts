@@ -197,3 +197,49 @@ describe("no-snapshot fallback (static universal glossary)", () => {
     expect(a.followUps.some((f) => /HIL/i.test(f))).toBe(true);
   });
 });
+
+describe("deck-meta (help / what can I do here)", () => {
+  function liveSnap(): ViewSnapshot {
+    return {
+      routeId: "live",
+      routeLabel: "Live cockpit",
+      headline: "60 tiles",
+      capturedAt: "2026-07-06T11:00:00+00:00",
+      facts: [],
+      records: {},
+    };
+  }
+
+  test("'help' describes the deck itself and offers concept follow-ups", () => {
+    const a = answer("help", liveSnap());
+    expect(a.text.toLowerCase()).toContain("read-only");
+    expect(a.text.toLowerCase()).toContain("screen-aware");
+    expect(a.followUps.some((f) => /HIL/i.test(f))).toBe(true);
+  });
+
+  test("'?' also triggers deck help", () => {
+    const a = answer("?", liveSnap());
+    expect(a.text.toLowerCase()).toContain("read-only");
+  });
+
+  test("'what can I do here?' gives the per-route action hint", () => {
+    const a = answer("what can I do here?", liveSnap());
+    expect(a.text.toLowerCase()).toContain("live cockpit");
+    expect(a.text.toLowerCase()).toContain("read-only");
+  });
+
+  test("'how do I search?' hints at header search + detail drawer", () => {
+    const a = answer("how do I search?", {
+      ...liveSnap(),
+      routeId: "rules",
+      routeLabel: "Rules",
+    });
+    expect(a.text.toLowerCase()).toContain("search");
+  });
+
+  test("a data question on the same page does NOT match deck-meta", () => {
+    const a = answer("how many tiles need attention?", liveSnap());
+    // Falls through to answerLive - answer must NOT be the deck-meta help text.
+    expect(a.text.toLowerCase()).not.toContain("read-only");
+  });
+});
