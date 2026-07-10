@@ -45,10 +45,18 @@ jobs:
       TF_VAR_postgres_admin_login: ${{ secrets.POSTGRES_ADMIN_LOGIN }}
       TF_VAR_postgres_admin_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
     steps:
+      # User-controlled inputs are read via env, NEVER interpolated
+      # directly into bash - direct ${{ inputs.confirm }} in a run: block
+      # is a classic GHA script-injection vector, and this runner holds
+      # a Terraform destroy identity + POSTGRES_ADMIN_PASSWORD.
       - name: Confirm guard
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          TARGET_ENV: ${{ inputs.environment }}
         run: |
-          if [ "${{ inputs.confirm }}" != "${{ inputs.environment }}" ]; then
-            echo "confirm ('${{ inputs.confirm }}') != environment ('${{ inputs.environment }}'); aborting." >&2
+          if [ "$CONFIRM" != "$TARGET_ENV" ]; then
+            printf 'confirm (%q) != environment (%q); aborting.\n' \
+              "$CONFIRM" "$TARGET_ENV" >&2
             exit 1
           fi
 
