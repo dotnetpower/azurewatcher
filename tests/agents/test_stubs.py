@@ -1,9 +1,9 @@
 """Smoke test: every pantheon agent instantiates and produces the right spec.
 
-Wave 1 stubs implement no behavior beyond returning a "not yet
-implemented" abstain payload on their conversational port. This test
-ensures the 15 concrete classes wire correctly to the registry and
-that the conversational-port default is honest.
+The 15 concrete classes wire correctly to the registry, and their
+conversational port answers a spec-grounded self-description (or refuses a
+command per agent-pantheon.md 7.7) rather than a bare "not implemented"
+abstain.
 """
 
 from __future__ import annotations
@@ -36,12 +36,27 @@ def test_stub_health_returns_stub_status() -> None:
         assert health["status"] in {"stub", "ok"}
 
 
-def test_stub_conversation_returns_not_yet_implemented_abstain() -> None:
+def test_conversation_port_answers_capability_from_spec() -> None:
+    # Every agent's conversational port answers a self-description grounded
+    # in its immutable AgentSpec, even before it holds runtime state
+    # (agent-pantheon.md 6.2). No agent abstains on a plain capability query.
     for agent in instantiate_pantheon().values():
-        result = asyncio.run(agent.on_conversation_turn("hello", {}))
+        result = asyncio.run(agent.on_conversation_turn("what can you do", {}))
         assert result["primary_agent"] == agent.spec.name
+        assert result["answer"] is not None
+        assert result["abstain_reason"] is None
+        assert result["facts"]["agent"] == agent.spec.name
+        assert result["facts"]["owns"] == list(agent.spec.owns)
+
+
+def test_conversation_port_refuses_action_intent() -> None:
+    # The conversational port describes actions but MUST NOT execute one
+    # (agent-pantheon.md 7.7): a command re-enters the typed pipeline.
+    for agent in instantiate_pantheon().values():
+        result = asyncio.run(agent.on_conversation_turn("restart the database now", {}))
         assert result["answer"] is None
-        assert result["abstain_reason"] == "not_yet_implemented"
+        assert result["abstain_reason"] == "requires_typed_pipeline"
+        assert result["requires_typed_pipeline"] is True
 
 
 def test_stub_typed_handler_is_a_noop() -> None:

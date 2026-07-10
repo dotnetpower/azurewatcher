@@ -13,6 +13,11 @@ from typing import Any
 
 from fdai.agents.base import Agent
 from fdai.agents.bus import PantheonBus
+from fdai.agents.introspection import (
+    IntrospectionResult,
+    capability_facts,
+    mentioned,
+)
 from fdai.agents.pantheon import _NJORD
 
 
@@ -92,6 +97,62 @@ class Njord(Agent):
             monthly_delta_usd=delta,
             confidence=confidence,
         )
+
+    # ---- conversational port -------------------------------------------
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        facts = {
+            **capability_facts(self.spec),
+            "tracked_scopes": sorted(self._samples),
+            "anomaly_ratio": self._anomaly_ratio,
+            "known_action_costs": dict(self._cost_table),
+        }
+        scopes = mentioned(question, self._samples)
+        if scopes:
+            scope = scopes[0]
+            history = self._samples[scope]
+            baseline = mean(history[-30:]) if history else 0.0
+            latest = history[-1] if history else 0.0
+            facts.update(
+                {
+                    "scope": scope,
+                    "sample_count": len(history),
+                    "baseline_usd": baseline,
+                    "latest_usd": latest,
+                }
+            )
+            answer = (
+                f"Scope {scope!r}: latest {latest:.2f} USD over {len(history)} "
+                f"sample(s), baseline {baseline:.2f} USD."
+            )
+            return IntrospectionResult(answer=answer, facts=facts)
+        actions = mentioned(question, self._cost_table)
+        if actions:
+            estimate = self.cost_impact(actions[0])
+            facts.update(
+                {
+                    "action_type": estimate.action_type,
+                    "monthly_delta_usd": estimate.monthly_delta_usd,
+                    "confidence": estimate.confidence,
+                }
+            )
+            answer = (
+                f"Cost impact of {estimate.action_type!r}: "
+                f"{estimate.monthly_delta_usd:+.2f} USD/month "
+                f"(confidence {estimate.confidence:.0%})."
+            )
+            return IntrospectionResult(answer=answer, facts=facts)
+        if not self._samples:
+            answer = (
+                "No cost samples ingested yet; I track per-scope spend and flag "
+                f"anomalies above {self._anomaly_ratio:g}x baseline."
+            )
+        else:
+            answer = (
+                f"Tracking cost for {len(self._samples)} scope(s): "
+                f"{', '.join(sorted(self._samples))}."
+            )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 __all__ = ["Njord", "CostEstimate"]

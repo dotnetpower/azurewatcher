@@ -15,6 +15,11 @@ from typing import Any
 
 from fdai.agents.base import Agent
 from fdai.agents.bus import PantheonBus
+from fdai.agents.introspection import (
+    IntrospectionResult,
+    capability_facts,
+    mentioned,
+)
 from fdai.agents.pantheon import _HEIMDALL
 
 AlerterHook = Callable[[dict[str, Any]], Awaitable[None]]
@@ -140,6 +145,36 @@ class Heimdall(Agent):
 
     def alert_count(self, initiator: str, action: str) -> int:
         return self._alert_counters[(initiator, action)]
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        facts = {
+            **capability_facts(self.spec),
+            "watched_resources": sorted(self._recent_events),
+            "security_events_window": len(self._security_recent),
+            "rate_threshold": self._rate_threshold,
+        }
+        resources = mentioned(question, self._recent_events)
+        if resources:
+            rid = resources[0]
+            history = list(self._recent_events[rid])
+            event_types = sorted(set(history))
+            facts.update(
+                {
+                    "resource_id": rid,
+                    "recent_event_count": len(history),
+                    "recent_event_types": event_types,
+                }
+            )
+            answer = (
+                f"Resource {rid!r}: {len(history)} recent event(s), "
+                f"type(s): {', '.join(event_types) or 'none'}."
+            )
+            return IntrospectionResult(answer=answer, facts=facts)
+        answer = (
+            f"Watching {len(self._recent_events)} resource(s); "
+            f"{len(self._security_recent)} security event(s) in window."
+        )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 def _is_irreversible(action_type_id: str) -> bool:

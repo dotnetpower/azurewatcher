@@ -385,7 +385,18 @@ conversational port is where agent-to-agent NL introspection also happens
 (e.g., Bragi asks Heimdall in NL when the typed schema isn't a fit).
 
 The two ports share nothing except the correlation trace: a conversational
-request that asks for an action MUST re-enter the typed pipeline (§8.7).
+request that asks for an action MUST re-enter the typed pipeline (7.7).
+
+Concretely, each agent overrides ``Agent.introspect`` to ground its answer
+in the state it owns (cost samples, audit chain, action runs, ...) and
+falls back to a spec-derived capability description; the response also
+carries a structured ``facts`` map so an A2A caller consumes the evidence
+without parsing prose. The MUST-NOT-bypass guard (7.7) is enforced by
+``is_action_intent``: a request phrased as a command abstains with
+``requires_typed_pipeline`` instead of being answered. A2A introspection
+is reached through ``PantheonRuntime.introspect(agent, question,
+requester=...)`` (delegating to ``Bragi.introspect_agent``), which records
+the requesting agent and threads the shared correlation trace.
 
 ### 6.3 NL query orchestration
 

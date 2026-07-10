@@ -7,9 +7,15 @@ smoothing forecast, and exposes a sizing advisory hook.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from fdai.agents.base import Agent
 from fdai.agents.bus import PantheonBus
+from fdai.agents.introspection import (
+    IntrospectionResult,
+    capability_facts,
+    mentioned,
+)
 from fdai.agents.pantheon import _FREYR
 
 
@@ -87,6 +93,44 @@ class Freyr(Agent):
             forecast_util=forecast,
             action=action,
         )
+
+    # ---- conversational port -------------------------------------------
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        facts = {
+            **capability_facts(self.spec),
+            "tracked_resources": sorted(self._samples),
+            "scale_up_threshold": self._up,
+            "scale_down_threshold": self._down,
+        }
+        resources = mentioned(question, self._samples)
+        if resources:
+            rid = resources[0]
+            advice = self.sizing_advice(rid)
+            facts.update(
+                {
+                    "resource_id": rid,
+                    "current_util": advice.current_util,
+                    "forecast_util": advice.forecast_util,
+                    "recommendation": advice.action,
+                }
+            )
+            answer = (
+                f"Resource {rid!r}: current util {advice.current_util:.0%}, "
+                f"forecast {advice.forecast_util:.0%} -> recommend {advice.action}."
+            )
+            return IntrospectionResult(answer=answer, facts=facts)
+        if not self._samples:
+            answer = (
+                "No utilization samples yet; I forecast per-resource capacity "
+                "and advise sizing."
+            )
+        else:
+            answer = (
+                f"Tracking capacity for {len(self._samples)} resource(s): "
+                f"{', '.join(sorted(self._samples))}."
+            )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 __all__ = ["Freyr", "SizingRecommendation"]

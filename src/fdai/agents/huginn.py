@@ -13,6 +13,7 @@ from typing import Any
 
 from fdai.agents.base import Agent
 from fdai.agents.bus import PantheonBus
+from fdai.agents.introspection import IntrospectionResult, capability_facts
 from fdai.agents.pantheon import _HUGINN
 
 # Bound the dedup memory so a long-lived process cannot leak: the most
@@ -77,6 +78,20 @@ class Huginn(Agent):
         if self.bus is not None:
             await self.bus.publish("Huginn", "object.event", payload)
         return payload
+
+    # ---- conversational port -------------------------------------------
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        facts = {
+            **capability_facts(self.spec),
+            "dedup_size": len(self._seen_keys),
+            "dedup_capacity": self._dedup_capacity,
+        }
+        answer = (
+            f"Ingesting and deduplicating events; {len(self._seen_keys)} key(s) "
+            f"in the dedup window (capacity {self._dedup_capacity})."
+        )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 __all__ = ["Huginn"]

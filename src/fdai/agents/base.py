@@ -12,6 +12,14 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
+from fdai.agents.introspection import (
+    REQUIRES_TYPED_PIPELINE,
+    IntrospectionResult,
+    capability_facts,
+    capability_sentence,
+    is_action_intent,
+)
+
 if TYPE_CHECKING:
     from fdai.agents.bus import PantheonBus
 
@@ -123,15 +131,81 @@ class Agent:
     async def on_conversation_turn(self, question: str, context: dict[str, Any]) -> dict[str, Any]:
         """Answer a natural-language query directed at this agent.
 
-        Every agent MUST implement this in a later wave. Wave 1 stubs
-        return a "not-yet-implemented" abstain payload so Bragi can log
-        the handoff.
+        This is the agent's conversational port (agent-pantheon.md 6.2):
+        a read-only, request-response NL interface reachable through Bragi
+        for operators and for agent-to-agent (A2A) NL introspection. It
+        answers questions over the data the agent owns; it MUST NOT mutate.
+
+        Flow:
+
+        1. **MUST-NOT-bypass guard (7.7).** A request phrased as a command
+           ("restart vm-1") is not answered here - it abstains with
+           :data:`~fdai.agents.introspection.REQUIRES_TYPED_PIPELINE` so
+           the caller re-enters the typed pipeline with the operator as
+           ``initiator_principal``. The port describes actions, never runs
+           them.
+        2. **Introspection.** Otherwise delegate to :meth:`introspect`,
+           which each concrete agent overrides to ground the answer in its
+           owned runtime state. The base implementation answers from the
+           immutable ``AgentSpec`` (role / ownership / capabilities).
+
+        The returned envelope carries ``primary_agent``, ``answer``,
+        ``facts`` (structured evidence, always present for A2A consumers),
+        ``trace_ref`` (the shared correlation trace - the only thing the
+        two ports share), and ``abstain_reason`` (set only when
+        ``answer`` is ``None``).
         """
-        return {
+        if is_action_intent(question):
+            return self._conversation_envelope(
+                IntrospectionResult.abstain(
+                    REQUIRES_TYPED_PIPELINE,
+                    facts={"question": question},
+                ),
+                context,
+                requires_typed_pipeline=True,
+            )
+        result = await self.introspect(question, context)
+        return self._conversation_envelope(result, context)
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        """Answer a read-only introspection question from owned state.
+
+        The base implementation answers from the agent's immutable
+        ``AgentSpec`` (its role, ownership, and the question domains it
+        serves), so every agent can describe itself even before it holds
+        runtime state. Concrete agents override this to ground answers in
+        the data they own (cost samples, audit chain, action runs, ...),
+        calling ``super().introspect(...)`` for the capability fallback.
+        """
+        return IntrospectionResult(
+            answer=capability_sentence(self.spec),
+            facts=capability_facts(self.spec),
+        )
+
+    def _conversation_envelope(
+        self,
+        result: IntrospectionResult,
+        context: dict[str, Any],
+        *,
+        requires_typed_pipeline: bool = False,
+    ) -> dict[str, Any]:
+        """Wrap an :class:`IntrospectionResult` in the port response shape."""
+        trace_ref = str(
+            context.get("trace_ref")
+            or context.get("correlation_id")
+            or context.get("session_id")
+            or ""
+        )
+        envelope: dict[str, Any] = {
             "primary_agent": self.spec.name,
-            "answer": None,
-            "abstain_reason": "not_yet_implemented",
+            "answer": result.answer,
+            "facts": result.facts,
+            "trace_ref": trace_ref,
+            "abstain_reason": result.abstain_reason,
         }
+        if requires_typed_pipeline:
+            envelope["requires_typed_pipeline"] = True
+        return envelope
 
     # --- lifecycle & health --------------------------------------------
 

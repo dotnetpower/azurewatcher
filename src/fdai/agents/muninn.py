@@ -11,6 +11,11 @@ from typing import Any
 
 from fdai.agents.adapters import InMemoryStateStore
 from fdai.agents.base import Agent
+from fdai.agents.introspection import (
+    IntrospectionResult,
+    capability_facts,
+    mentioned,
+)
 from fdai.agents.pantheon import _MUNINN
 
 
@@ -32,6 +37,25 @@ class Muninn(Agent):
 
     def put_context(self, bucket: str, key: str, value: Any) -> None:
         self.state_store.put(bucket, key, value)
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        data = self.state_store.data
+        facts = {
+            **capability_facts(self.spec),
+            "buckets": sorted(data),
+            "total_keys": sum(len(v) for v in data.values()),
+        }
+        buckets = mentioned(question, data)
+        if buckets:
+            bucket = buckets[0]
+            facts.update({"bucket": bucket, "key_count": len(data[bucket])})
+            answer = f"Bucket {bucket!r} holds {len(data[bucket])} key(s)."
+            return IntrospectionResult(answer=answer, facts=facts)
+        answer = (
+            f"Holding {len(data)} state bucket(s) with "
+            f"{sum(len(v) for v in data.values())} key(s) total."
+        )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 __all__ = ["Muninn"]

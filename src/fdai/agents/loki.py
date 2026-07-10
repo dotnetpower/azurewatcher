@@ -12,9 +12,11 @@ is capped by :pyattr:`blast_radius_cap`.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from fdai.agents.base import Agent
 from fdai.agents.bus import PantheonBus
+from fdai.agents.introspection import IntrospectionResult, capability_facts
 from fdai.agents.pantheon import _LOKI
 
 
@@ -107,6 +109,29 @@ class Loki(Agent):
         """Called after experiment completion (Wave 5 test helper)."""
         for t in targets:
             self._in_flight_targets.discard(t)
+
+    # ---- conversational port -------------------------------------------
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        accepted = [p for p in self.proposals if p.accepted]
+        facts = {
+            **capability_facts(self.spec),
+            "blast_radius_cap": self._cap,
+            "in_flight_targets": sorted(self._in_flight_targets),
+            "proposals_total": len(self.proposals),
+            "proposals_accepted": len(accepted),
+        }
+        if not self.proposals:
+            answer = (
+                "No chaos experiments proposed yet; every experiment I raise is "
+                f"HIL-gated with a blast-radius cap of {self._cap}."
+            )
+        else:
+            answer = (
+                f"{len(accepted)}/{len(self.proposals)} chaos proposal(s) accepted; "
+                f"{len(self._in_flight_targets)}/{self._cap} blast-radius slot(s) in use."
+            )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 __all__ = ["Loki", "ChaosProposal"]

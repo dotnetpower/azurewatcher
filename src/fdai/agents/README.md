@@ -8,7 +8,8 @@ Wave plan: [agent-pantheon-implementation.md](../../../docs/roadmap/agent-panthe
 
 | File | Purpose |
 |------|---------|
-| `base.py` | `Agent` abstract, `AgentSpec` immutable declaration, `Layer` enum, `RateLimits` |
+| `base.py` | `Agent` abstract, `AgentSpec` immutable declaration, `Layer` enum, `RateLimits`; the conversational-port shell (`on_conversation_turn` + `introspect`) |
+| `introspection.py` | Conversational-port contract: `IntrospectionResult`, the `is_action_intent` MUST-NOT-bypass guard (7.7), `mentioned` token matcher, and the `capability_facts` / `capability_sentence` spec self-description |
 | `pantheon.py` | The 15 `AgentSpec` instances (upstream-locked); `PANTHEON_SPECS`, `PANTHEON_NAMES`, `HARD_DEPENDENCY_AGENTS`, `LLM_HOT_PATH_ALLOWLIST` |
 | `registry.py` | `PantheonRegistry` - single-writer invariant, publish authorization, owner lookup |
 | `topics.py` | Topic naming (`object.<kebab>`), partition-key strategy, owned-topic set |
@@ -34,6 +35,8 @@ Wave plan: [agent-pantheon-implementation.md](../../../docs/roadmap/agent-panthe
 - `tests/agents/test_wave6_handoff_security.py` - Handoff -> Issue -> Norns -> Mimir; Security -> admin card dedup + rate limit
 - `tests/agents/test_wave7_workflows.py` - 10 workflow catalog + smoke traces
 - `tests/agents/test_wave8_kpi_degradation.py` - KPI collector, promotion gate, degradation drills
+- `tests/agents/test_introspection.py` - conversational-port primitives (action-intent guard, token match, capability, base fallback)
+- `tests/agents/test_conversational_port.py` - `PantheonRuntime.ask` routing + agent-to-agent (A2A) `introspect`
 
 Run just the pantheon suite: `pytest tests/agents/ -q`.
 

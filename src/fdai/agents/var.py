@@ -14,6 +14,11 @@ from typing import Any
 from fdai.agents.adapters import AdminCard, InMemoryAdminChannel
 from fdai.agents.base import Agent
 from fdai.agents.bus import PantheonBus
+from fdai.agents.introspection import (
+    IntrospectionResult,
+    capability_facts,
+    mentioned,
+)
 from fdai.agents.pantheon import _VAR
 
 
@@ -135,6 +140,46 @@ class Var(Agent):
         self.admin_channel.send(card)
         self._last_cards[key] = card
         return card
+
+    # ---- conversational port -------------------------------------------
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        pending = self._pending
+        facts = {
+            **capability_facts(self.spec),
+            "pending_hil": len(pending),
+            "correlations": sorted(pending),
+        }
+        corr = mentioned(question, pending)
+        if corr:
+            ticket = pending[corr[0]]
+            facts.update(
+                {
+                    "correlation_id": ticket.correlation_id,
+                    "action_type": ticket.action_type,
+                    "quorum_required": ticket.quorum_required,
+                    "approvals": len(ticket.approvers),
+                    "rejected": ticket.rejected,
+                }
+            )
+            answer = (
+                f"HIL {ticket.correlation_id!r} ({ticket.action_type}): "
+                f"{len(ticket.approvers)}/{ticket.quorum_required} approval(s)"
+                + (", rejected" if ticket.rejected else "")
+                + "."
+            )
+            return IntrospectionResult(answer=answer, facts=facts)
+        if not pending:
+            answer = (
+                "No HIL approvals pending; I hold the human approval queue "
+                "(distinct principal from the executor)."
+            )
+        else:
+            answer = (
+                f"{len(pending)} HIL approval(s) pending: "
+                f"{', '.join(sorted(pending))}."
+            )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 __all__ = ["Var", "PendingHilTicket"]

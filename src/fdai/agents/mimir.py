@@ -13,6 +13,11 @@ from typing import Any
 
 from fdai.agents.base import Agent
 from fdai.agents.candidate_guard import CandidateGuard
+from fdai.agents.introspection import (
+    IntrospectionResult,
+    capability_facts,
+    mentioned,
+)
 from fdai.agents.pantheon import _MIMIR
 
 
@@ -78,6 +83,27 @@ class Mimir(Agent):
 
     def status(self, rule_id: str) -> RulePromotion | None:
         return self._promotions.get(rule_id)
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        facts = {
+            **capability_facts(self.spec),
+            "tracked_rules": sorted(self._promotions),
+            "pending_candidates": len(self._pending_candidates),
+            "quarantined_candidates": len(self._quarantined_candidates),
+        }
+        rules = mentioned(question, self._promotions)
+        if rules:
+            promo = self._promotions[rules[0]]
+            facts.update(
+                {"rule_id": promo.rule_id, "state": promo.state, "source": promo.source}
+            )
+            answer = f"Rule {promo.rule_id!r} is {promo.state} (source: {promo.source})."
+            return IntrospectionResult(answer=answer, facts=facts)
+        answer = (
+            f"Tracking {len(self._promotions)} rule promotion(s); "
+            f"{len(self._pending_candidates)} candidate(s) pending the quality gate."
+        )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 __all__ = ["Mimir", "RulePromotion"]

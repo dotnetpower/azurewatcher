@@ -16,6 +16,11 @@ from typing import Any
 
 from fdai.agents.base import Agent
 from fdai.agents.bus import PantheonBus
+from fdai.agents.introspection import (
+    IntrospectionResult,
+    capability_facts,
+    mentioned,
+)
 from fdai.agents.pantheon import _FORSETI
 
 # ---------------------------------------------------------------------------
@@ -240,6 +245,27 @@ class Forseti(Agent):
                 "severity_hint": "high" if action_type == "remediate.delete-storage" else "medium",
             },
         )
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        facts = {
+            **capability_facts(self.spec),
+            "known_action_verdicts": dict(_RISK_VERDICT),
+            "rule_matches": dict(_RULE_MATCH),
+            "arbitrations_recorded": len(self.arbitrations),
+        }
+        actions = mentioned(question, _RISK_VERDICT)
+        if actions:
+            action = actions[0]
+            verdict = _RISK_VERDICT[action]
+            facts.update({"action_type": action, "risk_verdict": verdict})
+            answer = f"Action {action!r} has default risk verdict {verdict!r}."
+            return IntrospectionResult(answer=answer, facts=facts)
+        answer = (
+            "I judge events into auto/hil/deny verdicts; "
+            f"{len(_RISK_VERDICT)} action verdict(s) and {len(_RULE_MATCH)} "
+            "rule match(es) known."
+        )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 __all__ = ["Forseti"]

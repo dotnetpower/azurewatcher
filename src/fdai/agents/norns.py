@@ -28,6 +28,7 @@ from collections import Counter
 from typing import Any
 
 from fdai.agents.base import Agent
+from fdai.agents.introspection import IntrospectionResult, capability_facts
 from fdai.agents.pantheon import _NORNS
 
 # Adverse outcomes that count against an action's success record.
@@ -197,6 +198,25 @@ class Norns(Agent):
 
     def override_count(self, rule_id: str) -> int:
         return self._override_counter[rule_id]
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        facts = {
+            **capability_facts(self.spec),
+            "fingerprints_tracked": len(self._fingerprint_counter),
+            "pending_candidates": len(self.pending_candidates),
+            "outcomes_tracked": sorted(self._outcomes),
+        }
+        if not self._fingerprint_counter and not self.pending_candidates:
+            answer = (
+                "No patterns observed yet; I turn operational signals into inert "
+                "rule candidates for the quality gate."
+            )
+        else:
+            answer = (
+                f"Observed {len(self._fingerprint_counter)} fingerprint pattern(s); "
+                f"{len(self.pending_candidates)} candidate(s) proposed."
+            )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 __all__ = ["Norns"]

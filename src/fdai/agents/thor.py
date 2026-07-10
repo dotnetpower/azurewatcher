@@ -20,6 +20,11 @@ from typing import Any, Protocol, runtime_checkable
 
 from fdai.agents.base import Agent
 from fdai.agents.bus import PantheonBus
+from fdai.agents.introspection import (
+    IntrospectionResult,
+    capability_facts,
+    mentioned,
+)
 from fdai.agents.pantheon import _THOR
 
 
@@ -351,6 +356,50 @@ class Thor(Agent):
             "quorum_required": run.quorum_required,
         }
         await self.bus.publish("Thor", "object.action-run", payload)
+
+    # ---- conversational port -------------------------------------------
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        runs = self.action_runs
+        active = [r for r in runs.values() if r.state not in _TERMINAL_STATES]
+        facts = {
+            **capability_facts(self.spec),
+            "total_runs": len(runs),
+            "active_runs": len(active),
+            "shadow_forced": self._shadow_by_default,
+        }
+        selectors = list(runs) + [r.resource_id for r in runs.values() if r.resource_id]
+        keys = set(mentioned(question, selectors))
+        target = None
+        for run in runs.values():
+            if run.correlation_id in keys or (run.resource_id and run.resource_id in keys):
+                target = run
+                break
+        if target is not None:
+            facts.update(
+                {
+                    "correlation_id": target.correlation_id,
+                    "action_type": target.action_type,
+                    "resource_id": target.resource_id,
+                    "state": target.state.value,
+                    "verdict": target.verdict,
+                    "shadow_mode": target.shadow_mode,
+                }
+            )
+            location = f" on {target.resource_id}" if target.resource_id else ""
+            answer = (
+                f"ActionRun {target.correlation_id!r} ({target.action_type}) is "
+                f"{target.state.value}{location}."
+            )
+            return IntrospectionResult(answer=answer, facts=facts)
+        if not runs:
+            answer = (
+                "No action runs dispatched yet; I am the sole executor and track "
+                "each run's lifecycle."
+            )
+        else:
+            answer = f"{len(active)} active run(s) of {len(runs)} tracked."
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 async def _default_executor(context: dict[str, Any]) -> bool:

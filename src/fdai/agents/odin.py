@@ -22,6 +22,7 @@ from typing import Any
 from fdai.agents.arbitration import _DEFAULT_PRIORITY, MultiObjectiveArbiter
 from fdai.agents.base import Agent
 from fdai.agents.bus import PantheonBus
+from fdai.agents.introspection import IntrospectionResult, capability_facts
 from fdai.agents.pantheon import _ODIN
 
 
@@ -94,6 +95,17 @@ class Odin(Agent):
                 },
             )
         return decision
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        facts = {
+            **capability_facts(self.spec),
+            "priority_order": list(self._priority),
+        }
+        answer = (
+            "I arbitrate cross-vertical conflicts by priority "
+            f"({' > '.join(self._priority)}), escalating near-ties to HIL."
+        )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 def _coerce_impacts(raw: Any) -> dict[str, float] | None:

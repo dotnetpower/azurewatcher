@@ -18,6 +18,11 @@ from fdai.agents.adapters import (
     InMemoryStateStore,
 )
 from fdai.agents.base import Agent
+from fdai.agents.introspection import (
+    IntrospectionResult,
+    capability_facts,
+    mentioned,
+)
 from fdai.agents.pantheon import _SAGA
 
 _FINGERPRINT_BUCKET = "issue_fingerprint_index"
@@ -108,6 +113,44 @@ class Saga(Agent):
 
     def replay_for_correlation(self, correlation_id: str) -> list[AuditEntry]:
         return self.audit_chain.entries_for_correlation(correlation_id)
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        entries = self.audit_chain.entries
+        facts = {
+            **capability_facts(self.spec),
+            "audit_entries": len(entries),
+        }
+        known = {e.correlation_id for e in entries if e.correlation_id}
+        corr = mentioned(question, known)
+        if corr:
+            scoped = self.audit_chain.entries_for_correlation(corr[0])
+            facts.update(
+                {
+                    "correlation_id": corr[0],
+                    "matched_entries": [
+                        {"seq": e.seq, "principal": e.principal, "topic": e.topic}
+                        for e in scoped
+                    ],
+                }
+            )
+            actors = ", ".join(sorted({e.principal for e in scoped})) or "none"
+            answer = (
+                f"Correlation {corr[0]!r}: {len(scoped)} audit entr(ies), "
+                f"actor(s): {actors}."
+            )
+            return IntrospectionResult(answer=answer, facts=facts)
+        if not entries:
+            answer = (
+                "Audit chain is empty; I record every terminal action-lifecycle "
+                "event on an append-only chain."
+            )
+        else:
+            last = entries[-1]
+            answer = (
+                f"{len(entries)} audit entr(ies) recorded; latest: {last.principal} "
+                f"-> {last.topic}."
+            )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 def compute_fingerprint(

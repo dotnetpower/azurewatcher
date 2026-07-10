@@ -276,6 +276,34 @@ class PantheonRuntime:
             return None
         return await self._bragi.ask(session_id=session_id, user_id=user_id, question=question)
 
+    async def introspect(
+        self,
+        agent_name: str,
+        question: str,
+        *,
+        requester: str,
+        correlation_id: str = "",
+    ) -> dict[str, Any] | None:
+        """Agent-to-agent (A2A) conversational-port entry point.
+
+        Lets one pantheon agent (``requester``) ask another a
+        natural-language question through Bragi (agent-pantheon.md 6.2) -
+        e.g. Odin asking Saga "who executed correlation abc" when the typed
+        schema is not a fit. Read-only: the answer never mutates, and a
+        request phrased as a command re-enters the typed pipeline (7.7).
+        Returns ``None`` when Bragi is disabled (the conversational port is
+        off). ``correlation_id`` threads the shared trace so the A2A answer
+        stays correlated with the incident it is about.
+        """
+        if self._bragi is None:
+            return None
+        return await self._bragi.introspect_agent(
+            agent_name,
+            question,
+            requester=requester,
+            context={"correlation_id": correlation_id} if correlation_id else None,
+        )
+
     async def _rehydrate(self) -> None:
         """Restore durable agent state (in-flight ActionRuns) on startup.
 

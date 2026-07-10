@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fdai.agents.base import Agent
+from fdai.agents.introspection import IntrospectionResult, capability_facts, is_action_intent
 from fdai.agents.pantheon import _BRAGI, PANTHEON_SPECS
 
 AnswerFn = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
@@ -70,6 +71,46 @@ class Bragi(Agent):
     def register_responder(self, agent_name: str, fn: AnswerFn) -> None:
         self._agent_responders[agent_name] = fn
 
+    # ---- agent-to-agent introspection ----------------------------------
+
+    async def introspect_agent(
+        self,
+        agent_name: str,
+        question: str,
+        *,
+        requester: str,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Agent-to-agent (A2A) NL introspection (agent-pantheon.md 6.2).
+
+        A pantheon agent (``requester``) asks another agent a
+        natural-language question through Bragi - the same conversational
+        port operators use - when the typed schema is not a fit (e.g. Odin
+        asking Saga "who executed correlation abc"). The request is
+        read-only: each agent's conversational port refuses a command and
+        signals it must re-enter the typed pipeline (7.7), so A2A can never
+        become a side-channel that bypasses judge/approve/execute.
+
+        The shared correlation trace (``context['correlation_id']``) is the
+        only thing the two ports share; the response carries ``requester``
+        so the audit trail shows which agent asked.
+        """
+        ctx: dict[str, Any] = {**(context or {}), "requester": requester, "a2a": True}
+        responder = self._agent_responders.get(agent_name)
+        if responder is None:
+            return {
+                "primary_agent": agent_name,
+                "answer": None,
+                "facts": {},
+                "abstain_reason": "responder_not_registered",
+                "requester": requester,
+                "trace_ref": str(ctx.get("correlation_id") or ""),
+            }
+        answer = await responder(question, ctx)
+        answer.setdefault("primary_agent", agent_name)
+        answer["requester"] = requester
+        return answer
+
     # ---- routing -------------------------------------------------------
 
     def route(self, question: str) -> RoutingDecision:
@@ -118,6 +159,27 @@ class Bragi(Agent):
         )
         if session.user_id != user_id:
             raise PermissionError(f"session {session_id!r} belongs to a different user")
+        # MUST-NOT-bypass (agent-pantheon.md 7.7): a command ("restart vm-1")
+        # is not answered by the conversational port. Bragi translates it into
+        # a typed ActionProposal whose initiator is the operator and hands it
+        # to the pipeline (judge / approve / execute). Here we only signal that
+        # re-entry; the port never executes.
+        if is_action_intent(question):
+            answer = {
+                "answer": None,
+                "primary_agent": None,
+                "abstain_reason": "requires_typed_pipeline",
+                "requires_typed_pipeline": True,
+            }
+            turn = Turn(
+                turn_index=len(session.turns),
+                question=question,
+                primary_agent=None,
+                answer=answer,
+                decision=RoutingDecision(primary_agent=None, scores={}, tie_break=None),
+            )
+            session.turns.append(turn)
+            return turn
         decision = self.route(question)
         answer: dict[str, Any]
         if decision.primary_agent is None:
@@ -160,6 +222,19 @@ class Bragi(Agent):
 
     def sessions_for(self, user_id: str) -> tuple[ConversationSession, ...]:
         return tuple(s for s in self._sessions.values() if s.user_id == user_id)
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        roster = {spec.name: list(spec.question_domains) for spec in PANTHEON_SPECS}
+        facts = {
+            **capability_facts(self.spec),
+            "roster": roster,
+        }
+        answer = (
+            "I am the narrator: I route your question to the agent that owns it. "
+            f"{len(PANTHEON_SPECS)} agents are reachable - ask about topics like "
+            "cost, capacity, anomalies, action status, audit history, or rules."
+        )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 # ---------------------------------------------------------------------------

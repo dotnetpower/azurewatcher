@@ -13,6 +13,7 @@ from typing import Any
 
 from fdai.agents.base import Agent
 from fdai.agents.bus import PantheonBus
+from fdai.agents.introspection import IntrospectionResult, capability_facts
 from fdai.agents.pantheon import _VIDAR
 
 
@@ -81,6 +82,35 @@ class Vidar(Agent):
                 },
             )
         return rec
+
+    # ---- conversational port -------------------------------------------
+
+    async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
+        recs = self.records
+        facts = {
+            **capability_facts(self.spec),
+            "rollbacks_recorded": len(recs),
+        }
+        if recs:
+            last = recs[-1]
+            facts.update(
+                {
+                    "last_correlation_id": last.correlation_id,
+                    "last_action_type": last.action_type,
+                    "last_state": last.state,
+                    "last_contract": last.contract,
+                }
+            )
+            answer = (
+                f"{len(recs)} rollback(s) recorded; latest: {last.action_type} "
+                f"-> {last.state} via {last.contract}."
+            )
+        else:
+            answer = (
+                "No rollbacks performed; I am the recovery principal (a hard "
+                "dependency for any mutation)."
+            )
+        return IntrospectionResult(answer=answer, facts=facts)
 
 
 __all__ = ["Vidar", "RollbackRecord"]
