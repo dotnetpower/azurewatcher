@@ -61,6 +61,12 @@ class Freyr(Agent):
         self._smoothed[resource_id] = smoothed
         self._samples.setdefault(resource_id, []).append(utilization)
         if self.bus is not None:
+            # Normalize the forecast into an impact magnitude in [0, 1] so
+            # arbitration weighs the capacity signal by measured urgency,
+            # not just priority. Smoothed forecast_util is already
+            # normalized; the specialist owns this so Forseti does not have
+            # to know per-domain metrics.
+            impact = max(0.0, min(1.0, smoothed))
             await self.bus.publish(
                 "Freyr",
                 "object.capacity-forecast",
@@ -69,6 +75,7 @@ class Freyr(Agent):
                     "correlation_id": correlation_id or resource_id,
                     "resource_id": resource_id,
                     "forecast_util": smoothed,
+                    "impact": impact,
                     "recent_samples": len(self._samples[resource_id]),
                     # Sizing action doubles as the arbitration recommendation
                     # (scale_up under high utilization can conflict with a
@@ -122,8 +129,7 @@ class Freyr(Agent):
             return IntrospectionResult(answer=answer, facts=facts)
         if not self._samples:
             answer = (
-                "No utilization samples yet; I forecast per-resource capacity "
-                "and advise sizing."
+                "No utilization samples yet; I forecast per-resource capacity and advise sizing."
             )
         else:
             answer = (

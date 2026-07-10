@@ -120,8 +120,21 @@ When domain specialists disagree on the same resource (Njord recommends
 `scale_down` for cost while Freyr recommends `scale_up` for capacity),
 Forseti - the sole writer of `object.arbitration-request` - forwards the
 conflict to Odin with each domain's measured **impact magnitude** in
-`[0, 1]` (a cost signal's overspend ratio, a capacity forecast's projected
-utilization). Odin resolves it with a deterministic **multi-objective**
+`[0, 1]`. Each specialist owns the normalization of its own raw metric
+and attaches an explicit `impact` field to the payload it publishes, so
+Forseti does not have to know per-domain metrics and magnitudes stay
+comparable across verticals:
+
+- **Njord (cost)** - `impact = clamp(ratio - 1.0, 0, 1)` on
+  `object.cost-anomaly`. A 2x overspend saturates to `1.0`; a 1.1x
+  overspend is a mild `0.1`. Reported alongside the raw `ratio` for
+  grounding.
+- **Freyr (capacity)** - `impact = clamp(forecast_util, 0, 1)` on
+  `object.capacity-forecast`. The smoothed forecast is already
+  normalized; the specialist attaches it so the arbiter reads one field,
+  not a raw metric.
+
+Odin resolves the conflict with a deterministic **multi-objective**
 arbiter (`fdai.agents.arbitration.MultiObjectiveArbiter`) rather than a
 blunt priority table:
 

@@ -316,6 +316,79 @@ def test_forseti_forwards_impacts_from_signals() -> None:
     assert req["impacts"]["capacity"] == 0.9
 
 
+def test_njord_publishes_normalized_impact_on_anomaly() -> None:
+    """Njord owns cost normalization: attaches impact = clamp(ratio - 1, 0, 1)."""
+    bus = _bus()
+    njord = Njord(bus=bus, anomaly_ratio=1.5)
+    for _ in range(3):
+        asyncio.run(njord.ingest_cost_sample(scope="rg", amount_usd=100.0))
+    payload = asyncio.run(
+        njord.ingest_cost_sample(scope="rg", amount_usd=200.0, resource_id="vm-9")
+    )
+    assert payload is not None
+    # ratio = 200 / 100 = 2.0 -> impact = 1.0 (full severity).
+    assert payload["ratio"] == 2.0
+    assert payload["impact"] == 1.0
+    published = bus.messages_on("object.cost-anomaly")[-1].payload
+    assert published["impact"] == 1.0
+
+
+def test_njord_impact_scales_with_moderate_overspend() -> None:
+    """A 1.6x overspend normalizes to a 0.6 impact (partial severity)."""
+    import pytest
+
+    bus = _bus()
+    njord = Njord(bus=bus, anomaly_ratio=1.5)
+    for _ in range(3):
+        asyncio.run(njord.ingest_cost_sample(scope="rg", amount_usd=100.0))
+    payload = asyncio.run(
+        njord.ingest_cost_sample(scope="rg", amount_usd=160.0, resource_id="vm-9")
+    )
+    assert payload is not None
+    assert payload["impact"] == pytest.approx(0.6)
+
+
+def test_freyr_publishes_normalized_impact_on_forecast() -> None:
+    """Freyr owns capacity normalization: attaches impact = clamp(forecast_util)."""
+    bus = _bus()
+    freyr = Freyr(bus=bus, scale_up_threshold=0.75)
+    asyncio.run(freyr.ingest_utilization(resource_id="vm-1", utilization=0.9))
+    payload = bus.messages_on("object.capacity-forecast")[-1].payload
+    # smoothed(alpha=0.3, prev=0.9) starts equal to first sample -> 0.9.
+    assert payload["forecast_util"] == payload["impact"]
+    assert 0.0 <= payload["impact"] <= 1.0
+
+
+def test_forseti_prefers_specialist_impact_over_raw_ratio() -> None:
+    """When both `impact` and legacy `ratio` are present, the explicit wins."""
+    bus = _bus()
+    forseti = Forseti(bus=bus)
+    asyncio.run(
+        forseti.on_typed_message(
+            "object.cost-anomaly",
+            {
+                "resource_id": "vm-1",
+                "recommendation": "scale_down",
+                "ratio": 10.0,  # legacy fallback would give impact 1.0
+                "impact": 0.25,  # specialist says this is a mild signal
+            },
+        )
+    )
+    asyncio.run(
+        forseti.on_typed_message(
+            "object.capacity-forecast",
+            {
+                "resource_id": "vm-1",
+                "recommendation": "scale_up",
+                "impact": 0.9,
+            },
+        )
+    )
+    req = bus.messages_on("object.arbitration-request")[-1].payload
+    assert req["impacts"]["cost"] == 0.25
+    assert req["impacts"]["capacity"] == 0.9
+
+
 # ---------------------------------------------------------------------------
 # Hardening: corrupt-input defenses (rubric critique)
 # ---------------------------------------------------------------------------

@@ -308,13 +308,16 @@ def _is_conflict(advice: dict[str, str]) -> bool:
 
 
 def _signal_impact(domain: str, payload: dict[str, Any]) -> float:
-    """Derive an impact magnitude in [0, 1] from a domain signal.
+    """Read the impact magnitude in [0, 1] from a domain signal.
 
-    An explicit ``impact`` field wins. Otherwise a cost signal derives it
-    from the overspend ``ratio`` (ratio 2.0 -> 1.0, 1.5 -> 0.5) and a
-    capacity signal from ``forecast_util`` (already normalized). Absent
-    any magnitude the impact defaults to 1.0 so the call collapses to the
-    priority order.
+    The domain specialist (Njord, Freyr, ...) is the authority: it owns
+    per-domain normalization and MUST attach an explicit ``impact`` field
+    to the payload it publishes. Forseti simply forwards it.
+
+    Raw-metric fallbacks (``ratio`` for cost, ``forecast_util`` for
+    capacity) exist only for backward compatibility with a fork publisher
+    that has not yet migrated. Absent any magnitude the impact defaults
+    to 1.0 so the call collapses to the priority order.
     """
     explicit = payload.get("impact")
     if explicit is not None:
@@ -322,6 +325,7 @@ def _signal_impact(domain: str, payload: dict[str, Any]) -> float:
             return max(0.0, min(1.0, float(explicit)))
         except (TypeError, ValueError):
             pass
+    # Legacy fallbacks (kept for pre-migration fork publishers).
     if domain == "cost" and "ratio" in payload:
         try:
             return max(0.0, min(1.0, float(payload["ratio"]) - 1.0))

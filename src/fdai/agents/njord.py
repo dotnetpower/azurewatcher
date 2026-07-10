@@ -69,6 +69,14 @@ class Njord(Agent):
         if len(history) >= 3:
             baseline = mean(history[-30:])
             if baseline > 0 and amount_usd > baseline * self._anomaly_ratio:
+                ratio = amount_usd / baseline
+                # Normalize the overspend into an impact magnitude in [0, 1]
+                # so arbitration weighs the cost signal by measured severity,
+                # not just priority. `ratio - 1.0` = fractional overspend
+                # (2x = 1.0 impact, 1.5x = 0.5, 1.1x = 0.1). The specialist
+                # owns this normalization so Forseti does not have to know
+                # per-domain metrics.
+                impact = max(0.0, min(1.0, ratio - 1.0))
                 anomaly_payload = {
                     "producer_principal": "Njord",
                     "correlation_id": correlation_id or scope,
@@ -76,7 +84,8 @@ class Njord(Agent):
                     "resource_id": resource_id or scope,
                     "amount_usd": amount_usd,
                     "baseline_usd": baseline,
-                    "ratio": amount_usd / baseline,
+                    "ratio": ratio,
+                    "impact": impact,
                     # Cost pressure recommends shrinking to save spend; this
                     # can conflict with a capacity scale_up (Forseti arbitrates).
                     "recommendation": "scale_down",

@@ -1,7 +1,7 @@
 ---
 title: 에이전트 판테온
 translation_of: agent-pantheon.md
-translation_source_sha: 116a0386640ee67467c582e426ccf7981ffb3d50
+translation_source_sha: ca3791097c32e0b3deabd6caff0a48b86bac2f9a
 translation_revised: 2026-07-10
 ---
 
@@ -120,8 +120,19 @@ graph LR
 같은 리소스에 대해 도메인 전문가들이 상충하는 조언을 낼 때(Njord는 비용을 위해
 `scale_down`, Freyr는 용량을 위해 `scale_up`), `object.arbitration-request`의
 유일한 작성자인 Forseti가 각 도메인의 측정된 **영향 크기**(impact magnitude,
-`[0, 1]`; 비용 신호의 초과지출 비율, 용량 예측의 예상 사용률)를 실어 Odin에게
-충돌을 전달한다. Odin은 무딘 우선순위 테이블 대신 결정론적 **다목적** 중재기
+`[0, 1]`)를 실어 Odin에게 충돌을 전달한다. 각 전문가가 자신의 원(raw) 메트릭에
+대한 정규화를 소유하고, 발행하는 payload에 명시적 `impact` 필드를 붙인다. 그래야
+Forseti가 도메인별 메트릭을 알 필요가 없고, 크기가 도메인들 사이에서 비교
+가능해진다:
+
+- **Njord (비용)** - `object.cost-anomaly`에 `impact = clamp(ratio - 1.0, 0, 1)`.
+  2배 초과지출은 `1.0`으로 포화되고, 1.1배는 약한 `0.1`. 근거를 위해 원 `ratio`도
+  함께 실린다.
+- **Freyr (용량)** - `object.capacity-forecast`에
+  `impact = clamp(forecast_util, 0, 1)`. 평활화된 forecast는 이미 정규화되어
+  있으며, 전문가가 이를 붙여 중재기는 원 메트릭이 아니라 하나의 필드를 읽는다.
+
+Odin은 무딘 우선순위 테이블 대신 결정론적 **다목적** 중재기
 (`fdai.agents.arbitration.MultiObjectiveArbiter`)로 해소한다:
 
 - 각 도메인은 설정된 **가중치**를 가진다(기본은 우선순위 순서
