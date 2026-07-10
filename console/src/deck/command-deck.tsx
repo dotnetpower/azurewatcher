@@ -85,6 +85,8 @@ export function CommandDeck() {
   const [stuck, setStuck] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
   const historyRef = useRef(EMPTY_HISTORY);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
 
@@ -106,12 +108,43 @@ export function CommandDeck() {
   }, []);
 
   const openDeck = useCallback(() => {
+    // Remember what had focus so we can restore it when the modal closes.
+    restoreFocusRef.current = (document.activeElement as HTMLElement | null) ?? null;
     setOpen(true);
     focusInput();
   }, [focusInput]);
 
   const closeDeck = useCallback(() => {
     setOpen(false);
+    // Return focus to the element that opened the deck (a11y: modal contract).
+    const target = restoreFocusRef.current;
+    if (target && typeof target.focus === "function") {
+      requestAnimationFrame(() => target.focus());
+    }
+  }, []);
+
+  // Trap Tab within the open overlay so keyboard focus cannot escape the modal
+  // to the read-only page behind it (aria-modal contract).
+  const onOverlayKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key !== "Tab") return;
+    const root = overlayRef.current;
+    if (!root) return;
+    const focusable = Array.from(
+      root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+    if (focusable.length === 0) return;
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    const active = document.activeElement as HTMLElement | null;
+    if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
   }, []);
 
   // While the deck overlay is open, mark the document so the persistent left
@@ -355,7 +388,14 @@ export function CommandDeck() {
       </button>
 
       {open ? (
-        <div class="deck-overlay" role="dialog" aria-modal="true" aria-label="Command deck">
+        <div
+          class="deck-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Command deck"
+          ref={overlayRef}
+          onKeyDown={onOverlayKeyDown}
+        >
           <div class="deck-header">
             <div class="deck-header-title">
               <span class="deck-header-glyph" aria-hidden="true">◆</span>
