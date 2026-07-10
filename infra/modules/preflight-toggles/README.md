@@ -81,7 +81,7 @@ output block and picks the resource shape.
   say "set `disk_provisioning=attach_existing`"; the consumer module
   is where the actual disk resource lives, and that stays under the
   fork's control. See
-  [`examples/disk-consumer/`](examples/disk-consumer/README.md) for the
+  [`reference-disk-consumer/`](reference-disk-consumer/README.md) for the
   copy-paste consumer pattern (validate-only reference).
 - Cross-toggle policy composition. A fork MAY combine multiple
   toggles behind a single "environment profile" variable; upstream
