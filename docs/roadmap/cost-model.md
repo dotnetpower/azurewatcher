@@ -118,6 +118,14 @@ Rules that hold regardless of model choice:
 - Provider-side rate limits and per-request timeout keep any single event from blowing the
   cap in isolation.
 
+**Measuring actual spend.** The figures above are an *envelope*. The control plane records
+the real number: each T2 model call's measured `usage` (prompt + completion tokens) is
+captured by a `MeteringSink`, priced from the config-driven `rule-catalog/llm-pricing.yaml`
+table, and surfaced by the `LlmCostPanel` at `GET /kpi/llm-cost` - token usage and cost
+rolled up **per conversation, per day, and per month**. This turns the estimate into a
+measured line an operator can watch (see
+[operator-console.md § 4.4](operator-console.md#44-cost-and-rate-limits)).
+
 ## Traffic Scaling
 
 How the envelope moves as event volume grows. This is the trigger set for revisiting the

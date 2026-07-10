@@ -1,7 +1,7 @@
 ---
 title: 비용 모델 (예시)
 translation_of: cost-model.md
-translation_source_sha: 52aa3d6759f4028ccf88c75181d74d82606377dc
+translation_source_sha: 07ef429a19fbcafa3d4050862c43f6641f91d9a7
 translation_revised: 2026-07-10
 ---
 
@@ -114,6 +114,12 @@ Reasoning-tier (T2) 추론은 **Azure 리소스 라인이 아님** - [llm-strate
   비용/품질로 스왑은 안전.
 - Provider-side rate limit과 요청당 timeout이 단일 이벤트가 상한을 격리적으로 폭파하지 않도록
   유지.
+
+**실제 지출 측정.** 위 수치는 *envelope*이다. 컨트롤 플레인은 실제 숫자를 기록한다: 각 T2
+모델 호출의 측정된 `usage`(prompt + completion 토큰)를 `MeteringSink`가 캡처하고, 설정 기반
+`rule-catalog/llm-pricing.yaml` 표로 가격을 매기며, `LlmCostPanel`이 `GET /kpi/llm-cost`로
+노출한다 - 토큰 사용량과 비용을 **대화별, 일별, 월별**로 롤업. 추정치를 오퍼레이터가 지켜볼 수
+있는 측정된 라인으로 바꾼다 ([operator-console-ko.md § 4.4](operator-console-ko.md#44-cost와-rate-limit) 참조).
 
 ## 트래픽 스케일링
 

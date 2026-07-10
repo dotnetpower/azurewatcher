@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: a91f6eb3897260dd5f1c8a60492a58183fcca80b
+translation_source_sha: 14c0eaf298639b7afca533623d5796b032d874b1
 translation_revised: 2026-07-10
 ---
 
@@ -297,6 +297,18 @@ turn 당 token budget과 session 당 hop cap (config 키
 매 LLM 호출은 tier, model deployment id, prompt/completion token count를
 audit log에 기록하므로 fork는 콘솔을 추가로 계측하지 않고도 cost 리포트
 를 post-hoc로 빌드 가능.
+
+**제공되는 비용 뷰.** 위 문단이 가정하는 계량(metering)을 업스트림이
+제공한다: T2 어댑터가 측정된 provider `usage` 를 `MeteringSink` 로 기록하고,
+`MeteringEmitter` 가 설정 기반 `rule-catalog/llm-pricing.yaml` 가격표로 비용을
+계산하며, `LlmCostPanel` 이 `GET /kpi/llm-cost` 를 제공한다 - 토큰 사용량과
+비용을 **대화별**(`correlation_id`), **일별**, **월별**로 롤업하고 총합도
+포함한다. 콘솔은 이를 Overview 그룹의 read-only **LLM cost** 패널로 렌더링한다.
+헤드리스 코어(LLM 실행)와 read-API 콘솔은 별도 프로세스이므로, 업스트림
+`InMemoryMeteringSink` 는 단일-프로세스 데브 하네스에서만 유효하다; 프로덕션
+포크는 durable sink(`AzureWireOverrides.metering_sink`)와 reader(`LlmCostPanel`
+에)를 주입한다 - 보통 Postgres `agent_transcript` 행. 가격은 예시 list-price
+기본값이며 포크가 리전 / 통화 / 협상가로 override 한다.
 
 ## 5. DI seam
 

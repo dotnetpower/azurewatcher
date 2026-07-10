@@ -308,6 +308,21 @@ deployment id, and prompt/completion token counts to the audit log so a
 fork can build a cost report post-hoc without instrumenting the console
 further.
 
+**Shipped cost view.** Upstream ships the metering the paragraph above
+assumes: the T2 adapters record measured provider `usage` through a
+`MeteringSink`, `MeteringEmitter` computes cost from the config-driven
+`rule-catalog/llm-pricing.yaml` price table, and the `LlmCostPanel`
+serves `GET /kpi/llm-cost` - token usage and spend rolled up **per
+conversation** (by `correlation_id`), **per day**, and **per month**,
+plus a grand total. The console renders it as the read-only **LLM cost**
+panel in the Overview group. Because the headless core (where the LLM
+runs) and the read-API console are separate processes, the upstream
+`InMemoryMeteringSink` only spans a single-process dev harness; a
+production fork injects a durable sink (`AzureWireOverrides.metering_sink`)
+and reader (into `LlmCostPanel`) - typically Postgres `agent_transcript`
+rows. Prices are illustrative list-price defaults a fork overrides for
+its region / currency / negotiated rate.
+
 ## 5. DI seams
 
 Every seam is a Protocol; the composition root wires the concrete
