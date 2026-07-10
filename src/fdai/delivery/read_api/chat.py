@@ -337,16 +337,34 @@ def _trim_view_context(
 def _snapshot_json_capped(view_context: dict[str, Any], cap: int) -> str:
     """Serialise ``view_context`` and cap at ``cap`` bytes without breaking JSON.
 
-    Two failure modes to avoid: (1) a mid-record string cut yields invalid
+    Three failure modes to avoid: (1) a mid-record string cut yields invalid
     JSON that a lenient model may still try to parse as legitimate data;
     (2) a silent slice hides the fact that the operator's page is too
-    large. On overflow, replace the whole payload with a valid, tiny
+    large; (3) a value the caller passed that isn't JSON-serialisable
+    (a ``datetime``, a ``set``, a circular ref) crashes the whole chat
+    request. On overflow, replace the whole payload with a valid, tiny
     JSON stub carrying the size + a ``...(truncated)`` sentinel the
-    grounding rules watch for, so the model is honest: it tells the
-    operator to narrow the page or search on it, instead of hallucinating
-    from the cut prefix.
+    grounding rules watch for. On a serialisation error, fall back to a
+    ``default=str`` pass so the model at least sees stringified values,
+    and on a still-fatal error emit a matching ``_snapshot_unserialisable``
+    stub - never propagate the exception into the request path.
     """
-    raw = json.dumps(view_context, ensure_ascii=False)
+    try:
+        raw = json.dumps(view_context, ensure_ascii=False)
+    except (TypeError, ValueError) as exc:
+        try:
+            raw = json.dumps(view_context, ensure_ascii=False, default=str)
+        except (TypeError, ValueError):
+            _LOG.warning("chat snapshot not serialisable: %s", type(exc).__name__)
+            stub = {
+                "_snapshot_unserialisable": True,
+                "_error_type": type(exc).__name__,
+                "_note": (
+                    "The rendered page published a value the deck cannot serialise; "
+                    "ask the operator to reload the page. ...(truncated)"
+                ),
+            }
+            return json.dumps(stub, ensure_ascii=False)
     if len(raw) <= cap:
         return raw
     route = str(view_context.get("routeId") or view_context.get("routeLabel") or "-")

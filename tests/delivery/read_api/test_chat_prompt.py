@@ -659,3 +659,35 @@ async def test_heartbeat_forwards_pump_exception() -> None:
 
     with _pytest.raises(RuntimeError, match="upstream boom"):
         await _collect_heartbeats(_src, interval=1.0)
+
+
+# ---------------------------------------------------------------------------
+# Snapshot serialisation safety - never propagate a serialisation error
+# ---------------------------------------------------------------------------
+
+
+def test_non_json_value_uses_default_str_fallback() -> None:
+    # A datetime is not JSON-serialisable by default; the safety fallback
+    # (default=str) MUST render it as a string instead of crashing the chat.
+    import datetime as _dt
+    ctx = {"routeId": "audit", "when": _dt.datetime(2026, 7, 11, 0, 0, 0)}
+    msgs = _build_messages("hi", ctx, [])
+    system = msgs[0]["content"]
+    # Serialised via default=str -> ISO-like format present in the prompt.
+    assert "2026-07-11" in system
+
+
+def test_cyclic_snapshot_falls_back_to_unserialisable_stub() -> None:
+    # A cycle defeats both default json.dumps AND default=str (str calls
+    # __repr__ which for a dict-cycle raises ValueError). The stub MUST be
+    # valid JSON so the model reads a structured "ask operator to reload"
+    # hint instead of crashing the whole request.
+    ctx: dict[str, object] = {"routeId": "live"}
+    ctx["self"] = ctx  # cycle
+    msgs = _build_messages("hi", ctx, [])
+    system = msgs[0]["content"]
+    embedded = system.split(_SNAPSHOT_MARKER, 1)[1].strip()
+    payload = json.loads(embedded)
+    # Either the safe stub OR the default=str variant (which stringifies the
+    # cycle without raising) - both are acceptable, both keep the chat alive.
+    assert payload.get("_snapshot_unserialisable") is True or "self" in payload
