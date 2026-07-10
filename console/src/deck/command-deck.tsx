@@ -25,6 +25,12 @@ import {
   type RouterSnapshot,
 } from "./backend";
 import { useViewContext } from "./context";
+import {
+  EMPTY_HISTORY,
+  record as recordHistory,
+  recallNewer,
+  recallOlder,
+} from "./draft-history";
 import { GroundedReply } from "./grounded-reply";
 import { RetrievalTrace } from "./retrieval-trace";
 
@@ -73,6 +79,7 @@ export function CommandDeck() {
   const [turns, setTurns] = useState<readonly Turn[]>([]);
   const [pending, setPending] = useState(false);
   const [health, setHealth] = useState<BackendHealth | null>(null);
+  const historyRef = useRef(EMPTY_HISTORY);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
 
@@ -165,6 +172,7 @@ export function CommandDeck() {
     const opTurn: Turn = { id: newId(), role: "operator", text, at: shortTime() };
     setTurns((prev) => [...prev, opTurn]);
     setDraft("");
+    historyRef.current = recordHistory(historyRef.current, text);
     setPending(true);
     // Build the history the backend sees (excluding this turn).
     const history: BackendTurn[] = turns.map((t) => ({
@@ -218,6 +226,43 @@ export function CommandDeck() {
   }, [snapshot, focusInput, pending, turns]);
 
   const clearTurns = useCallback(() => setTurns([]), []);
+
+  // Shell-style history recall: Arrow-Up walks to older submitted prompts,
+  // Arrow-Down walks back to the live draft. Only fires when the caret is on
+  // the first line (Up) or last line (Down) so multi-line editing is
+  // unaffected. Delegated to the pure `draft-history` reducer.
+  const onInputKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      const el = e.target as HTMLTextAreaElement;
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        submit(el.value);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        const caretOnFirstLine = !el.value.slice(0, el.selectionStart ?? 0).includes("\n");
+        if (!caretOnFirstLine) return;
+        const r = recallOlder(historyRef.current, el.value);
+        historyRef.current = r.history;
+        if (r.draft !== null) {
+          e.preventDefault();
+          setDraft(r.draft);
+        }
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        const caretOnLastLine = !el.value.slice(el.selectionStart ?? 0).includes("\n");
+        if (!caretOnLastLine) return;
+        const r = recallNewer(historyRef.current);
+        historyRef.current = r.history;
+        if (r.draft !== null) {
+          e.preventDefault();
+          setDraft(r.draft);
+        }
+      }
+    },
+    [submit],
+  );
 
   const headline = snapshot?.headline ?? "Idle. Open any route to publish a view snapshot.";
   const routeLabel = snapshot?.routeLabel ?? "Deck";
@@ -297,16 +342,11 @@ export function CommandDeck() {
             <textarea
               ref={inputRef}
               class="deck-input"
-              placeholder="Ask anything (Enter to send, Shift+Enter for newline, Esc to close)"
+              placeholder="Ask anything (Enter to send, Shift+Enter for newline, Up for history, Esc to close)"
               value={draft}
               rows={1}
               onInput={(e) => setDraft((e.target as HTMLTextAreaElement).value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  submit(draft);
-                }
-              }}
+              onKeyDown={onInputKeyDown}
             />
             <div class="deck-input-actions">
               <button
