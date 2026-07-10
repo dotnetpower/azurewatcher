@@ -93,6 +93,50 @@ def test_bitemporal_route_400_on_bad_timestamp() -> None:
     assert resp.status_code == 400
 
 
+def test_bitemporal_route_400_on_oversized_ids() -> None:
+    model = InMemoryConsoleReadModel()
+    _seed_state(model, "corr-1")
+    with _client(model) as client:
+        # correlation_id over the 256-char cap.
+        r1 = client.get(
+            f"/audit/{'c' * 257}/bitemporal",
+            params={"resource_id": "vm-1", "as_of": "2026-06-01T00:00:00Z"},
+        )
+        assert r1.status_code == 400
+        # resource_id over the 512-char cap.
+        r2 = client.get(
+            "/audit/corr-1/bitemporal",
+            params={"resource_id": "v" * 513, "as_of": "2026-06-01T00:00:00Z"},
+        )
+        assert r2.status_code == 400
+
+
+def test_bitemporal_route_400_on_bad_effective_timestamp() -> None:
+    model = InMemoryConsoleReadModel()
+    _seed_state(model, "corr-1")
+    with _client(model) as client:
+        resp = client.get(
+            "/audit/corr-1/bitemporal",
+            params={
+                "resource_id": "vm-1",
+                "as_of": "2026-06-01T00:00:00Z",
+                "effective": "not-a-ts",
+            },
+        )
+    assert resp.status_code == 400
+
+
+def test_parse_ts_returns_none_for_empty_input() -> None:
+    from fdai.delivery.read_api.bitemporal import _parse_ts
+
+    # Defensive falsy-guard branch: an empty / None raw parses to None
+    # rather than raising, so a caller can treat "absent" uniformly.
+    assert _parse_ts(None) is None
+    assert _parse_ts("") is None
+    # A valid RFC 3339 string still round-trips.
+    assert _parse_ts("2026-06-01T00:00:00Z") == datetime(2026, 6, 1, tzinfo=UTC)
+
+
 def test_bitemporal_route_400_when_effective_after_as_of() -> None:
     model = InMemoryConsoleReadModel()
     _seed_state(model, "corr-1")
