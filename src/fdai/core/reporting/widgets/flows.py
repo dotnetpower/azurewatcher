@@ -58,6 +58,18 @@ class SankeyBuilder:
     Node ids are the union of every source and target seen. Duplicate
     ``(source, target)`` links are summed so the FE sees one edge per
     pair.
+
+    Sankey diagrams are strictly acyclic (they are flow diagrams);
+    ``d3-sankey`` and every mainstream FE library throw on a cycle.
+    Two guards keep an operator-supplied dataset from breaking the
+    console render:
+
+    - Self-loops (``source == target``) are dropped - a link from a node
+      to itself is meaningless in a flow graph.
+    - Cycle-closing edges are dropped in the order they arrive. Links
+      are appended to a growing DAG; a link that would introduce a path
+      back to its source is skipped. The first observed direction of a
+      pair wins, so a legitimate DAG passes through untouched.
     """
 
     type_name = "sankey"
@@ -68,6 +80,11 @@ class SankeyBuilder:
         value_field = str(spec.options.get("value_field", "value"))
         seen_nodes: dict[str, None] = {}
         totals: dict[tuple[str, str], float] = {}
+        # Adjacency map used to detect a cycle-closing edge before we
+        # accept it into ``totals``. Kept in insertion order so a run of
+        # duplicate ``(source, target)`` rows only sums against the
+        # already-accepted direction and never flips it.
+        accepted_out: dict[str, set[str]] = {}
         for row in data.rows:
             source = row.get(source_field)
             target = row.get(target_field)
@@ -76,10 +93,20 @@ class SankeyBuilder:
                 continue
             source_id = str(source)
             target_id = str(target)
+            if source_id == target_id:
+                # Self-loop: meaningless in a flow graph and breaks
+                # d3-sankey. Drop silently.
+                continue
+            key = (source_id, target_id)
+            if key not in totals and _would_close_sankey_cycle(source_id, target_id, accepted_out):
+                # A path already exists from target back to source; adding
+                # source -> target would close a cycle. Drop the new
+                # direction and keep the earlier one.
+                continue
             seen_nodes[source_id] = None
             seen_nodes[target_id] = None
-            key = (source_id, target_id)
             totals[key] = totals.get(key, 0.0) + float(value)
+            accepted_out.setdefault(source_id, set()).add(target_id)
         return {
             "nodes": [{"id": node_id} for node_id in seen_nodes],
             "links": [
@@ -126,6 +153,34 @@ def _numeric_or_none(value: Any) -> float | int | None:
     # Reject 'nan' / 'inf' strings: a non-finite weight breaks funnel
     # ratios / treemap sort and serializes to invalid JSON.
     return result if math.isfinite(result) else None
+
+
+def _would_close_sankey_cycle(
+    source: str, target: str, accepted_out: Mapping[str, set[str]]
+) -> bool:
+    """True when adding ``source -> target`` would form a cycle.
+
+    Walks the accepted DAG forward from ``target``; if it can reach
+    ``source`` (or revisits a node, which itself proves an earlier cycle
+    slipped through), the new edge closes a loop and MUST be dropped.
+    Iterative, bounded by the visited set, so a large or deep graph
+    cannot recurse the stack.
+    """
+    if target == source:
+        return True
+    seen: set[str] = set()
+    stack: list[str] = [target]
+    while stack:
+        node = stack.pop()
+        if node == source:
+            return True
+        if node in seen:
+            continue
+        seen.add(node)
+        successors = accepted_out.get(node)
+        if successors:
+            stack.extend(successors)
+    return False
 
 
 class RetentionBuilder:

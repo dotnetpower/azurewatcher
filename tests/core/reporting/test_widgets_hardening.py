@@ -19,7 +19,11 @@ from fdai.core.reporting.models import (
     WidgetSpec,
 )
 from fdai.core.reporting.widgets.cost import BudgetSummaryBuilder, CostSummaryBuilder
-from fdai.core.reporting.widgets.flows import FunnelBuilder, TreemapBuilder
+from fdai.core.reporting.widgets.flows import (
+    FunnelBuilder,
+    SankeyBuilder,
+    TreemapBuilder,
+)
 from fdai.core.reporting.widgets.graphs import (
     GaugeBuilder,
     PieChartBuilder,
@@ -241,3 +245,85 @@ def test_h10_all_exports_late_defined_builders() -> None:
     assert hasattr(lists, "EventStreamBuilder")
     assert "RetentionBuilder" in flows.__all__
     assert hasattr(flows, "RetentionBuilder")
+
+
+# --- H11: Sankey drops cycle-closing links and self-loops ----------------
+# Same failure class as H2 (flame graph): d3-sankey throws on any cycle,
+# so a cyclic source->target dataset would silently break the console
+# render. Batch-6 hardened flame_graph but missed the equivalent guard
+# on SankeyBuilder.
+
+
+def test_h11_sankey_drops_self_loop_link() -> None:
+    data = DataSet(
+        rows=(
+            {"source": "a", "target": "a", "value": 1},  # self-loop
+            {"source": "a", "target": "b", "value": 2},
+        )
+    )
+    out = SankeyBuilder().build(spec=_SPEC, data=data)
+    # Self-loop removed; only the honest a->b link survives.
+    assert [(link["source"], link["target"]) for link in out["links"]] == [("a", "b")]
+    # Node 'a' is still there (it participates in the surviving link).
+    assert {n["id"] for n in out["nodes"]} == {"a", "b"}
+
+
+def test_h11_sankey_drops_cycle_closing_link_keeps_first_direction() -> None:
+    data = DataSet(
+        rows=(
+            {"source": "a", "target": "b", "value": 1},
+            {"source": "b", "target": "c", "value": 2},
+            {"source": "c", "target": "a", "value": 3},  # closes a->b->c->a
+        )
+    )
+    out = SankeyBuilder().build(spec=_SPEC, data=data)
+    pairs = {(link["source"], link["target"]) for link in out["links"]}
+    # a->b and b->c stay; c->a is dropped so the graph remains a DAG.
+    assert ("a", "b") in pairs
+    assert ("b", "c") in pairs
+    assert ("c", "a") not in pairs
+    # Nodes 'a' and 'b' and 'c' are all present via the surviving links.
+    assert {n["id"] for n in out["nodes"]} == {"a", "b", "c"}
+
+
+def test_h11_sankey_two_node_flip_drops_reverse_link() -> None:
+    """A direct back-edge (b->a after a->b) is a cycle and MUST be dropped."""
+    data = DataSet(
+        rows=(
+            {"source": "a", "target": "b", "value": 1},
+            {"source": "b", "target": "a", "value": 5},  # closes a<->b
+        )
+    )
+    out = SankeyBuilder().build(spec=_SPEC, data=data)
+    pairs = {(link["source"], link["target"]) for link in out["links"]}
+    assert pairs == {("a", "b")}
+
+
+def test_h11_sankey_repeated_forward_pair_still_sums() -> None:
+    """Cycle guard must not break the existing dedup-and-sum behavior."""
+    data = DataSet(
+        rows=(
+            {"source": "a", "target": "b", "value": 1},
+            {"source": "a", "target": "b", "value": 2},
+            {"source": "b", "target": "c", "value": 4},
+        )
+    )
+    out = SankeyBuilder().build(spec=_SPEC, data=data)
+    by_pair = {(link["source"], link["target"]): link["value"] for link in out["links"]}
+    assert by_pair[("a", "b")] == 3.0
+    assert by_pair[("b", "c")] == 4.0
+
+
+def test_h11_sankey_diamond_dag_survives_intact() -> None:
+    """A legitimate DAG (diamond a->b, a->c, b->d, c->d) is untouched."""
+    data = DataSet(
+        rows=(
+            {"source": "a", "target": "b", "value": 1},
+            {"source": "a", "target": "c", "value": 1},
+            {"source": "b", "target": "d", "value": 1},
+            {"source": "c", "target": "d", "value": 1},
+        )
+    )
+    out = SankeyBuilder().build(spec=_SPEC, data=data)
+    pairs = {(link["source"], link["target"]) for link in out["links"]}
+    assert pairs == {("a", "b"), ("a", "c"), ("b", "d"), ("c", "d")}
