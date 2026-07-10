@@ -80,6 +80,8 @@ export function CommandDeck() {
   const [pending, setPending] = useState(false);
   const [health, setHealth] = useState<BackendHealth | null>(null);
   const [srStatus, setSrStatus] = useState("");
+  const [inFlight, setInFlight] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
   const historyRef = useRef(EMPTY_HISTORY);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -186,6 +188,9 @@ export function CommandDeck() {
     historyRef.current = recordHistory(historyRef.current, text);
     setPending(true);
     setSrStatus("Retrieving answer...");
+    setInFlight(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
     // Build the history the backend sees (excluding this turn).
     const history: BackendTurn[] = turns.map((t) => ({
       role: t.role === "operator" ? "user" : "assistant",
@@ -215,6 +220,7 @@ export function CommandDeck() {
             prev.map((t) => (t.id === deckId ? { ...t, text: acc } : t)),
           );
         },
+        signal: controller.signal,
       });
       ensureTurn();
       setTurns((prev) =>
@@ -235,11 +241,19 @@ export function CommandDeck() {
     } finally {
       setPending(false);
       setSrStatus("Answer ready.");
+      setInFlight(false);
+      abortRef.current = null;
       focusInput();
     }
   }, [snapshot, focusInput, pending, turns]);
 
   const clearTurns = useCallback(() => setTurns([]), []);
+
+  // Cancel an in-flight reply, keeping whatever streamed so far.
+  const stopStream = useCallback(() => {
+    abortRef.current?.abort();
+    setSrStatus("Stopped.");
+  }, []);
 
   // Shell-style history recall: Arrow-Up walks to older submitted prompts,
   // Arrow-Down walks back to the live draft. Only fires when the caret is on
@@ -384,13 +398,24 @@ export function CommandDeck() {
               >
                 Clear
               </button>
-              <button
-                type="submit"
-                class="deck-btn deck-btn-primary"
-                disabled={draft.trim().length === 0 || pending}
-              >
-                {pending ? "Thinking..." : "Send"}
-              </button>
+              {inFlight ? (
+                <button
+                  type="button"
+                  class="deck-btn deck-btn-stop"
+                  onClick={stopStream}
+                  title="Stop generating"
+                >
+                  Stop
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  class="deck-btn deck-btn-primary"
+                  disabled={draft.trim().length === 0}
+                >
+                  Send
+                </button>
+              )}
             </div>
           </form>
         </div>

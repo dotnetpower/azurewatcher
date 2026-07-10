@@ -3050,6 +3050,14 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
 .deck-btn-secondary {
   background: transparent;
 }
+.deck-btn-stop {
+  background: var(--danger, #b3261e);
+  border-color: var(--danger, #b3261e);
+  color: white;
+}
+.deck-btn-stop:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
 
 /* Give the app content room so the invoke bar never overlaps the sticky
    Live ticker or dashboard footnote. */

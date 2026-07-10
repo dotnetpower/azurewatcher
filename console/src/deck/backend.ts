@@ -245,6 +245,8 @@ function snapshotCitations(
 export interface StreamCallbacks {
   /** Fired for each streamed token delta (append to the live reply). */
   readonly onToken: (delta: string) => void;
+  /** Optional signal; abort to stop the stream and keep whatever streamed so far. */
+  readonly signal?: AbortSignal;
 }
 
 /**
@@ -266,6 +268,13 @@ export async function askBackendStream(
     return { ...local, source: `deterministic (${why})` };
   };
 
+  const stopped = (partial: string): Answer & { readonly source: string } => ({
+    text: partial.length > 0 ? partial : "Stopped before any answer arrived.",
+    citations: snapshotCitations(snapshot),
+    followUps: [],
+    source: "stopped",
+  });
+
   let response: Response;
   try {
     response = await fetch(streamUrl(), {
@@ -276,8 +285,10 @@ export async function askBackendStream(
         view_context: viewContextWithUser(snapshot),
         history: toBackendHistory(history),
       }),
+      signal: cb.signal ?? null,
     });
   } catch {
+    if (cb.signal?.aborted) return stopped("");
     return fallback("offline");
   }
   if (response.status === 404 || response.status === 501) {
@@ -341,6 +352,7 @@ export async function askBackendStream(
       }
     }
   } catch {
+    if (cb.signal?.aborted) return stopped(answerText);
     if (answerText === "") return fallback("stream interrupted");
   }
   if (buffer.trim().length > 0) handleFrame(buffer);
