@@ -1,0 +1,76 @@
+# LLM pricing - config-driven token cost table for metering.
+#
+# Loaded by fdai.core.metering.pricing.PricingTable.from_mapping (via the
+# composition root) so the control plane can compute a per-conversation /
+# daily / monthly cost from measured token usage. Prices are CONFIGURATION,
+# never code - see .github/instructions/coding-conventions.instructions.md.
+#
+# Values below are ILLUSTRATIVE list-price defaults (USD per 1,000 tokens,
+# PAYG list) in the same "illustrative, reconfirm at adoption" spirit as
+# docs/roadmap/cost-model.md. They are customer-agnostic public list prices,
+# NOT a measured claim and NOT negotiated rates. A fork overrides this file
+# with its region / currency / negotiated numbers; it MUST NOT commit fork
+# values upstream.
+#
+# Schema per entry (keyed by resolved model family):
+#   input_per_1k:  cost per 1,000 prompt tokens      (string decimal)
+#   output_per_1k: cost per 1,000 completion tokens  (string decimal)
+#   currency:      ISO 4217 code (optional, default USD)
+#
+# Embedding families have no completion tokens, so output_per_1k is "0".
+# A family absent from this table is recorded with an unknown (null) cost
+# rather than a guessed number - the metering summary flags it as unpriced.
+
+schema_version: "1.0.0"
+models:
+  # OpenAI reasoners (T2)
+  gpt-4o:
+    input_per_1k: "2.50"
+    output_per_1k: "10.00"
+    currency: USD
+  gpt-4-turbo:
+    input_per_1k: "10.00"
+    output_per_1k: "30.00"
+    currency: USD
+  o1:
+    input_per_1k: "15.00"
+    output_per_1k: "60.00"
+    currency: USD
+
+  # OpenAI mini judges (T1)
+  gpt-4o-mini:
+    input_per_1k: "0.15"
+    output_per_1k: "0.60"
+    currency: USD
+  gpt-4.1-mini:
+    input_per_1k: "0.40"
+    output_per_1k: "1.60"
+    currency: USD
+  gpt-5-mini:
+    input_per_1k: "0.25"
+    output_per_1k: "2.00"
+    currency: USD
+  gpt-5.4-mini:
+    input_per_1k: "0.25"
+    output_per_1k: "2.00"
+    currency: USD
+
+  # Cross-check peers (distinct publishers)
+  claude-opus-4:
+    input_per_1k: "15.00"
+    output_per_1k: "75.00"
+    currency: USD
+  mistral-large-2:
+    input_per_1k: "2.00"
+    output_per_1k: "6.00"
+    currency: USD
+
+  # Embedding families (T1) - no completion tokens
+  text-embedding-3-small:
+    input_per_1k: "0.02"
+    output_per_1k: "0"
+    currency: USD
+  text-embedding-3-large:
+    input_per_1k: "0.13"
+    output_per_1k: "0"
+    currency: USD
