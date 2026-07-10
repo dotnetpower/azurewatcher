@@ -253,8 +253,11 @@ function resolveStaticGlossary(q: string): Answer | null {
 
 /** Per-route "what can I do on this screen" hints. Kept declarative + English
  *  source so the same map serves the deterministic answerer AND the LLM path
- *  (route hints are injected into the snapshot the model reads). */
-const ROUTE_ACTION_HINTS: Readonly<Record<string, string>> = {
+ *  (route hints are injected into the snapshot the model reads). Exported so
+ *  the backend client (`backend.ts`) can attach the hint to `view_context`
+ *  as `_route_actions` - then the LLM answers 'what can I do here?' from
+ *  the same source of truth as the deterministic fallback, not by inventing. */
+export const ROUTE_ACTION_HINTS: Readonly<Record<string, string>> = {
   live:
     "Live cockpit: watch tiles as events flow in, click a tile to open its trace, " +
     "hover a tile to see its action + resource, and read the tier/gate mix at the top.",

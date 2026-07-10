@@ -14,17 +14,23 @@
  */
 
 import { loadConfig } from "../config";
-import { answer as deterministicAnswer, type Answer } from "./answerer";
+import { answer as deterministicAnswer, ROUTE_ACTION_HINTS, type Answer } from "./answerer";
 import type { ViewSnapshot } from "./context";
 import { getDeckUser } from "./deck-user";
 
 /** Build the `view_context` sent to the chat backend: the screen snapshot plus
  *  the signed-in operator's identity/roles (`_user`) so the narrator can answer
- *  capability questions. Read-only, informational - see deck-user.ts. */
+ *  capability questions, plus the per-route action hint (`_route_actions`) so
+ *  'what can I do here?' from the LLM matches the deterministic fallback and
+ *  is grounded (never invented). Read-only, informational - see deck-user.ts. */
 function viewContextWithUser(snapshot: ViewSnapshot | null): Record<string, unknown> {
   const base: Record<string, unknown> = snapshot ? { ...snapshot } : {};
   const user = getDeckUser();
   if (user) base._user = user;
+  if (snapshot?.routeId) {
+    const hint = ROUTE_ACTION_HINTS[snapshot.routeId];
+    if (hint) base._route_actions = hint;
+  }
   return base;
 }
 
