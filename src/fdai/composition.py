@@ -74,6 +74,7 @@ from .shared.contracts.validation import (
     JsonSchemaContractValidator,
     JsonSchemaEventValidator,
 )
+from .shared.providers.change_feed import ChangeFeed, EmptyChangeFeed
 from .shared.providers.exemption import (
     ExemptionRegistry,
     empty_exemption_registry,
@@ -95,6 +96,7 @@ if TYPE_CHECKING:
     from .delivery.azure.arg_query import AzureArgQueryFactoryConfig
     from .delivery.azure.inventory import AzureInventoryConfig
     from .delivery.azure.metric_logs import AzureMonitorLogsConfig
+    from .delivery.github.change_feed import GitHubChangeFeedConfig, TokenProvider
     from .rule_catalog.schema.resource_type import ResourceTypeRegistry
 
 _LOGGER = logging.getLogger(__name__)
@@ -184,6 +186,7 @@ class Container:
     metric_provider: MetricProvider = field(default_factory=NoopMetricProvider)
     inventory: Inventory = field(default_factory=EmptyInventory)
     knowledge_source: KnowledgeSource = field(default_factory=EmptyKnowledgeSource)
+    change_feed: ChangeFeed = field(default_factory=EmptyChangeFeed)
 
     def require_llm_bindings(self) -> LlmBindings:
         """Return :attr:`llm_bindings` or raise :class:`LlmBindingsUnavailableError`."""
@@ -607,6 +610,30 @@ def bind_embedding_knowledge_source(
         overlap=overlap,
     )
     return replace(container, knowledge_source=source)
+
+
+def bind_github_change_feed(
+    container: Container,
+    *,
+    config: GitHubChangeFeedConfig,
+    http_client: httpx.AsyncClient,
+    token_provider: TokenProvider,
+) -> Container:
+    """Return a new :class:`Container` with a live GitHub change feed in
+    place of the default :class:`EmptyChangeFeed`.
+
+    Supplies the read-side deploy/commit signal RCA correlates against an
+    incident (``correlate_changes``). Dev / local-fake runs keep the empty
+    default so no GitHub call is made and the parity contract holds.
+    """
+    from .delivery.github.change_feed import GitHubChangeFeed
+
+    feed = GitHubChangeFeed(
+        config=config,
+        http_client=http_client,
+        token_provider=token_provider,
+    )
+    return replace(container, change_feed=feed)
 
 
 def _load_resolved_models(path_or_ref: str) -> ResolvedModels:
