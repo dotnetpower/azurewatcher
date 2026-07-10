@@ -79,6 +79,7 @@ from .shared.providers.exemption import (
     empty_exemption_registry,
 )
 from .shared.providers.feasibility_probe import FeasibilityProbe
+from .shared.providers.inventory import EmptyInventory, Inventory
 from .shared.providers.metric import MetricProvider, NoopMetricProvider
 from .shared.providers.workload_identity import WorkloadIdentity
 
@@ -86,7 +87,10 @@ if TYPE_CHECKING:
     import httpx
 
     from .core.operator_memory import OperatorMemoryStore
+    from .delivery.azure.arg_query import AzureArgQueryFactoryConfig
+    from .delivery.azure.inventory import AzureInventoryConfig
     from .delivery.azure.metric_logs import AzureMonitorLogsConfig
+    from .rule_catalog.schema.resource_type import ResourceTypeRegistry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -173,6 +177,7 @@ class Container:
     workflows: tuple[Workflow, ...] = ()
     llm_bindings: LlmBindings | None = field(default=None)
     metric_provider: MetricProvider = field(default_factory=NoopMetricProvider)
+    inventory: Inventory = field(default_factory=EmptyInventory)
 
     def require_llm_bindings(self) -> LlmBindings:
         """Return :attr:`llm_bindings` or raise :class:`LlmBindingsUnavailableError`."""
@@ -532,6 +537,44 @@ def bind_azure_monitor_logs(
         http_client=http_client,
     )
     return replace(container, metric_provider=provider)
+
+
+def bind_azure_inventory(
+    container: Container,
+    *,
+    arg_config: AzureArgQueryFactoryConfig,
+    inventory_config: AzureInventoryConfig,
+    resource_types: ResourceTypeRegistry,
+    identity: WorkloadIdentity,
+    http_client: httpx.AsyncClient,
+) -> Container:
+    """Return a new :class:`Container` with the live Azure Resource Graph
+    inventory bound in place of the default :class:`EmptyInventory`.
+
+    Wires the real Kusto-over-ARG :class:`AzureArgQueryFactory` (from
+    ``delivery/azure/arg_query.py``) into the
+    :class:`AzureResourceGraphInventory` shard runner - the pairing that
+    was documented but never assembled. Kept symmetric to
+    :func:`bind_azure_monitor_logs` and :func:`bind_azure_llm_bindings`:
+    dev / local-fake runs never call this, so ``container.inventory``
+    stays the empty default and the parity contract holds. ``core/``
+    never imports the concrete adapter.
+
+    The ``full_snapshot`` path is live once bound; the ``delta``
+    (Activity-Log -> Kafka) path remains a stub until the forwarder ships
+    (see ``docs/roadmap/csp-neutrality.md § 5``).
+    """
+    from .delivery.azure.arg_query import AzureArgQueryFactory
+    from .delivery.azure.inventory import AzureResourceGraphInventory
+
+    query_fn = AzureArgQueryFactory(
+        identity=identity,
+        resource_types=resource_types,
+        http_client=http_client,
+        config=arg_config,
+    ).build_query_fn()
+    inventory = AzureResourceGraphInventory(config=inventory_config, query=query_fn)
+    return replace(container, inventory=inventory)
 
 
 def _load_resolved_models(path_or_ref: str) -> ResolvedModels:

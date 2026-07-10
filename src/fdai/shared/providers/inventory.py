@@ -136,7 +136,26 @@ class Inventory(Protocol):
         ...
 
 
+class EmptyInventory:
+    """Upstream default binding - an inventory with no resources.
+
+    Symmetric to :class:`~fdai.shared.providers.metric.NoopMetricProvider`:
+    ``full_snapshot`` yields only the ``final=True`` fence (a valid empty
+    graph) and ``delta`` yields the same, so downstream consumers can be
+    authored against a stable interface. Dev / local-fake runs keep this
+    binding; a real Azure Resource Graph adapter is wired at the
+    composition root via ``bind_azure_inventory``.
+    """
+
+    async def full_snapshot(self, since: str | None = None) -> AsyncIterator[InventoryBatch]:  # noqa: ARG002 - Protocol conformance
+        yield InventoryBatch(final=True)
+
+    async def delta(self, cursor: str) -> AsyncIterator[InventoryBatch]:  # noqa: ARG002 - Protocol conformance
+        yield InventoryBatch(final=True)
+
+
 __all__ = [
+    "EmptyInventory",
     "Inventory",
     "InventoryBatch",
     "LinkRecord",

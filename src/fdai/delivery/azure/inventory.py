@@ -96,12 +96,17 @@ class AzureInventoryConfig:
 
 
 class AzureResourceGraphInventory:
-    """P1 W-2 skeleton of the Azure Resource Graph ``Inventory`` adapter.
+    """Azure Resource Graph ``Inventory`` adapter (sharded full-scan).
 
-    The class deliberately implements the :class:`Inventory` Protocol
-    over a synthetic backend so the concurrency structure and
-    atomic-promote fence are testable. Real ARG wiring replaces
-    ``query`` in a follow-up.
+    Implements the :class:`Inventory` Protocol over an injected
+    :type:`ResourceQueryFn`. The live query function is produced by
+    :class:`~fdai.delivery.azure.arg_query.AzureArgQueryFactory` and wired
+    at the composition root through
+    :func:`fdai.composition.bind_azure_inventory`; tests inject a synthetic
+    ``ResourceQueryFn`` to assert the concurrency structure and
+    atomic-promote fence without standing up ARG. The ``full_snapshot``
+    path is live once bound; the ``delta`` (Activity-Log -> Kafka) path is
+    still a stub until the forwarder ships (see ``csp-neutrality.md § 5``).
     """
 
     def __init__(
