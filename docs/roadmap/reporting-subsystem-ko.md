@@ -1,7 +1,7 @@
 ---
 title: 리포팅 서브시스템
 translation_of: reporting-subsystem.md
-translation_source_sha: e9925babeb65a18f89a8f7c0b68fe60cdb75ebf2
+translation_source_sha: a2d75bd016d650e55f8fe22643b3668c247804ca
 translation_revised: 2026-07-10
 ---
 # 리포팅 서브시스템
@@ -79,7 +79,7 @@ source나 문제 있는 빌더는 그 위젯을 `error` 설정 + 빈 `data`로
 
 ## 위젯 카탈로그
 
-기본으로 제공되는 16개 빌더, 5개 계열로 분류. 각 빌더는 FE가
+기본으로 제공되는 35개 빌더, 7개 계열로 분류. 각 빌더는 FE가
 `type`을 키로 렌더하는 Datadog-inspired `data` 페이로드를
 방출합니다.
 
@@ -87,21 +87,40 @@ source나 문제 있는 빌더는 그 위젯을 `error` 설정 + 빈 `data`로
 |--------|--------|--------------------|
 | graphs | `timeseries` | `series: [{label, labels, points: [[epoch_seconds, value]]}]` |
 |        | `bar_chart` | `bars: [{label, value}]` |
+|        | `pie_chart` | `slices: [{label, value, percent}], total` |
 |        | `query_value` | `value, unit?, precision?` |
 |        | `change` | `current, previous, delta_absolute, delta_ratio` |
 |        | `distribution` | `buckets: [{le, count}]` |
 |        | `heatmap` | `timeseries`와 동일 shape (FE가 밴드로 그림) |
+|        | `scatter_plot` | `points: [{x, y, group?}]` |
+|        | `sparkline` | `series: [{label, values, min, max, last}]` |
+|        | `gauge` | `value, min, max, ratio, unit?` |
+|        | `progress_bar` | `current, target, ratio, unit?` |
 | lists  | `table` | `columns, rows, total_rows` |
 |        | `top_list` | `columns, rows, ranked_by, order, total_rows` |
 |        | `list_stream` | `items, total_rows` newest-first |
+|        | `event_stream` | severity 태그 포함 `items + counts_by_severity` |
 | flows  | `funnel` | `stages: [{label, value, conversion_ratio}]` |
 |        | `sankey` | `nodes, links: [{source, target, value}]` |
 |        | `treemap` | `tiles: [{label, value, group?}]` sorted desc |
+|        | `retention` | 코호트 grid `{periods, rows: [{cohort, values}]}` |
 | reliability | `slo_summary` | `objective, attainment, target, error_budget, ...` |
+|             | `alert_status` | `active, counts_by_severity, total` |
+|             | `check_status` | `checks, summary: {ok, warn, fail, unknown}` |
+|             | `service_summary` | `service, red: {rps, err, p50, p99}, health` |
+|             | `flame_graph` | `roots: [{name, value, children}]` |
+| architecture | `hostmap` | `tiles: [{host, value, group?}]` |
+|              | `topology_map` | `nodes, edges: [{source, target, value?}]` |
+|              | `geomap` | `points, areas` (mixed projections) |
+| cost   | `cost_summary` | `currency, total, rows: [{group, amount}]` |
+|        | `budget_summary` | `budget, actual, variance, utilization` |
 | annotations | `free_text` | `body` (markdown) |
 |             | `note` | `body, severity (info|warning|critical|ok)` |
-|             | `image` | `src, alt, caption?`; non-https / non-same-origin 거부 |
+|             | `image` | `src, alt, caption?`; non-https / non-raster 거부 |
+|             | `iframe` | `src, height?, sandbox?`; https-only |
 | composite | `group` | 재귀 children; 엔진 특별 처리 |
+|           | `tabs` | 재귀 children; 엔진 특별 처리 |
+|           | `split_graph` | `panels` (DataSet.series에서 fan-out) |
 
 포크는 `WidgetBuilder`를 구현하고 composition 시점에
 `WidgetRegistry.register`를 호출해 새 type을 추가합니다. FE는
@@ -110,16 +129,18 @@ source나 문제 있는 빌더는 그 위젯을 `error` 설정 + 빈 `data`로
 
 ## 데이터소스 카탈로그
 
-기본 제공 5개 어댑터, 각각 기존 seam을 감싸므로 리포팅
+기본 제공 7개 어댑터. 각각 기존 seam을 감싸므로 리포팅
 서브시스템은 새 I/O primitive를 도입하지 않습니다:
 
 | Name | Wraps | Sample projections |
 |------|-------|--------------------|
-| `audit` | duck-typed `AuditReader` (`ConsoleReadModel` 매치) | `rows`, `count_by_action_kind`, `count_by_mode`, `count_by_actor`, `count_total` |
-| `report_feed` | `core.report_feed.ReportFeed` | `rows`, `count_by_severity`, `count_by_category`, `count_by_kind`, `count_total` |
-| `metric` | `shared.providers.metric.MetricProvider` | `series` (with `group_by`), `scalar_sum` |
-| `log_query` | `shared.providers.log_query.LogQueryProvider` | `rows`, `count_by_severity`, `count_total` |
+| `audit` | duck-typed `AuditReader` (`ConsoleReadModel` 매치) | `rows`, `count_by_action_kind`, `count_by_mode`, `count_by_actor`, `count_by_correlation`, `series_hourly`, `series_daily`, `count_total` |
+| `report_feed` | `core.report_feed.ReportFeed` | `rows`, `count_by_severity`, `count_by_category`, `count_by_kind`, `count_by_resource`, `latest_per_resource`, `count_total` |
+| `metric` | `shared.providers.metric.MetricProvider` | `series` (with `group_by`), `scalar_sum`, `percentiles` |
+| `log_query` | `shared.providers.log_query.LogQueryProvider` | `rows`, `count_by_severity`, `pattern_group`, `series_hourly`, `count_total` |
 | `static` / `noop` | 인메모리 | 고정 / 빈 결과; 테스트 시드 |
+| `callable` | 임의의 sync/async `(spec, since, until, variables) -> DataSet` 함수 | 콜러블이 선언 |
+| `filesystem_manifest` | 파일시스템 `Path` | `rows`, `count_total`; `..` traversal 거부 |
 
 모든 datasource는 **read-only, async**입니다. `core/`는
 `delivery/`를 import하지 않으며, `audit` 어댑터는 좁은 duck-typed
@@ -134,8 +155,12 @@ Protocol을 받아 wire-up을 한 방향으로 유지합니다.
 | Name | Content-Type | Notes |
 |------|--------------|-------|
 | `json` | `application/json` | 정본 FE 계약; UTF-8, compact |
-| `markdown` | `text/markdown; charset=utf-8` | Notebook 스타일; ASCII-punctuation only |
-| `csv` | `text/csv; charset=utf-8` | 테이블 위젯 flatten; scalar 위젯은 한 행 |
+| `markdown` | `text/markdown; charset=utf-8` | Notebook 스타일; row cell HTML escape |
+| `csv` | `text/csv; charset=utf-8` | Formula-injection 안전; 테이블 flatten |
+| `html` | `text/html; charset=utf-8` | 독립 `<article>` fragment |
+| `text` | `text/plain; charset=utf-8` | stdout 친화 요약 |
+| `ndjson` | `application/x-ndjson` | 헤더 라인 + 위젯별 한 라인 |
+| `prometheus` **(opt-in)** | `text/plain; version=0.0.4` | scalar / timeseries만; 기본 등록 X |
 
 포크는 `FormatEncoder`를 구현하고 `FormatRegistry.register`를
 호출해 `pdf` / `xlsx` / 무엇이든 추가합니다.
@@ -246,8 +271,12 @@ widgets:
 |-------|---------|
 | `GET /reports` | 모든 리포트 목록 (id, name, description, version, tags, widget count, declared variables) |
 | `GET /reports/registry` | Wire된 datasource / widget-type / format 이름 |
+| `GET /reports/formats` | encoder 카탈로그 (`name` + `content_type`) |
+| `GET /reports/widget-types` | 등록된 위젯 type 이름 |
+| `GET /reports/datasources` | 등록된 datasource 이름 |
+| `GET /reports/health` | 엔진 진단 스냅샷 (counts + config) |
 | `GET /reports/{id}` | 리포트 정의 전체 (로드된 `ReportSpec`의 projection) |
-| `GET /reports/{id}/render?format=json\|markdown\|csv&<vars>` | 렌더된 페이로드 |
+| `GET /reports/{id}/render?format=json\|markdown\|csv\|html\|text\|ndjson&<vars>` | 렌더된 페이로드 |
 
 라우트는 `ReadApiConfig.reporting`을 통해 기존 read-API에
 연결됩니다:
@@ -361,6 +390,39 @@ validate합니다.
 - **ASCII-only markdown / audit 표면**. Markdown encoder는 smart
   quotes / em-dash / NBSP를 방출하지 않으며;
   [`scripts/check-punctuation.sh`](../../scripts/check-punctuation.sh)가 강제.
+
+### Hardening (batch-5 비평 기반 pass)
+
+shipped된 서브시스템을 OWASP + `app-shape` 관점에서 체계적으로
+비평해 10개의 안전장치를 추가했습니다. 각 항목은
+[`tests/core/reporting/test_hardening.py`](../../tests/core/reporting/test_hardening.py)의
+전용 테스트로 커버됩니다:
+
+1. **CSV formula injection** - `=` / `+` / `-` / `@` / TAB / CR로
+   시작하는 셀 앞에 `'` 접두사 (OWASP CSV injection).
+2. **Markdown HTML escape** - row 셀은 `&` / `<` / `>` / `|` 이스케이프
+   → 관대한 markdown viewer에서 인라인 HTML이 렌더되지 않음.
+3. **Image 확장자 allowlist** - `png` / `jpg` / `jpeg` / `gif` /
+   `webp` / `avif`만; `svg`는 script 실행 가능성으로 거부.
+4. **Per-widget timeout** - `ReportEngineConfig.per_widget_timeout_seconds`
+   가 각 datasource 호출을 `asyncio.wait_for`로 감쌈; hang은 hang이
+   아니라 error 위젯이 됨.
+5. **`$var` / `${var}` 치환** in `QuerySpec.parameters` (순수 함수
+   `substitute`). 미선언 변수는 datasource가 건드려지기 전
+   `VariableRejectedError`.
+6. **Catalog loader 크기 가드** - `max_file_size_bytes` / `max_files`
+   / `max_widgets_per_report`가 악성 YAML의 memory 소비를 상한;
+   로드 시점에 fail.
+7. **Report id / format 정규식 검증** at the read-API edge → path
+   traversal 시도가 catalog 조회에 도달하지 않음.
+8. **Rendered error 길이 cap** - `ReportEngineConfig.max_error_message_chars`
+   (default 512) 긴 traceback을 `...truncated` 마커와 함께 자름.
+9. **Audit datasource tz-aware datetime** - `since` / `until`을
+   UTC 강제 변환 (tz-naive 입력은 UTC로 취급) → naive 필터가
+   정상 row를 조용히 제외하지 못함.
+10. **Rendered widget-count cap** - `ReportEngineConfig.max_widgets_per_report`
+    (default 200) 초과 렌더를 sentinel 위젯 하나로 대체 → 응답 폭발
+    방지.
 
 ## 관련 문서
 

@@ -75,29 +75,47 @@ Code map (see [project-structure.md](project-structure.md)):
 
 ## Widget catalog
 
-Sixteen upstream builders, split into five families. Every builder
-emits a Datadog-inspired `data` payload the FE renders keyed on
-`type`.
+35 upstream builders across seven families. Every builder emits a
+Datadog-inspired `data` payload the FE renders keyed on `type`.
 
 | Family | `type` | Payload highlights |
 |--------|--------|--------------------|
 | graphs | `timeseries` | `series: [{label, labels, points: [[epoch_seconds, value]]}]` |
 |        | `bar_chart` | `bars: [{label, value}]` |
+|        | `pie_chart` | `slices: [{label, value, percent}], total` |
 |        | `query_value` | `value, unit?, precision?` |
 |        | `change` | `current, previous, delta_absolute, delta_ratio` |
 |        | `distribution` | `buckets: [{le, count}]` |
 |        | `heatmap` | same shape as `timeseries` (FE draws bands) |
+|        | `scatter_plot` | `points: [{x, y, group?}]` |
+|        | `sparkline` | `series: [{label, values, min, max, last}]` |
+|        | `gauge` | `value, min, max, ratio, unit?` |
+|        | `progress_bar` | `current, target, ratio, unit?` |
 | lists  | `table` | `columns, rows, total_rows` |
 |        | `top_list` | `columns, rows, ranked_by, order, total_rows` |
 |        | `list_stream` | `items, total_rows` newest-first |
+|        | `event_stream` | severity-tagged `items + counts_by_severity` |
 | flows  | `funnel` | `stages: [{label, value, conversion_ratio}]` |
 |        | `sankey` | `nodes, links: [{source, target, value}]` |
 |        | `treemap` | `tiles: [{label, value, group?}]` sorted desc |
+|        | `retention` | cohort grid `{periods, rows: [{cohort, values}]}` |
 | reliability | `slo_summary` | `objective, attainment, target, error_budget, ...` |
+|             | `alert_status` | `active, counts_by_severity, total` |
+|             | `check_status` | `checks, summary: {ok, warn, fail, unknown}` |
+|             | `service_summary` | `service, red: {rps, err, p50, p99}, health` |
+|             | `flame_graph` | `roots: [{name, value, children}]` |
+| architecture | `hostmap` | `tiles: [{host, value, group?}]` |
+|              | `topology_map` | `nodes, edges: [{source, target, value?}]` |
+|              | `geomap` | `points, areas` (mixed projections) |
+| cost   | `cost_summary` | `currency, total, rows: [{group, amount}]` |
+|        | `budget_summary` | `budget, actual, variance, utilization` |
 | annotations | `free_text` | `body` (markdown) |
 |             | `note` | `body, severity (info|warning|critical|ok)` |
-|             | `image` | `src, alt, caption?`; rejects non-https / non-same-origin |
+|             | `image` | `src, alt, caption?`; rejects non-https / non-raster |
+|             | `iframe` | `src, height?, sandbox?`; https-only |
 | composite | `group` | recursive children; engine-special-cased |
+|           | `tabs` | recursive children; engine-special-cased |
+|           | `split_graph` | `panels` fanned out from `DataSet.series` |
 
 A fork adds a new type by implementing
 `WidgetBuilder` and calling `WidgetRegistry.register` at composition
@@ -106,16 +124,18 @@ no restart, no schema push.
 
 ## Datasource catalog
 
-Five upstream adapters, each wraps an existing seam so the reporting
+Seven upstream adapters. Each wraps an existing seam so the reporting
 subsystem introduces no new I/O primitive:
 
 | Name | Wraps | Sample projections |
 |------|-------|--------------------|
-| `audit` | duck-typed `AuditReader` (matches `ConsoleReadModel`) | `rows`, `count_by_action_kind`, `count_by_mode`, `count_by_actor`, `count_total` |
-| `report_feed` | `core.report_feed.ReportFeed` | `rows`, `count_by_severity`, `count_by_category`, `count_by_kind`, `count_total` |
-| `metric` | `shared.providers.metric.MetricProvider` | `series` (with `group_by`), `scalar_sum` |
-| `log_query` | `shared.providers.log_query.LogQueryProvider` | `rows`, `count_by_severity`, `count_total` |
+| `audit` | duck-typed `AuditReader` (matches `ConsoleReadModel`) | `rows`, `count_by_action_kind`, `count_by_mode`, `count_by_actor`, `count_by_correlation`, `series_hourly`, `series_daily`, `count_total` |
+| `report_feed` | `core.report_feed.ReportFeed` | `rows`, `count_by_severity`, `count_by_category`, `count_by_kind`, `count_by_resource`, `latest_per_resource`, `count_total` |
+| `metric` | `shared.providers.metric.MetricProvider` | `series` (with `group_by`), `scalar_sum`, `percentiles` |
+| `log_query` | `shared.providers.log_query.LogQueryProvider` | `rows`, `count_by_severity`, `pattern_group`, `series_hourly`, `count_total` |
 | `static` / `noop` | in-memory | fixed / empty result; test seed |
+| `callable` | any sync/async `(spec, since, until, variables) -> DataSet` fn | as declared by the callable |
+| `filesystem_manifest` | filesystem `Path` | `rows`, `count_total`; refuses `..` traversal |
 
 Every datasource is **read-only, async**. `core/` never imports
 `delivery/`; the `audit` adapter takes a narrow duck-typed Protocol so
@@ -130,8 +150,12 @@ Postgres view) by implementing `ReportDataSource` and calling
 | Name | Content-Type | Notes |
 |------|--------------|-------|
 | `json` | `application/json` | Canonical FE contract; UTF-8, compact |
-| `markdown` | `text/markdown; charset=utf-8` | Notebook-style; ASCII-punctuation only |
-| `csv` | `text/csv; charset=utf-8` | Flattens table widgets; scalar widgets emit one row |
+| `markdown` | `text/markdown; charset=utf-8` | Notebook-style; HTML-escapes row cells |
+| `csv` | `text/csv; charset=utf-8` | Formula-injection safe; flattens tables |
+| `html` | `text/html; charset=utf-8` | Standalone `<article>` fragment |
+| `text` | `text/plain; charset=utf-8` | Stdout-friendly summary |
+| `ndjson` | `application/x-ndjson` | Header line + one line per widget |
+| `prometheus` **(opt-in)** | `text/plain; version=0.0.4` | Scalar / timeseries widgets only; NOT registered by default |
 
 A fork adds `pdf` / `xlsx` / whatever by implementing `FormatEncoder`
 and calling `FormatRegistry.register`.
@@ -241,8 +265,12 @@ Four GETs, mounted under a configurable prefix (default `/reports`) by
 |-------|---------|
 | `GET /reports` | List every report (id, name, description, version, tags, widget count, declared variables) |
 | `GET /reports/registry` | Wired datasource / widget-type / format names |
+| `GET /reports/formats` | Encoder catalog with `name` + `content_type` |
+| `GET /reports/widget-types` | Registered widget type names |
+| `GET /reports/datasources` | Registered datasource names |
+| `GET /reports/health` | Engine diagnostic snapshot (counts + config) |
 | `GET /reports/{id}` | Full report definition (projection of the loaded `ReportSpec`) |
-| `GET /reports/{id}/render?format=json\|markdown\|csv&<vars>` | The rendered payload |
+| `GET /reports/{id}/render?format=json\|markdown\|csv\|html\|text\|ndjson&<vars>` | The rendered payload |
 
 The routes plug into the existing read-API through `ReadApiConfig.reporting`:
 
@@ -352,6 +380,75 @@ route.
 - **ASCII-only markdown / audit surfaces**. The markdown encoder ships
   no smart quotes / em-dash / NBSP; enforced by
   [`scripts/check-punctuation.sh`](../../scripts/check-punctuation.sh).
+
+### Hardening (batch-5 critique-driven pass)
+
+Ten safeguards were added after a systematic OWASP + `app-shape`
+critique of the shipped subsystem. Each is covered by a dedicated test
+in [`tests/core/reporting/test_hardening.py`](../../tests/core/reporting/test_hardening.py):
+
+1. **CSV formula injection** - cells starting with `=` / `+` / `-` /
+   `@` / TAB / CR are prefixed with `'` (OWASP CSV injection).
+2. **Markdown HTML escape** - row cells escape `&` / `<` / `>` / `|`
+   so a permissive markdown viewer never renders inline HTML.
+3. **Image extension allowlist** - `png` / `jpg` / `jpeg` / `gif` /
+   `webp` / `avif` only; `svg` is refused because it can carry
+   script content.
+4. **Per-widget timeout** - `ReportEngineConfig.per_widget_timeout_seconds`
+   wraps each datasource call in `asyncio.wait_for`; a hang becomes an
+   `error` widget instead of a request hang.
+5. **`$var` / `${var}` substitution** in `QuerySpec.parameters` via
+   the pure `substitute` helper. Undeclared references raise
+   `VariableRejectedError` before the datasource is touched.
+6. **Catalog loader size guards** - `max_file_size_bytes` /
+   `max_files` / `max_widgets_per_report` cap memory exposure to a
+   hostile YAML tree; violations fail at load, not at first render.
+7. **Report id / format regex validation** at the read-API edge so a
+   `../../etc/passwd` probe never reaches the catalog lookup.
+8. **Rendered error length cap** - `ReportEngineConfig.max_error_message_chars`
+   (default 512) truncates long tracebacks with a `...truncated` marker.
+9. **Audit datasource tz-aware datetime comparison** - `since` /
+   `until` are UTC-coerced (tz-naive input treated as UTC) so a naive
+   filter cannot silently exclude legitimate rows.
+10. **Rendered widget-count cap** - `ReportEngineConfig.max_widgets_per_report`
+    (default 200) replaces oversize renders with a single sentinel
+    widget instead of blowing up the response.
+
+### Hardening (batch-6 widget-builder pass)
+
+A second critique targeted the expanded widget-builder catalog: builders
+transform untrusted datasource values, so a hostile or buggy value must
+never crash serialization or misorder a chart. Each item is covered in
+[`tests/core/reporting/test_widgets_hardening.py`](../../tests/core/reporting/test_widgets_hardening.py):
+
+1. **JSON non-finite safety** - `JsonFormatEncoder` recursively rewrites
+   `NaN` / `+-Inf` to `null` and sets `allow_nan=False`, so a datasource
+   value can never emit a body strict JSON parsers reject (RFC 8259 has
+   no `NaN` / `Infinity` token).
+2. **Flame-graph cycle prevention** - cyclic / self-parent rows are
+   dropped so the emitted structure is always a forest; a cycle would
+   otherwise raise `ValueError: Circular reference` at `json.dumps` time,
+   *outside* the per-widget isolation, failing the whole report.
+3. **Graph numeric coercion** - `graphs._as_number` rejects non-finite
+   floats, so gauge / progress / pie / scatter / change never emit `NaN`.
+4. **Cost numeric coercion** - `cost._numeric` rejects non-finite (incl.
+   `"nan"` / `"inf"` strings) so a cost total is always finite.
+5. **Flow numeric coercion** - `flows._numeric_or_none` rejects
+   non-finite so funnel ratios / treemap sort stay well-defined.
+6. **List sort-key safety** - `lists._numeric` maps non-finite to `-inf`
+   so a `NaN` rank cannot scramble `top_list` ordering.
+7. **Sparkline finite-safe summary** - `min` / `max` / `last` are
+   computed from finite points only; a `None` / non-numeric point no
+   longer raises `TypeError`.
+8. **Stream timestamp ordering** - `list_stream` / `event_stream` use a
+   numeric-aware sort key so epoch-integer timestamps order correctly
+   (a `str()` sort put `9` after `100`).
+9. **Pie magnitude percent** - slice percentages derive from the sum of
+   magnitudes, so a negative or mixed-sign dataset cannot produce a
+   percent `> 1` or a divide-by-signed-total artifact.
+10. **`__all__` placement** - the late-defined `EventStreamBuilder` /
+    `RetentionBuilder` are exported after their class definitions, not
+    before, so `import *` and static analysis stay consistent.
 
 ## Related
 
