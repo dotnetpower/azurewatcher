@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: 14c0eaf298639b7afca533623d5796b032d874b1
+translation_source_sha: 4734c4bfbd2f18dd9ee83075b7f9831640696e12
 translation_revised: 2026-07-10
 ---
 
@@ -309,6 +309,16 @@ audit log에 기록하므로 fork는 콘솔을 추가로 계측하지 않고도 
 포크는 durable sink(`AzureWireOverrides.metering_sink`)와 reader(`LlmCostPanel`
 에)를 주입한다 - 보통 Postgres `agent_transcript` 행. 가격은 예시 list-price
 기본값이며 포크가 리전 / 통화 / 협상가로 override 한다.
+
+계량 경로는 fail-safe로 하드닝되어 있다: 가격은 로드 시 유한(finite)인지
+검증하고(NaN/Infinity 요율 거부), 매 호출은 비용의 통화를 함께 기록하여
+롤업이 두 통화를 하나로 합산하지 않으며(다르면 `mixed`로 표시), T1 임베딩
+티어도 T2 reasoner와 함께 계량하고, T2 호출이 HIL로 실패해도 토큰을 기록하며
+(과소계상 없음), 패널은 지출을 `shadow`/`enforce` 모드로 분리하고 대화별
+테이블을 상한 처리한다(비용 큰 순). `wire_azure_container`는 sink가 배선되면
+제공된 가격표를 기본 로드하고, in-memory sink는 bounded ring이라 장기 실행
+프로세스가 무한정 커지지 않는다. emit은 best-effort - 계량 실패는 로그만 남기고
+결정 경로로 raise되지 않는다.
 
 ## 5. DI seam
 

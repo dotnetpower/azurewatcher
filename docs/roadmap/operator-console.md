@@ -323,6 +323,18 @@ and reader (into `LlmCostPanel`) - typically Postgres `agent_transcript`
 rows. Prices are illustrative list-price defaults a fork overrides for
 its region / currency / negotiated rate.
 
+The metering path is hardened to fail safe: prices are validated finite
+at load (a NaN/Infinity rate is rejected), every invocation records the
+currency of its cost so a rollup never sums two currencies as one
+(flagged `mixed` when they differ), the T1 embedding tier is metered
+alongside the T2 reasoners, tokens are recorded even when a T2 call fails
+to HIL (no under-reporting), and the panel splits spend by
+`shadow`/`enforce` mode and caps the per-conversation table (costliest
+first). `wire_azure_container` default-loads the shipped price table when
+a sink is wired, and the in-memory sink is a bounded ring so a
+long-running process cannot grow without limit. Emission is best-effort -
+a metering failure is logged, never raised into the decision path.
+
 ## 5. DI seams
 
 Every seam is a Protocol; the composition root wires the concrete
