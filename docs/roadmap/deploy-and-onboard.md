@@ -72,6 +72,45 @@ DSN secrets during apply. Deploys run through the [`deploy-dev` workflow](../../
 on the `[self-hosted, fdai-deploy]` runner (plan-only by default; the `apply` input enforces).
 Full runbook: [`infra/bootstrap/README.md`](../../infra/bootstrap/README.md).
 
+#### Onboarding automation
+
+Five helpers make the runner path repeatable (all customer-agnostic, parameterized):
+
+- [`preflight-policy-check.sh`](../../infra/bootstrap/preflight-policy-check.sh) probes a
+  throwaway KV + storage to tell you up front whether the tenant forces private-everything
+  (and thus mandates the runner path).
+- [`onboard.sh`](../../infra/bootstrap/onboard.sh) runs create-state-account -> bootstrap
+  apply -> prints the GitHub Actions config (idempotent).
+- [`set-gh-actions-config.sh`](../../scripts/set-gh-actions-config.sh) sets the repo
+  Variables + Secrets from the bootstrap outputs (password generated + piped, never printed).
+- [`register-runner.sh`](../../infra/bootstrap/register-runner.sh) mints a runner token and
+  registers the VNet runner over `run-command`.
+- [`teardown-env.sh`](../../scripts/teardown-env.sh) deallocates/starts the runner (cost) and
+  guards a per-env `terraform destroy` that never touches the ops hub or state account.
+
+#### Production hardening knobs
+
+All default to the dev posture (the live env is unchanged) and tighten via tfvars per env
+(see [`staging.tfvars.example`](../../infra/envs/staging.tfvars.example) /
+[`prod.tfvars.example`](../../infra/envs/prod.tfvars.example)):
+
+| Concern | Knob | Prod value |
+|---------|------|------------|
+| Delete protection | `enable_resource_locks`, bootstrap `enable_state_lock` | `true` |
+| Key Vault | `kv_purge_protection_enabled`, `kv_soft_delete_retention_days` | `true`, `90` |
+| Postgres durability | `postgres_backup_retention_days`, `postgres_geo_redundant_backup` | `35`, `true` |
+| Registry | `acr_sku` | `Premium` |
+| Monitoring | `enable_monitoring`, `alert_email`, `alert_webhook_url` | on + destination |
+| Cost | `monthly_budget_amount`, `budget_alert_emails`, bootstrap `runner_auto_shutdown_time` | set |
+
+CI adds two credential-free guards: [`infra-lint.yml`](../../.github/workflows/infra-lint.yml)
+(fmt + validate + tfsec + Checkov on every infra PR) and
+[`infra-drift.yml`](../../.github/workflows/infra-drift.yml) (scheduled `plan -detailed-exitcode`
+on the runner - a red run means live infra drifted from code). Monitoring, when enabled,
+provisions an action group + metric alerts (Postgres / Key Vault / Event Hubs / Container App)
++ diagnostic settings to Log Analytics; alerts are a human signal only, never an autonomous
+action.
+
 ### Non-Azure Prerequisites
 
 - A **GitOps host** (GitHub or Azure DevOps organization) with an installed GitHub App or
