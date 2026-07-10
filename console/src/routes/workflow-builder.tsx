@@ -249,6 +249,220 @@ export function suggestStepId(actionTypeRef: string, takenIds: readonly string[]
   }
 }
 
+/** Plain-language intent -> draft matcher (deterministic, no LLM).
+ *
+ * Maps a free-text description ("when cost spikes, right-size the VM and
+ * tell me") onto a trigger signal + one or more real ActionTypes from the
+ * live palette, so a non-expert can start from words instead of the
+ * ontology. Purely client-side and read-only; it only pre-fills the form.
+ * When nothing matches confidently it returns null (abstain) rather than
+ * inventing a workflow. */
+interface SignalKeywordGroup {
+  readonly signal: string;
+  readonly kind: "signal" | "schedule";
+  readonly schedule?: string;
+  readonly words: readonly string[];
+}
+
+const SIGNAL_KEYWORDS: readonly SignalKeywordGroup[] = [
+  {
+    signal: "object.cost-anomaly",
+    kind: "signal",
+    words: ["cost", "costs", "spend", "spending", "budget", "bill", "billing", "expensive", "overspend", "saving"],
+  },
+  {
+    signal: "object.security-event",
+    kind: "signal",
+    words: ["security", "secure", "vulnerab", "breach", "exposed", "exposure", "attack", "threat", "malicious"],
+  },
+  {
+    signal: "object.capacity-forecast",
+    kind: "signal",
+    words: ["scale", "scaling", "capacity", "traffic", "load", "saturation", "throughput", "utiliz"],
+  },
+  {
+    signal: "__schedule_weekly",
+    kind: "schedule",
+    schedule: "0 3 * * 0",
+    words: ["drill", "rehearse", "rehearsal", "weekly", "failover", "disaster", "recovery", "chaos", "schedule"],
+  },
+  {
+    signal: "object.forecast",
+    kind: "signal",
+    words: ["forecast", "predict", "prediction", "trend", "anticipate"],
+  },
+  {
+    signal: "object.anomaly",
+    kind: "signal",
+    words: ["anomaly", "anomalous", "unusual", "abnormal", "spike", "weird"],
+  },
+  {
+    signal: "object.drift",
+    kind: "signal",
+    words: ["drift", "desired", "declared", "baseline", "noncompliant", "compliance", "config", "misconfig"],
+  },
+];
+
+/** Phrase -> ActionType name substring, so common phrasings map to a real
+ * action even when the words differ from the action's own name. */
+const ACTION_SYNONYMS: readonly { readonly words: readonly string[]; readonly match: string }[] = [
+  { words: ["right size", "rightsize", "downsize", "resize", "shrink"], match: "right-size" },
+  { words: ["scale out", "scale up", "add capacity", "grow"], match: "scale-out" },
+  { words: ["scale in", "scale down"], match: "scale-in" },
+  { words: ["encrypt", "encryption"], match: "enable-encryption" },
+  { words: ["backup", "back up"], match: "enable-backup-protection" },
+  { words: ["restart", "reboot", "bounce"], match: "restart-service" },
+  { words: ["notify", "alert", "tell me", "summary", "report", "publish"], match: "publish-change-summary" },
+  { words: ["tag", "label"], match: "tag-add" },
+  { words: ["rotate secret", "rotate password", "rotate key"], match: "rotate-secret" },
+  { words: ["certificate", "tls"], match: "rotate-cert" },
+  { words: ["public access", "expose", "disable public"], match: "disable-public-access" },
+  { words: ["firewall", "restrict network"], match: "restrict-network-access" },
+  { words: ["rbac", "least privilege"], match: "enable-rbac" },
+  { words: ["failover", "fail over"], match: "failover-primary" },
+  { words: ["drain"], match: "drain-connection" },
+  { words: ["flush cache"], match: "flush-cache" },
+];
+
+export interface IntentSuggestion {
+  readonly form: FormState;
+  readonly reasons: readonly string[];
+}
+
+/** Over-generic words that appear in many ActionType names/descriptions;
+ * excluded from token scoring so they do not drag in unrelated actions
+ * (e.g. "resource" pulling in remove-orphan-resource). Specific verbs and
+ * nouns like "access" / "encryption" are deliberately NOT here. */
+const TOKEN_STOPWORDS: ReadonlySet<string> = new Set([
+  "resource",
+  "resources",
+  "service",
+  "services",
+  "policy",
+  "policies",
+  "object",
+  "event",
+  "state",
+  "when",
+  "every",
+  "that",
+  "this",
+  "with",
+  "from",
+  "your",
+  "will",
+  "should",
+  "some",
+  "them",
+]);
+
+/** Match a plain-language description to a trigger + steps drawn from the
+ * live palette. Returns null when nothing matches (abstain). */
+export function suggestDraftFromText(
+  text: string,
+  palette: readonly ActionTypePaletteEntry[],
+): IntentSuggestion | null {
+  const lower = text.toLowerCase();
+  if (lower.trim().length < 3) return null;
+  // Normalize punctuation to spaces so "right-size" matches the "right size"
+  // synonym phrase and hyphenated input is tokenized cleanly.
+  const norm = lower.replace(/[^a-z0-9]+/g, " ");
+  const tokens = norm.split(" ").filter((w) => w.length >= 4 && !TOKEN_STOPWORDS.has(w));
+  const reasons: string[] = [];
+
+  const leafOf = (name: string): string => name.split(/[./:]/).pop() ?? name;
+
+  // --- Actions: synonym phrases first, then token overlap on name+label ---
+  const scored = new Map<string, number>();
+  for (const syn of ACTION_SYNONYMS) {
+    if (!syn.words.some((w) => norm.includes(w))) continue;
+    // Target one action: prefer an exact leaf match, else the shortest name
+    // that contains the fragment - so "right size" boosts remediate.right-size,
+    // not also remediate.right-size-role.
+    const exact = palette.find((p) => leafOf(p.name) === syn.match);
+    const target =
+      exact ??
+      palette
+        .filter((p) => p.name.includes(syn.match))
+        .sort((a, b) => a.name.length - b.name.length)[0];
+    if (target) scored.set(target.name, (scored.get(target.name) ?? 0) + 5);
+  }
+  for (const p of palette) {
+    const bag = `${humanizeActionName(p.name)} ${p.name}`.toLowerCase();
+    let s = 0;
+    for (const tok of tokens) if (bag.includes(tok)) s += 1;
+    if (s > 0) scored.set(p.name, (scored.get(p.name) ?? 0) + s);
+  }
+  // Rank, then drop near-duplicate variants (a leaf that extends an
+  // already-picked leaf, e.g. right-size-role after right-size).
+  const ranked = [...scored.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const actions: ActionTypePaletteEntry[] = [];
+  const pickedLeaves: string[] = [];
+  for (const [name] of ranked) {
+    if (actions.length >= 3) break;
+    const leaf = leafOf(name);
+    if (pickedLeaves.some((l) => leaf.startsWith(l) || l.startsWith(leaf))) continue;
+    const entry = palette.find((p) => p.name === name);
+    if (entry) {
+      actions.push(entry);
+      pickedLeaves.push(leaf);
+    }
+  }
+
+  // --- Trigger: strongest signal keyword group, else infer from actions ---
+  let best: SignalKeywordGroup | null = null;
+  let bestScore = 0;
+  for (const g of SIGNAL_KEYWORDS) {
+    const score = g.words.reduce((n, w) => (norm.includes(w) ? n + 1 : n), 0);
+    if (score > bestScore) {
+      best = g;
+      bestScore = score;
+    }
+  }
+  if (actions.length === 0 && best === null) return null; // abstain
+
+  const form: FormState = { ...INITIAL_FORM, steps: [] };
+  if (best) {
+    if (best.kind === "schedule") {
+      form.triggerKind = "schedule";
+      form.schedule = best.schedule ?? "0 3 * * 0";
+      reasons.push(`schedule (matched "${best.words.find((w) => norm.includes(w))}")`);
+    } else {
+      form.triggerKind = "signal";
+      form.signalType = best.signal;
+      reasons.push(`${signalLabel(best.signal)} (matched "${best.words.find((w) => norm.includes(w))}")`);
+    }
+  } else {
+    form.triggerKind = "signal";
+    form.signalType = "object.drift";
+    reasons.push("Configuration drifted (default trigger)");
+  }
+
+  const taken: string[] = [];
+  form.steps = actions.map((a, i) => {
+    const id = suggestStepId(a.name, taken);
+    taken.push(id);
+    reasons.push(`do ${humanizeActionName(a.name)}`);
+    return {
+      key: i,
+      id,
+      action_type_ref: a.name,
+      guard_rule_ref: "",
+      compensated_by: "",
+      on_failure: "",
+    };
+  });
+  if (form.steps.length === 0) form.steps = [emptyStep(0)];
+
+  // Suggested name from the first action; the operator can rename it.
+  if (actions.length > 0) {
+    const slug = suggestStepId(actions[0].name, []).replace(/_/g, "-");
+    form.name = `${slug}-workflow`;
+  }
+  form.description = text.trim().slice(0, 200);
+  return { form, reasons };
+}
+
 /** Assemble the JSON draft the validate endpoint expects, dropping empty
  * optional fields so the server sees a clean mapping. */
 function buildDraft(form: FormState): Record<string, unknown> {
@@ -420,12 +634,17 @@ function WorkflowShell({ data }: { readonly data: CombinedData }) {
   return (
     <BuiltInList
       workflows={data.workflows}
+      palette={data.palette}
       onNew={() => {
         setSeed(null);
         setMode("new");
       }}
       onClone={(w) => {
         setSeed(catalogToForm(w));
+        setMode("new");
+      }}
+      onDraft={(form) => {
+        setSeed(form);
         setMode("new");
       }}
     />
@@ -524,6 +743,73 @@ function WorkflowFlow({
   );
 }
 
+/** Plain-language composer: describe the automation in words and get a
+ * matching trigger + steps to start from. Deterministic and read-only -
+ * it pre-fills the builder, never creates anything. Abstains (shows a
+ * gentle nudge) when it cannot match confidently. */
+const INTENT_EXAMPLES: readonly string[] = [
+  "When cost spikes, right-size the resource and publish a summary",
+  "Every week, rehearse a DR failover",
+  "When a resource drifts, restrict public access",
+];
+
+function IntentComposer({
+  palette,
+  onUse,
+}: {
+  readonly palette: readonly ActionTypePaletteEntry[];
+  readonly onUse: (form: FormState) => void;
+}) {
+  const [text, setText] = useState("");
+  const suggestion = useMemo(() => suggestDraftFromText(text, palette), [text, palette]);
+  const typed = text.trim().length >= 3;
+  return (
+    <section class="stack-section intent-composer">
+      <h3 class="section-title">Describe what you want</h3>
+      <p class="muted small">
+        Type it in plain words and the builder suggests a matching trigger and steps you can
+        adjust. Nothing is created until you validate and open a PR.
+      </p>
+      <textarea
+        class="form-input intent-input"
+        rows={2}
+        value={text}
+        aria-label="Describe the workflow in plain words"
+        placeholder="e.g. When cost spikes, right-size the VM and tell me"
+        onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
+      />
+      <div class="intent-examples">
+        <span class="muted small">Try:</span>
+        {INTENT_EXAMPLES.map((ex) => (
+          <button type="button" class="chip-btn" key={ex} onClick={() => setText(ex)}>
+            {ex}
+          </button>
+        ))}
+      </div>
+      {typed ? (
+        suggestion ? (
+          <div class="intent-preview" aria-live="polite">
+            <WorkflowSummary form={suggestion.form} />
+            <ul class="intent-reasons">
+              {suggestion.reasons.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+            <button type="button" class="btn" onClick={() => onUse(suggestion.form)}>
+              Use this draft →
+            </button>
+          </div>
+        ) : (
+          <p class="field-hint" aria-live="polite">
+            No confident match yet. Add a bit more detail (an action like "right-size" or "encrypt",
+            or a trigger like "cost" or "weekly"), or pick a template below.
+          </p>
+        )
+      ) : null}
+    </section>
+  );
+}
+
 /** Launchpad: a card grid that lets an operator start a new workflow from a
  * shipped template (clone-and-tweak) or from a blank form. Replacing the
  * blank-form-first flow removes the "empty canvas" problem - the default
@@ -585,12 +871,16 @@ function TemplateGallery({
 /** Read-only list of shipped workflows + a details drawer per row. */
 function BuiltInList({
   workflows,
+  palette,
   onNew,
   onClone,
+  onDraft,
 }: {
   readonly workflows: readonly WorkflowCatalogEntry[];
+  readonly palette: readonly ActionTypePaletteEntry[];
   readonly onNew: () => void;
   readonly onClone: (w: WorkflowCatalogEntry) => void;
+  readonly onDraft: (form: FormState) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
@@ -620,6 +910,8 @@ function BuiltInList({
         invariants (stop-condition, rollback, blast-radius cap, audit). Pick a template to start
         fast, or browse the shipped workflows read-only below.
       </div>
+
+      <IntentComposer palette={palette} onUse={onDraft} />
 
       <TemplateGallery workflows={workflows} onNew={onNew} onClone={onClone} />
 

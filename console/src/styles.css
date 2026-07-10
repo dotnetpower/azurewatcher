@@ -2013,6 +2013,21 @@ pre {
 .list-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 .list-toolbar .form-input { max-width: 340px; }
 .step-connector { text-align: center; font-size: 11.5px; color: var(--fg-muted); margin: 2px 0; letter-spacing: 0.04em; }
+.intent-composer { border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; }
+.intent-input { width: 100%; box-sizing: border-box; resize: vertical; font-family: inherit; }
+.intent-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.chip-btn {
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+  border-radius: 999px; padding: 3px 11px; font-size: 12px; cursor: pointer;
+}
+.chip-btn:hover { border-color: var(--accent); color: var(--accent); }
+.intent-preview {
+  margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: color-mix(in oklab, var(--accent) 5%, transparent);
+  display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
+}
+.intent-reasons { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--fg-muted); }
+.intent-reasons li { margin: 1px 0; }
 
 /* Template gallery (launchpad) */
 .template-gallery {

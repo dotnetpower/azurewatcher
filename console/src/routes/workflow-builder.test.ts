@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { humanizeName, suggestStepId } from "./workflow-builder";
+import { humanizeName, suggestDraftFromText, suggestStepId } from "./workflow-builder";
+import type { ActionTypePaletteEntry } from "../workflow/validate";
 
 /**
  * These tests pin the two pure helpers the Phase-A builder UX relies on:
@@ -38,5 +39,80 @@ describe("suggestStepId", () => {
 
   test("falls back to a safe id when the ref has no alphanumerics", () => {
     expect(suggestStepId("...", [])).toBe("step");
+  });
+});
+
+function at(name: string, category: string, description = ""): ActionTypePaletteEntry {
+  return {
+    name,
+    operation: "update",
+    category,
+    rollback_contract: "pr_revert",
+    irreversible: false,
+    default_mode: "shadow",
+    execution_path: null,
+    env_scope: "any",
+    hil_tiers: [],
+    description,
+  };
+}
+
+const PALETTE: readonly ActionTypePaletteEntry[] = [
+  at("remediate.right-size", "remediation", "Adjust compute count to match utilization"),
+  at("ops.scale-out", "ops", "Add capacity"),
+  at("ops.restart-service", "ops", "Restart a service"),
+  at("remediate.enable-encryption", "remediation", "Turn on encryption at rest"),
+  at("remediate.disable-public-access", "remediation", "Remove public network exposure"),
+  at("ops.publish-change-summary", "ops", "Publish a change summary"),
+  at("ops.failover-primary", "ops", "Fail over the primary"),
+];
+
+describe("suggestDraftFromText", () => {
+  test("maps a cost intent to the cost signal + right-size and notify actions", () => {
+    const s = suggestDraftFromText("When cost spikes, right-size the VM and tell me", PALETTE);
+    expect(s).not.toBeNull();
+    expect(s!.form.triggerKind).toBe("signal");
+    expect(s!.form.signalType).toBe("object.cost-anomaly");
+    const actions = s!.form.steps.map((st) => st.action_type_ref);
+    expect(actions).toContain("remediate.right-size");
+    expect(actions).toContain("ops.publish-change-summary");
+    expect(s!.form.steps.every((st) => st.id.length > 0)).toBe(true);
+  });
+
+  test("maps a weekly DR drill to a schedule trigger + failover", () => {
+    const s = suggestDraftFromText("Every week, rehearse a DR failover", PALETTE);
+    expect(s).not.toBeNull();
+    expect(s!.form.triggerKind).toBe("schedule");
+    expect(s!.form.schedule).toBe("0 3 * * 0");
+    expect(s!.form.steps.map((st) => st.action_type_ref)).toContain("ops.failover-primary");
+  });
+
+  test("maps a security intent to the security signal + disable-public-access", () => {
+    const s = suggestDraftFromText("When a resource is exposed, disable public access", PALETTE);
+    expect(s).not.toBeNull();
+    expect(s!.form.signalType).toBe("object.security-event");
+    expect(s!.form.steps.map((st) => st.action_type_ref)).toContain(
+      "remediate.disable-public-access",
+    );
+  });
+
+  test("abstains on an unmatchable string", () => {
+    expect(suggestDraftFromText("qwer zxcv hjkl", PALETTE)).toBeNull();
+    expect(suggestDraftFromText("", PALETTE)).toBeNull();
+  });
+
+  test("caps the suggested steps at three", () => {
+    const s = suggestDraftFromText(
+      "encrypt, restart, scale out, right-size, disable public access, failover",
+      PALETTE,
+    );
+    expect(s).not.toBeNull();
+    expect(s!.form.steps.length).toBeLessThanOrEqual(3);
+  });
+
+  test("suggested step ids are unique within the draft", () => {
+    const s = suggestDraftFromText("right-size and scale out and restart", PALETTE);
+    const ids = s!.form.steps.map((st) => st.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
