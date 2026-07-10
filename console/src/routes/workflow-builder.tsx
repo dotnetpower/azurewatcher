@@ -67,22 +67,74 @@ function emptyStep(key: number): DraftStep {
 
 /** Curated signal types a workflow can trigger on - the sensing /
  * detection topics the control plane publishes (`fdai.agents.topics`).
- * `signal_type` is a free string server-side (no registry yet), so the
- * builder offers these as clear suggestions plus a custom escape hatch. */
+ * Each carries a plain-language `label` (what a non-expert reads first)
+ * and the exact machine `value`. `signal_type` is a free string
+ * server-side (no registry yet), so these are suggestions plus a custom
+ * escape hatch. */
 const CUSTOM_SIGNAL = "__custom__";
-const SIGNAL_TYPE_OPTIONS: readonly { readonly value: string; readonly hint: string }[] = [
-  { value: "object.drift", hint: "Declared vs actual state drifted (config drift)" },
-  { value: "object.anomaly", hint: "An anomaly detector flagged a resource" },
-  { value: "object.event", hint: "A normalized inbound event cleared ingest" },
-  { value: "object.forecast", hint: "A predictive forecast crossed a threshold" },
-  { value: "object.cost-anomaly", hint: "Cost anomaly detected (FinOps / Njord)" },
-  { value: "object.capacity-forecast", hint: "Capacity / scaling forecast (Freyr)" },
-  { value: "object.security-event", hint: "A security event was raised" },
-  { value: "object.resilience-score", hint: "Resilience score changed (DR / chaos)" },
+const SIGNAL_TYPE_OPTIONS: readonly {
+  readonly value: string;
+  readonly label: string;
+  readonly hint: string;
+}[] = [
+  {
+    value: "object.drift",
+    label: "Configuration drifted",
+    hint: "A resource no longer matches its declared / desired state.",
+  },
+  {
+    value: "object.anomaly",
+    label: "Anomaly detected",
+    hint: "A detector flagged unusual behavior on a resource.",
+  },
+  {
+    value: "object.event",
+    label: "Incoming event",
+    hint: "A normalized event arrived and passed intake.",
+  },
+  {
+    value: "object.forecast",
+    label: "Forecast crossed a threshold",
+    hint: "A prediction crossed a configured threshold.",
+  },
+  {
+    value: "object.cost-anomaly",
+    label: "Cost spike detected",
+    hint: "Spending jumped unexpectedly (cost governance).",
+  },
+  {
+    value: "object.capacity-forecast",
+    label: "Capacity forecast produced",
+    hint: "A scaling / capacity forecast was produced.",
+  },
+  {
+    value: "object.security-event",
+    label: "Security event raised",
+    hint: "A security-relevant event was raised.",
+  },
+  {
+    value: "object.resilience-score",
+    label: "Resilience score changed",
+    hint: "The disaster-recovery / chaos resilience score moved.",
+  },
 ];
 const KNOWN_SIGNAL_VALUES: ReadonlySet<string> = new Set(
   SIGNAL_TYPE_OPTIONS.map((o) => o.value),
 );
+
+/** Plain-language label for a signal value, or "" if it is a custom one. */
+function signalLabel(value: string): string {
+  return SIGNAL_TYPE_OPTIONS.find((o) => o.value === value)?.label ?? "";
+}
+
+/** Human-friendly label for an ActionType machine name
+ * ("remediate.right-size" -> "Right-size"). Shown wherever an operator
+ * reads an action, always with the exact machine name kept alongside. */
+function humanizeActionName(name: string): string {
+  const seg = name.includes(".") ? name.slice(name.lastIndexOf(".") + 1) : name;
+  const words = seg.replace(/[-_]/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 
 /** Common cron presets so an operator does not have to hand-write a
  * 5-field expression for the usual cadences. */
@@ -381,7 +433,7 @@ function WorkflowSummary({ form }: { readonly form: FormState }) {
   const triggerVerb = form.triggerKind === "signal" ? "When" : "On schedule";
   const triggerLabel =
     form.triggerKind === "signal"
-      ? form.signalType.trim() || "an event"
+      ? signalLabel(form.signalType) || form.signalType.trim() || "an event"
       : form.schedule.trim() || "a schedule";
   const actions = form.steps.map((s) => s.action_type_ref.trim()).filter(Boolean);
   return (
@@ -400,7 +452,7 @@ function WorkflowSummary({ form }: { readonly form: FormState }) {
           actions.map((a, i) => (
             <Fragment key={i}>
               {i > 0 ? <span class="wf-summary-then"> then </span> : null}
-              <code>{a}</code>
+              <code title={a}>{humanizeActionName(a)}</code>
             </Fragment>
           ))
         )}
@@ -422,7 +474,7 @@ function WorkflowFlow({
 }) {
   const triggerLabel =
     form.triggerKind === "signal"
-      ? form.signalType.trim() || "event"
+      ? signalLabel(form.signalType) || form.signalType.trim() || "event"
       : form.schedule.trim() || "schedule";
   return (
     <div class="wf-flow" role="list" aria-label="Workflow flow map">
@@ -431,9 +483,7 @@ function WorkflowFlow({
         <span class="wf-node-title mono">{triggerLabel}</span>
       </div>
       {form.steps.map((step, index) => {
-        const leaf = step.action_type_ref.trim()
-          ? step.action_type_ref.split(/[./:]/).pop()
-          : null;
+        const action = step.action_type_ref.trim();
         return (
           <Fragment key={step.key}>
             <span class="wf-flow-arrow" aria-hidden="true">
@@ -441,13 +491,13 @@ function WorkflowFlow({
             </span>
             <button
               type="button"
-              class={leaf ? "wf-node" : "wf-node wf-node-empty"}
+              class={action ? "wf-node" : "wf-node wf-node-empty"}
               role="listitem"
               onClick={() => onSelect(step.key)}
-              title="Jump to this step"
+              title={action ? `Jump to step: ${action}` : "Jump to this step"}
             >
               <span class="wf-node-kind">#{index + 1}</span>
-              <span class="wf-node-title mono">{leaf ?? "unset"}</span>
+              <span class="wf-node-title">{action ? humanizeActionName(action) : "unset"}</span>
               <span class="wf-node-badges" aria-hidden="true">
                 {step.guard_rule_ref.trim() ? <span title="Guarded">🛡</span> : null}
                 {step.compensated_by.trim() ? <span title="Has rollback">↩</span> : null}
@@ -1098,7 +1148,7 @@ function BuilderBody({
                     />
                   </label>
                   <label class="form-field">
-                    <span class="form-label">ActionType</span>
+                    <span class="form-label">Action to run</span>
                     <select
                       class="form-input mono"
                       value={step.action_type_ref}
@@ -1118,7 +1168,7 @@ function BuilderBody({
                         patchStep(step.key, fields);
                       }}
                     >
-                      <option value="">(select an ActionType)</option>
+                      <option value="">(pick an action)</option>
                       <ActionTypeOptions grouped={groupedPalette} />
                     </select>
                   </label>
@@ -1300,7 +1350,7 @@ function ActionTypeOptions({
         <optgroup label={cat} key={cat}>
           {entries.map((p) => (
             <option value={p.name} key={p.name}>
-              {p.name}
+              {humanizeActionName(p.name)} ({p.name})
             </option>
           ))}
         </optgroup>
@@ -1320,11 +1370,15 @@ function formatParams(params: Record<string, string | number | boolean> | undefi
 function ActionTypeHint({ at }: { readonly at: ActionTypePaletteEntry }) {
   return (
     <div class="at-hint">
+      <strong>{humanizeActionName(at.name)}</strong>
+      <span class="mono muted">{at.name}</span>
       <span class="badge">{at.category ?? at.operation}</span>
       <span class="mono muted">rollback: {at.rollback_contract}</span>
       {at.irreversible ? <span class="badge hil">irreversible</span> : null}
       {at.hil_tiers.length > 0 ? (
-        <span class="badge hil">HIL @ {at.hil_tiers.join(", ")}</span>
+        <span class="badge hil" title="Needs a human approval at this tier">
+          needs approval @ {at.hil_tiers.join(", ")}
+        </span>
       ) : null}
       {at.description ? <span class="muted small">{at.description}</span> : null}
     </div>
@@ -1346,9 +1400,9 @@ function SignalTypeField({
   const activeHint = SIGNAL_TYPE_OPTIONS.find((o) => o.value === value)?.hint;
   return (
     <label class="form-field">
-      <span class="form-label">Signal type</span>
+      <span class="form-label">What starts it (signal)</span>
       <select
-        class="form-input mono"
+        class="form-input"
         value={selectValue}
         onChange={(e) => {
           const v = (e.target as HTMLSelectElement).value;
@@ -1357,7 +1411,7 @@ function SignalTypeField({
       >
         {SIGNAL_TYPE_OPTIONS.map((o) => (
           <option value={o.value} key={o.value}>
-            {o.value} - {o.hint}
+            {o.label} ({o.value})
           </option>
         ))}
         <option value={CUSTOM_SIGNAL}>Custom (type your own)...</option>
