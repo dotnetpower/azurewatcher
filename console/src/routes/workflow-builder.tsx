@@ -120,7 +120,7 @@ const BUILDER_FORM_FIELDS: readonly Record<string, string>[] = [
   { section: "2. Trigger", field: "kind", required: "yes", note: "signal (run on an event) or schedule (run on a cron)" },
   { section: "2. Trigger", field: "signal_type", required: "when kind=signal", note: "what happened that starts the workflow; pick a detection signal from trigger_signal_options or choose Custom" },
   { section: "2. Trigger", field: "schedule", required: "when kind=schedule", note: "standard 5-field cron, e.g. 0 3 * * 1 = 03:00 every Monday" },
-  { section: "3. Steps", field: "step.id", required: "yes", note: "unique id for the step, e.g. annotate_cost" },
+  { section: "3. Steps", field: "step.id", required: "yes", note: "unique id for the step; auto-suggested from the chosen ActionType (e.g. right_size), editable" },
   { section: "3. Steps", field: "step.action_type_ref", required: "yes", note: "pick one ontology ActionType from the action_types palette" },
   { section: "3. Steps", field: "step.guard_rule_ref", required: "no", note: "optional policy rule that gates the step" },
   { section: "3. Steps", field: "step.compensated_by", required: "no", note: "optional ActionType that undoes this step on rollback" },
@@ -169,6 +169,31 @@ function humanizeIssueKey(key: string): string {
   const noPrefix = key.replace(/^draft:/, "").trim();
   if (noPrefix === "" || noPrefix === "<root>") return "workflow";
   return noPrefix.replace(/\./g, " > ").replace(/_/g, " ");
+}
+
+/** Turn a dotted workflow name ("cost-aware-remediation") into a readable
+ * title ("Cost aware remediation") for template cards. */
+export function humanizeName(name: string): string {
+  const words = name.replace(/[._-]+/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** Suggest a snake_case step id from an ActionType ref so the operator does
+ * not have to invent one. "remediate.right-size" -> "right_size", made
+ * unique against ids already used in the draft. */
+export function suggestStepId(actionTypeRef: string, takenIds: readonly string[]): string {
+  const leaf = actionTypeRef.split(/[./:]/).pop() ?? actionTypeRef;
+  const base =
+    leaf
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "step";
+  const taken = new Set(takenIds);
+  if (!taken.has(base)) return base;
+  for (let i = 2; ; i += 1) {
+    const candidate = `${base}_${i}`;
+    if (!taken.has(candidate)) return candidate;
+  }
 }
 
 /** Assemble the JSON draft the validate endpoint expects, dropping empty
@@ -348,6 +373,158 @@ function WorkflowShell({ data }: { readonly data: CombinedData }) {
   );
 }
 
+/** Live "when -> do" summary of the draft, mirroring Palantir Automate's
+ * condition -> effect mental model. Updates as the operator edits the
+ * trigger and steps so the workflow reads as one plain sentence before any
+ * validation. */
+function WorkflowSummary({ form }: { readonly form: FormState }) {
+  const triggerVerb = form.triggerKind === "signal" ? "When" : "On schedule";
+  const triggerLabel =
+    form.triggerKind === "signal"
+      ? form.signalType.trim() || "an event"
+      : form.schedule.trim() || "a schedule";
+  const actions = form.steps.map((s) => s.action_type_ref.trim()).filter(Boolean);
+  return (
+    <div class="wf-summary" aria-live="polite">
+      <span class="wf-summary-clause">
+        <span class="wf-summary-label">{triggerVerb}</span> <code>{triggerLabel}</code>
+      </span>
+      <span class="wf-summary-arrow" aria-hidden="true">
+        →
+      </span>
+      <span class="wf-summary-clause">
+        <span class="wf-summary-label">do</span>{" "}
+        {actions.length === 0 ? (
+          <span class="muted">(add a step)</span>
+        ) : (
+          actions.map((a, i) => (
+            <Fragment key={i}>
+              {i > 0 ? <span class="wf-summary-then"> then </span> : null}
+              <code>{a}</code>
+            </Fragment>
+          ))
+        )}
+      </span>
+    </div>
+  );
+}
+
+/** A horizontal, clickable flow map of the draft (trigger -> steps -> end),
+ * the graphical companion to the "when -> do" summary. Each step node jumps
+ * to its editor card and surfaces the branch/rollback structure (guard,
+ * compensated-by, on-failure) that a flat card list hides. */
+function WorkflowFlow({
+  form,
+  onSelect,
+}: {
+  readonly form: FormState;
+  readonly onSelect: (key: number) => void;
+}) {
+  const triggerLabel =
+    form.triggerKind === "signal"
+      ? form.signalType.trim() || "event"
+      : form.schedule.trim() || "schedule";
+  return (
+    <div class="wf-flow" role="list" aria-label="Workflow flow map">
+      <div class="wf-node wf-node-trigger" role="listitem">
+        <span class="wf-node-kind">{form.triggerKind === "signal" ? "when" : "on"}</span>
+        <span class="wf-node-title mono">{triggerLabel}</span>
+      </div>
+      {form.steps.map((step, index) => {
+        const leaf = step.action_type_ref.trim()
+          ? step.action_type_ref.split(/[./:]/).pop()
+          : null;
+        return (
+          <Fragment key={step.key}>
+            <span class="wf-flow-arrow" aria-hidden="true">
+              →
+            </span>
+            <button
+              type="button"
+              class={leaf ? "wf-node" : "wf-node wf-node-empty"}
+              role="listitem"
+              onClick={() => onSelect(step.key)}
+              title="Jump to this step"
+            >
+              <span class="wf-node-kind">#{index + 1}</span>
+              <span class="wf-node-title mono">{leaf ?? "unset"}</span>
+              <span class="wf-node-badges" aria-hidden="true">
+                {step.guard_rule_ref.trim() ? <span title="Guarded">🛡</span> : null}
+                {step.compensated_by.trim() ? <span title="Has rollback">↩</span> : null}
+                {step.on_failure.trim() ? <span title="Has on-failure fallback">⤵</span> : null}
+              </span>
+            </button>
+          </Fragment>
+        );
+      })}
+      <span class="wf-flow-arrow" aria-hidden="true">
+        →
+      </span>
+      <div class="wf-node wf-node-end" role="listitem">
+        <span class="wf-node-title">done</span>
+      </div>
+    </div>
+  );
+}
+
+/** Launchpad: a card grid that lets an operator start a new workflow from a
+ * shipped template (clone-and-tweak) or from a blank form. Replacing the
+ * blank-form-first flow removes the "empty canvas" problem - the default
+ * surface is now "pick something close and adjust". */
+function TemplateGallery({
+  workflows,
+  onNew,
+  onClone,
+}: {
+  readonly workflows: readonly WorkflowCatalogEntry[];
+  readonly onNew: () => void;
+  readonly onClone: (w: WorkflowCatalogEntry) => void;
+}) {
+  return (
+    <section class="stack-section">
+      <h3 class="section-title">Start a new workflow</h3>
+      <p class="muted small">
+        Start from a template that is close to what you want and adjust it, or start from a blank
+        form. Either way the draft opens in the builder - nothing is created until you validate and
+        open a PR.
+      </p>
+      <div class="template-gallery">
+        {workflows.map((w) => (
+          <button
+            type="button"
+            class="template-card"
+            key={w.name}
+            onClick={() => onClone(w)}
+          >
+            <span class="template-card-title">{humanizeName(w.name)}</span>
+            <span class="template-card-desc">{w.description ?? "No description."}</span>
+            <span class="template-card-meta">
+              <span class="badge tag">
+                {w.trigger.kind === "signal" ? w.trigger.signal_type : w.trigger.schedule}
+              </span>
+              <span class="muted small">
+                {w.step_count} step{w.step_count === 1 ? "" : "s"}
+              </span>
+            </span>
+            <span class="template-card-cta">Use as template →</span>
+          </button>
+        ))}
+        <button
+          type="button"
+          class="template-card template-card-blank"
+          onClick={onNew}
+        >
+          <span class="template-card-title">Start from scratch</span>
+          <span class="template-card-desc">
+            Begin with an empty form and map each step onto an ActionType yourself.
+          </span>
+          <span class="template-card-cta">Blank workflow →</span>
+        </button>
+      </div>
+    </section>
+  );
+}
+
 /** Read-only list of shipped workflows + a details drawer per row. */
 function BuiltInList({
   workflows,
@@ -383,16 +560,15 @@ function BuiltInList({
         <strong>What is this?</strong> A workflow is a built-in business process - an ordered
         list of steps, each one mapped to a governed ontology <code>ActionType</code>. The same
         trust-routing control loop dispatches every step, so each step keeps its safety
-        invariants (stop-condition, rollback, blast-radius cap, audit). Browse the shipped
-        workflows below read-only, or start a new one.
+        invariants (stop-condition, rollback, blast-radius cap, audit). Pick a template to start
+        fast, or browse the shipped workflows read-only below.
       </div>
+
+      <TemplateGallery workflows={workflows} onNew={onNew} onClone={onClone} />
 
       <section class="stack-section">
         <div class="section-header">
-          <h3 class="section-title">Built-in workflows ({workflows.length})</h3>
-          <button type="button" class="btn" onClick={onNew}>
-            + New workflow
-          </button>
+          <h3 class="section-title">Browse built-in workflows ({workflows.length})</h3>
         </div>
         {workflows.length === 0 ? (
           <p class="muted small">No built-in workflows are served on this deployment.</p>
@@ -664,6 +840,13 @@ function BuilderBody({
     setDirty(true);
   }
 
+  function selectStep(key: number): void {
+    const el = document.getElementById(`wf-step-${key}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.classList.add("step-card-flash");
+    window.setTimeout(() => el?.classList.remove("step-card-flash"), 900);
+  }
+
   async function onValidate(): Promise<void> {
     setValidating(true);
     setTransportError(null);
@@ -720,6 +903,8 @@ function BuilderBody({
         rollback come for free. New workflows start in <span class="badge shadow">shadow</span>{" "}
         mode (judge and log, no changes) until a separate promotion PR.
       </div>
+
+      <WorkflowSummary form={form} />
 
       {palette.length === 0 ? (
         <div class="empty error">
@@ -853,6 +1038,7 @@ function BuilderBody({
           an <strong>on failure</strong> fallback (must be a later step). The card shows the
           selected action's safety posture.
         </p>
+        <WorkflowFlow form={form} onSelect={selectStep} />
         <div class="stack">
           {form.steps.map((step, index) => {
             const at = paletteByName.get(step.action_type_ref);
@@ -860,7 +1046,10 @@ function BuilderBody({
             const stepIncomplete = step.id.trim() === "" || step.action_type_ref.trim() === "";
             return (
               <Fragment key={step.key}>
-                <div class={stepIncomplete ? "step-card step-card-incomplete" : "step-card"}>
+                <div
+                  id={`wf-step-${step.key}`}
+                  class={stepIncomplete ? "step-card step-card-incomplete" : "step-card"}
+                >
                   <div class="step-card-head">
                     <span class="badge">#{index + 1}</span>
                   <div class="step-move">
@@ -913,11 +1102,21 @@ function BuilderBody({
                     <select
                       class="form-input mono"
                       value={step.action_type_ref}
-                      onChange={(e) =>
-                        patchStep(step.key, {
-                          action_type_ref: (e.target as HTMLSelectElement).value,
-                        })
-                      }
+                      onChange={(e) => {
+                        const value = (e.target as HTMLSelectElement).value;
+                        const fields: Partial<DraftStep> = { action_type_ref: value };
+                        // Auto-suggest a step id when the operator has not set
+                        // one yet, so picking an action is enough to get a valid
+                        // step. Never clobber an id the operator already typed.
+                        if (value && step.id.trim() === "") {
+                          const taken = form.steps
+                            .filter((s) => s.key !== step.key)
+                            .map((s) => s.id.trim())
+                            .filter(Boolean);
+                          fields.id = suggestStepId(value, taken);
+                        }
+                        patchStep(step.key, fields);
+                      }}
                     >
                       <option value="">(select an ActionType)</option>
                       <ActionTypeOptions grouped={groupedPalette} />
@@ -983,62 +1182,68 @@ function BuilderBody({
         </div>
       </section>
 
-      {/* Promotion gate */}
+      {/* Promotion gate (advanced - defaults are sensible, so this is
+          collapsed by default to keep the first-run form short). */}
       <section class="stack-section">
-        <h3 class="section-title">4. Promotion gate</h3>
-        <p class="muted small">
-          The bar the workflow must clear before it can be promoted from{" "}
-          <span class="badge shadow">shadow</span> (judge and log, no mutation) to enforce. Promotion
-          is always a separate governance PR that measures these thresholds - the builder only
-          records them.
-        </p>
-        <div class="form-grid">
-          <label class="form-field">
-            <span class="form-label">Min shadow days</span>
-            <input
-              class="form-input mono"
-              type="number"
-              value={form.minShadowDays}
-              onInput={(e) => patch({ minShadowDays: (e.target as HTMLInputElement).value })}
-            />
-          </label>
-          <label class="form-field">
-            <span class="form-label">Min samples</span>
-            <input
-              class="form-input mono"
-              type="number"
-              value={form.minSamples}
-              onInput={(e) => patch({ minSamples: (e.target as HTMLInputElement).value })}
-            />
-          </label>
-          <label class="form-field">
-            <span class="form-label">Min accuracy</span>
-            <input
-              class="form-input mono"
-              type="number"
-              step="0.01"
-              value={form.minAccuracy}
-              onInput={(e) => patch({ minAccuracy: (e.target as HTMLInputElement).value })}
-            />
-          </label>
-          <label class="form-field">
-            <span class="form-label">Max policy escapes</span>
-            <input
-              class="form-input mono"
-              type="number"
-              value={form.maxPolicyEscapes}
-              onInput={(e) => patch({ maxPolicyEscapes: (e.target as HTMLInputElement).value })}
-            />
-          </label>
-          <label class="form-field form-field-wide">
-            <span class="form-label">Anti-scope (optional)</span>
-            <input
-              class="form-input"
-              value={form.antiScope}
-              onInput={(e) => patch({ antiScope: (e.target as HTMLInputElement).value })}
-            />
-          </label>
-        </div>
+        <details class="advanced-details">
+          <summary>
+            <span class="section-title">4. Promotion gate</span>{" "}
+            <span class="muted small">(advanced - the defaults are fine for most workflows)</span>
+          </summary>
+          <p class="muted small">
+            The bar the workflow must clear before it can be promoted from{" "}
+            <span class="badge shadow">shadow</span> (judge and log, no mutation) to enforce.
+            Promotion is always a separate governance PR that measures these thresholds - the
+            builder only records them.
+          </p>
+          <div class="form-grid">
+            <label class="form-field">
+              <span class="form-label">Min shadow days</span>
+              <input
+                class="form-input mono"
+                type="number"
+                value={form.minShadowDays}
+                onInput={(e) => patch({ minShadowDays: (e.target as HTMLInputElement).value })}
+              />
+            </label>
+            <label class="form-field">
+              <span class="form-label">Min samples</span>
+              <input
+                class="form-input mono"
+                type="number"
+                value={form.minSamples}
+                onInput={(e) => patch({ minSamples: (e.target as HTMLInputElement).value })}
+              />
+            </label>
+            <label class="form-field">
+              <span class="form-label">Min accuracy</span>
+              <input
+                class="form-input mono"
+                type="number"
+                step="0.01"
+                value={form.minAccuracy}
+                onInput={(e) => patch({ minAccuracy: (e.target as HTMLInputElement).value })}
+              />
+            </label>
+            <label class="form-field">
+              <span class="form-label">Max policy escapes</span>
+              <input
+                class="form-input mono"
+                type="number"
+                value={form.maxPolicyEscapes}
+                onInput={(e) => patch({ maxPolicyEscapes: (e.target as HTMLInputElement).value })}
+              />
+            </label>
+            <label class="form-field form-field-wide">
+              <span class="form-label">Anti-scope (optional)</span>
+              <input
+                class="form-input"
+                value={form.antiScope}
+                onInput={(e) => patch({ antiScope: (e.target as HTMLInputElement).value })}
+              />
+            </label>
+          </div>
+        </details>
       </section>
 
       {/* Validate + result */}

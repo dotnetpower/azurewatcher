@@ -316,13 +316,31 @@ An operator authors a custom business process through the console's
 maps the process onto the ontology and is **read-only by construction**: it
 validates and previews, it never commits.
 
-The view has two modes. The default is a **read-only list of the built-in
-workflows**: every shipped process with its trigger, step count, and mode, and
-a per-row detail panel (property table, steps table, anti-scope, and the raw
-catalog YAML). Authoring is an explicit choice behind a **New workflow** button
-that opens the guided builder form; the form carries a `Back to built-in
-workflows` control, an intro callout, and numbered per-section help so it is
-self-explanatory.
+The view has two modes. The default is a **launchpad plus a read-only list of
+the built-in workflows**. A **template gallery** is the primary entry point: a
+card per shipped workflow ("Use as template", which clones it into an editable
+draft) alongside a "Start from scratch" card, so the operator begins from
+something close instead of a blank form. Below it, a **read-only browse table**
+lists every shipped process with its trigger, step count, and mode, and a
+per-row detail panel (property table, steps table, anti-scope, and the raw
+catalog YAML).
+
+The guided builder form is opened from either entry point (a template card or
+"Start from scratch") and is designed for non-experts:
+
+- a live **"when -> do" summary** header restates the draft as one plain
+  sentence (trigger -> ordered actions), mirroring a condition -> effect model;
+- a horizontal **flow map** (trigger -> steps -> done) renders the same shape
+  graphically; each step node jumps to its editor card and surfaces guard,
+  rollback (`compensated_by`), and `on_failure` structure a flat list hides;
+- picking an `ActionType` **auto-suggests a snake_case step id** (editable), so
+  a step is valid without the operator inventing an id;
+- the **promotion gate and anti-scope** are collapsed under an "advanced"
+  disclosure because their defaults are sensible, keeping the first-run form
+  short;
+- a `Back to built-in workflows` control, an intro callout, numbered
+  per-section help, and an inline readiness checklist keep it self-explanatory.
+
 
 Three opt-in, Reader-gated read API routes back it, all pure projections that
 write no state (see

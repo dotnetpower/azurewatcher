@@ -1,7 +1,7 @@
 ---
 title: 프로세스 자동화(Process Automation)
 translation_of: process-automation.md
-translation_source_sha: f8e7e3b030fdc86cd2a79aad978217987df106dc
+translation_source_sha: 0de0facb781acdd8bba07440600f4c13408b0c60
 translation_revised: 2026-07-10
 ---
 
@@ -303,12 +303,29 @@ malformed 워크플로는 첫 dispatch 가 아니라 부팅을 막는다.
 표면은 프로세스를 온톨로지에 매핑하며 **구조적으로 read-only** 다: 검증하고
 미리보기할 뿐 커밋하지 않는다.
 
-뷰에는 두 모드가 있다. 기본은 **빌트인 워크플로의 read-only 목록**이다: 각
-출시 프로세스를 trigger, step 수, mode 와 함께 보여주고, 행마다 상세 패널
-(속성 테이블, 스텝 테이블, anti-scope, 원본 카탈로그 YAML) 을 편다. 저작은
-**New workflow** 버튼 뒤의 명시적 선택이며, 이 폼은 `Back to built-in
-workflows` 컨트롤, 소개 콜아웃, 섹션별 번호가 매겨진 도움말을 실어 스스로
-설명된다.
+뷰에는 두 모드가 있다. 기본은 **런치패드 + 빌트인 워크플로의 read-only
+목록**이다. **템플릿 갤러리**가 주 진입점이다: 출시 워크플로마다 카드 하나
+("Use as template" 로 편집 가능한 초안으로 복제) 와 "Start from scratch" 카드를
+나란히 두어, 오퍼레이터가 빈 폼이 아니라 가까운 것에서 시작하게 한다. 그
+아래의 **read-only 브라우즈 테이블**은 각 출시 프로세스를 trigger, step 수,
+mode 와 함께 나열하고, 행마다 상세 패널 (속성 테이블, 스텝 테이블, anti-scope,
+원본 카탈로그 YAML) 을 편다.
+
+가이드 빌더 폼은 두 진입점 (템플릿 카드 또는 "Start from scratch") 중 하나에서
+열리며, 비전문가를 위해 설계되었다:
+
+- 라이브 **"when -> do" 요약** 헤더가 초안을 한 문장 (trigger -> 정렬된
+  액션들) 으로 다시 서술하여 condition -> effect 모델을 반영한다;
+- 수평 **플로우 맵** (trigger -> steps -> done) 이 같은 형태를 그래픽으로
+  렌더하며, 각 스텝 노드는 자기 편집 카드로 점프하고 평탄한 목록이 숨기는
+  guard, 롤백 (`compensated_by`), `on_failure` 구조를 드러낸다;
+- `ActionType` 를 고르면 **snake_case step id 를 자동 제안** (편집 가능) 하여,
+  오퍼레이터가 id 를 지어내지 않아도 스텝이 유효해진다;
+- **promotion gate 와 anti-scope** 는 기본값이 합리적이므로 "advanced" 접힘
+  영역 아래로 숨겨 첫 실행 폼을 짧게 유지한다;
+- `Back to built-in workflows` 컨트롤, 소개 콜아웃, 섹션별 번호가 매겨진 도움말,
+  인라인 준비도 체크리스트가 폼을 스스로 설명되게 한다.
+
 
 세 개의 opt-in, Reader-gated read API 라우트가 이를 뒷받침하며, 모두 상태를
 쓰지 않는 순수 projection 이다 (see
