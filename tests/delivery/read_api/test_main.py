@@ -668,5 +668,35 @@ class TestExtensionPanels:
             ExampleFinOpsPanel(InMemoryConsoleReadModel(), path="finops")
 
 
+class TestCapabilityCatalogPanel:
+    """The capability catalog panel (SRE-agent slide 20)."""
+
+    def test_capabilities_route_lists_metadata(self, dev_env: None) -> None:
+        from fdai.delivery.read_api.panels import CapabilityCatalogPanel
+
+        app, _ = _build_with_panels(CapabilityCatalogPanel())
+        client = TestClient(app)
+        body = client.get("/capabilities").json()
+
+        assert body["surface"] == "capabilities"
+        assert body["count"] >= 1
+        ids = {c["capability_id"] for c in body["capabilities"]}
+        assert "investigation.run" in ids
+        # Every mutating capability advertises shadow as its default mode.
+        for cap in body["capabilities"]:
+            if cap["side_effect_class"] in {"execute", "breakglass"}:
+                assert cap["default_mode"] == "shadow"
+
+    def test_capabilities_route_filters_by_category(self, dev_env: None) -> None:
+        from fdai.delivery.read_api.panels import CapabilityCatalogPanel
+
+        app, _ = _build_with_panels(CapabilityCatalogPanel())
+        client = TestClient(app)
+        body = client.get("/capabilities?category=chaos").json()
+
+        assert body["count"] >= 1
+        assert all(c["category"] == "chaos" for c in body["capabilities"])
+
+
 def _clear_env() -> None:
     os.environ.pop(_DEV_MODE_ENV, None)

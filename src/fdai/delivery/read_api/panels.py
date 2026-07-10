@@ -34,6 +34,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Protocol, runtime_checkable
 
+from fdai.core.capability_catalog import (
+    CapabilityCatalog,
+    CapabilityCategory,
+    default_capability_catalog,
+)
 from fdai.core.verticals.finops import FinOpsActionKind
 from fdai.delivery.read_api.read_model import ConsoleReadModel, clamp_limit
 
@@ -133,7 +138,71 @@ class ExampleFinOpsPanel:
         }
 
 
+class CapabilityCatalogPanel:
+    """Read-only panel projecting the capability catalog (slide 20).
+
+    Renders the customer-agnostic
+    :class:`~fdai.core.capability_catalog.CapabilityCatalog` so the console
+    can show operators what FDAI can do, each capability's side-effect class,
+    and its default autonomy mode. Pure projection - listing a capability
+    grants no execution eligibility, and the payload is inert metadata.
+
+    Supports an optional ``category`` query filter matching a
+    :class:`~fdai.core.capability_catalog.CapabilityCategory` value.
+    """
+
+    def __init__(
+        self,
+        catalog: CapabilityCatalog | None = None,
+        *,
+        path: str = "/capabilities",
+    ) -> None:
+        if not path.startswith("/"):
+            raise ValueError(f"ReadPanel path MUST start with '/', got {path!r}")
+        self._catalog = catalog or default_capability_catalog()
+        self._path = path
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    @property
+    def name(self) -> str:
+        return "capabilities"
+
+    async def render(self, *, params: Mapping[str, str]) -> Mapping[str, Any]:
+        requested = params.get("category")
+        category: CapabilityCategory | None = None
+        if requested:
+            try:
+                category = CapabilityCategory(requested)
+            except ValueError:
+                category = None
+        items = (
+            self._catalog.list(category=category) if category is not None else self._catalog.list()
+        )
+        return {
+            "surface": "capabilities",
+            "count": len(items),
+            "capabilities": [
+                {
+                    "capability_id": cap.capability_id,
+                    "name": cap.name,
+                    "category": cap.category.value,
+                    "summary": cap.summary,
+                    "side_effect_class": cap.side_effect_class.value,
+                    "default_mode": cap.default_mode.value,
+                    "required_role": cap.required_role,
+                    "slide_ref": cap.slide_ref,
+                    "tags": list(cap.tags),
+                }
+                for cap in items
+            ],
+        }
+
+
 __all__ = [
+    "CapabilityCatalogPanel",
     "ExampleFinOpsPanel",
     "ReadPanel",
 ]
