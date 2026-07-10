@@ -14,6 +14,7 @@ SA="stpre$(openssl rand -hex 6 | cut -c1-16)"
 
 cleanup() {
   az keyvault delete -n "$KV" -g "$RG" 2>/dev/null || true
+  az keyvault purge -n "$KV" 2>/dev/null || true
   az storage account delete -n "$SA" -g "$RG" --yes 2>/dev/null || true
   az group delete -n "$RG" --yes --no-wait 2>/dev/null || true
 }

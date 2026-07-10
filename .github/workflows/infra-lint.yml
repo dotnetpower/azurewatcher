@@ -44,22 +44,22 @@ jobs:
 
   security-scan:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: tfsec
-        uses: aquasecurity/tfsec-action@v1.0.3
-        with:
-          working_directory: infra
-          soft_fail: true
+      # Install scanners via their stable CLIs rather than pinned marketplace
+      # action tags (which drift and break). Both are advisory (continue-on-error
+      # + soft flags) so a finding annotates the PR without blocking.
+      - name: Install scanners
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+          pipx install checkov
+
+      - name: Trivy (terraform misconfig)
+        continue-on-error: true
+        run: trivy config --severity HIGH,CRITICAL infra
 
       - name: Checkov
-        uses: bridgecrewio/checkov-action@v12
-        with:
-          directory: infra
-          quiet: true
-          soft_fail: true
-          framework: terraform
+        continue-on-error: true
+        run: checkov -d infra --quiet --compact --framework terraform
+

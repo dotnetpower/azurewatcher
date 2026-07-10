@@ -27,7 +27,14 @@ gh variable set STATE_STORAGE_ACCOUNT   -R "$REPO" -b "$(out state_storage_accou
 
 echo "== repo Secrets =="
 printf 'fdaiadmin' | gh secret set POSTGRES_ADMIN_LOGIN -R "$REPO"
-openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24 | gh secret set POSTGRES_ADMIN_PASSWORD -R "$REPO"
+# Idempotent: only generate + set a password if one is not already configured,
+# so re-running onboarding does not silently rotate the live postgres password
+# (which would drift from state until the next apply).
+if gh secret list -R "$REPO" --json name --jq '.[].name' | grep -qx POSTGRES_ADMIN_PASSWORD; then
+  echo "POSTGRES_ADMIN_PASSWORD already set - leaving it (delete it first to rotate)."
+else
+  openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24 | gh secret set POSTGRES_ADMIN_PASSWORD -R "$REPO"
+fi
 
 echo "done. A subsequent 'gh workflow run deploy-dev.yml -f apply=true' rotates"
 echo "postgres to the new secret value on its first apply."

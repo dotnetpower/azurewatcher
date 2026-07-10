@@ -1,0 +1,72 @@
+name: destroy-env
+
+# Deliberate, guarded teardown of one app environment via the self-hosted VNet
+# runner - the same vetted backend + variable wiring as deploy-dev, so destroy
+# uses the real remote state (never a stale local dir). Requires typing the
+# environment name into `confirm`. Never touches the ops hub or state account.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to DESTROY."
+        type: choice
+        options: [dev, staging, prod]
+        default: dev
+      confirm:
+        description: "Type the environment name to confirm the destroy."
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    runs-on: [self-hosted, fdai-deploy]
+    defaults:
+      run:
+        working-directory: infra
+    env:
+      ARM_USE_AZUREAD: "true"
+      ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+      TF_VAR_env: ${{ inputs.environment }}
+      TF_VAR_region: ${{ vars.AZURE_REGION }}
+      TF_VAR_region_short: ${{ vars.AZURE_REGION_SHORT }}
+      TF_VAR_tenant_id: ${{ vars.AZURE_TENANT_ID }}
+      TF_VAR_enable_private_networking: "true"
+      TF_VAR_runner_vnet_id: ${{ vars.OPS_VNET_ID }}
+      TF_VAR_runner_vnet_name: ${{ vars.OPS_VNET_NAME }}
+      TF_VAR_ops_resource_group_name: ${{ vars.OPS_RESOURCE_GROUP_NAME }}
+      TF_VAR_postgres_admin_login: ${{ secrets.POSTGRES_ADMIN_LOGIN }}
+      TF_VAR_postgres_admin_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+    steps:
+      - name: Confirm guard
+        run: |
+          if [ "${{ inputs.confirm }}" != "${{ inputs.environment }}" ]; then
+            echo "confirm ('${{ inputs.confirm }}') != environment ('${{ inputs.environment }}'); aborting." >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Azure login (runner managed identity)
+        run: az login --identity --allow-no-subscriptions
+
+      - name: Activate remote state backend
+        run: cp backend.azurerm.tf.example backend.tf
+
+      - name: Terraform init
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ vars.OPS_RESOURCE_GROUP_NAME }}" \
+            -backend-config="storage_account_name=${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=fdai-${{ inputs.environment }}.tfstate"
+
+      - name: Terraform destroy
+        run: terraform destroy -input=false -lock-timeout=300s -auto-approve
