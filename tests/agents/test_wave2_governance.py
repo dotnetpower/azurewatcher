@@ -164,6 +164,40 @@ def test_muninn_put_get_generic() -> None:
     assert muninn.get_context("resource_state", "missing") is None
 
 
+def test_muninn_ignores_turn_without_id_and_other_topics() -> None:
+    muninn = Muninn()
+    # A turn payload with no id (neither turn_id nor id) is a no-op: nothing
+    # is stored, so the conversation_turns bucket never materializes.
+    asyncio.run(muninn.on_typed_message("object.turn", {"question": "hi"}))
+    # An unrelated topic is ignored entirely.
+    asyncio.run(muninn.on_typed_message("object.verdict", {"turn_id": "t9"}))
+    assert muninn.get_context("conversation_turns", "t9") is None
+    assert muninn.state_store.data == {}
+
+
+def test_muninn_introspect_general_and_scoped() -> None:
+    muninn = Muninn()
+    # Bucket names are single tokens ([a-z0-9-]+) so the introspection
+    # tokenizer can match one when the operator names it.
+    muninn.put_context("vms", "vm-1", {"public": False})
+    muninn.put_context("vms", "vm-2", {"public": True})
+    muninn.put_context("costs", "rg-a", {"usd": 12})
+
+    # No bucket named -> a general summary over all buckets/keys.
+    general = asyncio.run(muninn.introspect("what state do you hold?", {}))
+    assert general.facts["buckets_count"] == 2
+    assert general.facts["total_keys"] == 3
+    assert "2 state bucket" in general.answer
+
+    # Naming an existing bucket scopes the answer to that bucket.
+    scoped = asyncio.run(muninn.introspect("how many vms keys?", {}))
+    assert scoped.facts["bucket"] == "vms"
+    assert scoped.facts["key_count"] == 2
+    assert "vms" in scoped.answer
+    assert "2 key(s)" in scoped.answer
+
+
+
 # ---------------------------------------------------------------------------
 # Mimir - promotion state
 # ---------------------------------------------------------------------------
