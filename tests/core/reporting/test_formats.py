@@ -91,6 +91,55 @@ class TestMarkdownFormat:
         for banned in ("\u2014", "\u2013", "\u2026", "\u201c", "\u201d", "\u00a0"):
             assert banned not in body
 
+    def test_free_text_note_group_and_no_column_table(self) -> None:
+        now = datetime(2026, 7, 10, 12, 0, tzinfo=UTC)
+        report = RenderedReport(
+            id="misc",
+            version="1.0.0",
+            name="Misc",
+            description="",
+            generated_at=now,
+            time_range=(now - timedelta(hours=1), now),
+            variables={},
+            widgets=(
+                RenderedWidget(id="ft", type="free_text", title="Note", data={"body": "hello"}),
+                RenderedWidget(
+                    id="nt", type="note", title="Warn",
+                    data={"severity": "high", "body": "watch out"},
+                ),
+                RenderedWidget(
+                    id="grp", type="group", title="Group", data={},
+                    children=(
+                        RenderedWidget(
+                            id="k", type="query_value", title="Kid", data={"value": 7},
+                        ),
+                    ),
+                ),
+                RenderedWidget(id="nc", type="table", title="NoCols", data={"note": "raw"}),
+                RenderedWidget(
+                    id="ht", type="table", title="Hostile",
+                    data={"columns": ["c"], "rows": [{"c": "ok"}, "not-a-mapping"]},
+                ),
+                RenderedWidget(id="myst", type="sankey", title="Myst", data={"flows": 3}),
+            ),
+            tags=(),
+        )
+        body = MarkdownFormatEncoder().encode(report).decode("utf-8")
+        # free_text body rendered verbatim.
+        assert "hello" in body
+        # note rendered as a severity-tagged blockquote.
+        assert "> (high) watch out" in body
+        # group recurses into children at a deeper heading level.
+        assert "### Kid" in body
+        assert "**7**" in body
+        # table without columns falls back to a fenced json block.
+        assert "```json" in body
+        assert '"note": "raw"' in body
+        # A non-Mapping row renders as a blank cell instead of crashing.
+        assert "| ok |" in body
+        # An unknown widget type falls back to a fenced json block.
+        assert '"flows": 3' in body
+
 
 class TestCsvFormat:
     def test_headers_and_rows(self) -> None:
