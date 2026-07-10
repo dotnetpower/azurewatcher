@@ -55,6 +55,45 @@ def test_njord_cost_impact_defaults_low_confidence_for_unknown() -> None:
     assert est.confidence < 0.5
 
 
+def test_njord_introspect_scopes_to_named_scope() -> None:
+    # A single-token scope name ("rg-1") is what the introspection
+    # tokenizer can match; ingest a couple of samples then name it.
+    n = Njord()
+    asyncio.run(n.ingest_cost_sample(scope="rg-1", amount_usd=100.0))
+    asyncio.run(n.ingest_cost_sample(scope="rg-1", amount_usd=120.0))
+    result = asyncio.run(n.introspect("what is the cost for rg-1?", {}))
+    assert result.facts["scope"] == "rg-1"
+    assert result.facts["sample_count"] == 2
+    assert result.facts["latest_usd"] == 120.0
+    assert "rg-1" in result.answer
+
+
+def test_njord_introspect_scopes_to_named_action() -> None:
+    # A single-token cost-table key so the tokenizer can match it.
+    n = Njord(cost_table={"restart": 12.5})
+    result = asyncio.run(n.introspect("cost impact of restart?", {}))
+    assert result.facts["action_type"] == "restart"
+    assert result.facts["monthly_delta_usd"] == 12.5
+    assert "restart" in result.answer
+
+
+def test_njord_introspect_general_when_no_samples() -> None:
+    n = Njord()
+    result = asyncio.run(n.introspect("what do you track?", {}))
+    assert result.facts["tracked_scopes_count"] == 0
+    assert "No cost samples" in result.answer
+
+
+def test_njord_introspect_general_summary_when_scope_unnamed() -> None:
+    # Samples exist but the question names neither a scope nor an action,
+    # so Njord returns the multi-scope tracking summary.
+    n = Njord()
+    asyncio.run(n.ingest_cost_sample(scope="rg-9", amount_usd=10.0))
+    result = asyncio.run(n.introspect("give me an overview", {}))
+    assert result.facts["tracked_scopes_count"] == 1
+    assert "Tracking cost for 1 scope" in result.answer
+
+
 # ---------------------------------------------------------------------------
 # Freyr
 # ---------------------------------------------------------------------------

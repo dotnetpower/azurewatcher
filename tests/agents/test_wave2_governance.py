@@ -139,6 +139,58 @@ def test_saga_replay_returns_ordered_slice_for_correlation() -> None:
     assert [e.correlation_id for e in slice_entries] == ["keep"] * 3
 
 
+def test_saga_escalate_renders_context_lines_in_issue_body() -> None:
+    saga = Saga()
+    fp = compute_fingerprint(
+        intent_category="cost_query_failed",
+        resource_type="storage_account",
+        normalized_selector="sel",
+        primary_agent="Heimdall",
+        failure_reason_code="no_owned_data",
+    )
+    saga.escalate_to_github_issue(
+        fingerprint=fp,
+        emitting_agent="Heimdall",
+        intent_category="cost_query_failed",
+        failure_reason_code="no_owned_data",
+        correlation_id="corr-ctx",
+        context={"resource_id": "vm-9", "region": "koreacentral"},
+    )
+    body = saga.github.issues[fp].body
+    # Context items are rendered as sorted bullet lines in the issue body.
+    assert "- region: koreacentral" in body
+    assert "- resource_id: vm-9" in body
+
+
+def test_saga_introspect_scoped_and_general() -> None:
+    saga = Saga()
+    for i in range(2):
+        asyncio.run(
+            saga.on_typed_message(
+                "object.action-run",
+                {"producer_principal": "Thor", "correlation_id": "keep", "seq": i},
+            )
+        )
+
+    # Naming a known correlation id scopes the answer to its entries.
+    scoped = asyncio.run(saga.introspect("what happened for keep?", {}))
+    assert scoped.facts["correlation_id"] == "keep"
+    assert len(scoped.facts["matched_entries"]) == 2
+    assert "Thor" in scoped.answer
+
+    # No correlation named -> a general "latest entry" summary.
+    general = asyncio.run(saga.introspect("give me an audit overview", {}))
+    assert general.facts["audit_entries"] == 2
+    assert "latest" in general.answer
+
+
+def test_saga_introspect_empty_chain() -> None:
+    saga = Saga()
+    result = asyncio.run(saga.introspect("anything recorded?", {}))
+    assert result.facts["audit_entries"] == 0
+    assert "empty" in result.answer
+
+
 # ---------------------------------------------------------------------------
 # Muninn - context store
 # ---------------------------------------------------------------------------
