@@ -243,6 +243,7 @@ _CAPABILITY_INTENT: Final = re.compile(
 # language-policy "quoted data" case.
 _ROLE_TOKEN: Final = re.compile(
     r"\bowner|\badmin(istrator)?|\bapprover|\breader|\bcontributor|\bbreak.?glass"
+    r"|\brbac\b|\brole (matrix|model|list)\b"
     "|\uc624\ub108|\uc18c\uc720\uc790|\uad00\ub9ac\uc790|\uc6b4\uc601\uc790"
     "|\uc2b9\uc778\uc790|\uc2b9\uc778 \uad8c\ud55c",
     re.IGNORECASE,

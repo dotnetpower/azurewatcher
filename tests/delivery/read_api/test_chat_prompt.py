@@ -775,3 +775,35 @@ def test_locale_directive_rejects_injection_attempts(bogus: str) -> None:
     # Any malformed / non-tag value MUST fall back to English (no directive).
     msgs = _build_messages("hi", {"_locale": bogus}, [])
     assert len(msgs) == 2  # base system + user only
+
+
+# ---------------------------------------------------------------------------
+# Round 4: role/capability token gaps - "RBAC" / "role matrix" resolution
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "explain RBAC",
+        "what is the RBAC model?",
+        "describe the RBAC",
+        "what is the role matrix?",
+        "explain the role model",
+    ],
+)
+def test_rbac_shorthand_routes_to_capability(query: str) -> None:
+    assert _is_capability_query(query) is True
+    assert _CAPABILITY_MARKER in _system_of(_build_messages(query, {}, []))
+
+
+def test_rbac_bare_word_without_asking_stays_lean() -> None:
+    # A bare "rbac" mention with no explain / role-query stays lean; the
+    # role-token + explain-intent gate is what triggers capability.
+    assert _is_capability_query("rbac") is False
+
+
+def test_owner_in_unrelated_email_does_not_hit_capability() -> None:
+    # ROLE_TOKEN matches "owner" via \b, but WHO_TOKEN / EXPLAIN_INTENT /
+    # HOW_TO_GET_INTENT MUST all miss on this string, so lean stays.
+    assert _is_capability_query("show the owner@example.com row") is False
