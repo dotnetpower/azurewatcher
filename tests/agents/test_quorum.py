@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from fdai.agents._framework.action_semantics import (
     DEFAULT_QUORUM,
     IRREVERSIBLE_QUORUM,
@@ -188,3 +190,49 @@ class TestEndToEndQuorum:
         assert second is not None
         assert second["state"] == "approved"
         assert len(second["approvers"]) == 2
+
+    def test_self_approval_blocked_case_insensitively(self) -> None:
+        # Azure UPNs / object ids are case-insensitive, so the initiator must
+        # not be able to approve their own action by varying case.
+        bus = _bus()
+        var = Var(bus=bus)
+        asyncio.run(
+            var.on_typed_message(
+                "object.action-run",
+                {
+                    "correlation_id": "c-self",
+                    "action_type": "remediate.delete-storage",
+                    "state": "hil_pending",
+                    "quorum_required": 1,
+                    "initiator_principal": "Operator-A@Example.com",
+                },
+            )
+        )
+        with pytest.raises(ValueError, match="no self-approval"):
+            asyncio.run(var.decide("c-self", approver="operator-a@example.com", decision="approve"))
+        assert bus.messages_on("object.approval") == []
+
+    def test_double_approval_blocked_case_insensitively(self) -> None:
+        # The distinct-approver quorum must not be satisfiable by one human
+        # approving twice under different casing.
+        bus = _bus()
+        var = Var(bus=bus)
+        asyncio.run(
+            var.on_typed_message(
+                "object.action-run",
+                {
+                    "correlation_id": "c-dbl",
+                    "action_type": "remediate.delete-storage",
+                    "state": "hil_pending",
+                    "quorum_required": 2,
+                    "initiator_principal": "initiator@example.com",
+                },
+            )
+        )
+        first = asyncio.run(
+            var.decide("c-dbl", approver="Approver-1@Example.com", decision="approve")
+        )
+        assert first is None  # quorum 2 not yet met
+        with pytest.raises(ValueError, match="twice"):
+            asyncio.run(var.decide("c-dbl", approver="approver-1@example.com", decision="approve"))
+        assert bus.messages_on("object.approval") == []

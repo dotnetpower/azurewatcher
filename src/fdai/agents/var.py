@@ -119,13 +119,16 @@ class Var(Agent):
             # No self-approval: the operator who initiated the action can never
             # approve it (approval and initiation are distinct principals - a
             # pantheon safety invariant, agent-pantheon.md). Enforced here even
-            # if the entry RBAC gate was bypassed upstream. Compare trimmed so
-            # a whitespace-padded principal cannot slip past, and reject a blank
-            # approver outright.
-            approver_norm = approver.strip()
+            # if the entry RBAC gate was bypassed upstream. Compare case-folded
+            # (Azure UPNs / object ids are case-insensitive) so neither the
+            # self-approval nor the distinct-approver quorum can be bypassed by
+            # varying case, and reject a blank approver outright. This matches
+            # the case-insensitive rule the operator-memory approval path
+            # already enforces.
+            approver_norm = approver.strip().casefold()
             if not approver_norm:
                 raise ValueError(f"approver MUST be a non-empty principal on {correlation_id!r}")
-            initiator_norm = (ticket.initiator_principal or "").strip()
+            initiator_norm = (ticket.initiator_principal or "").strip().casefold()
             if initiator_norm and approver_norm == initiator_norm:
                 self._record_blocked_attempt("self_approval_blocked", correlation_id, approver_norm)
                 raise ValueError(
