@@ -39,3 +39,23 @@ __all__ = [
     "RegisteredDocument",
     "RegistrationNotFoundError",
 ]
+
+
+# ---------------------------------------------------------------------------
+# G-1 phase 1 facade (tracker #14): treat the ``knowledge`` package as the
+# domain-group facade too. Re-export the sibling subsystems this group
+# owns so new code can write ``from fdai.core.knowledge import prompts``,
+# etc. Phase 2 will physically ``git mv`` these siblings into this
+# directory (see project-structure.md § Structural CI Gates for the
+# rationale). Pre-existing callsites at ``from fdai.core.<sub> import X``
+# continue to work unchanged; this is additive.
+# ---------------------------------------------------------------------------
+
+from fdai.core import (  # noqa: E402, F401 - domain-group facade re-exports
+    capability_catalog,
+    ontology_explorer,
+    prompts,
+    rule_catalog_profiles,
+    tools,
+    web_search,
+)
