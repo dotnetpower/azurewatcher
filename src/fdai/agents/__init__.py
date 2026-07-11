@@ -27,6 +27,7 @@ from fdai.agents._framework.topics import (
     partition_key_for,
     topic_for_object_type,
 )
+from fdai.agents._framework.workflows import WORKFLOWS, WorkflowSpec
 
 __all__ = [
     "Agent",
@@ -45,4 +46,6 @@ __all__ = [
     "OWNED_OBJECT_TOPICS",
     "topic_for_object_type",
     "partition_key_for",
+    "WORKFLOWS",
+    "WorkflowSpec",
 ]

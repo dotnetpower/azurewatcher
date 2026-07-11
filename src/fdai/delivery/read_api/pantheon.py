@@ -22,8 +22,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from fdai.agents import PANTHEON_SPECS
-from fdai.agents._framework.base import AgentSpec
-from fdai.agents._framework.workflows import WORKFLOWS, WorkflowSpec
+from fdai.agents import WORKFLOWS, AgentSpec, WorkflowSpec
 
 GRAPH_ROUTE_PATH = "/pantheon/graph"
 WORKFLOWS_ROUTE_PATH = "/pantheon/workflows"

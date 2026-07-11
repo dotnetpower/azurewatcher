@@ -13,10 +13,10 @@ lives here under ``fdai.agents._framework.*`` so the pantheon roster
 stays the visible surface when a maintainer lists the ``agents/``
 directory.
 
-Public API stays at ``fdai.agents`` via re-export from
-:file:`../__init__.py`. Callers SHOULD import from ``fdai.agents``, not
-from this submodule; the leading underscore signals "framework code -
-not a pantheon member; do not add here".
+The leading underscore signals **not for external consumption**:
+callers SHOULD import from ``fdai.agents`` (the facade), never from
+``fdai.agents._framework.<X>``. A fork that reaches into this
+subpackage breaks silently on renames or further splits.
 
 Adding a new pantheon member is a **charter change**: it requires an
 upstream doc PR to
