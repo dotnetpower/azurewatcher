@@ -108,9 +108,7 @@ class AzureDeploymentHistoryConfig:
 
     def __post_init__(self) -> None:
         if not self.subscription_scopes:
-            raise ValueError(
-                "AzureDeploymentHistoryConfig.subscription_scopes MUST NOT be empty"
-            )
+            raise ValueError("AzureDeploymentHistoryConfig.subscription_scopes MUST NOT be empty")
         if _WINDOW_TOKEN not in self.kql_template:
             raise ValueError(
                 f"AzureDeploymentHistoryConfig.kql_template MUST contain the "
@@ -262,9 +260,7 @@ class AzureResourceGraphDeploymentHistory:
     def _require(row: Mapping[str, Any], column: str) -> str:
         value = row.get(column)
         if value is None or value == "":
-            raise DeploymentHistoryError(
-                f"ARG deployment row lacks required column {column!r}"
-            )
+            raise DeploymentHistoryError(f"ARG deployment row lacks required column {column!r}")
         return str(value)
 
     @staticmethod
