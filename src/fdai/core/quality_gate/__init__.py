@@ -78,6 +78,12 @@ from fdai.core.quality_gate.rubric import (
     evaluate_rubric_output,
 )
 from fdai.core.quality_gate.rule_based import RuleBasedVerifier
+from fdai.core.quality_gate.self_consistency import (
+    STABILITY_SIGNAL_KEY,
+    SelfConsistencyResult,
+    SelfConsistencySampler,
+    compute_stability,
+)
 
 __all__ = [
     "CriticModel",
@@ -115,7 +121,11 @@ __all__ = [
     "RubricVerdict",
     "RuleBasedVerifier",
     "RuleEmbeddingIndex",
+    "STABILITY_SIGNAL_KEY",
+    "SelfConsistencyResult",
+    "SelfConsistencySampler",
     "VerifierPolicy",
+    "compute_stability",
     "decide_debate_route",
     "evaluate_critic_output",
     "evaluate_judge_output",

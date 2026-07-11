@@ -53,6 +53,30 @@ class MismatchCrossCheckModel(CrossCheckModel):
         return f"{candidate.action_type}::other", {}
 
 
+class SequenceCrossCheckModel(CrossCheckModel):
+    """A cross-check model that returns a preset sequence of action types.
+
+    Each ``propose`` call returns the next action type from ``sequence``
+    (params always empty), cycling back to the start once exhausted.
+    Drives the self-consistency sampler deterministically: a uniform
+    sequence yields ``stability == 1.0``; a varied one yields a lower
+    stability.
+    """
+
+    def __init__(self, *, sequence: tuple[str, ...], model_id: str = "fake-sequence") -> None:
+        if not sequence:
+            raise ValueError("sequence MUST be non-empty")
+        self._sequence = sequence
+        self._id = model_id
+        self._idx = 0
+
+    async def propose(self, candidate: QualityCandidate) -> tuple[str, Mapping[str, Any]]:
+        del candidate
+        value = self._sequence[self._idx % len(self._sequence)]
+        self._idx += 1
+        return value, {}
+
+
 class InMemoryGroundingSource(GroundingSource):
     """A grounding source backed by an in-process rule map."""
 
@@ -185,6 +209,7 @@ __all__ = [
     "InMemoryGroundingSource",
     "MatchTypeCrossCheckModel",
     "MismatchCrossCheckModel",
+    "SequenceCrossCheckModel",
     "StaticRubricEvaluator",
     "StaticVerifier",
     "UniformRubricEvaluator",

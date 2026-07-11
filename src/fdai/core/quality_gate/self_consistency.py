@@ -1,0 +1,126 @@
+"""Self-consistency sampler - action-stability as a derived confidence.
+
+Complements the rubric (:mod:`fdai.core.quality_gate.rubric`). Where the
+rubric scores the *quality* of one answer, self-consistency measures
+whether the reasoner *agrees with itself*: sample the same proposer N
+times and measure how often it lands on the same normalized action. An
+unstable proposer (its answer flips across samples) is a hallucination
+signal - the reasoning is not robust.
+
+The result is reduced to a single ``action_stability`` value in
+``[0.0, 1.0]`` that the composition root merges into a candidate's
+``confidence_signals``. Because
+:attr:`~fdai.core.quality_gate.gate.QualityCandidate.aggregate_confidence`
+is a mean over the signals, a low stability *lowers* the aggregate -
+consistent with the subtractive posture of the whole gate. It never
+grants eligibility on its own; the deterministic verifier still decides.
+
+Cost control
+------------
+Sampling N times multiplies the T2 token cost, so the sampler is meant
+to run in a **cascade**: the composition root invokes it only when a
+cheaper signal (grounding coverage, single-shot confidence) is weak,
+not on every T2 call. This module implements the measurement; the
+cascade trigger is a composition concern.
+
+Design boundaries
+-----------------
+- **``core/``-safe.** Imports only from ``fdai.core.quality_gate`` and
+  stdlib. The proposer is the existing
+  :class:`~fdai.core.quality_gate.gate.CrossCheckModel` Protocol seam,
+  so a fork binds a real (temperature > 0) reasoner; the fake in
+  :mod:`~fdai.core.quality_gate.testing` drives deterministic tests.
+- **Deterministic reduction.** :func:`compute_stability` is a pure
+  function over the sampled action types; ties break on the first-seen
+  modal value so a replay is reproducible.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from collections import Counter
+from collections.abc import Sequence
+from dataclasses import dataclass
+
+from fdai.core.quality_gate.gate import CrossCheckModel, QualityCandidate
+
+STABILITY_SIGNAL_KEY = "action_stability"
+"""The ``confidence_signals`` key the sampler contributes."""
+
+
+@dataclass(frozen=True, slots=True)
+class SelfConsistencyResult:
+    """Outcome of sampling one proposer N times for one candidate."""
+
+    sampled_action_types: tuple[str, ...]
+    modal_action_type: str
+    agreement_count: int
+    total: int
+    stability: float
+    """``agreement_count / total`` - the fraction of samples that landed
+    on the modal action type. ``1.0`` means the proposer never wavered;
+    lower means it flipped, a hallucination signal."""
+
+    @property
+    def signal(self) -> dict[str, float]:
+        """The ``confidence_signals`` fragment to merge into a candidate."""
+        return {STABILITY_SIGNAL_KEY: self.stability}
+
+
+def compute_stability(action_types: Sequence[str]) -> tuple[str, int, float]:
+    """Reduce sampled action types to ``(modal, count, stability)``.
+
+    ``modal`` is the most frequent action type (first-seen wins on a
+    tie, for replay determinism); ``count`` is how many samples equalled
+    it; ``stability`` is ``count / len(action_types)``. Raises
+    :class:`ValueError` on an empty sequence - there is nothing to
+    measure and a silent ``0.0`` would be indistinguishable from a real
+    zero-stability result.
+    """
+    if not action_types:
+        raise ValueError("compute_stability requires at least one sampled action type")
+    counts = Counter(action_types)
+    # Counter.most_common preserves insertion order on ties (Python 3.7+
+    # dict ordering), so the first-seen modal value wins deterministically.
+    modal, count = counts.most_common(1)[0]
+    return modal, count, count / len(action_types)
+
+
+class SelfConsistencySampler:
+    """Sample a proposer N times and reduce to an action-stability signal."""
+
+    def __init__(self, *, proposer: CrossCheckModel, samples: int = 3) -> None:
+        if samples < 1:
+            raise ValueError("samples MUST be >= 1")
+        self._proposer = proposer
+        self._samples = samples
+
+    async def sample(self, candidate: QualityCandidate) -> SelfConsistencyResult:
+        """Sample the proposer ``samples`` times concurrently for ``candidate``.
+
+        Each sample is an independent read-only call, so they run
+        concurrently to add one call's latency (not the sum) to the T2
+        budget. The proposer is expected to run at temperature > 0 so
+        the samples can diverge; a temperature-0 proposer trivially
+        yields ``stability == 1.0``.
+        """
+        proposals = await asyncio.gather(
+            *(self._proposer.propose(candidate) for _ in range(self._samples))
+        )
+        action_types = tuple(action_type for action_type, _params in proposals)
+        modal, count, stability = compute_stability(action_types)
+        return SelfConsistencyResult(
+            sampled_action_types=action_types,
+            modal_action_type=modal,
+            agreement_count=count,
+            total=len(action_types),
+            stability=stability,
+        )
+
+
+__all__ = [
+    "STABILITY_SIGNAL_KEY",
+    "SelfConsistencyResult",
+    "SelfConsistencySampler",
+    "compute_stability",
+]
