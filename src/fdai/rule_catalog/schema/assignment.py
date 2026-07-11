@@ -53,6 +53,7 @@ class Assignment:
     parameters: Mapping[str, str] = field(default_factory=dict)
     effect_overrides: Mapping[str, Effect] = field(default_factory=dict)
     provenance: Provenance | None = None
+    version: str | None = None
 
     def __post_init__(self) -> None:
         if not self.id.strip():

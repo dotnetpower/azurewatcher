@@ -8,6 +8,7 @@
   "required": ["schema_version", "id", "version", "members"],
   "properties": {
     "schema_version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "kind": {"type": "string", "enum": ["rule-set"]},
     "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,127}$"},
     "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
     "members": {

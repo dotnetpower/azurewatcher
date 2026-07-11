@@ -140,6 +140,7 @@ def load_assignment_from_mapping(
     parameters = dict(raw.get("parameters", {}))
     scope = _build_scope(raw["scope"])
     provenance = _build_provenance(raw)
+    version = raw.get("version")
 
     rule_set_ref = raw.get("rule_set")
     if rule_set_ref is not None:
@@ -163,6 +164,7 @@ def load_assignment_from_mapping(
             parameters=parameters,
             extra_overrides=overrides,
             provenance=provenance,
+            version=version,
         )
 
     return Assignment(
@@ -174,6 +176,7 @@ def load_assignment_from_mapping(
         parameters=parameters,
         effect_overrides=overrides,
         provenance=provenance,
+        version=version,
     )
 
 

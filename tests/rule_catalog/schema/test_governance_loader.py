@@ -266,3 +266,46 @@ def test_rule_set_loads_provenance() -> None:
     rs = load_rule_set_from_mapping(raw)
     assert rs.provenance is not None
     assert rs.provenance.created_by == "governance-team"
+
+
+# ---- kind + version envelope ----------------------------------------------
+
+
+def test_assignment_loads_kind_and_version() -> None:
+    raw = _minimal()
+    raw["kind"] = "assignment"
+    raw["version"] = "1.2.0"
+    a = load_assignment_from_mapping(raw)
+    assert a.version == "1.2.0"
+
+
+def test_assignment_wrong_kind_rejected() -> None:
+    raw = _minimal()
+    raw["kind"] = "rule-set"  # wrong kind for an assignment file
+    with pytest.raises(GovernanceLoadError):
+        load_assignment_from_mapping(raw)
+
+
+def test_assignment_bad_version_rejected() -> None:
+    raw = _minimal()
+    raw["version"] = "v1"  # not semver
+    with pytest.raises(GovernanceLoadError):
+        load_assignment_from_mapping(raw)
+
+
+def test_assignment_version_default_none() -> None:
+    assert load_assignment_from_mapping(_minimal()).version is None
+
+
+def test_rule_set_loads_kind() -> None:
+    raw = _minimal_rule_set()
+    raw["kind"] = "rule-set"
+    rs = load_rule_set_from_mapping(raw)
+    assert rs.id == "security-baseline"
+
+
+def test_rule_set_wrong_kind_rejected() -> None:
+    raw = _minimal_rule_set()
+    raw["kind"] = "assignment"
+    with pytest.raises(GovernanceLoadError):
+        load_rule_set_from_mapping(raw)
