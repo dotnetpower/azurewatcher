@@ -366,6 +366,37 @@ async def test_self_approval_is_refused() -> None:
 
 
 @pytest.mark.asyncio
+async def test_request_approval_rejects_blank_submitter() -> None:
+    # A blank submitter would make the resolve-time no-self-approval check
+    # unverifiable - refuse to park (fail closed).
+    coordinator, _publisher, _store, _ = _coordinator()
+    with pytest.raises(ValueError, match="submitter_oid MUST be non-empty"):
+        await coordinator.request_approval(
+            action=_action(),
+            rule=_rule(),
+            submitter_oid="   ",
+            correlation_id="c1",
+            approval_id="aid-blank-sub",
+        )
+
+
+@pytest.mark.asyncio
+async def test_resolve_refuses_blank_approver() -> None:
+    # An APPROVE with no verifiable approver identity MUST NOT execute -
+    # we cannot prove it is a distinct principal from the submitter.
+    coordinator, publisher, store, _ = _coordinator()
+    await _park(coordinator, approval_id="aid-blank-appr")
+    result = await coordinator.resolve(
+        approval_id="aid-blank-appr",
+        decision=HilDecision.APPROVE,
+        approver_oid="   ",
+    )
+    assert result.outcome is ResolveOutcome.SELF_APPROVAL_REFUSED
+    assert publisher.records == ()
+    assert "hil.resolve.self_approval_refused" in _audit_kinds(store)
+
+
+@pytest.mark.asyncio
 async def test_unknown_park_is_not_found() -> None:
     coordinator, publisher, store, _ = _coordinator()
     result = await coordinator.resolve(

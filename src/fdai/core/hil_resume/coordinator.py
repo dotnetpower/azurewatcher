@@ -230,6 +230,14 @@ class HilResumeCoordinator:
         loses the pending action - it stays recoverable and fail-closed
         (no execution until an explicit APPROVE).
         """
+        if not submitter_oid.strip():
+            # The parked submitter is the no-self-approval authority. A
+            # blank submitter would make the resolve-time self-approval
+            # check unverifiable (submitter == approver could not be
+            # proven), so refuse to park at all - fail closed.
+            raise ValueError(
+                "submitter_oid MUST be non-empty - it is the no-self-approval authority"
+            )
         aid = approval_id or uuid4().hex
         on_call = await self._resolve_on_call()
         parked = {
@@ -344,18 +352,33 @@ class HilResumeCoordinator:
                 )
             return ResolveResult(outcome=ResolveOutcome.ALREADY_RESOLVED, approval_id=approval_id)
 
-        submitter_oid = str(parked.get("submitter_oid") or "")
-        if decision is HilDecision.APPROVE and submitter_oid and submitter_oid == approver_oid:
-            await self._audit(
-                action_kind="hil.resolve.self_approval_refused",
-                idempotency_key=f"{idem}:hil_self_approval",
-                approval_id=approval_id,
-                correlation_id=correlation_id,
-                detail={"approver_oid": approver_oid},
-            )
-            return ResolveResult(
-                outcome=ResolveOutcome.SELF_APPROVAL_REFUSED, approval_id=approval_id
-            )
+        submitter_oid = str(parked.get("submitter_oid") or "").strip()
+        if decision is HilDecision.APPROVE:
+            approver = approver_oid.strip()
+            # No self-approval AND a verifiable, distinct approver
+            # identity. Fail closed when the approver is blank
+            # (unverifiable), the park has no recorded submitter (cannot
+            # prove distinctness), or approver == submitter (self-approval).
+            if not approver or not submitter_oid or submitter_oid == approver:
+                await self._audit(
+                    action_kind="hil.resolve.self_approval_refused",
+                    idempotency_key=f"{idem}:hil_self_approval",
+                    approval_id=approval_id,
+                    correlation_id=correlation_id,
+                    detail={
+                        "approver_oid": approver_oid,
+                        "reason": (
+                            "blank_approver"
+                            if not approver
+                            else "unknown_submitter"
+                            if not submitter_oid
+                            else "self_approval"
+                        ),
+                    },
+                )
+                return ResolveResult(
+                    outcome=ResolveOutcome.SELF_APPROVAL_REFUSED, approval_id=approval_id
+                )
 
         if decision is HilDecision.REJECT:
             await self._mark_resolved(parked, decision=decision, approver_oid=approver_oid)
