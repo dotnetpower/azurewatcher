@@ -11,15 +11,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from fdai.agents.base import Agent
-from fdai.agents.candidate_guard import CandidateGuard
-from fdai.agents.introspection import (
+from fdai.agents._framework.base import Agent
+from fdai.agents._framework.candidate_guard import CandidateGuard
+from fdai.agents._framework.introspection import (
     IntrospectionResult,
     capability_facts,
     capped_list,
     mentioned,
 )
-from fdai.agents.pantheon import _MIMIR
+from fdai.agents._framework.pantheon import _MIMIR
 
 
 @dataclass(frozen=True, slots=True)

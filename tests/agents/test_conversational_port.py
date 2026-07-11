@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from fdai.agents.runtime import PantheonRuntime
+from fdai.agents._framework.runtime import PantheonRuntime
 from fdai.shared.providers.testing.event_bus import InMemoryEventBus
 
 _RAW_TOPIC = "fdai.events"

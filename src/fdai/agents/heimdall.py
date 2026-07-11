@@ -13,15 +13,15 @@ from collections import Counter, deque
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from fdai.agents.base import Agent
-from fdai.agents.bus import PantheonBus
-from fdai.agents.introspection import (
+from fdai.agents._framework.base import Agent
+from fdai.agents._framework.bus import PantheonBus
+from fdai.agents._framework.introspection import (
     IntrospectionResult,
     capability_facts,
     capped_list,
     mentioned,
 )
-from fdai.agents.pantheon import _HEIMDALL
+from fdai.agents._framework.pantheon import _HEIMDALL
 
 AlerterHook = Callable[[dict[str, Any]], Awaitable[None]]
 """Var-provided hook that delivers the admin notification card."""

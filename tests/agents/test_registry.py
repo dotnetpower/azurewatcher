@@ -15,7 +15,7 @@ from fdai.agents import (
     PANTHEON_SPECS,
     load_pantheon,
 )
-from fdai.agents.registry import PantheonRegistryError
+from fdai.agents._framework.registry import PantheonRegistryError
 
 
 def test_pantheon_has_exactly_fifteen_named_agents() -> None:

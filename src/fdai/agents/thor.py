@@ -18,14 +18,14 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
-from fdai.agents.base import Agent
-from fdai.agents.bus import PantheonBus
-from fdai.agents.introspection import (
+from fdai.agents._framework.base import Agent
+from fdai.agents._framework.bus import PantheonBus
+from fdai.agents._framework.introspection import (
     IntrospectionResult,
     capability_facts,
     mentioned,
 )
-from fdai.agents.pantheon import _THOR
+from fdai.agents._framework.pantheon import _THOR
 
 
 class ActionRunState(StrEnum):

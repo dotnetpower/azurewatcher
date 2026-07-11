@@ -11,15 +11,15 @@ from dataclasses import dataclass
 from statistics import mean
 from typing import Any
 
-from fdai.agents.base import Agent
-from fdai.agents.bus import PantheonBus
-from fdai.agents.introspection import (
+from fdai.agents._framework.base import Agent
+from fdai.agents._framework.bus import PantheonBus
+from fdai.agents._framework.introspection import (
     IntrospectionResult,
     capability_facts,
     capped_list,
     mentioned,
 )
-from fdai.agents.pantheon import _NJORD
+from fdai.agents._framework.pantheon import _NJORD
 
 
 @dataclass(frozen=True, slots=True)

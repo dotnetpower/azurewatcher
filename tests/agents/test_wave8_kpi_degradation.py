@@ -6,9 +6,9 @@ import asyncio
 
 import pytest
 
-from fdai.agents.bus import InMemoryBus
-from fdai.agents.kpi import KpiCollector, PromotionGate, PromotionGateThreshold
-from fdai.agents.registry import PantheonRegistryError, load_pantheon
+from fdai.agents._framework.bus import InMemoryBus
+from fdai.agents._framework.kpi import KpiCollector, PromotionGate, PromotionGateThreshold
+from fdai.agents._framework.registry import PantheonRegistryError, load_pantheon
 from fdai.agents.saga import Saga
 from fdai.agents.thor import ActionRunState, Thor
 

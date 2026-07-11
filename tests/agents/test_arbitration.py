@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import asyncio
 
-from fdai.agents.bus import InMemoryBus
+from fdai.agents._framework.bus import InMemoryBus
 from fdai.agents.forseti import Forseti
 from fdai.agents.freyr import Freyr
 from fdai.agents.njord import Njord
 from fdai.agents.odin import Odin
-from fdai.agents.registry import load_pantheon
+from fdai.agents._framework.registry import load_pantheon
 
 
 def _bus() -> InMemoryBus:
@@ -203,7 +203,7 @@ def test_domain_signals_drive_arbitration_end_to_end() -> None:
 # ---------------------------------------------------------------------------
 
 
-from fdai.agents.arbitration import (  # noqa: E402
+from fdai.agents._framework.arbitration import (  # noqa: E402
     MultiObjectiveArbiter,
     weights_from_priority,
     weights_from_priority_curved,
@@ -586,7 +586,7 @@ def test_convex_arbiter_still_picks_priority_winner_on_equal_impact() -> None:
 # ---------------------------------------------------------------------------
 
 
-from fdai.agents.arbitration import (  # noqa: E402
+from fdai.agents._framework.arbitration import (  # noqa: E402
     AlternatingFairnessPolicy,
     HysteresisPolicy,
     RecentDecision,

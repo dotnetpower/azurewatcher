@@ -18,10 +18,10 @@ import asyncio
 import pytest
 
 from fdai.agents.bragi import Bragi
-from fdai.agents.bus import InMemoryBus
+from fdai.agents._framework.bus import InMemoryBus
 from fdai.agents.forseti import Forseti
 from fdai.agents.huginn import Huginn
-from fdai.agents.registry import load_pantheon
+from fdai.agents._framework.registry import load_pantheon
 from fdai.agents.thor import ActionRunState, Thor
 from fdai.agents.var import Var
 

@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from fdai.agents.base import AgentSpec
-from fdai.agents.pantheon import PANTHEON_NAMES, PANTHEON_SPECS
+from fdai.agents._framework.base import AgentSpec
+from fdai.agents._framework.pantheon import PANTHEON_NAMES, PANTHEON_SPECS
 
 
 class PantheonRegistryError(ValueError):

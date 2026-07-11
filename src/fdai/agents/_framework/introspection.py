@@ -6,7 +6,7 @@ owns plus the code it owns (``owns_code_paths`` RAG), reachable through Bragi
 for operators and for agent-to-agent (A2A) NL introspection.
 
 This module holds the shared, LLM-free scaffolding both the base
-:class:`~fdai.agents.base.Agent` and each concrete agent build on:
+:class:`~fdai.agents._framework.base.Agent` and each concrete agent build on:
 
 - :class:`IntrospectionResult` - the value an agent's ``introspect`` returns.
 - :func:`is_action_intent` - the MUST-NOT-bypass guard (7.7): the
@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from fdai.agents.base import AgentSpec
+    from fdai.agents._framework.base import AgentSpec
 
 #: Abstain reason emitted when a conversational request is actually a command.
 #: The port answers questions; an action must re-enter the typed pipeline with
@@ -38,7 +38,7 @@ NO_DATA = "no_data"
 
 #: Abstain reason when an agent's ``introspect`` raised - the shared port
 #: degrades to an honest abstain instead of crashing (see
-#: :meth:`fdai.agents.base.Agent.on_conversation_turn`).
+#: :meth:`fdai.agents._framework.base.Agent.on_conversation_turn`).
 INTROSPECTION_ERROR = "introspection_error"
 
 

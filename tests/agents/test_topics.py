@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fdai.agents.topics import (
+from fdai.agents._framework.topics import (
     OWNED_OBJECT_TOPICS,
     partition_key_for,
     topic_for_object_type,

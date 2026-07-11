@@ -10,19 +10,19 @@ scaffolding only.
 Design authority: `docs/roadmap/agent-pantheon.md`.
 """
 
-from fdai.agents.base import Agent, AgentSpec, Layer
-from fdai.agents.bus import PantheonBus
-from fdai.agents.divergence import ShadowDivergenceLedger
-from fdai.agents.factory import instantiate_pantheon
-from fdai.agents.pantheon import (
+from fdai.agents._framework.base import Agent, AgentSpec, Layer
+from fdai.agents._framework.bus import PantheonBus
+from fdai.agents._framework.divergence import ShadowDivergenceLedger
+from fdai.agents._framework.factory import instantiate_pantheon
+from fdai.agents._framework.pantheon import (
     HARD_DEPENDENCY_AGENTS,
     LLM_HOT_PATH_ALLOWLIST,
     PANTHEON_NAMES,
     PANTHEON_SPECS,
 )
-from fdai.agents.registry import PantheonRegistry, load_pantheon
-from fdai.agents.runtime import PantheonRuntime
-from fdai.agents.topics import (
+from fdai.agents._framework.registry import PantheonRegistry, load_pantheon
+from fdai.agents._framework.runtime import PantheonRuntime
+from fdai.agents._framework.topics import (
     OWNED_OBJECT_TOPICS,
     partition_key_for,
     topic_for_object_type,

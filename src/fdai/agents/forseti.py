@@ -14,14 +14,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fdai.agents.base import Agent
-from fdai.agents.bus import PantheonBus
-from fdai.agents.introspection import (
+from fdai.agents._framework.base import Agent
+from fdai.agents._framework.bus import PantheonBus
+from fdai.agents._framework.introspection import (
     IntrospectionResult,
     capability_facts,
     mentioned,
 )
-from fdai.agents.pantheon import _FORSETI
+from fdai.agents._framework.pantheon import _FORSETI
 
 # ---------------------------------------------------------------------------
 # Deterministic tables (wave 3 defaults)

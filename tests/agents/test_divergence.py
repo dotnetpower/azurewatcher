@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fdai.agents.divergence import ShadowDivergenceLedger
+from fdai.agents._framework.divergence import ShadowDivergenceLedger
 
 
 def test_matched_pair_counts_as_agreement() -> None:

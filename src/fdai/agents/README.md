@@ -6,20 +6,41 @@ Wave plan: [agent-pantheon-implementation.md](../../../docs/roadmap/agent-panthe
 
 ## Layout
 
+The 15 named agents live flat at the top level; the framework code that
+supports them (bus, runtime, registry, arbitration, introspection,
+KPI, adapters, ...) lives in a private `_framework/` subpackage
+introduced by G-7 (tracker #14). Both keep re-exporting the public
+symbols through [`__init__.py`](__init__.py); callers SHOULD import
+from `fdai.agents`, never from `fdai.agents._framework.<X>`.
+
+```text
+agents/
+├── _framework/          # bus, runtime, registry, base, pantheon,
+│                        # arbitration, introspection, kpi, adapters,
+│                        # provider_adapters, factory, workflows,
+│                        # topics, candidate_guard, divergence,
+│                        # bus_bridge (16 files)
+├── odin.py    thor.py    forseti.py   huginn.py   heimdall.py
+├── var.py     vidar.py   bragi.py     saga.py     mimir.py
+├── muninn.py  norns.py   njord.py     freyr.py    loki.py
+└── __init__.py           # re-exports Agent, PantheonBus,
+                          # PantheonRuntime, PANTHEON_NAMES, ...
+```
+
 | File | Purpose |
 |------|---------|
-| `base.py` | `Agent` abstract, `AgentSpec` immutable declaration, `Layer` enum, `RateLimits`; the conversational-port shell (`on_conversation_turn` + `introspect`) |
-| `introspection.py` | Conversational-port contract: `IntrospectionResult`, the `is_action_intent` MUST-NOT-bypass guard (7.7), `mentioned` token matcher, and the `capability_facts` / `capability_sentence` spec self-description |
-| `pantheon.py` | The 15 `AgentSpec` instances (upstream-locked); `PANTHEON_SPECS`, `PANTHEON_NAMES`, `HARD_DEPENDENCY_AGENTS`, `LLM_HOT_PATH_ALLOWLIST` |
-| `registry.py` | `PantheonRegistry` - single-writer invariant, publish authorization, owner lookup |
-| `topics.py` | Topic naming (`object.<kebab>`), partition-key strategy, owned-topic set |
-| `bus.py` | `InMemoryBus` - sync-dispatch pub/sub used by tests and single-process runs; `PantheonBus` Protocol - the bus contract agents depend on |
-| `bus_bridge.py` | `EventBusBridge` - binds the pantheon to a real `EventBus` provider (Kafka / Event Hubs) with per-agent consumer groups |
-| `runtime.py` | `PantheonRuntime` - composition-root wiring: instantiates + binds all 15 agents, registers subscriptions, routes ingress to Huginn, exposes `run()` / `stop()` |
-| `adapters.py` | In-memory adapters for audit chain, state store, GitHub Issues, ChatOps admin channel |
-| `factory.py` | `instantiate_pantheon()` - build all 15 concrete instances |
-| `workflows.py` | The 10 cross-agent `WorkflowSpec` catalog |
-| `kpi.py` | `KpiCollector`, `PromotionGate`, `PromotionGateThreshold` |
+| `_framework/base.py` | `Agent` abstract, `AgentSpec` immutable declaration, `Layer` enum, `RateLimits`; the conversational-port shell (`on_conversation_turn` + `introspect`) |
+| `_framework/introspection.py` | Conversational-port contract: `IntrospectionResult`, the `is_action_intent` MUST-NOT-bypass guard (7.7), `mentioned` token matcher, and the `capability_facts` / `capability_sentence` spec self-description |
+| `_framework/pantheon.py` | The 15 `AgentSpec` instances (upstream-locked); `PANTHEON_SPECS`, `PANTHEON_NAMES`, `HARD_DEPENDENCY_AGENTS`, `LLM_HOT_PATH_ALLOWLIST` |
+| `_framework/registry.py` | `PantheonRegistry` - single-writer invariant, publish authorization, owner lookup |
+| `_framework/topics.py` | Topic naming (`object.<kebab>`), partition-key strategy, owned-topic set |
+| `_framework/bus.py` | `InMemoryBus` - sync-dispatch pub/sub used by tests and single-process runs; `PantheonBus` Protocol - the bus contract agents depend on |
+| `_framework/bus_bridge.py` | `EventBusBridge` - binds the pantheon to a real `EventBus` provider (Kafka / Event Hubs) with per-agent consumer groups |
+| `_framework/runtime.py` | `PantheonRuntime` - composition-root wiring: instantiates + binds all 15 agents, registers subscriptions, routes ingress to Huginn, exposes `run()` / `stop()` |
+| `_framework/adapters.py` | In-memory adapters for audit chain, state store, GitHub Issues, ChatOps admin channel |
+| `_framework/factory.py` | `instantiate_pantheon()` - build all 15 concrete instances |
+| `_framework/workflows.py` | The 10 cross-agent `WorkflowSpec` catalog |
+| `_framework/kpi.py` | `KpiCollector`, `PromotionGate`, `PromotionGateThreshold` |
 | `odin.py` `thor.py` `forseti.py` ... | One file per pantheon agent (15 total). Each subclasses `Agent`, binds its `AgentSpec`, and implements `on_typed_message` / helper methods per its wave-plan mandate |
 
 ## Testing

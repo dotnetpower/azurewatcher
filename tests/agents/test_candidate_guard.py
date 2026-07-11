@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from fdai.agents.candidate_guard import CandidateGuard
+from fdai.agents._framework.candidate_guard import CandidateGuard
 
 
 def _valid() -> dict[str, object]:

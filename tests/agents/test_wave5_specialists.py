@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 
-from fdai.agents.bus import InMemoryBus
+from fdai.agents._framework.bus import InMemoryBus
 from fdai.agents.freyr import Freyr
 from fdai.agents.loki import Loki
 from fdai.agents.njord import Njord
-from fdai.agents.registry import load_pantheon
+from fdai.agents._framework.registry import load_pantheon
 
 # ---------------------------------------------------------------------------
 # Njord

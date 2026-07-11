@@ -11,19 +11,19 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
-from fdai.agents.adapters import (
+from fdai.agents._framework.adapters import (
     AuditEntry,
     InMemoryAuditChain,
     InMemoryGithubIssueAdapter,
     InMemoryStateStore,
 )
-from fdai.agents.base import Agent
-from fdai.agents.introspection import (
+from fdai.agents._framework.base import Agent
+from fdai.agents._framework.introspection import (
     IntrospectionResult,
     capability_facts,
     mentioned,
 )
-from fdai.agents.pantheon import _SAGA
+from fdai.agents._framework.pantheon import _SAGA
 
 _FINGERPRINT_BUCKET = "issue_fingerprint_index"
 

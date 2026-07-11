@@ -9,15 +9,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from fdai.agents.adapters import InMemoryStateStore
-from fdai.agents.base import Agent
-from fdai.agents.introspection import (
+from fdai.agents._framework.adapters import InMemoryStateStore
+from fdai.agents._framework.base import Agent
+from fdai.agents._framework.introspection import (
     IntrospectionResult,
     capability_facts,
     capped_list,
     mentioned,
 )
-from fdai.agents.pantheon import _MUNINN
+from fdai.agents._framework.pantheon import _MUNINN
 
 
 class Muninn(Agent):

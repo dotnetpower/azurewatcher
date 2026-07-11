@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from fdai.agents.base import Agent
+from fdai.agents._framework.base import Agent
 from fdai.agents.bragi import Bragi
 from fdai.agents.forseti import Forseti
 from fdai.agents.freyr import Freyr

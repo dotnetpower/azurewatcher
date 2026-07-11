@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from fdai.agents.introspection import (
+from fdai.agents._framework.introspection import (
     INTROSPECTION_ERROR,
     REQUIRES_TYPED_PIPELINE,
     IntrospectionResult,
@@ -23,7 +23,7 @@ from fdai.agents.introspection import (
 )
 
 if TYPE_CHECKING:
-    from fdai.agents.bus import PantheonBus
+    from fdai.agents._framework.bus import PantheonBus
 
 _LOG = logging.getLogger(__name__)
 
@@ -101,10 +101,10 @@ class Agent:
     spec: AgentSpec
 
     #: Typed pub/sub port. Publishing agents bind a concrete
-    #: :class:`~fdai.agents.bus.PantheonBus` (``InMemoryBus`` in tests,
+    #: :class:`~fdai.agents._framework.bus.PantheonBus` (``InMemoryBus`` in tests,
     #: ``EventBusBridge`` in production) via :meth:`bind_bus`; agents that
     #: never publish leave it ``None``. Declared on the base so the
-    #: composition root (:class:`~fdai.agents.runtime.PantheonRuntime`)
+    #: composition root (:class:`~fdai.agents._framework.runtime.PantheonRuntime`)
     #: can bind every agent uniformly without duck-typing.
     bus: PantheonBus | None = None
 
@@ -144,7 +144,7 @@ class Agent:
 
         1. **MUST-NOT-bypass guard (7.7).** A request phrased as a command
            ("restart vm-1") is not answered here - it abstains with
-           :data:`~fdai.agents.introspection.REQUIRES_TYPED_PIPELINE` so
+           :data:`~fdai.agents._framework.introspection.REQUIRES_TYPED_PIPELINE` so
            the caller re-enters the typed pipeline with the operator as
            ``initiator_principal``. The port describes actions, never runs
            them.

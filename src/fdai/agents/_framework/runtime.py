@@ -6,9 +6,9 @@ is the seam that lets the headless control plane
 (:mod:`fdai.__main__`) run all 15 agents against a real
 :class:`~fdai.shared.providers.event_bus.EventBus` provider:
 
-- instantiate the 15 agents (:func:`fdai.agents.factory.instantiate_pantheon`),
+- instantiate the 15 agents (:func:`fdai.agents._framework.factory.instantiate_pantheon`),
 - bind every publishing agent to a single
-  :class:`~fdai.agents.bus_bridge.EventBusBridge` over the injected
+  :class:`~fdai.agents._framework.bus_bridge.EventBusBridge` over the injected
   provider,
 - register each agent's declared typed subscriptions
   (``AgentSpec.subscribes``) so a published ``object.<type>`` record
@@ -36,14 +36,14 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from fdai.agents.base import Agent
+from fdai.agents._framework.base import Agent
 from fdai.agents.bragi import Bragi, Turn
-from fdai.agents.bus_bridge import EventBusBridge
-from fdai.agents.divergence import ShadowDivergenceLedger
-from fdai.agents.factory import instantiate_pantheon
+from fdai.agents._framework.bus_bridge import EventBusBridge
+from fdai.agents._framework.divergence import ShadowDivergenceLedger
+from fdai.agents._framework.factory import instantiate_pantheon
 from fdai.agents.huginn import Huginn
-from fdai.agents.pantheon import HARD_DEPENDENCY_AGENTS, PANTHEON_NAMES
-from fdai.agents.registry import PantheonRegistry, load_pantheon
+from fdai.agents._framework.pantheon import HARD_DEPENDENCY_AGENTS, PANTHEON_NAMES
+from fdai.agents._framework.registry import PantheonRegistry, load_pantheon
 from fdai.agents.saga import Saga
 from fdai.agents.thor import ActionRunStore, Thor
 from fdai.shared.providers.event_bus import EventBus

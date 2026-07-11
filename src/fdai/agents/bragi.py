@@ -21,14 +21,14 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from fdai.agents.base import Agent
-from fdai.agents.introspection import (
+from fdai.agents._framework.base import Agent
+from fdai.agents._framework.introspection import (
     IntrospectionResult,
     capability_facts,
     is_action_intent,
     leading_verb,
 )
-from fdai.agents.pantheon import _BRAGI, PANTHEON_NAMES, PANTHEON_SPECS
+from fdai.agents._framework.pantheon import _BRAGI, PANTHEON_NAMES, PANTHEON_SPECS
 
 AnswerFn = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 

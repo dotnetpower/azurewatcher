@@ -35,8 +35,8 @@ from typing import Any
 import httpx
 import yaml
 
-from .agents.divergence import ShadowDivergenceLedger
-from .agents.runtime import PantheonRuntime
+from .agents._framework.divergence import ShadowDivergenceLedger
+from .agents._framework.runtime import PantheonRuntime
 from .composition import (
     AzureWireOverrides,
     Container,

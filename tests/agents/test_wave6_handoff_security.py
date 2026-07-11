@@ -14,12 +14,12 @@ from __future__ import annotations
 import asyncio
 
 from fdai.agents.bragi import Bragi
-from fdai.agents.bus import InMemoryBus
+from fdai.agents._framework.bus import InMemoryBus
 from fdai.agents.forseti import Forseti
 from fdai.agents.heimdall import Heimdall
 from fdai.agents.mimir import Mimir
 from fdai.agents.norns import Norns
-from fdai.agents.registry import load_pantheon
+from fdai.agents._framework.registry import load_pantheon
 from fdai.agents.saga import Saga, compute_fingerprint
 from fdai.agents.var import Var
 

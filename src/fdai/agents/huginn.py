@@ -11,10 +11,10 @@ from __future__ import annotations
 from collections import OrderedDict
 from typing import Any
 
-from fdai.agents.base import Agent
-from fdai.agents.bus import PantheonBus
-from fdai.agents.introspection import IntrospectionResult, capability_facts
-from fdai.agents.pantheon import _HUGINN
+from fdai.agents._framework.base import Agent
+from fdai.agents._framework.bus import PantheonBus
+from fdai.agents._framework.introspection import IntrospectionResult, capability_facts
+from fdai.agents._framework.pantheon import _HUGINN
 
 # Bound the dedup memory so a long-lived process cannot leak: the most
 # recent N idempotency keys are retained; older keys age out (a re-arrival

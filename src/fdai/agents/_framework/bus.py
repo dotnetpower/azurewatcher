@@ -9,7 +9,7 @@ on `:9093`). The in-memory implementation shipping here exists so:
   integrating their Azure adapter.
 
 The bus enforces the single-writer invariant at publish time by
-delegating to :class:`fdai.agents.registry.PantheonRegistry`.
+delegating to :class:`fdai.agents._framework.registry.PantheonRegistry`.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
-from fdai.agents.registry import PantheonRegistry
+from fdai.agents._framework.registry import PantheonRegistry
 
 Payload = dict[str, Any]
 Handler = Callable[[str, Payload], Awaitable[None]]
@@ -31,7 +31,7 @@ class PantheonBus(Protocol):
 
     Both the sync-dispatch :class:`InMemoryBus` (tests / single-process
     runs) and the Kafka-backed
-    :class:`fdai.agents.bus_bridge.EventBusBridge` (production Event Hubs)
+    :class:`fdai.agents._framework.bus_bridge.EventBusBridge` (production Event Hubs)
     satisfy this Protocol, so an agent binds to either without knowing
     which. Agents type their ``bus`` seam against this, never against the
     concrete test double - see the composition-root wiring in

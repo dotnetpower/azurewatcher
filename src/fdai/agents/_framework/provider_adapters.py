@@ -23,7 +23,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from fdai.agents.adapters import AuditEntry, _digest
+from fdai.agents._framework.adapters import AuditEntry, _digest
 from fdai.agents.thor import ActionRun
 from fdai.shared.providers.state_store import StateStore
 
@@ -107,7 +107,7 @@ class StateStoreAuditChainAdapter:
         prev = "0" * 64
         for i, entry in enumerate(self.entries):
             if entry.seq != i or entry.prev_hash != prev:
-                from fdai.agents.adapters import AuditChainError
+                from fdai.agents._framework.adapters import AuditChainError
 
                 raise AuditChainError(
                     f"chain break at seq {i}: prev={entry.prev_hash!r} expected {prev!r}"

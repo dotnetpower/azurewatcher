@@ -9,15 +9,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from fdai.agents.base import Agent
-from fdai.agents.bus import PantheonBus
-from fdai.agents.introspection import (
+from fdai.agents._framework.base import Agent
+from fdai.agents._framework.bus import PantheonBus
+from fdai.agents._framework.introspection import (
     IntrospectionResult,
     capability_facts,
     capped_list,
     mentioned,
 )
-from fdai.agents.pantheon import _FREYR
+from fdai.agents._framework.pantheon import _FREYR
 
 
 @dataclass(frozen=True, slots=True)

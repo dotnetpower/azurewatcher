@@ -22,7 +22,7 @@ from copy import deepcopy
 from threading import Lock
 from typing import Any
 
-from fdai.agents.runtime import PantheonRuntime
+from fdai.agents._framework.runtime import PantheonRuntime
 from fdai.agents.saga import Saga
 from fdai.shared.providers.event_bus import EventBus, EventEnvelope, PublishReceipt
 
@@ -128,8 +128,8 @@ def test_full_shadow_chain_propagates_over_live_bus() -> None:
 
 
 def test_bridge_run_rejects_reentry_while_running() -> None:
-    from fdai.agents.bus_bridge import EventBusBridge
-    from fdai.agents.registry import load_pantheon
+    from fdai.agents._framework.bus_bridge import EventBusBridge
+    from fdai.agents._framework.registry import load_pantheon
 
     provider = LiveInMemoryEventBus()
     bridge = EventBusBridge(provider=provider, registry=load_pantheon())

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fdai.agents.bus import InMemoryBus
+from fdai.agents._framework.bus import InMemoryBus
 from fdai.agents.forseti import Forseti
 from fdai.agents.freyr import Freyr
 from fdai.agents.heimdall import Heimdall
@@ -20,11 +20,11 @@ from fdai.agents.mimir import Mimir
 from fdai.agents.njord import Njord
 from fdai.agents.norns import Norns
 from fdai.agents.odin import Odin
-from fdai.agents.registry import load_pantheon
+from fdai.agents._framework.registry import load_pantheon
 from fdai.agents.saga import Saga, compute_fingerprint
 from fdai.agents.thor import Thor
 from fdai.agents.var import Var
-from fdai.agents.workflows import WORKFLOWS, workflow
+from fdai.agents._framework.workflows import WORKFLOWS, workflow
 
 
 def test_workflow_catalog_has_ten_entries() -> None:

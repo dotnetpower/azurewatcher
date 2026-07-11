@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
-from fdai.agents.provider_adapters import StateStoreActionRunStore
-from fdai.agents.runtime import PantheonRuntime
+from fdai.agents._framework.provider_adapters import StateStoreActionRunStore
+from fdai.agents._framework.runtime import PantheonRuntime
 from fdai.agents.thor import ActionRun, ActionRunState, Thor
 from fdai.shared.providers.testing.event_bus import InMemoryEventBus
 from fdai.shared.providers.testing.state_store import InMemoryStateStore

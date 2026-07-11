@@ -27,9 +27,9 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
-from fdai.agents.base import Agent
-from fdai.agents.introspection import IntrospectionResult, capability_facts, capped_list
-from fdai.agents.pantheon import _NORNS
+from fdai.agents._framework.base import Agent
+from fdai.agents._framework.introspection import IntrospectionResult, capability_facts, capped_list
+from fdai.agents._framework.pantheon import _NORNS
 
 # Adverse outcomes that count against an action's success record.
 _ADVERSE_RESULTS: frozenset[str] = frozenset({"rollback", "failure", "reverted"})

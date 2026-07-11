@@ -8,7 +8,7 @@ enable / disable via config (see `agent-pantheon.md` \u00a710).
 
 from __future__ import annotations
 
-from fdai.agents.base import AgentSpec, Layer
+from fdai.agents._framework.base import AgentSpec, Layer
 
 # ---------------------------------------------------------------------------
 # Odin - Master Planner (governance)

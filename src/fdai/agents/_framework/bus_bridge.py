@@ -29,7 +29,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from fdai.agents.registry import PantheonRegistry
+from fdai.agents._framework.registry import PantheonRegistry
 from fdai.shared.providers.event_bus import EventBus, PublishReceipt
 
 _LOG = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ class BridgeMetrics:
 class EventBusBridge:
     """Adapter that lets pantheon agents talk to a real ``EventBus``.
 
-    Substitute wherever tests use :class:`fdai.agents.bus.InMemoryBus`
+    Substitute wherever tests use :class:`fdai.agents._framework.bus.InMemoryBus`
     at the composition root. The public surface intentionally mirrors
     :class:`InMemoryBus` so agent code stays unchanged.
     """

@@ -15,13 +15,13 @@ import asyncio
 
 import pytest
 
-from fdai.agents.bus_bridge import EventBusBridge
+from fdai.agents._framework.bus_bridge import EventBusBridge
 from fdai.agents.forseti import Forseti
-from fdai.agents.provider_adapters import (
+from fdai.agents._framework.provider_adapters import (
     StateStoreAuditChainAdapter,
     StateStoreKvAdapter,
 )
-from fdai.agents.registry import PantheonRegistryError, load_pantheon
+from fdai.agents._framework.registry import PantheonRegistryError, load_pantheon
 from fdai.shared.providers.testing.event_bus import InMemoryEventBus
 from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
@@ -487,7 +487,7 @@ def test_forseti_publishes_verdict_over_provider_event_bus() -> None:
 def test_in_memory_bus_isolates_payload_per_subscriber() -> None:
     # H9: each subscriber gets its own copy, so a handler that mutates the
     # payload cannot contaminate a later subscriber (or the caller).
-    from fdai.agents.bus import InMemoryBus
+    from fdai.agents._framework.bus import InMemoryBus
 
     bus = InMemoryBus(registry=load_pantheon())
     observed: dict[str, object] = {}
@@ -511,7 +511,7 @@ def test_in_memory_bus_isolates_payload_per_subscriber() -> None:
 def test_bridge_metrics_expose_consumers_gave_up() -> None:
     # H10: a permanently-dead subscription is observable via a dedicated
     # counter, not silently folded into consumers_crashed.
-    from fdai.agents.bus_bridge import BridgeMetrics
+    from fdai.agents._framework.bus_bridge import BridgeMetrics
 
     snap = BridgeMetrics().as_dict()
     assert snap["consumers_gave_up"] == 0

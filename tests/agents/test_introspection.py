@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
-from fdai.agents.base import Agent
-from fdai.agents.introspection import (
+from fdai.agents._framework.base import Agent
+from fdai.agents._framework.introspection import (
     INTROSPECTION_ERROR,
     capability_facts,
     capability_sentence,
@@ -13,7 +13,7 @@ from fdai.agents.introspection import (
     is_action_intent,
     mentioned,
 )
-from fdai.agents.pantheon import _MUNINN, _NJORD, _SAGA
+from fdai.agents._framework.pantheon import _MUNINN, _NJORD, _SAGA
 
 
 class TestActionIntentGuard:

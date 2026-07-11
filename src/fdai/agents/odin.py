@@ -29,16 +29,16 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
-from fdai.agents.arbitration import (
+from fdai.agents._framework.arbitration import (
     _DEFAULT_PRIORITY,
     MultiObjectiveArbiter,
     RecentDecision,
     TemporalPolicy,
 )
-from fdai.agents.base import Agent
-from fdai.agents.bus import PantheonBus
-from fdai.agents.introspection import IntrospectionResult, capability_facts
-from fdai.agents.pantheon import _ODIN
+from fdai.agents._framework.base import Agent
+from fdai.agents._framework.bus import PantheonBus
+from fdai.agents._framework.introspection import IntrospectionResult, capability_facts
+from fdai.agents._framework.pantheon import _ODIN
 
 
 @runtime_checkable
