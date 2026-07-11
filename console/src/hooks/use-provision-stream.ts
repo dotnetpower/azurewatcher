@@ -171,6 +171,13 @@ export function useProvisionStream(
         const nextStatus: ProvisionConnectionStatus =
           es.readyState === EventSource.CLOSED ? "closed" : "connecting";
         setStatus(nextStatus);
+        // When the browser gives up reconnecting (readyState CLOSED) surface
+        // it in lastError so the route can render a real "connection lost"
+        // message instead of an empty span. Transient reconnect attempts
+        // (readyState CONNECTING) do not overwrite an earlier message.
+        if (es.readyState === EventSource.CLOSED) {
+          setLastError("connection to provisioning stream closed");
+        }
         onStatusRef.current?.(nextStatus);
       };
     };
