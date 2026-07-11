@@ -107,8 +107,14 @@ assignment's top-level `effect` is the default for rules without an override.
 > in the same module. A directory loader
 > ([`governance_catalog.py`](../../../src/fdai/rule_catalog/schema/governance_catalog.py),
 > `load_governance_catalog`) reads the whole catalog-as-code tree (`assignments/` + `rule-sets/`),
-> aggregating every file's issues. The remaining follow-up is the T0 runtime that consumes a
-> resolved assignment and the CI transition gate.
+> aggregating every file's issues. The CI transition gate core also ships:
+> `validate_catalog_transition`
+> ([`governance_transitions.py`](../../../src/fdai/rule_catalog/schema/governance_transitions.py))
+> compares a previous and current `GovernanceCatalog` and rejects any per-rule effective-effect
+> transition outside the allowed table - a new assignment/rule is validated from the mandated
+> `audit` default, and raising to an enforce effect (`deny` / `remediate`) needs the assignment id
+> in `promotions_approved`. The remaining follow-up is the thin `git`-diff CI script wrapping the
+> validator and the T0 runtime that consumes a resolved assignment.
 
 ## Scope
 
