@@ -290,6 +290,48 @@ async def test_shadow_empty_reasoning_trace_does_not_block() -> None:
     assert decision.aggregate_confidence == pytest.approx(0.9)
 
 
+class _EntailmentGrounding(InMemoryGroundingSource):
+    """Grounding source with an entailment predicate for the rubric leg."""
+
+    def __init__(self, rules: dict[str, Rule], *, entails: bool) -> None:
+        super().__init__(rules)
+        self._entails = entails
+
+    def supports(self, candidate: QualityCandidate, rule_id: str) -> bool:
+        del candidate, rule_id
+        return self._entails
+
+
+@pytest.mark.asyncio
+async def test_enforce_off_topic_citation_abstains() -> None:
+    # Grounding source reports the citation does NOT entail the candidate.
+    # Both the grounding leg and the rubric entailment check fire; the
+    # rubric verdict is abstain and the outcome routes to HIL.
+    ev = UniformRubricEvaluator(
+        criteria=_CRITERIA, score=0.95, threshold=0.7, supporting_rule_ids=("r.known",)
+    )
+    gate = QualityGate(
+        verifier=StaticVerifier(outcome=True),
+        cross_check_models=(
+            MatchTypeCrossCheckModel(model_id="m1"),
+            MatchTypeCrossCheckModel(model_id="m2"),
+        ),
+        grounding=_EntailmentGrounding({"r.known": _rule("r.known")}, entails=False),
+        config=QualityGateConfig(
+            confidence_threshold=0.5,
+            require_grounding=True,
+            require_cross_check_quorum=2,
+            rubric_shadow=False,
+            rubric_required_criteria=_CRITERIA,
+        ),
+        rubric_evaluator=ev,
+    )
+    decision = await gate.evaluate(_candidate())
+    assert decision.outcome is QualityOutcome.ABSTAIN
+    assert decision.rubric_verdict == "abstain"
+    assert any(r.startswith("rubric_abstained") for r in decision.reasons)
+
+
 @pytest.mark.asyncio
 async def test_audit_fields_include_rubric_provenance() -> None:
     # The audit helper MUST surface the rubric_* provenance so shadow-mode
