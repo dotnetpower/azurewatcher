@@ -342,6 +342,16 @@ class Thor(Agent):
         run = self.action_runs.get(correlation)
         if run is None:
             return
+        # Idempotency: only a run still awaiting its HIL decision may act on an
+        # approval. At-least-once delivery can redeliver the same object.approval
+        # (or a duplicate can arrive), and without this guard an approval for a
+        # run already approved / executing / terminal would re-enter _execute -
+        # double-executing a completed mutation via the privileged executor, or
+        # re-running rollback. dispatch_verdict has its own idempotency guard;
+        # this is the matching one for the approval path.
+        if run.state != ActionRunState.HIL_PENDING:
+            self.record_behavior("approval:duplicate")
+            return
         if approval.get("state") == "approved":
             run.transition(ActionRunState.APPROVED)
             await self._execute(run)

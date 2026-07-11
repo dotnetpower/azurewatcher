@@ -438,6 +438,39 @@ def test_thor_hil_verdict_waits_for_approval_then_executes() -> None:
     assert thor.action_runs["c-hil"].state == ActionRunState.SUCCEEDED
 
 
+def test_thor_duplicate_approval_does_not_re_execute() -> None:
+    # At-least-once delivery can redeliver object.approval. A duplicate
+    # approval for an already-executed run MUST NOT re-run the privileged
+    # executor (double execution of a completed mutation).
+    reg = load_pantheon()
+    bus = InMemoryBus(registry=reg)
+    calls = {"n": 0}
+
+    async def counting(_ctx: object) -> bool:
+        calls["n"] += 1
+        return True
+
+    thor = Thor(bus=bus, executor=counting)
+    asyncio.run(
+        thor.dispatch_verdict(
+            {
+                "correlation_id": "c-dup-appr",
+                "action_type": "remediate.enable-encryption",
+                "risk_verdict": "hil",
+                "resource_id": "disk-9",
+            }
+        )
+    )
+    approval = {"correlation_id": "c-dup-appr", "state": "approved"}
+    asyncio.run(thor._handle_approval(dict(approval)))  # noqa: SLF001
+    assert thor.action_runs["c-dup-appr"].state == ActionRunState.SUCCEEDED
+    assert calls["n"] == 1
+    # Redeliver the same approval -> idempotent no-op, executor not called again.
+    asyncio.run(thor._handle_approval(dict(approval)))  # noqa: SLF001
+    assert calls["n"] == 1
+    assert thor.action_runs["c-dup-appr"].state == ActionRunState.SUCCEEDED
+
+
 def test_thor_rejects_deny_verdict_without_execution() -> None:
     reg = load_pantheon()
     bus = InMemoryBus(registry=reg)
