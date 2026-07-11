@@ -115,6 +115,48 @@ def test_security_rate_limit_stops_further_cards() -> None:
     assert len(attacker_cards) <= 2
 
 
+def test_security_rate_limit_recovers_after_window() -> None:
+    # Regression: the per-hour alert budget must RECOVER when the window rolls
+    # over. A monotonic counter with no window would silence the initiator
+    # forever after the first burst - an attacker could burn the quota, then
+    # operate with every later security alert suppressed.
+    clock = {"t": 1000.0}
+    reg = load_pantheon()
+    bus = InMemoryBus(registry=reg)
+    var = Var(bus=bus)
+    heimdall = Heimdall(bus=bus, alert_rate_per_hour=2, clock=lambda: clock["t"])
+    heimdall.register_alerter(var.deliver_admin_card)
+
+    def emit(action: str, i: int) -> None:
+        asyncio.run(
+            heimdall.on_typed_message(
+                "object.security-event",
+                {
+                    "correlation_id": f"c-{i}",
+                    "resource_id": "sa-1",
+                    "initiator_principal": "attacker@example.com",
+                    "attempted_action": action,
+                    "severity_hint": "critical",  # force high severity -> card
+                },
+            )
+        )
+
+    def attacker_card_count() -> int:
+        return len(
+            [c for c in var.admin_channel.cards if c.initiator_principal == "attacker@example.com"]
+        )
+
+    # Three events in one window -> only 2 cards (rate limit = 2).
+    for i, action in enumerate(("a.b", "c.d", "e.f")):
+        emit(action, i)
+    assert attacker_card_count() == 2
+    # Advance past the rolling hour -> budget recovers, the next event alerts.
+    clock["t"] += 3601.0
+    emit("k.l", 99)
+    # The permanent-silence bug would leave this pinned at 2.
+    assert attacker_card_count() == 3
+
+
 # ---------------------------------------------------------------------------
 # Handoff: Bragi abstain -> Saga -> Norns -> Mimir -> auto close
 # ---------------------------------------------------------------------------

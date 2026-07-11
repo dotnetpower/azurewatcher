@@ -9,6 +9,7 @@ registers. Deduplication of admin cards uses a rolling window per
 
 from __future__ import annotations
 
+import time
 from collections import Counter, deque
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -27,6 +28,12 @@ from fdai.agents._framework.pantheon import _HEIMDALL
 AlerterHook = Callable[[dict[str, Any]], Awaitable[None]]
 """Var-provided hook that delivers the admin notification card."""
 
+#: The admin-card rate limit is per rolling hour. A limiter that never reset
+#: would silence a user permanently after the first burst - so an attacker
+#: could burn the initial quota, then operate with every later security
+#: alert suppressed. The window makes the limit actually recover.
+_ALERT_WINDOW_SECONDS = 3600.0
+
 
 class Heimdall(Agent):
     """Wave-3 anomaly detection + Wave 6 security correlator."""
@@ -41,6 +48,7 @@ class Heimdall(Agent):
         security_window_events: int = 100,
         alerter_hook: AlerterHook | None = None,
         alert_rate_per_hour: int = 5,
+        clock: Callable[[], float] | None = None,
     ) -> None:
         super().__init__(spec=_HEIMDALL)
         self.bus = bus
@@ -52,7 +60,11 @@ class Heimdall(Agent):
         self._alert_counters: Counter[tuple[str, str]] = Counter()
         self._alerter_hook = alerter_hook
         self._alert_rate_per_hour = alert_rate_per_hour
-        self._alerts_sent_per_user: Counter[str] = Counter()
+        # Per-initiator rolling-hour alert budget: (window_start, count).
+        # Injected clock keeps the window deterministic under test; defaults
+        # to a monotonic source so a wall-clock jump cannot reopen the budget.
+        self._clock = clock or time.monotonic
+        self._alert_windows: dict[str, tuple[float, int]] = {}
 
     def bind_bus(self, bus: PantheonBus) -> None:
         self.bus = bus
@@ -123,14 +135,34 @@ class Heimdall(Agent):
         self._alert_counters[(initiator, action)] += 1
         return severity
 
+    def _reserve_alert_slot(self, initiator: str) -> bool:
+        """Reserve one admin-card slot in the initiator's rolling-hour budget.
+
+        Returns ``True`` and charges the budget when a slot is available;
+        ``False`` when the initiator has spent its quota in the current
+        window. The window resets once :data:`_ALERT_WINDOW_SECONDS` elapses
+        since it opened, so the limit throttles a burst without silencing the
+        user permanently.
+        """
+        now = self._clock()
+        start, count = self._alert_windows.get(initiator, (now, 0))
+        if now - start >= _ALERT_WINDOW_SECONDS:
+            # Window rolled over -> start a fresh budget.
+            start, count = now, 0
+        if count >= self._alert_rate_per_hour:
+            self._alert_windows[initiator] = (start, count)
+            return False
+        self._alert_windows[initiator] = (start, count + 1)
+        return True
+
     async def _maybe_send_admin_card(self, event: dict[str, Any], severity: str) -> None:
         """Send an admin card, deduped by (initiator, action) within window."""
         initiator = str(event.get("initiator_principal", ""))
         action = str(event.get("attempted_action", ""))
-        # Rate limit per user.
-        if self._alerts_sent_per_user[initiator] >= self._alert_rate_per_hour:
+        # Rate limit per user, per rolling hour (recovers when the window
+        # rolls over - a monotonic counter would silence the user forever).
+        if not self._reserve_alert_slot(initiator):
             return
-        self._alerts_sent_per_user[initiator] += 1
         # Dedup: send one card per (initiator, action); repeat becomes
         # counter increment on the last card (handled by Var adapter).
         payload = {
