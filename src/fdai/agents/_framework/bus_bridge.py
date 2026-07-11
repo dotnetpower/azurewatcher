@@ -104,6 +104,9 @@ class EventBusBridge:
     restart_backoff_base: float = 0.5
     restart_backoff_max: float = 30.0
     shutdown_timeout: float = 5.0
+    verify_producer_principal: bool = True
+    handler_max_retries: int = 0
+    handler_retry_backoff: float = 0.05
     _subs: dict[str, list[tuple[str, Handler]]] = field(default_factory=lambda: defaultdict(list))
     _tasks: list[asyncio.Task[None]] = field(default_factory=list)
     metrics: BridgeMetrics = field(default_factory=BridgeMetrics)
@@ -274,8 +277,28 @@ class EventBusBridge:
         while True:
             try:
                 async for envelope in self.provider.subscribe(topic, group_id):
+                    if not self._producer_authorized(topic, envelope.payload):
+                        # Consumer-side single-writer check: a record whose
+                        # producer_principal is not the topic owner is an
+                        # impostor (a compromised or buggy producer that got
+                        # past publish-side auth on another path). Do NOT
+                        # hand it to a subscriber - route it to the DLQ and
+                        # move on. Publish-side auth is not enough on its
+                        # own: the consumer trusts the wire, so it must
+                        # re-verify the wire.
+                        await self._safe_dead_letter(
+                            group_id=group_id,
+                            topic=topic,
+                            envelope=envelope,
+                            reason=(
+                                "producer_principal "
+                                f"{envelope.payload.get('producer_principal')!r} "
+                                f"is not the owner of {topic!r}"
+                            ),
+                        )
+                        continue
                     try:
-                        await handler(topic, dict(envelope.payload))
+                        await self._deliver(topic, handler, envelope.payload)
                         self.metrics.delivered += 1
                         attempt = 0  # progress resets the backoff window
                     except asyncio.CancelledError:
@@ -292,7 +315,10 @@ class EventBusBridge:
                             },
                         )
                         await self._safe_dead_letter(
-                            group_id=group_id, topic=topic, envelope=envelope, exc=exc
+                            group_id=group_id,
+                            topic=topic,
+                            envelope=envelope,
+                            reason=f"handler error: {exc}",
                         )
                 # Iterator ended normally (finite in-memory drain): done.
                 return
@@ -335,13 +361,65 @@ class EventBusBridge:
                 await asyncio.sleep(backoff)
                 # loop: re-subscribe, resuming from the committed offset.
 
+    def _producer_authorized(self, topic: str, payload: Payload) -> bool:
+        """Consumer-side single-writer check.
+
+        Returns ``True`` when the record may be delivered. A topic with no
+        declared owner (the raw ingress topic, or an alternate stream) is
+        not a pantheon object topic, so there is nothing to verify against -
+        allow it. A record whose ``producer_principal`` is present but not
+        the topic owner is an impostor and is rejected (counted). An absent
+        principal is allowed (a legacy / external producer that did not go
+        through the bridge) but the publish-side ``missing`` counters already
+        make that visible.
+        """
+        if not self.verify_producer_principal:
+            return True
+        owner = self.registry.owner_of_topic(topic)
+        if owner is None:
+            return True
+        principal = str(payload.get("producer_principal", ""))
+        if principal and principal != owner:
+            self.metrics.producer_principal_mismatch += 1
+            _LOG.warning(
+                "pantheon_producer_principal_mismatch",
+                extra={"topic": topic, "principal": principal, "owner": owner},
+            )
+            return False
+        return True
+
+    async def _deliver(self, topic: str, handler: Handler, payload: Payload) -> None:
+        """Invoke ``handler`` with bounded in-place retry before giving up.
+
+        A transient handler failure (a brief backend blip) should not
+        immediately dead-letter a good record. ``handler_max_retries``
+        (default 0 - retry disabled) retries the handler with a short
+        backoff; the final failure propagates so the caller routes it to
+        the DLQ. Each retry is counted so retry pressure is observable.
+        """
+        last_exc: Exception
+        for attempt in range(self.handler_max_retries + 1):
+            try:
+                await handler(topic, dict(payload))
+                return
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - retry then propagate to DLQ
+                last_exc = exc
+                if attempt < self.handler_max_retries:
+                    self.metrics.handler_retries += 1
+                    await asyncio.sleep(self.handler_retry_backoff * (2**attempt))
+        # Loop exhausted without a successful return: re-raise the final
+        # failure so the caller routes the record to the DLQ.
+        raise last_exc
+
     async def _safe_dead_letter(
         self,
         *,
         group_id: str,
         topic: str,
         envelope: Any,
-        exc: Exception,
+        reason: str,
     ) -> None:
         """Route a poison record to the DLQ, isolating DLQ failures.
 
@@ -354,7 +432,7 @@ class EventBusBridge:
                 topic,
                 envelope.key,
                 envelope.payload,
-                reason=f"handler error: {exc}",
+                reason=reason,
             )
             self.metrics.dead_lettered += 1
         except asyncio.CancelledError:

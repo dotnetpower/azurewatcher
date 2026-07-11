@@ -111,6 +111,7 @@ from fdai.shared.providers.stage_publisher import (
     StagePublisher,
 )
 from fdai.shared.providers.state_store import StateStore
+from fdai.shared.resilience import DegradationController
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -271,6 +272,7 @@ class ControlLoop:
         causal_chain_window: timedelta | None = None,
         resource_dependency_graph: Mapping[str, Iterable[str]] | None = None,
         workflow_coordinator: WorkflowTriggerCoordinator | None = None,
+        degradation: DegradationController | None = None,
     ) -> None:
         self._event_ingest = event_ingest
         self._trust_router = trust_router
@@ -291,6 +293,11 @@ class ControlLoop:
             dict(action_types_by_name) if action_types_by_name is not None else {}
         )
         self._risk_gate = risk_gate
+        # System-level degradation seam (B1). When wired, a tripped
+        # critical-dependency circuit caps every authority decision to
+        # shadow (csp-neutrality.md 4). None -> always healthy (no-op),
+        # so an unwired loop behaves exactly as before.
+        self._degradation = degradation
         # Optional Cost Governance vertical hook (Wave W2.5). Consulted
         # ONLY when the rule declares no static cost, so it never
         # overrides an authoritative rule figure; a None estimator
@@ -1436,6 +1443,9 @@ class ControlLoop:
         if action_type is None:
             return None
         cost_override = await self._resolve_cost_override(rule=rule, action_type=action_type)
+        system_degraded = (
+            self._degradation is not None and not self._degradation.autonomy_permitted()
+        )
         if self._risk_gate is not None:
             unified = evaluate_unified(
                 event=event,
@@ -1445,6 +1455,7 @@ class ControlLoop:
                 table=self._risk_table,
                 risk_gate=self._risk_gate,
                 cost_override=cost_override,
+                system_degraded=system_degraded,
             )
             entry = _unified_audit_dict(event=event, action=action, unified=unified)
             entry["recorded_at"] = datetime.now(tz=UTC).isoformat()
@@ -1457,6 +1468,7 @@ class ControlLoop:
             action_type=action_type,
             table=self._risk_table,
             cost_override=cost_override,
+            system_degraded=system_degraded,
         )
         entry["recorded_at"] = datetime.now(tz=UTC).isoformat()
         await self._audit_store.append_audit_entry(entry)

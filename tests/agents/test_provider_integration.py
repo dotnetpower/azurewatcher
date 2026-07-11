@@ -317,6 +317,138 @@ def test_bridge_counts_missing_idempotency_key_on_mutation_topic() -> None:
     assert bridge.metrics.missing_idempotency_key == 1
 
 
+def _drain(bridge: EventBusBridge) -> None:
+    """Run the bridge consumers until the finite in-memory streams drain."""
+
+    async def _go() -> None:
+        run_task = asyncio.create_task(bridge.run())
+        for _ in range(50):
+            await asyncio.sleep(0)
+        await bridge.stop()
+        run_task.cancel()
+        try:
+            await run_task
+        except (asyncio.CancelledError, Exception):  # noqa: S110 - cleanup
+            pass
+
+    asyncio.run(_go())
+
+
+def test_bridge_rejects_impostor_producer_principal_on_consume() -> None:
+    """Consumer-side single-writer check: a record whose producer_principal
+    is not the topic owner is dead-lettered, never delivered."""
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(provider=provider, registry=reg)
+
+    seen: list[dict] = []
+
+    async def handler(_t: str, p: dict) -> None:
+        seen.append(p)
+
+    bridge.subscribe("object.verdict", "Thor", handler)
+    # Publish straight to the provider (bypassing bridge auth) with a
+    # forged principal - simulating a compromised / buggy producer.
+    asyncio.run(
+        provider.publish(
+            "object.verdict",
+            "corr-1",
+            {"correlation_id": "corr-1", "producer_principal": "Bragi"},
+        )
+    )
+    _drain(bridge)
+
+    assert seen == []  # impostor never reached the handler
+    assert bridge.metrics.producer_principal_mismatch == 1
+    assert bridge.metrics.dead_lettered == 1
+
+
+def test_bridge_allows_authentic_producer_principal_on_consume() -> None:
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(provider=provider, registry=reg)
+
+    seen: list[dict] = []
+
+    async def handler(_t: str, p: dict) -> None:
+        seen.append(p)
+
+    bridge.subscribe("object.verdict", "Thor", handler)
+    asyncio.run(bridge.publish("Forseti", "object.verdict", {"correlation_id": "corr-1"}))
+    _drain(bridge)
+
+    assert len(seen) == 1
+    assert bridge.metrics.producer_principal_mismatch == 0
+
+
+def test_bridge_verify_producer_principal_can_be_disabled() -> None:
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(provider=provider, registry=reg, verify_producer_principal=False)
+
+    seen: list[dict] = []
+
+    async def handler(_t: str, p: dict) -> None:
+        seen.append(p)
+
+    bridge.subscribe("object.verdict", "Thor", handler)
+    asyncio.run(
+        provider.publish(
+            "object.verdict",
+            "corr-1",
+            {"correlation_id": "corr-1", "producer_principal": "Bragi"},
+        )
+    )
+    _drain(bridge)
+
+    assert len(seen) == 1  # delivered despite the mismatch
+    assert bridge.metrics.producer_principal_mismatch == 0
+
+
+def test_bridge_retries_transient_handler_failure_before_delivery() -> None:
+    """A handler that fails then succeeds is retried in place (no DLQ)."""
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(
+        provider=provider, registry=reg, handler_max_retries=3, handler_retry_backoff=0.0
+    )
+
+    calls = {"n": 0}
+
+    async def flaky(_t: str, _p: dict) -> None:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise RuntimeError("transient")
+
+    bridge.subscribe("object.verdict", "Thor", flaky)
+    asyncio.run(bridge.publish("Forseti", "object.verdict", {"correlation_id": "c"}))
+    _drain(bridge)
+
+    assert calls["n"] == 3
+    assert bridge.metrics.delivered == 1
+    assert bridge.metrics.handler_retries == 2
+    assert bridge.metrics.dead_lettered == 0
+
+
+def test_bridge_dead_letters_after_retries_exhausted() -> None:
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(
+        provider=provider, registry=reg, handler_max_retries=2, handler_retry_backoff=0.0
+    )
+
+    async def always_fail(_t: str, _p: dict) -> None:
+        raise RuntimeError("permanent")
+
+    bridge.subscribe("object.verdict", "Thor", always_fail)
+    asyncio.run(bridge.publish("Forseti", "object.verdict", {"correlation_id": "c"}))
+    _drain(bridge)
+
+    assert bridge.metrics.handler_retries == 2
+    assert bridge.metrics.handler_errors == 1
+    assert bridge.metrics.dead_lettered == 1
+
+
 class _FlakyBus(InMemoryEventBus):
     """Subscribe raises the first ``fail_times`` calls, then succeeds."""
 

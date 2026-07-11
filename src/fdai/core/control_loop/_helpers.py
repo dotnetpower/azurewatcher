@@ -74,6 +74,7 @@ def _compute_authority(
     action_type: OntologyActionType,
     table: RiskTable,
     cost_override: float | None = None,
+    system_degraded: bool = False,
 ) -> ExecutionAuthorityDecision:
     """Run the execution-authority pipeline for one action + event context.
 
@@ -100,6 +101,7 @@ def _compute_authority(
         principal_role=CeilingRole.OWNER,
         environment=environment,
         cost_impact_monthly=cost,
+        system_degraded=system_degraded,
     )
 
 
@@ -111,6 +113,7 @@ def build_shadow_authority_audit(
     action_type: OntologyActionType,
     table: RiskTable,
     cost_override: float | None = None,
+    system_degraded: bool = False,
 ) -> dict[str, Any]:
     """Build the ``risk_gate.shadow_authority`` audit entry for one action.
 
@@ -130,6 +133,7 @@ def build_shadow_authority_audit(
         action_type=action_type,
         table=table,
         cost_override=cost_override,
+        system_degraded=system_degraded,
     )
     return {
         "event_id": str(event.event_id),
@@ -152,6 +156,7 @@ def evaluate_unified(
     table: RiskTable,
     risk_gate: RiskGate,
     cost_override: float | None = None,
+    system_degraded: bool = False,
 ) -> UnifiedRiskDecision:
     """Run the runtime-Action gate and the policy-ceiling authority and
     combine them into a single :class:`UnifiedRiskDecision` (canonical-level
@@ -170,6 +175,7 @@ def evaluate_unified(
         action_type=action_type,
         table=table,
         cost_override=cost_override,
+        system_degraded=system_degraded,
     )
     return combine(gate_decision, authority)
 
@@ -198,6 +204,7 @@ def build_unified_risk_audit(
     table: RiskTable,
     risk_gate: RiskGate,
     cost_override: float | None = None,
+    system_degraded: bool = False,
 ) -> dict[str, Any]:
     """Build the ``risk_gate.unified`` audit entry combining gate + authority.
 
@@ -219,6 +226,7 @@ def build_unified_risk_audit(
         table=table,
         risk_gate=risk_gate,
         cost_override=cost_override,
+        system_degraded=system_degraded,
     )
     return _unified_audit_dict(event=event, action=action, unified=unified)
 
