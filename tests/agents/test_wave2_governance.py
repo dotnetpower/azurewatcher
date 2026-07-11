@@ -582,6 +582,37 @@ def test_saga_does_not_republish_intermediate_or_untyped_state() -> None:
     assert bus.messages_on("object.audit-entry") == []
 
 
+def test_saga_skips_republish_on_empty_correlation() -> None:
+    """An empty correlation would give the audit-entry an empty partition key
+    (ordering loss) and Norns cannot dedup it - skip the republish."""
+    saga, bus = _saga_on_bus()
+    asyncio.run(
+        saga.on_typed_message(
+            "object.action-run", {"action_type": "a", "state": "failed", "correlation_id": ""}
+        )
+    )
+    assert bus.messages_on("object.audit-entry") == []
+
+
+def test_saga_self_loop_guard_skips_already_republished_record() -> None:
+    """Defensive: a record already carrying audited_topic is never
+    re-republished, so an audit-of-an-audit loop cannot form even if Saga is
+    wired to consume object.audit-entry later."""
+    saga, bus = _saga_on_bus()
+    asyncio.run(
+        saga.on_typed_message(
+            "object.action-run",
+            {
+                "action_type": "a",
+                "state": "failed",
+                "correlation_id": "c",
+                "audited_topic": "object.action-run",
+            },
+        )
+    )
+    assert bus.messages_on("object.audit-entry") == []
+
+
 def test_saga_audit_entry_drives_norns_outcome_learning() -> None:
     """End to end: Saga republishes terminal outcomes, Norns (subscribed to
     object.audit-entry) scores the rollback rate and proposes a threshold

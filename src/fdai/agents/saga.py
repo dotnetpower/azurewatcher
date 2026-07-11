@@ -70,6 +70,19 @@ class Saga(Agent):
         """
         if self.bus is None:
             return
+        # Self-loop guard (defensive): never republish a record that is
+        # already a republished audit-entry. Saga does not subscribe
+        # object.audit-entry today, so this cannot fire - but if a future
+        # change wires that subscription, the audited_topic marker stops an
+        # infinite audit-of-an-audit loop.
+        if payload.get("audited_topic"):
+            return
+        # Empty correlation -> the audit-entry (a correlation-partitioned
+        # topic) would carry an empty partition key, losing ordering, and
+        # Norns cannot dedup it per action. The append-only chain already has
+        # the record; skip the bus republish rather than emit an unkeyed one.
+        if not correlation_id:
+            return
         result = outcome_result(str(payload.get("state", "")))
         action_type = str(payload.get("action_type", ""))
         if result is None or not action_type:

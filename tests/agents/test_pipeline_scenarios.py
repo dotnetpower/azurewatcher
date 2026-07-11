@@ -113,3 +113,61 @@ def test_mixed_scenario_stream_measures_whole_pipeline() -> None:
     assert tb.get("executed:shadow") == 2  # only the 2 auto actions (public, restart)
     # Saga audited every terminal outcome it saw (republished as audit-entry).
     assert len(bus.messages_on("object.audit-entry")) >= 2  # the 2 shadow successes
+
+
+# ---------------------------------------------------------------------------
+# Adversarial scenarios - measure robustness, not just the happy path
+# ---------------------------------------------------------------------------
+
+
+def test_adversarial_duplicate_verdict_dispatched_once() -> None:
+    """The same event delivered twice: Thor dedups on correlation, so exactly
+    one action runs and the second is measured as a duplicate."""
+    bus, forseti, thor, _, _ = _wire_pipeline(shadow=True)
+    event = {"event_type": "public_network_enabled", "correlation_id": "dup", "resource_id": "r1"}
+    _emit(bus, dict(event))
+    _emit(bus, dict(event))  # re-delivery
+    tb = thor.behavior_snapshot()
+    assert tb.get("dispatch:auto") == 1  # dispatched once
+    assert tb.get("dispatch:duplicate") == 1  # second was a no-op
+    assert tb.get("executed:shadow") == 1  # executed once, not twice
+
+
+def test_adversarial_empty_payload_does_not_act() -> None:
+    """A junk / empty event must abstain (measurably) and never dispatch."""
+    bus, forseti, thor, var, _ = _wire_pipeline(shadow=True)
+    _emit(bus, {})
+    _emit(bus, {"event_type": "nonsense", "correlation_id": "j1"})
+    fb, tb, vb = forseti.behavior_snapshot(), thor.behavior_snapshot(), var.behavior_snapshot()
+    assert fb.get("no_rule_match") == 2
+    # Nothing downstream acted.
+    assert tb == {}
+    assert vb == {}
+
+
+def test_adversarial_self_approval_blocked_and_measured() -> None:
+    """An operator-initiated HIL action the operator then tries to self-approve
+    is blocked, and the block is a measurable security signal."""
+    bus, forseti, thor, var, _ = _wire_pipeline(shadow=True)
+    _emit(
+        bus,
+        {
+            "action_type": "remediate.enable-encryption",
+            "initiator_principal": "operator@example.com",
+            "operator_initiated": True,
+            "correlation_id": "sa1",
+            "resource_id": "d1",
+        },
+    )
+    assert var.behavior_snapshot().get("ticket_pending") == 1
+    # The initiator cannot approve their own action.
+    try:
+        asyncio.run(var.decide("sa1", approver="operator@example.com", decision="approve"))
+        raise AssertionError("self-approval should have raised")
+    except ValueError:
+        pass
+    assert var.behavior_snapshot().get("self_approval_blocked") == 1
+    # A distinct approver is still accepted (quorum 1 for a reversible action).
+    approval = asyncio.run(var.decide("sa1", approver="approver@example.com", decision="approve"))
+    assert approval is not None
+    assert var.behavior_snapshot().get("approved") == 1
