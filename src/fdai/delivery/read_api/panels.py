@@ -39,7 +39,7 @@ from fdai.core.capability_catalog import (
     CapabilityCategory,
     default_capability_catalog,
 )
-from fdai.core.verticals.finops import FinOpsActionKind
+from fdai.core.verticals.cost_governance.finops import FinOpsActionKind
 from fdai.delivery.read_api.read_model import ConsoleReadModel, clamp_limit
 
 

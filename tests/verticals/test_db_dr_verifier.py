@@ -27,7 +27,7 @@ from typing import Any
 
 import pytest
 
-from fdai.core.verticals.db_dr_verifier import (
+from fdai.core.verticals.resilience.db_dr_verifier import (
     DbDrOutcome,
     DbDrVerifier,
 )

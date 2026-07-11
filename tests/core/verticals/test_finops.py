@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from fdai.core.verticals.finops import (
+from fdai.core.verticals.cost_governance.finops import (
     FinOpsActionKind,
     FinOpsCandidate,
     FinOpsEnvironment,

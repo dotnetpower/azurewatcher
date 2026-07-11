@@ -77,7 +77,7 @@ from fdai.core.tiers.t0_deterministic import T0Engine
 from fdai.core.tiers.t1_lightweight.tier import T1Decision, T1Outcome, T1Tier
 from fdai.core.tiers.t2_reasoning import T2Decision, T2Outcome, T2Tier
 from fdai.core.trust_router import RoutingDecision, RoutingTier, TrustRouter
-from fdai.core.verticals.change_safety_detector import (
+from fdai.core.verticals.change_safety.detector import (
     ChangeSafetyDecision,
     ChangeSafetyDetector,
 )

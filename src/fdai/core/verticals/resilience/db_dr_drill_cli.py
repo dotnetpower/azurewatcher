@@ -4,7 +4,7 @@ Container Apps Jobs (``infra/modules/compute/container-apps/dr_drill_job.tf``)
 launch this module on the schedule documented in
 [`docs/runbooks/db-dr-drill.md`](../../../../docs/runbooks/db-dr-drill.md).
 The CLI composes a
-:class:`~fdai.core.verticals.db_dr_verifier.DbDrVerifier` with
+:class:`~fdai.core.verticals.resilience.db_dr_verifier.DbDrVerifier` with
 the shipped Azure adapter and runs one restore -> integrity -> smoke ->
 teardown cycle.
 
@@ -52,10 +52,10 @@ import os
 import sys
 from datetime import UTC, datetime, timedelta
 
-from fdai.core.verticals.db_dr_verifier import DbDrOutcome, DbDrVerdict
+from fdai.core.verticals.resilience.db_dr_verifier import DbDrOutcome, DbDrVerdict
 from fdai.shared.providers.db_dr import DbRestoreConfig
 
-_LOGGER = logging.getLogger("fdai.core.verticals.db_dr_drill_cli")
+_LOGGER = logging.getLogger("fdai.core.verticals.resilience.db_dr_drill_cli")
 
 
 _ENV_SOURCE = "FDAI_DR_DRILL_SOURCE_SERVER_ARM_ID"

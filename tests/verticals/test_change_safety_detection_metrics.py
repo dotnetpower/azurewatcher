@@ -10,7 +10,7 @@ Phase-1 exit criterion (see
 This module realizes the harness. It loads the labeled fixtures under
 [`fixtures/change_safety_labeled/`](fixtures/change_safety_labeled/),
 runs each through the real
-:class:`~fdai.core.verticals.change_safety_detector.ChangeSafetyDetector`
+:class:`~fdai.core.verticals.change_safety.detector.ChangeSafetyDetector`
 under a deterministic clock, and computes:
 
 - Per-class confusion matrix (AUTHORIZED / SUPPRESSED / OUT_OF_BAND).
@@ -38,7 +38,7 @@ from uuid import uuid4
 
 import pytest
 
-from fdai.core.verticals.change_safety_detector import (
+from fdai.core.verticals.change_safety.detector import (
     ACTIVITY_LOG_SIGNAL_KIND,
     ChangeAttribution,
     ChangeSafetyDetector,

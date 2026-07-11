@@ -12,8 +12,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from fdai.core.verticals import db_dr_drill_cli
-from fdai.core.verticals.db_dr_drill_cli import (
+from fdai.core.verticals.resilience import db_dr_drill_cli
+from fdai.core.verticals.resilience.db_dr_drill_cli import (
     _ENV_DRY_RUN,
     _ENV_LOCATION,
     _ENV_PITR_OFFSET,

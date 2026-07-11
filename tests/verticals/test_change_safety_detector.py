@@ -19,7 +19,7 @@ from uuid import uuid4
 
 import pytest
 
-from fdai.core.verticals.change_safety_detector import (
+from fdai.core.verticals.change_safety.detector import (
     ACTIVITY_LOG_SIGNAL_KIND,
     OUT_OF_BAND_ALERT_TOPIC,
     ChangeAttribution,

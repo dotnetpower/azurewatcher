@@ -32,7 +32,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from fdai.core.verticals.finops import FinOpsActionKind
+from fdai.core.verticals.cost_governance.finops import FinOpsActionKind
 from fdai.delivery.read_api.read_model import ConsoleReadModel
 
 # Cost-vertical action kinds, plus free-text hints for actions that are
