@@ -58,11 +58,12 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from fdai.shared.contracts.models import Rule
 
 if TYPE_CHECKING:
-    # Broken circular import: debate + debate_router both import
+    # Broken circular import: debate + debate_router + rubric all import
     # ``QualityCandidate`` from this module, so we defer the type
     # references here and runtime imports to the ``evaluate`` method.
     from fdai.core.quality_gate.debate import DebateOrchestrator
     from fdai.core.quality_gate.debate_router import DebateRouterConfig
+    from fdai.core.quality_gate.rubric import RubricEvaluator, RubricScore
 
 
 class QualityOutcome(StrEnum):
@@ -89,6 +90,15 @@ class QualityCandidate:
     ``confidence_threshold`` is compared against a single aggregate
     :attr:`aggregate_confidence`; the model's own self-report is NEVER
     passed here - that's the anti-pattern the gate closes.
+
+    ``reasoning_trace`` is the T2 model's natural-language justification
+    for the proposed action. It is the **scoring target** for the
+    optional rubric evaluator (:mod:`~fdai.core.quality_gate.rubric`):
+    faithfulness / evidence-action alignment cannot be scored without
+    the reasoning text. It is untrusted data like every other model
+    output - the rubric only ever *lowers* confidence from it, never
+    raises eligibility. Empty string when a proposer does not emit one
+    (older adapters); the rubric then abstains for lack of a target.
     """
 
     action_type: str
@@ -96,6 +106,7 @@ class QualityCandidate:
     params: dict[str, Any]
     cited_rule_ids: tuple[str, ...]
     confidence_signals: Mapping[str, float] = field(default_factory=dict)
+    reasoning_trace: str = ""
 
     @property
     def aggregate_confidence(self) -> float:
@@ -146,6 +157,26 @@ class QualityDecision:
     model_votes: tuple[ModelVote, ...] = field(default_factory=tuple)
     """Per-model cross-check votes (empty when the gate aborted before the
     cross-check ran). Provenance for reproducible replay of a T2 judgment."""
+
+    rubric_scores: tuple[RubricScore, ...] = field(default_factory=tuple)
+    """Per-criterion rubric scores recorded for audit (empty when no
+    rubric evaluator is wired). Provenance for a hallucination-filter
+    decision, regardless of shadow / enforce mode."""
+
+    rubric_min_score: float | None = None
+    """The minimum rubric criterion score - the value folded into the
+    aggregate confidence via ``min()`` when the rubric runs in enforce
+    mode. ``None`` when no rubric evaluator is wired."""
+
+    rubric_verdict: str | None = None
+    """The reduced rubric verdict (``pass`` / ``fail`` / ``abstain``) or
+    ``None`` when no rubric evaluator ran. Recorded even in shadow mode
+    so the promotion gate can measure catch / false-positive rates."""
+
+    rubric_shadow: bool = False
+    """Whether the rubric ran judge-and-log only (shadow) for this
+    decision. ``True`` means the rubric verdict did NOT influence the
+    outcome or confidence - it was recorded for measurement only."""
 
 
 # ---------------------------------------------------------------------------
@@ -211,6 +242,23 @@ class QualityGateConfig:
     candidate's ``action_type``. Independent models (distinct
     vendors/weights) - see phase-2 § Quality Gate."""
 
+    rubric_shadow: bool = True
+    """When ``True`` (the default), a wired rubric evaluator runs
+    judge-and-log only: its scores are recorded on the
+    :class:`QualityDecision` but do NOT change the outcome or the
+    aggregate confidence. Shadow-before-enforce, per
+    ``docs/roadmap/hallucination-rubric-gate.md``. A fork flips this to
+    ``False`` only after the promotion gate is met on a labeled
+    scenario set."""
+
+    rubric_required_criteria: tuple[str, ...] = ()
+    """Criteria a :class:`~fdai.core.quality_gate.rubric.RubricOutput`
+    MUST cover for the rubric to render a ``pass`` / ``fail`` verdict.
+    A missing required criterion collapses the rubric to ``abstain``
+    (route to HIL) so a truncated evaluator response cannot silently
+    skip a hallucination dimension. Empty tuple = no coverage
+    requirement (any returned scores are honored as-is)."""
+
 
 class QualityGate:
     """Compose verifier + cross-check + grounding + threshold checks."""
@@ -224,6 +272,7 @@ class QualityGate:
         config: QualityGateConfig | None = None,
         debate_orchestrator: DebateOrchestrator | None = None,
         debate_router_config: DebateRouterConfig | None = None,
+        rubric_evaluator: RubricEvaluator | None = None,
     ) -> None:
         cfg = config or QualityGateConfig()
         if not 0.0 <= cfg.confidence_threshold <= 1.0:
@@ -247,6 +296,7 @@ class QualityGate:
         self._config = cfg
         self._debate_orchestrator = debate_orchestrator
         self._debate_router_config = debate_router_config
+        self._rubric_evaluator = rubric_evaluator
 
     async def evaluate(self, candidate: QualityCandidate) -> QualityDecision:
         """Return the gate outcome for one candidate action.
@@ -364,9 +414,60 @@ class QualityGate:
                 if debate_outcome.verdict is DebateVerdict.PROCEED:
                     debate_resolved_disagreement = True
 
+        # 3c. Rubric evaluation (hallucination filter). Runs after the
+        # cross-check so it only spends judge tokens on candidates the
+        # structural checks did not already reject. The rubric is a
+        # *subtractive* filter: it can only lower confidence (via
+        # ``min()`` below) or add an abstain reason - it can NEVER raise
+        # eligibility above what the deterministic verifier allows. In
+        # shadow mode it is judge-and-log only (scores recorded, outcome
+        # untouched). See docs/roadmap/hallucination-rubric-gate.md.
+        rubric_scores: tuple[RubricScore, ...] = ()
+        rubric_min_score: float | None = None
+        rubric_verdict_value: str | None = None
+        rubric_shadow = self._config.rubric_shadow
+        if self._rubric_evaluator is not None:
+            from fdai.core.quality_gate.rubric import (
+                RubricVerdict,
+                evaluate_rubric_output,
+            )
+
+            try:
+                rubric_output = await self._rubric_evaluator.score(candidate)
+            except Exception as exc:  # noqa: BLE001 - fail-closed to HIL
+                # A transport failure / malformed evaluator response MUST
+                # NOT fail open into an eligible outcome. Record the error
+                # and treat it as an abstain signal in enforce mode; in
+                # shadow mode it is recorded but does not change the
+                # outcome (judge-and-log only).
+                rubric_verdict_value = RubricVerdict.ABSTAIN.value
+                rubric_min_score = 0.0
+                if not rubric_shadow:
+                    reasons.append(f"rubric_evaluator_error:{type(exc).__name__}")
+            else:
+                rubric_decision = evaluate_rubric_output(
+                    rubric_output,
+                    known_rule_ids=known,
+                    required_criteria=self._config.rubric_required_criteria,
+                )
+                rubric_scores = rubric_decision.scores
+                rubric_min_score = rubric_decision.min_score
+                rubric_verdict_value = rubric_decision.verdict.value
+                if not rubric_shadow:
+                    if rubric_decision.verdict is RubricVerdict.FAIL:
+                        reasons.append(
+                            f"rubric_failed:{','.join(rubric_decision.failed_criteria)}"
+                        )
+                    elif rubric_decision.verdict is RubricVerdict.ABSTAIN:
+                        reasons.append(f"rubric_abstained:{','.join(rubric_decision.reasons)}")
+
         # 4. Confidence threshold on the aggregate of verifier / cross-check
-        # signals (not model self-report).
+        # signals (not model self-report). The rubric min score is folded
+        # in via ``min()`` in enforce mode only - subtractive, never
+        # additive.
         confidence = candidate.aggregate_confidence
+        if rubric_min_score is not None and not rubric_shadow:
+            confidence = min(confidence, rubric_min_score)
         if confidence < self._config.confidence_threshold:
             reasons.append(
                 f"confidence={confidence:.2f}<threshold={self._config.confidence_threshold:.2f}"
@@ -409,6 +510,10 @@ class QualityGate:
             grounded_rule_ids=tuple(grounded),
             aggregate_confidence=confidence,
             model_votes=tuple(votes),
+            rubric_scores=rubric_scores,
+            rubric_min_score=rubric_min_score,
+            rubric_verdict=rubric_verdict_value,
+            rubric_shadow=rubric_shadow if self._rubric_evaluator is not None else False,
         )
 
     async def _debate_retry_proposer(

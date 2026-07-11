@@ -17,6 +17,11 @@ Public exports (P2-B):
   the first non-fake :class:`GroundingSource`; checks each citation is
   topically relevant to the candidate via an injected
   :class:`~fdai.core.quality_gate.rag_grounding.RuleEmbeddingIndex`.
+- :class:`~fdai.core.quality_gate.rubric.RubricEvaluator` +
+  :func:`~fdai.core.quality_gate.rubric.evaluate_rubric_output` - the
+  subtractive hallucination filter; a judge scores the candidate's
+  ``reasoning_trace`` against fixed criteria and the gate folds the
+  minimum score into confidence via ``min()`` (never additive).
 """
 
 from fdai.core.quality_gate.critic import (
@@ -63,6 +68,15 @@ from fdai.core.quality_gate.rag_grounding import (
     RagGroundingSource,
     RuleEmbeddingIndex,
 )
+from fdai.core.quality_gate.rubric import (
+    RubricCriterion,
+    RubricDecision,
+    RubricEvaluator,
+    RubricOutput,
+    RubricScore,
+    RubricVerdict,
+    evaluate_rubric_output,
+)
 from fdai.core.quality_gate.rule_based import RuleBasedVerifier
 
 __all__ = [
@@ -93,10 +107,17 @@ __all__ = [
     "QualityGateConfig",
     "QualityOutcome",
     "RagGroundingSource",
+    "RubricCriterion",
+    "RubricDecision",
+    "RubricEvaluator",
+    "RubricOutput",
+    "RubricScore",
+    "RubricVerdict",
     "RuleBasedVerifier",
     "RuleEmbeddingIndex",
     "VerifierPolicy",
     "decide_debate_route",
     "evaluate_critic_output",
     "evaluate_judge_output",
+    "evaluate_rubric_output",
 ]

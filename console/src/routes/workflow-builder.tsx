@@ -11,12 +11,18 @@
  * (app-shape.instructions.md § Operator console). New workflows are locked
  * to `shadow` mode - promotion to enforce is a separate governance PR
  * (process-automation.md § 6).
+ *
+ * SRP: this file owns the React component tree only. Pure helpers, static
+ * option catalogs, and the plain-language intent matcher live in sibling
+ * modules:
+ *   - workflow-builder.model.ts   (types + static option catalogs)
+ *   - workflow-builder.helpers.ts (pure fns; also imported by tests)
+ *   - workflow-builder.intent.ts  (plain-text -> draft matcher)
  */
 
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Fragment } from "preact";
 import type { ReadApiClient } from "../api";
-import { loadConfig } from "../config";
 import { AsyncBoundary, CopyButton, PageHeader, type AsyncState } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
@@ -29,509 +35,40 @@ import {
   type WorkflowCatalogResponse,
   validateWorkflowDraft,
 } from "../workflow/validate";
+import {
+  BUILDER_FORM_FIELDS,
+  CUSTOM_SIGNAL,
+  INITIAL_FORM,
+  INTENT_EXAMPLES,
+  KNOWN_SIGNAL_VALUES,
+  NAME_PATTERN,
+  SCHEDULE_PRESETS,
+  SIGNAL_TYPE_OPTIONS,
+  type CombinedData,
+  type DraftStep,
+  type FormState,
+} from "./workflow-builder.model";
+import {
+  buildDraft,
+  catalogToForm,
+  emptyStep,
+  formatParams,
+  githubNewFileUrl,
+  humanizeActionName,
+  humanizeIssueKey,
+  humanizeName,
+  signalLabel,
+  suggestStepId,
+} from "./workflow-builder.helpers";
+import { suggestDraftFromText } from "./workflow-builder.intent";
+
+// Re-export the pure helpers the vitest suite pins so `./workflow-builder`
+// stays a stable public import surface (workflow-builder.test.ts).
+export { buildGithubNewFileUrl, humanizeName, suggestStepId } from "./workflow-builder.helpers";
+export { suggestDraftFromText } from "./workflow-builder.intent";
 
 interface Props {
   readonly client: ReadApiClient;
-}
-
-interface CombinedData {
-  readonly palette: readonly ActionTypePaletteEntry[];
-  readonly workflows: readonly WorkflowCatalogEntry[];
-}
-
-interface DraftStep {
-  readonly key: number;
-  id: string;
-  action_type_ref: string;
-  guard_rule_ref: string;
-  compensated_by: string;
-  on_failure: string;
-}
-
-interface FormState {
-  name: string;
-  version: string;
-  description: string;
-  triggerKind: "signal" | "schedule";
-  signalType: string;
-  schedule: string;
-  minShadowDays: string;
-  minSamples: string;
-  minAccuracy: string;
-  maxPolicyEscapes: string;
-  antiScope: string;
-  steps: DraftStep[];
-}
-
-function emptyStep(key: number): DraftStep {
-  return { key, id: "", action_type_ref: "", guard_rule_ref: "", compensated_by: "", on_failure: "" };
-}
-
-/** Curated signal types a workflow can trigger on - the sensing /
- * detection topics the control plane publishes (`fdai.agents.topics`).
- * Each carries a plain-language `label` (what a non-expert reads first)
- * and the exact machine `value`. `signal_type` is a free string
- * server-side (no registry yet), so these are suggestions plus a custom
- * escape hatch. */
-const CUSTOM_SIGNAL = "__custom__";
-const SIGNAL_TYPE_OPTIONS: readonly {
-  readonly value: string;
-  readonly label: string;
-  readonly hint: string;
-}[] = [
-  {
-    value: "object.drift",
-    label: "Configuration drifted",
-    hint: "A resource no longer matches its declared / desired state.",
-  },
-  {
-    value: "object.anomaly",
-    label: "Anomaly detected",
-    hint: "A detector flagged unusual behavior on a resource.",
-  },
-  {
-    value: "object.event",
-    label: "Incoming event",
-    hint: "A normalized event arrived and passed intake.",
-  },
-  {
-    value: "object.forecast",
-    label: "Forecast crossed a threshold",
-    hint: "A prediction crossed a configured threshold.",
-  },
-  {
-    value: "object.cost-anomaly",
-    label: "Cost spike detected",
-    hint: "Spending jumped unexpectedly (cost governance).",
-  },
-  {
-    value: "object.capacity-forecast",
-    label: "Capacity forecast produced",
-    hint: "A scaling / capacity forecast was produced.",
-  },
-  {
-    value: "object.security-event",
-    label: "Security event raised",
-    hint: "A security-relevant event was raised.",
-  },
-  {
-    value: "object.resilience-score",
-    label: "Resilience score changed",
-    hint: "The disaster-recovery / chaos resilience score moved.",
-  },
-];
-const KNOWN_SIGNAL_VALUES: ReadonlySet<string> = new Set(
-  SIGNAL_TYPE_OPTIONS.map((o) => o.value),
-);
-
-/** Plain-language label for a signal value, or "" if it is a custom one. */
-function signalLabel(value: string): string {
-  return SIGNAL_TYPE_OPTIONS.find((o) => o.value === value)?.label ?? "";
-}
-
-/** Human-friendly label for an ActionType machine name
- * ("remediate.right-size" -> "Right-size"). Shown wherever an operator
- * reads an action, always with the exact machine name kept alongside. */
-function humanizeActionName(name: string): string {
-  const seg = name.includes(".") ? name.slice(name.lastIndexOf(".") + 1) : name;
-  const words = seg.replace(/[-_]/g, " ").trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-/** Common cron presets so an operator does not have to hand-write a
- * 5-field expression for the usual cadences. */
-const SCHEDULE_PRESETS: readonly { readonly label: string; readonly value: string }[] = [
-  { label: "Every hour", value: "0 * * * *" },
-  { label: "Every day 03:00", value: "0 3 * * *" },
-  { label: "Every Monday 03:00", value: "0 3 * * 1" },
-  { label: "Every Sunday 03:00", value: "0 3 * * 0" },
-  { label: "First of month 03:00", value: "0 3 1 * *" },
-];
-
-const INITIAL_FORM: FormState = {
-  name: "",
-  version: "1.0.0",
-  description: "",
-  triggerKind: "signal",
-  signalType: "object.drift",
-  schedule: "",
-  minShadowDays: "14",
-  minSamples: "100",
-  minAccuracy: "0.95",
-  maxPolicyEscapes: "0",
-  antiScope: "",
-  steps: [emptyStep(0)],
-};
-
-/** Static description of every field in the new-workflow builder, published to
- * the deck's view snapshot (as `records.form_fields`) so the console assistant
- * can answer "what do I enter / select here?" grounded in the real form rather
- * than deflecting. Order mirrors the on-screen sections. */
-const BUILDER_FORM_FIELDS: readonly Record<string, string>[] = [
-  { section: "1. Metadata", field: "name", required: "yes", note: "stable dotted id and audit key, lowercase, e.g. cost-aware-remediation" },
-  { section: "1. Metadata", field: "version", required: "yes", note: "semver; defaults to 1.0.0" },
-  { section: "1. Metadata", field: "description", required: "no", note: "one-line summary, 200 chars or fewer" },
-  { section: "2. Trigger", field: "kind", required: "yes", note: "signal (run on an event) or schedule (run on a cron)" },
-  { section: "2. Trigger", field: "signal_type", required: "when kind=signal", note: "what happened that starts the workflow; pick a detection signal from trigger_signal_options or choose Custom" },
-  { section: "2. Trigger", field: "schedule", required: "when kind=schedule", note: "standard 5-field cron, e.g. 0 3 * * 1 = 03:00 every Monday" },
-  { section: "3. Steps", field: "step.id", required: "yes", note: "unique id for the step; auto-suggested from the chosen ActionType (e.g. right_size), editable" },
-  { section: "3. Steps", field: "step.action_type_ref", required: "yes", note: "pick one ontology ActionType from the action_types palette" },
-  { section: "3. Steps", field: "step.guard_rule_ref", required: "no", note: "optional policy rule that gates the step" },
-  { section: "3. Steps", field: "step.compensated_by", required: "no", note: "optional ActionType that undoes this step on rollback" },
-  { section: "3. Steps", field: "step.on_failure", required: "no", note: "optional fallback; must be a later step id" },
-  { section: "4. Promotion gate", field: "min_shadow_days", required: "yes", note: "days in shadow before promotion is allowed; default 14" },
-  { section: "4. Promotion gate", field: "min_samples", required: "yes", note: "minimum shadow samples; default 100" },
-  { section: "4. Promotion gate", field: "min_accuracy", required: "yes", note: "accuracy bar between 0 and 1; default 0.95" },
-  { section: "4. Promotion gate", field: "max_policy_escapes", required: "yes", note: "maximum allowed policy-violation escapes; default 0" },
-  { section: "4. Promotion gate", field: "anti_scope", required: "no", note: "optional note on what this workflow must NOT do" },
-];
-
-/** Regex the server enforces on a workflow name (schema.json). Surfaced
- * client-side so a bad name is flagged inline, not after a round-trip. */
-const NAME_PATTERN = /^[a-z][a-z0-9_.-]{0,79}$/;
-
-/** Turn a built-in workflow into an editable draft so an operator can
- * clone-and-tweak instead of starting from a blank form. */
-function catalogToForm(w: WorkflowCatalogEntry): FormState {
-  // Keep the "-copy" name within the 80-char id limit so the clone still
-  // passes the server name pattern.
-  const copyName = `${w.name}-copy`;
-  return {
-    name: copyName.length <= 80 ? copyName : `${w.name.slice(0, 75)}-copy`,
-    version: w.version,
-    description: w.description ?? "",
-    triggerKind: w.trigger.kind === "schedule" ? "schedule" : "signal",
-    signalType: w.trigger.signal_type ?? "object.drift",
-    schedule: w.trigger.schedule ?? "",
-    minShadowDays: String(w.promotion_gate.min_shadow_days),
-    minSamples: String(w.promotion_gate.min_samples),
-    minAccuracy: String(w.promotion_gate.min_accuracy),
-    maxPolicyEscapes: String(w.promotion_gate.max_policy_escapes),
-    antiScope: w.anti_scope ?? "",
-    steps: w.steps.map((s, i) => ({
-      key: i,
-      id: s.id,
-      action_type_ref: s.action_type_ref,
-      guard_rule_ref: s.guard_rule_ref ?? "",
-      compensated_by: s.compensated_by ?? "",
-      on_failure: s.on_failure ?? "",
-    })),
-  };
-}
-
-/** Humanize a server issue key ("draft:steps.s1.action_type_ref") into a
- * readable location ("steps > s1 > action type ref") for the issues table,
- * keeping the raw key available as a tooltip. */
-function humanizeIssueKey(key: string): string {
-  const noPrefix = key.replace(/^draft:/, "").trim();
-  if (noPrefix === "" || noPrefix === "<root>") return "workflow";
-  return noPrefix.replace(/\./g, " > ").replace(/_/g, " ");
-}
-
-/** Build a GitHub "new file" URL that pre-fills the workflow YAML at its
- * catalog path, so a validated draft becomes a PR in one click. Returns
- * null when the repo is not a valid `owner/repo`. Pure and exported for
- * tests; the config-reading wrapper is `githubNewFileUrl`. */
-export function buildGithubNewFileUrl(
-  repo: string,
-  branch: string,
-  filePath: string,
-  yaml: string,
-): string | null {
-  if (!/^[\w.-]+\/[\w.-]+$/.test(repo.trim())) return null;
-  const params = new URLSearchParams({ filename: filePath, value: yaml });
-  const url = `https://github.com/${repo.trim()}/new/${encodeURIComponent(
-    branch.trim() || "main",
-  )}?${params.toString()}`;
-  // GitHub / browsers reject very long URLs (the YAML rides in ?value=). Above
-  // a safe ceiling, fall back to copy / download rather than open a broken or
-  // truncated new-file link.
-  if (url.length > 7000) return null;
-  return url;
-}
-
-/** Config-reading wrapper: returns the new-file URL when a catalog repo is
- * configured, else null (the console then falls back to copy / download).
- * The console never commits - this only opens GitHub in a new tab. */
-function githubNewFileUrl(filePath: string, yaml: string): string | null {
-  const cfg = loadConfig();
-  return buildGithubNewFileUrl(cfg.workflowCatalogRepo, cfg.workflowCatalogBranch, filePath, yaml);
-}
-
-/** Turn a dotted workflow name ("cost-aware-remediation") into a readable
- * title ("Cost aware remediation") for template cards. */
-export function humanizeName(name: string): string {
-  const words = name.replace(/[._-]+/g, " ").trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-/** Suggest a snake_case step id from an ActionType ref so the operator does
- * not have to invent one. "remediate.right-size" -> "right_size", made
- * unique against ids already used in the draft. */
-export function suggestStepId(actionTypeRef: string, takenIds: readonly string[]): string {
-  const leaf = actionTypeRef.split(/[./:]/).pop() ?? actionTypeRef;
-  const base =
-    leaf
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "") || "step";
-  const taken = new Set(takenIds);
-  if (!taken.has(base)) return base;
-  for (let i = 2; ; i += 1) {
-    const candidate = `${base}_${i}`;
-    if (!taken.has(candidate)) return candidate;
-  }
-}
-
-/** Plain-language intent -> draft matcher (deterministic, no LLM).
- *
- * Maps a free-text description ("when cost spikes, right-size the VM and
- * tell me") onto a trigger signal + one or more real ActionTypes from the
- * live palette, so a non-expert can start from words instead of the
- * ontology. Purely client-side and read-only; it only pre-fills the form.
- * When nothing matches confidently it returns null (abstain) rather than
- * inventing a workflow. */
-interface SignalKeywordGroup {
-  readonly signal: string;
-  readonly kind: "signal" | "schedule";
-  readonly schedule?: string;
-  readonly words: readonly string[];
-}
-
-const SIGNAL_KEYWORDS: readonly SignalKeywordGroup[] = [
-  {
-    signal: "object.cost-anomaly",
-    kind: "signal",
-    words: ["cost", "costs", "spend", "spending", "budget", "bill", "billing", "expensive", "overspend", "saving"],
-  },
-  {
-    signal: "object.security-event",
-    kind: "signal",
-    words: ["security", "secure", "vulnerab", "breach", "exposed", "exposure", "attack", "threat", "malicious"],
-  },
-  {
-    signal: "object.capacity-forecast",
-    kind: "signal",
-    words: ["scale", "scaling", "capacity", "traffic", "load", "saturation", "throughput", "utiliz"],
-  },
-  {
-    signal: "__schedule_weekly",
-    kind: "schedule",
-    schedule: "0 3 * * 0",
-    words: ["drill", "rehearse", "rehearsal", "weekly", "failover", "disaster", "recovery", "chaos", "schedule"],
-  },
-  {
-    signal: "object.forecast",
-    kind: "signal",
-    words: ["forecast", "predict", "prediction", "trend", "anticipate"],
-  },
-  {
-    signal: "object.anomaly",
-    kind: "signal",
-    words: ["anomaly", "anomalous", "unusual", "abnormal", "spike", "weird"],
-  },
-  {
-    signal: "object.drift",
-    kind: "signal",
-    words: ["drift", "desired", "declared", "baseline", "noncompliant", "compliance", "config", "misconfig"],
-  },
-];
-
-/** Phrase -> ActionType name substring, so common phrasings map to a real
- * action even when the words differ from the action's own name. */
-const ACTION_SYNONYMS: readonly { readonly words: readonly string[]; readonly match: string }[] = [
-  { words: ["right size", "rightsize", "downsize", "resize", "shrink"], match: "right-size" },
-  { words: ["scale out", "scale up", "add capacity", "grow"], match: "scale-out" },
-  { words: ["scale in", "scale down"], match: "scale-in" },
-  { words: ["encrypt", "encryption"], match: "enable-encryption" },
-  { words: ["backup", "back up"], match: "enable-backup-protection" },
-  { words: ["restart", "reboot", "bounce"], match: "restart-service" },
-  { words: ["notify", "alert", "tell me", "summary", "report", "publish"], match: "publish-change-summary" },
-  { words: ["tag", "label"], match: "tag-add" },
-  { words: ["rotate secret", "rotate password", "rotate key"], match: "rotate-secret" },
-  { words: ["certificate", "tls"], match: "rotate-cert" },
-  { words: ["public access", "expose", "disable public"], match: "disable-public-access" },
-  { words: ["firewall", "restrict network"], match: "restrict-network-access" },
-  { words: ["rbac", "least privilege"], match: "enable-rbac" },
-  { words: ["failover", "fail over"], match: "failover-primary" },
-  { words: ["drain"], match: "drain-connection" },
-  { words: ["flush cache"], match: "flush-cache" },
-];
-
-export interface IntentSuggestion {
-  readonly form: FormState;
-  readonly reasons: readonly string[];
-}
-
-/** Over-generic words that appear in many ActionType names/descriptions;
- * excluded from token scoring so they do not drag in unrelated actions
- * (e.g. "resource" pulling in remove-orphan-resource). Specific verbs and
- * nouns like "access" / "encryption" are deliberately NOT here. */
-const TOKEN_STOPWORDS: ReadonlySet<string> = new Set([
-  "resource",
-  "resources",
-  "service",
-  "services",
-  "policy",
-  "policies",
-  "object",
-  "event",
-  "state",
-  "when",
-  "every",
-  "that",
-  "this",
-  "with",
-  "from",
-  "your",
-  "will",
-  "should",
-  "some",
-  "them",
-]);
-
-/** Match a plain-language description to a trigger + steps drawn from the
- * live palette. Returns null when nothing matches (abstain). */
-export function suggestDraftFromText(
-  text: string,
-  palette: readonly ActionTypePaletteEntry[],
-): IntentSuggestion | null {
-  const lower = text.toLowerCase();
-  if (lower.trim().length < 3) return null;
-  // Normalize punctuation to spaces so "right-size" matches the "right size"
-  // synonym phrase and hyphenated input is tokenized cleanly.
-  const norm = lower.replace(/[^a-z0-9]+/g, " ");
-  const tokens = norm.split(" ").filter((w) => w.length >= 4 && !TOKEN_STOPWORDS.has(w));
-  const reasons: string[] = [];
-
-  const leafOf = (name: string): string => name.split(/[./:]/).pop() ?? name;
-
-  // --- Actions: synonym phrases first, then token overlap on name+label ---
-  const scored = new Map<string, number>();
-  for (const syn of ACTION_SYNONYMS) {
-    if (!syn.words.some((w) => norm.includes(w))) continue;
-    // Target one action: prefer an exact leaf match, else the shortest name
-    // that contains the fragment - so "right size" boosts remediate.right-size,
-    // not also remediate.right-size-role.
-    const exact = palette.find((p) => leafOf(p.name) === syn.match);
-    const target =
-      exact ??
-      palette
-        .filter((p) => p.name.includes(syn.match))
-        .sort((a, b) => a.name.length - b.name.length)[0];
-    if (target) scored.set(target.name, (scored.get(target.name) ?? 0) + 5);
-  }
-  for (const p of palette) {
-    const bag = `${humanizeActionName(p.name)} ${p.name}`.toLowerCase();
-    let s = 0;
-    for (const tok of tokens) if (bag.includes(tok)) s += 1;
-    if (s > 0) scored.set(p.name, (scored.get(p.name) ?? 0) + s);
-  }
-  // Rank, then drop near-duplicate variants (a leaf that extends an
-  // already-picked leaf, e.g. right-size-role after right-size).
-  const ranked = [...scored.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  const actions: ActionTypePaletteEntry[] = [];
-  const pickedLeaves: string[] = [];
-  for (const [name] of ranked) {
-    if (actions.length >= 3) break;
-    const leaf = leafOf(name);
-    if (pickedLeaves.some((l) => leaf.startsWith(l) || l.startsWith(leaf))) continue;
-    const entry = palette.find((p) => p.name === name);
-    if (entry) {
-      actions.push(entry);
-      pickedLeaves.push(leaf);
-    }
-  }
-
-  // --- Trigger: strongest signal keyword group, else infer from actions ---
-  let best: SignalKeywordGroup | null = null;
-  let bestScore = 0;
-  for (const g of SIGNAL_KEYWORDS) {
-    const score = g.words.reduce((n, w) => (norm.includes(w) ? n + 1 : n), 0);
-    if (score > bestScore) {
-      best = g;
-      bestScore = score;
-    }
-  }
-  if (actions.length === 0 && best === null) return null; // abstain
-
-  const form: FormState = { ...INITIAL_FORM, steps: [] };
-  if (best) {
-    if (best.kind === "schedule") {
-      form.triggerKind = "schedule";
-      form.schedule = best.schedule ?? "0 3 * * 0";
-      reasons.push(`schedule (matched "${best.words.find((w) => norm.includes(w))}")`);
-    } else {
-      form.triggerKind = "signal";
-      form.signalType = best.signal;
-      reasons.push(`${signalLabel(best.signal)} (matched "${best.words.find((w) => norm.includes(w))}")`);
-    }
-  } else {
-    form.triggerKind = "signal";
-    form.signalType = "object.drift";
-    reasons.push("Configuration drifted (default trigger)");
-  }
-
-  const taken: string[] = [];
-  form.steps = actions.map((a, i) => {
-    const id = suggestStepId(a.name, taken);
-    taken.push(id);
-    reasons.push(`do ${humanizeActionName(a.name)}`);
-    return {
-      key: i,
-      id,
-      action_type_ref: a.name,
-      guard_rule_ref: "",
-      compensated_by: "",
-      on_failure: "",
-    };
-  });
-  if (form.steps.length === 0) form.steps = [emptyStep(0)];
-
-  // Suggested name from the first action; the operator can rename it.
-  if (actions.length > 0) {
-    const slug = suggestStepId(actions[0].name, []).replace(/_/g, "-");
-    form.name = `${slug}-workflow`;
-  }
-  form.description = text.trim().slice(0, 200);
-  return { form, reasons };
-}
-
-/** Assemble the JSON draft the validate endpoint expects, dropping empty
- * optional fields so the server sees a clean mapping. */
-function buildDraft(form: FormState): Record<string, unknown> {
-  const trigger: Record<string, unknown> = { kind: form.triggerKind };
-  if (form.triggerKind === "signal") trigger["signal_type"] = form.signalType.trim();
-  else trigger["schedule"] = form.schedule.trim();
-
-  const steps = form.steps.map((s) => {
-    const step: Record<string, unknown> = {
-      id: s.id.trim(),
-      action_type_ref: s.action_type_ref.trim(),
-    };
-    if (s.guard_rule_ref.trim()) step["guard_rule_ref"] = s.guard_rule_ref.trim();
-    if (s.compensated_by.trim()) step["compensated_by"] = s.compensated_by.trim();
-    if (s.on_failure.trim()) step["on_failure"] = s.on_failure.trim();
-    return step;
-  });
-
-  const draft: Record<string, unknown> = {
-    schema_version: "1.0.0",
-    name: form.name.trim(),
-    version: form.version.trim(),
-    trigger,
-    default_mode: "shadow",
-    promotion_gate: {
-      min_shadow_days: Number(form.minShadowDays),
-      min_samples: Number(form.minSamples),
-      min_accuracy: Number(form.minAccuracy),
-      max_policy_escapes: Number(form.maxPolicyEscapes),
-    },
-    steps,
-  };
-  if (form.description.trim()) draft["description"] = form.description.trim();
-  if (form.antiScope.trim()) draft["anti_scope"] = form.antiScope.trim();
-  return draft;
 }
 
 export function WorkflowBuilderRoute({ client }: Props) {
@@ -781,12 +318,6 @@ function WorkflowFlow({
  * matching trigger + steps to start from. Deterministic and read-only -
  * it pre-fills the builder, never creates anything. Abstains (shows a
  * gentle nudge) when it cannot match confidently. */
-const INTENT_EXAMPLES: readonly string[] = [
-  "When cost spikes, right-size the resource and publish a summary",
-  "Every week, rehearse a DR failover",
-  "When a resource drifts, restrict public access",
-];
-
 function IntentComposer({
   palette,
   onUse,
@@ -1712,14 +1243,6 @@ function ActionTypeOptions({
       ))}
     </>
   );
-}
-
-/** Render a step's params map as a compact "k=v, k=v" string, or "-". */
-function formatParams(params: Record<string, string | number | boolean> | undefined): string {
-  if (!params) return "-";
-  const pairs = Object.entries(params);
-  if (pairs.length === 0) return "-";
-  return pairs.map(([k, v]) => `${k}=${v}`).join(", ");
 }
 
 function ActionTypeHint({ at }: { readonly at: ActionTypePaletteEntry }) {

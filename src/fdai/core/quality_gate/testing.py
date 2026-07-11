@@ -14,6 +14,11 @@ from fdai.core.quality_gate.gate import (
     VerifierPolicy,
 )
 from fdai.core.quality_gate.rag_grounding import RuleEmbeddingIndex
+from fdai.core.quality_gate.rubric import (
+    RubricEvaluator,
+    RubricOutput,
+    RubricScore,
+)
 from fdai.shared.contracts.models import Rule
 
 
@@ -114,10 +119,73 @@ class HashedRuleEmbeddingIndex(RuleEmbeddingIndex):
         return [token for token in normalized.split(" ") if token]
 
 
+class StaticRubricEvaluator(RubricEvaluator):
+    """A rubric evaluator that returns a preconfigured output.
+
+    Used by tests to drive each :class:`RubricVerdict` branch
+    deterministically without an LLM. ``raises`` lets a test exercise
+    the gate's fail-closed path when the evaluator errors.
+    """
+
+    def __init__(
+        self,
+        *,
+        output: RubricOutput | None = None,
+        raises: Exception | None = None,
+    ) -> None:
+        self._output = output if output is not None else RubricOutput()
+        self._raises = raises
+
+    async def score(self, candidate: QualityCandidate) -> RubricOutput:
+        del candidate
+        if self._raises is not None:
+            raise self._raises
+        return self._output
+
+
+class UniformRubricEvaluator(RubricEvaluator):
+    """A rubric evaluator that scores every criterion at one value.
+
+    Convenience for property tests: a single ``score`` applied to every
+    criterion in ``criteria`` at a shared ``threshold``, grounded on
+    ``supporting_rule_ids`` (empty by default, which passes grounding).
+    """
+
+    def __init__(
+        self,
+        *,
+        criteria: tuple[str, ...],
+        score: float,
+        threshold: float = 0.7,
+        supporting_rule_ids: tuple[str, ...] = (),
+    ) -> None:
+        self._criteria = criteria
+        self._score = score
+        self._threshold = threshold
+        self._supporting = supporting_rule_ids
+
+    async def score(self, candidate: QualityCandidate) -> RubricOutput:
+        del candidate
+        return RubricOutput(
+            scores=tuple(
+                RubricScore(
+                    criterion=c,
+                    score=self._score,
+                    threshold=self._threshold,
+                    rationale=f"uniform score for {c}",
+                    supporting_rule_ids=self._supporting,
+                )
+                for c in self._criteria
+            )
+        )
+
+
 __all__ = [
     "HashedRuleEmbeddingIndex",
     "InMemoryGroundingSource",
     "MatchTypeCrossCheckModel",
     "MismatchCrossCheckModel",
+    "StaticRubricEvaluator",
     "StaticVerifier",
+    "UniformRubricEvaluator",
 ]
