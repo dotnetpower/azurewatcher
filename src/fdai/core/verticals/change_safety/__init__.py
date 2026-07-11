@@ -16,6 +16,9 @@ ChangeRisk`` unchanged after G-6 (tracker #14, issue #20).
 from __future__ import annotations
 
 from fdai.core.verticals.change_safety.detector import (
+    ACTIVITY_LOG_SIGNAL_KIND,
+    DEFAULT_SETTLING_WINDOW_SECONDS,
+    OUT_OF_BAND_ALERT_TOPIC,
     ChangeAttribution,
     ChangeSafetyDecision,
     ChangeSafetyDetector,
@@ -32,6 +35,7 @@ from fdai.core.verticals.change_safety.orchestrator import (
 )
 
 __all__ = [
+    "ACTIVITY_LOG_SIGNAL_KIND",
     "ChangeAttribution",
     "ChangeContext",
     "ChangeDecision",
@@ -42,5 +46,7 @@ __all__ = [
     "ChangeSafetyDecision",
     "ChangeSafetyDetector",
     "ChangeSafetyDetectorConfig",
+    "DEFAULT_SETTLING_WINDOW_SECONDS",
     "DetectorOutcome",
+    "OUT_OF_BAND_ALERT_TOPIC",
 ]

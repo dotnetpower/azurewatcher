@@ -17,6 +17,11 @@ DrExperiment`` unchanged after G-6 (tracker #14, issue #20).
 
 from __future__ import annotations
 
+from fdai.core.verticals.resilience.db_dr_verifier import (
+    DbDrOutcome,
+    DbDrVerdict,
+    DbDrVerifier,
+)
 from fdai.core.verticals.resilience.orchestrator import (
     DrExperiment,
     DrObjective,
@@ -35,6 +40,9 @@ from fdai.core.verticals.resilience.orchestrator import (
 )
 
 __all__ = [
+    "DbDrOutcome",
+    "DbDrVerdict",
+    "DbDrVerifier",
     "DrExperiment",
     "DrObjective",
     "DrObjectiveReport",

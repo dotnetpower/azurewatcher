@@ -24,11 +24,13 @@ class Vertical(Protocol):
 
     Implementations MUST expose:
 
-    - :attr:`name` - the vertical identifier (kebab-case, matches the
-      subpackage directory name and the entry in
-      :file:`../../../../rule-catalog/profiles/`).
-    - :attr:`description` - one-line human-readable summary used in the
-      capability catalog and operator console.
+    - :attr:`vertical_id` - stable, ASCII, kebab-case identifier used in
+      config, audit, and metrics (matches the subpackage directory name
+      when read snake_cased). Same field name as
+      :class:`~fdai.core.verticals.registry.VerticalDescriptor` so a
+      descriptor doubles as the runtime handle.
+    - :attr:`display_name` - human-readable label used in the operator
+      console + capability catalog.
 
     Additional methods (schedulers, guards, orchestrators) live on the
     concrete class and are looked up by the composition root through the
@@ -37,8 +39,8 @@ class Vertical(Protocol):
     orchestration signature.
     """
 
-    name: str
-    description: str
+    vertical_id: str
+    display_name: str
 
 
 __all__ = ["Vertical"]
