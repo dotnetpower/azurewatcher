@@ -45,13 +45,17 @@ from typing import Any, Final
 
 import httpx
 
+from fdai.core.metering.emitter import MeteringEmitter
+from fdai.core.metering.usage import TokenUsage
 from fdai.core.quality_gate.gate import QualityCandidate
 from fdai.core.quality_gate.rubric import RubricCriterion, RubricOutput, RubricScore
+from fdai.delivery.azure.llm.usage import extract_usage
 from fdai.shared.providers.workload_identity import WorkloadIdentity
 
 _COGNITIVE_SCOPE: Final[str] = "https://cognitiveservices.azure.com/.default"
 
 _DEFAULT_CRITERIA: Final[tuple[str, ...]] = tuple(c.value for c in RubricCriterion)
+_VALID_CRITERIA: Final[frozenset[str]] = frozenset(c.value for c in RubricCriterion)
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +81,12 @@ class AzureOpenAIRubricEvaluatorConfig:
     temperature: float = 0.0
     max_tokens: int = 512
     timeout_seconds: float = 30.0
+    max_reasoning_trace_chars: int = 8000
+    """Cap on the ``reasoning_trace`` length forwarded to the judge. An
+    untrusted / buggy proposer could emit a huge trace that blows up the
+    prompt token cost (and the prompt-injection surface); the adapter
+    truncates beyond this and marks the cut so the judge scores the
+    truncation as a coherence signal rather than paying for the tail."""
 
 
 class AzureOpenAIRubricEvaluator:
@@ -88,6 +98,7 @@ class AzureOpenAIRubricEvaluator:
         identity: WorkloadIdentity,
         http_client: httpx.AsyncClient,
         config: AzureOpenAIRubricEvaluatorConfig,
+        metering: MeteringEmitter | None = None,
     ) -> None:
         if not config.endpoint.startswith(("https://", "http://")):
             raise ValueError("endpoint MUST be an absolute https URL")
@@ -106,16 +117,32 @@ class AzureOpenAIRubricEvaluator:
             raise ValueError("temperature MUST be in [0.0, 2.0]")
         if not 0.0 <= config.default_threshold <= 1.0:
             raise ValueError("default_threshold MUST be in [0.0, 1.0]")
+        if config.max_reasoning_trace_chars < 1:
+            raise ValueError("max_reasoning_trace_chars MUST be >= 1")
         for name, value in config.thresholds.items():
+            if name not in _VALID_CRITERIA:
+                raise ValueError(
+                    f"threshold key {name!r} is not a valid RubricCriterion "
+                    f"(one of {sorted(_VALID_CRITERIA)}) - a typo would be "
+                    "silently ignored otherwise"
+                )
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"threshold for {name!r} MUST be in [0.0, 1.0], got {value}")
 
         self._identity: Final[WorkloadIdentity] = identity
         self._http: Final[httpx.AsyncClient] = http_client
         self._config: Final[AzureOpenAIRubricEvaluatorConfig] = config
+        self._metering: Final[MeteringEmitter | None] = metering
 
     def _threshold_for(self, criterion: str) -> float:
         return self._config.thresholds.get(criterion, self._config.default_threshold)
+
+    def _clamp_trace(self, trace: str) -> str:
+        cap = self._config.max_reasoning_trace_chars
+        if len(trace) <= cap:
+            return trace
+        dropped = len(trace) - cap
+        return f"{trace[:cap]}...[truncated {dropped} chars]"
 
     async def score(self, candidate: QualityCandidate) -> RubricOutput:
         token = await self._identity.get_token(_COGNITIVE_SCOPE)
@@ -132,7 +159,7 @@ class AzureOpenAIRubricEvaluator:
                     "target_resource_ref": candidate.target_resource_ref,
                     "params": dict(candidate.params),
                     "cited_rule_ids": list(candidate.cited_rule_ids),
-                    "reasoning_trace": candidate.reasoning_trace,
+                    "reasoning_trace": self._clamp_trace(candidate.reasoning_trace),
                 },
             },
             sort_keys=True,
@@ -146,20 +173,33 @@ class AzureOpenAIRubricEvaluator:
             "max_tokens": self._config.max_tokens,
             "response_format": {"type": "json_object"},
         }
-        response = await self._http.post(
-            url,
-            params={"api-version": self._config.api_version},
-            headers={
-                "Authorization": f"Bearer {token.token}",
-                "Content-Type": "application/json",
-            },
-            json=body,
-            timeout=self._config.timeout_seconds,
-        )
-        response.raise_for_status()
-        envelope = response.json()
-        message = _extract_message(envelope)
-        return self._parse_rubric_output(message.get("content"))
+        # Metering is emitted in ``finally`` so spent tokens are recorded on
+        # EVERY exit path - success, a provider error, or a malformed answer
+        # that routes to HIL. ``emit_safe`` never raises, so the finally
+        # cannot mask the original exception. Cost governance is a first-class
+        # vertical; a judge call that is not metered under-reports T2 spend.
+        total_usage = TokenUsage.zero()
+        try:
+            response = await self._http.post(
+                url,
+                params={"api-version": self._config.api_version},
+                headers={
+                    "Authorization": f"Bearer {token.token}",
+                    "Content-Type": "application/json",
+                },
+                json=body,
+                timeout=self._config.timeout_seconds,
+            )
+            response.raise_for_status()
+            envelope = response.json()
+            call_usage = extract_usage(envelope)
+            if call_usage is not None:
+                total_usage = total_usage + call_usage
+            message = _extract_message(envelope)
+            return self._parse_rubric_output(message.get("content"))
+        finally:
+            if self._metering is not None:
+                await self._metering.emit_safe(total_usage)
 
     def _parse_rubric_output(self, content: object) -> RubricOutput:
         """Parse the JSON body into a validated :class:`RubricOutput`.

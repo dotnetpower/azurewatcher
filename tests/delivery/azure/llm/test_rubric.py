@@ -268,3 +268,110 @@ async def test_score_raises_on_infinity() -> None:
         )
         with pytest.raises(ValueError, match="score MUST be in"):
             await adapter.score(_candidate())
+
+
+# ---------------------------------------------------------------------------
+# Hardening: threshold-key validation, reasoning_trace cap, metering
+# ---------------------------------------------------------------------------
+
+
+def test_config_rejects_invalid_threshold_key() -> None:
+    # A typo'd criterion key would be silently ignored (default_threshold
+    # applied) - reject at construction instead.
+    with pytest.raises(ValueError, match="not a valid RubricCriterion"):
+        AzureOpenAIRubricEvaluator(
+            identity=_StaticIdentity(),
+            http_client=httpx.AsyncClient(),
+            config=_config(thresholds={"faithfullness": 0.7}),
+        )
+
+
+def test_config_rejects_zero_trace_cap() -> None:
+    with pytest.raises(ValueError, match="max_reasoning_trace_chars"):
+        AzureOpenAIRubricEvaluator(
+            identity=_StaticIdentity(),
+            http_client=httpx.AsyncClient(),
+            config=_config(max_reasoning_trace_chars=0),
+        )
+
+
+@pytest.mark.asyncio
+async def test_large_reasoning_trace_is_truncated() -> None:
+    captured: list[httpx.Request] = []
+    payload = {
+        "scores": [
+            {
+                "criterion": "faithfulness",
+                "score": 0.9,
+                "rationale": "ok",
+                "supporting_rule_ids": [],
+            }
+        ]
+    }
+    transport = _mock_transport(json.dumps(payload), captured=captured)
+    async with httpx.AsyncClient(transport=transport) as http:
+        adapter = AzureOpenAIRubricEvaluator(
+            identity=_StaticIdentity(),
+            http_client=http,
+            config=_config(max_reasoning_trace_chars=40),
+        )
+        cand = QualityCandidate(
+            action_type="remediate.tag-add",
+            target_resource_ref="r",
+            params={},
+            cited_rule_ids=("object-storage.owner-tag.required",),
+            reasoning_trace="Z" * 300,
+        )
+        await adapter.score(cand)
+    user_content = json.loads(captured[0].content)["messages"][1]["content"]
+    assert "truncated 260 chars" in user_content
+    assert "Z" * 300 not in user_content
+
+
+@pytest.mark.asyncio
+async def test_metering_records_usage_on_success() -> None:
+    from fdai.core.metering.emitter import MeteringEmitter
+    from fdai.core.metering.pricing import PricingTable
+    from fdai.core.metering.records import InvocationMode
+    from fdai.core.metering.sink import InMemoryMeteringSink
+    from fdai.shared.telemetry.correlation import with_correlation
+
+    sink = InMemoryMeteringSink()
+    emitter = MeteringEmitter(
+        sink=sink,
+        capability_id="t2.rubric.judge",
+        model_key="claude-opus-4",
+        tier="T2",
+        pricing=PricingTable.from_mapping(
+            {"claude-opus-4": {"input_per_1k": "1.0", "output_per_1k": "1.0"}}
+        ),
+        mode=InvocationMode.SHADOW,
+    )
+    payload = {
+        "scores": [
+            {
+                "criterion": "faithfulness",
+                "score": 0.9,
+                "rationale": "ok",
+                "supporting_rule_ids": [],
+            }
+        ]
+    }
+
+    async def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"role": "assistant", "content": json.dumps(payload)}}],
+                "usage": {"prompt_tokens": 30, "completion_tokens": 8},
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        adapter = AzureOpenAIRubricEvaluator(
+            identity=_StaticIdentity(), http_client=http, config=_config(), metering=emitter
+        )
+        with with_correlation("evt-rubric"):
+            await adapter.score(_candidate())
+    (record,) = await sink.invocations()
+    assert record.usage.total_tokens == 38
