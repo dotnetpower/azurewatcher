@@ -48,6 +48,26 @@ tracked = subprocess.check_output(
 link_re = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
 broken: list[tuple[str, str]] = []
 scanned = 0
+
+
+def is_git_ignored(path: Path) -> bool:
+    """Return True if ``path`` is excluded by a .gitignore rule.
+
+    ``git check-ignore`` answers against the ignore rules regardless of
+    whether the file exists on disk, so it gives an identical verdict in
+    a developer working tree and in a clean CI checkout.
+    """
+    try:
+        rel = path.relative_to(repo)
+    except ValueError:
+        return False
+    result = subprocess.run(
+        ["git", "check-ignore", "-q", "--", str(rel)],
+        cwd=repo,
+    )
+    return result.returncode == 0
+
+
 for md in tracked:
     path = repo / md
     if not path.is_file():
@@ -73,7 +93,7 @@ for md in tracked:
         if not rel:
             continue
         target_p = (canonical_dir / rel).resolve()
-        if not target_p.exists():
+        if not target_p.exists() and not is_git_ignored(target_p):
             broken.append((md, rel))
 
 if broken:
