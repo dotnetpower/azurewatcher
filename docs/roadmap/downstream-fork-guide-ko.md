@@ -1,7 +1,7 @@
 ---
 title: Downstream Fork 가이드
 translation_of: downstream-fork-guide.md
-translation_source_sha: 60732de60c9a210eada25b6d709893894df6142a
+translation_source_sha: 326d0125a2d7b01c7353332dbcf4c350640f53a7
 translation_revised: 2026-07-11
 ---
 
@@ -216,6 +216,27 @@ Markdown 템플릿)과 1개 테스트 파일
 오브젝트로 rename 하면 lifecycle 추가 전에 이미 green baseline. 위 walkthrough는
 workflow가 reviewer와 multi-step 승인을 필요로 할 때 그 위에 무엇이 자라는지
 보여줌.
+
+**Contract 모델 확장 (드물게)**: 여섯 개 도메인 contract 모듈은
+[`src/fdai/shared/contracts/models/`](../../src/fdai/shared/contracts/models/)
+아래에 있으며 (`event.py` / `action.py` / `rule.py` / `incident.py` /
+`ontology.py` / `workflow.py`), 전부 패키지 파사드에서 re-export 됩니다.
+포크가 정당하게 bespoke contract를 필요로 한다면 `ContractBase` (내부
+`_Base` 의 공개 별칭) 를 상속하세요. 네 가지 invariant (`extra=forbid`,
+`frozen`, `str_strip_whitespace`, `validate_default`) 를 `model_config`
+재선언 없이 상속받습니다:
+
+```python
+from fdai.shared.contracts.models import ContractBase, SemVer
+
+class ForkAuditNote(ContractBase):
+    schema_version: SemVer
+    note_text: str
+```
+
+Upstream 모델은 편집 **금지** ([`check-protected-paths.sh`](../../scripts/check-protected-paths.sh))
+로 가드되는 framework surface). 포크는 자기 자신의 패키지 하위에 서브
+모듈을 추가하세요.
 
 ## 6. Upstream sync 절차
 

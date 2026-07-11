@@ -221,6 +221,27 @@ to its own business object, and has a green baseline before adding
 lifecycle. The walkthrough above shows what grows on top when the
 workflow needs reviewers and multi-step approval.
 
+**Extending a contract model (rare)**: the six domain contract
+modules live under [`src/fdai/shared/contracts/models/`](../../src/fdai/shared/contracts/models/)
+(`event.py` / `action.py` / `rule.py` / `incident.py` / `ontology.py`
+/ `workflow.py`), each re-exported from the package facade. A fork
+that legitimately needs a bespoke contract subclasses `ContractBase`
+(the public alias of the internal `_Base`) so the four invariants
+(`extra=forbid`, `frozen`, `str_strip_whitespace`, `validate_default`)
+are inherited without re-declaring `model_config`:
+
+```python
+from fdai.shared.contracts.models import ContractBase, SemVer
+
+class ForkAuditNote(ContractBase):
+    schema_version: SemVer
+    note_text: str
+```
+
+The upstream models MUST NOT be edited (they are on the framework
+surface guarded by [`check-protected-paths.sh`](../../scripts/check-protected-paths.sh));
+add a fork submodule under the fork's own package instead.
+
 ## 6. Upstream sync procedure
 
 The fork stays healthy by pulling upstream `main` on a schedule
