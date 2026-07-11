@@ -272,3 +272,24 @@ def test_every_exported_class_is_a_model_or_enum() -> None:
         "Non-model, non-enum symbols leaked into models.__all__: "
         f"{offenders}. Move them out of the contracts package."
     )
+
+
+def test_contract_base_is_the_public_alias_of_underscore_base() -> None:
+    # H9: forks and downstream extensions should subclass ContractBase, not
+    # the underscore-prefixed name. The two MUST refer to the same class so
+    # existing internal imports do not break.
+    assert models.ContractBase is models._Base  # type: ignore[attr-defined]
+    assert models.ContractBase.__name__ == "ContractBase"
+
+
+def test_contract_base_enforces_frozen_and_extra_forbid() -> None:
+    # H9 (companion): a fork model subclassing ContractBase inherits both
+    # invariants without re-declaring model_config.
+    class ForkModel(models.ContractBase):
+        name: str
+
+    inst = ForkModel(name="ok")
+    with pytest.raises(ValidationError):
+        inst.name = "changed"  # type: ignore[misc]
+    with pytest.raises(ValidationError):
+        ForkModel(name="ok", surprise="nope")  # type: ignore[call-arg]

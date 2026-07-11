@@ -45,7 +45,7 @@ unchanged; there is no need to import from the submodules directly.
 
 from __future__ import annotations
 
-from ._base import IdempotencyKey, SemVer, _Base
+from ._base import ContractBase, IdempotencyKey, SemVer, _Base
 from .action import Action, BlastRadius, RollbackRef
 from .enums import (
     CEILING_ROLE_RANK,
@@ -123,6 +123,7 @@ __all__ = [
     "TriggerKind",
     "WorkflowTriggerKind",
     # aliases + base
+    "ContractBase",
     "IdempotencyKey",
     "SemVer",
     "_Base",

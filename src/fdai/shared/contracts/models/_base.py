@@ -4,6 +4,17 @@ domain-specific contract model.
 Kept in a private submodule so the domain files (:mod:`.event`,
 :mod:`.incident`, ...) all import from one place and the model-config /
 strict-mode contract is defined exactly once.
+
+Public alias
+------------
+
+The base class is exposed under two names:
+
+- :class:`ContractBase` - the **public** name a fork or a downstream
+  extension should subclass when adding a bespoke contract model.
+- :class:`_Base` - the historical name kept as an alias for backwards
+  compatibility with existing imports inside this package. Prefer
+  :class:`ContractBase` in new code.
 """
 
 from __future__ import annotations
@@ -17,8 +28,20 @@ SemVer = Annotated[str, Field(pattern=r"^\d+\.\d+\.\d+$", min_length=5)]
 IdempotencyKey = Annotated[str, Field(min_length=1, max_length=512)]
 
 
-class _Base(BaseModel):
-    """Base config shared by every contract model."""
+class ContractBase(BaseModel):
+    """Public base for every FDAI contract model.
+
+    Enforces the four invariants every contract carries:
+
+    - ``extra="forbid"`` - unknown fields are a validation error, so a
+      drifted payload cannot silently succeed.
+    - ``frozen=True`` - instances are immutable after construction, so a
+      contract cannot be mutated in flight.
+    - ``str_strip_whitespace=True`` - leading/trailing whitespace on any
+      string field is stripped at parse time.
+    - ``validate_default=True`` - default values are validated the same
+      way as user-supplied ones.
+    """
 
     model_config = ConfigDict(
         extra="forbid",
@@ -28,4 +51,10 @@ class _Base(BaseModel):
     )
 
 
-__all__ = ["IdempotencyKey", "SemVer", "_Base"]
+# Historical alias - kept so existing imports (`from ._base import _Base`)
+# continue to work while new code migrates to :class:`ContractBase`.
+_Base = ContractBase
+
+
+__all__ = ["ContractBase", "IdempotencyKey", "SemVer", "_Base"]
+
