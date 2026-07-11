@@ -8,6 +8,9 @@ regression is caught early.
 from __future__ import annotations
 
 import itertools
+from pathlib import Path
+
+import pytest
 
 from fdai.rule_catalog.schema.assignment import Assignment, resolve_assignments
 from fdai.rule_catalog.schema.effect import Effect, Enforcement
@@ -193,3 +196,83 @@ def test_strictest_effect_is_order_and_duplicate_independent() -> None:
     for perm in itertools.permutations(pool[:4]):
         assert strictest_effect(list(perm)) is Effect.DENY
     assert strictest_effect([Effect.AUDIT, Effect.AUDIT]) is Effect.AUDIT
+
+
+# ---- resolver precedence / audit-trail invariants -------------------------
+
+
+def _at(level: ScopeLevel, id_: str, effect: Effect = Effect.AUDIT, **params: str) -> Assignment:
+    return Assignment(
+        id=f"{level.name}-{id_}",
+        target_rule_ids=frozenset({"r"}),
+        scope=Scope(level=level, id=id_),
+        effect=effect,
+        parameters=dict(params),
+    )
+
+
+def test_most_specific_scope_supplies_params_others_overridden() -> None:
+    org = _at(ScopeLevel.ORGANIZATION, "org-1", k="org")
+    rg = _at(ScopeLevel.RESOURCE_GROUP, "rg-a", k="rg")
+    res_ = _at(ScopeLevel.RESOURCE, "vm-1", k="res")
+    for order in itertools.permutations([org, rg, res_]):
+        r = resolve_assignments(assignments=list(order), ctx=_ctx(), rule_id="r")
+        assert r is not None
+        assert r.parameters == {"k": "res"}  # resource is most specific
+        assert r.winning_assignment_id == res_.id
+        assert set(r.overridden_assignment_ids) == {org.id, rg.id}
+        assert r.parameter_tie is False
+
+
+def test_no_matching_assignment_returns_none_not_open() -> None:
+    # governance is opt-in: an unmatched rule resolves to None (unenforced),
+    # never a silent enforce
+    org = _at(ScopeLevel.RESOURCE_GROUP, "rg-OTHER")
+    assert resolve_assignments(assignments=[org], ctx=_ctx(), rule_id="r") is None
+
+
+def test_all_disabled_resolves_to_disabled() -> None:
+    a = _at(ScopeLevel.ORGANIZATION, "org-1", effect=Effect.DISABLED)
+    r = resolve_assignments(assignments=[a], ctx=_ctx(), rule_id="r")
+    assert r is not None
+    assert r.effective_effect is Effect.DISABLED
+
+
+def test_enforcement_isolated_to_winning_effect_carriers() -> None:
+    # a REMEDIATE+enforce assignment must NOT make a DENY resolution enforce -
+    # only carriers of the winning (strictest) effect count
+    deny_shadow = Assignment(
+        id="deny",
+        target_rule_ids=frozenset({"r"}),
+        scope=_cover_all(),
+        effect=Effect.DENY,
+        enforcement=Enforcement.DO_NOT_ENFORCE,
+    )
+    remediate_enforce = Assignment(
+        id="rem",
+        target_rule_ids=frozenset({"r"}),
+        scope=_cover_all(),
+        effect=Effect.REMEDIATE,
+        enforcement=Enforcement.ENFORCE,
+    )
+    r = resolve_assignments(assignments=[deny_shadow, remediate_enforce], ctx=_ctx(), rule_id="r")
+    assert r is not None
+    assert r.effective_effect is Effect.DENY  # deny is strictest
+    assert r.enforcement is Enforcement.DO_NOT_ENFORCE  # the remediate enforce does not leak
+
+
+def test_duplicate_id_across_yaml_and_yml_detected(tmp_path: Path) -> None:
+    from fdai.rule_catalog.schema.governance_catalog import load_governance_catalog
+    from fdai.rule_catalog.schema.governance_loader import GovernanceLoadError
+
+    body = (
+        'schema_version: "1.0.0"\nid: "security-baseline"\nversion: "1.0.0"\n'
+        'members:\n  - rule_id: "r.x"\n    version: "1.0.0"\n'
+    )
+    d = tmp_path / "rule-sets"
+    d.mkdir(parents=True)
+    (d / "a.yaml").write_text(body, encoding="utf-8")
+    (d / "a.yml").write_text(body, encoding="utf-8")  # same id, different extension
+    with pytest.raises(GovernanceLoadError) as ei:
+        load_governance_catalog(tmp_path)
+    assert any("duplicate id" in i.message for i in ei.value.issues)
