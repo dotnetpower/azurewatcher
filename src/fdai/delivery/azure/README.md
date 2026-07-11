@@ -46,3 +46,13 @@ Current adapters
   `resource_ref` is filtered in memory - no Kusto injection). Bounded by
   `$skipToken` page cap + `max_records`; any HTTP / JSON / shape error or
   missing column fail-closes via `DeploymentHistoryError`.
+- [`log_query.py`](log_query.py) - `AzureLogAnalyticsQueryProvider`, the
+  Azure Monitor Logs (Log Analytics KQL) implementation of the
+  `LogQueryProvider` seam
+  ([contract](../../shared/providers/observation.py)) behind the console
+  `query_log` tool. Runs an opaque, caller-supplied KQL query against a
+  single workspace: KQL is read-only, the `window` is sent as the
+  server-side `timespan`, the result is clipped to `max_rows`
+  (`truncated=True` when exceeded) under a hard `max_rows_cap` + request
+  timeout, and any HTTP / JSON / table-shape error fail-closes via
+  `LogQueryError`.
