@@ -120,6 +120,11 @@ class WebhookIngress:
         self._secret: Final[str] = signing_secret
         self._bus: Final[EventBus] = event_bus
 
+    @property
+    def max_body_bytes(self) -> int:
+        """Body-size cap the route uses for an early Content-Length reject."""
+        return self._config.max_body_bytes
+
     async def handle(self, *, headers: dict[str, str], body: bytes) -> WebhookResult:
         if len(body) > self._config.max_body_bytes:
             return WebhookResult(accepted=False, reason="body too large")

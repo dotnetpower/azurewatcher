@@ -58,6 +58,7 @@ from fdai.delivery.read_api.routes.hil_callback import (
     make_hil_callback_route,
 )
 from fdai.delivery.read_api.routes.panels import ReadPanel
+from fdai.delivery.read_api.routes.webhook import make_webhook_route
 from fdai.delivery.read_api.streaming.live_stream import (
     LiveEmitter,
     LiveStreamConfig,
@@ -187,6 +188,20 @@ class ReadApiConfig:
     action first (APPROVE re-dispatches it to the executor); an
     approval with no matching park falls through to the registry path.
     ``None`` keeps the callback registry-only (console-pull approvals)."""
+
+    webhook_ingress: Any = None
+    """Opt-in inbound webhook POST route (P2-7). When set (a
+    :class:`~fdai.delivery.webhook.ingress.WebhookIngress`), registers a
+    single ``POST /webhook`` route that authenticates an HMAC-signed
+    request, normalizes the body into an ``Event``, and publishes it onto
+    the ingest topic. ``None`` (the default) keeps the read-API strictly
+    GET-only. The ingress never executes a change - it only injects an
+    event, so no privilege boundary is crossed. See
+    :mod:`fdai.delivery.read_api.routes.webhook`."""
+
+    webhook_path: str = "/webhook"
+    """Path the ``webhook_ingress`` route is mounted at. Ignored when
+    ``webhook_ingress`` is ``None``."""
 
     live_stream: LiveStreamConfig | None = None
     """Opt-in live SSE fan-out. When set, registers a ``GET`` streaming
@@ -541,6 +556,22 @@ def build_app(
                 registry=resolved_config.hil_registry,
                 config=resolved_config.hil_callback,
                 coordinator=resolved_config.hil_coordinator,
+            )
+        )
+
+    # Optional inbound webhook POST route (P2-7). Fronts the transport-
+    # agnostic WebhookIngress; authenticates + injects an event, never
+    # executes a change. Default composition has no webhook surface.
+    if resolved_config.webhook_ingress is not None:
+        webhook_path = resolved_config.webhook_path
+        if webhook_path in _CORE_ROUTE_PATHS:
+            raise ValueError(f"webhook_path {webhook_path!r} collides with a core route")
+        if webhook_path in seen_panel_paths:
+            raise ValueError(f"webhook_path {webhook_path!r} collides with a panel path")
+        routes.append(
+            make_webhook_route(
+                ingress=resolved_config.webhook_ingress,
+                path=webhook_path,
             )
         )
 
