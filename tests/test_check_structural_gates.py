@@ -192,6 +192,23 @@ class TestCheckFileLoc:
         assert result.returncode == 2
         assert "justification comment" in result.stderr
 
+    def test_allowlist_glob_pattern_matches(self, tmp_path: Path) -> None:
+        repo = _make_repo(tmp_path)
+        _copy_scripts(repo)
+        _seed_python_file(repo, "src/fdai/generated/a.py", 900)
+        _seed_python_file(repo, "src/fdai/generated/b.py", 950)
+        _seed_python_file(repo, "src/fdai/handwritten.py", 900)
+        (repo / "scripts" / ".check-file-loc.allowlist").write_text(
+            "# generated: tolerated pending code-gen split\n"
+            "src/fdai/generated/*.py\n"
+        )
+        result = _run(
+            repo, repo / "scripts" / "check-file-loc.sh", FILE_LOC_MODE="enforce"
+        )
+        assert result.returncode == 1  # handwritten still fails
+        assert "allowlisted=2" in result.stdout
+        assert "failed=1" in result.stdout
+
     def test_pycache_is_excluded(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path)
         _copy_scripts(repo)

@@ -57,7 +57,8 @@ if (( warn_thresh >= fail_thresh )); then
 fi
 
 allowlist_file="scripts/.check-subsystem-fanout.allowlist"
-declare -A allowlist=()
+declare -A allow_exact=()
+allow_globs=()
 if [[ -f "$allowlist_file" ]]; then
   prev_was_comment=0
   lineno=0
@@ -76,10 +77,25 @@ if [[ -f "$allowlist_file" ]]; then
       echo "check-subsystem-fanout: allowlist entry '$stripped' at $allowlist_file:$lineno lacks a preceding '#' justification comment" >&2
       exit 2
     fi
-    allowlist["$stripped"]=1
+    if [[ "$stripped" == *[*?[]* ]]; then
+      allow_globs+=("$stripped")
+    else
+      allow_exact["$stripped"]=1
+    fi
     prev_was_comment=0
   done < "$allowlist_file"
 fi
+
+_allowlisted() {
+  local p="$1"
+  [[ -n "${allow_exact[$p]:-}" ]] && return 0
+  local pat
+  for pat in "${allow_globs[@]}"; do
+    # shellcheck disable=SC2053  # RHS deliberately unquoted for glob
+    [[ "$p" == $pat ]] && return 0
+  done
+  return 1
+}
 
 mapfile -t files < <(
   find src/fdai/core -type f -name '*.py' \
@@ -105,7 +121,7 @@ scanned=0
 allowlisted=0
 
 for path in "${files[@]}"; do
-  if [[ -n "${allowlist[$path]:-}" ]]; then
+  if _allowlisted "$path"; then
     allowlisted=$((allowlisted + 1))
     continue
   fi
