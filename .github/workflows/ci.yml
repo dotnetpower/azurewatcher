@@ -287,6 +287,44 @@ jobs:
           fi
           uv run python -m fdai.rule_catalog.schema.exemption_cli "${files[@]}"
 
+  governance-transitions:
+    name: Governance effect-transition gate
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so the base ref resolves for the before/after diff.
+          fetch-depth: 0
+
+      - name: Set up uv (Python 3.13)
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev --frozen
+
+      - name: Reject disallowed governance effect transitions
+        # Compares the governance catalog at the base ref against the working
+        # tree. No-op until rule-catalog/governance/ is populated (a missing
+        # root at either snapshot loads as an empty catalog).
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+            base="origin/${{ github.base_ref }}"
+          else
+            before="${{ github.event.before }}"
+            if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+              echo "governance-transitions: no prior commit to diff against - skipping."
+              exit 0
+            fi
+            base="$before"
+          fi
+          echo "governance-transitions: base ref '$base'"
+          uv run python scripts/check-governance-transitions.py --base "$base"
+
   freeze-scenarios:
     name: Frozen scenario-set immutability (PR only)
     if: github.event_name == 'pull_request'
