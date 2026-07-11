@@ -48,6 +48,11 @@ Report
 ``logs/validation/<UTC timestamp>/pytest.out``   - full pytest output
 ``logs/validation/<UTC timestamp>/mypy.out``     - full mypy output
 
+Only the ``--keep`` most recent timestamped runs under
+``logs/validation/`` are kept; older ones are pruned automatically at
+the start of the next run. Default keep count is 10. Disable pruning
+with ``--keep 0`` or by passing ``--report-dir``.
+
 Exit code: 0 when every step passes; 1 when at least one step
 recorded a failure (details in ``report.json``).
 
@@ -876,7 +881,40 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Directory to write report.{json,log} into (default: logs/validation/<ts>)",
     )
+    p.add_argument(
+        "--keep",
+        type=int,
+        default=10,
+        help="When using the default report dir, keep this many most-recent runs "
+        "and delete older ones (default: 10; set to 0 to disable pruning)",
+    )
     return p.parse_args()
+
+
+_TS_RE = re.compile(r"^\d{8}T\d{6}Z$")
+
+
+def _prune_old_reports(root: Path, keep: int) -> list[Path]:
+    """Delete all but the most recent ``keep`` timestamped subdirs of ``root``.
+
+    Only entries whose name matches the ``YYYYMMDDTHHMMSSZ`` format the runner
+    itself emits are considered - foreign files or directories are left alone.
+    Returns the list of directories that were removed.
+    """
+
+    if keep <= 0 or not root.is_dir():
+        return []
+    runs = sorted(
+        (p for p in root.iterdir() if p.is_dir() and _TS_RE.match(p.name)),
+        key=lambda p: p.name,
+    )
+    if len(runs) <= keep:
+        return []
+    removed: list[Path] = []
+    for old in runs[:-keep]:
+        shutil.rmtree(old, ignore_errors=True)
+        removed.append(old)
+    return removed
 
 
 def main() -> int:
@@ -889,10 +927,14 @@ def main() -> int:
         return 2
 
     ts = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
-    report_dir = (
-        Path(args.report_dir) if args.report_dir else REPO_ROOT / "logs" / "validation" / ts
-    )
+    using_default_dir = args.report_dir is None
+    default_root = REPO_ROOT / "logs" / "validation"
+    report_dir = Path(args.report_dir) if args.report_dir else default_root / ts
     report_dir.mkdir(parents=True, exist_ok=True)
+    if using_default_dir:
+        removed = _prune_old_reports(default_root, args.keep)
+        for old in removed:
+            print(f"[retention] pruned old validation run {old.name}", flush=True)
     runner = Runner(report_dir=report_dir)
 
     # Ensure ruff / mypy / pytest are installed - fail early otherwise.
