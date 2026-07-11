@@ -200,3 +200,18 @@ def test_resolver_returns_per_rule_parameters() -> None:
     res = resolve_assignments(assignments=[a], ctx=_ctx(), rule_id="r.x")
     assert res is not None
     assert res.parameters == {"k": "x"}
+
+
+def test_parameters_for_does_not_alias_internal_state() -> None:
+    a = Assignment(
+        id="a1",
+        target_rule_ids=frozenset({"r.x"}),
+        scope=_RG,
+        parameters={"k": "base"},
+    )
+    # no per-rule override -> the returned mapping must be a copy, not the
+    # assignment's own parameters dict
+    got = a.parameters_for("r.x")
+    assert got == {"k": "base"}
+    got["k"] = "mutated"  # type: ignore[index]
+    assert a.parameters == {"k": "base"}  # internal state untouched

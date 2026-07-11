@@ -356,11 +356,20 @@ def test_assignment_scope_binding_too_many_segments_rejected() -> None:
         load_assignment_from_mapping(raw)
 
 
-def test_assignment_scope_binding_blank_segment_rejected_at_domain() -> None:
-    # a whitespace-only segment passes the schema URI pattern but ScopeRef
-    # rejects it - the loader wraps that ValueError into a scope-keyed issue
+def test_assignment_scope_binding_whitespace_uri_rejected_by_schema() -> None:
+    # a whitespace-only segment fails the scopeUri schema pattern
     raw = _minimal()
     raw["scope"] = {"include": ["scope://   "]}
+    with pytest.raises(GovernanceLoadError):
+        load_assignment_from_mapping(raw)
+
+
+def test_assignment_legacy_scope_padded_id_rejected_at_domain() -> None:
+    # the legacy scope id passes the schema (minLength 1) but the Scope
+    # constructor rejects leading/trailing whitespace - the loader wraps that
+    # ValueError into a scope-keyed issue
+    raw = _minimal()
+    raw["scope"] = {"level": "resource-group", "id": " rg-a "}
     with pytest.raises(GovernanceLoadError) as ei:
         load_assignment_from_mapping(raw)
     assert any(i.key == "scope" for i in ei.value.issues)

@@ -146,6 +146,16 @@ def test_scope_id_must_be_non_empty() -> None:
         Scope(level=ScopeLevel.RESOURCE, id="  ")
 
 
+def test_scope_id_rejects_padding() -> None:
+    with pytest.raises(ValueError, match="whitespace"):
+        Scope(level=ScopeLevel.RESOURCE, id=" vm-1 ")
+
+
+def test_scope_ref_rejects_padded_segment() -> None:
+    with pytest.raises(ValueError, match="whitespace-trimmed"):
+        ScopeRef((" org-1", "sub-1"))
+
+
 # ---- ScopeRef (canonical scope:// URI) ------------------------------------
 
 

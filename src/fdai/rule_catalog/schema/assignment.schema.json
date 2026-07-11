@@ -61,7 +61,7 @@
       "type": "string",
       "enum": ["organization", "account", "resource-group", "resource"]
     },
-    "scopeUri": {"type": "string", "pattern": "^scope://[^/]+(/[^/]+){0,3}$"},
+    "scopeUri": {"type": "string", "pattern": "^scope://[^/\\s]+(/[^/\\s]+){0,3}$"},
     "selector": {
       "type": "object",
       "additionalProperties": false,

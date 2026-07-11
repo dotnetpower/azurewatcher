@@ -77,10 +77,11 @@ class Assignment:
     def parameters_for(self, rule_id: str) -> Mapping[str, str]:
         """The parameters for ``rule_id``: the assignment-wide ``parameters``
         merged with this rule's ``parameter_overrides`` (the per-rule entry wins
-        per key)."""
+        per key). Always a fresh mapping - mutating it never touches the
+        assignment's own ``parameters``."""
         override = self.parameter_overrides.get(rule_id)
         if not override:
-            return self.parameters
+            return dict(self.parameters)
         return {**self.parameters, **override}
 
 

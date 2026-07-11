@@ -93,8 +93,8 @@ class Scope:
     excludes: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
-        if not self.id.strip():
-            raise ValueError("Scope.id MUST be non-empty")
+        if not self.id or self.id != self.id.strip():
+            raise ValueError("Scope.id MUST be non-empty and free of leading/trailing whitespace")
 
     def covers(self, ctx: ResourceContext) -> bool:
         """True when this scope covers the resource.
@@ -177,8 +177,10 @@ class ScopeRef:
                 f"ScopeRef MUST have 1..{len(ScopeLevel)} segments, got {len(self.segments)}"
             )
         for seg in self.segments:
-            if not seg.strip() or "/" in seg:
-                raise ValueError(f"ScopeRef segment MUST be non-empty and '/'-free: {seg!r}")
+            if not seg or seg != seg.strip() or "/" in seg:
+                raise ValueError(
+                    f"ScopeRef segment MUST be non-empty, whitespace-trimmed, and '/'-free: {seg!r}"
+                )
 
     @property
     def level(self) -> ScopeLevel:
