@@ -9,6 +9,7 @@ is the immutable declaration read by the registry - see
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
@@ -110,6 +111,31 @@ class Agent:
 
     def __init__(self, spec: AgentSpec) -> None:
         self.spec = spec
+        # Measurable-behavior counter. Every agent records what it *did*
+        # (verdict:auto, hil_pending, security_event, candidate:new, ...) so
+        # a scenario test can assert on observed behaviour and its invariants
+        # instead of reaching into private state. Surfaced through
+        # :meth:`behavior_snapshot` and :meth:`health`, and merged into
+        # ``PantheonRuntime.health()`` per agent.
+        self._behavior: Counter[str] = Counter()
+
+    def record_behavior(self, key: str, count: int = 1) -> None:
+        """Increment the measurable-behavior counter for ``key``.
+
+        Keys are stable, colon-namespaced strings (``verdict:auto``,
+        ``candidate:threshold_adjustment``) so a scenario harness or the KPI
+        collector reads a consistent vocabulary. Recording is best-effort
+        observability - it MUST NOT change a decision.
+        """
+        self._behavior[key] += count
+
+    def behavior_snapshot(self) -> dict[str, int]:
+        """Return a copy of the measurable-behavior counters.
+
+        The single seam a scenario test reads to measure what an agent did.
+        A copy, so a caller cannot mutate the agent's live counters.
+        """
+        return dict(self._behavior)
 
     def bind_bus(self, bus: PantheonBus) -> None:
         """Bind the typed pub/sub port.
@@ -227,7 +253,7 @@ class Agent:
 
     def health(self) -> dict[str, Any]:
         """Return the health snapshot Heimdall probes (Wave 3+)."""
-        return {"agent": self.spec.name, "status": "stub"}
+        return {"agent": self.spec.name, "status": "stub", "behavior": self.behavior_snapshot()}
 
 
 def _kebab(name: str) -> str:

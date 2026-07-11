@@ -201,7 +201,14 @@ deepen it. Do not delete this list without closing the item.
 - **LLM bindings are placeholders** (`hot_path_llm` / `off_path_llm` booleans; no
   `llm_bindings` field; no model is invoked). The conversational port answers are
   base stubs on all agents except Bragi routing.
-- **Rate limits and per-agent KPI emission are declared but not enforced/emitted.**
+- **Rate limits are declared but not enforced.** Per-agent measurable
+  behaviour IS emitted: every agent records colon-namespaced behaviour
+  counters (`verdict:auto`, `no_rule_match`, `security_event`, ...) via the
+  base `record_behavior`, exposed through `behavior_snapshot()` /
+  `health()` and merged per-agent into `PantheonRuntime.health()`. This is
+  the measurement substrate for scenario tests and the KPI collector;
+  wiring the counters into a durable KPI sink is the remaining step. Rate
+  limits (`RateLimits`) are still declared-only.
 - **Producer-principal is now verified on both sides.** Publish-side
   single-writer auth (`registry.assert_can_publish`) is complemented by a
   consumer-side check in `EventBusBridge` (`verify_producer_principal`,

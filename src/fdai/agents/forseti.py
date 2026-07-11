@@ -177,6 +177,7 @@ class Forseti(Agent):
             "advice": advice,
             "impacts": impacts or {},
         }
+        self.record_behavior("arbitration_requested")
         if self.bus is not None:
             await self.bus.publish("Forseti", "object.arbitration-request", request)
         return request
@@ -200,6 +201,7 @@ class Forseti(Agent):
             action_type = _RULE_MATCH.get(event_type)
         if action_type is None:
             # No rule match -> abstain (Wave 3 does not escalate to T2 yet).
+            self.record_behavior("no_rule_match")
             return None
         action_type = str(action_type)
 
@@ -236,6 +238,13 @@ class Forseti(Agent):
             reason = "rbac_insufficient" if rbac_denied else "risk_deny"
         else:
             reason = "rule_match"
+        # Measurable behaviour: the verdict distribution + why. A scenario
+        # test reads verdict:auto / verdict:hil / verdict:deny counts and the
+        # rbac_denied tally to assert invariants (deny never auto, an RBAC
+        # violation always denies) without touching private state.
+        self.record_behavior(f"verdict:{risk_verdict}")
+        if rbac_denied:
+            self.record_behavior("rbac_denied")
         verdict = {
             "producer_principal": "Forseti",
             "correlation_id": event.get("correlation_id", ""),
@@ -265,6 +274,7 @@ class Forseti(Agent):
         initiator: str,
         action_type: str,
     ) -> None:
+        self.record_behavior("security_event")
         if self.bus is None:
             return
         await self.bus.publish(

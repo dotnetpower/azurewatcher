@@ -369,10 +369,15 @@ class PantheonRuntime:
 
         A single agent whose ``health()`` raises MUST NOT collapse the
         whole snapshot (which Heimdall's probe and the heartbeat depend
-        on); surface the error for that agent instead.
+        on); surface the error for that agent instead. The measurable-
+        behavior snapshot is merged in even for agents that override
+        ``health()`` (Thor / Huginn) so every agent's observed behaviour is
+        visible uniformly.
         """
         try:
-            return agent.health()
+            snap = agent.health()
+            snap.setdefault("behavior", agent.behavior_snapshot())
+            return snap
         except Exception as exc:  # noqa: BLE001 - health probe must not crash
             _LOG.warning("pantheon_agent_health_error", extra={"agent": name, "error": str(exc)})
             return {"agent": name, "status": "error", "error": str(exc)}
