@@ -760,6 +760,68 @@ agents publish and subscribe on must exist on Event Hubs before
 `FDAI_START_PANTHEON` is enabled; provisioning those hubs is an infra
 concern (`infra/modules/event-bus/`), out of scope for the flag itself.
 
+### 13.6 LLM invocation surface (across waves)
+
+The pantheon is deterministic-first: the hot-path routes almost every event
+through T0 (rule / table lookup) or T1 (similarity). An LLM is a declared
+capability, never a default, and the hot-path invokes one in exactly three
+places (agent-pantheon.md §8) - any wave that adds a fourth is a defect:
+
+| Site | Agent | Wave | Role of the model |
+|------|-------|------|-------------------|
+| Translator | Bragi | W4 | maps a natural-language turn to an intent / ActionType; never judges or executes (§7.7) |
+| T2 abstain | Forseti | W3 stub -> later | reasons over a novel case only after T0 and T1 abstain; output is judged, never trusted |
+| Off-path batch | Norns | W2 (T1) -> W7 (T2) | proposes `RuleCandidate`s from audit patterns; runs off the hot-path, output is inert until the quality gate promotes it |
+
+Every other agent - Huginn, Heimdall, Vidar, Var, Thor, Odin, Saga, Mimir,
+Muninn, and the domain specialists - stays LLM-free in the hot-path.
+
+**Composition-root binding (`LlmBindings`).** The model seam is resolved once
+at the composition root (`src/fdai/composition/`), never inside an agent. The
+container carries an `LlmBindings` that provides the T1 embedding model and the
+T2 cross-check models, selected by `llm.mode`:
+
+- `local-fake` (upstream default) - deterministic in-memory fakes, no Azure
+  credentials, so the whole pantheon runs and tests offline.
+- `azure` - `Container.llm_bindings` starts `None`; the entry point calls
+  `bind_azure_llm_bindings` to wire the per-capability Azure OpenAI adapters
+  (embedding + T2 cross-check + optional tool-call). A fork picks the concrete
+  models through `agents.<name>.llm_bindings` config (agent-pantheon.md §10);
+  the pantheon code is identical either way.
+
+**T2 quality gate (Forseti).** A T2 verdict is never routed straight to
+execution. The model *generates*; deterministic verification *grants* execution
+eligibility. The gate is three checks (architecture.instructions.md):
+
+1. **Mixed-model cross-check** - two or more distinct models judge the same
+   case; agreement proceeds, disagreement escalates to HIL (never auto-resolve).
+2. **Verifier** - the proposed action is re-validated against policy-as-code and
+   what-if / dry-run before it can execute.
+3. **Grounding (RAG)** - the judgment must cite the rules / policies that
+   justify it; an unsupported answer abstains to HIL.
+
+Wave 3 Forseti ships the deterministic tiers (T0 rule-match + risk table) and
+returns a **stub abstain** for T2; the mixed-model cross-check and grounding
+land in a later wave behind the `LlmBindings` seam. Until then a novel case
+routes to HIL rather than to a model verdict - fail toward safety.
+
+**Conversational-port narrator.** The two-port model's human half ships with a
+**deterministic, LLM-free renderer** upstream: every agent answers an
+introspection turn from its immutable `AgentSpec` and owned data (the shared
+`facts` in `src/fdai/agents/_framework/introspection.py`). A fork - or the later
+narrator wave - swaps an LLM-backed narrator over the *same* `facts` (RAG over
+owned data plus `owns_code_paths`) without changing the contract; the narrator
+renders in the operator's locale (L3) while the intent, verdict, and audit
+underneath stay L0 English (language.instructions.md).
+
+**Metering (measured, never estimated).** Every hot-path T2 call records the
+provider's measured `usage` through a `MeteringSink`; `MeteringEmitter` computes
+spend from the config-driven `rule-catalog/llm-pricing.yaml` price table, and the
+read-API `LlmCostPanel` serves `GET /kpi/llm-cost` rolled up per conversation
+(`correlation_id`), per day, and per month. The upstream in-memory sink spans a
+single-process dev harness; a fork injects a durable sink so the headless core
+(where the LLM runs) and the read-API console share one metering stream.
+
 ## 14. Timeline shape (not commitments)
 
 Waves are strictly sequential (W0 -> W8). W7 is the widest wave (10

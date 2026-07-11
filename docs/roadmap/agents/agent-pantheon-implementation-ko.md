@@ -1,8 +1,8 @@
 ---
 title: 에이전트 판테온 구현 계획
 translation_of: agent-pantheon-implementation.md
-translation_source_sha: 39a84e52ee327b4977bcb1d55b9790e465edefed
-translation_revised: 2026-07-11
+translation_source_sha: 59b4667b3caf4560455ec6ced5483daaa5a0d61c
+translation_revised: 2026-07-12
 ---
 
 # 에이전트 판테온 구현 계획
@@ -721,6 +721,70 @@ judge-and-log 만 하고 P1 루프와 이중 실행하지 않는다. enforce 로
 토픽은 `FDAI_START_PANTHEON` 을 켜기 전에 Event Hubs 에 존재해야 한다;
 그 hub 프로비저닝은 infra 관심사(`infra/modules/event-bus/`)이며 플래그
 자체의 범위 밖이다.
+
+### 13.6 LLM 호출 표면 (웨이브 전반)
+
+판테온은 deterministic-first 다: hot-path 는 거의 모든 이벤트를 T0(rule /
+table lookup) 또는 T1(similarity) 로 라우팅한다. LLM 은 선언된 capability
+이지 default 가 아니며, hot-path 가 LLM 을 호출하는 곳은 정확히 세 군데다
+(agent-pantheon.md §8) - 네 번째를 추가하는 웨이브는 defect 다:
+
+| 위치 | 에이전트 | 웨이브 | 모델의 역할 |
+|------|---------|--------|-------------|
+| Translator | Bragi | W4 | 자연어 turn 을 intent / ActionType 으로 매핑; 판단·실행 안 함 (§7.7) |
+| T2 abstain | Forseti | W3 stub -> 이후 | T0·T1 이 abstain 한 뒤에만 novel 케이스를 추론; 출력은 판정 대상이지 신뢰 대상 아님 |
+| Off-path batch | Norns | W2 (T1) -> W7 (T2) | audit 패턴에서 `RuleCandidate` 제안; hot-path 밖에서 돌고, quality gate 가 승격하기 전까지 출력은 inert |
+
+나머지 모든 에이전트 - Huginn, Heimdall, Vidar, Var, Thor, Odin, Saga,
+Mimir, Muninn, 그리고 domain specialist - 는 hot-path 에서 LLM-free 를
+유지한다.
+
+**Composition-root 바인딩 (`LlmBindings`).** 모델 seam 은 에이전트 내부가
+아니라 composition root(`src/fdai/composition/`)에서 한 번만 해석된다.
+컨테이너는 T1 embedding 모델과 T2 cross-check 모델을 제공하는 `LlmBindings`
+를 들고 있고, `llm.mode` 로 선택한다:
+
+- `local-fake` (upstream 기본) - deterministic in-memory fake, Azure
+  credential 불필요, 그래서 판테온 전체가 오프라인으로 실행·테스트된다.
+- `azure` - `Container.llm_bindings` 는 `None` 으로 시작; 엔트리포인트가
+  `bind_azure_llm_bindings` 를 호출해 per-capability Azure OpenAI adapter
+  (embedding + T2 cross-check + optional tool-call)를 배선한다. fork 는
+  `agents.<name>.llm_bindings` 설정으로 구체 모델을 고른다
+  (agent-pantheon.md §10); 어느 쪽이든 판테온 코드는 동일하다.
+
+**T2 quality gate (Forseti).** T2 verdict 은 절대 곧바로 실행으로 라우팅되지
+않는다. 모델은 *생성* 하고, 실행 자격은 deterministic 검증이 *부여* 한다.
+게이트는 세 가지 체크다 (architecture.instructions.md):
+
+1. **Mixed-model cross-check** - 서로 다른 모델 2개 이상이 같은 케이스를
+   판정; 일치하면 진행, 불일치하면 HIL 로 에스컬레이션(자동 해결 금지).
+2. **Verifier** - 제안된 액션을 실행 전에 policy-as-code 와 what-if /
+   dry-run 으로 재검증한다.
+3. **Grounding (RAG)** - 판단은 그것을 정당화하는 rule / policy 를 인용해야
+   한다; 근거 없는 답은 HIL 로 abstain 한다.
+
+Wave 3 Forseti 는 deterministic tier(T0 rule-match + risk table)를 ship
+하고 T2 에는 **stub abstain** 을 반환한다; mixed-model cross-check 와
+grounding 은 `LlmBindings` seam 뒤에서 이후 웨이브에 착지한다. 그전까지
+novel 케이스는 모델 verdict 이 아니라 HIL 로 라우팅된다 - fail toward
+safety.
+
+**Conversational-port narrator.** Two-port 모델의 human 절반은 upstream 에서
+**deterministic, LLM-free renderer** 로 ship 된다: 모든 에이전트는
+introspection turn 을 자기 불변 `AgentSpec` 과 소유 데이터(공유 `facts`,
+`src/fdai/agents/_framework/introspection.py`)로 답한다. fork - 또는 이후
+narrator 웨이브 - 는 계약을 바꾸지 않고 *같은* `facts` 위에 LLM 기반
+narrator 를 swap 한다(소유 데이터 + `owns_code_paths` 에 대한 RAG);
+narrator 는 오퍼레이터 locale(L3)로 렌더하고, 그 밑의 intent, verdict,
+audit 는 L0 영어로 유지된다 (language.instructions.md).
+
+**Metering (측정값, 추정 아님).** 모든 hot-path T2 호출은 provider 의 측정된
+`usage` 를 `MeteringSink` 로 기록한다; `MeteringEmitter` 는 config 기반
+`rule-catalog/llm-pricing.yaml` 가격표에서 비용을 계산하고, read-API
+`LlmCostPanel` 이 `GET /kpi/llm-cost` 를 conversation(`correlation_id`)당,
+일당, 월당으로 롤업해 서빙한다. upstream in-memory sink 는 단일 프로세스
+dev harness 범위이고; fork 는 durable sink 를 주입해 headless core(LLM 이
+도는 곳)와 read-API 콘솔이 하나의 metering 스트림을 공유하게 한다.
 
 ## 14. 타임라인 shape (commitment 아님)
 
