@@ -246,7 +246,14 @@ single `Inventory` Protocol with two operations returning CSP-neutral records:
   reconciliation load, emitted as batches of typed `Resource` records and
   `contains` / `attached_to` / `depends_on` link records.
 - `delta(cursor) -> AsyncIterator[InventoryBatch]` - incremental changes since the given
-  cursor, driven by the provider's native change stream.
+  cursor, driven by the provider's native change stream. The Azure adapter realizes this
+  behind an injected `ActivityLogFetchFn` seam that pages the forwarded change stream into
+  idempotent-upsert batches with an advancing cursor and the same `final=True` atomic-promote
+  fence as `full_snapshot`. Two bindings satisfy the seam: the event-bus-native path (a
+  Diagnostic-Settings-forwarded Kafka topic, the production default per the MUST below) and a
+  direct Activity Log REST factory (`AzureActivityLogFactory`) for environments where the
+  forwarder is not yet provisioned. With no fetch bound, `delta` returns an empty `final=True`
+  fence.
 
 | CSP / substrate | Inventory source | Delta source | Wire |
 |---|---|---|---|

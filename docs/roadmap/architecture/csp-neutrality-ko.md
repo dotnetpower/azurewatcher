@@ -1,8 +1,8 @@
 ---
 title: CSP-중립성 계약
 translation_of: csp-neutrality.md
-translation_source_sha: 5d30d09515dc27917fac4c6f78e675d1d42dfb70
-translation_revised: 2026-07-11
+translation_source_sha: ab61e6875f5ffce85007c4dfc152fcb00db869b0
+translation_revised: 2026-07-12
 ---
 
 # CSP-중립성 계약
@@ -238,7 +238,14 @@ executor 는 런타임 서브스트레이트에서 얻은 **짧은 수명의 OID
   reconciliation 로드, 타입된 `Resource` 레코드와 `contains` / `attached_to` /
   `depends_on` 링크 레코드 배치로 emit.
 - `delta(cursor) -> AsyncIterator[InventoryBatch]` - 주어진 커서 이후의 증분 변경,
-  provider 의 네이티브 변경 스트림이 구동.
+  provider 의 네이티브 변경 스트림이 구동. Azure 어댑터는 이를 주입된
+  `ActivityLogFetchFn` seam 뒤에서 실현한다: 포워딩된 변경 스트림을 멱등 upsert
+  배치로 페이징하며, 진행하는 커서와 `full_snapshot` 과 동일한 `final=True`
+  atomic-promote 펜스를 emit 한다. 이 seam 을 만족하는 바인딩은 둘: 이벤트버스-네이티브
+  경로(Diagnostic-Settings-포워딩된 Kafka 토픽 - 아래 MUST 에 따른 프로덕션 기본값)와,
+  포워더가 아직 프로비저닝되지 않은 환경을 위한 직접 Activity Log REST 팩토리
+  (`AzureActivityLogFactory`). fetch 가 바인딩되지 않으면 `delta` 는 빈 `final=True`
+  펜스를 반환한다.
 
 | CSP / 서브스트레이트 | 인벤토리 소스 | Delta 소스 | 와이어 |
 |---|---|---|---|

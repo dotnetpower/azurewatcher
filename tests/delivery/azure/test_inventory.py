@@ -194,3 +194,124 @@ async def test_full_snapshot_with_no_resource_types_still_yields_fence() -> None
         seen.append(batch)
     assert len(seen) == 1
     assert seen[0].final is True
+
+
+# ---------------------------------------------------------------------------
+# Delta stream with a bound ActivityLogFetchFn (P0-2)
+# ---------------------------------------------------------------------------
+
+
+def _delta_adapter(delta_fetch, *, max_delta_pages: int = 64) -> AzureResourceGraphInventory:
+    async def _q(_rt: str) -> tuple[Sequence[ResourceRecord], Sequence[LinkRecord]]:
+        return (), ()
+
+    return AzureResourceGraphInventory(
+        config=AzureInventoryConfig(
+            resource_types=("compute.vm",),
+            max_delta_pages=max_delta_pages,
+        ),
+        query=_q,
+        delta_fetch=delta_fetch,
+    )
+
+
+@pytest.mark.asyncio
+async def test_delta_streams_change_batches_with_advancing_cursor() -> None:
+    from fdai.delivery.azure.inventory import ActivityLogPage
+
+    async def _fetch(cursor: str) -> ActivityLogPage:
+        if "\x1f" not in cursor:
+            # fresh resume cursor -> first page
+            return ActivityLogPage(
+                resources=(_rr("resource-group/rg-a/vm-a"),),
+                cursor="\x1fhttps://next/page2",
+                has_more=True,
+            )
+        # continuation -> last page
+        return ActivityLogPage(
+            resources=(_rr("resource-group/rg-a/vm-b"),),
+            cursor="2026-07-10T06:00:00+00:00",
+            has_more=False,
+        )
+
+    adapter = _delta_adapter(_fetch)
+    seen: list[InventoryBatch] = []
+    async for batch in adapter.delta(cursor="2026-07-10T05:00:00+00:00"):
+        seen.append(batch)
+
+    assert [b.final for b in seen] == [False, False, True]
+    assert seen[0].resources[0].resource_id == "resource-group/rg-a/vm-a"
+    assert seen[1].resources[0].resource_id == "resource-group/rg-a/vm-b"
+    assert seen[2].cursor == "2026-07-10T06:00:00+00:00"
+
+
+@pytest.mark.asyncio
+async def test_delta_fails_closed_without_final_on_fetch_error() -> None:
+    from fdai.delivery.azure.inventory import ActivityLogPage
+
+    async def _fetch(cursor: str) -> ActivityLogPage:
+        raise RuntimeError("activity log unreachable")
+
+    adapter = _delta_adapter(_fetch)
+    seen: list[InventoryBatch] = []
+    with pytest.raises(RuntimeError):
+        async for batch in adapter.delta(cursor="cur-1"):
+            seen.append(batch)
+
+    assert all(not b.final for b in seen)
+
+
+@pytest.mark.asyncio
+async def test_delta_page_cap_stops_and_returns_fence() -> None:
+    from fdai.delivery.azure.inventory import ActivityLogPage
+
+    async def _fetch(cursor: str) -> ActivityLogPage:
+        return ActivityLogPage(
+            resources=(_rr("resource-group/rg-a/vm-x"),),
+            cursor="\x1fhttps://next/loop",
+            has_more=True,
+        )
+
+    adapter = _delta_adapter(_fetch, max_delta_pages=3)
+    seen: list[InventoryBatch] = []
+    async for batch in adapter.delta(cursor="cur-1"):
+        seen.append(batch)
+
+    assert len([b for b in seen if not b.final]) == 3
+    assert seen[-1].final is True
+
+
+@pytest.mark.asyncio
+async def test_delta_dedupes_within_a_page() -> None:
+    from fdai.delivery.azure.inventory import ActivityLogPage
+
+    async def _fetch(cursor: str) -> ActivityLogPage:
+        return ActivityLogPage(
+            resources=(
+                _rr("resource-group/rg-a/vm-a"),
+                _rr("resource-group/rg-a/vm-a"),
+            ),
+            cursor="2026-07-10T06:00:00+00:00",
+            has_more=False,
+        )
+
+    adapter = _delta_adapter(_fetch)
+    seen: list[InventoryBatch] = []
+    async for batch in adapter.delta(cursor="cur-1"):
+        seen.append(batch)
+
+    change = [b for b in seen if not b.final]
+    assert len(change) == 1
+    assert len(change[0].resources) == 1
+
+
+@pytest.mark.asyncio
+async def test_config_rejects_zero_max_delta_pages() -> None:
+    async def _q(_rt: str) -> tuple[Sequence[ResourceRecord], Sequence[LinkRecord]]:
+        return (), ()
+
+    with pytest.raises(ValueError):
+        AzureResourceGraphInventory(
+            config=AzureInventoryConfig(resource_types=(), max_delta_pages=0),
+            query=_q,
+        )

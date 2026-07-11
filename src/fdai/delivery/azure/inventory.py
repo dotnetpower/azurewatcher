@@ -24,8 +24,15 @@ wired against a real interface:
   links. Adapters MUST NOT emit duplicates within one snapshot - this
   stub deduplicates the synthetic input to make the invariant testable.
 - **Delta stream**: :meth:`AzureResourceGraphInventory.delta` accepts a
-  cursor and returns an empty final batch by default; production wiring
-  reads Activity Log entries forwarded onto a Kafka topic.
+  cursor and, when an :type:`ActivityLogFetchFn` is bound, pages the
+  forwarded Azure Activity Log change stream into idempotent-upsert
+  batches with an advancing cursor and the same ``final=True`` fence.
+  With no fetch bound it returns an empty final batch (the default until
+  the forwarder ships). The Activity-Log-to-Kafka forwarding is a
+  deployment concern (Event Hubs diagnostic settings); the neutral
+  mapping "one Activity Log record -> one :class:`ResourceRecord` upsert"
+  lives in
+  :class:`~fdai.delivery.azure.activity_log.AzureActivityLogFactory`.
 
 What is deliberately NOT here yet
 ---------------------------------
@@ -54,12 +61,41 @@ from fdai.shared.providers.inventory import (
 )
 
 _DEFAULT_MAX_CONCURRENT_QUERIES: Final[int] = 4
+_DEFAULT_MAX_DELTA_PAGES: Final[int] = 64
 
 # Injected async callable: given a resource_type, return the batch of
 # resources + links the adapter would have fetched from ARG for that
 # shard. Kept as a Protocol-like callable so tests can supply a fake
 # without instantiating any Azure client.
 ResourceQueryFn = Callable[[str], Awaitable[tuple[Sequence[ResourceRecord], Sequence[LinkRecord]]]]
+
+
+@dataclass(frozen=True, slots=True)
+class ActivityLogPage:
+    """One page of forwarded Azure Activity Log changes, already mapped to
+    CSP-neutral records.
+
+    Produced by the injected :type:`ActivityLogFetchFn` - the "how do I
+    read the Activity-Log-on-Kafka topic (or the Activity Log REST API)
+    and normalize it" concern lives in the fetch function (see
+    :class:`~fdai.delivery.azure.activity_log.AzureActivityLogFactory`),
+    never in the inventory adapter. ``cursor`` is the opaque position the
+    adapter echoes back on the next :meth:`AzureResourceGraphInventory.delta`
+    call; ``has_more`` drives the adapter's bounded page loop.
+    """
+
+    resources: tuple[ResourceRecord, ...] = ()
+    links: tuple[LinkRecord, ...] = ()
+    cursor: str | None = None
+    has_more: bool = False
+
+
+# Injected async callable for the incremental path: given the current
+# cursor, return the next page of forwarded Activity Log changes. A fork
+# binds a Kafka-consumer- or REST-backed implementation at the composition
+# root; tests supply a fake without standing up Event Hubs.
+ActivityLogFetchFn = Callable[[str], Awaitable[ActivityLogPage]]
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +131,16 @@ class AzureInventoryConfig:
     from an environment variable directly.
     """
 
+    max_delta_pages: int = _DEFAULT_MAX_DELTA_PAGES
+    """Upper bound on Activity-Log pages consumed per :meth:`delta` call.
+
+    Ceiling defense against a runaway change stream starving the event
+    loop. When the fetch reports ``has_more`` past this cap, :meth:`delta`
+    stops and returns the ``final=True`` fence carrying the last cursor;
+    the next call resumes from there rather than silently draining forever.
+    """
+
+
 
 class AzureResourceGraphInventory:
     """Azure Resource Graph ``Inventory`` adapter (sharded full-scan).
@@ -115,11 +161,15 @@ class AzureResourceGraphInventory:
         *,
         config: AzureInventoryConfig,
         query: ResourceQueryFn,
+        delta_fetch: ActivityLogFetchFn | None = None,
     ) -> None:
         if config.max_concurrent_queries < 1:
             raise ValueError("AzureInventoryConfig.max_concurrent_queries MUST be >= 1")
+        if config.max_delta_pages < 1:
+            raise ValueError("AzureInventoryConfig.max_delta_pages MUST be >= 1")
         self._config = config
         self._query = query
+        self._delta_fetch = delta_fetch
 
     # ------------------------------------------------------------------
     # Inventory Protocol
@@ -174,15 +224,48 @@ class AzureResourceGraphInventory:
         yield InventoryBatch(final=True)
 
     async def delta(self, cursor: str) -> AsyncIterator[InventoryBatch]:
-        """Incremental change stream.
+        """Incremental change stream from forwarded Azure Activity Log entries.
 
-        P1 W-2 stub: consumes ``cursor`` (unused) and yields a single
-        ``final=True`` empty batch so callers exercise the same
-        atomic-promote fence as ``full_snapshot``. The real Activity-Log
-        delta lands in P1 W-3.
+        When a :type:`ActivityLogFetchFn` is bound, this pages the change
+        stream starting at ``cursor``: each page is mapped to an
+        :class:`InventoryBatch` of idempotent upserts (keyed on
+        ``resource_id`` / ``(from_id, link_type, to_id)``) carrying the
+        page cursor, and the stream ends with a ``final=True`` fence
+        carrying the last cursor so the caller can atomically advance.
+
+        Fail-closed on partial: if a page fetch raises, the exception
+        propagates **without** a ``final=True`` fence, so the caller keeps
+        the previous cursor and retries rather than banking a truncated
+        delta (matches ``csp-neutrality.md § 5``).
+
+        With no fetch bound (the default until the Activity-Log forwarder
+        ships), this yields a single ``final=True`` empty batch so callers
+        exercise the same atomic-promote fence as ``full_snapshot``.
         """
-        del cursor
-        yield InventoryBatch(final=True)
+        if self._delta_fetch is None:
+            del cursor
+            yield InventoryBatch(final=True)
+            return
+
+        current = cursor
+        pages = 0
+        while pages < self._config.max_delta_pages:
+            page = await self._delta_fetch(current)
+            pages += 1
+            resources = _dedupe_resources(page.resources)
+            links = _dedupe_links(page.links)
+            if resources or links:
+                yield InventoryBatch(
+                    resources=resources,
+                    links=links,
+                    cursor=page.cursor,
+                )
+            if page.cursor is not None:
+                current = page.cursor
+            if not page.has_more:
+                break
+
+        yield InventoryBatch(final=True, cursor=current)
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +288,8 @@ def _dedupe_links(records: Iterable[LinkRecord]) -> tuple[LinkRecord, ...]:
 
 
 __all__ = [
+    "ActivityLogFetchFn",
+    "ActivityLogPage",
     "AzureInventoryConfig",
     "AzureResourceGraphInventory",
     "ResourceQueryFn",

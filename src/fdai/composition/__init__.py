@@ -77,6 +77,7 @@ from ..shared.providers.metric import NoopMetricProvider  # noqa: F401 - public 
 from ..shared.providers.workload_identity import WorkloadIdentity
 
 if TYPE_CHECKING:
+    from ..delivery.azure.activity_log import AzureActivityLogFactoryConfig
     from ..delivery.azure.arg_query import AzureArgQueryFactoryConfig
     from ..delivery.azure.inventory import AzureInventoryConfig
     from ..delivery.azure.metric_logs import AzureMonitorLogsConfig
@@ -170,6 +171,7 @@ def bind_azure_inventory(
     resource_types: ResourceTypeRegistry,
     identity: WorkloadIdentity,
     http_client: httpx.AsyncClient,
+    activity_log_config: "AzureActivityLogFactoryConfig | None" = None,
 ) -> Container:
     """Return a new :class:`Container` with the live Azure Resource Graph
     inventory bound in place of the default :class:`EmptyInventory`.
@@ -183,9 +185,12 @@ def bind_azure_inventory(
     stays the empty default and the parity contract holds. ``core/``
     never imports the concrete adapter.
 
-    The ``full_snapshot`` path is live once bound; the ``delta``
-    (Activity-Log -> Kafka) path remains a stub until the forwarder ships
-    (see ``docs/roadmap/architecture/csp-neutrality.md § 5``).
+    The ``full_snapshot`` path is live once bound. When
+    ``activity_log_config`` is supplied, the ``delta`` path is also live:
+    an :class:`AzureActivityLogFactory` builds the forwarded-Activity-Log
+    fetch function so :meth:`AzureResourceGraphInventory.delta` streams
+    real change batches. When it is ``None``, ``delta`` stays the
+    empty-fence stub (see ``docs/roadmap/architecture/csp-neutrality.md § 5``).
     """
     from ..delivery.azure.arg_query import AzureArgQueryFactory
     from ..delivery.azure.inventory import AzureResourceGraphInventory
@@ -196,7 +201,23 @@ def bind_azure_inventory(
         http_client=http_client,
         config=arg_config,
     ).build_query_fn()
-    inventory = AzureResourceGraphInventory(config=inventory_config, query=query_fn)
+
+    delta_fetch = None
+    if activity_log_config is not None:
+        from ..delivery.azure.activity_log import AzureActivityLogFactory
+
+        delta_fetch = AzureActivityLogFactory(
+            identity=identity,
+            resource_types=resource_types,
+            http_client=http_client,
+            config=activity_log_config,
+        ).build_fetch_fn()
+
+    inventory = AzureResourceGraphInventory(
+        config=inventory_config,
+        query=query_fn,
+        delta_fetch=delta_fetch,
+    )
     return replace(container, inventory=inventory)
 
 
