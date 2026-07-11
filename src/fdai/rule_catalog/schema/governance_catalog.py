@@ -88,14 +88,21 @@ def _load_dir[T](
 def load_governance_catalog(root: Path) -> GovernanceCatalog:
     """Load every assignment + rule-set YAML under ``root``.
 
-    Raises :class:`GovernanceLoadError` aggregating the issues from every file
-    (keyed by file name) when any document is invalid or ids collide.
+    Rule-sets load first so an assignment that binds a rule-set (by ``rule_set``
+    id, rather than an explicit ``target_rule_ids`` list) can be resolved. Raises
+    :class:`GovernanceLoadError` aggregating the issues from every file (keyed by
+    file name) when any document is invalid, an id collides, or an assignment
+    references an unknown rule-set.
     """
     issues: list[GovernanceLoadIssue] = []
-    assignments = _load_dir(
-        root / _ASSIGNMENTS_DIR, load_assignment_from_mapping, lambda a: a.id, issues
-    )
     rule_sets = _load_dir(root / _RULE_SETS_DIR, load_rule_set_from_mapping, lambda r: r.id, issues)
+    rule_sets_by_id = {rs.id: rs for rs in rule_sets}
+    assignments = _load_dir(
+        root / _ASSIGNMENTS_DIR,
+        lambda raw: load_assignment_from_mapping(raw, rule_sets=rule_sets_by_id),
+        lambda a: a.id,
+        issues,
+    )
     if issues:
         raise GovernanceLoadError(issues)
     return GovernanceCatalog(assignments=assignments, rule_sets=rule_sets)

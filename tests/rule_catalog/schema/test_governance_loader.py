@@ -157,3 +157,66 @@ def test_rule_set_unknown_field_rejected() -> None:
     raw["surprise"] = 1
     with pytest.raises(GovernanceLoadError):
         load_rule_set_from_mapping(raw)
+
+
+# ---- rule-set binding (assignment references a rule-set) -----------------
+
+
+def _binding(**overrides: Any) -> dict[str, Any]:
+    raw: dict[str, Any] = {
+        "schema_version": "1.0.0",
+        "id": "assign-baseline",
+        "rule_set": "security-baseline",
+        "scope": {"level": "resource-group", "id": "rg-a"},
+    }
+    raw.update(overrides)
+    return raw
+
+
+def test_assignment_binds_rule_set() -> None:
+    rs = load_rule_set_from_mapping(_minimal_rule_set())
+    a = load_assignment_from_mapping(_binding(), rule_sets={rs.id: rs})
+    # every rule-set member becomes a target rule
+    assert a.target_rule_ids == frozenset({"r.encryption", "r.tagging"})
+    # the rule-set's per-rule default_effect becomes the assignment override
+    assert a.effect_for("r.encryption") is Effect.DENY
+    assert a.effect_for("r.tagging") is Effect.AUDIT
+    assert a.scope.id == "rg-a"
+    # top-level defaults stay shadow
+    assert a.effect is Effect.AUDIT
+    assert a.enforcement is Enforcement.DO_NOT_ENFORCE
+
+
+def test_assignment_binding_effect_overrides_tune_rule_set_defaults() -> None:
+    rs = load_rule_set_from_mapping(_minimal_rule_set())
+    a = load_assignment_from_mapping(
+        _binding(effect_overrides={"r.encryption": "audit"}, enforcement="enforce"),
+        rule_sets={rs.id: rs},
+    )
+    # the assignment-level override wins over the rule-set default (deny -> audit)
+    assert a.effect_for("r.encryption") is Effect.AUDIT
+    assert a.enforcement is Enforcement.ENFORCE
+
+
+def test_assignment_unknown_rule_set_rejected() -> None:
+    with pytest.raises(GovernanceLoadError) as ei:
+        load_assignment_from_mapping(_binding(), rule_sets={})
+    assert any("unknown rule-set" in i.message for i in ei.value.issues)
+
+
+def test_assignment_rule_set_without_map_rejected() -> None:
+    with pytest.raises(GovernanceLoadError):
+        load_assignment_from_mapping(_binding())
+
+
+def test_assignment_both_rule_set_and_target_rule_ids_rejected() -> None:
+    raw = _binding(target_rule_ids=["r.x"])
+    with pytest.raises(GovernanceLoadError):
+        load_assignment_from_mapping(raw, rule_sets={})
+
+
+def test_assignment_neither_rule_set_nor_target_rule_ids_rejected() -> None:
+    raw = _binding()
+    del raw["rule_set"]
+    with pytest.raises(GovernanceLoadError):
+        load_assignment_from_mapping(raw, rule_sets={})

@@ -23,7 +23,11 @@ from jsonschema import Draft202012Validator
 
 from fdai.rule_catalog.schema.assignment import Assignment
 from fdai.rule_catalog.schema.effect import Effect, Enforcement
-from fdai.rule_catalog.schema.rule_set import RuleSet, RuleSetMember
+from fdai.rule_catalog.schema.rule_set import (
+    RuleSet,
+    RuleSetMember,
+    assignment_from_rule_set,
+)
 from fdai.rule_catalog.schema.scope import Scope, ScopeLevel, ScopeSelector
 
 _SCHEMA_PACKAGE = "fdai.rule_catalog.schema"
@@ -94,25 +98,66 @@ def _build_scope(raw: Mapping[str, Any]) -> Scope:
     )
 
 
-def load_assignment_from_mapping(raw: Mapping[str, Any]) -> Assignment:
+def load_assignment_from_mapping(
+    raw: Mapping[str, Any],
+    *,
+    rule_sets: Mapping[str, RuleSet] | None = None,
+) -> Assignment:
     """Validate ``raw`` against the assignment schema and build an Assignment.
 
-    Raises :class:`GovernanceLoadError` carrying every schema issue on failure;
-    on success returns the domain :class:`Assignment` (whose own constructor
-    enforces the non-empty-id / at-least-one-rule invariants).
+    An assignment binds either an explicit ``target_rule_ids`` list or a
+    ``rule_set`` (by id) to a scope. When it references a rule-set, ``rule_sets``
+    MUST supply that set; the rule-set's per-rule ``default_effect`` becomes the
+    assignment's ``effect_overrides`` (any explicit ``effect_overrides`` in the
+    mapping tune it further), via
+    :func:`~fdai.rule_catalog.schema.rule_set.assignment_from_rule_set`.
+
+    Raises :class:`GovernanceLoadError` carrying every schema issue on failure -
+    including an unresolved ``rule_set`` reference; on success returns the domain
+    :class:`Assignment` (whose own constructor enforces the non-empty-id /
+    at-least-one-rule invariants).
     """
     issues = _collect_issues(_ASSIGNMENT_VALIDATOR, raw)
     if issues:
         raise GovernanceLoadError(issues)
 
+    overrides = {k: Effect(v) for k, v in raw.get("effect_overrides", {}).items()}
+    effect = Effect(raw.get("effect", "audit"))
+    enforcement = Enforcement(raw.get("enforcement", "do-not-enforce"))
+    parameters = dict(raw.get("parameters", {}))
+    scope = _build_scope(raw["scope"])
+
+    rule_set_ref = raw.get("rule_set")
+    if rule_set_ref is not None:
+        available = rule_sets or {}
+        rule_set = available.get(rule_set_ref)
+        if rule_set is None:
+            raise GovernanceLoadError(
+                [
+                    GovernanceLoadIssue(
+                        key="rule_set",
+                        message=f"references unknown rule-set {rule_set_ref!r}",
+                    )
+                ]
+            )
+        return assignment_from_rule_set(
+            rule_set,
+            id=raw["id"],
+            scope=scope,
+            effect=effect,
+            enforcement=enforcement,
+            parameters=parameters,
+            extra_overrides=overrides,
+        )
+
     return Assignment(
         id=raw["id"],
         target_rule_ids=frozenset(raw["target_rule_ids"]),
-        scope=_build_scope(raw["scope"]),
-        effect=Effect(raw.get("effect", "audit")),
-        enforcement=Enforcement(raw.get("enforcement", "do-not-enforce")),
-        parameters=dict(raw.get("parameters", {})),
-        effect_overrides={k: Effect(v) for k, v in raw.get("effect_overrides", {}).items()},
+        scope=scope,
+        effect=effect,
+        enforcement=enforcement,
+        parameters=parameters,
+        effect_overrides=overrides,
     )
 
 

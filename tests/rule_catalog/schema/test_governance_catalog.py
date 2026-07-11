@@ -88,3 +88,32 @@ members:
     with pytest.raises(GovernanceLoadError) as ei:
         load_governance_catalog(tmp_path)
     assert any("duplicate member" in i.message for i in ei.value.issues)
+
+
+_RULE_SET_BINDING = """
+schema_version: "1.0.0"
+id: "assign-baseline-set"
+rule_set: "security-baseline"
+scope:
+  level: "resource-group"
+  id: "rg-a"
+"""
+
+
+def test_assignment_binds_rule_set_across_files(tmp_path: Path) -> None:
+    _write(tmp_path, "rule-sets", "s.yaml", _VALID_RULE_SET)
+    _write(tmp_path, "assignments", "bind.yaml", _RULE_SET_BINDING)
+    cat = load_governance_catalog(tmp_path)
+    (assignment,) = cat.assignments
+    # the rule-set's members + per-rule default effects flow into the assignment
+    assert assignment.target_rule_ids == frozenset({"r.encryption"})
+    from fdai.rule_catalog.schema.effect import Effect
+
+    assert assignment.effect_for("r.encryption") is Effect.DENY
+
+
+def test_assignment_binding_unknown_rule_set_rejected(tmp_path: Path) -> None:
+    _write(tmp_path, "assignments", "bind.yaml", _RULE_SET_BINDING)  # no rule-set file
+    with pytest.raises(GovernanceLoadError) as ei:
+        load_governance_catalog(tmp_path)
+    assert any("unknown rule-set" in i.message for i in ei.value.issues)

@@ -107,7 +107,11 @@ assignment's top-level `effect` is the default for rules without an override.
 > in the same module. A directory loader
 > ([`governance_catalog.py`](../../../src/fdai/rule_catalog/schema/governance_catalog.py),
 > `load_governance_catalog`) reads the whole catalog-as-code tree (`assignments/` + `rule-sets/`),
-> aggregating every file's issues. The CI transition gate core also ships:
+> aggregating every file's issues. An assignment binds either an explicit `target_rule_ids` list or
+> a `rule_set` (by id): the loader resolves a rule-set reference against the loaded rule-sets and
+> expands it via `assignment_from_rule_set` (carrying the set's per-rule `default_effect` as
+> overrides), so "rule-set applied to a scope" works end-to-end; an unresolved reference fails at the
+> load boundary. The CI transition gate core also ships:
 > `validate_catalog_transition`
 > ([`governance_transitions.py`](../../../src/fdai/rule_catalog/schema/governance_transitions.py))
 > compares a previous and current `GovernanceCatalog` and rejects any per-rule effective-effect
