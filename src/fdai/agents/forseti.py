@@ -16,6 +16,7 @@ from typing import Any
 
 from fdai.agents._framework.action_semantics import quorum_for
 from fdai.agents._framework.base import Agent
+from fdai.agents._framework.bounded import BoundedLruDict
 from fdai.agents._framework.bus import PantheonBus
 from fdai.agents._framework.introspection import (
     IntrospectionResult,
@@ -61,6 +62,10 @@ _DEFAULT_RBAC: dict[str, frozenset[str]] = {
     "guest@example.com": frozenset({"ops.restart-service"}),
 }
 
+# LRU cap on the per-resource domain-advice maps, so a long-lived judge that
+# sees advice for many resources without a conflict cannot leak memory.
+_MAX_RESOURCES = 10_000
+
 
 class Forseti(Agent):
     """Wave-3 Forseti: rule match + risk verdict + RBAC + SecurityEvent."""
@@ -80,12 +85,13 @@ class Forseti(Agent):
         # Accumulated domain advice per resource id: {resource: {domain:
         # recommendation}}. Fed by object.cost-anomaly / capacity-forecast
         # so conflicting advice arriving on separate signals still triggers
-        # arbitration.
-        self._domain_advice: dict[str, dict[str, str]] = {}
+        # arbitration. Bounded (LRU): non-conflicting advice that never gets
+        # popped would otherwise grow one entry per resource forever.
+        self._domain_advice: BoundedLruDict[str, dict[str, str]] = BoundedLruDict(_MAX_RESOURCES)
         # Measured impact magnitude per (resource, domain) in [0, 1], derived
         # from the signal (cost overspend ratio, capacity forecast util). Fed
         # to Odin so arbitration weighs magnitude, not just priority.
-        self._domain_impact: dict[str, dict[str, float]] = {}
+        self._domain_impact: BoundedLruDict[str, dict[str, float]] = BoundedLruDict(_MAX_RESOURCES)
 
     def bind_bus(self, bus: PantheonBus) -> None:
         self.bus = bus
@@ -140,9 +146,15 @@ class Forseti(Agent):
         recommendation = str(payload.get("recommendation", ""))
         if not resource_id or not recommendation:
             return None
-        advice = self._domain_advice.setdefault(resource_id, {})
+        advice = self._domain_advice.get(resource_id)
+        if advice is None:
+            advice = {}
+            self._domain_advice.set(resource_id, advice)
         advice[domain] = recommendation
-        impacts = self._domain_impact.setdefault(resource_id, {})
+        impacts = self._domain_impact.get(resource_id)
+        if impacts is None:
+            impacts = {}
+            self._domain_impact.set(resource_id, impacts)
         impacts[domain] = _signal_impact(domain, payload)
         if not _is_conflict(advice):
             return None

@@ -29,12 +29,17 @@ from typing import Any
 
 from fdai.agents._framework.action_semantics import outcome_result
 from fdai.agents._framework.base import Agent
+from fdai.agents._framework.bounded import BoundedLruDict, BoundedLruSet
 from fdai.agents._framework.introspection import IntrospectionResult, capability_facts, capped_list
 from fdai.agents._framework.pantheon import _NORNS
 
 # Adverse outcomes that count against an action's success record.
 _ADVERSE_RESULTS: frozenset[str] = frozenset({"rollback", "failure", "reverted"})
 _SUCCESS_RESULTS: frozenset[str] = frozenset({"success", "applied", "ok"})
+
+# LRU cap on the per-event / per-fingerprint maps a long-lived learner keeps,
+# so they cannot grow without bound over the process lifetime.
+_MAX_TRACKED = 50_000
 
 
 class Norns(Agent):
@@ -61,7 +66,10 @@ class Norns(Agent):
         if override_retire_threshold < 1:
             raise ValueError("override_retire_threshold MUST be >= 1")
         super().__init__(spec=_NORNS)
-        self._fingerprint_counter: Counter[str] = Counter()
+        # Fingerprints are content hashes (one per distinct incident), so the
+        # counter is bounded by an LRU cap - a long-lived learner would leak
+        # otherwise.
+        self._fingerprint_counter: BoundedLruDict[str, int] = BoundedLruDict(_MAX_TRACKED)
         self._proposed: set[str] = set()
         self._promotion_threshold = promotion_threshold
         self.pending_candidates: list[dict[str, Any]] = []
@@ -74,8 +82,9 @@ class Norns(Agent):
         # action that emits multiple adverse terminal audits (Thor emits
         # FAILED then ROLLED_BACK for a failed action) is scored once, not
         # twice. Only applied when a correlation_id is present; audit-entries
-        # without one fall back to per-event counting.
-        self._counted_correlations: set[str] = set()
+        # without one fall back to per-event counting. Bounded (LRU): one
+        # entry per action forever would leak on a long-lived learner.
+        self._counted_correlations: BoundedLruSet[str] = BoundedLruSet(_MAX_TRACKED)
         # Override learner state.
         self._override_retire_threshold = override_retire_threshold
         self._override_counter: Counter[str] = Counter()
@@ -100,15 +109,16 @@ class Norns(Agent):
         fp = str(payload.get("fingerprint", ""))
         if not fp:
             return
-        self._fingerprint_counter[fp] += 1
-        if self._fingerprint_counter[fp] >= self._promotion_threshold and fp not in self._proposed:
+        count = (self._fingerprint_counter.get(fp) or 0) + 1
+        self._fingerprint_counter.set(fp, count)
+        if count >= self._promotion_threshold and fp not in self._proposed:
             self._proposed.add(fp)
             self.pending_candidates.append(
                 {
                     "source_signal": "handoff_fingerprint",
                     "evidence": {
                         "fingerprint": fp,
-                        "occurrence_count": self._fingerprint_counter[fp],
+                        "occurrence_count": count,
                     },
                     "proposed_by": "Norns",
                     "proposal_kind": "new",
@@ -212,7 +222,7 @@ class Norns(Agent):
     # ---- observers -----------------------------------------------------
 
     def occurrences(self, fingerprint: str) -> int:
-        return self._fingerprint_counter[fingerprint]
+        return self._fingerprint_counter.get(fingerprint) or 0
 
     def outcome_rate(self, target: str) -> float | None:
         """Measured rollback rate for a target, or None if unseen."""
