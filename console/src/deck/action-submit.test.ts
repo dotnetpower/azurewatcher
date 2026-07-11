@@ -83,7 +83,7 @@ describe("submitAction", () => {
   });
 
   test("sends a stable idempotency key so retries dedup server-side", async () => {
-    const spy = vi.fn(async () =>
+    const spy = vi.fn(async (_url: string, _init: RequestInit) =>
       fakeResponse(200, { submitted: true, action_type: "ops.restart-service" }),
     );
     vi.stubGlobal("fetch", spy);
