@@ -161,7 +161,13 @@ export function ProvisionRoute(_props: Props) {
     <div class="provision">
       <header class="provision-head">
         <h1 class="provision-title">Provisioning</h1>
-        <span class={`provision-conn provision-conn--${status}`}>{statusLabel(status)}</span>
+        <span
+          class={`provision-conn provision-conn--${status}`}
+          role="status"
+          aria-live="polite"
+        >
+          {statusLabel(status)}
+        </span>
       </header>
 
       <p class="provision-sub">
@@ -183,30 +189,34 @@ export function ProvisionRoute(_props: Props) {
       </div>
       <div class="provision-pct">{pct.toFixed(1)}%</div>
 
-      {state.waiting && (
-        <p class="provision-line provision-line--waiting">
-          Waiting on <code>{state.waiting}</code>
-          {state.waitingReason ? ` - ${state.waitingReason}` : ""}. Holding, honestly.
-        </p>
-      )}
+      {/* Live region: state transitions (waiting / failed / done) are
+          announced to assistive tech, which a purely visual meter cannot do. */}
+      <div class="provision-status" role="status" aria-live="polite">
+        {state.waiting && (
+          <p class="provision-line provision-line--waiting">
+            Waiting on <code>{state.waiting}</code>
+            {state.waitingReason ? ` - ${state.waitingReason}` : ""}. Holding, honestly.
+          </p>
+        )}
 
-      {state.failed && (
-        <p class="provision-line provision-line--failed">
-          Failed on <code>{state.failed}</code>
-          {state.failedReason ? ` - ${state.failedReason}` : ""}.
-        </p>
-      )}
+        {state.failed && (
+          <p class="provision-line provision-line--failed">
+            Failed on <code>{state.failed}</code>
+            {state.failedReason ? ` - ${state.failedReason}` : ""}.
+          </p>
+        )}
 
-      {state.done && (
-        <div class="provision-done">
-          <p class="provision-line provision-line--done">Every resource is up.</p>
-          {consoleUrl && (
-            <a class="provision-enter" href={consoleUrl} rel="noopener noreferrer">
-              Enter the control plane
-            </a>
-          )}
-        </div>
-      )}
+        {state.done && (
+          <div class="provision-done">
+            <p class="provision-line provision-line--done">Every resource is up.</p>
+            {consoleUrl && (
+              <a class="provision-enter" href={consoleUrl} rel="noopener noreferrer">
+                Enter the control plane
+              </a>
+            )}
+          </div>
+        )}
+      </div>
 
       {state.recent.length > 0 && (
         <ul class="provision-recent" aria-label="Recently provisioned resources">
