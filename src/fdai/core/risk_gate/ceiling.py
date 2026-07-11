@@ -181,7 +181,22 @@ def _axis_d_static_blast(at: OntologyActionType, graph_affected: int | None) -> 
         )
     if br.computation.value == "graph_derived":
         cap = br.max_affected_resources
-        if graph_affected is not None and cap is not None and graph_affected > cap:
+        if graph_affected is None or cap is None:
+            # Fail-closed: a graph_derived blast whose runtime affected-
+            # count was NOT measured (the caller did not walk the ontology
+            # graph via blast_radius_simulator), or whose cap is
+            # undeclared, has an UNKNOWN impact surface - cap at HIL
+            # rather than fail open into auto. This mirrors the RiskGate
+            # blast-radius count=None guard: an unknown blast can never be
+            # auto. (The control loop does not yet supply graph_affected,
+            # so graph_derived actions correctly cap at HIL until the
+            # simulator is wired.)
+            return AxisContribution(
+                "static_blast",
+                AxisLevel.ENFORCE_HIL,
+                "graph_derived unknown affected-count or cap -> HIL",
+            )
+        if graph_affected > cap:
             return AxisContribution(
                 "static_blast",
                 AxisLevel.ENFORCE_HIL,

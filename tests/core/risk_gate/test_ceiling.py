@@ -283,6 +283,42 @@ def test_graph_derived_within_cap_is_neutral() -> None:
     assert rc.final_level == AxisLevel.ENFORCE_AUTO
 
 
+def test_graph_derived_unmeasured_affected_fails_closed_to_hil() -> None:
+    # graph_affected=None (control loop did not walk the ontology graph)
+    # MUST NOT fail open to auto - the impact surface is unknown, so the
+    # static-blast axis caps at HIL.
+    blast = ActionBlastRadius(
+        computation=BlastRadiusComputation.GRAPH_DERIVED, max_affected_resources=5
+    )
+    rc = resolve_ceiling(
+        tier=Tier.T0,
+        action_type=_at(blast=blast),
+        risk_table=RiskTableResult(level="auto"),
+        principal_role=None,
+        env="non_prod",
+        graph_affected=None,
+    )
+    static = next(a for a in rc.axes if a.name == "static_blast")
+    assert static.level == AxisLevel.ENFORCE_HIL
+    assert rc.final_level <= AxisLevel.ENFORCE_HIL
+
+
+def test_graph_derived_missing_cap_fails_closed_to_hil() -> None:
+    blast = ActionBlastRadius(
+        computation=BlastRadiusComputation.GRAPH_DERIVED, max_affected_resources=None
+    )
+    rc = resolve_ceiling(
+        tier=Tier.T0,
+        action_type=_at(blast=blast),
+        risk_table=RiskTableResult(level="auto"),
+        principal_role=None,
+        env="non_prod",
+        graph_affected=3,
+    )
+    static = next(a for a in rc.axes if a.name == "static_blast")
+    assert static.level == AxisLevel.ENFORCE_HIL
+
+
 def test_prod_without_downgrade_but_non_prod_scope_is_neutral() -> None:
     rc = resolve_ceiling(
         tier=Tier.T0,
