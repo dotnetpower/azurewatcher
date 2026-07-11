@@ -38,6 +38,13 @@ fi
 mapfile -t files < <(
   find src/fdai/agents -type f -name '*.py' \
     ! -path '*/__pycache__/*' \
+    ! -path '*/.pytest_cache/*' \
+    ! -path '*/.mypy_cache/*' \
+    ! -path '*/.ruff_cache/*' \
+    ! -path '*/.tox/*' \
+    ! -path '*/.venv/*' \
+    ! -path '*/venv/*' \
+    ! -path '*/.git/*' \
     ! -name '__init__.pyc' \
     | LC_ALL=C sort
 )

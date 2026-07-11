@@ -55,10 +55,20 @@ if [[ -f "$allowlist_file" ]]; then
   done < "$allowlist_file"
 fi
 
-# Deterministic ordering; excludes __pycache__ automatically.
+# Deterministic ordering; excludes __pycache__ and the common Python
+# tool-cache / virtualenv dot-dirs. The generic exclusion keeps the
+# gate honest when a developer runs it inside a repo that also carries
+# .pytest_cache/ or a nested .venv (checked-out for a debug session).
 mapfile -t files < <(
   find src/fdai -type f -name '*.py' \
     ! -path '*/__pycache__/*' \
+    ! -path '*/.pytest_cache/*' \
+    ! -path '*/.mypy_cache/*' \
+    ! -path '*/.ruff_cache/*' \
+    ! -path '*/.tox/*' \
+    ! -path '*/.venv/*' \
+    ! -path '*/venv/*' \
+    ! -path '*/.git/*' \
     | LC_ALL=C sort
 )
 

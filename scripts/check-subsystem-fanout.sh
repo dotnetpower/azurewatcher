@@ -62,6 +62,13 @@ fi
 mapfile -t files < <(
   find src/fdai/core -type f -name '*.py' \
     ! -path '*/__pycache__/*' \
+    ! -path '*/.pytest_cache/*' \
+    ! -path '*/.mypy_cache/*' \
+    ! -path '*/.ruff_cache/*' \
+    ! -path '*/.tox/*' \
+    ! -path '*/.venv/*' \
+    ! -path '*/venv/*' \
+    ! -path '*/.git/*' \
     | LC_ALL=C sort
 )
 
