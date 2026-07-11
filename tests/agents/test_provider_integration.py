@@ -257,6 +257,66 @@ def test_bridge_snapshot_exposes_metrics() -> None:
     assert snap["metrics"]["delivered"] == 0
 
 
+def test_bridge_counts_published() -> None:
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(provider=provider, registry=reg)
+    asyncio.run(bridge.publish("Forseti", "object.verdict", {"correlation_id": "c"}))
+    asyncio.run(bridge.publish("Forseti", "object.verdict", {"correlation_id": "d"}))
+    assert bridge.metrics.published == 2
+    assert bridge.metrics.publish_errors == 0
+
+
+def test_bridge_counts_publish_error_and_reraises() -> None:
+    """A broker publish failure is counted and re-raised (fail closed)."""
+
+    class BadPublishBus(InMemoryEventBus):
+        async def publish(self, *args: object, **kwargs: object):  # type: ignore[override]
+            raise RuntimeError("broker down")
+
+    reg = load_pantheon()
+    bridge = EventBusBridge(provider=BadPublishBus(), registry=reg)
+    with pytest.raises(RuntimeError, match="broker down"):
+        asyncio.run(bridge.publish("Forseti", "object.verdict", {"correlation_id": "c"}))
+    assert bridge.metrics.publish_errors == 1
+    assert bridge.metrics.published == 0
+
+
+def test_bridge_stamps_schema_version() -> None:
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(provider=provider, registry=reg)
+    asyncio.run(bridge.publish("Forseti", "object.verdict", {"correlation_id": "c"}))
+    assert provider._records["object.verdict"][0][1]["schema_version"] == 1
+    # A caller-supplied version is not overwritten.
+    asyncio.run(
+        bridge.publish("Forseti", "object.verdict", {"correlation_id": "d", "schema_version": 99})
+    )
+    assert provider._records["object.verdict"][1][1]["schema_version"] == 99
+
+
+def test_bridge_counts_missing_correlation_id() -> None:
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(provider=provider, registry=reg)
+    asyncio.run(bridge.publish("Forseti", "object.verdict", {"risk_verdict": "auto"}))
+    assert bridge.metrics.missing_correlation_id == 1
+
+
+def test_bridge_counts_missing_idempotency_key_on_mutation_topic() -> None:
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(provider=provider, registry=reg)
+    # object.action-run is a mutation topic; no idempotency_key -> counted.
+    asyncio.run(
+        bridge.publish("Thor", "object.action-run", {"correlation_id": "c", "resource_id": "vm-1"})
+    )
+    assert bridge.metrics.missing_idempotency_key == 1
+    # A judgment topic without idempotency_key is NOT counted (not required).
+    asyncio.run(bridge.publish("Forseti", "object.verdict", {"correlation_id": "c"}))
+    assert bridge.metrics.missing_idempotency_key == 1
+
+
 class _FlakyBus(InMemoryEventBus):
     """Subscribe raises the first ``fail_times`` calls, then succeeds."""
 

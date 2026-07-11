@@ -15,9 +15,16 @@ from __future__ import annotations
 
 from typing import Any
 
+# Envelope schema version stamped on every published record. Bumped only
+# on a breaking change to the shared envelope shape (correlation_id /
+# idempotency_key / producer_principal semantics), so consumers can gate
+# on it during a rolling upgrade.
+ENVELOPE_SCHEMA_VERSION = 1
+
 # Topics whose payloads mutate a resource - partition by `resource_id`
-# so concurrent writes to the same resource serialize.
-_MUTATION_TOPICS: frozenset[str] = frozenset(
+# so concurrent writes to the same resource serialize. Public so the bus
+# bridge shares one source of truth (no second copy that can drift).
+MUTATION_TOPICS: frozenset[str] = frozenset(
     {
         "object.action-run",
         "object.action-attempt",
@@ -27,7 +34,7 @@ _MUTATION_TOPICS: frozenset[str] = frozenset(
 
 # Topics whose payloads carry an approval or human decision - partition
 # by `correlation_id` so the whole HIL round-trip stays on one consumer.
-_CORRELATION_TOPICS: frozenset[str] = frozenset(
+CORRELATION_TOPICS: frozenset[str] = frozenset(
     {
         "object.verdict",
         "object.approval",
@@ -37,6 +44,11 @@ _CORRELATION_TOPICS: frozenset[str] = frozenset(
         "object.security-event",
     }
 )
+
+# Backwards-compatible private aliases (kept so any internal reference to
+# the old names keeps working; the public names above are canonical).
+_MUTATION_TOPICS = MUTATION_TOPICS
+_CORRELATION_TOPICS = CORRELATION_TOPICS
 
 
 # All object topics recognized by the topic namespace.
@@ -115,6 +127,9 @@ def _kebab(name: str) -> str:
 
 __all__ = [
     "OWNED_OBJECT_TOPICS",
+    "MUTATION_TOPICS",
+    "CORRELATION_TOPICS",
+    "ENVELOPE_SCHEMA_VERSION",
     "topic_for_object_type",
     "partition_key_for",
 ]

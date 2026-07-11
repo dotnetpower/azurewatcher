@@ -30,26 +30,17 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fdai.agents._framework.registry import PantheonRegistry
+from fdai.agents._framework.topics import (
+    ENVELOPE_SCHEMA_VERSION,
+    MUTATION_TOPICS,
+    partition_key_for,
+)
 from fdai.shared.providers.event_bus import EventBus, PublishReceipt
 
 _LOG = logging.getLogger(__name__)
 
 Payload = Mapping[str, object]
 Handler = Callable[[str, dict[str, object]], Awaitable[None]]
-
-# Kafka key resolver: pantheon agents already put ``resource_id`` on
-# mutation payloads and ``correlation_id`` on judgment / audit payloads,
-# so the bridge picks whichever is present.
-_MUTATION_TOPICS: frozenset[str] = frozenset(
-    {"object.action-run", "object.action-attempt", "object.rollback"}
-)
-
-
-def _partition_key(topic: str, payload: Payload) -> str:
-    if topic in _MUTATION_TOPICS:
-        rid = payload.get("resource_id") or payload.get("correlation_id", "")
-        return str(rid)
-    return str(payload.get("correlation_id", ""))
 
 
 @dataclass
@@ -67,9 +58,15 @@ class BridgeMetrics:
     consumers_gave_up: int = 0
     delivered: int = 0
     handler_errors: int = 0
+    handler_retries: int = 0
     dead_lettered: int = 0
     dead_letter_errors: int = 0
     empty_partition_keys: int = 0
+    published: int = 0
+    publish_errors: int = 0
+    missing_correlation_id: int = 0
+    missing_idempotency_key: int = 0
+    producer_principal_mismatch: int = 0
 
     def as_dict(self) -> dict[str, int]:
         return {
@@ -79,9 +76,15 @@ class BridgeMetrics:
             "consumers_gave_up": self.consumers_gave_up,
             "delivered": self.delivered,
             "handler_errors": self.handler_errors,
+            "handler_retries": self.handler_retries,
             "dead_lettered": self.dead_lettered,
             "dead_letter_errors": self.dead_letter_errors,
             "empty_partition_keys": self.empty_partition_keys,
+            "published": self.published,
+            "publish_errors": self.publish_errors,
+            "missing_correlation_id": self.missing_correlation_id,
+            "missing_idempotency_key": self.missing_idempotency_key,
+            "producer_principal_mismatch": self.producer_principal_mismatch,
         }
 
 
@@ -128,7 +131,10 @@ class EventBusBridge:
         self.registry.assert_can_publish(principal, topic)
         enriched = dict(payload)
         enriched.setdefault("producer_principal", principal)
-        key = _partition_key(topic, enriched)
+        # Stamp the envelope version so a rolling upgrade can gate on it.
+        enriched.setdefault("schema_version", ENVELOPE_SCHEMA_VERSION)
+        self._check_envelope(topic, enriched, principal)
+        key = partition_key_for(topic, enriched)
         if not key:
             # An empty key collapses Kafka partitioning (loss of
             # per-resource ordering). Surface it rather than silently
@@ -138,7 +144,45 @@ class EventBusBridge:
                 "pantheon_empty_partition_key",
                 extra={"topic": topic, "principal": principal},
             )
-        return await self.provider.publish(topic, key, enriched)
+        try:
+            receipt = await self.provider.publish(topic, key, enriched)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.metrics.publish_errors += 1
+            _LOG.exception(
+                "pantheon_publish_failed",
+                extra={"topic": topic, "principal": principal},
+            )
+            raise
+        self.metrics.published += 1
+        return receipt
+
+    def _check_envelope(self, topic: str, payload: Mapping[str, object], principal: str) -> None:
+        """Count (never block) missing shared-envelope fields.
+
+        The wire contract (agent-pantheon.md 6.1) says every message carries
+        ``correlation_id`` and ``idempotency_key``. A missing field is a
+        data-quality signal - it breaks correlation (tracing) or dedup
+        (at-least-once safety) downstream - so it is counted and warned
+        here rather than silently accepted. It is not a hard block: a bad
+        envelope MUST NOT stall the pipeline, and the consumer side still
+        fails toward safety.
+        """
+        if not str(payload.get("correlation_id", "")):
+            self.metrics.missing_correlation_id += 1
+            _LOG.warning(
+                "pantheon_missing_correlation_id",
+                extra={"topic": topic, "principal": principal},
+            )
+        # Only mutation topics strictly require an idempotency key (they
+        # are the records an at-least-once redelivery could double-apply).
+        if topic in MUTATION_TOPICS and not str(payload.get("idempotency_key", "")):
+            self.metrics.missing_idempotency_key += 1
+            _LOG.warning(
+                "pantheon_missing_idempotency_key",
+                extra={"topic": topic, "principal": principal},
+            )
 
     # ---- consumer loop -------------------------------------------------
 
