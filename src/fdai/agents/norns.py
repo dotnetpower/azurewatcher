@@ -35,6 +35,16 @@ from fdai.agents._framework.pantheon import _NORNS
 _ADVERSE_RESULTS: frozenset[str] = frozenset({"rollback", "failure", "reverted"})
 _SUCCESS_RESULTS: frozenset[str] = frozenset({"success", "applied", "ok"})
 
+# Thor emits terminal ActionRun ``state`` values; Saga's audit-entry carries
+# them. Normalize to the ``result`` vocabulary the outcome learner scores so
+# an audit-entry that reports ``state`` (not ``result``) still learns.
+_STATE_TO_RESULT: dict[str, str] = {
+    "succeeded": "success",
+    "failed": "failure",
+    "rolled_back": "rollback",
+    "reverted": "rollback",
+}
+
 
 class Norns(Agent):
     """Wave-2 Norns: fingerprint aggregator + outcome / override learner."""
@@ -77,10 +87,15 @@ class Norns(Agent):
     async def on_typed_message(self, topic: str, payload: dict[str, Any]) -> None:
         if topic == "object.issue":
             self._observe_fingerprint(payload)
-        elif topic == "object.action-run":
+        elif topic == "object.audit-entry":
+            # Saga audits every terminal state and republishes it as an
+            # audit-entry; the outcome learner scores rollback rates from it.
             self._observe_outcome(payload)
-        elif topic == "object.override":
-            self._observe_override(payload)
+        # object.override is deliberately NOT handled here: it is not a pantheon
+        # bus topic (agent-pantheon.md 2 - overrides flow through the exemption
+        # / rule-catalog machinery). That machinery calls observe_override()
+        # directly. object.approval is subscribed but has no learner yet
+        # (follow-up: an approval-pattern learner).
 
     # ---- 1. fingerprint aggregator ------------------------------------
 
@@ -115,6 +130,10 @@ class Norns(Agent):
         """
         target = str(payload.get("action_type") or payload.get("rule_id") or "")
         result = str(payload.get("result", "")).lower()
+        if not result:
+            # An audit-entry that reports the raw ActionRun ``state`` (Thor's
+            # vocabulary) instead of a normalized ``result`` still learns.
+            result = _STATE_TO_RESULT.get(str(payload.get("state", "")).lower(), "")
         if not target:
             return
         if result in _ADVERSE_RESULTS:
@@ -150,11 +169,15 @@ class Norns(Agent):
 
     # ---- 3. override learner ------------------------------------------
 
-    def _observe_override(self, payload: dict[str, Any]) -> None:
+    def observe_override(self, payload: dict[str, Any]) -> None:
         """Learn from recurring operator overrides on a rule.
 
-        Repeated overrides mean the rule is a poor fit for the scope; a
-        `disabled` mode proposes retirement, anything else a revision.
+        Public entry point: ``object.override`` is not a pantheon bus topic
+        (overrides flow through the exemption / rule-catalog machinery), so
+        that machinery calls this method directly rather than publishing a
+        topic Norns subscribes to. Repeated overrides mean the rule is a poor
+        fit for the scope; a `disabled` mode proposes retirement, anything
+        else a revision.
         """
         rule_id = str(payload.get("rule_id") or payload.get("target_rule_id") or "")
         event = str(payload.get("event", "create")).lower()

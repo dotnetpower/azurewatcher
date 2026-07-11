@@ -414,13 +414,13 @@ def _run_outcomes(norns: Norns, target: str, *, rollbacks: int, successes: int) 
     for _ in range(rollbacks):
         asyncio.run(
             norns.on_typed_message(
-                "object.action-run", {"action_type": target, "result": "rollback"}
+                "object.audit-entry", {"action_type": target, "result": "rollback"}
             )
         )
     for _ in range(successes):
         asyncio.run(
             norns.on_typed_message(
-                "object.action-run", {"action_type": target, "result": "success"}
+                "object.audit-entry", {"action_type": target, "result": "success"}
             )
         )
 
@@ -471,11 +471,8 @@ def test_norns_threshold_proposal_dedups() -> None:
 def test_norns_proposes_retirement_on_recurring_disable_override() -> None:
     norns = Norns(override_retire_threshold=3)
     for _ in range(3):
-        asyncio.run(
-            norns.on_typed_message(
-                "object.override",
-                {"rule_id": "net.public.deny", "mode": "disabled", "event": "create"},
-            )
+        norns.observe_override(
+            {"rule_id": "net.public.deny", "mode": "disabled", "event": "create"},
         )
     proposals = [c for c in norns.pending_candidates if c["proposal_kind"] == "retirement"]
     assert len(proposals) == 1
@@ -486,11 +483,8 @@ def test_norns_proposes_retirement_on_recurring_disable_override() -> None:
 def test_norns_proposes_revision_on_recurring_downgrade_override() -> None:
     norns = Norns(override_retire_threshold=3)
     for _ in range(3):
-        asyncio.run(
-            norns.on_typed_message(
-                "object.override",
-                {"rule_id": "disk.encrypt", "mode": "severity-downgrade", "event": "create"},
-            )
+        norns.observe_override(
+            {"rule_id": "disk.encrypt", "mode": "severity-downgrade", "event": "create"},
         )
     proposals = [c for c in norns.pending_candidates if c["proposal_kind"] == "revision"]
     assert len(proposals) == 1
@@ -500,11 +494,7 @@ def test_norns_proposes_revision_on_recurring_downgrade_override() -> None:
 def test_norns_override_below_threshold_no_proposal() -> None:
     norns = Norns(override_retire_threshold=5)
     for _ in range(4):
-        asyncio.run(
-            norns.on_typed_message(
-                "object.override", {"rule_id": "r1", "mode": "disabled", "event": "create"}
-            )
-        )
+        norns.observe_override({"rule_id": "r1", "mode": "disabled", "event": "create"})
     assert norns.pending_candidates == []
 
 
@@ -514,10 +504,34 @@ def test_norns_fingerprint_learner_still_isolated() -> None:
     for _ in range(3):
         asyncio.run(norns.on_typed_message("object.issue", {"fingerprint": "fp-x"}))
     asyncio.run(
-        norns.on_typed_message("object.action-run", {"action_type": "a", "result": "success"})
+        norns.on_typed_message("object.audit-entry", {"action_type": "a", "result": "success"})
     )
     new_rules = [c for c in norns.pending_candidates if c["proposal_kind"] == "new"]
     assert len(new_rules) == 1
+
+
+def test_norns_outcome_learner_normalizes_action_run_state() -> None:
+    """An audit-entry that carries Thor's raw ``state`` (not a normalized
+    ``result``) still scores: rolled_back / failed -> adverse, succeeded ->
+    success."""
+    norns = Norns(min_outcome_samples=10, rollback_alarm_rate=0.2)
+    for _ in range(4):
+        asyncio.run(
+            norns.on_typed_message(
+                "object.audit-entry", {"action_type": "remediate.z", "state": "rolled_back"}
+            )
+        )
+    for _ in range(6):
+        asyncio.run(
+            norns.on_typed_message(
+                "object.audit-entry", {"action_type": "remediate.z", "state": "succeeded"}
+            )
+        )
+    proposals = [
+        c for c in norns.pending_candidates if c["proposal_kind"] == "threshold_adjustment"
+    ]
+    assert len(proposals) == 1
+    assert proposals[0]["evidence"]["rollback_rate"] == 0.4
 
 
 def test_norns_constructor_rejects_misconfiguration() -> None:
