@@ -8,6 +8,7 @@ from fdai.rule_catalog.schema.scope import (
     ResourceContext,
     Scope,
     ScopeLevel,
+    ScopeRef,
     ScopeSelector,
     most_specific,
     scope_specificity,
@@ -142,3 +143,61 @@ def test_most_specific_unique_and_tie() -> None:
 def test_scope_id_must_be_non_empty() -> None:
     with pytest.raises(ValueError, match="Scope.id MUST be non-empty"):
         Scope(level=ScopeLevel.RESOURCE, id="  ")
+
+
+# ---- ScopeRef (canonical scope:// URI) ------------------------------------
+
+
+def test_scope_ref_level_and_id_by_depth() -> None:
+    assert ScopeRef(("org-1",)).level is ScopeLevel.ORGANIZATION
+    assert ScopeRef(("org-1", "sub-1")).level is ScopeLevel.ACCOUNT
+    assert ScopeRef(("org-1", "sub-1", "rg-a")).level is ScopeLevel.RESOURCE_GROUP
+    ref = ScopeRef(("org-1", "sub-1", "rg-a", "vm-1"))
+    assert ref.level is ScopeLevel.RESOURCE
+    assert ref.id == "vm-1"
+
+
+def test_scope_ref_parse_render_round_trip() -> None:
+    uri = "scope://org-1/sub-1/rg-a/vm-1"
+    ref = ScopeRef.parse(uri)
+    assert ref.segments == ("org-1", "sub-1", "rg-a", "vm-1")
+    assert ref.render() == uri
+
+
+def test_scope_ref_parse_rejects_bad_prefix() -> None:
+    with pytest.raises(ValueError, match="MUST start with"):
+        ScopeRef.parse("org-1/sub-1")
+
+
+def test_scope_ref_parse_rejects_empty_path() -> None:
+    with pytest.raises(ValueError, match="at least one segment"):
+        ScopeRef.parse("scope://")
+
+
+def test_scope_ref_parse_rejects_empty_segment() -> None:
+    with pytest.raises(ValueError, match="non-empty"):
+        ScopeRef.parse("scope://org-1//rg-a")
+
+
+def test_scope_ref_rejects_too_many_segments() -> None:
+    with pytest.raises(ValueError, match="1..4 segments"):
+        ScopeRef(("a", "b", "c", "d", "e"))
+
+
+def test_scope_ref_rejects_zero_segments() -> None:
+    with pytest.raises(ValueError, match="1..4 segments"):
+        ScopeRef(())
+
+
+def test_scope_ref_covers_full_chain() -> None:
+    ref = ScopeRef(("org-1", "sub-1", "rg-a"))
+    assert ref.covers(_ctx(org="org-1", account="sub-1", rg="rg-a", resource="vm-9"))
+    # a different account with the same rg id does NOT collide (stricter than Scope)
+    assert not ref.covers(_ctx(org="org-1", account="sub-2", rg="rg-a"))
+
+
+def test_scope_ref_to_scope_bridges_to_level_id() -> None:
+    scope = ScopeRef(("org-1", "sub-1", "rg-a")).to_scope()
+    assert scope.level is ScopeLevel.RESOURCE_GROUP
+    assert scope.id == "rg-a"
+    assert scope.covers(_ctx(rg="rg-a"))

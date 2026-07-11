@@ -134,10 +134,77 @@ def most_specific(scopes: Iterable[Scope]) -> tuple[Scope, ...]:
     return tuple(s for s in ordered if scope_specificity(s) == top)
 
 
+_SCOPE_URI_PREFIX = "scope://"
+
+
+@dataclass(frozen=True, slots=True)
+class ScopeRef:
+    """A canonical CSP-neutral scope address rendered as a ``scope://`` URI.
+
+    ``scope://<org>[/<account>[/<resource-group>[/<resource>]]]`` - the number of
+    path segments fixes the level (1 = organization ... 4 = resource), so the
+    address is unambiguous and extensible (rule-governance.md "YAML Shapes").
+    Unlike a bare :class:`Scope` (level + id), a ``ScopeRef`` carries the full
+    ancestor chain, so two accounts that reuse a resource-group id never collide.
+    """
+
+    segments: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not (1 <= len(self.segments) <= len(ScopeLevel)):
+            raise ValueError(
+                f"ScopeRef MUST have 1..{len(ScopeLevel)} segments, got {len(self.segments)}"
+            )
+        for seg in self.segments:
+            if not seg.strip() or "/" in seg:
+                raise ValueError(f"ScopeRef segment MUST be non-empty and '/'-free: {seg!r}")
+
+    @property
+    def level(self) -> ScopeLevel:
+        """The hierarchy level this address resolves to (deepest segment)."""
+        return ScopeLevel(len(self.segments) - 1)
+
+    @property
+    def id(self) -> str:
+        """The scope id at this address's level (the last segment)."""
+        return self.segments[-1]
+
+    @classmethod
+    def parse(cls, uri: str) -> ScopeRef:
+        """Parse a ``scope://`` URI. Raises :class:`ValueError` on a bad prefix,
+        an empty path, or an empty/embedded-slash segment."""
+        if not uri.startswith(_SCOPE_URI_PREFIX):
+            raise ValueError(f"scope URI MUST start with {_SCOPE_URI_PREFIX!r}: {uri!r}")
+        path = uri[len(_SCOPE_URI_PREFIX) :]
+        if not path:
+            raise ValueError(f"scope URI MUST have at least one segment: {uri!r}")
+        return cls(segments=tuple(path.split("/")))
+
+    def render(self) -> str:
+        """Render back to the canonical ``scope://`` URI (round-trips ``parse``)."""
+        return _SCOPE_URI_PREFIX + "/".join(self.segments)
+
+    def covers(self, ctx: ResourceContext) -> bool:
+        """True when this address is an ancestor-or-self of the resource - every
+        provided segment equals the resource's id at that level (full-chain
+        match, stricter than :meth:`Scope.covers`)."""
+        return all(ctx.id_at(ScopeLevel(index)) == seg for index, seg in enumerate(self.segments))
+
+    def to_scope(
+        self,
+        *,
+        selector: ScopeSelector | None = None,
+        excludes: frozenset[str] = frozenset(),
+    ) -> Scope:
+        """Bridge to the single-level :class:`Scope` consumed by the resolver."""
+        return Scope(level=self.level, id=self.id, selector=selector, excludes=excludes)
+
+
 __all__ = [
     "ResourceContext",
     "Scope",
     "ScopeLevel",
+    "ScopeRef",
     "ScopeSelector",
     "most_specific",
     "scope_specificity",

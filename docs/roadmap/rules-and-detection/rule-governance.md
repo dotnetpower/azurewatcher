@@ -128,10 +128,12 @@ assignment's top-level `effect` is the default for rules without an override.
 > ([`provenance.py`](../../../src/fdai/rule_catalog/schema/provenance.py)) now ships, every artifact
 > carries an optional `provenance` block, and both artifacts accept the `kind`
 > ([`governance_kind.py`](../../../src/fdai/rule_catalog/schema/governance_kind.py)) discriminator
-> plus an artifact `version`. The remaining gaps still being reconciled: a rule-set is bound through
-> `rule_set` / `target_rule_ids` (not `target`), and scope is modelled as `level` + `id` +
-> `excludes` + a typed `selector` (not `scope://` include/exclude URIs) with flat `parameters` (not
-> per-rule `parameter_overrides`).
+> plus an artifact `version`. The canonical `scope://` address primitive
+> ([`ScopeRef`](../../../src/fdai/rule_catalog/schema/scope.py)) also ships - it parses / renders a
+> full-ancestor-chain URI and bridges to a `Scope`. The remaining gaps still being reconciled: a
+> rule-set is bound through `rule_set` / `target_rule_ids` (not `target`), and the loader still takes
+> a single structured `scope` (`level` + `id` + `excludes` + a typed `selector`) rather than
+> `scope://` include/exclude URI lists, with flat `parameters` (not per-rule `parameter_overrides`).
 
 ## Scope
 
