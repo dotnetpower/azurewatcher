@@ -209,8 +209,9 @@ def test_empty_events_abstain() -> None:
 
 def test_self_event_is_ignored() -> None:
     events = [
-        CorrelatedEvent(event_id="fail", at=FAIL_AT - timedelta(minutes=1),
-                        resource_ref="app", is_change=True),
+        CorrelatedEvent(
+            event_id="fail", at=FAIL_AT - timedelta(minutes=1), resource_ref="app", is_change=True
+        ),
     ]
     assert _reconstruct(events) is None
 
@@ -264,10 +265,20 @@ def test_duplicate_event_ids_are_deduplicated() -> None:
 def test_change_kind_weight_biases_root_selection() -> None:
     # Two equidistant changes; a heavier change-kind wins the tie.
     events = [
-        _ev("deploy", before=timedelta(minutes=2), resource="app",
-            is_change=True, change_kind="deploy"),
-        _ev("tweak", before=timedelta(minutes=2), resource="app",
-            is_change=True, change_kind="config"),
+        _ev(
+            "deploy",
+            before=timedelta(minutes=2),
+            resource="app",
+            is_change=True,
+            change_kind="deploy",
+        ),
+        _ev(
+            "tweak",
+            before=timedelta(minutes=2),
+            resource="app",
+            is_change=True,
+            change_kind="config",
+        ),
     ]
     chain = _reconstruct(
         events,
@@ -358,4 +369,3 @@ def test_empty_chain_resource_path_is_empty() -> None:
     )
     assert empty.resource_path == ()
     assert empty.event_ids == ("root",)
-

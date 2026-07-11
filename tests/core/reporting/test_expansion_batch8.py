@@ -352,4 +352,3 @@ class TestInMemoryReportCache:
         # env=c is still hot, so it hits the cache (no new render).
         await cache.render("r", variables={"env": "c"})
         assert source.calls == 4
-

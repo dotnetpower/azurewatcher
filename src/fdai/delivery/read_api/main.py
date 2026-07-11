@@ -583,13 +583,9 @@ def build_app(
     if resolved_config.provision_stream is not None:
         prov_cfg = resolved_config.provision_stream
         if prov_cfg.path in _CORE_ROUTE_PATHS:
-            raise ValueError(
-                f"provision_stream.path {prov_cfg.path!r} collides with a core route"
-            )
+            raise ValueError(f"provision_stream.path {prov_cfg.path!r} collides with a core route")
         if prov_cfg.path in seen_panel_paths:
-            raise ValueError(
-                f"provision_stream.path {prov_cfg.path!r} collides with a panel path"
-            )
+            raise ValueError(f"provision_stream.path {prov_cfg.path!r} collides with a panel path")
         if (
             resolved_config.live_stream is not None
             and prov_cfg.path == resolved_config.live_stream.path

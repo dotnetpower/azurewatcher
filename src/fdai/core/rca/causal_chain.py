@@ -363,9 +363,7 @@ class CausalChainAnalyzer:
         out = [
             e
             for e in events
-            if e.event_id != target.event_id
-            and e.at < target.at
-            and target.at - e.at <= window
+            if e.event_id != target.event_id and e.at < target.at and target.at - e.at <= window
         ]
         out.sort(
             key=lambda e: (e.at, e.resource_ref == target.resource_ref, e.event_id),
@@ -386,9 +384,13 @@ class CausalChainAnalyzer:
         prox = self._proximity(lead)
         rel_w = self._config.relationship_weights.get(relationship, 0.0)
         if cause.is_change:
-            kind_w = self._config.change_kind_weights.get(
-                cause.change_kind, self._config.default_change_weight
-            ) if cause.change_kind is not None else self._config.default_change_weight
+            kind_w = (
+                self._config.change_kind_weights.get(
+                    cause.change_kind, self._config.default_change_weight
+                )
+                if cause.change_kind is not None
+                else self._config.default_change_weight
+            )
         else:
             kind_w = self._config.symptom_propagation_weight
         confidence = _clamp01(prox * rel_w * kind_w)
@@ -478,9 +480,7 @@ class CausalChainAnalyzer:
         """How many distinct roots explain the failure within epsilon of
         the best score (>= 1; 1 means a single clean antecedent)."""
         threshold = best.score - self._config.ambiguity_epsilon
-        roots = {
-            opt.root_event_id for opt in options if round(opt.score, 6) >= round(threshold, 6)
-        }
+        roots = {opt.root_event_id for opt in options if round(opt.score, 6) >= round(threshold, 6)}
         return max(1, len(roots))
 
     def _discount(self, score: float, ambiguity: int) -> float:

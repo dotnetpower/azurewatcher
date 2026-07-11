@@ -75,6 +75,7 @@ def _evict_oldest(mapping: dict[str, Any], cap: int, *, keep: str | None = None)
         else:  # only `keep` remains - nothing more to drop
             break
 
+
 #: Role rank for the entry RBAC gate on execute-class conversational requests
 #: (mirrors user-rbac-and-identity.md: Reader < Contributor < Approver < Owner).
 #: An operator below the floor cannot even submit an action - it is refused

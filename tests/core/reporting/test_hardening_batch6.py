@@ -90,9 +90,7 @@ class TestGroupNoDeadlockWithSinglePermit:
         )
         engine = ReportEngine(
             catalog=ReportCatalog((report,)),
-            sources=DataSourceRegistry(
-                (StaticDataSource(name="s", dataset=DataSet(scalar=42)),)
-            ),
+            sources=DataSourceRegistry((StaticDataSource(name="s", dataset=DataSet(scalar=42)),)),
             widgets=_widgets(),
             config=ReportEngineConfig(max_concurrent_widgets=1),
         )
@@ -308,9 +306,7 @@ class TestPrometheusHelpSanitized:
             generated_at=_NOW,
             time_range=(_NOW, _NOW),
             variables={},
-            widgets=(
-                RenderedWidget(id="v", type="query_value", title="", data={"value": 1}),
-            ),
+            widgets=(RenderedWidget(id="v", type="query_value", title="", data={"value": 1}),),
         )
         body = PrometheusFormatEncoder().encode(report).decode("utf-8")
         assert "# HELP fdai_report_r_v (no title)" in body
@@ -379,9 +375,7 @@ class TestReadApiVariableNameRegex:
                 ),
             )
         )
-        auth = build_authenticator(
-            verifier=lambda t: {"oid": "u"}, resolver=lambda claims: None
-        )
+        auth = build_authenticator(verifier=lambda t: {"oid": "u"}, resolver=lambda claims: None)
         os.environ["FDAI_READ_API_DEV_MODE"] = "1"
         try:
             app = build_app(

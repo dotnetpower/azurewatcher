@@ -67,9 +67,7 @@ class CallableDataSource:
             # Sync callable: offload to a worker thread so a CPU-bound
             # (or accidentally blocking) helper does not stall the
             # asyncio event loop that the read-API depends on.
-            bound = functools.partial(
-                self._fn, spec, since=since, until=until, variables=variables
-            )
+            bound = functools.partial(self._fn, spec, since=since, until=until, variables=variables)
             result = await asyncio.to_thread(bound)
             # A sync-declared callable that still returned an awaitable
             # (e.g. a decorated coroutine mis-classified) - resolve it.

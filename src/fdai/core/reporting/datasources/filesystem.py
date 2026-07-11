@@ -109,9 +109,7 @@ class FilesystemManifestDataSource:
                     {
                         "path": rel_posix,
                         "size": stat_result.st_size,
-                        "at": datetime.fromtimestamp(
-                            stat_result.st_mtime, tz=UTC
-                        ).isoformat(),
+                        "at": datetime.fromtimestamp(stat_result.st_mtime, tz=UTC).isoformat(),
                     }
                 )
                 if len(entries) >= _MAX_ENTRIES:

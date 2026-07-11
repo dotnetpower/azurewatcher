@@ -104,20 +104,30 @@ class TestMarkdownFormat:
             widgets=(
                 RenderedWidget(id="ft", type="free_text", title="Note", data={"body": "hello"}),
                 RenderedWidget(
-                    id="nt", type="note", title="Warn",
+                    id="nt",
+                    type="note",
+                    title="Warn",
                     data={"severity": "high", "body": "watch out"},
                 ),
                 RenderedWidget(
-                    id="grp", type="group", title="Group", data={},
+                    id="grp",
+                    type="group",
+                    title="Group",
+                    data={},
                     children=(
                         RenderedWidget(
-                            id="k", type="query_value", title="Kid", data={"value": 7},
+                            id="k",
+                            type="query_value",
+                            title="Kid",
+                            data={"value": 7},
                         ),
                     ),
                 ),
                 RenderedWidget(id="nc", type="table", title="NoCols", data={"note": "raw"}),
                 RenderedWidget(
-                    id="ht", type="table", title="Hostile",
+                    id="ht",
+                    type="table",
+                    title="Hostile",
                     data={"columns": ["c"], "rows": [{"c": "ok"}, "not-a-mapping"]},
                 ),
                 RenderedWidget(id="myst", type="sankey", title="Myst", data={"flows": 3}),
@@ -358,23 +368,35 @@ class TestHtmlFormat:
             variables={},
             widgets=(
                 RenderedWidget(
-                    id="note", type="free_text", title="Note",
+                    id="note",
+                    type="free_text",
+                    title="Note",
                     data={"body": "<hi>"},
                 ),
                 RenderedWidget(
-                    id="grp", type="tabs", title="Tabs", data={},
+                    id="grp",
+                    type="tabs",
+                    title="Tabs",
+                    data={},
                     children=(
                         RenderedWidget(
-                            id="c", type="query_value", title="C",
+                            id="c",
+                            type="query_value",
+                            title="C",
                             data={"value": 9},
                         ),
                     ),
                 ),
                 RenderedWidget(
-                    id="u", type="sankey", title="U", data={"flows": 2},
+                    id="u",
+                    type="sankey",
+                    title="U",
+                    data={"flows": 2},
                 ),
                 RenderedWidget(
-                    id="nocols", type="table", title="NoCols",
+                    id="nocols",
+                    type="table",
+                    title="NoCols",
                     data={"note": "raw"},
                 ),
             ),

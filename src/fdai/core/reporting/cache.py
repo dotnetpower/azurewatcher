@@ -67,9 +67,7 @@ class InMemoryReportCache:
         # caller renders and populates the cache; subsequent callers
         # await the lock, then find the fresh entry on the second
         # `_store.get` and short-circuit.
-        self._locks: dict[
-            tuple[str, tuple[tuple[str, str], ...]], asyncio.Lock
-        ] = {}
+        self._locks: dict[tuple[str, tuple[tuple[str, str], ...]], asyncio.Lock] = {}
 
     # Forward the standard engine facade so a caller does not know it is
     # talking to a cache.

@@ -224,9 +224,7 @@ class FaultInjectionHarness:
         ok = True
         for target in targets:
             try:
-                await asyncio.wait_for(
-                    injector.stop(target=target), timeout=self._rollback_timeout
-                )
+                await asyncio.wait_for(injector.stop(target=target), timeout=self._rollback_timeout)
             except TimeoutError:
                 ok = False
                 _LOGGER.error("chaos_rollback_timeout", extra={"target": target})

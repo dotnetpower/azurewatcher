@@ -249,7 +249,6 @@ def test_muninn_introspect_general_and_scoped() -> None:
     assert "2 key(s)" in scoped.answer
 
 
-
 # ---------------------------------------------------------------------------
 # Mimir - promotion state
 # ---------------------------------------------------------------------------

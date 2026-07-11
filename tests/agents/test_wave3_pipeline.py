@@ -240,9 +240,7 @@ def test_forseti_operator_initiated_unknown_principal_fails_closed_to_deny() -> 
 
 def test_forseti_judge_without_bus_returns_verdict_and_no_publish() -> None:
     f = Forseti(bus=None)
-    verdict = asyncio.run(
-        f.judge({"action_type": "ops.restart-service", "correlation_id": "c-nb"})
-    )
+    verdict = asyncio.run(f.judge({"action_type": "ops.restart-service", "correlation_id": "c-nb"}))
     # No bus wired: the verdict is still computed and returned (reason
     # rule_match, risk auto) even though nothing is published.
     assert verdict is not None
@@ -622,16 +620,10 @@ def test_var_ingest_ignores_non_hil_and_duplicate_runs() -> None:
         var.on_typed_message("object.verdict", {"correlation_id": "z", "state": "hil_pending"})
     )
     # Right topic but not hil_pending is ignored.
-    asyncio.run(
-        var.on_typed_message(
-            "object.action-run", {"correlation_id": "z", "state": "auto"}
-        )
-    )
+    asyncio.run(var.on_typed_message("object.action-run", {"correlation_id": "z", "state": "auto"}))
     # Empty correlation is ignored.
     asyncio.run(
-        var.on_typed_message(
-            "object.action-run", {"correlation_id": "", "state": "hil_pending"}
-        )
+        var.on_typed_message("object.action-run", {"correlation_id": "", "state": "hil_pending"})
     )
     # A duplicate of an already-pending correlation does not overwrite it.
     asyncio.run(
@@ -702,7 +694,6 @@ def test_var_admin_card_dedup_updates_counter_in_place() -> None:
     assert second.counter == 4
     assert len(var.admin_channel.cards) == 1
     assert var.admin_channel.cards[-1].counter == 4
-
 
 
 # ---------------------------------------------------------------------------
