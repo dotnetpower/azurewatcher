@@ -55,6 +55,17 @@ it makes the roles legible and auditable.
 - **Pantheon fixed upstream.** The 15-agent set, the org chart, and the
   role assignments are locked. Forks customize behaviour through configured
   seams (§11) - not by adding, removing, or renaming agents.
+- **Repository layout mirrors the two tiers.** The 15 named agents live
+  flat at the top level of [`src/fdai/agents/`](../../src/fdai/agents/);
+  the supporting framework (bus, runtime, registry, base, pantheon spec,
+  arbitration, introspection, kpi, adapters, provider adapters, factory,
+  workflows, topics, candidate guard, divergence, bus bridge) lives under
+  [`src/fdai/agents/_framework/`](../../src/fdai/agents/_framework/). The
+  leading underscore signals "not for external consumption" - callers
+  outside `agents/` MUST import from `fdai.agents`, never from a
+  `_framework` submodule. The layout is enforced by
+  [`tests/agents/test_framework_layout.py`](../../tests/agents/test_framework_layout.py)
+  (tracker #14, issue #21).
 
 ## 2. Organization chart
 

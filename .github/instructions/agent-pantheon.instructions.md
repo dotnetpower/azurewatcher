@@ -32,6 +32,31 @@ strong default; **MAY** is optional.
   readable role. Editing an agent's behavior MUST keep its `AgentSpec` and this
   table in sync.
 
+### 1.1 Directory layout (MUST)
+
+The 15 pantheon members live **flat at the top level** of
+`src/fdai/agents/`; framework code (bus, runtime, registry, base, pantheon
+spec, arbitration, introspection, kpi, adapters, provider_adapters,
+factory, workflows, topics, candidate_guard, divergence, bus_bridge)
+lives under `src/fdai/agents/_framework/`. This is the G-7 layout from
+tracker #14 and it is enforced by
+`tests/agents/test_framework_layout.py`:
+
+- A new `.py` file directly under `src/fdai/agents/` MUST be one of the
+  15 pantheon members. Anything else belongs under `_framework/`.
+- External callers (any file outside `src/fdai/agents/`) MUST import
+  from `fdai.agents` (the facade), not from `fdai.agents._framework.<X>`.
+  The leading underscore is not decorative - it signals "not for
+  external consumption; reaching in defeats the facade and breaks
+  silently on renames".
+- A pantheon member MAY reach into `_framework/` (it needs `Agent`,
+  `AgentSpec`, adapters, etc.). Pantheon members MUST NOT import each
+  other; cross-member communication goes through the bus + typed topics
+  so the arbitration model stays intact.
+- Adding a new pantheon member is a **charter change**: upstream doc PR
+  to `agent-pantheon.md`, this file, and the standard fork-lock review
+  (see section 7). Adding a helper under `_framework/` does not.
+
 ## 2. Role, ownership, and topic table (authoritative for edits)
 
 Layer: `domain` (specialist) | `pipeline` (sensing/judgment/operations/interface)
