@@ -42,32 +42,17 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import httpx
 
-from ..core.metering.emitter import MeteringEmitter
 from ..core.metering.pricing import PricingTable
-from ..core.metering.sink import MeteringSink
-from ..core.quality_gate.critic import CriticModel
-from ..core.quality_gate.debate import DebateOrchestrator, DebateOrchestratorConfig
-from ..core.quality_gate.gate import CrossCheckModel
-from ..core.quality_gate.judge import JudgeModel
-from ..core.quality_gate.rubric import RubricEvaluator
-from ..core.quality_gate.testing import MatchTypeCrossCheckModel, MismatchCrossCheckModel
-from ..core.rca import LlmRcaReasoner, RcaReasoner
+from ..core.quality_gate.testing import MatchTypeCrossCheckModel
 from ..core.tiers.t1_lightweight.testing import DeterministicEmbeddingModel
-from ..core.tiers.t1_lightweight.tier import EmbeddingModel
-from ..rule_catalog.schema.llm_resolver import (
-    CapabilityStatus,
-    ResolvedCapability,
-    ResolvedModels,
-)
 from ..shared.config.loader import load_config_from_env
 from ..shared.config.models import AppConfig, LlmMode
-from ..shared.contracts.models import OntologyLinkType, OntologyObjectType, Workflow
 from ..shared.contracts.registry import (
     PackageResourceSchemaRegistry,
     SchemaRegistry,
@@ -78,25 +63,20 @@ from ..shared.contracts.validation import (
     JsonSchemaContractValidator,
     JsonSchemaEventValidator,
 )
-from ..shared.providers.change_feed import ChangeFeed, EmptyChangeFeed
+from ..shared.providers.change_feed import EmptyChangeFeed  # noqa: F401 - public re-export
 from ..shared.providers.exemption import (
-    ExemptionRegistry,
     empty_exemption_registry,
 )
-from ..shared.providers.feasibility_probe import FeasibilityProbe
-from ..shared.providers.inventory import EmptyInventory, Inventory
+from ..shared.providers.inventory import EmptyInventory  # noqa: F401 - public re-export
 from ..shared.providers.knowledge import (
     EmbeddingKnowledgeSource,
-    EmptyKnowledgeSource,
-    KnowledgeSource,
+    EmptyKnowledgeSource,  # noqa: F401 - public re-export
+    KnowledgeSource,  # noqa: F401 - public re-export
 )
-from ..shared.providers.metric import MetricProvider, NoopMetricProvider
+from ..shared.providers.metric import NoopMetricProvider  # noqa: F401 - public re-export
 from ..shared.providers.workload_identity import WorkloadIdentity
 
 if TYPE_CHECKING:
-    import httpx
-
-    from ..core.operator_memory import OperatorMemoryStore
     from ..delivery.azure.arg_query import AzureArgQueryFactoryConfig
     from ..delivery.azure.inventory import AzureInventoryConfig
     from ..delivery.azure.metric_logs import AzureMonitorLogsConfig
@@ -106,7 +86,11 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-from ._helpers import Container, LlmBindings, LlmBindingsUnavailableError
+from ._helpers import (  # noqa: E402 - after TYPE_CHECKING block
+    Container,
+    LlmBindings,
+    LlmBindingsUnavailableError,
+)
 
 
 def _local_fake_llm_bindings() -> LlmBindings:
@@ -318,9 +302,11 @@ def default_container_from_env() -> Container:
 
 
 # G-3 extractions - keep public API by re-exporting from wire files.
-from .wire_azure import AzureWireOverrides, wire_azure_container
-from .wire_llm import bind_azure_llm_bindings
-
+# noqa E402 justified: wire_azure imports back from this package so the
+# re-export MUST land after every public symbol is defined; moving it to
+# the top of the file creates a circular import.
+from .wire_azure import AzureWireOverrides, wire_azure_container  # noqa: E402
+from .wire_llm import bind_azure_llm_bindings  # noqa: E402
 
 __all__ = [
     "AzureWireOverrides",

@@ -7,10 +7,10 @@ import asyncio
 import pytest
 
 from fdai.agents._framework.bus import InMemoryBus
+from fdai.agents._framework.registry import load_pantheon
 from fdai.agents.forseti import Forseti
 from fdai.agents.heimdall import Heimdall
 from fdai.agents.huginn import Huginn
-from fdai.agents._framework.registry import load_pantheon
 from fdai.agents.saga import Saga
 from fdai.agents.thor import ActionRunState, Thor
 from fdai.agents.var import Var

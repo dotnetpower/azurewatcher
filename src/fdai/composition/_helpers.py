@@ -141,7 +141,7 @@ class Container:
         return self.llm_bindings
 
 
-from ..rule_catalog.schema.llm_resolver import (
+from ..rule_catalog.schema.llm_resolver import (  # noqa: E402 - appended for helper functions extracted from composition.py
     CapabilityStatus,
     ResolvedCapability,
     ResolvedModels,
@@ -196,5 +196,3 @@ def _default_dim_for_family(family: str) -> int:
         "text-embedding-3-small": 1536,
         "text-embedding-3-large": 3072,
     }.get(family, 1536)
-
-

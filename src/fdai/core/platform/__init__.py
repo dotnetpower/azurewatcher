@@ -1,6 +1,7 @@
 """Platform domain facade for the core package (G-1 phase 1, tracker #14).
 
-Groups these subsystems: scheduler, metering, measurement, security, reporting, onboarding, workflow, detection, deploy_preflight, assurance_twin.
+Groups these subsystems: scheduler, metering, measurement, security,
+reporting, onboarding, workflow, detection, deploy_preflight, assurance_twin.
 
 Phase 1 (this commit) creates the facade only - the physical subsystems
 stay at ``fdai.core.<subsystem>`` and this package re-exports them so
@@ -21,16 +22,17 @@ taxonomy real at the Python-package level without a mass move.
 
 from __future__ import annotations
 
-from fdai.core import scheduler as scheduler  # noqa: F401 - facade re-export
-from fdai.core import metering as metering  # noqa: F401 - facade re-export
-from fdai.core import measurement as measurement  # noqa: F401 - facade re-export
-from fdai.core import security as security  # noqa: F401 - facade re-export
-from fdai.core import reporting as reporting  # noqa: F401 - facade re-export
-from fdai.core import onboarding as onboarding  # noqa: F401 - facade re-export
-from fdai.core import workflow as workflow  # noqa: F401 - facade re-export
-from fdai.core import detection as detection  # noqa: F401 - facade re-export
-from fdai.core import deploy_preflight as deploy_preflight  # noqa: F401 - facade re-export
 from fdai.core import assurance_twin as assurance_twin  # noqa: F401 - facade re-export
+from fdai.core import deploy_preflight as deploy_preflight  # noqa: F401 - facade re-export
+from fdai.core import detection as detection  # noqa: F401 - facade re-export
+from fdai.core import measurement as measurement  # noqa: F401 - facade re-export
+from fdai.core import metering as metering  # noqa: F401 - facade re-export
+from fdai.core import onboarding as onboarding  # noqa: F401 - facade re-export
+from fdai.core import reporting as reporting  # noqa: F401 - facade re-export
+from fdai.core import scheduler as scheduler  # noqa: F401 - facade re-export
+from fdai.core import security as security  # noqa: F401 - facade re-export
+from fdai.core import workflow as workflow  # noqa: F401 - facade re-export
+
 __all__ = [
     "scheduler",
     "metering",

@@ -36,9 +36,7 @@ _SUBMODULE_NAMES = tuple(
 
 def test_all_exports_resolve() -> None:
     for name in models.__all__:
-        assert hasattr(models, name), (
-            f"{name!r} is listed in models.__all__ but is not importable"
-        )
+        assert hasattr(models, name), f"{name!r} is listed in models.__all__ but is not importable"
 
 
 def test_every_public_submodule_symbol_is_re_exported() -> None:
@@ -66,9 +64,7 @@ def test_base_submodule_symbols_are_re_exported() -> None:
 
     exported = set(models.__all__)
     gap = [s for s in base_mod.__all__ if s not in exported]
-    assert not gap, (
-        f"_base symbols missing from facade __all__: {gap}"
-    )
+    assert not gap, f"_base symbols missing from facade __all__: {gap}"
 
 
 # ---------------------------------------------------------------------------
@@ -107,9 +103,7 @@ def test_base_submodule_symbols_are_re_exported() -> None:
         ("WorkflowTriggerKind", {"signal", "schedule"}),
     ],
 )
-def test_enum_values_are_pinned(
-    enum_cls_name: str, expected_values: set[str]
-) -> None:
+def test_enum_values_are_pinned(enum_cls_name: str, expected_values: set[str]) -> None:
     cls = getattr(models, enum_cls_name)
     actual = {member.value for member in cls}
     assert actual == expected_values, (
@@ -217,7 +211,7 @@ def test_submodule_only_imports_from_allowed_peers(submodule: str) -> None:
         if not stripped.startswith("from ."):
             continue
         # form: from ._base import X  or  from .ontology import Y
-        rest = stripped[len("from ."):]
+        rest = stripped[len("from .") :]
         peer = rest.split(" ", 1)[0].lstrip("_")
         if peer.startswith(("_",)):
             peer = peer[1:]

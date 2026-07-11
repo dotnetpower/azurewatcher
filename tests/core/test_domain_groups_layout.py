@@ -14,6 +14,7 @@ the additive enabling step.
 from __future__ import annotations
 
 import importlib
+import re
 from pathlib import Path
 
 import pytest
@@ -162,9 +163,7 @@ def test_incident_facade_absorbs_both_roles() -> None:
     incident_pkg = importlib.import_module("fdai.core.incident")
     # Group role: exposes sibling subsystems.
     for name in _DOMAIN_MEMBERSHIP["incident"]:
-        assert hasattr(incident_pkg, name), (
-            f"incident/ group role lost {name!r}"
-        )
+        assert hasattr(incident_pkg, name), f"incident/ group role lost {name!r}"
     # Subsystem role: exposes StormCoordinator + friends.
     from fdai.core.incident import IncidentRegistry, IncidentStateMachine  # noqa: F401
 
@@ -174,9 +173,7 @@ def test_incident_facade_absorbs_both_roles() -> None:
 def test_knowledge_facade_absorbs_both_roles() -> None:
     knowledge_pkg = importlib.import_module("fdai.core.knowledge")
     for name in _DOMAIN_MEMBERSHIP["knowledge"]:
-        assert hasattr(knowledge_pkg, name), (
-            f"knowledge/ group role lost {name!r}"
-        )
+        assert hasattr(knowledge_pkg, name), f"knowledge/ group role lost {name!r}"
     # Subsystem role: exposes KnowledgeSourceKind + friends.
     from fdai.core.knowledge import KnowledgeSourceKind  # noqa: F401
 
@@ -208,9 +205,6 @@ def test_facade_docstring_anchors_phase_1(domain: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-import re
-
-
 @pytest.mark.parametrize("domain", sorted(_DOMAIN_MEMBERSHIP))
 def test_domain_facade_does_not_import_other_domain(domain: str) -> None:
     peers = set(_DOMAIN_MEMBERSHIP) - {domain}
@@ -220,17 +214,14 @@ def test_domain_facade_does_not_import_other_domain(domain: str) -> None:
         # Match `from fdai.core.<peer>` or `import fdai.core.<peer>`
         # where <peer> is the group name (not a subsystem that happens
         # to share the name).
-        pattern = re.compile(
-            rf"(?:from|import)\s+fdai\.core\.{peer}\s"
-        )
+        pattern = re.compile(rf"(?:from|import)\s+fdai\.core\.{peer}\s")
         if pattern.search(body):
             # incident/knowledge legitimately import their sibling
             # subsystems that happen to share domain-facade names.
             # Only complain about a domain facade referencing OTHER
             # domain facades.
             raise AssertionError(
-                f"fdai.core.{domain}/__init__.py imports from peer "
-                f"domain {peer!r}"
+                f"fdai.core.{domain}/__init__.py imports from peer domain {peer!r}"
             )
 
 

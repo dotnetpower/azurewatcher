@@ -39,9 +39,7 @@ _PAIRS = {
 
 
 @pytest.mark.parametrize("stem,pair", sorted(_PAIRS.items()))
-def test_pydantic_field_set_matches_json_schema(
-    stem: str, pair: tuple[type, str]
-) -> None:
+def test_pydantic_field_set_matches_json_schema(stem: str, pair: tuple[type, str]) -> None:
     model_cls, schema_stem = pair
     schema_path = _CONTRACTS / schema_stem / "schema.json"
     schema = json.loads(schema_path.read_text())
@@ -66,9 +64,7 @@ def test_pydantic_field_set_matches_json_schema(
 
 
 @pytest.mark.parametrize("stem,pair", sorted(_PAIRS.items()))
-def test_json_schema_required_are_pydantic_required(
-    stem: str, pair: tuple[type, str]
-) -> None:
+def test_json_schema_required_are_pydantic_required(stem: str, pair: tuple[type, str]) -> None:
     model_cls, schema_stem = pair
     schema_path = _CONTRACTS / schema_stem / "schema.json"
     schema = json.loads(schema_path.read_text())
@@ -77,9 +73,7 @@ def test_json_schema_required_are_pydantic_required(
     # A pydantic field is required if it has no default value AND is not
     # declared Optional via a union with None. model_fields[x].is_required()
     # captures that precisely.
-    pyd_required = {
-        name for name, field in model_cls.model_fields.items() if field.is_required()
-    }
+    pyd_required = {name for name, field in model_cls.model_fields.items() if field.is_required()}
 
     only_in_schema = schema_required - pyd_required
     only_in_pydantic = pyd_required - schema_required

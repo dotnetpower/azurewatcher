@@ -8,10 +8,10 @@ import pytest
 
 from fdai.agents._framework.adapters import AuditChainError, InMemoryAuditChain
 from fdai.agents._framework.bus import InMemoryBus
+from fdai.agents._framework.registry import load_pantheon
 from fdai.agents.mimir import Mimir
 from fdai.agents.muninn import Muninn
 from fdai.agents.norns import Norns
-from fdai.agents._framework.registry import load_pantheon
 from fdai.agents.saga import Saga, compute_fingerprint
 
 # ---------------------------------------------------------------------------

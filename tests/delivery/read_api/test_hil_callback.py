@@ -19,11 +19,11 @@ from fdai.core.executor import (
 )
 from fdai.core.hil_resume import HilResumeCoordinator
 from fdai.delivery.read_api.auth import build_authenticator
+from fdai.delivery.read_api.main import ReadApiConfig, build_app
+from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
 from fdai.delivery.read_api.routes.hil_callback import (
     HilCallbackConfig,
 )
-from fdai.delivery.read_api.main import ReadApiConfig, build_app
-from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
 from fdai.shared.contracts.models import (
     Action,
     BlastRadius,

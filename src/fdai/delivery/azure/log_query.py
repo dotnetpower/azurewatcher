@@ -170,9 +170,7 @@ class AzureLogAnalyticsQueryProvider:
 
         if response.status_code >= 400:
             snippet = response.text[:200].replace("\n", " ")
-            raise LogQueryError(
-                f"Log Analytics returned HTTP {response.status_code}: {snippet!r}"
-            )
+            raise LogQueryError(f"Log Analytics returned HTTP {response.status_code}: {snippet!r}")
 
         try:
             return response.json()

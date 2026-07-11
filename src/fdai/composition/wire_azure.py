@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from ..core.metering.sink import MeteringSink
     from ..core.operator_memory import OperatorMemoryStore
 
-from ._helpers import Container, LlmBindingsUnavailableError
+from ._helpers import Container
 from .wire_llm import bind_azure_llm_bindings
 
 _LOGGER = logging.getLogger(__name__)
@@ -233,6 +233,9 @@ async def wire_azure_container(
     if pricing is None and overrides.metering_sink is not None:
         pricing_path = overrides.catalog_root / "llm-pricing.yaml"
         if pricing_path.is_file():
+            # Lazy import to avoid a circular between __init__ and wire_azure.
+            from . import load_pricing_table
+
             try:
                 pricing = load_pricing_table(pricing_path)
             except Exception:  # noqa: BLE001 - pricing is best-effort, never fatal

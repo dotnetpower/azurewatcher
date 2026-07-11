@@ -44,16 +44,24 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
+# G-2: module-level helpers extracted into _helpers.py for testability.
+from fdai.core.control_loop._helpers import (
+    _extract_resource_id,
+    _extract_resource_props,
+    _is_execution_success,
+    _synthetic_action_build_failure,
+    _unified_audit_dict,
+    build_shadow_authority_audit,
+    evaluate_unified,
+)
 from fdai.core.event_ingest import EventCorrelator, EventIngest
-from fdai.core.executor import ExecutionResult, ExecutorOutcome, ShadowExecutor
+from fdai.core.executor import ExecutionResult, ShadowExecutor
 from fdai.core.executor.action_builder import ActionBuilder, ActionBuildError
 from fdai.core.executor.direct_api import (
-    DirectApiExecutionOutcome,
     DirectApiExecutionResult,
     DirectApiShadowExecutor,
 )
 from fdai.core.executor.tool_call import (
-    ToolCallExecutionOutcome,
     ToolCallExecutionResult,
     ToolCallShadowExecutor,
 )
@@ -66,11 +74,7 @@ from fdai.core.rca import (
     IncidentMemberSource,
     RcaCoordinator,
 )
-from fdai.core.risk_gate.authority import (
-    ExecutionAuthorityDecision,
-    evaluate_execution_authority,
-)
-from fdai.core.risk_gate.evaluator import UnifiedRiskDecision, combine
+from fdai.core.risk_gate.evaluator import UnifiedRiskDecision
 from fdai.core.risk_gate.gate import RiskGate
 from fdai.core.risk_gate.risk_table import RiskTable
 from fdai.core.tiers.t0_deterministic import T0Engine
@@ -82,29 +86,13 @@ from fdai.core.verticals.change_safety.detector import (
     ChangeSafetyDetector,
 )
 from fdai.core.workflow.coordinator import WorkflowTriggerCoordinator
-
-# G-2: module-level helpers extracted into _helpers.py for testability.
-from fdai.core.control_loop._helpers import (
-    _compute_authority,
-    _extract_environment,
-    _extract_resource_id,
-    _extract_resource_props,
-    _is_execution_success,
-    _synthetic_action_build_failure,
-    _unified_audit_dict,
-    build_shadow_authority_audit,
-    build_unified_risk_audit,
-    evaluate_unified,
-)
 from fdai.shared.contracts.models import (
     Action,
-    CeilingRole,
     Event,
     ExecutionPath,
     Mode,
     OntologyActionType,
     Rule,
-    Tier,
 )
 from fdai.shared.providers.cost_estimator import (
     CostEstimator,

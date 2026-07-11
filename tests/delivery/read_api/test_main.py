@@ -35,11 +35,11 @@ from fdai.delivery.read_api.auth import (
     build_authenticator,
 )
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
-from fdai.delivery.read_api.routes.panels import ExampleFinOpsPanel
 from fdai.delivery.read_api.read_model import (
     HilQueueItem,
     InMemoryConsoleReadModel,
 )
+from fdai.delivery.read_api.routes.panels import ExampleFinOpsPanel
 
 _DEV_MODE_ENV = "FDAI_READ_API_DEV_MODE"
 

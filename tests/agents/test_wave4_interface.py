@@ -6,10 +6,10 @@ import asyncio
 
 import pytest
 
-from fdai.agents.bragi import Bragi
 from fdai.agents._framework.bus import InMemoryBus
-from fdai.agents.odin import Odin
 from fdai.agents._framework.registry import load_pantheon
+from fdai.agents.bragi import Bragi
+from fdai.agents.odin import Odin
 
 # ---------------------------------------------------------------------------
 # Bragi routing

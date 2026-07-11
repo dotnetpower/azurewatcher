@@ -21,12 +21,12 @@ from starlette.testclient import TestClient
 from fdai.core.rbac.resolver import Principal
 from fdai.core.rbac.roles import Role
 from fdai.delivery.read_api.auth import build_authenticator
+from fdai.delivery.read_api.main import ReadApiConfig, build_app
+from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
 from fdai.delivery.read_api.routes.console_action import (
     ConsoleActionSubmitter,
     make_console_action_route,
 )
-from fdai.delivery.read_api.main import ReadApiConfig, build_app
-from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
 from fdai.shared.providers.testing.event_bus import InMemoryEventBus
 
 _TOPIC = "fdai.events"

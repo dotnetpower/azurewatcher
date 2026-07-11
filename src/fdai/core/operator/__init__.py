@@ -22,10 +22,11 @@ taxonomy real at the Python-package level without a mass move.
 from __future__ import annotations
 
 from fdai.core import conversation as conversation  # noqa: F401 - facade re-export
+from fdai.core import notifications as notifications  # noqa: F401 - facade re-export
 from fdai.core import operator_memory as operator_memory  # noqa: F401 - facade re-export
 from fdai.core import rbac as rbac  # noqa: F401 - facade re-export
-from fdai.core import notifications as notifications  # noqa: F401 - facade re-export
 from fdai.core import report_feed as report_feed  # noqa: F401 - facade re-export
+
 __all__ = [
     "conversation",
     "operator_memory",

@@ -40,9 +40,7 @@ _CATEGORY_BY_VERTICAL = {
 
 
 def test_top_level_verticals_is_only_shared_plumbing() -> None:
-    top_pyfiles = {
-        p.name for p in _VERTICALS_DIR.glob("*.py")
-    }
+    top_pyfiles = {p.name for p in _VERTICALS_DIR.glob("*.py")}
     allowed = {"__init__.py", "base.py", "registry.py"}
     extras = top_pyfiles - allowed
     assert not extras, (
@@ -56,9 +54,7 @@ def test_every_vertical_subpackage_exists() -> None:
     for name in _VERTICAL_NAMES:
         sub = _VERTICALS_DIR / name
         assert sub.is_dir(), f"verticals/{name}/ sub-package missing"
-        assert (sub / "__init__.py").is_file(), (
-            f"verticals/{name}/__init__.py facade missing"
-        )
+        assert (sub / "__init__.py").is_file(), f"verticals/{name}/__init__.py facade missing"
 
 
 # ---------------------------------------------------------------------------
@@ -87,8 +83,7 @@ def test_descriptor_conforms_to_vertical_protocol(
     descriptor: VerticalDescriptor,
 ) -> None:
     assert isinstance(descriptor, Vertical), (
-        f"{descriptor.vertical_id!r} descriptor does not satisfy "
-        "Vertical Protocol"
+        f"{descriptor.vertical_id!r} descriptor does not satisfy Vertical Protocol"
     )
 
 
@@ -156,9 +151,7 @@ def test_no_cross_vertical_imports(vertical: str) -> None:
     for path in (_VERTICALS_DIR / vertical).rglob("*.py"):
         body = path.read_text(encoding="utf-8")
         for match in peer_re.finditer(body):
-            offenders.append(
-                (str(path.relative_to(_REPO_ROOT)), match.group(0).strip())
-            )
+            offenders.append((str(path.relative_to(_REPO_ROOT)), match.group(0).strip()))
     assert not offenders, (
         f"vertical {vertical!r} reaches into a peer vertical directly: "
         f"{offenders}. Compose them at the composition root instead."

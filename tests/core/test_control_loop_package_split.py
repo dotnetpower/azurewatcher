@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 import fdai.core.control_loop as control_loop_pkg
-from fdai.core.control_loop import _helpers, orchestrator
+from fdai.core.control_loop import _helpers
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _CL_DIR = _REPO_ROOT / "src" / "fdai" / "core" / "control_loop"
@@ -47,9 +47,7 @@ def test_control_loop_package_layout() -> None:
     top_pyfiles = {p.name for p in _CL_DIR.glob("*.py")}
     required = {"__init__.py", "orchestrator.py", "_helpers.py"}
     missing = required - top_pyfiles
-    assert not missing, (
-        f"control_loop/ missing files: {sorted(missing)}"
-    )
+    assert not missing, f"control_loop/ missing files: {sorted(missing)}"
 
 
 # ---------------------------------------------------------------------------
@@ -60,9 +58,7 @@ def test_control_loop_package_layout() -> None:
 
 @pytest.mark.parametrize("name", _PUBLIC_NAMES)
 def test_public_name_still_resolves(name: str) -> None:
-    assert hasattr(control_loop_pkg, name), (
-        f"public name {name!r} was lost in the G-2 split"
-    )
+    assert hasattr(control_loop_pkg, name), f"public name {name!r} was lost in the G-2 split"
 
 
 # ---------------------------------------------------------------------------
@@ -83,8 +79,7 @@ def test_orchestrator_loc_ceiling() -> None:
 def test_helpers_loc_ceiling() -> None:
     loc = (_CL_DIR / "_helpers.py").read_text().count("\n")
     assert loc <= 400, (
-        f"_helpers.py has {loc} LOC (> 400). Split further if you need "
-        "to add more helpers."
+        f"_helpers.py has {loc} LOC (> 400). Split further if you need to add more helpers."
     )
 
 
@@ -159,8 +154,7 @@ def test_is_execution_success_treats_already_applied_as_success() -> None:
             outcome=outcome,
         )
         assert _helpers._is_execution_success(result), (
-            f"outcome {outcome!r} MUST count as success - re-delivery "
-            "safety depends on this"
+            f"outcome {outcome!r} MUST count as success - re-delivery safety depends on this"
         )
 
 
@@ -177,9 +171,7 @@ def test_build_unified_risk_audit_signature_stable() -> None:
     # + risk_gate so callers do not have to re-plumb parameters when
     # G-2 phase 2 lands (Stage refactor). cost_override may vary.
     for expected in ("event", "action", "rule", "action_type", "table", "risk_gate"):
-        assert expected in params, (
-            f"build_unified_risk_audit lost the {expected!r} parameter"
-        )
+        assert expected in params, f"build_unified_risk_audit lost the {expected!r} parameter"
 
 
 # ---------------------------------------------------------------------------
@@ -190,9 +182,7 @@ def test_build_unified_risk_audit_signature_stable() -> None:
 def test_facade_docstring_anchors_follow_up_scope() -> None:
     doc = (control_loop_pkg.__doc__ or "").lower()
     for anchor in ("stage", "follow-up", "orchestrator"):
-        assert anchor in doc, (
-            f"control_loop/__init__.py docstring lost anchor {anchor!r}"
-        )
+        assert anchor in doc, f"control_loop/__init__.py docstring lost anchor {anchor!r}"
 
 
 # ---------------------------------------------------------------------------

@@ -57,4 +57,3 @@ _Base = ContractBase
 
 
 __all__ = ["ContractBase", "IdempotencyKey", "SemVer", "_Base"]
-

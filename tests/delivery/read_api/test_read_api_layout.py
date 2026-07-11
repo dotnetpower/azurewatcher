@@ -13,8 +13,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _READ_API_DIR = _REPO_ROOT / "src" / "fdai" / "delivery" / "read_api"
 
@@ -43,9 +41,7 @@ def test_three_subpackages_exist() -> None:
     for name in ("routes", "streaming", "dev"):
         sub = _READ_API_DIR / name
         assert sub.is_dir(), f"read_api/{name}/ sub-package missing"
-        assert (sub / "__init__.py").is_file(), (
-            f"read_api/{name}/__init__.py missing"
-        )
+        assert (sub / "__init__.py").is_file(), f"read_api/{name}/__init__.py missing"
 
 
 # ---------------------------------------------------------------------------
@@ -65,14 +61,11 @@ def test_build_app_composes_starlette_router() -> None:
     def resolver(_claims):  # type: ignore[no-untyped-def]
         from fdai.core.rbac.resolver import Principal
         from fdai.core.rbac.roles import Role
+
         return Principal(oid="test", email="t@example.com", roles=(Role.OPERATOR,))
 
-    authenticator = build_authenticator(
-        verifier=UnsafeClaimsExtractor(), resolver=resolver
-    )
-    app = build_app(
-        authenticator=authenticator, read_model=InMemoryConsoleReadModel()
-    )
+    authenticator = build_authenticator(verifier=UnsafeClaimsExtractor(), resolver=resolver)
+    app = build_app(authenticator=authenticator, read_model=InMemoryConsoleReadModel())
     routes = list(app.router.routes)
     # Baseline: 4 core routes (audit, kpi, hil-queue, healthz) always
     # register. Extra routes come from opt-in seams (config flags,
@@ -85,8 +78,7 @@ def test_build_app_composes_starlette_router() -> None:
     route_names = {getattr(r, "name", "") for r in routes}
     for expected in ("get_audit", "get_kpi", "get_hil_queue", "healthz"):
         assert expected in route_names, (
-            f"core route {expected!r} missing after the split; "
-            f"got names {sorted(route_names)}"
+            f"core route {expected!r} missing after the split; got names {sorted(route_names)}"
         )
 
 
@@ -95,9 +87,7 @@ def test_build_app_composes_starlette_router() -> None:
 # ---------------------------------------------------------------------------
 
 
-_DEV_IMPORT = re.compile(
-    r"(?:from|import)\s+fdai\.delivery\.read_api\.dev(?:\.|$|\s)"
-)
+_DEV_IMPORT = re.compile(r"(?:from|import)\s+fdai\.delivery\.read_api\.dev(?:\.|$|\s)")
 
 
 def test_dev_subpackage_is_not_imported_from_production_code() -> None:
@@ -134,9 +124,7 @@ def test_routes_and_streaming_are_populated() -> None:
     )
     streams = list((_READ_API_DIR / "streaming").glob("*.py"))
     # 3 SSE modules + __init__.py.
-    assert len(streams) >= 4, (
-        f"streaming/ only has {len(streams)} .py files (expected >= 4)."
-    )
+    assert len(streams) >= 4, f"streaming/ only has {len(streams)} .py files (expected >= 4)."
 
 
 # ---------------------------------------------------------------------------
@@ -166,8 +154,7 @@ def test_no_external_caller_reaches_into_routes() -> None:
     assert not offenders, (
         "External src/ code imports specific route modules directly - "
         "routes are implementation detail; use the ASGI app or "
-        "read_model. Offenders:\n  "
-        + "\n  ".join(f"{p}: {line}" for p, line in offenders)
+        "read_model. Offenders:\n  " + "\n  ".join(f"{p}: {line}" for p, line in offenders)
     )
 
 

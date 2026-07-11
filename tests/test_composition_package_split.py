@@ -20,9 +20,7 @@ import fdai.composition as composition_pkg
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _COMP_DIR = _REPO_ROOT / "src" / "fdai" / "composition"
 
-_EXPECTED_FILES = frozenset(
-    {"__init__.py", "_helpers.py", "wire_llm.py", "wire_azure.py"}
-)
+_EXPECTED_FILES = frozenset({"__init__.py", "_helpers.py", "wire_llm.py", "wire_azure.py"})
 
 _PUBLIC_NAMES = (
     "default_container",
@@ -102,9 +100,7 @@ def test_public_names_in_all() -> None:
 # ---------------------------------------------------------------------------
 
 
-_WIRE_IMPORT = re.compile(
-    r"(?:from|import)\s+fdai\.composition\.(?:wire_[a-z]+|_helpers)"
-)
+_WIRE_IMPORT = re.compile(r"(?:from|import)\s+fdai\.composition\.(?:wire_[a-z]+|_helpers)")
 
 
 def test_no_external_caller_reaches_into_wire_files() -> None:
@@ -135,7 +131,7 @@ _LOC_LIMITS = {
     "__init__.py": 400,
     "_helpers.py": 400,
     "wire_azure.py": 400,
-    "wire_llm.py": 800,   # holds the ~308-LOC bind_azure_llm_bindings body
+    "wire_llm.py": 800,  # holds the ~308-LOC bind_azure_llm_bindings body
 }
 
 
@@ -186,18 +182,13 @@ def test_wire_files_do_not_import_each_other() -> None:
     offenders: list[tuple[str, str, str]] = []
     for path in _COMP_DIR.glob("wire_*.py"):
         body = path.read_text(encoding="utf-8")
-        for match in re.finditer(
-            r"(?:from|import)\s+\.(wire_[a-z]+)", body
-        ):
+        for match in re.finditer(r"(?:from|import)\s+\.(wire_[a-z]+)", body):
             target = f"{match.group(1)}.py"
             pair = (path.name, target)
             if pair in allowed:
                 continue
             offenders.append((path.name, target, match.group(0).strip()))
-    assert not offenders, (
-        "wire files import each other outside the allowlist: "
-        + str(offenders)
-    )
+    assert not offenders, "wire files import each other outside the allowlist: " + str(offenders)
 
 
 # ---------------------------------------------------------------------------
@@ -223,9 +214,7 @@ def test_facade_docstring_mentions_g3() -> None:
     # The docstring MUST reference the tracker so a maintainer looking
     # at the __init__.py knows where the design lives.
     for anchor in ("composition", "seam", "container"):
-        assert anchor in doc, (
-            f"composition/__init__.py docstring lost anchor {anchor!r}"
-        )
+        assert anchor in doc, f"composition/__init__.py docstring lost anchor {anchor!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -243,15 +232,13 @@ def test_default_container_smoke() -> None:
     from fdai.composition import default_container_from_env
 
     # Set the minimum env the config loader requires.
-    env_backup = {
-        k: os.environ.get(k)
-        for k in ("FDAI_SCHEMA_VERSION",)
-    }
+    env_backup = {k: os.environ.get(k) for k in ("FDAI_SCHEMA_VERSION",)}
     os.environ.setdefault("FDAI_SCHEMA_VERSION", "1.0.0")
     try:
         container = default_container_from_env()
     except Exception:  # noqa: BLE001 - env config may need more; skip if so
         import pytest as _pytest
+
         _pytest.skip(
             "default_container_from_env needs more env vars for this "
             "environment; the G-3 split does not change that shape."

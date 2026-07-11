@@ -161,7 +161,7 @@ ignore = []
 # Chat backend embeds a long-form system prompt as a triple-quoted string
 # literal. Breaking the prompt across lines would corrupt the payload the
 # LLM sees; the E501 rule does not apply to prose inside a prompt.
-"src/fdai/delivery/read_api/chat.py" = ["E501"]
+"src/fdai/delivery/read_api/routes/chat.py" = ["E501"]
 # Codegen CLI + object-type loader header comments run slightly over the
 # 100-column budget for readability of a single-line docstring / import.
 # These are already committed; opening the doorway to reformat every

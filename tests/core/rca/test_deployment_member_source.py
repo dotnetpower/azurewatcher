@@ -218,9 +218,7 @@ async def test_lookup_exception_is_swallowed() -> None:
     def _raising_lookup(_iid: str) -> Incident | None:
         raise ValueError("badly formed incident id")
 
-    source = DeploymentHistoryMemberSource(
-        lookup=_raising_lookup, deployment_history=provider
-    )
+    source = DeploymentHistoryMemberSource(lookup=_raising_lookup, deployment_history=provider)
     assert await source.members(incident_id="not-a-uuid") == ()
 
 
@@ -235,9 +233,9 @@ async def test_shared_deployment_dedup_is_order_independent() -> None:
         p.seed(_record(deployment_ref="shared", resource_refs=("db",)))
         return p
 
-    forward = await _source(
-        _incident(correlation_keys=("res:app", "res:db")), _provider()
-    ).members(incident_id=_INCIDENT_ID)
+    forward = await _source(_incident(correlation_keys=("res:app", "res:db")), _provider()).members(
+        incident_id=_INCIDENT_ID
+    )
     backward = await _source(
         _incident(correlation_keys=("res:db", "res:app")), _provider()
     ).members(incident_id=_INCIDENT_ID)

@@ -50,9 +50,7 @@ def test_ci_workflow_declares_required_job(ci_workflow: dict, job: str) -> None:
         ("subsystem-fanout", "check-subsystem-fanout.sh"),
     ],
 )
-def test_ci_job_invokes_expected_script(
-    ci_workflow: dict, job: str, script: str
-) -> None:
+def test_ci_job_invokes_expected_script(ci_workflow: dict, job: str, script: str) -> None:
     steps = ci_workflow["jobs"][job]["steps"]
     invocations = " ".join(str(step.get("run", "")) for step in steps)
     assert script in invocations, (

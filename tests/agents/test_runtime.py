@@ -18,9 +18,9 @@ import pytest
 
 from fdai.agents._framework.bus_bridge import EventBusBridge
 from fdai.agents._framework.divergence import ShadowDivergenceLedger
-from fdai.agents.huginn import Huginn
 from fdai.agents._framework.pantheon import PANTHEON_SPECS
 from fdai.agents._framework.runtime import PantheonRuntime
+from fdai.agents.huginn import Huginn
 from fdai.agents.saga import Saga
 from fdai.agents.thor import Thor
 from fdai.shared.providers.testing.event_bus import InMemoryEventBus

@@ -37,13 +37,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fdai.agents._framework.base import Agent
-from fdai.agents.bragi import Bragi, Turn
 from fdai.agents._framework.bus_bridge import EventBusBridge
 from fdai.agents._framework.divergence import ShadowDivergenceLedger
 from fdai.agents._framework.factory import instantiate_pantheon
-from fdai.agents.huginn import Huginn
 from fdai.agents._framework.pantheon import HARD_DEPENDENCY_AGENTS, PANTHEON_NAMES
 from fdai.agents._framework.registry import PantheonRegistry, load_pantheon
+from fdai.agents.bragi import Bragi, Turn
+from fdai.agents.huginn import Huginn
 from fdai.agents.saga import Saga
 from fdai.agents.thor import ActionRunStore, Thor
 from fdai.shared.providers.event_bus import EventBus

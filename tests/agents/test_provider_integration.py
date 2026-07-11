@@ -16,12 +16,12 @@ import asyncio
 import pytest
 
 from fdai.agents._framework.bus_bridge import EventBusBridge
-from fdai.agents.forseti import Forseti
 from fdai.agents._framework.provider_adapters import (
     StateStoreAuditChainAdapter,
     StateStoreKvAdapter,
 )
 from fdai.agents._framework.registry import PantheonRegistryError, load_pantheon
+from fdai.agents.forseti import Forseti
 from fdai.shared.providers.testing.event_bus import InMemoryEventBus
 from fdai.shared.providers.testing.state_store import InMemoryStateStore
 

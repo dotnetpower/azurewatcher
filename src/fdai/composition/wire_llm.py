@@ -18,6 +18,7 @@ package facade.
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any
 
 import httpx
 
@@ -30,16 +31,17 @@ from ..core.quality_gate.gate import CrossCheckModel
 from ..core.quality_gate.judge import JudgeModel
 from ..core.quality_gate.testing import MatchTypeCrossCheckModel, MismatchCrossCheckModel
 from ..core.rca import LlmRcaReasoner, RcaReasoner
+from ..rule_catalog.schema.llm_resolver import ResolvedCapability
 from ..shared.config.models import LlmMode
 from ..shared.providers.workload_identity import WorkloadIdentity
 from ._helpers import (
+    Container,  # re-export for typing
     LlmBindings,
     LlmBindingsUnavailableError,
     _capability,
     _default_dim_for_family,
     _load_resolved_models,
 )
-from ._helpers import Container  # re-export for typing
 
 
 def bind_azure_llm_bindings(

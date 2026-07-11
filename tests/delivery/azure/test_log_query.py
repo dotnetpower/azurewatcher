@@ -263,11 +263,7 @@ async def test_duplicate_column_names_fail_closed() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
-            json={
-                "tables": [
-                    {"columns": [{"name": "a"}, {"name": "a"}], "rows": [["x", "y"]]}
-                ]
-            },
+            json={"tables": [{"columns": [{"name": "a"}, {"name": "a"}], "rows": [["x", "y"]]}]},
         )
 
     provider = _provider(handler)

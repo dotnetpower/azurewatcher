@@ -5,11 +5,11 @@ from __future__ import annotations
 import asyncio
 
 from fdai.agents._framework.bus import InMemoryBus
+from fdai.agents._framework.registry import load_pantheon
 from fdai.agents.forseti import Forseti
 from fdai.agents.freyr import Freyr
 from fdai.agents.njord import Njord
 from fdai.agents.odin import Odin
-from fdai.agents._framework.registry import load_pantheon
 
 
 def _bus() -> InMemoryBus:

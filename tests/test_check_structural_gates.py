@@ -48,9 +48,7 @@ def _copy_scripts(repo: Path) -> None:
         dst.chmod(0o755)
 
 
-def _run(
-    repo: Path, script: Path, **env_extra: str
-) -> subprocess.CompletedProcess[str]:
+def _run(repo: Path, script: Path, **env_extra: str) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     # Neutralize any inherited mode signals so each test controls its own env.
     for key in (
@@ -112,9 +110,7 @@ class TestCheckFileLoc:
         repo = _make_repo(tmp_path)
         _copy_scripts(repo)
         _seed_python_file(repo, "src/fdai/huge.py", 900)
-        result = _run(
-            repo, repo / "scripts" / "check-file-loc.sh", FILE_LOC_MODE="enforce"
-        )
+        result = _run(repo, repo / "scripts" / "check-file-loc.sh", FILE_LOC_MODE="enforce")
         assert result.returncode == 1
         assert "failed=1" in result.stdout
 
@@ -122,9 +118,7 @@ class TestCheckFileLoc:
         repo = _make_repo(tmp_path)
         _copy_scripts(repo)
         _seed_python_file(repo, "src/fdai/mid.py", 500)  # only warn
-        result = _run(
-            repo, repo / "scripts" / "check-file-loc.sh", FILE_LOC_MODE="enforce"
-        )
+        result = _run(repo, repo / "scripts" / "check-file-loc.sh", FILE_LOC_MODE="enforce")
         assert result.returncode == 0
         assert "failed=0" in result.stdout
 
@@ -170,25 +164,18 @@ class TestCheckFileLoc:
         _copy_scripts(repo)
         _seed_python_file(repo, "src/fdai/huge.py", 900)
         (repo / "scripts" / ".check-file-loc.allowlist").write_text(
-            "# huge.py: intentionally big during migration\n"
-            "src/fdai/huge.py\n"
+            "# huge.py: intentionally big during migration\nsrc/fdai/huge.py\n"
         )
-        result = _run(
-            repo, repo / "scripts" / "check-file-loc.sh", FILE_LOC_MODE="enforce"
-        )
+        result = _run(repo, repo / "scripts" / "check-file-loc.sh", FILE_LOC_MODE="enforce")
         assert result.returncode == 0
         assert "allowlisted=1" in result.stdout
 
-    def test_allowlist_entry_without_justification_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_allowlist_entry_without_justification_rejected(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path)
         _copy_scripts(repo)
         _seed_python_file(repo, "src/fdai/huge.py", 900)
         # No '#' comment preceding the entry - a governance smell.
-        (repo / "scripts" / ".check-file-loc.allowlist").write_text(
-            "src/fdai/huge.py\n"
-        )
+        (repo / "scripts" / ".check-file-loc.allowlist").write_text("src/fdai/huge.py\n")
         result = _run(repo, repo / "scripts" / "check-file-loc.sh")
         assert result.returncode == 2
         assert "justification comment" in result.stderr
@@ -200,12 +187,9 @@ class TestCheckFileLoc:
         _seed_python_file(repo, "src/fdai/generated/b.py", 950)
         _seed_python_file(repo, "src/fdai/handwritten.py", 900)
         (repo / "scripts" / ".check-file-loc.allowlist").write_text(
-            "# generated: tolerated pending code-gen split\n"
-            "src/fdai/generated/*.py\n"
+            "# generated: tolerated pending code-gen split\nsrc/fdai/generated/*.py\n"
         )
-        result = _run(
-            repo, repo / "scripts" / "check-file-loc.sh", FILE_LOC_MODE="enforce"
-        )
+        result = _run(repo, repo / "scripts" / "check-file-loc.sh", FILE_LOC_MODE="enforce")
         assert result.returncode == 1  # handwritten still fails
         assert "allowlisted=2" in result.stdout
         assert "failed=1" in result.stdout
@@ -215,13 +199,10 @@ class TestCheckFileLoc:
         _copy_scripts(repo)
         _seed_python_file(repo, "src/fdai/small.py", 10)  # under warn
         (repo / "scripts" / ".check-file-loc.allowlist").write_text(
-            "# ghost: file was refactored away but exemption forgotten\n"
-            "src/fdai/ghost.py\n"
+            "# ghost: file was refactored away but exemption forgotten\nsrc/fdai/ghost.py\n"
         )
         # Enforce: stale entry is a failure.
-        result = _run(
-            repo, repo / "scripts" / "check-file-loc.sh", FILE_LOC_MODE="enforce"
-        )
+        result = _run(repo, repo / "scripts" / "check-file-loc.sh", FILE_LOC_MODE="enforce")
         assert result.returncode == 1
         assert "stale allowlist entry" in result.stdout
 
@@ -230,8 +211,7 @@ class TestCheckFileLoc:
         _copy_scripts(repo)
         _seed_python_file(repo, "src/fdai/small.py", 10)
         (repo / "scripts" / ".check-file-loc.allowlist").write_text(
-            "# ghost: file was refactored away but exemption forgotten\n"
-            "src/fdai/ghost.py\n"
+            "# ghost: file was refactored away but exemption forgotten\nsrc/fdai/ghost.py\n"
         )
         # Warn mode: still exit 0, but the stale line is surfaced.
         result = _run(repo, repo / "scripts" / "check-file-loc.sh")
@@ -243,9 +223,7 @@ class TestCheckFileLoc:
         _copy_scripts(repo)
         for i in range(5):
             _seed_python_file(repo, f"src/fdai/m{i}.py", 500)
-        result = _run(
-            repo, repo / "scripts" / "check-file-loc.sh", CHECK_QUIET="1"
-        )
+        result = _run(repo, repo / "scripts" / "check-file-loc.sh", CHECK_QUIET="1")
         assert result.returncode == 0
         assert "warned=5" in result.stdout
         # Per-file lines should not be present.
@@ -267,10 +245,10 @@ class TestCheckFileLoc:
     @pytest.mark.parametrize(
         "lines,expected_bucket",
         [
-            (400, "clean"),   # exactly at warn threshold - not exceeded
-            (401, "warn"),    # one over -> warn
-            (800, "warn"),    # exactly at fail threshold - not exceeded
-            (801, "fail"),    # one over -> fail
+            (400, "clean"),  # exactly at warn threshold - not exceeded
+            (401, "warn"),  # one over -> warn
+            (800, "warn"),  # exactly at fail threshold - not exceeded
+            (801, "fail"),  # one over -> fail
         ],
     )
     def test_threshold_boundary_conditions(
@@ -330,9 +308,7 @@ class TestCheckAgentsImports:
             "from fdai.delivery.azure import arg_query\n",
         ],
     )
-    def test_forbidden_imports_are_flagged(
-        self, tmp_path: Path, banned_line: str
-    ) -> None:
+    def test_forbidden_imports_are_flagged(self, tmp_path: Path, banned_line: str) -> None:
         repo = _make_repo(tmp_path)
         _copy_scripts(repo)
         (repo / "src" / "fdai" / "agents").mkdir(parents=True)
@@ -346,9 +322,7 @@ class TestCheckAgentsImports:
         repo = _make_repo(tmp_path)
         _copy_scripts(repo)
         (repo / "src" / "fdai" / "agents" / "_framework").mkdir(parents=True)
-        (repo / "src" / "fdai" / "agents" / "_framework" / "bus.py").write_text(
-            "import httpx\n"
-        )
+        (repo / "src" / "fdai" / "agents" / "_framework" / "bus.py").write_text("import httpx\n")
         result = _run(repo, repo / "scripts" / "check-agents-imports.sh")
         assert result.returncode == 1
 
@@ -357,9 +331,7 @@ class TestCheckAgentsImports:
         _copy_scripts(repo)
         (repo / "src" / "fdai" / "agents" / "_framework").mkdir(parents=True)
         # A tolerated legacy file whose import we cannot fix this PR.
-        (repo / "src" / "fdai" / "agents" / "_framework" / "legacy.py").write_text(
-            "import httpx\n"
-        )
+        (repo / "src" / "fdai" / "agents" / "_framework" / "legacy.py").write_text("import httpx\n")
         (repo / "scripts" / ".check-agents-imports.allowlist").write_text(
             "# legacy: transport call queued for extraction in follow-up PR\n"
             "src/fdai/agents/_framework/legacy.py\n"
@@ -374,8 +346,7 @@ class TestCheckAgentsImports:
         (repo / "src" / "fdai" / "agents").mkdir(parents=True)
         (repo / "src" / "fdai" / "agents" / "odin.py").write_text("import os\n")
         (repo / "scripts" / ".check-agents-imports.allowlist").write_text(
-            "# ghost: cleanup left this behind\n"
-            "src/fdai/agents/_framework/gone.py\n"
+            "# ghost: cleanup left this behind\nsrc/fdai/agents/_framework/gone.py\n"
         )
         result = _run(repo, repo / "scripts" / "check-agents-imports.sh")
         assert result.returncode == 1
@@ -400,8 +371,7 @@ class TestCheckSubsystemFanout:
         core = repo / "src" / "fdai" / "core"
         core.mkdir(parents=True)
         (core / "small.py").write_text(
-            "from fdai.core.executor import ShadowExecutor\n"
-            "from fdai.core.audit import AuditLog\n"
+            "from fdai.core.executor import ShadowExecutor\nfrom fdai.core.audit import AuditLog\n"
         )
         result = _run(repo, repo / "scripts" / "check-subsystem-fanout.sh")
         assert result.returncode == 0
@@ -471,10 +441,10 @@ class TestCheckSubsystemFanout:
     @pytest.mark.parametrize(
         "count,expected_bucket",
         [
-            (7, "clean"),   # just below warn
-            (8, "warn"),    # exactly at warn threshold - triggers warn
-            (14, "warn"),   # just below fail
-            (15, "fail"),   # exactly at fail threshold - triggers fail
+            (7, "clean"),  # just below warn
+            (8, "warn"),  # exactly at warn threshold - triggers warn
+            (14, "warn"),  # just below fail
+            (15, "fail"),  # exactly at fail threshold - triggers fail
         ],
     )
     def test_fanout_boundary_conditions(

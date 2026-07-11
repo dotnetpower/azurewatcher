@@ -48,9 +48,7 @@ _PANTHEON_15 = frozenset(
 
 
 def test_top_level_is_exactly_pantheon_plus_init() -> None:
-    top_pyfiles = sorted(
-        p.stem for p in _AGENTS_DIR.glob("*.py") if p.name != "__init__.py"
-    )
+    top_pyfiles = sorted(p.stem for p in _AGENTS_DIR.glob("*.py") if p.name != "__init__.py")
     assert set(top_pyfiles) == _PANTHEON_15, (
         f"Top-level agents/*.py must be exactly the 15 pantheon members. "
         f"Extra: {set(top_pyfiles) - _PANTHEON_15}, "
@@ -61,9 +59,7 @@ def test_top_level_is_exactly_pantheon_plus_init() -> None:
 
 def test_framework_subpackage_exists() -> None:
     assert _FRAMEWORK_DIR.is_dir(), "_framework/ subpackage missing"
-    assert (_FRAMEWORK_DIR / "__init__.py").is_file(), (
-        "_framework/__init__.py missing"
-    )
+    assert (_FRAMEWORK_DIR / "__init__.py").is_file(), "_framework/__init__.py missing"
 
 
 def test_pantheon_count_is_15_exactly() -> None:
@@ -112,9 +108,7 @@ def test_no_external_caller_reaches_into_framework() -> None:
             continue
         for line in body.splitlines():
             if _FRAMEWORK_IMPORT.search(line):
-                offenders.append(
-                    (str(path.relative_to(_REPO_ROOT)), line.strip())
-                )
+                offenders.append((str(path.relative_to(_REPO_ROOT)), line.strip()))
     if offenders:
         rendered = "\n  ".join(f"{p}: {line}" for p, line in offenders)
         pytest.fail(
@@ -148,8 +142,7 @@ def test_no_cross_pantheon_imports() -> None:
                 offenders.append((name, imported, match.group(0).strip()))
     assert not offenders, (
         "Pantheon members must not import each other; use the bus / "
-        "typed topics for cross-agent communication. Offenders: "
-        + str(offenders)
+        "typed topics for cross-agent communication. Offenders: " + str(offenders)
     )
 
 
@@ -166,8 +159,7 @@ def test_no_framework_file_exceeds_800_loc() -> None:
         if loc > 800:
             over.append((path.name, loc))
     assert not over, (
-        f"agents/_framework files exceed the 800-LOC hard ceiling: {over}. "
-        "Split further."
+        f"agents/_framework files exceed the 800-LOC hard ceiling: {over}. Split further."
     )
 
 
@@ -201,11 +193,7 @@ def test_framework_init_docstring_pins_intent() -> None:
 
 
 def test_no_framework_file_shadows_a_pantheon_member() -> None:
-    framework_stems = {
-        p.stem
-        for p in _FRAMEWORK_DIR.glob("*.py")
-        if p.name != "__init__.py"
-    }
+    framework_stems = {p.stem for p in _FRAMEWORK_DIR.glob("*.py") if p.name != "__init__.py"}
     collisions = framework_stems & _PANTHEON_15
     assert not collisions, (
         f"agents/_framework/ contains file(s) that shadow a pantheon "
@@ -228,7 +216,4 @@ def test_framework_is_not_in_facade_all() -> None:
     exported = set(agents_pkg.__all__)
     assert "_framework" not in exported
     # Sanity: no re-export of the module object itself.
-    assert not any(
-        name.startswith("_framework") for name in exported
-    )
-
+    assert not any(name.startswith("_framework") for name in exported)

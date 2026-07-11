@@ -11,8 +11,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Any
 
 from fdai.core.executor import ExecutionResult, ExecutorOutcome
@@ -29,6 +27,7 @@ from fdai.core.risk_gate.authority import (
     evaluate_execution_authority,
 )
 from fdai.core.risk_gate.evaluator import UnifiedRiskDecision, combine
+from fdai.core.risk_gate.gate import RiskGate
 from fdai.core.risk_gate.risk_table import RiskTable
 from fdai.core.trust_router import RoutingDecision
 from fdai.shared.contracts.models import (
@@ -37,13 +36,12 @@ from fdai.shared.contracts.models import (
     Event,
     Mode,
     OntologyActionType,
-    RollbackKind,
-    RollbackRef,
     Rule,
     Tier,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
 
 def _extract_environment(resource_props: Mapping[str, Any]) -> str:
     """Environment word for the risk table (risk-classification.md).
@@ -298,7 +296,17 @@ def _synthetic_action_build_failure(*, event: Event, finding: Any, reason: str) 
 
 
 __all__ = [
-    "ControlLoop",
-    "ControlLoopOutcome",
-    "ControlLoopResult",
+    "ExecutionAuthorityDecision",
+    "UnifiedRiskDecision",
+    "_compute_authority",
+    "_extract_environment",
+    "_extract_resource_id",
+    "_extract_resource_props",
+    "_is_execution_success",
+    "_synthetic_action_build_failure",
+    "_unified_audit_dict",
+    "build_shadow_authority_audit",
+    "build_unified_risk_audit",
+    "combine",
+    "evaluate_unified",
 ]

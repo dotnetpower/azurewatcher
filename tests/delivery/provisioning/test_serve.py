@@ -117,7 +117,7 @@ class TestAiterJsonLines:
         assert lines == ['{"type":"x"}']
 
     async def test_multiple_lines_in_one_chunk(self) -> None:
-        lines = await _collect(aiter_json_lines(_achunks('a\nb\nc\n')))
+        lines = await _collect(aiter_json_lines(_achunks("a\nb\nc\n")))
         assert lines == ["a", "b", "c"]
 
     async def test_crlf_stripped(self) -> None:

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
 from fdai.delivery.read_api.routes.measurement_summary import (
     AutonomyMeasurementPanel,
     _vertical_of,
 )
-from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
 
 
 def test_vertical_of_maps_action_kinds() -> None:

@@ -22,8 +22,9 @@ from starlette.testclient import TestClient
 
 from fdai.core.rbac.resolver import GroupMapping, RoleResolver
 from fdai.delivery.read_api.auth import UnsafeClaimsExtractor, build_authenticator
-from fdai.delivery.read_api.streaming.live_stream import LiveStreamConfig
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
+from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
+from fdai.delivery.read_api.streaming.live_stream import LiveStreamConfig
 from fdai.delivery.read_api.streaming.provision_stream import (
     DEFAULT_CHANNEL,
     ProvisionEvent,
@@ -31,7 +32,6 @@ from fdai.delivery.read_api.streaming.provision_stream import (
     ProvisionStreamConfig,
     SseProvisionPublisher,
 )
-from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
 from fdai.shared.providers.testing.sse import InMemorySseSink
 
 _DEV_MODE_ENV = "FDAI_READ_API_DEV_MODE"
