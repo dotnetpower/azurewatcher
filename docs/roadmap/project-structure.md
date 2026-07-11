@@ -175,6 +175,44 @@ Dependency direction is strict and one-way; a violation is a review blocker.
   the remediation-pr, never through console buttons
   (see [security-and-identity.md](security-and-identity.md)).
 
+## Structural CI Gates
+
+Four CI-enforced scripts back the boundary rules above so drift cannot creep
+back once a refactor lands. They all live under `scripts/` and run in every
+CI pipeline plus the local pre-push hook. Corresponding docs in
+[coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md).
+
+| Gate | Rule | Mode today |
+|------|------|------------|
+| [check-core-imports.sh](../../scripts/check-core-imports.sh) | `core/` forbids cloud SDKs, HTTP clients, and `fdai.delivery.*` | enforce |
+| [check-agents-imports.sh](../../scripts/check-agents-imports.sh) | `agents/` forbids the same set | enforce |
+| [check-file-loc.sh](../../scripts/check-file-loc.sh) | warn > 400 LOC, fail > 800 in enforce mode | warn-only |
+| [check-subsystem-fanout.sh](../../scripts/check-subsystem-fanout.sh) | warn >= 8 sibling `core.*` subsystems in one file, fail >= 15 | warn-only |
+
+### Adding a new gate
+
+1. Write `scripts/check-<name>.sh` following the pattern in the existing
+   scripts (warn/fail thresholds via env vars, allowlist with a preceding
+   `#` justification comment, stale-entry rejection, GitHub Actions
+   annotations, `CHECK_QUIET=1` summary mode).
+2. Ship the gate in **warn-only** so it does not break the current tree.
+3. Add a job to `.github/workflows/ci.yml` and a call in `.githooks/pre-push`.
+4. Add regression tests to `tests/test_check_structural_gates.py` covering
+   warn / enforce / threshold overrides / allowlist / stale entries /
+   boundary conditions.
+5. Extend `tests/test_structural_gates_drift.py` so the CI job and the
+   pre-push wiring are drift-guarded.
+
+### Promoting a gate warn -> enforce
+
+1. Land the refactor(s) that clear the current warn baseline (tracker #14).
+2. Flip the gate's mode env var (`FILE_LOC_MODE=enforce`, etc.) in the CI job.
+3. Add any legitimate exceptions to the gate's allowlist file with a
+   written justification, following the H3 rule (preceding `#` comment).
+4. Do NOT weaken the threshold to make the tree fit; either split the file
+   or record the exception in the allowlist. Weakening a threshold to
+   unblock a red pipeline is a governance regression.
+
 ## Customization via Dependency Injection
 
 This repository is the **main project**. Per-customer customization is supplied by **dependency

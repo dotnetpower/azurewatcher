@@ -1,7 +1,7 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: 413a7f97c3e2974c1b19b6e31cc376926ba2927c
+translation_source_sha: 30d678da4a8652a4ebcf9306d2cf79072473b18a
 translation_revised: 2026-07-11
 ---
 
@@ -176,6 +176,41 @@ fdai/
   발행하지 않고 액션을 실행하지 않습니다. HIL 승인은 ChatOps 또는 remediation-pr로 흐르며,
   콘솔 버튼으로 절대 흐르지 않습니다
   ([security-and-identity-ko.md](security-and-identity-ko.md) 참조).
+
+## 구조 CI 게이트
+
+위 경계 규칙을 CI에서 강제하는 네 개의 스크립트가 있으며, 리팩터가 랜딩된 뒤에 드리프트가
+슬금슬금 돌아오는 것을 막습니다. 전부 `scripts/` 아래에 있고 CI 파이프라인과 로컬 pre-push
+훅에서 모두 실행됩니다. 상응 문서는
+[coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md)
+에 있습니다.
+
+| 게이트 | 규칙 | 현재 모드 |
+|--------|------|-----------|
+| [check-core-imports.sh](../../scripts/check-core-imports.sh) | `core/` 는 클라우드 SDK, HTTP 클라이언트, `fdai.delivery.*` 를 import 금지 | enforce |
+| [check-agents-imports.sh](../../scripts/check-agents-imports.sh) | `agents/` 도 같은 집합 금지 | enforce |
+| [check-file-loc.sh](../../scripts/check-file-loc.sh) | 400 LOC 초과 시 warn, enforce 모드에서 800 초과 시 fail | warn-only |
+| [check-subsystem-fanout.sh](../../scripts/check-subsystem-fanout.sh) | 한 파일이 `core.*` sibling subsystem 을 8개 이상 import 하면 warn, 15개 이상이면 enforce 모드에서 fail | warn-only |
+
+### 새 게이트 추가
+
+1. 기존 스크립트 패턴을 따라 `scripts/check-<name>.sh` 를 작성합니다 (환경변수로 warn/fail
+   threshold, 앞선 `#` 정당성 코멘트를 요구하는 allowlist, stale 엔트리 거부,
+   GitHub Actions 어노테이션, `CHECK_QUIET=1` 요약 모드).
+2. 현재 트리를 깨지 않도록 **warn-only** 로 배포합니다.
+3. `.github/workflows/ci.yml` 에 잡을 추가하고 `.githooks/pre-push` 에 호출을 추가합니다.
+4. `tests/test_check_structural_gates.py` 에 warn / enforce / threshold override /
+   allowlist / stale entry / boundary condition 을 커버하는 회귀 테스트를 추가합니다.
+5. `tests/test_structural_gates_drift.py` 에 CI 잡과 pre-push wiring 이 드리프트로 사라지지
+   않도록 가드를 추가합니다.
+
+### 게이트 warn -> enforce 승격
+
+1. 현재 warn 베이스라인을 정리하는 리팩터를 랜딩합니다 (트래커 #14).
+2. CI 잡에서 게이트의 mode 환경변수를 뒤집습니다 (`FILE_LOC_MODE=enforce` 등).
+3. 정당한 예외가 있으면 게이트 allowlist 파일에 H3 규칙 (앞선 `#` 코멘트) 을 지켜 넣습니다.
+4. 트리를 통과시키기 위해 threshold를 약화하지 **않습니다**. 파일을 쪼개거나 allowlist에
+   기록하세요. 붉은 파이프라인을 풀려고 threshold를 낮추는 것은 거버넌스 회귀입니다.
 
 ## 의존성 주입을 통한 커스터마이제이션
 
