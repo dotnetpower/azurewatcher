@@ -99,4 +99,3 @@ def test_is_enforce_activation() -> None:
     assert not is_enforce_activation(Enforcement.ENFORCE, Enforcement.DO_NOT_ENFORCE)
     assert not is_enforce_activation(Enforcement.ENFORCE, Enforcement.ENFORCE)
     assert not is_enforce_activation(Enforcement.DO_NOT_ENFORCE, Enforcement.DO_NOT_ENFORCE)
-
