@@ -325,6 +325,35 @@ class TestCheckAgentsImports:
         result = _run(repo, repo / "scripts" / "check-agents-imports.sh")
         assert result.returncode == 1
 
+    def test_allowlist_glob_pattern_matches(self, tmp_path: Path) -> None:
+        repo = _make_repo(tmp_path)
+        _copy_scripts(repo)
+        (repo / "src" / "fdai" / "agents" / "_framework").mkdir(parents=True)
+        # A tolerated legacy file whose import we cannot fix this PR.
+        (repo / "src" / "fdai" / "agents" / "_framework" / "legacy.py").write_text(
+            "import httpx\n"
+        )
+        (repo / "scripts" / ".check-agents-imports.allowlist").write_text(
+            "# legacy: transport call queued for extraction in follow-up PR\n"
+            "src/fdai/agents/_framework/legacy.py\n"
+        )
+        result = _run(repo, repo / "scripts" / "check-agents-imports.sh")
+        assert result.returncode == 0
+        assert "allowlisted=1" in result.stdout
+
+    def test_stale_allowlist_entry_fails(self, tmp_path: Path) -> None:
+        repo = _make_repo(tmp_path)
+        _copy_scripts(repo)
+        (repo / "src" / "fdai" / "agents").mkdir(parents=True)
+        (repo / "src" / "fdai" / "agents" / "odin.py").write_text("import os\n")
+        (repo / "scripts" / ".check-agents-imports.allowlist").write_text(
+            "# ghost: cleanup left this behind\n"
+            "src/fdai/agents/_framework/gone.py\n"
+        )
+        result = _run(repo, repo / "scripts" / "check-agents-imports.sh")
+        assert result.returncode == 1
+        assert "stale allowlist entry" in result.stdout
+
 
 # ---------------------------------------------------------------------------
 # check-subsystem-fanout.sh
