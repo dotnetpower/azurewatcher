@@ -262,64 +262,80 @@ class Thor(Agent):
         self.action_runs[correlation] = run
         if resource_id:
             self._resource_locks.add(str(resource_id))
-        # Emit the initial VERDICTED state so downstream consumers
-        # (audit chain, Var) see the lifecycle start.
-        await self._emit_action_run(run)
-        # Measurable behaviour: the dispatch verdict split (+ shadow), so a
-        # scenario test reads dispatch:auto / dispatch:hil / dispatch:deny
-        # and dispatch:shadow to assert 'shadow never mutates' and 'deny
-        # never reaches Var' without touching private state.
-        self.record_behavior(f"dispatch:{risk_verdict}")
-        if shadow_mode:
-            self.record_behavior("dispatch:shadow")
-            # Distinguish a policy shadow (forced) from a degraded shadow (a
-            # hard dependency - Saga/Vidar - is down), so a scenario can see a
-            # safety-relevant degradation, not just "shadow".
-            if not (self._saga_available and self._vidar_available):
-                self.record_behavior("dispatch:degraded")
-
-        if risk_verdict == "deny":
-            run.transition(ActionRunState.DENY_DROPPED)
+        try:
+            # Emit the initial VERDICTED state so downstream consumers
+            # (audit chain, Var) see the lifecycle start.
             await self._emit_action_run(run)
+            # Measurable behaviour: the dispatch verdict split (+ shadow), so a
+            # scenario test reads dispatch:auto / dispatch:hil / dispatch:deny
+            # and dispatch:shadow to assert 'shadow never mutates' and 'deny
+            # never reaches Var' without touching private state.
+            self.record_behavior(f"dispatch:{risk_verdict}")
+            if shadow_mode:
+                self.record_behavior("dispatch:shadow")
+                # Distinguish a policy shadow (forced) from a degraded shadow (a
+                # hard dependency - Saga/Vidar - is down), so a scenario can see
+                # a safety-relevant degradation, not just "shadow".
+                if not (self._saga_available and self._vidar_available):
+                    self.record_behavior("dispatch:degraded")
+
+            if risk_verdict == "deny":
+                run.transition(ActionRunState.DENY_DROPPED)
+                await self._emit_action_run(run)
+                self._release_lock(resource_id)
+                return run
+
+            if risk_verdict == "hil":
+                run.transition(ActionRunState.HIL_PENDING)
+                await self._emit_action_run(run)
+                # Lock is held intentionally across the HIL wait; released
+                # when _execute (on approval) or the reject path terminates.
+                return run
+
+            # auto path (releases the lock via _execute's own finally)
+            await self._execute(run)
+            return run
+        except Exception:
+            # Fail-safe: a lifecycle emit (bus hiccup) MUST NOT leave the
+            # resource locked forever - that would deadlock every future
+            # action on it (permanent dispatch:lock_contention). Release and
+            # re-raise. The HIL path returns normally, so its intentional lock
+            # hold is unaffected by this guard.
             self._release_lock(resource_id)
-            return run
-
-        if risk_verdict == "hil":
-            run.transition(ActionRunState.HIL_PENDING)
-            await self._emit_action_run(run)
-            return run
-
-        # auto path
-        await self._execute(run)
-        return run
+            raise
 
     async def _execute(self, run: ActionRun) -> None:
-        run.transition(ActionRunState.EXECUTING)
-        await self._emit_action_run(run)
-        if run.shadow_mode:
-            # Shadow-mode: judge and log without mutating.
-            run.transition(ActionRunState.SUCCEEDED)
-            run.outcome = "shadow_success"
-            await self._emit_action_run(run)
-            self.record_behavior("executed:shadow")
-            self._release_lock(run.resource_id)
-            return
+        # The per-resource lock MUST be released no matter how _execute exits:
+        # it always drives the run to a terminal state, so even if a lifecycle
+        # emit raises (a bus hiccup), leaving the resource locked would
+        # deadlock every future action on it (permanent dispatch:lock_contention).
         try:
-            success = await self._executor({"run": run})
-        except Exception as exc:  # noqa: BLE001 (surface adapter errors)
-            success = False
-            run.outcome = f"executor error: {exc}"
-        run.transition(ActionRunState.SUCCEEDED if success else ActionRunState.FAILED)
-        if not success and run.outcome is None:
-            run.outcome = "executor returned false"
-        await self._emit_action_run(run)
-        self.record_behavior("executed:success" if success else "executed:failed")
-        if not success:
-            run.rollback_ref = f"rollback:{run.correlation_id}"
-            run.transition(ActionRunState.ROLLED_BACK)
+            run.transition(ActionRunState.EXECUTING)
             await self._emit_action_run(run)
-            self.record_behavior("rolled_back")
-        self._release_lock(run.resource_id)
+            if run.shadow_mode:
+                # Shadow-mode: judge and log without mutating.
+                run.transition(ActionRunState.SUCCEEDED)
+                run.outcome = "shadow_success"
+                await self._emit_action_run(run)
+                self.record_behavior("executed:shadow")
+                return
+            try:
+                success = await self._executor({"run": run})
+            except Exception as exc:  # noqa: BLE001 (surface adapter errors)
+                success = False
+                run.outcome = f"executor error: {exc}"
+            run.transition(ActionRunState.SUCCEEDED if success else ActionRunState.FAILED)
+            if not success and run.outcome is None:
+                run.outcome = "executor returned false"
+            await self._emit_action_run(run)
+            self.record_behavior("executed:success" if success else "executed:failed")
+            if not success:
+                run.rollback_ref = f"rollback:{run.correlation_id}"
+                run.transition(ActionRunState.ROLLED_BACK)
+                await self._emit_action_run(run)
+                self.record_behavior("rolled_back")
+        finally:
+            self._release_lock(run.resource_id)
 
     async def _handle_approval(self, approval: dict[str, Any]) -> None:
         correlation = str(approval.get("correlation_id", ""))
@@ -330,9 +346,11 @@ class Thor(Agent):
             run.transition(ActionRunState.APPROVED)
             await self._execute(run)
         else:
-            run.transition(ActionRunState.REJECTED)
-            await self._emit_action_run(run)
-            self._release_lock(run.resource_id)
+            try:
+                run.transition(ActionRunState.REJECTED)
+                await self._emit_action_run(run)
+            finally:
+                self._release_lock(run.resource_id)
 
     # ---- helpers -------------------------------------------------------
 

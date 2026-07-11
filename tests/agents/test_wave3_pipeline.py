@@ -432,6 +432,41 @@ def test_thor_rejects_deny_verdict_without_execution() -> None:
     assert "executing" not in states
 
 
+class _RaisingBus:
+    """Bus stub whose publish always raises, to prove the per-resource lock
+    is released even when a lifecycle emit fails."""
+
+    def __init__(self) -> None:
+        self.registry = load_pantheon()
+
+    def subscribe(self, *args: object, **kwargs: object) -> None:
+        return None
+
+    async def publish(self, *args: object, **kwargs: object) -> None:
+        raise RuntimeError("bus down")
+
+
+def test_thor_releases_lock_when_lifecycle_emit_fails() -> None:
+    # A bus hiccup during the VERDICTED emit must not leave the resource
+    # locked forever - that would deadlock every future action on it. dispatch
+    # is fail-safe: it releases the lock and re-raises.
+    thor = Thor(bus=_RaisingBus())
+    with pytest.raises(RuntimeError, match="bus down"):
+        asyncio.run(
+            thor.dispatch_verdict(
+                {
+                    "correlation_id": "c-boom",
+                    "action_type": "ops.restart-service",
+                    "risk_verdict": "auto",
+                    "resource_id": "vm-boom",
+                }
+            )
+        )
+    # Lock released despite the failure -> the resource is not deadlocked.
+    assert thor.health()["locked_resources"] == 0
+    assert "vm-boom" not in thor._resource_locks  # noqa: SLF001
+
+
 def test_thor_degrades_to_shadow_when_saga_absent() -> None:
     reg = load_pantheon()
     bus = InMemoryBus(registry=reg)
