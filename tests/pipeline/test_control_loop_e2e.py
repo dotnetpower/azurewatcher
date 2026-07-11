@@ -1128,23 +1128,17 @@ async def test_t1_causal_chain_empty_source_is_silent(
     await loop._analyze_and_audit_t1_causal_chain(  # noqa: SLF001
         event=_failure_event(), incident_id="inc-1"
     )
-    assert not [
-        e for e in audit.audit_entries if e["entry"].get("action_kind") == "rca.hypothesis"
-    ]
+    assert not [e for e in audit.audit_entries if e["entry"].get("action_kind") == "rca.hypothesis"]
 
 
 @pytest.mark.asyncio
 async def test_t1_causal_chain_noop_without_source(shipped_catalog: tuple[Any, Any]) -> None:
     # No member source wired -> the helper is a no-op (backward-compatible).
-    loop, _, audit = _make_loop(
-        shipped_catalog, with_opa=False, rca_coordinator=RcaCoordinator()
-    )
+    loop, _, audit = _make_loop(shipped_catalog, with_opa=False, rca_coordinator=RcaCoordinator())
     await loop._analyze_and_audit_t1_causal_chain(  # noqa: SLF001
         event=_failure_event(), incident_id="inc-1"
     )
-    assert not [
-        e for e in audit.audit_entries if e["entry"].get("action_kind") == "rca.hypothesis"
-    ]
+    assert not [e for e in audit.audit_entries if e["entry"].get("action_kind") == "rca.hypothesis"]
 
 
 @pytest.mark.asyncio
@@ -1169,9 +1163,7 @@ async def test_t1_causal_chain_noop_without_resource_ref(
     await loop._analyze_and_audit_t1_causal_chain(  # noqa: SLF001
         event=_failure_event(resource_ref=None), incident_id="inc-1"
     )
-    assert not [
-        e for e in audit.audit_entries if e["entry"].get("action_kind") == "rca.hypothesis"
-    ]
+    assert not [e for e in audit.audit_entries if e["entry"].get("action_kind") == "rca.hypothesis"]
 
 
 # ---------------------------------------------------------------------------
