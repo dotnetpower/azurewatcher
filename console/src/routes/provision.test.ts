@@ -72,4 +72,12 @@ describe("reducer", () => {
     expect(state.waiting).toBeNull();
     expect(state.failed).toBe("db");
   });
+
+  test("recent list stays unique (no duplicate keys) and newest-first", () => {
+    let state = reducer(INITIAL, ev({ phase: "progress", fraction: 0.3, node: "a" }));
+    state = reducer(state, ev({ phase: "progress", fraction: 0.6, node: "b" }));
+    state = reducer(state, ev({ phase: "progress", fraction: 0.9, node: "a" })); // repeat
+    expect(state.recent).toEqual(["a", "b"]);
+    expect(new Set(state.recent).size).toBe(state.recent.length);
+  });
 });

@@ -75,7 +75,11 @@ export function safeHttpUrl(url: string | null): string | null {
 export function reducer(state: ProvisionState, ev: ProvisionEvent): ProvisionState {
   switch (ev.phase) {
     case "progress": {
-      const recent = ev.node ? [ev.node, ...state.recent].slice(0, RECENT_CAP) : state.recent;
+      // Newest-first, unique: a repeat completion (reconnect replay / retry)
+      // must not create a duplicate `key` in the recent list.
+      const recent = ev.node
+        ? [ev.node, ...state.recent.filter((n) => n !== ev.node)].slice(0, RECENT_CAP)
+        : state.recent;
       return {
         ...state,
         // A progress bar never regresses: keep the high-water mark even if a
