@@ -62,6 +62,11 @@ _MAX_RESOURCE_CHARS = 200
 _MAX_SESSION_CHARS = 200
 _MAX_SESSIONS = 1_000
 _MAX_PROGRESS_KEYS = 5_000
+#: Cap on progress steps retained per correlation. A pipeline has a handful of
+#: lifecycle states, but at-least-once redelivery (or a chatty retry) could
+#: append without limit, so the per-correlation list is bounded too - not just
+#: the key count.
+_MAX_PROGRESS_STEPS = 64
 
 
 def _evict_oldest(mapping: dict[str, Any], cap: int, *, keep: str | None = None) -> None:
@@ -134,8 +139,9 @@ class Bragi(Agent):
         # Per-correlation pipeline progress, appended as verdict / action-run
         # states arrive on the typed port, so an operator can be told where
         # their submitted action is (submitted -> verdicted -> hil_pending ->
-        # executing -> succeeded / denied). Bounded by eviction is a follow-up;
-        # a conversation is short-lived.
+        # executing -> succeeded / denied). Bounded both ways: the key count
+        # by _evict_oldest (_MAX_PROGRESS_KEYS) and each list's length by
+        # _MAX_PROGRESS_STEPS, with redelivered steps deduped.
         self._progress: dict[str, list[dict[str, Any]]] = {}
 
     # ---- registration --------------------------------------------------
@@ -239,14 +245,24 @@ class Bragi(Agent):
         correlation_id = str(payload.get("correlation_id", ""))
         if not correlation_id:
             return None
-        self._progress.setdefault(correlation_id, []).append(
-            {
-                "topic": topic,
-                "state": payload.get("state") or payload.get("risk_verdict"),
-                "action_type": payload.get("action_type"),
-                "outcome": payload.get("outcome"),
-            }
-        )
+        entry = {
+            "topic": topic,
+            "state": payload.get("state") or payload.get("risk_verdict"),
+            "action_type": payload.get("action_type"),
+            "outcome": payload.get("outcome"),
+        }
+        steps = self._progress.setdefault(correlation_id, [])
+        # Idempotency: at-least-once delivery can redeliver the same lifecycle
+        # record, which would otherwise show the operator a duplicated step
+        # ("executing, executing"). Skip an append identical to the last step.
+        if steps and steps[-1] == entry:
+            return None
+        steps.append(entry)
+        # Bound the per-correlation list too (not just the key count): a
+        # redelivery / retry burst must not grow one conversation's progress
+        # log without limit. Keep the most recent steps.
+        if len(steps) > _MAX_PROGRESS_STEPS:
+            del steps[:-_MAX_PROGRESS_STEPS]
         _evict_oldest(self._progress, _MAX_PROGRESS_KEYS, keep=correlation_id)
         return None
 

@@ -363,6 +363,32 @@ def test_bragi_progress_map_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
     assert len(b._progress) == 2
 
 
+def test_bragi_progress_dedups_redelivered_step() -> None:
+    # At-least-once delivery can redeliver the same lifecycle record; the
+    # operator must not see a duplicated step.
+    b = Bragi()
+    record = {"correlation_id": "c-dup", "state": "executing", "action_type": "ops.x"}
+    asyncio.run(b.on_typed_message("object.action-run", dict(record)))
+    asyncio.run(b.on_typed_message("object.action-run", dict(record)))
+    assert len(b.progress_for("c-dup")) == 1
+
+
+def test_bragi_progress_list_length_is_bounded() -> None:
+    # A redelivery / retry burst of DISTINCT states must not grow one
+    # conversation's progress log without limit.
+    from fdai.agents.bragi import _MAX_PROGRESS_STEPS
+
+    b = Bragi()
+    for i in range(_MAX_PROGRESS_STEPS + 50):
+        asyncio.run(
+            b.on_typed_message(
+                "object.action-run",
+                {"correlation_id": "c-long", "state": f"s{i}", "action_type": "ops.x"},
+            )
+        )
+    assert len(b.progress_for("c-long")) == _MAX_PROGRESS_STEPS
+
+
 def test_bragi_session_map_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
     from fdai.agents import bragi as bragi_mod
 
