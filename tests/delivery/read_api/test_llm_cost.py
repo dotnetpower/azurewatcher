@@ -16,7 +16,7 @@ from fdai.core.metering.sink import InMemoryMeteringSink
 from fdai.core.metering.usage import TokenUsage
 from fdai.core.rbac.resolver import GroupMapping, RoleResolver
 from fdai.delivery.read_api.auth import UnsafeClaimsExtractor, build_authenticator
-from fdai.delivery.read_api.llm_cost import LlmCostPanel
+from fdai.delivery.read_api.routes.llm_cost import LlmCostPanel
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
 from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
 

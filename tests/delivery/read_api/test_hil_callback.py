@@ -19,7 +19,7 @@ from fdai.core.executor import (
 )
 from fdai.core.hil_resume import HilResumeCoordinator
 from fdai.delivery.read_api.auth import build_authenticator
-from fdai.delivery.read_api.hil_callback import (
+from fdai.delivery.read_api.routes.hil_callback import (
     HilCallbackConfig,
 )
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
@@ -54,7 +54,7 @@ SECRET = "shared-secret-for-tests"
 
 
 def _sign(secret: str, timestamp: str, body: bytes, *, approval_id: str) -> str:
-    """Mirror :func:`fdai.delivery.read_api.hil_callback._compute_hmac`.
+    """Mirror :func:`fdai.delivery.read_api.routes.hil_callback._compute_hmac`.
 
     The URL ``approval_id`` MUST be part of the signed material so a
     captured message cannot be replayed against a different pending item

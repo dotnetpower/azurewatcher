@@ -5,7 +5,7 @@ upstream defaults so a fork composition root can wire the whole
 subsystem in one call.
 
 Usage sketch (a fork composition root calls this factory and hands the
-result to ``fdai.delivery.read_api.reporting.ReportingConfig``):
+result to ``fdai.delivery.read_api.routes.reporting.ReportingConfig``):
 
 - import ``default_reporting_engine`` from :mod:`fdai.core.reporting.composition`;
 - call it with the seams the fork has wired (any missing datasource

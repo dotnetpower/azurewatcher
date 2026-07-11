@@ -1,6 +1,6 @@
 """One-command launcher: boot the read API, then open the operator-console CLI.
 
-Starts the dev read API (``fdai.delivery.read_api._local:app``) in the
+Starts the dev read API (``fdai.delivery.read_api.dev.local:app``) in the
 background, waits for ``/healthz``, then runs the interactive Ink CLI wired to
 it with ``--source=api``. On exit it tears the server back down. If a read API
 is already listening on the port, it is reused (and left running).
@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
                     "--with",
                     "uvicorn",
                     "uvicorn",
-                    "fdai.delivery.read_api._local:app",
+                    "fdai.delivery.read_api.dev.local:app",
                     "--factory",
                     "--host",
                     "127.0.0.1",

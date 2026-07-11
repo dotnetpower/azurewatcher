@@ -14,7 +14,7 @@ from fdai.delivery.provisioning.terraform_bridge import (
     console_url_from_outputs,
     parse_json_line,
 )
-from fdai.delivery.read_api.provision_stream import ProvisionPhase
+from fdai.delivery.read_api.streaming.provision_stream import ProvisionPhase
 
 
 def _line(record: dict[str, object]) -> str:

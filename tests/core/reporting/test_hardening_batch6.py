@@ -50,7 +50,7 @@ from fdai.core.reporting.widgets import IframeBuilder, install_default_widgets
 from fdai.delivery.read_api.auth import build_authenticator
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
 from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
-from fdai.delivery.read_api.reporting import ReportingConfig
+from fdai.delivery.read_api.routes.reporting import ReportingConfig
 
 _NOW = datetime(2026, 7, 11, 12, 0, tzinfo=UTC)
 

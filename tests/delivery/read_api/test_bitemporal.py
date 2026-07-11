@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 from fdai.delivery.read_api.auth import build_authenticator
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
 from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
-from fdai.delivery.read_api.rule_fire_trace_reader import ConsoleReadModelTraceReader
+from fdai.delivery.read_api.routes.rule_fire_trace_reader import ConsoleReadModelTraceReader
 
 
 @pytest.fixture(autouse=True)
@@ -127,7 +127,7 @@ def test_bitemporal_route_400_on_bad_effective_timestamp() -> None:
 
 
 def test_parse_ts_returns_none_for_empty_input() -> None:
-    from fdai.delivery.read_api.bitemporal import _parse_ts
+    from fdai.delivery.read_api.routes.bitemporal import _parse_ts
 
     # Defensive falsy-guard branch: an empty / None raw parses to None
     # rather than raising, so a caller can treat "absent" uniformly.

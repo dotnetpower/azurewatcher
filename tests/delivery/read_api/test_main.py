@@ -35,7 +35,7 @@ from fdai.delivery.read_api.auth import (
     build_authenticator,
 )
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
-from fdai.delivery.read_api.panels import ExampleFinOpsPanel
+from fdai.delivery.read_api.routes.panels import ExampleFinOpsPanel
 from fdai.delivery.read_api.read_model import (
     HilQueueItem,
     InMemoryConsoleReadModel,
@@ -672,7 +672,7 @@ class TestCapabilityCatalogPanel:
     """The capability catalog panel (SRE-agent slide 20)."""
 
     def test_capabilities_route_lists_metadata(self, dev_env: None) -> None:
-        from fdai.delivery.read_api.panels import CapabilityCatalogPanel
+        from fdai.delivery.read_api.routes.panels import CapabilityCatalogPanel
 
         app, _ = _build_with_panels(CapabilityCatalogPanel())
         client = TestClient(app)
@@ -688,7 +688,7 @@ class TestCapabilityCatalogPanel:
                 assert cap["default_mode"] == "shadow"
 
     def test_capabilities_route_filters_by_category(self, dev_env: None) -> None:
-        from fdai.delivery.read_api.panels import CapabilityCatalogPanel
+        from fdai.delivery.read_api.routes.panels import CapabilityCatalogPanel
 
         app, _ = _build_with_panels(CapabilityCatalogPanel())
         client = TestClient(app)

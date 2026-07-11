@@ -28,7 +28,7 @@ The Genesis client subscribes with a bare ``EventSource`` and reads
 SSE event type. So every :class:`ProvisionEvent` is encoded with
 ``event="message"`` and the *semantic* type lives inside the JSON payload as
 ``{"type": "provision.done", ...}``. The generic route
-(:func:`~fdai.delivery.read_api.live_stream.make_live_stream_route`) already
+(:func:`~fdai.delivery.read_api.streaming.live_stream.make_live_stream_route`) already
 emits a named ``event: hello`` boot frame and ``: keepalive`` comments; the
 client's ``onmessage`` ignores both, exactly as intended.
 
@@ -58,7 +58,7 @@ from typing import Any, Protocol, runtime_checkable
 from starlette.requests import Request
 from starlette.routing import Route
 
-from fdai.delivery.read_api.live_stream import make_live_stream_route
+from fdai.delivery.read_api.streaming.live_stream import make_live_stream_route
 from fdai.shared.providers.sse import SseEvent, SseSink
 
 # The channel provisioning publishers fan out on. A relay / bridge MUST

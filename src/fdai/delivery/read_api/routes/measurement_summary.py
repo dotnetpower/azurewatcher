@@ -23,7 +23,7 @@ The synthetic dev values illustrate the *shape* and a plausible
 "treatment beats a single-model baseline" story; they are NOT a measured
 claim (see goals-and-metrics.md, Measurement-First Rule).
 
-Read-only, like every :class:`~fdai.delivery.read_api.panels.ReadPanel`:
+Read-only, like every :class:`~fdai.delivery.read_api.routes.panels.ReadPanel`:
 it renders GET-only data and exposes no action.
 """
 
@@ -105,7 +105,7 @@ class AutonomyMeasurementPanel:
 
     Combines an audit-derived vertical / tier split with an injected
     measurement mapping (synthetic in dev). Implements the
-    :class:`~fdai.delivery.read_api.panels.ReadPanel` Protocol structurally
+    :class:`~fdai.delivery.read_api.routes.panels.ReadPanel` Protocol structurally
     (``path`` / ``name`` / ``render``); no import cycle with ``panels``.
     """
 

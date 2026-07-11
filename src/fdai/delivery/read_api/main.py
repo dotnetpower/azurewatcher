@@ -48,18 +48,18 @@ from fdai.delivery.read_api.auth import (
     AuthenticationError,
     Authenticator,
 )
-from fdai.delivery.read_api.hil_callback import (
+from fdai.delivery.read_api.routes.hil_callback import (
     HilCallbackConfig,
     make_hil_callback_route,
 )
-from fdai.delivery.read_api.live_stream import (
+from fdai.delivery.read_api.streaming.live_stream import (
     LiveEmitter,
     LiveStreamConfig,
     SyntheticLiveEmitter,
     make_live_stream_route,
 )
-from fdai.delivery.read_api.panels import ReadPanel
-from fdai.delivery.read_api.provision_stream import (
+from fdai.delivery.read_api.routes.panels import ReadPanel
+from fdai.delivery.read_api.streaming.provision_stream import (
     ProvisionStreamConfig,
     make_provision_stream_route,
 )
@@ -193,7 +193,7 @@ class ReadApiConfig:
     route (default ``/live/stream``) that broadcasts control-plane
     events to any subscriber. The default is ``None`` - upstream ships
     strictly three GET routes; a fork (or the dev harness in
-    :mod:`fdai.delivery.read_api._local`) opts in. See
+    :mod:`fdai.delivery.read_api.dev.local`) opts in. See
     :mod:`fdai.delivery.read_api.live_stream` for the read-only /
     fan-out contract."""
 
@@ -204,7 +204,7 @@ class ReadApiConfig:
     renders progress, it never executes provisioning. The producer (the
     ``azd up`` terraform bridge, or an in-product relay) publishes onto
     the shared sink via
-    :class:`~fdai.delivery.read_api.provision_stream.SseProvisionPublisher`.
+    :class:`~fdai.delivery.read_api.streaming.provision_stream.SseProvisionPublisher`.
     Default ``None``. See
     :mod:`fdai.delivery.read_api.provision_stream`."""
 
@@ -322,17 +322,17 @@ class ReadApiConfig:
 
     chat: Any = None
     """Opt-in CommandDeck chat backend. When set (an implementer of
-    :class:`~fdai.delivery.read_api.chat.ChatBackend`), registers
+    :class:`~fdai.delivery.read_api.routes.chat.ChatBackend`), registers
     ``POST /chat`` for the console's screen-aware conversational
     surface. The backend is a read-only translator - it never issues a
-    privileged call. Wire :class:`~fdai.delivery.read_api.chat.OpenAiCompatibleChatBackend`
+    privileged call. Wire :class:`~fdai.delivery.read_api.routes.chat.OpenAiCompatibleChatBackend`
     (or a fork adapter) at composition root; leave ``None`` to keep the
     endpoint unregistered (the FE deck then falls back to its built-in
     deterministic answerer)."""
 
     console_action: Any = None
     """Opt-in console action submitter
-    (:class:`~fdai.delivery.read_api.console_action.ConsoleActionSubmitter`).
+    (:class:`~fdai.delivery.read_api.routes.console_action.ConsoleActionSubmitter`).
     When set, registers ``POST /chat/action`` - the ONE write-direction
     conversational path: it publishes an operator ``ActionProposal`` onto the
     raw event topic where the pantheon judges/approves/executes it. It holds no
@@ -351,7 +351,7 @@ class ReadApiConfig:
 
     workflow_authoring: Any = None
     """Opt-in custom workflow authoring routes. When set (a
-    :class:`~fdai.delivery.read_api.workflow_authoring.WorkflowAuthoringConfig`),
+    :class:`~fdai.delivery.read_api.routes.workflow_authoring.WorkflowAuthoringConfig`),
     registers ``GET /workflows/action-types`` (the ActionType palette the
     builder maps steps onto) and ``POST /workflows/validate`` (validate a
     draft Workflow and return a canonical YAML preview). Both are
@@ -363,7 +363,7 @@ class ReadApiConfig:
 
     reporting: Any = None
     """Opt-in reporting subsystem routes. When set (a
-    :class:`~fdai.delivery.read_api.reporting.ReportingConfig`),
+    :class:`~fdai.delivery.read_api.routes.reporting.ReportingConfig`),
     registers four ``GET`` routes under the configured prefix (default
     ``/reports``): catalog listing, registry inspection, per-report
     definition, and per-report render (with ``?format=json|markdown|
@@ -609,10 +609,10 @@ def build_app(
     # Optional blast-radius simulator. Reader-role gate, GET-only, and
     # collision-checked against every other route registered so far.
     if resolved_config.blast_radius_graph is not None:
-        from fdai.delivery.read_api.blast_radius import (
+        from fdai.delivery.read_api.routes.blast_radius import (
             DEFAULT_ROUTE_PATH as _BR_PATH,
         )
-        from fdai.delivery.read_api.blast_radius import (
+        from fdai.delivery.read_api.routes.blast_radius import (
             make_blast_radius_route,
         )
 
@@ -630,10 +630,10 @@ def build_app(
     # Optional ontology explorer. Both ObjectType and LinkType tuples
     # MUST be non-empty for the graph to make sense.
     if resolved_config.ontology_object_types and resolved_config.ontology_link_types:
-        from fdai.delivery.read_api.ontology_graph import (
+        from fdai.delivery.read_api.routes.ontology_graph import (
             DEFAULT_ROUTE_PATH as _OG_PATH,
         )
-        from fdai.delivery.read_api.ontology_graph import (
+        from fdai.delivery.read_api.routes.ontology_graph import (
             make_ontology_graph_route,
         )
 
@@ -653,19 +653,19 @@ def build_app(
     # (active catalog or collected corpus) is wired in; a pure paginated
     # projection over an immutable rule snapshot, plus a detail route.
     if resolved_config.rule_catalog_rules or resolved_config.rule_catalog_collected_rules:
-        from fdai.delivery.read_api.rule_catalog import (
+        from fdai.delivery.read_api.routes.rule_catalog import (
             DEFAULT_ROUTE_PATH as _RC_PATH,
         )
-        from fdai.delivery.read_api.rule_catalog import (
+        from fdai.delivery.read_api.routes.rule_catalog import (
             DETAIL_ROUTE_PATH as _RC_DETAIL_PATH,
         )
-        from fdai.delivery.read_api.rule_catalog import (
+        from fdai.delivery.read_api.routes.rule_catalog import (
             FINDINGS_ROUTE_PATH as _RC_FINDINGS_PATH,
         )
-        from fdai.delivery.read_api.rule_catalog import (
+        from fdai.delivery.read_api.routes.rule_catalog import (
             FINDINGS_SUMMARY_ROUTE_PATH as _RC_SUMMARY_PATH,
         )
-        from fdai.delivery.read_api.rule_catalog import (
+        from fdai.delivery.read_api.routes.rule_catalog import (
             make_rule_catalog_routes,
         )
 
@@ -691,10 +691,10 @@ def build_app(
         resolved_config.promotion_gate_action_types
         and resolved_config.promotion_gate_source is not None
     ):
-        from fdai.delivery.read_api.promotion_gates import (
+        from fdai.delivery.read_api.routes.promotion_gates import (
             DEFAULT_ROUTE_PATH as _PG_PATH,
         )
-        from fdai.delivery.read_api.promotion_gates import (
+        from fdai.delivery.read_api.routes.promotion_gates import (
             make_promotion_gates_route,
         )
 
@@ -714,13 +714,13 @@ def build_app(
     # in-memory and upstream-fixed, so the endpoints just serialize
     # the registry - no external inputs beyond a config flag.
     if resolved_config.expose_pantheon:
-        from fdai.delivery.read_api.pantheon import (
+        from fdai.delivery.read_api.routes.pantheon import (
             GRAPH_ROUTE_PATH as _PT_GRAPH_PATH,
         )
-        from fdai.delivery.read_api.pantheon import (
+        from fdai.delivery.read_api.routes.pantheon import (
             WORKFLOWS_ROUTE_PATH as _PT_WF_PATH,
         )
-        from fdai.delivery.read_api.pantheon import (
+        from fdai.delivery.read_api.routes.pantheon import (
             make_pantheon_graph_route,
             make_pantheon_workflows_route,
         )
@@ -737,16 +737,16 @@ def build_app(
     # Read-only: the palette is a projection of the loaded ActionType
     # catalog, and validate is a pure function (no state, no PR).
     if resolved_config.workflow_authoring is not None:
-        from fdai.delivery.read_api.workflow_authoring import (
+        from fdai.delivery.read_api.routes.workflow_authoring import (
             ACTION_TYPES_ROUTE_PATH as _WF_AT_PATH,
         )
-        from fdai.delivery.read_api.workflow_authoring import (
+        from fdai.delivery.read_api.routes.workflow_authoring import (
             CATALOG_ROUTE_PATH as _WF_CAT_PATH,
         )
-        from fdai.delivery.read_api.workflow_authoring import (
+        from fdai.delivery.read_api.routes.workflow_authoring import (
             VALIDATE_ROUTE_PATH as _WF_VAL_PATH,
         )
-        from fdai.delivery.read_api.workflow_authoring import (
+        from fdai.delivery.read_api.routes.workflow_authoring import (
             make_action_types_route,
             make_workflow_catalog_route,
             make_workflow_validate_route,
@@ -776,7 +776,7 @@ def build_app(
     # owns the engine + registries so a fork adds datasources / widget
     # types / formats without editing this file.
     if resolved_config.reporting is not None:
-        from fdai.delivery.read_api.reporting import build_reporting_routes
+        from fdai.delivery.read_api.routes.reporting import build_reporting_routes
 
         routes.extend(
             build_reporting_routes(
@@ -789,7 +789,7 @@ def build_app(
 
     # Optional rule-fire trace viewer.
     if resolved_config.trace_reader is not None:
-        from fdai.delivery.read_api.rule_fire_trace import (
+        from fdai.delivery.read_api.routes.rule_fire_trace import (
             make_rule_fire_trace_route,
         )
 
@@ -806,7 +806,7 @@ def build_app(
 
     # Optional bitemporal snapshot route.
     if resolved_config.bitemporal_reader is not None:
-        from fdai.delivery.read_api.bitemporal import make_bitemporal_route
+        from fdai.delivery.read_api.routes.bitemporal import make_bitemporal_route
 
         routes.append(
             make_bitemporal_route(
@@ -817,7 +817,7 @@ def build_app(
 
     # Optional what-if replay route.
     if resolved_config.what_if_reader is not None and resolved_config.what_if_evaluators:
-        from fdai.delivery.read_api.what_if import make_what_if_route
+        from fdai.delivery.read_api.routes.what_if import make_what_if_route
 
         routes.append(
             make_what_if_route(
@@ -832,13 +832,13 @@ def build_app(
     # required by ``authorize`` so the endpoint stays behind the same
     # RBAC gate as the snapshot routes.
     if resolved_config.chat is not None:
-        from fdai.delivery.read_api.chat import (
+        from fdai.delivery.read_api.routes.chat import (
             DEFAULT_ROUTE_PATH as _CHAT_PATH,
         )
-        from fdai.delivery.read_api.chat import (
+        from fdai.delivery.read_api.routes.chat import (
             describe_backend as _describe_backend,
         )
-        from fdai.delivery.read_api.chat import (
+        from fdai.delivery.read_api.routes.chat import (
             make_chat_health_route,
             make_chat_route,
             make_chat_stream_route,
@@ -889,10 +889,10 @@ def build_app(
     # Propose-never-execute; server-derived RBAC (Contributor+). Registered
     # only when a submitter is wired at composition root.
     if resolved_config.console_action is not None:
-        from fdai.delivery.read_api.console_action import (
+        from fdai.delivery.read_api.routes.console_action import (
             DEFAULT_ACTION_PATH as _ACTION_PATH,
         )
-        from fdai.delivery.read_api.console_action import (
+        from fdai.delivery.read_api.routes.console_action import (
             make_console_action_route,
         )
 
@@ -997,7 +997,7 @@ def _is_routed_chat_backend(backend: object) -> bool:
     """
     if backend is None:
         return False
-    from fdai.delivery.read_api.chat import LatencyRoutedChatBackend
+    from fdai.delivery.read_api.routes.chat import LatencyRoutedChatBackend
 
     return isinstance(backend, LatencyRoutedChatBackend)
 

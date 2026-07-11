@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from fdai.delivery.read_api.demo_findings import (
+from fdai.delivery.read_api.routes.demo_findings import (
     SYNTHETIC_INVENTORY,
     build_demo_findings_provider,
 )

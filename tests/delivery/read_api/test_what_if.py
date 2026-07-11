@@ -12,7 +12,7 @@ from starlette.testclient import TestClient
 from fdai.delivery.read_api.auth import build_authenticator
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
 from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
-from fdai.delivery.read_api.rule_fire_trace_reader import ConsoleReadModelTraceReader
+from fdai.delivery.read_api.routes.rule_fire_trace_reader import ConsoleReadModelTraceReader
 
 
 @pytest.fixture(autouse=True)

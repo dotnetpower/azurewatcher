@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 from fdai.delivery.read_api.auth import build_authenticator
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
 from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
-from fdai.delivery.read_api.workflow_authoring import WorkflowAuthoringConfig
+from fdai.delivery.read_api.routes.workflow_authoring import WorkflowAuthoringConfig
 from fdai.rule_catalog.schema.action_type import load_action_type_catalog
 from fdai.rule_catalog.schema.workflow import load_workflow_catalog
 from fdai.shared.contracts.registry import PackageResourceSchemaRegistry

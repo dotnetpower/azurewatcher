@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fdai.delivery.read_api.measurement_summary import (
+from fdai.delivery.read_api.routes.measurement_summary import (
     AutonomyMeasurementPanel,
     _vertical_of,
 )

@@ -18,7 +18,7 @@ import json
 import pytest
 from starlette.exceptions import HTTPException
 
-from fdai.delivery.read_api.chat import (
+from fdai.delivery.read_api.routes.chat import (
     _CAPABILITIES,
     _GLOSSARY,
     DEFAULT_MAX_CONTEXT_BYTES,
@@ -618,7 +618,7 @@ def test_locale_directive_composes_with_user_turn() -> None:
 
 
 async def _collect_heartbeats(source_gen, interval=0.05):
-    from fdai.delivery.read_api.chat import _with_sse_heartbeats
+    from fdai.delivery.read_api.routes.chat import _with_sse_heartbeats
 
     out = []
     async for e in _with_sse_heartbeats(source_gen(), interval=interval):
@@ -699,7 +699,7 @@ async def test_heartbeat_closes_source_when_consumer_disconnects() -> None:
     # Simulate a client disconnect: consumer breaks out of the async for after
     # one item. The source's async-generator finally MUST run so upstream
     # connections (in the real path, an httpx stream) get released.
-    from fdai.delivery.read_api.chat import _with_sse_heartbeats
+    from fdai.delivery.read_api.routes.chat import _with_sse_heartbeats
 
     closed = {"flag": False}
 
@@ -729,7 +729,7 @@ async def test_heartbeat_closes_source_when_consumer_disconnects() -> None:
 async def test_heartbeat_bounded_queue_survives_fast_upstream() -> None:
     # A pump that yields faster than the consumer reads must not OOM - the
     # bounded queue provides natural backpressure.
-    from fdai.delivery.read_api.chat import _with_sse_heartbeats
+    from fdai.delivery.read_api.routes.chat import _with_sse_heartbeats
 
     async def _src():
         for i in range(500):

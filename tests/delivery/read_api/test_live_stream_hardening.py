@@ -15,7 +15,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 
-from fdai.delivery.read_api.live_stream import (
+from fdai.delivery.read_api.streaming.live_stream import (
     _MAX_SSE_DATA_CHARS,
     _encode_sse_event,
     _encode_sse_frame,

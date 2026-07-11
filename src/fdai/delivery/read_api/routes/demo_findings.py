@@ -9,9 +9,9 @@ fabricated.
 
 The inventory is entirely synthetic and customer-agnostic (placeholder
 subscription id, ``demo-*`` names). This module is wired only by
-:mod:`fdai.delivery.read_api._local` (dev), never by a production
+:mod:`fdai.delivery.read_api.dev.local` (dev), never by a production
 composition root - the same pattern as
-:class:`~fdai.delivery.read_api.live_stream.SyntheticLiveEmitter`.
+:class:`~fdai.delivery.read_api.streaming.live_stream.SyntheticLiveEmitter`.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from fdai.core.tiers.t0_deterministic.opa_evaluator import OpaRegoEvaluator
-from fdai.delivery.read_api.rule_catalog import FindingsProvider, FindingsSummaryProvider
+from fdai.delivery.read_api.routes.rule_catalog import FindingsProvider, FindingsSummaryProvider
 from fdai.shared.contracts.models import Rule
 
 # Fixed observation time keeps the demo deterministic (no wall-clock).

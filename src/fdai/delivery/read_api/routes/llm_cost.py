@@ -6,7 +6,7 @@ Projects the metering stream into the three views an operator asks for:
 provider ``usage`` recorded by the T2 adapters via
 :class:`~fdai.core.metering.emitter.MeteringEmitter` - never estimated.
 
-This is a :class:`~fdai.delivery.read_api.panels.ReadPanel`, so it is
+This is a :class:`~fdai.delivery.read_api.routes.panels.ReadPanel`, so it is
 registered GET-only behind the same reader-role gate as the core routes
 and exposes no mutating back-channel. It reads through a
 :class:`~fdai.core.metering.sink.MeteringReader`; the upstream default

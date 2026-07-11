@@ -9,7 +9,7 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.testclient import TestClient
 
-from fdai.delivery.read_api.chat import (
+from fdai.delivery.read_api.routes.chat import (
     ChatBackend,
     ChatBackendUnavailableError,
     make_chat_route,

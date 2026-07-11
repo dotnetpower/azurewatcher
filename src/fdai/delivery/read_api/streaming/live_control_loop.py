@@ -1,7 +1,7 @@
 """Dev-only :class:`LiveEmitter` that pumps synthetic events through a
 real :class:`~fdai.core.control_loop.ControlLoop`.
 
-Where :class:`~fdai.delivery.read_api.live_stream.SyntheticLiveEmitter`
+Where :class:`~fdai.delivery.read_api.streaming.live_stream.SyntheticLiveEmitter`
 publishes hand-crafted ``StageEvent`` frames straight into an
 :class:`~fdai.shared.providers.sse.SseSink`, this emitter runs an
 actual :class:`ControlLoop` in-process with the shipped rule catalog,
@@ -59,7 +59,7 @@ from fdai.core.tiers.t0_deterministic import (
     T0Engine,
 )
 from fdai.core.trust_router import TrustRouter
-from fdai.delivery.read_api.live_stream import LiveEmitter
+from fdai.delivery.read_api.streaming.live_stream import LiveEmitter
 from fdai.rule_catalog.schema.action_type import load_action_type_catalog
 from fdai.rule_catalog.schema.resource_type import (
     load_resource_type_registry_from_mapping,

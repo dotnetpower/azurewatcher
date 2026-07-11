@@ -21,7 +21,7 @@ from starlette.testclient import TestClient
 from fdai.core.rbac.resolver import Principal
 from fdai.core.rbac.roles import Role
 from fdai.delivery.read_api.auth import build_authenticator
-from fdai.delivery.read_api.console_action import (
+from fdai.delivery.read_api.routes.console_action import (
     ConsoleActionSubmitter,
     make_console_action_route,
 )

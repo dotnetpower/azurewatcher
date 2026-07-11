@@ -375,7 +375,7 @@ class TestReportIdValidation:
         from fdai.delivery.read_api.auth import build_authenticator
         from fdai.delivery.read_api.main import ReadApiConfig, build_app
         from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
-        from fdai.delivery.read_api.reporting import ReportingConfig
+        from fdai.delivery.read_api.routes.reporting import ReportingConfig
 
         engine = _engine()
         auth = build_authenticator(verifier=lambda t: {"oid": "u"}, resolver=lambda claims: None)

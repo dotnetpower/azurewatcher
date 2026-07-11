@@ -15,7 +15,7 @@ so importing this module during unrelated tooling - pytest collection,
 mypy, IDE indexing - has no side effect)::
 
     FDAI_READ_API_DEV_MODE=1 \\
-        uv run uvicorn 'fdai.delivery.read_api._local:app' \\
+        uv run uvicorn 'fdai.delivery.read_api.dev.local:app' \\
             --factory --port 8000
 """
 
@@ -62,21 +62,21 @@ from fdai.delivery.read_api.auth import (  # noqa: E402
 from fdai.delivery.read_api.entra_verifier import (  # noqa: E402
     EntraJwtVerifier,
 )
-from fdai.delivery.read_api.live_control_loop import (  # noqa: E402
+from fdai.delivery.read_api.streaming.live_control_loop import (  # noqa: E402
     ControlLoopEmitterUnavailable,
     build_control_loop_emitter,
 )
-from fdai.delivery.read_api.live_stream import (  # noqa: E402
+from fdai.delivery.read_api.streaming.live_stream import (  # noqa: E402
     LiveEmitter,
     LiveStreamConfig,
     SyntheticLiveEmitter,
 )
-from fdai.delivery.read_api.llm_cost import LlmCostPanel  # noqa: E402
+from fdai.delivery.read_api.routes.llm_cost import LlmCostPanel  # noqa: E402
 from fdai.delivery.read_api.main import ReadApiConfig, build_app  # noqa: E402
-from fdai.delivery.read_api.measurement_summary import (  # noqa: E402
+from fdai.delivery.read_api.routes.measurement_summary import (  # noqa: E402
     AutonomyMeasurementPanel,
 )
-from fdai.delivery.read_api.panels import (  # noqa: E402
+from fdai.delivery.read_api.routes.panels import (  # noqa: E402
     CapabilityCatalogPanel,
     ExampleFinOpsPanel,
 )
@@ -84,7 +84,7 @@ from fdai.delivery.read_api.read_model import (  # noqa: E402
     HilQueueItem,
     InMemoryConsoleReadModel,
 )
-from fdai.delivery.read_api.rule_fire_trace_reader import (  # noqa: E402
+from fdai.delivery.read_api.routes.rule_fire_trace_reader import (  # noqa: E402
     ConsoleReadModelTraceReader,
 )
 from fdai.rule_catalog.schema.action_type import load_action_type_catalog  # noqa: E402
@@ -833,7 +833,7 @@ def app() -> Starlette:
     local_entra = os.environ.get(_LOCAL_ENTRA_ENV) == "1"
     if not dev_mode and not local_entra:
         raise RuntimeError(
-            f"fdai.delivery.read_api._local requires {_DEV_ENV}=1 (auth bypassed) "
+            f"fdai.delivery.read_api.dev.local requires {_DEV_ENV}=1 (auth bypassed) "
             f"or {_LOCAL_ENTRA_ENV}=1 (real Entra sign-in against seed data); this "
             "module is a local dev entrypoint and MUST NOT boot in production."
         )
@@ -940,7 +940,7 @@ def app() -> Starlette:
     rule_catalog_findings_summary_provider: Any = None
     if rule_catalog_rules and policies_root.is_dir():
         try:
-            from fdai.delivery.read_api.demo_findings import (
+            from fdai.delivery.read_api.routes.demo_findings import (
                 build_demo_findings_provider,
                 build_demo_findings_summary_provider,
             )
@@ -964,7 +964,7 @@ def app() -> Starlette:
     # box. Reuses the already-loaded catalogs; no extra I/O.
     workflow_authoring = None
     if action_types:
-        from fdai.delivery.read_api.workflow_authoring import WorkflowAuthoringConfig
+        from fdai.delivery.read_api.routes.workflow_authoring import WorkflowAuthoringConfig
 
         _rule_ids = frozenset(r.id for r in rule_catalog_rules if getattr(r, "id", None))
         # Load the shipped built-in Workflow catalog so the builder can list
@@ -1054,7 +1054,7 @@ def _build_chat_backend() -> Any:
        fallback.
     """
 
-    from fdai.delivery.read_api.chat import backend_from_env
+    from fdai.delivery.read_api.routes.chat import backend_from_env
 
     return backend_from_env()
 

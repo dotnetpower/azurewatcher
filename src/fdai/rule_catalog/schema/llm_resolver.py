@@ -509,9 +509,9 @@ def collect_narrator(
     ``(publisher, family)`` that is BOTH present in the region catalog
     AND has non-zero quota, in preference order. The first entry is the
     single "winner" (what a plain
-    :class:`~fdai.delivery.read_api.chat.AzureAdChatBackend` would use);
+    :class:`~fdai.delivery.read_api.routes.chat.AzureAdChatBackend` would use);
     the full list is what
-    :class:`~fdai.delivery.read_api.chat.LatencyRoutedChatBackend`
+    :class:`~fdai.delivery.read_api.routes.chat.LatencyRoutedChatBackend`
     consumes as its candidate pool.
 
     Each returned candidate's ``deployment`` field carries the

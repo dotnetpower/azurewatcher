@@ -30,7 +30,7 @@ from starlette.testclient import TestClient
 
 from fdai.core.rbac.resolver import GroupMapping, RoleResolver
 from fdai.delivery.read_api.auth import UnsafeClaimsExtractor, build_authenticator
-from fdai.delivery.read_api.live_stream import (
+from fdai.delivery.read_api.streaming.live_stream import (
     LiveEmitter,
     LiveStreamConfig,
     SyntheticLiveEmitter,
