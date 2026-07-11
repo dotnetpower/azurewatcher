@@ -28,16 +28,32 @@ IRREVERSIBLE_QUORUM: Final[int] = 2
 #: Quorum for an ordinary (reversible) HIL action - a single approver.
 DEFAULT_QUORUM: Final[int] = 1
 
+#: Verb substrings that denote a one-way (irreversible) mutation. Chosen to
+#: err toward safety: including a verb over-flags at most a reversible action
+#: (extra approver, harmless friction), while MISSING one under-flags an
+#: irreversible action (single-approver HIL clearance - the real hazard).
+#: Deliberately excludes ambiguous verbs (``remove`` / ``drop``) that are
+#: often reversible (remove-tag, drop-privilege). Superseded by the
+#: ActionType schema's ``irreversible`` flag once the real ontology loads.
+_IRREVERSIBLE_VERBS: Final[tuple[str, ...]] = (
+    "delete",
+    "destroy",
+    "purge",
+    "terminate",
+    "decommission",
+    "wipe",
+)
+
 
 def is_irreversible(action_type_id: str) -> bool:
     """Return ``True`` when the ActionType id denotes a one-way mutation.
 
-    Wave-3 heuristic: an id containing ``delete`` or ``destroy`` is treated
-    as irreversible. Superseded by the ActionType schema's ``irreversible``
-    flag once the real ontology is loaded.
+    Wave-3 heuristic: an id containing any :data:`_IRREVERSIBLE_VERBS`
+    substring is treated as irreversible. Superseded by the ActionType
+    schema's ``irreversible`` flag once the real ontology is loaded.
     """
     lowered = action_type_id.lower()
-    return "delete" in lowered or "destroy" in lowered
+    return any(verb in lowered for verb in _IRREVERSIBLE_VERBS)
 
 
 def quorum_for(action_type_id: str) -> int:

@@ -33,9 +33,21 @@ class TestActionSemantics:
         assert is_irreversible("remediate.delete-storage")
         assert is_irreversible("ops.destroy-cluster")
 
+    def test_one_way_verbs_are_irreversible(self) -> None:
+        # Round 2 safety gap: these one-way verbs previously slipped through
+        # is_irreversible and would have cleared HIL on a single approver.
+        assert is_irreversible("ops.terminate-instance")
+        assert is_irreversible("remediate.purge-cache")
+        assert is_irreversible("ops.decommission-node")
+        assert is_irreversible("storage.wipe-volume")
+        assert quorum_for("ops.terminate-instance") == IRREVERSIBLE_QUORUM
+
     def test_ordinary_action_is_reversible(self) -> None:
         assert not is_irreversible("ops.restart-service")
         assert not is_irreversible("remediate.enable-encryption")
+        # Ambiguous verbs stay reversible (avoid over-flagging tag ops).
+        assert not is_irreversible("config.remove-tag")
+        assert not is_irreversible("remediate.disable-public-access")
 
     def test_quorum_for(self) -> None:
         assert quorum_for("remediate.delete-storage") == IRREVERSIBLE_QUORUM == 2
