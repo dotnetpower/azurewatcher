@@ -123,21 +123,15 @@ assignment's top-level `effect` is the default for rules without an override.
 > a rejected transition. The remaining follow-up is the T0 runtime that consumes a resolved
 > assignment.
 >
-> Note: the shipped catalog-as-code schema is converging toward the illustrative "YAML Shapes"
-> section below (the extensible target). A shared `Provenance` value object
-> ([`provenance.py`](../../../src/fdai/rule_catalog/schema/provenance.py)) now ships, every artifact
-> carries an optional `provenance` block, and both artifacts accept the `kind`
-> ([`governance_kind.py`](../../../src/fdai/rule_catalog/schema/governance_kind.py)) discriminator
-> plus an artifact `version`. The canonical `scope://` address primitive
-> ([`ScopeRef`](../../../src/fdai/rule_catalog/schema/scope.py)) and the include/exclude
-> [`ScopeBinding`](../../../src/fdai/rule_catalog/schema/scope.py) form both ship: an assignment's
-> `scope` may be the single structured `level` + `id` form or a `scope://` `include` / `exclude` URI
-> list plus a `selector`, unified behind the `ScopeMatcher` protocol the resolver consumes. Per-rule
-> `parameter_overrides` (merged over the assignment-wide `parameters`, per-rule wins) also ship. The
-> only remaining difference from the illustrative examples is naming: the shipped schema binds a
-> rule-set through `rule_set` / `target_rule_ids` (clearer than the sketch's `target`) and uses the
-> richer `selector` (not `selectors`); the "YAML Shapes" examples below are being reconciled to the
-> shipped field names.
+> The shipped catalog-as-code schema now matches the "YAML Shapes" section below: a shared
+> `Provenance` value object ([`provenance.py`](../../../src/fdai/rule_catalog/schema/provenance.py)),
+> the `kind` ([`governance_kind.py`](../../../src/fdai/rule_catalog/schema/governance_kind.py))
+> discriminator plus an artifact `version`, the canonical `scope://`
+> [`ScopeRef`](../../../src/fdai/rule_catalog/schema/scope.py) address and the include/exclude
+> [`ScopeBinding`](../../../src/fdai/rule_catalog/schema/scope.py) form (unified behind the
+> `ScopeMatcher` protocol), and per-rule `parameter_overrides` all ship. A rule-set is bound through
+> `rule_set` (or an explicit `target_rule_ids` list) and scope narrowing uses the richer `selector`
+> (`resource_types` / `tags` / `resource_ids`).
 
 ## Scope
 
@@ -340,14 +334,14 @@ and Owner-tier reviewer for loosening changes.
 ### Rule Set (initiative)
 
 ```yaml
+schema_version: 1.0.0
+kind: rule-set
 id: ruleset.security-baseline
 version: 1.0.0
-kind: rule-set
-display_name: Security Baseline
-rules:
-  - { id: object-storage.public-access.deny, version: 1.2.0, default_effect: deny }
-  - { id: sql-database.encryption.tde-required, version: 1.0.0, default_effect: audit }
-  - { id: postgresql-server.dr.pitr-and-geo-replica-required, version: 2.1.0, default_effect: audit }
+members:
+  - { rule_id: object-storage.public-access.deny, version: 1.2.0, default_effect: deny }
+  - { rule_id: sql-database.encryption.tde-required, version: 1.0.0, default_effect: audit }
+  - { rule_id: postgresql-server.dr.pitr-and-geo-replica-required, version: 2.1.0, default_effect: audit }
 provenance:
   created_at: 2026-07-03T00:00:00Z
   created_by: governance-team
@@ -356,24 +350,25 @@ provenance:
 ### Assignment
 
 ```yaml
+schema_version: 1.0.0
+kind: assignment
 id: assignment.security-baseline.prod
 version: 1.0.0
-kind: assignment
-target: ruleset.security-baseline
+rule_set: ruleset.security-baseline
 scope:
   include:
     - scope://org/account-000/prod
   exclude:
     - scope://org/account-000/prod/sandbox
-  selectors:
-    resource_type: [sql-database, postgresql-server, object-storage]
+  selector:
+    resource_types: [sql-database, postgresql-server, object-storage]
 effect: audit
 enforcement: do-not-enforce
 effect_overrides:
   object-storage.public-access.deny: audit
 parameter_overrides:
   postgresql-server.dr.pitr-and-geo-replica-required:
-    min_backup_retention_days: 14
+    min_backup_retention_days: "14"
 provenance:
   created_at: 2026-07-03T00:00:00Z
   created_by: assignment-operator
