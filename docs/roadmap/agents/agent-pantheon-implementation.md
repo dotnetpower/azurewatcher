@@ -659,12 +659,57 @@ Configurable + observable seams:
   offset. `stop()` is bounded by `shutdown_timeout` so a wedged consumer
   cannot hang shutdown.
 - `EventBusBridge` exposes `BridgeMetrics` (delivered / handler_errors /
-  dead_lettered / dead_letter_errors / consumers_crashed /
-  consumers_restarted / empty_partition_keys) via `snapshot()`, surfaced
-  by `PantheonRuntime.health()` for Heimdall's probe and the KPI
-  collectors. `health()` also carries a per-agent `agent_health` map
-  (active ActionRuns, dedup pressure, forced-shadow flag) so individual
-  agent state is visible, not just bridge-level counters.
+  handler_retries / dead_lettered / dead_letter_errors / consumers_crashed /
+  consumers_restarted / empty_partition_keys / published / publish_errors /
+  missing_correlation_id / missing_idempotency_key /
+  producer_principal_mismatch / ordered_poison_halts / schema_violations)
+  via `snapshot()`, surfaced by `PantheonRuntime.health()` for Heimdall's
+  probe and the KPI collectors. `health()` also carries a per-agent
+  `agent_health` map (active ActionRuns, dedup pressure, forced-shadow
+  flag) so individual agent state is visible, not just bridge-level
+  counters.
+- **Pub/sub hardening (bus contract).** The bridge and the `InMemoryBus`
+  test double share one contract so a test cannot silently diverge from
+  production:
+  - **Single source of truth for partition keys.** Both buses use
+    `topics.partition_key_for` (mutation -> `resource_id`, judgment/audit
+    -> `correlation_id`); the bridge no longer keeps a private copy.
+  - **Envelope stamping + enforcement.** Every publish stamps
+    `producer_principal` and `schema_version` (`ENVELOPE_SCHEMA_VERSION`,
+    caller override wins) and counts a missing `correlation_id` (any
+    topic) or `idempotency_key` (mutation topics) - the wire contract's
+    required fields (6.1) - without blocking.
+  - **Fail-closed on empty mutation key.** A mutation-topic publish whose
+    partition key resolves to empty is refused
+    (`fail_closed_on_empty_mutation_key`, default on) so an unserialized
+    mutation - one that would round-robin across partitions and drop the
+    per-resource mutex - is never emitted.
+  - **Consumer-side single-writer check.** Before delivery the bridge
+    verifies `producer_principal == owner_of_topic`; an impostor record is
+    dead-lettered, never handed to a subscriber (`verify_producer_principal`,
+    default on). Closes the "publish-side only" gap.
+  - **Bounded handler retry + timeout.** `_deliver` retries a transient
+    handler failure `handler_max_retries` times (default 0) with backoff
+    and bounds each attempt by `handler_timeout` (default none) so a stuck
+    handler cannot wedge its consumer; the final failure routes to the DLQ.
+  - **Ordered-topic poison halt.** With `halt_ordered_topic_on_poison` a
+    dead-lettered mutation record halts that consumer so a later mutation
+    on the same resource cannot jump ahead of it (ordering preservation);
+    siblings keep running. Default off (DLQ-and-continue).
+  - **Operator DLQ redrive.** `EventBusBridge.redrive(topic, handler)`
+    reprocesses `<topic>.dlq` after a fix, unwrapping each record and
+    re-parking any that still fails - a deliberate admin action, never
+    part of the perpetual loop.
+  - **Publish-side validator seam.** `payload_validator` optionally rejects
+    a malformed record at the publish boundary (fail closed), wiring the
+    `ContractValidator` seam without coupling the bus to it.
+  - **Subscribe guards.** Both buses warn on an `object.*` subscription to
+    an unregistered topic (a silent dead seam) and skip a duplicate
+    `(topic, agent, handler)` registration (double delivery).
+  - **Test-double parity.** `InMemoryBus` now injects the same envelope,
+    computes the same partition key, isolates a raising subscriber (captured
+    in `dead_letters`, mirroring the DLQ), and bounds a stuck handler by
+    `handler_timeout`.
 - **Enforce requires durable audit.** `build(enforce=True)` without an
   injected `Saga` logs `pantheon_enforce_without_durable_saga`: an
   append-only audit is a hard invariant for any autonomous action, so

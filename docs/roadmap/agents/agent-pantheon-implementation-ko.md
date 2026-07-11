@@ -1,7 +1,7 @@
 ---
 title: 에이전트 판테온 구현 계획
 translation_of: agent-pantheon-implementation.md
-translation_source_sha: db8bd04538305f35233311f6c6768198038e87ac
+translation_source_sha: 39a84e52ee327b4977bcb1d55b9790e465edefed
 translation_revised: 2026-07-11
 ---
 
@@ -631,12 +631,51 @@ judge-and-log 만 하고 P1 루프와 이중 실행하지 않는다. enforce 로
   `stop()` 은 `shutdown_timeout` 으로 bounded 되어 wedged 컨슈머가 종료를
   막지 못한다.
 - `EventBusBridge` 는 `BridgeMetrics`(delivered / handler_errors /
-  dead_lettered / dead_letter_errors / consumers_crashed /
-  consumers_restarted / empty_partition_keys)를 `snapshot()` 으로 노출하고,
-  `PantheonRuntime.health()` 가 Heimdall 프로브와 KPI collector 용으로
-  이를 표면화한다. `health()` 는 per-agent `agent_health` 맵(활성
-  ActionRun, dedup 압박, forced-shadow 플래그)도 담아 개별 에이전트
-  상태까지 보이게 한다 - bridge 집계 지표만이 아니라.
+  handler_retries / dead_lettered / dead_letter_errors / consumers_crashed /
+  consumers_restarted / empty_partition_keys / published / publish_errors /
+  missing_correlation_id / missing_idempotency_key /
+  producer_principal_mismatch / ordered_poison_halts / schema_violations)를
+  `snapshot()` 으로 노출하고, `PantheonRuntime.health()` 가 Heimdall
+  프로브와 KPI collector 용으로 이를 표면화한다. `health()` 는 per-agent
+  `agent_health` 맵(활성 ActionRun, dedup 압박, forced-shadow 플래그)도
+  담아 개별 에이전트 상태까지 보이게 한다 - bridge 집계 지표만이 아니라.
+- **Pub/sub 하드닝 (버스 계약).** bridge 와 `InMemoryBus` 테스트 더블은
+  하나의 계약을 공유해 테스트가 프로덕션과 조용히 어긋나지 못하게 한다:
+  - **파티션 키 단일 출처.** 두 버스 모두 `topics.partition_key_for`
+    (mutation -> `resource_id`, judgment/audit -> `correlation_id`)를
+    사용한다; bridge 가 별도 사본을 두지 않는다.
+  - **Envelope 스탬프 + 강제.** 모든 publish 는 `producer_principal` 과
+    `schema_version`(`ENVELOPE_SCHEMA_VERSION`, 호출자 override 우선)을
+    찍고, 누락된 `correlation_id`(모든 토픽) / `idempotency_key`(mutation
+    토픽) - 와이어 계약(6.1)의 필수 필드 - 를 차단 없이 카운트한다.
+  - **빈 mutation 키 fail-closed.** 파티션 키가 빈 값으로 해석되는
+    mutation 토픽 publish 는 거부된다(`fail_closed_on_empty_mutation_key`,
+    기본 on) - 파티션을 round-robin 하며 per-resource mutex 를 잃는
+    미직렬화 mutation 이 방출되지 않도록.
+  - **컨슈머측 single-writer 검증.** 전달 전 bridge 는
+    `producer_principal == owner_of_topic` 를 검증한다; impostor 레코드는
+    구독자에게 건네지 않고 dead-letter 된다(`verify_producer_principal`,
+    기본 on). "publish 측만" 갭을 닫는다.
+  - **Bounded 핸들러 재시도 + 타임아웃.** `_deliver` 는 일시적 핸들러
+    실패를 `handler_max_retries`(기본 0)회 백오프로 재시도하고, 각 시도를
+    `handler_timeout`(기본 없음)으로 bound 해 stuck 핸들러가 컨슈머를
+    wedge 하지 못하게 한다; 최종 실패는 DLQ 로 라우팅된다.
+  - **순서 토픽 poison halt.** `halt_ordered_topic_on_poison` 시 dead-letter
+    된 mutation 레코드가 해당 컨슈머를 halt 시켜 같은 리소스의 나중 mutation
+    이 앞지르지 못하게 한다(순서 보존); 형제는 계속 돈다. 기본 off
+    (DLQ-and-continue).
+  - **오퍼레이터 DLQ redrive.** `EventBusBridge.redrive(topic, handler)` 는
+    수정 후 `<topic>.dlq` 를 재처리하고, 각 레코드를 언랩하며 여전히
+    실패하는 것은 재-park 한다 - 상시 루프가 아닌 의도적 admin 액션.
+  - **Publish 측 validator seam.** `payload_validator` 가 publish 경계에서
+    malformed 레코드를 선택적으로 거부(fail closed)해 `ContractValidator`
+    seam 을 버스와 결합 없이 연결한다.
+  - **Subscribe 가드.** 두 버스 모두 미등록 `object.*` 토픽 구독(조용한
+    dead seam)에 경고하고, 중복 `(topic, agent, handler)` 등록(이중 전달)을
+    건너뛴다.
+  - **테스트 더블 패리티.** `InMemoryBus` 는 이제 동일 envelope 을 주입하고,
+    동일 파티션 키를 계산하며, raising 구독자를 격리(`dead_letters` 에 캡처,
+    DLQ 미러)하고, stuck 핸들러를 `handler_timeout` 으로 bound 한다.
 - **enforce 는 durable audit 을 요구한다.** 주입된 `Saga` 없이
   `build(enforce=True)` 하면 `pantheon_enforce_without_durable_saga` 를
   로깅한다: append-only audit 은 모든 자율 액션의 hard invariant 이므로,

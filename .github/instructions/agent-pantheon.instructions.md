@@ -184,8 +184,24 @@ deepen it. Do not delete this list without closing the item.
   `llm_bindings` field; no model is invoked). The conversational port answers are
   base stubs on all agents except Bragi routing.
 - **Rate limits and per-agent KPI emission are declared but not enforced/emitted.**
-- **Producer-principal is enforced publish-side only**; there is no consumer-side
-  verification that a payload's `producer_principal` matches the topic owner.
+- **Producer-principal is now verified on both sides.** Publish-side
+  single-writer auth (`registry.assert_can_publish`) is complemented by a
+  consumer-side check in `EventBusBridge` (`verify_producer_principal`,
+  default on): a delivered record whose `producer_principal` is not the
+  topic owner is dead-lettered, never handed to a subscriber. An absent
+  principal is allowed (publish-side `missing_*` counters surface it).
+- **DLQ redrive and ordered-topic halt are opt-in, not automatic.**
+  `EventBusBridge.redrive` reprocesses `<topic>.dlq` only when an operator
+  invokes it; `halt_ordered_topic_on_poison` (default off) preserves
+  per-resource ordering by halting a consumer on a poison mutation record.
+- **Bus-level payload schema validation is a seam, not a default.**
+  `EventBusBridge.payload_validator` can reject a malformed record at the
+  publish boundary, but no `ContractValidator`-backed validator is wired by
+  default - a fork opts in.
+- **Event replay / offset seek is not exposed on the `EventBus` Protocol.**
+  Deterministic replay for post-incident review relies on the audit chain,
+  not a broker seek; adding a `seek` / `replay` capability to the Protocol
+  is future work.
 
 > One line: editing an agent means first restating its role from section 2,
 > keeping the eight structural invariants (section 3), and satisfying the nine
