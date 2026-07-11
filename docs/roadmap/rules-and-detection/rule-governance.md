@@ -87,8 +87,11 @@ assignment's top-level `effect` is the default for rules without an override.
 > (`enforce` / `do-not-enforce`) enums, the strictest-effect precedence
 > (`deny` > `remediate` > `audit` > `disabled`) used to resolve conflicting assignments, and
 > `validate_effect_transition` enforcing the transition table above (a raise to an enforce effect
-> requires the separate promotion approval). The `Scope`, `Assignment`, and `RuleSet` artifacts
-> that consume these types are the follow-up.
+> requires the separate promotion approval). The scope selection layer ships alongside in
+> [`rule_catalog/schema/scope.py`](../../../src/fdai/rule_catalog/schema/scope.py) - the
+> `ScopeLevel` hierarchy, `ScopeSelector` (resource-type / tag / resource-id, AND-of-declared),
+> exclusions, `Scope.covers`, and the `most_specific` precedence helper. The `Assignment` and
+> `RuleSet` artifacts that bind rules to a scope with an effect are the follow-up.
 
 ## Scope
 
