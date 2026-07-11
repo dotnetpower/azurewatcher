@@ -21,11 +21,17 @@ _MIN_MAXSIZE = 1
 
 
 class BoundedLruSet[K]:
-    """A membership set capped at ``maxsize`` (LRU eviction).
+    """A membership set capped at ``maxsize`` (insertion-order eviction).
 
-    ``add`` past the cap drops the least-recently-used key. Used for
-    "have I already handled this id?" guards keyed by an unbounded id
-    (a correlation id, one per event), which would otherwise grow forever.
+    ``add`` past the cap drops the oldest key. Used for "have I already
+    handled this id?" guards keyed by an unbounded id (a correlation id, one
+    per event), which would otherwise grow forever.
+
+    ``__contains__`` is **pure** - a membership test (``key in s``) never
+    reorders eviction. For a dedup guard this is the correct semantics: a
+    repeated *check* must not keep an id alive forever; only a repeated
+    ``add`` refreshes it. (This is deliberately insertion/refresh-order, not
+    access-order, LRU.)
     """
 
     __slots__ = ("_d", "_max")
@@ -37,10 +43,9 @@ class BoundedLruSet[K]:
         self._max = maxsize
 
     def __contains__(self, key: K) -> bool:
-        present = key in self._d
-        if present:
-            self._d.move_to_end(key)
-        return present
+        # Pure: no move_to_end. A membership check must not mutate eviction
+        # order (Python's __contains__ convention + correct dedup semantics).
+        return key in self._d
 
     def add(self, key: K) -> None:
         if key in self._d:

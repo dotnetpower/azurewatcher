@@ -25,11 +25,21 @@ class TestBoundedLruSet:
         assert "b" in s
         assert "c" in s
 
-    def test_membership_marks_mru(self) -> None:
+    def test_contains_is_pure(self) -> None:
+        """A membership check must NOT reorder eviction (pure __contains__)."""
         s: BoundedLruSet[str] = BoundedLruSet(2)
         s.add("a")
         s.add("b")
-        assert "a" in s  # touch a -> a is now MRU, b is LRU
+        assert "a" in s  # pure: does not refresh a
+        s.add("c")  # evicts a (oldest by insertion), not b
+        assert "a" not in s
+        assert "b" in s
+
+    def test_readd_refreshes(self) -> None:
+        s: BoundedLruSet[str] = BoundedLruSet(2)
+        s.add("a")
+        s.add("b")
+        s.add("a")  # re-add refreshes a -> order becomes [b, a]
         s.add("c")  # evicts b, not a
         assert "a" in s
         assert "b" not in s
