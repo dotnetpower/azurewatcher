@@ -481,3 +481,65 @@ async def test_debate_resolved_disagreement_still_honors_rubric_fail() -> None:
     assert decision.outcome is QualityOutcome.ABSTAIN
     # Confidence was folded down to the min rubric score (subtractive).
     assert decision.aggregate_confidence == pytest.approx(0.6)
+
+
+# ---------------------------------------------------------------------------
+# Property: the subtractive invariant across many (candidate, rubric) combos.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("cand_conf", [0.3, 0.6, 0.9, 1.0])
+@pytest.mark.parametrize("rubric_score", [0.0, 0.2, 0.5, 0.8, 1.0])
+@pytest.mark.asyncio
+async def test_enforce_confidence_never_exceeds_candidate_or_rubric(
+    cand_conf: float, rubric_score: float
+) -> None:
+    # SUBTRACTIVE: for ANY combination, enforce-mode confidence is at most
+    # the candidate's own aggregate AND at most the rubric min. The rubric
+    # can only lower, never raise.
+    ev = UniformRubricEvaluator(
+        criteria=_CRITERIA, score=rubric_score, threshold=0.7, supporting_rule_ids=("r.known",)
+    )
+    gate = _gate(rubric_evaluator=ev, rubric_shadow=False, confidence_threshold=0.0)
+    decision = await gate.evaluate(_candidate(confidence=cand_conf))
+    assert decision.aggregate_confidence <= cand_conf + 1e-9
+    assert decision.aggregate_confidence <= rubric_score + 1e-9
+
+
+@pytest.mark.parametrize("cand_conf", [0.1, 0.5, 0.95])
+@pytest.mark.parametrize("rubric_score", [0.0, 0.5, 1.0])
+@pytest.mark.asyncio
+async def test_shadow_never_changes_confidence_or_outcome(
+    cand_conf: float, rubric_score: float
+) -> None:
+    # SHADOW: whatever the rubric says, confidence and outcome are the
+    # rubric-free result (judge-and-log only).
+    ev = UniformRubricEvaluator(
+        criteria=_CRITERIA, score=rubric_score, threshold=0.7, supporting_rule_ids=("r.known",)
+    )
+    gate = _gate(rubric_evaluator=ev, rubric_shadow=True, confidence_threshold=0.0)
+    decision = await gate.evaluate(_candidate(confidence=cand_conf))
+    assert decision.aggregate_confidence == pytest.approx(cand_conf)
+    assert decision.outcome is QualityOutcome.ELIGIBLE
+
+
+@pytest.mark.parametrize(
+    ("rubric_score", "expect_fail"),
+    [(0.0, True), (0.2, True), (0.69, True), (0.7, False), (0.9, False), (1.0, False)],
+)
+@pytest.mark.asyncio
+async def test_enforce_below_threshold_never_eligible(
+    rubric_score: float, expect_fail: bool
+) -> None:
+    # A criterion below its threshold MUST route to HIL; at/above stays
+    # eligible (confidence leg isolated with threshold 0.0).
+    ev = UniformRubricEvaluator(
+        criteria=_CRITERIA, score=rubric_score, threshold=0.7, supporting_rule_ids=("r.known",)
+    )
+    gate = _gate(rubric_evaluator=ev, rubric_shadow=False, confidence_threshold=0.0)
+    decision = await gate.evaluate(_candidate(confidence=0.9))
+    if expect_fail:
+        assert decision.outcome is QualityOutcome.ABSTAIN
+        assert any(r.startswith("rubric_failed") for r in decision.reasons)
+    else:
+        assert decision.outcome is QualityOutcome.ELIGIBLE
