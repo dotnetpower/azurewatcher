@@ -90,8 +90,11 @@ assignment's top-level `effect` is the default for rules without an override.
 > requires the separate promotion approval). The scope selection layer ships alongside in
 > [`rule_catalog/schema/scope.py`](../../../src/fdai/rule_catalog/schema/scope.py) - the
 > `ScopeLevel` hierarchy, `ScopeSelector` (resource-type / tag / resource-id, AND-of-declared),
-> exclusions, `Scope.covers`, and the `most_specific` precedence helper. The `Assignment` and
-> `RuleSet` artifacts that bind rules to a scope with an effect are the follow-up.
+> exclusions, `Scope.covers`, and the `most_specific` precedence helper. The `Assignment` artifact
+> and the `resolve_assignments` conflict resolver (strictest effect wins; the most-specific scope
+> supplies parameters; a specificity tie flags HIL; losers recorded for audit) ship in
+> [`rule_catalog/schema/assignment.py`](../../../src/fdai/rule_catalog/schema/assignment.py). The
+> `RuleSet` grouping artifact is the remaining follow-up.
 
 ## Scope
 
