@@ -42,6 +42,10 @@ _LOG = logging.getLogger(__name__)
 
 Payload = Mapping[str, object]
 Handler = Callable[[str, dict[str, object]], Awaitable[None]]
+PayloadValidator = Callable[[str, Mapping[str, object]], None]
+"""Optional publish-side contract check (topic, payload) -> None; raises on
+an invalid payload. Wire a ContractValidator-backed callable here to reject
+a malformed record at the publish boundary (fail closed)."""
 
 
 @dataclass
@@ -69,6 +73,7 @@ class BridgeMetrics:
     missing_idempotency_key: int = 0
     producer_principal_mismatch: int = 0
     ordered_poison_halts: int = 0
+    schema_violations: int = 0
 
     def as_dict(self) -> dict[str, int]:
         return {
@@ -88,6 +93,7 @@ class BridgeMetrics:
             "missing_idempotency_key": self.missing_idempotency_key,
             "producer_principal_mismatch": self.producer_principal_mismatch,
             "ordered_poison_halts": self.ordered_poison_halts,
+            "schema_violations": self.schema_violations,
         }
 
 
@@ -126,6 +132,8 @@ class EventBusBridge:
     handler_retry_backoff: float = 0.05
     fail_closed_on_empty_mutation_key: bool = True
     halt_ordered_topic_on_poison: bool = False
+    handler_timeout: float | None = None
+    payload_validator: PayloadValidator | None = None
     _subs: dict[str, list[tuple[str, Handler]]] = field(default_factory=lambda: defaultdict(list))
     _tasks: list[asyncio.Task[None]] = field(default_factory=list)
     metrics: BridgeMetrics = field(default_factory=BridgeMetrics)
@@ -167,6 +175,19 @@ class EventBusBridge:
         # Stamp the envelope version so a rolling upgrade can gate on it.
         enriched.setdefault("schema_version", ENVELOPE_SCHEMA_VERSION)
         self._check_envelope(topic, enriched, principal)
+        if self.payload_validator is not None:
+            try:
+                self.payload_validator(topic, enriched)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - reject malformed record
+                self.metrics.schema_violations += 1
+                self.metrics.publish_errors += 1
+                _LOG.warning(
+                    "pantheon_payload_schema_violation",
+                    extra={"topic": topic, "principal": principal, "error": str(exc)},
+                )
+                raise
         key = partition_key_for(topic, enriched)
         if not key:
             # An empty key collapses Kafka partitioning (loss of
@@ -461,7 +482,17 @@ class EventBusBridge:
         last_exc: Exception
         for attempt in range(self.handler_max_retries + 1):
             try:
-                await handler(topic, dict(payload))
+                if self.handler_timeout is not None:
+                    # A handler that never returns (a stuck backend call, a
+                    # deadlock) would wedge the whole consumer - alive but
+                    # delivering nothing. Bound it: a timeout is treated as a
+                    # handler failure (retry / DLQ), keeping the subscription
+                    # making progress.
+                    await asyncio.wait_for(
+                        handler(topic, dict(payload)), self.handler_timeout
+                    )
+                else:
+                    await handler(topic, dict(payload))
                 return
             except asyncio.CancelledError:
                 raise
@@ -504,6 +535,59 @@ class EventBusBridge:
                 "pantheon_dead_letter_failed",
                 extra={"group_id": group_id, "topic": topic},
             )
+
+    async def redrive(
+        self,
+        topic: str,
+        handler: Handler,
+        *,
+        group_id: str | None = None,
+        max_records: int | None = None,
+    ) -> dict[str, int]:
+        """Reprocess dead-lettered records for ``topic`` (operator tool).
+
+        The DLQ is write-only on the hot path - a poison record parks in
+        ``<topic>.dlq`` and stays there. This is the deliberate,
+        operator-driven redrive: after the root cause is fixed, it reads
+        ``<topic>.dlq`` under a fresh consumer group, unwraps each record to
+        its original payload, and re-delivers it to ``handler``. A record
+        that fails again is re-dead-lettered (never lost). Returns
+        ``{"redriven": n, "failed": m}``.
+
+        This is NOT part of the perpetual consumer loop - it is invoked
+        explicitly (a CLI / admin action) so a redrive is always a
+        conscious decision, never automatic.
+        """
+        dlq_topic = f"{topic}.dlq"
+        gid = group_id or f"{self.consumer_group_prefix}.redrive.{topic}"
+        redriven = 0
+        failed = 0
+        async for envelope in self.provider.subscribe(dlq_topic, gid):
+            wrapped = dict(envelope.payload)
+            # dead_letter wraps the record as {original_topic, reason,
+            # payload}; unwrap to the original payload for re-delivery.
+            original = wrapped.get("payload", wrapped)
+            payload = dict(original) if isinstance(original, Mapping) else {}
+            try:
+                await self._deliver(topic, handler, payload)
+                redriven += 1
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - re-park a still-failing record
+                failed += 1
+                await self._safe_dead_letter(
+                    group_id=gid,
+                    topic=topic,
+                    envelope=envelope,
+                    reason=f"redrive failed: {exc}",
+                )
+            if max_records is not None and (redriven + failed) >= max_records:
+                break
+        _LOG.info(
+            "pantheon_redrive_complete",
+            extra={"topic": topic, "redriven": redriven, "failed": failed},
+        )
+        return {"redriven": redriven, "failed": failed}
 
 
 __all__ = ["EventBusBridge", "BridgeMetrics"]

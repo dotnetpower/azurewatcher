@@ -130,3 +130,17 @@ def test_inmemory_bus_warns_on_unknown_object_topic(
         bus.subscribe("object.does-not-exist", "Heimdall", handler)
     assert any("unknown_topic" in r.message for r in caplog.records)
 
+
+def test_inmemory_bus_handler_timeout_is_isolated() -> None:
+    """A stuck handler is bounded by handler_timeout and captured, not left
+    to hang the publisher forever."""
+    bus = _bus(handler_timeout=0.01)
+
+    async def stuck(_t: str, _p: dict) -> None:
+        await asyncio.sleep(10)
+
+    bus.subscribe("object.event", "Heimdall", stuck)
+    asyncio.run(bus.publish("Huginn", "object.event", {"correlation_id": "c"}))
+    assert bus.handler_errors == 1
+    assert len(bus.dead_letters) == 1
+

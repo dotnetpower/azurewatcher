@@ -525,6 +525,104 @@ def test_bridge_halts_ordered_topic_on_poison() -> None:
     assert bridge.metrics.dead_lettered == 1
 
 
+def test_bridge_payload_validator_rejects_malformed() -> None:
+    """A publish-side contract check rejects a malformed record (fail closed)."""
+
+    def validator(topic: str, payload) -> None:
+        if topic == "object.verdict" and "risk_verdict" not in payload:
+            raise ValueError("missing risk_verdict")
+
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(provider=provider, registry=reg, payload_validator=validator)
+    with pytest.raises(ValueError, match="risk_verdict"):
+        asyncio.run(bridge.publish("Forseti", "object.verdict", {"correlation_id": "c"}))
+    assert bridge.metrics.schema_violations == 1
+    assert bridge.metrics.publish_errors == 1
+    assert "object.verdict" not in provider._records
+    # A valid record passes.
+    asyncio.run(
+        bridge.publish(
+            "Forseti", "object.verdict", {"correlation_id": "c", "risk_verdict": "auto"}
+        )
+    )
+    assert bridge.metrics.published == 1
+
+
+def test_bridge_handler_timeout_dead_letters_stuck_handler() -> None:
+    """A handler that never returns is bounded and dead-lettered, keeping the
+    consumer making progress."""
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(provider=provider, registry=reg, handler_timeout=0.01)
+
+    async def stuck(_t: str, _p: dict) -> None:
+        await asyncio.sleep(10)
+
+    bridge.subscribe("object.verdict", "Thor", stuck)
+    asyncio.run(bridge.publish("Forseti", "object.verdict", {"correlation_id": "c"}))
+
+    async def _go() -> None:
+        run_task = asyncio.create_task(bridge.run())
+        await asyncio.sleep(0.1)  # let the 10ms handler timeout fire
+        await bridge.stop()
+        run_task.cancel()
+        try:
+            await run_task
+        except (asyncio.CancelledError, Exception):  # noqa: S110 - cleanup
+            pass
+
+    asyncio.run(_go())
+    assert bridge.metrics.handler_errors == 1
+    assert bridge.metrics.dead_lettered == 1
+
+
+def test_bridge_redrive_reprocesses_dead_letters() -> None:
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(provider=provider, registry=reg)
+
+    async def boom(_t: str, _p: dict) -> None:
+        raise RuntimeError("transient outage")
+
+    bridge.subscribe("object.verdict", "Thor", boom)
+    asyncio.run(
+        bridge.publish(
+            "Forseti", "object.verdict", {"correlation_id": "c", "risk_verdict": "auto"}
+        )
+    )
+    _drain(bridge)
+    assert bridge.metrics.dead_lettered == 1
+
+    # Root cause fixed: redrive with a working handler.
+    got: list[dict] = []
+
+    async def good(_t: str, p: dict) -> None:
+        got.append(p)
+
+    result = asyncio.run(bridge.redrive("object.verdict", good))
+    assert result == {"redriven": 1, "failed": 0}
+    assert got[0]["risk_verdict"] == "auto"  # original payload unwrapped
+
+
+def test_bridge_redrive_reparks_still_failing_record() -> None:
+    reg = load_pantheon()
+    provider = InMemoryEventBus()
+    bridge = EventBusBridge(provider=provider, registry=reg)
+
+    async def boom(_t: str, _p: dict) -> None:
+        raise RuntimeError("still broken")
+
+    bridge.subscribe("object.verdict", "Thor", boom)
+    asyncio.run(bridge.publish("Forseti", "object.verdict", {"correlation_id": "c"}))
+    _drain(bridge)
+
+    result = asyncio.run(bridge.redrive("object.verdict", boom))
+    assert result == {"redriven": 0, "failed": 1}
+    # Re-parked, not lost: a second .dlq record now exists.
+    assert len(provider._records["object.verdict.dlq"]) == 2
+
+
 class _FlakyBus(InMemoryEventBus):
     """Subscribe raises the first ``fail_times`` calls, then succeeds."""
 

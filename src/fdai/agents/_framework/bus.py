@@ -14,6 +14,7 @@ delegating to :class:`fdai.agents._framework.registry.PantheonRegistry`.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
@@ -88,6 +89,7 @@ class InMemoryBus:
 
     registry: PantheonRegistry
     isolate_handlers: bool = True
+    handler_timeout: float | None = None
     subscribers: dict[str, list[tuple[str, Handler]]] = field(
         default_factory=lambda: defaultdict(list)
     )
@@ -131,7 +133,13 @@ class InMemoryBus:
             # payload cannot contaminate later subscribers or the caller's
             # object (the Kafka-backed bridge copies per delivery too).
             try:
-                await handler(topic, dict(enriched))
+                if self.handler_timeout is not None:
+                    # Bound a stuck async handler so a wedged subscriber
+                    # cannot hang the publisher forever (mirrors the bridge's
+                    # handler_timeout).
+                    await asyncio.wait_for(handler(topic, dict(enriched)), self.handler_timeout)
+                else:
+                    await handler(topic, dict(enriched))
             except Exception as exc:  # noqa: BLE001 - isolation mirrors the bridge DLQ
                 self.handler_errors += 1
                 if not self.isolate_handlers:
