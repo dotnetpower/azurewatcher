@@ -332,6 +332,46 @@ async def test_enforce_off_topic_citation_abstains() -> None:
     assert any(r.startswith("rubric_abstained") for r in decision.reasons)
 
 
+class _RaisingGrounding(InMemoryGroundingSource):
+    """Grounding source whose entailment check raises (backend down)."""
+
+    def supports(self, candidate: QualityCandidate, rule_id: str) -> bool:
+        del candidate, rule_id
+        raise RuntimeError("embedding backend down")
+
+
+@pytest.mark.asyncio
+async def test_grounding_supports_error_fails_closed() -> None:
+    # A grounding backend failure MUST fail closed to HIL, never crash the
+    # gate - on both the grounding leg AND the rubric entailment leg.
+    ev = UniformRubricEvaluator(
+        criteria=_CRITERIA, score=0.95, threshold=0.7, supporting_rule_ids=("r.known",)
+    )
+    gate = QualityGate(
+        verifier=StaticVerifier(outcome=True),
+        cross_check_models=(
+            MatchTypeCrossCheckModel(model_id="m1"),
+            MatchTypeCrossCheckModel(model_id="m2"),
+        ),
+        grounding=_RaisingGrounding({"r.known": _rule("r.known")}),
+        config=QualityGateConfig(
+            confidence_threshold=0.5,
+            require_grounding=True,
+            require_cross_check_quorum=2,
+            rubric_shadow=False,
+            rubric_required_criteria=_CRITERIA,
+        ),
+        rubric_evaluator=ev,
+    )
+    # MUST NOT raise.
+    decision = await gate.evaluate(_candidate())
+    assert decision.outcome is QualityOutcome.ABSTAIN
+    # Grounding leg treated the citation as ungrounded (fail-closed)...
+    assert any(r.startswith("ungrounded_citation") for r in decision.reasons)
+    # ...and the rubric leg fell into its own fail-closed abstain.
+    assert any(r.startswith("rubric_evaluator_error") for r in decision.reasons)
+
+
 @pytest.mark.asyncio
 async def test_audit_fields_include_rubric_provenance() -> None:
     # The audit helper MUST surface the rubric_* provenance so shadow-mode
@@ -345,6 +385,8 @@ async def test_audit_fields_include_rubric_provenance() -> None:
     assert fields["rubric_shadow"] is True
     assert fields["rubric_min_score"] == pytest.approx(0.2)
     assert {s["criterion"] for s in fields["rubric_scores"]} == set(_CRITERIA)
+    # Every score carries its rationale so the audit can reconstruct WHY.
+    assert all(s["rationale"] for s in fields["rubric_scores"])
     # JSON-safe: no enums / dataclasses leak through.
     json.dumps(fields)
 

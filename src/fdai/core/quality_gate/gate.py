@@ -336,9 +336,17 @@ class QualityGate:
             if rule_id not in known:
                 reasons.append(f"unknown_cited_rule:{rule_id}")
                 continue
-            if supports_fn is not None and not supports_fn(candidate, rule_id):
-                reasons.append(f"ungrounded_citation:{rule_id}")
-                continue
+            if supports_fn is not None:
+                try:
+                    supported = supports_fn(candidate, rule_id)
+                except Exception:  # noqa: BLE001 - fail-closed: treat as ungrounded
+                    # A grounding backend failure (embedding/cosine error)
+                    # MUST NOT crash the gate. Treat the citation as
+                    # ungrounded (the safe direction) and route to HIL.
+                    supported = False
+                if not supported:
+                    reasons.append(f"ungrounded_citation:{rule_id}")
+                    continue
             grounded.append(rule_id)
         if self._config.require_grounding and not grounded:
             reasons.append("no_grounded_citation")
@@ -445,21 +453,13 @@ class QualityGate:
             else:
                 try:
                     rubric_output = await self._rubric_evaluator.score(candidate)
-                except Exception as exc:  # noqa: BLE001 - fail-closed to HIL
-                    # A transport failure / malformed evaluator response MUST
-                    # NOT fail open into an eligible outcome. Record the error
-                    # and treat it as an abstain signal in enforce mode; in
-                    # shadow mode it is recorded but does not change the
-                    # outcome (judge-and-log only).
-                    rubric_verdict_value = RubricVerdict.ABSTAIN.value
-                    rubric_min_score = 0.0
-                    if not rubric_shadow:
-                        reasons.append(f"rubric_evaluator_error:{type(exc).__name__}")
-                else:
                     # Reuse the grounding leg's entailment check (if the
                     # source provides one) so a rubric citation must both
                     # exist AND topically support the candidate - closing
-                    # the id-existence-vs-entailment gap.
+                    # the id-existence-vs-entailment gap. The ``supports``
+                    # call is INSIDE this try so a grounding failure (e.g.
+                    # an embedding/cosine error in RagGroundingSource)
+                    # fails closed to HIL, never crashing the gate.
                     grounding_supports = getattr(self._grounding, "supports", None)
                     rubric_supports = (
                         (lambda rid: grounding_supports(candidate, rid))
@@ -479,6 +479,17 @@ class QualityGate:
                         known_criteria=tuple(c.value for c in RubricCriterion),
                         supports=rubric_supports,
                     )
+                except Exception as exc:  # noqa: BLE001 - fail-closed to HIL
+                    # A transport failure, a malformed evaluator response,
+                    # OR a grounding-entailment error MUST NOT fail open
+                    # into an eligible outcome. Record it and treat it as an
+                    # abstain signal in enforce mode; in shadow mode it is
+                    # recorded but does not change the outcome.
+                    rubric_verdict_value = RubricVerdict.ABSTAIN.value
+                    rubric_min_score = 0.0
+                    if not rubric_shadow:
+                        reasons.append(f"rubric_evaluator_error:{type(exc).__name__}")
+                else:
                     rubric_scores = rubric_decision.scores
                     rubric_min_score = rubric_decision.min_score
                     rubric_verdict_value = rubric_decision.verdict.value
@@ -605,6 +616,7 @@ def quality_decision_audit_fields(decision: QualityDecision) -> dict[str, Any]:
                 "score": s.score,
                 "threshold": s.threshold,
                 "passed": s.passed,
+                "rationale": s.rationale,
                 "supporting_rule_ids": list(s.supporting_rule_ids),
             }
             for s in decision.rubric_scores

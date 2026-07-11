@@ -171,6 +171,10 @@ async def run_consistency_cascade(
     ``stability_threshold``. The caller routes ``stable is False`` to HIL
     (a subtractive gate), never averaging the stability into confidence.
     """
+    if not 0.0 <= sample_threshold <= 1.0:
+        raise ValueError(f"sample_threshold MUST be in [0.0, 1.0], got {sample_threshold}")
+    if not 0.0 <= stability_threshold <= 1.0:
+        raise ValueError(f"stability_threshold MUST be in [0.0, 1.0], got {stability_threshold}")
     if aggregate_confidence >= sample_threshold:
         return CascadeDecision(should_sample=False, stable=None, result=None)
     result = await sampler.sample(candidate)

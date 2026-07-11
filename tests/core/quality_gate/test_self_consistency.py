@@ -161,6 +161,28 @@ class TestCascade:
         assert decision.result.stability == pytest.approx(1.0)
 
     @pytest.mark.asyncio
+    async def test_rejects_out_of_range_thresholds(self) -> None:
+        sampler = SelfConsistencySampler(
+            proposer=SequenceCrossCheckModel(sequence=("a",)), samples=2
+        )
+        with pytest.raises(ValueError, match="sample_threshold"):
+            await run_consistency_cascade(
+                sampler,
+                _candidate(),
+                aggregate_confidence=0.5,
+                sample_threshold=1.5,
+                stability_threshold=0.6,
+            )
+        with pytest.raises(ValueError, match="stability_threshold"):
+            await run_consistency_cascade(
+                sampler,
+                _candidate(),
+                aggregate_confidence=0.5,
+                sample_threshold=0.7,
+                stability_threshold=-0.1,
+            )
+
+    @pytest.mark.asyncio
     async def test_weak_signal_unstable_is_gate_not_dilution(self) -> None:
         # Unstable proposer under a weak cheap signal -> stable is False.
         # The caller routes that to HIL; the low stability is NOT averaged
