@@ -103,10 +103,23 @@ class SelfConsistencySampler:
         budget. The proposer is expected to run at temperature > 0 so
         the samples can diverge; a temperature-0 proposer trivially
         yields ``stability == 1.0``.
+
+        Raises whatever the proposer raises. When one sample fails (or
+        the caller cancels), the in-flight sibling samples are cancelled
+        before the exception propagates, so a failed cascade-sampling
+        call does not leak background tasks. The caller (the cascade
+        trigger) is responsible for routing that failure to HIL.
         """
-        proposals = await asyncio.gather(
-            *(self._proposer.propose(candidate) for _ in range(self._samples))
-        )
+        tasks = [
+            asyncio.create_task(self._proposer.propose(candidate)) for _ in range(self._samples)
+        ]
+        try:
+            proposals = await asyncio.gather(*tasks)
+        except BaseException:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            raise
         action_types = tuple(action_type for action_type, _params in proposals)
         modal, count, stability = compute_stability(action_types)
         return SelfConsistencyResult(

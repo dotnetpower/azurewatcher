@@ -147,3 +147,72 @@ class TestEvaluateRubricOutput:
         )
         decision = evaluate_rubric_output(out, known_rule_ids=_KNOWN)
         assert decision.min_score == pytest.approx(0.72)
+
+
+class TestCatalogSeed:
+    def test_shipped_rubric_prompt_loads_and_is_shadow_mode(self) -> None:
+        from pathlib import Path
+
+        import yaml
+
+        from fdai.core.prompts.registry import FileSystemPromptRegistry
+
+        repo_root = Path(__file__).resolve().parents[3]
+        raw = yaml.safe_load(
+            (repo_root / "rule-catalog" / "prompts" / "base" / "t2-rubric.v1.yaml").read_text()
+        )
+        assert raw["id"] == "t2-rubric"
+        assert raw["version"] == 1
+        assert raw["layer"] == "rubric"
+        assert raw["default_mode"] == "shadow"
+        assert raw["applies_to"] == ["t2.rubric.judge"]
+        # The prompt narrates the same criteria the pure evaluator enforces.
+        for criterion in RubricCriterion:
+            assert criterion.value in raw["body"]
+        registry = FileSystemPromptRegistry(repo_root / "rule-catalog")
+        ids = {a.id for a in registry.artifacts()}
+        assert "t2-rubric" in ids
+
+    def test_duplicate_criterion_abstains(self) -> None:
+        # A self-contradictory response (same criterion scored twice) is
+        # not a signal we trust - abstain regardless of the scores.
+        out = RubricOutput(
+            scores=(
+                _score(criterion="faithfulness", score=0.9),
+                _score(criterion="faithfulness", score=0.2),
+            )
+        )
+        decision = evaluate_rubric_output(out, known_rule_ids=_KNOWN)
+        assert decision.verdict is RubricVerdict.ABSTAIN
+        assert any(r.startswith("duplicate_criterion:faithfulness") for r in decision.reasons)
+        assert decision.min_score == 0.0
+
+    def test_unknown_criterion_abstains_when_known_set_supplied(self) -> None:
+        out = RubricOutput(scores=(_score(criterion="made_up_dimension", score=0.9),))
+        decision = evaluate_rubric_output(
+            out,
+            known_rule_ids=_KNOWN,
+            known_criteria=[c.value for c in RubricCriterion],
+        )
+        assert decision.verdict is RubricVerdict.ABSTAIN
+        assert any(r.startswith("unknown_criterion:made_up_dimension") for r in decision.reasons)
+
+    def test_unknown_criterion_allowed_without_known_set(self) -> None:
+        # Backward compatible: no known_criteria -> the check is skipped.
+        out = RubricOutput(scores=(_score(criterion="made_up_dimension", score=0.9),))
+        decision = evaluate_rubric_output(out, known_rule_ids=_KNOWN)
+        assert decision.verdict is RubricVerdict.PASS
+
+    def test_known_criteria_accepts_valid_names(self) -> None:
+        out = RubricOutput(
+            scores=(
+                _score(criterion=RubricCriterion.FAITHFULNESS.value, score=0.9),
+                _score(criterion=RubricCriterion.COMPLETENESS.value, score=0.8),
+            )
+        )
+        decision = evaluate_rubric_output(
+            out,
+            known_rule_ids=_KNOWN,
+            known_criteria=[c.value for c in RubricCriterion],
+        )
+        assert decision.verdict is RubricVerdict.PASS

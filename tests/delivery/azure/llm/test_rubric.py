@@ -242,3 +242,29 @@ async def test_score_out_of_range_raises_at_type_boundary() -> None:
         )
         with pytest.raises(ValueError, match="score MUST be in"):
             await adapter.score(_candidate())
+
+
+@pytest.mark.asyncio
+async def test_score_raises_on_nan() -> None:
+    # json.loads accepts NaN by default; RubricScore.__post_init__ rejects
+    # it because ``0.0 <= nan <= 1.0`` is False. Fail-closed, never a pass.
+    content = '{"scores": [{"criterion": "faithfulness", "score": NaN, "rationale": "x"}]}'
+    transport = _mock_transport(content, captured=[])
+    async with httpx.AsyncClient(transport=transport) as http:
+        adapter = AzureOpenAIRubricEvaluator(
+            identity=_StaticIdentity(), http_client=http, config=_config()
+        )
+        with pytest.raises(ValueError, match="score MUST be in"):
+            await adapter.score(_candidate())
+
+
+@pytest.mark.asyncio
+async def test_score_raises_on_infinity() -> None:
+    content = '{"scores": [{"criterion": "faithfulness", "score": Infinity, "rationale": "x"}]}'
+    transport = _mock_transport(content, captured=[])
+    async with httpx.AsyncClient(transport=transport) as http:
+        adapter = AzureOpenAIRubricEvaluator(
+            identity=_StaticIdentity(), http_client=http, config=_config()
+        )
+        with pytest.raises(ValueError, match="score MUST be in"):
+            await adapter.score(_candidate())

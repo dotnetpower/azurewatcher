@@ -428,36 +428,50 @@ class QualityGate:
         rubric_shadow = self._config.rubric_shadow
         if self._rubric_evaluator is not None:
             from fdai.core.quality_gate.rubric import (
+                RubricCriterion,
                 RubricVerdict,
                 evaluate_rubric_output,
             )
 
-            try:
-                rubric_output = await self._rubric_evaluator.score(candidate)
-            except Exception as exc:  # noqa: BLE001 - fail-closed to HIL
-                # A transport failure / malformed evaluator response MUST
-                # NOT fail open into an eligible outcome. Record the error
-                # and treat it as an abstain signal in enforce mode; in
-                # shadow mode it is recorded but does not change the
-                # outcome (judge-and-log only).
+            if not candidate.reasoning_trace.strip():
+                # No reasoning to score - faithfulness / coherence cannot
+                # be judged, so a "pass" here would be unfounded. Abstain
+                # (route to HIL) in enforce mode without spending a judge
+                # call; record it in shadow without changing the outcome.
                 rubric_verdict_value = RubricVerdict.ABSTAIN.value
                 rubric_min_score = 0.0
                 if not rubric_shadow:
-                    reasons.append(f"rubric_evaluator_error:{type(exc).__name__}")
+                    reasons.append("rubric_no_reasoning_trace")
             else:
-                rubric_decision = evaluate_rubric_output(
-                    rubric_output,
-                    known_rule_ids=known,
-                    required_criteria=self._config.rubric_required_criteria,
-                )
-                rubric_scores = rubric_decision.scores
-                rubric_min_score = rubric_decision.min_score
-                rubric_verdict_value = rubric_decision.verdict.value
-                if not rubric_shadow:
-                    if rubric_decision.verdict is RubricVerdict.FAIL:
-                        reasons.append(f"rubric_failed:{','.join(rubric_decision.failed_criteria)}")
-                    elif rubric_decision.verdict is RubricVerdict.ABSTAIN:
-                        reasons.append(f"rubric_abstained:{','.join(rubric_decision.reasons)}")
+                try:
+                    rubric_output = await self._rubric_evaluator.score(candidate)
+                except Exception as exc:  # noqa: BLE001 - fail-closed to HIL
+                    # A transport failure / malformed evaluator response MUST
+                    # NOT fail open into an eligible outcome. Record the error
+                    # and treat it as an abstain signal in enforce mode; in
+                    # shadow mode it is recorded but does not change the
+                    # outcome (judge-and-log only).
+                    rubric_verdict_value = RubricVerdict.ABSTAIN.value
+                    rubric_min_score = 0.0
+                    if not rubric_shadow:
+                        reasons.append(f"rubric_evaluator_error:{type(exc).__name__}")
+                else:
+                    rubric_decision = evaluate_rubric_output(
+                        rubric_output,
+                        known_rule_ids=known,
+                        required_criteria=self._config.rubric_required_criteria,
+                        known_criteria=tuple(c.value for c in RubricCriterion),
+                    )
+                    rubric_scores = rubric_decision.scores
+                    rubric_min_score = rubric_decision.min_score
+                    rubric_verdict_value = rubric_decision.verdict.value
+                    if not rubric_shadow:
+                        if rubric_decision.verdict is RubricVerdict.FAIL:
+                            reasons.append(
+                                f"rubric_failed:{','.join(rubric_decision.failed_criteria)}"
+                            )
+                        elif rubric_decision.verdict is RubricVerdict.ABSTAIN:
+                            reasons.append(f"rubric_abstained:{','.join(rubric_decision.reasons)}")
 
         # 4. Confidence threshold on the aggregate of verifier / cross-check
         # signals (not model self-report). The rubric min score is folded
@@ -486,6 +500,10 @@ class QualityGate:
                     "ungrounded_citation",
                     "no_grounded_citation",
                     "confidence=",
+                    # Any rubric-originated reason (failed / abstained /
+                    # no_reasoning_trace / evaluator_error) is a subtractive
+                    # signal the debate resolution MUST NOT override.
+                    "rubric_",
                 )
             )
             for r in reasons

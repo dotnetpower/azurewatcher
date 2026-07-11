@@ -82,3 +82,45 @@ class TestSelfConsistencySampler:
         assert result.agreement_count == 2
         assert result.stability == pytest.approx(0.5)
         assert result.signal[STABILITY_SIGNAL_KEY] == pytest.approx(0.5)
+
+    @pytest.mark.asyncio
+    async def test_proposer_failure_propagates(self) -> None:
+        class _RaisingProposer:
+            async def propose(self, candidate: QualityCandidate) -> tuple[str, dict[str, object]]:
+                del candidate
+                raise RuntimeError("proposer offline")
+
+        sampler = SelfConsistencySampler(proposer=_RaisingProposer(), samples=3)
+        with pytest.raises(RuntimeError, match="proposer offline"):
+            await sampler.sample(_candidate())
+
+    @pytest.mark.asyncio
+    async def test_sibling_samples_cancelled_on_failure(self) -> None:
+        # One sample raises immediately; the siblings would hang. The
+        # sampler MUST cancel the in-flight siblings before propagating,
+        # so this returns promptly (no 30s wait) and leaks no task.
+        import asyncio
+
+        started: list[asyncio.Task[object]] = []
+
+        class _OneRaisesRestHang:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            async def propose(self, candidate: QualityCandidate) -> tuple[str, dict[str, object]]:
+                del candidate
+                self.calls += 1
+                if self.calls == 1:
+                    raise RuntimeError("boom")
+                current = asyncio.current_task()
+                if current is not None:
+                    started.append(current)
+                await asyncio.sleep(30)  # would hang unless cancelled
+                return ("x", {})
+
+        sampler = SelfConsistencySampler(proposer=_OneRaisesRestHang(), samples=3)
+        with pytest.raises(RuntimeError, match="boom"):
+            await sampler.sample(_candidate())
+        # Give the event loop a tick to process the cancellations.
+        await asyncio.sleep(0)
+        assert all(t.cancelled() or t.done() for t in started)

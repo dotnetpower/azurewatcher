@@ -185,6 +185,7 @@ def evaluate_rubric_output(
     *,
     known_rule_ids: Iterable[str],
     required_criteria: Iterable[str] = (),
+    known_criteria: Iterable[str] | None = None,
 ) -> RubricDecision:
     """Reduce a :class:`RubricOutput` to a :class:`RubricDecision`.
 
@@ -198,9 +199,18 @@ def evaluate_rubric_output(
     missing one is an ABSTAIN (a truncated evaluator response cannot
     silently skip a hallucination dimension).
 
+    ``known_criteria`` is the closed set of valid criterion names (the
+    :class:`RubricCriterion` values). When supplied, a score naming a
+    criterion outside that set is a hallucinated / malformed dimension
+    and collapses to ABSTAIN. ``None`` (the default) skips the check for
+    backward compatibility.
+
     Rules (in order):
 
     - No scores at all -> ``ABSTAIN`` (nothing to judge).
+    - A criterion scored more than once -> ``ABSTAIN`` (a self-
+      contradictory response is not a signal we trust).
+    - A score naming an unknown criterion -> ``ABSTAIN``.
     - Any required criterion absent from the scores -> ``ABSTAIN``.
     - Any score grounded on an unknown rule id -> ``ABSTAIN``.
     - Any score below its threshold -> ``FAIL`` (list the failed
@@ -222,6 +232,27 @@ def evaluate_rubric_output(
             scores=scores,
             reasons=("no_scores",),
         )
+
+    criteria_seen = [s.criterion for s in scores]
+    duplicates = tuple(sorted({c for c in criteria_seen if criteria_seen.count(c) > 1}))
+    if duplicates:
+        return RubricDecision(
+            verdict=RubricVerdict.ABSTAIN,
+            min_score=0.0,
+            scores=scores,
+            reasons=tuple(f"duplicate_criterion:{c}" for c in duplicates),
+        )
+
+    if known_criteria is not None:
+        valid = frozenset(known_criteria)
+        unknown_criteria = tuple(c for c in criteria_seen if c not in valid)
+        if unknown_criteria:
+            return RubricDecision(
+                verdict=RubricVerdict.ABSTAIN,
+                min_score=0.0,
+                scores=scores,
+                reasons=tuple(f"unknown_criterion:{c}" for c in unknown_criteria),
+            )
 
     present = {s.criterion for s in scores}
     missing = tuple(c for c in required if c not in present)

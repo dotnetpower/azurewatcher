@@ -26,10 +26,15 @@ from fdai.core.quality_gate import (
     QualityGateConfig,
     QualityOutcome,
 )
+from fdai.core.quality_gate.critic import CriticOutput, CriticStance
+from fdai.core.quality_gate.debate import DebateOrchestrator
+from fdai.core.quality_gate.debate_router import DebateRouterConfig
+from fdai.core.quality_gate.judge import JudgeDecision, JudgeOutput
 from fdai.core.quality_gate.rubric import RubricCriterion, RubricOutput, RubricScore
 from fdai.core.quality_gate.testing import (
     InMemoryGroundingSource,
     MatchTypeCrossCheckModel,
+    MismatchCrossCheckModel,
     StaticRubricEvaluator,
     StaticVerifier,
     UniformRubricEvaluator,
@@ -75,14 +80,18 @@ def _rule(rule_id: str) -> Rule:
     )
 
 
-def _candidate(*, confidence: float = 0.9) -> QualityCandidate:
+def _candidate(*, confidence: float = 0.9, reasoning_trace: str | None = None) -> QualityCandidate:
     return QualityCandidate(
         action_type="remediate.tag-add",
         target_resource_ref="rid-1",
         params={"tag_name": "owner", "tag_value": "team-a"},
         cited_rule_ids=("r.known",),
         confidence_signals={"retrieval": confidence, "verifier_margin": confidence},
-        reasoning_trace="The bucket is missing the owner tag; rule r.known requires it.",
+        reasoning_trace=(
+            "The bucket is missing the owner tag; rule r.known requires it."
+            if reasoning_trace is None
+            else reasoning_trace
+        ),
     )
 
 
@@ -249,3 +258,110 @@ async def test_no_rubric_wired_is_unchanged() -> None:
     assert decision.rubric_scores == ()
     assert decision.rubric_verdict is None
     assert decision.rubric_shadow is False
+
+
+@pytest.mark.asyncio
+async def test_enforce_abstains_on_empty_reasoning_trace() -> None:
+    # A blank reasoning_trace cannot be scored for faithfulness; enforce
+    # mode abstains WITHOUT spending a judge call, folding confidence to 0.
+    ev = UniformRubricEvaluator(
+        criteria=_CRITERIA, score=1.0, threshold=0.7, supporting_rule_ids=("r.known",)
+    )
+    gate = _gate(rubric_evaluator=ev, rubric_shadow=False)
+    decision = await gate.evaluate(_candidate(reasoning_trace="   "))
+    assert decision.outcome is QualityOutcome.ABSTAIN
+    assert decision.rubric_verdict == "abstain"
+    assert any(r.startswith("rubric_no_reasoning_trace") for r in decision.reasons)
+    assert decision.rubric_scores == ()
+    assert decision.aggregate_confidence == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_shadow_empty_reasoning_trace_does_not_block() -> None:
+    ev = UniformRubricEvaluator(
+        criteria=_CRITERIA, score=1.0, threshold=0.7, supporting_rule_ids=("r.known",)
+    )
+    gate = _gate(rubric_evaluator=ev, rubric_shadow=True)
+    decision = await gate.evaluate(_candidate(reasoning_trace=""))
+    assert decision.outcome is QualityOutcome.ELIGIBLE
+    assert decision.rubric_shadow is True
+    assert decision.rubric_verdict == "abstain"
+    assert decision.aggregate_confidence == pytest.approx(0.9)
+
+
+# ---------------------------------------------------------------------------
+# Regression: debate resolving a cross-check disagreement MUST NOT let a
+# rubric FAIL leak through to ELIGIBLE. The rubric is subtractive on every
+# path, including the debate-resolved one.
+# ---------------------------------------------------------------------------
+
+
+class _AgreeCritic:
+    async def critique(self, candidate: object, proposer_output: object) -> CriticOutput:
+        del candidate, proposer_output
+        return CriticOutput(stance=CriticStance.AGREE, objections=(), citations=())
+
+
+class _AcceptJudge:
+    async def judge(
+        self, candidate: object, proposer_output: object, critic_output: object
+    ) -> JudgeOutput:
+        del candidate, proposer_output, critic_output
+        return JudgeOutput(decision=JudgeDecision.ACCEPT, justification="ok")
+
+
+def _partial_fail_rubric() -> StaticRubricEvaluator:
+    # min_score = 0.6 (a FAIL on faithfulness) but ABOVE a 0.5 confidence
+    # threshold, so the confidence leg does NOT add a reason - the ONLY
+    # thing that can route this to HIL is the rubric_failed reason itself.
+    return StaticRubricEvaluator(
+        output=RubricOutput(
+            scores=(
+                RubricScore(
+                    criterion=RubricCriterion.FAITHFULNESS.value,
+                    score=0.6,
+                    threshold=0.7,
+                    rationale="one unsupported claim",
+                    supporting_rule_ids=("r.known",),
+                ),
+                RubricScore(
+                    criterion=RubricCriterion.EVIDENCE_ACTION_ALIGNMENT.value,
+                    score=0.9,
+                    threshold=0.7,
+                    rationale="aligned",
+                    supporting_rule_ids=("r.known",),
+                ),
+            )
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_debate_resolved_disagreement_still_honors_rubric_fail() -> None:
+    gate = QualityGate(
+        verifier=StaticVerifier(outcome=True),
+        # agree=1 < quorum=2 -> cross_check_below_quorum -> debate route.
+        cross_check_models=(
+            MatchTypeCrossCheckModel(model_id="m1"),
+            MismatchCrossCheckModel(model_id="m2"),
+        ),
+        grounding=InMemoryGroundingSource({"r.known": _rule("r.known")}),
+        config=QualityGateConfig(
+            confidence_threshold=0.5,
+            require_grounding=True,
+            require_cross_check_quorum=2,
+            rubric_shadow=False,
+            rubric_required_criteria=_CRITERIA,
+        ),
+        debate_orchestrator=DebateOrchestrator(critic=_AgreeCritic(), judge=_AcceptJudge()),
+        debate_router_config=DebateRouterConfig(),
+        rubric_evaluator=_partial_fail_rubric(),
+    )
+    decision = await gate.evaluate(_candidate(confidence=0.9))
+    # The debate PROCEEDs (resolves the cross-check disagreement), but the
+    # rubric FAILed - the outcome MUST be ABSTAIN, not ELIGIBLE.
+    assert decision.rubric_verdict == "fail"
+    assert any(r.startswith("rubric_failed") for r in decision.reasons)
+    assert decision.outcome is QualityOutcome.ABSTAIN
+    # Confidence was folded down to the min rubric score (subtractive).
+    assert decision.aggregate_confidence == pytest.approx(0.6)
