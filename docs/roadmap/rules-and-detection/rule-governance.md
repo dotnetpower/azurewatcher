@@ -97,8 +97,13 @@ assignment's top-level `effect` is the default for rules without an override.
 > `RuleSet` (initiative) grouping - version-pinned members with per-rule `default_effect` and
 > `assignment_from_rule_set` - ships in
 > [`rule_catalog/schema/rule_set.py`](../../../src/fdai/rule_catalog/schema/rule_set.py). The
-> governance model layer (effect / scope / assignment / rule-set) is complete in-memory; the
-> remaining follow-up is the catalog-as-code YAML schemas + loaders, the T0 runtime that consumes a
+> governance model layer (effect / scope / assignment / rule-set) is complete in-memory. The
+> assignment catalog-as-code loader also ships:
+> [`assignment.schema.json`](../../../src/fdai/rule_catalog/schema/assignment.schema.json) +
+> `load_assignment_from_mapping`
+> ([`governance_loader.py`](../../../src/fdai/rule_catalog/schema/governance_loader.py)), which
+> validates a YAML assignment and builds the domain object, failing at the boundary with every
+> schema issue. The remaining follow-up is the rule-set loader, the T0 runtime that consumes a
 > resolved assignment, and the CI transition gate.
 
 ## Scope

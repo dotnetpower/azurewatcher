@@ -1,7 +1,7 @@
 ---
 title: 규칙 거버넌스(Rule Governance)
 translation_of: rule-governance.md
-translation_source_sha: dc79a6b8ff59de50e1e7b82a8690335528f31cb0
+translation_source_sha: 36ecaf45037974956999904571094dce1224ed80
 translation_revised: 2026-07-11
 ---
 
@@ -99,8 +99,13 @@ Effect(위반 시 무엇을 할지)는 **enforcement 모드** (액션할지 여�
 > ship 됨. `RuleSet` (initiative) 그룹 - version-pin 된 member + per-rule `default_effect` +
 > `assignment_from_rule_set` - 는
 > [`rule_catalog/schema/rule_set.py`](../../../src/fdai/rule_catalog/schema/rule_set.py) 에 ship 됨.
-> governance 모델 계층(effect / scope / assignment / rule-set)은 in-memory 로 완성; 남은 후속은
-> catalog-as-code YAML 스키마 + 로더, resolved assignment 를 소비하는 T0 런타임, CI 전이 게이트.
+> governance 모델 계층(effect / scope / assignment / rule-set)은 in-memory 로 완성. assignment
+> catalog-as-code 로더도 ship 됨:
+> [`assignment.schema.json`](../../../src/fdai/rule_catalog/schema/assignment.schema.json) +
+> `load_assignment_from_mapping`
+> ([`governance_loader.py`](../../../src/fdai/rule_catalog/schema/governance_loader.py)) - YAML
+> assignment 를 검증해 도메인 객체를 빌드하고, 모든 schema 이슈를 경계에서 한 번에 실패시킴. 남은
+> 후속은 rule-set 로더, resolved assignment 를 소비하는 T0 런타임, CI 전이 게이트.
 
 ## 스코프(Scope)
 
