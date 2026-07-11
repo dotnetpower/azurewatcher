@@ -81,6 +81,15 @@ assignment's top-level `effect` is the default for rules without an override.
   radius is *blocking legitimate change*); a `remediate` PR is idempotent - a re-evaluated finding
   updates the open PR rather than opening duplicates.
 
+> **Implementation status**: the effect foundation ships in
+> [`rule_catalog/schema/effect.py`](../../../src/fdai/rule_catalog/schema/effect.py) - the
+> `Effect` (`disabled` / `audit` / `deny` / `remediate`) and `Enforcement`
+> (`enforce` / `do-not-enforce`) enums, the strictest-effect precedence
+> (`deny` > `remediate` > `audit` > `disabled`) used to resolve conflicting assignments, and
+> `validate_effect_transition` enforcing the transition table above (a raise to an enforce effect
+> requires the separate promotion approval). The `Scope`, `Assignment`, and `RuleSet` artifacts
+> that consume these types are the follow-up.
+
 ## Scope
 
 Scope selects which resources an assignment covers, CSP-neutrally:

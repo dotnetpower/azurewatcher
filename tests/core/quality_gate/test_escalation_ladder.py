@@ -13,6 +13,7 @@ from fdai.core.quality_gate.escalation_ladder import (
     EscalationRoute,
     EscalationTier,
     decide_escalation,
+    escalation_decision_audit_fields,
 )
 from fdai.core.quality_gate.gate import QualityCandidate
 
@@ -193,3 +194,31 @@ def test_decision_is_deterministic() -> None:
     first = decide_escalation(**kwargs)  # type: ignore[arg-type]
     second = decide_escalation(**kwargs)  # type: ignore[arg-type]
     assert first == second
+
+
+class TestAuditFields:
+    def test_escalate_audit_fields_are_structured(self) -> None:
+        d = decide_escalation(
+            candidate=_candidate("remediate.enable-encryption"),
+            cross_check_disagreed=True,
+            escalated_available=True,
+        )
+        fields = escalation_decision_audit_fields(d)
+        assert fields == {
+            "escalation_route": "escalate",
+            "escalation_reason": "cross_check_disagreement",
+            "escalation_action_type": "remediate.enable-encryption",
+            "escalation_from_tier": "SECONDARY",
+            "escalation_to_tier": "ESCALATED",
+        }
+
+    def test_stop_audit_fields_null_to_tier(self) -> None:
+        d = decide_escalation(
+            candidate=_candidate(),
+            cross_check_disagreed=True,
+            escalated_available=False,
+        )
+        fields = escalation_decision_audit_fields(d)
+        assert fields["escalation_route"] == "stop"
+        assert fields["escalation_to_tier"] is None
+

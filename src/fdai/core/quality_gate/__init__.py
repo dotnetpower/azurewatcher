@@ -52,6 +52,7 @@ from fdai.core.quality_gate.escalation_ladder import (
     EscalationRoute,
     EscalationTier,
     decide_escalation,
+    escalation_decision_audit_fields,
 )
 from fdai.core.quality_gate.gate import (
     CrossCheckModel,
@@ -146,6 +147,7 @@ __all__ = [
     "evaluate_critic_output",
     "evaluate_judge_output",
     "evaluate_rubric_output",
+    "escalation_decision_audit_fields",
     "quality_decision_audit_fields",
     "run_consistency_cascade",
 ]

@@ -50,7 +50,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import IntEnum, StrEnum
-from typing import Final
+from typing import Any, Final
 
 from fdai.core.quality_gate.gate import QualityCandidate
 
@@ -258,10 +258,30 @@ def decide_escalation(
     return _stop(_REASON_DEFAULT_STOP)
 
 
+def escalation_decision_audit_fields(decision: EscalationDecision) -> dict[str, Any]:
+    """Flatten an :class:`EscalationDecision` into JSON-safe audit fields.
+
+    A wired caller merges these into its per-decision audit entry so an
+    operator can reconstruct why a T2 case did (or did not) climb to a
+    stronger model - the reproducibility the append-only log promises.
+    Every field is a structured id / enum / tier name, never model text,
+    so it is safe for the L0 audit surface.
+    """
+    return {
+        "escalation_route": decision.route.value,
+        "escalation_reason": decision.reason,
+        "escalation_action_type": decision.action_type,
+        "escalation_from_tier": decision.from_tier.name,
+        "escalation_to_tier": (decision.to_tier.name if decision.to_tier is not None else None),
+        **({"escalation_metadata": dict(decision.metadata)} if decision.metadata else {}),
+    }
+
+
 __all__ = [
     "EscalationTier",
     "EscalationRoute",
     "EscalationLadderConfig",
     "EscalationDecision",
     "decide_escalation",
+    "escalation_decision_audit_fields",
 ]
