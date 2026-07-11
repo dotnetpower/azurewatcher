@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import IntEnum
+from typing import Protocol, runtime_checkable
 
 
 class ScopeLevel(IntEnum):
@@ -113,13 +114,33 @@ class Scope:
             return False
         return True
 
+    @property
+    def specificity(self) -> int:
+        """Higher = more specific (drives parameter precedence)."""
+        return int(self.level)
 
-def scope_specificity(scope: Scope) -> int:
+
+@runtime_checkable
+class ScopeMatcher(Protocol):
+    """A scope expression: a coverage predicate plus a specificity rank.
+
+    Both :class:`Scope` (a single hierarchy level) and :class:`ScopeBinding`
+    (include / exclude address lists) satisfy it, so an assignment may bind
+    either without the resolver branching on the concrete type.
+    """
+
+    def covers(self, ctx: ResourceContext) -> bool: ...
+
+    @property
+    def specificity(self) -> int: ...
+
+
+def scope_specificity(scope: ScopeMatcher) -> int:
     """Higher = more specific (resource > resource-group > account > org)."""
-    return int(scope.level)
+    return scope.specificity
 
 
-def most_specific(scopes: Iterable[Scope]) -> tuple[Scope, ...]:
+def most_specific[M: ScopeMatcher](scopes: Iterable[M]) -> tuple[M, ...]:
     """Return every scope tied at the highest specificity.
 
     ``len == 1`` -> a unique most-specific scope wins for parameters. ``len > 1``
@@ -130,8 +151,8 @@ def most_specific(scopes: Iterable[Scope]) -> tuple[Scope, ...]:
     ordered = list(scopes)
     if not ordered:
         return ()
-    top = max(scope_specificity(s) for s in ordered)
-    return tuple(s for s in ordered if scope_specificity(s) == top)
+    top = max(s.specificity for s in ordered)
+    return tuple(s for s in ordered if s.specificity == top)
 
 
 _SCOPE_URI_PREFIX = "scope://"
@@ -240,6 +261,7 @@ __all__ = [
     "Scope",
     "ScopeBinding",
     "ScopeLevel",
+    "ScopeMatcher",
     "ScopeRef",
     "ScopeSelector",
     "most_specific",

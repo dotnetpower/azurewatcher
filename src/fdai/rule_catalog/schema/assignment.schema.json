@@ -54,24 +54,40 @@
       "type": "string",
       "enum": ["organization", "account", "resource-group", "resource"]
     },
-    "scope": {
+    "scopeUri": {"type": "string", "pattern": "^scope://[^/]+(/[^/]+){0,3}$"},
+    "selector": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["level", "id"],
       "properties": {
-        "level": {"$ref": "#/$defs/scopeLevel"},
-        "id": {"type": "string", "minLength": 1},
-        "selector": {
+        "resource_types": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "tags": {"type": "object", "additionalProperties": {"type": "string"}},
+        "resource_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+      }
+    },
+    "scope": {
+      "oneOf": [
+        {
           "type": "object",
           "additionalProperties": false,
+          "required": ["level", "id"],
           "properties": {
-            "resource_types": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
-            "tags": {"type": "object", "additionalProperties": {"type": "string"}},
-            "resource_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+            "level": {"$ref": "#/$defs/scopeLevel"},
+            "id": {"type": "string", "minLength": 1},
+            "selector": {"$ref": "#/$defs/selector"},
+            "excludes": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
           }
         },
-        "excludes": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
-      }
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["include"],
+          "properties": {
+            "include": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/scopeUri"}, "uniqueItems": true},
+            "exclude": {"type": "array", "items": {"$ref": "#/$defs/scopeUri"}, "uniqueItems": true},
+            "selector": {"$ref": "#/$defs/selector"}
+          }
+        }
+      ]
     }
   }
 }

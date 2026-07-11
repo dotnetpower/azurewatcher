@@ -29,7 +29,7 @@ from fdai.rule_catalog.schema.effect import (
 from fdai.rule_catalog.schema.provenance import Provenance
 from fdai.rule_catalog.schema.scope import (
     ResourceContext,
-    Scope,
+    ScopeMatcher,
     most_specific,
     scope_specificity,
 )
@@ -47,7 +47,7 @@ class Assignment:
 
     id: str
     target_rule_ids: frozenset[str]
-    scope: Scope
+    scope: ScopeMatcher
     effect: Effect = Effect.AUDIT
     enforcement: Enforcement = Enforcement.DO_NOT_ENFORCE
     parameters: Mapping[str, str] = field(default_factory=dict)

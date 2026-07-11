@@ -29,7 +29,14 @@ from fdai.rule_catalog.schema.rule_set import (
     RuleSetMember,
     assignment_from_rule_set,
 )
-from fdai.rule_catalog.schema.scope import Scope, ScopeLevel, ScopeSelector
+from fdai.rule_catalog.schema.scope import (
+    Scope,
+    ScopeBinding,
+    ScopeLevel,
+    ScopeMatcher,
+    ScopeRef,
+    ScopeSelector,
+)
 
 _SCHEMA_PACKAGE = "fdai.rule_catalog.schema"
 _ASSIGNMENT_SCHEMA_FILE = "assignment.schema.json"
@@ -82,19 +89,29 @@ def _collect_issues(
     ]
 
 
-def _build_scope(raw: Mapping[str, Any]) -> Scope:
-    selector: ScopeSelector | None = None
-    sel_raw = raw.get("selector")
-    if sel_raw is not None:
-        selector = ScopeSelector(
-            resource_types=frozenset(sel_raw.get("resource_types", ())),
-            tags=dict(sel_raw.get("tags", {})),
-            resource_ids=frozenset(sel_raw.get("resource_ids", ())),
+def _build_selector(sel_raw: Mapping[str, Any] | None) -> ScopeSelector | None:
+    if sel_raw is None:
+        return None
+    return ScopeSelector(
+        resource_types=frozenset(sel_raw.get("resource_types", ())),
+        tags=dict(sel_raw.get("tags", {})),
+        resource_ids=frozenset(sel_raw.get("resource_ids", ())),
+    )
+
+
+def _build_scope(raw: Mapping[str, Any]) -> ScopeMatcher:
+    """Build a scope matcher from either the include/exclude address-list form
+    (``include`` present) or the legacy single ``level`` + ``id`` form."""
+    if "include" in raw:
+        return ScopeBinding(
+            includes=tuple(ScopeRef.parse(u) for u in raw["include"]),
+            excludes=tuple(ScopeRef.parse(u) for u in raw.get("exclude", ())),
+            selector=_build_selector(raw.get("selector")),
         )
     return Scope(
         level=_LEVEL_BY_LABEL[raw["level"]],
         id=raw["id"],
-        selector=selector,
+        selector=_build_selector(raw.get("selector")),
         excludes=frozenset(raw.get("excludes", ())),
     )
 
@@ -138,7 +155,10 @@ def load_assignment_from_mapping(
     effect = Effect(raw.get("effect", "audit"))
     enforcement = Enforcement(raw.get("enforcement", "do-not-enforce"))
     parameters = dict(raw.get("parameters", {}))
-    scope = _build_scope(raw["scope"])
+    try:
+        scope = _build_scope(raw["scope"])
+    except ValueError as exc:
+        raise GovernanceLoadError([GovernanceLoadIssue(key="scope", message=str(exc))]) from exc
     provenance = _build_provenance(raw)
     version = raw.get("version")
 

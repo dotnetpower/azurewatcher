@@ -153,3 +153,23 @@ def test_single_assignment_clean_resolution() -> None:
     assert res.parameters == {"k": "v"}
     assert res.overridden_assignment_ids == ()
     assert res.parameter_tie is False
+
+
+def test_resolver_accepts_scope_binding() -> None:
+    # an assignment scoped by a ScopeBinding resolves through the same path,
+    # and its most-specific include drives specificity against a Scope org-wide
+    from fdai.rule_catalog.schema.scope import ScopeBinding, ScopeRef
+
+    org_wide = _assign(id_="org", rules={"r.x"}, scope=_ORG, parameters={"k": "org"})
+    binding = Assignment(
+        id="rg-bind",
+        target_rule_ids=frozenset({"r.x"}),
+        scope=ScopeBinding(includes=(ScopeRef(("org-1", "sub-1", "rg-a")),)),
+        parameters={"k": "rg"},
+    )
+    res = resolve_assignments(assignments=[org_wide, binding], ctx=_ctx(), rule_id="r.x")
+    assert res is not None
+    # the resource-group binding is more specific than the org-wide scope
+    assert res.winning_assignment_id == "rg-bind"
+    assert res.parameters == {"k": "rg"}
+    assert res.parameter_tie is False

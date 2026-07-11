@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from fdai.rule_catalog.schema.assignment import Assignment
 from fdai.rule_catalog.schema.effect import Effect, Enforcement
 from fdai.rule_catalog.schema.provenance import Provenance
-from fdai.rule_catalog.schema.scope import Scope
+from fdai.rule_catalog.schema.scope import ScopeMatcher
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,7 +78,7 @@ def assignment_from_rule_set(
     rule_set: RuleSet,
     *,
     id: str,
-    scope: Scope,
+    scope: ScopeMatcher,
     effect: Effect = Effect.AUDIT,
     enforcement: Enforcement = Enforcement.DO_NOT_ENFORCE,
     parameters: Mapping[str, str] | None = None,

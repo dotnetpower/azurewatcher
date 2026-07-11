@@ -12,7 +12,7 @@ from fdai.rule_catalog.schema.governance_loader import (
     load_assignment_from_mapping,
     load_rule_set_from_mapping,
 )
-from fdai.rule_catalog.schema.scope import ResourceContext, ScopeLevel
+from fdai.rule_catalog.schema.scope import ResourceContext, ScopeBinding, ScopeLevel
 
 
 def _minimal() -> dict[str, Any]:
@@ -309,3 +309,65 @@ def test_rule_set_wrong_kind_rejected() -> None:
     raw["kind"] = "assignment"
     with pytest.raises(GovernanceLoadError):
         load_rule_set_from_mapping(raw)
+
+
+# ---- include/exclude scope form (ScopeBinding) ----------------------------
+
+
+def test_assignment_loads_scope_binding() -> None:
+    raw = _minimal()
+    raw["scope"] = {
+        "include": ["scope://org-1/sub-1/prod"],
+        "exclude": ["scope://org-1/sub-1/prod/sandbox"],
+        "selector": {"resource_types": ["sql-database"]},
+    }
+    a = load_assignment_from_mapping(raw)
+    assert isinstance(a.scope, ScopeBinding)
+    ctx = ResourceContext(
+        organization="org-1",
+        account="sub-1",
+        resource_group="prod",
+        resource_id="db-1",
+        resource_type="sql-database",
+    )
+    assert a.applies_to("r.encryption", ctx)
+    # excluded child scope is not covered
+    sandbox = ResourceContext(
+        organization="org-1",
+        account="sub-1",
+        resource_group="sandbox",
+        resource_id="db-2",
+        resource_type="sql-database",
+    )
+    assert not a.applies_to("r.encryption", sandbox)
+
+
+def test_assignment_scope_binding_bad_uri_rejected() -> None:
+    raw = _minimal()
+    raw["scope"] = {"include": ["not-a-scope-uri"]}
+    with pytest.raises(GovernanceLoadError):
+        load_assignment_from_mapping(raw)
+
+
+def test_assignment_scope_binding_too_many_segments_rejected() -> None:
+    raw = _minimal()
+    raw["scope"] = {"include": ["scope://a/b/c/d/e"]}
+    with pytest.raises(GovernanceLoadError):
+        load_assignment_from_mapping(raw)
+
+
+def test_assignment_scope_binding_blank_segment_rejected_at_domain() -> None:
+    # a whitespace-only segment passes the schema URI pattern but ScopeRef
+    # rejects it - the loader wraps that ValueError into a scope-keyed issue
+    raw = _minimal()
+    raw["scope"] = {"include": ["scope://   "]}
+    with pytest.raises(GovernanceLoadError) as ei:
+        load_assignment_from_mapping(raw)
+    assert any(i.key == "scope" for i in ei.value.issues)
+
+
+def test_assignment_scope_both_forms_rejected() -> None:
+    raw = _minimal()
+    raw["scope"] = {"level": "resource-group", "id": "rg-a", "include": ["scope://org-1"]}
+    with pytest.raises(GovernanceLoadError):
+        load_assignment_from_mapping(raw)
