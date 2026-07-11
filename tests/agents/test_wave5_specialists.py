@@ -6,8 +6,10 @@ import asyncio
 
 from fdai.agents._framework.bus import InMemoryBus
 from fdai.agents._framework.registry import load_pantheon
+from fdai.agents.freyr import _MAX_SAMPLES as _FREYR_MAX_SAMPLES
 from fdai.agents.freyr import Freyr
 from fdai.agents.loki import Loki
+from fdai.agents.njord import _MAX_SAMPLES as _NJORD_MAX_SAMPLES
 from fdai.agents.njord import Njord
 
 # ---------------------------------------------------------------------------
@@ -94,6 +96,18 @@ def test_njord_introspect_general_summary_when_scope_unnamed() -> None:
     assert "Tracking cost for 1 scope" in result.answer
 
 
+def test_njord_sample_history_is_bounded() -> None:
+    # A long-lived cost watcher ingests one sample per billing tick forever;
+    # only the tail baseline window is read, so retained samples must not grow
+    # without bound.
+    n = Njord()
+    for i in range(_NJORD_MAX_SAMPLES * 2):
+        asyncio.run(n.ingest_cost_sample(scope="rg-soak", amount_usd=100.0 + i))
+    assert len(n._samples["rg-soak"]) == _NJORD_MAX_SAMPLES  # noqa: SLF001
+    # The tail is preserved (most recent sample is last).
+    assert n._samples["rg-soak"][-1] == 100.0 + (_NJORD_MAX_SAMPLES * 2 - 1)  # noqa: SLF001
+
+
 # ---------------------------------------------------------------------------
 # Freyr
 # ---------------------------------------------------------------------------
@@ -128,6 +142,17 @@ def test_freyr_publishes_capacity_forecast_events() -> None:
     events = bus.messages_on("object.capacity-forecast")
     assert len(events) == 3
     assert events[-1].payload["resource_id"] == "vm-3"
+
+
+def test_freyr_sample_history_is_bounded() -> None:
+    # The EWMA forecast is the real state; _samples is only read for its tail
+    # and length, so a long-lived capacity watcher must not accumulate a
+    # sample per tick forever.
+    f = Freyr()
+    for i in range(_FREYR_MAX_SAMPLES * 2):
+        asyncio.run(f.ingest_utilization(resource_id="vm-soak", utilization=0.5))
+        _ = i
+    assert len(f._samples["vm-soak"]) == _FREYR_MAX_SAMPLES  # noqa: SLF001
 
 
 # ---------------------------------------------------------------------------

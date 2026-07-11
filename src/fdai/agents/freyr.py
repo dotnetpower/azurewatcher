@@ -19,6 +19,13 @@ from fdai.agents._framework.introspection import (
 )
 from fdai.agents._framework.pantheon import _FREYR
 
+#: Hard cap on retained per-resource utilization samples. The EWMA forecast
+#: lives in ``_smoothed``; ``_samples`` is only read for its last value, its
+#: length (the >= 3 scale_down guard), and the introspection count - so
+#: trimming older samples is behavior-preserving and bounds memory on a
+#: long-lived capacity watcher.
+_MAX_SAMPLES = 512
+
 
 @dataclass(frozen=True, slots=True)
 class SizingRecommendation:
@@ -60,7 +67,13 @@ class Freyr(Agent):
         prev = self._smoothed.get(resource_id, utilization)
         smoothed = self._alpha * utilization + (1 - self._alpha) * prev
         self._smoothed[resource_id] = smoothed
-        self._samples.setdefault(resource_id, []).append(utilization)
+        history = self._samples.setdefault(resource_id, [])
+        history.append(utilization)
+        # Trim in place to the rolling cap - only the tail and the length are
+        # read, so dropping older samples changes no decision but bounds
+        # memory on a long-lived watcher.
+        if len(history) > _MAX_SAMPLES:
+            del history[:-_MAX_SAMPLES]
         if self.bus is not None:
             # Normalize the forecast into an impact magnitude in [0, 1] so
             # arbitration weighs the capacity signal by measured urgency,

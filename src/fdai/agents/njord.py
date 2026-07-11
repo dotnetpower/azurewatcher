@@ -21,6 +21,16 @@ from fdai.agents._framework.introspection import (
 )
 from fdai.agents._framework.pantheon import _NJORD
 
+#: Rolling baseline window (samples). The anomaly baseline only ever reads
+#: the last :data:`_BASELINE_WINDOW` samples, so anything older is dead
+#: weight.
+_BASELINE_WINDOW = 30
+#: Hard cap on retained per-scope samples. Bounds memory on a long-lived
+#: cost watcher (one sample per billing tick, forever, per scope) while
+#: keeping headroom above the baseline window for introspection reporting.
+#: Older samples are never read, so trimming them is behavior-preserving.
+_MAX_SAMPLES = 512
+
 
 @dataclass(frozen=True, slots=True)
 class CostEstimate:
@@ -68,7 +78,7 @@ class Njord(Agent):
         history = self._samples.setdefault(scope, [])
         anomaly_payload: dict[str, Any] | None = None
         if len(history) >= 3:
-            baseline = mean(history[-30:])
+            baseline = mean(history[-_BASELINE_WINDOW:])
             if baseline > 0 and amount_usd > baseline * self._anomaly_ratio:
                 ratio = amount_usd / baseline
                 # Normalize the overspend into an impact magnitude in [0, 1]
@@ -94,6 +104,11 @@ class Njord(Agent):
                 if self.bus is not None:
                     await self.bus.publish("Njord", "object.cost-anomaly", anomaly_payload)
         history.append(amount_usd)
+        # Trim in place (keep the same list object) to the rolling cap - the
+        # baseline only reads the tail, so dropping older samples changes no
+        # decision but bounds memory on a long-lived watcher.
+        if len(history) > _MAX_SAMPLES:
+            del history[:-_MAX_SAMPLES]
         return anomaly_payload
 
     # ---- advisor hook --------------------------------------------------
@@ -122,7 +137,7 @@ class Njord(Agent):
         if scopes:
             scope = scopes[0]
             history = self._samples[scope]
-            baseline = mean(history[-30:]) if history else 0.0
+            baseline = mean(history[-_BASELINE_WINDOW:]) if history else 0.0
             latest = history[-1] if history else 0.0
             facts.update(
                 {
