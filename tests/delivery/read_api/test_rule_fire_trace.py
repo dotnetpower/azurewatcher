@@ -75,7 +75,7 @@ def test_trace_reader_returns_oldest_first_from_console_model() -> None:
 
     import asyncio
 
-    items = asyncio.new_event_loop().run_until_complete(reader.read_items("corr-42"))
+    items = asyncio.run(reader.read_items("corr-42"))
     assert [i.seq for i in items] == sorted(i.seq for i in items)  # ascending
 
 

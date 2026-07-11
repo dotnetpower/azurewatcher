@@ -108,7 +108,7 @@ def test_in_memory_store_round_trip() -> None:
         missing = await store.load("s-does-not-exist")
         assert missing is None
 
-    asyncio.new_event_loop().run_until_complete(_run())
+    asyncio.run(_run())
 
 
 def test_message_at_serialises_iso_format() -> None:

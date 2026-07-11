@@ -71,7 +71,7 @@ def test_load_yaml_fixture_populates_resources_and_links(tmp_path: Path) -> None
     assert inv.resource_count() == 2
     assert inv.link_count() == 1
 
-    batches = asyncio.new_event_loop().run_until_complete(_collect_snapshot(inv))
+    batches = asyncio.run(_collect_snapshot(inv))
     all_resources = [r for b in batches for r in b.resources]
     all_links = [link for b in batches for link in b.links]
     assert {r.resource_id for r in all_resources} == {"rg-a", "vm-1"}
@@ -162,7 +162,7 @@ def test_rejects_dangling_link_endpoint(tmp_path: Path) -> None:
 def test_empty_fixture_still_emits_terminal_batch(tmp_path: Path) -> None:
     path = _fixture(tmp_path, "resources: []\nlinks: []\n")
     inv = DeclarativeInventory(_config(path))
-    batches = asyncio.new_event_loop().run_until_complete(_collect_snapshot(inv))
+    batches = asyncio.run(_collect_snapshot(inv))
     assert len(batches) == 1
     assert batches[0].final is True
 
@@ -177,7 +177,7 @@ def test_delta_returns_empty_batch(tmp_path: Path) -> None:
             batches.append(batch)
         return batches
 
-    batches = asyncio.new_event_loop().run_until_complete(_collect())
+    batches = asyncio.run(_collect())
     assert len(batches) == 1
     assert batches[0].final is True
     assert batches[0].resources == ()
@@ -198,6 +198,6 @@ def test_parent_id_lands_in_props_when_provided(tmp_path: Path) -> None:
         """,
     )
     inv = DeclarativeInventory(_config(path))
-    batches = asyncio.new_event_loop().run_until_complete(_collect_snapshot(inv))
+    batches = asyncio.run(_collect_snapshot(inv))
     vm_records = [r for b in batches for r in b.resources if r.resource_id == "vm-1"]
     assert vm_records[0].props["parent_id"] == "rg-a"
