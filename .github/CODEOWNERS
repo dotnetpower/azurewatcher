@@ -9,3 +9,19 @@
 
 # Risk-gate policy changes always want Owner review.
 /src/fdai/core/risk_gate/    @dotnetpower/fdai-owners
+
+# ---------------------------------------------------------------------------
+# Framework surface - the review-time counterpart of
+# scripts/check-protected-paths.sh. These are the files a downstream fork
+# MUST NOT edit (it customizes by dependency injection instead - see
+# docs/roadmap/downstream-fork-guide.md § 3). Upstream edits are legitimate
+# but change a contract other people build on, so they route to the owners.
+# Keep this list in sync with the guard's `protected_prefixes`.
+# ---------------------------------------------------------------------------
+/src/fdai/core/                  @dotnetpower/fdai-owners
+/src/fdai/composition.py         @dotnetpower/fdai-owners
+/src/fdai/shared/providers/      @dotnetpower/fdai-owners
+/src/fdai/shared/contracts/      @dotnetpower/fdai-owners
+/src/fdai/agents/                @dotnetpower/fdai-owners
+/rule-catalog/schema/            @dotnetpower/fdai-owners
+/.github/instructions/           @dotnetpower/fdai-owners

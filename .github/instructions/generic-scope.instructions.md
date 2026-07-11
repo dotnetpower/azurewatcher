@@ -86,6 +86,13 @@ Do not rely on human review alone. Gate every change:
   reliable way to keep the repo customer-agnostic.
 - **Custom regex check** in CI for other repo-specific tokens (known resource-name
   prefixes, `*.azure.com`/cloud endpoints) is future work.
+- **Framework-surface guard**: `scripts/check-protected-paths.sh` warns (upstream)
+  or hard-blocks (fork) any edit to the files a fork MUST NOT touch (`src/fdai/core/`,
+  `src/fdai/composition.py`, `src/fdai/shared/providers/`, `src/fdai/shared/contracts/`,
+  `src/fdai/agents/`, `rule-catalog/schema/`, `.github/instructions/`). A fork opts into
+  block mode with `FDAI_FORK=1`, a `.fdai-fork` marker, or `git config fdai.fork true`.
+  Runs in the pre-push hook and the `protected-paths` CI job; `.github/CODEOWNERS`
+  is its review-time counterpart.
 - **Pre-commit hook** running the same checks locally so violations never reach a push.
 - Checks run on the **full diff and on new/changed fixtures**, and fail the build on match.
 

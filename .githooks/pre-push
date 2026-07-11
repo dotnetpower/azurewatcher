@@ -91,5 +91,18 @@ if [ "${#py[@]}" -gt 0 ]; then
   fi
 fi
 
+# ---------------------------------------------------------------------------
+# 4. Framework-surface guard. Upstream: advisory warning (exit 0, never
+#    blocks a push). Fork (FDAI_FORK=1 / .fdai-fork / git config fdai.fork):
+#    hard block on any edit under src/fdai/core, composition.py, the provider
+#    Protocols, contracts, agents, rule-catalog/schema, or .github/instructions.
+# ---------------------------------------------------------------------------
+if [ -x scripts/check-protected-paths.sh ] || [ -f scripts/check-protected-paths.sh ]; then
+  if ! bash scripts/check-protected-paths.sh "$range"; then
+    echo "pre-push: BLOCKED - framework-surface guard (fork mode)."
+    exit 1
+  fi
+fi
+
 echo "pre-push: OK"
 exit 0

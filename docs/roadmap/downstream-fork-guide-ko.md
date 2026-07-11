@@ -1,7 +1,7 @@
 ---
 title: Downstream Fork 가이드
 translation_of: downstream-fork-guide.md
-translation_source_sha: a2b1b85648dcc1d7428e49c8b6cdca4ab212bb98
+translation_source_sha: 60732de60c9a210eada25b6d709893894df6142a
 translation_revised: 2026-07-11
 ---
 
@@ -123,14 +123,27 @@ Fork에서 첫 `git commit` 전에 이것들을 하세요.
    local wrapper로 `core/`를 patch하지 않고 감싸는 변경을 배포하세요.
    그 후 wrapper를 scrub해서 upstream에 기여.
 
-이 규칙은 두 invariant로 강제됩니다:
+이 규칙은 세 invariant로 강제됩니다:
 
 - Upstream의 `scripts/check-core-imports.sh`가 `delivery/*` 또는
   클라우드 SDK에서 import하는 `core/` 파일을 거부.
+- Upstream의 `scripts/check-protected-paths.sh`가 변경된 파일을
+  검사해 framework surface - `src/fdai/core/`,
+  `src/fdai/composition.py`, `src/fdai/shared/providers/`,
+  `src/fdai/shared/contracts/`, `src/fdai/agents/`,
+  `rule-catalog/schema/`, `.github/instructions/` - 편집을 경고
+  (upstream)하거나 **하드 차단(fork)** 합니다. Fork는 `FDAI_FORK=1`
+  (로컬 셸), **커밋된** `.fdai-fork` marker 파일(트리에 따라가므로
+  CI의 신뢰 신호 - env var는 그렇지 않음), 또는
+  `git config fdai.fork true`로 차단 모드를 켭니다; 가드는 pre-push
+  훅과 `protected-paths` CI job으로 실행되며, 후자는 PR Files 탭에
+  파일별 `::warning::` annotation도 남깁니다.
 - Composition root
   ([`src/fdai/composition.py`](../../src/fdai/composition.py))가
   `shared/providers/`의 Protocol에 구체적 구현이 바인딩되는 유일한
   곳. Fork는 자체 composition root를 씀; 이 파일을 편집하지 않음.
+  `.github/CODEOWNERS`가 리뷰 시점의 대응물입니다: framework surface
+  경로는 owners 팀으로 라우팅됩니다.
 
 ## 4. Fork를 위한 저장소 레이아웃
 

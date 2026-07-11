@@ -136,6 +136,40 @@ jobs:
       - name: check-core-imports.sh
         run: bash scripts/check-core-imports.sh
 
+  protected-paths:
+    name: framework-surface guard (advisory upstream, block in fork)
+    # Runs on PRs (base..head range) and on direct pushes to a protected
+    # branch (before..after range), because this repo is trunk-based - a
+    # fork that bypasses the local pre-push hook must still be caught here.
+    # Upstream mode emits ::warning:: annotations and passes; a fork clone
+    # (committed `.fdai-fork` marker, or FDAI_FORK=1) turns it into a blocker.
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so the diff range resolves.
+          fetch-depth: 0
+
+      - name: check-protected-paths.sh
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+            base_sha="$(git rev-parse "origin/${{ github.base_ref }}")"
+            range="${base_sha}...HEAD"
+          else
+            before="${{ github.event.before }}"
+            # All-zeros = branch just created / no prior tip; nothing to diff.
+            if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+              echo "protected-paths: no prior commit to diff against - skipping."
+              exit 0
+            fi
+            range="${before}...${{ github.sha }}"
+          fi
+          echo "protected-paths: diffing range '$range'"
+          bash scripts/check-protected-paths.sh "$range"
+
   secret-scan:
     name: gitleaks
     runs-on: ubuntu-24.04

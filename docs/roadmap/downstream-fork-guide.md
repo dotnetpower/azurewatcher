@@ -122,15 +122,29 @@ edit `core/`, one of two things is happening:
    composes around `core/` without patching it. Then contribute
    the wrapper upstream, scrubbed.
 
-The rule is enforced by two invariants:
+The rule is enforced by three invariants:
 
 - Upstream's `scripts/check-core-imports.sh` refuses any `core/`
   file that imports from `delivery/*` or from a cloud SDK.
+- Upstream's `scripts/check-protected-paths.sh` inspects the
+  changed files and warns (upstream) or **hard-blocks (fork)** any
+  edit to the framework surface - `src/fdai/core/`,
+  `src/fdai/composition.py`, `src/fdai/shared/providers/`,
+  `src/fdai/shared/contracts/`, `src/fdai/agents/`,
+  `rule-catalog/schema/`, and `.github/instructions/`. A fork opts
+  into block mode with `FDAI_FORK=1` (local shells), a **committed**
+  `.fdai-fork` marker file (the reliable signal for CI, because it
+  travels in the tree - an env var does not), or
+  `git config fdai.fork true`; the guard runs in the pre-push
+  hook and as the `protected-paths` CI job (which also posts a
+  `::warning::` annotation per file on the PR Files tab).
 - The composition root
   ([`src/fdai/composition.py`](../../src/fdai/composition.py))
   is the only place where concrete implementations bind to
   Protocols in `shared/providers/`. A fork writes its own
-  composition root; it does not edit this file.
+  composition root; it does not edit this file. `.github/CODEOWNERS`
+  is the review-time counterpart: framework-surface paths route to
+  the owners team.
 
 ## 4. Repo layout for a fork
 
