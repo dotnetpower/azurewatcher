@@ -57,11 +57,14 @@ fi
 
 # ---------------------------------------------------------------------------
 # 2. Merge-conflict marker guard.
+# Only the two brace-marker forms are unambiguous - the middle '=======' also
+# matches RST/Markdown header underlines (e.g. 'Purpose\n=======\n') and
+# would cause a false positive on any doc using that style.
 # ---------------------------------------------------------------------------
 markers=""
 for f in "${changed[@]}"; do
   [ -f "$f" ] || continue
-  hit="$(grep -HnE '^(<<<<<<< |>>>>>>> |=======$)' "$f" 2>/dev/null || true)"
+  hit="$(grep -HnE '^(<<<<<<< |>>>>>>> )' "$f" 2>/dev/null || true)"
   [ -n "$hit" ] && markers="${markers}${hit}"$'\n'
 done
 if [ -n "$markers" ]; then
