@@ -74,4 +74,4 @@ alternative to fixing the underlying rule.
 | How the classification in front of you was produced | [../concepts/risk-tiers.md](../concepts/risk-tiers.md) |
 | How to trace what happened after your verdict | [read-audit-log.md](read-audit-log.md) |
 | What to do if a rule keeps producing bad HIL cards | [override-a-rule.md](override-a-rule.md) |
-| The channels that carry HIL requests | [../../roadmap/channels-and-notifications.md](../../roadmap/channels-and-notifications.md) |
+| The channels that carry HIL requests | [../../roadmap/interfaces/channels-and-notifications.md](../../roadmap/interfaces/channels-and-notifications.md) |

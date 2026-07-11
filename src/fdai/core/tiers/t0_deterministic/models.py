@@ -11,7 +11,7 @@ types only - the orchestrator (:mod:`.engine`) and the rule-lookup index
 (:mod:`.index`) are the callers.
 
 Pipeline-stage vocabulary aligns with
-``docs/roadmap/llm-strategy.md § Pipeline Stages``:
+``docs/roadmap/architecture/llm-strategy.md § Pipeline Stages``:
 
 - ``L1_evaluate`` - rule evaluation (this module's normal happy path).
 - ``L1_simulate`` - what-if / dry-run (wired in P1 W-3).
@@ -48,7 +48,7 @@ class Finding:
     """A rule match on a resource at a point in time.
 
     Mirrors ``ontology_finding`` in
-    ``docs/roadmap/llm-strategy.md § Data Placement``. ``context`` is
+    ``docs/roadmap/architecture/llm-strategy.md § Data Placement``. ``context`` is
     inert JSON-safe data (never instructions) that the audit store
     persists verbatim.
     """

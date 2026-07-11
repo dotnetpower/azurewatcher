@@ -2,7 +2,7 @@
 title: 온톨로지 기반 자동화(Ontology-driven automation)
 description: FDAI가 타입 있는 액션 온톨로지를 어떻게 실행 가능한 자동화로 바꾸는가 - 인스턴스화, 비즈니스 파이프라인, 모든 액션이 물려받는 안전 계약.
 translation_of: ontology-driven-automation.md
-translation_source_sha: ce3c41bcef59e748c3e470d68267a1e4e26cee74
+translation_source_sha: af53d0c87da550dc47997c1eb6cf334d25ec91c1
 translation_revised: 2026-07-11
 sidebar:
   order: 4
@@ -137,4 +137,4 @@ event -> event-ingest -> trust-router -> T0 | T1 | (T2 -> quality-gate)
 | 어떤 에이전트가 각 파이프라인 단계를 소유하는가 | [agents-and-self-healing-ko.md](agents-and-self-healing-ko.md) |
 | risk gate가 티어 상한을 읽는 방식 | [risk-tiers-ko.md](risk-tiers-ko.md) |
 | 새 액션이 자동 실행 권한을 얻는 방식 | [shadow-then-enforce-ko.md](shadow-then-enforce-ko.md) |
-| 전체 온톨로지 스키마와 포크 seam | [../../roadmap/action-ontology-ko.md](../../roadmap/action-ontology-ko.md) |
+| 전체 온톨로지 스키마와 포크 seam | [../../roadmap/decisioning/action-ontology-ko.md](../../roadmap/decisioning/action-ontology-ko.md) |

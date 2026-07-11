@@ -6,8 +6,8 @@ snippets across the composer / audit boundary without accidentally
 mutating them.
 
 Design references:
-- ``docs/roadmap/prompt-composition.md § Web search policy``
-- ``docs/roadmap/prompt-composition.md § Role x Layer matrix``
+- ``docs/roadmap/decisioning/prompt-composition.md § Web search policy``
+- ``docs/roadmap/decisioning/prompt-composition.md § Role x Layer matrix``
 """
 
 from __future__ import annotations

@@ -3,7 +3,7 @@
 Tool descriptions the LLM MAY call, stored as catalog-as-code. Wave 2.5-A ships
 the schema and directory contract; the `ToolExecutor` and function-calling
 integration land in Wave 2.5-B. See
-[docs/roadmap/prompt-composition.md](../../../docs/roadmap/prompt-composition.md)
+[docs/roadmap/decisioning/prompt-composition.md](../../../docs/roadmap/decisioning/prompt-composition.md)
 for the full design.
 
 ## Layout

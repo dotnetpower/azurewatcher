@@ -1,6 +1,6 @@
 """Cross-agent workflows registry (Wave 7).
 
-Each workflow declared in `docs/roadmap/agent-workflows.md` gets a
+Each workflow declared in `docs/roadmap/agents/agent-workflows.md` gets a
 :class:`WorkflowSpec` entry here. The specs are metadata only - actual
 workflow behavior is composed from the agent methods that ship in
 Wave 2 through Wave 6. This module exists so:

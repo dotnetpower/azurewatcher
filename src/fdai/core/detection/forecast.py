@@ -1,7 +1,7 @@
 """Linear forecast detector - proactive threshold-breach prediction.
 
 Implements the forecasting stance of
-[observability-and-detection.md](../../../../docs/roadmap/observability-and-detection.md)
+[observability-and-detection.md](../../../../docs/roadmap/rules-and-detection/observability-and-detection.md)
 section 3: fit a least-squares linear trend to a metric series and
 predict whether the projected value will cross a configured threshold
 **within a forecast horizon**, raising a :class:`ForecastFinding` with a

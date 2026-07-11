@@ -5,7 +5,7 @@ derived from operator interactions (HIL reject reasons, override
 justifications, ChatOps preferences, PR review comments) and injects
 it into the composed prompt as a data layer the model MUST treat as
 untrusted. The design lives in
-``docs/roadmap/prompt-composition.md § Operator memory pipeline``.
+``docs/roadmap/decisioning/prompt-composition.md § Operator memory pipeline``.
 
 Wave 3 step A introduces the types, the async :class:`OperatorMemoryStore`
 :class:`~typing.Protocol`, an in-memory implementation for tests, and
@@ -16,7 +16,7 @@ pipeline, and the composer integration land in later steps.
 
 Design references:
 
-- ``docs/roadmap/prompt-composition.md § Operator memory pipeline``
+- ``docs/roadmap/decisioning/prompt-composition.md § Operator memory pipeline``
 - ``.github/instructions/architecture.instructions.md § Human Override``
 - ``.github/instructions/coding-conventions.instructions.md § Safety``
 """

@@ -1,7 +1,7 @@
 """Root-cause analysis contract - a hypothesis with citations.
 
 Makes RCA a first-class output of the tiers per
-[observability-and-detection.md](../../../../docs/roadmap/observability-and-detection.md)
+[observability-and-detection.md](../../../../docs/roadmap/rules-and-detection/observability-and-detection.md)
 section 4. An RCA result is a **hypothesis with citations**, never an
 authoritative verdict: execution eligibility is still granted by
 deterministic verification (the risk gate + verifier), never by the RCA

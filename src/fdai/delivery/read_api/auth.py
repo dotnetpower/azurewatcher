@@ -12,7 +12,7 @@ Boundary contract
 The read API is responsible for **JWT signature + audience + issuer + expiry
 validation** before this module ever sees the claims (see
 [`user-rbac-and-identity.md § 10.2`]
-(../../../../../docs/roadmap/user-rbac-and-identity.md#102-api-token-validation)).
+(../../../../../docs/roadmap/interfaces/user-rbac-and-identity.md#102-api-token-validation)).
 The verifier is injected - :func:`build_authenticator` accepts a
 :class:`ClaimsVerifier` callable of shape ``(token) -> claims``. Upstream
 ships a generic production verifier -
@@ -96,7 +96,7 @@ class Authenticator:
           == ``frozenset()``. The route-level enforcer is responsible for
           the 403 that comes next (see
           [`user-rbac-and-identity.md § 10.3`]
-          (../../../../../docs/roadmap/user-rbac-and-identity.md#103-first-sign-in-unassigned-users));
+          (../../../../../docs/roadmap/interfaces/user-rbac-and-identity.md#103-first-sign-in-unassigned-users));
           this method never conflates "not authenticated" with "not authorized".
         """
         token = _extract_bearer(authorization_header)
@@ -167,7 +167,7 @@ class UnsafeClaimsExtractor:
     Kept in-tree so unit tests can exercise the read-API surface without
     a live Entra tenant, and so the local dev harness in
     [`dev-and-deploy-parity.md`]
-    (../../../../../docs/roadmap/dev-and-deploy-parity.md) works
+    (../../../../../docs/roadmap/deployment/dev-and-deploy-parity.md) works
     end-to-end without customer values.
     """
 

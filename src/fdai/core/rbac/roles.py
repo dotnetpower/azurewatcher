@@ -2,7 +2,7 @@
 
 Data-only module (SRP): no I/O, no framework, no adapter imports. The
 capability matrix mirrors [§ 3 Persona → Action Matrix]
-(../../../../docs/roadmap/user-rbac-and-identity.md#3-persona--action-matrix)
+(../../../../docs/roadmap/interfaces/user-rbac-and-identity.md#3-persona--action-matrix)
 of the design doc so a code change and a doc change stay diff-visible together.
 
 Break-Glass isolation
@@ -33,7 +33,7 @@ class Role(StrEnum):
 
     Values are stable string tokens (App Role claim values) - see
     [`user-rbac-and-identity.md § 4.4 App Roles`]
-    (../../../../docs/roadmap/user-rbac-and-identity.md#44-app-roles-token-surface).
+    (../../../../docs/roadmap/interfaces/user-rbac-and-identity.md#44-app-roles-token-surface).
     Do NOT rename without a coordinated Entra ID app-registration update.
     """
 
@@ -69,7 +69,7 @@ class Capability(StrEnum):
 # The capability bag for each role. The doc's matrix uses check-mark /
 # blank cells; the code encodes the same rows as frozensets so a lookup is
 # O(1). Any change here MUST update
-# `docs/roadmap/user-rbac-and-identity.md § 3` in the same PR - the
+# `docs/roadmap/interfaces/user-rbac-and-identity.md § 3` in the same PR - the
 # doc row and the frozenset entry are the single source of truth
 # together (see coding-conventions.instructions.md § Documentation).
 _READER_CAPS: Final = frozenset({Capability.VIEW_CONSOLE})
@@ -132,7 +132,7 @@ def capabilities_for(roles: Iterable[Role]) -> frozenset[Capability]:
     :attr:`Capability.VIEW_CONSOLE`" from a valid Entra sign-in; the
     read API's first-sign-in-denied audit path
     ([`user-rbac-and-identity.md § 10.3`]
-    (../../../../docs/roadmap/user-rbac-and-identity.md#103-first-sign-in-unassigned-users))
+    (../../../../docs/roadmap/interfaces/user-rbac-and-identity.md#103-first-sign-in-unassigned-users))
     depends on this being deny-by-default.
     """
     acc: frozenset[Capability] = frozenset()

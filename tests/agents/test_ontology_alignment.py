@@ -24,7 +24,7 @@ def _load_yaml() -> dict:
 
 
 def test_agent_yaml_declares_expected_properties() -> None:
-    # docs/roadmap/agent-pantheon.md \u00a75 spells the property shape.
+    # docs/roadmap/agents/agent-pantheon.md \u00a75 spells the property shape.
     doc = _load_yaml()
     assert doc["name"] == "Agent"
     props = doc["properties"]

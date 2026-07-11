@@ -8,7 +8,7 @@ Protocol. Wave 2.5-A ships the registry; Wave 2.5-B step 2a adds the
 
 Design references:
 
-- ``docs/roadmap/prompt-composition.md § Tool use subsystem``
+- ``docs/roadmap/decisioning/prompt-composition.md § Tool use subsystem``
 - ``rule-catalog/prompts/tools/README.md`` - authoring contract
 """
 

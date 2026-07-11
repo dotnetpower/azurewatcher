@@ -1,6 +1,6 @@
 """T2 reasoning tier orchestrator - propose + quality-gate.
 
-Phase 2 T2 (see [`docs/roadmap/scope-expansion.md § 3.7`] and
+Phase 2 T2 (see [`docs/roadmap/fork-and-sequencing/scope-expansion.md § 3.7`] and
 [`architecture.instructions.md § LLM Quality Gate`]). Mirrors the T1 tier
 structure: a small orchestrator over DI seams, no concrete LLM import in
 ``core/``.

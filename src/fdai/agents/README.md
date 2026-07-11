@@ -1,8 +1,8 @@
 # Pantheon Runtime (`fdai.agents`)
 
 Runtime home for the 15 named pantheon agents. Design authority:
-[docs/roadmap/agent-pantheon.md](../../../docs/roadmap/agent-pantheon.md).
-Wave plan: [agent-pantheon-implementation.md](../../../docs/roadmap/agent-pantheon-implementation.md).
+[docs/roadmap/agents/agent-pantheon.md](../../../docs/roadmap/agents/agent-pantheon.md).
+Wave plan: [agent-pantheon-implementation.md](../../../docs/roadmap/agents/agent-pantheon-implementation.md).
 
 ## Layout
 

@@ -1,6 +1,6 @@
 """Root-cause analysis - a first-class, grounded tier output.
 
-See [observability-and-detection.md](../../../../docs/roadmap/observability-and-detection.md)
+See [observability](../../../../docs/roadmap/rules-and-detection/observability-and-detection.md)
 section 4. RCA answers "why" (a hypothesis with citations); the risk
 gate and verifier remain authoritative over "execute". T0 is
 deterministic (from the matched rule); T2 reasoning plugs in behind the

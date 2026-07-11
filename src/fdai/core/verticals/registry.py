@@ -15,9 +15,10 @@ registration time (duplicate id; an enabled vertical with no rule source
 autonomous action. Promotion to enforce stays a separate, reviewed change
 per the shadow-first rule.
 
-Design contract: [scope-expansion.md](../../../../docs/roadmap/scope-expansion.md)
+Design contract:
+[scope-expansion.md](../../../../docs/roadmap/fork-and-sequencing/scope-expansion.md)
 and the DI-seam model in
-[project-structure.md](../../../../docs/roadmap/project-structure.md).
+[project-structure.md](../../../../docs/roadmap/architecture/project-structure.md).
 """
 
 from __future__ import annotations

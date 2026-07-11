@@ -4,7 +4,7 @@
 # (Azure VM, AKS cluster, Storage account). Provider adapters populate
 # Resource instances via the CSP-neutral `Inventory` contract; core never
 # reads a vendor SDK for them. See
-# `docs/roadmap/llm-strategy.md § Ontology Foundation`.
+# `docs/roadmap/architecture/llm-strategy.md § Ontology Foundation`.
 #
 # Property list is deliberately minimal - it covers the fields the core
 # dispatch layer relies on (`id`, `type`, `parent_id`). A fork MAY add a

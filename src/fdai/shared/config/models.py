@@ -103,7 +103,7 @@ class LlmConfig(_ConfigBase):
     """LLM binding mode + optional resolved-models pointer.
 
     Governs which composition-root bindings are used (deterministic fake vs
-    Azure adapter). See docs/roadmap/dev-and-deploy-parity.md § Parity
+    Azure adapter). See docs/roadmap/deployment/dev-and-deploy-parity.md § Parity
     Contract. ``mode='azure'`` MUST supply ``resolved_models_path``; the
     validator refuses partial config so the process never starts in a
     half-bound state.

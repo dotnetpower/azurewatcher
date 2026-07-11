@@ -31,7 +31,7 @@ It consumes the telemetry, baseline, and identity/policy unblocking delivered by
 
 - **Rule catalog** (catalog-as-code) with a normalized, CSP-neutral schema and multi-source
   collectors that map each source into that schema. The first authored rules ship under
-  [`rule-catalog/catalog/`](../../../rule-catalog/catalog/) - one YAML per rule id, each
+  [`rule-catalog/catalog/`](../../../rule-catalog/catalog) - one YAML per rule id, each
   exercising exactly one ActionType via the required `remediates` field:
   `object-storage.public-access.deny`, `object-storage.owner-tag.required`,
   `compute.vm-scale-set.over-provisioned`, `secret-store.rotation-overdue`,
@@ -42,26 +42,26 @@ It consumes the telemetry, baseline, and identity/policy unblocking delivered by
   supplied - every `check_logic.reference` that starts with `policies/` against a Rego file
   that exists on disk at load time (fail-closed).
 - **Authored Rego policies** - the five rules above ship with their `check_logic.reference`
-  Rego bodies under [`policies/`](../../../policies/) (one folder per resource-type family):
+  Rego bodies under [`policies/`](../../../policies) (one folder per resource-type family):
   `policies/object_storage/{public_access,owner_tag_required}.rego`,
   `policies/compute/vmss_over_provisioned.rego`,
   `policies/secret_store/rotation_overdue.rego`,
   `policies/sql_database/tde_required.rego`. Every module exports a
   `default deny := false` + `deny if { ... }` entrypoint and reads
   `input.parameters.<name>` with an authored default so per-assignment
-  overrides ([rule-governance.md](../rule-governance.md)) flow through
+  overrides ([rule-governance.md](../rules-and-detection/rule-governance.md)) flow through
   without editing the rule.
 - **Canonical `resource_type` vocabulary** - [`rule-catalog/vocabulary/resource-types.yaml`](../../../rule-catalog/vocabulary/resource-types.yaml)
   enumerates the initial CSP-neutral identifier set covering the three verticals; loader +
   JSON Schema in `src/fdai/rule_catalog/schema/`.
 - **Initial ActionType catalog** - five shadow-mode `ActionType` instances under
-  [`rule-catalog/action-types/`](../../../rule-catalog/action-types/): `remediate.disable-public-access`,
+  [`rule-catalog/action-types/`](../../../rule-catalog/action-types): `remediate.disable-public-access`,
   `remediate.tag-add`, `remediate.right-size`, `remediate.rotate-secret`, `remediate.enable-tde`.
   Each declares `default_mode: shadow` + a measurable `promotion_gate`; the loader enforces the
   shadow-first invariant at load-time so an accidental `default_mode: enforce` cannot ship.
 - **T0 deterministic engine**: policy-as-code gate (OPA/Rego) + what-if (dry-run) + drift
   detection, emitting a verdict and the citing rule ids for every event.
-  [`src/fdai/core/tiers/t0_deterministic/`](../../../src/fdai/core/tiers/t0_deterministic/)
+  [`src/fdai/core/tiers/t0_deterministic/`](../../../src/fdai/core/tiers/t0_deterministic)
   ships a `RuleIndex` keyed on `resource_type` (severity-desc ordered), a `T0Engine`
   orchestrator, and a `PolicyEvaluator` DI seam. Two evaluators land in P1:
   the fail-closed `AbstainEvaluator` (fallback when OPA is not installed) and
@@ -73,11 +73,11 @@ It consumes the telemetry, baseline, and identity/policy unblocking delivered by
   installs a checksum-pinned OPA build ([`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)).
 - **Shadow remediation-PR** path via the GitOps delivery adapter (generated but not merged).
   Five Terraform patch templates ship under
-  [`rule-catalog/remediation/`](../../../rule-catalog/remediation/), one per shipped
+  [`rule-catalog/remediation/`](../../../rule-catalog/remediation), one per shipped
   rule; the loader cross-checks that every `remediation.template_ref` exists on disk
   at load time (fail-closed, symmetric to the `check_logic.reference` gate). The
   executor
-  ([`src/fdai/core/executor/`](../../../src/fdai/core/executor/))
+  ([`src/fdai/core/executor/`](../../../src/fdai/core/executor))
   enforces every safety invariant on the way out:
   per-resource serialization via `ResourceLockManager`, in-process dedup by
   `Action.idempotency_key`, blast-radius caps (`ExecutorConfig.max_affected_resources` /
@@ -109,7 +109,7 @@ It consumes the telemetry, baseline, and identity/policy unblocking delivered by
 - **Out-of-band change detection** for console/manual changes, with an explicit
   false-positive-suppression strategy.
 - **Inventory adapter (Azure)** - the Azure implementation of the
-  [inventory contract](../csp-neutrality.md#5-inventory-contract--resource-graph): an initial
+  [inventory contract](../architecture/csp-neutrality.md#5-inventory-contract--resource-graph): an initial
   **parallelized full-scan** against Azure Resource Graph (sharded by `resource_type` with
   bounded concurrency) plus an **Activity-Log-driven delta** consumed off the event bus.
   Populates `ontology_resource` + `ontology_link` (`contains`, `attached_to`, `depends_on`) so
@@ -133,11 +133,11 @@ It consumes the telemetry, baseline, and identity/policy unblocking delivered by
 - **Frozen scenario replay harness** -
   [`tests/scenarios/test_v2026_07_replay.py`](../../../tests/scenarios/test_v2026_07_replay.py)
   parametrizes every scenario under
-  [`tests/scenarios/v2026.07/`](../../../tests/scenarios/v2026.07/) through
+  [`tests/scenarios/v2026.07/`](../../../tests/scenarios/v2026.07) through
   the real `ControlLoop.process(...)` using the shipped catalog + Rego +
   IaC templates. Each frozen scenario is either paired with a
   concrete-payload overlay under
-  [`tests/scenarios/enrichment/v2026.07/`](../../../tests/scenarios/enrichment/v2026.07/)
+  [`tests/scenarios/enrichment/v2026.07/`](../../../tests/scenarios/enrichment/v2026.07)
   (P1-replayable) or marked `xfail` with an in-code reason (T1/T2 or
   risk-gate not wired yet). A guard test ensures no scenario is silently
   skipped without an explicit reason.
@@ -159,7 +159,7 @@ and versioned. Required fields:
 | `resource-type` | CSP-neutral string | normalized target type, not a vendor-specific ARM path |
 | `check-logic` | ref/expr | deterministic predicate (OPA/Rego module ref or expression) |
 | `remediation` | ref | remediation template producing an IaC/PR diff |
-| `remediates` | ActionType id (M:1) | ontology dispatch: the `ActionType` this rule proposes on match. Cross-checked at load against [`rule-catalog/action-types/`](../../../rule-catalog/action-types/); optional `alternatives[]` ranks alternates that only the T2 quality gate may swap in |
+| `remediates` | ActionType id (M:1) | ontology dispatch: the `ActionType` this rule proposes on match. Cross-checked at load against [`rule-catalog/action-types/`](../../../rule-catalog/action-types); optional `alternatives[]` ranks alternates that only the T2 quality gate may swap in |
 | `provenance` | object | source URL/commit, imported-at timestamp, mapping author |
 
 `provenance` is mandatory for auditability and rollback; `version` is mandatory so a bad rule
@@ -177,7 +177,7 @@ one provider can be evaluated against an equivalent resource on another; vendor 
 behind the provider adapter, not in the rule.
 
 Where each source lives, how it is fetched, its license constraints, and the YAML shapes are
-detailed in [rule-catalog-collection.md](../rule-catalog-collection.md).
+detailed in [rule-catalog-collection.md](../rules-and-detection/rule-catalog-collection.md).
 
 ### Deduplication, Conflict, and Precedence
 
@@ -296,5 +296,5 @@ Each criterion is measurable against the Phase 0 telemetry and scenario set, not
 - **Phase 0** ([phase-0-instrumentation.md](phase-0-instrumentation.md)): telemetry backbone
   (event schema, audit/state/KPI store), the frozen scenario set and reference baseline, and the
   resolved identity/authorization and policy-exemption blockers
-  ([security-and-identity.md](../security-and-identity.md)). T0 shadow decisions are logged
+  ([security-and-identity.md](../architecture/security-and-identity.md)). T0 shadow decisions are logged
   through the Phase 0 audit store; without it, exit criteria are unmeasurable.

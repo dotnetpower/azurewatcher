@@ -6,7 +6,7 @@ arguments, labels). Idempotency is honored: a second dispatch for the
 same ``idempotency_key`` returns the same receipt with
 ``already_existed=True`` and does NOT duplicate the recorded entry - this
 mirrors the contract in
-`docs/roadmap/execution-model.md § 5.6 Tool call`.
+`docs/roadmap/decisioning/execution-model.md § 5.6 Tool call`.
 
 This is the Day-1 binding: no real function runs. A fork swaps it for a
 live adapter (a native Python registry, an MCP client, an HTTP callout).

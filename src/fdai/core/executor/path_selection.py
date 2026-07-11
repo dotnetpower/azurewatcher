@@ -2,7 +2,7 @@
 
 Implements the "strictest wins" rule from the
 "Executor selection at dispatch" section of
-``docs/roadmap/execution-model.md``:
+``docs/roadmap/decisioning/execution-model.md``:
 
 - Each axis (ActionType default, RiskGate ``forced_execution_path`` on
   the resolved ceiling, a fork-installed overlay) proposes an

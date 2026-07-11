@@ -4,7 +4,7 @@ Infrastructure as Code - Terraform (HCL).
 
 Renders the four CSP-neutrality contracts (event bus / runtime / secret / workload
 identity) into Azure resources. Entry command: `terraform apply` per
-[docs/roadmap/deploy-and-onboard.md](../docs/roadmap/deploy-and-onboard.md).
+[docs/roadmap/deployment/deploy-and-onboard.md](../docs/roadmap/deployment/deploy-and-onboard.md).
 
 ## Turnkey path (`azd`)
 
@@ -48,7 +48,7 @@ infra/
 ```
 
 Approved Azure-internal alternates for each seam (AKS, Cosmos, ESO, ...) are catalogued in
-[docs/roadmap/csp-neutrality.md § Approved Alternative Azure Implementations](../docs/roadmap/csp-neutrality.md#approved-alternative-azure-implementations).
+[docs/roadmap/architecture/csp-neutrality.md § Approved Alternative Azure Implementations](../docs/roadmap/architecture/csp-neutrality.md#approved-alternative-azure-implementations).
 Alternates land as **sibling sub-modules** (e.g. `modules/compute/aks/`) when a real need
 arises; each MUST honor the standard output contract below so callers stay swap-blind.
 
@@ -73,12 +73,12 @@ uses them or does not.
 Values are always **references**, never raw secrets: any `*_ref` field points at a Key Vault
 secret or an env-var name whose value the app resolves at runtime via the injected
 `SecretProvider` - see
-[csp-neutrality.md § Secret Contract](../docs/roadmap/csp-neutrality.md#3-secret-contract--environment--k8s-secret).
+[csp-neutrality.md § Secret Contract](../docs/roadmap/architecture/csp-neutrality.md#3-secret-contract--environment--k8s-secret).
 
 ## Naming
 
 Every resource name follows the CAF convention in
-[deploy-and-onboard.md § Resource Naming Convention](../docs/roadmap/deploy-and-onboard.md#resource-naming-convention).
+[deploy-and-onboard.md § Resource Naming Convention](../docs/roadmap/deployment/deploy-and-onboard.md#resource-naming-convention).
 The workload token is the fixed literal `fdai`; the default resource group is
 `rg-fdai`. Modules MUST NOT compute names from a random string or a subscription
 hash - a rename is a Terraform diff, not a mystery.

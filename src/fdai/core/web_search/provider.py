@@ -1,7 +1,7 @@
 """WebSearchProvider seam + deny-by-default no-op (Wave 5 alpha).
 
 Web search is the last-resort tool per
-``docs/roadmap/prompt-composition.md § Web search policy``. It is
+``docs/roadmap/decisioning/prompt-composition.md § Web search policy``. It is
 opt-in per fork and never a grounding source: even the most useful
 web finding does not satisfy the current event's ``cited_rule_ids``
 requirement.

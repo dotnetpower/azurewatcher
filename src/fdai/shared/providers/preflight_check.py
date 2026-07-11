@@ -5,7 +5,7 @@ status hook, or a fork's equivalent) implements to post a
 :class:`~fdai.core.deploy_preflight.report.DeploymentReadinessReport`
 onto an infrastructure PR. The upstream ships the Protocol + fake; the
 real Checks-API adapter is fork territory (see
-[deployment-preflight.md](../../../../docs/roadmap/deployment-preflight.md)
+[deployment-preflight.md](../../../../docs/roadmap/deployment/deployment-preflight.md)
 under Delivery Increments).
 
 Design invariants

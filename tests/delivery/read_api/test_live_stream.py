@@ -15,7 +15,7 @@ The streaming *body* over an HTTP connection is not asserted here -
 Starlette's ``TestClient`` runs the app in a worker thread which makes
 mid-stream cancellation flaky. The wire contract is exercised
 end-to-end with ``curl`` against the dev server (see the manual
-verification section in ``docs/roadmap/observability-and-detection.md``).
+verification section in ``docs/roadmap/rules-and-detection/observability-and-detection.md``).
 """
 
 from __future__ import annotations

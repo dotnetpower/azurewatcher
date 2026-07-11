@@ -7,7 +7,7 @@ implementations over a :class:`PreflightTarget` and assembles a single
 grounded :class:`DeploymentReadinessReport`. It is the ``what-if`` verifier
 generalized from per-action to per-deployment.
 
-Full design: ``docs/roadmap/deployment-preflight.md``.
+Full design: ``docs/roadmap/deployment/deployment-preflight.md``.
 """
 
 from __future__ import annotations

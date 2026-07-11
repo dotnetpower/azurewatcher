@@ -31,7 +31,7 @@ description: Reassemble a terraform plan around a Deployment Preflight policy bl
   rendered as a tfvars-override remediation PR. Only fires when every blocking finding has an
   autofix toggle and the reassembled plan re-passes preflight (verifier is authority); a manual
   blocker routes the whole pass to hil. Reversible - reverting the override PR restores the prior
-  plan. See docs/roadmap/preflight-active-reassembly.md.
+  plan. See docs/roadmap/deployment/preflight-active-reassembly.md.
 category: remediation
 trigger_kind:
   kind: both

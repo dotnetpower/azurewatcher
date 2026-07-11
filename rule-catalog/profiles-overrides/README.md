@@ -23,5 +23,5 @@ Overlay recipes:
   in the fork's environment; the composition root resolves the
   registry and passes it to `ControlLoop`.
 
-See [../../docs/roadmap/rule-catalog-profiles.md](../../docs/roadmap/rule-catalog-profiles.md)
+See [../../docs/roadmap/rules-and-detection/rule-catalog-profiles.md](../../docs/roadmap/rules-and-detection/rule-catalog-profiles.md)
 for the full resolution algorithm and safety invariants.

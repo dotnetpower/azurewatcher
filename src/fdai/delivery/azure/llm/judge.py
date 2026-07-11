@@ -10,7 +10,7 @@ invariant the cross-check and critic adapters honor.
 
 Bound to the ``t1.judge`` capability - the Judge is intentionally a
 smaller / cheaper model per
-``docs/roadmap/prompt-composition.md § Debate orchestrator``.
+``docs/roadmap/decisioning/prompt-composition.md § Debate orchestrator``.
 """
 
 from __future__ import annotations

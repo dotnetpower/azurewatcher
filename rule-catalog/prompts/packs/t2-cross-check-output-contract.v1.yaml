@@ -13,6 +13,6 @@ body: |-
   - Any value referring to a resource MUST use the caller-provided target_resource_ref token.
   - If uncertainty about the correct action_type is HIGH, emit action_type='hil.escalate' with params={"reason": "<short cause>"} rather than guessing.
 provenance:
-  source: docs/roadmap/prompt-composition.md
+  source: docs/roadmap/decisioning/prompt-composition.md
   notes: |-
     Wave 2.5 shadow-mode task pack proving the composer end-to-end. Kept in shadow so the production T2 prompt does not shift until recognition-probe KPIs (Wave 3) confirm the pack helps. Promotion to enforce is a separately reviewed change.

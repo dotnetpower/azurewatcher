@@ -32,9 +32,9 @@ process cannot silently degrade to fakes in production.
 
 Design references
 -----------------
-- ``docs/roadmap/project-structure.md § Customization via Dependency Injection``
-- ``docs/roadmap/dev-and-deploy-parity.md § Parity Contract``
-- ``docs/roadmap/deploy-and-onboard.md § Runtime Configuration Matrix``
+- ``docs/roadmap/architecture/project-structure.md § Customization via Dependency Injection``
+- ``docs/roadmap/deployment/dev-and-deploy-parity.md § Parity Contract``
+- ``docs/roadmap/deployment/deploy-and-onboard.md § Runtime Configuration Matrix``
 - ``.github/instructions/generic-scope.instructions.md``
 """
 
@@ -185,7 +185,7 @@ def bind_azure_inventory(
 
     The ``full_snapshot`` path is live once bound; the ``delta``
     (Activity-Log -> Kafka) path remains a stub until the forwarder ships
-    (see ``docs/roadmap/csp-neutrality.md § 5``).
+    (see ``docs/roadmap/architecture/csp-neutrality.md § 5``).
     """
     from ..delivery.azure.arg_query import AzureArgQueryFactory
     from ..delivery.azure.inventory import AzureResourceGraphInventory

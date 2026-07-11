@@ -69,7 +69,7 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
 - Customer-specific behavior MUST be supplied by **dependency injection** - a fork registers its
   implementations at the composition root and selects bindings via config; it MUST NOT edit
   `core/`. See the injectable seams in
-  [project-structure.md](../../docs/roadmap/project-structure.md#customization-via-dependency-injection).
+  [project-structure.md](../../docs/roadmap/architecture/project-structure.md#customization-via-dependency-injection).
 - Use the shared tier vocabulary in code and identifiers: `T0`, `T1`, `T2`, `trust-router`,
   `deterministic-engine`, `rule-catalog`, `risk-gate`, `remediation-pr`, `shadow-mode`, `hil`.
 
@@ -90,12 +90,12 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
   endpoints, or customer names. Load them from environment or a secret store at runtime.
   Secret scanning (e.g. gitleaks) runs in CI and a positive finding blocks the merge.
 - **Deployment resource names** follow the CAF naming convention documented in
-  [../../docs/roadmap/deploy-and-onboard.md § Resource Naming Convention](../../docs/roadmap/deploy-and-onboard.md#resource-naming-convention).
+  [../../docs/roadmap/deployment/deploy-and-onboard.md § Resource Naming Convention](../../docs/roadmap/deployment/deploy-and-onboard.md#resource-naming-convention).
   The name is decided in Terraform (`infra/`) at plan time; Python code reads it from an env
   var. Never compute a resource name in Python and never bake env/region into a Python
   literal.
 - **Resource-type swaps** stay portable via the infra-module boundary in
-  [../../docs/roadmap/csp-neutrality.md § Approved Alternative Azure Implementations](../../docs/roadmap/csp-neutrality.md#approved-alternative-azure-implementations).
+  [../../docs/roadmap/architecture/csp-neutrality.md § Approved Alternative Azure Implementations](../../docs/roadmap/architecture/csp-neutrality.md#approved-alternative-azure-implementations).
   A swap picks a different sub-module under `infra/modules/<seam>/`; the module's output
   contract stays fixed so callers do not branch on the alternate.
 - **Provider Protocols are async by default.** The five I/O-bound seams (`EventBus`,

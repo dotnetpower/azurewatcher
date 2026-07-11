@@ -69,4 +69,4 @@ back to those observations.
 | The operator interaction that writes HIL entries | [approve-change.md](approve-change.md) |
 | Why some entries carry `would-have-been` decisions | [../concepts/shadow-then-enforce.md](../concepts/shadow-then-enforce.md) |
 | How to narrow a rule that keeps auditing badly | [override-a-rule.md](override-a-rule.md) |
-| The audit-log storage and retention design | [../../roadmap/observability-and-detection.md](../../roadmap/observability-and-detection.md) |
+| The audit-log storage and retention design | [../../roadmap/rules-and-detection/observability-and-detection.md](../../roadmap/rules-and-detection/observability-and-detection.md) |

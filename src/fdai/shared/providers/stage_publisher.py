@@ -50,7 +50,7 @@ class StageName(StrEnum):
 
     New stages MUST be added here first so downstream consumers (live
     view legend, dashboards, docs) stay in sync. Adding a stage is a
-    documented change - see ``docs/roadmap/observability-and-detection.md``.
+    documented change - see ``docs/roadmap/rules-and-detection/observability-and-detection.md``.
     """
 
     INGEST = "ingest"

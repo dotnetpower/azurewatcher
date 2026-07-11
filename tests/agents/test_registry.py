@@ -1,6 +1,6 @@
 """Pantheon registry hard invariants.
 
-These tests enforce contracts declared in `docs/roadmap/agent-pantheon.md`.
+These tests enforce contracts declared in `docs/roadmap/agents/agent-pantheon.md`.
 Any change here MUST reflect a corresponding doc change (docs-first).
 """
 
@@ -19,14 +19,14 @@ from fdai.agents._framework.registry import PantheonRegistryError
 
 
 def test_pantheon_has_exactly_fifteen_named_agents() -> None:
-    # docs/roadmap/agent-pantheon.md \u00a74
+    # docs/roadmap/agents/agent-pantheon.md \u00a74
     assert len(PANTHEON_SPECS) == 15
     assert len(PANTHEON_NAMES) == 15
 
 
 def test_canonical_pantheon_names() -> None:
     # Fork boundary: adding / removing / renaming any of these is an
-    # upstream change per docs/roadmap/agent-pantheon.md \u00a710.
+    # upstream change per docs/roadmap/agents/agent-pantheon.md \u00a710.
     expected = {
         "Odin",
         "Thor",
@@ -48,12 +48,12 @@ def test_canonical_pantheon_names() -> None:
 
 
 def test_hard_dependency_agents_are_saga_and_vidar() -> None:
-    # docs/roadmap/agent-pantheon.md \u00a74.3
+    # docs/roadmap/agents/agent-pantheon.md \u00a74.3
     assert HARD_DEPENDENCY_AGENTS == {"Saga", "Vidar"}
 
 
 def test_llm_hot_path_allowlist_is_bragi_forseti_norns() -> None:
-    # docs/roadmap/agent-pantheon.md \u00a78
+    # docs/roadmap/agents/agent-pantheon.md \u00a78
     assert LLM_HOT_PATH_ALLOWLIST == {"Bragi", "Forseti", "Norns"}
 
 
@@ -63,7 +63,7 @@ def test_registry_loads_cleanly() -> None:
 
 
 def test_owns_sets_are_pairwise_disjoint() -> None:
-    # Single-writer invariant (docs/roadmap/agent-pantheon.md \u00a76.1)
+    # Single-writer invariant (docs/roadmap/agents/agent-pantheon.md \u00a76.1)
     seen: dict[str, str] = {}
     for spec in PANTHEON_SPECS:
         for obj in spec.owns:

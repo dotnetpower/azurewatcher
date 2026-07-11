@@ -6,7 +6,7 @@
 # (email + optional webhook) and never take an autonomous action - they are a
 # human signal, consistent with the risk-gated-autonomy principle.
 #
-# Design: docs/roadmap/observability-and-detection.md + deploy-and-onboard.md.
+# Design: docs/roadmap/rules-and-detection/observability-and-detection.md + deploy-and-onboard.md.
 
 locals {
   # Metric alert specs, data-driven so adding one is a single map entry. Each

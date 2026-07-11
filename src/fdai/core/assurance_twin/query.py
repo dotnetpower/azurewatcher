@@ -1,7 +1,7 @@
 """Text-to-query compiler + verifier for the Assurance Twin (Wave A.3).
 
 Implements the P2 twin query surface described in the Assurance Twin
-doc's verifiable section (see ``docs/roadmap/assurance-twin.md``, the
+doc's verifiable section (see ``docs/roadmap/operations/assurance-twin.md``, the
 "Verifiable (text-to-query, not text-to-answer)" heading):
 a natural-language question compiles into a **typed, read-only, well-typed**
 :class:`TypedQuery` that runs deterministically against the twin
@@ -430,7 +430,7 @@ def execute_query(
 
     Rows are returned in lexicographic ``ref`` order so the output is
     deterministic and reproducible across calls (see the
-    ontology-grounded section of ``docs/roadmap/assurance-twin.md``).
+    ontology-grounded section of ``docs/roadmap/operations/assurance-twin.md``).
     """
 
     if resources is None:

@@ -1,8 +1,8 @@
 """Telemetry evidence gathering for RCA grounding.
 
-Design contract: ``docs/roadmap/scope-expansion.md`` section 3.2 (the log +
+Design contract: ``docs/roadmap/fork-and-sequencing/scope-expansion.md`` section 3.2 (the log +
 trace ingestion seams) and
-[observability-and-detection.md](../../../../docs/roadmap/observability-and-detection.md)
+[observability-and-detection.md](../../../../docs/roadmap/rules-and-detection/observability-and-detection.md)
 section 4 (RCA as a grounded tier output).
 
 The § 3.2 :class:`~fdai.shared.providers.log_query.LogQueryProvider` and

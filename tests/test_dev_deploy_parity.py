@@ -1,7 +1,7 @@
 """Dev/deploy parity contract test.
 
 Design reference:
-[dev-and-deploy-parity.md § Parity Contract](../docs/roadmap/dev-and-deploy-parity.md)
+[dev-and-deploy-parity.md § Parity Contract](../docs/roadmap/deployment/dev-and-deploy-parity.md)
 
     "the code path that binds seams in a local-fake laptop debug session
     and the code path that binds seams under Azure Container Apps MUST be

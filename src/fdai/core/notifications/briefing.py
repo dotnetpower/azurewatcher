@@ -11,13 +11,13 @@ The composer is **pure and deterministic**: same input, same briefing.
 It holds no vendor knowledge and never dispatches; the caller hands the
 resulting :class:`StakeholderBriefing` (a structured markdown body plus
 per-section payload) to the existing notification router
-([channels-and-notifications.md](../../../../docs/roadmap/channels-and-notifications.md))
+([channels-and-notifications.md](../../../../docs/roadmap/interfaces/channels-and-notifications.md))
 for delivery. Every figure is sourced from the audit log / KPI telemetry
 the caller supplies - the composer asserts nothing it was not given.
 
 Design contract: [channels-and-notifications.md] proactive-briefing
 section and the KPI definitions in
-[goals-and-metrics.md](../../../../docs/roadmap/goals-and-metrics.md).
+[goals-and-metrics.md](../../../../docs/roadmap/architecture/goals-and-metrics.md).
 """
 
 from __future__ import annotations

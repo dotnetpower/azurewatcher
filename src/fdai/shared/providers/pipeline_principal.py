@@ -16,7 +16,7 @@ Design boundaries
 - The Protocol is intentionally minimal: one membership check on an
   opaque ``principal_id`` string (typically an object-id / service-
   principal-id / MSI-id - never a UPN, per
-  ``docs/roadmap/security-and-identity.md § no-self-approval``).
+  ``docs/roadmap/architecture/security-and-identity.md § no-self-approval``).
 - Lookups are cheap and idempotent; implementations MAY cache but MUST
   NOT block on network calls at ``contains()`` call time - the caller
   is on the event-loop.

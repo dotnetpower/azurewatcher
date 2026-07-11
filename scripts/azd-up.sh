@@ -3,7 +3,7 @@
 # azd-up.sh - guarded turnkey provisioning wrapper over `azd` + Terraform.
 #
 # Purpose: give operators a one-command path to stand up the FDAI minimum-set
-# inventory (docs/roadmap/deploy-and-onboard.md) while making an accidental
+# inventory (docs/roadmap/deployment/deploy-and-onboard.md) while making an accidental
 # apply impossible. The default action is a NON-mutating preview.
 #
 # Behavior:

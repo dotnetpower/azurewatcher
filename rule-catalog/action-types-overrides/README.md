@@ -15,7 +15,7 @@ replaced wholesale (see the loader tests for the exact semantics).
 [../../.github/instructions/generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md)
 says customer-specific tightening belongs in a downstream fork.
 Overlay precedence lives at
-[../../docs/roadmap/action-ontology.md § 7.5](../../docs/roadmap/action-ontology.md).
+[../../docs/roadmap/decisioning/action-ontology.md § 7.5](../../docs/roadmap/decisioning/action-ontology.md).
 
 Example (a fork downgrading the `remediate.tag-add` T0 ceiling to HIL):
 

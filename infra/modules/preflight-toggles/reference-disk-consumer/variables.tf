@@ -4,7 +4,7 @@ variable "mode" {
     disk; `attach_existing` attaches the ids in `existing_disk_ids` and creates
     nothing. The Deployment Preflight active-reassembly loop sets this to
     `attach_existing` to resolve a `deploy.disk_inline_creation_denied` blocker
-    (see docs/roadmap/preflight-active-reassembly.md).
+    (see docs/roadmap/deployment/preflight-active-reassembly.md).
   EOT
   type        = string
   default     = "inline"

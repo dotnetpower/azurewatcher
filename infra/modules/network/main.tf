@@ -13,7 +13,7 @@
 # default (public) path never instantiates this module, so a day-zero deploy on
 # an unrestricted tenant stays unchanged.
 #
-# Design: docs/roadmap/deploy-and-onboard.md (private-networking layer).
+# Design: docs/roadmap/deployment/deploy-and-onboard.md (private-networking layer).
 
 resource "azurerm_virtual_network" "primary" {
   name                = var.name

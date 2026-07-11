@@ -88,7 +88,7 @@ def test_duplicate_id_rejected(tmp_path):
 # Doc-catalog drift-guard (M1.2 starter probes)
 # ---------------------------------------------------------------------------
 
-# Locked list from docs/roadmap/implementation-plan.md § Wave M1 - M1.2.
+# Locked list from docs/roadmap/fork-and-sequencing/implementation-plan.md § Wave M1 - M1.2.
 # Editing either side without the other = merge-blocker.
 _M1_2_STARTER_PROBES = frozenset({"vm_traffic_last_5m", "storage_access_log", "lb_backend_health"})
 

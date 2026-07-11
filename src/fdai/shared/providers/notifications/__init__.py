@@ -1,7 +1,7 @@
 """Notification-channel Protocols (Teams / Slack / Email / Webhook / PagerDuty / SMS).
 
 Realizes the ``Channel`` contract in
-[`docs/roadmap/channels-and-notifications.md`](../../../../../docs/roadmap/channels-and-notifications.md).
+[`docs/roadmap/interfaces/channels-and-notifications.md`](../../../../../docs/roadmap/interfaces/channels-and-notifications.md).
 ``core/`` sees only these Protocols and the router in
 :mod:`fdai.core.notifications`; vendor SDKs (httpx, SMTP, ACS) sit
 behind the concrete adapters under :mod:`fdai.delivery.notifications`.

@@ -3,7 +3,7 @@
 Mirror of ``rule-catalog/schema/source_manifest.schema.json``. The JSON
 Schema is authoritative at the boundary; this pydantic model layers the
 enum invariants + revision-pin discipline required by the collector
-pipeline (see ``docs/roadmap/rule-catalog-collection.md`` § Collector
+pipeline (see ``docs/roadmap/rules-and-detection/rule-catalog-collection.md`` § Collector
 Architecture).
 
 Every source is one YAML file under

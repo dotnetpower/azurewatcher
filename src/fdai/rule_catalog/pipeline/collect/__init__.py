@@ -1,6 +1,6 @@
 """Rule-catalog collector - fetch + verify + snapshot pipeline.
 
-Skeleton in this build (see ``docs/roadmap/rule-catalog-collection.md``
+Skeleton in this build (see ``docs/roadmap/rules-and-detection/rule-catalog-collection.md``
 § Collector Architecture). This package delivers the fetch/verify/snapshot
 stages; parser plugins + normalization to rule YAML land in follow-up
 phases without touching the seam boundaries here.

@@ -1,7 +1,7 @@
 """Precise temporal causal-chain reconstruction for T1 RCA.
 
 The deterministic engine behind T1 correlation cause
-([observability-and-detection.md](../../../../docs/roadmap/observability-and-detection.md)
+([observability-and-detection.md](../../../../docs/roadmap/rules-and-detection/observability-and-detection.md)
 section 4, path b): reconstruct the **multi-hop causal chain** from a
 root change to an observed failure - the "a config change went out on the
 database, then replica lag rose, then the app error rate rose" chain an

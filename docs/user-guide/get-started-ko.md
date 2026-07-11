@@ -2,7 +2,7 @@
 title: FDAI 시작하기
 description: FDAI 5분 오리엔테이션 - 무엇인지, 언제 적합한지, 다음으로 어디를 볼지.
 translation_of: get-started.md
-translation_source_sha: eea66aa4c3b3450c1f6799d284a3b0c3c2d033c6
+translation_source_sha: 903d81c423df689b4276a695dcf0abefb3752f92
 translation_revised: 2026-07-11
 ---
 
@@ -77,7 +77,7 @@ event -> event-ingest -> trust-router -> T0 | T1 | (T2 -> quality-gate)
 ```
 
 커버리지 백분율은 측정된 베이스라인 위에서만 주장 가능한 설계 목표입니다
-([goals-and-metrics-ko](../roadmap/goals-and-metrics-ko.md)).
+([goals-and-metrics-ko](../roadmap/architecture/goals-and-metrics-ko.md)).
 
 이 루프 위에 두 가지가 얹혀 시스템을 운영 가능하게 만듭니다:
 

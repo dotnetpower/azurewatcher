@@ -1,5 +1,5 @@
 """Workflow trigger coordinator - the event-driven bridge from a normalized
-Event to a shadow Workflow run (see docs/roadmap/process-automation.md 4).
+Event to a shadow Workflow run (see docs/roadmap/decisioning/process-automation.md 4).
 
 This is the connective tissue between the control loop and process automation:
 an :class:`Event` that clears ``event-ingest`` is matched against the

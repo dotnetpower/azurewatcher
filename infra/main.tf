@@ -20,7 +20,7 @@ locals {
   }
   tags = merge(local.base_tags, var.additional_tags)
 
-  # Kafka topics served by Event Hubs (see docs/roadmap/deploy-and-onboard.md § Event Source Subscription).
+  # Kafka topics served by Event Hubs (see docs/roadmap/deployment/deploy-and-onboard.md § Event Source Subscription).
   event_topics = [
     "aw.change.events",
     "aw.dr.events",
@@ -425,7 +425,7 @@ module "compute" {
 
 
 # -----------------------------------------------------------------------
-# LLM - Azure OpenAI (opt-in, docs/roadmap/dev-and-deploy-parity.md § W-D).
+# LLM - Azure OpenAI (opt-in, docs/roadmap/deployment/dev-and-deploy-parity.md § W-D).
 # Skipped by default so a Reader-only deployer can plan/apply.
 # -----------------------------------------------------------------------
 module "llm_azure_openai" {

@@ -145,7 +145,7 @@ class CascadeDecision:
     the stability signal subtractive - unlike merging ``action_stability``
     into the mean ``confidence_signals``, where a low value can be masked
     by other high signals. See
-    ``docs/roadmap/hallucination-rubric-gate.md`` § Self-consistency.
+    ``docs/roadmap/decisioning/hallucination-rubric-gate.md`` § Self-consistency.
     """
 
     should_sample: bool
@@ -163,7 +163,7 @@ async def run_consistency_cascade(
 ) -> CascadeDecision:
     """Sample for consistency ONLY when the cheap signal is weak.
 
-    Cost control (``docs/roadmap/llm-strategy.md`` § cascade): when
+    Cost control (``docs/roadmap/architecture/llm-strategy.md`` § cascade): when
     ``aggregate_confidence >= sample_threshold`` the cheap signal is
     already strong, so no samples are spent and the decision is
     ``should_sample=False``. Otherwise the sampler runs and ``stable``

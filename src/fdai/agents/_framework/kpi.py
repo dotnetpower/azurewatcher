@@ -1,7 +1,7 @@
 """KPI collector primitives (Wave 8).
 
 Every pantheon agent MUST emit its declared KPIs into the measurement
-pipeline (`docs/roadmap/goals-and-metrics.md`). Wave 8 ships a simple
+pipeline (`docs/roadmap/architecture/goals-and-metrics.md`). Wave 8 ships a simple
 in-memory collector so shadow-mode promotion gates can evaluate
 against the KPI table in `agent-pantheon.md` \u00a74.2 without a real
 telemetry backend. Fork adapters swap in the actual sink (Application

@@ -1,7 +1,7 @@
 """HilResumeCoordinator - park / push / resolve round-trip + safety invariants.
 
 Asserts the step-B contract from
-[docs/roadmap/execution-model.md](../../../docs/roadmap/execution-model.md):
+[docs/roadmap/decisioning/execution-model.md](../../../docs/roadmap/decisioning/execution-model.md):
 
 - ``request_approval`` parks the full Action and pushes an A1 card.
 - ``resolve(APPROVE)`` re-dispatches the parked action to the executor.

@@ -2,7 +2,7 @@
 #
 # A `Conversation` is one operator dialog session, owned by Bragi. Turns
 # accumulate immutably; the session is partitioned by user_id for RBAC.
-# See docs/roadmap/agent-pantheon.md § 6.5 for the retention and per-user
+# See docs/roadmap/agents/agent-pantheon.md § 6.5 for the retention and per-user
 # context rules.
 schema_version: "1.0.0"
 name: Conversation

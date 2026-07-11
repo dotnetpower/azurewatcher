@@ -1,6 +1,6 @@
 """Assurance Twin - queryable read-only projection over the estate.
 
-Implements the [assurance-twin.md](../../../../docs/roadmap/assurance-twin.md)
+Implements the [assurance-twin.md](../../../../docs/roadmap/operations/assurance-twin.md)
 subsystem: a text-to-query surface + ambient PR review + whole-graph
 what-if simulation, all backed by the shared
 :class:`~fdai.shared.providers.projection.ScratchProjection`

@@ -6,7 +6,7 @@ scope, and the ground-truth contract the model response is scored against.
 Wave 3 step D-2b-ii-beta ships the schema and the directory contract; the CLI
 runner and the KPI dashboard emission land in Wave 3 step D-2b-ii-gamma.
 
-See [docs/roadmap/prompt-composition.md](../../../docs/roadmap/prompt-composition.md)
+See [docs/roadmap/decisioning/prompt-composition.md](../../../docs/roadmap/decisioning/prompt-composition.md)
 for the full recognition-probe design.
 
 ## Layout

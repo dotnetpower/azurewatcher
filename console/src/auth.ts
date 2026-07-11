@@ -4,7 +4,7 @@
  * expects. In dev mode the wrapper is a no-op - the API accepts
  * anonymous requests when `FDAI_READ_API_DEV_MODE=1` is set.
  *
- * See docs/roadmap/user-rbac-and-identity.md § 10.1 for the full flow.
+ * See docs/roadmap/interfaces/user-rbac-and-identity.md § 10.1 for the full flow.
  */
 
 import {

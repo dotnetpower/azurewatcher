@@ -4,7 +4,7 @@ Realizes the wire-level contract every ChatOps adapter under
 ``delivery/chatops/`` implements when the risk-gate returns
 :class:`~fdai.core.risk_gate.gate.RiskDecisionOutcome.HIL`. The
 scope is deliberately narrow - Category **A1** (approval) traffic
-only, per ``docs/roadmap/channels-and-notifications.md § 3``.
+only, per ``docs/roadmap/interfaces/channels-and-notifications.md § 3``.
 A2/A3/A4 (alerts, chat commands, digests) get their own contracts in
 later phases and MUST NOT reuse this Protocol.
 
@@ -37,7 +37,7 @@ on every poll - the caller then falls back to its persisted HIL queue.
 Security invariants
 -------------------
 
-Per ``docs/roadmap/channels-and-notifications.md § 3
+Per ``docs/roadmap/interfaces/channels-and-notifications.md § 3
 (Category boundaries MUST)``:
 
 - The Adaptive Card body carries an **opaque** ``approval_id`` only;
@@ -65,7 +65,7 @@ class HilDecision(StrEnum):
     """Terminal-or-intermediate outcome the caller observes on :meth:`HilChannel.poll`.
 
     Rendered as the audit ``decision`` field when the caller writes the
-    HIL entry (see ``docs/roadmap/security-and-identity.md
+    HIL entry (see ``docs/roadmap/architecture/security-and-identity.md
     § HIL Approval Integrity``).
     """
 
@@ -80,7 +80,7 @@ class HilDecision(StrEnum):
     TIMEOUT = "timeout"
     """The request TTL elapsed without a decision. Fail-closed no-op
     per the routing policy in
-    ``docs/roadmap/channels-and-notifications.md § 6
+    ``docs/roadmap/interfaces/channels-and-notifications.md § 6
     (TTL fail-closed)``."""
 
     PENDING = "pending"
@@ -97,7 +97,7 @@ class HilApprovalRequest:
     and audit. Every field is either an opaque identifier or a
     pre-redacted human-readable summary - never a raw event payload,
     secret, or vendor-specific reference (per
-    ``docs/roadmap/channels-and-notifications.md § 1
+    ``docs/roadmap/interfaces/channels-and-notifications.md § 1
     (Design Principles)``).
     """
 
@@ -138,7 +138,7 @@ class HilApprovalRequest:
 
     ttl_seconds: int = 1800
     """Approval TTL. Matches the routing config in
-    ``docs/roadmap/channels-and-notifications.md § 6``
+    ``docs/roadmap/interfaces/channels-and-notifications.md § 6``
     (30 minutes)."""
 
     action_hash: str = ""
@@ -178,7 +178,7 @@ class HilResponse:
     is the sole authority that re-verifies identity + action hash. This
     struct is intentionally free of privileged decision fields - the
     executor MUST NOT act on it directly, only propagate it upstream
-    per ``docs/roadmap/channels-and-notifications.md § 5
+    per ``docs/roadmap/interfaces/channels-and-notifications.md § 5
     (Channel Interface - MUST)``.
     """
 

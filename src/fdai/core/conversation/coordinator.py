@@ -1,7 +1,7 @@
 """Conversation coordinator - Layer 2 orchestrator.
 
 Implements the deterministic Chat T0 layer described in
-[operator-console.md § 4.1](../../../../docs/roadmap/operator-console.md).
+[operator-console.md § 4.1](../../../../docs/roadmap/interfaces/operator-console.md).
 A regex / keyword intent matcher that dispatches direct-hit tool calls
 without invoking an LLM. The narrator (Chat T1 / T2) is a follow-up
 wave; a fork that binds a :class:`ConversationalModel` gets the

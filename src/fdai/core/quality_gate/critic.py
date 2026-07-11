@@ -33,8 +33,8 @@ Design boundaries
 
 See also
 --------
-- ``docs/roadmap/prompt-composition.md`` § Wave 4 - what shipped
-- ``docs/roadmap/prompt-composition.md`` § Debate orchestrator
+- ``docs/roadmap/decisioning/prompt-composition.md`` § Wave 4 - what shipped
+- ``docs/roadmap/decisioning/prompt-composition.md`` § Debate orchestrator
   (Proposer / Critic / Judge)
 """
 

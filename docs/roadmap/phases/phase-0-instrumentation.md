@@ -8,16 +8,16 @@ shipping. No autonomy is built in P0 - this phase makes autonomy *measurable* an
 *policy-compliant*. P0 **establishes** the reference baseline against which later phases prove
 their gains; it does not itself claim any improvement factor.
 
-This phase operationalizes [goals-and-metrics.md](../goals-and-metrics.md) and resolves the
+This phase operationalizes [goals-and-metrics.md](../architecture/goals-and-metrics.md) and resolves the
 P0 identity/policy blockers tracked in
-[security-and-identity.md](../security-and-identity.md). Its outputs are the direct
+[security-and-identity.md](../architecture/security-and-identity.md). Its outputs are the direct
 prerequisite for [phase-1-rule-catalog-t0.md](phase-1-rule-catalog-t0.md).
 
 ## Terms Reused
 
 Do not redefine domain terms here. `Event`, `Scenario set`, `Reference agent`,
 `Human touchpoint`, `Auto-resolved event`, and `Measurement window` are defined once in
-[goals-and-metrics.md#definitions](../goals-and-metrics.md#definitions); this phase uses those
+[goals-and-metrics.md#definitions](../architecture/goals-and-metrics.md#definitions); this phase uses those
 definitions verbatim.
 
 ## Deliverables
@@ -27,12 +27,12 @@ Each deliverable is a committed, versioned artifact with an acceptance check. De
 
 | # | Deliverable | Acceptance check |
 |---|-------------|------------------|
-| 1 | **Telemetry backbone** - OpenTelemetry wiring plus the audit/state/KPI store, and the versioned event schema in `shared/contracts/` ([project-structure.md](../project-structure.md)). | Schema validates in CI; config fails fast on invalid input; a golden-fixture test reproduces every dashboard metric from recorded telemetry. |
-| 2 | **KPI dashboard** - renders success metrics 1-4, all guard metrics, and the leading indicators ([goals-and-metrics.md#leading-vs-lagging-indicators](../goals-and-metrics.md#leading-vs-lagging-indicators)), each traced to a named telemetry source. | Every panel maps to a source (trace, audit log, or cost record); no panel is manually populated. |
+| 1 | **Telemetry backbone** - OpenTelemetry wiring plus the audit/state/KPI store, and the versioned event schema in `shared/contracts/` ([project-structure.md](../architecture/project-structure.md)). | Schema validates in CI; config fails fast on invalid input; a golden-fixture test reproduces every dashboard metric from recorded telemetry. |
+| 2 | **KPI dashboard** - renders success metrics 1-4, all guard metrics, and the leading indicators ([goals-and-metrics.md#leading-vs-lagging-indicators](../architecture/goals-and-metrics.md#leading-vs-lagging-indicators)), each traced to a named telemetry source. | Every panel maps to a source (trace, audit log, or cost record); no panel is manually populated. |
 | 3 | **Baseline report** - the pinned reference agent measured on the frozen scenario set, recorded as a committed artifact with methodology and raw counts. | Reproducible: re-running the pinned agent on the same scenario-set version yields figures within the reported confidence interval. |
-| 4 | **Identity mapping** - provisioned external IdP ↔ Entra ↔ Managed Identity path ([security-and-identity.md#authorization-model](../security-and-identity.md#authorization-model)). | End-to-end path passes an automated least-privilege probe; deny-by-default verified; access recertification scheduled. |
+| 4 | **Identity mapping** - provisioned external IdP ↔ Entra ↔ Managed Identity path ([security-and-identity.md#authorization-model](../architecture/security-and-identity.md#authorization-model)). | End-to-end path passes an automated least-privilege probe; deny-by-default verified; access recertification scheduled. |
 | 5 | **Policy-exemption workflow** - a requestable, time-boxed, audited, owner-approved exemption path for compliant autonomous deploys. | Workflow is documented with an owner and SLA; a dry-run request is granted and expires under audit, bypassing no control. |
-| 6 | **Local dev preset** - storage / event-bus / secret / workload-identity provider interfaces in `src/fdai/shared/providers/`, an in-memory fake pair for offline unit tests + debug, and a Docker Compose (`infra/local/`) preset that stands up **pgvector + Redpanda** for wire-level integration tests. Realizes the local-development contract in [tech-stack.md § Local Development](../tech-stack.md#local-development) and the DI seams in [project-structure.md § Injectable Seams](../project-structure.md#injectable-seams). | `pytest` runs green with the in-memory fake and requires no Docker; `scripts/dev-up.sh` brings up healthy `pgvector/pgvector:pg16` + `redpandadata/redpanda` containers; the **same contract-test suite** passes against both the fake and the Compose stack. |
+| 6 | **Local dev preset** - storage / event-bus / secret / workload-identity provider interfaces in `src/fdai/shared/providers/`, an in-memory fake pair for offline unit tests + debug, and a Docker Compose (`infra/local/`) preset that stands up **pgvector + Redpanda** for wire-level integration tests. Realizes the local-development contract in [tech-stack.md § Local Development](../architecture/tech-stack.md#local-development) and the DI seams in [project-structure.md § Injectable Seams](../architecture/project-structure.md#injectable-seams). | `pytest` runs green with the in-memory fake and requires no Docker; `scripts/dev-up.sh` brings up healthy `pgvector/pgvector:pg16` + `redpandadata/redpanda` containers; the **same contract-test suite** passes against both the fake and the Compose stack. |
 
 ## Work Items
 
@@ -41,13 +41,13 @@ start** until item 2 (the scenario freeze) is complete; item 4 is the critical p
 on day one.
 
 1. **Telemetry backbone**: OpenTelemetry wiring, audit/state/KPI store
-   ([tech-stack.md](../tech-stack.md)), and the versioned event schema in
+   ([tech-stack.md](../architecture/tech-stack.md)), and the versioned event schema in
    `shared/contracts/` carrying at minimum `event_id`, `tier`, `decision`, `mode`
    (shadow/enforce), and detect/resolve timestamps.
 2. **Scenario set**: define and **freeze** a fixed set of Resilience, Change Safety, and
    Cost Governance scenarios, balanced across the three verticals, tagged with a version
    (e.g. `v2026.07`) matching the
-   [goals-and-metrics.md#definitions](../goals-and-metrics.md#definitions) format, and stored as
+   [goals-and-metrics.md#definitions](../architecture/goals-and-metrics.md#definitions) format, and stored as
    customer-agnostic data. The frozen set is used identically for baseline and treatment.
 3. **Baseline measurement**: run the **pinned** reference agent (single-model, no tiering) on
    the frozen scenario set over a stated measurement window; record success metrics 1-4 **and**
@@ -57,7 +57,7 @@ on day one.
 4. **Identity blocker**: provision and test the external IdP ↔ Entra ↔ Managed Identity
    mapping; verify with a least-privilege probe and schedule recertification. Tie completion to
    the P0 rows in
-   [security-and-identity.md#open-decisions](../security-and-identity.md#open-decisions).
+   [security-and-identity.md#open-decisions](../architecture/security-and-identity.md#open-decisions).
 5. **Policy blocker**: define the policy-exemption workflow (requestable, time-boxed, audited,
    owner-approved) so autonomous deploys stay compliant with platform policy rather than
    bypassing it; assign an owner and SLA.
@@ -82,11 +82,11 @@ enforce-mode capability is in scope for P0.
 
 | Task | Title | Deps | Deliverable | Acceptance | Size |
 |------|-------|------|-------------|------------|------|
-| **W1.1** | Monorepo skeleton | - | Directories from [project-structure.md](../project-structure.md): `core/`, `shared/`, `rule-catalog/`, `delivery/`, `infra/`, `policies/`, `tests/`, `.github/` with placeholder READMEs and lockfile per subsystem | Directory dependency direction enforced by CI (a lint job flags forbidden imports) | S |
+| **W1.1** | Monorepo skeleton | - | Directories from [project-structure.md](../architecture/project-structure.md): `core/`, `shared/`, `rule-catalog/`, `delivery/`, `infra/`, `policies/`, `tests/`, `.github/` with placeholder READMEs and lockfile per subsystem | Directory dependency direction enforced by CI (a lint job flags forbidden imports) | S |
 | **W1.2** | Ontology + event contracts | W1.1 | `shared/contracts/ontology/{object-type,link-type,action-type}.json`, `shared/contracts/event/schema.json`; generated types per language | Schema validates in CI (`ajv`); breaking changes bump semver | M |
 | **W1.3** | Config schema + fail-fast loader | W1.1 | `shared/config/schema.json` + loader in the primary core language; env + file provider | Invalid or missing required field aborts startup with a structured error | S |
 | **W1.4** | OpenTelemetry wiring | W1.1 | `shared/telemetry/` traces, metrics, logs; JSON-structured logs with `correlation_id`; collector config in `infra/` | A synthetic event traces end-to-end (ingest → tier → gate → audit) with one correlation id | M |
-| **W1.5** | PostgreSQL DDL - instance + audit | W1.2 | Migration for `ontology_object_type`, `ontology_link_type`, `ontology_resource`, `ontology_finding`, `ontology_link`, `audit_log` (hash-chained) | `flyway`/`alembic` migration runs clean on empty DB; DDL matches [llm-strategy.md § Ontology Storage Layout](../llm-strategy.md#ontology-storage-layout) | M |
+| **W1.5** | PostgreSQL DDL - instance + audit | W1.2 | Migration for `ontology_object_type`, `ontology_link_type`, `ontology_resource`, `ontology_finding`, `ontology_link`, `audit_log` (hash-chained) | `flyway`/`alembic` migration runs clean on empty DB; DDL matches [llm-strategy.md § Ontology Storage Layout](../architecture/llm-strategy.md#ontology-storage-layout) | M |
 | **W1.6** | PostgreSQL DDL - layered cache | W1.5 | Migration for `learned_action`, `ontology_embedding` (pgvector), `t2_cache` (partition by `catalog_version`) | pgvector extension enabled; HNSW index builds; partition rotation script tested | S |
 | **W1.7** | CI baseline pipeline | W1.1 | `.github/workflows/`: format, lint (English-only + non-ASCII check), secret scan (gitleaks), coverage gate (≥90% on safety-core placeholders), dependency audit | A failing check blocks merge; a placeholder-only PR passes | M |
 | **W1.8** | Golden-fixture metrics test | W1.4, W1.5 | `tests/telemetry/` - a recorded synthetic-event trace + fixture asserting every dashboard metric reproduces from telemetry | Test runs green in CI; removing a trace attribute fails a specific metric assertion | M |
@@ -114,12 +114,12 @@ enforce-mode capability is in scope for P0.
 
 | Task | Title | Deps | Deliverable | Acceptance | Size |
 |------|-------|------|-------------|------------|------|
-| **W4.1** | Terraform / Bicep bootstrap modules | - | `infra/` modules for Container Apps env, PostgreSQL Flexible + pgvector, Service Bus, Key Vault, Log Analytics, ACR, Azure OpenAI (per [deploy-and-onboard.md](../deploy-and-onboard.md#azure-resource-inventory-minimum-set)) | `azd up` provisions the minimum inventory in a dev subscription | L |
-| **W4.2** | Executor MI (Phase 1 shape) | W4.1 | `mi-aw-executor` with RG-scoped built-in role composition per [security-and-identity.md § Identity Mapping (Phased)](../security-and-identity.md#identity-mapping-phased) | Terraform emits the role assignments; `az role assignment list` matches the declared set | M |
+| **W4.1** | Terraform / Bicep bootstrap modules | - | `infra/` modules for Container Apps env, PostgreSQL Flexible + pgvector, Service Bus, Key Vault, Log Analytics, ACR, Azure OpenAI (per [deploy-and-onboard.md](../deployment/deploy-and-onboard.md#azure-resource-inventory-minimum-set)) | `azd up` provisions the minimum inventory in a dev subscription | L |
+| **W4.2** | Executor MI (Phase 1 shape) | W4.1 | `mi-aw-executor` with RG-scoped built-in role composition per [security-and-identity.md § Identity Mapping (Phased)](../architecture/security-and-identity.md#identity-mapping-phased) | Terraform emits the role assignments; `az role assignment list` matches the declared set | M |
 | **W4.3** | Azure Policy deny-by-default | W4.2 | Policy assignment that denies any executor MI action outside the Phase 1 Change allowlist | A probe attempting a non-allowlisted action is denied at the ARM layer | M |
 | **W4.4** | Least-privilege probe | W4.2, W4.3 | `tools/lpp-probe` - asserts allowed actions succeed and denied actions fail; recorded run in CI | Adding a new permission without updating the probe fails CI | S |
-| **W4.5** | App registrations (dev) | W4.1 | `fdai-console-spa`, `fdai-api`, `fdai-approval-bot` in the dev tenant with App Roles declared per [user-rbac-and-identity.md § 4.4](../user-rbac-and-identity.md#44-app-roles-token-surface) | A dev user assigned to `Contributor` receives a `roles: ["Contributor"]` token | M |
-| **W4.6** | Entra security groups + App Role binding | W4.5 | 5 groups (`aw-readers/contributors/approvers/owners/break-glass`), each bound to the matching App Role in Enterprise Applications | An unassigned dev user gets HTTP 403 with the "administrator assignment required" body ([user-rbac-and-identity.md § 10.3](../user-rbac-and-identity.md#103-first-sign-in-unassigned-users)) | S |
+| **W4.5** | App registrations (dev) | W4.1 | `fdai-console-spa`, `fdai-api`, `fdai-approval-bot` in the dev tenant with App Roles declared per [user-rbac-and-identity.md § 4.4](../interfaces/user-rbac-and-identity.md#44-app-roles-token-surface) | A dev user assigned to `Contributor` receives a `roles: ["Contributor"]` token | M |
+| **W4.6** | Entra security groups + App Role binding | W4.5 | 5 groups (`aw-readers/contributors/approvers/owners/break-glass`), each bound to the matching App Role in Enterprise Applications | An unassigned dev user gets HTTP 403 with the "administrator assignment required" body ([user-rbac-and-identity.md § 10.3](../interfaces/user-rbac-and-identity.md#103-first-sign-in-unassigned-users)) | S |
 | **W4.7** | Conditional Access policies | W4.6 | Phishing-resistant MFA on `aw-approvers`/`aw-owners`; compliant device on `aw-owners`; named-location on `aw-break-glass` | A test approver signing in without FIDO2 is blocked | S |
 | **W4.8** | Recertification schedule | W4.6 | Documented cadence (manual quarterly checklist in `docs/runbooks/`, or Entra Access Review if P2 licensed) | Owner-assigned; the next review date is captured in the audit log | S |
 
@@ -127,17 +127,17 @@ enforce-mode capability is in scope for P0.
 
 | Task | Title | Deps | Deliverable | Acceptance | Size |
 |------|-------|------|-------------|------------|------|
-| **W5.1** | Exemption artifact schema | W1.2 | `rule-catalog/schema/exemption.json` (already sketched in [rule-governance.md § JSON Shapes](../rule-governance.md#json-shapes)); PR template in `.github/PULL_REQUEST_TEMPLATE/exemption.md` | Missing `justification` / `expires_at` fails CI | S |
+| **W5.1** | Exemption artifact schema | W1.2 | `rule-catalog/schema/exemption.json` (already sketched in [rule-governance.md § JSON Shapes](../rules-and-detection/rule-governance.md#json-shapes)); PR template in `.github/PULL_REQUEST_TEMPLATE/exemption.md` | Missing `justification` / `expires_at` fails CI | S |
 | **W5.2** | Requester ≠ approver CI check | W5.1, W4.5 | CI parses PR trailer Entra OID against reviewer OID; blocks self-approval | Author-approves-own-PR test case blocks the merge | S |
 | **W5.3** | Auto-expiry Container Apps Job | W5.1, W4.1 | Daily cron job that emits an audit `expired` entry when `expires_at` passes and re-applies the underlying assignment | Dry-run: create → wait → expire → audit entry present; assignment re-applied | M |
-| **W5.4** | Ahead-of-expiry alert | W5.3 | 14-day lookahead digest ([channels-and-notifications.md § routing](../channels-and-notifications.md#6-routing-policy-config-driven)) `exemption_expiry_lookahead_weekly` wired | Monday morning post lists each expiring exemption with `@mention` to the requester | S |
+| **W5.4** | Ahead-of-expiry alert | W5.3 | 14-day lookahead digest ([channels-and-notifications.md § routing](../interfaces/channels-and-notifications.md#6-routing-policy-config-driven)) `exemption_expiry_lookahead_weekly` wired | Monday morning post lists each expiring exemption with `@mention` to the requester | S |
 | **W5.5** | Owner + SLA documentation | W5.1 | `docs/runbooks/exemption-workflow.md` - owner group, review SLA, escalation path | Owner named; SLA measurable; escalation path resolves | S |
 
 ### WI6 - Local Dev Preset (offline fakes + Docker Compose)
 
 Realizes the local-development contract in
-[tech-stack.md § Local Development](../tech-stack.md#local-development) using the injectable
-seams in [project-structure.md § Injectable Seams](../project-structure.md#injectable-seams).
+[tech-stack.md § Local Development](../architecture/tech-stack.md#local-development) using the injectable
+seams in [project-structure.md § Injectable Seams](../architecture/project-structure.md#injectable-seams).
 The in-memory fake is what a developer runs under `pytest` and in the debugger; the Compose
 preset is what integration tests, `event-ingest` smoke runs, and pgvector similarity checks
 run against.
@@ -235,7 +235,7 @@ Each task is done only when:
 
 - All telemetry, scenario, audit, and KPI data committed to this repo is **English,
   secret-free, and customer-agnostic**; only synthetic or placeholder values are used, per the
-  repo scope rules ([goals-and-metrics.md#data-collection-and-telemetry](../goals-and-metrics.md#data-collection-and-telemetry)).
+  repo scope rules ([goals-and-metrics.md#data-collection-and-telemetry](../architecture/goals-and-metrics.md#data-collection-and-telemetry)).
   Real environment records live only in a fork's runtime store.
 - Each metric on the dashboard maps to exactly one telemetry source (OpenTelemetry traces, the
   append-only audit log, or cost/usage records); aspirational panels with no source are not
@@ -268,7 +268,7 @@ All criteria are independently verifiable; a phase gate passes only when every b
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Unfair or unbalanced scenario set makes baseline-vs-treatment comparison invalid | Medium | High | Freeze and version the set before any measurement; balance across domains; the reference agent is not handicapped (fairness rule in [goals-and-metrics.md#measurement-first-rule](../goals-and-metrics.md#measurement-first-rule)). |
+| Unfair or unbalanced scenario set makes baseline-vs-treatment comparison invalid | Medium | High | Freeze and version the set before any measurement; balance across domains; the reference agent is not handicapped (fairness rule in [goals-and-metrics.md#measurement-first-rule](../architecture/goals-and-metrics.md#measurement-first-rule)). |
 | Identity mapping effort underestimated | High | High | Treat as critical path; start day one; gate on the least-privilege probe, not on "it authenticates". |
 | Policy-exemption workflow slips, blocking compliant deploys later | Medium | Medium | Define owner and SLA in P0; validate with a dry-run request before exit. |
 | Baseline not reproducible (unpinned agent or drifting scenarios) | Medium | High | Pin the reference-agent version, seed any randomness, and freeze the scenario set; record the run environment. |
@@ -287,8 +287,8 @@ All criteria are independently verifiable; a phase gate passes only when every b
 ## Dependencies
 
 - **Upstream**: none - P0 is the root phase. External prerequisites are cloud/IdP access for
-  the identity mapping and a telemetry/store target ([deployment.md](../deployment.md),
-  [tech-stack.md](../tech-stack.md)).
+  the identity mapping and a telemetry/store target ([deployment.md](../deployment/deployment.md),
+  [tech-stack.md](../architecture/tech-stack.md)).
 - **Downstream**: P0 telemetry, the frozen scenario set, the measured baseline, and the resolved
   identity/policy blockers are prerequisites for
   [phase-1-rule-catalog-t0.md](phase-1-rule-catalog-t0.md) and every later phase

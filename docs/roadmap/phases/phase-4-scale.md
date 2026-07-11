@@ -17,14 +17,14 @@ principles in
 [architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) and
 [app-shape.instructions.md](../../../.github/instructions/app-shape.instructions.md) as
 **design invariants** (adapter surfaces, normalized schemas) so a future non-Azure adapter is
-additive; it reuses the stack and adapter boundaries in [tech-stack.md](../tech-stack.md), is
-measured strictly by [goals-and-metrics.md](../goals-and-metrics.md), and inherits the identity
-and shadow-mode rules in [security-and-identity.md](../security-and-identity.md).
+additive; it reuses the stack and adapter boundaries in [tech-stack.md](../architecture/tech-stack.md), is
+measured strictly by [goals-and-metrics.md](../architecture/goals-and-metrics.md), and inherits the identity
+and shadow-mode rules in [security-and-identity.md](../architecture/security-and-identity.md).
 
 ## Deliverables
 
 The module reference lists the primary Python package that carries the deliverable in
-[`src/fdai/`](../project-structure.md); every module listed here is
+[`src/fdai/`](../architecture/project-structure.md); every module listed here is
 customer-agnostic and Azure-only in intent (multi-cloud deliverables below stay TBD).
 
 - Continuous measurement/improvement loop on the Azure baseline with automatic regression
@@ -48,10 +48,10 @@ customer-agnostic and Azure-only in intent (multi-cloud deliverables below stay 
   Module:
   [core/measurement/runners.py](../../../src/fdai/core/measurement/runners.py).
   Infra:
-  [infra/modules/measurement-runners/](../../../infra/modules/measurement-runners/).
+  [infra/modules/measurement-runners/](../../../infra/modules/measurement-runners).
 - **TBD (deferred)**: multi-cloud expansion of policy and execution via **provider adapters**
   (no new core), cross-CSP rule-catalog normalization, per-CSP execution identity, and the
-  multi-cloud event-bus decision (OD-3 in [tech-stack.md](../tech-stack.md)). These items
+  multi-cloud event-bus decision (OD-3 in [tech-stack.md](../architecture/tech-stack.md)). These items
   remain as design shape only until non-Azure work is scoped.
 
 ## Provider Adapter Boundary (TBD - deferred)
@@ -62,7 +62,7 @@ customer-agnostic and Azure-only in intent (multi-cloud deliverables below stay 
 
 The core engine stays CSP-neutral; a new cloud would be added by implementing adapters, never
 by forking the core. The adapter surface is fixed and each adapter is added behind an existing
-interface (see [project-structure.md](../project-structure.md)):
+interface (see [project-structure.md](../architecture/project-structure.md)):
 
 - **Policy adapter** - evaluates the same OPA/Rego policies with provider-parameterized inputs;
   no per-cloud policy fork.
@@ -85,7 +85,7 @@ Rigor requirements (apply when a non-Azure adapter is eventually scoped):
 ## Multi-Cloud Rule Catalog (TBD - deferred)
 
 > Deferred until a non-Azure target is scoped. Azure remains the only implemented catalog
-> target; see [rule-catalog-collection.md](../rule-catalog-collection.md).
+> target; see [rule-catalog-collection.md](../rules-and-detection/rule-catalog-collection.md).
 
 - Add sources: **AWS** (Well-Architected, Config managed rules, CIS AWS) and **GCP**
   (Recommender, Policy Controller / Gatekeeper constraints, CIS GCP), alongside the existing
@@ -107,27 +107,27 @@ Rigor requirements (apply when a non-Azure adapter is eventually scoped):
 
 > Deferred; Azure identity model applies today (user-assigned Managed Identity, action
 > whitelist, distinct approval/execution principals - see
-> [security-and-identity.md](../security-and-identity.md)).
+> [security-and-identity.md](../architecture/security-and-identity.md)).
 
 - Each cloud gets its **own scoped execution identity** (e.g. Azure user-assigned Managed
   Identity, AWS IAM role, GCP service account), each restricted to an action whitelist. No
   identity is shared across clouds or across layers.
 - **Approval and execution remain distinct principals** in every cloud - no self-approval - per
-  [security-and-identity.md](../security-and-identity.md).
+  [security-and-identity.md](../architecture/security-and-identity.md).
 - Blast-radius limits (scope/batch/rate caps) are enforced per CSP; a misconfigured adapter
   cannot exceed the whitelist.
 
 ## Event Bus Portability (TBD - deferred)
 
 > Deferred; on Azure the bus is Service Bus + Event Grid (see
-> [tech-stack.md](../tech-stack.md#od-3-multi-cloud-event-bus-phase-4--tbd)).
+> [tech-stack.md](../architecture/tech-stack.md#od-3-multi-cloud-event-bus-phase-4--tbd)).
 
 - Decide OD-3 by validating whether the Phase 0-3 bus (Service Bus + Event Grid) meets
   multi-cloud needs or whether a portable log/queue (Kafka or NATS JetStream) is required.
 - Decision criteria: **ordering, dead-letter, replay, and idempotency parity** across clouds,
   operational cost, and CSP neutrality - the bus adapter must preserve per-resource ordering and
   at-least-once + idempotent processing regardless of backend.
-- Record the outcome as a decision record and update [tech-stack.md](../tech-stack.md) OD-3.
+- Record the outcome as a decision record and update [tech-stack.md](../architecture/tech-stack.md) OD-3.
 
 ## Safety and Shadow-First Rollout
 
@@ -144,7 +144,7 @@ Rigor requirements (apply when a non-Azure adapter is eventually scoped):
 - Re-run **baseline vs treatment** periodically on the frozen, versioned scenario set; a
   **regression** is a guard-metric breach or a success-metric drop beyond the reported
   confidence interval, and it triggers automatic demotion to shadow
-  ([goals-and-metrics.md](../goals-and-metrics.md)).
+  ([goals-and-metrics.md](../architecture/goals-and-metrics.md)).
 - Guard metrics (CFR, false-positive/negative, rollback rate, and the **exactly-0**
   policy-violation escapes) are evaluated on the same measurement window and scenario-set
   version as the success metrics, so a gain and a breach are never compared across different
@@ -169,9 +169,9 @@ Rigor requirements (apply when a non-Azure adapter is eventually scoped):
 ## Model Cost/Quality Tracking
 
 - Track per-model cost and quality over time from the cost/usage and telemetry sources in
-  [goals-and-metrics.md](../goals-and-metrics.md); swap the T2 reasoner models by **measured
+  [goals-and-metrics.md](../architecture/goals-and-metrics.md); swap the T2 reasoner models by **measured
   results, not assumption**, keeping model IDs and thresholds as config per
-  [llm-strategy.md](../llm-strategy.md).
+  [llm-strategy.md](../architecture/llm-strategy.md).
 - Flag model deprecation/price changes and re-validate the mixed-model cross-check on the
   scenario set before any swap reaches enforce.
 
@@ -180,12 +180,12 @@ Rigor requirements (apply when a non-Azure adapter is eventually scoped):
 - Preserve per-tier latency budgets and the event-driven, scale-to-zero posture on Azure as
   event volume grows. Multi-cloud performance parity is TBD (deferred).
 - Graduate T1 vector search from pgvector to a dedicated vector store when the corpus or
-  recall/latency targets demand it (criteria in [tech-stack.md](../tech-stack.md)); the state
+  recall/latency targets demand it (criteria in [tech-stack.md](../architecture/tech-stack.md)); the state
   adapter keeps this transparent to the core.
 - For **hyperscale tenants (300 subscriptions across dozens of landing zones)**, the scale-out
   topology (cell-based streaming, policy-driven fan-in, two-plane logging, CQRS audit
   indexing, and selectable **standard / sovereign** deployment profiles) is specified in
-  [hyperscale-cell-architecture.md](../hyperscale-cell-architecture.md). It is entered only
+  [hyperscale-cell-architecture.md](../architecture/hyperscale-cell-architecture.md). It is entered only
   when a tenant crosses the hyperscale trigger and preserves every safety invariant and all
   eight CSP-neutral contracts.
 
@@ -196,14 +196,14 @@ Rigor requirements (apply when a non-Azure adapter is eventually scoped):
 > observability + region-in LLM + confidential nodes) or a heavy cell that presses Container
 > Apps limits. Portability is guaranteed by the runtime contract (OCI image +
 > Knative-compatible manifest subset, no Dapr / no Envoy-specific ingress in
-> [csp-neutrality.md](../csp-neutrality.md#2-runtime-contract---oci-image--knative-compatible-manifest)),
+> [csp-neutrality.md](../architecture/csp-neutrality.md#2-runtime-contract---oci-image--knative-compatible-manifest)),
 > so an AKS move is an `infra/modules/runtime/aks/` render, never a `core/` rewrite.
 
 - **When AKS:** the `sovereign` profile needs it (LGTM / ClickHouse / region-in LLM run as AKS
   workloads; confidential SEV-SNP nodes; private cluster), or a heavy cell needs node-level
   control (spot / GPU / large-memory SKUs), DaemonSet collection, or partition-sticky
   StatefulSet consumers. The full rationale and profile matrix live in
-  [hyperscale-cell-architecture.md § Runtime](../hyperscale-cell-architecture.md#runtime).
+  [hyperscale-cell-architecture.md § Runtime](../architecture/hyperscale-cell-architecture.md#runtime).
 - **Scope:** a new `infra/modules/runtime/aks/` sub-module renders the same OCI image and
   Knative-compatible manifest subset to AKS (KEDA scaler preserved); Container Apps Jobs render
   to K8s CronJobs and native secrets to External Secrets Operator, matching

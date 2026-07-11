@@ -1,7 +1,7 @@
 """Azure Resource Graph (ARG) implementation of the ``Inventory`` Protocol.
 
 This module realizes the 5th CSP-neutral wire contract for Azure - see
-``docs/roadmap/csp-neutrality.md § 5. Inventory Contract`` and the Protocol
+``docs/roadmap/architecture/csp-neutrality.md § 5. Inventory Contract`` and the Protocol
 in ``src/fdai/shared/providers/inventory.py``.
 
 P1 W-2 scope (stub)
@@ -81,8 +81,9 @@ class AzureInventoryConfig:
     max_concurrent_queries: int = _DEFAULT_MAX_CONCURRENT_QUERIES
     """Upper bound on concurrent ARG queries during ``full_snapshot``.
 
-    A large tenant must not exhaust the ARG budget; ``docs/roadmap/csp-neutrality.md § 5``
-    requires bounded concurrency for the parallel scan.
+    A large tenant must not exhaust the ARG budget;
+    ``docs/roadmap/architecture/csp-neutrality.md § 5`` requires bounded
+    concurrency for the parallel scan.
     """
 
     subscription_scopes: tuple[str, ...] = field(default_factory=tuple)
@@ -130,7 +131,7 @@ class AzureResourceGraphInventory:
         Emits one :class:`InventoryBatch` per shard as its ARG query
         completes, then a final ``final=True`` fence batch the caller
         uses to atomically promote the new graph
-        (``docs/roadmap/csp-neutrality.md § 5``).
+        (``docs/roadmap/architecture/csp-neutrality.md § 5``).
 
         ``since`` is currently unused - the stub returns the full shard
         each call. Production may honor it as an ``since <= last_seen``

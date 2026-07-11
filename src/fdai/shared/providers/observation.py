@@ -2,7 +2,7 @@
 
 Three CSP-neutral seams the operator console's Month-1 read-class tools
 consume (see
-[operator-console.md](../../../../docs/roadmap/operator-console.md)
+[operator-console.md](../../../../docs/roadmap/interfaces/operator-console.md)
 section 3.3 on Month-1 additions):
 
 - :class:`LogQueryProvider` - Log Analytics-shaped KQL queries

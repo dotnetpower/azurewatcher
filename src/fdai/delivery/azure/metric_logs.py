@@ -1,10 +1,10 @@
 """Azure Monitor Logs (Log Analytics KQL) implementation of the
 :class:`~fdai.shared.providers.metric.MetricProvider` seam.
 
-Design contract: ``docs/roadmap/scope-expansion.md § 3.2`` (telemetry
+Design contract: ``docs/roadmap/fork-and-sequencing/scope-expansion.md § 3.2`` (telemetry
 ingestion seam). This is the first **real** ``MetricProvider`` adapter;
 the upstream default stays :class:`NoopMetricProvider` so the dev-mode
-local-fake parity contract in ``docs/roadmap/dev-and-deploy-parity.md``
+local-fake parity contract in ``docs/roadmap/deployment/dev-and-deploy-parity.md``
 holds. ``core/`` never imports this module - it is bound at the
 composition root through :func:`~fdai.composition.bind_azure_monitor_logs`.
 

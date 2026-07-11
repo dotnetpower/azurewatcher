@@ -14,7 +14,7 @@ Verdict semantics
 - ``BLOCKED`` - at least one blocking finding and the pass ran in enforce
   mode.
 
-Shadow-first (see ``docs/roadmap/deployment-preflight.md``): a probe that is
+Shadow-first (see ``docs/roadmap/deployment/deployment-preflight.md``): a probe that is
 not yet proven runs in shadow, so :meth:`DeploymentReadinessReport.blocks_deploy`
 stays ``False`` until the probe is promoted to enforce. The report always
 records the truthful ``verdict`` regardless of mode.

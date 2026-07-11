@@ -1,6 +1,6 @@
 """Security Assessment report - fuse security findings into a graded report.
 
-Design contract: ``docs/roadmap/assurance-twin.md`` (assessment output) and
+Design contract: ``docs/roadmap/operations/assurance-twin.md`` (assessment output) and
 the Azure SRE Agent parity note in
 ``docs/internals/sre-agent-gap-analysis.md`` (P3-9). Azure SRE Agent emits a
 "Security Assessment" (for example an Application Gateway backend rated

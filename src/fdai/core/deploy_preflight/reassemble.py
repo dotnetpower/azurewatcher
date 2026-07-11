@@ -8,7 +8,7 @@ reassembled plan through preflight again (verifier is authority). The loop
 terminates on one of a small set of safety stop-conditions; anything it cannot
 clear escalates to ``hil``.
 
-Design: ``docs/roadmap/preflight-active-reassembly.md``.
+Design: ``docs/roadmap/deployment/preflight-active-reassembly.md``.
 
 Boundaries
 ----------

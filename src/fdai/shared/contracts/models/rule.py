@@ -30,7 +30,7 @@ class Provenance(_Base):
     """Auditable origin of a rule / catalog entry.
 
     Field names follow the canonical vocabulary in
-    ``docs/roadmap/rule-catalog-collection.md`` (``resolved_ref``,
+    ``docs/roadmap/rules-and-detection/rule-catalog-collection.md`` (``resolved_ref``,
     ``retrieved_at``, ``redistribution`` as an enum) so a hand-authored
     YAML lifted from that doc validates against this model without any
     field-name gymnastics.
@@ -55,7 +55,7 @@ class Rule(_Base):
     time. ``alternatives`` is a preference-ordered list of alternate
     ActionType names - T0 always uses ``remediates``; only the T2 quality
     gate may swap in an alternative. See
-    ``docs/roadmap/llm-strategy.md § Rule as Ontology Artifact``.
+    ``docs/roadmap/architecture/llm-strategy.md § Rule as Ontology Artifact``.
     """
 
     schema_version: SemVer

@@ -1,7 +1,7 @@
 """Session and principal data model for the operator console.
 
 Data-only module; no I/O. See
-[operator-console.md § 6](../../../../docs/roadmap/operator-console.md#6-session-model--memory).
+[operator-console.md § 6](../../../../docs/roadmap/interfaces/operator-console.md).
 
 The design intent is that a :class:`ConversationSession` is a bounded,
 stateless-in-memory projection of the audit log: on recovery, the
@@ -24,7 +24,7 @@ class Role(StrEnum):
 
     Mirrors :mod:`fdai.shared.contracts.models.CeilingRole` and the
     ladder in
-    [user-rbac-and-identity.md § 2](../../../../docs/roadmap/user-rbac-and-identity.md).
+    [user-rbac-and-identity.md § 2](../../../../docs/roadmap/interfaces/user-rbac-and-identity.md).
     ``BREAK_GLASS`` is off-ladder and grants HIL-approval eligibility
     without ever returning ``enforce_auto`` on the RiskGate role axis.
     """
@@ -41,7 +41,7 @@ _ROLE_LADDER: dict[Role, int] = {
     Role.CONTRIBUTOR: 1,
     Role.APPROVER: 2,
     Role.OWNER: 3,
-    # BreakGlass is off-ladder (docs/roadmap/user-rbac-and-identity.md).
+    # BreakGlass is off-ladder (docs/roadmap/interfaces/user-rbac-and-identity.md).
     # It never satisfies min_role via the ladder; approval eligibility
     # is handled at dispatch time. Its rank is deliberately below Reader
     # so principal_has_role_at_least never returns True for BG on any
@@ -54,7 +54,7 @@ def principal_has_role_at_least(principal_role: Role, min_role: Role) -> bool:
     """True iff ``principal_role`` sits at or above ``min_role`` in the
     ordinary ladder. BreakGlass never satisfies the check.
 
-    See docs/roadmap/execution-model.md 2.5 (Axis F).
+    See docs/roadmap/decisioning/execution-model.md 2.5 (Axis F).
     """
 
     return _ROLE_LADDER[principal_role] >= _ROLE_LADDER[min_role]
@@ -85,7 +85,7 @@ class Turn:
     """One entry in a conversation transcript.
 
     Fields align with the ``console.turn`` audit contract in
-    [operator-console.md § 13.1](../../../../docs/roadmap/operator-console.md)
+    [operator-console.md § 13.1](../../../../docs/roadmap/interfaces/operator-console.md)
     so a future audit-log projection can reload sessions verbatim.
     """
 

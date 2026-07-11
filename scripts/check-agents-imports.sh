@@ -13,7 +13,7 @@
 # the same way a core violation collapses the CSP boundary. Agents
 # reach cloud only through the Protocol seams in fdai.shared.providers.*,
 # whose concrete implementations live in fdai.delivery.* and are bound
-# at the composition root (see docs/roadmap/csp-neutrality.md).
+# at the composition root (see docs/roadmap/architecture/csp-neutrality.md).
 #
 # The check applies to every file under src/fdai/agents/**, including
 # the isolated framework layer that G-7 will create at

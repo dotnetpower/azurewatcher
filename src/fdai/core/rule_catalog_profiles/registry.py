@@ -4,7 +4,7 @@ Semantics:
 
 - Upstream ships ``rule-catalog/profiles/`` with the ``baseline``,
   ``recommended``, and ``strict`` chain (see
-  ``docs/roadmap/rule-catalog-profiles.md``).
+  ``docs/roadmap/rules-and-detection/rule-catalog-profiles.md``).
 - A fork adds a sibling directory ``rule-catalog/profiles-overrides/``
   that the registry deep-merges over the upstream tree at load. A
   profile id present in both wins from the overlay; a profile only in
@@ -12,7 +12,7 @@ Semantics:
   overlay MAY declare ``extends`` referencing an upstream profile id.
 - ``resolve(profile_id)`` walks the ``extends`` graph and applies the
   merge rules in
-  ``docs/roadmap/rule-catalog-profiles.md § Resolution``.
+  ``docs/roadmap/rules-and-detection/rule-catalog-profiles.md § Resolution``.
 """
 
 from __future__ import annotations

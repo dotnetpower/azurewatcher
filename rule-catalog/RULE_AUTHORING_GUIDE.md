@@ -8,8 +8,8 @@ class of misconfigurations into deterministic, auto-verifiable findings
 that never need to reach T2.
 
 For context on how rules fit into the trust router and control loop, see
-[docs/roadmap/rule-catalog-collection.md](../docs/roadmap/rule-catalog-collection.md)
-and [docs/roadmap/llm-strategy.md](../docs/roadmap/llm-strategy.md).
+[docs/roadmap/rules-and-detection/rule-catalog-collection.md](../docs/roadmap/rules-and-detection/rule-catalog-collection.md)
+and [docs/roadmap/architecture/llm-strategy.md](../docs/roadmap/architecture/llm-strategy.md).
 
 ## What a rule ships
 
@@ -279,6 +279,6 @@ convenience, not the authoring interface.
 Rules are versioned and can be revised or retired through the same
 authoring flow - bump `version`, keep the `id`. The continuous update
 pipeline (see
-[docs/roadmap/rule-catalog-collection.md](../docs/roadmap/rule-catalog-collection.md))
+[docs/roadmap/rules-and-detection/rule-catalog-collection.md](../docs/roadmap/rules-and-detection/rule-catalog-collection.md))
 watches upstream sources, opens shadow PRs, and enforces regressions
 before a rule can promote to enforce.

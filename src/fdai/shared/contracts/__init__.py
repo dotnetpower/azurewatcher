@@ -7,7 +7,7 @@ errors) that core modules depend on. Concrete implementations
 ``JsonSchemaEventValidator``) are **intentionally not re-exported here** - they
 must be imported from their submodules by the composition root only, so
 ``core/`` cannot accidentally depend on a concrete adapter (see
-``docs/roadmap/project-structure.md § Customization via Dependency Injection``).
+``docs/roadmap/architecture/project-structure.md § Customization via Dependency Injection``).
 """
 
 from .models import (

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fdai.dev/schemas/workflow/1.0.0",
   "title": "Workflow",
-  "description": "Declarative business process: an ordered list of steps, each referencing one ontology ActionType, plus a trigger, a promotion gate, and a default mode. Catalog-as-code under rule-catalog/workflows/. Design contract: docs/roadmap/process-automation.md.",
+  "description": "Declarative business process: an ordered list of steps, each referencing one ontology ActionType, plus a trigger, a promotion gate, and a default mode. Catalog-as-code under rule-catalog/workflows/. Design contract: docs/roadmap/decisioning/process-automation.md.",
   "type": "object",
   "additionalProperties": false,
   "required": [

@@ -1,6 +1,6 @@
 """On-call schedule - who is on-shift right now.
 
-Design contract: ``docs/roadmap/scope-expansion.md § 3.5``.
+Design contract: ``docs/roadmap/fork-and-sequencing/scope-expansion.md § 3.5``.
 
 The HIL / paging surface today (``HilChannel``, ``BreakGlassPager``)
 routes by role only - it does not know **who is on shift right now**.

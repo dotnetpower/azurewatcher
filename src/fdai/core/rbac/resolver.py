@@ -6,7 +6,7 @@ Boundary contract
 The API layer is responsible for **cryptographic verification** of the token
 before this module sees it: JWKS signature, ``aud``, ``iss``, ``exp``, ``nbf``
 (see [`user-rbac-and-identity.md § 10.2`]
-(../../../../docs/roadmap/user-rbac-and-identity.md#102-api-token-validation)).
+(../../../../docs/roadmap/interfaces/user-rbac-and-identity.md#102-api-token-validation)).
 By the time claims reach the :class:`RoleResolver` they are already trusted;
 this module never re-hits the network.
 
@@ -73,9 +73,9 @@ class BreakGlassActivation:
 
     The three fields correspond to the audit requirements in
     [`security-and-identity.md § HIL Approval Integrity`]
-    (../../../../docs/roadmap/security-and-identity.md#hil-approval-integrity)
+    (../../../../docs/roadmap/architecture/security-and-identity.md#hil-approval-integrity)
     and [`user-rbac-and-identity.md § 10.7`]
-    (../../../../docs/roadmap/user-rbac-and-identity.md#107-break-glass-sign-in):
+    (../../../../docs/roadmap/interfaces/user-rbac-and-identity.md#107-break-glass-sign-in):
     every break-glass sign-in must record who, why (incident id), and until when.
 
     Activation is stateless in this data class - the caller (or the fork's
@@ -287,7 +287,7 @@ class RoleResolver:
 
     Preference order for role extraction (matches
     [`user-rbac-and-identity.md § 4.4`]
-    (../../../../docs/roadmap/user-rbac-and-identity.md#44-app-roles-token-surface)):
+    (../../../../docs/roadmap/interfaces/user-rbac-and-identity.md#44-app-roles-token-surface)):
 
     1. **App Roles** (``roles`` claim) - the API-declared surface. Values
        are matched case-sensitively against :class:`Role` values so an

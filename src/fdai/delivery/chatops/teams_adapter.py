@@ -7,7 +7,7 @@ default) and MAY be upgraded to a Bot Framework REST call
 a :class:`WorkloadIdentity`. Callback delivery is out of scope for P1
 - :meth:`TeamsHilAdapter.poll` returns :data:`HilDecision.PENDING`
 until the future webhook trigger lands (see
-``docs/roadmap/deploy-and-onboard.md § Azure Bot Free tier``).
+``docs/roadmap/deployment/deploy-and-onboard.md § Azure Bot Free tier``).
 
 Design boundaries
 -----------------
@@ -35,7 +35,7 @@ Wire contract (P1 - Incoming Webhook)
 
 The card body carries an **opaque ``approval_id``** only - the decision
 endpoint (``fdai-api``) is what actually authorizes an APPROVE.
-See ``docs/roadmap/channels-and-notifications.md § 3
+See ``docs/roadmap/interfaces/channels-and-notifications.md § 3
 (Category boundaries MUST)``.
 
 Authentication

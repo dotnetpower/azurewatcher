@@ -5,7 +5,7 @@ Sibling of :class:`~fdai.core.executor.executor.ShadowExecutor` and
 those open a remediation PR / mutate a substrate, this executor invokes a
 **registered tool** (a function: generate a PDF, send a notification,
 open a ticket) from the "Tool call" section of
-``docs/roadmap/execution-model.md`` via
+``docs/roadmap/decisioning/execution-model.md`` via
 :class:`~fdai.shared.providers.tool.ToolExecutor`.
 
 Same safety-invariant discipline; different delivery surface:

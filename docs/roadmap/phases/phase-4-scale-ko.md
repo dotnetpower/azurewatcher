@@ -1,7 +1,7 @@
 ---
 title: Phase 4 - 스케일 (Azure); 멀티 클라우드 (TBD)
 translation_of: phase-4-scale.md
-translation_source_sha: 39d3e7a1f365a209a1811d0caa5387998b7671fc
+translation_source_sha: 93ca9d52efcf058bec348558ce6e721194f57052
 translation_revised: 2026-07-11
 ---
 
@@ -19,13 +19,13 @@ current하게 유지. **멀티 클라우드 확장은 연기(TBD)** ; 아래 *TB
 [architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) 와
 [app-shape.instructions.md](../../../.github/instructions/app-shape.instructions.md) 의
 CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마) 로 실현하여 향후 비-Azure 어댑터가
-추가적이도록; [tech-stack-ko.md](../tech-stack-ko.md) 의 스택과 어댑터 경계 재사용, 엄격히
-[goals-and-metrics-ko.md](../goals-and-metrics-ko.md) 로 측정, [security-and-identity-ko.md](../security-and-identity-ko.md)
+추가적이도록; [tech-stack-ko.md](../architecture/tech-stack-ko.md) 의 스택과 어댑터 경계 재사용, 엄격히
+[goals-and-metrics-ko.md](../architecture/goals-and-metrics-ko.md) 로 측정, [security-and-identity-ko.md](../architecture/security-and-identity-ko.md)
 의 아이덴티티와 shadow-mode 규칙 상속.
 
 ## 산출물
 
-모듈 참조는 [`src/fdai/`](../project-structure-ko.md)에서 해당 산출물을 담고 있는
+모듈 참조는 [`src/fdai/`](../architecture/project-structure-ko.md)에서 해당 산출물을 담고 있는
 주요 Python 패키지를 가리킴; 여기 나열된 모든 모듈은 고객-agnostic이고 Azure 전용
 (아래 멀티 클라우드 산출물은 TBD로 남음).
 
@@ -48,10 +48,10 @@ CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마)
   모듈:
   [core/measurement/runners.py](../../../src/fdai/core/measurement/runners.py).
   Infra:
-  [infra/modules/measurement-runners/](../../../infra/modules/measurement-runners/).
+  [infra/modules/measurement-runners/](../../../infra/modules/measurement-runners).
 - **TBD (deferred)**: **provider 어댑터** 를 통한 정책과 실행의 멀티 클라우드 확장(새 코어 없음),
   크로스-CSP rule-catalog 정규화, per-CSP 실행 아이덴티티, 멀티 클라우드 이벤트 버스 결정
-  ([tech-stack-ko.md](../tech-stack-ko.md) 의 OD-3). 이 항목들은 비-Azure 작업이 스코프될
+  ([tech-stack-ko.md](../architecture/tech-stack-ko.md) 의 OD-3). 이 항목들은 비-Azure 작업이 스코프될
   때까지 설계 형상으로만 남음.
 
 ## Provider 어댑터 경계 (TBD - deferred)
@@ -62,7 +62,7 @@ CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마)
 
 코어 엔진은 CSP-중립 유지; 새 클라우드는 어댑터 구현으로 추가되지 절대 코어 포크로 추가되지
 않음. 어댑터 표면은 고정되고 각 어댑터는 기존 인터페이스 뒤에 추가됨
-([project-structure-ko.md](../project-structure-ko.md) 참조):
+([project-structure-ko.md](../architecture/project-structure-ko.md) 참조):
 
 - **Policy 어댑터** - 프로바이더-파라미터화된 입력으로 같은 OPA/Rego 정책 평가; per-cloud 정책
   포크 없음.
@@ -84,7 +84,7 @@ CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마)
 ## 멀티 클라우드 규칙 카탈로그 (TBD - deferred)
 
 > 비-Azure 대상이 스코프될 때까지 연기. Azure만 유일한 구현 카탈로그 대상;
-> [rule-catalog-collection-ko.md](../rule-catalog-collection-ko.md) 참조.
+> [rule-catalog-collection-ko.md](../rules-and-detection/rule-catalog-collection-ko.md) 참조.
 
 - 소스 추가: **AWS** (Well-Architected, Config managed rules, CIS AWS) 와 **GCP** (Recommender,
   Policy Controller / Gatekeeper constraints, CIS GCP), [phase-1-rule-catalog-t0-ko.md](phase-1-rule-catalog-t0-ko.md)
@@ -102,28 +102,28 @@ CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마)
 ## Per-CSP 아이덴티티와 최소권한 (TBD - deferred)
 
 > 연기; Azure 아이덴티티 모델이 오늘 적용(user-assigned Managed Identity, 액션 화이트리스트,
-> 별개 approval/execution principal - [security-and-identity-ko.md](../security-and-identity-ko.md)
+> 별개 approval/execution principal - [security-and-identity-ko.md](../architecture/security-and-identity-ko.md)
 > 참조).
 
 - 각 클라우드는 자체 **범위된 실행 아이덴티티** (예: Azure user-assigned Managed Identity, AWS
   IAM 롤, GCP 서비스 계정), 각각 액션 화이트리스트로 제한. 어떤 아이덴티티도 클라우드 간이나
   레이어 간 공유되지 않음.
 - 모든 클라우드에서 **승인과 실행은 별개 principal** - no self-approval,
-  [security-and-identity-ko.md](../security-and-identity-ko.md) 에 따라.
+  [security-and-identity-ko.md](../architecture/security-and-identity-ko.md) 에 따라.
 - Blast-radius limit(스코프/배치/속도 상한) 은 CSP별로 강제; 잘못 설정된 어댑터는 화이트리스트를
   초과할 수 없음.
 
 ## 이벤트 버스 이식성 (TBD - deferred)
 
 > 연기; Azure에서 버스는 Service Bus + Event Grid
-> ([tech-stack-ko.md](../tech-stack-ko.md#od-3-멀티-클라우드-이벤트-버스-phase-4--tbd) 참조).
+> ([tech-stack-ko.md](../architecture/tech-stack-ko.md#od-3-멀티-클라우드-이벤트-버스-phase-4--tbd) 참조).
 
 - Phase 0-3 버스(Service Bus + Event Grid)가 멀티 클라우드 필요를 충족하는지 아니면 이식 가능
   log/queue(Kafka 또는 NATS JetStream) 가 필요한지 검증하여 OD-3 결정.
 - 결정 기준: 클라우드 간 **순서, dead-letter, 리플레이, idempotency 패리티**, 운영 비용, CSP
   중립성 - 버스 어댑터는 backend와 무관하게 리소스별 순서와 at-least-once + 멱등 처리 보존해야
   함.
-- 결과를 결정 기록으로 기록하고 [tech-stack-ko.md](../tech-stack-ko.md) OD-3 업데이트.
+- 결과를 결정 기록으로 기록하고 [tech-stack-ko.md](../architecture/tech-stack-ko.md) OD-3 업데이트.
 
 ## 안전과 Shadow-First 롤아웃
 
@@ -138,7 +138,7 @@ CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마)
 
 - 고정 버전 시나리오 세트에서 주기적으로 **베이스라인 vs 트리트먼트** 재실행; **회귀** 는
   가드-메트릭 위반 또는 보고된 신뢰구간 넘는 성공-메트릭 하락, 그리고 자동 shadow 강등 트리거
-  ([goals-and-metrics-ko.md](../goals-and-metrics-ko.md)).
+  ([goals-and-metrics-ko.md](../architecture/goals-and-metrics-ko.md)).
 - 가드 메트릭(CFR, false-positive/negative, rollback rate, **정확히 0** 정책 위반 escape) 는
   성공 메트릭과 같은 측정 윈도우와 시나리오 세트 버전에서 평가, 그래서 이득과 위반이 다른
   데이터에서 비교되지 않음.
@@ -159,9 +159,9 @@ CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마)
 
 ## 모델 Cost/Quality 추적
 
-- [goals-and-metrics-ko.md](../goals-and-metrics-ko.md) 의 cost/usage와 원격측정 소스에서
+- [goals-and-metrics-ko.md](../architecture/goals-and-metrics-ko.md) 의 cost/usage와 원격측정 소스에서
   모델별 비용과 품질을 시간에 걸쳐 추적; T2 reasoner 모델을 **측정된 결과로 스왑, 가정 아님**,
-  모델 ID와 임계값을 [llm-strategy-ko.md](../llm-strategy-ko.md) 에 따라 config로 유지.
+  모델 ID와 임계값을 [llm-strategy-ko.md](../architecture/llm-strategy-ko.md) 에 따라 config로 유지.
 - 모델 폐기/가격 변경 플래그, enforce에 도달하는 어떤 스왑 전에 시나리오 세트에서 mixed-model
   교차 검사 재검증.
 
@@ -170,12 +170,12 @@ CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마)
 - 이벤트 볼륨이 커질 때 Azure에서 티어별 지연 예산과 이벤트-기반, scale-to-zero 자세 보존.
   멀티 클라우드 성능 패리티는 TBD(연기).
 - 코퍼스나 recall/latency 목표가 요구할 때 T1 벡터 검색을 pgvector에서 전용 vector store로
-  졸업([tech-stack-ko.md](../tech-stack-ko.md) 의 기준); state 어댑터가 이를 코어에 투명하게
+  졸업([tech-stack-ko.md](../architecture/tech-stack-ko.md) 의 기준); state 어댑터가 이를 코어에 투명하게
   유지.
 - **초대규모 테넌트(구독 300개, 랜딩존 수십개)** 의 경우, scale-out 토폴로지(셀 기반
   스트리밍, 정책-기반 fan-in, 2-평면 로깅, CQRS 감사 인덱싱, 선택적
   **standard / sovereign** 배포 프로파일)는
-  [hyperscale-cell-architecture-ko.md](../hyperscale-cell-architecture-ko.md) 에 명세됨.
+  [hyperscale-cell-architecture-ko.md](../architecture/hyperscale-cell-architecture-ko.md) 에 명세됨.
   테넌트가 초대규모 트리거를 넘을 때만 진입하며, 모든 안전 불변식과 8개 CSP-중립 계약을 보존.
 
 ## 런타임 Scale-Out (AKS) - 연기
@@ -185,14 +185,14 @@ CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마)
 > confidential 노드)이나 Container Apps 한계를 압박하는 heavy 셀에서만 채택. 이식성은
 > 런타임 계약(OCI 이미지 + Knative-호환 매니페스트 subset, Dapr 없음 / Envoy-specific
 > ingress 없음,
-> [csp-neutrality-ko.md](../csp-neutrality-ko.md#2-런타임-계약--oci-이미지--knative-호환-매니페스트))
+> [csp-neutrality-ko.md](../architecture/csp-neutrality-ko.md#2-런타임-계약--oci-이미지--knative-호환-매니페스트))
 > 으로 보장되므로, AKS 이동은 `infra/modules/runtime/aks/` 렌더이지 `core/` 리라이트가 아니다.
 
 - **언제 AKS:** `sovereign` 프로파일이 요구하거나(LGTM / ClickHouse / 리전 내 LLM 이 AKS
   워크로드로; confidential SEV-SNP 노드; 프라이빗 클러스터), heavy 셀이 노드-레벨
   제어(spot / GPU / large-memory SKU), DaemonSet 수집, 파티션-스티키 StatefulSet 컨슈머를
   필요로 하는 경우. 전체 근거와 프로파일 매트릭스는
-  [hyperscale-cell-architecture-ko.md § 런타임](../hyperscale-cell-architecture-ko.md#런타임) 에 있다.
+  [hyperscale-cell-architecture-ko.md § 런타임](../architecture/hyperscale-cell-architecture-ko.md#런타임) 에 있다.
 - **범위:** 새 `infra/modules/runtime/aks/` 서브모듈이 동일한 OCI 이미지와 Knative-호환
   매니페스트 subset 을 AKS 에 렌더(KEDA 스케일러 보존)하고, Container Apps Jobs 는 K8s
   CronJob 으로, 네이티브 secret 은 External Secrets Operator 로 렌더 -

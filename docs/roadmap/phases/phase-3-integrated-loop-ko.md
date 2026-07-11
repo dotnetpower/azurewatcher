@@ -1,7 +1,7 @@
 ---
 title: Phase 3 - 통합 컨트롤 루프 (Resilience · Change Safety · Cost Governance)
 translation_of: phase-3-integrated-loop.md
-translation_source_sha: 34a055ad56916cd5e5abf813275e8ca3df716654
+translation_source_sha: 40312066a94ff17707045e4acc9187b8ff2f936d
 translation_revised: 2026-07-11
 ---
 
@@ -17,11 +17,11 @@ P2에서 딜리버리된 T0/T1/T2 라우터, quality gate, 리스크 게이트
 
 여기의 모든 RPO/RTO, 절감, lead-time 수치는 **명시된 목표에 대해 고정 시나리오 세트와 측정
 윈도우에서 보고된 측정값** - 절대 추정치나 unbaselined 배수 아님
-([goals-and-metrics-ko.md](../goals-and-metrics-ko.md) 참조).
+([goals-and-metrics-ko.md](../architecture/goals-and-metrics-ko.md) 참조).
 
 ## 산출물
 
-각 산출물은 아래 섹션에 매핑. 모듈 참조는 [`src/fdai/`](../project-structure-ko.md)에서
+각 산출물은 아래 섹션에 매핑. 모듈 참조는 [`src/fdai/`](../architecture/project-structure-ko.md)에서
 해당 산출물을 담고 있는 주요 Python 패키지를 가리킴.
 
 - Resilience, Change Safety, Cost Governance에 걸친 **통합 컨트롤 루프** - 하나의 `trust-router` →
@@ -42,7 +42,7 @@ P2에서 딜리버리된 T0/T1/T2 라우터, quality gate, 리스크 게이트
 - **어슈어런스 트윈 (ambient + 시뮬레이션)** - 변경 이벤트에서의 선제적 변경별 리뷰,
   Change Safety(blast radius) · Resilience(RPO/RTO replay) · Cost Governance(비용 델타)가
   공유하는 그래프 전체 what-if, shadow remediation-PR 제안, 그리고 온디맨드
-  `PostureAssessmentReport` 패널. 설계는 [assurance-twin-ko.md](../assurance-twin-ko.md);
+  `PostureAssessmentReport` 패널. 설계는 [assurance-twin-ko.md](../operations/assurance-twin-ko.md);
   각 시뮬레이션 finding은 enforce 전에 shadow-first로 측정.
 
 ## 통합 컨트롤 루프
@@ -52,7 +52,7 @@ P2에서 딜리버리된 T0/T1/T2 라우터, quality gate, 리스크 게이트
   다름, 루프 구조가 아님.
 - **버티컬별 아이덴티티**: Resilience, Change Safety, Cost Governance는 각각 자체 액션 화이트리스트에
   범위된 **별개 user-assigned Managed Identity** 하에 실행, blast radius가 버티컬로 bound되고 어떤
-  버티컬도 다른 버티컬의 아이덴티티를 assume할 수 없음 ([security-and-identity-ko.md](../security-and-identity-ko.md)).
+  버티컬도 다른 버티컬의 아이덴티티를 assume할 수 없음 ([security-and-identity-ko.md](../architecture/security-and-identity-ko.md)).
 - **순서와 락**: 같은 리소스를 변형하는 액션은 리소스별 키에 직렬화; `executor` 는 액션 윈도우
   전체에 대해 리소스별 락 보유. 한 리소스의 동시 변형은 도메인 간 상호 배제.
 - **크로스-버티컬 충돌 처리**: 두 버티컬이 같은 윈도우에 같은 리소스를 대상으로 할 때(예:
@@ -75,7 +75,7 @@ P2에서 딜리버리된 T0/T1/T2 라우터, quality gate, 리스크 게이트
   **동시 실험** 상한(blast-radius limit), 각 실행 전후 운영자 알림.
 - **RPO/RTO 보고**: 각 실행에 대해 명시된 목표 대비 **측정된 RPO** (failover 데이터 손실) 와
   **측정된 RTO** (복원된 서비스까지 wall-clock) 를 실행에 대한 median과 p90으로 고정 측정 윈도우에
-  보고 ([goals-and-metrics-ko.md](../goals-and-metrics-ko.md)). RPO/RTO가 목표를 위반한 실행은
+  보고 ([goals-and-metrics-ko.md](../architecture/goals-and-metrics-ko.md)). RPO/RTO가 목표를 위반한 실행은
   조용히 평균되지 않고 플래그.
 
 ### DR 안전 불변식 (모든 실험)
@@ -136,9 +136,9 @@ Stateful 서비스는 stateless처럼 "kill and revive" 될 수 없으므로, DB
 
 - 저위험 변경은 **auto-merge/reconcile**; 고위험은 **HIL** 로 이동, 사람이 승인·거부·요청 timeout
   (reject와 timeout은 여전히 감사하는 no-op). 승인과 실행은 별개 principal 유지
-  ([security-and-identity-ko.md](../security-and-identity-ko.md)).
+  ([security-and-identity-ko.md](../architecture/security-and-identity-ko.md)).
 - **Change lead time** 은 같은 시나리오 세트에서 P0 reference agent 대비 **측정** 감소로 보고
-  (median과 p90), [goals-and-metrics-ko.md](../goals-and-metrics-ko.md) 에 따라 - unbaselined
+  (median과 p90), [goals-and-metrics-ko.md](../architecture/goals-and-metrics-ko.md) 에 따라 - unbaselined
   "주 단위 → 시간 단위" 주장 없음.
 
 ## 테스트 가능성
@@ -154,7 +154,7 @@ Stateful 서비스는 stateless처럼 "kill and revive" 될 수 없으므로, DB
 ## Exit 기준
 
 각 기준은 고정 시나리오 세트와 측정 윈도우에서 측정 가능
-([goals-and-metrics-ko.md](../goals-and-metrics-ko.md)):
+([goals-and-metrics-ko.md](../architecture/goals-and-metrics-ko.md)):
 
 - 자율 MVP가 세 버티컬 모두에 걸쳐 네 안전 불변식 강제와 **정책 위반 escape 0** 으로 운영.
 - DR/Chaos가 승인된 윈도우 내 스케줄에 실행, 목표 대비 측정된 RPO/RTO(median과 p90) 보고, 자동

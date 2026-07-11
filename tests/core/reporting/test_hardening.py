@@ -1,7 +1,7 @@
 """Tests for the 10-item batch-5 hardening pass.
 
 Each test class documents which risk it verifies. See
-`docs/roadmap/reporting-subsystem.md` for the Safety and invariants section.
+`docs/roadmap/interfaces/reporting-subsystem.md` for the Safety and invariants section.
 """
 
 from __future__ import annotations

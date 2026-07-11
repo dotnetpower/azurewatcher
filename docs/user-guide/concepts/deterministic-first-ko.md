@@ -2,7 +2,7 @@
 title: 결정론 우선(Deterministic first)
 description: FDAI가 반복 가능한 다수는 규칙으로 해소하고 애매한 소수만 LLM 추론에 넘기는 이유.
 translation_of: deterministic-first.md
-translation_source_sha: 7f5cb6a17dc8dbdf4cb14e3ada96d18082692a54
+translation_source_sha: e1be070c7be88be29ab901079ef77c3c12891df2
 translation_revised: 2026-07-11
 sidebar:
   order: 2
@@ -67,4 +67,4 @@ flowchart TB
 | T0/T1/T2 판정이 auto vs HIL로 어떻게 분류되나 | [risk-tiers-ko.md](risk-tiers-ko.md) |
 | 새 액션이 shadow에서 enforce로 넘어가는 방식 | [shadow-then-enforce-ko.md](shadow-then-enforce-ko.md) |
 | 전체 컨트롤 루프 설계 | [../../../.github/instructions/architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) |
-| 카탈로그 스키마와 소스 | [../../roadmap/rule-catalog-collection-ko.md](../../roadmap/rule-catalog-collection-ko.md) |
+| 카탈로그 스키마와 소스 | [../../roadmap/rules-and-detection/rule-catalog-collection-ko.md](../../roadmap/rules-and-detection/rule-catalog-collection-ko.md) |

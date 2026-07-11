@@ -3,7 +3,7 @@
 Wave 2 introduces the :class:`PromptComposer` :class:`~typing.Protocol`
 and its upstream default implementation. The composer is where the
 Role x Layer matrix documented in
-``docs/roadmap/prompt-composition.md`` becomes runtime behavior.
+``docs/roadmap/decisioning/prompt-composition.md`` becomes runtime behavior.
 
 Wave 2 assembled only two layers - **Base** and **Task Skill Pack**.
 Wave 2.5-B step 1 added a third: an optional **Tool Manifest** layer
@@ -18,7 +18,7 @@ envelopes so the model treats every note as data.
 Recognition-probe primitives (``layer_manifest`` + ``token_estimate``)
 are populated but not yet gated; Wave 3 step D wires them into the
 KPI pipeline described in
-``docs/roadmap/prompt-composition.md § Recognition measurement``.
+``docs/roadmap/decisioning/prompt-composition.md § Recognition measurement``.
 """
 
 from __future__ import annotations

@@ -247,7 +247,7 @@ class QualityGateConfig:
     judge-and-log only: its scores are recorded on the
     :class:`QualityDecision` but do NOT change the outcome or the
     aggregate confidence. Shadow-before-enforce, per
-    ``docs/roadmap/hallucination-rubric-gate.md``. A fork flips this to
+    ``docs/roadmap/decisioning/hallucination-rubric-gate.md``. A fork flips this to
     ``False`` only after the promotion gate is met on a labeled
     scenario set."""
 
@@ -429,7 +429,7 @@ class QualityGate:
         # ``min()`` below) or add an abstain reason - it can NEVER raise
         # eligibility above what the deterministic verifier allows. In
         # shadow mode it is judge-and-log only (scores recorded, outcome
-        # untouched). See docs/roadmap/hallucination-rubric-gate.md.
+        # untouched). See docs/roadmap/decisioning/hallucination-rubric-gate.md.
         rubric_scores: tuple[RubricScore, ...] = ()
         rubric_min_score: float | None = None
         rubric_verdict_value: str | None = None

@@ -11,7 +11,7 @@
 # no app secrets, only infrastructure handles). The app config (../) uses the
 # storage account created here as its azurerm remote backend.
 #
-# Design: docs/roadmap/deploy-and-onboard.md (private-networking + runner).
+# Design: docs/roadmap/deployment/deploy-and-onboard.md (private-networking + runner).
 
 terraform {
   required_version = ">= 1.9"

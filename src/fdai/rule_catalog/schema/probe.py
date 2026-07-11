@@ -3,7 +3,7 @@
 Loads YAML declarations under ``rule-catalog/probes/`` and validates
 each against the shipped JSON Schema. This is the lightweight, no-I/O
 half of the live-blast probe subsystem described in
-[execution-model.md § 4](../../../../docs/roadmap/execution-model.md#4-live-blast-probe).
+[execution-model.md § 4](../../../../docs/roadmap/decisioning/execution-model.md).
 The heavyweight half (Azure Monitor adapter that turns a manifest into
 a runtime probe result) lands in Wave M1; this module is what
 `ActionType.live_probe_ref` resolves against at catalog load so a

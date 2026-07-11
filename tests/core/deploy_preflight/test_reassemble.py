@@ -1,7 +1,7 @@
 """Active reassembly convergence loop: clear, escalate, stop-conditions.
 
 Property-level invariants the loop MUST hold (see
-``docs/roadmap/preflight-active-reassembly.md``):
+``docs/roadmap/deployment/preflight-active-reassembly.md``):
 - shadow: the loop never mutates - it only decides and returns overrides;
 - all-or-nothing: a manual blocker escalates the whole pass;
 - the same toggle is never applied twice (non-convergence -> hil);

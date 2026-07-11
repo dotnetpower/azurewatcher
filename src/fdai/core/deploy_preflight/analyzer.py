@@ -7,7 +7,7 @@ against a :class:`PreflightTarget`, collects the grounded findings, and
 computes a fail-closed :class:`DeploymentReadinessReport`.
 
 Design references:
-- ``docs/roadmap/deployment-preflight.md``
+- ``docs/roadmap/deployment/deployment-preflight.md``
 - ``.github/instructions/architecture.instructions.md § Control Loop``
 
 Boundaries: this module lives in ``core/`` and imports only ``shared/``

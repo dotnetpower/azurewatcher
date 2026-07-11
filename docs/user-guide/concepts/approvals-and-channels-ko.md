@@ -2,7 +2,7 @@
 title: 승인과 알림 채널(Approvals and channels)
 description: FDAI가 고위험 승인과 알림을 위해 사람에게 도달하는 방식 - 어떤 채널을 쓰는지, 콘솔이 왜 실행하지 않는지, 아무도 응답하지 않으면 어떻게 되는지.
 translation_of: approvals-and-channels.md
-translation_source_sha: f75fa54fb59feb837641df6f6eb7e0fcf5d0b43d
+translation_source_sha: 43f1c991fc343b6c0ec9934d959ad01d1e8e9d58
 translation_revised: 2026-07-11
 sidebar:
   order: 7
@@ -120,4 +120,4 @@ FDAI는 사용자별로 수신자 목록을 만들지 않습니다. **각 채널
 | 승인/거부 엔드투엔드 워크스루 | [../guides/approve-change-ko.md](../guides/approve-change-ko.md) |
 | 액션이 AUTO / HIL / DENY로 분류되는 방식 | [risk-tiers-ko.md](risk-tiers-ko.md) |
 | 여러분의 승인을 나르는 에이전트와 실행하는 주체 | [agents-and-self-healing-ko.md](agents-and-self-healing-ko.md) |
-| 전체 채널 추상화, 신뢰 매트릭스, 라우팅 정책 | [../../roadmap/channels-and-notifications-ko.md](../../roadmap/channels-and-notifications-ko.md) |
+| 전체 채널 추상화, 신뢰 매트릭스, 라우팅 정책 | [../../roadmap/interfaces/channels-and-notifications-ko.md](../../roadmap/interfaces/channels-and-notifications-ko.md) |

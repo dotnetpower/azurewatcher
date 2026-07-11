@@ -5,7 +5,7 @@
 # Finding timestamps, so a replay reconstructs the process step sequence
 # in the order it happened.
 #
-# See docs/roadmap/process-automation.md 3.2.
+# See docs/roadmap/decisioning/process-automation.md 3.2.
 schema_version: "1.0.0"
 name: advances
 version: "1.0.0"

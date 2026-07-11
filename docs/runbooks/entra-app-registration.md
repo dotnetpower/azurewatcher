@@ -6,8 +6,8 @@ client) - plus the App Roles, service principals, and role assignment that make
 sign-in work. This runbook covers both the **local sign-in test**
 ([console/README.md § Local sign-in test](../../console/README.md)) and the
 **deploy-time** setup referenced by
-[deploy-and-onboard.md](../roadmap/deploy-and-onboard.md) and
-[user-rbac-and-identity.md § 10](../roadmap/user-rbac-and-identity.md#10-sign-in-flow-reference).
+[deploy-and-onboard.md](../roadmap/deployment/deploy-and-onboard.md) and
+[user-rbac-and-identity.md § 10](../roadmap/interfaces/user-rbac-and-identity.md#10-sign-in-flow-reference).
 
 > Customer-agnostic: every id below is a shell variable or a `<placeholder>`.
 > Never paste a real tenant, app, or scope GUID into a tracked file - keep them
@@ -21,7 +21,7 @@ sign-in work. This runbook covers both the **local sign-in test**
 | `fdai-console-spa` | SPA sign-in client (MSAL, PKCE). | SPA redirect URIs; delegated permission to `fdai-api`'s `access` scope. |
 
 Neither holds the executor identity - that is a separate user-assigned Managed
-Identity ([security-and-identity.md](../roadmap/security-and-identity.md)).
+Identity ([security-and-identity.md](../roadmap/architecture/security-and-identity.md)).
 
 ## Prerequisites
 
@@ -146,7 +146,7 @@ az ad app permission admin-consent --id "$SPA_APPID"
 
 For a real deployment, assign the App Roles to the five `aw-*` Entra security
 groups instead of to individual users
-([user-rbac-and-identity.md § 4.4](../roadmap/user-rbac-and-identity.md#44-app-roles-token-surface)).
+([user-rbac-and-identity.md § 4.4](../roadmap/interfaces/user-rbac-and-identity.md#44-app-roles-token-surface)).
 
 ## 4. Map ids to configuration
 
@@ -160,7 +160,7 @@ tracked files.
 | `api://$API_APPID/access` | - | `VITE_MSAL_API_SCOPE` |
 | `$SPA_APPID` | - | `VITE_MSAL_CLIENT_ID` |
 
-Read-API verifier env: [deploy-and-onboard.md](../roadmap/deploy-and-onboard.md)
+Read-API verifier env: [deploy-and-onboard.md](../roadmap/deployment/deploy-and-onboard.md)
 (`FDAI_ENTRA_TENANT_ID`, `FDAI_API_AUDIENCE`, optional `FDAI_ENTRA_ISSUER` /
 `FDAI_ENTRA_JWKS_URI`). SPA env: [console/README.md § Fork configuration](../../console/README.md).
 

@@ -10,7 +10,7 @@ upper-snake env-var names documented in
 A fork MAY register a config-service adapter (App Configuration, ConsulKV,
 etc.) by implementing this Protocol.
 
-[matrix]: ../../../../docs/roadmap/deploy-and-onboard.md#runtime-configuration-matrix
+[matrix]: ../../../../docs/roadmap/deployment/deploy-and-onboard.md#runtime-configuration-matrix
 
 Fail-fast contract
 ------------------

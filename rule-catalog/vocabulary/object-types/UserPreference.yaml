@@ -2,7 +2,7 @@
 #
 # A `UserPreference` scopes per-user Bragi behavior: locale, verbosity,
 # and consent for Norns learner access. Default `share_with_learner:
-# false`. See docs/roadmap/agent-pantheon.md § 6.5.
+# false`. See docs/roadmap/agents/agent-pantheon.md § 6.5.
 schema_version: "1.0.0"
 name: UserPreference
 version: "1.0.0"

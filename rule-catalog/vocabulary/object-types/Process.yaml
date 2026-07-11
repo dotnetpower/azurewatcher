@@ -1,7 +1,7 @@
 # Upstream built-in ObjectType: Process.
 #
 # A `Process` is the runtime instance and state of one Workflow run
-# (see docs/roadmap/process-automation.md). It is the fifth first-class
+# (see docs/roadmap/decisioning/process-automation.md). It is the fifth first-class
 # ontology object type after Resource / Rule / Signal / Finding, and it
 # is what makes a multi-step business process traversable in the graph
 # without duplicating the append-only audit log.

@@ -4,8 +4,8 @@ Kept vendor-neutral so ``core/`` and every adapter agree on the message
 shape without pulling in httpx / SMTP libraries at import time.
 
 Trust tiers (A1..A4) mirror the categories in
-[`docs/roadmap/channels-and-notifications.md § 3`]
-(../../../../../docs/roadmap/channels-and-notifications.md#3-categories-a1a4).
+[`docs/roadmap/interfaces/channels-and-notifications.md § 3`]
+(../../../../../docs/roadmap/interfaces/channels-and-notifications.md#3-categories-a1a4).
 The router uses them to enforce category-⊆-channel.categories on every
 dispatch and to preserve trust on fallback (§6 of the same doc).
 """

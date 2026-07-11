@@ -1,7 +1,7 @@
 """HIL approval round-trip - park, push, resume.
 
 See [coordinator.py](coordinator.py) and
-[docs/roadmap/execution-model.md](../../../../docs/roadmap/execution-model.md).
+[docs/roadmap/decisioning/execution-model.md](../../../../docs/roadmap/decisioning/execution-model.md).
 """
 
 from __future__ import annotations

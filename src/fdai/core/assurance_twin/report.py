@@ -4,7 +4,7 @@ Assembles a subscription-scope posture report from the findings the
 Twin's projection produced. This is the whole-estate generalization of
 :class:`~fdai.core.deploy_preflight.report.DeploymentReadinessReport`
 (single-deploy verdict), promised in
-[assurance-twin.md](../../../../docs/roadmap/assurance-twin.md) as the
+[assurance-twin.md](../../../../docs/roadmap/operations/assurance-twin.md) as the
 Twin's on-demand assessment output.
 
 Design invariants

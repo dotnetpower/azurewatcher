@@ -3,7 +3,7 @@
 The composer emits an increasingly rich system prompt; long prompts
 silently drop instructions. This module is the measurement half of the
 "model actually reads what we sent" KPI documented in
-``docs/roadmap/prompt-composition.md § Recognition measurement``.
+``docs/roadmap/decisioning/prompt-composition.md § Recognition measurement``.
 
 Wave 3 step D-1 ships **pure evaluator functions** on top of clean
 dataclass inputs. Step D-2 wires them into the KPI dashboard, adds a
@@ -13,8 +13,8 @@ by unit tests without any I/O.
 
 Design references:
 
-- ``docs/roadmap/prompt-composition.md § Recognition measurement``
-- ``docs/roadmap/goals-and-metrics.md`` - measurement-first rule
+- ``docs/roadmap/decisioning/prompt-composition.md § Recognition measurement``
+- ``docs/roadmap/architecture/goals-and-metrics.md`` - measurement-first rule
 """
 
 from __future__ import annotations

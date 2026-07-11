@@ -4,7 +4,7 @@ Prompt fragments used by the T2 tier and quality gate, stored as catalog-as-code
 so a fork can override without editing `core/`. This tree is the source of truth
 for the base prompt today; task packs, critic / judge role headers, and tool
 manifests land in later waves. See
-[docs/roadmap/prompt-composition.md](../../docs/roadmap/prompt-composition.md)
+[docs/roadmap/decisioning/prompt-composition.md](../../docs/roadmap/decisioning/prompt-composition.md)
 for the full design.
 
 ## Layout

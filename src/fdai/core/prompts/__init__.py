@@ -10,12 +10,12 @@ Wave 1 shipped the base layer and a file-system registry. Wave 2 adds
 the :class:`PromptComposer` :class:`~typing.Protocol` and its default
 implementation, plus task-pack support in the registry. Later waves
 add tool manifests, operator memory, and the debate orchestrator; their
-seams are documented in ``docs/roadmap/prompt-composition.md``.
+seams are documented in ``docs/roadmap/decisioning/prompt-composition.md``.
 
 Design references:
 
-- ``docs/roadmap/prompt-composition.md`` - full evolving-prompt design
-- ``docs/roadmap/llm-strategy.md`` - quality gate that consumes T2 output
+- ``docs/roadmap/decisioning/prompt-composition.md`` - full evolving-prompt design
+- ``docs/roadmap/architecture/llm-strategy.md`` - quality gate that consumes T2 output
 - ``rule-catalog/prompts/README.md`` - catalog layout and file contract
 """
 

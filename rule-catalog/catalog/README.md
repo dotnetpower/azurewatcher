@@ -22,8 +22,8 @@ Rego / IaC-patch templates the `check_logic.reference` / `remediation.template_r
 fields point at are stubbed - the actual Rego bodies land with the T0 engine wiring in
 P1 W-3.
 
-- Storage layout: [docs/roadmap/rule-catalog-collection.md](../../docs/roadmap/rule-catalog-collection.md).
-- Ontology dispatch: [docs/roadmap/llm-strategy.md § Rule as Ontology Artifact](../../docs/roadmap/llm-strategy.md).
+- Storage layout: [docs/roadmap/rules-and-detection/rule-catalog-collection.md](../../docs/roadmap/rules-and-detection/rule-catalog-collection.md).
+- Ontology dispatch: [docs/roadmap/architecture/llm-strategy.md § Rule as Ontology Artifact](../../docs/roadmap/architecture/llm-strategy.md).
 
 New rules land through the collect → shadow-eval → regression → promote/rollback pipeline
 in [`rule-catalog/pipeline/`](../../src/fdai/rule_catalog/pipeline/) (Phase 2); a

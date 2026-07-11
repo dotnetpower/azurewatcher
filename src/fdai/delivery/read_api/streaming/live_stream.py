@@ -47,7 +47,7 @@ set an ``Authorization`` header - a fork wires auth via one of:
 
 The upstream code does not choose for the fork; the route only asks the
 authenticator, and the fork wires the ingress accordingly. See
-[user-rbac-and-identity.md](../../../../docs/roadmap/user-rbac-and-identity.md).
+[user-rbac-and-identity.md](../../../../docs/roadmap/interfaces/user-rbac-and-identity.md).
 
 Producers (who fills the stream)
 --------------------------------

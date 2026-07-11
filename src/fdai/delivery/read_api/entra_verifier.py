@@ -4,7 +4,7 @@ Concrete :data:`fdai.delivery.read_api.auth.ClaimsVerifier` implementation
 that upstream now ships (previously left to the fork's composition root).
 It performs the **cryptographic half** of the boundary contract in
 [`user-rbac-and-identity.md § 10.2`]
-(../../../../../docs/roadmap/user-rbac-and-identity.md#102-api-token-validation):
+(../../../../../docs/roadmap/interfaces/user-rbac-and-identity.md#102-api-token-validation):
 JWKS signature, ``aud``, ``iss``, ``exp``/``nbf``. The **RBAC half**
 (``roles`` claim -> :class:`~fdai.core.rbac.resolver.Principal`) stays in
 :class:`fdai.core.rbac.resolver.RoleResolver`; this module never resolves

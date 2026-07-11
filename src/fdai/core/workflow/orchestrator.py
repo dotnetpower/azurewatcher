@@ -2,7 +2,7 @@
 existing RunbookRunner, judge-and-log only, never mutating.
 
 This is the P1 process orchestrator the action ontology reserved as
-declared-but-not-yet-live (see docs/roadmap/process-automation.md 4-5). It
+declared-but-not-yet-live (see docs/roadmap/decisioning/process-automation.md 4-5). It
 closes the gap between a compiled Workflow and an audited run:
 
 1. build the :class:`~fdai.core.workflow.approval.ApprovalPlan` (who approves

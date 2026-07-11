@@ -59,12 +59,12 @@ To keep examples concrete without leaking anything, use synthetic placeholders:
   registers its own implementations (provider adapters, rules/policies, secret/config providers,
   delivery adapters, risk thresholds, model providers) at the composition root and selects
   bindings via configuration. A fork MUST NOT patch `core/`. See the injectable seams in
-  [project-structure.md](../../docs/roadmap/project-structure.md#customization-via-dependency-injection).
+  [project-structure.md](../../docs/roadmap/architecture/project-structure.md#customization-via-dependency-injection).
 - **Fork walkthrough (procedural)**: the Day-1 checklist, the seam-by-seam recipes
   (LlmBindings, OperatorMemoryStore, HilRejectMaterializer + second-approval channel,
   WebSearchProvider, HilChannel, ScopeResolver, Critic + Judge, rule catalog, Rego
   overlays), the upstream sync procedure, and the hard don'ts all live in
-  [downstream-fork-guide.md](../../docs/roadmap/downstream-fork-guide.md). Point every fork
+  [downstream-fork-guide.md](../../docs/roadmap/fork-and-sequencing/downstream-fork-guide.md). Point every fork
   maintainer at that guide first; `project-structure.md` is the seam catalog it operationalizes.
 - Keep everything in this repo parameterized and configuration-driven so a fork supplies its
   own values (env vars, secret store references, config files) **without changing core code**

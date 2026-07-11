@@ -14,7 +14,7 @@
 #     FDAI_RBAC_OWNERS_GROUP_ID
 #     FDAI_RBAC_BREAK_GLASS_GROUP_ID
 #
-# Design authority: docs/roadmap/user-rbac-and-identity.md § 4.2 Security
+# Design authority: docs/roadmap/interfaces/user-rbac-and-identity.md § 4.2 Security
 # Groups (slots). Placeholder policy: generic-scope.instructions.md
 # (all-zero UUID substitute).
 

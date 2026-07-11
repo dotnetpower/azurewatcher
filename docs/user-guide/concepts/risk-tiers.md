@@ -82,4 +82,4 @@ the roadmap's *Human Override* section for the full mechanics.
 | How the router picks the tier | [deterministic-first.md](deterministic-first.md) |
 | How a new action goes from watch to auto-execute | [shadow-then-enforce.md](shadow-then-enforce.md) |
 | The operator view of a HIL approval | [../guides/approve-change.md](../guides/approve-change.md) |
-| The full risk-classification rulebook | [../../roadmap/risk-classification.md](../../roadmap/risk-classification.md) |
+| The full risk-classification rulebook | [../../roadmap/decisioning/risk-classification.md](../../roadmap/decisioning/risk-classification.md) |

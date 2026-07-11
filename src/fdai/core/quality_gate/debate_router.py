@@ -8,7 +8,7 @@ round trip is worth its token cost - typically:
 
 - The cross-check quorum **disagreed** (independent-model
   disagreement is the exact signal the debate loop is designed to
-  resolve, per ``docs/roadmap/prompt-composition.md § Debate
+  resolve, per ``docs/roadmap/decisioning/prompt-composition.md § Debate
   orchestrator``).
 - The candidate's **action_type** is explicitly opted-in to always
   debate (a fork's high-severity allowlist).
@@ -37,8 +37,8 @@ Design invariants
 
 See also
 --------
-- ``docs/roadmap/prompt-composition.md`` § Wave 4.5 delta-2 - what shipped
-- ``docs/roadmap/prompt-composition.md`` § Debate orchestrator
+- ``docs/roadmap/decisioning/prompt-composition.md`` § Wave 4.5 delta-2 - what shipped
+- ``docs/roadmap/decisioning/prompt-composition.md`` § Debate orchestrator
 """
 
 from __future__ import annotations

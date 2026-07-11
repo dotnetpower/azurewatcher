@@ -143,4 +143,4 @@ enforce is a measured, separately reviewed change against the type's
 | Which agents own each pipeline stage | [agents-and-self-healing.md](agents-and-self-healing.md) |
 | How the risk gate reads the tier ceiling | [risk-tiers.md](risk-tiers.md) |
 | How a new action earns the right to auto-run | [shadow-then-enforce.md](shadow-then-enforce.md) |
-| The full ontology schema and fork seams | [../../roadmap/action-ontology.md](../../roadmap/action-ontology.md) |
+| The full ontology schema and fork seams | [../../roadmap/decisioning/action-ontology.md](../../roadmap/decisioning/action-ontology.md) |

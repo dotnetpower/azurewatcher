@@ -19,7 +19,7 @@ Scope of this slice
   into any live QualityGate flow.
 - No tool-calling loop. The Critic reviews the Proposer's candidate;
   it does not itself dispatch tools (per
-  ``docs/roadmap/prompt-composition.md § Debate orchestrator``).
+  ``docs/roadmap/decisioning/prompt-composition.md § Debate orchestrator``).
 - Composition-root wiring lands in Wave 4 beta-2 alongside a
   ``t2.critic`` capability entry in ``rule-catalog/llm-registry.yaml``.
 """

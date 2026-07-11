@@ -19,7 +19,7 @@ The frontend is **not** required to change: every rendered report is a
 strict JSON document with a Datadog-inspired widget schema
 (``{id, type, title, data, options}``), so the console SPA is a generic
 renderer keyed on ``type``. See
-[docs/roadmap/reporting-subsystem.md](../../../../docs/roadmap/reporting-subsystem.md).
+[docs/roadmap/interfaces/reporting-subsystem.md](../../../../docs/roadmap/interfaces/reporting-subsystem.md).
 
 Read-only by contract: the entire subsystem never mutates state, never
 holds the executor identity, and every route wired via

@@ -6,8 +6,8 @@ plus a trigger, a promotion gate, and a default mode.
 
 - **Schema:** [`src/fdai/shared/contracts/workflow/schema.json`](../../src/fdai/shared/contracts/workflow/schema.json)
 - **Loader:** [`src/fdai/rule_catalog/schema/workflow.py`](../../src/fdai/rule_catalog/schema/workflow.py)
-- **Design:** [`docs/roadmap/process-automation.md`](../../docs/roadmap/process-automation.md)
-- **Reference workflows (prose + sequence diagrams):** [`docs/roadmap/agent-workflows.md`](../../docs/roadmap/agent-workflows.md)
+- **Design:** [`docs/roadmap/decisioning/process-automation.md`](../../docs/roadmap/decisioning/process-automation.md)
+- **Reference workflows (prose + sequence diagrams):** [`docs/roadmap/agents/agent-workflows.md`](../../docs/roadmap/agents/agent-workflows.md)
 
 ## Rules
 

@@ -3,11 +3,11 @@
 Governs *human* users only: console sign-in, ChatOps approvers, catalog PR
 authors. Non-human identities (executor Managed Identity, GitHub App,
 Teams bot) stay under
-[`docs/roadmap/security-and-identity.md`](../../../../docs/roadmap/security-and-identity.md);
+[`docs/roadmap/architecture/security-and-identity.md`](../../../../docs/roadmap/architecture/security-and-identity.md);
 they never share a principal with a human role in this module.
 
 Design authority:
-[`docs/roadmap/user-rbac-and-identity.md`](../../../../docs/roadmap/user-rbac-and-identity.md).
+[`docs/roadmap/interfaces/user-rbac-and-identity.md`](../../../../docs/roadmap/interfaces/user-rbac-and-identity.md).
 
 Three sub-modules, each with one responsibility (SRP):
 

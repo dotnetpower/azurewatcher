@@ -1,6 +1,6 @@
 """Storm coordinator - incident-command sequencing under event storms.
 
-Design contract: `docs/roadmap/scope-expansion.md § 3.1` (incident
+Design contract: `docs/roadmap/fork-and-sequencing/scope-expansion.md § 3.1` (incident
 lifecycle) extended with storm handling.
 
 When a single root fault fans out into many correlated incidents, firing

@@ -1,7 +1,7 @@
 """Workload identity - OIDC token issuer; user-assigned MI by default.
 
 Realizes the wire-level contract in
-``docs/roadmap/csp-neutrality.md § Workload Identity Contract``.
+``docs/roadmap/architecture/csp-neutrality.md § Workload Identity Contract``.
 
 Core modules hold a :class:`WorkloadIdentity` reference (obtained via
 :class:`fdai.composition.Container`) and never a

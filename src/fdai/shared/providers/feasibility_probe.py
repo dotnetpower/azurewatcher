@@ -6,7 +6,7 @@ deterministic :class:`ProbeFinding` records. The
 :class:`~fdai.core.deploy_preflight.analyzer.PreflightAnalyzer`
 fans out over a set of probes and assembles a single
 ``DeploymentReadinessReport`` (see
-``docs/roadmap/deployment-preflight.md``).
+``docs/roadmap/deployment/deployment-preflight.md``).
 
 Boundary + portability
 ----------------------

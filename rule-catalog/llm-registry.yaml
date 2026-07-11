@@ -2,8 +2,8 @@
 #
 # Family-only (never dated versions) - the bootstrap resolver picks the
 # latest stable version at provisioning time and records it in
-# resolved-models.json + audit. See docs/roadmap/llm-strategy.md § Capability
-# Preferences Registry and docs/roadmap/dev-and-deploy-parity.md § W-B.
+# resolved-models.json + audit. See docs/roadmap/architecture/llm-strategy.md § Capability
+# Preferences Registry and docs/roadmap/deployment/dev-and-deploy-parity.md § W-B.
 #
 # Rules the schema enforces at load time:
 #   - schema_version is semver.
@@ -64,7 +64,7 @@ models:
   # Wave 4 beta-2: Critic role for the debate orchestrator. Distinct-
   # publisher preference (Anthropic first) so the Critic reviews the
   # Proposer's output with independent model weights, per
-  # docs/roadmap/prompt-composition.md § Debate orchestrator.
+  # docs/roadmap/decisioning/prompt-composition.md § Debate orchestrator.
   # ``invocation: on_disagreement`` so the Critic only fires when the
   # T2 cross-check pair disagrees - keeps token cost bounded.
   t2.critic:

@@ -2,7 +2,7 @@
 
 Both the anomaly detector (section 2) and the forecast detector
 (section 3) of
-[observability-and-detection.md](../../../../docs/roadmap/observability-and-detection.md)
+[observability-and-detection.md](../../../../docs/roadmap/rules-and-detection/observability-and-detection.md)
 consume the same time-ordered metric series, so the sample type lives
 here to avoid one detector importing the other.
 """

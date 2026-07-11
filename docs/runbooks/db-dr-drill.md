@@ -154,5 +154,5 @@ tag `purpose=dr-drill` catch stray drill resource groups older than
 ## Related docs
 
 - [phase-3-integrated-loop.md § Deep DB-DR (stateful — dedicated design)](../roadmap/phases/phase-3-integrated-loop.md)
-- [security-and-identity.md](../roadmap/security-and-identity.md)
+- [security-and-identity.md](../roadmap/architecture/security-and-identity.md)
 - [DbDrVerifier module docstring](../../src/fdai/core/verticals/resilience/db_dr_verifier.py)

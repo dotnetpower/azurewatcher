@@ -16,7 +16,7 @@ can execute (reuse is not auto-trust).
 
 Below threshold → :attr:`T1Outcome.ABSTAIN` → the trust-router routes
 the event to T2 (LLM reasoning) per
-[`docs/roadmap/llm-strategy.md § Pipeline Stages`].
+[`docs/roadmap/architecture/llm-strategy.md § Pipeline Stages`].
 
 DI seams
 --------

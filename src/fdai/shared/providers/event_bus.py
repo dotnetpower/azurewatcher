@@ -5,7 +5,7 @@ friendly, and Event Hubs / Redpanda / Confluent all expose native asyncio
 integrations (`aiokafka`, `confluent-kafka`'s asyncio wrappers, etc.).
 
 Realizes the wire-level contract in
-``docs/roadmap/csp-neutrality.md § Event Bus Contract``.
+``docs/roadmap/architecture/csp-neutrality.md § Event Bus Contract``.
 
 Concrete implementations:
 

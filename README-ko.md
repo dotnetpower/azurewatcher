@@ -1,6 +1,6 @@
 ---
 translation_of: README.md
-translation_source_sha: f52ec1d445437af019291587e771dbd3e3a59e24
+translation_source_sha: e90655ba7146c0b25e2d727758f298293c7e395b
 translation_revised: 2026-07-11
 ---
 
@@ -108,7 +108,7 @@ event -> event-ingest -> trust-router -> T0 | T1 | (T2 -> quality-gate)
 
 오래 돌수록 T2 비중은 작아지고 자동 해결 비율은 높아집니다. 모든 목표는 측정된
 베이스라인 위에서만 주장 가능합니다
-([goals-and-metrics-ko.md](docs/roadmap/goals-and-metrics-ko.md)).
+([goals-and-metrics-ko.md](docs/roadmap/architecture/goals-and-metrics-ko.md)).
 
 ## 시작하기
 
@@ -128,7 +128,7 @@ event -> event-ingest -> trust-router -> T0 | T1 | (T2 -> quality-gate)
 | 배포 토폴로지 (headless core + PR delivery + thin console + ChatOps) | [app-shape.instructions.md](.github/instructions/app-shape.instructions.md) |
 | 모든 자율 액션의 안전 규칙 | [coding-conventions.instructions.md](.github/instructions/coding-conventions.instructions.md) |
 | 단계별 배송 계획 (P0 -> P4) | [docs/roadmap/README-ko.md](docs/roadmap/README-ko.md) |
-| 위험 분류 (auto vs HIL vs deny) | [docs/roadmap/risk-classification-ko.md](docs/roadmap/risk-classification-ko.md) |
+| 위험 분류 (auto vs HIL vs deny) | [docs/roadmap/decisioning/risk-classification-ko.md](docs/roadmap/decisioning/risk-classification-ko.md) |
 | Shadow-then-enforce 승격 | [docs/user-guide/concepts/shadow-then-enforce-ko.md](docs/user-guide/concepts/shadow-then-enforce-ko.md) |
 
 ## 라이센스

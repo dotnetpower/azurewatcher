@@ -3,7 +3,7 @@
 Offline-first: the CLI accepts JSON fixture inputs so it is fully
 testable without any Azure SDK. Real Azure-backed queries plug in later
 via ``--use-azure-sdk`` (deferred - see W-C in
-[dev-and-deploy-parity.md](../../../../docs/roadmap/dev-and-deploy-parity.md)).
+[dev-and-deploy-parity.md](../../../../docs/roadmap/deployment/dev-and-deploy-parity.md)).
 
 Usage
 -----

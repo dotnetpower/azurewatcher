@@ -139,7 +139,7 @@ variable "event_bus_kind" {
 
 
 variable "enable_llm" {
-  description = "Opt-in switch for the Azure OpenAI module (docs/roadmap/dev-and-deploy-parity.md § W-D). When false, no Cognitive Services account is created; the runtime binds the deterministic fake."
+  description = "Opt-in switch for the Azure OpenAI module (docs/roadmap/deployment/dev-and-deploy-parity.md § W-D). When false, no Cognitive Services account is created; the runtime binds the deterministic fake."
   type        = bool
   default     = false
 }
@@ -184,7 +184,7 @@ variable "dr_drill_dry_run" {
 # Private networking (policy-locked tenants).
 # ---------------------------------------------------------------------------
 variable "enable_private_networking" {
-  description = "When true, provision a VNet + a Key Vault private endpoint + private DNS and bind the Container App Environment to a delegated subnet, and lock the Key Vault to private access. Required on any tenant that enforces 'Key Vault public network access disabled'. When false (day-zero default) the deploy stays fully public. See docs/roadmap/deploy-and-onboard.md (private-networking layer). NOTE: with this enabled, `terraform apply` MUST run from a host with VNet line-of-sight to the KV private endpoint (a CI runner or jumpbox inside the VNet); the operator laptop cannot write secrets to a private-only vault."
+  description = "When true, provision a VNet + a Key Vault private endpoint + private DNS and bind the Container App Environment to a delegated subnet, and lock the Key Vault to private access. Required on any tenant that enforces 'Key Vault public network access disabled'. When false (day-zero default) the deploy stays fully public. See docs/roadmap/deployment/deploy-and-onboard.md (private-networking layer). NOTE: with this enabled, `terraform apply` MUST run from a host with VNet line-of-sight to the KV private endpoint (a CI runner or jumpbox inside the VNet); the operator laptop cannot write secrets to a private-only vault."
   type        = bool
   default     = false
 }
@@ -241,7 +241,7 @@ variable "alert_webhook_url" {
 # ---------------------------------------------------------------------------
 # Hardening knobs (root-exposed; default to the day-zero/dev posture so the
 # live env is unchanged, tighten for staging/prod via tfvars). See the
-# production-hardening checklist in docs/roadmap/deploy-and-onboard.md.
+# production-hardening checklist in docs/roadmap/deployment/deploy-and-onboard.md.
 # ---------------------------------------------------------------------------
 variable "kv_purge_protection_enabled" {
   description = "Key Vault purge protection. IRREVERSIBLE once true; prod should set it, dev leaves false so a tear-down does not wait out the purge window."

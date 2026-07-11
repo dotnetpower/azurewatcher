@@ -1,7 +1,7 @@
 """Metric anomaly detector - deterministic-first, shadow-mode finding producer.
 
 Implements the anomaly-detection stance of
-[observability-and-detection.md](../../../../docs/roadmap/observability-and-detection.md)
+[observability-and-detection.md](../../../../docs/roadmap/rules-and-detection/observability-and-detection.md)
 section 2: compute a statistical baseline (mean / population std) over a
 metric history and flag a deviation past a z-score threshold as an
 :class:`AnomalyFinding`. The finding normalizes to an

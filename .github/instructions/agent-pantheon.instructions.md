@@ -10,7 +10,7 @@ This file is the **normative contract for editing any file under
 consistent with the agent's declared role, permissions, and safety invariants -
 never silently drifting from the design.
 
-The authoritative design is [../../docs/roadmap/agent-pantheon.md](../../docs/roadmap/agent-pantheon.md)
+The authoritative design is [../../docs/roadmap/agents/agent-pantheon.md](../../docs/roadmap/agents/agent-pantheon.md)
 (org chart, topic contract, ActionType role bindings, LLM policy, degradation
 policy). This file is the short, always-loaded rule set; when the two disagree,
 `agent-pantheon.md` wins for design and this file wins for the change process.

@@ -13,7 +13,7 @@ Rows here come from the design docs, not the runtime - the objective is
 FK violations", not "authoritative catalog":
 
 - ``ontology_object_type`` - the four ontology entities documented in
-  [`docs/roadmap/llm-strategy.md` § Ontology Foundation]:
+  [`docs/roadmap/architecture/llm-strategy.md` § Ontology Foundation]:
   ``Resource``, ``Rule``, ``Signal``, ``Finding``.
 - ``ontology_link_type`` - the P1-scoped LinkTypes whose ``from_type`` and
   ``to_type`` both resolve to one of the seeded ObjectTypes:
@@ -25,7 +25,7 @@ FK violations", not "authoritative catalog":
   ``triggered_by`` → SignalType, ``evaluates`` → Property,
   ``remediates`` → ActionType) and ``overrides`` (Override → Rule)
   reference ObjectTypes that are NOT yet first-class rows - see
-  [`docs/roadmap/llm-strategy.md` § Fork Extension] - so a schema-level
+  [`docs/roadmap/architecture/llm-strategy.md` § Fork Extension] - so a schema-level
   seed for them belongs in the follow-up that promotes
   ``ResourceType`` / ``SignalType`` / ``ActionType`` / ``Override`` to
   ontology types. Seeding those links today would violate the FK on
@@ -34,7 +34,7 @@ FK violations", not "authoritative catalog":
 The insert uses ``ON CONFLICT DO NOTHING`` so re-running the migration on
 an already-seeded database is idempotent (matches the ``full_snapshot``
 contract in
-[`docs/roadmap/csp-neutrality.md` § 5]).
+[`docs/roadmap/architecture/csp-neutrality.md` § 5]).
 
 Full JSON definitions live in
 ``src/fdai/shared/contracts/ontology/*.json``; the loaders under

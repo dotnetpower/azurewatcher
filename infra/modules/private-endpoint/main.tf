@@ -8,7 +8,7 @@
 # privatelink.postgres.database.azure.com). Distinct zone names mean two PE
 # module instances never collide on the zone resource.
 #
-# Design: docs/roadmap/deploy-and-onboard.md (private-networking layer).
+# Design: docs/roadmap/deployment/deploy-and-onboard.md (private-networking layer).
 
 resource "azurerm_private_dns_zone" "this" {
   name                = var.private_dns_zone_name

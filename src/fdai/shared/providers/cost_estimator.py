@@ -7,7 +7,7 @@ vertical into ``core/``. The ``cost_impact_monthly`` scalar in
 estimate ultimately lands; this Protocol is how a caller resolves it
 for a given ``(ActionType, arguments)`` pair when the ActionType is
 cost-increasing (see
-[execution-model.md](../../../../docs/roadmap/execution-model.md)
+[execution-model.md](../../../../docs/roadmap/decisioning/execution-model.md)
 section 2.8 on cost-increasing ops actions).
 
 Design invariants

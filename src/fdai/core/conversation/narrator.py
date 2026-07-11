@@ -7,7 +7,7 @@ regex matcher will resolve, or abstain.
 
 Design authority
 ----------------
-[implementation-plan.md 2.2](../../../../docs/roadmap/implementation-plan.md)
+[implementation-plan.md 2.2](../../../../docs/roadmap/fork-and-sequencing/implementation-plan.md)
 R2 (ConsoleTool projection) and 2.3 R3 (LlmBinding role enum) fix the
 narrator as a **translator, never a judge**:
 

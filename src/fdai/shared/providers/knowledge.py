@@ -1,6 +1,6 @@
 """Knowledge base ingestion + retrieval - CSP-neutral RAG seam.
 
-Design contract: ``docs/roadmap/scope-expansion.md § 3.2`` (telemetry /
+Design contract: ``docs/roadmap/fork-and-sequencing/scope-expansion.md § 3.2`` (telemetry /
 grounding inputs) and the grounding rule in
 ``architecture.instructions.md § LLM Quality Gate`` ("force citation of the
 rules/policies that justify the judgment; abstain when unsupported").

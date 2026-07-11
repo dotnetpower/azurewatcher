@@ -2,7 +2,7 @@
 
 Phase 2 risk-gate (see
 [`architecture.instructions.md § Risk-Gated Autonomy`] and
-[`docs/roadmap/risk-classification.md`]).
+[`docs/roadmap/decisioning/risk-classification.md`]).
 
 Contract
 --------

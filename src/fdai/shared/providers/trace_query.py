@@ -1,6 +1,6 @@
 """External distributed-trace ingestion - CSP-neutral wire (Layer-0 #8).
 
-Design contract: ``docs/roadmap/scope-expansion.md § 3.2``.
+Design contract: ``docs/roadmap/fork-and-sequencing/scope-expansion.md § 3.2``.
 
 Consumes spans from the customer's trace backend (App Insights, Tempo,
 Jaeger, Honeycomb) so RCA can walk a request across services. Async by

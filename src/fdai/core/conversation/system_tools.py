@@ -2,7 +2,7 @@
 query_audit, query_inventory).
 
 These complete the Day-1 read-only surface described in
-[operator-console.md § 3.1](../../../../docs/roadmap/operator-console.md).
+[operator-console.md § 3.1](../../../../docs/roadmap/interfaces/operator-console.md).
 Each tool is a self-contained :class:`SystemConsoleTool` implementation
 that delegates to already-composed Layer-1 modules (T0Engine +
 TrustRouter, StateStore, Inventory) via constructor injection.
@@ -611,7 +611,7 @@ class QueryOperatorMemoryTool:
     read tool lets an operator inspect "what have we already decided
     about this scope" before proposing a change - the narrator never
     reads memory directly, matching R6 in
-    [implementation-plan.md](../../../../docs/roadmap/implementation-plan.md).
+    [implementation-plan.md](../../../../docs/roadmap/fork-and-sequencing/implementation-plan.md).
 
     Arguments (``arguments`` mapping):
 

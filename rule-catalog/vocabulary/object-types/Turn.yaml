@@ -3,7 +3,7 @@
 # A `Turn` is one exchange within a Conversation. Append-only. Includes
 # the routing decision (primary agent, contributors, score) so the audit
 # reader can reconstruct how a natural-language response was assembled.
-# See docs/roadmap/agent-pantheon.md § 6.3.
+# See docs/roadmap/agents/agent-pantheon.md § 6.3.
 schema_version: "1.0.0"
 name: Turn
 version: "1.0.0"

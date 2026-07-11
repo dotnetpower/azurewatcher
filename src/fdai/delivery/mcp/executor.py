@@ -1,7 +1,7 @@
 """MCP (Model Context Protocol) implementation of the
 :class:`~fdai.shared.providers.tool.ToolExecutor` seam.
 
-Design contract: ``docs/roadmap/execution-model.md § 5.6 Tool call`` and
+Design contract: ``docs/roadmap/decisioning/execution-model.md § 5.6 Tool call`` and
 the "natural attach point for an MCP adapter" note in
 ``shared/providers/tool.py``. This is the first **real** ``ToolExecutor``:
 it maps a ``tool.*`` ActionType onto one tool exposed by an MCP server and

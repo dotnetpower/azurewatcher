@@ -3,7 +3,7 @@
 # check-core-imports.sh - enforce the module-boundary rule that keeps the
 # control-plane CSP-neutral and UI-agnostic.
 #
-# Rule (see docs/roadmap/project-structure.md § Module Boundaries and
+# Rule (see docs/roadmap/architecture/project-structure.md § Module Boundaries and
 # .github/copilot-instructions.md § Implementation Focus):
 #
 #   src/fdai/core/** MUST NOT import:
@@ -12,7 +12,7 @@
 #     * anything under fdai.delivery.*
 #
 # The reason is the CSP-neutrality contract set in
-# docs/roadmap/csp-neutrality.md: every cloud-touching call goes through
+# docs/roadmap/architecture/csp-neutrality.md: every cloud-touching call goes through
 # a Protocol under fdai.shared.providers.*, whose concrete
 # implementations live in fdai.delivery.* and are bound at the
 # composition root. A stray `import httpx` inside core/ collapses that
@@ -65,7 +65,7 @@ if (( fail )); then
 
 Fix by moving the offending SDK / HTTP / delivery adapter call behind
 one of the CSP-neutral Protocols in src/fdai/shared/providers/
-(see docs/roadmap/csp-neutrality.md § 1-5) and binding the concrete
+(see docs/roadmap/architecture/csp-neutrality.md § 1-5) and binding the concrete
 implementation at the composition root.
 EOF
   exit 1

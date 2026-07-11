@@ -5,7 +5,7 @@
 # adapter dispatch). The list is deliberately conservative for P1 - it
 # covers the resource types the initial rule set for the three verticals
 # (Resilience, Change Safety, Cost Governance) references. New types are
-# added via a governance PR (see `docs/roadmap/rule-catalog-collection.md`).
+# added via a governance PR (see `docs/roadmap/rules-and-detection/rule-catalog-collection.md`).
 #
 # Fields
 #   id             kebab-case identifier (this string is what rules quote)

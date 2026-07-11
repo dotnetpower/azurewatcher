@@ -1,7 +1,7 @@
 """IaC review publisher Protocol - Wave A.4.
 
 The Assurance Twin's ambient review path
-([assurance-twin.md](../../../../docs/roadmap/assurance-twin.md) 1) posts a
+([assurance-twin.md](../../../../docs/roadmap/operations/assurance-twin.md) 1) posts a
 grounded Check onto an IaC pull request when the twin's projection
 finds violations against the proposed diff. The seam is CSP-neutral:
 ``core/assurance_twin/review.py`` calls this Protocol only.

@@ -1,7 +1,7 @@
 """Prometheus HTTP-API implementation of the
 :class:`~fdai.shared.providers.metric.MetricProvider` seam.
 
-Design contract: ``docs/roadmap/scope-expansion.md § 3.2``. A second live
+Design contract: ``docs/roadmap/fork-and-sequencing/scope-expansion.md § 3.2``. A second live
 ``MetricProvider`` alongside the Azure Monitor Logs adapter, this one
 CSP-neutral: it speaks the Prometheus query API and therefore works against
 vanilla Prometheus, Thanos, Cortex / Mimir, and Azure Monitor managed

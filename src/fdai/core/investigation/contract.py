@@ -15,7 +15,7 @@ recommendations within a bounded latency budget.
 See:
 - [architecture.instructions.md](../../../../.github/instructions/architecture.instructions.md)
   (RCA answers "why", the risk gate answers "execute").
-- [observability-and-detection.md](../../../../docs/roadmap/observability-and-detection.md).
+- [observability](../../../../docs/roadmap/rules-and-detection/observability-and-detection.md).
 """
 
 from __future__ import annotations

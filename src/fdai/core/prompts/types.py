@@ -18,7 +18,7 @@ from enum import StrEnum
 class PromptLayer(StrEnum):
     """Which composition slot an artifact fills.
 
-    See ``docs/roadmap/prompt-composition.md § Role x Layer matrix`` for
+    See ``docs/roadmap/decisioning/prompt-composition.md § Role x Layer matrix`` for
     the full catalog. Only :attr:`BASE` ships in Wave 1; the other
     values are reserved for later waves and included here so the enum
     stays stable when they arrive.

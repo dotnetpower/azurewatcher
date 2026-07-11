@@ -23,7 +23,7 @@ class DashboardMetrics:
     """The KPI-dashboard's aggregated snapshot for a batch of audit entries.
 
     Every field maps to a documented metric in
-    ``docs/roadmap/goals-and-metrics.md``. Ratios are in ``[0, 1]``; the
+    ``docs/roadmap/architecture/goals-and-metrics.md``. Ratios are in ``[0, 1]``; the
     ``per_100_events`` field is a scaled ratio.
     """
 

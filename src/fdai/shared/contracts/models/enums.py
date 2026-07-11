@@ -113,7 +113,7 @@ class Redistribution(StrEnum):
     ``LicenseRef-reference-only``) records **what** the license is;
     ``redistribution`` records **what the collector may commit** - the
     enforcement value, not the license name (see
-    ``docs/roadmap/rule-catalog-collection.md § Licensing``).
+    ``docs/roadmap/rules-and-detection/rule-catalog-collection.md § Licensing``).
     """
 
     EMBEDDABLE = "embeddable"

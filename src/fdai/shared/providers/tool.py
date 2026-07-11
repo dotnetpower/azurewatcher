@@ -1,7 +1,7 @@
 """Tool executor - CSP-neutral contract for the tool-call execution path.
 
 The `tool_call` execution path in
-`docs/roadmap/execution-model.md § 5.6 Tool call` invokes a **registered
+`docs/roadmap/decisioning/execution-model.md § 5.6 Tool call` invokes a **registered
 function** (generate a PDF report, send a notification, open a ticket, ...)
 rather than mutating a cloud substrate or opening a remediation PR. It is
 the ontology-native counterpart to the way an LLM calls a tool: a

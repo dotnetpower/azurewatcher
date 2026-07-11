@@ -1,8 +1,8 @@
 """Channel-routing layer.
 
 Implements the routing policy described in
-[`docs/roadmap/channels-and-notifications.md § 6`]
-(../../../../../docs/roadmap/channels-and-notifications.md#6-routing-policy-config-driven).
+[`docs/roadmap/interfaces/channels-and-notifications.md § 6`]
+(../../../../../docs/roadmap/interfaces/channels-and-notifications.md#6-routing-policy-config-driven).
 
 The router:
 

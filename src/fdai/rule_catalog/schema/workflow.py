@@ -13,7 +13,7 @@ Why this exists
 ---------------
 A Workflow declares a business process as an ordered list of steps, each
 referencing one ontology ActionType (see
-[process-automation.md](../../../../docs/roadmap/process-automation.md)).
+[process-automation.md](../../../../docs/roadmap/decisioning/process-automation.md)).
 The business-critical linkage - a step to its ActionType - is a name
 cross-reference resolved here, exactly as a Rule's ``remediates`` resolves
 to an ActionType in :mod:`fdai.rule_catalog.schema.rule`. A typo fails at

@@ -6,7 +6,7 @@
 # FDAI is both a solution AND a framework. The framework surface is the set
 # of files a downstream fork MUST NOT edit (it customizes by dependency
 # injection at a composition root instead - see
-# docs/roadmap/downstream-fork-guide.md § 3 "The one hard rule"). In the
+# docs/roadmap/fork-and-sequencing/downstream-fork-guide.md § 3 "The one hard rule"). In the
 # upstream repo itself these files ARE edited - that is how the framework
 # evolves - so this guard is deliberately mode-aware:
 #
@@ -42,8 +42,8 @@ cd "$repo_root"
 # ---------------------------------------------------------------------------
 # The framework surface. Prefix-matched against each changed path (repo-root
 # relative). Keep in sync with:
-#   - docs/roadmap/downstream-fork-guide.md § 3 (the one hard rule)
-#   - docs/roadmap/project-structure.md § Customization via Dependency Injection
+#   - docs/roadmap/fork-and-sequencing/downstream-fork-guide.md § 3 (the one hard rule)
+#   - docs/roadmap/architecture/project-structure.md § Customization via Dependency Injection
 #   - .github/instructions/agent-pantheon.instructions.md (fork-locked agents)
 #   - .github/CODEOWNERS (the review-time counterpart of this guard)
 # ---------------------------------------------------------------------------
@@ -141,7 +141,7 @@ fi
 # GitHub Actions annotations (surface on the PR Files tab in both modes).
 if [ "${GITHUB_ACTIONS:-false}" = "true" ]; then
   for f in "${hits[@]}"; do
-    echo "::warning file=${f}::Framework-surface file changed. A fork MUST NOT edit this; see docs/roadmap/downstream-fork-guide.md."
+    echo "::warning file=${f}::Framework-surface file changed. A fork MUST NOT edit this; see docs/roadmap/fork-and-sequencing/downstream-fork-guide.md."
   done
 fi
 
@@ -159,7 +159,7 @@ if [ "$mode" = "fork" ]; then
     echo "    dataclasses.replace() to swap the seams you own, or"
     echo "  - add catalog entries / adapters under fork/, not here."
     echo ""
-    echo "See docs/roadmap/downstream-fork-guide.md § 3 (the one hard rule)."
+    echo "See docs/roadmap/fork-and-sequencing/downstream-fork-guide.md § 3 (the one hard rule)."
     echo "If this is a genuine upstream gap, open an upstream issue."
     echo ""
     echo "Local-only override (audited by review): FDAI_ALLOW_PROTECTED=1"
@@ -192,6 +192,6 @@ fi
   echo "    new seam alongside the old for one release), and"
   echo "  - CODEOWNERS will request an owner review."
   echo ""
-  echo "See docs/roadmap/downstream-fork-guide.md § 6.1 (version pinning)."
+  echo "See docs/roadmap/fork-and-sequencing/downstream-fork-guide.md § 6.1 (version pinning)."
 } >&2
 exit 0

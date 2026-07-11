@@ -1,6 +1,6 @@
 """Self-consistency sampler - stability reduction + sampling.
 
-Design reference: ``docs/roadmap/hallucination-rubric-gate.md`` §
+Design reference: ``docs/roadmap/decisioning/hallucination-rubric-gate.md`` §
 Self-consistency.
 """
 

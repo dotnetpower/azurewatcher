@@ -286,7 +286,7 @@ def test_resolver_rejects_rubric_judge_sharing_primary_publisher() -> None:
 
     A model grading its own answer defeats the rubric's independence
     assumption - the resolver refuses it at config load, mirroring the
-    cross-check pair rule. See docs/roadmap/hallucination-rubric-gate.md.
+    cross-check pair rule. See docs/roadmap/decisioning/hallucination-rubric-gate.md.
     """
     from fdai.rule_catalog.schema.llm_resolver import (
         CapabilityStatus,

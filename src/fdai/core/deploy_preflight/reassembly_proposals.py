@@ -7,7 +7,7 @@ proposal per applied toggle** (the granularity-A decision) for the
 ``remediate.apply-preflight-toggle`` ActionType, and submits each through an
 injected pipeline sink (Huginn -> Forseti -> Var -> Thor), shadow-first.
 
-Design: ``docs/roadmap/preflight-active-reassembly.md``.
+Design: ``docs/roadmap/deployment/preflight-active-reassembly.md``.
 
 Boundaries
 ----------

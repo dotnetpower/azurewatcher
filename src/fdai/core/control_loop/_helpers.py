@@ -227,7 +227,7 @@ def _extract_resource_props(payload: Mapping[str, Any]) -> Mapping[str, Any]:
     """Pull the resource ``props`` map out of the event payload.
 
     Two shapes are accepted (both documented in
-    ``docs/roadmap/csp-neutrality.md § 5``):
+    ``docs/roadmap/architecture/csp-neutrality.md § 5``):
 
     1. ``payload['resource']['props']`` - matches
        :class:`ResourceRecord` produced by the Inventory adapter.

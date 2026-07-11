@@ -10,7 +10,7 @@ This file defines the control-plane architecture. It complements the deployment 
 [coding-conventions.instructions.md](coding-conventions.instructions.md), and the phased plan
 under [docs/roadmap](../../docs/roadmap/README.md). All coverage, latency, and cost figures
 below are **targets to validate against a measured baseline**
-([goals-and-metrics.md](../../docs/roadmap/goals-and-metrics.md)), not guarantees; state no
+([goals-and-metrics.md](../../docs/roadmap/architecture/goals-and-metrics.md)), not guarantees; state no
 multiplier without measuring baseline and treatment on the same scenario set.
 
 ## Design Principles
@@ -44,7 +44,7 @@ multiplier without measuring baseline and treatment on the same scenario set.
 Latency values are order-of-magnitude budgets, not SLAs. Coverage targets are approximate and
 partition one event stream, so they must sum to ~100%; T0+T1 together target the ~85-90%
 deterministic/lightweight share cited in
-[goals-and-metrics.md](../../docs/roadmap/goals-and-metrics.md).
+[goals-and-metrics.md](../../docs/roadmap/architecture/goals-and-metrics.md).
 
 | Tier | Handles | Model use | Latency budget | Coverage target |
 |------|---------|-----------|----------------|-----------------|
@@ -64,7 +64,7 @@ The trust router computes a per-event confidence and selects the lowest sufficie
 Confidence inputs (rule match, similarity score, historical success rate) and their thresholds
 are **configuration**, not hard-coded. Module names for these stages
 (`event-ingest`, `trust-router`, `tiers/*`, `quality-gate`, `risk-gate`, `executor`, `audit`)
-are fixed by [project-structure.md](../../docs/roadmap/project-structure.md).
+are fixed by [project-structure.md](../../docs/roadmap/architecture/project-structure.md).
 
 ## Control Loop
 
@@ -91,7 +91,7 @@ router like any event, and **root-cause analysis** is a first-class tier output 
 T1 correlation to resolved incidents, T2 grounded reasoning). Detection stays deterministic-first,
 ships in shadow mode, and a prediction or anomaly **never auto-acts on its own** - it raises a
 finding the risk gate governs. Full design:
-[observability-and-detection.md](../../docs/roadmap/observability-and-detection.md).
+[observability-and-detection.md](../../docs/roadmap/rules-and-detection/observability-and-detection.md).
 
 ### Idempotency, Ordering, and Replay
 
@@ -106,7 +106,7 @@ finding the risk gate governs. Full design:
 
 T2 inputs (event payloads, tool output) are **untrusted** and may carry prompt injection; the
 verifier and policy re-check are the authority, not model text (see the threat model in
-[security-and-identity.md](../../docs/roadmap/security-and-identity.md)).
+[security-and-identity.md](../../docs/roadmap/architecture/security-and-identity.md)).
 
 - **Mixed-model cross-check**: run two or more distinct models (ideally different vendors or
   families) on the same judgment. A single model is never sufficient. On agreement, proceed;
@@ -180,7 +180,7 @@ The control loop is owned by a fixed set of 15 named agents that live as first-c
 `Agent` objects in the ontology. The pantheon is customer-agnostic and defined upstream
 only: forks configure it (bindings, enable/disable, rate limits) but MUST NOT add,
 remove, or rename agents. Full design, org chart, topic contract, and per-agent
-responsibilities live in [../../docs/roadmap/agent-pantheon.md](../../docs/roadmap/agent-pantheon.md).
+responsibilities live in [../../docs/roadmap/agents/agent-pantheon.md](../../docs/roadmap/agents/agent-pantheon.md).
 When editing agent code under `src/fdai/agents/**`, the role table and the MUST rules
 in [agent-pantheon.instructions.md](agent-pantheon.instructions.md) apply (it auto-loads
 for that path).
@@ -215,7 +215,7 @@ Every `ActionType` binds five agent roles: `initiators`, `judge`, `executor`, `a
 `auditor`. The registry rejects any lifecycle event whose `producer_principal` does not
 match the declared role. The `executor`, `judge`, `approver`, `auditor`, and `initiators`
 fields are fork-locked (see the fork boundaries in
-[../../docs/roadmap/agent-pantheon.md](../../docs/roadmap/agent-pantheon.md#10-fork-customization)).
+[../../docs/roadmap/agents/agent-pantheon.md](../../docs/roadmap/agents/agent-pantheon.md#10-fork-customization)).
 
 Handoff, security notification, and privilege-escalation monitoring all flow through the
 same lifecycle and audit machinery - no side-channel side-effects. When an agent cannot
@@ -232,7 +232,7 @@ these means the action is incomplete and must not ship.
 New capabilities ship in **shadow mode** (judge-and-log only, no execution). Promotion to
 enforce is explicit, per-action, and gated on measured accuracy plus zero policy-violation
 escapes in shadow; regressions demote back to shadow automatically
-([security-and-identity.md](../../docs/roadmap/security-and-identity.md)).
+([security-and-identity.md](../../docs/roadmap/architecture/security-and-identity.md)).
 
 ## Human Override
 
@@ -246,7 +246,7 @@ grounding.
   rule automatically; upstream rule updates flow through without touching overrides.
 - **Scope MUST be bounded to a resource-group-equivalent grouping or narrower** (the
   `resource-group` layer of the scope hierarchy in
-  [rule-governance.md](../../docs/roadmap/rule-governance.md), or `resource`).
+  [rule-governance.md](../../docs/roadmap/rules-and-detection/rule-governance.md), or `resource`).
   Organization- or account-wide overrides are rejected; disabling a rule everywhere is not
   an override, it is a rule retirement and must go through the catalog pipeline.
 - **Permitted modes**: `disabled` (rule off in the scope), `severity-downgrade`
@@ -268,6 +268,6 @@ grounding.
 
 - Emit per-tier metrics (coverage share, latency, auto-resolution rate), the mixed-model
   disagreement rate, verifier pass/fail rate, and rollback rate; these feed the KPIs in
-  [goals-and-metrics.md](../../docs/roadmap/goals-and-metrics.md).
+  [goals-and-metrics.md](../../docs/roadmap/architecture/goals-and-metrics.md).
 - Trace each event end-to-end (event → tier → gate decision → action) with the correlating
   audit reference, so any autonomous action is reconstructable.

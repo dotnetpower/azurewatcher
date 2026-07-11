@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fdai.dev/schemas/rule-catalog/source-manifest/1.0.0",
   "title": "SourceManifest",
-  "description": "One rule-catalog source manifest. Declares WHAT to fetch, from WHERE, at WHICH revision, and under WHICH license. Consumed by the collector pipeline (see docs/roadmap/rule-catalog-collection.md § Collector Architecture). One file per source, lives under rule-catalog/sources/<id>/manifest.yaml.",
+  "description": "One rule-catalog source manifest. Declares WHAT to fetch, from WHERE, at WHICH revision, and under WHICH license. Consumed by the collector pipeline (see docs/roadmap/rules-and-detection/rule-catalog-collection.md § Collector Architecture). One file per source, lives under rule-catalog/sources/<id>/manifest.yaml.",
   "type": "object",
   "additionalProperties": false,
   "required": [

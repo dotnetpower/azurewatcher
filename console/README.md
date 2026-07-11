@@ -18,7 +18,7 @@ share the executor identity.
   ID with no static content pre-render benefit. Vite gives the fastest DX and
   the smallest transitive dep tree for that shape.
 - **MSAL.js** - the standard Entra ID library. Handles OIDC + PKCE per
-  [`docs/roadmap/user-rbac-and-identity.md` § 10.1](../docs/roadmap/user-rbac-and-identity.md).
+  [`docs/roadmap/interfaces/user-rbac-and-identity.md` § 10.1](../docs/roadmap/interfaces/user-rbac-and-identity.md).
 
 ## Read-only surface
 
@@ -143,7 +143,7 @@ judges it and, for a high-risk action, an approver signs off** (execution is
 shadow-first, and RBAC is enforced server-side - a Reader gets `403`). The deck
 renders the outcome (submitted with a correlation id / refused by role /
 unmapped) and never holds any execution authority. See
-[operator-console.md § 13.5](../docs/roadmap/operator-console.md).
+[operator-console.md § 13.5](../docs/roadmap/interfaces/operator-console.md).
 
 ### Self-describing screens
 
@@ -297,7 +297,7 @@ verifies genuine Entra access tokens against the tenant JWKS
 still serving the in-memory seed, so no live audit store is needed.
 
 Prerequisite - two Entra app registrations in your tenant (see
-[user-rbac-and-identity.md § 10](../docs/roadmap/user-rbac-and-identity.md#10-sign-in-flow-reference)):
+[user-rbac-and-identity.md § 10](../docs/roadmap/interfaces/user-rbac-and-identity.md#10-sign-in-flow-reference)):
 
 1. **SPA app** (`fdai-console-spa`): platform *Single-page application*, redirect
    URI `http://localhost:5173`. Note its client id.

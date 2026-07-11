@@ -6,7 +6,7 @@ resource ref, arguments, labels). Idempotency is honored: a second
 dispatch for the same ``idempotency_key`` returns the same receipt
 with ``already_existed=True`` and does NOT duplicate the recorded
 entry - this mirrors the contract in
-`docs/roadmap/execution-model.md § 5.2 Direct API`.
+`docs/roadmap/decisioning/execution-model.md § 5.2 Direct API`.
 
 Test hooks:
 

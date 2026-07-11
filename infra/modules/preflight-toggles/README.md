@@ -1,7 +1,7 @@
 # Preflight capability-mode toggles
 
 Data-only Terraform modules that encode the five **capability-mode
-toggles** from `docs/roadmap/deployment-preflight.md`
+toggles** from `docs/roadmap/deployment/deployment-preflight.md`
 (Blocker-to-Terraform Toggle Mapping). Each toggle turns a policy-
 deny-shaped deploy blocker into a supported alternate rendering, so
 the plan never emits the denied operation in the first place.
@@ -28,7 +28,7 @@ Keeping the toggles data-only means:
 - A fork can wire the outputs into whichever compute / network
   module they already have, without editing this repo.
 - The Deployment Preflight analyzer (see
-  `docs/roadmap/deployment-preflight.md`) can quote the module name +
+  `docs/roadmap/deployment/deployment-preflight.md`) can quote the module name +
   the `mode` value verbatim in a `terraform_toggle` finding, and a
   reviewer can apply the fix by changing exactly one variable.
 

@@ -1,8 +1,8 @@
 # Upstream built-in ObjectType: Agent.
 #
 # An `Agent` is one of the 15 fixed pantheon roles that own the runtime
-# control plane. See docs/roadmap/agent-pantheon.md for the full contract
-# and docs/roadmap/agent-workflows.md for the 10 workflows they compose.
+# control plane. See docs/roadmap/agents/agent-pantheon.md for the full contract
+# and docs/roadmap/agents/agent-workflows.md for the 10 workflows they compose.
 #
 # The pantheon is customer-agnostic and upstream-fixed: forks configure
 # agents (bindings, enable/disable, rate limits) but MUST NOT add, remove,

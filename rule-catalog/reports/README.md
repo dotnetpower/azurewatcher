@@ -19,7 +19,7 @@ read-only ``GET /reports/*`` routes.
    [`signal-feed-overview.yaml`](signal-feed-overview.yaml)) as a template.
 2. Give it a unique lowercase `id` and a semver `version`.
 3. Pick the widget types you need from
-   [docs/roadmap/reporting-subsystem.md](../../docs/roadmap/reporting-subsystem.md#widget-catalog).
+   [docs/roadmap/interfaces/reporting-subsystem.md](../../docs/roadmap/interfaces/reporting-subsystem.md#widget-catalog).
 4. Wire each widget's `query.datasource` to a registered source
    (`audit`, `report_feed`, `metric`, `log_query`, `static`, `noop`, or
    a fork-registered custom source).
@@ -28,7 +28,7 @@ read-only ``GET /reports/*`` routes.
    or by running the reporting test suite.
 
 Widget shapes and the JSON contract the FE consumes live in
-[docs/roadmap/reporting-subsystem.md](../../docs/roadmap/reporting-subsystem.md).
+[docs/roadmap/interfaces/reporting-subsystem.md](../../docs/roadmap/interfaces/reporting-subsystem.md).
 
 ## What the loader enforces
 

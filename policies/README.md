@@ -36,7 +36,7 @@ policies/
 - `input.resource.type` MUST equal the CSP-neutral `resource_type` the rule targets
   (defense-in-depth against a runtime dispatch mistake).
 - `input.parameters` carries per-assignment overrides
-  ([rule-governance.md](../docs/roadmap/rule-governance.md)); use the
+  ([rule-governance.md](../docs/roadmap/rules-and-detection/rule-governance.md)); use the
   `x := input.parameters.foo else := <default>` idiom so a missing parameter
   falls back to the rule's authored default.
 - Emit a `deny_reason` string on every deny so the audit-log entry carries a

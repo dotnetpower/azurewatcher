@@ -50,7 +50,7 @@ class RegressionGateConfig:
     :class:`RegressionGateConfig`; loosening (raising escape allowance,
     lowering coverage floor) is deliberately awkward because that's an
     audited governance change, not a code tweak
-    (see ``docs/roadmap/rule-governance.md``).
+    (see ``docs/roadmap/rules-and-detection/rule-governance.md``).
     """
 
     max_policy_escapes: int = _DEFAULT_MAX_POLICY_ESCAPES

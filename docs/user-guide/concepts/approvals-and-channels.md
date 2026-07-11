@@ -121,4 +121,4 @@ control plane reads the group, it does not maintain its own copy.
 | The end-to-end approve/reject walkthrough | [../guides/approve-change.md](../guides/approve-change.md) |
 | How an action is classified AUTO / HIL / DENY | [risk-tiers.md](risk-tiers.md) |
 | Which agent carries your approval, and who executes | [agents-and-self-healing.md](agents-and-self-healing.md) |
-| The full channel abstraction, trust matrix, and routing policy | [../../roadmap/channels-and-notifications.md](../../roadmap/channels-and-notifications.md) |
+| The full channel abstraction, trust matrix, and routing policy | [../../roadmap/interfaces/channels-and-notifications.md](../../roadmap/interfaces/channels-and-notifications.md) |

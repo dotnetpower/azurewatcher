@@ -6,7 +6,7 @@ Pure-function core; SDK bindings sit at the edges. Given a
 :func:`resolve` picks one deployment per capability, enforces the five
 deployer-permission gates from
 [dev-and-deploy-parity.md § Deployer-Scoped LLM Provisioning](
-../../../../docs/roadmap/dev-and-deploy-parity.md#deployer-scoped-llm-provisioning),
+../../../../docs/roadmap/deployment/dev-and-deploy-parity.md#deployer-scoped-llm-provisioning),
 and returns a deterministic :class:`ResolvedModels` record ready for
 serialization to ``resolved-models.json``.
 
@@ -389,7 +389,7 @@ def _enforce_mixed_model_invariant(entries: list[ResolvedCapability]) -> None:
     - ``t2.reasoner.primary`` vs ``t2.reasoner.secondary`` (the cross-check
       pair - correlated errors defeat the check);
     - ``t2.rubric.judge`` vs ``t2.reasoner.primary`` (a model must not grade
-      its own answer; see docs/roadmap/hallucination-rubric-gate.md).
+      its own answer; see docs/roadmap/decisioning/hallucination-rubric-gate.md).
 
     The rubric judge is intentionally NOT forced distinct from
     ``t2.reasoner.secondary``. The self-grading hazard is specifically the

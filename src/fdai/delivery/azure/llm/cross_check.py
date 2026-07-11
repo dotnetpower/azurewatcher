@@ -5,7 +5,7 @@ calling Azure OpenAI ``chat/completions`` with structured JSON output.
 The response MUST contain ``action_type`` and ``params``; anything else
 raises so the caller cannot silently accept a malformed proposal - this
 is the "verifier is the authority" invariant from
-``docs/roadmap/llm-strategy.md § T2 - Reasoning Tier``.
+``docs/roadmap/architecture/llm-strategy.md § T2 - Reasoning Tier``.
 
 Wave 2.5-B step 2b adds optional function-calling. When the composition
 root supplies a :class:`ToolRegistry` + :class:`ToolExecutor` pair, the
@@ -69,7 +69,7 @@ class AzureOpenAICrossCheckModelConfig:
     """Endpoint + deployment binding for one cross-check capability.
 
     ``system_prompt`` is a required field as of Wave 2 of the
-    evolving-system-prompt design (``docs/roadmap/prompt-composition.md``).
+    evolving-system-prompt design (``docs/roadmap/decisioning/prompt-composition.md``).
     Composition roots MUST supply the text produced by
     :class:`~fdai.core.prompts.PromptComposer` so the prompt lives
     in catalog-as-code, never in a code literal.

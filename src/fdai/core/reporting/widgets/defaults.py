@@ -1,7 +1,7 @@
 """Ship-with-upstream default widget builders.
 
 :func:`install_default_widgets` registers every builder documented in
-``docs/roadmap/reporting-subsystem.md`` on a
+``docs/roadmap/interfaces/reporting-subsystem.md`` on a
 :class:`~fdai.core.reporting.registry.WidgetRegistry`. A fork calls it at
 its composition root, then may :meth:`WidgetRegistry.register` its own
 custom builders (or overwrite the defaults - last-write wins).

@@ -4,7 +4,7 @@ Sibling of :class:`~fdai.core.executor.executor.ShadowExecutor`.
 Where ``ShadowExecutor`` opens remediation PRs via
 :class:`~fdai.shared.providers.remediation_pr.RemediationPrPublisher`,
 this executor dispatches the ``direct_api`` execution path from
-the "Direct API" section of ``docs/roadmap/execution-model.md``
+the "Direct API" section of ``docs/roadmap/decisioning/execution-model.md``
 via :class:`~fdai.shared.providers.direct_api.DirectApiExecutor`.
 
 Same safety-invariant discipline; different delivery surface:

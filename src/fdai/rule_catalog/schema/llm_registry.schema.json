@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fdai.dev/schemas/rule-catalog/llm-registry/1.0.0",
   "title": "LlmRegistry",
-  "description": "Capability preferences registry consumed by the bootstrap resolver. Family-only (no dated versions) - the resolver picks the latest stable version at provisioning time. See docs/roadmap/llm-strategy.md § Capability Preferences Registry.",
+  "description": "Capability preferences registry consumed by the bootstrap resolver. Family-only (no dated versions) - the resolver picks the latest stable version at provisioning time. See docs/roadmap/architecture/llm-strategy.md § Capability Preferences Registry.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "models"],
@@ -15,7 +15,7 @@
       "type": "string",
       "enum": ["azure-foundry", "external", "hil-only"],
       "default": "azure-foundry",
-      "description": "How the mixed-model invariant is satisfied. See docs/roadmap/llm-strategy.md § Mixed-Model Family Strategies."
+      "description": "How the mixed-model invariant is satisfied. See docs/roadmap/architecture/llm-strategy.md § Mixed-Model Family Strategies."
     },
     "models": {
       "type": "object",

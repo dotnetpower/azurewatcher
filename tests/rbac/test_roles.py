@@ -2,7 +2,7 @@
 
 Guards against silent drift between the code matrix and the design doc's
 [§ 3 Persona → Action Matrix]
-(../../docs/roadmap/user-rbac-and-identity.md#3-persona--action-matrix).
+(../../docs/roadmap/interfaces/user-rbac-and-identity.md#3-persona--action-matrix).
 """
 
 from __future__ import annotations

@@ -16,9 +16,9 @@ gate as any other rule candidate before it can influence the catalog.
 Every learning therefore carries a grounded ``provenance`` so the guard
 in ``rule-catalog`` can accept or quarantine it.
 
-Design contract: ``docs/roadmap/scope-expansion.md § 3.6`` (postmortem)
+Design contract: ``docs/roadmap/fork-and-sequencing/scope-expansion.md § 3.6`` (postmortem)
 and the living-rules discovery loop in
-``docs/roadmap/rule-catalog-collection.md``.
+``docs/roadmap/rules-and-detection/rule-catalog-collection.md``.
 """
 
 from __future__ import annotations

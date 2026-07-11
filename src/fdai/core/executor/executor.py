@@ -104,7 +104,7 @@ class ExecutorConfig:
 
     A fork MAY tighten these values via composition; loosening requires
     an audited governance change (see
-    [`docs/roadmap/rule-governance.md`](../../../../docs/roadmap/rule-governance.md)).
+    [`docs/roadmap/rules-and-detection/rule-governance.md`](../../../../docs/roadmap/rules-and-detection/rule-governance.md)).
     """
 
     max_affected_resources: int = _DEFAULT_MAX_AFFECTED_RESOURCES

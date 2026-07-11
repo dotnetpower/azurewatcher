@@ -3,7 +3,7 @@
 Both Assurance Twin (whole subscription) and Deployment Preflight
 (single deploy) build a read-only projection over the inventory graph,
 apply a diff, and evaluate T0 rules against the result. R4 in
-[implementation-plan.md](../../../../docs/roadmap/implementation-plan.md)
+[implementation-plan.md](../../../../docs/roadmap/fork-and-sequencing/implementation-plan.md)
 factors that primitive out so the two consumers share one kernel.
 
 Kept as a Provider Protocol under ``shared/providers/`` so ``core/``

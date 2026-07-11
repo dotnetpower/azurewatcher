@@ -1,7 +1,7 @@
 """Change feed - VCS/deploy change ingestion for RCA correlation.
 
-Design contract: ``docs/roadmap/observability-and-detection.md`` (root-cause
-correlation) and ``docs/roadmap/scope-expansion.md`` (DORA change ingestion,
+Design contract: ``docs/roadmap/rules-and-detection/observability-and-detection.md`` (root-cause
+correlation) and ``docs/roadmap/fork-and-sequencing/scope-expansion.md`` (DORA change ingestion,
 deferred git-history reader). FDAI writes remediation PRs but has no
 read-side signal that correlates a recent deploy / commit with an incident.
 This seam supplies that signal: a CSP/VCS-neutral feed of change records

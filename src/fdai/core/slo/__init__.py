@@ -1,9 +1,9 @@
 """Workload SLO subsystem - SLI / Objective / ErrorBudget / BurnRate.
 
-Design contract: ``docs/roadmap/scope-expansion.md § 3.3``.
+Design contract: ``docs/roadmap/fork-and-sequencing/scope-expansion.md § 3.3``.
 
 **Distinct from control-plane SLOs** documented in
-[deployment.md](../../../../docs/roadmap/deployment.md), which measure
+[deployment.md](../../../../docs/roadmap/deployment/deployment.md), which measure
 FDAI itself (event-processing latency per tier, action success rate,
 console availability). This subsystem measures the **workloads** FDAI
 operates on so incident priority and change-freeze decisions can be

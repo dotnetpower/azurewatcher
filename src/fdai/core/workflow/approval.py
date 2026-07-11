@@ -1,6 +1,6 @@
 """Workflow approval planning - resolve, per step, whether it is an approval
 gate and, if so, which Entra-backed role approves it and how the approver is
-notified (see docs/roadmap/process-automation.md 6).
+notified (see docs/roadmap/decisioning/process-automation.md 6).
 
 This is the shadow-time / design-time answer to "who approves each step of a
 workflow, and through which channel". It is **read-only and deterministic**: it

@@ -30,6 +30,6 @@ output_wrapper: '<tool_result trusted="false" tool="state.query">{}</tool_result
 default_mode: shadow
 provider: StateStoreQueryProvider
 provenance:
-  source: docs/roadmap/prompt-composition.md
+  source: docs/roadmap/decisioning/prompt-composition.md
   notes: |-
     Wave 2.5-B step 1 catalog scaffolding. The provider is not yet wired.

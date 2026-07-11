@@ -3,7 +3,7 @@
 A copy-paste reference showing how a fork wires the data-only
 [`disk_provisioning`](../disk_provisioning/) toggle into a real
 `azurerm_managed_disk` so the [Deployment Preflight active-reassembly
-loop](../../../../docs/roadmap/preflight-active-reassembly.md) can flip the
+loop](../../../../docs/roadmap/deployment/preflight-active-reassembly.md) can flip the
 plan from inline disk creation to attaching a pre-provisioned disk - resolving
 a `deploy.disk_inline_creation_denied` policy blocker without ever emitting the
 denied operation.

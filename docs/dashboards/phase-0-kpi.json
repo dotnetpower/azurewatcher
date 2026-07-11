@@ -2,7 +2,7 @@
   "$schema": "https://fdai.dev/schemas/dashboard/1.0.0",
   "id": "phase-0-kpi",
   "title": "Phase 0 - KPI Dashboard",
-  "description": "Renders the four success metrics, the guard metrics, and the leading indicators declared in docs/roadmap/goals-and-metrics.md. Every panel maps to a named telemetry source; no panel is manually populated. Rendering targets (Grafana / Log Analytics / App Insights) consume this descriptor; the shape here is target-neutral.",
+  "description": "Renders the four success metrics, the guard metrics, and the leading indicators declared in docs/roadmap/architecture/goals-and-metrics.md. Every panel maps to a named telemetry source; no panel is manually populated. Rendering targets (Grafana / Log Analytics / App Insights) consume this descriptor; the shape here is target-neutral.",
   "version": "1.0.0",
   "panels": [
     {

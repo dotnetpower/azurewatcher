@@ -7,14 +7,14 @@ title: "Phase 2 - Continuous Rule Update, Quality Gate, and T1"
 lightweight tier, and validate the auto-resolution rate against the P0 baseline - then promote
 specific actions from shadow to enforce. This phase expands the tier/gate rules in
 [architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) and
-the model-tier design in [llm-strategy.md](../llm-strategy.md). Coverage figures (T1 ~15-20%)
-are **targets to validate**, not guarantees ([goals-and-metrics.md](../goals-and-metrics.md)).
+the model-tier design in [llm-strategy.md](../architecture/llm-strategy.md). Coverage figures (T1 ~15-20%)
+are **targets to validate**, not guarantees ([goals-and-metrics.md](../architecture/goals-and-metrics.md)).
 
 ## Deliverables
 
 - **Continuous rule-update pipeline** (living rules), delivered as catalog-as-code PRs.
   P1 W-3 lands the deterministic in-process stages under
-  [`src/fdai/rule_catalog/pipeline/`](../../../src/fdai/rule_catalog/pipeline/):
+  [`src/fdai/rule_catalog/pipeline/`](../../../src/fdai/rule_catalog/pipeline):
   `ShadowEvaluator` replays a candidate rule set against a scenario set in judge-and-log
   mode; `RegressionGate` enforces zero policy-violation escapes + coverage ratio floor
   + missing-expected-rules cap; `RulePromotionController` records promote/rollback with
@@ -23,7 +23,7 @@ are **targets to validate**, not guarantees ([goals-and-metrics.md](../goals-and
   stages without editing `core/`.
 - **LLM quality gate** guarding T2: mixed-model cross-check, deterministic verifier, and
   grounding. Execution eligibility is granted by the verifier, **never by the model**.
-  Implemented in [`src/fdai/core/quality_gate/`](../../../src/fdai/core/quality_gate/)
+  Implemented in [`src/fdai/core/quality_gate/`](../../../src/fdai/core/quality_gate)
   with three DI Protocols (`CrossCheckModel`, `VerifierPolicy`, `GroundingSource`) and
   the `QualityGate` orchestrator that emits `eligible | abstain | disagree | deny`.
   In-memory fakes for every seam live under
@@ -34,15 +34,15 @@ are **targets to validate**, not guarantees ([goals-and-metrics.md](../goals-and
   candidate's `reasoning_trace` against fixed criteria and the gate folds the minimum
   score into confidence via `min()` (never additive). Shadow-first, fail-closed, judge
   distinct from proposer. A `SelfConsistencySampler` adds an `action_stability` signal.
-  Full design in [hallucination-rubric-gate.md](../hallucination-rubric-gate.md).
+  Full design in [hallucination-rubric-gate.md](../decisioning/hallucination-rubric-gate.md).
 - **T1 lightweight tier**: embedding similarity + safety-re-verified learned-action reuse.
-  [`src/fdai/core/tiers/t1_lightweight/`](../../../src/fdai/core/tiers/t1_lightweight/)
+  [`src/fdai/core/tiers/t1_lightweight/`](../../../src/fdai/core/tiers/t1_lightweight)
   ships the `T1Tier` orchestrator plus `EmbeddingModel` / `PatternLibrary` seams; the
   fake `DeterministicEmbeddingModel` + `InMemoryPatternLibrary` under
   [`t1_lightweight/testing.py`](../../../src/fdai/core/tiers/t1_lightweight/testing.py)
   power reproducible unit tests without a real embedding model or pgvector.
 - **Shadow → enforce promotion**, per-action, gated on measured metrics with zero policy escapes.
-  [`src/fdai/core/risk_gate/`](../../../src/fdai/core/risk_gate/) implements
+  [`src/fdai/core/risk_gate/`](../../../src/fdai/core/risk_gate) implements
   `ActionPromotionRegistry.consider_promotion(metrics)` which evaluates the ActionType's
   `promotion_gate` (min_shadow_days / min_samples / min_accuracy / max_policy_escapes)
   against measured `PromotionMetrics` and records the resulting mode. `RiskGate.evaluate`
@@ -52,7 +52,7 @@ are **targets to validate**, not guarantees ([goals-and-metrics.md](../goals-and
 - **Assurance Twin (query slice)**: a read-only ontology twin projected from inventory,
   with verified text-to-query answering that routes through the tiers and this phase's
   quality gate; ungroundable questions abstain and feed the rule discovery loop. Full
-  design in [assurance-twin.md](../assurance-twin.md); ambient review and whole-graph
+  design in [assurance-twin.md](../operations/assurance-twin.md); ambient review and whole-graph
   simulation land in P3.
 
 ## Continuous Rule Update Pipeline
@@ -76,7 +76,7 @@ Every stage writes an audit entry; a rule change is itself a change and ships as
   events in **judge-and-log** mode (no execution); measure coverage delta, false-positive and
   false-negative rates, and any policy-violation escapes.
 - **Regression gate**: the P1 regression suite must pass with **zero policy-violation escapes**
-  and no guard-metric regression ([goals-and-metrics.md](../goals-and-metrics.md)) before a
+  and no guard-metric regression ([goals-and-metrics.md](../architecture/goals-and-metrics.md)) before a
   set can be promoted; a failing regression blocks promotion.
 - **Promote | rollback**: promotion is an explicit, reviewed catalog-as-code merge; **rollback
   triggers** are a failed regression, a shadow-eval escape, or a post-promote guard breach, and
@@ -84,9 +84,9 @@ Every stage writes an audit entry; a rule change is itself a change and ships as
 - **New resource types**: detect provider schema changes, identify uncovered resource types, and
   generate **rule stubs that ship shadow-only and HIL-reviewed** - a stub is never auto-enforced.
 
-## LLM Quality Gate (T2 - see [llm-strategy.md](../llm-strategy.md))
+## LLM Quality Gate (T2 - see [llm-strategy.md](../architecture/llm-strategy.md))
 
-T2 inputs are **untrusted** ([security-and-identity.md](../security-and-identity.md)); the
+T2 inputs are **untrusted** ([security-and-identity.md](../architecture/security-and-identity.md)); the
 verifier and policy re-check are the authority, not model text.
 
 - **Mixed-model cross-check**: run **two or more independent models** (distinct providers/weights,
@@ -110,7 +110,7 @@ verifier and policy re-check are the authority, not model text.
   match requires the similarity score to clear a **configured threshold** (thresholds are config,
   not hard-coded), guarding against false matches.
 - **Abstain path**: no rule match, similarity below threshold, or no applicable learned action
-  → **abstain to T2** (per the T1→T2 boundary in [llm-strategy.md](../llm-strategy.md)).
+  → **abstain to T2** (per the T1→T2 boundary in [llm-strategy.md](../architecture/llm-strategy.md)).
 - **Learned-action reuse (provenance + safety)**: a reused action carries provenance (source
   incident id, historical success rate) and is **re-validated through the verifier and risk gate
   before it can execute** - reuse is not auto-trust.
@@ -122,7 +122,7 @@ verifier and policy re-check are the authority, not model text.
   capability's first PR.
 - Gate on the auto-resolution rate (metric 2) and **no guard-metric regression**, measured on the
   same frozen scenario-set version and reported with a **sample size and confidence interval**
-  ([goals-and-metrics.md](../goals-and-metrics.md)); require **zero policy-violation escapes**
+  ([goals-and-metrics.md](../architecture/goals-and-metrics.md)); require **zero policy-violation escapes**
   in shadow.
 - **Demotion**: any guard-metric breach or policy-violation escape demotes the action from enforce
   back to shadow automatically; leading indicators (disagreement rate, verifier abstain/fail rate)

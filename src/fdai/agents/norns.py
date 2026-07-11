@@ -4,7 +4,7 @@ Norns watches the audit stream and turns operational signals into
 inert RuleCandidate proposals for Mimir. It never mutates the catalog
 or any threshold directly: every proposal is data that must pass the
 quality gate before it can take effect (see
-`docs/roadmap/rule-governance.md` and the discovery loop in
+`docs/roadmap/rules-and-detection/rule-governance.md` and the discovery loop in
 `architecture.instructions.md`).
 
 Three deterministic (T0) learners run here; T1 clustering and T2 batch

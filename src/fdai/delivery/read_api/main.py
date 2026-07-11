@@ -174,7 +174,7 @@ class ReadApiConfig:
     :class:`~fdai.shared.providers.hil_registry.HilApprovalRegistry`
     instead of the executor identity, so no privilege boundary is
     crossed. See Wave W1.3 in
-    [implementation-plan.md](../../../../docs/roadmap/implementation-plan.md)."""
+    [implementation-plan.md](../../../../docs/roadmap/fork-and-sequencing/implementation-plan.md)."""
 
     hil_registry: HilApprovalRegistry | None = None
     """Registry consumed by the HIL callback route. When

@@ -1,7 +1,7 @@
 """Direct-API executor - CSP-neutral contract for the substrate-call path.
 
 The `direct_api` execution path in
-`docs/roadmap/execution-model.md § 5.2 Direct API` calls the substrate
+`docs/roadmap/decisioning/execution-model.md § 5.2 Direct API` calls the substrate
 API (Azure ARM, `kubectl`, Redis, ...) rather than opening a
 remediation PR. `core/` only knows this Protocol; concrete adapters
 live under `delivery/azure/direct_api.py` (fork territory beyond the
@@ -20,7 +20,7 @@ Why a dedicated contract (vs re-using the PR publisher)
 - The executor still writes exactly one audit entry per attempt,
   including the fallback path when a `direct_api` dispatch degrades to
   `pr_manual` mid-flight - see the fallback-idempotency invariant in
-  `docs/roadmap/execution-model.md § 5.4`.
+  `docs/roadmap/decisioning/execution-model.md § 5.4`.
 
 Shadow-mode invariant
 ---------------------

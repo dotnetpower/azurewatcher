@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fdai.dev/schemas/report",
   "title": "FDAI - Report Definition",
-  "description": "One report loaded from rule-catalog/reports/<id>.yaml. See docs/roadmap/reporting-subsystem.md for the render pipeline.",
+  "description": "One report loaded from rule-catalog/reports/<id>.yaml. See docs/roadmap/interfaces/reporting-subsystem.md for the render pipeline.",
   "type": "object",
   "required": ["id", "version", "name", "time_range", "widgets"],
   "additionalProperties": false,

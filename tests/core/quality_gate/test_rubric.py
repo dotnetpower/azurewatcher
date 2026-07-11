@@ -1,6 +1,6 @@
 """Rubric evaluator - pure evaluator + dataclass invariants.
 
-Design reference: ``docs/roadmap/hallucination-rubric-gate.md``.
+Design reference: ``docs/roadmap/decisioning/hallucination-rubric-gate.md``.
 
 The rubric is a subtractive hallucination filter. These tests cover the
 pure :func:`evaluate_rubric_output` reduction and the

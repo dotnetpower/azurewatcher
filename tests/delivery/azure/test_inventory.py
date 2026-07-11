@@ -163,7 +163,7 @@ async def test_full_snapshot_fails_closed_on_query_error() -> None:
             seen.append(batch)
 
     # Critical: no fence batch ever appeared, so the caller retains the
-    # previous graph (docs/roadmap/csp-neutrality.md § 5).
+    # previous graph (docs/roadmap/architecture/csp-neutrality.md § 5).
     assert not any(batch.final for batch in seen)
 
 

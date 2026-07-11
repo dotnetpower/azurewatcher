@@ -20,7 +20,7 @@ subpackage breaks silently on renames or further splits.
 
 Adding a new pantheon member is a **charter change**: it requires an
 upstream doc PR to
-:file:`../../../docs/roadmap/agent-pantheon.md`, an
+:file:`../../../docs/roadmap/agents/agent-pantheon.md`, an
 `agent-pantheon.instructions.md` update, and the standard fork-lock
 review. Adding a helper here does not.
 """

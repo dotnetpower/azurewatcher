@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fdai.dev/schemas/profile/1.0.0",
   "title": "Profile",
-  "description": "A named bundle of rules with per-rule mode / severity / parameter overrides. Design contract: docs/roadmap/rule-catalog-profiles.md. Profiles let an operator (or a fork) apply a curated subset of the catalog in one step, and extend chains let `strict` inherit from `recommended` from `baseline`. Fork overlays live under `rule-catalog/profiles-overrides/` and take precedence over upstream on any key they redeclare.",
+  "description": "A named bundle of rules with per-rule mode / severity / parameter overrides. Design contract: docs/roadmap/rules-and-detection/rule-catalog-profiles.md. Profiles let an operator (or a fork) apply a curated subset of the catalog in one step, and extend chains let `strict` inherit from `recommended` from `baseline`. Fork overlays live under `rule-catalog/profiles-overrides/` and take precedence over upstream on any key they redeclare.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -70,7 +70,7 @@
           }
         }
       },
-      "description": "Rules this profile activates. Combined with `extends` via the resolve algorithm documented in docs/roadmap/rule-catalog-profiles.md § Resolution."
+      "description": "Rules this profile activates. Combined with `extends` via the resolve algorithm documented in docs/roadmap/rules-and-detection/rule-catalog-profiles.md § Resolution."
     },
     "parameters": {
       "type": "object",

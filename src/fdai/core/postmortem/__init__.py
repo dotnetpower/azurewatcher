@@ -1,6 +1,6 @@
 """Postmortem / PIR draft generator.
 
-Design contract: ``docs/roadmap/scope-expansion.md § 3.6``.
+Design contract: ``docs/roadmap/fork-and-sequencing/scope-expansion.md § 3.6``.
 
 Consumes an :class:`~fdai.shared.contracts.models.Incident` and a
 timeline of audit rows to produce a structured markdown draft. The
@@ -11,7 +11,7 @@ filled from the audit data or carries an explicit "no evidence
 recorded" line.
 
 Output is intentionally markdown so the PR-native delivery path
-([action-ontology.md](../../../../docs/roadmap/action-ontology.md)
+([action-ontology.md](../../../../docs/roadmap/decisioning/action-ontology.md)
 ``pr_native`` execution) can commit the draft to
 ``rule-catalog/postmortems/<incident-id>.md`` for reviewer approval -
 the same gate remediation PRs already flow through.

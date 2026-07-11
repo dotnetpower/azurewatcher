@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fdai.dev/schemas/ontology/resolved-ceiling/1.0.0",
   "title": "ResolvedCeiling",
-  "description": "Audit-friendly breakdown of the six-axis + risk-classification-table decision produced by evaluate_execution_authority(). Every action dispatch MUST embed this block so a future overlay change never breaks the reproducibility of a past decision. See docs/roadmap/execution-model.md 8. Axes marked with derived_from are computed once inside Axis A and mirrored here for readability (see docs/roadmap/implementation-plan.md, R1).",
+  "description": "Audit-friendly breakdown of the six-axis + risk-classification-table decision produced by evaluate_execution_authority(). Every action dispatch MUST embed this block so a future overlay change never breaks the reproducibility of a past decision. See docs/roadmap/decisioning/execution-model.md 8. Axes marked with derived_from are computed once inside Axis A and mirrored here for readability (see docs/roadmap/fork-and-sequencing/implementation-plan.md, R1).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -106,7 +106,7 @@
         },
         "derived_from": {
           "type": "string",
-          "description": "If this axis mirrors a claim already made by Axis A (risk_table), the matched_rule_id from the risk-classification table. See docs/roadmap/implementation-plan.md, R1. Present on static_blast and env when they inherit from Axis A; absent on risk_table itself."
+          "description": "If this axis mirrors a claim already made by Axis A (risk_table), the matched_rule_id from the risk-classification table. See docs/roadmap/fork-and-sequencing/implementation-plan.md, R1. Present on static_blast and env when they inherit from Axis A; absent on risk_table itself."
         },
         "matched_rule_id": {
           "type": "string",

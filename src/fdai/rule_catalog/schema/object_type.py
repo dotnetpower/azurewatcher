@@ -7,7 +7,7 @@ pydantic model. Aggregates every issue in a single
 Placement rationale mirrors :mod:`fdai.rule_catalog.schema.action_type`:
 this module is pure I/O + validation, so the T0 engine, assurance twin,
 and any fork-side extension (see
-[downstream-fork-guide.md § 5.8](../../../../docs/roadmap/downstream-fork-guide.md#58-rule-catalog-additions))
+[downstream-fork-guide.md § 5.8](../../../../docs/roadmap/fork-and-sequencing/downstream-fork-guide.md#58-rule-catalog-additions))
 consume the loaded tuple without re-parsing YAML.
 
 Why this exists

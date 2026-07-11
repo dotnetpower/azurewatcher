@@ -155,7 +155,7 @@ def load_action_type_catalog(
     each overlay is deep-merged onto the corresponding upstream mapping
     before the pydantic model is validated. This is the "file-based
     overlay" layer described in
-    [action-ontology.md](../../../../docs/roadmap/action-ontology.md) 7.1;
+    [action-ontology.md](../../../../docs/roadmap/decisioning/action-ontology.md) 7.1;
     fork-only overrides (an overlay file with no matching upstream entry)
     are rejected so a typo cannot silently introduce a phantom
     ActionType. Overlay precedence is the R1 rule: file-overlay wins on
@@ -166,7 +166,7 @@ def load_action_type_catalog(
     ``live_probe_ref`` is cross-checked against the probe catalog at
     ``probes_root``. An unknown probe id is a hard load error so a
     misspelled reference is caught at startup, not at first probe call
-    ([implementation-plan.md](../../../../docs/roadmap/implementation-plan.md)
+    ([implementation-plan.md](../../../../docs/roadmap/fork-and-sequencing/implementation-plan.md)
     Wave M1.3). The cross-check is skipped when ``probes_root`` is
     ``None`` (e.g. tests that stub the probe catalog).
     """

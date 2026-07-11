@@ -576,7 +576,7 @@ class ApproveHilTool:
        is refused with status='error'. Comparison uses the OID-shaped
        principal id (the console coordinator populates ``Principal.id``
        from the Entra ``oid`` claim) per the API-token-validation section
-       of ``docs/roadmap/user-rbac-and-identity.md``.
+       of ``docs/roadmap/interfaces/user-rbac-and-identity.md``.
     4. **Terminal-state respect** - a conflicting re-decision on an
        already-resolved key surfaces the registry's
        :class:`HilItemAlreadyResolvedError` as status='error' without a

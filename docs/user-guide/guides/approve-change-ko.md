@@ -2,7 +2,7 @@
 title: 변경 승인(Approve a change)
 description: FDAI가 HIL 결정 대기로 큐잉한 변경을 어떻게 리뷰하고 승인(또는 거부)하는가.
 translation_of: approve-change.md
-translation_source_sha: 658b9320640082a059e2013c121ff31d7f9ce875
+translation_source_sha: 752a390aba08b300570471c2e6d69ca489121b9d
 translation_revised: 2026-07-11
 ---
 
@@ -66,4 +66,4 @@ Break-Glass 사용은 눈에 띄게 감사되고, 온콜 팀에 알림이 가며
 | 지금 보고 있는 분류가 만들어진 방식 | [../concepts/risk-tiers-ko.md](../concepts/risk-tiers-ko.md) |
 | 판정 후 실제로 무엇이 일어났는지 추적 | [read-audit-log-ko.md](read-audit-log-ko.md) |
 | 같은 규칙이 계속 나쁜 HIL 카드를 만들어낼 때 | [override-a-rule-ko.md](override-a-rule-ko.md) |
-| HIL 요청을 나르는 채널 | [../../roadmap/channels-and-notifications-ko.md](../../roadmap/channels-and-notifications-ko.md) |
+| HIL 요청을 나르는 채널 | [../../roadmap/interfaces/channels-and-notifications-ko.md](../../roadmap/interfaces/channels-and-notifications-ko.md) |

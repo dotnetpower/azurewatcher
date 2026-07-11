@@ -5,8 +5,8 @@ Revises:
 Create Date: 2026-07-05 00:00:00
 
 Establishes the persistent-state schema referenced by
-``docs/roadmap/project-structure.md`` and the audit hash-chain contract in
-``docs/roadmap/security-and-identity.md``.
+``docs/roadmap/architecture/project-structure.md`` and the audit hash-chain contract in
+``docs/roadmap/architecture/security-and-identity.md``.
 
 Raw SQL only - no ORM metadata is imported so the schema evolves
 independently of any Python model (the fake ``InMemoryStateStore`` mirrors

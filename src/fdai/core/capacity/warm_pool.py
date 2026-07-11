@@ -24,7 +24,7 @@ Rationale for each warm trigger:
 - **Off-hours**: with no human already warm at the console, autonomous
   recovery is the only fast path, so the executor lane must be warm.
 
-Design contract: [cost-model.md](../../../../docs/roadmap/cost-model.md)
+Design contract: [cost-model.md](../../../../docs/roadmap/interfaces/cost-model.md)
 (cost envelope) and
 [app-shape.instructions.md](../../../../.github/instructions/app-shape.instructions.md)
 (scale-to-zero runtime).

@@ -1,7 +1,7 @@
 """On-call responder resolution - the fail-safe wrapper every HIL / paging
 consumer shares.
 
-Design contract: ``docs/roadmap/scope-expansion.md`` section 3.5.
+Design contract: ``docs/roadmap/fork-and-sequencing/scope-expansion.md`` section 3.5.
 
 The :class:`~fdai.shared.providers.oncall_schedule.OnCallSchedule` provider
 answers "who is on shift right now", but its docstring puts a contract on every

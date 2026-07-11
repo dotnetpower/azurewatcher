@@ -2,7 +2,7 @@
 
 CLIs that materialize the "new business ObjectType" and "new ActionType"
 walkthroughs from
-[downstream-fork-example-vertical.md](../../../../docs/roadmap/downstream-fork-example-vertical.md)
+[downstream-fork-example-vertical.md](../../../../docs/roadmap/fork-and-sequencing/downstream-fork-example-vertical.md)
 so a fork author does not hand-type six correlated YAML files.
 
 Modules

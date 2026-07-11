@@ -1,6 +1,6 @@
 """Incident contract - the first-class correlation entity.
 
-See ``docs/roadmap/scope-expansion.md § 3.1``. Groups many Events /
+See ``docs/roadmap/fork-and-sequencing/scope-expansion.md § 3.1``. Groups many Events /
 Findings / Actions under one lifecycle so postmortems, on-call handoffs,
 and after-action reviews have a durable anchor. The state machine is
 enforced by ``core/incident``; this model is the wire shape only.

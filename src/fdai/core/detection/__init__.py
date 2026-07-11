@@ -1,6 +1,6 @@
 """Detection signals - anomaly / forecast finding producers.
 
-See [observability-and-detection.md](../../../../docs/roadmap/observability-and-detection.md).
+See [observability](../../../../docs/roadmap/rules-and-detection/observability-and-detection.md).
 Detectors are out-of-band producers: they emit normalized findings that
 re-enter ``event-ingest`` and flow through the same trust-router ->
 risk-gate path, never a side channel.

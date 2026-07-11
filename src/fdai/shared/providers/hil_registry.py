@@ -12,10 +12,10 @@ Why a distinct projection
 - **Distinct visibility**: exposing the submitter identity or the
   proposed action's full argument bundle to Reader would leak sensitive
   intent (see the Week-1 write/approve/runbook section of
-  ``docs/roadmap/operator-console.md``).
+  ``docs/roadmap/interfaces/operator-console.md``).
 - **Distinct write surface**: recording a decision needs an authoritative
   ledger the executor observes; the read-API is deliberately read-only
-  (`docs/roadmap/deploy-and-onboard.md`).
+  (`docs/roadmap/deployment/deploy-and-onboard.md`).
 
 Wave scope
 
@@ -90,7 +90,7 @@ class HilPendingItem:
     identity the ``no_self_approval`` invariant compares against
     (never ``upn`` or ``email`` - those can be renamed / aliased,
     see the API-token-validation section of
-    ``docs/roadmap/user-rbac-and-identity.md``).
+    ``docs/roadmap/interfaces/user-rbac-and-identity.md``).
     """
 
     idempotency_key: str

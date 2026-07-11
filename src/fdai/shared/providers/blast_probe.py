@@ -1,6 +1,6 @@
 """LiveBlastProbe - Axis E live-signal reader for the RiskGate.
 
-`docs/roadmap/execution-model.md § 4 (Axis E)` describes the
+`docs/roadmap/decisioning/execution-model.md § 4 (Axis E)` describes the
 live-blast probe: at dispatch time the RiskGate calls a probe, gets
 back one of ``quiet`` / ``active`` / ``overloaded``, and uses it as a
 ceiling-lowering axis (never an authoriser). The Protocol below is the
@@ -25,7 +25,7 @@ Axis-E invariants:
 - **Replay-safe** - a probe MUST NOT be re-queried during audit
   replay. The result is written to the ``resolved_ceiling`` audit
   block once and read from there on replay
-  (`docs/roadmap/execution-model.md § 4.2`).
+  (`docs/roadmap/decisioning/execution-model.md § 4.2`).
 
 Wave M1.1 scope: this file (Protocol + result types), the fake
 ``NoOpBlastProbe`` under

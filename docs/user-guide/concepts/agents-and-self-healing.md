@@ -131,4 +131,4 @@ finalizes, so conflicting objectives never race to the executor.
 | How verdicts become auto vs HIL | [risk-tiers.md](risk-tiers.md) |
 | Approving or rejecting a queued change | [../guides/approve-change.md](../guides/approve-change.md) |
 | Tracing a decision through the audit log | [../guides/read-audit-log.md](../guides/read-audit-log.md) |
-| The full pantheon design | [../../roadmap/agent-pantheon.md](../../roadmap/agent-pantheon.md) |
+| The full pantheon design | [../../roadmap/agents/agent-pantheon.md](../../roadmap/agents/agent-pantheon.md) |

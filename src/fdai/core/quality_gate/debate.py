@@ -36,8 +36,8 @@ Design invariants
 
 See also
 --------
-- ``docs/roadmap/prompt-composition.md`` § Debate orchestrator
-- ``docs/roadmap/prompt-composition.md`` § Wave 4.5 - what shipped
+- ``docs/roadmap/decisioning/prompt-composition.md`` § Debate orchestrator
+- ``docs/roadmap/decisioning/prompt-composition.md`` § Wave 4.5 - what shipped
 """
 
 from __future__ import annotations

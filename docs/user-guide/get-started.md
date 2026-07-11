@@ -82,7 +82,7 @@ event -> event-ingest -> trust-router -> T0 | T1 | (T2 -> quality-gate)
 
 Coverage percentages are targets that require a measured baseline before they
 can be claimed
-([goals-and-metrics](../roadmap/goals-and-metrics.md)).
+([goals-and-metrics](../roadmap/architecture/goals-and-metrics.md)).
 
 Two things ride on top of that loop and make it operable:
 

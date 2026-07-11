@@ -1,6 +1,6 @@
 """Bridge the ``MetricProvider`` seam to the deterministic burn-rate evaluator.
 
-Design contract: ``docs/roadmap/scope-expansion.md`` sections 3.2 (telemetry
+Design contract: ``docs/roadmap/fork-and-sequencing/scope-expansion.md`` sections 3.2 (telemetry
 ingestion seam) and 3.3 (workload SLO / error budget).
 
 The pieces on either side already exist: :class:`BurnRateEvaluator` is a pure,

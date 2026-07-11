@@ -70,4 +70,4 @@ flowchart TB
 | How T0/T1/T2 verdicts become auto vs HIL | [risk-tiers.md](risk-tiers.md) |
 | How new actions ship in shadow before enforcing | [shadow-then-enforce.md](shadow-then-enforce.md) |
 | The full control-loop design | [../../../.github/instructions/architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) |
-| The catalog schema and sources | [../../roadmap/rule-catalog-collection.md](../../roadmap/rule-catalog-collection.md) |
+| The catalog schema and sources | [../../roadmap/rules-and-detection/rule-catalog-collection.md](../../roadmap/rules-and-detection/rule-catalog-collection.md) |

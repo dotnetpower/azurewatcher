@@ -4,7 +4,7 @@ Emits a time-boxed Rego fragment an Owner uses to narrow (never raise)
 the RiskGate ceiling for a bounded scope. The fragment lives at
 ``policies/action_types/<action_type_id>/<override_id>.rego`` and joins
 the four-tier overlay precedence in
-[action-ontology.md § 7.5](../../../../docs/roadmap/action-ontology.md#75-precedence)
+[action-ontology.md § 7.5](../../../../docs/roadmap/decisioning/action-ontology.md#75-precedence)
 at the Rego layer (tier 2, above the file overlay and below the runtime
 governance action).
 

@@ -16,9 +16,9 @@ surfaces are:
 - :meth:`RoleEnforcer.no_self_approval` - the audited author-vs-approver
   separation check pulled from
   [`user-rbac-and-identity.md § 5.2 Author-is-not-approver`]
-  (../../../../docs/roadmap/user-rbac-and-identity.md#52-ci-checks-upstream-provided-fork-configured)
+  (../../../../docs/roadmap/interfaces/user-rbac-and-identity.md#52-ci-checks-upstream-provided-fork-configured)
   and [`security-and-identity.md § HIL Approval Integrity`]
-  (../../../../docs/roadmap/security-and-identity.md#hil-approval-integrity).
+  (../../../../docs/roadmap/architecture/security-and-identity.md#hil-approval-integrity).
 """
 
 from __future__ import annotations
@@ -117,7 +117,7 @@ class RoleEnforcer:
         Comparison uses Entra ``oid`` - never ``upn`` or ``email`` - because
         UPNs can be renamed and emails aliased. Auditors follow the same
         rule (see [`user-rbac-and-identity.md § 10.2`]
-        (../../../../docs/roadmap/user-rbac-and-identity.md#102-api-token-validation)).
+        (../../../../docs/roadmap/interfaces/user-rbac-and-identity.md#102-api-token-validation)).
 
         A ``submitter_oid`` that is empty or None is a programmer bug - the
         caller MUST record submitter identity on the pending item before

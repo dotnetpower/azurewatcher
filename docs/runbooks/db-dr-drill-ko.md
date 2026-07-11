@@ -1,7 +1,7 @@
 ---
 title: Deep DB-DR 복원 훈련 런북
 translation_of: db-dr-drill.md
-translation_source_sha: b5fb5493566abd44b3e545a128f529d033d68e89
+translation_source_sha: c8c4513f15ac73c122a4dd7070a6a2cc98004c94
 translation_revised: 2026-07-11
 ---
 
@@ -147,5 +147,5 @@ Azure 어댑터
 ## 관련 문서
 
 - [phase-3-integrated-loop-ko.md § Deep DB-DR (stateful - 전용 설계)](../roadmap/phases/phase-3-integrated-loop-ko.md)
-- [security-and-identity-ko.md](../roadmap/security-and-identity-ko.md)
+- [security-and-identity-ko.md](../roadmap/architecture/security-and-identity-ko.md)
 - [DbDrVerifier 모듈 docstring](../../src/fdai/core/verticals/resilience/db_dr_verifier.py)

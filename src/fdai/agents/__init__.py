@@ -4,10 +4,10 @@ The pantheon is a fixed upstream set of 15 named agents that own the
 runtime control plane. This package exposes the agent contract, the
 registry, and the topic naming convention. Behavior for individual
 agents lands wave-by-wave (see
-`docs/roadmap/agent-pantheon-implementation.md`); Wave 1 ships the
+`docs/roadmap/agents/agent-pantheon-implementation.md`); Wave 1 ships the
 scaffolding only.
 
-Design authority: `docs/roadmap/agent-pantheon.md`.
+Design authority: `docs/roadmap/agents/agent-pantheon.md`.
 """
 
 from fdai.agents._framework.base import Agent, AgentSpec, Layer

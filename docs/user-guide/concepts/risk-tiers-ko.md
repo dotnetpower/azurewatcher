@@ -2,7 +2,7 @@
 title: 리스크 티어(Risk tiers)
 description: FDAI가 어떤 자율 액션은 자동 실행하고 어떤 것은 사람 승인을 기다리게 하는 결정 방식.
 translation_of: risk-tiers.md
-translation_source_sha: e738f41bb6630d2665d844e563dc25ec85894019
+translation_source_sha: 8cfdc036c7c012b86cb1344b4a5a741f0e6ee8d1
 translation_revised: 2026-07-11
 sidebar:
   order: 3
@@ -80,4 +80,4 @@ Override* 절 참조.
 | 라우터가 어떤 티어를 고르는지 | [deterministic-first-ko.md](deterministic-first-ko.md) |
 | 새 액션이 관찰 전용에서 자동 실행으로 이행하는 방식 | [shadow-then-enforce-ko.md](shadow-then-enforce-ko.md) |
 | HIL의 일상 운영자 관점 | [../guides/approve-change-ko.md](../guides/approve-change-ko.md) |
-| 전체 리스크 분류 규정 | [../../roadmap/risk-classification-ko.md](../../roadmap/risk-classification-ko.md) |
+| 전체 리스크 분류 규정 | [../../roadmap/decisioning/risk-classification-ko.md](../../roadmap/decisioning/risk-classification-ko.md) |

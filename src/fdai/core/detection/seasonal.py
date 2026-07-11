@@ -16,7 +16,7 @@ cold-start-abstain, flat-baseline, and event-normalization logic - so the
 two detectors cannot drift apart.
 
 This addresses the "seasonality beyond a single configured window" gap in
-[observability-and-detection.md](../../../../docs/roadmap/observability-and-detection.md)
+[observability-and-detection.md](../../../../docs/roadmap/rules-and-detection/observability-and-detection.md)
 section 2. Like every detector here it emits a shadow-mode finding that
 re-enters ``event-ingest``; it never auto-remediates.
 

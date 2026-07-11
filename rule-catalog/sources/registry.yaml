@@ -1,7 +1,7 @@
 # Source registry - normative sources the seed catalog draws from.
 #
 # Consumed as data by future collection pipelines (see
-# docs/roadmap/rule-catalog-collection.md). The runtime T0 pipeline does
+# docs/roadmap/rules-and-detection/rule-catalog-collection.md). The runtime T0 pipeline does
 # not read this file; it exists so authors and LLMs proposing new rules
 # can pick the correct `source` enum value and provenance URL prefix.
 #

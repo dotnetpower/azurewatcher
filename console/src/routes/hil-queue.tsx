@@ -51,7 +51,7 @@ export function HilQueueRoute({ client }: Props) {
           <>
             High-risk actions waiting for a human approver. Approvals flow through
             the ChatOps channel (Teams / Adaptive Cards) - the console never
-            exposes an approval button (see docs/roadmap/user-rbac-and-identity.md § 7).
+            exposes an approval button (see docs/roadmap/interfaces/user-rbac-and-identity.md § 7).
           </>
         }
         actions={

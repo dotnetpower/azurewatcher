@@ -64,7 +64,7 @@ def test_inventory_batch_final_defaults_to_false() -> None:
 
     Defaulting to False forces every adapter to opt in - a stream that
     ends silently must not be treated as complete
-    (docs/roadmap/csp-neutrality.md § 5).
+    (docs/roadmap/architecture/csp-neutrality.md § 5).
     """
     batch = InventoryBatch()
     assert batch.final is False

@@ -6,7 +6,7 @@
 # executor, and audit log operate on.
 #
 # Multi-step workflows (e.g. an architecture-review lifecycle) ride on
-# the upstream `Process` ObjectType (docs/roadmap/process-automation.md),
+# the upstream `Process` ObjectType (docs/roadmap/decisioning/process-automation.md),
 # which references a Finding via the `advances` LinkType; the built-in
 # Finding stays lifecycle-free so the audit log remains append-only and
 # non-mutable. A fork MAY add further lifecycle objects the same way.

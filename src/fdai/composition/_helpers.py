@@ -76,7 +76,7 @@ class LlmBindings:
     gate behaves exactly as it did before the rubric was added. NOTE:
     upstream does not yet assemble a live ``QualityGate`` into the
     control loop (T2 wiring is shadow-only backlog - see
-    ``docs/roadmap/hallucination-rubric-gate.md § Integration status``),
+    ``docs/roadmap/decisioning/hallucination-rubric-gate.md § Integration status``),
     so this seam is provided for symmetry with ``critic_model`` /
     ``judge_model`` and is consumed by a fork's gate assembly.
     """

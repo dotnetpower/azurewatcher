@@ -13,7 +13,7 @@ goal.
 The layers are **loosely coupled**: they communicate through the event bus and git, not
 direct in-process calls, so any layer can fail or scale independently. See
 [architecture.instructions.md](architecture.instructions.md) for the trust-routing control
-loop and [../../docs/roadmap/deployment.md](../../docs/roadmap/deployment.md) for how the
+loop and [../../docs/roadmap/deployment/deployment.md](../../docs/roadmap/deployment/deployment.md) for how the
 shape maps to environments and CI/CD.
 
 ## Layers
@@ -32,7 +32,7 @@ shape maps to environments and CI/CD.
   IaC in Terraform). **Azure is the only implemented target**; non-Azure providers are
   TBD (see [Implementation Focus](../copilot-instructions.md#implementation-focus-must)) and
   the neutral abstractions exist so a future adapter can be added without a core rewrite.
-  See [../../docs/roadmap/tech-stack.md](../../docs/roadmap/tech-stack.md).
+  See [../../docs/roadmap/architecture/tech-stack.md](../../docs/roadmap/architecture/tech-stack.md).
 
 ## Layer Boundaries (security)
 
@@ -41,7 +41,7 @@ shape maps to environments and CI/CD.
 - The **executor holds the only privileged identity** (user-assigned Managed Identity, scoped
   to an action whitelist). Console and ChatOps never share it.
 - **Approval and execution are distinct principals** - no self-approval. See
-  [../../docs/roadmap/security-and-identity.md](../../docs/roadmap/security-and-identity.md).
+  [../../docs/roadmap/architecture/security-and-identity.md](../../docs/roadmap/architecture/security-and-identity.md).
 
 ## Azure Mapping (draft - reconfirm preview services at adoption time)
 
@@ -49,9 +49,9 @@ Azure is the implemented target (see
 [Implementation Focus](../copilot-instructions.md#implementation-focus-must)); the shape stays
 CSP-neutral in design by rendering five wire-level contracts (event bus, runtime, secret,
 workload identity, inventory) into Azure resources - see
-[../../docs/roadmap/csp-neutrality.md](../../docs/roadmap/csp-neutrality.md). The mapping is
+[../../docs/roadmap/architecture/csp-neutrality.md](../../docs/roadmap/architecture/csp-neutrality.md). The mapping is
 **minimum-cost-set first** - the concrete inventory, tiers, and rationale live in
-[../../docs/roadmap/deploy-and-onboard.md](../../docs/roadmap/deploy-and-onboard.md#azure-resource-inventory-minimum-set).
+[../../docs/roadmap/deployment/deploy-and-onboard.md](../../docs/roadmap/deployment/deploy-and-onboard.md#azure-resource-inventory-minimum-set).
 Recommended mapping:
 
 - Event bus: **Event Hubs Standard** consumed **only through its Kafka endpoint on `:9093`**

@@ -111,7 +111,7 @@ event -> event-ingest -> trust-router -> T0 | T1 | (T2 -> quality-gate)
 
 The longer it runs, the smaller the T2 share and the higher the auto-resolution
 rate. All targets require a measured baseline before they can be claimed
-([goals-and-metrics.md](docs/roadmap/goals-and-metrics.md)).
+([goals-and-metrics.md](docs/roadmap/architecture/goals-and-metrics.md)).
 
 ## Get started
 
@@ -131,7 +131,7 @@ lives in a separate fork, wired through the composition root
 | Deployment topology (headless core + PR delivery + thin console + ChatOps) | [app-shape.instructions.md](.github/instructions/app-shape.instructions.md) |
 | Safety rules on every autonomous action | [coding-conventions.instructions.md](.github/instructions/coding-conventions.instructions.md) |
 | The phased delivery plan (P0 -> P4) | [docs/roadmap/README.md](docs/roadmap/README.md) |
-| Risk classification (auto vs HIL vs deny) | [docs/roadmap/risk-classification.md](docs/roadmap/risk-classification.md) |
+| Risk classification (auto vs HIL vs deny) | [docs/roadmap/decisioning/risk-classification.md](docs/roadmap/decisioning/risk-classification.md) |
 | Shadow-then-enforce promotion | [docs/user-guide/concepts/shadow-then-enforce.md](docs/user-guide/concepts/shadow-then-enforce.md) |
 
 ## License

@@ -6,7 +6,7 @@
 # reordering channels is a config change, never a code change.
 #
 # Trust tiers (a1..a4) mirror the design contract in
-# `docs/roadmap/channels-and-notifications.md § 3`. The router refuses to
+# `docs/roadmap/interfaces/channels-and-notifications.md § 3`. The router refuses to
 # send an a1 message on a channel that does not declare a1 (§4). Trust
 # level is preserved on fallback - an a1 primary MUST NOT fall through
 # to an a2-only channel; validation happens at composition wiring time.

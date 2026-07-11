@@ -1,6 +1,6 @@
 """EventHubsKafkaBus - `EventBus` adapter for Azure Event Hubs Kafka wire.
 
-Realizes ``docs/roadmap/csp-neutrality.md § 1`` (Kafka wire protocol)
+Realizes ``docs/roadmap/architecture/csp-neutrality.md § 1`` (Kafka wire protocol)
 against the Event Hubs endpoint on ``:9093``. Authenticates via SASL /
 OAUTHBEARER with a token issued by an injected ``WorkloadIdentity``,
 so composition-root swaps between the Managed-Identity adapter (prod)

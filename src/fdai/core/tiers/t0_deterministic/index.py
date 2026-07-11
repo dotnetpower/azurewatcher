@@ -3,7 +3,7 @@
 Given a loaded rule catalog, the index answers "which rules apply to a
 Signal of type ``S`` targeting a Resource of type ``R``?" in O(indexed
 lookup), never a linear scan (see
-``docs/roadmap/llm-strategy.md § Rule-to-Decision Lookup Pipeline``).
+``docs/roadmap/architecture/llm-strategy.md § Rule-to-Decision Lookup Pipeline``).
 
 P1 W-2 implementation
 ---------------------

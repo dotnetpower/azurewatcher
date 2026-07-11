@@ -368,7 +368,7 @@ def _to_neutral_id(arm_id: str) -> str:
     """Fold the ARM path into a CSP-neutral resource identifier.
 
     The ontology's ``resource_id`` is defined as a stable, non-vendor path
-    keyed on tenancy scope + resource name (docs/roadmap/llm-strategy.md
+    keyed on tenancy scope + resource name (docs/roadmap/architecture/llm-strategy.md
     § Ontology Foundation). For P1 we adopt a conservative rule: strip the
     leading ``/subscriptions/...`` prefix and lowercase - enough for the
     audit log to link ontology → provider, without leaking ARM.

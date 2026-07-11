@@ -7,7 +7,7 @@ emits a verdict plus citing rule ids. Part of the safety core (≥90% coverage g
 
 - [`models.py`](models.py) - `PipelineStage` (`L1_evaluate` / `L1_simulate` / `abstain`),
   `Finding`, `Verdict`, `AuditHint`. Vocabulary matches
-  [docs/roadmap/llm-strategy.md § Pipeline Stages](../../../../../docs/roadmap/llm-strategy.md).
+  [docs/roadmap/architecture/llm-strategy.md § Pipeline Stages](../../../../../docs/roadmap/architecture/llm-strategy.md).
 - [`index.py`](index.py) - `RuleIndex` builds an O(indexed) lookup keyed on
   `resource_type`, with severity-desc ordering matching
   [phase-1 § Precedence](../../../../../docs/roadmap/phases/phase-1-rule-catalog-t0.md).

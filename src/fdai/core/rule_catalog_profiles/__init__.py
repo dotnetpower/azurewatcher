@@ -1,6 +1,6 @@
 """Profile / Pack layer - named rule bundles with extend chains + overrides.
 
-Design contract: ``docs/roadmap/rule-catalog-profiles.md``.
+Design contract: ``docs/roadmap/rules-and-detection/rule-catalog-profiles.md``.
 
 Public surface:
 

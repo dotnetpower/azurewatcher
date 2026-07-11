@@ -361,7 +361,7 @@ def test_probes_root_broken_reports_probe_load_error(tmp_path: Path) -> None:
 # --- W2.1/W2.2: doc-declared ops.* + governance.* completeness ---
 
 
-# Sourced from docs/roadmap/action-ontology.md 3.2. Any addition to the
+# Sourced from docs/roadmap/decisioning/action-ontology.md 3.2. Any addition to the
 # doc's ops.* list MUST land a matching YAML; any addition to the YAML
 # MUST update the doc.
 _DOC_OPS_ACTION_TYPES: frozenset[str] = frozenset(
@@ -377,7 +377,7 @@ _DOC_OPS_ACTION_TYPES: frozenset[str] = frozenset(
     }
 )
 
-# Sourced from docs/roadmap/action-ontology.md 3.3. Same drift guard.
+# Sourced from docs/roadmap/decisioning/action-ontology.md 3.3. Same drift guard.
 _DOC_GOVERNANCE_ACTION_TYPES: frozenset[str] = frozenset(
     {
         "governance.promote-action-type",

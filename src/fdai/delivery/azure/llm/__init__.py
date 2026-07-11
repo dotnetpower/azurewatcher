@@ -1,7 +1,7 @@
 """Azure OpenAI adapters - real T1/T2 model clients.
 
 These modules live in ``delivery/`` per the module-boundaries rule
-(see ``docs/roadmap/project-structure.md § Module Boundaries``):
+(see ``docs/roadmap/architecture/project-structure.md § Module Boundaries``):
 they are wire-level HTTP clients (`httpx`), so `core/` MUST NOT import
 from here. Composition-root loads them only when
 ``AppConfig.llm.mode == "azure"``.

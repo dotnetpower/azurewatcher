@@ -396,7 +396,7 @@ def _build_hil_channel(http_client: httpx.AsyncClient | None) -> Any:
     Presence of ``FDAI_CHATOPS_WEBHOOK_URL`` opts into the real
     :class:`TeamsHilAdapter`; missing URL returns ``None`` so the caller
     falls back to its persisted HIL queue (existing P1 behavior - see
-    ``docs/roadmap/channels-and-notifications.md § 6``). The
+    ``docs/roadmap/interfaces/channels-and-notifications.md § 6``). The
     ``HilChannel`` Protocol is the contract, so ``core/`` neither knows
     nor cares which backend is active.
 
@@ -729,7 +729,7 @@ def _build_control_loop(
     # invalid). Cross-references every step's action_type_ref / compensated_by
     # against the ActionType catalog and every guard_rule_ref against the rule
     # catalog, so a malformed workflow blocks boot rather than surfacing at
-    # first dispatch (docs/roadmap/process-automation.md 7).
+    # first dispatch (docs/roadmap/decisioning/process-automation.md 7).
     workflows_root = catalog_root / "workflows"
     workflows = (
         load_workflow_catalog(
@@ -1020,7 +1020,7 @@ async def _run() -> int:
             # by default - the agents use in-memory audit / issue / admin
             # adapters and Thor's executor stays in shadow, so running it
             # beside the P1 loop adds no autonomous mutation. See
-            # docs/roadmap/agent-pantheon-implementation.md.
+            # docs/roadmap/agents/agent-pantheon-implementation.md.
             start_pantheon = os.environ.get("FDAI_START_PANTHEON", "").lower() in (
                 "1",
                 "true",

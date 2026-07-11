@@ -140,7 +140,7 @@
         "resolved_ref": {
           "type": "string",
           "minLength": 1,
-          "description": "Immutable commit / digest the fetch pinned to (rename of the legacy `resolved_revision`; docs/roadmap/rule-catalog-collection.md § YAML Normalization)."
+          "description": "Immutable commit / digest the fetch pinned to (rename of the legacy `resolved_revision`; docs/roadmap/rules-and-detection/rule-catalog-collection.md § YAML Normalization)."
         },
         "content_hash": {
           "type": "string",
@@ -176,7 +176,7 @@
     "remediates": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_\\.\\-]{0,79}$",
-      "description": "Ontology dispatch: the ActionType `name` this rule proposes on match (M:1). MUST resolve to a registered `rule-catalog/action-types/*.yaml` instance; the loader enforces cross-reference at load time. See docs/roadmap/llm-strategy.md § Rule as Ontology Artifact."
+      "description": "Ontology dispatch: the ActionType `name` this rule proposes on match (M:1). MUST resolve to a registered `rule-catalog/action-types/*.yaml` instance; the loader enforces cross-reference at load time. See docs/roadmap/architecture/llm-strategy.md § Rule as Ontology Artifact."
     },
     "alternatives": {
       "type": "array",

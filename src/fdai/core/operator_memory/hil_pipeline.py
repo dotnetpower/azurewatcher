@@ -37,7 +37,7 @@ Design invariants
 
 See also
 --------
-- ``docs/roadmap/prompt-composition.md``
+- ``docs/roadmap/decisioning/prompt-composition.md``
   § Wave 3 step B pipeline - what shipped
 - ``.github/instructions/architecture.instructions.md`` § Human Override
 """

@@ -20,7 +20,7 @@ The lookup here matches on:
   candidate action.
 
 Wider scopes are not modeled: an org-wide "disable this rule" is a rule
-retirement, not an override. See ``docs/roadmap/rule-governance.md``.
+retirement, not an override. See ``docs/roadmap/rules-and-detection/rule-governance.md``.
 
 Modes
 -----

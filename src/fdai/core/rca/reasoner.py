@@ -12,7 +12,7 @@ verifier before any action.
 Input is untrusted (telemetry / correlated events may carry prompt
 injection); the reasoner's prose is never authoritative - the grounding
 gate and the deterministic verifier are
-([security-and-identity.md](../../../../docs/roadmap/security-and-identity.md)).
+([security-and-identity.md](../../../../docs/roadmap/architecture/security-and-identity.md)).
 """
 
 from __future__ import annotations

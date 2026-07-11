@@ -1,5 +1,5 @@
 """Process automation - compile a declarative Workflow into an executable
-Runbook (see docs/roadmap/process-automation.md).
+Runbook (see docs/roadmap/decisioning/process-automation.md).
 
 The runtime instance and state of a running Workflow is the ``Process``
 ontology ObjectType; this package holds the compile step that turns a

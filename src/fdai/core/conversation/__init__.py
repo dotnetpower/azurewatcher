@@ -1,7 +1,7 @@
 """Operator console (conversational surface) - Layer 2 coordinator.
 
 Implements the pull-direction console described in
-[operator-console.md](../../../../docs/roadmap/operator-console.md).
+[operator-console.md](../../../../docs/roadmap/interfaces/operator-console.md).
 
 This module is deliberately kept **minimal at Day 1**: it ships the five
 read-only :class:`SystemConsoleTool` implementations plus a

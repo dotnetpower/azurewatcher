@@ -7,7 +7,7 @@
 #
 # Values below are ILLUSTRATIVE list-price defaults (USD per 1,000 tokens,
 # PAYG list) in the same "illustrative, reconfirm at adoption" spirit as
-# docs/roadmap/cost-model.md. They are customer-agnostic public list prices,
+# docs/roadmap/interfaces/cost-model.md. They are customer-agnostic public list prices,
 # NOT a measured claim and NOT negotiated rates. A fork overrides this file
 # with its region / currency / negotiated numbers; it MUST NOT commit fork
 # values upstream.

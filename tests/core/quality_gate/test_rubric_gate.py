@@ -1,6 +1,6 @@
 """QualityGate x rubric - shadow / enforce / subtractive / fail-closed.
 
-Design reference: ``docs/roadmap/hallucination-rubric-gate.md``.
+Design reference: ``docs/roadmap/decisioning/hallucination-rubric-gate.md``.
 
 Proves the core invariants:
 

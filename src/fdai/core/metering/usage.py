@@ -4,7 +4,7 @@ A :class:`TokenUsage` is the measured (never estimated) prompt +
 completion token count reported by a provider's ``chat/completions``
 response ``usage`` object. The control plane records the measured value
 so a cost report is grounded in real spend, honouring the
-measurement-first rule in ``docs/roadmap/goals-and-metrics.md``.
+measurement-first rule in ``docs/roadmap/architecture/goals-and-metrics.md``.
 
 The type is a frozen, addable value object so many per-call usages roll
 up into a per-conversation / per-day / per-month total without mutation.

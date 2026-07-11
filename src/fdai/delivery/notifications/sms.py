@@ -3,7 +3,7 @@
 Wire format: POST ``{endpoint}/sms?api-version=2021-03-07`` with an
 ``Authorization: Bearer <token>`` header. Payload restricted to
 ``<severity> <audit_id> <short-url>`` per
-``docs/roadmap/channels-and-notifications.md § 7 (SMS)`` - no free-form
+``docs/roadmap/interfaces/channels-and-notifications.md § 7 (SMS)`` - no free-form
 text, no customer identifiers.
 """
 

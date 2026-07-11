@@ -15,7 +15,8 @@ Wave scope:
   CLI layer.
 - **Wave W1** - write-class tools (``simulate_change``, ``approve_hil``,
   ...) land in a separate module and are ActionType-catalog projections
-  per R2 in [implementation-plan.md](../../../../docs/roadmap/implementation-plan.md).
+  per R2 in
+  [implementation-plan.md](../../../../docs/roadmap/fork-and-sequencing/implementation-plan.md).
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 # FDAI - autonomous cloud operations control plane
 #
 # Python is the core runtime language for the control plane
-# (see docs/roadmap/tech-stack.md - OD-1 resolved).
+# (see docs/roadmap/architecture/tech-stack.md - OD-1 resolved).
 # All executable code lives under src/fdai/ (Python "src layout").
 # Non-Python trees (rule-catalog/ YAML data, policies/ Rego, infra/ Terraform)
 # live at the repo root - they are data or IaC, not Python packages.
@@ -49,16 +49,16 @@ dependencies = [
     "psycopg[binary]>=3.2,<4",
     # W2.1 - YAML parsing for catalog-as-code (action-types, vocabulary,
     # exemptions). Catalog files are authored as YAML per
-    # docs/roadmap/rule-catalog-collection.md; JSON Schema stays the
+    # docs/roadmap/rules-and-detection/rule-catalog-collection.md; JSON Schema stays the
     # validator, PyYAML only reads the file. Version pinned wide so a
     # lockfile bump doesn't churn other packages.
     "pyyaml>=6.0,<7",
     # W3 - HTTP client for provider adapters (Azure Resource Graph REST).
     # Async by default; `core/` never imports it - only adapters under
-    # `delivery/<csp>/` do. Pinned per docs/roadmap/csp-neutrality.md § 5.
+    # `delivery/<csp>/` do. Pinned per docs/roadmap/architecture/csp-neutrality.md § 5.
     "httpx>=0.27,<1",
     # W3.5 - Kafka client for the event-bus adapter. Realizes the wire-level
-    # contract in docs/roadmap/csp-neutrality.md § 1; the same client talks
+    # contract in docs/roadmap/architecture/csp-neutrality.md § 1; the same client talks
     # to Event Hubs Kafka on :9093 (SASL_SSL / OAUTHBEARER) or a self-hosted
     # broker. Only `delivery/<csp>/event_bus.py` imports it - `core/` stays
     # portable behind the `EventBus` Protocol.
@@ -82,7 +82,7 @@ dependencies = [
     # validates signature + `aud` + `iss` + `exp`/`nbf` in one call. The
     # `[crypto]` extra pulls `cryptography` for RS256. Generic + CSP-neutral:
     # the tenant id / audience / issuer are supplied via env, never baked in
-    # (see docs/roadmap/user-rbac-and-identity.md § 10.2). `core/` never imports
+    # (see docs/roadmap/interfaces/user-rbac-and-identity.md § 10.2). `core/` never imports
     # it - only the delivery layer validates human tokens.
     "pyjwt[crypto]>=2.10,<3",
 ]

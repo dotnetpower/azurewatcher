@@ -14,13 +14,13 @@ invariants and control-loop wiring defined in
 
 All RPO/RTO, savings, and lead-time figures here are **measured values reported against stated
 objectives on a fixed scenario set and measurement window** - never estimates or unbaselined
-multipliers (see [goals-and-metrics.md](../goals-and-metrics.md)).
+multipliers (see [goals-and-metrics.md](../architecture/goals-and-metrics.md)).
 
 ## Deliverables
 
 Each deliverable maps to a section below. The module reference lists the primary Python
 package that carries the deliverable in
-[`src/fdai/`](../project-structure.md).
+[`src/fdai/`](../architecture/project-structure.md).
 
 - **Unified control loop** across Resilience, Change Safety, and Cost Governance - one
   `trust-router` → `risk-gate` → `executor` → `audit` path, with per-resource ordering/locking
@@ -43,7 +43,7 @@ package that carries the deliverable in
   event, whole-graph what-if shared by Change Safety (blast radius), Resilience (RPO/RTO
   replay), and Cost Governance (cost delta), shadow remediation-PR proposals, and the
   on-demand `PostureAssessmentReport` panel. Design in
-  [assurance-twin.md](../assurance-twin.md); each simulation finding is measured
+  [assurance-twin.md](../operations/assurance-twin.md); each simulation finding is measured
   shadow-first before enforce.
 
 ## Unified Control Loop
@@ -54,7 +54,7 @@ package that carries the deliverable in
 - **Per-vertical identity**: Resilience, Change Safety, and Cost Governance each execute under
   a **separate user-assigned Managed Identity** scoped to its own action whitelist, so blast
   radius is bounded by vertical and no vertical can assume another's identity
-  ([security-and-identity.md](../security-and-identity.md)).
+  ([security-and-identity.md](../architecture/security-and-identity.md)).
 - **Ordering and locking**: actions that mutate the same resource are serialized on a
   per-resource key; the `executor` holds the per-resource lock for the whole action window.
   Concurrent mutations on one resource are mutually excluded across domains.
@@ -81,7 +81,7 @@ package that carries the deliverable in
 - **RPO/RTO reporting**: for each run, report **measured RPO** (data loss at failover) and
   **measured RTO** (wall-clock to restored service) against their stated objectives, as
   median and p90 over runs, on the fixed measurement window
-  ([goals-and-metrics.md](../goals-and-metrics.md)). A run whose RPO/RTO breaches objective
+  ([goals-and-metrics.md](../architecture/goals-and-metrics.md)). A run whose RPO/RTO breaches objective
   is flagged, not silently averaged away.
 
 ### DR Safety Invariants (every experiment)
@@ -149,9 +149,9 @@ isolated copy and never on the live production DB.
 - Low-risk changes **auto-merge/reconcile**; high-risk changes go to **HIL**, where the human
   approves, rejects, or lets the request time out (reject and timeout are no-ops that still
   audit). Approval and execution remain distinct principals
-  ([security-and-identity.md](../security-and-identity.md)).
+  ([security-and-identity.md](../architecture/security-and-identity.md)).
 - **Change lead time** is reported as a **measured** reduction against the P0 reference agent on
-  the same scenario set (median and p90), per [goals-and-metrics.md](../goals-and-metrics.md)
+  the same scenario set (median and p90), per [goals-and-metrics.md](../architecture/goals-and-metrics.md)
   - no unbaselined "weeks to hours" claim.
 
 ## Testability
@@ -170,7 +170,7 @@ isolated copy and never on the live production DB.
 ## Exit Criteria
 
 Each criterion is measurable on the fixed scenario set and measurement window
-([goals-and-metrics.md](../goals-and-metrics.md)):
+([goals-and-metrics.md](../architecture/goals-and-metrics.md)):
 
 - Autonomous MVP operates across all three verticals with all four safety invariants enforced and
   **zero policy-violation escapes**.

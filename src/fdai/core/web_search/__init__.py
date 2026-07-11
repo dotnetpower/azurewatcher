@@ -1,7 +1,7 @@
 """Web search seam for the T2 tier (Wave 5 alpha).
 
 Web search is the last-resort tool per the web-search policy in
-``docs/roadmap/prompt-composition.md``. Upstream ships:
+``docs/roadmap/decisioning/prompt-composition.md``. Upstream ships:
 
 - typed primitives (:class:`WebSearchQuery`, :class:`WebSnippet`,
   :class:`WebSearchResult`);

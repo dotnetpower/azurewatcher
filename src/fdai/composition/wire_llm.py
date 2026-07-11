@@ -75,7 +75,7 @@ def bind_azure_llm_bindings(
     ``delivery.azure.llm``, which is prohibited from ``core/``.
 
     ``system_prompt``: REQUIRED as of Wave 2 of the evolving-system-prompt
-    design (docs/roadmap/prompt-composition.md). The composition root
+    design (docs/roadmap/decisioning/prompt-composition.md). The composition root
     MUST produce this string by calling
     :class:`~fdai.core.prompts.PromptComposer` against the
     ``rule-catalog/prompts/`` tree. Both cross-check reasoners receive

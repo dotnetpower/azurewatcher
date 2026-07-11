@@ -4,7 +4,7 @@
  * (prod). No customer identifiers are baked in at build time - the
  * upstream repo ships only schema and empty defaults.
  *
- * See docs/roadmap/user-rbac-and-identity.md § 10.1 for MSAL config.
+ * See docs/roadmap/interfaces/user-rbac-and-identity.md § 10.1 for MSAL config.
  */
 
 export interface ConsoleConfig {

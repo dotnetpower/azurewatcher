@@ -39,8 +39,8 @@ Design invariants
 
 See also
 --------
-- ``docs/roadmap/hallucination-rubric-gate.md``
-- ``docs/roadmap/llm-strategy.md`` § T2 - Reasoning Tier
+- ``docs/roadmap/decisioning/hallucination-rubric-gate.md``
+- ``docs/roadmap/architecture/llm-strategy.md`` § T2 - Reasoning Tier
 """
 
 from __future__ import annotations

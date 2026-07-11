@@ -1,6 +1,6 @@
 """External metric ingestion - CSP-neutral wire contract (Layer-0 seam #6).
 
-Design contract: ``docs/roadmap/scope-expansion.md § 3.2``.
+Design contract: ``docs/roadmap/fork-and-sequencing/scope-expansion.md § 3.2``.
 
 FDAI emits OpenTelemetry traces / metrics of its own via
 ``shared/telemetry``, but the workloads it operates on emit metrics into
@@ -90,7 +90,7 @@ class NoopMetricProvider:
     Ships in P1 so downstream consumers (anomaly detector, SLO burn-rate
     evaluator) can be authored against a stable interface; a real
     adapter lands in a follow-up per
-    :doc:`docs/roadmap/scope-expansion.md § 3.2 <../../../docs/roadmap/scope-expansion.md>`.
+    :doc:`scope-expansion § 3.2 <../../../docs/roadmap/fork-and-sequencing/scope-expansion.md>`.
     """
 
     async def query(self, query: MetricQuery) -> AsyncIterator[MetricPoint]:  # noqa: ARG002 - Protocol conformance

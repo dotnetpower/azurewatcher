@@ -4,9 +4,9 @@ Live-blast probes let the RiskGate consult a real-time signal (traffic,
 access-log volume, backend health) before deciding autonomy for an action,
 so a static blast radius can be narrowed when the target resource is
 actually quiet. See
-[docs/roadmap/execution-model.md § 4](../../docs/roadmap/execution-model.md#4-live-blast-probe)
+[docs/roadmap/decisioning/execution-model.md § 4](../../docs/roadmap/decisioning/execution-model.md#4-live-blast-probe)
 and
-[docs/roadmap/action-ontology.md § 6](../../docs/roadmap/action-ontology.md#6-live-blast-probe-6-of-execution-modelmd-month-1).
+[docs/roadmap/decisioning/action-ontology.md § 6](../../docs/roadmap/decisioning/action-ontology.md#6-live-blast-probe-6-of-execution-modelmd-month-1).
 
 ## Status: placeholder (Day 1)
 

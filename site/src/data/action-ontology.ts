@@ -4,7 +4,7 @@
 // SOURCE OF TRUTH: this is a *curated showcase* of the shipped
 // ActionType catalog, not a live load of it. Every field value below is
 // copied from the real YAML under rule-catalog/action-types/*.yaml and
-// the schema in docs/roadmap/action-ontology.md, so the explorer stays
+// the schema in docs/roadmap/decisioning/action-ontology.md, so the explorer stays
 // accurate without coupling the docs-site build to the catalog (a
 // mid-edit malformed YAML must never break the site). When the catalog
 // changes materially, refresh this file.

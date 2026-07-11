@@ -14,7 +14,7 @@ Both families are frozen so a caller cannot mutate a rendered payload
 after handoff (defense in depth for the read-only surface). ``to_dict``
 on :class:`RenderedReport` is the canonical JSON shape the FE consumes;
 the schema is documented in
-[reporting-subsystem.md](../../../../docs/roadmap/reporting-subsystem.md).
+[reporting-subsystem.md](../../../../docs/roadmap/interfaces/reporting-subsystem.md).
 """
 
 from __future__ import annotations

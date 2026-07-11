@@ -12,7 +12,7 @@
 # Fork extension: a fork that adds a workflow object (architecture
 # proposal, compliance attestation record, incident postmortem) copies
 # this file's shape into `fork/vocabulary/object-types/`. See
-# `docs/roadmap/downstream-fork-example-vertical.md` for the full
+# `docs/roadmap/fork-and-sequencing/downstream-fork-example-vertical.md` for the full
 # walkthrough.
 #
 # The ObjectType declaration is metadata only - it does not by itself

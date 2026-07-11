@@ -24,7 +24,7 @@ P1 control loop, and the agents use the in-memory audit / issue / admin
 adapters from :mod:`fdai.agents.adapters`. A fork promotes to enforce
 explicitly (``enforce=True``) and swaps the in-memory adapters for
 durable backends by injecting its own ``Saga`` - see
-``docs/roadmap/agent-pantheon-implementation.md``.
+``docs/roadmap/agents/agent-pantheon-implementation.md``.
 """
 
 from __future__ import annotations

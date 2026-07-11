@@ -193,7 +193,7 @@ class ControlLoopResult:
     """Aggregate result for one event.
 
     ``decision`` follows the audit vocabulary defined in
-    ``docs/roadmap/llm-strategy.md``:
+    ``docs/roadmap/architecture/llm-strategy.md``:
 
     - ``auto`` - T0 matched and an action was executed (shadow PR opened).
     - ``abstain`` - routing or T0 abstained.
@@ -1196,7 +1196,7 @@ class ControlLoop:
         transport error, ``None`` estimator) surfaces as ``None`` -
         the Axis A rule treats unknown cost as "route to HIL", per the
         fail-closed cost-gate contract in
-        ``docs/roadmap/execution-model.md § 2.8``.
+        ``docs/roadmap/decisioning/execution-model.md § 2.8``.
         """
 
         if rule.remediation.cost_impact_monthly_usd is not None:

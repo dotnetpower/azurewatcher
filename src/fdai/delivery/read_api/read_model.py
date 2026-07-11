@@ -17,7 +17,7 @@ contract**, not one of the five CSP-neutral wire-level seams. It never
 mutates state; it never leaks secrets; the HTTP layer just serializes
 what it returns.
 
-Contract highlights (see docs/roadmap/user-rbac-and-identity.md § 6):
+Contract highlights (see docs/roadmap/interfaces/user-rbac-and-identity.md § 6):
 
 - Every method is async - real backends (Postgres) block the loop.
 - Cursor pagination is opaque: callers pass whatever the previous page

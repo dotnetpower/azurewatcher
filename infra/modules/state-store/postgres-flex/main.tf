@@ -62,7 +62,7 @@ resource "azurerm_postgresql_flexible_server_database" "primary" {
 # Prod hardening (post day-zero): add a delegated subnet on the Container
 # Apps environment, set `delegated_subnet_id` on the server, and remove
 # this rule so the server never sees a public IP. Documented in
-# `docs/roadmap/deploy-and-onboard.md`.
+# `docs/roadmap/deployment/deploy-and-onboard.md`.
 # ---------------------------------------------------------------------------
 resource "azurerm_postgresql_flexible_server_firewall_rule" "allow_azure_services" {
   count            = var.allow_azure_services_firewall ? 1 : 0

@@ -1,7 +1,7 @@
 """Overlay-loader tests for the ActionType catalog (F5 groundwork).
 
 Covers the file-based overlay layer in
-[action-ontology.md § 7.1](../../../../docs/roadmap/action-ontology.md).
+[action-ontology.md § 7.1](../../../../docs/roadmap/decisioning/action-ontology.md).
 The Rego and runtime override layers land in a later wave.
 """
 

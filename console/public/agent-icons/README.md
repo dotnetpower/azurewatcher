@@ -1,7 +1,7 @@
 # Agent Pantheon icon set
 
 Line icons for the 15 named FDAI agents (see
-[agent-pantheon.md](../../../docs/roadmap/agent-pantheon.md)). One glyph per agent,
+[agent-pantheon.md](../../../docs/roadmap/agents/agent-pantheon.md)). One glyph per agent,
 pairing the agent's Norse symbol with its pipeline role.
 
 ## Files

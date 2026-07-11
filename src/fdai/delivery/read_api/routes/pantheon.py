@@ -95,7 +95,7 @@ def _render_org_chart_mermaid() -> str:
     """Render the pantheon org chart as a deterministic Mermaid ``graph TD``.
 
     Format matches the diagrams in
-    ``docs/roadmap/agent-pantheon.md`` \u00a72 so a fork's org-chart edit
+    ``docs/roadmap/agents/agent-pantheon.md`` \u00a72 so a fork's org-chart edit
     surfaces a diffable change in the exported markdown.
     """
     lines: list[str] = ["graph TD"]

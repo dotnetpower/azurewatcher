@@ -2,7 +2,7 @@
 
 Drop folder for **brand-new** ActionTypes authored by a downstream
 fork. This is the "separate catalog root" seam described in
-[../../docs/roadmap/downstream-fork-seam-recipes.md § 5.12](../../docs/roadmap/downstream-fork-seam-recipes.md)
+[../../docs/roadmap/fork-and-sequencing/downstream-fork-seam-recipes.md § 5.12](../../docs/roadmap/fork-and-sequencing/downstream-fork-seam-recipes.md)
 and is distinct from the overlay layer in
 [../action-types-overrides/](../action-types-overrides/README.md):
 

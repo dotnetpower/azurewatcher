@@ -1,7 +1,7 @@
 ---
 title: Phase 0 - 계측과 언블록
 translation_of: phase-0-instrumentation.md
-translation_source_sha: 949f70da2c1bb8eeea00fb14f93478c01b045184
+translation_source_sha: 5dc03f48b245f37a677b11c358e8cdcc8d2f322f
 translation_revised: 2026-07-11
 ---
 
@@ -11,8 +11,8 @@ translation_revised: 2026-07-11
 구축되지 않음 - 이 phase는 자율성을 *측정 가능하게* 하고 *정책 준수* 하게 만듦. P0는 이후
 phase들이 이득을 증명할 기준 베이스라인을 **확립** ; 자체로는 어떤 개선 배수도 주장하지 않음.
 
-이 phase는 [goals-and-metrics-ko.md](../goals-and-metrics-ko.md) 를 운영으로 구현하고
-[security-and-identity-ko.md](../security-and-identity-ko.md) 에 추적된 P0 아이덴티티/정책
+이 phase는 [goals-and-metrics-ko.md](../architecture/goals-and-metrics-ko.md) 를 운영으로 구현하고
+[security-and-identity-ko.md](../architecture/security-and-identity-ko.md) 에 추적된 P0 아이덴티티/정책
 블로커를 해결. 출력은 [phase-1-rule-catalog-t0-ko.md](phase-1-rule-catalog-t0-ko.md) 의 직접
 전제조건.
 
@@ -20,7 +20,7 @@ phase들이 이득을 증명할 기준 베이스라인을 **확립** ; 자체로
 
 여기서 도메인 용어를 재정의하지 않음. `Event`, `Scenario set`, `Reference agent`,
 `Human touchpoint`, `Auto-resolved event`, `Measurement window` 는
-[goals-and-metrics-ko.md#정의definitions](../goals-and-metrics-ko.md#정의definitions) 에서
+[goals-and-metrics-ko.md#정의definitions](../architecture/goals-and-metrics-ko.md#정의definitions) 에서
 한 번 정의; 이 phase는 그 정의를 그대로 사용.
 
 ## 산출물
@@ -30,12 +30,12 @@ phase들이 이득을 증명할 기준 베이스라인을 **확립** ; 자체로
 
 | # | 산출물 | 수용 검사 |
 |---|--------|----------|
-| 1 | **원격측정 백본** - OpenTelemetry 배선 + audit/state/KPI 저장소 + `shared/contracts/` 의 버전된 이벤트 스키마 ([project-structure-ko.md](../project-structure-ko.md)). | 스키마가 CI에서 검증; 잘못된 입력에 config가 fail fast; golden-fixture 테스트가 기록된 원격측정에서 모든 대시보드 메트릭을 재현. |
-| 2 | **KPI 대시보드** - 성공 메트릭 1-4, 모든 가드 메트릭, 선행 지표 렌더링 ([goals-and-metrics-ko.md#선행-vs-후행-지표leading-vs-lagging-indicators](../goals-and-metrics-ko.md#선행-vs-후행-지표leading-vs-lagging-indicators)), 각각 이름 있는 원격측정 소스로 추적. | 모든 패널이 소스(trace, 감사 로그, 비용 기록)에 매핑; 어떤 패널도 수동으로 채워지지 않음. |
+| 1 | **원격측정 백본** - OpenTelemetry 배선 + audit/state/KPI 저장소 + `shared/contracts/` 의 버전된 이벤트 스키마 ([project-structure-ko.md](../architecture/project-structure-ko.md)). | 스키마가 CI에서 검증; 잘못된 입력에 config가 fail fast; golden-fixture 테스트가 기록된 원격측정에서 모든 대시보드 메트릭을 재현. |
+| 2 | **KPI 대시보드** - 성공 메트릭 1-4, 모든 가드 메트릭, 선행 지표 렌더링 ([goals-and-metrics-ko.md#선행-vs-후행-지표leading-vs-lagging-indicators](../architecture/goals-and-metrics-ko.md#선행-vs-후행-지표leading-vs-lagging-indicators)), 각각 이름 있는 원격측정 소스로 추적. | 모든 패널이 소스(trace, 감사 로그, 비용 기록)에 매핑; 어떤 패널도 수동으로 채워지지 않음. |
 | 3 | **베이스라인 리포트** - 고정된 시나리오 세트에서 측정된 pinned reference agent, 방법론과 원시 카운트 있는 커밋된 아티팩트로 기록. | 재현 가능: 같은 시나리오 세트 버전에서 pinned agent 재실행이 보고된 신뢰구간 내 수치 산출. |
-| 4 | **아이덴티티 매핑** - 프로비저닝된 외부 IdP ↔ Entra ↔ Managed Identity 경로 ([security-and-identity-ko.md#인가-모델authorization-model](../security-and-identity-ko.md#인가-모델authorization-model)). | 종단 경로가 자동 최소권한 프로브 통과; deny-by-default 검증; 접근 재인증 스케줄. |
+| 4 | **아이덴티티 매핑** - 프로비저닝된 외부 IdP ↔ Entra ↔ Managed Identity 경로 ([security-and-identity-ko.md#인가-모델authorization-model](../architecture/security-and-identity-ko.md#인가-모델authorization-model)). | 종단 경로가 자동 최소권한 프로브 통과; deny-by-default 검증; 접근 재인증 스케줄. |
 | 5 | **정책 예외 워크플로** - 준수하는 자율 배포를 위한 요청 가능, time-boxed, 감사, 소유자 승인된 예외 경로. | 워크플로가 소유자와 SLA로 문서화; dry-run 요청이 감사 하에 부여·만료, 어떤 컨트롤도 우회하지 않음. |
-| 6 | **로컬 개발 프리셋** - `src/fdai/shared/providers/` 의 storage / event-bus / secret / workload-identity provider 인터페이스, 오프라인 유닛 테스트 + 디버그 용 in-memory 페이크 페어, 리어-레벨 통합 테스트용 **pgvector + Redpanda** Docker Compose (`infra/local/`) 프리셋. [tech-stack-ko.md § 로컬 개발](../tech-stack-ko.md#로컬-개발) 의 로컬-개발 계약과 [project-structure-ko.md § 주입 가능한-seams](../project-structure-ko.md#주입-가능한-seams) 의 DI seam 을 실현. | Docker 없이 `pytest` 가 in-memory 페이크로 green; `scripts/dev-up.sh` 가 `pgvector/pgvector:pg16` + `redpandadata/redpanda` 컨테이너를 건강하게 울림; **동일 계약-테스트 스위트** 가 페이크와 Compose 스택 모두에 대해 통과. |
+| 6 | **로컬 개발 프리셋** - `src/fdai/shared/providers/` 의 storage / event-bus / secret / workload-identity provider 인터페이스, 오프라인 유닛 테스트 + 디버그 용 in-memory 페이크 페어, 리어-레벨 통합 테스트용 **pgvector + Redpanda** Docker Compose (`infra/local/`) 프리셋. [tech-stack-ko.md § 로컬 개발](../architecture/tech-stack-ko.md#로컬-개발) 의 로컬-개발 계약과 [project-structure-ko.md § 주입 가능한-seams](../architecture/project-structure-ko.md#주입-가능한-seams) 의 DI seam 을 실현. | Docker 없이 `pytest` 가 in-memory 페이크로 green; `scripts/dev-up.sh` 가 `pgvector/pgvector:pg16` + `redpandadata/redpanda` 컨테이너를 건강하게 울림; **동일 계약-테스트 스위트** 가 페이크와 Compose 스택 모두에 대해 통과. |
 
 ## Work Items
 
@@ -43,12 +43,12 @@ phase들이 이득을 증명할 기준 베이스라인을 **확립** ; 자체로
 전 **시작해선 안 됨**; 항목 4는 critical path이며 첫날 시작.
 
 1. **원격측정 백본**: OpenTelemetry 배선, audit/state/KPI 저장소
-   ([tech-stack-ko.md](../tech-stack-ko.md)), 최소 `event_id`, `tier`, `decision`, `mode`
+   ([tech-stack-ko.md](../architecture/tech-stack-ko.md)), 최소 `event_id`, `tier`, `decision`, `mode`
    (shadow/enforce), detect/resolve 타임스탬프를 운반하는 `shared/contracts/` 의 버전된
    이벤트 스키마.
 2. **시나리오 세트**: Resilience, Change Safety, Cost Governance 시나리오 고정 세트를
    정의하고 **freeze** , 세 버티컬에 걸쳐 균형,
-   걸쳐 균형, [goals-and-metrics-ko.md#정의definitions](../goals-and-metrics-ko.md#정의definitions)
+   걸쳐 균형, [goals-and-metrics-ko.md#정의definitions](../architecture/goals-and-metrics-ko.md#정의definitions)
    포맷에 매칭되는 버전(예: `v2026.07`) 태그, 고객-비종속 데이터로 저장. 고정 세트는
    베이스라인과 트리트먼트에 동일 사용.
 3. **베이스라인 측정**: **pinned** reference agent(single-model, no tiering)를 명시된 측정
@@ -58,7 +58,7 @@ phase들이 이득을 증명할 기준 베이스라인을 **확립** ; 자체로
    함께 보고.
 4. **아이덴티티 블로커**: 외부 IdP ↔ Entra ↔ Managed Identity 매핑 프로비저닝 및 테스트;
    최소권한 프로브로 검증 및 재인증 스케줄. 완료를
-   [security-and-identity-ko.md#open-decisions](../security-and-identity-ko.md#open-decisions)
+   [security-and-identity-ko.md#open-decisions](../architecture/security-and-identity-ko.md#open-decisions)
    의 P0 행에 연결.
 5. **정책 블로커**: 정책 예외 워크플로(요청 가능, time-boxed, 감사, 소유자 승인) 정의 -
    자율 배포가 플랫폼 정책을 우회하지 않고 준수 유지; 소유자와 SLA 할당.
@@ -82,11 +82,11 @@ P0에는 enforce-mode 능력이 범위에 없음.
 
 | Task | 제목 | Deps | 산출물 | 수용 | 크기 |
 |------|------|------|--------|------|------|
-| **W1.1** | Monorepo 스켈레톤 | - | [project-structure-ko.md](../project-structure-ko.md) 의 디렉토리: `core/`, `shared/`, `rule-catalog/`, `delivery/`, `infra/`, `policies/`, `tests/`, `.github/` + placeholder README + 서브시스템별 lockfile | 디렉토리 의존 방향을 CI가 강제 (lint job이 금지된 import 플래그) | S |
+| **W1.1** | Monorepo 스켈레톤 | - | [project-structure-ko.md](../architecture/project-structure-ko.md) 의 디렉토리: `core/`, `shared/`, `rule-catalog/`, `delivery/`, `infra/`, `policies/`, `tests/`, `.github/` + placeholder README + 서브시스템별 lockfile | 디렉토리 의존 방향을 CI가 강제 (lint job이 금지된 import 플래그) | S |
 | **W1.2** | 온톨로지 + 이벤트 계약 | W1.1 | `shared/contracts/ontology/{object-type,link-type,action-type}.json`, `shared/contracts/event/schema.json`; 언어별 생성 타입 | 스키마가 CI에서 검증 (`ajv`); breaking change는 semver bump | M |
 | **W1.3** | Config 스키마 + fail-fast 로더 | W1.1 | `shared/config/schema.json` + 주 코어 언어의 로더; env + file provider | 잘못되거나 누락된 필수 필드가 구조화된 에러로 시작 중단 | S |
 | **W1.4** | OpenTelemetry 배선 | W1.1 | `shared/telemetry/` traces, metrics, logs; `correlation_id` 있는 JSON-구조화 로그; `infra/` 의 collector config | 합성 이벤트가 하나의 correlation id로 종단 trace (ingest → tier → gate → audit) | M |
-| **W1.5** | PostgreSQL DDL - instance + audit | W1.2 | `ontology_object_type`, `ontology_link_type`, `ontology_resource`, `ontology_finding`, `ontology_link`, `audit_log`(hash-chain) 마이그레이션 | `flyway`/`alembic` 마이그레이션이 빈 DB에서 클린 실행; DDL이 [llm-strategy-ko.md § Ontology Storage Layout](../llm-strategy-ko.md#ontology-storage-layout) 와 매칭 | M |
+| **W1.5** | PostgreSQL DDL - instance + audit | W1.2 | `ontology_object_type`, `ontology_link_type`, `ontology_resource`, `ontology_finding`, `ontology_link`, `audit_log`(hash-chain) 마이그레이션 | `flyway`/`alembic` 마이그레이션이 빈 DB에서 클린 실행; DDL이 [llm-strategy-ko.md § Ontology Storage Layout](../architecture/llm-strategy-ko.md#ontology-storage-layout) 와 매칭 | M |
 | **W1.6** | PostgreSQL DDL - 계층 캐시 | W1.5 | `learned_action`, `ontology_embedding` (pgvector), `t2_cache`(`catalog_version` 파티션) 마이그레이션 | pgvector 확장 활성; HNSW 인덱스 빌드; 파티션 로테이션 스크립트 테스트 | S |
 | **W1.7** | CI baseline 파이프라인 | W1.1 | `.github/workflows/`: format, lint(English-only + non-ASCII 검사), secret scan (gitleaks), coverage 게이트 (safety-core placeholder에 ≥90%), dependency audit | 실패한 검사가 머지 블록; placeholder-only PR은 통과 | M |
 | **W1.8** | Golden-fixture 메트릭 테스트 | W1.4, W1.5 | `tests/telemetry/` - 기록된 합성-이벤트 trace + 픽스처가 모든 대시보드 메트릭이 원격측정에서 재현되는지 단언 | CI에서 green; trace 속성 제거가 특정 메트릭 단언 실패 | M |
@@ -114,12 +114,12 @@ P0에는 enforce-mode 능력이 범위에 없음.
 
 | Task | 제목 | Deps | 산출물 | 수용 | 크기 |
 |------|------|------|--------|------|------|
-| **W4.1** | Terraform / Bicep 부트스트랩 모듈 | - | Container Apps env, PostgreSQL Flexible + pgvector, Service Bus, Key Vault, Log Analytics, ACR, Azure OpenAI ([deploy-and-onboard-ko.md](../deploy-and-onboard-ko.md#azure-resource-inventory-minimum-set)) 을 위한 `infra/` 모듈 | `azd up` 이 dev 구독에 최소 인벤토리 프로비저닝 | L |
-| **W4.2** | Executor MI (Phase 1 형상) | W4.1 | [security-and-identity-ko.md § Identity Mapping (Phased)](../security-and-identity-ko.md#identity-mapping-phased) 에 따른 RG-스코프 built-in 롤 구성의 `mi-aw-executor` | Terraform이 롤 할당 emit; `az role assignment list` 가 선언 세트와 매칭 | M |
+| **W4.1** | Terraform / Bicep 부트스트랩 모듈 | - | Container Apps env, PostgreSQL Flexible + pgvector, Service Bus, Key Vault, Log Analytics, ACR, Azure OpenAI ([deploy-and-onboard-ko.md](../deployment/deploy-and-onboard-ko.md#azure-resource-inventory-minimum-set)) 을 위한 `infra/` 모듈 | `azd up` 이 dev 구독에 최소 인벤토리 프로비저닝 | L |
+| **W4.2** | Executor MI (Phase 1 형상) | W4.1 | [security-and-identity-ko.md § Identity Mapping (Phased)](../architecture/security-and-identity-ko.md#identity-mapping-phased) 에 따른 RG-스코프 built-in 롤 구성의 `mi-aw-executor` | Terraform이 롤 할당 emit; `az role assignment list` 가 선언 세트와 매칭 | M |
 | **W4.3** | Azure Policy deny-by-default | W4.2 | Phase 1 Change allowlist 밖의 executor MI 액션을 거부하는 정책 할당 | non-allowlisted 액션 시도하는 프로브가 ARM 레이어에서 거부됨 | M |
 | **W4.4** | 최소권한 프로브 | W4.2, W4.3 | `tools/lpp-probe` - 허용 액션 성공, 거부 액션 실패 단언; CI에 기록된 실행 | 프로브 업데이트 없이 새 권한 추가하면 CI 실패 | S |
-| **W4.5** | App registration (dev) | W4.1 | dev 테넌트의 `fdai-console-spa`, `fdai-api`, `fdai-approval-bot` + [user-rbac-and-identity-ko.md § 4.4](../user-rbac-and-identity-ko.md#44-app-roles-token-surface) 에 따라 선언된 App Roles | `Contributor` 에 할당된 dev 사용자가 `roles: ["Contributor"]` 토큰 받음 | M |
-| **W4.6** | Entra 보안 그룹 + App Role 바인딩 | W4.5 | 5 그룹 (`aw-readers/contributors/approvers/owners/break-glass`), 각각 Enterprise Applications에서 매칭 App Role에 바인딩 | 미할당 dev 사용자가 "administrator assignment required" body와 함께 HTTP 403 ([user-rbac-and-identity-ko.md § 10.3](../user-rbac-and-identity-ko.md#103-first-sign-in-unassigned-users)) | S |
+| **W4.5** | App registration (dev) | W4.1 | dev 테넌트의 `fdai-console-spa`, `fdai-api`, `fdai-approval-bot` + [user-rbac-and-identity-ko.md § 4.4](../interfaces/user-rbac-and-identity-ko.md#44-app-roles-token-surface) 에 따라 선언된 App Roles | `Contributor` 에 할당된 dev 사용자가 `roles: ["Contributor"]` 토큰 받음 | M |
+| **W4.6** | Entra 보안 그룹 + App Role 바인딩 | W4.5 | 5 그룹 (`aw-readers/contributors/approvers/owners/break-glass`), 각각 Enterprise Applications에서 매칭 App Role에 바인딩 | 미할당 dev 사용자가 "administrator assignment required" body와 함께 HTTP 403 ([user-rbac-and-identity-ko.md § 10.3](../interfaces/user-rbac-and-identity-ko.md#103-first-sign-in-unassigned-users)) | S |
 | **W4.7** | Conditional Access 정책 | W4.6 | `aw-approvers`/`aw-owners` 에 phishing-resistant MFA; `aw-owners` 에 compliant device; `aw-break-glass` 에 named-location | FIDO2 없이 사인인하는 테스트 승인자가 블록됨 | S |
 | **W4.8** | 재인증 스케줄 | W4.6 | 문서화된 주기(`docs/runbooks/` 의 수동 분기 체크리스트, 또는 P2 라이선스된 경우 Entra Access Review) | 소유자 할당; 다음 리뷰 날짜가 감사 로그에 캡처됨 | S |
 
@@ -127,16 +127,16 @@ P0에는 enforce-mode 능력이 범위에 없음.
 
 | Task | 제목 | Deps | 산출물 | 수용 | 크기 |
 |------|------|------|--------|------|------|
-| **W5.1** | 예외 아티팩트 스키마 | W1.2 | `rule-catalog/schema/exemption.json` ([rule-governance-ko.md § JSON 형상](../rule-governance-ko.md#json-형상) 에 이미 스케치); `.github/PULL_REQUEST_TEMPLATE/exemption.md` 의 PR 템플릿 | 누락 `justification` / `expires_at` 이 CI 실패 | S |
+| **W5.1** | 예외 아티팩트 스키마 | W1.2 | `rule-catalog/schema/exemption.json` ([rule-governance-ko.md § JSON 형상](../rules-and-detection/rule-governance-ko.md#json-형상) 에 이미 스케치); `.github/PULL_REQUEST_TEMPLATE/exemption.md` 의 PR 템플릿 | 누락 `justification` / `expires_at` 이 CI 실패 | S |
 | **W5.2** | Requester ≠ approver CI 검사 | W5.1, W4.5 | CI가 PR trailer Entra OID 를 리뷰어 OID에 대해 파싱; 자기승인 블록 | Author-approves-own-PR 테스트 케이스가 머지 블록 | S |
 | **W5.3** | Auto-expiry Container Apps Job | W5.1, W4.1 | `expires_at` 통과 시 audit `expired` 엔트리 emit하고 기저 할당 재적용하는 일일 cron job | Dry-run: 생성 → 대기 → 만료 → 감사 엔트리 존재; 할당 재적용 | M |
-| **W5.4** | 만료 사전 알림 | W5.3 | 14일 lookahead 다이제스트 ([channels-and-notifications-ko.md § 라우팅](../channels-and-notifications-ko.md#6-라우팅-정책-config-driven)) `exemption_expiry_lookahead_weekly` 배선 | 월요일 아침 포스트가 만료되는 각 exemption을 requester `@mention` 과 함께 리스트 | S |
+| **W5.4** | 만료 사전 알림 | W5.3 | 14일 lookahead 다이제스트 ([channels-and-notifications-ko.md § 라우팅](../interfaces/channels-and-notifications-ko.md#6-라우팅-정책-config-driven)) `exemption_expiry_lookahead_weekly` 배선 | 월요일 아침 포스트가 만료되는 각 exemption을 requester `@mention` 과 함께 리스트 | S |
 | **W5.5** | 소유자 + SLA 문서 | W5.1 | `docs/runbooks/exemption-workflow.md` - 소유자 그룹, 리뷰 SLA, escalation 경로 | 소유자 명명; SLA 측정 가능; escalation 경로 해결 | S |
 
 ### WI6 - 로컬 개발 프리셋 (오프라인 페이크 + Docker Compose)
 
-[tech-stack-ko.md § 로컬 개발](../tech-stack-ko.md#로컬-개발) 의 로컬-개발 계약을
-[project-structure-ko.md § 주입 가능한-seams](../project-structure-ko.md#주입-가능한-seams)
+[tech-stack-ko.md § 로컬 개발](../architecture/tech-stack-ko.md#로컬-개발) 의 로컬-개발 계약을
+[project-structure-ko.md § 주입 가능한-seams](../architecture/project-structure-ko.md#주입-가능한-seams)
 의 주입 seam 으로 실현. In-memory 페이크는 개발자가 `pytest` 와 디버거에서 실행하는
 것; Compose 프리셋은 통합 테스트, `event-ingest` 스모크 런, pgvector 유사도 체크가 실행되는 대상.
 
@@ -230,7 +230,7 @@ gantt
 
 - 이 리포에 커밋된 모든 원격측정, 시나리오, 감사, KPI 데이터는 **영문, 시크릿 없음, 고객-비종속** ;
   합성 또는 placeholder 값만 사용, 리포 범위 규칙에 따라
-  ([goals-and-metrics-ko.md#데이터-수집과-원격측정](../goals-and-metrics-ko.md#데이터-수집과-원격측정)).
+  ([goals-and-metrics-ko.md#데이터-수집과-원격측정](../architecture/goals-and-metrics-ko.md#데이터-수집과-원격측정)).
   실제 환경 기록은 포크의 런타임 저장소에만 존재.
 - 대시보드의 각 메트릭은 정확히 하나의 원격측정 소스(OpenTelemetry trace, append-only 감사 로그,
   또는 비용/사용 기록) 에 매핑; 소스 없는 열망 패널은 출시 불가.
@@ -261,7 +261,7 @@ gantt
 
 | 리스크 | 가능성 | 영향 | 완화 |
 |--------|--------|------|------|
-| 불공정하거나 불균형한 시나리오 세트가 베이스라인-vs-트리트먼트 비교 무효화 | 중간 | 높음 | 어떤 측정 전에 세트 freeze하고 버전; 도메인 간 균형; reference agent는 handicap되지 않음 ([goals-and-metrics-ko.md#measurement-first-규칙](../goals-and-metrics-ko.md#measurement-first-규칙) 의 공정성 규칙). |
+| 불공정하거나 불균형한 시나리오 세트가 베이스라인-vs-트리트먼트 비교 무효화 | 중간 | 높음 | 어떤 측정 전에 세트 freeze하고 버전; 도메인 간 균형; reference agent는 handicap되지 않음 ([goals-and-metrics-ko.md#measurement-first-규칙](../architecture/goals-and-metrics-ko.md#measurement-first-규칙) 의 공정성 규칙). |
 | 아이덴티티 매핑 노력 저평가 | 높음 | 높음 | Critical path로 취급; 첫날 시작; "인증됨" 이 아니라 최소권한 프로브로 게이팅. |
 | 정책 예외 워크플로가 늦어져 이후 준수 배포 블록 | 중간 | 중간 | P0에서 소유자와 SLA 정의; exit 전 dry-run 요청으로 검증. |
 | 베이스라인이 재현 불가(unpinned agent 또는 drift하는 시나리오) | 중간 | 높음 | Reference-agent 버전 고정, 어떤 랜덤도 seed, 시나리오 세트 freeze; 실행 환경 기록. |
@@ -279,8 +279,8 @@ gantt
 ## 의존성
 
 - **상류**: 없음 - P0는 root phase. 외부 전제조건은 아이덴티티 매핑을 위한 클라우드/IdP 접근과
-  원격측정/저장소 대상 ([deployment-ko.md](../deployment-ko.md),
-  [tech-stack-ko.md](../tech-stack-ko.md)).
+  원격측정/저장소 대상 ([deployment-ko.md](../deployment/deployment-ko.md),
+  [tech-stack-ko.md](../architecture/tech-stack-ko.md)).
 - **하류**: P0 원격측정, 고정 시나리오 세트, 측정된 베이스라인, 해결된 아이덴티티/정책 블로커는
   [phase-1-rule-catalog-t0-ko.md](phase-1-rule-catalog-t0-ko.md) 와 모든 이후 phase의 전제조건
   ([README-ko.md](../README-ko.md)).

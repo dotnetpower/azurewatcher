@@ -1,5 +1,5 @@
 """Workflow trigger index - map a Signal (or a schedule tick) to the Workflows
-it fires (see docs/roadmap/process-automation.md 2).
+it fires (see docs/roadmap/decisioning/process-automation.md 2).
 
 The index is the event-driven entry to process automation, analogous to the
 rule index: given a normalized ``signal_type`` it returns, in O(1), the

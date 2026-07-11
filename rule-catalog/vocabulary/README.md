@@ -5,8 +5,8 @@ Currently one artifact:
 
 - [`resource-types.yaml`](resource-types.yaml) - the enumerated list of
   `resource_type` identifiers a rule may target. See
-  [../../docs/roadmap/rule-catalog-collection.md#collection-sources](../../docs/roadmap/rule-catalog-collection.md#collection-sources)
-  and [../../docs/roadmap/llm-strategy.md#ontology-foundation](../../docs/roadmap/llm-strategy.md#ontology-foundation).
+  [../../docs/roadmap/rules-and-detection/rule-catalog-collection.md#collection-sources](../../docs/roadmap/rules-and-detection/rule-catalog-collection.md#collection-sources)
+  and [../../docs/roadmap/architecture/llm-strategy.md#ontology-foundation](../../docs/roadmap/architecture/llm-strategy.md#ontology-foundation).
 
 Adding or renaming an entry is a **governance PR** - the identifier is
 quoted from every matching rule's `resource_type` field, so a rename is a

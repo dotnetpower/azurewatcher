@@ -1,8 +1,8 @@
 """Metric-series source - bridge the § 3.2 MetricProvider into detection.
 
-Design contract: ``docs/roadmap/scope-expansion.md`` section 3.2 (the metric
+Design contract: ``docs/roadmap/fork-and-sequencing/scope-expansion.md`` section 3.2 (the metric
 ingestion seam) and
-[observability-and-detection.md](../../../../docs/roadmap/observability-and-detection.md)
+[observability-and-detection.md](../../../../docs/roadmap/rules-and-detection/observability-and-detection.md)
 sections 2-3 (anomaly / forecast detection).
 
 The § 3.2 :class:`~fdai.shared.providers.metric.MetricProvider` seam ships "so

@@ -1,7 +1,7 @@
 """Inventory - 5th CSP-neutral wire contract; populates the ontology resource graph.
 
-Realizes the contract in ``docs/roadmap/csp-neutrality.md § 5. Inventory
-Contract`` and the ontology model in ``docs/roadmap/llm-strategy.md §
+Realizes the contract in ``docs/roadmap/architecture/csp-neutrality.md § 5. Inventory
+Contract`` and the ontology model in ``docs/roadmap/architecture/llm-strategy.md §
 Ontology Foundation``.
 
 Core code sees only this Protocol; no cloud SDK (`azure-mgmt-*`,
@@ -24,7 +24,7 @@ Two operations return CSP-neutral records:
   watch). Deltas MUST be idempotent and safe to re-apply.
 
 Any adapter MUST honor the rules in
-``docs/roadmap/csp-neutrality.md § 5``:
+``docs/roadmap/architecture/csp-neutrality.md § 5``:
 
 - Idempotent upsert into ``ontology_resource`` + ``ontology_link``.
 - Fail-closed on partial snapshot: the caller MUST reject a stream that
@@ -131,7 +131,7 @@ class Inventory(Protocol):
         stream in ontology-neutral records. Native provider change
         signals are forwarded into a Kafka topic and consumed exactly
         like any other ``Signal`` - see
-        ``docs/roadmap/csp-neutrality.md § 5``.
+        ``docs/roadmap/architecture/csp-neutrality.md § 5``.
         """
         ...
 

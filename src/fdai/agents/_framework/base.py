@@ -3,7 +3,7 @@
 The `Agent` class is the runtime shell; per-agent behavior lives in
 subclasses under this package (added in Waves 2 through 5). `AgentSpec`
 is the immutable declaration read by the registry - see
-`docs/roadmap/agent-pantheon.md` \u00a75.
+`docs/roadmap/agents/agent-pantheon.md` \u00a75.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ class AgentSpec:
 
     The registry rejects any spec whose ``owns`` overlaps with another
     agent's ``owns`` (single-writer invariant, see
-    ``docs/roadmap/agent-pantheon.md`` \u00a76.1).
+    ``docs/roadmap/agents/agent-pantheon.md`` \u00a76.1).
     """
 
     name: str

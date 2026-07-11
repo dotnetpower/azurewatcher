@@ -1,7 +1,7 @@
 """Secret provider - Container Apps native secret + Key Vault reference by default.
 
 Realizes the wire-level contract in
-``docs/roadmap/csp-neutrality.md § Secret Contract``.
+``docs/roadmap/architecture/csp-neutrality.md § Secret Contract``.
 
 The application reads **environment variables** at runtime; the concrete
 :class:`SecretProvider` implementation is a startup-time helper that resolves

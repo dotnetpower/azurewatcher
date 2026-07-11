@@ -10,4 +10,4 @@ body: |-
 provenance:
   source: src/fdai/core/quality_gate/critic.py
   notes: |-
-    Ships in shadow mode per the Wave 4 alpha promotion gate in docs/roadmap/prompt-composition.md. The evaluator (evaluate_critic_output) enforces the structured contract (stance + grounded objections) at read time; this prompt narrates the same contract to the model so the Critic emits parseable JSON. Wave 4.5 promotes to enforce once the debate orchestrator lands and a shipped Azure adapter is measured against the promotion_gate.
+    Ships in shadow mode per the Wave 4 alpha promotion gate in docs/roadmap/decisioning/prompt-composition.md. The evaluator (evaluate_critic_output) enforces the structured contract (stance + grounded objections) at read time; this prompt narrates the same contract to the model so the Critic emits parseable JSON. Wave 4.5 promotes to enforce once the debate orchestrator lands and a shipped Azure adapter is measured against the promotion_gate.
