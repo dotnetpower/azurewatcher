@@ -63,6 +63,13 @@ class Assignment:
             raise ValueError("Assignment.id MUST be non-empty")
         if not self.target_rule_ids:
             raise ValueError("Assignment.target_rule_ids MUST bind at least one rule")
+        # An override for a rule the assignment does not bind is dead config
+        # (a typo silently ignored). Reject it at the boundary.
+        stray = (set(self.effect_overrides) | set(self.parameter_overrides)) - self.target_rule_ids
+        if stray:
+            raise ValueError(
+                f"Assignment override targets rules not in target_rule_ids: {sorted(stray)}"
+            )
 
     def applies_to(self, rule_id: str, ctx: ResourceContext) -> bool:
         """True when this assignment binds ``rule_id`` and its scope covers the

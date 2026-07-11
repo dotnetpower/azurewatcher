@@ -61,6 +61,26 @@ def test_validation() -> None:
         Assignment(id="a", target_rule_ids=frozenset(), scope=_RG)
 
 
+def test_stray_effect_override_rejected() -> None:
+    with pytest.raises(ValueError, match="not in target_rule_ids"):
+        Assignment(
+            id="a",
+            target_rule_ids=frozenset({"r.x"}),
+            scope=_RG,
+            effect_overrides={"r.other": Effect.DENY},
+        )
+
+
+def test_stray_parameter_override_rejected() -> None:
+    with pytest.raises(ValueError, match="not in target_rule_ids"):
+        Assignment(
+            id="a",
+            target_rule_ids=frozenset({"r.x"}),
+            scope=_RG,
+            parameter_overrides={"r.ghost": {"k": "v"}},
+        )
+
+
 def test_applies_to_requires_rule_and_scope() -> None:
     a = _assign(id_="a1", rules={"r.x"}, scope=_RG)
     assert a.applies_to("r.x", _ctx())

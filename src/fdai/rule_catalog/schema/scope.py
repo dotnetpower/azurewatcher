@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Protocol, runtime_checkable
+from typing import Protocol
 
 
 class ScopeLevel(IntEnum):
@@ -120,7 +120,6 @@ class Scope:
         return int(self.level)
 
 
-@runtime_checkable
 class ScopeMatcher(Protocol):
     """A scope expression: a coverage predicate plus a specificity rank.
 
@@ -223,6 +222,15 @@ class ScopeRef:
         return Scope(level=self.level, id=self.id, selector=selector, excludes=excludes)
 
 
+def _ref_dominates(ancestor: ScopeRef, descendant: ScopeRef) -> bool:
+    """True when ``ancestor`` is an ancestor-or-equal address of ``descendant``
+    (its segments are a prefix), so excluding ``ancestor`` removes everything
+    ``descendant`` would include."""
+    a = ancestor.segments
+    d = descendant.segments
+    return len(a) <= len(d) and d[: len(a)] == a
+
+
 @dataclass(frozen=True, slots=True)
 class ScopeBinding:
     """An assignment's scope as include / exclude address lists plus an optional
@@ -242,6 +250,16 @@ class ScopeBinding:
     def __post_init__(self) -> None:
         if not self.includes:
             raise ValueError("ScopeBinding MUST have at least one include scope")
+        # A binding whose every include is structurally dominated by an exclude
+        # (an exclude that is an ancestor-or-equal address of the include) covers
+        # nothing - a silent dead assignment. Reject it at construction.
+        if self.excludes and all(
+            any(_ref_dominates(exc, inc) for exc in self.excludes) for inc in self.includes
+        ):
+            raise ValueError(
+                "ScopeBinding covers nothing: every include is excluded "
+                "(an exclude is an ancestor-or-equal of each include)"
+            )
 
     def covers(self, ctx: ResourceContext) -> bool:
         if not any(ref.covers(ctx) for ref in self.includes):

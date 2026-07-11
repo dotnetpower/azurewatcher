@@ -254,3 +254,30 @@ def test_scope_binding_specificity_is_most_specific_include() -> None:
         includes=(ScopeRef(("org-1",)), ScopeRef(("org-1", "sub-1", "rg-a"))),
     )
     assert binding.specificity == int(ScopeLevel.RESOURCE_GROUP)
+
+
+def test_scope_binding_dead_when_exclude_dominates_all_includes() -> None:
+    # exclude scope://org-1 is an ancestor of the only include -> covers nothing
+    with pytest.raises(ValueError, match="covers nothing"):
+        ScopeBinding(
+            includes=(ScopeRef(("org-1", "sub-1")),),
+            excludes=(ScopeRef(("org-1",)),),
+        )
+
+
+def test_scope_binding_dead_when_exclude_equals_include() -> None:
+    with pytest.raises(ValueError, match="covers nothing"):
+        ScopeBinding(
+            includes=(ScopeRef(("org-1", "sub-1")),),
+            excludes=(ScopeRef(("org-1", "sub-1")),),
+        )
+
+
+def test_scope_binding_survives_partial_exclusion() -> None:
+    # one include is dominated, another survives -> the binding is not dead
+    binding = ScopeBinding(
+        includes=(ScopeRef(("org-1", "sub-1")), ScopeRef(("org-2",))),
+        excludes=(ScopeRef(("org-1",)),),
+    )
+    assert binding.covers(_ctx(org="org-2", account="sub-9"))
+    assert not binding.covers(_ctx(org="org-1", account="sub-1"))
