@@ -27,10 +27,29 @@ _DEDUP_CAPACITY = 100_000
 #: ingested event, not just operator proposals.
 _MAX_FIELD_CHARS = 512
 
+#: Bound the free-form ``attributes`` map at ingress: cap the key count and
+#: truncate string values, so a pathological or forged signal cannot smuggle a
+#: giant nested payload past the top-level field caps (same bloat / audit /
+#: partition-key concern, one level down). Shallow by design - the common
+#: bloat vectors are too many keys and oversized string values.
+_MAX_ATTR_KEYS = 64
+
 
 def _bound(value: Any) -> Any:
     """Truncate a string value to the ingress field cap; pass non-strings."""
     return value[:_MAX_FIELD_CHARS] if isinstance(value, str) else value
+
+
+def _bound_attributes(attrs: Any) -> dict[str, Any]:
+    """Cap the attribute key count and truncate string values at ingress."""
+    if not isinstance(attrs, dict):
+        return {}
+    out: dict[str, Any] = {}
+    for key, value in attrs.items():
+        if len(out) >= _MAX_ATTR_KEYS:
+            break
+        out[str(key)[:_MAX_FIELD_CHARS]] = _bound(value)
+    return out
 
 
 class Huginn(Agent):
@@ -86,7 +105,7 @@ class Huginn(Agent):
             "resource_id": _bound(raw.get("resource_id")),
             "resource_type": _bound(raw.get("resource_type")),
             "event_type": str(raw.get("event_type", "generic"))[:_MAX_FIELD_CHARS],
-            "attributes": dict(raw.get("attributes", {})),
+            "attributes": _bound_attributes(raw.get("attributes", {})),
         }
         # Operator-proposal fields (`initiator_principal`, `action_type`,
         # `params`) are honored ONLY for an explicit operator request

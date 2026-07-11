@@ -38,6 +38,32 @@ def test_huginn_normalizes_and_dedups() -> None:
     assert second is None  # dedup
 
 
+def test_huginn_bounds_pathological_attributes() -> None:
+    # attributes is attacker-controlled free-form metadata; the ingress
+    # boundary must cap the key count and truncate oversized string values so
+    # one signal cannot bloat the pipeline / audit / bus partition.
+    from fdai.agents.huginn import _MAX_ATTR_KEYS, _MAX_FIELD_CHARS
+
+    huginn = Huginn()
+    payload = asyncio.run(
+        huginn.ingest(
+            {
+                "id": "evt-huge",
+                "event_type": "generic",
+                "attributes": {
+                    **{f"k{i}": "v" for i in range(_MAX_ATTR_KEYS + 100)},
+                    "big": "x" * (_MAX_FIELD_CHARS + 1000),
+                },
+            }
+        )
+    )
+    assert payload is not None
+    attrs = payload["attributes"]
+    assert len(attrs) == _MAX_ATTR_KEYS
+    # Any surviving string value is truncated to the field cap.
+    assert all(len(v) <= _MAX_FIELD_CHARS for v in attrs.values() if isinstance(v, str))
+
+
 def test_huginn_publishes_on_bound_bus() -> None:
     reg = load_pantheon()
     bus = InMemoryBus(registry=reg)
