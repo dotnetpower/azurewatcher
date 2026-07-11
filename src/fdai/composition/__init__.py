@@ -83,7 +83,9 @@ if TYPE_CHECKING:
     from ..delivery.azure.metric_logs import AzureMonitorLogsConfig
     from ..delivery.azure_devops.change_feed import AzureDevOpsChangeFeedConfig
     from ..delivery.github.change_feed import GitHubChangeFeedConfig, TokenProvider
+    from ..delivery.pgvector.knowledge import PgvectorKnowledgeConfig
     from ..rule_catalog.schema.resource_type import ResourceTypeRegistry
+    from ..shared.providers.secret_provider import SecretProvider
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -244,6 +246,37 @@ def bind_embedding_knowledge_source(
         embedder=bindings.embedding_model,
         max_chars=max_chars,
         overlap=overlap,
+    )
+    return replace(container, knowledge_source=source)
+
+
+def bind_pgvector_knowledge_source(
+    container: Container,
+    *,
+    config: "PgvectorKnowledgeConfig",
+    secrets: SecretProvider,
+) -> Container:
+    """Return a new :class:`Container` with a pgvector-backed
+    :class:`KnowledgeSource` in place of the default
+    :class:`EmptyKnowledgeSource`.
+
+    The production counterpart of :func:`bind_embedding_knowledge_source`:
+    both reuse the already-bound embedding model from ``llm_bindings`` and
+    satisfy the identical ``KnowledgeSource`` contract, so free-form
+    grounding is swappable between the in-memory reference and the
+    persistent store without touching ``core/``. The DSN is resolved
+    through the injected :class:`SecretProvider` at call time. The backing
+    table is created by ``alembic/versions/20260712_0009_knowledge_base.py``;
+    the entry point ingests documents at startup via
+    ``await container.knowledge_source.ingest(...)``.
+    """
+    from ..delivery.pgvector.knowledge import PgvectorKnowledgeSource
+
+    bindings = container.require_llm_bindings()
+    source = PgvectorKnowledgeSource(
+        config=config,
+        embedder=bindings.embedding_model,
+        secrets=secrets,
     )
     return replace(container, knowledge_source=source)
 
