@@ -13,7 +13,13 @@ from collections.abc import AsyncIterator
 import pytest
 
 from fdai.delivery.provisioning.serve import aiter_json_lines, pump_provision_events
-from fdai.delivery.read_api.provision_stream import ProvisionEvent, ProvisionPhase
+from fdai.delivery.read_api.provision_stream import (
+    DEFAULT_CHANNEL,
+    ProvisionEvent,
+    ProvisionPhase,
+    SseProvisionPublisher,
+)
+from fdai.shared.providers.testing.sse import InMemorySseSink
 
 
 class _Collector:
@@ -125,3 +131,42 @@ class TestAiterJsonLines:
     async def test_bytes_decoded(self) -> None:
         lines = await _collect(aiter_json_lines(_achunks(b'{"type":"x"}\n')))
         assert lines == ['{"type":"x"}']
+
+
+class TestEndToEnd:
+    async def test_chunks_flow_to_sse_subscriber(self) -> None:
+        # Full surface-A path: chunked bytes -> aiter_json_lines -> pump ->
+        # SseProvisionPublisher -> InMemorySseSink -> a subscribed console.
+        import asyncio
+
+        sink = InMemorySseSink()
+        publisher = SseProvisionPublisher(sink=sink, channel=DEFAULT_CHANNEL)
+        received: list[dict[str, object]] = []
+
+        async def _subscriber() -> None:
+            async for event in sink.subscribe(DEFAULT_CHANNEL):
+                received.append(json.loads(event.data))
+                if received[-1].get("type") == "provision.done":
+                    break
+
+        task = asyncio.create_task(_subscriber())
+        await asyncio.sleep(0)  # let the subscriber attach before publishing
+
+        raw = (
+            _plan(1).encode()
+            + b"\n"
+            + _apply_complete("a").encode()
+            + b"\n"
+            + _apply_summary(1).encode()
+            + b"\n"
+            + _outputs("https://c.example.com").encode()
+            + b"\n"
+        )
+        # Deliberately split the byte stream mid-record to exercise reassembly.
+        chunks = [raw[:20], raw[20:55], raw[55:]]
+        await pump_provision_events(aiter_json_lines(_achunks(*chunks)), publisher)
+
+        await asyncio.wait_for(task, timeout=1.0)
+        types = [e["type"] for e in received]
+        assert types == ["provision.progress", "provision.done"]
+        assert received[-1]["console_url"] == "https://c.example.com"
