@@ -56,7 +56,14 @@ def _load_dir[T](
     loaded: list[T] = []
     seen: dict[str, str] = {}
     for path in sorted(directory.glob("*.yaml")):
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        try:
+            raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except yaml.YAMLError as exc:
+            issues.append(GovernanceLoadIssue(key=path.name, message=f"invalid YAML: {exc}"))
+            continue
+        except UnicodeDecodeError as exc:
+            issues.append(GovernanceLoadIssue(key=path.name, message=f"not UTF-8 text: {exc}"))
+            continue
         if not isinstance(raw, dict):
             issues.append(GovernanceLoadIssue(key=path.name, message="not a YAML mapping"))
             continue
