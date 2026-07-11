@@ -36,6 +36,10 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["subscription_id"],
+      "anyOf": [
+        {"required": ["resource_group"]},
+        {"required": ["resource_ref"]}
+      ],
       "properties": {
         "subscription_id": {
           "type": "string",
@@ -54,7 +58,7 @@
           "description": "Optional; narrower still - a single resource."
         }
       },
-      "description": "Narrowest applicable target. Subscription-wide exemptions require Owner-tier quorum."
+      "description": "Narrowest applicable target. MUST set resource_group or resource_ref - a subscription-only scope is a subscription-wide override, which is rejected (architecture.instructions.md Human Override); disabling a rule subscription-wide is a rule retirement, not an override."
     },
     "justification": {
       "type": "string",

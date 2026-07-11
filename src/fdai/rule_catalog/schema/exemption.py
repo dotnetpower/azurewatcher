@@ -68,6 +68,24 @@ class ExemptionScope(BaseModel):
     resource_group: Annotated[str, Field(min_length=1, max_length=90)] | None = None
     resource_ref: Annotated[str, Field(min_length=1)] | None = None
 
+    @model_validator(mode="after")
+    def _require_bounded_scope(self) -> ExemptionScope:
+        # Scope MUST be bounded to a resource-group-equivalent grouping or
+        # narrower (architecture.instructions.md § Human Override). A
+        # subscription-only scope (both resource_group and resource_ref
+        # absent) is a subscription-wide override, which is rejected -
+        # disabling a rule subscription-wide is a rule RETIREMENT, not an
+        # override, and must go through the catalog pipeline. Enforced
+        # here (not just documented) so a hand-authored / fork exemption
+        # cannot silently suppress a rule across a whole subscription.
+        if self.resource_group is None and self.resource_ref is None:
+            raise ValueError(
+                "exemption scope MUST set resource_group or resource_ref - "
+                "subscription-wide overrides are rejected "
+                "(architecture.instructions.md § Human Override)"
+            )
+        return self
+
 
 class Exemption(BaseModel):
     """Time-boxed, audited exemption artifact."""

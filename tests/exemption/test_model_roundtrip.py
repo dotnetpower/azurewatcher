@@ -61,6 +61,28 @@ def test_self_approval_is_rejected() -> None:
         load_exemption_from_mapping(raw)
 
 
+def test_subscription_wide_scope_is_rejected() -> None:
+    # Only subscription_id, no resource_group / resource_ref -> a
+    # subscription-wide override, which is rejected (Human Override:
+    # scope MUST be resource-group-equivalent or narrower).
+    raw = _valid_raw()
+    raw["scope"] = {"subscription_id": "00000000-0000-0000-0000-000000000000"}
+    with pytest.raises(ExemptionError) as exc:
+        load_exemption_from_mapping(raw)
+    assert any("scope" in i.key or "resource_group" in i.message for i in exc.value.issues)
+
+
+def test_resource_ref_only_scope_is_accepted() -> None:
+    # resource_ref alone (no resource_group) is the narrowest bound - valid.
+    raw = _valid_raw()
+    raw["scope"] = {
+        "subscription_id": "00000000-0000-0000-0000-000000000000",
+        "resource_ref": "resource:example/rg/x",
+    }
+    exemption = load_exemption_from_mapping(raw)
+    assert exemption.scope.resource_ref == "resource:example/rg/x"
+
+
 def test_expiry_not_after_created_is_rejected() -> None:
     raw = _valid_raw()
     raw["expires_at"] = raw["created_at"]  # same instant → invalid
