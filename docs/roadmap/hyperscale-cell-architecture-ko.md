@@ -1,7 +1,7 @@
 ---
 title: 초대규모 셀 아키텍처 (B안)
 translation_of: hyperscale-cell-architecture.md
-translation_source_sha: 5130cf0ae4607d7bcbc934d3bcad484ef05e4f8e
+translation_source_sha: ce1ef9d2c0415140b54725edb749892e07fc41df
 translation_revised: 2026-07-11
 ---
 # 초대규모 셀 아키텍처 (B안)
