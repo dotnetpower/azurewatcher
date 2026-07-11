@@ -113,8 +113,11 @@ assignment's top-level `effect` is the default for rules without an override.
 > compares a previous and current `GovernanceCatalog` and rejects any per-rule effective-effect
 > transition outside the allowed table - a new assignment/rule is validated from the mandated
 > `audit` default, and raising to an enforce effect (`deny` / `remediate`) needs the assignment id
-> in `promotions_approved`. The remaining follow-up is the thin `git`-diff CI script wrapping the
-> validator and the T0 runtime that consumes a resolved assignment.
+> in `promotions_approved`. A thin `git`-diff CI script
+> ([`check-governance-transitions.py`](../../../scripts/check-governance-transitions.py)) wraps the
+> validator: it materializes the catalog at the base ref and the working tree and fails the build on
+> a rejected transition. The remaining follow-up is the T0 runtime that consumes a resolved
+> assignment.
 
 ## Scope
 
