@@ -14,6 +14,7 @@ from fdai.agents._framework.action_semantics import (
     DEFAULT_QUORUM,
     IRREVERSIBLE_QUORUM,
     is_irreversible,
+    outcome_result,
     quorum_for,
 )
 from fdai.agents._framework.bus import InMemoryBus
@@ -39,6 +40,18 @@ class TestActionSemantics:
     def test_quorum_for(self) -> None:
         assert quorum_for("remediate.delete-storage") == IRREVERSIBLE_QUORUM == 2
         assert quorum_for("ops.restart-service") == DEFAULT_QUORUM == 1
+
+    def test_outcome_result_maps_terminal_states(self) -> None:
+        assert outcome_result("succeeded") == "success"
+        assert outcome_result("failed") == "failure"
+        assert outcome_result("rolled_back") == "rollback"
+        assert outcome_result("REVERTED") == "rollback"  # case-insensitive
+
+    def test_outcome_result_none_for_intermediate_states(self) -> None:
+        assert outcome_result("executing") is None
+        assert outcome_result("hil_pending") is None
+        assert outcome_result("rejected") is None  # non-execution terminal
+        assert outcome_result("") is None
 
 
 class TestForsetiStampsQuorum:

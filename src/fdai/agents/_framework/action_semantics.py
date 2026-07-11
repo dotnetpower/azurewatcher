@@ -51,4 +51,35 @@ def quorum_for(action_type_id: str) -> int:
     return IRREVERSIBLE_QUORUM if is_irreversible(action_type_id) else DEFAULT_QUORUM
 
 
-__all__ = ["IRREVERSIBLE_QUORUM", "DEFAULT_QUORUM", "is_irreversible", "quorum_for"]
+# Terminal ActionRun ``state`` values (Thor's vocabulary) mapped to the
+# ``result`` vocabulary the discovery-loop outcome learner scores. Only
+# outcome-defining terminal states appear here: intermediate states
+# (verdicted / executing / hil_pending) and non-execution terminals
+# (rejected / deny_dropped) have no learnable outcome and map to ``None``.
+_TERMINAL_OUTCOME: Final[dict[str, str]] = {
+    "succeeded": "success",
+    "failed": "failure",
+    "rolled_back": "rollback",
+    "reverted": "rollback",
+}
+
+
+def outcome_result(state: str) -> str | None:
+    """Map a terminal ActionRun ``state`` to a learnable outcome ``result``.
+
+    Returns ``success`` / ``failure`` / ``rollback`` for an outcome-defining
+    terminal state, or ``None`` for an intermediate / non-execution state.
+    Shared so Saga (which republishes an outcome as an audit-entry) and Norns
+    (which scores it) agree on exactly which states count - the same
+    single-source safety argument as :func:`is_irreversible`.
+    """
+    return _TERMINAL_OUTCOME.get(state.lower())
+
+
+__all__ = [
+    "IRREVERSIBLE_QUORUM",
+    "DEFAULT_QUORUM",
+    "is_irreversible",
+    "quorum_for",
+    "outcome_result",
+]

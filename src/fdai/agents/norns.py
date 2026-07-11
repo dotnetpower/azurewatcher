@@ -27,6 +27,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
+from fdai.agents._framework.action_semantics import outcome_result
 from fdai.agents._framework.base import Agent
 from fdai.agents._framework.introspection import IntrospectionResult, capability_facts, capped_list
 from fdai.agents._framework.pantheon import _NORNS
@@ -34,16 +35,6 @@ from fdai.agents._framework.pantheon import _NORNS
 # Adverse outcomes that count against an action's success record.
 _ADVERSE_RESULTS: frozenset[str] = frozenset({"rollback", "failure", "reverted"})
 _SUCCESS_RESULTS: frozenset[str] = frozenset({"success", "applied", "ok"})
-
-# Thor emits terminal ActionRun ``state`` values; Saga's audit-entry carries
-# them. Normalize to the ``result`` vocabulary the outcome learner scores so
-# an audit-entry that reports ``state`` (not ``result``) still learns.
-_STATE_TO_RESULT: dict[str, str] = {
-    "succeeded": "success",
-    "failed": "failure",
-    "rolled_back": "rollback",
-    "reverted": "rollback",
-}
 
 
 class Norns(Agent):
@@ -79,6 +70,12 @@ class Norns(Agent):
         self._min_outcome_samples = min_outcome_samples
         self._outcomes: dict[str, dict[str, int]] = {}
         self._outcome_proposed: set[str] = set()
+        # Correlation ids whose outcome has already been counted, so a single
+        # action that emits multiple adverse terminal audits (Thor emits
+        # FAILED then ROLLED_BACK for a failed action) is scored once, not
+        # twice. Only applied when a correlation_id is present; audit-entries
+        # without one fall back to per-event counting.
+        self._counted_correlations: set[str] = set()
         # Override learner state.
         self._override_retire_threshold = override_retire_threshold
         self._override_counter: Counter[str] = Counter()
@@ -133,7 +130,7 @@ class Norns(Agent):
         if not result:
             # An audit-entry that reports the raw ActionRun ``state`` (Thor's
             # vocabulary) instead of a normalized ``result`` still learns.
-            result = _STATE_TO_RESULT.get(str(payload.get("state", "")).lower(), "")
+            result = outcome_result(str(payload.get("state", ""))) or ""
         if not target:
             return
         if result in _ADVERSE_RESULTS:
@@ -142,6 +139,12 @@ class Norns(Agent):
             bucket = "success"
         else:
             return
+        # Dedup one action's outcome across its multiple terminal audits.
+        correlation_id = str(payload.get("correlation_id", ""))
+        if correlation_id:
+            if correlation_id in self._counted_correlations:
+                return
+            self._counted_correlations.add(correlation_id)
         counts = self._outcomes.setdefault(target, {"success": 0, "rollback": 0})
         counts[bucket] += 1
         total = counts["success"] + counts["rollback"]

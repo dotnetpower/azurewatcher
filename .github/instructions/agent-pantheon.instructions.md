@@ -186,9 +186,18 @@ deepen it. Do not delete this list without closing the item.
   contract-specific rollback / DR failover).
 - **Live degradation policy is not driven by health probes** (Saga/Vidar
   availability are constructor flags, not runtime signals).
-- **Discovery loop (Saga -> Norns -> Mimir) is not wired**: Saga does not publish
-  `object.issue` to the bus; Norns' handler topics do not match its
-  `subscribes`; `object.override` is unregistered.
+- **Discovery loop (Saga -> Norns -> Mimir) is partially wired.** The
+  **outcome loop** is closed: Saga republishes each terminal action outcome
+  (succeeded / failed / rolled_back, normalized via
+  `action_semantics.outcome_result`) as `object.audit-entry`, and Norns'
+  outcome learner - now aligned to its declared `object.audit-entry`
+  subscription and deduping per `correlation_id` - scores rollback rates
+  from it. `object.override` is no longer subscribed (it is not a pantheon
+  topic); the override learner is the public `Norns.observe_override()` the
+  exemption machinery calls. **Remaining**: Saga does not yet publish
+  `object.issue` (the fingerprint loop), Norns does not yet publish
+  `object.rule-candidate` to the bus, and Mimir does not yet consume it;
+  `object.approval` is a Norns subscription without a learner.
 - **LLM bindings are placeholders** (`hot_path_llm` / `off_path_llm` booleans; no
   `llm_bindings` field; no model is invoked). The conversational port answers are
   base stubs on all agents except Bragi routing.

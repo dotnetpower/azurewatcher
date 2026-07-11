@@ -534,6 +534,110 @@ def test_norns_outcome_learner_normalizes_action_run_state() -> None:
     assert proposals[0]["evidence"]["rollback_rate"] == 0.4
 
 
+# ---------------------------------------------------------------------------
+# Discovery loop B: Saga republishes outcomes -> Norns learns
+# ---------------------------------------------------------------------------
+
+
+def _saga_on_bus() -> tuple[Saga, InMemoryBus]:
+    bus = InMemoryBus(registry=load_pantheon())
+    saga = Saga()
+    saga.bind_bus(bus)
+    return saga, bus
+
+
+def test_saga_republishes_terminal_action_outcome() -> None:
+    saga, bus = _saga_on_bus()
+    for state, expected in (
+        ("succeeded", "success"),
+        ("failed", "failure"),
+        ("rolled_back", "rollback"),
+    ):
+        bus.clear_history()
+        asyncio.run(
+            saga.on_typed_message(
+                "object.action-run",
+                {"action_type": "remediate.z", "state": state, "correlation_id": "c"},
+            )
+        )
+        entries = bus.messages_on("object.audit-entry")
+        assert len(entries) == 1
+        assert entries[0].payload["result"] == expected
+        assert entries[0].payload["action_type"] == "remediate.z"
+
+
+def test_saga_does_not_republish_intermediate_or_untyped_state() -> None:
+    saga, bus = _saga_on_bus()
+    # Intermediate state -> no learnable outcome -> no audit-entry.
+    asyncio.run(
+        saga.on_typed_message(
+            "object.action-run",
+            {"action_type": "remediate.z", "state": "executing", "correlation_id": "c"},
+        )
+    )
+    # Terminal but no action_type -> nothing to attribute.
+    asyncio.run(
+        saga.on_typed_message("object.action-run", {"state": "succeeded", "correlation_id": "c"})
+    )
+    assert bus.messages_on("object.audit-entry") == []
+
+
+def test_saga_audit_entry_drives_norns_outcome_learning() -> None:
+    """End to end: Saga republishes terminal outcomes, Norns (subscribed to
+    object.audit-entry) scores the rollback rate and proposes a threshold
+    adjustment - the closed discovery loop."""
+    saga, bus = _saga_on_bus()
+    norns = Norns(min_outcome_samples=10, rollback_alarm_rate=0.2)
+    bus.subscribe("object.audit-entry", "Norns", norns.on_typed_message)
+
+    # 4 failed actions - each emits FAILED then ROLLED_BACK (2 audit-entries,
+    # same correlation) -> deduped to 1 adverse each. 6 succeeded.
+    for i in range(4):
+        for state in ("failed", "rolled_back"):
+            asyncio.run(
+                saga.on_typed_message(
+                    "object.action-run",
+                    {"action_type": "remediate.z", "state": state, "correlation_id": f"f{i}"},
+                )
+            )
+    for i in range(6):
+        asyncio.run(
+            saga.on_typed_message(
+                "object.action-run",
+                {"action_type": "remediate.z", "state": "succeeded", "correlation_id": f"s{i}"},
+            )
+        )
+
+    proposals = [
+        c for c in norns.pending_candidates if c["proposal_kind"] == "threshold_adjustment"
+    ]
+    assert len(proposals) == 1
+    assert proposals[0]["evidence"]["sample_size"] == 10  # dedup: 4 adverse + 6 success
+    assert proposals[0]["evidence"]["rollback_rate"] == 0.4
+
+
+def test_norns_dedups_outcome_per_correlation() -> None:
+    """A single action that emits FAILED then ROLLED_BACK is scored once."""
+    norns = Norns()
+    # One failed action: FAILED + ROLLED_BACK, same correlation -> 1 adverse.
+    for result in ("failure", "rollback"):
+        asyncio.run(
+            norns.on_typed_message(
+                "object.audit-entry",
+                {"action_type": "a", "result": result, "correlation_id": "same"},
+            )
+        )
+    # One success, distinct correlation.
+    asyncio.run(
+        norns.on_typed_message(
+            "object.audit-entry",
+            {"action_type": "a", "result": "success", "correlation_id": "other"},
+        )
+    )
+    # Deduped: 1 adverse + 1 success = 0.5 rollback rate (NOT 2 adverse / 3 = 0.67).
+    assert norns.outcome_rate("a") == 0.5
+
+
 def test_norns_constructor_rejects_misconfiguration() -> None:
     """Out-of-range config would make the learner propose on thin evidence."""
     with pytest.raises(ValueError, match="promotion_threshold"):

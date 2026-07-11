@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
+from fdai.agents._framework.action_semantics import outcome_result
 from fdai.agents._framework.adapters import (
     AuditEntry,
     InMemoryAuditChain,
@@ -51,6 +52,39 @@ class Saga(Agent):
             topic=topic,
             correlation_id=correlation_id,
             payload=payload,
+        )
+        if topic == "object.action-run":
+            await self._republish_outcome(payload, correlation_id)
+
+    async def _republish_outcome(self, payload: dict[str, Any], correlation_id: str) -> None:
+        """Republish a terminal action outcome as an ``object.audit-entry``.
+
+        Saga owns AuditEntry, so it is the writer that closes the discovery
+        loop: Norns (the learner) subscribes ``object.audit-entry`` and scores
+        rollback rates from these records. Only outcome-defining terminal
+        states (succeeded / failed / rolled_back) are republished - one
+        record per definitive outcome; intermediate lifecycle states carry no
+        learnable result and are written to the append-only chain only. Saga
+        does not subscribe ``object.audit-entry``, so this never loops. A
+        bus-less Saga (unit scenarios) simply records to the chain.
+        """
+        if self.bus is None:
+            return
+        result = outcome_result(str(payload.get("state", "")))
+        action_type = str(payload.get("action_type", ""))
+        if result is None or not action_type:
+            return
+        await self.bus.publish(
+            "Saga",
+            "object.audit-entry",
+            {
+                "producer_principal": "Saga",
+                "correlation_id": correlation_id,
+                "audited_topic": "object.action-run",
+                "action_type": action_type,
+                "result": result,
+                "resource_id": payload.get("resource_id"),
+            },
         )
 
     def escalate_to_github_issue(
