@@ -8,12 +8,14 @@ prompt-injected citation never grounds a hypothesis).
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from fdai.core.rca import (
     Citation,
     CitationKind,
+    CorrelatedEvent,
     RcaCoordinator,
     RcaOutcome,
     RcaTier,
@@ -109,6 +111,83 @@ def test_analyze_t0_passes_high_confidence_floor() -> None:
 def test_constructor_validates_min_confidence() -> None:
     with pytest.raises(ValueError, match="min_confidence"):
         RcaCoordinator(min_confidence=1.5)
+
+
+_FAIL_AT = datetime(2026, 7, 7, 12, 0, 0, tzinfo=UTC)
+_WINDOW = timedelta(minutes=10)
+
+
+def test_analyze_t1_causal_chain_grounds_multi_hop() -> None:
+    coordinator = RcaCoordinator()
+    events = [
+        CorrelatedEvent(
+            event_id="cfg",
+            at=_FAIL_AT - timedelta(minutes=4),
+            resource_ref="db",
+            is_change=True,
+        ),
+        CorrelatedEvent(
+            event_id="dbslow",
+            at=_FAIL_AT - timedelta(minutes=1),
+            resource_ref="db",
+            is_change=False,
+        ),
+    ]
+    result = coordinator.analyze_t1_causal_chain(
+        failure_event_id="fail",
+        failure_at=_FAIL_AT,
+        failure_resource_ref="app",
+        correlated_events=events,
+        window=_WINDOW,
+        depends_on={"app": {"db"}},
+    )
+    assert result.outcome is RcaOutcome.GROUNDED
+    assert result.hypothesis is not None
+    assert result.hypothesis.tier is RcaTier.T1
+    assert result.hypothesis.evidence_refs == ("cfg", "dbslow", "fail")
+
+
+def test_analyze_t1_causal_chain_abstains_on_pure_symptoms() -> None:
+    coordinator = RcaCoordinator()
+    events = [
+        CorrelatedEvent(
+            event_id="s1",
+            at=_FAIL_AT - timedelta(minutes=1),
+            resource_ref="app",
+            is_change=False,
+        ),
+    ]
+    result = coordinator.analyze_t1_causal_chain(
+        failure_event_id="fail",
+        failure_at=_FAIL_AT,
+        failure_resource_ref="app",
+        correlated_events=events,
+        window=_WINDOW,
+    )
+    assert result.outcome is RcaOutcome.ABSTAINED
+    assert result.hypothesis is None
+    assert result.reason == "t1_no_causal_chain_in_window"
+
+
+def test_analyze_t1_causal_chain_respects_confidence_floor() -> None:
+    # A far antecedent lands low in the T1 band; a high floor abstains it.
+    coordinator = RcaCoordinator(min_confidence=0.84)
+    events = [
+        CorrelatedEvent(
+            event_id="far",
+            at=_FAIL_AT - timedelta(minutes=9),
+            resource_ref="app",
+            is_change=True,
+        ),
+    ]
+    result = coordinator.analyze_t1_causal_chain(
+        failure_event_id="fail",
+        failure_at=_FAIL_AT,
+        failure_resource_ref="app",
+        correlated_events=events,
+        window=_WINDOW,
+    )
+    assert result.outcome is RcaOutcome.ABSTAINED
 
 
 @pytest.mark.asyncio

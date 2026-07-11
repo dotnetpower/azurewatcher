@@ -18,9 +18,10 @@ hypothesis (or an abstain) that the normal pipeline + risk gate act on.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from datetime import datetime
+from collections.abc import Iterable, Mapping, Sequence
+from datetime import datetime, timedelta
 
+from fdai.core.rca.causal_chain import CorrelatedEvent
 from fdai.core.rca.contract import (
     Citation,
     RcaOutcome,
@@ -32,6 +33,7 @@ from fdai.core.rca.evidence import TelemetryEvidenceGatherer
 from fdai.core.rca.grounding import enforce_grounding
 from fdai.core.rca.reasoner import RcaReasoner
 from fdai.core.rca.t0 import t0_root_cause
+from fdai.core.rca.t1 import t1_causal_chain
 from fdai.shared.contracts.models import Rule
 
 
@@ -104,6 +106,47 @@ class RcaCoordinator:
             remediation_ref=prior_hypothesis.remediation_ref,
         )
         return enforce_grounding(reused, min_confidence=self._min_confidence)
+
+    def analyze_t1_causal_chain(
+        self,
+        *,
+        failure_event_id: str,
+        failure_at: datetime,
+        failure_resource_ref: str,
+        correlated_events: Sequence[CorrelatedEvent],
+        window: timedelta,
+        same_resource_only: bool = False,
+        depends_on: Mapping[str, Iterable[str]] | None = None,
+        max_hops: int = 4,
+    ) -> RcaResult:
+        """Reconstruct a T1 temporal causal chain, then ground it.
+
+        The deterministic middle tier of RCA (path b): from the events
+        correlated into one incident, rebuild the most probable
+        ``root change -> symptom -> ... -> failure`` chain and cite every
+        event in it. Abstains (routes to HIL / defers to T2) when no
+        change-rooted chain exists in the window - a storm of pure
+        symptoms is never turned into a guess. See
+        :func:`fdai.core.rca.t1.t1_causal_chain` for the reconstruction
+        contract and :mod:`fdai.core.rca.causal_chain` for the engine.
+        """
+        hypothesis = t1_causal_chain(
+            failure_event_id=failure_event_id,
+            failure_at=failure_at,
+            failure_resource_ref=failure_resource_ref,
+            correlated_events=correlated_events,
+            window=window,
+            same_resource_only=same_resource_only,
+            depends_on=depends_on,
+            max_hops=max_hops,
+        )
+        if hypothesis is None:
+            return RcaResult(
+                outcome=RcaOutcome.ABSTAINED,
+                hypothesis=None,
+                reason="t1_no_causal_chain_in_window",
+            )
+        return enforce_grounding(hypothesis, min_confidence=self._min_confidence)
 
     async def analyze_t2(
         self,

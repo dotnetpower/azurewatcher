@@ -235,21 +235,33 @@ Make RCA a first-class output of the tiers instead of an implicit side effect.
   novel (T0 no-match) case additionally gets a grounded T2
   `rca.hypothesis` (or an abstain), reasoner-gated so a deployment
   without an LLM emits no T2 noise.
-- **T1 causal chain (deterministic)**: `core/rca/t1.py` (`t1_causal_chain`)
-  is the model-free form of T1 correlation (b): given the incident's
+- **T1 causal chain (deterministic)**: `core/rca/causal_chain.py`
+  (`CausalChainAnalyzer`, driven by `core/rca/t1.py`'s `t1_causal_chain`)
+  is the model-free form of T1 correlation (b). Given the incident's
   correlated events (each carrying a timestamp, a generic `resource_ref`,
-  and an `is_change` marker), it selects the **latest change that
-  occurred strictly before the failure and within the window** as the
-  most probable trigger. Cross-resource causation is allowed by default
-  (a shared-dependency deploy), or restricted to the failing resource via
-  `same_resource_only`. Confidence scales with temporal proximity and is
-  bounded to a T1 band (`0.35`-`0.85`) - a temporal antecedent is a
-  strong hint, never T0-style certainty - and the tier **abstains**
-  (returns `None`, deferring to T2) when no plausible antecedent change
-  exists. The hypothesis is grounded on the trigger and failure event
-  citations, and is deterministic (the same event set always yields the
-  same cause), so it too passes the grounding gate and the risk-gate
-  verifier before anything acts.
+  an `is_change` marker, and an optional `change_kind`), it reconstructs
+  the most probable **multi-hop causal chain** ending at the failure -
+  `root change -> symptom -> ... -> failure` - not merely the single
+  closest antecedent. The **root MUST be a change** (a mutation can
+  cause; a symptom only propagates), so a window of pure symptoms with no
+  antecedent change **abstains** (returns `None`, deferring to T2).
+  Reconstruction is **dependency-aware**: when a resource-dependency
+  graph is supplied, a change on a resource the failure depends on
+  (directly, or transitively within a bounded depth) outranks an
+  unrelated one, and once a graph is given an unrelated resource cannot
+  link at all; with no graph the engine stays permissive (any correlated
+  resource may link - the cross-resource default). `same_resource_only`
+  restricts every hop to the failing resource. Confidence is a
+  weakest-link aggregate over the chain's hops (each hop weighted by
+  temporal proximity, relationship strength, and change-kind),
+  **ambiguity-discounted** when several distinct roots explain the
+  failure about equally well, and bounded to the T1 band (`0.35`-`0.85`)
+  - a temporal antecedent is a strong hint, never T0-style certainty.
+  Strict temporal precedence makes the event set a DAG, so the chain is
+  deterministic (the same events always yield the same chain) and cites
+  every event in it; it passes the grounding gate and the risk-gate
+  verifier before anything acts. `RcaCoordinator.analyze_t1_causal_chain`
+  is the grounded entry point.
 
 ## Plugging Into the Control Loop
 
