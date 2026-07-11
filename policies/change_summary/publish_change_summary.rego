@@ -11,7 +11,7 @@
 #
 #   This rule does NOT fire on ordinary resource-group inventory events -
 #   the marker gate keeps the rule silent on the general event stream.
-#   See `docs/roadmap/downstream-fork-example-vertical.md` for the full
+#   See `docs/roadmap/fork-and-sequencing/downstream-fork-example-vertical.md` for the full
 #   ontology walkthrough (ObjectType `ChangeSummary`, LinkType
 #   `summarizes`).
 # custom:

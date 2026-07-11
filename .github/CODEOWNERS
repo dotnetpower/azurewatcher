@@ -14,7 +14,7 @@
 # Framework surface - the review-time counterpart of
 # scripts/check-protected-paths.sh. These are the files a downstream fork
 # MUST NOT edit (it customizes by dependency injection instead - see
-# docs/roadmap/downstream-fork-guide.md § 3). Upstream edits are legitimate
+# docs/roadmap/fork-and-sequencing/downstream-fork-guide.md § 3). Upstream edits are legitimate
 # but change a contract other people build on, so they route to the owners.
 # Keep this list in sync with the guard's `protected_prefixes`.
 # ---------------------------------------------------------------------------
