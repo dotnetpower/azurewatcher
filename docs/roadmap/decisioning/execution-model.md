@@ -206,11 +206,25 @@ without an explicit `env_scope` inherits the risk-classification env
 signal (Axis A) so a missing block can never silently fail open into a
 prod auto-execution.
 
+### 2.6a Fail-safe axis - System health (degradation)
+
+A seventh axis, `system_health`, is present **only when the control plane
+is DEGRADED** - one or more critical dependencies (audit store, event bus,
+substrate) have a tripped circuit breaker. It caps autonomy at
+`shadow_only`, so a failing dependency can never drive an enforce-mode
+mutation ("fail toward safety" at system scope, see
+[csp-neutrality.md](../architecture/csp-neutrality.md)). The axis is fed by
+[`DegradationController.autonomy_permitted()`](../../../src/fdai/shared/resilience/degradation.py)
+through the `system_degraded` input on `evaluate_execution_authority`; when
+the system is healthy the axis is omitted and the decision is the
+byte-identical six-axis result.
+
 ### 2.7 Combining
 
 Every input returns one of the four levels above; the RiskGate takes the
 **minimum** in the ordering
-`enforce_auto > enforce_hil > shadow_only > deny`. `deny` from any input
+`enforce_auto > enforce_hil > shadow_only > deny` (over the six axes plus
+the optional `system_health` fail-safe axis). `deny` from any input
 (including the risk-classification table) is a hard stop; the executor is
 never called. The `quorum` accompanying `enforce_hil` is the maximum of
 the table quorum and any axis-declared quorum.

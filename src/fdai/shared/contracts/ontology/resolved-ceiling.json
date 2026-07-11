@@ -29,7 +29,7 @@
     "axes": {
       "type": "object",
       "additionalProperties": false,
-      "description": "One entry per axis. See execution-model.md 2.0-2.6.",
+      "description": "One entry per axis. See execution-model.md 2.0-2.6. The optional system_health axis is present only when the control plane is DEGRADED (a tripped critical-dependency circuit); it caps autonomy to shadow (csp-neutrality.md 4).",
       "required": [
         "risk_table",
         "tier",
@@ -46,7 +46,8 @@
         "static_blast": {"$ref": "#/$defs/axisContribution"},
         "live_blast": {"$ref": "#/$defs/axisContribution"},
         "role": {"$ref": "#/$defs/axisContribution"},
-        "env": {"$ref": "#/$defs/axisContribution"}
+        "env": {"$ref": "#/$defs/axisContribution"},
+        "system_health": {"$ref": "#/$defs/axisContribution"}
       }
     },
     "winning_axis": {
@@ -58,9 +59,10 @@
         "static_blast",
         "live_blast",
         "role",
-        "env"
+        "env",
+        "system_health"
       ],
-      "description": "The axis whose level produced the final min(). The risk_table axis is authoritative when tied."
+      "description": "The axis whose level produced the final min(). The risk_table axis is authoritative when tied. system_health wins only when the control plane is DEGRADED."
     },
     "final_level": {
       "type": "string",

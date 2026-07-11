@@ -393,3 +393,51 @@ def test_tool_style_auto_table_is_capped_at_hil_by_ceiling() -> None:
     )
     assert rc.final_level == AxisLevel.ENFORCE_HIL
     assert rc.winning_axis == "ceiling"
+
+
+def test_system_degraded_caps_to_shadow_and_never_enforces() -> None:
+    """A DEGRADED control plane can never emit an enforce-mode decision.
+
+    The ``system_health`` fail-safe axis floors every otherwise auto/HIL
+    combination at shadow (or lower, when another axis denies). Property:
+    over the tier x table x env product, ``system_degraded=True`` yields a
+    ``final_level`` no higher than ``SHADOW_ONLY`` (csp-neutrality.md 4).
+    """
+    resource_blast = ActionBlastRadius(
+        computation=BlastRadiusComputation.STATIC_ENUM,
+        static_bucket=BlastRadiusScope.RESOURCE,
+    )
+    for tier, table, env in product(
+        [Tier.T0, Tier.T1, Tier.T2],
+        ["auto", "hil", "deny"],
+        ["prod", "non_prod"],
+    ):
+        rc = resolve_ceiling(
+            tier=tier,
+            action_type=_at(blast=resource_blast),
+            risk_table=RiskTableResult(level=table),
+            principal_role=CeilingRole.OWNER,
+            env=env,  # type: ignore[arg-type]
+            system_degraded=True,
+        )
+        assert rc.final_level <= AxisLevel.SHADOW_ONLY
+        assert "system_health" in rc.as_audit_dict()["axes"]
+
+
+def test_healthy_default_omits_system_health_axis() -> None:
+    """The healthy path (default ``system_degraded=False``) is byte-identical
+    to the six-axis result - the ``system_health`` axis is never added, and a
+    resource-scoped auto action stays auto."""
+    resource_blast = ActionBlastRadius(
+        computation=BlastRadiusComputation.STATIC_ENUM,
+        static_bucket=BlastRadiusScope.RESOURCE,
+    )
+    healthy = resolve_ceiling(
+        tier=Tier.T0,
+        action_type=_at(blast=resource_blast),
+        risk_table=RiskTableResult(level="auto"),
+        principal_role=CeilingRole.OWNER,
+        env="non_prod",
+    )
+    assert "system_health" not in healthy.as_audit_dict()["axes"]
+    assert healthy.final_level == AxisLevel.ENFORCE_AUTO

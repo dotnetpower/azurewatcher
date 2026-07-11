@@ -269,6 +269,23 @@ def _axis_g_env(at: OntologyActionType, env: Env) -> AxisContribution:
     )
 
 
+def _axis_h_system_health() -> AxisContribution:
+    """System-level fail-toward-safety axis (csp-neutrality.md 4).
+
+    Emitted only when the control plane is DEGRADED - one or more critical
+    dependencies (audit store, event bus, substrate) have a tripped circuit
+    breaker. A failing dependency MUST NOT drive an enforce-mode mutation,
+    so this axis caps autonomy to shadow; the ``min()`` combine then floors
+    the whole decision at shadow (or lower, if another axis denies). See
+    :class:`~fdai.shared.resilience.degradation.DegradationController`.
+    """
+    return AxisContribution(
+        "system_health",
+        AxisLevel.SHADOW_ONLY,
+        "degraded: critical dependency circuit open (autonomy capped to shadow)",
+    )
+
+
 def resolve_ceiling(
     *,
     tier: Tier,
@@ -278,12 +295,19 @@ def resolve_ceiling(
     env: Env,
     graph_affected: int | None = None,
     live_probe: ProbeResult | None = None,
+    system_degraded: bool = False,
 ) -> ResolvedCeiling:
     """Combine the risk-classification table with the six ceiling axes.
 
     Returns the least-autonomous level (``min`` over every axis) plus a
     full per-axis breakdown for the audit entry. The final quorum comes
     from the table (Axis A). No axis can raise the result above another.
+
+    ``system_degraded`` (default ``False``) adds a seventh fail-safe axis
+    (``system_health``) capped to shadow when a critical dependency circuit
+    is open, so a DEGRADED control plane can never emit an enforce-mode
+    decision (csp-neutrality.md 4). The axis is appended ONLY when degraded,
+    so the healthy path is byte-identical to the six-axis result.
     """
     axes: tuple[AxisContribution, ...] = (
         _axis_a_table(risk_table),
@@ -294,6 +318,8 @@ def resolve_ceiling(
         _axis_f_role(tier, action_type, principal_role),
         _axis_g_env(action_type, env),
     )
+    if system_degraded:
+        axes = (*axes, _axis_h_system_health())
     winning = min(axes, key=lambda a: a.level)
     return ResolvedCeiling(
         tier=tier,

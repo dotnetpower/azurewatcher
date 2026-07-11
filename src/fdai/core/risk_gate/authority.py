@@ -101,12 +101,19 @@ def evaluate_execution_authority(
     allowlist_prod_auto: bool = False,
     graph_affected: int | None = None,
     live_probe: ProbeResult | None = None,
+    system_degraded: bool = False,
 ) -> ExecutionAuthorityDecision:
     """Run the full pipeline and return one combined decision.
 
     ``environment`` is the normalized risk-table word (``"prod"`` /
     ``"non-prod"``); it is mapped to the ceiling's ``prod`` / ``non_prod``
     internally so both axes see a single environment classification.
+
+    ``system_degraded`` (default ``False``) is the fail-toward-safety input:
+    when a critical-dependency circuit breaker is open the control plane is
+    DEGRADED and autonomy is capped to shadow (a failing dependency MUST NOT
+    drive an enforce-mode mutation - csp-neutrality.md 4). It is an explicit
+    input so a replay reproduces the decision exactly.
     """
     feature = feature_vector_from(
         action_type,
@@ -127,6 +134,7 @@ def evaluate_execution_authority(
         env=_ceiling_env(environment),
         graph_affected=graph_affected,
         live_probe=live_probe,
+        system_degraded=system_degraded,
     )
     return ExecutionAuthorityDecision(
         final_level=ceiling.final_level,

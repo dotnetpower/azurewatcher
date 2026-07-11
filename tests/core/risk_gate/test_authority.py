@@ -83,6 +83,25 @@ def test_low_risk_action_is_auto_end_to_end() -> None:
     assert d.table_verdict.rule_id == "auto-low-risk"
 
 
+def test_system_degraded_flips_auto_to_shadow() -> None:
+    """The advertised fail-toward-safety wiring (csp-neutrality.md 4): the same
+    low-risk action that is ``auto`` end-to-end when healthy is capped to
+    ``shadow`` when the control plane is DEGRADED - a failing critical
+    dependency MUST NOT drive an enforce-mode mutation."""
+    d = evaluate_execution_authority(
+        tier=Tier.T0,
+        action_type=_low_risk_at(),
+        table=_table(),
+        principal_role=None,
+        environment="non-prod",
+        cost_impact_monthly=50.0,
+        system_degraded=True,
+    )
+    assert d.decision == "shadow"
+    assert d.is_auto is False
+    assert d.resolved_ceiling.winning_axis == "system_health"
+
+
 def test_destructive_action_is_hil() -> None:
     d = evaluate_execution_authority(
         tier=Tier.T0,
