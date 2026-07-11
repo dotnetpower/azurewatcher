@@ -195,6 +195,49 @@ adapter is in `delivery/`.
 - **Fail-closed.** An evaluator error abstains to HIL.
 - **Shadow-first.** Judge-and-log until the promotion gate is met.
 
+## Limits (what this does NOT do)
+
+Be honest about the ceiling. The rubric judge is itself an LLM, so this is a
+**probabilistic reduction** of hallucination, not elimination at the source. A
+judge can miss a subtly wrong justification or, worse, hallucinate a high score.
+The design mitigates that - mixed-model independence (judge != proposer),
+grounded citations, fail-closed defaults, and shadow-before-enforce measurement -
+but it never claims to catch every hallucination. The only **hard** guarantee is
+the deterministic verifier: nothing executes unless policy-as-code and what-if
+approve it. The rubric can lower confidence and route more cases to HIL; it
+cannot make an ungrounded action safe. Two known softness points to close over
+time:
+
+- **Grounding is id-existence, not entailment.** A rubric score's
+  `supporting_rule_ids` are checked to exist in the catalog, but the rubric does
+  not yet re-check that the rule *entails* the claim (the way
+  `RagGroundingSource.supports` does for citations). A judge can cite a real but
+  off-topic rule and pass grounding.
+- **Self-consistency dilutes, not gates.** `action_stability` is merged into the
+  mean `confidence_signals`, so a low stability can be masked by other high
+  signals. It is a soft signal, not a hard gate.
+
+## Integration status
+
+**This leg is not yet wired into the upstream control loop.** As of this
+writing, upstream does not assemble a live `QualityGate` into the control loop
+at all - T2 integration is shadow-only backlog (see the xfail markers in
+`tests/scenarios/test_v2026_07_replay.py`). The rubric is a fully tested,
+isolated library on top of that seam. To make it run, a fork MUST:
+
+1. Assemble a `QualityGate` and pass its bound `RubricEvaluator` (bind it on
+   `LlmBindings.rubric_evaluator`, resolved from the `t2.rubric.judge`
+   capability).
+2. Populate `QualityCandidate.reasoning_trace` in its `T2Proposer` - a blank
+   trace makes the rubric abstain for lack of a scoring target.
+3. Serialize the `QualityDecision.rubric_*` fields into the audit log so the
+   shadow-mode catch / false-positive metrics can actually be measured. Upstream
+   does not yet do this; without it, shadow mode records nothing to promote on.
+
+Until those three are done, the rubric changes nothing at runtime. This is by
+design (shadow-first), but it means the current value is the tested contract and
+the seam, not a live hallucination reduction.
+
 ## Next steps
 
 | To learn about | Read |

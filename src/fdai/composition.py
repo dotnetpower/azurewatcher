@@ -55,6 +55,7 @@ from .core.quality_gate.critic import CriticModel
 from .core.quality_gate.debate import DebateOrchestrator, DebateOrchestratorConfig
 from .core.quality_gate.gate import CrossCheckModel
 from .core.quality_gate.judge import JudgeModel
+from .core.quality_gate.rubric import RubricEvaluator
 from .core.quality_gate.testing import MatchTypeCrossCheckModel, MismatchCrossCheckModel
 from .core.rca import LlmRcaReasoner, RcaReasoner
 from .core.tiers.t1_lightweight.testing import DeterministicEmbeddingModel
@@ -141,6 +142,18 @@ class LlmBindings:
     supplies its own orchestrator implementation (custom max_rounds,
     different transcript store) can pass one in via
     :func:`dataclasses.replace`.
+
+    ``rubric_evaluator`` (hallucination-rubric-gate) is OPTIONAL. When a
+    fork resolves the ``t2.rubric.judge`` capability it binds a real
+    :class:`RubricEvaluator` here; the composition root then hands it to
+    the :class:`~fdai.core.quality_gate.gate.QualityGate` it assembles.
+    ``None`` (the upstream default) means the rubric leg is absent - the
+    gate behaves exactly as it did before the rubric was added. NOTE:
+    upstream does not yet assemble a live ``QualityGate`` into the
+    control loop (T2 wiring is shadow-only backlog - see
+    ``docs/roadmap/hallucination-rubric-gate.md § Integration status``),
+    so this seam is provided for symmetry with ``critic_model`` /
+    ``judge_model`` and is consumed by a fork's gate assembly.
     """
 
     embedding_model: EmbeddingModel
@@ -149,6 +162,7 @@ class LlmBindings:
     judge_model: JudgeModel | None = None
     debate_orchestrator: DebateOrchestrator | None = None
     rca_reasoner: RcaReasoner | None = None
+    rubric_evaluator: RubricEvaluator | None = None
 
     def __post_init__(self) -> None:
         if not self.cross_check_models:

@@ -87,7 +87,16 @@ class T2Proposer(Protocol):
     """Produces a quality-gate candidate for a novel/ambiguous event."""
 
     async def propose(self, *, event: Event) -> QualityCandidate | None:
-        """Return a candidate action, or ``None`` to abstain."""
+        """Return a candidate action, or ``None`` to abstain.
+
+        A fork's real proposer MUST populate
+        :attr:`~fdai.core.quality_gate.gate.QualityCandidate.reasoning_trace`
+        with the model's natural-language justification when the
+        hallucination rubric leg is wired: the rubric scores that text
+        for faithfulness, and a blank trace makes the rubric abstain
+        (route to HIL) for lack of a scoring target. Leaving it empty is
+        valid only when no rubric evaluator is bound.
+        """
         ...
 
 

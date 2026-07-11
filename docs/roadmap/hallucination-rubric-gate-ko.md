@@ -1,7 +1,7 @@
 ---
 title: Hallucination Rubric Gate
 translation_of: hallucination-rubric-gate.md
-translation_source_sha: d10ffd73f5d5c2422673bfb056b49f7e8b4aa9ad
+translation_source_sha: 5c707b05b487639e38df5a6393739be194028386
 translation_revised: 2026-07-11
 ---
 # Hallucination Rubric Gate (환각 루브릭 게이트)
@@ -179,6 +179,43 @@ enforce로 전환 시 fail-closed 되도록.
   proposer와 다른 모델.
 - **Fail-closed.** 평가기 오류는 HIL로 abstain.
 - **Shadow-first.** 승격 게이트 충족까지 judge-and-log.
+
+## 한계 (하지 못하는 것)
+
+천장을 정직하게 밝힌다. 루브릭 judge 자체가 LLM이므로, 이것은 환각의 **확률적 감소** 이지
+원천 제거가 아니다. judge는 미묘하게 잘못된 정당화를 놓칠 수 있고, 더 나쁘게는 높은 점수를
+환각할 수 있다. 설계는 이를 완화한다 - mixed-model 독립성(judge != proposer), grounded
+인용, fail-closed 기본값, shadow-before-enforce 계측 - 그러나 모든 환각을 잡는다고
+주장하지 않는다. 유일한 **강한** 보장은 결정론 verifier다: policy-as-code와 what-if가
+승인하지 않으면 아무것도 실행되지 않는다. 루브릭은 confidence를 낮추고 더 많은 케이스를
+HIL로 보낼 수 있지만, ungrounded 액션을 안전하게 만들 수는 없다. 시간을 두고 닫아야 할
+두 가지 약점:
+
+- **Grounding은 id 존재 확인이지 entailment가 아니다.** 루브릭 점수의
+  `supporting_rule_ids` 는 카탈로그에 존재하는지만 확인하고, 규칙이 주장을 실제로
+  *지지(entail)* 하는지는 아직 재검증하지 않는다(`RagGroundingSource.supports` 가 인용에
+  하는 방식). judge가 실재하지만 무관한 규칙을 인용해도 grounding을 통과할 수 있다.
+- **Self-consistency는 gate가 아니라 희석이다.** `action_stability` 는 평균
+  `confidence_signals` 에 병합되므로, 낮은 안정성이 다른 높은 신호에 가려질 수 있다. 강한
+  gate가 아니라 약한 신호다.
+
+## 통합 상태
+
+**이 leg는 아직 upstream 제어 루프에 배선되지 않았다.** 현재 시점에 upstream은 live
+`QualityGate` 를 제어 루프에 조립하지 않는다 - T2 통합 자체가 shadow-only backlog다
+(`tests/scenarios/test_v2026_07_replay.py` 의 xfail 마커 참조). 루브릭은 그 seam 위에 얹힌,
+완전히 테스트된 고립 라이브러리다. 실제로 돌게 하려면 포크가 반드시:
+
+1. `QualityGate` 를 조립하고 바인딩된 `RubricEvaluator` 를 전달한다(`t2.rubric.judge`
+   capability에서 resolve해 `LlmBindings.rubric_evaluator` 에 바인딩).
+2. 자신의 `T2Proposer` 에서 `QualityCandidate.reasoning_trace` 를 채운다 - 빈 trace는
+   채점 대상이 없어 루브릭을 abstain시킨다.
+3. `QualityDecision.rubric_*` 필드를 audit 로그에 직렬화해 shadow 모드 catch /
+   false-positive 지표를 실제로 측정할 수 있게 한다. upstream은 아직 이걸 안 한다; 없으면
+   shadow 모드는 승격할 데이터를 아무것도 기록하지 못한다.
+
+이 셋이 완료되기 전까지 루브릭은 런타임에서 아무것도 바꾸지 않는다. 이는 의도된 것이지만
+(shadow-first), 현재 가치는 live 환각 감소가 아니라 테스트된 계약과 seam이라는 뜻이다.
 
 ## Next steps
 
