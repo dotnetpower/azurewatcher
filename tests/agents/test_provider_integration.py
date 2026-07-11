@@ -503,9 +503,7 @@ def test_bridge_halts_ordered_topic_on_poison() -> None:
     later mutation on the same resource cannot jump ahead of it."""
     reg = load_pantheon()
     provider = InMemoryEventBus()
-    bridge = EventBusBridge(
-        provider=provider, registry=reg, halt_ordered_topic_on_poison=True
-    )
+    bridge = EventBusBridge(provider=provider, registry=reg, halt_ordered_topic_on_poison=True)
 
     seen: list[str] = []
 
@@ -542,9 +540,7 @@ def test_bridge_payload_validator_rejects_malformed() -> None:
     assert "object.verdict" not in provider._records
     # A valid record passes.
     asyncio.run(
-        bridge.publish(
-            "Forseti", "object.verdict", {"correlation_id": "c", "risk_verdict": "auto"}
-        )
+        bridge.publish("Forseti", "object.verdict", {"correlation_id": "c", "risk_verdict": "auto"})
     )
     assert bridge.metrics.published == 1
 
@@ -587,9 +583,7 @@ def test_bridge_redrive_reprocesses_dead_letters() -> None:
 
     bridge.subscribe("object.verdict", "Thor", boom)
     asyncio.run(
-        bridge.publish(
-            "Forseti", "object.verdict", {"correlation_id": "c", "risk_verdict": "auto"}
-        )
+        bridge.publish("Forseti", "object.verdict", {"correlation_id": "c", "risk_verdict": "auto"})
     )
     _drain(bridge)
     assert bridge.metrics.dead_lettered == 1

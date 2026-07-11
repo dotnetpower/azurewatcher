@@ -143,4 +143,3 @@ def test_inmemory_bus_handler_timeout_is_isolated() -> None:
     asyncio.run(bus.publish("Huginn", "object.event", {"correlation_id": "c"}))
     assert bus.handler_errors == 1
     assert len(bus.dead_letters) == 1
-

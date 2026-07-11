@@ -350,9 +350,7 @@ async def test_degraded_control_plane_caps_authority_to_shadow(
     )
     from fdai.shared.resilience.degradation import DegradationController
 
-    tripped = CircuitBreaker(
-        config=CircuitBreakerConfig(failure_threshold=1, reset_timeout_s=300)
-    )
+    tripped = CircuitBreaker(config=CircuitBreakerConfig(failure_threshold=1, reset_timeout_s=300))
     tripped.on_failure()  # trips OPEN
     table = load_risk_table(REPO_ROOT / "rule-catalog" / "risk-classification.yaml")
     loop, _publisher, audit = _make_loop(shipped_catalog, risk_table=table)

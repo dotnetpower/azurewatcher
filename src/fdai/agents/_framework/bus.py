@@ -124,9 +124,7 @@ class InMemoryBus:
         if not key:
             self.empty_partition_keys += 1
         self.published.append(
-            PublishedMessage(
-                topic=topic, payload=dict(enriched), principal=principal, key=key
-            )
+            PublishedMessage(topic=topic, payload=dict(enriched), principal=principal, key=key)
         )
         for agent_name, handler in self.subscribers.get(topic, []):
             # Hand each subscriber its own copy so a handler that mutates the

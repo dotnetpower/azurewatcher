@@ -13,6 +13,13 @@
 #   - Anchor-only targets (#section).
 #   - Targets that resolve outside the repo root.
 #   - Fragment (#anchor) validity - only the file part is verified.
+#   - Targets that are git-ignored (e.g. ``docs/internals/`` and
+#     ``examples/`` are intentionally local-only, so a tracked doc may
+#     reference them without the file ever being committed). Checking
+#     filesystem existence alone diverges between a developer's working
+#     tree (where the untracked file is present) and CI (a clean checkout
+#     where it is not); consulting ``git check-ignore`` makes the gate
+#     give the same verdict in both places.
 #
 # Rationale (tracker #14 follow-up): the G-1..G-7 refactors moved 20+
 # Python source files whose paths were baked into markdown link

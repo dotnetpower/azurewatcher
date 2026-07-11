@@ -157,9 +157,7 @@ class TestAllowDenyLists:
             candidate=_candidate("remediate.delete-resource"),
             cross_check_disagreed=False,
             escalated_available=True,
-            config=EscalationLadderConfig(
-                always_for_action_types=("remediate.delete-resource",)
-            ),
+            config=EscalationLadderConfig(always_for_action_types=("remediate.delete-resource",)),
         )
         assert d.route is EscalationRoute.ESCALATE
         assert d.reason == "always_list"
@@ -221,4 +219,3 @@ class TestAuditFields:
         fields = escalation_decision_audit_fields(d)
         assert fields["escalation_route"] == "stop"
         assert fields["escalation_to_tier"] is None
-

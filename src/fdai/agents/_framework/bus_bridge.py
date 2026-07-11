@@ -488,9 +488,7 @@ class EventBusBridge:
                     # delivering nothing. Bound it: a timeout is treated as a
                     # handler failure (retry / DLQ), keeping the subscription
                     # making progress.
-                    await asyncio.wait_for(
-                        handler(topic, dict(payload)), self.handler_timeout
-                    )
+                    await asyncio.wait_for(handler(topic, dict(payload)), self.handler_timeout)
                 else:
                     await handler(topic, dict(payload))
                 return
