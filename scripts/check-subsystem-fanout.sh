@@ -59,12 +59,25 @@ fi
 allowlist_file="scripts/.check-subsystem-fanout.allowlist"
 declare -A allowlist=()
 if [[ -f "$allowlist_file" ]]; then
-  while IFS= read -r line; do
-    line="${line%%#*}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-    [[ -z "$line" ]] && continue
-    allowlist["$line"]=1
+  prev_was_comment=0
+  lineno=0
+  while IFS= read -r raw || [[ -n "$raw" ]]; do
+    lineno=$((lineno + 1))
+    stripped="${raw#"${raw%%[![:space:]]*}"}"
+    stripped="${stripped%"${stripped##*[![:space:]]}"}"
+    if [[ -z "$stripped" ]]; then
+      continue
+    fi
+    if [[ "$stripped" == \#* ]]; then
+      prev_was_comment=1
+      continue
+    fi
+    if (( ! prev_was_comment )); then
+      echo "check-subsystem-fanout: allowlist entry '$stripped' at $allowlist_file:$lineno lacks a preceding '#' justification comment" >&2
+      exit 2
+    fi
+    allowlist["$stripped"]=1
+    prev_was_comment=0
   done < "$allowlist_file"
 fi
 

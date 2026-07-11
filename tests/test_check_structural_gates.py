@@ -178,6 +178,20 @@ class TestCheckFileLoc:
         assert result.returncode == 0
         assert "allowlisted=1" in result.stdout
 
+    def test_allowlist_entry_without_justification_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        repo = _make_repo(tmp_path)
+        _copy_scripts(repo)
+        _seed_python_file(repo, "src/fdai/huge.py", 900)
+        # No '#' comment preceding the entry - a governance smell.
+        (repo / "scripts" / ".check-file-loc.allowlist").write_text(
+            "src/fdai/huge.py\n"
+        )
+        result = _run(repo, repo / "scripts" / "check-file-loc.sh")
+        assert result.returncode == 2
+        assert "justification comment" in result.stderr
+
     def test_pycache_is_excluded(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path)
         _copy_scripts(repo)

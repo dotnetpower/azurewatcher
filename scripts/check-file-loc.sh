@@ -54,13 +54,30 @@ fi
 allowlist_file="scripts/.check-file-loc.allowlist"
 declare -A allowlist=()
 if [[ -f "$allowlist_file" ]]; then
-  while IFS= read -r line; do
-    # Strip comments and whitespace; skip blanks.
-    line="${line%%#*}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-    [[ -z "$line" ]] && continue
-    allowlist["$line"]=1
+  # Each real entry MUST be preceded (on the immediately previous non-blank
+  # line) by a '#' comment explaining WHY the file is exempt. An entry
+  # without justification is a governance smell and is rejected loudly.
+  prev_was_comment=0
+  lineno=0
+  while IFS= read -r raw || [[ -n "$raw" ]]; do
+    lineno=$((lineno + 1))
+    stripped="${raw#"${raw%%[![:space:]]*}"}"
+    stripped="${stripped%"${stripped##*[![:space:]]}"}"
+    if [[ -z "$stripped" ]]; then
+      # Blank line resets neither comment state nor entry state - we only
+      # require the *nearest preceding non-blank* line to be a comment.
+      continue
+    fi
+    if [[ "$stripped" == \#* ]]; then
+      prev_was_comment=1
+      continue
+    fi
+    if (( ! prev_was_comment )); then
+      echo "check-file-loc: allowlist entry '$stripped' at $allowlist_file:$lineno lacks a preceding '#' justification comment" >&2
+      exit 2
+    fi
+    allowlist["$stripped"]=1
+    prev_was_comment=0
   done < "$allowlist_file"
 fi
 
