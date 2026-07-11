@@ -45,7 +45,7 @@ fdai/
 │   │   ├── assurance_twin/     # read-only ontology twin: text-to-query review / Q&A / assessment (proposes, never executes)
 │   │   ├── conversation/       # operator-console coordinator (Layer 2): NL turn → one read-only tool call
 │   │   ├── verticals/          # Resilience / Change Safety / Cost Governance (P3 integration surface); each is a sub-package (G-6) with its own orchestrator + submodules, plus the shared `Vertical` Protocol in `base.py` and the `VerticalRegistry` seam
-│   │   ├── control_loop.py     # P1 pipeline orchestrator: event_ingest → trust_router → T0 → executor → audit
+│   │   ├── control_loop/       # P1 pipeline orchestrator (G-2 phase 1, tracker #14): `orchestrator.py` (ControlLoop class) + `_helpers.py` (pure-function utilities) + `stages/` (Stage Protocol scaffold for phase-2 refactor - `ControlLoop.process` extraction into per-stage classes)
 │   │   └── ontology_explorer.py    # deterministic Mermaid renderer for the loaded ObjectType / LinkType catalog
 │   ├── shared/                # cross-cutting; MUST NOT import from core/
 │   │   ├── contracts/          # models.py + registry.py + validation.py + JSON Schemas

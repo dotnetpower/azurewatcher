@@ -1,7 +1,7 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: b2854eddcffe1548453d990496d6ee7c7397e851
+translation_source_sha: a06f90b3068e21541976e68a03bd0a5a2b5e578b
 translation_revised: 2026-07-11
 ---
 
@@ -50,7 +50,7 @@ fdai/
 │   │   ├── assurance_twin/     # 읽기 전용 온톨로지 트윈: text-to-query 리뷰 / Q&A / assessment (제안만, 실행 안 함)
 │   │   ├── conversation/       # 오퍼레이터 콘솔 코디네이터 (Layer 2): 자연어 턴 → 하나의 read-only 툴 콜
 │   │   ├── verticals/          # Resilience / Change Safety / Cost Governance (P3 통합 지점); 각 vertical 은 sub-package (G-6) 로 자체 orchestrator + 서브모듈 을 갖고, 공유 `Vertical` Protocol 은 `base.py`, `VerticalRegistry` seam 도 함께
-│   │   ├── control_loop.py     # P1 파이프라인 오케스트레이터: event_ingest → trust_router → T0 → executor → audit
+│   │   ├── control_loop/       # P1 파이프라인 오케스트레이터 (G-2 phase 1, 트래커 #14): `orchestrator.py` (ControlLoop 클래스) + `_helpers.py` (순수 함수 유틸) + `stages/` (Stage Protocol 스캐폴드 - phase-2 리팩터링용, `ControlLoop.process` 를 스테이지 클래스로 추출)
 │   │   └── ontology_explorer.py    # 로드된 ObjectType / LinkType 카탈로그를 결정론적 Mermaid 로 렌더
 │   ├── shared/                # 크로스컷팅; core/ 로부터 import 금지
 │   │   ├── contracts/          # models.py + registry.py + validation.py + JSON 스키마들
