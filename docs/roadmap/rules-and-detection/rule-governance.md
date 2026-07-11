@@ -94,7 +94,12 @@ assignment's top-level `effect` is the default for rules without an override.
 > and the `resolve_assignments` conflict resolver (strictest effect wins; the most-specific scope
 > supplies parameters; a specificity tie flags HIL; losers recorded for audit) ship in
 > [`rule_catalog/schema/assignment.py`](../../../src/fdai/rule_catalog/schema/assignment.py). The
-> `RuleSet` grouping artifact is the remaining follow-up.
+> `RuleSet` (initiative) grouping - version-pinned members with per-rule `default_effect` and
+> `assignment_from_rule_set` - ships in
+> [`rule_catalog/schema/rule_set.py`](../../../src/fdai/rule_catalog/schema/rule_set.py). The
+> governance model layer (effect / scope / assignment / rule-set) is complete in-memory; the
+> remaining follow-up is the catalog-as-code YAML schemas + loaders, the T0 runtime that consumes a
+> resolved assignment, and the CI transition gate.
 
 ## Scope
 
