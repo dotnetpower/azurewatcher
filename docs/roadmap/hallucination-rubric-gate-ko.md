@@ -1,7 +1,7 @@
 ---
 title: Hallucination Rubric Gate
 translation_of: hallucination-rubric-gate.md
-translation_source_sha: 92995c2863cdb9a19253e16c5aa4d6ef2deedc9c
+translation_source_sha: d08aaf11ea208b65d5e127b03de1f1e17cc486ff
 translation_revised: 2026-07-11
 ---
 # Hallucination Rubric Gate (환각 루브릭 게이트)
@@ -223,7 +223,13 @@ HIL로 보낼 수 있지만, ungrounded 액션을 안전하게 만들 수는 없
 완전히 테스트된 고립 라이브러리다. 실제로 돌게 하려면 포크가 반드시:
 
 1. `QualityGate` 를 조립하고 바인딩된 `RubricEvaluator` 를 전달한다(`t2.rubric.judge`
-   capability에서 resolve해 `LlmBindings.rubric_evaluator` 에 바인딩).
+   capability에서 resolve해 `LlmBindings.rubric_evaluator` 에 바인딩). judge의 시스템
+   프롬프트는 `t2-rubric` 카탈로그 시드에서 오며, 이는 `rubric` 역할 레이어로 배포된다 -
+   composer의 BASE/PACK 조립 경로가 다루지 않는 레이어다(`get_base` 는 `PromptLayer.BASE`
+   만 필터). 그래서 포크가 Critic/Judge 배선이 `t2-critic` / `t2-judge` 를 로드하듯 id/layer로
+   직접 로드한다. CI 게이트(`tests/rule_catalog/test_prompt_registry_consistency.py`)가 모든
+   프롬프트 `applies_to` capability가 `llm-registry.yaml` 에 존재함을 단언하므로, 오타난
+   `t2.rubric.judge` 가 프롬프트를 조용히 orphan시킬 수 없다.
 2. 자신의 `T2Proposer` 에서 `QualityCandidate.reasoning_trace` 를 채운다 - 빈 trace는
    채점 대상이 없어 루브릭을 abstain시킨다.
 3. `QualityDecision.rubric_*` 필드를 audit 로그에 직렬화해 shadow 모드 catch /

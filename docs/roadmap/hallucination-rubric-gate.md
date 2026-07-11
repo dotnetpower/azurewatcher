@@ -246,7 +246,14 @@ isolated library on top of that seam. To make it run, a fork MUST:
 
 1. Assemble a `QualityGate` and pass its bound `RubricEvaluator` (bind it on
    `LlmBindings.rubric_evaluator`, resolved from the `t2.rubric.judge`
-   capability).
+   capability). The judge's system prompt comes from the `t2-rubric` catalog
+   seed, which ships under the `rubric` role layer - a layer the composer's
+   BASE/PACK assembly path does NOT cover (`get_base` filters `PromptLayer.BASE`
+   only), so the fork loads it by id/layer directly, exactly as a Critic/Judge
+   wiring loads `t2-critic` / `t2-judge`. A CI gate
+   (`tests/rule_catalog/test_prompt_registry_consistency.py`) asserts every
+   prompt `applies_to` capability exists in `llm-registry.yaml`, so a typo'd
+   `t2.rubric.judge` cannot silently orphan the prompt.
 2. Populate `QualityCandidate.reasoning_trace` in its `T2Proposer` - a blank
    trace makes the rubric abstain for lack of a scoring target.
 3. Serialize the `QualityDecision.rubric_*` fields into the audit log so the
