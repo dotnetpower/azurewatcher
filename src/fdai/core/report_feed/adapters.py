@@ -24,6 +24,7 @@ _PRIORITY_TO_SEVERITY: dict[Priority, Severity] = {
 }
 
 _CHAOS_OUTCOME_SEVERITY: dict[ExperimentOutcome, Severity] = {
+    ExperimentOutcome.ROLLBACK_FAILED: Severity.CRITICAL,
     ExperimentOutcome.NOT_DETECTED: Severity.HIGH,
     ExperimentOutcome.ABORTED: Severity.MEDIUM,
     ExperimentOutcome.BLAST_RADIUS_EXCEEDED: Severity.MEDIUM,

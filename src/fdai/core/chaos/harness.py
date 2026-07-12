@@ -218,7 +218,14 @@ class FaultInjectionHarness:
                 stopped = await self._stop_all(injector, injected_targets)
 
         injected = bool(injected_targets)
-        if error is not None:
+        if injected and not stopped:
+            # A possibly-live fault was left in place (rollback failed or timed
+            # out). This is the operator's #1 concern, so it is the headline
+            # outcome, ahead of the detection verdict - a signal that fired is
+            # cold comfort next to a fault still perturbing production. The
+            # `detected` and `error` fields still carry the underlying detail.
+            outcome = ExperimentOutcome.ROLLBACK_FAILED
+        elif error is not None:
             outcome = ExperimentOutcome.ABORTED
         elif detected:
             outcome = ExperimentOutcome.VALIDATED

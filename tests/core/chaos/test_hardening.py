@@ -127,6 +127,10 @@ async def test_rollback_timeout_marks_not_reverted() -> None:  # H1
     # A hung rollback is surfaced as a possibly-live fault, not a hang.
     assert result.stopped is False
     assert result.reverted is False
+    # Even though the signal WAS detected, the live-fault state is the
+    # headline outcome - not a misleading VALIDATED.
+    assert result.detected is True
+    assert result.outcome is ExperimentOutcome.ROLLBACK_FAILED
 
 
 async def test_hold_capped_at_max_hold() -> None:  # H4
@@ -201,3 +205,39 @@ async def test_all_blank_targets_refused_in_enforce() -> None:  # H7
     assert result.outcome is ExperimentOutcome.ABORTED
     assert result.error == "no_approved_targets"
     assert inj.injected == []
+
+
+class _FailStopInjector:
+    """Injects fine but always raises on stop (rollback failure)."""
+
+    def __init__(self) -> None:
+        self.injected: list[str] = []
+
+    @property
+    def fault_type(self) -> str:
+        return "cpu_stress"
+
+    async def inject(self, *, target: str, params: Mapping[str, str]) -> None:  # noqa: ARG002
+        self.injected.append(target)
+
+    async def stop(self, *, target: str) -> None:  # noqa: ARG002
+        raise RuntimeError("rollback boom")
+
+
+async def test_rollback_failure_outcome_beats_detection() -> None:  # H8
+    inj = _FailStopInjector()
+    harness = FaultInjectionHarness(injectors=(inj,), probe=_OkProbe(), sleeper=_noop_sleep)
+    result = await harness.run(_scenario(), approved_targets=("a",), mode=Mode.ENFORCE)
+    # Signal detected, but rollback raised -> a live fault is the headline.
+    assert result.detected is True
+    assert result.stopped is False
+    assert result.reverted is False
+    assert result.outcome is ExperimentOutcome.ROLLBACK_FAILED
+
+
+async def test_clean_run_with_successful_rollback_stays_validated() -> None:  # H8
+    inj = _Injector()
+    harness = FaultInjectionHarness(injectors=(inj,), probe=_OkProbe(), sleeper=_noop_sleep)
+    result = await harness.run(_scenario(), approved_targets=("a",), mode=Mode.ENFORCE)
+    assert result.stopped is True
+    assert result.outcome is ExperimentOutcome.VALIDATED

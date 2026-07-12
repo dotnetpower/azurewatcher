@@ -190,3 +190,26 @@ def test_signal_from_experiment_flags_detection_gap() -> None:
 
     assert signal.kind is SignalKind.CHAOS
     assert signal.severity is Severity.HIGH  # a detection gap is high severity
+
+
+def test_signal_from_experiment_rollback_failed_is_critical() -> None:
+    # A live-fault-left experiment is the most dangerous state - it MUST NOT
+    # fall back to the default MEDIUM severity in the report feed.
+    result = ExperimentResult(
+        experiment_id="chaos-2",
+        scenario_id="aks-pod-cpu-spike",
+        mode=Mode.ENFORCE,
+        targets=("pod-a",),
+        outcome=ExperimentOutcome.ROLLBACK_FAILED,
+        expected_signal="node_cpu",
+        detected=True,
+        started_at=_T0,
+        ended_at=_T0 + timedelta(minutes=2),
+        injected=True,
+        stopped=False,
+    )
+
+    signal = signal_from_experiment(result)
+
+    assert signal.kind is SignalKind.CHAOS
+    assert signal.severity is Severity.CRITICAL

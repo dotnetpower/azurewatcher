@@ -44,6 +44,12 @@ class ExperimentOutcome(StrEnum):
     ABORTED = "aborted"
     """Injection failed; the harness stopped and rolled back."""
 
+    ROLLBACK_FAILED = "rollback_failed"
+    """Injected, but rollback did not fully succeed - a fault may still be
+    live. This is the operator's highest-priority state, so it takes
+    precedence over the detection verdict; ``detected`` / ``error`` still
+    carry the detail. ``reverted`` is ``False`` for this outcome."""
+
 
 @dataclass(frozen=True, slots=True)
 class FaultScenario:
