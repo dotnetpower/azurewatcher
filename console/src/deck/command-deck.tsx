@@ -475,7 +475,9 @@ export function CommandDeck() {
     <>
       <button
         type="button"
-        class={`deck-invoke ${open ? "deck-invoke-open" : ""}`}
+        class={`deck-invoke ${open ? "deck-invoke-open" : ""} ${
+          snapshot?.routeId === "agents" ? "deck-invoke-agents" : ""
+        }`}
         onClick={open ? closeDeck : openDeck}
         aria-label={open ? "Close command deck" : "Open command deck"}
       >

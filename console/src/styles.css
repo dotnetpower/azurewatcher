@@ -2160,6 +2160,71 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
   outline-offset: -3px;
 }
 .deck-invoke-open { display: none; }
+
+/* Agents screen only: the deck launcher wears a slowly rotating blue -> purple
+   gradient border to invite starting a conversation. Scoped via the published
+   routeId in command-deck.tsx. The `@property` registration lets the conic
+   gradient's start angle animate smoothly (an unregistered custom property
+   would jump discretely instead of tweening). */
+@property --deck-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.deck-invoke.deck-invoke-agents {
+  border: 2px solid transparent;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--accent) 12%, var(--bg-elevated)) 0%,
+      var(--bg-elevated) 40%,
+      var(--bg-elevated) 60%,
+      color-mix(in oklab, var(--accent) 12%, var(--bg-elevated)) 100%
+    )
+      padding-box,
+    conic-gradient(
+        from var(--deck-angle),
+        #3b82f6,
+        #6366f1,
+        #8b5cf6,
+        #a855f7,
+        #6366f1,
+        #3b82f6
+      )
+      border-box;
+  animation: deck-border-rotate 8s linear infinite;
+}
+.deck-invoke.deck-invoke-agents:hover {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--accent) 22%, var(--bg-elevated)) 0%,
+      var(--bg-elevated) 45%,
+      var(--bg-elevated) 55%,
+      color-mix(in oklab, var(--accent) 22%, var(--bg-elevated)) 100%
+    )
+      padding-box,
+    conic-gradient(
+        from var(--deck-angle),
+        #3b82f6,
+        #6366f1,
+        #8b5cf6,
+        #a855f7,
+        #6366f1,
+        #3b82f6
+      )
+      border-box;
+}
+@keyframes deck-border-rotate {
+  to {
+    --deck-angle: 360deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .deck-invoke.deck-invoke-agents {
+    animation: none;
+  }
+}
 .deck-invoke-glyph {
   display: inline-flex;
   align-items: center;
