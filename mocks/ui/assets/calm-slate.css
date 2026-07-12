@@ -94,8 +94,10 @@ code { font-family: "Cascadia Code", "Consolas", monospace; font-size: .88em; ba
   position: sticky; top: 0; z-index: 20;
 }
 .cs-topbar-inner { display: flex; align-items: center; gap: 20px; height: 60px; }
-.cs-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; color: var(--cs-text); }
-.cs-brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--cs-steel); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 700; }
+.cs-brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; color: var(--cs-text); text-decoration: none; }
+a.cs-brand:hover { color: var(--cs-navy); text-decoration: none; }
+.cs-brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--cs-steel); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 700; transition: background .15s ease; }
+a.cs-brand:hover .cs-brand-mark { background: var(--cs-navy); }
 .cs-nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
 .cs-nav a { color: var(--cs-text-soft); padding: 7px 12px; border-radius: var(--cs-radius-sm); font-size: 14px; }
 .cs-nav a:hover { background: var(--cs-shade); color: var(--cs-text); text-decoration: none; }
