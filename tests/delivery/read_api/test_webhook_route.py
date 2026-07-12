@@ -160,9 +160,7 @@ def test_webhook_route_absent_by_default() -> None:
 
 def test_webhook_path_collision_with_core_route_fails_fast() -> None:
     bus = InMemoryEventBus()
-    ingress = WebhookIngress(
-        config=WebhookConfig(), signing_secret=SECRET, event_bus=bus
-    )
+    ingress = WebhookIngress(config=WebhookConfig(), signing_secret=SECRET, event_bus=bus)
     auth = build_authenticator(verifier=lambda t: {"oid": "u"}, resolver=lambda claims: None)
     with pytest.raises(ValueError, match="collides with a core route"):
         build_app(

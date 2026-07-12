@@ -116,9 +116,7 @@ async def test_iso_time_is_parsed() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
-            text=_jsonl(
-                {"result": {"_time": "2026-07-10T00:00:00+00:00", "value": "9.0"}}
-            ),
+            text=_jsonl({"result": {"_time": "2026-07-10T00:00:00+00:00", "value": "9.0"}}),
         )
 
     provider, client, _ = _provider(handler)
@@ -138,9 +136,7 @@ async def test_search_prefix_added_for_non_pipe_spl() -> None:
         captured.append(request.content)
         return httpx.Response(200, text="")
 
-    provider, client, _ = _provider(
-        handler, cfg=_config(searches={_METRIC: "index=metrics cpu"})
-    )
+    provider, client, _ = _provider(handler, cfg=_config(searches={_METRIC: "index=metrics cpu"}))
     try:
         _ = [p async for p in provider.query(MetricQuery(metric_name=_METRIC))]
     finally:
@@ -253,10 +249,7 @@ async def test_label_filter_in_memory() -> None:
 async def test_max_points_cap_fails_closed() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         body = _jsonl(
-            *[
-                {"result": {"_time": str(1700000000 + i), "value": str(i)}}
-                for i in range(5)
-            ]
+            *[{"result": {"_time": str(1700000000 + i), "value": str(i)}} for i in range(5)]
         )
         return httpx.Response(200, text=body)
 
@@ -293,9 +286,7 @@ async def test_since_after_until_fails_closed() -> None:
             _ = [
                 p
                 async for p in provider.query(
-                    MetricQuery(
-                        metric_name=_METRIC, since=now, until=now - timedelta(hours=1)
-                    )
+                    MetricQuery(metric_name=_METRIC, since=now, until=now - timedelta(hours=1))
                 )
             ]
     finally:

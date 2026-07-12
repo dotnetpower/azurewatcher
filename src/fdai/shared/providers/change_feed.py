@@ -40,7 +40,6 @@ class ChangeFeedError(RuntimeError):
     """
 
 
-
 @dataclass(frozen=True, slots=True)
 class ChangeRecord:
     """One normalized change (deploy / merge / config edit).

@@ -39,10 +39,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 VOCABULARY_FILE = REPO_ROOT / "rule-catalog" / "vocabulary" / "resource-types.yaml"
 
 _SUB = "00000000-0000-0000-0000-000000000001"
-_SA_ID = (
-    f"/subscriptions/{_SUB}/resourceGroups/rg/providers/"
-    "Microsoft.Storage/storageAccounts/sa"
-)
+_SA_ID = f"/subscriptions/{_SUB}/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/sa"
 
 
 def _vocab() -> ResourceTypeRegistry:

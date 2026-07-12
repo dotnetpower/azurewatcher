@@ -30,9 +30,7 @@ async def _token() -> str:
 
 def _feed(handler, cfg: AzureDevOpsChangeFeedConfig | None = None):
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    feed = AzureDevOpsChangeFeed(
-        config=cfg or _config(), http_client=client, token_provider=_token
-    )
+    feed = AzureDevOpsChangeFeed(config=cfg or _config(), http_client=client, token_provider=_token)
     return feed, client
 
 

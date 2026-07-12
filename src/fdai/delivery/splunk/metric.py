@@ -205,9 +205,7 @@ class SplunkMetricProvider:
         points.sort(key=lambda p: p.at)
         return points
 
-    def _map_result(
-        self, *, result: Mapping[str, Any], query: MetricQuery
-    ) -> MetricPoint | None:
+    def _map_result(self, *, result: Mapping[str, Any], query: MetricQuery) -> MetricPoint | None:
         raw_value = result.get(self._config.value_field)
         if raw_value is None:
             # No value on this row is "no data", not a hard error.

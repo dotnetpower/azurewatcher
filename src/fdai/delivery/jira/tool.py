@@ -171,9 +171,7 @@ class JiraToolExecutor:
         if project_key is None:
             raise ToolError(
                 kind="config",
-                message=(
-                    f"no Jira project mapped for ActionType {request.action_type_name!r}"
-                ),
+                message=(f"no Jira project mapped for ActionType {request.action_type_name!r}"),
             )
 
         # 3. Shadow is a real no-op: never create, never record the ledger.
@@ -181,23 +179,16 @@ class JiraToolExecutor:
             return ToolCallReceipt(
                 outcome=ToolCallOutcome.SUCCEEDED,
                 receipt_ref=f"shadow:{project_key}:{request.idempotency_key}",
-                detail=(
-                    f"shadow: would open a Jira {project_key} issue "
-                    "(no side effect)"
-                ),
+                detail=(f"shadow: would open a Jira {project_key} issue (no side effect)"),
             )
 
         # 4. Enforce path - the real create-issue call.
         return await self._create_issue(request=request, project_key=project_key)
 
-    async def _create_issue(
-        self, *, request: ToolCallRequest, project_key: str
-    ) -> ToolCallReceipt:
+    async def _create_issue(self, *, request: ToolCallRequest, project_key: str) -> ToolCallReceipt:
         fields = self._build_fields(request=request, project_key=project_key)
         token = await self._secrets.get(self._config.api_token_secret)
-        basic = base64.b64encode(
-            f"{self._config.account_email}:{token}".encode()
-        ).decode("ascii")
+        basic = base64.b64encode(f"{self._config.account_email}:{token}".encode()).decode("ascii")
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
@@ -252,9 +243,7 @@ class JiraToolExecutor:
             detail=f"opened Jira issue {issue_key}",
         )
 
-    def _build_fields(
-        self, *, request: ToolCallRequest, project_key: str
-    ) -> dict[str, Any]:
+    def _build_fields(self, *, request: ToolCallRequest, project_key: str) -> dict[str, Any]:
         args = request.arguments
         summary = str(args.get("summary") or f"FDAI: {request.action_type_name}")
         issue_type = str(args.get("issue_type") or self._config.default_issue_type)

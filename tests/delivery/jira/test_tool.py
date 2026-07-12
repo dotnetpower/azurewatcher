@@ -229,9 +229,7 @@ async def test_missing_key_in_response_maps_to_failed() -> None:
     ledger = InMemoryJiraLedger()
     ex, client = _executor(handler, ledger=ledger)
     try:
-        receipt = await ex.execute(
-            _request(mode=Mode.ENFORCE, labels=("shadow", "enforce"))
-        )
+        receipt = await ex.execute(_request(mode=Mode.ENFORCE, labels=("shadow", "enforce")))
     finally:
         await client.aclose()
 

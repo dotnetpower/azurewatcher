@@ -128,9 +128,7 @@ async def test_min_score_filters_weak_correlations() -> None:
     feed = _StaticFeed(
         [_deploy("gh-weak", _INCIDENT_AT - timedelta(minutes=59))]  # near window edge
     )
-    gatherer = ChangeEvidenceGatherer(
-        feed=feed, window=timedelta(hours=1), min_score=0.5
-    )
+    gatherer = ChangeEvidenceGatherer(feed=feed, window=timedelta(hours=1), min_score=0.5)
 
     citations = await gatherer.gather(incident_at=_INCIDENT_AT)
 
@@ -139,13 +137,9 @@ async def test_min_score_filters_weak_correlations() -> None:
 
 @pytest.mark.asyncio
 async def test_max_citations_caps_output() -> None:
-    changes = [
-        _deploy(f"gh-{i}", _INCIDENT_AT - timedelta(minutes=i + 1)) for i in range(10)
-    ]
+    changes = [_deploy(f"gh-{i}", _INCIDENT_AT - timedelta(minutes=i + 1)) for i in range(10)]
     feed = _StaticFeed(changes)
-    gatherer = ChangeEvidenceGatherer(
-        feed=feed, window=timedelta(hours=1), max_citations=3
-    )
+    gatherer = ChangeEvidenceGatherer(feed=feed, window=timedelta(hours=1), max_citations=3)
 
     citations = await gatherer.gather(incident_at=_INCIDENT_AT)
 

@@ -189,8 +189,7 @@ async def test_failed_status_and_unknown_type_dropped() -> None:
             json={
                 "value": [
                     {
-                        "resourceId": "/subscriptions/x/resourceGroups/rg/providers/"
-                        f"{arm_type}/a",
+                        "resourceId": f"/subscriptions/x/resourceGroups/rg/providers/{arm_type}/a",
                         "resourceType": {"value": arm_type},
                         "status": {"value": "Failed"},
                         "eventTimestamp": "2026-07-10T06:00:00Z",

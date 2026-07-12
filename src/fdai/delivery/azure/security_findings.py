@@ -79,8 +79,7 @@ class DefenderFindingConfig:
             raise ValueError("DefenderFindingConfig.subscription_scope MUST be non-empty")
         if not self.arg_endpoint.lower().startswith("https://"):
             raise ValueError(
-                "DefenderFindingConfig.arg_endpoint MUST use https:// "
-                f"(got {self.arg_endpoint!r})"
+                f"DefenderFindingConfig.arg_endpoint MUST use https:// (got {self.arg_endpoint!r})"
             )
         if self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds MUST be > 0")

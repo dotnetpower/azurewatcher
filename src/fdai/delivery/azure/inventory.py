@@ -97,7 +97,6 @@ class ActivityLogPage:
 ActivityLogFetchFn = Callable[[str], Awaitable[ActivityLogPage]]
 
 
-
 @dataclass(frozen=True, slots=True)
 class AzureInventoryConfig:
     """Adapter configuration.
@@ -139,7 +138,6 @@ class AzureInventoryConfig:
     stops and returns the ``final=True`` fence carrying the last cursor;
     the next call resumes from there rather than silently draining forever.
     """
-
 
 
 class AzureResourceGraphInventory:

@@ -79,8 +79,7 @@ class AzureDevOpsChangeFeedConfig:
             raise ValueError("auth_scheme MUST be 'basic' or 'bearer'")
         if not self.api_base.lower().startswith("https://"):
             raise ValueError(
-                "AzureDevOpsChangeFeedConfig.api_base MUST use https:// "
-                f"(got {self.api_base!r})"
+                f"AzureDevOpsChangeFeedConfig.api_base MUST use https:// (got {self.api_base!r})"
             )
         if self.max_records <= 0:
             raise ValueError("max_records MUST be positive")
@@ -228,9 +227,7 @@ class AzureDevOpsChangeFeed:
         build_number = str(row.get("buildNumber", ""))
         branch = str(row.get("sourceBranch", ""))
         requested = row.get("requestedFor")
-        author = (
-            str(requested.get("displayName", "")) if isinstance(requested, Mapping) else ""
-        )
+        author = str(requested.get("displayName", "")) if isinstance(requested, Mapping) else ""
         hints = (resource_hint,) if resource_hint else ()
         metadata: dict[str, str] = {}
         if branch:

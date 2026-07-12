@@ -142,9 +142,7 @@ class AzureActivityLogFactory:
         self._http: Final[httpx.AsyncClient] = http_client
         self._config: Final[AzureActivityLogFactoryConfig] = config
         # ARM type -> CSP-neutral resource_type reverse map, computed once.
-        self._arm_to_neutral: Final[Mapping[str, str]] = _build_arm_to_neutral_map(
-            resource_types
-        )
+        self._arm_to_neutral: Final[Mapping[str, str]] = _build_arm_to_neutral_map(resource_types)
 
     def build_fetch_fn(self) -> ActivityLogFetchFn:
         async def _fetch(cursor: str) -> ActivityLogPage:
@@ -179,9 +177,7 @@ class AzureActivityLogFactory:
     def _initial_url(self, *, resume_cursor: str) -> str:
         start = resume_cursor.strip()
         if not start:
-            since = datetime.now(tz=UTC) - timedelta(
-                seconds=self._config.initial_lookback_seconds
-            )
+            since = datetime.now(tz=UTC) - timedelta(seconds=self._config.initial_lookback_seconds)
             start = since.isoformat()
         # Guard against a filter-injection attempt in the persisted cursor.
         if "'" in start:
@@ -206,9 +202,7 @@ class AzureActivityLogFactory:
                 url, headers=headers, timeout=self._config.timeout_seconds
             )
         except httpx.HTTPError as exc:
-            raise ActivityLogError(
-                f"Activity Log request failed: {type(exc).__name__}"
-            ) from exc
+            raise ActivityLogError(f"Activity Log request failed: {type(exc).__name__}") from exc
 
         if response.status_code >= 400:
             snippet = response.text[:200].replace("\n", " ")
