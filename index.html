@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FDAI - Design mock index</title>
+  <style>
+    /* Self-contained landing. Mirrors calm-slate palette so it feels native
+       against mocks/ui/*, but does NOT import calm-slate.css so this file
+       works even if the mock kit is moved or renamed later. */
+    :root {
+      --cs-bg: #FBFAF9; --cs-card: #FFFFFF;
+      --cs-text: #2C333A; --cs-text-soft: #6B7178;
+      --cs-hairline: #E3E1DE; --cs-shade: #F4F2F0;
+      --cs-steel: #44688E; --cs-navy: #3E4C59;
+      --cs-sage: #5E8259; --cs-terracotta: #BC7449;
+      --cs-dusty-red: #AC5A5A; --cs-teal: #4F847E; --cs-plum: #7B6C9C;
+      --cs-radius: 14px; --cs-radius-sm: 9px;
+      --cs-shadow: 0 1px 2px rgba(15, 23, 30, .04);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--cs-bg); color: var(--cs-text); font: 14px/1.55 "Segoe UI","Malgun Gothic",sans-serif; }
+    a { color: var(--cs-steel); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { font-family: "Cascadia Code","Consolas",monospace; font-size: .88em; background: var(--cs-shade); padding: .12em .4em; border-radius: 5px; }
+
+    header { border-bottom: 1px solid var(--cs-hairline); background: var(--cs-card); }
+    .hdr-inner { max-width: 1160px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+    .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: 13px; color: var(--cs-navy); }
+    .brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--cs-steel); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 700; }
+    .brand-tag { color: var(--cs-text-soft); font-weight: 500; text-transform: none; letter-spacing: 0; font-size: 12.5px; margin-left: 4px; }
+    nav.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+    nav.chips a { padding: 5px 11px; font-size: 12.5px; border-radius: 999px; color: var(--cs-text-soft); background: var(--cs-shade); }
+    nav.chips a:hover { background: var(--cs-hairline); color: var(--cs-text); text-decoration: none; }
+
+    main { max-width: 1160px; margin: 0 auto; padding: 28px 24px 60px; }
+    .page-head { margin-bottom: 24px; }
+    .eyebrow { color: var(--cs-steel); font-size: 12.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
+    h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -.01em; }
+    .lead { margin: 0; color: var(--cs-text-soft); font-size: 15px; max-width: 68ch; }
+
+    section.family { margin: 28px 0 0; padding-top: 20px; border-top: 1px dashed var(--cs-hairline); }
+    section.family:first-of-type { border-top: none; padding-top: 0; margin-top: 8px; }
+    .family-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+    .family-head h2 { margin: 0; font-size: 19px; }
+    .family-head .fam-count { color: var(--cs-text-soft); font-size: 12.5px; }
+    .family-head .fam-open { margin-left: auto; font-size: 12.5px; }
+    .family-desc { margin: 0 0 14px; color: var(--cs-text-soft); font-size: 13.5px; max-width: 74ch; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+    .card { display: block; padding: 14px 16px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); box-shadow: var(--cs-shadow); color: inherit; transition: transform .08s ease, border-color .08s ease; }
+    .card:hover { transform: translateY(-1px); border-color: rgba(68,104,142,.35); text-decoration: none; }
+    .card .accent { width: 28px; height: 3px; border-radius: 3px; background: var(--cs-steel); margin-bottom: 6px; }
+    .card .accent.is-sage { background: var(--cs-sage); }
+    .card .accent.is-teal { background: var(--cs-teal); }
+    .card .accent.is-plum { background: var(--cs-plum); }
+    .card .accent.is-terracotta { background: var(--cs-terracotta); }
+    .card .accent.is-dusty-red  { background: var(--cs-dusty-red); }
+    .card h3 { margin: 0 0 4px; font-size: 14.5px; }
+    .card p { margin: 0; color: var(--cs-text-soft); font-size: 12.5px; }
+    .card .path { display: block; margin-top: 6px; color: var(--cs-text-soft); font-family: "Cascadia Code","Consolas",monospace; font-size: 11px; }
+
+    /* "Landing" hero card - bigger, used for family sub-index pages. */
+    .card.is-hero { padding: 16px 18px; }
+    .card.is-hero h3 { font-size: 15.5px; }
+
+    /* Note block. */
+    .note { margin-top: 24px; padding: 12px 14px; background: var(--cs-shade); border-radius: var(--cs-radius-sm); font-size: 12.5px; color: var(--cs-text-soft); }
+    .note strong { color: var(--cs-text); font-weight: 600; }
+
+    footer { max-width: 1160px; margin: 40px auto 20px; padding: 0 24px; color: var(--cs-text-soft); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="hdr-inner">
+      <span class="brand"><span class="brand-mark">AW</span> FDAI <span class="brand-tag">design mocks</span></span>
+      <nav class="chips">
+        <a href="#calm-slate">Calm slate console</a>
+        <a href="#webgl">WebGL drafts</a>
+        <a href="#experiments">Experiments</a>
+        <a href="#landing">Landing pages</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-head">
+      <div class="eyebrow">Static, dependency-free HTML</div>
+      <h1>Design mock index</h1>
+      <p class="lead">Every static UI reference in this repo, grouped by family. Nothing here is
+        wired to a backend - open a file, click a link, no build step. The <a href="mocks/ui/index.html">Calm
+        slate</a> family is the canonical operator-console kit; the rest are exploratory drafts
+        kept for reference.</p>
+    </div>
+
+
+    <!-- ================================================================
+         Calm slate console (mocks/ui/) - the canonical kit
+         ================================================================ -->
+    <section class="family" id="calm-slate">
+      <div class="family-head">
+        <h2>Calm slate console</h2>
+        <span class="fam-count">18 pages &middot; <code>mocks/ui/</code></span>
+        <span class="fam-open"><a href="mocks/ui/index.html">Open kit landing &rarr;</a></span>
+      </div>
+      <p class="family-desc">The canonical read-only operator console. Every panel exposed in
+        the console's <code>resolvePanels()</code> has a static mock here. Palette is
+        desaturated ("calm slate"); components share the <code>cs-*</code> class prefix.</p>
+
+      <h3 style="margin:10px 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--cs-text-soft); font-weight:600;">Now &middot; Overview &middot; History</h3>
+      <div class="grid">
+        <a class="card" href="mocks/ui/live.html">
+          <div class="accent"></div>
+          <h3>Live</h3>
+          <p>Activity swarm - every tile is one control-plane action flowing through T0 / T1 / T2.</p>
+          <span class="path">mocks/ui/live.html</span>
+        </a>
+        <a class="card" href="mocks/ui/dashboard.html">
+          <div class="accent is-sage"></div>
+          <h3>Overview</h3>
+          <p>KPIs, guard metrics, trust-tier + risk-gate distribution, top HIL items, recent audit.</p>
+          <span class="path">mocks/ui/dashboard.html</span>
+        </a>
+        <a class="card" href="mocks/ui/hil.html">
+          <div class="accent is-terracotta"></div>
+          <h3>HIL queue</h3>
+          <p>Plain-first approval cards - what, why, confidence, safety, who approves.</p>
+          <span class="path">mocks/ui/hil.html</span>
+        </a>
+        <a class="card" href="mocks/ui/promotion.html">
+          <div class="accent is-teal"></div>
+          <h3>Promotion</h3>
+          <p>Shadow &rarr; enforce candidates and the four gate checks; auto-demotion path.</p>
+          <span class="path">mocks/ui/promotion.html</span>
+        </a>
+        <a class="card" href="mocks/ui/rules.html">
+          <div class="accent"></div>
+          <h3>Rules</h3>
+          <p>Catalog, collected candidates from the discovery loop, and scoped overrides.</p>
+          <span class="path">mocks/ui/rules.html</span>
+        </a>
+        <a class="card" href="mocks/ui/actions.html">
+          <div class="accent is-plum"></div>
+          <h3>Actions (ontology)</h3>
+          <p>ActionType ontology - trigger, execution path, rollback contract, six-axis risk ceiling.</p>
+          <span class="path">mocks/ui/actions.html</span>
+        </a>
+        <a class="card" href="mocks/ui/audit.html">
+          <div class="accent is-terracotta"></div>
+          <h3>Audit</h3>
+          <p>Append-only stream: execute, reject, timeout, abstain, deny, override, rollback.</p>
+          <span class="path">mocks/ui/audit.html</span>
+        </a>
+      </div>
+
+      <h3 style="margin:14px 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--cs-text-soft); font-weight:600;">Fleet &amp; safety</h3>
+      <div class="grid">
+        <a class="card" href="mocks/ui/agents.html">
+          <div class="accent is-sage"></div>
+          <h3>Fleet roster</h3>
+          <p>15 pantheon agents - running / idle / recovering / shadow, throughput, chat entry.</p>
+          <span class="path">mocks/ui/agents.html</span>
+        </a>
+        <a class="card" href="mocks/ui/pantheon.html">
+          <div class="accent is-plum"></div>
+          <h3>Pantheon</h3>
+          <p>Directory grouped by governance / pipeline / domain, plus the reporting tree.</p>
+          <span class="path">mocks/ui/pantheon.html</span>
+        </a>
+        <a class="card" href="mocks/ui/agent-activity.html">
+          <div class="accent"></div>
+          <h3>Agent activity</h3>
+          <p>Per-agent audit timeline - execute / approve / reject / rollback / audit.</p>
+          <span class="path">mocks/ui/agent-activity.html</span>
+        </a>
+        <a class="card" href="mocks/ui/blast-radius.html">
+          <div class="accent is-terracotta"></div>
+          <h3>Blast radius</h3>
+          <p>Per-action impact rings and the cap bars enforced by the risk gate.</p>
+          <span class="path">mocks/ui/blast-radius.html</span>
+        </a>
+        <a class="card" href="mocks/ui/provision.html">
+          <div class="accent"></div>
+          <h3>Provisioning</h3>
+          <p>Live re-provision view - Terraform stream, resource list, on-done console URL.</p>
+          <span class="path">mocks/ui/provision.html</span>
+        </a>
+        <a class="card" href="mocks/ui/llm-cost.html">
+          <div class="accent is-teal"></div>
+          <h3>LLM cost</h3>
+          <p>Per-tier budgets, event mix, 7-day trend, and the per-model attribution table.</p>
+          <span class="path">mocks/ui/llm-cost.html</span>
+        </a>
+      </div>
+
+      <h3 style="margin:14px 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--cs-text-soft); font-weight:600;">Knowledge (ontology + trace)</h3>
+      <div class="grid">
+        <a class="card" href="mocks/ui/ontology.html">
+          <div class="accent is-plum"></div>
+          <h3>Ontology</h3>
+          <p>ObjectType + LinkType registry, one-hop neighborhood, per-type detail.</p>
+          <span class="path">mocks/ui/ontology.html</span>
+        </a>
+        <a class="card" href="mocks/ui/rule-trace.html">
+          <div class="accent is-teal"></div>
+          <h3>Rule trace</h3>
+          <p>Full pipeline trace for one correlation id - ingest, router, gates, dispatch, audit.</p>
+          <span class="path">mocks/ui/rule-trace.html</span>
+        </a>
+        <a class="card" href="mocks/ui/workflow-builder.html">
+          <div class="accent"></div>
+          <h3>Workflow builder</h3>
+          <p>Read-only visual view of a <code>when &rarr; do</code> workflow: palette, canvas, safety inspector.</p>
+          <span class="path">mocks/ui/workflow-builder.html</span>
+        </a>
+      </div>
+
+      <h3 style="margin:14px 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--cs-text-soft); font-weight:600;">Report, kit, and explorations</h3>
+      <div class="grid">
+        <a class="card" href="mocks/ui/report.html">
+          <div class="accent is-terracotta"></div>
+          <h3>Report</h3>
+          <p>Weekly review - numbered sections, headline metrics, AS-IS / TO-BE, findings table.</p>
+          <span class="path">mocks/ui/report.html</span>
+        </a>
+        <a class="card" href="mocks/ui/components.html">
+          <div class="accent"></div>
+          <h3>Component gallery</h3>
+          <p>KPI cards, tables, tags, severity badges, alerts, forms, tabs, tier chips, meters.</p>
+          <span class="path">mocks/ui/components.html</span>
+        </a>
+        <a class="card is-hero" href="mocks/ui/index.html">
+          <div class="accent is-sage"></div>
+          <h3>Kit landing &rarr;</h3>
+          <p>Palette, page index, design principles - the calm-slate entry point.</p>
+          <span class="path">mocks/ui/index.html</span>
+        </a>
+        <a class="card" href="mocks/ui/deck-sources.html">
+          <div class="accent"></div>
+          <h3>Command deck &middot; sources</h3>
+          <p>How Bragi streams retrieval + grounded-reply citations into the conversational deck.</p>
+          <span class="path">mocks/ui/deck-sources.html</span>
+        </a>
+        <a class="card" href="mocks/ui/agent-icons.html">
+          <div class="accent is-plum"></div>
+          <h3>Agent icons</h3>
+          <p>Draft glyph / avatar set for the 15 pantheon agents.</p>
+          <span class="path">mocks/ui/agent-icons.html</span>
+        </a>
+        <a class="card" href="mocks/ui/hcard-variants.html">
+          <div class="accent is-teal"></div>
+          <h3>HIL card variants</h3>
+          <p>Side-by-side comparison of 5 severity-affordance options (A baseline &rarr; E whole-card tint).</p>
+          <span class="path">mocks/ui/hcard-variants.html</span>
+        </a>
+      </div>
+    </section>
+
+
+    <!-- ================================================================
+         WebGL drafts (mocks/ui-webgl/)
+         ================================================================ -->
+    <section class="family" id="webgl">
+      <div class="family-head">
+        <h2>WebGL drafts</h2>
+        <span class="fam-count">4 pages &middot; <code>mocks/ui-webgl/</code></span>
+        <span class="fam-open"><a href="mocks/ui-webgl/index.html">Open family landing &rarr;</a></span>
+      </div>
+      <p class="family-desc">More expressive prototypes that lean on WebGL / canvas for animation.
+        These are design drafts, not the read-only console - they explore atmosphere and motion
+        before we decide whether any of it is worth porting into calm-slate.</p>
+
+      <div class="grid">
+        <a class="card is-hero" href="mocks/ui-webgl/index.html">
+          <div class="accent is-teal"></div>
+          <h3>Family landing &rarr;</h3>
+          <p>Entry point that lists every WebGL draft in this folder.</p>
+          <span class="path">mocks/ui-webgl/index.html</span>
+        </a>
+        <a class="card" href="mocks/ui-webgl/dashboard.html">
+          <div class="accent"></div>
+          <h3>WebGL console</h3>
+          <p>Dashboard rendered in WebGL - motion-heavy alternative to the calm-slate overview.</p>
+          <span class="path">mocks/ui-webgl/dashboard.html</span>
+        </a>
+        <a class="card" href="mocks/ui-webgl/agent-orb.html">
+          <div class="accent is-plum"></div>
+          <h3>Agent orb</h3>
+          <p>Ambient orb representing an agent's state; explores idle / active / recovering visuals.</p>
+          <span class="path">mocks/ui-webgl/agent-orb.html</span>
+        </a>
+        <a class="card" href="mocks/ui-webgl/provision-genesis.html">
+          <div class="accent is-terracotta"></div>
+          <h3>Provision - Genesis</h3>
+          <p>Bootstrap "genesis" story for first-run provisioning; sibling to the calm <code>provision.html</code>.</p>
+          <span class="path">mocks/ui-webgl/provision-genesis.html</span>
+        </a>
+      </div>
+    </section>
+
+
+    <!-- ================================================================
+         Experiments (ui-cells, ui-cli)
+         ================================================================ -->
+    <section class="family" id="experiments">
+      <div class="family-head">
+        <h2>Experiments</h2>
+        <span class="fam-count">2 landings &middot; <code>mocks/ui-cells/</code>, <code>mocks/ui-cli/</code></span>
+      </div>
+      <p class="family-desc">One-off explorations that don't fit either the calm-slate console or
+        the WebGL family. Kept for reference; not on any promotion path.</p>
+
+      <div class="grid">
+        <a class="card is-hero" href="mocks/ui-cells/index.html">
+          <div class="accent"></div>
+          <h3>Cells (WebGL2 mock)</h3>
+          <p>Cell / grid rendering experiment; a data-driven alternative to card lists.</p>
+          <span class="path">mocks/ui-cells/index.html</span>
+        </a>
+        <a class="card is-hero" href="mocks/ui-cli/index.html">
+          <div class="accent is-navy"></div>
+          <h3>Operator console CLI</h3>
+          <p>Terminal-style mock of the operator console for keyboard-only workflows.</p>
+          <span class="path">mocks/ui-cli/index.html</span>
+        </a>
+      </div>
+    </section>
+
+
+    <!-- ================================================================
+         Landing pages (examples/) - historic, pre-rename material
+         ================================================================ -->
+    <section class="family" id="landing">
+      <div class="family-head">
+        <h2>Landing pages (historic)</h2>
+        <span class="fam-count">4 pages &middot; <code>examples/</code></span>
+        <span class="fam-open"><a href="examples/index.html">Open family landing &rarr;</a></span>
+      </div>
+      <p class="family-desc">Marketing / landing-page explorations from the pre-rename era (still
+        say "AzureWatcher" in a few places). Three concrete option pages plus the family index.</p>
+
+      <div class="grid">
+        <a class="card is-hero" href="examples/index.html">
+          <div class="accent"></div>
+          <h3>Design mockups index</h3>
+          <p>Family landing - links to the three option pages below.</p>
+          <span class="path">examples/index.html</span>
+        </a>
+        <a class="card" href="examples/option-a-starlight.html">
+          <div class="accent is-teal"></div>
+          <h3>Option A - Starlight</h3>
+          <p>Astro Starlight-style docs layout applied to the roadmap.</p>
+          <span class="path">examples/option-a-starlight.html</span>
+        </a>
+        <a class="card" href="examples/option-b-tailwind.html">
+          <div class="accent"></div>
+          <h3>Option B - Tailwind</h3>
+          <p>Tailwind-flavored variant of the same roadmap page.</p>
+          <span class="path">examples/option-b-tailwind.html</span>
+        </a>
+        <a class="card" href="examples/option-c-fluent.html">
+          <div class="accent is-plum"></div>
+          <h3>Option C - Fluent</h3>
+          <p>Microsoft Fluent-style variant of the same roadmap page.</p>
+          <span class="path">examples/option-c-fluent.html</span>
+        </a>
+      </div>
+    </section>
+
+    <div class="note">
+      <strong>How this is served.</strong> <code>python3 -m http.server 8765</code> at the repo root -
+      open <a href="http://127.0.0.1:8765/">http://127.0.0.1:8765/</a> and this page is the entry
+      point. Nothing here talks to a backend; every page is a static HTML file.
+    </div>
+  </main>
+
+  <footer>
+    <span>FDAI - autonomous cloud operations control plane &middot; design mocks only &middot; english-only, customer-agnostic.</span>
+  </footer>
+</body>
+</html>
