@@ -1,0 +1,182 @@
+---
+title: 코드 맵
+translation_of: code-map.md
+translation_source_sha: 3aaa81097b598f6d1aa801482c8b77b7e3b213b2
+translation_revised: 2026-07-12
+---
+# 코드 맵
+
+FDAI 코드베이스의 원페이지 인덱스. 서브시스템 이름에서 소스, 테스트, 설계
+문서로 한 번에 이동할 수 있게 만든 지도. 에이전트와 사람 모두를 위한 지도다.
+[project-structure.md](project-structure-ko.md) (모듈 경계와 DI seam 상세)의
+**스캔용 파트너**로 쓴다.
+
+"X는 어디 있지?"에 `list_dir`을 다섯 번 열지 않고 답하고 싶을 때 사용한다.
+아래 표들은 45개의 core 서브시스템, 15명 판테온 에이전트, delivery / shared
+패키지를 커버한다.
+
+## 한눈에 보기
+
+- **`src/fdai/core/`** = 헤드리스 컨트롤 플레인. UI 없음, 클라우드 SDK
+  직접 import 없음. 45개 서브시스템을 컨트롤 루프 역할별로 아래 정리.
+- **`src/fdai/agents/`** = 15명 판테온 (평면 배치, 에이전트당 파일 하나) +
+  `_framework/` (버스, 런타임, 레지스트리, 판테온 스펙).
+- **`src/fdai/delivery/`** = 외부 어댑터 (Azure, chatops, PR 게이트, 알림,
+  영속성, read API).
+- **`src/fdai/shared/`** = CSP-중립 배관: contracts, ontology, provider
+  Protocol, streaming, telemetry, resilience.
+- **`src/fdai/composition/`** = 컴포지션 루트 (fork DI가 여기 붙는다).
+- **`src/fdai/rule_catalog/`** = `rule-catalog/` 로더.
+
+## 컨트롤 루프 서브시스템
+
+이벤트 -> 감사 핫패스의 12개 서브시스템. **>= 90% 커버리지 바닥**을
+유지하는 안전-핵심 모듈들이다.
+
+| 서브시스템 | 책임 | 소스 | 테스트 | 설계 문서 |
+|-----------|------|------|--------|----------|
+| event_ingest | 이벤트 정규화 + 중복제거 + 인시던트로 상관관계 묶기 | [src/fdai/core/event_ingest/](../../../src/fdai/core/event_ingest/) | [tests/core/event_ingest/](../../../tests/core/event_ingest/) | [architecture.instructions.md § Control Loop](../../../.github/instructions/architecture.instructions.md#control-loop) |
+| trust_router | 신뢰도 계산, T0/T1/T2 라우팅 | [src/fdai/core/trust_router/](../../../src/fdai/core/trust_router/) | [tests/core/trust_router/](../../../tests/core/trust_router/) | [architecture.instructions.md § Trust Routing](../../../.github/instructions/architecture.instructions.md#trust-routing-3-tier) |
+| tiers/t0_deterministic | 정책 + 체크리스트 + what-if + drift | [src/fdai/core/tiers/t0_deterministic/](../../../src/fdai/core/tiers/t0_deterministic/) | [tests/core/tiers/](../../../tests/core/tiers/) | project-structure-ko.md |
+| tiers/t1_lightweight | 유사도 재사용 + 소형 모델 분류 | [src/fdai/core/tiers/t1_lightweight/](../../../src/fdai/core/tiers/t1_lightweight/) | [tests/core/tiers/](../../../tests/core/tiers/) | project-structure-ko.md |
+| tiers/t2_reasoning | 프론티어 모델 추론 (신규 케이스만) | [src/fdai/core/tiers/t2_reasoning/](../../../src/fdai/core/tiers/t2_reasoning/) | [tests/core/tiers/](../../../tests/core/tiers/) | [llm-strategy-ko.md](llm-strategy-ko.md) |
+| quality_gate | 혼합 모델 + verifier + grounding (T2 가드) | [src/fdai/core/quality_gate/](../../../src/fdai/core/quality_gate/) | [tests/core/quality_gate/](../../../tests/core/quality_gate/) | [architecture.instructions.md § LLM Quality Gate](../../../.github/instructions/architecture.instructions.md#llm-quality-gate-required-for-t2) |
+| risk_gate | 통합 auto vs HIL vs deny 권위 | [src/fdai/core/risk_gate/](../../../src/fdai/core/risk_gate/) | [tests/core/risk_gate/](../../../tests/core/risk_gate/) | [decisioning/](../decisioning/) |
+| hil_resume | 파킹 + 채널 푸시 + 결정시 재개 | [src/fdai/core/hil_resume/](../../../src/fdai/core/hil_resume/) | [tests/core/hil_resume/](../../../tests/core/hil_resume/) | project-structure-ko.md |
+| executor | 리소스별 lock, 멱등 적용 | [src/fdai/core/executor/](../../../src/fdai/core/executor/) | [tests/core/](../../../tests/core/) (executor 관련) | project-structure-ko.md |
+| audit | append-only 해시체인 로그 + KPI 방출 | [src/fdai/core/audit/](../../../src/fdai/core/audit/) | [tests/core/audit/](../../../tests/core/audit/) | [security-and-identity-ko.md](security-and-identity-ko.md) |
+| control_loop | 파이프라인 오케스트레이터 (Stage 프로토콜) | [src/fdai/core/control_loop/](../../../src/fdai/core/control_loop/) | [tests/core/](../../../tests/core/) | project-structure-ko.md |
+| pipeline | 위 서브시스템들의 도메인 그룹 파사드 | [src/fdai/core/pipeline/](../../../src/fdai/core/pipeline/) | (멤버와 동일) | project-structure-ko.md |
+
+## 탐지, RCA, 인시던트 라이프사이클
+
+| 서브시스템 | 책임 | 소스 | 테스트 |
+|-----------|------|------|--------|
+| detection | 이상치 / 예측 발견자 (event-ingest 재진입) | [src/fdai/core/detection/](../../../src/fdai/core/detection/) | [tests/core/detection/](../../../tests/core/detection/) |
+| rca | 근본원인 분석 (T0 + T2 seam 뒤) | [src/fdai/core/rca/](../../../src/fdai/core/rca/) | [tests/core/rca/](../../../tests/core/rca/) |
+| incident | 인시던트 라이프사이클 레지스트리 + 상태 머신 | [src/fdai/core/incident/](../../../src/fdai/core/incident/) | [tests/core/incident/](../../../tests/core/incident/) |
+| slo | 워크로드 SLO / burn-rate 평가자 | [src/fdai/core/slo/](../../../src/fdai/core/slo/) | [tests/core/slo/](../../../tests/core/slo/) |
+| irp | 인시던트 대응 계획 오케스트레이터 | [src/fdai/core/irp/](../../../src/fdai/core/irp/) | [tests/core/irp/](../../../tests/core/irp/) |
+| investigation | 예산 제한 증거 수집 러너 | [src/fdai/core/investigation/](../../../src/fdai/core/investigation/) | [tests/core/investigation/](../../../tests/core/investigation/) |
+| runbook | 선형 runbook + 실패 분기 | [src/fdai/core/runbook/](../../../src/fdai/core/runbook/) | [tests/core/](../../../tests/core/) |
+| postmortem | LLM-옵션 PIR 초안 | [src/fdai/core/postmortem/](../../../src/fdai/core/postmortem/) | [tests/core/postmortem/](../../../tests/core/postmortem/) |
+| chaos | 회복성 / 카오스 프로브 | [src/fdai/core/chaos/](../../../src/fdai/core/chaos/) | [tests/core/chaos/](../../../tests/core/chaos/) |
+| capacity | 용량 + 예측 findings | [src/fdai/core/capacity/](../../../src/fdai/core/capacity/) | [tests/core/capacity/](../../../tests/core/capacity/) |
+| oncall | 온콜 로테이션 리더 (read-only) | [src/fdai/core/oncall/](../../../src/fdai/core/oncall/) | [tests/core/](../../../tests/core/) |
+
+## 지식, 메모리, 프롬프트
+
+| 서브시스템 | 책임 | 소스 | 테스트 |
+|-----------|------|------|--------|
+| knowledge | 장기 지식 저장소 seam | [src/fdai/core/knowledge/](../../../src/fdai/core/knowledge/) | [tests/core/knowledge/](../../../tests/core/knowledge/) |
+| operator_memory | HIL 승인된 오퍼레이터 노트 저장소 | [src/fdai/core/operator_memory/](../../../src/fdai/core/operator_memory/) | [tests/core/operator_memory/](../../../tests/core/operator_memory/) |
+| working_context | 턴당 프롬프트 조립 (토큰 예산 제한) | [src/fdai/core/working_context/](../../../src/fdai/core/working_context/) | [tests/core/](../../../tests/core/) |
+| prompts | catalog-as-code 프롬프트 컴포저 | [src/fdai/core/prompts/](../../../src/fdai/core/prompts/) | [tests/core/](../../../tests/core/) |
+| tools | T2 툴 레지스트리 + ToolExecutor | [src/fdai/core/tools/](../../../src/fdai/core/tools/) | [tests/core/tools/](../../../tests/core/tools/) |
+| web_search | 최후 수단 웹 검색 seam | [src/fdai/core/web_search/](../../../src/fdai/core/web_search/) | [tests/core/web_search/](../../../tests/core/web_search/) |
+| capability_catalog | 각 에이전트가 아는 것 | [src/fdai/core/capability_catalog/](../../../src/fdai/core/capability_catalog/) | [tests/core/capability_catalog/](../../../tests/core/capability_catalog/) |
+
+## 오퍼레이터 서피스와 알림
+
+| 서브시스템 | 책임 | 소스 | 테스트 |
+|-----------|------|------|--------|
+| conversation | NL 턴 -> read-only 툴 호출 하나 | [src/fdai/core/conversation/](../../../src/fdai/core/conversation/) | [tests/core/conversation/](../../../tests/core/conversation/) |
+| operator | 오퍼레이터 콘솔 코디네이터 | [src/fdai/core/operator/](../../../src/fdai/core/operator/) | (delivery/read_api 통합) |
+| notifications | 매트릭스 기반 채널 라우팅 레이어 | [src/fdai/core/notifications/](../../../src/fdai/core/notifications/) | [tests/delivery/notifications/](../../../tests/delivery/notifications/) |
+| report_feed | 렌더된 리포트 구독 | [src/fdai/core/report_feed/](../../../src/fdai/core/report_feed/) | [tests/core/report_feed/](../../../tests/core/report_feed/) |
+| reporting | 리포트 컴포저 + 포매터 | [src/fdai/core/reporting/](../../../src/fdai/core/reporting/) | [tests/core/reporting/](../../../tests/core/reporting/) |
+| rbac | Read API 인간 RBAC | [src/fdai/core/rbac/](../../../src/fdai/core/rbac/) | [tests/core/](../../../tests/core/) |
+
+## 룰 카탈로그, 배포, 플랫폼
+
+| 서브시스템 | 책임 | 소스 | 테스트 |
+|-----------|------|------|--------|
+| rule_catalog_profiles | 프로파일 / 팩 레이어 + `extends` 오버라이드 | [src/fdai/core/rule_catalog_profiles/](../../../src/fdai/core/rule_catalog_profiles/) | [tests/core/rule_catalog_profiles/](../../../tests/core/rule_catalog_profiles/) |
+| deploy_preflight | 배포 전 실현성 프로브 | [src/fdai/core/deploy_preflight/](../../../src/fdai/core/deploy_preflight/) | [tests/core/deploy_preflight/](../../../tests/core/deploy_preflight/) |
+| onboarding | 테넌트 / 환경 온보딩 흐름 | [src/fdai/core/onboarding/](../../../src/fdai/core/onboarding/) | [tests/core/](../../../tests/core/) |
+| readiness | grounding된 준비도 리포트 | [src/fdai/core/readiness/](../../../src/fdai/core/readiness/) | [tests/core/](../../../tests/core/) |
+| assurance_twin | Read-only 온톨로지 트윈 (실행 금지) | [src/fdai/core/assurance_twin/](../../../src/fdai/core/assurance_twin/) | [tests/core/assurance_twin/](../../../tests/core/assurance_twin/) |
+| workflow | 카탈로그 Workflow -> Runbook 컴파일 | [src/fdai/core/workflow/](../../../src/fdai/core/workflow/) | [tests/core/](../../../tests/core/) |
+| scheduler | Cron-형 트리거 | [src/fdai/core/scheduler/](../../../src/fdai/core/scheduler/) | [tests/core/scheduler/](../../../tests/core/scheduler/) |
+| metering | 사용량 미터링 카운터 | [src/fdai/core/metering/](../../../src/fdai/core/metering/) | [tests/core/metering/](../../../tests/core/metering/) |
+| measurement | Phase-4 연속 측정 | [src/fdai/core/measurement/](../../../src/fdai/core/measurement/) | [tests/core/measurement/](../../../tests/core/measurement/) |
+| security | 보안 시그널 생산자 | [src/fdai/core/security/](../../../src/fdai/core/security/) | [tests/core/security/](../../../tests/core/security/) |
+| platform | 플랫폼 프리미티브 파사드 | [src/fdai/core/platform/](../../../src/fdai/core/platform/) | [tests/core/](../../../tests/core/) |
+| verticals | Resilience / Change Safety / Cost | [src/fdai/core/verticals/](../../../src/fdai/core/verticals/) | [tests/core/verticals/](../../../tests/core/verticals/) |
+
+## 에이전트 판테온
+
+15명의 이름있는 에이전트. 모든 파일은 `src/fdai/agents/` 아래 평면 배치;
+프레임워크 헬퍼는 `_framework/` 아래. fork-잠금 role 바인딩과 변경 계약은
+[.github/instructions/agent-pantheon.instructions.md](../../../.github/instructions/agent-pantheon.instructions.md)
+참조.
+
+| 에이전트 | 역할 | 소스 | 설계 문서 |
+|---------|------|------|----------|
+| Odin | 마스터 플래너 + 타이 브레이커 | [odin.py](../../../src/fdai/agents/odin.py) | [agent-pantheon.md](../agents/agent-pantheon.md) |
+| Thor | 유일 특권 실행자 / 디스패처 | [thor.py](../../../src/fdai/agents/thor.py) | agent-pantheon.md |
+| Forseti | 판사 (판결 발행자) | [forseti.py](../../../src/fdai/agents/forseti.py) | agent-pantheon.md |
+| Huginn | 이벤트 수집자 | [huginn.py](../../../src/fdai/agents/huginn.py) | agent-pantheon.md |
+| Heimdall | 관찰자 / 시그널 수집자 | [heimdall.py](../../../src/fdai/agents/heimdall.py) | agent-pantheon.md |
+| Var | HIL 승인 주체 | [var.py](../../../src/fdai/agents/var.py) | agent-pantheon.md |
+| Vidar | 복구 / 롤백 / DR | [vidar.py](../../../src/fdai/agents/vidar.py) | agent-pantheon.md |
+| Bragi | 내레이터 (번역기 전용, 판사 아님) | [bragi.py](../../../src/fdai/agents/bragi.py) | agent-pantheon.md |
+| Saga | 감사자 + 이슈 핸드오프 | [saga.py](../../../src/fdai/agents/saga.py) | agent-pantheon.md |
+| Mimir | 룰 스튜어드 | [mimir.py](../../../src/fdai/agents/mimir.py) | agent-pantheon.md |
+| Norns | 학습자 | [norns.py](../../../src/fdai/agents/norns.py) | agent-pantheon.md |
+| Muninn | 메모리 | [muninn.py](../../../src/fdai/agents/muninn.py) | agent-pantheon.md |
+| Njord | 비용 전문가 (자문) | [njord.py](../../../src/fdai/agents/njord.py) | agent-pantheon.md |
+| Freyr | 용량 전문가 (자문) | [freyr.py](../../../src/fdai/agents/freyr.py) | agent-pantheon.md |
+| Loki | 카오스 전문가 (자문) | [loki.py](../../../src/fdai/agents/loki.py) | agent-pantheon.md |
+
+## Delivery 어댑터 (외부)
+
+| 어댑터 | 목적 | 소스 |
+|--------|------|------|
+| azure | Azure 리소스 조작 + 프로브 | [src/fdai/delivery/azure/](../../../src/fdai/delivery/azure/) |
+| azure_devops | Azure DevOps PR / 파이프라인 게이트 | [src/fdai/delivery/azure_devops/](../../../src/fdai/delivery/azure_devops/) |
+| github | GitHub App / Checks API | [src/fdai/delivery/github/](../../../src/fdai/delivery/github/) |
+| gitops_pr | PR-native 리메디에이션 패키저 | [src/fdai/delivery/gitops_pr/](../../../src/fdai/delivery/gitops_pr/) |
+| chatops | Teams / Slack Adaptive Cards | [src/fdai/delivery/chatops/](../../../src/fdai/delivery/chatops/) |
+| notifications | 채널 디스패치 레이어 | [src/fdai/delivery/notifications/](../../../src/fdai/delivery/notifications/) |
+| read_api | 콘솔 read-only HTTP 서피스 | [src/fdai/delivery/read_api/](../../../src/fdai/delivery/read_api/) |
+| provisioning | Terraform / IaC apply 드라이버 | [src/fdai/delivery/provisioning/](../../../src/fdai/delivery/provisioning/) |
+| persistence | Postgres + pgvector 스토어 | [src/fdai/delivery/persistence/](../../../src/fdai/delivery/persistence/) |
+| pgvector | 벡터 인덱스 헬퍼 | [src/fdai/delivery/pgvector/](../../../src/fdai/delivery/pgvector/) |
+| datadog | Datadog 메트릭 / 이벤트 어댑터 | [src/fdai/delivery/datadog/](../../../src/fdai/delivery/datadog/) |
+| prometheus | Prometheus scrape 어댑터 | [src/fdai/delivery/prometheus/](../../../src/fdai/delivery/prometheus/) |
+| splunk | Splunk 로그 어댑터 | [src/fdai/delivery/splunk/](../../../src/fdai/delivery/splunk/) |
+| jira | Jira 이슈 어댑터 | [src/fdai/delivery/jira/](../../../src/fdai/delivery/jira/) |
+| mcp | Model Context Protocol seam | [src/fdai/delivery/mcp/](../../../src/fdai/delivery/mcp/) |
+| webhook | 범용 아웃바운드 webhook | [src/fdai/delivery/webhook/](../../../src/fdai/delivery/webhook/) |
+| working_context | Delivery 측 컨텍스트 조립 | [src/fdai/delivery/working_context/](../../../src/fdai/delivery/working_context/) |
+
+## Shared 배관 (`src/fdai/shared/`)
+
+| 패키지 | 목적 | 소스 |
+|--------|------|------|
+| contracts | 크로스 패키지 Pydantic 계약 | [src/fdai/shared/contracts/](../../../src/fdai/shared/contracts/) |
+| ontology | 도메인 온톨로지 (ObjectType / LinkType / ActionType) | [src/fdai/shared/ontology/](../../../src/fdai/shared/ontology/) |
+| providers | Provider Protocol (EventBus / StateStore 등) | [src/fdai/shared/providers/](../../../src/fdai/shared/providers/) |
+| config | 설정 로더 + 스키마 | [src/fdai/shared/config/](../../../src/fdai/shared/config/) |
+| streaming | Kafka / Event Hub 추상화 | [src/fdai/shared/streaming/](../../../src/fdai/shared/streaming/) |
+| resilience | 재시도 / circuit-breaker 헬퍼 | [src/fdai/shared/resilience/](../../../src/fdai/shared/resilience/) |
+| telemetry | 구조화 로깅 + 메트릭 헬퍼 | [src/fdai/shared/telemetry/](../../../src/fdai/shared/telemetry/) |
+
+## Composition과 카탈로그
+
+| 경로 | 목적 |
+|------|------|
+| [src/fdai/composition/](../../../src/fdai/composition/) | 컴포지션 루트; fork DI가 여기 붙음. |
+| [src/fdai/rule_catalog/](../../../src/fdai/rule_catalog/) | `rule-catalog/` 트리 (YAML) 로더. |
+| [rule-catalog/](../../../rule-catalog/) | 룰 / 정책 / action-type 카탈로그 (데이터). |
+
+## 관련 문서
+
+| 알아볼 것 | 읽을 문서 |
+|----------|----------|
+| 모듈 경계와 DI seam | [project-structure-ko.md](project-structure-ko.md) |
+| 3-티어 컨트롤 루프 | [../../../.github/instructions/architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) |
+| 에이전트 역할과 권한 | [../agents/agent-pantheon.md](../agents/agent-pantheon.md) |
+| CSP-중립 계약 seam | [csp-neutrality-ko.md](csp-neutrality-ko.md) |
+| LLM 티어링과 grounding | [llm-strategy-ko.md](llm-strategy-ko.md) |
