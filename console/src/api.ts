@@ -96,7 +96,18 @@ export class ReadApiClient {
       }
       throw new ReadApiError(response.status, message);
     }
-    return (await response.json()) as T;
+    // Success-path parse is also fallible - a proxy that returns text/html
+    // on a stray 200 (a login page, a WAF interstitial) would otherwise
+    // throw SyntaxError and break the uniform ReadApiError contract every
+    // caller catches on. Wrap it so the error type stays consistent.
+    try {
+      return (await response.json()) as T;
+    } catch {
+      throw new ReadApiError(
+        response.status,
+        `response body was not JSON (${response.headers.get("content-type") ?? "no content-type"})`,
+      );
+    }
   }
 }
 
