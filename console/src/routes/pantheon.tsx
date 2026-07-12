@@ -1,4 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
+import { ReadApiError } from "../api";
 import type { ReadApiClient } from "../api";
 import {
   AsyncBoundary,
@@ -87,7 +88,7 @@ export function PantheonRoute({ client }: Props) {
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
-          if (message.includes("404")) {
+          if (err instanceof ReadApiError && err.status === 404) {
             setState({
               status: "unavailable",
               message:

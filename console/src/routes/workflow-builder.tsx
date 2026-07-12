@@ -22,6 +22,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Fragment } from "preact";
+import { ReadApiError } from "../api";
 import type { ReadApiClient } from "../api";
 import { AsyncBoundary, CopyButton, PageHeader, type AsyncState } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
@@ -92,7 +93,7 @@ export function WorkflowBuilderRoute({ client }: Props) {
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
-          if (message.includes("404")) {
+          if (err instanceof ReadApiError && err.status === 404) {
             setState({
               status: "unavailable",
               message:

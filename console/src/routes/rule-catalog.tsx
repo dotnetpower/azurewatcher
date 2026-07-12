@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
+import { ReadApiError } from "../api";
 import type { ReadApiClient } from "../api";
 import {
   DataTable,
@@ -223,7 +224,7 @@ export function RuleCatalogRoute({ client }: Props) {
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
-          if (message.includes("404")) {
+          if (err instanceof ReadApiError && err.status === 404) {
             setStatus("unavailable");
             setErrorMsg(
               "The rule-catalog route is not wired on this deployment. " +
