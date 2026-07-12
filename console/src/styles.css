@@ -2157,6 +2157,11 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
   border-color: var(--accent);
   background: color-mix(in oklab, var(--accent) 14%, var(--bg-elevated));
 }
+/* Honor reduced-motion for the chip hover transition, matching the deck's
+   per-surface approach (thread auto-scroll is handled in JS). */
+@media (prefers-reduced-motion: reduce) {
+  .wf-chip { transition: none; }
+}
 /* Superseded turn: chips stay visible for conversation context but are inert
    so a click on a stale suggestion cannot apply to a later stage. */
 .wf-chip-row.is-inert { opacity: 0.45; }
@@ -2217,11 +2222,20 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
 }
 .wf-viz-name { font-size: 14px; font-weight: 600; }
 .wf-viz-ref { font-size: 12px; color: var(--fg-muted); }
-.wf-viz-trigger { border-left: 3px solid #bc7449; }
-.wf-viz-action.is-remediation { border-left: 3px solid #5e8259; }
+/* Action-category accents (the "calm slate" palette shared with the deck /
+   pantheon views). Named tokens so the value lives in one place instead of a
+   hex repeated per selector. */
+:root {
+  --wf-cat-trigger: #bc7449;     /* terracotta - the when-node */
+  --wf-cat-remediation: #5e8259; /* sage */
+  --wf-cat-governance: #7b6c9c;  /* plum */
+  --wf-cat-tool: #4f847e;        /* teal - notify / tool */
+}
+.wf-viz-trigger { border-left: 3px solid var(--wf-cat-trigger); }
+.wf-viz-action.is-remediation { border-left: 3px solid var(--wf-cat-remediation); }
 .wf-viz-action.is-ops { border-left: 3px solid var(--accent); }
-.wf-viz-action.is-governance { border-left: 3px solid #7b6c9c; }
-.wf-viz-action.is-tool { border-left: 3px solid #4f847e; }
+.wf-viz-action.is-governance { border-left: 3px solid var(--wf-cat-governance); }
+.wf-viz-action.is-tool { border-left: 3px solid var(--wf-cat-tool); }
 .wf-viz-action.is-other { border-left: 3px solid var(--fg-muted); }
 .wf-viz-end {
   max-width: 120px; align-items: center; text-align: center;
