@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from fdai.delivery.chaos.aoai_ratelimit import (
+    AoaiRateLimitInjector,
+    AoaiRateLimitProbe,
+    build_aoai_request_fn,
+)
 from fdai.delivery.chaos.chaos_mesh import (
     ChaosMeshInjectedProbe,
     ChaosMeshInjector,
@@ -24,6 +29,8 @@ from fdai.delivery.chaos.mysql_load import (
 )
 
 __all__ = [
+    "AoaiRateLimitInjector",
+    "AoaiRateLimitProbe",
     "AzMysqlQueryLoadInjector",
     "AzVmCpuStressInjector",
     "AzVmMemProbe",
@@ -38,4 +45,5 @@ __all__ = [
     "KubectlBackendDownInjector",
     "KubectlBadDeployInjector",
     "KubectlPodKillInjector",
+    "build_aoai_request_fn",
 ]
