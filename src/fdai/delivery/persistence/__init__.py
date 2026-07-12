@@ -35,6 +35,10 @@ from fdai.delivery.persistence.postgres_resource_lock import (
     PostgresAdvisoryResourceLock,
     PostgresAdvisoryResourceLockConfig,
 )
+from fdai.delivery.persistence.postgres_scheduler_store import (
+    PostgresScheduleStore,
+    PostgresScheduleStoreConfig,
+)
 
 __all__ = [
     "PgVectorPatternLibrary",
@@ -47,6 +51,8 @@ __all__ = [
     "PostgresOperatorMemoryStoreConfig",
     "PostgresOutboxStore",
     "PostgresOutboxStoreConfig",
+    "PostgresScheduleStore",
+    "PostgresScheduleStoreConfig",
     "PostgresStateStore",
     "PostgresStateStoreConfig",
 ]

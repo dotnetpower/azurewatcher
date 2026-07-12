@@ -272,6 +272,17 @@ variable "tags" {
 
 
 # ---------------------------------------------------------------------------
+# Scheduler tick job (opt-in; see docs/internals/sre-agent-gap-analysis.md P2-6).
+# ---------------------------------------------------------------------------
+
+variable "scheduler_cron_expression" {
+  description = "Cron for the scheduler tick Container Apps Job that drives SchedulerService.run_once. Empty string disables the job (default)."
+  type        = string
+  default     = ""
+}
+
+
+# ---------------------------------------------------------------------------
 # Deep DB-DR drill (opt-in; see docs/runbooks/db-dr-drill.md).
 # ---------------------------------------------------------------------------
 
