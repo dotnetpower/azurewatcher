@@ -1,8 +1,8 @@
 ---
 title: 프로세스 자동화(Process Automation)
 translation_of: process-automation.md
-translation_source_sha: 2b692e8a6783ec515a836af06a9518c92c809e6e
-translation_revised: 2026-07-11
+translation_source_sha: 1176d61f95fc7c3b0295696194d0d94e9899b7dd
+translation_revised: 2026-07-13
 ---
 
 # 프로세스 자동화(Process Automation)
@@ -298,37 +298,68 @@ malformed 워크플로는 첫 dispatch 가 아니라 부팅을 막는다.
 
 ## 8. 저작 표면 (console workflow-builder)
 
-오퍼레이터는 YAML 을 기억으로 손수 쓰는 것이 아니라 콘솔의
-**workflow-builder** 뷰를 통해 사용자 정의 비즈니스 프로세스를 저작한다. 이
-표면은 프로세스를 온톨로지에 매핑하며 **구조적으로 read-only** 다: 검증하고
-미리보기할 뿐 커밋하지 않는다.
+오퍼레이터는 YAML 을 기억으로 손수 쓰는 것도, 여러 섹션짜리 폼을 채우는 것도
+아니라 콘솔의 **workflow-builder** 뷰를 통해 사용자 정의 비즈니스 프로세스를
+저작한다. 이 표면은 프로세스를 온톨로지에 매핑하며 **구조적으로 read-only**
+다: 검증하고, 미리보기하고, 시각화하지만 커밋하지 않는다.
 
 뷰에는 두 모드가 있다. 기본은 **런치패드 + 빌트인 워크플로의 read-only
-목록**이다. **템플릿 갤러리**가 주 진입점이다: 출시 워크플로마다 카드 하나
-("Use as template" 로 편집 가능한 초안으로 복제) 와 "Start from scratch" 카드를
-나란히 두어, 오퍼레이터가 빈 폼이 아니라 가까운 것에서 시작하게 한다. 그
-아래의 **read-only 브라우즈 테이블**은 각 출시 프로세스를 trigger, step 수,
+목록**이다: `read-only 브라우즈 테이블`이 각 출시 프로세스를 trigger, step 수,
 mode 와 함께 나열하고, 행마다 상세 패널 (속성 테이블, 스텝 테이블, anti-scope,
-원본 카탈로그 YAML) 을 편다.
+원본 카탈로그 YAML) 이 있어 오퍼레이터가 동작하는 예시를 먼저 학습할 수 있다.
+단일 **"Design a new workflow"** 진입점이 대화형 디자이너를 연다.
 
-가이드 빌더 폼은 두 진입점 (템플릿 카드 또는 "Start from scratch") 중 하나에서
-열리며, 비전문가를 위해 설계되었다:
+### 8.1 대화형 디자이너
 
-- 라이브 **"when -> do" 요약** 헤더가 초안을 한 문장 (trigger -> 정렬된
-  액션들) 으로 다시 서술하여 condition -> effect 모델을 반영한다;
-- 수평 **플로우 맵** (trigger -> steps -> done) 이 같은 형태를 그래픽으로
-  렌더하며, 각 스텝 노드는 자기 편집 카드로 점프하고 평탄한 목록이 숨기는
-  guard, 롤백 (`compensated_by`), `on_failure` 구조를 드러낸다;
-- `ActionType` 를 고르면 **snake_case step id 를 자동 제안** (편집 가능) 하여,
-  오퍼레이터가 id 를 지어내지 않아도 스텝이 유효해진다;
-- **promotion gate 와 anti-scope** 는 기본값이 합리적이므로 "advanced" 접힘
-  영역 아래로 숨겨 첫 실행 폼을 짧게 유지한다;
-- `Back to built-in workflows` 컨트롤, 소개 콜아웃, 섹션별 번호가 매겨진 도움말,
-  인라인 준비도 체크리스트가 폼을 스스로 설명되게 한다.
+디자이너는 폼이 아니라 **오퍼레이터와 함께 워크플로를 공동 설계하는
+채팅**이다. 깊은 평문 질문을 하고, 이해한 바를 다시 서술하며, 어시스턴트가 다음
+액션을 제안하듯 옵션 칩을 제시한다 - 그래서 비전문가가 스키마를 배우는 대신
+질문에 답하는 것만으로 유효한 워크플로에 도달한다. 이는 **결정론적,
+LLM-free 인터뷰 엔진**
+([`workflow-builder.chat.ts`](../../../console/src/routes/workflow-builder.chat.ts))
+이 뒷받침한다. 이 슬롯 채우기 상태 기계는 deterministic-first 계약에 충실하다:
+narrator 가 없어도 동작하고, `ActionType` 팔레트에 없는 mutation 은 결코
+만들어내지 않는다.
 
+엔진은 고정된 단계 집합
+(`welcome -> need_action -> need_trigger -> offer_extra -> confirm_name ->
+ready`) 을 걷고, 각 턴마다 봇 메시지 하나를 반환한다: 지금 이해한 바의 짧은
+설명, 다음 질문, 그리고 값이 엔진으로 다시 echo 되는 클릭 가능한 **옵션 칩**.
+설계 속성:
 
-세 개의 opt-in, Reader-gated read API 라우트가 이를 뒷받침하며, 모두 상태를
-쓰지 않는 순수 projection 이다 (see
+- welcome 턴은 **작동 예시** (예: "`aks-cluster-01` 의 pod 가 과열되면 알림을
+  보내줘") 를 보여주어, 오퍼레이터가 타이핑 전에 어떤 종류의 프로세스가 표현
+  가능한지 본다;
+- 단일 자유 텍스트 목표는 레거시 composer 가 쓰던 것과 동일한 결정론 매처
+  ([`suggestDraftFromText`](../../../console/src/routes/workflow-builder.intent.ts))
+  가 미리 파싱한다: 문장이 이미 trigger 와 액션을 명명하면 인터뷰는 곧장 나머지
+  확인으로 건너뛰고, 여전히 빠진 것만 묻는다;
+- 각 답변 뒤 엔진은 **이해한 바를 다시 서술**한다 - 한 문장 "when -> do" 로 -
+  그리고 `offer_extra` 에서 추가 스텝 (다른 액션, guard, 알림) 을 오퍼레이터가
+  수락하거나 거절하는 칩으로 제안한다;
+- 워크플로 이름은 목표에서 **자동 제안** (snake_case id) 되고 한 턴에
+  확정되므로, 오퍼레이터가 식별자를 지어낼 필요가 없다.
+
+`ready` 단계에서 UI
+([`workflow-builder.chatpanel.tsx`](../../../console/src/routes/workflow-builder.chatpanel.tsx))
+는 누적된 초안에 기존 validate + preview 경로를 실행하고, 채팅 안에 인라인으로
+렌더한다:
+
+- **인라인 플로우 맵 시각화** (`when -> do -> ... -> done`) 는 워크플로를
+  오퍼레이터가
+  [`mocks/ui/workflow-builder.html`](../../../mocks/ui/workflow-builder.html)
+  에서 익힌 노드 체인으로 그려, 프로세스가 실제로 어떻게 동작할지 채팅이
+  보여준다;
+- **canonical YAML** 을 복사 가능한 코드 블록으로, "내가 생성한 워크플로가
+  여기 있다" 로 제시한다;
+- `POST /workflows/validate` 의 **드라이런 테스트 결과** ("구조적으로 유효하고,
+  모든 스텝이 resolve 된다...") 로, 오퍼레이터가 설계를 어디로 가져가기 전에
+  테스트할 수 있다;
+- git-native 다음 단계: YAML 을 `rule-catalog/workflows/<name>.yaml` 로
+  복사하고 remediation PR 을 연다.
+
+동일한 세 개의 opt-in, Reader-gated read API 라우트가 이를 뒷받침하며, 모두
+상태를 쓰지 않는 순수 projection 이다 (see
 [`workflow_authoring.py`](../../../src/fdai/delivery/read_api/routes/workflow_authoring.py)):
 
 - **`GET /workflows/catalog`** - 빌트인 Workflow 카탈로그. 로드된 `Workflow`

@@ -312,37 +312,70 @@ boot rather than surfacing at first dispatch.
 ## 8. Authoring surface (console workflow-builder)
 
 An operator authors a custom business process through the console's
-**workflow-builder** view, not by hand-writing YAML from memory. The surface
-maps the process onto the ontology and is **read-only by construction**: it
-validates and previews, it never commits.
+**workflow-builder** view, not by hand-writing YAML from memory and not by
+filling a multi-section form. The surface maps the process onto the ontology
+and is **read-only by construction**: it validates, previews, and visualizes,
+but it never commits.
 
 The view has two modes. The default is a **launchpad plus a read-only list of
-the built-in workflows**. A **template gallery** is the primary entry point: a
-card per shipped workflow ("Use as template", which clones it into an editable
-draft) alongside a "Start from scratch" card, so the operator begins from
-something close instead of a blank form. Below it, a **read-only browse table**
-lists every shipped process with its trigger, step count, and mode, and a
-per-row detail panel (property table, steps table, anti-scope, and the raw
-catalog YAML).
+the built-in workflows**: a `read-only browse table` lists every shipped
+process with its trigger, step count, and mode, and a per-row detail panel
+(property table, steps table, anti-scope, and the raw catalog YAML) lets an
+operator study a working example first. A single **"Design a new workflow"**
+entry opens the conversational designer.
 
-The guided builder form is opened from either entry point (a template card or
-"Start from scratch") and is designed for non-experts:
+### 8.1 Conversational designer
 
-- a live **"when -> do" summary** header restates the draft as one plain
-  sentence (trigger -> ordered actions), mirroring a condition -> effect model;
-- a horizontal **flow map** (trigger -> steps -> done) renders the same shape
-  graphically; each step node jumps to its editor card and surfaces guard,
-  rollback (`compensated_by`), and `on_failure` structure a flat list hides;
-- picking an `ActionType` **auto-suggests a snake_case step id** (editable), so
-  a step is valid without the operator inventing an id;
-- the **promotion gate and anti-scope** are collapsed under an "advanced"
-  disclosure because their defaults are sensible, keeping the first-run form
-  short;
-- a `Back to built-in workflows` control, an intro callout, numbered
-  per-section help, and an inline readiness checklist keep it self-explanatory.
+The designer is a **chat that co-designs the workflow with the operator**, not
+a form. It asks deep, plain-language questions, restates what it understood,
+and offers option chips the way an assistant proposes next actions - so a
+non-expert reaches a valid workflow by answering questions, never by learning
+the schema. It is backed by a **deterministic, LLM-free interview engine**
+([`workflow-builder.chat.ts`](../../../console/src/routes/workflow-builder.chat.ts)),
+a slot-filling state machine that stays true to the deterministic-first
+contract: it works with the narrator absent and never invents a mutation the
+`ActionType` palette does not already carry.
 
+The engine walks a fixed set of stages
+(`welcome -> need_action -> need_trigger -> offer_extra -> confirm_name ->
+ready`) and, at each turn, returns one bot message: a short explanation of what
+it now understands, the next question, and clickable **option chips** whose
+values are echoed back to the engine. Design properties:
 
-Three opt-in, Reader-gated read API routes back it, all pure projections that
+- the welcome turn shows **worked examples** (e.g. "when a pod on
+  `aks-cluster-01` runs hot, notify me"), so the operator sees what kinds of
+  processes are expressible before typing;
+- a single free-text goal is pre-parsed by the same deterministic matcher the
+  legacy composer used
+  ([`suggestDraftFromText`](../../../console/src/routes/workflow-builder.intent.ts)):
+  when the sentence already names a trigger and an action, the interview skips
+  straight to confirming the rest, only asking for what is still missing;
+- after each answer the engine **restates its understanding** as one plain
+  "when -> do" sentence, and at `offer_extra` it proposes further steps
+  (another action, a guard, a notification) as chips the operator accepts or
+  declines;
+- the workflow name is **auto-suggested** from the goal (a snake_case id) and
+  confirmed in one turn, so the operator never has to invent an identifier.
+
+At the `ready` stage the UI
+([`workflow-builder.chatpanel.tsx`](../../../console/src/routes/workflow-builder.chatpanel.tsx))
+runs the existing validate + preview path on the accumulated draft and renders,
+inline in the chat:
+
+- an **inline flow-map visualization** (`when -> do -> ... -> done`) that draws
+  the workflow as the node chain the operator will recognize from
+  [`mocks/ui/workflow-builder.html`](../../../mocks/ui/workflow-builder.html),
+  so the chat shows how the process will actually run;
+- the **canonical YAML** as a copyable code block, presented as "here is the
+  workflow I generated";
+- a **dry-run test result** from `POST /workflows/validate` ("structurally
+  valid, every step resolves..."), so the operator can test the design before
+  taking it anywhere;
+- the git-native next step: copy the YAML into
+  `rule-catalog/workflows/<name>.yaml` and open a remediation PR.
+
+The same three opt-in, Reader-gated read API routes back it, all pure
+projections that
 write no state (see
 [`workflow_authoring.py`](../../../src/fdai/delivery/read_api/routes/workflow_authoring.py)):
 
