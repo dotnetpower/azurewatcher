@@ -125,6 +125,22 @@ def test_row_to_audit_item_preserves_null_correlation_id() -> None:
     assert item.correlation_id is None
 
 
+def test_row_to_audit_item_isoformat_fallback_for_string_created_at() -> None:
+    # `created_at` should always be a datetime from psycopg, but defend
+    # against a driver that hands back a raw string (or a fake in a fork).
+    row = _row()
+    row["created_at"] = "2026-07-13 10:00:00+00:00"  # no isoformat method
+    item = row_to_audit_item(row)
+    assert item.recorded_at == "2026-07-13 10:00:00+00:00"
+
+
+def test_row_to_audit_item_isoformat_returns_empty_when_none() -> None:
+    row = _row()
+    row["created_at"] = None
+    item = row_to_audit_item(row)
+    assert item.recorded_at == ""
+
+
 # ---------------------------------------------------------------------------
 # row_to_hil_queue_item
 # ---------------------------------------------------------------------------
@@ -195,6 +211,14 @@ def test_row_to_hil_queue_item_returns_none_on_missing_required_fields() -> None
 def test_row_to_hil_queue_item_returns_none_on_missing_parked_at() -> None:
     row = _park()
     del row["value"]["parked_at"]  # type: ignore[union-attr]
+    assert row_to_hil_queue_item(row) is None
+
+
+def test_row_to_hil_queue_item_returns_none_on_missing_idempotency_key() -> None:
+    row = _park()
+    # Remove BOTH the top-level and the nested action idempotency_key.
+    del row["value"]["idempotency_key"]  # type: ignore[union-attr]
+    row["value"]["action"] = {"event_id": "00000000-0000-0000-0000-000000000099"}  # type: ignore[union-attr]
     assert row_to_hil_queue_item(row) is None
 
 
@@ -354,3 +378,48 @@ def test_aggregate_kpi_handles_string_entry_and_missing_fields() -> None:
     # Two shadow, zero enforce, one unrecognized mode.
     assert kpi.shadow_share == pytest.approx(2 / 3)
     assert kpi.enforce_share == 0.0
+
+
+def test_aggregate_kpi_recovers_from_malformed_string_entry() -> None:
+    """A row whose `entry` string is not JSON MUST NOT crash the aggregator."""
+    rows = [
+        {
+            "action_kind": "risk_gate.decide",
+            "mode": "shadow",
+            "entry": "{not-json}",  # triggers the json.loads except branch
+            "created_at": datetime(2026, 7, 13, 10, 0, tzinfo=UTC),
+        },
+    ]
+    kpi = aggregate_kpi(rows, hil_pending=0)
+    assert kpi.event_count == 1
+    # Malformed entry -> defaults; outcome fallback + no tier.
+    assert kpi.by_outcome == {"unknown": 1}
+    assert kpi.by_tier == {}
+
+
+def test_aggregate_kpi_falls_back_to_iso_string_on_datetime_typeerror() -> None:
+    """Mixing tz-aware + naive datetimes raises `TypeError` on `>`.
+
+    The aggregator MUST fall back to string comparison instead of crashing.
+    """
+    from datetime import datetime as _dt
+
+    rows = [
+        {
+            "action_kind": "a",
+            "mode": "shadow",
+            "entry": {},
+            "created_at": _dt(2026, 7, 13, 10, 0, tzinfo=UTC),  # aware
+        },
+        {
+            "action_kind": "b",
+            "mode": "shadow",
+            "entry": {},
+            "created_at": _dt(2026, 7, 13, 12, 0),  # naive - mixing raises
+        },
+    ]
+    kpi = aggregate_kpi(rows, hil_pending=0)
+    assert kpi.event_count == 2
+    # Both are captured; the resulting ISO string is one of the two.
+    assert kpi.last_recorded_at is not None
+    assert kpi.last_recorded_at.startswith("2026-07-13T12:00:00")

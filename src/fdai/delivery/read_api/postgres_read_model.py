@@ -154,12 +154,13 @@ def row_to_hil_queue_item(row: Mapping[str, Any]) -> HilQueueItem | None:
     idempotency_key = parked.get("idempotency_key") or action.get("idempotency_key")
     if not isinstance(idempotency_key, str) or not idempotency_key:
         return None
-    event_id = action.get("event_id") if isinstance(action, Mapping) else None
+    # `action` is always a Mapping by the branch above (either the parked
+    # `action` dict or the empty-dict fallback) - no `isinstance` guard
+    # needed on the reads below.
+    event_id = action.get("event_id")
     if not isinstance(event_id, str) or not event_id:
         event_id = "00000000-0000-0000-0000-000000000000"
-    action_type = parked.get("action_type") or (
-        action.get("action_type") if isinstance(action, Mapping) else None
-    )
+    action_type = parked.get("action_type") or action.get("action_type")
     rule_id = parked.get("rule_id")
     reason_bits: list[str] = []
     if isinstance(rule_id, str) and rule_id:
