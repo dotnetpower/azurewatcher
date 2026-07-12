@@ -63,7 +63,9 @@ from fdai.delivery.read_api.streaming.agent_activity_emitter import (
     SyntheticAgentActivityEmitter,
 )
 from fdai.delivery.read_api.streaming.agent_activity_stream import (
+    AgentActivityProducer,
     AgentActivityStreamConfig,
+    SseAgentActivityPublisher,
     make_agent_activity_stream_route,
 )
 from fdai.delivery.read_api.streaming.live_stream import (
@@ -660,6 +662,7 @@ def build_app(
     # In dev (no external sink) a synthetic emitter supplies the narrative;
     # a fork with a real relay supplies its own sink and no emitter is stacked.
     agent_emitter: SyntheticAgentActivityEmitter | None = None
+    agent_broadcaster: AgentActivityProducer | None = None
     if resolved_config.agent_activity is not None:
         agent_cfg = resolved_config.agent_activity
         if agent_cfg.path in _CORE_ROUTE_PATHS:
@@ -672,7 +675,14 @@ def build_app(
                     f"agent_activity.path {agent_cfg.path!r} collides with another SSE route"
                 )
         agent_sink = agent_cfg.sink if agent_cfg.sink is not None else InMemorySseSink()
-        if agent_cfg.emitter_factory is not None:
+        if agent_cfg.broadcaster_factory is not None:
+            # Production path: the real pipeline drives the panel over the shared
+            # sink. Build the broadcaster from the sink's publisher; no synthetic
+            # emitter is stacked (a real producer is present).
+            agent_broadcaster = agent_cfg.broadcaster_factory(
+                SseAgentActivityPublisher(sink=agent_sink, channel=agent_cfg.channel)
+            )
+        elif agent_cfg.emitter_factory is not None:
             agent_emitter = agent_cfg.emitter_factory(agent_sink)
         elif agent_cfg.sink is None:
             agent_emitter = SyntheticAgentActivityEmitter(
@@ -1032,6 +1042,8 @@ def build_app(
             await live_emitter.start()
         if agent_emitter is not None:
             await agent_emitter.start()
+        if agent_broadcaster is not None:
+            await agent_broadcaster.run()
         # Warm the latency router (if wired) so GET /chat/health reports the
         # measured-fastest mini before the first operator turn. Fire-and-forget
         # so startup is never blocked on LLM round-trips.
@@ -1057,6 +1069,8 @@ def build_app(
                 await live_emitter.stop()
             if agent_emitter is not None:
                 await agent_emitter.stop()
+            if agent_broadcaster is not None:
+                await agent_broadcaster.stop()
 
     return Starlette(
         debug=False,

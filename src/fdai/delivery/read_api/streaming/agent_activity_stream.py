@@ -220,6 +220,21 @@ class AgentActivityPublisher(Protocol):
     async def publish(self, event: AgentActivityEvent) -> None: ...
 
 
+@runtime_checkable
+class AgentActivityProducer(Protocol):
+    """A background producer that drives the agent-activity channel.
+
+    Both the synthetic emitter and the production
+    :class:`~fdai.delivery.read_api.streaming.agent_activity_broadcaster.AgentActivityBroadcaster`
+    satisfy this run/stop lifecycle so :func:`~fdai.delivery.read_api.main.build_app`
+    starts and stops either one uniformly in the app lifespan.
+    """
+
+    async def run(self) -> None: ...
+
+    async def stop(self) -> None: ...
+
+
 class SseAgentActivityPublisher:
     """Fan an agent-activity event out over an :class:`SseSink` channel."""
 
@@ -240,6 +255,14 @@ class AgentActivityStreamConfig:
     read-API creates an in-memory sink and starts the synthetic emitter for
     the local dev harness. Production sets ``sink`` to the shared sink the
     real pantheon relay writes to and leaves ``emitter_factory`` unset.
+
+    ``broadcaster_factory`` is the production seam: given the sink's
+    :class:`AgentActivityPublisher`, it returns an :class:`AgentActivityProducer`
+    (typically an
+    :class:`~fdai.delivery.read_api.streaming.agent_activity_broadcaster.AgentActivityBroadcaster`
+    consuming the ``aw.pipeline.stages`` Kafka topic). When set, ``build_app``
+    starts it in the app lifespan and does NOT stack a synthetic emitter - the
+    real pipeline drives the panel.
     """
 
     path: str = DEFAULT_ROUTE_PATH
@@ -247,6 +270,7 @@ class AgentActivityStreamConfig:
     keepalive_seconds: float = 15.0
     sink: SseSink | None = None
     emitter_factory: Callable[[SseSink], Any] | None = None
+    broadcaster_factory: Callable[[AgentActivityPublisher], AgentActivityProducer] | None = None
 
     def __post_init__(self) -> None:
         if not self.path.startswith("/"):
@@ -255,6 +279,11 @@ class AgentActivityStreamConfig:
             raise ValueError("AgentActivityStreamConfig.channel MUST be non-empty")
         if self.keepalive_seconds <= 0:
             raise ValueError("keepalive_seconds MUST be positive")
+        if self.emitter_factory is not None and self.broadcaster_factory is not None:
+            raise ValueError(
+                "AgentActivityStreamConfig: set at most one of emitter_factory "
+                "(synthetic) or broadcaster_factory (production) - not both"
+            )
 
 
 def make_agent_activity_stream_route(
