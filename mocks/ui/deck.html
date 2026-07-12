@@ -243,6 +243,31 @@
     .dk-trace-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font: inherit; font-size: 12px; border-radius: 999px; border: 1px solid var(--cs-hairline); background: var(--cs-card); color: var(--cs-text-soft); cursor: pointer; }
     .dk-trace-toggle:hover { color: var(--cs-text); background: var(--cs-shade); }
     .dk-trace-toggle .chev { display: inline-block; font-size: 11px; }
+
+    /* -------------------------------------------------------------------
+       Token accounting: per-turn pill in the meta line + session total
+       badge in the transcript header. Toggle hides both when the
+       operator wants a quieter view. Values are static in the mock;
+       structure mirrors what a live LLM callsite would emit.
+       ------------------------------------------------------------------- */
+    .dk-tokens { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px; margin-left: 4px; border-radius: 999px; background: var(--cs-shade); color: var(--cs-text-soft); font-family: "Cascadia Code","Consolas",monospace; font-size: 10.5px; font-variant-numeric: tabular-nums; line-height: 1.4; }
+    .dk-tokens .k { color: var(--cs-text-soft); opacity: .65; margin-right: 1px; }
+    .dk-tokens b { color: var(--cs-text); font-weight: 600; margin-right: 4px; }
+    .dk-tokens b:last-child { margin-right: 0; }
+    /* Cost fragment inside the pill is warmed to terracotta so the eye
+       can jump from turn to turn on the spend column. */
+    .dk-tokens .k.is-cost { color: var(--cs-terracotta); opacity: .85; }
+    .dk-tokens b.is-cost  { color: var(--cs-terracotta); }
+    /* Session total, sits in the transcript header next to the trace
+       toggle. Same monospace tabular figures so cost/tokens read cleanly. */
+    .dk-session-tokens { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--cs-hairline); background: var(--cs-card); font-family: "Cascadia Code","Consolas",monospace; font-size: 11px; color: var(--cs-text-soft); font-variant-numeric: tabular-nums; }
+    .dk-session-tokens .lab { color: var(--cs-text-soft); text-transform: uppercase; letter-spacing: .06em; font-family: "Segoe UI","Malgun Gothic",sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .06em; }
+    .dk-session-tokens b { color: var(--cs-text); font-weight: 600; }
+    .dk-session-tokens b.is-cost { color: var(--cs-terracotta); }
+    .dk-session-tokens .sep { color: var(--cs-hairline); }
+    /* Toggle hides both surfaces in one go. */
+    .dk-shell.is-tokens-hidden .dk-tokens,
+    .dk-shell.is-tokens-hidden .dk-session-tokens { display: none; }
   </style>
 </head>
 <body>
@@ -331,6 +356,20 @@
           <div class="dk-t-badges">
             <span class="dk-t-badge">Open</span>
             <span class="dk-t-badge is-ro">Read-only</span>
+            <span class="dk-session-tokens" id="dk-session-tokens" title="Session tokens + estimated spend since 09:42">
+              <span class="lab">Session</span>
+              <span class="k">in</span><b>40.7k</b>
+              <span class="sep">&middot;</span>
+              <span class="k">out</span><b>3.7k</b>
+              <span class="sep">&middot;</span>
+              <b class="is-cost">$0.12</b>
+              <span class="sep">&middot;</span>
+              <span class="k">11 turns</span>
+            </span>
+            <button type="button" class="dk-trace-toggle" id="dk-tokens-toggle" title="Toggle per-turn token counts + session total" aria-controls="dk-stream" aria-expanded="true">
+              <span class="dk-tokens-toggle-label">Hide tokens</span>
+              <span class="chev" aria-hidden="true">$</span>
+            </button>
             <button type="button" class="dk-trace-toggle" id="dk-trace-toggle" aria-controls="dk-trace" aria-expanded="true">
               <span class="dk-trace-toggle-label">Hide trace</span>
               <span class="chev" aria-hidden="true">&rarr;</span>
@@ -343,7 +382,7 @@
           <div class="dk-turn">
             <span class="dk-turn-avatar is-plum" aria-hidden="true">Br</span>
             <div class="dk-turn-body">
-              <span class="dk-turn-meta"><strong>Bragi</strong> &middot; <time>09:42</time></span>
+              <span class="dk-turn-meta"><strong>Bragi</strong> &middot; <time>09:42</time><span class="dk-tokens" title="input / output tokens - est. spend"><span class="k">in</span><b>220</b><span class="k">out</span><b>85</b><span class="k is-cost">$</span><b class="is-cost">0.0011</b></span></span>
               <div class="dk-bubble">
                 <p>Ready. I can answer questions about incidents, agents, rules, audit records, and
                   the current run. I never execute a change on my own - I translate your intent
@@ -373,7 +412,7 @@
           <div class="dk-turn">
             <span class="dk-turn-avatar is-plum" aria-hidden="true">Br</span>
             <div class="dk-turn-body">
-              <span class="dk-turn-meta"><strong>Bragi</strong> &middot; <time>09:43</time> &middot; grounded on 4 sources</span>
+              <span class="dk-turn-meta"><strong>Bragi</strong> &middot; <time>09:43</time> &middot; grounded on 4 sources<span class="dk-tokens" title="input / output tokens - est. spend"><span class="k">in</span><b>3.4k</b><span class="k">out</span><b>480</b><span class="k is-cost">$</span><b class="is-cost">0.0102</b></span></span>
               <div class="dk-bubble">
                 <p><strong>FDAI-8812</strong> is a resolved incident from 09:36 - an <code>nginx</code>
                   workload had a pod-restart storm on <code>aks-prod-krc</code>. Heimdall raised
@@ -413,7 +452,7 @@
           <div class="dk-turn">
             <span class="dk-turn-avatar is-terracotta" aria-hidden="true">Lo</span>
             <div class="dk-turn-body">
-              <span class="dk-turn-meta"><strong>Loki</strong> (domain: chaos) &middot; <time>09:44</time> &middot; handed off by Bragi</span>
+              <span class="dk-turn-meta"><strong>Loki</strong> (domain: chaos) &middot; <time>09:44</time> &middot; handed off by Bragi<span class="dk-tokens" title="input / output tokens - est. spend"><span class="k">in</span><b>2.1k</b><span class="k">out</span><b>210</b><span class="k is-cost">$</span><b class="is-cost">0.0055</b></span></span>
               <div class="dk-bubble">
                 <p>Yes - <code>aks-pod-kill</code> is a registered production experiment scoped to
                   the <code>nginx-canary</code> deployment. Blast radius is capped at
@@ -440,7 +479,7 @@
           <div class="dk-turn">
             <span class="dk-turn-avatar is-plum" aria-hidden="true">Br</span>
             <div class="dk-turn-body">
-              <span class="dk-turn-meta"><strong>Bragi</strong> &middot; <time>09:45</time> &middot; proposal handed off</span>
+              <span class="dk-turn-meta"><strong>Bragi</strong> &middot; <time>09:45</time> &middot; proposal handed off<span class="dk-tokens" title="input / output tokens - est. spend"><span class="k">in</span><b>3.6k</b><span class="k">out</span><b>180</b><span class="k is-cost">$</span><b class="is-cost">0.0093</b></span></span>
               <div class="dk-bubble">
                 <p>Filed as proposal <code>prop-01H7A8Q-...</code> against ActionType
                   <code>chaos.schedule.change-cadence</code>. Forseti is judging it now; you can
@@ -469,7 +508,7 @@
           <div class="dk-turn">
             <span class="dk-turn-avatar is-terracotta" aria-hidden="true">Lo</span>
             <div class="dk-turn-body">
-              <span class="dk-turn-meta"><strong>Loki</strong> (domain: chaos) &middot; <time>09:46</time> &middot; replying to <span class="dk-mention is-navy">@You</span></span>
+              <span class="dk-turn-meta"><strong>Loki</strong> (domain: chaos) &middot; <time>09:46</time> &middot; replying to <span class="dk-mention is-navy">@You</span><span class="dk-tokens" title="input / output tokens - est. spend"><span class="k">in</span><b>3.8k</b><span class="k">out</span><b>340</b><span class="k is-cost">$</span><b class="is-cost">0.0111</b></span></span>
               <div class="dk-bubble">
                 <p>Here is the registered spec for <code>aks-pod-kill</code>. It is scoped to a
                   single deployment with a hard 1-target cap, and its schedule is what fired at
@@ -494,7 +533,7 @@
           <div class="dk-turn">
             <span class="dk-turn-avatar is-teal" aria-hidden="true">He</span>
             <div class="dk-turn-body">
-              <span class="dk-turn-meta"><strong>Heimdall</strong> &middot; <time>09:46</time> &middot; grounded on live metric stream</span>
+              <span class="dk-turn-meta"><strong>Heimdall</strong> &middot; <time>09:46</time> &middot; grounded on live metric stream<span class="dk-tokens" title="input / output tokens - est. spend"><span class="k">in</span><b>4.1k</b><span class="k">out</span><b>420</b><span class="k is-cost">$</span><b class="is-cost">0.0130</b></span></span>
               <div class="dk-bubble">
                 <p>Pod restart rate on <code>nginx-canary</code>, 1-minute buckets, last 10 min.
                   Baseline (dashed) is <code>0.4/min</code>; the storm peaked at
@@ -530,7 +569,7 @@
           <div class="dk-turn">
             <span class="dk-turn-avatar is-plum" aria-hidden="true">Br</span>
             <div class="dk-turn-body">
-              <span class="dk-turn-meta"><strong>Bragi</strong> &middot; <time>09:47</time> &middot; grounded on <span class="dk-mention is-sage">@Saga</span> last 5</span>
+              <span class="dk-turn-meta"><strong>Bragi</strong> &middot; <time>09:47</time> &middot; grounded on <span class="dk-mention is-sage">@Saga</span> last 5<span class="dk-tokens" title="input / output tokens - est. spend"><span class="k">in</span><b>4.3k</b><span class="k">out</span><b>380</b><span class="k is-cost">$</span><b class="is-cost">0.0132</b></span></span>
               <div class="dk-bubble">
                 <p>Last 5 audit entries scoped to <code>billing-db-prod</code>. Nothing since the
                   09:37 seal - autonomy has been quiet.</p>
@@ -556,7 +595,7 @@
           <div class="dk-turn">
             <span class="dk-turn-avatar is-plum" aria-hidden="true">Br</span>
             <div class="dk-turn-body">
-              <span class="dk-turn-meta"><strong>Bragi</strong> &middot; <time>09:47</time> &middot; scope diagram</span>
+              <span class="dk-turn-meta"><strong>Bragi</strong> &middot; <time>09:47</time> &middot; scope diagram<span class="dk-tokens" title="input / output tokens - est. spend"><span class="k">in</span><b>4.5k</b><span class="k">out</span><b>310</b><span class="k is-cost">$</span><b class="is-cost">0.0127</b></span></span>
               <div class="dk-bubble">
                 <p>For context, this is the blast-radius scope Loki was constrained to. The
                   experiment can only touch the target; the risk gate would have held anything
@@ -597,7 +636,7 @@
           <div class="dk-turn">
             <span class="dk-turn-avatar" style="background:var(--cs-terracotta)" aria-hidden="true">Nj</span>
             <div class="dk-turn-body">
-              <span class="dk-turn-meta"><strong>Njord</strong> (domain: cost) &middot; <time>09:48</time> &middot; replying to <span class="dk-mention is-navy">@You</span></span>
+              <span class="dk-turn-meta"><strong>Njord</strong> (domain: cost) &middot; <time>09:48</time> &middot; replying to <span class="dk-mention is-navy">@You</span><span class="dk-tokens" title="input / output tokens - est. spend"><span class="k">in</span><b>4.7k</b><span class="k">out</span><b>460</b><span class="k is-cost">$</span><b class="is-cost">0.0149</b></span></span>
               <div class="dk-bubble">
                 <p>LLM spend trend on <code>fdai-dev</code>, last 7 days. Weekend dip is the
                   scheduled off-path Norns run; Fri spike lines up with the FDAI-8812 T2 burst.
@@ -631,7 +670,7 @@
           <div class="dk-turn">
             <span class="dk-turn-avatar is-plum" aria-hidden="true">Fo</span>
             <div class="dk-turn-body">
-              <span class="dk-turn-meta"><strong>Forseti</strong> &middot; <time>09:48</time> &middot; router mix last 1h</span>
+              <span class="dk-turn-meta"><strong>Forseti</strong> &middot; <time>09:48</time> &middot; router mix last 1h<span class="dk-tokens" title="input / output tokens - est. spend (claude-opus-4)"><span class="k">in</span><b>4.9k</b><span class="k">out</span><b>340</b><span class="k is-cost">$</span><b class="is-cost">0.0119</b></span></span>
               <div class="dk-bubble">
                 <p>Tier mix for the last hour on <code>fdai-dev</code>. T0 dominates as designed;
                   the T2 slice sits inside the 5-10% target band. HIL rate is 4.1%. <strong>Hover
@@ -664,7 +703,7 @@
           <div class="dk-turn">
             <span class="dk-turn-avatar is-teal" aria-hidden="true">Fr</span>
             <div class="dk-turn-body">
-              <span class="dk-turn-meta"><strong>Freyr</strong> (domain: capacity) &middot; <time>09:49</time> &middot; forecast, next 7 days</span>
+              <span class="dk-turn-meta"><strong>Freyr</strong> (domain: capacity) &middot; <time>09:49</time> &middot; forecast, next 7 days<span class="dk-tokens" title="input / output tokens - est. spend"><span class="k">in</span><b>5.1k</b><span class="k">out</span><b>520</b><span class="k is-cost">$</span><b class="is-cost">0.0164</b></span></span>
               <div class="dk-bubble">
                 <p>Capacity forecast for <code>nginx-canary</code> replicas, split by workload class.
                   Steel = baseline traffic, teal = burst headroom, sage = experiment reserve.
@@ -828,6 +867,30 @@
       try { apply(localStorage.getItem(KEY) === '1'); } catch (_) { /* private mode ok */ }
       btn.addEventListener('click', function () {
         const next = !shell.classList.contains('is-trace-collapsed');
+        apply(next);
+        try { localStorage.setItem(KEY, next ? '1' : '0'); } catch (_) { /* ok */ }
+      });
+    })();
+
+    // ------------------------------------------------------------------
+    // Token-view toggle: mirrors the trace toggle. Flips is-tokens-hidden
+    // on the shell so both the per-turn pills and the session-total badge
+    // collapse in one place. Persisted per-browser.
+    // ------------------------------------------------------------------
+    (function () {
+      const shell = document.querySelector('.dk-shell');
+      const btn = document.getElementById('dk-tokens-toggle');
+      const label = btn && btn.querySelector('.dk-tokens-toggle-label');
+      if (!shell || !btn || !label) return;
+      const KEY = 'fdai.deck.tokensHidden';
+      function apply(hidden) {
+        shell.classList.toggle('is-tokens-hidden', hidden);
+        btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+        label.textContent = hidden ? 'Show tokens' : 'Hide tokens';
+      }
+      try { apply(localStorage.getItem(KEY) === '1'); } catch (_) { /* ok */ }
+      btn.addEventListener('click', function () {
+        const next = !shell.classList.contains('is-tokens-hidden');
         apply(next);
         try { localStorage.setItem(KEY, next ? '1' : '0'); } catch (_) { /* ok */ }
       });
