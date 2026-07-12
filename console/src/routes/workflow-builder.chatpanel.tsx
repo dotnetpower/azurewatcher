@@ -97,6 +97,10 @@ export function WorkflowChat({ palette, onBack }: Props) {
   // Only the newest bot turn's chips stay interactive; older chips go inert so
   // a click on a stale suggestion cannot apply to a later stage.
   const latestBotId = messages.reduce((acc, m) => (m.role === "bot" ? m.id : acc), -1);
+  // With no ActionType palette the deployment did not wire authoring, so there
+  // are no building blocks - the composer is disabled and the welcome turn
+  // already explains how to enable it.
+  const paletteReady = palette.length > 0;
 
   return (
     <div class="stack wf-chat">
@@ -134,7 +138,12 @@ export function WorkflowChat({ palette, onBack }: Props) {
           rows={2}
           ref={inputRef}
           value={input}
-          placeholder="Describe what should happen, or answer the question above..."
+          disabled={!paletteReady}
+          placeholder={
+            paletteReady
+              ? "Describe what should happen, or answer the question above..."
+              : "Workflow authoring is not enabled on this deployment."
+          }
           aria-label="Message the workflow designer"
           onInput={(e) => setInput((e.target as HTMLTextAreaElement).value)}
           onKeyDown={(e) => {
@@ -144,7 +153,7 @@ export function WorkflowChat({ palette, onBack }: Props) {
             }
           }}
         />
-        <button type="submit" class="btn" disabled={input.trim().length === 0}>
+        <button type="submit" class="btn" disabled={!paletteReady || input.trim().length === 0}>
           Send
         </button>
       </form>

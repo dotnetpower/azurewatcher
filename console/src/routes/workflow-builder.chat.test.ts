@@ -263,6 +263,15 @@ describe("chat engine full-flow integration", () => {
     expect(() => respondToChat(start.slots, "right-size everything", [])).not.toThrow();
   });
 
+  it("never reaches a ready draft when the palette is empty (no building blocks)", () => {
+    let turn = startChat([]);
+    // Try hard to advance: a run of plausible answers must never fabricate a draft.
+    for (const msg of ["right-size the resource", "trigger:object.anomaly", "done", "name:keep"]) {
+      turn = respondToChat(turn.slots, msg, []);
+      expect(turn.draftReady).toBe(false);
+    }
+  });
+
   it("acknowledges when a follow-up answer resolves to no action", () => {
     const start = startChat(PALETTE);
     // First unrecognized goal -> lands at need_action (first ask, no apology).
