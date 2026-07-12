@@ -220,3 +220,115 @@ async def test_run_keeps_env_by_default(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(li.asyncio, "create_subprocess_exec", fake_exec)
     await li._run(["kubectl", "get", "pods"])
     assert captured["env"] is None  # inherit parent env unchanged
+
+
+# --------------------------------------------------------------------------
+# VM memory stress + host-memory probe (S6)
+# --------------------------------------------------------------------------
+
+
+def test_mem_stress_fault_type() -> None:
+    inj = li.AzVmMemStressInjector(resource_group="rg", vm_name="vm")
+    assert inj.fault_type == "vm_mem_stress"
+
+
+async def test_mem_stress_inject_uses_setsid_and_param_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner, calls = _fake_run(lambda cmd: (0, "started", ""))
+    monkeypatch.setattr(li, "_run", runner)
+    inj = li.AzVmMemStressInjector(resource_group="rg", vm_name="vm", vm_bytes="85%")
+    await inj.inject(target="vm:vm", params={"vm_bytes": "350M"})
+    script = " ".join(calls[0])
+    assert "setsid stress-ng --vm 1 --vm-bytes 350M" in script  # param overrides default
+    assert "nohup" not in script  # setsid detaches so it survives run-command exit
+
+
+async def test_mem_stress_stop_kills_stress(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner, calls = _fake_run(lambda cmd: (0, "stopped", ""))
+    monkeypatch.setattr(li, "_run", runner)
+    inj = li.AzVmMemStressInjector(resource_group="rg", vm_name="vm")
+    await inj.stop(target="vm:vm")
+    assert any("pkill -f stress-ng" in " ".join(c) for c in calls)
+
+
+async def test_mem_stress_inject_raises_on_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner, _ = _fake_run(lambda cmd: (1, "", "boom"))
+    monkeypatch.setattr(li, "_run", runner)
+    inj = li.AzVmMemStressInjector(resource_group="rg", vm_name="vm")
+    with pytest.raises(RuntimeError, match="mem-stress inject failed"):
+        await inj.inject(target="vm:vm", params={})
+
+
+async def test_mem_probe_true_below_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner, _ = _fake_run(lambda cmd: (0, "Enable succeeded: \n[stdout]\n127\n[stderr]\n", ""))
+    monkeypatch.setattr(li, "_run", runner)
+    probe = li.AzVmMemProbe(resource_group="rg", vm_name="vm", min_available_mb=400)
+    assert await probe.observed(signal="host_memory", targets=["vm"]) is True
+
+
+async def test_mem_probe_false_above_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner, _ = _fake_run(lambda cmd: (0, "Enable succeeded: \n[stdout]\n612\n[stderr]\n", ""))
+    monkeypatch.setattr(li, "_run", runner)
+    probe = li.AzVmMemProbe(resource_group="rg", vm_name="vm", min_available_mb=400)
+    assert await probe.observed(signal="host_memory", targets=["vm"]) is False
+
+
+async def test_mem_probe_false_on_error_rc(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner, _ = _fake_run(lambda cmd: (1, "", "boom"))
+    monkeypatch.setattr(li, "_run", runner)
+    probe = li.AzVmMemProbe(resource_group="rg", vm_name="vm", min_available_mb=400)
+    assert await probe.observed(signal="host_memory", targets=["vm"]) is False
+
+
+def test_extract_int_pulls_first_integer() -> None:
+    assert li._extract_int("Enable succeeded: \n[stdout]\n127\n[stderr]\n") == 127
+    assert li._extract_int("no digits here") is None
+
+
+# --------------------------------------------------------------------------
+# Backend-down injector + backend-health probe (S11)
+# --------------------------------------------------------------------------
+
+
+def test_backend_down_fault_type() -> None:
+    inj = li.KubectlBackendDownInjector(
+        context="c", namespace="n", deployment="d", restore_replicas=3
+    )
+    assert inj.fault_type == "pod_kill"
+
+
+async def test_backend_down_scales_to_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner, calls = _fake_run(lambda cmd: (0, "", ""))
+    monkeypatch.setattr(li, "_run", runner)
+    inj = li.KubectlBackendDownInjector(
+        context="c", namespace="n", deployment="nginx-demo", restore_replicas=3
+    )
+    await inj.inject(target="deployment:nginx-demo", params={})
+    assert any("scale" in c and "--replicas=0" in c for c in calls)
+
+
+async def test_backend_down_stop_restores_replicas(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner, calls = _fake_run(lambda cmd: (0, "", ""))
+    monkeypatch.setattr(li, "_run", runner)
+    inj = li.KubectlBackendDownInjector(
+        context="c", namespace="n", deployment="nginx-demo", restore_replicas=3
+    )
+    await inj.stop(target="deployment:nginx-demo")
+    assert any("scale" in c and "--replicas=3" in c for c in calls)
+
+
+async def test_backend_health_probe_true_when_no_endpoints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {"subsets": []}
+    probe = li.KubeBackendHealthProbe(context="c", namespace="n", service="svc")
+    assert await _observe(probe, monkeypatch, payload) is True
+
+
+async def test_backend_health_probe_false_when_endpoints_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {"subsets": [{"addresses": [{"ip": "10.0.0.1"}]}]}
+    probe = li.KubeBackendHealthProbe(context="c", namespace="n", service="svc")
+    assert await _observe(probe, monkeypatch, payload) is False

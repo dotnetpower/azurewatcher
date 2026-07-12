@@ -262,8 +262,8 @@ class AzVmCpuStressInjector:
         rc, _out, err = await self._run_command(
             "which stress-ng >/dev/null 2>&1 || (apt-get update -y -qq >/dev/null 2>&1 && "
             "apt-get install -y -qq stress-ng >/dev/null 2>&1); "
-            f"nohup stress-ng --cpu {workers} --timeout {self._duration}s "
-            ">/tmp/fdai-stress.log 2>&1 & echo started"
+            f"setsid stress-ng --cpu {workers} --timeout {self._duration}s "
+            ">/tmp/fdai-stress.log 2>&1 </dev/null & echo started; sleep 5"
         )
         if rc != 0:
             raise RuntimeError(f"az run-command stress inject failed: {err.strip()}")
@@ -318,11 +318,221 @@ class AzureMonitorCpuProbe:
         return any(v >= self._threshold for v in values)
 
 
+# ---------------------------------------------------------------------------
+# S6 - VM memory stress  (fault_type="vm_mem_stress", signal="host_memory")
+# ---------------------------------------------------------------------------
+
+
+def _extract_int(message: str) -> int | None:
+    """Pull the first integer out of an az run-command message body."""
+
+    for token in message.replace("\n", " ").split():
+        stripped = token.strip().strip(".,")
+        if stripped.isdigit():
+            return int(stripped)
+    return None
+
+
+class AzVmMemStressInjector:
+    """Consume VM memory with stress-ng --vm; stop = kill stress-ng."""
+
+    fault_type = "vm_mem_stress"
+
+    def __init__(
+        self,
+        *,
+        resource_group: str,
+        vm_name: str,
+        vm_bytes: str = "85%",
+        duration_seconds: int = 300,
+        az: str = "az",
+    ) -> None:
+        self._rg = resource_group
+        self._vm = vm_name
+        self._vm_bytes = vm_bytes
+        self._duration = duration_seconds
+        self._az = az
+
+    async def _run_command(self, script: str) -> tuple[int, str, str]:
+        return await _run(
+            [
+                self._az,
+                "vm",
+                "run-command",
+                "invoke",
+                "-g",
+                self._rg,
+                "-n",
+                self._vm,
+                "--command-id",
+                "RunShellScript",
+                "--scripts",
+                script,
+                "--query",
+                "value[0].message",
+                "-o",
+                "tsv",
+            ],
+            timeout=180.0,
+            drop_azure_config_dir=True,
+        )
+
+    async def inject(self, *, target: str, params: Mapping[str, str]) -> None:
+        vm_bytes = params.get("vm_bytes", self._vm_bytes)
+        rc, _out, err = await self._run_command(
+            "which stress-ng >/dev/null 2>&1 || (apt-get update -y -qq >/dev/null 2>&1 && "
+            "apt-get install -y -qq stress-ng >/dev/null 2>&1); "
+            f"setsid stress-ng --vm 1 --vm-bytes {vm_bytes} --vm-keep --timeout "
+            f"{self._duration}s >/tmp/fdai-memstress.log 2>&1 </dev/null & echo started; sleep 6"
+        )
+        if rc != 0:
+            raise RuntimeError(f"az run-command mem-stress inject failed: {err.strip()}")
+
+    async def stop(self, *, target: str) -> None:
+        await self._run_command("pkill -f stress-ng || true; echo stopped")
+
+
+class AzVmMemProbe:
+    """Observe host_memory: available memory (MB) fell below a threshold."""
+
+    def __init__(
+        self,
+        *,
+        resource_group: str,
+        vm_name: str,
+        min_available_mb: int = 250,
+        az: str = "az",
+    ) -> None:
+        self._rg = resource_group
+        self._vm = vm_name
+        self._min = min_available_mb
+        self._az = az
+
+    async def observed(self, *, signal: str, targets: Sequence[str]) -> bool:
+        rc, out, _err = await _run(
+            [
+                self._az,
+                "vm",
+                "run-command",
+                "invoke",
+                "-g",
+                self._rg,
+                "-n",
+                self._vm,
+                "--command-id",
+                "RunShellScript",
+                "--scripts",
+                "free -m | awk '/Mem:/ {print $7}'",
+                "--query",
+                "value[0].message",
+                "-o",
+                "tsv",
+            ],
+            timeout=120.0,
+            drop_azure_config_dir=True,
+        )
+        if rc != 0:
+            return False
+        available = _extract_int(out)
+        return available is not None and available < self._min
+
+
+# ---------------------------------------------------------------------------
+# S11 - backend failure  (fault_type="pod_kill", signal="backend_health")
+# ---------------------------------------------------------------------------
+
+
+class KubectlBackendDownInjector:
+    """Scale a backend deployment to 0 (all endpoints down); stop = restore."""
+
+    fault_type = "pod_kill"
+
+    def __init__(
+        self,
+        *,
+        context: str,
+        namespace: str,
+        deployment: str,
+        restore_replicas: int,
+        kubectl: str = "kubectl",
+    ) -> None:
+        self._ctx = context
+        self._ns = namespace
+        self._deployment = deployment
+        self._restore = restore_replicas
+        self._kubectl = kubectl
+
+    def _base(self) -> list[str]:
+        return [self._kubectl, "--context", self._ctx, "-n", self._ns]
+
+    async def inject(self, *, target: str, params: Mapping[str, str]) -> None:
+        rc, _out, err = await _run(
+            [*self._base(), "scale", f"deployment/{self._deployment}", "--replicas=0"]
+        )
+        if rc != 0:
+            raise RuntimeError(f"scale backend down failed: {err.strip()}")
+
+    async def stop(self, *, target: str) -> None:
+        await _run(
+            [
+                *self._base(),
+                "scale",
+                f"deployment/{self._deployment}",
+                f"--replicas={self._restore}",
+            ]
+        )
+
+
+class KubeBackendHealthProbe:
+    """Observe backend_health: the service has zero ready endpoints."""
+
+    def __init__(
+        self,
+        *,
+        context: str,
+        namespace: str,
+        service: str,
+        kubectl: str = "kubectl",
+    ) -> None:
+        self._ctx = context
+        self._ns = namespace
+        self._service = service
+        self._kubectl = kubectl
+
+    async def observed(self, *, signal: str, targets: Sequence[str]) -> bool:
+        rc, out, _err = await _run(
+            [
+                self._kubectl,
+                "--context",
+                self._ctx,
+                "-n",
+                self._ns,
+                "get",
+                "endpoints",
+                self._service,
+                "-o",
+                "json",
+            ]
+        )
+        if rc != 0:
+            return False
+        try:
+            subsets = json.loads(out).get("subsets") or []
+        except json.JSONDecodeError:
+            return False
+        ready = sum(len(s.get("addresses") or []) for s in subsets)
+        return ready == 0
+
+
 __all__ = [
     "AzVmCpuStressInjector",
+    "AzVmMemProbe",
+    "AzVmMemStressInjector",
     "AzureMonitorCpuProbe",
+    "KubeBackendHealthProbe",
     "KubeEventPodRestartProbe",
     "KubeRolloutStallProbe",
+    "KubectlBackendDownInjector",
     "KubectlBadDeployInjector",
     "KubectlPodKillInjector",
 ]
