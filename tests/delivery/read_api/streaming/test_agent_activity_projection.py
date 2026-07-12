@@ -75,16 +75,17 @@ class TestAgentState:
         assert state_events[0].state is AgentState.COLLECTING
         assert state_events[0].correlation_id == "corr-1"
 
-    def test_done_phase_returns_agent_to_idle(self) -> None:
+    def test_done_phase_still_shows_the_active_ring(self) -> None:
+        # The real ControlLoop emits a stage as a single DONE frame, so DONE
+        # must light the agent up with what it just did, not reset it to idle.
         _proj, events = _run(
             [
-                _stage(StageName.INGEST, StagePhase.BEGIN),
                 _stage(StageName.INGEST, StagePhase.DONE),
             ]
         )
         state_events = [e for e in events if isinstance(e, AgentStateEvent)]
         assert state_events[-1].agent == "Huginn"
-        assert state_events[-1].state is AgentState.IDLE
+        assert state_events[-1].state is AgentState.COLLECTING
 
     def test_hil_gate_emits_var_approving(self) -> None:
         _proj, events = _run(
@@ -155,6 +156,18 @@ class TestIncidentTicket:
         )
         involved = proj.incidents["corr-1"].involved
         assert {"Huginn", "Heimdall", "Forseti", "Thor"} <= set(involved)
+
+    def test_same_agent_twice_is_not_double_listed(self) -> None:
+        # Forseti owns both verify and gate; the second sighting is idempotent.
+        proj, _ = _run(
+            [
+                _stage(StageName.INGEST),
+                _stage(StageName.VERIFY),
+                _stage(StageName.GATE, detail={"gate_decision": "auto"}),
+            ]
+        )
+        involved = proj.incidents["corr-1"].involved
+        assert involved.count("Forseti") == 1
 
     def test_a_new_agent_rides_a_ticket_frame_so_the_console_lights_it_up(self) -> None:
         # The console only reads `involved` from ticket frames, so each newly
