@@ -14,6 +14,16 @@
 
 export const TRANSCRIPT_KEY = "fdai.deck.transcript.v1";
 
+/**
+ * Per-session storage key. The deck keeps distinct conversations - the general
+ * screen deck vs a chat scoped to one agent - in separate transcripts so their
+ * turns never bleed into each other. The general session uses {@link
+ * TRANSCRIPT_KEY} unchanged (back-compat with the single-session format).
+ */
+export function transcriptKeyFor(sessionKey: string): string {
+  return sessionKey === "screen" ? TRANSCRIPT_KEY : `${TRANSCRIPT_KEY}::${sessionKey}`;
+}
+
 const DEFAULT_MAX_TURNS = 40;
 
 /** The persisted shape - a lean subset of the in-memory turn. */

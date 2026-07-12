@@ -221,6 +221,14 @@ starter question, so the operator gets an immediate, grounded answer about what
 the agent has been doing. Still read-only: it opens a primed question box, never
 auto-submits or executes.
 
+Each agent chat is its own **session**: the deck keys transcripts by session
+(`agent:{name}` vs the general `screen` deck, see `transcriptKeyFor` in
+[`src/deck/transcript-store.ts`](src/deck/transcript-store.ts)) so an agent
+conversation never appends to - or leaks into - another. The deck header shows
+the active agent as a chip with a **General** button back to the screen deck;
+each session persists independently in tab-scoped storage and **Clear** only
+clears the active one.
+
 ### Self-describing screens
 
 Each route publishes a `ViewSnapshot` (`src/deck/context.tsx`) that is a screen

@@ -24,6 +24,14 @@ export interface DeckOpenDetail {
    * work. Plain text, English (L0 pipeline); rendered read-only.
    */
   readonly contextNote?: string;
+  /**
+   * Optional session id. The deck keeps each session's transcript separate, so
+   * a conversation scoped to one agent (e.g. `agent:Forseti`) never appends to
+   * the general screen deck. Omit / `undefined` targets the general session.
+   */
+  readonly sessionKey?: string;
+  /** Human label for a non-general session, shown in the deck header (e.g. `Forseti`). */
+  readonly sessionLabel?: string;
 }
 
 /**

@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { parseTurns, serializeTurns, type PersistedTurn } from "./transcript-store";
+import {
+  parseTurns,
+  serializeTurns,
+  transcriptKeyFor,
+  TRANSCRIPT_KEY,
+  type PersistedTurn,
+} from "./transcript-store";
+
+describe("transcriptKeyFor", () => {
+  it("keeps the general session on the base key (back-compat)", () => {
+    expect(transcriptKeyFor("screen")).toBe(TRANSCRIPT_KEY);
+  });
+
+  it("gives each non-general session its own namespaced key", () => {
+    expect(transcriptKeyFor("agent:Forseti")).toBe(`${TRANSCRIPT_KEY}::agent:Forseti`);
+    expect(transcriptKeyFor("agent:Forseti")).not.toBe(transcriptKeyFor("agent:Odin"));
+  });
+});
 
 describe("serializeTurns", () => {
   it("round-trips completed turns", () => {

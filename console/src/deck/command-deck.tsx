@@ -40,7 +40,7 @@ import { RetrievalTrace } from "./retrieval-trace";
 import { introSuggestions } from "./intro-suggestions";
 import { DECK_OPEN_EVENT, type DeckOpenDetail } from "./open-deck";
 import { isNearBottom } from "./scroll-stick";
-import { parseTurns, serializeTurns, TRANSCRIPT_KEY } from "./transcript-store";
+import { parseTurns, serializeTurns, transcriptKeyFor } from "./transcript-store";
 
 interface Turn {
   readonly id: string;
@@ -89,14 +89,24 @@ function routerTooltip(router: RouterSnapshot | undefined): string | undefined {
   return `auto-router (${router.reason}) chose ${router.chose}\n${lines.join("\n")}`;
 }
 
+/** The general (screen-scoped) conversation session id. */
+const GENERAL_SESSION = "screen";
+
 export function CommandDeck() {
   const snapshot = useViewContext();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
+  // Active conversation session. The general screen deck is "screen"; a chat
+  // scoped to one agent uses e.g. "agent:Forseti" and keeps a separate
+  // transcript so threads never bleed into each other.
+  const [sessionKey, setSessionKey] = useState<string>(GENERAL_SESSION);
+  const [sessionLabel, setSessionLabel] = useState<string | null>(null);
+  const sessionKeyRef = useRef<string>(GENERAL_SESSION);
   const [turns, setTurns] = useState<readonly Turn[]>(() => {
     const store = sessionStore();
-    return store ? parseTurns(store.getItem(TRANSCRIPT_KEY)) : [];
+    return store ? parseTurns(store.getItem(transcriptKeyFor(GENERAL_SESSION))) : [];
   });
+  const turnsRef = useRef<readonly Turn[]>(turns);
   const [pending, setPending] = useState(false);
   const [health, setHealth] = useState<BackendHealth | null>(null);
   const [srStatus, setSrStatus] = useState("");
@@ -165,6 +175,46 @@ export function CommandDeck() {
     }
   }, []);
 
+  // Switch the visible conversation to `key`, persisting the outgoing session
+  // first so returning to it restores the thread. A brand-new session is
+  // optionally seeded with `contextNote` (e.g. an agent's recent work); an
+  // existing session is resumed as-is so its prior turns are preserved.
+  const switchSession = useCallback(
+    (key: string, label: string | null, contextNote?: string) => {
+      const store = sessionStore();
+      if (store && key !== sessionKeyRef.current) {
+        try {
+          store.setItem(
+            transcriptKeyFor(sessionKeyRef.current),
+            serializeTurns(turnsRef.current),
+          );
+        } catch {
+          /* best-effort */
+        }
+      }
+      let next: Turn[] = store ? (parseTurns(store.getItem(transcriptKeyFor(key))) as Turn[]) : [];
+      const note = contextNote?.trim();
+      if (next.length === 0 && note) {
+        next = [{ id: newId(), role: "deck", text: note, source: "context", at: shortTime() }];
+      }
+      sessionKeyRef.current = key;
+      turnsRef.current = next;
+      setSessionKey(key);
+      setSessionLabel(label);
+      setTurns(next);
+      historyRef.current = EMPTY_HISTORY;
+    },
+    [],
+  );
+
+  // Open the deck on the general (screen) session - used by the launcher, the
+  // Cmd/Ctrl+K toggle, and the `/` shortcut, so those never drop the operator
+  // into a lingering agent session.
+  const openGeneralDeck = useCallback(() => {
+    if (sessionKeyRef.current !== GENERAL_SESSION) switchSession(GENERAL_SESSION, null);
+    openDeck();
+  }, [openDeck, switchSession]);
+
   // Trap Tab within the open overlay so keyboard focus cannot escape the modal
   // to the read-only page behind it (aria-modal contract).
   const onOverlayKeyDown = useCallback((e: KeyboardEvent) => {
@@ -212,12 +262,12 @@ export function CommandDeck() {
       if ((e.key === "k" || e.key === "K") && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         if (open) closeDeck();
-        else openDeck();
+        else openGeneralDeck();
         return;
       }
       if (!inField && e.key === "/" && !open) {
         e.preventDefault();
-        openDeck();
+        openGeneralDeck();
         return;
       }
       if (e.key === "Escape" && open) {
@@ -234,7 +284,7 @@ export function CommandDeck() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open, openDeck, closeDeck]);
+  }, [open, openGeneralDeck, closeDeck]);
 
   // Cross-screen open: any read-only surface (e.g. the Now>Agents incident
   // thread) can dispatch `fdai:deck:open` to raise the deck, optionally seeding
@@ -244,15 +294,28 @@ export function CommandDeck() {
   useEffect(() => {
     const onOpenDeck = (e: Event) => {
       const detail = (e as CustomEvent<DeckOpenDetail>).detail;
-      // A context note lands as an opening deck turn so the narrator's answers
-      // to follow-up questions are grounded in it (e.g. one agent's recent
-      // work). It joins the backend history like any deck (assistant) turn.
       const note = typeof detail?.contextNote === "string" ? detail.contextNote.trim() : "";
-      if (note) {
-        setTurns((prev) => [
-          ...prev,
-          { id: newId(), role: "deck", text: note, source: "context", at: shortTime() },
-        ]);
+      const key =
+        typeof detail?.sessionKey === "string" && detail.sessionKey
+          ? detail.sessionKey
+          : GENERAL_SESSION;
+      const label = typeof detail?.sessionLabel === "string" ? detail.sessionLabel : null;
+      if (key !== sessionKeyRef.current) {
+        // Move to the target session (its own transcript). A context note only
+        // seeds a brand-new session, so re-opening an agent chat resumes the
+        // existing thread instead of stacking duplicate context.
+        switchSession(key, label, note);
+      } else if (note && turnsRef.current.length === 0) {
+        // Same, still-empty session: seed the grounding context turn.
+        const seededTurn: Turn = {
+          id: newId(),
+          role: "deck",
+          text: note,
+          source: "context",
+          at: shortTime(),
+        };
+        turnsRef.current = [seededTurn];
+        setTurns([seededTurn]);
       }
       const seed = typeof detail?.prompt === "string" ? detail.prompt : "";
       if (seed) {
@@ -263,7 +326,7 @@ export function CommandDeck() {
     };
     window.addEventListener(DECK_OPEN_EVENT, onOpenDeck);
     return () => window.removeEventListener(DECK_OPEN_EVENT, onOpenDeck);
-  }, [openDeck]);
+  }, [openDeck, switchSession]);
 
   // Navigation dismisses the deck. While the deck is open the left rail is
   // lifted above the overlay (body.deck-open) so its navigation popover is
@@ -314,17 +377,21 @@ export function CommandDeck() {
   }, []);
 
   // Mirror completed turns into tab-scoped storage so an accidental reload does
-  // not lose the conversation. Skips while a turn is still streaming.
+  // not lose the conversation. Keyed by the active session so each agent chat
+  // and the general deck persist independently. Skips a still-streaming turn.
+  // `turnsRef` mirrors the latest turns so a session switch can flush the
+  // outgoing session synchronously without a stale closure.
   useEffect(() => {
+    turnsRef.current = turns;
     const store = sessionStore();
     if (!store) return;
     if (turns.some((t) => t.streaming === true)) return;
     try {
-      store.setItem(TRANSCRIPT_KEY, serializeTurns(turns));
+      store.setItem(transcriptKeyFor(sessionKey), serializeTurns(turns));
     } catch {
       /* storage full or blocked - persistence is best-effort */
     }
-  }, [turns]);
+  }, [turns, sessionKey]);
 
   const jumpToLatest = useCallback(() => {
     const el = scrollerRef.current;
@@ -435,9 +502,10 @@ export function CommandDeck() {
 
   const clearTurns = useCallback(() => {
     setTurns([]);
+    turnsRef.current = [];
     const store = sessionStore();
     try {
-      store?.removeItem(TRANSCRIPT_KEY);
+      store?.removeItem(transcriptKeyFor(sessionKeyRef.current));
     } catch {
       /* best-effort */
     }
@@ -508,7 +576,7 @@ export function CommandDeck() {
       <button
         type="button"
         class={`deck-invoke ${open ? "deck-invoke-open" : ""}`}
-        onClick={open ? closeDeck : openDeck}
+        onClick={open ? closeDeck : openGeneralDeck}
         aria-label={open ? "Close command deck" : "Open command deck"}
       >
         <span class="deck-invoke-glyph" aria-hidden="true">
@@ -545,6 +613,21 @@ export function CommandDeck() {
               <span>Command deck</span>
               <span class="deck-header-sep muted">·</span>
               <span class="deck-header-route">{routeLabel}</span>
+              {sessionLabel && (
+                <>
+                  <span class="deck-session-chip" title={`Chatting with ${sessionLabel}`}>
+                    {sessionLabel}
+                  </span>
+                  <button
+                    type="button"
+                    class="deck-session-exit"
+                    onClick={openGeneralDeck}
+                    title="Back to the general screen deck"
+                  >
+                    General
+                  </button>
+                </>
+              )}
               <BackendBadge health={health} placement="header" />
             </div>
             <div class="deck-header-headline muted">{headline}</div>
