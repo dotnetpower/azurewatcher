@@ -2155,6 +2155,14 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
   border-color: var(--accent);
   background: color-mix(in oklab, var(--accent) 14%, var(--bg-elevated));
 }
+/* Superseded turn: chips stay visible for conversation context but are inert
+   so a click on a stale suggestion cannot apply to a later stage. */
+.wf-chip-row.is-inert { opacity: 0.45; }
+.wf-chip:disabled { cursor: default; }
+.wf-chip:disabled:hover {
+  border-color: color-mix(in oklab, var(--accent) 40%, var(--border));
+  background: color-mix(in oklab, var(--accent) 6%, var(--bg-elevated));
+}
 
 /* Composer */
 .wf-chat-input { display: flex; gap: 8px; align-items: flex-end; margin-top: 4px; }

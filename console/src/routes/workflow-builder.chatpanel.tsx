@@ -52,6 +52,9 @@ export function WorkflowChat({ palette, onBack }: Props) {
   const idRef = useRef(0);
   const threadRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // One send per render cycle: set on send, cleared when the thread re-renders.
+  // Stops an Enter-press racing a chip click into two turns off the same slots.
+  const busyRef = useRef(false);
 
   const nextId = () => (idRef.current += 1);
 
@@ -68,15 +71,18 @@ export function WorkflowChat({ palette, onBack }: Props) {
     inputRef.current?.focus();
   }, []);
 
-  // Keep the newest message in view, honoring reduced-motion preference.
+  // Keep the newest message in view, honoring reduced-motion preference; also
+  // release the per-cycle send guard now that the new turn has rendered.
   useEffect(() => {
+    busyRef.current = false;
     const behavior: ScrollBehavior = prefersReducedMotion() ? "auto" : "smooth";
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior });
   }, [messages]);
 
   function send(raw: string): void {
     const text = raw.trim();
-    if (text.length === 0 || slots === null) return;
+    if (busyRef.current || text.length === 0 || slots === null) return;
+    busyRef.current = true;
     const shown = displayInput(text, messages);
     const opMsg: Message = { id: nextId(), role: "operator", text: shown };
     const turn = respondToChat(slots, text, palette);
@@ -84,6 +90,10 @@ export function WorkflowChat({ palette, onBack }: Props) {
     setMessages((prev) => [...prev, opMsg, botMessage(turn, nextId())]);
     setInput("");
   }
+
+  // Only the newest bot turn's chips stay interactive; older chips go inert so
+  // a click on a stale suggestion cannot apply to a later stage.
+  const latestBotId = messages.reduce((acc, m) => (m.role === "bot" ? m.id : acc), -1);
 
   return (
     <div class="stack wf-chat">
@@ -99,7 +109,13 @@ export function WorkflowChat({ palette, onBack }: Props) {
 
       <div class="wf-chat-thread" ref={threadRef} role="log" aria-live="polite">
         {messages.map((m) => (
-          <MessageBubble key={m.id} message={m} palette={palette} onChip={send} />
+          <MessageBubble
+            key={m.id}
+            message={m}
+            palette={palette}
+            onChip={send}
+            interactive={m.id === latestBotId}
+          />
         ))}
       </div>
 
@@ -171,10 +187,12 @@ function MessageBubble({
   message,
   palette,
   onChip,
+  interactive,
 }: {
   readonly message: Message;
   readonly palette: readonly ActionTypePaletteEntry[];
   readonly onChip: (value: string) => void;
+  readonly interactive: boolean;
 }) {
   const isBot = message.role === "bot";
   return (
@@ -184,7 +202,11 @@ function MessageBubble({
         <RichText text={message.text} />
         {message.preview ? <WorkflowPreview form={message.preview} palette={palette} /> : null}
         {message.options && message.options.length > 0 ? (
-          <div class="wf-chip-row" role="group" aria-label="Suggested replies">
+          <div
+            class={interactive ? "wf-chip-row" : "wf-chip-row is-inert"}
+            role="group"
+            aria-label="Suggested replies"
+          >
             {message.options.map((o) => (
               <button
                 type="button"
@@ -192,6 +214,7 @@ function MessageBubble({
                 key={o.value}
                 title={o.hint}
                 aria-label={o.hint ? `${o.label} - ${o.hint}` : o.label}
+                disabled={!interactive}
                 onClick={() => onChip(o.value)}
               >
                 {o.label}
