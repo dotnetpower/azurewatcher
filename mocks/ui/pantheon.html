@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pantheon - FDAI Console</title>
+  <link rel="stylesheet" href="assets/calm-slate.css" />
+  <style>
+    /* Pantheon-local styles: layered directory of the 15 fixed agents. */
+    .pt-legend { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 20px; }
+    .pt-layer { margin-bottom: 32px; }
+    .pt-layer-head { display: flex; align-items: baseline; gap: 10px; margin: 0 0 12px; }
+    .pt-layer-head h2 { margin: 0; font-size: 17px; }
+    .pt-layer-head .pt-meta { color: var(--cs-text-soft); font-size: 12.5px; }
+
+    .pt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .pt-card { display: block; padding: 14px 16px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); box-shadow: var(--cs-shadow); }
+    .pt-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+    .pt-avatar { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff; flex: 0 0 auto; letter-spacing: -.02em; }
+    .pt-avatar.is-governance { background: var(--cs-plum); }
+    .pt-avatar.is-pipeline   { background: var(--cs-steel); }
+    .pt-avatar.is-domain     { background: var(--cs-teal); }
+    .pt-name { font-weight: 600; font-size: 15px; line-height: 1.2; margin: 0; }
+    .pt-role { color: var(--cs-text-soft); font-size: 12.5px; margin: 0; }
+    .pt-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .pt-badge { padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid var(--cs-hairline); background: var(--cs-shade); color: var(--cs-text-soft); }
+    .pt-badge.is-hotllm { background: rgba(123,108,156,.12); color: var(--cs-plum); border-color: rgba(123,108,156,.22); }
+    .pt-badge.is-offllm { background: rgba(79,132,126,.12); color: var(--cs-teal); border-color: rgba(79,132,126,.22); }
+    .pt-badge.is-hard   { background: rgba(172,90,90,.10); color: var(--cs-dusty-red); border-color: rgba(172,90,90,.22); }
+    .pt-owns { margin: 8px 0 0; font-size: 12.5px; color: var(--cs-text-soft); }
+    .pt-owns code { font-size: 11.5px; }
+    .pt-reports { margin: 6px 0 0; font-size: 12px; color: var(--cs-text-soft); }
+    .pt-reports strong { color: var(--cs-text); font-weight: 500; }
+
+    /* Report-line chart - simple ASCII-like tree using CSS grid + connectors. */
+    .pt-tree { padding: 20px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); font-size: 13px; line-height: 1.55; margin-top: 8px; }
+    .pt-tree ul { list-style: none; padding-left: 20px; margin: 0; border-left: 1px dashed var(--cs-hairline); }
+    .pt-tree > ul { border-left: none; padding-left: 0; }
+    .pt-tree li { position: relative; padding: 3px 0 3px 14px; }
+    .pt-tree li::before { content: ""; position: absolute; left: 0; top: 14px; width: 10px; border-top: 1px dashed var(--cs-hairline); }
+    .pt-tree > ul > li::before { display: none; }
+    .pt-tree .pt-tree-name { font-weight: 600; color: var(--cs-text); }
+    .pt-tree .pt-tree-role { color: var(--cs-text-soft); }
+  </style>
+</head>
+<body>
+  <header class="cs-topbar">
+    <div class="cs-container cs-topbar-inner">
+      <span class="cs-brand"><span class="cs-brand-mark">AW</span> FDAI</span>
+      <nav class="cs-nav">
+        <a href="live.html">Live</a>
+        <a href="dashboard.html">Overview</a>
+        <a href="hil.html">HIL</a>
+        <a href="agents.html">Fleet</a>
+        <a href="rules.html">Rules</a>
+        <a href="actions.html">Actions</a>
+        <a href="audit.html">Audit</a>
+        <a href="report.html">Report</a>
+        <a href="index.html">Kit</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="cs-container cs-page">
+    <div class="cs-subnav">
+      <a href="agents.html">Roster</a>
+      <a href="pantheon.html" class="cs-active">Pantheon</a>
+      <a href="blast-radius.html">Blast radius</a>
+    </div>
+
+    <div class="cs-page-header cs-mb-16">
+      <div class="cs-eyebrow">15 agents &middot; three layers &middot; upstream-locked</div>
+      <h1>Pantheon</h1>
+      <p class="cs-lead">The 15 named agents that own the runtime control plane. Grouped by layer:
+        <strong>governance</strong> sets direction and remembers, <strong>pipeline</strong>
+        senses, judges, executes, approves, audits, and <strong>domain</strong> specialists
+        advise but never execute. Names, ownership, and reporting lines are fork-locked - a fork
+        tunes bindings, it does not add, remove, or rename an agent.</p>
+    </div>
+
+    <div class="cs-readonly-banner">
+      <strong>Read-only view.</strong> This page renders the pantheon spec that ships with the
+      control plane. Every card is a projection of <code>PANTHEON_SPECS</code> in
+      <code>src/fdai/agents/_framework/pantheon.py</code>.
+    </div>
+
+    <div class="pt-legend">
+      <span class="pt-badge is-hotllm">hot-path LLM</span>
+      <span class="pt-badge is-offllm">off-path LLM</span>
+      <span class="pt-badge is-hard">hard dependency (fail-safe closed)</span>
+    </div>
+
+    <!-- Governance layer ------------------------------------------------ -->
+    <section class="pt-layer">
+      <div class="pt-layer-head">
+        <h2>Governance layer</h2>
+        <span class="pt-meta">direction, memory, learning, audit &middot; 6 agents</span>
+      </div>
+      <div class="pt-grid">
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-governance">Od</span>
+            <div>
+              <p class="pt-name">Odin</p>
+              <p class="pt-role">Master Planner - cross-vertical arbitration</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>ArbitrationDecision</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> - (top of tree)</p>
+        </div>
+
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-governance">Sa</span>
+            <div>
+              <p class="pt-name">Saga</p>
+              <p class="pt-role">Auditor - append-only ledger + GitHub-issue handoff</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>AuditEntry</code>, <code>Issue</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Odin</p>
+          <div class="pt-badges"><span class="pt-badge is-hard">hard dependency</span></div>
+        </div>
+
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-governance">Mi</span>
+            <div>
+              <p class="pt-name">Mimir</p>
+              <p class="pt-role">Rule Steward - rule catalog + policy</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>Rule</code>, <code>Policy</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Odin</p>
+        </div>
+
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-governance">Mu</span>
+            <div>
+              <p class="pt-name">Muninn</p>
+              <p class="pt-role">Memory - state snapshots + RAG index</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>StateSnapshot</code>, <code>ContextIndex</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Odin</p>
+        </div>
+
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-governance">No</span>
+            <div>
+              <p class="pt-name">Norns</p>
+              <p class="pt-role">Learner - proposes rule candidates from patterns</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>RuleCandidate</code>, <code>PatternObservation</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Odin</p>
+          <div class="pt-badges"><span class="pt-badge is-offllm">off-path LLM</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pipeline layer -------------------------------------------------- -->
+    <section class="pt-layer">
+      <div class="pt-layer-head">
+        <h2>Pipeline layer</h2>
+        <span class="pt-meta">the control loop: sense &rarr; judge &rarr; execute &rarr; approve &middot; 7 agents</span>
+      </div>
+      <div class="pt-grid">
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-pipeline">Fo</span>
+            <div>
+              <p class="pt-name">Forseti</p>
+              <p class="pt-role">Judge - verdict after cross-check + verifier + grounding</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>Verdict</code>, <code>RCA</code>, <code>SecurityEvent</code>, <code>ArbitrationRequest</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Odin</p>
+          <div class="pt-badges"><span class="pt-badge is-hotllm">hot-path LLM</span></div>
+        </div>
+
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-pipeline">Th</span>
+            <div>
+              <p class="pt-name">Thor</p>
+              <p class="pt-role">Responder - sole privileged executor; dispatch only</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>ActionRun</code>, <code>ActionAttempt</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Odin</p>
+        </div>
+
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-pipeline">Va</span>
+            <div>
+              <p class="pt-name">Var</p>
+              <p class="pt-role">Approver - HIL principal; distinct from Thor</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>Approval</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Thor</p>
+        </div>
+
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-pipeline">Vi</span>
+            <div>
+              <p class="pt-name">Vidar</p>
+              <p class="pt-role">Recovery - rollback + DR failover principal</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>Rollback</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Thor</p>
+          <div class="pt-badges"><span class="pt-badge is-hard">hard dependency</span></div>
+        </div>
+
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-pipeline">Br</span>
+            <div>
+              <p class="pt-name">Bragi</p>
+              <p class="pt-role">Narrator - conversational translator, never a judge</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>Conversation</code>, <code>Turn</code>, <code>UserPreference</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Thor</p>
+          <div class="pt-badges"><span class="pt-badge is-hotllm">hot-path LLM</span></div>
+        </div>
+
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-pipeline">Hu</span>
+            <div>
+              <p class="pt-name">Huginn</p>
+              <p class="pt-role">Event Collector - normalize + dedupe + correlate</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>Event</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Forseti</p>
+        </div>
+
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-pipeline">He</span>
+            <div>
+              <p class="pt-name">Heimdall</p>
+              <p class="pt-role">Observer - anomaly, drift, forecast; deterministic-first</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>Anomaly</code>, <code>Drift</code>, <code>Forecast</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Forseti</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Domain layer ---------------------------------------------------- -->
+    <section class="pt-layer">
+      <div class="pt-layer-head">
+        <h2>Domain layer</h2>
+        <span class="pt-meta">advisory specialists - never execute &middot; 3 agents</span>
+      </div>
+      <div class="pt-grid">
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-domain">Nj</span>
+            <div>
+              <p class="pt-name">Njord</p>
+              <p class="pt-role">Cost - anomaly + budget; advises Forseti</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>CostAnomaly</code>, <code>Budget</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Forseti</p>
+        </div>
+
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-domain">Fr</span>
+            <div>
+              <p class="pt-name">Freyr</p>
+              <p class="pt-role">Capacity - forecast + sizing; advises Forseti</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>CapacityForecast</code>, <code>SizingRecommendation</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Forseti</p>
+        </div>
+
+        <div class="pt-card">
+          <div class="pt-card-head">
+            <span class="pt-avatar is-domain">Lo</span>
+            <div>
+              <p class="pt-name">Loki</p>
+              <p class="pt-role">Chaos - experiments &amp; resilience; ALWAYS HIL for execute</p>
+            </div>
+          </div>
+          <p class="pt-owns">Owns <code>ChaosExperiment</code>, <code>ResilienceScore</code>.</p>
+          <p class="pt-reports"><strong>Reports to</strong> Forseti</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Reporting tree -------------------------------------------------- -->
+    <section class="cs-section">
+      <div class="cs-section-head">
+        <span class="cs-badge-num">4</span>
+        <div class="cs-section-title">
+          <h2>Reporting tree</h2>
+          <p class="cs-desc">Same 15 agents, drawn as an org chart. Odin is the only node without a
+            parent; everything else eventually reports up to Odin.</p>
+        </div>
+      </div>
+
+      <div class="pt-tree">
+        <ul>
+          <li>
+            <span class="pt-tree-name">Odin</span> <span class="pt-tree-role">- Master Planner</span>
+            <ul>
+              <li>
+                <span class="pt-tree-name">Forseti</span> <span class="pt-tree-role">- Judge (hot-path LLM)</span>
+                <ul>
+                  <li><span class="pt-tree-name">Huginn</span> <span class="pt-tree-role">- Event Collector</span></li>
+                  <li><span class="pt-tree-name">Heimdall</span> <span class="pt-tree-role">- Observer</span></li>
+                  <li><span class="pt-tree-name">Njord</span> <span class="pt-tree-role">- Cost (domain)</span></li>
+                  <li><span class="pt-tree-name">Freyr</span> <span class="pt-tree-role">- Capacity (domain)</span></li>
+                  <li><span class="pt-tree-name">Loki</span> <span class="pt-tree-role">- Chaos (domain; always HIL)</span></li>
+                </ul>
+              </li>
+              <li>
+                <span class="pt-tree-name">Thor</span> <span class="pt-tree-role">- Responder (sole executor)</span>
+                <ul>
+                  <li><span class="pt-tree-name">Var</span> <span class="pt-tree-role">- Approver</span></li>
+                  <li><span class="pt-tree-name">Vidar</span> <span class="pt-tree-role">- Recovery (hard dependency)</span></li>
+                  <li><span class="pt-tree-name">Bragi</span> <span class="pt-tree-role">- Narrator (hot-path LLM, translator only)</span></li>
+                </ul>
+              </li>
+              <li><span class="pt-tree-name">Saga</span> <span class="pt-tree-role">- Auditor (hard dependency)</span></li>
+              <li><span class="pt-tree-name">Mimir</span> <span class="pt-tree-role">- Rule Steward</span></li>
+              <li><span class="pt-tree-name">Muninn</span> <span class="pt-tree-role">- Memory</span></li>
+              <li><span class="pt-tree-name">Norns</span> <span class="pt-tree-role">- Learner (off-path LLM)</span></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

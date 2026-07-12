@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blast radius - FDAI Console</title>
+  <link rel="stylesheet" href="assets/calm-slate.css" />
+  <style>
+    /* Blast-radius: impact visualization for a proposed action. */
+    .br-layout { display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 20px; align-items: start; }
+    @media (max-width: 900px) { .br-layout { grid-template-columns: 1fr; } }
+
+    .br-viz { padding: 24px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); box-shadow: var(--cs-shadow); display: flex; justify-content: center; align-items: center; }
+    .br-radar { position: relative; width: 340px; height: 340px; }
+    .br-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px dashed var(--cs-hairline); }
+    .br-ring.is-r1 { inset: 25%; border-color: rgba(94,130,89,.35); background: rgba(94,130,89,.06); }
+    .br-ring.is-r2 { inset: 12%; border-color: rgba(188,116,73,.30); background: rgba(188,116,73,.04); }
+    .br-ring.is-r3 { inset: 0;   border-color: rgba(172,90,90,.30);  background: rgba(172,90,90,.03); }
+    .br-target { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; border-radius: 50%; background: var(--cs-dusty-red); box-shadow: 0 0 0 4px rgba(172,90,90,.20); transform: translate(-50%, -50%); }
+    .br-target::after { content: "billing-db-prod"; position: absolute; top: 22px; left: 50%; transform: translateX(-50%); font-size: 11.5px; font-weight: 600; color: var(--cs-text); white-space: nowrap; }
+    .br-label { position: absolute; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; font-weight: 600; }
+    .br-label.is-r1 { top: 26%; left: 50%; transform: translateX(-50%); color: var(--cs-sage); }
+    .br-label.is-r2 { top: 13%; left: 50%; transform: translateX(-50%); color: var(--cs-terracotta); }
+    .br-label.is-r3 { top: 1%;  left: 50%; transform: translateX(-50%); color: var(--cs-dusty-red); }
+    .br-dot { position: absolute; width: 10px; height: 10px; border-radius: 50%; border: 1px solid #fff; box-shadow: var(--cs-shadow); }
+    .br-dot.is-primary   { background: var(--cs-dusty-red); }
+    .br-dot.is-secondary { background: var(--cs-terracotta); }
+    .br-dot.is-tertiary  { background: var(--cs-sage); }
+
+    .br-caps { padding: 18px 20px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); box-shadow: var(--cs-shadow); }
+    .br-cap-row { display: grid; grid-template-columns: 160px 1fr 80px; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px dashed var(--cs-hairline); }
+    .br-cap-row:first-of-type { border-top: none; }
+    .br-cap-label { font-size: 13px; color: var(--cs-text-soft); }
+    .br-cap-value { font-size: 14px; font-weight: 600; color: var(--cs-text); }
+    .br-cap-bar { height: 6px; background: var(--cs-shade); border-radius: 3px; overflow: hidden; }
+    .br-cap-bar > span { display: block; height: 100%; border-radius: 3px; }
+    .br-cap-bar.is-sage > span      { background: var(--cs-sage); }
+    .br-cap-bar.is-terracotta > span { background: var(--cs-terracotta); }
+    .br-cap-bar.is-red > span       { background: var(--cs-dusty-red); }
+    .br-cap-note { font-size: 12px; text-align: right; color: var(--cs-text-soft); }
+
+    /* Impact tree - who is inside each ring */
+    .br-tree { padding: 16px 20px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); box-shadow: var(--cs-shadow); font-size: 13px; margin-top: 16px; }
+    .br-tree h3 { margin: 0 0 8px; font-size: 14px; }
+    .br-tree-row { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; padding: 6px 0; border-top: 1px dashed var(--cs-hairline); }
+    .br-tree-row:first-of-type { border-top: none; padding-top: 0; }
+    .br-tree-icon { text-align: center; }
+    .br-tree-icon .br-dot { position: static; display: inline-block; width: 10px; height: 10px; vertical-align: 3px; }
+    .br-tree-name { color: var(--cs-text); font-weight: 500; }
+    .br-tree-name code { font-family: "Cascadia Code","Consolas",monospace; font-size: 12px; }
+    .br-tree-role { color: var(--cs-text-soft); font-size: 12px; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <header class="cs-topbar">
+    <div class="cs-container cs-topbar-inner">
+      <span class="cs-brand"><span class="cs-brand-mark">AW</span> FDAI</span>
+      <nav class="cs-nav">
+        <a href="live.html">Live</a>
+        <a href="dashboard.html">Overview</a>
+        <a href="hil.html">HIL</a>
+        <a href="agents.html">Fleet</a>
+        <a href="rules.html">Rules</a>
+        <a href="actions.html">Actions</a>
+        <a href="audit.html">Audit</a>
+        <a href="report.html">Report</a>
+        <a href="index.html">Kit</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="cs-container cs-page">
+    <div class="cs-subnav">
+      <a href="agents.html">Roster</a>
+      <a href="pantheon.html">Pantheon</a>
+      <a href="blast-radius.html" class="cs-active">Blast radius</a>
+    </div>
+
+    <div class="cs-page-header cs-mb-16">
+      <div class="cs-eyebrow">Safety &middot; per-action impact view</div>
+      <h1>Blast radius</h1>
+      <p class="cs-lead">The scope-and-cap view a reviewer sees before an action executes. Three
+        rings: the <strong>target</strong> resource, the <strong>direct</strong> dependants that
+        share fate, and the <strong>indirect</strong> neighbourhood the change can still reach. If
+        any cap in the right-hand panel would be exceeded, the risk gate holds the action
+        regardless of confidence.</p>
+    </div>
+
+    <!-- Context strip -->
+    <div class="cs-flex cs-wrap cs-gap-12 cs-mb-24">
+      <span class="cs-tag is-steel"><strong>ActionType</strong>&nbsp;<code>database.enable-pitr</code></span>
+      <span class="cs-risk critical">critical</span>
+      <span class="cs-tier t1">T1</span>
+      <span class="cs-cat remediation">remediation</span>
+      <span class="cs-vert resilience">resilience</span>
+      <span class="cs-tag"><strong>Rollback</strong>&nbsp;pr_revert (tested)</span>
+      <span class="cs-tag"><strong>Stop-condition</strong>&nbsp;backup lag &gt; 60s</span>
+    </div>
+
+    <div class="br-layout">
+      <div class="br-viz">
+        <div class="br-radar">
+          <div class="br-ring is-r3"></div>
+          <div class="br-ring is-r2"></div>
+          <div class="br-ring is-r1"></div>
+          <span class="br-label is-r1">direct (1)</span>
+          <span class="br-label is-r2">indirect (3)</span>
+          <span class="br-label is-r3">bounded neighbourhood</span>
+
+          <span class="br-target"></span>
+
+          <!-- Positioned dots (rough - illustrative only) -->
+          <span class="br-dot is-secondary" style="left:60%; top:34%;"></span>
+          <span class="br-dot is-secondary" style="left:36%; top:34%;"></span>
+          <span class="br-dot is-secondary" style="left:52%; top:66%;"></span>
+          <span class="br-dot is-tertiary"  style="left:14%; top:44%;"></span>
+          <span class="br-dot is-tertiary"  style="left:86%; top:44%;"></span>
+          <span class="br-dot is-tertiary"  style="left:50%; top:14%;"></span>
+          <span class="br-dot is-tertiary"  style="left:50%; top:82%;"></span>
+        </div>
+      </div>
+
+      <div class="br-caps">
+        <h3 style="margin:0 0 10px; font-size:15px;">Caps</h3>
+        <p class="cs-muted" style="font-size:12.5px; margin:0 0 8px;">
+          The risk gate enforces the tighter of the ActionType ceiling and the per-scope override.
+          A red bar means the action is over budget - HIL only, or hold.
+        </p>
+
+        <div class="br-cap-row">
+          <span class="br-cap-label">Resources touched</span>
+          <div>
+            <span class="br-cap-value">1&thinsp;/&thinsp;5</span>
+            <div class="br-cap-bar is-sage"><span style="width:20%"></span></div>
+          </div>
+          <span class="br-cap-note">under cap</span>
+        </div>
+
+        <div class="br-cap-row">
+          <span class="br-cap-label">Downstream (direct)</span>
+          <div>
+            <span class="br-cap-value">3&thinsp;/&thinsp;10</span>
+            <div class="br-cap-bar is-sage"><span style="width:30%"></span></div>
+          </div>
+          <span class="br-cap-note">under cap</span>
+        </div>
+
+        <div class="br-cap-row">
+          <span class="br-cap-label">Batch rate</span>
+          <div>
+            <span class="br-cap-value">1&thinsp;/&thinsp;3&nbsp;/min</span>
+            <div class="br-cap-bar is-sage"><span style="width:33%"></span></div>
+          </div>
+          <span class="br-cap-note">under cap</span>
+        </div>
+
+        <div class="br-cap-row">
+          <span class="br-cap-label">Concurrent per-resource</span>
+          <div>
+            <span class="br-cap-value">1&thinsp;/&thinsp;1</span>
+            <div class="br-cap-bar is-terracotta"><span style="width:100%"></span></div>
+          </div>
+          <span class="br-cap-note">serialized</span>
+        </div>
+
+        <div class="br-cap-row">
+          <span class="br-cap-label">Guard budget (rollback %)</span>
+          <div>
+            <span class="br-cap-value">0.8%&thinsp;/&thinsp;2.0%</span>
+            <div class="br-cap-bar is-sage"><span style="width:40%"></span></div>
+          </div>
+          <span class="br-cap-note">green</span>
+        </div>
+
+        <div class="br-cap-row">
+          <span class="br-cap-label">Environment</span>
+          <div>
+            <span class="br-cap-value">prod</span>
+            <div class="br-cap-bar is-red"><span style="width:100%"></span></div>
+          </div>
+          <span class="br-cap-note">HIL required</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Who is inside each ring -->
+    <div class="br-tree">
+      <h3>Who is inside each ring</h3>
+
+      <div class="br-tree-row">
+        <div class="br-tree-icon"><span class="br-dot is-primary"></span></div>
+        <div>
+          <div class="br-tree-name"><code>billing-db-prod</code> &middot; managed PostgreSQL</div>
+          <div class="br-tree-role">Target &middot; ActionType mutates this resource directly. PITR toggle is idempotent.</div>
+        </div>
+        <span class="cs-tag is-steel">target</span>
+      </div>
+
+      <div class="br-tree-row">
+        <div class="br-tree-icon"><span class="br-dot is-secondary"></span></div>
+        <div>
+          <div class="br-tree-name"><code>billing-api-prod</code> &middot; web app (3 replicas)</div>
+          <div class="br-tree-role">Direct &middot; opens the same DB pool. Restart not required by the action.</div>
+        </div>
+        <span class="cs-tag">direct</span>
+      </div>
+
+      <div class="br-tree-row">
+        <div class="br-tree-icon"><span class="br-dot is-secondary"></span></div>
+        <div>
+          <div class="br-tree-name"><code>invoice-worker-prod</code> &middot; background job</div>
+          <div class="br-tree-role">Direct &middot; consumes billing table changes. Watches WAL, unaffected by config change.</div>
+        </div>
+        <span class="cs-tag">direct</span>
+      </div>
+
+      <div class="br-tree-row">
+        <div class="br-tree-icon"><span class="br-dot is-secondary"></span></div>
+        <div>
+          <div class="br-tree-name"><code>billing-db-readreplica</code> &middot; replica</div>
+          <div class="br-tree-role">Direct &middot; not modified. Read continues during apply.</div>
+        </div>
+        <span class="cs-tag">direct</span>
+      </div>
+
+      <div class="br-tree-row">
+        <div class="br-tree-icon"><span class="br-dot is-tertiary"></span></div>
+        <div>
+          <div class="br-tree-name"><code>rg-billing-prod</code> resource group (18 resources)</div>
+          <div class="br-tree-role">Indirect &middot; observed for anomaly during and after apply. Not touched by the action.</div>
+        </div>
+        <span class="cs-tag">indirect</span>
+      </div>
+
+      <div class="br-tree-row">
+        <div class="br-tree-icon"><span class="br-dot is-tertiary"></span></div>
+        <div>
+          <div class="br-tree-name">Backup storage (Blob container) &middot; 1 account</div>
+          <div class="br-tree-role">Indirect &middot; PITR retention will begin filling this container after enable.</div>
+        </div>
+        <span class="cs-tag">indirect</span>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <p class="cs-muted" style="font-size:12.5px; margin-top:12px;">
+      Rings are drawn from the dependency graph in the state store (Muninn). Positions are
+      illustrative - the actual visualization uses a force-directed layout at runtime.
+    </p>
+  </main>
+</body>
+</html>

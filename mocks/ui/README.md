@@ -12,7 +12,7 @@ badges - calm and professional, with no primary/neon colors and no top/bottom co
 
 ## Pages
 
-Operator console (read-only, seven screens):
+Operator console (read-only). Overview / Now / History surfaces:
 
 | File | Purpose |
 |------|---------|
@@ -23,6 +23,15 @@ Operator console (read-only, seven screens):
 | [rules.html](rules.html) | Rule catalog: accepted rules, discovery-loop candidates, scoped overrides |
 | [actions.html](actions.html) | ActionType ontology - trigger, execution path, rollback contract, six-axis risk ceiling |
 | [audit.html](audit.html) | Append-only stream - execute, reject, timeout, abstain, deny, override change, rollback |
+
+Fleet / Safety surfaces (mirror console panels under `Now` and `Safety`):
+
+| File | Purpose |
+|------|---------|
+| [agents.html](agents.html) | Fleet roster - lifecycle state of all 15 pantheon agents (running / idle / recovering / shadow) with per-agent throughput and chat entry |
+| [pantheon.html](pantheon.html) | Pantheon directory - 15 agents grouped by governance / pipeline / domain layer, with the reporting tree |
+| [blast-radius.html](blast-radius.html) | Per-action impact view - concentric target / direct / indirect rings plus cap bars enforced by the risk gate |
+| [llm-cost.html](llm-cost.html) | LLM spend - per-tier daily budget bars, event mix, 7-day trend, per-model attribution table |
 
 Report and kit:
 
