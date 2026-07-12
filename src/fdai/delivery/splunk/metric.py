@@ -49,6 +49,7 @@ from fdai.shared.providers.secret_provider import SecretProvider
 
 _DEFAULT_TIMEOUT_SECONDS: Final[float] = 30.0
 _DEFAULT_MAX_POINTS: Final[int] = 50_000
+_DEFAULT_MAX_RESPONSE_BYTES: Final[int] = 25_000_000
 _DEFAULT_VALUE_FIELD: Final[str] = "value"
 _DEFAULT_TIME_FIELD: Final[str] = "_time"
 _EXPORT_PATH: Final[str] = "/services/search/jobs/export"
@@ -76,6 +77,7 @@ class SplunkMetricConfig:
     time_field: str = _DEFAULT_TIME_FIELD
     timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS
     max_points: int = _DEFAULT_MAX_POINTS
+    max_response_bytes: int = _DEFAULT_MAX_RESPONSE_BYTES
     extra_labels: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -100,6 +102,8 @@ class SplunkMetricConfig:
             raise ValueError("SplunkMetricConfig.timeout_seconds MUST be positive")
         if self.max_points <= 0:
             raise ValueError("SplunkMetricConfig.max_points MUST be positive")
+        if self.max_response_bytes < 1:
+            raise ValueError("SplunkMetricConfig.max_response_bytes MUST be >= 1")
 
 
 class SplunkMetricProvider:
@@ -169,6 +173,18 @@ class SplunkMetricProvider:
             raise MetricProviderError(
                 f"Splunk returned HTTP {response.status_code} for "
                 f"{query.metric_name!r}: {snippet!r}"
+            )
+
+        # Cap the body before parsing so a misbehaving / hostile export
+        # endpoint cannot force an unbounded line-by-line parse. httpx has
+        # already buffered the body, but the cap bounds the parse cost and
+        # surfaces a runaway response as a clean fail-closed error rather
+        # than a slow OOM (mirrors McpToolExecutor.max_response_bytes).
+        if len(response.content) > self._config.max_response_bytes:
+            raise MetricProviderError(
+                f"Splunk response for {query.metric_name!r} is "
+                f"{len(response.content)} bytes, over the "
+                f"{self._config.max_response_bytes}-byte cap; narrow the search"
             )
 
         return self._map_export(text=response.text, query=query)

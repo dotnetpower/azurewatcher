@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Final
@@ -61,6 +62,8 @@ _LOGGER = logging.getLogger("fdai.delivery.pgvector.knowledge")
 _EMBEDDING_DIM: Final[int] = 384
 _DEFAULT_MAX_CHARS: Final[int] = 1_200
 _DEFAULT_OVERLAP: Final[int] = 150
+#: Strict ASCII SQL identifier (the ``table`` config is inlined into SQL).
+_IDENTIFIER_RE: Final[re.Pattern[str]] = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 def _encode_vector(values: Sequence[float], *, dim: int) -> str:
@@ -92,9 +95,15 @@ class PgvectorKnowledgeConfig:
         if not self.dsn_secret:
             raise ValueError("PgvectorKnowledgeConfig.dsn_secret MUST be non-empty")
         # `table` is inlined into SQL (identifiers cannot be parametrized);
-        # restrict it to a safe identifier so config cannot inject SQL.
-        if not self.table.replace("_", "").isalnum():
-            raise ValueError("PgvectorKnowledgeConfig.table MUST be a plain identifier")
+        # restrict it to a strict ASCII SQL identifier so config cannot
+        # inject SQL. ``str.isalnum()`` is NOT sufficient - it accepts
+        # non-ASCII letters (e.g. Hangul), which are valid Postgres
+        # identifiers but never intended here.
+        if not _IDENTIFIER_RE.fullmatch(self.table):
+            raise ValueError(
+                "PgvectorKnowledgeConfig.table MUST be a plain ASCII SQL "
+                "identifier ([A-Za-z_][A-Za-z0-9_]*)"
+            )
         if self.embedding_dim < 1:
             raise ValueError("embedding_dim MUST be >= 1")
         if self.top_k < 1:

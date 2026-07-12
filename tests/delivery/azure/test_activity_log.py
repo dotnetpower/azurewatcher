@@ -270,3 +270,44 @@ def test_config_rejects_plaintext_endpoint() -> None:
 def test_config_rejects_empty_subscription() -> None:
     with pytest.raises(ValueError, match="subscription_scope"):
         _config(subscription_scope="")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "bad_cursor",
+    ["2026-07-10' or '1'='1", "not-a-timestamp", "'; drop table x --"],
+)
+async def test_invalid_resume_cursor_fails_closed(bad_cursor: str) -> None:
+    # A corrupt / hostile persisted cursor must not be folded into the OData
+    # $filter; only a valid RFC 3339 timestamp is accepted.
+    async def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        return httpx.Response(200, json={"value": []})
+
+    factory, client, _ = _factory(handler)
+    fetch = factory.build_fetch_fn()
+    try:
+        with pytest.raises(ActivityLogError, match="valid RFC 3339"):
+            await fetch(bad_cursor)
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_valid_resume_cursor_is_canonicalized() -> None:
+    captured: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, json={"value": []})
+
+    factory, client, _ = _factory(handler)
+    fetch = factory.build_fetch_fn()
+    try:
+        await fetch("2026-07-10T05:00:00Z")  # 'Z' form is parsed + canonicalized
+    finally:
+        await client.aclose()
+
+    # canonical isoformat uses +00:00, not Z (the input 'Z' was normalized)
+    url = str(captured[0].url)
+    assert "2026-07-10T05:00:00+00:00" in url
+    assert "05:00:00Z" not in url

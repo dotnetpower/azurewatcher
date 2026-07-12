@@ -112,6 +112,28 @@ def test_oversized_content_length_returns_413() -> None:
     assert _published(bus) == []
 
 
+def test_oversized_chunked_body_returns_413() -> None:
+    # A chunked request (streaming content, no Content-Length) must still be
+    # capped: the streaming reader aborts past max_body before buffering it.
+    bus = InMemoryEventBus()
+    client = _client(bus, max_body_bytes=16)
+    payload = ("y" * 100).encode()
+
+    def _chunks():
+        # Yielding an iterator makes httpx use chunked transfer encoding
+        # (no Content-Length header), exercising the streaming cap path.
+        yield payload
+
+    resp = client.post(
+        "/webhook",
+        content=_chunks(),
+        headers={"X-FDAI-Signature": _sign(SECRET, payload)},
+    )
+
+    assert resp.status_code == 413
+    assert _published(bus) == []
+
+
 def test_unparseable_body_returns_400() -> None:
     bus = InMemoryEventBus()
     client = _client(bus)

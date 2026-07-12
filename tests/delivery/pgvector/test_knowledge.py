@@ -78,8 +78,16 @@ def test_config_rejects_empty_dsn_secret() -> None:
 
 
 def test_config_rejects_unsafe_table_name() -> None:
-    with pytest.raises(ValueError, match="plain identifier"):
+    with pytest.raises(ValueError, match="identifier"):
         PgvectorKnowledgeConfig(dsn_secret="db/dsn", table="knowledge; DROP TABLE x")
+
+
+def test_config_rejects_non_ascii_table_name() -> None:
+    # str.isalnum() accepts non-ASCII letters; the strict regex must not.
+    with pytest.raises(ValueError, match="identifier"):
+        PgvectorKnowledgeConfig(dsn_secret="db/dsn", table="\ud14c\uc774\ube14")
+    with pytest.raises(ValueError, match="identifier"):
+        PgvectorKnowledgeConfig(dsn_secret="db/dsn", table="1bad")  # leading digit
 
 
 def test_config_rejects_bad_overlap() -> None:

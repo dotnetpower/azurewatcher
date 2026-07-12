@@ -281,6 +281,22 @@ async def test_max_points_cap_fails_closed() -> None:
 
 
 @pytest.mark.asyncio
+async def test_response_over_byte_cap_fails_closed() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        body = _jsonl(
+            *[{"result": {"_time": str(1700000000 + i), "value": str(i)}} for i in range(50)]
+        )
+        return httpx.Response(200, text=body)
+
+    provider, client, _ = _provider(handler, cfg=_config(max_response_bytes=64))
+    try:
+        with pytest.raises(MetricProviderError, match="over the .*byte cap"):
+            _ = [p async for p in provider.query(MetricQuery(metric_name=_METRIC))]
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_malformed_json_line_fails_closed() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, text="{not json}")

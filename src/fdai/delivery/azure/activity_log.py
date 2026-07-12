@@ -179,9 +179,15 @@ class AzureActivityLogFactory:
         if not start:
             since = datetime.now(tz=UTC) - timedelta(seconds=self._config.initial_lookback_seconds)
             start = since.isoformat()
-        # Guard against a filter-injection attempt in the persisted cursor.
-        if "'" in start:
-            raise ActivityLogError("illegal character in resume cursor")
+        else:
+            # Parse-and-canonicalize the persisted resume cursor rather than
+            # trusting it verbatim: only a valid RFC 3339 timestamp is folded
+            # into the OData ``$filter``, so a corrupt or hostile cursor
+            # cannot smuggle filter syntax into the query.
+            parsed = _parse_ts(start)
+            if parsed is None:
+                raise ActivityLogError("resume cursor is not a valid RFC 3339 timestamp")
+            start = parsed.isoformat()
         flt = f"eventTimestamp ge '{start}'"
         return (
             f"{self._config.arg_endpoint.rstrip('/')}"

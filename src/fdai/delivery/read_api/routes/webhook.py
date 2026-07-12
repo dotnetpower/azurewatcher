@@ -76,9 +76,15 @@ def make_webhook_route(
                 if int(declared_len) > max_body:
                     return _error(413, "body too large")
             except ValueError:
-                pass  # non-numeric header: fall through to the post-read cap
+                pass  # non-numeric header: fall through to the streaming cap
 
-        raw = await request.body()
+        # Stream the body with a hard cap so a chunked request that omits
+        # Content-Length cannot bypass the size limit and exhaust memory -
+        # a post-read length check would already have buffered the whole body.
+        raw = await _read_capped(request, max_body)
+        if raw is None:
+            return _error(413, "body too large")
+
         headers = {k: v for k, v in request.headers.items()}
         result = await ingress.handle(headers=headers, body=raw)
         status = _status_for(result)
@@ -106,6 +112,24 @@ def make_webhook_route(
 
 def _error(status: int, reason: str) -> JSONResponse:
     return JSONResponse({"accepted": False, "reason": reason}, status_code=status)
+
+
+async def _read_capped(request: Request, max_body: int) -> bytes | None:
+    """Read the request body incrementally, aborting past ``max_body``.
+
+    Returns the buffered bytes, or ``None`` when the stream exceeds the cap
+    (the caller renders 413). Unlike ``request.body()``, this never buffers
+    a body larger than the cap - the guard for a chunked request that omits
+    ``Content-Length``.
+    """
+    total = 0
+    chunks: list[bytes] = []
+    async for chunk in request.stream():
+        total += len(chunk)
+        if total > max_body:
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 __all__ = ["DEFAULT_WEBHOOK_PATH", "make_webhook_route"]
