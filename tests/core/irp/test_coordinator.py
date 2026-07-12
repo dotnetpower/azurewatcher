@@ -169,3 +169,30 @@ async def test_approval_gate_fault_fails_closed_to_timeout() -> None:
     assert result.proposal is not None  # a proposal was built and routed
     assert result.decision is ApprovalDecision.TIMEOUT
     assert notifier.sent  # the decision was still notified
+
+
+class _RaisingInvestigator:
+    async def investigate(self, request):  # noqa: ANN001, ANN201
+        raise RuntimeError("analyzer exploded")
+
+
+@pytest.mark.asyncio
+async def test_investigator_fault_fails_closed_to_no_finding() -> None:
+    # A raising investigator (analyzer defect / unwrapped provider fault) must
+    # not crash respond() or lose the audit trail; it abstains to a no-op
+    # NO_FINDING and still returns an IrpResult + notifies.
+    notifier = _RecordingNotifier()
+    coordinator = IrpCoordinator(
+        investigator=_RaisingInvestigator(),  # type: ignore[arg-type]
+        approval_gate=_FixedGate(ApprovalDecision.APPROVED),
+        notifier=notifier,
+        default_channels=("teams://sre",),
+        wall_clock=lambda: _NOW,
+    )
+
+    result = await coordinator.respond(_alert())
+
+    assert result.outcome is IrpOutcome.NO_FINDING
+    assert result.proposal is None
+    assert result.report.outcome.value == "abstained"
+    assert notifier.sent  # the failure was notified

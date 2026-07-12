@@ -206,6 +206,20 @@ class IrpCoordinator:
                 ),
             )
             return self._result(alert, IrpOutcome.NO_FINDING, report, None, None, channels, started)
+        except Exception:  # noqa: BLE001 - fail closed: a broken investigator is a no-op, not a crash
+            # respond() owes an auditable IrpResult for every alert. A raising
+            # investigator (an analyzer defect, an unwrapped provider fault)
+            # MUST abstain to a no-op finding, never crash the response and
+            # lose the audit trail. CancelledError (a BaseException) still
+            # propagates so a cancelled response aborts.
+            _LOGGER.error("irp_investigation_failed", extra={"alert_id": alert.alert_id})
+            report = self._errored_report(request, started)
+            await self._notify(
+                channels,
+                subject=f"[IRP] {alert.alert_id}: investigation failed",
+                body="Investigation raised an error; no action taken.",
+            )
+            return self._result(alert, IrpOutcome.NO_FINDING, report, None, None, channels, started)
 
         top = self._top_actionable(report)
         if top is None:
@@ -291,6 +305,32 @@ class IrpCoordinator:
             elapsed_seconds=bound,
             budget_seconds=request.budget_seconds,
             analyzer_errors=(("*", "investigation_timeout"),),
+        )
+
+    def _errored_report(
+        self, request: InvestigationRequest, started: datetime
+    ) -> InvestigationReport:
+        """Synthesize an empty ABSTAINED report for a raising investigation.
+
+        Distinct from a timeout (the backend did not merely run long, it
+        failed): the outcome abstains so the alert is a no-op that still
+        carries an auditable record of the fault.
+        """
+        return InvestigationReport(
+            investigation_id=f"inv-error-{uuid4().hex[:8]}",
+            requested_by=request.requested_by,
+            requested_at=started,
+            window_seconds=request.window_seconds,
+            resources=request.resources,
+            outcome=InvestigationOutcome.ABSTAINED,
+            findings=(),
+            timeline=(),
+            correlation=(),
+            root_cause=None,
+            recommendations=(),
+            elapsed_seconds=0.0,
+            budget_seconds=request.budget_seconds,
+            analyzer_errors=(("*", "investigation_error"),),
         )
 
     async def _notify(self, channels: Sequence[str], *, subject: str, body: str) -> None:
