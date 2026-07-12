@@ -199,10 +199,13 @@ structure (`AGENT_ROLE` + `ORG_CHART` in
 [agent-pantheon.md § 2](../docs/roadmap/agents/agent-pantheon.md)): Odin at the
 root, Thor (operations) and Forseti (judgment) reporting to it, recovery /
 narration / approval under Thor, sensing / domain specialists under Forseti, and
-the four governance staff on a dotted line to Odin. Both layouts share the same
-live nodes ([`renderNode`](src/routes/agents.tsx)); the org mode adds a faint
-reporting-line overlay ([`OrgReportingLines`](src/routes/agents.tsx)) and shows
-each agent's role title in place of the state label (the live ring still pulses).
+the four governance staff on a dotted line to Odin. **Org chart is the default
+view**; both layouts share the same live nodes ([`renderNode`](src/routes/agents.tsx)),
+each carrying the agent's line icon (from `public/agent-icons/<name>.svg`, painted
+via a CSS mask so the monochrome glyph tints to the agent's accent colour) inside
+its live status ring. The org mode adds a faint reporting-line overlay
+([`OrgReportingLines`](src/routes/agents.tsx)) and shows each agent's role title
+in place of the state label (the live ring still pulses).
 
 Clicking any agent (in either layout) opens the
 [`AgentFocus`](src/routes/agents.tsx) side panel: the role title + one-line duty,

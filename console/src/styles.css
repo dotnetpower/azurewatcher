@@ -4520,9 +4520,27 @@ main { padding-bottom: 60px !important; }
   border-radius: 50%;
   border: 3px solid var(--agent-color, #94a3b8);
   background: color-mix(in srgb, var(--agent-color, #94a3b8) 15%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition:
     border-color 0.3s ease,
     box-shadow 0.3s ease;
+}
+
+/* Per-agent line glyph, painted via a mask so the monochrome SVG tints to the
+   agent's accent colour (an <img> could not inherit CSS color). The mask-image
+   url is set inline per agent in agents.tsx::renderNode. */
+.agent-icon {
+  width: 22px;
+  height: 22px;
+  background-color: var(--agent-color, #94a3b8);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
 }
 
 .agent-name {

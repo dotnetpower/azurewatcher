@@ -68,6 +68,17 @@ const EMPTY_GEOMETRY: Geometry = { centers: {}, w: 0, h: 0 };
 /** How many incidents the side list shows before the "All" toggle. */
 const INCIDENT_PREVIEW = 10;
 
+/**
+ * CSS `mask-image` url for an agent's line icon (served from `public/
+ * agent-icons/<name>.svg`). The SVGs are monochrome `currentColor` strokes,
+ * so they are painted via a mask tinted to the agent's accent colour rather
+ * than an `<img>` (which cannot inherit CSS `color`). Base-path aware so the
+ * console still finds them when mounted under a subpath.
+ */
+function agentIconUrl(name: string): string {
+  return `url("${import.meta.env.BASE_URL}agent-icons/${name.toLowerCase()}.svg")`;
+}
+
 /** Stable hue (0-360) for an incident so its links + label share a colour. */
 function hueForIncident(correlationId: string): number {
   let h = 0;
@@ -126,7 +137,9 @@ export function AgentsRoute({ client: _client }: Props) {
 
   // Layout mode: the free "constellation" grid, or the hierarchical "org"
   // chart that shows who reports to whom. Both share the same live nodes.
-  const [layout, setLayout] = useState<"constellation" | "org">("constellation");
+  // Defaults to the org chart so the pantheon's roles + reporting lines are
+  // the first thing an operator sees.
+  const [layout, setLayout] = useState<"constellation" | "org">("org");
 
   // Agent the operator clicked to focus - drives the "what events is this
   // agent in" side panel. Independent from the selected incident.
@@ -247,6 +260,7 @@ export function AgentsRoute({ client: _client }: Props) {
     const incident = node.correlationId ? (state.incidents[node.correlationId] ?? null) : null;
     const role = AGENT_ROLE[name];
     const subLabel = layout === "org" && role ? role.title : (_STATE_LABEL[node.state] ?? node.state);
+    const iconUrl = agentIconUrl(name);
     return (
       <button
         key={name}
@@ -264,7 +278,12 @@ export function AgentsRoute({ client: _client }: Props) {
         onMouseLeave={() => setHoveredAgent((cur) => (cur === name ? null : cur))}
         onClick={() => setSelectedAgent((cur) => (cur === name ? null : name))}
       >
-        <span class="agent-ring" aria-hidden="true" />
+        <span class="agent-ring" aria-hidden="true">
+          <span
+            class="agent-icon"
+            style={{ WebkitMaskImage: iconUrl, maskImage: iconUrl }}
+          />
+        </span>
         <span class="agent-name">{name}</span>
         <span class="agent-state">{subLabel}</span>
         <AgentHoverCard node={node} incident={incident} />
