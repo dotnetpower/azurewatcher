@@ -4,243 +4,184 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Calm Slate - FDAI UI Kit</title>
-  <link rel="stylesheet" href="assets/calm-slate.css" />
+  <style>
+    /* Self-contained shell so the kit landing does not depend on the mock
+       stylesheet it browses. Palette mirrors calm-slate. */
+    :root {
+      --cs-bg: #FBFAF9; --cs-card: #FFFFFF;
+      --cs-text: #2C333A; --cs-text-soft: #6B7178;
+      --cs-hairline: #E3E1DE; --cs-shade: #F4F2F0;
+      --cs-steel: #44688E; --cs-navy: #3E4C59;
+      --cs-sage: #5E8259; --cs-terracotta: #BC7449;
+      --cs-dusty-red: #AC5A5A; --cs-teal: #4F847E; --cs-plum: #7B6C9C;
+      --cs-radius: 14px; --cs-radius-sm: 9px;
+      --cs-shadow: 0 1px 2px rgba(15, 23, 30, .04);
+      --nav-w: 260px;
+      --hdr-h: 52px;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; background: var(--cs-bg); color: var(--cs-text); font: 14px/1.55 "Segoe UI","Malgun Gothic",sans-serif; }
+    a { color: var(--cs-steel); text-decoration: none; }
+    code { font-family: "Cascadia Code","Consolas",monospace; font-size: .88em; background: var(--cs-shade); padding: .12em .4em; border-radius: 5px; }
+
+    /* ---------- Shell layout ---------- */
+    .app { display: grid; grid-template-columns: var(--nav-w) minmax(0, 1fr); grid-template-rows: var(--hdr-h) 1fr; height: 100vh; }
+    .hdr { grid-column: 1 / 3; display: flex; align-items: center; gap: 14px; padding: 0 18px; background: var(--cs-card); border-bottom: 1px solid var(--cs-hairline); }
+    .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: 13px; color: var(--cs-navy); }
+    .brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--cs-steel); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 700; }
+    .brand-tag { color: var(--cs-text-soft); font-weight: 500; text-transform: none; letter-spacing: 0; font-size: 12.5px; margin-left: 4px; }
+    .hdr .now { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--cs-text-soft); min-width: 0; }
+    .hdr .now strong { color: var(--cs-text); font-weight: 600; }
+    .hdr .now .path { font-family: "Cascadia Code","Consolas",monospace; font-size: 11.5px; color: var(--cs-text-soft); }
+    .hdr .now .open { padding: 4px 10px; border-radius: var(--cs-radius-sm); border: 1px solid var(--cs-hairline); color: var(--cs-steel); font-size: 12px; font-weight: 500; background: var(--cs-card); }
+    .hdr .now .open:hover { background: var(--cs-shade); text-decoration: none; }
+
+    /* ---------- Sidebar ---------- */
+    .side { grid-row: 2 / 3; padding: 12px 10px 24px; overflow-y: auto; background: var(--cs-card); border-right: 1px solid var(--cs-hairline); }
+    .side h3 { margin: 14px 8px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--cs-text-soft); font-weight: 700; }
+    .side h3:first-of-type { margin-top: 4px; }
+    .side ul { list-style: none; margin: 0; padding: 0; }
+    .side li { margin: 1px 0; }
+    .side a { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--cs-radius-sm); font-size: 13px; color: var(--cs-text); }
+    .side a:hover { background: var(--cs-shade); text-decoration: none; }
+    .side a.is-active { background: rgba(68,104,142,.10); color: var(--cs-navy); font-weight: 600; border: 1px solid rgba(68,104,142,.20); padding: 5px 9px; }
+    .side a .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cs-hairline); flex: 0 0 auto; }
+    .side a .dot.is-sage       { background: var(--cs-sage); }
+    .side a .dot.is-steel      { background: var(--cs-steel); }
+    .side a .dot.is-plum       { background: var(--cs-plum); }
+    .side a .dot.is-teal       { background: var(--cs-teal); }
+    .side a .dot.is-terracotta { background: var(--cs-terracotta); }
+    .side a .dot.is-dusty-red  { background: var(--cs-dusty-red); }
+    .side a .dot.is-navy       { background: var(--cs-navy); }
+
+    /* ---------- Preview frame ---------- */
+    .preview { grid-row: 2 / 3; position: relative; background: var(--cs-bg); }
+    .preview iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--cs-bg); }
+
+    /* Compact mobile: sidebar becomes a scrollable strip above the frame. */
+    @media (max-width: 780px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: var(--hdr-h) auto 1fr; }
+      .side { grid-row: 2 / 3; grid-column: 1; border-right: 0; border-bottom: 1px solid var(--cs-hairline); max-height: 40vh; }
+      .preview { grid-row: 3 / 4; }
+    }
+  </style>
 </head>
 <body>
-  <header class="cs-topbar">
-    <div class="cs-container cs-topbar-inner">
-      <span class="cs-brand"><span class="cs-brand-mark">AW</span> FDAI</span>
-      <nav class="cs-nav">
-        <a href="live.html">Live</a>
-        <a href="dashboard.html">Overview</a>
-        <a href="hil.html">HIL</a>
-        <a href="promotion.html">Promotion</a>
-        <a href="rules.html">Rules</a>
-        <a href="actions.html">Actions</a>
-        <a href="audit.html">Audit</a>
-        <a href="report.html">Report</a>
-        <a href="index.html" class="cs-active">Kit</a>
-      </nav>
+  <div class="app">
+    <!-- ============================ Header ============================ -->
+    <header class="hdr">
+      <span class="brand"><span class="brand-mark">AW</span> FDAI <span class="brand-tag">calm-slate kit</span></span>
+      <span class="now">
+        <strong id="now-title">Overview</strong>
+        <span class="path" id="now-path">dashboard.html</span>
+        <a class="open" id="now-open" href="dashboard.html" target="_blank" rel="noopener">Open in new tab &rarr;</a>
+      </span>
+    </header>
+
+    <!-- ============================ Sidebar ============================ -->
+    <aside class="side" aria-label="Kit navigation">
+      <h3>Console</h3>
+      <ul>
+        <li><a data-page="live.html"                 data-title="Live"><span class="dot"></span>Live</a></li>
+        <li><a data-page="dashboard.html"            data-title="Overview"><span class="dot is-sage"></span>Overview</a></li>
+        <li><a data-page="hil.html"                  data-title="HIL queue"><span class="dot is-terracotta"></span>HIL queue</a></li>
+        <li><a data-page="promotion.html"            data-title="Promotion"><span class="dot is-teal"></span>Promotion</a></li>
+        <li><a data-page="rules.html"                data-title="Rules"><span class="dot"></span>Rules</a></li>
+        <li><a data-page="actions.html"              data-title="Actions (ontology)"><span class="dot is-plum"></span>Actions (ontology)</a></li>
+        <li><a data-page="audit.html"                data-title="Audit"><span class="dot is-terracotta"></span>Audit</a></li>
+      </ul>
+
+      <h3>Fleet &amp; safety</h3>
+      <ul>
+        <li><a data-page="agents.html"               data-title="Fleet roster"><span class="dot is-sage"></span>Fleet roster</a></li>
+        <li><a data-page="agents-constellation.html" data-title="Fleet - constellation"><span class="dot"></span>Constellation</a></li>
+        <li><a data-page="pantheon.html"             data-title="Pantheon"><span class="dot is-plum"></span>Pantheon</a></li>
+        <li><a data-page="agent-activity.html"       data-title="Agent activity"><span class="dot"></span>Agent activity</a></li>
+        <li><a data-page="blast-radius.html"         data-title="Blast radius"><span class="dot is-terracotta"></span>Blast radius</a></li>
+        <li><a data-page="provision.html"            data-title="Provisioning"><span class="dot"></span>Provisioning</a></li>
+        <li><a data-page="llm-cost.html"             data-title="LLM cost"><span class="dot is-teal"></span>LLM cost</a></li>
+      </ul>
+
+      <h3>Knowledge</h3>
+      <ul>
+        <li><a data-page="ontology.html"             data-title="Ontology"><span class="dot is-plum"></span>Ontology</a></li>
+        <li><a data-page="rule-trace.html"           data-title="Rule trace"><span class="dot is-teal"></span>Rule trace</a></li>
+        <li><a data-page="workflow-builder.html"     data-title="Workflow builder"><span class="dot"></span>Workflow builder</a></li>
+      </ul>
+
+      <h3>Chat</h3>
+      <ul>
+        <li><a data-page="deck.html"                 data-title="Command deck"><span class="dot is-plum"></span>Command deck</a></li>
+        <li><a data-page="deck-sources.html"         data-title="Deck - sources / grounding"><span class="dot"></span>Deck sources</a></li>
+      </ul>
+
+      <h3>Report &amp; kit</h3>
+      <ul>
+        <li><a data-page="report.html"               data-title="Weekly report"><span class="dot is-terracotta"></span>Weekly report</a></li>
+        <li><a data-page="components.html"           data-title="Component gallery"><span class="dot"></span>Components</a></li>
+      </ul>
+
+      <h3>Explorations</h3>
+      <ul>
+        <li><a data-page="agent-icons.html"          data-title="Agent icons (draft)"><span class="dot is-plum"></span>Agent icons</a></li>
+        <li><a data-page="hcard-variants.html"       data-title="HIL card variants (design decision)"><span class="dot is-teal"></span>HIL card variants</a></li>
+      </ul>
+    </aside>
+
+    <!-- ============================ Preview frame ============================ -->
+    <div class="preview">
+      <iframe id="preview-frame" title="Kit preview" loading="lazy"></iframe>
     </div>
-  </header>
+  </div>
 
-  <main class="cs-container cs-page">
-    <div class="cs-page-header cs-mb-24">
-      <div class="cs-eyebrow">Calm Slate Theme</div>
-      <h1>FDAI UI Kit</h1>
-      <p class="cs-lead">A toned-down, report-oriented component library for the read-only
-        operator console and generated reports. Desaturated palette, hairline borders, soft
-        shadows - calm and professional, with no color bands or neon accents.</p>
-    </div>
+  <script>
+    // Left-nav router: clicking a link swaps the iframe src, updates the
+    // header badge, and rewrites the URL hash so the state is bookmarkable.
+    // No page reload, no build step - static HTML only.
+    (function () {
+      const frame = document.getElementById('preview-frame');
+      const nowTitle = document.getElementById('now-title');
+      const nowPath = document.getElementById('now-path');
+      const nowOpen = document.getElementById('now-open');
+      const items = Array.from(document.querySelectorAll('.side [data-page]'));
 
-    <div class="cs-flex cs-wrap cs-gap-8 cs-mb-24">
-      <span class="cs-tag is-steel"><span class="cs-tag-dot"></span> read-only console</span>
-      <span class="cs-tag is-sage">deterministic-first</span>
-      <span class="cs-tag is-teal">event-driven</span>
-      <span class="cs-tag is-plum">shadow before enforce</span>
-    </div>
+      function open(page, title) {
+        if (!page) return;
+        if (!title) {
+          const a = items.find((el) => el.dataset.page === page);
+          title = a ? a.dataset.title : page.replace(/\.html$/, '');
+        }
+        frame.src = page;
+        nowTitle.textContent = title;
+        nowPath.textContent = page;
+        nowOpen.setAttribute('href', page);
+        items.forEach((el) => el.classList.toggle('is-active', el.dataset.page === page));
+        try { history.replaceState(null, '', '#' + page); } catch (_) { /* opaque hash ok */ }
+        if (window.matchMedia && window.matchMedia('(max-width: 780px)').matches) {
+          document.querySelector('.preview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
 
-    <!-- Palette -->
-    <section class="cs-section">
-      <div class="cs-section-head">
-        <span class="cs-badge-num">1</span>
-        <div class="cs-section-title">
-          <h2>Palette</h2>
-          <p class="cs-desc">Desaturated tones only. Steel blue and slate navy lead; accents stay muted.</p>
-        </div>
-      </div>
+      items.forEach((a) => {
+        // Give every link a real href so middle-click / open-in-new-tab
+        // still works and the page degrades gracefully without JS.
+        a.setAttribute('href', a.dataset.page);
+        a.addEventListener('click', (ev) => {
+          if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button === 1) return;
+          ev.preventDefault();
+          open(a.dataset.page, a.dataset.title);
+        });
+      });
 
-      <h3 class="cs-mb-8">Surfaces &amp; text</h3>
-      <div class="cs-swatches cs-mb-24">
-        <div class="cs-swatch"><div class="cs-swatch-color" style="background:#FBFAF9"></div><div class="cs-swatch-meta"><div class="cs-swatch-name">Background</div><div class="cs-swatch-hex">#FBFAF9</div></div></div>
-        <div class="cs-swatch"><div class="cs-swatch-color" style="background:#FFFFFF"></div><div class="cs-swatch-meta"><div class="cs-swatch-name">Card</div><div class="cs-swatch-hex">#FFFFFF</div></div></div>
-        <div class="cs-swatch"><div class="cs-swatch-color" style="background:#2C333A"></div><div class="cs-swatch-meta"><div class="cs-swatch-name">Text</div><div class="cs-swatch-hex">#2C333A</div></div></div>
-        <div class="cs-swatch"><div class="cs-swatch-color" style="background:#6B7178"></div><div class="cs-swatch-meta"><div class="cs-swatch-name">Text soft</div><div class="cs-swatch-hex">#6B7178</div></div></div>
-        <div class="cs-swatch"><div class="cs-swatch-color" style="background:#E3E1DE"></div><div class="cs-swatch-meta"><div class="cs-swatch-name">Hairline</div><div class="cs-swatch-hex">#E3E1DE</div></div></div>
-      </div>
+      window.addEventListener('hashchange', () => {
+        const p = decodeURIComponent(location.hash.replace(/^#/, ''));
+        if (p) open(p);
+      });
 
-      <h3 class="cs-mb-8">Primary &amp; accents</h3>
-      <div class="cs-swatches">
-        <div class="cs-swatch"><div class="cs-swatch-color" style="background:#44688E"></div><div class="cs-swatch-meta"><div class="cs-swatch-name">Steel blue</div><div class="cs-swatch-hex">#44688E</div></div></div>
-        <div class="cs-swatch"><div class="cs-swatch-color" style="background:#3E4C59"></div><div class="cs-swatch-meta"><div class="cs-swatch-name">Slate navy</div><div class="cs-swatch-hex">#3E4C59</div></div></div>
-        <div class="cs-swatch"><div class="cs-swatch-color" style="background:#5E8259"></div><div class="cs-swatch-meta"><div class="cs-swatch-name">Sage green</div><div class="cs-swatch-hex">#5E8259</div></div></div>
-        <div class="cs-swatch"><div class="cs-swatch-color" style="background:#BC7449"></div><div class="cs-swatch-meta"><div class="cs-swatch-name">Terracotta</div><div class="cs-swatch-hex">#BC7449</div></div></div>
-        <div class="cs-swatch"><div class="cs-swatch-color" style="background:#AC5A5A"></div><div class="cs-swatch-meta"><div class="cs-swatch-name">Dusty red</div><div class="cs-swatch-hex">#AC5A5A</div></div></div>
-        <div class="cs-swatch"><div class="cs-swatch-color" style="background:#4F847E"></div><div class="cs-swatch-meta"><div class="cs-swatch-name">Teal</div><div class="cs-swatch-hex">#4F847E</div></div></div>
-        <div class="cs-swatch"><div class="cs-swatch-color" style="background:#7B6C9C"></div><div class="cs-swatch-meta"><div class="cs-swatch-name">Plum</div><div class="cs-swatch-hex">#7B6C9C</div></div></div>
-      </div>
-    </section>
-
-    <!-- What's inside -->
-    <section class="cs-section">
-      <div class="cs-section-head">
-        <span class="cs-badge-num">2</span>
-        <div class="cs-section-title">
-          <h2>Pages</h2>
-          <p class="cs-desc">The read-only operator console (six screens) plus the report and the component gallery.</p>
-        </div>
-      </div>
-
-      <h3 class="cs-mb-8">Operator console</h3>
-      <div class="cs-grid cs-grid-3 cs-mb-24">
-        <a class="cs-card cs-card-hover" href="live.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent"></div>
-          <h3>Live <span class="cs-live-heartbeat" style="display:inline-block;vertical-align:middle;margin-left:8px" aria-hidden="true"></span></h3>
-          <p class="cs-muted cs-mb-0">Activity swarm - every tile is one control-plane action flowing through T0, T1, or T2.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="dashboard.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-sage"></div>
-          <h3>Overview</h3>
-          <p class="cs-muted cs-mb-0">KPIs, guard metrics, tier &amp; risk-gate distribution, top HIL items, recent audit.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="hil.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-terracotta"></div>
-          <h3>HIL queue</h3>
-          <p class="cs-muted cs-mb-0">Plain-first approval cards - what, why, confidence, safety, who approves.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="promotion.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-teal"></div>
-          <h3>Promotion</h3>
-          <p class="cs-muted cs-mb-0">Shadow &rarr; enforce candidates and the four gate checks; auto-demotion path.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="rules.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent"></div>
-          <h3>Rules</h3>
-          <p class="cs-muted cs-mb-0">Catalog, collected candidates from the discovery loop, and scoped overrides.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="actions.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-plum"></div>
-          <h3>Actions</h3>
-          <p class="cs-muted cs-mb-0">ActionType ontology - trigger, execution path, rollback contract, six-axis risk ceiling.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="audit.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-terracotta"></div>
-          <h3>Audit</h3>
-          <p class="cs-muted cs-mb-0">Append-only stream: execute, reject, timeout, abstain, deny, override, rollback.</p>
-        </a>
-      </div>
-
-      <h3 class="cs-mb-8">Fleet &amp; safety</h3>
-      <div class="cs-grid cs-grid-3 cs-mb-24">
-        <a class="cs-card cs-card-hover" href="agents.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-sage"></div>
-          <h3>Fleet</h3>
-          <p class="cs-muted cs-mb-0">Roster of the 15 pantheon agents - running / idle / recovering / shadow, throughput, chat entry.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="agents-constellation.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent"></div>
-          <h3>Fleet &middot; constellation</h3>
-          <p class="cs-muted cs-mb-0">Console-style org chart with focus rings + the per-incident agent-to-agent conversation panel.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="pantheon.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-plum"></div>
-          <h3>Pantheon</h3>
-          <p class="cs-muted cs-mb-0">Directory grouped by governance / pipeline / domain layer, plus the reporting tree.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="agent-activity.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent"></div>
-          <h3>Agent activity</h3>
-          <p class="cs-muted cs-mb-0">Per-agent timeline projected from the audit log - execute / approve / reject / rollback / audit.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="blast-radius.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-terracotta"></div>
-          <h3>Blast radius</h3>
-          <p class="cs-muted cs-mb-0">Per-action impact rings and the cap bars enforced by the risk gate.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="provision.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent"></div>
-          <h3>Provisioning</h3>
-          <p class="cs-muted cs-mb-0">Live view of an in-flight re-provision - Terraform stream, resource list, on-done console URL.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="llm-cost.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-teal"></div>
-          <h3>LLM cost</h3>
-          <p class="cs-muted cs-mb-0">Per-tier budgets, event mix, 7-day trend, and the per-model attribution table.</p>
-        </a>
-      </div>
-
-      <h3 class="cs-mb-8">Knowledge (ontology + trace)</h3>
-      <div class="cs-grid cs-grid-3 cs-mb-24">
-        <a class="cs-card cs-card-hover" href="ontology.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-plum"></div>
-          <h3>Ontology</h3>
-          <p class="cs-muted cs-mb-0">ObjectType + LinkType registry, one-hop neighborhood, per-type detail.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="rule-trace.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-teal"></div>
-          <h3>Rule trace</h3>
-          <p class="cs-muted cs-mb-0">The full pipeline path for one correlation id - ingest, router, gates, dispatch, audit.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="workflow-builder.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent"></div>
-          <h3>Workflow builder</h3>
-          <p class="cs-muted cs-mb-0">Read-only visual view of a `when &rarr; do` workflow: palette, node canvas, safety inspector.</p>
-        </a>
-      </div>
-
-      <h3 class="cs-mb-8">Explorations &amp; references</h3>
-      <div class="cs-grid cs-grid-3 cs-mb-24">
-        <a class="cs-card cs-card-hover" href="deck-sources.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent"></div>
-          <h3>Command deck &middot; sources</h3>
-          <p class="cs-muted cs-mb-0">How Bragi streams retrieval + grounded-reply citations into the conversational deck.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="agent-icons.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-plum"></div>
-          <h3>Agent icons</h3>
-          <p class="cs-muted cs-mb-0">Draft glyph / avatar set for the 15 pantheon agents; feeds Fleet and Pantheon.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="hcard-variants.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-teal"></div>
-          <h3>HIL card variants</h3>
-          <p class="cs-muted cs-mb-0">Side-by-side comparison of 5 severity-affordance options (A baseline &rarr; E whole-card tint, picked).</p>
-        </a>
-      </div>
-
-      <h3 class="cs-mb-8">Report &amp; kit</h3>
-      <div class="cs-grid cs-grid-2">
-        <a class="cs-card cs-card-hover" href="report.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent is-terracotta"></div>
-          <h3>Report</h3>
-          <p class="cs-muted cs-mb-0">Weekly review - numbered sections, headline metrics, AS-IS / TO-BE, findings table.</p>
-        </a>
-        <a class="cs-card cs-card-hover" href="components.html" style="text-decoration:none;color:inherit">
-          <div class="cs-kpi-accent"></div>
-          <h3>Components</h3>
-          <p class="cs-muted cs-mb-0">KPI cards, tables, tags, severity badges, alerts, forms, tabs, tier chips.</p>
-        </a>
-      </div>
-    </section>
-
-    <!-- Principles reminder -->
-    <section class="cs-section">
-      <div class="cs-section-head">
-        <span class="cs-badge-num">3</span>
-        <div class="cs-section-title">
-          <h2>Design principles</h2>
-          <p class="cs-desc">The kit encodes the app-shape rules, not just a look.</p>
-        </div>
-      </div>
-      <div class="cs-grid cs-grid-2">
-        <div class="cs-alert is-info"><div class="cs-alert-bar"></div><div>
-          <h4>Read-only surface</h4>
-          <p>The console visualizes state and the HIL queue. It never executes actions; approvals
-             flow through ChatOps or a remediation PR.</p>
-        </div></div>
-        <div class="cs-alert is-success"><div class="cs-alert-bar"></div><div>
-          <h4>Calm, desaturated</h4>
-          <p>No primary/neon colors and no top/bottom color bands. Muted accents carry meaning
-             (severity, tier, trend) without shouting.</p>
-        </div></div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="cs-footer">
-    <div class="cs-container cs-flex-between cs-wrap">
-      <span>FDAI UI kit - Calm Slate theme. Static demo, English-only, customer-agnostic.</span>
-      <span class="cs-muted">Segoe UI / Malgun Gothic</span>
-    </div>
-  </footer>
+      const initial = decodeURIComponent(location.hash.replace(/^#/, '')) || 'dashboard.html';
+      open(initial);
+    })();
+  </script>
 </body>
 </html>

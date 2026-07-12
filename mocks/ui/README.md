@@ -44,6 +44,13 @@ Knowledge surfaces (ontology + trace):
 | [rule-trace.html](rule-trace.html) | Per-correlation timeline - the full pipeline path (ingest &rarr; router &rarr; quality gate &rarr; risk gate &rarr; dispatch &rarr; audit) for one event id |
 | [workflow-builder.html](workflow-builder.html) | Read-only visual view of a `when &rarr; do` workflow - ActionType palette, node/edge canvas, per-step inspector with safety facts |
 
+Chat surfaces:
+
+| File | Purpose |
+|------|---------|
+| [deck.html](deck.html) | Command deck (chat) - 3-column shell: sessions list, transcript with operator + Bragi + handoff turns, grounded-citations, right-side retrieval trace with per-source relevance |
+| [deck-sources.html](deck-sources.html) | Same conversation surface zoomed into how Bragi streams retrieval + citations into an in-progress reply |
+
 Report and kit:
 
 | File | Purpose |
