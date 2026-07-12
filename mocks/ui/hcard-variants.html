@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HIL card - severity affordance variants - FDAI Console</title>
+  <link rel="stylesheet" href="assets/calm-slate.css" />
+  <style>
+    /* ----- Variant-local styles (kept scoped so nothing in the base kit changes) ----- */
+
+    .vx-legend { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px; color: var(--cs-text-soft); margin-bottom: 20px; }
+    .vx-legend .cs-tag { background: var(--cs-card); }
+
+    .vx-section { margin: 28px 0 8px; padding-top: 20px; border-top: 1px dashed var(--cs-hairline); }
+    .vx-section:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+    .vx-section h2 { margin: 0 0 4px; font-size: 18px; }
+    .vx-section .vx-desc { margin: 0 0 14px; color: var(--cs-text-soft); font-size: 13.5px; max-width: 68ch; }
+    .vx-section .vx-desc strong { color: var(--cs-text); font-weight: 600; }
+    .vx-tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+    .vx-tag.is-baseline { color: var(--cs-text-soft); background: var(--cs-shade); }
+    .vx-tag.is-rec { color: var(--cs-sage); background: rgba(94,130,89,.12); }
+
+    /* ---------- Variant B: no rail, severity icon in title row ---------- */
+    .vx-card-b { display: block; padding: 16px 18px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); box-shadow: var(--cs-shadow); margin-bottom: 14px; }
+    .vx-sev-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; margin-right: 4px; font-size: 12px; font-weight: 700; flex: 0 0 auto; }
+    .vx-sev-icon.is-critical { color: #fff; background: var(--cs-dusty-red); }
+    .vx-sev-icon.is-high     { color: #fff; background: var(--cs-terracotta); }
+    .vx-sev-icon.is-medium   { color: #fff; background: var(--cs-steel); }
+
+    /* ---------- Variant C: severity pill only (rail removed, everything else identical) ---------- */
+    .vx-card-c { display: block; padding: 16px 18px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); box-shadow: var(--cs-shadow); margin-bottom: 14px; }
+
+    /* ---------- Variant D: 2px top accent line ---------- */
+    .vx-card-d { display: block; padding: 16px 18px 16px; border: 1px solid var(--cs-hairline); border-top: 2px solid var(--cs-steel); border-radius: var(--cs-radius); background: var(--cs-card); box-shadow: var(--cs-shadow); margin-bottom: 14px; }
+    .vx-card-d.is-critical { border-top-color: var(--cs-dusty-red); }
+    .vx-card-d.is-high     { border-top-color: var(--cs-terracotta); }
+    .vx-card-d.is-medium   { border-top-color: var(--cs-steel); }
+
+    /* ---------- Variant E: very subtle background tint + soft border tint ---------- */
+    .vx-card-e { display: block; padding: 16px 18px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); box-shadow: var(--cs-shadow); margin-bottom: 14px; }
+    .vx-card-e.is-critical { background: linear-gradient(0deg, rgba(172,90,90,.04), rgba(172,90,90,.04)), var(--cs-card); border-color: rgba(172,90,90,.22); }
+    .vx-card-e.is-high     { background: linear-gradient(0deg, rgba(188,116,73,.04), rgba(188,116,73,.04)), var(--cs-card); border-color: rgba(188,116,73,.22); }
+    .vx-card-e.is-medium   { background: linear-gradient(0deg, rgba(68,104,142,.04), rgba(68,104,142,.04)), var(--cs-card); border-color: rgba(68,104,142,.22); }
+
+    /* ---------- Variant F: title-row eyebrow ("CRITICAL - REMEDIATION") ---------- */
+    .vx-card-f { display: block; padding: 16px 18px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); box-shadow: var(--cs-shadow); margin-bottom: 14px; }
+    .vx-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 4px; }
+    .vx-eyebrow.is-critical { color: var(--cs-dusty-red); }
+    .vx-eyebrow.is-high     { color: var(--cs-terracotta); }
+    .vx-eyebrow.is-medium   { color: var(--cs-steel); }
+    .vx-eyebrow .vx-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; vertical-align: 2px; }
+    .vx-eyebrow .vx-sep { color: var(--cs-hairline); margin: 0 8px; font-weight: 400; }
+    .vx-card-f .cs-hcard-head { margin-bottom: 4px; }
+
+    /* de-dup helper: when the eyebrow already says CRITICAL / REMEDIATION,
+       hide the same info from the right-side chip strip so it doesn't look
+       repeated. */
+    .vx-card-f .cs-risk,
+    .vx-card-f .cs-cat { display: none; }
+  </style>
+</head>
+<body>
+  <header class="cs-topbar">
+    <div class="cs-container cs-topbar-inner">
+      <span class="cs-brand"><span class="cs-brand-mark">AW</span> FDAI</span>
+      <nav class="cs-nav">
+        <a href="live.html">Live</a>
+        <a href="dashboard.html">Overview</a>
+        <a href="hil.html">HIL</a>
+        <a href="promotion.html">Promotion</a>
+        <a href="rules.html">Rules</a>
+        <a href="actions.html">Actions</a>
+        <a href="audit.html">Audit</a>
+        <a href="report.html">Report</a>
+        <a href="index.html">Kit</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="cs-container cs-page">
+    <div class="cs-page-header cs-mb-16">
+      <div class="cs-eyebrow">Design exploration &middot; internal</div>
+      <h1>HIL card - severity affordance variants</h1>
+      <p class="cs-lead">The current HIL / Overview card uses a 4&nbsp;px colored rail on the left
+        to signal severity. But the right-side <code>CRITICAL</code> pill already carries the same
+        color and word, so the rail is redundant. Below are five alternatives that keep the
+        severity legible without the left bar. All variants use the same underlying card - only
+        the severity affordance changes.</p>
+    </div>
+
+    <div class="vx-legend">
+      <span>Same content in every card:</span>
+      <span class="cs-risk critical">critical</span>
+      <span class="cs-tier t1">T1</span>
+      <span class="cs-cat remediation">remediation</span>
+      <span class="cs-vert resilience">resilience</span>
+    </div>
+
+
+    <!-- ============================================================
+         Variant A - baseline (current)
+         ============================================================ -->
+    <section class="vx-section">
+      <h2>A. Current baseline
+        <span class="vx-tag is-baseline">baseline</span>
+      </h2>
+      <p class="vx-desc"><strong>4&nbsp;px left rail</strong> tinted by severity, plus the right-side
+        <code>critical</code> pill. The rail and the pill both encode the same information.</p>
+
+      <div class="cs-hcard is-critical">
+        <div class="cs-hcard-rail"></div>
+        <div class="cs-hcard-body">
+          <div class="cs-hcard-head">
+            <h3 class="cs-hcard-title">Enable point-in-time recovery on managed database</h3>
+            <span class="cs-risk critical">critical</span>
+            <span class="cs-tier t1">T1</span>
+            <span class="cs-cat remediation">remediation</span>
+            <span class="cs-vert resilience">resilience</span>
+          </div>
+          <p class="cs-mb-0">Similarity match with a prior incident (score 0.93); verifier passed
+            schema + policy + what-if.</p>
+          <div class="cs-hcard-foot">
+            <span>waiting <strong style="color:var(--cs-text)">8m</strong></span>
+            <span>2 approvers &middot; break-glass allowed</span>
+            <span class="cs-mono">evt-01H7A4X-...</span>
+            <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         Variant B - severity icon in title row
+         ============================================================ -->
+    <section class="vx-section">
+      <h2>B. Small severity glyph next to the title</h2>
+      <p class="vx-desc">Rail removed. A <strong>tiny colored square with an icon</strong>
+        (<code>!</code> for critical, <code>&#9650;</code> for high, <code>&#9679;</code> for medium)
+        sits just before the title. Scannable at a glance, and works if the pill is off-screen on
+        narrow layouts.</p>
+
+      <div class="vx-card-b">
+        <div class="cs-hcard-head">
+          <span class="vx-sev-icon is-critical" aria-label="critical">!</span>
+          <h3 class="cs-hcard-title">Enable point-in-time recovery on managed database</h3>
+          <span class="cs-risk critical">critical</span>
+          <span class="cs-tier t1">T1</span>
+          <span class="cs-cat remediation">remediation</span>
+          <span class="cs-vert resilience">resilience</span>
+        </div>
+        <p class="cs-mb-0">Similarity match with a prior incident (score 0.93); verifier passed
+          schema + policy + what-if.</p>
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">8m</strong></span>
+          <span>2 approvers &middot; break-glass allowed</span>
+          <span class="cs-mono">evt-01H7A4X-...</span>
+          <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+        </div>
+      </div>
+
+      <div class="vx-card-b">
+        <div class="cs-hcard-head">
+          <span class="vx-sev-icon is-high" aria-label="high">&#9650;</span>
+          <h3 class="cs-hcard-title">Raise production autoscale floor from 2 to 4</h3>
+          <span class="cs-risk high">high</span>
+          <span class="cs-tier t2">T2</span>
+          <span class="cs-cat ops">ops</span>
+          <span class="cs-vert change">change safety</span>
+        </div>
+        <p class="cs-mb-0">T2 reasoner grounded on WAF-Reliability RL-08; verifier passed
+          policy + what-if.</p>
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">21m</strong></span>
+          <span>1 approver</span>
+          <span class="cs-mono">evt-01H7B2Q-...</span>
+          <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+        </div>
+      </div>
+
+      <div class="vx-card-b">
+        <div class="cs-hcard-head">
+          <span class="vx-sev-icon is-medium" aria-label="medium">&#9679;</span>
+          <h3 class="cs-hcard-title">Downgrade unused premium SKU on staging namespace</h3>
+          <span class="cs-risk medium">medium</span>
+          <span class="cs-tier t0">T0</span>
+          <span class="cs-cat governance">governance</span>
+          <span class="cs-vert cost">cost</span>
+        </div>
+        <p class="cs-mb-0">Deterministic match: <code>cost.right-sizing.medium</code>; blast radius
+          bounded to 1 namespace.</p>
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">1h 04m</strong></span>
+          <span>1 approver</span>
+          <span class="cs-mono">evt-01H7B3T-...</span>
+          <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         Variant C - severity pill only (rail removed, no other change)
+         ============================================================ -->
+    <section class="vx-section">
+      <h2>C. Just the severity pill
+        <span class="vx-tag is-rec">simplest</span>
+      </h2>
+      <p class="vx-desc">Rail deleted, nothing added. The right-side pill (<code>critical</code>,
+        <code>high</code>, <code>medium</code>) is already a colored token with a leading dot -
+        it does the whole job by itself. Cleanest and least visual noise.</p>
+
+      <div class="vx-card-c">
+        <div class="cs-hcard-head">
+          <h3 class="cs-hcard-title">Enable point-in-time recovery on managed database</h3>
+          <span class="cs-risk critical">critical</span>
+          <span class="cs-tier t1">T1</span>
+          <span class="cs-cat remediation">remediation</span>
+          <span class="cs-vert resilience">resilience</span>
+        </div>
+        <p class="cs-mb-0">Similarity match with a prior incident (score 0.93); verifier passed
+          schema + policy + what-if.</p>
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">8m</strong></span>
+          <span>2 approvers &middot; break-glass allowed</span>
+          <span class="cs-mono">evt-01H7A4X-...</span>
+          <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+        </div>
+      </div>
+
+      <div class="vx-card-c">
+        <div class="cs-hcard-head">
+          <h3 class="cs-hcard-title">Raise production autoscale floor from 2 to 4</h3>
+          <span class="cs-risk high">high</span>
+          <span class="cs-tier t2">T2</span>
+          <span class="cs-cat ops">ops</span>
+          <span class="cs-vert change">change safety</span>
+        </div>
+        <p class="cs-mb-0">T2 reasoner grounded on WAF-Reliability RL-08; verifier passed
+          policy + what-if.</p>
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">21m</strong></span>
+          <span>1 approver</span>
+          <span class="cs-mono">evt-01H7B2Q-...</span>
+          <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+        </div>
+      </div>
+
+      <div class="vx-card-c">
+        <div class="cs-hcard-head">
+          <h3 class="cs-hcard-title">Downgrade unused premium SKU on staging namespace</h3>
+          <span class="cs-risk medium">medium</span>
+          <span class="cs-tier t0">T0</span>
+          <span class="cs-cat governance">governance</span>
+          <span class="cs-vert cost">cost</span>
+        </div>
+        <p class="cs-mb-0">Deterministic match: <code>cost.right-sizing.medium</code>; blast radius
+          bounded to 1 namespace.</p>
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">1h 04m</strong></span>
+          <span>1 approver</span>
+          <span class="cs-mono">evt-01H7B3T-...</span>
+          <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         Variant D - 2px top accent line
+         ============================================================ -->
+    <section class="vx-section">
+      <h2>D. 2&nbsp;px top accent line</h2>
+      <p class="vx-desc">Instead of a left rail, a <strong>thin horizontal line across the top</strong>
+        of the card. Feels more like a "document header" - a bit more editorial. Reads well when
+        several cards are stacked because the accent lines up with the card top edge.</p>
+
+      <div class="vx-card-d is-critical">
+        <div class="cs-hcard-head">
+          <h3 class="cs-hcard-title">Enable point-in-time recovery on managed database</h3>
+          <span class="cs-risk critical">critical</span>
+          <span class="cs-tier t1">T1</span>
+          <span class="cs-cat remediation">remediation</span>
+          <span class="cs-vert resilience">resilience</span>
+        </div>
+        <p class="cs-mb-0">Similarity match with a prior incident (score 0.93); verifier passed
+          schema + policy + what-if.</p>
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">8m</strong></span>
+          <span>2 approvers &middot; break-glass allowed</span>
+          <span class="cs-mono">evt-01H7A4X-...</span>
+          <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+        </div>
+      </div>
+
+      <div class="vx-card-d is-high">
+        <div class="cs-hcard-head">
+          <h3 class="cs-hcard-title">Raise production autoscale floor from 2 to 4</h3>
+          <span class="cs-risk high">high</span>
+          <span class="cs-tier t2">T2</span>
+          <span class="cs-cat ops">ops</span>
+          <span class="cs-vert change">change safety</span>
+        </div>
+        <p class="cs-mb-0">T2 reasoner grounded on WAF-Reliability RL-08; verifier passed
+          policy + what-if.</p>
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">21m</strong></span>
+          <span>1 approver</span>
+          <span class="cs-mono">evt-01H7B2Q-...</span>
+          <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         Variant E - subtle background tint + soft border tint
+         ============================================================ -->
+    <section class="vx-section">
+      <h2>E. Whole-card tint (very subtle)</h2>
+      <p class="vx-desc">The <strong>entire card</strong> picks up a 4% wash of the severity color
+        and a matching soft border. Ambient, not shouty - your eye still lands on the title first,
+        but the "temperature" of a critical card is different from a medium one when you scroll a
+        long queue.</p>
+
+      <div class="vx-card-e is-critical">
+        <div class="cs-hcard-head">
+          <h3 class="cs-hcard-title">Enable point-in-time recovery on managed database</h3>
+          <span class="cs-risk critical">critical</span>
+          <span class="cs-tier t1">T1</span>
+          <span class="cs-cat remediation">remediation</span>
+          <span class="cs-vert resilience">resilience</span>
+        </div>
+        <p class="cs-mb-0">Similarity match with a prior incident (score 0.93); verifier passed
+          schema + policy + what-if.</p>
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">8m</strong></span>
+          <span>2 approvers &middot; break-glass allowed</span>
+          <span class="cs-mono">evt-01H7A4X-...</span>
+          <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+        </div>
+      </div>
+
+      <div class="vx-card-e is-high">
+        <div class="cs-hcard-head">
+          <h3 class="cs-hcard-title">Raise production autoscale floor from 2 to 4</h3>
+          <span class="cs-risk high">high</span>
+          <span class="cs-tier t2">T2</span>
+          <span class="cs-cat ops">ops</span>
+          <span class="cs-vert change">change safety</span>
+        </div>
+        <p class="cs-mb-0">T2 reasoner grounded on WAF-Reliability RL-08; verifier passed
+          policy + what-if.</p>
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">21m</strong></span>
+          <span>1 approver</span>
+          <span class="cs-mono">evt-01H7B2Q-...</span>
+          <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+        </div>
+      </div>
+
+      <div class="vx-card-e is-medium">
+        <div class="cs-hcard-head">
+          <h3 class="cs-hcard-title">Downgrade unused premium SKU on staging namespace</h3>
+          <span class="cs-risk medium">medium</span>
+          <span class="cs-tier t0">T0</span>
+          <span class="cs-cat governance">governance</span>
+          <span class="cs-vert cost">cost</span>
+        </div>
+        <p class="cs-mb-0">Deterministic match: <code>cost.right-sizing.medium</code>; blast radius
+          bounded to 1 namespace.</p>
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">1h 04m</strong></span>
+          <span>1 approver</span>
+          <span class="cs-mono">evt-01H7B3T-...</span>
+          <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         Variant F - title-row eyebrow
+         ============================================================ -->
+    <section class="vx-section">
+      <h2>F. Eyebrow line above the title</h2>
+      <p class="vx-desc">A one-line <strong>"CRITICAL &middot; REMEDIATION"</strong> eyebrow sits
+        above the card title in the severity color. Because that eyebrow already carries
+        <em>severity</em> and <em>category</em>, the two right-side pills for the same values are
+        hidden - fewer chips, more prose. This variant trades one visual channel (color) for
+        another (typography).</p>
+
+      <div class="vx-card-f">
+        <p class="vx-eyebrow is-critical"><span class="vx-dot"></span>Critical <span class="vx-sep">/</span> Remediation</p>
+        <div class="cs-hcard-head">
+          <h3 class="cs-hcard-title">Enable point-in-time recovery on managed database</h3>
+          <span class="cs-risk critical">critical</span>
+          <span class="cs-tier t1">T1</span>
+          <span class="cs-cat remediation">remediation</span>
+          <span class="cs-vert resilience">resilience</span>
+        </div>
+        <p class="cs-mb-0">Similarity match with a prior incident (score 0.93); verifier passed
+          schema + policy + what-if.</p>
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">8m</strong></span>
+          <span>2 approvers &middot; break-glass allowed</span>
+          <span class="cs-mono">evt-01H7A4X-...</span>
+          <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+        </div>
+      </div>
+
+      <div class="vx-card-f">
+        <p class="vx-eyebrow is-high"><span class="vx-dot"></span>High <span class="vx-sep">/</span> Ops</p>
+        <div class="cs-hcard-head">
+          <h3 class="cs-hcard-title">Raise production autoscale floor from 2 to 4</h3>
+          <span class="cs-risk high">high</span>
+          <span class="cs-tier t2">T2</span>
+          <span class="cs-cat ops">ops</span>
+          <span class="cs-vert change">change safety</span>
+        </div>
+        <p class="cs-mb-0">T2 reasoner grounded on WAF-Reliability RL-08; verifier passed
+          policy + what-if.</p>
+        <div class="cs-hcard-foot">
+          <span>waiting <strong style="color:var(--cs-text)">21m</strong></span>
+          <span>1 approver</span>
+          <span class="cs-mono">evt-01H7B2Q-...</span>
+          <span style="margin-left:auto"><a class="cs-link" href="#">details &rarr;</a></span>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         Notes
+         ============================================================ -->
+    <section class="vx-section">
+      <h2>Pick guide</h2>
+      <ul style="line-height:1.7; color:var(--cs-text); font-size:14px; margin-top:6px;">
+        <li><strong>C</strong> - fewest pixels, minimum-noise. Best if you trust the pill to always
+          be visible (no truncation on narrow layouts).</li>
+        <li><strong>B</strong> - adds a small icon so you can scan severity from the far left even
+          if the row wraps. Good compromise between A and C.</li>
+        <li><strong>D</strong> - keeps a color signal but moves it off the "list item bar" pattern.
+          Nice for editorial / documentation feel.</li>
+        <li><strong>E</strong> - ambient severity. Best when the queue is long and you want to feel
+          "how hot is this page" at a glance.</li>
+        <li><strong>F</strong> - most verbose, most self-explanatory - trades chips for words.
+          Great for the HIL page where an operator lands cold.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

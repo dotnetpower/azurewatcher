@@ -374,12 +374,16 @@ code { font-family: "Cascadia Code", "Consolas", monospace; font-size: .88em; ba
 .cs-readonly-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px dashed var(--cs-hairline); border-radius: var(--cs-radius-sm); background: var(--cs-shade); color: var(--cs-text-soft); font-size: 12.5px; margin-bottom: 20px; }
 .cs-readonly-banner strong { color: var(--cs-text); font-weight: 600; }
 
-/* HIL / Action cards - list of "cards" with left rail */
-.cs-hcard { display: grid; grid-template-columns: 4px 1fr; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); overflow: hidden; box-shadow: var(--cs-shadow); margin-bottom: 14px; }
-.cs-hcard-rail { background: var(--cs-steel); }
-.cs-hcard.is-critical .cs-hcard-rail { background: var(--cs-dusty-red); }
-.cs-hcard.is-high .cs-hcard-rail { background: var(--cs-terracotta); }
-.cs-hcard.is-medium .cs-hcard-rail { background: var(--cs-steel); }
+/* HIL / Action cards - whole-card severity tint (variant E, picked 2026-07-12).
+   The right-side severity pill already carries color + word, so instead of a
+   4px left rail we tint the whole card with a 4% wash of the severity color
+   plus a matching soft border. Ambient, not shouty. The legacy .cs-hcard-rail
+   element is kept in existing HTML (dashboard.html, hil.html) but hidden. */
+.cs-hcard { display: block; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius); background: var(--cs-card); overflow: hidden; box-shadow: var(--cs-shadow); margin-bottom: 14px; }
+.cs-hcard-rail { display: none; }
+.cs-hcard.is-critical { background: linear-gradient(0deg, rgba(172,90,90,.04), rgba(172,90,90,.04)), var(--cs-card); border-color: rgba(172,90,90,.22); }
+.cs-hcard.is-high     { background: linear-gradient(0deg, rgba(188,116,73,.04), rgba(188,116,73,.04)), var(--cs-card); border-color: rgba(188,116,73,.22); }
+.cs-hcard.is-medium   { background: linear-gradient(0deg, rgba(68,104,142,.04), rgba(68,104,142,.04)), var(--cs-card); border-color: rgba(68,104,142,.22); }
 .cs-hcard-body { padding: 16px 18px; }
 .cs-hcard-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
 .cs-hcard-title { font-size: 15.5px; font-weight: 600; margin: 0; flex: 1 1 auto; min-width: 240px; }
