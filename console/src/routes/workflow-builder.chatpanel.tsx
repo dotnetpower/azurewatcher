@@ -212,7 +212,13 @@ function MessageBubble({
     <div class={isBot ? "wf-msg wf-msg-bot" : "wf-msg wf-msg-op"}>
       <div class="wf-msg-body">
         <span class="sr-only">{isBot ? "Assistant:" : "You:"} </span>
-        <RichText text={message.text} />
+        {isBot ? (
+          <RichText text={message.text} />
+        ) : (
+          // The operator's text is untrusted echo: render it as plain text,
+          // never through the markdown parser (correctness + defense in depth).
+          <p class="wf-msg-plain">{message.text}</p>
+        )}
         {message.preview ? <WorkflowPreview form={message.preview} palette={palette} /> : null}
         {message.options && message.options.length > 0 ? (
           <div

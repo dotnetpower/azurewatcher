@@ -2134,6 +2134,8 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
 }
 .wf-msg-body p { margin: 0 0 8px; }
 .wf-msg-body p:last-child { margin-bottom: 0; }
+/* Operator echo: plain text, preserve intentional line breaks, no markdown. */
+.wf-msg-plain { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .wf-msg-body code {
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 12px; padding: 1px 4px; border-radius: 4px;
