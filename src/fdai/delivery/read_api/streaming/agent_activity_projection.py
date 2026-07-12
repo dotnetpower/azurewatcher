@@ -138,6 +138,23 @@ class ProjectionResult:
     events: Sequence[AgentStateEvent | IncidentTicketEvent | ConversationTurnEvent]
 
 
+def bound_projection(
+    projection: AgentActivityProjection, max_incidents: int
+) -> AgentActivityProjection:
+    """Cap the projection at ``max_incidents``, evicting oldest first-seen.
+
+    Shared by every stateful consumer (the in-process relay and the Kafka
+    broadcaster) so a long-running loop cannot grow the incident map without
+    bound. ``dict`` preserves insertion order, so the tail is the most-recently
+    first-seen set.
+    """
+    incidents = projection.incidents
+    if len(incidents) <= max_incidents:
+        return projection
+    trimmed = dict(list(incidents.items())[-max_incidents:])
+    return AgentActivityProjection(incidents=trimmed)
+
+
 def _ticket_id(correlation_id: str) -> str:
     return f"INC-{correlation_id}"
 
@@ -287,6 +304,7 @@ __all__ = [
     "AgentActivityProjection",
     "IncidentProjection",
     "ProjectionResult",
+    "bound_projection",
     "project_stage",
     "stage_agent",
 ]

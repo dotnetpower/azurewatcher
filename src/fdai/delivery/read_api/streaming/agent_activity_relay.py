@@ -34,6 +34,7 @@ import logging
 
 from fdai.delivery.read_api.streaming.agent_activity_projection import (
     AgentActivityProjection,
+    bound_projection,
     project_stage,
 )
 from fdai.delivery.read_api.streaming.agent_activity_stream import (
@@ -88,7 +89,7 @@ class ControlLoopAgentActivityRelay:
         #    so a slow sink does not serialize projection updates.
         async with self._lock:
             result = project_stage(self._projection, event)
-            self._projection = self._bounded(result.projection)
+            self._projection = bound_projection(result.projection, self._max_incidents)
             activity_events = list(result.events)
 
         for activity_event in activity_events:
@@ -100,14 +101,6 @@ class ControlLoopAgentActivityRelay:
                     extra={"correlation_id": event.correlation_id},
                     exc_info=True,
                 )
-
-    def _bounded(self, projection: AgentActivityProjection) -> AgentActivityProjection:
-        incidents = projection.incidents
-        if len(incidents) <= self._max_incidents:
-            return projection
-        # Evict oldest first-seen incidents; dict preserves insertion order.
-        trimmed = dict(list(incidents.items())[-self._max_incidents :])
-        return AgentActivityProjection(incidents=trimmed)
 
 
 __all__ = ["ControlLoopAgentActivityRelay", "DEFAULT_MAX_INCIDENTS"]
