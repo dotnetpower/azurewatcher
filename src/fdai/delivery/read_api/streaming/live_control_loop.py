@@ -59,6 +59,7 @@ from fdai.core.tiers.t0_deterministic import (
     T0Engine,
 )
 from fdai.core.trust_router import TrustRouter
+from fdai.delivery.read_api.streaming.agent_activity_projection import stage_agent
 from fdai.delivery.read_api.streaming.live_stream import LiveEmitter
 from fdai.rule_catalog.schema.action_type import load_action_type_catalog
 from fdai.rule_catalog.schema.resource_type import (
@@ -73,7 +74,6 @@ from fdai.shared.contracts.validation import (
 from fdai.shared.providers.sse import SseSink
 from fdai.shared.providers.stage_publisher import (
     StageEvent,
-    StageName,
     StagePublisher,
 )
 from fdai.shared.providers.testing import (
@@ -88,22 +88,9 @@ _LOGGER = logging.getLogger(__name__)
 # Stage -> owning pantheon agent. The dev ControlLoop is single-process, so
 # we attribute each SSE frame to the agent that owns that stage at the
 # stream boundary (the real multi-agent pipeline stamps producer_principal
-# itself). Gate frames split by decision: a HIL verdict is Var's approval,
-# everything else is Forseti's judgment.
-_STAGE_AGENT: dict[StageName, str] = {
-    StageName.INGEST: "Huginn",
-    StageName.ROUTE: "Heimdall",
-    StageName.VERIFY: "Forseti",
-    StageName.GATE: "Forseti",
-    StageName.EXECUTE: "Thor",
-    StageName.AUDIT: "Saga",
-}
-
-
-def _stage_agent(stage: StageName, detail: dict[str, Any]) -> str:
-    if stage is StageName.GATE and str(detail.get("gate_decision")) == "hil":
-        return "Var"
-    return _STAGE_AGENT.get(stage, "unknown")
+# itself). The mapping lives once in the agent-activity projection so the
+# live cockpit and the Now>Agents relay never drift; :func:`stage_agent`
+# there also splits a HIL gate frame to Var (approval) vs Forseti (judgment).
 
 
 class _AgentAttributingStagePublisher:
@@ -116,7 +103,7 @@ class _AgentAttributingStagePublisher:
 
     async def emit(self, event: StageEvent) -> None:
         detail = dict(event.detail or {})
-        detail.setdefault("producer_principal", _stage_agent(event.stage, detail))
+        detail.setdefault("producer_principal", stage_agent(event.stage, detail))
         await self._inner.emit(replace(event, detail=detail))
 
 
