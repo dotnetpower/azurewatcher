@@ -61,13 +61,17 @@ export function WorkflowChat({ palette, onBack }: Props) {
 
   const nextId = () => (idRef.current += 1);
 
-  // Open with the welcome turn.
+  // Open with the welcome turn - once, on mount. The parent only renders this
+  // component after the palette has loaded, so palette is always present here;
+  // keying the init on mount (not on palette identity) means a parent that
+  // ever hands back a fresh array reference cannot silently reset a
+  // conversation in progress.
   useEffect(() => {
     const turn = startChat(palette);
     setSlots(turn.slots);
     setMessages([botMessage(turn, nextId())]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [palette]);
+  }, []);
 
   // Focus the composer on mount so an operator can start typing immediately.
   useEffect(() => {
