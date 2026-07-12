@@ -2542,6 +2542,28 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
   letter-spacing: 0.07em;
 }
 .deck-turn-operator .deck-turn-role { color: var(--accent-strong); }
+/* An agent-voiced turn: the agent's line icon + its name replace the "deck"
+   label so an operator sees who is speaking. */
+.deck-turn-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--fg);
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-size: 12px;
+}
+.deck-turn-agent-icon {
+  width: 16px;
+  height: 16px;
+  background-color: var(--accent);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
 .deck-turn-source {
   padding: 1px 6px;
   border-radius: 4px;

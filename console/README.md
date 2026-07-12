@@ -219,10 +219,12 @@ with that agent's recent work. It calls `openDeckWithContext`
 ([`src/deck/open-deck.ts`](src/deck/open-deck.ts)) with a grounding note built by
 `agentChatContext` ([`src/routes/agents.model.ts`](src/routes/agents.model.ts)) -
 the agent's role, live state, and recent incidents (with RCAs). The deck injects
-that note as an opening turn (so it joins the narrator's history) and seeds a
-starter question, so the operator gets an immediate, grounded answer about what
-the agent has been doing. Still read-only: it opens a primed question box, never
-auto-submits or executes.
+that note as an opening turn that **speaks as the agent** - its line icon + name
+in the header (not the generic "deck" label) - and **types in** like a live reply
+instead of appearing all at once, so the entrance reads as the agent introducing
+itself. It joins the narrator's history and seeds a starter question, so the
+operator gets an immediate, grounded answer about what the agent has been doing.
+Still read-only: it opens a primed question box, never auto-submits or executes.
 
 Each agent chat is its own **session**: the deck keys transcripts by session
 (`agent:{name}` vs the general `screen` deck, see `transcriptKeyFor` in

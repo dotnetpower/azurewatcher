@@ -33,6 +33,8 @@ export interface PersistedTurn {
   readonly text: string;
   readonly at: string;
   readonly source?: string;
+  /** Agent name when this turn speaks as a specific agent (icon + name header). */
+  readonly agent?: string;
   readonly citations?: readonly { readonly label: string; readonly value?: string }[];
   readonly followUps?: readonly string[];
 }
@@ -57,6 +59,7 @@ export function serializeTurns(
       return {
         ...base,
         ...(t.source ? { source: t.source } : {}),
+        ...(t.agent ? { agent: t.agent } : {}),
         ...(t.citations ? { citations: t.citations } : {}),
         ...(t.followUps ? { followUps: t.followUps } : {}),
       };
@@ -88,6 +91,7 @@ export function parseTurns(raw: string | null): PersistedTurn[] {
       text: rec.text,
       at: rec.at,
       ...(typeof rec.source === "string" ? { source: rec.source } : {}),
+      ...(typeof rec.agent === "string" ? { agent: rec.agent } : {}),
     };
     out.push(turn);
   }

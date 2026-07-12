@@ -52,6 +52,8 @@ interface Turn {
   readonly router?: RouterSnapshot;
   /** True while a deck reply is still streaming tokens in. */
   readonly streaming?: boolean;
+  /** Agent name when this turn speaks as a specific agent (renders its icon + name). */
+  readonly agent?: string;
   readonly at: string;
 }
 
@@ -91,6 +93,25 @@ function routerTooltip(router: RouterSnapshot | undefined): string | undefined {
 
 /** The general (screen-scoped) conversation session id. */
 const GENERAL_SESSION = "screen";
+
+/** Typewriter cadence (ms per chunk) for the injected agent-context turn. */
+const CONTEXT_TYPE_MS = 14;
+
+/** CSS `mask-image` url for an agent's line icon (see agents route). Base-path
+ *  aware so a subpath-mounted console still resolves the public asset. */
+function agentIconUrl(name: string): string {
+  const base = typeof import.meta.env.BASE_URL === "string" ? import.meta.env.BASE_URL : "/";
+  return `url("${base}agent-icons/${name.toLowerCase()}.svg")`;
+}
+
+/** Split text into small whitespace-preserving chunks so an injected turn types
+ *  in word-by-word, matching the LLM stream cadence. */
+function contextChunks(text: string): string[] {
+  const out: string[] = [];
+  const re = /\s*\S{1,4}|\s+$/g;
+  for (const m of text.matchAll(re)) out.push(m[0]);
+  return out.length > 0 ? out : [text];
+}
 
 export function CommandDeck() {
   const snapshot = useViewContext();
@@ -175,10 +196,45 @@ export function CommandDeck() {
     }
   }, []);
 
+  // Append an opening context turn that speaks AS the given agent (its icon +
+  // name in the header) and types its text in like a live reply, instead of
+  // dumping the whole note at once. `agent` null falls back to a plain deck
+  // turn. Pure client-side typewriter over an already-known string.
+  const streamContextTurn = useCallback((agent: string | null, fullText: string) => {
+    const turnId = newId();
+    const seed: Turn = {
+      id: turnId,
+      role: "deck",
+      text: "",
+      source: "context",
+      streaming: true,
+      at: shortTime(),
+      ...(agent ? { agent } : {}),
+    };
+    setTurns((prev) => [...prev, seed]);
+    turnsRef.current = [...turnsRef.current, seed];
+    const chunks = contextChunks(fullText);
+    let i = 0;
+    const step = (): void => {
+      if (i >= chunks.length) {
+        setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, streaming: false } : t)));
+        return;
+      }
+      const piece = chunks[i]!;
+      i += 1;
+      setTurns((prev) =>
+        prev.map((t) => (t.id === turnId ? { ...t, text: t.text + piece } : t)),
+      );
+      window.setTimeout(step, CONTEXT_TYPE_MS);
+    };
+    window.setTimeout(step, CONTEXT_TYPE_MS);
+  }, []);
+
   // Switch the visible conversation to `key`, persisting the outgoing session
   // first so returning to it restores the thread. A brand-new session is
-  // optionally seeded with `contextNote` (e.g. an agent's recent work); an
-  // existing session is resumed as-is so its prior turns are preserved.
+  // optionally seeded with `contextNote` (e.g. an agent's recent work), streamed
+  // in as the agent; an existing session is resumed as-is so its prior turns
+  // are preserved.
   const switchSession = useCallback(
     (key: string, label: string | null, contextNote?: string) => {
       const store = sessionStore();
@@ -192,19 +248,19 @@ export function CommandDeck() {
           /* best-effort */
         }
       }
-      let next: Turn[] = store ? (parseTurns(store.getItem(transcriptKeyFor(key))) as Turn[]) : [];
-      const note = contextNote?.trim();
-      if (next.length === 0 && note) {
-        next = [{ id: newId(), role: "deck", text: note, source: "context", at: shortTime() }];
-      }
+      const next: Turn[] = store ? (parseTurns(store.getItem(transcriptKeyFor(key))) as Turn[]) : [];
       sessionKeyRef.current = key;
       turnsRef.current = next;
       setSessionKey(key);
       setSessionLabel(label);
       setTurns(next);
       historyRef.current = EMPTY_HISTORY;
+      const note = contextNote?.trim();
+      if (next.length === 0 && note) {
+        streamContextTurn(label, note);
+      }
     },
-    [],
+    [streamContextTurn],
   );
 
   // Open the deck on the general (screen) session - used by the launcher, the
@@ -306,16 +362,9 @@ export function CommandDeck() {
         // existing thread instead of stacking duplicate context.
         switchSession(key, label, note);
       } else if (note && turnsRef.current.length === 0) {
-        // Same, still-empty session: seed the grounding context turn.
-        const seededTurn: Turn = {
-          id: newId(),
-          role: "deck",
-          text: note,
-          source: "context",
-          at: shortTime(),
-        };
-        turnsRef.current = [seededTurn];
-        setTurns([seededTurn]);
+        // Same, still-empty session: stream in the grounding context turn as
+        // the agent.
+        streamContextTurn(label, note);
       }
       const seed = typeof detail?.prompt === "string" ? detail.prompt : "";
       if (seed) {
@@ -326,7 +375,7 @@ export function CommandDeck() {
     };
     window.addEventListener(DECK_OPEN_EVENT, onOpenDeck);
     return () => window.removeEventListener(DECK_OPEN_EVENT, onOpenDeck);
-  }, [openDeck, switchSession]);
+  }, [openDeck, switchSession, streamContextTurn]);
 
   // Navigation dismisses the deck. While the deck is open the left rail is
   // lifted above the overlay (body.deck-open) so its navigation popover is
@@ -757,7 +806,21 @@ function TurnBubble({
   return (
     <article class={`deck-turn deck-turn-${turn.role}`}>
       <header class="deck-turn-head">
-        <span class="deck-turn-role">{turn.role === "operator" ? "you" : "deck"}</span>
+        {turn.agent ? (
+          <span class="deck-turn-role deck-turn-agent">
+            <span
+              class="deck-turn-agent-icon"
+              aria-hidden="true"
+              style={{
+                WebkitMaskImage: agentIconUrl(turn.agent),
+                maskImage: agentIconUrl(turn.agent),
+              }}
+            />
+            {turn.agent}
+          </span>
+        ) : (
+          <span class="deck-turn-role">{turn.role === "operator" ? "you" : "deck"}</span>
+        )}
         {turn.source ? (
           <span
             class="deck-turn-source"
