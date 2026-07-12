@@ -43,6 +43,30 @@ METRIC_ROLLOUT_STALL_SECONDS = "k8s.deployment.rollout_stall_seconds"
 # columns the metric adapter parses. Every template's KQL is static text
 # (no interpolation, no format strings) - the ONLY variable input is the
 # ``timespan`` sent as the server-side query parameter.
+#
+# Template semantics (documented so the adapter, the analyzer, and the
+# operator agree on what each series means):
+#
+# - ``host.cpu.percent``           - avg guest-OS CPU % per 1-minute bin
+#                                    per resource. Requires VM Insights.
+# - ``host.memory.available_pct``  - avg available memory % per 1-minute
+#                                    bin per resource; LOW is bad (use
+#                                    ``Comparison.LTE``). Requires VM
+#                                    Insights.
+# - ``k8s.pod.restarts``           - **delta** of PodRestartCount within
+#                                    the timespan per pod (i.e. new
+#                                    restarts observed in the window),
+#                                    not the cumulative counter value.
+# - ``http.server.request.failure_rate`` - failed / total AppRequests per
+#                                    1-minute bin per resource.
+# - ``k8s.deployment.rollout_stall_seconds`` - seconds since the earliest
+#                                    stall-signal KubeEvent in the
+#                                    timespan, per (cluster, involved
+#                                    object). The involved-object name
+#                                    is a pod / replica-set / deployment
+#                                    depending on the reason, so the
+#                                    label is ``involved_object`` rather
+#                                    than ``deployment``.
 
 _HOST_CPU_PERCENT = MetricKqlTemplate(
     kql=(
@@ -67,12 +91,22 @@ _HOST_MEMORY_AVAILABLE_PCT = MetricKqlTemplate(
 )
 
 _POD_RESTARTS = MetricKqlTemplate(
+    # PodRestartCount is a cumulative counter per pod - the "restart count
+    # in the window" is the delta within the timespan (max - min). We
+    # emit one row per pod, timestamped at the max-observation time, so
+    # the metric adapter yields a step-shaped series that only rises
+    # when a new restart happens.
     kql=(
         "KubePodInventory "
         "| where isnotempty(PodRestartCount) "
-        "| summarize v = max(toint(PodRestartCount)) by "
-        "  bin(TimeGenerated, 1m), resource_id = tolower(ClusterId), "
-        "  pod = Name, namespace = Namespace"
+        "| extend rc = toint(PodRestartCount) "
+        "| summarize "
+        "    rc_max = max(rc), rc_min = min(rc), "
+        "    at = max(TimeGenerated) "
+        "  by resource_id = tolower(ClusterId), "
+        "     pod = Name, namespace = Namespace "
+        "| extend v = todouble(rc_max - rc_min) "
+        "| project TimeGenerated = at, v, resource_id, pod, namespace"
     ),
     value_column="v",
     label_columns=("resource_id", "pod", "namespace"),
@@ -92,16 +126,27 @@ _REQUEST_FAILURE_RATE = MetricKqlTemplate(
 )
 
 _ROLLOUT_STALL_SECONDS = MetricKqlTemplate(
+    # Emits one row per (cluster, involved object) with:
+    #   - TimeGenerated = the earliest stall-signal event's own time
+    #     (NOT now() - that would poison rolling-window anomaly
+    #     detection with a fake "just now" timestamp),
+    #   - v = seconds elapsed from that earliest event to the max event
+    #     observed in the timespan (i.e. how long the stall has been
+    #     visible in this query window).
+    # The involved-object name is a pod / replica-set / deployment
+    # depending on which event fired, so the label is ``involved_object``.
     kql=(
         "KubeEvents "
         "| where Reason in ('FailedCreate','ProgressDeadlineExceeded',"
         "'ImagePullBackOff','ErrImagePull') "
-        "| summarize v = todouble(datetime_diff('second', now(), min(TimeGenerated))) "
-        "  by resource_id = tolower(ClusterId), deployment = Name "
-        "| extend TimeGenerated = now()"
+        "| summarize "
+        "    first_at = min(TimeGenerated), last_at = max(TimeGenerated) "
+        "  by resource_id = tolower(ClusterId), involved_object = Name "
+        "| extend v = todouble(datetime_diff('second', last_at, first_at)) "
+        "| project TimeGenerated = first_at, v, resource_id, involved_object"
     ),
     value_column="v",
-    label_columns=("resource_id", "deployment"),
+    label_columns=("resource_id", "involved_object"),
 )
 
 

@@ -50,6 +50,58 @@ def test_every_template_declares_value_and_labels() -> None:
         )
 
 
+def test_pod_restarts_computes_delta_not_cumulative() -> None:
+    """PodRestartCount is a cumulative counter; the template MUST emit
+    the in-window delta (max - min), not the raw max snapshot value."""
+    template = sre_demo_capture_queries()[METRIC_POD_RESTARTS]
+    assert "rc_max - rc_min" in template.kql, (
+        "k8s.pod.restarts KQL must compute a max-min delta so the series "
+        "reflects new restarts in the timespan, not the pod's lifetime "
+        "cumulative restart count"
+    )
+    # max_(...) alone would be the buggy cumulative snapshot shape.
+    assert "summarize v = max(" not in template.kql, (
+        "k8s.pod.restarts KQL must not emit the raw cumulative counter"
+    )
+
+
+def test_rollout_stall_preserves_event_time() -> None:
+    """The rollout-stall template MUST NOT overwrite TimeGenerated with
+    now() - that would poison rolling-window anomaly detection with a
+    fake "just now" timestamp for events that happened minutes ago."""
+    template = sre_demo_capture_queries()[METRIC_ROLLOUT_STALL_SECONDS]
+    assert "TimeGenerated = now()" not in template.kql, (
+        "rollout-stall KQL must project the event's own time, not now()"
+    )
+    assert "TimeGenerated = first_at" in template.kql, (
+        "rollout-stall KQL must anchor its TimeGenerated to the earliest "
+        "observed stall event so downstream analyzers see the actual "
+        "onset time"
+    )
+
+
+def test_rollout_stall_labels_involved_object_not_deployment() -> None:
+    """KubeEvents.Name is the involved-object name (pod / RS / deployment
+    depending on Reason), not always a Deployment - the label MUST reflect
+    that so the analyzer does not mis-group per-pod rows as per-deployment."""
+    template = sre_demo_capture_queries()[METRIC_ROLLOUT_STALL_SECONDS]
+    assert "involved_object" in template.label_columns
+    assert "deployment" not in template.label_columns
+
+
+def test_every_label_column_is_lowercase_snake_case() -> None:
+    """Labels flow into audit and log lines; enforce grep-friendly shape."""
+    import re
+
+    label_re = re.compile(r"^[a-z][a-z0-9_]*$")
+    for name, template in sre_demo_capture_queries().items():
+        for label in template.label_columns:
+            assert label_re.match(label), (
+                f"{name}: label {label!r} must be lowercase snake_case "
+                f"(matches {label_re.pattern!r})"
+            )
+
+
 def test_catalog_view_is_read_only() -> None:
     catalog = sre_demo_capture_queries()
     try:

@@ -42,10 +42,14 @@ from fdai.core.detection.signals import (
     SIGNAL_ROLLOUT_STALL,
 )
 
-# Minimum hold that satisfies a 5-minute detection/alert evaluation window
-# with one probe cycle of slack (300s + 60s). The harness ``max_hold``
-# still bounds any authored value.
-_MIN_HOLD_SECONDS = 360.0
+# Minimum hold every scenario is authored for. The demo's default alert
+# evaluation window is 5 minutes; we add a 60-second buffer so the
+# harness's post-inject probe cannot fire before the analyzer sees a
+# full window of data. The harness's ``max_hold_seconds`` still bounds
+# any authored value against runaway durations.
+_ALERT_WINDOW_SECONDS = 300.0
+_PROBE_BUFFER_SECONDS = 60.0
+_MIN_HOLD_SECONDS = _ALERT_WINDOW_SECONDS + _PROBE_BUFFER_SECONDS  # 360.0
 
 AKS_POD_KILL = FaultScenario(
     scenario_id="aks-pod-kill",
