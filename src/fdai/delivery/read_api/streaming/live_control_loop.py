@@ -199,8 +199,9 @@ class ControlLoopLiveEmitter(LiveEmitter):
     def _resolve_repo_root(self) -> Path:
         if self.repo_root is not None:
             return self.repo_root
-        # ``src/fdai/delivery/read_api/live_control_loop.py`` -> repo root
-        return Path(__file__).resolve().parents[4]
+        # ``src/fdai/delivery/read_api/streaming/live_control_loop.py`` -> repo root
+        # parents: [0]=streaming [1]=read_api [2]=delivery [3]=fdai [4]=src [5]=repo root
+        return Path(__file__).resolve().parents[5]
 
     def _build_control_loop(self) -> ControlLoop:
         repo_root = self._resolve_repo_root()
