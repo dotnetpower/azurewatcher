@@ -46,12 +46,15 @@ Producers
   pantheon driving the hot path.
 - **Real path.**
   :class:`~fdai.delivery.read_api.streaming.agent_activity_relay.ControlLoopAgentActivityRelay`
-  tees a real :class:`~fdai.core.control_loop.ControlLoop`'s stage frames onto
-  this same channel (via the deterministic
+  tees a real *in-process* :class:`~fdai.core.control_loop.ControlLoop`'s stage
+  frames onto this same channel (via the deterministic
   :mod:`fdai.delivery.read_api.streaming.agent_activity_projection`), so the
   panel reflects the actual pipeline. The dev harness opts in with
-  ``FDAI_AGENTS_REAL_RELAY=1``; production wires the relay onto the shared
-  sink. The wire contract here does not change between the two.
+  ``FDAI_AGENTS_REAL_RELAY=1``. Across replicas, where the read-API pod does
+  not run the pipeline,
+  :class:`~fdai.delivery.read_api.streaming.agent_activity_broadcaster.AgentActivityBroadcaster`
+  consumes the ``aw.pipeline.stages`` Kafka topic and drives the same channel
+  through the same projection. Both paths use the identical wire contract here.
 """
 
 from __future__ import annotations
