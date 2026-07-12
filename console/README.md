@@ -179,7 +179,15 @@ plain-language task description (`STATE_TASK`), the streamed `detail` when the
 producer supplies one, and the incident (ticket + title) it is engaged on. The
 dev/demo emitter enriches each `agent.state` frame with a task `detail`
 ([`agent_activity_emitter.py`](../src/fdai/delivery/read_api/streaming/agent_activity_emitter.py));
-the field stays optional so the real relay is free to omit it.
+the field stays optional so the real relay is free to omit it. A hovered node
+returns to full opacity even while dimmed, so its card stays readable (a parent
+`opacity` otherwise caps the child tooltip).
+
+The incident side list is newest-first and shows the most recent
+`INCIDENT_PREVIEW` (10) by default; an **All (N)** toggle beside the heading
+expands to the full retained history and back to **Recent**. Selecting a row
+pins it and opens its workflow card (steps, agent-to-agent conversation, RCA)
+below the list.
 
 ### Self-describing screens
 

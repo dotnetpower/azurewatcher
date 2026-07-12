@@ -60,6 +60,9 @@ interface Geometry {
 
 const EMPTY_GEOMETRY: Geometry = { centers: {}, w: 0, h: 0 };
 
+/** How many incidents the side list shows before the "All" toggle. */
+const INCIDENT_PREVIEW = 10;
+
 /** Stable hue (0-360) for an incident so its links + label share a colour. */
 function hueForIncident(correlationId: string): number {
   let h = 0;
@@ -111,6 +114,10 @@ export function AgentsRoute({ client: _client }: Props) {
       if (first) setSelectedId(first);
     }
   }, [state.incidentOrder, pinned]);
+
+  // Incident list shows the most recent `INCIDENT_PREVIEW` (newest first);
+  // the "All" toggle expands to the full retained history.
+  const [showAllIncidents, setShowAllIncidents] = useState(false);
 
   const selected: Incident | null = selectedId ? (state.incidents[selectedId] ?? null) : null;
   const involved = useMemo(
@@ -282,12 +289,27 @@ export function AgentsRoute({ client: _client }: Props) {
 
         <aside class="agents-side">
           <div class="agents-incident-list" aria-label="incidents">
-            <h3>Incidents</h3>
+            <div class="agents-incident-head">
+              <h3>Incidents</h3>
+              {state.incidentOrder.length > INCIDENT_PREVIEW && (
+                <button
+                  type="button"
+                  class={`agents-incident-all${showAllIncidents ? " is-active" : ""}`}
+                  aria-pressed={showAllIncidents}
+                  onClick={() => setShowAllIncidents((v) => !v)}
+                >
+                  {showAllIncidents ? "Recent" : `All (${state.incidentOrder.length})`}
+                </button>
+              )}
+            </div>
             {state.incidentOrder.length === 0 ? (
               <p class="agents-empty">No incidents - autonomy holding.</p>
             ) : (
               <ul>
-                {state.incidentOrder.map((id) => {
+                {(showAllIncidents
+                  ? state.incidentOrder
+                  : state.incidentOrder.slice(0, INCIDENT_PREVIEW)
+                ).map((id) => {
                   const inc = state.incidents[id];
                   if (!inc) return null;
                   return (

@@ -4440,6 +4440,12 @@ main { padding-bottom: 60px !important; }
 .agent-node.is-dim {
   opacity: 0.32;
 }
+/* A parent `opacity` caps its children, so a dimmed node would render its
+   hover card faded and unreadable. Restoring full opacity on hover keeps
+   the dimmed node quiet at rest but makes its tooltip crisp when queried. */
+.agent-node.is-dim.is-hovered {
+  opacity: 1;
+}
 /* An engaged node (working a ticket) lifts + brightens its label so the
    line mesh reads as "these lit nodes are collaborating right now". */
 .agent-node.is-engaged .agent-name {
@@ -4552,6 +4558,42 @@ main { padding-bottom: 60px !important; }
 .incident-workflow-title {
   margin: 0 0 0.5rem;
   font-size: 0.9rem;
+}
+
+/* Incident list header: title left, "All / Recent" toggle right. */
+.agents-incident-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.agents-incident-head h3 {
+  margin: 0 0 0.5rem;
+}
+.agents-incident-all {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #a78bfa 45%, transparent);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.agents-incident-all:hover {
+  background: color-mix(in srgb, #a78bfa 16%, transparent);
+}
+.agents-incident-all.is-active {
+  background: color-mix(in srgb, #a78bfa 22%, transparent);
+  border-color: #a78bfa;
+}
+.agents-incident-all:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 2px;
 }
 
 .agents-empty {
