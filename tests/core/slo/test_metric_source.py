@@ -82,6 +82,39 @@ async def test_good_exceeds_total_is_inconsistent_and_abstains() -> None:
     assert result.breaches == ()
 
 
+async def test_non_finite_metric_value_does_not_crash_and_abstains() -> None:
+    # A NaN / Inf sample from an unsanitized provider would make round(total)
+    # raise (ValueError / OverflowError) and crash the whole SLO pass. The
+    # count must skip it; here the only samples are non-finite, so the window
+    # reads as zero total and the evaluation abstains (fail-closed) instead.
+    provider = StaticMetricProvider(
+        [
+            _point("good_events", float("nan")),
+            _point("total_events", float("inf")),
+        ]
+    )
+    result = await MetricBurnRateSource(provider).evaluate(_slo(), now=_NOW)
+    assert result.insufficient_data is True
+    assert result.breaches == ()
+
+
+async def test_non_finite_sample_is_dropped_finite_remainder_counts() -> None:
+    # A NaN sample is dropped; the finite samples still count, so a hot burn in
+    # both windows still breaches - corruption is skipped, not fatal.
+    provider = StaticMetricProvider(
+        [
+            _point("good_events", 900.0),
+            _point("good_events", float("nan")),
+            _point("total_events", 1000.0),
+            _point("total_events", float("-inf")),
+        ]
+    )
+    result = await MetricBurnRateSource(provider).evaluate(_slo(), now=_NOW)
+    # bad ratio 10% vs allowed 1% -> rate 10 >= threshold 1.0 on both windows.
+    assert result.insufficient_data is False
+    assert result.breached is True
+
+
 # ---------------------------------------------------------------------------
 # Happy paths: breach vs no breach
 # ---------------------------------------------------------------------------

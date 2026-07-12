@@ -27,6 +27,7 @@ PromQL, Azure Monitor Logs KQL, CloudWatch) is wired at the composition root.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import NAMESPACE_URL, uuid4, uuid5
@@ -193,6 +194,14 @@ class MetricBurnRateSource:
         )
         total = 0.0
         async for point in self._metrics.query(query):
+            # An untrusted provider (a fork adapter need not sanitize) can emit
+            # a non-finite value. Summed in, it makes ``round(total)`` raise
+            # (``round(nan)`` -> ValueError, ``round(inf)`` -> OverflowError),
+            # crashing the whole SLO pass. Skip non-finite samples so the count
+            # stays finite; a window left with no usable samples reads as zero
+            # and the caller's ``total <= 0`` guard abstains (fail-closed).
+            if not math.isfinite(point.value):
+                continue
             total += point.value
         return round(total)
 
