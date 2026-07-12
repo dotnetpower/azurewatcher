@@ -62,6 +62,32 @@ async def test_multi_point_splits_history_and_observed_sorted() -> None:
     assert series.observed.value == 30.0
 
 
+async def test_non_finite_points_are_dropped_at_the_boundary() -> None:
+    # A NaN / +-Inf sample from an unsanitized provider must be dropped here so
+    # it never poisons a downstream detector; the finite remainder survives.
+    provider = StaticMetricProvider(
+        [
+            _point(5, 10.0),
+            _point(4, float("nan")),
+            _point(3, 20.0),
+            _point(2, float("inf")),
+            _point(1, 30.0),
+        ]
+    )
+    series = await _fetch(provider)
+    assert series is not None
+    assert [s.value for s in series.history] == [10.0, 20.0]
+    assert series.observed.value == 30.0
+
+
+async def test_all_non_finite_yields_none() -> None:
+    # Dropping every non-finite sample leaves < 2 points -> no usable baseline.
+    provider = StaticMetricProvider(
+        [_point(2, float("nan")), _point(1, float("-inf"))]
+    )
+    assert await _fetch(provider) is None
+
+
 class _RaisingProvider:
     async def query(self, query: MetricQuery):
         raise MetricProviderError("metric backend down")

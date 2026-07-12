@@ -27,6 +27,7 @@ the standard library, so it stays under the ``core/`` import rule.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -82,8 +83,17 @@ class MetricSeriesSource:
             until=until,
         )
         samples: list[MetricSample] = []
+        dropped = 0
         try:
             async for point in self._provider.query(query):
+                # This bridge is the boundary between an untrusted metric
+                # provider (a fork adapter need not sanitize) and the pure
+                # detectors. A non-finite value (NaN / +-Inf) poisons every
+                # downstream baseline / fit and serializes to invalid JSON, so
+                # drop it here rather than carry garbage into detection.
+                if not math.isfinite(point.value):
+                    dropped += 1
+                    continue
                 samples.append(MetricSample(timestamp=point.at, value=point.value))
         except MetricProviderError:
             _LOGGER.warning(
@@ -91,6 +101,11 @@ class MetricSeriesSource:
                 extra={"metric": metric_name, "resource_ref": resource_ref},
             )
             return None
+        if dropped:
+            _LOGGER.warning(
+                "detection_metric_series_dropped_non_finite",
+                extra={"metric": metric_name, "resource_ref": resource_ref, "dropped": dropped},
+            )
         if len(samples) < 2:
             return None
         samples.sort(key=lambda s: s.timestamp)
