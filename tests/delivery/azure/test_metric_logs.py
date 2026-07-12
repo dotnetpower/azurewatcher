@@ -283,3 +283,21 @@ def test_config_rejects_empty_workspace_and_bad_max_rows() -> None:
         AzureMonitorLogsConfig(workspace_id="", queries={})
     with pytest.raises(ValueError, match="max_rows"):
         AzureMonitorLogsConfig(workspace_id="w", queries={}, max_rows=0)
+
+
+def test_config_rejects_plaintext_endpoint() -> None:
+    # The bearer token is sent on every request; a plaintext endpoint leaks it.
+    with pytest.raises(ValueError, match="https://"):
+        AzureMonitorLogsConfig(
+            workspace_id="w", queries={}, endpoint="http://api.loganalytics.io"
+        )
+
+
+def test_config_rejects_nonpositive_timeout() -> None:
+    with pytest.raises(ValueError, match="timeout_seconds"):
+        AzureMonitorLogsConfig(workspace_id="w", queries={}, timeout_seconds=0.0)
+
+
+def test_config_rejects_bad_api_path() -> None:
+    with pytest.raises(ValueError, match="api_path"):
+        AzureMonitorLogsConfig(workspace_id="w", queries={}, api_path="v1")

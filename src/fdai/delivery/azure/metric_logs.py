@@ -115,6 +115,21 @@ class AzureMonitorLogsConfig:
     def __post_init__(self) -> None:
         if not self.workspace_id:
             raise ValueError("AzureMonitorLogsConfig.workspace_id MUST be non-empty")
+        # The bearer token is attached to every request; a plaintext endpoint
+        # would leak it on the wire. Real Log Analytics endpoints (public +
+        # sovereign clouds) are all https, so plaintext is always a misconfig.
+        if not self.endpoint.lower().startswith("https://"):
+            raise ValueError(
+                "AzureMonitorLogsConfig.endpoint MUST use https:// - the bearer "
+                f"token is sent on every request (got {self.endpoint!r})"
+            )
+        if not self.api_path.startswith("/"):
+            raise ValueError(
+                "AzureMonitorLogsConfig.api_path MUST start with '/' "
+                f"(got {self.api_path!r})"
+            )
+        if self.timeout_seconds <= 0:
+            raise ValueError("AzureMonitorLogsConfig.timeout_seconds MUST be positive")
         if self.max_rows <= 0:
             raise ValueError("AzureMonitorLogsConfig.max_rows MUST be positive")
 
