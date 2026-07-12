@@ -68,6 +68,10 @@ are fixed by [project-structure.md](../../docs/roadmap/architecture/project-stru
 
 ## Control Loop
 
+The diagram below is the **canonical** control-loop diagram. Docs that need to
+refer to it MUST link back here (or use their own domain-specific mermaid that
+does not restate the shape) rather than re-drawing this ASCII block.
+
 ```text
 event bus
   -> event-ingest (normalize + deduplicate + correlate)

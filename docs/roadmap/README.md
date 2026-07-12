@@ -165,7 +165,26 @@ exit criteria and its dependencies.
 | To do this | Start here |
 |-----------|-----------|
 | Understand the 3-tier control loop | [architecture.instructions.md](../../.github/instructions/architecture.instructions.md) |
+| Find a subsystem's source, tests, and design doc | [architecture/code-map.md](architecture/code-map.md) |
 | See the concrete Azure resource inventory | [deploy-and-onboard.md](deployment/deploy-and-onboard.md) |
 | Follow the P0 baseline instrumentation | [phases/phase-0-instrumentation.md](phases/phase-0-instrumentation.md) |
 | Read the safety rules on every autonomous action | [../../.github/instructions/coding-conventions.instructions.md](../../.github/instructions/coding-conventions.instructions.md) |
 | Contribute a new rule to the catalog | [../../rule-catalog/RULE_AUTHORING_GUIDE.md](../../rule-catalog/RULE_AUTHORING_GUIDE.md) |
+
+## Canonical diagrams
+
+To keep design docs from drifting, a small number of diagrams are named as
+canonical. Downstream docs MUST link to them instead of redrawing the
+same shape.
+
+| Diagram | Canonical location |
+|---------|--------------------|
+| Control loop (event -> tier -> gate -> action -> audit) | [architecture.instructions.md § Control Loop](../../.github/instructions/architecture.instructions.md#control-loop) |
+| Agent pantheon (15-agent org chart) | [agents/agent-pantheon.md](agents/agent-pantheon.md) |
+| Monorepo layout | [architecture/project-structure.md § Monorepo Layout](architecture/project-structure.md#monorepo-layout) |
+| Subsystem index (source -> tests -> docs) | [architecture/code-map.md](architecture/code-map.md) |
+
+A doc that needs a different view of these concepts SHOULD use a
+domain-specific mermaid rather than paraphrase the canonical shape. If
+the canonical diagram itself needs to change, edit it once at the
+canonical location; the roadmap review picks up the change from there.
