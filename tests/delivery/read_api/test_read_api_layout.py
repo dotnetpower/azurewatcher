@@ -17,8 +17,21 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 _READ_API_DIR = _REPO_ROOT / "src" / "fdai" / "delivery" / "read_api"
 
 # Files that legitimately live at the top level (not under a subpackage).
+# Foundational read-API contracts + concrete composition-root entrypoints
+# only. Route handlers, SSE emitters, and dev harnesses stay in their
+# subpackages; the concrete `PostgresConsoleReadModel` is the natural
+# sibling of `read_model.py` (the Protocol it implements) and `prod.py`
+# is the production counterpart to `dev/local.py`.
 _TOP_LEVEL_ALLOWED = frozenset(
-    {"__init__.py", "main.py", "auth.py", "entra_verifier.py", "read_model.py"}
+    {
+        "__init__.py",
+        "main.py",
+        "auth.py",
+        "entra_verifier.py",
+        "read_model.py",
+        "postgres_read_model.py",
+        "prod.py",
+    }
 )
 
 
