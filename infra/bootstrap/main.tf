@@ -6,11 +6,15 @@
 locals {
   suffix = "${var.workload}-${var.env}-${var.region_short}"
 
+  # FDAI tag taxonomy - same `fdai:` namespace as the app config (infra/main.tf).
+  # The ops/hub layer is cross-vertical, so fdai:vertical is always 'shared'.
   tags = merge({
-    workload   = var.workload
-    env        = var.env
-    managed_by = "terraform"
-    layer      = "ops-bootstrap"
+    "fdai:managed"    = "true"
+    "fdai:workload"   = var.workload
+    "fdai:env"        = var.env
+    "fdai:layer"      = "ops-bootstrap"
+    "fdai:managed-by" = "terraform"
+    "fdai:vertical"   = "shared"
   }, var.additional_tags)
 }
 

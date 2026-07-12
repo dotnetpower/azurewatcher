@@ -246,12 +246,15 @@ def test_aggregate_kpi_empty_returns_zero_shares() -> None:
 
 
 def test_aggregate_kpi_counts_modes_kinds_outcomes_tiers() -> None:
+    # Simulate the real `dashboard_metrics()` call path: rows arrive
+    # newest-first from `ORDER BY seq DESC`. The aggregator MUST report
+    # the LATEST `created_at` regardless of iteration order.
     rows = [
         {
-            "action_kind": "risk_gate.decide",
+            "action_kind": "hil.requested",
             "mode": "shadow",
-            "entry": {"outcome": "auto", "tier": "T0"},
-            "created_at": datetime(2026, 7, 13, 10, 0, tzinfo=UTC),
+            "entry": {"outcome": "hil"},
+            "created_at": datetime(2026, 7, 13, 10, 10, tzinfo=UTC),  # newest
         },
         {
             "action_kind": "risk_gate.decide",
@@ -260,15 +263,13 @@ def test_aggregate_kpi_counts_modes_kinds_outcomes_tiers() -> None:
             "created_at": datetime(2026, 7, 13, 10, 5, tzinfo=UTC),
         },
         {
-            "action_kind": "hil.requested",
+            "action_kind": "risk_gate.decide",
             "mode": "shadow",
-            "entry": {"outcome": "hil"},
-            "created_at": datetime(2026, 7, 13, 10, 10, tzinfo=UTC),
+            "entry": {"outcome": "auto", "tier": "T0"},
+            "created_at": datetime(2026, 7, 13, 10, 0, tzinfo=UTC),  # oldest
         },
     ]
-    # rows arrive newest-first from `ORDER BY seq DESC`; last iteration wins
-    # for last_recorded_at, so we pass them in DB order:
-    kpi = aggregate_kpi(list(reversed(rows)), hil_pending=1)
+    kpi = aggregate_kpi(rows, hil_pending=1)
     assert kpi.event_count == 3
     assert kpi.by_action_kind == {"risk_gate.decide": 2, "hil.requested": 1}
     assert kpi.by_outcome == {"auto": 2, "hil": 1}
@@ -276,6 +277,53 @@ def test_aggregate_kpi_counts_modes_kinds_outcomes_tiers() -> None:
     assert kpi.shadow_share == pytest.approx(2 / 3)
     assert kpi.enforce_share == pytest.approx(1 / 3)
     assert kpi.hil_pending == 1
+    # Regression guard: the newest `created_at` MUST win, even though it is
+    # the FIRST row in the caller's DESC ordering (a "last iteration wins"
+    # aggregator would return the oldest here - the exact opposite of what
+    # the console panel needs).
+    assert kpi.last_recorded_at is not None
+    assert kpi.last_recorded_at.startswith("2026-07-13T10:10:00")
+
+
+def test_aggregate_kpi_last_recorded_survives_out_of_order_rows() -> None:
+    """Regression: `last_recorded_at` is order-independent."""
+    rows = [
+        {
+            "action_kind": "a",
+            "mode": "shadow",
+            "entry": {},
+            "created_at": datetime(2026, 7, 13, 10, 0, tzinfo=UTC),
+        },
+        {
+            "action_kind": "b",
+            "mode": "shadow",
+            "entry": {},
+            "created_at": datetime(2026, 7, 13, 12, 0, tzinfo=UTC),  # latest
+        },
+        {
+            "action_kind": "c",
+            "mode": "shadow",
+            "entry": {},
+            "created_at": datetime(2026, 7, 13, 11, 0, tzinfo=UTC),
+        },
+    ]
+    kpi = aggregate_kpi(rows, hil_pending=0)
+    assert kpi.last_recorded_at is not None
+    assert kpi.last_recorded_at.startswith("2026-07-13T12:00:00")
+
+
+def test_aggregate_kpi_last_recorded_ignores_none_created_at() -> None:
+    rows = [
+        {
+            "action_kind": "a",
+            "mode": "shadow",
+            "entry": {},
+            "created_at": None,
+        },
+    ]
+    kpi = aggregate_kpi(rows, hil_pending=0)
+    assert kpi.event_count == 1
+    assert kpi.last_recorded_at is None
 
 
 def test_aggregate_kpi_handles_string_entry_and_missing_fields() -> None:

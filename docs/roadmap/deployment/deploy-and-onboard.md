@@ -198,6 +198,76 @@ placement (none today).
 - **No inline naming logic in Python** - the app reads whatever it is handed via env vars;
   the name is decided in `infra/` at plan time.
 
+## Resource Tagging Convention
+
+Naming makes a resource *readable*; tagging makes a fleet *queryable*. Every resource this
+repo provisions carries a small, machine-parseable tag set. All FDAI-owned keys are
+namespaced under the `fdai:` prefix so the whole set is grep-able and FDAI-provisioned
+resources are unambiguous even in a **shared subscription** where other teams' resources
+sit side by side. The tag map is decided in Terraform (`infra/main.tf` `base_tags`), never
+computed in Python.
+
+### Base tag set (applied to every resource)
+
+| Tag key | Value | Source | Purpose |
+|---------|-------|--------|---------|
+| `fdai:managed` | `true` | constant | **Ownership marker.** The single authoritative "FDAI provisioned this" flag. `az resource list --tag fdai:managed=true` enumerates exactly what FDAI owns - the basis for blast-radius scoping, cleanup/audit cross-checks, and cost attribution. |
+| `fdai:workload` | `fdai` | `var.workload` | Product/workload token; mirrors the CAF name token. |
+| `fdai:env` | `day-zero` / `dev` / `staging` / `prod` | `var.env` | Environment. `day-zero` is the unqualified deployment. |
+| `fdai:layer` | `control-plane` / `ops-bootstrap` | per-config | Architectural layer - the app spoke (`infra/main.tf`) vs the ops/hub bootstrap (`infra/bootstrap`). |
+| `fdai:managed-by` | `terraform` | constant | Provisioning tool. |
+| `fdai:vertical` | `shared` / `resilience` / `change-safety` / `cost-governance` | `var.cost_vertical` (default `shared`) | AIOps vertical the resource's cost is attributed to. Cross-vertical control-plane infra stays `shared`; per-vertical resources (e.g. the three executor MIs) override this key. |
+
+### Why `fdai:managed` matters
+
+The executor may run inside a subscription that also hosts resources FDAI does **not** own.
+The ownership marker is what lets the control plane draw that boundary - it is the query key
+these capabilities rely on, not a behavior any single script hardcodes:
+
+- **Blast-radius scoping** - the safety invariant that an autonomous action must bound its
+  target set is expressed against `fdai:managed=true`, so a remediation can be constrained to
+  resources FDAI created and never reach one it did not.
+- **Cleanup and audit** - `terraform destroy` already removes the provisioned fleet by state;
+  the marker is the out-of-band cross-check that lets a sweep or audit confirm a resource
+  belongs to FDAI before it is ever considered for deletion.
+- **Cost attribution** - Cost Management and Resource Graph can group spend by `fdai:vertical`
+  and isolate the total FDAI footprint as the `fdai:managed=true` slice.
+
+### Fork-supplied tags (`additional_tags`)
+
+Customer- and environment-specific keys are **never** hardcoded in `base_tags` (that would
+break [generic-scope](../../../.github/instructions/generic-scope.instructions.md)). A fork
+supplies them via the `additional_tags` map in its `*.tfvars`, keeping the `fdai:` namespace:
+
+```hcl
+additional_tags = {
+  "fdai:cost-center"        = "cc-1234"
+  "fdai:owner"              = "team-platform"
+  "fdai:criticality"        = "high"
+  "fdai:data-classification" = "internal"
+}
+```
+
+`additional_tags` is merged on top of `base_tags`, so a fork can also override a base value
+(e.g. pin `fdai:vertical`) without editing core.
+
+### Per-resource overrides
+
+A module invocation MAY narrow a single key with a local `merge` - e.g. the per-vertical
+executor MIs set `merge(local.tags, { "fdai:vertical" = "resilience" })`. Use the same
+`fdai:` namespace so a resource never carries two competing keys for one concept. Reserve
+`fdai:component` for the CAF component token when one resource kind is provisioned more than
+once (e.g. `core` vs `worker`), mirroring the naming convention above.
+
+### Rules
+
+- **All FDAI keys use the `fdai:` namespace.** A bare `env` or `vertical` key is a review
+  blocker - it collides with other teams and defeats the grep-ability guarantee.
+- **No customer or secret values in `base_tags`** - those live in `additional_tags` from
+  `*.tfvars`, exactly like resource names.
+- **Values are stable and lowercase** where they feed a query (`true`, `dev`, `resilience`);
+  Cost Management and Resource Graph group on the literal, so drift breaks aggregation.
+
 ## Azure Resource Inventory (minimum set)
 
 The inventory is deliberately minimized for **cost-efficiency first**. Every choice below is

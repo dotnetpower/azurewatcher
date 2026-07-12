@@ -162,3 +162,64 @@ async def test_list_hil_queue_projects_pending_park_records() -> None:
     kpi = await reader.dashboard_metrics()
     assert kpi.hil_pending >= 1
     _ = json  # keep import for lints; JSON round-trip is exercised in units
+
+
+@pytest.mark.asyncio
+async def test_list_hil_queue_orders_by_instant_across_timezone_offsets() -> None:
+    """Regression: `parked_at` with different UTC offsets MUST sort by instant.
+
+    A raw string-based `ORDER BY value->>'parked_at'` would place
+    ``2026-01-01T23:00:00+09:00`` (14:00 UTC) behind
+    ``2026-01-01T15:00:00+00:00`` (15:00 UTC) even though the +09:00
+    entry is actually earlier. The Postgres path casts to
+    ``timestamptz`` so the comparison respects the UTC offset.
+    """
+    url = _requires_live_db()
+    _upgrade_head()
+    dsn = _plain_dsn(url)
+    writer = PostgresStateStore(config=PostgresStateStoreConfig(dsn=dsn))
+    reader = PostgresConsoleReadModel(config=PostgresConsoleReadModelConfig(dsn=dsn))
+    # Use a shared tag so we can filter this test's rows without touching
+    # anything a parallel test might have written.
+    tag = f"tzsort-{uuid.uuid4()}"
+
+    async def _park(*, offset_tag: str, parked_at: str) -> str:
+        approval_id = f"{tag}-{offset_tag}"
+        idem = f"{tag}-{offset_tag}"
+        await writer.write_state(
+            f"hil_park:{approval_id}",
+            {
+                "status": "pending",
+                "approval_id": approval_id,
+                "action": {
+                    "idempotency_key": idem,
+                    "event_id": str(uuid.uuid4()),
+                    "action_type": tag,
+                },
+                "rule_id": tag,
+                "action_type": tag,
+                "submitter_oid": "user-tzsort",
+                "assignee_oid": None,
+                "correlation_id": tag,
+                "idempotency_key": idem,
+                "parked_at": parked_at,
+                "on_call": None,
+            },
+        )
+        return idem
+
+    # `earlier_kst` = 14:00 UTC (2026-01-01T23:00:00+09:00), string-sorts
+    # AFTER `later_utc` = 15:00 UTC (2026-01-01T15:00:00+00:00) even though
+    # the instants say the opposite.
+    earlier_idem = await _park(offset_tag="earlier-kst", parked_at="2026-01-01T23:00:00+09:00")
+    later_idem = await _park(offset_tag="later-utc", parked_at="2026-01-01T15:00:00+00:00")
+
+    page = await reader.list_hil_queue(limit=500)
+    ours = [item for item in page.items if item.action_kind == tag]
+    assert {item.idempotency_key for item in ours} == {earlier_idem, later_idem}
+    idx_later = next(i for i, item in enumerate(ours) if item.idempotency_key == later_idem)
+    idx_earlier = next(i for i, item in enumerate(ours) if item.idempotency_key == earlier_idem)
+    assert idx_later < idx_earlier, (
+        "DESC sort by instant MUST put the later UTC entry (15:00 UTC) "
+        "before the earlier one (14:00 UTC via +09:00 offset)"
+    )

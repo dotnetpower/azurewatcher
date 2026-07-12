@@ -219,7 +219,15 @@ def aggregate_kpi(
     by_tier: dict[str, int] = {}
     shadow = 0
     enforce = 0
-    last_recorded: str | None = None
+    # Track the latest `created_at` seen (ordered comparison on the raw
+    # value, not on the ISO string). The Postgres path passes rows in
+    # ``ORDER BY seq DESC`` (newest first), so a naive "last iteration
+    # wins" would return the OLDEST recorded_at - the exact opposite of
+    # what the KPI panel expects. Comparing the raw ``datetime`` (or
+    # falling back to the ISO string when it is missing) keeps the
+    # aggregator independent of caller-side row order.
+    latest_raw: Any = None
+    latest_iso: str | None = None
     for row in rows:
         action_kind = str(row.get("action_kind", "unknown"))
         by_kind[action_kind] = by_kind.get(action_kind, 0) + 1
@@ -244,9 +252,22 @@ def aggregate_kpi(
             shadow += 1
         elif mode == "enforce":
             enforce += 1
-        recorded_at = _isoformat(row.get("created_at"))
-        if recorded_at:
-            last_recorded = recorded_at
+        raw_at = row.get("created_at")
+        if raw_at is None:
+            continue
+        # `datetime` comparisons are total when both sides are aware or
+        # both naive; mixing raises. Coerce comparability by falling back
+        # to ISO string when the current row cannot be compared with the
+        # running max (defensive - the schema keeps created_at TIMESTAMPTZ).
+        try:
+            if latest_raw is None or raw_at > latest_raw:
+                latest_raw = raw_at
+                latest_iso = _isoformat(raw_at)
+        except TypeError:
+            iso = _isoformat(raw_at)
+            if iso and (latest_iso is None or iso > latest_iso):
+                latest_raw = raw_at
+                latest_iso = iso
     return DashboardKpi(
         event_count=total,
         shadow_share=shadow / total,
@@ -255,7 +276,7 @@ def aggregate_kpi(
         by_action_kind=by_kind,
         by_outcome=by_outcome,
         by_tier=by_tier,
-        last_recorded_at=last_recorded,
+        last_recorded_at=latest_iso,
     )
 
 
@@ -374,7 +395,21 @@ class PostgresConsoleReadModel(ConsoleReadModel):
                       FROM state_kv
                      WHERE key LIKE %s
                        AND value->>'status' = %s
-                     ORDER BY COALESCE(value->>'parked_at', updated_at::text) DESC
+                     ORDER BY
+                       -- Cast `parked_at` to `timestamptz` so different UTC
+                       -- offsets sort chronologically (raw string sort
+                       -- would place `+09:00` behind `+00:00`). Guard the
+                       -- cast with a regex so a malformed string (unlikely
+                       -- - the coordinator writes `datetime.isoformat()`
+                       -- - but not modelled at the schema level) falls
+                       -- back to `updated_at` instead of raising and
+                       -- blowing up the whole query.
+                       CASE
+                         WHEN value->>'parked_at' ~
+                              '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}'
+                         THEN (value->>'parked_at')::timestamptz
+                         ELSE updated_at
+                       END DESC
                      LIMIT %s
                     """,
                     (f"{PARK_KEY_PREFIX}%", DEFAULT_PENDING_STATUS, bounded),

@@ -71,8 +71,7 @@ import os
 import sys
 from dataclasses import dataclass
 
-from fdai.composition import default_container_from_env
-from fdai.composition._helpers import Container
+from fdai.composition import Container, default_container_from_env
 from fdai.core.investigation import (
     InvestigationCoordinator,
     InvestigationRequest,
