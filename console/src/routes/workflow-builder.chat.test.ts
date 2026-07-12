@@ -178,6 +178,91 @@ describe("workflow-builder chat engine", () => {
   });
 });
 
+describe("chat engine full-flow integration", () => {
+  function toReady(goal: string): ReturnType<typeof respondToChat> {
+    const start = startChat(PALETTE);
+    const t1 = respondToChat(start.slots, goal, PALETTE);
+    // Walk whatever stage remains until ready, always taking the safe path.
+    let turn = t1;
+    for (let i = 0; i < 6 && !turn.draftReady; i += 1) {
+      const stage = turn.slots.stage;
+      if (stage === "need_action") {
+        turn = respondToChat(turn.slots, "action:remediate.restart-service", PALETTE);
+      } else if (stage === "need_trigger") {
+        turn = respondToChat(turn.slots, "trigger:object.anomaly", PALETTE);
+      } else if (stage === "offer_extra") {
+        turn = respondToChat(turn.slots, "done", PALETTE);
+      } else if (stage === "confirm_name") {
+        turn = respondToChat(turn.slots, "name:keep", PALETTE);
+      } else {
+        break;
+      }
+    }
+    return turn;
+  }
+
+  it("reaches a ready draft with a name, description, and steps", () => {
+    const ready = toReady("When cost spikes, right-size the resource");
+    expect(ready.draftReady).toBe(true);
+    expect(ready.slots.stage).toBe("ready");
+    expect(ready.slots.form.name.length).toBeGreaterThan(0);
+    expect(/^[a-z][a-z0-9_.-]{0,79}$/.test(ready.slots.form.name)).toBe(true);
+    expect(ready.slots.form.description.length).toBeGreaterThan(0);
+    expect(ready.slots.form.steps.some((s) => s.action_type_ref === "remediate.right-size")).toBe(
+      true,
+    );
+  });
+
+  it("injects a resource hint into the description", () => {
+    const ready = toReady("When a pod on aks-cluster-01 runs hot, restart the service");
+    expect(ready.draftReady).toBe(true);
+    expect(ready.slots.form.description).toContain("aks-cluster-01");
+  });
+
+  it("confirm_name accepts a custom typed name and slugifies it", () => {
+    const start = startChat(PALETTE);
+    let turn = respondToChat(start.slots, "When cost spikes, right-size the resource", PALETTE);
+    // advance to confirm_name
+    for (let i = 0; i < 4 && turn.slots.stage !== "confirm_name"; i += 1) {
+      if (turn.slots.stage === "offer_extra") turn = respondToChat(turn.slots, "done", PALETTE);
+      else if (turn.slots.stage === "need_trigger")
+        turn = respondToChat(turn.slots, "trigger:object.anomaly", PALETTE);
+      else break;
+    }
+    expect(turn.slots.stage).toBe("confirm_name");
+    const named = respondToChat(turn.slots, "My Cool Flow!", PALETTE);
+    expect(named.slots.form.name).toBe("my-cool-flow");
+    expect(named.draftReady).toBe(true);
+  });
+
+  it("refine:extra from ready reopens the offer_extra stage", () => {
+    const ready = toReady("When cost spikes, right-size the resource");
+    const refined = respondToChat(ready.slots, "refine:extra", PALETTE);
+    expect(refined.slots.stage).toBe("offer_extra");
+    expect(refined.draftReady).toBe(false);
+  });
+
+  it("refine:trigger from ready reopens the need_trigger stage", () => {
+    const ready = toReady("When cost spikes, right-size the resource");
+    const refined = respondToChat(ready.slots, "refine:trigger", PALETTE);
+    expect(refined.slots.stage).toBe("need_trigger");
+    expect(refined.slots.triggerConfirmed).toBe(false);
+  });
+
+  it("a weekly schedule is phrased as 'every week' in the recap", () => {
+    const start = startChat(PALETTE);
+    const t1 = respondToChat(start.slots, "action:remediate.restart-service", PALETTE);
+    const sched = t1.options.find((o) => o.value.includes("cron:"))!;
+    const t2 = respondToChat(t1.slots, sched.value, PALETTE);
+    expect(t2.text.toLowerCase()).toContain("every week");
+  });
+
+  it("does not throw when the palette is empty and the operator keeps talking", () => {
+    const start = startChat([]);
+    expect(() => respondToChat(start.slots, "right-size everything", [])).not.toThrow();
+  });
+});
+
 describe("chat engine pure utilities", () => {
   it("extractResourceHint pulls a resource-like token", () => {
     expect(extractResourceHint("a pod on aks-cluster-01 runs hot")).toBe("aks-cluster-01");
