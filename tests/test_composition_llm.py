@@ -839,10 +839,14 @@ async def test_wire_azure_container_skips_monitor_without_workspace(tmp_path: Pa
 
 async def test_wire_azure_container_binds_monitor_with_workspace(tmp_path: Path) -> None:
     """Workspace supplied -> live AzureMonitorLogsMetricProvider bound with
-    the shipped SRE-demo capture query catalog, no fork required."""
+    the shipped default query catalog (demo capture + analyzer union),
+    no fork required."""
     from fdai.composition import AzureWireOverrides, wire_azure_container
     from fdai.core.operator_memory import InMemoryOperatorMemoryStore
-    from fdai.delivery.azure.demo_queries import sre_demo_capture_queries
+    from fdai.delivery.azure.demo_queries import (
+        sre_demo_analyzer_queries,
+        sre_demo_capture_queries,
+    )
     from fdai.delivery.azure.metric_logs import AzureMonitorLogsMetricProvider
 
     resolved = tmp_path / "resolved-models.json"
@@ -861,11 +865,12 @@ async def test_wire_azure_container_binds_monitor_with_workspace(tmp_path: Path)
         ),
     )
     assert isinstance(finalized.metric_provider, AzureMonitorLogsMetricProvider)
-    # Every shipped SRE-demo template MUST be registered so the detection
-    # pipeline can query them without a fork-only override.
-    assert set(sre_demo_capture_queries()).issubset(
-        finalized.metric_provider._config.queries  # type: ignore[attr-defined]
-    )
+    # Every shipped SRE-demo template AND every analyzer-referenced
+    # metric MUST be registered so the detection pipeline can query
+    # them without a fork-only override.
+    bound = finalized.metric_provider._config.queries  # type: ignore[attr-defined]
+    assert set(sre_demo_capture_queries()).issubset(bound)
+    assert set(sre_demo_analyzer_queries()).issubset(bound)
 
 
 async def test_wire_azure_container_forwards_custom_monitor_queries(tmp_path: Path) -> None:

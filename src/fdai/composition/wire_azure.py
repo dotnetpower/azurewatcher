@@ -87,10 +87,14 @@ class AzureWireOverrides:
     ``monitor_queries`` - CSP-neutral ``metric_name`` -> KQL template map
     handed to the metric adapter. Only consulted when
     ``monitor_workspace_id`` is set. Defaults to the shipped
-    :func:`~fdai.delivery.azure.demo_queries.sre_demo_capture_queries`
-    map so upstream ships a working detection baseline; a fork MAY pass
-    its own map to add / override templates while keeping the returned
-    ``value_column`` / ``timestamp_column`` / ``label_columns`` shape.
+    :func:`~fdai.delivery.azure.demo_queries.default_metric_queries`
+    (the union of the SRE-demo capture set and every metric requested
+    by :func:`fdai.core.investigation.analyzers.default_analyzers`) so
+    upstream ships a working detection baseline for **all** reference
+    scenarios out of the box, not just the demo capture. A fork MAY
+    pass its own map to add / override templates while keeping the
+    returned ``value_column`` / ``timestamp_column`` / ``label_columns``
+    shape.
     """
 
     endpoint: str
@@ -297,11 +301,11 @@ async def wire_azure_container(
     # `core/investigation/*`) receives real telemetry out of the box;
     # a fork passes ``monitor_queries`` to add or override templates.
     if overrides.monitor_workspace_id:
-        from ..delivery.azure.demo_queries import sre_demo_capture_queries
+        from ..delivery.azure.demo_queries import default_metric_queries
         from ..delivery.azure.metric_logs import AzureMonitorLogsConfig
         from . import bind_azure_monitor_logs
 
-        queries = overrides.monitor_queries or sre_demo_capture_queries()
+        queries = overrides.monitor_queries or default_metric_queries()
         monitor_config = AzureMonitorLogsConfig(
             workspace_id=overrides.monitor_workspace_id,
             queries=queries,
@@ -314,7 +318,7 @@ async def wire_azure_container(
                 "query_source": (
                     "override"
                     if overrides.monitor_queries is not None
-                    else "sre_demo_capture_queries"
+                    else "default_metric_queries"
                 ),
             },
         )
