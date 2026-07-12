@@ -170,9 +170,7 @@ class CancelScheduleTool:
         try:
             await self._store.cancel(task_id)
         except ScheduleNotFoundError:
-            return ToolResult(
-                status="error", preview=f"no scheduled task {task_id!r}"
-            )
+            return ToolResult(status="error", preview=f"no scheduled task {task_id!r}")
         return ToolResult(
             status="ok",
             data={"task_id": task_id},

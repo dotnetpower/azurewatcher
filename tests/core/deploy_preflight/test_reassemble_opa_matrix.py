@@ -230,9 +230,7 @@ class _OpaReanalyze:
 
     async def __call__(self, overrides: Mapping[str, str]) -> DeploymentReadinessReport:
         self.calls.append(dict(overrides))
-        denies = _opa_deny(
-            self._policy_file, {"plan": self._plan, "overrides": dict(overrides)}
-        )
+        denies = _opa_deny(self._policy_file, {"plan": self._plan, "overrides": dict(overrides)})
         findings = tuple(_finding_from_deny(d) for d in denies)
         verdict = ReadinessVerdict.BLOCKED if findings else ReadinessVerdict.CLEAR
         return DeploymentReadinessReport(
@@ -291,9 +289,7 @@ async def test_nsg_create_autofix_clears(policy_file: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_multi_toggle_single_pass_one_proposal_each(policy_file: Path) -> None:
-    outcome, reanalyze = await _run(
-        policy_file, {"disk_inline": True, "nsg_create": True}
-    )
+    outcome, reanalyze = await _run(policy_file, {"disk_inline": True, "nsg_create": True})
     assert outcome.status is ReassemblyStatus.CLEARED
     assert outcome.overrides == {
         "disk_provisioning": "attach_existing",
@@ -328,9 +324,7 @@ async def test_manual_blocker_escalates(policy_file: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_mixed_autofix_and_manual_whole_pass_escalates(policy_file: Path) -> None:
-    outcome, _ = await _run(
-        policy_file, {"disk_inline": True, "needs_owner_rbac": True}
-    )
+    outcome, _ = await _run(policy_file, {"disk_inline": True, "needs_owner_rbac": True})
     # one autofix + one manual -> whole pass to hil, nothing applied.
     assert outcome.status is ReassemblyStatus.ESCALATED
     assert outcome.reason is ReassemblyReason.MANUAL_BLOCKER
@@ -357,9 +351,7 @@ async def test_iteration_cap_escalates(policy_file: Path) -> None:
     # so a low iteration cap trips before it can converge.
     reanalyze = _OpaReanalyze(policy_file, {"staircase": True})
     initial = await reanalyze({})
-    outcome = await reassemble(
-        initial_report=initial, reanalyze=reanalyze, max_iterations=2
-    )
+    outcome = await reassemble(initial_report=initial, reanalyze=reanalyze, max_iterations=2)
     assert outcome.status is ReassemblyStatus.ESCALATED
     assert outcome.reason is ReassemblyReason.MAX_ITERATIONS
 
