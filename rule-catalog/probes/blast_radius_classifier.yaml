@@ -1,0 +1,41 @@
+schema_version: "1.0.0"
+id: blast_radius_classifier
+description: >-
+  Two-path blast-radius probe (see
+  docs/internals/sre-demo-scenarios-08-fdai-coverage.md item 5 and C.11):
+  compare a synthetic request through the external gateway path with the
+  same request against the internal service path, and classify where the
+  failure sits. Feeds rca/causal_chain as a T0 deterministic first-pass
+  so the risk gate can cap autonomy when the failure is beyond the
+  gateway (internet-side vs backend-side). Consumed by ActionTypes that
+  set live_probe_ref: blast_radius_classifier.
+adapter_ref: probe-adapters/blast-radius-http
+adapter_payload:
+  # Author-controlled configuration. The adapter issues the same HTTP
+  # request against two paths and returns a small object the
+  # interpretation expressions score:
+  #
+  #   {
+  #     "external": {"ok": bool, "status": int, "latency_ms": int},
+  #     "internal": {"ok": bool, "status": int, "latency_ms": int}
+  #   }
+  #
+  # A fork binds probe-adapters/blast-radius-http to its own adapter
+  # (default upstream is shadow no-op); this stanza is the CSP-neutral
+  # contract the adapter honors.
+  method: GET
+  path: "/healthz"
+  timeout_ms: 2000
+  external_target_ref: "workload:external-ingress"
+  internal_target_ref: "workload:internal-service"
+interpretation:
+  # quiet     - both paths succeed: no blast, nothing to do.
+  # active    - internal fails (backend-side): scoped, small blast.
+  # overloaded - external fails but internal succeeds (gateway-side):
+  #             widest possible blast (public path down), cap at
+  #             shadow_only.
+  quiet: "external.ok == true and internal.ok == true"
+  active: "internal.ok == false"
+  overloaded: "external.ok == false and internal.ok == true"
+timeout_seconds: 5
+cache_ttl_seconds: 30

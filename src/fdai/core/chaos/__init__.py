@@ -32,20 +32,30 @@ from fdai.core.chaos.injector import (
     SignalProbe,
 )
 from fdai.core.chaos.scenarios import (
+    AKS_BAD_DEPLOY,
+    AKS_HTTP_ABORT,
     AKS_POD_CPU_SPIKE,
+    AKS_POD_KILL,
     AOAI_TPM_THROTTLE,
     APPGW_BACKEND_FAILURE,
     MYSQL_CPU_PRESSURE,
     NETWORK_RTT_DELAY,
+    VM_CPU_STRESS,
+    VM_MEM_STRESS,
     default_scenarios,
 )
 
 __all__ = [
+    "AKS_BAD_DEPLOY",
+    "AKS_HTTP_ABORT",
     "AKS_POD_CPU_SPIKE",
+    "AKS_POD_KILL",
     "AOAI_TPM_THROTTLE",
     "APPGW_BACKEND_FAILURE",
     "MYSQL_CPU_PRESSURE",
     "NETWORK_RTT_DELAY",
+    "VM_CPU_STRESS",
+    "VM_MEM_STRESS",
     "ExperimentOutcome",
     "ExperimentRecorder",
     "ExperimentResult",

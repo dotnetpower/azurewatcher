@@ -568,7 +568,11 @@ Follows W2. Implements
   fork-authored delivery adapter.
 - **M1.2** Starter probes under
   [rule-catalog/probes/](../../../rule-catalog/probes):
-  `vm_traffic_last_5m`, `storage_access_log`, `lb_backend_health`.
+  `vm_traffic_last_5m`, `storage_access_log`, `lb_backend_health`,
+  `blast_radius_classifier` (two-path external-vs-internal probe that
+  feeds `rca/causal_chain`; see the SRE demo coverage matrix in
+  [docs/internals/sre-demo-scenarios-08-fdai-coverage.md](../../../docs/internals/sre-demo-scenarios-08-fdai-coverage.md)
+  item 5).
 - **M1.3** ActionTypes opt into `live_probe_ref`. Probe failure ->
   `active`; repeated failure -> `shadow_only`
   ([execution-model.md § 4.2](../decisioning/execution-model.md#42-runtime-shape)).

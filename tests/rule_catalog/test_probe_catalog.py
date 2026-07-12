@@ -19,7 +19,12 @@ _PROBES_ROOT = _REPO_ROOT / "rule-catalog" / "probes"
 def test_shipped_probes_load():
     catalog = load_probe_catalog(_PROBES_ROOT)
     ids = probe_ids(catalog)
-    assert {"vm_traffic_last_5m", "storage_access_log", "lb_backend_health"} <= ids
+    assert {
+        "vm_traffic_last_5m",
+        "storage_access_log",
+        "lb_backend_health",
+        "blast_radius_classifier",
+    } <= ids
 
 
 def test_probe_manifest_fields():
@@ -90,7 +95,14 @@ def test_duplicate_id_rejected(tmp_path):
 
 # Locked list from docs/roadmap/fork-and-sequencing/implementation-plan.md § Wave M1 - M1.2.
 # Editing either side without the other = merge-blocker.
-_M1_2_STARTER_PROBES = frozenset({"vm_traffic_last_5m", "storage_access_log", "lb_backend_health"})
+_M1_2_STARTER_PROBES = frozenset(
+    {
+        "vm_traffic_last_5m",
+        "storage_access_log",
+        "lb_backend_health",
+        "blast_radius_classifier",
+    }
+)
 
 
 def test_every_m1_2_doc_declared_starter_probe_ships_as_yaml() -> None:

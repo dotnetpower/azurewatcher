@@ -18,8 +18,35 @@ from fdai.core.detection.forecast_band import ForecastBand, prediction_band
 from fdai.core.detection.metric_source import MetricSeries, MetricSeriesSource
 from fdai.core.detection.seasonal import PhaseFn, SeasonalAnomalyDetector
 from fdai.core.detection.series import MetricSample
+from fdai.core.detection.signals import (
+    SIGNAL_BACKEND_HEALTH,
+    SIGNAL_DB_CPU,
+    SIGNAL_GATEWAY_LATENCY,
+    SIGNAL_HOST_CPU,
+    SIGNAL_HOST_MEMORY,
+    SIGNAL_MEMBER_HOTSPOT,
+    SIGNAL_NODE_CPU,
+    SIGNAL_POD_RESTART,
+    SIGNAL_RATE_LIMIT,
+    SIGNAL_REQUEST_FAILURE,
+    SIGNAL_ROLLOUT_STALL,
+    SignalSpec,
+    is_known_signal,
+    known_signals,
+)
 
 __all__ = [
+    "SIGNAL_BACKEND_HEALTH",
+    "SIGNAL_DB_CPU",
+    "SIGNAL_GATEWAY_LATENCY",
+    "SIGNAL_HOST_CPU",
+    "SIGNAL_HOST_MEMORY",
+    "SIGNAL_MEMBER_HOTSPOT",
+    "SIGNAL_NODE_CPU",
+    "SIGNAL_POD_RESTART",
+    "SIGNAL_RATE_LIMIT",
+    "SIGNAL_REQUEST_FAILURE",
+    "SIGNAL_ROLLOUT_STALL",
     "AnomalyFinding",
     "CompositeAnomalyDetector",
     "CompositeAnomalyFinding",
@@ -32,5 +59,8 @@ __all__ = [
     "MetricSeriesSource",
     "PhaseFn",
     "SeasonalAnomalyDetector",
+    "SignalSpec",
+    "is_known_signal",
+    "known_signals",
     "prediction_band",
 ]

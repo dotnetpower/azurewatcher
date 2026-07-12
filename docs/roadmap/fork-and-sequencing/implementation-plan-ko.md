@@ -1,8 +1,8 @@
 ---
 title: 구현 계획 (표준 세트)
 translation_of: implementation-plan.md
-translation_source_sha: ef768457b2b6d9cfe03062b6c335f0ecb226efce
-translation_revised: 2026-07-11
+translation_source_sha: 292215c11e2035765a4db92d556eeddd966c4151
+translation_revised: 2026-07-12
 ---
 
 # 구현 계획 (표준 세트)
@@ -543,7 +543,10 @@ W2 뒤. [execution-model.md § Month 1](../decisioning/execution-model.md#month-
   포크가 authoring하는 delivery 어댑터.
 - **M1.2** [rule-catalog/probes/](../../../rule-catalog/probes) 아래의
   스타터 프로브: `vm_traffic_last_5m`, `storage_access_log`,
-  `lb_backend_health`.
+  `lb_backend_health`, `blast_radius_classifier` (외부-vs-내부 2-경로
+  프로브로 `rca/causal_chain`에 공급; SRE 데모 커버리지 매트릭스
+  [docs/internals/sre-demo-scenarios-08-fdai-coverage.md](../../../docs/internals/sre-demo-scenarios-08-fdai-coverage.md)
+  항목 5 참조).
 - **M1.3** ActionType이 `live_probe_ref`에 opt-in. 프로브 실패 ->
   `active`; 반복 실패 -> `shadow_only`
   ([execution-model.md § 4.2](../decisioning/execution-model.md#42-runtime-shape)).
