@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ActionTypePaletteEntry } from "../workflow/validate";
 import { KNOWN_SIGNAL_VALUES } from "./workflow-builder.model";
+import { buildDraft } from "./workflow-builder.helpers";
 import {
   extractResourceHint,
   respondToChat,
@@ -281,6 +282,76 @@ describe("chat engine full-flow integration", () => {
     const t2 = respondToChat(t1.slots, "hmm not sure", PALETTE);
     expect(t2.slots.stage).toBe("need_trigger");
     expect(t2.text.toLowerCase()).toContain("couldn't read a trigger");
+  });
+});
+
+describe("chat ready draft -> buildDraft shape", () => {
+  function readyForm(goal: string) {
+    const start = startChat(PALETTE);
+    let turn = respondToChat(start.slots, goal, PALETTE);
+    for (let i = 0; i < 6 && !turn.draftReady; i += 1) {
+      const stage = turn.slots.stage;
+      if (stage === "need_action")
+        turn = respondToChat(turn.slots, "action:remediate.restart-service", PALETTE);
+      else if (stage === "need_trigger")
+        turn = respondToChat(turn.slots, "trigger:object.anomaly", PALETTE);
+      else if (stage === "offer_extra") turn = respondToChat(turn.slots, "done", PALETTE);
+      else if (stage === "confirm_name") turn = respondToChat(turn.slots, "name:keep", PALETTE);
+      else break;
+    }
+    return turn.slots.form;
+  }
+
+  it("emits a signal trigger with numeric promotion-gate values and shadow mode", () => {
+    const draft = buildDraft(readyForm("When cost spikes, right-size the resource")) as Record<
+      string,
+      unknown
+    >;
+    expect(draft["schema_version"]).toBe("1.0.0");
+    expect(draft["default_mode"]).toBe("shadow");
+    const trigger = draft["trigger"] as Record<string, unknown>;
+    expect(trigger["kind"]).toBe("signal");
+    expect(typeof trigger["signal_type"]).toBe("string");
+    // A signal trigger must not also carry a schedule key.
+    expect("schedule" in trigger).toBe(false);
+    const gate = draft["promotion_gate"] as Record<string, unknown>;
+    for (const k of ["min_shadow_days", "min_samples", "min_accuracy", "max_policy_escapes"]) {
+      expect(typeof gate[k]).toBe("number");
+      expect(Number.isNaN(gate[k])).toBe(false);
+    }
+  });
+
+  it("emits steps that all carry a non-empty id + action_type_ref (no blank rows)", () => {
+    const draft = buildDraft(readyForm("When cost spikes, right-size the resource")) as Record<
+      string,
+      unknown
+    >;
+    const steps = draft["steps"] as Array<Record<string, unknown>>;
+    expect(steps.length).toBeGreaterThan(0);
+    for (const step of steps) {
+      expect(String(step["id"]).length).toBeGreaterThan(0);
+      expect(String(step["action_type_ref"]).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("a scheduled workflow emits a schedule trigger, not a signal_type", () => {
+    const start = startChat(PALETTE);
+    const t1 = respondToChat(start.slots, "action:remediate.restart-service", PALETTE);
+    const sched = t1.options.find((o) => o.value.includes("cron:"))!;
+    let turn = respondToChat(t1.slots, sched.value, PALETTE);
+    for (let i = 0; i < 4 && !turn.draftReady; i += 1) {
+      if (turn.slots.stage === "offer_extra") turn = respondToChat(turn.slots, "done", PALETTE);
+      else if (turn.slots.stage === "confirm_name")
+        turn = respondToChat(turn.slots, "name:keep", PALETTE);
+      else break;
+    }
+    const trigger = (buildDraft(turn.slots.form) as Record<string, unknown>)["trigger"] as Record<
+      string,
+      unknown
+    >;
+    expect(trigger["kind"]).toBe("schedule");
+    expect(trigger["schedule"]).toBe("0 3 * * 0");
+    expect("signal_type" in trigger).toBe(false);
   });
 });
 
