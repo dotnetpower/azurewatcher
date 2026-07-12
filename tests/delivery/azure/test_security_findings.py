@@ -192,6 +192,22 @@ async def test_pagination_cap_fails_closed() -> None:
         await client.aclose()
 
 
+@pytest.mark.asyncio
+async def test_response_over_byte_cap_fails_closed() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"value": [_assessment(f"a{i}", "Unhealthy", "High", _SA_ID) for i in range(20)]},
+        )
+
+    provider, client = _provider(handler, cfg=_config(max_response_bytes=64))
+    try:
+        with pytest.raises(SecurityFindingProviderError, match="over the .*byte cap"):
+            await provider.collect(scope=_SUB)
+    finally:
+        await client.aclose()
+
+
 def test_waf_mapping_blocks_and_skips() -> None:
     arm_id = (
         f"/subscriptions/{_SUB}/resourceGroups/rg/providers/"

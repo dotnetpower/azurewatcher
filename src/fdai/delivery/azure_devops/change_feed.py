@@ -47,6 +47,7 @@ _DEFAULT_TIMEOUT_SECONDS: Final[float] = 20.0
 _DEFAULT_MAX_RECORDS: Final[int] = 200
 _DEFAULT_MAX_PAGES: Final[int] = 10
 _DEFAULT_PAGE_SIZE: Final[int] = 100
+_DEFAULT_MAX_RESPONSE_BYTES: Final[int] = 10_000_000
 
 TokenProvider = Callable[[], Awaitable[str]]
 
@@ -69,6 +70,7 @@ class AzureDevOpsChangeFeedConfig:
     max_records: int = _DEFAULT_MAX_RECORDS
     max_pages: int = _DEFAULT_MAX_PAGES
     page_size: int = _DEFAULT_PAGE_SIZE
+    max_response_bytes: int = _DEFAULT_MAX_RESPONSE_BYTES
 
     def __post_init__(self) -> None:
         if not self.organization:
@@ -87,6 +89,8 @@ class AzureDevOpsChangeFeedConfig:
             raise ValueError("max_pages MUST be positive")
         if not 1 <= self.page_size <= 5000:
             raise ValueError("page_size MUST be in [1, 5000]")
+        if self.max_response_bytes < 1:
+            raise ValueError("max_response_bytes MUST be >= 1")
 
 
 def _as_utc(dt: datetime) -> datetime:
@@ -195,6 +199,14 @@ class AzureDevOpsChangeFeed:
                 f"{self._config.organization}/{self._config.project}: {snippet!r}"
             )
 
+        if len(response.content) > self._config.max_response_bytes:
+            raise ChangeFeedError(
+                f"Azure DevOps response for "
+                f"{self._config.organization}/{self._config.project} is "
+                f"{len(response.content)} bytes, over the "
+                f"{self._config.max_response_bytes}-byte cap; narrow the window"
+            )
+
         try:
             payload = response.json()
         except ValueError as exc:
@@ -245,11 +257,17 @@ class AzureDevOpsChangeFeed:
             metadata["branch"] = branch
         if build_number:
             metadata["build_number"] = build_number
+        # Coalesce a stable id; a JSON ``"id": null`` returns None from .get,
+        # so guard explicitly rather than rendering "ado-build-None".
+        raw_id = row.get("id")
+        build_key = str(raw_id) if raw_id is not None else (sha or build_number)
+        if not build_key:
+            return None
         return ChangeRecord(
-            change_id=f"ado-build-{row.get('id', sha or build_number)}",
+            change_id=f"ado-build-{build_key}",
             at=at,
             source="azure-devops",
-            ref=sha or build_number or str(row.get("id", "")),
+            ref=sha or build_number or build_key,
             summary=f"build {build_number or sha} on {branch or 'unknown'}",
             author=author,
             resource_hints=hints,

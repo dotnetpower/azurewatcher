@@ -228,6 +228,38 @@ async def test_max_records_stops_early() -> None:
     assert len(records) == 2
 
 
+@pytest.mark.asyncio
+async def test_response_over_byte_cap_fails_closed() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"value": [_build(i, i + 1) for i in range(20)]})
+
+    feed, client = _feed(handler, cfg=_config(max_response_bytes=64))
+    try:
+        with pytest.raises(ChangeFeedError, match="over the .*byte cap"):
+            await feed.recent(since=_SINCE, until=_UNTIL)
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_null_build_id_falls_back_to_sha() -> None:
+    # A JSON `"id": null` must not render "ado-build-None".
+    async def handler(request: httpx.Request) -> httpx.Response:
+        row = _build(1, 30)
+        row["id"] = None
+        return httpx.Response(200, json={"value": [row]})
+
+    feed, client = _feed(handler)
+    try:
+        records = await feed.recent(since=_SINCE, until=_UNTIL)
+    finally:
+        await client.aclose()
+
+    assert len(records) == 1
+    assert "None" not in records[0].change_id
+    assert records[0].change_id.startswith("ado-build-")
+
+
 def test_config_validation() -> None:
     with pytest.raises(ValueError, match="organization"):
         _config(organization="")

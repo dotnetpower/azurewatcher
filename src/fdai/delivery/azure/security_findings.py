@@ -47,6 +47,7 @@ _DEFAULT_ASSESSMENTS_API_VERSION: Final[str] = "2021-06-01"
 _DEFAULT_AUDIENCE: Final[str] = "https://management.azure.com/.default"
 _DEFAULT_TIMEOUT_SECONDS: Final[float] = 30.0
 _DEFAULT_MAX_PAGES: Final[int] = 32
+_DEFAULT_MAX_RESPONSE_BYTES: Final[int] = 20_000_000
 
 # Defender assessment metadata severity -> CSP-neutral severity.
 _DEFENDER_SEVERITY: Final[dict[str, Severity]] = {
@@ -73,6 +74,7 @@ class DefenderFindingConfig:
     audience: str = _DEFAULT_AUDIENCE
     timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS
     max_pages: int = _DEFAULT_MAX_PAGES
+    max_response_bytes: int = _DEFAULT_MAX_RESPONSE_BYTES
 
     def __post_init__(self) -> None:
         if not self.subscription_scope:
@@ -85,6 +87,8 @@ class DefenderFindingConfig:
             raise ValueError("timeout_seconds MUST be > 0")
         if self.max_pages < 1:
             raise ValueError("max_pages MUST be >= 1")
+        if self.max_response_bytes < 1:
+            raise ValueError("max_response_bytes MUST be >= 1")
 
 
 class DefenderFindingProvider:
@@ -147,6 +151,11 @@ class DefenderFindingProvider:
             snippet = response.text[:200].replace("\n", " ")
             raise SecurityFindingProviderError(
                 f"Defender returned HTTP {response.status_code}: {snippet!r}"
+            )
+        if len(response.content) > self._config.max_response_bytes:
+            raise SecurityFindingProviderError(
+                f"Defender response is {len(response.content)} bytes, over the "
+                f"{self._config.max_response_bytes}-byte cap"
             )
         try:
             payload = response.json()

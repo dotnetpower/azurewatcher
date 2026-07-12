@@ -252,6 +252,20 @@ async def test_non_json_response_fails_closed() -> None:
 
 
 @pytest.mark.asyncio
+async def test_response_over_byte_cap_fails_closed() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(201, json={"key": "OPS-1", "pad": "z" * 500})
+
+    ex, client = _executor(handler, cfg=_config(max_response_bytes=64))
+    try:
+        with pytest.raises(ToolError) as exc:
+            await ex.execute(_request(mode=Mode.ENFORCE, labels=("shadow", "enforce")))
+    finally:
+        await client.aclose()
+    assert exc.value.kind == "protocol"
+
+
+@pytest.mark.asyncio
 async def test_missing_secret_fails_closed() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
         return httpx.Response(201, json={"key": "OPS-1"})

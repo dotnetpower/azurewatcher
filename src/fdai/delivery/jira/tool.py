@@ -58,6 +58,8 @@ from fdai.shared.providers.tool import (
 _DEFAULT_TIMEOUT_SECONDS: Final[float] = 30.0
 _DEFAULT_ISSUE_TYPE: Final[str] = "Task"
 _CREATE_ISSUE_PATH: Final[str] = "/rest/api/3/issue"
+_DEFAULT_MAX_RESPONSE_BYTES: Final[int] = 1_000_000
+_MAX_DESCRIPTION_CHARS: Final[int] = 30_000
 
 
 @runtime_checkable
@@ -113,6 +115,7 @@ class JiraToolExecutorConfig:
     tool_map: Mapping[str, str]
     default_issue_type: str = _DEFAULT_ISSUE_TYPE
     timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS
+    max_response_bytes: int = _DEFAULT_MAX_RESPONSE_BYTES
 
     def __post_init__(self) -> None:
         if not self.base_url:
@@ -131,6 +134,8 @@ class JiraToolExecutorConfig:
             raise ValueError("JiraToolExecutorConfig.api_token_secret MUST be non-empty")
         if self.timeout_seconds <= 0:
             raise ValueError("JiraToolExecutorConfig.timeout_seconds MUST be positive")
+        if self.max_response_bytes < 1:
+            raise ValueError("JiraToolExecutorConfig.max_response_bytes MUST be >= 1")
 
 
 class JiraToolExecutor:
@@ -219,6 +224,16 @@ class JiraToolExecutor:
                 ),
             )
 
+        if len(response.content) > self._config.max_response_bytes:
+            raise ToolError(
+                kind="protocol",
+                message=(
+                    f"Jira response for project {project_key!r} is "
+                    f"{len(response.content)} bytes, over the "
+                    f"{self._config.max_response_bytes}-byte cap"
+                ),
+            )
+
         try:
             payload = response.json()
         except ValueError as exc:
@@ -247,7 +262,7 @@ class JiraToolExecutor:
         args = request.arguments
         summary = str(args.get("summary") or f"FDAI: {request.action_type_name}")
         issue_type = str(args.get("issue_type") or self._config.default_issue_type)
-        description_text = str(args.get("description") or "")
+        description_text = str(args.get("description") or "")[:_MAX_DESCRIPTION_CHARS]
         fields: dict[str, Any] = {
             "project": {"key": project_key},
             "summary": summary[:255],
