@@ -185,9 +185,10 @@ returns to full opacity even while dimmed, so its card stays readable (a parent
 
 The incident side list is newest-first and shows the most recent
 `INCIDENT_PREVIEW` (10) by default; an **All (N)** toggle beside the heading
-expands to the full retained history and back to **Recent**. Selecting a row
-pins it and opens its workflow card (steps, agent-to-agent conversation, RCA)
-below the list.
+expands to the full retained history and back to **Recent**. The list is an
+accordion: selecting a row pins it and expands its workflow card (steps,
+agent-to-agent conversation, RCA) inline directly beneath that row; clicking
+the open row again collapses it.
 
 ### Org-chart layout + agent focus (Now > Agents)
 

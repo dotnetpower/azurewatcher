@@ -355,6 +355,11 @@ export function AgentsRoute({ client: _client }: Props) {
               incidents={selectedAgentIncidents}
               onClose={() => setSelectedAgent(null)}
               onPickIncident={(id) => {
+                // If the target sits past the recent-10 window, expand the
+                // full list so its inline card is actually visible.
+                if (state.incidentOrder.indexOf(id) >= INCIDENT_PREVIEW) {
+                  setShowAllIncidents(true);
+                }
                 setSelectedId(id);
                 setPinned(true);
               }}
@@ -384,30 +389,32 @@ export function AgentsRoute({ client: _client }: Props) {
                 ).map((id) => {
                   const inc = state.incidents[id];
                   if (!inc) return null;
+                  const isOpen = id === selectedId;
                   return (
-                    <li key={id}>
+                    <li key={id} class={`incident-item${isOpen ? " is-open" : ""}`}>
                       <button
                         type="button"
                         class={`incident-row sev-${inc.severity} status-${inc.status}${
-                          id === selectedId ? " is-selected" : ""
+                          isOpen ? " is-selected" : ""
                         }`}
+                        aria-expanded={isOpen}
                         onClick={() => {
-                          setSelectedId(id);
                           setPinned(true);
+                          // Toggle: click an open row to collapse it, another to open.
+                          setSelectedId((cur) => (cur === id ? null : id));
                         }}
                       >
                         <span class="incident-status">{inc.status}</span>
                         <span class="incident-title">{inc.title}</span>
                         <span class="incident-ticket">{inc.ticketId}</span>
                       </button>
+                      {isOpen && <IncidentWorkflow incident={inc} />}
                     </li>
                   );
                 })}
               </ul>
             )}
           </div>
-
-          <IncidentWorkflow incident={selected} />
         </aside>
       </div>
     </div>

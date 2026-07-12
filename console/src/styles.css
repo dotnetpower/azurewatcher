@@ -4846,6 +4846,38 @@ main { padding-bottom: 60px !important; }
   gap: 0.35rem;
 }
 
+/* Accordion row: the incident button, and (when open) its workflow card
+   nested directly beneath it instead of a separate section. */
+.incident-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.incident-item.is-open {
+  gap: 0;
+}
+.incident-item.is-open .incident-row {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.incident-item.is-open .incident-workflow {
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-color: color-mix(in srgb, #a78bfa 45%, transparent);
+  animation: incident-open 0.16s ease;
+}
+@keyframes incident-open {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .incident-row {
   display: grid;
   grid-template-columns: auto 1fr auto;
