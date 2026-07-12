@@ -13,6 +13,15 @@ below are **targets to validate against a measured baseline**
 ([goals-and-metrics.md](../../docs/roadmap/architecture/goals-and-metrics.md)), not guarantees; state no
 multiplier without measuring baseline and treatment on the same scenario set.
 
+> **Related on-demand skills** (load when the task fits the description):
+> [`.github/skills/coding-hardening/SKILL.md`](../skills/coding-hardening/SKILL.md)
+> for the critique -> harden -> verify loop on safety-core modules;
+> [`.github/skills/agent-pantheon-edit/SKILL.md`](../skills/agent-pantheon-edit/SKILL.md)
+> for the safe-edit checklist under `src/fdai/agents/**` (also auto-loaded via
+> [agent-pantheon.instructions.md](agent-pantheon.instructions.md)). Subsystem
+> index (source -> tests -> docs) lives at
+> [`docs/roadmap/architecture/code-map.md`](../../docs/roadmap/architecture/code-map.md).
+
 ## Design Principles
 
 1. **Deterministic-first** - resolve every repeatable decision with rules, policies, and

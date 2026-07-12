@@ -5,6 +5,13 @@ applyTo: "**"
 
 # Language Policy
 
+> **Related on-demand skill**:
+> [`.github/skills/i18n-catalog/SKILL.md`](../skills/i18n-catalog/SKILL.md)
+> is the runnable workflow for L1 `.md` + `-ko.md` doc pairs, L2 message
+> catalog authoring, and the SHA / parity / english-only / punctuation
+> gates. Load it when you are editing catalogs, translations, or a gate
+> failure sends you here.
+
 ## Scope
 
 This policy governs everything **committed to this repository** and everything the
