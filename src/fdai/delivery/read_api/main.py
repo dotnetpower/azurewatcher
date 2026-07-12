@@ -59,6 +59,13 @@ from fdai.delivery.read_api.routes.hil_callback import (
 )
 from fdai.delivery.read_api.routes.panels import ReadPanel
 from fdai.delivery.read_api.routes.webhook import make_webhook_route
+from fdai.delivery.read_api.streaming.agent_activity_emitter import (
+    SyntheticAgentActivityEmitter,
+)
+from fdai.delivery.read_api.streaming.agent_activity_stream import (
+    AgentActivityStreamConfig,
+    make_agent_activity_stream_route,
+)
 from fdai.delivery.read_api.streaming.live_stream import (
     LiveEmitter,
     LiveStreamConfig,
@@ -222,6 +229,17 @@ class ReadApiConfig:
     :class:`~fdai.delivery.read_api.streaming.provision_stream.SseProvisionPublisher`.
     Default ``None``. See
     :mod:`fdai.delivery.read_api.provision_stream`."""
+
+    agent_activity: AgentActivityStreamConfig | None = None
+    """Opt-in agent-activity SSE surface. When set, registers a ``GET``
+    streaming route (default ``/agents/stream``) that fans out
+    ``agent.state`` / ``incident.ticket`` / ``conversation.turn`` events to
+    the ``Now > Agents`` console panel. Read-only: the console renders agent
+    collaboration, it never executes. In the dev harness (no external sink)
+    a synthetic emitter (``SyntheticAgentActivityEmitter``) supplies an idle
+    heartbeat plus periodic incident narratives. Default
+    ``None``. See
+    :mod:`fdai.delivery.read_api.streaming.agent_activity_stream`."""
 
     blast_radius_graph: Any = None
     """Opt-in blast-radius simulator. When set (an
@@ -637,6 +655,39 @@ def build_app(
             )
         )
 
+    # Optional agent-activity SSE. Same reader-role gate; agent-centric view
+    # (per-agent status + incident tickets + agent-to-agent conversation).
+    # In dev (no external sink) a synthetic emitter supplies the narrative;
+    # a fork with a real relay supplies its own sink and no emitter is stacked.
+    agent_emitter: SyntheticAgentActivityEmitter | None = None
+    if resolved_config.agent_activity is not None:
+        agent_cfg = resolved_config.agent_activity
+        if agent_cfg.path in _CORE_ROUTE_PATHS:
+            raise ValueError(f"agent_activity.path {agent_cfg.path!r} collides with a core route")
+        if agent_cfg.path in seen_panel_paths:
+            raise ValueError(f"agent_activity.path {agent_cfg.path!r} collides with a panel path")
+        for _other in (resolved_config.live_stream, resolved_config.provision_stream):
+            if _other is not None and agent_cfg.path == _other.path:
+                raise ValueError(
+                    f"agent_activity.path {agent_cfg.path!r} collides with another SSE route"
+                )
+        agent_sink = agent_cfg.sink if agent_cfg.sink is not None else InMemorySseSink()
+        if agent_cfg.emitter_factory is not None:
+            agent_emitter = agent_cfg.emitter_factory(agent_sink)
+        elif agent_cfg.sink is None:
+            agent_emitter = SyntheticAgentActivityEmitter(
+                sink=agent_sink, channel=agent_cfg.channel
+            )
+        routes.append(
+            make_agent_activity_stream_route(
+                sink=agent_sink,
+                channel=agent_cfg.channel,
+                path=agent_cfg.path,
+                keepalive_seconds=agent_cfg.keepalive_seconds,
+                authorize=_authorize,
+            )
+        )
+
     # Optional blast-radius simulator. Reader-role gate, GET-only, and
     # collision-checked against every other route registered so far.
     if resolved_config.blast_radius_graph is not None:
@@ -979,6 +1030,8 @@ def build_app(
     async def lifespan(_app: Starlette):  # type: ignore[no-untyped-def]
         if live_emitter is not None:
             await live_emitter.start()
+        if agent_emitter is not None:
+            await agent_emitter.start()
         # Warm the latency router (if wired) so GET /chat/health reports the
         # measured-fastest mini before the first operator turn. Fire-and-forget
         # so startup is never blocked on LLM round-trips.
@@ -1002,6 +1055,8 @@ def build_app(
                 bench_task.cancel()
             if live_emitter is not None:
                 await live_emitter.stop()
+            if agent_emitter is not None:
+                await agent_emitter.stop()
 
     return Starlette(
         debug=False,

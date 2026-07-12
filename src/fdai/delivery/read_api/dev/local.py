@@ -78,6 +78,9 @@ from fdai.delivery.read_api.routes.panels import (  # noqa: E402
 from fdai.delivery.read_api.routes.rule_fire_trace_reader import (  # noqa: E402
     ConsoleReadModelTraceReader,
 )
+from fdai.delivery.read_api.streaming.agent_activity_stream import (  # noqa: E402
+    AgentActivityStreamConfig,
+)
 from fdai.delivery.read_api.streaming.live_control_loop import (  # noqa: E402
     ControlLoopEmitterUnavailable,
     build_control_loop_emitter,
@@ -1003,6 +1006,7 @@ def app() -> Starlette:
                 "http://localhost:8090",
             ),
             live_stream=_build_live_stream_config(),
+            agent_activity=AgentActivityStreamConfig(),
             blast_radius_graph=_build_blast_radius_graph(),
             ontology_object_types=tuple(ontology_object_types),
             ontology_link_types=tuple(ontology_link_types),
