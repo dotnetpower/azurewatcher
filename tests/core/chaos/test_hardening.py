@@ -241,3 +241,30 @@ async def test_clean_run_with_successful_rollback_stays_validated() -> None:  # 
     result = await harness.run(_scenario(), approved_targets=("a",), mode=Mode.ENFORCE)
     assert result.stopped is True
     assert result.outcome is ExperimentOutcome.VALIDATED
+
+
+async def test_cancellation_rolls_back_and_still_audits() -> None:  # H9
+    from fdai.core.chaos.injector import InMemoryExperimentRecorder
+
+    inj = _Injector()
+    recorder = InMemoryExperimentRecorder()
+
+    async def _cancelling_sleep(_seconds: float) -> None:
+        raise asyncio.CancelledError
+
+    harness = FaultInjectionHarness(
+        injectors=(inj,), recorder=recorder, sleeper=_cancelling_sleep
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await harness.run(_scenario(), approved_targets=("a",), mode=Mode.ENFORCE)
+
+    # The injected target was rolled back despite the cancellation...
+    assert inj.injected == ["a"]
+    assert inj.stopped == ["a"]
+    # ...and the run still produced exactly one audit record (invariant).
+    assert len(recorder.results) == 1
+    rec = recorder.results[0]
+    assert rec.outcome is ExperimentOutcome.ABORTED
+    assert rec.error == "cancelled"
+    assert rec.reverted is True

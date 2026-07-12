@@ -188,6 +188,7 @@ class FaultInjectionHarness:
         injected_targets: list[str] = []
         detected = False
         error: str | None = None
+        cancelled = False
         try:
             for target in targets:
                 await asyncio.wait_for(
@@ -203,6 +204,14 @@ class FaultInjectionHarness:
                 self._probe.observed(signal=scenario.expected_signal, targets=targets),
                 timeout=self._op_timeout,
             )
+        except asyncio.CancelledError:
+            # Cancellation (task shutdown, upstream timeout) is a BaseException
+            # that `except Exception` deliberately does NOT catch. Handle it
+            # explicitly so the finally still rolls back AND the audit record
+            # is still written before we re-raise - a cancelled enforce run
+            # must never vanish from the audit log with a fault left live.
+            cancelled = True
+            error = "cancelled"
         except Exception as exc:  # noqa: BLE001 - fail closed, always roll back
             error = f"{type(exc).__name__}:{exc}"
             _LOGGER.error(
@@ -232,7 +241,7 @@ class FaultInjectionHarness:
         else:
             outcome = ExperimentOutcome.NOT_DETECTED
 
-        return await self._finish(
+        result = await self._finish(
             experiment_id=experiment_id,
             scenario=scenario,
             mode=mode,
@@ -244,6 +253,11 @@ class FaultInjectionHarness:
             stopped=stopped,
             error=error,
         )
+        if cancelled:
+            # Rollback + audit are done; propagate the cancellation so the
+            # caller's shutdown / timeout semantics are preserved.
+            raise asyncio.CancelledError
+        return result
 
     async def _stop_all(self, injector: FaultInjector, targets: Sequence[str]) -> bool:
         """Stop every target; report whether rollback fully succeeded.
