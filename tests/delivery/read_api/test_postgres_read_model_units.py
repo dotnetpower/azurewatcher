@@ -27,7 +27,7 @@ from fdai.delivery.read_api.read_model import AuditItem
 def _row(
     *,
     seq: int = 1,
-    event_id: str = "11111111-1111-1111-1111-111111111111",
+    event_id: str = "00000000-0000-0000-0000-000000000001",
     correlation_id: str | None = "corr-1",
     actor: str = "fdai",
     action_kind: str = "risk_gate.decide",
@@ -140,7 +140,7 @@ def _park(
     rule_id: str = "azure.compute.stop_condition_required",
     submitter_oid: str = "user-1",
     correlation_id: str | None = "corr-1",
-    event_id: str = "22222222-2222-2222-2222-222222222222",
+    event_id: str = "00000000-0000-0000-0000-000000000002",
 ) -> dict[str, object]:
     return {
         "value": {
@@ -169,7 +169,7 @@ def test_row_to_hil_queue_item_full_shape() -> None:
     assert item is not None
     assert item.idempotency_key == "idem-1"
     assert item.action_kind == "compute.restart_vmss"
-    assert item.event_id == "22222222-2222-2222-2222-222222222222"
+    assert item.event_id == "00000000-0000-0000-0000-000000000002"
     assert item.requested_at == "2026-07-13T10:00:00+00:00"
     assert item.correlation_id == "corr-1"
     assert "rule:azure.compute.stop_condition_required" in item.reason
