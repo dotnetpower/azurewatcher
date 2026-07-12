@@ -109,7 +109,12 @@ from fdai.shared.providers.testing.sse import InMemorySseSink  # noqa: E402
 
 _DEV_ENV = "FDAI_READ_API_DEV_MODE"
 _LOCAL_ENTRA_ENV = "FDAI_READ_API_LOCAL_ENTRA"
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+# local.py lives at src/fdai/delivery/read_api/dev/local.py, so the repo root
+# is six levels up (parents[5]): dev -> read_api -> delivery -> fdai -> src ->
+# repo root. This was parents[4] before the module moved into dev/ (bc11c981);
+# an index off by one made _REPO_ROOT resolve to src/ and every catalog-backed
+# route (ontology, rules, promotion-gates, workflows) 404 with empty catalogs.
+_REPO_ROOT = Path(__file__).resolve().parents[5]
 
 # One seed audit row: (agent, tier, action_kind, outcome, finished_hhmmss,
 # correlation, summary, detail, work_ms, inputs, outputs).
