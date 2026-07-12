@@ -1,6 +1,6 @@
 ---
 description: Documentation style. Apply to every user-facing markdown doc.
-applyTo: "**/*.md"
+applyTo: "docs/**/*.md,README.md,README-ko.md,**/README.md"
 ---
 
 # Documentation Style
