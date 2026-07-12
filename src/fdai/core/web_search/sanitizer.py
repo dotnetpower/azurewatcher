@@ -46,6 +46,14 @@ _XML_ESCAPES: Final[tuple[tuple[str, str], ...]] = (
 #: scheme-confusion payload into the audit / replay surface.
 _ALLOWED_URL_SCHEMES: Final[frozenset[str]] = frozenset({"http", "https"})
 
+#: Default cap on the rendered snippet body. A provider is asked to respect
+#: ``max_results`` but nothing bounds a single snippet's size; without a cap
+#: one megabyte-scale snippet blows the T2 context window and cost. The cap
+#: is applied at wrap time (after the full-body injection scan) so a marker
+#: hiding past the cut is still caught.
+_DEFAULT_MAX_BODY_CHARS: Final[int] = 8_000
+_TRUNCATION_MARKER: Final[str] = "...[truncated]"
+
 
 class WebSnippetPolicyError(ValueError):
     """Raised when a snippet violates a sanitization policy.
@@ -152,29 +160,41 @@ def wrap_web_snippet(
     *,
     snippet: WebSnippet,
     allowed_domains: tuple[str, ...],
+    max_body_chars: int = _DEFAULT_MAX_BODY_CHARS,
 ) -> str:
     """Render a snippet inside its ``trusted="false"`` envelope.
 
-    Runs both defenses first (domain allowlist + injection markers)
-    and only then wraps the body. XML meta-characters in attribute
-    values and body are escaped so a snippet cannot forge the
+    Runs both defenses first (domain allowlist + injection markers) and
+    only then wraps the body. The **full** body is scanned for injection
+    markers before any truncation, so a marker hiding past
+    ``max_body_chars`` is still caught; the rendered body is then bounded
+    to ``max_body_chars`` (plus a truncation marker) to keep one oversized
+    snippet from blowing the T2 context / cost budget. XML meta-characters
+    in attribute values and body are escaped so a snippet cannot forge the
     closing tag or inject arbitrary attributes.
 
     Raises:
-        WebSnippetPolicyError: domain not on allowlist / allowlist empty.
+        WebSnippetPolicyError: domain not on allowlist / allowlist empty /
+            invalid url / domain-url mismatch.
         InjectionMarkerError: body carries at least one injection marker.
+        ValueError: ``max_body_chars`` is not positive.
     """
 
+    if max_body_chars < 1:
+        raise ValueError("max_body_chars MUST be >= 1")
     validate_snippet_domain(snippet=snippet, allowed_domains=allowed_domains)
     markers = detect_snippet_injection_markers(snippet.text)
     if markers:
         raise InjectionMarkerError(markers)
+    body = snippet.text
+    if len(body) > max_body_chars:
+        body = body[:max_body_chars] + _TRUNCATION_MARKER
     return (
         '<web_snippet trusted="false" '
         f'url="{_xml_escape(snippet.url)}" '
         f'domain="{_xml_escape(snippet.domain)}" '
         f'content_hash="{_xml_escape(snippet.content_hash)}">'
-        f"{_xml_escape(snippet.text)}"
+        f"{_xml_escape(body)}"
         "</web_snippet>"
     )
 

@@ -19,6 +19,7 @@ the same defense without shared mutable state.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Iterable
 from typing import Final
 
@@ -52,6 +53,34 @@ _XML_ESCAPES: Final[tuple[tuple[str, str], ...]] = (
     ('"', "&quot;"),
 )
 
+# Zero-width / invisible / bidi-control characters an attacker can splice
+# between marker words ("ig<ZWSP>nore previous") to slip a known injection
+# phrase past the substring scan. They are stripped from the matching copy
+# (never from stored text) before detection. Whitespace (\s) already covers
+# NBSP; these are format (Cf) characters \s does NOT match.
+_INVISIBLE_CHARS: Final[dict[int, None]] = {
+    ord(c): None
+    for c in (
+        "\u00ad",  # soft hyphen
+        "\u200b",  # zero-width space
+        "\u200c",  # zero-width non-joiner
+        "\u200d",  # zero-width joiner
+        "\u200e",  # left-to-right mark
+        "\u200f",  # right-to-left mark
+        "\u202a",  # left-to-right embedding
+        "\u202b",  # right-to-left embedding
+        "\u202c",  # pop directional formatting
+        "\u202d",  # left-to-right override
+        "\u202e",  # right-to-left override
+        "\u2060",  # word joiner
+        "\u2061",  # function application
+        "\u2062",  # invisible times
+        "\u2063",  # invisible separator
+        "\u2064",  # invisible plus
+        "\ufeff",  # BOM / zero-width no-break space
+    )
+}
+
 
 class InjectionMarkerError(ValueError):
     """Raised when an operator memory body carries an injection marker.
@@ -79,11 +108,20 @@ def detect_injection_markers(body: str) -> tuple[str, ...]:
     spaces, tabs, or newlines between the marker words
     (``"ignore   previous"``, ``"ignore\\nprevious"``) - cannot slip a
     known injection phrase past the write-time quarantine gate.
+
+    Two further evasions are folded out before matching: the body is
+    Unicode NFKC-normalized (so a fullwidth / compatibility homoglyph such
+    as ``"\uff49gnore"`` folds to ``"ignore"``) and zero-width / bidi
+    format characters are stripped (so ``"ig\u200bnore previous"``, which
+    renders as a readable ``"ignore previous"`` to a model, still matches).
+    Normalization is applied to the matching copy only; the stored body is
+    never mutated.
     """
 
     if not body:
         return ()
-    normalized = re.sub(r"\s+", " ", body.lower())
+    folded = unicodedata.normalize("NFKC", body).translate(_INVISIBLE_CHARS)
+    normalized = re.sub(r"\s+", " ", folded.lower())
     hits: list[str] = []
     for marker in _INJECTION_MARKERS:
         if marker in normalized:
