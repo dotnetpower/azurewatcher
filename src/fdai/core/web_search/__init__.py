@@ -22,6 +22,13 @@ allowlist. The upstream default keeps web search off entirely.
 
 from __future__ import annotations
 
+from fdai.core.web_search.policy import (
+    WebSearchDecision,
+    WebSearchPolicyConfig,
+    WebSearchRoute,
+    WebSearchSignals,
+    decide_web_search,
+)
 from fdai.core.web_search.provider import (
     NoOpWebSearchProvider,
     WebSearchProvider,
@@ -42,11 +49,16 @@ from fdai.core.web_search.types import (
 __all__ = [
     "InjectionMarkerError",
     "NoOpWebSearchProvider",
+    "WebSearchDecision",
+    "WebSearchPolicyConfig",
     "WebSearchProvider",
     "WebSearchQuery",
     "WebSearchResult",
+    "WebSearchRoute",
+    "WebSearchSignals",
     "WebSnippet",
     "WebSnippetPolicyError",
+    "decide_web_search",
     "detect_snippet_injection_markers",
     "validate_snippet_domain",
     "wrap_web_snippet",
