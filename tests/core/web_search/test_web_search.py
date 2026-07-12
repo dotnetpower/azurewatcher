@@ -111,10 +111,58 @@ class TestDomainValidation:
     def test_off_allowlist_domain_is_refused(self) -> None:
         with pytest.raises(WebSnippetPolicyError) as info:
             validate_snippet_domain(
-                snippet=_snippet(domain="attacker.example.net"),
+                snippet=_snippet(
+                    domain="attacker.example.net",
+                    url="https://attacker.example.net/x",
+                ),
                 allowed_domains=("docs.example.com",),
             )
         assert info.value.code == "off_allowlist"
+
+    def test_spoofed_domain_with_offlist_url_is_refused(self) -> None:
+        # The attack: a provider presents an allowlisted `domain` label while
+        # the actual URL points off-allowlist. The allowlist is enforced on
+        # the URL host, so this is refused despite the spoofed domain field.
+        with pytest.raises(WebSnippetPolicyError) as info:
+            validate_snippet_domain(
+                snippet=_snippet(
+                    domain="docs.example.com",
+                    url="https://attacker.example.net/evil",
+                ),
+                allowed_domains=("docs.example.com",),
+            )
+        assert info.value.code == "off_allowlist"
+
+    def test_domain_field_disagreeing_with_url_host_is_refused(self) -> None:
+        # URL host is allowlisted, but the denormalized domain label lies.
+        with pytest.raises(WebSnippetPolicyError) as info:
+            validate_snippet_domain(
+                snippet=_snippet(
+                    domain="cdn.example.com",
+                    url="https://docs.example.com/x",
+                ),
+                allowed_domains=("docs.example.com",),
+            )
+        assert info.value.code == "domain_url_mismatch"
+
+    @pytest.mark.parametrize(
+        "bad_url",
+        ["javascript:alert(1)", "file:///etc/passwd", "data:text/html,x", "https://"],
+    )
+    def test_non_http_or_hostless_url_is_refused(self, bad_url: str) -> None:
+        with pytest.raises(WebSnippetPolicyError) as info:
+            validate_snippet_domain(
+                snippet=_snippet(domain="docs.example.com", url=bad_url),
+                allowed_domains=("docs.example.com",),
+            )
+        assert info.value.code == "invalid_url"
+
+    def test_host_match_is_case_insensitive_and_trailing_dot_tolerant(self) -> None:
+        # DNS is case-insensitive; a trailing FQDN dot is equivalent.
+        validate_snippet_domain(
+            snippet=_snippet(domain="Docs.Example.COM", url="https://Docs.Example.COM./x"),
+            allowed_domains=("docs.example.com",),
+        )
 
     def test_empty_allowlist_is_refused(self) -> None:
         with pytest.raises(WebSnippetPolicyError) as info:
@@ -176,7 +224,10 @@ class TestWrapWebSnippet:
     def test_off_allowlist_domain_refused_before_wrap(self) -> None:
         with pytest.raises(WebSnippetPolicyError) as info:
             wrap_web_snippet(
-                snippet=_snippet(domain="attacker.example.net"),
+                snippet=_snippet(
+                    domain="attacker.example.net",
+                    url="https://attacker.example.net/x",
+                ),
                 allowed_domains=("docs.example.com",),
             )
         assert info.value.code == "off_allowlist"

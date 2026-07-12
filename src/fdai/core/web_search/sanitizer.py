@@ -26,6 +26,7 @@ same defense without shared mutable state.
 from __future__ import annotations
 
 from typing import Final
+from urllib.parse import urlsplit
 
 from fdai.core.operator_memory.sanitizer import (
     InjectionMarkerError,
@@ -40,6 +41,11 @@ _XML_ESCAPES: Final[tuple[tuple[str, str], ...]] = (
     ('"', "&quot;"),
 )
 
+#: Only these URL schemes may originate a web snippet. ``javascript:`` /
+#: ``file:`` / ``data:`` have no network host and would smuggle a
+#: scheme-confusion payload into the audit / replay surface.
+_ALLOWED_URL_SCHEMES: Final[frozenset[str]] = frozenset({"http", "https"})
+
 
 class WebSnippetPolicyError(ValueError):
     """Raised when a snippet violates a sanitization policy.
@@ -48,11 +54,17 @@ class WebSnippetPolicyError(ValueError):
     it for telemetry without pattern-matching on error messages.
     Codes:
 
-    - ``off_allowlist`` - snippet ``domain`` is not on the query's
+    - ``off_allowlist`` - the snippet URL's host is not on the query's
       allowlist;
     - ``empty_allowlist`` - the query supplied an empty allowlist
       (the caller MUST populate it before shipping snippets into a
       prompt);
+    - ``invalid_url`` - the snippet ``url`` is not a well-formed
+      ``http(s)`` URL with a host (a ``javascript:`` / ``file:`` /
+      ``data:`` URL, or a URL with no host);
+    - ``domain_url_mismatch`` - the denormalized ``domain`` field does
+      not match the URL's actual host (a provider cannot present an
+      allowlisted label while linking elsewhere);
     - ``injection_markers_detected`` - the snippet body carries at
       least one injection marker (raised by
       :class:`InjectionMarkerError` under the hood).
@@ -74,16 +86,41 @@ def detect_snippet_injection_markers(text: str) -> tuple[str, ...]:
     return detect_injection_markers(text)
 
 
+def _snippet_host(url: str) -> str | None:
+    """Return the lowercased host of an ``http(s)`` URL, else ``None``.
+
+    ``None`` signals an unusable URL (a non-``http(s)`` scheme or a
+    hostless URL); the caller fails closed. A trailing FQDN dot is
+    stripped so ``docs.example.com.`` compares equal to
+    ``docs.example.com``.
+    """
+
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        return None
+    if parsed.scheme.lower() not in _ALLOWED_URL_SCHEMES:
+        return None
+    host = (parsed.hostname or "").lower().rstrip(".")
+    return host or None
+
+
 def validate_snippet_domain(
     *,
     snippet: WebSnippet,
     allowed_domains: tuple[str, ...],
 ) -> None:
-    """Refuse a snippet whose domain is not on the allowlist.
+    """Refuse a snippet whose actual source is not on the allowlist.
 
-    Empty ``allowed_domains`` is itself a policy failure - the
-    caller MUST populate the allowlist BEFORE receiving snippets;
-    an empty tuple means the snippet has no legitimate source.
+    The allowlist is checked against the **host parsed from
+    ``snippet.url``**, not the provider-supplied ``domain`` label - a
+    hostile or buggy provider must not be able to present an allowlisted
+    ``domain`` while linking to an off-allowlist URL. The ``domain``
+    field is then required to agree with that host.
+
+    Empty ``allowed_domains`` is itself a policy failure - the caller
+    MUST populate the allowlist BEFORE receiving snippets; an empty
+    tuple means the snippet has no legitimate source.
     """
 
     if not allowed_domains:
@@ -91,11 +128,24 @@ def validate_snippet_domain(
             "empty_allowlist",
             "allowed_domains is empty; a snippet cannot legitimately reach the prompt",
         )
-    if snippet.domain not in allowed_domains:
+    host = _snippet_host(snippet.url)
+    if host is None:
+        raise WebSnippetPolicyError(
+            "invalid_url",
+            f"snippet url {snippet.url!r} is not a valid http(s) URL with a host",
+        )
+    allowlist = {d.lower().rstrip(".") for d in allowed_domains}
+    if host not in allowlist:
         raise WebSnippetPolicyError(
             "off_allowlist",
-            f"snippet domain {snippet.domain!r} is not in the allowlist {allowed_domains!r}",
+            f"snippet url host {host!r} is not in the allowlist {allowed_domains!r}",
         )
+    if snippet.domain.lower().rstrip(".") != host:
+        raise WebSnippetPolicyError(
+            "domain_url_mismatch",
+            f"snippet domain {snippet.domain!r} does not match its url host {host!r}",
+        )
+
 
 
 def wrap_web_snippet(
