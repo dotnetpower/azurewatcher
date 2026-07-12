@@ -115,3 +115,17 @@ principles into a phased engineering plan.
   labels when central. Issues are English-only and never carry customer values.
 - Do not claim performance multipliers or other quantified gains without a stated, measured
   baseline.
+
+## Repo Hints (agent-facing)
+
+- **Pre-commit gate (single entry)**: run `scripts/verify.sh` (fast text + lint gates) or
+  `scripts/verify.sh --full [<path>]` to include pytest. Individual `scripts/check-*.sh`
+  remain as the CI-side primitives.
+- **Runtime and generated artifacts (do not hand-edit)**: `resolved-models.json`,
+  `resolved-models-local.json`, `infra/dev.plan`, `infra/terraform.tfstate*`,
+  `alembic/versions/*` (schema migrations, append-only), and every `__pycache__/`. Treat
+  these as build outputs; regenerate them via their tooling instead of editing.
+- **Communication style with the maintainer** (tone, Korean casual, completion timestamps,
+  no confirmation questions during autonomous runs) lives in the maintainer's user memory,
+  not in this repo. Follow it verbatim when it is loaded; do not re-derive it from these
+  instructions.
