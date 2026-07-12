@@ -65,6 +65,21 @@ def test_pod_restarts_computes_delta_not_cumulative() -> None:
     )
 
 
+def test_pod_restarts_groups_by_pod_uid_not_name() -> None:
+    """StatefulSet pods keep their Name across a delete/recreate; grouping
+    by Name conflates the two incarnations' restart counters. The immutable
+    PodUid MUST be the group key so a recreated pod does not steal the
+    prior pod's counter and surface a spurious delta."""
+    template = sre_demo_capture_queries()[METRIC_POD_RESTARTS]
+    assert "PodUid" in template.kql, (
+        "k8s.pod.restarts KQL must include PodUid in the group key so "
+        "StatefulSet name reuse cannot produce a spurious delta"
+    )
+    assert "pod_uid" in template.label_columns
+    # The regression: grouping by Name alone.
+    assert "by resource_id = tolower(ClusterId), pod_uid" in template.kql
+
+
 def test_rollout_stall_preserves_event_time() -> None:
     """The rollout-stall template MUST NOT overwrite TimeGenerated with
     now() - that would poison rolling-window anomaly detection with a

@@ -22,6 +22,40 @@ These templates are the CSP-neutral **catalog** the metric adapter is
 initialized with at the composition root. A fork MAY override a template
 (different table, different KDL predicate) but MUST keep the returned
 ``value_column``, ``timestamp_column``, and ``label_columns`` shape.
+
+Label case-normalization contract
+---------------------------------
+
+Every template lowercases the identifier columns it emits
+(``resource_id = tolower(_ResourceId)``, ``resource_id = tolower(ClusterId)``).
+The metric adapter's in-memory label filter is a **case-sensitive raw
+string equality** (see :func:`fdai.shared.providers.metric._labels_match`),
+so callers passing ``MetricQuery(labels={"resource_id": "..."})`` MUST
+supply the ``resource_id`` value in lowercase to match. This is the same
+contract Azure Resource Manager already uses (resource ids are
+case-insensitive by convention; lowercase is canonical).
+
+Semantic notes per template
+---------------------------
+
+- ``host.cpu.percent`` - avg guest-OS CPU % per 1-minute bin per
+  resource. Requires the VM Insights extension.
+- ``host.memory.available_pct`` - **available** memory %, so a **LOW**
+  value means memory pressure. Wire this to
+  :attr:`fdai.core.investigation.analyzer.Comparison.LTE` in the
+  threshold analyzer; a ``GTE`` binding would alert on healthy hosts.
+- ``k8s.pod.restarts`` - the **delta** of PodRestartCount within the
+  timespan per pod (grouped by ``PodUid`` so a StatefulSet pod that
+  keeps its ``Name`` across a recreation does not conflate the two
+  incarnations' restart counters).
+- ``http.server.request.failure_rate`` - failed / total AppRequests per
+  1-minute bin per resource.
+- ``k8s.deployment.rollout_stall_seconds`` - the **observed span** of
+  stall-signal KubeEvents in the timespan
+  (``max(TimeGenerated) - min(TimeGenerated)``), NOT the total time the
+  rollout has been stuck. If the stall started before the query
+  timespan, ``v`` is a **lower bound** of the true stall duration - a
+  fork tuning a threshold around this metric should account for that.
 """
 
 from __future__ import annotations
@@ -38,35 +72,6 @@ METRIC_POD_RESTARTS = "k8s.pod.restarts"
 METRIC_REQUEST_FAILURE_RATE = "http.server.request.failure_rate"
 METRIC_ROLLOUT_STALL_SECONDS = "k8s.deployment.rollout_stall_seconds"
 
-# The five-metric capture (C.5) plus S12's rollout-stall probe. Each
-# template targets one Log Analytics table and returns exactly the
-# columns the metric adapter parses. Every template's KQL is static text
-# (no interpolation, no format strings) - the ONLY variable input is the
-# ``timespan`` sent as the server-side query parameter.
-#
-# Template semantics (documented so the adapter, the analyzer, and the
-# operator agree on what each series means):
-#
-# - ``host.cpu.percent``           - avg guest-OS CPU % per 1-minute bin
-#                                    per resource. Requires VM Insights.
-# - ``host.memory.available_pct``  - avg available memory % per 1-minute
-#                                    bin per resource; LOW is bad (use
-#                                    ``Comparison.LTE``). Requires VM
-#                                    Insights.
-# - ``k8s.pod.restarts``           - **delta** of PodRestartCount within
-#                                    the timespan per pod (i.e. new
-#                                    restarts observed in the window),
-#                                    not the cumulative counter value.
-# - ``http.server.request.failure_rate`` - failed / total AppRequests per
-#                                    1-minute bin per resource.
-# - ``k8s.deployment.rollout_stall_seconds`` - seconds since the earliest
-#                                    stall-signal KubeEvent in the
-#                                    timespan, per (cluster, involved
-#                                    object). The involved-object name
-#                                    is a pod / replica-set / deployment
-#                                    depending on the reason, so the
-#                                    label is ``involved_object`` rather
-#                                    than ``deployment``.
 
 _HOST_CPU_PERCENT = MetricKqlTemplate(
     kql=(
@@ -91,25 +96,28 @@ _HOST_MEMORY_AVAILABLE_PCT = MetricKqlTemplate(
 )
 
 _POD_RESTARTS = MetricKqlTemplate(
-    # PodRestartCount is a cumulative counter per pod - the "restart count
-    # in the window" is the delta within the timespan (max - min). We
-    # emit one row per pod, timestamped at the max-observation time, so
-    # the metric adapter yields a step-shaped series that only rises
-    # when a new restart happens.
+    # PodRestartCount is a cumulative counter per pod. Grouping by
+    # ``PodUid`` (the immutable object UID) rather than ``Name`` defends
+    # against StatefulSet pods that keep their name across a
+    # delete/recreate - two different incarnations would otherwise share
+    # a group and the delta 'max - min' would surface as a spurious
+    # restart (e.g. old pod at rc=3 + new pod at rc=0 -> min=0, max=3,
+    # v=3, "3 restarts" when the true answer is zero). The label set
+    # still exposes pod / namespace for the operator.
     kql=(
         "KubePodInventory "
-        "| where isnotempty(PodRestartCount) "
+        "| where isnotempty(PodRestartCount) and isnotempty(PodUid) "
         "| extend rc = toint(PodRestartCount) "
         "| summarize "
         "    rc_max = max(rc), rc_min = min(rc), "
-        "    at = max(TimeGenerated) "
-        "  by resource_id = tolower(ClusterId), "
-        "     pod = Name, namespace = Namespace "
+        "    at = max(TimeGenerated), "
+        "    pod = any(Name), namespace = any(Namespace) "
+        "  by resource_id = tolower(ClusterId), pod_uid = tostring(PodUid) "
         "| extend v = todouble(rc_max - rc_min) "
-        "| project TimeGenerated = at, v, resource_id, pod, namespace"
+        "| project TimeGenerated = at, v, resource_id, pod, namespace, pod_uid"
     ),
     value_column="v",
-    label_columns=("resource_id", "pod", "namespace"),
+    label_columns=("resource_id", "pod", "namespace", "pod_uid"),
 )
 
 _REQUEST_FAILURE_RATE = MetricKqlTemplate(
@@ -131,8 +139,9 @@ _ROLLOUT_STALL_SECONDS = MetricKqlTemplate(
     #     (NOT now() - that would poison rolling-window anomaly
     #     detection with a fake "just now" timestamp),
     #   - v = seconds elapsed from that earliest event to the max event
-    #     observed in the timespan (i.e. how long the stall has been
-    #     visible in this query window).
+    #     observed in the timespan (i.e. the *observed span* of the
+    #     stall in this query window). See module docstring - this is a
+    #     LOWER BOUND on the true stall duration, not the exact age.
     # The involved-object name is a pod / replica-set / deployment
     # depending on which event fired, so the label is ``involved_object``.
     kql=(
