@@ -838,16 +838,21 @@ async def test_wire_azure_container_skips_monitor_without_workspace(tmp_path: Pa
 
 
 async def test_wire_azure_container_binds_monitor_with_workspace(tmp_path: Path) -> None:
-    """Workspace supplied -> live AzureMonitorLogsMetricProvider bound with
-    the shipped default query catalog (demo capture + analyzer union),
-    no fork required."""
+    """Workspace supplied -> RoutedMetricProvider with the Azure Monitor
+    Metrics REST route (fast, direct-mapped metrics) in front of the AML
+    KQL route (slow, catalog fallback). Both bind together on a single
+    ``monitor_workspace_id`` because they share the same identity."""
     from fdai.composition import AzureWireOverrides, wire_azure_container
     from fdai.core.operator_memory import InMemoryOperatorMemoryStore
     from fdai.delivery.azure.demo_queries import (
+        METRIC_APIM_HTTP_5XX_RATE,
+        METRIC_MYSQL_CPU_PERCENT,
         sre_demo_analyzer_queries,
         sre_demo_capture_queries,
     )
     from fdai.delivery.azure.metric_logs import AzureMonitorLogsMetricProvider
+    from fdai.delivery.azure.metrics_api import AzureMonitorMetricsProvider
+    from fdai.shared.providers.routed_metric import RoutedMetricProvider
 
     resolved = tmp_path / "resolved-models.json"
     resolved.write_text(_resolved_models_json(), encoding="utf-8")
@@ -864,13 +869,16 @@ async def test_wire_azure_container_binds_monitor_with_workspace(tmp_path: Path)
             monitor_workspace_id="00000000-0000-0000-0000-000000000000",
         ),
     )
-    assert isinstance(finalized.metric_provider, AzureMonitorLogsMetricProvider)
-    # Every shipped SRE-demo template AND every analyzer-referenced
-    # metric MUST be registered so the detection pipeline can query
-    # them without a fork-only override.
-    bound = finalized.metric_provider._config.queries  # type: ignore[attr-defined]
-    assert set(sre_demo_capture_queries()).issubset(bound)
-    assert set(sre_demo_analyzer_queries()).issubset(bound)
+    routed = finalized.metric_provider
+    assert isinstance(routed, RoutedMetricProvider)
+    # Direct-mapped metric goes to the fast Metrics API route.
+    assert routed.route_for(METRIC_MYSQL_CPU_PERCENT) == (AzureMonitorMetricsProvider.__name__)
+    # Rate-based metric (needs client-side compute) falls through to AML.
+    assert routed.route_for(METRIC_APIM_HTTP_5XX_RATE) == (AzureMonitorLogsMetricProvider.__name__)
+    # The AML tail still carries the full shipped catalog (demo capture
+    # + every analyzer-referenced metric) so nothing goes unrouted.
+    assert set(sre_demo_capture_queries()).issubset(routed.routed_metrics())
+    assert set(sre_demo_analyzer_queries()).issubset(routed.routed_metrics())
 
 
 async def test_wire_azure_container_forwards_custom_monitor_queries(tmp_path: Path) -> None:
@@ -905,9 +913,15 @@ async def test_wire_azure_container_forwards_custom_monitor_queries(tmp_path: Pa
             monitor_queries=custom,
         ),
     )
-    assert isinstance(finalized.metric_provider, AzureMonitorLogsMetricProvider)
-    bound_queries = finalized.metric_provider._config.queries  # type: ignore[attr-defined]
-    assert set(bound_queries) == {"fork.metric.foo"}
+    # monitor_workspace_id triggers both the Metrics API + AML KQL
+    # routes; the custom monitor_queries override only replaces the AML
+    # tail's catalog, so the composite router now serves 4 Metrics API
+    # templates + 1 custom AML template.
+    from fdai.shared.providers.routed_metric import RoutedMetricProvider
+
+    routed = finalized.metric_provider
+    assert isinstance(routed, RoutedMetricProvider)
+    assert routed.route_for("fork.metric.foo") == (AzureMonitorLogsMetricProvider.__name__)
 
 
 def test_azure_wire_overrides_rejects_queries_without_workspace(tmp_path: Path) -> None:
@@ -987,15 +1001,20 @@ async def test_wire_azure_container_binds_prometheus_only_when_only_prom_supplie
 async def test_wire_azure_container_routes_prom_primary_aml_fallback(
     tmp_path: Path,
 ) -> None:
-    """Both backends set -> RoutedMetricProvider with Prom serving AKS-scoped
-    metrics and AML covering the rest of the 14-metric analyzer catalog."""
+    """Both backends set -> RoutedMetricProvider with three tiers in
+    latency order: Prom (AKS-scoped, sub-minute) -> Metrics API (Azure
+    PaaS direct metrics, ~1-3 min) -> AML KQL (computed / catalog
+    fallback, 2-5 min). Each analyzer query lands on the fastest
+    backend that can serve it."""
     from fdai.composition import AzureWireOverrides, wire_azure_container
     from fdai.core.operator_memory import InMemoryOperatorMemoryStore
     from fdai.delivery.azure.demo_queries import (
         METRIC_APIM_HTTP_5XX_RATE,
+        METRIC_MYSQL_CPU_PERCENT,
         METRIC_NODE_CPU_PERCENT,
     )
     from fdai.delivery.azure.metric_logs import AzureMonitorLogsMetricProvider
+    from fdai.delivery.azure.metrics_api import AzureMonitorMetricsProvider
     from fdai.delivery.prometheus import PrometheusMetricProvider
     from fdai.shared.providers.routed_metric import RoutedMetricProvider
 
@@ -1016,10 +1035,15 @@ async def test_wire_azure_container_routes_prom_primary_aml_fallback(
         ),
     )
     assert isinstance(finalized.metric_provider, RoutedMetricProvider)
-    # Prom wins its supported subset (AKS-scoped), AML picks up the rest.
+    # AKS-scoped metric served by Prom (route #1).
     assert finalized.metric_provider.route_for(METRIC_NODE_CPU_PERCENT) == (
         PrometheusMetricProvider.__name__
     )
+    # Direct-mapped Azure PaaS metric served by the Metrics API (route #2).
+    assert finalized.metric_provider.route_for(METRIC_MYSQL_CPU_PERCENT) == (
+        AzureMonitorMetricsProvider.__name__
+    )
+    # Computed rate falls all the way through to AML KQL (route #3).
     assert finalized.metric_provider.route_for(METRIC_APIM_HTTP_5XX_RATE) == (
         AzureMonitorLogsMetricProvider.__name__
     )
