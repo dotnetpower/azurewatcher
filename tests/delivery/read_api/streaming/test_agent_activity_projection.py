@@ -213,4 +213,3 @@ class TestDetailShaping:
         _proj, events = _run([_stage(StageName.ROUTE, detail={"tier": "t0"})])
         state_events = [e for e in events if isinstance(e, AgentStateEvent)]
         assert state_events[0].detail == "route (t0)"
-
