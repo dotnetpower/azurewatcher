@@ -157,10 +157,9 @@ def test_every_probe_adapter_ref_matches_naming_convention() -> None:
         )
         # After the prefix, the remainder must be a kebab-case token so
         # a fork's binding table can key on it deterministically.
-        remainder = probe.adapter_ref[len(_ADAPTER_REF_PREFIX):]
+        remainder = probe.adapter_ref[len(_ADAPTER_REF_PREFIX) :]
         assert remainder and remainder.replace("-", "").isalnum(), (
-            f"{probe.id}: adapter_ref suffix {remainder!r} must be a "
-            "kebab-case token"
+            f"{probe.id}: adapter_ref suffix {remainder!r} must be a kebab-case token"
         )
 
 
@@ -171,6 +170,5 @@ def test_every_probe_id_is_snake_case() -> None:
     pattern = re.compile(r"^[a-z][a-z0-9_]*$")
     for probe in catalog:
         assert pattern.match(probe.id), (
-            f"probe id {probe.id!r} must match {pattern.pattern!r} "
-            "(shared audit-id shape)"
+            f"probe id {probe.id!r} must match {pattern.pattern!r} (shared audit-id shape)"
         )

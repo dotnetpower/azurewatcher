@@ -298,9 +298,7 @@ def test_config_rejects_empty_workspace_and_bad_max_rows() -> None:
 def test_config_rejects_plaintext_endpoint() -> None:
     # The bearer token is sent on every request; a plaintext endpoint leaks it.
     with pytest.raises(ValueError, match="https://"):
-        AzureMonitorLogsConfig(
-            workspace_id="w", queries={}, endpoint="http://api.loganalytics.io"
-        )
+        AzureMonitorLogsConfig(workspace_id="w", queries={}, endpoint="http://api.loganalytics.io")
 
 
 def test_config_rejects_nonpositive_timeout() -> None:

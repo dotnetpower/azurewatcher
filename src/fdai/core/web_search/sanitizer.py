@@ -156,7 +156,6 @@ def validate_snippet_domain(
         )
 
 
-
 def wrap_web_snippet(
     *,
     snippet: WebSnippet,

@@ -82,9 +82,7 @@ async def test_non_finite_points_are_dropped_at_the_boundary() -> None:
 
 async def test_all_non_finite_yields_none() -> None:
     # Dropping every non-finite sample leaves < 2 points -> no usable baseline.
-    provider = StaticMetricProvider(
-        [_point(2, float("nan")), _point(1, float("-inf"))]
-    )
+    provider = StaticMetricProvider([_point(2, float("nan")), _point(1, float("-inf"))])
     assert await _fetch(provider) is None
 
 

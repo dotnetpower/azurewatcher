@@ -44,16 +44,16 @@ from fdai.core.detection.signals import (
 # (scenario, expected_signal). New rows added here must have a
 # corresponding FaultScenario in ``default_scenarios``.
 _COVERAGE = (
-    (AKS_POD_KILL, SIGNAL_POD_RESTART),                # S1, C2
-    (AKS_POD_CPU_SPIKE, SIGNAL_NODE_CPU),              # S2, C3
-    (NETWORK_RTT_DELAY, SIGNAL_GATEWAY_LATENCY),       # S3, S7, S10
-    (AKS_HTTP_ABORT, SIGNAL_REQUEST_FAILURE),          # S4
-    (VM_CPU_STRESS, SIGNAL_HOST_CPU),                  # S5
-    (VM_MEM_STRESS, SIGNAL_HOST_MEMORY),               # S6, C4
-    (MYSQL_CPU_PRESSURE, SIGNAL_DB_CPU),               # S8
-    (AOAI_TPM_THROTTLE, SIGNAL_RATE_LIMIT),            # S9
-    (APPGW_BACKEND_FAILURE, SIGNAL_BACKEND_HEALTH),    # S11
-    (AKS_BAD_DEPLOY, SIGNAL_ROLLOUT_STALL),            # S12
+    (AKS_POD_KILL, SIGNAL_POD_RESTART),  # S1, C2
+    (AKS_POD_CPU_SPIKE, SIGNAL_NODE_CPU),  # S2, C3
+    (NETWORK_RTT_DELAY, SIGNAL_GATEWAY_LATENCY),  # S3, S7, S10
+    (AKS_HTTP_ABORT, SIGNAL_REQUEST_FAILURE),  # S4
+    (VM_CPU_STRESS, SIGNAL_HOST_CPU),  # S5
+    (VM_MEM_STRESS, SIGNAL_HOST_MEMORY),  # S6, C4
+    (MYSQL_CPU_PRESSURE, SIGNAL_DB_CPU),  # S8
+    (AOAI_TPM_THROTTLE, SIGNAL_RATE_LIMIT),  # S9
+    (APPGW_BACKEND_FAILURE, SIGNAL_BACKEND_HEALTH),  # S11
+    (AKS_BAD_DEPLOY, SIGNAL_ROLLOUT_STALL),  # S12
 )
 
 # The demo's 5-minute alert window plus one probe cycle. Any scenario

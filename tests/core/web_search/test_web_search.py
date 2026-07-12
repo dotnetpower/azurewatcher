@@ -320,8 +320,7 @@ class TestSanitizeWebResult:
         # Provider ignored the contract and returned 5 snippets; only
         # max_results are processed.
         snippets = [
-            _snippet(text=f"snippet {i}", url=f"https://docs.example.com/{i}")
-            for i in range(5)
+            _snippet(text=f"snippet {i}", url=f"https://docs.example.com/{i}") for i in range(5)
         ]
         result = self._result(*snippets, max_results=2)
         out = sanitize_web_result(result)
@@ -334,9 +333,7 @@ class TestSanitizeWebResult:
 
     def test_spoofed_snippet_dropped_off_allowlist(self) -> None:
         # domain label allowlisted, url off-allowlist -> dropped, not wrapped.
-        result = self._result(
-            _snippet(domain="docs.example.com", url="https://attacker.net/evil")
-        )
+        result = self._result(_snippet(domain="docs.example.com", url="https://attacker.net/evil"))
         out = sanitize_web_result(result)
         assert out.wrapped == ()
         assert out.dropped == (("sha256:abcd", "off_allowlist"),)

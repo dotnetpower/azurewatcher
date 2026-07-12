@@ -134,8 +134,7 @@ class AzureMonitorLogsConfig:
             )
         if not self.api_path.startswith("/"):
             raise ValueError(
-                "AzureMonitorLogsConfig.api_path MUST start with '/' "
-                f"(got {self.api_path!r})"
+                f"AzureMonitorLogsConfig.api_path MUST start with '/' (got {self.api_path!r})"
             )
         if self.timeout_seconds <= 0:
             raise ValueError("AzureMonitorLogsConfig.timeout_seconds MUST be positive")

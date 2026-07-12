@@ -252,9 +252,7 @@ async def test_cancellation_rolls_back_and_still_audits() -> None:  # H9
     async def _cancelling_sleep(_seconds: float) -> None:
         raise asyncio.CancelledError
 
-    harness = FaultInjectionHarness(
-        injectors=(inj,), recorder=recorder, sleeper=_cancelling_sleep
-    )
+    harness = FaultInjectionHarness(injectors=(inj,), recorder=recorder, sleeper=_cancelling_sleep)
 
     with pytest.raises(asyncio.CancelledError):
         await harness.run(_scenario(), approved_targets=("a",), mode=Mode.ENFORCE)

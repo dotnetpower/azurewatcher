@@ -78,9 +78,7 @@ def test_tier_hint_is_recognized() -> None:
     """Tier hints stay within the known routing shapes."""
     allowed = {"T0", "T0+T1", "T0+T2", "T0+forecast"}
     for spec in known_signals().values():
-        assert spec.tier_hint in allowed, (
-            f"{spec.signal}: unknown tier_hint {spec.tier_hint!r}"
-        )
+        assert spec.tier_hint in allowed, f"{spec.signal}: unknown tier_hint {spec.tier_hint!r}"
 
 
 def test_unknown_signal_is_rejected() -> None:
