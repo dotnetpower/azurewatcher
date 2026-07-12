@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: 58f8e4a6dce743ba748d506af20ebb9ee217c68b
+translation_source_sha: c5c942d7c5ec163946803764e6a42940f3eca125
 translation_revised: 2026-07-12
 ---
 
@@ -890,6 +890,17 @@ high-risk를 승인하며, Thor만 실행한다(shadow-first).
   ActionType으로 매핑 - 판테온 내부 경로와 공유하는 단일 진실원이라 둘이
   drift하지 않는다. 매핑 안 되는 명령은
   `200 {"submitted": false, "reason": "unmapped_action_intent"}`.
+- **Deny-override 차단 (Scenario B)**. `prior_outcome_lookup` seam이 wire되면,
+  submitter는 publish 전에 이 정확한 `(initiator, resource, action_type)` 에
+  대한 파이프라인의 마지막 terminal 결론을 확인한다. 직전 **deny**(안전하지
+  않다고 판정됨)는 authoritative하다: 반복 콘솔 요청으로 이를 lift할 수 없어
+  submitter는 `403 {"submitted": false, "reason": "deny_override_forbidden"}`
+  로 거부하고 아무것도 publish하지 않는다 - deny는 오직 governed rule / policy
+  / override 변경으로만 lift되며, 반복 요청으로는 절대 안 된다. 직전 **no-op**
+  (대상이 이미 충족되어 액션이 불필요했던 경우)은 재요청을 막지 **않는다**:
+  조건은 drift하므로 요청은 파이프라인에 재진입해 새로 judged된다. 이 규칙은
+  하나의 순수 함수(`fdai.core.console_request.evaluate_operator_rerequest`)에
+  산다. seam이 없으면 모든 요청은 fresh로 취급된다(deny-override 확인 없음).
 - **응답**(제출됨): `200 {"submitted": true, "correlation_id": ...,
   "action_type": ..., "resource_id": ...}`. 오퍼레이터는 `correlation_id`
   (Trace 패널 / audit)로 진행을 추적; 파이프라인 결과(auto shadow-exec,

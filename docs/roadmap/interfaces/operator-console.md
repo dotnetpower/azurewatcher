@@ -932,6 +932,18 @@ Var approves a high-risk one, and only Thor executes (shadow-first).
   command verb to an ActionType - the single source of truth shared with the
   pantheon-internal path so the two never drift. An unmapped command returns
   `200 {"submitted": false, "reason": "unmapped_action_intent"}`.
+- **Deny-override block (Scenario B)**. When a `prior_outcome_lookup` seam is
+  wired, the submitter checks the pipeline's last terminal conclusion for this
+  exact `(initiator, resource, action_type)` before publishing. A prior **deny**
+  (judged unsafe) is authoritative: a repeat console ask cannot lift it, so the
+  submitter refuses with `403 {"submitted": false,
+  "reason": "deny_override_forbidden"}` and publishes nothing - only a governed
+  rule / policy / override change can lift a deny, never a repeat request. A
+  prior **no-op** (the action was unnecessary because the target was already
+  satisfied) does **not** block a re-request: conditions drift, so the request
+  re-enters the pipeline and is judged fresh. The rule lives in one pure
+  function (`fdai.core.console_request.evaluate_operator_rerequest`). Absent the
+  seam, every request is treated as fresh (no deny-override check).
 - **Response** (submitted): `200 {"submitted": true, "correlation_id": ...,
   "action_type": ..., "resource_id": ...}`. The operator tracks progress by the
   `correlation_id` (Trace panel / audit); the pipeline result (auto shadow-exec,

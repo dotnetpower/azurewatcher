@@ -42,6 +42,10 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from fdai.agents.bragi import translate_action_intent
+from fdai.core.console_request import (
+    PriorRequestOutcome,
+    evaluate_operator_rerequest,
+)
 from fdai.core.rbac.resolver import Principal
 from fdai.core.rbac.roles import Capability, has_capability
 from fdai.shared.providers.event_bus import EventBus
@@ -66,6 +70,19 @@ MAX_SESSION_ID_CHARS: Final[int] = 200
 _SUBMIT_CAPABILITY: Final[Capability] = Capability.AUTHOR_DRAFT_PR
 
 
+PriorOutcomeLookup = Callable[[str, str | None, str], Awaitable[PriorRequestOutcome]]
+"""Resolve the pipeline's last terminal conclusion for one operator request.
+
+Called with ``(initiator_oid, resource_id, action_type)`` and returns a
+:class:`~fdai.core.console_request.PriorRequestOutcome`. Injected at the
+composition root; absent (``None``) the submitter treats every request as
+having no prior verdict (``NONE``), preserving the pre-Scenario-B behavior.
+A fork backs it with the audit / verdict store. It MUST NOT raise - a lookup
+failure is the fork's responsibility to map to ``NONE`` (fail-open to a fresh
+judgement, never to a silent deny-override).
+"""
+
+
 @dataclass(frozen=True, slots=True)
 class ConsoleActionSubmitter:
     """Publishes an operator ActionProposal onto the raw event topic.
@@ -75,10 +92,16 @@ class ConsoleActionSubmitter:
     submitted proposal is normalized into ``object.event`` and judged by
     Forseti with ``initiator_principal`` set - the RBAC hook and the whole
     judge/approve/execute pipeline then apply unchanged.
+
+    ``prior_outcome_lookup`` (optional) enforces Scenario B's deny-override
+    block: when the pipeline previously denied this exact request, a repeat
+    is refused before anything is published; a prior no-op (or no prior
+    verdict) proceeds normally. Absent, no deny-override check runs.
     """
 
     event_bus: EventBus
     raw_event_topic: str
+    prior_outcome_lookup: PriorOutcomeLookup | None = None
 
     def __post_init__(self) -> None:
         # Fail fast at composition: an empty topic would publish proposals into
@@ -102,6 +125,9 @@ class ConsoleActionSubmitter:
           "reason": "rbac_capability"}`` (Reader is refused; nothing publishes).
         - Command verb maps to no ActionType -> ``{"submitted": False,
           "reason": "unmapped_action_intent"}``.
+        - The pipeline previously denied this exact request -> ``{"submitted":
+          False, "reason": "deny_override_forbidden"}`` (Scenario B: a repeat
+          cannot override a deny; nothing publishes).
         - Otherwise publishes the proposal and returns ``{"submitted": True,
           "correlation_id": ..., "action_type": ...}``.
 
@@ -138,6 +164,25 @@ class ConsoleActionSubmitter:
         bounded_resource = resource_id[:MAX_RESOURCE_ID_CHARS] if resource_id else None
         bounded_question = question[:MAX_QUESTION_CHARS]
         bounded_session = session_id[:MAX_SESSION_ID_CHARS] if session_id else None
+        # Scenario B deny-override block: a prior deny for this exact request is
+        # authoritative - a repeat console ask cannot lift it. A prior no-op (or
+        # no prior verdict) proceeds to a fresh judgement. Only applied when a
+        # lookup seam is wired; absent, every request is treated as fresh.
+        if self.prior_outcome_lookup is not None:
+            prior_outcome = await self.prior_outcome_lookup(
+                principal.oid, bounded_resource, action_type
+            )
+            if not evaluate_operator_rerequest(prior_outcome=prior_outcome).allowed:
+                _LOG.info(
+                    "console action refused: deny-override forbidden for action_type=%s",
+                    action_type,
+                )
+                return {
+                    "submitted": False,
+                    "reason": "deny_override_forbidden",
+                    "action_type": action_type,
+                    "correlation_id": correlation_id,
+                }
         client_key = (idempotency_key or "").strip()[:MAX_IDEMPOTENCY_CHARS]
         # Namespace the dedup key by the initiator so one operator cannot reuse
         # (or guess) another operator's idempotency key to suppress their action
@@ -239,7 +284,9 @@ def make_console_action_route(
             session_id=session_id,
             idempotency_key=idempotency_key,
         )
-        status_code = 403 if result.get("reason") == "rbac_capability" else 200
+        status_code = (
+            403 if result.get("reason") in ("rbac_capability", "deny_override_forbidden") else 200
+        )
         return JSONResponse(result, status_code=status_code)
 
     return Route(path, handler, methods=["POST"])

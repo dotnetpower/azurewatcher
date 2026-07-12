@@ -18,6 +18,7 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.testclient import TestClient
 
+from fdai.core.console_request import PriorRequestOutcome
 from fdai.core.rbac.resolver import Principal
 from fdai.core.rbac.roles import Role
 from fdai.delivery.read_api.auth import build_authenticator
@@ -110,6 +111,64 @@ def test_unmapped_command_abstains_without_publishing() -> None:
     assert res["submitted"] is False
     assert res["reason"] == "unmapped_action_intent"
     assert asyncio.run(_drain(bus, _TOPIC)) == []
+
+
+# ---------------------------------------------------------------------------
+# Scenario B - deny-override block on re-request
+# ---------------------------------------------------------------------------
+
+
+def _submitter_with_prior(
+    outcome: PriorRequestOutcome,
+) -> tuple[ConsoleActionSubmitter, InMemoryEventBus]:
+    bus = InMemoryEventBus()
+
+    async def _lookup(_oid: str, _resource: str | None, _action_type: str) -> PriorRequestOutcome:
+        return outcome
+
+    return (
+        ConsoleActionSubmitter(event_bus=bus, raw_event_topic=_TOPIC, prior_outcome_lookup=_lookup),
+        bus,
+    )
+
+
+def test_prior_deny_blocks_rerequest_and_publishes_nothing() -> None:
+    sub, bus = _submitter_with_prior(PriorRequestOutcome.DENIED)
+    res = asyncio.run(
+        sub.submit(question="restart svc-1", principal=_principal("u", Role.CONTRIBUTOR))
+    )
+    assert res["submitted"] is False
+    assert res["reason"] == "deny_override_forbidden"
+    # A deny is authoritative - nothing re-enters the pipeline.
+    assert asyncio.run(_drain(bus, _TOPIC)) == []
+
+
+def test_prior_no_op_allows_rerequest() -> None:
+    sub, bus = _submitter_with_prior(PriorRequestOutcome.NO_OP)
+    res = asyncio.run(
+        sub.submit(question="restart svc-1", principal=_principal("u", Role.CONTRIBUTOR))
+    )
+    assert res["submitted"] is True
+    # An unnecessary prior conclusion does not block a fresh judgement.
+    assert len(asyncio.run(_drain(bus, _TOPIC))) == 1
+
+
+def test_no_lookup_seam_treats_every_request_as_fresh() -> None:
+    # Default submitter (no lookup) never applies the deny-override block.
+    sub, bus = _submitter()
+    res = asyncio.run(
+        sub.submit(question="restart svc-1", principal=_principal("u", Role.CONTRIBUTOR))
+    )
+    assert res["submitted"] is True
+    assert len(asyncio.run(_drain(bus, _TOPIC))) == 1
+
+
+def test_route_prior_deny_gets_403() -> None:
+    sub, _bus = _submitter_with_prior(PriorRequestOutcome.DENIED)
+    client = TestClient(_app(sub, _principal("u", Role.CONTRIBUTOR)))
+    resp = client.post("/chat/action", json={"prompt": "restart svc-1"})
+    assert resp.status_code == 403
+    assert resp.json()["reason"] == "deny_override_forbidden"
 
 
 # ---------------------------------------------------------------------------
