@@ -219,7 +219,7 @@ function applyFreeText(
   if (slots.stage === "need_trigger") {
     const sug = suggestDraftFromText(text, palette);
     const form = cloneForm(slots.form);
-    if (sug && !isDefaultTrigger(sug.reasons)) {
+    if (sug && sug.triggerConfident) {
       form.triggerKind = sug.form.triggerKind;
       form.signalType = sug.form.signalType;
       form.schedule = sug.form.schedule;
@@ -243,9 +243,8 @@ function applyFreeText(
     if (step.action_type_ref) merged = addActionStep(merged, step.action_type_ref);
   }
   // Adopt the matched trigger unless the operator already confirmed one.
-  const triggerConfirmed =
-    slots.triggerConfirmed || !isDefaultTrigger(sug.reasons);
-  if (!slots.triggerConfirmed && !isDefaultTrigger(sug.reasons)) {
+  const triggerConfirmed = slots.triggerConfirmed || sug.triggerConfident;
+  if (!slots.triggerConfirmed && sug.triggerConfident) {
     merged.triggerKind = sug.form.triggerKind;
     merged.signalType = sug.form.signalType;
     merged.schedule = sug.form.schedule;
@@ -483,7 +482,10 @@ function addActionStep(form: FormState, actionName: string): FormState {
   if (steps.some((s) => s.action_type_ref === actionName)) return next;
   const taken = steps.map((s) => s.id);
   const id = suggestStepId(actionName, taken);
-  const key = (steps[steps.length - 1]?.key ?? -1) + 1;
+  // Unique client key: one past the max existing key (across all rows, not
+  // just the real ones) so a new step never collides with a leftover blank
+  // starter row's key and shuffles React state.
+  const key = Math.max(-1, ...next.steps.map((s) => s.key)) + 1;
   next.steps = [
     ...steps,
     { key, id, action_type_ref: actionName, guard_rule_ref: "", compensated_by: "", on_failure: "" },
@@ -507,7 +509,11 @@ function finalizeForm(slots: ChatSlots): FormState {
   if (!form.description.trim()) {
     const goal = slots.goalText.trim();
     const res = slots.resourceHint ? ` (${slots.resourceHint})` : "";
-    form.description = (goal ? goal : summarize(form)).slice(0, 200 - res.length) + res;
+    const body = goal ? goal : summarize(form);
+    // Keep the whole description within the 200-char server cap even when the
+    // resource suffix is long: reserve room for the suffix, never slice below 0.
+    const budget = Math.max(0, 200 - res.length);
+    form.description = (body.slice(0, budget) + res).slice(0, 200);
   }
   return form;
 }
@@ -522,16 +528,17 @@ function summarize(form: FormState): string {
 // Small pure utilities
 // ---------------------------------------------------------------------------
 
-/** True when the matcher fell back to the default drift trigger (i.e. it did
- * not confidently read a trigger from the text). */
-function isDefaultTrigger(reasons: readonly string[]): boolean {
-  return reasons.some((r) => r.includes("default trigger"));
-}
+/** Model-family prefixes that look like a resource token (`claude-opus-4`,
+ * `gpt-4`) but are not infrastructure; excluded from the resource hint so a
+ * cost/LLM sentence does not mis-tag a model name as the target resource. */
+const MODEL_NAME_PREFIXES = /^(gpt|claude|opus|sonnet|haiku|gemini|llama|mistral|phi|grok|o[0-9])\b/;
 
 /** Pull a resource-like token from free text ("aks-cluster-01", "vm-1"). */
 export function extractResourceHint(text: string): string {
   const m = text.match(/\b([a-z][a-z0-9]*(?:-[a-z0-9]+)*-\d+|[a-z]+-[a-z0-9-]*\d+)\b/i);
-  return m?.[1] ?? "";
+  const hint = m?.[1] ?? "";
+  if (hint && MODEL_NAME_PREFIXES.test(hint.toLowerCase())) return "";
+  return hint;
 }
 
 /** Normalize free text into a schema-legal workflow name. */
@@ -542,7 +549,10 @@ export function slugifyName(text: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .replace(/^[^a-z]+/, "")
-    .slice(0, 80);
+    .slice(0, 80)
+    // Truncation to 80 chars can re-introduce a trailing hyphen; strip it so
+    // the result still satisfies NAME_PATTERN (`^[a-z][a-z0-9_.-]{0,79}$`).
+    .replace(/-+$/g, "");
   return slug || "workflow";
 }
 

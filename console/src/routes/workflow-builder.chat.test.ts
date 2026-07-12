@@ -160,4 +160,21 @@ describe("chat engine pure utilities", () => {
     expect(slugifyName("  123 leading digits ")).toBe("leading-digits");
     expect(slugifyName("")).toBe("workflow");
   });
+
+  it("slugifyName strips a trailing hyphen introduced by 80-char truncation", () => {
+    // 79 legal chars then a separator: slice(0, 80) lands a hyphen on the last
+    // char; result must not end in '-' (NAME_PATTERN).
+    const long = "a".repeat(79) + " tail";
+    const slug = slugifyName(long);
+    expect(slug.length).toBeLessThanOrEqual(80);
+    expect(slug.endsWith("-")).toBe(false);
+    expect(/^[a-z][a-z0-9_.-]{0,79}$/.test(slug)).toBe(true);
+  });
+
+  it("extractResourceHint ignores model-family names", () => {
+    expect(extractResourceHint("gpt-4 costs spiked")).toBe("");
+    expect(extractResourceHint("claude-opus-4 is expensive")).toBe("");
+    // a real resource in the same sentence still wins when it appears first
+    expect(extractResourceHint("vm-2 running gpt-4")).toBe("vm-2");
+  });
 });

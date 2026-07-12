@@ -89,6 +89,10 @@ const ACTION_SYNONYMS: readonly { readonly words: readonly string[]; readonly ma
 export interface IntentSuggestion {
   readonly form: FormState;
   readonly reasons: readonly string[];
+  /** True when a trigger was read from the text with confidence; false when
+   * the matcher fell back to the default drift trigger. Lets callers branch
+   * on trigger confidence without string-matching `reasons`. */
+  readonly triggerConfident: boolean;
 }
 
 /** Over-generic words that appear in many ActionType names/descriptions;
@@ -183,6 +187,7 @@ export function suggestDraftFromText(
   }
   if (actions.length === 0 && best === null) return null; // abstain
 
+  const triggerConfident = best !== null;
   const form: FormState = { ...INITIAL_FORM, steps: [] };
   if (best) {
     if (best.kind === "schedule") {
@@ -223,5 +228,5 @@ export function suggestDraftFromText(
     form.name = `${slug}-workflow`;
   }
   form.description = text.trim().slice(0, 200);
-  return { form, reasons };
+  return { form, reasons, triggerConfident };
 }
