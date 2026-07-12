@@ -24,6 +24,7 @@ See ``docs/roadmap/interfaces/operator-console.md`` section 6 and
 from __future__ import annotations
 
 from fdai.core.working_context.composer import compose_working_context
+from fdai.core.working_context.orchestrator import SummarizationOrchestrator
 from fdai.core.working_context.planner import FoldPlan, plan_summarization
 from fdai.core.working_context.summarizer import (
     DeterministicTruncationSummarizer,
@@ -49,6 +50,7 @@ __all__ = [
     "EntryRole",
     "FoldPlan",
     "NoOpRetriever",
+    "SummarizationOrchestrator",
     "TranscriptEntry",
     "TranscriptRetriever",
     "TranscriptSummarizer",
