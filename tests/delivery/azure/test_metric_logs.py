@@ -301,3 +301,23 @@ def test_config_rejects_nonpositive_timeout() -> None:
 def test_config_rejects_bad_api_path() -> None:
     with pytest.raises(ValueError, match="api_path"):
         AzureMonitorLogsConfig(workspace_id="w", queries={}, api_path="v1")
+
+
+@pytest.mark.asyncio
+async def test_response_over_byte_cap_fails_closed() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        # A big body: many rows well past the byte cap.
+        rows = [["2026-07-10T00:00:00Z", 1.0, "r" * 100] for _ in range(200)]
+        return httpx.Response(200, json=_table(rows))
+
+    provider, client = _provider(handler, _config(max_response_bytes=256))
+    try:
+        with pytest.raises(MetricProviderError, match="over the .*byte cap"):
+            await _drain(provider)
+    finally:
+        await client.aclose()
+
+
+def test_config_rejects_nonpositive_max_response_bytes() -> None:
+    with pytest.raises(ValueError, match="max_response_bytes"):
+        AzureMonitorLogsConfig(workspace_id="w", queries={}, max_response_bytes=0)

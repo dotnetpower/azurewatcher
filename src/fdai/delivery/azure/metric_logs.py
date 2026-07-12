@@ -66,6 +66,7 @@ _DEFAULT_API_PATH: Final[str] = "/v1"
 _DEFAULT_AUDIENCE: Final[str] = "https://api.loganalytics.io/.default"
 _DEFAULT_TIMEOUT_SECONDS: Final[float] = 30.0
 _DEFAULT_MAX_ROWS: Final[int] = 10_000
+_DEFAULT_MAX_RESPONSE_BYTES: Final[int] = 50_000_000
 _DEFAULT_TIMESTAMP_COLUMN: Final[str] = "TimeGenerated"
 
 
@@ -111,6 +112,7 @@ class AzureMonitorLogsConfig:
 
     timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS
     max_rows: int = _DEFAULT_MAX_ROWS
+    max_response_bytes: int = _DEFAULT_MAX_RESPONSE_BYTES
 
     def __post_init__(self) -> None:
         if not self.workspace_id:
@@ -132,6 +134,8 @@ class AzureMonitorLogsConfig:
             raise ValueError("AzureMonitorLogsConfig.timeout_seconds MUST be positive")
         if self.max_rows <= 0:
             raise ValueError("AzureMonitorLogsConfig.max_rows MUST be positive")
+        if self.max_response_bytes < 1:
+            raise ValueError("AzureMonitorLogsConfig.max_response_bytes MUST be >= 1")
 
 
 def _parse_timestamp(raw: Any) -> datetime:
@@ -222,6 +226,17 @@ class AzureMonitorLogsMetricProvider:
             raise MetricProviderError(
                 f"Log Analytics returned HTTP {response.status_code} for "
                 f"{query.metric_name!r}: {snippet!r}"
+            )
+
+        # Cap the body before parsing. ``max_rows`` only applies AFTER the
+        # JSON is parsed into memory, so a hostile / misconfigured workspace
+        # returning a multi-gigabyte body would OOM the decoder first. Fail
+        # closed on an over-cap body instead.
+        if len(response.content) > self._config.max_response_bytes:
+            raise MetricProviderError(
+                f"Log Analytics response for {query.metric_name!r} is "
+                f"{len(response.content)} bytes, over the "
+                f"{self._config.max_response_bytes}-byte cap; narrow the query"
             )
 
         try:
