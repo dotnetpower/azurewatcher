@@ -287,6 +287,9 @@ function WorkflowPreview({
   const [result, setResult] = useState<ValidateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [validating, setValidating] = useState(true);
+  // Bumped by the Retry button to re-run a validation that failed on a
+  // transient network error, without rebuilding the draft.
+  const [retryKey, setRetryKey] = useState(0);
 
   const draft = useMemo(() => buildDraft(form), [form]);
 
@@ -307,7 +310,7 @@ function WorkflowPreview({
     return () => {
       cancelled = true;
     };
-  }, [draft]);
+  }, [draft, retryKey]);
 
   const yaml = result?.yaml_preview ?? null;
   const prUrl = yaml ? githubNewFileUrl(`rule-catalog/workflows/${form.name}.yaml`, yaml) : null;
@@ -339,7 +342,20 @@ function WorkflowPreview({
             Testing the draft against the server-side loader...
           </p>
         ) : error ? (
-          <p class="wf-test-fail">Could not reach the validator: {error}</p>
+          <div class="wf-test-fail" role="alert">
+            <p>Could not reach the validator: {error}</p>
+            <p class="muted small">
+              Nothing was lost - your answers are still captured. Retry when the connection is
+              back, and the YAML and test will render.
+            </p>
+            <button
+              type="button"
+              class="btn btn-small"
+              onClick={() => setRetryKey((k) => k + 1)}
+            >
+              Retry test
+            </button>
+          </div>
         ) : result ? (
           <TestResult result={result} />
         ) : null}
