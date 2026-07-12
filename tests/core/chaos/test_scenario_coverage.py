@@ -9,6 +9,8 @@ non-fault and excluded here) with the canonical ``expected_signal`` from
 
 from __future__ import annotations
 
+import re
+
 from fdai.core.chaos import (
     AKS_BAD_DEPLOY,
     AKS_HTTP_ABORT,
@@ -104,3 +106,77 @@ def test_every_scenario_has_rollback_note() -> None:
         assert scenario.rollback_note.strip(), (
             f"{scenario.scenario_id}: rollback_note MUST be non-empty"
         )
+
+
+# ---------------------------------------------------------------------------
+# Catalog shape invariants (R2 hardening)
+# ---------------------------------------------------------------------------
+#
+# ``FaultScenario`` itself only validates non-empty strings; a fork MAY
+# author scenarios with any shape. But the *shipped* upstream catalog is
+# audit / operator surface, so we enforce a grep-friendly shape here so
+# a drive-by change like ``scenario_id="AKS Pod Kill!"`` fails CI.
+
+_SCENARIO_ID_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+_FAULT_TYPE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+_TARGET_SELECTOR_RE = re.compile(r"^[a-z][a-z0-9_-]*:[a-z0-9][a-z0-9_-]*$")
+
+# ``fault_type`` values that are intentionally reused by more than one
+# shipped scenario. Locking this set means a maintainer who renames one
+# scenario's fault_type has to update this constant, which surfaces the
+# shared-injector coupling instead of silently changing it.
+_INTENTIONAL_FAULT_TYPE_REUSE: frozenset[str] = frozenset({"pod_kill"})
+
+
+def test_scenario_ids_are_kebab_case() -> None:
+    for scenario in default_scenarios():
+        assert _SCENARIO_ID_RE.match(scenario.scenario_id), (
+            f"scenario_id {scenario.scenario_id!r} must match "
+            f"{_SCENARIO_ID_RE.pattern!r} (kebab-case, no spaces, "
+            f"no punctuation - audit-log id shape)"
+        )
+
+
+def test_fault_types_are_snake_case() -> None:
+    for scenario in default_scenarios():
+        assert _FAULT_TYPE_RE.match(scenario.fault_type), (
+            f"{scenario.scenario_id}: fault_type "
+            f"{scenario.fault_type!r} must match "
+            f"{_FAULT_TYPE_RE.pattern!r} (snake_case; injector-lookup key)"
+        )
+
+
+def test_target_selectors_are_type_colon_name() -> None:
+    """target_selector is an opaque, CSP-neutral handle: '<type>:<name>'."""
+    for scenario in default_scenarios():
+        assert _TARGET_SELECTOR_RE.match(scenario.target_selector), (
+            f"{scenario.scenario_id}: target_selector "
+            f"{scenario.target_selector!r} must match "
+            f"{_TARGET_SELECTOR_RE.pattern!r} "
+            "(CSP-neutral '<type>:<name>' handle)"
+        )
+
+
+def test_scenario_expected_signals_are_all_registered() -> None:
+    """Full-catalog cross-check, not just the coverage-matrix rows."""
+    for scenario in default_scenarios():
+        assert is_known_signal(scenario.expected_signal), (
+            f"{scenario.scenario_id}: expected_signal "
+            f"{scenario.expected_signal!r} missing from "
+            f"fdai.core.detection.signals"
+        )
+
+
+def test_fault_type_reuse_is_intentional_only() -> None:
+    """A fault_type used by more than one scenario means the two share
+    an injector at runtime. Lock the intentional reuse set so a rename
+    surfaces the coupling instead of silently changing it."""
+    counts: dict[str, int] = {}
+    for scenario in default_scenarios():
+        counts[scenario.fault_type] = counts.get(scenario.fault_type, 0) + 1
+    reused = {ft for ft, n in counts.items() if n > 1}
+    assert reused == _INTENTIONAL_FAULT_TYPE_REUSE, (
+        f"fault_type reuse drifted: expected {_INTENTIONAL_FAULT_TYPE_REUSE}, "
+        f"got {reused}. Either add an intentional entry (with justification "
+        f"in the commit) or pick a distinct fault_type."
+    )

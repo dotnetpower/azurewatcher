@@ -8,6 +8,8 @@ audit and config surface) and internally consistent.
 
 from __future__ import annotations
 
+import re
+
 from fdai.core.detection.signals import (
     SIGNAL_BACKEND_HEALTH,
     SIGNAL_DB_CPU,
@@ -38,6 +40,11 @@ _ALL_CONSTANTS = (
     SIGNAL_REQUEST_FAILURE,
     SIGNAL_ROLLOUT_STALL,
 )
+
+# Signal names flow into audit records, log lines, and Rego identifiers.
+# Enforce a grep-friendly shape - lowercase, snake_case, ASCII only, no
+# whitespace, no punctuation.
+_SIGNAL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 def test_every_constant_is_registered() -> None:
@@ -76,3 +83,23 @@ def test_tier_hint_is_recognized() -> None:
 
 def test_unknown_signal_is_rejected() -> None:
     assert not is_known_signal("nope_not_here")
+
+
+def test_every_registered_signal_matches_shape() -> None:
+    """Every SIGNAL_* string is lowercase snake_case, ASCII, no
+    whitespace / punctuation - safe as an audit/log/Rego identifier."""
+    for name in known_signals():
+        assert _SIGNAL_NAME_RE.match(name), (
+            f"signal {name!r} does not match {_SIGNAL_NAME_RE.pattern!r} "
+            f"(signals flow into audit/log/Rego identifiers)"
+        )
+
+
+def test_registry_description_is_non_empty_ascii() -> None:
+    """Descriptions surface in operator-facing text; enforce non-empty
+    ASCII so L0 audit/log lines stay grep-friendly."""
+    for spec in known_signals().values():
+        assert spec.description.strip(), f"{spec.signal}: description empty"
+        assert spec.description.isascii(), (
+            f"{spec.signal}: description contains non-ASCII characters"
+        )
