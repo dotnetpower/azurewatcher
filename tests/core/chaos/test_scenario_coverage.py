@@ -116,10 +116,18 @@ def test_every_scenario_has_rollback_note() -> None:
 # author scenarios with any shape. But the *shipped* upstream catalog is
 # audit / operator surface, so we enforce a grep-friendly shape here so
 # a drive-by change like ``scenario_id="AKS Pod Kill!"`` fails CI.
+#
+# The regexes below reject empty segments, leading/trailing separators,
+# and consecutive separators (e.g. ``aks--pod-kill`` or ``aks-``): a
+# kebab / snake token is one or more alphanum groups joined by single
+# separators, not just "chars in the set".
 
-_SCENARIO_ID_RE = re.compile(r"^[a-z][a-z0-9-]*$")
-_FAULT_TYPE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
-_TARGET_SELECTOR_RE = re.compile(r"^[a-z][a-z0-9_-]*:[a-z0-9][a-z0-9_-]*$")
+_SCENARIO_ID_RE = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
+_FAULT_TYPE_RE = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
+# target_selector = "<type>:<name>" where each side is a kebab or snake
+# token (letters, digits, single `-` or `_` separators only).
+_TARGET_SELECTOR_TOKEN = r"[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*"
+_TARGET_SELECTOR_RE = re.compile(rf"^{_TARGET_SELECTOR_TOKEN}:{_TARGET_SELECTOR_TOKEN}$")
 
 # ``fault_type`` values that are intentionally reused by more than one
 # shipped scenario. Locking this set means a maintainer who renames one
@@ -220,3 +228,43 @@ def test_rca_only_signals_are_not_scenario_expected() -> None:
         f"scenario that expects one directly would collapse that "
         f"distinction. Author a distinct signal instead."
     )
+
+
+# ---------------------------------------------------------------------------
+# Regex rejection guards (proof that the tightened shapes actually reject
+# the previously-permitted degenerate cases; if a maintainer loosens the
+# regex, these guards fire so they know they widened the contract).
+# ---------------------------------------------------------------------------
+
+
+def test_scenario_id_regex_rejects_trailing_hyphen() -> None:
+    assert not _SCENARIO_ID_RE.match("aks-")
+    assert not _SCENARIO_ID_RE.match("aks-pod-")
+
+
+def test_scenario_id_regex_rejects_consecutive_hyphens() -> None:
+    assert not _SCENARIO_ID_RE.match("aks--pod-kill")
+
+
+def test_scenario_id_regex_rejects_uppercase_and_punctuation() -> None:
+    assert not _SCENARIO_ID_RE.match("AKS-pod-kill")
+    assert not _SCENARIO_ID_RE.match("aks_pod_kill")  # snake, not kebab
+    assert not _SCENARIO_ID_RE.match("aks-pod-kill!")
+
+
+def test_fault_type_regex_rejects_trailing_underscore() -> None:
+    assert not _FAULT_TYPE_RE.match("pod_kill_")
+    assert not _FAULT_TYPE_RE.match("pod__kill")
+
+
+def test_target_selector_regex_rejects_degenerate_shapes() -> None:
+    # Missing colon.
+    assert not _TARGET_SELECTOR_RE.match("workload-api-backend")
+    # Empty type or name.
+    assert not _TARGET_SELECTOR_RE.match(":api-backend")
+    assert not _TARGET_SELECTOR_RE.match("workload:")
+    # Trailing / doubled separators.
+    assert not _TARGET_SELECTOR_RE.match("workload:api--backend")
+    assert not _TARGET_SELECTOR_RE.match("workload:api-backend-")
+    # Uppercase.
+    assert not _TARGET_SELECTOR_RE.match("Workload:api-backend")
