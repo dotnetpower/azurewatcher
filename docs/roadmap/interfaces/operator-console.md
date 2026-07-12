@@ -492,8 +492,13 @@ tiers drawn from a
   always included, and fail-closed (a `WorkingContextError`) if they alone
   overflow the budget, never silently dropped.
 - **Typed facts** - deterministic, no-LLM context projected from the typed
-  pipeline (audit entries, T0 verdicts); injected as `trusted` ground
-  truth and never summarised.
+  pipeline (audit entries, T0 verdicts) and HIL-approved operator memory
+  (preferences, override notes, forbidden actions, runbook hints via
+  `operator_memory_to_entries`); injected as `trusted` ground truth and never
+  summarised. Forbidden-action notes are `pinned` so budget pressure never
+  drops a safety constraint. This is how standing operator knowledge reaches
+  the prompt - as an auditable, scope-tagged trusted layer, not opaque
+  narrator memory (section 1).
 - **Verbatim recent** - the newest turns word-for-word, filling a ratio of
   the history budget (token-based, not a turn count).
 - **Relevance retrieval** - older turns pulled back in by similarity to

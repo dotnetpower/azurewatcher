@@ -25,6 +25,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 
 from fdai.core.conversation.session import ConversationSession, TurnDirection
+from fdai.core.operator_memory.types import MemoryCategory, OperatorMemoryEntry
 from fdai.core.working_context.composer import compose_working_context
 from fdai.core.working_context.types import (
     ContextBudget,
@@ -41,6 +42,12 @@ _DIRECTION_ROLE: dict[TurnDirection, EntryRole] = {
     "tool_result": EntryRole.TOOL,
     "system": EntryRole.SYSTEM,
 }
+
+# Operator-memory categories that are hard constraints: they are pinned so
+# the composer always includes them regardless of budget or recency. A
+# forbidden-action note ("never auto-restart this cluster") losing to budget
+# pressure would be a safety regression, so it is never a drop candidate.
+_ALWAYS_PINNED_CATEGORIES: frozenset[MemoryCategory] = frozenset({MemoryCategory.FORBIDDEN_ACTION})
 
 
 def _default_estimator(text: str) -> int:
@@ -91,4 +98,48 @@ def session_to_working_context(
     return compose_working_context(budget=budget, entries=entries)
 
 
-__all__ = ["session_to_working_context"]
+def operator_memory_to_entries(
+    memory_entries: Sequence[OperatorMemoryEntry],
+    *,
+    token_estimator: Callable[[str], int] = _default_estimator,
+) -> tuple[TranscriptEntry, ...]:
+    """Project HIL-approved operator memory into trusted typed-fact entries.
+
+    Operator memory (preferences, override notes, forbidden actions, runbook
+    hints) is second-approver-verified standing knowledge, so it enters the
+    working context as ``trusted`` ``TYPED_FACT`` background - never a
+    summary candidate and never an untrusted layer. Feed the result to
+    :func:`session_to_working_context` as ``typed_facts``.
+
+    ``FORBIDDEN_ACTION`` entries are ``pinned`` so the composer always
+    includes them; a safety constraint must not lose to budget pressure.
+    The ``sequence`` is negative (older than any session turn) so memory
+    reads as background, and decreases with input order so a caller that
+    passes newest-first keeps the freshest note highest in the tier.
+    """
+
+    out: list[TranscriptEntry] = []
+    for offset, memory in enumerate(memory_entries):
+        text = (
+            f"[{memory.category.value}@{memory.scope_kind.value}:{memory.scope_ref}] {memory.body}"
+        )
+        out.append(
+            TranscriptEntry(
+                entry_id=f"opmem-{memory.id}",
+                role=EntryRole.SYSTEM,
+                kind=EntryKind.TYPED_FACT,
+                text=text,
+                tokens=token_estimator(text),
+                sequence=-1 - offset,
+                pinned=memory.category in _ALWAYS_PINNED_CATEGORIES,
+                trusted=True,
+                metadata={
+                    "scope_ref": memory.scope_ref,
+                    "category": memory.category.value,
+                },
+            )
+        )
+    return tuple(out)
+
+
+__all__ = ["operator_memory_to_entries", "session_to_working_context"]

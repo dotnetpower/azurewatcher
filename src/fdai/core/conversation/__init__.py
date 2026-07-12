@@ -35,7 +35,10 @@ See also:
 
 from __future__ import annotations
 
-from fdai.core.conversation.context_bridge import session_to_working_context
+from fdai.core.conversation.context_bridge import (
+    operator_memory_to_entries,
+    session_to_working_context,
+)
 from fdai.core.conversation.coordinator import (
     ConversationCoordinator,
     CoordinatorConfig,
@@ -122,5 +125,6 @@ __all__ = [
     "Turn",
     "default_tool_schemas",
     "format_prompt_tool_list",
+    "operator_memory_to_entries",
     "session_to_working_context",
 ]

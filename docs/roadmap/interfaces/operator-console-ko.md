@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: 78f5faa372da3b5225f984faa71ab77e983c753a
+translation_source_sha: 4271d811e020bd0f07394c3f3baaddb2b5112486
 translation_revised: 2026-07-12
 ---
 
@@ -470,8 +470,12 @@ prompt(경계, 상수 상한)는 의도적으로 구분된다.
   으로 예산을 초과하면 fail-closed (`WorkingContextError`) - 절대 조용히
   버리지 않음.
 - **Typed facts** - typed 파이프라인에서 projection 된 결정론적 no-LLM
-  문맥(audit entry, T0 verdict); `trusted` ground truth로 주입되며 절대
-  요약되지 않음.
+  문맥(audit entry, T0 verdict)과 HIL 승인된 operator memory(preference,
+  override note, forbidden action, runbook hint - `operator_memory_to_entries`
+  경유); `trusted` ground truth로 주입되며 절대 요약되지 않음.
+  Forbidden-action 노트는 `pinned`이므로 예산 압박이 안전 제약을 절대 떨구지
+  않는다. 이것이 상시 오퍼레이터 지식이 프롬프트에 닿는 방식이다 - 불투명한
+  narrator memory가 아니라 감사가능하고 scope 태깅된 trusted 레이어로 (section 1).
 - **Verbatim recent** - 가장 최근 턴을 원문 그대로, history 예산의 일정
   비율까지 채움(턴 수가 아니라 토큰 기준).
 - **Relevance retrieval** - 현재 발화와의 유사도로 끌어온 오래된 턴
