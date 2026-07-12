@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { AgentActivityMessage, AgentStatus } from "../hooks/use-agent-stream";
 import {
   activeAgentCount,
+  engagedGroups,
+  isEngaged,
   makeInitialState,
   PANTHEON,
   reducer,
@@ -107,5 +109,57 @@ describe("agents.model", () => {
     s = reducer(s, { kind: "message", msg: ticketMsg("inc-1", "open") });
     s = reducer(s, { kind: "reset" });
     expect(s.incidentOrder).toHaveLength(0);
+  });
+});
+
+describe("agents.model engagement helpers", () => {
+  it("stores the streamed detail on the agent node", () => {
+    let s = makeInitialState();
+    s = reducer(s, {
+      kind: "message",
+      msg: {
+        type: "agent.state",
+        agent: "Forseti",
+        state: "analyzing",
+        ts: "2026-07-12T00:00:00+00:00",
+        correlation_id: "inc-1",
+        detail: "root-cause reasoning",
+      },
+    });
+    expect(s.agents.Forseti?.detail).toBe("root-cause reasoning");
+    expect(isEngaged(s.agents.Forseti!)).toBe(true);
+    expect(isEngaged(s.agents.Odin!)).toBe(false);
+  });
+
+  it("groups engaged agents by the incident they work on", () => {
+    let s = makeInitialState();
+    s = reducer(s, { kind: "message", msg: ticketMsg("inc-1", "open") });
+    s = reducer(s, { kind: "message", msg: stateMsg("Heimdall", "collecting", "inc-1") });
+    s = reducer(s, { kind: "message", msg: stateMsg("Forseti", "analyzing", "inc-1") });
+    // Watching / idle / correlation-less agents are excluded.
+    s = reducer(s, { kind: "message", msg: stateMsg("Huginn", "watching", "inc-1") });
+    s = reducer(s, { kind: "message", msg: stateMsg("Thor", "executing", null) });
+
+    const groups = engagedGroups(s);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.correlationId).toBe("inc-1");
+    expect(groups[0]?.agents).toEqual(["Forseti", "Heimdall"]); // sorted
+    expect(groups[0]?.incident?.ticketId).toBe("FDAI-1");
+  });
+
+  it("returns one group per concurrent incident, newest first", () => {
+    let s = makeInitialState();
+    s = reducer(s, { kind: "message", msg: ticketMsg("inc-old", "open") });
+    s = reducer(s, { kind: "message", msg: ticketMsg("inc-new", "open") });
+    s = reducer(s, { kind: "message", msg: stateMsg("Heimdall", "collecting", "inc-old") });
+    s = reducer(s, { kind: "message", msg: stateMsg("Thor", "executing", "inc-new") });
+
+    const groups = engagedGroups(s);
+    expect(groups.map((g) => g.correlationId)).toEqual(["inc-new", "inc-old"]);
+  });
+
+  it("returns no groups when the pantheon is at rest", () => {
+    const s = makeInitialState();
+    expect(engagedGroups(s)).toEqual([]);
   });
 });

@@ -4293,6 +4293,7 @@ main { padding-bottom: 60px !important; }
 }
 
 .agents-constellation {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: 0.9rem;
@@ -4301,8 +4302,49 @@ main { padding-bottom: 60px !important; }
   background: rgba(127, 127, 127, 0.05);
 }
 
+/* Connection-line overlay: sits behind the nodes, never intercepts pointer
+   events. Drawn from measured node centres in agents.tsx::ConstellationLinks. */
+.agents-links {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.agent-link {
+  transition:
+    stroke-opacity 0.25s ease,
+    stroke-width 0.25s ease;
+}
+.agent-link.is-emphasis {
+  stroke-dasharray: 5 4;
+  animation: agent-link-flow 0.9s linear infinite;
+}
+@keyframes agent-link-flow {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+
+.agent-link-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 3px;
+  transition: fill-opacity 0.25s ease;
+}
+.agent-link-label.is-emphasis {
+  font-size: 0.66rem;
+}
+
+
 .agent-node {
   position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -4314,6 +4356,10 @@ main { padding-bottom: 60px !important; }
     opacity 0.3s ease,
     transform 0.3s ease,
     box-shadow 0.3s ease;
+}
+/* A hovered node floats above its siblings so its tooltip is never clipped. */
+.agent-node.is-hovered {
+  z-index: 5;
 }
 
 .agent-ring {
@@ -4393,6 +4439,106 @@ main { padding-bottom: 60px !important; }
 }
 .agent-node.is-dim {
   opacity: 0.32;
+}
+/* An engaged node (working a ticket) lifts + brightens its label so the
+   line mesh reads as "these lit nodes are collaborating right now". */
+.agent-node.is-engaged .agent-name {
+  color: var(--agent-color);
+}
+.agent-node.is-hovered .agent-ring {
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--agent-color) 30%, transparent);
+}
+
+/* Hover card: what this agent is doing right now. Hidden until hover/focus. */
+.agent-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  width: max-content;
+  max-width: 220px;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  background: var(--surface-raised, #1e293b);
+  color: var(--text, #e2e8f0);
+  border: 1px solid color-mix(in srgb, var(--agent-color, #94a3b8) 45%, transparent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+  z-index: 6;
+}
+.agent-node.is-hovered .agent-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+/* Little pointer under the card. */
+.agent-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--surface-raised, #1e293b);
+}
+.agent-tooltip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+.agent-tooltip-head strong {
+  font-size: 0.82rem;
+}
+.agent-tooltip-state {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.08rem 0.36rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--agent-color, #94a3b8) 22%, transparent);
+  color: var(--agent-color, #cbd5e1);
+}
+.agent-tooltip-task {
+  margin: 0;
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+.agent-tooltip-detail {
+  margin: 0.3rem 0 0;
+  font-size: 0.7rem;
+  opacity: 0.7;
+  font-style: italic;
+}
+.agent-tooltip-incident {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-top: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed rgba(127, 127, 127, 0.3);
+}
+.agent-tooltip-ticket {
+  font-size: 0.66rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--agent-color, #cbd5e1);
+}
+.agent-tooltip-title {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+.agent-tooltip-idle {
+  margin: 0.4rem 0 0;
+  font-size: 0.68rem;
+  opacity: 0.5;
 }
 
 /* Side column: incident list + workflow */

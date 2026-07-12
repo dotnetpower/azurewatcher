@@ -159,6 +159,28 @@ the operator still has to send, executes nothing, and preserves the read-only
 console invariant. From there the operator asks (narrator) or proposes a runtime
 action (`/chat/action`, judged downstream, never executed here).
 
+### Agent collaboration lines + hover cards (Now > Agents)
+
+The constellation draws an SVG overlay
+([`ConstellationLinks`](src/routes/agents.tsx)) that ties together the agents
+currently co-engaged on the same incident, so the operator can see *which ticket
+each agent is working on and with whom* at a glance. Grouping is a pure model
+helper (`engagedGroups` in [`src/routes/agents.model.ts`](src/routes/agents.model.ts)):
+non-idle agents sharing a `correlation_id` become one link mesh, coloured per
+incident and labelled with its ticket id. The selected incident (or a hovered
+agent's links) is emphasised while the rest fade back. Line coordinates are
+measured from the real rendered node centres via a `ResizeObserver`, so the
+overlay tracks reflow without a hard-coded layout; it is `pointer-events: none`
+and `aria-hidden` because the same facts are text in the incident list.
+
+Hovering an agent reveals a card ([`AgentHoverCard`](src/routes/agents.tsx))
+that answers "what is this agent doing right now?" - the coarse state, a
+plain-language task description (`STATE_TASK`), the streamed `detail` when the
+producer supplies one, and the incident (ticket + title) it is engaged on. The
+dev/demo emitter enriches each `agent.state` frame with a task `detail`
+([`agent_activity_emitter.py`](../src/fdai/delivery/read_api/streaming/agent_activity_emitter.py));
+the field stays optional so the real relay is free to omit it.
+
 ### Self-describing screens
 
 Each route publishes a `ViewSnapshot` (`src/deck/context.tsx`) that is a screen

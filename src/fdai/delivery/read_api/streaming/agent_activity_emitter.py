@@ -36,6 +36,18 @@ from fdai.shared.providers.sse import SseSink
 
 _LOGGER = logging.getLogger(__name__)
 
+# Plain-language task description per state, streamed as the event `detail`
+# so the console hover card can tell the operator what an agent is doing
+# (not just the coarse state ring). English-only (L0 wire surface).
+_STATE_DETAIL: dict[AgentState, str] = {
+    AgentState.COLLECTING: "Ingesting and correlating signals for the event",
+    AgentState.ANALYZING: "Grounded root-cause reasoning on the incident",
+    AgentState.DECIDING: "Issuing a verdict at the risk gate",
+    AgentState.EXECUTING: "Applying the approved remediation",
+    AgentState.APPROVING: "Reviewing the human-in-the-loop approval",
+    AgentState.AUDITING: "Writing the append-only audit record",
+}
+
 # The 15 pantheon agents (dev constant - the synthetic emitter needs no
 # dependency on the agents package; the real relay carries the names).
 _SENSING = ("Huginn", "Heimdall")
@@ -218,7 +230,13 @@ class SyntheticAgentActivityEmitter:
 
     async def _state(self, agent: str, state: AgentState, correlation_id: str) -> None:
         await self._publisher.publish(
-            AgentStateEvent(agent=agent, state=state, ts=_now(), correlation_id=correlation_id)
+            AgentStateEvent(
+                agent=agent,
+                state=state,
+                ts=_now(),
+                correlation_id=correlation_id,
+                detail=_STATE_DETAIL.get(state),
+            )
         )
         await asyncio.sleep(self._beat)
 

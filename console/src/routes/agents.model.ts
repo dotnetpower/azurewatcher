@@ -59,6 +59,8 @@ export interface AgentNode {
   readonly state: AgentStatus;
   readonly correlationId: string | null;
   readonly since: string;
+  /** Free-text task description streamed with the state (may be null). */
+  readonly detail: string | null;
 }
 
 export interface Incident {
@@ -86,7 +88,14 @@ const MAX_INCIDENTS = 30;
 export function makeInitialState(): AgentsState {
   const agents: Record<string, AgentNode> = {};
   for (const { name, layer } of PANTHEON) {
-    agents[name] = { name, layer, state: "idle", correlationId: null, since: "" };
+    agents[name] = {
+      name,
+      layer,
+      state: "idle",
+      correlationId: null,
+      since: "",
+      detail: null,
+    };
   }
   return { agents, incidents: {}, incidentOrder: [] };
 }
@@ -103,6 +112,7 @@ function applyAgentState(
     state: msg.state,
     correlationId: msg.correlation_id,
     since: msg.ts,
+    detail: msg.detail,
   };
   return { ...state, agents: { ...state.agents, [msg.agent]: node } };
 }
@@ -193,4 +203,66 @@ export function activeAgentCount(state: AgentsState): number {
   return Object.values(state.agents).filter(
     (a) => a.state !== "idle" && a.state !== "watching",
   ).length;
+}
+
+/** True when an agent is actively working (not resting or merely watching). */
+export function isEngaged(node: AgentNode): boolean {
+  return node.state !== "idle" && node.state !== "watching";
+}
+
+/**
+ * A one-line, human-readable description of what an agent doing `state`
+ * is working on. Used by the constellation hover card so an operator can
+ * tell collecting from analyzing from executing at a glance.
+ */
+export const STATE_TASK: Readonly<Record<AgentStatus, string>> = {
+  idle: "Resting - no active work",
+  watching: "On standby watch, sensing signals",
+  collecting: "Ingesting and correlating signals for an event",
+  analyzing: "Root-cause reasoning on the incident",
+  deciding: "Issuing a verdict at the risk gate",
+  executing: "Applying an approved remediation",
+  approving: "Reviewing a human-in-the-loop approval",
+  auditing: "Writing the append-only audit record",
+};
+
+/** One cluster of agents currently co-engaged on the same incident. */
+export interface EngagedGroup {
+  readonly correlationId: string;
+  /** Engaged agent names, sorted for a stable render order. */
+  readonly agents: readonly string[];
+  /** The incident they collaborate on, when its ticket has arrived. */
+  readonly incident: Incident | null;
+}
+
+/**
+ * Group every currently-engaged agent by the incident (`correlationId`)
+ * it is working on. This is the source of truth for the constellation's
+ * connection lines: each returned group becomes one set of links tying
+ * the collaborating agents to a single ticket, so an operator can see
+ * *who is working on which ticket with whom* at a glance.
+ *
+ * Agents that are idle, merely watching, or not attached to any
+ * correlation id are excluded. Groups are returned newest-incident-first
+ * (by incident order) with unknown incidents last, so colours stay stable.
+ */
+export function engagedGroups(state: AgentsState): EngagedGroup[] {
+  const byCorr = new Map<string, string[]>();
+  for (const node of Object.values(state.agents)) {
+    if (!isEngaged(node) || node.correlationId === null) continue;
+    const arr = byCorr.get(node.correlationId) ?? [];
+    arr.push(node.name);
+    byCorr.set(node.correlationId, arr);
+  }
+  const order = (id: string): number => {
+    const idx = state.incidentOrder.indexOf(id);
+    return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+  };
+  return [...byCorr.entries()]
+    .map(([correlationId, agents]) => ({
+      correlationId,
+      agents: [...agents].sort(),
+      incident: state.incidents[correlationId] ?? null,
+    }))
+    .sort((a, b) => order(a.correlationId) - order(b.correlationId));
 }

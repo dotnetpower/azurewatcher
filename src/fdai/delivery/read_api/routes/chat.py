@@ -89,10 +89,25 @@ def _default_chat_http_client() -> httpx.AsyncClient:
     an SSE heartbeat on top to keep HTTP intermediaries from closing an
     idle connection. Centralised so the two fallback sites in this
     module stay in sync.
+
+    Long-lived-process hardening: a chat backend outlives many idle
+    gaps, and Azure OpenAI closes an idle keep-alive connection after
+    ~a few minutes. Reusing a server-closed socket surfaces as a
+    ``RemoteProtocolError`` that the router scores as a failure, so a
+    dev server left running for hours slowly degrades every candidate.
+    A bounded ``keepalive_expiry`` recycles idle sockets before the
+    server drops them, and transport ``retries`` transparently re-opens
+    a connection that was closed underneath a fresh request.
     """
     return httpx.AsyncClient(
         timeout=httpx.Timeout(connect=5.0, read=120.0, write=15.0, pool=5.0),
         follow_redirects=False,
+        limits=httpx.Limits(
+            max_keepalive_connections=8,
+            max_connections=16,
+            keepalive_expiry=30.0,
+        ),
+        transport=httpx.AsyncHTTPTransport(retries=2),
     )
 
 
