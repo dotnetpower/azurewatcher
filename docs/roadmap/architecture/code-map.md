@@ -80,7 +80,7 @@ the safety-core modules held to the >= 90% coverage floor.
 |-----------|----------------|--------|-------|
 | conversation | NL turn -> one read-only tool call | [src/fdai/core/conversation/](../../../src/fdai/core/conversation/) | [tests/core/conversation/](../../../tests/core/conversation/) |
 | operator | Operator-console coordinator | [src/fdai/core/operator/](../../../src/fdai/core/operator/) | (integration in delivery/read_api) |
-| notifications | Channel-routing layer over the matrix | [src/fdai/core/notifications/](../../../src/fdai/core/notifications/) | [tests/delivery/notifications/](../../../tests/delivery/notifications/) |
+| notifications | Channel-routing layer over the matrix | [src/fdai/core/notifications/](../../../src/fdai/core/notifications/) | [tests/notifications/](../../../tests/notifications/) |
 | report_feed | Rendered report subscriptions | [src/fdai/core/report_feed/](../../../src/fdai/core/report_feed/) | [tests/core/report_feed/](../../../tests/core/report_feed/) |
 | reporting | Report composers + formatters | [src/fdai/core/reporting/](../../../src/fdai/core/reporting/) | [tests/core/reporting/](../../../tests/core/reporting/) |
 | rbac | Human RBAC for the read API | [src/fdai/core/rbac/](../../../src/fdai/core/rbac/) | [tests/core/](../../../tests/core/) |

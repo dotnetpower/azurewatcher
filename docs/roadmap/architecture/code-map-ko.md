@@ -1,7 +1,7 @@
 ---
 title: 코드 맵
 translation_of: code-map.md
-translation_source_sha: 3aaa81097b598f6d1aa801482c8b77b7e3b213b2
+translation_source_sha: 99e4e9d50f4a0dd6f5deb6159d1b27f2c6753526
 translation_revised: 2026-07-12
 ---
 # 코드 맵
@@ -82,7 +82,7 @@ FDAI 코드베이스의 원페이지 인덱스. 서브시스템 이름에서 소
 |-----------|------|------|--------|
 | conversation | NL 턴 -> read-only 툴 호출 하나 | [src/fdai/core/conversation/](../../../src/fdai/core/conversation/) | [tests/core/conversation/](../../../tests/core/conversation/) |
 | operator | 오퍼레이터 콘솔 코디네이터 | [src/fdai/core/operator/](../../../src/fdai/core/operator/) | (delivery/read_api 통합) |
-| notifications | 매트릭스 기반 채널 라우팅 레이어 | [src/fdai/core/notifications/](../../../src/fdai/core/notifications/) | [tests/delivery/notifications/](../../../tests/delivery/notifications/) |
+| notifications | 매트릭스 기반 채널 라우팅 레이어 | [src/fdai/core/notifications/](../../../src/fdai/core/notifications/) | [tests/notifications/](../../../tests/notifications/) |
 | report_feed | 렌더된 리포트 구독 | [src/fdai/core/report_feed/](../../../src/fdai/core/report_feed/) | [tests/core/report_feed/](../../../tests/core/report_feed/) |
 | reporting | 리포트 컴포저 + 포매터 | [src/fdai/core/reporting/](../../../src/fdai/core/reporting/) | [tests/core/reporting/](../../../tests/core/reporting/) |
 | rbac | Read API 인간 RBAC | [src/fdai/core/rbac/](../../../src/fdai/core/rbac/) | [tests/core/](../../../tests/core/) |
