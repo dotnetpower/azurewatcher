@@ -38,7 +38,7 @@ def _expire_one(path: Path, *, apply: bool) -> bool:
         raw = json.loads(path.read_text(encoding="utf-8"))
         exemption = load_exemption_from_mapping(raw)
     except (json.JSONDecodeError, ExemptionError) as exc:
-        print(f"❌ {path}: skipping (invalid - {exc})", file=sys.stderr)
+        print(f"[skip] {path}: invalid ({exc})", file=sys.stderr)
         return False
 
     if exemption.state is not ExemptionState.ACTIVE:
@@ -49,7 +49,7 @@ def _expire_one(path: Path, *, apply: bool) -> bool:
     updated = _mark_expired(exemption)
     if apply:
         _write(path, updated)
-        print(f"↧ expired: {path}")
+        print(f"[expired] {path}")
     else:
         print(f"would expire: {path}")
     return True
