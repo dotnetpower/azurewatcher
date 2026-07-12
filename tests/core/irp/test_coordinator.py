@@ -142,3 +142,30 @@ def test_rejects_non_finite_or_non_positive_budget(bad_budget: float) -> None:
             investigator=_investigator({"http_429_rate": 0.4}),
             investigation_budget_seconds=bad_budget,
         )
+
+
+class _RaisingGate:
+    async def request(self, proposal: MitigationProposal) -> ApprovalDecision:
+        raise RuntimeError("approval backend down")
+
+
+@pytest.mark.asyncio
+async def test_approval_gate_fault_fails_closed_to_timeout() -> None:
+    # A raising approval gate (mis-wired fork adapter) must NOT crash respond()
+    # or lose the audit record; it fails closed to TIMEOUT (a no-op) and still
+    # notifies + returns an IrpResult.
+    notifier = _RecordingNotifier()
+    coordinator = IrpCoordinator(
+        investigator=_investigator({"http_429_rate": 0.4}),
+        approval_gate=_RaisingGate(),
+        notifier=notifier,
+        default_channels=("teams://sre",),
+        wall_clock=lambda: _NOW,
+    )
+
+    result = await coordinator.respond(_alert())
+
+    assert result.outcome is IrpOutcome.TIMEOUT
+    assert result.proposal is not None  # a proposal was built and routed
+    assert result.decision is ApprovalDecision.TIMEOUT
+    assert notifier.sent  # the decision was still notified

@@ -227,7 +227,7 @@ class IrpCoordinator:
             citations=top.citations,
             requested_at=self._wall_clock(),
         )
-        decision = await self._approval.request(proposal)
+        decision = await self._request_approval(proposal, alert_id=alert.alert_id)
         outcome = _DECISION_TO_OUTCOME[decision]
 
         await self._notify(
@@ -252,6 +252,24 @@ class IrpCoordinator:
             if rec.remediation_ref:
                 return rec
         return None
+
+    async def _request_approval(
+        self, proposal: MitigationProposal, *, alert_id: str
+    ) -> ApprovalDecision:
+        """Route a proposal to the approval gate, failing closed on any fault.
+
+        The coordinator is fail-closed by construction: a raising approval
+        gate (a mis-wired fork adapter) MUST NOT crash the response and lose
+        the audit record. Any gate fault maps to TIMEOUT (a no-op the caller
+        treats as 'not approved'). ``except Exception`` deliberately lets
+        ``CancelledError`` (a BaseException) propagate so a cancelled response
+        still aborts.
+        """
+        try:
+            return await self._approval.request(proposal)
+        except Exception:  # noqa: BLE001 - fail closed: a gate fault is a no-op, never an execute
+            _LOGGER.error("irp_approval_gate_failed", extra={"alert_id": alert_id})
+            return ApprovalDecision.TIMEOUT
 
     def _timed_out_report(
         self, request: InvestigationRequest, started: datetime
