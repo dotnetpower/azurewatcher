@@ -22,6 +22,7 @@ import type { ActionTypePaletteEntry, ValidateResponse } from "../workflow/valid
 import { buildDraft, githubNewFileUrl, humanizeActionName, signalLabel } from "./workflow-builder.helpers";
 import type { FormState } from "./workflow-builder.model";
 import { validateWorkflowDraft } from "../workflow/validate";
+import { parseBlocks, type InlineToken } from "./workflow-builder.richtext";
 import {
   respondToChat,
   startChat,
@@ -228,49 +229,49 @@ function MessageBubble({
 }
 
 /** Minimal inline markdown: paragraphs, `- ` bullets, `**bold**`, `*em*`,
- * and `` `code` ``. Deliberately tiny - the engine text is trusted and
- * plain; this is presentation only, never HTML injection. */
+ * and `` `code` ``. Rendering only - all parsing lives in the pure
+ * `workflow-builder.richtext` tokenizer (trusted, plain engine text; never
+ * HTML injection). */
 function RichText({ text }: { readonly text: string }) {
-  const blocks = text.split("\n");
+  const blocks = parseBlocks(text);
   const out: ComponentChildren[] = [];
   let bullets: ComponentChildren[] = [];
   const flush = (key: string) => {
     if (bullets.length > 0) {
-      out.push(<ul class="wf-md-list" key={`ul-${key}`}>{bullets}</ul>);
+      out.push(
+        <ul class="wf-md-list" key={`ul-${key}`}>
+          {bullets}
+        </ul>,
+      );
       bullets = [];
     }
   };
-  blocks.forEach((line, i) => {
-    const trimmed = line.trim();
-    if (trimmed.startsWith("- ")) {
-      bullets.push(<li key={i}>{inline(trimmed.slice(2))}</li>);
+  blocks.forEach((block, i) => {
+    if (block.type === "bullet") {
+      bullets.push(<li key={i}>{renderSpans(block.spans)}</li>);
       return;
     }
     flush(String(i));
-    if (trimmed.length > 0) out.push(<p key={i}>{inline(trimmed)}</p>);
+    out.push(<p key={i}>{renderSpans(block.spans)}</p>);
   });
   flush("end");
   return <Fragment>{out}</Fragment>;
 }
 
-/** Parse a single line into <strong>/<em>/<code> spans. */
-function inline(text: string): ComponentChildren {
-  const parts: ComponentChildren[] = [];
-  const re = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  let k = 0;
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) parts.push(text.slice(last, m.index));
-    const tok = m[0];
-    if (tok.startsWith("**")) parts.push(<strong key={k}>{tok.slice(2, -2)}</strong>);
-    else if (tok.startsWith("`")) parts.push(<code key={k}>{tok.slice(1, -1)}</code>);
-    else parts.push(<em key={k}>{tok.slice(1, -1)}</em>);
-    last = m.index + tok.length;
-    k += 1;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return parts;
+/** Map parsed inline tokens to <strong>/<em>/<code>/text nodes. */
+function renderSpans(spans: readonly InlineToken[]): ComponentChildren {
+  return spans.map((span, k) => {
+    switch (span.type) {
+      case "strong":
+        return <strong key={k}>{span.value}</strong>;
+      case "em":
+        return <em key={k}>{span.value}</em>;
+      case "code":
+        return <code key={k}>{span.value}</code>;
+      default:
+        return span.value;
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
