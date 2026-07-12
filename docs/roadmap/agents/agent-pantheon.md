@@ -222,6 +222,14 @@ data, not assertion.
 
 ## 4. Agent catalog
 
+> **Machine-readable source of truth**: `PANTHEON_SPECS` in
+> [`src/fdai/agents/_framework/pantheon.py`](../../../src/fdai/agents/_framework/pantheon.py).
+> The table below paraphrases those `AgentSpec` entries for humans. If
+> they disagree, the code wins - and
+> [`tests/agents/test_pantheon_doc_parity.py`](../../../tests/agents/test_pantheon_doc_parity.py)
+> pins the 15 agent names in this doc against `PANTHEON_NAMES` so drift
+> is caught in CI.
+
 Layer: `1` = domain specialist, `2` = pipeline (sensing / judgment /
 operations / interface), `3` = governance staff.
 

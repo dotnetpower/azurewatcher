@@ -1,8 +1,8 @@
 ---
 title: 에이전트 판테온
 translation_of: agent-pantheon.md
-translation_source_sha: 6bb6a724b95aa8c23b83bc5e678d319b8d10ce5f
-translation_revised: 2026-07-11
+translation_source_sha: 2a1a2bac405ab4e80276cf34aed22447118140ed
+translation_revised: 2026-07-12
 ---
 
 # 에이전트 판테온
@@ -203,6 +203,14 @@ Norns는 관계도의 `Saga -. signals .-> Norns`로 표시된 학습 루프를 
 
 모든 제안은 수치 근거(표본 크기, 롤백률, override 횟수)를 기록하므로 Mimir와
 품질게이트가 주장이 아니라 측정 데이터로 판단할 수 있다.
+
+> **머신 판독용 원본 (single source of truth)**: `PANTHEON_SPECS`
+> ([`src/fdai/agents/_framework/pantheon.py`](../../../src/fdai/agents/_framework/pantheon.py)).
+> 아래 표는 그 `AgentSpec` 항목들을 사람이 읽기 좋게 재구성한 것이다.
+> 표와 코드가 다르면 **코드가 이긴다**.
+> [`tests/agents/test_pantheon_doc_parity.py`](../../../tests/agents/test_pantheon_doc_parity.py)
+> 가 이 문서에 15개 에이전트 이름이 모두 나타나는지 CI에서 검증해 drift를
+> 잡는다.
 
 Layer: `1` = domain specialist, `2` = pipeline (sensing / judgment /
 operations / interface), `3` = governance staff.

@@ -59,6 +59,17 @@ This is the G-7 layout from tracker #14 and it is enforced by
 
 ## 2. Role, ownership, and topic table (authoritative for edits)
 
+> **Machine-readable source of truth**: `PANTHEON_SPECS` in
+> [`src/fdai/agents/_framework/pantheon.py`](../../src/fdai/agents/_framework/pantheon.py).
+> Each `AgentSpec` there carries `name`, `layer`, `reports_to`, `owns`,
+> `executes`, `initiates`, `subscribes`, `question_domains`, and
+> `owns_code_paths`. The tables in this file and in
+> [`docs/roadmap/agents/agent-pantheon.md`](../../docs/roadmap/agents/agent-pantheon.md)
+> paraphrase that data for human readers. If they disagree, the code
+> wins - and a regression test
+> ([`tests/agents/test_pantheon_doc_parity.py`](../../tests/agents/test_pantheon_doc_parity.py))
+> catches the drift on the 15 agent names.
+
 Layer: `domain` (specialist) | `pipeline` (sensing/judgment/operations/interface)
 | `governance` (staff). "Owns" = single-writer authority: only the owner agent
 MAY publish that object type's topic.
