@@ -12,8 +12,10 @@ from fdai.delivery.read_api.streaming.agent_activity_projection import (
 from fdai.delivery.read_api.streaming.agent_activity_stream import (
     AgentState,
     AgentStateEvent,
+    ConversationTurnEvent,
     IncidentTicketEvent,
     TicketStatus,
+    TurnKind,
 )
 from fdai.shared.providers.stage_publisher import StageEvent, StageName, StagePhase
 
@@ -187,9 +189,10 @@ class TestIncidentTicket:
         assert set(proj.incidents) == {"corr-a", "corr-b"}
         assert proj.incidents["corr-a"].ticket_id == "INC-corr-a"
 
-    def test_no_conversation_turns_are_fabricated(self) -> None:
-        # A deterministic pipeline has no A2A dialogue - the projection emits
-        # only agent.state and incident.ticket, never a conversation.turn.
+    def test_conversation_turns_are_only_grounded_handoffs(self) -> None:
+        # A stage transition between two agents is a real handoff; the
+        # projection emits conversation.turn frames of kind HANDOFF only,
+        # never a fabricated question/answer dialogue.
         _proj, events = _run(
             [
                 _stage(StageName.INGEST),
@@ -199,7 +202,52 @@ class TestIncidentTicket:
                 _stage(StageName.AUDIT, StagePhase.DONE),
             ]
         )
-        assert all(isinstance(e, (AgentStateEvent, IncidentTicketEvent)) for e in events)
+        turns = [e for e in events if isinstance(e, ConversationTurnEvent)]
+        assert turns, "real stage transitions MUST surface as handoff turns"
+        assert all(t.kind is TurnKind.HANDOFF for t in turns)
+
+
+class TestHandoffTurns:
+    def test_first_stage_emits_no_handoff(self) -> None:
+        # Nothing precedes the first agent, so there is no handoff.
+        _proj, events = _run([_stage(StageName.INGEST)])
+        turns = [e for e in events if isinstance(e, ConversationTurnEvent)]
+        assert turns == []
+
+    def test_stage_transition_emits_a_handoff(self) -> None:
+        _proj, events = _run([_stage(StageName.INGEST), _stage(StageName.ROUTE)])
+        turns = [e for e in events if isinstance(e, ConversationTurnEvent)]
+        assert len(turns) == 1
+        assert turns[0].from_agent == "Huginn"
+        assert turns[0].to_agent == "Heimdall"
+        assert turns[0].kind is TurnKind.HANDOFF
+
+    def test_hil_gate_handoff_escalates_to_var(self) -> None:
+        _proj, events = _run(
+            [
+                _stage(StageName.INGEST),
+                _stage(StageName.GATE, detail={"gate_decision": "hil"}),
+            ]
+        )
+        turns = [e for e in events if isinstance(e, ConversationTurnEvent)]
+        assert turns[-1].to_agent == "Var"
+        assert turns[-1].text == "escalating for HIL approval"
+
+    def test_same_agent_twice_emits_no_handoff(self) -> None:
+        # Forseti owns verify and gate; no handoff between the two.
+        _proj, events = _run(
+            [
+                _stage(StageName.VERIFY),
+                _stage(StageName.GATE, detail={"gate_decision": "auto"}),
+            ]
+        )
+        turns = [e for e in events if isinstance(e, ConversationTurnEvent)]
+        assert turns == []
+
+    def test_handoff_text_is_grounded_in_the_destination_stage(self) -> None:
+        _proj, events = _run([_stage(StageName.INGEST), _stage(StageName.EXECUTE)])
+        turns = [e for e in events if isinstance(e, ConversationTurnEvent)]
+        assert turns[-1].text == "executing the approved action"
 
 
 class TestDeterminism:
