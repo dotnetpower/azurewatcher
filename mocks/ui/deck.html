@@ -135,15 +135,57 @@
     .dk-table code { font-size: 11.5px; }
     .dk-table .num { text-align: right; font-variant-numeric: tabular-nums; color: var(--cs-text-soft); }
 
-    .dk-chart-wrap { margin: 8px 0 4px; padding: 10px 12px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius-sm); background: var(--cs-card); }
+    .dk-chart-wrap { position: relative; margin: 8px 0 4px; padding: 10px 12px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius-sm); background: var(--cs-card); }
     .dk-chart-caption { font-size: 11.5px; color: var(--cs-text-soft); margin-top: 4px; }
-    .dk-chart svg { display: block; width: 100%; height: auto; }
-    .dk-chart .bar { fill: var(--cs-steel); }
-    .dk-chart .bar.is-alert { fill: var(--cs-terracotta); }
+    .dk-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
     .dk-chart .grid { stroke: var(--cs-hairline); stroke-width: 1; }
     .dk-chart .axis-label { fill: var(--cs-text-soft); font-size: 9.5px; font-family: "Cascadia Code","Consolas",monospace; }
-    .dk-chart .line { fill: none; stroke: var(--cs-teal); stroke-width: 1.5; }
     .dk-chart .baseline { stroke: var(--cs-text-soft); stroke-dasharray: 3 3; stroke-width: 1; opacity: .55; }
+    /* Interactive marks: any element with data-value gets a subtle hover. */
+    .dk-chart [data-value] { cursor: pointer; transition: opacity .12s ease, filter .12s ease, stroke-width .12s ease; }
+    .dk-chart [data-value]:hover { filter: brightness(1.08) saturate(1.15); }
+    /* --- Bar chart --- */
+    .dk-chart .bar { fill: var(--cs-steel); }
+    .dk-chart .bar.is-alert { fill: var(--cs-terracotta); }
+    /* --- Line chart --- */
+    .dk-chart .line { fill: none; stroke: var(--cs-teal); stroke-width: 1.5; }
+    .dk-chart .area { fill: var(--cs-teal); opacity: .12; }
+    .dk-chart .dot { fill: var(--cs-card); stroke: var(--cs-teal); stroke-width: 2; r: 3; }
+    .dk-chart .dot:hover { stroke-width: 3; r: 4.5; }
+    .dk-chart .dot.is-alert { stroke: var(--cs-dusty-red); }
+    /* --- Donut chart --- */
+    .dk-chart .arc { fill: none; stroke-width: 22; transition: stroke-width .12s ease; }
+    .dk-chart .arc:hover { stroke-width: 26; }
+    .dk-chart .arc.is-t0 { stroke: var(--cs-sage); }
+    .dk-chart .arc.is-t1 { stroke: var(--cs-teal); }
+    .dk-chart .arc.is-t2 { stroke: var(--cs-plum); }
+    .dk-chart .arc.is-hil { stroke: var(--cs-terracotta); }
+    .dk-chart .donut-center { font: 700 16px/1 "Segoe UI",sans-serif; fill: var(--cs-text); text-anchor: middle; dominant-baseline: central; }
+    .dk-chart .donut-sub { font: 600 9px/1 "Segoe UI",sans-serif; fill: var(--cs-text-soft); text-anchor: middle; letter-spacing: .08em; text-transform: uppercase; }
+    /* --- Stacked area chart --- */
+    .dk-chart .stack { transition: opacity .12s ease; }
+    .dk-chart .stack.layer-a { fill: var(--cs-steel); opacity: .75; }
+    .dk-chart .stack.layer-b { fill: var(--cs-teal); opacity: .70; }
+    .dk-chart .stack.layer-c { fill: var(--cs-sage); opacity: .65; }
+    .dk-chart .stack:hover { opacity: 1; }
+    .dk-chart .stack-hit { fill: transparent; }
+    .dk-chart .stack-hit:hover ~ .stack-cursor { opacity: 1; }
+    .dk-chart .stack-cursor { stroke: var(--cs-text-soft); stroke-width: 1; stroke-dasharray: 2 2; opacity: 0; pointer-events: none; }
+    /* --- Legend --- */
+    .dk-chart-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; font-size: 11px; color: var(--cs-text-soft); }
+    .dk-chart-legend > span { display: inline-flex; align-items: center; gap: 5px; }
+    .dk-chart-legend .sw { width: 10px; height: 10px; border-radius: 2px; background: var(--cs-steel); }
+    .dk-chart-legend .sw.is-sage { background: var(--cs-sage); }
+    .dk-chart-legend .sw.is-teal { background: var(--cs-teal); }
+    .dk-chart-legend .sw.is-plum { background: var(--cs-plum); }
+    .dk-chart-legend .sw.is-terracotta { background: var(--cs-terracotta); }
+    .dk-chart-legend .sw.is-steel { background: var(--cs-steel); }
+    /* --- Shared tooltip (positioned by JS) --- */
+    .dk-tt { position: absolute; z-index: 9; padding: 5px 9px; border-radius: 6px; background: var(--cs-navy); color: #fff; font-size: 11.5px; font-weight: 500; box-shadow: 0 4px 10px rgba(15,23,30,.15); pointer-events: none; opacity: 0; transform: translate(-50%, calc(-100% - 8px)); transition: opacity .1s ease; white-space: nowrap; }
+    .dk-tt::after { content: ""; position: absolute; left: 50%; top: 100%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: var(--cs-navy); }
+    .dk-tt.is-open { opacity: 1; }
+    .dk-tt strong { color: #fff; font-weight: 700; }
+    .dk-tt .k { color: rgba(255,255,255,.7); margin-right: 4px; }
 
     .dk-figure { margin: 8px 0 4px; padding: 10px 12px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius-sm); background: var(--cs-card); }
     .dk-figure svg { display: block; width: 100%; height: auto; max-height: 220px; }
@@ -463,22 +505,22 @@
                     <line class="grid" x1="0" x2="320" y1="55"  y2="55" />
                     <line class="grid" x1="0" x2="320" y1="90"  y2="90" />
                     <line class="baseline" x1="0" x2="320" y1="85" y2="85" />
-                    <rect class="bar"           x="6"   y="78" width="22" height="12" />
-                    <rect class="bar"           x="34"  y="75" width="22" height="15" />
-                    <rect class="bar"           x="62"  y="70" width="22" height="20" />
-                    <rect class="bar"           x="90"  y="58" width="22" height="32" />
-                    <rect class="bar is-alert"  x="118" y="36" width="22" height="54" />
-                    <rect class="bar is-alert"  x="146" y="22" width="22" height="68" />
-                    <rect class="bar is-alert"  x="174" y="18" width="22" height="72" />
-                    <rect class="bar is-alert"  x="202" y="40" width="22" height="50" />
-                    <rect class="bar"           x="230" y="62" width="22" height="28" />
-                    <rect class="bar"           x="258" y="75" width="22" height="15" />
-                    <rect class="bar"           x="286" y="82" width="22" height="8" />
+                    <rect class="bar"          x="6"   y="78" width="22" height="12" data-label="09:36" data-value="0.8 /min" />
+                    <rect class="bar"          x="34"  y="75" width="22" height="15" data-label="09:37" data-value="1.0 /min" />
+                    <rect class="bar"          x="62"  y="70" width="22" height="20" data-label="09:38" data-value="1.4 /min" />
+                    <rect class="bar"          x="90"  y="58" width="22" height="32" data-label="09:39" data-value="2.1 /min" />
+                    <rect class="bar is-alert" x="118" y="36" width="22" height="54" data-label="09:40" data-value="2.6 /min - stop-condition breached" />
+                    <rect class="bar is-alert" x="146" y="22" width="22" height="68" data-label="09:41" data-value="2.9 /min - peak" />
+                    <rect class="bar is-alert" x="174" y="18" width="22" height="72" data-label="09:42" data-value="3.1 /min - peak" />
+                    <rect class="bar is-alert" x="202" y="40" width="22" height="50" data-label="09:43" data-value="2.4 /min" />
+                    <rect class="bar"          x="230" y="62" width="22" height="28" data-label="09:44" data-value="1.7 /min - auto-heal" />
+                    <rect class="bar"          x="258" y="75" width="22" height="15" data-label="09:45" data-value="1.0 /min" />
+                    <rect class="bar"          x="286" y="82" width="22" height="8"  data-label="09:46" data-value="0.6 /min - recovered" />
                     <text class="axis-label" x="6"   y="104">09:36</text>
                     <text class="axis-label" x="148" y="104">09:41</text>
                     <text class="axis-label" x="286" y="104">09:46</text>
                   </svg>
-                  <div class="dk-chart-caption">Series: restarts / minute &middot; alert bars = above stop-condition</div>
+                  <div class="dk-chart-caption">Series: restarts / minute &middot; hover a bar for the exact value &middot; alert bars = above stop-condition</div>
                 </figure>
               </div>
             </div>
@@ -546,6 +588,110 @@
                     </g>
                   </svg>
                   <figcaption>Solid orange = risk-gate direct scope &middot; hairline = observed but out of blast radius</figcaption>
+                </figure>
+              </div>
+            </div>
+          </div>
+
+          <!-- Njord: line + area (LLM spend, 7 days). Hover a point for the daily value. -->
+          <div class="dk-turn">
+            <span class="dk-turn-avatar" style="background:var(--cs-terracotta)" aria-hidden="true">Nj</span>
+            <div class="dk-turn-body">
+              <span class="dk-turn-meta"><strong>Njord</strong> (domain: cost) &middot; <time>09:48</time> &middot; replying to <span class="dk-mention is-navy">@You</span></span>
+              <div class="dk-bubble">
+                <p>LLM spend trend on <code>fdai-dev</code>, last 7 days. Weekend dip is the
+                  scheduled off-path Norns run; Fri spike lines up with the FDAI-8812 T2 burst.
+                  <strong>Hover any point</strong> for the daily total.</p>
+                <figure class="dk-chart-wrap dk-chart">
+                  <svg viewBox="0 0 320 120" role="img" aria-label="Daily LLM spend, last 7 days">
+                    <line class="grid" x1="0" x2="320" y1="20"  y2="20" />
+                    <line class="grid" x1="0" x2="320" y1="55"  y2="55" />
+                    <line class="grid" x1="0" x2="320" y1="90"  y2="90" />
+                    <path class="area" d="M20 78 L 70 62 L 120 44 L 170 68 L 220 26 L 270 82 L 310 70 L 310 100 L 20 100 Z" />
+                    <path class="line" d="M20 78 L 70 62 L 120 44 L 170 68 L 220 26 L 270 82 L 310 70" />
+                    <circle class="dot" cx="20"  cy="78" data-label="Mon Jul 07" data-value="$8.20" />
+                    <circle class="dot" cx="70"  cy="62" data-label="Tue Jul 08" data-value="$11.40" />
+                    <circle class="dot" cx="120" cy="44" data-label="Wed Jul 09" data-value="$14.80" />
+                    <circle class="dot" cx="170" cy="68" data-label="Thu Jul 10" data-value="$10.10" />
+                    <circle class="dot is-alert" cx="220" cy="26" data-label="Fri Jul 11 - FDAI-8812 spike" data-value="$19.20" />
+                    <circle class="dot" cx="270" cy="82" data-label="Sat Jul 12" data-value="$6.30" />
+                    <circle class="dot" cx="310" cy="70" data-label="Sun Jul 13 (today)" data-value="$9.10 to 09:48" />
+                    <text class="axis-label" x="20"  y="114">Mon</text>
+                    <text class="axis-label" x="120" y="114">Wed</text>
+                    <text class="axis-label" x="220" y="114">Fri</text>
+                    <text class="axis-label" x="310" y="114" text-anchor="end">Sun</text>
+                  </svg>
+                  <div class="dk-chart-caption">Series: total daily spend across T1 + T2 &middot; alert dot = day breached $15 soft cap</div>
+                </figure>
+              </div>
+            </div>
+          </div>
+
+          <!-- Forseti: donut chart (T0/T1/T2 tier share). Hover a segment for the count. -->
+          <div class="dk-turn">
+            <span class="dk-turn-avatar is-plum" aria-hidden="true">Fo</span>
+            <div class="dk-turn-body">
+              <span class="dk-turn-meta"><strong>Forseti</strong> &middot; <time>09:48</time> &middot; router mix last 1h</span>
+              <div class="dk-bubble">
+                <p>Tier mix for the last hour on <code>fdai-dev</code>. T0 dominates as designed;
+                  the T2 slice sits inside the 5-10% target band. HIL rate is 4.1%. <strong>Hover
+                  a segment</strong> for exact counts.</p>
+                <figure class="dk-chart-wrap dk-chart">
+                  <svg viewBox="0 0 220 130" role="img" aria-label="Tier mix donut">
+                    <!-- Circumference of r=45 is ~283. Segment lengths encode the share. -->
+                    <g transform="translate(110 65) rotate(-90)">
+                      <circle r="45" fill="none" stroke="var(--cs-shade)" stroke-width="22" />
+                      <circle class="arc is-t0"  r="45" stroke-dasharray="215 283" stroke-dashoffset="0"    data-label="T0 deterministic" data-value="76.2% (1,424 events)" />
+                      <circle class="arc is-t1"  r="45" stroke-dasharray="51 283"  stroke-dashoffset="-215" data-label="T1 similarity"    data-value="18.0% (337 events)" />
+                      <circle class="arc is-t2"  r="45" stroke-dasharray="14 283"  stroke-dashoffset="-266" data-label="T2 reasoner"      data-value="5.0% (94 events)" />
+                      <circle class="arc is-hil" r="45" stroke-dasharray="3 283"   stroke-dashoffset="-280" data-label="HIL escalated"    data-value="0.8% (15 events)" />
+                    </g>
+                    <text class="donut-center" x="110" y="62">1,870</text>
+                    <text class="donut-sub"    x="110" y="78">events / 1h</text>
+                  </svg>
+                  <div class="dk-chart-legend">
+                    <span><span class="sw is-sage"></span>T0 76.2%</span>
+                    <span><span class="sw is-teal"></span>T1 18.0%</span>
+                    <span><span class="sw is-plum"></span>T2 5.0%</span>
+                    <span><span class="sw is-terracotta"></span>HIL 0.8%</span>
+                  </div>
+                </figure>
+              </div>
+            </div>
+          </div>
+
+          <!-- Freyr: stacked area chart (capacity forecast). Hover a column for the per-layer breakdown. -->
+          <div class="dk-turn">
+            <span class="dk-turn-avatar is-teal" aria-hidden="true">Fr</span>
+            <div class="dk-turn-body">
+              <span class="dk-turn-meta"><strong>Freyr</strong> (domain: capacity) &middot; <time>09:49</time> &middot; forecast, next 7 days</span>
+              <div class="dk-bubble">
+                <p>Capacity forecast for <code>nginx-canary</code> replicas, split by workload class.
+                  Steel = baseline traffic, teal = burst headroom, sage = experiment reserve.
+                  <strong>Hover a column</strong> for the per-layer breakdown at that day.</p>
+                <figure class="dk-chart-wrap dk-chart">
+                  <svg viewBox="0 0 320 130" role="img" aria-label="Capacity forecast, 7 days">
+                    <line class="grid" x1="0" x2="320" y1="25"  y2="25" />
+                    <line class="grid" x1="0" x2="320" y1="60"  y2="60" />
+                    <line class="grid" x1="0" x2="320" y1="95"  y2="95" />
+                    <!-- Each day = 40px wide. 7 columns starting x=10. Layers are stacked bottom-up. -->
+                    <g><rect class="stack layer-a" x="10"  y="70" width="26" height="30" data-label="Mon - baseline"  data-value="3 replicas" /><rect class="stack layer-b" x="10"  y="52" width="26" height="18" data-label="Mon - burst"     data-value="+2 headroom" /><rect class="stack layer-c" x="10"  y="46" width="26" height="6"  data-label="Mon - experiment" data-value="+1 chaos slot" /></g>
+                    <g><rect class="stack layer-a" x="50"  y="66" width="26" height="34" data-label="Tue - baseline"  data-value="3.5 replicas" /><rect class="stack layer-b" x="50"  y="48" width="26" height="18" data-label="Tue - burst"     data-value="+2 headroom" /><rect class="stack layer-c" x="50"  y="42" width="26" height="6"  data-label="Tue - experiment" data-value="+1 chaos slot" /></g>
+                    <g><rect class="stack layer-a" x="90"  y="60" width="26" height="40" data-label="Wed - baseline"  data-value="4 replicas"   /><rect class="stack layer-b" x="90"  y="38" width="26" height="22" data-label="Wed - burst"     data-value="+3 headroom" /><rect class="stack layer-c" x="90"  y="32" width="26" height="6"  data-label="Wed - experiment" data-value="+1 chaos slot" /></g>
+                    <g><rect class="stack layer-a" x="130" y="58" width="26" height="42" data-label="Thu - baseline"  data-value="4.2 replicas" /><rect class="stack layer-b" x="130" y="34" width="26" height="24" data-label="Thu - burst"     data-value="+3 headroom" /><rect class="stack layer-c" x="130" y="28" width="26" height="6"  data-label="Thu - experiment" data-value="+1 chaos slot" /></g>
+                    <g><rect class="stack layer-a" x="170" y="48" width="26" height="52" data-label="Fri - baseline"  data-value="5.2 replicas" /><rect class="stack layer-b" x="170" y="22" width="26" height="26" data-label="Fri - burst"     data-value="+3 headroom" /><rect class="stack layer-c" x="170" y="14" width="26" height="8"  data-label="Fri - experiment" data-value="+2 chaos slots" /></g>
+                    <g><rect class="stack layer-a" x="210" y="78" width="26" height="22" data-label="Sat - baseline"  data-value="2.2 replicas" /><rect class="stack layer-b" x="210" y="64" width="26" height="14" data-label="Sat - burst"     data-value="+1.5 headroom" /><rect class="stack layer-c" x="210" y="58" width="26" height="6"  data-label="Sat - experiment" data-value="+1 chaos slot" /></g>
+                    <g><rect class="stack layer-a" x="250" y="80" width="26" height="20" data-label="Sun - baseline"  data-value="2 replicas"   /><rect class="stack layer-b" x="250" y="66" width="26" height="14" data-label="Sun - burst"     data-value="+1.5 headroom" /><rect class="stack layer-c" x="250" y="60" width="26" height="6"  data-label="Sun - experiment" data-value="+1 chaos slot" /></g>
+                    <text class="axis-label" x="10"  y="117">Mon</text>
+                    <text class="axis-label" x="90"  y="117">Wed</text>
+                    <text class="axis-label" x="170" y="117">Fri</text>
+                    <text class="axis-label" x="250" y="117">Sun</text>
+                  </svg>
+                  <div class="dk-chart-legend">
+                    <span><span class="sw is-steel"></span>baseline</span>
+                    <span><span class="sw is-teal"></span>burst headroom</span>
+                    <span><span class="sw is-sage"></span>experiment reserve</span>
+                  </div>
                 </figure>
               </div>
             </div>
@@ -684,6 +830,44 @@
         const next = !shell.classList.contains('is-trace-collapsed');
         apply(next);
         try { localStorage.setItem(KEY, next ? '1' : '0'); } catch (_) { /* ok */ }
+      });
+    })();
+
+    // ------------------------------------------------------------------
+    // Chart tooltips: any SVG element inside .dk-chart with data-value +
+    // data-label pops a tooltip on hover, positioned inside the enclosing
+    // .dk-chart-wrap (which is position:relative) so it clips to the
+    // bubble instead of flying off into the transcript scroll.
+    // ------------------------------------------------------------------
+    (function () {
+      const wraps = document.querySelectorAll('.dk-chart-wrap');
+      wraps.forEach((wrap) => {
+        const tt = document.createElement('div');
+        tt.className = 'dk-tt';
+        wrap.appendChild(tt);
+
+        function show(evt) {
+          const t = evt.target.closest('[data-value]');
+          if (!t || !wrap.contains(t)) return;
+          const label = t.getAttribute('data-label') || '';
+          const value = t.getAttribute('data-value') || '';
+          tt.innerHTML = (label ? '<span class="k">' + label + '</span>' : '') + '<strong>' + value + '</strong>';
+          const rect = wrap.getBoundingClientRect();
+          const el = t.getBoundingClientRect();
+          const x = (el.left - rect.left) + el.width / 2;
+          const y = (el.top - rect.top);
+          tt.style.left = x + 'px';
+          tt.style.top = y + 'px';
+          tt.classList.add('is-open');
+        }
+        function hide(evt) {
+          if (evt.target.closest && evt.target.closest('[data-value]')) return;
+          tt.classList.remove('is-open');
+        }
+        wrap.addEventListener('mouseover', show);
+        wrap.addEventListener('mousemove', show);
+        wrap.addEventListener('mouseout', hide);
+        wrap.addEventListener('mouseleave', () => tt.classList.remove('is-open'));
       });
     })();
   </script>
