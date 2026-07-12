@@ -31,6 +31,7 @@ type, and the standard library.
 
 from __future__ import annotations
 
+import math
 import statistics
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -157,6 +158,14 @@ class LinearForecastDetector:
         ys = [s.value for s in history]
         if xs[-1] == xs[0]:
             return None  # no time span -> no trend
+
+        # A non-finite sample (NaN / +-Inf) poisons the least-squares fit:
+        # slope/intercept/r_squared become NaN, and every abstain guard below
+        # (``r_squared < min``, ``lead <= 0``, ``lead > horizon``) is a NaN
+        # comparison that is always False - so the detector would emit a
+        # ForecastFinding full of NaN. Abstain (fail-closed) on corrupt input.
+        if not all(math.isfinite(y) for y in ys):
+            return None
 
         slope, intercept = statistics.linear_regression(xs, ys)
         if slope == 0.0:

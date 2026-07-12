@@ -105,6 +105,16 @@ def test_wrong_direction_is_silent() -> None:
     assert _evaluate(_detector(direction="rising"), [100.0 - i for i in range(10)]) is None
 
 
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_history_abstains(bad: float) -> None:
+    # A non-finite sample makes the least-squares fit NaN; every abstain guard
+    # (r_squared < min, lead <= 0, lead > horizon) is then a NaN comparison
+    # that is always False, so the detector would emit an all-NaN forecast.
+    # It must abstain (fail-closed) instead.
+    poisoned = [0.0, 1.0, 2.0, bad, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+    assert _evaluate(_detector(), poisoned) is None
+
+
 @pytest.mark.parametrize(
     ("threshold", "expected"),
     [
