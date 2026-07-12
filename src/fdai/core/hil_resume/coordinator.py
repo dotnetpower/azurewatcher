@@ -60,6 +60,11 @@ from fdai.core.executor.tool_call import (
     ToolCallExecutionResult,
     ToolCallShadowExecutor,
 )
+from fdai.core.hil_resume.delegation import (
+    DelegationMode,
+    DelegationRefusal,
+    evaluate_hil_delegation,
+)
 from fdai.core.oncall import OnCallResolution, OnCallResolver
 from fdai.shared.contracts.models import (
     Action,
@@ -144,6 +149,10 @@ class ResolveOutcome(StrEnum):
     SELF_APPROVAL_REFUSED = "self_approval_refused"
     """approver_oid == submitter_oid; refused before any execution."""
 
+    MISSING_CAPABILITY = "missing_capability"
+    """The approver lacks the HIL-approval capability; refused before any
+    execution (role-scoped queue, but still capability-gated)."""
+
     CONFLICTING_DECISION = "conflicting_decision"
     """A different terminal decision was already recorded; refused."""
 
@@ -163,6 +172,10 @@ class ResolveResult:
         ExecutionResult | DirectApiExecutionResult | ToolCallExecutionResult | None
     ) = None
     reason: str | None = None
+    delegated: bool = False
+    """True when an authorized operator approved on the assignee's behalf."""
+    assignee_oid: str | None = None
+    """The operator the park was surfaced to, when recorded."""
 
 
 class HilResumeCoordinator:
@@ -223,12 +236,19 @@ class HilResumeCoordinator:
         blast_radius_summary: str = "",
         ttl_seconds: int = 1800,
         approval_id: str | None = None,
+        assignee_oid: str | None = None,
     ) -> RequestApprovalResult:
         """Park ``action`` and push an A1 approval card.
 
         The park is written BEFORE the push so a dispatch failure never
         loses the pending action - it stays recoverable and fail-closed
         (no execution until an explicit APPROVE).
+
+        ``assignee_oid`` records the operator the item was surfaced to. When
+        omitted, it defaults to the resolved on-call primary (if any). A blank
+        assignee makes the item purely role-scoped: any authorized approver
+        resolves it directly. A recorded assignee lets :meth:`resolve`
+        distinguish a direct approval from a **delegated** one for the audit.
         """
         if not submitter_oid.strip():
             # The parked submitter is the no-self-approval authority. A
@@ -240,6 +260,9 @@ class HilResumeCoordinator:
             )
         aid = approval_id or uuid4().hex
         on_call = await self._resolve_on_call()
+        resolved_assignee = (assignee_oid or "").strip() or (
+            on_call.primary_oid if on_call is not None else None
+        )
         parked = {
             "status": _STATUS_PENDING,
             "approval_id": aid,
@@ -247,6 +270,7 @@ class HilResumeCoordinator:
             "rule_id": rule.id,
             "action_type": action.action_type,
             "submitter_oid": submitter_oid,
+            "assignee_oid": resolved_assignee,
             "correlation_id": correlation_id,
             "idempotency_key": action.idempotency_key,
             "parked_at": datetime.now(tz=UTC).isoformat(),
@@ -262,6 +286,7 @@ class HilResumeCoordinator:
                 "action_type": action.action_type,
                 "rule_id": rule.id,
                 "submitter_oid": submitter_oid,
+                "assignee_oid": resolved_assignee,
                 "on_call": _on_call_detail(on_call),
             },
         )
@@ -313,12 +338,20 @@ class HilResumeCoordinator:
         decision: HilDecision,
         approver_oid: str,
         reason: str = "",
+        approver_can_approve_hil: bool = True,
     ) -> ResolveResult:
         """Apply a terminal decision to a parked action.
 
         Fail-safe: an unknown / already-resolved / self-approved park
         never executes. Only an ``APPROVE`` on a still-pending park
         re-dispatches the action to the executor.
+
+        ``approver_can_approve_hil`` is the caller's RBAC verdict for
+        ``Capability.APPROVE_RUNTIME_HIL`` (the read-API HIL callback fills it
+        from the operator's roles). The delegation gate refuses an approver
+        who lacks it, and - when the park carries a different ``assignee_oid``
+        than the approver - records the approval as **delegated** so the audit
+        shows both the actual approver and the original assignee.
         """
         parked = await self._state_store.read_state(_park_key(approval_id))
         if parked is None:
@@ -334,6 +367,7 @@ class HilResumeCoordinator:
 
         correlation_id = str(parked.get("correlation_id") or approval_id)
         idem = str(parked.get("idempotency_key") or approval_id)
+        assignee_oid = str(parked.get("assignee_oid") or "").strip() or None
 
         if parked.get("status") == _STATUS_RESOLVED:
             prior = str(parked.get("decision") or "")
@@ -353,13 +387,36 @@ class HilResumeCoordinator:
             return ResolveResult(outcome=ResolveOutcome.ALREADY_RESOLVED, approval_id=approval_id)
 
         submitter_oid = str(parked.get("submitter_oid") or "").strip()
+        delegation = None
         if decision is HilDecision.APPROVE:
-            approver = approver_oid.strip()
-            # No self-approval AND a verifiable, distinct approver
-            # identity. Fail closed when the approver is blank
-            # (unverifiable), the park has no recorded submitter (cannot
-            # prove distinctness), or approver == submitter (self-approval).
-            if not approver or not submitter_oid or submitter_oid == approver:
+            # Delegation gate: no self-approval, a verifiable+distinct approver,
+            # and the HIL-approval capability. Fail closed on any refusal. A
+            # single pure function shared with the read-API callback so the
+            # rule never drifts between entry points.
+            delegation = evaluate_hil_delegation(
+                approver_oid=approver_oid,
+                submitter_oid=submitter_oid,
+                approver_can_approve_hil=approver_can_approve_hil,
+                assignee_oid=assignee_oid,
+            )
+            if not delegation.allowed:
+                if delegation.refusal is DelegationRefusal.MISSING_CAPABILITY:
+                    await self._audit(
+                        action_kind="hil.resolve.capability_refused",
+                        idempotency_key=f"{idem}:hil_capability_refused",
+                        approval_id=approval_id,
+                        correlation_id=correlation_id,
+                        detail={
+                            "approver_oid": approver_oid,
+                            "assignee_oid": assignee_oid,
+                            "reason": DelegationRefusal.MISSING_CAPABILITY.value,
+                        },
+                    )
+                    return ResolveResult(
+                        outcome=ResolveOutcome.MISSING_CAPABILITY,
+                        approval_id=approval_id,
+                        assignee_oid=assignee_oid,
+                    )
                 await self._audit(
                     action_kind="hil.resolve.self_approval_refused",
                     idempotency_key=f"{idem}:hil_self_approval",
@@ -368,10 +425,8 @@ class HilResumeCoordinator:
                     detail={
                         "approver_oid": approver_oid,
                         "reason": (
-                            "blank_approver"
-                            if not approver
-                            else "unknown_submitter"
-                            if not submitter_oid
+                            delegation.refusal.value
+                            if delegation.refusal is not None
                             else "self_approval"
                         ),
                     },
@@ -404,7 +459,8 @@ class HilResumeCoordinator:
             )
             return ResolveResult(outcome=ResolveOutcome.TIMED_OUT, approval_id=approval_id)
 
-        # decision is APPROVE and not self-approved -> re-dispatch.
+        # decision is APPROVE and the delegation gate allowed it -> re-dispatch.
+        is_delegated = delegation is not None and delegation.is_delegated
         action = Action.model_validate(parked["action"])
         rule = self._rules_by_id.get(str(parked.get("rule_id") or ""))
         # Mark resolved BEFORE executing so a concurrent duplicate decision
@@ -427,10 +483,17 @@ class HilResumeCoordinator:
                 outcome=ResolveOutcome.EXECUTE_FAILED,
                 approval_id=approval_id,
                 reason="rule_not_in_catalog",
+                delegated=is_delegated,
+                assignee_oid=assignee_oid,
             )
 
         result = await self._dispatch(action=action, rule=rule)
         succeeded = _is_success(result)
+        delegation_mode = (
+            delegation.mode.value
+            if delegation is not None and delegation.mode is not None
+            else DelegationMode.ROLE_SCOPED.value
+        )
         await self._audit(
             action_kind="hil.approved.executed" if succeeded else "hil.approved.execute_failed",
             idempotency_key=f"{idem}:hil_executed",
@@ -438,6 +501,9 @@ class HilResumeCoordinator:
             correlation_id=correlation_id,
             detail={
                 "approver_oid": approver_oid,
+                "assignee_oid": assignee_oid,
+                "delegated": is_delegated,
+                "delegation_mode": delegation_mode,
                 "action_type": action.action_type,
                 "mode": Mode.SHADOW.value,
             },
@@ -446,6 +512,8 @@ class HilResumeCoordinator:
             outcome=ResolveOutcome.EXECUTED if succeeded else ResolveOutcome.EXECUTE_FAILED,
             approval_id=approval_id,
             execution_result=result,
+            delegated=is_delegated,
+            assignee_oid=assignee_oid,
         )
 
     # ------------------------------------------------------------------

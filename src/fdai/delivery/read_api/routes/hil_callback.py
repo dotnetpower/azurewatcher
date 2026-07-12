@@ -52,6 +52,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from fdai.core.hil_resume import HilResumeCoordinator, ResolveOutcome, ResolveResult
+from fdai.core.rbac.roles import Capability, Role, has_capability
 from fdai.shared.providers.hil_channel import HilDecision
 from fdai.shared.providers.hil_registry import (
     HilApprovalDecision,
@@ -155,10 +156,21 @@ def _coordinator_response(approval_id: str, result: ResolveResult) -> Response:
             "self_approval_forbidden",
             "no_self_approval - approver equals the parked submitter",
         )
+    if outcome is ResolveOutcome.MISSING_CAPABILITY:
+        return _error(
+            403,
+            "capability_forbidden",
+            "approver lacks the approve-runtime-hil capability",
+        )
     if outcome is ResolveOutcome.CONFLICTING_DECISION:
         return _error(409, "already_resolved", result.reason or "conflicting decision")
     return JSONResponse(
-        {"approval_id": approval_id, "outcome": outcome.value, "path": "coordinator"},
+        {
+            "approval_id": approval_id,
+            "outcome": outcome.value,
+            "path": "coordinator",
+            "delegated": result.delegated,
+        },
         status_code=200,
     )
 
@@ -210,6 +222,7 @@ def make_hil_callback_route(
                 decision=_DECISION_TO_CHANNEL[payload.decision],
                 approver_oid=payload.actor_oid,
                 reason=payload.justification,
+                approver_can_approve_hil=_approver_can_approve_hil(payload),
             )
             if resolve_result.outcome is not ResolveOutcome.NOT_FOUND:
                 return _coordinator_response(approval_id, resolve_result)
@@ -280,6 +293,30 @@ class _CallbackBody:
     decision: HilApprovalDecision
     actor_oid: str
     justification: str
+    actor_roles: tuple[str, ...] = ()
+
+
+def _approver_can_approve_hil(payload: _CallbackBody) -> bool:
+    """Whether the approver holds ``Capability.APPROVE_RUNTIME_HIL``.
+
+    The callback is HMAC-authenticated, so the push channel's asserted
+    ``actor_roles`` are trusted (signed with the shared secret, not
+    client-forgeable). When the channel supplies roles, the capability is
+    enforced here as defense in depth; a channel that omits them is trusted
+    to surface approve controls only to authorized approvers, so the
+    coordinator's ``approver_can_approve_hil`` defaults to ``True`` (blank
+    roles). No-self-approval and the HMAC gate still apply either way.
+    """
+    if not payload.actor_roles:
+        return True
+    resolved: set[Role] = set()
+    for token in payload.actor_roles:
+        try:
+            resolved.add(Role(token))
+        except ValueError:
+            # An unknown role token grants nothing (fail closed on that token).
+            continue
+    return has_capability(resolved, Capability.APPROVE_RUNTIME_HIL)
 
 
 async def _authenticate_and_parse(
@@ -354,10 +391,15 @@ async def _authenticate_and_parse(
     if not isinstance(justification, str):
         raise HilCallbackBadRequestError("'justification' MUST be a string")
 
+    roles_raw = parsed.get("actor_roles", [])
+    if not isinstance(roles_raw, list) or not all(isinstance(r, str) for r in roles_raw):
+        raise HilCallbackBadRequestError("'actor_roles' MUST be a list of strings")
+
     return _CallbackBody(
         decision=decision,
         actor_oid=actor_oid,
         justification=justification,
+        actor_roles=tuple(roles_raw),
     )
 
 

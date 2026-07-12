@@ -548,6 +548,24 @@ A later decision (a ChatOps callback or a poll) drives
   before any execution; the loop parks with a system submitter identity
   so any real approver is distinct.
 
+**Role-scoped queue + delegation (Scenario A).** A parked HIL item is a
+**queue, not a per-person inbox**: any operator holding
+`Capability.APPROVE_RUNTIME_HIL` may resolve it. The park records an
+optional `assignee_oid` - the operator the item was surfaced to, defaulting
+to the resolved on-call primary. When a *different* authorized operator
+approves it, that is a **delegated** approval: allowed (same authority) and
+recorded distinctly, so the audit entry names both the actual `approver_oid`
+and the original `assignee_oid` (`delegation_mode` = `direct` / `delegated`
+/ `role_scoped`). The gate is one pure function
+(`core/hil_resume/delegation.py`) shared by the coordinator and the read-API
+callback so the rule never drifts. Refusals stay fail-closed: a blank /
+self-approving / capability-lacking approver never executes
+(`missing_capability` returns 403 and leaves the park resolvable by an
+authorized operator). The read-API callback derives
+`approver_can_approve_hil` from the HMAC-signed `actor_roles` the push
+channel asserts; an omitted `actor_roles` trusts the channel (defaults to
+allowed) while no-self-approval and the HMAC gate still apply.
+
 This closes the loop between the `hil` verdict (§2) and an approved
 action actually running, without a blocking wait or an ungated
 auto-execution. The read-API HIL callback

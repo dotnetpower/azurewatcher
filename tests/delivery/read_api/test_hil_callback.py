@@ -587,10 +587,16 @@ def _post(
     decision: str = "approve",
     actor_oid: str = "alice@example.com",
     justification: str = "reviewed on-call",
+    actor_roles: list[str] | None = None,
 ) -> object:
-    body = json.dumps(
-        {"decision": decision, "actor_oid": actor_oid, "justification": justification}
-    ).encode()
+    payload: dict[str, object] = {
+        "decision": decision,
+        "actor_oid": actor_oid,
+        "justification": justification,
+    }
+    if actor_roles is not None:
+        payload["actor_roles"] = actor_roles
+    body = json.dumps(payload).encode()
     timestamp = datetime.now(UTC).isoformat()
     return client.post(
         f"/hil/{approval_id}/decision",
@@ -663,3 +669,98 @@ def test_callback_no_park_falls_through_to_registry() -> None:
     assert body["decision"] == "approve"
     # Registry path records the decision; it does not itself execute.
     assert publisher.records == ()
+
+
+def test_callback_delegated_approval_via_coordinator() -> None:
+    # A HIL item surfaced to bob is approved by alice (a different, authorized
+    # operator) -> allowed (Scenario A) and flagged delegated in the response.
+    coordinator, publisher, _ = _make_coordinator()
+    asyncio.run(
+        coordinator.request_approval(
+            action=_coord_action(),
+            rule=_coord_rule(),
+            submitter_oid="system:control-loop",
+            correlation_id="c1",
+            approval_id="cpark-del",
+            assignee_oid="bob@example.com",
+        )
+    )
+    app = _build_app_with_callback(InMemoryHilApprovalRegistry(), coordinator=coordinator)
+    client = TestClient(app)
+
+    response = _post(
+        client,
+        "cpark-del",
+        decision="approve",
+        actor_oid="alice@example.com",
+        actor_roles=["Approver"],
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["outcome"] == "executed"
+    assert body["delegated"] is True
+    assert len(publisher.records) == 1
+
+
+def test_callback_missing_capability_is_forbidden() -> None:
+    # The approver's asserted roles (Reader) do not carry approve-runtime-hil
+    # -> the coordinator refuses and nothing executes (403).
+    coordinator, publisher, _ = _make_coordinator()
+    asyncio.run(
+        coordinator.request_approval(
+            action=_coord_action(),
+            rule=_coord_rule(),
+            submitter_oid="system:control-loop",
+            correlation_id="c1",
+            approval_id="cpark-cap",
+        )
+    )
+    app = _build_app_with_callback(InMemoryHilApprovalRegistry(), coordinator=coordinator)
+    client = TestClient(app)
+
+    response = _post(
+        client,
+        "cpark-cap",
+        decision="approve",
+        actor_oid="reader@example.com",
+        actor_roles=["Reader"],
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["error"]["kind"] == "capability_forbidden"
+    assert publisher.records == ()
+
+
+def test_callback_rejects_non_string_actor_roles() -> None:
+    coordinator, _publisher, _ = _make_coordinator()
+    asyncio.run(
+        coordinator.request_approval(
+            action=_coord_action(),
+            rule=_coord_rule(),
+            submitter_oid="system:control-loop",
+            correlation_id="c1",
+            approval_id="cpark-badroles",
+        )
+    )
+    app = _build_app_with_callback(InMemoryHilApprovalRegistry(), coordinator=coordinator)
+    client = TestClient(app)
+
+    # actor_roles carries a non-string -> 400 bad_request.
+    body = json.dumps(
+        {
+            "decision": "approve",
+            "actor_oid": "alice@example.com",
+            "justification": "x",
+            "actor_roles": [123],
+        }
+    ).encode()
+    timestamp = datetime.now(UTC).isoformat()
+    response = client.post(
+        "/hil/cpark-badroles/decision",
+        content=body,
+        headers={
+            "x-fdai-timestamp": timestamp,
+            "x-fdai-signature": _sign(SECRET, timestamp, body, approval_id="cpark-badroles"),
+            "content-type": "application/json",
+        },
+    )
+    assert response.status_code == 400, response.text

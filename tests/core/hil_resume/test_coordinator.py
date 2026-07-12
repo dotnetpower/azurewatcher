@@ -447,3 +447,208 @@ async def test_parked_action_roundtrips_through_serialization() -> None:
     assert restored.action_type == action.action_type
     assert restored.citing_rules == action.citing_rules
     assert restored.target_resource_ref == action.target_resource_ref
+
+
+# ---------------------------------------------------------------------------
+# Delegation gate (Scenario A) - role-scoped HIL queue + delegated approval
+# ---------------------------------------------------------------------------
+
+_ASSIGNEE = "bob@example.com"
+
+
+@pytest.mark.asyncio
+async def test_park_records_explicit_assignee_oid() -> None:
+    coordinator, _publisher, store, _ = _coordinator()
+    await coordinator.request_approval(
+        action=_action(),
+        rule=_rule(),
+        submitter_oid=_SUBMITTER,
+        correlation_id="c1",
+        approval_id="aid-asg1",
+        assignee_oid=_ASSIGNEE,
+    )
+    parked = await store.read_state("hil_park:aid-asg1")
+    assert parked is not None
+    assert parked["assignee_oid"] == _ASSIGNEE
+
+
+@pytest.mark.asyncio
+async def test_park_defaults_assignee_to_on_call_primary() -> None:
+    now = datetime.now(tz=UTC)
+    schedule = StaticOnCallSchedule(
+        [
+            OnCallShift(
+                rotation=_ROTATION,
+                primary_oid="oid-primary",
+                secondary_oid="oid-secondary",
+                start=now - timedelta(hours=1),
+                until=now + timedelta(hours=1),
+            )
+        ]
+    )
+    coordinator, store = _oncall_coordinator(schedule=schedule)
+    await coordinator.request_approval(
+        action=_action(),
+        rule=_rule(),
+        submitter_oid=_SUBMITTER,
+        correlation_id="c1",
+        approval_id="aid-asg2",
+    )
+    parked = await store.read_state("hil_park:aid-asg2")
+    assert parked is not None
+    # No explicit assignee -> the surfaced on-call primary becomes the assignee.
+    assert parked["assignee_oid"] == "oid-primary"
+
+
+@pytest.mark.asyncio
+async def test_explicit_assignee_overrides_on_call_primary() -> None:
+    now = datetime.now(tz=UTC)
+    schedule = StaticOnCallSchedule(
+        [
+            OnCallShift(
+                rotation=_ROTATION,
+                primary_oid="oid-primary",
+                secondary_oid="oid-secondary",
+                start=now - timedelta(hours=1),
+                until=now + timedelta(hours=1),
+            )
+        ]
+    )
+    coordinator, store = _oncall_coordinator(schedule=schedule)
+    await coordinator.request_approval(
+        action=_action(),
+        rule=_rule(),
+        submitter_oid=_SUBMITTER,
+        correlation_id="c1",
+        approval_id="aid-asg3",
+        assignee_oid=_ASSIGNEE,
+    )
+    parked = await store.read_state("hil_park:aid-asg3")
+    assert parked is not None
+    assert parked["assignee_oid"] == _ASSIGNEE
+
+
+@pytest.mark.asyncio
+async def test_direct_approval_by_assignee_is_not_delegated() -> None:
+    coordinator, publisher, store, _ = _coordinator()
+    await coordinator.request_approval(
+        action=_action(),
+        rule=_rule(),
+        submitter_oid=_SUBMITTER,
+        correlation_id="c1",
+        approval_id="aid-dir",
+        assignee_oid=_ASSIGNEE,
+    )
+    result = await coordinator.resolve(
+        approval_id="aid-dir",
+        decision=HilDecision.APPROVE,
+        approver_oid=_ASSIGNEE,  # the assignee resolves their own item
+    )
+    assert result.outcome is ResolveOutcome.EXECUTED
+    assert result.delegated is False
+    assert result.assignee_oid == _ASSIGNEE
+    assert len(publisher.records) == 1
+    executed = [
+        e["entry"]
+        for e in store.audit_entries
+        if e["entry"].get("action_kind") == "hil.approved.executed"
+    ]
+    assert executed[0]["delegated"] is False
+    assert executed[0]["delegation_mode"] == "direct"
+    assert executed[0]["assignee_oid"] == _ASSIGNEE
+
+
+@pytest.mark.asyncio
+async def test_delegated_approval_is_allowed_and_recorded() -> None:
+    coordinator, publisher, store, _ = _coordinator()
+    await coordinator.request_approval(
+        action=_action(),
+        rule=_rule(),
+        submitter_oid=_SUBMITTER,
+        correlation_id="c1",
+        approval_id="aid-del",
+        assignee_oid=_ASSIGNEE,
+    )
+    # A different authorized operator approves on the assignee's behalf.
+    result = await coordinator.resolve(
+        approval_id="aid-del",
+        decision=HilDecision.APPROVE,
+        approver_oid=_APPROVER,
+    )
+    assert result.outcome is ResolveOutcome.EXECUTED
+    assert result.delegated is True
+    assert result.assignee_oid == _ASSIGNEE
+    assert len(publisher.records) == 1
+    executed = [
+        e["entry"]
+        for e in store.audit_entries
+        if e["entry"].get("action_kind") == "hil.approved.executed"
+    ]
+    # The audit records BOTH the actual approver and the original assignee.
+    assert executed[0]["delegated"] is True
+    assert executed[0]["delegation_mode"] == "delegated"
+    assert executed[0]["approver_oid"] == _APPROVER
+    assert executed[0]["assignee_oid"] == _ASSIGNEE
+
+
+@pytest.mark.asyncio
+async def test_role_scoped_approval_when_no_assignee() -> None:
+    coordinator, publisher, store, _ = _coordinator()
+    await _park(coordinator, approval_id="aid-rs")
+    result = await coordinator.resolve(
+        approval_id="aid-rs",
+        decision=HilDecision.APPROVE,
+        approver_oid=_APPROVER,
+    )
+    assert result.outcome is ResolveOutcome.EXECUTED
+    assert result.delegated is False
+    assert result.assignee_oid is None
+    executed = [
+        e["entry"]
+        for e in store.audit_entries
+        if e["entry"].get("action_kind") == "hil.approved.executed"
+    ]
+    assert executed[0]["delegation_mode"] == "role_scoped"
+
+
+@pytest.mark.asyncio
+async def test_missing_capability_is_refused() -> None:
+    coordinator, publisher, store, _ = _coordinator()
+    await coordinator.request_approval(
+        action=_action(),
+        rule=_rule(),
+        submitter_oid=_SUBMITTER,
+        correlation_id="c1",
+        approval_id="aid-cap",
+        assignee_oid=_ASSIGNEE,
+    )
+    result = await coordinator.resolve(
+        approval_id="aid-cap",
+        decision=HilDecision.APPROVE,
+        approver_oid=_APPROVER,
+        approver_can_approve_hil=False,  # RBAC says no
+    )
+    assert result.outcome is ResolveOutcome.MISSING_CAPABILITY
+    assert result.assignee_oid == _ASSIGNEE
+    # Refused before any execution - fail closed.
+    assert publisher.records == ()
+    assert "hil.resolve.capability_refused" in _audit_kinds(store)
+    parked = await store.read_state("hil_park:aid-cap")
+    assert parked is not None
+    assert parked["status"] == "pending"  # still resolvable by an authorized approver
+
+
+@pytest.mark.asyncio
+async def test_missing_capability_still_refuses_self_approval_first() -> None:
+    # Self-approval is checked before capability: a submitter who also lacks
+    # the capability is refused as self-approval (identity floor wins).
+    coordinator, publisher, store, _ = _coordinator()
+    await _park(coordinator, approval_id="aid-cap2")
+    result = await coordinator.resolve(
+        approval_id="aid-cap2",
+        decision=HilDecision.APPROVE,
+        approver_oid=_SUBMITTER,
+        approver_can_approve_hil=False,
+    )
+    assert result.outcome is ResolveOutcome.SELF_APPROVAL_REFUSED
+    assert publisher.records == ()

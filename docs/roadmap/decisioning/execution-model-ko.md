@@ -1,8 +1,8 @@
 ---
 title: Execution 모델
 translation_of: execution-model.md
-translation_source_sha: 2db71a91db8e3e06543fba0483380e8aa9ccc5fe
-translation_revised: 2026-07-11
+translation_source_sha: be3d9ee151164ceee739cfe8e56c5d365261bec6
+translation_revised: 2026-07-12
 ---
 
 # Execution 모델
@@ -530,6 +530,23 @@ RiskGate 가 `hil` 을 반환하면 executor 는 실행되지 않고 control loo
 - **self-approval 금지** - `approver_oid == submitter_oid` 는 실행 전에
   거부; loop 은 system submitter 신원으로 park 하므로 실제 approver 는
   항상 구별됨.
+
+**Role-scoped 큐 + delegation (Scenario A).** parked HIL 항목은 개인별
+인박스가 아니라 **큐**다: `Capability.APPROVE_RUNTIME_HIL` 을 가진 어떤
+operator 든 resolve 할 수 있다. park 는 선택적 `assignee_oid` - 항목이
+표면화된 대상 operator, 기본값은 resolved on-call primary - 를 기록한다.
+*다른* 권한 보유 operator 가 승인하면 그것은 **delegated** 승인이다: 허용
+(동일 권한)하되 별도로 기록하여, audit 엔트리가 실제 `approver_oid` 와 원래
+`assignee_oid` 를 모두 남긴다 (`delegation_mode` = `direct` / `delegated`
+/ `role_scoped`). 이 gate 는 coordinator 와 read-API callback 이 공유하는
+하나의 순수 함수(`core/hil_resume/delegation.py`)라서 규칙이 두 진입점
+사이에서 벌어지지 않는다. 거부는 fail-closed 를 유지한다: 빈 /
+self-approving / capability 없는 approver 는 실행되지 않는다
+(`missing_capability` 는 403 을 반환하고 park 는 권한 있는 operator 가
+resolve 할 수 있도록 남는다). read-API callback 은 push 채널이 주장한
+HMAC 서명된 `actor_roles` 로부터 `approver_can_approve_hil` 를 도출한다;
+`actor_roles` 가 없으면 채널을 신뢰(기본 허용)하되 no-self-approval 과
+HMAC gate 는 여전히 적용된다.
 
 이것으로 `hil` verdict (§2) 와 승인된 액션의 실제 실행 사이가, blocking
 wait 나 gate 없는 auto-execute 없이 이어진다. read-API HIL callback
