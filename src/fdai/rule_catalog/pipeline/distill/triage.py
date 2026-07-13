@@ -104,7 +104,9 @@ def _drop_reason(candidate: ManualCandidate, policy: TriagePolicy, now: datetime
     if policy.max_stale_days is not None:
         edited = _parse_iso(candidate.last_edited)
         # Missing timestamp is a best-effort miss, not grounds to drop.
-        if edited is not None and (now - edited).days > policy.max_stale_days:
+        # Use full-precision seconds, not .days (which truncates, so a doc edited
+        # 30.5 days ago would wrongly survive a 30-day cap).
+        if edited is not None and (now - edited).total_seconds() > policy.max_stale_days * 86400:
             return "stale"
     return None
 

@@ -82,6 +82,21 @@ def test_stale_drop_but_missing_timestamp_kept() -> None:
     assert result.dropped[0].reason == "stale"
 
 
+def test_stale_uses_full_precision_not_day_truncation() -> None:
+    from datetime import timedelta
+
+    policy = TriagePolicy(max_stale_days=30)
+    # 30.5 days old must be stale (day-truncation would wrongly keep it at .days==30).
+    edited_305 = (_NOW - timedelta(days=30, hours=12)).isoformat()
+    result = triage_filter([_cand("d305", last_edited=edited_305)], policy, now=_NOW)
+    assert result.dropped and result.dropped[0].reason == "stale"
+
+    # 29.5 days old stays fresh.
+    edited_295 = (_NOW - timedelta(days=29, hours=12)).isoformat()
+    result2 = triage_filter([_cand("d295", last_edited=edited_295)], policy, now=_NOW)
+    assert [c.doc_id for c in result2.kept] == ["d295"]
+
+
 # ---------------------------------------------------------------------------
 # authority_score + dedupe_exact
 # ---------------------------------------------------------------------------
