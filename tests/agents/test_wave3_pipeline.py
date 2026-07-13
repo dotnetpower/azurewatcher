@@ -238,6 +238,29 @@ def test_forseti_abstains_on_no_rule_match() -> None:
     assert bus.messages_on("object.verdict") == []
 
 
+def test_forseti_routes_no_rule_match_with_resource_to_hil() -> None:
+    # Rule 4.7 (fail toward safety): an identifiable incident with a concrete
+    # resource target but no matching rule MUST NOT vanish - it routes to HIL
+    # for human triage instead of returning None.
+    reg = load_pantheon()
+    bus = InMemoryBus(registry=reg)
+    f = Forseti(bus=bus)
+    verdict = asyncio.run(
+        f.judge(
+            {"event_type": "unknown_thing", "correlation_id": "c-triage", "resource_id": "r-1"}
+        )
+    )
+    assert verdict is not None
+    assert verdict["risk_verdict"] == "hil"
+    assert verdict["reason"] == "no_rule_match"
+    # No concrete ActionType maps; empty (never the literal "None") so the
+    # downstream dispatcher's str() coercion stays clean.
+    assert verdict["action_type"] == ""
+    published = bus.messages_on("object.verdict")
+    assert len(published) == 1
+    assert published[0].payload["risk_verdict"] == "hil"
+
+
 def test_forseti_operator_initiated_unknown_principal_fails_closed_to_deny() -> None:
     # An operator-initiated proposal whose initiator is unknown to the RBAC
     # seam MUST deny (never silently widen privilege via the chat port).

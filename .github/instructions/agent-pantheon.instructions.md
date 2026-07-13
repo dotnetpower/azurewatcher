@@ -192,7 +192,14 @@ deepen it. Do not delete this list without closing the item.
   The `remediate.delete-storage` default verdict remains `deny` (a policy
   choice, not a plumbing gap); the quorum rides along so a fork that routes
   an irreversible action to `hil` gets two-approver enforcement for free.
-- **Forseti no-rule-match returns `None`** instead of routing to HIL. See rule 4.7.
+- **Forseti no-rule-match routes to HIL** (rule 4.7). An identifiable
+  incident with a concrete resource target but no matching rule emits an
+  `hil` verdict (`reason: no_rule_match`, empty `action_type`,
+  `quorum_required: 1`) so a human triages it instead of the event
+  vanishing. A payload with no resource target or no correlation id
+  abstains (recorded via the `no_rule_match` counter) so malformed / junk
+  ingress cannot manufacture HIL items - dropping malformed input is the
+  event-ingest boundary's job, not the judge's.
 - **Vidar rollback is a bookkeeping stub** (records success without performing a
   contract-specific rollback / DR failover).
 - **Live degradation policy is not driven by health probes** (Saga/Vidar

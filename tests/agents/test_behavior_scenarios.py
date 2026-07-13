@@ -48,8 +48,19 @@ _FORSETI_SCENARIOS: tuple[Scenario, ...] = (
         "deny",
     ),
     Scenario(
-        "abstain_unknown_event",
+        # No rule matches, but the event names a concrete resource target ->
+        # fail toward safety (rule 4.7): route to HIL for human triage rather
+        # than dropping the event.
+        "hil_unknown_event_triage",
         {"event_type": "totally_unknown_signal", "correlation_id": "s4", "resource_id": "x-1"},
+        "hil",
+    ),
+    Scenario(
+        # No rule match AND no concrete resource target -> nothing actionable
+        # to triage; abstains (recorded via no_rule_match) so malformed / junk
+        # ingress cannot manufacture HIL items.
+        "abstain_no_resource_target",
+        {"event_type": "totally_unknown_signal", "correlation_id": "s6"},
         None,
     ),
     Scenario(
@@ -79,9 +90,9 @@ def test_forseti_behavior_distribution_is_measurable() -> None:
     behavior = forseti.behavior_snapshot()
     # The measured verdict distribution matches the scenario set exactly.
     assert behavior.get("verdict:auto") == 1
-    assert behavior.get("verdict:hil") == 1
+    assert behavior.get("verdict:hil") == 2  # 1 rule-fired + 1 no-rule-match triage
     assert behavior.get("verdict:deny") == 2  # irreversible + rbac-denied
-    assert behavior.get("no_rule_match") == 1
+    assert behavior.get("no_rule_match") == 2  # 1 triaged (has resource) + 1 abstained
     assert behavior.get("rbac_denied") == 1
     assert behavior.get("security_event") == 1  # emitted on the rbac violation
 

@@ -224,9 +224,40 @@ class Forseti(Agent):
             event_type = str(event.get("event_type", ""))
             action_type = _RULE_MATCH.get(event_type)
         if action_type is None:
-            # No rule match -> abstain (Wave 3 does not escalate to T2 yet).
+            # No rule match. Fail toward safety (agent-pantheon rule 4.7): an
+            # identifiable incident we cannot resolve MUST NOT vanish - route
+            # it to HIL so a human triages it. Wave 3 has no T1/T2 escalation,
+            # so HIL is the safe terminal for an unresolved event.
             self.record_behavior("no_rule_match")
-            return None
+            resource_id = event.get("resource_id")
+            correlation_id = str(event.get("correlation_id", ""))
+            if not resource_id or not correlation_id:
+                # Not a trackable, actionable incident (no concrete resource
+                # target or no correlation id) - there is nothing for a human
+                # to triage. Recorded via the ``no_rule_match`` counter and
+                # abstained, so a flood of malformed / junk payloads cannot
+                # manufacture HIL items (DoS resistance). Dropping malformed
+                # ingress is the event-ingest boundary's job, not the judge's.
+                return None
+            # A concrete resource target with no matching rule -> HIL triage.
+            self.record_behavior("verdict:hil")
+            verdict = {
+                "producer_principal": "Forseti",
+                "correlation_id": correlation_id,
+                "resource_id": resource_id,
+                # No concrete ActionType maps; a human decides what (if
+                # anything) to do. Empty string (not None) so Thor's ``str()``
+                # coercion yields "" rather than the literal "None".
+                "action_type": "",
+                "risk_verdict": "hil",
+                "reason": "no_rule_match",
+                # No known irreversible action; the single-approver default.
+                "quorum_required": 1,
+                "initiator_principal": event.get("initiator_principal"),
+            }
+            if self.bus is not None:
+                await self.bus.publish("Forseti", "object.verdict", verdict)
+            return verdict
         action_type = str(action_type)
 
         initiator = str(event.get("initiator_principal", event.get("producer_principal", "")))
