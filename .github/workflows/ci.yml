@@ -139,6 +139,27 @@ jobs:
       - name: check-stewardship.sh
         run: bash scripts/check-stewardship.sh
 
+  chaos-scenarios:
+    name: chaos-scenarios catalog + symptom-index guard
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install runtime deps for the loader
+        run: python3 -m pip install --quiet pyyaml jsonschema
+
+      - name: Install the package (editable) for module imports
+        run: python3 -m pip install --quiet -e .
+
+      - name: check-chaos-scenarios.sh
+        run: bash scripts/check-chaos-scenarios.sh
+
   core-imports:
     name: core/ module-boundary guard (no cloud SDK, no HTTP client)
     runs-on: ubuntu-24.04
