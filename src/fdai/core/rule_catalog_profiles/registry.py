@@ -121,6 +121,12 @@ class ProfileRegistry:
         title: str = ""
 
         floors = dict(rule_severity_floors or {})
+        # Validate rule references whenever the caller PROVIDED the known set -
+        # including an empty set. An empty set means the catalog knows zero
+        # rules, so every profile reference is unknown and MUST raise; guarding
+        # on the set's truthiness instead would silently disable validation
+        # (fail-open) exactly when nothing is known.
+        validate_known = known_rule_ids is not None
         known = set(known_rule_ids or ())
 
         for pid in ordered:
@@ -128,7 +134,7 @@ class ProfileRegistry:
             merged_profile_params.update(profile.parameters)
             title = profile.title  # last one wins (the leaf profile's title)
             for authored in profile.rules:
-                if known and authored.id not in known:
+                if validate_known and authored.id not in known:
                     raise ProfileResolutionError(
                         f"profile {pid!r} references unknown rule id {authored.id!r}"
                     )

@@ -150,6 +150,16 @@ def test_resolve_rejects_unknown_rule_id_when_check_enabled() -> None:
         reg.resolve("p", known_rule_ids=("real.rule",))
 
 
+def test_resolve_empty_known_rule_ids_rejects_every_reference() -> None:
+    # A caller that provides an EMPTY known set (the catalog knows zero rules)
+    # must not silently pass validation: every profile reference is unknown and
+    # MUST raise, rather than fail open when nothing is known.
+    profile = Profile(id="p", title="P", rules=(ProfileRule(id="some.rule"),))
+    reg = ProfileRegistry(profiles=[profile])
+    with pytest.raises(ProfileResolutionError, match="unknown rule id"):
+        reg.resolve("p", known_rule_ids=frozenset(), strict=True)
+
+
 def test_resolve_rejects_severity_downgrade_below_floor() -> None:
     profile = Profile(
         id="p",
