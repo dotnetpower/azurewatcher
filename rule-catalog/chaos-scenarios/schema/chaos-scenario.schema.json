@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fdai/rule-catalog/chaos-scenarios/schema/chaos-scenario.schema.json",
+  "title": "FDAI chaos scenario",
+  "description": "Catalog-as-code shape for one fault-injection scenario, mirroring the upstream `fdai.core.chaos.contract.FaultScenario` dataclass plus provenance / gate progress / domain fields. Every YAML file under `rule-catalog/chaos-scenarios/{collected,promoted,chaos-scenarios-custom}/**` MUST validate against this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "version",
+    "provenance",
+    "category",
+    "target_type",
+    "fault_family",
+    "intensity",
+    "duration_seconds",
+    "expected_signal",
+    "injector",
+    "blast_radius_cap",
+    "rollback_note",
+    "gates",
+    "requires_hardware"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^chaos\\.[a-z][a-z0-9]*(\\.[a-z0-9]+([-_][a-z0-9]+)*)+$",
+      "description": "Dotted namespace + kebab id. Namespace is the domain (e.g. `chaos.aks.pod-kill`, `chaos.gpu.driver-xid-74`). Grep-friendly, audit-safe."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonic version. Bump on any breaking parameter change."
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "synthesis_method"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "azure-chaos-studio",
+            "aws-fis",
+            "chaos-mesh",
+            "litmus",
+            "gremlin",
+            "postmortem",
+            "vendor-doc",
+            "internal-incident",
+            "synthesized",
+            "manual"
+          ]
+        },
+        "source_url": { "type": "string", "format": "uri" },
+        "source_ref": { "type": "string" },
+        "synthesis_method": {
+          "type": "string",
+          "enum": ["collected", "deterministic", "llm", "distilled", "manual"]
+        }
+      }
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "compute",
+        "network",
+        "storage",
+        "state",
+        "dependency",
+        "traffic",
+        "time",
+        "resource_saturation",
+        "identity",
+        "quota",
+        "cost_governance",
+        "gpu_driver",
+        "gpu_compute",
+        "gpu_distributed",
+        "gpu_inference",
+        "gpu_dataflow",
+        "gpu_cost"
+      ]
+    },
+    "target_type": {
+      "type": "string",
+      "enum": [
+        "pod",
+        "node",
+        "vm",
+        "vmss",
+        "db",
+        "lb",
+        "dns",
+        "disk",
+        "cache",
+        "secret_store",
+        "identity",
+        "ingress",
+        "egress",
+        "quota",
+        "llm_endpoint",
+        "control_plane",
+        "gpu",
+        "gpu_cluster",
+        "inference_endpoint",
+        "training_job"
+      ]
+    },
+    "fault_family": {
+      "type": "string",
+      "enum": [
+        "stop",
+        "delay",
+        "drop",
+        "corrupt",
+        "saturate",
+        "throttle",
+        "deny",
+        "misroute",
+        "expire",
+        "quota_shrink",
+        "xid_event",
+        "ecc_error",
+        "thermal_throttle",
+        "oom",
+        "hang",
+        "preempt",
+        "checkpoint_fail",
+        "cache_overflow",
+        "ramp"
+      ]
+    },
+    "intensity": {
+      "type": "string",
+      "enum": ["mild", "high", "extreme"]
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["one", "half", "all"],
+      "description": "Perturbation scope; optional (defaults to `one` at load time)."
+    },
+    "duration_seconds": {
+      "type": "number",
+      "minimum": 60,
+      "description": "Time-in-fault hold. Upstream reference scenarios use 360s (5-minute alert window + probe cycle); collected/synthesized may use shorter for shadow probes."
+    },
+    "expected_signal": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Must be a registered SIGNAL_* in `src/fdai/core/detection/signals.py`. Loader rejects unknown signals."
+    },
+    "injector": {
+      "type": "string",
+      "pattern": "^(needs-injector|[a-z][a-z0-9-]*(:[A-Za-z][A-Za-z0-9-]*)?)$",
+      "description": "Reference to the injector implementation. Format: `<family>:<subtype>` where family is lowercase-kebab and subtype MAY be CamelCase (e.g. Chaos Mesh CRD kinds `chaos-mesh:StressChaos`, `chaos-mesh:PodChaos`) or lowercase-kebab (`kubectl:pod-kill`, `az:vm-run-command`) OR the literal `needs-injector` for scenarios awaiting an injector implementation. Scenarios with `needs-injector` MUST NOT land in `promoted/`."
+    },
+    "params": {
+      "type": "object",
+      "additionalProperties": { "type": ["string", "number", "boolean"] },
+      "description": "Injector-specific parameters. Values are stringifiable primitives so the scenario stays audit-log serializable."
+    },
+    "target_selector": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*([-_][a-z0-9]+)*:[a-z][a-z0-9]*([-_][a-z0-9]+)*$",
+      "description": "CSP-neutral `<type>:<name>` opaque handle. Optional in the catalog (may be supplied by the caller at run time), required by the harness."
+    },
+    "rollback_note": {
+      "type": "string",
+      "minLength": 1
+    },
+    "blast_radius_cap": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shadow_status", "enforce_status"],
+      "properties": {
+        "shadow_status": {
+          "type": "string",
+          "enum": ["pending", "passed", "failed"]
+        },
+        "enforce_status": {
+          "type": ["string", "null"],
+          "enum": ["pending", "passed", "failed", null]
+        },
+        "first_measured_ttfo_ms": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "Time-to-first-observed in ms from `scripts/measure-detection-latency.py`; null until measured."
+        },
+        "last_validated_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        }
+      }
+    },
+    "gpu_domain": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "driver_xid",
+        "memory_vram",
+        "distributed",
+        "inference_serving",
+        "storage_dataflow",
+        "cost_governance"
+      ]
+    },
+    "requires_hardware": {
+      "type": "boolean",
+      "description": "True if the scenario cannot be validated in enforce mode without dedicated hardware (e.g. a GPU VM). Such scenarios MAY only carry `enforce_status: pending` until a hardware substrate is available."
+    },
+    "minimum_gpus": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+      "uniqueItems": true
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
