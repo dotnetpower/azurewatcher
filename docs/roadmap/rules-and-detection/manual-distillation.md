@@ -66,6 +66,99 @@ adopting company's manual is just a new **collection source** in the taxonomy of
 "customer-authored operational / deployment manual" group whose collector is the
 distiller described below.
 
+## Ingesting from siloed sources
+
+The pipeline's first step (`ingest + chunk`) hides the hardest operational problem.
+Real manuals do not arrive as a tidy folder of PDFs; they live in SharePoint,
+Confluence, Notion, Loop, and email inboxes, each behind its own authentication, and
+at a scale (thousands of pages) where most content is not a manual at all. Two
+sub-problems fall out: **access without holding standing credentials**, and
+**discovery plus triage at scale**.
+
+### Access: push and delegate, do not hold standing credentials
+
+The reframing that unlocks the auth problem: distillation is build-time and runs
+**once per manual revision**, so FDAI never needs the continuous, broad read
+credential a live search index does. The industry default (a service principal that
+continuously crawls a whole tenant) triggers the exact admin refusal that blocks
+adoption - `Sites.Read.All` over an entire tenant is rarely granted. Because the
+access is one-shot-per-revision, the model can invert from *pull* to
+*push / delegate*, and FDAI holds no broad standing credential:
+
+| Mode | How | Standing credential FDAI holds | Best for |
+|---|---|---|---|
+| Drop / push | operator delivers the doc: a PR into the fork's manual folder, a console upload, or an email-in address | none | ad hoc, low volume, most sensitive |
+| Designated space | one SharePoint library / Confluence space / Notion database the company blesses as the FDAI source; read scoped to that one location | one narrow, low-sensitivity scope | steady curated manuals |
+| iPaaS trigger | a Power Automate / Logic Apps flow the enterprise already authenticated posts changed pages to an ingest webhook | none (the enterprise owns the auth) | auto-refresh on change |
+| Delegated fetch | operator pastes a link in ChatOps; the narrator reads it with the operator's short-lived delegated (on-behalf-of / device-code) token | none standing | occasional, permissioned reads |
+
+Prior art validates the split. Microsoft 365 Copilot connectors ship exactly two
+shapes: **synced** connectors (index content into Microsoft Graph as an org-level
+service that mirrors each item's ACL) and **federated** connectors (an MCP model that
+fetches live per query with the user's own OAuth, indexing nothing). FDAI's sensitive
+path mirrors the federated shape (delegated, no standing index); its bulk path
+mirrors a designated, narrowly scoped synced shape. Building N bespoke connectors is
+a known anti-pattern (the "DIY pipeline rat's nest"); prefer an existing ingestion
+layer (Copilot connectors, an MCP connector server, or an ETL tool) that already
+solved auth, delta sync, and 60+ file formats.
+
+### Permission and sensitivity, not just authentication
+
+Authentication ("can FDAI open the door") is only half the question. Two access
+concerns a naive connector skips but distillation must answer:
+
+- **Source ACL provenance.** Record *who was allowed to read* the source doc in
+  `provenance`. A rule distilled from a restricted security runbook must not leak
+  that runbook's text into an audit entry or a generated PR body - L0 stays English
+  and secret-free
+  ([coding-conventions.instructions.md](../../../.github/instructions/coding-conventions.instructions.md)).
+- **Sensitivity gate.** A doc the service account *can* read may still be one it
+  should not distill blindly: HR material, incident post-mortems naming customers, or
+  runbooks with embedded credentials. Ingest runs a secret-scan plus PII-redaction
+  pass, and a hit routes to HIL rather than auto-extracting.
+
+### Discovery and triage at scale
+
+At Confluence or Notion scale the problem stops being ingestion and becomes: which of
+these thousands of pages *is* a manual? Most of a workspace is meeting notes, drafts,
+and stale pages - distilling all of it explodes both cost and false positives. The
+answer is FDAI's own tiering philosophy applied to the corpus: filter cheaply, compile
+expensively, and only on a small subset.
+
+1. **Free deterministic filters first** (T0-grade, no LLM). Labels
+   (`runbook`, `sop`, `ops`), the source space / database, page-tree location, Notion
+   "verified page" status, view count, and last-edited recency discard the dead long
+   tail before any model runs.
+2. **Cheap classifier next** (T1-grade). A small model or embedding classifier makes a
+   binary "is this an operational procedure?" call on the survivors, narrowing
+   thousands of pages to dozens or hundreds.
+3. **Authority ranking.** The internal link graph surfaces canonical hub documents
+   (PageRank-style) - brainstorming pages are linked by no one. Near-duplicate
+   clustering keeps only the newest canonical version of a procedure.
+4. **Priority queue, not big-bang.** Distill by operational signal: pages a recent
+   incident actually referenced first (the living-rules feedback loop), then
+   high-traffic pages, then the long tail. The most load-bearing manuals get covered
+   first, automatically.
+5. **Minimal human curation.** Rather than asking a company to organize thousands of
+   pages, ask for one label (`fdai`) or run a batch "is this a manual? [yes / no]" HIL
+   triage. Humans confirm O(dozens), never O(thousands).
+
+Reuse the source's own curation instead of inventing one: Notion's **verified-page**
+property (a workspace owner marks a wiki page verified, optionally with an expiry) and
+Confluence labels / spaces are ready-made authority signals.
+
+### Freshness and deletion propagation
+
+Re-distillation reuses the source-watcher cadence from
+[rule-catalog-collection.md](rule-catalog-collection.md): a changed page (Notion
+`last_edited_time`, Confluence CQL `lastModified`, or Microsoft Graph change
+notifications) bumps the content hash and re-enters the pipeline for the affected
+fragments only, so a refresh is not a full re-crawl. The gap a naive sync misses:
+when a source page is **deleted or archived**, the rules distilled from it must be
+retired (tombstoned), not left firing on guidance the company has withdrawn. Deletion
+is a first-class signal, handled like the living-rules retirement path in
+[architecture.instructions.md](../../../.github/instructions/architecture.instructions.md).
+
 ## The distillation pipeline
 
 Offline, build-time, and staged behind the same gate every rule candidate passes.
@@ -177,6 +270,15 @@ is preferred over flat vector RAG when relationship traversal matters.
   revision reuses the source-watcher cadence model from
   [rule-catalog-collection.md](rule-catalog-collection.md); a manual revision bumps
   the content hash and re-enters the pipeline.
+- **Parsing fidelity.** Rich source formats (tables, embedded diagrams and dashboard
+  screenshots, Confluence macros, Notion toggles and embeds) lose information under
+  naive text extraction, and a parsing loss is an extraction loss. Layout-aware
+  parsing is the baseline; a diagram-only procedure may need a vision model, tracked
+  as a per-format fork decision.
+- **Data residency of extraction.** Step 2 sends confidential manual text to an LLM,
+  which many enterprises forbid for external frontier models. The fork pins the
+  extraction model to an in-tenant / no-training deployment (or a local model) so the
+  manual never leaves the trust boundary; the choice is fork config, never hardcoded.
 
 ## Next steps
 
