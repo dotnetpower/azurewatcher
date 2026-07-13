@@ -30,8 +30,6 @@ from fdai.rule_catalog.schema.provenance import Provenance
 from fdai.rule_catalog.schema.scope import (
     ResourceContext,
     ScopeMatcher,
-    most_specific,
-    scope_specificity,
 )
 
 
@@ -142,8 +140,12 @@ def resolve_assignments(
         else Enforcement.DO_NOT_ENFORCE
     )
 
-    top_specificity = scope_specificity(most_specific([a.scope for a in matching])[0])
-    param_sources = [a for a in matching if scope_specificity(a.scope) == top_specificity]
+    # Rank parameter precedence by each assignment's specificity RELATIVE to
+    # ctx (the most-specific include that actually covers this resource), not
+    # the binding's context-free max include level - otherwise a broad include
+    # bundled with an unrelated narrow one would wrongly win.
+    top_specificity = max(a.scope.covering_specificity(ctx) for a in matching)
+    param_sources = [a for a in matching if a.scope.covering_specificity(ctx) == top_specificity]
     param_tie = len({_param_key(a.parameters_for(rule_id)) for a in param_sources}) > 1
     winner = param_sources[0]
     overridden = tuple(a.id for a in matching if a.id != winner.id)

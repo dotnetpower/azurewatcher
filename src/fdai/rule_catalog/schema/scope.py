@@ -119,6 +119,16 @@ class Scope:
         """Higher = more specific (drives parameter precedence)."""
         return int(self.level)
 
+    def covering_specificity(self, ctx: ResourceContext) -> int:  # noqa: ARG002 - ctx unused for a single-level scope
+        """Specificity of this scope relative to ``ctx``.
+
+        A single-level scope has exactly one level, so this is just
+        :attr:`specificity` (``ctx`` is unused). Present so the resolver ranks
+        both scope shapes context-relative without branching on the concrete
+        type.
+        """
+        return self.specificity
+
 
 class ScopeMatcher(Protocol):
     """A scope expression: a coverage predicate plus a specificity rank.
@@ -132,6 +142,8 @@ class ScopeMatcher(Protocol):
 
     @property
     def specificity(self) -> int: ...
+
+    def covering_specificity(self, ctx: ResourceContext) -> int: ...
 
 
 def scope_specificity(scope: ScopeMatcher) -> int:
@@ -274,6 +286,21 @@ class ScopeBinding:
     def specificity(self) -> int:
         """The most-specific include level (drives parameter precedence)."""
         return max(int(ref.level) for ref in self.includes)
+
+    def covering_specificity(self, ctx: ResourceContext) -> int:
+        """Specificity relative to ``ctx``: the most-specific include that
+        actually covers ``ctx``.
+
+        Unlike :attr:`specificity` (the max include level, context-free), this
+        ranks the binding by the include that matched the resource being
+        resolved - so a broad include (e.g. org) sitting next to an unrelated
+        narrow include does not inflate the binding's precedence and wrongly
+        win the most-specific-scope parameter contest. Falls back to
+        :attr:`specificity` only when no include covers ``ctx`` (which the
+        resolver never does - it ranks assignments already known to cover).
+        """
+        covering = [int(ref.level) for ref in self.includes if ref.covers(ctx)]
+        return max(covering) if covering else self.specificity
 
 
 __all__ = [

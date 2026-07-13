@@ -143,6 +143,34 @@ def test_parameters_from_most_specific_scope() -> None:
     assert res.parameter_tie is False
 
 
+def test_multi_include_binding_ranks_by_covering_scope_not_max_level() -> None:
+    # Regression: a ScopeBinding that bundles a broad include (org) with an
+    # unrelated narrow include (a different resource) must NOT win parameter
+    # precedence over a genuinely more-specific assignment. It covers THIS
+    # resource only org-wide, so a resource-group assignment is more specific
+    # and supplies the parameters - the binding's context-free max include
+    # level (resource, from the unrelated include) must not inflate it.
+    from fdai.rule_catalog.schema.scope import ScopeBinding, ScopeRef
+
+    broad = _assign(
+        id_="a-broad",
+        rules={"r.x"},
+        scope=ScopeBinding(
+            includes=(
+                ScopeRef(("org-1",)),  # covers vm-1 org-wide
+                ScopeRef(("org-1", "sub-1", "rg-a", "other-vm")),  # unrelated resource
+            )
+        ),
+        parameters={"max": "10"},
+    )
+    rg = _assign(id_="a-rg", rules={"r.x"}, scope=_RG, parameters={"max": "3"})
+    res = resolve_assignments(assignments=[broad, rg], ctx=_ctx(), rule_id="r.x")
+    assert res is not None
+    assert res.winning_assignment_id == "a-rg"  # resource-group is more specific
+    assert res.parameters == {"max": "3"}
+    assert res.parameter_tie is False
+
+
 def test_parameter_tie_flags_hil() -> None:
     # two equally-specific (resource-group) scopes disagreeing on parameters
     a = _assign(id_="a1", rules={"r.x"}, scope=_RG, parameters={"max": "10"})
