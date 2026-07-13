@@ -1,0 +1,24 @@
+id: chaos.general.pod-corrupt-rollout-stall-extreme
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: state
+target_type: pod
+fault_family: corrupt
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: rollout_stall
+injector: kubectl:set-image
+blast_radius_cap: 1
+rollback_note: kubectl rollout undo restores the previous revision.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: '[extreme] roll out a deployment with a nonexistent image tag'
+params:
+  bad_image_tag: does-not-exist
+tags:
+- kubernetes
+- change

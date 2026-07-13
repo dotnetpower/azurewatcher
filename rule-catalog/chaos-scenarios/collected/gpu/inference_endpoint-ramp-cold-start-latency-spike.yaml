@@ -1,0 +1,27 @@
+id: chaos.gpu.inference_endpoint-ramp-cold-start-latency-spike
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_inference
+target_type: inference_endpoint
+fault_family: ramp
+intensity: high
+duration_seconds: 360.0
+expected_signal: cold_start_latency_spike
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Pin at least one warm replica; predictive warmup on rollout.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: true
+description: Cold-start first-token latency 8s after model reload
+params:
+  model_size_gb: '40'
+  first_token_ms: '8000'
+gpu_domain: inference_serving
+minimum_gpus: 1
+tags:
+- gpu
+- inference-serving

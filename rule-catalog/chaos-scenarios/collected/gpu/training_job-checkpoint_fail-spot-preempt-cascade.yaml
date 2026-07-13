@@ -1,0 +1,26 @@
+id: chaos.gpu.training_job-checkpoint_fail-spot-preempt-cascade
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_distributed
+target_type: training_job
+fault_family: checkpoint_fail
+intensity: high
+duration_seconds: 360.0
+expected_signal: spot_preempt_cascade
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Restart from last successful checkpoint (may lose N steps).
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: true
+description: Checkpoint save failed mid-preemption (no resume state)
+params:
+  checkpoint_target: blob_storage
+gpu_domain: distributed
+minimum_gpus: 2
+tags:
+- gpu
+- distributed

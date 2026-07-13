@@ -1,0 +1,26 @@
+id: chaos.general.vm-saturate-host-memory-extreme
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: resource_saturation
+target_type: vm
+fault_family: saturate
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: host_memory
+injector: az:vm-run-command
+blast_radius_cap: 1
+rollback_note: Run pkill -f stress-ng; kernel reclaims on exit.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: '[extreme] sustain guest-OS memory pressure via stress-ng --vm'
+params:
+  tool: stress-ng
+  vm_bytes: 250M
+tags:
+- vm
+- iaas
+- memory

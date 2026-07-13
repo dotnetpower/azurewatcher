@@ -1,0 +1,27 @@
+id: chaos.gpu.gpu-quota_shrink-gpu-idle-hours-wasted
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_cost
+target_type: gpu
+fault_family: quota_shrink
+intensity: high
+duration_seconds: 360.0
+expected_signal: gpu_idle_hours_wasted
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: 'Advisory: shrink reservation or move workload; no injection.'
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Reserved GPU idle >90% of a 24h window (cost waste)
+params:
+  idle_util_threshold_pct: '10'
+  window_hours: '24'
+gpu_domain: cost_governance
+minimum_gpus: 1
+tags:
+- gpu
+- cost-governance

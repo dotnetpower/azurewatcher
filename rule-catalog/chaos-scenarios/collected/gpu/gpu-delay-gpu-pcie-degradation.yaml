@@ -1,0 +1,27 @@
+id: chaos.gpu.gpu-delay-gpu-pcie-degradation
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_driver
+target_type: gpu
+fault_family: delay
+intensity: high
+duration_seconds: 360.0
+expected_signal: gpu_pcie_degradation
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Reseat card or reboot node; if persistent, RMA.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: true
+description: PCIe lane count degraded from x16 to x8
+params:
+  expected_lanes: '16'
+  observed_lanes: '8'
+gpu_domain: driver_xid
+minimum_gpus: 1
+tags:
+- gpu
+- driver-xid

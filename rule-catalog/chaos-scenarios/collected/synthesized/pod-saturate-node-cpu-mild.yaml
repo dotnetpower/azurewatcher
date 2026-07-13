@@ -1,0 +1,26 @@
+id: chaos.general.pod-saturate-node-cpu-mild
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: compute
+target_type: pod
+fault_family: saturate
+intensity: mild
+duration_seconds: 360.0
+expected_signal: node_cpu
+injector: chaos-mesh:StressChaos
+blast_radius_cap: 3
+rollback_note: Delete the Chaos Mesh StressChaos resource.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: '[mild] sustain pod CPU pressure'
+params:
+  stressor: cpu
+  workers: '2'
+  load_percent: '90'
+tags:
+- kubernetes
+- cpu

@@ -1,0 +1,26 @@
+id: chaos.gpu.training_job-delay-distributed-straggler
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_distributed
+target_type: training_job
+fault_family: delay
+intensity: high
+duration_seconds: 360.0
+expected_signal: distributed_straggler
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Cordon the slow node; rerun after redistribution.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: true
+description: One rank is 3x slower than peers per training step
+params:
+  slow_rank_step_multiplier: '3'
+gpu_domain: distributed
+minimum_gpus: 2
+tags:
+- gpu
+- distributed

@@ -1,0 +1,26 @@
+id: chaos.gpu.gpu_cluster-saturate-gpu-util-saturated
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_compute
+target_type: gpu_cluster
+fault_family: saturate
+intensity: high
+duration_seconds: 360.0
+expected_signal: gpu_util_saturated
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Scale out serving replicas or shed traffic.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: true
+description: GPU utilization pinned near 100% with queue backlog rising
+params:
+  queue_depth: sustained
+gpu_domain: memory_vram
+minimum_gpus: 2
+tags:
+- gpu
+- memory-vram

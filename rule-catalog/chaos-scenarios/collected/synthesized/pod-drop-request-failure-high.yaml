@@ -1,0 +1,25 @@
+id: chaos.general.pod-drop-request-failure-high
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: traffic
+target_type: pod
+fault_family: drop
+intensity: high
+duration_seconds: 360.0
+expected_signal: request_failure
+injector: chaos-mesh:HTTPChaos
+blast_radius_cap: 2
+rollback_note: Delete the Chaos Mesh HTTPChaos resource.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: '[high] abort a fraction of inbound HTTP requests'
+params:
+  action: abort
+  abort_percent: '30'
+tags:
+- kubernetes
+- http

@@ -1,0 +1,24 @@
+id: chaos.general.lb-deny-backend-health-high
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: traffic
+target_type: lb
+fault_family: deny
+intensity: high
+duration_seconds: 360.0
+expected_signal: backend_health
+injector: kubectl:scale
+blast_radius_cap: 1
+rollback_note: Restore replicas via kubectl scale.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: '[high] scale backend deployment to 0 (endpoints collapse)'
+params:
+  scale_to: '0'
+tags:
+- kubernetes
+- endpoints

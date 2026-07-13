@@ -1,0 +1,25 @@
+id: chaos.general.db-saturate-db-cpu-extreme
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: resource_saturation
+target_type: db
+fault_family: saturate
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: db_cpu
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Stop the load generator; server recovers on its own.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: '[extreme] drive MySQL/Postgres CPU via BENCHMARK-style workload'
+params:
+  tool: benchmark_load
+  concurrent_queries: '4'
+tags:
+- data
+- database

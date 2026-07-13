@@ -1,0 +1,27 @@
+id: chaos.gpu.gpu-quota_shrink-gpu-sku-mismatch
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_cost
+target_type: gpu
+fault_family: quota_shrink
+intensity: high
+duration_seconds: 360.0
+expected_signal: gpu_sku_mismatch
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: 'Advisory: re-SKU the deployment; no injection.'
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Workload runs on H100 but profile fits A100 (3-5x cost)
+params:
+  observed_sku: H100
+  recommended_sku: A100
+gpu_domain: cost_governance
+minimum_gpus: 1
+tags:
+- gpu
+- cost-governance

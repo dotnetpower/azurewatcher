@@ -1,0 +1,28 @@
+id: chaos.general.vm-saturate-host-cpu-extreme-v2
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: compute
+target_type: vm
+fault_family: saturate
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: host_cpu
+injector: az:vm-run-command
+blast_radius_cap: 1
+rollback_note: Run pkill -f stress-ng.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: '[extreme] sustain guest-OS CPU at half saturation (borderline)'
+params:
+  tool: stress-ng
+  cpu_workers: '0'
+  load_percent: '50'
+tags:
+- vm
+- iaas
+- cpu
+- borderline

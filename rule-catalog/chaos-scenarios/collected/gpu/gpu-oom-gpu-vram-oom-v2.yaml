@@ -1,0 +1,27 @@
+id: chaos.gpu.gpu-oom-gpu-vram-oom-v2
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_compute
+target_type: gpu
+fault_family: oom
+intensity: high
+duration_seconds: 360.0
+expected_signal: gpu_vram_oom
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Shed load or shrink KV cache; process auto-restarts.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: true
+description: CUDA OOM under inference concurrency burst
+params:
+  process: inference
+  concurrent_requests: '128'
+gpu_domain: memory_vram
+minimum_gpus: 1
+tags:
+- gpu
+- memory-vram

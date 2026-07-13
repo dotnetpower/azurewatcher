@@ -1,0 +1,27 @@
+id: chaos.gpu.training_job-preempt-spot-preempt-cascade
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_distributed
+target_type: training_job
+fault_family: preempt
+intensity: high
+duration_seconds: 360.0
+expected_signal: spot_preempt_cascade
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Fall back to on-demand for the affected ranks; resume from checkpoint.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: true
+description: Spot GPU reclaim cascaded to distributed job restart failure
+params:
+  preempt_percent: '25'
+  restart_failure_rate: '60'
+gpu_domain: distributed
+minimum_gpus: 2
+tags:
+- gpu
+- distributed

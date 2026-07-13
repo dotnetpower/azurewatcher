@@ -1,0 +1,27 @@
+id: chaos.gpu.gpu-hang-gpu-util-zero-wasted
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_compute
+target_type: gpu
+fault_family: hang
+intensity: high
+duration_seconds: 360.0
+expected_signal: gpu_util_zero_wasted
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: SIGKILL the owning process; ideally cgroup-scoped restart.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: true
+description: GPU held by a deadlocked CUDA kernel (util 0%, VRAM held)
+params:
+  symptom: deadlocked_kernel
+  duration_min: '30'
+gpu_domain: memory_vram
+minimum_gpus: 1
+tags:
+- gpu
+- memory-vram

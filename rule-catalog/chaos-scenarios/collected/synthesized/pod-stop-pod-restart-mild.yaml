@@ -1,0 +1,24 @@
+id: chaos.general.pod-stop-pod-restart-mild
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: compute
+target_type: pod
+fault_family: stop
+intensity: mild
+duration_seconds: 360.0
+expected_signal: pod_restart
+injector: chaos-mesh:PodChaos
+blast_radius_cap: 1
+rollback_note: ReplicaSet reschedules the killed pod; CRD deletion removes the fault.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: '[mild] kill one pod; ReplicaSet reschedules'
+params:
+  action: pod-kill
+tags:
+- kubernetes
+- self-heal

@@ -1,0 +1,25 @@
+id: chaos.gpu.llm_endpoint-quota_shrink-token-spend-spike
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_cost
+target_type: llm_endpoint
+fault_family: quota_shrink
+intensity: high
+duration_seconds: 360.0
+expected_signal: token_spend_spike
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: 'Advisory: apply per-tenant token cap; no injection.'
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: LLM token spend crossed 3x normal per-window budget band
+params:
+  budget_multiplier: '3'
+gpu_domain: cost_governance
+tags:
+- gpu
+- cost-governance

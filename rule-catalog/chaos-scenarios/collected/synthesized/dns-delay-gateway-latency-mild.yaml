@@ -1,0 +1,26 @@
+id: chaos.general.dns-delay-gateway-latency-mild
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: network
+target_type: dns
+fault_family: delay
+intensity: mild
+duration_seconds: 360.0
+expected_signal: gateway_latency
+injector: chaos-mesh:DNSChaos
+blast_radius_cap: 2
+rollback_note: Delete the Chaos Mesh DNSChaos resource.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: '[mild] randomize DNS answers on backend pods'
+params:
+  action: random
+  duration_multiplier: '5'
+tags:
+- kubernetes
+- network
+- dns

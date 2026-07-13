@@ -1,0 +1,25 @@
+id: chaos.general.llm_endpoint-throttle-rate-limit-high
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: quota
+target_type: llm_endpoint
+fault_family: throttle
+intensity: high
+duration_seconds: 360.0
+expected_signal: rate_limit
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Stop the load generator; TPM budget refills.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: '[high] drive LLM endpoint above per-window budget to induce 429'
+params:
+  target: aoai
+  concurrency: '8'
+tags:
+- llm
+- quota

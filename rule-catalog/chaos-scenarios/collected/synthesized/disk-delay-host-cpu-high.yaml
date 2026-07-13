@@ -1,0 +1,28 @@
+id: chaos.general.disk-delay-host-cpu-high
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: storage
+target_type: disk
+fault_family: delay
+intensity: high
+duration_seconds: 360.0
+expected_signal: host_cpu
+injector: chaos-mesh:IOChaos
+blast_radius_cap: 1
+rollback_note: Delete the Chaos Mesh IOChaos resource.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: '[high] add I/O latency on the pod filesystem (dependency saturates CPU
+  wait)'
+params:
+  action: latency
+  delay_ms: '500'
+  percent: '80'
+tags:
+- kubernetes
+- io
+- storage

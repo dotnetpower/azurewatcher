@@ -1,0 +1,26 @@
+id: chaos.gpu.gpu-throttle-gpu-power-throttle
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_driver
+target_type: gpu
+fault_family: throttle
+intensity: high
+duration_seconds: 360.0
+expected_signal: gpu_power_throttle
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Verify PSU / rack budget; the throttle clears when demand drops.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: true
+description: Sustained power-cap throttle (SM clock reduced 20%)
+params:
+  power_cap_reduction_pct: '20'
+gpu_domain: driver_xid
+minimum_gpus: 1
+tags:
+- gpu
+- driver-xid

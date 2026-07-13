@@ -1,0 +1,26 @@
+id: chaos.gpu.inference_endpoint-delay-inference-p99-spike
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_inference
+target_type: inference_endpoint
+fault_family: delay
+intensity: high
+duration_seconds: 360.0
+expected_signal: inference_p99_spike
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Scale out replicas; shed non-critical tenants.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: true
+description: Inference p99 latency spiked 5x above SLO band
+params:
+  p99_multiplier: '5'
+gpu_domain: inference_serving
+minimum_gpus: 1
+tags:
+- gpu
+- inference-serving

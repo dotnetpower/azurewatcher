@@ -1,0 +1,26 @@
+id: chaos.gpu.gpu-ecc_error-gpu-ecc-uncorrectable-v2
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_driver
+target_type: gpu
+fault_family: ecc_error
+intensity: high
+duration_seconds: 360.0
+expected_signal: gpu_ecc_uncorrectable
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Restart the affected process; drain node if recurring.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: true
+description: Uncorrectable page fault (Xid 63)
+params:
+  xid_code: '63'
+gpu_domain: driver_xid
+minimum_gpus: 1
+tags:
+- gpu
+- driver-xid

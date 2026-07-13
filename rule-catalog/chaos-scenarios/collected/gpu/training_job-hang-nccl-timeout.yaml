@@ -1,0 +1,27 @@
+id: chaos.gpu.training_job-hang-nccl-timeout
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_distributed
+target_type: training_job
+fault_family: hang
+intensity: high
+duration_seconds: 360.0
+expected_signal: nccl_timeout
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Kill the whole job (torchrun / mpirun); resume from last checkpoint.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: true
+description: NCCL all-reduce hang - one rank stalled
+params:
+  ring_size: '8'
+  op: all_reduce
+gpu_domain: distributed
+minimum_gpus: 2
+tags:
+- gpu
+- distributed

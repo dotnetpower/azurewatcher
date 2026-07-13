@@ -1,0 +1,27 @@
+id: chaos.gpu.gpu-oom-gpu-vram-oom
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: gpu_compute
+target_type: gpu
+fault_family: oom
+intensity: high
+duration_seconds: 360.0
+expected_signal: gpu_vram_oom
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Reduce batch size; restart the training process.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: true
+description: CUDA OOM after batch-size bump
+params:
+  process: training
+  batch_size_bump_pct: '20'
+gpu_domain: memory_vram
+minimum_gpus: 1
+tags:
+- gpu
+- memory-vram

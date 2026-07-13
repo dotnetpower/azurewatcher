@@ -1,0 +1,27 @@
+id: chaos.general.pod-saturate-node-cpu-extreme-v2
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: compute
+target_type: pod
+fault_family: saturate
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: node_cpu
+injector: chaos-mesh:StressChaos
+blast_radius_cap: 3
+rollback_note: Delete the Chaos Mesh StressChaos resource.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: '[extreme] extreme pod CPU (all cores saturated)'
+params:
+  stressor: cpu
+  workers: '4'
+  load_percent: '100'
+tags:
+- kubernetes
+- cpu
+- extreme

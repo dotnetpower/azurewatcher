@@ -1,0 +1,26 @@
+id: chaos.general.pod-delay-gateway-latency-high-v2
+version: 1
+provenance:
+  source: synthesized
+  synthesis_method: deterministic
+category: network
+target_type: pod
+fault_family: delay
+intensity: high
+duration_seconds: 360.0
+expected_signal: gateway_latency
+injector: chaos-mesh:NetworkChaos
+blast_radius_cap: 2
+rollback_note: Delete the Chaos Mesh NetworkChaos resource.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: '[high] inject 1s outbound network delay (extreme)'
+params:
+  action: delay
+  latency_ms: '1000'
+tags:
+- kubernetes
+- network
+- extreme
