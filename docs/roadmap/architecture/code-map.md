@@ -90,6 +90,7 @@ the safety-core modules held to the >= 90% coverage floor.
 | report_feed | Rendered report subscriptions | [src/fdai/core/report_feed/](../../../src/fdai/core/report_feed/) | [tests/core/report_feed/](../../../tests/core/report_feed/) |
 | reporting | Report composers + formatters | [src/fdai/core/reporting/](../../../src/fdai/core/reporting/) | [tests/core/reporting/](../../../tests/core/reporting/) |
 | rbac | Human RBAC for the read API | [src/fdai/core/rbac/](../../../src/fdai/core/rbac/) | [tests/core/](../../../tests/core/) |
+| stewardship | Human <-> agent handover map (accountability + escalation overlay) | [src/fdai/core/stewardship/](../../../src/fdai/core/stewardship/) | [tests/core/stewardship/](../../../tests/core/stewardship/) |
 
 ## Rule catalog, deploy, and platform
 
