@@ -47,9 +47,14 @@ class IncidentRegistry:
     """In-process registry keyed by ``incident_id``.
 
     The registry is deliberately in-process: durability is delegated to
-    the ``StateStore`` (each transition is a hash-chained audit row).
-    A process restart repopulates the in-memory index by replaying the
-    audit chain via :meth:`hydrate` at composition-root startup.
+    the ``StateStore`` (each transition is a hash-chained audit row), so
+    the audit chain - not this index - is the source of truth. The
+    in-memory index is volatile: after a process restart it starts empty
+    and a ``transition`` on a pre-restart incident raises ``KeyError``
+    until the index is rebuilt. Rebuilding the index by replaying the
+    ``incident.open`` / ``incident.transition`` audit rows at
+    composition-root startup is not yet implemented (future work); a fork
+    that needs restart-durable incidents wires that replay itself.
     """
 
     def __init__(
