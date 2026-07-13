@@ -177,12 +177,14 @@ def test_workflow_handoff_capability_promotes_and_closes_issue() -> None:
         failure_reason_code="no_route",
     )
     for i in range(3):
-        saga.escalate_to_github_issue(
-            fingerprint=fp,
-            emitting_agent="Bragi",
-            intent_category="capacity_query",
-            failure_reason_code="no_route",
-            correlation_id=f"corr-{i}",
+        asyncio.run(
+            saga.escalate_to_github_issue(
+                fingerprint=fp,
+                emitting_agent="Bragi",
+                intent_category="capacity_query",
+                failure_reason_code="no_route",
+                correlation_id=f"corr-{i}",
+            )
         )
         asyncio.run(
             bus.publish(

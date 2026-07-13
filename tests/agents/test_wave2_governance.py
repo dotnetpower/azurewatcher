@@ -73,19 +73,23 @@ def test_saga_issue_dedup_creates_once_and_appends_comment_on_repeat() -> None:
         primary_agent="Heimdall",
         failure_reason_code="no_owned_data",
     )
-    first = saga.escalate_to_github_issue(
-        fingerprint=fp,
-        emitting_agent="Heimdall",
-        intent_category="cost_query_failed",
-        failure_reason_code="no_owned_data",
-        correlation_id="corr-1",
+    first = asyncio.run(
+        saga.escalate_to_github_issue(
+            fingerprint=fp,
+            emitting_agent="Heimdall",
+            intent_category="cost_query_failed",
+            failure_reason_code="no_owned_data",
+            correlation_id="corr-1",
+        )
     )
-    second = saga.escalate_to_github_issue(
-        fingerprint=fp,
-        emitting_agent="Heimdall",
-        intent_category="cost_query_failed",
-        failure_reason_code="no_owned_data",
-        correlation_id="corr-2",
+    second = asyncio.run(
+        saga.escalate_to_github_issue(
+            fingerprint=fp,
+            emitting_agent="Heimdall",
+            intent_category="cost_query_failed",
+            failure_reason_code="no_owned_data",
+            correlation_id="corr-2",
+        )
     )
     assert first["created"] is True
     assert second["created"] is False
@@ -106,12 +110,14 @@ def test_saga_close_issue_records_promoting_pr() -> None:
         primary_agent="Bragi",
         failure_reason_code="low_confidence",
     )
-    saga.escalate_to_github_issue(
-        fingerprint=fp,
-        emitting_agent="Bragi",
-        intent_category="x",
-        failure_reason_code="low_confidence",
-        correlation_id="corr-close",
+    asyncio.run(
+        saga.escalate_to_github_issue(
+            fingerprint=fp,
+            emitting_agent="Bragi",
+            intent_category="x",
+            failure_reason_code="low_confidence",
+            correlation_id="corr-close",
+        )
     )
     saga.close_issue(fingerprint=fp, closed_by_pr="https://example.invalid/pr/42")
     issue = saga.github.issues[fp]
@@ -148,13 +154,15 @@ def test_saga_escalate_renders_context_lines_in_issue_body() -> None:
         primary_agent="Heimdall",
         failure_reason_code="no_owned_data",
     )
-    saga.escalate_to_github_issue(
-        fingerprint=fp,
-        emitting_agent="Heimdall",
-        intent_category="cost_query_failed",
-        failure_reason_code="no_owned_data",
-        correlation_id="corr-ctx",
-        context={"resource_id": "vm-9", "region": "koreacentral"},
+    asyncio.run(
+        saga.escalate_to_github_issue(
+            fingerprint=fp,
+            emitting_agent="Heimdall",
+            intent_category="cost_query_failed",
+            failure_reason_code="no_owned_data",
+            correlation_id="corr-ctx",
+            context={"resource_id": "vm-9", "region": "koreacentral"},
+        )
     )
     body = saga.github.issues[fp].body
     # Context items are rendered as sorted bullet lines in the issue body.
@@ -381,12 +389,14 @@ def test_end_to_end_handoff_flow_via_bus() -> None:
 
     # Saga escalates three times => Norns crosses threshold, proposes candidate
     for i in range(3):
-        saga.escalate_to_github_issue(
-            fingerprint=fp,
-            emitting_agent="Heimdall",
-            intent_category="q",
-            failure_reason_code="no_owned_data",
-            correlation_id=f"corr-{i}",
+        asyncio.run(
+            saga.escalate_to_github_issue(
+                fingerprint=fp,
+                emitting_agent="Heimdall",
+                intent_category="q",
+                failure_reason_code="no_owned_data",
+                correlation_id=f"corr-{i}",
+            )
         )
         asyncio.run(
             bus.publish(
@@ -500,6 +510,47 @@ def test_norns_throttles_candidate_publication_at_the_rate_limit() -> None:
     clock.t += 60.0
     assert asyncio.run(norns.flush_candidates()) == 1
     assert len(bus.messages_on("object.rule-candidate")) == 3
+
+
+def test_saga_escalate_publishes_object_issue_and_feeds_fingerprint_loop() -> None:
+    """A bus-bound Saga publishes object.issue on escalation (it is the single
+    writer of Issue), so recurring handoffs feed Norns' fingerprint learner
+    end to end - no manual bridge step - and Mimir accepts the new-rule
+    candidate."""
+    reg = load_pantheon()
+    bus = InMemoryBus(registry=reg)
+    saga = Saga()
+    saga.bind_bus(bus)
+    norns = Norns(promotion_threshold=2)
+    norns.bind_bus(bus)
+    mimir = Mimir()
+    bus.subscribe("object.issue", "Norns", norns.on_typed_message)
+    bus.subscribe("object.rule-candidate", "Mimir", mimir.on_typed_message)
+
+    fp = compute_fingerprint(
+        intent_category="q",
+        resource_type="r",
+        normalized_selector="s",
+        primary_agent="Heimdall",
+        failure_reason_code="no_owned_data",
+    )
+    for i in range(2):
+        asyncio.run(
+            saga.escalate_to_github_issue(
+                fingerprint=fp,
+                emitting_agent="Heimdall",
+                intent_category="q",
+                failure_reason_code="no_owned_data",
+                correlation_id=f"c-{i}",
+            )
+        )
+    # Saga auto-published object.issue twice -> Norns crossed its threshold and
+    # proposed a new-rule candidate -> Mimir's guard accepted it.
+    assert len(bus.messages_on("object.issue")) == 2
+    assert norns.occurrences(fp) == 2
+    accepted = mimir.pending_candidates()
+    assert len(accepted) == 1
+    assert accepted[0]["proposal_kind"] == "new"
 
 
 # ---------------------------------------------------------------------------

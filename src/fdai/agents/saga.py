@@ -112,7 +112,7 @@ class Saga(Agent):
             },
         )
 
-    def escalate_to_github_issue(
+    async def escalate_to_github_issue(
         self,
         *,
         fingerprint: str,
@@ -158,6 +158,22 @@ class Saga(Agent):
                 "created": created,
             },
         )
+        # Publish object.issue onto the bus (Saga is the single writer of the
+        # Issue object type) so the discovery loop's fingerprint learner
+        # (Norns) can count recurring handoffs and propose a new rule. A
+        # bus-less Saga (unit scenarios) records to the append-only chain only.
+        if self.bus is not None:
+            await self.bus.publish(
+                "Saga",
+                "object.issue",
+                {
+                    "producer_principal": "Saga",
+                    "correlation_id": correlation_id,
+                    "fingerprint": fingerprint,
+                    "issue_number": issue.number,
+                    "created": created,
+                },
+            )
         return {
             "issue_number": issue.number,
             "created": created,

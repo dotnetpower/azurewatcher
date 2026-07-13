@@ -205,12 +205,14 @@ def test_bragi_abstain_creates_saga_issue_and_promotes_via_norns() -> None:
     )
     # Emit three times, each via bus so Norns sees them
     for i in range(3):
-        outcome = saga.escalate_to_github_issue(
-            fingerprint=fp,
-            emitting_agent="Bragi",
-            intent_category=turn.answer.get("abstain_reason", "unknown"),
-            failure_reason_code="no_route",
-            correlation_id=f"corr-{i}",
+        outcome = asyncio.run(
+            saga.escalate_to_github_issue(
+                fingerprint=fp,
+                emitting_agent="Bragi",
+                intent_category=turn.answer.get("abstain_reason", "unknown"),
+                failure_reason_code="no_route",
+                correlation_id=f"corr-{i}",
+            )
         )
         asyncio.run(
             bus.publish(

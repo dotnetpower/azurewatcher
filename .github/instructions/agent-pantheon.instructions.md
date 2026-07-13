@@ -220,11 +220,15 @@ deepen it. Do not delete this list without closing the item.
   learner is wired**: recurring HIL rejections of the same action type propose
   an inert `revision` candidate (the safe, autonomy-lowering direction,
   symmetric with the override learner; approvals are counted for evidence
-  only, never an auto-promotion). **Remaining**: Saga does not yet publish
-  `object.issue` (so the fingerprint learner has no live producer yet); and the
-  optional scenario-coverage learner's `new-scenario` proposal_kind is not yet
-  in the `CandidateGuard` allowlist (quarantined until a scenario intake path
-  lands).
+  only, never an auto-promotion). **Saga now publishes `object.issue`**: on
+  `escalate_to_github_issue` it emits the issue onto the bus (it is the single
+  writer of Issue), so recurring handoffs feed Norns' fingerprint learner end
+  to end. **Remaining**: no production path yet *calls* `escalate_to_github_issue`
+  (the conversational-abstain -> handoff trigger flow is unwired, so the
+  fingerprint loop is complete on the Saga / Norns / Mimir side but idle until a
+  trigger lands); and the optional scenario-coverage learner's `new-scenario`
+  proposal_kind is not yet in the `CandidateGuard` allowlist (quarantined until a
+  scenario intake path lands).
 - **LLM bindings are placeholders** (`hot_path_llm` / `off_path_llm` booleans; no
   `llm_bindings` field; no model is invoked). The conversational port answers are
   base stubs on all agents except Bragi routing.
