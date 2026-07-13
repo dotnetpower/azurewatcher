@@ -11,7 +11,7 @@ fault_family: preempt
 intensity: high
 duration_seconds: 360.0
 expected_signal: spot_preempt_cascade
-injector: needs-injector
+injector: cross-csp-reference
 blast_radius_cap: 1
 rollback_note: Interruption is one-way; workload must handle it.
 gates:

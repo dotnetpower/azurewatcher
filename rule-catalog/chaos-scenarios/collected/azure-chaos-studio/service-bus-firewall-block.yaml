@@ -11,17 +11,19 @@ fault_family: deny
 intensity: extreme
 duration_seconds: 720.0
 expected_signal: request_failure
-injector: needs-injector
+injector: az:servicebus-firewall
 blast_radius_cap: 1
-rollback_note: Chaos Studio restores the firewall at duration end.
+rollback_note: Restore the original default network action on stop.
 gates:
   shadow_status: pending
   enforce_status: null
 requires_hardware: false
-description: Block a Service Bus namespace behind its firewall via Chaos Studio; publishers
-  / subscribers see connection refused.
+description: Flip a Service Bus namespace default network action to Deny via az servicebus
+  namespace network-rule-set update. Publishers / subscribers see connection refused
+  until stop.
 params:
   fault_name: urn:csci:microsoft:serviceBus:firewallBlock/1.0
+  original_default_action: Allow
 tags:
 - azure-chaos-studio
 - servicebus

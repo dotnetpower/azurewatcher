@@ -122,10 +122,13 @@ def _load_one(path: pathlib.Path, validator: jsonschema.Draft202012Validator) ->
             f"{path}: expected_signal {signal!r} is not registered in "
             f"fdai.core.detection.signals. Register the SignalSpec first."
         )
-    if body["injector"] == "needs-injector" and str(path.parent).endswith("promoted"):
+    if body["injector"] in {"needs-injector", "cross-csp-reference"} and str(
+        path.parent
+    ).endswith("promoted"):
         raise ScenarioCatalogError(
-            f"{path}: injector 'needs-injector' is not allowed in promoted/; "
-            f"leave the file in collected/ until an injector lands."
+            f"{path}: injector {body['injector']!r} is not allowed in "
+            f"promoted/; leave the file in collected/ until an executable "
+            f"injector is wired."
         )
     return CatalogEntry(id=str(body["id"]), source_path=path, spec=dict(body))
 

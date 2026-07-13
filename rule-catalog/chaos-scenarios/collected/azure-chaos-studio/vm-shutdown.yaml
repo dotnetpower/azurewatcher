@@ -11,18 +11,18 @@ fault_family: stop
 intensity: extreme
 duration_seconds: 720.0
 expected_signal: pod_restart
-injector: needs-injector
+injector: az:vm-lifecycle
 blast_radius_cap: 1
-rollback_note: '`az vm start` restores the VM; workload reschedules.'
+rollback_note: az vm start restores the VM; workload reschedules.
 gates:
   shadow_status: pending
   enforce_status: null
 requires_hardware: false
-description: Cleanly shut down a Virtual Machine via Azure Chaos Studio; the guest
-  OS receives the shutdown signal.
+description: Deallocate a Virtual Machine via az vm deallocate. az vm start restores
+  it on rollback.
 params:
   fault_name: urn:csci:microsoft:virtualMachine:shutdown/1.0
-  abrupt: 'false'
+  action: deallocate
 tags:
 - azure-chaos-studio
 - vm

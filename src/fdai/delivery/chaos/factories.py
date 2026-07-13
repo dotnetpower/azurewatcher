@@ -35,6 +35,20 @@ from typing import Any
 from fdai.core.chaos.factory import ScenarioFactory
 from fdai.core.chaos.injector import FaultInjector, SignalProbe
 from fdai.core.chaos.scenario_catalog import CatalogEntry
+from fdai.delivery.chaos.azure_ops import (
+    AzCosmosFailoverInjector,
+    AzKeyVaultDenyAccessInjector,
+    AzLbBackendRemoveInjector,
+    AzNsgRuleInjector,
+    AzRedisRebootInjector,
+    AzServiceBusFirewallInjector,
+    AzVmLifecycleInjector,
+    AzVmNetworkDisconnectInjector,
+    AzVmNetworkLatencyInjector,
+    AzVmPacketLossInjector,
+    AzVmssLifecycleInjector,
+    AzVmStopServiceInjector,
+)
 from fdai.delivery.chaos.chaos_mesh import (
     ChaosMeshInjectedProbe,
     ChaosMeshInjector,
@@ -494,6 +508,135 @@ def _build_cm_status_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalPr
 
 
 # ---------------------------------------------------------------------------
+# Azure Chaos Studio equivalents (no Chaos Studio service required)
+# ---------------------------------------------------------------------------
+#
+# Chaos Studio is a managed orchestrator; each fault it exposes is a thin
+# wrapper over one or more `az` CLI operations FDAI can invoke directly.
+# The 15 Azure Chaos Studio scenarios under
+# `rule-catalog/chaos-scenarios/collected/azure-chaos-studio/` map to these
+# builders via `az:*` injector strings (see azure_ops.py for the classes).
+
+
+def _build_az_vm_network_latency(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    p = entry.spec.get("params") or {}
+    return AzVmNetworkLatencyInjector(
+        resource_group=str(ctx["resource_group"]),
+        vm_name=str(ctx["vm_name"]),
+        latency_ms=int(p.get("latency_ms", 250)),
+        interface=str(ctx.get("vm_interface", "eth0")),
+    )
+
+
+def _build_az_vm_packet_loss(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    p = entry.spec.get("params") or {}
+    return AzVmPacketLossInjector(
+        resource_group=str(ctx["resource_group"]),
+        vm_name=str(ctx["vm_name"]),
+        loss_percent=int(p.get("loss_percent", 20)),
+        interface=str(ctx.get("vm_interface", "eth0")),
+    )
+
+
+def _build_az_vm_network_disconnect(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    p = entry.spec.get("params") or {}
+    dest = str(p.get("destination", ctx.get("network_disconnect_destination", "10.0.0.0/8")))
+    return AzVmNetworkDisconnectInjector(
+        resource_group=str(ctx["resource_group"]),
+        vm_name=str(ctx["vm_name"]),
+        destination=dest,
+    )
+
+
+def _build_az_vm_stop_service(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    p = entry.spec.get("params") or {}
+    svc = str(p.get("service", ctx.get("stop_service_name", "myservice")))
+    return AzVmStopServiceInjector(
+        resource_group=str(ctx["resource_group"]),
+        vm_name=str(ctx["vm_name"]),
+        service=svc,
+    )
+
+
+def _build_az_vm_lifecycle(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    p = entry.spec.get("params") or {}
+    action = str(p.get("action", "deallocate"))
+    return AzVmLifecycleInjector(
+        resource_group=str(ctx["resource_group"]),
+        vm_name=str(ctx["vm_name"]),
+        action=action,
+    )
+
+
+def _build_az_vmss_lifecycle(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    p = entry.spec.get("params") or {}
+    action = str(p.get("action", "deallocate"))
+    return AzVmssLifecycleInjector(
+        resource_group=str(ctx["resource_group"]),
+        vmss_name=str(ctx["vmss_name"]),
+        action=action,
+    )
+
+
+def _build_az_redis_reboot(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    p = entry.spec.get("params") or {}
+    return AzRedisRebootInjector(
+        resource_group=str(ctx["resource_group"]),
+        cache_name=str(ctx["redis_cache_name"]),
+        reboot_type=str(p.get("reboot_type", "AllNodes")),
+    )
+
+
+def _build_az_cosmosdb_failover(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    p = entry.spec.get("params") or {}
+    return AzCosmosFailoverInjector(
+        resource_group=str(ctx["resource_group"]),
+        account_name=str(ctx["cosmos_account_name"]),
+        original_priorities=str(p.get("original_priorities", "")),
+        failover_priorities=str(p.get("failover_priorities", "")),
+    )
+
+
+def _build_az_keyvault_deny(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    p = entry.spec.get("params") or {}
+    return AzKeyVaultDenyAccessInjector(
+        resource_group=str(ctx["resource_group"]),
+        vault_name=str(ctx["keyvault_name"]),
+        original_default_action=str(p.get("original_default_action", "Allow")),
+    )
+
+
+def _build_az_nsg_rule(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    p = entry.spec.get("params") or {}
+    return AzNsgRuleInjector(
+        resource_group=str(ctx["resource_group"]),
+        nsg_name=str(ctx["nsg_name"]),
+        rule_name=str(ctx.get("nsg_rule_name", "fdai-chaos-deny")),
+        priority=int(ctx.get("nsg_rule_priority", 100)),
+        destination=str(p.get("destination", "*")),
+    )
+
+
+def _build_az_lb_backend_remove(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    return AzLbBackendRemoveInjector(
+        resource_group=str(ctx["resource_group"]),
+        lb_name=str(ctx["lb_name"]),
+        pool_name=str(ctx["lb_pool_name"]),
+        address_name=str(ctx["lb_address_name"]),
+        address_ip=ctx.get("lb_address_ip"),
+    )
+
+
+def _build_az_servicebus_firewall(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    p = entry.spec.get("params") or {}
+    return AzServiceBusFirewallInjector(
+        resource_group=str(ctx["resource_group"]),
+        namespace_name=str(ctx["servicebus_namespace"]),
+        original_default_action=str(p.get("original_default_action", "Allow")),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 
@@ -509,6 +652,19 @@ def register_default_builders(factory: ScenarioFactory) -> ScenarioFactory:
     factory.register_injector("kubectl:scale", _build_kubectl_scale)
     factory.register_injector("kubectl:set-image", _build_kubectl_set_image)
     factory.register_injector("az:vm-run-command", _build_az_vm_run_command)
+    # Azure Chaos Studio equivalents (direct az CLI, no Chaos Studio service).
+    factory.register_injector("az:vm-network-latency", _build_az_vm_network_latency)
+    factory.register_injector("az:vm-packet-loss", _build_az_vm_packet_loss)
+    factory.register_injector("az:vm-network-disconnect", _build_az_vm_network_disconnect)
+    factory.register_injector("az:vm-stop-service", _build_az_vm_stop_service)
+    factory.register_injector("az:vm-lifecycle", _build_az_vm_lifecycle)
+    factory.register_injector("az:vmss-lifecycle", _build_az_vmss_lifecycle)
+    factory.register_injector("az:redis-reboot", _build_az_redis_reboot)
+    factory.register_injector("az:cosmosdb-failover", _build_az_cosmosdb_failover)
+    factory.register_injector("az:keyvault-deny", _build_az_keyvault_deny)
+    factory.register_injector("az:nsg-rule", _build_az_nsg_rule)
+    factory.register_injector("az:lb-backend-remove", _build_az_lb_backend_remove)
+    factory.register_injector("az:servicebus-firewall", _build_az_servicebus_firewall)
 
     # Probes: one per expected_signal. Chaos-mesh entries default to the
     # CRD status probe; the shipped Kube probes take over for kubectl-*

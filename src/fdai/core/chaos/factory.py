@@ -37,6 +37,19 @@ from typing import Any
 from fdai.core.chaos.injector import FaultInjector, SignalProbe
 from fdai.core.chaos.scenario_catalog import CatalogEntry
 
+#: Injector-string markers that flag a catalog entry as intentionally
+#: NOT executable in this composition. Anything in this set makes
+#: :meth:`ScenarioFactory.is_executable` return False and
+#: :meth:`ScenarioFactory.build` raise :class:`UnavailableInjectorError`.
+#:
+#: - ``needs-injector`` - a delivery adapter has not landed yet.
+#: - ``cross-csp-reference`` - the scenario is catalog data borrowed
+#:   from another CSP (e.g. AWS FIS on an Azure-only FDAI). Kept for
+#:   symptom vocabulary and T2 RCA candidate matching; never executed.
+NON_EXECUTABLE_MARKERS: frozenset[str] = frozenset(
+    {"needs-injector", "cross-csp-reference"}
+)
+
 # Callables the delivery layer registers.
 InjectorBuilder = Callable[[CatalogEntry, dict[str, Any]], FaultInjector]
 """``(entry, context) -> FaultInjector``. ``context`` is the composition
@@ -175,7 +188,7 @@ class ScenarioFactory:
 
     def _resolve_injector(self, entry: CatalogEntry) -> InjectorBuilder | None:
         ref = str(entry.spec.get("injector", ""))
-        if ref == "needs-injector" or not ref:
+        if ref in NON_EXECUTABLE_MARKERS or not ref:
             return None
         # Exact wins over prefix.
         if ref in self._injectors_exact:
@@ -186,6 +199,7 @@ class ScenarioFactory:
 
 __all__ = [
     "InjectorBuilder",
+    "NON_EXECUTABLE_MARKERS",
     "ProbeBuilder",
     "ScenarioFactory",
     "UnavailableInjectorError",

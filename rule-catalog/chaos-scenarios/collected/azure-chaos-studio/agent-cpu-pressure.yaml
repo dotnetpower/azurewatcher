@@ -11,16 +11,16 @@ fault_family: saturate
 intensity: high
 duration_seconds: 360.0
 expected_signal: host_cpu
-injector: needs-injector
+injector: az:vm-run-command
 blast_radius_cap: 1
-rollback_note: Chaos Studio agent removes the pressure at duration end; no manual
-  rollback needed inside the window.
+rollback_note: stress-ng is killed on stop; run-command clears the process.
 gates:
   shadow_status: pending
   enforce_status: null
 requires_hardware: false
 description: Sustain CPU pressure on a VM via the Chaos Studio agent-based fault -
-  percentage of cores loaded for a bounded window.
+  percentage of cores loaded for a bounded window. FDAI wires this through az vm run-command
+  + stress-ng (no Chaos Studio service needed).
 params:
   fault_name: urn:csci:microsoft:agent:cpuPressure/1.0
   pressure_level: '95'

@@ -7,9 +7,13 @@ symptom index and RCA can reason about them alongside Azure faults.
 
 FDAI's implementation focus is Azure (see
 `.github/copilot-instructions.md` "Implementation Focus"); AWS is
-TBD. Every entry here therefore ships with `injector: needs-injector`
-- adding a delivery adapter for AWS FIS is deferred to when a non-
-Azure target is scoped.
+TBD. Every entry here therefore ships with
+`injector: cross-csp-reference` - the catalog knows about the fault
+for symptom vocabulary and T2 RCA candidate matching, but the factory
+reports it as non-executable so nothing tries to inject an AWS fault
+from our Azure-only stack. `needs-injector` is reserved for scenarios
+whose CSP FDAI targets but whose delivery adapter has not landed;
+cross-csp-reference makes the semantic distinction honest.
 
 Source: AWS FIS documentation. Hand-curated CSP-neutral projection;
 the upstream `actionId` is preserved in `provenance.source_ref` so an
@@ -315,7 +319,7 @@ def _to_body(e: Entry) -> dict:
         "intensity": e.intensity,
         "duration_seconds": _ALERT_WINDOW_S if e.intensity != "extreme" else _ALERT_WINDOW_S * 2,
         "expected_signal": e.expected_signal,
-        "injector": "needs-injector",
+        "injector": "cross-csp-reference",
         "blast_radius_cap": e.blast_radius_cap,
         "rollback_note": e.rollback_note,
         "gates": {"shadow_status": "pending", "enforce_status": None},

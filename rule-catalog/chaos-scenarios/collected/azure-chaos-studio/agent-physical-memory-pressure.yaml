@@ -11,18 +11,19 @@ fault_family: saturate
 intensity: high
 duration_seconds: 360.0
 expected_signal: host_memory
-injector: needs-injector
+injector: az:vm-run-command
 blast_radius_cap: 1
-rollback_note: Agent releases memory at duration end.
+rollback_note: stress-ng is killed on stop.
 gates:
   shadow_status: pending
   enforce_status: null
 requires_hardware: false
 description: Sustain physical memory pressure on a VM via the Chaos Studio agent-based
-  fault.
+  fault. FDAI wires this through az vm run-command + stress-ng --vm.
 params:
   fault_name: urn:csci:microsoft:agent:physicalMemoryPressure/1.0
   pressure_level: '95'
+  vm_bytes: 250M
 tags:
 - azure-chaos-studio
 - vm

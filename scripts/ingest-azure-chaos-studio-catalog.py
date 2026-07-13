@@ -2,18 +2,34 @@
 
 Azure Chaos Studio publishes ~50 faults across VM, VMSS, AKS, Key
 Vault, Cosmos DB, Redis, AAD, Service Bus, Load Balancer, Storage,
-and more. This ingester is a hand-curated CSP-neutral projection of
-that library into the FDAI chaos-scenarios schema.
+and more. Chaos Studio itself is a *managed orchestrator* - each
+fault is a thin wrapper over one or more Azure Resource Manager
+operations FDAI can invoke directly through the `az` CLI. This
+ingester therefore projects each fault into the FDAI catalog with
+the equivalent `az:*` injector string, NOT `needs-injector`. The
+delivery-layer implementations live in
+:mod:`fdai.delivery.chaos.azure_ops`.
 
-Source: Microsoft Learn - Azure Chaos Studio fault library. Every
-entry uses the upstream fault name (`fault_name`) verbatim so an
-operator can cross-reference; the injector shim ships as
-`needs-injector` because FDAI has no Azure Chaos Studio delivery
-adapter yet (adding it means wiring the Chaos Studio ARM API through
-delivery/chaos/).
+Reclassification (2026-07-13):
+
+- The 3 AKS "chaos-mesh-*" entries the Chaos Studio catalog exposes
+  are one-to-one wrappers over Chaos Mesh CRDs the FDAI catalog
+  already ships under `collected/chaos-mesh/` - they were dropped
+  from this ingester to avoid duplicate scenarios.
+- The 2 agent-based CPU / memory pressure entries reuse the shipped
+  :class:`AzVmCpuStressInjector` / :class:`AzVmMemStressInjector` via
+  the existing `az:vm-run-command` prefix.
+- The 4 remaining agent-based entries (network latency, packet loss,
+  disconnect, stop-service) route through new `az:vm-*` builders
+  backed by classes in :mod:`fdai.delivery.chaos.azure_ops`.
+- The 9 resource-level entries (VM shutdown/redeploy, VMSS shutdown,
+  Redis reboot, Cosmos failover, Key Vault deny, NSG rule, LB backend
+  remove, Service Bus firewall) each get a dedicated `az:*` injector
+  string that maps to a class in `azure_ops.py`.
 
 Output: `rule-catalog/chaos-scenarios/collected/azure-chaos-studio/`.
-Idempotent.
+Idempotent - the runner rewrites the same files every run and prunes
+any file whose slug is no longer in `_ENTRIES`.
 """
 
 from __future__ import annotations
@@ -38,7 +54,8 @@ _ALERT_WINDOW_S = 360.0
 @dataclass(frozen=True, slots=True)
 class Entry:
     slug: str
-    fault_name: str  # Azure Chaos Studio spelling
+    fault_name: str  # Azure Chaos Studio upstream spelling, preserved verbatim
+    injector: str  # FDAI catalog injector string; matches a delivery factory
     description: str
     category: str
     target_type: str
@@ -51,59 +68,17 @@ class Entry:
     tags: tuple[str, ...] = ("azure-chaos-studio",)
 
 
-# CSP-neutral entries. Each carries the upstream fault_name as a param
-# so the eventual Azure delivery adapter can dispatch by that name.
+# 15 entries after dropping the 3 chaos-mesh CRD wrapper duplicates.
 _ENTRIES: tuple[Entry, ...] = (
-    # -- Compute (VM / VMSS) ---------------------------------------------
-    Entry(
-        slug="vm-shutdown",
-        fault_name="urn:csci:microsoft:virtualMachine:shutdown/1.0",
-        description="Cleanly shut down a Virtual Machine via Azure Chaos "
-        "Studio; the guest OS receives the shutdown signal.",
-        category="compute",
-        target_type="vm",
-        fault_family="stop",
-        intensity="extreme",
-        expected_signal="pod_restart",
-        params={"fault_name": "urn:csci:microsoft:virtualMachine:shutdown/1.0", "abrupt": "false"},
-        rollback_note="`az vm start` restores the VM; workload reschedules.",
-        tags=("azure-chaos-studio", "vm"),
-    ),
-    Entry(
-        slug="vm-redeploy",
-        fault_name="urn:csci:microsoft:virtualMachine:redeploy/1.0",
-        description="Redeploy a Virtual Machine to a new host - forces a "
-        "hardware-level reset. Emulates hardware failure recovery.",
-        category="compute",
-        target_type="vm",
-        fault_family="stop",
-        intensity="extreme",
-        expected_signal="pod_restart",
-        params={"fault_name": "urn:csci:microsoft:virtualMachine:redeploy/1.0"},
-        rollback_note="Redeploy is one-way; monitor the VM comes back Ready.",
-        tags=("azure-chaos-studio", "vm"),
-    ),
-    Entry(
-        slug="vmss-shutdown",
-        fault_name="urn:csci:microsoft:virtualMachineScaleSet:shutdown/1.0",
-        description="Shut down one or more instances of a VMSS via Chaos "
-        "Studio; the scale set replaces per its upgrade policy.",
-        category="compute",
-        target_type="vmss",
-        fault_family="stop",
-        intensity="high",
-        expected_signal="pod_restart",
-        params={"fault_name": "urn:csci:microsoft:virtualMachineScaleSet:shutdown/1.0"},
-        rollback_note="`az vmss start` and the upgrade policy restores the "
-        "instance count.",
-        blast_radius_cap=2,
-        tags=("azure-chaos-studio", "vmss"),
-    ),
+    # -- Guest-OS agent-based (via az vm run-command) --------------------
     Entry(
         slug="agent-cpu-pressure",
         fault_name="urn:csci:microsoft:agent:cpuPressure/1.0",
+        injector="az:vm-run-command",
         description="Sustain CPU pressure on a VM via the Chaos Studio "
-        "agent-based fault - percentage of cores loaded for a bounded window.",
+        "agent-based fault - percentage of cores loaded for a bounded window. "
+        "FDAI wires this through az vm run-command + stress-ng (no Chaos "
+        "Studio service needed).",
         category="compute",
         target_type="vm",
         fault_family="saturate",
@@ -113,15 +88,16 @@ _ENTRIES: tuple[Entry, ...] = (
             "fault_name": "urn:csci:microsoft:agent:cpuPressure/1.0",
             "pressure_level": "95",
         },
-        rollback_note="Chaos Studio agent removes the pressure at duration end; "
-        "no manual rollback needed inside the window.",
+        rollback_note="stress-ng is killed on stop; run-command clears the process.",
         tags=("azure-chaos-studio", "vm", "cpu"),
     ),
     Entry(
         slug="agent-physical-memory-pressure",
         fault_name="urn:csci:microsoft:agent:physicalMemoryPressure/1.0",
+        injector="az:vm-run-command",
         description="Sustain physical memory pressure on a VM via the Chaos "
-        "Studio agent-based fault.",
+        "Studio agent-based fault. FDAI wires this through az vm run-command "
+        "+ stress-ng --vm.",
         category="resource_saturation",
         target_type="vm",
         fault_family="saturate",
@@ -130,15 +106,17 @@ _ENTRIES: tuple[Entry, ...] = (
         params={
             "fault_name": "urn:csci:microsoft:agent:physicalMemoryPressure/1.0",
             "pressure_level": "95",
+            "vm_bytes": "250M",
         },
-        rollback_note="Agent releases memory at duration end.",
+        rollback_note="stress-ng is killed on stop.",
         tags=("azure-chaos-studio", "vm", "memory"),
     ),
     Entry(
         slug="agent-network-latency",
         fault_name="urn:csci:microsoft:agent:networkLatency/1.0",
-        description="Add outbound network latency on a VM via the Chaos "
-        "Studio agent-based fault; downstream services see gateway latency.",
+        injector="az:vm-network-latency",
+        description="Add outbound network latency on a VM via tc netem "
+        "delay applied through az vm run-command.",
         category="network",
         target_type="vm",
         fault_family="delay",
@@ -148,31 +126,15 @@ _ENTRIES: tuple[Entry, ...] = (
             "fault_name": "urn:csci:microsoft:agent:networkLatency/1.0",
             "latency_ms": "250",
         },
-        rollback_note="Agent removes the tc netem rule at duration end.",
-        tags=("azure-chaos-studio", "vm", "network"),
-    ),
-    Entry(
-        slug="agent-network-disconnect",
-        fault_name="urn:csci:microsoft:agent:networkDisconnect/1.0",
-        description="Block outbound traffic to a set of destinations on a "
-        "VM via Chaos Studio; emulates dependency partition.",
-        category="network",
-        target_type="vm",
-        fault_family="deny",
-        intensity="extreme",
-        expected_signal="backend_health",
-        params={
-            "fault_name": "urn:csci:microsoft:agent:networkDisconnect/1.0",
-            "destinations": "upstream-service",
-        },
-        rollback_note="Firewall rule removed at duration end.",
+        rollback_note="tc qdisc del removes the netem rule on stop.",
         tags=("azure-chaos-studio", "vm", "network"),
     ),
     Entry(
         slug="agent-network-packet-loss",
         fault_name="urn:csci:microsoft:agent:networkPacketLoss/1.0",
-        description="Drop a fraction of outbound packets on a VM via Chaos "
-        "Studio; downstream calls see failures / retries.",
+        injector="az:vm-packet-loss",
+        description="Drop a fraction of outbound packets on a VM via tc "
+        "netem loss (through az vm run-command).",
         category="network",
         target_type="vm",
         fault_family="drop",
@@ -182,14 +144,33 @@ _ENTRIES: tuple[Entry, ...] = (
             "fault_name": "urn:csci:microsoft:agent:networkPacketLoss/1.0",
             "loss_percent": "20",
         },
-        rollback_note="Agent removes the drop rule at duration end.",
+        rollback_note="tc qdisc del removes the netem rule on stop.",
+        tags=("azure-chaos-studio", "vm", "network"),
+    ),
+    Entry(
+        slug="agent-network-disconnect",
+        fault_name="urn:csci:microsoft:agent:networkDisconnect/1.0",
+        injector="az:vm-network-disconnect",
+        description="Block outbound traffic to a set of destinations on a "
+        "VM via iptables DROP (applied through az vm run-command).",
+        category="network",
+        target_type="vm",
+        fault_family="deny",
+        intensity="extreme",
+        expected_signal="backend_health",
+        params={
+            "fault_name": "urn:csci:microsoft:agent:networkDisconnect/1.0",
+            "destination": "10.0.0.0/8",
+        },
+        rollback_note="iptables -D removes the DROP rule on stop.",
         tags=("azure-chaos-studio", "vm", "network"),
     ),
     Entry(
         slug="agent-stop-service",
         fault_name="urn:csci:microsoft:agent:stopService/1.0",
-        description="Stop a system service (systemd unit) on a VM via Chaos "
-        "Studio; captures dependency-crash blast radius.",
+        injector="az:vm-stop-service",
+        description="Stop a systemd unit on a VM via systemctl through "
+        "az vm run-command.",
         category="compute",
         target_type="vm",
         fault_family="stop",
@@ -199,155 +180,178 @@ _ENTRIES: tuple[Entry, ...] = (
             "fault_name": "urn:csci:microsoft:agent:stopService/1.0",
             "service": "myservice",
         },
-        rollback_note="Agent restarts the service at duration end or on stop.",
+        rollback_note="systemctl start restores the unit on stop.",
         tags=("azure-chaos-studio", "vm", "service"),
     ),
-    # -- AKS -------------------------------------------------------------
+    # -- Resource-level ARM operations (direct az CLI) --------------------
     Entry(
-        slug="aks-chaos-mesh-pod-chaos",
-        fault_name="urn:csci:microsoft:azureKubernetesServiceChaosMesh:podChaos/2.1",
-        description="Run a Chaos Mesh PodChaos experiment on an AKS cluster "
-        "via Chaos Studio; the AKS injector wraps the CRD path.",
+        slug="vm-shutdown",
+        fault_name="urn:csci:microsoft:virtualMachine:shutdown/1.0",
+        injector="az:vm-lifecycle",
+        description="Deallocate a Virtual Machine via az vm deallocate. "
+        "az vm start restores it on rollback.",
         category="compute",
-        target_type="pod",
+        target_type="vm",
+        fault_family="stop",
+        intensity="extreme",
+        expected_signal="pod_restart",
+        params={
+            "fault_name": "urn:csci:microsoft:virtualMachine:shutdown/1.0",
+            "action": "deallocate",
+        },
+        rollback_note="az vm start restores the VM; workload reschedules.",
+        tags=("azure-chaos-studio", "vm"),
+    ),
+    Entry(
+        slug="vm-redeploy",
+        fault_name="urn:csci:microsoft:virtualMachine:redeploy/1.0",
+        injector="az:vm-lifecycle",
+        description="Redeploy a Virtual Machine to a new host via az vm "
+        "redeploy - forces a hardware-level reset. One-way; monitor the VM "
+        "back to Ready.",
+        category="compute",
+        target_type="vm",
+        fault_family="stop",
+        intensity="extreme",
+        expected_signal="pod_restart",
+        params={
+            "fault_name": "urn:csci:microsoft:virtualMachine:redeploy/1.0",
+            "action": "redeploy",
+        },
+        rollback_note="Redeploy is one-way; the VM starts on the new host "
+        "automatically. Rollback = observe recovery.",
+        tags=("azure-chaos-studio", "vm"),
+    ),
+    Entry(
+        slug="vmss-shutdown",
+        fault_name="urn:csci:microsoft:virtualMachineScaleSet:shutdown/1.0",
+        injector="az:vmss-lifecycle",
+        description="Deallocate a VMSS via az vmss deallocate. az vmss "
+        "start restores instances on rollback.",
+        category="compute",
+        target_type="vmss",
         fault_family="stop",
         intensity="high",
         expected_signal="pod_restart",
         params={
-            "fault_name": (
-                "urn:csci:microsoft:azureKubernetesServiceChaosMesh:podChaos/2.1"
-            ),
+            "fault_name": "urn:csci:microsoft:virtualMachineScaleSet:shutdown/1.0",
+            "action": "deallocate",
         },
-        rollback_note="Chaos Studio removes the CRD at duration end.",
+        rollback_note="az vmss start restores the instance count.",
         blast_radius_cap=2,
-        tags=("azure-chaos-studio", "aks"),
+        tags=("azure-chaos-studio", "vmss"),
     ),
-    Entry(
-        slug="aks-chaos-mesh-network-chaos",
-        fault_name="urn:csci:microsoft:azureKubernetesServiceChaosMesh:networkChaos/2.1",
-        description="Run a Chaos Mesh NetworkChaos experiment on an AKS "
-        "cluster via Chaos Studio.",
-        category="network",
-        target_type="pod",
-        fault_family="delay",
-        intensity="high",
-        expected_signal="gateway_latency",
-        params={
-            "fault_name": (
-                "urn:csci:microsoft:azureKubernetesServiceChaosMesh:networkChaos/2.1"
-            ),
-        },
-        rollback_note="Chaos Studio removes the CRD at duration end.",
-        blast_radius_cap=2,
-        tags=("azure-chaos-studio", "aks"),
-    ),
-    Entry(
-        slug="aks-chaos-mesh-stress-chaos",
-        fault_name="urn:csci:microsoft:azureKubernetesServiceChaosMesh:stressChaos/2.1",
-        description="Run a Chaos Mesh StressChaos experiment on an AKS "
-        "cluster via Chaos Studio.",
-        category="compute",
-        target_type="pod",
-        fault_family="saturate",
-        intensity="high",
-        expected_signal="node_cpu",
-        params={
-            "fault_name": (
-                "urn:csci:microsoft:azureKubernetesServiceChaosMesh:stressChaos/2.1"
-            ),
-        },
-        rollback_note="Chaos Studio removes the CRD at duration end.",
-        blast_radius_cap=3,
-        tags=("azure-chaos-studio", "aks"),
-    ),
-    # -- Cosmos DB -------------------------------------------------------
     Entry(
         slug="cosmos-db-failover",
         fault_name="urn:csci:microsoft:cosmosDB:failover/1.0",
-        description="Force a Cosmos DB region failover via Chaos Studio; "
-        "applications observe transient read/write errors and latency.",
+        injector="az:cosmosdb-failover",
+        description="Force a Cosmos DB region failover via az cosmosdb "
+        "failover-priority-change; the injector reverses to the original "
+        "priority on stop.",
         category="dependency",
         target_type="db",
         fault_family="stop",
         intensity="extreme",
         expected_signal="request_failure",
-        params={"fault_name": "urn:csci:microsoft:cosmosDB:failover/1.0"},
-        rollback_note="Failback to the original region after the window.",
+        params={
+            "fault_name": "urn:csci:microsoft:cosmosDB:failover/1.0",
+            "failover_priorities": "Region2=0 Region1=1",
+            "original_priorities": "Region1=0 Region2=1",
+        },
+        rollback_note="Reverse failover-priority-change on stop.",
         tags=("azure-chaos-studio", "cosmos"),
     ),
-    # -- Key Vault -------------------------------------------------------
     Entry(
         slug="keyvault-deny-access",
         fault_name="urn:csci:microsoft:keyVault:denyAccess/1.0",
-        description="Temporarily deny access to a Key Vault via a network "
-        "rule flip in Chaos Studio; clients see 403 on secret retrieval.",
+        injector="az:keyvault-deny",
+        description="Flip a Key Vault's default network action to Deny via "
+        "az keyvault network-rule / az keyvault update; clients see 403 on "
+        "secret retrieval until stop restores the original action.",
         category="dependency",
         target_type="secret_store",
         fault_family="deny",
         intensity="extreme",
         expected_signal="request_failure",
-        params={"fault_name": "urn:csci:microsoft:keyVault:denyAccess/1.0"},
-        rollback_note="Chaos Studio restores the network rule at duration end.",
+        params={
+            "fault_name": "urn:csci:microsoft:keyVault:denyAccess/1.0",
+            "original_default_action": "Allow",
+        },
+        rollback_note="Restore the original default network action on stop.",
         tags=("azure-chaos-studio", "keyvault"),
     ),
-    # -- Cache for Redis -------------------------------------------------
     Entry(
         slug="redis-reboot",
         fault_name="urn:csci:microsoft:cache:reboot/1.0",
-        description="Reboot Azure Cache for Redis node(s) via Chaos Studio.",
+        injector="az:redis-reboot",
+        description="Reboot Azure Cache for Redis node(s) via az redis "
+        "force-reboot. Reboot is one-way; monitor the cache back to healthy.",
         category="dependency",
         target_type="cache",
         fault_family="stop",
         intensity="extreme",
         expected_signal="request_failure",
-        params={"fault_name": "urn:csci:microsoft:cache:reboot/1.0"},
-        rollback_note="Reboot is one-way; monitor cache back to healthy.",
+        params={
+            "fault_name": "urn:csci:microsoft:cache:reboot/1.0",
+            "reboot_type": "AllNodes",
+        },
+        rollback_note="Reboot is one-way; rollback = observe recovery.",
         tags=("azure-chaos-studio", "redis"),
     ),
-    # -- Network Security Group -----------------------------------------
     Entry(
         slug="nsg-security-rule",
         fault_name="urn:csci:microsoft:networkSecurityGroup:securityRule/1.0",
-        description="Add a deny NSG rule via Chaos Studio; emulates an "
-        "operator-mistake blackhole to a service.",
+        injector="az:nsg-rule",
+        description="Add an outbound Deny rule to an NSG via az network nsg "
+        "rule create; the injector removes the rule on stop.",
         category="network",
         target_type="ingress",
         fault_family="deny",
         intensity="extreme",
         expected_signal="backend_health",
-        params={"fault_name": "urn:csci:microsoft:networkSecurityGroup:securityRule/1.0"},
-        rollback_note="Chaos Studio removes the rule at duration end.",
+        params={
+            "fault_name": "urn:csci:microsoft:networkSecurityGroup:securityRule/1.0",
+            "destination": "*",
+        },
+        rollback_note="Remove the Deny rule on stop.",
         tags=("azure-chaos-studio", "nsg"),
     ),
-    # -- Load Balancer --------------------------------------------------
     Entry(
         slug="load-balancer-backend-remove",
         fault_name="urn:csci:microsoft:loadBalancer:backendRemove/1.0",
-        description="Remove a backend from an Azure Load Balancer pool via "
-        "Chaos Studio; healthy-host count drops.",
+        injector="az:lb-backend-remove",
+        description="Remove a backend address from a Load Balancer pool via "
+        "az network lb address-pool address remove; the injector re-adds "
+        "the address on stop (requires address_ip in context).",
         category="traffic",
         target_type="lb",
         fault_family="deny",
         intensity="high",
         expected_signal="backend_health",
-        params={"fault_name": "urn:csci:microsoft:loadBalancer:backendRemove/1.0"},
-        rollback_note="Chaos Studio re-adds the backend at duration end.",
+        params={
+            "fault_name": "urn:csci:microsoft:loadBalancer:backendRemove/1.0",
+        },
+        rollback_note="Re-add the backend address on stop.",
         blast_radius_cap=2,
         tags=("azure-chaos-studio", "lb"),
     ),
-    # -- Service Bus ----------------------------------------------------
     Entry(
         slug="service-bus-firewall-block",
         fault_name="urn:csci:microsoft:serviceBus:firewallBlock/1.0",
-        description="Block a Service Bus namespace behind its firewall via "
-        "Chaos Studio; publishers / subscribers see connection refused.",
+        injector="az:servicebus-firewall",
+        description="Flip a Service Bus namespace default network action to "
+        "Deny via az servicebus namespace network-rule-set update. "
+        "Publishers / subscribers see connection refused until stop.",
         category="dependency",
         target_type="ingress",
         fault_family="deny",
         intensity="extreme",
         expected_signal="request_failure",
-        params={"fault_name": "urn:csci:microsoft:serviceBus:firewallBlock/1.0"},
-        rollback_note="Chaos Studio restores the firewall at duration end.",
+        params={
+            "fault_name": "urn:csci:microsoft:serviceBus:firewallBlock/1.0",
+            "original_default_action": "Allow",
+        },
+        rollback_note="Restore the original default network action on stop.",
         tags=("azure-chaos-studio", "servicebus"),
     ),
 )
@@ -369,8 +373,7 @@ def _to_body(e: Entry) -> dict:
         "intensity": e.intensity,
         "duration_seconds": _ALERT_WINDOW_S if e.intensity != "extreme" else _ALERT_WINDOW_S * 2,
         "expected_signal": e.expected_signal,
-        # No delivery adapter yet; loader keeps needs-injector out of promoted/.
-        "injector": "needs-injector",
+        "injector": e.injector,
         "blast_radius_cap": e.blast_radius_cap,
         "rollback_note": e.rollback_note,
         "gates": {"shadow_status": "pending", "enforce_status": None},
@@ -383,6 +386,13 @@ def _to_body(e: Entry) -> dict:
 
 def main() -> int:
     _OUT_DIR.mkdir(parents=True, exist_ok=True)
+    # Drop any stale files from a previous ingest (e.g. the 3 chaos-mesh
+    # wrapper duplicates removed on 2026-07-13). Otherwise the loader keeps
+    # loading them until someone deletes them by hand.
+    valid_names = {f"{e.slug}.yaml" for e in _ENTRIES}
+    for existing in _OUT_DIR.glob("*.yaml"):
+        if existing.name not in valid_names:
+            existing.unlink()
     written = 0
     for e in _ENTRIES:
         path = _OUT_DIR / f"{e.slug}.yaml"

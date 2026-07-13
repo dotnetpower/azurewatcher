@@ -11,16 +11,18 @@ fault_family: stop
 intensity: extreme
 duration_seconds: 720.0
 expected_signal: request_failure
-injector: needs-injector
+injector: az:redis-reboot
 blast_radius_cap: 1
-rollback_note: Reboot is one-way; monitor cache back to healthy.
+rollback_note: Reboot is one-way; rollback = observe recovery.
 gates:
   shadow_status: pending
   enforce_status: null
 requires_hardware: false
-description: Reboot Azure Cache for Redis node(s) via Chaos Studio.
+description: Reboot Azure Cache for Redis node(s) via az redis force-reboot. Reboot
+  is one-way; monitor the cache back to healthy.
 params:
   fault_name: urn:csci:microsoft:cache:reboot/1.0
+  reboot_type: AllNodes
 tags:
 - azure-chaos-studio
 - redis

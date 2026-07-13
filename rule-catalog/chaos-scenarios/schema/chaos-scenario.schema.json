@@ -152,8 +152,8 @@
     },
     "injector": {
       "type": "string",
-      "pattern": "^(needs-injector|[a-z][a-z0-9-]*(:[A-Za-z][A-Za-z0-9-]*)?)$",
-      "description": "Reference to the injector implementation. Format: `<family>:<subtype>` where family is lowercase-kebab and subtype MAY be CamelCase (e.g. Chaos Mesh CRD kinds `chaos-mesh:StressChaos`, `chaos-mesh:PodChaos`) or lowercase-kebab (`kubectl:pod-kill`, `az:vm-run-command`) OR the literal `needs-injector` for scenarios awaiting an injector implementation. Scenarios with `needs-injector` MUST NOT land in `promoted/`."
+      "pattern": "^(needs-injector|cross-csp-reference|[a-z][a-z0-9-]*(:[A-Za-z][A-Za-z0-9-]*)?)$",
+      "description": "Reference to the injector implementation. Format: `<family>:<subtype>` where family is lowercase-kebab and subtype MAY be CamelCase (e.g. Chaos Mesh CRD kinds `chaos-mesh:StressChaos`, `chaos-mesh:PodChaos`) or lowercase-kebab (`kubectl:pod-kill`, `az:vm-run-command`). Two opt-out markers: `needs-injector` (delivery adapter has not landed yet) and `cross-csp-reference` (catalog data borrowed from another CSP for symptom vocabulary + RCA; never executed here). Both markers are non-executable and rejected in `promoted/`."
     },
     "params": {
       "type": "object",

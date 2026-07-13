@@ -11,7 +11,7 @@ fault_family: stop
 intensity: extreme
 duration_seconds: 720.0
 expected_signal: pod_restart
-injector: needs-injector
+injector: cross-csp-reference
 blast_radius_cap: 1
 rollback_note: No rollback for the specific instance; ASG replaces.
 gates:

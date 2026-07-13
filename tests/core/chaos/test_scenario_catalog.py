@@ -147,6 +147,21 @@ def test_needs_injector_rejected_in_promoted(tmp_path: pathlib.Path) -> None:
         load_promoted(root=root)
 
 
+def test_cross_csp_reference_rejected_in_promoted(tmp_path: pathlib.Path) -> None:
+    """`cross-csp-reference` is also a non-executable marker; the loader
+    must reject it in promoted/ so borrowed catalog data cannot pretend
+    to be a shippable scenario."""
+    root = _stage_root(tmp_path)
+    _write(
+        root,
+        "promoted",
+        "xc",
+        _valid_body().replace("injector: chaos-mesh:PodChaos", "injector: cross-csp-reference"),
+    )
+    with pytest.raises(ScenarioCatalogError, match="cross-csp-reference"):
+        load_promoted(root=root)
+
+
 def test_needs_injector_allowed_in_collected(tmp_path: pathlib.Path) -> None:
     root = _stage_root(tmp_path)
     _write(
@@ -158,6 +173,19 @@ def test_needs_injector_allowed_in_collected(tmp_path: pathlib.Path) -> None:
     entries = load_all(root=root)
     assert len(entries) == 1
     assert entries[0].spec["injector"] == "needs-injector"
+
+
+def test_cross_csp_reference_allowed_in_collected(tmp_path: pathlib.Path) -> None:
+    root = _stage_root(tmp_path)
+    _write(
+        root,
+        "collected/aws-fis",
+        "xc",
+        _valid_body().replace("injector: chaos-mesh:PodChaos", "injector: cross-csp-reference"),
+    )
+    entries = load_all(root=root)
+    assert len(entries) == 1
+    assert entries[0].spec["injector"] == "cross-csp-reference"
 
 
 def test_duplicate_id_is_hard_error(tmp_path: pathlib.Path) -> None:

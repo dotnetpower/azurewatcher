@@ -11,17 +11,18 @@ fault_family: deny
 intensity: extreme
 duration_seconds: 720.0
 expected_signal: backend_health
-injector: needs-injector
+injector: az:nsg-rule
 blast_radius_cap: 1
-rollback_note: Chaos Studio removes the rule at duration end.
+rollback_note: Remove the Deny rule on stop.
 gates:
   shadow_status: pending
   enforce_status: null
 requires_hardware: false
-description: Add a deny NSG rule via Chaos Studio; emulates an operator-mistake blackhole
-  to a service.
+description: Add an outbound Deny rule to an NSG via az network nsg rule create; the
+  injector removes the rule on stop.
 params:
   fault_name: urn:csci:microsoft:networkSecurityGroup:securityRule/1.0
+  destination: '*'
 tags:
 - azure-chaos-studio
 - nsg

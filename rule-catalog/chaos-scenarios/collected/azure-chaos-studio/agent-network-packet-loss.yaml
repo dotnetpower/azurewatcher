@@ -11,15 +11,15 @@ fault_family: drop
 intensity: high
 duration_seconds: 360.0
 expected_signal: request_failure
-injector: needs-injector
+injector: az:vm-packet-loss
 blast_radius_cap: 1
-rollback_note: Agent removes the drop rule at duration end.
+rollback_note: tc qdisc del removes the netem rule on stop.
 gates:
   shadow_status: pending
   enforce_status: null
 requires_hardware: false
-description: Drop a fraction of outbound packets on a VM via Chaos Studio; downstream
-  calls see failures / retries.
+description: Drop a fraction of outbound packets on a VM via tc netem loss (through
+  az vm run-command).
 params:
   fault_name: urn:csci:microsoft:agent:networkPacketLoss/1.0
   loss_percent: '20'

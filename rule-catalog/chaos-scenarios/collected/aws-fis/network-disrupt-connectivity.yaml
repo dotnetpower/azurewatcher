@@ -11,7 +11,7 @@ fault_family: deny
 intensity: extreme
 duration_seconds: 720.0
 expected_signal: backend_health
-injector: needs-injector
+injector: cross-csp-reference
 blast_radius_cap: 1
 rollback_note: FIS removes the NACL rule at duration end.
 gates:

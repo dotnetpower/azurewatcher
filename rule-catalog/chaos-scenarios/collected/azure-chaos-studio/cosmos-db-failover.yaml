@@ -11,17 +11,19 @@ fault_family: stop
 intensity: extreme
 duration_seconds: 720.0
 expected_signal: request_failure
-injector: needs-injector
+injector: az:cosmosdb-failover
 blast_radius_cap: 1
-rollback_note: Failback to the original region after the window.
+rollback_note: Reverse failover-priority-change on stop.
 gates:
   shadow_status: pending
   enforce_status: null
 requires_hardware: false
-description: Force a Cosmos DB region failover via Chaos Studio; applications observe
-  transient read/write errors and latency.
+description: Force a Cosmos DB region failover via az cosmosdb failover-priority-change;
+  the injector reverses to the original priority on stop.
 params:
   fault_name: urn:csci:microsoft:cosmosDB:failover/1.0
+  failover_priorities: Region2=0 Region1=1
+  original_priorities: Region1=0 Region2=1
 tags:
 - azure-chaos-studio
 - cosmos

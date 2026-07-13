@@ -11,15 +11,16 @@ fault_family: deny
 intensity: high
 duration_seconds: 360.0
 expected_signal: backend_health
-injector: needs-injector
+injector: az:lb-backend-remove
 blast_radius_cap: 2
-rollback_note: Chaos Studio re-adds the backend at duration end.
+rollback_note: Re-add the backend address on stop.
 gates:
   shadow_status: pending
   enforce_status: null
 requires_hardware: false
-description: Remove a backend from an Azure Load Balancer pool via Chaos Studio; healthy-host
-  count drops.
+description: Remove a backend address from a Load Balancer pool via az network lb
+  address-pool address remove; the injector re-adds the address on stop (requires
+  address_ip in context).
 params:
   fault_name: urn:csci:microsoft:loadBalancer:backendRemove/1.0
 tags:

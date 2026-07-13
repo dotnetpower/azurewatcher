@@ -11,7 +11,7 @@ fault_family: delay
 intensity: high
 duration_seconds: 360.0
 expected_signal: gateway_latency
-injector: needs-injector
+injector: cross-csp-reference
 blast_radius_cap: 1
 rollback_note: SSM removes the tc netem rule at duration end.
 gates:

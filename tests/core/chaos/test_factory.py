@@ -118,6 +118,21 @@ def test_needs_injector_is_never_executable() -> None:
         f.build(e, {})
 
 
+def test_cross_csp_reference_is_never_executable() -> None:
+    """Borrowed catalog data (e.g. AWS FIS on an Azure stack) must never
+    dispatch to an injector even if a builder for the string exists.
+    Both `needs-injector` and `cross-csp-reference` are opt-out markers."""
+    f = ScenarioFactory()
+    # Deliberately register a builder for cross-csp-reference to confirm
+    # the opt-out marker beats the registry.
+    f.register_injector("cross-csp-reference", _inj_builder)
+    f.register_probe("pod_restart", _probe_builder)
+    e = _entry("chaos.aws.foo", "cross-csp-reference")
+    assert not f.is_executable(e)
+    with pytest.raises(UnavailableInjectorError, match="cross-csp-reference"):
+        f.build(e, {})
+
+
 def test_unknown_injector_raises() -> None:
     f = ScenarioFactory()
     f.register_probe("pod_restart", _probe_builder)

@@ -11,7 +11,7 @@ fault_family: drop
 intensity: high
 duration_seconds: 360.0
 expected_signal: request_failure
-injector: needs-injector
+injector: cross-csp-reference
 blast_radius_cap: 1
 rollback_note: SSM removes the drop rule at duration end.
 gates:

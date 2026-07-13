@@ -11,17 +11,18 @@ fault_family: stop
 intensity: high
 duration_seconds: 360.0
 expected_signal: pod_restart
-injector: needs-injector
+injector: az:vmss-lifecycle
 blast_radius_cap: 2
-rollback_note: '`az vmss start` and the upgrade policy restores the instance count.'
+rollback_note: az vmss start restores the instance count.
 gates:
   shadow_status: pending
   enforce_status: null
 requires_hardware: false
-description: Shut down one or more instances of a VMSS via Chaos Studio; the scale
-  set replaces per its upgrade policy.
+description: Deallocate a VMSS via az vmss deallocate. az vmss start restores instances
+  on rollback.
 params:
   fault_name: urn:csci:microsoft:virtualMachineScaleSet:shutdown/1.0
+  action: deallocate
 tags:
 - azure-chaos-studio
 - vmss

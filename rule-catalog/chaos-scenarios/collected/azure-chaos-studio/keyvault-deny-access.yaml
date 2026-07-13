@@ -11,17 +11,19 @@ fault_family: deny
 intensity: extreme
 duration_seconds: 720.0
 expected_signal: request_failure
-injector: needs-injector
+injector: az:keyvault-deny
 blast_radius_cap: 1
-rollback_note: Chaos Studio restores the network rule at duration end.
+rollback_note: Restore the original default network action on stop.
 gates:
   shadow_status: pending
   enforce_status: null
 requires_hardware: false
-description: Temporarily deny access to a Key Vault via a network rule flip in Chaos
-  Studio; clients see 403 on secret retrieval.
+description: Flip a Key Vault's default network action to Deny via az keyvault network-rule
+  / az keyvault update; clients see 403 on secret retrieval until stop restores the
+  original action.
 params:
   fault_name: urn:csci:microsoft:keyVault:denyAccess/1.0
+  original_default_action: Allow
 tags:
 - azure-chaos-studio
 - keyvault

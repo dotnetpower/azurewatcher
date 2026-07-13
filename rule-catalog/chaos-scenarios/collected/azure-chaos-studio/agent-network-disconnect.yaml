@@ -11,18 +11,18 @@ fault_family: deny
 intensity: extreme
 duration_seconds: 720.0
 expected_signal: backend_health
-injector: needs-injector
+injector: az:vm-network-disconnect
 blast_radius_cap: 1
-rollback_note: Firewall rule removed at duration end.
+rollback_note: iptables -D removes the DROP rule on stop.
 gates:
   shadow_status: pending
   enforce_status: null
 requires_hardware: false
-description: Block outbound traffic to a set of destinations on a VM via Chaos Studio;
-  emulates dependency partition.
+description: Block outbound traffic to a set of destinations on a VM via iptables
+  DROP (applied through az vm run-command).
 params:
   fault_name: urn:csci:microsoft:agent:networkDisconnect/1.0
-  destinations: upstream-service
+  destination: 10.0.0.0/8
 tags:
 - azure-chaos-studio
 - vm

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from fdai.core.chaos.factory import NON_EXECUTABLE_MARKERS
 from fdai.core.chaos.scenario_catalog import load_all
 from fdai.delivery.chaos.factories import default_factory
 
@@ -43,6 +44,15 @@ def _synthetic_context() -> dict[str, Any]:
         "backend_image": "nginx",
         "resource_group": "rg-test",
         "vm_name": "vm-test",
+        "vmss_name": "vmss-test",
+        "redis_cache_name": "redis-test",
+        "cosmos_account_name": "cosmos-test",
+        "keyvault_name": "kv-test",
+        "nsg_name": "nsg-test",
+        "lb_name": "lb-test",
+        "lb_pool_name": "pool-test",
+        "lb_address_name": "addr-test",
+        "servicebus_namespace": "sb-test",
         "vm_resource_id": (
             "/subscriptions/00000000-0000-0000-0000-000000000000"
             "/resourceGroups/rg-test/providers/Microsoft.Compute"
@@ -51,14 +61,18 @@ def _synthetic_context() -> dict[str, Any]:
     }
 
 
-def test_needs_injector_entries_are_not_executable() -> None:
+def test_non_executable_marker_entries_are_not_executable() -> None:
+    """Both `needs-injector` (delivery adapter TBD) and
+    `cross-csp-reference` (borrowed catalog data on an Azure-only
+    stack) are reported as non-executable so nothing accidentally
+    injects them."""
     factory = default_factory()
     entries = load_all()
-    needs = [e for e in entries if e.spec["injector"] == "needs-injector"]
-    assert needs, "seed catalog MUST contain at least one needs-injector entry"
-    for e in needs:
+    non_exec = [e for e in entries if e.spec["injector"] in NON_EXECUTABLE_MARKERS]
+    assert non_exec, "catalog MUST contain at least one non-executable-marker entry"
+    for e in non_exec:
         assert not factory.is_executable(e), (
-            f"{e.id}: needs-injector must never appear as executable"
+            f"{e.id}: {e.spec['injector']!r} must never appear as executable"
         )
 
 
@@ -70,7 +84,7 @@ def test_every_wired_injector_string_has_a_builder() -> None:
     missing: list[str] = []
     for e in entries:
         inj = e.spec["injector"]
-        if inj == "needs-injector":
+        if inj in NON_EXECUTABLE_MARKERS:
             continue
         # `is_executable` == True means both an injector builder AND a
         # probe builder are registered.
@@ -105,13 +119,14 @@ def test_every_executable_entry_builds_end_to_end() -> None:
 
 def test_executable_count_matches_catalog_split() -> None:
     """Sanity: executable + non-executable == total, and non-executable
-    is exactly the needs-injector set."""
+    is exactly the union of the non-executable-marker sets
+    (needs-injector + cross-csp-reference)."""
     factory = default_factory()
     entries = load_all()
     executable = factory.executable_entries(entries)
-    needs = [e for e in entries if e.spec["injector"] == "needs-injector"]
-    assert len(executable) + len(needs) == len(entries), (
+    non_exec_marked = [e for e in entries if e.spec["injector"] in NON_EXECUTABLE_MARKERS]
+    assert len(executable) + len(non_exec_marked) == len(entries), (
         "the only reason an entry is non-executable in the default factory "
-        "is `needs-injector` - a probe gap would silently drop entries into "
-        "non-executable and break this invariant."
+        "is a NON_EXECUTABLE_MARKERS injector - a probe gap would silently "
+        "drop entries into non-executable and break this invariant."
     )

@@ -11,7 +11,7 @@ fault_family: throttle
 intensity: high
 duration_seconds: 360.0
 expected_signal: weights_fetch_stall
-injector: needs-injector
+injector: cross-csp-reference
 blast_radius_cap: 1
 rollback_note: FIS resumes replication at duration end.
 gates:
