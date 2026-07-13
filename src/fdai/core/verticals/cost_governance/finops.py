@@ -72,9 +72,12 @@ class FinOpsCandidate:
     kind: FinOpsActionKind
     resource: ResourceContext
     target_capacity: int | None = None
-    """Non-null on RIGHT_SIZE / AUTOSCALE_ADJUST - the proposed new
-    replica count. MUST be >= min_capacity_floor for the guardrail to
-    pass."""
+    """Proposed new replica count on RIGHT_SIZE - non-null and
+    ``>= min_capacity_floor`` for the guardrail to pass. AUTOSCALE_ADJUST is
+    a policy change (adjusting the autoscale bounds), governed generically by
+    the risk-gate rather than by the FinOps capacity floor, so it intentionally
+    does NOT require this field or trip the production scale-down lock (see
+    ``test_autoscale_adjust_allowed_in_prod_without_scale_down_guard``)."""
 
 
 class FinOpsGuardOutcome(StrEnum):
