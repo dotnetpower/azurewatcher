@@ -31,6 +31,7 @@ import { AuditRoute } from "./routes/audit";
 import { BlastRadiusRoute } from "./routes/blast-radius";
 import { DashboardRoute } from "./routes/dashboard";
 import { HilQueueRoute } from "./routes/hil-queue";
+import { HandoverRoute } from "./routes/handover";
 import { LiveRoute } from "./routes/live";
 import { LlmCostRoute } from "./routes/llm-cost";
 import { OntologyRoute } from "./routes/ontology";
@@ -161,6 +162,13 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
     subtitle: t("nav.panelSub.pantheon"),
     group: "knowledge",
     component: PantheonRoute,
+  },
+  {
+    id: "handover",
+    label: t("nav.panel.handover"),
+    subtitle: t("nav.panelSub.handover"),
+    group: "knowledge",
+    component: HandoverRoute,
   },
   {
     id: "rules",

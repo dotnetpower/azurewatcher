@@ -1,0 +1,234 @@
+import { useEffect, useState } from "preact/hooks";
+import { ReadApiError } from "../api";
+import type { ReadApiClient } from "../api";
+import {
+  AsyncBoundary,
+  KpiCard,
+  KpiGrid,
+  PageHeader,
+  type AsyncState,
+} from "../components/ui";
+import { usePublishViewContext } from "../deck/context";
+import { TERMS, agentTerm, composeGlossary } from "../deck/glossary";
+import { t } from "../i18n";
+
+/**
+ * Handover panel. Fetches ``GET /stewardship`` and renders the handover map
+ * (maintainers + 15 agents + their stewards) plus the coverage report
+ * (bus-factor / over-assignment / maintainer findings) as read-only tables.
+ *
+ * Opt-in on the API side (``ReadApiConfig.stewardship_map`` set). When not
+ * wired, the panel surfaces a friendly "unavailable" state. Read-only: edits
+ * are governance draft PRs, never a console mutation.
+ */
+
+interface StewardDto {
+  readonly kind: string;
+  readonly id: string;
+  readonly responsibility: string;
+}
+
+interface AgentStewardshipDto {
+  readonly name: string;
+  readonly autonomous: boolean;
+  readonly accept_autonomous_reason: string | null;
+  readonly bus_factor: number;
+  readonly stewards: readonly StewardDto[];
+}
+
+interface MapDto {
+  readonly version: number;
+  readonly maintainers: readonly string[];
+  readonly maintainer_count: number;
+  readonly hop_timeout_seconds: number;
+  readonly over_assigned_max: number;
+  readonly agents: readonly AgentStewardshipDto[];
+}
+
+interface FindingDto {
+  readonly code: string;
+  readonly severity: string;
+  readonly message: string;
+  readonly agent: string | null;
+}
+
+interface CoverageDto {
+  readonly is_clean: boolean;
+  readonly total_agents: number;
+  readonly autonomous_agents: number;
+  readonly maintainer_count: number;
+  readonly findings: readonly FindingDto[];
+}
+
+interface StewardshipResponse {
+  readonly map: MapDto;
+  readonly coverage: CoverageDto;
+}
+
+interface Props {
+  readonly client: ReadApiClient;
+}
+
+export function HandoverRoute({ client }: Props) {
+  const [state, setState] = useState<AsyncState<StewardshipResponse>>({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    (async () => {
+      try {
+        const data = await client.panel<StewardshipResponse>("/stewardship");
+        if (!cancelled) {
+          setState({ status: "ready", data });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (err instanceof ReadApiError && err.status === 404) {
+            setState({
+              status: "unavailable",
+              message:
+                "The stewardship endpoint is not wired on this deployment. " +
+                "Set ReadApiConfig.stewardship_map in the composition root to enable it.",
+            });
+          } else {
+            setState({ status: "error", message });
+          }
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
+
+  return (
+    <div class="stack">
+      <PageHeader
+        title={t("route.handover")}
+        subtitle="Who owns each of the 15 agents now that FDAI runs the control plane - stewards, maintainers, and handover coverage. Read-only."
+      />
+      <AsyncBoundary state={state} resourceLabel="handover">
+        {(data) => <HandoverBody data={data} />}
+      </AsyncBoundary>
+    </div>
+  );
+}
+
+function HandoverBody({ data }: { readonly data: StewardshipResponse }) {
+  const { map, coverage } = data;
+  usePublishViewContext(
+    () => ({
+      routeId: "handover",
+      routeLabel: "Handover",
+      purpose:
+        "Human <-> agent handover map. Which people are accountable for each of " +
+        "the 15 agents (escalation + review), plus the FDAI maintainers. " +
+        "Read-only; edits are governance draft PRs.",
+      glossary: composeGlossary([agentTerm(), TERMS.hil]),
+      headline: `${map.agents.length} agents - ${map.maintainer_count} maintainers`,
+      capturedAt: new Date().toISOString(),
+      facts: [
+        { key: "agent_count", value: map.agents.length, group: "handover" },
+        { key: "maintainer_count", value: map.maintainer_count, group: "handover" },
+        { key: "autonomous_agents", value: coverage.autonomous_agents, group: "handover" },
+        { key: "coverage_clean", value: coverage.is_clean ? "yes" : "no", group: "handover" },
+      ],
+      records: {
+        agents: map.agents.map((a) => ({
+          name: a.name,
+          stewards: a.stewards.map((s) => `${s.kind}:${s.responsibility}`).join(", ") || "-",
+          bus_factor: a.bus_factor,
+          autonomous: a.autonomous ? "yes" : "no",
+        })),
+        findings: coverage.findings.map((f) => ({
+          code: f.code,
+          severity: f.severity,
+          agent: f.agent ?? "",
+          message: f.message,
+        })),
+      },
+    }),
+    [map, coverage],
+  );
+
+  const maintainerBanner =
+    map.maintainer_count < 1
+      ? { level: "fail", text: "No maintainer configured - at least 1 is required." }
+      : map.maintainer_count === 1
+        ? { level: "warn", text: "Only 1 maintainer - 2 are recommended for succession safety." }
+        : null;
+
+  return (
+    <div class="stack">
+      <KpiGrid>
+        <KpiCard label="Agents" value={map.agents.length} />
+        <KpiCard label="Maintainers" value={map.maintainer_count} />
+        <KpiCard label="Autonomous" value={coverage.autonomous_agents} />
+        <KpiCard label="Coverage" value={coverage.is_clean ? "clean" : "review"} />
+      </KpiGrid>
+
+      {maintainerBanner ? (
+        <div class={`callout callout--${maintainerBanner.level === "fail" ? "danger" : "warn"}`}>
+          {maintainerBanner.text}
+        </div>
+      ) : null}
+
+      <section class="stack">
+        <h3>Handover map</h3>
+        <table class="cs-table">
+          <thead>
+            <tr>
+              <th>Agent</th>
+              <th>Stewards</th>
+              <th>Bus-factor</th>
+              <th>Mode</th>
+            </tr>
+          </thead>
+          <tbody>
+            {map.agents.map((a) => (
+              <tr key={a.name}>
+                <td>{a.name}</td>
+                <td>
+                  {a.autonomous
+                    ? `autonomous (${a.accept_autonomous_reason ?? "no reason"})`
+                    : a.stewards
+                        .map((s) => `${s.kind} / ${s.responsibility}`)
+                        .join(", ") || "-"}
+                </td>
+                <td>{a.autonomous ? "-" : a.bus_factor}</td>
+                <td>{a.autonomous ? "autonomous" : "mapped"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {coverage.findings.length > 0 ? (
+        <section class="stack">
+          <h3>Coverage findings</h3>
+          <table class="cs-table">
+            <thead>
+              <tr>
+                <th>Severity</th>
+                <th>Code</th>
+                <th>Agent</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              {coverage.findings.map((f, i) => (
+                <tr key={`${f.code}-${i}`}>
+                  <td>{f.severity}</td>
+                  <td>{f.code}</td>
+                  <td>{f.agent ?? "-"}</td>
+                  <td>{f.message}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
+    </div>
+  );
+}
