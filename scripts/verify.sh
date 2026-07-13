@@ -12,6 +12,7 @@
 #   - check-guids.sh (customer-agnostic GUIDs)
 #   - check-translations.sh (foo.md <-> foo-ko.md SHA parity)
 #   - check-catalog-parity.sh (L2 en/ko message catalogs)
+#   - check-stewardship.sh (handover map: 15 agents, maintainer floor, no role fields)
 #   - pytest                                    [--full only]
 #
 # Usage:
@@ -84,6 +85,10 @@ run_gate "translations" bash scripts/check-translations.sh
 
 if [[ -x scripts/check-catalog-parity.sh ]]; then
     run_gate "catalog-parity" bash scripts/check-catalog-parity.sh
+fi
+
+if [[ -f scripts/check-stewardship.sh ]]; then
+    run_gate "stewardship" bash scripts/check-stewardship.sh
 fi
 
 # ---- full gates (opt-in) ----------------------------------------------------
