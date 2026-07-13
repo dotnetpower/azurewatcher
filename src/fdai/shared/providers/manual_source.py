@@ -280,6 +280,11 @@ class DropDirectoryManualSource:
             raise ValueError(
                 f"ManualSource.changes 'since' MUST be ISO 8601, got {since!r}"
             ) from exc
+        # A naive cursor (no offset) is interpreted as UTC, not the host's local
+        # zone - st_mtime is a UTC epoch, so treating naive as local would shift
+        # the cutoff by the local offset and mis-scope the delta.
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=UTC)
         cutoff_ts = cutoff.timestamp()
         out: list[ManualChange] = []
         for path in self._iter_files():

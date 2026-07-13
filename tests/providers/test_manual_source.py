@@ -183,3 +183,24 @@ async def test_drop_changes_rejects_bad_cursor(tmp_path: Path) -> None:
     source = DropDirectoryManualSource(tmp_path)
     with pytest.raises(ValueError, match="ISO 8601"):
         await source.changes("not-a-date")
+
+
+async def test_drop_changes_treats_naive_cursor_as_utc(tmp_path: Path) -> None:
+    import os
+    from datetime import UTC, datetime
+
+    f = tmp_path / "f.md"
+    f.write_text("body", encoding="utf-8")
+    mtime = 1_700_000_000  # fixed UTC epoch
+    os.utime(f, (mtime, mtime))
+
+    # A naive cursor one second AFTER the file's UTC mtime. If naive were read as
+    # local time (host is UTC+9), the cutoff would shift back 9h and wrongly
+    # include the file; treating it as UTC correctly excludes it.
+    naive_after = datetime.fromtimestamp(mtime + 1, tz=UTC).replace(tzinfo=None).isoformat()
+    source = DropDirectoryManualSource(tmp_path)
+    assert await source.changes(naive_after) == ()
+
+    naive_before = datetime.fromtimestamp(mtime - 1, tz=UTC).replace(tzinfo=None).isoformat()
+    changed = await source.changes(naive_before)
+    assert [c.candidate.doc_id for c in changed] == ["f.md"]
