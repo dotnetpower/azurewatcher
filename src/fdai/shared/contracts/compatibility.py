@@ -112,12 +112,15 @@ def _diff(old: Mapping[str, Any], new: Mapping[str, Any], *, prefix: str) -> lis
         n = new_props[name]
         path = f"{prefix}{name}"
         ot, nt = o.get("type"), n.get("type")
-        if nt is not None and (ot is None or _type_set(ot) != _type_set(nt)):
-            # A newly-added type constraint (old was unconstrained) OR a
-            # changed type set narrows what old data / producers may send.
-            # A *removed* type constraint (nt is None) only widens, so it
-            # is not breaking. Type sets are order-normalized so
-            # ``["string","null"]`` == ``["null","string"]``.
+        if nt is not None and (ot is None or not _type_set(ot) <= _type_set(nt)):
+            # Breaking only when the new type set does NOT cover every old
+            # type: a newly-added constraint (old unconstrained) or a narrowed
+            # / changed set invalidates data old producers may send. A
+            # *widening* (old is a subset of new, e.g. ``string`` ->
+            # ``[string, null]``) still accepts all old data, so it is NOT
+            # breaking - matching this module's backward-compatibility model.
+            # A removed constraint (nt is None) also only widens. Type sets are
+            # order-normalized so ``["string","null"]`` == ``["null","string"]``.
             detail = "type constraint added" if ot is None else f"type {ot!r} -> {nt!r}"
             changes.append(
                 SchemaChange(path=path, kind="type_changed", breaking=True, detail=detail)

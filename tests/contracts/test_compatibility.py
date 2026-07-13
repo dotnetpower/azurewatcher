@@ -99,6 +99,24 @@ def test_adding_type_where_none_existed_is_breaking() -> None:
     assert report.breaking_changes[0].kind == "type_changed"
 
 
+def test_type_widening_to_nullable_is_compatible() -> None:
+    # Widening a type to a superset (e.g. making it nullable) still accepts
+    # every value old producers sent, so it is backward-compatible.
+    old = _obj({"a": {"type": "string"}})
+    new = _obj({"a": {"type": ["string", "null"]}})
+    assert check_schema_compatibility(old, new).is_compatible
+
+
+def test_type_narrowing_from_nullable_is_breaking() -> None:
+    # Removing a member from the type set (no longer nullable) invalidates old
+    # data that used it.
+    old = _obj({"a": {"type": ["string", "null"]}})
+    new = _obj({"a": {"type": "string"}})
+    report = check_schema_compatibility(old, new)
+    assert report.level is CompatibilityLevel.BREAKING
+    assert report.breaking_changes[0].kind == "type_changed"
+
+
 def test_type_list_reorder_is_not_breaking() -> None:
     # H6: type is a set; order must not produce a false positive.
     old = _obj({"a": {"type": ["string", "null"]}})
