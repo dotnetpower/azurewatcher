@@ -64,6 +64,10 @@ from ..shared.contracts.validation import (
     JsonSchemaEventValidator,
 )
 from ..shared.providers.change_feed import EmptyChangeFeed  # noqa: F401 - public re-export
+from ..shared.providers.distiller import (
+    AbstainingDistiller,  # noqa: F401 - public re-export
+    Distiller,  # noqa: F401 - public re-export
+)
 from ..shared.providers.exemption import (
     empty_exemption_registry,
 )

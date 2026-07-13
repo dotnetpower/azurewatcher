@@ -24,6 +24,7 @@ from ..shared.contracts.models import OntologyLinkType, OntologyObjectType, Work
 from ..shared.contracts.registry import SchemaRegistry
 from ..shared.contracts.validation import ContractValidator, EventValidator
 from ..shared.providers.change_feed import ChangeFeed, EmptyChangeFeed
+from ..shared.providers.distiller import AbstainingDistiller, Distiller
 from ..shared.providers.exemption import ExemptionRegistry
 from ..shared.providers.feasibility_probe import FeasibilityProbe
 from ..shared.providers.inventory import EmptyInventory, Inventory
@@ -129,6 +130,7 @@ class Container:
     inventory: Inventory = field(default_factory=EmptyInventory)
     knowledge_source: KnowledgeSource = field(default_factory=EmptyKnowledgeSource)
     change_feed: ChangeFeed = field(default_factory=EmptyChangeFeed)
+    distiller: Distiller = field(default_factory=AbstainingDistiller)
 
     def require_llm_bindings(self) -> LlmBindings:
         """Return :attr:`llm_bindings` or raise :class:`LlmBindingsUnavailableError`."""

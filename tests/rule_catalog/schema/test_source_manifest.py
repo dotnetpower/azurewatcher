@@ -107,6 +107,21 @@ def test_id_pattern_enforced() -> None:
         load_source_manifest_from_mapping(raw)
 
 
+def test_accepts_manual_distill_parser() -> None:
+    raw = _valid_local()
+    raw["parser"] = "manual-distill"
+    manifest = load_source_manifest_from_mapping(raw)
+    assert manifest.parser == "manual-distill"
+
+
+def test_rejects_unknown_parser() -> None:
+    raw = _valid_local()
+    raw["parser"] = "not-a-real-parser"
+    with pytest.raises(ManifestError) as exc:
+        load_source_manifest_from_mapping(raw)
+    assert any("parser" in i.key or "parser" in i.message for i in exc.value.issues)
+
+
 def test_yaml_loader_rejects_non_mapping_root(tmp_path: Path) -> None:
     p = tmp_path / "bad.yaml"
     p.write_text("- item\n", encoding="utf-8")

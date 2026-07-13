@@ -84,14 +84,15 @@
     },
     "parser": {
       "type": "string",
-      "description": "Parser plugin id. Enum-locked; the dispatcher (`build_parser`) resolves each value to a concrete adapter. `rule-yaml` is built in; the rest are declared here so a manifest referencing them fails at collect time with a clear message rather than a silent no-op.",
+      "description": "Parser plugin id. Enum-locked; the dispatcher (`build_parser`) resolves each value to a concrete adapter. `rule-yaml` is built in; the rest are declared here so a manifest referencing them fails at collect time with a clear message rather than a silent no-op. `manual-distill` marks a prose operator/deployment manual whose candidates are produced by the Distiller seam (LLM-backed, fork-owned) rather than a deterministic parser; see docs/roadmap/rules-and-detection/manual-distillation.md.",
       "enum": [
         "rule-yaml",
         "rego",
         "azure-policy-json",
         "checkov-yaml",
         "kube-bench",
-        "gatekeeper-templates"
+        "gatekeeper-templates",
+        "manual-distill"
       ]
     },
     "cadence": {

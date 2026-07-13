@@ -280,6 +280,25 @@ is preferred over flat vector RAG when relationship traversal matters.
   extraction model to an in-tenant / no-training deployment (or a local model) so the
   manual never leaves the trust boundary; the choice is fork config, never hardcoded.
 
+## Implementation status
+
+Upstream ships the generic, customer-agnostic pieces of this design in code; the
+LLM-backed extraction and the manuals themselves stay fork-owned.
+
+| Piece | Status | Where |
+|---|---|---|
+| Distiller seam (contracts + Protocol + abstaining default) | shipped | [shared/providers/distiller.py](../../../src/fdai/shared/providers/distiller.py) |
+| Coverage diff (deterministic false-negative guard) | shipped | [pipeline/distill/coverage.py](../../../src/fdai/rule_catalog/pipeline/distill/coverage.py) |
+| `manual-distill` source parser id | shipped | [source_manifest.schema.json](../../../src/fdai/rule_catalog/schema/source_manifest.schema.json) |
+| Container binding (`distiller`, default `AbstainingDistiller`) | shipped | [composition](../../../src/fdai/composition/) |
+| LLM extraction (prose -> candidates) | fork | a fork registers a `Distiller` |
+| Back-translation round-trip | backlog | - |
+
+The upstream default `AbstainingDistiller` extracts nothing, so with no fork binding
+the pipeline promotes nothing - the fail-safe. The coverage diff is a pure
+deterministic function (section-heading + normative-term counting, fenced code
+skipped) and runs without any model.
+
 ## Next steps
 
 | To learn about | Read |
