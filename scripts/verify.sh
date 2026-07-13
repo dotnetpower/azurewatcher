@@ -15,6 +15,7 @@
 #   - check-stewardship.sh (handover map: 15 agents, maintainer floor, no role fields)
 #   - check-chaos-scenarios.sh (chaos-scenarios catalog + compiled symptom index)
 #   - check-arb-readiness.py (ARB artifact, blocker, owner, evidence contract)
+#   - mypy (strict static types)                [--full only]
 #   - pytest                                    [--full only]
 #
 # Usage:
@@ -29,7 +30,7 @@
 set -uo pipefail
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-cd "$repo_root"
+cd "$repo_root" || exit 1
 
 MODE="fast"
 PYTEST_PATH=""
@@ -104,6 +105,14 @@ fi
 # ---- full gates (opt-in) ----------------------------------------------------
 
 if [[ "$MODE" == "full" ]]; then
+    if command -v mypy >/dev/null 2>&1; then
+        run_gate "mypy (strict)" mypy
+    else
+        echo "verify.sh: 'mypy' not found; activate .venv before --full" >&2
+        NAMES+=("mypy (strict)")
+        RESULTS+=("SKIP")
+        overall=1
+    fi
     if command -v pytest >/dev/null 2>&1; then
         if [[ -n "$PYTEST_PATH" ]]; then
             run_gate "pytest ($PYTEST_PATH)" pytest -q --no-cov "$PYTEST_PATH"
