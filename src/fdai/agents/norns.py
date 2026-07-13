@@ -151,18 +151,24 @@ class Norns(Agent):
 
         Idempotent via ``_flush_cursor`` so a re-flush never republishes an
         already-sent candidate (which Mimir's flood guard would quarantine).
-        No-op without a bus (unit learners run bus-less). Returns the number
-        of candidates published on this call.
+        Publication is rate-limited per the agent's declared ``rate_limits``
+        (agent-pantheon.md 7.9): when the budget is exhausted the flush stops
+        and leaves the cursor, so the remaining candidates flush on a later
+        pass when the budget refills - ``pending_candidates`` is the bounded
+        buffer, so a burst is throttled, never dropped. No-op without a bus
+        (unit learners run bus-less). Returns the number of candidates
+        published on this call.
         """
-        bus = getattr(self, "bus", None)
-        if bus is None:
-            return 0
         published = 0
         while self._flush_cursor < len(self.pending_candidates):
             candidate = self.pending_candidates[self._flush_cursor]
-            self._flush_cursor += 1
             payload = {"producer_principal": "Norns", **candidate}
-            await bus.publish("Norns", "object.rule-candidate", payload)
+            if not await self._publish_proposal("object.rule-candidate", payload):
+                # Bus-less (unit) or rate-limited: stop and leave the cursor so
+                # the not-yet-sent candidates flush on a later pass. No learning
+                # signal is dropped - only throttled.
+                break
+            self._flush_cursor += 1
             self.record_behavior("rule_candidate_published")
             published += 1
         return published

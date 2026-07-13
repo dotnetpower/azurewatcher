@@ -38,7 +38,7 @@ The 15 pantheon members live **flat at the top level** of
 `src/fdai/agents/`; framework code (bus, runtime, registry, base, pantheon
 spec, arbitration, introspection, kpi, adapters, provider_adapters,
 factory, workflows, topics, candidate_guard, divergence, bus_bridge,
-bus_metrics, action_semantics) lives under `src/fdai/agents/_framework/`.
+bus_metrics, action_semantics, rate_limiter) lives under `src/fdai/agents/_framework/`.
 This is the G-7 layout from tracker #14 and it is enforced by
 `tests/agents/test_framework_layout.py`:
 
@@ -225,14 +225,26 @@ deepen it. Do not delete this list without closing the item.
 - **LLM bindings are placeholders** (`hot_path_llm` / `off_path_llm` booleans; no
   `llm_bindings` field; no model is invoked). The conversational port answers are
   base stubs on all agents except Bragi routing.
-- **Rate limits are declared but not enforced.** Per-agent measurable
+- **Rate limits are enforced on the proposal path.** Per-agent measurable
   behaviour IS emitted: every agent records colon-namespaced behaviour
   counters (`verdict:auto`, `no_rule_match`, `security_event`, ...) via the
   base `record_behavior`, exposed through `behavior_snapshot()` /
   `health()` and merged per-agent into `PantheonRuntime.health()`. This is
   the measurement substrate for scenario tests and the KPI collector;
-  wiring the counters into a durable KPI sink is the remaining step. Rate
-  limits (`RateLimits`) are still declared-only.
+  wiring the counters into a durable KPI sink is the remaining step. The
+  declared `RateLimits` (default 20/min, 100/hr - agent-pantheon.md 7.9)
+  are now enforced by the base `Agent._publish_proposal` helper backed by a
+  deterministic `RateLimiter` (per-minute + per-hour windows): a discretionary
+  proposal over budget is throttled (held on the emitting agent's bounded
+  buffer, flushed when the window refills) and the drop is recorded as
+  `rate_limit_exceeded`. **Scope**: only discretionary proposals route through
+  `_publish_proposal` (Norns' `object.rule-candidate` today); pipeline-critical
+  emissions (verdicts, action-runs, approvals, audit) publish directly and are
+  never rate-limited. **Remaining**: the other proposal emitters (Loki chaos
+  experiments, Njord / Freyr advisories, Forseti arbitration requests) adopt
+  `_publish_proposal` incrementally, and the overflow `RateLimitExceeded` audit
+  entry (agent-pantheon.md 7.9) is recorded as a behaviour counter, not yet a
+  durable audit-chain record.
 - **Producer-principal is now verified on both sides.** Publish-side
   single-writer auth (`registry.assert_can_publish`) is complemented by a
   consumer-side check in `EventBusBridge` (`verify_producer_principal`,

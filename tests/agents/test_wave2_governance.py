@@ -467,6 +467,41 @@ def test_norns_flush_is_idempotent_and_no_op_without_bus() -> None:
     assert len(bus.messages_on("object.rule-candidate")) == 1
 
 
+def test_norns_throttles_candidate_publication_at_the_rate_limit() -> None:
+    """Proposal publication honors the declared rate_limits (agent-pantheon
+    7.9): over-budget candidates are throttled (held on the bounded buffer),
+    not dropped - they flush on a later pass once the budget refills."""
+    from fdai.agents._framework.rate_limiter import RateLimiter
+
+    class _FakeClock:
+        def __init__(self) -> None:
+            self.t = 0.0
+
+        def now(self) -> float:
+            return self.t
+
+    reg = load_pantheon()
+    bus = InMemoryBus(registry=reg)
+    norns = Norns(promotion_threshold=1)
+    norns.bind_bus(bus)
+    clock = _FakeClock()
+    # Inject a tiny, clock-controlled budget: 2 proposals/minute.
+    norns._proposal_limiter = RateLimiter(per_minute=2, per_hour=100, now=clock.now)
+
+    # Three distinct fingerprints -> three candidates; the third is over the
+    # per-minute budget and must be throttled, not lost.
+    for i in range(3):
+        asyncio.run(norns.on_typed_message("object.issue", {"fingerprint": f"fp-{i}"}))
+    assert len(norns.pending_candidates) == 3
+    assert len(bus.messages_on("object.rule-candidate")) == 2
+    assert norns.behavior_snapshot().get("rate_limit_exceeded") == 1
+
+    # Budget refills after the minute window; the held candidate flushes.
+    clock.t += 60.0
+    assert asyncio.run(norns.flush_candidates()) == 1
+    assert len(bus.messages_on("object.rule-candidate")) == 3
+
+
 # ---------------------------------------------------------------------------
 # Norns - outcome-threshold learner (rubric C2 / #22)
 # ---------------------------------------------------------------------------

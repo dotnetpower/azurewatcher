@@ -174,6 +174,55 @@ class Agent:
         """
         return dict(getattr(self, "_behavior", Counter()))
 
+    # --- proposal rate limiting (agent-pantheon.md 7.9) -----------------
+
+    def _proposal_rate_limiter(self) -> Any:
+        """Lazily build (and cache) this agent's proposal rate limiter.
+
+        Lazy so a subclass that skipped ``super().__init__`` still gets one,
+        and lazily imported so the ``base <- rate_limiter`` module cycle never
+        forms (``rate_limiter`` imports :class:`RateLimits` from here). Tests
+        may inject a deterministic-clock limiter by assigning
+        ``agent._proposal_limiter`` before the first proposal.
+        """
+        limiter = getattr(self, "_proposal_limiter", None)
+        if limiter is None:
+            from fdai.agents._framework.rate_limiter import RateLimiter
+
+            limiter = RateLimiter.from_limits(self.spec.rate_limits)
+            self._proposal_limiter = limiter
+        return limiter
+
+    async def _publish_proposal(self, topic: str, payload: dict[str, Any]) -> bool:
+        """Publish a discretionary proposal, honoring the agent's ``rate_limits``.
+
+        Proposals (rule candidates, chaos experiments, domain advisories) are
+        an agent's discretionary emissions; a malfunctioning or compromised
+        agent could flood them. When the per-minute / per-hour budget
+        (:class:`AgentSpec.rate_limits`, ``agent-pantheon.md`` 7.9) is
+        exhausted, the proposal is NOT published and the drop is recorded as
+        ``rate_limit_exceeded`` so the spike surfaces in health / KPI. Returns
+        ``True`` when published, ``False`` when rate-limited or bus-less.
+
+        Safety-critical emissions (verdicts, action runs, approvals, audit
+        entries) are NOT proposals and MUST NOT go through this path - they
+        publish via :attr:`bus` directly so a budget can never shed a
+        pipeline-critical message.
+        """
+        bus = getattr(self, "bus", None)
+        if bus is None:
+            return False
+        if not self._proposal_rate_limiter().allow():
+            self.record_behavior("rate_limit_exceeded")
+            _LOG.warning(
+                "proposal_rate_limited",
+                extra={"agent": self.spec.name, "topic": topic},
+            )
+            return False
+        await bus.publish(self.spec.name, topic, payload)
+        return True
+
+
     def bind_bus(self, bus: PantheonBus) -> None:
         """Bind the typed pub/sub port.
 
