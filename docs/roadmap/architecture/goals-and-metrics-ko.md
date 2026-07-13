@@ -1,8 +1,8 @@
 ---
 title: 목표와 메트릭
 translation_of: goals-and-metrics.md
-translation_source_sha: 02f4541707db19358ecaf93e848668c6c757fbd6
-translation_revised: 2026-07-11
+translation_source_sha: eddf9552f2f88f4e1bec24b2521b7656ed87d103
+translation_revised: 2026-07-13
 ---
 
 # 목표와 메트릭
@@ -111,6 +111,12 @@ translation_revised: 2026-07-11
 - **구조화된 이벤트 + 트레이스** (OpenTelemetry)가 `event_id`, `tier`, `decision`,
   `mode`(shadow/enforce), 타임스탬프를 운반 - 메트릭 2, 3a/3b, 선행 지표의 소스.
 - **append-only 감사 로그**가 사람 터치포인트(metric 4), 롤백, 정책 escape의 소스.
+- **MTTR(metric 3a)** 은 순수 집계기
+  [`core/measurement/mttr.py`](../../../src/fdai/core/measurement/mttr.py) 가 계산합니다. 해결된
+  인시던트(`resolved_at - opened_at`)를 **mean, median, p90** 초로 접습니다. 미해결/무결성
+  위반 인시던트는 카운트하되 계산에서 제외하며, 절대 `0` 이나 음수 duration을 기여하지 않습니다.
+  라이브 인시던트를 공급해 `/kpi/autonomy` 패널의 synthetic 데모값을 대체하는 delivery 레이어
+  배선은 후속 작업으로 추적합니다.
 - **비용/사용 기록**(모델 토큰, 컴퓨트 시간, 저장소, 버스 처리량)이 metric 1의 소스.
   귀속 키는 지출을 발생 `event_id`에 연결합니다.
 - 모든 메트릭 입력은 영문, 시크릿 없음, 고객-비종속 - 저장소 범위 규칙 준수.

@@ -108,6 +108,12 @@ Every metric maps to a concrete telemetry source so the dashboard is buildable, 
 - **Structured events + traces** (OpenTelemetry) carry `event_id`, `tier`, `decision`,
   `mode` (shadow/enforce), and timestamps - sourcing metrics 2, 3a/3b, and leading indicators.
 - **Append-only audit log** sources human touchpoints (metric 4), rollbacks, and policy escapes.
+- **MTTR (metric 3a)** is computed by the pure aggregator
+  [`core/measurement/mttr.py`](../../../src/fdai/core/measurement/mttr.py), which folds resolved
+  incidents (`resolved_at - opened_at`) into **mean, median, and p90** seconds; unresolved and
+  integrity-violating incidents are counted but excluded, never contributing a `0` or a
+  negative duration. The delivery-layer wiring that feeds it live incidents (replacing the
+  synthetic dev value in the `/kpi/autonomy` panel) is tracked as follow-up.
 - **Cost/usage records** (model tokens, compute time, storage, bus throughput) source metric 1;
   attribution keys spend to the originating `event_id`.
 - All metric inputs are English, secret-free, and customer-agnostic per the repo scope rules.

@@ -9,6 +9,8 @@ The six modules here are:
 
 - :mod:`.regression` - baseline-vs-treatment regression detection with
   automatic demotion to shadow on guard-metric breaches.
+- :mod:`.mttr` - pure MTTR (KPI 3a) aggregator folding resolved
+  incidents into mean / median / p90 resolution seconds.
 - :mod:`.pattern_growth` - T1 pattern-library growth guardrails
   (auto-resolved-only intake + temporal-holdout validation).
 - :mod:`.model_tracking` - per-model cost/quality tracker; swaps are
