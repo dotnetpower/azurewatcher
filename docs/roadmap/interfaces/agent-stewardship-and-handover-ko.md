@@ -1,0 +1,283 @@
+---
+translation_of: agent-stewardship-and-handover.md
+translation_source_sha: 631eab48614d340afebab365745551336480f4e8
+translation_revised: 2026-07-13
+title: 에이전트 스튜어드십과 인수인계
+---
+# 에이전트 스튜어드십과 인수인계
+
+기존에 운영 업무를 하던 사람들을 FDAI의 15-에이전트 판테온에 매핑하는 방법을 정의한다.
+FDAI가 어떤 업무를 넘겨받을 때, 각 에이전트 뒤에 에스컬레이션, 리뷰, 지식 인수인계를
+책임지는 사람이 반드시 지정되도록 하기 위함이다.
+
+이것은 [user-rbac-and-identity.md](user-rbac-and-identity-ko.md)와는 **다른 축**이다.
+RBAC은 "누가 FDAI를 조작할 수 있나"(Reader / Contributor / Approver / Owner)에 답하고,
+스튜어드십은 "FDAI 이전에 이 업무를 누가 소유했고, 이제 이 에이전트의 도메인을 누가
+책임지나"에 답한다. 한 사람이 보통 두 모델 모두에 속하지만(Var의 steward이면서 Approver인
+사람처럼), 두 모델은 독립적으로 해석되고 검증된다.
+
+> Customer-agnostic: 아래의 모든 objectId, group id, 이름은 **placeholder**(all-zero UUID)다.
+> fork가 실제 Entra 값을 config로 공급한다
+> ([generic-scope.instructions.md](../../../.github/instructions/generic-scope.instructions.md)).
+
+## 1. 설계 원칙
+
+1. **오버레이일 뿐, 재지정이 아니다.** 스튜어드십은 사람을 에이전트에 매핑하되 오직 책임과
+   통보 목적이다. 판테온의 어떤 `ActionType` 역할 바인딩도 바꾸면 안 된다. fork-locked 5개
+   필드(`initiators`, `judge`, `executor`, `approver`, `auditor`)는
+   [agent-pantheon.md](../agents/agent-pantheon.md)가 선언한 그대로 유지된다. steward라고 해서
+   executor 신원을 부여받지 않는다.
+2. **에이전트당 여러 사람.** 한 역할을 여러 명이 맡을 수 있다. 모든 에이전트는 단일 소유자가
+   아니라 steward **리스트**(개인 Entra OID 및/또는 Entra 그룹 objectId)에 매핑된다.
+3. **maintainer 하한선.** FDAI 자체에도 지정된 소유자가 필요하다. maintainer는 최소 **1명**
+   (fail-fast), **2명** 권장(warn)이다. maintainer는 live steward가 없는 에이전트의 최종
+   에스컬레이션 대상이다.
+4. **사람 쪽으로 실패한다.** 미매핑 에이전트, stale steward OID, maintainer 부재는 "조용히
+   무소유"가 아니라 "maintainer로 에스컬레이션"으로 degrade된다.
+5. **콘솔은 read-only 유지.** 스튜어드십 설정 화면은 상태를 렌더링만 한다. 편집은 다른 모든
+   거버넌스 변경과 동일하게 GitHub App이 draft PR로 작성한다
+   ([app-shape.instructions.md](../../../.github/instructions/app-shape.instructions.md)).
+6. **모든 변경은 통보되고 감사된다.** 정의된 워크플로우나 스튜어드십 매핑을 변경하면 영향받는
+   steward들과 maintainer에게 통보하고 Saga append-only 감사 항목을 기록한다.
+
+## 2. 개념과 용어
+
+코드, config, 문서에서 아래 용어를 그대로 재사용한다.
+
+| 용어 | 의미 |
+|------|------|
+| **agent-steward** | 어떤 에이전트의 도메인을 책임지는 사람(또는 팀). FDAI 이전에 이 업무를 하던 사람으로, 이제 에이전트를 감독하고 그 에스컬레이션을 받는다. |
+| **handover-map** | 15개 판테온 에이전트 전부를 steward에 매핑한 전체. 온보딩 인수인계의 산출물이다. |
+| **maintainer** | FDAI 플랫폼 자체를 책임지는 사람. 최소 1명(hard), 권장 2명(warn). 미매핑 에이전트의 최종 에스컬레이션. |
+| **responsibility (RACI-lite)** | 각 steward 항목은 `accountable` 또는 `informed`로 태깅된다. 모든 에이전트는 `accept_autonomous`가 아닌 한 최소 하나의 `accountable` steward를 가져야 한다. |
+| **accept_autonomous** | 도메인 steward 없이 완전 자율로 도는 에이전트임을 명시적으로 인정하는 것. 에스컬레이션은 maintainer로 폴백한다. `reason`이 필요하다. |
+| **escalation-chain** | 에이전트의 순서 있는 통보 경로: `accountable` steward -> `informed` steward -> maintainer, 홉별 timeout 적용. |
+| **bus-factor** | 어떤 에이전트의 도메인을 아는 서로 다른 `accountable` 사람의 수. bus-factor 1은 추적되는 리스크(warn)다. |
+
+### 전체 RACI가 아니라 RACI-lite
+
+전체 RACI(Responsible / Accountable / Consulted / Informed)는 인수인계에 필요한 것보다 많고
+불필요한 논쟁을 부른다. 이 모델은 태그 2개만 둔다:
+
+- **accountable** - 에스컬레이션 hot path 위에 있음. 가장 먼저 페이징됨. 행동하거나 위임할 수
+  있는 사람이어야 한다.
+- **informed** - 인지 목적으로 통보됨(변경 통보, 사후). 첫 에스컬레이션 홉에는 없다.
+
+"Responsible"은 에이전트 자체로 수렴하고(FDAI가 업무를 수행), "Consulted"는 `informed`로
+수렴한다.
+
+## 3. RBAC 및 notifications와의 관계
+
+```text
+                 who may operate FDAI            who owns the work
+                 (user-rbac-and-identity)        (this doc)
+ human  ------>  Role: Reader/Contributor/    +   Steward-of: {agents...}
+                 Approver/Owner/BreakGlass         responsibility: accountable|informed
+                        |                                   |
+                        v                                   v
+                 capability gate                    escalation + change-notify
+                 (core/rbac)                         (core/stewardship -> core/notifications)
+```
+
+- **RBAC은 행동을 게이트한다**(이 사람이 애초에 HIL 요청을 승인할 수 있나?).
+- **스튜어드십은 통보를 라우팅한다**(*이* 에이전트에 대해 어떤 사람이 먼저 페이징되나?).
+- HIL 요청 승인을 위해 페이징된 steward도 여전히 RBAC `Approver` capability 체크와
+  no-self-approval 체크를 통과한다. steward라는 사실만으로는 승인 권한이 부여되지 않는다.
+
+## 4. 데이터 모델
+
+### 4.1 Config 아티팩트
+
+`config/agent-stewardship.yaml` (fork가 실제 값 공급; upstream은 placeholder 배포):
+
+```yaml
+stewardship:
+  version: 1
+
+  # FDAI platform owners. Min 1 (fail-fast), rec 2 (warn on 1).
+  maintainers:
+    - oid: "00000000-0000-0000-0000-000000000000"   # Entra user objectId
+    - oid: "00000000-0000-0000-0000-000000000000"
+
+  # Optional per-person notification channel binding (person OID -> channel-id
+  # known to notifications-matrix.yaml). Missing entries fall back to the
+  # agent's category route in the matrix.
+  channels:
+    "00000000-0000-0000-0000-000000000000": teams-hil-prd
+
+  # Escalation timing (seconds per hop before advancing to the next tier).
+  escalation:
+    hop_timeout_seconds: 900        # accountable -> informed -> maintainer
+
+  # All 15 pantheon agents MUST appear. A subject is a personal OID or an
+  # Entra group objectId; `kind` disambiguates. `responsibility` is
+  # accountable|informed. An agent with no accountable steward MUST set
+  # accept_autonomous with a reason.
+  agents:
+    Odin:
+      stewards:
+        - { kind: user,  id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+        - { kind: group, id: "00000000-0000-0000-0000-000000000000", responsibility: informed }
+    Thor:
+      stewards:
+        - { kind: user,  id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Loki:
+      accept_autonomous:
+        reason: "Chaos proposals are always HIL; no standing domain owner."
+      stewards: []
+    # ... all 15: Odin, Thor, Forseti, Huginn, Heimdall, Vidar, Var, Bragi,
+    #     Saga, Mimir, Muninn, Norns, Njord, Freyr, Loki
+```
+
+### 4.2 Env-var 오버라이드
+
+fork는 YAML을 편집하지 않고 단일 슬롯만 오버라이드할 수 있다(rbac-groups 패턴과 동일):
+
+| Env var | 효과 |
+|---------|------|
+| `FDAI_MAINTAINERS` | 콤마로 구분된 OID들. `maintainers` 리스트를 대체한다. |
+| `FDAI_STEWARD_<AGENT>` | 콤마로 구분된 `user:<oid>` / `group:<oid>` 토큰. 해당 에이전트의 `stewards`를 대체한다. `<AGENT>`는 대문자(`FDAI_STEWARD_THOR`). |
+
+### 4.3 에이전트 이름 정합성
+
+`agents:` 아래 15개 키는 정확히 판테온 이름이어야 한다. `core/stewardship`은 자체 canonical
+`AGENT_NAMES` 튜플을 두고, parity 테스트
+(`tests/core/stewardship/test_pantheon_parity.py`)가 이를
+`fdai.agents._framework.pantheon.PANTHEON_NAMES`에 고정하므로, config 스키마와 판테온은 절대
+drift할 수 없다. `core/`는 `agents/`를 import하지 않으며(module-boundary 규칙), parity 테스트가
+테스트 시점에 둘을 연결한다.
+
+## 5. maintainer 규칙
+
+- **하한선(fail-fast):** maintainer 0명은 startup `ValueError`다. FDAI는 스튜어드십 레이어를
+  무소유 상태로 부팅하지 않는다.
+- **권장(warn):** maintainer가 정확히 1명이면 `stewardship_maintainer_single` 경고를 남기고
+  콘솔 배너를 띄운다. 2명 이상은 clean.
+- **승계:** maintainer OID가 stale해지고(Entra에서 제거, 7.3 참조) live 수가 1로 떨어지면 경고가
+  **hard 배너**로 격상되어 Owner에게 후임 지정을 요청한다. 제어 루프를 막지는 않지만 clean 검증
+  상태를 막는다.
+- **최종 에스컬레이션:** live steward가 0명으로 해석되는 에이전트는 에스컬레이션을 maintainer
+  집합으로 라우팅한다.
+
+## 6. 런타임 효과: 통보와 에스컬레이션 (결정 B)
+
+스튜어드십은 [channels-and-notifications](channels-and-notifications-ko.md)에 연결되어, 에이전트의
+도메인 steward가 그 에이전트 이벤트에 대해 먼저 통보받도록 한다.
+
+### 6.1 에스컬레이션 체인
+
+사람이 필요한 에이전트 이벤트(HIL 요청, degraded 상태, 워크플로우 변경 요청)에 대해
+`core/stewardship`은 순서 있는 수신자 리스트를 만든다:
+
+1. 에이전트의 `accountable` steward,
+2. 그다음 `informed` steward,
+3. 그다음 maintainer 집합.
+
+각 홉은 `hop_timeout_seconds` 예산을 갖는다. 확인 응답이 없으면 다음 tier가 통보된다. 이는
+notifications matrix의 `on_all_fail: hil_escalate` 시맨틱(메시지는 절대 드롭되지 않음)을 재사용하고
+사람-tier 순서를 얹은 것이다.
+
+### 6.2 사람 -> 채널 브릿지
+
+notifications matrix는 **channel-id**로 라우팅하지만 steward는 **사람**이다. 브릿지는 순서대로
+해석한다:
+
+1. `agent-stewardship.yaml`의 명시적 `channels[<oid>]` 바인딩,
+2. 없으면 `notifications-matrix.yaml`의 에이전트 카테고리 route(그 사람은 도메인 채널로 도달됨).
+
+`kind: group` steward는 항상 matrix 카테고리 route로 해석된다(그룹은 단일 개인 채널이 없다).
+
+### 6.3 그룹 steward
+
+`kind: group` steward는 "이 Entra 그룹에 속한 누구든 steward"를 뜻한다. resolver는 주입된
+`GroupMembershipProvider`(fork에서는 Graph 기반, 테스트에서는 static)를 통해 그룹 멤버로 확장한다.
+확장은 best-effort다: provider가 사용 불가면 그룹을 하나의 불투명한 `accountable` 단위로 취급해
+도메인 채널로 라우팅하고 경고를 남긴다. 제어 루프는 Graph에서 절대 블록되지 않는다.
+
+## 7. 검증 게이트 (검증 표면)
+
+인수인계 정확성은 안전과 관련되므로 검증을 계층화한다.
+
+### 7.1 Startup fail-fast (`StewardshipMap.from_config`)
+
+Hard 에러(`StewardshipValidationError` 발생, 레이어의 clean 부팅 차단):
+
+- maintainer 1명 미만,
+- `agents:` 블록이 15개 판테온 이름 중 하나라도 누락하거나 알 수 없는 에이전트를 지정,
+- `accountable` steward도 없고 `accept_autonomous`도 없는 에이전트,
+- `reason` 없는 `accept_autonomous`,
+- 잘못된 subject(`kind`가 {user, group}에 없거나 id가 UUID 형태가 아님),
+- fork(`FDAI_FORK`/마커)에서 steward나 maintainer id가 all-zero placeholder로 남아 있음.
+
+### 7.2 Non-blocking 발견 (warn, coverage 리포트에 노출)
+
+- maintainer가 정확히 1명(`maintainer_single`),
+- bus-factor(서로 다른 accountable 사람)가 1인 에이전트(`bus_factor_one`),
+- `N`개 초과 에이전트에 `accountable`인 사람(`over_assigned`, 기본 N=5, 설정 가능),
+- `accept_autonomous`에 의존하는 에이전트(`autonomous_no_steward`, 정보성).
+
+### 7.3 Stale-OID 감지
+
+주입된 `IdentityDirectory`(fork에서는 Graph 기반, 테스트에서는 static)에게 각
+maintainer/steward OID가 여전히 활성 계정으로 해석되는지 확인한다. 없는 OID는 `stale_oid` 발견을
+만들고 그 사람은 live 에스컬레이션에서 제거된다(다음 tier / maintainer로 폴백). 이는 hot path
+바깥(스케줄)에서 실행되며 제어 루프에서 절대 인라인으로 돌지 않는다.
+
+### 7.4 CI 게이트 (`scripts/check-stewardship.sh`)
+
+`scripts/verify.sh`와 CI에서 실행:
+
+- YAML이 파싱되고 15개 에이전트 이름이 모두 존재하며 정확히 표기됨(작은 Python shim으로
+  `PANTHEON_NAMES`와 비교),
+- 파일이 어떤 ActionType 역할 필드도 선언하려 하지 않음(grep 가드: 스튜어드십 파일은
+  `executor:`/`judge:`/`approver:`/`initiators:`/`auditor:` 키를 포함하면 안 됨 - 이들은
+  fork-locked 온톨로지에만 존재),
+- placeholder 정책: upstream은 all-zero 요구, fork는 non-placeholder 요구(`check-guids.sh` 형태
+  규칙 재사용).
+
+## 8. 워크플로우 변경 통보와 감사
+
+"정의된 워크플로우"란 업무가 흐르는 방식을 인코딩한 모든 거버넌스 아티팩트다:
+`rule-catalog/workflows/*.yaml`, `config/agent-stewardship.yaml`,
+`config/notifications-matrix.yaml`. 누군가 이 중 하나를 변경하려 할 때:
+
+1. **Draft PR.** 변경은 GitHub App이 draft PR로 작성한다(콘솔은 직접 mutate하지 않음). 표준
+   CODEOWNERS + no-self-approval + quorum이 적용된다.
+2. **이해관계자 통보.** `core/stewardship`은 영향받는 에이전트를 계산하고(워크플로우 파일은 그것이
+   참조하는 에이전트, 스튜어드십 파일은 steward가 바뀐 에이전트) 그들의 `accountable` +
+   `informed` steward와 maintainer에게 통보한다: "사람 X가 워크플로우 Y 변경을 요청함".
+3. **감사.** Saga append-only `AuditEntry`가 actor OID, 아티팩트, before -> after 요약, correlation
+   id, 타임스탬프, 승인 결정을 기록한다. 감사 항목은 L0 English이며 절대 억제되지 않는다.
+
+이로써 루프가 닫힌다: 어떤 에이전트를 책임지는 바로 그 사람들이 그 에이전트를 지배하는
+워크플로우가 바뀌려 할 때 통보받고, 변경은 영구히 기록된다.
+
+## 9. 콘솔 설정 표면
+
+콘솔(`console/src/routes/`) 아래 두 개의 read-only 뷰:
+
+- **Handover map** - 15개 에이전트 카드. 각각 steward(Graph로 해석된 표시명), responsibility 태그,
+  bus-factor, 검증 배지(clean / warn / fail)를 표시.
+- **Maintainers** - min-1/rec-2 상태 배너와 함께 maintainer 리스트.
+
+편집은 거버넌스 draft-PR 흐름을 따른다: Owner가 "Propose change"를 클릭하면 콘솔이 GitHub App에게
+`config/agent-stewardship.yaml`에 대한 draft PR을 열도록 요청하고, 변경은 리뷰 후에만 반영된다.
+maintainer 수가 1 미만으로 떨어지는 변경은 client-side와 server-side 모두에서 거부된다. 2 미만은
+권장 배너를 표시하되 허용된다.
+
+## 10. 보안과 안전
+
+- 스튜어드십은 executor Managed Identity를 보유하거나 부여하지 않는다.
+- 매핑 변경은 콘솔 버튼이 아니라 거버넌스 PR(author != approver, 감사됨)이다.
+- steward OID는 라우팅과 감사에 쓰이는 유일한 신원이다. UPN/email은 정보성이며 절대 권위 있는
+  값이 아니다(`Principal`과 동일 규칙).
+- customer 식별 값은 이 repo에 들어오지 않는다. fork가 실제 OID, group id, channel id를 config나
+  env로 공급한다.
+
+## 11. 범위 밖 (별도 추적)
+
+- **문서 수집** - 업로드된 운영 문서(RACI, 온콜 스케줄, 조직도, 런북)를 handover-map 초안으로
+  파싱하는 것은 T2급 기능으로 [issue #23](https://github.com/dotnetpower/fdai/issues/23)에서
+  추적한다. 이 문서는 수집 기능이 초안을 만들어낼 대상인 결정론적 코어를 다룬다.
+- 비-Azure 신원 공급자(TBD,
+  [Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must) 참조).
