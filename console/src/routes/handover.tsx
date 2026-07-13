@@ -174,6 +174,13 @@ function HandoverBody({ data }: { readonly data: StewardshipResponse }) {
         </div>
       ) : null}
 
+      <div class="callout">
+        <strong>Propose a change</strong> - editing the handover map is a governance draft
+        PR (Owner-gated). Edit <code>config/agent-stewardship.yaml</code> and open a PR; the
+        console never writes it directly. On merge, the affected agents' stewards and the
+        maintainer are notified and the change is recorded in the audit log.
+      </div>
+
       <section class="stack">
         <h3>Handover map</h3>
         <table class="cs-table">
