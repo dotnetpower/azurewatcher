@@ -1044,9 +1044,33 @@ def app() -> Starlette:
             what_if_evaluators=what_if_evaluators,
             chat=_build_chat_backend(),
             expose_pantheon=True,
+            stewardship_map=_build_stewardship_map(),
             workflow_authoring=workflow_authoring,
         ),
     )
+
+
+def _build_stewardship_map() -> Any:
+    """Load the handover map for the dev console (None if unavailable).
+
+    Walks up from this file to find ``config/agent-stewardship.yaml`` so the
+    ``Knowledge > Handover`` panel renders real data in local dev. Fail-safe:
+    a missing or invalid file yields ``None`` (the panel then shows its
+    'unavailable' state) rather than breaking the harness.
+    """
+    from fdai.core.stewardship import (
+        StewardshipValidationError,
+        load_stewardship_from_yaml,
+    )
+
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "config" / "agent-stewardship.yaml"
+        if candidate.is_file():
+            try:
+                return load_stewardship_from_yaml(candidate)
+            except (StewardshipValidationError, OSError):
+                return None
+    return None
 
 
 def _build_chat_backend() -> Any:
