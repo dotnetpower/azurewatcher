@@ -448,9 +448,9 @@ def test_norns_publishes_candidate_to_mimir_when_bus_bound() -> None:
     for _ in range(2):
         asyncio.run(norns.on_typed_message("object.issue", payload))
 
-    # Norns formed exactly one candidate and published it; Mimir's guard
-    # accepted it (grounded provenance + evidence), not quarantined.
-    assert len(norns.pending_candidates) == 1
+    # Norns formed one candidate and published it; a published candidate is
+    # dropped from the buffer, so pending_candidates is empty afterwards.
+    assert len(norns.pending_candidates) == 0
     accepted = mimir.pending_candidates()
     assert len(accepted) == 1
     assert accepted[0]["proposed_by"] == "Norns"
@@ -498,11 +498,12 @@ def test_norns_throttles_candidate_publication_at_the_rate_limit() -> None:
     # Inject a tiny, clock-controlled budget: 2 proposals/minute.
     norns._proposal_limiter = RateLimiter(per_minute=2, per_hour=100, now=clock.now)
 
-    # Three distinct fingerprints -> three candidates; the third is over the
-    # per-minute budget and must be throttled, not lost.
+    # Three distinct fingerprints -> three candidates; two publish and are
+    # dropped from the buffer, the third is over the per-minute budget and
+    # stays queued (throttled, not lost).
     for i in range(3):
         asyncio.run(norns.on_typed_message("object.issue", {"fingerprint": f"fp-{i}"}))
-    assert len(norns.pending_candidates) == 3
+    assert len(norns.pending_candidates) == 1
     assert len(bus.messages_on("object.rule-candidate")) == 2
     assert norns.behavior_snapshot().get("rate_limit_exceeded") == 1
 
@@ -510,6 +511,22 @@ def test_norns_throttles_candidate_publication_at_the_rate_limit() -> None:
     clock.t += 60.0
     assert asyncio.run(norns.flush_candidates()) == 1
     assert len(bus.messages_on("object.rule-candidate")) == 3
+
+
+def test_norns_pending_buffer_drops_published_candidates() -> None:
+    """Published candidates are removed from pending_candidates, so the buffer
+    holds only not-yet-published proposals - bounded, with no lifetime-history
+    retention (regression guard for the memory-leak fix)."""
+    reg = load_pantheon()
+    bus = InMemoryBus(registry=reg)
+    norns = Norns(promotion_threshold=1)
+    norns.bind_bus(bus)
+    # Ten distinct candidates, all within the default 20/min budget -> every
+    # one publishes and is dropped from the buffer.
+    for i in range(10):
+        asyncio.run(norns.on_typed_message("object.issue", {"fingerprint": f"fp-{i}"}))
+    assert len(bus.messages_on("object.rule-candidate")) == 10
+    assert norns.pending_candidates == []
 
 
 def test_saga_escalate_publishes_object_issue_and_feeds_fingerprint_loop() -> None:

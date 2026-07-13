@@ -172,28 +172,36 @@ class Norns(Agent):
         learner pass, and a batch tick / the sync learners' caller MAY call it
         directly to drain override / coverage candidates.
 
-        Idempotent via ``_flush_cursor`` so a re-flush never republishes an
-        already-sent candidate (which Mimir's flood guard would quarantine).
-        Publication is rate-limited per the agent's declared ``rate_limits``
-        (agent-pantheon.md 7.9): when the budget is exhausted the flush stops
-        and leaves the cursor, so the remaining candidates flush on a later
-        pass when the budget refills - ``pending_candidates`` is the bounded
-        buffer, so a burst is throttled, never dropped. No-op without a bus
-        (unit learners run bus-less). Returns the number of candidates
-        published on this call.
+        Idempotent: a published candidate is dropped from
+        ``pending_candidates`` once sent, so it holds only not-yet-published
+        proposals - a genuinely bounded buffer (no lifetime-history retention)
+        and a re-flush can never republish an already-sent candidate (which
+        Mimir's flood guard would quarantine). Publication is rate-limited per
+        the agent's declared ``rate_limits`` (agent-pantheon.md 7.9): when the
+        budget is exhausted the flush stops and leaves the not-yet-sent
+        candidates queued on the buffer, so a burst is throttled, never
+        dropped. No-op without a bus (unit learners run bus-less). Returns the
+        number of candidates published on this call.
         """
         published = 0
         while self._flush_cursor < len(self.pending_candidates):
             candidate = self.pending_candidates[self._flush_cursor]
             payload = {"producer_principal": "Norns", **candidate}
             if not await self._publish_proposal("object.rule-candidate", payload):
-                # Bus-less (unit) or rate-limited: stop and leave the cursor so
-                # the not-yet-sent candidates flush on a later pass. No learning
-                # signal is dropped - only throttled.
+                # Bus-less (unit) or rate-limited: stop and leave the queued
+                # candidates for a later pass. No learning signal is dropped -
+                # only throttled.
                 break
             self._flush_cursor += 1
             self.record_behavior("rule_candidate_published")
             published += 1
+        # Drop the consumed (published) prefix so pending_candidates stays a
+        # bounded buffer of only not-yet-published proposals (no slow memory
+        # retention on a long-lived learner). The cursor counts published
+        # entries; slicing them off resets it to 0.
+        if self._flush_cursor:
+            del self.pending_candidates[: self._flush_cursor]
+            self._flush_cursor = 0
         return published
 
     # ---- 1. fingerprint aggregator ------------------------------------
