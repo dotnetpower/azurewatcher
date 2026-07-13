@@ -13,6 +13,12 @@ It resolves the P0 blocker "final identity mapping (external IdP ↔ Entra ↔ M
 Identity)" from [security-and-identity.md#open-decisions](../architecture/security-and-identity.md#open-decisions)
 for the *human* side; the executor-side mapping stays as declared there.
 
+> RBAC (this file) answers *what a human may operate*. A separate, independently
+> resolved axis, [agent-stewardship-and-handover.md](agent-stewardship-and-handover.md),
+> answers *who owns each of the 15 agents* now that FDAI runs the work (accountability
+> + escalation + handover). A person is typically in both; being a steward grants no
+> RBAC capability by itself.
+
 > Customer-agnostic: all group names, app registration names, and GUIDs below are
 > **placeholders**; a fork supplies the real values via config
 > ([generic-scope.instructions.md](../../../.github/instructions/generic-scope.instructions.md)).

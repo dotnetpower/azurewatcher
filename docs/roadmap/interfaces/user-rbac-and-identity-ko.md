@@ -1,8 +1,8 @@
 ---
 title: 사용자 RBAC와 Entra 아이덴티티
 translation_of: user-rbac-and-identity.md
-translation_source_sha: a45745994c6f88b46e8becb45a776257c64b1823
-translation_revised: 2026-07-11
+translation_source_sha: 2337ec7843a791dcb2a725868f633e25f3d70311
+translation_revised: 2026-07-13
 ---
 
 # 사용자 RBAC와 Entra 아이덴티티
@@ -15,6 +15,12 @@ Managed Identity, GitHub App, Teams bot)는 여전히 [security-and-identity-ko.
 *사람* 측면의 P0 blocker "최종 아이덴티티 매핑 (외부 IdP ↔ Entra ↔ Managed Identity)"
 ([security-and-identity-ko.md#open-decisions](../architecture/security-and-identity-ko.md#open-decisions))
 을 해결; executor-측 매핑은 거기 선언된 대로 유지.
+
+> RBAC(이 문서)은 *사람이 무엇을 조작할 수 있나*에 답한다. 별개의, 독립적으로 해석되는
+> 축인 [agent-stewardship-and-handover-ko.md](agent-stewardship-and-handover-ko.md)는
+> FDAI가 업무를 넘겨받은 지금 *15개 에이전트를 각각 누가 소유하나*(책임 + 에스컬레이션 +
+> 인수인계)에 답한다. 한 사람이 보통 둘 다에 속하지만, steward라는 사실만으로는 RBAC
+> capability가 부여되지 않는다.
 
 > 고객-비종속: 아래 모든 그룹 이름, app registration 이름, GUID는 **placeholder** ;
 > 포크가 config로 실제 값 공급
