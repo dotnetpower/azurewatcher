@@ -115,7 +115,9 @@ concerns a naive connector skips but distillation must answer:
 - **Sensitivity gate.** A doc the service account *can* read may still be one it
   should not distill blindly: HR material, incident post-mortems naming customers, or
   runbooks with embedded credentials. Ingest runs a secret-scan plus PII-redaction
-  pass, and a hit routes to HIL rather than auto-extracting.
+  pass, and a hit routes to HIL rather than auto-extracting. A sensitivity hold is
+  deliberately kept out of the freshness snapshot, so an unresolved secret re-surfaces
+  on every run instead of being marked "seen" after the first pass.
 
 ### Discovery and triage at scale
 

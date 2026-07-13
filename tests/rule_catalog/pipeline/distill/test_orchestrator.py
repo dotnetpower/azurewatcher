@@ -119,6 +119,47 @@ async def test_sensitivity_hold_diverts_procedure_to_hil() -> None:
     assert len(plan.held) == 1
     assert plan.held[0].reason.startswith("sensitivity:")
     assert "email" in plan.held[0].reason
+    # A sensitivity-held doc is NOT recorded in the snapshot, so it re-surfaces.
+    assert "drop://run" not in plan.snapshot
+
+
+async def test_sensitivity_hold_resurfaces_on_unchanged_rerun() -> None:
+    cands = [_cand("sec", labels=("proc",), sha="v1")]
+    docs = {"sec": _doc("sec", text="Contact ops@corp.example for the key.")}
+    source = FakeSource(cands, docs)
+    first = await build_distillation_plan(
+        source=source, classifier=LabelClassifier(), distiller=OneRuleDistiller()
+    )
+    assert [h.candidate.doc_id for h in first.held] == ["sec"]
+
+    # Same unchanged doc, second run seeded with the first snapshot: the held
+    # secret must surface again rather than be skipped as "unchanged".
+    second = await build_distillation_plan(
+        source=source,
+        classifier=LabelClassifier(),
+        distiller=OneRuleDistiller(),
+        previous_snapshot=first.snapshot,
+    )
+    assert [h.candidate.doc_id for h in second.held] == ["sec"]
+
+
+async def test_distilled_doc_is_recorded_and_skipped_on_rerun() -> None:
+    cands = [_cand("run", labels=("proc",), sha="v1")]
+    docs = {"run": _doc("run")}
+    source = FakeSource(cands, docs)
+    first = await build_distillation_plan(
+        source=source, classifier=LabelClassifier(), distiller=OneRuleDistiller()
+    )
+    assert [d.candidate.doc_id for d in first.distilled] == ["run"]
+    assert first.snapshot == {"drop://run": "v1"}  # recorded
+
+    second = await build_distillation_plan(
+        source=source,
+        classifier=LabelClassifier(),
+        distiller=OneRuleDistiller(),
+        previous_snapshot=first.snapshot,
+    )
+    assert second.distilled == ()  # unchanged -> not reprocessed
 
 
 async def test_incremental_skips_unchanged() -> None:

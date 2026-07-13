@@ -130,7 +130,6 @@ async def build_distillation_plan(
     if not current and prior:
         return DistillationPlan(suspected_source_outage=True, snapshot=dict(prior))
 
-    snapshot = snapshot_of(current)
     delta = diff_snapshot(prior, current)
     retirements = plan_retirements(delta)
 
@@ -163,6 +162,21 @@ async def build_distillation_plan(
             continue
         result = await distiller.distill(document)
         distilled.append(DistilledManual(candidate=candidate, result=result))
+
+    # Do not record sensitivity-held docs in the snapshot: they carry an
+    # unresolved secret and were not distilled, so marking them "seen" would
+    # drop them from the HIL queue on the next unchanged run. Excluding them
+    # re-surfaces the secret every run until the content changes or a human
+    # resolves it. Uncertain / rejected / distilled outcomes are content- or
+    # decision-terminal and stay recorded so deletion tracking still works.
+    sensitivity_held = {
+        held_item.candidate.source_ref
+        for held_item in held
+        if held_item.reason.startswith("sensitivity:")
+    }
+    snapshot = {
+        ref: sha for ref, sha in snapshot_of(current).items() if ref not in sensitivity_held
+    }
 
     return DistillationPlan(
         distilled=tuple(distilled),
