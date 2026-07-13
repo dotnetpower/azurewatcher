@@ -92,6 +92,82 @@ SIGNAL_DB_CPU = "db_cpu"
 forecast band via ``detection/forecast``). Scenario S8; emitted by
 ``mysql_analyzer``."""
 
+# GPU / AI-serving (see docs/internals/sre-scenario-library-scaling.md
+# "GPU / AI-serving domain"). None of these carry a shipped `FaultScenario`
+# in the upstream `default_scenarios()` today - they are scenario-tied
+# signals used by scenarios under `rule-catalog/chaos-scenarios/collected/gpu/`.
+# Every one MUST be safe as an audit / log / Rego identifier (lowercase
+# snake_case, ASCII).
+
+SIGNAL_GPU_XID_EVENT = "gpu_xid_event"
+"""NVIDIA GPU driver Xid diagnostic event fired (T0). Xid codes vary in
+severity - the scenario or analyzer disambiguates by ``xid_code`` in
+the event body."""
+
+SIGNAL_GPU_ECC_UNCORRECTABLE = "gpu_ecc_uncorrectable"
+"""GPU HBM uncorrectable ECC error observed (T0). Node drain candidate."""
+
+SIGNAL_GPU_TEMP_THROTTLE = "gpu_temp_throttle"
+"""GPU thermal throttle engaged; clock reduced below expected (T0+T1)."""
+
+SIGNAL_GPU_POWER_THROTTLE = "gpu_power_throttle"
+"""GPU power-cap throttle engaged; sustained SM clock reduction (T0+T1)."""
+
+SIGNAL_GPU_PCIE_DEGRADATION = "gpu_pcie_degradation"
+"""PCIe / NVLink negotiated bandwidth dropped below expected lane width
+(T0+T1). All-reduce and host-to-device transfers suffer."""
+
+SIGNAL_GPU_VRAM_OOM = "gpu_vram_oom"
+"""CUDA out-of-memory (VRAM exhausted) observed on a training or
+inference process (T0)."""
+
+SIGNAL_GPU_UTIL_ZERO_WASTED = "gpu_util_zero_wasted"
+"""A reserved / allocated GPU shows utilization at or near zero for a
+sustained window (T0 + forecast). Advisory to Njord (cost)."""
+
+SIGNAL_GPU_UTIL_SATURATED = "gpu_util_saturated"
+"""GPU compute utilization sustained near 100% with queue backlog rising
+(T0+T1). Capacity signal for Freyr."""
+
+SIGNAL_NCCL_TIMEOUT = "nccl_timeout"
+"""NCCL communicator timeout (all-reduce, broadcast, or send/recv hang)
+observed in a distributed training or inference job (T0)."""
+
+SIGNAL_DISTRIBUTED_STRAGGLER = "distributed_straggler"
+"""One rank in a distributed job is significantly slower than its peers
+per step, dragging global step time (T0+T2 via causal chain)."""
+
+SIGNAL_INFERENCE_P99_SPIKE = "inference_p99_spike"
+"""Model-serving p99 latency sustained above SLO band (T0+T1)."""
+
+SIGNAL_KV_CACHE_PRESSURE = "kv_cache_pressure"
+"""LLM inference KV-cache high-water mark near capacity; risk of eviction
+storm or request drops (T0+T1)."""
+
+SIGNAL_COLD_START_LATENCY_SPIKE = "cold_start_latency_spike"
+"""First-token or first-response latency spiked after a model reload,
+scale-out, or cold pod start (T0+T1)."""
+
+SIGNAL_WEIGHTS_FETCH_STALL = "weights_fetch_stall"
+"""Model-weights fetch from object storage (Blob / S3) stalled or below
+expected throughput; blocks warmup (T0)."""
+
+SIGNAL_SPOT_PREEMPT_CASCADE = "spot_preempt_cascade"
+"""Spot / preemptible GPU reclaimed with subsequent restart failure
+propagating across a distributed job (T0+T2)."""
+
+SIGNAL_GPU_SKU_MISMATCH = "gpu_sku_mismatch"
+"""A workload is running on a GPU SKU disproportionate to its profile
+(e.g. H100 for an A100-class job). Advisory to Njord (cost)."""
+
+SIGNAL_GPU_IDLE_HOURS_WASTED = "gpu_idle_hours_wasted"
+"""Cumulative GPU-hours reserved and unused across a window exceeds
+threshold. Advisory to Njord (cost)."""
+
+SIGNAL_TOKEN_SPEND_SPIKE = "token_spend_spike"  # noqa: S105 - signal name, not a secret
+"""LLM token spend (AOAI / Foundry / Bedrock) crossed a per-window
+budget band (T0 + forecast). Advisory to Njord (cost)."""
+
 
 # --- Signal descriptor + registry -----------------------------------------
 
@@ -217,6 +293,115 @@ _KNOWN_SIGNALS: Mapping[str, SignalSpec] = MappingProxyType(
                 tier_hint="T0+forecast",
                 rca_hint="slow_query",
             ),
+            # --- GPU / AI-serving --------------------------------------
+            SignalSpec(
+                signal=SIGNAL_GPU_XID_EVENT,
+                description="NVIDIA GPU driver Xid diagnostic event fired.",
+                tier_hint="T0",
+                rca_hint="gpu_xid",
+            ),
+            SignalSpec(
+                signal=SIGNAL_GPU_ECC_UNCORRECTABLE,
+                description="GPU HBM uncorrectable ECC error observed.",
+                tier_hint="T0",
+                rca_hint="gpu_ecc",
+            ),
+            SignalSpec(
+                signal=SIGNAL_GPU_TEMP_THROTTLE,
+                description="GPU thermal throttle engaged; clock reduced.",
+                tier_hint="T0+T1",
+                rca_hint="gpu_thermal",
+            ),
+            SignalSpec(
+                signal=SIGNAL_GPU_POWER_THROTTLE,
+                description="GPU power-cap throttle engaged; clock reduced.",
+                tier_hint="T0+T1",
+                rca_hint="gpu_power",
+            ),
+            SignalSpec(
+                signal=SIGNAL_GPU_PCIE_DEGRADATION,
+                description="PCIe/NVLink negotiated bandwidth dropped below expected.",
+                tier_hint="T0+T1",
+                rca_hint="gpu_interconnect",
+            ),
+            SignalSpec(
+                signal=SIGNAL_GPU_VRAM_OOM,
+                description="CUDA out-of-memory on training or inference process.",
+                tier_hint="T0",
+                rca_hint="gpu_memory",
+            ),
+            SignalSpec(
+                signal=SIGNAL_GPU_UTIL_ZERO_WASTED,
+                description="Reserved GPU shows near-zero utilization sustained.",
+                tier_hint="T0+forecast",
+                rca_hint="gpu_idle",
+            ),
+            SignalSpec(
+                signal=SIGNAL_GPU_UTIL_SATURATED,
+                description="GPU util near 100% with queue backlog rising.",
+                tier_hint="T0+T1",
+                rca_hint="gpu_saturation",
+            ),
+            SignalSpec(
+                signal=SIGNAL_NCCL_TIMEOUT,
+                description="NCCL communicator timeout in distributed job.",
+                tier_hint="T0",
+                rca_hint="nccl_hang",
+            ),
+            SignalSpec(
+                signal=SIGNAL_DISTRIBUTED_STRAGGLER,
+                description="One rank slower than peers, drags step time.",
+                tier_hint="T0+T2",
+                rca_hint="causal_chain",
+            ),
+            SignalSpec(
+                signal=SIGNAL_INFERENCE_P99_SPIKE,
+                description="Model-serving p99 latency above SLO band.",
+                tier_hint="T0+T1",
+                rca_hint="latency_burn",
+            ),
+            SignalSpec(
+                signal=SIGNAL_KV_CACHE_PRESSURE,
+                description="LLM KV-cache near capacity; eviction storm risk.",
+                tier_hint="T0+T1",
+                rca_hint="kv_cache",
+            ),
+            SignalSpec(
+                signal=SIGNAL_COLD_START_LATENCY_SPIKE,
+                description="First-token latency spiked after model reload / scale-out.",
+                tier_hint="T0+T1",
+                rca_hint="cold_start",
+            ),
+            SignalSpec(
+                signal=SIGNAL_WEIGHTS_FETCH_STALL,
+                description="Model-weights fetch from object storage stalled.",
+                tier_hint="T0",
+                rca_hint="weights_stall",
+            ),
+            SignalSpec(
+                signal=SIGNAL_SPOT_PREEMPT_CASCADE,
+                description="Spot GPU reclaim cascaded into distributed job restart failure.",
+                tier_hint="T0+T2",
+                rca_hint="preempt_cascade",
+            ),
+            SignalSpec(
+                signal=SIGNAL_GPU_SKU_MISMATCH,
+                description="Workload running on a GPU SKU disproportionate to its profile.",
+                tier_hint="T0",
+                rca_hint="gpu_sizing",
+            ),
+            SignalSpec(
+                signal=SIGNAL_GPU_IDLE_HOURS_WASTED,
+                description="Cumulative reserved-but-unused GPU-hours over budget.",
+                tier_hint="T0+forecast",
+                rca_hint="gpu_waste",
+            ),
+            SignalSpec(
+                signal=SIGNAL_TOKEN_SPEND_SPIKE,
+                description="LLM token spend crossed per-window budget band.",
+                tier_hint="T0+forecast",
+                rca_hint="cost_burn",
+            ),
         )
     }
 )
@@ -249,16 +434,34 @@ def signals_with_role(role: SignalRole) -> frozenset[str]:
 
 __all__ = [
     "SIGNAL_BACKEND_HEALTH",
+    "SIGNAL_COLD_START_LATENCY_SPIKE",
     "SIGNAL_DB_CPU",
+    "SIGNAL_DISTRIBUTED_STRAGGLER",
     "SIGNAL_GATEWAY_LATENCY",
+    "SIGNAL_GPU_ECC_UNCORRECTABLE",
+    "SIGNAL_GPU_IDLE_HOURS_WASTED",
+    "SIGNAL_GPU_PCIE_DEGRADATION",
+    "SIGNAL_GPU_POWER_THROTTLE",
+    "SIGNAL_GPU_SKU_MISMATCH",
+    "SIGNAL_GPU_TEMP_THROTTLE",
+    "SIGNAL_GPU_UTIL_SATURATED",
+    "SIGNAL_GPU_UTIL_ZERO_WASTED",
+    "SIGNAL_GPU_VRAM_OOM",
+    "SIGNAL_GPU_XID_EVENT",
     "SIGNAL_HOST_CPU",
     "SIGNAL_HOST_MEMORY",
+    "SIGNAL_INFERENCE_P99_SPIKE",
+    "SIGNAL_KV_CACHE_PRESSURE",
     "SIGNAL_MEMBER_HOTSPOT",
+    "SIGNAL_NCCL_TIMEOUT",
     "SIGNAL_NODE_CPU",
     "SIGNAL_POD_RESTART",
     "SIGNAL_RATE_LIMIT",
     "SIGNAL_REQUEST_FAILURE",
     "SIGNAL_ROLLOUT_STALL",
+    "SIGNAL_SPOT_PREEMPT_CASCADE",
+    "SIGNAL_TOKEN_SPEND_SPIKE",
+    "SIGNAL_WEIGHTS_FETCH_STALL",
     "SignalRole",
     "SignalSpec",
     "is_known_signal",
