@@ -20,6 +20,15 @@ summary land in later waves:
    propose a *revision* (or *retirement* when the overrides disable it),
    matching the "recurring overrides are a signal to revise/retire"
    feedback rule in the architecture.
+
+Optional scenario-coverage learner:
+
+4. **Scenario-coverage aggregator** (optional, wired by composition
+   root) - repeated live incidents whose symptom the compiled
+   chaos-scenarios index cannot match propose a `scenario-coverage-gap`
+   candidate. Same discipline: never mutates the catalog. See
+   :class:`fdai.core.chaos.coverage.ScenarioCoverageAggregator` and
+   `docs/internals/sre-scenario-library-scaling.md`.
 """
 
 from __future__ import annotations
@@ -30,8 +39,13 @@ from typing import Any
 from fdai.agents._framework.action_semantics import outcome_result
 from fdai.agents._framework.base import Agent
 from fdai.agents._framework.bounded import BoundedLruDict, BoundedLruSet
-from fdai.agents._framework.introspection import IntrospectionResult, capability_facts, capped_list
+from fdai.agents._framework.introspection import (
+    IntrospectionResult,
+    capability_facts,
+    capped_list,
+)
 from fdai.agents._framework.pantheon import _NORNS
+from fdai.core.chaos.coverage import ScenarioCoverageAggregator
 
 # Adverse outcomes that count against an action's success record.
 _ADVERSE_RESULTS: frozenset[str] = frozenset({"rollback", "failure", "reverted"})
@@ -52,6 +66,7 @@ class Norns(Agent):
         rollback_alarm_rate: float = 0.2,
         min_outcome_samples: int = 20,
         override_retire_threshold: int = 5,
+        coverage_aggregator: ScenarioCoverageAggregator | None = None,
     ) -> None:
         # Fail fast on misconfiguration: a non-positive threshold or a
         # rate outside [0, 1] would make the learner propose on thin or
@@ -92,6 +107,14 @@ class Norns(Agent):
         self._override_retire_threshold = override_retire_threshold
         self._override_counter: Counter[str] = Counter()
         self._override_proposed: set[str] = set()
+        # Scenario-coverage learner (optional; composition root wires it).
+        # When bound, live incident symptoms that the compiled
+        # chaos-scenarios symptom index cannot match accumulate here and
+        # emit `scenario-coverage-gap` candidates onto pending_candidates
+        # once the aggregator's gap_threshold is crossed. When None, the
+        # public `observe_incident_symptom` method is a no-op - the same
+        # discipline as the other learners: never mutate the catalog.
+        self._coverage_aggregator = coverage_aggregator
 
     async def on_typed_message(self, topic: str, payload: dict[str, Any]) -> None:
         if topic == "object.issue":
@@ -226,6 +249,51 @@ class Norns(Agent):
                 "target_rule_id": rule_id,
             }
         )
+
+    # ---- 4. scenario-coverage learner (optional) ---------------------
+
+    def observe_incident_symptom(
+        self,
+        *,
+        incident_id: str,
+        signal: str,
+        target_type: str,
+        severity: str,
+    ) -> None:
+        """Feed one live incident's symptom to the scenario-coverage learner.
+
+        Public entry point: the sensing layer (`Huginn` / `Heimdall`
+        analyzers) calls this per-incident so uncovered symptoms
+        accumulate. No-op when `coverage_aggregator` was not injected
+        at construction (`None`).
+
+        Any threshold-crossing proposals are appended to
+        ``pending_candidates`` as `candidate_type: scenario-coverage-gap`,
+        alongside the fingerprint / outcome / override candidates. Mimir's
+        `CandidateGuard` treats them identically - grounded provenance,
+        same quality gate.
+        """
+        if self._coverage_aggregator is None:
+            return
+        self._coverage_aggregator.observe(
+            incident_id=incident_id,
+            signal=signal,
+            target_type=target_type,
+            severity=severity,
+        )
+        for candidate in self._coverage_aggregator.drain_proposals():
+            self.pending_candidates.append(
+                {
+                    "source_signal": "scenario_coverage_gap",
+                    "evidence": candidate["target_symptom"],
+                    "provenance": candidate["provenance"],
+                    "proposed_by": "Norns",
+                    "proposal_kind": "new-scenario",
+                    "candidate_type": candidate["candidate_type"],
+                    "proposed_scenario_id": candidate["proposed_scenario_id"],
+                    "notes": candidate["notes"],
+                }
+            )
 
     # ---- observers -----------------------------------------------------
 
