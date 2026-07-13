@@ -423,6 +423,50 @@ def test_end_to_end_handoff_flow_via_bus() -> None:
     assert saga.github.issues[fp].open is False
 
 
+def test_norns_publishes_candidate_to_mimir_when_bus_bound() -> None:
+    """With a bus bound, Norns is the single writer of object.rule-candidate:
+    it auto-publishes each inert candidate its learners form, closing the
+    Norns -> Mimir discovery loop without a manual bridge step."""
+    reg = load_pantheon()
+    bus = InMemoryBus(registry=reg)
+    norns = Norns(promotion_threshold=2)
+    mimir = Mimir()
+    norns.bind_bus(bus)
+    bus.subscribe("object.rule-candidate", "Mimir", mimir.on_typed_message)
+
+    payload = {"fingerprint": "fp-loop"}
+    for _ in range(2):
+        asyncio.run(norns.on_typed_message("object.issue", payload))
+
+    # Norns formed exactly one candidate and published it; Mimir's guard
+    # accepted it (grounded provenance + evidence), not quarantined.
+    assert len(norns.pending_candidates) == 1
+    accepted = mimir.pending_candidates()
+    assert len(accepted) == 1
+    assert accepted[0]["proposed_by"] == "Norns"
+    assert accepted[0]["proposal_kind"] == "new"
+    assert mimir.quarantined_candidates() == ()
+
+
+def test_norns_flush_is_idempotent_and_no_op_without_bus() -> None:
+    reg = load_pantheon()
+    bus = InMemoryBus(registry=reg)
+    # Bus-less: flush publishes nothing and does not raise.
+    busless = Norns(promotion_threshold=1)
+    asyncio.run(busless.on_typed_message("object.issue", {"fingerprint": "fp-a"}))
+    assert len(busless.pending_candidates) == 1  # candidate formed, not published
+    assert asyncio.run(busless.flush_candidates()) == 0
+
+    # Bus bound: the candidate is published once; a re-flush republishes
+    # nothing (cursor), so Mimir's flood guard never sees a duplicate.
+    norns = Norns(promotion_threshold=1)
+    norns.bind_bus(bus)
+    asyncio.run(norns.on_typed_message("object.issue", {"fingerprint": "fp-b"}))
+    assert len(bus.messages_on("object.rule-candidate")) == 1
+    assert asyncio.run(norns.flush_candidates()) == 0
+    assert len(bus.messages_on("object.rule-candidate")) == 1
+
+
 # ---------------------------------------------------------------------------
 # Norns - outcome-threshold learner (rubric C2 / #22)
 # ---------------------------------------------------------------------------

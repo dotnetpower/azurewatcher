@@ -67,8 +67,7 @@ class Norns(Agent):
         min_outcome_samples: int = 20,
         override_retire_threshold: int = 5,
         coverage_aggregator: ScenarioCoverageAggregator | None = None,
-    ) -> None:
-        # Fail fast on misconfiguration: a non-positive threshold or a
+    ) -> None:        # Fail fast on misconfiguration: a non-positive threshold or a
         # rate outside [0, 1] would make the learner propose on thin or
         # impossible evidence (e.g. min_outcome_samples=0 fires on a single
         # sample), the opposite of measurement-based learning.
@@ -91,6 +90,11 @@ class Norns(Agent):
         self._proposed: BoundedLruSet[str] = BoundedLruSet(_MAX_TRACKED)
         self._promotion_threshold = promotion_threshold
         self.pending_candidates: list[dict[str, Any]] = []
+        # Cursor into ``pending_candidates`` marking how many have already been
+        # published onto ``object.rule-candidate``. Publishing is idempotent:
+        # a re-flush only sends candidates past the cursor, so a candidate is
+        # never republished (which would trip Mimir's flood guard).
+        self._flush_cursor = 0
         # Outcome-threshold learner state.
         self._rollback_alarm_rate = rollback_alarm_rate
         self._min_outcome_samples = min_outcome_samples
@@ -128,6 +132,40 @@ class Norns(Agent):
         # / rule-catalog machinery). That machinery calls observe_override()
         # directly. object.approval is subscribed but has no learner yet
         # (follow-up: an approval-pattern learner).
+        # Off-path batch: forward any newly-formed inert candidates to Mimir.
+        await self.flush_candidates()
+
+    # ---- candidate publication (Norns -> Mimir discovery loop) ---------
+
+    async def flush_candidates(self) -> int:
+        """Publish newly-accumulated inert RuleCandidates onto the bus.
+
+        Norns is the single writer of ``object.rule-candidate`` (it owns the
+        ``RuleCandidate`` object type), so it publishes each candidate its
+        learners produced for Mimir's ``CandidateGuard`` + the quality gate to
+        inspect. Publishing does NOT promote anything - candidates stay inert
+        data until the quality gate acts (architecture discovery loop). This
+        is off-path batch work: ``on_typed_message`` flushes after each
+        learner pass, and a batch tick / the sync learners' caller MAY call it
+        directly to drain override / coverage candidates.
+
+        Idempotent via ``_flush_cursor`` so a re-flush never republishes an
+        already-sent candidate (which Mimir's flood guard would quarantine).
+        No-op without a bus (unit learners run bus-less). Returns the number
+        of candidates published on this call.
+        """
+        bus = getattr(self, "bus", None)
+        if bus is None:
+            return 0
+        published = 0
+        while self._flush_cursor < len(self.pending_candidates):
+            candidate = self.pending_candidates[self._flush_cursor]
+            self._flush_cursor += 1
+            payload = {"producer_principal": "Norns", **candidate}
+            await bus.publish("Norns", "object.rule-candidate", payload)
+            self.record_behavior("rule_candidate_published")
+            published += 1
+        return published
 
     # ---- 1. fingerprint aggregator ------------------------------------
 

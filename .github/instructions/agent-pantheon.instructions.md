@@ -204,7 +204,7 @@ deepen it. Do not delete this list without closing the item.
   contract-specific rollback / DR failover).
 - **Live degradation policy is not driven by health probes** (Saga/Vidar
   availability are constructor flags, not runtime signals).
-- **Discovery loop (Saga -> Norns -> Mimir) is partially wired.** The
+- **Discovery loop (Saga -> Norns -> Mimir) is mostly wired.** The
   **outcome loop** is closed: Saga republishes each terminal action outcome
   (succeeded / failed / rolled_back, normalized via
   `action_semantics.outcome_result`) as `object.audit-entry`, and Norns'
@@ -212,10 +212,16 @@ deepen it. Do not delete this list without closing the item.
   subscription and deduping per `correlation_id` - scores rollback rates
   from it. `object.override` is no longer subscribed (it is not a pantheon
   topic); the override learner is the public `Norns.observe_override()` the
-  exemption machinery calls. **Remaining**: Saga does not yet publish
-  `object.issue` (the fingerprint loop), Norns does not yet publish
-  `object.rule-candidate` to the bus, and Mimir does not yet consume it;
-  `object.approval` is a Norns subscription without a learner.
+  exemption machinery calls. **Norns now publishes `object.rule-candidate`**:
+  its `flush_candidates()` drains newly-formed inert candidates onto the bus
+  (single-writer; idempotent via a cursor), and Mimir consumes them through
+  its `CandidateGuard` (grounded provenance + poisoning defense) into the
+  pending / quarantine lists - it never auto-promotes. **Remaining**: Saga
+  does not yet publish `object.issue` (so the fingerprint learner has no live
+  producer yet); `object.approval` is a Norns subscription without a learner;
+  and the optional scenario-coverage learner's `new-scenario` proposal_kind
+  is not yet in the `CandidateGuard` allowlist (quarantined until a scenario
+  intake path lands).
 - **LLM bindings are placeholders** (`hot_path_llm` / `off_path_llm` booleans; no
   `llm_bindings` field; no model is invoked). The conversational port answers are
   base stubs on all agents except Bragi routing.
