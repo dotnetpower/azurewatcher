@@ -12,9 +12,13 @@ and what happens after each verdict.
 
 ## What a HIL request looks like
 
-You receive the request through the notification channel your deployment
-configured (Teams Adaptive Card, PR review request, email, pager, etc.).
-Every HIL request carries the same core payload regardless of channel:
+You may receive an alert through any configured notification channel. The
+approval decision itself must return through an A1-capable, identity-verified
+surface such as a Teams Adaptive Card, configured Slack flow with
+re-authentication, or remediation PR review. Email, SMS, and paging systems can
+tell you that a request is waiting, but they cannot submit the approval.
+
+Every HIL request presents the same core information regardless of surface:
 
 - **Event summary** - what triggered the change (drift, cost anomaly, DR
   drill, etc.) and which resource is affected.
@@ -29,28 +33,34 @@ Every HIL request carries the same core payload regardless of channel:
   world reacts badly after approval.
 - **Audit link** - a deep link to the audit-log entry so you can see the
   event chain that produced this decision.
+- **Approval integrity** - the request TTL, required quorum, action hash,
+  idempotency key, and confirmation that requester and approver must differ.
 
 ## What to check before approving
 
-Five quick checks in order of importance:
+Six checks in order of importance:
 
 1. **Does the risk classification look right?** If the proposed action feels
    too aggressive for the stated risk, the classification rule may need
-   attention - reject and escalate rather than approve blindly.
+  attention. Reject and escalate rather than approving around the rule.
 2. **Blast radius** - confirm the scope cap ("this resource group only",
    "batch of 5 VMs", etc.) matches what you actually want to change.
 3. **Rollback path** - the rollback preview should be non-empty and
-   plausible. An empty or handwavy rollback is a design bug in the action,
+  executable. An empty or vague rollback is a design defect in the action,
    not something to approve around.
 4. **Stop-condition** - should be observable in the metrics you already
-   watch. If it references a metric you cannot see, reject.
+  watch. If it references a metric you cannot observe, reject.
 5. **Grounding (T2 only)** - if this was a T2 decision, verify the cited
    rules or documents in the audit-log entry actually support the proposed
    action.
+6. **Is the approval still bound to this action?** Confirm the version, target
+  scope, TTL, action hash, and quorum. If the payload changed after review,
+  require a new approval request.
 
 ## Verdicts and their consequences
 
-- **Approve** - the change executes with all its safety invariants
+- **Approve** - once identity, role, hash, TTL, no-self-approval, and quorum
+  checks pass, the parked change resumes with all its safety invariants
   (stop-condition, rollback path, blast-radius cap, audit entry). The audit
   log records who approved, when, and any comment you left.
 - **Reject** - the change is discarded. An audit entry is still written
@@ -60,12 +70,20 @@ Five quick checks in order of importance:
   change is discarded exactly as if it were rejected; there is no
   auto-approve on timeout, ever.
 
+Duplicate approval submissions are idempotent and cannot replay execution.
+Conflicting responses are rejected and surfaced for review.
+
 ## Break-glass approvals
 
-There is a Break-Glass role for the rare case where an approver has to bypass
-DENY. Every Break-Glass use is prominently audited, notifies the on-call
-team, and is expected to be justified after the fact. It is not an
-alternative to fixing the underlying rule.
+BreakGlass is a separate, time-limited emergency role. It can make an otherwise
+ineligible caller eligible to participate in an emergency HIL approval where
+policy permits. It does **not** convert DENY to HIL, raise an action to AUTO, or
+remove quorum and no-self-approval checks.
+
+Every BreakGlass use records the grant, reason, approver, expiry, and affected
+action, and alerts the on-call team. The operator must add the post-incident
+justification. BreakGlass is not an alternative to fixing the underlying rule
+or safety contract.
 
 ## Next steps
 

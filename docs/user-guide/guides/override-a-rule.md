@@ -21,8 +21,9 @@ An override on a rule at a given scope can do exactly one of:
   runs in shadow (the audit log continues to record what the rule *would*
   have flagged), so the discovery loop can spot recurring override patterns.
 - **`severity-downgrade`** - the rule still fires but with a lower severity
-  (e.g. `critical → medium`), which typically routes it from AUTO or DENY
-  to HIL.
+  (e.g. `critical -> medium`). The risk gate re-evaluates the resulting
+  finding; an override can lower or suppress execution for its scope, but it
+  cannot bypass a hard deny or raise autonomy.
 - **`parameter-relaxation`** - a widening of a threshold the rule itself
   declares (e.g. cost anomaly `> 20%` becomes `> 40%`). Only the rule's
   declared parameters can be relaxed; the check logic cannot be rewritten.
@@ -30,6 +31,9 @@ An override on a rule at a given scope can do exactly one of:
 Anything broader - a global disable across all scopes - is not an override.
 It is a rule retirement and must go through the catalog pipeline with its
 own review.
+
+Overrides are downgrade-only controls. They never turn HIL into AUTO, DENY
+into HIL, or shadow into enforce.
 
 ## Scope limits
 
@@ -77,6 +81,23 @@ discovery loop as a signal to propose a revision of the rule itself.
 4. On merge, the override takes effect the next time the affected event
    fires. The audit log shows both the underlying finding and the override
    intercepting it.
+
+## Verify the override
+
+After the PR merges, verify one fresh evaluation in the target scope:
+
+1. Confirm the audit entry names the expected rule ID, override ID, mode, and
+  bounded scope.
+2. Confirm detection still records the underlying finding, including for a
+  `disabled` override.
+3. Confirm the resulting severity, parameters, or execution suppression match
+  the override without raising autonomy.
+4. Confirm a neighboring resource outside the scope still receives the normal
+  rule behavior.
+
+If the override does not match, remove or correct the separate override
+artifact. Do not edit the source rule to make the local exception appear to
+work.
 
 ## When to retire the rule instead
 

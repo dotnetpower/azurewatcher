@@ -22,36 +22,55 @@ Every entry records the full lifecycle of one decision. At minimum:
 - **Rule / policy / model refs** - for T0 and T1 the rule ids, for T2 the
   model identifier and the cited grounding documents.
 - **Verdict** - AUTO / HIL / DENY, plus the classification that produced it.
-- **Actor identity** - who or what ran the change. For AUTO this is the
-  executor's user-assigned Managed Identity. For HIL, the approving user.
+- **Decision evidence** - matched risk rule, catalog version, feature snapshot,
+  required quorum, and the `resolved_ceiling` axis that limited autonomy.
+- **Actor identities** - the initiator, judge, approver when present, executor
+  when a mutation ran, and auditor remain distinct fields.
 - **Timestamp** - RFC 3339, UTC.
 - **Shadow vs enforce mode** - every entry marks whether the capability was
   in shadow at the time. Shadow entries carry the *would-have-been*
   action.
-- **Rollback reference** - the id of the rollback plan associated with the
-  action, or `none` for actions that had nothing to roll back.
+- **Rollback reference** - the rollback plan or recovery evidence associated
+  with an executed action. A no-op, deny, reject, timeout, or shadow-only
+  terminal record has no executed state to restore; that is different from an
+  executable `ActionType` omitting its required `rollback_contract`.
 
 ## Tracing an incident
 
 Start with the symptom (a metric spike, an alert, a resource that changed
 unexpectedly) and walk backwards:
 
-1. Find the resource in the audit log. Every mutation shows up whether it
-   originated from FDAI or from an out-of-band change.
-2. Read the latest entry for that resource. It gives you the event id and
+1. Find the resource in the audit log. FDAI actions always write a record;
+  external changes appear when an integrated activity or change feed observed
+  and normalized them.
+2. Read the latest relevant entry for that resource. It gives you the event id and
    the decision chain that produced the mutation.
-3. Follow the event id backwards. Every event with that id is a related
-   decision - the same normalized event may have produced a T0 decision,
-   an escalation to T1, and a HIL request, all sharing the id.
-4. Cross-reference the shadow entries. Even actions that were never
+3. Follow the correlation ID across audit, logs, metrics, and traces. Use the
+  event ID inside the audit stream to order tier, risk, approval, execution,
+  delivery, rollback, and terminal records.
+4. Inspect `resolved_ceiling` and the matched risk rule. These fields explain
+  which input forced auto, HIL, shadow, or deny using the configuration that
+  existed at decision time.
+5. Cross-reference the shadow entries. Even actions that were never
    executed show up in shadow mode with their would-have-been decision, so
    you can see what FDAI proposed vs what a human actually did.
+
+## Reading terminal outcomes
+
+| Outcome | Mutation occurred? | What to verify |
+|---------|--------------------|----------------|
+| `auto` completed | Yes | Executor identity, delivery reference, stop-condition state, rollback reference |
+| HIL approved and completed | Yes | Approval ID, approver, quorum, action hash, executor and delivery records |
+| Rejected or timed out | No | Reason, TTL, approver when present, terminal no-op |
+| `deny` | No | Matched hard rule, feature snapshot, catalog version |
+| `abstain` or `shadow_only` | No | Missing evidence or winning ceiling, would-have-been action |
+| Rolled back | Yes, then restored or compensated | Original action, rollback actor, recovery result, remaining impact |
 
 ## Replay and post-incident review
 
 The audit log is designed for **judge-only replay**: you can replay any
 event through the control plane and see the decisions it would produce
-again, without re-executing the underlying action. This is how you diff a
+again, without re-executing the underlying action. This is how you compare a
 proposed rule change against last month's history before promoting it.
 
 ## What is *not* in the audit log
@@ -61,6 +80,10 @@ secrets, tokens, customer identifiers, or the payload of user data. If you
 need diagnostic data, the observability stack (logs, metrics, traces) is
 the correct place; each audit entry carries the correlation id that ties
 back to those observations.
+
+If an expected terminal record or correlation link is missing, treat that as
+an audit-completeness failure. Do not infer success from the absence of an
+error entry.
 
 ## Next steps
 

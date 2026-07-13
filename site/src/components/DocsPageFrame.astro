@@ -1,16 +1,20 @@
 ---
 /*
  * DocsPageFrame.astro - preserves Starlight's default page frame and adds
- * the shared nebula atmosphere to the bilingual Get Started routes.
+ * the shared nebula atmosphere to the bilingual user-guide routes.
  */
 import Default from "@astrojs/starlight/components/PageFrame.astro";
 import NebulaBackground from "./NebulaBackground.astro";
 
 const routeId = Astro.locals.starlightRoute.id;
-const isGetStarted = routeId === "get-started" || routeId === "ko/get-started";
+const localizedRouteId = routeId.startsWith("ko/") ? routeId.slice(3) : routeId;
+const hasGuidedExperience =
+  localizedRouteId === "get-started" ||
+  localizedRouteId.startsWith("concepts/") ||
+  localizedRouteId.startsWith("guides/");
 ---
 
-{isGetStarted && (
+{hasGuidedExperience && (
   <NebulaBackground
     attachToBody
     intensity={0.68}

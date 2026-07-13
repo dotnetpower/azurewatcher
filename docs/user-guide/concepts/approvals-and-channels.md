@@ -7,8 +7,8 @@ sidebar:
 
 # Approvals and channels
 
-FDAI resolves the safe majority of events on its own, but the risky few pause
-for a human. This page explains **how the system reaches you** - which channels
+FDAI is designed to resolve promoted low-risk events without a human, while
+high-risk events pause for review. This page explains **how the system reaches you** - which channels
 carry an approval request, why a leaked message is never a valid approval, and
 what happens when an approval times out or every channel is down.
 
@@ -63,6 +63,32 @@ Two properties make this safe:
   never the executor, and no agent both judges and executes. There is no
   self-approval.
 
+## What an approval request proves
+
+An A1 request binds the operator decision to one immutable pending action. The
+approval record includes:
+
+- an opaque `approval_id`, event ID, and correlation ID;
+- the action hash and idempotency key captured when the request was parked;
+- the requester, eligible approver role, and no-self-approval result;
+- the required quorum, current decision count, and request TTL;
+- the exact action version, target scope, and rollback reference.
+
+Changing the action payload, scope, or version invalidates the pending request.
+FDAI creates a new request instead of reusing consent for a different action.
+
+## Park, decide, and resume safely
+
+HIL does not block the event consumer while a person thinks. FDAI persists the
+pending action and returns to the event loop. A valid approval resumes that
+stored action exactly once after identity, hash, role, quorum, TTL, and replay
+checks pass.
+
+Rejection and timeout close the request as audited no-ops. Duplicate approval
+responses are idempotent. Conflicting responses are rejected and surfaced for
+review; they never race two executions. Irreversible actions require a quorum
+of two distinct approvers.
+
 ## Trust-tiered channels
 
 A channel may carry an approval only if it can prove your identity end to end.
@@ -105,10 +131,19 @@ channel to an Entra security group (for example, `aw-approvers`). Adding a
 person to that group in Entra is what puts them on the approval channel; the
 control plane reads the group, it does not maintain its own copy.
 
+## What your deployment configures
+
+FDAI supplies the channel contract, routing categories, identity checks,
+idempotent approval lifecycle, and audit fields. Each deployment supplies its
+own credentials, channel IDs, Entra group bindings, Slack-to-Entra identity
+mapping, recipient memberships, TTLs, and escalation destinations. Those values
+stay outside the generic upstream repository.
+
 ## You stay at approve-or-reject
 
-- The **safe majority auto-resolves** with a stop-condition, rollback path,
-  blast-radius limit, and audit entry - no message reaches you at all.
+- **Promoted low-risk actions can auto-resolve** with a stop-condition,
+  rollback path, blast-radius limit, and audit entry. Actual coverage is a
+  measured deployment result.
 - The **risky few pause for you**, and you decide in the channel you already
   use. Rejection and timeout are both no-ops, and both are audited.
 - You can **ask questions** through a chat command or the narrator without ever

@@ -1,7 +1,8 @@
 /*
- * Get Started atmosphere - a route-scoped continuation of the landing page.
- * DocsPageFrame.astro mounts .get-started-nebula only on the bilingual
- * onboarding routes, making :has() a precise selector without global state.
+ * Guided documentation atmosphere - a route-scoped continuation of the
+ * landing page. DocsPageFrame.astro mounts .get-started-nebula only on the
+ * bilingual Get Started, Concepts, and Guides routes, making :has() a precise
+ * selector without global state.
  */
 
 html:has(.get-started-nebula) {
@@ -176,7 +177,7 @@ body:has(.get-started-nebula) .starlight-aside {
   color: #d7e7f4;
 }
 
-/* Five operational principles give the opening screen a concrete trust signal. */
+/* Get Started alone uses five operational principles as its opening trust signal. */
 .get-started-principles {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));

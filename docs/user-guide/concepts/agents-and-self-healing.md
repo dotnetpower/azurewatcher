@@ -12,8 +12,9 @@ mandate, owns a set of object and action types, and communicates on a
 schema-checked event bus. The org chart is the safety model: the agent that
 judges is never the agent that executes, and the agent that executes never holds
 your approval. When a resource drifts or a failure occurs, the agents
-collaborate to resolve it - autonomously for the safe majority, and with your
-approval for the risky few.
+collaborate to resolve it - autonomously for promoted low-risk actions, and with
+your approval for high-risk actions. The autonomous share is a measured target,
+not an assumed product result.
 
 This page explains who the agents are, how they separate duties, how you operate
 at the approve-or-reject level, and how they self-heal a failure end to end.
@@ -76,8 +77,9 @@ The safety guarantees come from who is *not* allowed to do what:
 You do not drive the agents task by task. The organization runs the loop and
 brings you decisions:
 
-- The **safe majority auto-resolves** with a stop-condition, rollback path,
-  blast-radius limit, and audit entry - no human in the path.
+- **Promoted low-risk actions can auto-resolve** with a stop-condition,
+  rollback path, blast-radius limit, and audit entry. New actions remain in
+  shadow until their evidence gate passes.
 - The **risky few pause for you.** A HIL card reaches you through the channel
   you already use (Teams or Slack), and you approve or reject. Rejection and
   timeout are no-ops, and both are audited.
@@ -116,12 +118,43 @@ graph LR
 4. **Recover.** Vidar owns the rollback or DR failover, bounded by the action's
    stop-conditions and blast-radius.
 5. **Record and learn.** Saga writes the audit entry; Norns turns recurring
-   patterns into proposed catalog updates so the next occurrence resolves
-   deterministically.
+  patterns into inert catalog candidates. A candidate still needs provenance,
+  review, regression testing, and shadow evidence before promotion.
 
 When specialists disagree on the same resource - Njord wants `scale_down` for
 cost while Freyr wants `scale_up` for capacity - Odin arbitrates before Forseti
 finalizes, so conflicting objectives never race to the executor.
+
+## When an agent is unavailable
+
+Self-healing includes the organization itself. A missing role lowers autonomy;
+it never allows another agent to absorb incompatible authority.
+
+| Unavailable role | Safe degradation |
+|------------------|------------------|
+| Forseti (judge) | No new verdict is issued; the case is held for HIL |
+| Thor (executor) | Judgment and audit may continue, but no mutation runs |
+| Var (approver) | HIL requests remain queued; timeout is an audited no-op |
+| Vidar (recovery) | Actions that require rollback or failover cannot auto-execute |
+| Saga (auditor) | Mutation stops because no terminal path can satisfy the audit invariant |
+| Odin (arbitrator) | Cross-vertical conflicts go to HIL instead of choosing a winner |
+
+An agent does not silently impersonate a failed peer. Recovery restores the
+declared role and replays pending judgment only; it never re-executes an action
+from conversation or an old delivery message.
+
+## How to know the organization is healthy
+
+Useful health signals combine agent and control-loop outcomes:
+
+- event ingestion lag, dead-letter depth, and correlation backlog;
+- verdict latency, mixed-model disagreement, and HIL expiry rate;
+- execution success, stop-condition activation, and rollback rate;
+- audit completeness and time from terminal outcome to durable record;
+- per-agent degradation state and time spent below its normal autonomy ceiling.
+
+The goal is not to maximize auto execution. A healthy organization lowers
+autonomy when these signals degrade and makes the reason visible to operators.
 
 ## Next steps
 
