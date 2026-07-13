@@ -1,0 +1,25 @@
+id: chaos.litmus.pod-network-duplication
+version: 1
+provenance:
+  source: litmus
+  source_url: https://hub.litmuschaos.io
+  source_ref: pod-network-duplication
+  synthesis_method: collected
+category: network
+target_type: pod
+fault_family: corrupt
+intensity: mild
+duration_seconds: 360.0
+expected_signal: gateway_latency
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Delete the ChaosEngine.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Duplicate a fraction of outbound packets - retry storms.
+params:
+  NETWORK_PACKET_DUPLICATION_PERCENTAGE: '20'
+tags:
+- litmus

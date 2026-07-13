@@ -1,0 +1,25 @@
+id: chaos.litmus.node-memory-hog
+version: 1
+provenance:
+  source: litmus
+  source_url: https://hub.litmuschaos.io
+  source_ref: node-memory-hog
+  synthesis_method: collected
+category: resource_saturation
+target_type: node
+fault_family: saturate
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: host_memory
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Delete the ChaosEngine.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Memory pressure on the target node.
+params:
+  MEMORY_CONSUMPTION_PERCENTAGE: '50'
+tags:
+- litmus

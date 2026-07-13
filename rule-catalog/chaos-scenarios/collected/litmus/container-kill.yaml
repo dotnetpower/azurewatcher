@@ -1,0 +1,26 @@
+id: chaos.litmus.container-kill
+version: 1
+provenance:
+  source: litmus
+  source_url: https://hub.litmuschaos.io
+  source_ref: container-kill
+  synthesis_method: collected
+category: compute
+target_type: pod
+fault_family: stop
+intensity: high
+duration_seconds: 360.0
+expected_signal: pod_restart
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Delete the ChaosEngine; kubelet restarts the container.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Kill a specific container inside a pod; kubelet restarts it.
+params:
+  CHAOS_INTERVAL: '10'
+  SIGNAL: SIGKILL
+tags:
+- litmus

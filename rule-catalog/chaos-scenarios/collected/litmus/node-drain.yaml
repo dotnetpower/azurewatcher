@@ -1,0 +1,25 @@
+id: chaos.litmus.node-drain
+version: 1
+provenance:
+  source: litmus
+  source_url: https://hub.litmuschaos.io
+  source_ref: node-drain
+  synthesis_method: collected
+category: compute
+target_type: node
+fault_family: stop
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: pod_restart
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Uncordon the node on ChaosEngine deletion; pods reschedule.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Drain a node (cordon + evict) - workloads reschedule elsewhere.
+params:
+  NODE_LABEL: node-role.kubernetes.io/worker
+tags:
+- litmus

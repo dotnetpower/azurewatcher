@@ -1,0 +1,27 @@
+id: chaos.litmus.pod-delete
+version: 1
+provenance:
+  source: litmus
+  source_url: https://hub.litmuschaos.io
+  source_ref: pod-delete
+  synthesis_method: collected
+category: compute
+target_type: pod
+fault_family: stop
+intensity: high
+duration_seconds: 360.0
+expected_signal: pod_restart
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: ChaosEngine deletion + ReplicaSet self-heal.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Kill a target pod at a fixed cadence for the duration; the workload controller
+  reschedules.
+params:
+  CHAOS_INTERVAL: '10'
+  FORCE: 'true'
+tags:
+- litmus

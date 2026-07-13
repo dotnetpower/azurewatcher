@@ -1,0 +1,25 @@
+id: chaos.litmus.disk-fill
+version: 1
+provenance:
+  source: litmus
+  source_url: https://hub.litmuschaos.io
+  source_ref: disk-fill
+  synthesis_method: collected
+category: storage
+target_type: disk
+fault_family: saturate
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: host_cpu
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Delete the ChaosEngine.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Fill the pod ephemeral disk toward the limit.
+params:
+  FILL_PERCENTAGE: '95'
+tags:
+- litmus

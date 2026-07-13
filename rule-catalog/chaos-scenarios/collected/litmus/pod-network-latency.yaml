@@ -1,0 +1,26 @@
+id: chaos.litmus.pod-network-latency
+version: 1
+provenance:
+  source: litmus
+  source_url: https://hub.litmuschaos.io
+  source_ref: pod-network-latency
+  synthesis_method: collected
+category: network
+target_type: pod
+fault_family: delay
+intensity: high
+duration_seconds: 360.0
+expected_signal: gateway_latency
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Delete the ChaosEngine; tc qdisc del removes the rule.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Add outbound network latency on target pods (tc netem).
+params:
+  NETWORK_LATENCY: '2000'
+  JITTER: '0'
+tags:
+- litmus

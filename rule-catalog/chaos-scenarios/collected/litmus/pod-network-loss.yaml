@@ -1,0 +1,25 @@
+id: chaos.litmus.pod-network-loss
+version: 1
+provenance:
+  source: litmus
+  source_url: https://hub.litmuschaos.io
+  source_ref: pod-network-loss
+  synthesis_method: collected
+category: network
+target_type: pod
+fault_family: drop
+intensity: high
+duration_seconds: 360.0
+expected_signal: request_failure
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Delete the ChaosEngine; tc qdisc del removes the rule.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Drop a fraction of outbound packets on target pods.
+params:
+  NETWORK_PACKET_LOSS_PERCENTAGE: '30'
+tags:
+- litmus

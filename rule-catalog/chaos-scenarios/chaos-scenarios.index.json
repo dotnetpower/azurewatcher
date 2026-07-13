@@ -711,6 +711,42 @@
       "severity_bucket": "low",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/pod-delay-gateway-latency-mild-v2.yaml",
       "target_type": "pod"
+    },
+    {
+      "category": "traffic",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-http-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-http-latency.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-network-duplication",
+      "injector": "needs-injector",
+      "intensity": "mild",
+      "requires_hardware": false,
+      "severity_bucket": "low",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-network-duplication.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-network-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-network-latency.yaml",
+      "target_type": "pod"
     }
   ],
   "gateway_latency|pod|high": [
@@ -775,6 +811,18 @@
       "severity_bucket": "low",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/pod-delay-gateway-latency-mild-v2.yaml",
       "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-network-duplication",
+      "injector": "needs-injector",
+      "intensity": "mild",
+      "requires_hardware": false,
+      "severity_bucket": "low",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-network-duplication.yaml",
+      "target_type": "pod"
     }
   ],
   "gateway_latency|pod|medium": [
@@ -836,6 +884,30 @@
       "requires_hardware": false,
       "severity_bucket": "medium",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/pod-delay-gateway-latency-high-v2.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "traffic",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-http-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-http-latency.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-network-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-network-latency.yaml",
       "target_type": "pod"
     }
   ],
@@ -1070,6 +1142,42 @@
       "requires_hardware": false,
       "severity_bucket": "low",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/pod-delay-gateway-latency-mild-v2.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "traffic",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-http-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-http-latency.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-network-duplication",
+      "injector": "needs-injector",
+      "intensity": "mild",
+      "requires_hardware": false,
+      "severity_bucket": "low",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-network-duplication.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-network-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-network-latency.yaml",
       "target_type": "pod"
     }
   ],
@@ -1661,6 +1769,30 @@
       "severity_bucket": "low",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/disk-delay-host-cpu-mild.yaml",
       "target_type": "disk"
+    },
+    {
+      "category": "storage",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.litmus.disk-fill",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/disk-fill.yaml",
+      "target_type": "disk"
+    },
+    {
+      "category": "storage",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-io-stress",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-io-stress.yaml",
+      "target_type": "disk"
     }
   ],
   "host_cpu|disk|high": [
@@ -1686,6 +1818,18 @@
       "requires_hardware": false,
       "severity_bucket": "high",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/disk-delay-host-cpu-extreme.yaml",
+      "target_type": "disk"
+    },
+    {
+      "category": "storage",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.litmus.disk-fill",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/disk-fill.yaml",
       "target_type": "disk"
     }
   ],
@@ -1727,6 +1871,46 @@
       "severity_bucket": "medium",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/disk-delay-host-cpu-high.yaml",
       "target_type": "disk"
+    },
+    {
+      "category": "storage",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-io-stress",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-io-stress.yaml",
+      "target_type": "disk"
+    }
+  ],
+  "host_cpu|node|": [
+    {
+      "category": "compute",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.litmus.node-cpu-hog",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/node-cpu-hog.yaml",
+      "target_type": "node"
+    }
+  ],
+  "host_cpu|node|high": [
+    {
+      "category": "compute",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.litmus.node-cpu-hog",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/node-cpu-hog.yaml",
+      "target_type": "node"
     }
   ],
   "host_cpu|vm|": [
@@ -2085,6 +2269,70 @@
       "severity_bucket": "low",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/vm-saturate-host-cpu-mild-v2.yaml",
       "target_type": "vm"
+    },
+    {
+      "category": "storage",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.litmus.disk-fill",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/disk-fill.yaml",
+      "target_type": "disk"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.litmus.node-cpu-hog",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/node-cpu-hog.yaml",
+      "target_type": "node"
+    },
+    {
+      "category": "storage",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-io-stress",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-io-stress.yaml",
+      "target_type": "disk"
+    }
+  ],
+  "host_memory|node|": [
+    {
+      "category": "resource_saturation",
+      "expected_signal": "host_memory",
+      "gpu_domain": null,
+      "id": "chaos.litmus.node-memory-hog",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/node-memory-hog.yaml",
+      "target_type": "node"
+    }
+  ],
+  "host_memory|node|high": [
+    {
+      "category": "resource_saturation",
+      "expected_signal": "host_memory",
+      "gpu_domain": null,
+      "id": "chaos.litmus.node-memory-hog",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/node-memory-hog.yaml",
+      "target_type": "node"
     }
   ],
   "host_memory|pod|": [
@@ -2099,6 +2347,18 @@
       "severity_bucket": "medium",
       "source_path": "rule-catalog/chaos-scenarios/collected/chaos-mesh/stress-memory.yaml",
       "target_type": "pod"
+    },
+    {
+      "category": "resource_saturation",
+      "expected_signal": "host_memory",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-memory-hog",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-memory-hog.yaml",
+      "target_type": "pod"
     }
   ],
   "host_memory|pod|medium": [
@@ -2112,6 +2372,18 @@
       "requires_hardware": false,
       "severity_bucket": "medium",
       "source_path": "rule-catalog/chaos-scenarios/collected/chaos-mesh/stress-memory.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "resource_saturation",
+      "expected_signal": "host_memory",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-memory-hog",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-memory-hog.yaml",
       "target_type": "pod"
     }
   ],
@@ -2315,6 +2587,30 @@
       "severity_bucket": "low",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/vm-saturate-host-memory-mild.yaml",
       "target_type": "vm"
+    },
+    {
+      "category": "resource_saturation",
+      "expected_signal": "host_memory",
+      "gpu_domain": null,
+      "id": "chaos.litmus.node-memory-hog",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/node-memory-hog.yaml",
+      "target_type": "node"
+    },
+    {
+      "category": "resource_saturation",
+      "expected_signal": "host_memory",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-memory-hog",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-memory-hog.yaml",
+      "target_type": "pod"
     }
   ],
   "inference_p99_spike|inference_endpoint|": [
@@ -2527,6 +2823,18 @@
       "severity_bucket": "low",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/pod-saturate-node-cpu-mild-v2.yaml",
       "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "node_cpu",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-cpu-hog",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-cpu-hog.yaml",
+      "target_type": "pod"
     }
   ],
   "node_cpu|pod|high": [
@@ -2617,6 +2925,18 @@
       "severity_bucket": "medium",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/pod-saturate-node-cpu-high-v2.yaml",
       "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "node_cpu",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-cpu-hog",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-cpu-hog.yaml",
+      "target_type": "pod"
     }
   ],
   "node_cpu||": [
@@ -2703,6 +3023,46 @@
       "severity_bucket": "low",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/pod-saturate-node-cpu-mild-v2.yaml",
       "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "node_cpu",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-cpu-hog",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-cpu-hog.yaml",
+      "target_type": "pod"
+    }
+  ],
+  "pod_restart|node|": [
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.litmus.node-drain",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/node-drain.yaml",
+      "target_type": "node"
+    }
+  ],
+  "pod_restart|node|high": [
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.litmus.node-drain",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/node-drain.yaml",
+      "target_type": "node"
     }
   ],
   "pod_restart|pod|": [
@@ -2788,6 +3148,30 @@
       "requires_hardware": false,
       "severity_bucket": "low",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/pod-stop-pod-restart-mild.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.litmus.container-kill",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/container-kill.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-delete",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-delete.yaml",
       "target_type": "pod"
     }
   ],
@@ -2878,6 +3262,30 @@
       "requires_hardware": false,
       "severity_bucket": "medium",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/pod-stop-pod-restart-high.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.litmus.container-kill",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/container-kill.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-delete",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-delete.yaml",
       "target_type": "pod"
     }
   ],
@@ -3263,6 +3671,42 @@
       "severity_bucket": "low",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/pod-stop-pod-restart-mild.yaml",
       "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.litmus.container-kill",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/container-kill.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.litmus.node-drain",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/node-drain.yaml",
+      "target_type": "node"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-delete",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-delete.yaml",
+      "target_type": "pod"
     }
   ],
   "rate_limit|llm_endpoint|": [
@@ -3529,6 +3973,18 @@
       "severity_bucket": "high",
       "source_path": "rule-catalog/chaos-scenarios/collected/chaos-mesh/dns-error.yaml",
       "target_type": "dns"
+    },
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-dns-error",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-dns-error.yaml",
+      "target_type": "dns"
     }
   ],
   "request_failure|dns|high": [
@@ -3542,6 +3998,18 @@
       "requires_hardware": false,
       "severity_bucket": "high",
       "source_path": "rule-catalog/chaos-scenarios/collected/chaos-mesh/dns-error.yaml",
+      "target_type": "dns"
+    },
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-dns-error",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-dns-error.yaml",
       "target_type": "dns"
     }
   ],
@@ -3681,6 +4149,42 @@
       "severity_bucket": "low",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/pod-drop-request-failure-mild-v2.yaml",
       "target_type": "pod"
+    },
+    {
+      "category": "traffic",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-http-status-code",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-http-status-code.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-network-corruption",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-network-corruption.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-network-loss",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-network-loss.yaml",
+      "target_type": "pod"
     }
   ],
   "request_failure|pod|high": [
@@ -3794,6 +4298,42 @@
       "requires_hardware": false,
       "severity_bucket": "medium",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/pod-drop-request-failure-high-v2.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "traffic",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-http-status-code",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-http-status-code.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-network-corruption",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-network-corruption.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-network-loss",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-network-loss.yaml",
       "target_type": "pod"
     }
   ],
@@ -4104,6 +4644,54 @@
       "requires_hardware": false,
       "severity_bucket": "low",
       "source_path": "rule-catalog/chaos-scenarios/collected/synthesized/pod-drop-request-failure-mild-v2.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-dns-error",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-dns-error.yaml",
+      "target_type": "dns"
+    },
+    {
+      "category": "traffic",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-http-status-code",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-http-status-code.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-network-corruption",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-network-corruption.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.litmus.pod-network-loss",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/litmus/pod-network-loss.yaml",
       "target_type": "pod"
     }
   ],

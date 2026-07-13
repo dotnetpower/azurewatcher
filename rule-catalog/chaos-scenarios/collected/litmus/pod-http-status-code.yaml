@@ -1,0 +1,26 @@
+id: chaos.litmus.pod-http-status-code
+version: 1
+provenance:
+  source: litmus
+  source_url: https://hub.litmuschaos.io
+  source_ref: pod-http-status-code
+  synthesis_method: collected
+category: traffic
+target_type: pod
+fault_family: corrupt
+intensity: high
+duration_seconds: 360.0
+expected_signal: request_failure
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Delete the ChaosEngine.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Rewrite inbound HTTP responses to a chosen status code.
+params:
+  STATUS_CODE: '503'
+  MODIFY_RESPONSE_BODY: 'false'
+tags:
+- litmus

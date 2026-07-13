@@ -1,0 +1,25 @@
+id: chaos.litmus.pod-io-stress
+version: 1
+provenance:
+  source: litmus
+  source_url: https://hub.litmuschaos.io
+  source_ref: pod-io-stress
+  synthesis_method: collected
+category: storage
+target_type: disk
+fault_family: saturate
+intensity: high
+duration_seconds: 360.0
+expected_signal: host_cpu
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Delete the ChaosEngine.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Sustained disk I/O pressure on the pod's filesystem.
+params:
+  IO_WORKERS: '4'
+tags:
+- litmus

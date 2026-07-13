@@ -1,0 +1,26 @@
+id: chaos.litmus.pod-http-latency
+version: 1
+provenance:
+  source: litmus
+  source_url: https://hub.litmuschaos.io
+  source_ref: pod-http-latency
+  synthesis_method: collected
+category: traffic
+target_type: pod
+fault_family: delay
+intensity: high
+duration_seconds: 360.0
+expected_signal: gateway_latency
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Delete the ChaosEngine.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Add HTTP-layer latency to inbound requests on the pod.
+params:
+  LATENCY: '2000'
+  TARGET_SERVICE_PORT: '80'
+tags:
+- litmus

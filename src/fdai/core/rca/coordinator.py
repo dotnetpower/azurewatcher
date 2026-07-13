@@ -21,6 +21,12 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timedelta
 
+# Optional at construction time. The RCA layer must load even if no
+# symptom index is available (older forks, tests, etc.), so the type
+# is imported lazily via `TYPE_CHECKING` and the runtime keeps a
+# structural reference through the `symptom_index` parameter.
+from typing import TYPE_CHECKING
+
 from fdai.core.rca.causal_chain import CorrelatedEvent
 from fdai.core.rca.contract import (
     Citation,
@@ -36,6 +42,9 @@ from fdai.core.rca.t0 import t0_root_cause
 from fdai.core.rca.t1 import t1_causal_chain
 from fdai.shared.contracts.models import Rule
 
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from fdai.core.chaos.symptom_index import SymptomIndex
+
 
 class RcaCoordinator:
     """Tier-aware RCA orchestrator (T0 deterministic + T2 reasoner)."""
@@ -46,17 +55,28 @@ class RcaCoordinator:
         reasoner: RcaReasoner | None = None,
         min_confidence: float = 0.0,
         evidence_gatherer: TelemetryEvidenceGatherer | None = None,
+        symptom_index: SymptomIndex | None = None,
     ) -> None:
         if not 0.0 <= min_confidence <= 1.0:
             raise ValueError("min_confidence MUST be in [0, 1]")
         self._reasoner = reasoner
         self._min_confidence = min_confidence
         self._evidence_gatherer = evidence_gatherer
+        # Optional catalog-scenario matcher. When bound, T2 methods that
+        # accept a symptom key can add SCENARIO citations to the T2
+        # candidate set alongside telemetry evidence. None => nothing
+        # different from before (backward-compatible).
+        self._symptom_index = symptom_index
 
     @property
     def has_t2(self) -> bool:
         """True iff a T2 reasoner is configured (gates T2 analysis)."""
         return self._reasoner is not None
+
+    @property
+    def has_symptom_index(self) -> bool:
+        """True iff a chaos-scenario symptom index is bound."""
+        return self._symptom_index is not None
 
     def analyze_t0(
         self,
@@ -211,6 +231,71 @@ class RcaCoordinator:
         """
         candidates: list[Citation] = list(extra_citations)
         if self._evidence_gatherer is not None:
+            candidates.extend(
+                await self._evidence_gatherer.gather(
+                    resource_ref=resource_ref, since=since, until=until
+                )
+            )
+        return await self.analyze_t2(
+            incident_summary=incident_summary,
+            candidate_citations=tuple(candidates),
+        )
+
+    async def analyze_t2_from_symptom(
+        self,
+        *,
+        incident_summary: str,
+        signal: str,
+        target_type: str,
+        severity: str,
+        resource_ref: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        extra_citations: Sequence[Citation] = (),
+        max_scenario_candidates: int = 8,
+    ) -> RcaResult:
+        """T2 analysis grounded on catalog scenarios + optional telemetry.
+
+        Combines two candidate-citation sources so the T2 reasoner sees
+        both "what does the chaos catalog say produces this symptom?"
+        and "what does telemetry say happened at this time?":
+
+        - **Scenario citations** (``CitationKind.SCENARIO``) come from
+          :func:`fdai.core.rca.scenario_context.candidate_scenarios`
+          against the bound :class:`~fdai.core.chaos.symptom_index.SymptomIndex`.
+          No index bound => no scenario citations (backward-compatible).
+        - **Telemetry citations** (``CitationKind.TELEMETRY``) are
+          gathered by the same path as :meth:`analyze_t2_from_telemetry`
+          when ``resource_ref`` + ``since`` + ``until`` are supplied and
+          an :class:`TelemetryEvidenceGatherer` is bound.
+
+        Every citation the reasoner returns MUST match one the caller
+        vouched for - a fabricated scenario id or telemetry ref abstains
+        to HIL, exactly like :meth:`analyze_t2`. A scenario id in a
+        citation is a pointer to *why the loop believes X*, never a
+        permission to *do X*.
+        """
+        candidates: list[Citation] = list(extra_citations)
+        if self._symptom_index is not None:
+            # Lazy import so the RCA module still loads in an environment
+            # where the chaos catalog is not present (fork, test rig).
+            from fdai.core.rca.scenario_context import candidate_scenarios
+
+            candidates.extend(
+                candidate_scenarios(
+                    self._symptom_index,
+                    signal=signal,
+                    target_type=target_type,
+                    severity=severity,
+                    max_candidates=max_scenario_candidates,
+                )
+            )
+        if (
+            self._evidence_gatherer is not None
+            and resource_ref is not None
+            and since is not None
+            and until is not None
+        ):
             candidates.extend(
                 await self._evidence_gatherer.gather(
                     resource_ref=resource_ref, since=since, until=until
