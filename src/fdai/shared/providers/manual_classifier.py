@@ -56,9 +56,7 @@ class ClassifiedManual:
 class ManualClassifier(Protocol):
     """Classify candidates as procedure / not-procedure / uncertain (async)."""
 
-    async def classify(
-        self, candidates: Sequence[ManualCandidate]
-    ) -> Sequence[ClassifiedManual]:
+    async def classify(self, candidates: Sequence[ManualCandidate]) -> Sequence[ClassifiedManual]:
         """Return one :class:`ClassifiedManual` per input candidate, in order."""
         ...
 
@@ -71,12 +69,9 @@ class AbstainingManualClassifier:
     fail-safe: no model means no auto-decision, never a fabricated "yes".
     """
 
-    async def classify(
-        self, candidates: Sequence[ManualCandidate]
-    ) -> Sequence[ClassifiedManual]:
+    async def classify(self, candidates: Sequence[ManualCandidate]) -> Sequence[ClassifiedManual]:
         return tuple(
-            ClassifiedManual(candidate=c, verdict=ProcedureVerdict.UNCERTAIN)
-            for c in candidates
+            ClassifiedManual(candidate=c, verdict=ProcedureVerdict.UNCERTAIN) for c in candidates
         )
 
 

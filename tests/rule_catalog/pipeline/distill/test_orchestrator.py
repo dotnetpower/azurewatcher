@@ -42,9 +42,7 @@ class FakeSource:
 class LabelClassifier:
     """PROCEDURE when labelled ``proc``, NOT_PROCEDURE when ``junk``, else UNCERTAIN."""
 
-    async def classify(
-        self, candidates: Sequence[ManualCandidate]
-    ) -> Sequence[ClassifiedManual]:
+    async def classify(self, candidates: Sequence[ManualCandidate]) -> Sequence[ClassifiedManual]:
         out: list[ClassifiedManual] = []
         for c in candidates:
             if "proc" in c.labels:
@@ -66,14 +64,10 @@ class OneRuleDistiller:
             source_section="S",
             source_lines=(1, 1),
         )
-        return DistillationResult(
-            candidates=(cand,), coverage=CoverageReport(total=1, covered=1)
-        )
+        return DistillationResult(candidates=(cand,), coverage=CoverageReport(total=1, covered=1))
 
 
-def _cand(
-    doc_id: str, *, labels: tuple[str, ...] = (), sha: str | None = None
-) -> ManualCandidate:
+def _cand(doc_id: str, *, labels: tuple[str, ...] = (), sha: str | None = None) -> ManualCandidate:
     return ManualCandidate(
         doc_id=doc_id,
         source_ref=f"drop://{doc_id}",

@@ -240,9 +240,7 @@ def test_override_without_matching_base_is_ignored(tmp_path: pathlib.Path) -> No
     _write(root, "promoted", "p", _valid_body("chaos.aks.pod-kill-a"))
     overrides_dir = root.parent / "chaos-scenarios-overrides"
     overrides_dir.mkdir()
-    (overrides_dir / "orphan.yaml").write_text(
-        "id: chaos.does.not.exist\nduration_seconds: 999\n"
-    )
+    (overrides_dir / "orphan.yaml").write_text("id: chaos.does.not.exist\nduration_seconds: 999\n")
     entries = load_promoted(root=root)
     assert len(entries) == 1
     assert entries[0].spec["duration_seconds"] == 360

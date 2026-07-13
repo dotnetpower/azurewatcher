@@ -124,8 +124,7 @@ def diff_snapshot(
 def plan_retirements(delta: FreshnessDelta) -> tuple[RetirementRequest, ...]:
     """Plan one retirement per deleted manual (deterministic, ordered)."""
     return tuple(
-        RetirementRequest(source_ref=ref, reason="source manual removed")
-        for ref in delta.deleted
+        RetirementRequest(source_ref=ref, reason="source manual removed") for ref in delta.deleted
     )
 
 

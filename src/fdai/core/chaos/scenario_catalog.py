@@ -122,9 +122,9 @@ def _load_one(path: pathlib.Path, validator: jsonschema.Draft202012Validator) ->
             f"{path}: expected_signal {signal!r} is not registered in "
             f"fdai.core.detection.signals. Register the SignalSpec first."
         )
-    if body["injector"] in {"needs-injector", "cross-csp-reference"} and str(
-        path.parent
-    ).endswith("promoted"):
+    if body["injector"] in {"needs-injector", "cross-csp-reference"} and str(path.parent).endswith(
+        "promoted"
+    ):
         raise ScenarioCatalogError(
             f"{path}: injector {body['injector']!r} is not allowed in "
             f"promoted/; leave the file in collected/ until an executable "
@@ -160,8 +160,10 @@ def _apply_overrides(
         for key, value in body.items():
             if key == "id":
                 continue
-            if key in {"params", "gates"} and isinstance(value, dict) and isinstance(
-                merged.get(key), dict
+            if (
+                key in {"params", "gates"}
+                and isinstance(value, dict)
+                and isinstance(merged.get(key), dict)
             ):
                 new_sub = dict(merged[key])
                 new_sub.update(value)
@@ -177,8 +179,7 @@ def _dedupe_by_id(entries: list[CatalogEntry], scope: str) -> list[CatalogEntry]
     for e in entries:
         if e.id in seen and seen[e.id] != e.source_path:
             raise ScenarioCatalogError(
-                f"duplicate scenario id {e.id!r} in {scope}: "
-                f"{seen[e.id]} and {e.source_path}"
+                f"duplicate scenario id {e.id!r} in {scope}: {seen[e.id]} and {e.source_path}"
             )
         seen[e.id] = e.source_path
     return entries

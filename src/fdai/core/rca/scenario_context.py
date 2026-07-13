@@ -98,24 +98,18 @@ def scenario_summary(
     refs = index.lookup_widening(signal=signal, target_type=target_type, severity=severity)
     if not refs:
         return (
-            f"no catalog scenario matches signal={signal} "
-            f"target={target_type} severity={severity}"
+            f"no catalog scenario matches signal={signal} target={target_type} severity={severity}"
         )
     lines: list[str] = [
-        f"candidate scenarios for signal={signal} "
-        f"target={target_type} severity={severity}:"
+        f"candidate scenarios for signal={signal} target={target_type} severity={severity}:"
     ]
     for ref in refs[:max_candidates]:
         family = (
-            ref.injector.split(":", 1)[0]
-            if ref.injector != "needs-injector"
-            else "needs-injector"
+            ref.injector.split(":", 1)[0] if ref.injector != "needs-injector" else "needs-injector"
         )
         gpu = f" gpu={ref.gpu_domain}" if ref.gpu_domain else ""
         hw = " requires_hardware" if ref.requires_hardware else ""
-        lines.append(
-            f"- {ref.id} category={ref.category} injector_family={family}{gpu}{hw}"
-        )
+        lines.append(f"- {ref.id} category={ref.category} injector_family={family}{gpu}{hw}")
     if len(refs) > max_candidates:
         lines.append(f"- ... and {len(refs) - max_candidates} more (capped by max_candidates)")
     return "\n".join(lines)

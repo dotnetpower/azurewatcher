@@ -82,14 +82,14 @@ apiVersion: chaos-mesh.org/v1alpha1
 kind: PodChaos
 metadata:
   name: {name}
-  namespace: {ctx['chaos_namespace']}
+  namespace: {ctx["chaos_namespace"]}
 spec:
   action: {action}
   mode: {mode}
   selector:
-    namespaces: [{ctx['workload_namespace']}]
+    namespaces: [{ctx["workload_namespace"]}]
     labelSelectors:
-      app: {ctx['workload_label']}
+      app: {ctx["workload_label"]}
 """
     return "PodChaos", body
 
@@ -116,33 +116,33 @@ def _cm_network_chaos_body(entry: CatalogEntry, ctx: dict[str, Any]) -> tuple[st
         lines.extend(
             [
                 "  delay:",
-                f"    latency: \"{p.get('latency_ms', '250')}ms\"",
-                f"    jitter: \"{p.get('jitter_ms', '20')}ms\"",
-                f"    correlation: \"{p.get('correlation', '50')}\"",
+                f'    latency: "{p.get("latency_ms", "250")}ms"',
+                f'    jitter: "{p.get("jitter_ms", "20")}ms"',
+                f'    correlation: "{p.get("correlation", "50")}"',
             ]
         )
     elif action == "loss":
         lines.extend(
             [
                 "  loss:",
-                f"    loss: \"{p.get('loss_percent', '20')}\"",
-                f"    correlation: \"{p.get('correlation', '50')}\"",
+                f'    loss: "{p.get("loss_percent", "20")}"',
+                f'    correlation: "{p.get("correlation", "50")}"',
             ]
         )
     elif action == "corrupt":
         lines.extend(
             [
                 "  corrupt:",
-                f"    corrupt: \"{p.get('corrupt_percent', '20')}\"",
-                f"    correlation: \"{p.get('correlation', '50')}\"",
+                f'    corrupt: "{p.get("corrupt_percent", "20")}"',
+                f'    correlation: "{p.get("correlation", "50")}"',
             ]
         )
     elif action == "duplicate":
         lines.extend(
             [
                 "  duplicate:",
-                f"    duplicate: \"{p.get('duplicate_percent', '10')}\"",
-                f"    correlation: \"{p.get('correlation', '50')}\"",
+                f'    duplicate: "{p.get("duplicate_percent", "10")}"',
+                f'    correlation: "{p.get("correlation", "50")}"',
             ]
         )
     elif action == "partition":
@@ -152,7 +152,7 @@ def _cm_network_chaos_body(entry: CatalogEntry, ctx: dict[str, Any]) -> tuple[st
         lines.extend(
             [
                 "  bandwidth:",
-                f"    rate: \"{p.get('rate', '1mbps')}\"",
+                f'    rate: "{p.get("rate", "1mbps")}"',
                 f"    buffer: {p.get('buffer', 10000)}",
                 f"    limit: {p.get('limit', 20000)}",
             ]
@@ -184,7 +184,7 @@ def _cm_http_chaos_body(entry: CatalogEntry, ctx: dict[str, Any]) -> tuple[str, 
     if action == "abort":
         lines.append("  abort: true")
     elif action == "delay":
-        lines.append(f"  delay: \"{p.get('delay', '2s')}\"")
+        lines.append(f'  delay: "{p.get("delay", "2s")}"')
     elif action == "replace":
         lines.append("  replace:")
         code = p.get("replace_code")
@@ -224,7 +224,7 @@ def _cm_stress_chaos_body(entry: CatalogEntry, ctx: dict[str, Any]) -> tuple[str
             [
                 "    memory:",
                 f"      workers: {p.get('workers', '1')}",
-                f"      size: \"{p.get('size', '256M')}\"",
+                f'      size: "{p.get("size", "256M")}"',
             ]
         )
     return "StressChaos", "\n".join(lines) + "\n"
@@ -241,16 +241,16 @@ apiVersion: chaos-mesh.org/v1alpha1
 kind: DNSChaos
 metadata:
   name: {name}
-  namespace: {ctx['chaos_namespace']}
+  namespace: {ctx["chaos_namespace"]}
 spec:
   action: {action}
   mode: one
   scope: {scope}
   patterns: ["{patterns}"]
   selector:
-    namespaces: [{ctx['workload_namespace']}]
+    namespaces: [{ctx["workload_namespace"]}]
     labelSelectors:
-      app: {ctx['workload_label']}
+      app: {ctx["workload_label"]}
 """
     return "DNSChaos", body
 
@@ -276,7 +276,7 @@ def _cm_io_chaos_body(entry: CatalogEntry, ctx: dict[str, Any]) -> tuple[str, st
         f"      app: {ctx['workload_label']}",
     ]
     if action == "latency":
-        lines.append(f"  delay: \"{p.get('delay_ms', '300')}ms\"")
+        lines.append(f'  delay: "{p.get("delay_ms", "300")}ms"')
     elif action == "fault":
         errno = p.get("errno", "5")
         lines.append(f"  errno: {errno}")
@@ -294,7 +294,7 @@ apiVersion: chaos-mesh.org/v1alpha1
 kind: BlockChaos
 metadata:
   name: {name}
-  namespace: {ctx['chaos_namespace']}
+  namespace: {ctx["chaos_namespace"]}
 spec:
   action: {action}
   mode: one
@@ -316,13 +316,13 @@ apiVersion: chaos-mesh.org/v1alpha1
 kind: KernelChaos
 metadata:
   name: {name}
-  namespace: {ctx['chaos_namespace']}
+  namespace: {ctx["chaos_namespace"]}
 spec:
   mode: one
   selector:
-    namespaces: [{ctx['workload_namespace']}]
+    namespaces: [{ctx["workload_namespace"]}]
     labelSelectors:
-      app: {ctx['workload_label']}
+      app: {ctx["workload_label"]}
   failKernRequest:
     callchain:
       - funcname: "{syscall}"
@@ -445,8 +445,7 @@ def _build_az_vm_run_command(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultI
             duration_seconds=duration,
         )
     raise ValueError(
-        f"{entry.id}: az:vm-run-command builder has no dispatch for "
-        f"expected_signal={signal!r}"
+        f"{entry.id}: az:vm-run-command builder has no dispatch for expected_signal={signal!r}"
     )
 
 

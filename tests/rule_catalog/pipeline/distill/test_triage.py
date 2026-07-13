@@ -135,9 +135,7 @@ def test_dedupe_never_collapses_empty_sha() -> None:
 def test_incident_referenced_sorts_first() -> None:
     plain = _cand("plain", inbound_links=100)  # high authority but no incident
     referenced = _cand("ref", inbound_links=0)
-    ordered = prioritize(
-        [plain, referenced], incident_refs=frozenset({"drop://ref"})
-    )
+    ordered = prioritize([plain, referenced], incident_refs=frozenset({"drop://ref"}))
     assert ordered[0].doc_id == "ref"  # incident beats raw authority
 
 

@@ -120,9 +120,7 @@ def _require_unique_identities(candidates: Sequence[ManualCandidate]) -> None:
                 f"ManualSource returned a duplicate source_ref: {candidate.source_ref!r}"
             )
         if candidate.doc_id in seen_ids:
-            raise ValueError(
-                f"ManualSource returned a duplicate doc_id: {candidate.doc_id!r}"
-            )
+            raise ValueError(f"ManualSource returned a duplicate doc_id: {candidate.doc_id!r}")
         seen_refs.add(candidate.source_ref)
         seen_ids.add(candidate.doc_id)
 

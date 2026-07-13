@@ -44,9 +44,7 @@ async def test_vm_network_latency_injects_tc_netem_delay(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runner, calls = _patch(monkeypatch)
-    inj = ao.AzVmNetworkLatencyInjector(
-        resource_group="rg", vm_name="vm", latency_ms=300
-    )
+    inj = ao.AzVmNetworkLatencyInjector(resource_group="rg", vm_name="vm", latency_ms=300)
     await inj.inject(target="vm-a", params={})
     # The last positional arg to `az vm run-command` is the script string.
     script = calls[0][calls[0].index("--scripts") + 1]
@@ -168,9 +166,7 @@ async def test_vmss_lifecycle_deallocate_and_start(monkeypatch: pytest.MonkeyPat
 
 def test_vmss_lifecycle_rejects_unknown_action() -> None:
     with pytest.raises(ValueError, match="lifecycle action"):
-        ao.AzVmssLifecycleInjector(
-            resource_group="rg", vmss_name="vmss", action="detonate"
-        )
+        ao.AzVmssLifecycleInjector(resource_group="rg", vmss_name="vmss", action="detonate")
 
 
 async def test_redis_reboot_is_one_shot(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -297,10 +293,7 @@ def test_fault_types_are_stable() -> None:
         ao.AzVmNetworkLatencyInjector(resource_group="rg", vm_name="vm").fault_type
         == "network_delay"
     )
-    assert (
-        ao.AzVmPacketLossInjector(resource_group="rg", vm_name="vm").fault_type
-        == "network_loss"
-    )
+    assert ao.AzVmPacketLossInjector(resource_group="rg", vm_name="vm").fault_type == "network_loss"
     assert (
         ao.AzVmNetworkDisconnectInjector(
             resource_group="rg", vm_name="vm", destination="x"
@@ -308,22 +301,16 @@ def test_fault_types_are_stable() -> None:
         == "network_disconnect"
     )
     assert (
-        ao.AzVmStopServiceInjector(
-            resource_group="rg", vm_name="vm", service="x"
-        ).fault_type
+        ao.AzVmStopServiceInjector(resource_group="rg", vm_name="vm", service="x").fault_type
         == "stop_service"
     )
-    assert (
-        ao.AzVmLifecycleInjector(resource_group="rg", vm_name="vm").fault_type
-        == "vm_lifecycle"
-    )
+    assert ao.AzVmLifecycleInjector(resource_group="rg", vm_name="vm").fault_type == "vm_lifecycle"
     assert (
         ao.AzVmssLifecycleInjector(resource_group="rg", vmss_name="v").fault_type
         == "vmss_lifecycle"
     )
     assert (
-        ao.AzRedisRebootInjector(resource_group="rg", cache_name="c").fault_type
-        == "redis_reboot"
+        ao.AzRedisRebootInjector(resource_group="rg", cache_name="c").fault_type == "redis_reboot"
     )
     assert (
         ao.AzCosmosFailoverInjector(
@@ -338,10 +325,7 @@ def test_fault_types_are_stable() -> None:
         ao.AzKeyVaultDenyAccessInjector(resource_group="rg", vault_name="v").fault_type
         == "keyvault_deny_access"
     )
-    assert (
-        ao.AzNsgRuleInjector(resource_group="rg", nsg_name="n").fault_type
-        == "nsg_rule"
-    )
+    assert ao.AzNsgRuleInjector(resource_group="rg", nsg_name="n").fault_type == "nsg_rule"
     assert (
         ao.AzLbBackendRemoveInjector(
             resource_group="rg", lb_name="l", pool_name="p", address_name="a"
@@ -349,8 +333,6 @@ def test_fault_types_are_stable() -> None:
         == "lb_backend_remove"
     )
     assert (
-        ao.AzServiceBusFirewallInjector(
-            resource_group="rg", namespace_name="s"
-        ).fault_type
+        ao.AzServiceBusFirewallInjector(resource_group="rg", namespace_name="s").fault_type
         == "servicebus_firewall"
     )

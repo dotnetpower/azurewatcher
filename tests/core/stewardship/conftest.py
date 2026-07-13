@@ -25,9 +25,7 @@ def _build_valid_raw() -> dict:
             }
         else:
             agents[name] = {
-                "stewards": [
-                    {"kind": "user", "id": _oid(100 + i), "responsibility": "accountable"}
-                ]
+                "stewards": [{"kind": "user", "id": _oid(100 + i), "responsibility": "accountable"}]
             }
     return {
         "stewardship": {

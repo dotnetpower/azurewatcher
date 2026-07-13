@@ -46,9 +46,7 @@ from fdai.core.chaos.scenario_catalog import CatalogEntry
 #: - ``cross-csp-reference`` - the scenario is catalog data borrowed
 #:   from another CSP (e.g. AWS FIS on an Azure-only FDAI). Kept for
 #:   symptom vocabulary and T2 RCA candidate matching; never executed.
-NON_EXECUTABLE_MARKERS: frozenset[str] = frozenset(
-    {"needs-injector", "cross-csp-reference"}
-)
+NON_EXECUTABLE_MARKERS: frozenset[str] = frozenset({"needs-injector", "cross-csp-reference"})
 
 # Callables the delivery layer registers.
 InjectorBuilder = Callable[[CatalogEntry, dict[str, Any]], FaultInjector]
@@ -137,9 +135,7 @@ class ScenarioFactory:
         a large catalog down to what a specific composition can actually
         run today (delivery adapters vary per fork / environment).
         """
-        return self._resolve_injector(entry) is not None and (
-            entry.expected_signal in self._probes
-        )
+        return self._resolve_injector(entry) is not None and (entry.expected_signal in self._probes)
 
     def executable_entries(self, entries: Iterable[CatalogEntry]) -> list[CatalogEntry]:
         """Return the subset of `entries` this factory can dispatch."""
@@ -161,15 +157,13 @@ class ScenarioFactory:
         builder = self._resolve_injector(entry)
         if builder is None:
             raise UnavailableInjectorError(
-                f"{entry.id}: no injector builder registered for "
-                f"{entry.spec['injector']!r}"
+                f"{entry.id}: no injector builder registered for {entry.spec['injector']!r}"
             )
         injector = builder(entry, ctx)
         probe_builder = self._probes.get(entry.expected_signal)
         if probe_builder is None:
             raise UnavailableProbeError(
-                f"{entry.id}: no probe builder registered for signal "
-                f"{entry.expected_signal!r}"
+                f"{entry.id}: no probe builder registered for signal {entry.expected_signal!r}"
             )
         probe = probe_builder(entry, ctx)
         return injector, probe

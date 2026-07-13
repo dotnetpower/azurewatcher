@@ -71,9 +71,7 @@ def test_candidate_scenarios_widens_when_exact_bucket_is_empty() -> None:
 
 
 def test_candidate_scenarios_respects_max_candidates() -> None:
-    entries = [
-        _entry(f"chaos.a.p-{i}", "pod_restart", "pod", "mild") for i in range(20)
-    ]
+    entries = [_entry(f"chaos.a.p-{i}", "pod_restart", "pod", "mild") for i in range(20)]
     idx = build_from_entries(entries)
     got = candidate_scenarios(
         idx, signal="pod_restart", target_type="pod", severity="low", max_candidates=5

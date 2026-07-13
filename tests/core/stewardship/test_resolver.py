@@ -101,9 +101,7 @@ def test_env_override_steward(valid_raw: dict, oid) -> None:
 
 
 def test_env_steward_defaults_to_accountable(valid_raw: dict, oid) -> None:
-    mp = load_stewardship_from_mapping(
-        valid_raw, environ={"FDAI_STEWARD_THOR": f"user:{oid(60)}"}
-    )
+    mp = load_stewardship_from_mapping(valid_raw, environ={"FDAI_STEWARD_THOR": f"user:{oid(60)}"})
     assert mp.agents["Thor"].accountable[0].id == oid(60)
 
 

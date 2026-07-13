@@ -30,9 +30,7 @@ class _EchoReasoner:
     def __init__(self) -> None:
         self.received: list[tuple[Citation, ...]] = []
 
-    async def reason(
-        self, *, incident_summary: str, candidate_citations
-    ) -> RootCauseHypothesis:  # noqa: D401
+    async def reason(self, *, incident_summary: str, candidate_citations) -> RootCauseHypothesis:  # noqa: D401
         self.received.append(tuple(candidate_citations))
         return RootCauseHypothesis(
             tier=RcaTier.T2,
@@ -99,9 +97,7 @@ async def test_analyze_t2_from_symptom_adds_scenario_citations() -> None:
 
 
 async def test_symptom_widening_pulls_in_lower_severity() -> None:
-    idx = build_from_entries(
-        [_entry("chaos.a.pod-mild", "pod_restart", "pod", "mild")]
-    )
+    idx = build_from_entries([_entry("chaos.a.pod-mild", "pod_restart", "pod", "mild")])
     reasoner = _EchoReasoner()
     c = RcaCoordinator(reasoner=reasoner, symptom_index=idx)
     result = await c.analyze_t2_from_symptom(
@@ -165,9 +161,7 @@ class _StubGatherer:
 async def test_telemetry_gatherer_is_called_when_window_supplied() -> None:
     idx = build_from_entries([_entry("chaos.a.p", "pod_restart", "pod", "mild")])
     reasoner = _EchoReasoner()
-    c = RcaCoordinator(
-        reasoner=reasoner, symptom_index=idx, evidence_gatherer=_StubGatherer()
-    )
+    c = RcaCoordinator(reasoner=reasoner, symptom_index=idx, evidence_gatherer=_StubGatherer())
     since = datetime.now(tz=UTC) - timedelta(minutes=5)
     until = datetime.now(tz=UTC)
     await c.analyze_t2_from_symptom(
@@ -224,9 +218,7 @@ async def test_abstain_when_reasoner_returns_none() -> None:
 
 
 async def test_max_scenario_candidates_caps_fan_out() -> None:
-    entries = [
-        _entry(f"chaos.a.p-{i}", "pod_restart", "pod", "mild") for i in range(20)
-    ]
+    entries = [_entry(f"chaos.a.p-{i}", "pod_restart", "pod", "mild") for i in range(20)]
     idx = build_from_entries(entries)
     reasoner = _EchoReasoner()
     c = RcaCoordinator(reasoner=reasoner, symptom_index=idx)

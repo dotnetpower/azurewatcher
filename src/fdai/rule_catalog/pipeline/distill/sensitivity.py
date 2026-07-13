@@ -138,9 +138,7 @@ def _scan_line(line: str, lineno: int) -> list[SensitivityFinding]:
 
     cred = _CREDENTIAL_ASSIGN_RE.search(line)
     if cred and not _looks_like_placeholder(cred.group("value")):
-        findings.append(
-            SensitivityFinding(SensitivityKind.SECRET, "credential-assignment", lineno)
-        )
+        findings.append(SensitivityFinding(SensitivityKind.SECRET, "credential-assignment", lineno))
 
     if _EMAIL_RE.search(line):
         findings.append(SensitivityFinding(SensitivityKind.PII, "email", lineno))
@@ -170,9 +168,7 @@ def scan_sensitivity(document: ManualDocument) -> SensitivityReport:
     deterministic scan found no secret or PII and distillation may proceed.
     """
     findings = scan_text(document.text)
-    disposition = (
-        SensitivityDisposition.HOLD if findings else SensitivityDisposition.CLEAR
-    )
+    disposition = SensitivityDisposition.HOLD if findings else SensitivityDisposition.CLEAR
     return SensitivityReport(disposition=disposition, findings=findings)
 
 
