@@ -134,13 +134,18 @@ class RoleEnforcer:
             )
 
     def _effective_roles(self, principal: Principal) -> frozenset[Role]:
-        """Drop :attr:`Role.BREAK_GLASS` when its timebox has elapsed.
+        """Return the principal's roles, failing closed on an invalid break-glass.
 
-        If the principal carries the role but no activation stamp, treat it
-        as expired - the resolver only attaches the role via
+        When the principal carries :attr:`Role.BREAK_GLASS`, its activation
+        must be present and still inside its timebox. If the activation stamp
+        is missing (a bug - the resolver only attaches the role via
         :meth:`~fdai.core.rbac.resolver.RoleResolver.activate_break_glass`,
-        which always stamps the activation, so an unstamped principal is a
-        bug we fail closed on.
+        which always stamps it) OR the timebox has elapsed, this raises
+        :class:`BreakGlassExpiredError`. The raise is fail-closed and denies
+        the whole authorize call, so an expired elevation locks out *every*
+        role (including the principal's baseline) until the principal is
+        re-resolved without the stale break-glass - deny-all is the safe
+        posture for a lapsed emergency grant.
         """
         if Role.BREAK_GLASS not in principal.roles:
             return principal.roles
