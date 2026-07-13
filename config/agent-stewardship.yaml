@@ -1,0 +1,97 @@
+# Agent stewardship + handover map - human <-> 15-agent pantheon.
+#
+# Design authority: docs/roadmap/interfaces/agent-stewardship-and-handover.md.
+# Loaded at composition time by
+# `src/fdai/core/stewardship/resolver.py::StewardshipMap.from_config`.
+#
+# This is an ACCOUNTABILITY + NOTIFICATION overlay, NOT an authorization or
+# execution surface. It MUST NOT declare any ActionType role field
+# (executor / judge / approver / initiators / auditor) - those live only in the
+# fork-locked ontology (see agent-pantheon.instructions.md). check-stewardship.sh
+# rejects a file that tries.
+#
+# Upstream ships all-zero placeholder objectIds. A per-customer fork MUST replace
+# every id with its tenant's real Entra user/group objectId before deploying;
+# leaving a placeholder in a fork fails the check (see generic-scope). Missing or
+# malformed values fail fast at startup (StewardshipValidationError).
+#
+# Env-var overrides (no YAML edit needed):
+#     FDAI_MAINTAINERS                 comma-separated user OIDs
+#     FDAI_STEWARD_<AGENT>             comma-separated user:<oid> / group:<oid>
+#                                      tokens, e.g. FDAI_STEWARD_THOR
+
+stewardship:
+  version: 1
+
+  # FDAI platform owners. Min 1 (fail-fast), rec 2 (warn on exactly 1).
+  maintainers:
+    - oid: "00000000-0000-0000-0000-000000000000"
+    - oid: "00000000-0000-0000-0000-000000000000"
+
+  # Optional person-OID -> notification channel-id (channel must be known to
+  # notifications-matrix.yaml). Unlisted people fall back to the agent's
+  # category route in the matrix.
+  channels: {}
+
+  # Seconds per escalation hop before advancing accountable -> informed ->
+  # maintainer.
+  escalation:
+    hop_timeout_seconds: 900
+
+  # Non-blocking coverage thresholds (surfaced as warnings, never fail boot).
+  thresholds:
+    over_assigned_max: 5        # warn when one person is accountable for > N agents
+
+  # All 15 pantheon agents MUST appear, spelled exactly (parity-tested against
+  # PANTHEON_NAMES). Each steward subject is `kind: user|group` + an Entra
+  # objectId + `responsibility: accountable|informed`. An agent with no
+  # accountable steward MUST set accept_autonomous with a reason.
+  agents:
+    Odin:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Thor:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Forseti:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Huginn:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Heimdall:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Vidar:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Var:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Bragi:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Saga:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Mimir:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Muninn:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Norns:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Njord:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Freyr:
+      stewards:
+        - { kind: user, id: "00000000-0000-0000-0000-000000000000", responsibility: accountable }
+    Loki:
+      # Chaos proposals are always HIL; upstream ships Loki with no standing
+      # domain owner. A fork MAY assign one; the maintainer is the fallback.
+      accept_autonomous:
+        reason: "Chaos proposals are always HIL; no standing domain owner upstream."
+      stewards: []
