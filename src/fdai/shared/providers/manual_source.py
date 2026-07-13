@@ -188,7 +188,14 @@ class DropDirectoryManualSource:
     def _iter_files(self) -> list[Path]:
         if not self._root.is_dir():
             return []
-        files = [p for p in self._root.glob(self._glob) if p.is_file()]
+        # Skip symlinks: a dropped symlink must not exfiltrate a file outside
+        # the drop root (its real path escapes the directory), and an escaping
+        # real path would otherwise crash _rel_id's relative_to(). glob does not
+        # recurse into symlinked directories, so filtering symlink entries here
+        # is the complete boundary.
+        files = [
+            p for p in self._root.glob(self._glob) if p.is_file() and not p.is_symlink()
+        ]
         return sorted(files)
 
     def _rel_id(self, path: Path) -> str:

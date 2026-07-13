@@ -102,6 +102,36 @@ async def test_drop_fetch_rejects_path_traversal(tmp_path: Path) -> None:
     assert await source.fetch("../secret.md") is None
 
 
+async def test_drop_lists_ignore_symlink_escaping_root(tmp_path: Path) -> None:
+    import os
+
+    root = tmp_path / "drop"
+    root.mkdir()
+    (root / "real.md").write_text("real manual", encoding="utf-8")
+    outside = tmp_path / "outside-secret.md"
+    outside.write_text("secret outside the drop root", encoding="utf-8")
+    os.symlink(outside, root / "link.md")  # dropped symlink escaping root
+
+    source = DropDirectoryManualSource(root)
+    # Listing must not crash and must exclude the escaping symlink.
+    ids = [c.doc_id for c in await source.list_candidates()]
+    assert ids == ["real.md"]
+    # fetch through the symlink also refuses (resolved path escapes root).
+    assert await source.fetch("link.md") is None
+
+
+async def test_drop_fetch_rejects_symlink_to_outside(tmp_path: Path) -> None:
+    import os
+
+    root = tmp_path / "drop"
+    root.mkdir()
+    outside = tmp_path / "target.md"
+    outside.write_text("outside", encoding="utf-8")
+    os.symlink(outside, root / "escape.md")
+    source = DropDirectoryManualSource(root)
+    assert await source.fetch("escape.md") is None
+
+
 async def test_drop_flags_lossy_decode(tmp_path: Path) -> None:
     (tmp_path / "binary.bin").write_bytes(b"\xff\xfe\x00bad utf8")
     source = DropDirectoryManualSource(tmp_path)
