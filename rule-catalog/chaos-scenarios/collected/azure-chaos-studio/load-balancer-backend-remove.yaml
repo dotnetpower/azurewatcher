@@ -1,0 +1,27 @@
+id: chaos.azure-chaos-studio.load-balancer-backend-remove
+version: 1
+provenance:
+  source: azure-chaos-studio
+  source_url: https://learn.microsoft.com/azure/chaos-studio/chaos-studio-fault-library
+  source_ref: urn:csci:microsoft:loadBalancer:backendRemove/1.0
+  synthesis_method: collected
+category: traffic
+target_type: lb
+fault_family: deny
+intensity: high
+duration_seconds: 360.0
+expected_signal: backend_health
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: Chaos Studio re-adds the backend at duration end.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Remove a backend from an Azure Load Balancer pool via Chaos Studio; healthy-host
+  count drops.
+params:
+  fault_name: urn:csci:microsoft:loadBalancer:backendRemove/1.0
+tags:
+- azure-chaos-studio
+- lb

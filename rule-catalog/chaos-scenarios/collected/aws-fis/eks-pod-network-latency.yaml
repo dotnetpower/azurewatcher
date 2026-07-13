@@ -1,0 +1,26 @@
+id: chaos.aws-fis.eks-pod-network-latency
+version: 1
+provenance:
+  source: aws-fis
+  source_url: https://docs.aws.amazon.com/fis/latest/userguide/fis-actions-reference.html
+  source_ref: aws:eks:pod-network-latency
+  synthesis_method: collected
+category: network
+target_type: pod
+fault_family: delay
+intensity: high
+duration_seconds: 360.0
+expected_signal: gateway_latency
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: FIS removes the tc netem rule at duration end.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Inject network latency into EKS pods via AWS FIS.
+params:
+  action_id: aws:eks:pod-network-latency
+  latency_ms: '300'
+tags:
+- aws-fis

@@ -1,0 +1,27 @@
+id: chaos.aws-fis.ssm-network-packet-loss
+version: 1
+provenance:
+  source: aws-fis
+  source_url: https://docs.aws.amazon.com/fis/latest/userguide/fis-actions-reference.html
+  source_ref: aws:ssm:send-command/AWSFIS-Run-Network-Packet-Loss
+  synthesis_method: collected
+category: network
+target_type: vm
+fault_family: drop
+intensity: high
+duration_seconds: 360.0
+expected_signal: request_failure
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: SSM removes the drop rule at duration end.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Drop packets on EC2 via SSM Run-Command (AWSFIS-Run-Network-Packet-Loss).
+params:
+  action_id: aws:ssm:send-command
+  document: AWSFIS-Run-Network-Packet-Loss
+  loss_percent: '20'
+tags:
+- aws-fis

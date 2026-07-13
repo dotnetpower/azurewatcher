@@ -1,0 +1,27 @@
+id: chaos.azure-chaos-studio.vmss-shutdown
+version: 1
+provenance:
+  source: azure-chaos-studio
+  source_url: https://learn.microsoft.com/azure/chaos-studio/chaos-studio-fault-library
+  source_ref: urn:csci:microsoft:virtualMachineScaleSet:shutdown/1.0
+  synthesis_method: collected
+category: compute
+target_type: vmss
+fault_family: stop
+intensity: high
+duration_seconds: 360.0
+expected_signal: pod_restart
+injector: needs-injector
+blast_radius_cap: 2
+rollback_note: '`az vmss start` and the upgrade policy restores the instance count.'
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Shut down one or more instances of a VMSS via Chaos Studio; the scale
+  set replaces per its upgrade policy.
+params:
+  fault_name: urn:csci:microsoft:virtualMachineScaleSet:shutdown/1.0
+tags:
+- azure-chaos-studio
+- vmss

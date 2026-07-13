@@ -1,0 +1,29 @@
+id: chaos.azure-chaos-studio.agent-network-packet-loss
+version: 1
+provenance:
+  source: azure-chaos-studio
+  source_url: https://learn.microsoft.com/azure/chaos-studio/chaos-studio-fault-library
+  source_ref: urn:csci:microsoft:agent:networkPacketLoss/1.0
+  synthesis_method: collected
+category: network
+target_type: vm
+fault_family: drop
+intensity: high
+duration_seconds: 360.0
+expected_signal: request_failure
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Agent removes the drop rule at duration end.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Drop a fraction of outbound packets on a VM via Chaos Studio; downstream
+  calls see failures / retries.
+params:
+  fault_name: urn:csci:microsoft:agent:networkPacketLoss/1.0
+  loss_percent: '20'
+tags:
+- azure-chaos-studio
+- vm
+- network

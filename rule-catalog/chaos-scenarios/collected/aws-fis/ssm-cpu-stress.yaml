@@ -1,0 +1,27 @@
+id: chaos.aws-fis.ssm-cpu-stress
+version: 1
+provenance:
+  source: aws-fis
+  source_url: https://docs.aws.amazon.com/fis/latest/userguide/fis-actions-reference.html
+  source_ref: aws:ssm:send-command/AWSFIS-Run-CPU-Stress
+  synthesis_method: collected
+category: compute
+target_type: vm
+fault_family: saturate
+intensity: high
+duration_seconds: 360.0
+expected_signal: host_cpu
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: SSM stops the stress at duration end.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Sustain CPU pressure on EC2 via SSM Run-Command (AWSFIS-Run-CPU-Stress).
+params:
+  action_id: aws:ssm:send-command
+  document: AWSFIS-Run-CPU-Stress
+  cpu_percent: '80'
+tags:
+- aws-fis

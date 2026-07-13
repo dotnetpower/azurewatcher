@@ -1,0 +1,29 @@
+id: chaos.azure-chaos-studio.agent-network-disconnect
+version: 1
+provenance:
+  source: azure-chaos-studio
+  source_url: https://learn.microsoft.com/azure/chaos-studio/chaos-studio-fault-library
+  source_ref: urn:csci:microsoft:agent:networkDisconnect/1.0
+  synthesis_method: collected
+category: network
+target_type: vm
+fault_family: deny
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: backend_health
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Firewall rule removed at duration end.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Block outbound traffic to a set of destinations on a VM via Chaos Studio;
+  emulates dependency partition.
+params:
+  fault_name: urn:csci:microsoft:agent:networkDisconnect/1.0
+  destinations: upstream-service
+tags:
+- azure-chaos-studio
+- vm
+- network

@@ -1,0 +1,29 @@
+id: chaos.azure-chaos-studio.agent-network-latency
+version: 1
+provenance:
+  source: azure-chaos-studio
+  source_url: https://learn.microsoft.com/azure/chaos-studio/chaos-studio-fault-library
+  source_ref: urn:csci:microsoft:agent:networkLatency/1.0
+  synthesis_method: collected
+category: network
+target_type: vm
+fault_family: delay
+intensity: high
+duration_seconds: 360.0
+expected_signal: gateway_latency
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Agent removes the tc netem rule at duration end.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Add outbound network latency on a VM via the Chaos Studio agent-based
+  fault; downstream services see gateway latency.
+params:
+  fault_name: urn:csci:microsoft:agent:networkLatency/1.0
+  latency_ms: '250'
+tags:
+- azure-chaos-studio
+- vm
+- network

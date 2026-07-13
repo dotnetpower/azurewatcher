@@ -1,0 +1,29 @@
+id: chaos.azure-chaos-studio.agent-stop-service
+version: 1
+provenance:
+  source: azure-chaos-studio
+  source_url: https://learn.microsoft.com/azure/chaos-studio/chaos-studio-fault-library
+  source_ref: urn:csci:microsoft:agent:stopService/1.0
+  synthesis_method: collected
+category: compute
+target_type: vm
+fault_family: stop
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: pod_restart
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Agent restarts the service at duration end or on stop.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Stop a system service (systemd unit) on a VM via Chaos Studio; captures
+  dependency-crash blast radius.
+params:
+  fault_name: urn:csci:microsoft:agent:stopService/1.0
+  service: myservice
+tags:
+- azure-chaos-studio
+- vm
+- service

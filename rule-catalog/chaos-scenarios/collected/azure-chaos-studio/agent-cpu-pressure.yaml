@@ -1,0 +1,30 @@
+id: chaos.azure-chaos-studio.agent-cpu-pressure
+version: 1
+provenance:
+  source: azure-chaos-studio
+  source_url: https://learn.microsoft.com/azure/chaos-studio/chaos-studio-fault-library
+  source_ref: urn:csci:microsoft:agent:cpuPressure/1.0
+  synthesis_method: collected
+category: compute
+target_type: vm
+fault_family: saturate
+intensity: high
+duration_seconds: 360.0
+expected_signal: host_cpu
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Chaos Studio agent removes the pressure at duration end; no manual
+  rollback needed inside the window.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Sustain CPU pressure on a VM via the Chaos Studio agent-based fault -
+  percentage of cores loaded for a bounded window.
+params:
+  fault_name: urn:csci:microsoft:agent:cpuPressure/1.0
+  pressure_level: '95'
+tags:
+- azure-chaos-studio
+- vm
+- cpu

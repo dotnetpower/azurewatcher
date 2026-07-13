@@ -1,0 +1,26 @@
+id: chaos.azure-chaos-studio.redis-reboot
+version: 1
+provenance:
+  source: azure-chaos-studio
+  source_url: https://learn.microsoft.com/azure/chaos-studio/chaos-studio-fault-library
+  source_ref: urn:csci:microsoft:cache:reboot/1.0
+  synthesis_method: collected
+category: dependency
+target_type: cache
+fault_family: stop
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: request_failure
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Reboot is one-way; monitor cache back to healthy.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Reboot Azure Cache for Redis node(s) via Chaos Studio.
+params:
+  fault_name: urn:csci:microsoft:cache:reboot/1.0
+tags:
+- azure-chaos-studio
+- redis

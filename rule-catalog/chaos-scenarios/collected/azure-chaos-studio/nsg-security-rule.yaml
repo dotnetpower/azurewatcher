@@ -1,0 +1,27 @@
+id: chaos.azure-chaos-studio.nsg-security-rule
+version: 1
+provenance:
+  source: azure-chaos-studio
+  source_url: https://learn.microsoft.com/azure/chaos-studio/chaos-studio-fault-library
+  source_ref: urn:csci:microsoft:networkSecurityGroup:securityRule/1.0
+  synthesis_method: collected
+category: network
+target_type: ingress
+fault_family: deny
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: backend_health
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Chaos Studio removes the rule at duration end.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Add a deny NSG rule via Chaos Studio; emulates an operator-mistake blackhole
+  to a service.
+params:
+  fault_name: urn:csci:microsoft:networkSecurityGroup:securityRule/1.0
+tags:
+- azure-chaos-studio
+- nsg

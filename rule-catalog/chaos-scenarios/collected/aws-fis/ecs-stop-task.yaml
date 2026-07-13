@@ -1,0 +1,25 @@
+id: chaos.aws-fis.ecs-stop-task
+version: 1
+provenance:
+  source: aws-fis
+  source_url: https://docs.aws.amazon.com/fis/latest/userguide/fis-actions-reference.html
+  source_ref: aws:ecs:stop-task
+  synthesis_method: collected
+category: compute
+target_type: pod
+fault_family: stop
+intensity: high
+duration_seconds: 360.0
+expected_signal: pod_restart
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: ECS reschedules per the service policy.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Stop an ECS task via AWS FIS; the service reschedules.
+params:
+  action_id: aws:ecs:stop-task
+tags:
+- aws-fis

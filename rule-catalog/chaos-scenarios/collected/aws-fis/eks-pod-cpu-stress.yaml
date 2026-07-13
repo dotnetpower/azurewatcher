@@ -1,0 +1,26 @@
+id: chaos.aws-fis.eks-pod-cpu-stress
+version: 1
+provenance:
+  source: aws-fis
+  source_url: https://docs.aws.amazon.com/fis/latest/userguide/fis-actions-reference.html
+  source_ref: aws:eks:pod-cpu-stress
+  synthesis_method: collected
+category: compute
+target_type: pod
+fault_family: saturate
+intensity: high
+duration_seconds: 360.0
+expected_signal: node_cpu
+injector: needs-injector
+blast_radius_cap: 3
+rollback_note: FIS removes the stress at duration end.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Inject CPU stress into EKS pods via AWS FIS.
+params:
+  action_id: aws:eks:pod-cpu-stress
+  cpu_percent: '90'
+tags:
+- aws-fis

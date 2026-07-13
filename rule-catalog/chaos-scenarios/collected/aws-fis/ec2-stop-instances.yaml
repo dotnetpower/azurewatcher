@@ -1,0 +1,27 @@
+id: chaos.aws-fis.ec2-stop-instances
+version: 1
+provenance:
+  source: aws-fis
+  source_url: https://docs.aws.amazon.com/fis/latest/userguide/fis-actions-reference.html
+  source_ref: aws:ec2:stop-instances
+  synthesis_method: collected
+category: compute
+target_type: vm
+fault_family: stop
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: pod_restart
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: '`aws ec2 start-instances` (FIS auto-starts if the duration is set).'
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Stop EC2 instances via AWS FIS; workloads on them terminate and the ASG
+  (if any) replaces per its policy.
+params:
+  action_id: aws:ec2:stop-instances
+  startInstancesAfterDuration: PT10M
+tags:
+- aws-fis

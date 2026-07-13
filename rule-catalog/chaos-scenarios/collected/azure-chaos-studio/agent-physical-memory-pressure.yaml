@@ -1,0 +1,29 @@
+id: chaos.azure-chaos-studio.agent-physical-memory-pressure
+version: 1
+provenance:
+  source: azure-chaos-studio
+  source_url: https://learn.microsoft.com/azure/chaos-studio/chaos-studio-fault-library
+  source_ref: urn:csci:microsoft:agent:physicalMemoryPressure/1.0
+  synthesis_method: collected
+category: resource_saturation
+target_type: vm
+fault_family: saturate
+intensity: high
+duration_seconds: 360.0
+expected_signal: host_memory
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Agent releases memory at duration end.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Sustain physical memory pressure on a VM via the Chaos Studio agent-based
+  fault.
+params:
+  fault_name: urn:csci:microsoft:agent:physicalMemoryPressure/1.0
+  pressure_level: '95'
+tags:
+- azure-chaos-studio
+- vm
+- memory

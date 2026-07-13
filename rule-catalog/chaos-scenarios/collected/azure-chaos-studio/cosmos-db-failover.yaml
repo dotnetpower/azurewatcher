@@ -1,0 +1,27 @@
+id: chaos.azure-chaos-studio.cosmos-db-failover
+version: 1
+provenance:
+  source: azure-chaos-studio
+  source_url: https://learn.microsoft.com/azure/chaos-studio/chaos-studio-fault-library
+  source_ref: urn:csci:microsoft:cosmosDB:failover/1.0
+  synthesis_method: collected
+category: dependency
+target_type: db
+fault_family: stop
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: request_failure
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Failback to the original region after the window.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Force a Cosmos DB region failover via Chaos Studio; applications observe
+  transient read/write errors and latency.
+params:
+  fault_name: urn:csci:microsoft:cosmosDB:failover/1.0
+tags:
+- azure-chaos-studio
+- cosmos

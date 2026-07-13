@@ -1,0 +1,26 @@
+id: chaos.azure-chaos-studio.aks-chaos-mesh-stress-chaos
+version: 1
+provenance:
+  source: azure-chaos-studio
+  source_url: https://learn.microsoft.com/azure/chaos-studio/chaos-studio-fault-library
+  source_ref: urn:csci:microsoft:azureKubernetesServiceChaosMesh:stressChaos/2.1
+  synthesis_method: collected
+category: compute
+target_type: pod
+fault_family: saturate
+intensity: high
+duration_seconds: 360.0
+expected_signal: node_cpu
+injector: needs-injector
+blast_radius_cap: 3
+rollback_note: Chaos Studio removes the CRD at duration end.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Run a Chaos Mesh StressChaos experiment on an AKS cluster via Chaos Studio.
+params:
+  fault_name: urn:csci:microsoft:azureKubernetesServiceChaosMesh:stressChaos/2.1
+tags:
+- azure-chaos-studio
+- aks

@@ -1,5 +1,69 @@
 {
+  "backend_health|ingress|": [
+    {
+      "category": "network",
+      "expected_signal": "backend_health",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.network-disrupt-connectivity",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/network-disrupt-connectivity.yaml",
+      "target_type": "ingress"
+    },
+    {
+      "category": "network",
+      "expected_signal": "backend_health",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.nsg-security-rule",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/nsg-security-rule.yaml",
+      "target_type": "ingress"
+    }
+  ],
+  "backend_health|ingress|high": [
+    {
+      "category": "network",
+      "expected_signal": "backend_health",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.network-disrupt-connectivity",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/network-disrupt-connectivity.yaml",
+      "target_type": "ingress"
+    },
+    {
+      "category": "network",
+      "expected_signal": "backend_health",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.nsg-security-rule",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/nsg-security-rule.yaml",
+      "target_type": "ingress"
+    }
+  ],
   "backend_health|lb|": [
+    {
+      "category": "traffic",
+      "expected_signal": "backend_health",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.load-balancer-backend-remove",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/load-balancer-backend-remove.yaml",
+      "target_type": "lb"
+    },
     {
       "category": "traffic",
       "expected_signal": "backend_health",
@@ -70,6 +134,18 @@
       "category": "traffic",
       "expected_signal": "backend_health",
       "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.load-balancer-backend-remove",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/load-balancer-backend-remove.yaml",
+      "target_type": "lb"
+    },
+    {
+      "category": "traffic",
+      "expected_signal": "backend_health",
+      "gpu_domain": null,
       "id": "chaos.general.lb-deny-backend-health-high",
       "injector": "kubectl:scale",
       "intensity": "high",
@@ -107,7 +183,83 @@
       "target_type": "pod"
     }
   ],
+  "backend_health|vm|": [
+    {
+      "category": "network",
+      "expected_signal": "backend_health",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-network-disconnect",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-network-disconnect.yaml",
+      "target_type": "vm"
+    }
+  ],
+  "backend_health|vm|high": [
+    {
+      "category": "network",
+      "expected_signal": "backend_health",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-network-disconnect",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-network-disconnect.yaml",
+      "target_type": "vm"
+    }
+  ],
   "backend_health||": [
+    {
+      "category": "network",
+      "expected_signal": "backend_health",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.network-disrupt-connectivity",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/network-disrupt-connectivity.yaml",
+      "target_type": "ingress"
+    },
+    {
+      "category": "network",
+      "expected_signal": "backend_health",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-network-disconnect",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-network-disconnect.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "traffic",
+      "expected_signal": "backend_health",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.load-balancer-backend-remove",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/load-balancer-backend-remove.yaml",
+      "target_type": "lb"
+    },
+    {
+      "category": "network",
+      "expected_signal": "backend_health",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.nsg-security-rule",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/nsg-security-rule.yaml",
+      "target_type": "ingress"
+    },
     {
       "category": "network",
       "expected_signal": "backend_health",
@@ -441,6 +593,30 @@
   ],
   "gateway_latency|pod|": [
     {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.eks-pod-network-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/eks-pod-network-latency.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.aks-chaos-mesh-network-chaos",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/aks-chaos-mesh-network-chaos.yaml",
+      "target_type": "pod"
+    },
+    {
       "category": "traffic",
       "expected_signal": "gateway_latency",
       "gpu_domain": null,
@@ -615,6 +791,30 @@
   ],
   "gateway_latency|pod|medium": [
     {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.eks-pod-network-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/eks-pod-network-latency.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.aks-chaos-mesh-network-chaos",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/aks-chaos-mesh-network-chaos.yaml",
+      "target_type": "pod"
+    },
+    {
       "category": "traffic",
       "expected_signal": "gateway_latency",
       "gpu_domain": null,
@@ -663,7 +863,107 @@
       "target_type": "pod"
     }
   ],
+  "gateway_latency|vm|": [
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-network-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-network-latency.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-network-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-network-latency.yaml",
+      "target_type": "vm"
+    }
+  ],
+  "gateway_latency|vm|medium": [
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-network-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-network-latency.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-network-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-network-latency.yaml",
+      "target_type": "vm"
+    }
+  ],
   "gateway_latency||": [
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.eks-pod-network-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/eks-pod-network-latency.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-network-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-network-latency.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-network-latency",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-network-latency.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "network",
+      "expected_signal": "gateway_latency",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.aks-chaos-mesh-network-chaos",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/aks-chaos-mesh-network-chaos.yaml",
+      "target_type": "pod"
+    },
     {
       "category": "traffic",
       "expected_signal": "gateway_latency",
@@ -1342,6 +1642,18 @@
       "category": "storage",
       "expected_signal": "host_cpu",
       "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-disk-fill",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-disk-fill.yaml",
+      "target_type": "disk"
+    },
+    {
+      "category": "storage",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
       "id": "chaos.chaos-mesh.block-delay",
       "injector": "chaos-mesh:BlockChaos",
       "intensity": "high",
@@ -1388,6 +1700,18 @@
     }
   ],
   "host_cpu|disk|high": [
+    {
+      "category": "storage",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-disk-fill",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-disk-fill.yaml",
+      "target_type": "disk"
+    },
     {
       "category": "storage",
       "expected_signal": "host_cpu",
@@ -1442,6 +1766,30 @@
     }
   ],
   "host_cpu|vm|": [
+    {
+      "category": "compute",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-cpu-stress",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-cpu-stress.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-cpu-pressure",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-cpu-pressure.yaml",
+      "target_type": "vm"
+    },
     {
       "category": "compute",
       "expected_signal": "host_cpu",
@@ -1572,6 +1920,30 @@
       "category": "compute",
       "expected_signal": "host_cpu",
       "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-cpu-stress",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-cpu-stress.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-cpu-pressure",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-cpu-pressure.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
       "id": "chaos.general.vm-saturate-host-cpu-high",
       "injector": "az:vm-run-command",
       "intensity": "high",
@@ -1594,6 +1966,42 @@
     }
   ],
   "host_cpu||": [
+    {
+      "category": "compute",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-cpu-stress",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-cpu-stress.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "storage",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-disk-fill",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-disk-fill.yaml",
+      "target_type": "disk"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "host_cpu",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-cpu-pressure",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-cpu-pressure.yaml",
+      "target_type": "vm"
+    },
     {
       "category": "storage",
       "expected_signal": "host_cpu",
@@ -1748,6 +2156,30 @@
       "category": "resource_saturation",
       "expected_signal": "host_memory",
       "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-memory-stress",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-memory-stress.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "resource_saturation",
+      "expected_signal": "host_memory",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-physical-memory-pressure",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-physical-memory-pressure.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "resource_saturation",
+      "expected_signal": "host_memory",
+      "gpu_domain": null,
       "id": "chaos.general.vm-saturate-host-memory-extreme",
       "injector": "az:vm-run-command",
       "intensity": "extreme",
@@ -1814,6 +2246,30 @@
       "category": "resource_saturation",
       "expected_signal": "host_memory",
       "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-memory-stress",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-memory-stress.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "resource_saturation",
+      "expected_signal": "host_memory",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-physical-memory-pressure",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-physical-memory-pressure.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "resource_saturation",
+      "expected_signal": "host_memory",
+      "gpu_domain": null,
       "id": "chaos.general.vm-saturate-host-memory-high",
       "injector": "az:vm-run-command",
       "intensity": "high",
@@ -1824,6 +2280,30 @@
     }
   ],
   "host_memory||": [
+    {
+      "category": "resource_saturation",
+      "expected_signal": "host_memory",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-memory-stress",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-memory-stress.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "resource_saturation",
+      "expected_signal": "host_memory",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-physical-memory-pressure",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-physical-memory-pressure.yaml",
+      "target_type": "vm"
+    },
     {
       "category": "resource_saturation",
       "expected_signal": "host_memory",
@@ -2004,6 +2484,30 @@
       "category": "compute",
       "expected_signal": "node_cpu",
       "gpu_domain": null,
+      "id": "chaos.aws-fis.eks-pod-cpu-stress",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/eks-pod-cpu-stress.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "node_cpu",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.aks-chaos-mesh-stress-chaos",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/aks-chaos-mesh-stress-chaos.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "node_cpu",
+      "gpu_domain": null,
       "id": "chaos.general.pod-saturate-node-cpu-extreme",
       "injector": "chaos-mesh:StressChaos",
       "intensity": "extreme",
@@ -2130,6 +2634,30 @@
       "category": "compute",
       "expected_signal": "node_cpu",
       "gpu_domain": null,
+      "id": "chaos.aws-fis.eks-pod-cpu-stress",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/eks-pod-cpu-stress.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "node_cpu",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.aks-chaos-mesh-stress-chaos",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/aks-chaos-mesh-stress-chaos.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "node_cpu",
+      "gpu_domain": null,
       "id": "chaos.general.pod-saturate-node-cpu-high",
       "injector": "chaos-mesh:StressChaos",
       "intensity": "high",
@@ -2152,6 +2680,30 @@
     }
   ],
   "node_cpu||": [
+    {
+      "category": "compute",
+      "expected_signal": "node_cpu",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.eks-pod-cpu-stress",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/eks-pod-cpu-stress.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "node_cpu",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.aks-chaos-mesh-stress-chaos",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/aks-chaos-mesh-stress-chaos.yaml",
+      "target_type": "pod"
+    },
     {
       "category": "compute",
       "expected_signal": "node_cpu",
@@ -2226,6 +2778,30 @@
     }
   ],
   "pod_restart|pod|": [
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ecs-stop-task",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ecs-stop-task.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.aks-chaos-mesh-pod-chaos",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/aks-chaos-mesh-pod-chaos.yaml",
+      "target_type": "pod"
+    },
     {
       "category": "compute",
       "expected_signal": "pod_restart",
@@ -2344,6 +2920,30 @@
       "category": "compute",
       "expected_signal": "pod_restart",
       "gpu_domain": null,
+      "id": "chaos.aws-fis.ecs-stop-task",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ecs-stop-task.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.aks-chaos-mesh-pod-chaos",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/aks-chaos-mesh-pod-chaos.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
       "id": "chaos.chaos-mesh.container-kill",
       "injector": "chaos-mesh:PodChaos",
       "intensity": "high",
@@ -2377,7 +2977,329 @@
       "target_type": "pod"
     }
   ],
+  "pod_restart|vmss|": [
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.vmss-shutdown",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/vmss-shutdown.yaml",
+      "target_type": "vmss"
+    }
+  ],
+  "pod_restart|vmss|medium": [
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.vmss-shutdown",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/vmss-shutdown.yaml",
+      "target_type": "vmss"
+    }
+  ],
+  "pod_restart|vm|": [
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ec2-reboot-instances",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ec2-reboot-instances.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ec2-stop-instances",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ec2-stop-instances.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ec2-terminate-instances",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ec2-terminate-instances.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-kill-process",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-kill-process.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-stop-service",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-stop-service.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.vm-redeploy",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/vm-redeploy.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.vm-shutdown",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/vm-shutdown.yaml",
+      "target_type": "vm"
+    }
+  ],
+  "pod_restart|vm|high": [
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ec2-stop-instances",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ec2-stop-instances.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ec2-terminate-instances",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ec2-terminate-instances.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-kill-process",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-kill-process.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-stop-service",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-stop-service.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.vm-redeploy",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/vm-redeploy.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.vm-shutdown",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/vm-shutdown.yaml",
+      "target_type": "vm"
+    }
+  ],
+  "pod_restart|vm|medium": [
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ec2-reboot-instances",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ec2-reboot-instances.yaml",
+      "target_type": "vm"
+    }
+  ],
   "pod_restart||": [
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ec2-reboot-instances",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ec2-reboot-instances.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ec2-stop-instances",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ec2-stop-instances.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ec2-terminate-instances",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ec2-terminate-instances.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ecs-stop-task",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ecs-stop-task.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-kill-process",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-kill-process.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-stop-service",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-stop-service.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.aks-chaos-mesh-pod-chaos",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/aks-chaos-mesh-pod-chaos.yaml",
+      "target_type": "pod"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.vm-redeploy",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/vm-redeploy.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.vm-shutdown",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/vm-shutdown.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "compute",
+      "expected_signal": "pod_restart",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.vmss-shutdown",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/vmss-shutdown.yaml",
+      "target_type": "vmss"
+    },
     {
       "category": "compute",
       "expected_signal": "pod_restart",
@@ -2569,6 +3491,112 @@
       "target_type": "llm_endpoint"
     }
   ],
+  "request_failure|cache|": [
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.redis-reboot",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/redis-reboot.yaml",
+      "target_type": "cache"
+    }
+  ],
+  "request_failure|cache|high": [
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.redis-reboot",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/redis-reboot.yaml",
+      "target_type": "cache"
+    }
+  ],
+  "request_failure|db|": [
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.rds-failover-db-cluster",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/rds-failover-db-cluster.yaml",
+      "target_type": "db"
+    },
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.rds-reboot-db-instances",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/rds-reboot-db-instances.yaml",
+      "target_type": "db"
+    },
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.cosmos-db-failover",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/cosmos-db-failover.yaml",
+      "target_type": "db"
+    }
+  ],
+  "request_failure|db|high": [
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.rds-failover-db-cluster",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/rds-failover-db-cluster.yaml",
+      "target_type": "db"
+    },
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.cosmos-db-failover",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/cosmos-db-failover.yaml",
+      "target_type": "db"
+    }
+  ],
+  "request_failure|db|medium": [
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.rds-reboot-db-instances",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/rds-reboot-db-instances.yaml",
+      "target_type": "db"
+    }
+  ],
   "request_failure|disk|": [
     {
       "category": "storage",
@@ -2623,6 +3651,34 @@
       "severity_bucket": "high",
       "source_path": "rule-catalog/chaos-scenarios/collected/chaos-mesh/dns-error.yaml",
       "target_type": "dns"
+    }
+  ],
+  "request_failure|ingress|": [
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.service-bus-firewall-block",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/service-bus-firewall-block.yaml",
+      "target_type": "ingress"
+    }
+  ],
+  "request_failure|ingress|high": [
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.service-bus-firewall-block",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/service-bus-firewall-block.yaml",
+      "target_type": "ingress"
     }
   ],
   "request_failure|pod|": [
@@ -2849,7 +3905,183 @@
       "target_type": "pod"
     }
   ],
+  "request_failure|secret_store|": [
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.keyvault-deny-access",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/keyvault-deny-access.yaml",
+      "target_type": "secret_store"
+    }
+  ],
+  "request_failure|secret_store|high": [
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.keyvault-deny-access",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/keyvault-deny-access.yaml",
+      "target_type": "secret_store"
+    }
+  ],
+  "request_failure|vm|": [
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-network-packet-loss",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-network-packet-loss.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-network-packet-loss",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-network-packet-loss.yaml",
+      "target_type": "vm"
+    }
+  ],
+  "request_failure|vm|medium": [
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-network-packet-loss",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-network-packet-loss.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-network-packet-loss",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-network-packet-loss.yaml",
+      "target_type": "vm"
+    }
+  ],
   "request_failure||": [
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.rds-failover-db-cluster",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/rds-failover-db-cluster.yaml",
+      "target_type": "db"
+    },
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.rds-reboot-db-instances",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/rds-reboot-db-instances.yaml",
+      "target_type": "db"
+    },
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ssm-network-packet-loss",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ssm-network-packet-loss.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "network",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.agent-network-packet-loss",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/agent-network-packet-loss.yaml",
+      "target_type": "vm"
+    },
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.cosmos-db-failover",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/cosmos-db-failover.yaml",
+      "target_type": "db"
+    },
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.keyvault-deny-access",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/keyvault-deny-access.yaml",
+      "target_type": "secret_store"
+    },
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.redis-reboot",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/redis-reboot.yaml",
+      "target_type": "cache"
+    },
+    {
+      "category": "dependency",
+      "expected_signal": "request_failure",
+      "gpu_domain": null,
+      "id": "chaos.azure-chaos-studio.service-bus-firewall-block",
+      "injector": "needs-injector",
+      "intensity": "extreme",
+      "requires_hardware": false,
+      "severity_bucket": "high",
+      "source_path": "rule-catalog/chaos-scenarios/collected/azure-chaos-studio/service-bus-firewall-block.yaml",
+      "target_type": "ingress"
+    },
     {
       "category": "network",
       "expected_signal": "request_failure",
@@ -3153,7 +4385,47 @@
       "target_type": "training_job"
     }
   ],
+  "spot_preempt_cascade|vm|": [
+    {
+      "category": "compute",
+      "expected_signal": "spot_preempt_cascade",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ec2-send-spot-instance-interruptions",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ec2-send-spot-instance-interruptions.yaml",
+      "target_type": "vm"
+    }
+  ],
+  "spot_preempt_cascade|vm|medium": [
+    {
+      "category": "compute",
+      "expected_signal": "spot_preempt_cascade",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ec2-send-spot-instance-interruptions",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ec2-send-spot-instance-interruptions.yaml",
+      "target_type": "vm"
+    }
+  ],
   "spot_preempt_cascade||": [
+    {
+      "category": "compute",
+      "expected_signal": "spot_preempt_cascade",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.ec2-send-spot-instance-interruptions",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/ec2-send-spot-instance-interruptions.yaml",
+      "target_type": "vm"
+    },
     {
       "category": "gpu_distributed",
       "expected_signal": "spot_preempt_cascade",
@@ -3221,6 +4493,34 @@
       "target_type": "llm_endpoint"
     }
   ],
+  "weights_fetch_stall|disk|": [
+    {
+      "category": "dependency",
+      "expected_signal": "weights_fetch_stall",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.s3-bucket-pause-replication",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/s3-bucket-pause-replication.yaml",
+      "target_type": "disk"
+    }
+  ],
+  "weights_fetch_stall|disk|medium": [
+    {
+      "category": "dependency",
+      "expected_signal": "weights_fetch_stall",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.s3-bucket-pause-replication",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/s3-bucket-pause-replication.yaml",
+      "target_type": "disk"
+    }
+  ],
   "weights_fetch_stall|inference_endpoint|": [
     {
       "category": "gpu_inference",
@@ -3250,6 +4550,18 @@
     }
   ],
   "weights_fetch_stall||": [
+    {
+      "category": "dependency",
+      "expected_signal": "weights_fetch_stall",
+      "gpu_domain": null,
+      "id": "chaos.aws-fis.s3-bucket-pause-replication",
+      "injector": "needs-injector",
+      "intensity": "high",
+      "requires_hardware": false,
+      "severity_bucket": "medium",
+      "source_path": "rule-catalog/chaos-scenarios/collected/aws-fis/s3-bucket-pause-replication.yaml",
+      "target_type": "disk"
+    },
     {
       "category": "gpu_inference",
       "expected_signal": "weights_fetch_stall",

@@ -1,0 +1,26 @@
+id: chaos.aws-fis.ec2-terminate-instances
+version: 1
+provenance:
+  source: aws-fis
+  source_url: https://docs.aws.amazon.com/fis/latest/userguide/fis-actions-reference.html
+  source_ref: aws:ec2:terminate-instances
+  synthesis_method: collected
+category: compute
+target_type: vm
+fault_family: stop
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: pod_restart
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: No rollback for the specific instance; ASG replaces.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Terminate EC2 instances via AWS FIS; ASG replaces per its policy (irreversible
+  on the specific instance).
+params:
+  action_id: aws:ec2:terminate-instances
+tags:
+- aws-fis

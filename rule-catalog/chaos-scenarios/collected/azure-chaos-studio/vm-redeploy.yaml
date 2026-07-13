@@ -1,0 +1,27 @@
+id: chaos.azure-chaos-studio.vm-redeploy
+version: 1
+provenance:
+  source: azure-chaos-studio
+  source_url: https://learn.microsoft.com/azure/chaos-studio/chaos-studio-fault-library
+  source_ref: urn:csci:microsoft:virtualMachine:redeploy/1.0
+  synthesis_method: collected
+category: compute
+target_type: vm
+fault_family: stop
+intensity: extreme
+duration_seconds: 720.0
+expected_signal: pod_restart
+injector: needs-injector
+blast_radius_cap: 1
+rollback_note: Redeploy is one-way; monitor the VM comes back Ready.
+gates:
+  shadow_status: pending
+  enforce_status: null
+requires_hardware: false
+description: Redeploy a Virtual Machine to a new host - forces a hardware-level reset.
+  Emulates hardware failure recovery.
+params:
+  fault_name: urn:csci:microsoft:virtualMachine:redeploy/1.0
+tags:
+- azure-chaos-studio
+- vm
