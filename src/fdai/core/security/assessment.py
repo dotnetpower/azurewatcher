@@ -38,8 +38,18 @@ from fdai.shared.providers.projection import Finding, Severity
 
 _SEVERITY_ORDER: tuple[Severity, ...] = ("low", "medium", "high", "critical")
 _SEVERITY_RANK: Mapping[Severity, int] = {s: i for i, s in enumerate(_SEVERITY_ORDER)}
+# An unrecognized severity outranks every known one, so a finding whose severity
+# this fold does not understand fails toward safety (treated as blocking) rather
+# than crashing. Severity is a Literal, not a runtime-checked enum, so a fork
+# projection or a deserialized finding can carry an unexpected value - matching
+# the readiness coordinator / posture report guard this module claims parity with.
+_UNKNOWN_SEVERITY_RANK = len(_SEVERITY_ORDER)
 # A finding at or above this severity is a blocker for the verdict.
 _BLOCKING_SEVERITY: Severity = "high"
+
+
+def _severity_rank(severity: str) -> int:
+    return _SEVERITY_RANK.get(severity, _UNKNOWN_SEVERITY_RANK)
 
 
 class SecurityVerdict(StrEnum):
@@ -85,7 +95,7 @@ class SecurityAssessment:
 def _verdict(highest: Severity | None) -> SecurityVerdict:
     if highest == "critical":
         return SecurityVerdict.CRITICAL
-    if highest is not None and _SEVERITY_RANK[highest] >= _SEVERITY_RANK[_BLOCKING_SEVERITY]:
+    if highest is not None and _severity_rank(highest) >= _severity_rank(_BLOCKING_SEVERITY):
         return SecurityVerdict.ATTENTION
     return SecurityVerdict.CLEAR
 
@@ -108,8 +118,10 @@ def build_security_assessment(
     entries: list[SecurityFindingEntry] = []
 
     for finding in findings:
-        counts[finding.severity] += 1
-        if highest is None or _SEVERITY_RANK[finding.severity] > _SEVERITY_RANK[highest]:
+        # Fail toward safety on an off-list severity: count it under its own
+        # key (never crash) and rank an unknown value as most-severe.
+        counts[finding.severity] = counts.get(finding.severity, 0) + 1
+        if highest is None or _severity_rank(finding.severity) > _severity_rank(highest):
             highest = finding.severity
         entries.append(
             SecurityFindingEntry(
@@ -122,7 +134,7 @@ def build_security_assessment(
             )
         )
 
-    entries.sort(key=lambda e: (-_SEVERITY_RANK[e.severity], e.rule_id))
+    entries.sort(key=lambda e: (-_severity_rank(e.severity), e.rule_id))
     verdict = _verdict(highest)
     blocking = mode is Mode.ENFORCE and verdict is not SecurityVerdict.CLEAR
     summary = _summary(verdict=verdict, counts=counts, total=len(entries))

@@ -24,6 +24,18 @@ def _finding(rule_id: str, severity: str, ref: str = "appgw-1") -> Finding:
     )
 
 
+def test_off_list_severity_fails_toward_safety_not_crash() -> None:
+    # Severity is a Literal, not a runtime enum; a fork / deserialized finding
+    # can carry an unexpected value. The fold must not crash - it ranks an
+    # unknown severity as most-severe (blocking), mirroring the readiness guard.
+    report = build_security_assessment(
+        [_finding("weird", "catastrophic")], scope="s", assessed_at=_AT, mode=Mode.ENFORCE
+    )
+    assert report.verdict is SecurityVerdict.ATTENTION  # unknown -> blocking, not CLEAR
+    assert report.blocks_action is True
+    assert report.highest_severity == "catastrophic"
+
+
 def test_empty_findings_is_clear() -> None:
     report = build_security_assessment([], scope="sub-1", assessed_at=_AT)
     assert report.verdict is SecurityVerdict.CLEAR
