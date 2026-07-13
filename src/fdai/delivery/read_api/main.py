@@ -384,6 +384,17 @@ class ReadApiConfig:
     (``fdai.agents``); no state, no side effects. Reader-role gate.
     See :mod:`fdai.delivery.read_api.pantheon`."""
 
+    stewardship_map: Any = None
+    """Opt-in agent-stewardship / handover-map endpoint. When set (a
+    :class:`~fdai.core.stewardship.model.StewardshipMap` loaded from
+    ``config/agent-stewardship.yaml`` at composition-root time), registers
+    a read-only ``GET /stewardship`` route returning the handover map
+    (maintainers + 15 agents + stewards) plus the coverage report
+    (bus-factor / over-assignment / maintainer findings). ``None`` (the
+    default) keeps the endpoint unregistered. Read-only projection - the
+    console renders it; edits are governance draft PRs, never a console
+    mutation. See :mod:`fdai.delivery.read_api.routes.stewardship`."""
+
     workflow_authoring: Any = None
     """Opt-in custom workflow authoring routes. When set (a
     :class:`~fdai.delivery.read_api.routes.workflow_authoring.WorkflowAuthoringConfig`),
@@ -824,6 +835,27 @@ def build_app(
                 raise ValueError(f"pantheon path {_pt_path!r} collides with a panel path")
         routes.append(make_pantheon_graph_route(authorize=_authorize))
         routes.append(make_pantheon_workflows_route(authorize=_authorize))
+
+    # Optional agent-stewardship / handover-map route. A pure projection of
+    # the injected StewardshipMap (config-loaded), Reader-gated, GET-only.
+    if resolved_config.stewardship_map is not None:
+        from fdai.delivery.read_api.routes.stewardship import (
+            ROUTE_PATH as _STW_PATH,
+        )
+        from fdai.delivery.read_api.routes.stewardship import (
+            make_stewardship_route,
+        )
+
+        if _STW_PATH in _CORE_ROUTE_PATHS:
+            raise ValueError(f"stewardship path {_STW_PATH!r} collides with a core route")
+        if _STW_PATH in seen_panel_paths:
+            raise ValueError(f"stewardship path {_STW_PATH!r} collides with a panel path")
+        routes.append(
+            make_stewardship_route(
+                stewardship_map=resolved_config.stewardship_map,
+                authorize=_authorize,
+            )
+        )
 
     # Optional custom workflow authoring routes (palette + validate).
     # Read-only: the palette is a projection of the loaded ActionType
