@@ -126,6 +126,19 @@ jobs:
       - name: check-guids.sh
         run: bash scripts/check-guids.sh
 
+  stewardship:
+    name: agent stewardship handover-map guard
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet pyyaml
+
+      - name: check-stewardship.sh
+        run: bash scripts/check-stewardship.sh
+
   core-imports:
     name: core/ module-boundary guard (no cloud SDK, no HTTP client)
     runs-on: ubuntu-24.04
