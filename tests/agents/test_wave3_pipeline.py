@@ -246,9 +246,7 @@ def test_forseti_routes_no_rule_match_with_resource_to_hil() -> None:
     bus = InMemoryBus(registry=reg)
     f = Forseti(bus=bus)
     verdict = asyncio.run(
-        f.judge(
-            {"event_type": "unknown_thing", "correlation_id": "c-triage", "resource_id": "r-1"}
-        )
+        f.judge({"event_type": "unknown_thing", "correlation_id": "c-triage", "resource_id": "r-1"})
     )
     assert verdict is not None
     assert verdict["risk_verdict"] == "hil"

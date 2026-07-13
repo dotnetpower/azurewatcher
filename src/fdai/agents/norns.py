@@ -67,7 +67,7 @@ class Norns(Agent):
         min_outcome_samples: int = 20,
         override_retire_threshold: int = 5,
         coverage_aggregator: ScenarioCoverageAggregator | None = None,
-    ) -> None:        # Fail fast on misconfiguration: a non-positive threshold or a
+    ) -> None:  # Fail fast on misconfiguration: a non-positive threshold or a
         # rate outside [0, 1] would make the learner propose on thin or
         # impossible evidence (e.g. min_outcome_samples=0 fires on a single
         # sample), the opposite of measurement-based learning.
