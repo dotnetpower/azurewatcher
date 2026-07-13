@@ -216,12 +216,15 @@ deepen it. Do not delete this list without closing the item.
   its `flush_candidates()` drains newly-formed inert candidates onto the bus
   (single-writer; idempotent via a cursor), and Mimir consumes them through
   its `CandidateGuard` (grounded provenance + poisoning defense) into the
-  pending / quarantine lists - it never auto-promotes. **Remaining**: Saga
-  does not yet publish `object.issue` (so the fingerprint learner has no live
-  producer yet); `object.approval` is a Norns subscription without a learner;
-  and the optional scenario-coverage learner's `new-scenario` proposal_kind
-  is not yet in the `CandidateGuard` allowlist (quarantined until a scenario
-  intake path lands).
+  pending / quarantine lists - it never auto-promotes. **The `object.approval`
+  learner is wired**: recurring HIL rejections of the same action type propose
+  an inert `revision` candidate (the safe, autonomy-lowering direction,
+  symmetric with the override learner; approvals are counted for evidence
+  only, never an auto-promotion). **Remaining**: Saga does not yet publish
+  `object.issue` (so the fingerprint learner has no live producer yet); and the
+  optional scenario-coverage learner's `new-scenario` proposal_kind is not yet
+  in the `CandidateGuard` allowlist (quarantined until a scenario intake path
+  lands).
 - **LLM bindings are placeholders** (`hot_path_llm` / `off_path_llm` booleans; no
   `llm_bindings` field; no model is invoked). The conversational port answers are
   base stubs on all agents except Bragi routing.

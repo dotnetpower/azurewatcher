@@ -595,6 +595,89 @@ def test_norns_override_below_threshold_no_proposal() -> None:
     assert norns.pending_candidates == []
 
 
+# ---------------------------------------------------------------------------
+# Norns - approval-pattern learner
+# ---------------------------------------------------------------------------
+
+
+def test_norns_proposes_revision_after_recurring_rejections() -> None:
+    """Recurring HIL rejections of one action type propose a revision (the safe,
+    autonomy-lowering direction) - humans consistently refuse it."""
+    norns = Norns(rejection_revise_threshold=3)
+    for i in range(3):
+        asyncio.run(
+            norns.on_typed_message(
+                "object.approval",
+                {
+                    "action_type": "remediate.enable-encryption",
+                    "state": "rejected",
+                    "correlation_id": f"c-{i}",
+                },
+            )
+        )
+    proposals = [
+        c for c in norns.pending_candidates if c["source_signal"] == "recurring_hil_rejection"
+    ]
+    assert len(proposals) == 1
+    assert proposals[0]["proposal_kind"] == "revision"
+    assert proposals[0]["target_rule_id"] == "remediate.enable-encryption"
+    assert proposals[0]["evidence"]["rejection_count"] == 3
+    assert norns.rejection_count("remediate.enable-encryption") == 3
+
+
+def test_norns_approvals_alone_propose_nothing() -> None:
+    """Approvals are counted for evidence only; the learner never proposes an
+    auto-promotion (the risky direction)."""
+    norns = Norns(rejection_revise_threshold=2)
+    for i in range(5):
+        asyncio.run(
+            norns.on_typed_message(
+                "object.approval",
+                {
+                    "action_type": "ops.restart-service",
+                    "state": "approved",
+                    "correlation_id": f"a-{i}",
+                },
+            )
+        )
+    assert norns.pending_candidates == []
+    assert norns.rejection_count("ops.restart-service") == 0
+
+
+def test_norns_dedups_approval_per_correlation() -> None:
+    """A re-delivered decision (at-least-once) is scored once; only a distinct
+    correlation advances the rejection count."""
+    norns = Norns(rejection_revise_threshold=2)
+    for _ in range(2):
+        asyncio.run(
+            norns.on_typed_message(
+                "object.approval",
+                {
+                    "action_type": "remediate.delete-storage",
+                    "state": "rejected",
+                    "correlation_id": "dup",
+                },
+            )
+        )
+    assert norns.rejection_count("remediate.delete-storage") == 1
+    assert norns.pending_candidates == []  # threshold 2 not reached (deduped)
+    asyncio.run(
+        norns.on_typed_message(
+            "object.approval",
+            {
+                "action_type": "remediate.delete-storage",
+                "state": "rejected",
+                "correlation_id": "distinct",
+            },
+        )
+    )
+    assert norns.rejection_count("remediate.delete-storage") == 2
+    proposals = [
+        c for c in norns.pending_candidates if c["source_signal"] == "recurring_hil_rejection"
+    ]
+    assert len(proposals) == 1
+
+
 def test_norns_fingerprint_learner_still_isolated() -> None:
     """Outcome/override learners do not perturb the fingerprint learner."""
     norns = Norns(promotion_threshold=3)

@@ -7,7 +7,7 @@ quality gate before it can take effect (see
 `docs/roadmap/rules-and-detection/rule-governance.md` and the discovery loop in
 `architecture.instructions.md`).
 
-Three deterministic (T0) learners run here; T1 clustering and T2 batch
+Four deterministic (T0) learners run here; T1 clustering and T2 batch
 summary land in later waves:
 
 1. **Fingerprint aggregator** - repeated handoff fingerprints propose a
@@ -20,10 +20,15 @@ summary land in later waves:
    propose a *revision* (or *retirement* when the overrides disable it),
    matching the "recurring overrides are a signal to revise/retire"
    feedback rule in the architecture.
+4. **Approval-pattern learner** - recurring HIL *rejections* of the same
+   action type propose a *revision* candidate (humans consistently refuse
+   it, so the action or its risk classification is a poor fit). Same safe,
+   autonomy-lowering direction as the override learner; approvals are
+   counted for evidence only, never a proposal to auto-promote.
 
 Optional scenario-coverage learner:
 
-4. **Scenario-coverage aggregator** (optional, wired by composition
+5. **Scenario-coverage aggregator** (optional, wired by composition
    root) - repeated live incidents whose symptom the compiled
    chaos-scenarios index cannot match propose a `scenario-coverage-gap`
    candidate. Same discipline: never mutates the catalog. See
@@ -57,7 +62,7 @@ _MAX_TRACKED = 50_000
 
 
 class Norns(Agent):
-    """Wave-2 Norns: fingerprint aggregator + outcome / override learner."""
+    """Wave-2 Norns: fingerprint aggregator + outcome / override / approval learner."""
 
     def __init__(
         self,
@@ -66,6 +71,7 @@ class Norns(Agent):
         rollback_alarm_rate: float = 0.2,
         min_outcome_samples: int = 20,
         override_retire_threshold: int = 5,
+        rejection_revise_threshold: int = 5,
         coverage_aggregator: ScenarioCoverageAggregator | None = None,
     ) -> None:  # Fail fast on misconfiguration: a non-positive threshold or a
         # rate outside [0, 1] would make the learner propose on thin or
@@ -79,6 +85,8 @@ class Norns(Agent):
             raise ValueError("min_outcome_samples MUST be >= 1")
         if override_retire_threshold < 1:
             raise ValueError("override_retire_threshold MUST be >= 1")
+        if rejection_revise_threshold < 1:
+            raise ValueError("rejection_revise_threshold MUST be >= 1")
         super().__init__(spec=_NORNS)
         # Fingerprints are content hashes (one per distinct incident), so the
         # counter is bounded by an LRU cap - a long-lived learner would leak
@@ -111,6 +119,18 @@ class Norns(Agent):
         self._override_retire_threshold = override_retire_threshold
         self._override_counter: Counter[str] = Counter()
         self._override_proposed: set[str] = set()
+        # Approval-pattern learner state. Repeated HIL rejections of the same
+        # action type mean humans consistently refuse it - a signal the action
+        # is a poor fit; it proposes an inert `revision` candidate (the safe,
+        # autonomy-lowering direction, symmetric with the override learner).
+        # Approvals are counted for evidence only; the learner never proposes
+        # auto-promotion (the risky direction), which stays an explicit,
+        # quality-gated decision. Dedup per correlation id (LRU) so a
+        # re-delivered approval is scored once.
+        self._rejection_revise_threshold = rejection_revise_threshold
+        self._approval_counts: dict[str, dict[str, int]] = {}
+        self._approval_proposed: set[str] = set()
+        self._counted_approvals: BoundedLruSet[str] = BoundedLruSet(_MAX_TRACKED)
         # Scenario-coverage learner (optional; composition root wires it).
         # When bound, live incident symptoms that the compiled
         # chaos-scenarios symptom index cannot match accumulate here and
@@ -127,11 +147,14 @@ class Norns(Agent):
             # Saga audits every terminal state and republishes it as an
             # audit-entry; the outcome learner scores rollback rates from it.
             self._observe_outcome(payload)
+        elif topic == "object.approval":
+            # Var publishes the final HIL decision (approved / rejected); the
+            # approval-pattern learner scores recurring rejections from it.
+            self._observe_approval(payload)
         # object.override is deliberately NOT handled here: it is not a pantheon
         # bus topic (agent-pantheon.md 2 - overrides flow through the exemption
         # / rule-catalog machinery). That machinery calls observe_override()
-        # directly. object.approval is subscribed but has no learner yet
-        # (follow-up: an approval-pattern learner).
+        # directly.
         # Off-path batch: forward any newly-formed inert candidates to Mimir.
         await self.flush_candidates()
 
@@ -255,6 +278,51 @@ class Norns(Agent):
             }
         )
 
+    # ---- 2b. approval-pattern learner ---------------------------------
+
+    def _observe_approval(self, payload: dict[str, Any]) -> None:
+        """Learn from a HIL approval decision.
+
+        Var emits one ``object.approval`` per final decision with a ``state``
+        of ``approved`` or ``rejected``. Recurring rejections of the same
+        action type mean humans consistently refuse it - a signal the action
+        (or its risk classification) is a poor fit - so once the rejection
+        count crosses the threshold the learner proposes an inert ``revision``
+        candidate. Approvals are counted for evidence (the sample the
+        rejection rate is measured against); the learner never proposes
+        auto-promotion, which stays an explicit, quality-gated decision.
+        """
+        action_type = str(payload.get("action_type") or "")
+        state = str(payload.get("state", "")).strip().lower()
+        if not action_type or state not in ("approved", "rejected"):
+            return
+        # Dedup one decision across a possible re-delivery (at-least-once).
+        correlation_id = str(payload.get("correlation_id", ""))
+        if correlation_id:
+            if correlation_id in self._counted_approvals:
+                return
+            self._counted_approvals.add(correlation_id)
+        counts = self._approval_counts.setdefault(action_type, {"approved": 0, "rejected": 0})
+        counts[state] += 1
+        if state != "rejected" or action_type in self._approval_proposed:
+            return
+        if counts["rejected"] < self._rejection_revise_threshold:
+            return
+        self._approval_proposed.add(action_type)
+        self.pending_candidates.append(
+            {
+                "source_signal": "recurring_hil_rejection",
+                "evidence": {
+                    "action_type": action_type,
+                    "rejection_count": counts["rejected"],
+                    "sample_size": counts["approved"] + counts["rejected"],
+                },
+                "proposed_by": "Norns",
+                "proposal_kind": "revision",
+                "target_rule_id": action_type,
+            }
+        )
+
     # ---- 3. override learner ------------------------------------------
 
     def observe_override(self, payload: dict[str, Any]) -> None:
@@ -354,6 +422,11 @@ class Norns(Agent):
 
     def override_count(self, rule_id: str) -> int:
         return self._override_counter[rule_id]
+
+    def rejection_count(self, action_type: str) -> int:
+        """Measured HIL rejection count for an action type (0 if unseen)."""
+        counts = self._approval_counts.get(action_type)
+        return counts["rejected"] if counts else 0
 
     async def introspect(self, question: str, context: dict[str, Any]) -> IntrospectionResult:
         facts = {
