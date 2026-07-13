@@ -54,6 +54,12 @@ from fdai.core.stewardship.model import (
     StewardSubject,
 )
 from fdai.core.stewardship.names import AGENT_NAME_SET, AGENT_NAMES
+from fdai.core.stewardship.notify import (
+    CHANGE_CATEGORY,
+    StewardshipChangeEvent,
+    build_change_audit_payload,
+    build_change_notification,
+)
 from fdai.core.stewardship.resolver import (
     load_stewardship_from_mapping,
     load_stewardship_from_yaml,
@@ -63,6 +69,7 @@ __all__ = [
     "AGENT_NAMES",
     "AGENT_NAME_SET",
     "AgentStewardship",
+    "CHANGE_CATEGORY",
     "CoverageReport",
     "EscalationPlan",
     "EscalationRecipient",
@@ -79,8 +86,11 @@ __all__ = [
     "StewardSubject",
     "StewardshipMap",
     "StewardshipValidationError",
+    "StewardshipChangeEvent",
     "affected_agents_from_workflow",
     "audit_stale_oids",
+    "build_change_audit_payload",
+    "build_change_notification",
     "build_coverage_report",
     "build_escalation_plan",
     "expand_group_recipients",
