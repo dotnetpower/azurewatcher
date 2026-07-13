@@ -161,6 +161,16 @@ retired (tombstoned), not left firing on guidance the company has withdrawn. Del
 is a first-class signal, handled like the living-rules retirement path in
 [architecture.instructions.md](../../../.github/instructions/architecture.instructions.md).
 
+A re-distill is triggered not only by a content change but by a change to the
+**curation signals a source can move without editing the page** - its labels, its
+space, and its verified flag. The freshness snapshot therefore keys each manual on
+a fingerprint of `content_sha` plus those signals, so relabelling a page `runbook`
+or marking it verified re-enters it into triage even when the text is
+byte-identical (the gap that a content-hash-only snapshot leaves for connector
+sources). High-churn signals - view count and edit timestamp - are deliberately
+excluded from the fingerprint so ordinary traffic does not force a needless
+re-distill.
+
 Deletion is not trusted blindly, though: an **empty listing over a non-empty
 prior snapshot** is indistinguishable from a failed mount or an auth lapse, so it
 is treated as a suspected source outage and fails closed - no retirements are

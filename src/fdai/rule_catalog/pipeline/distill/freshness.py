@@ -10,15 +10,16 @@ was **deleted or archived** must have the rules distilled from it retired
 A source's own ``changes(since)`` cursor cannot report deletions for every
 backend (a drop directory has no memory of removed files). This module therefore
 derives the delta the reliable way: compare a prior snapshot manifest
-(``source_ref -> content_sha``) against the current listing. New or
-content-changed candidates are upserts; source_refs present before but absent now
-are deletions that drive retirement.
+(``source_ref -> curation fingerprint``) against the current listing. New,
+content-changed, or re-curated candidates are upserts; source_refs present before
+but absent now are deletions that drive retirement.
 
 Pure and deterministic: no LLM, no network, no wall-clock.
 """
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -31,7 +32,7 @@ class FreshnessDelta:
 
     ``upserted`` are candidates to (re-)distill; ``deleted`` are source_refs
     whose derived rules must be tombstoned; ``unchanged`` are source_refs whose
-    content_sha is byte-identical to the snapshot (skipped, saving LLM cost).
+    curation fingerprint is identical to the snapshot (skipped, saving LLM cost).
     """
 
     upserted: tuple[ManualCandidate, ...] = ()
@@ -51,14 +52,36 @@ class RetirementRequest:
     reason: str
 
 
-def snapshot_of(candidates: Sequence[ManualCandidate]) -> dict[str, str]:
-    """Record the current listing as a ``source_ref -> content_sha`` manifest.
+def _curation_fingerprint(candidate: ManualCandidate) -> str:
+    """Fingerprint the content plus the curation signals that gate re-triage.
 
-    Persisted between runs so the next :func:`diff_snapshot` can detect changes
-    and deletions. On a duplicate source_ref the last entry wins (a well-formed
-    source does not emit duplicates).
+    Combines ``content_sha`` with the discrete curation signals a source can move
+    *without editing the page* - labels, space, and the verified flag - so a
+    relabel / re-space / verify re-enters the manual into triage even when its
+    text is byte-identical. High-churn signals (view count, edit timestamp) are
+    intentionally excluded so ordinary traffic does not force a needless
+    re-distill.
     """
-    return {c.source_ref: c.content_sha for c in candidates}
+    parts = "\0".join(
+        [
+            candidate.content_sha,
+            ",".join(sorted(candidate.labels)),
+            candidate.space,
+            "1" if candidate.verified else "0",
+        ]
+    )
+    return hashlib.sha256(parts.encode("utf-8")).hexdigest()
+
+
+def snapshot_of(candidates: Sequence[ManualCandidate]) -> dict[str, str]:
+    """Record the current listing as a ``source_ref -> curation fingerprint`` manifest.
+
+    Persisted between runs so the next :func:`diff_snapshot` can detect content
+    or curation changes and deletions. On a duplicate source_ref the last entry
+    wins (a well-formed source does not emit duplicates; the orchestrator rejects
+    duplicates at its boundary anyway).
+    """
+    return {c.source_ref: _curation_fingerprint(c) for c in candidates}
 
 
 def diff_snapshot(
@@ -67,10 +90,13 @@ def diff_snapshot(
 ) -> FreshnessDelta:
     """Diff the current listing against a prior snapshot.
 
-    A candidate is *upserted* when its source_ref is new, when its content_sha
-    differs from the snapshot, or when it carries an empty content_sha (which
-    cannot be confirmed unchanged, so it re-distills to stay safe). A source_ref
-    in the snapshot but absent from ``current`` is *deleted*.
+    A candidate is *upserted* when its source_ref is new, when its curation
+    fingerprint (content plus labels / space / verified) differs from the
+    snapshot, or when it carries an empty content_sha (which cannot be confirmed
+    unchanged, so it re-distills to stay safe). A source_ref in the snapshot but
+    absent from ``current`` is *deleted*. A snapshot written by an older build
+    (bare content_sha values) simply mismatches the new fingerprint once, so
+    every manual re-distills on the first run after upgrade and stabilises after.
     """
     upserted: list[ManualCandidate] = []
     unchanged: list[str] = []
@@ -78,8 +104,9 @@ def diff_snapshot(
 
     for candidate in current:
         seen.add(candidate.source_ref)
-        old_sha = previous.get(candidate.source_ref)
-        if old_sha is None or not candidate.content_sha or candidate.content_sha != old_sha:
+        old_fp = previous.get(candidate.source_ref)
+        fingerprint = _curation_fingerprint(candidate)
+        if old_fp is None or not candidate.content_sha or fingerprint != old_fp:
             upserted.append(candidate)
         else:
             unchanged.append(candidate.source_ref)

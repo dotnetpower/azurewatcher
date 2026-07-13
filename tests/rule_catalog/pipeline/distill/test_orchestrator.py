@@ -6,6 +6,7 @@ from collections.abc import Sequence
 
 import pytest
 
+from fdai.rule_catalog.pipeline.distill.freshness import snapshot_of
 from fdai.rule_catalog.pipeline.distill.orchestrator import build_distillation_plan
 from fdai.rule_catalog.pipeline.distill.triage import TriagePolicy
 from fdai.shared.providers.distiller import (
@@ -153,10 +154,10 @@ async def test_full_flow_splits_by_verdict() -> None:
     assert [h.candidate.doc_id for h in plan.held] == ["notes"]
     assert plan.held[0].reason == "classifier:uncertain"
     assert [r.doc_id for r in plan.rejected] == ["meeting"]
-    assert plan.snapshot == {
-        "drop://run": "sha-run",
-        "drop://notes": "sha-notes",
-        "drop://meeting": "sha-meeting",
+    assert set(plan.snapshot) == {
+        "drop://run",
+        "drop://notes",
+        "drop://meeting",
     }
 
 
@@ -204,7 +205,7 @@ async def test_distilled_doc_is_recorded_and_skipped_on_rerun() -> None:
         source=source, classifier=LabelClassifier(), distiller=OneRuleDistiller()
     )
     assert [d.candidate.doc_id for d in first.distilled] == ["run"]
-    assert first.snapshot == {"drop://run": "v1"}  # recorded
+    assert set(first.snapshot) == {"drop://run"}  # recorded
 
     second = await build_distillation_plan(
         source=source,
@@ -218,7 +219,7 @@ async def test_distilled_doc_is_recorded_and_skipped_on_rerun() -> None:
 async def test_incremental_skips_unchanged() -> None:
     cands = [_cand("run", labels=("proc",), sha="v1")]
     docs = {"run": _doc("run")}
-    previous = {"drop://run": "v1"}  # already distilled at v1
+    previous = snapshot_of(cands)  # already processed at this fingerprint
     plan = await build_distillation_plan(
         source=FakeSource(cands, docs),
         classifier=LabelClassifier(),

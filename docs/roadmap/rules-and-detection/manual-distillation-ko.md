@@ -1,7 +1,7 @@
 ---
 title: 매뉴얼 증류(Manual Distillation)
 translation_of: manual-distillation.md
-translation_source_sha: 0617d03e17ff4de385f68d20b91def9c5e17a9a0
+translation_source_sha: dad11ba623fb509a9def573e3728d2ef7351e130
 translation_revised: 2026-07-13
 ---
 
@@ -145,6 +145,14 @@ fragment만 파이프라인에 재진입시키므로, 갱신이 전체 재크롤
 계속 fire하도록 두지 말고 폐기(tombstone)해야 한다. 삭제는 1급 신호이며,
 [architecture.instructions.md](../../../.github/instructions/architecture.instructions.md) 의
 living-rules 폐기 경로처럼 다뤄진다.
+
+재증류는 content 변경뿐 아니라 **소스가 페이지를 수정하지 않고도 바꿀 수 있는 큐레이션
+신호** - 라벨, 스페이스, verified 플래그 - 의 변경으로도 트리거된다. 따라서
+freshness 스냅샷은 각 매뉴얼을 `content_sha` + 이 신호들의 지문(fingerprint)으로
+키잍한다. 그래서 페이지에 `runbook` 라벨을 다시 붙이거나 verified로 표시하면 텍스트가
+바이트 동일해도 다시 triage에 진입된다(content-hash만 쓰는 스냅샷이 커넥터 소스에
+남기는 틈). 고-churn 신호 - 조회수와 수정 시각 - 은 지문에서 의도적으로 제외되어
+평범한 트래픽이 불필요한 재증류를 강제하지 않는다.
 
 단, 삭제를 무조건 신뢰하진 않는다: **비어 있지 않은 이전 스냅샷 위의 빈 목록**은
 마운트 실패나 인증 만료와 구버되지 않으므로, 수상 소스 장애로 보고 fail-closed한다
