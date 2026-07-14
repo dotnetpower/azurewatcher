@@ -11,6 +11,45 @@ export const CONVERSATION_INDEX_KEY = "fdai.deck.conversations.v1";
 export const GENERAL_CONVERSATION_KEY = "screen";
 const DEFAULT_MAX_CONVERSATIONS = 24;
 
+/** Produce a stable, non-identifying browser scope for one signed-in user. */
+export function conversationUserScope(identity: string | null, devMode: boolean): string {
+  const normalized = (identity?.trim().toLowerCase() || (devMode ? "dev" : "anonymous"));
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash ^= normalized.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+/** Normalize a route pathname for conversation ownership; query is excluded. */
+export function conversationPath(pathname: string): string {
+  const pathOnly = pathname.split(/[?#]/, 1)[0] ?? "";
+  const withLeadingSlash = pathOnly.startsWith("/") ? pathOnly : `/${pathOnly}`;
+  const normalized = withLeadingSlash.replace(/\/+/g, "/").replace(/\/$/, "");
+  return normalized === "" ? "/" : normalized.toLowerCase();
+}
+
+/** One default Command Deck conversation per user and canonical menu URL. */
+export function screenConversationKey(userScope: string, pathname: string): string {
+  return `screen:${userScope}:${conversationPath(pathname)}`;
+}
+
+export function isScreenConversationKey(key: string): boolean {
+  return key === GENERAL_CONVERSATION_KEY || key.startsWith("screen:");
+}
+
+/** Scope explicit agent or manually-created conversation keys to one user. */
+export function userConversationKey(userScope: string, key: string): string {
+  const prefix = `user:${userScope}:`;
+  return key.startsWith(prefix) ? key : `${prefix}${key}`;
+}
+
+/** Keep the browser conversation index isolated when accounts change in one tab. */
+export function conversationIndexKeyFor(userScope: string): string {
+  return `${CONVERSATION_INDEX_KEY}::${userScope}`;
+}
+
 export interface ConversationSummary {
   readonly key: string;
   readonly label: string;
@@ -62,9 +101,9 @@ export function upsertConversation(
   const ordered = [summary, ...conversations.filter((item) => item.key !== summary.key)]
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   const retained = ordered.slice(0, maxConversations);
-  const general = ordered.find((item) => item.key === GENERAL_CONVERSATION_KEY);
-  if (general && !retained.some((item) => item.key === GENERAL_CONVERSATION_KEY)) {
-    retained[Math.max(0, retained.length - 1)] = general;
+  const screen = ordered.find((item) => isScreenConversationKey(item.key));
+  if (screen && !retained.some((item) => item.key === screen.key)) {
+    retained[Math.max(0, retained.length - 1)] = screen;
   }
   return retained;
 }

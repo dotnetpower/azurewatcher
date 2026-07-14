@@ -17,6 +17,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { routeHref } from "../router";
 
 /**
  * Blast-radius simulator panel. Wraps ``GET /simulate/blast-radius`` -
@@ -59,8 +60,8 @@ const DEFAULT_LINKS: readonly string[] = ["contains", "depends_on"];
 const AVAILABLE_LINKS = ["contains", "depends_on", "attached_to"] as const;
 
 export function BlastRadiusRoute({ client }: Props) {
-  const [target, setTarget] = useState(() => targetFromHash(window.location.hash) ?? "web-api");
-  const [architectureView, setArchitectureView] = useState(() => viewFromHash(window.location.hash));
+  const [target, setTarget] = useState(() => targetFromHash(window.location.search) ?? "web-api");
+  const [architectureView, setArchitectureView] = useState(() => viewFromHash(window.location.search));
   const [depth, setDepth] = useState(2);
   const [linkSet, setLinkSet] = useState<Set<string>>(new Set(DEFAULT_LINKS));
   const [state, setState] = useState<AsyncState<BlastRadiusResponse>>({ status: "idle" });
@@ -69,13 +70,17 @@ export function BlastRadiusRoute({ client }: Props) {
   useEffect(() => {
     const sync = () => {
       requestGeneration.current += 1;
-      const nextTarget = targetFromHash(window.location.hash);
+      const nextTarget = targetFromHash(window.location.search);
       setTarget(nextTarget ?? "web-api");
-      setArchitectureView(viewFromHash(window.location.hash));
+      setArchitectureView(viewFromHash(window.location.search));
       setState({ status: "idle" });
     };
-    window.addEventListener("hashchange", sync);
-    return () => window.removeEventListener("hashchange", sync);
+    window.addEventListener("popstate", sync);
+    window.addEventListener("fdai:route-changed", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("fdai:route-changed", sync);
+    };
   }, []);
 
   function toggleLink(name: string): void {
@@ -313,14 +318,10 @@ function BlastRadiusMap({ client, data, architectureView }: { readonly client: R
   );
 }
 
-function targetFromHash(hash: string): string | null {
-  const queryIndex = hash.indexOf("?");
-  if (queryIndex < 0) return null;
-  return new URLSearchParams(hash.slice(queryIndex + 1)).get("target");
+function targetFromHash(search: string): string | null {
+  return new URLSearchParams(search.replace(/^\?/, "")).get("target");
 }
 
-function viewFromHash(hash: string): string | null {
-  const queryIndex = hash.indexOf("?");
-  if (queryIndex < 0) return null;
-  return new URLSearchParams(hash.slice(queryIndex + 1)).get("view");
+function viewFromHash(search: string): string | null {
+  return new URLSearchParams(search.replace(/^\?/, "")).get("view");
 }

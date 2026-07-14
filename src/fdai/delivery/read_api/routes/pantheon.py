@@ -19,7 +19,7 @@ from collections.abc import Awaitable, Callable
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from starlette.routing import Route
+from starlette.routing import BaseRoute, Route
 
 from fdai.agents import PANTHEON_SPECS, WORKFLOWS, AgentSpec, WorkflowSpec
 
@@ -128,9 +128,32 @@ def make_pantheon_workflows_route(
     return Route(path, handler, methods=["GET"])
 
 
+def append_pantheon_routes(
+    routes: list[BaseRoute],
+    expose: bool,
+    authorize: Callable[[Request], Awaitable[str]],
+    core_paths: frozenset[str],
+    panel_paths: set[str],
+) -> None:
+    """Register the pantheon graph + workflows routes when ``expose`` is set.
+
+    No-op unless ``expose`` is true. Keeps the composition root slim: the
+    collision check and route construction live here, not inline in the app
+    factory.
+    """
+    if not expose:
+        return
+    for candidate in (GRAPH_ROUTE_PATH, WORKFLOWS_ROUTE_PATH):
+        if candidate in core_paths or candidate in panel_paths:
+            raise ValueError(f"pantheon path {candidate!r} collides with another route")
+    routes.append(make_pantheon_graph_route(authorize=authorize))
+    routes.append(make_pantheon_workflows_route(authorize=authorize))
+
+
 __all__ = [
     "GRAPH_ROUTE_PATH",
     "WORKFLOWS_ROUTE_PATH",
+    "append_pantheon_routes",
     "make_pantheon_graph_route",
     "make_pantheon_workflows_route",
 ]

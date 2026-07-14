@@ -164,7 +164,7 @@ def test_scenario_without_resource_type_routes_to_abstain() -> None:
     assert outcome.matched_rule_ids == ()
 
 
-def test_unknown_resource_type_scenario_abstains_at_router() -> None:
+def test_unmatched_resource_type_scenario_routes_to_t1() -> None:
     evaluator = ShadowEvaluator(candidate_rules=_shipped_rules())
     report = evaluator.evaluate_scenarios(
         scenario_set_id="s2",
@@ -177,7 +177,26 @@ def test_unknown_resource_type_scenario_abstains_at_router() -> None:
         ],
     )
     outcome = report.outcomes[0]
-    assert outcome.actual_tier == "abstain"
+    assert outcome.actual_tier == "t1"
+    assert outcome.reason == "no_rule_matches_resource_type"
+
+
+def test_known_resource_type_without_rules_routes_to_t1() -> None:
+    evaluator = ShadowEvaluator(candidate_rules=())
+    report = evaluator.evaluate_scenarios(
+        scenario_set_id="s3",
+        scenarios=[
+            _scenario(
+                scenario_id="known-no-rules",
+                resource_type="azure.storage.account",
+                props={},
+            )
+        ],
+    )
+    outcome = report.outcomes[0]
+    assert outcome.actual_tier == "t1"
+    assert outcome.actual_pipeline_stage == "abstain"
+    assert outcome.matched_rule_ids == ()
     assert outcome.reason == "no_rule_matches_resource_type"
 
 

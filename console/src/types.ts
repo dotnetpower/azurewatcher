@@ -47,6 +47,72 @@ export interface IncidentPage {
   readonly next_cursor: string | null;
 }
 
+export type RcaTier = "t0" | "t1" | "t2" | "unknown";
+export type RcaOutcome = "grounded" | "abstained" | "unknown";
+
+export interface RcaCitation {
+  readonly kind: string;
+  readonly ref: string;
+}
+
+export interface RcaHypothesis {
+  readonly seq: number;
+  readonly tier: RcaTier;
+  readonly outcome: RcaOutcome;
+  readonly grounded: boolean;
+  readonly cause: string | null;
+  readonly confidence: number | null;
+  readonly reason: string | null;
+  readonly citations: readonly RcaCitation[];
+  readonly remediation_ref: string | null;
+  readonly mode: "shadow" | "enforce";
+  readonly recorded_at: string;
+}
+
+export interface RcaResponsePlan {
+  readonly verdict: string;
+  readonly decision: string | null;
+  readonly action_kind: string | null;
+  readonly mode: "shadow" | "enforce" | null;
+  readonly rollback_reference: string | null;
+  readonly recorded_at: string | null;
+}
+
+export interface RcaView {
+  readonly correlation_id: string;
+  readonly incident_id: string | null;
+  readonly hypotheses: readonly RcaHypothesis[];
+  readonly response: RcaResponsePlan | null;
+}
+
+export type ScopeAxisName = "monitoring" | "action";
+export type ScopeEntryState = "included" | "excluded";
+export type ScopeEntryLevel = "subscription" | "resource_group";
+
+export interface ScopeEntry {
+  readonly address: string;
+  readonly level: ScopeEntryLevel;
+  readonly subscription: string;
+  readonly resource_group: string | null;
+  readonly state: ScopeEntryState;
+}
+
+export interface ScopeAxis {
+  readonly axis: ScopeAxisName;
+  readonly entries: readonly ScopeEntry[];
+}
+
+export interface ExecutorBoundary {
+  readonly resource_groups: readonly string[];
+  readonly note: string | null;
+}
+
+export interface EffectiveScope {
+  readonly monitoring: ScopeAxis;
+  readonly action: ScopeAxis;
+  readonly executor_boundary: ExecutorBoundary;
+}
+
 export interface DashboardKpi {
   readonly event_count: number;
   readonly shadow_share: number;

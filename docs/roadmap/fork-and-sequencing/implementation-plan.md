@@ -452,14 +452,21 @@ prompt-composition Wave 3 step B pipeline slice 3 leftover
   HMAC-verified). Only allowed POST on the read API. **Shipped**:
   `delivery/read_api/hil_callback.py` is the sole POST route carve-out,
   gated OFF by default (opt-in via `ReadApiConfig.hil_callback` +
-  `hil_registry`). HMAC-SHA256 over `timestamp.body`, replay window
+  `hil_registry`). HMAC-SHA256 over `timestamp.approval_id.body`, replay window
   configurable (300s default), body size cap, no-self-approval
   enforcement, and mandatory `X-FDAI-Signature` +
   `X-FDAI-Timestamp` headers - the exact same shape the Teams
   adapter signs with. Missing config -> fail-fast at `build_app`; if
   neither `hil_callback` nor `hil_registry` is set the 4 GET routes are
   the only registered surface (existing read-only invariant test
-  passes).
+  passes). **Production round-trip shipped**: the core parks the full
+  Action and a pending projection in the shared Postgres `StateStore`;
+  `fdai-api` records the decision atomically through
+  `PostgresHilApprovalRegistry` and publishes a receipt-only event on
+  `aw.hil.decisions`; the core consumes that topic under a separate group and
+  calls `HilResumeCoordinator.resolve`. The read API never receives the
+  executor identity. Broker delivery failure returns retryable HTTP 503 while
+  preserving the durable decision receipt.
 - **W1.4** BreakGlass fail-closed on notification: refuse when no
   channel confirms delivery.
 - **W1.5** Prompt-composition Wave 3 step B pipeline slice 3

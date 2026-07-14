@@ -1,0 +1,26 @@
+{
+  "eyebrow": "Live control plane",
+  "title": "Control plane",
+  "freeze": "Freeze view",
+  "resume": "Resume view",
+  "freezeTitle": "Freeze the live view",
+  "resumeTitle": "Resume the live view",
+  "context": {"devTitle": "Dev mode: synthetic events, no real cloud calls", "source": "Source", "window": "Window"},
+  "lead": "See what needs attention now, follow each control-loop stage, and open recorded evidence. This surface observes; it never executes.",
+  "health": {"label": "Live observation health", "stream": "Stream", "lastEvent": "Last event", "environment": "Environment", "presentation": "Presentation", "notObserved": "Not observed", "devSynthetic": "Dev / synthetic", "configuredRuntime": "Configured runtime", "following": "Following live", "frozen": "Frozen - {count} frame(s) observed"},
+  "status": {"idle": "Idle", "connecting": "Connecting", "open": "Live", "closed": "Closed", "unsupported": "SSE unsupported"},
+  "attention": {"ariaLabel": "Operator attention triage", "label": "Attention", "approvals": "{count} approvals waiting", "denied": "{count} denied", "failed": "{count} failed", "stuck": "{count} stuck", "approvalTitle": "High-risk actions awaiting approval", "deniedTitle": "The risk gate refused these actions. Inspect the policy evidence.", "failedTitle": "A control-loop stage failed. Inspect the recorded audit entry.", "stuckTitle": "These items exceeded the latency budget published by the control plane.", "openApprovals": "Open approvals", "none": "No control-loop work currently needs attention.", "unavailable": "Live attention is unavailable. Recorded outcomes remain in History."},
+  "kpi": {"events": "Events / sec", "average": "/s - 60s avg", "gateMix": "Gate mix (60s)", "auto": "auto", "tierMix": "Tier mix (60s)"},
+  "decision": {"auto": "Auto", "hil": "Approval", "abstain": "Held", "deny": "Denied"},
+  "work": {
+    "eyebrow": "Active control loops", "title": "Prioritized by operator attention", "queue": "Queue", "flow": "Flow", "viewModeLabel": "Live view mode", "filtersLabel": "Control-loop filters", "queueLabel": "Prioritized live control loops", "flowLabel": "Live control-plane flow", "filterTitle": "Filter: {filter} (press {key})", "filterNote": "Select an item to inspect its stage trace.", "noMatch": "No control-loop work matches this filter.", "routing": "Routing event", "actions": "{count} actions", "unknownResource": "Unknown resource", "overBudget": "Over budget", "pending": "Pending", "approval": "Approval", "noRule": "No rule matched", "needsApproval": "Needs approval", "executionMode": "Execution mode: {mode}", "agentRelay": "Agent relay", "itemLabel": "{action} on {resource}",
+    "columns": {"controlLoop": "Control loop", "stage": "Current stage", "age": "Age", "tier": "Tier", "mode": "Mode", "decision": "Decision"}
+  },
+  "filter": {"all": "All", "hil": "Approval", "deny": "Denied", "failed": "Failed", "stuck": "Stuck"},
+  "empty": {"connectedTitle": "No events in view", "disconnectedTitle": "No live signal", "connected": "Stream connected. Waiting for the next control-plane event.", "connecting": "Connecting to the live event stream.", "idle": "Live observation is idle while this view is not connected.", "unavailable": "Live observation is unavailable. Use History for recorded outcomes."},
+  "outcomes": {"ariaLabel": "Recent terminal outcomes", "toolbarLabel": "Recent outcome controls", "title": "Recent outcomes", "count": "last {count}", "expand": "Expand recent outcomes", "collapse": "Collapse recent outcomes", "waiting": "Waiting for terminal outcomes...", "viewAll": "View all recorded outcomes in History"},
+  "spark": {"awaiting": "Awaiting stream samples", "noCompletions": "No completions", "averageMs": "Avg {value}ms", "averageSeconds": "Avg {value}s", "averageUnderMs": "Avg <1ms", "lastSecond": "Last full second", "secondsAgo": "{count}s ago"},
+  "stage": {"ingest": "Ingest", "route": "Route", "verify": "Verify", "gate": "Gate", "execute": "Execute", "audit": "Audit"},
+  "role": {"Huginn": "Event Collector", "Heimdall": "Observer", "Forseti": "Judge", "Thor": "Responder", "Var": "Approver", "Vidar": "Recovery", "Saga": "Auditor", "Odin": "Master Planner", "Bragi": "Narrator", "unknown": "Agent"},
+  "detail": {"pending": "Pending", "close": "Close", "traceLabel": "Control-loop stage trace", "inProgress": "In progress", "notObserved": "Not observed", "eventId": "Event id", "correlationId": "Correlation id", "rule": "Rule", "actionType": "ActionType", "actionTypes": "ActionTypes", "mode": "Mode", "vertical": "Vertical", "resourceType": "Resource type", "scope": "Scope", "tier": "Tier", "gateDecision": "Gate decision", "stagesCompleted": "Stages completed", "failed": "Failed", "age": "Age", "outcome": "Outcome", "yes": "Yes", "no": "No", "safety": "Safety invariants (executor guarantees)", "stopCondition": "Stop-condition on the ActionType", "rollback": "Tested rollback path", "blastRadius": "Blast-radius cap enforced", "auditEntry": "Audit-log entry per terminal outcome", "readOnly": "This panel is read-only. Approvals happen in ChatOps or via a remediation PR.", "openTrace": "Open trace", "openAudit": "Open audit", "architecture": "Architecture"}
+}

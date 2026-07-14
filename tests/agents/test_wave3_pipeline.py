@@ -573,9 +573,13 @@ def test_thor_triggers_vidar_rollback_on_failure() -> None:
     async def failing(_ctx):
         return False
 
+    async def rollback_executor(action_run):
+        return f"rollback:{action_run['correlation_id']}"
+
     thor = Thor(bus=bus, executor=failing)
-    vidar = Vidar(bus=bus)
+    vidar = Vidar(bus=bus, executors={"state_forward_only": rollback_executor})
     bus.subscribe("object.action-run", "Vidar", vidar.on_typed_message)
+    bus.subscribe("object.rollback", "Thor", thor.on_typed_message)
 
     asyncio.run(
         thor.dispatch_verdict(
@@ -588,8 +592,43 @@ def test_thor_triggers_vidar_rollback_on_failure() -> None:
         )
     )
     assert thor.action_runs["c-fail"].state == ActionRunState.ROLLED_BACK
+    assert thor.action_runs["c-fail"].rollback_ref == "rollback:c-fail"
+    assert "vm-3" not in thor._resource_locks
     rollbacks = bus.messages_on("object.rollback")
     assert len(rollbacks) == 1
+    assert rollbacks[0].payload["state"] == "succeeded"
+
+
+def test_vidar_missing_executor_fails_closed_and_releases_thor_lock() -> None:
+    reg = load_pantheon()
+    bus = InMemoryBus(registry=reg)
+
+    async def failing(_ctx):
+        return False
+
+    thor = Thor(bus=bus, executor=failing)
+    vidar = Vidar(bus=bus)
+    bus.subscribe("object.action-run", "Vidar", vidar.on_typed_message)
+    bus.subscribe("object.rollback", "Thor", thor.on_typed_message)
+
+    run = asyncio.run(
+        thor.dispatch_verdict(
+            {
+                "correlation_id": "c-no-rollback",
+                "action_type": "ops.failover-primary",
+                "risk_verdict": "auto",
+                "resource_id": "db-1",
+                "rollback_contract": "scripted",
+            }
+        )
+    )
+
+    assert run.state == ActionRunState.ROLLBACK_FAILED
+    assert run.rollback_ref is None
+    assert "db-1" not in thor._resource_locks
+    rollback = bus.messages_on("object.rollback")[0].payload
+    assert rollback["state"] == "failed"
+    assert rollback["contract"] == "scripted"
 
 
 def test_vidar_rollback_is_idempotent_per_correlation() -> None:

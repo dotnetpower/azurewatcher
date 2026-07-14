@@ -356,6 +356,34 @@ class PostgresInventoryGraphProvider:
         )
 
 
+class PostgresInventoryAgeProvider:
+    """Return the active snapshot age for RiskGate freshness checks."""
+
+    def __init__(self, *, config: PostgresInventorySnapshotStoreConfig) -> None:
+        self._config = config
+
+    async def __call__(self, resource_ref: str) -> int | None:
+        del resource_ref
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            row_factory=dict_row,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as connection:
+            await connection.execute(
+                "SELECT set_config('statement_timeout', %s, true)",
+                (str(self._config.statement_timeout_ms),),
+            )
+            cursor = await connection.execute(
+                "SELECT EXTRACT(EPOCH FROM (NOW() - s.completed_at)) AS age_seconds "
+                "FROM inventory_active a JOIN inventory_snapshot s ON s.id=a.snapshot_id "
+                "WHERE a.singleton=TRUE AND s.status='active'"
+            )
+            row = await cursor.fetchone()
+        if row is None or row["age_seconds"] is None:
+            return None
+        return max(0, int(row["age_seconds"]))
+
+
 def _resource_payload(row: Mapping[str, Any]) -> dict[str, Any]:
     props = row["props"]
     if isinstance(props, str):
@@ -398,6 +426,7 @@ def _unavailable_graph() -> dict[str, Any]:
 
 
 __all__ = [
+    "PostgresInventoryAgeProvider",
     "PostgresInventoryGraphProvider",
     "PostgresInventorySnapshotStore",
     "PostgresInventorySnapshotStoreConfig",

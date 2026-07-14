@@ -11,7 +11,6 @@ from typing import Any
 
 import yaml
 
-
 ALLOWED_ARTIFACT_STATUSES = {"ready", "conditional", "blocked"}
 ALLOWED_BLOCKER_STATUSES = {"open", "accepted", "resolved"}
 ALLOWED_DESIGN_STATUSES = {"draft", "conditional", "approved"}
@@ -135,9 +134,7 @@ def validate_contract(raw: Any, repo_root: Path, require_production_ready: bool)
     evidence_bindings = _mapping(gate.get("evidence_bindings"), "evidence_bindings")
     unknown_owner_bindings = owner_bindings.keys() - set(required_owners)
     if unknown_owner_bindings:
-        raise ValueError(
-            f"unknown owner bindings: {', '.join(sorted(unknown_owner_bindings))}"
-        )
+        raise ValueError(f"unknown owner bindings: {', '.join(sorted(unknown_owner_bindings))}")
     unknown_evidence_bindings = evidence_bindings.keys() - set(required_evidence)
     if unknown_evidence_bindings:
         raise ValueError(

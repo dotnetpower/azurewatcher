@@ -168,9 +168,9 @@ describe("architecture map model", () => {
   });
 
   test("round-trips resource deep links", () => {
-    expect(architectureHref("web api")).toBe("#/architecture?resource=web+api");
+    expect(architectureHref("web api")).toBe("/architecture?resource=web+api");
     expect(selectedResourceIdFromHash("#/architecture?resource=web%20api")).toBe("web api");
-    expect(architectureHref("web-api", "commerce-api")).toBe("#/architecture?resource=web-api&view=commerce-api");
+    expect(architectureHref("web-api", "commerce-api")).toBe("/architecture?resource=web-api&view=commerce-api");
     expect(architectureViewFromHash("#/architecture?view=commerce-api")).toBe("commerce-api");
   });
 

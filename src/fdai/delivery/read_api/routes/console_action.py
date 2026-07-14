@@ -84,6 +84,37 @@ judgement, never to a silent deny-override).
 
 
 @dataclass(frozen=True, slots=True)
+class RefusalRecord:
+    """One operator action submission refused BEFORE the typed pipeline.
+
+    The RBAC-capability, blank-principal, and deny-override refusals all fire
+    *before* a proposal is published, so Forseti never sees them and cannot
+    raise its own ``SecurityEvent``. A single ``_LOG.info`` line cannot surface
+    a pattern; a wired :data:`RefusalObserver` turns each refusal into an
+    audit / metric / security signal so repeated refusals for one ``actor``
+    (privilege probing) become detectable. Inert data: the observer decides
+    whether a count crosses a threshold - the submitter never blocks on it.
+    """
+
+    actor: str
+    reason: str
+    action_type: str | None
+    resource_id: str | None
+    correlation_id: str
+
+
+RefusalObserver = Callable[[RefusalRecord], Awaitable[None]]
+"""Optional sink notified when a submission is refused pre-pipeline.
+
+Injected at the composition root; absent, only a structured log line is
+emitted. It MUST NOT raise into the refusal path - the submitter guards the
+call and still returns the refusal even if the observer fails (best-effort
+observability never breaks the security-relevant refusal, mirroring the
+handoff-escalation best-effort contract).
+"""
+
+
+@dataclass(frozen=True, slots=True)
 class ConsoleActionSubmitter:
     """Publishes an operator ActionProposal onto the raw event topic.
 
@@ -101,13 +132,60 @@ class ConsoleActionSubmitter:
 
     event_bus: EventBus
     raw_event_topic: str
+    action_type_names: frozenset[str] = frozenset()
     prior_outcome_lookup: PriorOutcomeLookup | None = None
+    refusal_observer: RefusalObserver | None = None
 
     def __post_init__(self) -> None:
         # Fail fast at composition: an empty topic would publish proposals into
         # a nameless stream the pantheon never consumes.
         if not self.raw_event_topic or not self.raw_event_topic.strip():
             raise ValueError("raw_event_topic MUST be a non-empty topic name")
+
+    async def _refuse(
+        self,
+        *,
+        reason: str,
+        actor: str,
+        correlation_id: str,
+        action_type: str | None = None,
+        resource_id: str | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Log + observe a pre-pipeline refusal, then return its envelope.
+
+        Central refusal path so every security-relevant block (blank principal,
+        missing capability, deny-override) is logged with the same structured
+        fields and offered to the injected :data:`RefusalObserver`. The observer
+        is best-effort: a failure is logged but never converts a refusal into a
+        server error (which a client could retry).
+        """
+        _LOG.info(
+            "console action refused: reason=%s actor=%s action_type=%s",
+            reason,
+            actor or "<blank>",
+            action_type,
+        )
+        if self.refusal_observer is not None:
+            record = RefusalRecord(
+                actor=actor,
+                reason=reason,
+                action_type=action_type,
+                resource_id=resource_id,
+                correlation_id=correlation_id,
+            )
+            try:
+                await self.refusal_observer(record)
+            except Exception:  # noqa: BLE001 - observability MUST NOT break the refusal
+                _LOG.exception("refusal observer raised; refusal still returned")
+        envelope: dict[str, Any] = {
+            "submitted": False,
+            "reason": reason,
+            "correlation_id": correlation_id,
+        }
+        if extra:
+            envelope.update(extra)
+        return envelope
 
     async def submit(
         self,
@@ -139,21 +217,17 @@ class ConsoleActionSubmitter:
         # Fail closed on a malformed principal - never publish an action with an
         # empty initiator (which would only be denied downstream anyway).
         if not principal.oid or not principal.oid.strip():
-            _LOG.info("console action refused: blank principal oid")
-            return {
-                "submitted": False,
-                "reason": "invalid_principal",
-                "correlation_id": correlation_id,
-            }
+            return await self._refuse(
+                reason="invalid_principal", actor="", correlation_id=correlation_id
+            )
         if not has_capability(principal.roles, _SUBMIT_CAPABILITY):
-            _LOG.info("console action refused: principal lacks %s", _SUBMIT_CAPABILITY.value)
-            return {
-                "submitted": False,
-                "reason": "rbac_capability",
-                "required_capability": _SUBMIT_CAPABILITY.value,
-                "correlation_id": correlation_id,
-            }
-        action_type, resource_id = translate_action_intent(question)
+            return await self._refuse(
+                reason="rbac_capability",
+                actor=principal.oid,
+                correlation_id=correlation_id,
+                extra={"required_capability": _SUBMIT_CAPABILITY.value},
+            )
+        action_type, resource_id = translate_action_intent(question, self.action_type_names)
         if action_type is None:
             return {
                 "submitted": False,
@@ -173,16 +247,14 @@ class ConsoleActionSubmitter:
                 principal.oid, bounded_resource, action_type
             )
             if not evaluate_operator_rerequest(prior_outcome=prior_outcome).allowed:
-                _LOG.info(
-                    "console action refused: deny-override forbidden for action_type=%s",
-                    action_type,
+                return await self._refuse(
+                    reason="deny_override_forbidden",
+                    actor=principal.oid,
+                    correlation_id=correlation_id,
+                    action_type=action_type,
+                    resource_id=bounded_resource,
+                    extra={"action_type": action_type},
                 )
-                return {
-                    "submitted": False,
-                    "reason": "deny_override_forbidden",
-                    "action_type": action_type,
-                    "correlation_id": correlation_id,
-                }
         client_key = (idempotency_key or "").strip()[:MAX_IDEMPOTENCY_CHARS]
         # Namespace the dedup key by the initiator so one operator cannot reuse
         # (or guess) another operator's idempotency key to suppress their action

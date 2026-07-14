@@ -38,6 +38,16 @@ shape maps to environments and CI/CD.
 
 - The **console is read-only**: it renders state and the HIL queue but issues no privileged
   calls. Approvals flow through ChatOps or PR, never console buttons.
+- The console uses **clean History API URLs** for operator-facing navigation. Paths use
+  lowercase `kebab-case` with no spaces or underscores (for example,
+  `/operating-outcomes/change-lead-time` and `/verticals/change-safety`). Internal API
+  routes and serialized values keep their canonical machine names. Static hosting MUST
+  rewrite non-asset application paths to `index.html`; a missing navigation fallback is
+  a deployment defect because direct links and refresh would fail.
+- Every aggregate shown on Overview MUST link to either an analytical detail route or a
+  filtered evidence route. A detail page shows provenance, measurement window, baseline
+  or threshold, breakdown, and supporting records when those projections exist; missing
+  evidence renders unavailable rather than being inferred in the browser.
 - The **executor holds the only privileged identity** (user-assigned Managed Identity, scoped
   to an action whitelist). Console and ChatOps never share it.
 - **Approval and execution are distinct principals** - no self-approval. See

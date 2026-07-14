@@ -90,8 +90,7 @@ _ENTRIES: tuple[Entry, ...] = (
         intensity="high",
         expected_signal="pod_restart",
         params={"action": "container-kill", "mode": "one"},
-        rollback_note="Delete the PodChaos CRD; kubelet restarts the container "
-        "back to Ready.",
+        rollback_note="Delete the PodChaos CRD; kubelet restarts the container back to Ready.",
         blast_radius_cap=2,
         tags=("chaos-mesh", "container"),
     ),

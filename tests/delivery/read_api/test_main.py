@@ -153,7 +153,7 @@ class TestBuildApp:
 class TestReadOnlyInvariant:
     """The console API MUST NOT expose a mutating verb on any route."""
 
-    @pytest.mark.parametrize("path", ["/audit", "/kpi", "/hil-queue", "/incidents"])
+    @pytest.mark.parametrize("path", ["/audit", "/kpi", "/hil-queue", "/incidents", "/rca"])
     @pytest.mark.parametrize("method", ["POST", "PUT", "DELETE", "PATCH"])
     def test_mutating_verbs_return_405(self, dev_env: None, path: str, method: str) -> None:
         del dev_env
@@ -175,6 +175,7 @@ class TestReadOnlyInvariant:
             "/hil-queue",
             "/incidents",
             "/kpi",
+            "/rca",
         ]
 
 
@@ -580,6 +581,7 @@ class TestExtensionPanels:
             "/hil-queue",
             "/incidents",
             "/kpi",
+            "/rca",
         ]
 
     def test_panel_registered_as_get_route(self, dev_env: None) -> None:

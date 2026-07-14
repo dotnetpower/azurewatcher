@@ -72,16 +72,14 @@ async def _run_baseline() -> int:
     :mod:`fdai.composition`, binding the seams, and awaiting
     :meth:`AutomatedBaselineRunner.run`.
     """
-    _LOGGER.info(
-        "measurement_runner_baseline_start",
-        extra={"mode": MeasurementMode.BASELINE.value},
+    _LOGGER.error(
+        "measurement_runner_entrypoint_moved",
+        extra={
+            "mode": MeasurementMode.BASELINE.value,
+            "entrypoint": "fdai.delivery.measurement_runner_cli",
+        },
     )
-    # Nothing to do upstream: a fork overrides this entry point to
-    # bind the concrete replayer + registry + audit store. The upstream
-    # image ships the seam surface only — running against it should
-    # succeed as a health probe.
-    _LOGGER.info("measurement_runner_baseline_complete")
-    return 0
+    return 3
 
 
 async def _run_growth() -> int:
@@ -93,12 +91,14 @@ async def _run_growth() -> int:
     writer, which a fork wires in its composition root. Upstream logs
     and exits ``0``.
     """
-    _LOGGER.info(
-        "measurement_runner_growth_start",
-        extra={"mode": MeasurementMode.GROWTH.value},
+    _LOGGER.error(
+        "measurement_runner_entrypoint_moved",
+        extra={
+            "mode": MeasurementMode.GROWTH.value,
+            "entrypoint": "fdai.delivery.measurement_runner_cli",
+        },
     )
-    _LOGGER.info("measurement_runner_growth_complete")
-    return 0
+    return 3
 
 
 def _configure_logging() -> None:

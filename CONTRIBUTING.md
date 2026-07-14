@@ -129,6 +129,27 @@ Guidance:
 Do NOT open a public issue for a security finding - see
 [Reporting security issues](#reporting-security-issues) below.
 
+## Working on issues
+
+Every issue MUST end up with a trail of what happened to it. Two rules apply
+whenever you act on an issue (writing code, investigating, or just reviewing):
+
+- **Always comment (MUST).** When an issue is worked on or reviewed, add a
+  comment describing what was done or found - the change, the files touched,
+  the outcome, or why no change was needed. This holds even when the answer is
+  "already implemented" or "will not fix". An issue that was acted on but
+  carries no explanatory comment is incomplete. Comments are English-only,
+  like every other issue field, and never carry customer-identifying values.
+- **`review-needed` on others' issues (MUST).** When you address an issue that
+  was **registered by someone other than the acting maintainer**, apply the
+  `review-needed` label so the original author (or another maintainer) does a
+  confirmation pass before it is closed. Do not self-close another person's
+  issue silently. For an issue you opened yourself, the label is optional -
+  close it directly once the comment trail shows it is done.
+
+Both rules are enforced by convention (reviewer + agent discipline), not CI.
+Use `gh issue comment <n>` and `gh issue edit <n> --add-label review-needed`.
+
 ## Pull requests
 
 Follow the

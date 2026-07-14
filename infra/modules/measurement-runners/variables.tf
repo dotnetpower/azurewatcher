@@ -50,6 +50,19 @@ variable "scenario_set_version" {
   type        = string
 }
 
+variable "state_store_dsn_secret_id" {
+  description = "Key Vault secret resource id containing the shared Postgres DSN."
+  type        = string
+  sensitive   = true
+}
+
+variable "environment" {
+  description = "Non-secret runtime env vars shared by both measurement jobs."
+  type        = map(string)
+  default     = {}
+}
+
+
 variable "tags" {
   description = "Tags."
   type        = map(string)

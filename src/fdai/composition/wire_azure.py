@@ -240,6 +240,7 @@ async def wire_azure_container(
         operator_memory_store=overrides.operator_memory_store,
     )
     composed = await composer.compose(capability_id="t2.reasoner.primary")
+    proposer_composed = await composer.compose(capability_id="t2.proposer")
 
     tool_registry = FileSystemToolRegistry(overrides.catalog_root)
     tool_executor = DefaultToolExecutor(
@@ -341,6 +342,7 @@ async def wire_azure_container(
         http_client=http_client,
         endpoint=overrides.endpoint,
         system_prompt=composed.system_text,
+        proposer_system_prompt=proposer_composed.system_text,
         tool_registry=tool_registry,
         tool_executor=tool_executor,
         prompt_composer=composer,

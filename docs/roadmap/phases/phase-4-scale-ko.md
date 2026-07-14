@@ -1,8 +1,8 @@
 ---
 title: Phase 4 - 스케일 (Azure); 멀티 클라우드 (TBD)
 translation_of: phase-4-scale.md
-translation_source_sha: 777c788b5ec14838dbe5f992c0b7c6a6b5343a32
-translation_revised: 2026-07-13
+translation_source_sha: e11136472b61144dee57a3b5e92ad6d36ff97b5a
+translation_revised: 2026-07-15
 ---
 
 # Phase 4 - 스케일 (Azure); 멀티 클라우드 (TBD)
@@ -49,6 +49,14 @@ CSP-중립 원칙을 **설계 불변식**(어댑터 표면, 정규화 스키마)
   [core/measurement/runners.py](../../../src/fdai/core/measurement/runners.py).
   Infra:
   [infra/modules/measurement-runners/](../../../infra/modules/measurement-runners).
+  Job 은 library-only core module 이 아니라 `fdai.delivery.measurement_runner_cli`을
+  호출합니다. Baseline mode 는 배포된 enriched frozen scenario 를 replay 하고 regression
+  demotion 을 shared `StateStore`에 persist 하며 모든 run 을 audit 합니다. Growth mode 는
+  enforce execution, deterministic verification, rollback 상태, embedding projection, exact
+  parameter, incident provenance 를 증명하는 명시적 `measurement.action_outcome.v1` audit
+  record 만 읽습니다. Provenance 가 없으면 training data 를 추론하지 않고 zero intake 로
+  처리합니다. Azure text-embedding-3 request 는 fixed 384-dimension pgvector contract 를
+  사용하며 다른 family 또는 dimension 은 startup 에서 실패합니다.
 - **TBD (deferred)**: **provider 어댑터** 를 통한 정책과 실행의 멀티 클라우드 확장(새 코어 없음),
   크로스-CSP rule-catalog 정규화, per-CSP 실행 아이덴티티, 멀티 클라우드 이벤트 버스 결정
   ([tech-stack-ko.md](../architecture/tech-stack-ko.md) 의 OD-3). 이 항목들은 비-Azure 작업이 스코프될

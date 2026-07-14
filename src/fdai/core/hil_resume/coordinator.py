@@ -44,7 +44,7 @@ and the core executor - never a concrete ChatOps / state adapter.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -186,7 +186,7 @@ class HilResumeCoordinator:
         *,
         state_store: StateStore,
         executor: ShadowExecutor,
-        hil_channel: HilChannel,
+        hil_channel: HilChannel | None,
         rules_by_id: Mapping[str, Rule],
         direct_api_executor: DirectApiShadowExecutor | None = None,
         tool_executor: ToolCallShadowExecutor | None = None,
@@ -194,6 +194,7 @@ class HilResumeCoordinator:
         actor: str = "fdai.core.hil_resume",
         on_call_resolver: OnCallResolver | None = None,
         on_call_rotation: str | None = None,
+        pending_index_writer: Callable[[StateStore, str], Awaitable[None]] | None = None,
     ) -> None:
         self._state_store = state_store
         self._executor = executor
@@ -207,6 +208,7 @@ class HilResumeCoordinator:
         self._actor = actor
         self._on_call_resolver = on_call_resolver
         self._on_call_rotation = on_call_rotation
+        self._pending_index_writer = pending_index_writer
 
     async def _resolve_on_call(self) -> OnCallResolution | None:
         """Resolve the current on-call responder, or ``None`` when unconfigured.
@@ -277,6 +279,8 @@ class HilResumeCoordinator:
             "on_call": _on_call_detail(on_call),
         }
         await self._state_store.write_state(_park_key(aid), parked)
+        if self._pending_index_writer is not None:
+            await self._pending_index_writer(self._state_store, aid)
         await self._audit(
             action_kind="hil.requested",
             idempotency_key=f"{action.idempotency_key}:hil_request",
@@ -302,6 +306,18 @@ class HilResumeCoordinator:
             reasons=tuple(reasons),
             ttl_seconds=ttl_seconds,
         )
+        if self._hil_channel is None:
+            await self._audit(
+                action_kind="hil.request.dispatch_unavailable",
+                idempotency_key=f"{action.idempotency_key}:hil_dispatch_unavailable",
+                approval_id=aid,
+                correlation_id=correlation_id,
+                detail={"action_type": action.action_type},
+            )
+            return RequestApprovalResult(
+                outcome=RequestOutcome.PARKED_DISPATCH_FAILED,
+                approval_id=aid,
+            )
         try:
             receipt = await self._hil_channel.send(request)
         except HilChannelError:

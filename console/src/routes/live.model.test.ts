@@ -1,0 +1,125 @@
+import { describe, expect, test } from "vitest";
+import type { LiveStageEvent } from "../hooks/use-live-stream";
+import {
+  applyEvent,
+  HIL_RETENTION_MS,
+  isTileStuck,
+  makeInitialState,
+  matchesFilter,
+  pickSlot,
+} from "./live.model";
+
+function stageEvent(
+  stage: LiveStageEvent["stage"],
+  detail: Record<string, unknown>,
+): LiveStageEvent {
+  return {
+    event_id: "evt-live-1",
+    correlation_id: "corr-live-1",
+    stage,
+    phase: "done",
+    ts: "2026-07-15T00:00:00.000Z",
+    detail,
+  };
+}
+
+describe("Live cockpit model", () => {
+  test("retains correlation and execution mode across stage frames", () => {
+    let state = makeInitialState();
+    state = applyEvent(state, stageEvent("route", { tier: "t0" }));
+    state = applyEvent(state, stageEvent("execute", { mode: "enforce" }));
+    state = applyEvent(state, stageEvent("audit", { outcome: "executed" }));
+
+    const tile = state.tiles.find((candidate) => candidate?.event_id === "evt-live-1");
+    expect(tile?.correlation_id).toBe("corr-live-1");
+    expect(tile?.mode).toBe("enforce");
+    expect(tile?.completed).toBe(true);
+  });
+
+  test("uses the terminal event decision and counts a replay only once", () => {
+    let state = makeInitialState();
+    state = applyEvent(
+      state,
+      stageEvent("gate", {
+        action_type: "remediate.first",
+        gate_decision: "auto",
+      }),
+    );
+    state = applyEvent(
+      state,
+      stageEvent("gate", {
+        action_type: "remediate.second",
+        gate_decision: "deny",
+      }),
+    );
+    const terminal = stageEvent("audit", {
+      outcome: "denied",
+      decision: "deny",
+      mode: "shadow",
+    });
+    state = applyEvent(state, terminal);
+    state = applyEvent(state, terminal);
+
+    const tile = state.tiles.find((candidate) => candidate?.event_id === "evt-live-1");
+    expect(tile?.gate_decision).toBe("deny");
+    expect(tile?.action_types).toEqual(
+      new Set(["remediate.first", "remediate.second"]),
+    );
+    expect(state.session_total).toBe(1);
+    expect(state.gateCounts.deny).toBe(1);
+  });
+
+  test("marks only budgeted in-flight work as stuck", () => {
+    let state = makeInitialState();
+    state = applyEvent(
+      state,
+      stageEvent("route", { tier: "t2", latency_budget_ms: 5000 }),
+    );
+    const tile = state.tiles.find((candidate) => candidate?.event_id === "evt-live-1");
+    expect(tile).not.toBeNull();
+    expect(tile && isTileStuck(tile, tile.first_seen_at + 5001)).toBe(true);
+    expect(tile && matchesFilter(tile, "stuck", tile.first_seen_at + 5001)).toBe(true);
+  });
+
+  test("does not guess stuck state without an authoritative budget", () => {
+    let state = makeInitialState();
+    state = applyEvent(state, stageEvent("route", { tier: "t2" }));
+    const tile = state.tiles.find((candidate) => candidate?.event_id === "evt-live-1");
+    expect(tile).not.toBeNull();
+    expect(tile && isTileStuck(tile, tile.first_seen_at + 60_000)).toBe(false);
+  });
+
+  test("recycles completed approvals after the bounded Live retention window", () => {
+    let state = makeInitialState();
+    for (let index = 0; index < state.tiles.length; index += 1) {
+      const event: LiveStageEvent = {
+        ...stageEvent("audit", { gate_decision: "hil" }),
+        event_id: `evt-hil-${index}`,
+        correlation_id: `corr-hil-${index}`,
+      };
+      state = applyEvent(state, event);
+    }
+
+    const oldest = state.tiles.filter((tile) => tile !== null)
+      .reduce((minimum, tile) => Math.min(minimum, tile.last_seen_at), Number.POSITIVE_INFINITY);
+    expect(pickSlot(state, oldest + HIL_RETENTION_MS + 1)).toBeGreaterThanOrEqual(0);
+  });
+
+  test("does not recycle the tile selected for detail inspection", () => {
+    let state = makeInitialState();
+    for (let index = 0; index < state.tiles.length; index += 1) {
+      state = applyEvent(state, {
+        ...stageEvent("audit", { decision: "auto", outcome: "executed" }),
+        event_id: `evt-complete-${index}`,
+        correlation_id: `corr-complete-${index}`,
+      });
+    }
+    const selected = state.tiles.find((tile) => tile !== null);
+    expect(selected).not.toBeNull();
+    state = { ...state, selectedEventId: selected?.event_id ?? null };
+
+    expect(pickSlot(state, Date.now() + HIL_RETENTION_MS)).not.toBe(
+      state.eventIdToSlot.get(selected?.event_id ?? ""),
+    );
+  });
+});

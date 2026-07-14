@@ -39,6 +39,7 @@ from starlette.applications import Starlette
 # events show up alongside uvicorn's access log.
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(name)s: %(message)s")
 
+from fdai.agents import PantheonRuntime  # noqa: E402
 from fdai.core.audit.what_if_replay import WhatIfEvaluator  # noqa: E402
 from fdai.core.measurement.promotion_gate import (  # noqa: E402
     InMemoryShadowVerdictSource,
@@ -69,6 +70,12 @@ from fdai.delivery.read_api.main import ReadApiConfig, build_app  # noqa: E402
 from fdai.delivery.read_api.read_model import (  # noqa: E402
     HilQueueItem,
     InMemoryConsoleReadModel,
+)
+from fdai.delivery.read_api.routes.chat_agent_delegate import (  # noqa: E402
+    PantheonChatDelegate,
+)
+from fdai.delivery.read_api.routes.console_action import (  # noqa: E402
+    ConsoleActionSubmitter,
 )
 from fdai.delivery.read_api.routes.llm_cost import LlmCostPanel  # noqa: E402
 from fdai.delivery.read_api.routes.measurement_summary import (  # noqa: E402
@@ -108,11 +115,15 @@ from fdai.rule_catalog.schema.workflow import load_workflow_catalog  # noqa: E40
 from fdai.shared.contracts.models import Rule  # noqa: E402
 from fdai.shared.contracts.registry import PackageResourceSchemaRegistry  # noqa: E402
 from fdai.shared.providers.sse import SseSink  # noqa: E402
+from fdai.shared.providers.testing.live_event_bus import (  # noqa: E402
+    LiveInMemoryEventBus,
+)
 from fdai.shared.providers.testing.sse import InMemorySseSink  # noqa: E402
 
 _DEV_ENV = "FDAI_READ_API_DEV_MODE"
 _LOCAL_ENTRA_ENV = "FDAI_READ_API_LOCAL_ENTRA"
 _CORS_ORIGINS_ENV = "FDAI_READ_API_CORS_ALLOW_ORIGINS"
+_LOCAL_ACTION_TOPIC = "aw.events"
 _DEFAULT_CORS_ORIGINS = (
     "http://127.0.0.1:5173",
     "http://localhost:5173",
@@ -793,6 +804,43 @@ def _build_blast_radius_graph() -> OntologyGraph:
     )
 
 
+def _build_scope_view() -> Any:
+    """Synthetic effective-scope view for the dev harness console panel.
+
+    Customer-agnostic: placeholder all-zero-GUID subscriptions and generic
+    resource-group names only. Reuses :class:`ScopeBinding` / :class:`ScopeRef`
+    so the console view composes the real scope schema, not a parallel model.
+    """
+    from fdai.delivery.read_api.routes.scope import StaticScopeSource, build_scope_view
+    from fdai.rule_catalog.schema.scope import ScopeBinding, ScopeRef
+
+    org = "example-org"
+    sub_prod = "00000000-0000-0000-0000-000000000001"
+    sub_nonprod = "00000000-0000-0000-0000-000000000002"
+
+    monitoring = ScopeBinding(
+        includes=(
+            ScopeRef(segments=(org, sub_prod)),
+            ScopeRef(segments=(org, sub_nonprod)),
+        ),
+        excludes=(ScopeRef(segments=(org, sub_nonprod, "rg-sandbox")),),
+    )
+    action = ScopeBinding(
+        includes=(ScopeRef(segments=(org, sub_prod, "rg-example-app")),),
+        excludes=(ScopeRef(segments=(org, sub_prod, "rg-example-data")),),
+    )
+    view = build_scope_view(
+        monitoring=monitoring,
+        action=action,
+        executor_resource_groups=("rg-example-app",),
+        executor_note=(
+            "Executor managed identity is RG-scoped and action-whitelisted; "
+            "no governance scope can widen it."
+        ),
+    )
+    return StaticScopeSource(view)
+
+
 class _DemoTighterTagsEvaluator:
     """Toy :class:`WhatIfEvaluator` for the dev harness.
 
@@ -1050,12 +1098,44 @@ def app() -> Starlette:
         )
 
     live_stream_config, agent_activity_config = _build_agent_streams()
+    local_action_types = frozenset(action_type.name for action_type in action_types)
+    event_bus = LiveInMemoryEventBus()
+    pantheon_runtime = PantheonRuntime.build(
+        provider=event_bus,
+        raw_event_topic=_LOCAL_ACTION_TOPIC,
+        operator_rbac={"dev-anon": local_action_types},
+    )
+    console_action = ConsoleActionSubmitter(
+        event_bus=event_bus,
+        raw_event_topic=_LOCAL_ACTION_TOPIC,
+        action_type_names=local_action_types,
+    )
+
+    runtime_task: asyncio.Task[None] | None = None
+
+    async def start_pantheon_runtime() -> None:
+        nonlocal runtime_task
+        runtime_task = asyncio.create_task(
+            pantheon_runtime.run(),
+            name="local-pantheon-runtime",
+        )
+        await asyncio.sleep(0)
+        if runtime_task.done():
+            await runtime_task
+
+    async def stop_pantheon_runtime() -> None:
+        await pantheon_runtime.stop()
+        if runtime_task is None:
+            return
+        if not runtime_task.done():
+            runtime_task.cancel()
+        await asyncio.gather(runtime_task, return_exceptions=True)
 
     from fdai.delivery.read_api.routes.demo_inventory_graph import (
         demo_inventory_graph_provider,
     )
 
-    return build_app(
+    application = build_app(
         authenticator=authenticator,
         read_model=read_model,
         config=ReadApiConfig(
@@ -1075,6 +1155,7 @@ def app() -> Starlette:
             rule_catalog_findings_summary_provider=rule_catalog_findings_summary_provider,
             promotion_gate_action_types=tuple(action_types),
             promotion_gate_source=InMemoryShadowVerdictSource(verdicts=_synthetic_verdicts()),
+            scope_source=_build_scope_view(),
             extra_panels=(
                 ExampleFinOpsPanel(read_model),
                 AutonomyMeasurementPanel(read_model),
@@ -1089,13 +1170,19 @@ def app() -> Starlette:
             what_if_reader=trace_reader,
             what_if_evaluators=what_if_evaluators,
             chat=_build_chat_backend(),
+            chat_agent_delegate=PantheonChatDelegate(pantheon_runtime),
+            console_action=console_action,
             expose_pantheon=True,
             stewardship_map=_build_stewardship_map(),
             workflow_authoring=workflow_authoring,
             reporting=reporting,
             process_views=process_views,
+            startup_callbacks=(start_pantheon_runtime,),
+            shutdown_callbacks=(stop_pantheon_runtime,),
         ),
     )
+    application.state.pantheon_runtime = pantheon_runtime
+    return application
 
 
 def _build_dynamic_process_views_sync(

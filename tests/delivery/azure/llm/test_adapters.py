@@ -75,7 +75,18 @@ async def test_embeddings_success_returns_vector_of_configured_dim() -> None:
     assert req.url.path == "/openai/deployments/t1-embedding/embeddings"
     assert req.url.params.get("api-version") == "2024-06-01"
     assert req.headers["Authorization"] == "Bearer test-token"
-    assert json.loads(req.content.decode()) == {"input": "hello world"}
+    assert json.loads(req.content.decode()) == {
+        "input": "hello world",
+        "dimensions": 1536,
+    }
+
+
+def test_embeddings_default_dimension_matches_pgvector_contract() -> None:
+    config = AzureOpenAIEmbeddingModelConfig(
+        endpoint="https://oai-test.openai.azure.com",
+        deployment="t1-embedding",
+    )
+    assert config.dim == 384
 
 
 @pytest.mark.asyncio

@@ -101,6 +101,7 @@ class TestLiveStreamConfig:
         assert cfg.keepalive_seconds > 0
         assert cfg.sink is None
         assert cfg.emitter_factory is None
+        assert cfg.broadcaster_factory is None
 
     def test_path_must_start_with_slash(self) -> None:
         with pytest.raises(ValueError, match=r"MUST start with '/'"):
@@ -113,6 +114,13 @@ class TestLiveStreamConfig:
     def test_keepalive_must_be_positive(self) -> None:
         with pytest.raises(ValueError, match="keepalive"):
             LiveStreamConfig(keepalive_seconds=0)
+
+    def test_synthetic_and_production_factories_are_mutually_exclusive(self) -> None:
+        with pytest.raises(ValueError, match="at most one"):
+            LiveStreamConfig(
+                emitter_factory=lambda sink, channel: _NullEmitter(),
+                broadcaster_factory=lambda publisher: _RecordingBroadcaster(),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -304,3 +312,32 @@ class TestExternalSinkPath:
         with TestClient(app):
             # No synthetic emitter is started, so nothing is on the channel.
             assert external_sink.subscriber_count("aw.pipeline.stages") == 0
+
+
+class _RecordingBroadcaster:
+    def __init__(self) -> None:
+        self.started = False
+        self.stopped = False
+
+    async def run(self) -> None:
+        self.started = True
+
+    async def stop(self) -> None:
+        self.stopped = True
+
+
+class TestProductionBroadcasterPath:
+    def test_broadcaster_runs_and_stops_with_app_lifespan(self, dev_env: None) -> None:
+        del dev_env
+        broadcaster = _RecordingBroadcaster()
+        app = _build_dev_app(
+            live_stream=LiveStreamConfig(
+                broadcaster_factory=lambda publisher: broadcaster,
+            )
+        )
+
+        with TestClient(app):
+            assert broadcaster.started is True
+            assert broadcaster.stopped is False
+
+        assert broadcaster.stopped is True

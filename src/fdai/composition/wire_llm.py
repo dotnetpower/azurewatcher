@@ -31,6 +31,7 @@ from ..core.quality_gate.gate import CrossCheckModel
 from ..core.quality_gate.judge import JudgeModel
 from ..core.quality_gate.testing import MatchTypeCrossCheckModel, MismatchCrossCheckModel
 from ..core.rca import LlmRcaReasoner, RcaReasoner
+from ..core.tiers.t2_reasoning.testing import AbstainingT2Proposer
 from ..rule_catalog.schema.llm_resolver import ResolvedCapability
 from ..shared.config.models import LlmMode
 from ..shared.providers.workload_identity import WorkloadIdentity
@@ -58,6 +59,7 @@ def bind_azure_llm_bindings(
     critic_system_prompt: str | None = None,
     judge_system_prompt: str | None = None,
     rca_system_prompt: str | None = None,
+    proposer_system_prompt: str | None = None,
     metering_sink: MeteringSink | None = None,
     pricing: PricingTable | None = None,
 ) -> Container:
@@ -141,6 +143,10 @@ def bind_azure_llm_bindings(
     from ..delivery.azure.llm.latency_routed_cross_check import (
         LatencyRoutedCrossCheckModel,
     )
+    from ..delivery.azure.llm.proposer import (
+        AzureOpenAIProposer,
+        AzureOpenAIProposerConfig,
+    )
     from ..delivery.azure.llm.rca_model import (
         AzureOpenAIRcaModel,
         AzureOpenAIRcaModelConfig,
@@ -186,6 +192,21 @@ def bind_azure_llm_bindings(
             tier=tier,
             pricing=pricing,
         )
+
+    proposer = (
+        AzureOpenAIProposer(
+            identity=identity,
+            http_client=http_client,
+            config=AzureOpenAIProposerConfig(
+                endpoint=endpoint,
+                deployment=primary_cap.name,
+                system_prompt=proposer_system_prompt,
+            ),
+            metering=_emitter_for("t2.reasoner.primary", primary_cap, "T2"),
+        )
+        if primary_cap is not None and proposer_system_prompt
+        else AbstainingT2Proposer()
+    )
 
     if embedding_cap is None:
         raise LlmBindingsUnavailableError(
@@ -233,6 +254,7 @@ def bind_azure_llm_bindings(
                     primary_model,
                     MismatchCrossCheckModel(model_id="hil-only-force-disagree"),
                 ),
+                t2_proposer=proposer,
             )
             return replace(container, llm_bindings=bindings)
 
@@ -394,5 +416,6 @@ def bind_azure_llm_bindings(
         judge_model=judge_model,
         debate_orchestrator=debate_orchestrator,
         rca_reasoner=rca_reasoner,
+        t2_proposer=proposer,
     )
     return replace(container, llm_bindings=bindings)

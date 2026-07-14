@@ -20,6 +20,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { navigate, routeHref } from "../router";
 import { isRuleListUpdating } from "./rule-catalog.model";
 
 /**
@@ -143,30 +144,22 @@ interface Filters {
 
 const EMPTY_FILTERS: Filters = { origin: "", category: "", severity: "", source: "", q: "" };
 
-/** Parse the selected rule from the URL hash query (deep-link support). */
+/** Parse the selected rule from the clean URL query (deep-link support). */
 function selectionFromHash(): Selection | null {
-  const hash = window.location.hash;
-  const qi = hash.indexOf("?");
-  if (qi < 0) return null;
-  const params = new URLSearchParams(hash.slice(qi + 1));
+  const params = new URLSearchParams(window.location.search);
   const id = params.get("rule");
   if (!id) return null;
   return { id, origin: params.get("origin") ?? "" };
 }
 
-/** Reflect the selected rule into the URL hash so it is shareable and
+/** Reflect the selected rule into the URL so it is shareable and
  * the browser back button closes the drawer. */
 function writeSelectionToHash(sel: Selection | null): void {
-  const base = "#/rules";
   if (sel === null) {
-    if (window.location.hash.startsWith(base) && window.location.hash.includes("?")) {
-      window.location.hash = base;
-    }
+    navigate(routeHref("rules"));
     return;
   }
-  const q = new URLSearchParams({ rule: sel.id });
-  if (sel.origin) q.set("origin", sel.origin);
-  window.location.hash = `${base}?${q.toString()}`;
+  navigate(routeHref("rules", { params: { rule: sel.id, origin: sel.origin } }));
 }
 
 const SEVERITY_PILL: Record<string, PillKind> = {
@@ -274,7 +267,7 @@ export function RuleCatalogRoute({ client }: Props) {
 
   // Row selection -> detail drawer. Fetches GET /rules/{id} with the
   // row origin so an id shared across tiers resolves unambiguously.
-  // Selection is mirrored into the URL hash (deep-link / shareable).
+  // Selection is mirrored into the URL query (deep-link / shareable).
   const [selected, setSelected] = useState<Selection | null>(selectionFromHash);
 
   function selectRule(sel: Selection | null): void {
@@ -282,18 +275,22 @@ export function RuleCatalogRoute({ client }: Props) {
     writeSelectionToHash(sel);
   }
 
-  // React to back/forward + external hash edits (open or close the drawer).
+  // React to back/forward + external route edits (open or close the drawer).
   // Preserve the previous object reference when the selection content is
   // unchanged so writing the hash after a click does not trigger a refetch.
   useEffect(() => {
-    const onHashChange = () =>
+    const onRouteChange = () =>
       setSelected((prev) => {
         const next = selectionFromHash();
         if (prev?.id === next?.id && prev?.origin === next?.origin) return prev;
         return next;
       });
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    window.addEventListener("popstate", onRouteChange);
+    window.addEventListener("fdai:route-changed", onRouteChange);
+    return () => {
+      window.removeEventListener("popstate", onRouteChange);
+      window.removeEventListener("fdai:route-changed", onRouteChange);
+    };
   }, []);
   const [detail, setDetail] = useState<DetailState>({ status: "loading" });
   useEffect(() => {

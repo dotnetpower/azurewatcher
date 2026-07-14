@@ -83,10 +83,10 @@ def test_abstains_when_payload_lacks_resource_type() -> None:
     assert decision.reason == "event_payload_missing_resource_type"
 
 
-def test_abstains_when_no_rule_matches_resource_type() -> None:
+def test_routes_t1_when_no_rule_matches_known_resource_type() -> None:
     router = TrustRouter(index=_index([_rule("r.x", "compute.vm")]))
     decision = router.route(_event({"resource": {"type": "object-storage"}}))
-    assert decision.tier is RoutingTier.ABSTAIN
+    assert decision.tier is RoutingTier.T1
     assert decision.resource_type == "object-storage"
     assert decision.candidate_rule_ids == ()
     assert decision.reason == "no_rule_matches_resource_type"

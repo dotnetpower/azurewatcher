@@ -43,9 +43,11 @@ from fdai.agents._framework.factory import instantiate_pantheon
 from fdai.agents._framework.pantheon import HARD_DEPENDENCY_AGENTS, PANTHEON_NAMES
 from fdai.agents._framework.registry import PantheonRegistry, load_pantheon
 from fdai.agents.bragi import Bragi, Turn
+from fdai.agents.forseti import Forseti
 from fdai.agents.huginn import Huginn
 from fdai.agents.saga import Saga, compute_fingerprint
-from fdai.agents.thor import ActionRunStore, Thor
+from fdai.agents.thor import ActionExecutor, ActionRunStore, Thor
+from fdai.agents.vidar import RollbackExecutor, Vidar
 from fdai.shared.providers.event_bus import EventBus
 
 _LOG = logging.getLogger(__name__)
@@ -88,7 +90,10 @@ class PantheonRuntime:
         saga: Saga | None = None,
         disabled_agents: frozenset[str] | None = None,
         divergence: ShadowDivergenceLedger | None = None,
+        thor_executor: ActionExecutor | None = None,
         thor_state_store: ActionRunStore | None = None,
+        rollback_executors: dict[str, RollbackExecutor] | None = None,
+        operator_rbac: dict[str, frozenset[str]] | None = None,
     ) -> PantheonRuntime:
         """Instantiate + wire the pantheon against ``provider``.
 
@@ -116,6 +121,22 @@ class PantheonRuntime:
         if not raw_event_topic or not raw_event_topic.strip():
             raise ValueError("raw_event_topic MUST be a non-empty topic name")
 
+        if enforce:
+            missing = []
+            if thor_executor is None:
+                missing.append("thor_executor")
+            if thor_state_store is None:
+                missing.append("thor_state_store")
+            if saga is None or not saga.durable_audit:
+                missing.append("durable_saga")
+            if not rollback_executors:
+                missing.append("rollback_executors")
+            if missing:
+                raise ValueError(
+                    "pantheon enforce mode requires explicit durable safety bindings: "
+                    + ", ".join(missing)
+                )
+
         disabled = frozenset(disabled_agents or frozenset())
         unknown = disabled - PANTHEON_NAMES
         if unknown:
@@ -134,8 +155,12 @@ class PantheonRuntime:
             consumer_group_prefix=consumer_group_prefix,
         )
         instantiated = instantiate_pantheon()
+        if operator_rbac is not None:
+            instantiated["Forseti"] = Forseti(rbac=operator_rbac)
         if saga is not None:
             instantiated["Saga"] = saga
+        if rollback_executors is not None:
+            instantiated["Vidar"] = Vidar(executors=rollback_executors)
 
         # Safety: force Thor to shadow unless an explicit promotion opts
         # into enforce. Without this the pantheon Thor would auto-execute
@@ -143,6 +168,8 @@ class PantheonRuntime:
         # mutation and a "shadow before enforce" violation.
         thor = instantiated["Thor"]
         if isinstance(thor, Thor):
+            if thor_executor is not None:
+                thor.set_executor(thor_executor)
             thor.set_shadow(not enforce)
             if thor_state_store is not None:
                 thor.set_state_store(thor_state_store)
@@ -201,17 +228,6 @@ class PantheonRuntime:
             divergence=divergence,
             _bragi=bragi_ref,
         )
-
-        if saga is None and enforce:
-            # Enforce means the pantheon may mutate, but the default Saga
-            # keeps its audit chain in memory - lost on restart. An
-            # append-only audit is a hard safety invariant for any
-            # autonomous action, so flag the gap loudly rather than
-            # enforcing without durable audit.
-            _LOG.warning(
-                "pantheon_enforce_without_durable_saga",
-                extra={"remedy": "inject a StateStore-backed Saga via build(saga=...)"},
-            )
 
         # Ingress: raw events on the P1 topic -> Huginn.ingest -> normalized
         # object.event (published via the bound bridge). Huginn's spec
@@ -278,6 +294,8 @@ class PantheonRuntime:
         user_id: str,
         question: str,
         initiator_role: str | None = None,
+        allow_action_proposal: bool = True,
+        materialize_handoff: bool = True,
     ) -> Turn | None:
         """Operator conversational-port entry point.
 
@@ -290,6 +308,9 @@ class PantheonRuntime:
 
         ``initiator_role`` (the console session's Entra role) drives the entry
         RBAC gate for an action command - a Reader cannot submit an action.
+        Read-only channel adapters disable ``allow_action_proposal`` and
+        ``materialize_handoff`` so the narrator can contribute evidence without
+        creating a proposal or a discovery issue behind that channel's back.
         """
         if self._bragi is None:
             return None
@@ -298,8 +319,10 @@ class PantheonRuntime:
             user_id=user_id,
             question=question,
             initiator_role=initiator_role,
+            allow_action_proposal=allow_action_proposal,
         )
-        await self._maybe_escalate_handoff(turn, question=question, session_id=session_id)
+        if materialize_handoff:
+            await self._maybe_escalate_handoff(turn, question=question, session_id=session_id)
         return turn
 
     async def _maybe_escalate_handoff(self, turn: Turn, *, question: str, session_id: str) -> None:

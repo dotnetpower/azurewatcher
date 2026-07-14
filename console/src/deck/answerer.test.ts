@@ -138,6 +138,40 @@ describe("causal resolution (why did this start)", () => {
     expect(a.text).toMatch(/1\. Njord cost-anomaly\.detect -> flagged/);
     expect(a.text).toMatch(/2\. Thor right_size -> shadow_pr_opened/);
   });
+
+  test("uses a grounded RCA cause and ignores a newer abstained guess", () => {
+    const snap: ViewSnapshot = {
+      routeId: "rca",
+      routeLabel: "RCA",
+      purpose: "Grounded root-cause hypotheses.",
+      headline: "2 hypotheses",
+      capturedAt: "2026-07-15T00:00:00+00:00",
+      facts: [{ key: "correlation_id", value: "corr-memory" }],
+      records: {
+        hypotheses: [
+          {
+            correlation_id: "corr-memory",
+            recorded_at: "2026-07-15T00:02:00+00:00",
+            grounded: false,
+            outcome: "abstained",
+            cause: "Unsupported guess",
+          },
+          {
+            correlation_id: "corr-memory",
+            recorded_at: "2026-07-15T00:01:00+00:00",
+            grounded: true,
+            outcome: "grounded",
+            cause: "A memory leak exhausted available host memory.",
+          },
+        ],
+      },
+    };
+
+    const result = answer("why did corr-memory start?", snap);
+
+    expect(result.text).toContain("memory leak");
+    expect(result.text).not.toContain("Unsupported guess");
+  });
 });
 
 describe("term definition (what is X)", () => {
@@ -258,7 +292,7 @@ describe("no-snapshot fallback (static universal glossary)", () => {
     const a = answer("hello", null);
     expect(a.text).toMatch(/No route has published/);
     expect(a.followUps.length).toBeGreaterThan(0);
-    expect(a.followUps.some((f) => /HIL/i.test(f))).toBe(true);
+    expect(a.followUps.some((f) => /approval/i.test(f))).toBe(true);
   });
 });
 
@@ -278,7 +312,7 @@ describe("deck-meta (help / what can I do here)", () => {
     const a = answer("help", liveSnap());
     expect(a.text.toLowerCase()).toContain("read-only");
     expect(a.text.toLowerCase()).toContain("screen-aware");
-    expect(a.followUps.some((f) => /HIL/i.test(f))).toBe(true);
+    expect(a.followUps.some((f) => /approval/i.test(f))).toBe(true);
   });
 
   test("'?' also triggers deck help", () => {

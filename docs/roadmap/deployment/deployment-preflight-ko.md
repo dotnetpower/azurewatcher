@@ -1,7 +1,7 @@
 ---
 title: 배포 프리플라이트 (배포 가능성 및 blocker 수집)
 translation_of: deployment-preflight.md
-translation_source_sha: eefed7c71271b14ea3390a55f323beedf483de2b
+translation_source_sha: 7024fcd0c6574bf9ed894a5381290d35278fa956
 translation_revised: 2026-07-11
 ---
 # 배포 프리플라이트 (배포 가능성 및 blocker 수집)
@@ -143,7 +143,12 @@ seam을 통해 주입됩니다. 상류 기본값은 프로브를 바인딩하지
 테스트. 다음 증분들은 각각 별도로 리뷰 가능하도록 단계화됨:
 
 1. `delivery/azure/preflight/` 아래의 라이브 Azure 어댑터(Policy Insights, Resource
-   Graph, Firewall / NSG, Quota), shadow 모드 우선.
+   Graph, Firewall / NSG, Quota), shadow 모드 우선. **일부 전달됨**: 공유 읽기 전용 ARM
+   클라이언트(`AzureArmClient`, 주입된 `httpx.AsyncClient` + `WorkloadIdentity` bearer
+   토큰, fail-closed)와 `AzurePolicyGuardrailProbe`(실제 Azure Policy `deny` 가드레일 -
+   `Not allowed` / `Allowed resource types`), `AzureQuotaProbe`(구독 + 위치별 Compute
+   usage)가 mock-HTTP 유닛 테스트와 함께 landed. Firewall / NSG egress와 Resource-Graph
+   identity 어댑터가 남은 하위 단계다.
 2. 위 표의 `infra/modules/` capability-mode 토글.
 3. 인프라 PR에 리포트를 게시하는 GitHub Check.
 4. 캐시된 **Deployment Environment Profile**(어떤 가드레일이 scope에 적용되는지), Inventory

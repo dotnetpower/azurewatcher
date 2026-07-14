@@ -11,6 +11,7 @@ from fdai.core.executor.action_builder import (
     ActionBuilder,
     ActionBuildError,
 )
+from fdai.core.quality_gate import QualityCandidate
 from fdai.core.tiers.t0_deterministic.models import Finding
 from fdai.rule_catalog.schema.action_type import load_action_type_catalog
 from fdai.shared.contracts.models import (
@@ -215,3 +216,41 @@ def test_action_type_without_stop_conditions_raises(tmp_path: Path) -> None:
     builder = ActionBuilder(action_types_by_name={action_type.name: action_type})
     with pytest.raises(ActionBuildError, match="stop_conditions"):
         builder.build_from_finding(event=_event(), finding=_finding(rule), rule=rule)
+
+
+def test_build_from_candidate_derives_catalog_safety_invariants() -> None:
+    action_type = _shipped_action_types()["ops.restart-service"]
+    builder = ActionBuilder(action_types_by_name={action_type.name: action_type})  # type: ignore[attr-defined]
+    target = "resource:example/compute/vm-1"
+    candidate = QualityCandidate(
+        action_type=action_type.name,  # type: ignore[attr-defined]
+        target_resource_ref=target,
+        target_resource_type="compute.vm",
+        params={
+            "target_resource_ref": target,
+            "restart_reason": "Health probe failed repeatedly.",
+        },
+        cited_rule_ids=("compute.restart.required",),
+    )
+
+    action = builder.build_from_candidate(event=_event(), candidate=candidate)
+
+    assert action.mode is Mode.SHADOW
+    assert action.rollback_ref.kind == action_type.rollback_contract  # type: ignore[attr-defined]
+    assert action.stop_condition == action_type.stop_conditions[0].kind.value  # type: ignore[attr-defined]
+    assert action.citing_rules == ["compute.restart.required"]
+
+
+def test_build_from_candidate_rejects_invalid_arguments() -> None:
+    action_type = _shipped_action_types()["ops.restart-service"]
+    builder = ActionBuilder(action_types_by_name={action_type.name: action_type})  # type: ignore[attr-defined]
+    candidate = QualityCandidate(
+        action_type=action_type.name,  # type: ignore[attr-defined]
+        target_resource_ref="resource:example/compute/vm-1",
+        target_resource_type="compute.vm",
+        params={"restart_reason": "too short"},
+        cited_rule_ids=("compute.restart.required",),
+    )
+
+    with pytest.raises(ActionBuildError, match="argument_schema"):
+        builder.build_from_candidate(event=_event(), candidate=candidate)

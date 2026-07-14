@@ -415,7 +415,7 @@ One topic per object type, named `object.<type>`. Every message carries
 | object.arbitration-decision | Odin | Forseti |
 | object.action-run | Thor | Vidar, Var, Saga |
 | object.approval | Var | Thor, Saga |
-| object.rollback | Vidar | Saga |
+| object.rollback | Vidar | Thor (ActionRun projection), Saga |
 | object.audit-entry | Saga | Norns |
 | object.issue | Saga | Norns, Mimir |
 | object.rule-candidate | Norns | Mimir |

@@ -47,6 +47,21 @@ class _RaisingBackend:
         raise RuntimeError("upstream down")
 
 
+class _EmptyBackend:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def answer(
+        self,
+        *,
+        prompt: str,  # noqa: ARG002
+        view_context: dict[str, Any],  # noqa: ARG002
+        history: list[dict[str, str]],  # noqa: ARG002
+    ) -> dict[str, Any]:
+        self.calls += 1
+        return {"answer": "   ", "model": "empty"}
+
+
 class _StreamingBackend:
     def __init__(self, *, fail_before: bool = False, fail_after: bool = False) -> None:
         self._fail_before = fail_before
@@ -76,6 +91,18 @@ class _StreamingBackend:
         if self._fail_after:
             raise RuntimeError("failed after token")
         yield {"type": "done", "answer": "hello", "model": "stream"}
+
+
+class _EmptyStreamingBackend(_EmptyBackend):
+    async def answer_stream(
+        self,
+        *,
+        prompt: str,  # noqa: ARG002
+        view_context: dict[str, Any],  # noqa: ARG002
+        history: list[dict[str, str]],  # noqa: ARG002
+    ) -> AsyncIterator[dict[str, Any]]:
+        self.calls += 1
+        yield {"type": "done", "answer": "", "model": "empty"}
 
 
 class TestRouterConstruction:
@@ -216,6 +243,32 @@ class TestRouterFailureHandling:
 
         assert first.calls == 1
         assert second.calls == 1
+
+    async def test_empty_answer_penalizes_candidate_and_fails_over(self) -> None:
+        empty = _EmptyBackend()
+        good = _FixedLatencyBackend(model="good", delay_ms=1)
+        router = LatencyRoutedChatBackend(candidates=[("empty", empty), ("good", good)])
+
+        reply = await router.answer(prompt="hi", view_context={}, history=[])
+
+        assert empty.calls == 1
+        assert good.calls == 1
+        assert reply["answer"] == "ok"
+        assert reply["router"]["reason"] == "failover"
+
+    async def test_empty_stream_fails_over_before_emitting_done(self) -> None:
+        empty = _EmptyStreamingBackend()
+        good = _StreamingBackend()
+        router = LatencyRoutedChatBackend(candidates=[("empty", empty), ("good", good)])
+
+        events = [
+            event async for event in router.answer_stream(prompt="hi", view_context={}, history=[])
+        ]
+
+        assert empty.calls == 1
+        assert good.calls == 1
+        assert events[-1]["answer"] == "hello"
+        assert events[-1]["router"]["reason"] == "failover"
 
     async def test_stream_failure_before_first_token_fails_over(self) -> None:
         bad = _StreamingBackend(fail_before=True)

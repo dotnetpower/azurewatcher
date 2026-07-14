@@ -102,6 +102,14 @@ if [[ -f scripts/check-arb-readiness.py ]]; then
     run_gate "architecture-review" python3 scripts/check-arb-readiness.py
 fi
 
+# Framework-surface integrity: offline signature + content verification.
+# Upstream: advisory (edits are legitimate; re-sign before release, rc 0).
+# Fork: hard fail on any edit/add under the signed surface (rc 1). Skipped
+# gracefully until the signed manifest exists.
+if [[ -f scripts/check-integrity.sh && -f security/integrity/manifest.json.sig ]]; then
+    run_gate "framework-integrity" bash scripts/check-integrity.sh
+fi
+
 # ---- full gates (opt-in) ----------------------------------------------------
 
 if [[ "$MODE" == "full" ]]; then

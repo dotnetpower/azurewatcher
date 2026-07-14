@@ -15,9 +15,11 @@ conversational-port smoke tests.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import re
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -29,6 +31,9 @@ from fdai.agents._framework.introspection import (
     leading_verb,
 )
 from fdai.agents._framework.pantheon import _BRAGI, PANTHEON_NAMES, PANTHEON_SPECS
+from fdai.core.rbac.roles import Capability, Role, has_capability
+
+_LOG = logging.getLogger(__name__)
 
 AnswerFn = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 
@@ -67,6 +72,8 @@ _MAX_PROGRESS_KEYS = 5_000
 #: append without limit, so the per-correlation list is bounded too - not just
 #: the key count.
 _MAX_PROGRESS_STEPS = 64
+_MAX_CONTRIBUTORS = 3
+_CONTRIBUTOR_TIMEOUT_SECONDS = 2.0
 
 
 def _evict_oldest(mapping: dict[str, Any], cap: int, *, keep: str | None = None) -> None:
@@ -81,20 +88,20 @@ def _evict_oldest(mapping: dict[str, Any], cap: int, *, keep: str | None = None)
             break
 
 
-#: Role rank for the entry RBAC gate on execute-class conversational requests
-#: (mirrors user-rbac-and-identity.md: Reader < Contributor < Approver < Owner).
-#: An operator below the floor cannot even submit an action - it is refused
-#: before the proposal enters the pipeline (defense-in-depth with Forseti's
-#: principal-level RBAC deny).
-_ROLE_RANK: dict[str, int] = {
-    "reader": 0,
-    "contributor": 1,
-    "approver": 2,
-    "owner": 3,
-    "breakglass": 4,
-}
-#: Minimum role to submit an execute-class action proposal.
-_EXECUTE_ROLE_FLOOR = "contributor"
+#: Entry RBAC gate for execute-class conversational requests. A console
+#: session's Entra role is mapped to the canonical capability matrix
+#: (:mod:`fdai.core.rbac.roles`) and MUST carry ``AUTHOR_DRAFT_PR`` to submit an
+#: action - the SAME capability the HTTP console-action route requires, so the
+#: two entry surfaces never drift. In particular ``BreakGlass`` is hard-isolated
+#: (NOT a superset of Owner) and does NOT carry ``AUTHOR_DRAFT_PR``, so it cannot
+#: submit a normal action from either surface. Refused before the proposal
+#: enters the pipeline (defense-in-depth with Forseti's principal-level RBAC
+#: deny).
+_ROLE_BY_NAME: dict[str, Role] = {role.value.lower(): role for role in Role}
+#: The capability an operator MUST hold to submit an action proposal. Same
+#: capability as ``console_action._SUBMIT_CAPABILITY`` (single source of truth in
+#: the RBAC matrix), so the conversational and HTTP entry gates cannot diverge.
+_SUBMIT_CAPABILITY = Capability.AUTHOR_DRAFT_PR
 
 
 @dataclass
@@ -180,8 +187,8 @@ class Bragi(Agent):
         """
         correlation_id = f"conv-{uuid.uuid4()}"
         if initiator_role is not None:
-            rank = _ROLE_RANK.get(initiator_role.lower())
-            if rank is None or rank < _ROLE_RANK[_EXECUTE_ROLE_FLOOR]:
+            role = _ROLE_BY_NAME.get(initiator_role.strip().lower())
+            if role is None or not has_capability((role,), _SUBMIT_CAPABILITY):
                 return {
                     "submitted": False,
                     "abstain_reason": "rbac_role_floor",
@@ -320,6 +327,15 @@ class Bragi(Agent):
     # ---- routing -------------------------------------------------------
 
     def route(self, question: str) -> RoutingDecision:
+        explicit = _explicit_agent_names(question)
+        if explicit:
+            primary, *explicit_contributors = explicit
+            return RoutingDecision(
+                primary_agent=primary,
+                scores={name: 10.0 for name in explicit},
+                tie_break="explicit_agent",
+                contributors=tuple(explicit_contributors[:_MAX_CONTRIBUTORS]),
+            )
         tokens = _tokenize(question)
         scores: dict[str, float] = {}
         matched_domains: dict[str, str] = {}
@@ -358,11 +374,15 @@ class Bragi(Agent):
         user_id: str,
         question: str,
         initiator_role: str | None = None,
+        allow_action_proposal: bool = True,
     ) -> Turn:
         """Route + call primary + record the turn.
 
         ``initiator_role`` (the console session's Entra role) is applied by the
         entry RBAC gate when the turn is an action command; ``None`` skips it.
+        A read-only channel sets ``allow_action_proposal=False`` so an action
+        utterance is redirected to the dedicated proposal route without
+        publishing anything from the conversational port.
         """
         session = self._sessions.setdefault(
             session_id,
@@ -379,12 +399,18 @@ class Bragi(Agent):
         # to the pipeline (Huginn -> Forseti judge -> Var approve -> Thor
         # execute). Bragi never calls an executor; it only submits + renders.
         if is_action_intent(question):
-            result = await self.submit_action_proposal(
-                session_id=session_id,
-                user_id=user_id,
-                question=question,
-                initiator_role=initiator_role,
-            )
+            if allow_action_proposal:
+                result = await self.submit_action_proposal(
+                    session_id=session_id,
+                    user_id=user_id,
+                    question=question,
+                    initiator_role=initiator_role,
+                )
+            else:
+                result = {
+                    "submitted": False,
+                    "abstain_reason": "action_route_required",
+                }
             answer: dict[str, Any] = {
                 "answer": None,
                 "primary_agent": None,
@@ -419,7 +445,25 @@ class Bragi(Agent):
             else:
                 answer = await responder(question, {"session_id": session_id})
                 answer.setdefault("primary_agent", decision.primary_agent)
-                answer["contributors"] = list(decision.contributors)
+                contributor_answers, contributor_errors = await self._ask_contributors(
+                    decision.contributors,
+                    question=question,
+                    session_id=session_id,
+                )
+                successful = [item["agent"] for item in contributor_answers]
+                answer["contributors"] = successful
+                answer["contributor_answers"] = contributor_answers
+                if contributor_errors:
+                    answer["contributor_errors"] = contributor_errors
+                primary_text = answer.get("answer")
+                if isinstance(primary_text, str) and contributor_answers:
+                    lines = [f"{decision.primary_agent}: {primary_text}"]
+                    lines.extend(
+                        f"{item['agent']}: {item['answer']}"
+                        for item in contributor_answers
+                        if isinstance(item.get("answer"), str)
+                    )
+                    answer["answer"] = "\n".join(lines)
                 answer["score_breakdown"] = decision.scores
                 answer["tie_break_reason"] = decision.tie_break
 
@@ -432,6 +476,56 @@ class Bragi(Agent):
         )
         session.turns.append(turn)
         return turn
+
+    async def _ask_contributors(
+        self,
+        contributors: tuple[str, ...],
+        *,
+        question: str,
+        session_id: str,
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        """Call bounded secondary responders without risking the primary reply."""
+
+        selected = contributors[:_MAX_CONTRIBUTORS]
+
+        async def call(agent_name: str) -> tuple[str, dict[str, Any] | None, str | None]:
+            responder = self._agent_responders.get(agent_name)
+            if responder is None:
+                return agent_name, None, "responder_not_registered"
+            try:
+                result = await asyncio.wait_for(
+                    responder(question, {"session_id": session_id, "contributor": True}),
+                    timeout=_CONTRIBUTOR_TIMEOUT_SECONDS,
+                )
+            except TimeoutError:
+                return agent_name, None, "timeout"
+            except Exception as exc:  # noqa: BLE001 - isolate one secondary responder
+                _LOG.warning(
+                    "bragi_contributor_failed",
+                    extra={"agent": agent_name, "error_type": type(exc).__name__},
+                )
+                return agent_name, None, "responder_error"
+            return agent_name, result, None
+
+        results = await asyncio.gather(*(call(name) for name in selected))
+        answers: list[dict[str, Any]] = []
+        errors: list[str] = []
+        for agent_name, result, error in results:
+            if error is not None:
+                errors.append(f"{agent_name}:{error}")
+                continue
+            if not isinstance(result, dict) or not isinstance(result.get("answer"), str):
+                errors.append(f"{agent_name}:abstained")
+                continue
+            facts = result.get("facts")
+            answers.append(
+                {
+                    "agent": agent_name,
+                    "answer": result["answer"],
+                    "facts": dict(facts) if isinstance(facts, dict) else {},
+                }
+            )
+        return answers, errors
 
     def prior_turns(self, session_id: str, *, limit: int = 5) -> tuple[Turn, ...]:
         session = self._sessions.get(session_id)
@@ -464,7 +558,10 @@ class Bragi(Agent):
 _WORD = re.compile(r"[a-z0-9]+")
 
 
-def translate_action_intent(question: str) -> tuple[str | None, str | None]:
+def translate_action_intent(
+    question: str,
+    action_type_names: Collection[str] = (),
+) -> tuple[str | None, str | None]:
     """Map an operator command to ``(action_type, resource_id)``.
 
     The single source of truth for conversational action translation, shared by
@@ -473,14 +570,48 @@ def translate_action_intent(question: str) -> tuple[str | None, str | None]:
     surfaces never drift. Returns ``(None, None)`` when the leading command verb
     maps to no ActionType (the caller then abstains rather than guessing).
     """
-    verb = leading_verb(question)
-    action_type = _INTENT_ACTION.get(verb or "")
+    action_type = _catalog_action_intent(question, action_type_names)
+    if action_type is None:
+        verb = leading_verb(question)
+        action_type = _INTENT_ACTION.get(verb or "")
     if action_type is None:
         return None, None
-    return action_type, _resource_of(question)
+    return action_type, _resource_of(question, action_type=action_type)
 
 
-def _resource_of(question: str) -> str | None:
+def _catalog_action_intent(
+    question: str,
+    action_type_names: Collection[str],
+) -> str | None:
+    """Resolve an exact catalog id or one unambiguous full suffix match."""
+
+    normalized = question.lower()
+    names = tuple(sorted({name for name in action_type_names if name}))
+    exact = [
+        name
+        for name in names
+        if re.search(rf"(?<![a-z0-9.-]){re.escape(name.lower())}(?![a-z0-9.-])", normalized)
+    ]
+    if len(exact) == 1:
+        return exact[0]
+    if len(exact) > 1:
+        return None
+
+    tokens = _tokenize(question)
+    matches: list[tuple[int, str]] = []
+    for name in names:
+        suffix = name.split(".", 1)[-1]
+        parts = tuple(part for part in suffix.split("-") if part)
+        if len(parts) >= 2 and all(part in tokens for part in parts):
+            matches.append((len(parts), name))
+    if not matches:
+        return None
+    best_length = max(length for length, _ in matches)
+    best = [name for length, name in matches if length == best_length]
+    return best[0] if len(best) == 1 else None
+
+
+def _resource_of(question: str, *, action_type: str | None = None) -> str | None:
     """Best-effort resource id from an operator command.
 
     The first token that looks like a resource identifier (contains a hyphen
@@ -488,7 +619,12 @@ def _resource_of(question: str) -> str | None:
     conservative: returns ``None`` when nothing resembles an id, so the
     proposal carries no resource rather than a wrong guess.
     """
+    ignored = set(re.split(r"[.-]", action_type.lower())) if action_type else set()
+    if action_type:
+        ignored.add(action_type.split(".", 1)[-1].lower())
     for token in re.findall(r"[a-z0-9-]+", question.lower()):
+        if token in ignored:
+            continue
         if len(token) >= 3 and ("-" in token or any(c.isdigit() for c in token)):
             return str(token)
     return None
@@ -496,6 +632,18 @@ def _resource_of(question: str) -> str | None:
 
 def _tokenize(text: str) -> set[str]:
     return {t for t in _WORD.findall(text.lower())}
+
+
+def _explicit_agent_names(question: str) -> list[str]:
+    """Return canonical agent names explicitly mentioned, in text order."""
+
+    canonical = {name.lower(): name for name in PANTHEON_NAMES}
+    found: list[str] = []
+    for token in _WORD.findall(question.lower()):
+        name = canonical.get(token)
+        if name is not None and name not in found:
+            found.append(name)
+    return found
 
 
 def _domain_score(domain: str, tokens: set[str]) -> float:

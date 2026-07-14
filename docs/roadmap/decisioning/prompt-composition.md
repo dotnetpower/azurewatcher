@@ -119,7 +119,7 @@ rule-catalog/
       prompt.schema.json          # JSON Schema every artifact validates against
     base/
       t2-cross-check.v1.yaml      # Wave 1 (shipped)
-      t2-proposer.vN.yaml         # Wave 3 (planned)
+      t2-proposer.v1.yaml         # Wave 3 (shipped, shadow)
       t2-critic.vN.yaml           # Wave 4 (planned)
       t2-judge.vN.yaml            # Wave 4.5 (planned)
       t2-rubric.v1.yaml           # rubric hallucination filter (shipped, shadow)

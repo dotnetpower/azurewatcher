@@ -47,6 +47,14 @@ from fdai.delivery.persistence.postgres_scheduler_store import (
     PostgresScheduleStore,
     PostgresScheduleStoreConfig,
 )
+from fdai.delivery.persistence.state_store_action_promotion import (
+    StateStoreActionPromotionRegistry,
+)
+from fdai.delivery.persistence.state_store_hil_registry import (
+    PostgresHilApprovalRegistry,
+    StateStoreHilApprovalRegistry,
+    add_pending_approval,
+)
 
 __all__ = [
     "PgVectorPatternLibrary",
@@ -67,4 +75,8 @@ __all__ = [
     "PostgresScheduleStoreConfig",
     "PostgresStateStore",
     "PostgresStateStoreConfig",
+    "PostgresHilApprovalRegistry",
+    "StateStoreHilApprovalRegistry",
+    "StateStoreActionPromotionRegistry",
+    "add_pending_approval",
 ]

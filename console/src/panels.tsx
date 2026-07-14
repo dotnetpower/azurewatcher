@@ -27,8 +27,8 @@ import type { ComponentType } from "preact";
 import { lazy } from "preact/compat";
 import type { ReadApiClient } from "./api";
 import { t } from "./i18n";
-import { DashboardRoute } from "./routes/dashboard";
 
+const DashboardRoute = lazy(async () => ({ default: (await import("./routes/dashboard")).DashboardRoute }));
 const LiveRoute = lazy(async () => ({ default: (await import("./routes/live")).LiveRoute }));
 const IncidentsRoute = lazy(async () => ({ default: (await import("./routes/incidents")).IncidentsRoute }));
 const AgentsRoute = lazy(async () => ({ default: (await import("./routes/agents")).AgentsRoute }));
@@ -38,6 +38,7 @@ const ProcessesRoute = lazy(async () => ({ default: (await import("./routes/proc
 const AgentActivityRoute = lazy(async () => ({ default: (await import("./routes/agent-activity")).AgentActivityRoute }));
 const AuditRoute = lazy(async () => ({ default: (await import("./routes/audit")).AuditRoute }));
 const RuleTraceRoute = lazy(async () => ({ default: (await import("./routes/rule-trace")).RuleTraceRoute }));
+const RcaRoute = lazy(async () => ({ default: (await import("./routes/rca")).RcaRoute }));
 const ArchitectureRoute = lazy(async () => ({ default: (await import("./routes/architecture")).ArchitectureRoute }));
 const OntologyRoute = lazy(async () => ({ default: (await import("./routes/ontology")).OntologyRoute }));
 const PantheonRoute = lazy(async () => ({ default: (await import("./routes/pantheon")).PantheonRoute }));
@@ -47,7 +48,12 @@ const WorkflowBuilderRoute = lazy(async () => ({ default: (await import("./route
 const DocumentIngestionRoute = lazy(async () => ({ default: (await import("./routes/document-ingestion")).DocumentIngestionRoute }));
 const BlastRadiusRoute = lazy(async () => ({ default: (await import("./routes/blast-radius")).BlastRadiusRoute }));
 const PromotionGatesRoute = lazy(async () => ({ default: (await import("./routes/promotion-gates")).PromotionGatesRoute }));
+const ScopeRoute = lazy(async () => ({ default: (await import("./routes/scope")).ScopeRoute }));
 const LlmCostRoute = lazy(async () => ({ default: (await import("./routes/llm-cost")).LlmCostRoute }));
+const OperatingOutcomesRoute = lazy(async () => ({ default: (await import("./routes/analytics-hubs")).OperatingOutcomesRoute }));
+const ControlAssuranceRoute = lazy(async () => ({ default: (await import("./routes/analytics-hubs")).ControlAssuranceRoute }));
+const VerticalOutcomesRoute = lazy(async () => ({ default: (await import("./routes/analytics-hubs")).VerticalOutcomesRoute }));
+const TrustRoutingRoute = lazy(async () => ({ default: (await import("./routes/analytics-hubs")).TrustRoutingRoute }));
 const SettingsRoute = lazy(async () => ({ default: (await import("./routes/settings")).SettingsRoute }));
 
 /** Props every panel component receives. Read-only client only. */
@@ -64,7 +70,7 @@ export type PanelGroup = "now" | "history" | "knowledge" | "safety" | "overview"
 /** Optional visual placement for panels that are global utilities rather
  * than members of an operator-intent flyout. Grouped placement is the
  * default so fork panels keep their existing behavior. */
-export type PanelPlacement = "bottom";
+export type PanelPlacement = "bottom" | "drilldown";
 
 export interface PanelGroupMeta {
   readonly id: PanelGroup;
@@ -177,6 +183,13 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
     group: "history",
     component: RuleTraceRoute,
   },
+  {
+    id: "rca",
+    label: t("nav.panel.rca"),
+    subtitle: t("nav.panelSub.rca"),
+    group: "history",
+    component: RcaRoute,
+  },
   // ── Knowledge ───────────────────────────────────────────────────────
   {
     id: "architecture",
@@ -242,13 +255,53 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
     group: "safety",
     component: PromotionGatesRoute,
   },
+  {
+    id: "scope",
+    label: t("nav.panel.scope"),
+    subtitle: t("nav.panelSub.scope"),
+    group: "safety",
+    component: ScopeRoute,
+  },
   // ── Overview ────────────────────────────────────────────────────────
   DASHBOARD_PANEL,
+  {
+    id: "operating-outcomes",
+    label: t("nav.panel.operatingOutcomes"),
+    subtitle: t("nav.panelSub.operatingOutcomes"),
+    group: "overview",
+    placement: "drilldown",
+    component: OperatingOutcomesRoute,
+  },
+  {
+    id: "control-assurance",
+    label: t("nav.panel.controlAssurance"),
+    subtitle: t("nav.panelSub.controlAssurance"),
+    group: "overview",
+    placement: "drilldown",
+    component: ControlAssuranceRoute,
+  },
+  {
+    id: "verticals",
+    label: t("nav.panel.verticalOutcomes"),
+    subtitle: t("nav.panelSub.verticalOutcomes"),
+    group: "overview",
+    placement: "drilldown",
+    component: VerticalOutcomesRoute,
+  },
+  {
+    id: "trust-routing",
+    label: t("nav.panel.trustRouting"),
+    subtitle: t("nav.panelSub.trustRouting"),
+    group: "overview",
+    placement: "drilldown",
+    component: TrustRoutingRoute,
+  },
   {
     id: "llm-cost",
     label: t("nav.panel.llmCost"),
     subtitle: t("nav.panelSub.llmCost"),
     group: "overview",
+    placement: "drilldown",
     component: LlmCostRoute,
   },
   {
@@ -269,7 +322,7 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
  * ```ts
  * import { ExampleFinOpsPanel } from "./routes/example-finops";
  * export const EXTRA_PANELS: readonly ConsolePanel[] = [
- *   { id: "finops", label: "Cost", group: "overview", component: ExampleFinOpsPanel },
+ *   { id: "finops", label: "Cost", group: "overview", placement: "drilldown", component: ExampleFinOpsPanel },
  * ];
  * ```
  */

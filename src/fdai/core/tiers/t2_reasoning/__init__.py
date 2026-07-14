@@ -11,6 +11,7 @@ from fdai.core.tiers.t2_reasoning.tier import (
     QualityGateProtocol,
     T2Decision,
     T2Outcome,
+    T2ProposalContext,
     T2Proposer,
     T2Tier,
 )
@@ -19,6 +20,7 @@ __all__ = [
     "QualityGateProtocol",
     "T2Decision",
     "T2Outcome",
+    "T2ProposalContext",
     "T2Proposer",
     "T2Tier",
 ]

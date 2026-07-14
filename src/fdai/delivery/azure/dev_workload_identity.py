@@ -128,10 +128,20 @@ class AzureCliWorkloadIdentity:
             raise AzureCliCredentialError("az CLI returned non-JSON output") from exc
 
         access_token = payload.get("accessToken")
-        expires_on = payload.get("expiresOn") or payload.get("expires_on")
+        # Modern Azure CLI emits both fields: ``expires_on`` is an absolute
+        # Unix timestamp, while ``expiresOn`` is a display string in local
+        # time. Prefer the timestamp so a long-running process never extends
+        # a token's cache lifetime by the workstation's UTC offset.
+        expires_on = payload.get("expires_on")
+        if not isinstance(expires_on, (str, int, float)) or isinstance(expires_on, bool):
+            expires_on = payload.get("expiresOn")
         if not isinstance(access_token, str) or not access_token:
             raise AzureCliCredentialError("az CLI payload missing accessToken")
-        if not isinstance(expires_on, str) or not expires_on:
+        if (
+            not isinstance(expires_on, (str, int, float))
+            or isinstance(expires_on, bool)
+            or expires_on == ""
+        ):
             raise AzureCliCredentialError("az CLI payload missing expiresOn")
 
         expires_at = _parse_expires_on(expires_on)
@@ -142,22 +152,28 @@ class AzureCliWorkloadIdentity:
         )
 
 
-def _parse_expires_on(raw: str) -> datetime:
+def _parse_expires_on(raw: str | int | float) -> datetime:
     """Parse the several formats ``az`` can emit for ``expiresOn``.
 
-    Newer versions emit ISO 8601 with a timezone; older versions emit
-    the local naive form ``"YYYY-MM-DD HH:MM:SS.mmmmmm"``. Assume UTC
-    when no zone is present - the token is opaque to us, we only need
-    a monotonic comparison against ``datetime.now(tz=UTC)``.
+    Newer versions expose the absolute ``expires_on`` Unix timestamp.
+    Older versions expose ``expiresOn`` as ISO 8601 or the local naive
+    form ``"YYYY-MM-DD HH:MM:SS.mmmmmm"``. A naive value MUST be treated
+    as system local time; attaching UTC directly can keep an expired token
+    cached for the workstation's UTC offset.
     """
+    if isinstance(raw, (int, float)):
+        return datetime.fromtimestamp(raw, tz=UTC)
+    stripped = raw.strip()
+    if stripped.isdigit():
+        return datetime.fromtimestamp(int(stripped), tz=UTC)
     try:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(stripped.replace("Z", "+00:00"))
     except ValueError:
         # Old CLI: "2026-07-07 12:34:56.000000"
-        parsed = datetime.strptime(raw, "%Y-%m-%d %H:%M:%S.%f")
+        parsed = datetime.strptime(stripped, "%Y-%m-%d %H:%M:%S.%f")
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return parsed
+        return parsed.astimezone(UTC)
+    return parsed.astimezone(UTC)
 
 
 __all__ = ["AzureCliCredentialError", "AzureCliWorkloadIdentity"]

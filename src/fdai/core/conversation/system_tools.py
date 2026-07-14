@@ -395,7 +395,9 @@ class QueryInventoryTool:
     name = "query_inventory"
     description = (
         "Return the inventory records for a given resource_type, optionally "
-        "filtered by id substring. Read-only."
+        "filtered by id substring and/or resource_group (e.g. list the "
+        "sql-database resources in one resource group). Read-only; each record "
+        "carries its property bag (name, location, tags)."
     )
     rbac_floor: Role = Role.READER
     side_effect_class: SideEffectClass = "read"
@@ -418,6 +420,7 @@ class QueryInventoryTool:
                 preview="query_inventory requires a non-empty 'resource_type'",
             )
         id_substring = _optional_str(arguments, "id_substring", default="").lower()
+        resource_group = _optional_str(arguments, "resource_group", default="").strip()
         limit = _optional_int(arguments, "limit", default=20, minimum=1, maximum=200)
 
         try:
@@ -426,6 +429,7 @@ class QueryInventoryTool:
                     self._inventory,
                     resource_type=resource_type,
                     id_substring=id_substring,
+                    resource_group=resource_group,
                     limit=limit,
                 )
             )
@@ -438,11 +442,14 @@ class QueryInventoryTool:
             )
 
         preview = f"query_inventory[{resource_type}]: {len(projections)} record(s)"
+        if resource_group:
+            preview += f" in resource-group {resource_group}"
         return ToolResult(
             status="ok" if projections else "abstain",
             data={
                 "resource_type": resource_type,
                 "id_substring": id_substring,
+                "resource_group": resource_group,
                 "records": projections,
             },
             preview=preview,
@@ -571,6 +578,7 @@ async def _drain_inventory(
     *,
     resource_type: str,
     id_substring: str,
+    resource_group: str,
     limit: int,
 ) -> list[dict[str, Any]]:
     projections: list[dict[str, Any]] = []
@@ -583,7 +591,16 @@ async def _drain_inventory(
             rec_id = str(getattr(record, "id", "") or getattr(record, "resource_id", ""))
             if id_substring and id_substring not in rec_id.lower():
                 continue
-            props = dict(getattr(record, "properties", {}) or {})
+            # The wire contract (:class:`ResourceRecord`) names the property bag
+            # ``props``; a differently shaped provider/fake may expose
+            # ``properties``. Read the contract field first, fall back so the
+            # bag (resource name, location, tags) is never silently dropped.
+            raw_props = getattr(record, "props", None)
+            if raw_props is None:
+                raw_props = getattr(record, "properties", {})
+            props = dict(raw_props or {})
+            if resource_group and not _record_in_resource_group(rec_id, props, resource_group):
+                continue
             projections.append(
                 {
                     "id": rec_id,
@@ -594,6 +611,35 @@ async def _drain_inventory(
             if len(projections) >= limit:
                 return projections
     return projections
+
+
+def _record_in_resource_group(rec_id: str, props: Mapping[str, Any], resource_group: str) -> bool:
+    """True when a record belongs to ``resource_group`` (case-insensitive).
+
+    CSP-neutral: prefers the ``resourceGroup`` / ``resource_group`` property
+    the Azure inventory adapters populate, then falls back to the neutral id's
+    ``resource-group/<name>`` / ``resourcegroups/<name>`` scope segment so a
+    provider that only encodes the group in the id still filters correctly.
+    A group name only matches on a whole path segment - never as a prefix of
+    a longer group name.
+    """
+    target = resource_group.strip().lower()
+    if not target:
+        return True
+    for key in ("resourceGroup", "resource_group", "resourcegroup"):
+        value = props.get(key)
+        if isinstance(value, str) and value.strip().lower() == target:
+            return True
+    lowered = rec_id.lower()
+    for marker in ("resource-group/", "resourcegroups/"):
+        idx = lowered.find(marker)
+        if idx < 0:
+            continue
+        rest = lowered[idx + len(marker) :]
+        segment = rest.split("/", 1)[0]
+        if segment == target:
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------

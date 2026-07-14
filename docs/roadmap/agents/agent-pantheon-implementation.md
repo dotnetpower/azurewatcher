@@ -265,7 +265,8 @@ Forseti reasons; Norns closes the discovery loop.
   `risk-classification.yaml` table plus ActionType ceiling. Emit
   `Verdict` with `auto | hil | deny`. Emit `arbitrate` signal when
   `domain_conflict: true` (Odin lands in W4).
-- **Thor (`src/fdai/agents/thor.py`)** - subscribe to `object.verdict`.
+- **Thor (`src/fdai/agents/thor.py`)** - subscribe to `object.verdict` and
+  `object.rollback`.
   Dispatch: `auto` -> shadow execute against the existing executor
   provider; `hil` -> publish `object.hil-request` (Var lands here too);
   `deny` -> publish drop record for Saga. Enforce per-resource mutex on
@@ -275,8 +276,16 @@ Forseti reasons; Norns closes the discovery loop.
   W3, real adapter in W5). Timeout / expire tracking. Publish
   `object.hil-response`.
 - **Vidar (`src/fdai/agents/vidar.py`)** - subscribe to Thor failure
-  signal. Invoke rollback per ActionType `rollback_contract`. Publish
-  `object.rollback`.
+  signal. Invoke the injected rollback executor selected by the ActionType
+  `rollback_contract`, and publish the provider receipt on `object.rollback`.
+  Thor keeps the failed ActionRun and resource lock until that receipt arrives;
+  missing executors, provider errors, and empty receipts close as
+  `rollback_failed`, never as a fabricated success.
+
+Enforce-mode runtime assembly requires an explicit Thor executor, durable
+ActionRun store, StateStore-backed Saga audit chain, and rollback executor
+registry. Missing any binding blocks startup. Shadow mode retains the in-memory
+defaults and never invokes the privileged executor.
 
 **Tests**
 
@@ -648,6 +657,12 @@ Configurable + observable seams:
   `question_domains`), tracks a per-user session, and enforces Bragi's
   no-cross-user invariant. Disabling Bragi turns the port off
   (`health()["conversational_port"]` is `False`, `ask` returns `None`).
+  An explicit canonical agent name takes precedence over domain scoring.
+  Bragi calls up to three matched contributors concurrently with bounded
+  timeouts, isolates contributor failures, and returns both combined prose and
+  structured contributor evidence. The web adapter namespaces client session
+  ids by the authenticated principal and disables action proposal plus Saga
+  handoff side effects on the read-only question route.
   Per the two-port contract, a conversational request that wants an
   action must re-enter the typed pipeline - the port never bypasses it.
   The narrator LLM (T2 intent + richer per-agent answers) layers on top

@@ -79,7 +79,7 @@ import random
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol
 
 from starlette.requests import Request
 from starlette.responses import Response, StreamingResponse
@@ -141,6 +141,14 @@ class LiveStreamConfig:
     to disable the emitter (real stage publishers own the sink) or
     provides a custom demo emitter."""
 
+    broadcaster_factory: Callable[[StagePublisher], LiveStageProducer] | None = None  # noqa: F821
+    """Production factory receiving the Live channel's stage publisher.
+
+    The returned producer consumes the shared stage topic and exposes
+    ``run`` / ``stop`` lifecycle methods. It is mutually exclusive with
+    ``emitter_factory`` so synthetic and real stage frames cannot mix.
+    """
+
     def __post_init__(self) -> None:
         if not self.path.startswith("/"):
             raise ValueError(f"LiveStreamConfig.path MUST start with '/', got {self.path!r}")
@@ -148,6 +156,10 @@ class LiveStreamConfig:
             raise ValueError("LiveStreamConfig.channel MUST be non-empty")
         if self.keepalive_seconds <= 0:
             raise ValueError("keepalive_seconds MUST be positive")
+        if self.emitter_factory is not None and self.broadcaster_factory is not None:
+            raise ValueError(
+                "LiveStreamConfig: set at most one of emitter_factory or broadcaster_factory"
+            )
 
 
 class LiveEmitter:
@@ -158,6 +170,16 @@ class LiveEmitter:
     """
 
     async def start(self) -> None:  # pragma: no cover - Protocol shape
+        raise NotImplementedError
+
+    async def stop(self) -> None:  # pragma: no cover - Protocol shape
+        raise NotImplementedError
+
+
+class LiveStageProducer(Protocol):
+    """Protocol-shape base for a production stage relay."""
+
+    async def run(self) -> None:  # pragma: no cover - Protocol shape
         raise NotImplementedError
 
     async def stop(self) -> None:  # pragma: no cover - Protocol shape
@@ -356,6 +378,8 @@ class SyntheticLiveEmitter(LiveEmitter):
             "scope": scope,
             "vertical": vertical,
             "latency_ms": self._pick_latency_ms(tier),
+            "latency_budget_ms": {"t0": 2000, "t1": 5000, "t2": 15000}.get(tier, 5000),
+            "mode": "shadow",
         }
 
         # ingest done

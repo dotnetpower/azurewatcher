@@ -28,6 +28,9 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
+from jsonschema import Draft202012Validator
+
+from fdai.core.quality_gate.gate import QualityCandidate
 from fdai.core.tiers.t0_deterministic.models import Finding
 from fdai.shared.contracts.models import (
     Action,
@@ -98,6 +101,62 @@ class ActionBuilder:
             blast_radius=blast_radius,
             mode=Mode.SHADOW,
             citing_rules=[finding.rule_id],
+            created_at=datetime.now(tz=UTC),
+        )
+
+    def build_from_candidate(
+        self,
+        *,
+        event: Event,
+        candidate: QualityCandidate,
+    ) -> Action:
+        """Build a shadow Action from a quality-gate-approved T2 candidate."""
+        action_type = self.action_types_by_name.get(candidate.action_type)
+        if action_type is None:
+            raise ActionBuildError(
+                f"candidate action_type {candidate.action_type!r} is not registered"
+            )
+        if not candidate.cited_rule_ids:
+            raise ActionBuildError("candidate MUST cite at least one catalog rule")
+        if action_type.argument_schema is None:
+            if candidate.params:
+                raise ActionBuildError(
+                    f"ActionType {action_type.name!r} declares no argument_schema; "
+                    "candidate params MUST be empty"
+                )
+        else:
+            errors = sorted(
+                Draft202012Validator(action_type.argument_schema).iter_errors(candidate.params),
+                key=lambda error: list(error.absolute_path),
+            )
+            if errors:
+                first = errors[0]
+                path = ".".join(str(part) for part in first.absolute_path) or "<root>"
+                raise ActionBuildError(
+                    f"candidate params violate {action_type.name!r} argument_schema "
+                    f"at {path}: {first.message}"
+                )
+
+        idempotency_key = (
+            f"{event.idempotency_key}::t2::{candidate.action_type}::{candidate.target_resource_ref}"
+        )
+        return Action(
+            schema_version="1.0.0",
+            action_id=_build_action_id(idempotency_key),
+            idempotency_key=idempotency_key,
+            event_id=event.event_id,
+            action_type=action_type.name,
+            target_resource_ref=candidate.target_resource_ref,
+            operation=action_type.operation,
+            params=dict(candidate.params),
+            stop_condition=_derive_stop_condition(action_type),
+            rollback_ref=RollbackRef(
+                kind=action_type.rollback_contract,
+                reference=None,
+            ),
+            blast_radius=_derive_blast_radius(action_type),
+            mode=Mode.SHADOW,
+            citing_rules=list(candidate.cited_rule_ids),
             created_at=datetime.now(tz=UTC),
         )
 

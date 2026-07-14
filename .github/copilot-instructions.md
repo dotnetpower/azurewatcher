@@ -19,15 +19,19 @@ principles into a phased engineering plan.
 
 ## Language Policy (MUST)
 
-- **Four language layers.** **L0** machine/audit surfaces (code, identifiers, logs,
-  error codes, audit entries, event payloads, generated PR bodies, Rego policy, config
-  keys) are **English-only, permanently** - never localized (machine-parseable,
-  replayable, CSP-neutral). **L1** developer docs ship English `.md` + `-ko.md` pairs.
-  **L2** product surfaces (console, CLI, ChatOps, notifications, site) localize via
-  English-source message catalogs with mandatory English fallback. **L3** the Bragi
-  narrator renders in the operator's locale over an English pipeline.
-- **Korean is used in live maintainer chat, in `-ko.md` docs, and in allowlisted L2
-  locale catalogs** - never in L0 (code, audit, logs, events, commits, `.github/**`).
+- **FDAI is bilingual (English + Korean), layered by surface.** **L0** machine/audit
+  surfaces (code, identifiers, logs, error codes, audit entries, event payloads,
+  generated PR bodies, Rego policy, config keys) are **English-only, permanently** -
+  never localized (machine-parseable, replayable, CSP-neutral). **L1** developer docs
+  ship English `.md` + `-ko.md` pairs. **L2** product surfaces (console, CLI, ChatOps,
+  notifications, site) are **bilingual** - Korean inline or via English-source message
+  catalogs with mandatory English fallback. **L3** the Bragi narrator renders in the
+  operator's locale over an English pipeline.
+- **Korean is a first-class product language on L2/L3 surfaces** (console `console/src`,
+  CLI `cli/src`, the narrator `chat*.py` routes), in `-ko.md` docs, `.ko.json` catalogs,
+  and live maintainer chat. It is **never** in L0 (code identifiers, audit, logs, events,
+  commits, `.github/**`) - and an L0 record surfaced inside an L2/L3 view stays English
+  (localize the labels around it, never the machine record).
 - Rationale and full rules: [instructions/language.instructions.md](instructions/language.instructions.md).
 
 ## Implementation Focus (MUST)
@@ -113,6 +117,12 @@ principles into a phased engineering plan.
   [CONTRIBUTING label catalog](../CONTRIBUTING.md#opening-issues) - at least one
   `area:` plus a type, adding `tier:` / `vertical:` / safety / cross-cutting
   labels when central. Issues are English-only and never carry customer values.
+- When you work on or review any GitHub issue, you MUST add a comment recording
+  what was done, found, or why no change was needed - even for "already
+  implemented" or "won't fix". If the issue was **registered by someone other
+  than the acting maintainer**, also apply the `review-needed` label instead of
+  self-closing it, so the author does a confirmation pass. See
+  [Working on issues](../CONTRIBUTING.md#working-on-issues).
 - Do not claim performance multipliers or other quantified gains without a stated, measured
   baseline.
 

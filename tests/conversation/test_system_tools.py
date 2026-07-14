@@ -318,3 +318,121 @@ def test_query_inventory_empty_result_abstains():
 def test_inventory_provider_protocol_recognised():
     inv = _FakeInventory([])
     assert isinstance(inv, InventoryProvider)
+
+
+# ---------------------------------------------------------------------------
+# query_inventory - real ResourceRecord shape + resource_group scoping
+# ---------------------------------------------------------------------------
+
+
+def _sql_db(*, rg: str, server: str, db: str, location: str = "koreacentral"):
+    """Build a real :class:`ResourceRecord` for one MSSQL database.
+
+    Mirrors what the Azure inventory adapters emit: neutral id derived from
+    the ARM path (carrying the resource-group segment) and a ``props`` bag
+    that includes the resource ``name`` and ``resourceGroup``.
+    """
+    from fdai.shared.providers.inventory import ResourceRecord
+
+    arm = (
+        f"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/{rg}"
+        f"/providers/Microsoft.Sql/servers/{server}/databases/{db}"
+    )
+    neutral = arm.lower().split("/resourcegroups/", 1)[1]
+    neutral = f"resourcegroups/{neutral}"
+    return ResourceRecord(
+        resource_id=neutral,
+        type="sql-database",
+        props={"name": db, "location": location, "tags": {}, "resourceGroup": rg},
+        provider_ref=arm,
+    )
+
+
+def test_query_inventory_surfaces_props_from_resource_record():
+    # Regression: `_drain_inventory` read `.properties`, but the wire contract
+    # `ResourceRecord` names the bag `.props` - so the resource name (and every
+    # other property) was silently dropped for real backends. The name is
+    # exactly what "tell me the MSSQL DB name" needs.
+    inv = _FakeInventory([_sql_db(rg="rg-payments", server="sql-a", db="orders")])
+    tool = QueryInventoryTool(inventory=inv)
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(arguments={"resource_type": "sql-database"}, principal=principal)
+    assert r.status == "ok"
+    assert len(r.data["records"]) == 1
+    assert r.data["records"][0]["properties"]["name"] == "orders"
+    assert r.data["records"][0]["properties"]["resourceGroup"] == "rg-payments"
+
+
+def test_query_inventory_mssql_in_resource_group_by_prop():
+    # The operator's exact scenario: "list the MSSQL DBs in resource group X".
+    inv = _FakeInventory(
+        [
+            _sql_db(rg="rg-payments", server="sql-a", db="orders"),
+            _sql_db(rg="rg-payments", server="sql-a", db="ledger"),
+            _sql_db(rg="rg-analytics", server="sql-b", db="events"),
+        ]
+    )
+    tool = QueryInventoryTool(inventory=inv)
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(
+        arguments={"resource_type": "sql-database", "resource_group": "rg-payments"},
+        principal=principal,
+    )
+    assert r.status == "ok"
+    names = sorted(rec["properties"]["name"] for rec in r.data["records"])
+    assert names == ["ledger", "orders"]
+    assert r.data["resource_group"] == "rg-payments"
+
+
+def test_query_inventory_resource_group_is_case_insensitive():
+    inv = _FakeInventory([_sql_db(rg="RG-Payments", server="sql-a", db="orders")])
+    tool = QueryInventoryTool(inventory=inv)
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(
+        arguments={"resource_type": "sql-database", "resource_group": "rg-payments"},
+        principal=principal,
+    )
+    assert r.status == "ok"
+    assert len(r.data["records"]) == 1
+
+
+def test_query_inventory_resource_group_matches_neutral_id_segment():
+    # A backend that only encodes the group in the neutral id (no prop) still
+    # filters, and only on a whole segment - "rg-pay" must NOT match
+    # "rg-payments".
+    from fdai.shared.providers.inventory import ResourceRecord
+
+    inv = _FakeInventory(
+        [
+            ResourceRecord(
+                resource_id="resourcegroups/rg-payments/providers/x/vaults/v1",
+                type="secret-store",
+                props={"name": "v1"},
+            ),
+            ResourceRecord(
+                resource_id="resourcegroups/rg-pay/providers/x/vaults/v2",
+                type="secret-store",
+                props={"name": "v2"},
+            ),
+        ]
+    )
+    tool = QueryInventoryTool(inventory=inv)
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(
+        arguments={"resource_type": "secret-store", "resource_group": "rg-pay"},
+        principal=principal,
+    )
+    assert r.status == "ok"
+    assert [rec["properties"]["name"] for rec in r.data["records"]] == ["v2"]
+
+
+def test_query_inventory_resource_group_no_match_abstains():
+    inv = _FakeInventory([_sql_db(rg="rg-payments", server="sql-a", db="orders")])
+    tool = QueryInventoryTool(inventory=inv)
+    principal = Principal(id="cli", role=Role.READER)
+    r = tool.call(
+        arguments={"resource_type": "sql-database", "resource_group": "rg-nonexistent"},
+        principal=principal,
+    )
+    assert r.status == "abstain"
+    assert r.data["records"] == []

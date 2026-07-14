@@ -51,6 +51,7 @@ import httpx
 from ..core.metering.pricing import PricingTable
 from ..core.quality_gate.testing import MatchTypeCrossCheckModel
 from ..core.tiers.t1_lightweight.testing import DeterministicEmbeddingModel
+from ..core.tiers.t2_reasoning.testing import DeterministicT2Proposer
 from ..shared.config.loader import load_config_from_env
 from ..shared.config.models import AppConfig, LlmMode
 from ..shared.contracts.registry import (
@@ -116,6 +117,7 @@ def _local_fake_llm_bindings() -> LlmBindings:
             MatchTypeCrossCheckModel(model_id="fake-primary"),
             MatchTypeCrossCheckModel(model_id="fake-secondary"),
         ),
+        t2_proposer=DeterministicT2Proposer(),
     )
 
 

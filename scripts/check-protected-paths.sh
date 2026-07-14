@@ -41,21 +41,25 @@ cd "$repo_root"
 
 # ---------------------------------------------------------------------------
 # The framework surface. Prefix-matched against each changed path (repo-root
-# relative). Keep in sync with:
-#   - docs/roadmap/fork-and-sequencing/downstream-fork-guide.md § 3 (the one hard rule)
-#   - docs/roadmap/architecture/project-structure.md § Customization via Dependency Injection
-#   - .github/instructions/agent-pantheon.instructions.md (fork-locked agents)
-#   - .github/CODEOWNERS (the review-time counterpart of this guard)
+# relative). The list is loaded from the single source of truth
+# scripts/lib/framework-surface.txt (shared with the integrity manifest tools)
+# so the guard and the signed manifest can never drift apart.
 # ---------------------------------------------------------------------------
-protected_prefixes=(
-  "src/fdai/core/"               # control loop - never fork-edited
-  "src/fdai/composition.py"      # the ONE composition root
-  "src/fdai/shared/providers/"   # the injectable Protocol seams
-  "src/fdai/shared/contracts/"   # versioned event / action / rule types
-  "src/fdai/agents/"             # 15-agent pantheon (fork-locked)
-  "rule-catalog/schema/"         # schemas: extend by entry, never widen
-  ".github/instructions/"        # the normative rule set
-)
+surface_list="$repo_root/scripts/lib/framework-surface.txt"
+if [ ! -f "$surface_list" ]; then
+  echo "check-protected-paths: ERROR - missing $surface_list (the framework-surface list)." >&2
+  exit 2
+fi
+protected_prefixes=()
+while IFS= read -r line; do
+  line="${line%%#*}"                       # strip inline/full-line comments
+  line="$(printf '%s' "$line" | tr -d '[:space:]')"
+  [ -n "$line" ] && protected_prefixes+=("$line")
+done < "$surface_list"
+if [ "${#protected_prefixes[@]}" -eq 0 ]; then
+  echo "check-protected-paths: ERROR - $surface_list is empty after parsing." >&2
+  exit 2
+fi
 
 # ---------------------------------------------------------------------------
 # Mode detection.

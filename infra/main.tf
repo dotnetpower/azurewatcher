@@ -562,7 +562,19 @@ module "measurement_runners" {
   executor_identity_id         = module.identity.resource_id
   image                        = var.core_image
   scenario_set_version         = var.measurement_scenario_set_version
-  tags                         = local.tags
+  state_store_dsn_secret_id    = azurerm_key_vault_secret.state_store_dsn.id
+  environment = {
+    AZURE_TENANT_ID         = data.azurerm_client_config.current.tenant_id
+    AZURE_SUBSCRIPTION_ID   = data.azurerm_client_config.current.subscription_id
+    AZURE_REGION            = var.region
+    AZURE_RESOURCE_GROUP    = module.resource_group.name
+    KAFKA_BOOTSTRAP_SERVERS = module.event_bus.kafka_bootstrap
+    KAFKA_TOPIC_EVENTS      = local.event_topics[0]
+    POSTGRES_HOST           = module.state_store.fqdn
+    POSTGRES_DATABASE       = module.state_store.database_name
+    RUNTIME_ENV             = local.env_label == "day-zero" ? "dev" : local.env_label
+  }
+  tags = local.tags
 }
 
 # -----------------------------------------------------------------------

@@ -4,6 +4,7 @@ import {
   decodeDashboardKpi,
   decodeHilQueuePage,
   decodeIncidentPage,
+  decodeRcaView,
   ReadApiError,
 } from "./api";
 
@@ -45,6 +46,71 @@ describe("read API response decoders", () => {
       items: [{ ...item, status: "closed" }],
       next_cursor: null,
     })).toThrow(/status MUST/);
+  });
+
+  test("decodes an RCA view and rejects an invalid tier", () => {
+    const grounded = {
+      correlation_id: "corr-1",
+      incident_id: null,
+      hypotheses: [
+        {
+          seq: 2,
+          tier: "t0",
+          outcome: "grounded",
+          grounded: true,
+          cause: "public access open",
+          confidence: 0.9,
+          reason: "matched control",
+          citations: [{ kind: "rule", ref: "storage.public-access" }],
+          remediation_ref: "storage.disable-public-access",
+          mode: "shadow",
+          recorded_at: "2026-07-14T10:02:00Z",
+        },
+      ],
+      response: {
+        verdict: "auto",
+        decision: "auto",
+        action_kind: "risk_gate.shadow_authority",
+        mode: "enforce",
+        rollback_reference: "pr-7",
+        recorded_at: "2026-07-14T10:03:00Z",
+      },
+    };
+    const view = decodeRcaView(grounded);
+    expect(view.hypotheses[0]?.grounded).toBe(true);
+    expect(view.response?.verdict).toBe("auto");
+    expect(() =>
+      decodeRcaView({
+        ...grounded,
+        hypotheses: [{ ...grounded.hypotheses[0], tier: "t9" }],
+      }),
+    ).toThrow(/tier MUST/);
+  });
+
+  test("decodes an RCA view with an abstained hypothesis and null response", () => {
+    const view = decodeRcaView({
+      correlation_id: "corr-abstain",
+      incident_id: null,
+      hypotheses: [
+        {
+          seq: 1,
+          tier: "t2",
+          outcome: "abstained",
+          grounded: false,
+          cause: null,
+          confidence: null,
+          reason: "insufficient grounding",
+          citations: [],
+          remediation_ref: null,
+          mode: "shadow",
+          recorded_at: "2026-07-14T10:00:00Z",
+        },
+      ],
+      response: null,
+    });
+    expect(view.hypotheses[0]?.grounded).toBe(false);
+    expect(view.hypotheses[0]?.confidence).toBeNull();
+    expect(view.response).toBeNull();
   });
 
   test("rejects non-finite KPI counters", () => {

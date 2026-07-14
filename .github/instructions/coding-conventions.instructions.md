@@ -42,7 +42,10 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
 
 ## General
 
-- **English only** for all artifacts (see [language.instructions.md](language.instructions.md)).
+- **English on the L0 machine/audit substrate** (code, identifiers, comments, logs,
+  audit entries, event payloads, config keys); L2/L3 product surfaces (console, CLI,
+  narrator) are bilingual - see
+  [language.instructions.md](language.instructions.md).
 - **Single Responsibility Principle (MUST)**: every module, class, and function MUST have
   exactly one reason to change - one clearly stated responsibility. A unit that mixes
   unrelated concerns (e.g. routing + policy evaluation + I/O, or decision + execution +

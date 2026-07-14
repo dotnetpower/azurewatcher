@@ -21,7 +21,7 @@ from fdai.core.quality_gate.testing import (
     MismatchCrossCheckModel,
     StaticVerifier,
 )
-from fdai.core.tiers.t2_reasoning import T2Outcome, T2Tier
+from fdai.core.tiers.t2_reasoning import T2Outcome, T2ProposalContext, T2Tier
 from fdai.shared.contracts.models import Event, Mode
 
 
@@ -52,9 +52,18 @@ class _Proposer:
     def __init__(self, candidate: QualityCandidate | None) -> None:
         self._candidate = candidate
 
-    async def propose(self, *, event: Event) -> QualityCandidate | None:
-        del event
+    async def propose(self, *, context: T2ProposalContext) -> QualityCandidate | None:
+        del context
         return self._candidate
+
+
+def _context() -> T2ProposalContext:
+    return T2ProposalContext(
+        event=_event(),
+        target_resource_ref="resource:example/rg/x",
+        target_resource_type="compute.vm",
+        allowed_rules=(),
+    )
 
 
 class _FakeGate:
@@ -94,7 +103,7 @@ async def test_gate_outcome_maps_to_tier_outcome(
     gate_outcome: QualityOutcome, expected: T2Outcome
 ) -> None:
     tier = T2Tier(proposer=_Proposer(_candidate()), quality_gate=_FakeGate(gate_outcome))
-    decision = await tier.evaluate(event=_event())
+    decision = await tier.evaluate(context=_context())
     assert decision.outcome is expected
     assert decision.candidate is not None
     assert decision.quality_decision is not None
@@ -103,7 +112,7 @@ async def test_gate_outcome_maps_to_tier_outcome(
 
 async def test_proposer_abstain_yields_tier_abstain() -> None:
     tier = T2Tier(proposer=_Proposer(None), quality_gate=_FakeGate(QualityOutcome.ELIGIBLE))
-    decision = await tier.evaluate(event=_event())
+    decision = await tier.evaluate(context=_context())
     assert decision.outcome is T2Outcome.ABSTAIN
     assert decision.candidate is None
     assert decision.quality_decision is None
@@ -126,7 +135,7 @@ async def test_real_gate_eligible_path_proposes() -> None:
         grounding=_Grounding(),
     )
     tier = T2Tier(proposer=_Proposer(_candidate()), quality_gate=gate)
-    decision = await tier.evaluate(event=_event())
+    decision = await tier.evaluate(context=_context())
     assert decision.outcome is T2Outcome.PROPOSED
     assert decision.reason == "quality_gate_eligible"
 
@@ -141,7 +150,7 @@ async def test_real_gate_denies_when_verifier_rejects() -> None:
         grounding=_Grounding(),
     )
     tier = T2Tier(proposer=_Proposer(_candidate()), quality_gate=gate)
-    decision = await tier.evaluate(event=_event())
+    decision = await tier.evaluate(context=_context())
     assert decision.outcome is T2Outcome.DENIED
 
 
@@ -155,7 +164,7 @@ async def test_real_gate_escalates_on_cross_check_disagreement() -> None:
         grounding=_Grounding(),
     )
     tier = T2Tier(proposer=_Proposer(_candidate()), quality_gate=gate)
-    decision = await tier.evaluate(event=_event())
+    decision = await tier.evaluate(context=_context())
     assert decision.outcome is T2Outcome.ESCALATE
 
 
@@ -169,5 +178,5 @@ async def test_real_gate_escalates_on_low_confidence() -> None:
         grounding=_Grounding(),
     )
     tier = T2Tier(proposer=_Proposer(_candidate(confidence={"a": 0.2})), quality_gate=gate)
-    decision = await tier.evaluate(event=_event())
+    decision = await tier.evaluate(context=_context())
     assert decision.outcome is T2Outcome.ESCALATE

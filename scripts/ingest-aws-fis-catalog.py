@@ -29,9 +29,7 @@ import yaml
 
 _HERE = pathlib.Path(__file__).resolve()
 _REPO_ROOT = _HERE.parents[1]
-_OUT_DIR = (
-    _REPO_ROOT / "rule-catalog" / "chaos-scenarios" / "collected" / "aws-fis"
-)
+_OUT_DIR = _REPO_ROOT / "rule-catalog" / "chaos-scenarios" / "collected" / "aws-fis"
 _ALERT_WINDOW_S = 360.0
 
 
@@ -63,8 +61,7 @@ _ENTRIES: tuple[Entry, ...] = (
         intensity="extreme",
         expected_signal="pod_restart",
         params={"action_id": "aws:ec2:stop-instances", "startInstancesAfterDuration": "PT10M"},
-        rollback_note="`aws ec2 start-instances` (FIS auto-starts if the "
-        "duration is set).",
+        rollback_note="`aws ec2 start-instances` (FIS auto-starts if the duration is set).",
     ),
     Entry(
         slug="ec2-reboot-instances",
@@ -108,8 +105,7 @@ _ENTRIES: tuple[Entry, ...] = (
     Entry(
         slug="ssm-cpu-stress",
         action_id="aws:ssm:send-command/AWSFIS-Run-CPU-Stress",
-        description="Sustain CPU pressure on EC2 via SSM Run-Command "
-        "(AWSFIS-Run-CPU-Stress).",
+        description="Sustain CPU pressure on EC2 via SSM Run-Command (AWSFIS-Run-CPU-Stress).",
         category="compute",
         target_type="vm",
         fault_family="saturate",
@@ -159,8 +155,7 @@ _ENTRIES: tuple[Entry, ...] = (
     Entry(
         slug="ssm-network-packet-loss",
         action_id="aws:ssm:send-command/AWSFIS-Run-Network-Packet-Loss",
-        description="Drop packets on EC2 via SSM Run-Command "
-        "(AWSFIS-Run-Network-Packet-Loss).",
+        description="Drop packets on EC2 via SSM Run-Command (AWSFIS-Run-Network-Packet-Loss).",
         category="network",
         target_type="vm",
         fault_family="drop",
@@ -176,8 +171,7 @@ _ENTRIES: tuple[Entry, ...] = (
     Entry(
         slug="ssm-disk-fill",
         action_id="aws:ssm:send-command/AWSFIS-Run-Disk-Fill",
-        description="Fill the root disk on EC2 via SSM Run-Command "
-        "(AWSFIS-Run-Disk-Fill).",
+        description="Fill the root disk on EC2 via SSM Run-Command (AWSFIS-Run-Disk-Fill).",
         category="storage",
         target_type="disk",
         fault_family="saturate",
@@ -193,8 +187,7 @@ _ENTRIES: tuple[Entry, ...] = (
     Entry(
         slug="ssm-kill-process",
         action_id="aws:ssm:send-command/AWSFIS-Run-Kill-Process",
-        description="Kill a target process on EC2 via SSM Run-Command "
-        "(AWSFIS-Run-Kill-Process).",
+        description="Kill a target process on EC2 via SSM Run-Command (AWSFIS-Run-Kill-Process).",
         category="compute",
         target_type="vm",
         fault_family="stop",

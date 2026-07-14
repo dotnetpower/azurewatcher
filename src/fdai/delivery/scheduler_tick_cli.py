@@ -37,9 +37,10 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import UTC, datetime
 
-from fdai.core.scheduler.service import compute_due
+from fdai.composition import default_container_from_env
+from fdai.core.scheduler.service import SchedulerService
+from fdai.delivery.event_publisher import EventPublisherContext
 from fdai.delivery.persistence.postgres_scheduler_store import (
     PostgresScheduleStore,
     PostgresScheduleStoreConfig,
@@ -57,20 +58,21 @@ async def _tick() -> int:
         return 0
 
     store = PostgresScheduleStore(config=PostgresScheduleStoreConfig(dsn=dsn))
-    now = datetime.now(tz=UTC)
-    tasks = await store.list_all()
-    due = compute_due(tasks, now=now)
+    container = default_container_from_env()
+    async with EventPublisherContext(kafka=container.config.kafka) as event_bus:
+        report = await SchedulerService(
+            store=store,
+            event_bus=event_bus,
+            topic=container.config.kafka.topic_events,
+        ).run_once()
     _LOGGER.info(
-        "scheduler_tick_dry_run",
+        "scheduler_tick_complete",
         extra={
-            "total": len(tasks),
-            "due": len(due),
-            "due_task_ids": [t.task_id for t in due],
+            "fired": report.fired,
+            "publish_errors": len(report.publish_errors),
         },
     )
-    # Upstream does not publish: a fork binds an EventBus and swaps this
-    # dry-run for `await SchedulerService(store, bus).run_once(now=now)`.
-    return 0
+    return 3 if report.publish_errors else 0
 
 
 def main() -> int:

@@ -1,8 +1,8 @@
 ---
 title: 진화하는 시스템 프롬프트
 translation_of: prompt-composition.md
-translation_source_sha: f06ce68193ad83b025a59c46d7d194a26a47b179
-translation_revised: 2026-07-12
+translation_source_sha: 5b66bff11e0825b864d03499c9a3698a2f73020b
+translation_revised: 2026-07-15
 ---
 
 # 진화하는 시스템 프롬프트
@@ -114,7 +114,7 @@ rule-catalog/
       prompt.schema.json          # 모든 아티팩트가 검증되는 JSON Schema
     base/
       t2-cross-check.v1.yaml      # Wave 1 (배포됨)
-      t2-proposer.vN.yaml         # Wave 3 (계획됨)
+      t2-proposer.v1.yaml         # Wave 3 (배포됨, shadow)
       t2-critic.vN.yaml           # Wave 4 (계획됨)
       t2-judge.vN.yaml            # Wave 4.5 (계획됨)
       t2-rubric.v1.yaml           # 루브릭 환각 필터 (배포됨, shadow)

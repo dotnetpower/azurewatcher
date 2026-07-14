@@ -29,7 +29,7 @@ _CATALOG = _REPO / "rule-catalog"
 # Capabilities that intentionally have NO llm-registry entry: the console
 # narrator is prompt-only and reuses the t1.judge deployment. Adding to
 # this set requires a stated reason (a new prompt-only capability).
-_PROMPT_ONLY_CAPABILITIES = frozenset({"console.narrator"})
+_PROMPT_ONLY_CAPABILITIES = frozenset({"console.narrator", "t2.proposer"})
 
 
 def _registry_capabilities() -> set[str]:

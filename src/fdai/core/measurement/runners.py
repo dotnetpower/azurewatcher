@@ -47,7 +47,7 @@ Failure modes
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Protocol, runtime_checkable
@@ -195,6 +195,7 @@ class AutomatedBaselineRunner:
         "_audit_store",
         "_clock",
         "_detector",
+        "_persist_mode",
         "_registry",
         "_replayer",
     )
@@ -207,12 +208,14 @@ class AutomatedBaselineRunner:
         registry: ActionPromotionRegistry,
         audit_store: StateStore,
         clock: Callable[[], datetime] | None = None,
+        persist_mode: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         self._replayer = replayer
         self._detector = detector
         self._registry = registry
         self._audit_store = audit_store
         self._clock = clock or _default_clock
+        self._persist_mode = persist_mode
 
     async def run_once(self) -> BaselineRunReport:
         """Execute one regression-detection cycle."""
@@ -242,6 +245,8 @@ class AutomatedBaselineRunner:
                 continue
             regressions.append(decision)
             record = self._registry.demote(sample.action_type_id)
+            if self._persist_mode is not None:
+                await self._persist_mode(sample.action_type_id)
             if record.mode is Mode.SHADOW:
                 demoted.append(sample.action_type_id)
             await self._write_regression_audit(
@@ -423,6 +428,19 @@ class PatternGrowthIntakeRunner:
                 reason=None,
                 signature=shadow_action.signature,
             )
+
+        await self._audit_store.append_audit_entry(
+            {
+                "actor": "fdai.core.measurement.runners.growth",
+                "action_kind": "measurement.pattern_growth.run",
+                "mode": Mode.SHADOW.value,
+                "total_outcomes": total,
+                "accepted_count": accepted,
+                "rejected_count": rejected,
+                "build_failures": build_failures,
+                "recorded_at": self._clock().isoformat(),
+            }
+        )
 
         return PatternGrowthReport(
             total_outcomes=total,

@@ -21,6 +21,7 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SCRIPT = _REPO_ROOT / "scripts" / "check-protected-paths.sh"
+_SURFACE_LIST = _REPO_ROOT / "scripts" / "lib" / "framework-surface.txt"
 _CODEOWNERS = _REPO_ROOT / ".github" / "CODEOWNERS"
 
 _RANGE = "HEAD~1...HEAD"
@@ -69,6 +70,9 @@ def repo(tmp_path: Path) -> Path:
     (root / "src" / "fdai" / "core" / "loop.py").write_text("x = 1\n")
     (root / "fork").mkdir()
     (root / "fork" / "adapter.py").write_text("y = 1\n")
+    surface_target = root / "scripts" / "lib" / "framework-surface.txt"
+    surface_target.parent.mkdir(parents=True)
+    shutil.copy2(_SURFACE_LIST, surface_target)
     _git(root, "add", "-A")
     _git(root, "commit", "-qm", "base")
     return root
@@ -126,9 +130,12 @@ def test_exact_file_match_not_prefix(repo: Path) -> None:
 
 
 def _script_prefixes() -> list[str]:
-    block = re.search(r"protected_prefixes=\((.*?)\)", _SCRIPT.read_text(), re.DOTALL)
-    assert block is not None, "protected_prefixes array not found in the script"
-    return re.findall(r'"([^"]+)"', block.group(1))
+    prefixes = []
+    for raw in _SURFACE_LIST.read_text().splitlines():
+        value = re.sub(r"#.*$", "", raw).strip()
+        if value:
+            prefixes.append(value)
+    return prefixes
 
 
 def test_codeowners_covers_every_protected_prefix() -> None:

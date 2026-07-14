@@ -39,6 +39,7 @@ class ActionRunState(StrEnum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     ROLLED_BACK = "rolled_back"
+    ROLLBACK_FAILED = "rollback_failed"
 
 
 # Terminal states: an ActionRun in one of these is finished, so a durable
@@ -46,10 +47,10 @@ class ActionRunState(StrEnum):
 _TERMINAL_STATES: frozenset[ActionRunState] = frozenset(
     {
         ActionRunState.SUCCEEDED,
-        ActionRunState.FAILED,
         ActionRunState.REJECTED,
         ActionRunState.DENY_DROPPED,
         ActionRunState.ROLLED_BACK,
+        ActionRunState.ROLLBACK_FAILED,
     }
 )
 
@@ -69,6 +70,7 @@ class ActionRun:
     quorum_required: int = 1
     outcome: str | None = None
     initiator_principal: str | None = None
+    rollback_contract: str = "state_forward_only"
     rollback_ref: str | None = None
     history: list[ActionRunState] = field(default_factory=list)
 
@@ -88,6 +90,7 @@ class ActionRun:
             "quorum_required": self.quorum_required,
             "outcome": self.outcome,
             "initiator_principal": self.initiator_principal,
+            "rollback_contract": self.rollback_contract,
             "rollback_ref": self.rollback_ref,
             "history": [s.value for s in self.history],
         }
@@ -104,6 +107,7 @@ class ActionRun:
             quorum_required=int(data.get("quorum_required", 1)),
             outcome=data.get("outcome"),
             initiator_principal=data.get("initiator_principal"),
+            rollback_contract=str(data.get("rollback_contract", "state_forward_only")),
             rollback_ref=data.get("rollback_ref"),
         )
         run.history = [ActionRunState(s) for s in data.get("history", [])]
@@ -154,6 +158,10 @@ class Thor(Agent):
         # evicted (oldest first) once over the cap; active runs are always
         # retained (they back the per-resource mutex and approval lookup).
         self._max_retained_runs = 10_000
+
+    def set_executor(self, executor: ActionExecutor) -> None:
+        """Bind the composition root's privileged action executor."""
+        self._executor = executor
 
     def bind_bus(self, bus: PantheonBus) -> None:
         self.bus = bus
@@ -208,6 +216,8 @@ class Thor(Agent):
             await self.dispatch_verdict(payload)
         elif topic == "object.approval":
             await self._handle_approval(payload)
+        elif topic == "object.rollback":
+            await self._handle_rollback(payload)
 
     # ---- lifecycle -----------------------------------------------------
 
@@ -258,6 +268,7 @@ class Thor(Agent):
             shadow_mode=shadow_mode,
             quorum_required=quorum_required,
             initiator_principal=verdict.get("initiator_principal"),
+            rollback_contract=str(verdict.get("rollback_contract", "state_forward_only")),
         )
         self.action_runs[correlation] = run
         if resource_id:
@@ -309,6 +320,7 @@ class Thor(Agent):
         # it always drives the run to a terminal state, so even if a lifecycle
         # emit raises (a bus hiccup), leaving the resource locked would
         # deadlock every future action on it (permanent dispatch:lock_contention).
+        release_lock = True
         try:
             run.transition(ActionRunState.EXECUTING)
             await self._emit_action_run(run)
@@ -329,13 +341,10 @@ class Thor(Agent):
                 run.outcome = "executor returned false"
             await self._emit_action_run(run)
             self.record_behavior("executed:success" if success else "executed:failed")
-            if not success:
-                run.rollback_ref = f"rollback:{run.correlation_id}"
-                run.transition(ActionRunState.ROLLED_BACK)
-                await self._emit_action_run(run)
-                self.record_behavior("rolled_back")
+            release_lock = success
         finally:
-            self._release_lock(run.resource_id)
+            if release_lock:
+                self._release_lock(run.resource_id)
 
     async def _handle_approval(self, approval: dict[str, Any]) -> None:
         correlation = str(approval.get("correlation_id", ""))
@@ -361,6 +370,21 @@ class Thor(Agent):
                 await self._emit_action_run(run)
             finally:
                 self._release_lock(run.resource_id)
+
+    async def _handle_rollback(self, rollback: dict[str, Any]) -> None:
+        correlation = str(rollback.get("correlation_id", ""))
+        run = self.action_runs.get(correlation)
+        if run is None or run.state is not ActionRunState.FAILED:
+            return
+        succeeded = rollback.get("state") == "succeeded"
+        run.rollback_ref = str(rollback.get("rollback_ref") or "") or None
+        run.outcome = "rollback_succeeded" if succeeded else "rollback_failed"
+        run.transition(ActionRunState.ROLLED_BACK if succeeded else ActionRunState.ROLLBACK_FAILED)
+        try:
+            await self._emit_action_run(run)
+            self.record_behavior(run.outcome)
+        finally:
+            self._release_lock(run.resource_id)
 
     # ---- helpers -------------------------------------------------------
 
@@ -389,13 +413,7 @@ class Thor(Agent):
 
     def _find_active_run(self, resource_id: str) -> ActionRun | None:
         for run in self.action_runs.values():
-            if run.resource_id == resource_id and run.state not in {
-                ActionRunState.SUCCEEDED,
-                ActionRunState.FAILED,
-                ActionRunState.REJECTED,
-                ActionRunState.DENY_DROPPED,
-                ActionRunState.ROLLED_BACK,
-            }:
+            if run.resource_id == resource_id and run.state not in _TERMINAL_STATES:
                 return run
         return None
 
@@ -423,6 +441,8 @@ class Thor(Agent):
             "verdict": run.verdict,
             "quorum_required": run.quorum_required,
             "initiator_principal": run.initiator_principal,
+            "rollback_contract": run.rollback_contract,
+            "rollback_ref": run.rollback_ref,
         }
         await self.bus.publish("Thor", "object.action-run", payload)
 

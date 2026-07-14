@@ -1,3 +1,4 @@
+import { routeHref } from "../router";
 /**
  * Live cockpit route.
  *
@@ -34,13 +35,15 @@ import type { ReadApiClient } from "../api";
 import { loadConfig } from "../config";
 import type { LiveStageEvent } from "../hooks/use-live-stream";
 import { useLiveStream } from "../hooks/use-live-stream";
+import { t } from "./i18n/live";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import {
   POOL_SIZE,
   RATE_WINDOW_MS,
-  STATUS_LABEL,
   formatDuration,
+  formatAge,
+  isTileStuck,
   makeInitialState,
   reducer,
   shortTime,
@@ -48,18 +51,27 @@ import {
   type FilterKind,
   type TileState,
 } from "./live.model";
-import { DetailPanel, LiveTile, Sparkline, StackBar } from "./live.tiles";
+import { DetailPanel, LiveQueue, LiveTile, Sparkline, StackBar } from "./live.tiles";
 
 interface Props {
   readonly client: ReadApiClient;
+}
+
+function decisionLabel(decision: string): string {
+  const key = `live.decision.${decision}`;
+  const label = t(key);
+  return label === key ? decision : label;
 }
 
 export function LiveRoute({ client }: Props) {
   const [state, dispatch] = useReducer(reducer, undefined, makeInitialState);
   const [tickerPaused, setTickerPaused] = useState(false);
   const [tickerCollapsed, setTickerCollapsed] = useState(false);
+  const [viewMode, setViewMode] = useState<"queue" | "flow">("queue");
+  const [frozenObserved, setFrozenObserved] = useState(0);
   const pausedSnapshotRef = useRef<readonly LiveStageEvent[]>([]);
   const pausedRef = useRef(false);
+  const frozenObservedRef = useRef(0);
   const pendingEventsRef = useRef<LiveStageEvent[]>([]);
 
   const url = useMemo(() => {
@@ -75,7 +87,10 @@ export function LiveRoute({ client }: Props) {
       // ONE reducer dispatch per tick so a high-rate stream never
       // triggers one React render per event (that path OOMs the
       // browser after a few minutes on tabs left open).
-      if (pausedRef.current) return;
+      if (pausedRef.current) {
+        frozenObservedRef.current += 1;
+        return;
+      }
       pendingEventsRef.current.push(event);
     },
   });
@@ -90,7 +105,10 @@ export function LiveRoute({ client }: Props) {
     const FLUSH_CAP = 200;
     const FLUSH_INTERVAL_MS = 250;
     const handle = window.setInterval(() => {
-      if (pausedRef.current) return;
+      if (pausedRef.current) {
+        setFrozenObserved(frozenObservedRef.current);
+        return;
+      }
       const buffer = pendingEventsRef.current;
       if (buffer.length === 0) return;
       const drained =
@@ -128,6 +146,8 @@ export function LiveRoute({ client }: Props) {
       pausedSnapshotRef.current = [];
     } else {
       pausedRef.current = true;
+      frozenObservedRef.current = 0;
+      setFrozenObserved(0);
       pendingEventsRef.current = [];
       pausedSnapshotRef.current = state.ticker;
       setTickerPaused(true);
@@ -143,24 +163,16 @@ export function LiveRoute({ client }: Props) {
   const gateTotal = Object.values(state.gateCounts).reduce((a, b) => a + b, 0);
   const tierTotal = Object.values(state.tierCounts).reduce((a, b) => a + b, 0);
   const autoShare = gateTotal > 0 ? Math.round(((state.gateCounts.auto ?? 0) / gateTotal) * 100) : 0;
-  const hilDecisions = state.gateCounts.hil ?? 0;
 
-  // Attention triage - count tiles the operator actually needs to look at.
-  // A tile is "stuck" if it started > STUCK_MS ago, is not completed, and
-  // did not reach `audit`. HIL is sticky by design so it always counts.
-  const STUCK_MS = 20_000;
+  // Attention triage uses the backend-supplied latency budget. Missing
+  // budgets never become a guessed "stuck" state in the browser.
   const attention = state.tiles.reduce(
     (acc, tile) => {
       if (!tile) return acc;
       if (tile.gate_decision === "hil") acc.hil += 1;
       if (tile.gate_decision === "deny") acc.deny += 1;
       if (tile.failed) acc.failed += 1;
-      const stuck =
-        !tile.completed &&
-        !tile.failed &&
-        tile.gate_decision !== "hil" &&
-        state.now - tile.first_seen_at > STUCK_MS;
-      if (stuck) acc.stuck += 1;
+      if (isTileStuck(tile, state.now)) acc.stuck += 1;
       return acc;
     },
     { hil: 0, deny: 0, failed: 0, stuck: 0 },
@@ -183,7 +195,7 @@ export function LiveRoute({ client }: Props) {
     return acc;
   }, [state.tiles]);
   const shadowCount = useMemo(
-    () => state.tiles.filter((t) => t?.stages_completed.has("execute")).length,
+    () => state.tiles.filter((t) => t?.mode === "shadow").length,
     [state.tiles],
   );
   const activeTileCount = useMemo(
@@ -196,17 +208,29 @@ export function LiveRoute({ client }: Props) {
       hil: state.tiles.filter((tile) => tile?.gate_decision === "hil").length,
       deny: state.tiles.filter((tile) => tile?.gate_decision === "deny").length,
       failed: state.tiles.filter((tile) => tile?.failed === true).length,
+      stuck: state.tiles.filter((tile) => tile && isTileStuck(tile, state.now)).length,
     }),
-    [activeTileCount, state.tiles],
+    [activeTileCount, state.now, state.tiles],
   );
+  const populatedTiles = useMemo(
+    () => state.tiles.filter((tile): tile is TileState => tile !== null),
+    [state.tiles],
+  );
+  const lastEventAt = populatedTiles.reduce(
+    (latest, tile) => Math.max(latest, tile.last_seen_at),
+    0,
+  );
+  const lastEventLabel = lastEventAt > 0
+    ? t("live.spark.secondsAgo", { count: Math.max(0, Math.floor((state.now - lastEventAt) / 1000)) })
+    : t("live.health.notObserved");
   const streamOpen = status === "open";
   const emptyState = streamOpen
-    ? "Stream connected. Waiting for the next control-plane event."
+    ? t("live.empty.connected")
     : status === "connecting"
-      ? "Connecting to the live event stream."
+      ? t("live.empty.connecting")
       : status === "idle"
-        ? "Live observation is idle while this view is not connected."
-        : "Live observation is unavailable. Use History for recorded outcomes.";
+        ? t("live.empty.idle")
+        : t("live.empty.unavailable");
 
   usePublishViewContext(
     () => {
@@ -215,12 +239,7 @@ export function LiveRoute({ client }: Props) {
       const stuckSet = new Set<string>();
       for (const t of state.tiles) {
         if (!t) continue;
-        const stuck =
-          !t.completed &&
-          !t.failed &&
-          t.gate_decision !== "hil" &&
-          state.now - t.first_seen_at > 20_000;
-        if (stuck) stuckSet.add(t.event_id);
+        if (isTileStuck(t, state.now)) stuckSet.add(t.event_id);
       }
       return {
         routeId: "live",
@@ -296,9 +315,12 @@ export function LiveRoute({ client }: Props) {
             .filter((t): t is TileState => t !== null)
             .map((t) => ({
               event_id: t.event_id,
+              correlation_id: t.correlation_id,
               action_type: t.action_type ?? null,
+              action_types: [...t.action_types],
               rule: t.rule ?? null,
               tier: t.tier ?? null,
+              mode: t.mode ?? null,
               gate_decision: t.gate_decision ?? null,
               vertical: t.vertical ?? "unknown",
               resource_type: t.resource_type ?? null,
@@ -341,14 +363,15 @@ export function LiveRoute({ client }: Props) {
     ],
   );
 
-  // Keyboard shortcuts: ESC closes the detail panel, `p` toggles pause,
-  // `1..4` cycles the filter chips. All shortcuts are inert while the
+  // Keyboard shortcuts: ESC closes the detail panel, `p` toggles freeze,
+  // `1..5` cycles the filter chips. All shortcuts are inert while the
   // focus is inside an input/textarea so they never steal typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      if (target?.closest('[role="dialog"]')) return;
       if (e.key === "Escape" && state.selectedEventId) {
         dispatch({ kind: "select", event_id: null });
         e.preventDefault();
@@ -359,9 +382,9 @@ export function LiveRoute({ client }: Props) {
         e.preventDefault();
         return;
       }
-      const idx = ["1", "2", "3", "4"].indexOf(e.key);
+      const idx = ["1", "2", "3", "4", "5"].indexOf(e.key);
       if (idx >= 0) {
-        const filters: readonly FilterKind[] = ["all", "hil", "deny", "failed"];
+        const filters: readonly FilterKind[] = ["all", "hil", "deny", "failed", "stuck"];
         const value = filters[idx];
         if (value !== undefined) {
           dispatch({ kind: "filter", value });
@@ -377,9 +400,9 @@ export function LiveRoute({ client }: Props) {
     <div class="live" data-filter={state.filter} data-ticker-collapsed={tickerCollapsed ? "1" : "0"}>
       <section class="live-header">
         <div>
-          <span class="live-eyebrow">Live · autonomy at work</span>
+          <span class="live-eyebrow">{t("live.eyebrow")}</span>
           <h2>
-            Control plane
+            {t("live.title")}
             <span class={`live-heartbeat ${streamOpen ? "is-live" : ""}`} aria-hidden="true" />
           </h2>
         </div>
@@ -389,7 +412,7 @@ export function LiveRoute({ client }: Props) {
             class="live-control-btn"
             onClick={togglePause}
             aria-pressed={tickerPaused}
-            title={tickerPaused ? "Resume the audit feed" : "Pause the audit feed"}
+            title={tickerPaused ? t("live.resumeTitle") : t("live.freezeTitle")}
           >
             {tickerPaused ? (
               <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
@@ -401,44 +424,65 @@ export function LiveRoute({ client }: Props) {
                 <rect x="6.5" y="2" width="2.5" height="8" fill="currentColor" />
               </svg>
             )}
-            {tickerPaused ? "Resume feed" : "Pause feed"}
+            {tickerPaused ? t("live.resume") : t("live.freeze")}
           </button>
           {isDevMode ? (
-            <span class="live-env-badge live-env-dev" title="dev mode: synthetic events, no real cloud calls">
+            <span class="live-env-badge live-env-dev" title={t("live.context.devTitle")}>
               dev
             </span>
           ) : null}
           <span class="live-context-tag">
-            source <code>GET /live/stream</code>
+            {t("live.context.source")} <code>GET /live/stream</code>
           </span>
           <span class="live-context-tag">
-            window <strong>60s</strong>
+            {t("live.context.window")} <strong>60s</strong>
           </span>
           <div class={`live-status live-status-${status}`}>
             <span class="live-status-dot" />
-            <span>{STATUS_LABEL[status]}</span>
+            <span>{t(`live.status.${status === "open" ? "open" : status}`)}</span>
             {lastError ? <span class="muted"> · {lastError}</span> : null}
           </div>
         </div>
       </section>
 
       <p class="live-lead">
-        Every tile is one control-plane action flowing through trust routing, deterministic
-        verification, the risk gate, and append-only audit. This surface observes; it never executes.
+        {t("live.lead")}
       </p>
 
-      {streamOpen && attentionTotal > 0 ? (
-        <section class="live-attention live-attention-active" aria-label="operator attention triage">
+      <section class="live-health" aria-label={t("live.health.label")}>
+        <div>
+          <span>{t("live.health.stream")}</span>
+          <strong class={`live-health-${streamOpen ? "ok" : "warn"}`}>{t(`live.status.${status === "open" ? "open" : status}`)}</strong>
+        </div>
+        <div>
+          <span>{t("live.health.lastEvent")}</span>
+          <strong>{lastEventLabel}</strong>
+        </div>
+        <div>
+          <span>{t("live.health.environment")}</span>
+          <strong>{isDevMode ? t("live.health.devSynthetic") : t("live.health.configuredRuntime")}</strong>
+        </div>
+        <div>
+          <span>{t("live.health.presentation")}</span>
+          <strong>{tickerPaused ? t("live.health.frozen", { count: frozenObserved }) : t("live.health.following")}</strong>
+        </div>
+      </section>
+
+      <section
+        class={`live-attention ${streamOpen && attentionTotal > 0 ? "live-attention-active" : streamOpen ? "live-attention-calm" : "live-attention-unavailable"}`}
+        aria-label={t("live.attention.ariaLabel")}
+      >
+        {streamOpen && attentionTotal > 0 ? (
           <>
-            <span class="live-attention-label">attention</span>
+            <span class="live-attention-label">{t("live.attention.label")}</span>
             {attention.hil > 0 ? (
               <button
                 type="button"
                 class="live-attention-chip live-attention-hil"
                 onClick={() => dispatch({ kind: "filter", value: "hil" })}
-                title="HIL: high-risk actions awaiting a human approver"
+                title={t("live.attention.approvalTitle")}
               >
-                <strong>{attention.hil}</strong> HIL waiting
+                {t("live.attention.approvals", { count: attention.hil })}
               </button>
             ) : null}
             {attention.deny > 0 ? (
@@ -446,9 +490,9 @@ export function LiveRoute({ client }: Props) {
                 type="button"
                 class="live-attention-chip live-attention-deny"
                 onClick={() => dispatch({ kind: "filter", value: "deny" })}
-                title="Deny: risk-gate refused; investigate why the policy fired"
+                title={t("live.attention.deniedTitle")}
               >
-                <strong>{attention.deny}</strong> denied
+                {t("live.attention.denied", { count: attention.deny })}
               </button>
             ) : null}
             {attention.failed > 0 ? (
@@ -456,28 +500,36 @@ export function LiveRoute({ client }: Props) {
                 type="button"
                 class="live-attention-chip live-attention-failed"
                 onClick={() => dispatch({ kind: "filter", value: "failed" })}
-                title="Failed: action or stage errored; check the audit entry"
+                title={t("live.attention.failedTitle")}
               >
-                <strong>{attention.failed}</strong> failed
+                {t("live.attention.failed", { count: attention.failed })}
               </button>
             ) : null}
             {attention.stuck > 0 ? (
-              <span
+              <button
+                type="button"
                 class="live-attention-chip live-attention-stuck"
-                title={`Stuck: ${STUCK_MS / 1000}s+ without reaching audit`}
+                onClick={() => dispatch({ kind: "filter", value: "stuck" })}
+                title={t("live.attention.stuckTitle")}
               >
-                <strong>{attention.stuck}</strong> stuck
-              </span>
+                {t("live.attention.stuck", { count: attention.stuck })}
+              </button>
             ) : null}
+            {attention.hil > 0 ? <a href={routeHref("hil-queue")}>{t("live.attention.openApprovals")}</a> : null}
           </>
-        </section>
-      ) : null}
+        ) : (
+          <span class="live-attention-calm-text">
+            <i class={`live-attention-dot ${streamOpen ? "" : "unavailable"}`} />
+            {streamOpen ? t("live.attention.none") : t("live.attention.unavailable")}
+          </span>
+        )}
+      </section>
 
       <section class="grid live-kpis">
         <div class="card kpi live-kpi live-kpi-eps">
-          <span class="label">Events / sec</span>
+          <span class="label">{t("live.kpi.events")}</span>
           <span class="live-kpi-value">
-            {eps}<small>/s · 60s avg</small>
+            {eps}<small>{t("live.kpi.average")}</small>
           </span>
           <Sparkline buckets={state.rateBuckets} latSum={state.latSum} latCount={state.latCount} />
           <div class="live-spark-legend" aria-hidden="true">
@@ -487,14 +539,14 @@ export function LiveRoute({ client }: Props) {
           </div>
         </div>
         <div class="card kpi live-kpi">
-          <span class="label">Gate mix (60s)</span>
+          <span class="label">{t("live.kpi.gateMix")}</span>
           <span class="live-kpi-value">
-            {autoShare}% <small>auto</small>
+            {autoShare}% <small>{t("live.kpi.auto")}</small>
           </span>
           <StackBar
             entries={(["auto", "hil", "abstain", "deny"] as const).map((k) => ({
               key: k,
-              label: k,
+              label: t(`live.decision.${k}`),
               value: state.gateCounts[k] ?? 0,
               className: `live-gate live-gate-${k}`,
             }))}
@@ -504,13 +556,13 @@ export function LiveRoute({ client }: Props) {
           <div class="live-mix-legend">
             {(["auto", "hil", "abstain", "deny"] as const).map((key) => (
               <span key={key} class={`live-mix-key ${key}`}>
-                <i />{key} <b>{state.gateCounts[key] ?? 0}</b>
+                <i />{t(`live.decision.${key}`)} <b>{state.gateCounts[key] ?? 0}</b>
               </span>
             ))}
           </div>
         </div>
         <div class="card kpi live-kpi">
-          <span class="label">Tier mix (60s)</span>
+          <span class="label">{t("live.kpi.tierMix")}</span>
           <div class="live-tier-summary">
             {(["t0", "t1", "t2"] as const).map((key) => (
               <span key={key} class={`live-tier live-tier-${key}`}>
@@ -529,42 +581,54 @@ export function LiveRoute({ client }: Props) {
             showLegend={false}
           />
         </div>
-        <div class="card kpi live-kpi live-kpi-guards">
-          <span class="label">Guard status</span>
-          <div class="live-guards">
-            <span class="live-guard unknown" title="Change failure rate is not carried on the live stream">CFR</span>
-            <span class="live-guard unknown" title="False-positive rate is not carried on the live stream">FPR</span>
-            <span class="live-guard unknown" title="Rollback rate is not carried on the live stream">RB</span>
-            <span class="live-guard unknown" title="Policy-violation escapes are not carried on the live stream">ESC</span>
-          </div>
-          <span class="live-guards-note muted">
-            {hilDecisions > 0 ? `${hilDecisions} HIL decisions observed · ` : ""}
-            <a href="#/dashboard">review measured guards</a>
-          </span>
+      </section>
+
+      <section class="live-work-header">
+        <div>
+          <span class="live-eyebrow">{t("live.work.eyebrow")}</span>
+          <h3>{t("live.work.title")}</h3>
+        </div>
+        <div class="segmented-control" role="group" aria-label={t("live.work.viewModeLabel")}>
+          {(["queue", "flow"] as const).map((mode) => (
+            <button type="button" class={viewMode === mode ? "active" : undefined} aria-pressed={viewMode === mode} onClick={() => setViewMode(mode)}>
+              {mode === "queue" ? t("live.work.queue") : t("live.work.flow")}
+            </button>
+          ))}
         </div>
       </section>
 
-      <section class="live-filterbar" aria-label="tile filters">
-        {(["all", "hil", "deny", "failed"] as const).map((f, i) => (
+      <section class="live-filterbar" aria-label={t("live.work.filtersLabel")}>
+        {(["all", "hil", "deny", "failed", "stuck"] as const).map((f, i) => (
           <button
             key={f}
             type="button"
             class={`live-filter-chip ${state.filter === f ? "active" : ""}`}
             onClick={() => dispatch({ kind: "filter", value: f })}
-            title={`filter: ${f} (press ${i + 1})`}
+            title={t("live.work.filterTitle", { filter: t(`live.filter.${f}`), key: i + 1 })}
             aria-keyshortcuts={`${i + 1}`}
           >
-            {f}
+            {t(`live.filter.${f}`)}
             <span class="live-filter-count">{filterCounts[f]}</span>
           </button>
         ))}
-        <span class="muted live-filterbar-note">Select a tile to inspect its recorded stages.</span>
+        <span class="muted live-filterbar-note">{t("live.work.filterNote")}</span>
       </section>
 
-      <section class="live-swarm" aria-label="live control-plane activity">
+      {viewMode === "queue" ? (
+        <section aria-label={t("live.work.queueLabel")}>
+          <LiveQueue
+            tiles={populatedTiles}
+            filter={state.filter}
+            selectedEventId={state.selectedEventId}
+            now={state.now}
+            onSelect={(eventId) => dispatch({ kind: "select", event_id: eventId })}
+          />
+        </section>
+      ) : (
+      <section class="live-swarm" aria-label={t("live.work.flowLabel")}>
         {activeTileCount === 0 ? (
           <div class="live-swarm-empty" role="status">
-            <strong>{streamOpen ? "No events in view" : "No live signal"}</strong>
+            <strong>{streamOpen ? t("live.empty.connectedTitle") : t("live.empty.disconnectedTitle")}</strong>
             <span>{emptyState}</span>
           </div>
         ) : null}
@@ -587,23 +651,24 @@ export function LiveRoute({ client }: Props) {
           />
         ))}
       </section>
+      )}
 
       <aside
         class={`live-ticker card${tickerCollapsed ? " live-ticker-collapsed" : ""}${tickerPaused ? " live-ticker-paused" : ""}`}
-        aria-label="audit stream"
+        aria-label={t("live.outcomes.ariaLabel")}
       >
         <header class="live-ticker-header">
           <h3>
-            Audit stream <span class="muted">· append-only</span>
+            {t("live.outcomes.title")} <span class="muted">- {t("live.outcomes.count", { count: displayedTicker.length })}</span>
           </h3>
-          <div class="live-ticker-controls" role="toolbar" aria-label="ticker controls">
+          <div class="live-ticker-controls" role="toolbar" aria-label={t("live.outcomes.toolbarLabel")}>
             <button
               type="button"
               class="live-ticker-btn"
               onClick={toggleCollapse}
               aria-expanded={!tickerCollapsed}
-              title={tickerCollapsed ? "Expand ticker" : "Collapse ticker"}
-              aria-label={tickerCollapsed ? "Expand ticker" : "Collapse ticker"}
+              title={tickerCollapsed ? t("live.outcomes.expand") : t("live.outcomes.collapse")}
+              aria-label={tickerCollapsed ? t("live.outcomes.expand") : t("live.outcomes.collapse")}
             >
               {tickerCollapsed ? (
                 // chevron up (expand → show content upward)
@@ -652,7 +717,7 @@ export function LiveRoute({ client }: Props) {
                   {action ? <strong>{action}</strong> : null}
                   {scope ? <span class="live-ticker-scope">@{scope}</span> : null}
                   {rule && rule !== action ? <span class="muted">({rule})</span> : null}
-                  {gate ? <span class={`live-gate live-gate-${gate}`}>{gate}</span> : null}
+                  {gate ? <span class={`live-gate live-gate-${gate}`}>{decisionLabel(gate)}</span> : null}
                   {outcome && outcome !== gate ? (
                     <span class={`live-ticker-tail ${outcome}`}>{outcome}</span>
                   ) : null}
@@ -660,10 +725,13 @@ export function LiveRoute({ client }: Props) {
               );
             })}
             {displayedTicker.length === 0 ? (
-              <li class="muted">Waiting for stage frames…</li>
+              <li class="muted">{t("live.outcomes.waiting")}</li>
             ) : null}
           </ol>
         )}
+        <footer class="live-ticker-footer">
+          <a href={routeHref("audit")}>{t("live.outcomes.viewAll")}</a>
+        </footer>
       </aside>
 
       {selectedTile ? (

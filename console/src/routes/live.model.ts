@@ -27,6 +27,7 @@ export const RATE_WINDOW_MS = 60_000;
 export const RATE_BUCKETS = 60; // one bar per second, 60s history
 export const AGE_DONE_MS = 3_000;
 export const AGE_STALE_MS = 8_000;
+export const HIL_RETENTION_MS = 30_000;
 
 export const STAGE_ORDER: readonly LiveStageName[] = [
   "ingest",
@@ -69,7 +70,7 @@ export const STATUS_LABEL: Record<LiveConnectionStatus, string> = {
   unsupported: "SSE unsupported",
 };
 
-export type FilterKind = "all" | "hil" | "deny" | "failed";
+export type FilterKind = "all" | "hil" | "deny" | "failed" | "stuck";
 
 // ---------------------------------------------------------------------------
 // Rate buckets (per-tier events/sec history)
@@ -139,12 +140,16 @@ export function sumBuckets(buckets: readonly number[]): number {
 
 export interface TileState {
   readonly event_id: string;
+  readonly correlation_id: string;
   readonly vertical: string | undefined;
   readonly tier: string | undefined;
+  readonly mode: string | undefined;
+  readonly latency_budget_ms: number | undefined;
   readonly resource_type: string | undefined;
   readonly scope: string | undefined;
   readonly rule: string | undefined;
   readonly action_type: string | undefined;
+  readonly action_types: ReadonlySet<string>;
   readonly gate_decision: string | undefined;
   readonly outcome: string | undefined;
   readonly stages_completed: ReadonlySet<LiveStageName>;
@@ -271,8 +276,12 @@ export function applyEvent(state: LiveState, evt: LiveStageEvent): LiveState {
   );
   const vertical = pickString(detail, "vertical") ?? (inferred === "unknown" ? undefined : inferred);
   const resourceType = pickString(detail, "resource_type");
-  const gateDecision = pickString(detail, "gate_decision");
+  const gateDecision =
+    pickString(detail, "gate_decision") ??
+    (evt.stage === "audit" ? pickString(detail, "decision") : undefined);
   const outcome = pickString(detail, "outcome");
+  const mode = pickString(detail, "mode");
+  const latencyBudgetMs = pickPositiveNumber(detail, "latency_budget_ms");
   const agent = pickString(detail, "producer_principal");
 
   if (slotIndex < 0) {
@@ -306,14 +315,21 @@ export function applyEvent(state: LiveState, evt: LiveStageEvent): LiveState {
     stage_agents.set(evt.stage, agent);
   }
 
+  const action_types = new Set(previous?.action_types ?? []);
+  if (actionType) action_types.add(actionType);
+
   const next: TileState = {
     event_id: evt.event_id,
+    correlation_id: evt.correlation_id,
     vertical: vertical ?? previous?.vertical,
     tier: tier ?? previous?.tier,
+    mode: mode ?? previous?.mode,
+    latency_budget_ms: latencyBudgetMs ?? previous?.latency_budget_ms,
     resource_type: resourceType ?? previous?.resource_type,
     scope: scope ?? previous?.scope,
     rule: rule ?? previous?.rule,
     action_type: actionType ?? previous?.action_type,
+    action_types,
     gate_decision: gateDecision ?? previous?.gate_decision,
     outcome: outcome ?? previous?.outcome,
     stages_completed,
@@ -347,11 +363,12 @@ export function applyEvent(state: LiveState, evt: LiveStageEvent): LiveState {
   // event (its terminal audit frame), not every ingest/route/gate/audit stage
   // frame - otherwise ~4 frames x the event rate churn the list unreadably.
   const isAuditEntry = evt.stage === "audit" && (evt.phase === "done" || evt.phase === "failed");
-  const ticker = isAuditEntry ? [evt, ...state.ticker].slice(0, TICKER_CAP) : state.ticker;
+  const isNewTerminal = isAuditEntry && previous?.completed !== true;
+  const ticker = isNewTerminal ? [evt, ...state.ticker].slice(0, TICKER_CAP) : state.ticker;
 
   // KPI accumulators fire only on the terminal audit.done frame so one
   // event contributes exactly once - matching audit-log semantics.
-  const shouldCount = evt.stage === "audit" && evt.phase === "done";
+  const shouldCount = evt.stage === "audit" && evt.phase === "done" && previous?.completed !== true;
   const ratePings = shouldCount ? [...state.ratePings, now] : state.ratePings;
   const bumpTier =
     shouldCount && (RATE_TIER_KEYS as readonly string[]).includes(next.tier ?? "")
@@ -417,6 +434,26 @@ export function pickString(detail: Record<string, unknown>, key: string): string
   return typeof v === "string" ? v : undefined;
 }
 
+export function pickPositiveNumber(
+  detail: Record<string, unknown>,
+  key: string,
+): number | undefined {
+  const value = detail[key];
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : undefined;
+}
+
+export function isTileStuck(tile: TileState, now: number): boolean {
+  return (
+    tile.latency_budget_ms !== undefined &&
+    !tile.completed &&
+    !tile.failed &&
+    tile.gate_decision !== "hil" &&
+    now - tile.first_seen_at > tile.latency_budget_ms
+  );
+}
+
 /**
  * Infer the vertical from the rule id / action_type when the server
  * did not tag it explicitly. Prefix-based, aligned with the shipped
@@ -447,10 +484,12 @@ export function inferVertical(rule: string | undefined, actionType: string | und
  *   1. First empty slot (during warm-up the swarm fills naturally).
  *   2. Oldest completed non-HIL tile past AGE_STALE_MS (recycle).
  *   3. Any completed non-HIL tile (evict oldest).
- *   4. -1 (drop the event).
+ *   4. Oldest completed HIL tile past HIL_RETENTION_MS.
+ *   5. -1 (drop the event).
  *
- * HIL tiles are sticky - they never get evicted, so a human always
- * has time to review the queue.
+ * HIL tiles are retained longer than ordinary outcomes, but not forever.
+ * The Approvals route owns the complete queue; Live must not let old
+ * presentation state starve new control-loop observations.
  */
 export function pickSlot(state: LiveState, now: number): number {
   const empties: number[] = [];
@@ -467,11 +506,25 @@ export function pickSlot(state: LiveState, now: number): number {
   for (let i = 0; i < state.tiles.length; i++) {
     const t = state.tiles[i];
     if (!t) continue;
+    if (t.event_id === state.selectedEventId) continue;
     if (t.gate_decision === "hil") continue; // sticky
     const ageThreshold = t.completed ? AGE_DONE_MS : AGE_STALE_MS;
     if (now - t.last_seen_at < ageThreshold) continue;
     if (t.last_seen_at < oldestTs) {
       oldestTs = t.last_seen_at;
+      oldestIdx = i;
+    }
+  }
+  if (oldestIdx >= 0) return oldestIdx;
+
+  oldestIdx = -1;
+  oldestTs = Infinity;
+  for (let i = 0; i < state.tiles.length; i++) {
+    const tile = state.tiles[i];
+    if (!tile || tile.gate_decision !== "hil" || !tile.completed) continue;
+    if (now - tile.last_seen_at < HIL_RETENTION_MS) continue;
+    if (tile.last_seen_at < oldestTs) {
+      oldestTs = tile.last_seen_at;
       oldestIdx = i;
     }
   }
@@ -483,6 +536,7 @@ export function pickSlot(state: LiveState, now: number): number {
   for (let i = 0; i < state.tiles.length; i++) {
     const t = state.tiles[i];
     if (!t || t.gate_decision === "hil") continue;
+    if (t.event_id === state.selectedEventId) continue;
     if (!t.completed) continue;
     if (t.last_seen_at < oldestTs) {
       oldestTs = t.last_seen_at;
@@ -496,11 +550,12 @@ export function pickSlot(state: LiveState, now: number): number {
 // Filter + formatting helpers (shared with the presentational layer)
 // ---------------------------------------------------------------------------
 
-export function matchesFilter(tile: TileState, filter: FilterKind): boolean {
+export function matchesFilter(tile: TileState, filter: FilterKind, now = Date.now()): boolean {
   if (filter === "all") return true;
   if (filter === "hil") return tile.gate_decision === "hil";
   if (filter === "deny") return tile.gate_decision === "deny";
   if (filter === "failed") return tile.failed;
+  if (filter === "stuck") return isTileStuck(tile, now);
   return true;
 }
 

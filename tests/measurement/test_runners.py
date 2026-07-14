@@ -537,7 +537,7 @@ async def test_growth_missing_pattern_build_records_skip_but_continues() -> None
     assert builder.calls == ["action-1", "action-2"]
 
     entries = [e["entry"] for e in audit.audit_entries]
-    assert len(entries) == 2
+    assert len(entries) == 3
     # First outcome - accepted intake, but builder returned None → not ingested.
     assert entries[0]["intake_outcome"] == IntakeOutcome.ACCEPTED.value
     assert entries[0]["ingested"] is False
@@ -545,6 +545,8 @@ async def test_growth_missing_pattern_build_records_skip_but_continues() -> None
     # Second outcome - accepted + ingested.
     assert entries[1]["intake_outcome"] == IntakeOutcome.ACCEPTED.value
     assert entries[1]["ingested"] is True
+    assert entries[2]["action_kind"] == "measurement.pattern_growth.run"
+    assert entries[2]["total_outcomes"] == 2
 
 
 async def test_growth_never_upserts_non_shadow_pattern() -> None:
@@ -638,7 +640,10 @@ async def test_growth_empty_stream_is_a_no_op() -> None:
     assert report.accepted_count == 0
     assert report.rejected_count == 0
     assert len(library) == 0
-    assert list(audit.audit_entries) == []
+    entries = [row["entry"] for row in audit.audit_entries]
+    assert len(entries) == 1
+    assert entries[0]["action_kind"] == "measurement.pattern_growth.run"
+    assert entries[0]["total_outcomes"] == 0
 
 
 # ---------------------------------------------------------------------------

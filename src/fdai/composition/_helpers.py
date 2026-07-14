@@ -19,6 +19,7 @@ from ..core.quality_gate.judge import JudgeModel
 from ..core.quality_gate.rubric import RubricEvaluator
 from ..core.rca import RcaReasoner
 from ..core.tiers.t1_lightweight.tier import EmbeddingModel
+from ..core.tiers.t2_reasoning import T2Proposer
 from ..shared.config.models import AppConfig
 from ..shared.contracts.models import OntologyLinkType, OntologyObjectType, Workflow
 from ..shared.contracts.registry import SchemaRegistry
@@ -94,6 +95,7 @@ class LlmBindings:
     debate_orchestrator: DebateOrchestrator | None = None
     rca_reasoner: RcaReasoner | None = None
     rubric_evaluator: RubricEvaluator | None = None
+    t2_proposer: T2Proposer | None = None
 
     def __post_init__(self) -> None:
         if not self.cross_check_models:
@@ -109,6 +111,13 @@ class LlmBindings:
                 "LlmBindings.debate_orchestrator requires both critic_model "
                 "and judge_model to be bound"
             )
+
+    def require_t2_proposer(self) -> T2Proposer:
+        if self.t2_proposer is None:
+            raise LlmBindingsUnavailableError(
+                "LlmBindings.t2_proposer is None; T2 reasoning cannot start"
+            )
+        return self.t2_proposer
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,12 +205,13 @@ def _capability(resolved: ResolvedModels, name: str) -> ResolvedCapability | Non
 
 
 def _default_dim_for_family(family: str) -> int:
-    """Sensible dim defaults for the shipped embedding families.
+    """Return the fixed pgvector dimension for supported embedding families.
 
     A future resolver revision MAY carry the vector dim on
     ``ResolvedCapability`` directly; today we keep the mapping small.
     """
-    return {
-        "text-embedding-3-small": 1536,
-        "text-embedding-3-large": 3072,
-    }.get(family, 1536)
+    if family not in {"text-embedding-3-small", "text-embedding-3-large"}:
+        raise LlmBindingsUnavailableError(
+            f"embedding family {family!r} does not support the FDAI 384-dimension contract"
+        )
+    return 384

@@ -52,18 +52,12 @@ export function HilQueueRoute({ client }: Props) {
     <div class="stack">
       <PageHeader
         title={t("route.hilQueue")}
-        subtitle={
-          <>
-            High-risk actions waiting for a human approver. Approvals flow through
-            the ChatOps channel (Teams / Adaptive Cards) - the console never
-            exposes an approval button (see docs/roadmap/interfaces/user-rbac-and-identity.md § 7).
-          </>
-        }
+        subtitle={<>{t("approvals.subtitle")}</>}
         actions={
           <StatusPill kind="neutral" label="read-only" />
         }
       />
-      <AsyncBoundary state={state} resourceLabel="HIL queue">
+      <AsyncBoundary state={state} resourceLabel={t("approvals.resource")}>
         {(data) => <HilBody data={data} />}
       </AsyncBoundary>
     </div>
@@ -81,7 +75,7 @@ function HilBody({ data }: { readonly data: HilQueueData }) {
   usePublishViewContext(
     () => ({
       routeId: "hil-queue",
-      routeLabel: "HIL queue",
+      routeLabel: "Approvals",
       purpose:
         "High-risk actions the risk gate parked for a human approver instead of " +
         "auto-executing. Read-only: approvals happen in Teams/ChatOps cards, " +
@@ -94,8 +88,8 @@ function HilBody({ data }: { readonly data: HilQueueData }) {
         TERMS.correlationId,
       ]),
       headline: total === 0
-        ? "No pending HIL items"
-        : `${total} item(s) waiting for a human approver${truncated ? ` - latest ${items.length} shown` : ""}`,
+        ? t("approvals.headlineEmpty")
+        : t("approvals.headlineWaiting", { count: total }),
       capturedAt: new Date().toISOString(),
       facts: [
         { key: "pending", value: total, group: "queue" },
@@ -118,8 +112,8 @@ function HilBody({ data }: { readonly data: HilQueueData }) {
   if (total === 0) {
     return (
       <EmptyState
-        title="No pending HIL items."
-        body="All autonomous decisions are within the risk gate's auto envelope right now."
+        title={t("approvals.emptyTitle")}
+        body={t("approvals.emptyBody")}
       />
     );
   }
@@ -143,7 +137,11 @@ function HilBody({ data }: { readonly data: HilQueueData }) {
 
   return (
     <div class="stack">
-      {truncated ? <p class="muted footnote">Showing the latest {items.length} of {total} pending approvals.</p> : null}
+      {truncated ? (
+        <p class="muted footnote">
+          {t("approvals.showingLatest", { shown: items.length, total })}
+        </p>
+      ) : null}
       <DataTable
         columns={columns}
         rows={items}

@@ -26,7 +26,14 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { bottomRailPanels, PANEL_GROUPS, panelsInGroup, type PanelGroup } from "../panels";
+import {
+  bottomRailPanels,
+  panelForId,
+  PANEL_GROUPS,
+  panelsInGroup,
+  type PanelGroup,
+} from "../panels";
+import { navigate, panelPath } from "../router";
 import { groupIcon, settingsIcon } from "./rail-icons";
 
 interface Props {
@@ -51,15 +58,12 @@ export function LeftRail({ activePanelId }: Props) {
   const [state, setState] = useState<ActiveGroupState>({ group: null, pinned: false });
   const closeTimer = useRef<number | null>(null);
   const openTimer = useRef<number | null>(null);
-  const iconRefs = useRef(new Map<PanelGroup, HTMLButtonElement | null>());
+  const iconRefs = useRef(new Map<PanelGroup, HTMLElement | null>());
   const navRef = useRef<HTMLElement | null>(null);
 
   const activeGroup = useMemo<PanelGroup | null>(() => {
-    for (const g of PANEL_GROUPS) {
-      const panels = panelsInGroup(g.id);
-      if (panels.some((p) => p.id === activePanelId)) return g.id;
-    }
-    return null;
+    const panel = panelForId(activePanelId);
+    return panel.placement === "bottom" ? null : panel.group;
   }, [activePanelId]);
 
   const cancelClose = useCallback(() => {
@@ -170,57 +174,67 @@ export function LeftRail({ activePanelId }: Props) {
           const isActiveGroup = activeGroup === g.id;
           const isOpen = state.group === g.id;
           const firstPanel = panels[0];
+          const hasPopover = panels.length > 1;
           return (
             <li key={g.id} class="left-rail-item">
-              <button
-                ref={(el) => {
-                  iconRefs.current.set(g.id, el);
-                }}
-                type="button"
-                class={`left-rail-icon ${isActiveGroup ? "left-rail-icon-active" : ""} ${isOpen ? "left-rail-icon-open" : ""}`}
-                data-group={g.id}
-                aria-label={`${g.label} - ${g.hint}`}
-                aria-expanded={isOpen}
-                aria-haspopup="true"
-                onMouseEnter={() => scheduleOpen(g.id)}
-                onMouseLeave={scheduleClose}
-                onFocus={() => openGroup(g.id)}
-                onBlur={scheduleClose}
-                onClick={() => {
-                  // Click on a group icon = jump to its first sub-panel.
-                  // The popover stays open only while the pointer keeps
-                  // hovering (NOT pinned) so it dismisses itself the
-                  // moment the operator moves into the content or clicks
-                  // away. A pinned-open click used to leave the flyout
-                  // lingering over the content after navigation.
-                  if (firstPanel && activePanelId !== firstPanel.id) {
-                    window.location.hash = `#/${firstPanel.id}`;
-                  }
-                  openGroup(g.id);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    focusGroupBy(g.id, 1);
-                  } else if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    focusGroupBy(g.id, -1);
-                  } else if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    if (firstPanel) {
-                      window.location.hash = `#/${firstPanel.id}`;
+              {hasPopover ? (
+                <button
+                  ref={(el) => { iconRefs.current.set(g.id, el); }}
+                  type="button"
+                  class={`left-rail-icon ${isActiveGroup ? "left-rail-icon-active" : ""} ${isOpen ? "left-rail-icon-open" : ""}`}
+                  data-group={g.id}
+                  aria-label={`${g.label} - ${g.hint}`}
+                  aria-expanded={isOpen}
+                  aria-haspopup="true"
+                  onMouseEnter={() => scheduleOpen(g.id)}
+                  onMouseLeave={scheduleClose}
+                  onFocus={() => openGroup(g.id)}
+                  onBlur={scheduleClose}
+                  onClick={() => {
+                    if (firstPanel && activePanelId !== firstPanel.id) navigate(panelPath(firstPanel.id));
+                    openGroup(g.id);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      focusGroupBy(g.id, 1);
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      focusGroupBy(g.id, -1);
+                    } else if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      if (firstPanel) navigate(panelPath(firstPanel.id));
                       openGroup(g.id, { pin: true });
                     }
-                  }
-                }}
-              >
-                <span class="left-rail-glyph" aria-hidden="true">
-                  {groupIcon(g.id)}
-                </span>
-                <span class="left-rail-label">{g.label}</span>
-              </button>
+                  }}
+                >
+                  <span class="left-rail-glyph" aria-hidden="true">{groupIcon(g.id)}</span>
+                  <span class="left-rail-label">{g.label}</span>
+                </button>
+              ) : firstPanel ? (
+                <a
+                  ref={(el) => { iconRefs.current.set(g.id, el); }}
+                  href={panelPath(firstPanel.id)}
+                  class={`left-rail-icon ${isActiveGroup ? "left-rail-icon-active" : ""}`}
+                  data-group={g.id}
+                  aria-label={`${g.label} - ${g.hint}`}
+                  aria-current={isActiveGroup ? "page" : undefined}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      focusGroupBy(g.id, 1);
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      focusGroupBy(g.id, -1);
+                    }
+                  }}
+                >
+                  <span class="left-rail-glyph" aria-hidden="true">{groupIcon(g.id)}</span>
+                  <span class="left-rail-label">{g.label}</span>
+                </a>
+              ) : null}
 
-              {isOpen ? (
+              {hasPopover && isOpen ? (
                 <RailPopover
                   group={g.id}
                   activePanelId={activePanelId}
@@ -239,7 +253,7 @@ export function LeftRail({ activePanelId }: Props) {
           return (
             <li key={panel.id} class="left-rail-item">
               <a
-                href={`#/${panel.id}`}
+                href={panelPath(panel.id)}
                 class={`left-rail-icon ${active ? "left-rail-icon-active" : ""}`}
                 aria-label={panel.subtitle ? `${panel.label} - ${panel.subtitle}` : panel.label}
                 aria-current={active ? "page" : undefined}
@@ -294,7 +308,7 @@ function RailPopover({
           return (
             <li key={p.id}>
               <a
-                href={`#/${p.id}`}
+                href={panelPath(p.id)}
                 class={`left-rail-popover-item ${active ? "left-rail-popover-item-active" : ""}`}
                 role="menuitem"
                 onClick={onNavigate}

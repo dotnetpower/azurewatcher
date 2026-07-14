@@ -191,12 +191,12 @@ export function resolveDeckMeta(q: string, snapshot: ViewSnapshot): Answer | nul
         "Ask me about anything on the current page (numbers, rows, chips, terms, " +
         "why an incident started, who can approve what). I ground every answer in " +
         "the snapshot on the right of this overlay; I never execute an action. " +
-        "Try: 'what is HIL?', 'why did corr-j start?', 'what can I do here?'.",
+        "Try: 'what requires approval?', 'why did corr-j start?', 'what can I do here?'.",
       citations: [{ label: "route", value: snapshot.routeLabel }],
       followUps: [
         "what can I do here?",
         "what do you see on this screen?",
-        "what is HIL?",
+        "what requires approval?",
       ],
     };
   }
@@ -212,7 +212,7 @@ export function resolveDeckMeta(q: string, snapshot: ViewSnapshot): Answer | nul
     return {
       text: hint ? `${hint} ${generic}` : `${snapshot.routeLabel}: ${generic}`,
       citations: [{ label: "route", value: snapshot.routeLabel }],
-      followUps: ["what is HIL?", "what does an Approver do?"],
+      followUps: ["what requires approval?", "what does an Approver do?"],
     };
   }
 
@@ -310,7 +310,7 @@ export function resolveCausal(q: string, snapshot: ViewSnapshot): Answer | null 
   if (rows.length === 0) return null;
   const ordered = chronological(rows);
   const target = ordered[0]!;
-  const narrative = firstString(target, "detail", "summary", "reason");
+  const narrative = firstString(target, "cause", "detail", "summary", "reason");
   if (!narrative) return null;
   const corr = firstString(target, "correlation_id");
   const label = corr ? `${corr}` : String(target.action_kind ?? "this");

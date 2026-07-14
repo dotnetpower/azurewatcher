@@ -1,8 +1,8 @@
 ---
 title: 에이전트 판테온 구현 계획
 translation_of: agent-pantheon-implementation.md
-translation_source_sha: 59b4667b3caf4560455ec6ced5483daaa5a0d61c
-translation_revised: 2026-07-12
+translation_source_sha: 00dea26741cc291a0b2a36f8037d469cb6a4cb63
+translation_revised: 2026-07-15
 ---
 
 # 에이전트 판테온 구현 계획
@@ -259,7 +259,8 @@ discovery loop 를 닫는다.
   테이블 + ActionType ceiling 에서 계산된 `risk_verdict` 를 포함.
   `auto | hil | deny` 로 `Verdict` emit. `domain_conflict: true` 시
   `arbitrate` signal emit (Odin 은 W4 에서 착지).
-- **Thor (`src/fdai/agents/thor.py`)** - `object.verdict` 구독.
+- **Thor (`src/fdai/agents/thor.py`)** - `object.verdict` 와
+  `object.rollback` 을 구독합니다.
   Dispatch: `auto` -> 기존 executor provider 에 대해 shadow execute;
   `hil` -> `object.hil-request` publish (Var 도 여기서 착지); `deny` ->
   Saga 를 위한 drop record publish. `resource_id` partition 에서
@@ -267,9 +268,17 @@ discovery loop 를 닫는다.
 - **Var (`src/fdai/agents/var.py`)** - `object.hil-request` 구독. 기존
   ChatOps adapter 를 통해 present (W3 에서는 stub, W5 에서 real
   adapter). Timeout / expire tracking. `object.hil-response` publish.
-- **Vidar (`src/fdai/agents/vidar.py`)** - Thor 실패 signal 구독.
-  ActionType `rollback_contract` 별 rollback invoke. `object.rollback`
-  publish.
+- **Vidar (`src/fdai/agents/vidar.py`)** - Thor 실패 signal 을 구독합니다.
+  ActionType `rollback_contract` 로 선택한 주입형 rollback executor 를
+  호출하고 provider receipt 를 `object.rollback` 으로 publish 합니다.
+  Thor 는 receipt 가 도착할 때까지 실패한 ActionRun 과 resource lock 을
+  유지합니다. Executor 누락, provider 오류 또는 빈 receipt 는 성공으로
+  기록하지 않고 `rollback_failed` 로 종료합니다.
+
+Enforce mode runtime 을 구성할 때는 명시적 Thor executor, durable ActionRun
+store, StateStore-backed Saga audit chain, rollback executor registry 가 모두
+필요합니다. 하나라도 없으면 startup 이 차단됩니다. Shadow mode 는 in-memory
+default 를 유지하며 privileged executor 를 호출하지 않습니다.
 
 **테스트**
 
@@ -621,6 +630,12 @@ judge-and-log 만 하고 P1 루프와 이중 실행하지 않는다. enforce 로
   (`question_domains` 기반 결정적 키워드 / 유사도 스코어링), per-user 세션
   추적, Bragi 의 no-cross-user invariant 강제. Bragi 비활성화 시 포트가
   꺼진다(`health()["conversational_port"]` 가 `False`, `ask` 는 `None`).
+  명시된 canonical agent 이름은 domain scoring보다 우선합니다. Bragi는 bounded
+  timeout으로 최대 3명의 matching contributor를 동시에 호출하고 contributor
+  failure를 격리하며, 결합된 prose와 structured contributor evidence를 함께
+  반환합니다. Web adapter는 client session id를 인증된 principal로 namespace하고
+  read-only 질문 route에서 action proposal 및 Saga handoff side effect를
+  비활성화합니다.
   two-port 계약상, 액션을 원하는 conversational 요청은 typed 파이프라인으로
   재진입해야 한다 - 포트가 이를 우회하지 않는다. narrator LLM(T2 intent +
   풍부한 에이전트별 답변)은 추후 이 seam 위에 얹진다.

@@ -605,6 +605,20 @@ def test_non_english_locale_prepends_second_system_directive() -> None:
     assert "verbatim" in directive  # ids/numbers stay English
 
 
+def test_korean_prompt_forces_korean_when_console_locale_is_english() -> None:
+    prompt = "\uc774 \ud654\uba74\uc744 \ud55c \ubb38\uc7a5\uc73c\ub85c \uc694\uc57d\ud574\uc918"
+    msgs = _messages(prompt, {"_locale": "en"}, [])
+    assert [m["role"] for m in msgs] == ["system", "system", "user"]
+    assert "'ko'" in msgs[1]["content"]
+
+
+def test_current_korean_prompt_wins_over_other_operator_locale() -> None:
+    prompt = "\ud604\uc7ac \uc0c1\ud0dc\uac00 \uc5b4\ub54c?"
+    msgs = _messages(prompt, {"_locale": "ja"}, [])
+    assert "'ko'" in msgs[1]["content"]
+    assert "'ja'" not in msgs[1]["content"]
+
+
 def test_user_locale_from_user_block_wins_when_locale_absent() -> None:
     msgs = _messages("hi", {"_user": {"name": "Ada", "locale": "ja"}}, [])
     assert len(msgs) == 3
@@ -620,6 +634,28 @@ def test_malformed_locale_falls_back_to_english() -> None:
 def test_locale_directive_composes_with_user_turn() -> None:
     msgs = _messages("explain T2", {"_locale": "ko"}, [])
     assert msgs[-1] == {"role": "user", "content": "explain T2"}
+
+
+def test_operational_directive_only_appears_with_server_evidence() -> None:
+    ordinary = _messages("what is on this screen?", {"routeId": "dashboard"}, [])
+    evidence = _messages(
+        "what caused the recent memory issue?",
+        {
+            "routeId": "dashboard",
+            "_operational_evidence": {
+                "authority": "server_read_model",
+                "status": "none",
+            },
+        },
+        [],
+    )
+
+    assert [message["role"] for message in ordinary] == ["system", "user"]
+    assert [message["role"] for message in evidence] == ["system", "system", "user"]
+    assert "server-owned" in evidence[1]["content"]
+    assert "do not guess" in evidence[1]["content"]
+    assert "Never expose" in evidence[1]["content"]
+    assert "raw internal" in evidence[1]["content"]
 
 
 # ---------------------------------------------------------------------------

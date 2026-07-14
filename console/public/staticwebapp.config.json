@@ -1,0 +1,10 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/assets/*",
+      "/agent-icons/*",
+      "/*.{css,js,json,png,jpg,jpeg,gif,svg,ico,webp,woff,woff2,map}"
+    ]
+  }
+}

@@ -13,10 +13,12 @@ import type {
   AuditPage,
   AutonomyPayload,
   DashboardKpi,
+  EffectiveScope,
   FinOpsPayload,
   HilQueuePage,
   IncidentPage,
   IncidentStatusFilter,
+  RcaView,
 } from "./types";
 
 export class ReadApiClient {
@@ -54,6 +56,29 @@ export class ReadApiClient {
     if (opts.limit !== undefined) params.set("limit", String(opts.limit));
     if (opts.cursor !== undefined) params.set("cursor", opts.cursor);
     return decodeIncidentPage(await this.#get<unknown>("/incidents", params));
+  }
+
+  /**
+   * Fetch the RCA (root-cause analysis) view for one incident
+   * (`GET /rca?correlation=...`). Read-only projection of the shadow
+   * `rca.hypothesis` audit entries: tiered hypotheses, grounded
+   * citations, and the linked response plan. An RCA hypothesis answers
+   * "why", never "execute".
+   */
+  async rca(correlationId: string): Promise<RcaView> {
+    const params = new URLSearchParams();
+    params.set("correlation", correlationId);
+    return decodeRcaView(await this.#get<unknown>("/rca", params));
+  }
+
+  /**
+   * Fetch the effective monitoring / automated-action scope
+   * (`GET /scope`). Opt-in like {@link finops}; callers MUST tolerate a
+   * 404 as "scope view not served here". Read-only: authoring a scope
+   * change is a policy-as-code PR, never a console write.
+   */
+  async scope(): Promise<EffectiveScope> {
+    return decodeScopeView(await this.#get<unknown>("/scope"));
   }
 
   async dashboardMetrics(): Promise<DashboardKpi> {
@@ -201,6 +226,58 @@ export function decodeIncidentPage(value: unknown): IncidentPage {
   };
 }
 
+export function decodeRcaView(value: unknown): RcaView {
+  const root = apiRecord(value, "RCA view");
+  if (!Array.isArray(root["hypotheses"])) {
+    throw contractError("RCA view.hypotheses MUST be an array");
+  }
+  const response = root["response"];
+  return {
+    correlation_id: apiString(root, "correlation_id", "RCA view"),
+    incident_id: apiNullableString(root, "incident_id", "RCA view"),
+    hypotheses: root["hypotheses"].map((raw, index) => {
+      const item = apiRecord(raw, `RCA view.hypotheses[${index}]`);
+      const citations = item["citations"];
+      if (!Array.isArray(citations)) {
+        throw contractError(`RCA view.hypotheses[${index}].citations MUST be an array`);
+      }
+      return {
+        seq: apiPositiveInteger(item, "seq", "RCA hypothesis"),
+        tier: apiRcaTier(item["tier"]),
+        outcome: apiRcaOutcome(item["outcome"]),
+        grounded: apiBoolean(item, "grounded", "RCA hypothesis"),
+        cause: apiNullableString(item, "cause", "RCA hypothesis"),
+        confidence: apiNullableRatio(item, "confidence", "RCA hypothesis"),
+        reason: apiNullableString(item, "reason", "RCA hypothesis"),
+        citations: citations.map((rawCitation, citationIndex) => {
+          const citation = apiRecord(rawCitation, `RCA hypothesis.citations[${citationIndex}]`);
+          return {
+            kind: apiString(citation, "kind", "RCA citation"),
+            ref: apiString(citation, "ref", "RCA citation"),
+          };
+        }),
+        remediation_ref: apiNullableString(item, "remediation_ref", "RCA hypothesis"),
+        mode: apiMode(item["mode"]),
+        recorded_at: apiString(item, "recorded_at", "RCA hypothesis"),
+      };
+    }),
+    response:
+      response === null
+        ? null
+        : (() => {
+            const item = apiRecord(response, "RCA view.response");
+            return {
+              verdict: apiString(item, "verdict", "RCA response"),
+              decision: apiNullableString(item, "decision", "RCA response"),
+              action_kind: apiNullableString(item, "action_kind", "RCA response"),
+              mode: item["mode"] === null ? null : apiMode(item["mode"]),
+              rollback_reference: apiNullableString(item, "rollback_reference", "RCA response"),
+              recorded_at: apiNullableString(item, "recorded_at", "RCA response"),
+            };
+          })(),
+  };
+}
+
 export function decodeDashboardKpi(value: unknown): DashboardKpi {
   const root = apiRecord(value, "dashboard KPI");
   return {
@@ -212,6 +289,53 @@ export function decodeDashboardKpi(value: unknown): DashboardKpi {
     by_outcome: apiNumberRecord(root["by_outcome"], "dashboard KPI.by_outcome"),
     by_tier: apiNumberRecord(root["by_tier"], "dashboard KPI.by_tier"),
     last_recorded_at: apiNullableString(root, "last_recorded_at", "dashboard KPI"),
+  };
+}
+
+export function decodeScopeView(value: unknown): EffectiveScope {
+  const root = apiRecord(value, "scope view");
+  return {
+    monitoring: decodeScopeAxis(root["monitoring"], "monitoring"),
+    action: decodeScopeAxis(root["action"], "action"),
+    executor_boundary: decodeExecutorBoundary(root["executor_boundary"]),
+  };
+}
+
+function decodeScopeAxis(value: unknown, expected: "monitoring" | "action"): EffectiveScope["monitoring"] {
+  const root = apiRecord(value, `scope view.${expected}`);
+  const axis = root["axis"];
+  if (axis !== expected) throw contractError(`scope view.${expected}.axis MUST be ${expected}`);
+  if (!Array.isArray(root["entries"])) {
+    throw contractError(`scope view.${expected}.entries MUST be an array`);
+  }
+  return {
+    axis: expected,
+    entries: root["entries"].map((raw, index) => {
+      const item = apiRecord(raw, `scope view.${expected}.entries[${index}]`);
+      return {
+        address: apiString(item, "address", "scope entry"),
+        level: apiScopeLevel(item["level"]),
+        subscription: apiString(item, "subscription", "scope entry"),
+        resource_group: apiNullableString(item, "resource_group", "scope entry"),
+        state: apiScopeState(item["state"]),
+      };
+    }),
+  };
+}
+
+function decodeExecutorBoundary(value: unknown): EffectiveScope["executor_boundary"] {
+  const root = apiRecord(value, "scope view.executor_boundary");
+  if (!Array.isArray(root["resource_groups"])) {
+    throw contractError("scope view.executor_boundary.resource_groups MUST be an array");
+  }
+  return {
+    resource_groups: root["resource_groups"].map((raw, index) => {
+      if (typeof raw !== "string") {
+        throw contractError(`scope view.executor_boundary.resource_groups[${index}] MUST be a string`);
+      }
+      return raw;
+    }),
+    note: apiNullableString(root, "note", "scope view.executor_boundary"),
   };
 }
 
@@ -307,4 +431,38 @@ function apiIncidentStatus(value: unknown): "open" | "in_progress" | "resolved" 
 function apiStatusSource(value: unknown): "incident_lifecycle" | "audit_projection" {
   if (value === "incident_lifecycle" || value === "audit_projection") return value;
   throw contractError("incident item.status_source MUST name a supported projection source");
+}
+
+function apiRcaTier(value: unknown): "t0" | "t1" | "t2" | "unknown" {
+  if (value === "t0" || value === "t1" || value === "t2" || value === "unknown") return value;
+  throw contractError("RCA hypothesis.tier MUST be t0, t1, t2, or unknown");
+}
+
+function apiRcaOutcome(value: unknown): "grounded" | "abstained" | "unknown" {
+  if (value === "grounded" || value === "abstained" || value === "unknown") return value;
+  throw contractError("RCA hypothesis.outcome MUST be grounded, abstained, or unknown");
+}
+
+function apiBoolean(value: Readonly<Record<string, unknown>>, key: string, label: string): boolean {
+  if (typeof value[key] !== "boolean") throw contractError(`${label}.${key} MUST be a boolean`);
+  return value[key];
+}
+
+function apiNullableRatio(
+  value: Readonly<Record<string, unknown>>,
+  key: string,
+  label: string,
+): number | null {
+  if (value[key] === null) return null;
+  return apiRatio(value, key, label);
+}
+
+function apiScopeLevel(value: unknown): "subscription" | "resource_group" {
+  if (value === "subscription" || value === "resource_group") return value;
+  throw contractError("scope entry.level MUST be subscription or resource_group");
+}
+
+function apiScopeState(value: unknown): "included" | "excluded" {
+  if (value === "included" || value === "excluded") return value;
+  throw contractError("scope entry.state MUST be included or excluded");
 }

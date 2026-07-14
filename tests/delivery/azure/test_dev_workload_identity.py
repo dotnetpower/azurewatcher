@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import time
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
@@ -56,6 +58,35 @@ class TestGetTokenSync:
         ) as run:
             wi.get_token_sync("s")
             second = wi.get_token_sync("s")
+        assert second.token == "tok-fresh"
+        assert run.call_count == 2
+
+    def test_epoch_expiry_wins_over_local_display_and_triggers_refetch(self) -> None:
+        wi = AzureCliWorkloadIdentity(skew=timedelta())
+        expired_epoch = int((datetime.now(tz=UTC) - timedelta(minutes=1)).timestamp())
+        later = int((datetime.now(tz=UTC) + timedelta(hours=1)).timestamp())
+        stale_payload = json.dumps(
+            {
+                "accessToken": "tok-stale",
+                "expiresOn": "2099-01-01 00:00:00.000000",
+                "expires_on": expired_epoch,
+            }
+        )
+        fresh_payload = json.dumps(
+            {
+                "accessToken": "tok-fresh",
+                "expiresOn": "2099-01-01 00:00:00.000000",
+                "expires_on": later,
+            }
+        )
+        with patch(
+            "fdai.delivery.azure.dev_workload_identity.subprocess.run",
+            side_effect=[_completed(stale_payload), _completed(fresh_payload)],
+        ) as run:
+            first = wi.get_token_sync("s")
+            second = wi.get_token_sync("s")
+
+        assert first.token == "tok-stale"
         assert second.token == "tok-fresh"
         assert run.call_count == 2
 
@@ -122,7 +153,7 @@ class TestGetTokenSync:
             with pytest.raises(AzureCliCredentialError, match="missing expiresOn"):
                 wi.get_token_sync("s")
 
-    def test_naive_datetime_string_parsed_as_utc(self) -> None:
+    def test_naive_datetime_string_parsed_as_local_time(self) -> None:
         """Older az CLI: ``expiresOn: '2099-01-01 00:00:00.000000'``."""
         wi = AzureCliWorkloadIdentity()
         payload = json.dumps(
@@ -131,13 +162,22 @@ class TestGetTokenSync:
                 "expiresOn": "2099-01-01 00:00:00.000000",
             }
         )
-        with patch(
-            "fdai.delivery.azure.dev_workload_identity.subprocess.run",
-            return_value=_completed(payload),
-        ):
-            token = wi.get_token_sync("s")
-        assert token.expires_at.tzinfo is UTC
-        assert token.expires_at.year == 2099
+        original_tz = os.environ.get("TZ")
+        try:
+            os.environ["TZ"] = "Asia/Seoul"
+            time.tzset()
+            with patch(
+                "fdai.delivery.azure.dev_workload_identity.subprocess.run",
+                return_value=_completed(payload),
+            ):
+                token = wi.get_token_sync("s")
+        finally:
+            if original_tz is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = original_tz
+            time.tzset()
+        assert token.expires_at == datetime(2098, 12, 31, 15, tzinfo=UTC)
 
     def test_iso_with_z_suffix_parsed(self) -> None:
         wi = AzureCliWorkloadIdentity()

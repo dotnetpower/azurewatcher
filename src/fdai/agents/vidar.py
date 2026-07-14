@@ -1,13 +1,13 @@
 """Vidar - Recovery (Wave 3 behavior).
 
 Vidar performs rollback per an ActionType's `rollback_contract` and
-DR failover. Wave 3 stubs the rollback into a bookkeeping call that
-publishes a `Rollback` payload; real integration lives behind the
-provider protocols in later waves.
+DR failover. Contract-specific rollback executors are injected by the
+composition root; an unbound contract fails closed.
 """
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,6 +26,10 @@ class RollbackRecord:
     contract: str
     state: str  # succeeded | failed
     notes: str = ""
+    rollback_ref: str | None = None
+
+
+RollbackExecutor = Callable[[dict[str, Any]], Awaitable[str | None]]
 
 
 class Vidar(Agent):
@@ -39,9 +43,15 @@ class Vidar(Agent):
     #: retains full history.
     _MAX_RECORDS: int = 10_000
 
-    def __init__(self, *, bus: PantheonBus | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        bus: PantheonBus | None = None,
+        executors: Mapping[str, RollbackExecutor] | None = None,
+    ) -> None:
         super().__init__(spec=_VIDAR)
         self.bus = bus
+        self._executors = dict(executors or {})
         self.records: list[RollbackRecord] = []
         # Idempotency guard: at-least-once delivery means the same failed
         # ActionRun can arrive twice. Rolling a resource back twice is not a
@@ -68,13 +78,32 @@ class Vidar(Agent):
         # is safer than silently skipping recovery).
         if correlation_id and correlation_id in self._rolled_back:
             return None
+        contract = str(action_run.get("rollback_contract", "state_forward_only"))
+        executor = self._executors.get(contract)
+        state = "failed"
+        notes = f"no rollback executor registered for contract {contract}"
+        rollback_ref: str | None = None
+        if not correlation_id:
+            notes = "rollback refused because correlation_id is empty"
+        elif executor is not None:
+            try:
+                rollback_ref = await executor(dict(action_run))
+            except Exception as exc:  # noqa: BLE001 - provider boundary; fail closed
+                notes = f"rollback executor raised {type(exc).__name__}"
+            else:
+                if rollback_ref:
+                    state = "succeeded"
+                    notes = "rollback executor completed"
+                else:
+                    notes = "rollback executor returned no receipt"
         rec = RollbackRecord(
             correlation_id=correlation_id,
             action_type=str(action_run.get("action_type", "")),
             resource_id=action_run.get("resource_id"),
-            contract=str(action_run.get("rollback_contract", "state_forward_only")),
-            state="succeeded",  # in-memory rollback always succeeds
-            notes="in-memory rollback (Wave 3)",
+            contract=contract,
+            state=state,
+            notes=notes,
+            rollback_ref=rollback_ref,
         )
         if correlation_id:
             self._rolled_back.add(correlation_id)
@@ -94,6 +123,7 @@ class Vidar(Agent):
                     "resource_id": rec.resource_id,
                     "contract": rec.contract,
                     "state": rec.state,
+                    "rollback_ref": rec.rollback_ref,
                 },
             )
         return rec
@@ -128,4 +158,4 @@ class Vidar(Agent):
         return IntrospectionResult(answer=answer, facts=facts)
 
 
-__all__ = ["Vidar", "RollbackRecord"]
+__all__ = ["Vidar", "RollbackExecutor", "RollbackRecord"]

@@ -80,6 +80,7 @@ def test_local_fake_mode_binds_deterministic_fakes() -> None:
     assert bindings.embedding_model is not None
     # Two fake cross-check models so the quality-gate default quorum (2) works.
     assert len(bindings.cross_check_models) == 2
+    assert bindings.require_t2_proposer() is not None
 
 
 def test_local_fake_container_never_imports_delivery_azure_llm() -> None:

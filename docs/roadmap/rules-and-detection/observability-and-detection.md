@@ -287,6 +287,16 @@ Make RCA a first-class output of the tiers instead of an implicit side effect.
   chains without writing the source. Absent a source, T1 causal-chain RCA
   stays dark and only T0 (and T2, when wired) RCA runs
   (backward-compatible).
+- **Read-only console surface**: the shadow `rca.hypothesis` audit entries
+  are projected into a first-class **History > RCA** operator-console panel
+  (`GET /rca?correlation=<id>`, pure projection in
+  `delivery/read_api/routes/rca_projection.py`). Given an incident
+  `correlation_id` it renders the tiered hypotheses, their citations, the
+  grounding state (an abstained hypothesis shows as "insufficient grounding
+  -> HIL", never a confident cause), and the linked response plan (verdict /
+  action / mode / rollback) composed from the same correlated audit stream.
+  The surface is strictly read-only and adds no new source of truth - see
+  [operator-console.md](../interfaces/operator-console.md#1351-rca-view-root-cause-analysis).
 
 ## Plugging Into the Control Loop
 
@@ -346,6 +356,19 @@ What we adopt from the general AIOps model, and where we intentionally differ:
 - Emit detector metrics - fire rate, false-positive rate, false-negative/missed-breach rate,
   abstain and cold-start-suppression counts, forecast lead time, and RCA groundedness - to the
   KPI dashboard.
+
+### Runtime delivery status
+
+The Container Apps analyzer and scheduler jobs publish canonical, idempotent Events to the
+configured Event Hubs ingest topic. They do not execute changes; findings and due tasks re-enter
+the shared trust-router and risk-gate. Publish failure keeps the scheduled item retryable and
+returns a non-zero job result.
+
+The inventory job promotes a complete ARG/ARM snapshot atomically, then reads Azure Activity Log
+deltas per subscription. Delta resources are forwarded as canonical Events, and each cursor
+advances only after the stream emits its final fence. The control loop reads the active Postgres
+snapshot age for graph-dependent ActionTypes; a missing, failed, or stale freshness lookup routes
+the action to human review.
 
 ## Open Decisions
 

@@ -270,6 +270,17 @@ infra/backend.tf
 secrets/
 .secrets/
 
+# --------------------------------------------------------------------------
+# Framework-surface integrity signing (scripts/sign-integrity.sh).
+# The Ed25519 PRIVATE signing key never enters the tree (covered by *.pem /
+# secrets/ above). The signed manifest, its signature, and the PUBLIC key are
+# committed so any fork can verify OFFLINE (scripts/check-integrity.sh).
+# The public key uses a .pub extension precisely so *.pem does not swallow it.
+# --------------------------------------------------------------------------
+!security/integrity/manifest.json
+!security/integrity/manifest.json.sig
+!security/integrity/upstream-signing-key.pub
+
 
 # --------------------------------------------------------------------------
 # Rule-catalog collector snapshots - the collector writes tamper-evident

@@ -155,6 +155,40 @@ def test_build_prod_app_returns_starlette_app() -> None:
     assert "/views/process/{process_id:str}" in paths
 
 
+def test_build_prod_app_enables_live_routes_when_kafka_is_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    env = dict(_GOOD_ENV)
+    env["FDAI_KAFKA_BOOTSTRAP_SERVERS"] = "example.servicebus.windows.net:9093"
+    monkeypatch.setenv("IDENTITY_ENDPOINT", "http://localhost/identity")
+    monkeypatch.setenv("IDENTITY_HEADER", "test-header")
+
+    app = build_prod_app(env)
+
+    paths = {route.path for route in app.routes}
+    assert "/live/stream" in paths
+    assert "/agents/stream" in paths
+
+
+def test_build_prod_app_opts_into_hil_callback_without_executor_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    env = dict(_GOOD_ENV)
+    env["FDAI_CHATOPS_WEBHOOK_SECRET"] = "test-hil-secret"
+    env["FDAI_KAFKA_BOOTSTRAP_SERVERS"] = "example.servicebus.windows.net:9093"
+    monkeypatch.setenv("IDENTITY_ENDPOINT", "http://localhost/identity")
+    monkeypatch.setenv("IDENTITY_HEADER", "test-header")
+
+    app = build_prod_app(env)
+
+    paths = {route.path for route in app.routes}
+    assert "/hil/{approval_id}/decision" in paths
+    # The production read API publishes a decision event; it never receives
+    # a HilResumeCoordinator or privileged executor identity.
+    route = next(route for route in app.routes if route.path == "/hil/{approval_id}/decision")
+    assert route.methods == {"POST"}
+
+
 def test_build_prod_app_requires_tenant_id() -> None:
     env = dict(_GOOD_ENV)
     del env["FDAI_ENTRA_TENANT_ID"]

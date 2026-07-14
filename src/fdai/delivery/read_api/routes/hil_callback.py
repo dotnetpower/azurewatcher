@@ -42,7 +42,7 @@ import hashlib
 import hmac
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -57,6 +57,7 @@ from fdai.shared.providers.hil_channel import HilDecision
 from fdai.shared.providers.hil_registry import (
     HilApprovalDecision,
     HilApprovalRegistry,
+    HilDecisionReceipt,
     HilItemAlreadyResolvedError,
     HilItemNotFoundError,
     HilRegistryError,
@@ -67,6 +68,7 @@ _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_MAX_SKEW_SECONDS: int = 300
 DEFAULT_MAX_BODY_BYTES: int = 8 * 1024
+HilDecisionPublisher = Callable[[HilDecisionReceipt], Awaitable[None]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,6 +182,7 @@ def make_hil_callback_route(
     registry: HilApprovalRegistry,
     config: HilCallbackConfig,
     coordinator: HilResumeCoordinator | None = None,
+    decision_publisher: HilDecisionPublisher | None = None,
     now: Callable[[], datetime] | None = None,
 ) -> Route:
     """Return the single ``POST /hil/{approval_id}/decision`` Route.
@@ -254,6 +257,23 @@ def make_hil_callback_route(
             return _error(409, "already_resolved", str(exc))
         except HilRegistryError as exc:
             return _error(500, "registry_error", str(exc))
+
+        if decision_publisher is not None:
+            try:
+                await decision_publisher(receipt)
+            except Exception:  # noqa: BLE001 - delivery boundary; receipt stays durable
+                _LOGGER.exception(
+                    "hil_decision_publish_failed",
+                    extra={
+                        "approval_id": receipt.approval_id or approval_id,
+                        "idempotency_key": receipt.idempotency_key,
+                    },
+                )
+                return _error(
+                    503,
+                    "decision_publish_failed",
+                    "decision was recorded but delivery failed; retry the same decision",
+                )
 
         _LOGGER.info(
             "hil_callback_recorded",
@@ -479,4 +499,5 @@ __all__ = [
     "HilCallbackNotFoundError",
     "HilCallbackUnauthorizedError",
     "make_hil_callback_route",
+    "HilDecisionPublisher",
 ]

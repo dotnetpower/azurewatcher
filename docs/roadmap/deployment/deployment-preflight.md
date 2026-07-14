@@ -155,7 +155,14 @@ report, composition wiring, and tests. Next increments, staged so each is
 separately reviewable:
 
 1. Live Azure adapters under `delivery/azure/preflight/` (Policy Insights,
-   Resource Graph, Firewall / NSG, Quota), shadow-mode first.
+   Resource Graph, Firewall / NSG, Quota), shadow-mode first. **Partially
+   delivered**: a shared read-only ARM client (`AzureArmClient`, injected
+   `httpx.AsyncClient` + `WorkloadIdentity` bearer token, fail-closed) plus the
+   `AzurePolicyGuardrailProbe` (real Azure Policy `deny` guardrails - `Not
+   allowed` / `Allowed resource types`) and the `AzureQuotaProbe` (Compute
+   usages per subscription + location) have landed with mock-HTTP unit tests.
+   The Firewall / NSG egress and Resource-Graph identity adapters are the
+   remaining sub-steps.
 2. The `infra/modules/` capability-mode toggles in the table above.
 3. A GitHub Check that posts the report on an infrastructure PR.
 4. A cached **Deployment Environment Profile** (which guardrails apply to a

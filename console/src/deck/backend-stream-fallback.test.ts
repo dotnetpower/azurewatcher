@@ -248,4 +248,186 @@ describe("askBackendStream fallback typewriter", () => {
     expect(reply.text).toBe("Partial answer");
     expect(reply.source).toBe("partial (stream error)");
   });
+
+  test("applies one monotonic verified revision to the provisional answer", async () => {
+    const frames = [
+      ["status", { seq: 1, revision: 0, phase: "evidence_resolving", label: "Checking evidence" }],
+      ["status", { seq: 2, revision: 0, phase: "generating", label: "Drafting answer" }],
+      ["token", { seq: 3, revision: 0, delta: "Unsupported draft" }],
+      // Same sequence is a replay and MUST be ignored.
+      ["token", { seq: 3, revision: 0, delta: " duplicate" }],
+      ["provisional", { seq: 4, revision: 0, answer: "Unsupported draft" }],
+      ["verification", {
+        seq: 5,
+        revision: 0,
+        phase: "verifying",
+        label: "Verifying answer",
+        completed: 0,
+        total: 1,
+      }],
+      ["verification", {
+        seq: 6,
+        revision: 0,
+        phase: "corrected",
+        label: "Verification corrected",
+        completed: 1,
+        total: 1,
+      }],
+      ["revision", {
+        seq: 7,
+        revision: 1,
+        answer: "Verified canonical answer",
+        status: "corrected",
+      }],
+      // A later frame carrying the same revision is stale and MUST be ignored.
+      ["revision", {
+        seq: 8,
+        revision: 1,
+        answer: "Stale replacement",
+        status: "corrected",
+      }],
+      ["done", {
+        seq: 9,
+        revision: 1,
+        answer: "Verified canonical answer",
+        model: "gpt-test",
+        latency_ms: 42,
+        verification: {
+          status: "corrected",
+          authority: "server_read_model",
+          checks_completed: 1,
+          checks_total: 1,
+          evidence_refs: ["incident:corr-1"],
+          reason_code: "grounded_rca",
+          claims: [{
+            claim_id: "c001",
+            kind: "id",
+            text: "corr-1",
+            span: { start: 0, end: 6 },
+            raw_value: "corr-1",
+            normalized_value: "corr-1",
+            unit: null,
+            anchors: ["correlation"],
+            status: "supported",
+            evidence_refs: ["incident:corr-1"],
+            reason_code: null,
+          }],
+          failed_claim_ids: [],
+          evidence_manifest: {
+            schema_version: 1,
+            manifest_id: "sha256:abc",
+            authority: "server_read_model",
+            route_id: "incidents",
+            captured_at: "2026-07-15T00:00:00Z",
+            complete: true,
+            source_entry_count: 1,
+            entries: [{
+              ref: "incident:corr-1",
+              path: "/incident/correlation_id",
+              field: "correlation_id",
+              kind: "id",
+              raw_value: "corr-1",
+              normalized_value: "corr-1",
+              anchors: ["correlation"],
+            }],
+          },
+        },
+      }],
+    ] as const;
+    const body = frames
+      .map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+      .join("");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 200 })));
+    const mod = await import("./backend");
+    mod.fallbackTypewriter.intervalMs = 0;
+
+    const deltas: string[] = [];
+    const progress: string[] = [];
+    const revisions: Array<{ answer: string; revision: number; status: string }> = [];
+    const callbackOrder: string[] = [];
+    const reply = await mod.askBackendStream("q", snap(), [], {
+      onToken: (delta) => {
+        deltas.push(delta);
+        callbackOrder.push("token");
+      },
+      onProgress: (item) => progress.push(item.phase),
+      onRevision: (answer, revision, status) => {
+        revisions.push({ answer, revision, status });
+        callbackOrder.push("revision");
+      },
+    });
+
+    expect(deltas.join("")).toBe("Unsupported draft");
+    expect(progress).toEqual([
+      "evidence_resolving",
+      "generating",
+      "verifying",
+      "corrected",
+    ]);
+    expect(revisions).toEqual([
+      { answer: "Verified canonical answer", revision: 1, status: "corrected" },
+    ]);
+    expect(callbackOrder.at(-1)).toBe("revision");
+    expect(callbackOrder.slice(0, -1).every((item) => item === "token")).toBe(true);
+    expect(reply.text).toBe("Verified canonical answer");
+    expect(reply.verification).toEqual({
+      status: "corrected",
+      authority: "server_read_model",
+      checks_completed: 1,
+      checks_total: 1,
+      evidence_refs: ["incident:corr-1"],
+      reason_code: "grounded_rca",
+      claims: [{
+        claim_id: "c001",
+        kind: "id",
+        text: "corr-1",
+        span: { start: 0, end: 6 },
+        raw_value: "corr-1",
+        normalized_value: "corr-1",
+        unit: null,
+        anchors: ["correlation"],
+        status: "supported",
+        evidence_refs: ["incident:corr-1"],
+        reason_code: null,
+      }],
+      failed_claim_ids: [],
+      evidence_manifest: {
+        schema_version: 1,
+        manifest_id: "sha256:abc",
+        authority: "server_read_model",
+        route_id: "incidents",
+        captured_at: "2026-07-15T00:00:00Z",
+        complete: true,
+        source_entry_count: 1,
+        entries: [{
+          ref: "incident:corr-1",
+          path: "/incident/correlation_id",
+          field: "correlation_id",
+          kind: "id",
+          raw_value: "corr-1",
+          normalized_value: "corr-1",
+          anchors: ["correlation"],
+        }],
+      },
+    });
+  });
+
+  test("downgrades malformed claim artifacts to unverified", async () => {
+    const body = [
+      'event: token\ndata: {"seq":1,"delta":"Draft 12"}\n\n',
+      'event: done\ndata: {"seq":2,"answer":"Draft 12","model":"gpt-test",' +
+        '"verification":{"status":"consistent","authority":"client_snapshot",' +
+        '"checks_completed":1,"checks_total":1,"evidence_refs":[],' +
+        '"reason_code":"screen_claims_supported","claims":"not-an-array",' +
+        '"failed_claim_ids":[]}}\n\n',
+    ].join("");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 200 })));
+    const mod = await import("./backend");
+    mod.fallbackTypewriter.intervalMs = 0;
+
+    const reply = await mod.askBackendStream("q", snap(), [], { onToken: () => undefined });
+
+    expect(reply.verification?.status).toBe("unverified");
+    expect(reply.verification?.reason_code).toBe("malformed_verification_artifact");
+  });
 });

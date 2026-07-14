@@ -48,7 +48,7 @@ from fdai.core.quality_gate.gate import (
     QualityDecision,
     QualityOutcome,
 )
-from fdai.shared.contracts.models import Event
+from fdai.shared.contracts.models import Event, Rule
 
 
 class T2Outcome(StrEnum):
@@ -82,11 +82,21 @@ class T2Decision:
         return self.outcome is T2Outcome.PROPOSED
 
 
+@dataclass(frozen=True, slots=True)
+class T2ProposalContext:
+    """Trusted, bounded input supplied to a T2 proposer."""
+
+    event: Event
+    target_resource_ref: str
+    target_resource_type: str
+    allowed_rules: tuple[Rule, ...]
+
+
 @runtime_checkable
 class T2Proposer(Protocol):
     """Produces a quality-gate candidate for a novel/ambiguous event."""
 
-    async def propose(self, *, event: Event) -> QualityCandidate | None:
+    async def propose(self, *, context: T2ProposalContext) -> QualityCandidate | None:
         """Return a candidate action, or ``None`` to abstain.
 
         A fork's real proposer MUST populate
@@ -129,14 +139,22 @@ class T2Tier:
         self._proposer = proposer
         self._quality_gate = quality_gate
 
-    async def evaluate(self, *, event: Event) -> T2Decision:
+    async def evaluate(self, *, context: T2ProposalContext) -> T2Decision:
         """Propose a candidate for ``event`` and gate it.
 
         Fail-closed: an abstaining proposer or any non-eligible gate outcome
         yields a non-executing decision. Only a gate ``ELIGIBLE`` verdict
         makes the candidate eligible for the risk-gate.
         """
-        candidate = await self._proposer.propose(event=event)
+        try:
+            candidate = await self._proposer.propose(context=context)
+        except Exception as exc:  # noqa: BLE001 - model/provider boundary
+            return T2Decision(
+                outcome=T2Outcome.ESCALATE,
+                candidate=None,
+                quality_decision=None,
+                reason=f"t2_proposer_error:{type(exc).__name__}",
+            )
         if candidate is None:
             return T2Decision(
                 outcome=T2Outcome.ABSTAIN,
@@ -144,7 +162,15 @@ class T2Tier:
                 quality_decision=None,
                 reason="t2_proposer_abstained",
             )
-        decision = await self._quality_gate.evaluate(candidate)
+        try:
+            decision = await self._quality_gate.evaluate(candidate)
+        except Exception as exc:  # noqa: BLE001 - gate dependency boundary
+            return T2Decision(
+                outcome=T2Outcome.ESCALATE,
+                candidate=candidate,
+                quality_decision=None,
+                reason=f"quality_gate_error:{type(exc).__name__}",
+            )
         outcome = _OUTCOME_MAP[decision.outcome]
         reason = (
             "quality_gate_eligible"
@@ -159,4 +185,11 @@ class T2Tier:
         )
 
 
-__all__ = ["QualityGateProtocol", "T2Decision", "T2Outcome", "T2Proposer", "T2Tier"]
+__all__ = [
+    "QualityGateProtocol",
+    "T2Decision",
+    "T2Outcome",
+    "T2ProposalContext",
+    "T2Proposer",
+    "T2Tier",
+]

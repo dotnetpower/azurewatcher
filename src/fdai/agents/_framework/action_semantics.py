@@ -76,6 +76,7 @@ _TERMINAL_OUTCOME: Final[dict[str, str]] = {
     "succeeded": "success",
     "failed": "failure",
     "rolled_back": "rollback",
+    "rollback_failed": "failure",
     "reverted": "rollback",
 }
 

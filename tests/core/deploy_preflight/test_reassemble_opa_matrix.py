@@ -13,10 +13,13 @@ Covers the taxonomy + convergence + safety rows from the issue:
 
 - ``policy_guardrail`` inline-disk deny -> ``disk_provisioning=attach_existing``.
 - ``supply_chain_egress`` docker.io deny -> ``registry_source=acr_mirror``.
+- ``supply_chain_egress`` pypi.org deny -> ``python_index_url=internal``.
 - ``policy_guardrail`` NSG-create deny -> ``nsg_provisioning=byo``.
+- ``dependency_ordering`` loose prerequisite -> ``dependency_ordering=strict``.
 - multi-toggle single pass (all-or-nothing, one proposal per toggle).
 - two-step convergence (toggle A reveals blocker B, then clear).
-- ``identity_rbac`` manual blocker with no toggle -> ``hil``.
+- ``identity_rbac`` / ``quota_capacity`` / ``secret_config`` manual blockers with
+  no toggle -> ``hil`` (never a false CLEARED).
 - non-convergence (a toggle that does not clear its finding) -> ``hil``.
 - regression (a toggle introduces more blockers) -> ``hil``.
 - idempotency: re-running the same scenario yields the same override map and
@@ -161,6 +164,38 @@ deny contains f if {
     f := {"id": "stair-3", "category": "policy_guardrail",
           "module": "compute", "var": "s3", "value": "on", "autofix": true}
 }
+
+# supply_chain_egress: pypi.org deny, cleared by python_index_url=internal.
+deny contains f if {
+    input.plan.pip_index == "pypi.org"
+    object.get(input.overrides, "python_index_url", "") != "internal"
+    f := {"id": "pypi-egress-deny", "category": "supply_chain_egress",
+          "module": "compute", "var": "python_index_url",
+          "value": "internal", "autofix": true}
+}
+
+# dependency_ordering: prerequisite-before-resource, cleared by strict ordering.
+deny contains f if {
+    input.plan.prereq_ordering == "loose"
+    object.get(input.overrides, "dependency_ordering", "") != "strict"
+    f := {"id": "prereq-order-deny", "category": "dependency_ordering",
+          "module": "compute", "var": "dependency_ordering",
+          "value": "strict", "autofix": true}
+}
+
+# quota_capacity: manual blocker with no autofix toggle -> hil.
+deny contains f if {
+    input.plan.over_quota == true
+    f := {"id": "quota-deny", "category": "quota_capacity",
+          "autofix": false, "manual": true}
+}
+
+# secret_config: manual blocker with no autofix toggle -> hil.
+deny contains f if {
+    input.plan.missing_secret == true
+    f := {"id": "secret-deny", "category": "secret_config",
+          "autofix": false, "manual": true}
+}
 """
 
 
@@ -282,6 +317,28 @@ async def test_nsg_create_autofix_clears(policy_file: Path) -> None:
     assert outcome.overrides == {"nsg_provisioning": "byo"}
 
 
+@pytest.mark.asyncio
+async def test_pypi_egress_autofix_clears(policy_file: Path) -> None:
+    # supply_chain_egress: pypi.org blocked -> internal python index toggle.
+    outcome, _ = await _run(policy_file, {"pip_index": "pypi.org"})
+    assert outcome.status is ReassemblyStatus.CLEARED
+    assert outcome.overrides == {"python_index_url": "internal"}
+    proposals = build_toggle_proposals(outcome, initiator_principal="huginn")
+    assert len(proposals) == 1
+    assert proposals[0].set_vars == {"python_index_url": "internal"}
+
+
+@pytest.mark.asyncio
+async def test_dependency_ordering_autofix_clears(policy_file: Path) -> None:
+    # dependency_ordering: loose prerequisite ordering -> strict ordering toggle.
+    outcome, _ = await _run(policy_file, {"prereq_ordering": "loose"})
+    assert outcome.status is ReassemblyStatus.CLEARED
+    assert outcome.overrides == {"dependency_ordering": "strict"}
+    proposals = build_toggle_proposals(outcome, initiator_principal="huginn")
+    assert len(proposals) == 1
+    assert proposals[0].set_vars == {"dependency_ordering": "strict"}
+
+
 # ---------------------------------------------------------------------------
 # Convergence / loop behaviour
 # ---------------------------------------------------------------------------
@@ -317,6 +374,26 @@ async def test_two_step_convergence(policy_file: Path) -> None:
 @pytest.mark.asyncio
 async def test_manual_blocker_escalates(policy_file: Path) -> None:
     outcome, _ = await _run(policy_file, {"needs_owner_rbac": True})
+    assert outcome.status is ReassemblyStatus.ESCALATED
+    assert outcome.reason is ReassemblyReason.MANUAL_BLOCKER
+    assert build_toggle_proposals(outcome, initiator_principal="huginn") == ()
+
+
+@pytest.mark.asyncio
+async def test_quota_capacity_has_no_toggle_escalates(policy_file: Path) -> None:
+    # quota_capacity has no autofix toggle today -> must route to hil, never a
+    # false CLEARED.
+    outcome, _ = await _run(policy_file, {"over_quota": True})
+    assert outcome.status is ReassemblyStatus.ESCALATED
+    assert outcome.reason is ReassemblyReason.MANUAL_BLOCKER
+    assert outcome.overrides == {}
+    assert build_toggle_proposals(outcome, initiator_principal="huginn") == ()
+
+
+@pytest.mark.asyncio
+async def test_secret_config_has_no_toggle_escalates(policy_file: Path) -> None:
+    # secret_config has no autofix toggle today -> must route to hil.
+    outcome, _ = await _run(policy_file, {"missing_secret": True})
     assert outcome.status is ReassemblyStatus.ESCALATED
     assert outcome.reason is ReassemblyReason.MANUAL_BLOCKER
     assert build_toggle_proposals(outcome, initiator_principal="huginn") == ()

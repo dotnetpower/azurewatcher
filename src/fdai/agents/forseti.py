@@ -51,6 +51,15 @@ _RISK_VERDICT: dict[str, str] = {
     "remediate.delete-storage": "deny",  # irreversible
 }
 
+_ROLLBACK_CONTRACT: dict[str, str] = {
+    "remediate.disable-public-access": "state_forward_only",
+    "remediate.enable-encryption": "state_forward_only",
+    "ops.restart-service": "state_forward_only",
+    "governance.notify-admin-privilege-violation": "state_forward_only",
+    "ops.failover-primary": "scripted",
+    "remediate.delete-storage": "pitr",
+}
+
 
 # ---------------------------------------------------------------------------
 # RBAC (wave 3 minimal model)
@@ -314,6 +323,7 @@ class Forseti(Agent):
             # rides along even on a deny verdict (harmless, and correct if a
             # fork's risk table routes the same action to hil instead).
             "quorum_required": quorum_for(action_type),
+            "rollback_contract": _ROLLBACK_CONTRACT.get(action_type, "state_forward_only"),
             # Propagate the operator initiator (None for rule-fired) so the
             # approver principal downstream can enforce no-self-approval.
             "initiator_principal": event.get("initiator_principal"),

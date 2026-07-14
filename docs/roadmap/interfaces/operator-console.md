@@ -151,7 +151,7 @@ tools are additive; they never override a rule or a policy.
 | `explain_verdict(event_id)` | Read the audit trail for one already-processed event; return the tier, decision, citing rule ids, verifier report, mode. | Reader | `StateStore.query_audit()` |
 | `explore_catalog(query)` | Search the shipped rule catalog / action-type catalog / ontology vocabulary by id, keyword, or resource_type. | Reader | Loaded catalogs (no I/O) |
 | `query_audit(filters)` | Structured audit query: by event id, actor, decision, mode, time window. Paginated. | Reader | `StateStore.query_audit()` |
-| `query_inventory(resource_type, filter)` | ARG-backed inventory query, CSP-neutral vocabulary in, CSP-neutral records out. Paginated. | Reader | `Inventory.list(...)` |
+| `query_inventory(resource_type, filter)` | ARG-backed inventory query, CSP-neutral vocabulary in, CSP-neutral records out. Optional `id_substring` / `resource_group` scoping; each record returns its property bag (name, location, tags). Paginated. | Reader | `Inventory.list(...)` |
 
 **Reader-floor tools are provably side-effect-free.** `describe_event`
 runs `EventIngest -> TrustRouter -> T0Engine` **in memory only**: it does
@@ -456,11 +456,20 @@ class ConversationSession:
   `sessionStorage` index over isolated transcript caches, so switching threads
   or reloading the tab restores completed turns without mixing agent-scoped
   and general conversations. Operators can search the loaded transcript and
-  move between matching turns. **Clear cache** and **Remove cached
+  move between matching turns. Default conversations are isolated by a
+  non-identifying user hash and normalized URL pathname; query-only filter
+  changes reuse the pathname session, while a different menu or analytical
+  detail URL starts or restores its own transcript. The default narrator is
+  **Bragi**, and both its reply header and conversation row use the Bragi agent
+  icon rather than the generic Deck label. **Clear cache** and **Remove cached
   conversation** delete browser copies only; they never delete audit history.
   This browser index is navigation state only; the append-only audit
   projection remains the memory of record and closing the tab clears the
-  cache.
+  cache. The open Command Deck remains open across route navigation and live
+  screen re-renders; only an explicit close action or `Escape` dismisses it.
+  L3 response language follows the current turn: a Korean prompt renders a
+  Korean answer even when the console display locale is English. Otherwise,
+  the operator's configured locale controls the answer language.
 - **Week 1**: `operator_memory` (already scaffolded by a parallel session
   under [`src/fdai/core/operator_memory/`](../../../src/fdai/core/operator_memory))
   becomes the store for **out-of-band operator preferences**: "this
@@ -890,6 +899,174 @@ answer "why did this happen" without a per-screen answerer:
 }
 ```
 
+#### 13.4.1 Cross-screen operational evidence
+
+`ViewSnapshot` is authoritative only for the rendered route. When a turn asks
+about a recent incident, issue, outage, failure, or root cause outside that
+screen, the read API invokes `OperationalEvidenceResolver` against the
+server-owned `ConsoleReadModel`; it never trusts operational evidence supplied
+by the browser. The resolver searches at most 12 recent incidents and at most
+100 correlated audit rows per candidate, then injects a compact
+`_operational_evidence` block into both `/chat` and `/chat/stream`.
+
+The block has fail-closed states: `matched`, `ambiguous`, `none`, or
+`unavailable`. `matched` includes the selected incident, bounded audit
+observations, response plan, and only RCA hypotheses that are grounded, carry
+a cause, and cite evidence. Bragi MUST NOT state an incident cause from an
+abstained or uncited hypothesis. `ambiguous` lists candidates and asks the
+operator to choose; `none` and `unavailable` explicitly prohibit guessing.
+The extra system directive is injected only when operational evidence is
+present, so ordinary screen questions retain the lean prompt budget.
+
+For other cross-screen questions, the web adapter uses this authority order:
+
+1. `OperationalEvidenceResolver` for incident and root-cause questions.
+2. Server-owned read-model tools for KPI, pending approval, audit, and incident
+  list questions.
+3. `PantheonChatDelegate` for agent-owned domains. Bragi routes to the primary
+  agent and calls at most three matching contributors with bounded timeouts.
+4. The canonical FDAI glossary for concept definitions. English concept turns
+  use a deterministic `concept-glossary` fast path; localized turns receive
+  the same selected entries as server-owned translation evidence.
+5. The browser `ViewSnapshot` for the current screen.
+
+The server removes any client-supplied `_operational_evidence`,
+`_tool_evidence`, or `_agent_evidence` before resolving the turn. The browser
+sends the authenticated bearer token on chat health, JSON, streaming, and
+action requests. A client session id is bounded and namespaced by the validated
+principal before Bragi stores it, so two users cannot share conversational
+state by choosing the same id. The JSON and streaming responses return bounded
+delegation metadata so the deck labels the reply with the actual primary agent.
+The terminal claim verifier includes tool, agent, and selected glossary
+evidence in its hashed manifest, so it does not compare a server-grounded
+answer against an unrelated empty screen.
+
+#### 13.4.2 Progressive answer verification
+
+The web deck MUST separate response latency from answer trust. It streams one
+assistant turn immediately as a **provisional** answer, then verifies it and
+updates that same turn rather than appending a contradictory second answer.
+The server owns the state machine and emits ordered SSE events:
+
+```text
+evidence_resolving -> generating -> provisional -> verifying
+  -> verified | consistent | corrected | unverified
+```
+
+- `verified` means the terminal answer was rendered from server-owned
+  operational evidence.
+- `consistent` means the answer was checked against the browser's current
+  screen snapshot but was not independently verified by a server projection.
+- `corrected` means the provisional model text was replaced by a deterministic
+  answer derived from the evidence result.
+- `unverified` means verification could not complete; it MUST NOT render the
+  same trust check used for `verified`.
+
+Every event carries a monotonic `seq`; answer-changing events also carry a
+monotonic `revision`. The client ignores stale revisions and events after the
+terminal event. A correction replaces the text for the existing turn id,
+preserving conversation order and accessibility focus. Only the terminal
+canonical revision is persisted or supplied as history to a later turn.
+
+The first shipped verifier uses no second model call. For cross-screen
+operational questions it deterministically renders the terminal answer from
+the typed evidence state (`matched`, `ambiguous`, `none`, or `unavailable`),
+so model prose cannot change the selected incident, search scope, RCA cause,
+or absence claim. `none`, `ambiguous`, `unavailable`, and `matched` without a
+grounded RCA take a deterministic fast path: the server streams the canonical
+answer immediately after evidence lookup and does not invoke a model. A
+`matched` result with grounded RCA MAY stream model prose provisionally, then
+replace it with the canonical verified cause when needed. Screen-only answers
+terminate as `consistent`. A later phase MAY add atomic claim generation and
+one bounded rewrite, but deterministic verification remains the authority and
+a failed rewrite ends in abstention.
+
+Latency targets are: first progress event within 100 ms of request admission,
+fast-path terminal answer within 500 ms p95 after evidence lookup completes,
+normal model TTFT within 2.5 s p95, first verification event within 100 ms of
+the provisional completion, and provisional-to-terminal verification within
+1 s p95. Progress reports completed checks, never a fabricated percentage.
+
+Screen-only provisional answers additionally produce an atomic claim artifact
+without a second model call. The deterministic extractor recognizes IDs,
+numbers, percentages, timestamps, causal assertions, and bounded-scope claims;
+each claim records its source span, normalized value, support state, and exact
+snapshot evidence references. An `evidence_manifest` records route, capture
+time, completeness, source paths, and a canonical content hash. It contains
+only entries used by claims, not a duplicate of the full snapshot.
+
+Every extracted claim MUST be supported by an unambiguous snapshot entry. If
+all claims pass, the answer remains `consistent` (never `verified`, because the
+browser snapshot is not an independent server projection). If no checkable
+claim exists, the answer remains `consistent` with an explicit
+`screen_no_checkable_claims` reason. Any unsupported or ambiguous claim,
+truncated snapshot, malformed artifact, or extraction overflow replaces the
+whole provisional answer with a localized abstention and terminates
+`unverified`; partial sentence deletion is prohibited. Final persistence and
+the grounding UI carry only the terminal claims and manifest.
+
+A frozen, customer-neutral claim corpus gates this deterministic surface in
+CI. The initial corpus covers supported and unsupported IDs, numbers,
+percentages, timestamps, causal assertions, bounded absence, ambiguity, and
+claim-free prose. Promotion requires both unsupported-claim escape rate and
+clean-answer rejection rate to remain exactly `0.0`; metric accounting is
+tested independently so an empty or inverted label set cannot pass silently.
+This gate does not claim semantic verification of qualitative prose: an answer
+with no extractable structured claim is labeled `consistent` with
+`screen_no_checkable_claims`, never `verified`. A measured semantic entailment
+leg and a larger labeled corpus remain required before claiming 9.5-level
+coverage across all natural-language claims.
+
+#### 13.4.3 Live observation contract
+
+The read-only SPA exposes **Now > Live** as the current-state entry point. It
+answers three bounded questions: whether observation is connected, which
+control-loop work needs attention now, and where the recorded evidence lives.
+It does not replace Incidents, Approvals, Audit, Trace, Agents, or Control
+Assurance.
+
+- **Queue is the default view.** It sorts failed work, work over its published
+  latency budget, pending approvals, denied work, active work, and recent
+  completions in that order. `correlation_id` is the investigation key.
+- **Flow is a secondary view.** The fixed-slot activity swarm visualizes
+  throughput and stage progression but does not determine priority.
+- **Stuck is authoritative.** A tile is marked stuck only when the stage stream
+  carries a positive `latency_budget_ms` and the observed age exceeds it. A
+  missing budget renders no stuck claim; the browser does not invent a
+  threshold.
+- **Mode is recorded, not inferred.** The control loop publishes the actual
+  `Action.mode` on stage frames. Reaching `execute` does not imply shadow mode.
+- **Terminal state is authoritative.** Per-finding gate frames may report
+  different decisions for one event. The terminal `audit.done` frame carries
+  the event-level outcome and decision, which replace any intermediate value.
+  The browser retains every observed ActionType and labels a multi-finding
+  event as a set of actions instead of presenting the last action as the whole
+  event.
+- **Replay is safe.** A repeated terminal frame updates the existing tile but
+  does not increment throughput, gate mix, tier mix, or recent outcomes again.
+- **Freeze affects presentation only.** The stream remains connected, received
+  frames are counted while the view is frozen, and History remains the record
+  of every terminal outcome.
+- **Retention is bounded.** Completed approval tiles stay visible longer than
+  ordinary outcomes, then leave the 60-slot presentation pool. The Approvals
+  route owns the complete queue, so old Live state cannot starve new events.
+  The selected tile stays pinned only while its detail drawer is open so an
+  operator's evidence does not disappear during inspection.
+- **Drill-down is explicit.** The detail drawer shows the observed stage trace,
+  agent ownership, mode, decision, and correlation key, then links to Trace,
+  Audit, and Architecture. It offers no execute or approval control.
+- **Drill-down is keyboard-contained.** The drawer is an accessible modal
+  dialog. Focus moves to its close control, Tab stays within the drawer,
+  Escape closes it, and focus returns to the row or tile that opened it.
+
+The Live header reports only facts available from the stream: connection
+state, last observed event age, configured environment posture, and frozen-vs-
+following presentation state. Canary health, kill-switch state, stream-drop
+counts, and measured guard metrics require server-owned read-model fields; the
+browser shows them as unavailable until that contract exists. CFR,
+false-positive rate, rollback rate, and policy-violation escapes belong in
+Control Assurance with their measurement window, baseline, and sample size.
+
 ### 13.5 Incident roster and remediation history
 
 The read-only SPA exposes a first-class **Now > Incidents** panel. It is the
@@ -941,6 +1118,46 @@ Contract rules (enforced by `console/src/routes/view-contract.test.ts`):
   same self-describing snapshot into its `console-tool` results is parallel
   follow-up work.
 
+#### 13.5.1 RCA view (root-cause analysis)
+
+The read-only SPA exposes a first-class **History > RCA** panel. Given an
+incident `correlation_id` (typically deep-linked from the Incidents roster,
+`#/rca?correlation=<id>`), it renders the tiered, grounded root-cause
+hypotheses the control loop already appends to the audit ledger, plus the
+linked response plan. It is the "why did this happen, and what was the plan"
+surface that pairs with the Incidents roster (13.5).
+
+The API contract is one GET route:
+
+| Route | Purpose |
+|-------|---------|
+| `GET /rca?correlation=<id>` | Return the per-incident RCA view for one correlation id. |
+
+The projection composes existing audit data; it introduces no new source of
+truth. The control loop writes each hypothesis as a shadow `rca.hypothesis`
+audit entry (see
+[observability-and-detection.md](../rules-and-detection/observability-and-detection.md)
+section 4). The panel reads the correlated audit rows and projects:
+
+- **Root-cause hypotheses**, newest first, each with its `RcaTier`
+  (`t0` direct / `t1` correlation / `t2` reasoning), confidence, cause text,
+  reason, shadow-vs-enforce mode, and grounded `citations`
+  (`rule` / `event` / `telemetry` / `incident` / `change` / `scenario` /
+  `knowledge`).
+- **Grounding state.** An ungrounded / abstained hypothesis
+  (`outcome == "abstained"`, `grounded == false`) is surfaced explicitly as
+  "insufficient grounding -> HIL", never as a confident cause.
+- **Response plan** composed from the same correlated audit stream: the
+  verdict (`auto` / `hil` / `deny` / `abstain`), the delivered action kind,
+  its mode, and the rollback reference.
+
+An RCA hypothesis answers "why", never "execute": execution eligibility stays
+with the risk gate + verifier. The route is Reader-gated, returns `405` for
+mutating verbs, and provides links into Audit and Trace but no execute /
+approve / rollback button. The projection is a pure function
+(`src/fdai/delivery/read_api/routes/rca_projection.py`) covered by
+`tests/delivery/read_api/test_rca.py`.
+
 ### 13.6 Action submit - `POST /chat/action` (propose, never execute)
 
 The read-only deck answers questions; this is the ONE write-direction path -
@@ -969,10 +1186,27 @@ Var approves a high-risk one, and only Thor executes (shadow-first).
   `403 {"submitted": false, "reason": "rbac_capability"}` before anything
   publishes. Forseti re-checks the initiator principal downstream (deny +
   `SecurityEvent`) - defense in depth.
-- **Translation**. `fdai.agents.bragi.translate_action_intent` maps the leading
-  command verb to an ActionType - the single source of truth shared with the
-  pantheon-internal path so the two never drift. An unmapped command returns
-  `200 {"submitted": false, "reason": "unmapped_action_intent"}`.
+- **Both entry gates agree on the capability, not a role rank**. The
+  conversational entry gate (`Bragi.submit_action_proposal`) maps the session's
+  Entra role to the SAME canonical capability matrix (`fdai.core.rbac.roles`)
+  and also requires `author-draft-pr`, so the HTTP and conversational surfaces
+  never diverge. In particular `BreakGlass` is hard-isolated (not a superset of
+  Owner) and does not carry `author-draft-pr`, so it cannot submit a normal
+  action from either surface.
+- **Refusals are observable**. Every pre-pipeline refusal (`invalid_principal` /
+  `rbac_capability` / `deny_override_forbidden`) is logged and offered to an
+  optional injected `RefusalObserver` (`ConsoleActionSubmitter.refusal_observer`)
+  so repeated refusals for one actor - a privilege-probing signal Forseti never
+  sees because the request never enters the pipeline - become detectable (audit
+  / metric / security event). Absent the seam, only a structured log line is
+  emitted.
+- **Translation**. `fdai.agents.bragi.translate_action_intent` first matches an
+  exact ActionType id or one unambiguous full suffix from the loaded ActionType
+  catalog (for example, `flush cache` -> `ops.flush-cache`), then uses the
+  conservative built-in verb fallback. Ambiguous and unmapped commands return
+  `200 {"submitted": false, "reason": "unmapped_action_intent"}` instead of
+  guessing. The function remains the single source of truth shared with the
+  pantheon-internal path.
 - **Deny-override block (Scenario B)**. When a `prior_outcome_lookup` seam is
   wired, the submitter checks the pipeline's last terminal conclusion for this
   exact `(initiator, resource, action_type)` before publishing. A prior **deny**

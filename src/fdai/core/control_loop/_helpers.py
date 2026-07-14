@@ -76,6 +76,7 @@ def _compute_authority(
     cost_override: float | None = None,
     system_degraded: bool = False,
     kill_switch_engaged: bool = False,
+    inventory_age_seconds: int | None = None,
 ) -> ExecutionAuthorityDecision:
     """Run the execution-authority pipeline for one action + event context.
 
@@ -162,6 +163,7 @@ def evaluate_unified(
     cost_override: float | None = None,
     system_degraded: bool = False,
     kill_switch_engaged: bool = False,
+    inventory_age_seconds: int | None = None,
 ) -> UnifiedRiskDecision:
     """Run the runtime-Action gate and the policy-ceiling authority and
     combine them into a single :class:`UnifiedRiskDecision` (canonical-level
@@ -173,7 +175,12 @@ def evaluate_unified(
     reads the static ``rule.remediation.cost_impact_monthly_usd`` as
     before.
     """
-    gate_decision = risk_gate.evaluate(action=action, rule=rule, action_type=action_type)
+    gate_decision = risk_gate.evaluate(
+        action=action,
+        rule=rule,
+        action_type=action_type,
+        inventory_age_seconds=inventory_age_seconds,
+    )
     authority = _compute_authority(
         event=event,
         rule=rule,
@@ -212,6 +219,7 @@ def build_unified_risk_audit(
     cost_override: float | None = None,
     system_degraded: bool = False,
     kill_switch_engaged: bool = False,
+    inventory_age_seconds: int | None = None,
 ) -> dict[str, Any]:
     """Build the ``risk_gate.unified`` audit entry combining gate + authority.
 
@@ -235,6 +243,7 @@ def build_unified_risk_audit(
         cost_override=cost_override,
         system_degraded=system_degraded,
         kill_switch_engaged=kill_switch_engaged,
+        inventory_age_seconds=inventory_age_seconds,
     )
     return _unified_audit_dict(event=event, action=action, unified=unified)
 

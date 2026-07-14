@@ -51,10 +51,8 @@ interface Props {
  * full pipeline trace.
  */
 function correlationFromHash(): string {
-  const hash = window.location.hash;
-  const q = hash.indexOf("?");
-  if (q < 0) return "";
-  const params = new URLSearchParams(hash.slice(q + 1));
+  const params = new URLSearchParams(window.location.search);
+  return params.get("correlation") || "";
   return params.get("correlation") ?? "";
 }
 
@@ -100,10 +98,12 @@ export function RuleTraceRoute({ client }: Props) {
       void fetchTrace(deepLinked);
     };
     sync();
-    window.addEventListener("hashchange", sync);
+    window.addEventListener("popstate", sync);
+    window.addEventListener("fdai:route-changed", sync);
     return () => {
       requestGeneration.current += 1;
-      window.removeEventListener("hashchange", sync);
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("fdai:route-changed", sync);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

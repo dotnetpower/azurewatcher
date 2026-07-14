@@ -1,0 +1,179 @@
+"""Postgres audit adapters for verified T1 pattern growth."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from collections.abc import AsyncIterator, Mapping, Sequence
+from datetime import datetime
+from typing import Any
+
+import psycopg
+from psycopg.rows import dict_row
+
+from fdai.core.measurement.pattern_growth import OutcomeRecord
+from fdai.core.tiers.t1_lightweight.tier import EmbeddingModel, LearnedAction
+from fdai.shared.providers.state_store import StateStore
+
+_WATERMARK_KEY = "measurement:pattern_growth:watermark"
+_OUTCOME_KIND = "measurement.action_outcome.v1"
+
+
+class PostgresVerifiedOutcomeSource:
+    """Yield only explicitly verified, provenance-complete outcome records."""
+
+    def __init__(
+        self,
+        *,
+        dsn: str,
+        state_store: StateStore,
+        statement_timeout_ms: int = 15_000,
+        connect_timeout_s: int = 10,
+    ) -> None:
+        if not dsn:
+            raise ValueError("dsn MUST be non-empty")
+        self._dsn = dsn
+        self._state_store = state_store
+        self._statement_timeout_ms = statement_timeout_ms
+        self._connect_timeout_s = connect_timeout_s
+
+    def outcomes(self) -> AsyncIterator[OutcomeRecord]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncIterator[OutcomeRecord]:
+        state = await self._state_store.read_state(_WATERMARK_KEY) or {}
+        after_seq = int(state.get("seq") or 0)
+        rows = await self._rows(after_seq)
+        high_water = after_seq
+        for row in rows:
+            high_water = max(high_water, int(row["seq"]))
+            entry = _mapping(row["entry"])
+            record = _outcome_record(entry)
+            if record is not None:
+                yield record
+        if high_water > after_seq:
+            await self._state_store.write_state(_WATERMARK_KEY, {"seq": high_water})
+
+    async def _rows(self, after_seq: int) -> list[Mapping[str, Any]]:
+        async with await psycopg.AsyncConnection.connect(
+            self._dsn,
+            row_factory=dict_row,
+            connect_timeout=self._connect_timeout_s,
+        ) as connection:
+            await connection.execute(
+                "SELECT set_config('statement_timeout', %s, true)",
+                (str(self._statement_timeout_ms),),
+            )
+            cursor = await connection.execute(
+                "SELECT seq, entry FROM audit_log WHERE seq > %s "
+                "AND action_kind = %s ORDER BY seq ASC LIMIT 1000",
+                (after_seq, _OUTCOME_KIND),
+            )
+            return list(await cursor.fetchall())
+
+
+class PostgresVerifiedPatternBuilder:
+    """Build a pattern only from the explicit verified-outcome audit contract."""
+
+    def __init__(
+        self,
+        *,
+        dsn: str,
+        embedding_model: EmbeddingModel,
+        statement_timeout_ms: int = 15_000,
+        connect_timeout_s: int = 10,
+    ) -> None:
+        self._dsn = dsn
+        self._embedding_model = embedding_model
+        self._statement_timeout_ms = statement_timeout_ms
+        self._connect_timeout_s = connect_timeout_s
+
+    async def build(self, record: OutcomeRecord) -> tuple[Sequence[float], LearnedAction] | None:
+        entry = await self._entry(record.action_id)
+        if entry is None:
+            return None
+        projection = entry.get("embedding_projection")
+        params = entry.get("params")
+        rule_id = entry.get("rule_id")
+        incident_id = entry.get("incident_id")
+        if (
+            not isinstance(projection, str)
+            or not projection
+            or not isinstance(params, Mapping)
+            or not isinstance(rule_id, str)
+            or not rule_id
+            or not isinstance(incident_id, str)
+            or not incident_id
+        ):
+            return None
+        vector = await self._embedding_model.embed(projection)
+        if len(vector) != 384:
+            raise ValueError(f"growth embedding dim MUST be 384; got {len(vector)}")
+        parameter_keys = ",".join(sorted(str(key) for key in params))
+        signature = hashlib.sha256(
+            f"{rule_id}:{record.action_type_id}:{parameter_keys}".encode()
+        ).hexdigest()
+        return (
+            vector,
+            LearnedAction(
+                signature=signature,
+                rule_id=rule_id,
+                action_type=record.action_type_id,
+                params=dict(params),
+                incident_id=incident_id,
+                success_rate=1.0,
+                reuse_count=1,
+            ),
+        )
+
+    async def _entry(self, action_id: str) -> Mapping[str, Any] | None:
+        async with await psycopg.AsyncConnection.connect(
+            self._dsn,
+            row_factory=dict_row,
+            connect_timeout=self._connect_timeout_s,
+        ) as connection:
+            await connection.execute(
+                "SELECT set_config('statement_timeout', %s, true)",
+                (str(self._statement_timeout_ms),),
+            )
+            cursor = await connection.execute(
+                "SELECT entry FROM audit_log WHERE action_kind = %s "
+                "AND entry->>'action_id' = %s ORDER BY seq DESC LIMIT 1",
+                (_OUTCOME_KIND, action_id),
+            )
+            row = await cursor.fetchone()
+        return _mapping(row["entry"]) if row is not None else None
+
+
+def _mapping(value: object) -> Mapping[str, Any]:
+    if isinstance(value, str):
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, dict) else {}
+    return value if isinstance(value, Mapping) else {}
+
+
+def _outcome_record(entry: Mapping[str, Any]) -> OutcomeRecord | None:
+    required = (
+        entry.get("action_id"),
+        entry.get("action_type_id"),
+        entry.get("observed_at"),
+    )
+    if not all(isinstance(value, str) and value for value in required):
+        return None
+    if entry.get("execution_mode") != "enforce" or entry.get("verification_passed") is not True:
+        return None
+    try:
+        observed_at = datetime.fromisoformat(str(entry["observed_at"]).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return OutcomeRecord(
+        action_id=str(entry["action_id"]),
+        action_type_id=str(entry["action_type_id"]),
+        observed_at=observed_at,
+        was_auto=entry.get("decision") == "auto",
+        was_verified=True,
+        was_rolled_back=entry.get("rollback_succeeded") is True,
+    )
+
+
+__all__ = ["PostgresVerifiedOutcomeSource", "PostgresVerifiedPatternBuilder"]

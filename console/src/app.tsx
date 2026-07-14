@@ -1,17 +1,23 @@
 import { useEffect, useState } from "preact/hooks";
-import { Suspense } from "preact/compat";
+import { lazy, Suspense } from "preact/compat";
 import { ReadApiClient } from "./api";
 import type { AuthContext } from "./auth";
 import { initAuth } from "./auth";
 import { loadConfig, type ConsoleConfig } from "./config";
 import { Shell } from "./components/shell";
 import { PanelErrorBoundary } from "./components/panel-error-boundary";
-import { CommandDeck } from "./deck/command-deck";
+import { setChatAuth } from "./deck/backend";
 import { ViewContextProvider } from "./deck/context";
 import { deckUserFromAuth, setDeckUser } from "./deck/deck-user";
 import { setWorkflowAuth } from "./workflow/validate";
 import { LoginRoute } from "./routes/login";
 import { DEFAULT_PANEL_ID, panelForId, resolvePanels } from "./panels";
+import {
+  currentRoute,
+  installNavigationListener,
+  migrateLegacyHash,
+  panelPath,
+} from "./router";
 
 interface AppState {
   readonly status: "loading" | "ready" | "error";
@@ -21,25 +27,38 @@ interface AppState {
   readonly error?: string;
 }
 
+const CommandDeck = lazy(async () => {
+  const module = await import("./deck/command-deck");
+  return { default: module.CommandDeck };
+});
+
 function currentPanelId(): string {
-  // Some hosting / port-forwarding layers URL-encode the ``/`` inside
-  // the hash (``#/live`` becomes ``#%2Flive``). Decode first so the
-  // hash router does not fall back to the default panel unexpectedly.
   if (typeof window === "undefined") return DEFAULT_PANEL_ID;
-  let hash = window.location.hash;
-  try {
-    hash = decodeURIComponent(hash);
-  } catch {
-    /* keep raw hash if it is not a valid URI component */
-  }
-  const cleaned = hash.replace(/^#\/?/, "").replace(/\?.*$/, "");
-  const known = resolvePanels().some((p) => p.id === cleaned);
-  return known ? cleaned : DEFAULT_PANEL_ID;
+  const route = currentRoute();
+  const known = resolvePanels().some((panel) => panel.id === route.panelId);
+  return known ? route.panelId : DEFAULT_PANEL_ID;
 }
 
 export function App() {
   const [state, setState] = useState<AppState>({ status: "loading" });
   const [panelId, setPanelId] = useState<string>(currentPanelId());
+  const [routeKey, setRouteKey] = useState(() =>
+    typeof window === "undefined" ? "/overview" : `${window.location.pathname}${window.location.search}`,
+  );
+
+  useEffect(() => {
+    migrateLegacyHash();
+    const route = currentRoute();
+    if (window.location.pathname === "/" || !resolvePanels().some((p) => p.id === route.panelId)) {
+      window.history.replaceState(null, "", panelPath(DEFAULT_PANEL_ID));
+    }
+    const syncRoute = () => {
+      setPanelId(currentPanelId());
+      setRouteKey(`${window.location.pathname}${window.location.search}`);
+    };
+    syncRoute();
+    return installNavigationListener(syncRoute);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +73,7 @@ export function App() {
         // Thread the operator's bearer token to the workflow-builder's
         // validate POST (the one non-GET, read-only call the console makes).
         setWorkflowAuth(auth);
+        setChatAuth(auth);
         if (!cancelled) {
           setState({ status: "ready", config, auth, client });
         }
@@ -68,13 +88,8 @@ export function App() {
     })();
     return () => {
       cancelled = true;
+      setChatAuth(null);
     };
-  }, []);
-
-  useEffect(() => {
-    const onHashChange = () => setPanelId(currentPanelId());
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   if (state.status === "loading") {
@@ -103,9 +118,9 @@ export function App() {
   const PanelComponent = panel.component;
 
   return (
-    <ViewContextProvider scopeKey={panel.id}>
+    <ViewContextProvider scopeKey={routeKey}>
       <Shell activePanelId={panel.id} auth={auth}>
-        <PanelErrorBoundary key={panel.id}>
+        <PanelErrorBoundary key={routeKey}>
           <Suspense fallback={<div class="state-block state-loading" role="status">Loading panel...</div>}>
             <PanelComponent client={client} />
           </Suspense>

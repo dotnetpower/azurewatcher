@@ -26,6 +26,37 @@ describe("detectActionIntent", () => {
     expect(detectActionIntent("   ")).toBe(false);
     expect(detectActionIntent("???")).toBe(false);
   });
+
+  // Parity with the server `_AMBIGUOUS_ACTION_VERBS` / `_QUESTION_MARKERS`
+  // guard (fdai.agents._framework.introspection.is_action_intent). Without
+  // this, the deck would misroute a question that leads with an ambiguous verb
+  // to POST /chat/action instead of the read-only narrator.
+  describe("ambiguous verbs are commands only when phrased imperatively", () => {
+    test("imperative ambiguous verb IS a command", () => {
+      expect(detectActionIntent("run the remediation")).toBe(true);
+      expect(detectActionIntent("start the service")).toBe(true);
+      expect(detectActionIntent("stop svc-1")).toBe(true);
+      expect(detectActionIntent("update the tls policy")).toBe(true);
+    });
+
+    test("ambiguous verb + question mark is NOT a command", () => {
+      expect(detectActionIntent("run status?")).toBe(false);
+      expect(detectActionIntent("start count?")).toBe(false);
+      expect(detectActionIntent("update history?")).toBe(false);
+      expect(detectActionIntent("set of rules?")).toBe(false);
+    });
+
+    test("ambiguous verb + interrogative marker (no '?') is NOT a command", () => {
+      expect(detectActionIntent("run status list")).toBe(false);
+      expect(detectActionIntent("start count show")).toBe(false);
+      expect(detectActionIntent("set which rules are active")).toBe(false);
+    });
+
+    test("non-ambiguous command verb ignores question markers", () => {
+      // `delete` is unambiguous: a trailing marker does not soften it.
+      expect(detectActionIntent("delete rg-x status")).toBe(true);
+    });
+  });
 });
 
 describe("leadingVerb", () => {

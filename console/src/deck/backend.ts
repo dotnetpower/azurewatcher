@@ -14,10 +14,25 @@
  */
 
 import { loadConfig } from "../config";
+import type { AuthContext } from "../auth";
 import { getLocale } from "../i18n";
 import { answer as deterministicAnswer, ROUTE_ACTION_HINTS, type Answer } from "./answerer";
 import type { ViewSnapshot } from "./context";
 import { getDeckUser } from "./deck-user";
+
+let chatAuth: AuthContext | null = null;
+
+export function setChatAuth(auth: AuthContext | null): void {
+  chatAuth = auth;
+}
+
+async function requestHeaders(contentType: boolean = false): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+  if (contentType) headers["content-type"] = "application/json";
+  const authorization = await chatAuth?.getAuthorizationHeader() ?? null;
+  if (authorization) headers.authorization = authorization;
+  return headers;
+}
 
 /** Build the `view_context` sent to the chat backend: the screen snapshot plus
  *  the signed-in operator's identity/roles (`_user`) so the narrator can answer
@@ -72,6 +87,81 @@ export interface BackendReply {
   readonly router?: RouterSnapshot;
 }
 
+export type AnswerVerificationStatus =
+  | "verified"
+  | "consistent"
+  | "corrected"
+  | "unverified";
+
+export type AtomicClaimStatus = "supported" | "unsupported" | "ambiguous";
+
+export interface AtomicAnswerClaim {
+  readonly claim_id: string;
+  readonly kind: "id" | "number" | "percentage" | "timestamp" | "causal" | "scope";
+  readonly text: string;
+  readonly span: { readonly start: number; readonly end: number };
+  readonly raw_value: string;
+  readonly normalized_value: string;
+  readonly unit: string | null;
+  readonly anchors: readonly string[];
+  readonly status: AtomicClaimStatus;
+  readonly evidence_refs: readonly string[];
+  readonly reason_code: string | null;
+}
+
+export interface EvidenceManifestEntry {
+  readonly ref: string;
+  readonly path: string;
+  readonly field: string;
+  readonly kind: string;
+  readonly raw_value: string;
+  readonly normalized_value: string;
+  readonly anchors: readonly string[];
+}
+
+export interface AnswerEvidenceManifest {
+  readonly schema_version: number;
+  readonly manifest_id: string;
+  readonly authority: string;
+  readonly route_id: string | null;
+  readonly captured_at: string | null;
+  readonly complete: boolean;
+  readonly source_entry_count: number;
+  readonly entries: readonly EvidenceManifestEntry[];
+}
+
+export interface AnswerVerification {
+  readonly status: AnswerVerificationStatus;
+  readonly authority: string;
+  readonly checks_completed: number;
+  readonly checks_total: number;
+  readonly evidence_refs: readonly string[];
+  readonly reason_code: string | null;
+  readonly claims?: readonly AtomicAnswerClaim[];
+  readonly evidence_manifest?: AnswerEvidenceManifest;
+  readonly failed_claim_ids?: readonly string[];
+}
+
+export interface DelegationMetadata {
+  readonly primary_agent: string;
+  readonly contributors: readonly string[];
+  readonly trace_ref?: string;
+}
+
+export interface VerificationProgress {
+  readonly phase: string;
+  readonly label: string;
+  readonly completed: number | null;
+  readonly total: number | null;
+}
+
+export type ProgressiveAnswer = Answer & {
+  readonly source: string;
+  readonly router?: RouterSnapshot;
+  readonly verification?: AnswerVerification;
+  readonly delegation?: DelegationMetadata;
+};
+
 /** Health-check descriptor returned by ``GET /chat/health``. */
 export interface BackendHealth {
   readonly available: boolean;
@@ -118,7 +208,11 @@ function toBackendHistory(history: readonly BackendTurn[]): BackendTurn[] {
 async function fetchBackendHealth(): Promise<BackendHealth> {
   let response: Response;
   try {
-    response = await fetch(healthUrl(), { method: "GET" });
+    response = await fetch(healthUrl(), {
+      method: "GET",
+      headers: await requestHeaders(),
+      credentials: "omit",
+    });
   } catch {
     return OFFLINE_HEALTH;
   }
@@ -180,17 +274,20 @@ export async function askBackend(
   prompt: string,
   snapshot: ViewSnapshot | null,
   history: readonly BackendTurn[],
-): Promise<Answer & { readonly source: string; readonly router?: RouterSnapshot }> {
+  sessionId?: string,
+): Promise<ProgressiveAnswer> {
   let response: Response;
   try {
     response = await fetch(chatUrl(), {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: await requestHeaders(true),
       body: JSON.stringify({
         prompt,
+        session_id: sessionId,
         view_context: viewContextWithUser(snapshot),
         history: toBackendHistory(history),
       }),
+      credentials: "omit",
     });
   } catch {
     const local = deterministicAnswer(prompt, snapshot);
@@ -227,10 +324,21 @@ export async function askBackend(
 
   const answerText = extractString(payload, "answer");
   const model = extractString(payload, "model") ?? "llm";
+  const explicitSource = extractString(payload, "source");
   const latencyMs = extractNumber(payload, "latency_ms");
+  const verification = parseAnswerVerification(
+    typeof payload === "object" && payload !== null
+      ? (payload as Record<string, unknown>).verification
+      : undefined,
+  );
   const router = parseRouter(
     typeof payload === "object" && payload !== null
       ? (payload as Record<string, unknown>).router
+      : undefined,
+  );
+  const delegation = parseDelegation(
+    typeof payload === "object" && payload !== null
+      ? (payload as Record<string, unknown>).delegation
       : undefined,
   );
   if (answerText === null) {
@@ -241,19 +349,25 @@ export async function askBackend(
   // field so the operator always sees the deployment that actually served
   // the turn (they can differ if the backend echoes a canonical name).
   const chosen = router?.chose ?? model;
-  const source =
+  const source = explicitSource ?? (
     latencyMs !== null && latencyMs >= 0
       ? `llm:${chosen} · ${latencyMs}ms`
-      : `llm:${chosen}`;
+      : `llm:${chosen}`
+  );
   const base = {
     text: answerText,
     // LLM replies do not carry structured citations; the deck grounds the
     // reply on the snapshot the model was given (see snapshotCitations).
-    citations: snapshotCitations(snapshot),
+    citations: citationsForVerification(snapshot, verification),
     followUps: [],
     source,
+    ...(verification ? { verification } : {}),
   };
-  return router ? { ...base, router } : base;
+  return {
+    ...base,
+    ...(router ? { router } : {}),
+    ...(delegation ? { delegation } : {}),
+  };
 }
 
 /** Synthesize the client-side "grounded on" citations from the snapshot -
@@ -282,12 +396,34 @@ function snapshotCitations(
   return cites;
 }
 
+function citationsForVerification(
+  snapshot: ViewSnapshot | null,
+  verification: AnswerVerification | undefined,
+): readonly { readonly label: string; readonly value?: string }[] {
+  if (verification && verification.evidence_refs.length > 0) {
+    return verification.evidence_refs.map((reference, index) => ({
+      label: `evidence.${index + 1}`,
+      value: reference,
+    }));
+  }
+  return snapshotCitations(snapshot);
+}
+
 /** Callbacks for :func:`askBackendStream`. */
 export interface StreamCallbacks {
   /** Fired for each streamed token delta (append to the live reply). */
   readonly onToken: (delta: string) => void;
+  /** Verification lifecycle updates for the same assistant turn. */
+  readonly onProgress?: (progress: VerificationProgress) => void;
+  /** Atomically replace provisional text with a newer verified revision. */
+  readonly onRevision?: (
+    answer: string,
+    revision: number,
+    status: AnswerVerificationStatus,
+  ) => void;
   /** Optional signal; abort to stop the stream and keep whatever streamed so far. */
   readonly signal?: AbortSignal;
+  readonly sessionId?: string;
 }
 
 /** Typewriter cadence for the deterministic fallback, in ms per chunk.
@@ -323,7 +459,7 @@ export async function askBackendStream(
   snapshot: ViewSnapshot | null,
   history: readonly BackendTurn[],
   cb: StreamCallbacks,
-): Promise<Answer & { readonly source: string; readonly router?: RouterSnapshot }> {
+): Promise<ProgressiveAnswer> {
   let emittedText = "";
   const emitToken = (delta: string): void => {
     emittedText += delta;
@@ -418,16 +554,20 @@ export async function askBackendStream(
   };
 
   let response: Response;
+  const requestId = newRequestId();
   try {
     response = await fetch(streamUrl(), {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: await requestHeaders(true),
       body: JSON.stringify({
+        request_id: requestId,
         prompt,
+        session_id: cb.sessionId,
         view_context: viewContextWithUser(snapshot),
         history: toBackendHistory(history),
       }),
       signal: cb.signal ?? null,
+      credentials: "omit",
     });
   } catch {
     if (cb.signal?.aborted) return stopped("");
@@ -454,6 +594,14 @@ export async function askBackendStream(
   let doneData: Record<string, unknown> | null = null;
   let errored = false;
   let interrupted = false;
+  let lastSequence = 0;
+  let lastRevision = 0;
+  let terminalSeen = false;
+  const pendingRevisions: Array<{
+    readonly answer: string;
+    readonly revision: number;
+    readonly status: AnswerVerificationStatus;
+  }> = [];
 
   const handleFrame = (frame: string): void => {
     let event = "message";
@@ -471,14 +619,44 @@ export async function askBackendStream(
     }
     const obj =
       typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
+    const sequence =
+      typeof obj.seq === "number" && Number.isInteger(obj.seq) ? obj.seq : null;
+    if (sequence !== null) {
+      if (sequence <= lastSequence) return;
+      lastSequence = sequence;
+    }
+    const revision =
+      typeof obj.revision === "number" && Number.isInteger(obj.revision)
+        ? obj.revision
+        : lastRevision;
     if (event === "token") {
       const delta = typeof obj.delta === "string" ? obj.delta : "";
       if (delta) {
         answerText += delta;
         enqueueDelta(delta);
       }
+    } else if (event === "status" || event === "verification") {
+      cb.onProgress?.({
+        phase: typeof obj.phase === "string" ? obj.phase : event,
+        label: typeof obj.label === "string" ? obj.label : "Checking answer",
+        completed:
+          typeof obj.completed === "number" && Number.isFinite(obj.completed)
+            ? obj.completed
+            : null,
+        total:
+          typeof obj.total === "number" && Number.isFinite(obj.total) ? obj.total : null,
+      });
+    } else if (event === "revision") {
+      const replacement = typeof obj.answer === "string" ? obj.answer : null;
+      const status = parseVerificationStatus(obj.status);
+      if (replacement !== null && status !== null && revision > lastRevision) {
+        lastRevision = revision;
+        answerText = replacement;
+        pendingRevisions.push({ answer: replacement, revision, status });
+      }
     } else if (event === "done") {
       doneData = obj;
+      terminalSeen = true;
     } else if (event === "error") {
       errored = true;
     }
@@ -518,7 +696,6 @@ export async function askBackendStream(
   if (cb.signal?.aborted) return stopped(emittedText);
 
   if (errored && answerText === "") return fallback("stream error");
-  if (answerText === "" && doneData === null) return fallback("empty stream");
   if (errored || interrupted) {
     const why = errored ? "stream error" : "stream interrupted";
     return {
@@ -527,6 +704,23 @@ export async function askBackendStream(
       followUps: [],
       source: `partial (${why})`,
     };
+  }
+  if (!terminalSeen && answerText !== "") {
+    return {
+      text: answerText,
+      citations: snapshotCitations(snapshot),
+      followUps: [],
+      source: "partial (missing terminal verification)",
+    };
+  }
+  if (answerText === "" && doneData === null) return fallback("empty stream");
+  const pendingRevision = pendingRevisions.at(-1);
+  if (pendingRevision !== undefined) {
+    cb.onRevision?.(
+      pendingRevision.answer,
+      pendingRevision.revision,
+      pendingRevision.status,
+    );
   }
 
   const done: Record<string, unknown> = doneData ?? {};
@@ -542,16 +736,190 @@ export async function askBackendStream(
       ? done.latency_ms
       : null;
   const router = parseRouter(done.router);
+  const verification = parseAnswerVerification(done.verification);
+  const delegation = parseDelegation(done.delegation);
   const chosen = router?.chose ?? model;
-  const source =
-    latencyMs !== null && latencyMs >= 0 ? `llm:${chosen} · ${latencyMs}ms` : `llm:${chosen}`;
+  const explicitSource = typeof done.source === "string" ? done.source : null;
+  const source = explicitSource ?? (
+    latencyMs !== null && latencyMs >= 0 ? `llm:${chosen} · ${latencyMs}ms` : `llm:${chosen}`
+  );
   const base: Answer & { readonly source: string } = {
     text: finalText,
-    citations: snapshotCitations(snapshot),
+    citations: citationsForVerification(snapshot, verification),
     followUps: [],
     source,
+    ...(verification ? { verification } : {}),
   };
-  return router ? { ...base, router } : base;
+  return {
+    ...base,
+    ...(router ? { router } : {}),
+    ...(delegation ? { delegation } : {}),
+  };
+}
+
+function parseDelegation(raw: unknown): DelegationMetadata | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const record = raw as Record<string, unknown>;
+  if (typeof record.primary_agent !== "string" || record.primary_agent.length === 0) {
+    return undefined;
+  }
+  const contributors = Array.isArray(record.contributors)
+    ? record.contributors.filter((item): item is string => typeof item === "string").slice(0, 8)
+    : [];
+  return {
+    primary_agent: record.primary_agent,
+    contributors,
+    ...(typeof record.trace_ref === "string" && record.trace_ref.length > 0
+      ? { trace_ref: record.trace_ref }
+      : {}),
+  };
+}
+
+function newRequestId(): string {
+  const cryptoLike = globalThis.crypto as { randomUUID?: () => string } | undefined;
+  return cryptoLike?.randomUUID?.() ?? `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function parseVerificationStatus(raw: unknown): AnswerVerificationStatus | null {
+  return raw === "verified" ||
+      raw === "consistent" ||
+      raw === "corrected" ||
+      raw === "unverified"
+    ? raw
+    : null;
+}
+
+function parseAnswerVerification(raw: unknown): AnswerVerification | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const record = raw as Record<string, unknown>;
+  const status = parseVerificationStatus(record.status);
+  if (status === null || typeof record.authority !== "string") return undefined;
+  const refs = Array.isArray(record.evidence_refs)
+    ? record.evidence_refs.filter((item): item is string => typeof item === "string")
+    : [];
+  const failedClaimIds = Array.isArray(record.failed_claim_ids)
+    ? record.failed_claim_ids.filter((item): item is string => typeof item === "string")
+    : [];
+  const claims = parseAtomicClaims(record.claims);
+  const manifest = parseEvidenceManifest(record.evidence_manifest);
+  const artifactPresent = record.claims !== undefined || record.evidence_manifest !== undefined;
+  const malformedArtifact = artifactPresent && (claims === null || manifest === null);
+  return {
+    status: malformedArtifact ? "unverified" : status,
+    authority: record.authority,
+    checks_completed:
+      typeof record.checks_completed === "number" ? record.checks_completed : 0,
+    checks_total: typeof record.checks_total === "number" ? record.checks_total : 0,
+    evidence_refs: refs,
+    reason_code: malformedArtifact
+      ? "malformed_verification_artifact"
+      : (typeof record.reason_code === "string" ? record.reason_code : null),
+    claims: claims ?? [],
+    ...(manifest ? { evidence_manifest: manifest } : {}),
+    failed_claim_ids: failedClaimIds,
+  };
+}
+
+function parseAtomicClaims(raw: unknown): AtomicAnswerClaim[] | null {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) return null;
+  const claims: AtomicAnswerClaim[] = [];
+  for (const item of raw) {
+    if (typeof item !== "object" || item === null) return null;
+    const claim = item as Record<string, unknown>;
+    const kind = claim.kind;
+    const status = claim.status;
+    const span = claim.span;
+    const spanRecord =
+      typeof span === "object" && span !== null
+        ? (span as Record<string, unknown>)
+        : null;
+    const start = spanRecord?.start;
+    const end = spanRecord?.end;
+    if (
+      typeof claim.claim_id !== "string" ||
+      !["id", "number", "percentage", "timestamp", "causal", "scope"].includes(
+        String(kind),
+      ) ||
+      typeof claim.text !== "string" ||
+      typeof start !== "number" ||
+      typeof end !== "number" ||
+      typeof claim.raw_value !== "string" ||
+      typeof claim.normalized_value !== "string" ||
+      (claim.unit !== null && typeof claim.unit !== "string") ||
+      !validStringArray(claim.anchors) ||
+      !["supported", "unsupported", "ambiguous"].includes(String(status)) ||
+      !validStringArray(claim.evidence_refs) ||
+      (claim.reason_code !== null && typeof claim.reason_code !== "string")
+    ) return null;
+    claims.push({
+      claim_id: claim.claim_id,
+      kind: kind as AtomicAnswerClaim["kind"],
+      text: claim.text,
+      span: { start, end },
+      raw_value: claim.raw_value,
+      normalized_value: claim.normalized_value,
+      unit: claim.unit as string | null,
+      anchors: claim.anchors as string[],
+      status: status as AtomicClaimStatus,
+      evidence_refs: claim.evidence_refs as string[],
+      reason_code: claim.reason_code as string | null,
+    });
+  }
+  return claims;
+}
+
+function parseEvidenceManifest(raw: unknown): AnswerEvidenceManifest | null | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "object" || raw === null) return null;
+  const manifest = raw as Record<string, unknown>;
+  if (!Array.isArray(manifest.entries)) return null;
+  const entries: EvidenceManifestEntry[] = [];
+  for (const item of manifest.entries) {
+    if (typeof item !== "object" || item === null) return null;
+    const entry = item as Record<string, unknown>;
+    if (
+      typeof entry.ref !== "string" ||
+      typeof entry.path !== "string" ||
+      typeof entry.field !== "string" ||
+      typeof entry.kind !== "string" ||
+      typeof entry.raw_value !== "string" ||
+      typeof entry.normalized_value !== "string" ||
+      !validStringArray(entry.anchors)
+    ) return null;
+    entries.push({
+      ref: entry.ref,
+      path: entry.path,
+      field: entry.field,
+      kind: entry.kind,
+      raw_value: entry.raw_value,
+      normalized_value: entry.normalized_value,
+      anchors: entry.anchors,
+    });
+  }
+  if (
+    typeof manifest.schema_version !== "number" ||
+    typeof manifest.manifest_id !== "string" ||
+    typeof manifest.authority !== "string" ||
+    (manifest.route_id !== null && typeof manifest.route_id !== "string") ||
+    (manifest.captured_at !== null && typeof manifest.captured_at !== "string") ||
+    typeof manifest.complete !== "boolean" ||
+    typeof manifest.source_entry_count !== "number"
+  ) return null;
+  return {
+    schema_version: manifest.schema_version,
+    manifest_id: manifest.manifest_id,
+    authority: manifest.authority,
+    route_id: manifest.route_id as string | null,
+    captured_at: manifest.captured_at as string | null,
+    complete: manifest.complete,
+    source_entry_count: manifest.source_entry_count,
+    entries,
+  };
+}
+
+function validStringArray(raw: unknown): raw is string[] {
+  return Array.isArray(raw) && raw.every((item) => typeof item === "string");
 }
 
 function extractString(payload: unknown, key: string): string | null {
@@ -622,8 +990,8 @@ export interface ActionSubmitResult {
   readonly actionType?: string;
   /** The correlation id to track the proposal (Trace panel / audit). */
   readonly correlationId?: string;
-  /** Why it was refused: `rbac_capability` | `unmapped_action_intent` |
-   *  `not_wired` | `error`. */
+  /** Why it was refused: `rbac_capability` | `deny_override_forbidden` |
+   *  `invalid_principal` | `unmapped_action_intent` | `not_wired` | `error`. */
   readonly reason?: string;
   /** The capability the operator was missing (for `rbac_capability`). */
   readonly requiredCapability?: string;
@@ -647,13 +1015,14 @@ export async function submitAction(
   try {
     response = await fetch(actionUrl(), {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: await requestHeaders(true),
       body: JSON.stringify({
         prompt,
         session_id: sessionId ?? undefined,
         idempotency_key: newIdempotencyKey(),
       }),
       signal: signal ?? null,
+      credentials: "omit",
     });
   } catch {
     return { submitted: false, status: 0, reason: "error" };
@@ -701,6 +1070,13 @@ export function renderActionResult(r: ActionSubmitResult): string {
         "Your role can't submit actions - that needs the Contributor capability " +
         `(${r.requiredCapability ?? "author-draft-pr"}). This console stays read-only for you.`
       );
+    case "deny_override_forbidden":
+      return (
+        "That exact action was already denied, and re-asking can't override a deny. " +
+        "If the situation changed, raise it with an approver instead of re-submitting."
+      );
+    case "invalid_principal":
+      return "I couldn't identify your account, so I did not submit that action. Try signing in again.";
     case "unmapped_action_intent":
       return "I recognised that as a command, but it maps to no known action yet, so I did not submit it.";
     case "not_wired":

@@ -1,8 +1,8 @@
 ---
 title: 구현 계획 (표준 세트)
 translation_of: implementation-plan.md
-translation_source_sha: 292215c11e2035765a4db92d556eeddd966c4151
-translation_revised: 2026-07-12
+translation_source_sha: 436a9a42ff33f7de92af17632f688ac9354ec96b
+translation_revised: 2026-07-15
 ---
 
 # 구현 계획 (표준 세트)
@@ -437,12 +437,19 @@ prompt-composition Wave 3 step B pipeline slice 3 잔재
   HMAC 검증). 읽기 API에서 유일하게 허용된 POST. **Shipped**:
   `delivery/read_api/hil_callback.py`가 POST 라우트의 유일한 카모-아웃이며,
   기본값은 OFF (opt-in은 `ReadApiConfig.hil_callback` + `hil_registry`).
-  `timestamp.body`에 대한 HMAC-SHA256, 재생 윈도우 설정 가능(기본 300s),
+  `timestamp.approval_id.body`에 대한 HMAC-SHA256, 재생 윈도우 설정 가능(기본 300s),
   바디 사이즈 측, no-self-approval 강제, 그리고 필수
   `X-FDAI-Signature` + `X-FDAI-Timestamp` 헤더 - Teams
   어댑터가 서명하는 것과 동일한 셔이프. 설정 누락 시 `build_app`에서
   fail-fast; `hil_callback`도 `hil_registry`도 없으면 4개 GET 라우트만
-  등록된다 (기존 읽기-전용 불변식 테스트 계속 통과).
+  등록됩니다(기존 읽기-전용 불변식 테스트 계속 통과). **Production round-trip
+  배포 완료**: core 가 전체 Action 과 pending projection 을 shared Postgres
+  `StateStore`에 park 합니다. `fdai-api`는 `PostgresHilApprovalRegistry`를 통해
+  decision 을 원자적으로 기록하고 receipt-only event 를 `aw.hil.decisions`에
+  publish 합니다. Core 는 별도 consumer group 으로 이 topic 을 소비한 후
+  `HilResumeCoordinator.resolve`를 호출합니다. Read API 는 executor identity 를
+  받지 않습니다. Broker delivery 실패는 durable decision receipt 를 보존하면서
+  재시도 가능한 HTTP 503을 반환합니다.
 - **W1.4** 알림 실패 시 fail-close하는 BreakGlass: 어떤 채널도 배송
   확인을 못하면 거부.
 - **W1.5** Prompt-composition Wave 3 step B pipeline slice 3

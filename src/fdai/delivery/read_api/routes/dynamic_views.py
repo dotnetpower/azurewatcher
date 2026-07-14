@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from starlette.requests import Request
-from starlette.routing import Route
+from starlette.routing import BaseRoute, Route
 
 from fdai.delivery.read_api.routes.process_views import (
     ProcessViewsConfig,
@@ -47,10 +47,12 @@ def build_dynamic_view_routes(
     return routes
 
 
-def validate_route_method_collisions(routes: list[Route]) -> None:
+def validate_route_method_collisions(routes: list[BaseRoute]) -> None:
     """Fail startup when two routes claim the same path and HTTP method."""
     claimed: dict[tuple[str, str], int] = {}
     for index, route in enumerate(routes):
+        if not isinstance(route, Route):
+            continue
         for method in route.methods or ():
             key = (route.path, method)
             if key in claimed:

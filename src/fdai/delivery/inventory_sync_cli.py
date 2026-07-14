@@ -13,6 +13,10 @@ from pathlib import Path
 import httpx
 import yaml
 
+from fdai.delivery.azure.activity_log import (
+    AzureActivityLogFactory,
+    AzureActivityLogFactoryConfig,
+)
 from fdai.delivery.azure.arg_query import AzureArgQueryFactory, AzureArgQueryFactoryConfig
 from fdai.delivery.azure.arm_inventory import (
     AzureArmInventoryFactory,
@@ -20,17 +24,21 @@ from fdai.delivery.azure.arm_inventory import (
 )
 from fdai.delivery.azure.inventory import AzureInventoryConfig, AzureResourceGraphInventory
 from fdai.delivery.azure.workload_identity import ManagedIdentityWorkloadIdentity
+from fdai.delivery.event_publisher import EventPublisherContext
+from fdai.delivery.inventory_delta import forward_inventory_delta
 from fdai.delivery.inventory_sync import InventorySyncCoordinator
+from fdai.delivery.persistence.postgres import PostgresStateStore, PostgresStateStoreConfig
 from fdai.delivery.persistence.postgres_inventory_snapshot import (
     PostgresInventorySnapshotStore,
     PostgresInventorySnapshotStoreConfig,
 )
 from fdai.rule_catalog.schema.resource_type import load_resource_type_registry_from_mapping
+from fdai.shared.config.loader import load_config_from_env
 from fdai.shared.providers.declarative_inventory import (
     DeclarativeInventory,
     DeclarativeInventoryConfig,
 )
-from fdai.shared.providers.inventory import Inventory
+from fdai.shared.providers.inventory import Inventory, LinkRecord, ResourceRecord
 from fdai.shared.providers.inventory_snapshot import (
     InventoryCoverageManifest,
     InventoryObservationKind,
@@ -188,6 +196,38 @@ async def run(config: InventoryJobConfig) -> str:
                 )
             )
         result = await InventorySyncCoordinator(store=store).run(sources)
+        app_config = load_config_from_env()
+        state_store = PostgresStateStore(config=PostgresStateStoreConfig(dsn=config.dsn))
+        async with EventPublisherContext(kafka=app_config.kafka) as event_bus:
+            for scope in config.scopes:
+                activity_fetch = AzureActivityLogFactory(
+                    identity=identity,
+                    resource_types=vocabulary,
+                    http_client=client,
+                    config=AzureActivityLogFactoryConfig(
+                        subscription_scope=scope,
+                        arg_endpoint=config.management_endpoint,
+                        audience=config.management_audience,
+                    ),
+                ).build_fetch_fn()
+
+                async def _unused_query(
+                    _resource_type: str,
+                ) -> tuple[tuple[ResourceRecord, ...], tuple[LinkRecord, ...]]:
+                    return (), ()
+
+                delta_inventory = AzureResourceGraphInventory(
+                    config=AzureInventoryConfig(resource_types=()),
+                    query=_unused_query,
+                    delta_fetch=activity_fetch,
+                )
+                await forward_inventory_delta(
+                    inventory=delta_inventory,
+                    state_store=state_store,
+                    event_bus=event_bus,
+                    topic=app_config.kafka.topic_events,
+                    scope=scope,
+                )
     return result.source
 
 

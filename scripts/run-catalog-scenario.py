@@ -74,9 +74,7 @@ def _substrate_context() -> dict[str, Any]:
     }
     missing = [env for env in required if not os.environ.get(env)]
     if missing:
-        raise SystemExit(
-            f"missing required env vars for --run / --run-all: {', '.join(missing)}"
-        )
+        raise SystemExit(f"missing required env vars for --run / --run-all: {', '.join(missing)}")
     ctx: dict[str, Any] = {name: os.environ[env] for env, name in required.items()}
     # Normalize the workload_label: BACKEND_LABEL is `app=api-backend`,
     # but the CRD body just needs the value on the right of `=`.
@@ -87,9 +85,7 @@ def _substrate_context() -> dict[str, Any]:
         f"/providers/Microsoft.Compute/virtualMachines/{ctx['vm_name']}"
     )
     ctx["backend_container"] = os.environ.get("FDAI_ENFORCE_BACKEND_CONTAINER", "web")
-    ctx["backend_restore_replicas"] = int(
-        os.environ.get("FDAI_ENFORCE_BACKEND_REPLICAS", "3")
-    )
+    ctx["backend_restore_replicas"] = int(os.environ.get("FDAI_ENFORCE_BACKEND_REPLICAS", "3"))
     ctx["backend_image"] = os.environ.get("FDAI_ENFORCE_BACKEND_IMAGE", "nginx")
     return ctx
 
@@ -296,11 +292,27 @@ def _write_summary(out_dir: Path, reports: list[dict[str, Any]]) -> None:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     grp = p.add_mutually_exclusive_group(required=True)
-    grp.add_argument("--list", action="store_true", help="Report executable coverage; no substrate needed.")
-    grp.add_argument("--dry-run", action="store_true", help="Build every executable pair with a synthetic context; no substrate needed.")
+    grp.add_argument(
+        "--list",
+        action="store_true",
+        help="Report executable coverage; no substrate needed.",
+    )
+    grp.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Build every executable pair with a synthetic context; no substrate needed.",
+    )
     grp.add_argument("--run", metavar="SCENARIO_ID", help="Enforce one scenario end-to-end.")
-    grp.add_argument("--run-all", action="store_true", help="Enforce every executable scenario end-to-end.")
-    p.add_argument("--limit", type=int, help="Cap on --run-all (executes the first N executable entries).")
+    grp.add_argument(
+        "--run-all",
+        action="store_true",
+        help="Enforce every executable scenario end-to-end.",
+    )
+    p.add_argument(
+        "--limit",
+        type=int,
+        help="Cap on --run-all (executes the first N executable entries).",
+    )
     args = p.parse_args(argv)
 
     factory = default_factory()

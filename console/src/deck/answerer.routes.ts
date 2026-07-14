@@ -36,10 +36,10 @@ export function answerLive(q: string, snapshot: ViewSnapshot): Answer {
     return {
       text:
         Number(attention) === 0
-          ? "No attention needed. Autonomy is holding: 0 HIL, 0 deny, 0 failed, 0 stuck."
-          : `${attention} items need attention: ${hil} HIL waiting, ${deny} denied, ${failed} failed, ${stuck} stuck (>20s without reaching audit).`,
+          ? "No attention needed. Autonomy is holding: 0 approvals, 0 deny, 0 failed, 0 stuck."
+          : `${attention} items need attention: ${hil} approvals waiting, ${deny} denied, ${failed} failed, ${stuck} stuck (>20s without reaching audit).`,
       citations: [
-        { label: "HIL", value: String(hil) },
+        { label: "Approvals", value: String(hil) },
         { label: "Deny", value: String(deny) },
         { label: "Failed", value: String(failed) },
         { label: "Stuck", value: String(stuck) },
@@ -202,10 +202,10 @@ export function answerDashboard(q: string, snapshot: ViewSnapshot): Answer {
       followUps: [],
     };
   }
-  if (/hil/.test(q)) {
+  if (/hil|approval/.test(q)) {
     return {
-      text: `${findFact(snapshot, "hil_pending")} HIL approval(s) pending on the current audit window.`,
-      citations: [{ label: "HIL pending", value: String(findFact(snapshot, "hil_pending")) }],
+      text: `${findFact(snapshot, "hil_pending")} approval(s) pending on the current audit window.`,
+      citations: [{ label: "Approvals pending", value: String(findFact(snapshot, "hil_pending")) }],
       followUps: [],
     };
   }
@@ -344,7 +344,7 @@ export function answerHil(q: string, snapshot: ViewSnapshot): Answer {
   const items = (snapshot.records?.items ?? []) as readonly Record<string, unknown>[];
   if (/how many|count|waiting|pending/.test(q)) {
     return {
-      text: `${items.length} HIL item(s) waiting for approval.`,
+      text: `${items.length} item(s) waiting for approval.`,
       citations: [{ label: "pending", value: String(items.length) }],
       followUps: items.length > 0 ? ["list all pending kinds"] : [],
     };
@@ -352,14 +352,14 @@ export function answerHil(q: string, snapshot: ViewSnapshot): Answer {
   if (/list|kinds?|show/.test(q)) {
     return {
       text: items.length === 0
-        ? "The HIL queue is empty."
+        ? "The approval queue is empty."
         : `Waiting kinds: ${items.map((i) => i.action_kind).join(", ")}.`,
       citations: items.map((i) => ({ label: String(i.action_kind), value: String(i.reason ?? "") })),
       followUps: [],
     };
   }
   return {
-    text: `HIL queue - ${snapshot.headline}.`,
+    text: `Approvals - ${snapshot.headline}.`,
     citations: snapshot.facts.slice(0, 6).map(factToCitation),
     followUps: defaultFollowUps(snapshot),
   };

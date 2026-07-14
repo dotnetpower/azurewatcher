@@ -15,6 +15,7 @@
  */
 
 import { useState } from "preact/hooks";
+import type { AnswerVerification, VerificationProgress } from "./backend";
 import { RichContent } from "./rich-content";
 import { relevantCitations, type Citation } from "./citations";
 
@@ -24,6 +25,8 @@ export function GroundedReply({
   citations,
   source,
   streaming,
+  verification,
+  verificationProgress,
   onRegenerate,
 }: {
   readonly turnId: string;
@@ -32,6 +35,8 @@ export function GroundedReply({
   readonly source: string | undefined;
   /** True while the answer is still streaming tokens in from the backend. */
   readonly streaming: boolean;
+  readonly verification: AnswerVerification | undefined;
+  readonly verificationProgress: VerificationProgress | undefined;
   /** Re-run the operator question that produced this reply, if known. */
   readonly onRegenerate?: () => void;
 }) {
@@ -58,6 +63,35 @@ export function GroundedReply({
         <RichContent text={text} streaming={streaming} />
       </div>
 
+      {verificationProgress && !verification ? (
+        <div class="deck-verification is-active" role="status" aria-live="polite">
+          <span class="deck-verification-spinner" aria-hidden="true" />
+          <span>{verificationProgress.label}</span>
+          {verificationProgress.total !== null && verificationProgress.completed !== null ? (
+            <span class="muted">
+              {verificationProgress.completed}/{verificationProgress.total}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {verification ? (
+        <div
+          class={`deck-verification is-${verification.status}`}
+          role="status"
+          aria-label={`Answer ${verification.status}`}
+        >
+          <span class="deck-verification-mark" aria-hidden="true">
+            {verification.status === "verified" || verification.status === "consistent"
+              ? "\u2713"
+              : verification.status === "corrected"
+                ? "\u21bb"
+                : "!"}
+          </span>
+          <span>{verificationLabel(verification)}</span>
+        </div>
+      ) : null}
+
       {!streaming && text.trim().length > 0 ? (
         <div class="deck-gr-tools">
           <button type="button" class="deck-gr-tool" onClick={copy} title="Copy reply">
@@ -81,7 +115,7 @@ export function GroundedReply({
         </div>
       ) : null}
 
-      {!streaming && cites.length > 0 ? (
+      {!streaming && cites.length > 0 && verification?.status !== "unverified" ? (
         <>
           <button
             type="button"
@@ -114,4 +148,24 @@ export function GroundedReply({
       ) : null}
     </div>
   );
+}
+
+function verificationLabel(verification: AnswerVerification): string {
+  const claims = verification.claims ?? [];
+  const supportedClaims = claims.filter((claim) => claim.status === "supported").length;
+  const claimSummary = claims.length > 0
+    ? ` (${supportedClaims}/${claims.length} claims supported)`
+    : "";
+  switch (verification.status) {
+    case "verified":
+      return `Verified against ${verification.evidence_refs.length} evidence reference(s)${claimSummary}`;
+    case "corrected":
+      return `Corrected after evidence verification${claimSummary}`;
+    case "consistent":
+      return claims.length > 0
+        ? `Consistent with the current screen${claimSummary}`
+        : "Consistent with the current screen (no structured claims)";
+    case "unverified":
+      return `Verification could not be completed${claimSummary}`;
+  }
 }

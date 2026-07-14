@@ -4,6 +4,7 @@ import { AsyncBoundary, EmptyState, PageHeader, StatusPill, type AsyncState } fr
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { currentRoute } from "../router";
 import { ProcessWidget, RenderedRegion } from "./process-view-renderer";
 import {
   decodeProcessList,
@@ -22,13 +23,17 @@ interface Props { readonly client: ReadApiClient }
 
 export function ProcessesRoute({ client }: Props) {
   const [listState, setListState] = useState<AsyncState<ProcessListResponse>>({ status: "loading" });
-  const [selectedId, setSelectedId] = useState<string | null>(() => processIdFromHash(window.location.hash));
+  const [selectedId, setSelectedId] = useState<string | null>(() => currentRoute().segments[0] ?? null);
   const [viewState, setViewState] = useState<AsyncState<RenderedProcessView>>({ status: "idle" });
 
   useEffect(() => {
-    const sync = () => setSelectedId(processIdFromHash(window.location.hash));
-    window.addEventListener("hashchange", sync);
-    return () => window.removeEventListener("hashchange", sync);
+    const sync = () => setSelectedId(currentRoute().segments[0] ?? null);
+    window.addEventListener("popstate", sync);
+    window.addEventListener("fdai:route-changed", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("fdai:route-changed", sync);
+    };
   }, []);
 
   useEffect(() => {
@@ -44,8 +49,8 @@ export function ProcessesRoute({ client }: Props) {
           return;
         }
         setListState({ status: "ready", data });
-        const defaultId = defaultProcessId(data.items, window.location.hash);
-        if (!processIdFromHash(window.location.hash) && defaultId) {
+        const defaultId = currentRoute().segments[0] ?? defaultProcessId(data.items, "");
+        if (!currentRoute().segments[0] && defaultId) {
           window.history.replaceState(window.history.state, "", processHref(defaultId));
           setSelectedId(defaultId);
         }

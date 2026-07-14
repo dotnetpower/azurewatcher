@@ -26,6 +26,7 @@ from .document_ingestion import (
 )
 from .event_bus import InMemoryEventBus
 from .hil_registry import InMemoryHilApprovalRegistry
+from .live_event_bus import LiveInMemoryEventBus
 from .ontology_instance import InMemoryOntologyInstanceStore
 from .process_runtime import InMemoryProcessRuntimeStore
 from .remediation_pr import RecordingRemediationPrPublisher
@@ -45,6 +46,7 @@ __all__ = [
     "InMemoryDocumentObjectStore",
     "InMemoryBreakGlassPager",
     "InMemoryEventBus",
+    "LiveInMemoryEventBus",
     "InMemoryHilApprovalRegistry",
     "InMemoryOntologyInstanceStore",
     "InMemoryProcessRuntimeStore",

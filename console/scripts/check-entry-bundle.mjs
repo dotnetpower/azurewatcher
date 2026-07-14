@@ -4,6 +4,7 @@ import { gzipSync } from "node:zlib";
 const RAW_LIMIT = 500_000;
 const GZIP_LIMIT = 150_000;
 const EXPECTED_LAZY_ROUTES = new Set([
+  "src/routes/dashboard.tsx",
   "src/routes/live.tsx",
   "src/routes/agents.tsx",
   "src/routes/hil-queue.tsx",

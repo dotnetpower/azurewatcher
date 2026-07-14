@@ -39,6 +39,12 @@ resource "azurerm_container_app_job" "baseline_regression" {
     identity_ids = [var.executor_identity_id]
   }
 
+  secret {
+    name                = "state-store-dsn"
+    identity            = var.executor_identity_id
+    key_vault_secret_id = var.state_store_dsn_secret_id
+  }
+
   schedule_trigger_config {
     // Daily at 02:00 UTC - off-peak for all supported regions; runs before
     // the 03:00 UTC rule-watcher so a fresh rule promotion still sees the
@@ -54,7 +60,7 @@ resource "azurerm_container_app_job" "baseline_regression" {
       image   = var.image
       cpu     = 0.5
       memory  = "1Gi"
-      command = ["python", "-m", "fdai.core.measurement.runners_cli"]
+      command = ["python", "-m", "fdai.delivery.measurement_runner_cli"]
       args    = ["baseline"]
 
       env {
@@ -64,6 +70,17 @@ resource "azurerm_container_app_job" "baseline_regression" {
       env {
         name  = "FDAI_MEASUREMENT_MODE"
         value = "baseline"
+      }
+      env {
+        name        = "FDAI_STATE_STORE_DSN"
+        secret_name = "state-store-dsn"
+      }
+      dynamic "env" {
+        for_each = var.environment
+        content {
+          name  = env.key
+          value = env.value
+        }
       }
     }
   }
@@ -87,6 +104,13 @@ resource "azurerm_container_app_job" "pattern_growth" {
     identity_ids = [var.executor_identity_id]
   }
 
+
+  secret {
+    name                = "state-store-dsn"
+    identity            = var.executor_identity_id
+    key_vault_secret_id = var.state_store_dsn_secret_id
+  }
+
   schedule_trigger_config {
     // Every 15 minutes - "continuous" in the phase-4 sense: the job wakes,
     // drains, and exits so an idle system scales to zero.
@@ -101,12 +125,23 @@ resource "azurerm_container_app_job" "pattern_growth" {
       image   = var.image
       cpu     = 0.25
       memory  = "0.5Gi"
-      command = ["python", "-m", "fdai.core.measurement.runners_cli"]
+      command = ["python", "-m", "fdai.delivery.measurement_runner_cli"]
       args    = ["growth"]
 
       env {
         name  = "FDAI_MEASUREMENT_MODE"
         value = "growth"
+      }
+      env {
+        name        = "FDAI_STATE_STORE_DSN"
+        secret_name = "state-store-dsn"
+      }
+      dynamic "env" {
+        for_each = var.environment
+        content {
+          name  = env.key
+          value = env.value
+        }
       }
     }
   }

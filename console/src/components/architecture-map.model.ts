@@ -1,3 +1,5 @@
+import { routeHref } from "../router";
+
 export interface InventoryResource {
   readonly id: string;
   readonly type: string;
@@ -352,23 +354,21 @@ export function geometryOf(resource: InventoryResource): ArchitectureNodeGeometr
 }
 
 export function architectureHref(resourceId?: string, viewId?: string | null): string {
-  const params = new URLSearchParams();
-  if (resourceId) params.set("resource", resourceId);
-  if (viewId) params.set("view", viewId);
-  const query = params.toString();
-  return query ? `#/architecture?${query}` : "#/architecture";
+  return routeHref("architecture", {
+    params: { resource: resourceId, view: viewId },
+  });
 }
 
-export function selectedResourceIdFromHash(hash: string): string | null {
-  const queryIndex = hash.indexOf("?");
-  if (queryIndex < 0) return null;
-  return new URLSearchParams(hash.slice(queryIndex + 1)).get("resource");
+export function selectedResourceIdFromHash(value: string): string | null {
+  const queryIndex = value.indexOf("?");
+  const search = queryIndex >= 0 ? value.slice(queryIndex + 1) : value.replace(/^\?/, "");
+  return new URLSearchParams(search).get("resource");
 }
 
-export function architectureViewFromHash(hash: string): string | null {
-  const queryIndex = hash.indexOf("?");
-  if (queryIndex < 0) return null;
-  return new URLSearchParams(hash.slice(queryIndex + 1)).get("view");
+export function architectureViewFromHash(value: string): string | null {
+  const queryIndex = value.indexOf("?");
+  const search = queryIndex >= 0 ? value.slice(queryIndex + 1) : value.replace(/^\?/, "");
+  return new URLSearchParams(search).get("view");
 }
 
 export function graphSubset(

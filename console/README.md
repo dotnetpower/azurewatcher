@@ -1,7 +1,7 @@
 # `console/`
 
 Thin, read-only operator SPA - KPI dashboard, incident roster, audit log
-viewer, per-agent activity timeline, HIL queue view. This is the layer-3 surface described in
+viewer, per-agent activity timeline, and Approvals view. This is the layer-3 surface described in
 [`.github/instructions/app-shape.instructions.md`](../.github/instructions/app-shape.instructions.md)
 § Operator console. The read-only invariant is a hard rule: the SPA MUST issue
 no privileged calls, MUST NOT expose an action / approval button, and MUST NOT
@@ -28,8 +28,8 @@ The SPA starts with six always-on GET routes on the read API
 | Route | Purpose |
 |-------|---------|
 | `GET /audit` | Paginated audit log rows (newest first), optionally filtered by `correlation_id`. |
-| `GET /kpi` | Dashboard KPIs (event count, shadow/enforce share, HIL pending, per-kind, per-outcome). |
-| `GET /hil-queue` | Pending HIL items (approvals happen through ChatOps, not here). |
+| `GET /kpi` | Dashboard KPIs (event count, shadow/enforce share, approvals pending, per-kind, per-outcome). |
+| `GET /hil-queue` | Pending approval items (approvals happen through ChatOps, not here). |
 | `GET /incidents` | Paginated incident roster with active/resolved/all filters. |
 | `GET /audit/{correlation_id}/trace` | Ordered end-to-end trace for one incident. |
 | `GET /healthz` | Read-API health status. |
@@ -67,9 +67,45 @@ ViewSpecs instead of computing workflow or ontology decisions in the browser.
 
 The Overview health axis fails closed: known guard failures show **Needs
 attention**, and missing promotion or autonomy evidence shows **Evidence
-unavailable** rather than healthy. The HIL queue joins its bounded latest-item
+unavailable** rather than healthy. The Approvals view joins its bounded latest-item
 projection with the authoritative `/kpi.hil_pending` total so a queue larger
 than the display cap is labeled as truncated instead of silently undercounted.
+
+Human-facing console copy uses **Approvals**, **Approval required**, and
+**Pending approval** instead of exposing the `HIL` acronym by default. The
+machine contract stays unchanged: the `hil` verdict, `/hil-queue` route,
+TypeScript types, events, and audit values retain their canonical identifiers.
+The technical glossary still explains HIL when an operator asks explicitly or
+inspects a raw verdict.
+
+The Overview presents evidence in operating-owner order: current posture and
+evidence quality, four measured outcome metrics, control assurance, required
+human attention, agent-organization outcomes, and vertical results. Synthetic
+measurements are labeled as simulated instead of proven. The fixed agent role
+chain explains separation of duties without claiming live handoff metrics that
+the read model doesn't provide. Audit-level distributions remain available in
+a collapsed evidence section instead of competing with the executive summary.
+
+Every Overview datum is a drill-down link. Four analytical hubs explain the
+aggregate rather than repeating it: `/operating-outcomes/<metric>`,
+`/control-assurance`, `/verticals/<vertical>`, and `/trust-routing/<tier>`.
+Existing evidence routes remain the terminal detail surfaces: `/approvals`,
+`/agents`, `/agent-activity`, `/rules`, `/promotion-gates`, `/audit`, and
+`/trace`. Query filters are shareable, for example `/audit?mode=shadow` and
+`/promotion-gates?status=blocked`.
+
+Drill-down routes are contextual destinations, not primary navigation items.
+The Overview rail group contains only Overview and opens it directly without a
+flyout. Operators reach outcomes, assurance, vertical, routing, and LLM-cost
+details from the data they are investigating; this avoids duplicating the
+Overview information hierarchy in the left rail.
+
+The SPA uses clean History API URLs. User-facing paths are lowercase
+`kebab-case` with no spaces or underscores; internal API routes and serialized
+values remain unchanged. The emitted `staticwebapp.config.json` rewrites
+non-asset application paths to `index.html` so direct links and browser refresh
+work on Azure Static Web Apps. Legacy `#/...` bookmarks migrate once to their
+clean equivalent.
 
 The Provisioning panel consumes `GET /provision/stream` with fetch-based SSE.
 It acquires the same MSAL bearer header as other read calls, aborts the stream
@@ -248,12 +284,16 @@ shareable and the browser back button closes the drawer.
 
 ## Command deck (conversational surface)
 
-The deck (`src/deck/`) is a screen-aware, read-only conversational surface: the
-narrator (Bragi) is a **translator, not a judge**, matching the
+The deck (`src/deck/`) is a screen-aware conversational surface: the narrator
+(Bragi) is a **translator, not a judge**, matching the
 narrator-is-a-translator contract in
 [`.github/instructions/architecture.instructions.md`](../.github/instructions/architecture.instructions.md).
-It answers questions grounded in only what is on screen (the published
-`ViewSnapshot`) and never issues a privileged call.
+It answers screen questions from the published `ViewSnapshot`, direct KPI /
+approval / audit / incident questions from server-owned read-model tools, and
+domain questions from the owning pantheon agent. Explicit multi-agent requests
+call a bounded set of contributors and aggregate their evidence. Every request
+uses the signed-in operator's bearer token and a stable, server-namespaced
+conversation session. The question path never issues a privileged call.
 
 ### Submitting an action (propose, never execute)
 
@@ -267,7 +307,11 @@ judges it and, for a high-risk action, an approver signs off** (execution is
 shadow-first, and RBAC is enforced server-side - a Reader gets `403`). The deck
 renders the outcome (submitted with a correlation id / refused by role /
 unmapped) and never holds any execution authority. See
-[operator-console.md § 13.5](../docs/roadmap/interfaces/operator-console.md).
+[operator-console.md § 13.6](../docs/roadmap/interfaces/operator-console.md#136-action-submit---post-chataction-propose-never-execute).
+The local development composition runs the same proposal through a persistent
+in-memory pantheon bus, so a submitted restart reaches Forseti and finishes as
+a Thor shadow action instead of stopping at HTTP acceptance. Production binds
+the same contracts to the configured event bus.
 
 ### Cross-screen open (Now > Agents incident thread)
 
@@ -467,7 +511,7 @@ Both halves ship a copy-paste reference that is **not** registered upstream
 in by registering both.
 
 Panels are read-only like the rest of the console: no action / approval button.
-Cost / change actions still flow through remediation PRs and ChatOps HIL.
+Cost / change actions still flow through remediation PRs and ChatOps approvals.
 
 ## Layout
 
@@ -486,13 +530,19 @@ console/
     ├── preferences.ts  - validated browser-local display preferences
     ├── types.ts        - TS mirrors of read_model.py shapes
     ├── panels.tsx      - panel registry (core panels + fork extension point)
+    ├── router.ts       - clean path mapping + History API navigation
     ├── styles.css      - minimal, no design-system dep
     ├── components/
     │   ├── left-rail.tsx - grouped flyouts + bottom global utilities
     │   ├── rail-icons.tsx - group and standalone navigation glyphs
     │   └── shell.tsx   - top bar + left rail shell
     └── routes/
-        ├── dashboard.tsx
+      ├── dashboard.tsx             - Overview data loading + composition
+      ├── dashboard.executive.tsx   - posture, outcomes, agent role chain
+      ├── dashboard.assurance.tsx   - guard evidence + required attention
+      ├── dashboard.signals.tsx     - vertical, tier, and rule signals
+      ├── analytics-data.ts         - shared read-only analytics loader
+      ├── analytics-hubs.tsx        - four Overview drill-down hubs
         ├── audit.tsx
         ├── hil-queue.tsx
         ├── processes.tsx        - Now > Processes dynamic ViewSpec renderer

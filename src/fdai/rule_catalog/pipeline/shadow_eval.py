@@ -249,6 +249,22 @@ class ShadowEvaluator:
                 reason=routing.reason,
             )
 
+        if routing.tier is RoutingTier.T1:
+            return ScenarioOutcome(
+                scenario_id=scenario_id,
+                expected_tier=expected_tier,
+                expected_decision=expected_decision,
+                actual_tier="t1",
+                actual_pipeline_stage=PipelineStage.ABSTAIN.value,
+                matched_rule_ids=(),
+                expected_rule_ids=expected_rule_ids,
+                expected_should_execute=bool(guard.get("should_execute", False)),
+                expected_should_trigger_policy_violation=bool(
+                    guard.get("should_trigger_policy_violation", False)
+                ),
+                reason=routing.reason,
+            )
+
         resource_type = routing.resource_type or "unknown"
         resource_id = _extract_resource_id(event, resource_type)
         verdict: Verdict = self._engine.evaluate(

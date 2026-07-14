@@ -1,44 +1,14 @@
-"""Control-loop orchestrator - wires the P1 pipeline end-to-end.
+"""Safety-critical control-loop orchestration.
 
-Composes the five P1 subsystems currently implemented:
-
-.. code-block:: text
-
-    event_ingest ──► trust_router ──► T0Engine ──► ActionBuilder ──► ShadowExecutor
-                                       │
-                                       └──► abstain-audit (fallback)
-
-No T1 / T2 tier is invoked; those land in later phases behind their own
-DI seams. The unified risk-gate pipeline
-(:func:`fdai.core.risk_gate.authority.evaluate_execution_authority`)
-is invoked **shadow-parallel** when a risk table is injected: it records
-one ``risk_gate.shadow_authority`` audit entry per executed action
-(judge-and-log only) and never changes the executor path. The
-orchestrator lives in ``core/`` because it is
-the safety-critical assembly point - every failure MUST audit, and
-shadow-mode invariants hold for every path.
-
-Contract (P1)
--------------
-
-Every :meth:`ControlLoop.process` call:
-
-- **Ingests** the event through :class:`EventIngest` (dedupe by
-  ``idempotency_key``). A duplicate returns a
-  :attr:`ControlLoopOutcome.DEDUPED` result and NO audit entry (the
-  earlier delivery already wrote one).
-- **Routes** through :class:`TrustRouter`. A non-T0 tier writes an
-  ``abstain`` audit and returns :attr:`ControlLoopOutcome.ABSTAINED_ROUTING`.
-- **Evaluates** T0. A no-match verdict writes an ``abstain`` audit and
-  returns :attr:`ControlLoopOutcome.ABSTAINED_T0`.
-- **Builds and executes** one :class:`Action` per finding. Each
-  execution writes its own audit entry via the :class:`ShadowExecutor`.
+Events flow through ingest, trust routing, T0/T1/T2 evaluation, the
+quality and risk gates, HIL parking, execution, and append-only audit.
+Optional seams fail closed and preserve shadow-mode invariants.
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -68,6 +38,7 @@ from fdai.core.executor.tool_call import (
 from fdai.core.hil_resume import HilResumeCoordinator
 from fdai.core.notifications.renderer import default_catalog
 from fdai.core.notifications.router import NotificationRouter
+from fdai.core.quality_gate import quality_decision_audit_fields
 from fdai.core.rca import (
     Citation,
     CitationKind,
@@ -79,13 +50,25 @@ from fdai.core.risk_gate.gate import RiskGate
 from fdai.core.risk_gate.risk_table import RiskTable
 from fdai.core.tiers.t0_deterministic import T0Engine
 from fdai.core.tiers.t1_lightweight.tier import T1Decision, T1Outcome, T1Tier
-from fdai.core.tiers.t2_reasoning import T2Decision, T2Outcome, T2Tier
+from fdai.core.tiers.t2_reasoning import (
+    T2Decision,
+    T2Outcome,
+    T2ProposalContext,
+    T2Tier,
+)
 from fdai.core.trust_router import RoutingDecision, RoutingTier, TrustRouter
 from fdai.core.verticals.change_safety.detector import (
     ChangeSafetyDecision,
     ChangeSafetyDetector,
 )
 from fdai.core.workflow.coordinator import WorkflowTriggerCoordinator
+from fdai.rule_catalog.schema.assignment import (
+    Assignment,
+    AssignmentResolution,
+    resolve_assignments,
+)
+from fdai.rule_catalog.schema.effect import Effect, Enforcement
+from fdai.rule_catalog.schema.scope import ResourceContext
 from fdai.shared.contracts.models import (
     Action,
     Event,
@@ -126,83 +109,24 @@ class ControlLoopOutcome(StrEnum):
     """Top-level outcome for one :meth:`ControlLoop.process` call."""
 
     DEDUPED = "deduped"
-    """Duplicate delivery - no audit written (previous delivery owns it)."""
-
     ABSTAINED_ROUTING = "abstained_routing"
-    """Trust-router found no candidate rule; no T0 evaluation."""
-
     ABSTAINED_T0 = "abstained_t0"
-    """T0 evaluated candidates and produced no findings."""
-
     EXECUTED = "executed"
-    """One or more actions were built + executed (shadow PRs opened)."""
-
     ABSTAINED_ACTION_BUILD = "abstained_action_build"
-    """A finding's ActionType could not be resolved; the loop fails
-    closed instead of publishing an invalid Action."""
-
+    GOVERNANCE_OBSERVED = "governance_observed"
     HIL = "hil"
-    """The unified risk gate routed one or more actions to human-in-the-
-    loop. No shadow PR is published for those actions; they await
-    approval. Only reachable when a RiskGate is wired in."""
-
     DENIED = "denied"
-    """The unified risk gate denied one or more actions. No execution,
-    no PR. Only reachable when a RiskGate is wired in."""
-
     T1_REUSE_LOGGED = "t1_reuse_logged"
-    """T0 abstained; T1 similarity tier proposed a learned-action
-    reuse. Shadow-only in P1: the reuse is recorded in the audit trail
-    (with the similarity score + neighbour rule) but does NOT execute -
-    the ``requires_reverification=True`` invariant on
-    :class:`T1Decision` still forces a verifier + risk-gate pass
-    before any reuse can drive execution (P2 backlog). Only reachable
-    when ``t1_engine`` is wired in."""
-
     T1_ABSTAINED = "t1_abstained"
-    """T0 abstained and T1 also abstained (no neighbour, or the best
-    neighbour fell below the similarity / success-rate threshold).
-    Only reachable when ``t1_engine`` is wired in - otherwise the
-    caller sees :attr:`ABSTAINED_T0` and ``t1_decision`` is ``None``."""
-
     T2_PROPOSED_LOGGED = "t2_proposed_logged"
-    """T0 (and T1, if wired) abstained; the T2 tier proposed a candidate
-    that cleared the quality gate (mixed-model cross-check + verifier +
-    grounding). Shadow-only in this wiring: the eligible candidate is
-    recorded on the audit trail but does NOT execute - building an
-    :class:`Action` from the candidate and routing it through the
-    risk-gate is a separate step (P2/P3 backlog), mirroring the
-    shadow-only :attr:`T1_REUSE_LOGGED`. Only reachable when ``t2_engine``
-    is wired in."""
-
     T2_ESCALATED = "t2_escalated"
-    """The T2 quality gate abstained or the mixed-model cross-check
-    disagreed; the case escalates to HIL. Logged only in this wiring.
-    Only reachable when ``t2_engine`` is wired in."""
-
     T2_DENIED = "t2_denied"
-    """The T2 quality gate's verifier explicitly rejected the candidate;
-    no execution. Only reachable when ``t2_engine`` is wired in."""
-
     T2_ABSTAINED = "t2_abstained"
-    """The T2 proposer produced no candidate (nothing to gate). Only
-    reachable when ``t2_engine`` is wired in."""
 
 
 @dataclass(frozen=True, slots=True)
 class ControlLoopResult:
-    """Aggregate result for one event.
-
-    ``decision`` follows the audit vocabulary defined in
-    ``docs/roadmap/architecture/llm-strategy.md``:
-
-    - ``auto`` - T0 matched and an action was executed (shadow PR opened).
-    - ``abstain`` - routing or T0 abstained.
-    - ``dedupe`` - duplicate delivery.
-
-    ``hil`` and ``deny`` are Phase 2 risk-gate outputs and are not
-    produced by the P1 loop.
-    """
+    """Aggregate typed result for one event."""
 
     outcome: ControlLoopOutcome
     tier: str
@@ -215,22 +139,8 @@ class ControlLoopResult:
     reason: str | None = None
     event_id: str | None = None
     change_safety_decision: ChangeSafetyDecision | None = None
-    """When the event was routed through the out-of-band detector, the
-    detector's classification is surfaced here so a monitor / test can
-    assert on it without inspecting the audit log."""
-
     t1_decision: T1Decision | None = None
-    """When ``t1_engine`` was wired AND T0 abstained, the T1 tier is
-    consulted and its decision (``REUSED`` or ``ABSTAIN``) is surfaced
-    here so tests and observability can assert on the similarity
-    outcome without walking the audit chain. ``None`` means the T1
-    engine was not consulted for this event."""
-
     t2_decision: T2Decision | None = None
-    """When ``t2_engine`` was wired AND T0 (and T1, if wired) abstained,
-    the T2 tier is consulted and its decision (``PROPOSED`` / ``ESCALATE``
-    / ``DENIED`` / ``ABSTAIN``) is surfaced here. ``None`` means the T2
-    engine was not consulted for this event."""
 
 
 _T2_OUTCOME_MAP: Mapping[T2Outcome, ControlLoopOutcome] = {
@@ -274,6 +184,9 @@ class ControlLoop:
         workflow_coordinator: WorkflowTriggerCoordinator | None = None,
         degradation: DegradationController | None = None,
         kill_switch: KillSwitch | None = None,
+        governance_assignments: Iterable[Assignment] = (),
+        inventory_age_provider: Callable[[str], Awaitable[int | None]] | None = None,
+        promotion_state_refresher: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         self._event_ingest = event_ingest
         self._trust_router = trust_router
@@ -283,131 +196,31 @@ class ControlLoop:
         self._audit_store = audit_store
         self._rules_by_id = dict(rules_by_id)
         self._change_safety_detector = change_safety_detector
-        # Optional Axis-A table + ActionType map. When both are supplied the
-        # loop records a shadow-parallel execution-authority decision on the
-        # audit log for every executed action (judge-and-log only; it never
-        # changes the executor path). Absent -> the loop behaves exactly as
-        # before (regression-free). When ``risk_gate`` is ALSO supplied, the
-        # record is the unified gate x authority decision (evaluator.combine).
         self._risk_table = risk_table
         self._action_types_by_name = (
             dict(action_types_by_name) if action_types_by_name is not None else {}
         )
         self._risk_gate = risk_gate
-        # System-level degradation seam (B1). When wired, a tripped
-        # critical-dependency circuit caps every authority decision to
-        # shadow (csp-neutrality.md 4). None -> always healthy (no-op),
-        # so an unwired loop behaves exactly as before.
         self._degradation = degradation
-        # Operator emergency-stop seam (B2). When wired and engaged, the
-        # global kill-switch caps every authority decision to shadow so all
-        # auto-execution halts (security-and-identity.md). None -> never
-        # engaged (no-op), so an unwired loop behaves exactly as before.
         self._kill_switch = kill_switch
-        # Optional Cost Governance vertical hook (Wave W2.5). Consulted
-        # ONLY when the rule declares no static cost, so it never
-        # overrides an authoritative rule figure; a None estimator
-        # keeps the loop backward-compatible.
+        self._governance_assignments = tuple(governance_assignments)
+        self._inventory_age_provider = inventory_age_provider
+        self._promotion_state_refresher = promotion_state_refresher
         self._cost_estimator = cost_estimator
-        # Optional direct-API executor sibling (Wave W2.3 composition
-        # wire). When wired, actions whose ActionType declares
-        # ``execution_path == direct_api`` route to this executor
-        # instead of the PR-native ShadowExecutor. Absent -> the loop
-        # dispatches every action through ``self._executor`` exactly
-        # as before, so composing without a direct-API adapter is a
-        # supported (and default) configuration.
         self._direct_api_executor = direct_api_executor
-        # Optional tool-call executor sibling (tool_call execution path).
-        # When wired, actions whose ActionType declares
-        # ``execution_path == tool_call`` route to this executor - it
-        # invokes a registered function (generate a PDF, send a
-        # notification, ...) rather than opening a PR or mutating a
-        # substrate. Absent -> such actions fall through to the
-        # PR-native path, so composing without a tool adapter is a
-        # supported (and default) configuration.
         self._tool_executor = tool_executor
-        # Optional T1 similarity tier (scope-expansion.md § 3.7). When
-        # wired, T0 abstains fall through to T1 for a similarity /
-        # learned-action reuse *log* (shadow-only in P1 - the
-        # ``requires_reverification=True`` invariant on
-        # :class:`T1Decision` forces a verifier + risk-gate pass
-        # before any reuse can drive execution, wired in P2). Absent
-        # keeps the loop backward-compatible: T0 abstain returns
-        # :attr:`ABSTAINED_T0` and ``t1_decision`` is ``None``.
         self._t1_engine = t1_engine
-        # Optional T2 reasoning tier (scope-expansion.md § 3.7). When
-        # wired, an event that T0 (and T1, if wired) abstained on falls
-        # through to T2: the injected T2Proposer proposes a candidate and
-        # the existing QualityGate (mixed-model cross-check + verifier +
-        # grounding) judges it. Shadow-only in this wiring - every T2
-        # verdict is audited but nothing executes (building an Action
-        # from the eligible candidate + routing it through the risk-gate
-        # is a separate P2/P3 step, mirroring the shadow-only T1 reuse).
-        # Absent keeps the loop backward-compatible.
         self._t2_engine = t2_engine
-        # emits one :class:`StageEvent` at every observable stage
-        # transition (``ingest``, ``route``, ``verify``, ``gate``,
-        # ``execute``, ``audit``). The default
-        # :class:`NullStagePublisher` discards - preserving the
-        # backward-compatible no-observation behaviour. A composition
-        # root that wants live observability binds
-        # :class:`~fdai.shared.streaming.stage_publisher.SseSinkStagePublisher`
-        # (in-process) or
-        # :class:`~fdai.shared.streaming.stage_publisher.EventBusStagePublisher`
-        # (multi-replica via Kafka + broadcaster).
         self._stage_publisher: StagePublisher = stage_publisher or NullStagePublisher()
-        # Optional A2 operational-alert push (Notify-on-decision). When
-        # wired, the loop dispatches one outbound, informational alert
-        # per terminal decision (executed / hil / denied) through the
-        # notification router. Absent -> no push (backward-compatible).
-        # Push is best-effort: a delivery failure NEVER invalidates the
-        # already-audited control decision (the router itself fails
-        # toward safety by escalating to its HIL sink).
         self._notification_router = notification_router
-        # Optional HIL approval round-trip coordinator (Notify-on-decision
-        # step B). When wired, an action the risk gate routes to HIL is
-        # parked and an A1 approval card is dispatched instead of the
-        # decision ending at a bare audit row. Absent -> the loop records
-        # the HIL decision and stops there (backward-compatible; the
-        # action simply awaits a pull-side approve_hil). Parking is
-        # best-effort at the loop boundary: a park/push failure is logged
-        # and never turns a HIL verdict into an execution.
         self._hil_resume_coordinator = hil_resume_coordinator
-        # Optional RCA coordinator (observability-and-detection.md 4).
-        # When wired, each T0 finding gets a deterministic root-cause
-        # hypothesis appended to the audit trail (the "why" behind the
-        # decision). It never changes the executor path - RCA answers
-        # "why", the risk gate answers "execute". Absent -> no RCA audit
-        # (backward-compatible). Best-effort: an RCA failure never blocks
-        # the control decision.
         self._rca_coordinator = rca_coordinator
-        # Optional event correlator (observability-and-detection.md 1).
-        # When wired, each event is anchored to a deterministic incident
-        # id (correlation key + time window) so the RCA audit ties the
-        # findings of one incident together. Absent -> no incident id on
-        # the RCA audit (backward-compatible).
         self._event_correlator = event_correlator
-        # Optional T1 causal-chain inputs (observability-and-detection.md 4,
-        # path b). When an :class:`IncidentMemberSource` is wired alongside
-        # the RCA coordinator, each matched event's incident members feed
-        # the deterministic multi-hop causal-chain reconstruction, appended
-        # to the audit as a shadow ``rca.hypothesis`` (tier t1). The window
-        # bounds each hop; the optional dependency graph makes cross-resource
-        # links dependency-aware. Absent source -> T1 causal-chain RCA stays
-        # dark (backward-compatible); only T0 (and T2, if wired) RCA runs.
         self._incident_member_source = incident_member_source
         self._causal_chain_window = causal_chain_window or timedelta(minutes=15)
         self._resource_dependency_graph = (
             dict(resource_dependency_graph) if resource_dependency_graph is not None else None
         )
-        # Optional workflow trigger coordinator (process-automation.md 4).
-        # When wired, every ingested event is also matched against the
-        # Workflow trigger index and every matched Workflow runs in shadow
-        # (structurally non-mutating). It is a pure side-consumer: it adds
-        # audit rows and never changes the primary control decision or the
-        # return path. Absent -> no workflows fire (backward-compatible).
-        # Best-effort at the loop boundary: a coordinator failure is logged
-        # and never breaks the control decision.
         self._workflow_coordinator = workflow_coordinator
 
     async def _maybe_fire_workflows(self, event: Event) -> None:
@@ -457,7 +270,7 @@ class ControlLoop:
             correlation_id=correlation_id,
             stage=StageName.INGEST,
             phase=StagePhase.DONE,
-            detail={"event_type": event.event_type},
+            detail={"event_type": event.event_type, "mode": event.mode.value},
         )
 
         # 1z. Optional process-automation side-consumer. Fires matched
@@ -535,6 +348,40 @@ class ControlLoop:
             },
         )
 
+        if decision.tier is RoutingTier.T1:
+            await self._write_abstain_audit(
+                event=event,
+                decision=decision,
+                reason=decision.reason or "no_rule_matches_resource_type",
+                stage="trust_router",
+            )
+            fallback = await self._evaluate_fallback_tiers(
+                event=event,
+                decision=decision,
+                citing=(),
+                cs_decision=cs_decision,
+                event_id=event_id,
+                correlation_id=correlation_id,
+            )
+            if fallback is not None:
+                return fallback
+            await self._emit_stage(
+                event_id=event_id,
+                correlation_id=correlation_id,
+                stage=StageName.AUDIT,
+                phase=StagePhase.DONE,
+                detail={"outcome": ControlLoopOutcome.ABSTAINED_ROUTING.value},
+            )
+            return ControlLoopResult(
+                outcome=ControlLoopOutcome.ABSTAINED_ROUTING,
+                tier="t1",
+                decision="abstain",
+                resource_type=decision.resource_type,
+                reason=decision.reason,
+                event_id=event_id,
+                change_safety_decision=cs_decision,
+            )
+
         # 3. Evaluate T0
         resource_props = _extract_resource_props(event.payload)
         resource_id = _extract_resource_id(event, decision)
@@ -574,97 +421,16 @@ class ControlLoop:
                 event=event, decision=decision, incident_id=incident_id
             )
 
-            # 3a. Optional T1 similarity fallback. When wired, T0
-            # abstains fall through to T1 for a learned-action reuse
-            # *log* (shadow-only in P1; the reuse never executes here
-            # because :attr:`T1Decision.requires_reverification` MUST
-            # gate through the verifier + risk-gate first, which lands
-            # in P2). This preserves the deterministic-first principle
-            # (T0 is authoritative when it matches) while giving T1
-            # observability into which abstains would have been
-            # reusable.
-            t1_decision: T1Decision | None = None
-            if self._t1_engine is not None:
-                t1_decision = await self._t1_engine.evaluate(event=event)
-                # verify.done for T1 - captures the similarity outcome.
-                await self._emit_stage(
-                    event_id=event_id,
-                    correlation_id=correlation_id,
-                    stage=StageName.VERIFY,
-                    phase=StagePhase.DONE,
-                    detail={
-                        "tier": "t1",
-                        "t1_outcome": t1_decision.outcome.value,
-                        "reason": t1_decision.reason,
-                    },
-                )
-                await self._write_t1_audit(
-                    event=event,
-                    decision=decision,
-                    t1=t1_decision,
-                )
-                if t1_decision.outcome is T1Outcome.REUSED:
-                    await self._emit_stage(
-                        event_id=event_id,
-                        correlation_id=correlation_id,
-                        stage=StageName.AUDIT,
-                        phase=StagePhase.DONE,
-                        detail={"outcome": ControlLoopOutcome.T1_REUSE_LOGGED.value},
-                    )
-                    return ControlLoopResult(
-                        outcome=ControlLoopOutcome.T1_REUSE_LOGGED,
-                        tier="t1",
-                        decision="abstain",
-                        resource_type=decision.resource_type,
-                        citing_rule_ids=citing,
-                        reason="t1_reuse_shadow_only_p1",
-                        event_id=str(event.event_id),
-                        change_safety_decision=cs_decision,
-                        t1_decision=t1_decision,
-                    )
-                if (
-                    t2_result := await self._consult_t2(
-                        event=event,
-                        decision=decision,
-                        citing=citing,
-                        cs_decision=cs_decision,
-                        t1_decision=t1_decision,
-                        event_id=event_id,
-                        correlation_id=correlation_id,
-                    )
-                ) is not None:
-                    return t2_result
-                await self._emit_stage(
-                    event_id=event_id,
-                    correlation_id=correlation_id,
-                    stage=StageName.AUDIT,
-                    phase=StagePhase.DONE,
-                    detail={"outcome": ControlLoopOutcome.T1_ABSTAINED.value},
-                )
-                return ControlLoopResult(
-                    outcome=ControlLoopOutcome.T1_ABSTAINED,
-                    tier="t1",
-                    decision="abstain",
-                    resource_type=decision.resource_type,
-                    citing_rule_ids=citing,
-                    reason=t1_decision.reason or "t1_no_neighbour",
-                    event_id=str(event.event_id),
-                    change_safety_decision=cs_decision,
-                    t1_decision=t1_decision,
-                )
-
-            if (
-                t2_result := await self._consult_t2(
-                    event=event,
-                    decision=decision,
-                    citing=citing,
-                    cs_decision=cs_decision,
-                    t1_decision=None,
-                    event_id=event_id,
-                    correlation_id=correlation_id,
-                )
-            ) is not None:
-                return t2_result
+            fallback = await self._evaluate_fallback_tiers(
+                event=event,
+                decision=decision,
+                citing=citing,
+                cs_decision=cs_decision,
+                event_id=event_id,
+                correlation_id=correlation_id,
+            )
+            if fallback is not None:
+                return fallback
             await self._emit_stage(
                 event_id=event_id,
                 correlation_id=correlation_id,
@@ -701,6 +467,41 @@ class ControlLoop:
                     f"rule {finding.rule_id!r} appears in T0 findings but is "
                     "not in the rules_by_id map"
                 )
+            assignment = self._resolve_governance_assignment(
+                event=event,
+                resource_id=finding.resource_id,
+                resource_type=decision.resource_type,
+                rule_id=rule.id,
+            )
+            if assignment is not None:
+                await self._write_governance_assignment_audit(
+                    event=event,
+                    resource_id=finding.resource_id,
+                    resolution=assignment,
+                )
+                if assignment.parameter_tie:
+                    routed.append("hil")
+                    continue
+                if assignment.effective_effect is Effect.DENY:
+                    routed.append(
+                        "deny" if assignment.enforcement is Enforcement.ENFORCE else "hil"
+                    )
+                    continue
+                if assignment.effective_effect in (Effect.DISABLED, Effect.AUDIT):
+                    routed.append("governance_observe")
+                    continue
+                if assignment.enforcement is not Enforcement.ENFORCE:
+                    routed.append("governance_observe")
+                    continue
+                if assignment.parameters:
+                    rule = rule.model_copy(
+                        update={
+                            "parameters": {
+                                **rule.parameters,
+                                **dict(assignment.parameters),
+                            }
+                        }
+                    )
             await self._analyze_and_audit_rca(
                 event=event,
                 finding=finding,
@@ -750,6 +551,7 @@ class ControlLoop:
                     "rule_id": finding.rule_id,
                     "action_type": action.action_type,
                     "gate_decision": gate_decision,
+                    "mode": action.mode.value,
                 },
             )
             if unified is not None and (unified.is_denied or unified.requires_hil):
@@ -774,7 +576,7 @@ class ControlLoop:
             exec_stage_detail: dict[str, Any] = {
                 "rule_id": finding.rule_id,
                 "action_type": action.action_type,
-                "mode": Mode.SHADOW.value,
+                "mode": action.mode.value,
             }
             if exec_success:
                 await self._emit_stage(
@@ -802,6 +604,8 @@ class ControlLoop:
             overall = ControlLoopOutcome.HIL
         elif any(_is_execution_success(r) for r in exec_results):
             overall = ControlLoopOutcome.EXECUTED
+        elif "governance_observe" in routed:
+            overall = ControlLoopOutcome.GOVERNANCE_OBSERVED
         else:
             overall = ControlLoopOutcome.ABSTAINED_ACTION_BUILD
         decision_word = {
@@ -816,7 +620,12 @@ class ControlLoop:
             correlation_id=correlation_id,
             stage=StageName.AUDIT,
             phase=StagePhase.DONE,
-            detail={"outcome": overall.value, "decision": decision_word},
+            detail={
+                "outcome": overall.value,
+                "decision": decision_word,
+                "gate_decision": decision_word,
+                "mode": event.mode.value,
+            },
         )
         await self._notify_decision(
             event=event,
@@ -837,9 +646,69 @@ class ControlLoop:
             change_safety_decision=cs_decision,
         )
 
-    # ------------------------------------------------------------------
-    # notification helper (A2 operational-alert, Notify-on-decision)
-    # ------------------------------------------------------------------
+    def _resolve_governance_assignment(
+        self,
+        *,
+        event: Event,
+        resource_id: str,
+        resource_type: str,
+        rule_id: str,
+    ) -> AssignmentResolution | None:
+        if not self._governance_assignments:
+            return None
+        payload = event.payload
+        resource = payload.get("resource")
+        resource_data = resource if isinstance(resource, dict) else {}
+        props = resource_data.get("props")
+        props_data = props if isinstance(props, dict) else {}
+        tags = props_data.get("tags")
+        tag_data = tags if isinstance(tags, dict) else {}
+
+        def _text(*keys: str) -> str:
+            for key in keys:
+                value = resource_data.get(key, payload.get(key))
+                if isinstance(value, str) and value:
+                    return value
+            return ""
+
+        context = ResourceContext(
+            organization=_text("organization", "tenant_id"),
+            account=_text("account", "subscription_id"),
+            resource_group=_text("resource_group"),
+            resource_id=resource_id,
+            resource_type=resource_type,
+            tags={str(key): str(value) for key, value in tag_data.items()},
+        )
+        return resolve_assignments(
+            assignments=self._governance_assignments,
+            ctx=context,
+            rule_id=rule_id,
+        )
+
+    async def _write_governance_assignment_audit(
+        self,
+        *,
+        event: Event,
+        resource_id: str,
+        resolution: AssignmentResolution,
+    ) -> None:
+        await self._audit_store.append_audit_entry(
+            {
+                "event_id": str(event.event_id),
+                "idempotency_key": event.idempotency_key,
+                "actor": "fdai.core.control_loop",
+                "action_kind": "governance.assignment_resolved",
+                "mode": Mode.SHADOW.value,
+                "rule_id": resolution.rule_id,
+                "resource_id": resource_id,
+                "effective_effect": resolution.effective_effect.value,
+                "enforcement": resolution.enforcement.value,
+                "winning_assignment_id": resolution.winning_assignment_id,
+                "overridden_assignment_ids": list(resolution.overridden_assignment_ids),
+                "parameter_tie": resolution.parameter_tie,
+                "recorded_at": datetime.now(tz=UTC).isoformat(),
+            }
+        )
 
     async def _notify_decision(
         self,
@@ -917,10 +786,6 @@ class ControlLoop:
                 exc_info=True,
             )
 
-    # ------------------------------------------------------------------
-    # HIL approval round-trip (Notify-on-decision step B)
-    # ------------------------------------------------------------------
-
     async def _request_hil_approval(
         self,
         *,
@@ -955,10 +820,6 @@ class ControlLoop:
                 },
                 exc_info=True,
             )
-
-    # ------------------------------------------------------------------
-    # RCA helper (deterministic T0 root-cause -> audit)
-    # ------------------------------------------------------------------
 
     def _correlate_incident_id(self, event: Event) -> str | None:
         """Anchor an event to a deterministic incident id, or ``None``.
@@ -1154,10 +1015,6 @@ class ControlLoop:
                 exc_info=True,
             )
 
-    # ------------------------------------------------------------------
-    # stage-publisher helper
-    # ------------------------------------------------------------------
-
     async def _emit_stage(
         self,
         *,
@@ -1186,10 +1043,6 @@ class ControlLoop:
         except ValueError:  # pragma: no cover - defence in depth
             return
         await self._stage_publisher.emit(evt)
-
-    # ------------------------------------------------------------------
-    # audit helper
-    # ------------------------------------------------------------------
 
     async def _resolve_cost_override(
         self,
@@ -1287,6 +1140,28 @@ class ControlLoop:
             }
         )
 
+    async def record_unhandled_failure(
+        self,
+        *,
+        payload: Mapping[str, Any],
+        reason: str,
+    ) -> None:
+        """Record an unexpected process-boundary failure without raw payload data."""
+        event_id = payload.get("event_id") or payload.get("id") or "unknown"
+        idempotency_key = payload.get("idempotency_key") or "unknown"
+        await self._audit_store.append_audit_entry(
+            {
+                "event_id": str(event_id),
+                "idempotency_key": str(idempotency_key),
+                "actor": "fdai.core.control_loop",
+                "action_kind": "control_loop.unhandled_failure",
+                "mode": Mode.SHADOW.value,
+                "decision": "abstain",
+                "reason": reason,
+                "recorded_at": datetime.now(tz=UTC).isoformat(),
+            }
+        )
+
     async def _write_t1_audit(
         self,
         *,
@@ -1328,6 +1203,83 @@ class ControlLoop:
             }
         )
 
+    async def _evaluate_fallback_tiers(
+        self,
+        *,
+        event: Event,
+        decision: RoutingDecision,
+        citing: tuple[str, ...],
+        cs_decision: ChangeSafetyDecision | None,
+        event_id: str,
+        correlation_id: str,
+    ) -> ControlLoopResult | None:
+        t1_decision: T1Decision | None = None
+        if self._t1_engine is not None:
+            t1_decision = await self._t1_engine.evaluate(event=event)
+            await self._emit_stage(
+                event_id=event_id,
+                correlation_id=correlation_id,
+                stage=StageName.VERIFY,
+                phase=StagePhase.DONE,
+                detail={
+                    "tier": "t1",
+                    "t1_outcome": t1_decision.outcome.value,
+                    "reason": t1_decision.reason,
+                },
+            )
+            await self._write_t1_audit(event=event, decision=decision, t1=t1_decision)
+            if t1_decision.outcome is T1Outcome.REUSED:
+                await self._emit_stage(
+                    event_id=event_id,
+                    correlation_id=correlation_id,
+                    stage=StageName.AUDIT,
+                    phase=StagePhase.DONE,
+                    detail={"outcome": ControlLoopOutcome.T1_REUSE_LOGGED.value},
+                )
+                return ControlLoopResult(
+                    outcome=ControlLoopOutcome.T1_REUSE_LOGGED,
+                    tier="t1",
+                    decision="abstain",
+                    resource_type=decision.resource_type,
+                    citing_rule_ids=citing,
+                    reason="t1_reuse_requires_reverification",
+                    event_id=event_id,
+                    change_safety_decision=cs_decision,
+                    t1_decision=t1_decision,
+                )
+
+        t2_result = await self._consult_t2(
+            event=event,
+            decision=decision,
+            citing=citing,
+            cs_decision=cs_decision,
+            t1_decision=t1_decision,
+            event_id=event_id,
+            correlation_id=correlation_id,
+        )
+        if t2_result is not None:
+            return t2_result
+        if t1_decision is None:
+            return None
+        await self._emit_stage(
+            event_id=event_id,
+            correlation_id=correlation_id,
+            stage=StageName.AUDIT,
+            phase=StagePhase.DONE,
+            detail={"outcome": ControlLoopOutcome.T1_ABSTAINED.value},
+        )
+        return ControlLoopResult(
+            outcome=ControlLoopOutcome.T1_ABSTAINED,
+            tier="t1",
+            decision="abstain",
+            resource_type=decision.resource_type,
+            citing_rule_ids=citing,
+            reason=t1_decision.reason or "t1_no_neighbour",
+            event_id=event_id,
+            change_safety_decision=cs_decision,
+            t1_decision=t1_decision,
+        )
+
     async def _consult_t2(
         self,
         *,
@@ -1353,7 +1305,27 @@ class ControlLoop:
         """
         if self._t2_engine is None:
             return None
-        t2_decision = await self._t2_engine.evaluate(event=event)
+        target_ref = event.resource_ref
+        resource = event.payload.get("resource")
+        if not target_ref and isinstance(resource, dict):
+            candidate_ref = resource.get("resource_id")
+            if isinstance(candidate_ref, str) and candidate_ref:
+                target_ref = candidate_ref
+        if not target_ref or not decision.resource_type:
+            return None
+        allowed_rules = tuple(
+            rule
+            for rule_id in decision.candidate_rule_ids
+            if (rule := self._rules_by_id.get(rule_id)) is not None
+            and rule.resource_type == decision.resource_type
+        )
+        context = T2ProposalContext(
+            event=event,
+            target_resource_ref=target_ref,
+            target_resource_type=decision.resource_type,
+            allowed_rules=allowed_rules,
+        )
+        t2_decision = await self._t2_engine.evaluate(context=context)
         await self._emit_stage(
             event_id=event_id,
             correlation_id=correlation_id,
@@ -1366,18 +1338,47 @@ class ControlLoop:
             },
         )
         await self._write_t2_audit(event=event, decision=decision, t2=t2_decision)
+        if t2_decision.outcome is T2Outcome.PROPOSED and t2_decision.candidate is not None:
+            routed = await self._route_t2_candidate(
+                event=event,
+                decision=decision,
+                t2=t2_decision,
+                cs_decision=cs_decision,
+                t1_decision=t1_decision,
+                event_id=event_id,
+                correlation_id=correlation_id,
+            )
+            if routed is not None:
+                await self._emit_stage(
+                    event_id=event_id,
+                    correlation_id=correlation_id,
+                    stage=StageName.AUDIT,
+                    phase=StagePhase.DONE,
+                    detail={
+                        "outcome": routed.outcome.value,
+                        "decision": routed.decision,
+                        "mode": Mode.SHADOW.value,
+                    },
+                )
+                return routed
         outcome = _T2_OUTCOME_MAP[t2_decision.outcome]
+        decision_word = {
+            T2Outcome.PROPOSED: "abstain",
+            T2Outcome.ESCALATE: "hil",
+            T2Outcome.DENIED: "deny",
+            T2Outcome.ABSTAIN: "hil",
+        }[t2_decision.outcome]
         await self._emit_stage(
             event_id=event_id,
             correlation_id=correlation_id,
             stage=StageName.AUDIT,
             phase=StagePhase.DONE,
-            detail={"outcome": outcome.value},
+            detail={"outcome": outcome.value, "decision": decision_word},
         )
         return ControlLoopResult(
             outcome=outcome,
             tier="t2",
-            decision="abstain",
+            decision=decision_word,
             resource_type=decision.resource_type,
             citing_rule_ids=citing,
             reason=t2_decision.reason,
@@ -1386,6 +1387,98 @@ class ControlLoop:
             t1_decision=t1_decision,
             t2_decision=t2_decision,
         )
+
+    async def _route_t2_candidate(
+        self,
+        *,
+        event: Event,
+        decision: RoutingDecision,
+        t2: T2Decision,
+        cs_decision: ChangeSafetyDecision | None,
+        t1_decision: T1Decision | None,
+        event_id: str,
+        correlation_id: str,
+    ) -> ControlLoopResult | None:
+        candidate = t2.candidate
+        if candidate is None or self._risk_table is None or self._risk_gate is None:
+            return None
+        rule = next(
+            (
+                self._rules_by_id[rule_id]
+                for rule_id in candidate.cited_rule_ids
+                if rule_id in self._rules_by_id
+            ),
+            None,
+        )
+        if rule is None:
+            return None
+        try:
+            action = self._action_builder.build_from_candidate(
+                event=event,
+                candidate=candidate,
+            )
+        except ActionBuildError as exc:
+            await self._audit_store.append_audit_entry(
+                {
+                    "event_id": event_id,
+                    "idempotency_key": event.idempotency_key,
+                    "actor": "fdai.core.control_loop",
+                    "action_kind": "control_loop.t2_action_build_abstain",
+                    "mode": Mode.SHADOW.value,
+                    "reason": str(exc),
+                    "recorded_at": datetime.now(tz=UTC).isoformat(),
+                }
+            )
+            return ControlLoopResult(
+                outcome=ControlLoopOutcome.ABSTAINED_ACTION_BUILD,
+                tier="t2",
+                decision="abstain",
+                resource_type=decision.resource_type,
+                citing_rule_ids=candidate.cited_rule_ids,
+                reason="t2_candidate_action_build_failed",
+                event_id=event_id,
+                change_safety_decision=cs_decision,
+                t1_decision=t1_decision,
+                t2_decision=t2,
+            )
+
+        unified = await self._evaluate_and_audit(event=event, action=action, rule=rule)
+        if unified is None:
+            return None
+        await self._emit_stage(
+            event_id=event_id,
+            correlation_id=correlation_id,
+            stage=StageName.GATE,
+            phase=StagePhase.DONE,
+            detail={
+                "tier": "t2",
+                "action_type": action.action_type,
+                "gate_decision": unified.decision,
+                "mode": action.mode.value,
+            },
+        )
+        if unified.requires_hil and self._hil_resume_coordinator is not None:
+            await self._request_hil_approval(
+                action=action,
+                rule=rule,
+                correlation_id=correlation_id,
+            )
+        if unified.is_denied or unified.requires_hil:
+            outcome = ControlLoopOutcome.DENIED if unified.is_denied else ControlLoopOutcome.HIL
+            return ControlLoopResult(
+                outcome=outcome,
+                tier="t2",
+                decision="deny" if unified.is_denied else "hil",
+                resource_type=decision.resource_type,
+                citing_rule_ids=candidate.cited_rule_ids,
+                reason=t2.reason,
+                event_id=event_id,
+                change_safety_decision=cs_decision,
+                t1_decision=t1_decision,
+                t2_decision=t2,
+            )
+        # SHADOW_ONLY is a measured proposal, not permission to dispatch.
+        return None
 
     async def _write_t2_audit(
         self,
@@ -1410,12 +1503,7 @@ class ControlLoop:
             }
         quality_summary: dict[str, Any] | None = None
         if t2.quality_decision is not None:
-            quality_summary = {
-                "quality_outcome": t2.quality_decision.outcome.value,
-                "grounded_rule_ids": list(t2.quality_decision.grounded_rule_ids),
-                "aggregate_confidence": t2.quality_decision.aggregate_confidence,
-                "reasons": list(t2.quality_decision.reasons),
-            }
+            quality_summary = quality_decision_audit_fields(t2.quality_decision)
         await self._audit_store.append_audit_entry(
             {
                 "event_id": str(event.event_id),
@@ -1448,11 +1536,25 @@ class ControlLoop:
         action_type = self._action_types_by_name.get(action.action_type)
         if action_type is None:
             return None
+        if self._promotion_state_refresher is not None:
+            await self._promotion_state_refresher(action_type.name)
         cost_override = await self._resolve_cost_override(rule=rule, action_type=action_type)
         system_degraded = (
             self._degradation is not None and not self._degradation.autonomy_permitted()
         )
         kill_switch_engaged = self._kill_switch is not None and self._kill_switch.is_engaged()
+        inventory_age_seconds = None
+        if self._inventory_age_provider is not None:
+            try:
+                inventory_age_seconds = await self._inventory_age_provider(
+                    action.target_resource_ref
+                )
+            except Exception:  # noqa: BLE001 - freshness lookup fails closed
+                _LOGGER.warning(
+                    "inventory_age_lookup_failed",
+                    extra={"action_type": action.action_type},
+                    exc_info=True,
+                )
         if self._risk_gate is not None:
             unified = evaluate_unified(
                 event=event,
@@ -1464,6 +1566,7 @@ class ControlLoop:
                 cost_override=cost_override,
                 system_degraded=system_degraded,
                 kill_switch_engaged=kill_switch_engaged,
+                inventory_age_seconds=inventory_age_seconds,
             )
             entry = _unified_audit_dict(event=event, action=action, unified=unified)
             entry["recorded_at"] = datetime.now(tz=UTC).isoformat()
@@ -1482,8 +1585,3 @@ class ControlLoop:
         entry["recorded_at"] = datetime.now(tz=UTC).isoformat()
         await self._audit_store.append_audit_entry(entry)
         return None
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------

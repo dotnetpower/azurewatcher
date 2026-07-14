@@ -91,6 +91,7 @@ def _build_app_with_callback(
     registry: InMemoryHilApprovalRegistry,
     *,
     coordinator: HilResumeCoordinator | None = None,
+    decision_publisher: object | None = None,
     now: datetime | None = None,
 ) -> object:
     del now  # composition-root wiring uses the default clock
@@ -102,6 +103,7 @@ def _build_app_with_callback(
             hil_callback=HilCallbackConfig(secret=SECRET),
             hil_registry=registry,
             hil_coordinator=coordinator,
+            hil_decision_publisher=decision_publisher,
         ),
     )
 
@@ -184,6 +186,69 @@ def test_approve_records_decision_via_registry() -> None:
     assert payload["decision"] == "approve"
     assert payload["approval_id"] == "appr-1"
     assert payload["already_recorded"] is False
+
+
+def test_decision_publisher_receives_durable_receipt() -> None:
+    registry = InMemoryHilApprovalRegistry()
+    registry.seed([_pending()])
+    published = []
+
+    async def publisher(receipt):  # type: ignore[no-untyped-def]
+        published.append(receipt)
+
+    app = _build_app_with_callback(registry, decision_publisher=publisher)
+    client = TestClient(app)
+    body = json.dumps(
+        {
+            "decision": "approve",
+            "actor_oid": "user-approver",
+            "justification": "Reviewed by the on-call approver.",
+        }
+    ).encode()
+    timestamp = datetime.now(UTC).isoformat()
+    response = client.post(
+        "/hil/appr-1/decision",
+        content=body,
+        headers={
+            "x-fdai-timestamp": timestamp,
+            "x-fdai-signature": _sign(SECRET, timestamp, body, approval_id="appr-1"),
+            "content-type": "application/json",
+        },
+    )
+    assert response.status_code == 200
+    assert len(published) == 1
+    assert published[0].approval_id == "appr-1"
+
+
+def test_decision_publish_failure_returns_retryable_503() -> None:
+    registry = InMemoryHilApprovalRegistry()
+    registry.seed([_pending()])
+
+    async def publisher(_receipt):  # type: ignore[no-untyped-def]
+        raise RuntimeError("broker unavailable")
+
+    app = _build_app_with_callback(registry, decision_publisher=publisher)
+    client = TestClient(app)
+    body = json.dumps(
+        {
+            "decision": "approve",
+            "actor_oid": "user-approver",
+            "justification": "Reviewed by the on-call approver.",
+        }
+    ).encode()
+    timestamp = datetime.now(UTC).isoformat()
+    response = client.post(
+        "/hil/appr-1/decision",
+        content=body,
+        headers={
+            "x-fdai-timestamp": timestamp,
+            "x-fdai-signature": _sign(SECRET, timestamp, body, approval_id="appr-1"),
+            "content-type": "application/json",
+        },
+    )
+    assert response.status_code == 503
+    assert response.json()["error"]["kind"] == "decision_publish_failed"
+    assert len(registry.resolved) == 1
 
 
 def test_second_call_after_resolution_returns_404() -> None:

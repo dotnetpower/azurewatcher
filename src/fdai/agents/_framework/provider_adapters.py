@@ -50,6 +50,7 @@ class StateStoreAuditChainAdapter:
 
     store: StateStore
     entries: list[AuditEntry]
+    durable: bool = True
 
     def __init__(self, store: StateStore) -> None:
         self.store = store

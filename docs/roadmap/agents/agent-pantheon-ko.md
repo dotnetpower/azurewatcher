@@ -1,8 +1,8 @@
 ---
 title: 에이전트 판테온
 translation_of: agent-pantheon.md
-translation_source_sha: 2a1a2bac405ab4e80276cf34aed22447118140ed
-translation_revised: 2026-07-12
+translation_source_sha: 4c181891e0d2af129a7436e9e967949a075278e6
+translation_revised: 2026-07-15
 ---
 
 # 에이전트 판테온
@@ -397,7 +397,7 @@ Object type 당 topic 하나, `object.<type>` 로 명명. 모든 메시지는
 | object.arbitration-decision | Odin | Forseti |
 | object.action-run | Thor | Vidar, Var, Saga |
 | object.approval | Var | Thor, Saga |
-| object.rollback | Vidar | Saga |
+| object.rollback | Vidar | Thor (ActionRun projection), Saga |
 | object.audit-entry | Saga | Norns |
 | object.issue | Saga | Norns, Mimir |
 | object.rule-candidate | Norns | Mimir |

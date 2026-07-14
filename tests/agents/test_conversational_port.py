@@ -124,6 +124,52 @@ def test_ask_refuses_action_intent_and_routes_to_typed_pipeline() -> None:
     assert turn.answer["initiator_principal"] == "u1"
 
 
+def test_read_only_ask_never_submits_action_proposal() -> None:
+    provider = InMemoryEventBus()
+    runtime = PantheonRuntime.build(provider=provider, raw_event_topic=_RAW_TOPIC)
+
+    turn = asyncio.run(
+        runtime.ask(
+            session_id="s1",
+            user_id="u1",
+            question="restart svc-1 now",
+            allow_action_proposal=False,
+            materialize_handoff=False,
+        )
+    )
+
+    assert turn is not None
+    assert turn.answer["submitted"] is False
+    assert turn.answer["abstain_reason"] == "action_route_required"
+    assert asyncio.run(_records(provider, _RAW_TOPIC)) == []
+
+
+def test_read_only_ask_does_not_materialize_handoff_issue() -> None:
+    from fdai.agents.saga import Saga
+
+    runtime = _runtime()
+    saga = runtime.agents["Saga"]
+    assert isinstance(saga, Saga)
+
+    turn = asyncio.run(
+        runtime.ask(
+            session_id="s1",
+            user_id="u1",
+            question="zzzz qqqq wxyz",
+            allow_action_proposal=False,
+            materialize_handoff=False,
+        )
+    )
+
+    assert turn is not None
+    assert turn.answer["handoff_needed"] is True
+    assert saga.github.issues == {}
+
+
+async def _records(provider: InMemoryEventBus, topic: str) -> list[object]:
+    return [item async for item in provider.subscribe(topic, "test-inspection")]
+
+
 # ---------------------------------------------------------------------------
 # Agent-to-agent (A2A) introspection (agent-pantheon.md 6.2)
 # ---------------------------------------------------------------------------

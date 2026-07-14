@@ -17,6 +17,7 @@
 import type { AuthContext } from "../auth";
 
 export interface DeckUser {
+  readonly accountId: string;
   readonly name: string | null;
   readonly username: string | null;
   readonly roles: readonly string[];
@@ -36,7 +37,7 @@ export function getDeckUser(): DeckUser | null {
 /** Derive the deck user from the MSAL auth context (roles from id-token claims). */
 export function deckUserFromAuth(auth: AuthContext): DeckUser {
   if (auth.devMode) {
-    return { name: "dev", username: null, roles: [], devMode: true };
+    return { accountId: "dev", name: "dev", username: null, roles: [], devMode: true };
   }
   const account = auth.account;
   const claims = (account?.idTokenClaims ?? {}) as Record<string, unknown>;
@@ -45,6 +46,7 @@ export function deckUserFromAuth(auth: AuthContext): DeckUser {
     ? rawRoles.filter((r): r is string => typeof r === "string")
     : [];
   return {
+    accountId: account?.homeAccountId ?? account?.localAccountId ?? "anonymous",
     name: account?.name ?? null,
     username: account?.username ?? null,
     roles,

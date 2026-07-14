@@ -205,7 +205,7 @@ export function AgentsRoute({ client: _client }: Props) {
       routeLabel: "Agents",
       purpose:
         "The 15-agent pantheon, live. Each incident (correlation id) is one " +
-        "collaboration: Huginn/Heimdall sense, Forseti judges, Var queues a HIL " +
+        "collaboration: Huginn/Heimdall sense, Forseti judges, Var queues an approval " +
         "approval, Thor executes, Saga records. Read-only - ask the deck about " +
         "the selected incident, or propose a runtime action (it is judged, never " +
         "executed from here).",

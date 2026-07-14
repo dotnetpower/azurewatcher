@@ -1,7 +1,7 @@
 {
   "route": {
     "dashboard": "Overview",
-    "hilQueue": "HIL queue",
+    "hilQueue": "Approvals",
     "blastRadius": "Blast radius",
     "audit": "Audit log",
     "architecture": "Architecture",
@@ -17,7 +17,9 @@
     "processes": "Processes",
     "documents": "Documents",
     "settings": "Settings",
-    "incidents": "Incidents"
+    "incidents": "Incidents",
+    "rca": "RCA",
+    "scope": "Scope"
   },
   "nav": {
     "group": {
@@ -49,18 +51,24 @@
       "blastRadius": "Blast radius",
       "promotionGates": "Promotion gates",
       "dashboard": "Overview",
+      "operatingOutcomes": "Operating outcomes",
+      "controlAssurance": "Control assurance",
+      "verticalOutcomes": "Vertical outcomes",
+      "trustRouting": "Trust routing",
       "rules": "Rules",
       "workflowBuilder": "Workflow builder",
       "llmCost": "LLM cost",
       "processes": "Processes",
       "documents": "Documents",
       "settings": "Settings",
-      "incidents": "Incidents"
+      "incidents": "Incidents",
+      "rca": "RCA",
+      "scope": "Scope"
     },
     "panelSub": {
       "live": "Real-time pipeline activity",
       "agents": "Live agent collaboration: status, incidents, and conversation",
-      "hilQueue": "High-risk actions waiting for a human approver (HIL)",
+      "hilQueue": "High-risk actions waiting for approval",
       "provision": "Watch an in-flight re-provision progress, streamed read-only",
       "audit": "Append-only record of every terminal decision",
       "trace": "Reconstruct one correlation id end-to-end",
@@ -72,21 +80,100 @@
       "blastRadius": "Simulate reachable subgraph before a change",
       "promotionGates": "Per-ActionType readiness for shadow → enforce",
       "dashboard": "Healthy, risk, and cost, sourced from the audit log",
+      "operatingOutcomes": "Trends, baselines, and contributors for core operating metrics",
+      "controlAssurance": "Guard evidence, release blockers, and promotion readiness",
+      "verticalOutcomes": "Resilience, Change Safety, and Cost Governance results",
+      "trustRouting": "Tier mix, target bands, and routed event evidence",
       "rules": "Every policy in the rule catalog, faceted",
       "workflowBuilder": "Browse built-in workflows or design a new one by chatting",
       "llmCost": "Token usage and spend per conversation, day, and month",
       "processes": "Workflow runtime state and dynamic ontology-backed views",
       "documents": "Upload, scan, protect, and index governed documents",
       "settings": "Display, accessibility, and local console preferences",
-      "incidents": "Incident status, disposition, and remediation history"
+      "incidents": "Incident status, disposition, and remediation history",
+      "rca": "Root cause: grounded hypothesis, citations, and response plan",
+      "scope": "Effective monitoring and automated-action scope by subscription and RG"
     }
+  },
+  "rca": {
+    "subtitle": "Root-cause analysis for one incident, projected read-only from the append-only audit log. An RCA result is a grounded hypothesis, never an authoritative verdict; execution eligibility stays with the risk gate and verifier.",
+    "lookup": "Look up an incident",
+    "correlationLabel": "Correlation id",
+    "fetch": "Fetch RCA",
+    "idle": "Enter a correlation id and fetch to see its root-cause analysis.",
+    "empty": "No RCA hypothesis has been recorded for this incident yet.",
+    "hypotheses": "Root-cause hypotheses",
+    "tierColumn": "Tier",
+    "outcomeColumn": "Grounding",
+    "confidence": "Confidence",
+    "cause": "Hypothesis",
+    "reason": "Reason",
+    "citations": "Grounded citations",
+    "citationKind": "Kind",
+    "citationRef": "Reference",
+    "noCitations": "No citations - insufficient grounding.",
+    "remediation": "Implied remediation",
+    "recordedAt": "Recorded",
+    "modeColumn": "Mode",
+    "grounded": "Grounded",
+    "abstained": "Insufficient grounding -> HIL",
+    "abstainedNotice": "This hypothesis is not grounded. It routes to human approval (HIL) and is never treated as a confident cause.",
+    "response": "Response plan",
+    "verdict": "Verdict",
+    "decision": "Decision",
+    "action": "Action",
+    "rollback": "Rollback reference",
+    "noResponse": "No linked response action has been recorded for this incident yet.",
+    "audit": "Open filtered audit log",
+    "trace": "Open end-to-end trace",
+    "none": "-",
+    "tierName": {
+      "t0": "T0 direct cause",
+      "t1": "T1 correlation cause",
+      "t2": "T2 reasoning cause",
+      "unknown": "Unknown tier"
+    },
+    "viewPurpose": "Per-incident root-cause analysis projected from the audit log: tiered grounded hypotheses, citations, causal reasoning, and the linked response plan. Read-only; an RCA hypothesis answers why, never execute.",
+    "viewHeadline": "{count} hypothesis(es) for {correlation}"
+  },
+  "scope": {
+    "subtitle": "Effective monitoring and automated-action scope by subscription and resource group. Read-only: authoring a change generates a policy-as-code artifact you submit as a remediation / config PR (GitOps); the console never writes scope.",
+    "notServed": "The effective-scope view is not served by this deployment.",
+    "viewPurpose": "Effective monitoring scope (what FDAI observes) and automated-action scope (what an autonomous action may touch) by subscription and resource group, plus the hard RG-scoped executor identity boundary. Read-only; scope changes ship as policy-as-code PRs.",
+    "viewHeadline": "{monitoring} monitoring, {action} action scope entries",
+    "axis": {"monitoring": "Monitoring scope", "action": "Automated-action scope"},
+    "axisHint": {
+      "monitoring": "Which subscriptions and resource groups FDAI observes.",
+      "action": "Which subscriptions and resource groups an autonomous (non-approval) action may touch."
+    },
+    "column": {"state": "State", "level": "Level", "subscription": "Subscription", "resourceGroup": "Resource group", "axis": "Axis"},
+    "state": {"included": "Included", "excluded": "Excluded"},
+    "level": {"subscription": "Subscription", "resource_group": "Resource group"},
+    "allRgs": "All resource groups",
+    "emptyAxis": "No scope entries for this axis.",
+    "executor": "Executor identity boundary",
+    "executorHint": "The executor is an RG-scoped, action-whitelisted managed identity. This hard IAM ceiling cannot be widened by any governance scope.",
+    "executorResourceGroups": "Scoped resource groups",
+    "none": "-",
+    "builder": "Scope builder",
+    "builderHint": "Compose an include/exclude selection, then submit the generated artifact as a remediation / config PR. Nothing is applied from the console.",
+    "builderAxis": "Axis",
+    "builderState": "State",
+    "builderResourceGroupOptional": "Resource group (optional)",
+    "builderAdd": "Add entry",
+    "builderRemove": "Remove",
+    "builderEmpty": "Add at least one entry to generate a scope artifact.",
+    "artifact": "Policy-as-code artifact",
+    "artifactHint": "Open a PR with this artifact. Approval, audit, and rollback come from Git; the console issues no privileged write.",
+    "copy": "Copy artifact",
+    "copied": "Copied"
   },
   "incidents": {
     "subtitle": "Incident-centric status and remediation history from the append-only audit log. Read-only; actions and approvals stay in Git and ChatOps.",
     "filter": {"active": "Active", "resolved": "Resolved", "all": "All"},
     "column": {"title": "Incident", "severity": "Severity", "status": "Status", "disposition": "Disposition", "vertical": "Vertical", "updated": "Updated"},
     "status": {"open": "Open", "in_progress": "In progress", "resolved": "Resolved"},
-    "disposition": {"pending": "Pending", "awaiting_hil": "Awaiting HIL", "action_delivered": "Action delivered", "no_action": "No action", "failed": "Failed", "rolled_back": "Rolled back", "resolved": "Resolved", "unknown": "Unknown"},
+    "disposition": {"pending": "Pending", "awaiting_hil": "Awaiting approval", "action_delivered": "Action delivered", "no_action": "No action", "failed": "Failed", "rolled_back": "Rolled back", "resolved": "Resolved", "unknown": "Unknown"},
     "severity": {"critical": "Critical", "high": "High", "medium": "Medium", "low": "Low", "info": "Info", "unknown": "Unknown"},
     "vertical": {"resilience": "Resilience", "change_safety": "Change Safety", "cost_governance": "Cost Governance", "unknown": "Unknown"},
     "empty": "No incidents match this filter.",
@@ -103,6 +190,7 @@
     "rollback": "Rollback reference",
     "audit": "Open filtered audit log",
     "trace": "Open end-to-end trace",
+    "rca": "Open root-cause analysis",
     "loadMore": "Load more incidents",
     "loadingMore": "Loading...",
     "end": "End of incident list.",
@@ -192,7 +280,35 @@
     "subtitle": "Browse the built-in workflows read-only, or design a new one by chatting with the builder. Describe what you want in plain words; it asks follow-up questions, generates the YAML, shows a visual of how it runs, and lets you test it. The console never commits - copy the YAML into a remediation PR."
   },
   "overview": {
-    "subtitle": "Healthy, risk, and cost at a glance - from the append-only audit log. Refreshes on reload; no polling.",
+    "subtitle": "Operating posture, measured outcomes, control assurance, and required attention.",
+    "section": {
+      "outcomes": "Operating outcomes",
+      "outcomesHint": "Results measured against the pinned baseline on the same evidence window.",
+      "assurance": "Control assurance",
+      "assuranceHint": "Guard evidence that permits, blocks, or holds autonomous operation.",
+      "organization": "Agent organization",
+      "organizationHint": "Accountable separation of sensing, judgment, approval, execution, and audit.",
+      "verticals": "Vertical outcomes",
+      "verticalsHint": "Resilience, Change Safety, and Cost Governance results over the same window."
+    },
+    "status": {
+      "label": "Executive operating posture",
+      "healthy": "Operations under control",
+      "attention": "Operations need attention",
+      "unknown": "Operating evidence unavailable",
+      "signals": "{count} attention signals",
+      "summary": "{rate}% autonomous resolution - Approvals pending: {hil} - {escapes} policy escapes",
+      "fallback": "{events} audit events - Approvals pending: {hil} - autonomy evidence unavailable",
+      "auditCurrent": "Audit current through {time}"
+    },
+    "evidence": {
+      "simulated": "Simulated",
+      "measured": "Measured",
+      "window": "{days} days",
+      "simulatedWindow": "Simulated - {days} days - {samples} events",
+      "measuredWindow": "Measured - {days} days - {samples} events",
+      "unavailable": "Evidence unavailable"
+    },
     "hero": {
       "title": "Autonomous cloud operations",
       "window": "Proven over the last {days} days - {samples} events",
@@ -207,10 +323,62 @@
       "leadTime": "Change lead time",
       "vsBaseline": "vs {baseline} baseline"
     },
+    "decision": {
+      "label": "control assurance and required attention"
+    },
+    "assurance": {
+      "label": "Control assurance",
+      "title": "Accountable autonomy",
+      "passing": "Passing",
+      "blocked": "Release blocked",
+      "escapes": "Policy escapes",
+      "noneRecorded": "None recorded",
+      "escapeCount": "{count} block release",
+      "thresholds": "Guard thresholds",
+      "thresholdCount": "{failed}/{total} outside threshold",
+      "shadow": "Shadow coverage",
+      "promotion": "Promotion readiness"
+    },
+    "attention": {
+      "label": "Requires attention",
+      "title": "{count} signals require review",
+      "clear": "No intervention required",
+      "critical": "Critical",
+      "high": "High",
+      "hilTitle": "{count} approvals waiting",
+      "hilHint": "Approval remains outside the read-only console.",
+      "escapeTitle": "{count} policy escapes block release",
+      "escapeHint": "Review the promotion evidence before enforcement.",
+      "guardTitle": "{guard} is outside threshold",
+      "guardHint": "Observed {value}; threshold {threshold}.",
+      "unknownTitle": "Required evidence is not connected",
+      "unknownHint": "The console does not infer a healthy state from missing guard data.",
+      "clearTitle": "Guard evidence is clear",
+      "clearHint": "No approval backlog, policy escape, or failed guard is recorded."
+    },
+    "organization": {
+      "label": "Agent organization",
+      "title": "Autonomy with separation of duties",
+      "summary": "The agent organization resolved {rate}% autonomously and held {hil} for human approval.",
+      "simulated": "Simulated outcome - {days} days",
+      "measured": "Measured outcome - {days} days",
+      "roleChain": "accountable agent role chain",
+      "specialists": "Specialists",
+      "role": {
+        "sense": "Sense",
+        "advise": "Advise",
+        "arbitrate": "Arbitrate",
+        "judge": "Judge",
+        "approve": "Approve",
+        "execute": "Execute",
+        "audit": "Audit"
+      }
+    },
     "trend": {
       "autoRes": "Auto-resolution 30d"
     },
     "vertical": {
+      "label": "Business outcomes by vertical",
       "resilience": "Resilience",
       "change_safety": "Change Safety",
       "cost": "Cost Governance",
@@ -227,7 +395,7 @@
     },
     "risk": {
       "label": "Action needed",
-      "pending": "HIL approvals waiting",
+      "pending": "Approvals waiting",
       "clear": "All clear"
     },
     "cost": {
@@ -264,9 +432,74 @@
       "promoted": "promoted (30d)",
       "candidates": "candidates"
     },
+    "operations": {
+      "label": "Routing and learning signals"
+    },
     "drill": {
       "browse": "Browse catalog"
     },
-    "detail": "Detailed metrics"
+    "detailMetric": {
+      "approvals": "Approvals pending",
+      "approvalHint": "Needs a human approver",
+      "approvalClear": "No approvals waiting"
+    },
+    "detail": "Operational evidence",
+    "detailHint": "Audit-level metrics and distributions"
+  },
+  "approvals": {
+    "subtitle": "High-risk actions waiting for a human approver. Approvals happen in ChatOps; this console remains read-only.",
+    "resource": "approvals",
+    "headlineEmpty": "No pending approvals",
+    "headlineWaiting": "{count} item(s) waiting for approval",
+    "emptyTitle": "No pending approvals.",
+    "emptyBody": "All autonomous decisions are within the risk gate's automatic envelope right now.",
+    "showingLatest": "Showing the latest {shown} of {total} pending approvals."
+  },
+  "analytics": {
+    "simulated": "Simulated evidence",
+    "measured": "Measured evidence",
+    "window": "Window: {days} days",
+    "samples": "Sample: {count} events",
+    "confidence": "Confidence: {value}%",
+    "confidenceUnavailable": "Confidence unavailable",
+    "trendUnavailable": "Trend evidence is unavailable for this metric.",
+    "autonomyUnavailable": "Autonomy measurement is not connected on this deployment.",
+    "unavailable": "Unavailable",
+    "notApplicable": "Not applicable",
+    "current": "Current",
+    "baseline": "Baseline",
+    "direction": "Better when",
+    "higherBetter": "Higher",
+    "lowerBetter": "Lower",
+    "sampleSize": "Sample size",
+    "threshold": "Threshold",
+    "status": "Status",
+    "passing": "Passing",
+    "blocked": "Blocked",
+    "inBand": "Within target",
+    "outOfBand": "Outside target",
+    "guard": "Guard",
+    "events": "Events",
+    "autoResolved": "Auto-resolved",
+    "resolutionRate": "Resolution rate",
+    "openRisks": "Open risks",
+    "monthlySavings": "Monthly savings",
+    "verticalLabel": "Vertical",
+    "tier": "Tier",
+    "relatedEvidence": "Related evidence",
+    "viewAudit": "View supporting audit records",
+    "viewShadowAudit": "View shadow audit records",
+    "viewIncidents": "View related incidents",
+    "viewPromotion": "View promotion gates",
+    "viewApprovals": "View pending approvals",
+    "viewRules": "View grounded rules",
+    "viewLlmCost": "View model cost and usage",
+    "health": {"healthy": "Under control", "attention": "Needs attention", "unknown": "Evidence unavailable"},
+    "metric": {"auto-resolution": "Auto-resolution", "human-touchpoints": "Human touchpoints", "mttr": "MTTR", "change-lead-time": "Change lead time"},
+    "outcomes": {"title": "Operating outcomes", "subtitle": "Measured results, baselines, trends, and the evidence behind each outcome.", "trend": "{metric} trend", "breakdown": "Contribution by vertical"},
+    "assurance": {"title": "Control assurance", "subtitle": "Deterministic guard evidence that permits, blocks, or holds autonomous operation.", "posture": "Operating posture", "escapes": "Policy escapes", "shadow": "Shadow coverage", "ready": "Promotion readiness"},
+    "vertical": {"resilience": "Resilience", "change-safety": "Change Safety", "cost-governance": "Cost Governance"},
+    "verticals": {"title": "Vertical outcomes", "subtitle": "Operational results and unresolved risk by FDAI vertical.", "comparison": "Cross-vertical comparison", "unavailable": "This vertical is not present in the current measurement projection."},
+    "routing": {"title": "Trust routing", "subtitle": "How work is distributed across deterministic, reuse, and grounded reasoning tiers.", "share": "Routed share", "targetBand": "Target band"}
   }
 }

@@ -9,6 +9,7 @@ point stays green under the CI coverage floor.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import httpx
@@ -20,12 +21,15 @@ from fdai.__main__ import (
     _build_hil_channel,
     _build_pattern_library,
     _build_publisher,
+    _consume,
+    _consume_hil_decisions,
     _resolve_catalog_root,
     _resolve_policies_root,
     _summarize_config,
 )
 from fdai.core.control_loop import ControlLoopOutcome, ControlLoopResult
 from fdai.shared.config import AppConfig
+from fdai.shared.providers.testing.event_bus import InMemoryEventBus
 
 
 @pytest.fixture()
@@ -210,6 +214,7 @@ def test_build_publisher_requires_http_client_when_gitops_enabled(
         (ControlLoopOutcome.ABSTAINED_ROUTING, "abstain"),
         (ControlLoopOutcome.ABSTAINED_T0, "abstain"),
         (ControlLoopOutcome.T1_REUSE_LOGGED, "abstain"),
+        (ControlLoopOutcome.GOVERNANCE_OBSERVED, "abstain"),
     ],
 )
 def test_authoritative_decision_normalizes_outcomes(
@@ -217,6 +222,121 @@ def test_authoritative_decision_normalizes_outcomes(
 ) -> None:
     result = ControlLoopResult(outcome=outcome, tier="t0", decision="x", resource_type=None)
     assert _authoritative_decision(result) == expected
+
+
+class _FailingLoop:
+    def __init__(self) -> None:
+        self.failures: list[dict[str, object]] = []
+
+    async def process(self, _payload: object) -> None:
+        raise RuntimeError("unexpected processing failure")
+
+    async def record_unhandled_failure(self, **entry: object) -> None:
+        self.failures.append(dict(entry))
+
+
+def test_consume_audits_and_dead_letters_before_committing() -> None:
+    bus = InMemoryEventBus()
+    loop = _FailingLoop()
+
+    async def _run() -> tuple[list[dict], list[dict]]:
+        payload = {"event_id": "event-1", "idempotency_key": "key-1"}
+        await bus.publish("events", "resource-1", payload)
+        await _consume(
+            bus=bus,
+            topic="events",
+            group_id="core",
+            control_loop=loop,  # type: ignore[arg-type]
+            stop=asyncio.Event(),
+        )
+        dlq = [dict(item.payload) async for item in bus.subscribe("events.dlq", "reader")]
+        remaining = [dict(item.payload) async for item in bus.subscribe("events", "core")]
+        return dlq, remaining
+
+    dlq, remaining = asyncio.run(_run())
+    assert len(loop.failures) == 1
+    assert loop.failures[0]["reason"] == "control_loop_unhandled_error:RuntimeError"
+    assert dlq[0]["reason"] == "control_loop_unhandled_error:RuntimeError"
+    assert remaining == []
+
+
+def test_consume_preserves_offset_when_dead_letter_fails() -> None:
+    class _FailingDlqBus(InMemoryEventBus):
+        async def dead_letter(self, *args: object, **kwargs: object) -> None:
+            raise RuntimeError("DLQ unavailable")
+
+    bus = _FailingDlqBus()
+    loop = _FailingLoop()
+
+    async def _run() -> list[dict]:
+        payload = {"event_id": "event-2", "idempotency_key": "key-2"}
+        await bus.publish("events", "resource-2", payload)
+        with pytest.raises(RuntimeError, match="DLQ unavailable"):
+            await _consume(
+                bus=bus,
+                topic="events",
+                group_id="core",
+                control_loop=loop,  # type: ignore[arg-type]
+                stop=asyncio.Event(),
+            )
+        return [dict(item.payload) async for item in bus.subscribe("events", "core")]
+
+    remaining = asyncio.run(_run())
+    assert remaining == [{"event_id": "event-2", "idempotency_key": "key-2"}]
+
+
+class _RecordingHilCoordinator:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def resolve(self, **kwargs: object) -> None:
+        self.calls.append(dict(kwargs))
+
+
+def test_hil_decision_consumer_resolves_durable_park() -> None:
+    bus = InMemoryEventBus()
+    coordinator = _RecordingHilCoordinator()
+
+    async def _run() -> None:
+        await bus.publish(
+            "hil-decisions",
+            "approval-1",
+            {
+                "approval_id": "approval-1",
+                "decision": "approve",
+                "approver_oid": "approver-1",
+                "justification": "Reviewed.",
+            },
+        )
+        await _consume_hil_decisions(
+            bus=bus,
+            topic="hil-decisions",
+            coordinator=coordinator,  # type: ignore[arg-type]
+            stop=asyncio.Event(),
+        )
+
+    asyncio.run(_run())
+    assert len(coordinator.calls) == 1
+    assert coordinator.calls[0]["approval_id"] == "approval-1"
+
+
+def test_hil_decision_consumer_dead_letters_malformed_payload() -> None:
+    bus = InMemoryEventBus()
+    coordinator = _RecordingHilCoordinator()
+
+    async def _run() -> list[dict]:
+        await bus.publish("hil-decisions", "approval-2", {"decision": "approve"})
+        await _consume_hil_decisions(
+            bus=bus,
+            topic="hil-decisions",
+            coordinator=coordinator,  # type: ignore[arg-type]
+            stop=asyncio.Event(),
+        )
+        return [dict(item.payload) async for item in bus.subscribe("hil-decisions.dlq", "reader")]
+
+    dlq = asyncio.run(_run())
+    assert coordinator.calls == []
+    assert dlq[0]["reason"] == "hil_decision_consume_error:KeyError"
 
 
 def test_build_publisher_rejects_non_float_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -653,9 +773,43 @@ def test_build_control_loop_wires_rca_and_correlator(
     loop = _build_control_loop(default_container(app_config), http_client=None)
     assert loop._rca_coordinator is not None
     assert loop._event_correlator is not None
-    # No HIL channel configured -> no round-trip coordinator (falls back
-    # to the persisted HIL queue).
-    assert loop._hil_resume_coordinator is None
+    assert loop._risk_table is not None
+    assert loop._risk_table.version == "1.0.0"
+    assert loop._risk_gate is not None
+    assert loop._t1_engine is not None
+    assert loop._t2_engine is not None
+    assert loop._inventory_age_provider is None
+
+
+def test_build_control_loop_uses_injected_stage_publisher(
+    app_config: AppConfig,
+) -> None:
+    from fdai.__main__ import _build_control_loop
+    from fdai.composition import default_container
+    from fdai.shared.providers.testing import RecordingStagePublisher
+
+    publisher = RecordingStagePublisher()
+    loop = _build_control_loop(
+        default_container(app_config),
+        http_client=None,
+        stage_publisher=publisher,
+    )
+
+    assert loop._stage_publisher is publisher
+
+
+def test_build_control_loop_wires_inventory_age_provider(
+    monkeypatch: pytest.MonkeyPatch, app_config: AppConfig
+) -> None:
+    monkeypatch.setenv("FDAI_INVENTORY_DSN", "postgresql://example/db")
+    from fdai.__main__ import _build_control_loop
+    from fdai.composition import default_container
+
+    loop = _build_control_loop(default_container(app_config), http_client=None)
+    assert loop._inventory_age_provider is not None
+    # No push channel configured -> coordinator still parks durably for
+    # the persisted queue/callback path.
+    assert loop._hil_resume_coordinator is not None
 
 
 def test_build_control_loop_wires_hil_coordinator_when_webhook_set(

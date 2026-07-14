@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
@@ -38,6 +40,32 @@ class TestLocalEntrypoint:
         assert review["id"] == "architecture-review"
         assert review["process"]["status"] == "waiting"
         assert review["regions"][0]["report"]["id"] == "architecture-review-process"
+
+    def test_wires_action_proposal_route(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(_DEV_ENV, "1")
+        application = _local.app()
+        with TestClient(application) as client:
+            response = client.post(
+                "/chat/action",
+                json={
+                    "prompt": "restart test-service-1",
+                    "idempotency_key": "local-action-1",
+                },
+            )
+
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["submitted"] is True
+            assert payload["action_type"] == "ops.restart-service"
+
+            thor = application.state.pantheon_runtime.agents["Thor"]
+            deadline = time.monotonic() + 1.0
+            while payload["correlation_id"] not in thor.action_runs and time.monotonic() < deadline:
+                time.sleep(0.01)
+            action_run = thor.action_runs[payload["correlation_id"]]
+            assert action_run.state.value == "succeeded"
+            assert action_run.shadow_mode is True
+            assert action_run.outcome == "shadow_success"
 
     async def test_builds_inside_running_event_loop(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(_DEV_ENV, "1")

@@ -155,6 +155,40 @@ def test_reader_role_is_refused_at_entry_before_the_pipeline() -> None:
     assert h.bus.messages_on("object.verdict") == []
 
 
+def test_break_glass_cannot_submit_a_normal_action() -> None:
+    # BreakGlass is hard-isolated (NOT a superset of Owner) and does NOT carry
+    # author-draft-pr, so the HTTP console-action gate refuses it. The
+    # conversational entry gate MUST agree - a linear role rank that treats
+    # BreakGlass as "above Owner" wrongly let it through (critique #8).
+    h = _Harness()
+    turn = h.ask("restart svc-1 now", role="BreakGlass")
+    assert turn.answer["submitted"] is False
+    assert turn.answer["abstain_reason"] == "rbac_role_floor"
+    assert h.bus.messages_on("object.event") == []
+
+
+@pytest.mark.parametrize(
+    ("role", "expect_submit"),
+    [
+        ("Reader", False),
+        ("Contributor", True),
+        ("Approver", True),
+        ("Owner", True),
+        ("BreakGlass", False),
+        ("not-a-role", False),
+    ],
+)
+def test_entry_gate_agrees_with_capability_matrix(role: str, expect_submit: bool) -> None:
+    # Drift guard: the conversational entry gate MUST admit exactly the roles
+    # the canonical capability matrix grants author-draft-pr, so it can never
+    # diverge from the HTTP console-action gate (critique #8).
+    h = _Harness()
+    turn = h.ask("restart svc-1 now", role=role)
+    assert turn.answer["submitted"] is expect_submit
+    if not expect_submit:
+        assert turn.answer["abstain_reason"] == "rbac_role_floor"
+
+
 def test_contributor_role_may_submit_an_action() -> None:
     h = _Harness()
     turn = h.ask("restart svc-1 now", role="Contributor")

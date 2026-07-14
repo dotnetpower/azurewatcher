@@ -1,8 +1,8 @@
 ---
 title: Hallucination Rubric Gate
 translation_of: hallucination-rubric-gate.md
-translation_source_sha: 3646e11562acb0fdba8949d03ff410568f91dfa2
-translation_revised: 2026-07-11
+translation_source_sha: 70356a04cd024e729f02e39a118868ce6df81cb6
+translation_revised: 2026-07-15
 ---
 # Hallucination Rubric Gate (환각 루브릭 게이트)
 
@@ -217,10 +217,11 @@ HIL로 보낼 수 있지만, ungrounded 액션을 안전하게 만들 수는 없
 
 ## 통합 상태
 
-**이 leg는 아직 upstream 제어 루프에 배선되지 않았다.** 현재 시점에 upstream은 live
-`QualityGate` 를 제어 루프에 조립하지 않는다 - T2 통합 자체가 shadow-only backlog다
-(`tests/scenarios/test_v2026_07_replay.py` 의 xfail 마커 참조). 루브릭은 그 seam 위에 얹힌,
-완전히 테스트된 고립 라이브러리다. 실제로 돌게 하려면 포크가 반드시:
+Upstream 제어 루프는 이제 T1, shadow-only T2 proposer, mixed-model
+`QualityGate`, 결정론적 rule verifier, catalog grounding 을 조립합니다. Eligible T2
+candidate 는 audit 되지만 실행 가능한 `Action` 으로 변환되지 않습니다. 해당 downstream
+bridge 는 계속 gate 된 작업입니다. 포크가 `LlmBindings.rubric_evaluator` 를 바인딩하면
+루브릭 leg 가 실행됩니다. 이를 활성화하려면 포크에서 다음을 권장합니다.
 
 1. `QualityGate` 를 조립하고 바인딩된 `RubricEvaluator` 를 전달한다(`t2.rubric.judge`
    capability에서 resolve해 `LlmBindings.rubric_evaluator` 에 바인딩). judge의 시스템
@@ -230,20 +231,21 @@ HIL로 보낼 수 있지만, ungrounded 액션을 안전하게 만들 수는 없
    직접 로드한다. CI 게이트(`tests/rule_catalog/test_prompt_registry_consistency.py`)가 모든
    프롬프트 `applies_to` capability가 `llm-registry.yaml` 에 존재함을 단언하므로, 오타난
    `t2.rubric.judge` 가 프롬프트를 조용히 orphan시킬 수 없다.
-2. 자신의 `T2Proposer` 에서 `QualityCandidate.reasoning_trace` 를 채운다 - 빈 trace는
-   채점 대상이 없어 루브릭을 abstain시킨다.
+2. `QualityCandidate.reasoning_trace` 를 계속 채웁니다. 배포된 local/Azure proposer 는
+  이를 채우며, 빈 trace 를 반환하는 포크 proposer 는 채점 대상이 없어 루브릭을
+  abstain시킵니다.
 3. `QualityDecision.rubric_*` 필드를 audit 로그에 직렬화해 shadow 모드 catch /
    false-positive 지표를 실제로 측정할 수 있게 한다. `quality_decision_audit_fields()`
    헬퍼가 이를 JSON-safe하게 flatten한다; 포크의 제어 루프 audit writer가 그 출력을
    per-decision 엔트리에 병합한다. 모든 필드는 구조화된 id / score / enum / 리소스
    참조이며, 예외는 루브릭 `rationale`(untrusted LLM 자유텍스트)로 기본 제외된다
    (`include_rationale=True` 로 opt-in, 길이 제한, 포크는 저장 전 반드시 secret-scan -
-   L0 audit는 시크릿/고객값을 기록하지 않는다). upstream 제어 루프는 아직 이 헬퍼를
-   호출하지 않는다(T2 미배선); 그 호출 없이는 shadow 모드가 승격할 데이터를 기록하지
-   못한다.
+  L0 audit는 시크릿/고객값을 기록하지 않습니다). Upstream 제어 루프는 모든 T2 quality
+  decision 에 이 헬퍼를 호출합니다.
 
-이 셋이 완료되기 전까지 루브릭은 런타임에서 아무것도 바꾸지 않는다. 이는 의도된 것이지만
-(shadow-first), 현재 가치는 live 환각 감소가 아니라 테스트된 계약과 seam이라는 뜻이다.
+루브릭 evaluator 가 바인딩되지 않으면 런타임 동작을 바꾸지 않습니다. 바인딩되면 shadow
+측정값을 기록하지만 execution authority 를 높이지 않습니다. 이 방식은 통합을 shadow-first로
+유지하면서 이후 승격 결정에 필요한 evidence 를 생성합니다.
 
 ## Next steps
 

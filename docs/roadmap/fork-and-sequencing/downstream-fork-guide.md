@@ -145,6 +145,36 @@ The rule is enforced by three invariants:
   composition root; it does not edit this file. `.github/CODEOWNERS`
   is the review-time counterpart: framework-surface paths route to
   the owners team.
+- A **signed integrity manifest** makes framework-surface tampering
+  detectable OFFLINE. Upstream signs
+  [`security/integrity/manifest.json`](../../../security/integrity/manifest.json)
+  (a SHA-256 map of every framework-surface file) with an Ed25519
+  key; the public key ships in the tree
+  ([`upstream-signing-key.pub`](../../../security/integrity/upstream-signing-key.pub)).
+  [`scripts/check-integrity.sh`](../../../scripts/check-integrity.sh)
+  re-hashes the surface and verifies the signature with **no network,
+  no OCSP, no cert chain** - air-gapped friendly. It reports two
+  things independently: a **signature** failure (a forged or corrupt
+  manifest - always an error, because a fork cannot mint a valid
+  manifest without upstream's private key) and a **content** mismatch
+  (an edited, added, or deleted surface file - a hard fail in fork
+  mode, advisory upstream). The single source of truth for the
+  surface list is
+  [`scripts/lib/framework-surface.txt`](../../../scripts/lib/framework-surface.txt),
+  shared with `check-protected-paths.sh` so the guard and the manifest
+  cannot drift. This is tamper-**evidence**, not tamper-**proof**: a
+  fork owner still controls their own runtime and could delete the
+  verifier, so enforcement of trust ultimately belongs to an
+  upstream-controlled gate, not to a file a fork can edit.
+
+To verify a checkout offline at any time:
+
+```bash
+scripts/check-integrity.sh        # signature + content, fully offline
+```
+
+The `framework-integrity` gate in `scripts/verify.sh` runs it
+automatically once the signed manifest exists.
 
 ## 4. Repo layout for a fork
 

@@ -1,8 +1,8 @@
 ---
 title: LLM 전략(LLM Strategy)
 translation_of: llm-strategy.md
-translation_source_sha: dc9470caa0a271baf615b2d9da6d6cae88b0be39
-translation_revised: 2026-07-12
+translation_source_sha: 4cc54e06aa7867c75868709e2879f4d4f3a43cfd
+translation_revised: 2026-07-15
 ---
 
 # LLM 전략(LLM Strategy)
@@ -834,7 +834,7 @@ CREATE TABLE ontology_embedding (         -- L3
   embedding_id       text PRIMARY KEY,
   kind               text NOT NULL,
   ref_id             text NOT NULL,
-  vec                vector(1536) NOT NULL
+  vec                vector(384) NOT NULL
 );
 CREATE INDEX ix_emb_hnsw ON ontology_embedding USING hnsw (vec vector_cosine_ops);
 

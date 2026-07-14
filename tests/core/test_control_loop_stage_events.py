@@ -118,12 +118,12 @@ async def test_default_publisher_emits_nothing(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Abstain-on-routing path: ingest.done -> route.done -> audit.done.
+# T1-unavailable fallback path: ingest.done -> route.done -> audit.done.
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_abstained_routing_emits_ingest_route_audit(tmp_path: Path) -> None:
+async def test_t1_unavailable_emits_ingest_route_audit(tmp_path: Path) -> None:
     recorder = RecordingStagePublisher()
     loop = _make_loop(stage_publisher=recorder, tmp_path=tmp_path)
     result = await loop.process(_event_dict("evt-abstain-routing"))
@@ -136,7 +136,9 @@ async def test_abstained_routing_emits_ingest_route_audit(tmp_path: Path) -> Non
         (StageName.AUDIT, StagePhase.DONE),
     ]
     route_evt = recorder.by_stage(StageName.ROUTE)[0]
-    assert route_evt.detail["routed_to"] == "abstain"
+    assert route_evt.detail["routed_to"] == "t1"
+    ingest_evt = recorder.by_stage(StageName.INGEST)[0]
+    assert ingest_evt.detail["mode"] == Mode.SHADOW.value
     audit_evt = recorder.by_stage(StageName.AUDIT)[0]
     assert audit_evt.detail["outcome"] == "abstained_routing"
 
@@ -190,13 +192,10 @@ async def test_t1_fallback_emits_second_verify(tmp_path: Path) -> None:
         pattern_library=InMemoryPatternLibrary(),
     )
     loop = _make_loop(stage_publisher=recorder, t1_engine=tier, tmp_path=tmp_path)
-    # Rule-less setup still abstains at routing (T1 fallback only fires
-    # AFTER a T0 evaluate); the abstained_routing path already skips T1,
-    # so we assert only the guaranteed emit set. A rule-matched T0-abstain
-    # scenario (needed for T1 fallback) requires a fuller harness that
-    # lives in the higher-level scenario tests; here we just document
-    # that the T1 emit block does NOT run on the routing-abstain path.
+    # A known resource type with no deterministic rule routes directly to
+    # T1. The empty pattern library then abstains without invoking T0.
     result = await loop.process(_event_dict("evt-t1"))
-    assert result.outcome is ControlLoopOutcome.ABSTAINED_ROUTING
+    assert result.outcome is ControlLoopOutcome.T1_ABSTAINED
     verify_events = recorder.by_stage(StageName.VERIFY)
-    assert len(verify_events) == 0  # T0 was not reached
+    assert len(verify_events) == 1
+    assert verify_events[0].detail["tier"] == "t1"

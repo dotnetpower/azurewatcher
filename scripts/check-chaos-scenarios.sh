@@ -23,14 +23,18 @@ set -uo pipefail
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$repo_root"
 
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "check-chaos-scenarios: python3 not found on PATH" >&2
+if command -v uv >/dev/null 2>&1; then
+    python_cmd=(uv run python)
+elif command -v python3 >/dev/null 2>&1; then
+    python_cmd=(python3)
+else
+    echo "check-chaos-scenarios: uv or python3 not found on PATH" >&2
     exit 2
 fi
 
 # ---- 1. load_all() must succeed ------------------------------------------
 
-if ! output="$(python3 -c '
+if ! output="$(PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}" "${python_cmd[@]}" -c '
 import sys
 from fdai.core.chaos.scenario_catalog import ScenarioCatalogError, load_all
 try:
@@ -59,7 +63,8 @@ fi
 tmp_index="$(mktemp)"
 trap 'rm -f "$tmp_index"' EXIT
 
-if ! python3 scripts/build-symptom-index.py --out "$tmp_index" >/dev/null 2>&1; then
+if ! PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}" \
+    "${python_cmd[@]}" scripts/build-symptom-index.py --out "$tmp_index" >/dev/null 2>&1; then
     echo "check-chaos-scenarios: scripts/build-symptom-index.py failed" >&2
     exit 1
 fi

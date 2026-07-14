@@ -1,4 +1,5 @@
 import { ReadApiError } from "../api";
+import { routeHref } from "../router";
 
 export interface ProcessSummary {
   readonly id: string;
@@ -64,7 +65,7 @@ export function processIdFromHash(hash: string): string | null {
 }
 
 export function processHref(processId: string): string {
-  return `#/processes?process=${encodeURIComponent(processId)}`;
+  return routeHref("processes", { segments: [processId] });
 }
 
 export function processTone(status: string): "success" | "warning" | "danger" | "info" {

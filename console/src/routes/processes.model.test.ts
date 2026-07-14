@@ -12,9 +12,9 @@ import {
 } from "./processes.model";
 
 describe("process view route model", () => {
-  it("round-trips a process id through the hash query", () => {
+  it("builds a clean process detail path and accepts legacy queries", () => {
     const href = processHref("process:review-1");
-    expect(processIdFromHash(href)).toBe("process:review-1");
+    expect(href).toBe("/processes/process%3Areview-1");
     expect(processIdFromHash("#%2Fprocesses%3Fprocess%3Dprocess-1")).toBe("process-1");
   });
 

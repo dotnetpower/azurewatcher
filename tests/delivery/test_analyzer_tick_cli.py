@@ -11,6 +11,7 @@ from fdai.delivery.analyzer_tick_cli import (
     _ENV_BUDGET,
     _ENV_TARGETS,
     _ENV_WINDOW,
+    _finding_event,
     _load_targets,
     _positive_float,
     _run_tick,
@@ -175,3 +176,24 @@ def test_main_returns_three_on_malformed_env(
     `main` guard catches the ValueError and returns 3."""
     monkeypatch.setenv(_ENV_TARGETS, "not-json")
     assert main() == 3
+
+
+def test_finding_event_is_deterministic_and_canonical() -> None:
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    finding = SimpleNamespace(
+        resource_ref="resource:example/aks-1",
+        resource_kind="kubernetes-cluster",
+        signal="cpu_saturation",
+        severity=SimpleNamespace(value="high"),
+        observation="CPU exceeded the configured threshold.",
+        occurred_at=datetime(2026, 7, 15, tzinfo=UTC),
+    )
+    first = _finding_event("investigation-1", finding)
+    second = _finding_event("investigation-1", finding)
+
+    assert first.event_id == second.event_id
+    assert first.idempotency_key == second.idempotency_key
+    assert first.event_type == "analyzer.cpu_saturation"
+    assert first.payload["resource"]["type"] == "kubernetes-cluster"

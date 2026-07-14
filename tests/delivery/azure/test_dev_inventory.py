@@ -73,6 +73,62 @@ class TestFullSnapshot:
         )
         assert rec.props["name"] == "rg-example"
 
+    def test_maps_sql_database_row_with_resource_group(self) -> None:
+        # `az resource list --resource-type Microsoft.Sql/servers/databases`
+        # rows carry a `resourceGroup` field; the adapter must surface it as a
+        # prop so a console read can scope MSSQL databases by resource group.
+        payload = json.dumps(
+            [
+                {
+                    "id": (
+                        "/subscriptions/00000000-0000-0000-0000-000000000000"
+                        "/resourceGroups/rg-payments/providers/Microsoft.Sql"
+                        "/servers/sql-a/databases/orders"
+                    ),
+                    "name": "orders",
+                    "location": "koreacentral",
+                    "resourceGroup": "rg-payments",
+                    "tags": {},
+                }
+            ]
+        )
+        inv = AzureCliInventory(resource_types=("sql-database",))
+        with patch(
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
+            return_value=_completed(payload),
+        ):
+            batches = asyncio.run(_drain(inv))
+        [db_batch, _final] = batches
+        assert len(db_batch.resources) == 1
+        rec = db_batch.resources[0]
+        assert rec.type == "sql-database"
+        assert rec.props["name"] == "orders"
+        assert rec.props["resourceGroup"] == "rg-payments"
+
+    def test_resource_group_recovered_from_arm_id_when_field_absent(self) -> None:
+        # A row missing the explicit `resourceGroup` field still recovers it
+        # from the ARM path.
+        payload = json.dumps(
+            [
+                {
+                    "id": (
+                        "/subscriptions/00000000-0000-0000-0000-000000000000"
+                        "/resourceGroups/rg-analytics/providers/Microsoft.Sql"
+                        "/servers/sql-b/databases/events"
+                    ),
+                    "name": "events",
+                }
+            ]
+        )
+        inv = AzureCliInventory(resource_types=("sql-database",))
+        with patch(
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
+            return_value=_completed(payload),
+        ):
+            batches = asyncio.run(_drain(inv))
+        rec = batches[0].resources[0]
+        assert rec.props["resourceGroup"] == "rg-analytics"
+
     def test_unknown_resource_type_skipped(self) -> None:
         inv = AzureCliInventory(resource_types=("resource-group", "not-a-type"))
         with patch(

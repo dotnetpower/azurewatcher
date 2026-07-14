@@ -143,12 +143,15 @@ export function causalTargetRows(
   const selected = selectionRows(snapshot);
   if (selected.length > 0) return selected;
 
-  // 3) The single newest row that actually carries a narrative.
+  // 3) The single newest grounded row that actually carries a narrative.
   const records = snapshot.records ?? {};
   const withNarrative: Record<string, unknown>[] = [];
   for (const key of Object.keys(records)) {
     for (const row of records[key] ?? []) {
-      if (firstString(row, "detail", "summary", "reason")) withNarrative.push(row);
+      if (row.grounded === false || row.outcome === "abstained") continue;
+      if (firstString(row, "cause", "detail", "summary", "reason")) {
+        withNarrative.push(row);
+      }
     }
   }
   if (withNarrative.length === 0) return [];

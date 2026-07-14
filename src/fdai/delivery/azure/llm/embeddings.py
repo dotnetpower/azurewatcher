@@ -29,9 +29,9 @@ class AzureOpenAIEmbeddingModelConfig:
     api_version: str = "2024-06-01"
     """Azure OpenAI data-plane API version."""
 
-    dim: int = 1536
-    """Vector dimensionality - MUST match the deployed family (e.g. 1536 for
-    ``text-embedding-3-small``)."""
+    dim: int = 384
+    """Vector dimensionality requested from text-embedding-3 deployments.
+    MUST match the pgvector schema contract."""
 
     timeout_seconds: float = 30.0
 
@@ -85,7 +85,7 @@ class AzureOpenAIEmbeddingModel:
                 "Authorization": f"Bearer {token.token}",
                 "Content-Type": "application/json",
             },
-            json={"input": text},
+            json={"input": text, "dimensions": self._config.dim},
             timeout=self._config.timeout_seconds,
         )
         response.raise_for_status()

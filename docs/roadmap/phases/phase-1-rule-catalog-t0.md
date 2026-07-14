@@ -292,7 +292,9 @@ Each criterion is measurable against the Phase 0 telemetry and scenario set, not
   completeness is asserted.
 - The **inventory graph is populated** before any T0 verdict fires: the parallel full-scan
   completes atomically (fail-closed on partial failure), links land under the CSP-neutral
-  vocabulary, and re-running the scan is a no-op idempotent upsert.
+  vocabulary, and re-running the scan is a no-op idempotent upsert. Between scans, Activity Log
+  deltas re-enter the event topic under a durable cursor. Graph-dependent actions read active
+  snapshot age at the RiskGate and route to HIL when freshness is unknown or stale.
 
 ## Dependencies
 

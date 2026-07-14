@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from fdai.core.control_loop import ControlLoop, ControlLoopOutcome
+from fdai.core.control_loop import ControlLoop, ControlLoopOutcome, ControlLoopResult
 from fdai.core.event_ingest import EventIngest
 from fdai.core.executor import (
     ResourceLockManager,
@@ -35,7 +35,7 @@ from fdai.core.quality_gate.gate import (
     QualityOutcome,
 )
 from fdai.core.tiers.t0_deterministic import RuleIndex, T0Engine
-from fdai.core.tiers.t2_reasoning import T2Outcome, T2Tier
+from fdai.core.tiers.t2_reasoning import T2Outcome, T2ProposalContext, T2Tier
 from fdai.core.trust_router import RoutingDecision, RoutingTier, TrustRouter
 from fdai.shared.contracts.models import Event, Mode
 from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
@@ -43,6 +43,8 @@ from fdai.shared.contracts.validation import (
     JsonSchemaContractValidator,
     JsonSchemaEventValidator,
 )
+from fdai.shared.providers.stage_publisher import StageName, StagePhase
+from fdai.shared.providers.testing import RecordingStagePublisher
 from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
 
@@ -60,7 +62,12 @@ def _event_dict(idempotency: str) -> dict:
         "detected_at": datetime.now(tz=UTC).isoformat(),
         "ingested_at": datetime.now(tz=UTC).isoformat(),
         "mode": Mode.SHADOW.value,
-        "payload": {"resource": {"type": "compute.vm.novel", "id": "res-01"}},
+        "payload": {
+            "resource": {
+                "type": "compute.vm.novel",
+                "resource_id": "res-01",
+            }
+        },
     }
 
 
@@ -83,8 +90,8 @@ class _Proposer:
     def __init__(self, candidate: QualityCandidate | None) -> None:
         self._candidate = candidate
 
-    async def propose(self, *, event: Event) -> QualityCandidate | None:
-        del event
+    async def propose(self, *, context: T2ProposalContext) -> QualityCandidate | None:
+        del context
         return self._candidate
 
 
@@ -101,6 +108,7 @@ def _make_loop(
     t2_engine: T2Tier | None,
     audit: InMemoryStateStore,
     tmp_path: Path,
+    stage_publisher=None,
 ) -> ControlLoop:
     index = RuleIndex.build(rules=[])
     return ControlLoop(
@@ -117,6 +125,7 @@ def _make_loop(
         audit_store=audit,
         rules_by_id={},
         t2_engine=t2_engine,
+        stage_publisher=stage_publisher,
     )
 
 
@@ -208,7 +217,54 @@ async def test_consult_t2_proposed_logs_shadow_only(tmp_path: Path) -> None:
     assert row["stage"] == "t2_reasoning"
     assert row["t2_outcome"] == "proposed"
     assert row["t2_candidate"]["action_type"] == "remediate.tag-add"
-    assert row["t2_quality"]["quality_outcome"] == "eligible"
+    assert row["t2_quality"]["outcome"] == "eligible"
+
+
+@pytest.mark.asyncio
+async def test_consult_t2_routed_result_emits_terminal_audit_stage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit = InMemoryStateStore()
+    recorder = RecordingStagePublisher()
+    tier = T2Tier(proposer=_Proposer(_candidate()), quality_gate=_FakeGate(QualityOutcome.ELIGIBLE))
+    loop = _make_loop(
+        t2_engine=tier,
+        audit=audit,
+        tmp_path=tmp_path,
+        stage_publisher=recorder,
+    )
+    event = await _ingest("evt-t2-routed")
+    routed = ControlLoopResult(
+        outcome=ControlLoopOutcome.HIL,
+        tier="t2",
+        decision="hil",
+        resource_type="compute.vm.novel",
+        event_id=str(event.event_id),
+    )
+
+    async def _route(**kwargs):  # noqa: ANN003, ANN202
+        del kwargs
+        return routed
+
+    monkeypatch.setattr(loop, "_route_t2_candidate", _route)
+    result = await loop._consult_t2(  # noqa: SLF001 - test hook
+        event=event,
+        decision=_routing(),
+        citing=("r1",),
+        cs_decision=None,
+        t1_decision=None,
+        event_id=str(event.event_id),
+        correlation_id=str(event.event_id),
+    )
+
+    assert result is routed
+    terminal = recorder.by_stage(StageName.AUDIT)
+    assert len(terminal) == 1
+    assert terminal[0].phase is StagePhase.DONE
+    assert terminal[0].detail["outcome"] == ControlLoopOutcome.HIL.value
+    assert terminal[0].detail["decision"] == "hil"
+    assert terminal[0].detail["mode"] == Mode.SHADOW.value
 
 
 @pytest.mark.asyncio
@@ -228,6 +284,7 @@ async def test_consult_t2_denied_maps(tmp_path: Path) -> None:
     )
     assert result is not None
     assert result.outcome is ControlLoopOutcome.T2_DENIED
+    assert result.decision == "deny"
 
 
 @pytest.mark.asyncio
@@ -247,6 +304,7 @@ async def test_consult_t2_proposer_abstain_maps(tmp_path: Path) -> None:
     )
     assert result is not None
     assert result.outcome is ControlLoopOutcome.T2_ABSTAINED
+    assert result.decision == "hil"
     rows = [
         r["entry"]
         for r in audit.audit_entries

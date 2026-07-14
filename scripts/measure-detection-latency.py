@@ -112,9 +112,7 @@ MYSQL_PW_FILE = _env("FDAI_ENFORCE_MYSQL_PW_FILE")
 AOAI_ENDPOINT = _env("FDAI_ENFORCE_AOAI_ENDPOINT")
 AOAI_DEPLOYMENT = _env("FDAI_ENFORCE_AOAI_DEPLOYMENT")
 
-REPORT_ROOT = (
-    Path("logs/detection-latency") / datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
-)
+REPORT_ROOT = Path("logs/detection-latency") / datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
 REPORT_ROOT.mkdir(parents=True, exist_ok=True)
 
 # Two probe classes. Event / status probes can be polled at 1 s and reflect

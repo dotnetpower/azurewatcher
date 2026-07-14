@@ -9,19 +9,43 @@
  * markup live away from the SSE / lifecycle code.
  */
 
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { architectureHref } from "../components/architecture-map.model";
 import type { LiveStageName } from "../hooks/use-live-stream";
+import { t } from "./i18n/live";
 import {
-  AGENT_ROLE,
-  STAGE_LABEL,
   STAGE_ORDER,
   formatAge,
+  isTileStuck,
   matchesFilter,
   type FilterKind,
   type RateBuckets,
   type TileState,
 } from "./live.model";
+
+function stageLabel(stage: LiveStageName): string {
+  return t(`live.stage.${stage}`);
+}
+
+function agentRole(agent: string): string {
+  return t(`live.role.${agent}`) === `live.role.${agent}`
+    ? t("live.role.unknown")
+    : t(`live.role.${agent}`);
+}
+
+function actionHeading(tile: TileState): string {
+  if (tile.action_types.size > 1) {
+    return t("live.work.actions", { count: tile.action_types.size });
+  }
+  return tile.action_type ??
+    (tile.completed && !tile.gate_decision ? t("live.work.noRule") : t("live.work.routing"));
+}
+
+function decisionLabel(decision: string): string {
+  const key = `live.decision.${decision}`;
+  const label = t(key);
+  return label === key ? decision : label;
+}
 
 // ---------------------------------------------------------------------------
 // Tile + stage dots
@@ -43,18 +67,16 @@ export function LiveTile({ tile, filter, selected, now, onClick }: TileProps) {
   const vertical = tile.vertical ?? "unknown";
   const tier = tile.tier ?? "abstain";
   const gate = tile.gate_decision ?? "";
-  const dimmed = matchesFilter(tile, filter) ? "" : " dimmed";
+  const dimmed = matchesFilter(tile, filter, now) ? "" : " dimmed";
   const failed = tile.failed ? "1" : "0";
   const done = tile.completed ? "1" : "0";
   const ageMs = Math.max(0, now - tile.first_seen_at);
-  const heading =
-    tile.action_type ??
-    (tile.completed && !tile.gate_decision ? "no rule matched" : "routing...");
+  const heading = actionHeading(tile);
   const tierLabel = tier === "abstain" ? "N/A" : tier.toUpperCase();
   // Abstain-and-done tiles carry zero operational information. Mark
   // them so CSS can quiet them into a background pattern rather than
   // stealing visual weight from remediation tiles.
-  const abstain = tile.completed && !tile.gate_decision && !tile.action_type ? "1" : "0";
+  const abstain = tile.completed && !tile.gate_decision && tile.action_types.size === 0 ? "1" : "0";
 
   return (
     <button
@@ -66,7 +88,10 @@ export function LiveTile({ tile, filter, selected, now, onClick }: TileProps) {
       data-abstain={abstain}
       data-selected={selected ? "1" : "0"}
       onClick={onClick}
-      aria-label={`${tile.action_type ?? "(routing)"} on ${tile.resource_type ?? "unknown"}`}
+      aria-label={t("live.work.itemLabel", {
+        action: heading,
+        resource: tile.resource_type ?? t("live.work.unknownResource"),
+      })}
     >
       <StageDots
         completed={tile.stages_completed}
@@ -74,7 +99,7 @@ export function LiveTile({ tile, filter, selected, now, onClick }: TileProps) {
         stage_agents={tile.stage_agents}
       />
       <div class="live-tile-top">
-        <span class="live-tile-action" title={tile.rule ?? tile.action_type}>
+        <span class="live-tile-action" title={tile.rule ?? [...tile.action_types].join(", ")}>
           {heading}
         </span>
         <span class={`live-tier live-tier-${tier}`}>{tierLabel}</span>
@@ -87,28 +112,24 @@ export function LiveTile({ tile, filter, selected, now, onClick }: TileProps) {
         {tile.last_agent ? (
           <span
             class="live-tile-agent"
-            title={
-              AGENT_ROLE[tile.last_agent]
-                ? `${tile.last_agent} - ${AGENT_ROLE[tile.last_agent]}`
-                : tile.last_agent
-            }
+            title={`${tile.last_agent} - ${agentRole(tile.last_agent)}`}
           >
             {tile.last_agent}
           </span>
         ) : null}
         {gate ? (
-          <span class={`live-gate live-gate-${gate}`}>{gate}</span>
+          <span class={`live-gate live-gate-${gate}`}>{decisionLabel(gate)}</span>
         ) : (
           <span class="muted">…</span>
         )}
-        {tile.stages_completed.has("execute") ? (
-          <span class="live-tile-mode" title="Action executed in shadow mode - a remediation PR, not an enforce write">
-            shadow
+        {tile.mode ? (
+          <span class="live-tile-mode" title={t("live.work.executionMode", { mode: tile.mode })}>
+            {tile.mode}
           </span>
         ) : null}
         <span class="muted live-tile-age">{formatAge(ageMs)}</span>
       </div>
-      {gate === "hil" ? <span class="live-tile-badge">needs approval</span> : null}
+      {gate === "hil" ? <span class="live-tile-badge">{t("live.work.needsApproval")}</span> : null}
     </button>
   );
 }
@@ -123,12 +144,12 @@ export function StageDots({
   readonly stage_agents: ReadonlyMap<LiveStageName, string>;
 }) {
   return (
-    <div class="live-tile-progress" aria-label="agent relay">
+    <div class="live-tile-progress" aria-label={t("live.work.agentRelay")}>
       {STAGE_ORDER.map((stage) => {
         const relayAgent = stage_agents.get(stage);
         const tip = relayAgent
-          ? `${STAGE_LABEL[stage]} - ${relayAgent}${AGENT_ROLE[relayAgent] ? ` (${AGENT_ROLE[relayAgent]})` : ""}`
-          : STAGE_LABEL[stage];
+          ? `${stageLabel(stage)} - ${relayAgent} (${agentRole(relayAgent)})`
+          : stageLabel(stage);
         return (
           <span
             key={stage}
@@ -137,6 +158,108 @@ export function StageDots({
           />
         );
       })}
+    </div>
+  );
+}
+
+export function tileAttentionRank(tile: TileState, now: number): number {
+  if (tile.failed) return 0;
+  if (isTileStuck(tile, now)) return 1;
+  if (tile.gate_decision === "hil") return 2;
+  if (tile.gate_decision === "deny") return 3;
+  if (!tile.completed) return 4;
+  return 5;
+}
+
+export function LiveQueue({
+  tiles,
+  filter,
+  selectedEventId,
+  now,
+  onSelect,
+}: {
+  readonly tiles: readonly TileState[];
+  readonly filter: FilterKind;
+  readonly selectedEventId: string | null;
+  readonly now: number;
+  readonly onSelect: (eventId: string) => void;
+}) {
+  const visible = [...tiles.filter((tile) => matchesFilter(tile, filter, now))]
+    .sort((left, right) => {
+      const rank = tileAttentionRank(left, now) - tileAttentionRank(right, now);
+      return rank !== 0 ? rank : right.last_seen_at - left.last_seen_at;
+    });
+
+  if (visible.length === 0) {
+    return <div class="live-queue-empty" role="status">{t("live.work.noMatch")}</div>;
+  }
+
+  return (
+    <div class="live-queue-wrap">
+      <table class="live-queue">
+        <thead>
+          <tr>
+            <th scope="col">{t("live.work.columns.controlLoop")}</th>
+            <th scope="col">{t("live.work.columns.stage")}</th>
+            <th scope="col">{t("live.work.columns.age")}</th>
+            <th scope="col">{t("live.work.columns.tier")}</th>
+            <th scope="col">{t("live.work.columns.mode")}</th>
+            <th scope="col">{t("live.work.columns.decision")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {visible.map((tile) => {
+            const stuck = isTileStuck(tile, now);
+            const status = tile.failed
+              ? "failed"
+              : stuck
+                ? "stuck"
+                : tile.gate_decision === "hil"
+                  ? "approval"
+                  : tile.completed
+                    ? "completed"
+                    : "active";
+            return (
+              <tr
+                key={tile.event_id}
+                data-status={status}
+                data-selected={tile.event_id === selectedEventId ? "1" : "0"}
+              >
+                <td data-label={t("live.work.columns.controlLoop")}>
+                  <button type="button" onClick={() => onSelect(tile.event_id)}>
+                    <strong>{actionHeading(tile)}</strong>
+                    <span>{tile.resource_type ?? t("live.work.unknownResource")}</span>
+                    <code>{tile.correlation_id}</code>
+                  </button>
+                </td>
+                <td data-label={t("live.work.columns.stage")}>
+                  <span class="live-queue-stage">{stageLabel(tile.last_stage)}</span>
+                  {tile.last_agent ? <small>{tile.last_agent}</small> : null}
+                </td>
+                <td class="live-queue-age" data-label={t("live.work.columns.age")}>
+                  {formatAge(Math.max(0, now - tile.first_seen_at))}
+                  {stuck ? <small>{t("live.work.overBudget")}</small> : null}
+                </td>
+                <td data-label={t("live.work.columns.tier")}>
+                  <span class={`live-tier live-tier-${tile.tier ?? "unknown"}`}>
+                    {tile.tier?.toUpperCase() ?? "N/A"}
+                  </span>
+                </td>
+                <td data-label={t("live.work.columns.mode")}>{tile.mode ? <span class="live-tile-mode">{tile.mode}</span> : "-"}</td>
+                <td data-label={t("live.work.columns.decision")}>
+                  {tile.gate_decision ? (
+                    <span class={`live-gate live-gate-${tile.gate_decision}`}>
+                      {decisionLabel(tile.gate_decision)}
+                    </span>
+                  ) : (
+                    <span class="muted">{t("live.work.pending")}</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -214,15 +337,15 @@ export function Sparkline({
     const secAgo = n - 1 - hover;
     const latText =
       avg === null
-        ? "no completions"
+        ? t("live.spark.noCompletions")
         : avg < 1
-          ? "avg <1ms"
+          ? t("live.spark.averageUnderMs")
           : avg >= 1000
-            ? `avg ${(avg / 1000).toFixed(1)}s`
-            : `avg ${Math.round(avg)}ms`;
+            ? t("live.spark.averageSeconds", { value: (avg / 1000).toFixed(1) })
+            : t("live.spark.averageMs", { value: Math.round(avg) });
     tip = {
       leftPct: n > 1 ? (hover / (n - 1)) * 100 : 50,
-      label: secAgo === 0 ? "last full second" : `${secAgo}s ago`,
+      label: secAgo === 0 ? t("live.spark.lastSecond") : t("live.spark.secondsAgo", { count: secAgo }),
       counts: `T0 ${t0[hover] ?? 0}  T1 ${t1[hover] ?? 0}  T2 ${t2[hover] ?? 0}`,
       lat: latText,
     };
@@ -273,7 +396,7 @@ export function Sparkline({
           />
         ) : null}
       </svg>
-      {sampleTotal === 0 ? <span class="live-spark-empty">awaiting stream samples</span> : null}
+      {sampleTotal === 0 ? <span class="live-spark-empty">{t("live.spark.awaiting")}</span> : null}
       {tip ? (
         <div class="live-spark-tip" style={`left:${tip.leftPct.toFixed(1)}%`}>
           <div class="live-spark-tip-h">{tip.label}</div>
@@ -342,29 +465,108 @@ export function DetailPanel({
   readonly now: number;
   readonly onClose: () => void;
 }) {
+  const panelRef = useRef<HTMLElement | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    closeRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = [...(panelRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? [])];
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, []);
+
+  const heading = actionHeading(tile);
+
   return (
     <div class="live-detail-backdrop" onClick={onClose}>
-      <aside class="live-detail-panel" onClick={(e) => e.stopPropagation()}>
+      <aside
+        ref={panelRef}
+        class="live-detail-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="live-detail-title"
+        onClick={(event) => event.stopPropagation()}
+      >
         <header>
-          <h3>{tile.action_type ?? "(pending)"}</h3>
-          <button type="button" class="live-detail-close" onClick={onClose} aria-label="Close">
+          <h3 id="live-detail-title">{heading}</h3>
+          <button ref={closeRef} type="button" class="live-detail-close" onClick={onClose} aria-label={t("live.detail.close")}>
             ×
           </button>
         </header>
+        <ol class="live-detail-trace" aria-label={t("live.detail.traceLabel")}>
+          {STAGE_ORDER.map((stage) => {
+            const complete = tile.stages_completed.has(stage);
+            const current = tile.last_stage === stage;
+            const agent = tile.stage_agents.get(stage);
+            return (
+              <li class={complete ? "done" : current ? "current" : undefined}>
+                <span class="live-detail-trace-dot" aria-hidden="true" />
+                <div>
+                  <strong>{stageLabel(stage)}</strong>
+                  <small>
+                    {agent
+                      ? `${agent} - ${agentRole(agent)}`
+                      : current
+                        ? t("live.detail.inProgress")
+                        : t("live.detail.notObserved")}
+                  </small>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
         <dl class="live-detail-list">
-          <dt>Event id</dt>
+          <dt>{t("live.detail.eventId")}</dt>
           <dd><code>{tile.event_id}</code></dd>
-          <dt>Rule</dt>
+          <dt>{t("live.detail.correlationId")}</dt>
+          <dd><code>{tile.correlation_id}</code></dd>
+          <dt>{t("live.detail.rule")}</dt>
           <dd>{tile.rule ?? "-"}</dd>
-          <dt>ActionType</dt>
-          <dd>{tile.action_type ?? "-"}</dd>
-          <dt>Vertical</dt>
+          <dt>{tile.action_types.size > 1 ? t("live.detail.actionTypes") : t("live.detail.actionType")}</dt>
+          <dd>{tile.action_types.size > 0 ? [...tile.action_types].join(", ") : "-"}</dd>
+          <dt>{t("live.detail.mode")}</dt>
+          <dd>{tile.mode ?? "-"}</dd>
+          <dt>{t("live.detail.vertical")}</dt>
           <dd>{tile.vertical ?? "-"}</dd>
-          <dt>Resource type</dt>
+          <dt>{t("live.detail.resourceType")}</dt>
           <dd>{tile.resource_type ?? "-"}</dd>
-          <dt>Scope</dt>
+          <dt>{t("live.detail.scope")}</dt>
           <dd>{tile.scope ?? "-"}</dd>
-          <dt>Tier</dt>
+          <dt>{t("live.detail.tier")}</dt>
           <dd>
             {tile.tier ? (
               <span class={`live-tier live-tier-${tile.tier}`}>{tile.tier.toUpperCase()}</span>
@@ -372,38 +574,46 @@ export function DetailPanel({
               "-"
             )}
           </dd>
-          <dt>Gate decision</dt>
+          <dt>{t("live.detail.gateDecision")}</dt>
           <dd>
             {tile.gate_decision ? (
-              <span class={`live-gate live-gate-${tile.gate_decision}`}>{tile.gate_decision}</span>
+              <span class={`live-gate live-gate-${tile.gate_decision}`}>{decisionLabel(tile.gate_decision)}</span>
             ) : (
               "-"
             )}
           </dd>
-          <dt>Stages completed</dt>
+          <dt>{t("live.detail.stagesCompleted")}</dt>
           <dd>
-            {STAGE_ORDER.filter((s) => tile.stages_completed.has(s)).join(" · ") || "-"}
+            {STAGE_ORDER.filter((stage) => tile.stages_completed.has(stage)).map(stageLabel).join(" · ") || "-"}
           </dd>
-          <dt>Failed</dt>
-          <dd>{tile.failed ? "yes" : "no"}</dd>
-          <dt>Age</dt>
+          <dt>{t("live.detail.failed")}</dt>
+          <dd>{tile.failed ? t("live.detail.yes") : t("live.detail.no")}</dd>
+          <dt>{t("live.detail.age")}</dt>
           <dd>{formatAge(Math.max(0, now - tile.first_seen_at))}</dd>
-          <dt>Outcome</dt>
+          <dt>{t("live.detail.outcome")}</dt>
           <dd>{tile.outcome ?? "-"}</dd>
         </dl>
-        <h4 class="live-detail-subhead">Safety invariants (executor guarantees)</h4>
+        <h4 class="live-detail-subhead">{t("live.detail.safety")}</h4>
         <ul class="live-detail-safety">
-          <li>stop-condition on the ActionType</li>
-          <li>tested rollback path</li>
-          <li>blast-radius cap enforced</li>
-          <li>audit-log entry per terminal outcome</li>
+          <li>{t("live.detail.stopCondition")}</li>
+          <li>{t("live.detail.rollback")}</li>
+          <li>{t("live.detail.blastRadius")}</li>
+          <li>{t("live.detail.auditEntry")}</li>
         </ul>
         <p class="muted live-detail-note">
-          This panel is read-only. Approvals happen in ChatOps or via a remediation PR.
+          {t("live.detail.readOnly")}
         </p>
-        <a class="btn" href={architectureHref(tile.scope ?? undefined)}>
-          View on architecture map
-        </a>
+        <div class="live-detail-actions">
+          <a class="btn" href={`/trace?correlation=${encodeURIComponent(tile.correlation_id)}`}>
+            {t("live.detail.openTrace")}
+          </a>
+          <a class="btn" href={`/audit?correlation=${encodeURIComponent(tile.correlation_id)}`}>
+            {t("live.detail.openAudit")}
+          </a>
+          <a class="btn" href={architectureHref(tile.scope ?? undefined)}>
+            {t("live.detail.architecture")}
+          </a>
+        </div>
       </aside>
     </div>
   );

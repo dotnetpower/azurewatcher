@@ -27,7 +27,11 @@ export interface Citation {
 export function relevantCitations(cites: readonly Citation[], text: string): Citation[] {
   const lower = text.toLowerCase();
   const kept = cites.filter((c) => {
-    if (c.label === "screen" || c.label.startsWith("records.")) return true;
+    if (
+      c.label === "screen" ||
+      c.label.startsWith("records.") ||
+      c.label.startsWith("evidence.")
+    ) return true;
     const v = c.value;
     return v !== undefined && v.length >= 2 && lower.includes(v.toLowerCase());
   });

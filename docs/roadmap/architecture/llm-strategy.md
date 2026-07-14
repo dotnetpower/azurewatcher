@@ -886,7 +886,7 @@ CREATE TABLE ontology_embedding (         -- L3
   embedding_id       text PRIMARY KEY,
   kind               text NOT NULL,
   ref_id             text NOT NULL,
-  vec                vector(1536) NOT NULL
+  vec                vector(384) NOT NULL
 );
 CREATE INDEX ix_emb_hnsw ON ontology_embedding USING hnsw (vec vector_cosine_ops);
 

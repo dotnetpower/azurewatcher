@@ -1,6 +1,6 @@
 ---
 translation_of: agent-stewardship-and-handover.md
-translation_source_sha: 631eab48614d340afebab365745551336480f4e8
+translation_source_sha: b1f04864b48b8b513c295626ee6c38de4165f43a
 translation_revised: 2026-07-13
 title: 에이전트 스튜어드십과 인수인계
 ---
@@ -274,10 +274,42 @@ maintainer 수가 1 미만으로 떨어지는 변경은 client-side와 server-si
 - customer 식별 값은 이 repo에 들어오지 않는다. fork가 실제 OID, group id, channel id를 config나
   env로 공급한다.
 
-## 11. 범위 밖 (별도 추적)
+## 11. Handover 부트스트랩 (문서 수집)
 
-- **문서 수집** - 업로드된 운영 문서(RACI, 온콜 스케줄, 조직도, 런북)를 handover-map 초안으로
-  파싱하는 것은 T2급 기능으로 [issue #23](https://github.com/dotnetpower/fdai/issues/23)에서
-  추적한다. 이 문서는 수집 기능이 초안을 만들어낼 대상인 결정론적 코어를 다룬다.
+맵을 수동으로 채우는 대신, 오퍼레이터는 기존 운영 문서(RACI 매트릭스, 온콜 스케줄, 조직도,
+런북, 인수인계 메모)를 업로드하고 FDAI가 이를 검토용 **초안** steward 맵으로 파싱하게 할 수
+있다([issue #23](https://github.com/dotnetpower/fdai/issues/23)). 이는 위의 결정론적 코어 위에
+얹은 더 크고 분리 가능한 기능이며, 아무것도 적용하지 않고 코어를 막지도 않는다.
+
+`src/fdai/core/stewardship/handover_bootstrap/` 아래에 결정론 우선, 근거 기반, 기권형
+파이프라인으로 구현되어 있다:
+
+1. **결정론적 추출** (`extractor.py` + `agent_domains.py`). 각 문서 라인을 에이전트별
+   도메인 키워드 카탈로그(handover 스킬의 "누가 X를 소유했나" 질문, 판테온 에이전트마다 1개)에
+   대조한다. 도메인 키워드 + 사람/팀 + 책임 마커를 맞춘 라인은 **모델 없이** 근거를 갖춘
+   `ExtractedMapping`을 산출한다. 이것이 결정론 우선 단계다.
+2. **모델 해석** (`interpreter.py`). 구조가 해결하지 못한 것은 T2 `HandoverInterpreter` 시임에
+   넘길 수 있다. 업스트림은 `AbstainingInterpreter`(아무것도 제안하지 않음)를 기본 제공하므로
+   LLM이 없는 배포는 절대 추측하지 않는다. fork는 mixed-model 근거 기반 구현을 바인딩한다
+   (`core/rca` reasoner 시임과 대칭). 근거 없는 모델 제안은 오케스트레이터가 폐기한다.
+3. **신원 해석** (`people.py`). 언급된 각 이름/팀을 async `PersonDirectory` 시임(fork에서는
+   Graph)을 통해 Entra objectId로 해석한다. 해석되지 않은 이름은 id로 **추측하지 않고
+   플래그**한다. 업스트림 기본값(`NullPersonDirectory`)은 아무것도 해석하지 않는다.
+4. **신뢰도 플로어 + 초안 조립** (`bootstrap.py`). 플로어 이상의 근거 매핑은 초안이 되고,
+   플로어 미만은 사람 검토용으로 따로 두며, 미해결 인물과 확실한 소유자가 없는 에이전트를
+   표면화하고, 플로어를 넘긴 것이 없으면 기권한다. 출력은 `StewardMapDraft`다.
+
+모든 emit된 매핑은 소스 스팬(`SourceSpan`)을 인용하므로 근거 없는 것은 없다. `draft_yaml.py`는
+초안을 `stewardship:` 형태의 YAML로 렌더링하며, 이는 동일한 resolver와 fail-fast 게이트를 통해
+**`load_stewardship_from_mapping`으로 round-trip**된다(인라인 인용 주석 + 미해결 인물용
+플레이스홀더 id 포함). 딜리버리 계층은 그 YAML을 사람이 검토·머지하는 거버넌스 draft PR로
+노출한다. 콘솔은 읽기 전용을 유지하며 어떤 맵도 자율 적용되지 않는다.
+
+fork가 바인딩하는 시임: `HandoverInterpreter`(T2 모델)와 `PersonDirectory`(이름 -> Entra
+objectId). 둘 다 async이며 주입된다. `core/`는 클라우드 SDK도 HTTP 클라이언트도 갖지 않는다
+(모듈 경계 규칙 유지).
+
+## 12. 범위 밖 (별도 추적)
+
 - 비-Azure 신원 공급자(TBD,
   [Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must) 참조).

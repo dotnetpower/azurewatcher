@@ -48,6 +48,7 @@ class InMemoryAuditChain:
     """
 
     entries: list[AuditEntry] = field(default_factory=list)
+    durable: bool = False
 
     def append(
         self,

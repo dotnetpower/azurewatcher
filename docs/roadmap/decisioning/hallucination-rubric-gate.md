@@ -238,11 +238,12 @@ cannot make an ungrounded action safe. Residual softness (some now mitigated):
 
 ## Integration status
 
-**This leg is not yet wired into the upstream control loop.** As of this
-writing, upstream does not assemble a live `QualityGate` into the control loop
-at all - T2 integration is shadow-only backlog (see the xfail markers in
-`tests/scenarios/test_v2026_07_replay.py`). The rubric is a fully tested,
-isolated library on top of that seam. To make it run, a fork MUST:
+The upstream control loop now assembles T1, a shadow-only T2 proposer, the
+mixed-model `QualityGate`, deterministic rule verifier, and catalog grounding.
+Eligible T2 candidates are audited but are not converted into executable
+`Action` objects; that downstream bridge remains gated work. The rubric runs
+when a fork binds `LlmBindings.rubric_evaluator`. To enable that leg, a fork
+should:
 
 1. Assemble a `QualityGate` and pass its bound `RubricEvaluator` (bind it on
    `LlmBindings.rubric_evaluator`, resolved from the `t2.rubric.judge`
@@ -254,8 +255,9 @@ isolated library on top of that seam. To make it run, a fork MUST:
    (`tests/rule_catalog/test_prompt_registry_consistency.py`) asserts every
    prompt `applies_to` capability exists in `llm-registry.yaml`, so a typo'd
    `t2.rubric.judge` cannot silently orphan the prompt.
-2. Populate `QualityCandidate.reasoning_trace` in its `T2Proposer` - a blank
-   trace makes the rubric abstain for lack of a scoring target.
+2. Keep `QualityCandidate.reasoning_trace` populated. The shipped local and
+  Azure proposers do this; a fork proposer with a blank trace makes the rubric
+  abstain for lack of a scoring target.
 3. Serialize the `QualityDecision.rubric_*` fields into the audit log so the
    shadow-mode catch / false-positive metrics can actually be measured. The
    `quality_decision_audit_fields()` helper flattens them JSON-safely; a fork's
@@ -264,12 +266,12 @@ isolated library on top of that seam. To make it run, a fork MUST:
    rubric `rationale`, which is untrusted LLM free-text and is EXCLUDED by
    default (`include_rationale=True` opts in, capped, and a fork MUST secret-scan
    it before persisting - L0 audit records no secrets / customer values).
-   Upstream's control loop does not yet call the helper (T2 is unwired); without
-   that call, shadow mode records nothing to promote on.
+  Upstream's control loop calls this helper for every T2 quality decision.
 
-Until those three are done, the rubric changes nothing at runtime. This is by
-design (shadow-first), but it means the current value is the tested contract and
-the seam, not a live hallucination reduction.
+Without a bound rubric evaluator, the rubric changes nothing at runtime. With
+one bound, it records shadow measurements but does not raise execution
+authority. This keeps the integration shadow-first while producing the evidence
+needed for a later promotion decision.
 
 ## Next steps
 

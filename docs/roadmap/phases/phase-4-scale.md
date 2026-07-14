@@ -49,6 +49,15 @@ customer-agnostic and Azure-only in intent (multi-cloud deliverables below stay 
   [core/measurement/runners.py](../../../src/fdai/core/measurement/runners.py).
   Infra:
   [infra/modules/measurement-runners/](../../../infra/modules/measurement-runners).
+  The jobs call `fdai.delivery.measurement_runner_cli`, not the library-only
+  core module. Baseline mode replays the shipped enriched frozen scenarios,
+  persists regression demotions in the shared `StateStore`, and audits every
+  run. Growth mode reads only explicit `measurement.action_outcome.v1` audit
+  records that prove enforce execution, deterministic verification, rollback
+  state, embedding projection, exact parameters, and incident provenance.
+  Missing provenance yields zero intake rather than inferred training data.
+  Azure text-embedding-3 requests use the fixed 384-dimension pgvector
+  contract; a different family or dimension fails startup.
 - **TBD (deferred)**: multi-cloud expansion of policy and execution via **provider adapters**
   (no new core), cross-CSP rule-catalog normalization, per-CSP execution identity, and the
   multi-cloud event-bus decision (OD-3 in [tech-stack.md](../architecture/tech-stack.md)). These items

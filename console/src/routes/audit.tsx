@@ -22,9 +22,26 @@ interface Props {
 const PAGE_SIZE = 25;
 
 function correlationFromHash(): string | null {
-  const query = window.location.hash.split("?", 2)[1];
-  if (!query) return null;
-  return new URLSearchParams(query).get("correlation");
+  return new URLSearchParams(window.location.search).get("correlation");
+}
+
+interface AuditFilters {
+  readonly mode: string | null;
+  readonly tier: string | null;
+  readonly action: string | null;
+  readonly outcome: string | null;
+  readonly vertical: string | null;
+}
+
+function filtersFromSearch(): AuditFilters {
+  const search = new URLSearchParams(window.location.search);
+  return {
+    mode: search.get("mode"),
+    tier: search.get("tier"),
+    action: search.get("action"),
+    outcome: search.get("outcome"),
+    vertical: search.get("vertical"),
+  };
 }
 
 export function AuditRoute({ client }: Props) {
@@ -32,6 +49,7 @@ export function AuditRoute({ client }: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [correlationId, setCorrelationId] = useState<string | null>(() => correlationFromHash());
+  const [filters, setFilters] = useState<AuditFilters>(filtersFromSearch);
   const mountedRef = useRef(true);
 
   useEffect(() => () => {
@@ -39,9 +57,16 @@ export function AuditRoute({ client }: Props) {
   }, []);
 
   useEffect(() => {
-    const sync = () => setCorrelationId(correlationFromHash());
-    window.addEventListener("hashchange", sync);
-    return () => window.removeEventListener("hashchange", sync);
+    const sync = () => {
+      setCorrelationId(correlationFromHash());
+      setFilters(filtersFromSearch());
+    };
+    window.addEventListener("popstate", sync);
+    window.addEventListener("fdai:route-changed", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("fdai:route-changed", sync);
+    };
   }, []);
 
   useEffect(() => {
@@ -106,8 +131,22 @@ export function AuditRoute({ client }: Props) {
           {t("incidents.auditFilter", { correlation: correlationId })}
         </p>
       ) : null}
+      {Object.entries(filters).some(([, value]) => value) ? (
+        <div class="filter-summary" aria-label="active audit filters">
+          {Object.entries(filters).filter(([, value]) => value).map(([key, value]) => (
+            <span key={key}>{key}: <strong>{value}</strong></span>
+          ))}
+        </div>
+      ) : null}
       <AsyncBoundary state={state} resourceLabel="audit log">
-        {(data) => <AuditBody data={data} loadingMore={loadingMore} pageError={pageError} onLoadMore={loadMore} />}
+        {(data) => (
+          <AuditBody
+            data={{ ...data, items: data.items.filter((item) => matchesFilters(item, filters)) }}
+            loadingMore={loadingMore}
+            pageError={pageError}
+            onLoadMore={loadMore}
+          />
+        )}
       </AsyncBoundary>
     </div>
   );
@@ -125,6 +164,16 @@ function modePill(mode: string): PillKind {
 function entryStr(entry: Record<string, unknown>, key: string): string {
   const v = entry[key];
   return typeof v === "string" && v.trim() ? v : "-";
+}
+
+function matchesFilters(item: AuditItem, filters: AuditFilters): boolean {
+  return (
+    (!filters.mode || item.mode === filters.mode) &&
+    (!filters.action || item.action_kind === filters.action) &&
+    (!filters.tier || entryStr(item.entry, "tier") === filters.tier) &&
+    (!filters.outcome || entryStr(item.entry, "outcome") === filters.outcome) &&
+    (!filters.vertical || entryStr(item.entry, "vertical").replaceAll("_", "-") === filters.vertical)
+  );
 }
 
 interface BodyProps {

@@ -1,8 +1,8 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: 1948642d08da749250af0f3d91cc3f5820375581
-translation_revised: 2026-07-14
+translation_source_sha: a1acdf3e0e544b4ee50312a47aebf90855e55a03
+translation_revised: 2026-07-15
 ---
 
 # 오퍼레이터 콘솔 (Conversational)
@@ -150,7 +150,7 @@ surface를 가진다. 새 tool은 additive; 룰이나 정책을 절대 override 
 | `explain_verdict(event_id)` | 이미 처리된 이벤트의 audit trail을 읽어; tier, decision, citing 룰 id, verifier 리포트, mode 반환. | Reader | `StateStore.query_audit()` |
 | `explore_catalog(query)` | Shipped rule 카탈로그 / action-type 카탈로그 / ontology 어휘를 id, keyword, 또는 resource_type으로 검색. | Reader | 로딩된 카탈로그 (I/O 없음) |
 | `query_audit(filters)` | 구조화된 audit query: event id, actor, decision, mode, 시간 window 별. Paginate. | Reader | `StateStore.query_audit()` |
-| `query_inventory(resource_type, filter)` | ARG-backed inventory query, CSP-중립 어휘 in, CSP-중립 record out. Paginate. | Reader | `Inventory.list(...)` |
+| `query_inventory(resource_type, filter)` | ARG-backed inventory query, CSP-중립 어휘 in, CSP-중립 record out. 선택적 `id_substring` / `resource_group` 스코핑; 각 record는 property bag(name, location, tags)을 반환. Paginate. | Reader | `Inventory.list(...)` |
 
 **Reader-하한 tool은 증명 가능하게 side-effect-free.** `describe_event`는
 `EventIngest -> TrustRouter -> T0Engine`을 **메모리 내에서만** 실행: T1
@@ -438,10 +438,19 @@ class ConversationSession:
   `sessionStorage` index이므로 thread 전환 또는 tab reload 시 완료된
   turn을 복원하면서 agent-scoped 대화와 일반 대화를 섞지 않음.
   Operator는 로드된 transcript를 검색하고 일치하는 turn 사이를 이동할
-  수 있음. **캐시 지우기**와 **캐시된 대화 제거**는 browser copy만
+  수 있음. 기본 대화는 비식별 user hash와 정규화된 URL pathname별로
+  분리. query-only filter 변경은 같은 pathname 세션을 재사용하고, 다른
+  메뉴 또는 분석 detail URL은 자체 transcript를 시작하거나 복원. 기본
+  narrator는 **Bragi**이며 reply header와 conversation row 모두 generic
+  Deck label 대신 Bragi agent icon을 사용. **캐시 지우기**와 **캐시된
+  대화 제거**는 browser copy만
   삭제하며 audit history는 삭제하지 않음. 이 browser index는 탐색
   상태일 뿐이며 append-only audit projection이 memory of record로
-  유지되고 tab을 닫으면 cache가 삭제됨.
+  유지되고 tab을 닫으면 cache가 삭제됨. 열린 Command Deck은 route 탐색과
+  live 화면 re-render 중에도 열린 상태를 유지하며, 명시적인 닫기 action 또는
+  `Escape`만 이를 닫음. L3 응답 언어는 현재 turn을 따름: console display
+  locale이 영어여도 한국어 prompt에는 한국어로 답변. 그 외에는 operator가
+  설정한 locale이 응답 언어를 제어.
 - **Week 1**: `operator_memory` (parallel session이
   [`src/fdai/core/operator_memory/`](../../../src/fdai/core/operator_memory)
   아래 이미 scaffolded)가 **out-of-band 오퍼레이터 선호도**의 store가
@@ -848,6 +857,163 @@ read-only 콘솔 SPA는 오퍼레이터가 지금 보는 화면을 `ViewSnapshot
 }
 ```
 
+#### 13.4.1 Cross-screen operational evidence
+
+`ViewSnapshot`은 렌더링된 route에 대해서만 authoritative. Turn이 해당 화면
+밖의 최근 incident, issue, outage, failure 또는 root cause를 물으면 read API는
+server-owned `ConsoleReadModel`에 대해 `OperationalEvidenceResolver`를 호출하며,
+browser가 보낸 operational evidence를 신뢰하지 않음. Resolver는 최근 incident
+최대 12개와 후보별 correlation audit row 최대 100개를 검색한 뒤 compact
+`_operational_evidence` block을 `/chat`과 `/chat/stream` 모두에 주입.
+
+Block은 fail-closed 상태 `matched`, `ambiguous`, `none`, `unavailable`을 가짐.
+`matched`는 선택된 incident, bounded audit observation, response plan, 그리고
+grounded이고 cause와 citation이 모두 있는 RCA hypothesis만 포함. Bragi는
+abstained 또는 citation 없는 hypothesis에서 incident cause를 단정하면 안 됨.
+`ambiguous`는 후보를 나열하고 operator 선택을 요청하며, `none`과 `unavailable`은
+추측을 명시적으로 금지. 추가 system directive는 operational evidence가 있을
+때만 주입되므로 일반 화면 질문은 lean prompt budget을 유지.
+
+다른 cross-screen 질문에는 web adapter가 다음 authority 순서를 사용합니다.
+
+1. incident 및 root-cause 질문에는 `OperationalEvidenceResolver`를 사용합니다.
+2. KPI, pending approval, audit 및 incident 목록 질문에는 server-owned
+  read-model tool을 사용합니다.
+3. agent-owned domain에는 `PantheonChatDelegate`를 사용합니다. Bragi는 primary
+  agent로 라우팅하고 bounded timeout으로 최대 3명의 matching contributor를
+  호출합니다.
+4. 개념 정의에는 canonical FDAI glossary를 사용합니다. 영어 concept turn은
+  deterministic `concept-glossary` fast path를 사용하며, localized turn에는 같은
+  선택 항목이 server-owned translation evidence로 제공됩니다.
+5. 현재 화면에는 browser `ViewSnapshot`을 사용합니다.
+
+서버는 turn을 resolve하기 전에 client가 보낸 `_operational_evidence`,
+`_tool_evidence`, `_agent_evidence`를 제거합니다. Browser는 chat health, JSON,
+streaming 및 action 요청에 인증된 bearer token을 보냅니다. Client session id는
+길이가 제한되고 Bragi가 저장하기 전에 검증된 principal로 namespace되므로 두
+사용자가 같은 id를 골라도 conversational state를 공유하지 않습니다. JSON 및
+streaming response는 bounded delegation metadata를 반환하며 deck은 실제 primary
+agent 이름으로 답변을 표시합니다.
+Terminal claim verifier는 tool, agent 및 선택된 glossary evidence를 hashed
+manifest에 포함하므로 server-grounded answer를 관련 없는 빈 화면과 비교하지
+않습니다.
+
+#### 13.4.2 Progressive answer verification
+
+Web deck은 응답 latency와 answer trust를 분리해야 함. 하나의 assistant turn을
+**provisional** answer로 즉시 stream한 뒤 검증하고, 모순되는 두 번째 답변을
+추가하지 않고 같은 turn을 갱신. Server가 상태 머신을 소유하고 순서가 있는 SSE
+event를 emit:
+
+```text
+evidence_resolving -> generating -> provisional -> verifying
+  -> verified | consistent | corrected | unverified
+```
+
+- `verified`는 terminal answer가 server-owned operational evidence에서
+  render되었음을 의미.
+- `consistent`는 browser의 현재 screen snapshot과 대조했지만 server projection이
+  독립 검증하지 않았음을 의미.
+- `corrected`는 provisional model text를 evidence result에서 만든 deterministic
+  answer로 교체했음을 의미.
+- `unverified`는 verification이 완료되지 않았음을 의미하며 `verified`와 같은
+  trust check를 표시하면 안 됨.
+
+모든 event는 단조 증가 `seq`를 가지며 answer를 바꾸는 event는 단조 증가
+`revision`도 가짐. Client는 stale revision과 terminal event 이후 event를 무시.
+Correction은 기존 turn id의 text를 교체해 conversation 순서와 accessibility
+focus를 보존. Terminal canonical revision만 저장하거나 후속 turn history로 제공.
+
+첫 shipped verifier는 두 번째 model call을 사용하지 않음. Cross-screen operational
+질문에서는 typed evidence 상태(`matched`, `ambiguous`, `none`, `unavailable`)에서
+terminal answer를 결정론적으로 render하므로 model prose가 선택 incident, 검색
+범위, RCA cause 또는 absence claim을 바꿀 수 없음. `none`, `ambiguous`,
+`unavailable`, grounded RCA가 없는 `matched`는 deterministic fast path를 사용:
+server는 evidence lookup 직후 canonical answer를 stream하고 model을 호출하지 않음.
+Grounded RCA가 있는 `matched`는 model prose를 provisional로 stream한 뒤 필요하면
+canonical verified cause로 교체 MAY. Screen-only answer는 `consistent`로 종료.
+후속 phase는 atomic claim 생성과 1회 bounded rewrite를 추가할 수 있지만
+deterministic verification이 계속 authority이며 rewrite 실패는 abstention으로 종료.
+
+Latency target은 request admission 후 첫 progress event 100 ms 이내, 일반 model
+TTFT p95 2.5초 이내, evidence lookup 완료 후 fast-path terminal answer p95 500 ms
+이내, provisional 완료 후 첫 verification event 100 ms 이내,
+provisional-to-terminal verification p95 1초 이내. Progress는 실제 완료 check를
+보고하며 가짜 percentage를 사용하지 않음.
+
+Screen-only provisional answer는 두 번째 model call 없이 atomic claim artifact도
+생성. Deterministic extractor는 ID, number, percentage, timestamp, causal assertion,
+bounded-scope claim을 인식하며, 각 claim은 source span, normalized value, support
+state, 정확한 snapshot evidence reference를 기록. `evidence_manifest`는 route,
+capture time, completeness, source path, canonical content hash를 기록하며 전체
+snapshot 복사본이 아니라 claim이 실제 사용한 entry만 포함.
+
+추출된 모든 claim은 모호하지 않은 snapshot entry의 지원을 받아야 함. 모두
+통과하면 answer는 `consistent` 유지 (`verified` 아님: browser snapshot은 독립된
+server projection이 아니기 때문). Check 가능한 claim이 없으면
+`screen_no_checkable_claims` reason과 함께 `consistent` 유지. Unsupported 또는
+ambiguous claim, truncated snapshot, malformed artifact, extraction overflow가 하나라도
+있으면 provisional answer 전체를 localized abstention으로 교체하고 `unverified`로
+종료; 문장 일부 삭제는 금지. 최종 persistence와 grounding UI에는 terminal claim과
+manifest만 저장·표시.
+
+Frozen customer-neutral claim corpus가 이 deterministic surface를 CI에서 gate.
+초기 corpus는 supported/unsupported ID, number, percentage, timestamp, causal
+assertion, bounded absence, ambiguity, claim-free prose를 포함. Promotion은
+unsupported-claim escape rate와 clean-answer rejection rate가 모두 정확히 `0.0`을
+유지해야 하며, 빈 label set이나 반전된 label이 조용히 통과하지 않도록 metric
+accounting도 독립 테스트. 이 gate는 qualitative prose의 semantic verification을
+주장하지 않음: extract 가능한 structured claim이 없는 answer는
+`screen_no_checkable_claims`와 함께 `consistent`로 표시하고 `verified`로 표시하지
+않음. 전체 자연어 claim에 대해 9.5-level coverage를 주장하려면 measured semantic
+entailment leg와 더 큰 labeled corpus가 여전히 필요.
+
+#### 13.4.3 실시간 관찰 계약
+
+읽기 전용 SPA는 현재 상태 진입점으로 **실시간 > 실시간**을 제공합니다. 이
+화면은 관찰 연결 여부, 지금 주의가 필요한 제어 루프 작업, 기록된 근거의 위치라는
+세 가지 제한된 질문에 답합니다. 인시던트, 승인, 감사, 추적, 에이전트 또는 통제
+보증 화면을 대체하지 않습니다.
+
+- **대기열이 기본 보기입니다.** 실패, 게시된 지연 예산을 초과한 작업, 승인 대기,
+  거부, 활성 작업, 최근 완료 순으로 정렬합니다. `correlation_id`가 조사 키입니다.
+- **흐름은 보조 보기입니다.** 고정 슬롯 활동 화면은 처리량과 단계 진행을
+  시각화하지만 우선순위를 결정하지 않습니다.
+- **지연 상태는 권위 있는 값을 사용합니다.** 단계 스트림이 양수
+  `latency_budget_ms`를 제공하고 관찰 경과 시간이 이를 초과할 때만 지연으로
+  표시합니다. 예산이 없으면 브라우저가 임계값을 만들지 않으며 지연이라고
+  단정하지 않습니다.
+- **모드는 추론하지 않고 기록합니다.** 제어 루프는 실제 `Action.mode`를 단계
+  프레임에 게시합니다. `execute` 단계 도달만으로 shadow mode라고 판단하지
+  않습니다.
+- **종단 상태가 권위 있는 값입니다.** 하나의 이벤트에 대한 finding별 게이트
+  프레임은 서로 다른 결정을 보고할 수 있습니다. 종단 `audit.done` 프레임은
+  이벤트 수준 결과와 결정을 제공하며 모든 중간 값을 대체합니다. 브라우저는
+  관찰한 모든 ActionType을 유지하고, 여러 finding이 있는 이벤트를 마지막 작업
+  하나가 아니라 작업 집합으로 표시합니다.
+- **재전송은 안전하게 처리합니다.** 반복된 종단 프레임은 기존 타일을 갱신하지만
+  처리량, 게이트 구성, 티어 구성 또는 최근 결과를 다시 증가시키지 않습니다.
+- **화면 고정은 표시에만 영향을 줍니다.** 스트림 연결은 유지되고 고정 중 수신한
+  프레임 수를 표시하며, 모든 종단 결과의 기록 원본은 이력에 유지됩니다.
+- **보존 범위는 제한됩니다.** 완료된 승인 타일은 일반 결과보다 오래 표시한 뒤
+  60개 표시 슬롯에서 제거합니다. 전체 대기열은 승인 화면이 소유하므로 오래된
+  실시간 상태가 새 이벤트 관찰을 막지 않습니다. 선택한 타일은 상세 패널이 열린
+  동안에만 고정되므로 운영자가 확인 중인 근거가 사라지지 않습니다.
+- **상세 이동 경로가 명시적입니다.** 상세 패널은 관찰된 단계 추적, 에이전트
+  담당, 모드, 결정, 상관관계 키를 보여주고 추적, 감사, 아키텍처로 연결합니다.
+  실행 또는 승인 컨트롤은 제공하지 않습니다.
+- **상세 패널은 키보드 포커스를 포함합니다.** 상세 패널은 접근 가능한 모달
+  대화 상자입니다. 열리면 닫기 컨트롤로 포커스가 이동하고 Tab 포커스는 패널
+  안에 머뭅니다. Escape로 닫으면 패널을 연 행 또는 타일로 포커스가 돌아갑니다.
+
+실시간 헤더는 스트림에서 확인할 수 있는 사실만 보고합니다. 연결 상태, 마지막
+관찰 이벤트 경과 시간, 구성된 환경 상태, 화면 고정 또는 실시간 추적 상태입니다.
+Canary 상태, kill-switch 상태, 스트림 누락 수, 측정된 가드 지표는 서버가 소유한
+read model 필드가 필요합니다. 이 계약이 생기기 전까지 브라우저는 해당 값을
+사용할 수 없음으로 표시해야 합니다. CFR, false-positive rate, rollback rate,
+policy-violation escape는 측정 기간, 기준선, 표본 수와 함께 통제 보증 화면에
+표시합니다.
+
 ### 13.5 인시던트 목록 및 교정 이력
 
 읽기 전용 SPA는 일급 **실시간 > 인시던트** 패널을 제공합니다. 이 패널은
@@ -896,6 +1062,43 @@ correlation으로 확인될 때만 해당 행을 연결할 수 있습니다. 모
 - CLI narrator(`cli/src/narrator`)는 별개 surface; 같은 self-describing
   snapshot을 그 `console-tool` 결과에 실어 나르는 것은 병행 후속 작업.
 
+#### 13.5.1 RCA 뷰 (근본 원인 분석)
+
+읽기 전용 SPA는 일급 **History > RCA** 패널을 노출합니다. 인시던트
+`correlation_id`(보통 인시던트 목록에서 딥링크, `#/rca?correlation=<id>`)가
+주어지면, 컨트롤 루프가 이미 audit 원장에 추가한 티어별 근거 근본 원인
+가설과 연결된 대응 계획을 렌더링합니다. 인시던트 목록(13.5)과 짝을 이루는
+"왜 발생했고, 계획은 무엇이었나" 표면입니다.
+
+API 계약은 단일 GET route입니다:
+
+| Route | 목적 |
+|-------|------|
+| `GET /rca?correlation=<id>` | 단일 correlation id에 대한 인시던트별 RCA 뷰를 반환. |
+
+이 투영은 기존 audit 데이터를 조합하며 새로운 진실 원천을 도입하지 않습니다.
+컨트롤 루프는 각 가설을 shadow `rca.hypothesis` audit 항목으로 기록합니다(참조:
+[observability-and-detection.md](../rules-and-detection/observability-and-detection.md)
+섹션 4). 패널은 상관관계된 audit 행을 읽어 다음을 투영합니다:
+
+- **근본 원인 가설**, 최신순, 각각 `RcaTier`(`t0` 직접 / `t1` 상관 /
+  `t2` 추론), 신뢰도, 원인 텍스트, 이유, shadow-vs-enforce 모드,
+  그리고 근거 `citations`(`rule` / `event` / `telemetry` / `incident` /
+  `change` / `scenario` / `knowledge`) 포함.
+- **근거 상태.** 근거 없는 / 기권한 가설(`outcome == "abstained"`,
+  `grounded == false`)은 신뢰할 수 있는 원인이 아니라 "근거 부족 -> HIL"로
+  명시적으로 표시됩니다.
+- 동일한 상관관계 audit 스트림에서 조합한 **대응 계획**: 판정
+  (`auto` / `hil` / `deny` / `abstain`), 전달된 작업 종류, 그 모드,
+  롤백 참조.
+
+RCA 가설은 "왜"를 답할 뿐 "실행"하지 않습니다: 실행 자격은 여전히 리스크
+게이트 + 검증기에 있습니다. Route는 Reader 게이트가 적용되고, 변경 동사에는
+`405`를 반환하며, Audit / Trace로의 링크는 제공하지만 실행 / 승인 / 롤백
+버튼은 없습니다. 투영은 순수 함수
+(`src/fdai/delivery/read_api/routes/rca_projection.py`)이며
+`tests/delivery/read_api/test_rca.py`로 커버됩니다.
+
 ### 13.6 Action submit - `POST /chat/action` (propose, 실행 아님)
 
 read-only deck은 질문에 답한다; 이것은 유일한 write-direction 경로 -
@@ -924,10 +1127,24 @@ high-risk를 승인하며, Thor만 실행한다(shadow-first).
   `403 {"submitted": false, "reason": "rbac_capability"}` 로 거부. Forseti가
   downstream에서 initiator principal을 재확인(deny + `SecurityEvent`) -
   defense in depth.
-- **번역**. `fdai.agents.bragi.translate_action_intent` 가 선행 명령 동사를
-  ActionType으로 매핑 - 판테온 내부 경로와 공유하는 단일 진실원이라 둘이
-  drift하지 않는다. 매핑 안 되는 명령은
-  `200 {"submitted": false, "reason": "unmapped_action_intent"}`.
+- **두 진입 게이트는 role rank가 아니라 capability로 일치한다**. 대화형 진입
+  게이트(`Bragi.submit_action_proposal`)는 세션의 Entra role을 **동일한** canonical
+  capability 매트릭스(`fdai.core.rbac.roles`)로 매핑하고 마찬가지로
+  `author-draft-pr` 를 요구하므로, HTTP와 대화형 표면이 절대 어긋나지 않는다.
+  특히 `BreakGlass` 는 하드 격리(Owner의 superset 아님)이고 `author-draft-pr` 를
+  갖지 않으므로, 어느 표면에서도 일반 액션을 제출할 수 없다.
+- **거부는 관측 가능하다**. 파이프라인 진입 전의 모든 거부(`invalid_principal` /
+  `rbac_capability` / `deny_override_forbidden`)는 로깅되고 선택적으로 주입된
+  `RefusalObserver`(`ConsoleActionSubmitter.refusal_observer`)에 전달되어, 한
+  actor에 대한 반복 거부 - 요청이 파이프라인에 들어가지 않아 Forseti가 못 보는
+  권한 프로빙 신호 - 를 탐지 가능하게 한다(audit / metric / security event). seam이
+  없으면 구조화 로그 라인만 방출된다.
+- **번역**. `fdai.agents.bragi.translate_action_intent`는 먼저 정확한 ActionType
+  id 또는 load된 ActionType catalog의 모호하지 않은 전체 suffix를 매칭합니다.
+  예를 들어 `flush cache`는 `ops.flush-cache`로 매핑됩니다. 그다음 보수적인
+  built-in verb fallback을 사용합니다. 모호하거나 매핑되지 않은 명령은 추측하지
+  않고 `200 {"submitted": false, "reason": "unmapped_action_intent"}`를
+  반환합니다. 이 함수는 pantheon 내부 경로와 공유하는 단일 진실원으로 유지됩니다.
 - **Deny-override 차단 (Scenario B)**. `prior_outcome_lookup` seam이 wire되면,
   submitter는 publish 전에 이 정확한 `(initiator, resource, action_type)` 에
   대한 파이프라인의 마지막 terminal 결론을 확인한다. 직전 **deny**(안전하지

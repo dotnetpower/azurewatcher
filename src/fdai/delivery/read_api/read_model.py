@@ -256,6 +256,115 @@ class HilQueuePage:
         return {"items": [item.to_dict() for item in self.items], "total": self.total}
 
 
+@dataclass(frozen=True, slots=True)
+class RcaCitationView:
+    """One grounded evidence reference backing an RCA hypothesis.
+
+    Mirrors :class:`fdai.core.rca.contract.Citation` as the console
+    renders it. ``ref`` is an opaque id (rule id, event id, metric name,
+    scenario id, or ``knowledge:...`` handle) - never a raw payload.
+    """
+
+    kind: str
+    ref: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"kind": self.kind, "ref": self.ref}
+
+
+@dataclass(frozen=True, slots=True)
+class RcaHypothesisView:
+    """One root-cause hypothesis as projected from the audit ledger.
+
+    Sourced from a shadow ``rca.hypothesis`` audit entry (see
+    :meth:`fdai.core.control_loop.orchestrator.ControlLoopOrchestrator._analyze_and_audit_rca`).
+    An RCA hypothesis is never an authoritative verdict; an ungrounded /
+    abstained hypothesis is surfaced explicitly (``grounded == False``,
+    ``outcome == "abstained"``) so the console renders it as "insufficient
+    grounding -> HIL", never as a confident cause.
+    """
+
+    seq: int
+    tier: str
+    outcome: str
+    grounded: bool
+    cause: str | None
+    confidence: float | None
+    reason: str | None
+    citations: Sequence[RcaCitationView]
+    remediation_ref: str | None
+    mode: str
+    recorded_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "seq": self.seq,
+            "tier": self.tier,
+            "outcome": self.outcome,
+            "grounded": self.grounded,
+            "cause": self.cause,
+            "confidence": self.confidence,
+            "reason": self.reason,
+            "citations": [c.to_dict() for c in self.citations],
+            "remediation_ref": self.remediation_ref,
+            "mode": self.mode,
+            "recorded_at": self.recorded_at,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RcaResponsePlan:
+    """The linked response / remediation plan for one incident.
+
+    Composed from the same correlated audit stream as the RCA
+    hypotheses - the risk-gate verdict, the delivered action, its
+    shadow-vs-enforce mode, and the rollback reference. The RCA layer
+    answers "why"; execution eligibility still belongs to the risk gate
+    and verifier, so this is a read-only reflection of what the pipeline
+    already decided.
+    """
+
+    verdict: str
+    decision: str | None
+    action_kind: str | None
+    mode: str | None
+    rollback_reference: str | None
+    recorded_at: str | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "verdict": self.verdict,
+            "decision": self.decision,
+            "action_kind": self.action_kind,
+            "mode": self.mode,
+            "rollback_reference": self.rollback_reference,
+            "recorded_at": self.recorded_at,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RcaView:
+    """Per-incident RCA projection: hypotheses plus linked response plan.
+
+    Keyed by ``correlation_id`` (the incident key that threads detection
+    -> verdict -> remediation -> audit). Composes existing audit data;
+    it introduces no new source of truth.
+    """
+
+    correlation_id: str
+    incident_id: str | None
+    hypotheses: Sequence[RcaHypothesisView]
+    response: RcaResponsePlan | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "correlation_id": self.correlation_id,
+            "incident_id": self.incident_id,
+            "hypotheses": [h.to_dict() for h in self.hypotheses],
+            "response": self.response.to_dict() if self.response else None,
+        }
+
+
 @runtime_checkable
 class ConsoleReadModel(Protocol):
     """Read-only projection of state the console renders.

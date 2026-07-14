@@ -30,6 +30,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, agentTerm, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { routeHref } from "../router";
 
 interface Props {
   readonly client: ReadApiClient;
@@ -328,7 +329,9 @@ interface BodyProps {
 }
 
 function ActivityBody({ data }: BodyProps) {
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(
+    () => new URLSearchParams(window.location.search).get("agent"),
+  );
   const [view, setView] = useState<ActivityView>("waterfall");
 
   // Newest first: the audit projection already returns newest-first, so
@@ -367,7 +370,7 @@ function ActivityBody({ data }: BodyProps) {
         "Per-agent timeline reconstructed from the audit log - which pantheon " +
         "agent did what, when, and why. Each incident (correlation id) is one " +
         "hand-off cascade: Huginn senses, Forseti judges, Thor opens a " +
-        "remediation PR, Var queues a HIL approval, Saga records it. Read-only.",
+        "remediation PR, Var queues an approval, Saga records it. Read-only.",
       glossary: composeGlossary([
         TERMS.correlationId,
         TERMS.waterfall,
@@ -511,7 +514,7 @@ function TimelineRow({ item }: { readonly item: AuditItem }) {
           {item.correlation_id ? (
             <a
               class="timeline-corr mono"
-              href={`#/trace?correlation=${encodeURIComponent(item.correlation_id)}`}
+              href={routeHref("trace", { params: { correlation: item.correlation_id } })}
               title="Open this correlation in the Trace panel"
             >
               {item.correlation_id}
@@ -679,7 +682,7 @@ function Waterfall({
                 ) : (
                   <a
                     class="waterfall-corr mono"
-                    href={`#/trace?correlation=${encodeURIComponent(g.correlation)}`}
+                    href={routeHref("trace", { params: { correlation: g.correlation } })}
                     title="Open this correlation in the Trace panel"
                   >
                     {g.correlation}
@@ -838,7 +841,7 @@ function StepDetail({ item, onClose }: { readonly item: AuditItem; readonly onCl
       item.correlation_id ? (
         <a
           class="mono"
-          href={`#/trace?correlation=${encodeURIComponent(item.correlation_id)}`}
+          href={routeHref("trace", { params: { correlation: item.correlation_id } })}
           title="Open this correlation in the Trace panel"
         >
           {item.correlation_id}

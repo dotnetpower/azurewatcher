@@ -68,7 +68,9 @@ class RuleBasedVerifier(VerifierPolicy):
             # - verifier abstains to keep the audit message clean.
             return None
 
-        target_type = self._resolve_target_type(candidate.target_resource_ref)
+        target_type = candidate.target_resource_type or self._resolve_target_type(
+            candidate.target_resource_ref
+        )
 
         for rule in cited:
             if target_type is not None and rule.resource_type != target_type:

@@ -26,6 +26,7 @@ from fdai.delivery.read_api.main import ReadApiConfig, build_app
 from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
 from fdai.delivery.read_api.routes.console_action import (
     ConsoleActionSubmitter,
+    RefusalRecord,
     make_console_action_route,
 )
 from fdai.shared.providers.testing.event_bus import InMemoryEventBus
@@ -111,6 +112,148 @@ def test_unmapped_command_abstains_without_publishing() -> None:
     assert res["submitted"] is False
     assert res["reason"] == "unmapped_action_intent"
     assert asyncio.run(_drain(bus, _TOPIC)) == []
+
+
+def test_catalog_action_suffix_maps_without_guessing() -> None:
+    bus = InMemoryEventBus()
+    submitter = ConsoleActionSubmitter(
+        event_bus=bus,
+        raw_event_topic=_TOPIC,
+        action_type_names=frozenset({"ops.flush-cache", "ops.scale-out"}),
+    )
+
+    result = asyncio.run(
+        submitter.submit(
+            question="flush cache cache-1",
+            principal=_principal("u-contrib", Role.CONTRIBUTOR),
+        )
+    )
+
+    assert result["submitted"] is True
+    assert result["action_type"] == "ops.flush-cache"
+    assert result["resource_id"] == "cache-1"
+
+
+def test_exact_catalog_action_id_does_not_become_resource_id() -> None:
+    bus = InMemoryEventBus()
+    submitter = ConsoleActionSubmitter(
+        event_bus=bus,
+        raw_event_topic=_TOPIC,
+        action_type_names=frozenset({"ops.scale-out"}),
+    )
+
+    result = asyncio.run(
+        submitter.submit(
+            question="run ops.scale-out workload-1",
+            principal=_principal("u-contrib", Role.CONTRIBUTOR),
+        )
+    )
+
+    assert result["submitted"] is True
+    assert result["action_type"] == "ops.scale-out"
+    assert result["resource_id"] == "workload-1"
+
+
+def test_ambiguous_catalog_suffix_abstains() -> None:
+    bus = InMemoryEventBus()
+    submitter = ConsoleActionSubmitter(
+        event_bus=bus,
+        raw_event_topic=_TOPIC,
+        action_type_names=frozenset({"ops.scale-out", "remediate.scale-out"}),
+    )
+
+    result = asyncio.run(
+        submitter.submit(
+            question="scale out workload-1",
+            principal=_principal("u-contrib", Role.CONTRIBUTOR),
+        )
+    )
+
+    assert result["submitted"] is False
+    assert result["reason"] == "unmapped_action_intent"
+
+
+# ---------------------------------------------------------------------------
+# Refusal observability (critique #21 - privilege-probing detection seam)
+# ---------------------------------------------------------------------------
+
+
+def _submitter_with_observer(
+    records: list[RefusalRecord],
+    *,
+    prior: PriorRequestOutcome | None = None,
+    observer_raises: bool = False,
+) -> ConsoleActionSubmitter:
+    bus = InMemoryEventBus()
+
+    async def _observe(record: RefusalRecord) -> None:
+        if observer_raises:
+            raise RuntimeError("sink down")
+        records.append(record)
+
+    lookup = None
+    if prior is not None:
+
+        async def _lookup(_oid: str, _res: str | None, _at: str) -> PriorRequestOutcome:
+            return prior
+
+        lookup = _lookup
+
+    return ConsoleActionSubmitter(
+        event_bus=bus,
+        raw_event_topic=_TOPIC,
+        prior_outcome_lookup=lookup,
+        refusal_observer=_observe,
+    )
+
+
+def test_observer_notified_on_capability_refusal() -> None:
+    records: list[RefusalRecord] = []
+    sub = _submitter_with_observer(records)
+    asyncio.run(sub.submit(question="restart svc-1", principal=_principal("u-r", Role.READER)))
+    assert len(records) == 1
+    assert records[0].reason == "rbac_capability"
+    assert records[0].actor == "u-r"
+
+
+def test_observer_notified_on_blank_principal() -> None:
+    records: list[RefusalRecord] = []
+    sub = _submitter_with_observer(records)
+    asyncio.run(sub.submit(question="restart svc-1", principal=_principal("   ", Role.CONTRIBUTOR)))
+    assert len(records) == 1
+    assert records[0].reason == "invalid_principal"
+    assert records[0].actor == ""
+
+
+def test_observer_notified_on_deny_override() -> None:
+    records: list[RefusalRecord] = []
+    sub = _submitter_with_observer(records, prior=PriorRequestOutcome.DENIED)
+    asyncio.run(sub.submit(question="restart svc-1", principal=_principal("u-c", Role.CONTRIBUTOR)))
+    assert len(records) == 1
+    assert records[0].reason == "deny_override_forbidden"
+    assert records[0].action_type == "ops.restart-service"
+
+
+def test_observer_not_called_on_success_or_unmapped() -> None:
+    records: list[RefusalRecord] = []
+    sub = _submitter_with_observer(records)
+    # A successful submit is not a refusal.
+    asyncio.run(sub.submit(question="restart svc-1", principal=_principal("u-c", Role.CONTRIBUTOR)))
+    # An unmapped command is a UX refusal, not a security one - not observed.
+    asyncio.run(
+        sub.submit(question="provision a cluster", principal=_principal("u-c", Role.CONTRIBUTOR))
+    )
+    assert records == []
+
+
+def test_observer_failure_does_not_break_refusal() -> None:
+    sub = _submitter_with_observer([], observer_raises=True)
+    res = asyncio.run(
+        sub.submit(question="restart svc-1", principal=_principal("u-r", Role.READER))
+    )
+    # Observer raised, but the refusal is still returned intact.
+    assert res["submitted"] is False
+    assert res["reason"] == "rbac_capability"
 
 
 # ---------------------------------------------------------------------------

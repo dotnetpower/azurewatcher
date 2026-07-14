@@ -90,10 +90,14 @@ truth; Korean MAY lag.
 
 ### Runtime contract
 
-- **Source strings are English.** Every user-visible string starts as
-  an English key in the catalog, never a hard-coded literal.
-- **English fallback is MANDATORY.** A missing or empty `ko` key MUST
-  render the English source, never blank / key-name / error.
+- **Bilingual source is allowed; catalogs are recommended.** A user-visible
+  string MAY be authored in Korean (or English) inline on an L2/L3 surface, or
+  as an English key in the catalog. Catalogs are **recommended** for reusable
+  strings because they give a mandatory English fallback and keep `en` / `ko`
+  in parity; inline Korean is permitted for surface-specific presentation text
+  (the `check-english-only` gate does not scan L2/L3 surface paths).
+- **English fallback is MANDATORY** for catalog strings. A missing or empty
+  `ko` key MUST render the English source, never blank / key-name / error.
 - Locale resolution order:
   `UserPreference.locale` -> `Accept-Language` -> default `en`.
 - Helper contract (mirrors `cli/src/i18n/index.ts`):
@@ -109,17 +113,27 @@ truth; Korean MAY lag.
 
 ### English-only gate escape hatches
 
-Non-English text is allowed only in these paths (allowlisted at the
-top of [`scripts/check-english-only.sh`](../../../scripts/check-english-only.sh)):
+The `check-english-only` gate enforces English on the **L0 machine/audit
+substrate** only. Korean is permitted (no allowlist entry needed) on the
+L2/L3 human-facing surface paths, which the gate does not scan:
 
-- `messages.ko.json` (any surface).
-- `foo-ko.md` translations.
+- `console/src/**` (operator console L2 + command deck L3).
+- `cli/src/**` (CLI L2).
+- `src/fdai/delivery/read_api/routes/chat*.py` + `tests/delivery/read_api/test_chat*.py`
+  (server narrator surface L3).
+
+Plus the always-carved-out translation files and a small named allowlist at
+the top of [`scripts/check-english-only.sh`](../../../scripts/check-english-only.sh):
+
+- `messages.ko.json` (any surface) and `foo-ko.md` translations.
 - The Astro Starlight `ko` locale under `site/src/content/docs/ko/`.
 - A small named set of translation-tooling helper files.
 
-Adding to the allowlist requires a one-line reason at the top of the
-script. Do not put Hangul in `.py`, `.ts`, `.yaml`, or code tests -
-use `\uXXXX` escapes or structural assertions.
+Korean that lives on the **L0 substrate** (a `.py` / `.ts` / `.yaml` / test
+outside those surface paths) still fails the gate - use `\uXXXX` escapes or
+structural assertions, or add a justified allowlist entry with a one-line
+reason. Never localize an L0 record (audit entry, event payload, log key,
+identifier) even inside an L2/L3 file.
 
 ## L3: Bragi Narrator
 

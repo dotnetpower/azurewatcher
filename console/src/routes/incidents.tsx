@@ -20,6 +20,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { routeHref } from "../router";
 
 interface Props {
   readonly client: ReadApiClient;
@@ -34,6 +35,7 @@ const PAGE_SIZE = 25;
 const FILTERS: readonly IncidentStatusFilter[] = ["active", "resolved", "all"];
 
 export function IncidentsRoute({ client }: Props) {
+  const verticalFilter = new URLSearchParams(window.location.search).get("vertical");
   const [filter, setFilter] = useState<IncidentStatusFilter>("active");
   const [state, setState] = useState<AsyncState<IncidentData>>({ status: "loading" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -52,13 +54,16 @@ export function IncidentsRoute({ client }: Props) {
     void client.listIncidents({ status: filter, limit: PAGE_SIZE }).then(
       (page) => {
         if (rosterGeneration.current !== generation) return;
-        const first = page.items[0]?.correlation_id ?? null;
+        const items = verticalFilter
+          ? page.items.filter((item) => item.vertical.replaceAll("_", "-") === verticalFilter)
+          : page.items;
+        const first = items[0]?.correlation_id ?? null;
         setState({
           status: "ready",
-          data: { items: page.items, nextCursor: page.next_cursor },
+          data: { items, nextCursor: page.next_cursor },
         });
         setSelectedId((current) =>
-          page.items.some((item) => item.correlation_id === current) ? current : first,
+          items.some((item) => item.correlation_id === current) ? current : first,
         );
       },
       (error: unknown) => {
@@ -73,7 +78,7 @@ export function IncidentsRoute({ client }: Props) {
     return () => {
       if (rosterGeneration.current === generation) rosterGeneration.current += 1;
     };
-  }, [client, filter]);
+  }, [client, filter, verticalFilter]);
 
   useEffect(() => {
     const generation = historyGeneration.current + 1;
@@ -120,7 +125,11 @@ export function IncidentsRoute({ client }: Props) {
         ? {
             status: "ready",
             data: {
-              items: [...current.data.items, ...page.items],
+              items: [
+                ...current.data.items,
+                ...page.items.filter((item) =>
+                  !verticalFilter || item.vertical.replaceAll("_", "-") === verticalFilter),
+              ],
               nextCursor: page.next_cursor,
             },
           }
@@ -138,6 +147,9 @@ export function IncidentsRoute({ client }: Props) {
   return (
     <div class="stack">
       <PageHeader title={t("route.incidents")} subtitle={t("incidents.subtitle")} />
+      {verticalFilter ? (
+        <div class="filter-summary"><span>vertical: <strong>{verticalFilter}</strong></span></div>
+      ) : null}
       <div class="segmented-control" role="group" aria-label={t("incidents.filterLabel")}>
         {FILTERS.map((value) => (
           <button
@@ -188,6 +200,7 @@ function IncidentBody({
   onLoadMore,
 }: BodyProps) {
   const selected = data.items.find((item) => item.correlation_id === selectedId) ?? null;
+  const selectedHistory = history.status === "ready" ? history.data : [];
 
   usePublishViewContext(
     () => ({
@@ -202,9 +215,21 @@ function IncidentBody({
         { key: "loaded_incidents", value: data.items.length, group: "incidents" },
         { key: "selected_correlation_id", value: selectedId, group: "incidents" },
       ],
-      records: { incidents: data.items.map((item) => ({ ...item })) },
+      records: {
+        incidents: data.items.map((item) => ({ ...item })),
+        selected_incident: selected ? [{ ...selected }] : [],
+        selected_history: selectedHistory.map((item) => ({
+          seq: item.seq,
+          correlation_id: item.correlation_id,
+          actor: item.actor,
+          action_kind: item.action_kind,
+          mode: item.mode,
+          recorded_at: item.recorded_at,
+          ...item.entry,
+        })),
+      },
     }),
-    [data.items, selectedId],
+    [data.items, selected, selectedHistory],
   );
 
   const columns: readonly Column<IncidentSummary>[] = [
@@ -291,9 +316,11 @@ function IncidentDetail({
         <KpiCard label={t("incidents.history")} value={incident.history_count} />
       </KpiGrid>
       <p>
-        <a href={`#/audit?correlation=${encodeURIComponent(incident.correlation_id)}`}>{t("incidents.audit")}</a>
+        <a href={routeHref("audit", { params: { correlation: incident.correlation_id } })}>{t("incidents.audit")}</a>
         {" | "}
-        <a href={`#/trace?correlation=${encodeURIComponent(incident.correlation_id)}`}>{t("incidents.trace")}</a>
+        <a href={routeHref("trace", { params: { correlation: incident.correlation_id } })}>{t("incidents.trace")}</a>
+        {" | "}
+        <a href={routeHref("rca", { params: { correlation: incident.correlation_id } })}>{t("incidents.rca")}</a>
       </p>
       <AsyncBoundary state={history} resourceLabel={t("incidents.timeline")}>
         {(items) => (

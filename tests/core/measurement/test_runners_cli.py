@@ -6,9 +6,8 @@ The CLI is the entry point the phase-4 Container Apps Jobs
 - Env-var mode selection (``baseline`` / ``growth`` / anything else).
 - Fail-fast on invalid mode (exit ``2``) — matches the coding-conventions
   fail-fast rule.
-- Successful run on both modes (exit ``0``) — upstream CLI is a health
-  probe surface a fork extends by binding real seams; the shipped
-  version MUST succeed so Terraform Job wire-up is provable.
+- Legacy core entrypoint refuses both modes with exit ``3``; Terraform uses
+    ``fdai.delivery.measurement_runner_cli`` where real adapters are composed.
 - Unexpected exceptions in the runner body downgrade to exit ``3``, not
   ``0`` — a runtime crash pages an operator.
 """
@@ -42,21 +41,21 @@ def test_invalid_mode_returns_exit_2(monkeypatch: pytest.MonkeyPatch) -> None:
     assert main() == 2
 
 
-def test_baseline_mode_returns_exit_0(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_baseline_mode_returns_exit_3(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(_ENV_MODE, "baseline")
-    assert main() == 0
+    assert main() == 3
 
 
-def test_growth_mode_returns_exit_0(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_growth_mode_returns_exit_3(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(_ENV_MODE, "growth")
-    assert main() == 0
+    assert main() == 3
 
 
 def test_mode_is_case_insensitive(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(_ENV_MODE, "BASELINE")
-    assert main() == 0
+    assert main() == 3
     monkeypatch.setenv(_ENV_MODE, "Growth")
-    assert main() == 0
+    assert main() == 3
 
 
 def test_baseline_exception_returns_exit_3(monkeypatch: pytest.MonkeyPatch) -> None:

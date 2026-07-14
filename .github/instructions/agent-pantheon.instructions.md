@@ -77,7 +77,7 @@ MAY publish that object type's topic.
 | Agent | Role | Layer | Owns (single-writer) | Publishes topic(s) | Subscribes | LLM in hot-path | Hard dep |
 |-------|------|-------|----------------------|--------------------|------------|-----------------|----------|
 | **Odin** | Master Planner (cross-vertical arbiter, final tie-break) | governance | ArbitrationDecision | `object.arbitration-decision` | `object.arbitration-request`, `object.verdict` (portfolio) | no | no |
-| **Thor** | Responder - **sole privileged executor**; MUST NOT judge | pipeline | ActionRun, ActionAttempt | `object.action-run` | `object.verdict`, `object.approval` | no | no |
+| **Thor** | Responder - **sole privileged executor**; MUST NOT judge | pipeline | ActionRun, ActionAttempt | `object.action-run` | `object.verdict`, `object.approval`, `object.rollback` | no | no |
 | **Forseti** | Judge - issues Verdict (auto/hil/deny); reports to Odin, not Thor | pipeline | Verdict, RCA, SecurityEvent, ArbitrationRequest | `object.verdict`, `object.security-event`, `object.arbitration-request` | `object.anomaly`, `object.drift`, `object.cost-anomaly`, `object.capacity-forecast`, `object.arbitration-decision`, `object.rule` | yes (T2 abstain only) | no |
 | **Huginn** | Event Collector - normalize + dedup + correlate | pipeline | Event | `object.event` | (external ingress) | no | no |
 | **Heimdall** | Observer - anomaly/drift/forecast + security-severity correlation | pipeline | Anomaly, Drift, Forecast | `object.anomaly`, `object.drift`, `object.forecast` | `object.event`, `object.security-event`, `object.chaos-experiment` | no | no |
@@ -200,8 +200,14 @@ deepen it. Do not delete this list without closing the item.
   abstains (recorded via the `no_rule_match` counter) so malformed / junk
   ingress cannot manufacture HIL items - dropping malformed input is the
   event-ingest boundary's job, not the judge's.
-- **Vidar rollback is a bookkeeping stub** (records success without performing a
-  contract-specific rollback / DR failover).
+- **Vidar rollback dispatch is provider-backed.** The runtime injects rollback
+   executors keyed by `rollback_contract`; an unbound contract, provider error,
+   or missing receipt emits a failed rollback instead of fabricating success.
+   Thor keeps the failed ActionRun and resource lock until Vidar's receipt
+   arrives, then records `rolled_back` or `rollback_failed`.
+- **Pantheon enforce mode fails closed at startup.** A live Thor executor,
+   durable ActionRun store, StateStore-backed Saga, and rollback executor
+   registry are all required before `enforce=True` can start.
 - **Live degradation policy is not driven by health probes** (Saga/Vidar
   availability are constructor flags, not runtime signals).
 - **Discovery loop (Saga -> Norns -> Mimir) is mostly wired.** The

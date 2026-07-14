@@ -3,15 +3,13 @@
 P1 W-3 Step 3f scope
 --------------------
 
-The full 3-tier trust-router (with confidence scoring, T1 similarity, T2
-gate) lands in P2 alongside the T1/T2 tiers. This module ships the P1
-routing surface that the ControlLoop needs today:
+The router selects the lowest tier with enough information to decide:
 
 - **T0** when the event's derived ``resource_type`` matches a rule in
   the loaded :class:`RuleIndex`.
-- **abstain** otherwise - no matching rule means no deterministic
-  decision, so the event is handed to HIL rather than partial-applied
-  (``architecture.instructions.md § Trust Routing``).
+- **T1** when the resource type is known but no deterministic rule matches.
+- **abstain** only when the resource type is missing and no safe tier input
+    can be constructed.
 
 The router does NOT invoke the tier; it returns a
 :class:`RoutingDecision` that the caller (:class:`ControlLoop`) acts on.
@@ -29,9 +27,10 @@ from fdai.shared.contracts.models import Event
 
 
 class RoutingTier(StrEnum):
-    """P1 routing outcome. T1/T2 land in later phases."""
+    """Trust-router outcome."""
 
     T0 = "t0"
+    T1 = "t1"
     ABSTAIN = "abstain"
 
 
@@ -79,7 +78,7 @@ class TrustRouter:
         candidates = self._index.rules_for_type(resource_type)
         if not candidates:
             return RoutingDecision(
-                tier=RoutingTier.ABSTAIN,
+                tier=RoutingTier.T1,
                 resource_type=resource_type,
                 candidate_rule_ids=(),
                 reason="no_rule_matches_resource_type",

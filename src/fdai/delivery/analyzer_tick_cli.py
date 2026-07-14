@@ -70,13 +70,18 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
+from uuid import NAMESPACE_URL, uuid5
 
 from fdai.composition import Container, default_container_from_env
 from fdai.core.investigation import (
+    AnalyzerFinding,
     InvestigationCoordinator,
     InvestigationRequest,
     default_analyzers,
 )
+from fdai.delivery.event_publisher import EventPublisherContext
+from fdai.shared.contracts.models import Event, Mode
+from fdai.shared.providers.event_bus import EventBus
 from fdai.shared.providers.metric import NoopMetricProvider
 
 _LOGGER = logging.getLogger("fdai.delivery.analyzer_tick_cli")
@@ -141,7 +146,12 @@ def _positive_float(env_name: str, default: float) -> float:
     return value
 
 
-async def _run_tick(container: Container, targets: tuple[_Target, ...]) -> int:
+async def _run_tick(
+    container: Container,
+    targets: tuple[_Target, ...],
+    *,
+    event_bus: EventBus | None = None,
+) -> int:
     """Invoke the reference analyzers against ``targets`` once."""
     if isinstance(container.metric_provider, NoopMetricProvider):
         _LOGGER.warning(
@@ -191,11 +201,43 @@ async def _run_tick(container: Container, targets: tuple[_Target, ...]) -> int:
                 "occurred_at": finding.occurred_at.isoformat(),
             },
         )
-    # Upstream does not publish: a fork binds an EventBus and swaps this
-    # dry-run for a producer that re-injects each finding as an Event
-    # onto the ingest topic. The standard trust-router + risk-gate then
-    # governs any resulting action; the tick never executes a change.
+        if event_bus is not None:
+            event = _finding_event(report.investigation_id, finding)
+            await event_bus.publish(
+                container.config.kafka.topic_events,
+                finding.resource_ref,
+                event.model_dump(mode="json"),
+            )
     return 0
+
+
+def _finding_event(investigation_id: str, finding: AnalyzerFinding) -> Event:
+    resource_ref = finding.resource_ref
+    signal = finding.signal
+    occurred_at = finding.occurred_at
+    identity = f"{investigation_id}:{resource_ref}:{signal}:{occurred_at.isoformat()}"
+    return Event(
+        schema_version="1.0.0",
+        event_id=uuid5(NAMESPACE_URL, f"fdai.analyzer://{identity}"),
+        idempotency_key=f"analyzer:{identity}",
+        source="fdai.delivery.analyzer_tick",
+        event_type=f"analyzer.{signal}",
+        resource_ref=resource_ref,
+        payload={
+            "resource": {
+                "resource_id": resource_ref,
+                "type": finding.resource_kind,
+            },
+            "finding": {
+                "signal": signal,
+                "severity": finding.severity.value,
+                "observation": finding.observation,
+            },
+        },
+        detected_at=occurred_at,
+        ingested_at=occurred_at,
+        mode=Mode.SHADOW,
+    )
 
 
 async def _tick() -> int:
@@ -204,7 +246,8 @@ async def _tick() -> int:
         _LOGGER.info("analyzer_tick_no_targets", extra={"reason": f"{_ENV_TARGETS} unset"})
         return 0
     container = default_container_from_env()
-    return await _run_tick(container, targets)
+    async with EventPublisherContext(kafka=container.config.kafka) as event_bus:
+        return await _run_tick(container, targets, event_bus=event_bus)
 
 
 def main() -> int:

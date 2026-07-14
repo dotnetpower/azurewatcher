@@ -43,6 +43,7 @@ WORKDIR /app
 COPY --from=builder --chown=65532:65532 /app/.venv /app/.venv
 COPY --chown=65532:65532 rule-catalog/ /app/rule-catalog/
 COPY --chown=65532:65532 policies/ /app/policies/
+COPY --chown=65532:65532 tests/scenarios/ /app/tests/scenarios/
 # App source colocated at /app/src (on PYTHONPATH) so path-relative catalog
 # resolution (``prod.py`` computes the catalog root from ``__file__``) finds
 # /app/rule-catalog + /app/policies in the container exactly as in a repo

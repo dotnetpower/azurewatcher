@@ -202,6 +202,17 @@ def _record_from_az_row(*, row: dict[str, Any], resource_type: str, now_iso: str
         "location": row.get("location"),
         "tags": row.get("tags") or {},
     }
+    # Carry the owning resource-group so a console read can scope by it
+    # (parity with the production ARG adapter, which projects `resourceGroup`).
+    # `az resource list` rows already include it; a resource-group row owns
+    # itself; otherwise recover it from the ARM path.
+    resource_group = row.get("resourceGroup")
+    if not resource_group and resource_type == "resource-group":
+        resource_group = name
+    if not resource_group:
+        resource_group = _resource_group_from_arm_id(arm_id)
+    if resource_group:
+        props["resourceGroup"] = resource_group
     # Resource-group-specific fields land at the top level of `row`.
     if resource_type == "resource-group":
         props["managed_by"] = row.get("managedBy")
@@ -224,6 +235,25 @@ def _neutral_id(arm_id: str) -> str:
     if idx < 0:
         return lowered.strip("/")
     return lowered[idx + 1 :].strip("/")
+
+
+def _resource_group_from_arm_id(arm_id: str) -> str | None:
+    """Recover the resource-group name from an ARM path, or ``None``.
+
+    ARM ids look like ``/subscriptions/<sub>/resourceGroups/<rg>/providers/...``;
+    the segment right after ``/resourceGroups/`` is the owning group. Returned
+    with the group's original casing (ARM group names are case-insensitive).
+    """
+    if not arm_id:
+        return None
+    marker = "/resourcegroups/"
+    lowered = arm_id.lower()
+    idx = lowered.find(marker)
+    if idx < 0:
+        return None
+    rest = arm_id[idx + len(marker) :]
+    segment = rest.split("/", 1)[0].strip()
+    return segment or None
 
 
 __all__ = ["AzureCliInventory", "AzureCliInventoryError"]

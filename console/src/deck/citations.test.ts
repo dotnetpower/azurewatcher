@@ -15,6 +15,17 @@ describe("relevantCitations", () => {
     expect(out.map((c) => c.label)).toEqual(["screen", "records.rules"]);
   });
 
+  it("always keeps verified evidence references", () => {
+    const evidence: Citation = {
+      label: "evidence.1",
+      value: "incident-search:recent:11",
+    };
+
+    expect(relevantCitations([evidence], "No matching incident was found.")).toEqual([
+      evidence,
+    ]);
+  });
+
   it("keeps a fact only when the answer references its value", () => {
     const cites: Citation[] = [
       SCREEN,

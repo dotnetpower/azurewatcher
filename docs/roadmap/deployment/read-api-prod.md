@@ -31,6 +31,11 @@ model from environment only. This doc covers the production entrypoint.
   a broken revision never binds a socket. A cold boot with an entirely
   unpopulated env yields ONE error that enumerates every missing slot,
   instead of eight sequential boot failures.
+- **Kafka-backed Live observation.** When the Kafka bootstrap endpoint is
+  configured, the factory registers `/live/stream` and `/agents/stream`.
+  Separate consumer groups read the shared `aw.pipeline.stages` topic and fan
+  validated stage records into process-local SSE sinks. The app lifespan starts
+  and stops both relays and closes the shared EventBus transport.
 
 ## Environment contract
 
@@ -56,6 +61,8 @@ Optional (defaults apply):
 | `FDAI_READ_API_CORS_ALLOW_ORIGINS` | empty (same-origin) | Comma-separated origin list. A bare `*` element is rejected unconditionally by this factory (regardless of `RUNTIME_ENV`) - a cross-origin deploy MUST list the console origins explicitly. |
 | `FDAI_READ_API_STATEMENT_TIMEOUT_MS` | `20000` | Applied via `SET LOCAL statement_timeout` on every read query. |
 | `FDAI_READ_API_CONNECT_TIMEOUT_S` | `10` | Bounds the TCP + auth handshake so a dead DB fails fast. |
+| `FDAI_KAFKA_BOOTSTRAP_SERVERS` | empty | Enables the production Live and Agents SSE relays. Uses the Event Hubs Kafka endpoint on `:9093`; an empty value leaves both optional routes unregistered. |
+| `FDAI_STAGE_TOPIC` | `aw.pipeline.stages` | Stage topic published by the worker and consumed by the Live and Agents relays. The worker and read API should use the same value. |
 
 ## Run it
 
@@ -81,11 +88,16 @@ Vault secret directly ([app-shape.instructions.md § Azure Mapping](../../../.gi
 - [`main.py`](../../../src/fdai/delivery/read_api/main.py) - shared
   `build_app` glue (route registration, `_authorize` gate, staging/prod
   tripwires).
+- [`streaming/live_stage_broadcaster.py`](../../../src/fdai/delivery/read_api/streaming/live_stage_broadcaster.py)
+  - validates stage records from Kafka and preserves the raw `event: stage`
+  SSE contract expected by the browser.
 
 ## Testing
 
 - `tests/delivery/read_api/test_prod.py` - env parsing + composition
   guards (no DB round-trip).
+- `tests/delivery/read_api/streaming/test_live_stage_broadcaster.py` - raw
+  stage relay, malformed-frame rejection, and lifecycle behavior.
 - `tests/delivery/read_api/test_postgres_read_model_units.py` - row
   mappers, cursor parsing, KPI aggregation (no DB round-trip).
 - `tests/persistence/test_postgres_console_read_model.py` -

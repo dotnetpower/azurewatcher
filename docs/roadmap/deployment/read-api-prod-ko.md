@@ -1,8 +1,8 @@
 ---
 title: 콘솔 read-API 프로덕션 배포
 translation_of: read-api-prod.md
-translation_source_sha: 7cde510929777f98b48081d261e3191d220677aa
-translation_revised: 2026-07-13
+translation_source_sha: eebe7f4fe3df00a693919c86ff3281dcb3296849
+translation_revised: 2026-07-15
 ---
 # 콘솔 read-API 프로덕션 배포
 
@@ -31,6 +31,11 @@ translation_revised: 2026-07-13
   깨진 리비전은 절대 소켓을 바인딩하지 못한다. env가 통째로 비어있는
   콜드 부트에서는 누락된 슬롯 8개를 순차 실패로 겪는 대신 한 번의
   에러로 모두 열거되어 보인다.
+- **Kafka 기반 실시간 관찰.** Kafka bootstrap endpoint가 구성되면 팩토리는
+  `/live/stream`과 `/agents/stream`을 등록합니다. 별도 consumer group이 공유
+  `aw.pipeline.stages` 토픽을 읽고 검증된 단계 레코드를 프로세스 내부 SSE sink로
+  전달합니다. 앱 lifespan은 두 relay를 시작하고 중지하며 공유 EventBus 전송을
+  닫습니다.
 
 ## 환경변수 계약
 
@@ -56,6 +61,8 @@ translation_revised: 2026-07-13
 | `FDAI_READ_API_CORS_ALLOW_ORIGINS` | 비어있음 (same-origin) | 콤마로 구분된 origin 목록. bare `*` 원소는 이 팩토리가 `RUNTIME_ENV`와 무관하게 무조건 거부한다 - 크로스-오리진 배포는 콘솔 origin을 명시적으로 나열해야 한다. |
 | `FDAI_READ_API_STATEMENT_TIMEOUT_MS` | `20000` | 모든 read 쿼리에 `SET LOCAL statement_timeout`으로 적용. |
 | `FDAI_READ_API_CONNECT_TIMEOUT_S` | `10` | TCP + auth 핸드셰이크를 제한해 죽은 DB가 빠르게 실패하도록. |
+| `FDAI_KAFKA_BOOTSTRAP_SERVERS` | 비어 있음 | 프로덕션 Live 및 Agents SSE relay를 활성화합니다. `:9093`의 Event Hubs Kafka endpoint를 사용하며, 값이 비어 있으면 두 선택적 route를 등록하지 않습니다. |
+| `FDAI_STAGE_TOPIC` | `aw.pipeline.stages` | worker가 게시하고 Live 및 Agents relay가 소비하는 단계 토픽입니다. worker와 read API는 같은 값을 사용하는 것이 좋습니다. |
 
 ## 실행
 
@@ -79,11 +86,16 @@ uvicorn fdai.delivery.read_api.prod:app \
     라이브 DB 없이 유닛테스트가 가능하다.
 - [`main.py`](../../../src/fdai/delivery/read_api/main.py) - 공용 `build_app`
   글루 (라우트 등록, `_authorize` 게이트, staging/prod 트립와이어).
+- [`streaming/live_stage_broadcaster.py`](../../../src/fdai/delivery/read_api/streaming/live_stage_broadcaster.py)
+  - Kafka 단계 레코드를 검증하고 브라우저가 기대하는 원시 `event: stage` SSE
+  계약을 유지합니다.
 
 ## 테스트
 
 - `tests/delivery/read_api/test_prod.py` - env 파싱 + 조립 가드
   (DB 왕복 없음).
+- `tests/delivery/read_api/streaming/test_live_stage_broadcaster.py` - 원시 단계
+  relay, 잘못된 프레임 거부, lifecycle 동작.
 - `tests/delivery/read_api/test_postgres_read_model_units.py` - row 매퍼,
   커서 파싱, KPI 집계 (DB 왕복 없음).
 - `tests/persistence/test_postgres_console_read_model.py` -

@@ -1,0 +1,16 @@
+{
+  "scenario_id": "change.drift-manual-portal-edit.003",
+  "shipped_rule_id": "ops.change-summary",
+  "wire_risk_gate": true,
+  "event_payload_resource": {
+    "resource_id": "example-resource-group",
+    "type": "resource-group",
+    "props": {
+      "request_kind": "change-summary"
+    }
+  },
+  "expected_control_loop_outcome": "hil",
+  "expected_decision": "hil",
+  "expected_citing_rule_id_present": "ops.change-summary",
+  "note": "Maps the frozen drift placeholder to the shipped deterministic change-summary rule. The shadow-default ActionType enters the unified risk gate and routes to HIL without publishing a PR, matching should_execute=false."
+}

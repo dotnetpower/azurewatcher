@@ -24,21 +24,27 @@ import {
   probeBackend,
   renderActionResult,
   submitAction,
+  type AnswerVerification,
   type BackendHealth,
   type BackendTurn,
   type RouterSnapshot,
+  type VerificationProgress,
 } from "./backend";
 import { detectActionIntent } from "./action-intent";
 import {
+  conversationIndexKeyFor,
+  conversationUserScope,
   conversationTitle,
-  GENERAL_CONVERSATION_KEY,
+  isScreenConversationKey,
   parseConversationIndex,
+  screenConversationKey,
   serializeConversationIndex,
   upsertConversation,
+  userConversationKey,
   type ConversationSummary,
-  CONVERSATION_INDEX_KEY,
 } from "./conversation-sessions";
 import { useViewContext } from "./context";
+import { getDeckUser } from "./deck-user";
 import {
   EMPTY_HISTORY,
   record as recordHistory,
@@ -62,6 +68,11 @@ interface Turn {
   readonly router?: RouterSnapshot;
   /** True while a deck reply is still streaming tokens in. */
   readonly streaming?: boolean;
+  /** True only after a terminal canonical revision has arrived. */
+  readonly terminal?: boolean;
+  readonly revision?: number;
+  readonly verification?: AnswerVerification;
+  readonly verificationProgress?: VerificationProgress;
   /** Agent name when this turn speaks as a specific agent (renders its icon + name). */
   readonly agent?: string;
   readonly at: string;
@@ -132,24 +143,10 @@ function routerTooltip(router: RouterSnapshot | undefined): string | undefined {
   return `auto-router (${router.reason}) chose ${router.chose}\n${lines.join("\n")}`;
 }
 
-/** The general (screen-scoped) conversation session id. */
-const GENERAL_SESSION = GENERAL_CONVERSATION_KEY;
+const DEFAULT_NARRATOR = "Bragi";
 
-/**
- * The current route token from the location hash, normalized the same way the
- * app router does (decode `%2F`, strip the leading `#/` and any query). Used to
- * tell a real navigation from in-place hash re-encoding (`#/agents` <->
- * `#%2Fagents`) so the deck only dismisses on an actual route change.
- */
-function normalizedRoute(): string {
-  if (typeof window === "undefined") return "";
-  let hash = window.location.hash;
-  try {
-    hash = decodeURIComponent(hash);
-  } catch {
-    /* keep raw hash if it is not a valid URI component */
-  }
-  return hash.replace(/^#\/?/, "").replace(/\?.*$/, "");
+function currentPathname(): string {
+  return typeof window === "undefined" ? "/overview" : window.location.pathname;
 }
 
 /** Typewriter cadence (ms per chunk) for the injected agent-context turn. */
@@ -173,6 +170,13 @@ function contextChunks(text: string): string[] {
 
 export function CommandDeck() {
   const snapshot = useViewContext();
+  const deckUser = getDeckUser();
+  const userScope = conversationUserScope(
+    deckUser?.accountId ?? deckUser?.username ?? deckUser?.name ?? null,
+    deckUser?.devMode ?? false,
+  );
+  const indexKey = conversationIndexKeyFor(userScope);
+  const initialScreenSession = screenConversationKey(userScope, currentPathname());
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -180,22 +184,22 @@ export function CommandDeck() {
   // Active conversation session. The general screen deck is "screen"; a chat
   // scoped to one agent uses e.g. "agent:Forseti" and keeps a separate
   // transcript so threads never bleed into each other.
-  const [sessionKey, setSessionKey] = useState<string>(GENERAL_SESSION);
+  const [sessionKey, setSessionKey] = useState<string>(initialScreenSession);
   const [sessionLabel, setSessionLabel] = useState<string | null>(null);
-  const sessionKeyRef = useRef<string>(GENERAL_SESSION);
+  const sessionKeyRef = useRef<string>(initialScreenSession);
   const [turns, setTurns] = useState<readonly Turn[]>(() => {
     const store = sessionStore();
-    return store ? parseTurns(store.getItem(transcriptKeyFor(GENERAL_SESSION))) : [];
+    return store ? parseTurns(store.getItem(transcriptKeyFor(initialScreenSession))) : [];
   });
   const [conversations, setConversations] = useState<readonly ConversationSummary[]>(() => {
     const store = sessionStore();
     const restored = store
-      ? parseConversationIndex(store.getItem(CONVERSATION_INDEX_KEY))
+      ? parseConversationIndex(store.getItem(indexKey))
       : [];
-    const previous = restored.find((item) => item.key === GENERAL_SESSION);
+    const previous = restored.find((item) => item.key === initialScreenSession);
     return upsertConversation(restored, {
-      key: GENERAL_SESSION,
-      label: t("deck.general"),
+      key: initialScreenSession,
+      label: currentPathname(),
       kind: "general",
       updatedAt: previous?.updatedAt ?? new Date().toISOString(),
     });
@@ -225,7 +229,7 @@ export function CommandDeck() {
         const retained = new Set(next.map((item) => item.key));
         try {
           const store = sessionStore();
-          store?.setItem(CONVERSATION_INDEX_KEY, serializeConversationIndex(next));
+          store?.setItem(indexKey, serializeConversationIndex(next));
           for (const evicted of current) {
             if (!retained.has(evicted.key)) store?.removeItem(transcriptKeyFor(evicted.key));
           }
@@ -235,7 +239,7 @@ export function CommandDeck() {
         return next;
       });
     },
-    [],
+    [indexKey],
   );
 
   // Preflight probe: hit /chat/health once so the deck header can show
@@ -288,7 +292,19 @@ export function CommandDeck() {
     active?.controller.abort();
     inFlightRef.current = false;
     const completed = turnsRef.current.map((turn) =>
-      turn.streaming ? { ...turn, streaming: false } : turn,
+      turn.streaming
+        ? {
+            ...turn,
+            streaming: false,
+            terminal: false,
+            verificationProgress: {
+              phase: "unverified",
+              label: "Verification stopped",
+              completed: null,
+              total: null,
+            },
+          }
+        : turn,
     );
     turnsRef.current = completed;
     setTurns(completed);
@@ -384,7 +400,7 @@ export function CommandDeck() {
         label:
           conversationLabel ??
           agent ??
-          (key === GENERAL_SESSION ? t("deck.general") : t("deck.newConversation")),
+          (key.startsWith(`screen:${userScope}:`) ? currentPathname() : t("deck.newConversation")),
         kind,
         ...(agent ? { agent } : {}),
         updatedAt: new Date().toISOString(),
@@ -394,41 +410,44 @@ export function CommandDeck() {
         streamContextTurn(agent, note);
       }
     },
-    [cancelActiveRequest, streamContextTurn, updateConversationIndex],
+    [cancelActiveRequest, streamContextTurn, updateConversationIndex, userScope],
   );
 
   const startNewConversation = useCallback(() => {
-    const key = `conversation:${newId()}`;
+    const key = userConversationKey(userScope, `conversation:${newId()}`);
     switchSession(key, null, undefined, t("deck.newConversation"));
     setDraft("");
     focusInput();
-  }, [focusInput, switchSession]);
+  }, [focusInput, switchSession, userScope]);
 
   // Open the deck on the general (screen) session - used by the launcher, the
   // Cmd/Ctrl+K toggle, and the `/` shortcut, so those never drop the operator
   // into a lingering agent session.
   const openGeneralDeck = useCallback(() => {
-    if (sessionKeyRef.current !== GENERAL_SESSION) switchSession(GENERAL_SESSION, null);
+    const key = screenConversationKey(userScope, currentPathname());
+    if (sessionKeyRef.current !== key) {
+      switchSession(key, null, undefined, currentPathname(), "general");
+    }
     openDeck();
-  }, [openDeck, switchSession]);
+  }, [openDeck, switchSession, userScope]);
 
   const removeCachedConversation = useCallback(
     (conversation: ConversationSummary) => {
-      if (conversation.key === GENERAL_SESSION) return;
       const removingActive = sessionKeyRef.current === conversation.key;
       if (removingActive) cancelActiveRequest();
       const remaining = conversations.filter((item) => item.key !== conversation.key);
       try {
         const store = sessionStore();
         store?.removeItem(transcriptKeyFor(conversation.key));
-        store?.setItem(CONVERSATION_INDEX_KEY, serializeConversationIndex(remaining));
+        store?.setItem(indexKey, serializeConversationIndex(remaining));
       } catch {
         /* best-effort */
       }
       sessionIdsRef.current.delete(conversation.key);
       setConversations(remaining);
       if (removingActive) {
-        const fallback = remaining.find((item) => item.key === GENERAL_SESSION) ?? remaining[0];
+        const routeKey = screenConversationKey(userScope, currentPathname());
+        const fallback = remaining.find((item) => item.key === routeKey) ?? remaining[0];
         if (fallback) {
           switchSession(
             fallback.key,
@@ -438,12 +457,12 @@ export function CommandDeck() {
             fallback.kind,
           );
         } else {
-          switchSession(GENERAL_SESSION, null, undefined, t("deck.general"));
+          switchSession(routeKey, null, undefined, currentPathname(), "general");
         }
       }
       focusInput();
     },
-    [cancelActiveRequest, conversations, focusInput, switchSession],
+    [cancelActiveRequest, conversations, focusInput, indexKey, switchSession, userScope],
   );
 
   // Trap Tab within the open overlay so keyboard focus cannot escape the modal
@@ -535,10 +554,14 @@ export function CommandDeck() {
     const onOpenDeck = (e: Event) => {
       const detail = (e as CustomEvent<DeckOpenDetail>).detail;
       const note = typeof detail?.contextNote === "string" ? detail.contextNote.trim() : "";
-      const key =
+      const requestedKey =
         typeof detail?.sessionKey === "string" && detail.sessionKey
           ? detail.sessionKey
-          : GENERAL_SESSION;
+          : null;
+      const key =
+        requestedKey
+          ? userConversationKey(userScope, requestedKey)
+          : screenConversationKey(userScope, currentPathname());
       const label = typeof detail?.sessionLabel === "string" ? detail.sessionLabel : null;
       if (key !== sessionKeyRef.current) {
         // Move to the target session (its own transcript). A context note only
@@ -549,7 +572,7 @@ export function CommandDeck() {
           label,
           note,
           label ?? undefined,
-          key.startsWith("agent:") ? "agent" : "general",
+          requestedKey?.startsWith("agent:") ? "agent" : "general",
         );
       } else if (note && turnsRef.current.length === 0) {
         // Same, still-empty session: stream in the grounding context turn as
@@ -565,26 +588,25 @@ export function CommandDeck() {
     };
     window.addEventListener(DECK_OPEN_EVENT, onOpenDeck);
     return () => window.removeEventListener(DECK_OPEN_EVENT, onOpenDeck);
-  }, [openDeck, switchSession, streamContextTurn]);
+  }, [openDeck, switchSession, streamContextTurn, userScope]);
 
-  // Navigation dismisses the deck. While the deck is open the left rail is
-  // lifted above the overlay (body.deck-open) so its navigation popover is
-  // clickable; selecting an item changes the hash, and closing the deck here
-  // surfaces the freshly navigated panel.
+  // Navigation keeps the overlay open but starts (or restores) the default
+  // conversation owned by this user and the new canonical menu URL.
   useEffect(() => {
     if (!open) return;
-    // Only a REAL navigation (route token change) should dismiss the deck.
-    // This environment (and any hash-router host) can re-encode the hash in
-    // place - e.g. `#/agents` <-> `#%2Fagents` - which fires `hashchange`
-    // with no actual route change; closing on that made the deck appear to
-    // auto-close. Compare the normalized route and ignore same-route churn.
-    const routeAtOpen = normalizedRoute();
-    const onHashChange = () => {
-      if (normalizedRoute() !== routeAtOpen) closeDeck();
+    const switchToCurrentRoute = () => {
+      const key = screenConversationKey(userScope, currentPathname());
+      if (sessionKeyRef.current !== key) {
+        switchSession(key, null, undefined, currentPathname(), "general");
+      }
     };
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
-  }, [open, closeDeck]);
+    window.addEventListener("popstate", switchToCurrentRoute);
+    window.addEventListener("fdai:route-changed", switchToCurrentRoute);
+    return () => {
+      window.removeEventListener("popstate", switchToCurrentRoute);
+      window.removeEventListener("fdai:route-changed", switchToCurrentRoute);
+    };
+  }, [open, switchSession, userScope]);
 
   useEffect(() => () => cancelActiveRequest(), [cancelActiveRequest]);
 
@@ -741,7 +763,14 @@ export function CommandDeck() {
           setPending(false);
           setTurns((prev) => [
             ...prev,
-            { id: newId(), role: "deck", text: renderActionResult(result), at: shortTime() },
+            {
+              id: newId(),
+              role: "deck",
+              text: renderActionResult(result),
+              agent: DEFAULT_NARRATOR,
+              terminal: true,
+              at: shortTime(),
+            },
           ]);
         }
       } finally {
@@ -777,19 +806,62 @@ export function CommandDeck() {
         setTurns((prev) => {
           const next: readonly Turn[] = [
             ...prev,
-            { id: deckId, role: "deck", text: "", streaming: true, at: shortTime() },
+            {
+              id: deckId,
+              role: "deck",
+              text: "",
+              streaming: true,
+              terminal: false,
+              revision: 0,
+              agent: DEFAULT_NARRATOR,
+              at: shortTime(),
+            },
           ];
           turnsRef.current = next;
           return next;
         });
       };
       const reply = await askBackendStream(text, snapshot, history, {
+        sessionId: sessionIdFor(sessionIdsRef.current, originSessionKey),
         onToken: (delta) => {
           if (!isCurrent()) return;
           acc += delta;
           ensureTurn();
           setTurns((prev) => {
             const next = prev.map((t) => (t.id === deckId ? { ...t, text: acc } : t));
+            turnsRef.current = next;
+            return next;
+          });
+        },
+        onProgress: (progress) => {
+          if (!isCurrent()) return;
+          ensureTurn();
+          setSrStatus(progress.label);
+          setTurns((prev) => {
+            const next = prev.map((turn) =>
+              turn.id === deckId ? { ...turn, verificationProgress: progress } : turn,
+            );
+            turnsRef.current = next;
+            return next;
+          });
+        },
+        onRevision: (answer, revision, status) => {
+          if (!isCurrent()) return;
+          ensureTurn();
+          acc = answer;
+          setSrStatus(
+            status === "corrected"
+              ? "Answer corrected."
+              : status === "unverified"
+                ? "Answer could not be verified."
+                : "Answer verified.",
+          );
+          setTurns((prev) => {
+            const next = prev.map((turn) =>
+              turn.id === deckId && revision > (turn.revision ?? 0)
+                ? { ...turn, text: answer, revision }
+                : turn,
+            );
             turnsRef.current = next;
             return next;
           });
@@ -805,9 +877,12 @@ export function CommandDeck() {
                   ...t,
                   text: reply.text,
                   streaming: false,
+                  terminal: reply.source !== "stopped" && !reply.source.startsWith("partial"),
                   citations: reply.citations,
                   followUps: reply.followUps,
                   source: reply.source,
+                  agent: reply.delegation?.primary_agent ?? DEFAULT_NARRATOR,
+                  ...(reply.verification ? { verification: reply.verification } : {}),
                   ...(reply.router ? { router: reply.router } : {}),
                 }
               : t,
@@ -1179,15 +1254,20 @@ function ConversationSidebar({
                 aria-current={conversation.key === activeKey ? "true" : undefined}
                 onClick={() => onSelect(conversation)}
               >
-                <span class="deck-conversation-avatar" aria-hidden="true">
-                  {(conversation.agent ?? "Br").slice(0, 2)}
-                </span>
+                <span
+                  class="deck-conversation-avatar is-agent"
+                  aria-hidden="true"
+                  style={{
+                    WebkitMaskImage: agentIconUrl(conversation.agent ?? DEFAULT_NARRATOR),
+                    maskImage: agentIconUrl(conversation.agent ?? DEFAULT_NARRATOR),
+                  }}
+                />
                 <span class="deck-conversation-copy">
                   <strong>{conversation.label}</strong>
                   <small>{new Date(conversation.updatedAt).toLocaleString()}</small>
                 </span>
               </button>
-              {conversation.key !== GENERAL_SESSION ? (
+              {!isScreenConversationKey(conversation.key) ? (
                 <button
                   type="button"
                   class="deck-conversation-remove"
@@ -1226,20 +1306,20 @@ function TurnBubble({
       class={`deck-turn deck-turn-${turn.role}${searchMatch ? " is-search-match" : ""}${activeSearchMatch ? " is-active-search-match" : ""}`}
     >
       <header class="deck-turn-head">
-        {turn.agent ? (
+        {turn.agent || isDeck ? (
           <span class="deck-turn-role deck-turn-agent">
             <span
               class="deck-turn-agent-icon"
               aria-hidden="true"
               style={{
-                WebkitMaskImage: agentIconUrl(turn.agent),
-                maskImage: agentIconUrl(turn.agent),
+                WebkitMaskImage: agentIconUrl(turn.agent ?? DEFAULT_NARRATOR),
+                maskImage: agentIconUrl(turn.agent ?? DEFAULT_NARRATOR),
               }}
             />
-            {turn.agent}
+            {turn.agent ?? DEFAULT_NARRATOR}
           </span>
         ) : (
-          <span class="deck-turn-role">{turn.role === "operator" ? "you" : "deck"}</span>
+          <span class="deck-turn-role">you</span>
         )}
         {turn.source ? (
           <span
@@ -1258,6 +1338,8 @@ function TurnBubble({
           citations={turn.citations}
           source={turn.source}
           streaming={turn.streaming === true}
+          verification={turn.verification}
+          verificationProgress={turn.verificationProgress}
           {...(onRegenerate ? { onRegenerate } : {})}
         />
       ) : (
@@ -1347,7 +1429,7 @@ function IntroPanel({
   return (
     <div class="deck-intro">
       <p class="deck-intro-lead">
-        Ask about anything currently visible - tiles, KPIs, HIL items, audit rows,
+        Ask about anything currently visible - tiles, KPIs, approvals, audit rows,
         promotion status, blast radius, or ontology. I ground every answer in the
         snapshot on the right.
       </p>
@@ -1380,7 +1462,7 @@ const FACT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   "tier.t1": "Share routed to T1 - lightweight similarity / small model (15-20%).",
   "tier.t2": "Share routed to T2 - frontier-model reasoning, novel cases only (5-10%).",
   "gate.auto": "Actions the risk gate auto-executed (low risk).",
-  "gate.hil": "Actions routed to human-in-the-loop approval (high risk).",
+  "gate.hil": "High-risk actions routed to human approval.",
   "gate.abstain": "Cases the gate abstained on - no autonomous action taken.",
   "gate.deny": "Actions the gate denied outright.",
   "attention.total": "Items currently needing operator attention.",
@@ -1415,7 +1497,7 @@ function DigestList({ snapshot }: { readonly snapshot: ReturnType<typeof useView
     return (
       <div class="deck-digest-empty muted">
         No route has published a view snapshot. Open Live, Dashboard, Audit,
-        HIL, Trace, Blast Radius, Promotion, or Ontology.
+        Approvals, Trace, Blast Radius, Promotion, or Ontology.
       </div>
     );
   }

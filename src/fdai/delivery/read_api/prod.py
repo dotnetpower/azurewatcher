@@ -47,16 +47,19 @@ Optional (respect defaults):
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Final, cast
 
+import httpx
 from starlette.applications import Starlette
 
 from fdai.core.rbac.resolver import GroupMapping, RoleResolver
 from fdai.core.reporting.composition import default_reporting_engine
 from fdai.core.reporting.datasources import AuditReader
 from fdai.core.views import ViewEngine, load_view_catalog
+from fdai.delivery.persistence import PostgresHilApprovalRegistry, PostgresStateStore
+from fdai.delivery.persistence.postgres import PostgresStateStoreConfig
 from fdai.delivery.persistence.postgres_inventory_snapshot import (
     PostgresInventoryGraphProvider,
     PostgresInventorySnapshotStoreConfig,
@@ -76,6 +79,7 @@ from fdai.delivery.read_api.postgres_read_model import (
     PostgresConsoleReadModel,
     PostgresConsoleReadModelConfig,
 )
+from fdai.delivery.read_api.routes.hil_callback import HilCallbackConfig
 from fdai.delivery.read_api.routes.process_views import ProcessViewsConfig
 from fdai.delivery.read_api.routes.reporting import ReportingConfig
 from fdai.rule_catalog.schema.action_type import load_action_type_catalog
@@ -91,6 +95,9 @@ _CONNECT_TIMEOUT_ENV: Final[str] = "FDAI_READ_API_CONNECT_TIMEOUT_S"
 _INVENTORY_FRESHNESS_ENV: Final[str] = "FDAI_INVENTORY_FRESHNESS_SECONDS"
 _TENANT_ENV: Final[str] = "FDAI_ENTRA_TENANT_ID"
 _AUDIENCE_ENV: Final[str] = "FDAI_API_AUDIENCE"
+_HIL_SECRET_ENV: Final[str] = "FDAI_CHATOPS_WEBHOOK_SECRET"  # noqa: S105 - env name
+_HIL_TOPIC_ENV: Final[str] = "FDAI_HIL_DECISION_TOPIC"
+_STAGE_TOPIC_ENV: Final[str] = "FDAI_STAGE_TOPIC"
 
 _DEFAULT_STATEMENT_TIMEOUT_MS: Final[int] = 20_000
 _DEFAULT_CONNECT_TIMEOUT_S: Final[int] = 10
@@ -353,6 +360,90 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         connect_timeout_s=read_model._config.connect_timeout_s,
         read_model=read_model,
     )
+    hil_callback = None
+    hil_registry = None
+    hil_decision_publisher = None
+    live_stream = None
+    agent_activity = None
+    shutdown_callbacks: tuple[Callable[[], Awaitable[None]], ...] = ()
+    hil_secret = env.get(_HIL_SECRET_ENV, "").strip()
+    kafka_bootstrap = env.get("FDAI_KAFKA_BOOTSTRAP_SERVERS", "").strip()
+    if hil_secret or kafka_bootstrap:
+        from fdai.delivery.azure.event_bus import (
+            EventHubsKafkaBus,
+            EventHubsKafkaBusConfig,
+        )
+        from fdai.delivery.azure.workload_identity import ManagedIdentityWorkloadIdentity
+        from fdai.delivery.chatops.hil_decision import (
+            DEFAULT_HIL_DECISION_TOPIC,
+            EventBusHilDecisionPublisher,
+        )
+        from fdai.delivery.read_api.streaming.agent_activity_broadcaster import (
+            DEFAULT_STAGE_TOPIC,
+            AgentActivityBroadcaster,
+        )
+        from fdai.delivery.read_api.streaming.agent_activity_stream import (
+            AgentActivityStreamConfig,
+        )
+        from fdai.delivery.read_api.streaming.live_stage_broadcaster import (
+            LiveStageBroadcaster,
+        )
+        from fdai.delivery.read_api.streaming.live_stream import LiveStreamConfig
+
+        http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=5.0, read=30.0, write=15.0, pool=5.0)
+        )
+        identity = ManagedIdentityWorkloadIdentity(http_client=http_client)
+        event_bus = EventHubsKafkaBus(
+            identity=identity,
+            config=EventHubsKafkaBusConfig(
+                bootstrap_servers=kafka_bootstrap
+                or _require_env(env, "FDAI_KAFKA_BOOTSTRAP_SERVERS")
+            ),
+        )
+
+        if kafka_bootstrap:
+            stage_topic = env.get(_STAGE_TOPIC_ENV, "").strip() or DEFAULT_STAGE_TOPIC
+            live_stream = LiveStreamConfig(
+                broadcaster_factory=lambda publisher: LiveStageBroadcaster(
+                    event_bus=event_bus,
+                    publisher=publisher,
+                    stage_topic=stage_topic,
+                )
+            )
+            agent_activity = AgentActivityStreamConfig(
+                broadcaster_factory=lambda publisher: AgentActivityBroadcaster(
+                    event_bus=event_bus,
+                    publisher=publisher,
+                    stage_topic=stage_topic,
+                )
+            )
+
+        if hil_secret:
+            state_store = PostgresStateStore(
+                config=PostgresStateStoreConfig(
+                    dsn=read_model._config.dsn,
+                    statement_timeout_ms=read_model._config.statement_timeout_ms,
+                    connect_timeout_s=read_model._config.connect_timeout_s,
+                )
+            )
+            hil_callback = HilCallbackConfig(secret=hil_secret)
+            hil_registry = PostgresHilApprovalRegistry(
+                store=state_store,
+                dsn=read_model._config.dsn,
+                statement_timeout_ms=read_model._config.statement_timeout_ms,
+                connect_timeout_s=read_model._config.connect_timeout_s,
+            )
+            hil_decision_publisher = EventBusHilDecisionPublisher(
+                bus=event_bus,
+                topic=env.get(_HIL_TOPIC_ENV, "").strip() or DEFAULT_HIL_DECISION_TOPIC,
+            )
+
+        async def _close_event_transport() -> None:
+            await event_bus.close()
+            await http_client.aclose()
+
+        shutdown_callbacks = (_close_event_transport,)
     config = ReadApiConfig(
         dev_mode=False,
         cors_allow_origins=cors_origins,
@@ -368,6 +459,12 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         ),
         reporting=reporting,
         process_views=process_views,
+        hil_callback=hil_callback,
+        hil_registry=hil_registry,
+        hil_decision_publisher=hil_decision_publisher,
+        live_stream=live_stream,
+        agent_activity=agent_activity,
+        shutdown_callbacks=shutdown_callbacks,
     )
     return build_app(authenticator=authenticator, read_model=read_model, config=config)
 

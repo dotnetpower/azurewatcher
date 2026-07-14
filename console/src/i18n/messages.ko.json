@@ -1,7 +1,7 @@
 {
   "route": {
     "dashboard": "개요",
-    "hilQueue": "HIL 대기열",
+    "hilQueue": "승인",
     "blastRadius": "영향 범위",
     "audit": "감사 로그",
     "architecture": "아키텍처",
@@ -16,7 +16,9 @@
     "processes": "프로세스",
     "documents": "문서",
     "settings": "설정",
-    "incidents": "인시던트"
+    "incidents": "인시던트",
+    "rca": "RCA",
+    "scope": "범위"
   },
   "nav": {
     "group": {
@@ -48,18 +50,24 @@
       "blastRadius": "영향 범위",
       "promotionGates": "승급 게이트",
       "dashboard": "개요",
+      "operatingOutcomes": "운영 성과",
+      "controlAssurance": "통제 보증",
+      "verticalOutcomes": "영역별 성과",
+      "trustRouting": "신뢰 라우팅",
       "rules": "규칙",
       "workflowBuilder": "워크플로우 빌더",
       "llmCost": "LLM 비용",
       "processes": "프로세스",
       "documents": "문서",
       "settings": "설정",
-      "incidents": "인시던트"
+      "incidents": "인시던트",
+      "rca": "RCA",
+      "scope": "범위"
     },
     "panelSub": {
       "live": "실시간 파이프라인 활동",
       "agents": "에이전트 실시간 협력: 상태, 인시던트, 대화",
-      "hilQueue": "사람 승인자를 기다리는 고위험 작업 (HIL)",
+      "hilQueue": "사람 승인을 기다리는 고위험 작업",
       "provision": "진행 중인 재프로비저닝을 읽기 전용으로 스트리밍하며 관찰",
       "audit": "모든 종단 결정의 추가 전용 기록",
       "agentActivity": "에이전트별 타임라인: 어떤 에이전트가 무엇을 언제 어떻게 했는지",
@@ -68,6 +76,10 @@
       "pantheon": "15개의 명명된 자율 에이전트 (판테온)",
       "handover": "15개 에이전트를 누가 담당하나: steward + maintainer",
       "dashboard": "감사 로그 기반 건강도 / 위험 / 비용",
+      "operatingOutcomes": "핵심 운영 지표의 추세, 기준선, 기여 요인",
+      "controlAssurance": "가드 근거, 승격 차단 원인, 승격 준비도",
+      "verticalOutcomes": "복원력, 변경 안전, 비용 거버넌스 성과",
+      "trustRouting": "티어 구성, 목표 범위, 라우팅 이벤트 근거",
       "rules": "규칙 카탈로그의 모든 정책, 패싯별",
       "workflowBuilder": "빌트인 워크플로우를 둘러보거나 대화로 새 워크플로우를 설계",
       "llmCost": "대화 / 일 / 월별 토큰 사용량과 비용",
@@ -77,12 +89,85 @@
       "incidents": "인시던트 상태, 처분 및 교정 이력"
     }
   },
+  "rca": {
+    "subtitle": "추가 전용 감사 로그에서 읽기 전용으로 투영한 단일 인시던트의 근본 원인 분석입니다. RCA 결과는 근거를 갖춘 가설이며 권위 있는 판정이 아닙니다. 실행 자격은 여전히 리스크 게이트와 검증기에 있습니다.",
+    "lookup": "인시던트 조회",
+    "correlationLabel": "상관관계 ID",
+    "fetch": "RCA 가져오기",
+    "idle": "상관관계 ID를 입력하고 가져와서 근본 원인 분석을 확인하세요.",
+    "empty": "이 인시던트에 대해 아직 기록된 RCA 가설이 없습니다.",
+    "hypotheses": "근본 원인 가설",
+    "tierColumn": "티어",
+    "outcomeColumn": "근거",
+    "confidence": "신뢰도",
+    "cause": "가설",
+    "reason": "이유",
+    "citations": "근거 인용",
+    "citationKind": "종류",
+    "citationRef": "참조",
+    "noCitations": "인용 없음 - 근거 부족.",
+    "remediation": "함의된 교정",
+    "recordedAt": "기록 시간",
+    "modeColumn": "모드",
+    "grounded": "근거 있음",
+    "abstained": "근거 부족 -> HIL",
+    "abstainedNotice": "이 가설은 근거가 부족합니다. 사람 승인(HIL)으로 라우팅되며 신뢰할 수 있는 원인으로 취급되지 않습니다.",
+    "response": "대응 계획",
+    "verdict": "판정",
+    "decision": "결정",
+    "action": "작업",
+    "rollback": "롤백 참조",
+    "noResponse": "이 인시던트에 대해 아직 연결된 대응 작업이 기록되지 않았습니다.",
+    "audit": "필터링된 감사 로그 열기",
+    "trace": "엔드투엔드 추적 열기",
+    "none": "-",
+    "tierName": {
+      "t0": "T0 직접 원인",
+      "t1": "T1 상관 원인",
+      "t2": "T2 추론 원인",
+      "unknown": "알 수 없는 티어"
+    },
+    "viewPurpose": "감사 로그에서 투영한 인시던트별 근본 원인 분석입니다: 티어별 근거 가설, 인용, 인과 추론 및 연결된 대응 계획. 읽기 전용이며 RCA 가설은 이유를 답할 뿐 실행하지 않습니다.",
+    "viewHeadline": "{correlation}에 대한 가설 {count}개"
+  },
+  "scope": {
+    "subtitle": "구독 및 리소스 그룹 단위의 유효 모니터링 및 자동 작업 범위입니다. 읽기 전용: 변경을 작성하면 policy-as-code 아티팩트가 생성되며 이를 교정 / 구성 PR(GitOps)로 제출합니다. 콘솔은 범위를 직접 쓰지 않습니다.",
+    "notServed": "이 배포에서는 유효 범위 뷰를 제공하지 않습니다.",
+    "viewPurpose": "구독 및 리소스 그룹 단위의 유효 모니터링 범위(FDAI가 관찰하는 것)와 자동 작업 범위(자율 작업이 건드릴 수 있는 것), 그리고 RG 범위 executor 신원 경계입니다. 읽기 전용이며 범위 변경은 policy-as-code PR로 배송됩니다.",
+    "viewHeadline": "모니터링 {monitoring}개, 작업 {action}개 범위 항목",
+    "axis": {"monitoring": "모니터링 범위", "action": "자동 작업 범위"},
+    "axisHint": {
+      "monitoring": "FDAI가 관찰하는 구독과 리소스 그룹.",
+      "action": "자율(비승인) 작업이 건드릴 수 있는 구독과 리소스 그룹."
+    },
+    "column": {"state": "상태", "level": "레벨", "subscription": "구독", "resourceGroup": "리소스 그룹", "axis": "축"},
+    "state": {"included": "포함", "excluded": "제외"},
+    "level": {"subscription": "구독", "resource_group": "리소스 그룹"},
+    "allRgs": "모든 리소스 그룹",
+    "emptyAxis": "이 축에 대한 범위 항목이 없습니다.",
+    "executor": "Executor 신원 경계",
+    "executorHint": "executor는 RG 범위의 작업 허용목록 관리 신원입니다. 이 하드 IAM 상한은 어떤 거버넌스 범위로도 넓힐 수 없습니다.",
+    "executorResourceGroups": "범위 리소스 그룹",
+    "none": "-",
+    "builder": "범위 빌더",
+    "builderHint": "포함/제외 선택을 구성한 뒤 생성된 아티팩트를 교정 / 구성 PR로 제출하세요. 콘솔에서는 아무것도 적용되지 않습니다.",
+    "builderAxis": "축",
+    "builderState": "상태",
+    "builderResourceGroupOptional": "리소스 그룹 (선택)",
+    "builderAdd": "항목 추가",
+    "builderRemove": "제거",
+    "builderEmpty": "범위 아티팩트를 생성하려면 항목을 하나 이상 추가하세요.",
+    "artifact": "Policy-as-code 아티팩트",
+    "artifactHint": "이 아티팩트로 PR을 여세요. 승인, 감사, 롤백은 Git에서 제공되며 콘솔은 권한 있는 쓰기를 하지 않습니다.",
+    "copy": "아티팩트 복사",
+    "copied": "복사됨"
+  },
   "incidents": {
     "subtitle": "추가 전용 감사 로그에서 가져온 인시던트 중심 상태 및 교정 이력입니다. 읽기 전용이며 작업과 승인은 Git 및 ChatOps에서 처리합니다.",
     "filter": {"active": "활성", "resolved": "해결됨", "all": "전체"},
     "column": {"title": "인시던트", "severity": "심각도", "status": "상태", "disposition": "처분", "vertical": "영역", "updated": "업데이트"},
     "status": {"open": "열림", "in_progress": "진행 중", "resolved": "해결됨"},
-    "disposition": {"pending": "대기 중", "awaiting_hil": "HIL 대기", "action_delivered": "작업 전달됨", "no_action": "작업 없음", "failed": "실패", "rolled_back": "롤백됨", "resolved": "해결됨", "unknown": "알 수 없음"},
+    "disposition": {"pending": "대기 중", "awaiting_hil": "승인 대기", "action_delivered": "작업 전달됨", "no_action": "작업 없음", "failed": "실패", "rolled_back": "롤백됨", "resolved": "해결됨", "unknown": "알 수 없음"},
     "severity": {"critical": "심각", "high": "높음", "medium": "중간", "low": "낮음", "info": "정보", "unknown": "알 수 없음"},
     "vertical": {"resilience": "복원력", "change_safety": "변경 안전", "cost_governance": "비용 거버넌스", "unknown": "알 수 없음"},
     "empty": "이 필터에 해당하는 인시던트가 없습니다.",
@@ -99,6 +184,7 @@
     "rollback": "롤백 참조",
     "audit": "필터링된 감사 로그 열기",
     "trace": "엔드투엔드 추적 열기",
+    "rca": "근본 원인 분석 열기",
     "loadMore": "인시던트 더 불러오기",
     "loadingMore": "불러오는 중...",
     "end": "인시던트 목록의 끝입니다.",
@@ -188,7 +274,35 @@
     "subtitle": "빌트인 워크플로우를 read-only로 둘러보거나 빌더와 대화하며 새 워크플로우를 설계하세요. 원하는 것을 평범한 말로 설명하면 후속 질문을 하고 YAML을 생성하고 동작 시각화를 보여주며 테스트할 수 있게 해줍니다. 콘솔은 커밋하지 않으며 YAML을 remediation PR로 복사합니다."
   },
   "overview": {
-    "subtitle": "감사 로그 기반 건강도 / 위험 / 비용 요약. 새로고침 시 갱신, 폴링 없음.",
+    "subtitle": "운영 상태, 측정된 성과, 통제 보증, 개입 필요 항목을 요약합니다.",
+    "section": {
+      "outcomes": "운영 성과",
+      "outcomesHint": "동일한 근거 기간에서 고정된 기준선과 비교한 결과입니다.",
+      "assurance": "통제 보증",
+      "assuranceHint": "자율 운영을 허용, 차단, 보류하는 가드 근거입니다.",
+      "organization": "에이전트 조직",
+      "organizationHint": "감지, 판정, 승인, 실행, 감사의 책임 분리 구조입니다.",
+      "verticals": "영역별 성과",
+      "verticalsHint": "동일 기간의 복원력, 변경 안전, 비용 거버넌스 성과입니다."
+    },
+    "status": {
+      "label": "경영진 운영 상태",
+      "healthy": "운영 통제 정상",
+      "attention": "운영 조치 필요",
+      "unknown": "운영 근거 없음",
+      "signals": "조치 신호 {count}건",
+      "summary": "자율 해결 {rate}% - 승인 대기: {hil}건 - 정책위반 탈출 {escapes}건",
+      "fallback": "감사 이벤트 {events}건 - 승인 대기: {hil}건 - 자율성 근거 없음",
+      "auditCurrent": "감사 기준 {time}"
+    },
+    "evidence": {
+      "simulated": "시뮬레이션",
+      "measured": "실측",
+      "window": "{days}일",
+      "simulatedWindow": "시뮬레이션 - {days}일 - 이벤트 {samples}건",
+      "measuredWindow": "실측 - {days}일 - 이벤트 {samples}건",
+      "unavailable": "근거 없음"
+    },
     "hero": {
       "title": "자율 클라우드 운영",
       "window": "지난 {days}일 - {samples}건 실측",
@@ -203,10 +317,62 @@
       "leadTime": "변경 리드타임",
       "vsBaseline": "기준 {baseline} 대비"
     },
+    "decision": {
+      "label": "통제 보증 및 개입 필요"
+    },
+    "assurance": {
+      "label": "통제 보증",
+      "title": "책임 있는 자율성",
+      "passing": "통과",
+      "blocked": "승격 차단",
+      "escapes": "정책위반 탈출",
+      "noneRecorded": "기록 없음",
+      "escapeCount": "{count}건이 승격 차단",
+      "thresholds": "가드 임계값",
+      "thresholdCount": "{failed}/{total} 임계값 이탈",
+      "shadow": "Shadow 비율",
+      "promotion": "승격 준비도"
+    },
+    "attention": {
+      "label": "개입 필요",
+      "title": "검토 신호 {count}건",
+      "clear": "개입 불필요",
+      "critical": "긴급",
+      "high": "높음",
+      "hilTitle": "승인 {count}건 대기",
+      "hilHint": "승인은 read-only 콘솔 외부에서 처리합니다.",
+      "escapeTitle": "정책위반 탈출 {count}건이 승격 차단",
+      "escapeHint": "강제 적용 전에 승격 근거를 검토하세요.",
+      "guardTitle": "{guard} 임계값 이탈",
+      "guardHint": "관측 {value}, 임계값 {threshold}.",
+      "unknownTitle": "필수 근거가 연결되지 않음",
+      "unknownHint": "가드 데이터가 없으면 정상 상태로 추정하지 않습니다.",
+      "clearTitle": "가드 근거 정상",
+      "clearHint": "승인 대기, 정책위반 탈출, 실패 가드가 기록되지 않았습니다."
+    },
+    "organization": {
+      "label": "에이전트 조직",
+      "title": "역할 분리 기반 자율 운영",
+      "summary": "에이전트 조직이 {rate}%를 자율 해결하고 {hil}건을 사람 승인으로 보류했습니다.",
+      "simulated": "시뮬레이션 결과 - {days}일",
+      "measured": "실측 결과 - {days}일",
+      "roleChain": "책임 있는 에이전트 역할 체인",
+      "specialists": "전문가",
+      "role": {
+        "sense": "감지",
+        "advise": "자문",
+        "arbitrate": "조정",
+        "judge": "판정",
+        "approve": "승인",
+        "execute": "실행",
+        "audit": "감사"
+      }
+    },
     "trend": {
       "autoRes": "자동 해결 30일"
     },
     "vertical": {
+      "label": "영역별 운영 성과",
       "resilience": "복원력",
       "change_safety": "변경 안전",
       "cost": "비용 거버넌스",
@@ -223,7 +389,7 @@
     },
     "risk": {
       "label": "조치 필요",
-      "pending": "승인 대기 (HIL)",
+      "pending": "승인 대기",
       "clear": "이상 없음"
     },
     "cost": {
@@ -260,9 +426,74 @@
       "promoted": "승격 (30일)",
       "candidates": "후보"
     },
+    "operations": {
+      "label": "라우팅 및 학습 신호"
+    },
     "drill": {
       "browse": "카탈로그 보기"
     },
-    "detail": "상세 지표"
+    "detailMetric": {
+      "approvals": "승인 대기",
+      "approvalHint": "사람 승인 필요",
+      "approvalClear": "승인 대기 없음"
+    },
+    "detail": "운영 근거",
+    "detailHint": "감사 단위 지표 및 분포"
+  },
+  "approvals": {
+    "subtitle": "사람 승인을 기다리는 고위험 작업입니다. 승인은 ChatOps에서 처리하며 이 콘솔은 read-only로 유지됩니다.",
+    "resource": "승인",
+    "headlineEmpty": "승인 대기 없음",
+    "headlineWaiting": "승인 대기 {count}건",
+    "emptyTitle": "승인 대기가 없습니다.",
+    "emptyBody": "현재 모든 자율 판단이 risk gate의 자동 처리 범위 안에 있습니다.",
+    "showingLatest": "승인 대기 {total}건 중 최근 {shown}건을 표시합니다."
+  },
+  "analytics": {
+    "simulated": "시뮬레이션 근거",
+    "measured": "실측 근거",
+    "window": "기간: {days}일",
+    "samples": "표본: 이벤트 {count}건",
+    "confidence": "신뢰도: {value}%",
+    "confidenceUnavailable": "신뢰도 근거 없음",
+    "trendUnavailable": "이 지표의 추세 근거가 없습니다.",
+    "autonomyUnavailable": "이 배포에는 자율성 측정이 연결되지 않았습니다.",
+    "unavailable": "근거 없음",
+    "notApplicable": "해당 없음",
+    "current": "현재",
+    "baseline": "기준선",
+    "direction": "개선 방향",
+    "higherBetter": "높을수록 좋음",
+    "lowerBetter": "낮을수록 좋음",
+    "sampleSize": "표본 수",
+    "threshold": "임계값",
+    "status": "상태",
+    "passing": "통과",
+    "blocked": "차단",
+    "inBand": "목표 범위",
+    "outOfBand": "목표 이탈",
+    "guard": "가드",
+    "events": "이벤트",
+    "autoResolved": "자동 해결",
+    "resolutionRate": "해결률",
+    "openRisks": "미해결 위험",
+    "monthlySavings": "월 절감액",
+    "verticalLabel": "영역",
+    "tier": "티어",
+    "relatedEvidence": "관련 근거",
+    "viewAudit": "감사 근거 보기",
+    "viewShadowAudit": "Shadow 감사 보기",
+    "viewIncidents": "관련 인시던트 보기",
+    "viewPromotion": "승격 가드 보기",
+    "viewApprovals": "승인 대기 보기",
+    "viewRules": "근거 규칙 보기",
+    "viewLlmCost": "모델 비용 및 사용량 보기",
+    "health": {"healthy": "통제 정상", "attention": "조치 필요", "unknown": "근거 없음"},
+    "metric": {"auto-resolution": "자동 해결", "human-touchpoints": "사람 개입", "mttr": "평균 복구시간", "change-lead-time": "변경 리드타임"},
+    "outcomes": {"title": "운영 성과", "subtitle": "각 운영 성과의 측정값, 기준선, 추세, 근거를 보여줍니다.", "trend": "{metric} 추세", "breakdown": "영역별 기여"},
+    "assurance": {"title": "통제 보증", "subtitle": "자율 운영을 허용, 차단, 보류하는 결정론적 가드 근거입니다.", "posture": "운영 상태", "escapes": "정책위반 탈출", "shadow": "Shadow 비율", "ready": "승격 준비도"},
+    "vertical": {"resilience": "복원력", "change-safety": "변경 안전", "cost-governance": "비용 거버넌스"},
+    "verticals": {"title": "영역별 성과", "subtitle": "FDAI 영역별 운영 성과와 미해결 위험을 보여줍니다.", "comparison": "영역 비교", "unavailable": "현재 측정 projection에 이 영역이 없습니다."},
+    "routing": {"title": "신뢰 라우팅", "subtitle": "결정론, 재사용, 근거 기반 추론 티어에 작업이 분배된 결과입니다.", "share": "라우팅 비율", "targetBand": "목표 범위"}
   }
 }

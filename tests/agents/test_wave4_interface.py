@@ -49,6 +49,20 @@ def test_bragi_abstains_when_no_domain_matches() -> None:
     assert decision.primary_agent is None
 
 
+def test_bragi_routes_explicit_agent_name_before_domain_scoring() -> None:
+    decision = Bragi().route("What does Var do?")
+
+    assert decision.primary_agent == "Var"
+    assert decision.tie_break == "explicit_agent"
+
+
+def test_bragi_preserves_explicit_multi_agent_order() -> None:
+    decision = Bragi().route("Ask Freyr and Njord about capacity and cost")
+
+    assert decision.primary_agent == "Freyr"
+    assert decision.contributors == ("Njord",)
+
+
 def test_bragi_tie_break_prefers_governance_layer() -> None:
     """Score tie -> governance beats pipeline beats domain."""
     bragi = Bragi()
@@ -86,6 +100,37 @@ def test_bragi_ask_calls_registered_responder() -> None:
     assert turn.primary_agent == "Heimdall"
     assert turn.answer["answer"].startswith("heimdall says")
     assert turn.turn_index == 0
+
+
+def test_bragi_calls_and_aggregates_real_contributors() -> None:
+    bragi = Bragi()
+    called: list[str] = []
+
+    def responder(name: str):
+        async def answer(question: str, context: dict) -> dict:
+            called.append(name)
+            return {"answer": f"{name} evidence", "facts": {"agent": name}}
+
+        return answer
+
+    bragi.register_responder("Freyr", responder("Freyr"))
+    bragi.register_responder("Njord", responder("Njord"))
+
+    turn = asyncio.run(
+        bragi.ask(
+            session_id="s1",
+            user_id="op@example.com",
+            question="Ask Freyr and Njord about capacity and cost",
+        )
+    )
+
+    assert called == ["Freyr", "Njord"]
+    assert turn.answer["contributors"] == ["Njord"]
+    assert turn.answer["contributor_answers"] == [
+        {"agent": "Njord", "answer": "Njord evidence", "facts": {"agent": "Njord"}}
+    ]
+    assert "Freyr: Freyr evidence" in turn.answer["answer"]
+    assert "Njord: Njord evidence" in turn.answer["answer"]
 
 
 def test_bragi_session_appends_turns() -> None:

@@ -297,11 +297,53 @@ the recommendation banner but is allowed.
 - No customer-identifying value enters this repo; a fork supplies real OIDs, group
   ids, and channel ids via config or env.
 
-## 11. Out of scope (tracked separately)
+## 11. Handover bootstrap (document ingestion)
 
-- **Document ingestion** - parsing uploaded ops docs (RACI, on-call schedules, org
-  charts, runbooks) into a draft handover-map is a T2-scale capability tracked in
-  [issue #23](https://github.com/dotnetpower/fdai/issues/23). This doc covers the
-  deterministic core the ingestion feature would produce a draft *for*.
+Instead of hand-filling the map, an operator MAY upload existing operational
+documents (RACI matrices, on-call schedules, org charts, runbooks, handover
+memos) and have FDAI parse them into a **draft** steward map for review
+([issue #23](https://github.com/dotnetpower/fdai/issues/23)). This is a larger,
+separable capability layered on top of the deterministic core above; it never
+applies anything and never blocks the core.
+
+Implemented under `src/fdai/core/stewardship/handover_bootstrap/` as a
+deterministic-first, grounded, abstaining pipeline:
+
+1. **Deterministic extraction** (`extractor.py` + `agent_domains.py`). Each
+   document line is scanned against a per-agent domain-keyword catalog (the
+   "who owned X" questions from the handover skill, one entry per pantheon
+   agent). A line that hits a domain keyword, a person/team, and a
+   responsibility marker yields a grounded `ExtractedMapping` **without a
+   model**. This is the deterministic-first stage.
+2. **Model interpretation** (`interpreter.py`). What structure cannot resolve
+   MAY be handed to a T2 `HandoverInterpreter` seam. Upstream ships
+   `AbstainingInterpreter` (proposes nothing) so a deployment without an LLM
+   never guesses; a fork binds a mixed-model, grounded implementation
+   (symmetric to the `core/rca` reasoner seam). A model proposal that is not
+   grounded is discarded by the orchestrator.
+3. **Identity resolution** (`people.py`). Each mentioned name/team is resolved
+   to an Entra object id through the async `PersonDirectory` seam (Graph in a
+   fork). An unresolved name is **flagged, never guessed** into an id; the
+   upstream default (`NullPersonDirectory`) resolves nothing.
+4. **Confidence floor + draft assembly** (`bootstrap.py`). Grounded mappings at
+   or above the floor become the draft; below-floor mappings are set aside for
+   a human, unresolved people and agents with no confident owner are surfaced,
+   and a run with nothing above the floor abstains. The output is a
+   `StewardMapDraft`.
+
+Every emitted mapping cites its source span (`SourceSpan`), so nothing is
+ungrounded. `draft_yaml.py` renders the draft as `stewardship:`-shaped YAML that
+**round-trips through `load_stewardship_from_mapping`** (the same resolver and
+fail-fast gates), with inline citation comments and placeholder ids for
+unresolved people. The delivery layer surfaces that YAML as a governance draft
+PR a human reviews and merges - the console stays read-only, and no map is ever
+applied autonomously.
+
+Seams a fork binds: `HandoverInterpreter` (the T2 model) and `PersonDirectory`
+(name -> Entra object id). Both are async and injected; `core/` holds neither a
+cloud SDK nor an HTTP client (the module-boundary rule still applies).
+
+## 12. Out of scope (tracked separately)
+
 - Non-Azure identity providers (TBD per
   [Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must)).

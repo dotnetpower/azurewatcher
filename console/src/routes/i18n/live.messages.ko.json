@@ -1,0 +1,26 @@
+{
+  "eyebrow": "실시간 컨트롤 플레인",
+  "title": "컨트롤 플레인",
+  "freeze": "화면 고정",
+  "resume": "화면 재개",
+  "freezeTitle": "실시간 화면을 고정합니다",
+  "resumeTitle": "실시간 화면을 다시 따라갑니다",
+  "context": {"devTitle": "개발 모드: 합성 이벤트를 사용하며 실제 클라우드 호출은 없습니다", "source": "소스", "window": "구간"},
+  "lead": "지금 주의가 필요한 항목을 확인하고 각 제어 루프 단계를 따라가며 기록된 근거를 여세요. 이 화면은 관찰만 하며 실행하지 않습니다.",
+  "health": {"label": "실시간 관찰 상태", "stream": "스트림", "lastEvent": "마지막 이벤트", "environment": "환경", "presentation": "표시 상태", "notObserved": "관찰되지 않음", "devSynthetic": "개발 / 합성", "configuredRuntime": "구성된 런타임", "following": "실시간 추적 중", "frozen": "화면 고정 - {count}개 프레임 관찰됨"},
+  "status": {"idle": "유휴", "connecting": "연결 중", "open": "실시간", "closed": "연결 종료", "unsupported": "SSE 미지원"},
+  "attention": {"ariaLabel": "운영자 주의 항목 분류", "label": "주의 필요", "approvals": "승인 대기 {count}건", "denied": "거부 {count}건", "failed": "실패 {count}건", "stuck": "지연 {count}건", "approvalTitle": "승인을 기다리는 고위험 작업", "deniedTitle": "위험 게이트가 거부한 작업입니다. 정책 근거를 확인하세요.", "failedTitle": "제어 루프 단계가 실패했습니다. 기록된 감사 항목을 확인하세요.", "stuckTitle": "컨트롤 플레인이 게시한 지연 예산을 초과한 항목입니다.", "openApprovals": "승인 열기", "none": "현재 주의가 필요한 제어 루프 작업이 없습니다.", "unavailable": "실시간 주의 항목을 확인할 수 없습니다. 기록된 결과는 이력에 남아 있습니다."},
+  "kpi": {"events": "초당 이벤트", "average": "/초 - 60초 평균", "gateMix": "게이트 구성 (60초)", "auto": "자동", "tierMix": "티어 구성 (60초)"},
+  "decision": {"auto": "자동", "hil": "승인", "abstain": "보류", "deny": "거부"},
+  "work": {
+    "eyebrow": "활성 제어 루프", "title": "운영자 주의도 순으로 정렬", "queue": "대기열", "flow": "흐름", "viewModeLabel": "실시간 보기 모드", "filtersLabel": "제어 루프 필터", "queueLabel": "우선순위가 적용된 실시간 제어 루프", "flowLabel": "실시간 컨트롤 플레인 흐름", "filterTitle": "필터: {filter} ({key} 키)", "filterNote": "항목을 선택하여 단계 추적을 확인하세요.", "noMatch": "이 필터와 일치하는 제어 루프 작업이 없습니다.", "routing": "이벤트 라우팅", "actions": "작업 {count}개", "unknownResource": "알 수 없는 리소스", "overBudget": "예산 초과", "pending": "대기 중", "approval": "승인", "noRule": "일치하는 규칙 없음", "needsApproval": "승인 필요", "executionMode": "실행 모드: {mode}", "agentRelay": "에이전트 전달", "itemLabel": "{resource}의 {action}",
+    "columns": {"controlLoop": "제어 루프", "stage": "현재 단계", "age": "경과", "tier": "티어", "mode": "모드", "decision": "결정"}
+  },
+  "filter": {"all": "전체", "hil": "승인", "deny": "거부", "failed": "실패", "stuck": "지연"},
+  "empty": {"connectedTitle": "표시할 이벤트 없음", "disconnectedTitle": "실시간 신호 없음", "connected": "스트림이 연결되었습니다. 다음 제어 플레인 이벤트를 기다립니다.", "connecting": "실시간 이벤트 스트림에 연결 중입니다.", "idle": "이 화면이 연결되지 않아 실시간 관찰이 유휴 상태입니다.", "unavailable": "실시간 관찰을 사용할 수 없습니다. 기록된 결과는 이력을 사용하세요."},
+  "outcomes": {"ariaLabel": "최근 종단 결과", "toolbarLabel": "최근 결과 컨트롤", "title": "최근 결과", "count": "최근 {count}건", "expand": "최근 결과 펼치기", "collapse": "최근 결과 접기", "waiting": "종단 결과를 기다리는 중...", "viewAll": "이력에서 기록된 모든 결과 보기"},
+  "spark": {"awaiting": "스트림 표본 대기 중", "noCompletions": "완료 항목 없음", "averageMs": "평균 {value}ms", "averageSeconds": "평균 {value}초", "averageUnderMs": "평균 1ms 미만", "lastSecond": "마지막 완료 1초", "secondsAgo": "{count}초 전"},
+  "stage": {"ingest": "수집", "route": "라우팅", "verify": "검증", "gate": "게이트", "execute": "실행", "audit": "감사"},
+  "role": {"Huginn": "이벤트 수집기", "Heimdall": "관찰자", "Forseti": "판정자", "Thor": "대응자", "Var": "승인자", "Vidar": "복구", "Saga": "감사자", "Odin": "마스터 플래너", "Bragi": "내레이터", "unknown": "에이전트"},
+  "detail": {"pending": "대기 중", "close": "닫기", "traceLabel": "제어 루프 단계 추적", "inProgress": "진행 중", "notObserved": "관찰되지 않음", "eventId": "이벤트 ID", "correlationId": "상관관계 ID", "rule": "규칙", "actionType": "ActionType", "actionTypes": "ActionType 목록", "mode": "모드", "vertical": "영역", "resourceType": "리소스 유형", "scope": "범위", "tier": "티어", "gateDecision": "게이트 결정", "stagesCompleted": "완료 단계", "failed": "실패", "age": "경과", "outcome": "결과", "yes": "예", "no": "아니요", "safety": "안전 불변 조건 (실행기 보장)", "stopCondition": "ActionType의 중지 조건", "rollback": "테스트된 롤백 경로", "blastRadius": "영향 범위 상한 적용", "auditEntry": "종단 결과별 감사 로그 항목", "readOnly": "이 패널은 읽기 전용입니다. 승인은 ChatOps 또는 교정 PR에서 진행합니다.", "openTrace": "추적 열기", "openAudit": "감사 열기", "architecture": "아키텍처"}
+}

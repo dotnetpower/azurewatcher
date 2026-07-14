@@ -1,8 +1,8 @@
 ---
 title: Downstream Fork 가이드
 translation_of: downstream-fork-guide.md
-translation_source_sha: 187a5c6f06669d8e10384388a11b9f415d4ed042
-translation_revised: 2026-07-11
+translation_source_sha: 5cdbaf63d0e182bb211ddfc30fc2f9dbd161493a
+translation_revised: 2026-07-15
 ---
 
 # Downstream Fork 가이드
@@ -144,6 +144,35 @@ Fork에서 첫 `git commit` 전에 이것들을 하세요.
   곳. Fork는 자체 composition root를 씀; 이 파일을 편집하지 않음.
   `.github/CODEOWNERS`가 리뷰 시점의 대응물입니다: framework surface
   경로는 owners 팀으로 라우팅됩니다.
+- **서명된 무결성 매니페스토**로 framework surface 변조를 OFFLINE에서
+  탐지합니다. Upstream이
+  [`security/integrity/manifest.json`](../../../security/integrity/manifest.json)
+  (모든 framework-surface 파일의 SHA-256 맵)을 Ed25519 키로 서명하며,
+  공개키는 트리에 동봉됩니다
+  ([`upstream-signing-key.pub`](../../../security/integrity/upstream-signing-key.pub)).
+  [`scripts/check-integrity.sh`](../../../scripts/check-integrity.sh)가
+  surface를 다시 해싱하고 서명을 검증하는데 **네트워크도, OCSP도,
+  인증서 체인도 필요 없습니다** - air-gapped 친화적입니다. 두 가지를
+  독립적으로 보고합니다: **서명(signature)** 실패(위조되거나 손상된
+  매니페스토 - 항상 오류입니다. Fork는 upstream 개인키 없이는 유효한
+  매니페스토를 만들 수 없기 때문입니다)와 **콘텐츠(content)**
+  불일치(편집/추가/삭제된 surface 파일 - fork 모드에서는 하드 실패,
+  upstream에서는 권고). surface 목록의 단일 소스는
+  [`scripts/lib/framework-surface.txt`](../../../scripts/lib/framework-surface.txt)이며,
+  가드와 매니페스토가 어긋나지 않도록 `check-protected-paths.sh`와
+  공유합니다. 이것은 변조 **증거(evidence)**이지 변조 **불가(proof)**가
+  아닙니다: fork 소유자는 여전히 자기 런타임을 통제하며 검증기 자체를
+  지울 수 있으므로, 신뢰의 강제는 궁극적으로 fork가 편집할 수 있는
+  파일이 아니라 upstream이 통제하는 게이트의 몫입니다.
+
+체크아웃을 언제든 오프라인으로 검증하려면:
+
+```bash
+scripts/check-integrity.sh        # 서명 + 콘텐츠, 완전 오프라인
+```
+
+`scripts/verify.sh`의 `framework-integrity` 게이트가 서명된 매니페스토가
+존재하면 이를 자동으로 실행합니다.
 
 ## 4. Fork를 위한 저장소 레이아웃
 

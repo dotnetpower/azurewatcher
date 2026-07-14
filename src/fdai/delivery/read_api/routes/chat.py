@@ -46,8 +46,9 @@ import logging
 import os
 import re
 import time
+import uuid
 from collections import deque
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Final, NoReturn, Protocol
 
@@ -56,6 +57,9 @@ from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Route
+
+from fdai.agents import PANTHEON_NAMES
+from fdai.delivery.read_api.routes.chat_verification import verify_answer
 
 DEFAULT_ROUTE_PATH: Final[str] = "/chat"
 DEFAULT_MAX_BODY_BYTES: Final[int] = 200_000
@@ -69,6 +73,7 @@ prompt - dominate per-turn token cost. A representative sample plus a
 ``_records_truncated`` hint keeps grounding honest while trimming tokens; the
 operator narrows to off-sample rows via the page's own search/filter."""
 DEFAULT_MAX_HISTORY_ITEMS: Final[int] = 200
+DEFAULT_MAX_SESSION_ID_CHARS: Final[int] = 200
 """Hard cap on the number of history entries the route will parse into
 memory before slicing to :data:`DEFAULT_MAX_HISTORY_TURNS`. The
 body-byte cap already bounds total bytes, but a payload full of tiny
@@ -112,9 +117,8 @@ def _default_chat_http_client() -> httpx.AsyncClient:
 
 
 _SYSTEM_PROMPT = """\
-You are the FDAI console assistant: a read-only translator over the operator's
-current screen in the FDAI (Fully Deterministic AI) control plane. A JSON
-snapshot of the rendered page follows; ground every answer STRICTLY in it.
+You are FDAI's read-only console translator. Ground every answer STRICTLY in
+the current JSON snapshot below.
 
 Rules:
 - Use the current turn's language, not history, unless L3 overrides. Cite snapshot facts; NEVER invent facts.
@@ -128,6 +132,30 @@ Rules:
 - Format comparisons as markdown tables. Numeric snapshot data MAY use one fenced ```chart JSON block: {{"type":"bar"|"line","title":..,"unit":..,"data":[{{"label":..,"value":..}}]}}. Fence code/config with its language.
 {capabilities}{glossary}Current view snapshot (JSON):
 {snapshot_json}
+"""
+
+_OPERATIONAL_EVIDENCE_DIRECTIVE = """\
+Cross-screen operational evidence is present in `_operational_evidence` and is
+server-owned. Use it instead of the current screen for this incident question.
+For `matched`, cite the selected correlation_id and evidence time. For
+`ambiguous`, list candidates and ask which one. For `none` or `unavailable`,
+say evidence is unavailable and do not guess. State a cause only from
+`grounded_hypotheses` entries that carry citations. If none exist, summarize
+audit observations but say no grounded root cause is recorded. Never expose
+the `_operational_evidence` name, status tokens, field names, or raw internal
+reason strings; translate them into natural operator-facing prose.
+"""
+
+_AGENT_EVIDENCE_DIRECTIVE = """\
+`_agent_evidence` is server-owned evidence from the routed FDAI agent. Use its
+answer and facts as authority for that agent's domain; identify the primary
+agent naturally when useful.
+"""
+
+_TOOL_EVIDENCE_DIRECTIVE = """\
+`_tool_evidence` is server-owned output from a read-only console tool. Answer
+its direct KPI, approval, audit, or incident question from that result; never
+replace it with screen data.
 """
 
 # The FDAI glossary is injected into the system prompt ONLY when the operator
@@ -199,6 +227,17 @@ _DATA_WORD: Final = re.compile(
     "|\uba87|\uac1c\uc218",
     re.IGNORECASE,
 )
+_CONCEPT_DOMAIN: Final = re.compile(
+    r"\b(?:actiontype|abstain|blast radius|correlation id|exemption|grounding|hil|"
+    r"idempotency|kill-switch|ontology|override|pantheon|promotion gate|quality gate|"
+    r"remediation pr|rollback contract|safety invariants?|shadow|trust router|"
+    r"two-port|t0|t1|t2|verifier|verticals?|what-if)\b",
+    re.IGNORECASE,
+)
+_AGENT_NAME_TOKEN: Final = re.compile(r"[A-Za-z][A-Za-z0-9-]*")
+_GLOSSARY_STOP: Final = frozenset(
+    {"a", "an", "and", "do", "does", "explain", "is", "of", "the", "what", "why"}
+)
 
 
 def _is_concept_query(prompt: str) -> bool:
@@ -210,6 +249,71 @@ def _is_concept_query(prompt: str) -> bool:
     if _CONCEPT_INTENT.search(prompt):
         return True
     return bool(_CONCEPT_PHRASING.search(prompt) and not _DATA_WORD.search(prompt))
+
+
+def _glossary_matches(prompt: str) -> list[dict[str, str]]:
+    prompt_tokens = {
+        token.lower()
+        for token in _AGENT_NAME_TOKEN.findall(prompt)
+        if token.lower() not in _GLOSSARY_STOP
+    }
+    ranked: list[tuple[int, int, str, str]] = []
+    for index, line in enumerate(_GLOSSARY.splitlines()):
+        if not line.startswith("- ") or ":" not in line:
+            continue
+        term, definition = line[2:].split(":", 1)
+        term_tokens = {
+            token.lower()
+            for token in _AGENT_NAME_TOKEN.findall(term)
+            if token.lower() not in _GLOSSARY_STOP
+        }
+        score = len(prompt_tokens & term_tokens)
+        if score:
+            ranked.append((score, -index, term.strip(), definition.strip()))
+    if not ranked:
+        return []
+    best = max(score for score, _, _, _ in ranked)
+    return [
+        {"term": term, "definition": definition}
+        for score, _, term, definition in ranked
+        if score == best
+    ][:3]
+
+
+def _with_concept_evidence(prompt: str, view_context: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(view_context)
+    enriched.pop("_concept_evidence", None)
+    if any(
+        key in enriched for key in ("_operational_evidence", "_tool_evidence", "_agent_evidence")
+    ):
+        return enriched
+    if not _is_concept_query(prompt):
+        return enriched
+    entries = _glossary_matches(prompt)
+    if entries:
+        enriched["_concept_evidence"] = {
+            "authority": "fdai_glossary",
+            "entries": entries,
+        }
+    return enriched
+
+
+def _concept_answer(view_context: Mapping[str, Any]) -> str | None:
+    raw = view_context.get("_concept_evidence")
+    if not isinstance(raw, Mapping):
+        return None
+    entries = raw.get("entries")
+    if not isinstance(entries, list):
+        return None
+    parts = []
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            continue
+        term = entry.get("term")
+        definition = entry.get("definition")
+        if isinstance(term, str) and isinstance(definition, str):
+            parts.append(f"{term}: {definition}")
+    return "\n".join(parts) or None
 
 
 # Injected only when the operator asks what they can do / their permissions
@@ -405,6 +509,7 @@ def _snapshot_json_capped(view_context: dict[str, Any], cap: int) -> str:
 # path keeps its byte-identical lean prompt. Mirrors cli/src/narrator/llm.ts
 # `localeDirective(locale)`.
 _LOCALE_TAG: Final = re.compile(r"^[A-Za-z]{2}(?:[-_][A-Za-z0-9]{2,8})*$")
+_KOREAN_TEXT: Final = re.compile(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]")
 
 
 def _extract_locale(view_context: dict[str, Any]) -> str | None:
@@ -443,6 +548,18 @@ def _locale_directive(locale: str) -> str:
     )
 
 
+def _response_locale(prompt: str, view_context: dict[str, Any]) -> str | None:
+    """Resolve the final-answer locale for the current turn.
+
+    A Korean current prompt always renders in Korean, even when the console UI
+    locale is English. Otherwise the explicit operator locale remains the L3
+    override. Conversation history never decides the current turn's language.
+    """
+    if _KOREAN_TEXT.search(prompt):
+        return "ko"
+    return _extract_locale(view_context)
+
+
 def _build_messages(
     prompt: str,
     view_context: dict[str, Any],
@@ -457,7 +574,7 @@ def _build_messages(
     streaming path) build byte-identical, minimal prompts.
     """
     view_context = _trim_view_context(view_context)
-    locale = _extract_locale(view_context)
+    locale = _response_locale(prompt, view_context)
     snapshot_json = _snapshot_json_capped(view_context, DEFAULT_MAX_CONTEXT_BYTES)
     glossary = _GLOSSARY if _is_concept_query(prompt) else ""
     capabilities = _CAPABILITIES if _is_capability_query(prompt) else ""
@@ -465,6 +582,12 @@ def _build_messages(
         capabilities=capabilities, glossary=glossary, snapshot_json=snapshot_json
     )
     messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+    if "_operational_evidence" in view_context:
+        messages.append({"role": "system", "content": _OPERATIONAL_EVIDENCE_DIRECTIVE})
+    if "_agent_evidence" in view_context:
+        messages.append({"role": "system", "content": _AGENT_EVIDENCE_DIRECTIVE})
+    if "_tool_evidence" in view_context:
+        messages.append({"role": "system", "content": _TOOL_EVIDENCE_DIRECTIVE})
     # Locale directive is a separate second system message so the base prompt
     # stays byte-identical for English operators (matches the CLI narrator's
     # two-message shape when locale != "en"). Skipped when locale is absent
@@ -489,6 +612,21 @@ _CONTENT_FILTER_MARKERS: Final[tuple[str, ...]] = (
     "jailbreak",
     "content management policy",
 )
+
+_DIRECT_OVERRIDE: Final = re.compile(
+    r"\bignore\s+(?:all\s+)?(?:previous\s+)?(?:instructions?|rules?|system)\b"
+    r"|\bdisregard\s+(?:all\s+)?(?:previous\s+)?(?:instructions?|rules?|system)\b"
+    "|\ubaa8\ub4e0\\s+\uc9c0\uc2dc\\s+\ubb34\uc2dc"
+    "|\uc774\uc804\\s+\uc9c0\uc2dc\\s+\ubb34\uc2dc",
+    re.IGNORECASE,
+)
+
+
+def _reject_direct_override(prompt: str) -> None:
+    """Block explicit attempts to replace the trusted instruction hierarchy."""
+
+    if _DIRECT_OVERRIDE.search(prompt):
+        raise HTTPException(status_code=422, detail="chat request blocked by content policy")
 
 
 def _raise_upstream_error(status_code: int, body_text: str) -> NoReturn:
@@ -526,6 +664,174 @@ class ChatBackend(Protocol):
         view_context: dict[str, Any],
         history: list[dict[str, str]],
     ) -> dict[str, Any]: ...
+
+
+class OperationalEvidenceResolverProtocol(Protocol):
+    """Read-only server evidence seam used only for cross-screen questions."""
+
+    async def resolve(self, prompt: str) -> Mapping[str, Any] | None: ...
+
+
+class AgentChatDelegate(Protocol):
+    """Read-only server-side delegation to Bragi and the pantheon."""
+
+    async def delegate(
+        self,
+        *,
+        prompt: str,
+        user_id: str,
+        session_id: str,
+    ) -> Mapping[str, Any] | None: ...
+
+
+class ChatToolResolver(Protocol):
+    """Read-only deterministic tool resolver for direct operator intents."""
+
+    async def resolve(self, prompt: str) -> Mapping[str, Any] | None: ...
+
+
+async def _with_operational_evidence(
+    prompt: str,
+    view_context: dict[str, Any],
+    resolver: OperationalEvidenceResolverProtocol | None,
+) -> dict[str, Any]:
+    """Replace any client-supplied evidence with server-owned evidence."""
+
+    enriched = dict(view_context)
+    enriched.pop("_operational_evidence", None)
+    if str(enriched.get("routeId") or "").lower() == "audit":
+        return enriched
+    if resolver is None or "_tool_evidence" in enriched or "_current_screen_tool" in enriched:
+        return enriched
+    evidence = await resolver.resolve(prompt)
+    if evidence is not None:
+        enriched["_operational_evidence"] = dict(evidence)
+    return enriched
+
+
+async def _with_agent_evidence(
+    prompt: str,
+    view_context: dict[str, Any],
+    delegate: AgentChatDelegate | None,
+    *,
+    user_id: str,
+    session_id: str,
+) -> dict[str, Any]:
+    """Replace client-supplied delegation data with a server-owned result."""
+
+    enriched = dict(view_context)
+    enriched.pop("_agent_evidence", None)
+    current_screen_tool = enriched.pop("_current_screen_tool", None)
+    explicit_agent = _explicit_agent_requested(prompt)
+    if (
+        delegate is None
+        or "_operational_evidence" in enriched
+        or "_tool_evidence" in enriched
+        or current_screen_tool is not None
+        or (_is_concept_query(prompt) and _CONCEPT_DOMAIN.search(prompt) and not explicit_agent)
+    ):
+        return enriched
+    evidence = await delegate.delegate(
+        prompt=prompt,
+        user_id=user_id,
+        session_id=session_id,
+    )
+    if evidence is not None:
+        enriched["_agent_evidence"] = dict(evidence)
+    return enriched
+
+
+def _explicit_agent_requested(prompt: str) -> bool:
+    names = {name.lower() for name in PANTHEON_NAMES}
+    return any(token.lower() in names for token in _AGENT_NAME_TOKEN.findall(prompt))
+
+
+async def _with_tool_evidence(
+    prompt: str,
+    view_context: dict[str, Any],
+    resolver: ChatToolResolver | None,
+) -> dict[str, Any]:
+    """Replace client-supplied tool output with a server-owned result."""
+
+    enriched = dict(view_context)
+    enriched.pop("_tool_evidence", None)
+    enriched.pop("_current_screen_tool", None)
+    if resolver is None or "_operational_evidence" in enriched:
+        return enriched
+    evidence = await resolver.resolve(prompt)
+    if evidence is not None:
+        if _tool_matches_current_route(evidence, enriched):
+            enriched["_current_screen_tool"] = evidence.get("tool")
+        else:
+            enriched["_tool_evidence"] = dict(evidence)
+    return enriched
+
+
+def _tool_matches_current_route(
+    evidence: Mapping[str, Any],
+    view_context: Mapping[str, Any],
+) -> bool:
+    tool = evidence.get("tool")
+    route = str(view_context.get("routeId") or "").lower()
+    same_route: dict[str, frozenset[str]] = {
+        "get_kpi": frozenset({"dashboard", "overview"}),
+        "list_hil": frozenset({"approvals", "hil-queue"}),
+        "query_audit": frozenset({"audit"}),
+        "list_incidents": frozenset({"incidents"}),
+    }
+    return isinstance(tool, str) and route in same_route.get(tool, frozenset())
+
+
+def _delegation_summary(view_context: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Return the bounded public metadata for one delegated turn."""
+
+    raw = view_context.get("_agent_evidence")
+    if not isinstance(raw, Mapping):
+        return None
+    primary = raw.get("primary_agent")
+    if not isinstance(primary, str) or not primary:
+        return None
+    contributors = raw.get("contributors")
+    safe_contributors = (
+        [item for item in contributors[:8] if isinstance(item, str)]
+        if isinstance(contributors, list)
+        else []
+    )
+    summary: dict[str, Any] = {
+        "primary_agent": primary,
+        "contributors": safe_contributors,
+    }
+    trace_ref = raw.get("trace_ref")
+    if isinstance(trace_ref, str) and trace_ref:
+        summary["trace_ref"] = trace_ref[:256]
+    return summary
+
+
+def _session_id(body: Mapping[str, Any]) -> str:
+    raw = body.get("session_id")
+    if raw is None:
+        return "default"
+    if not isinstance(raw, str) or not raw.strip():
+        raise HTTPException(status_code=400, detail="session_id MUST be a non-empty string")
+    value = raw.strip()
+    if len(value) > DEFAULT_MAX_SESSION_ID_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"session_id exceeds cap ({len(value)} > {DEFAULT_MAX_SESSION_ID_CHARS})",
+        )
+    return value
+
+
+def _uses_evidence_fast_path(view_context: Mapping[str, Any]) -> bool:
+    """Return whether server evidence can render the answer without a model."""
+
+    raw = view_context.get("_operational_evidence")
+    if not isinstance(raw, Mapping):
+        return False
+    if raw.get("status") != "matched":
+        return True
+    hypotheses = raw.get("grounded_hypotheses")
+    return not isinstance(hypotheses, list) or len(hypotheses) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -1298,6 +1604,11 @@ class LatencyRoutedChatBackend:
                 reply = await backend.answer(
                     prompt=prompt, view_context=view_context, history=history
                 )
+                answer = reply.get("answer")
+                if not isinstance(answer, str) or not answer.strip():
+                    raise ChatBackendUnavailableError(
+                        f"chat candidate {name!r} returned an empty answer"
+                    )
             except Exception as exc:
                 self._samples[name].append(_ROUTER_FAILURE_PENALTY_MS)
                 attempted.add(name)
@@ -1363,6 +1674,13 @@ class LatencyRoutedChatBackend:
                         if event.get("type") == "token" and event.get("delta"):
                             emitted_content = True
                         if event.get("type") == "done":
+                            answer = event.get("answer")
+                            if not emitted_content and (
+                                not isinstance(answer, str) or not answer.strip()
+                            ):
+                                raise ChatBackendUnavailableError(
+                                    f"chat candidate {name!r} returned an empty stream"
+                                )
                             event = dict(event)
                             event["model"] = name
                             event["router"] = {
@@ -1382,6 +1700,10 @@ class LatencyRoutedChatBackend:
                         prompt=prompt, view_context=view_context, history=history
                     )
                     answer = reply.get("answer", "")
+                    if not isinstance(answer, str) or not answer.strip():
+                        raise ChatBackendUnavailableError(
+                            f"chat candidate {name!r} returned an empty answer"
+                        )
                     if isinstance(answer, str) and answer:
                         emitted_content = True
                         yield {"type": "token", "delta": answer}
@@ -1506,6 +1828,9 @@ def make_chat_route(
     *,
     backend: ChatBackend,
     authorize: AuthorizeFn,
+    evidence_resolver: OperationalEvidenceResolverProtocol | None = None,
+    tool_resolver: ChatToolResolver | None = None,
+    agent_delegate: AgentChatDelegate | None = None,
     path: str = DEFAULT_ROUTE_PATH,
     max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
 ) -> Route:
@@ -1517,7 +1842,7 @@ def make_chat_route(
     """
 
     async def handler(request: Request) -> JSONResponse:
-        await authorize(request)
+        user_id = await authorize(request)
 
         # Bound the body up-front so a malicious page cannot inflate cost.
         # Preflight Content-Length so an attacker cannot force us to
@@ -1567,6 +1892,22 @@ def make_chat_route(
                 if isinstance(role, str) and isinstance(content, str):
                     history.append({"role": role, "content": content})
 
+        clean_prompt = prompt.strip()
+        _reject_direct_override(clean_prompt)
+        session_id = _session_id(body)
+        view_context = await _with_tool_evidence(clean_prompt, view_context, tool_resolver)
+        view_context = await _with_operational_evidence(
+            clean_prompt, view_context, evidence_resolver
+        )
+        view_context = await _with_agent_evidence(
+            clean_prompt,
+            view_context,
+            agent_delegate,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        view_context = _with_concept_evidence(clean_prompt, view_context)
+
         # Wall-clock latency around the backend call - surfaced to the FE
         # so the deck can render a "gpt-4o-mini · 830ms" badge next to
         # each turn. Kept out of the backend Protocol so any implementer
@@ -1574,11 +1915,56 @@ def make_chat_route(
         # without opting in.
         started = time.monotonic()
         try:
-            reply = await backend.answer(
-                prompt=prompt.strip(),
-                view_context=view_context,
-                history=history,
+            concept_answer = (
+                _concept_answer(view_context)
+                if _response_locale(clean_prompt, view_context) is None
+                else None
             )
+            if _uses_evidence_fast_path(view_context):
+                canonical = verify_answer(
+                    "",
+                    view_context,
+                    locale=_response_locale(clean_prompt, view_context),
+                )
+                verification = verify_answer(
+                    canonical.answer,
+                    view_context,
+                    locale=_response_locale(clean_prompt, view_context),
+                )
+                reply: dict[str, Any] = {
+                    "answer": verification.answer,
+                    "model": "evidence-verifier",
+                    "source": f"evidence:{verification.status}",
+                    "verification": verification.to_dict(),
+                }
+            elif concept_answer is not None:
+                verification = verify_answer(
+                    concept_answer,
+                    view_context,
+                    locale=None,
+                )
+                reply = {
+                    "answer": verification.answer,
+                    "model": "concept-glossary",
+                    "source": "evidence:fdai-glossary",
+                    "verification": verification.to_dict(),
+                }
+            else:
+                reply = await backend.answer(
+                    prompt=clean_prompt,
+                    view_context=view_context,
+                    history=history,
+                )
+                verification = verify_answer(
+                    str(reply.get("answer", "")),
+                    view_context,
+                    locale=_response_locale(clean_prompt, view_context),
+                )
+                reply = {
+                    **reply,
+                    "answer": verification.answer,
+                    "verification": verification.to_dict(),
+                }
         except ChatBackendUnavailableError:
             raise HTTPException(
                 status_code=501,
@@ -1586,6 +1972,9 @@ def make_chat_route(
             ) from None
         latency_ms = int((time.monotonic() - started) * 1000)
         enriched: dict[str, Any] = dict(reply)
+        delegation = _delegation_summary(view_context)
+        if delegation is not None:
+            enriched["delegation"] = delegation
         enriched["latency_ms"] = latency_ms
         return JSONResponse(enriched)
 
@@ -1713,6 +2102,9 @@ def make_chat_stream_route(
     *,
     backend: ChatBackend,
     authorize: AuthorizeFn,
+    evidence_resolver: OperationalEvidenceResolverProtocol | None = None,
+    tool_resolver: ChatToolResolver | None = None,
+    agent_delegate: AgentChatDelegate | None = None,
     path: str = DEFAULT_STREAM_PATH,
     max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
 ) -> Route:
@@ -1729,7 +2121,7 @@ def make_chat_stream_route(
     """
 
     async def handler(request: Request) -> StreamingResponse:
-        await authorize(request)
+        user_id = await authorize(request)
 
         declared_len = request.headers.get("content-length")
         if declared_len is not None:
@@ -1769,14 +2161,105 @@ def make_chat_stream_route(
                     history.append({"role": role, "content": content})
 
         clean_prompt = prompt.strip()
+        _reject_direct_override(clean_prompt)
+        session_id = _session_id(body)
+        raw_request_id = body.get("request_id")
+        request_id = (
+            raw_request_id
+            if isinstance(raw_request_id, str) and 1 <= len(raw_request_id) <= 128
+            else f"chat-{uuid.uuid4()}"
+        )
 
         async def event_source() -> AsyncIterator[bytes]:
             started = time.monotonic()
-            stream = getattr(backend, "answer_stream", None)
+            sequence = 0
+            revision = 0
+
+            def frame(event: str, payload: dict[str, Any]) -> bytes:
+                nonlocal sequence
+                sequence += 1
+                return _sse(
+                    event,
+                    {
+                        "v": 1,
+                        "request_id": request_id,
+                        "seq": sequence,
+                        "revision": revision,
+                        **payload,
+                    },
+                )
+
             try:
-                if stream is not None:
+                yield frame(
+                    "status",
+                    {
+                        "phase": "evidence_resolving",
+                        "label": "Checking read-only evidence",
+                    },
+                )
+                enriched_context = await _with_tool_evidence(
+                    clean_prompt,
+                    view_context,
+                    tool_resolver,
+                )
+                enriched_context = await _with_operational_evidence(
+                    clean_prompt, enriched_context, evidence_resolver
+                )
+                enriched_context = await _with_agent_evidence(
+                    clean_prompt,
+                    enriched_context,
+                    agent_delegate,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                enriched_context = _with_concept_evidence(clean_prompt, enriched_context)
+                delegation = _delegation_summary(enriched_context)
+                has_operational_evidence = "_operational_evidence" in enriched_context
+                evidence_fast_path = _uses_evidence_fast_path(enriched_context)
+                concept_answer = (
+                    _concept_answer(enriched_context)
+                    if _response_locale(clean_prompt, enriched_context) is None
+                    else None
+                )
+                yield frame(
+                    "status",
+                    {
+                        "phase": "generating",
+                        "label": (
+                            "Evidence ready; composing bounded answer"
+                            if evidence_fast_path
+                            else "Evidence ready; drafting answer"
+                        ),
+                        "authority": (
+                            "server_read_model" if has_operational_evidence else "client_snapshot"
+                        ),
+                    },
+                )
+
+                stream = getattr(backend, "answer_stream", None)
+                provisional_answer = ""
+                terminal_model: Any = None
+                terminal_router: Any = None
+                if evidence_fast_path:
+                    canonical = verify_answer(
+                        "",
+                        enriched_context,
+                        locale=_response_locale(clean_prompt, enriched_context),
+                    )
+                    provisional_answer = canonical.answer
+                    terminal_model = "evidence-verifier"
+                    for chunk in _chunk_answer_for_stream(provisional_answer):
+                        yield frame("token", {"delta": chunk})
+                elif concept_answer is not None:
+                    provisional_answer = concept_answer
+                    terminal_model = "concept-glossary"
+                    for chunk in _chunk_answer_for_stream(provisional_answer):
+                        yield frame("token", {"delta": chunk})
+                elif stream is not None:
                     upstream = stream(
-                        prompt=clean_prompt, view_context=view_context, history=history
+                        prompt=clean_prompt,
+                        view_context=enriched_context,
+                        history=history,
                     )
                     async for event in _with_sse_heartbeats(
                         upstream, interval=DEFAULT_STREAM_HEARTBEAT_S
@@ -1790,17 +2273,25 @@ def make_chat_stream_route(
                             continue
                         etype = event.get("type")
                         if etype == "token":
-                            yield _sse("token", {"delta": event.get("delta", "")})
+                            delta = event.get("delta", "")
+                            if isinstance(delta, str):
+                                provisional_answer += delta
+                            yield frame("token", {"delta": delta})
                         elif etype == "done":
-                            payload = {k: v for k, v in event.items() if k != "type"}
-                            payload["latency_ms"] = int((time.monotonic() - started) * 1000)
-                            yield _sse("done", payload)
+                            answer = event.get("answer")
+                            if isinstance(answer, str) and answer:
+                                provisional_answer = answer
+                            terminal_model = event.get("model")
+                            terminal_router = event.get("router")
                 else:
                     reply = await backend.answer(
-                        prompt=clean_prompt, view_context=view_context, history=history
+                        prompt=clean_prompt,
+                        view_context=enriched_context,
+                        history=history,
                     )
                     answer = reply.get("answer", "")
                     if isinstance(answer, str) and answer:
+                        provisional_answer = answer
                         # Chunk the one-shot answer so a non-streaming backend
                         # still renders progressively in the deck. ~4-char
                         # groups match the client-side typewriter cadence in
@@ -1808,22 +2299,80 @@ def make_chat_stream_route(
                         # small enough to look live, whole-word aligned so
                         # nothing breaks mid-token.
                         for chunk in _chunk_answer_for_stream(answer):
-                            yield _sse("token", {"delta": chunk})
-                    yield _sse(
-                        "done",
+                            yield frame("token", {"delta": chunk})
+                    terminal_model = reply.get("model")
+                    terminal_router = reply.get("router")
+
+                generation_ms = int((time.monotonic() - started) * 1000)
+                yield frame(
+                    "provisional",
+                    {
+                        "answer": provisional_answer,
+                        "model": terminal_model,
+                        "generation_ms": generation_ms,
+                    },
+                )
+                verification = verify_answer(
+                    provisional_answer,
+                    enriched_context,
+                    locale=_response_locale(clean_prompt, enriched_context),
+                )
+                yield frame(
+                    "verification",
+                    {
+                        "phase": "verifying",
+                        "label": "Verifying answer against evidence",
+                        "completed": 0,
+                        "total": verification.checks_total,
+                    },
+                )
+                yield frame(
+                    "verification",
+                    {
+                        "phase": verification.status,
+                        "label": f"Verification {verification.status}",
+                        "completed": verification.checks_completed,
+                        "total": verification.checks_total,
+                        "authority": verification.authority,
+                        "evidence_refs": list(verification.evidence_refs),
+                        "reason_code": verification.reason_code,
+                    },
+                )
+                if verification.answer != provisional_answer:
+                    revision += 1
+                    yield frame(
+                        "revision",
                         {
-                            "answer": answer,
-                            "model": reply.get("model"),
-                            "latency_ms": int((time.monotonic() - started) * 1000),
+                            "answer": verification.answer,
+                            "replaces_revision": revision - 1,
+                            "status": verification.status,
+                            "reason_code": verification.reason_code,
+                            "evidence_refs": list(verification.evidence_refs),
                         },
                     )
+                yield frame(
+                    "done",
+                    {
+                        "answer": verification.answer,
+                        "model": terminal_model,
+                        "router": terminal_router,
+                        "source": (
+                            f"evidence:{verification.status}"
+                            if evidence_fast_path
+                            else ("evidence:fdai-glossary" if concept_answer is not None else None)
+                        ),
+                        "latency_ms": int((time.monotonic() - started) * 1000),
+                        "verification": verification.to_dict(),
+                        "delegation": delegation,
+                    },
+                )
             except ChatBackendUnavailableError:
-                yield _sse("error", {"detail": "chat backend not configured"})
+                yield frame("error", {"detail": "chat backend not configured"})
             except HTTPException as exc:
-                yield _sse("error", {"detail": str(exc.detail)})
+                yield frame("error", {"detail": str(exc.detail)})
             except Exception as exc:  # noqa: BLE001 - surface as a stream error, never 500 mid-stream
-                _LOG.warning("chat stream failed: %s", type(exc).__name__)
-                yield _sse("error", {"detail": "chat stream failed"})
+                _LOG.warning("chat stream failed: %s", type(exc).__name__, exc_info=True)
+                yield frame("error", {"detail": "chat stream failed"})
 
         return StreamingResponse(
             event_source(),

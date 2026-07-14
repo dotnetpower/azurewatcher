@@ -15,10 +15,12 @@ describe("panel navigation placement", () => {
   });
 
   test("keeps Settings out of the Overview flyout", () => {
-    expect(panelsInGroup("overview").map((panel) => panel.id)).toEqual([
-      "dashboard",
-      "llm-cost",
-    ]);
+    expect(panelsInGroup("overview").map((panel) => panel.id)).toEqual(["dashboard"]);
+    expect(panelForId("operating-outcomes").placement).toBe("drilldown");
+    expect(panelForId("control-assurance").placement).toBe("drilldown");
+    expect(panelForId("verticals").placement).toBe("drilldown");
+    expect(panelForId("trust-routing").placement).toBe("drilldown");
+    expect(panelForId("llm-cost").placement).toBe("drilldown");
   });
 
   test("pins Settings to the bottom rail without changing its route", () => {

@@ -1,0 +1,22 @@
+{
+  "scenario_id": "dr.backup-vault-restore-rehearsal.002",
+  "shipped_rule_id": "postgresql-server.point-in-time-restore",
+  "event_payload_resource": {
+    "resource_id": "example-postgresql-server",
+    "type": "postgresql-server",
+    "props": {
+      "ha_mode": "ZoneRedundant",
+      "encryption_at_rest_enabled": true,
+      "ssl_enforcement": "enabled",
+      "backup_retention_days": 1,
+      "cpu_p95_percent": 80,
+      "diagnostic_settings": [
+        "example-diagnostic-setting"
+      ]
+    }
+  },
+  "expected_control_loop_outcome": "executed",
+  "expected_decision": "auto",
+  "expected_citing_rule_id_present": "postgresql-server.point-in-time-restore",
+  "note": "Maps the restore-rehearsal placeholder to the shipped PITR protection rule. Only backup retention fails; the shadow executor publishes one remediation PR, matching should_execute=true."
+}

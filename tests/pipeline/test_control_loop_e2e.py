@@ -117,6 +117,7 @@ def _make_loop(
     event_correlator: EventCorrelator | None = None,
     incident_member_source: Any = None,
     resource_dependency_graph: Any = None,
+    governance_assignments: tuple[Any, ...] = (),
 ) -> tuple[ControlLoop, RecordingRemediationPrPublisher, InMemoryStateStore]:
     rules, action_types = shipped_catalog
     index = RuleIndex.build(rules)
@@ -151,6 +152,7 @@ def _make_loop(
         event_correlator=event_correlator,
         incident_member_source=incident_member_source,
         resource_dependency_graph=resource_dependency_graph,
+        governance_assignments=governance_assignments,
     )
     return loop, publisher, audit
 
@@ -506,6 +508,48 @@ async def test_deny_routing_skips_pr(
     assert not publisher.records
     kinds = [e["entry"].get("action_kind") for e in audit.audit_entries]
     assert "risk_gate.unified" in kinds
+
+
+@requires_opa
+@pytest.mark.asyncio
+async def test_governance_audit_effect_observes_without_pr(
+    shipped_catalog: tuple[Any, Any],
+) -> None:
+    from fdai.rule_catalog.schema.assignment import Assignment
+    from fdai.rule_catalog.schema.effect import Effect
+    from fdai.rule_catalog.schema.scope import Scope, ScopeLevel
+
+    rules, _action_types = shipped_catalog
+    object_storage_rule_ids = frozenset(
+        rule.id for rule in rules if rule.resource_type == "object-storage"
+    )
+    assignment = Assignment(
+        id="observe-public-access",
+        target_rule_ids=object_storage_rule_ids,
+        scope=Scope(level=ScopeLevel.RESOURCE, id="stg-open"),
+        effect=Effect.AUDIT,
+    )
+    loop, publisher, audit = _make_loop(
+        shipped_catalog,
+        governance_assignments=(assignment,),
+    )
+
+    result = await loop.process(
+        _make_event(
+            idempotency_key="e-governance-observe",
+            resource_type="object-storage",
+            resource_id="stg-open",
+            props={"public_access": "enabled", "tags": {"owner": "team-a"}},
+        )
+    )
+
+    assert result.outcome is ControlLoopOutcome.GOVERNANCE_OBSERVED
+    assert not publisher.records
+    entries = [row["entry"] for row in audit.audit_entries]
+    resolution = [
+        row for row in entries if row.get("action_kind") == "governance.assignment_resolved"
+    ]
+    assert resolution[0]["effective_effect"] == "audit"
 
 
 @requires_opa

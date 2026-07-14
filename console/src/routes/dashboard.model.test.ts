@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { DashboardKpi } from "../types";
-import { overviewHealth } from "./dashboard.model";
+import { overviewAttentionCount, overviewHealth } from "./dashboard.model";
 
 const KPI: DashboardKpi = {
   event_count: 10,
@@ -30,5 +30,21 @@ describe("overview health", () => {
   test("reports unknown when required guard evidence is absent", () => {
     expect(overviewHealth(KPI, null, AUTONOMY)).toBe("unknown");
     expect(overviewHealth(KPI, 0, null)).toBe("unknown");
+  });
+
+  test("counts only actionable HIL, escape, and failed-guard signals", () => {
+    expect(
+      overviewAttentionCount(
+        { ...KPI, hil_pending: 2 },
+        1,
+        {
+          guards: [
+            AUTONOMY.guards[0]!,
+            { ...AUTONOMY.guards[0]!, key: "rollback", ok: false },
+          ],
+        },
+      ),
+    ).toBe(4);
+    expect(overviewAttentionCount(KPI, null, null)).toBe(0);
   });
 });

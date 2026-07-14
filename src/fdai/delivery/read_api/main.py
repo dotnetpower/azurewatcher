@@ -38,7 +38,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from starlette.routing import Route
+from starlette.routing import BaseRoute, Route
 
 from fdai.core.hil_resume import HilResumeCoordinator
 from fdai.core.rbac.enforcer import RoleRequiredError
@@ -53,12 +53,16 @@ from fdai.delivery.read_api.read_model import (
     ConsoleReadModel,
     clamp_limit,
 )
+from fdai.delivery.read_api.routes.chat_registration import append_chat_routes
 from fdai.delivery.read_api.routes.hil_callback import (
     HilCallbackConfig,
     make_hil_callback_route,
 )
 from fdai.delivery.read_api.routes.incidents import IncidentsPanel
 from fdai.delivery.read_api.routes.panels import PanelQueryError, ReadPanel
+from fdai.delivery.read_api.routes.pantheon import append_pantheon_routes
+from fdai.delivery.read_api.routes.rca import RcaPanel
+from fdai.delivery.read_api.routes.scope import append_scope_route
 from fdai.delivery.read_api.routes.webhook import make_webhook_route
 from fdai.delivery.read_api.streaming.agent_activity_emitter import (
     SyntheticAgentActivityEmitter,
@@ -71,6 +75,7 @@ from fdai.delivery.read_api.streaming.agent_activity_stream import (
 )
 from fdai.delivery.read_api.streaming.live_stream import (
     LiveEmitter,
+    LiveStageProducer,
     LiveStreamConfig,
     SyntheticLiveEmitter,
     make_live_stream_route,
@@ -82,11 +87,12 @@ from fdai.delivery.read_api.streaming.provision_stream import (
 from fdai.shared.providers.hil_registry import HilApprovalRegistry
 from fdai.shared.providers.sse import SseSink
 from fdai.shared.providers.testing.sse import InMemorySseSink
+from fdai.shared.streaming.stage_publisher import SseSinkStagePublisher
 
 _LOGGER = logging.getLogger(__name__)
 
 _CORE_ROUTE_PATHS: frozenset[str] = frozenset(
-    {"/audit", "/kpi", "/hil-queue", "/incidents", "/healthz"}
+    {"/audit", "/kpi", "/hil-queue", "/incidents", "/rca", "/healthz"}
 )
 
 _READER_ROLES: tuple[Role, ...] = (Role.READER, Role.CONTRIBUTOR, Role.APPROVER, Role.OWNER)
@@ -201,6 +207,18 @@ class ReadApiConfig:
     approval with no matching park falls through to the registry path.
     ``None`` keeps the callback registry-only (console-pull approvals)."""
 
+    hil_decision_publisher: Any = None
+    """Optional async publisher for durable HIL decision receipts. Production
+    uses this instead of giving the read API an executor identity."""
+
+    shutdown_callbacks: tuple[Callable[[], Awaitable[None]], ...] = ()
+    """Async delivery resources closed when the ASGI lifespan exits."""
+
+    startup_callbacks: tuple[Callable[[], Awaitable[None]], ...] = ()
+    """Async delivery services started before the ASGI app accepts traffic.
+    A callback that raises fails startup rather than exposing a half-wired
+    action path."""
+
     webhook_ingress: Any = None
     """Opt-in inbound webhook POST route (P2-7). When set (a
     :class:`~fdai.delivery.webhook.ingress.WebhookIngress`), registers a
@@ -273,6 +291,11 @@ class ReadApiConfig:
     ``resources`` and ``links`` plus freshness metadata. When set, registers
     Reader-gated ``GET /inventory/graph``. The provider reads the inventory
     projection only; the console never receives a cloud or executor identity."""
+
+    scope_source: Any = None
+    """Opt-in effective-scope view: a
+    :class:`~fdai.delivery.read_api.routes.scope.ScopeSource`. When set,
+    registers Reader-gated read-only ``GET /scope``."""
 
     rule_catalog_rules: tuple[Any, ...] = ()
     """Opt-in rule-catalog explorer input: the *active* catalog. Tuple of
@@ -374,6 +397,13 @@ class ReadApiConfig:
     (or a fork adapter) at composition root; leave ``None`` to keep the
     endpoint unregistered (the FE deck then falls back to its built-in
     deterministic answerer)."""
+
+    chat_agent_delegate: Any = None
+    """Optional read-only Bragi delegation adapter. When set alongside
+    :attr:`chat`, the server routes domain questions to the owning pantheon
+    agent and supplies that result to the narrator as server-owned evidence.
+    The adapter cannot submit actions or materialize handoffs; those remain on
+    their dedicated typed paths."""
 
     console_action: Any = None
     """Opt-in console action submitter
@@ -576,15 +606,15 @@ def build_app(
             return _error(exc.status_code, exc.detail)
         return _error(500, "internal error")
 
-    routes = [
+    routes: list[BaseRoute] = [
         Route("/audit", get_audit, methods=["GET"]),
         Route("/kpi", get_kpi, methods=["GET"]),
         Route("/hil-queue", get_hil_queue, methods=["GET"]),
         Route("/healthz", healthz, methods=["GET"]),
     ]
 
-    incident_panel = IncidentsPanel(read_model)
-    routes.append(Route(incident_panel.path, _make_panel_handler(incident_panel), methods=["GET"]))
+    for _core_panel in (IncidentsPanel(read_model), RcaPanel(read_model)):
+        routes.append(Route(_core_panel.path, _make_panel_handler(_core_panel), methods=["GET"]))
 
     # Fork-supplied panels: registered GET-only, after fail-fast validation
     # so a colliding or malformed path cannot ship a broken revision.
@@ -614,6 +644,7 @@ def build_app(
                 registry=resolved_config.hil_registry,
                 config=resolved_config.hil_callback,
                 coordinator=resolved_config.hil_coordinator,
+                decision_publisher=resolved_config.hil_decision_publisher,
             )
         )
 
@@ -639,6 +670,7 @@ def build_app(
     # the route below is one of that sink's consumers.
     live_sink: SseSink | None = None
     live_emitter: LiveEmitter | None = None
+    live_broadcaster: LiveStageProducer | None = None
     if resolved_config.live_stream is not None:
         live_cfg = resolved_config.live_stream
         if live_cfg.path in _CORE_ROUTE_PATHS:
@@ -646,7 +678,11 @@ def build_app(
         if live_cfg.path in seen_panel_paths:
             raise ValueError(f"live_stream.path {live_cfg.path!r} collides with a panel path")
         live_sink = live_cfg.sink if live_cfg.sink is not None else InMemorySseSink()
-        if live_cfg.emitter_factory is not None:
+        if live_cfg.broadcaster_factory is not None:
+            live_broadcaster = live_cfg.broadcaster_factory(
+                SseSinkStagePublisher(live_sink, channel=live_cfg.channel)
+            )
+        elif live_cfg.emitter_factory is not None:
             live_emitter = live_cfg.emitter_factory(live_sink, live_cfg.channel)
         elif live_cfg.sink is None:
             # Dev-friendly default: no external sink supplied means no real
@@ -862,28 +898,16 @@ def build_app(
             )
         )
 
-    # Optional pantheon graph + workflows routes. Pantheon data is
-    # in-memory and upstream-fixed, so the endpoints just serialize
-    # the registry - no external inputs beyond a config flag.
-    if resolved_config.expose_pantheon:
-        from fdai.delivery.read_api.routes.pantheon import (
-            GRAPH_ROUTE_PATH as _PT_GRAPH_PATH,
-        )
-        from fdai.delivery.read_api.routes.pantheon import (
-            WORKFLOWS_ROUTE_PATH as _PT_WF_PATH,
-        )
-        from fdai.delivery.read_api.routes.pantheon import (
-            make_pantheon_graph_route,
-            make_pantheon_workflows_route,
-        )
+    # Optional effective-scope view. Read-only monitoring / action scope.
+    append_scope_route(
+        routes, resolved_config.scope_source, _authorize, _CORE_ROUTE_PATHS, seen_panel_paths
+    )
 
-        for _pt_path in (_PT_GRAPH_PATH, _PT_WF_PATH):
-            if _pt_path in _CORE_ROUTE_PATHS:
-                raise ValueError(f"pantheon path {_pt_path!r} collides with a core route")
-            if _pt_path in seen_panel_paths:
-                raise ValueError(f"pantheon path {_pt_path!r} collides with a panel path")
-        routes.append(make_pantheon_graph_route(authorize=_authorize))
-        routes.append(make_pantheon_workflows_route(authorize=_authorize))
+    # Optional pantheon graph + workflows routes. Pantheon data is
+    # in-memory and upstream-fixed, so the endpoints just serialize the registry.
+    append_pantheon_routes(
+        routes, resolved_config.expose_pantheon, _authorize, _CORE_ROUTE_PATHS, seen_panel_paths
+    )
 
     # Optional agent-stewardship / handover-map route. A pure projection of
     # the injected StewardshipMap (config-loaded), Reader-gated, GET-only.
@@ -1005,61 +1029,16 @@ def build_app(
             )
         )
 
-    # Optional CommandDeck chat backend. Registered POST-only; the
-    # backend is a read-only translator (see chat.py). Reader role is
-    # required by ``authorize`` so the endpoint stays behind the same
-    # RBAC gate as the snapshot routes.
-    if resolved_config.chat is not None:
-        from fdai.delivery.read_api.routes.chat import (
-            DEFAULT_ROUTE_PATH as _CHAT_PATH,
-        )
-        from fdai.delivery.read_api.routes.chat import (
-            describe_backend as _describe_backend,
-        )
-        from fdai.delivery.read_api.routes.chat import (
-            make_chat_health_route,
-            make_chat_route,
-            make_chat_stream_route,
-        )
-
-        if _CHAT_PATH in _CORE_ROUTE_PATHS:
-            raise ValueError(f"chat path {_CHAT_PATH!r} collides with a core route")
-        if _CHAT_PATH in seen_panel_paths:
-            raise ValueError(f"chat path {_CHAT_PATH!r} collides with a panel path")
-        routes.append(
-            make_chat_route(
-                backend=resolved_config.chat,
-                authorize=_authorize,
-            )
-        )
-        routes.append(
-            make_chat_stream_route(
-                backend=resolved_config.chat,
-                authorize=_authorize,
-            )
-        )
-        routes.append(
-            make_chat_health_route(
-                backend=resolved_config.chat,
-                authorize=_authorize,
-            )
-        )
-        # Loud, single-line startup log so the operator sees at a
-        # glance whether the LLM narrator is wired.
-        _desc = _describe_backend(resolved_config.chat)
-        if _desc.get("available"):
-            _LOGGER.warning(
-                "CommandDeck chat backend ready: mode=%s model=%s endpoint=%s",
-                _desc.get("mode"),
-                _desc.get("model"),
-                _desc.get("endpoint"),
-            )
-        else:
-            _LOGGER.warning(
-                "CommandDeck chat backend NOT wired - the FE will fall back "
-                "to the deterministic answerer. Set FDAI_NARRATOR_* env vars "
-                "or ship resolved-models.json to enable the LLM path."
-            )
+    append_chat_routes(
+        routes,
+        backend=resolved_config.chat,
+        agent_delegate=resolved_config.chat_agent_delegate,
+        authorize=_authorize,
+        read_model=read_model,
+        core_paths=_CORE_ROUTE_PATHS,
+        panel_paths=seen_panel_paths,
+        logger=_LOGGER,
+    )
 
     # Optional console action-submit route. The ONE write-direction
     # conversational path: an operator command becomes a typed ActionProposal
@@ -1117,8 +1096,12 @@ def build_app(
 
     @asynccontextmanager
     async def lifespan(_app: Starlette):  # type: ignore[no-untyped-def]
+        for callback in resolved_config.startup_callbacks:
+            await callback()
         if live_emitter is not None:
             await live_emitter.start()
+        if live_broadcaster is not None:
+            await live_broadcaster.run()
         if agent_emitter is not None:
             await agent_emitter.start()
         if agent_broadcaster is not None:
@@ -1143,10 +1126,17 @@ def build_app(
                 bench_task.cancel()
             if live_emitter is not None:
                 await live_emitter.stop()
+            if live_broadcaster is not None:
+                await live_broadcaster.stop()
             if agent_emitter is not None:
                 await agent_emitter.stop()
             if agent_broadcaster is not None:
                 await agent_broadcaster.stop()
+            for callback in resolved_config.shutdown_callbacks:
+                try:
+                    await callback()
+                except Exception:  # noqa: BLE001 - shutdown is best-effort
+                    _LOGGER.warning("read_api_shutdown_callback_failed", exc_info=True)
 
     return Starlette(
         debug=False,

@@ -8,7 +8,7 @@
 import { describe, expect, test, vi, afterEach, beforeEach } from "vitest";
 import type { ViewSnapshot } from "./context";
 
-async function callAskAndCaptureBody(snap: ViewSnapshot | null) {
+async function callAskAndCaptureBody(snap: ViewSnapshot | null, sessionId?: string) {
   const capture: { body?: string } = {};
   const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
     capture.body = String(init?.body ?? "");
@@ -19,7 +19,7 @@ async function callAskAndCaptureBody(snap: ViewSnapshot | null) {
   });
   vi.stubGlobal("fetch", fetchMock);
   const mod = await import("./backend");
-  await mod.askBackend("hi", snap, []);
+  await mod.askBackend("hi", snap, [], sessionId);
   return capture.body ? (JSON.parse(capture.body) as { view_context?: Record<string, unknown> }) : null;
 }
 
@@ -83,6 +83,11 @@ describe("viewContextWithUser wiring", () => {
       i18n.setLocale("en");
     }
   });
+
+  test("sends the stable backend session id", async () => {
+    const parsed = await callAskAndCaptureBody(liveSnap(), "session-42");
+    expect((parsed as Record<string, unknown>).session_id).toBe("session-42");
+  });
 });
 
 describe("backend health probing", () => {
@@ -95,7 +100,7 @@ describe("backend health probing", () => {
 
   test("deduplicates concurrent and repeated probes", async () => {
     const fetchMock = vi.fn(
-      async () =>
+      async (_url: string, _init?: RequestInit) =>
         new Response(
           JSON.stringify({ available: true, mode: "test", model: "m", endpoint: null }),
           { status: 200, headers: { "content-type": "application/json" } },
@@ -111,5 +116,29 @@ describe("backend health probing", () => {
     expect(second).toEqual(first);
     expect(cached).toEqual(first);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("attaches the current bearer token", async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify({ available: true, mode: "test", model: "m", endpoint: null }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const mod = await import("./backend");
+    mod.setChatAuth({
+      devMode: false,
+      account: null,
+      getAuthorizationHeader: async () => "Bearer test-token",
+      signIn: async () => undefined,
+      signOut: async () => undefined,
+    });
+
+    await mod.probeBackend();
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect((init.headers as Record<string, string>).authorization).toBe("Bearer test-token");
   });
 });

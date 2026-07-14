@@ -30,6 +30,48 @@ describe("serializeTurns", () => {
         source: "llm:x",
         citations: [{ label: "tier", value: "T0" }],
         followUps: ["Show T1"],
+        terminal: true,
+        revision: 1,
+        verification: {
+          status: "corrected" as const,
+          authority: "server_read_model",
+          checks_completed: 1,
+          checks_total: 1,
+          evidence_refs: ["incident:corr-1"],
+          reason_code: "grounded_rca",
+          claims: [{
+            claim_id: "c001",
+            kind: "id" as const,
+            text: "corr-1",
+            span: { start: 0, end: 6 },
+            raw_value: "corr-1",
+            normalized_value: "corr-1",
+            unit: null,
+            anchors: ["correlation"],
+            status: "supported" as const,
+            evidence_refs: ["incident:corr-1"],
+            reason_code: null,
+          }],
+          failed_claim_ids: [],
+          evidence_manifest: {
+            schema_version: 1,
+            manifest_id: "sha256:abc",
+            authority: "server_read_model",
+            route_id: "incidents",
+            captured_at: "2026-07-15T00:00:00Z",
+            complete: true,
+            source_entry_count: 1,
+            entries: [{
+              ref: "incident:corr-1",
+              path: "/incident/correlation_id",
+              field: "correlation_id",
+              kind: "id",
+              raw_value: "corr-1",
+              normalized_value: "corr-1",
+              anchors: ["correlation"],
+            }],
+          },
+        },
       },
       {
         id: "3",
@@ -46,6 +88,11 @@ describe("serializeTurns", () => {
     expect(parsed[1]!.source).toBe("llm:x");
     expect(parsed[1]!.citations).toEqual([{ label: "tier", value: "T0" }]);
     expect(parsed[1]!.followUps).toEqual(["Show T1"]);
+    expect(parsed[1]!.terminal).toBe(true);
+    expect(parsed[1]!.revision).toBe(1);
+    expect(parsed[1]!.verification?.status).toBe("corrected");
+    expect(parsed[1]!.verification?.claims?.[0]?.claim_id).toBe("c001");
+    expect(parsed[1]!.verification?.evidence_manifest?.manifest_id).toBe("sha256:abc");
     expect(parsed[2]!.agent).toBe("Forseti"); // agent identity survives reload
   });
 
@@ -57,6 +104,24 @@ describe("serializeTurns", () => {
     const parsed = parseTurns(serializeTurns(turns));
     expect(parsed).toHaveLength(1);
     expect(parsed[0]!.id).toBe("1");
+  });
+
+  it("drops a stopped provisional assistant turn", () => {
+    const turns = [
+      { id: "1", role: "operator" as const, text: "hi", at: "10:00:00" },
+      {
+        id: "2",
+        role: "deck" as const,
+        text: "provisional",
+        at: "10:00:01",
+        streaming: false,
+        terminal: false,
+      },
+    ];
+
+    const parsed = parseTurns(serializeTurns(turns));
+
+    expect(parsed.map((turn) => turn.id)).toEqual(["1"]);
   });
 
   it("drops empty-text turns", () => {

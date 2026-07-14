@@ -55,8 +55,12 @@ from .core.executor.renderer import TemplateRenderer
 from .core.executor.tool_call import ToolCallShadowExecutor
 from .core.hil_resume import HilResumeCoordinator
 from .core.notifications.matrix import load_matrix_from_yaml
+from .core.quality_gate import QualityGate, RuleBasedVerifier
+from .core.quality_gate.testing import InMemoryGroundingSource
 from .core.rbac.resolver import GroupMapping
 from .core.rca import KnowledgeEvidenceGatherer, RcaCoordinator
+from .core.risk_gate import ActionPromotionRegistry, RiskGate
+from .core.risk_gate.risk_table import load_risk_table
 from .core.tiers.t0_deterministic import T0Engine
 from .core.tiers.t0_deterministic.index import RuleIndex
 from .core.tiers.t0_deterministic.opa_evaluator import (
@@ -64,7 +68,8 @@ from .core.tiers.t0_deterministic.opa_evaluator import (
     OpaRegoEvaluator,
 )
 from .core.tiers.t1_lightweight.testing import InMemoryPatternLibrary
-from .core.tiers.t1_lightweight.tier import PatternLibrary
+from .core.tiers.t1_lightweight.tier import PatternLibrary, T1Tier
+from .core.tiers.t2_reasoning import T2Tier
 from .core.trust_router import TrustRouter
 from .core.workflow import (
     ProcessOntologyProjector,
@@ -75,6 +80,7 @@ from .core.workflow import (
     WorkflowTriggerIndex,
 )
 from .rule_catalog.schema.action_type import load_action_type_catalog
+from .rule_catalog.schema.governance_catalog import load_governance_catalog
 from .rule_catalog.schema.link_type import load_link_type_catalog
 from .rule_catalog.schema.object_type import load_object_type_catalog
 from .rule_catalog.schema.resource_type import (
@@ -86,6 +92,7 @@ from .shared.config.models import LlmMode
 from .shared.providers.event_bus import EventBus
 from .shared.providers.idempotency import IdempotencyStore
 from .shared.providers.resource_lock import ResourceLock
+from .shared.providers.stage_publisher import StagePublisher
 from .shared.providers.testing.direct_api import RecordingDirectApiExecutor
 from .shared.providers.testing.ontology_instance import InMemoryOntologyInstanceStore
 from .shared.providers.testing.process_runtime import InMemoryProcessRuntimeStore
@@ -93,6 +100,14 @@ from .shared.providers.testing.remediation_pr import RecordingRemediationPrPubli
 from .shared.providers.testing.state_store import InMemoryStateStore
 from .shared.providers.testing.tool import RecordingToolExecutor
 from .shared.providers.workload_identity import WorkloadIdentity
+
+
+async def _pending_index_writer(store: Any, approval_id: str) -> None:
+    """Bridge the core HIL coordinator to the durable pending projection."""
+    from .delivery.persistence.state_store_hil_registry import add_pending_approval
+
+    await add_pending_approval(store, approval_id)
+
 
 _LOGGER = logging.getLogger("fdai.startup")
 _LOOP_LOGGER = logging.getLogger("fdai.control_loop")
@@ -311,8 +326,8 @@ def _build_pattern_library() -> PatternLibrary:
     - ``FDAI_T1_PATTERN_LIBRARY_STATEMENT_TIMEOUT_MS`` - default 15000.
     - ``FDAI_T1_PATTERN_LIBRARY_IVFFLAT_PROBES`` - default 10.
 
-    The T1 tier is not yet wired into the P1 control loop; this builder
-    is exposed so the composition root can bind it once T1 lands.
+    The production control loop binds this library to the configured
+    embedding model through :class:`T1Tier`.
     """
     dsn = os.environ.get("FDAI_T1_PATTERN_LIBRARY_DSN", "").strip()
     if not dsn:
@@ -694,6 +709,18 @@ def _build_idempotency_store() -> IdempotencyStore | None:
     return PostgresIdempotencyStore(config=PostgresIdempotencyStoreConfig(dsn=dsn))
 
 
+def _build_inventory_age_provider() -> Any:
+    dsn = os.environ.get("FDAI_INVENTORY_DSN", "").strip()
+    if not dsn:
+        return None
+    from .delivery.persistence.postgres_inventory_snapshot import (
+        PostgresInventoryAgeProvider,
+        PostgresInventorySnapshotStoreConfig,
+    )
+
+    return PostgresInventoryAgeProvider(config=PostgresInventorySnapshotStoreConfig(dsn=dsn))
+
+
 def _build_workflow_coordinator(
     *,
     catalog_root: Path,
@@ -766,6 +793,7 @@ def _build_control_loop(
     container: Container,
     *,
     http_client: httpx.AsyncClient | None = None,
+    stage_publisher: StagePublisher | None = None,
 ) -> ControlLoop:
     """Load rule / action / policy catalogs and wire the P1 control loop.
 
@@ -826,6 +854,7 @@ def _build_control_loop(
         remediation_root=remediation_root,
     )
     index = RuleIndex.build(rules)
+    governance_catalog = load_governance_catalog(catalog_root)
 
     # Workflow catalog (fail-closed if the directory exists but any file is
     # invalid). Cross-references every step's action_type_ref / compensated_by
@@ -866,6 +895,34 @@ def _build_control_loop(
     renderer = TemplateRenderer(remediation_root=remediation_root)
     resource_lock = _build_resource_lock()
     idempotency_store = _build_idempotency_store()
+    risk_table = load_risk_table(catalog_root / "risk-classification.yaml")
+    promotion_registry: ActionPromotionRegistry
+    promotion_state_refresher = None
+    if os.environ.get("FDAI_STATE_STORE_DSN", "").strip():
+        from .delivery.persistence import StateStoreActionPromotionRegistry
+
+        durable_registry = StateStoreActionPromotionRegistry(store=audit_store)
+        promotion_registry = durable_registry
+        promotion_state_refresher = durable_registry.refresh
+    else:
+        promotion_registry = ActionPromotionRegistry()
+    risk_gate = RiskGate(registry=promotion_registry)
+    llm_bindings = container.require_llm_bindings()
+    t1 = T1Tier(
+        embedding_model=llm_bindings.embedding_model,
+        pattern_library=_build_pattern_library(),
+    )
+    rules_by_id = {rule.id: rule for rule in rules}
+    quality_gate = QualityGate(
+        verifier=RuleBasedVerifier(rules_by_id=rules_by_id),
+        cross_check_models=llm_bindings.cross_check_models,
+        grounding=InMemoryGroundingSource(rules_by_id),
+        rubric_evaluator=llm_bindings.rubric_evaluator,
+    )
+    t2 = T2Tier(
+        proposer=llm_bindings.require_t2_proposer(),
+        quality_gate=quality_gate,
+    )
 
     executor = ShadowExecutor(
         publisher=publisher,
@@ -927,18 +984,15 @@ def _build_control_loop(
     # turns a HIL verdict into an execution - the coordinator holds the
     # no-self-approval + idempotency invariants.
     hil_channel = _build_hil_channel(http_client)
-    hil_resume_coordinator = (
-        HilResumeCoordinator(
-            state_store=audit_store,
-            executor=executor,
-            hil_channel=hil_channel,
-            rules_by_id={r.id: r for r in rules},
-            direct_api_executor=direct_api_executor,
-            tool_executor=tool_executor,
-            action_types_by_name=action_types_by_name,
-        )
-        if hil_channel is not None
-        else None
+    hil_resume_coordinator = HilResumeCoordinator(
+        state_store=audit_store,
+        executor=executor,
+        hil_channel=hil_channel,
+        rules_by_id={r.id: r for r in rules},
+        direct_api_executor=direct_api_executor,
+        tool_executor=tool_executor,
+        action_types_by_name=action_types_by_name,
+        pending_index_writer=_pending_index_writer,
     )
 
     return ControlLoop(
@@ -948,8 +1002,12 @@ def _build_control_loop(
         action_builder=action_builder,
         executor=executor,
         audit_store=audit_store,
-        rules_by_id={r.id: r for r in rules},
+        rules_by_id=rules_by_id,
+        risk_table=risk_table,
         action_types_by_name=action_types_by_name,
+        risk_gate=risk_gate,
+        t1_engine=t1,
+        t2_engine=t2,
         direct_api_executor=direct_api_executor,
         tool_executor=tool_executor,
         event_correlator=event_correlator,
@@ -970,6 +1028,10 @@ def _build_control_loop(
                 else None
             ),
         ),
+        governance_assignments=governance_catalog.assignments,
+        inventory_age_provider=_build_inventory_age_provider(),
+        promotion_state_refresher=promotion_state_refresher,
+        stage_publisher=stage_publisher,
     )
 
 
@@ -1002,10 +1064,25 @@ async def _consume(
         )
         try:
             result = await control_loop.process(envelope.payload)
-        except Exception:  # noqa: BLE001 - fail-close: log-and-continue
+        except Exception as exc:  # noqa: BLE001 - process boundary isolation
+            reason = f"control_loop_unhandled_error:{type(exc).__name__}"
             _LOOP_LOGGER.exception(
                 "control_loop_unhandled_error",
                 extra={"key": envelope.key, "offset": envelope.offset},
+            )
+            # Commit only after both the terminal audit and DLQ write
+            # succeed. If either isolation step fails, propagate so the
+            # async iterator closes before its post-yield commit and the
+            # broker redelivers the event.
+            await control_loop.record_unhandled_failure(
+                payload=envelope.payload,
+                reason=reason,
+            )
+            await bus.dead_letter(
+                envelope.topic,
+                envelope.key,
+                envelope.payload,
+                reason,
             )
             continue
         if divergence is not None:
@@ -1027,6 +1104,42 @@ async def _consume(
                 "citing_rule_ids": list(result.citing_rule_ids),
             },
         )
+
+
+async def _consume_hil_decisions(
+    *,
+    bus: EventBus,
+    topic: str,
+    coordinator: HilResumeCoordinator,
+    stop: asyncio.Event,
+) -> None:
+    from .shared.providers.hil_channel import HilDecision
+
+    async for envelope in bus.subscribe(topic, "fdai-hil-resume"):
+        if stop.is_set():
+            return
+        payload = envelope.payload
+        try:
+            approval_id = str(payload["approval_id"])
+            decision = HilDecision(str(payload["decision"]))
+            approver_oid = str(payload["approver_oid"])
+            if not approval_id or not approver_oid:
+                raise ValueError("approval_id and approver_oid MUST be non-empty")
+            await coordinator.resolve(
+                approval_id=approval_id,
+                decision=decision,
+                approver_oid=approver_oid,
+                reason=str(payload.get("justification") or ""),
+            )
+        except Exception as exc:  # noqa: BLE001 - broker boundary isolation
+            reason = f"hil_decision_consume_error:{type(exc).__name__}"
+            await bus.dead_letter(
+                envelope.topic,
+                envelope.key,
+                envelope.payload,
+                reason,
+            )
+            continue
 
 
 def _authoritative_decision(result: ControlLoopResult) -> str:
@@ -1118,6 +1231,13 @@ async def _run() -> int:
                     dlq_suffix=container.config.kafka.topic_dlq_suffix,
                 ),
             )
+            from .delivery.read_api.streaming.agent_activity_broadcaster import (
+                DEFAULT_STAGE_TOPIC,
+            )
+            from .shared.streaming.stage_publisher import EventBusStagePublisher
+
+            stage_topic = os.environ.get("FDAI_STAGE_TOPIC", "").strip() or DEFAULT_STAGE_TOPIC
+            stage_publisher = EventBusStagePublisher(bus, topic=stage_topic)
             # A GitOps token opts into the real publisher; ensure an
             # http_client exists before _build_control_loop needs one.
             if os.environ.get("FDAI_GITOPS_TOKEN") and http_client is None:
@@ -1125,11 +1245,16 @@ async def _run() -> int:
             # Same for the HIL channel - an Incoming Webhook URL opts in.
             if os.environ.get("FDAI_CHATOPS_WEBHOOK_URL") and http_client is None:
                 http_client = _new_http_client()
-            control_loop = _build_control_loop(container, http_client=http_client)
+            control_loop = _build_control_loop(
+                container,
+                http_client=http_client,
+                stage_publisher=stage_publisher,
+            )
             _LOGGER.info(
                 "control_loop_ready",
                 extra={
                     "topic": container.config.kafka.topic_events,
+                    "stage_topic": stage_topic,
                     "group_id": "fdai-core",
                 },
             )
@@ -1216,6 +1341,19 @@ async def _run() -> int:
                     divergence=divergence_ledger,
                 )
             )
+            hil_decision_task: asyncio.Task[None] | None = None
+            if control_loop._hil_resume_coordinator is not None:
+                from .delivery.chatops.hil_decision import DEFAULT_HIL_DECISION_TOPIC
+
+                hil_decision_task = asyncio.create_task(
+                    _consume_hil_decisions(
+                        bus=bus,
+                        topic=os.environ.get("FDAI_HIL_DECISION_TOPIC", DEFAULT_HIL_DECISION_TOPIC),
+                        coordinator=control_loop._hil_resume_coordinator,
+                        stop=stop,
+                    ),
+                    name="hil-decision-consumer",
+                )
             wait_task = asyncio.create_task(stop.wait())
 
             # Blast-radius isolation: the pantheon runs OUTSIDE the P1 wait
@@ -1231,12 +1369,17 @@ async def _run() -> int:
                 )
                 pantheon_task.add_done_callback(_log_pantheon_exit)
 
+            wait_set = {consumer_task, wait_task}
+            if hil_decision_task is not None:
+                wait_set.add(hil_decision_task)
             done, _pending = await asyncio.wait(
-                {consumer_task, wait_task},
+                wait_set,
                 return_when=asyncio.FIRST_COMPLETED,
             )
             consumer_task.cancel()
             wait_task.cancel()
+            if hil_decision_task is not None:
+                hil_decision_task.cancel()
             if pantheon_task is not None:
                 pantheon_task.cancel()
             # Await the cancels so cleanup can drain the consumer's
@@ -1245,6 +1388,8 @@ async def _run() -> int:
             # ``finally``. Without this a cancelled consumer can be
             # racing the aiokafka close and log noisy warnings on exit.
             cleanup_tasks: list[asyncio.Task[Any]] = [consumer_task, wait_task]
+            if hil_decision_task is not None:
+                cleanup_tasks.append(hil_decision_task)
             if pantheon_task is not None:
                 cleanup_tasks.append(pantheon_task)
             await asyncio.gather(*cleanup_tasks, return_exceptions=True)

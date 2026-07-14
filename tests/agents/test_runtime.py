@@ -19,11 +19,16 @@ import pytest
 from fdai.agents._framework.bus_bridge import EventBusBridge
 from fdai.agents._framework.divergence import ShadowDivergenceLedger
 from fdai.agents._framework.pantheon import PANTHEON_SPECS
+from fdai.agents._framework.provider_adapters import (
+    StateStoreActionRunStore,
+    StateStoreAuditChainAdapter,
+)
 from fdai.agents._framework.runtime import PantheonRuntime
 from fdai.agents.huginn import Huginn
 from fdai.agents.saga import Saga
 from fdai.agents.thor import Thor
 from fdai.shared.providers.testing.event_bus import InMemoryEventBus
+from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
 _RAW_TOPIC = "fdai.events"
 
@@ -84,7 +89,26 @@ def test_shadow_by_default_forces_thor_shadow() -> None:
 
 def test_enforce_true_disables_forced_shadow() -> None:
     provider = InMemoryEventBus()
-    runtime = PantheonRuntime.build(provider=provider, raw_event_topic=_RAW_TOPIC, enforce=True)
+    executed: list[str] = []
+
+    async def executor(context: dict) -> bool:
+        executed.append(context["run"].correlation_id)
+        return True
+
+    async def rollback_executor(_action_run: dict) -> str:
+        return "rollback:test"
+
+    state_store = InMemoryStateStore()
+
+    runtime = PantheonRuntime.build(
+        provider=provider,
+        raw_event_topic=_RAW_TOPIC,
+        enforce=True,
+        saga=Saga(audit_chain=StateStoreAuditChainAdapter(store=state_store)),
+        thor_executor=executor,
+        thor_state_store=StateStoreActionRunStore(store=state_store),
+        rollback_executors={"state_forward_only": rollback_executor},
+    )
     assert runtime.enforce is True
     thor = runtime.agents["Thor"]
     assert isinstance(thor, Thor)
@@ -101,6 +125,7 @@ def test_enforce_true_disables_forced_shadow() -> None:
 
     run = asyncio.run(_dispatch())
     assert run.shadow_mode is False
+    assert executed == ["c-enforce"]
 
 
 def test_build_rejects_empty_raw_event_topic() -> None:
@@ -190,25 +215,36 @@ def test_injected_saga_replaces_the_default() -> None:
     assert runtime.agents["Saga"] is custom
 
 
-def test_enforce_without_durable_saga_warns(caplog: pytest.LogCaptureFixture) -> None:
-    provider = InMemoryEventBus()
-    with caplog.at_level("WARNING"):
-        PantheonRuntime.build(provider=provider, raw_event_topic=_RAW_TOPIC, enforce=True)
-    assert any("pantheon_enforce_without_durable_saga" in r.message for r in caplog.records)
-
-
-def test_enforce_with_injected_saga_does_not_warn(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    provider = InMemoryEventBus()
-    with caplog.at_level("WARNING"):
+@pytest.mark.parametrize(
+    ("kwargs", "missing"),
+    [
+        ({}, "thor_executor"),
+        ({"thor_executor": lambda _: None}, "thor_state_store"),
+        (
+            {
+                "thor_executor": lambda _: None,
+                "thor_state_store": StateStoreActionRunStore(store=InMemoryStateStore()),
+            },
+            "durable_saga",
+        ),
+        (
+            {
+                "thor_executor": lambda _: None,
+                "thor_state_store": StateStoreActionRunStore(store=InMemoryStateStore()),
+                "saga": Saga(audit_chain=StateStoreAuditChainAdapter(store=InMemoryStateStore())),
+            },
+            "rollback_executors",
+        ),
+    ],
+)
+def test_enforce_requires_explicit_safety_bindings(kwargs: dict, missing: str) -> None:
+    with pytest.raises(ValueError, match=missing):
         PantheonRuntime.build(
-            provider=provider,
+            provider=InMemoryEventBus(),
             raw_event_topic=_RAW_TOPIC,
             enforce=True,
-            saga=Saga(),
+            **kwargs,
         )
-    assert not any("pantheon_enforce_without_durable_saga" in r.message for r in caplog.records)
 
 
 def test_health_snapshot_reports_agents_mode_and_metrics() -> None:

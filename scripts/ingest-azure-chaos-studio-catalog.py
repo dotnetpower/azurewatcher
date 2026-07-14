@@ -41,13 +41,7 @@ import yaml
 
 _HERE = pathlib.Path(__file__).resolve()
 _REPO_ROOT = _HERE.parents[1]
-_OUT_DIR = (
-    _REPO_ROOT
-    / "rule-catalog"
-    / "chaos-scenarios"
-    / "collected"
-    / "azure-chaos-studio"
-)
+_OUT_DIR = _REPO_ROOT / "rule-catalog" / "chaos-scenarios" / "collected" / "azure-chaos-studio"
 _ALERT_WINDOW_S = 360.0
 
 
@@ -169,8 +163,7 @@ _ENTRIES: tuple[Entry, ...] = (
         slug="agent-stop-service",
         fault_name="urn:csci:microsoft:agent:stopService/1.0",
         injector="az:vm-stop-service",
-        description="Stop a systemd unit on a VM via systemctl through "
-        "az vm run-command.",
+        description="Stop a systemd unit on a VM via systemctl through az vm run-command.",
         category="compute",
         target_type="vm",
         fault_family="stop",

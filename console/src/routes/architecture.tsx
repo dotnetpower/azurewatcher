@@ -20,6 +20,7 @@ import { AsyncBoundary, PageHeader, type AsyncState } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { navigate, routeHref } from "../router";
 
 interface Props { readonly client: ReadApiClient }
 
@@ -41,9 +42,9 @@ const CAMERA_LABELS: Readonly<Record<ArchitectureCameraView, string>> = {
 
 export function ArchitectureRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<InventoryGraphResponse>>({ status: "loading" });
-  const [selectedId, setSelectedId] = useState<string | null>(() => selectedResourceIdFromHash(window.location.hash));
+  const [selectedId, setSelectedId] = useState<string | null>(() => selectedResourceIdFromHash(window.location.search));
   const [visibleLayers, setVisibleLayers] = useState<Set<ArchitectureLayer>>(new Set(ARCHITECTURE_LAYERS));
-  const [viewScope, setViewScope] = useState<string | null>(() => architectureViewFromHash(window.location.hash));
+  const [viewScope, setViewScope] = useState<string | null>(() => architectureViewFromHash(window.location.search));
   const [cameraView, setCameraView] = useState<ArchitectureCameraView>("iso");
   const [zoomPercent, setZoomPercent] = useState(100);
   const [displayOptions, setDisplayOptions] = useState<ArchitectureDisplayOptions>({
@@ -55,12 +56,16 @@ export function ArchitectureRoute({ client }: Props) {
   const mapRef = useRef<ArchitectureMapHandle>(null);
 
   useEffect(() => {
-    const syncHash = () => {
-      setSelectedId(selectedResourceIdFromHash(window.location.hash));
-      setViewScope(architectureViewFromHash(window.location.hash));
+    const syncRoute = () => {
+      setSelectedId(selectedResourceIdFromHash(window.location.search));
+      setViewScope(architectureViewFromHash(window.location.search));
     };
-    window.addEventListener("hashchange", syncHash);
-    return () => window.removeEventListener("hashchange", syncHash);
+    window.addEventListener("popstate", syncRoute);
+    window.addEventListener("fdai:route-changed", syncRoute);
+    return () => {
+      window.removeEventListener("popstate", syncRoute);
+      window.removeEventListener("fdai:route-changed", syncRoute);
+    };
   }, []);
 
   useEffect(() => {
@@ -86,7 +91,7 @@ export function ArchitectureRoute({ client }: Props) {
 
   function selectResource(resource: InventoryResource | null): void {
     setSelectedId(resource?.id ?? null);
-    window.location.hash = architectureHref(resource?.id, viewScope);
+    navigate(architectureHref(resource?.id, viewScope));
   }
 
   function toggleLayer(layer: ArchitectureLayer): void {
@@ -125,7 +130,7 @@ export function ArchitectureRoute({ client }: Props) {
               setCameraView("iso");
               setSelectedId(null);
               setViewScope(scope);
-              window.location.hash = architectureHref(undefined, scope);
+              navigate(architectureHref(undefined, scope));
             }}
             mapRef={mapRef}
             cameraView={cameraView}
@@ -321,7 +326,7 @@ function ArchitectureBody({
                   <dt>Parent</dt><dd>{parent?.name ?? "Tenant"}</dd>
                   <dt>Resource id</dt><dd class="mono">{selected.id}</dd>
                 </dl>
-                <a class="btn" href={`#/blast-radius?target=${encodeURIComponent(selected.id)}&view=${encodeURIComponent(graph.active_view ?? "")}`}>View blast radius</a>
+                <a class="btn" href={routeHref("blast-radius", { params: { target: selected.id, view: graph.active_view } })}>View blast radius</a>
               </>
             ) : (
               <div class="architecture-empty-inspector">

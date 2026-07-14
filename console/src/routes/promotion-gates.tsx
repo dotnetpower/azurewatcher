@@ -47,6 +47,7 @@ interface Props {
 
 export function PromotionGatesRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<Response>>({ status: "loading" });
+  const statusFilter = new URLSearchParams(window.location.search).get("status");
 
   useEffect(() => {
     let cancelled = false;
@@ -81,8 +82,17 @@ export function PromotionGatesRoute({ client }: Props) {
         title={t("route.promotionGates")}
         subtitle="Per-ActionType readiness against each shipped promotion_gate. Actions promote from shadow to enforce only when every gap is closed."
       />
+      {statusFilter ? (
+        <div class="filter-summary"><span>status: <strong>{statusFilter}</strong></span></div>
+      ) : null}
       <AsyncBoundary state={state} resourceLabel="promotion gates">
-        {(data) => <PromotionBody data={data} />}
+        {(data) => (
+          <PromotionBody
+            data={statusFilter === "blocked"
+              ? { ...data, rows: data.rows.filter((row) => !row.ready) }
+              : data}
+          />
+        )}
       </AsyncBoundary>
     </div>
   );

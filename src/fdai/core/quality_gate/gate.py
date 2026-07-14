@@ -106,6 +106,7 @@ class QualityCandidate:
     target_resource_ref: str
     params: dict[str, Any]
     cited_rule_ids: tuple[str, ...]
+    target_resource_type: str | None = None
     confidence_signals: Mapping[str, float] = field(default_factory=dict)
     reasoning_trace: str = ""
 

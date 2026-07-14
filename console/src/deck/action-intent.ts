@@ -29,9 +29,34 @@ const FILLER: ReadonlySet<string> = new Set([
   "please", "can", "could", "would", "you", "kindly", "pls", "hey", "ok", "okay",
 ]);
 
+/**
+ * Verbs that double as a noun / adjective, so a leading occurrence is NOT
+ * automatically a command ("set of rules?", "run status?", "update history?").
+ * Mirrors the server `_AMBIGUOUS_ACTION_VERBS`. Every entry is also in
+ * {@link ACTION_VERBS}; an ambiguous lead is a command only when phrased
+ * imperatively (no question mark, no interrogative marker).
+ */
+const AMBIGUOUS_ACTION_VERBS: ReadonlySet<string> = new Set([
+  "set", "start", "stop", "update", "run", "apply", "patch", "drain",
+]);
+
+/**
+ * Interrogative markers that flip an ambiguous-verb lead back to a question.
+ * Mirrors the server `_QUESTION_MARKERS`.
+ */
+const QUESTION_MARKERS: ReadonlySet<string> = new Set([
+  "what", "why", "who", "how", "when", "which", "where", "whose", "whom",
+  "is", "are", "was", "were", "do", "does", "did", "show", "list", "tell",
+  "explain", "describe", "status", "count", "many", "much", "any",
+]);
+
+/** Defensive cap mirroring the server `_MAX_QUESTION_LEN`: only a bounded
+ *  prefix is inspected so a pathological input cannot inflate tokenization. */
+const MAX_QUESTION_LEN = 2000;
+
 /** The first non-filler token of `text`, lower-cased, or null. */
 export function leadingVerb(text: string): string | null {
-  const tokens = text.toLowerCase().match(/[a-z0-9-]+/g);
+  const tokens = text.slice(0, MAX_QUESTION_LEN).toLowerCase().match(/[a-z0-9-]+/g);
   if (tokens === null) return null;
   for (const token of tokens) {
     if (FILLER.has(token)) continue;
@@ -40,8 +65,24 @@ export function leadingVerb(text: string): string | null {
   return null;
 }
 
-/** True when `text` is a mutation command (routes to the action endpoint). */
+/** True when `text` is a mutation command (routes to the action endpoint).
+ *
+ * Deterministic and conservative, matching the server `is_action_intent`: a
+ * leading imperative verb is a command, EXCEPT an ambiguous verb (one that
+ * doubles as a noun) followed by a question mark or an interrogative marker,
+ * which is a question and stays with the read-only narrator. Keeping this in
+ * lockstep with the Python guard is why the ambiguous / question-marker sets
+ * are mirrored above; drift would misroute a question to `POST /chat/action`.
+ */
 export function detectActionIntent(text: string): boolean {
   const verb = leadingVerb(text);
-  return verb !== null && ACTION_VERBS.has(verb);
+  if (verb === null) return false;
+  if (AMBIGUOUS_ACTION_VERBS.has(verb)) {
+    const head = text.slice(0, MAX_QUESTION_LEN).toLowerCase();
+    if (head.includes("?")) return false;
+    const tokens = head.match(/[a-z0-9-]+/g) ?? [];
+    if (tokens.some((token) => QUESTION_MARKERS.has(token))) return false;
+    return true;
+  }
+  return ACTION_VERBS.has(verb);
 }

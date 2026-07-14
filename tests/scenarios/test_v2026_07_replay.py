@@ -72,6 +72,8 @@ from fdai.core.tiers.t0_deterministic import (
     RuleIndex,
     T0Engine,
 )
+from fdai.core.tiers.t2_reasoning import T2Tier
+from fdai.core.tiers.t2_reasoning.testing import AbstainingT2Proposer
 from fdai.core.trust_router import TrustRouter
 from fdai.rule_catalog.schema.action_type import load_action_type_catalog
 from fdai.rule_catalog.schema.resource_type import (
@@ -113,21 +115,7 @@ requires_opa = pytest.mark.skipif(
 # Scenario id → xfail reason when no enrichment overlay exists. Keeping
 # the reasons here (rather than as strings in each JSON) makes it a
 # checklist reviewers can maintain as tiers land.
-_XFAIL_REASONS: dict[str, str] = {
-    "change.drift-manual-portal-edit.003": (
-        "No shipped drift-reconcile rule + ActionType authored yet "
-        "(Change Safety backlog); the risk-gate HIL path is already available "
-        "via the overlay's wire_risk_gate flag once a rule maps."
-    ),
-    "dr.backup-vault-restore-rehearsal.002": (
-        "No shipped rule authored for backup-restore rehearsal cadence."
-    ),
-    "dr.chaos-experiment-novel.003": (
-        "T2 tier is wired into ControlLoop shadow-only (audits verdicts); this "
-        "scenario needs a wired t2_engine + T2 execution (candidate -> Action -> "
-        "risk-gate), which is P2/P3 backlog."
-    ),
-}
+_XFAIL_REASONS: dict[str, str] = {}
 
 
 def _scenario_id_to_filename(scenario_id: str) -> str:
@@ -172,6 +160,7 @@ def _make_loop(
     shipped_catalog: tuple[Any, Any],
     *,
     wire_risk_gate: bool = False,
+    wire_t2: bool = False,
 ) -> tuple[ControlLoop, RecordingRemediationPrPublisher, InMemoryStateStore]:
     rules, action_types = shipped_catalog
     index = RuleIndex.build(rules)
@@ -203,6 +192,17 @@ def _make_loop(
             "action_types_by_name": action_types_by_name,
             "risk_gate": RiskGate(registry=ActionPromotionRegistry()),
         }
+    t2_engine = None
+    if wire_t2:
+
+        class _UnusedQualityGate:
+            async def evaluate(self, candidate: Any) -> Any:
+                raise AssertionError(f"unexpected candidate: {candidate.action_type}")
+
+        t2_engine = T2Tier(
+            proposer=AbstainingT2Proposer(),
+            quality_gate=_UnusedQualityGate(),
+        )
     loop = ControlLoop(
         event_ingest=EventIngest(validator=validator),
         trust_router=TrustRouter(index=index),
@@ -211,6 +211,7 @@ def _make_loop(
         executor=executor,
         audit_store=audit,
         rules_by_id={r.id: r for r in rules},
+        t2_engine=t2_engine,
         **risk_kwargs,
     )
     return loop, publisher, audit
@@ -267,7 +268,9 @@ async def test_v2026_07_scenario_replays_through_control_loop(
     # P1-replayable path - enriched event runs against the real loop.
     # ------------------------------------------------------------------
     loop, publisher, audit = _make_loop(
-        shipped_catalog, wire_risk_gate=bool(overlay.get("wire_risk_gate", False))
+        shipped_catalog,
+        wire_risk_gate=bool(overlay.get("wire_risk_gate", False)),
+        wire_t2=bool(overlay.get("wire_t2", False)),
     )
     enriched_event = _merge_enrichment(scenario["event"], overlay)
 
@@ -282,11 +285,12 @@ async def test_v2026_07_scenario_replays_through_control_loop(
         f"scenario {scenario_id}: decision mismatch (got {result.decision})"
     )
 
-    expected_rule = overlay["expected_citing_rule_id_present"]
-    assert expected_rule in result.citing_rule_ids, (
-        f"scenario {scenario_id}: expected shipped rule "
-        f"{expected_rule!r} in citing_rule_ids={result.citing_rule_ids}"
-    )
+    expected_rule = overlay.get("expected_citing_rule_id_present")
+    if expected_rule is not None:
+        assert expected_rule in result.citing_rule_ids, (
+            f"scenario {scenario_id}: expected shipped rule "
+            f"{expected_rule!r} in citing_rule_ids={result.citing_rule_ids}"
+        )
 
     # Shadow-mode invariant: every P1 execution result is SHADOW; a
     # published PR carries the shadow label.

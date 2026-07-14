@@ -606,9 +606,7 @@ def _gpu_specs() -> list[Spec]:
             description,
             rollback_note,
         ) = axis
-        sid = (
-            f"chaos.gpu.{target_type}-{fault_family}-{expected_signal.replace('_', '-')}"
-        )
+        sid = f"chaos.gpu.{target_type}-{fault_family}-{expected_signal.replace('_', '-')}"
         # dedupe id if two axes emit the same sid by appending a numeric suffix.
         suffix = ""
         n = 2

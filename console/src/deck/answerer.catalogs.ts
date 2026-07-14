@@ -61,7 +61,7 @@ export const STATIC_GLOSSARY: readonly GlossaryTerm[] = [
 ];
 
 export const NO_CONTEXT_FOLLOWUPS: readonly string[] = [
-  "what is HIL?",
+  "what requires approval?",
   "what is a correlation id?",
   "what is the trust router?",
   "what is shadow mode?",
@@ -70,8 +70,8 @@ export const NO_CONTEXT_FOLLOWUPS: readonly string[] = [
 export const NO_CONTEXT: Answer = {
   text:
     "No route has published a view snapshot yet. Open Live, Dashboard, " +
-    "Audit, HIL, Trace, Blast Radius, Promotion, or Ontology and try again. " +
-    "You can still ask FDAI concept questions (e.g. 'what is HIL?').",
+    "Audit, Approvals, Trace, Blast Radius, Promotion, or Ontology and try again. " +
+    "You can still ask FDAI concept questions (e.g. 'what requires approval?').",
   citations: [],
   followUps: NO_CONTEXT_FOLLOWUPS,
 };
@@ -91,7 +91,7 @@ export const ROUTE_ACTION_HINTS: Readonly<Record<string, string>> = {
     "Live cockpit: watch tiles as events flow in, click a tile to open its trace, " +
     "hover a tile to see its action + resource, and read the tier/gate mix at the top.",
   dashboard:
-    "Dashboard: read shadow vs enforce share, top action kinds, and HIL pending; " +
+    "Dashboard: read shadow vs enforce share, top action kinds, and approvals pending; " +
     "narrow the window from the header controls; drill into a bar to jump to Audit.",
   audit:
     "Audit: search rows by seq/correlation/action, filter by mode (shadow/enforce), " +
@@ -100,7 +100,7 @@ export const ROUTE_ACTION_HINTS: Readonly<Record<string, string>> = {
     "Rules: search by id/category/severity, click a rule to open its detail drawer " +
     "with provenance + remediation + shadow accuracy; enable/disable is governance-only.",
   "hil-queue":
-    "HIL queue: read pending approvals and their risk reason; approvals happen in " +
+    "Approvals: read pending items and their risk reason; decisions happen in " +
     "Teams/ChatOps Adaptive Cards, never in this console (approve/reject are external).",
   "promotion-gates":
     "Promotion gates: see which ActionTypes are ready to promote and which are blocked; " +
@@ -139,7 +139,7 @@ export const PANTHEON_AGENTS: readonly string[] = [
   "Forseti (Judge - issues Verdict after mixed-model cross-check + verifier + grounding)",
   "Huginn (Event Collector - deterministic-first sensing, no LLM in hot-path)",
   "Heimdall (Observer - deterministic-first sensing, no LLM in hot-path)",
-  "Var (Approver - HIL approval principal; distinct from Thor, no self-approval)",
+  "Var (Approver - approval principal; distinct from Thor, no self-approval)",
   "Vidar (Recovery - rollback + DR failover principal)",
   "Bragi (Narrator - conversational-port translator only, never executes)",
   "Saga (Auditor - append-only audit + Handoff-to-GitHub-issue executor)",
@@ -160,7 +160,7 @@ export const TRUST_TIERS: readonly string[] = [
 export const RBAC_ROLES: readonly string[] = [
   "Reader - view every screen (read-only) and ask this deck.",
   "Contributor - + author draft remediation / governance PRs.",
-  "Approver - + review governance PRs and approve/reject runtime HIL, exemptions, overrides, quorum promotions (via Teams/ChatOps, never self-approval).",
+  "Approver - + review governance PRs and approve/reject runtime requests, exemptions, overrides, quorum promotions (via Teams/ChatOps, never self-approval).",
   "Owner - + kill-switch, emergency access, group membership, infra IaC.",
   "BreakGlass - emergency-only, activated out of band (incident id + timebox).",
 ];
@@ -182,6 +182,6 @@ export const ACTION_TYPE_ROLES: readonly string[] = [
   "initiators (who may raise this action)",
   "judge (Forseti - who decides auto/hil/deny/abstain)",
   "executor (Thor - the sole privileged mutator)",
-  "approver (Var - required for high-risk / HIL)",
+  "approver (Var - required for high-risk actions)",
   "auditor (Saga - append-only audit + Handoff)",
 ];

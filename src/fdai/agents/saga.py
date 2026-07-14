@@ -9,6 +9,7 @@ recorded on the audit chain by Saga's typed handler.
 from __future__ import annotations
 
 import hashlib
+import inspect
 from typing import Any
 
 from fdai.agents._framework.action_semantics import RESULT_VALUES, outcome_result
@@ -44,10 +45,32 @@ class Saga(Agent):
         self.state_store = state_store or InMemoryStateStore()
         self.github = github or InMemoryGithubIssueAdapter()
 
+    @property
+    def durable_audit(self) -> bool:
+        """Return whether the configured audit chain survives restart."""
+        return bool(getattr(self.audit_chain, "durable", False))
+
+    async def _append_audit(
+        self,
+        *,
+        principal: str,
+        topic: str,
+        correlation_id: str,
+        payload: dict[str, Any],
+    ) -> None:
+        result = self.audit_chain.append(
+            principal=principal,
+            topic=topic,
+            correlation_id=correlation_id,
+            payload=payload,
+        )
+        if inspect.isawaitable(result):
+            await result
+
     async def on_typed_message(self, topic: str, payload: dict[str, Any]) -> None:
         principal = str(payload.get("producer_principal", "unknown"))
         correlation_id = str(payload.get("correlation_id", ""))
-        self.audit_chain.append(
+        await self._append_audit(
             principal=principal,
             topic=topic,
             correlation_id=correlation_id,
@@ -148,7 +171,7 @@ class Saga(Agent):
                 "last_correlation_id": correlation_id,
             },
         )
-        self.audit_chain.append(
+        await self._append_audit(
             principal="Saga",
             topic="object.issue",
             correlation_id=correlation_id,

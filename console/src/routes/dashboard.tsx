@@ -5,8 +5,6 @@ import type {
   AutonomyPayload,
   DashboardKpi,
   FinOpsPayload,
-  MetricVsBaseline,
-  VerticalSummary,
 } from "../types";
 import {
   AsyncBoundary,
@@ -20,52 +18,37 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
-import { overviewHealth } from "./dashboard.model";
+import { routeHref } from "../router";
+import {
+  formatShare,
+  formatUsd,
+  overviewAttentionCount,
+  overviewHealth,
+  type GatesSummary,
+} from "./dashboard.model";
+import {
+  AgentOrganization,
+  ExecutiveStatus,
+  SuccessMetrics,
+} from "./dashboard.executive";
+import { ExecutiveDecisionGrid } from "./dashboard.assurance";
+import { LivingRules, TierBands, VerticalCards } from "./dashboard.signals";
 
 interface Props {
   readonly client: ReadApiClient;
 }
 
 /**
- * The three axes an approver reads first - is it healthy, is there risk,
- * is it saving money - composed from the required `/kpi` backbone and the
- * opt-in `/finops` panel. `finops` is null when the panel is not served
- * (production, or a fork that has not registered it); the cost axis then
- * renders "not enabled" instead of failing the whole page.
- */
-/**
  * Aggregate promotion-gate signal behind the release guard row. `null`
  * when the gate route is not wired on this deployment (404/501). A
  * `policy_escapes` sum > 0 blocks release per goals-and-metrics (escapes
  * MUST be exactly 0), so it also fails the health axis.
  */
-interface GateRow {
-  readonly policy_escapes: number;
-  readonly ready: boolean;
-}
-interface GatesSummary {
-  readonly rows: readonly GateRow[];
-  readonly ready_count: number;
-  readonly blocked_count: number;
-}
-
 interface OverviewData {
   readonly kpi: DashboardKpi;
   readonly finops: FinOpsPayload | null;
   readonly gates: GatesSummary | null;
   readonly autonomy: AutonomyPayload | null;
-}
-
-function formatShare(x: number): string {
-  return `${(x * 100).toFixed(1)}%`;
-}
-
-function formatUsd(x: number): string {
-  return x.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
 }
 
 export function DashboardRoute({ client }: Props) {
@@ -118,7 +101,7 @@ export function DashboardRoute({ client }: Props) {
   }, [client]);
 
   return (
-    <div class="stack">
+    <div class="stack overview-page">
       <PageHeader title={t("route.dashboard")} subtitle={<>{t("overview.subtitle")}</>} />
       <AsyncBoundary state={state} resourceLabel="overview">
         {(data) => <OverviewBody data={data} />}
@@ -138,7 +121,7 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
   // A policy escape blocks release (goals-and-metrics: escapes MUST be 0),
   // so it fails the health axis just like a pending human approval does.
   const health = overviewHealth(kpi, policyEscapes, autonomy);
-  const healthy = health === "healthy";
+  const attentionCount = overviewAttentionCount(kpi, policyEscapes, autonomy);
   const savings = finops ? finops.estimated_monthly_savings : null;
 
   usePublishViewContext(
@@ -198,7 +181,7 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
         routeLabel: "Overview",
         purpose:
           "The at-a-glance health of the control plane: event volume, the " +
-          "shadow/enforce split, T0 deterministic share, HIL backlog, and " +
+          "shadow/enforce split, T0 deterministic share, approval backlog, and " +
           "estimated monthly savings across the verticals. Read-only summary.",
         glossary: composeGlossary([
           TERMS.tier,
@@ -209,7 +192,7 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
         ]),
         headline:
           `health ${health} - ` +
-          `${kpi.hil_pending} HIL pending - ` +
+          `${kpi.hil_pending} approvals pending - ` +
           (savings !== null ? `${formatUsd(savings)}/mo saved` : "cost n/a"),
         capturedAt: new Date().toISOString(),
         facts: [
@@ -247,370 +230,124 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
   );
 
   return (
-    <div class="stack">
-      {autonomy ? <AutonomyHero autonomy={autonomy} /> : null}
-      {autonomy ? <SuccessMetrics success={autonomy.success} /> : null}
-      {autonomy ? <VerticalCards verticals={autonomy.verticals} /> : null}
-      <section class="overview-triad" aria-label="health, risk and cost summary">
-        <KpiCard
-          label={t("overview.health.label")}
-          value={health === "healthy" ? t("overview.health.healthy") : health === "attention" ? t("overview.health.attention") : t("overview.health.unknown")}
-          tone={healthy ? "positive" : "warning"}
-          hint={`${kpi.event_count} events - T0 ${t0Share}% - shadow ${formatShare(kpi.shadow_share)}`}
-        />
-        <KpiCard
-          label={t("overview.risk.label")}
-          value={kpi.hil_pending}
-          tone={kpi.hil_pending > 0 ? "warning" : "positive"}
-          hint={kpi.hil_pending > 0 ? t("overview.risk.pending") : t("overview.risk.clear")}
-        />
-        <KpiCard
-          label={t("overview.cost.label")}
-          value={savings !== null ? formatUsd(savings) : "-"}
-          tone={savings !== null && savings > 0 ? "positive" : "default"}
-          hint={
-            savings !== null
-              ? `${t("overview.cost.annualized", { amount: formatUsd(savings * 12) })} - ${t("overview.cost.actions", { count: finops ? finops.total_actions : 0 })}`
-              : t("overview.cost.unavailable")
-          }
-        />
-      </section>
+    <div class="stack overview-report">
+      <ExecutiveStatus
+        health={health}
+        kpi={kpi}
+        autonomy={autonomy}
+        attentionCount={attentionCount}
+        policyEscapes={policyEscapes}
+      />
 
-      {gates || autonomy ? (
-        <section class="overview-guards" aria-label="release guards">
-          <span class="overview-guards-label">{t("overview.guards.label")}</span>
-          {policyEscapes !== null ? (
-            <GuardChip
-              label={t("overview.guards.escapes", { count: policyEscapes })}
-              title={t("overview.guardFull.policy_escapes")}
-              ok={policyEscapes === 0}
-            />
-          ) : null}
-          {autonomy
-            ? autonomy.guards.map((g) => (
-                <GuardChip
-                  key={g.key}
-                  label={`${t(`overview.guard.${g.key}`)} ${(g.value * 100).toFixed(1)}%`}
-                  title={t(`overview.guardFull.${g.key}`)}
-                  ok={g.ok}
-                />
-              ))
-            : null}
-          {gates ? (
-            <a class="overview-guards-note overview-drill" href="#/promotion-gates">
-              {t("overview.guards.ready", { ready: readyCount ?? 0, total: gateTotal ?? 0 })}
-            </a>
-          ) : null}
-        </section>
+      {autonomy ? (
+        <OverviewSection
+          number="1"
+          title={t("overview.section.outcomes")}
+          description={t("overview.section.outcomesHint")}
+        >
+          <SuccessMetrics
+            success={autonomy.success}
+            synthetic={autonomy.synthetic}
+            windowDays={autonomy.window_days}
+          />
+        </OverviewSection>
       ) : null}
 
-      {autonomy ? <TierBands tier={autonomy.tier} /> : null}
-
-      {autonomy ? <LivingRules rules={autonomy.rules} /> : null}
-
-      <h3 class="section-title">{t("overview.detail")}</h3>
-      <KpiGrid>
-        <KpiCard label="Events (audit)" value={kpi.event_count} hint="terminal audit entries" />
-        <KpiCard
-          label="Shadow share"
-          value={formatShare(kpi.shadow_share)}
-          hint="judge-only, no mutation"
-          tone={kpi.shadow_share > 0.95 ? "positive" : "default"}
-        />
-        <KpiCard
-          label="Enforce share"
-          value={formatShare(kpi.enforce_share)}
-          hint="promoted to production"
-        />
-        <KpiCard
-          label="HIL pending"
-          value={kpi.hil_pending}
-          tone={kpi.hil_pending > 0 ? "warning" : "positive"}
-          hint={kpi.hil_pending > 0 ? "needs a human approver" : "no waiting approvals"}
-        />
-      </KpiGrid>
-
-      <div class="two-col">
-        <section class="stack-section">
-          <h3 class="section-title">Actions by kind</h3>
-          <CountTable data={kpi.by_action_kind} keyLabel="Action kind" />
-        </section>
-        <section class="stack-section">
-          <h3 class="section-title">Outcomes</h3>
-          <CountTable data={kpi.by_outcome} keyLabel="Outcome" />
-        </section>
-      </div>
-
-      {kpi.last_recorded_at !== null ? (
-        <p class="muted footnote">Last audit entry: {kpi.last_recorded_at}</p>
-      ) : null}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Autonomy summary sub-components (success metrics vs baseline)
-// ---------------------------------------------------------------------------
-
-function fmtDuration(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  const minutes = seconds / 60;
-  if (minutes < 60) return `${Math.round(minutes)}m`;
-  return `${(minutes / 60).toFixed(1)}h`;
-}
-
-/** Improvement factor vs baseline, oriented by the metric's direction
- * (higher-is-better -> value/baseline; lower-is-better -> baseline/value).
- * `null` when either side is non-positive (avoid a meaningless ratio). */
-function improvementFactor(m: MetricVsBaseline): number | null {
-  if (m.baseline <= 0 || m.value <= 0) return null;
-  return m.direction === "higher" ? m.value / m.baseline : m.baseline / m.value;
-}
-
-/** A compact auto-resolution trend line drawn from the measurement series.
- * Rendered in the hero so "is autonomy improving" reads at a glance. */
-function TrendSpark({
-  series,
-  label,
-}: {
-  readonly series: readonly number[];
-  readonly label: string;
-}) {
-  const w = 128;
-  const h = 30;
-  const max = Math.max(...series);
-  const min = Math.min(...series);
-  const range = max - min || 1;
-  const points = series
-    .map((v, i) => {
-      const x = (i / (series.length - 1)) * w;
-      const y = h - ((v - min) / range) * h;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  const first = series[0] ?? 0;
-  const last = series[series.length - 1] ?? 0;
-  const deltaPp = Math.round((last - first) * 100);
-  return (
-    <div class="overview-trend">
-      <span class="overview-trend-label muted">{label}</span>
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        width={w}
-        height={h}
-        class="overview-trend-svg"
-        aria-hidden="true"
-        preserveAspectRatio="none"
+      <OverviewSection
+        number="2"
+        title={t("overview.section.assurance")}
+        description={t("overview.section.assuranceHint")}
       >
-        <polyline
-          points={points}
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linejoin="round"
-          stroke-linecap="round"
+        <ExecutiveDecisionGrid
+          health={health}
+          kpi={kpi}
+          gates={gates}
+          autonomy={autonomy}
+          attentionCount={attentionCount}
+          policyEscapes={policyEscapes}
         />
-      </svg>
-      <span class={`overview-trend-delta ${deltaPp >= 0 ? "up" : "down"}`}>
-        {deltaPp >= 0 ? "+" : ""}
-        {deltaPp}pp
-      </span>
-    </div>
-  );
-}
+      </OverviewSection>
 
-function AutonomyHero({ autonomy }: { readonly autonomy: AutonomyPayload }) {
-  const trend = autonomy.trend.auto_resolution_rate;
-  return (
-    <section class="overview-hero" aria-label="autonomy summary">
-      <div>
-        <h3 class="overview-hero-title">{t("overview.hero.title")}</h3>
-        <p class="overview-hero-sub muted">
-          {t("overview.hero.window", {
-            days: autonomy.window_days,
-            samples: autonomy.sample_size.toLocaleString("en-US"),
-          })}
-          {autonomy.confidence !== null
-            ? ` - ${t("overview.hero.confidence", { pct: Math.round(autonomy.confidence * 100) })}`
-            : ""}
-        </p>
-      </div>
-      {trend && trend.length >= 2 ? (
-        <TrendSpark series={trend} label={t("overview.trend.autoRes")} />
+      {autonomy ? (
+        <OverviewSection
+          number="3"
+          title={t("overview.section.organization")}
+          description={t("overview.section.organizationHint")}
+        >
+          <AgentOrganization
+            autonomy={autonomy}
+            hilPending={kpi.hil_pending}
+          />
+        </OverviewSection>
       ) : null}
-      {autonomy.synthetic ? (
-        <span class="overview-synthetic" title={t("overview.hero.syntheticHint")}>
-          {t("overview.hero.synthetic")}
-        </span>
+
+      {autonomy ? (
+        <OverviewSection
+          number="4"
+          title={t("overview.section.verticals")}
+          description={t("overview.section.verticalsHint")}
+        >
+          <VerticalCards verticals={autonomy.verticals} />
+        </OverviewSection>
       ) : null}
-    </section>
-  );
-}
 
-function SuccessMetrics({ success }: { readonly success: AutonomyPayload["success"] }) {
-  const auto = success.auto_resolution_rate;
-  const touch = success.human_touchpoints_per_100;
-  const mttr = success.mttr_seconds;
-  const lead = success.change_lead_time_seconds;
-  return (
-    <section class="overview-metrics" aria-label="success metrics vs baseline">
-      <SuccessMetric
-        label={t("overview.metric.autoRes")}
-        value={`${Math.round(auto.value * 100)}%`}
-        metric={auto}
-        baselineText={`${Math.round(auto.baseline * 100)}%`}
-      />
-      <SuccessMetric
-        label={t("overview.metric.touchpoints")}
-        value={touch.value.toFixed(1)}
-        metric={touch}
-        baselineText={touch.baseline.toFixed(1)}
-      />
-      <SuccessMetric
-        label={t("overview.metric.mttr")}
-        value={fmtDuration(mttr.value)}
-        metric={mttr}
-        baselineText={fmtDuration(mttr.baseline)}
-      />
-      <SuccessMetric
-        label={t("overview.metric.leadTime")}
-        value={fmtDuration(lead.value)}
-        metric={lead}
-        baselineText={fmtDuration(lead.baseline)}
-      />
-    </section>
-  );
-}
+      {autonomy ? (
+        <section class="overview-operating-signals" aria-label={t("overview.operations.label")}>
+          <TierBands tier={autonomy.tier} />
+          <LivingRules rules={autonomy.rules} />
+        </section>
+      ) : null}
 
-function SuccessMetric({
-  label,
-  value,
-  metric,
-  baselineText,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly metric: MetricVsBaseline;
-  readonly baselineText: string;
-}) {
-  const factor = improvementFactor(metric);
-  return (
-    <div class="card overview-metric">
-      <span class="overview-metric-label">{label}</span>
-      <span class="overview-metric-value">{value}</span>
-      <span class="overview-metric-sub muted">
-        {t("overview.metric.vsBaseline", { baseline: baselineText })}
-        {factor !== null ? (
-          <span class="overview-metric-factor"> {factor.toFixed(1)}x</span>
-        ) : null}
-      </span>
+      <details class="advanced-details overview-details">
+        <summary>
+          <h3 class="section-title">{t("overview.detail")}</h3>
+          <span class="muted">{t("overview.detailHint")}</span>
+        </summary>
+        <div class="stack overview-details-body">
+          <KpiGrid>
+            <a class="overview-kpi-link" href={routeHref("audit")}><KpiCard label="Events (audit)" value={kpi.event_count} hint="terminal audit entries" /></a>
+            <a class="overview-kpi-link" href={routeHref("audit", { params: { mode: "shadow" } })}><KpiCard label="Shadow share" value={formatShare(kpi.shadow_share)} hint="judge-only, no mutation" tone={kpi.shadow_share > 0.95 ? "positive" : "default"} /></a>
+            <a class="overview-kpi-link" href={routeHref("audit", { params: { mode: "enforce" } })}><KpiCard label="Enforce share" value={formatShare(kpi.enforce_share)} hint="promoted to production" /></a>
+            <a class="overview-kpi-link" href={routeHref("hil-queue")}><KpiCard label={t("overview.detailMetric.approvals")} value={kpi.hil_pending} tone={kpi.hil_pending > 0 ? "warning" : "positive"} hint={kpi.hil_pending > 0 ? t("overview.detailMetric.approvalHint") : t("overview.detailMetric.approvalClear")} /></a>
+          </KpiGrid>
+
+          <div class="two-col">
+            <section class="stack-section">
+              <h3 class="section-title">Actions by kind</h3>
+              <CountTable data={kpi.by_action_kind} keyLabel="Action kind" filterKey="action" />
+            </section>
+            <section class="stack-section">
+              <h3 class="section-title">Outcomes</h3>
+              <CountTable data={kpi.by_outcome} keyLabel="Outcome" filterKey="outcome" />
+            </section>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }
 
-/** Per-vertical activity: which of the three verticals is doing what, and
- * where a human still needs to look (open risks). */
-function VerticalCards({ verticals }: { readonly verticals: readonly VerticalSummary[] }) {
-  return (
-    <section class="overview-verticals" aria-label="per-vertical activity">
-      {verticals.map((v) => (
-        <VerticalCard key={v.key} v={v} />
-      ))}
-    </section>
-  );
-}
-
-function VerticalCard({ v }: { readonly v: VerticalSummary }) {
-  const hasRisk = v.open_risks > 0;
-  return (
-    <div class={`card overview-vertical overview-vertical-${v.key}`}>
-      <div class="overview-vertical-head">
-        <span class="overview-vertical-name">{t(`overview.vertical.${v.key}`)}</span>
-        {hasRisk ? (
-          <span class="overview-vertical-risk">
-            {t("overview.vertical.risks", { count: v.open_risks })}
-          </span>
-        ) : (
-          <span class="overview-vertical-clear muted">{t("overview.vertical.clear")}</span>
-        )}
-      </div>
-      <div class="overview-vertical-stats">
-        <span>
-          <b>{v.events}</b> {t("overview.vertical.events")}
-        </span>
-        <span>
-          <b>{v.auto_resolved}</b> {t("overview.vertical.auto")}
-        </span>
-        {v.monthly_savings > 0 ? (
-          <span class="overview-vertical-savings">{formatUsd(v.monthly_savings)}/mo</span>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function GuardChip({
-  label,
+function OverviewSection({
+  number,
   title,
-  ok,
+  description,
+  children,
 }: {
-  readonly label: string;
+  readonly number: string;
   readonly title: string;
-  readonly ok: boolean;
+  readonly description: string;
+  readonly children: preact.ComponentChildren;
 }) {
   return (
-    <span class={`overview-guard ${ok ? "ok" : "bad"}`} title={title}>
-      {label}
-    </span>
-  );
-}
-
-/** Trust-tier mix against the target band (leading indicator): a tier
- * drifting out of its band is an early warning, so it is flagged. */
-function TierBands({ tier }: { readonly tier: AutonomyPayload["tier"] }) {
-  const keys = ["t0", "t1", "t2"] as const;
-  return (
-    <section class="overview-tiers" aria-label="trust tier mix vs target band">
-      <span class="overview-guards-label">{t("overview.tier.label")}</span>
-      {keys.map((k) => {
-        const share = tier.mix[k] ?? 0;
-        const band = tier.bands[k];
-        const inBand = band ? share >= band[0] && share <= band[1] : true;
-        const bandText = band
-          ? `${Math.round(band[0] * 100)}-${Math.round(band[1] * 100)}%`
-          : "";
-        return (
-          <span
-            key={k}
-            class={`overview-tier ${inBand ? "ok" : "warn"}`}
-            title={bandText ? t("overview.tier.band", { range: bandText }) : ""}
-          >
-            {k.toUpperCase()} {Math.round(share * 100)}%
-          </span>
-        );
-      })}
-    </section>
-  );
-}
-
-/** Living rule catalog: how many rules are active, promoted recently, and
- * proposed by the discovery loop - the product's "rules stay fresh" story. */
-function LivingRules({ rules }: { readonly rules: AutonomyPayload["rules"] }) {
-  return (
-    <section class="overview-rules" aria-label="living rule catalog">
-      <span class="overview-guards-label">{t("overview.rules.label")}</span>
-      <span class="overview-rules-stat">
-        <b>{rules.active}</b> {t("overview.rules.active")}
-      </span>
-      <span class="overview-rules-stat">
-        <b>{rules.promoted_30d}</b> {t("overview.rules.promoted")}
-      </span>
-      <span class="overview-rules-stat muted">
-        <b>{rules.candidates_30d}</b> {t("overview.rules.candidates")}
-      </span>
-      <a class="overview-drill" href="#/rules">
-        {t("overview.drill.browse")}
-      </a>
+    <section class="overview-section">
+      <header class="overview-section-head">
+        <span class="overview-section-number" aria-hidden="true">{number}</span>
+        <div>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+      </header>
+      {children}
     </section>
   );
 }
@@ -623,16 +360,18 @@ interface KeyCount {
 function CountTable({
   data,
   keyLabel,
+  filterKey,
 }: {
   readonly data: Record<string, number>;
   readonly keyLabel: string;
+  readonly filterKey: "action" | "outcome";
 }) {
   const rows: readonly KeyCount[] = Object.entries(data)
     .sort(([, a], [, b]) => b - a)
     .map(([key, count]) => ({ key, count }));
 
   const columns: readonly Column<KeyCount>[] = [
-    { key: "k", header: keyLabel, render: (r) => r.key, cellClass: "mono" },
+    { key: "k", header: keyLabel, render: (r) => <a href={routeHref("audit", { params: { [filterKey]: r.key } })}>{r.key}</a>, cellClass: "mono" },
     { key: "c", header: "Count", render: (r) => r.count, cellClass: "num", headerClass: "num" },
   ];
 

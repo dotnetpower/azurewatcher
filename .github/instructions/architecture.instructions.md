@@ -177,6 +177,9 @@ domain vocabulary. Reuse them verbatim in code, docs, and identifiers.
   attaches to), never a substrate mutation.
 - **Operator console** terms:
   - `operator-console` - the conversational pull-direction surface (CLI / Teams / Slack / web).
+  - `Approvals` - the human-facing L2/L3 label for queued `hil` verdicts and the
+    `/hil-queue` surface. It improves operator comprehension without renaming the
+    canonical machine verdict, route, schema, type, event, or audit value.
   - `narrator` - the console LLM tier; a **translator** (natural language <-> tool calls),
     never a judge. Distinct from the T2 quality-gate reasoner.
   - `operator-conversation` - one bounded, RBAC-scoped, audited multi-turn exchange.

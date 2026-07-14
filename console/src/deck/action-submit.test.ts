@@ -128,4 +128,26 @@ describe("renderActionResult", () => {
       /not enabled/,
     );
   });
+
+  test("deny-override refusal has its own message, not the generic fallback", () => {
+    // Regression (critique #20): a 403 deny-override used to fall through to the
+    // "endpoint did not respond" default, misleading the operator.
+    const msg = renderActionResult({
+      submitted: false,
+      status: 403,
+      reason: "deny_override_forbidden",
+    });
+    expect(msg).toMatch(/already denied/);
+    expect(msg).not.toMatch(/did not respond/);
+  });
+
+  test("invalid principal has its own message", () => {
+    const msg = renderActionResult({
+      submitted: false,
+      status: 200,
+      reason: "invalid_principal",
+    });
+    expect(msg).toMatch(/couldn't identify your account/);
+    expect(msg).not.toMatch(/did not respond/);
+  });
 });
