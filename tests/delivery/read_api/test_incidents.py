@@ -9,9 +9,9 @@ from starlette.testclient import TestClient
 
 from fdai.core.rbac.resolver import GroupMapping, RoleResolver
 from fdai.delivery.read_api.auth import build_authenticator
-from fdai.delivery.read_api.routes.incident_projection import project_incidents
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
 from fdai.delivery.read_api.read_model import AuditItem, InMemoryConsoleReadModel
+from fdai.delivery.read_api.routes.incident_projection import project_incidents
 
 
 def _item(
@@ -59,7 +59,7 @@ def test_projection_groups_direct_and_event_anchored_history() -> None:
     summary = project_incidents(items)[0]
     assert summary.correlation_id == "corr-1"
     assert summary.history_count == 3
-    assert summary.title == "Rule storage.public-access"
+    assert summary.title == "storage.public-access"
     assert summary.severity == "high"
     assert summary.vertical == "change_safety"
     assert summary.status == "resolved"
