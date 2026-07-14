@@ -5,12 +5,12 @@
 # attached. The Static Web App is a passive HTTPS artifact host for the
 # `console/dist/` build output.
 #
-# NOTE: Deployment is gated by the P1-completion rule (see repo memory
-# `p1-w3-handoff.md` -> "no terraform apply before P1 completion"). This module is
-# scaffolded but NOT wired into `infra/main.tf` yet - a fork enables it
-# by adding `module "console" { source = "./modules/console/static-web-app" ... }`
-# once its Azure Static Web App region and (optional) custom domain are
-# decided.
+# NOTE: Wired into `infra/main.tf` behind the `enable_console` toggle
+# (default false, so a day-zero deploy stays headless). Enable per env by
+# setting `enable_console = true` (the `deploy-dev.yml` workflow exposes
+# this as the `deploy_console` input). Location is decoupled from
+# `var.region` via `console_region` because Azure Static Web Apps is not
+# offered in every region.
 #
 # Sub-module layout matches the existing convention
 # (`infra/modules/<category>/<flavor>/`), so the seam can grow a second

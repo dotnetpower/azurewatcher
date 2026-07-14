@@ -553,3 +553,21 @@ module "monitoring" {
   tags = local.tags
 }
 
+# -----------------------------------------------------------------------
+# Operator console (opt-in) - Azure Static Web App hosting the read-only
+# SPA (`console/dist/`). Layer 3 in app-shape.instructions.md. The SWA is
+# a passive HTTPS artifact host; the SPA issues no privileged calls, so no
+# Managed Identity is attached. `console_region` is decoupled from
+# var.region because Static Web Apps is not offered in every region.
+# The build output is uploaded out-of-band with the SWA deployment token.
+# -----------------------------------------------------------------------
+module "console" {
+  count  = var.enable_console ? 1 : 0
+  source = "./modules/console/static-web-app"
+
+  name                = "stapp-${var.workload}${local.full_suffix}"
+  location            = var.console_region
+  resource_group_name = module.resource_group.name
+  tags                = local.tags
+}
+

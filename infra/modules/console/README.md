@@ -9,26 +9,32 @@ Azure Static Web App module for the operator console
   Emits a `default_hostname` output that the fork wires into MSAL app
   registration redirect URIs.
 
-## Not-yet-wired
+## Wiring
 
-This module is scaffolded but not yet consumed by `infra/main.tf`.
-Deployment is gated by the P1-completion rule
-(`terraform apply` blocked until P1 baseline is verified - see repo
-memory `p1-w3-handoff.md`).
-
-A fork enables the module by adding:
+This module is wired into `infra/main.tf` behind the `enable_console`
+toggle (default `false`, so a day-zero deploy stays headless). Enable it
+per environment by setting `enable_console = true` (the `deploy-dev.yml`
+workflow exposes this as the `deploy_console` input). Because Azure
+Static Web Apps is not offered in every region (e.g. `koreacentral` is
+unsupported), the SWA location is decoupled from `var.region` via
+`console_region` (default `eastasia`).
 
 ```hcl
 module "console" {
+  count               = var.enable_console ? 1 : 0
   source              = "./modules/console/static-web-app"
   name                = "stapp-${var.workload}${local.full_suffix}"
-  location            = var.region   # or the nearest region where Static Web Apps
-                                     # publishes the Free tier
+  location            = var.console_region
   resource_group_name = module.resource_group.name
   # custom_hostname   = "console.<fork-domain>"   # optional
   tags                = local.tags
 }
 ```
+
+The `console_default_hostname` root output surfaces the
+`<name>.azurestaticapps.net` origin; wire it into MSAL app-registration
+redirect URIs. The `console/dist/` build output is uploaded out-of-band
+with the SWA deployment token (`az staticwebapp secrets list ...`).
 
 ## Read-only invariant
 

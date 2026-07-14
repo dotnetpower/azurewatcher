@@ -304,6 +304,27 @@ variable "alert_webhook_url" {
 }
 
 # ---------------------------------------------------------------------------
+# Operator console (layer 3) - Azure Static Web App hosting the read-only SPA.
+# Default false so a day-zero deploy stays headless; a fork/operator opts in.
+# ---------------------------------------------------------------------------
+variable "enable_console" {
+  description = "Provision the operator console module (Azure Static Web App hosting console/dist/). Default false so the day-zero deploy stays headless (control plane only)."
+  type        = bool
+  default     = false
+}
+
+variable "console_region" {
+  description = "Region for the console Static Web App. Azure Static Web Apps is NOT available in every region (e.g. koreacentral is unsupported), so this is decoupled from var.region and defaults to the nearest supported region."
+  type        = string
+  default     = "eastasia"
+
+  validation {
+    condition     = contains(["westus2", "centralus", "eastus2", "westeurope", "eastasia"], var.console_region)
+    error_message = "console_region must be an Azure Static Web Apps region: westus2, centralus, eastus2, westeurope, eastasia."
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Hardening knobs (root-exposed; default to the day-zero/dev posture so the
 # live env is unchanged, tighten for staging/prod via tfvars). See the
 # production-hardening checklist in docs/roadmap/deployment/deploy-and-onboard.md.

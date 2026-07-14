@@ -31,6 +31,10 @@ on:
         description: "Apply the plan (true) or plan-only (false, default)."
         type: boolean
         default: false
+      deploy_console:
+        description: "Provision the operator console Static Web App (enable_console)."
+        type: boolean
+        default: false
       production_core_image:
         description: "Prod-only signed image reference pinned by sha256 digest."
         type: string
@@ -73,6 +77,7 @@ jobs:
       TF_VAR_tenant_id: ${{ vars.AZURE_TENANT_ID }}
       TF_VAR_enable_private_networking: "true"
       TF_VAR_enable_private_postgres: ${{ inputs.environment == 'prod' }}
+      TF_VAR_enable_console: ${{ inputs.deploy_console }}
       TF_VAR_runner_vnet_id: ${{ vars.OPS_VNET_ID }}
       TF_VAR_runner_vnet_name: ${{ vars.OPS_VNET_NAME }}
       TF_VAR_ops_resource_group_name: ${{ vars.OPS_RESOURCE_GROUP_NAME }}

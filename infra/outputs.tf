@@ -145,3 +145,13 @@ output "monitoring_action_group_id" {
   description = "Action group id for Azure Monitor alerts (null when enable_monitoring = false)."
   value       = var.enable_monitoring ? module.monitoring[0].action_group_id : null
 }
+
+output "console_default_hostname" {
+  description = "Operator console Static Web App default hostname (e.g. `<name>.azurestaticapps.net`). Empty string when enable_console = false. Use as the origin for MSAL redirect URIs and as the target for the console/dist/ upload."
+  value       = length(module.console) > 0 ? module.console[0].default_hostname : ""
+}
+
+output "console_static_web_app_id" {
+  description = "Operator console Static Web App resource id (empty string when enable_console = false). Used to fetch the deployment token for the console/dist/ upload."
+  value       = length(module.console) > 0 ? module.console[0].static_web_app_id : ""
+}
