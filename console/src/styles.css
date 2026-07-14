@@ -271,6 +271,8 @@ a:hover {
   top: 0;
   align-self: start;
   height: calc(100vh - var(--header-height));
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid var(--border);
   background: var(--bg-elevated);
   z-index: 25;
@@ -296,6 +298,12 @@ body.deck-open {
   flex-direction: column;
   gap: 4px;
 }
+.left-rail-list-bottom {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
 .left-rail-item {
   position: relative; /* popover anchors here */
   padding: 0 8px;
@@ -316,6 +324,7 @@ body.deck-open {
   cursor: pointer;
   font: inherit;
   transition: color 0.15s, background 0.15s, border-color 0.15s;
+  text-decoration: none;
 }
 .left-rail-icon:hover {
   color: var(--fg);

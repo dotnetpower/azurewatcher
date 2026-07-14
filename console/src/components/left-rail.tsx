@@ -1,6 +1,6 @@
 /**
- * Left rail navigation - 5 group icons, each with a hover popover
- * revealing the sub-panels in that group.
+ * Left rail navigation - 5 group icons with hover popovers, plus global
+ * utilities pinned to the bottom of the rail.
  *
  * Design (see the proposal thread + operator-console.md):
  * - Rail is a persistent 72px column pinned to the left. Only 5 icons
@@ -26,8 +26,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { PANEL_GROUPS, panelsInGroup, type PanelGroup } from "../panels";
-import { groupIcon } from "./rail-icons";
+import { bottomRailPanels, PANEL_GROUPS, panelsInGroup, type PanelGroup } from "../panels";
+import { groupIcon, settingsIcon } from "./rail-icons";
 
 interface Props {
   readonly activePanelId: string;
@@ -163,7 +163,7 @@ export function LeftRail({ activePanelId }: Props) {
 
   return (
     <nav ref={navRef} class="left-rail" aria-label="Primary navigation">
-      <ul class="left-rail-list">
+      <ul class="left-rail-list left-rail-list-primary">
         {PANEL_GROUPS.map((g) => {
           const panels = panelsInGroup(g.id);
           if (panels.length === 0) return null;
@@ -229,6 +229,27 @@ export function LeftRail({ activePanelId }: Props) {
                   onMouseLeave={scheduleClose}
                 />
               ) : null}
+            </li>
+          );
+        })}
+      </ul>
+      <ul class="left-rail-list left-rail-list-bottom">
+        {bottomRailPanels().map((panel) => {
+          const active = panel.id === activePanelId;
+          return (
+            <li key={panel.id} class="left-rail-item">
+              <a
+                href={`#/${panel.id}`}
+                class={`left-rail-icon ${active ? "left-rail-icon-active" : ""}`}
+                aria-label={panel.subtitle ? `${panel.label} - ${panel.subtitle}` : panel.label}
+                aria-current={active ? "page" : undefined}
+                onClick={closeAll}
+              >
+                <span class="left-rail-glyph" aria-hidden="true">
+                  {panel.id === "settings" ? settingsIcon() : null}
+                </span>
+                <span class="left-rail-label">{panel.label}</span>
+              </a>
             </li>
           );
         })}

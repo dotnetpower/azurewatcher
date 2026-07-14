@@ -1,5 +1,5 @@
 /**
- * SVG glyphs for the LeftRail group icons.
+ * SVG glyphs for the LeftRail group and standalone icons.
  *
  * Single responsibility: given a group id, return a JSX SVG. No layout,
  * no interaction, no state. Icons intentionally use ``currentColor`` so
@@ -75,6 +75,15 @@ function IconOverview(): JSX.Element {
       <rect x="7" y="12" width="3" height="7" />
       <rect x="12" y="8" width="3" height="11" />
       <rect x="17" y="14" width="3" height="5" />
+    </svg>
+  );
+}
+
+export function settingsIcon(): JSX.Element {
+  return (
+    <svg {...iconProps}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
     </svg>
   );
 }

@@ -2,8 +2,9 @@
  * Console panel registry - the frontend half of the fork extension seam.
  *
  * The upstream console ships a deliberately minimal UI grouped by
- * operator intent (Now / History / Knowledge / Safety / Overview). A
- * fork that wants a vertical-specific surface (a FinOps cost dashboard,
+ * operator intent (Now / History / Knowledge / Safety / Overview), plus
+ * standalone global utilities pinned to the bottom of the rail. A fork
+ * that wants a vertical-specific surface (a FinOps cost dashboard,
  * a drift board, a DR-drill history) does NOT edit `app.tsx` or
  * `shell.tsx`. It appends a `ConsolePanel` to `EXTRA_PANELS` (or injects
  * one at build time) and, on the API side, registers a matching
@@ -58,6 +59,11 @@ export interface PanelProps {
  * this union in a fork without upstreaming the change. */
 export type PanelGroup = "now" | "history" | "knowledge" | "safety" | "overview";
 
+/** Optional visual placement for panels that are global utilities rather
+ * than members of an operator-intent flyout. Grouped placement is the
+ * default so fork panels keep their existing behavior. */
+export type PanelPlacement = "bottom";
+
 export interface PanelGroupMeta {
   readonly id: PanelGroup;
   /** Display label on the rail, e.g. "Now". */
@@ -88,6 +94,8 @@ export interface ConsolePanel {
   readonly subtitle?: string;
   /** Which of the 5 operator-intent groups this panel belongs to. */
   readonly group: PanelGroup;
+  /** Optional standalone rail placement. Omit to render in the group flyout. */
+  readonly placement?: PanelPlacement;
   /** The view component, rendered with {@link PanelProps}. */
   readonly component: ComponentType<PanelProps>;
 }
@@ -232,6 +240,7 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
     label: t("nav.panel.settings"),
     subtitle: t("nav.panelSub.settings"),
     group: "overview",
+    placement: "bottom",
     component: SettingsRoute,
   },
 ];
@@ -257,7 +266,12 @@ export function resolvePanels(): readonly ConsolePanel[] {
 
 /** Panels filtered to a single group, in registration order. */
 export function panelsInGroup(group: PanelGroup): readonly ConsolePanel[] {
-  return resolvePanels().filter((p) => p.group === group);
+  return resolvePanels().filter((p) => p.group === group && p.placement === undefined);
+}
+
+/** Standalone global utilities pinned to the bottom of the left rail. */
+export function bottomRailPanels(): readonly ConsolePanel[] {
+  return resolvePanels().filter((p) => p.placement === "bottom");
 }
 
 /** The default panel id: Overview - the approver's landing (health /

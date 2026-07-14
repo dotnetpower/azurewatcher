@@ -39,6 +39,8 @@ routes enforce `405` on mutating verbs
 
 The panel registry in [`src/panels.tsx`](src/panels.tsx) groups the complete
 operator surface by intent: Overview, Now, History, Knowledge, and Safety.
+Settings is a standalone global utility pinned to the bottom of the left rail,
+outside the five intent-group flyouts.
 Optional read projections, including workflow Processes, reports, ontology,
 inventory, pantheon, promotion gates, and LLM cost, render an explicit
 unavailable state when the composition root does not register their GET route.
@@ -71,7 +73,7 @@ on-demand. Command Deck requests are bound to one transcript session and are
 retired on close, clear, session switch, route navigation, or unmount, so a
 late answer cannot enter a different screen or agent conversation.
 
-The Overview > Settings panel changes presentation only. Theme, locale, and
+The standalone Settings panel changes presentation only. Theme, locale, and
 reduced-motion preferences are validated and stored in browser
 `localStorage`, with an in-memory fallback for the current tab when persistent
 storage is blocked. The runtime section exposes the configured read-API
@@ -437,8 +439,10 @@ matching seams:
    so the read-only invariant holds for extensions exactly as for core routes.
 2. **Console side** - add a `ConsolePanel` entry to `EXTRA_PANELS` in
    [`src/panels.tsx`](src/panels.tsx). The nav bar and router iterate the
-   registry, so a new panel appears with no other change. Panels fetch their
-   data through the GET-only `client.panel<T>(path)` helper.
+  registry, so a new panel appears with no other change. Panels use their
+  intent-group flyout by default; global utilities can opt into the standalone
+  bottom position with `placement: "bottom"`. Panels fetch their data through
+  the GET-only `client.panel<T>(path)` helper.
 
 Both halves ship a copy-paste reference that is **not** registered upstream
 (so the default UI stays minimal): `ExampleFinOpsPanel` in `panels.py` and
@@ -467,14 +471,16 @@ console/
     ├── panels.tsx      - panel registry (core panels + fork extension point)
     ├── styles.css      - minimal, no design-system dep
     ├── components/
-    │   └── shell.tsx   - top bar + nav (iterates the panel registry)
+    │   ├── left-rail.tsx - grouped flyouts + bottom global utilities
+    │   ├── rail-icons.tsx - group and standalone navigation glyphs
+    │   └── shell.tsx   - top bar + left rail shell
     └── routes/
         ├── dashboard.tsx
         ├── audit.tsx
         ├── hil-queue.tsx
         ├── processes.tsx        - Now > Processes dynamic ViewSpec renderer
         ├── rule-catalog.tsx     - Knowledge > Rules panel (explanation + affected resources)
-        ├── settings.tsx         - Overview > Settings local presentation controls
+        ├── settings.tsx         - standalone local presentation controls
         ├── example-finops.tsx  - reference fork panel (opt-in, not registered)
         └── login.tsx
 ```
