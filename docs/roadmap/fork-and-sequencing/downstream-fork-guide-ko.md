@@ -1,7 +1,7 @@
 ---
 title: Downstream Fork 가이드
 translation_of: downstream-fork-guide.md
-translation_source_sha: 5cdbaf63d0e182bb211ddfc30fc2f9dbd161493a
+translation_source_sha: 64dab231007c5cf67acb500f389a3a642a5ffb4e
 translation_revised: 2026-07-15
 ---
 
@@ -78,7 +78,7 @@ Fork에서 첫 `git commit` 전에 이것들을 하세요.
    아니라 fork 저장소를 가리켜야 함. 한 번 실수하면 고객 커밋이
    upstream으로 leak될 가능성이 있음.
 4. **Fork의 CI에서 secret scanning 활성화** - upstream의
-   `scripts/check-english-only.sh`, `scripts/check-punctuation.sh`,
+   `scripts/check-punctuation.sh`,
    `scripts/check-guids.sh`, `scripts/check-core-imports.sh`,
    `scripts/check-translations.sh` 재사용. **이것만으로는
    충분하지 않습니다.** `check-guids.sh`는 `8-4-4-4-12` hex 형식에만
@@ -306,7 +306,7 @@ git fetch upstream --tags
 git checkout main
 git merge upstream/main            # 또는 rebase - 팀 선택
 # Conflict 해결 (fork 규칙 준수 시 일반적으로 zero)
-./scripts/check-english-only.sh    # sanity gate
+./scripts/check-punctuation.sh     # sanity gate
 ./scripts/check-translations.sh
 uv run pytest -q tests/ fork/tests/  # 전체 스위트
 git push origin main

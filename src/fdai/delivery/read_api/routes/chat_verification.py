@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal
 
 from fdai.delivery.read_api.routes.chat_claims import (
     AtomicClaim,
     EvidenceManifest,
     verify_screen_claims,
+)
+from fdai.delivery.read_api.routes.chat_semantic import (
+    SemanticVerification,
+    SemanticVerifier,
+    semantic_premise,
+    unavailable_semantic_verification,
 )
 
 VerificationStatus = Literal["verified", "consistent", "corrected", "unverified"]
@@ -41,6 +48,7 @@ class AnswerVerification:
     claims: tuple[AtomicClaim, ...] = ()
     evidence_manifest: EvidenceManifest | None = None
     failed_claim_ids: tuple[str, ...] = ()
+    semantic: SemanticVerification | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -55,7 +63,44 @@ class AnswerVerification:
         }
         if self.evidence_manifest is not None:
             payload["evidence_manifest"] = self.evidence_manifest.to_dict()
+        if self.semantic is not None:
+            payload["semantic"] = self.semantic.to_dict()
         return payload
+
+
+async def attach_semantic_shadow(
+    verification: AnswerVerification,
+    *,
+    provisional: str,
+    view_context: Mapping[str, Any],
+    enabled: bool,
+    verifier: SemanticVerifier | None,
+    timeout_seconds: float = 1.0,
+) -> AnswerVerification:
+    """Attach semantic shadow telemetry without changing terminal authority."""
+
+    if (
+        not enabled
+        or verification.authority != "client_snapshot"
+        or verification.reason_code != "screen_no_checkable_claims"
+    ):
+        return verification
+    if verifier is None:
+        semantic = unavailable_semantic_verification("semantic_provider_not_configured")
+    elif not provisional.strip():
+        semantic = unavailable_semantic_verification("semantic_hypothesis_empty")
+    else:
+        try:
+            semantic = await asyncio.wait_for(
+                verifier.verify(
+                    premise=semantic_premise(view_context),
+                    hypothesis=provisional,
+                ),
+                timeout=timeout_seconds,
+            )
+        except TimeoutError:
+            semantic = unavailable_semantic_verification("semantic_timeout")
+    return replace(verification, semantic=semantic)
 
 
 def verify_answer(
@@ -309,4 +354,9 @@ def _text(value: Any, fallback: str) -> str:
     return _optional_text(value) or fallback
 
 
-__all__ = ["AnswerVerification", "VerificationStatus", "verify_answer"]
+__all__ = [
+    "AnswerVerification",
+    "VerificationStatus",
+    "attach_semantic_shadow",
+    "verify_answer",
+]

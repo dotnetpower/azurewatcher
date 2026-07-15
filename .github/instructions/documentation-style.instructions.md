@@ -30,7 +30,7 @@ user-facing doc.
   MUST open with a short orientation paragraph and use H2 sections.
 - **MAY**: subsystem `**/README.md` files under `src/`, `console/`, `infra/`,
   `rule-catalog/`, `site/`, etc. keep a lighter, task-oriented shape; the
-  ASCII-punctuation and English-only rules still apply.
+  ASCII-punctuation rule still applies (Korean prose is fine).
 
 ## Doc Tiers
 

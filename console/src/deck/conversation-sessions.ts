@@ -53,9 +53,54 @@ export function conversationIndexKeyFor(userScope: string): string {
 export interface ConversationSummary {
   readonly key: string;
   readonly label: string;
-  readonly kind: "general" | "agent";
+  readonly kind: "screen-default" | "screen-thread" | "agent";
   readonly agent?: string;
+  readonly originPath: string;
+  readonly originLabel: string;
+  readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+export interface ConversationGroups {
+  readonly current: readonly ConversationSummary[];
+  readonly other: readonly ConversationSummary[];
+  readonly agents: readonly ConversationSummary[];
+}
+
+export function screenConversationSummary(
+  key: string,
+  pathname: string,
+  routeLabel: string,
+  now: string,
+  previous?: ConversationSummary,
+): ConversationSummary {
+  return {
+    key,
+    label: routeLabel,
+    kind: "screen-default",
+    originPath: conversationPath(pathname),
+    originLabel: routeLabel,
+    createdAt: previous?.createdAt ?? now,
+    updatedAt: previous?.updatedAt ?? now,
+  };
+}
+
+export function manualConversationSummary(
+  key: string,
+  pathname: string,
+  routeLabel: string,
+  now: string,
+  label: string,
+): ConversationSummary {
+  return {
+    key,
+    label,
+    kind: "screen-thread",
+    originPath: conversationPath(pathname),
+    originLabel: routeLabel,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 /** Parse the tab-scoped index defensively. */
@@ -74,14 +119,34 @@ export function parseConversationIndex(raw: string | null): ConversationSummary[
     const record = item as Record<string, unknown>;
     if (typeof record.key !== "string" || record.key.length === 0) continue;
     if (typeof record.label !== "string" || record.label.length === 0) continue;
-    if (record.kind !== "general" && record.kind !== "agent") continue;
+    if (
+      record.kind !== "general" &&
+      record.kind !== "screen-default" &&
+      record.kind !== "screen-thread" &&
+      record.kind !== "agent"
+    ) continue;
     if (typeof record.updatedAt !== "string" || Number.isNaN(Date.parse(record.updatedAt))) {
       continue;
     }
+    const kind = record.kind === "general"
+      ? (isScreenConversationKey(record.key) ? "screen-default" : "screen-thread")
+      : record.kind;
+    const originPath = typeof record.originPath === "string"
+      ? conversationPath(record.originPath)
+      : legacyOriginPath(record.key, record.label);
+    const originLabel = typeof record.originLabel === "string" && record.originLabel.length > 0
+      ? record.originLabel
+      : originPath;
+    const createdAt = typeof record.createdAt === "string" && !Number.isNaN(Date.parse(record.createdAt))
+      ? record.createdAt
+      : record.updatedAt;
     out.push({
       key: record.key,
       label: record.label,
-      kind: record.kind,
+      kind,
+      originPath,
+      originLabel,
+      createdAt,
       updatedAt: record.updatedAt,
       ...(typeof record.agent === "string" && record.agent.length > 0
         ? { agent: record.agent }
@@ -89,6 +154,29 @@ export function parseConversationIndex(raw: string | null): ConversationSummary[
     });
   }
   return out;
+}
+
+/** Split the flat cache index into the three operator-facing sections. */
+export function conversationGroups(
+  conversations: readonly ConversationSummary[],
+  pathname: string,
+): ConversationGroups {
+  const currentPath = conversationPath(pathname);
+  const newestFirst = (items: readonly ConversationSummary[]) =>
+    [...items].sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
+  return {
+    current: newestFirst(
+      conversations.filter(
+        (item) => item.kind !== "agent" && item.originPath === currentPath,
+      ),
+    ),
+    other: newestFirst(
+      conversations.filter(
+        (item) => item.kind !== "agent" && item.originPath !== currentPath,
+      ),
+    ),
+    agents: newestFirst(conversations.filter((item) => item.kind === "agent")),
+  };
 }
 
 /** Deduplicate, sort newest-first, and cap the tab-scoped index. */
@@ -119,4 +207,24 @@ export function conversationTitle(prompt: string, maxLength: number = 44): strin
   const normalized = prompt.trim().replace(/\s+/g, " ");
   if (normalized.length <= maxLength) return normalized;
   return `${normalized.slice(0, Math.max(1, maxLength - 3)).trimEnd()}...`;
+}
+
+export function conversationLabelForPrompt(
+  summary: ConversationSummary,
+  prompt: string,
+  hasOperatorTurn: boolean,
+): string {
+  if (summary.agent) return summary.agent;
+  if (summary.kind === "screen-thread" && !hasOperatorTurn) {
+    return conversationTitle(prompt);
+  }
+  return summary.label;
+}
+
+function legacyOriginPath(key: string, label: string): string {
+  if (key.startsWith("screen:")) {
+    const scopeSeparator = key.indexOf(":", "screen:".length);
+    if (scopeSeparator >= 0) return conversationPath(key.slice(scopeSeparator + 1));
+  }
+  return label.startsWith("/") ? conversationPath(label) : "/";
 }

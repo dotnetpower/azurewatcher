@@ -13,6 +13,9 @@ from fdai.delivery.read_api.read_model import (
 from fdai.delivery.read_api.routes.panels import PanelQueryError
 
 _VALID_STATUSES: frozenset[str] = frozenset({"active", "resolved", "all"})
+_VALID_VERTICALS: frozenset[str] = frozenset(
+    {"resilience", "change_safety", "cost_governance", "unknown"}
+)
 
 
 class IncidentsPanel:
@@ -39,11 +42,17 @@ class IncidentsPanel:
         except ValueError as exc:
             raise PanelQueryError("limit MUST be an integer") from exc
         cursor = params.get("cursor") or None
+        vertical = (params.get("vertical") or "").replace("-", "_") or None
+        if vertical is not None and vertical not in _VALID_VERTICALS:
+            raise PanelQueryError(
+                "vertical MUST be one of: resilience, change-safety, cost-governance, unknown"
+            )
         try:
             page = await self._read_model.list_incidents(
                 status=requested_status,  # type: ignore[arg-type]
                 limit=clamp_limit(limit),
                 cursor=cursor,
+                vertical=vertical,
             )
         except ValueError as exc:
             raise PanelQueryError(str(exc)) from exc

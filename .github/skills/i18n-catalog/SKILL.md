@@ -1,15 +1,17 @@
 ---
 name: i18n-catalog
 description: |
-  FDAI i18n catalog workflow: L0 machine surfaces stay English forever,
-  L1 developer docs ship `.md` + `-ko.md` pairs under a SHA gate, L2
-  product surfaces (console, CLI, chatops, notifications, site)
+  FDAI i18n catalog workflow. FDAI is fully bilingual: English and Korean
+  are both allowed in any natural-language text anywhere in the repo (there
+  is no english-only gate). This skill covers the structured-localization
+  mechanisms: L1 developer docs ship `.md` + `-ko.md` pairs under a SHA
+  gate, L2 product surfaces (console, CLI, chatops, notifications, site)
   localize via English-source message catalogs with mandatory English
-  fallback, L3 the Bragi narrator renders in the operator's locale
-  over an English pipeline. Load this skill when adding, editing, or
-  reviewing localized strings, message catalogs (`messages.{en,ko}.json`),
-  bilingual doc pairs, or when a check-english-only / check-catalog-parity
-  / check-translations gate fails.
+  fallback, L3 the Bragi narrator renders in the operator's locale.
+  Machine records (audit / events / log keys / config keys) SHOULD stay
+  English for replay. Load this skill when adding, editing, or reviewing
+  localized strings, message catalogs (`messages.{en,ko}.json`), bilingual
+  doc pairs, or when a check-catalog-parity / check-translations gate fails.
 version: 1.0.0
 scope: repository
 ---
@@ -22,20 +24,24 @@ The short-form contract is
 the four-layer policy across the code, docs, product catalogs, and CI
 gates.
 
-## The Four Layers (recap)
+## The Layers (recap)
 
-| Layer | Surface | Rule |
-|-------|---------|------|
-| **L0** | code, identifiers, logs, error codes, audit entries, event payloads, generated PR bodies, Rego, config keys | **English forever.** Never localized. |
+FDAI is **fully bilingual** - Korean is allowed anywhere in natural-language
+text; there is no english-only gate. The layers below are **localization
+mechanisms** (and a machine-record recommendation), not permission gates.
+
+| Layer | Surface | Mechanism |
+|-------|---------|-----------|
+| **L0** | code, identifiers, logs, audit entries, event payloads, Rego, config keys | Korean is allowed, but machine records **SHOULD** stay English for replay / correlation. Identifiers / filenames / branch names MUST be ASCII. |
 | **L1** | root `README.md` + `docs/**/*.md` | English `.md` + `-ko.md` sibling with a SHA-parity gate. |
-| **L2** | operator console, CLI, chatops cards, notifications, docs site | English-source message catalogs + `ko` overlay, mandatory English fallback. |
-| **L3** | Bragi narrator | Renders in operator locale over an English pipeline. |
+| **L2** | operator console, CLI, chatops cards, notifications, docs site | Inline Korean, or English-source message catalogs + `ko` overlay with mandatory English fallback. |
+| **L3** | Bragi narrator | Renders in operator locale. |
 
 ## L1: Doc Pair (`.md` + `-ko.md`)
 
 Every user-facing markdown doc ships bilingual. Scope = root `README.md`
 + everything under `docs/**/*.md`. `.github/**` and `docs/internals/**`
-stay English-only.
+are English canonical (no required `-ko.md` pair).
 
 ### File pair convention
 
@@ -91,11 +97,11 @@ truth; Korean MAY lag.
 ### Runtime contract
 
 - **Bilingual source is allowed; catalogs are recommended.** A user-visible
-  string MAY be authored in Korean (or English) inline on an L2/L3 surface, or
-  as an English key in the catalog. Catalogs are **recommended** for reusable
-  strings because they give a mandatory English fallback and keep `en` / `ko`
-  in parity; inline Korean is permitted for surface-specific presentation text
-  (the `check-english-only` gate does not scan L2/L3 surface paths).
+  string MAY be authored in Korean (or English) inline anywhere, or as an
+  English key in the catalog. Catalogs are **recommended** for reusable strings
+  because they give a mandatory English fallback and keep `en` / `ko` in parity;
+  inline Korean is permitted for surface-specific presentation text (there is no
+  english-only gate).
 - **English fallback is MANDATORY** for catalog strings. A missing or empty
   `ko` key MUST render the English source, never blank / key-name / error.
 - Locale resolution order:
@@ -111,29 +117,23 @@ truth; Korean MAY lag.
   `ko` keys are blocked; `en` is the source of truth. `ko` MAY be a
   subset (fallback covers it).
 
-### English-only gate escape hatches
+### Language gates (there is no english-only gate)
 
-The `check-english-only` gate enforces English on the **L0 machine/audit
-substrate** only. Korean is permitted (no allowlist entry needed) on the
-L2/L3 human-facing surface paths, which the gate does not scan:
+Korean is allowed anywhere in natural-language text; **no CI check blocks it**
+(`scripts/check-english-only.sh` has been retired). The language-adjacent gates
+that remain are about tooling and structure, not about which language you write:
 
-- `console/src/**` (operator console L2 + command deck L3).
-- `cli/src/**` (CLI L2).
-- `src/fdai/delivery/read_api/routes/chat*.py` + `tests/delivery/read_api/test_chat*.py`
-  (server narrator surface L3).
+- **`check-punctuation.sh`** - ASCII punctuation only (no em-dash / en-dash /
+  smart quotes / ellipsis char / no-break space), everywhere including `-ko.md`
+  and `.ko.json`.
+- **`check-translations.sh`** - `foo.md` <-> `foo-ko.md` SHA parity for the L1
+  doc-pair convention.
+- **`check-catalog-parity.sh`** - `ko` keys are a subset of `en` keys.
 
-Plus the always-carved-out translation files and a small named allowlist at
-the top of [`scripts/check-english-only.sh`](../../../scripts/check-english-only.sh):
-
-- `messages.ko.json` (any surface) and `foo-ko.md` translations.
-- The Astro Starlight `ko` locale under `site/src/content/docs/ko/`.
-- A small named set of translation-tooling helper files.
-
-Korean that lives on the **L0 substrate** (a `.py` / `.ts` / `.yaml` / test
-outside those surface paths) still fails the gate - use `\uXXXX` escapes or
-structural assertions, or add a justified allowlist entry with a one-line
-reason. Never localize an L0 record (audit entry, event payload, log key,
-identifier) even inside an L2/L3 file.
+Two conventions to keep in mind (not gated): identifiers / filenames / branch
+names MUST be ASCII, and an L0 machine record (audit entry, event payload, log
+key, config key, identifier, serialized verdict) SHOULD stay English for replay
+and cross-fork search - localize the labels around it, not the record itself.
 
 ## L3: Bragi Narrator
 

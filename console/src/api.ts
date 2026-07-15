@@ -20,6 +20,14 @@ import type {
   IncidentStatusFilter,
   RcaView,
 } from "./types";
+import {
+  decodeRenderedReport,
+  decodeReportingRegistry,
+  decodeReportList,
+  type RenderedReportView,
+  type ReportingRegistry,
+  type ReportList,
+} from "./routes/reporting.model";
 
 export class ReadApiClient {
   #config: ConsoleConfig;
@@ -38,11 +46,27 @@ export class ReadApiClient {
     return this.#auth.getAuthorizationHeader();
   };
 
-  async listAudit(opts: { limit?: number; cursor?: string; correlationId?: string } = {}): Promise<AuditPage> {
+  async listAudit(opts: {
+    limit?: number;
+    cursor?: string;
+    correlationId?: string;
+    mode?: string;
+    tier?: string;
+    action?: string;
+    outcome?: string;
+    vertical?: string;
+    window?: string;
+  } = {}): Promise<AuditPage> {
     const params = new URLSearchParams();
     if (opts.limit !== undefined) params.set("limit", String(opts.limit));
     if (opts.cursor !== undefined) params.set("cursor", opts.cursor);
     if (opts.correlationId !== undefined) params.set("correlation_id", opts.correlationId);
+    if (opts.mode !== undefined) params.set("mode", opts.mode);
+    if (opts.tier !== undefined) params.set("tier", opts.tier);
+    if (opts.action !== undefined) params.set("action", opts.action);
+    if (opts.outcome !== undefined) params.set("outcome", opts.outcome);
+    if (opts.vertical !== undefined) params.set("vertical", opts.vertical);
+    if (opts.window !== undefined) params.set("window", opts.window);
     return decodeAuditPage(await this.#get<unknown>("/audit", params));
   }
 
@@ -50,11 +74,13 @@ export class ReadApiClient {
     status?: IncidentStatusFilter;
     limit?: number;
     cursor?: string;
+    vertical?: string;
   } = {}): Promise<IncidentPage> {
     const params = new URLSearchParams();
     if (opts.status !== undefined) params.set("status", opts.status);
     if (opts.limit !== undefined) params.set("limit", String(opts.limit));
     if (opts.cursor !== undefined) params.set("cursor", opts.cursor);
+    if (opts.vertical !== undefined) params.set("vertical", opts.vertical);
     return decodeIncidentPage(await this.#get<unknown>("/incidents", params));
   }
 
@@ -100,13 +126,34 @@ export class ReadApiClient {
    * surface not served here".
    */
   async autonomy(): Promise<AutonomyPayload> {
-    return this.#get<AutonomyPayload>("/kpi/autonomy");
+    return decodeAutonomyPayload(await this.#get<unknown>("/kpi/autonomy"));
   }
 
   async listHilQueue(opts: { limit?: number } = {}): Promise<HilQueuePage> {
     const params = new URLSearchParams();
     if (opts.limit !== undefined) params.set("limit", String(opts.limit));
     return decodeHilQueuePage(await this.#get<unknown>("/hil-queue", params));
+  }
+
+  async reports(): Promise<ReportList> {
+    return decodeReporting(decodeReportList, await this.#get<unknown>("/reports"));
+  }
+
+  async reportingRegistry(): Promise<ReportingRegistry> {
+    return decodeReporting(
+      decodeReportingRegistry,
+      await this.#get<unknown>("/reports/registry"),
+    );
+  }
+
+  async renderReport(
+    reportId: string,
+    variables: Readonly<Record<string, string>> = {},
+  ): Promise<RenderedReportView> {
+    return decodeReporting(
+      decodeRenderedReport,
+      await this.#get<unknown>(`/reports/${encodeURIComponent(reportId)}/render`, new URLSearchParams(variables)),
+    );
   }
 
   /**
@@ -156,6 +203,15 @@ export class ReadApiClient {
         `response body was not JSON (${response.headers.get("content-type") ?? "no content-type"})`,
       );
     }
+  }
+}
+
+function decodeReporting<T>(decode: (value: unknown) => T, value: unknown): T {
+  try {
+    return decode(value);
+  } catch (error) {
+    if (error instanceof ReadApiError) throw error;
+    throw new ReadApiError(502, error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -290,6 +346,120 @@ export function decodeDashboardKpi(value: unknown): DashboardKpi {
     by_tier: apiNumberRecord(root["by_tier"], "dashboard KPI.by_tier"),
     last_recorded_at: apiNullableString(root, "last_recorded_at", "dashboard KPI"),
   };
+}
+
+export function decodeAutonomyPayload(value: unknown): AutonomyPayload {
+  const root = apiRecord(value, "autonomy measurement");
+  const source = apiRecord(root["source"], "autonomy measurement.source");
+  const sourceKind = apiString(source, "kind", "autonomy measurement.source");
+  if (sourceKind !== "audit" && sourceKind !== "measurement" && sourceKind !== "synthetic") {
+    throw contractError("autonomy measurement.source.kind MUST be audit, measurement, or synthetic");
+  }
+  const success = apiRecord(root["success"], "autonomy measurement.success");
+  const leading = apiRecord(root["leading"], "autonomy measurement.leading");
+  const rules = apiRecord(root["rules"], "autonomy measurement.rules");
+  const tier = apiRecord(root["tier"], "autonomy measurement.tier");
+  const bands = apiRecord(tier["bands"], "autonomy measurement.tier.bands");
+  if (!Array.isArray(root["guards"])) {
+    throw contractError("autonomy measurement.guards MUST be an array");
+  }
+  if (!Array.isArray(root["verticals"])) {
+    throw contractError("autonomy measurement.verticals MUST be an array");
+  }
+  return {
+    synthetic: apiBoolean(root, "synthetic", "autonomy measurement"),
+    window_days: apiPositiveInteger(root, "window_days", "autonomy measurement"),
+    sample_size: apiNonNegativeInteger(root, "sample_size", "autonomy measurement"),
+    confidence: root["confidence"] === null
+      ? null
+      : apiRatio(root, "confidence", "autonomy measurement"),
+    source: {
+      name: apiString(source, "name", "autonomy measurement.source"),
+      kind: sourceKind,
+      as_of: apiNullableString(source, "as_of", "autonomy measurement.source"),
+    },
+    rules: {
+      active: apiNonNegativeInteger(rules, "active", "autonomy measurement.rules"),
+      candidates_30d: apiNonNegativeInteger(rules, "candidates_30d", "autonomy measurement.rules"),
+      promoted_30d: apiNonNegativeInteger(rules, "promoted_30d", "autonomy measurement.rules"),
+    },
+    success: {
+      auto_resolution_rate: decodeMetric(success["auto_resolution_rate"], "success.auto_resolution_rate"),
+      human_touchpoints_per_100: decodeMetric(success["human_touchpoints_per_100"], "success.human_touchpoints_per_100"),
+      mttr_seconds: decodeMetric(success["mttr_seconds"], "success.mttr_seconds"),
+      change_lead_time_seconds: decodeMetric(success["change_lead_time_seconds"], "success.change_lead_time_seconds"),
+      cost_per_resolved_event_usd: decodeMetric(success["cost_per_resolved_event_usd"], "success.cost_per_resolved_event_usd"),
+    },
+    leading: {
+      mixed_model_disagreement_rate: decodeMetric(leading["mixed_model_disagreement_rate"], "leading.mixed_model_disagreement_rate"),
+      verifier_failure_rate: decodeMetric(leading["verifier_failure_rate"], "leading.verifier_failure_rate"),
+      shadow_divergence_rate: decodeMetric(leading["shadow_divergence_rate"], "leading.shadow_divergence_rate"),
+    },
+    guards: root["guards"].map((raw, index) => {
+      const item = apiRecord(raw, `autonomy measurement.guards[${index}]`);
+      return {
+        key: apiString(item, "key", "autonomy guard"),
+        value: apiNumber(item, "value", "autonomy guard"),
+        baseline: apiNumber(item, "baseline", "autonomy guard"),
+        threshold: apiNumber(item, "threshold", "autonomy guard"),
+        ok: apiBoolean(item, "ok", "autonomy guard"),
+      };
+    }),
+    verticals: root["verticals"].map((raw, index) => {
+      const item = apiRecord(raw, `autonomy measurement.verticals[${index}]`);
+      return {
+        key: apiString(item, "key", "autonomy vertical"),
+        events: apiNonNegativeInteger(item, "events", "autonomy vertical"),
+        auto_resolved: apiNonNegativeInteger(item, "auto_resolved", "autonomy vertical"),
+        open_risks: apiNonNegativeInteger(item, "open_risks", "autonomy vertical"),
+        monthly_savings: apiNumber(item, "monthly_savings", "autonomy vertical"),
+      };
+    }),
+    tier: {
+      mix: decodeFiniteNumberRecord(tier["mix"], "autonomy measurement.tier.mix"),
+      bands: Object.fromEntries(
+        Object.entries(bands).map(([key, raw]) => {
+          if (!Array.isArray(raw) || raw.length !== 2 || raw.some((item) => typeof item !== "number" || !Number.isFinite(item))) {
+            throw contractError(`autonomy measurement.tier.bands.${key} MUST be two finite numbers`);
+          }
+          return [key, [raw[0], raw[1]] as const];
+        }),
+      ),
+    },
+    trend: Object.fromEntries(
+      Object.entries(apiRecord(root["trend"], "autonomy measurement.trend")).map(([key, raw]) => {
+        if (!Array.isArray(raw) || raw.some((item) => typeof item !== "number" || !Number.isFinite(item))) {
+          throw contractError(`autonomy measurement.trend.${key} MUST be finite numbers`);
+        }
+        return [key, raw];
+      }),
+    ),
+  };
+}
+
+function decodeMetric(value: unknown, label: string): AutonomyPayload["success"]["auto_resolution_rate"] {
+  const item = apiRecord(value, `autonomy measurement.${label}`);
+  const direction = apiString(item, "direction", `autonomy measurement.${label}`);
+  if (direction !== "higher" && direction !== "lower") {
+    throw contractError(`autonomy measurement.${label}.direction MUST be higher or lower`);
+  }
+  return {
+    value: apiNumber(item, "value", `autonomy measurement.${label}`),
+    baseline: apiNumber(item, "baseline", `autonomy measurement.${label}`),
+    direction,
+  };
+}
+
+function decodeFiniteNumberRecord(value: unknown, label: string): Record<string, number> {
+  const raw = apiRecord(value, label);
+  const result: Record<string, number> = {};
+  for (const [key, item] of Object.entries(raw)) {
+    if (typeof item !== "number" || !Number.isFinite(item)) {
+      throw contractError(`${label}.${key} MUST be a finite number`);
+    }
+    result[key] = item;
+  }
+  return result;
 }
 
 export function decodeScopeView(value: unknown): EffectiveScope {

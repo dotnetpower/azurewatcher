@@ -187,6 +187,30 @@ async def test_incident_cursor_rejects_status_mismatch() -> None:
         await model.list_incidents(status="all", cursor=first.next_cursor)
 
 
+async def test_incident_cursor_rejects_vertical_mismatch() -> None:
+    model = InMemoryConsoleReadModel()
+    for index in range(2):
+        model.record_audit_entry(
+            {
+                "correlation_id": f"corr-{index}",
+                "vertical": "change_safety",
+                "recorded_at": f"2026-07-14T10:0{index}:00+00:00",
+            }
+        )
+    first = await model.list_incidents(
+        status="all",
+        vertical="change_safety",
+        limit=1,
+    )
+    assert first.next_cursor is not None
+    with pytest.raises(ValueError, match="cursor"):
+        await model.list_incidents(
+            status="all",
+            vertical="resilience",
+            cursor=first.next_cursor,
+        )
+
+
 @pytest.fixture
 def dev_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("FDAI_READ_API_DEV_MODE", "1")
@@ -246,6 +270,26 @@ def test_incidents_route_rejects_bad_query(dev_env: None) -> None:
     assert client.get("/incidents?status=closed").status_code == 400
     assert client.get("/incidents?limit=NaN").status_code == 400
     assert client.get("/incidents?cursor=bad").status_code == 400
+    assert client.get("/incidents?vertical=other").status_code == 400
+
+
+def test_incidents_route_filters_vertical_before_limit(dev_env: None) -> None:
+    del dev_env
+    client, read_model = _client()
+    read_model.record_audit_entry(
+        {"event_id": "target", "correlation_id": "corr-target", "vertical": "resilience"}
+    )
+    for index in range(30):
+        read_model.record_audit_entry(
+            {
+                "event_id": f"other-{index}",
+                "correlation_id": f"corr-other-{index}",
+                "vertical": "change_safety",
+            }
+        )
+    response = client.get("/incidents?status=all&limit=25&vertical=resilience")
+    assert response.status_code == 200
+    assert [item["correlation_id"] for item in response.json()["items"]] == ["corr-target"]
 
 
 def test_correlation_filtered_audit_and_default_trace(dev_env: None) -> None:

@@ -20,6 +20,8 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+
+const INCIDENT_DETAIL_ID = "incident-detail";
 import { routeHref } from "../router";
 
 interface Props {
@@ -51,12 +53,14 @@ export function IncidentsRoute({ client }: Props) {
     setState({ status: "loading" });
     setPageError(null);
     setLoadingMore(false);
-    void client.listIncidents({ status: filter, limit: PAGE_SIZE }).then(
+    void client.listIncidents({
+      status: filter,
+      limit: PAGE_SIZE,
+      ...(verticalFilter ? { vertical: verticalFilter } : {}),
+    }).then(
       (page) => {
         if (rosterGeneration.current !== generation) return;
-        const items = verticalFilter
-          ? page.items.filter((item) => item.vertical.replaceAll("_", "-") === verticalFilter)
-          : page.items;
+        const items = page.items;
         const first = items[0]?.correlation_id ?? null;
         setState({
           status: "ready",
@@ -119,6 +123,7 @@ export function IncidentsRoute({ client }: Props) {
         status: requestedFilter,
         limit: PAGE_SIZE,
         cursor,
+        ...(verticalFilter ? { vertical: verticalFilter } : {}),
       });
       if (rosterGeneration.current !== generation || filter !== requestedFilter) return;
       setState((current) => current.status === "ready"
@@ -127,8 +132,7 @@ export function IncidentsRoute({ client }: Props) {
             data: {
               items: [
                 ...current.data.items,
-                ...page.items.filter((item) =>
-                  !verticalFilter || item.vertical.replaceAll("_", "-") === verticalFilter),
+                ...page.items,
               ],
               nextCursor: page.next_cursor,
             },
@@ -275,6 +279,8 @@ function IncidentBody({
         empty={t("incidents.empty")}
         onRowClick={(item) => onSelect(item.correlation_id)}
         isRowActive={(item) => item.correlation_id === selectedId}
+        rowActionLabel={(item) => t("incidents.selectNamed", { title: item.title })}
+        rowActionControls={INCIDENT_DETAIL_ID}
       />
       {pageError ? (
         <p class="state-error-text" role="alert">
@@ -308,8 +314,8 @@ function IncidentDetail({
   readonly history: AsyncState<readonly AuditItem[]>;
 }) {
   return (
-    <section class="stack-section">
-      <h3 class="section-title">{t("incidents.detail")}</h3>
+    <section id={INCIDENT_DETAIL_ID} class="stack-section" aria-labelledby={`${INCIDENT_DETAIL_ID}-title`}>
+      <h3 id={`${INCIDENT_DETAIL_ID}-title`} class="section-title">{t("incidents.detail")}</h3>
       <KpiGrid>
         <KpiCard label={t("incidents.correlation")} value={<span class="mono small">{incident.correlation_id}</span>} />
         <KpiCard label={t("incidents.opened")} value={<span class="mono small">{incident.opened_at}</span>} />

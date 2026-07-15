@@ -24,12 +24,23 @@ async def test_render_shape_and_synthetic_flag() -> None:
     assert out["synthetic"] is True
     assert out["sample_size"] == 1284
     assert out["confidence"] == 0.95
+    assert out["source"] == {
+        "name": "synthetic-dev-harness",
+        "kind": "synthetic",
+        "as_of": "2026-07-15T00:00:00Z",
+    }
     assert out["rules"] == {"active": 47, "candidates_30d": 6, "promoted_30d": 3}
     assert set(out["success"]) == {
         "auto_resolution_rate",
         "human_touchpoints_per_100",
         "mttr_seconds",
         "change_lead_time_seconds",
+        "cost_per_resolved_event_usd",
+    }
+    assert set(out["leading"]) == {
+        "mixed_model_disagreement_rate",
+        "verifier_failure_rate",
+        "shadow_divergence_rate",
     }
     assert {g["key"] for g in out["guards"]} == {
         "cfr",
@@ -79,3 +90,14 @@ async def test_render_derives_verticals_and_savings_from_audit() -> None:
     # Tier mix is normalized over the 4 tiered rows (3x t0, 1x t2).
     assert out["tier"]["mix"]["t0"] == 0.75
     assert out["tier"]["mix"]["t2"] == 0.25
+
+
+async def test_injected_measurement_source_is_not_marked_synthetic() -> None:
+    panel = AutonomyMeasurementPanel(
+        InMemoryConsoleReadModel(),
+        measurement={
+            "source": {"name": "production-measurement", "kind": "measurement", "as_of": None}
+        },
+    )
+    out = await panel.render(params={})
+    assert out["synthetic"] is False

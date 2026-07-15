@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: a1acdf3e0e544b4ee50312a47aebf90855e55a03
+translation_source_sha: 5c013eeb4f35dcdb56fe7a19039e5d7a1eaa87e4
 translation_revised: 2026-07-15
 ---
 
@@ -451,6 +451,14 @@ class ConversationSession:
   `Escape`만 이를 닫음. L3 응답 언어는 현재 turn을 따름: console display
   locale이 영어여도 한국어 prompt에는 한국어로 답변. 그 외에는 operator가
   설정한 locale이 응답 언어를 제어.
+  탐색 목록은 대화를 **현재 화면**, **다른 화면**, **에이전트**로 그룹화.
+  각 pathname은 제거할 수 없는 기본 화면 대화 하나를 소유. **새 대화**는 현재
+  pathname에 대한 빈 임시 thread를 만들고, 첫 operator turn을 보낸 뒤에만 해당
+  prompt를 정규화한 제목으로 index에 등록. 첫 turn 전에 닫거나 다른 화면으로
+  이동하면 빈 thread를 폐기. 화면 thread의 origin pathname과 label은 생성 후
+  변경하지 않음. **다른 화면**의 thread를 선택하면 transcript를 복원하기 전에
+  해당 origin으로 이동하므로 이전 turn이 다른 화면 evidence와 결합되지 않음.
+  Agent 대화는 별도 그룹과 명시적 agent scope를 유지.
 - **Week 1**: `operator_memory` (parallel session이
   [`src/fdai/core/operator_memory/`](../../../src/fdai/core/operator_memory)
   아래 이미 scaffolded)가 **out-of-band 오퍼레이터 선호도**의 store가
@@ -919,6 +927,12 @@ evidence_resolving -> generating -> provisional -> verifying
 - `unverified`는 verification이 완료되지 않았음을 의미하며 `verified`와 같은
   trust check를 표시하면 안 됨.
 
+Delegate된 agent의 provisional prose가 `consistent`로 유지되면 reply header는
+해당 agent를 유지. Verification이 prose를 `corrected` 또는 `unverified` terminal
+answer로 교체하면 header는 최종 narrator인 **Bragi**로 돌아감. 원래
+`primary_agent`는 delegation 및 trace metadata에 보존하지만 verifier가 생성한
+text의 작성자로 표시하지 않음.
+
 모든 event는 단조 증가 `seq`를 가지며 answer를 바꾸는 event는 단조 증가
 `revision`도 가짐. Client는 stale revision과 terminal event 이후 event를 무시.
 Correction은 기존 turn id의 text를 교체해 conversation 순서와 accessibility
@@ -948,6 +962,12 @@ state, 정확한 snapshot evidence reference를 기록. `evidence_manifest`는 r
 capture time, completeness, source path, canonical content hash를 기록하며 전체
 snapshot 복사본이 아니라 claim이 실제 사용한 entry만 포함.
 
+Bounded-scope 추출은 `no`, `none`, `없습니다` 또는 "이 화면에 표시되지 않음"처럼
+명시적인 부재 표현만 처리. `all`, `always`, `모든`, `전부` 같은 positive universal
+prose는 qualitative 표현으로 유지하고 선택적 semantic shadow verifier에 맡김.
+Universal 단어 하나만으로 일반 화면 설명을 deterministic global-scope claim으로
+바꾸지 않음.
+
 추출된 모든 claim은 모호하지 않은 snapshot entry의 지원을 받아야 함. 모두
 통과하면 answer는 `consistent` 유지 (`verified` 아님: browser snapshot은 독립된
 server projection이 아니기 때문). Check 가능한 claim이 없으면
@@ -967,6 +987,22 @@ accounting도 독립 테스트. 이 gate는 qualitative prose의 semantic verifi
 `screen_no_checkable_claims`와 함께 `consistent`로 표시하고 `verified`로 표시하지
 않음. 전체 자연어 claim에 대해 9.5-level coverage를 주장하려면 measured semantic
 entailment leg와 더 큰 labeled corpus가 여전히 필요.
+
+Settings panel은 **Experimental semantic verification** toggle을 노출. Browser-local,
+기본 off이며 각 chat request에 verification preference로 전달. Toggle 활성화가
+availability를 의미하지는 않음: fork가 `local-nli` optional dependency를 설치하고
+hash-pinned ONNX model/tokenizer 경로를 제공한 경우에만 read API가 semantic leg를
+실행. Package 또는 artifact 누락, load 실패, inference timeout은 `unavailable`로
+보고하며 deterministic terminal decision을 지연하거나 downgrade하지 않음.
+
+첫 semantic leg는 shadow-only이며 subtractive. Qualitative prose 또는 deterministic
+claim target이 없는 screen answer만 평가하고 `entailed`, `contradicted`, `unknown`,
+`unavailable` metadata를 emit하며, `unverified`를 `consistent`로 또는 `consistent`를
+`verified`로 바꾸면 안 됨. 첫 enabled request 이후 model을 lazy-load하므로 disabled
+user와 scale-to-zero startup은 model cost를 지불하지 않음. Package/model은 제거
+가능 상태 유지: 후속 measured issue에서 frozen English/Korean corpus, p95 latency,
+memory/cold-start delta, contradiction catch rate, unknown rate, clean-answer false-positive
+rate를 기준으로 promotion 또는 제거를 결정.
 
 #### 13.4.3 실시간 관찰 계약
 
@@ -1043,6 +1079,25 @@ correlation으로 확인될 때만 해당 행을 연결할 수 있습니다. 모
 가져옵니다. 모든 route는 Reader gate를 적용하고 mutation verb에 `405`를
 반환합니다. 패널은 Audit 및 Trace 링크를 제공하지만 execute, approve, rollback
 버튼은 제공하지 않습니다. 이러한 작업은 remediation PR 및 ChatOps에 유지됩니다.
+
+목록은 optional canonical `vertical` filter를 허용하며 audit route는 `mode`,
+`tier`, `action`, `outcome`, `vertical`, bounded `window=<n>d` filter를 cursor
+pagination 전에 서버에서 적용합니다. 따라서 분석 deep link는 browser 첫 page만
+filter하지 않고 전체 filtered result set을 검색합니다. Cursor는 incident status와
+vertical에 binding되므로 두 filter 중 하나를 바꾸면 stale cursor가 무효화됩니다.
+
+SPA는 incident 목록에서 native table semantics를 유지합니다. 첫 cell에는 selection
+button이 있고 선택된 각 row는 `aria-selected`를 노출하며 control은
+`aria-controls`로 incident detail region을 가리킵니다. 알 수 없는 top-level URL은
+canonical `/overview`로 replace되므로 같은 화면이 typo path 아래 여러 conversation
+cache를 만들지 않습니다.
+
+Overview는 autonomy measurement가 없거나 malformed여도 모든 필수 분석 section을
+계속 표시합니다. Section을 제거하거나 0으로 추정하지 않고 명시적 unavailable
+상태를 렌더링합니다. Evidence가 있으면 success surface는 해결 event당 cost,
+mixed-model disagreement, verifier failure, shadow divergence, measurement window,
+sample size, confidence, named source를 포함합니다. **이력 > 리포트**는 선언형
+reporting catalog와 server-owned widget evidence를 렌더링합니다.
 
 계약 규칙 (`console/src/routes/view-contract.test.ts` 가 강제):
 

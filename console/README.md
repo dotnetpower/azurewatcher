@@ -126,8 +126,9 @@ on-demand. Command Deck requests are bound to one transcript session and are
 retired on close, clear, session switch, route navigation, or unmount, so a
 late answer cannot enter a different screen or agent conversation.
 
-The standalone Settings panel changes presentation only. Theme, locale, and
-reduced-motion preferences are validated and stored in browser
+The standalone Settings panel changes presentation plus opt-in chat verification behavior.
+Theme, locale, reduced-motion, and experimental semantic-verification preferences are
+validated and stored in browser
 `localStorage`, with an in-memory fallback for the current tab when persistent
 storage is blocked. The runtime section exposes the configured read-API
 endpoint for diagnostics. Settings never call the read API, mutate managed

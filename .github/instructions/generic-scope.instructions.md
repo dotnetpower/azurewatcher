@@ -74,6 +74,49 @@ To keep examples concrete without leaking anything, use synthetic placeholders:
 - **Contribution back**: reusable, generalizable improvements flow upstream as PRs that are
   scrubbed of all customer values first; bespoke logic stays in the fork.
 
+## Editable vs Locked (agent-facing boundary)
+
+An agent working **in a fork** MUST know, before it edits anything, whether a path
+is fork-owned or upstream-locked. The single machine-readable source of truth for the
+locked set is [scripts/lib/framework-surface.txt](../../scripts/lib/framework-surface.txt)
+(consumed by both `check-protected-paths.sh` and the signed integrity manifest). The
+rule of thumb: **if a path is listed there, it is LOCKED; otherwise it is editable.**
+
+**LOCKED - a fork MUST NOT add, modify, or delete files here** (customize by DI instead):
+
+| Locked path | What it is |
+|-------------|------------|
+| `src/fdai/core/` | control loop - never fork-edited |
+| `src/fdai/composition.py` (and `src/fdai/composition/`) | the upstream composition root |
+| `src/fdai/shared/providers/` | injectable Protocol seam **definitions** |
+| `src/fdai/shared/contracts/` | versioned event / action / rule / ontology types |
+| `src/fdai/agents/` | the 15-agent pantheon (role bindings fork-locked) |
+| `rule-catalog/schema/` | catalog schemas (add entries, never widen a schema) |
+| `.github/instructions/` | this normative rule set |
+
+**EDITABLE - a fork owns these freely**:
+
+- Its own `fork/` package: `composition_root.py` (wraps upstream `default_container()` +
+  `dataclasses.replace()`), `entry.py`, `adapters/`, `rules/`, `overlays/`.
+- **Concrete implementations** of any `shared/providers/` Protocol (the definition is
+  locked; supplying an implementation and binding it at the fork composition root is the
+  intended path): `LlmBindings`, `OperatorMemoryStore`, `HilRejectMaterializer`,
+  `WebSearchProvider`, `HilChannel`, `ScopeResolver`, `CriticModel`/`JudgeModel`,
+  delivery publishers, console `ReadPanel`, distillation seams.
+- **Catalog and policy additions by entry** (schema unchanged): rule-catalog rules,
+  ontology `ObjectType`/`LinkType`, `ActionType` entries, Rego risk overlays.
+- **Contract extension by subclassing** `ContractBase` in the fork's own package - never
+  by editing a module under `src/fdai/shared/contracts/`.
+- `pyproject.toml` (a fork MAY add its own package + entry point).
+
+**The distinction in one line**: changing a **definition** (Protocol signature, core logic,
+schema shape, agent role binding) is LOCKED; **adding an implementation or data entry** that
+conforms to an existing definition is EDITABLE. If you feel you must edit a locked file to
+get something done, the seam you need either already exists (find it) or is a genuine
+upstream gap (open an upstream issue or ship a fork-local wrapper) - see
+[downstream-fork-guide.md § 3](../../docs/roadmap/fork-and-sequencing/downstream-fork-guide.md) and the
+`fork-customization` skill.
+
 ## Enforcement
 
 Do not rely on human review alone. Gate every change:
@@ -93,6 +136,25 @@ Do not rely on human review alone. Gate every change:
   block mode with `FDAI_FORK=1`, a `.fdai-fork` marker, or `git config fdai.fork true`.
   Runs in the pre-push hook and the `protected-paths` CI job; `.github/CODEOWNERS`
   is its review-time counterpart.
+- **Signed integrity manifest** (offline, tamper-evident): `scripts/check-integrity.sh`
+  verifies every framework-surface file against
+  [security/integrity/manifest.json](../../security/integrity/manifest.json) (SHA-256 map,
+  Ed25519-signed by upstream; the public key ships in the tree). It runs fully offline
+  (openssl + python3, no network). A **signature** failure is always an error (a forged
+  manifest - a fork cannot mint one without the upstream private key); a **content**
+  mismatch is a hard fail in fork mode, advisory upstream. Wired into `scripts/verify.sh`
+  as the `framework-integrity` gate, the **pre-push hook** (blocks a fork push that edits
+  the surface), and **pre-commit** (runs only when a surface path changes). This is
+  tamper-**evidence**, not tamper-**proof** (a fork owner still controls their runtime),
+  so it complements - not replaces - the guard and CODEOWNERS.
+- **Auto re-sign (upstream signer only)**: the `.githooks/pre-commit` hook runs
+  `scripts/resign-if-surface-staged.sh`, which re-signs the manifest and stages it into
+  the same commit **whenever a framework-surface file is staged AND the upstream private
+  signing key is present** (`secrets/integrity-signing-key.pem` or `$FDAI_INTEGRITY_KEY`).
+  This removes the manual "re-sign before release" chore for the maintainer. It is a
+  no-op in a fork (no private key), so the fork-facing tamper-evidence is unchanged - a
+  fork still cannot mint a verifying manifest. Bypass with `FDAI_SKIP_RESIGN=1`. (Caveat:
+  the signer hashes the working tree, so avoid partial staging of a surface file.)
 - **Pre-commit hook** running the same checks locally so violations never reach a push.
 - Checks run on the **full diff and on new/changed fixtures**, and fail the build on match.
 

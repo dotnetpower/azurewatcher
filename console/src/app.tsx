@@ -34,9 +34,7 @@ const CommandDeck = lazy(async () => {
 
 function currentPanelId(): string {
   if (typeof window === "undefined") return DEFAULT_PANEL_ID;
-  const route = currentRoute();
-  const known = resolvePanels().some((panel) => panel.id === route.panelId);
-  return known ? route.panelId : DEFAULT_PANEL_ID;
+  return currentRoute().panelId;
 }
 
 export function App() {
@@ -49,7 +47,7 @@ export function App() {
   useEffect(() => {
     migrateLegacyHash();
     const route = currentRoute();
-    if (window.location.pathname === "/" || !resolvePanels().some((p) => p.id === route.panelId)) {
+    if (!route.matched) {
       window.history.replaceState(null, "", panelPath(DEFAULT_PANEL_ID));
     }
     const syncRoute = () => {
@@ -126,7 +124,9 @@ export function App() {
           </Suspense>
         </PanelErrorBoundary>
       </Shell>
-      <CommandDeck />
+      <Suspense fallback={null}>
+        <CommandDeck />
+      </Suspense>
     </ViewContextProvider>
   );
 }

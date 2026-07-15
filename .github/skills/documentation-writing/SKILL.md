@@ -199,7 +199,8 @@ and `~합니다` in the same bullet list.
   quotes, or no-break space. See
   [`../../instructions/language.instructions.md`](../../instructions/language.instructions.md).
   CI: `scripts/check-punctuation.sh`.
-- English-only outside `-ko.md`. See same file. CI: `scripts/check-english-only.sh`.
+- Korean is allowed in docs (FDAI is fully bilingual); there is no english-only
+  gate. See same file.
 - Bilingual pair: every `docs/**/*.md` and root `README.md` has a matching
   `-ko.md` with valid front-matter and current `translation_source_sha`.
   CI: `scripts/check-translations.sh`. Auto-refresh:
@@ -245,7 +246,6 @@ Before merging a PR that touches a `.md` file:
 
     ```bash
     bash scripts/check-punctuation.sh
-    bash scripts/check-english-only.sh
     bash scripts/check-translations.sh
     ```
 

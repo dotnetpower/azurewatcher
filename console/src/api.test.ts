@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   decodeAuditPage,
+  decodeAutonomyPayload,
   decodeDashboardKpi,
   decodeHilQueuePage,
   decodeIncidentPage,
@@ -9,6 +10,40 @@ import {
 } from "./api";
 
 describe("read API response decoders", () => {
+  const metric = { value: 0.1, baseline: 0.2, direction: "lower" } as const;
+  const autonomy = {
+    synthetic: false,
+    window_days: 30,
+    sample_size: 100,
+    confidence: 0.95,
+    source: { name: "measurement-pipeline", kind: "measurement", as_of: null },
+    rules: { active: 10, candidates_30d: 2, promoted_30d: 1 },
+    success: {
+      auto_resolution_rate: { ...metric, direction: "higher" },
+      human_touchpoints_per_100: metric,
+      mttr_seconds: metric,
+      change_lead_time_seconds: metric,
+      cost_per_resolved_event_usd: metric,
+    },
+    leading: {
+      mixed_model_disagreement_rate: metric,
+      verifier_failure_rate: metric,
+      shadow_divergence_rate: metric,
+    },
+    guards: [{ key: "rollback", value: 0.01, baseline: 0.02, threshold: 0.02, ok: true }],
+    verticals: [{ key: "resilience", events: 1, auto_resolved: 1, open_risks: 0, monthly_savings: 0 }],
+    tier: { mix: { t0: 1 }, bands: { t0: [0.7, 0.8] } },
+    trend: { auto_resolution_rate: [0.1, 0.2] },
+  };
+
+  test("decodes complete autonomy evidence and rejects partial KPI contracts", () => {
+    expect(decodeAutonomyPayload(autonomy).source.name).toBe("measurement-pipeline");
+    expect(() => decodeAutonomyPayload({
+      ...autonomy,
+      success: { ...autonomy.success, cost_per_resolved_event_usd: undefined },
+    })).toThrow(ReadApiError);
+  });
+
   test("reject malformed always-on payloads with a uniform contract error", () => {
     for (const decode of [decodeAuditPage, decodeDashboardKpi, decodeHilQueuePage, decodeIncidentPage]) {
       expect(() => decode({})).toThrow(ReadApiError);

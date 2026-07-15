@@ -29,6 +29,8 @@ import {
 import {
   AgentOrganization,
   ExecutiveStatus,
+  LeadingIndicators,
+  MeasurementUnavailable,
   SuccessMetrics,
 } from "./dashboard.executive";
 import { ExecutiveDecisionGrid } from "./dashboard.assurance";
@@ -82,7 +84,7 @@ export function DashboardRoute({ client }: Props) {
         try {
           autonomy = await client.autonomy();
         } catch (err) {
-          if (!(err instanceof ReadApiError && (err.status === 404 || err.status === 501)))
+          if (!(err instanceof ReadApiError && (err.status === 404 || err.status === 501 || err.status === 502)))
             throw err;
         }
         if (!cancelled) setState({ status: "ready", data: { kpi, finops, gates, autonomy } });
@@ -239,19 +241,23 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
         policyEscapes={policyEscapes}
       />
 
-      {autonomy ? (
-        <OverviewSection
-          number="1"
-          title={t("overview.section.outcomes")}
-          description={t("overview.section.outcomesHint")}
-        >
+      <OverviewSection
+        number="1"
+        title={t("overview.section.outcomes")}
+        description={t("overview.section.outcomesHint")}
+      >
+        {autonomy ? (
+          <div class="stack">
           <SuccessMetrics
             success={autonomy.success}
             synthetic={autonomy.synthetic}
             windowDays={autonomy.window_days}
+            sourceName={autonomy.source.name}
           />
-        </OverviewSection>
-      ) : null}
+            <LeadingIndicators leading={autonomy.leading} sourceName={autonomy.source.name} />
+          </div>
+        ) : <MeasurementUnavailable />}
+      </OverviewSection>
 
       <OverviewSection
         number="2"
@@ -268,35 +274,39 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
         />
       </OverviewSection>
 
-      {autonomy ? (
-        <OverviewSection
-          number="3"
-          title={t("overview.section.organization")}
-          description={t("overview.section.organizationHint")}
-        >
+      <OverviewSection
+        number="3"
+        title={t("overview.section.organization")}
+        description={t("overview.section.organizationHint")}
+      >
+        {autonomy ? (
           <AgentOrganization
             autonomy={autonomy}
             hilPending={kpi.hil_pending}
           />
-        </OverviewSection>
-      ) : null}
+        ) : <MeasurementUnavailable />}
+      </OverviewSection>
 
-      {autonomy ? (
-        <OverviewSection
-          number="4"
-          title={t("overview.section.verticals")}
-          description={t("overview.section.verticalsHint")}
-        >
+      <OverviewSection
+        number="4"
+        title={t("overview.section.verticals")}
+        description={t("overview.section.verticalsHint")}
+      >
+        {autonomy ? (
           <VerticalCards verticals={autonomy.verticals} />
-        </OverviewSection>
-      ) : null}
+        ) : <MeasurementUnavailable />}
+      </OverviewSection>
 
       {autonomy ? (
         <section class="overview-operating-signals" aria-label={t("overview.operations.label")}>
           <TierBands tier={autonomy.tier} />
           <LivingRules rules={autonomy.rules} />
         </section>
-      ) : null}
+      ) : (
+        <section class="overview-operating-signals" aria-label={t("overview.operations.label")}>
+          <MeasurementUnavailable />
+        </section>
+      )}
 
       <details class="advanced-details overview-details">
         <summary>

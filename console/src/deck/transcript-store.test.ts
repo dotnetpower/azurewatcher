@@ -71,6 +71,15 @@ describe("serializeTurns", () => {
               anchors: ["correlation"],
             }],
           },
+          semantic: {
+            verdict: "contradicted" as const,
+            provider: "onnx-local",
+            model_id: "example/nli-onnx",
+            latency_ms: 18,
+            entailment_score: 0.02,
+            contradiction_score: 0.94,
+            reason_code: null,
+          },
         },
       },
       {
@@ -93,6 +102,7 @@ describe("serializeTurns", () => {
     expect(parsed[1]!.verification?.status).toBe("corrected");
     expect(parsed[1]!.verification?.claims?.[0]?.claim_id).toBe("c001");
     expect(parsed[1]!.verification?.evidence_manifest?.manifest_id).toBe("sha256:abc");
+    expect(parsed[1]!.verification?.semantic?.verdict).toBe("contradicted");
     expect(parsed[2]!.agent).toBe("Forseti"); // agent identity survives reload
   });
 

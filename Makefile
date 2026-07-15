@@ -47,8 +47,7 @@ format: ## apply ruff format + ruff --fix (mutates files)
 test: ## pytest with coverage (--cov-fail-under=90 matches CI)
 	uv run pytest -q --cov=src/fdai --cov-report=term-missing --cov-fail-under=90
 
-gates: ## repo hygiene: english-only / punctuation / guids / translations / core-imports
-	bash scripts/check-english-only.sh
+gates: ## repo hygiene: punctuation / guids / translations / core-imports
 	bash scripts/check-punctuation.sh
 	bash scripts/check-guids.sh
 	bash scripts/check-translations.sh

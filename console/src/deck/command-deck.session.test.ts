@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { matchingTurnIndexes, sessionIdFor } from "./command-deck";
+import { matchingTurnIndexes, replyAgent, sessionIdFor } from "./command-deck";
 
 describe("Deck backend session IDs", () => {
   test("isolates transcripts and restores an existing session ID", () => {
@@ -26,5 +26,25 @@ describe("Deck transcript search", () => {
 
     expect(matchingTurnIndexes(turns, " hil ")).toEqual([0, 2]);
     expect(matchingTurnIndexes(turns, "   ")).toEqual([]);
+  });
+});
+
+describe("terminal reply attribution", () => {
+  test("uses Bragi when verification replaces delegated prose", () => {
+    const delegation = { primary_agent: "Saga", contributors: [] };
+    const verification = {
+      authority: "client_snapshot",
+      checks_completed: 0,
+      checks_total: 1,
+      evidence_refs: [],
+      reason_code: "screen_claim_mismatch",
+    } as const;
+
+    expect(replyAgent({ delegation, verification: { ...verification, status: "unverified" } }))
+      .toBe("Bragi");
+    expect(replyAgent({ delegation, verification: { ...verification, status: "corrected" } }))
+      .toBe("Bragi");
+    expect(replyAgent({ delegation, verification: { ...verification, status: "consistent" } }))
+      .toBe("Saga");
   });
 });

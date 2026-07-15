@@ -35,16 +35,17 @@ The design docs are the single source of truth; code and docs MUST stay in sync.
   Adding a new user-facing doc MUST add both files. The `scripts/check-translations.sh`
   CI gate blocks merges where a `-ko.md` is missing or its recorded
   `translation_source_sha` does not match `git hash-object foo.md`. `.github/**` stays
-  English-only (no translation). Full rules:
+  English canonical (no `-ko.md` pair). Full rules:
   [language.instructions.md](language.instructions.md#user-facing-doc-translations-ko).
 - New modules, interfaces, injectable seams, config keys, and rule/schema changes are reflected
   in [docs/roadmap/](../../docs/roadmap/README.md) and the relevant instruction files.
 
 ## General
 
-- **English on the L0 machine/audit substrate** (code, identifiers, comments, logs,
-  audit entries, event payloads, config keys); L2/L3 product surfaces (console, CLI,
-  narrator) are bilingual - see
+- **Bilingual (English + Korean) everywhere**: Korean is allowed in comments,
+  docstrings, string values, logs, and tests. Only identifiers / filenames /
+  branch names stay ASCII, and machine records (audit / events / log keys /
+  config keys) SHOULD stay English for replay and correlation - see
   [language.instructions.md](language.instructions.md).
 - **Single Responsibility Principle (MUST)**: every module, class, and function MUST have
   exactly one reason to change - one clearly stated responsibility. A unit that mixes

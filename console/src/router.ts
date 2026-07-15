@@ -8,6 +8,7 @@ export const PANEL_PATHS: Readonly<Record<string, string>> = {
   "hil-queue": "/approvals",
   provision: "/provisioning",
   processes: "/processes",
+  reports: "/reports",
   "agent-activity": "/agent-activity",
   audit: "/audit",
   trace: "/trace",
@@ -42,6 +43,8 @@ const LEGACY_ALIASES: Readonly<Record<string, string>> = {
 export interface ConsoleRoute {
   readonly panelId: string;
   readonly pathname: string;
+  readonly canonicalPathname: string;
+  readonly matched: boolean;
   readonly segments: readonly string[];
   readonly search: URLSearchParams;
 }
@@ -78,13 +81,16 @@ export function routeHref(
 export function parseConsoleRoute(pathname: string, search = ""): ConsoleRoute {
   const normalized = normalizePathname(pathname);
   const segments = normalized.split("/").filter(Boolean).map(decodeURIComponent);
-  const panelId = segments.length === 0
-    ? "dashboard"
-    : (PATH_PANELS.get(segments[0]!) ?? "dashboard");
+  const matchedPanel = segments.length === 0 ? undefined : PATH_PANELS.get(segments[0]!);
+  const panelId = matchedPanel ?? "dashboard";
+  const detailSegments = matchedPanel === undefined ? [] : segments.slice(1);
+  const canonicalPathname = routeHref(panelId, { segments: detailSegments });
   return {
     panelId,
     pathname: normalized,
-    segments: segments.slice(1),
+    canonicalPathname,
+    matched: matchedPanel !== undefined,
+    segments: detailSegments,
     search: new URLSearchParams(search.startsWith("?") ? search.slice(1) : search),
   };
 }

@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { t } from "../i18n";
+import { navigate } from "../router";
 import {
   askBackendStream,
   probeBackend,
@@ -27,16 +28,21 @@ import {
   type AnswerVerification,
   type BackendHealth,
   type BackendTurn,
+  type ProgressiveAnswer,
   type RouterSnapshot,
   type VerificationProgress,
 } from "./backend";
 import { detectActionIntent } from "./action-intent";
 import {
+  conversationGroups,
   conversationIndexKeyFor,
+  conversationLabelForPrompt,
+  conversationPath,
   conversationUserScope,
-  conversationTitle,
   isScreenConversationKey,
+  manualConversationSummary,
   parseConversationIndex,
+  screenConversationSummary,
   screenConversationKey,
   serializeConversationIndex,
   upsertConversation,
@@ -145,6 +151,18 @@ function routerTooltip(router: RouterSnapshot | undefined): string | undefined {
 
 const DEFAULT_NARRATOR = "Bragi";
 
+export function replyAgent(
+  reply: Pick<ProgressiveAnswer, "delegation" | "verification">,
+): string {
+  if (
+    reply.verification?.status === "corrected" ||
+    reply.verification?.status === "unverified"
+  ) {
+    return DEFAULT_NARRATOR;
+  }
+  return reply.delegation?.primary_agent ?? DEFAULT_NARRATOR;
+}
+
 function currentPathname(): string {
   return typeof window === "undefined" ? "/overview" : window.location.pathname;
 }
@@ -177,6 +195,7 @@ export function CommandDeck() {
   );
   const indexKey = conversationIndexKeyFor(userScope);
   const initialScreenSession = screenConversationKey(userScope, currentPathname());
+  const initialRouteLabel = snapshot?.routeLabel ?? currentPathname();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -197,12 +216,16 @@ export function CommandDeck() {
       ? parseConversationIndex(store.getItem(indexKey))
       : [];
     const previous = restored.find((item) => item.key === initialScreenSession);
-    return upsertConversation(restored, {
-      key: initialScreenSession,
-      label: currentPathname(),
-      kind: "general",
-      updatedAt: previous?.updatedAt ?? new Date().toISOString(),
-    });
+    return upsertConversation(
+      restored,
+      screenConversationSummary(
+        initialScreenSession,
+        currentPathname(),
+        initialRouteLabel,
+        new Date().toISOString(),
+        previous,
+      ),
+    );
   });
   const turnsRef = useRef<readonly Turn[]>(turns);
   const [pending, setPending] = useState(false);
@@ -216,6 +239,7 @@ export function CommandDeck() {
   const historyRef = useRef(EMPTY_HISTORY);
   // One stable backend correlation id per transcript session.
   const sessionIdsRef = useRef(new Map<string, string>());
+  const sessionMetadataRef = useRef(new Map<string, ConversationSummary>());
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -241,6 +265,21 @@ export function CommandDeck() {
     },
     [indexKey],
   );
+
+  useEffect(() => {
+    if (!snapshot?.routeLabel) return;
+    const key = screenConversationKey(userScope, currentPathname());
+    const existing = conversations.find((item) => item.key === key);
+    if (
+      existing?.kind !== "screen-default" ||
+      (existing.label === snapshot.routeLabel && existing.originLabel === snapshot.routeLabel)
+    ) return;
+    updateConversationIndex({
+      ...existing,
+      label: snapshot.routeLabel,
+      originLabel: snapshot.routeLabel,
+    });
+  }, [conversations, snapshot?.routeLabel, updateConversationIndex, userScope]);
 
   // Preflight probe: hit /chat/health once so the deck header can show
   // the operator whether the LLM is wired BEFORE they ask.
@@ -372,16 +411,22 @@ export function CommandDeck() {
       agent: string | null,
       contextNote?: string,
       conversationLabel?: string,
-      kind: ConversationSummary["kind"] = agent ? "agent" : "general",
+      kind: ConversationSummary["kind"] = agent ? "agent" : "screen-default",
+      register = true,
+      metadata?: ConversationSummary,
     ) => {
       if (key !== sessionKeyRef.current) cancelActiveRequest();
       const store = sessionStore();
       if (store && key !== sessionKeyRef.current) {
         try {
-          store.setItem(
-            transcriptKeyFor(sessionKeyRef.current),
-            serializeTurns(turnsRef.current),
-          );
+          const outgoingKey = sessionKeyRef.current;
+          const outgoing = sessionMetadataRef.current.get(outgoingKey);
+          const ephemeralEmpty =
+            outgoing?.kind === "screen-thread" &&
+            turnsRef.current.length === 0 &&
+            !conversations.some((item) => item.key === outgoingKey);
+          if (ephemeralEmpty) store.removeItem(transcriptKeyFor(outgoingKey));
+          else store.setItem(transcriptKeyFor(outgoingKey), serializeTurns(turnsRef.current));
         } catch {
           /* best-effort */
         }
@@ -395,30 +440,48 @@ export function CommandDeck() {
       setSearchQuery("");
       setActiveSearchMatch(0);
       historyRef.current = EMPTY_HISTORY;
-      updateConversationIndex({
+      const existing = conversations.find((item) => item.key === key);
+      const now = new Date().toISOString();
+      const baseSummary = metadata ?? existing ?? {
         key,
-        label:
-          conversationLabel ??
-          agent ??
-          (key.startsWith(`screen:${userScope}:`) ? currentPathname() : t("deck.newConversation")),
+        label: conversationLabel ?? agent ?? t("deck.newConversation"),
         kind,
         ...(agent ? { agent } : {}),
-        updatedAt: new Date().toISOString(),
-      });
+        originPath: conversationPath(currentPathname()),
+        originLabel: snapshot?.routeLabel ?? currentPathname(),
+        createdAt: now,
+        updatedAt: now,
+      };
+      const summary = existing?.kind === "screen-default" && conversationLabel
+        ? {
+            ...baseSummary,
+            label: conversationLabel,
+            originLabel: conversationLabel,
+          }
+        : baseSummary;
+      sessionMetadataRef.current.set(key, summary);
+      if (register) updateConversationIndex({ ...summary, updatedAt: now });
       const note = contextNote?.trim();
       if (next.length === 0 && note) {
         streamContextTurn(agent, note);
       }
     },
-    [cancelActiveRequest, streamContextTurn, updateConversationIndex, userScope],
+    [cancelActiveRequest, conversations, snapshot?.routeLabel, streamContextTurn, updateConversationIndex],
   );
 
   const startNewConversation = useCallback(() => {
     const key = userConversationKey(userScope, `conversation:${newId()}`);
-    switchSession(key, null, undefined, t("deck.newConversation"));
+    const summary = manualConversationSummary(
+      key,
+      currentPathname(),
+      snapshot?.routeLabel ?? currentPathname(),
+      new Date().toISOString(),
+      t("deck.newConversation"),
+    );
+    switchSession(key, null, undefined, summary.label, summary.kind, false, summary);
     setDraft("");
     focusInput();
-  }, [focusInput, switchSession, userScope]);
+  }, [focusInput, snapshot?.routeLabel, switchSession, userScope]);
 
   // Open the deck on the general (screen) session - used by the launcher, the
   // Cmd/Ctrl+K toggle, and the `/` shortcut, so those never drop the operator
@@ -426,10 +489,16 @@ export function CommandDeck() {
   const openGeneralDeck = useCallback(() => {
     const key = screenConversationKey(userScope, currentPathname());
     if (sessionKeyRef.current !== key) {
-      switchSession(key, null, undefined, currentPathname(), "general");
+      switchSession(
+        key,
+        null,
+        undefined,
+        snapshot?.routeLabel ?? currentPathname(),
+        "screen-default",
+      );
     }
     openDeck();
-  }, [openDeck, switchSession, userScope]);
+  }, [openDeck, snapshot?.routeLabel, switchSession, userScope]);
 
   const removeCachedConversation = useCallback(
     (conversation: ConversationSummary) => {
@@ -457,12 +526,18 @@ export function CommandDeck() {
             fallback.kind,
           );
         } else {
-          switchSession(routeKey, null, undefined, currentPathname(), "general");
+          switchSession(
+            routeKey,
+            null,
+            undefined,
+            snapshot?.routeLabel ?? currentPathname(),
+            "screen-default",
+          );
         }
       }
       focusInput();
     },
-    [cancelActiveRequest, conversations, focusInput, indexKey, switchSession, userScope],
+    [cancelActiveRequest, conversations, focusInput, indexKey, snapshot?.routeLabel, switchSession, userScope],
   );
 
   // Trap Tab within the open overlay so keyboard focus cannot escape the modal
@@ -572,7 +647,7 @@ export function CommandDeck() {
           label,
           note,
           label ?? undefined,
-          requestedKey?.startsWith("agent:") ? "agent" : "general",
+          requestedKey?.startsWith("agent:") ? "agent" : "screen-thread",
         );
       } else if (note && turnsRef.current.length === 0) {
         // Same, still-empty session: stream in the grounding context turn as
@@ -597,7 +672,13 @@ export function CommandDeck() {
     const switchToCurrentRoute = () => {
       const key = screenConversationKey(userScope, currentPathname());
       if (sessionKeyRef.current !== key) {
-        switchSession(key, null, undefined, currentPathname(), "general");
+        switchSession(
+          key,
+          null,
+          undefined,
+          snapshot?.routeLabel ?? currentPathname(),
+          "screen-default",
+        );
       }
     };
     window.addEventListener("popstate", switchToCurrentRoute);
@@ -606,7 +687,7 @@ export function CommandDeck() {
       window.removeEventListener("popstate", switchToCurrentRoute);
       window.removeEventListener("fdai:route-changed", switchToCurrentRoute);
     };
-  }, [open, switchSession, userScope]);
+  }, [open, snapshot?.routeLabel, switchSession, userScope]);
 
   useEffect(() => () => cancelActiveRequest(), [cancelActiveRequest]);
 
@@ -658,11 +739,20 @@ export function CommandDeck() {
     if (!store) return;
     if (turns.some((t) => t.streaming === true)) return;
     try {
+      const summary = sessionMetadataRef.current.get(sessionKey);
+      if (
+        summary?.kind === "screen-thread" &&
+        turns.length === 0 &&
+        !conversations.some((item) => item.key === sessionKey)
+      ) {
+        store.removeItem(transcriptKeyFor(sessionKey));
+        return;
+      }
       store.setItem(transcriptKeyFor(sessionKey), serializeTurns(turns));
     } catch {
       /* storage full or blocked - persistence is best-effort */
     }
-  }, [turns, sessionKey]);
+  }, [conversations, turns, sessionKey]);
 
   const jumpToLatest = useCallback(() => {
     const el = scrollerRef.current;
@@ -728,16 +818,19 @@ export function CommandDeck() {
       sessionKeyRef.current === originSessionKey;
     const opTurn: Turn = { id: newId(), role: "operator", text, at: shortTime() };
     const activeSummary = conversations.find((item) => item.key === originSessionKey);
+    const sessionSummary = activeSummary ?? sessionMetadataRef.current.get(originSessionKey);
     const hasOperatorTurn = turnsRef.current.some((turn) => turn.role === "operator");
     updateConversationIndex({
       key: originSessionKey,
       label:
-        activeSummary?.agent ??
-        (originSessionKey.startsWith("conversation:") && !hasOperatorTurn
-          ? conversationTitle(text)
-          : (activeSummary?.label ?? t("deck.general"))),
-      kind: activeSummary?.kind ?? "general",
-      ...(activeSummary?.agent ? { agent: activeSummary.agent } : {}),
+        sessionSummary
+          ? conversationLabelForPrompt(sessionSummary, text, hasOperatorTurn)
+          : t("deck.general"),
+      kind: sessionSummary?.kind ?? "screen-default",
+      ...(sessionSummary?.agent ? { agent: sessionSummary.agent } : {}),
+      originPath: sessionSummary?.originPath ?? conversationPath(currentPathname()),
+      originLabel: sessionSummary?.originLabel ?? snapshot?.routeLabel ?? currentPathname(),
+      createdAt: sessionSummary?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
     setTurns((prev) => [...prev, opTurn]);
@@ -881,7 +974,7 @@ export function CommandDeck() {
                   citations: reply.citations,
                   followUps: reply.followUps,
                   source: reply.source,
-                  agent: reply.delegation?.primary_agent ?? DEFAULT_NARRATOR,
+                  agent: replyAgent(reply),
                   ...(reply.verification ? { verification: reply.verification } : {}),
                   ...(reply.router ? { router: reply.router } : {}),
                 }
@@ -1095,9 +1188,16 @@ export function CommandDeck() {
             <ConversationSidebar
               conversations={conversations}
               activeKey={sessionKey}
+              currentPath={currentPathname()}
               onNew={startNewConversation}
               onRemove={removeCachedConversation}
               onSelect={(conversation) => {
+                if (
+                  conversation.kind !== "agent" &&
+                  conversation.originPath !== conversationPath(currentPathname())
+                ) {
+                  navigate(conversation.originPath);
+                }
                 switchSession(
                   conversation.key,
                   conversation.agent ?? null,
@@ -1219,16 +1319,19 @@ export function CommandDeck() {
 function ConversationSidebar({
   conversations,
   activeKey,
+  currentPath,
   onNew,
   onSelect,
   onRemove,
 }: {
   readonly conversations: readonly ConversationSummary[];
   readonly activeKey: string;
+  readonly currentPath: string;
   readonly onNew: () => void;
   readonly onSelect: (conversation: ConversationSummary) => void;
   readonly onRemove: (conversation: ConversationSummary) => void;
 }) {
+  const groups = conversationGroups(conversations, currentPath);
   return (
     <aside class="deck-conversations" aria-label={t("deck.conversations")}>
       <div class="deck-conversations-head">
@@ -1243,46 +1346,100 @@ function ConversationSidebar({
         {conversations.length === 0 ? (
           <p class="deck-conversation-empty">{t("deck.noConversations")}</p>
         ) : (
-          conversations.map((conversation) => (
-            <div
-              key={conversation.key}
-              class={`deck-conversation ${conversation.key === activeKey ? "is-active" : ""}`}
-            >
-              <button
-                type="button"
-                class="deck-conversation-select"
-                aria-current={conversation.key === activeKey ? "true" : undefined}
-                onClick={() => onSelect(conversation)}
-              >
-                <span
-                  class="deck-conversation-avatar is-agent"
-                  aria-hidden="true"
-                  style={{
-                    WebkitMaskImage: agentIconUrl(conversation.agent ?? DEFAULT_NARRATOR),
-                    maskImage: agentIconUrl(conversation.agent ?? DEFAULT_NARRATOR),
-                  }}
-                />
-                <span class="deck-conversation-copy">
-                  <strong>{conversation.label}</strong>
-                  <small>{new Date(conversation.updatedAt).toLocaleString()}</small>
-                </span>
-              </button>
-              {!isScreenConversationKey(conversation.key) ? (
-                <button
-                  type="button"
-                  class="deck-conversation-remove"
-                  onClick={() => onRemove(conversation)}
-                  aria-label={`${t("deck.removeCachedConversation")}: ${conversation.label}`}
-                  title={t("deck.removeCachedConversationHint")}
-                >
-                  ×
-                </button>
-              ) : null}
-            </div>
-          ))
+          <>
+            <ConversationGroup
+              label={t("deck.currentScreen")}
+              conversations={groups.current}
+              activeKey={activeKey}
+              showOrigin={false}
+              onSelect={onSelect}
+              onRemove={onRemove}
+            />
+            <ConversationGroup
+              label={t("deck.otherScreens")}
+              conversations={groups.other}
+              activeKey={activeKey}
+              showOrigin
+              onSelect={onSelect}
+              onRemove={onRemove}
+            />
+            <ConversationGroup
+              label={t("deck.agentConversations")}
+              conversations={groups.agents}
+              activeKey={activeKey}
+              showOrigin
+              onSelect={onSelect}
+              onRemove={onRemove}
+            />
+          </>
         )}
       </div>
     </aside>
+  );
+}
+
+function ConversationGroup({
+  label,
+  conversations,
+  activeKey,
+  showOrigin,
+  onSelect,
+  onRemove,
+}: {
+  readonly label: string;
+  readonly conversations: readonly ConversationSummary[];
+  readonly activeKey: string;
+  readonly showOrigin: boolean;
+  readonly onSelect: (conversation: ConversationSummary) => void;
+  readonly onRemove: (conversation: ConversationSummary) => void;
+}) {
+  if (conversations.length === 0) return null;
+  return (
+    <section class="deck-conversation-group" aria-label={label}>
+      <h3>{label}</h3>
+      {conversations.map((conversation) => (
+        <div
+          key={conversation.key}
+          class={`deck-conversation ${conversation.key === activeKey ? "is-active" : ""}`}
+        >
+          <button
+            type="button"
+            class="deck-conversation-select"
+            aria-current={conversation.key === activeKey ? "true" : undefined}
+            onClick={() => onSelect(conversation)}
+          >
+            <span
+              class="deck-conversation-avatar is-agent"
+              aria-hidden="true"
+              style={{
+                WebkitMaskImage: agentIconUrl(conversation.agent ?? DEFAULT_NARRATOR),
+                maskImage: agentIconUrl(conversation.agent ?? DEFAULT_NARRATOR),
+              }}
+            />
+            <span class="deck-conversation-copy">
+              <strong>{conversation.label}</strong>
+              <small>
+                {showOrigin && conversation.originLabel !== conversation.label
+                  ? `${conversation.originLabel} · `
+                  : ""}
+                {new Date(conversation.updatedAt).toLocaleString()}
+              </small>
+            </span>
+          </button>
+          {!isScreenConversationKey(conversation.key) ? (
+            <button
+              type="button"
+              class="deck-conversation-remove"
+              onClick={() => onRemove(conversation)}
+              aria-label={`${t("deck.removeCachedConversation")}: ${conversation.label}`}
+              title={t("deck.removeCachedConversationHint")}
+            >
+              ×
+            </button>
+          ) : null}
+        </div>
+      ))}
+    </section>
   );
 }
 

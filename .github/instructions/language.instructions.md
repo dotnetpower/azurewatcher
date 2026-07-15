@@ -8,9 +8,8 @@ applyTo: "**"
 > **Related on-demand skill**:
 > [`.github/skills/i18n-catalog/SKILL.md`](../skills/i18n-catalog/SKILL.md)
 > is the runnable workflow for L1 `.md` + `-ko.md` doc pairs, L2 message
-> catalog authoring, and the SHA / parity / english-only / punctuation
-> gates. Load it when you are editing catalogs, translations, or a gate
-> failure sends you here.
+> catalog authoring, and the SHA / parity / punctuation gates. Load it when
+> you are editing catalogs, translations, or a gate failure sends you here.
 
 ## Scope
 
@@ -20,103 +19,94 @@ It does not govern live maintainer chat. Related rules live in
 [coding-conventions.instructions.md](coding-conventions.instructions.md) (commits/PRs)
 and [generic-scope.instructions.md](generic-scope.instructions.md) (no customer data).
 
-## Language Layers (L0 - L3)
+## Bilingual policy (English + Korean, everywhere)
 
-FDAI is **bilingual (English + Korean) on the surfaces humans read**, and
-**English-only on the surfaces machines read**. Four layers, each with its own rule.
-When in doubt, ask: "who reads this - a machine, a developer, or an end user?"
+FDAI is **fully bilingual: English and Korean are both first-class** and MAY be
+used in any natural-language text anywhere in the repository - source comments,
+docstrings, string literals, logs, error messages, tests, fixtures, commit
+messages, GitHub issues, `.github/**`, and docs. **Korean is never a defect on
+the basis of being Korean; there is no english-only gate.**
 
-| Layer | Surface | Language rule |
-|-------|---------|---------------|
-| **L0 machine / audit** | code identifiers, comments, docstrings, logs, error codes, **audit entries, event payloads, generated PR titles/bodies, policy (Rego), config keys** | **English only, permanently. Never localized.** |
-| **L1 developer docs** | root `README.md`, `docs/**/*.md` | English canonical + `foo-ko.md` sibling (see [-ko.md](#user-facing-doc-translations-ko)). |
-| **L2 product surfaces** | operator console, CLI, ChatOps cards, notifications, the docs site | **Source strings English** + per-surface locale catalogs, localized at render time (see [Product i18n](#product-i18n-l2)). |
-| **L3 conversational** | Bragi narrator answers | Rendered in the operator's locale; the intent, tool calls, verdict, and audit underneath stay L0 (English). |
+Only two constraints remain, and they are about **tooling compatibility**, not
+about which human language you may write:
 
-**Why L0 stays English forever:** audit, logs, and events MUST stay
-machine-parseable, grep-able, and deterministically replayable across every fork and
-cloud. Localizing them would break replay, correlation, and compliance review.
-Freezing L0 to English also **shrinks the translation surface to only what a human
-actually reads** (L2/L3) - which is what makes multilingual support safe and cheap.
+- **Identifiers, filenames, and branch names MUST be ASCII** (`a-z A-Z 0-9 _ - .`).
+  Code symbols (variable / function / class / module names), file paths, and git
+  branch names stay ASCII for cross-language, cross-platform, and tooling
+  compatibility. Write Korean in comments, docstrings, and string **values** -
+  never in a name or a path.
+- **ASCII punctuation only** (still enforced by `scripts/check-punctuation.sh`):
+  use `-`, `"`, `'`, `...`; never em-dash, en-dash, smart quotes, the ellipsis
+  character, or a no-break space - those break `grep`, `diff`, and search
+  regardless of language.
 
-The `## Rule` section below is the L0 + L1-source rule (English-only for everything
-committed and emitted, minus the carve-outs). L2/L3 localization is layered on top via
-message catalogs, never by translating an L0 string in place.
+### Surfaces and localization mechanisms (optional, recommended)
 
-## Rule
+The layered surfaces still exist as **localization mechanisms** you MAY use for
+structured bilingual delivery; none of them forbids Korean anywhere:
 
-FDAI is **bilingual (English + Korean)**, layered by who reads the surface (see
-the [L0-L3 table](#language-layers-l0---l3) above). The rule is **per layer**,
-not a blanket "English only".
+| Surface | Recommended mechanism |
+|---------|-----------------------|
+| **Developer docs** (root `README.md`, `docs/**/*.md`) | `foo.md` + `foo-ko.md` sibling pairs, kept in sync by `check-translations.sh` (see [-ko.md](#user-facing-doc-translations-ko)). |
+| **Product surfaces** (console, CLI, ChatOps, notifications, site) | English-source message catalogs + `ko` overlay with English fallback, parity-gated by `check-catalog-parity.sh` (see [Product i18n](#product-i18n-l2)). Inline Korean is also fine. |
+| **Bragi narrator** | Renders in the operator's locale; inline Korean is fine. |
 
-- **L0 machine / audit substrate is English-only, permanently.** Any other
-  natural language here is a defect. This is the machine-parseable, replayable,
-  CSP-neutral core, and it covers:
-  - source code, identifiers, comments, and docstrings
-  - logs, error strings/codes, **audit entries, event payloads, serialized
-    verdicts**, and generated PR titles/bodies
-  - policy (Rego), config keys, schemas, and the fixtures/sample data that feed
-    them
-  - `.github/**` (copilot-instructions, instructions/*, workflows, issue/PR
-    templates) - **English-only, no translations, no exceptions**
-  - commit messages, branch names, PR titles and descriptions
-  - **GitHub issues** - titles, descriptions, labels, and comments are
-    **English-only, always** (project-tracking artifacts, never translated)
-- **L1 developer docs** ship `foo.md` (English) + `foo-ko.md` (Korean) pairs
-  (see [-ko.md](#user-facing-doc-translations-ko)).
-- **L2 product surfaces and the L3 narrator MAY contain Korean.** The operator
-  console, CLI, ChatOps cards, notifications, the docs site, and the Bragi
-  narrator answer text are the surfaces humans read; Korean is a first-class
-  product language there, authored **inline or via message catalogs**. English
-  fallback stays mandatory for catalog strings (see
-  [Product i18n](#product-i18n-l2)).
-- **L0 records stay English even inside an L2/L3 surface.** When an audit entry,
-  event payload, log key, identifier, or serialized verdict passes through a
-  console / CLI / narrator file, the surface localizes the **labels around it**,
-  never the machine record itself.
-- **Identifiers, filenames, and branch names must be ASCII** (`a-z A-Z 0-9 _ - .`)
-  on every layer. No accented letters, CJK, or emoji in code symbols or paths.
-- **Korean** also appears in interactive maintainer chat and in the `-ko.md`
-  docs / `.ko.json` catalogs defined below.
+Use these mechanisms for anything reusable or externally shipped - they give an
+English fallback, translation-freshness tracking, and searchable catalogs. For
+one-off internal strings, inline Korean (or English) is perfectly acceptable.
 
-## Allowed Exceptions
+### Machine-record recommendation (SHOULD)
 
-Non-English or non-ASCII text is permitted **only** in these cases:
+Audit entries, event payloads, serialized verdicts, log keys, rule ids, and
+config keys are consumed by **tooling** (deterministic replay, correlation,
+cross-fork search). Keeping those stable keys and machine records **English**
+keeps them grep-able and replayable across forks and clouds - a strong
+recommendation (**SHOULD**), no longer a hard gate. Localize the human-facing
+**labels around** a machine record freely; think twice before translating the
+record's own stable keys or a serialized enum value.
 
-- **Proper nouns**: third-party product, library, vendor, or standards names spelled as
-  their owners spell them.
-- **Quoted data**: a non-English string that is the literal subject under test (parser,
-  encoding, i18n fixtures). Encode it explicitly (`\uXXXX` or UTF-8 bytes) and add a
-  one-line English comment or an allowlist marker explaining why it is present.
-- **Vendored / generated code**: files under a clearly marked third-party or generated
-  path are exempt; do not hand-edit them to translate comments.
-- **Localization**: L2/L3 product surfaces (console, CLI, ChatOps, notifications, site,
-  narrator) are bilingual - Korean MAY be authored **inline** on those surfaces or via
-  locale resource files (e.g. `messages.<locale>.json`). Catalogs are recommended for
-  reusable strings (English fallback + parity). This exception does not extend to the
-  L0 machine/audit substrate. See [Product i18n](#product-i18n-l2).
-- **Emoji**: not allowed in code, identifiers, commit messages, or PR titles; allowed in
-  docs only when they add meaning, never as a substitute for words.
+## Notes on specific cases
+
+Korean is broadly allowed (see the [Bilingual policy](#bilingual-policy-english--korean-everywhere)
+above). A few specific cases still need care:
+
+- **Identifiers and paths stay ASCII.** Non-ASCII in a variable / function / class /
+  module / file name or a git branch name is still a defect (tooling compatibility),
+  even though Korean is fine in comments and string **values**.
+- **Machine records SHOULD stay English.** An audit entry, event payload, serialized
+  verdict, log key, rule id, or config key is machine-consumed; keep those English so
+  deterministic replay, correlation, and cross-fork search stay reliable (SHOULD, not
+  gated).
+- **Quoted data**: when a non-English string is the literal subject under test (a
+  parser or encoding fixture), encoding it explicitly (`\uXXXX` or UTF-8 bytes) with a
+  one-line note stays good practice for clarity.
+- **Vendored / generated code**: do not hand-edit third-party or generated files to
+  translate their comments.
+- **Emoji**: not in identifiers, paths, or branch names; in prose only when it adds
+  meaning, never as a substitute for words.
 
 ## User-Facing Doc Translations (`-ko.md`)
 
-User-facing Markdown documentation ships bilingually. This is the **only** place in the
-repository where a natural language other than English is permitted in committed text.
+User-facing Markdown documentation ships bilingually via `foo.md` + `foo-ko.md`
+sibling pairs. This is the **doc-pair convention** for structured bilingual docs;
+Korean is allowed elsewhere too (see the [Bilingual policy](#bilingual-policy-english--korean-everywhere)),
+but the paired-file mechanism below - with its freshness (SHA) gate - applies to
+the scope named here.
 
-**Scope (translatable)**
+**Scope (paired `-ko.md` required)**
 
 - Root `README.md`
 - Everything under `docs/**/*.md`
 
-**Out of scope (English-only, no translation)**
+**Out of scope for the pair convention (English canonical by convention)**
 
 - Everything under `.github/**` - `copilot-instructions.md`, `instructions/*.md`,
-  workflows, issue and PR templates. These are project guidelines, not user docs.
+  workflows, issue and PR templates. These are project guidelines, not user docs,
+  and stay English canonical (no required `-ko.md` pair).
 - Everything under `docs/internals/**` - internal engineering notes (gap
-  analyses, summaries of external material, working design memos). These are
-  team-facing engineering artifacts, not published user docs, so they stay
-  English-only like `.github/**`. A `-ko.md` sibling is permitted but never
-  required there.
+  analyses, summaries of external material, working design memos). Team-facing
+  engineering artifacts, English canonical; a `-ko.md` sibling is permitted but
+  never required.
 - Anything under `mocks/**`, `examples/**`, and any future third-party or vendored path.
 
 **File-pair convention**
@@ -171,9 +161,8 @@ L2 surfaces (operator console, CLI, ChatOps cards, notifications, the docs site)
   written in Korean (or English) **inline**, or authored as an English key in a
   message catalog. Catalogs are **recommended** for reusable strings - they give a
   mandatory English fallback and keep `en` / `ko` in parity - but inline Korean is
-  permitted for surface-specific presentation text. `scripts/check-english-only.sh`
-  does **not** scan the L2/L3 surface paths (`console/src/**`, `cli/src/**`, the
-  narrator `chat*.py` routes), so Korean there does not fail the gate.
+  permitted for surface-specific presentation text. There is no english-only gate,
+  so Korean on any surface (or anywhere else) does not fail CI.
 - **Approval terminology:** human-facing L2 labels and default L3 prose SHOULD use
   `Approvals`, `Approval required`, or `Pending approval` instead of the bare `HIL`
   acronym. `HIL` MAY appear when explaining the raw `hil` verdict, in a technical
@@ -192,10 +181,10 @@ L2 surfaces (operator console, CLI, ChatOps cards, notifications, the docs site)
   `messages.en.json` (no orphan translations); the `en` catalog is the source of truth,
   mirroring the `-ko.md` SHA gate. A `ko` catalog MAY lag (fallback covers it) but MUST
   NOT invent keys the `en` catalog does not have.
-- **Korean outside an L2/L3 surface path** (a resource file that carries Hangul but
-  lives on the L0 substrate) still needs an explicit `scripts/check-english-only.sh`
-  allowlist entry with a one-line reason, exactly like the site `ko/` locale and the
-  `-ko.md` carve-out.
+- **Machine records SHOULD stay English** even on an L2 surface. A `ko` catalog value
+  is fine, but an audit entry, event payload, log key, or config key that a resource
+  file carries SHOULD stay English for replay / correlation - localize the labels
+  around it, not the record.
 - **Do NOT localize L0 in place.** When an L0 record (audit entry, log line, event
   payload, PR body, Rego, error code, identifier) surfaces inside a localized L2 view,
   the view localizes the **labels around it**, never the machine record itself.
@@ -247,49 +236,39 @@ NOT change what the typed pipeline decides.
 ## Examples
 
 - Good: `// retry the remediation-pr when the risk-gate abstains`
-- Bad: a comment or commit body written in Korean, or a non-ASCII identifier.
-- Good fixture: `{"input": "\uD55C\uAE00", "note": "non-ASCII parse case"}` (encoded + explained).
-- Bad fixture: a raw non-English sentence with no encoding or explanation.
+- Also good: `// risk-gate가 abstain하면 remediation-pr을 재시도` (Korean comment is fine).
+- Bad: a **non-ASCII identifier** (`def 실행():`) or a Korean git branch name.
+- Fixture: `{"input": "\uD55C\uAE00", "note": "non-ASCII parse case"}` - encoding a
+  string-under-test explicitly stays good practice for clarity.
 
 ## Automation & Review Check
 
-- **Automated gate**: `scripts/check-english-only.sh` runs in CI and enforces English
-  on the **L0 machine/audit substrate** (it does not police L2/L3 surfaces). It matches
-  Hangul (`\uAC00-\uD7A3`, `\u1100-\u11FF`) or CJK (`\u4E00-\u9FFF`) ranges in tracked
-  text files with `grep -P` (the pattern must use `-P` alone; combining it with `-E`
-  makes `grep` reject the conflicting matchers and silently pass everything). The scan
-  **excludes** the `-ko.md` translation files and `*.ko.json` catalogs, the **L2/L3
-  human-facing surface paths** (`console/src/**`, `cli/src/**`, the narrator
-  `src/fdai/delivery/read_api/routes/chat*.py` + their tests - Korean is permitted
-  there), plus a small, centrally documented allowlist of other legitimately
-  non-English paths (the Korean site locale under
-  `site/src/content/docs/ko/`, and a named set of translation-tooling and
-  Korean-locale UI files). The allowlist and its per-entry justification live at the
-  top of the script; adding to it requires a stated reason.
+- **No english-only gate.** Korean is allowed anywhere in natural-language text; there
+  is no CI check that blocks it. (`scripts/check-english-only.sh` has been retired.)
 - **Punctuation gate**: `scripts/check-punctuation.sh` runs in CI and enforces the
   ASCII-only punctuation rule above; it blocks em-dash, en-dash, ellipsis,
   smart-quotes, and no-break-space anywhere in a tracked text file (including inside
-  `-ko.md`, code blocks, and comments).
+  `-ko.md`, code blocks, and comments) - regardless of language.
 - **Translation-pair gate**: `scripts/check-translations.sh` runs in CI and enforces
-  the [paired-update rule](#user-facing-doc-translations-ko): every in-scope `foo.md`
-  has a `foo-ko.md`, every `foo-ko.md` has front-matter with `translation_of` and
-  `translation_source_sha`, and each `translation_source_sha` matches the current
-  `git hash-object` of the source file.
+  the [paired-update rule](#user-facing-doc-translations-ko) for docs that use the
+  pair convention: every in-scope `foo.md` has a `foo-ko.md`, every `foo-ko.md` has
+  front-matter with `translation_of` and `translation_source_sha`, and each
+  `translation_source_sha` matches the current `git hash-object` of the source file.
 - **Catalog-parity gate**: `scripts/check-catalog-parity.sh` runs in CI and enforces
   the [Product i18n](#product-i18n-l2) rule for L2 message catalogs: for every
   `<name>.en.json` / `<name>.ko.json` sibling pair, the `ko` keys MUST be a subset of
   the `en` keys (no orphan translations; `en` is the source of truth, `ko` MAY lag
   under English fallback). No catalogs present is a pass, so it is safe before any
   catalog exists.
-- **PR review**: if Korean appears in a diff on the **L0 machine/audit substrate**
-  (code identifiers, comments, logs, audit entries, event payloads, PR bodies, Rego,
-  config keys, `.github/**`) outside the [Allowed Exceptions](#allowed-exceptions) or a
-  `-ko.md` file, treat it as a defect and correct it before merge, per
-  [coding-conventions.instructions.md](coding-conventions.instructions.md). Korean on an
-  L2/L3 surface (console, CLI, narrator) is expected, not a defect.
+- **Review guidance**: an identifier / filename / branch name that is not ASCII, or an
+  L0 machine record (audit entry, event payload, log key, config key, serialized
+  verdict) written in Korean, is worth flagging in review - the first breaks tooling,
+  the second weakens replay / correlation (SHOULD keep English). Korean prose anywhere
+  else is fine.
 
-> One line: **L0** (code, identifiers, audit, logs, events, PR bodies, policy, config
-> keys, `.github/**`) is English forever; **L1** docs ship `.md` + `-ko.md` pairs;
-> **L2** product surfaces (console, CLI, ChatOps, notifications, site) are bilingual -
-> Korean inline or via English-source catalogs with mandatory English fallback;
-> **L3** the Bragi narrator renders in the operator's locale over an English pipeline.
+> One line: **FDAI is fully bilingual - English and Korean are both allowed in any
+> natural-language text anywhere in the repo.** The only hard constraints are ASCII
+> identifiers / filenames / branch names and ASCII punctuation (both tooling
+> concerns). Machine records (audit / events / log keys / config keys) SHOULD stay
+> English for replay and cross-fork search. The `-ko.md` doc pairs and L2 message
+> catalogs remain the recommended mechanisms for structured bilingual delivery.

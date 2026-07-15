@@ -49,6 +49,13 @@ def test_bragi_abstains_when_no_domain_matches() -> None:
     assert decision.primary_agent is None
 
 
+def test_bragi_does_not_stem_actiontype_into_saga_action_history() -> None:
+    decision = Bragi().route("ActionType이 뭐야?")
+
+    assert decision.primary_agent is None
+    assert "Saga" not in decision.scores
+
+
 def test_bragi_routes_explicit_agent_name_before_domain_scoring() -> None:
     decision = Bragi().route("What does Var do?")
 

@@ -125,7 +125,7 @@ export function decodeRenderedProcessView(value: unknown): RenderedProcessView {
           description: stringField(report, "description", `regions[${index}].report`),
           generated_at: stringField(report, "generated_at", `regions[${index}].report`),
           widgets: report["widgets"].map((widget, widgetIndex) =>
-            decodeWidget(widget, `regions[${index}].report.widgets[${widgetIndex}]`)),
+            decodeRenderedWidget(widget, `regions[${index}].report.widgets[${widgetIndex}]`)),
         },
       };
     }),
@@ -161,7 +161,7 @@ function decodeSummary(value: unknown, label: string, requireHasView = true): Pr
   };
 }
 
-function decodeWidget(value: unknown, label: string): RenderedWidget {
+export function decodeRenderedWidget(value: unknown, label: string): RenderedWidget {
   const widget = record(value, label);
   const children = widget["children"];
   if (children !== undefined && !Array.isArray(children)) {
@@ -174,7 +174,7 @@ function decodeWidget(value: unknown, label: string): RenderedWidget {
     data: record(widget["data"], `${label}.data`),
     options: record(widget["options"], `${label}.options`),
     ...(typeof widget["error"] === "string" ? { error: widget["error"] } : {}),
-    ...(children ? { children: children.map((child, index) => decodeWidget(child, `${label}.children[${index}]`)) } : {}),
+    ...(children ? { children: children.map((child, index) => decodeRenderedWidget(child, `${label}.children[${index}]`)) } : {}),
   };
 }
 

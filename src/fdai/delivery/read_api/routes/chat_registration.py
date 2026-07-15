@@ -19,6 +19,7 @@ from fdai.delivery.read_api.routes.chat import (
     make_chat_stream_route,
 )
 from fdai.delivery.read_api.routes.chat_evidence import OperationalEvidenceResolver
+from fdai.delivery.read_api.routes.chat_semantic import semantic_verifier_from_env
 from fdai.delivery.read_api.routes.chat_tools import ReadModelChatTools
 
 
@@ -44,6 +45,7 @@ def append_chat_routes(
 
     evidence = OperationalEvidenceResolver(read_model)
     tools = ReadModelChatTools(read_model)
+    semantic_verifier = semantic_verifier_from_env()
     routes.extend(
         (
             make_chat_route(
@@ -52,6 +54,7 @@ def append_chat_routes(
                 evidence_resolver=evidence,
                 tool_resolver=tools,
                 agent_delegate=agent_delegate,
+                semantic_verifier=semantic_verifier,
             ),
             make_chat_stream_route(
                 backend=backend,
@@ -59,6 +62,7 @@ def append_chat_routes(
                 evidence_resolver=evidence,
                 tool_resolver=tools,
                 agent_delegate=agent_delegate,
+                semantic_verifier=semantic_verifier,
             ),
             make_chat_health_route(backend=backend, authorize=authorize),
         )

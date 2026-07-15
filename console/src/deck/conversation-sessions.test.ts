@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  conversationLabelForPrompt,
+  conversationGroups,
   conversationIndexKeyFor,
   conversationPath,
   conversationUserScope,
@@ -16,7 +18,10 @@ import {
 const GENERAL: ConversationSummary = {
   key: "screen",
   label: "General",
-  kind: "general",
+  kind: "screen-default",
+  originPath: "/overview",
+  originLabel: "Overview",
+  createdAt: "2026-07-14T09:00:00Z",
   updatedAt: "2026-07-14T09:00:00Z",
 };
 
@@ -24,8 +29,8 @@ describe("conversation index", () => {
   it("round-trips valid summaries and skips malformed entries", () => {
     const raw = JSON.stringify([
       GENERAL,
-      { key: "missing-label", kind: "general", updatedAt: GENERAL.updatedAt },
-      { key: "bad-date", label: "Bad", kind: "general", updatedAt: "not-a-date" },
+      { key: "missing-label", kind: "screen-default", updatedAt: GENERAL.updatedAt },
+      { key: "bad-date", label: "Bad", kind: "screen-thread", updatedAt: "not-a-date" },
     ]);
 
     expect(parseConversationIndex(raw)).toEqual([GENERAL]);
@@ -39,6 +44,9 @@ describe("conversation index", () => {
       label: "Forseti",
       kind: "agent",
       agent: "Forseti",
+      originPath: "/agents",
+      originLabel: "Agents",
+      createdAt: "2026-07-14T09:30:00Z",
       updatedAt: "2026-07-14T09:30:00Z",
     };
 
@@ -54,6 +62,40 @@ describe("conversation index", () => {
 
     expect(upsertConversation(conversations, conversations[2]!, 2).map((item) => item.key))
       .toEqual(["conversation:2", "screen"]);
+  });
+});
+
+describe("conversationGroups", () => {
+  it("separates current-screen, other-screen, and agent conversations", () => {
+    const currentThread: ConversationSummary = {
+      ...GENERAL,
+      key: "user:scope:conversation:1",
+      label: "Why approvals increased",
+      kind: "screen-thread",
+      createdAt: "2026-07-14T10:00:00Z",
+      updatedAt: "2026-07-14T10:00:00Z",
+    };
+    const other: ConversationSummary = {
+      ...GENERAL,
+      key: "screen:scope:/live",
+      label: "Live",
+      originPath: "/live",
+      originLabel: "Live",
+    };
+    const agent: ConversationSummary = {
+      ...GENERAL,
+      key: "user:scope:agent:Forseti",
+      label: "Forseti",
+      kind: "agent",
+      agent: "Forseti",
+    };
+
+    expect(conversationGroups([GENERAL, currentThread, other, agent], "/overview"))
+      .toEqual({
+        current: [currentThread, GENERAL],
+        other: [other],
+        agents: [agent],
+      });
   });
 });
 
@@ -92,5 +134,21 @@ describe("conversationTitle", () => {
   it("normalizes whitespace and truncates long first prompts", () => {
     expect(conversationTitle("  Explain   this incident  ")).toBe("Explain this incident");
     expect(conversationTitle("abcdefghij", 8)).toBe("abcde...");
+  });
+
+  it("titles a user-scoped manual thread from its first prompt", () => {
+    const manual: ConversationSummary = {
+      ...GENERAL,
+      key: "user:abc123:conversation:1",
+      label: "New conversation",
+      kind: "screen-thread",
+    };
+
+    expect(conversationLabelForPrompt(manual, "  Explain approvals  ", false))
+      .toBe("Explain approvals");
+    expect(conversationLabelForPrompt(manual, "Second prompt", true))
+      .toBe("New conversation");
+    expect(conversationLabelForPrompt(GENERAL, "Explain approvals", false))
+      .toBe("General");
   });
 });

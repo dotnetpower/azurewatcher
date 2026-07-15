@@ -7,7 +7,6 @@
 # by the coding-conventions and language instructions:
 #
 #   - ruff (Python lint)                        [core-only in --fast]
-#   - check-english-only.sh (L0 English gate)
 #   - check-punctuation.sh (ASCII typography)
 #   - check-guids.sh (customer-agnostic GUIDs)
 #   - check-translations.sh (foo.md <-> foo-ko.md SHA parity)
@@ -81,7 +80,6 @@ else
     RESULTS+=("SKIP")
 fi
 
-run_gate "english-only" bash scripts/check-english-only.sh
 run_gate "punctuation"  bash scripts/check-punctuation.sh
 run_gate "guids"        bash scripts/check-guids.sh
 run_gate "translations" bash scripts/check-translations.sh

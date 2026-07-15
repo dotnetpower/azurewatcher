@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from starlette.applications import Starlette
@@ -17,6 +17,7 @@ from fdai.delivery.read_api.routes.chat import (
     make_chat_route,
     make_chat_stream_route,
 )
+from fdai.delivery.read_api.routes.chat_semantic import SemanticVerification
 
 
 class _RecordingBackend(ChatBackend):
@@ -139,6 +140,28 @@ class _AlwaysOperationalResolver:
         return {"authority": "server_read_model", "status": "none"}
 
 
+class _SemanticVerifier:
+    def __init__(
+        self,
+        verdict: Literal["entailed", "contradicted", "unknown", "unavailable"] = "entailed",
+    ) -> None:
+        self.verdict = verdict
+        self.calls = 0
+
+    async def verify(self, *, premise: str, hypothesis: str) -> SemanticVerification:
+        self.calls += 1
+        assert "routeId" in premise
+        assert hypothesis == "hello"
+        return SemanticVerification(
+            verdict=self.verdict,
+            provider="test",
+            model_id="test-nli",
+            latency_ms=2,
+            entailment_score=0.91,
+            contradiction_score=0.03,
+        )
+
+
 class TestChatRouteLatencySurface:
     def test_reply_includes_model_and_latency_ms(self) -> None:
         backend = _RecordingBackend(model="gpt-5.4-mini", delay_ms=25)
@@ -157,6 +180,57 @@ class TestChatRouteLatencySurface:
         client = TestClient(_app(_DisabledBackend()))
         resp = client.post("/chat", json={"prompt": "hi", "view_context": {}, "history": []})
         assert resp.status_code == 501
+
+    def test_semantic_preference_must_be_boolean(self) -> None:
+        response = TestClient(_app(_RecordingBackend(model="test", delay_ms=0))).post(
+            "/chat",
+            json={
+                "prompt": "hi",
+                "verification_preferences": {"semantic_enabled": "yes"},
+            },
+        )
+
+        assert response.status_code == 400
+        assert "MUST be boolean" in response.text
+
+    def test_semantic_shadow_is_opt_in_and_non_authoritative(self) -> None:
+        verifier = _SemanticVerifier("contradicted")
+        app = Starlette(
+            routes=[
+                make_chat_route(
+                    backend=_RecordingBackend(model="test", delay_ms=0),
+                    authorize=_allow,
+                    semantic_verifier=verifier,
+                )
+            ]
+        )
+
+        disabled = (
+            TestClient(app)
+            .post(
+                "/chat",
+                json={"prompt": "hi", "view_context": {"routeId": "overview"}},
+            )
+            .json()
+        )
+        enabled = (
+            TestClient(app)
+            .post(
+                "/chat",
+                json={
+                    "prompt": "hi",
+                    "view_context": {"routeId": "overview"},
+                    "verification_preferences": {"semantic_enabled": True},
+                },
+            )
+            .json()
+        )
+
+        assert "semantic" not in disabled["verification"]
+        assert enabled["answer"] == "hello"
+        assert enabled["verification"]["status"] == "consistent"
+        assert enabled["verification"]["semantic"]["verdict"] == "contradicted"
+        assert verifier.calls == 1
 
     def test_server_evidence_replaces_client_forgery(self) -> None:
         backend = _RecordingBackend(model="gpt-x", delay_ms=0)
@@ -288,6 +362,32 @@ class TestChatRouteLatencySurface:
         assert delegate.calls == []
         assert backend.calls == 0
         assert response.json()["model"] == "concept-glossary"
+        assert response.json().get("delegation") is None
+
+    def test_korean_particle_on_actiontype_still_bypasses_agent_delegation(self) -> None:
+        backend = _RecordingBackend(model="gpt-x", delay_ms=0)
+        delegate = _AgentDelegate()
+        app = Starlette(
+            routes=[
+                make_chat_route(
+                    backend=backend,
+                    authorize=_allow,
+                    agent_delegate=delegate,
+                )
+            ]
+        )
+
+        response = TestClient(app).post(
+            "/chat",
+            json={"prompt": "ActionType이 뭐야?", "view_context": {}},
+        )
+
+        assert response.status_code == 200
+        assert delegate.calls == []
+        assert backend.view_context is not None
+        assert backend.view_context["_concept_evidence"]["entries"][0]["term"].startswith(
+            "ActionType"
+        )
         assert response.json().get("delegation") is None
 
     def test_explicit_agent_role_question_still_delegates(self) -> None:
@@ -498,6 +598,37 @@ class TestChatStreamEvidence:
         assert done["answer"] == "hello"
         assert done["verification"]["status"] == "consistent"
         assert done["revision"] == 0
+
+    def test_screen_stream_reports_semantic_shadow_without_revision(self) -> None:
+        verifier = _SemanticVerifier()
+        app = Starlette(
+            routes=[
+                make_chat_stream_route(
+                    backend=_RecordingBackend(model="gpt-stream", delay_ms=0),
+                    authorize=_allow,
+                    semantic_verifier=verifier,
+                )
+            ]
+        )
+
+        response = TestClient(app).post(
+            "/chat/stream",
+            json={
+                "request_id": "req-semantic",
+                "prompt": "what is on screen?",
+                "view_context": {"routeId": "overview"},
+                "verification_preferences": {"semantic_enabled": True},
+            },
+        )
+
+        events = _parse_sse(response.text)
+        assert "revision" not in [name for name, _ in events]
+        progress = [payload for name, payload in events if name == "verification"]
+        assert any(item["phase"] == "semantic_verifying" for item in progress)
+        done = events[-1][1]
+        assert done["verification"]["status"] == "consistent"
+        assert done["verification"]["semantic"]["verdict"] == "entailed"
+        assert verifier.calls == 1
 
     def test_no_match_fast_path_skips_model_and_streams_verified_answer(self) -> None:
         backend = _RecordingBackend(model="must-not-run", delay_ms=10_000)

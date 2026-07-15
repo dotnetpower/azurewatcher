@@ -17,7 +17,7 @@ policy). This file is the short, always-loaded rule set; when the two disagree,
 Related: [architecture.instructions.md](architecture.instructions.md) (Agent
 Pantheon section, safety invariants), [coding-conventions.instructions.md](coding-conventions.instructions.md)
 (SRP, testing, safety), [language.instructions.md](language.instructions.md)
-(English-only).
+(bilingual policy; machine records SHOULD stay English).
 
 RFC 2119 keywords apply: **MUST** / **MUST NOT** are hard gates; **SHOULD** is a
 strong default; **MAY** is optional.

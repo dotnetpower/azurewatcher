@@ -41,11 +41,15 @@ repos:
   #    tracked file set itself.
   - repo: local
     hooks:
-      - id: check-english-only
-        name: check-english-only.sh
-        entry: bash scripts/check-english-only.sh
+      - id: resign-integrity
+        name: resign-if-surface-staged.sh (auto re-sign manifest, upstream signer only)
+        entry: bash scripts/resign-if-surface-staged.sh
         language: system
         pass_filenames: false
+        # No-op unless the upstream private key is present AND a framework-
+        # surface file is staged. Runs before check-integrity so the fresh
+        # signature is what gets verified. Forks never have the key -> no-op.
+        files: ^(src/fdai/(core/|composition\.py|composition/|shared/providers/|shared/contracts/|agents/)|rule-catalog/schema/|\.github/instructions/)
       - id: check-punctuation
         name: check-punctuation.sh
         entry: bash scripts/check-punctuation.sh
@@ -66,3 +70,13 @@ repos:
         entry: bash scripts/check-core-imports.sh
         language: system
         pass_filenames: false
+      - id: check-integrity
+        name: check-integrity.sh (framework-surface signature, offline)
+        entry: bash scripts/check-integrity.sh
+        language: system
+        pass_filenames: false
+        # Only run when a framework-surface path (or the manifest itself)
+        # changes - the offline signature + content check is unnecessary on
+        # commits that touch nothing under the surface. Fork mode hard-fails
+        # on a surface edit; upstream is advisory (re-sign before release).
+        files: ^(src/fdai/(core/|composition\.py|composition/|shared/providers/|shared/contracts/|agents/)|rule-catalog/schema/|\.github/instructions/|security/integrity/)

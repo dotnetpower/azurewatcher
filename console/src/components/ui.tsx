@@ -174,6 +174,10 @@ export interface DataTableProps<Row> {
   readonly onRowClick?: (row: Row, index: number) => void;
   /** Highlight the row matching this predicate as selected. */
   readonly isRowActive?: (row: Row, index: number) => boolean;
+  /** Accessible label for an explicit first-cell selection button. */
+  readonly rowActionLabel?: (row: Row, index: number) => string;
+  /** Element controlled by the selection button. */
+  readonly rowActionControls?: string;
 }
 
 export function DataTable<Row>({
@@ -184,6 +188,8 @@ export function DataTable<Row>({
   caption,
   onRowClick,
   isRowActive,
+  rowActionLabel,
+  rowActionControls,
 }: DataTableProps<Row>) {
   if (rows.length === 0) {
     return (
@@ -191,6 +197,7 @@ export function DataTable<Row>({
     );
   }
   const clickable = onRowClick !== undefined;
+  const explicitAction = clickable && rowActionLabel !== undefined;
   return (
     <div class="data-table-wrap">
       <table class={`data-table${clickable ? " data-table-clickable" : ""}`}>
@@ -209,11 +216,12 @@ export function DataTable<Row>({
               <tr
                 key={keyOf(row, index)}
                 class={active ? "row-active" : undefined}
-                tabIndex={clickable ? 0 : undefined}
-                role={clickable ? "button" : undefined}
-                onClick={clickable ? () => onRowClick?.(row, index) : undefined}
+                aria-selected={explicitAction ? active : undefined}
+                tabIndex={clickable && !explicitAction ? 0 : undefined}
+                role={clickable && !explicitAction ? "button" : undefined}
+                onClick={clickable && !explicitAction ? () => onRowClick?.(row, index) : undefined}
                 onKeyDown={
-                  clickable
+                  clickable && !explicitAction
                     ? (e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
@@ -223,8 +231,21 @@ export function DataTable<Row>({
                     : undefined
                 }
               >
-                {columns.map((c) => (
-                  <td key={c.key} class={c.cellClass}>{c.render(row)}</td>
+                {columns.map((c, columnIndex) => (
+                  <td key={c.key} class={c.cellClass}>
+                    {explicitAction && columnIndex === 0 ? (
+                      <button
+                        type="button"
+                        class="data-table-row-action"
+                        aria-pressed={active}
+                        aria-controls={rowActionControls}
+                        onClick={() => onRowClick?.(row, index)}
+                      >
+                        <span>{c.render(row)}</span>
+                        <span class="sr-only">{rowActionLabel(row, index)}</span>
+                      </button>
+                    ) : c.render(row)}
+                  </td>
                 ))}
               </tr>
             );

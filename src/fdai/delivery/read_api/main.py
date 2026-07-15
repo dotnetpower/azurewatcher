@@ -53,6 +53,7 @@ from fdai.delivery.read_api.read_model import (
     ConsoleReadModel,
     clamp_limit,
 )
+from fdai.delivery.read_api.routes.audit_query import AuditQueryError, parse_audit_filters
 from fdai.delivery.read_api.routes.chat_registration import append_chat_routes
 from fdai.delivery.read_api.routes.hil_callback import (
     HilCallbackConfig,
@@ -549,10 +550,14 @@ def build_app(
             correlation_id = request.query_params.get("correlation_id") or None
             if correlation_id is not None and len(correlation_id) > 256:
                 return _error(400, "correlation_id MUST be at most 256 characters")
+            filters = parse_audit_filters(request.query_params)
             page = await read_model.list_audit(
-                limit=clamp_limit(limit), cursor=cursor, correlation_id=correlation_id
+                limit=clamp_limit(limit),
+                cursor=cursor,
+                correlation_id=correlation_id,
+                filters=filters,
             )
-        except ValueError as exc:
+        except (AuditQueryError, ValueError) as exc:
             return _error(400, str(exc))
         _LOGGER.info("audit_page_served", extra={"actor": oid, "returned": len(page.items)})
         return JSONResponse(page.to_dict())

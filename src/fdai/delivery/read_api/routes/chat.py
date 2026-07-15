@@ -59,7 +59,11 @@ from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Route
 
 from fdai.agents import PANTHEON_NAMES
-from fdai.delivery.read_api.routes.chat_verification import verify_answer
+from fdai.delivery.read_api.routes.chat_semantic import SemanticVerifier
+from fdai.delivery.read_api.routes.chat_verification import (
+    attach_semantic_shadow,
+    verify_answer,
+)
 
 DEFAULT_ROUTE_PATH: Final[str] = "/chat"
 DEFAULT_MAX_BODY_BYTES: Final[int] = 200_000
@@ -228,10 +232,10 @@ _DATA_WORD: Final = re.compile(
     re.IGNORECASE,
 )
 _CONCEPT_DOMAIN: Final = re.compile(
-    r"\b(?:actiontype|abstain|blast radius|correlation id|exemption|grounding|hil|"
+    r"(?<![A-Za-z0-9_])(?:actiontype|abstain|blast radius|correlation id|exemption|grounding|hil|"
     r"idempotency|kill-switch|ontology|override|pantheon|promotion gate|quality gate|"
     r"remediation pr|rollback contract|safety invariants?|shadow|trust router|"
-    r"two-port|t0|t1|t2|verifier|verticals?|what-if)\b",
+    r"two-port|t0|t1|t2|verifier|verticals?|what-if)(?![A-Za-z0-9_])",
     re.IGNORECASE,
 )
 _AGENT_NAME_TOKEN: Final = re.compile(r"[A-Za-z][A-Za-z0-9-]*")
@@ -820,6 +824,24 @@ def _session_id(body: Mapping[str, Any]) -> str:
             detail=f"session_id exceeds cap ({len(value)} > {DEFAULT_MAX_SESSION_ID_CHARS})",
         )
     return value
+
+
+def _semantic_verification_enabled(body: Mapping[str, Any]) -> bool:
+    raw = body.get("verification_preferences")
+    if raw is None:
+        return False
+    if not isinstance(raw, Mapping):
+        raise HTTPException(
+            status_code=400,
+            detail="verification_preferences MUST be an object",
+        )
+    enabled = raw.get("semantic_enabled", False)
+    if not isinstance(enabled, bool):
+        raise HTTPException(
+            status_code=400,
+            detail="verification_preferences.semantic_enabled MUST be boolean",
+        )
+    return enabled
 
 
 def _uses_evidence_fast_path(view_context: Mapping[str, Any]) -> bool:
@@ -1831,6 +1853,7 @@ def make_chat_route(
     evidence_resolver: OperationalEvidenceResolverProtocol | None = None,
     tool_resolver: ChatToolResolver | None = None,
     agent_delegate: AgentChatDelegate | None = None,
+    semantic_verifier: SemanticVerifier | None = None,
     path: str = DEFAULT_ROUTE_PATH,
     max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
 ) -> Route:
@@ -1895,6 +1918,7 @@ def make_chat_route(
         clean_prompt = prompt.strip()
         _reject_direct_override(clean_prompt)
         session_id = _session_id(body)
+        semantic_enabled = _semantic_verification_enabled(body)
         view_context = await _with_tool_evidence(clean_prompt, view_context, tool_resolver)
         view_context = await _with_operational_evidence(
             clean_prompt, view_context, evidence_resolver
@@ -1937,6 +1961,7 @@ def make_chat_route(
                     "source": f"evidence:{verification.status}",
                     "verification": verification.to_dict(),
                 }
+                semantic_hypothesis = verification.answer
             elif concept_answer is not None:
                 verification = verify_answer(
                     concept_answer,
@@ -1949,22 +1974,35 @@ def make_chat_route(
                     "source": "evidence:fdai-glossary",
                     "verification": verification.to_dict(),
                 }
+                semantic_hypothesis = concept_answer
             else:
                 reply = await backend.answer(
                     prompt=clean_prompt,
                     view_context=view_context,
                     history=history,
                 )
+                semantic_hypothesis = str(reply.get("answer", ""))
                 verification = verify_answer(
-                    str(reply.get("answer", "")),
+                    semantic_hypothesis,
                     view_context,
                     locale=_response_locale(clean_prompt, view_context),
                 )
                 reply = {
                     **reply,
                     "answer": verification.answer,
-                    "verification": verification.to_dict(),
                 }
+            verification = await attach_semantic_shadow(
+                verification,
+                provisional=semantic_hypothesis,
+                view_context=view_context,
+                enabled=semantic_enabled,
+                verifier=semantic_verifier,
+            )
+            reply = {
+                **reply,
+                "answer": verification.answer,
+                "verification": verification.to_dict(),
+            }
         except ChatBackendUnavailableError:
             raise HTTPException(
                 status_code=501,
@@ -2105,6 +2143,7 @@ def make_chat_stream_route(
     evidence_resolver: OperationalEvidenceResolverProtocol | None = None,
     tool_resolver: ChatToolResolver | None = None,
     agent_delegate: AgentChatDelegate | None = None,
+    semantic_verifier: SemanticVerifier | None = None,
     path: str = DEFAULT_STREAM_PATH,
     max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
 ) -> Route:
@@ -2163,6 +2202,7 @@ def make_chat_stream_route(
         clean_prompt = prompt.strip()
         _reject_direct_override(clean_prompt)
         session_id = _session_id(body)
+        semantic_enabled = _semantic_verification_enabled(body)
         raw_request_id = body.get("request_id")
         request_id = (
             raw_request_id
@@ -2326,6 +2366,27 @@ def make_chat_stream_route(
                         "total": verification.checks_total,
                     },
                 )
+                if (
+                    semantic_enabled
+                    and verification.authority == "client_snapshot"
+                    and verification.reason_code == "screen_no_checkable_claims"
+                ):
+                    yield frame(
+                        "verification",
+                        {
+                            "phase": "semantic_verifying",
+                            "label": "Running optional semantic shadow check",
+                            "completed": verification.checks_completed,
+                            "total": verification.checks_total,
+                        },
+                    )
+                    verification = await attach_semantic_shadow(
+                        verification,
+                        provisional=provisional_answer,
+                        view_context=enriched_context,
+                        enabled=True,
+                        verifier=semantic_verifier,
+                    )
                 yield frame(
                     "verification",
                     {
@@ -2336,6 +2397,11 @@ def make_chat_stream_route(
                         "authority": verification.authority,
                         "evidence_refs": list(verification.evidence_refs),
                         "reason_code": verification.reason_code,
+                        "semantic": (
+                            verification.semantic.to_dict()
+                            if verification.semantic is not None
+                            else None
+                        ),
                     },
                 )
                 if verification.answer != provisional_answer:

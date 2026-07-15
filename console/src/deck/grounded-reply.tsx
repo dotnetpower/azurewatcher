@@ -92,6 +92,17 @@ export function GroundedReply({
         </div>
       ) : null}
 
+      {verification?.semantic ? (
+        <div
+          class="deck-verification is-semantic-shadow"
+          role="note"
+          title="Experimental shadow signal; does not change the answer trust status"
+        >
+          <span class="deck-verification-mark" aria-hidden="true">S</span>
+          <span>{semanticVerificationLabel(verification.semantic)}</span>
+        </div>
+      ) : null}
+
       {!streaming && text.trim().length > 0 ? (
         <div class="deck-gr-tools">
           <button type="button" class="deck-gr-tool" onClick={copy} title="Copy reply">
@@ -148,6 +159,22 @@ export function GroundedReply({
       ) : null}
     </div>
   );
+}
+
+function semanticVerificationLabel(
+  semantic: NonNullable<AnswerVerification["semantic"]>,
+): string {
+  const latency = semantic.latency_ms > 0 ? `, ${semantic.latency_ms}ms` : "";
+  switch (semantic.verdict) {
+    case "entailed":
+      return `Semantic shadow: supported${latency}`;
+    case "contradicted":
+      return `Semantic shadow: possible contradiction${latency}`;
+    case "unknown":
+      return `Semantic shadow: inconclusive${latency}`;
+    case "unavailable":
+      return "Semantic shadow: unavailable";
+  }
 }
 
 function verificationLabel(verification: AnswerVerification): string {

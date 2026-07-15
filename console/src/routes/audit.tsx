@@ -31,6 +31,7 @@ interface AuditFilters {
   readonly action: string | null;
   readonly outcome: string | null;
   readonly vertical: string | null;
+  readonly window: string | null;
 }
 
 function filtersFromSearch(): AuditFilters {
@@ -41,6 +42,7 @@ function filtersFromSearch(): AuditFilters {
     action: search.get("action"),
     outcome: search.get("outcome"),
     vertical: search.get("vertical"),
+    window: search.get("window"),
   };
 }
 
@@ -51,6 +53,7 @@ export function AuditRoute({ client }: Props) {
   const [correlationId, setCorrelationId] = useState<string | null>(() => correlationFromHash());
   const [filters, setFilters] = useState<AuditFilters>(filtersFromSearch);
   const mountedRef = useRef(true);
+  const requestGeneration = useRef(0);
 
   useEffect(() => () => {
     mountedRef.current = false;
@@ -70,22 +73,22 @@ export function AuditRoute({ client }: Props) {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    const generation = requestGeneration.current + 1;
+    requestGeneration.current = generation;
+    setState({ status: "loading" });
+    setPageError(null);
+    setLoadingMore(false);
     (async () => {
       try {
-        const page = await client.listAudit(
-          correlationId === null
-            ? { limit: PAGE_SIZE }
-            : { limit: PAGE_SIZE, correlationId },
-        );
-        if (!cancelled) {
+        const page = await client.listAudit(auditRequest(filters, correlationId));
+        if (requestGeneration.current === generation) {
           setState({
             status: "ready",
             data: { items: page.items, nextCursor: page.next_cursor },
           });
         }
       } catch (err) {
-        if (!cancelled) {
+        if (requestGeneration.current === generation) {
           setState({
             status: "error",
             message: err instanceof Error ? err.message : String(err),
@@ -94,29 +97,29 @@ export function AuditRoute({ client }: Props) {
       }
     })();
     return () => {
-      cancelled = true;
+      if (requestGeneration.current === generation) requestGeneration.current += 1;
     };
-  }, [client, correlationId]);
+  }, [client, correlationId, filters]);
 
   const loadMore = async (cursor: string): Promise<void> => {
     if (state.status !== "ready" || loadingMore || state.data.nextCursor !== cursor) return;
+    const generation = requestGeneration.current;
     setLoadingMore(true);
     setPageError(null);
     try {
-      const page: AuditPage = await client.listAudit(
-        correlationId === null
-          ? { limit: PAGE_SIZE, cursor }
-          : { limit: PAGE_SIZE, cursor, correlationId },
-      );
-      if (!mountedRef.current) return;
+      const page: AuditPage = await client.listAudit({
+        ...auditRequest(filters, correlationId),
+        cursor,
+      });
+      if (!mountedRef.current || requestGeneration.current !== generation) return;
       setState((current) => current.status === "ready"
         ? { status: "ready", data: appendAuditPage(current.data, cursor, page) }
         : current);
     } catch (err) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || requestGeneration.current !== generation) return;
       setPageError(err instanceof Error ? err.message : String(err));
     } finally {
-      if (mountedRef.current) setLoadingMore(false);
+      if (mountedRef.current && requestGeneration.current === generation) setLoadingMore(false);
     }
   };
 
@@ -141,7 +144,7 @@ export function AuditRoute({ client }: Props) {
       <AsyncBoundary state={state} resourceLabel="audit log">
         {(data) => (
           <AuditBody
-            data={{ ...data, items: data.items.filter((item) => matchesFilters(item, filters)) }}
+            data={data}
             loadingMore={loadingMore}
             pageError={pageError}
             onLoadMore={loadMore}
@@ -166,14 +169,17 @@ function entryStr(entry: Record<string, unknown>, key: string): string {
   return typeof v === "string" && v.trim() ? v : "-";
 }
 
-function matchesFilters(item: AuditItem, filters: AuditFilters): boolean {
-  return (
-    (!filters.mode || item.mode === filters.mode) &&
-    (!filters.action || item.action_kind === filters.action) &&
-    (!filters.tier || entryStr(item.entry, "tier") === filters.tier) &&
-    (!filters.outcome || entryStr(item.entry, "outcome") === filters.outcome) &&
-    (!filters.vertical || entryStr(item.entry, "vertical").replaceAll("_", "-") === filters.vertical)
-  );
+function auditRequest(filters: AuditFilters, correlationId: string | null) {
+  return {
+    limit: PAGE_SIZE,
+    ...(correlationId ? { correlationId } : {}),
+    ...(filters.mode ? { mode: filters.mode } : {}),
+    ...(filters.tier ? { tier: filters.tier } : {}),
+    ...(filters.action ? { action: filters.action } : {}),
+    ...(filters.outcome ? { outcome: filters.outcome } : {}),
+    ...(filters.vertical ? { vertical: filters.vertical } : {}),
+    ...(filters.window ? { window: filters.window } : {}),
+  };
 }
 
 interface BodyProps {

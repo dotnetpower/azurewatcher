@@ -35,7 +35,7 @@ import json
 from collections.abc import Iterable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from threading import Lock
 from typing import Any, Literal, Protocol, runtime_checkable
 
@@ -100,6 +100,18 @@ IncidentStatusFilter = Literal["active", "resolved", "all"]
 
 
 @dataclass(frozen=True, slots=True)
+class AuditQueryFilters:
+    """Server-side audit filters applied before cursor pagination."""
+
+    mode: str | None = None
+    tier: str | None = None
+    action_kind: str | None = None
+    outcome: str | None = None
+    vertical: str | None = None
+    window_days: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class IncidentSummary:
     """One durable incident projection keyed by ``correlation_id``."""
 
@@ -146,6 +158,7 @@ class IncidentCursor:
     snapshot_seq: int
     before_seq: int
     status: IncidentStatusFilter
+    vertical: str | None = None
 
 
 def encode_incident_cursor(cursor: IncidentCursor) -> str:
@@ -155,6 +168,7 @@ def encode_incident_cursor(cursor: IncidentCursor) -> str:
             "snapshot_seq": cursor.snapshot_seq,
             "before_seq": cursor.before_seq,
             "status": cursor.status,
+            "vertical": cursor.vertical,
         },
         separators=(",", ":"),
         sort_keys=True,
@@ -163,7 +177,7 @@ def encode_incident_cursor(cursor: IncidentCursor) -> str:
 
 
 def decode_incident_cursor(
-    value: str | None, *, status: IncidentStatusFilter
+    value: str | None, *, status: IncidentStatusFilter, vertical: str | None = None
 ) -> IncidentCursor | None:
     if value is None or value == "":
         return None
@@ -175,6 +189,7 @@ def decode_incident_cursor(
         snapshot_seq = raw["snapshot_seq"]
         before_seq = raw["before_seq"]
         cursor_status = raw["status"]
+        cursor_vertical = raw.get("vertical")
         if (
             not isinstance(snapshot_seq, int)
             or isinstance(snapshot_seq, bool)
@@ -183,11 +198,17 @@ def decode_incident_cursor(
             or isinstance(before_seq, bool)
             or before_seq < 1
             or cursor_status != status
+            or cursor_vertical != vertical
         ):
             raise ValueError
     except (binascii.Error, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise ValueError("invalid incident cursor or status mismatch") from exc
-    return IncidentCursor(snapshot_seq=snapshot_seq, before_seq=before_seq, status=status)
+    return IncidentCursor(
+        snapshot_seq=snapshot_seq,
+        before_seq=before_seq,
+        status=status,
+        vertical=vertical,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -380,6 +401,7 @@ class ConsoleReadModel(Protocol):
         limit: int = _DEFAULT_LIMIT,
         cursor: str | None = None,
         correlation_id: str | None = None,
+        filters: AuditQueryFilters | None = None,
     ) -> AuditPage:
         """Return one page of audit items, newest first.
 
@@ -395,6 +417,7 @@ class ConsoleReadModel(Protocol):
         status: IncidentStatusFilter = "active",
         limit: int = _DEFAULT_LIMIT,
         cursor: str | None = None,
+        vertical: str | None = None,
     ) -> IncidentPage:
         """Return incident-centric projections, newest activity first."""
         ...
@@ -426,6 +449,34 @@ def clamp_limit(limit: int | None) -> int:
 
 MAX_LIMIT = _MAX_LIMIT
 DEFAULT_LIMIT = _DEFAULT_LIMIT
+
+
+def _normalized_filter_value(value: Any) -> str:
+    return str(value or "").strip().lower().replace("_", "-")
+
+
+def _audit_item_matches(item: AuditItem, filters: AuditQueryFilters) -> bool:
+    entry = item.entry
+    if filters.mode is not None and item.mode != filters.mode:
+        return False
+    if filters.action_kind is not None and item.action_kind != filters.action_kind:
+        return False
+    if filters.tier is not None and str(entry.get("tier", "")) != filters.tier:
+        return False
+    if filters.outcome is not None and str(entry.get("outcome", "")) != filters.outcome:
+        return False
+    if filters.vertical is not None:
+        vertical = entry.get("vertical", entry.get("category"))
+        if _normalized_filter_value(vertical) != _normalized_filter_value(filters.vertical):
+            return False
+    if filters.window_days is not None:
+        try:
+            recorded = datetime.fromisoformat(item.recorded_at.replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        if recorded < datetime.now(tz=UTC) - timedelta(days=filters.window_days):
+            return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -517,6 +568,7 @@ class InMemoryConsoleReadModel(ConsoleReadModel):
         limit: int = _DEFAULT_LIMIT,
         cursor: str | None = None,
         correlation_id: str | None = None,
+        filters: AuditQueryFilters | None = None,
     ) -> AuditPage:
         bounded = clamp_limit(limit)
         # Cursor is the seq of the last item on the previous page. Newer
@@ -529,6 +581,8 @@ class InMemoryConsoleReadModel(ConsoleReadModel):
 
             correlated = correlate_audit_items(reversed(all_items))
             all_items = list(reversed(correlated.get(correlation_id, ())))
+        if filters is not None:
+            all_items = [item for item in all_items if _audit_item_matches(item, filters)]
         if cutoff is not None:
             all_items = [i for i in all_items if i.seq < cutoff]
         page = all_items[:bounded]
@@ -541,15 +595,18 @@ class InMemoryConsoleReadModel(ConsoleReadModel):
         status: IncidentStatusFilter = "active",
         limit: int = _DEFAULT_LIMIT,
         cursor: str | None = None,
+        vertical: str | None = None,
     ) -> IncidentPage:
         from fdai.delivery.read_api.routes.incident_projection import project_incidents
 
         bounded = clamp_limit(limit)
-        decoded = decode_incident_cursor(cursor, status=status)
+        decoded = decode_incident_cursor(cursor, status=status, vertical=vertical)
         with self._lock:
             snapshot_seq = decoded.snapshot_seq if decoded else self._seq
             snapshot = tuple(item for item in self._audit if item.seq <= snapshot_seq)
         summaries = project_incidents(snapshot, status=status)
+        if vertical is not None:
+            summaries = tuple(item for item in summaries if item.vertical == vertical)
         if decoded is not None:
             summaries = tuple(item for item in summaries if item.last_seq < decoded.before_seq)
         page = summaries[:bounded]
@@ -559,6 +616,7 @@ class InMemoryConsoleReadModel(ConsoleReadModel):
                     snapshot_seq=snapshot_seq,
                     before_seq=page[-1].last_seq,
                     status=status,
+                    vertical=vertical,
                 )
             )
             if len(summaries) > bounded and page

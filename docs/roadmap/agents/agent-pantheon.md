@@ -460,14 +460,21 @@ the requesting agent and threads the shared correlation trace.
 
 Bragi is the router, not the answerer. Routing runs deterministic-first:
 
-1. **T0 keyword / regex match.** Compare intent tokens against
+1. **Canonical glossary lookup.** A direct definition question for a shared
+  ontology or control-loop term (for example `ActionType`, including a Korean
+  particle such as `ActionType이`) is answered from grounded glossary evidence
+  before agent scoring. It is not delegated to an agent whose domain merely
+  shares a word stem.
+2. **T0 keyword / regex match.** Compare intent tokens against
    `Agent.question_domains`. Score by domain specificity, ownership of the
-   referenced object type, and recency of interaction.
-2. **T1 embedding similarity.** If T0 abstains, similarity match against
+  referenced object type, and recency of interaction. Prefix-based stemming
+  is limited to short inflectional differences; a composite token such as
+  `actiontype` does not match the generic `action` domain.
+3. **T1 embedding similarity.** If T0 abstains, similarity match against
    past resolved queries; still deterministic ranking, no LLM.
-3. **T2 intent classification.** If T0/T1 both abstain, LLM classifies
+4. **T2 intent classification.** If T0/T1 both abstain, LLM classifies
    intent, and Bragi re-runs the scoring with the classified intent.
-4. **Handoff.** If scoring margin is still below threshold, emit
+5. **Handoff.** If scoring margin is still below threshold, emit
    `HandoffEscalation` (§7.4). The system files a GitHub issue rather than
    guess.
 

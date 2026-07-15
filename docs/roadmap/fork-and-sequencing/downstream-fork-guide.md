@@ -74,7 +74,7 @@ Do these before your first `git commit` on the fork.
    repository, NOT at `dotnetpower/fdai`. Getting this wrong
    once has a chance of leaking customer commits upstream.
 4. **Enable secret scanning** in the fork's CI - reuse the upstream
-   `scripts/check-english-only.sh`, `scripts/check-punctuation.sh`,
+   `scripts/check-punctuation.sh`,
    `scripts/check-guids.sh`, `scripts/check-core-imports.sh`, and
    `scripts/check-translations.sh`. **These are not sufficient on
    their own.** `check-guids.sh` matches the `8-4-4-4-12` hex shape
@@ -313,7 +313,7 @@ git fetch upstream --tags
 git checkout main
 git merge upstream/main            # or rebase - team choice
 # Resolve conflicts (usually zero if the fork rule is honored)
-./scripts/check-english-only.sh    # sanity gates
+./scripts/check-punctuation.sh     # sanity gates
 ./scripts/check-translations.sh
 uv run pytest -q tests/ fork/tests/  # full suite
 git push origin main

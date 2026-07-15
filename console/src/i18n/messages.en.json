@@ -15,6 +15,7 @@
     "workflowBuilder": "Workflow builder",
     "llmCost": "LLM cost",
     "processes": "Processes",
+    "reports": "Reports",
     "documents": "Documents",
     "settings": "Settings",
     "incidents": "Incidents",
@@ -59,6 +60,7 @@
       "workflowBuilder": "Workflow builder",
       "llmCost": "LLM cost",
       "processes": "Processes",
+      "reports": "Reports",
       "documents": "Documents",
       "settings": "Settings",
       "incidents": "Incidents",
@@ -88,12 +90,28 @@
       "workflowBuilder": "Browse built-in workflows or design a new one by chatting",
       "llmCost": "Token usage and spend per conversation, day, and month",
       "processes": "Workflow runtime state and dynamic ontology-backed views",
+      "reports": "Declarative live boards rendered from the report catalog",
       "documents": "Upload, scan, protect, and index governed documents",
       "settings": "Display, accessibility, and local console preferences",
       "incidents": "Incident status, disposition, and remediation history",
       "rca": "Root cause: grounded hypothesis, citations, and response plan",
       "scope": "Effective monitoring and automated-action scope by subscription and RG"
     }
+  },
+  "reports": {
+    "subtitle": "Catalog-driven read-only boards. Select a report, set its declared variables, and render the current evidence window.",
+    "listLabel": "Report catalog",
+    "empty": "No reports are registered on this deployment.",
+    "notFound": "The selected report is not available.",
+    "readyHint": "Complete the required variables, then render the report.",
+    "widgetCount": "{count} widgets",
+    "variables": "Report variables",
+    "refresh": "Render report",
+    "refreshing": "Rendering...",
+    "generated": "Generated at {time}",
+    "registry": "Console renderers cover {supported} of {total} registered widget types. Unsupported types remain explicitly unavailable.",
+    "viewPurpose": "Read-only catalog reports rendered by the reporting subsystem. Widgets display server-owned evidence and never execute actions.",
+    "viewHeadline": "{name}: {count} rendered widgets"
   },
   "rca": {
     "subtitle": "Root-cause analysis for one incident, projected read-only from the append-only audit log. An RCA result is a grounded hypothesis, never an authoritative verdict; execution eligibility stays with the risk gate and verifier.",
@@ -179,6 +197,7 @@
     "empty": "No incidents match this filter.",
     "detail": "Incident detail",
     "select": "Select an incident to inspect its remediation history.",
+    "selectNamed": "Select {title} and show its remediation history",
     "correlation": "Correlation id",
     "opened": "Opened",
     "history": "History entries",
@@ -256,6 +275,11 @@
     "runtime": "Runtime",
     "readApi": "Read API",
     "readApiHint": "The read-only endpoint supplying this console session.",
+    "verification": "Answer verification",
+    "semanticVerification": "Experimental semantic verification",
+    "semanticVerificationHint": "Shadow-check qualitative answers with the optional local NLI provider. Deterministic verification remains authoritative.",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
     "reset": "Reset display preferences"
   },
   "deck": {
@@ -265,6 +289,9 @@
     "invoke": "Ask anything about this screen",
     "conversations": "Conversations",
     "newConversation": "New conversation",
+    "currentScreen": "Current screen",
+    "otherScreens": "Other screens",
+    "agentConversations": "Agents",
     "general": "General",
     "noConversations": "Start a conversation to keep it in this tab's history.",
     "searchConversation": "Search this conversation",
@@ -307,7 +334,9 @@
       "window": "{days} days",
       "simulatedWindow": "Simulated - {days} days - {samples} events",
       "measuredWindow": "Measured - {days} days - {samples} events",
-      "unavailable": "Evidence unavailable"
+      "unavailable": "Evidence unavailable",
+      "unavailableHint": "This section remains visible, but no measured value is inferred until its source is connected.",
+      "source": "Source: {source}"
     },
     "hero": {
       "title": "Autonomous cloud operations",
@@ -321,7 +350,14 @@
       "touchpoints": "Human touchpoints / 100",
       "mttr": "MTTR",
       "leadTime": "Change lead time",
+      "cost": "Cost / resolved event",
       "vsBaseline": "vs {baseline} baseline"
+    },
+    "leading": {
+      "title": "Leading indicators",
+      "disagreement": "Mixed-model disagreement",
+      "verifier": "Verifier failure",
+      "divergence": "Shadow divergence"
     },
     "decision": {
       "label": "control assurance and required attention"

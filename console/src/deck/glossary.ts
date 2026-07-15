@@ -111,6 +111,20 @@ export const TERMS = {
     tech: "view_spec",
     seeAlso: "processes",
   },
+  report: {
+    term: "report",
+    plain:
+      "a read-only catalog definition that combines a bounded time range, declared variables, and server-rendered evidence widgets",
+    tech: "ReportSpec",
+    seeAlso: "reports",
+  },
+  widget: {
+    term: "widget",
+    plain:
+      "one typed visualization in a report; its server-owned data is rendered by a matching console component and never executes an action",
+    tech: "RenderedWidget",
+    seeAlso: "reports",
+  },
   userPreference: {
     term: "user preference",
     plain:

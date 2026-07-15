@@ -673,7 +673,7 @@ def _domain_score(domain: str, tokens: set[str]) -> float:
         for d in domain_tokens:
             if len(d) < 4:
                 continue
-            if t.startswith(d) or d.startswith(t):
+            if abs(len(t) - len(d)) <= 3 and (t.startswith(d) or d.startswith(t)):
                 partial += 1
                 break
     if partial:

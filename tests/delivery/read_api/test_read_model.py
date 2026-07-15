@@ -15,6 +15,7 @@ from fdai.delivery.read_api.read_model import (
     DEFAULT_LIMIT,
     MAX_LIMIT,
     AuditItem,
+    AuditQueryFilters,
     ConsoleReadModel,
     HilQueueItem,
     InMemoryConsoleReadModel,
@@ -143,6 +144,23 @@ class TestListAudit:
             model.record_audit_entry(_entry())
         page = await model.list_audit(limit=MAX_LIMIT + 1000)
         assert len(page.items) == 3
+
+    async def test_filters_before_pagination_so_late_matches_are_visible(self) -> None:
+        model = InMemoryConsoleReadModel()
+        model.record_audit_entry(_entry(action_kind="target", tier="t2", vertical="change_safety"))
+        for index in range(30):
+            model.record_audit_entry(_entry(action_kind=f"other-{index}", tier="t0"))
+        page = await model.list_audit(
+            limit=25,
+            filters=AuditQueryFilters(
+                action_kind="target",
+                tier="t2",
+                vertical="change-safety",
+                window_days=30,
+            ),
+        )
+        assert [item.action_kind for item in page.items] == ["target"]
+        assert page.next_cursor is None
 
 
 class TestDashboardMetrics:

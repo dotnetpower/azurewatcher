@@ -1,6 +1,12 @@
 import type { ComponentChildren } from "preact";
+import { useState } from "preact/hooks";
 import { ErrorState, KpiCard, KpiGrid, StatusPill } from "../components/ui";
 import { displayValue, processTone, type RenderedWidget } from "./processes.model";
+
+export const SUPPORTED_REPORT_WIDGET_TYPES = new Set([
+  "query_value", "bar_chart", "timeseries", "top_list", "table",
+  "list_stream", "check_status", "topology_map", "group", "tabs",
+]);
 
 export function ProcessWidget({ widget }: { readonly widget: RenderedWidget }) {
   if (widget.error) return <ErrorState message={`${widget.title}: ${widget.error}`} />;
@@ -13,11 +19,14 @@ export function ProcessWidget({ widget }: { readonly widget: RenderedWidget }) {
       />
     );
   }
+  if (widget.type === "bar_chart") return <BarChartWidget widget={widget} />;
+  if (widget.type === "timeseries") return <TimeseriesWidget widget={widget} />;
   if (widget.type === "check_status") return <CheckStatusWidget widget={widget} />;
-  if (widget.type === "table") return <TableWidget widget={widget} />;
+  if (widget.type === "table" || widget.type === "top_list") return <TableWidget widget={widget} />;
   if (widget.type === "list_stream") return <StreamWidget widget={widget} />;
   if (widget.type === "topology_map") return <TopologyWidget widget={widget} />;
-  if (widget.type === "group" || widget.type === "tabs") {
+  if (widget.type === "tabs") return <TabsWidget widget={widget} />;
+  if (widget.type === "group") {
     return (
       <section class="process-widget-group">
         <h3>{widget.title}</h3>
@@ -27,7 +36,103 @@ export function ProcessWidget({ widget }: { readonly widget: RenderedWidget }) {
       </section>
     );
   }
-  return <FallbackWidget widget={widget} />;
+  return <UnavailableWidget widget={widget} />;
+}
+
+function BarChartWidget({ widget }: { readonly widget: RenderedWidget }) {
+  const bars = asRows(widget.data["bars"]);
+  const max = Math.max(1, ...bars.map((bar) => numeric(bar["value"])));
+  return (
+    <section class="process-widget-section report-bar-chart" aria-labelledby={`${widget.id}-title`}>
+      <h3 id={`${widget.id}-title`}>{widget.title}</h3>
+      <div class="report-bars">
+        {bars.map((bar, index) => {
+          const value = numeric(bar["value"]);
+          return (
+            <div class="report-bar-row" key={`${widget.id}-${index}`}>
+              <span>{displayValue(bar["label"])}</span>
+              <span class="report-bar-track" aria-hidden="true">
+                <span style={{ width: `${Math.max(2, (value / max) * 100)}%` }} />
+              </span>
+              <strong>{displayValue(bar["value"])}</strong>
+            </div>
+          );
+        })}
+      </div>
+      {bars.length === 0 ? <p class="muted small">No data in this window.</p> : null}
+    </section>
+  );
+}
+
+function TimeseriesWidget({ widget }: { readonly widget: RenderedWidget }) {
+  const series = asRows(widget.data["series"]);
+  return (
+    <section class="process-widget-section report-timeseries" aria-labelledby={`${widget.id}-title`}>
+      <h3 id={`${widget.id}-title`}>{widget.title}</h3>
+      {series.map((item, index) => {
+        const points = numericPoints(item["points"]);
+        return (
+          <div class="report-series" key={`${widget.id}-${index}`}>
+            <span class="muted small">{displayValue(item["label"])}</span>
+            {points.length > 0 ? (
+              <svg viewBox="0 0 320 96" role="img" aria-label={`${displayValue(item["label"])} trend`}>
+                <polyline points={sparkline(points, 320, 96)} fill="none" stroke="currentColor" stroke-width="2" />
+              </svg>
+            ) : <p class="muted small">No points.</p>}
+          </div>
+        );
+      })}
+      {series.length === 0 ? <p class="muted small">No data in this window.</p> : null}
+    </section>
+  );
+}
+
+function TabsWidget({ widget }: { readonly widget: RenderedWidget }) {
+  const children = widget.children ?? [];
+  const [active, setActive] = useState(0);
+  const selected = children[active];
+  return (
+    <section class="process-widget-section report-tabs">
+      <h3>{widget.title}</h3>
+      <div role="tablist" aria-label={widget.title} class="report-tab-list">
+        {children.map((child, index) => (
+          <button
+            key={child.id}
+            id={`${widget.id}-tab-${index}`}
+            type="button"
+            role="tab"
+            aria-selected={index === active}
+            aria-controls={`${widget.id}-panel-${index}`}
+            tabIndex={index === active ? 0 : -1}
+            onClick={() => setActive(index)}
+            onKeyDown={(event) => {
+              const next = nextTabIndex(active, event.key, children.length);
+              if (next !== active) {
+                event.preventDefault();
+                setActive(next);
+              }
+            }}
+          >
+            {child.title}
+          </button>
+        ))}
+      </div>
+      {selected ? (
+        <div id={`${widget.id}-panel-${active}`} role="tabpanel" aria-labelledby={`${widget.id}-tab-${active}`}>
+          <ProcessWidget widget={selected} />
+        </div>
+      ) : <p class="muted small">No tabs configured.</p>}
+    </section>
+  );
+}
+
+export function nextTabIndex(current: number, key: string, count: number): number {
+  if (count < 1) return 0;
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  if (key === "ArrowRight" || key === "ArrowDown") return (current + 1) % count;
+  if (key === "ArrowLeft" || key === "ArrowUp") return (current - 1 + count) % count;
+  return current;
 }
 
 function CheckStatusWidget({ widget }: { readonly widget: RenderedWidget }) {
@@ -131,14 +236,11 @@ function TopologyWidget({ widget }: { readonly widget: RenderedWidget }) {
   );
 }
 
-function FallbackWidget({ widget }: { readonly widget: RenderedWidget }) {
-  const rows = Object.entries(widget.data).map(([key, value]) => ({ key, value }));
+function UnavailableWidget({ widget }: { readonly widget: RenderedWidget }) {
   return (
-    <section class="process-widget-section">
+    <section class="process-widget-section state-unavailable" role="status">
       <h3>{widget.title}</h3>
-      <dl class="process-fallback">
-        {rows.map(({ key, value }) => <><dt>{key}</dt><dd>{displayValue(value)}</dd></>)}
-      </dl>
+      <p class="muted">Widget type <code>{widget.type}</code> is not available in this console build.</p>
     </section>
   );
 }
@@ -157,6 +259,33 @@ function deriveColumns(rows: readonly Readonly<Record<string, unknown>>[]): read
   const names = new Set<string>();
   rows.forEach((row) => Object.keys(row).forEach((key) => names.add(key)));
   return [...names].slice(0, 20);
+}
+
+function numeric(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function numericPoints(value: unknown): readonly (readonly [number, number])[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((point) =>
+    Array.isArray(point) && point.length >= 2 && point.every((entry) => typeof entry === "number" && Number.isFinite(entry))
+      ? [[point[0] as number, point[1] as number] as const]
+      : [],
+  );
+}
+
+function sparkline(points: readonly (readonly [number, number])[], width: number, height: number): string {
+  const xs = points.map(([x]) => x);
+  const ys = points.map(([, y]) => y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const rangeX = maxX - minX || 1;
+  const rangeY = maxY - minY || 1;
+  return points.map(([x, y]) =>
+    `${(((x - minX) / rangeX) * width).toFixed(1)},${(height - ((y - minY) / rangeY) * height).toFixed(1)}`,
+  ).join(" ");
 }
 
 function pillForCheck(status: string): "success" | "warning" | "danger" | "neutral" {

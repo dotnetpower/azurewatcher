@@ -239,6 +239,32 @@ class TestAuditRoute:
         response = client.get("/audit?cursor=nan")
         assert response.status_code == 400
 
+    def test_filters_before_limit_and_validates_window(self, dev_env: None) -> None:
+        del dev_env
+        app, model = _build_stack(dev_mode=True)
+        model.record_audit_entry(
+            {
+                "event_id": "target",
+                "action_kind": "risk_gate.shadow_authority",
+                "mode": "shadow",
+                "tier": "t2",
+                "outcome": "hil",
+                "vertical": "change_safety",
+            }
+        )
+        for index in range(30):
+            model.record_audit_entry(
+                {"event_id": f"other-{index}", "action_kind": "other", "mode": "shadow"}
+            )
+        client = TestClient(app)
+        response = client.get(
+            "/audit?limit=25&tier=t2&outcome=hil&vertical=change-safety&window=30d"
+        )
+        assert response.status_code == 200
+        assert [item["event_id"] for item in response.json()["items"]] == ["target"]
+        assert client.get("/audit?window=0d").status_code == 400
+        assert client.get("/audit?tier=t9").status_code == 400
+
 
 # ---------------------------------------------------------------------------
 # GET /kpi

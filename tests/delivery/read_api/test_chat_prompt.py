@@ -747,10 +747,9 @@ def test_chunk_answer_for_stream_splits_into_small_groups() -> None:
 def test_chunk_answer_for_stream_preserves_multibyte() -> None:
     from fdai.delivery.read_api.routes.chat import _chunk_answer_for_stream
 
-    # Escaped so the check-english-only gate stays green - the string is
-    # "\uc548\ub155\ud558\uc138\uc694 \ubc18\uac11\uc2b5\ub2c8\ub2e4"
-    # (Korean greeting), included as a fixture to exercise the multibyte
-    # chunker.
+    # A Korean greeting used as a multibyte fixture. Kept as `\uXXXX`
+    # escapes so the exact code points under test are unambiguous:
+    # "\uc548\ub155\ud558\uc138\uc694 \ubc18\uac11\uc2b5\ub2c8\ub2e4".
     text = "\uc548\ub155\ud558\uc138\uc694 \ubc18\uac11\uc2b5\ub2c8\ub2e4"
     chunks = _chunk_answer_for_stream(text)
     assert "".join(chunks) == text

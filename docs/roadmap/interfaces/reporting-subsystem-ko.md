@@ -1,8 +1,8 @@
 ---
 title: 리포팅 서브시스템
 translation_of: reporting-subsystem.md
-translation_source_sha: 3a6ea6c8961cbda26ec1fd72834643d216209e92
-translation_revised: 2026-07-11
+translation_source_sha: 0bed53b6f163aa71bddfa71b82911b31ef4e43b8
+translation_revised: 2026-07-15
 ---
 # 리포팅 서브시스템
 
@@ -77,6 +77,23 @@ source나 문제 있는 빌더는 그 위젯을 `error` 설정 + 빈 `data`로
 - `src/fdai/delivery/read_api/reporting.py` - 네 개의 `GET` 라우트.
 - `rule-catalog/reports/` - YAML 카탈로그 + JSON Schema.
 
+### Console SPA 구현 상태
+
+Console SPA는 이제 `/reports`의 **이력 > 리포트**와
+`/reports/<report-id>` canonical 상세 route를 제공합니다. 카탈로그와
+runtime registry를 읽고, 선언된 변수를 제한된 control로 렌더링하며,
+`GET /reports/<id>/render` 요청만 전송합니다. 공유 widget renderer는
+upstream 리포트 카탈로그에서 사용하는 모든 타입인 `query_value`,
+`bar_chart`, `timeseries`, `top_list`, `table`, `list_stream`,
+`check_status`, `topology_map`과 재귀 `group`, keyboard-accessible `tabs`를
+지원합니다.
+
+이 지원 타입으로 작성된 리포트는 FE 코드 변경 없이 표시됩니다. 새로 만든
+visualization type에는 검토된 SPA renderer가 여전히 필요합니다. Registry route는
+실행 가능한 UI 코드 전달 경로가 아니라 capability 진단입니다. Renderer가
+제공되기 전 SPA는 raw JSON을 노출하거나 표시를 추정하지 않고 명시적
+unavailable 상태를 보여줍니다.
+
 ## 위젯 카탈로그
 
 기본으로 제공되는 35개 빌더, 7개 계열로 분류. 각 빌더는 FE가
@@ -123,9 +140,10 @@ source나 문제 있는 빌더는 그 위젯을 `error` 설정 + 빈 `data`로
 |           | `split_graph` | `panels` (DataSet.series에서 fan-out) |
 
 포크는 `WidgetBuilder`를 구현하고 composition 시점에
-`WidgetRegistry.register`를 호출해 새 type을 추가합니다. FE는
-`GET /reports/registry`를 hit해 새 type을 학습합니다 - 재시작
-없음, 스키마 push 없음.
+`WidgetRegistry.register`를 호출해 새 backend type을 추가합니다.
+`GET /reports/registry`를 통해 SPA는 해당 type의 local renderer 지원 여부를
+보고할 수 있습니다. 이미 지원되는 type으로 만든 리포트는 FE 변경이 필요
+없으며, 새 visualization shape에는 SPA가 표시하기 전 작은 renderer가 필요합니다.
 
 ## 데이터소스 카탈로그
 

@@ -1,11 +1,13 @@
 export type ConsoleTheme = "light" | "dark";
 export type ConsoleLocale = "en" | "ko";
 export type MotionPreference = "system" | "reduced";
+export type SemanticVerificationPreference = "off" | "shadow";
 
 export interface ConsolePreferences {
   readonly theme: ConsoleTheme;
   readonly locale: ConsoleLocale;
   readonly motion: MotionPreference;
+  readonly semanticVerification: SemanticVerificationPreference;
 }
 
 type StorageReader = Pick<Storage, "getItem">;
@@ -16,12 +18,14 @@ const STORAGE_KEYS = {
   theme: "fdai:console:theme",
   locale: "fdai:console:locale",
   motion: "fdai:console:motion",
+  semanticVerification: "fdai:console:semantic-verification",
 } as const;
 
 const DEFAULT_PREFERENCES: ConsolePreferences = {
   theme: "light",
   locale: "en",
   motion: "system",
+  semanticVerification: "off",
 };
 
 let sessionPreferences: Partial<ConsolePreferences> = {};
@@ -34,6 +38,7 @@ export function readConsolePreferences(
   const storedTheme = safeGet(storage, STORAGE_KEYS.theme);
   const storedLocale = safeGet(storage, STORAGE_KEYS.locale);
   const storedMotion = safeGet(storage, STORAGE_KEYS.motion);
+  const storedSemanticVerification = safeGet(storage, STORAGE_KEYS.semanticVerification);
 
   return {
     theme: sessionPreferences.theme
@@ -52,6 +57,10 @@ export function readConsolePreferences(
       ?? (storedMotion === "reduced" || storedMotion === "system"
         ? storedMotion
         : DEFAULT_PREFERENCES.motion),
+    semanticVerification: sessionPreferences.semanticVerification
+      ?? (storedSemanticVerification === "shadow" || storedSemanticVerification === "off"
+        ? storedSemanticVerification
+        : DEFAULT_PREFERENCES.semanticVerification),
   };
 }
 

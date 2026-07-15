@@ -19,19 +19,22 @@ principles into a phased engineering plan.
 
 ## Language Policy (MUST)
 
-- **FDAI is bilingual (English + Korean), layered by surface.** **L0** machine/audit
-  surfaces (code, identifiers, logs, error codes, audit entries, event payloads,
-  generated PR bodies, Rego policy, config keys) are **English-only, permanently** -
-  never localized (machine-parseable, replayable, CSP-neutral). **L1** developer docs
-  ship English `.md` + `-ko.md` pairs. **L2** product surfaces (console, CLI, ChatOps,
-  notifications, site) are **bilingual** - Korean inline or via English-source message
-  catalogs with mandatory English fallback. **L3** the Bragi narrator renders in the
-  operator's locale over an English pipeline.
-- **Korean is a first-class product language on L2/L3 surfaces** (console `console/src`,
-  CLI `cli/src`, the narrator `chat*.py` routes), in `-ko.md` docs, `.ko.json` catalogs,
-  and live maintainer chat. It is **never** in L0 (code identifiers, audit, logs, events,
-  commits, `.github/**`) - and an L0 record surfaced inside an L2/L3 view stays English
-  (localize the labels around it, never the machine record).
+- **FDAI is fully bilingual: English and Korean are both allowed in any
+  natural-language text anywhere in the repository** - source comments, docstrings,
+  string literals, logs, error messages, tests, docs, commit messages, GitHub issues,
+  and `.github/**`. There is **no english-only gate**; Korean is never a defect on the
+  basis of being Korean.
+- **Two tooling constraints remain** (not about language choice): identifiers,
+  filenames, and branch names MUST be ASCII (`a-z A-Z 0-9 _ - .`), and punctuation MUST
+  be ASCII (enforced by `scripts/check-punctuation.sh`). Write Korean in comments and
+  string **values**, never in a name or a path.
+- **Machine records SHOULD stay English** - audit entries, event payloads, serialized
+  verdicts, log keys, rule ids, and config keys are machine-consumed (replay,
+  correlation, cross-fork search), so keeping them English is a strong recommendation,
+  not a hard gate. Localize the labels around a machine record, not the record itself.
+- Structured bilingual delivery still uses `foo.md` + `foo-ko.md` doc pairs and
+  English-source `.ko.json` catalogs with mandatory English fallback; the Bragi narrator
+  renders in the operator's locale.
 - Rationale and full rules: [instructions/language.instructions.md](instructions/language.instructions.md).
 
 ## Implementation Focus (MUST)
@@ -116,7 +119,7 @@ principles into a phased engineering plan.
 - When opening a GitHub issue, apply the domain labels from the
   [CONTRIBUTING label catalog](../CONTRIBUTING.md#opening-issues) - at least one
   `area:` plus a type, adding `tier:` / `vertical:` / safety / cross-cutting
-  labels when central. Issues are English-only and never carry customer values.
+  labels when central. Issues never carry customer values.
 - When you work on or review any GitHub issue, you MUST add a comment recording
   what was done, found, or why no change was needed - even for "already
   implemented" or "won't fix". If the issue was **registered by someone other

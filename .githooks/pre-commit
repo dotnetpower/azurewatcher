@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Pre-commit hook - auto re-sign the framework-surface integrity manifest.
+#
+# Runs only when core.hooksPath=.githooks is set (make hooks-install / the
+# folderOpen task). It delegates to scripts/resign-if-surface-staged.sh, which
+# is a no-op unless the upstream signing key is present AND a staged change
+# touches the framework surface (scripts/lib/framework-surface.txt). Forks (no
+# key) always no-op, so tamper-evidence for forks is unchanged.
+#
+# Bypass:  FDAI_SKIP_RESIGN=1 git commit    (or: git commit --no-verify)
+set -uo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+if [ -f "$repo_root/scripts/resign-if-surface-staged.sh" ]; then
+  bash "$repo_root/scripts/resign-if-surface-staged.sh" || exit 1
+fi
+exit 0

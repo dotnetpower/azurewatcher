@@ -55,6 +55,27 @@ def test_screen_qualitative_answer_has_no_checkable_claims() -> None:
     assert result.checks_total == 0
 
 
+def test_korean_settings_explanation_does_not_false_reject_universal_prose() -> None:
+    answer = (
+        "이 화면은 모든 콘솔 표시 설정을 보여주며, 모든 변경은 브라우저 "
+        "로컬에만 저장됩니다. 런타임 주소는 http://127.0.0.1:8010입니다."
+    )
+    result = verify_answer(
+        answer,
+        {
+            "routeId": "settings",
+            "purpose": "Browser-local console display preferences and runtime information.",
+            "facts": [{"key": "read_api", "value": "http://127.0.0.1:8010"}],
+        },
+        locale="ko",
+    )
+
+    assert result.status == "consistent"
+    assert result.answer == answer
+    assert result.checks_completed == 2
+    assert result.checks_total == 2
+
+
 def test_none_state_corrects_to_bounded_absence_claim_in_korean() -> None:
     result = verify_answer(
         "\uad00\ub828 \uc7a5\uc560\ub294 \uc804\ud600 \uc5c6\uc2b5\ub2c8\ub2e4.",

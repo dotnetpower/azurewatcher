@@ -1,4 +1,5 @@
 import type { AutonomyPayload, DashboardKpi, MetricVsBaseline } from "../types";
+import { KpiCard, KpiGrid } from "../components/ui";
 import { getLocale, t } from "../i18n";
 import { routeHref } from "../router";
 import type { OverviewHealth } from "./dashboard.model";
@@ -160,10 +161,12 @@ export function SuccessMetrics({
   success,
   synthetic,
   windowDays,
+  sourceName,
 }: {
   readonly success: AutonomyPayload["success"];
   readonly synthetic: boolean;
   readonly windowDays: number;
+  readonly sourceName: string;
 }) {
   const evidence = t(
     synthetic ? "overview.evidence.simulated" : "overview.evidence.measured",
@@ -173,6 +176,7 @@ export function SuccessMetrics({
     ["touchpoints", "human-touchpoints", success.human_touchpoints_per_100.value.toFixed(1), success.human_touchpoints_per_100, success.human_touchpoints_per_100.baseline.toFixed(1)],
     ["mttr", "mttr", fmtDuration(success.mttr_seconds.value), success.mttr_seconds, fmtDuration(success.mttr_seconds.baseline)],
     ["leadTime", "change-lead-time", fmtDuration(success.change_lead_time_seconds.value), success.change_lead_time_seconds, fmtDuration(success.change_lead_time_seconds.baseline)],
+    ["cost", "cost-per-resolved-event", `$${success.cost_per_resolved_event_usd.value.toFixed(2)}`, success.cost_per_resolved_event_usd, `$${success.cost_per_resolved_event_usd.baseline.toFixed(2)}`],
   ] as const;
   return (
     <section class="overview-metrics" aria-label="success metrics vs baseline">
@@ -186,6 +190,7 @@ export function SuccessMetrics({
           baselineText={baseline}
           evidence={evidence}
           windowDays={windowDays}
+          sourceName={sourceName}
         />
       ))}
     </section>
@@ -199,6 +204,7 @@ function SuccessMetric({
   baselineText,
   evidence,
   windowDays,
+  sourceName,
   href,
 }: {
   readonly label: string;
@@ -207,6 +213,7 @@ function SuccessMetric({
   readonly baselineText: string;
   readonly evidence: string;
   readonly windowDays: number;
+  readonly sourceName: string;
   readonly href: string;
 }) {
   const factor = improvementFactor(metric);
@@ -215,7 +222,7 @@ function SuccessMetric({
       <span class="overview-metric-label">{label}</span>
       <span class="overview-metric-value">{value}</span>
       <span class="overview-metric-evidence">
-        {evidence} - {t("overview.evidence.window", { days: windowDays })}
+        {evidence} - {t("overview.evidence.window", { days: windowDays })} - {t("overview.evidence.source", { source: sourceName })}
       </span>
       <span class="overview-metric-sub muted">
         {t("overview.metric.vsBaseline", { baseline: baselineText })}
@@ -224,6 +231,46 @@ function SuccessMetric({
         ) : null}
       </span>
     </a>
+  );
+}
+
+export function LeadingIndicators({
+  leading,
+  sourceName,
+}: {
+  readonly leading: AutonomyPayload["leading"];
+  readonly sourceName: string;
+}) {
+  const indicators = [
+    ["disagreement", leading.mixed_model_disagreement_rate],
+    ["verifier", leading.verifier_failure_rate],
+    ["divergence", leading.shadow_divergence_rate],
+  ] as const;
+  return (
+    <section class="stack-section" aria-labelledby="overview-leading-title">
+      <h3 id="overview-leading-title" class="section-title">{t("overview.leading.title")}</h3>
+      <KpiGrid>
+        {indicators.map(([key, metric]) => (
+          <a key={key} class="overview-kpi-link" href={routeHref("trust-routing", { segments: ["t2"] })}>
+            <KpiCard
+              label={t(`overview.leading.${key}`)}
+              value={`${(metric.value * 100).toFixed(1)}%`}
+              hint={`${t("overview.metric.vsBaseline", { baseline: `${(metric.baseline * 100).toFixed(1)}%` })} - ${t("overview.evidence.source", { source: sourceName })}`}
+              tone={metric.value <= metric.baseline ? "positive" : "warning"}
+            />
+          </a>
+        ))}
+      </KpiGrid>
+    </section>
+  );
+}
+
+export function MeasurementUnavailable() {
+  return (
+    <div class="state-block state-unavailable" role="status">
+      <strong>{t("overview.evidence.unavailable")}</strong>
+      <span>{t("overview.evidence.unavailableHint")}</span>
+    </div>
   );
 }
 

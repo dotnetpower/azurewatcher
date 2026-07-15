@@ -21,8 +21,8 @@
 #
 # Allowlist: scripts/.check-file-loc.allowlist (one path per line, '#'
 # comments, blanks ignored). Each entry MUST document *why* it is
-# exempt in a comment on the preceding line, matching the convention in
-# scripts/check-english-only.sh. An allowlisted file is skipped entirely.
+# exempt in a comment on the preceding line. An allowlisted file is
+# skipped entirely.
 #
 # Rationale: tracker issue #14 (issue #22). The refactor items G-2, G-3,
 # G-4, G-5 all exist because a handful of files crossed the 600-800 LOC

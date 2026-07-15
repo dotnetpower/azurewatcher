@@ -16,6 +16,7 @@ describe("console preferences", () => {
       theme: "light",
       locale: "en",
       motion: "system",
+      semanticVerification: "off",
     });
   });
 
@@ -24,7 +25,13 @@ describe("console preferences", () => {
       "fdai:console:theme": "dark",
       "fdai:console:locale": "ko",
       "fdai:console:motion": "reduced",
-    }))).toEqual({ theme: "dark", locale: "ko", motion: "reduced" });
+      "fdai:console:semantic-verification": "shadow",
+    }))).toEqual({
+      theme: "dark",
+      locale: "ko",
+      motion: "reduced",
+      semanticVerification: "shadow",
+    });
   });
 
   test("lets an explicit URL locale override stored locale", () => {
@@ -38,7 +45,13 @@ describe("console preferences", () => {
       "fdai:console:theme": "system",
       "fdai:console:locale": "fr",
       "fdai:console:motion": "full",
-    }))).toEqual({ theme: "light", locale: "en", motion: "system" });
+      "fdai:console:semantic-verification": "enforce",
+    }))).toEqual({
+      theme: "light",
+      locale: "en",
+      motion: "system",
+      semanticVerification: "off",
+    });
   });
 
   test("uses an in-memory fallback when browser storage is unavailable", () => {
@@ -46,6 +59,13 @@ describe("console preferences", () => {
     expect(readConsolePreferences("", null).theme).toBe("dark");
     resetConsolePreferences();
     expect(readConsolePreferences("", null).theme).toBe("light");
+  });
+
+  test("enables semantic verification only in shadow mode", () => {
+    setConsolePreference("semanticVerification", "shadow");
+    expect(readConsolePreferences("", null).semanticVerification).toBe("shadow");
+    resetConsolePreferences();
+    expect(readConsolePreferences("", null).semanticVerification).toBe("off");
   });
 
   test("accepts a newer preference written by another tab", () => {

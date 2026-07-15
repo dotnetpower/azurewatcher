@@ -52,6 +52,7 @@ from psycopg.rows import dict_row
 from fdai.delivery.read_api.read_model import (
     AuditItem,
     AuditPage,
+    AuditQueryFilters,
     ConsoleReadModel,
     DashboardKpi,
     HilQueueItem,
@@ -122,7 +123,21 @@ normalized AS (
                WHEN a.entry->>'kind' = 'incident.transition' THEN a.entry->>'to_state'
                WHEN a.entry->>'kind' = 'incident.open' THEN a.entry->>'state'
                ELSE NULL
-           END AS lifecycle_state
+           END AS lifecycle_state,
+           CASE LOWER(COALESCE(a.entry->>'vertical', a.entry->>'category', ''))
+               WHEN 'resilience' THEN 'resilience'
+               WHEN 'dr' THEN 'resilience'
+               WHEN 'reliability' THEN 'resilience'
+               WHEN 'chaos' THEN 'resilience'
+               WHEN 'change' THEN 'change_safety'
+               WHEN 'change_safety' THEN 'change_safety'
+               WHEN 'config_drift' THEN 'change_safety'
+               WHEN 'security' THEN 'change_safety'
+               WHEN 'cost' THEN 'cost_governance'
+               WHEN 'cost_governance' THEN 'cost_governance'
+               WHEN 'finops' THEN 'cost_governance'
+               ELSE NULL
+           END AS vertical_bucket
     FROM bounded_audit AS a
       LEFT JOIN event_anchor AS ea ON ea.event_id = a.event_id
       LEFT JOIN incident_open AS io ON io.incident_id = a.entry->>'incident_id'
@@ -158,7 +173,12 @@ incident_groups AS (
                    ) THEN 'in_progress'
                    ELSE 'open'
                END
-           ) AS projected_state
+           ) AS projected_state,
+           COALESCE(
+               (ARRAY_AGG(vertical_bucket ORDER BY seq DESC)
+                   FILTER (WHERE vertical_bucket IS NOT NULL))[1],
+               'unknown'
+           ) AS projected_vertical
     FROM ranked
      WHERE normalized_correlation_id IS NOT NULL
        AND normalized_correlation_id <> ''
@@ -168,6 +188,7 @@ selected AS (
     SELECT normalized_correlation_id, last_seq
       FROM incident_groups
     WHERE (%(before_seq)s IS NULL OR last_seq < %(before_seq)s)
+         AND (%(vertical)s IS NULL OR projected_vertical = %(vertical)s)
        AND (
            %(status)s = 'all'
            OR (%(status)s = 'resolved' AND projected_state IN ('resolved', 'closed'))
@@ -431,6 +452,7 @@ class PostgresConsoleReadModel(ConsoleReadModel):
         limit: int = 50,
         cursor: str | None = None,
         correlation_id: str | None = None,
+        filters: AuditQueryFilters | None = None,
     ) -> AuditPage:
         bounded = clamp_limit(limit)
         cutoff = _parse_cursor(cursor)
@@ -444,70 +466,51 @@ class PostgresConsoleReadModel(ConsoleReadModel):
         ) as conn:
             async with conn.transaction():
                 await self._set_statement_timeout(conn)
-                if correlation_id is not None and cutoff is None:
-                    cur = await conn.execute(
-                        """
-                        WITH unambiguous_events AS (
-                            SELECT event_id FROM audit_log GROUP BY event_id
-                            HAVING COUNT(DISTINCT correlation_id)
-                                FILTER (WHERE correlation_id IS NOT NULL) = 1
-                               AND MIN(correlation_id)
-                                FILTER (WHERE correlation_id IS NOT NULL) = %s
-                        )
-                        SELECT seq, event_id, correlation_id, actor, action_kind,
-                               mode, entry, previous_hash, entry_hash, created_at
-                          FROM audit_log
-                         WHERE correlation_id = %s
-                            OR event_id IN (SELECT event_id FROM unambiguous_events)
-                         ORDER BY seq DESC
-                         LIMIT %s
-                        """,
-                        (correlation_id, correlation_id, fetch),
+                active = filters or AuditQueryFilters()
+                cur = await conn.execute(
+                    """
+                    WITH unambiguous_events AS (
+                        SELECT event_id FROM audit_log GROUP BY event_id
+                        HAVING COUNT(DISTINCT correlation_id)
+                            FILTER (WHERE correlation_id IS NOT NULL) = 1
+                           AND MIN(correlation_id)
+                            FILTER (WHERE correlation_id IS NOT NULL) = %(correlation_id)s
                     )
-                elif correlation_id is not None:
-                    cur = await conn.execute(
-                        """
-                        WITH unambiguous_events AS (
-                            SELECT event_id FROM audit_log GROUP BY event_id
-                            HAVING COUNT(DISTINCT correlation_id)
-                                FILTER (WHERE correlation_id IS NOT NULL) = 1
-                               AND MIN(correlation_id)
-                                FILTER (WHERE correlation_id IS NOT NULL) = %s
-                        )
-                        SELECT seq, event_id, correlation_id, actor, action_kind,
-                               mode, entry, previous_hash, entry_hash, created_at
-                          FROM audit_log
-                         WHERE seq < %s
-                           AND (correlation_id = %s
-                                OR event_id IN (SELECT event_id FROM unambiguous_events))
-                         ORDER BY seq DESC
-                         LIMIT %s
-                        """,
-                        (correlation_id, cutoff, correlation_id, fetch),
-                    )
-                elif cutoff is None:
-                    cur = await conn.execute(
-                        """
-                        SELECT seq, event_id, correlation_id, actor, action_kind,
-                               mode, entry, previous_hash, entry_hash, created_at
-                          FROM audit_log
-                         ORDER BY seq DESC
-                         LIMIT %s
-                        """,
-                        (fetch,),
-                    )
-                else:
-                    cur = await conn.execute(
-                        """
-                        SELECT seq, event_id, correlation_id, actor, action_kind,
-                               mode, entry, previous_hash, entry_hash, created_at
-                          FROM audit_log
-                         WHERE seq < %s
-                         ORDER BY seq DESC
-                         LIMIT %s
-                        """,
-                        (cutoff, fetch),
-                    )
+                    SELECT seq, event_id, correlation_id, actor, action_kind,
+                           mode, entry, previous_hash, entry_hash, created_at
+                      FROM audit_log
+                     WHERE (%(cutoff)s IS NULL OR seq < %(cutoff)s)
+                       AND (%(correlation_id)s IS NULL
+                            OR correlation_id = %(correlation_id)s
+                            OR event_id IN (SELECT event_id FROM unambiguous_events))
+                       AND (%(mode)s IS NULL OR mode = %(mode)s)
+                       AND (%(tier)s IS NULL OR entry->>'tier' = %(tier)s)
+                       AND (%(action_kind)s IS NULL OR action_kind = %(action_kind)s)
+                       AND (%(outcome)s IS NULL OR entry->>'outcome' = %(outcome)s)
+                       AND (%(vertical)s IS NULL OR REPLACE(LOWER(COALESCE(
+                            entry->>'vertical', entry->>'category', ''
+                       )), '_', '-') = %(vertical)s)
+                       AND (%(window_days)s IS NULL OR created_at >=
+                            CURRENT_TIMESTAMP - make_interval(days => %(window_days)s))
+                     ORDER BY seq DESC
+                     LIMIT %(fetch)s
+                    """,
+                    {
+                        "cutoff": cutoff,
+                        "correlation_id": correlation_id,
+                        "mode": active.mode,
+                        "tier": active.tier,
+                        "action_kind": active.action_kind,
+                        "outcome": active.outcome,
+                        "vertical": (
+                            active.vertical.replace("_", "-").lower()
+                            if active.vertical is not None
+                            else None
+                        ),
+                        "window_days": active.window_days,
+                        "fetch": fetch,
+                    },
+                )
                 rows = await cur.fetchall()
         items = [row_to_audit_item(row) for row in rows[:bounded]]
         next_cursor = str(items[-1].seq) if len(rows) > bounded and items else None
@@ -519,6 +522,7 @@ class PostgresConsoleReadModel(ConsoleReadModel):
         status: IncidentStatusFilter = "active",
         limit: int = 50,
         cursor: str | None = None,
+        vertical: str | None = None,
     ) -> IncidentPage:
         """Return a bounded incident roster derived from the audit ledger."""
 
@@ -527,7 +531,7 @@ class PostgresConsoleReadModel(ConsoleReadModel):
         if status not in {"active", "resolved", "all"}:
             raise ValueError(f"invalid incident status filter: {status!r}")
         bounded = clamp_limit(limit)
-        decoded = decode_incident_cursor(cursor, status=status)
+        decoded = decode_incident_cursor(cursor, status=status, vertical=vertical)
         fetch = bounded + 1
         async with await psycopg.AsyncConnection.connect(
             self._config.dsn,
@@ -542,6 +546,7 @@ class PostgresConsoleReadModel(ConsoleReadModel):
                         "snapshot_seq": decoded.snapshot_seq if decoded else None,
                         "before_seq": decoded.before_seq if decoded else None,
                         "status": status,
+                        "vertical": vertical,
                         "fetch": fetch,
                         "summary_history_limit": INCIDENT_SUMMARY_HISTORY_LIMIT,
                     },
@@ -591,6 +596,7 @@ class PostgresConsoleReadModel(ConsoleReadModel):
                     snapshot_seq=snapshot_seq,
                     before_seq=group_last_seq[visible_correlations[-1]],
                     status=status,
+                    vertical=vertical,
                 )
             )
             if len(group_order) > bounded and visible_correlations

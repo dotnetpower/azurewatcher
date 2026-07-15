@@ -81,12 +81,23 @@ _DEMO_MEASUREMENT: Mapping[str, Any] = {
     "window_days": 30,
     "sample_size": 1284,
     "confidence": 0.95,
+    "source": {
+        "name": "synthetic-dev-harness",
+        "kind": "synthetic",
+        "as_of": "2026-07-15T00:00:00Z",
+    },
     "rules": {"active": 47, "candidates_30d": 6, "promoted_30d": 3},
     "success": {
         "auto_resolution_rate": {"value": 0.92, "baseline": 0.18, "direction": "higher"},
         "human_touchpoints_per_100": {"value": 1.1, "baseline": 5.8, "direction": "lower"},
         "mttr_seconds": {"value": 540, "baseline": 2700, "direction": "lower"},
         "change_lead_time_seconds": {"value": 1080, "baseline": 6300, "direction": "lower"},
+        "cost_per_resolved_event_usd": {"value": 0.12, "baseline": 0.45, "direction": "lower"},
+    },
+    "leading": {
+        "mixed_model_disagreement_rate": {"value": 0.01, "baseline": 0.03, "direction": "lower"},
+        "verifier_failure_rate": {"value": 0.008, "baseline": 0.02, "direction": "lower"},
+        "shadow_divergence_rate": {"value": 0.015, "baseline": 0.04, "direction": "lower"},
     },
     "guards": [
         {"key": "cfr", "value": 0.012, "baseline": 0.04, "threshold": 0.04, "ok": True},
@@ -161,12 +172,19 @@ class AutonomyMeasurementPanel:
         tier_mix = {key: by_tier.get(key, 0) / tier_total for key in ("t0", "t1", "t2")}
 
         return {
-            "synthetic": True,
+            "synthetic": bool(
+                self._measurement.get(
+                    "synthetic",
+                    self._measurement.get("source", {}).get("kind") == "synthetic",
+                )
+            ),
             "window_days": self._measurement.get("window_days", 30),
             "sample_size": self._measurement.get("sample_size", 0),
             "confidence": self._measurement.get("confidence"),
+            "source": dict(self._measurement.get("source", {})),
             "rules": dict(self._measurement.get("rules", {})),
             "success": self._measurement.get("success", {}),
+            "leading": self._measurement.get("leading", {}),
             "guards": list(self._measurement.get("guards", [])),
             "verticals": [
                 {

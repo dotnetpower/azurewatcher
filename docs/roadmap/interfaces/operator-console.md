@@ -470,6 +470,16 @@ class ConversationSession:
   L3 response language follows the current turn: a Korean prompt renders a
   Korean answer even when the console display locale is English. Otherwise,
   the operator's configured locale controls the answer language.
+  The navigation list groups conversations as **Current screen**, **Other
+  screens**, and **Agents**. Each pathname owns one non-removable default
+  screen conversation. **New conversation** creates an ephemeral empty thread
+  for the current pathname; it enters the index only after the first operator
+  turn, using that prompt as its normalized title. Closing or navigating away
+  before the first turn discards the empty thread. A screen thread's origin
+  pathname and label are immutable. Selecting a thread under **Other screens**
+  navigates to its origin before restoring the transcript, so prior turns are
+  never combined with evidence from a different screen. Agent conversations
+  remain in their own group and retain their explicit agent scope.
 - **Week 1**: `operator_memory` (already scaffolded by a parallel session
   under [`src/fdai/core/operator_memory/`](../../../src/fdai/core/operator_memory))
   becomes the store for **out-of-band operator preferences**: "this
@@ -962,6 +972,12 @@ evidence_resolving -> generating -> provisional -> verifying
 - `unverified` means verification could not complete; it MUST NOT render the
   same trust check used for `verified`.
 
+When a delegated agent's provisional prose remains `consistent`, the reply
+header keeps that agent. When verification replaces the prose with a
+`corrected` or `unverified` terminal answer, the header returns to **Bragi**,
+the final narrator. The original `primary_agent` remains in delegation and
+trace metadata; it is not presented as the author of verifier-generated text.
+
 Every event carries a monotonic `seq`; answer-changing events also carry a
 monotonic `revision`. The client ignores stale revisions and events after the
 terminal event. A correction replaces the text for the existing turn id,
@@ -995,6 +1011,12 @@ snapshot evidence references. An `evidence_manifest` records route, capture
 time, completeness, source paths, and a canonical content hash. It contains
 only entries used by claims, not a duplicate of the full snapshot.
 
+Bounded-scope extraction covers explicit absence such as `no`, `none`, or
+"not shown on this screen". Positive universal prose such as `all`, `always`,
+`모든`, or `전부` remains qualitative and is left to the optional semantic
+shadow verifier. A universal word by itself never turns a routine screen
+description into a deterministic global-scope claim.
+
 Every extracted claim MUST be supported by an unambiguous snapshot entry. If
 all claims pass, the answer remains `consistent` (never `verified`, because the
 browser snapshot is not an independent server projection). If no checkable
@@ -1016,6 +1038,25 @@ with no extractable structured claim is labeled `consistent` with
 `screen_no_checkable_claims`, never `verified`. A measured semantic entailment
 leg and a larger labeled corpus remain required before claiming 9.5-level
 coverage across all natural-language claims.
+
+The Settings panel exposes an **Experimental semantic verification** toggle.
+It is browser-local, defaults off, and travels with each chat request as a
+verification preference. Enabling the toggle does not imply availability: the
+read API runs the semantic leg only when a fork installed the `local-nli`
+optional dependency and supplied hash-pinned ONNX model and tokenizer paths.
+Missing packages, missing artifacts, load failures, and inference timeouts are
+reported as `unavailable`; they never delay or downgrade the deterministic
+terminal decision.
+
+The first semantic leg is shadow-only and subtractive. It evaluates only
+screen answers that have qualitative prose or no deterministic claim target,
+emits `entailed`, `contradicted`, `unknown`, or `unavailable` metadata, and
+MUST NOT convert `unverified` to `consistent` or `consistent` to `verified`.
+The model is loaded lazily after the first enabled request so disabled users
+and scale-to-zero startup pay no model cost. Its package and model stay
+removable: promotion or removal is decided in a later measured issue using a
+frozen English/Korean corpus, p95 latency and memory/cold-start deltas,
+contradiction catch rate, unknown rate, and clean-answer false-positive rate.
 
 #### 13.4.3 Live observation contract
 
@@ -1097,6 +1138,28 @@ cursor bounds each server-side page. Selection performs a separate filtered
 GET for history. Every route is Reader-gated and returns `405` for mutating
 verbs. The panel provides links to Audit and Trace but no execute, approve, or
 rollback button; those operations remain in remediation PRs and ChatOps.
+
+The roster accepts an optional canonical `vertical` filter, and the audit
+route applies `mode`, `tier`, `action`, `outcome`, `vertical`, and bounded
+`window=<n>d` filters on the server before cursor pagination. An analytical
+deep link therefore searches the complete filtered result set rather than
+filtering only the first browser page. The cursor is bound to the incident
+status and vertical, so changing either filter invalidates a stale cursor.
+
+The SPA preserves native table semantics for the incident roster. The first
+cell contains the selection button, each selected row exposes
+`aria-selected`, and the control points to the incident detail region with
+`aria-controls`. Unknown top-level URLs are replaced with canonical
+`/overview`, so one visible screen cannot create multiple conversation caches
+under typo paths.
+
+Overview keeps every required analytical section visible when autonomy
+measurement is absent or malformed. It renders an explicit unavailable state
+instead of removing the section or inferring zero. When evidence is present,
+the success surface includes cost per resolved event, mixed-model
+disagreement, verifier failure, shadow divergence, the measurement window,
+sample size, confidence, and the named source. **History > Reports** renders
+the declarative reporting catalog and its server-owned widget evidence.
 
 Contract rules (enforced by `console/src/routes/view-contract.test.ts`):
 

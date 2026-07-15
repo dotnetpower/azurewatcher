@@ -58,7 +58,7 @@ lines, verify, commit. **One batch = one commit.**
 ## Guardrails
 
 - customer-agnostic strings only (no real sub id / tenant / customer name).
-- L0 English only in tests (no Hangul literals; use `\uXXXX` escapes or
-  structural assertions).
+- Machine records (audit / events / log keys) SHOULD stay English in tests for
+  replay; Korean prose is otherwise fine. Identifiers stay ASCII.
 - Property-test invariants for safety-core modules must stay: "high-risk
   never auto-executes", "shadow mode never mutates", "re-apply is no-op".

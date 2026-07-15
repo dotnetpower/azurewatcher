@@ -115,6 +115,21 @@ if [ -x scripts/check-protected-paths.sh ] || [ -f scripts/check-protected-paths
 fi
 
 # ---------------------------------------------------------------------------
+# 4b. Framework-surface integrity (offline signed manifest). Verifies the
+#     signature + content of every framework-surface file against the
+#     upstream-signed security/integrity/manifest.json. Fork: a content
+#     mismatch (edited/added/deleted surface file) is a HARD BLOCK. Upstream:
+#     advisory (rc 0) - re-sign before release. Skipped until the signed
+#     manifest exists so a fresh checkout never fails on a missing artifact.
+# ---------------------------------------------------------------------------
+if [ -f scripts/check-integrity.sh ] && [ -f security/integrity/manifest.json.sig ]; then
+  if ! bash scripts/check-integrity.sh; then
+    echo "pre-push: BLOCKED - framework-surface integrity (fork mode)."
+    exit 1
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # 5. Structural gates (warn-only in the hook - CI is the authoritative
 #    fail surface). Kept lightweight so pushes stay fast. Tracker #14,
 #    issue #22.

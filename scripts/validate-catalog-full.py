@@ -258,7 +258,6 @@ def step_env_snapshot(runner: Runner) -> StepResult:
 
 def step_hygiene_gates(runner: Runner) -> StepResult:
     scripts = [
-        "scripts/check-english-only.sh",
         "scripts/check-punctuation.sh",
         "scripts/check-guids.sh",
         "scripts/check-translations.sh",

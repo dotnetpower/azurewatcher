@@ -16,6 +16,7 @@
 import { loadConfig } from "../config";
 import type { AuthContext } from "../auth";
 import { getLocale } from "../i18n";
+import { readConsolePreferences } from "../preferences";
 import { answer as deterministicAnswer, ROUTE_ACTION_HINTS, type Answer } from "./answerer";
 import type { ViewSnapshot } from "./context";
 import { getDeckUser } from "./deck-user";
@@ -130,6 +131,16 @@ export interface AnswerEvidenceManifest {
   readonly entries: readonly EvidenceManifestEntry[];
 }
 
+export interface SemanticVerification {
+  readonly verdict: "entailed" | "contradicted" | "unknown" | "unavailable";
+  readonly provider: string;
+  readonly model_id: string | null;
+  readonly latency_ms: number;
+  readonly entailment_score: number | null;
+  readonly contradiction_score: number | null;
+  readonly reason_code: string | null;
+}
+
 export interface AnswerVerification {
   readonly status: AnswerVerificationStatus;
   readonly authority: string;
@@ -140,6 +151,7 @@ export interface AnswerVerification {
   readonly claims?: readonly AtomicAnswerClaim[];
   readonly evidence_manifest?: AnswerEvidenceManifest;
   readonly failed_claim_ids?: readonly string[];
+  readonly semantic?: SemanticVerification;
 }
 
 export interface DelegationMetadata {
@@ -199,6 +211,12 @@ function streamUrl(): string {
 function toBackendHistory(history: readonly BackendTurn[]): BackendTurn[] {
   // Only user/assistant pairs, most recent 8 turns.
   return history.slice(-8).map((t) => ({ role: t.role, content: t.content }));
+}
+
+function verificationPreferences(): { readonly semantic_enabled: boolean } {
+  return {
+    semantic_enabled: readConsolePreferences().semanticVerification === "shadow",
+  };
 }
 
 /**
@@ -286,6 +304,7 @@ export async function askBackend(
         session_id: sessionId,
         view_context: viewContextWithUser(snapshot),
         history: toBackendHistory(history),
+        verification_preferences: verificationPreferences(),
       }),
       credentials: "omit",
     });
@@ -565,6 +584,7 @@ export async function askBackendStream(
         session_id: cb.sessionId,
         view_context: viewContextWithUser(snapshot),
         history: toBackendHistory(history),
+        verification_preferences: verificationPreferences(),
       }),
       signal: cb.signal ?? null,
       credentials: "omit",
@@ -802,6 +822,7 @@ function parseAnswerVerification(raw: unknown): AnswerVerification | undefined {
     : [];
   const claims = parseAtomicClaims(record.claims);
   const manifest = parseEvidenceManifest(record.evidence_manifest);
+  const semantic = parseSemanticVerification(record.semantic);
   const artifactPresent = record.claims !== undefined || record.evidence_manifest !== undefined;
   const malformedArtifact = artifactPresent && (claims === null || manifest === null);
   return {
@@ -817,6 +838,33 @@ function parseAnswerVerification(raw: unknown): AnswerVerification | undefined {
     claims: claims ?? [],
     ...(manifest ? { evidence_manifest: manifest } : {}),
     failed_claim_ids: failedClaimIds,
+    ...(semantic ? { semantic } : {}),
+  };
+}
+
+function parseSemanticVerification(raw: unknown): SemanticVerification | null | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "object" || Array.isArray(raw)) return null;
+  const semantic = raw as Record<string, unknown>;
+  const verdict = semantic.verdict;
+  if (
+    !["entailed", "contradicted", "unknown", "unavailable"].includes(String(verdict)) ||
+    typeof semantic.provider !== "string" ||
+    (semantic.model_id !== null && typeof semantic.model_id !== "string") ||
+    typeof semantic.latency_ms !== "number" ||
+    (semantic.entailment_score !== null && typeof semantic.entailment_score !== "number") ||
+    (semantic.contradiction_score !== null &&
+      typeof semantic.contradiction_score !== "number") ||
+    (semantic.reason_code !== null && typeof semantic.reason_code !== "string")
+  ) return null;
+  return {
+    verdict: verdict as SemanticVerification["verdict"],
+    provider: semantic.provider,
+    model_id: semantic.model_id as string | null,
+    latency_ms: semantic.latency_ms,
+    entailment_score: semantic.entailment_score as number | null,
+    contradiction_score: semantic.contradiction_score as number | null,
+    reason_code: semantic.reason_code as string | null,
   };
 }
 

@@ -20,7 +20,12 @@ async function callAskAndCaptureBody(snap: ViewSnapshot | null, sessionId?: stri
   vi.stubGlobal("fetch", fetchMock);
   const mod = await import("./backend");
   await mod.askBackend("hi", snap, [], sessionId);
-  return capture.body ? (JSON.parse(capture.body) as { view_context?: Record<string, unknown> }) : null;
+  return capture.body
+    ? (JSON.parse(capture.body) as {
+        view_context?: Record<string, unknown>;
+        verification_preferences?: { semantic_enabled?: boolean };
+      })
+    : null;
 }
 
 function liveSnap(): ViewSnapshot {
@@ -81,6 +86,26 @@ describe("viewContextWithUser wiring", () => {
       expect(ctx._locale).toBe("ko");
     } finally {
       i18n.setLocale("en");
+    }
+  });
+
+  test("sends semantic verification disabled by default", async () => {
+    const preferences = await import("../preferences");
+    preferences.resetConsolePreferences();
+
+    const parsed = await callAskAndCaptureBody(liveSnap());
+
+    expect(parsed?.verification_preferences?.semantic_enabled).toBe(false);
+  });
+
+  test("sends semantic verification enabled in shadow mode", async () => {
+    const preferences = await import("../preferences");
+    preferences.setConsolePreference("semanticVerification", "shadow");
+    try {
+      const parsed = await callAskAndCaptureBody(liveSnap());
+      expect(parsed?.verification_preferences?.semantic_enabled).toBe(true);
+    } finally {
+      preferences.resetConsolePreferences();
     }
   });
 

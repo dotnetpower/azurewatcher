@@ -35,6 +35,7 @@ const AgentsRoute = lazy(async () => ({ default: (await import("./routes/agents"
 const HilQueueRoute = lazy(async () => ({ default: (await import("./routes/hil-queue")).HilQueueRoute }));
 const ProvisionRoute = lazy(async () => ({ default: (await import("./routes/provision")).ProvisionRoute }));
 const ProcessesRoute = lazy(async () => ({ default: (await import("./routes/processes")).ProcessesRoute }));
+const ReportsRoute = lazy(async () => ({ default: (await import("./routes/reports")).ReportsRoute }));
 const AgentActivityRoute = lazy(async () => ({ default: (await import("./routes/agent-activity")).AgentActivityRoute }));
 const AuditRoute = lazy(async () => ({ default: (await import("./routes/audit")).AuditRoute }));
 const RuleTraceRoute = lazy(async () => ({ default: (await import("./routes/rule-trace")).RuleTraceRoute }));
@@ -175,6 +176,13 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
     subtitle: t("nav.panelSub.audit"),
     group: "history",
     component: AuditRoute,
+  },
+  {
+    id: "reports",
+    label: t("nav.panel.reports"),
+    subtitle: t("nav.panelSub.reports"),
+    group: "history",
+    component: ReportsRoute,
   },
   {
     id: "trace",

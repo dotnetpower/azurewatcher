@@ -179,6 +179,11 @@ export interface AutonomyPayload {
   readonly window_days: number;
   readonly sample_size: number;
   readonly confidence: number | null;
+  readonly source: {
+    readonly name: string;
+    readonly kind: "audit" | "measurement" | "synthetic";
+    readonly as_of: string | null;
+  };
   readonly rules: {
     readonly active: number;
     readonly candidates_30d: number;
@@ -189,6 +194,12 @@ export interface AutonomyPayload {
     readonly human_touchpoints_per_100: MetricVsBaseline;
     readonly mttr_seconds: MetricVsBaseline;
     readonly change_lead_time_seconds: MetricVsBaseline;
+    readonly cost_per_resolved_event_usd: MetricVsBaseline;
+  };
+  readonly leading: {
+    readonly mixed_model_disagreement_rate: MetricVsBaseline;
+    readonly verifier_failure_rate: MetricVsBaseline;
+    readonly shadow_divergence_rate: MetricVsBaseline;
   };
   readonly guards: readonly GuardMetric[];
   readonly verticals: readonly VerticalSummary[];

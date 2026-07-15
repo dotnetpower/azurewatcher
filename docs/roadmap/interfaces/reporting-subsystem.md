@@ -73,6 +73,22 @@ Code map (see [project-structure.md](../architecture/project-structure.md)):
 - `src/fdai/delivery/read_api/reporting.py` - the four `GET` routes.
 - `rule-catalog/reports/` - the YAML catalog + JSON Schema.
 
+### Console SPA implementation status
+
+The Console SPA now exposes **History > Reports** at `/reports` and a
+canonical detail route at `/reports/<report-id>`. It reads the catalog and
+runtime registry, renders declared variables as bounded controls, and sends
+only `GET /reports/<id>/render` requests. The shared widget renderer covers
+every type used by the upstream report catalog: `query_value`, `bar_chart`,
+`timeseries`, `top_list`, `table`, `list_stream`, `check_status`, and
+`topology_map`, plus recursive `group` and keyboard-accessible `tabs`.
+
+A report that uses these registered visual types appears without an FE code
+change. A newly invented visualization type still needs a reviewed renderer
+in the SPA. The registry route is a capability diagnostic, not executable UI
+code delivery. Until that renderer ships, the SPA shows an explicit
+unavailable state instead of exposing raw JSON or guessing a presentation.
+
 ## Widget catalog
 
 35 upstream builders across seven families. Every builder emits a
@@ -117,10 +133,11 @@ Datadog-inspired `data` payload the FE renders keyed on `type`.
 |           | `tabs` | recursive children; engine-special-cased |
 |           | `split_graph` | `panels` fanned out from `DataSet.series` |
 
-A fork adds a new type by implementing
-`WidgetBuilder` and calling `WidgetRegistry.register` at composition
-time. The FE learns the new type by hitting `GET /reports/registry` -
-no restart, no schema push.
+A fork adds a new backend type by implementing `WidgetBuilder` and calling
+`WidgetRegistry.register` at composition time. `GET /reports/registry` lets
+the SPA report whether that type has a local renderer. Reports built from
+already-supported types need no FE change; a new visualization shape needs a
+small renderer before the SPA can present it.
 
 ## Datasource catalog
 

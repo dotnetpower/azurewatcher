@@ -20,8 +20,20 @@ describe("clean console routes", () => {
   test("parses detail routes and query filters", () => {
     const route = parseConsoleRoute("/trust-routing/t2", "?window=30d");
     expect(route.panelId).toBe("trust-routing");
+    expect(route.matched).toBe(true);
+    expect(route.canonicalPathname).toBe("/trust-routing/t2");
     expect(route.segments).toEqual(["t2"]);
     expect(route.search.get("window")).toBe("30d");
+  });
+
+  test("marks unknown and root paths for canonical Overview replacement", () => {
+    for (const pathname of ["/", "/typo", "/typo/detail"]) {
+      const route = parseConsoleRoute(pathname);
+      expect(route.panelId).toBe("dashboard");
+      expect(route.matched).toBe(false);
+      expect(route.canonicalPathname).toBe("/overview");
+      expect(route.segments).toEqual([]);
+    }
   });
 
   test("migrates legacy hash bookmarks", () => {

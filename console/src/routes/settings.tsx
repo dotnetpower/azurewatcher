@@ -29,12 +29,19 @@ export function SettingsRoute({ client }: Props) {
       routeLabel: t("route.settings"),
       purpose: "Browser-local console display preferences and read-only runtime information.",
       glossary: composeGlossary([TERMS.userPreference]),
-      headline: `${preferences.theme} theme, ${preferences.locale} locale, ${preferences.motion} motion`,
+      headline:
+        `${preferences.theme} theme, ${preferences.locale} locale, ` +
+        `${preferences.motion} motion, semantic verification ${preferences.semanticVerification}`,
       capturedAt: new Date().toISOString(),
       facts: [
         { key: "theme", value: preferences.theme, group: "display" },
         { key: "locale", value: preferences.locale, group: "display" },
         { key: "motion", value: preferences.motion, group: "accessibility" },
+        {
+          key: "semantic_verification",
+          value: preferences.semanticVerification,
+          group: "verification",
+        },
         { key: "read_api", value: client.readApiBaseUrl, group: "runtime" },
       ],
       records: {},
@@ -109,6 +116,33 @@ export function SettingsRoute({ client }: Props) {
         <div class="settings-list">
           <SettingRow label={t("settings.readApi")} hint={t("settings.readApiHint")}>
             <code class="settings-runtime-value">{client.readApiBaseUrl}</code>
+          </SettingRow>
+        </div>
+      </section>
+
+      <section class="settings-section" aria-labelledby="settings-verification">
+        <h3 id="settings-verification">{t("settings.verification")}</h3>
+        <div class="settings-list">
+          <SettingRow
+            label={t("settings.semanticVerification")}
+            hint={t("settings.semanticVerificationHint")}
+          >
+            <label class="settings-toggle-control">
+              <input
+                type="checkbox"
+                checked={preferences.semanticVerification === "shadow"}
+                onChange={(event) => update(
+                  "semanticVerification",
+                  event.currentTarget.checked ? "shadow" : "off",
+                )}
+              />
+              <span aria-hidden="true" />
+              <strong>
+                {preferences.semanticVerification === "shadow"
+                  ? t("settings.enabled")
+                  : t("settings.disabled")}
+              </strong>
+            </label>
           </SettingRow>
         </div>
       </section>
