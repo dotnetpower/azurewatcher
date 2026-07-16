@@ -333,6 +333,11 @@ export default defineConfig({
           translations: { ko: "\uae30\ub2a5" },
           items: [
             {
+              label: "Change Safety",
+              translations: { ko: "\ubcc0\uacbd \uc548\uc804\uc131" },
+              link: "/capabilities/change-safety/",
+            },
+            {
               label: "Resilience & SRE",
               translations: { ko: "\ud68c\ubcf5\ud0c4\ub825\uc131\uacfc SRE" },
               link: "/concepts/sre-foundations/",
