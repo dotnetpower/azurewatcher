@@ -20,6 +20,7 @@ resource "azurerm_container_app_job" "scheduler_tick" {
   container_app_environment_id = azurerm_container_app_environment.primary.id
   resource_group_name          = var.resource_group_name
   location                     = var.location
+  workload_profile_name        = "Consumption"
   // One due-lookup + publish pass. A tick that runs longer than this means
   // the schedule set has grown past its budget and needs sharding.
   replica_timeout_in_seconds = 300

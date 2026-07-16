@@ -27,6 +27,7 @@ resource "azurerm_container_app_job" "analyzer_tick" {
   container_app_environment_id = azurerm_container_app_environment.primary.id
   resource_group_name          = var.resource_group_name
   location                     = var.location
+  workload_profile_name        = "Consumption"
   // One analyzer pass. A tick that runs longer than this means the
   // target list has grown past its budget and needs sharding.
   replica_timeout_in_seconds = 300
