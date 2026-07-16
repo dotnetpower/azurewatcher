@@ -1,5 +1,5 @@
-import { useEffect, useState } from "preact/hooks";
-import { ReadApiError } from "../api";
+import { useEffect, useMemo, useState } from "preact/hooks";
+import { isOptionalReadApiUnavailable, ReadApiError } from "../api";
 import type { ReadApiClient } from "../api";
 import {
   AsyncBoundary,
@@ -14,6 +14,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { currentRoute, navigate, routeHref } from "../router";
 import { panelArray, panelBoolean, panelNumber, panelRecord, panelString, panelStringArray } from "./panel-decode";
 
 /**
@@ -47,7 +48,25 @@ interface Props {
 
 export function PromotionGatesRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<Response>>({ status: "loading" });
-  const statusFilter = new URLSearchParams(window.location.search).get("status");
+  const initialStatus = currentRoute().search.get("status");
+  const [statusFilter, setStatusFilter] = useState<"all" | "ready" | "blocked">(
+    initialStatus === "ready" || initialStatus === "blocked" ? initialStatus : "all",
+  );
+  const [query, setQuery] = useState(() => currentRoute().search.get("q") ?? "");
+
+  useEffect(() => {
+    const sync = () => {
+      const status = currentRoute().search.get("status");
+      setStatusFilter(status === "ready" || status === "blocked" ? status : "all");
+      setQuery(currentRoute().search.get("q") ?? "");
+    };
+    window.addEventListener("popstate", sync);
+    window.addEventListener("fdai:route-changed", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("fdai:route-changed", sync);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,7 +77,7 @@ export function PromotionGatesRoute({ client }: Props) {
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
-          if (err instanceof ReadApiError && err.status === 404) {
+          if (isOptionalReadApiUnavailable(err)) {
             setState({
               status: "unavailable",
               message:
@@ -77,22 +96,26 @@ export function PromotionGatesRoute({ client }: Props) {
   }, [client]);
 
   return (
-    <div class="stack">
+    <div class="stack governance-route promotion-route">
       <PageHeader
         title={t("route.promotionGates")}
         subtitle="Per-ActionType readiness against each shipped promotion_gate. Actions promote from shadow to enforce only when every gap is closed."
       />
-      {statusFilter ? (
-        <div class="filter-summary"><span>status: <strong>{statusFilter}</strong></span></div>
-      ) : null}
       <AsyncBoundary state={state} resourceLabel="promotion gates">
-        {(data) => (
-          <PromotionBody
-            data={statusFilter === "blocked"
-              ? { ...data, rows: data.rows.filter((row) => !row.ready) }
-              : data}
-          />
-        )}
+        {(data) => <PromotionBody
+          data={data}
+          statusFilter={statusFilter}
+          query={query}
+          onStatus={(status) => navigate(routeHref("promotion-gates", {
+            params: { status: status === "all" ? null : status, q: query || null },
+          }))}
+          onQuery={(nextQuery) => navigate(routeHref("promotion-gates", {
+            params: {
+              status: statusFilter === "all" ? null : statusFilter,
+              q: nextQuery || null,
+            },
+          }), true)}
+        />}
       </AsyncBoundary>
     </div>
   );
@@ -125,7 +148,28 @@ export function decodePromotionGates(value: unknown): Response {
   };
 }
 
-function PromotionBody({ data }: { readonly data: Response }) {
+function PromotionBody({
+  data,
+  statusFilter,
+  query,
+  onStatus,
+  onQuery,
+}: {
+  readonly data: Response;
+  readonly statusFilter: "all" | "ready" | "blocked";
+  readonly query: string;
+  readonly onStatus: (status: "all" | "ready" | "blocked") => void;
+  readonly onQuery: (query: string) => void;
+}) {
+  const rows = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase();
+    return data.rows.filter((row) => {
+      if (statusFilter === "ready" && !row.ready) return false;
+      if (statusFilter === "blocked" && row.ready) return false;
+      return !needle || row.action_type_name.toLocaleLowerCase().includes(needle) ||
+        row.gaps.some((gap) => gap.toLocaleLowerCase().includes(needle));
+    });
+  }, [data.rows, statusFilter, query]);
   usePublishViewContext(
     () => ({
       routeId: "promotion-gates",
@@ -166,7 +210,16 @@ function PromotionBody({ data }: { readonly data: Response }) {
   );
 
   const columns: readonly Column<Row>[] = [
-    { key: "at", header: "ActionType", render: (r) => r.action_type_name, cellClass: "mono" },
+    {
+      key: "at",
+      header: "ActionType",
+      render: (r) => (
+        <a href={routeHref("workflow-builder", { params: { action: r.action_type_name } })}>
+          {r.action_type_name}
+        </a>
+      ),
+      cellClass: "mono",
+    },
     {
       key: "rd",
       header: "Status",
@@ -187,14 +240,24 @@ function PromotionBody({ data }: { readonly data: Response }) {
     {
       key: "rev",
       header: "Reviewed / agreed",
-      render: (r) => `${r.reviewed_count} / ${r.agreed_count}`,
-      cellClass: "num", headerClass: "num",
+      render: (r) => (
+        <PromotionMeter
+          value={r.reviewed_count > 0 ? r.agreed_count / r.reviewed_count : 0}
+          label={`${r.reviewed_count} / ${r.agreed_count}`}
+          tone={r.reviewed_count > 0 && r.agreed_count === r.reviewed_count ? "good" : "warn"}
+        />
+      ),
     },
     {
       key: "acc",
       header: "Accuracy",
-      render: (r) => `${(r.accuracy * 100).toFixed(1)}%`,
-      cellClass: "num", headerClass: "num",
+      render: (r) => (
+        <PromotionMeter
+          value={r.accuracy}
+          label={`${(r.accuracy * 100).toFixed(1)}%`}
+          tone={r.accuracy >= 0.95 ? "good" : "warn"}
+        />
+      ),
     },
     {
       key: "esc",
@@ -213,16 +276,31 @@ function PromotionBody({ data }: { readonly data: Response }) {
         r.gaps.length === 0
           ? <span class="muted">-</span>
           : (
-            <ul class="mini-list">
-              {r.gaps.map((gap) => <li key={gap} class="mono">{gap}</li>)}
-            </ul>
+            <div class="promotion-gaps">
+              {r.gaps.map((gap) => <span key={gap}>{gap}</span>)}
+            </div>
           ),
+    },
+    {
+      key: "gate",
+      header: "Gate",
+      render: (r) => (
+        <span class={`promotion-gate ${r.ready ? "is-ready" : "is-blocked"}`}>
+          <strong>{r.ready ? "gate green" : "blocked"}</strong>
+          <small>{r.ready ? "promote via reviewed PR" : "address recorded gaps"}</small>
+        </span>
+      ),
     },
   ];
 
   return (
     <div class="stack">
+      <div class="governance-readonly-banner">
+        <strong>Shadow before enforce.</strong>
+        <span>Promotion is a separately reviewed catalog PR. This screen only renders measured readiness.</span>
+      </div>
       <KpiGrid>
+        <KpiCard label="In shadow" value={data.rows.length} hint="ActionTypes measured in this window" />
         <KpiCard
           label="Ready for promotion"
           value={data.ready_count}
@@ -240,15 +318,56 @@ function PromotionBody({ data }: { readonly data: Response }) {
           value={data.window_days !== null ? `${data.window_days}d` : "-"}
         />
       </KpiGrid>
+      <section class="governance-filterbar" aria-label="Promotion gate filters">
+        <div class="governance-chipset">
+          {(["all", "ready", "blocked"] as const).map((status) => (
+            <button
+              key={status}
+              type="button"
+              class={statusFilter === status ? "is-active" : undefined}
+              aria-pressed={statusFilter === status}
+              onClick={() => onStatus(status)}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+        <label>
+          <span class="sr-only">Search promotion gates</span>
+          <input
+            type="search"
+            value={query}
+            placeholder="ActionType or recorded gap"
+            onInput={(event) => onQuery(event.currentTarget.value)}
+          />
+        </label>
+      </section>
       <section class="stack-section">
-        <h3 class="section-title">ActionTypes ({data.rows.length})</h3>
+        <h3 class="section-title">ActionTypes ({rows.length})</h3>
         <DataTable
           columns={columns}
-          rows={data.rows}
+          rows={rows}
           keyOf={(r) => r.action_type_name}
           empty="No ActionTypes declared a promotion gate."
         />
       </section>
     </div>
+  );
+}
+
+function PromotionMeter({
+  value,
+  label,
+  tone,
+}: {
+  readonly value: number;
+  readonly label: string;
+  readonly tone: "good" | "warn";
+}) {
+  return (
+    <span class={`promotion-meter is-${tone}`}>
+      <span>{label}</span>
+      <i><b style={`width:${Math.max(0, Math.min(100, value * 100))}%`} /></i>
+    </span>
   );
 }

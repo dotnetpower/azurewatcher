@@ -43,6 +43,34 @@ def test_screen_unsupported_number_revises_to_unverified_abstention() -> None:
     assert result.failed_claim_ids == ("c001",)
 
 
+def test_screen_partial_mismatch_removes_only_unsupported_sentence() -> None:
+    answer = (
+        "The screen shows 22 ObjectTypes. "
+        "It shows 99 LinkTypes. "
+        "The selected Process has 10 properties."
+    )
+    result = verify_answer(
+        answer,
+        {
+            "routeId": "ontology",
+            "facts": [
+                {"key": "object_type_count", "value": 22},
+                {"key": "link_type_count", "value": 33},
+                {"key": "selected_process_property_count", "value": 10},
+            ],
+        },
+        locale="en",
+    )
+
+    assert result.status == "corrected"
+    assert result.reason_code == "screen_unsupported_sentences_removed"
+    assert "22 ObjectTypes" in result.answer
+    assert "10 properties" in result.answer
+    assert "99 LinkTypes" not in result.answer
+    assert result.checks_completed == 2
+    assert result.checks_total == 2
+
+
 def test_screen_qualitative_answer_has_no_checkable_claims() -> None:
     result = verify_answer(
         "Operations need attention.",
@@ -74,6 +102,39 @@ def test_korean_settings_explanation_does_not_false_reject_universal_prose() -> 
     assert result.answer == answer
     assert result.checks_completed == 2
     assert result.checks_total == 2
+
+
+def test_glossary_answer_removes_unsupported_screen_scope_addition() -> None:
+    answer = (
+        "\uc5d0\uc774\uc804\ud2b8\ub294 typed port\uc640 conversational port\ub97c "
+        "\uac01\uac01 \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \uc774 \ud654\uba74\uc5d0\ub294 "
+        "\uc790\ub3d9 \uc2e4\ud589 \uc870\uac74\uc774 \uc5c6\uc2b5\ub2c8\ub2e4."
+    )
+    result = verify_answer(
+        answer,
+        {
+            "routeId": "ontology",
+            "facts": [],
+            "_concept_evidence": {
+                "authority": "fdai_glossary",
+                "entries": [
+                    {
+                        "term": "Two-port model",
+                        "definition": (
+                            "Agents expose a typed pub/sub port and a conversational port."
+                        ),
+                    }
+                ],
+            },
+        },
+        locale="ko",
+    )
+
+    assert result.status == "corrected"
+    assert result.authority == "fdai_glossary"
+    assert result.reason_code == "concept_scope_claims_removed"
+    assert "typed port" in result.answer
+    assert "\uc790\ub3d9 \uc2e4\ud589 \uc870\uac74" not in result.answer
 
 
 def test_none_state_corrects_to_bounded_absence_claim_in_korean() -> None:

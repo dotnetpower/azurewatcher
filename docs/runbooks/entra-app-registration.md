@@ -35,6 +35,11 @@ Identity ([security-and-identity.md](../roadmap/architecture/security-and-identi
   (Application Administrator or Cloud Application Administrator, or Global
   Administrator).
 
+- For automated deployment, the self-hosted runner Managed Identity is an owner
+  of `fdai-console-spa` and has the Microsoft Graph
+  `Application.ReadWrite.OwnedBy` application permission with admin consent.
+  This lets the workflow update only applications owned by that identity.
+
 ## 1. Create `fdai-api`
 
 ```sh
@@ -99,8 +104,8 @@ SPA_APPID=$(az ad app create \
   --query appId -o tsv)
 SPA_OBJID=$(az ad app show --id "$SPA_APPID" --query id -o tsv)
 
-# Local test uses the Vite dev origin; a deployment uses the console's real
-# HTTPS origin instead (e.g. https://console.<fork>).
+# Seed local Vite origins here. The deploy workflow adds the deployed console
+# HTTPS origin after Terraform creates the Static Web App.
 SCOPE_GUID=$(az ad app show --id "$API_APPID" \
   --query "api.oauth2PermissionScopes[?value=='access'].id | [0]" -o tsv)
 python3 - "$API_APPID" "$SCOPE_GUID" <<'PY' > /tmp/fdai_spa.json
@@ -118,6 +123,31 @@ az rest --method PATCH \
   --headers "Content-Type=application/json" \
   --body @/tmp/fdai_spa.json
 ```
+
+### Keep the deployed redirect URI synchronized
+
+Set these GitHub Actions repository variables for each deployment target:
+
+| Variable | Value |
+|----------|-------|
+| `AZURE_TENANT_ID` | Target Entra tenant id. |
+| `ENTRA_CONSOLE_SPA_CLIENT_ID` | Application client id of that tenant's `fdai-console-spa`. |
+
+When `deploy-dev.yml` runs with both `apply=true` and `deploy_console=true`, it
+reads `console_default_hostname` from Terraform and runs
+`scripts/sync-entra-spa-redirect.py`. The helper:
+
+1. Verifies that the active Azure CLI tenant equals `AZURE_TENANT_ID`.
+2. Preserves every existing SPA redirect URI and adds the deployed HTTPS origin
+  only when it is missing.
+3. Reads the app registration again and fails the deployment if the new URI is
+  not visible.
+
+The operation is safe to retry (idempotent). A different subscription in the
+same tenant uses the same tenant-local app registration. A deployment to a
+different tenant needs that tenant's SPA client id and a runner identity owned
+by that tenant. Missing variables, a tenant mismatch, or insufficient Graph
+permission stops the deployment instead of leaving sign-in partially configured.
 
 ## 3. Service principals + role assignment
 

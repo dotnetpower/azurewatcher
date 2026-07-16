@@ -16,12 +16,30 @@ from fdai.core.capability_catalog.catalog import (
     SideEffectClass,
 )
 from fdai.core.capability_catalog.defaults import default_capability_catalog
+from fdai.core.capability_catalog.runtime import (
+    CapabilityBinding,
+    CapabilityBindingKind,
+    CapabilityBundle,
+    CapabilityReferences,
+    CapabilityRuntime,
+    CapabilityRuntimeError,
+    ResolvedCapability,
+    build_capability_references,
+)
 
 __all__ = [
     "Capability",
     "CapabilityCatalog",
     "CapabilityCategory",
+    "CapabilityBinding",
+    "CapabilityBindingKind",
+    "CapabilityBundle",
+    "CapabilityReferences",
+    "CapabilityRuntime",
+    "CapabilityRuntimeError",
     "DuplicateCapabilityError",
+    "ResolvedCapability",
     "SideEffectClass",
     "default_capability_catalog",
+    "build_capability_references",
 ]

@@ -42,6 +42,12 @@ variable "grant_executor_role" {
   default     = true
 }
 
+variable "additional_user_principal_ids" {
+  description = "Additional principals that may invoke Azure OpenAI deployments but receive no management-plane role."
+  type        = set(string)
+  default     = []
+}
+
 variable "resolved_capabilities" {
   description = <<-EOT
     Capability deployments to create. Fed from the resolver's

@@ -65,9 +65,21 @@ def build_process_view_routes(
             return _error(404, str(exc))
         return JSONResponse(rendered.to_dict())
 
+    async def process_events(request: Request) -> Response:
+        await authorize(request)
+        process_id = request.path_params["process_id"]
+        if not PROCESS_ID_PATTERN.fullmatch(process_id):
+            return _error(400, "malformed process id")
+        try:
+            journal = await config.engine.process_journal(process_id)
+        except ProcessViewLookupError as exc:
+            return _error(404, str(exc))
+        return JSONResponse(journal)
+
     return [
         Route(prefix, list_processes, methods=["GET"]),
         Route(f"{prefix}/{{process_id:str}}", render_process, methods=["GET"]),
+        Route(f"{prefix}/{{process_id:str}}/events", process_events, methods=["GET"]),
     ]
 
 

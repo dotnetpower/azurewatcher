@@ -9,8 +9,9 @@ they never share a principal with a human role in this module.
 Design authority:
 [`docs/roadmap/interfaces/user-rbac-and-identity.md`](../../../../docs/roadmap/interfaces/user-rbac-and-identity.md).
 
-Three sub-modules, each with one responsibility (SRP):
+Four sub-modules, each with one responsibility (SRP):
 
+- :mod:`.access_request` - governed role-change request persistence + audit.
 - :mod:`.roles` - the 5-role enum + capability matrix (data only, no I/O).
 - :mod:`.resolver` - Entra ID token claims → :class:`~.resolver.Principal`.
 - :mod:`.enforcer` - gate a route/handler by role or capability, and reject
@@ -25,6 +26,16 @@ frozen :class:`~.resolver.Principal`.
 
 from __future__ import annotations
 
+from fdai.core.rbac.access_request import (
+    AccessOperation,
+    AccessRequest,
+    AccessRequestConflictError,
+    AccessRequestError,
+    AccessRequestPermissionError,
+    AccessRequestService,
+    AccessRequestStatus,
+    AccessReviewDecision,
+)
 from fdai.core.rbac.enforcer import (
     AuthorizationError,
     BreakGlassExpiredError,
@@ -53,6 +64,14 @@ from fdai.core.rbac.roles import (
 
 __all__ = [
     "ROLE_CAPABILITIES",
+    "AccessOperation",
+    "AccessRequest",
+    "AccessRequestConflictError",
+    "AccessRequestError",
+    "AccessRequestPermissionError",
+    "AccessRequestService",
+    "AccessRequestStatus",
+    "AccessReviewDecision",
     "AuthorizationError",
     "BreakGlassActivation",
     "BreakGlassActivationError",

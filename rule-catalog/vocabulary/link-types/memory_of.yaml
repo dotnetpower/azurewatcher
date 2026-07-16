@@ -1,0 +1,7 @@
+schema_version: "1.0.0"
+name: memory_of
+version: "1.0.0"
+from_type: UserMemoryFact
+to_type: Principal
+cardinality: many_to_one
+description: Principal that explicitly consented to and owns this memory fact.

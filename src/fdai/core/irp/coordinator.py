@@ -62,6 +62,9 @@ class IrpOutcome(StrEnum):
     APPROVED = "approved"
     """Mitigation proposed and approved; routed to the pipeline (not executed here)."""
 
+    PENDING_APPROVAL = "pending_approval"
+    """Mitigation entered the typed pipeline and is waiting for its governed verdict."""
+
     REJECTED = "rejected"
     """Mitigation proposed but the approver rejected it - no-op."""
 
@@ -97,6 +100,7 @@ class MitigationProposal:
     approver_role: str
     citations: tuple[str, ...]
     requested_at: datetime
+    target_resource_ref: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +132,13 @@ class IrpNotifier(Protocol):
     async def notify(self, *, channels: Sequence[str], subject: str, body: str) -> None: ...
 
 
+@runtime_checkable
+class ProposalRouter(Protocol):
+    """Re-enter a proposal into the typed trust/risk/executor pipeline."""
+
+    async def route(self, proposal: MitigationProposal) -> None: ...
+
+
 class DenyByDefaultApprovalGate:
     """Fail-closed default - rejects every proposal (no approver wired)."""
 
@@ -151,6 +162,7 @@ class IrpCoordinator:
         "_default_channels",
         "_investigator",
         "_notifier",
+        "_proposal_router",
         "_wall_clock",
     )
 
@@ -160,6 +172,7 @@ class IrpCoordinator:
         investigator: InvestigationCoordinator,
         approval_gate: ApprovalGate | None = None,
         notifier: IrpNotifier | None = None,
+        proposal_router: ProposalRouter | None = None,
         default_channels: Sequence[str] = (),
         investigation_budget_seconds: float = _DEFAULT_INVESTIGATION_BUDGET,
         wall_clock: Callable[[], datetime] | None = None,
@@ -175,6 +188,7 @@ class IrpCoordinator:
         self._investigator = investigator
         self._approval: ApprovalGate = approval_gate or DenyByDefaultApprovalGate()
         self._notifier: IrpNotifier = notifier or NullNotifier()
+        self._proposal_router = proposal_router
         self._default_channels = tuple(default_channels)
         self._budget = investigation_budget_seconds
         self._wall_clock: Callable[[], datetime] = wall_clock or (lambda: datetime.now(tz=UTC))
@@ -240,7 +254,42 @@ class IrpCoordinator:
             approver_role=approver_role,
             citations=top.citations,
             requested_at=self._wall_clock(),
+            target_resource_ref=top.resource_ref,
         )
+        if self._proposal_router is not None:
+            routed = await self._route_proposal(proposal, alert_id=alert.alert_id)
+            if not routed:
+                await self._notify(
+                    channels,
+                    subject=f"[IRP] {alert.alert_id}: proposal routing failed",
+                    body="The mitigation did not enter the typed pipeline; no action taken.",
+                )
+                return self._result(
+                    alert,
+                    IrpOutcome.TIMEOUT,
+                    report,
+                    proposal,
+                    ApprovalDecision.TIMEOUT,
+                    channels,
+                    started,
+                )
+            await self._notify(
+                channels,
+                subject=f"[IRP] {alert.alert_id}: pending approval",
+                body=(
+                    f"Proposed {proposal.remediation_ref} ({proposal.priority.value}); "
+                    "the typed pipeline will apply its risk gate and approval policy."
+                ),
+            )
+            return self._result(
+                alert,
+                IrpOutcome.PENDING_APPROVAL,
+                report,
+                proposal,
+                None,
+                channels,
+                started,
+            )
         decision = await self._request_approval(proposal, alert_id=alert.alert_id)
         outcome = _DECISION_TO_OUTCOME[decision]
 
@@ -284,6 +333,16 @@ class IrpCoordinator:
         except Exception:  # noqa: BLE001 - fail closed: a gate fault is a no-op, never an execute
             _LOGGER.error("irp_approval_gate_failed", extra={"alert_id": alert_id})
             return ApprovalDecision.TIMEOUT
+
+    async def _route_proposal(self, proposal: MitigationProposal, *, alert_id: str) -> bool:
+        if self._proposal_router is None:
+            return False
+        try:
+            await self._proposal_router.route(proposal)
+        except Exception:  # noqa: BLE001 - fail closed; a route fault is no action
+            _LOGGER.error("irp_proposal_route_failed", extra={"alert_id": alert_id})
+            return False
+        return True
 
     def _timed_out_report(
         self, request: InvestigationRequest, started: datetime
@@ -382,4 +441,5 @@ __all__ = [
     "IrpResult",
     "MitigationProposal",
     "NullNotifier",
+    "ProposalRouter",
 ]

@@ -22,14 +22,14 @@ resource "azurerm_container_app" "read_api" {
 
   identity {
     type         = "UserAssigned"
-    identity_ids = [var.executor_identity_id]
+    identity_ids = [var.read_api_identity_id]
   }
 
   dynamic "registry" {
     for_each = var.acr_login_server == "" ? toset([]) : toset(["1"])
     content {
       server   = var.acr_login_server
-      identity = var.executor_identity_id
+      identity = var.read_api_identity_id
     }
   }
 
@@ -37,7 +37,7 @@ resource "azurerm_container_app" "read_api" {
   # the core app uses. The executor MI already holds Key Vault Secrets User.
   secret {
     name                = "dsn"
-    identity            = var.executor_identity_id
+    identity            = var.read_api_identity_id
     key_vault_secret_id = var.state_store_dsn_secret_id
   }
 
@@ -110,6 +110,111 @@ resource "azurerm_container_app" "read_api" {
         name  = "FDAI_READ_API_CORS_ALLOW_ORIGINS"
         value = var.cors_allow_origins
       }
+      dynamic "env" {
+        for_each = var.iam_directory_provider == "" ? [] : [var.iam_directory_provider]
+        content {
+          name  = "FDAI_IAM_DIRECTORY_PROVIDER"
+          value = env.value
+        }
+      }
+      dynamic "env" {
+        for_each = var.python_task_author_endpoint == "" ? [] : [var.python_task_author_endpoint]
+        content {
+          name  = "FDAI_PYTHON_TASK_AUTHOR_ENDPOINT"
+          value = env.value
+        }
+      }
+      dynamic "env" {
+        for_each = var.kafka_bootstrap_servers == "" ? [] : [var.kafka_bootstrap_servers]
+        content {
+          name  = "FDAI_KAFKA_BOOTSTRAP_SERVERS"
+          value = env.value
+        }
+      }
+      dynamic "env" {
+        for_each = var.kafka_topic_events == "" ? [] : [var.kafka_topic_events]
+        content {
+          name  = "KAFKA_TOPIC_EVENTS"
+          value = env.value
+        }
+      }
+      env {
+        name  = "AZURE_SUBSCRIPTION_ID"
+        value = var.azure_subscription_id
+      }
+      env {
+        name  = "AZURE_RESOURCE_GROUP"
+        value = var.azure_resource_group
+      }
+      env {
+        name  = "FDAI_EXECUTOR_PRINCIPAL_ID"
+        value = var.executor_principal_id
+      }
+      env {
+        name  = "FDAI_MI_CLIENT_ID"
+        value = var.read_api_identity_client_id
+      }
+      dynamic "env" {
+        for_each = var.resolved_models_path == "" ? [] : [var.resolved_models_path]
+        content {
+          name  = "LLM_RESOLVED_MODELS_PATH"
+          value = env.value
+        }
+      }
+      env {
+        name  = "FDAI_NARRATOR_PROBE_INTERVAL_SECONDS"
+        value = tostring(var.narrator_probe_interval_seconds)
+      }
+      dynamic "env" {
+        for_each = var.web_search_enabled ? [1] : []
+        content {
+          name  = "FDAI_WEB_SEARCH_ENABLED"
+          value = "true"
+        }
+      }
+      dynamic "env" {
+        for_each = var.web_search_enabled ? [1] : []
+        content {
+          name  = "FDAI_WEB_SEARCH_ALLOWED_DOMAINS"
+          value = join(",", var.web_search_allowed_domains)
+        }
+      }
+      dynamic "env" {
+        for_each = var.web_search_enabled ? [1] : []
+        content {
+          name  = "FDAI_WEB_SEARCH_MAX_RESULTS"
+          value = tostring(var.web_search_max_results)
+        }
+      }
+      dynamic "env" {
+        for_each = var.web_search_enabled ? [1] : []
+        content {
+          name  = "FDAI_WEB_SEARCH_BUDGET_MS"
+          value = tostring(var.web_search_budget_ms)
+        }
+      }
+      dynamic "env" {
+        for_each = var.web_search_enabled ? [1] : []
+        content {
+          name  = "FDAI_WEB_SEARCH_PROBE_INTERVAL_SECONDS"
+          value = tostring(var.web_search_probe_interval_seconds)
+        }
+      }
+      env {
+        name  = "FDAI_EXECUTOR_EVENT_ROLE_DEFINITION_ID"
+        value = var.executor_event_role_definition_id
+      }
+      env {
+        name  = "FDAI_EXECUTOR_SECRET_ROLE_DEFINITION_ID"
+        value = var.executor_secret_role_definition_id
+      }
+      dynamic "env" {
+        for_each = var.python_task_author_deployment == "" ? [] : [var.python_task_author_deployment]
+        content {
+          name  = "FDAI_PYTHON_TASK_AUTHOR_DEPLOYMENT"
+          value = env.value
+        }
+      }
       env {
         name  = "FDAI_INVENTORY_FRESHNESS_SECONDS"
         value = tostring(var.inventory_freshness_seconds)
@@ -134,20 +239,20 @@ resource "azurerm_container_app_job" "migrate" {
 
   identity {
     type         = "UserAssigned"
-    identity_ids = [var.executor_identity_id]
+    identity_ids = [var.read_api_identity_id]
   }
 
   dynamic "registry" {
     for_each = var.acr_login_server == "" ? toset([]) : toset(["1"])
     content {
       server   = var.acr_login_server
-      identity = var.executor_identity_id
+      identity = var.read_api_identity_id
     }
   }
 
   secret {
     name                = "dsn"
-    identity            = var.executor_identity_id
+    identity            = var.read_api_identity_id
     key_vault_secret_id = var.state_store_dsn_secret_id
   }
 

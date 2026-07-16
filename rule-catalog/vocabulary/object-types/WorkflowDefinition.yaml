@@ -1,0 +1,18 @@
+schema_version: "1.0.0"
+name: WorkflowDefinition
+version: "1.0.0"
+key: id
+description: Immutable version-pinned Workflow definition and resolved ActionType references.
+properties:
+  id: {type: string, required: true}
+  workflow_name: {type: string, required: true}
+  workflow_version: {type: string, required: true}
+  definition_hash: {type: string, required: true}
+  action_catalog_digest: {type: string, required: true}
+  action_type_refs: {type: array, required: true}
+  origin: {type: string, required: true}
+  visibility: {type: string, required: true}
+  lifecycle: {type: string, required: true}
+  owner_ref: {type: string, required: false, access_scope: owner, purpose_binding: [workflow_authoring]}
+  derived_from: {type: string, required: false}
+  created_at: {type: datetime, required: true}

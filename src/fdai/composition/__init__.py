@@ -101,12 +101,14 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-
+from . import wire_capabilities as _wire_capabilities  # noqa: E402
 from ._helpers import (  # noqa: E402 - after TYPE_CHECKING block
     Container,
     LlmBindings,
     LlmBindingsUnavailableError,
 )
+
+install_capability_bundle = _wire_capabilities.install_capability_bundle
 
 
 def _local_fake_llm_bindings() -> LlmBindings:
@@ -149,6 +151,7 @@ def default_container(config: AppConfig) -> Container:
         exemption_registry=empty_exemption_registry(),
         feasibility_probes=(),
         llm_bindings=llm,
+        capability_runtime=_wire_capabilities.default_capability_runtime(),
     )
 
 
@@ -375,13 +378,11 @@ def default_container_from_env() -> Container:
     return default_container(config)
 
 
-# G-3 extractions - keep public API by re-exporting from wire files.
-# noqa E402 justified: wire_azure imports back from this package so the
-# re-export MUST land after every public symbol is defined; moving it to
-# the top of the file creates a circular import.
+# G-3 public re-exports. E402 avoids wire_azure's package import cycle.
 from .readiness import OperationalReadinessService  # noqa: E402
 from .wire_azure import AzureWireOverrides, wire_azure_container  # noqa: E402
 from .wire_llm import bind_azure_llm_bindings  # noqa: E402
+from .wire_metric_provider import attach_metric_provider  # noqa: E402
 
 __all__ = [
     "AzureWireOverrides",
@@ -389,9 +390,11 @@ __all__ = [
     "LlmBindings",
     "LlmBindingsUnavailableError",
     "OperationalReadinessService",
+    "attach_metric_provider",
     "bind_azure_llm_bindings",
     "default_container",
     "default_container_from_env",
+    "install_capability_bundle",
     "load_pricing_table",
     "wire_azure_container",
 ]

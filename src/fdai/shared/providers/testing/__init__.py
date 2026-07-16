@@ -14,6 +14,12 @@ restart. The real Postgres + Kafka adapters land with W1.5 and W6.3.
 
 from .blast_probe import NoOpBlastProbe
 from .break_glass_pager import InMemoryBreakGlassPager
+from .briefing import (
+    InMemoryBriefingRunStore,
+    InMemoryBriefingSubscriptionStore,
+    InMemoryConversationPolicyStore,
+)
+from .command_runner import RecordingCommandRunner
 from .direct_api import RecordingDirectApiExecutor
 from .document_ingestion import (
     InMemoryDocumentAccessProvider,
@@ -36,6 +42,15 @@ from .sse import InMemorySseSink
 from .stage_publisher import RecordingStagePublisher
 from .state_store import InMemoryStateStore
 from .tool import RecordingToolExecutor
+from .user_context import (
+    InMemoryConversationHistoryStore,
+    InMemoryUserMemoryStore,
+    InMemoryUserPreferenceStore,
+)
+from .workflow_definition import (
+    InMemoryWorkflowBindingStore,
+    InMemoryWorkflowDefinitionStore,
+)
 from .workload_identity import StaticWorkloadIdentity
 
 __all__ = [
@@ -45,6 +60,10 @@ __all__ = [
     "InMemoryDocumentMetadataStore",
     "InMemoryDocumentObjectStore",
     "InMemoryBreakGlassPager",
+    "InMemoryBriefingRunStore",
+    "InMemoryBriefingSubscriptionStore",
+    "InMemoryConversationHistoryStore",
+    "InMemoryConversationPolicyStore",
     "InMemoryEventBus",
     "LiveInMemoryEventBus",
     "InMemoryHilApprovalRegistry",
@@ -54,8 +73,13 @@ __all__ = [
     "InMemorySecretProvider",
     "InMemorySseSink",
     "InMemoryStateStore",
+    "InMemoryUserMemoryStore",
+    "InMemoryUserPreferenceStore",
+    "InMemoryWorkflowBindingStore",
+    "InMemoryWorkflowDefinitionStore",
     "NoOpBlastProbe",
     "RecordingDirectApiExecutor",
+    "RecordingCommandRunner",
     "RecordingDocumentActivitySink",
     "RecordingRemediationPrPublisher",
     "RecordingStagePublisher",

@@ -276,9 +276,10 @@ _ENTRIES: tuple[Entry, ...] = (
     Entry(
         slug="redis-reboot",
         fault_name="urn:csci:microsoft:cache:reboot/1.0",
-        injector="az:redis-reboot",
-        description="Reboot Azure Cache for Redis node(s) via az redis "
-        "force-reboot. Reboot is one-way; monitor the cache back to healthy.",
+        injector="needs-injector",
+        description="Legacy Azure Cache for Redis force-reboot reference. "
+        "New cache creation is retired and Azure Managed Redis has no "
+        "equivalent reboot action, so this stays non-executable.",
         category="dependency",
         target_type="cache",
         fault_family="stop",

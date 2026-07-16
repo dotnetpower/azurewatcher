@@ -46,6 +46,12 @@ infra/
 │   │   └── event-hubs-kafka/   # default (Kafka wire on :9093)
 │   ├── secret-store/
 │   │   └── key-vault/          # default (Container Apps native secret + KV reference)
+│   ├── storage/
+│   │   └── adls-gen2/           # opt-in governed document source + artifacts (HNS)
+│   ├── ingestion-gateway/
+│   │   └── container-app/       # opt-in upload gateway + ClamAV sidecar + migration job
+│   ├── vm-task-host/            # opt-in custom Linux/GPU VM cloud-init profile
+│   ├── vm-task-rbac/            # target-VM-scoped Managed Run Command RBAC
 │   └── observability/
 │       └── log-analytics/      # default (App Insights binds to this workspace)
 └── envs/                       # per-env tfvars (git-ignored)
@@ -58,6 +64,46 @@ Approved Azure-internal alternates for each seam (AKS, Cosmos, ESO, ...) are cat
 [docs/roadmap/architecture/csp-neutrality.md § Approved Alternative Azure Implementations](../docs/roadmap/architecture/csp-neutrality.md#approved-alternative-azure-implementations).
 Alternates land as **sibling sub-modules** (e.g. `modules/compute/aks/`) when a real need
 arises; each MUST honor the standard output contract below so callers stay swap-blind.
+
+### Governed Python task host
+
+[`modules/vm-task-host/`](modules/vm-task-host/) and
+[`modules/vm-task-rbac/`](modules/vm-task-rbac/) are opt-in helpers for a custom
+Linux or GPU VM. They do not create or start the VM. A downstream composition
+passes the host module's `cloud_init_base64` to
+`azurerm_linux_virtual_machine.custom_data`, then passes the created VM id and
+executor principal id to the separate RBAC module. The split avoids a Terraform
+dependency cycle between VM creation and target-scoped role assignment.
+
+The cloud-init profile creates a locked, non-root `fdai-task` account, private
+content-addressed task directories, and a root-owned systemd launcher. The
+launcher keeps source read-only, confines output to one run directory, blocks
+privilege escalation and host credential paths, and maps declared network,
+process, filesystem-write, and GPU capabilities into systemd sandbox
+properties. It verifies the configured Python executable but installs no
+package, driver, CUDA runtime, or Python module.
+Those dependencies belong in the approved VM image. The custom role allows VM
+read and `virtualMachines/runCommands` read/write/delete only. It doesn't grant
+VM lifecycle, network, disk, role-management, or subscription permissions.
+
+```hcl
+module "vm_task_host" {
+  source = "./modules/vm-task-host"
+}
+
+resource "azurerm_linux_virtual_machine" "gpu" {
+  # VM image, size, network, identity, and naming stay caller-owned.
+  custom_data = module.vm_task_host.cloud_init_base64
+  tags        = merge(local.tags, module.vm_task_host.inventory_tags)
+}
+
+module "vm_task_rbac" {
+  source = "./modules/vm-task-rbac"
+
+  virtual_machine_id    = azurerm_linux_virtual_machine.gpu.id
+  executor_principal_id = module.identity.principal_id
+}
+```
 
 ## Standard Output Contract (per module)
 

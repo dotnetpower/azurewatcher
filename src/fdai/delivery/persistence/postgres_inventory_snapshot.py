@@ -384,6 +384,43 @@ class PostgresInventoryAgeProvider:
         return max(0, int(row["age_seconds"]))
 
 
+class PostgresInventoryContextProvider:
+    """Return trusted properties for one resource in the active snapshot."""
+
+    def __init__(self, *, config: PostgresInventorySnapshotStoreConfig) -> None:
+        self._config = config
+
+    async def __call__(self, resource_ref: str) -> Mapping[str, Any] | None:
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            row_factory=dict_row,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as connection:
+            await connection.execute(
+                "SELECT set_config('statement_timeout', %s, true)",
+                (str(self._config.statement_timeout_ms),),
+            )
+            cursor = await connection.execute(
+                "SELECT r.resource_id, r.resource_type, r.props "
+                "FROM inventory_active a "
+                "JOIN inventory_snapshot s ON s.id=a.snapshot_id "
+                "JOIN inventory_snapshot_resource r ON r.snapshot_id=a.snapshot_id "
+                "WHERE a.singleton=TRUE AND s.status='active' AND r.resource_id=%s",
+                (resource_ref,),
+            )
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        props = row["props"]
+        if isinstance(props, str):
+            props = json.loads(props)
+        return {
+            "resource_id": str(row["resource_id"]),
+            "resource_type": str(row["resource_type"]),
+            "props": dict(props) if isinstance(props, Mapping) else {},
+        }
+
+
 def _resource_payload(row: Mapping[str, Any]) -> dict[str, Any]:
     props = row["props"]
     if isinstance(props, str):
@@ -427,6 +464,7 @@ def _unavailable_graph() -> dict[str, Any]:
 
 __all__ = [
     "PostgresInventoryAgeProvider",
+    "PostgresInventoryContextProvider",
     "PostgresInventoryGraphProvider",
     "PostgresInventorySnapshotStore",
     "PostgresInventorySnapshotStoreConfig",

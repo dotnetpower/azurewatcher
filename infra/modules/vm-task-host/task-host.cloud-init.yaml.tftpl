@@ -1,0 +1,95 @@
+#cloud-config
+users:
+  - name: ${run_as_user}
+    system: true
+    lock_passwd: true
+    shell: /bin/bash
+    sudo: false
+    ssh_authorized_keys: []
+
+write_files:
+  - path: /usr/local/bin/fdai-task-preflight
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -eu
+      test "$(id -un)" = "${run_as_user}"
+      test -x "${python_executable}"
+      test -d "${task_root}"
+      test -w "${task_root}"
+      "${python_executable}" --version
+  - path: /usr/local/bin/fdai-task-launch
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -eu
+      if [ "$#" -ne 7 ]; then
+        echo "usage: fdai-task-launch USER TASK_DIR RUN_DIR PYTHON ENTRYPOINT TIMEOUT CAPABILITIES" >&2
+        exit 64
+      fi
+      run_user="$1"
+      task_dir="$2"
+      run_dir="$3"
+      python_executable="$4"
+      entrypoint="$5"
+      timeout_seconds="$6"
+      capabilities=",$7,"
+      test "$(id -u)" = 0
+      test "$run_user" = "${run_as_user}"
+      case "$task_dir" in "${task_root}"/*) ;; *) exit 65 ;; esac
+      case "$run_dir" in "${task_root}/.runs"/*) ;; *) exit 65 ;; esac
+      case "$entrypoint" in /*|*..*) exit 65 ;; esac
+      test -f "$task_dir/$entrypoint"
+      test -x "$python_executable"
+
+      properties=(
+        "User=$run_user"
+        "Group=$run_user"
+        "WorkingDirectory=$task_dir"
+        "Environment=PATH=/usr/local/bin:/usr/bin:/bin"
+        "Environment=HOME=$run_dir"
+        "Environment=FDAI_TASK_INPUT_JSON=$run_dir/inputs.json"
+        "NoNewPrivileges=yes"
+        "PrivateTmp=yes"
+        "ProtectSystem=strict"
+        "ProtectHome=yes"
+        "ReadOnlyPaths=$task_dir"
+        "InaccessiblePaths=/etc/ssh /etc/shadow /etc/gshadow /root /home"
+        "CapabilityBoundingSet="
+        "LockPersonality=yes"
+        "RestrictSUIDSGID=yes"
+        "SystemCallArchitectures=native"
+      )
+      case "$capabilities" in
+        *,network,*) ;;
+        *) properties+=("RestrictAddressFamilies=AF_UNIX") ;;
+      esac
+      case "$capabilities" in
+        *,filesystem_write,*) properties+=("ReadWritePaths=$run_dir") ;;
+        *) properties+=("ReadOnlyPaths=$run_dir") ;;
+      esac
+      case "$capabilities" in
+        *,gpu,*) ;;
+        *) properties+=("PrivateDevices=yes") ;;
+      esac
+      case "$capabilities" in
+        *,process,*) ;;
+        *) properties+=("SystemCallFilter=~@process") ;;
+      esac
+
+      args=(systemd-run --quiet --wait --pipe --collect)
+      for property in "$${properties[@]}"; do
+        args+=(--property "$property")
+      done
+      args+=(timeout --signal=TERM --kill-after=30s "$${timeout_seconds}s")
+      args+=("$python_executable" "$task_dir/$entrypoint")
+      exec "$${args[@]}"
+
+runcmd:
+  - [install, -d, -o, ${run_as_user}, -g, ${run_as_user}, -m, "0700", ${task_root}]
+  - [install, -d, -o, ${run_as_user}, -g, ${run_as_user}, -m, "0700", "${task_root}/.runs"]
+  - [su, -s, /bin/bash, -c, /usr/local/bin/fdai-task-preflight, ${run_as_user}]
+
+final_message: "FDAI VM task host profile ready"

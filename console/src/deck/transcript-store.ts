@@ -12,7 +12,13 @@
  * transcript rather than throwing into the render path.
  */
 
-import type { AnswerVerification } from "./backend";
+import {
+  parseAnswerPlan,
+  parseGroundedCodeArtifacts,
+  type AnswerPlanMetadata,
+  type AnswerVerification,
+  type GroundedCodeArtifact,
+} from "./backend";
 
 export const TRANSCRIPT_KEY = "fdai.deck.transcript.v1";
 
@@ -42,6 +48,8 @@ export interface PersistedTurn {
   readonly terminal?: boolean;
   readonly revision?: number;
   readonly verification?: AnswerVerification;
+  readonly answerPlan?: AnswerPlanMetadata;
+  readonly codeArtifacts?: readonly GroundedCodeArtifact[];
 }
 
 interface MaybeStreamingTurn extends PersistedTurn {
@@ -75,6 +83,10 @@ export function serializeTurns(
         ...(t.terminal !== undefined ? { terminal: t.terminal } : {}),
         ...(typeof t.revision === "number" ? { revision: t.revision } : {}),
         ...(validVerification(t.verification) ? { verification: t.verification } : {}),
+        ...(t.answerPlan ? { answerPlan: t.answerPlan } : {}),
+        ...(t.codeArtifacts && t.codeArtifacts.length > 0
+          ? { codeArtifacts: t.codeArtifacts }
+          : {}),
       };
     });
   return JSON.stringify(persisted);
@@ -98,6 +110,8 @@ export function parseTurns(raw: string | null): PersistedTurn[] {
     if (rec.role !== "operator" && rec.role !== "deck") continue;
     if (typeof rec.text !== "string") continue;
     if (typeof rec.at !== "string") continue;
+    const answerPlan = parseAnswerPlan(rec.answerPlan);
+    const codeArtifacts = parseGroundedCodeArtifacts(rec.codeArtifacts);
     const turn: PersistedTurn = {
       id: rec.id,
       role: rec.role,
@@ -112,6 +126,8 @@ export function parseTurns(raw: string | null): PersistedTurn[] {
         ? { revision: rec.revision }
         : {}),
       ...(validVerification(rec.verification) ? { verification: rec.verification } : {}),
+      ...(answerPlan ? { answerPlan } : {}),
+      ...(codeArtifacts.length > 0 ? { codeArtifacts } : {}),
     };
     out.push(turn);
   }

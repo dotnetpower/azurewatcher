@@ -1,0 +1,17 @@
+schema_version: "1.0.0"
+name: WorkflowBinding
+version: "1.0.0"
+key: id
+description: Principal-scoped trigger and parameters bound to an immutable WorkflowDefinition.
+properties:
+  id: {type: string, required: true}
+  principal_ref: {type: string, required: true, access_scope: owner, purpose_binding: [workflow_authoring]}
+  definition_ref: {type: string, required: true}
+  trigger: {type: string, required: true}
+  enabled: {type: boolean, required: true}
+  scope_ref: {type: string, required: false}
+  schedule: {type: object, required: false, access_scope: owner, purpose_binding: [workflow_authoring]}
+  parameters: {type: object, required: true, access_scope: owner, purpose_binding: [workflow_authoring]}
+  revision: {type: integer, required: true}
+  created_at: {type: datetime, required: true}
+  updated_at: {type: datetime, required: true}

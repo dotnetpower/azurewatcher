@@ -160,11 +160,41 @@ export interface DelegationMetadata {
   readonly trace_ref?: string;
 }
 
+export interface AnswerPlanMetadata {
+  readonly intent: "definition" | "why" | "procedure" | "comparison" | "diagnosis" | "status" | "list" | "summary" | "proposal" | "open_question";
+  readonly detail_level: "brief" | "standard" | "deep";
+  readonly format: "prose" | "bullets" | "numbered_steps" | "table" | "checklist" | "mixed";
+  readonly sections: readonly string[];
+  readonly evidence_requirement: "none" | "screen" | "catalog" | "server_read_model" | "agent_owned";
+  readonly max_words: number;
+  readonly discuss: "skip" | "shadow" | "selective";
+  readonly explicit_overrides: readonly string[];
+}
+
 export interface VerificationProgress {
   readonly phase: string;
   readonly label: string;
   readonly completed: number | null;
   readonly total: number | null;
+  readonly sources?: readonly RetrievalSourcePreview[];
+}
+
+export interface RetrievalSourcePreview {
+  readonly kind: string;
+  readonly label: string;
+  readonly detail: string;
+  readonly side_effect_class: "read" | "route" | "simulate" | "ground";
+}
+
+export type CodeValidationStatus = "valid" | "invalid" | "not_checked";
+
+export interface GroundedCodeArtifact {
+  readonly artifact_ref: string;
+  readonly language: string;
+  readonly content: string;
+  readonly sha256: string;
+  readonly validation_status: CodeValidationStatus;
+  readonly validation_detail: string | null;
 }
 
 export type ProgressiveAnswer = Answer & {
@@ -172,6 +202,8 @@ export type ProgressiveAnswer = Answer & {
   readonly router?: RouterSnapshot;
   readonly verification?: AnswerVerification;
   readonly delegation?: DelegationMetadata;
+  readonly answerPlan?: AnswerPlanMetadata;
+  readonly codeArtifacts?: readonly GroundedCodeArtifact[];
 };
 
 /** Health-check descriptor returned by ``GET /chat/health``. */
@@ -360,6 +392,16 @@ export async function askBackend(
       ? (payload as Record<string, unknown>).delegation
       : undefined,
   );
+  const answerPlan = parseAnswerPlan(
+    typeof payload === "object" && payload !== null
+      ? (payload as Record<string, unknown>).answer_plan
+      : undefined,
+  );
+  const codeArtifacts = parseGroundedCodeArtifacts(
+    typeof payload === "object" && payload !== null
+      ? (payload as Record<string, unknown>).code_artifacts
+      : undefined,
+  );
   if (answerText === null) {
     const local = deterministicAnswer(prompt, snapshot);
     return { ...local, source: "deterministic (no answer field)" };
@@ -386,6 +428,8 @@ export async function askBackend(
     ...base,
     ...(router ? { router } : {}),
     ...(delegation ? { delegation } : {}),
+    ...(answerPlan ? { answerPlan } : {}),
+    ...(codeArtifacts.length > 0 ? { codeArtifacts } : {}),
   };
 }
 
@@ -451,6 +495,10 @@ export interface StreamCallbacks {
  *  set it to 0 for hermetic runs (ES modules refuse const reassignment). */
 export const fallbackTypewriter = { intervalMs: 12 };
 
+/** Cosmetic pacing used only when SSE deltas arrive as one burst. Normal
+ *  incremental model tokens bypass this delay entirely. */
+export const streamBurstPacer = { intervalMs: 16 };
+
 /** Split a string into small chunks (~one grapheme-cluster group at a time)
  *  so the deterministic fallback types in like the LLM stream does. Splits
  *  on whitespace-preserving boundaries so words never break mid-character. */
@@ -461,6 +509,27 @@ function chunksForTypewriter(text: string): string[] {
   const re = /\s*\S{1,4}|\s+$/g;
   for (const m of text.matchAll(re)) out.push(m[0]);
   return out.length > 0 ? out : [text];
+}
+
+/** Split a burst into paint-sized groups without replaying every model token
+ *  through the slower deterministic fallback typewriter. */
+function chunksForBurst(text: string): string[] {
+  const words = text.match(/\s*\S+/g) ?? [];
+  if (words.length <= 1) return text.match(/[\s\S]{1,12}/gu) ?? [text];
+  const chunks: string[] = [];
+  let chunk = "";
+  let wordCount = 0;
+  for (const word of words) {
+    if (chunk && (wordCount >= 2 || chunk.length + word.length > 18)) {
+      chunks.push(chunk);
+      chunk = "";
+      wordCount = 0;
+    }
+    chunk += word;
+    wordCount += 1;
+  }
+  if (chunk) chunks.push(chunk);
+  return chunks;
 }
 
 /**
@@ -484,19 +553,19 @@ export async function askBackendStream(
     emittedText += delta;
     cb.onToken(delta);
   };
-  const pacingDelay = (): number => {
-    if (typeof document === "undefined") return fallbackTypewriter.intervalMs;
+  const visibleDelay = (intervalMs: number): number => {
+    if (typeof document === "undefined") return intervalMs;
     const unfocused = typeof document.hasFocus === "function" && !document.hasFocus();
     return document.visibilityState === "hidden" || unfocused
       ? 0
-      : fallbackTypewriter.intervalMs;
+      : intervalMs;
   };
   const emitTypewriter = async (text: string): Promise<void> => {
     const chunks = chunksForTypewriter(text);
     for (const c of chunks) {
       if (cb.signal?.aborted) return;
       emitToken(c);
-      const interval = pacingDelay();
+      const interval = visibleDelay(fallbackTypewriter.intervalMs);
       if (interval > 0) {
         await new Promise((r) => setTimeout(r, interval));
       }
@@ -545,14 +614,20 @@ export async function askBackendStream(
             queueWake = null;
             continue;
           }
-          const delta = tokenQueue.shift() as string;
-          // Fan out large single deltas so a one-shot backend replay OR a
-          // single big SSE frame still types in whole-word by whole-word.
-          const parts = delta.length > 8 ? chunksForTypewriter(delta) : [delta];
+          let delta = tokenQueue.shift() as string;
+          const queuedBurst = tokenQueue.length > 0;
+          while (tokenQueue.length > 0 && delta.length < 96) {
+            delta += tokenQueue.shift() as string;
+          }
+          // Preserve genuine model cadence. Only fan out a large frame or a
+          // same-tick queue burst, and use paint-sized groups rather than the
+          // slower deterministic fallback chunks.
+          const burstMode = queuedBurst || delta.length > 48;
+          const parts = burstMode ? chunksForBurst(delta) : [delta];
           for (const p of parts) {
             if (cb.signal?.aborted) return;
             emitToken(p);
-            const delay = pacingDelay();
+            const delay = burstMode ? visibleDelay(streamBurstPacer.intervalMs) : 0;
             if (delay > 0) await new Promise((r) => setTimeout(r, delay));
           }
         }
@@ -665,6 +740,7 @@ export async function askBackendStream(
             : null,
         total:
           typeof obj.total === "number" && Number.isFinite(obj.total) ? obj.total : null,
+        sources: parseRetrievalSourcePreviews(obj.sources),
       });
     } else if (event === "revision") {
       const replacement = typeof obj.answer === "string" ? obj.answer : null;
@@ -758,6 +834,8 @@ export async function askBackendStream(
   const router = parseRouter(done.router);
   const verification = parseAnswerVerification(done.verification);
   const delegation = parseDelegation(done.delegation);
+  const answerPlan = parseAnswerPlan(done.answer_plan);
+  const codeArtifacts = parseGroundedCodeArtifacts(done.code_artifacts);
   const chosen = router?.chose ?? model;
   const explicitSource = typeof done.source === "string" ? done.source : null;
   const source = explicitSource ?? (
@@ -774,6 +852,96 @@ export async function askBackendStream(
     ...base,
     ...(router ? { router } : {}),
     ...(delegation ? { delegation } : {}),
+    ...(answerPlan ? { answerPlan } : {}),
+    ...(codeArtifacts.length > 0 ? { codeArtifacts } : {}),
+  };
+}
+
+function parseRetrievalSourcePreviews(raw: unknown): readonly RetrievalSourcePreview[] {
+  if (!Array.isArray(raw)) return [];
+  const sources: RetrievalSourcePreview[] = [];
+  for (const item of raw.slice(0, 8)) {
+    if (typeof item !== "object" || item === null) continue;
+    const record = item as Record<string, unknown>;
+    const side = record.side_effect_class;
+    if (
+      typeof record.kind !== "string" ||
+      typeof record.label !== "string" ||
+      typeof record.detail !== "string" ||
+      (side !== "read" && side !== "route" && side !== "simulate" && side !== "ground")
+    ) continue;
+    sources.push({
+      kind: record.kind,
+      label: record.label,
+      detail: record.detail,
+      side_effect_class: side,
+    });
+  }
+  return sources;
+}
+
+const CODE_SHA256 = /^[0-9a-f]{64}$/;
+const CODE_LANGUAGE = /^[A-Za-z0-9_+#.-]{1,32}$/;
+const MAX_CODE_ARTIFACTS = 8;
+const MAX_CODE_CHARS = 64 * 1024;
+
+export function parseGroundedCodeArtifacts(raw: unknown): GroundedCodeArtifact[] {
+  if (!Array.isArray(raw)) return [];
+  const artifacts: GroundedCodeArtifact[] = [];
+  for (const item of raw.slice(0, MAX_CODE_ARTIFACTS)) {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) continue;
+    const record = item as Record<string, unknown>;
+    const sha256 = record.sha256;
+    const artifactRef = record.artifact_ref;
+    const language = record.language;
+    const content = record.content;
+    const status = record.validation_status;
+    const detail = record.validation_detail;
+    if (typeof sha256 !== "string" || !CODE_SHA256.test(sha256)) continue;
+    if (artifactRef !== `code:sha256:${sha256}`) continue;
+    if (typeof language !== "string" || !CODE_LANGUAGE.test(language)) continue;
+    if (typeof content !== "string" || content.length > MAX_CODE_CHARS) continue;
+    if (status !== "valid" && status !== "invalid" && status !== "not_checked") continue;
+    if (detail !== null && typeof detail !== "string") continue;
+    artifacts.push({
+      artifact_ref: artifactRef,
+      language,
+      content,
+      sha256,
+      validation_status: status,
+      validation_detail: detail,
+    });
+  }
+  return artifacts;
+}
+
+export function parseAnswerPlan(raw: unknown): AnswerPlanMetadata | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
+  const record = raw as Record<string, unknown>;
+  const intents = ["definition", "why", "procedure", "comparison", "diagnosis", "status", "list", "summary", "proposal", "open_question"] as const;
+  const details = ["brief", "standard", "deep"] as const;
+  const formats = ["prose", "bullets", "numbered_steps", "table", "checklist", "mixed"] as const;
+  const evidence = ["none", "screen", "catalog", "server_read_model", "agent_owned"] as const;
+  const discuss = ["skip", "shadow", "selective"] as const;
+  if (!intents.includes(record.intent as typeof intents[number])) return undefined;
+  if (!details.includes(record.detail_level as typeof details[number])) return undefined;
+  if (!formats.includes(record.format as typeof formats[number])) return undefined;
+  if (!evidence.includes(record.evidence_requirement as typeof evidence[number])) return undefined;
+  if (!discuss.includes(record.discuss as typeof discuss[number])) return undefined;
+  if (typeof record.max_words !== "number" || !Number.isInteger(record.max_words) || record.max_words < 1 || record.max_words > 2000) return undefined;
+  if (!Array.isArray(record.sections) || !record.sections.every((item) => typeof item === "string") || record.sections.length > 12) return undefined;
+  const overrides = Array.isArray(record.explicit_overrides)
+    ? record.explicit_overrides.filter((item): item is string => typeof item === "string").slice(0, 8)
+    : [];
+  return {
+    intent: record.intent as AnswerPlanMetadata["intent"],
+    detail_level: record.detail_level as AnswerPlanMetadata["detail_level"],
+    format: record.format as AnswerPlanMetadata["format"],
+    sections: record.sections,
+    evidence_requirement: record.evidence_requirement as AnswerPlanMetadata["evidence_requirement"],
+    max_words: record.max_words,
+    discuss: record.discuss as AnswerPlanMetadata["discuss"],
+    explicit_overrides: overrides,
   };
 }
 

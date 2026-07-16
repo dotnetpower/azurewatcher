@@ -201,6 +201,7 @@ class PgvectorKnowledgeSource:
                            metadata,
                            1.0 - (embedding <=> %s::vector) AS score
                       FROM {table}
+                     WHERE COALESCE(metadata->>'governed_document', 'false') <> 'true'
                      ORDER BY embedding <=> %s::vector ASC
                      LIMIT %s
                     """,  # noqa: S608 - table is a validated identifier, values are parametrized

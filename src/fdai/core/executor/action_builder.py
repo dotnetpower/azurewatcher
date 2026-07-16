@@ -23,6 +23,7 @@ Design notes
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -42,6 +43,7 @@ from fdai.shared.contracts.models import (
     OntologyActionType,
     RollbackRef,
     Rule,
+    TriggerKind,
 )
 
 
@@ -160,6 +162,106 @@ class ActionBuilder:
             created_at=datetime.now(tz=UTC),
         )
 
+    def build_from_operator_request(self, *, event: Event) -> tuple[Action, Rule]:
+        """Build one policy-safe Action from a normalized operator proposal."""
+        raw = event.payload.get("operator_request")
+        if not isinstance(raw, dict):
+            raise ActionBuildError("event payload has no normalized operator_request")
+        action_type_name = raw.get("action_type")
+        initiator = raw.get("initiator_principal")
+        params = raw.get("params")
+        if not isinstance(action_type_name, str) or not action_type_name:
+            raise ActionBuildError("operator_request action_type MUST be non-empty")
+        if not isinstance(initiator, str) or not initiator:
+            raise ActionBuildError("operator_request initiator_principal MUST be non-empty")
+        if not isinstance(params, dict):
+            raise ActionBuildError("operator_request params MUST be an object")
+        if not event.resource_ref:
+            raise ActionBuildError("operator_request resource_ref MUST be non-empty")
+        action_type = self.action_types_by_name.get(action_type_name)
+        if action_type is None:
+            raise ActionBuildError(f"operator_request ActionType {action_type_name!r} is unknown")
+        trigger = action_type.trigger_kind
+        if trigger is None or trigger.kind not in {TriggerKind.OPERATOR_REQUEST, TriggerKind.BOTH}:
+            raise ActionBuildError(
+                f"ActionType {action_type_name!r} does not allow operator_request triggers"
+            )
+        if action_type.argument_schema is None:
+            if params:
+                raise ActionBuildError(
+                    f"ActionType {action_type_name!r} has no argument_schema; params MUST be empty"
+                )
+        else:
+            errors = sorted(
+                Draft202012Validator(action_type.argument_schema).iter_errors(params),
+                key=lambda error: list(error.absolute_path),
+            )
+            if errors:
+                first = errors[0]
+                path = ".".join(str(part) for part in first.absolute_path) or "<root>"
+                raise ActionBuildError(
+                    f"operator_request params violate {action_type_name!r} argument_schema "
+                    f"at {path}: {first.message}"
+                )
+        resource = event.payload.get("resource")
+        resource_type = resource.get("resource_type") if isinstance(resource, dict) else None
+        rule = _operator_request_rule(
+            action_type,
+            resource_type if isinstance(resource_type, str) else "operator-request",
+        )
+        idempotency_key = _build_operator_idempotency_key(
+            event_idempotency_key=event.idempotency_key,
+            action_type_name=action_type_name,
+        )
+        return (
+            Action(
+                schema_version="1.0.0",
+                action_id=_build_action_id(idempotency_key),
+                idempotency_key=idempotency_key,
+                event_id=event.event_id,
+                action_type=action_type.name,
+                target_resource_ref=event.resource_ref,
+                operation=action_type.operation,
+                params=dict(params),
+                stop_condition=_derive_stop_condition(action_type),
+                rollback_ref=RollbackRef(kind=action_type.rollback_contract, reference=None),
+                blast_radius=_derive_blast_radius(action_type),
+                mode=Mode.SHADOW,
+                citing_rules=[rule.id],
+                created_at=datetime.now(tz=UTC),
+            ),
+            rule,
+        )
+
+
+def _operator_request_rule(action_type: OntologyActionType, resource_type: str) -> Rule:
+    """Server-owned policy context used by the unified risk gate and HIL park."""
+    return Rule.model_validate(
+        {
+            "schema_version": "1.0.0",
+            "id": f"operator.request.{action_type.name}",
+            "version": "1.0.0",
+            "source": "custom",
+            "severity": "high",
+            "category": "config_drift",
+            "resource_type": resource_type,
+            "check_logic": {
+                "kind": "expression",
+                "reference": "server-validated-operator-request",
+            },
+            "remediation": {"template_ref": "operator-request"},
+            "remediates": action_type.name,
+            "provenance": {
+                "source_url": "https://fdai.dev/operator-request",
+                "resolved_ref": "runtime-v1",
+                "content_hash": "sha256:runtime-operator-request-v1",
+                "license": "LicenseRef-runtime",
+                "redistribution": "embeddable",
+                "retrieved_at": "2026-07-15T00:00:00Z",
+            },
+        }
+    )
+
 
 def _derive_stop_condition(action_type: OntologyActionType) -> str:
     """Flatten the ActionType's first stop_condition into a string.
@@ -214,6 +316,11 @@ def _build_action_id(idempotency_key: str) -> Any:
     treat them as the same request.
     """
     return uuid5(NAMESPACE_URL, f"fdai.action://{idempotency_key}")
+
+
+def _build_operator_idempotency_key(*, event_idempotency_key: str, action_type_name: str) -> str:
+    digest = hashlib.sha256(f"{event_idempotency_key}\n{action_type_name}".encode()).hexdigest()
+    return f"operator:{digest}"
 
 
 __all__ = ["ActionBuildError", "ActionBuilder"]

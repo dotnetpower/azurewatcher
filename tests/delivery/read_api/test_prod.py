@@ -154,6 +154,54 @@ def test_build_prod_app_returns_starlette_app() -> None:
     paths = {route.path for route in app.routes}
     assert "/views/process" in paths
     assert "/views/process/{process_id:str}" in paths
+    assert "/workflows/action-types" in paths
+    assert "/workflows/validate" in paths
+    assert "/workflows/catalog" in paths
+    assert "/workflows/run" in paths
+    assert "/capabilities" in paths
+    assert "/onboarding" in paths
+    assert "/kpi/llm-cost" in paths
+
+
+def test_build_prod_app_rejects_unimplemented_identity_provider() -> None:
+    env = dict(_GOOD_ENV, FDAI_IAM_DIRECTORY_PROVIDER="aws-identity-center")
+
+    with pytest.raises(ProdReadApiConfigError, match="not implemented"):
+        build_prod_app(env)
+
+
+def test_build_prod_app_wires_managed_identity_narrator(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    resolved_models = tmp_path / "resolved-models.json"
+    resolved_models.write_text(
+        json.dumps(
+            {
+                "narrator": {
+                    "endpoint": "https://example.openai.azure.com/",
+                    "deployment": "narrator-mini",
+                    "api_version": "2024-12-01-preview",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    env = dict(_GOOD_ENV, LLM_RESOLVED_MODELS_PATH=str(resolved_models))
+    monkeypatch.setenv("IDENTITY_ENDPOINT", "http://localhost/identity")
+    monkeypatch.setenv("IDENTITY_HEADER", "test-header")
+
+    app = build_prod_app(env)
+
+    paths = {route.path for route in app.routes}
+    assert {"/chat", "/chat/stream", "/chat/health"} <= paths
+
+
+def test_build_prod_app_rejects_partial_onboarding_probe_config() -> None:
+    env = dict(_GOOD_ENV)
+    env["AZURE_SUBSCRIPTION_ID"] = "sub-example"
+    with pytest.raises(ProdReadApiConfigError, match="onboarding probe configuration"):
+        build_prod_app(env)
 
 
 def test_build_prod_app_enables_live_routes_when_kafka_is_configured(

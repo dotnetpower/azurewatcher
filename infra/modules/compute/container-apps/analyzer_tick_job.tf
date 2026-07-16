@@ -45,6 +45,15 @@ resource "azurerm_container_app_job" "analyzer_tick" {
     }
   }
 
+  dynamic "secret" {
+    for_each = nonsensitive(var.state_store_dsn_secret_id) == "" ? toset([]) : toset(["1"])
+    content {
+      name                = "analyzer-store-dsn"
+      identity            = var.executor_identity_id
+      key_vault_secret_id = var.state_store_dsn_secret_id
+    }
+  }
+
   schedule_trigger_config {
     cron_expression          = var.analyzer_tick_cron_expression
     replica_completion_count = 1
@@ -78,6 +87,22 @@ resource "azurerm_container_app_job" "analyzer_tick" {
       env {
         name  = "FDAI_ANALYZER_TARGETS"
         value = var.analyzer_targets_json
+      }
+
+      dynamic "env" {
+        for_each = nonsensitive(var.state_store_dsn_secret_id) == "" ? toset([]) : toset(["1"])
+        content {
+          name        = "FDAI_STATE_STORE_DSN"
+          secret_name = "analyzer-store-dsn"
+        }
+      }
+
+      dynamic "env" {
+        for_each = nonsensitive(var.state_store_dsn_secret_id) == "" ? toset([]) : toset(["1"])
+        content {
+          name        = "FDAI_INVENTORY_DSN"
+          secret_name = "analyzer-store-dsn"
+        }
       }
 
       // Analyzer window / budget (both optional; positive-number

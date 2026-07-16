@@ -1,0 +1,65 @@
+schema_version: 1.0.0
+name: tool.run-investigation
+version: 1.0.0
+operation: create
+interfaces:
+- IdempotentByKey
+rollback_contract: state_forward_only
+irreversible: false
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 1
+  min_samples: 10
+  min_accuracy: 0.95
+  max_policy_escapes: 0
+preconditions: []
+stop_conditions:
+- kind: time_box_exceeded_seconds
+  seconds: 120
+blast_radius:
+  computation: static_enum
+  static_bucket: resource
+description: >-
+  Run a bounded read-only investigation against one resource and persist its
+  timeline, findings, recommendations, and latency KPI to the report feed.
+category: tool
+trigger_kind:
+  kind: operator_request
+execution_path: tool_call
+ceiling_by_tier:
+  t0:
+    max_autonomy: enforce_auto
+    min_role: reader
+  t1:
+    max_autonomy: shadow_only
+    min_role: reader
+  t2:
+    max_autonomy: shadow_only
+    min_role: contributor
+argument_schema:
+  type: object
+  additionalProperties: false
+  required:
+  - resource_ref
+  - resource_kind
+  properties:
+    resource_ref:
+      type: string
+      x-fdai-audit-safe: true
+      minLength: 1
+    resource_kind:
+      type: string
+      enum:
+      - aks_cluster
+      - mysql_flexible_server
+      - azure_openai
+      - application_gateway
+      - api_management
+    window_seconds:
+      type: number
+      minimum: 1
+      maximum: 3600
+    budget_seconds:
+      type: number
+      minimum: 1
+      maximum: 120

@@ -1,11 +1,20 @@
 import { describe, expect, test } from "vitest";
 import {
   buildGithubNewFileUrl,
+  hasActionTypeRef,
   humanizeName,
   suggestDraftFromText,
   suggestStepId,
 } from "./workflow-builder";
 import type { ActionTypePaletteEntry } from "../workflow/validate";
+
+describe("workflow catalog wire tolerance", () => {
+  test("tolerates metadata-only live steps with a null action_type_ref", () => {
+    expect(hasActionTypeRef({ action_type_ref: null })).toBe(false);
+    expect(hasActionTypeRef({ action_type_ref: "" })).toBe(false);
+    expect(hasActionTypeRef({ action_type_ref: "compute.restart" })).toBe(true);
+  });
+});
 
 /**
  * These tests pin the two pure helpers the Phase-A builder UX relies on:

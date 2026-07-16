@@ -8,6 +8,7 @@ The tests here:
 
 - ``append_audit_entry`` writes a row with hash-chained integrity;
 - ``read_state`` / ``write_state`` round-trip on ``state_kv``;
+- atomic create and prefix reads support immutable command projections;
 - ``verify_chain`` returns True after two appends and False after we
   tamper with the persisted hash.
 """
@@ -96,6 +97,23 @@ async def test_state_kv_round_trip() -> None:
     await store.write_state(key, {"a": 2})
     assert await store.read_state(key) == {"a": 2}
     assert await store.read_state("unknown-key") is None
+
+
+@pytest.mark.asyncio
+async def test_state_kv_atomic_create_and_prefix_read() -> None:
+    url = _requires_live_db()
+    _upgrade_head()
+    dsn = _plain_dsn(url)
+    store = PostgresStateStore(config=PostgresStateStoreConfig(dsn=dsn))
+    prefix = f"integration-prefix-{uuid.uuid4()}:"
+
+    assert await store.write_state_if_absent(f"{prefix}one", {"value": 1}) is True
+    assert await store.write_state_if_absent(f"{prefix}one", {"value": 99}) is False
+    assert await store.write_state_if_absent(f"{prefix}two", {"value": 2}) is True
+
+    rows = await store.read_states(prefix, limit=10)
+    assert {row["value"] for row in rows} == {1, 2}
+    assert await store.read_state(f"{prefix}one") == {"value": 1}
 
 
 @pytest.mark.asyncio

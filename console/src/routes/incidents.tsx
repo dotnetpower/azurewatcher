@@ -20,9 +20,9 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { currentRoute, navigate, routeHref } from "../router";
 
 const INCIDENT_DETAIL_ID = "incident-detail";
-import { routeHref } from "../router";
 
 interface Props {
   readonly client: ReadApiClient;
@@ -37,15 +37,49 @@ const PAGE_SIZE = 25;
 const FILTERS: readonly IncidentStatusFilter[] = ["active", "resolved", "all"];
 
 export function IncidentsRoute({ client }: Props) {
-  const verticalFilter = new URLSearchParams(window.location.search).get("vertical");
-  const [filter, setFilter] = useState<IncidentStatusFilter>("active");
+  const initialRoute = currentRoute();
+  const initialStatus = initialRoute.search.get("status");
+  const [verticalFilter, setVerticalFilter] = useState<string | null>(
+    initialRoute.search.get("vertical"),
+  );
+  const [filter, setFilter] = useState<IncidentStatusFilter>(
+    initialStatus === "resolved" || initialStatus === "all" ? initialStatus : "active",
+  );
   const [state, setState] = useState<AsyncState<IncidentData>>({ status: "loading" });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialRoute.search.get("correlation"),
+  );
   const [history, setHistory] = useState<AsyncState<readonly AuditItem[]>>({ status: "idle" });
   const [loadingMore, setLoadingMore] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const rosterGeneration = useRef(0);
   const historyGeneration = useRef(0);
+
+  useEffect(() => {
+    const sync = () => {
+      const route = currentRoute();
+      const status = route.search.get("status");
+      setFilter(status === "resolved" || status === "all" ? status : "active");
+      setVerticalFilter(route.search.get("vertical"));
+      setSelectedId(route.search.get("correlation"));
+    };
+    window.addEventListener("popstate", sync);
+    window.addEventListener("fdai:route-changed", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("fdai:route-changed", sync);
+    };
+  }, []);
+
+  const openRoute = (status: IncidentStatusFilter, correlation: string | null): void => {
+    navigate(routeHref("incidents", {
+      params: {
+        status: status === "active" ? null : status,
+        vertical: verticalFilter,
+        correlation,
+      },
+    }));
+  };
 
   useEffect(() => {
     const generation = rosterGeneration.current + 1;
@@ -66,9 +100,9 @@ export function IncidentsRoute({ client }: Props) {
           status: "ready",
           data: { items, nextCursor: page.next_cursor },
         });
-        setSelectedId((current) =>
-          items.some((item) => item.correlation_id === current) ? current : first,
-        );
+        setSelectedId((current) => items.some((item) => item.correlation_id === current)
+          ? current
+          : first);
       },
       (error: unknown) => {
         if (rosterGeneration.current === generation) {
@@ -161,7 +195,7 @@ export function IncidentsRoute({ client }: Props) {
             type="button"
             class={filter === value ? "active" : undefined}
             aria-pressed={filter === value}
-            onClick={() => setFilter(value)}
+            onClick={() => openRoute(value, null)}
           >
             {t(`incidents.filter.${value}`)}
           </button>
@@ -175,7 +209,7 @@ export function IncidentsRoute({ client }: Props) {
             history={history}
             loadingMore={loadingMore}
             pageError={pageError}
-            onSelect={setSelectedId}
+            onSelect={(correlationId) => openRoute(filter, correlationId)}
             onLoadMore={loadMore}
           />
         )}

@@ -1,0 +1,42 @@
+schema_version: "1.0.0"
+name: PythonTask
+version: "1.0.0"
+key: id
+description: A validated, content-addressed Python source artifact that can be planned or executed by a governed workflow.
+properties:
+  id:
+    type: string
+    required: true
+    description: Stable task id and version selected by governance.
+  artifact_hash:
+    type: string
+    required: true
+    description: SHA-256 digest over the manifest and every file digest.
+  version:
+    type: string
+    required: true
+    description: Immutable task version.
+  entrypoint:
+    type: string
+    required: true
+    description: Relative Python entrypoint inside the validated artifact.
+  required_modules:
+    type: array
+    required: false
+    description: Modules that must already exist in the target Python environment.
+  capabilities:
+    type: array
+    required: true
+    description: Explicit host capabilities such as gpu, network, filesystem access, or process creation.
+  timeout_seconds:
+    type: integer
+    required: true
+    description: Maximum guest execution duration.
+  validation_status:
+    type: string
+    required: true
+    description: Latest deterministic validation result.
+  created_at:
+    type: datetime
+    required: true
+    description: RFC 3339 artifact registration timestamp.

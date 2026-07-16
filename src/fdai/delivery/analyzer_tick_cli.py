@@ -72,6 +72,8 @@ import sys
 from dataclasses import dataclass
 from uuid import NAMESPACE_URL, uuid5
 
+import httpx
+
 from fdai.composition import Container, default_container_from_env
 from fdai.core.investigation import (
     AnalyzerFinding,
@@ -79,6 +81,7 @@ from fdai.core.investigation import (
     InvestigationRequest,
     default_analyzers,
 )
+from fdai.core.report_feed import signals_from_investigation
 from fdai.delivery.event_publisher import EventPublisherContext
 from fdai.shared.contracts.models import Event, Mode
 from fdai.shared.providers.event_bus import EventBus
@@ -87,6 +90,7 @@ from fdai.shared.providers.metric import NoopMetricProvider
 _LOGGER = logging.getLogger("fdai.delivery.analyzer_tick_cli")
 
 _ENV_TARGETS = "FDAI_ANALYZER_TARGETS"
+_ENV_INVENTORY_DSN = "FDAI_INVENTORY_DSN"
 _ENV_WINDOW = "FDAI_ANALYZER_WINDOW_SECONDS"
 _ENV_BUDGET = "FDAI_ANALYZER_BUDGET_SECONDS"
 
@@ -178,6 +182,7 @@ async def _run_tick(
         budget_seconds=_positive_float(_ENV_BUDGET, _DEFAULT_BUDGET_SECONDS),
     )
     report = await coordinator.investigate(request)
+    await _persist_report_signals(report)
     _LOGGER.info(
         "analyzer_tick_report",
         extra={
@@ -209,6 +214,22 @@ async def _run_tick(
                 event.model_dump(mode="json"),
             )
     return 0
+
+
+async def _persist_report_signals(report: object) -> None:
+    dsn = os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
+    if not dsn:
+        return
+    from fdai.core.investigation import InvestigationReport
+    from fdai.delivery.persistence import (
+        PostgresReportSignalStore,
+        PostgresReportSignalStoreConfig,
+    )
+
+    if not isinstance(report, InvestigationReport):
+        raise TypeError("report MUST be an InvestigationReport")
+    store = PostgresReportSignalStore(config=PostgresReportSignalStoreConfig(dsn=dsn))
+    await store.record_many(signals_from_investigation(report))
 
 
 def _finding_event(investigation_id: str, finding: AnalyzerFinding) -> Event:
@@ -243,11 +264,81 @@ def _finding_event(investigation_id: str, finding: AnalyzerFinding) -> Event:
 async def _tick() -> int:
     targets = _load_targets()
     if not targets:
-        _LOGGER.info("analyzer_tick_no_targets", extra={"reason": f"{_ENV_TARGETS} unset"})
+        targets = await _load_inventory_targets()
+    if not targets:
+        _LOGGER.info(
+            "analyzer_tick_no_targets",
+            extra={"reason": f"{_ENV_TARGETS} and active inventory are empty"},
+        )
         return 0
     container = default_container_from_env()
-    async with EventPublisherContext(kafka=container.config.kafka) as event_bus:
-        return await _run_tick(container, targets, event_bus=event_bus)
+    monitor_workspace_id = os.environ.get("FDAI_MONITOR_WORKSPACE_ID", "").strip() or None
+    prometheus_base_url = os.environ.get("FDAI_PROMETHEUS_ENDPOINT", "").strip() or None
+    prometheus_audience = os.environ.get("FDAI_PROMETHEUS_AUDIENCE", "").strip() or None
+    http_client: httpx.AsyncClient | None = None
+    try:
+        if monitor_workspace_id is not None or prometheus_base_url is not None:
+            from fdai.composition import attach_metric_provider
+            from fdai.delivery.azure.workload_identity import ManagedIdentityWorkloadIdentity
+
+            http_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(connect=5.0, read=60.0, write=15.0, pool=5.0)
+            )
+            container = attach_metric_provider(
+                container,
+                identity=ManagedIdentityWorkloadIdentity(http_client=http_client),
+                http_client=http_client,
+                monitor_workspace_id=monitor_workspace_id,
+                monitor_queries=None,
+                metrics_api_queries=None,
+                prometheus_base_url=prometheus_base_url,
+                prometheus_queries=None,
+                prometheus_audience=prometheus_audience,
+            )
+        async with EventPublisherContext(kafka=container.config.kafka) as event_bus:
+            return await _run_tick(container, targets, event_bus=event_bus)
+    finally:
+        if http_client is not None:
+            await http_client.aclose()
+
+
+async def _load_inventory_targets() -> tuple[_Target, ...]:
+    dsn = (
+        os.environ.get(_ENV_INVENTORY_DSN, "").strip()
+        or os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
+    )
+    if not dsn:
+        return ()
+    from fdai.delivery.persistence.postgres_inventory_snapshot import (
+        PostgresInventoryGraphProvider,
+        PostgresInventorySnapshotStoreConfig,
+    )
+
+    graph = await PostgresInventoryGraphProvider(
+        config=PostgresInventorySnapshotStoreConfig(dsn=dsn)
+    )(None, 0, ())
+    resources = graph.get("resources")
+    return _targets_from_inventory(resources if isinstance(resources, list) else [])
+
+
+def _targets_from_inventory(resources: list[object]) -> tuple[_Target, ...]:
+    kind_by_type = {
+        "kubernetes-cluster": "aks_cluster",
+        "network.application-gateway": "application_gateway",
+        "api-gateway": "api_management",
+        "mysql-server": "mysql_flexible_server",
+        "llm-endpoint": "azure_openai",
+    }
+    targets: list[_Target] = []
+    for item in resources:
+        if not isinstance(item, dict):
+            continue
+        resource_ref = item.get("id")
+        resource_type = item.get("type")
+        kind = kind_by_type.get(str(resource_type))
+        if isinstance(resource_ref, str) and resource_ref and kind is not None:
+            targets.append(_Target(resource_ref=resource_ref, resource_kind=kind))
+    return tuple(targets)
 
 
 def main() -> int:

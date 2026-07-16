@@ -4,8 +4,8 @@ The 1725-LOC ``core/control_loop.py`` monolith becomes a package. The
 ``ControlLoop`` class stays in :mod:`.orchestrator`; the module-level
 helpers (resource-prop extraction, environment classification, unified
 authority computation, audit-record shaping) live in
-:mod:`._helpers` so they stay independently testable and the
-orchestrator file shrinks toward a class-only shape.
+:mod:`._helpers`, typed terminal results live in :mod:`.models`, and the
+authoritative operator proposal path lives in :mod:`.operator_request`.
 
 Public API preserved via re-export: callers continue to
 ``from fdai.core.control_loop import ControlLoop, ControlLoopResult,
@@ -38,11 +38,8 @@ from fdai.core.control_loop._helpers import (
     build_unified_risk_audit,
     evaluate_unified,
 )
-from fdai.core.control_loop.orchestrator import (
-    ControlLoop,
-    ControlLoopOutcome,
-    ControlLoopResult,
-)
+from fdai.core.control_loop.models import ControlLoopOutcome, ControlLoopResult
+from fdai.core.control_loop.orchestrator import ControlLoop
 
 __all__ = [
     "ControlLoop",

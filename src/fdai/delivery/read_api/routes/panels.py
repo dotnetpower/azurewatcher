@@ -31,8 +31,12 @@ by passing it (or its own panel) to ``ReadApiConfig.extra_panels``.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
+
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.routing import BaseRoute, Route
 
 from fdai.core.capability_catalog import (
     CapabilityCatalog,
@@ -68,14 +72,37 @@ class ReadPanel(Protocol):
         ...
 
     async def render(self, *, params: Mapping[str, str]) -> Mapping[str, Any]:
-        """Return the panel payload as a JSON-serializable mapping.
-
-        ``params`` carries the request query string (already parsed) so a
-        panel MAY support filters/pagination. The return value MUST be
-        JSON-serializable and MUST NOT expose secrets or a callable
-        back-channel.
-        """
+        """Return a JSON-serializable, read-only panel payload."""
         ...
+
+
+def append_read_panels(
+    routes: list[BaseRoute],
+    *,
+    read_model: ConsoleReadModel,
+    extra_panels: Sequence[ReadPanel],
+    handler_factory: Callable[[ReadPanel], Callable[[Request], Awaitable[Response]]],
+    core_paths: frozenset[str],
+) -> set[str]:
+    """Append core and extension panels, returning extension paths."""
+    from fdai.delivery.read_api.routes.incidents import IncidentsPanel
+    from fdai.delivery.read_api.routes.rca import RcaPanel
+
+    core_panels: tuple[ReadPanel, ...] = (IncidentsPanel(read_model), RcaPanel(read_model))
+    for panel in core_panels:
+        routes.append(Route(panel.path, handler_factory(panel), methods=["GET"]))
+    seen: set[str] = set()
+    for panel in extra_panels:
+        path = panel.path
+        if not path.startswith("/"):
+            raise ValueError(f"panel path MUST start with '/', got {path!r} ({panel.name!r})")
+        if path in core_paths:
+            raise ValueError(f"panel path {path!r} collides with a core route ({panel.name!r})")
+        if path in seen:
+            raise ValueError(f"duplicate panel path {path!r} ({panel.name!r})")
+        seen.add(path)
+        routes.append(Route(path, handler_factory(panel), methods=["GET"]))
+    return seen
 
 
 # Cost-vertical action kinds, sourced from the FinOps vertical so the

@@ -9,7 +9,7 @@ fault_family: throttle
 intensity: high
 duration_seconds: 360.0
 expected_signal: rate_limit
-injector: needs-injector
+injector: aoai:rate-limit
 blast_radius_cap: 1
 rollback_note: Stop the load generator; TPM budget refills.
 gates:

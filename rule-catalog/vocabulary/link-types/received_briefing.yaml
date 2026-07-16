@@ -1,0 +1,8 @@
+schema_version: "1.0.0"
+name: received_briefing
+version: "1.0.0"
+from_type: Conversation
+to_type: BriefingRun
+cardinality: one_to_many
+temporal_order: true
+description: Opening briefings rendered once in a Conversation.

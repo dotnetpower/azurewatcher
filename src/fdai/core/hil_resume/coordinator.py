@@ -46,7 +46,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 from uuid import uuid4
@@ -265,17 +265,25 @@ class HilResumeCoordinator:
         resolved_assignee = (assignee_oid or "").strip() or (
             on_call.primary_oid if on_call is not None else None
         )
+        parked_at = datetime.now(tz=UTC)
         parked = {
             "status": _STATUS_PENDING,
             "approval_id": aid,
             "action": action.model_dump(mode="json"),
             "rule_id": rule.id,
+            "rule": rule.model_dump(mode="json"),
             "action_type": action.action_type,
             "submitter_oid": submitter_oid,
             "assignee_oid": resolved_assignee,
             "correlation_id": correlation_id,
             "idempotency_key": action.idempotency_key,
-            "parked_at": datetime.now(tz=UTC).isoformat(),
+            "parked_at": parked_at.isoformat(),
+            "approval_context": {
+                "reasons": list(reasons),
+                "blast_radius_summary": blast_radius_summary,
+                "ttl_seconds": ttl_seconds,
+                "expires_at": (parked_at + timedelta(seconds=ttl_seconds)).isoformat(),
+            },
             "on_call": _on_call_detail(on_call),
         }
         await self._state_store.write_state(_park_key(aid), parked)
@@ -479,6 +487,8 @@ class HilResumeCoordinator:
         is_delegated = delegation is not None and delegation.is_delegated
         action = Action.model_validate(parked["action"])
         rule = self._rules_by_id.get(str(parked.get("rule_id") or ""))
+        if rule is None and isinstance(parked.get("rule"), dict):
+            rule = Rule.model_validate(parked["rule"])
         # Mark resolved BEFORE executing so a concurrent duplicate decision
         # cannot double-apply; the executor is itself idempotent by
         # idempotency_key, this is defense in depth.

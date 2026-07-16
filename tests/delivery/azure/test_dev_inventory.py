@@ -178,6 +178,41 @@ class TestFullSnapshot:
         idx = argv.index("--subscription")
         assert argv[idx + 1] == "00000000-0000-0000-0000-000000000000"
 
+    def test_default_profile_drops_inherited_azure_config_dir(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("AZURE_CONFIG_DIR", "/home/example/.azure-other")
+        captured: dict[str, object] = {}
+
+        def _side_effect(*args, **kwargs):  # type: ignore[no-untyped-def]
+            captured["env"] = kwargs["env"]
+            return _completed("[]")
+
+        with patch(
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
+            side_effect=_side_effect,
+        ):
+            asyncio.run(_drain(AzureCliInventory(resource_types=("resource-group",))))
+        assert "AZURE_CONFIG_DIR" not in captured["env"]
+
+    def test_explicit_profile_sets_azure_config_dir(self) -> None:
+        captured: dict[str, object] = {}
+
+        def _side_effect(*args, **kwargs):  # type: ignore[no-untyped-def]
+            captured["env"] = kwargs["env"]
+            return _completed("[]")
+
+        inventory = AzureCliInventory(
+            resource_types=("resource-group",),
+            azure_config_dir="/home/example/.azure-explicit",
+        )
+        with patch(
+            "fdai.delivery.azure.dev_inventory.subprocess.run",
+            side_effect=_side_effect,
+        ):
+            asyncio.run(_drain(inventory))
+        assert captured["env"]["AZURE_CONFIG_DIR"] == "/home/example/.azure-explicit"
+
 
 class TestErrorPaths:
     def test_non_zero_exit_raises(self) -> None:

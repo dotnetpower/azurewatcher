@@ -24,6 +24,82 @@ describe("parseAnswer - text", () => {
   });
 });
 
+describe("parseAnswer - headings", () => {
+  it("parses ATX headings without exposing hash markers", () => {
+    const segments = parseAnswer("### Main components\nDetails follow.");
+    expect(kinds(segments)).toEqual(["heading", "text"]);
+    expect(segments[0]).toEqual({
+      kind: "heading",
+      level: 3,
+      text: "Main components",
+    });
+  });
+
+  it("keeps heading-like content inside code fences as code", () => {
+    const segments = parseAnswer("```md\n### literal\n```");
+    expect(kinds(segments)).toEqual(["code"]);
+    expect(segments[0]).toMatchObject({ code: "### literal" });
+  });
+
+  it("does not consume an incomplete streaming marker", () => {
+    expect(parseAnswer("###")).toEqual([{ kind: "text", text: "###" }]);
+  });
+});
+
+describe("parseAnswer - lists", () => {
+  it("groups consecutive unordered items", () => {
+    const segments = parseAnswer("- first\n- **second**\nafter");
+    expect(kinds(segments)).toEqual(["list", "text"]);
+    expect(segments[0]).toEqual({
+      kind: "list",
+      ordered: false,
+      items: [{ text: "first" }, { text: "**second**" }],
+    });
+  });
+
+  it("parses ordered items with dot or parenthesis markers", () => {
+    const segments = parseAnswer("1. one\n2) two");
+    expect(segments[0]).toMatchObject({
+      kind: "list",
+      ordered: true,
+      items: [{ text: "one" }, { text: "two" }],
+    });
+  });
+
+  it("parses read-only task states", () => {
+    const segments = parseAnswer("- [x] verified\n- [ ] pending");
+    expect(segments[0]).toMatchObject({
+      kind: "list",
+      items: [
+        { text: "verified", checked: true },
+        { text: "pending", checked: false },
+      ],
+    });
+  });
+});
+
+describe("parseAnswer - blockquotes", () => {
+  it("groups consecutive quote lines without exposing markers", () => {
+    const segments = parseAnswer("> Evidence is read-only.\n> It never executes.");
+    expect(segments).toEqual([
+      {
+        kind: "quote",
+        text: "Evidence is read-only.\nIt never executes.",
+      },
+    ]);
+  });
+});
+
+describe("parseAnswer - thematic breaks", () => {
+  it("renders a thematic break as structure instead of marker text", () => {
+    expect(parseAnswer("before\n---\nafter")).toEqual([
+      { kind: "text", text: "before" },
+      { kind: "divider" },
+      { kind: "text", text: "after" },
+    ]);
+  });
+});
+
 describe("parseAnswer - tables", () => {
   it("parses a basic markdown table", () => {
     const md = "| id | sev |\n| --- | --- |\n| r1 | high |\n| r2 | low |";
@@ -72,7 +148,12 @@ describe("parseAnswer - code", () => {
     const md = "```json\n{\"a\": 1}\n```";
     const segs = parseAnswer(md);
     expect(kinds(segs)).toEqual(["code"]);
-    expect(segs[0]).toMatchObject({ kind: "code", lang: "json", code: '{"a": 1}' });
+    expect(segs[0]).toMatchObject({
+      kind: "code",
+      lang: "json",
+      code: '{"a": 1}',
+      pending: false,
+    });
   });
 
   it("parses a fenced block with no language (lang is empty)", () => {
@@ -94,7 +175,12 @@ describe("parseAnswer - code", () => {
 
   it("handles an unterminated fence to end of input", () => {
     const segs = parseAnswer("```bash\necho hi");
-    expect(segs[0]).toMatchObject({ kind: "code", lang: "bash", code: "echo hi" });
+    expect(segs[0]).toMatchObject({
+      kind: "code",
+      lang: "bash",
+      code: "echo hi",
+      pending: true,
+    });
   });
 });
 
@@ -274,6 +360,27 @@ describe("parseInline", () => {
       { t: "strong", s: "T0" },
       { t: "text", s: " is " },
       { t: "code", s: "deterministic" },
+    ]);
+  });
+
+  it("parses safe links and rejects executable schemes", () => {
+    expect(parseInline("See [docs](https://example.com/docs).")).toEqual([
+      { t: "text", s: "See " },
+      { t: "link", s: "docs", href: "https://example.com/docs" },
+      { t: "text", s: "." },
+    ]);
+    expect(parseInline("[run](javascript:alert(1))")).toEqual([
+      { t: "text", s: "[run](javascript:alert(1))" },
+    ]);
+  });
+
+  it("parses emphasis and strikethrough", () => {
+    expect(parseInline("*soft* _also_ ~~old~~")).toEqual([
+      { t: "emphasis", s: "soft" },
+      { t: "text", s: " " },
+      { t: "emphasis", s: "also" },
+      { t: "text", s: " " },
+      { t: "strike", s: "old" },
     ]);
   });
 

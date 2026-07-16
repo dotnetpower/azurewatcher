@@ -6,6 +6,7 @@ import {
   decodeHilQueuePage,
   decodeIncidentPage,
   decodeRcaView,
+  isOptionalReadApiUnavailable,
   ReadApiError,
 } from "./api";
 
@@ -55,7 +56,53 @@ describe("read API response decoders", () => {
 
   test("decodes empty audit and HIL pages", () => {
     expect(decodeAuditPage({ items: [], next_cursor: null })).toEqual({ items: [], next_cursor: null });
-    expect(decodeHilQueuePage({ items: [], total: 0 })).toEqual({ items: [], total: 0 });
+    expect(decodeHilQueuePage({ items: [], total: 0 })).toEqual({
+      items: [],
+      total: 0,
+      detail_level: "full",
+    });
+  });
+
+  test("decodes legacy and enriched HIL items without inventing safety facts", () => {
+    const legacy = {
+      idempotency_key: "idem-1",
+      event_id: "event-1",
+      action_kind: "compute.restart",
+      reason: "Approval required by the risk gate.",
+      requested_at: "2026-07-15T10:00:00Z",
+      correlation_id: "corr-1",
+    };
+    const legacyItem = decodeHilQueuePage({ items: [legacy], total: 1 }).items[0];
+    expect(legacyItem?.stop_condition).toBe("");
+    expect(legacyItem?.citing_rule_ids).toEqual([]);
+    expect(legacyItem?.ttl_expires_at).toBeNull();
+
+    const enrichedItem = decodeHilQueuePage({
+      items: [{
+        ...legacy,
+        approval_id: "approval-1",
+        action_id: "action-1",
+        target_resource_ref: "resource-1",
+        mode: "shadow",
+        stop_condition: "health probe fails",
+        rollback_kind: "pr_revert",
+        rollback_reference: "pr-1",
+        blast_radius_scope: "single_resource",
+        blast_radius_count: 1,
+        blast_radius_rate_per_minute: null,
+        blast_radius_summary: "1 resource, 0 downstream",
+        reasons: ["Verifier requires operator review."],
+        citing_rule_ids: ["example.rule"],
+        ttl_expires_at: "2026-07-15T10:30:00Z",
+      }],
+      total: 1,
+    }).items[0];
+    expect(enrichedItem?.rollback_kind).toBe("pr_revert");
+    expect(enrichedItem?.blast_radius_count).toBe(1);
+    expect(enrichedItem?.citing_rule_ids).toEqual(["example.rule"]);
+
+    expect(decodeHilQueuePage({ items: [], total: 3, detail_level: "count_only" }))
+      .toEqual({ items: [], total: 3, detail_level: "count_only" });
   });
 
   test("decodes an incident page and rejects invalid status", () => {
@@ -192,5 +239,14 @@ describe("read API response decoders", () => {
     expect(() => decodeDashboardKpi({ ...valid, event_count: -1 })).toThrow(/non-negative integer/);
     expect(() => decodeDashboardKpi({ ...valid, hil_pending: 0.5 })).toThrow(/non-negative integer/);
     expect(() => decodeDashboardKpi({ ...valid, shadow_share: 2 })).toThrow(/between 0 and 1/);
+  });
+});
+
+describe("optional read API availability", () => {
+  test("treats only missing and unimplemented routes as unavailable", () => {
+    expect(isOptionalReadApiUnavailable(new ReadApiError(404, "missing"))).toBe(true);
+    expect(isOptionalReadApiUnavailable(new ReadApiError(501, "disabled"))).toBe(true);
+    expect(isOptionalReadApiUnavailable(new ReadApiError(502, "invalid contract"))).toBe(false);
+    expect(isOptionalReadApiUnavailable(new Error("network"))).toBe(false);
   });
 });

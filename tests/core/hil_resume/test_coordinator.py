@@ -260,12 +260,19 @@ async def test_request_approval_parks_and_pushes() -> None:
         submitter_oid=_SUBMITTER,
         correlation_id="c1",
         approval_id="aid-1",
+        reasons=("Verifier requires operator review.",),
+        blast_radius_summary="1 resource, 0 downstream",
+        ttl_seconds=1200,
     )
     assert result.outcome is RequestOutcome.PARKED
     assert result.approval_id == "aid-1"
     parked = await store.read_state("hil_park:aid-1")
     assert parked is not None
     assert parked["status"] == "pending"
+    assert parked["approval_context"]["reasons"] == ["Verifier requires operator review."]
+    assert parked["approval_context"]["blast_radius_summary"] == "1 resource, 0 downstream"
+    assert parked["approval_context"]["ttl_seconds"] == 1200
+    assert parked["approval_context"]["expires_at"] > parked["parked_at"]
     assert len(channel.sent) == 1
     assert channel.sent[0].approval_id == "aid-1"
     assert "hil.requested" in _audit_kinds(store)

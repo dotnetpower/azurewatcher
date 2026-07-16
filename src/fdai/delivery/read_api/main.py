@@ -1,17 +1,13 @@
-"""Read-only console API - three GET routes, no POST surface.
+"""Console projection API with explicitly opt-in, non-executing command routes.
 
-This module is the **only** place Starlette is imported in the codebase.
-The rest of the delivery layer stays framework-agnostic; the app factory
-takes an :class:`~fdai.delivery.read_api.auth.Authenticator` and a
-:class:`~fdai.delivery.read_api.read_model.ConsoleReadModel` and
-returns a Starlette application ready to be served by any ASGI server
-(uvicorn, hypercorn, granian).
+This module owns the Starlette app factory. It accepts the authenticator and
+read model while the rest of the delivery layer stays framework-agnostic.
 
 Contract (`app-shape.instructions.md § Operator console`):
 
-- **Never** exposes a mutating route. Only ``GET`` is registered; ``POST``
-  / ``PUT`` / ``DELETE`` / ``PATCH`` return ``405`` from Starlette's
-  built-in method-not-allowed handler.
+- **Never** exposes a cloud-resource mutation route. Projection routes use
+    ``GET``. Opt-in ``POST`` routes may record an approval, proposal, or access
+    request, but they never hold the executor identity or call a resource API.
 - **Never** shares an identity with the executor. The API validates the
   caller's Entra token; it does not (and can not) call executor MI.
 - Authenticated **anonymous fallback** is available only when
@@ -40,7 +36,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from starlette.routing import BaseRoute, Route
+from starlette.routing import BaseRoute
 
 from fdai.core.hil_resume import HilResumeCoordinator
 from fdai.core.rbac.enforcer import RoleRequiredError
@@ -50,21 +46,16 @@ from fdai.delivery.read_api.auth import (
     AuthenticationError,
     Authenticator,
 )
-from fdai.delivery.read_api.read_model import (
-    DEFAULT_LIMIT,
-    ConsoleReadModel,
-    clamp_limit,
-)
-from fdai.delivery.read_api.routes.audit_query import AuditQueryError, parse_audit_filters
-from fdai.delivery.read_api.routes.chat_registration import append_chat_routes
+from fdai.delivery.read_api.read_model import ConsoleReadModel
+from fdai.delivery.read_api.routes import auxiliary_registration, chat_registration, dynamic_views
+from fdai.delivery.read_api.routes.core_reads import append_local_auth_route, make_core_read_routes
 from fdai.delivery.read_api.routes.hil_callback import (
     HilCallbackConfig,
     make_hil_callback_route,
 )
-from fdai.delivery.read_api.routes.incidents import IncidentsPanel
-from fdai.delivery.read_api.routes.panels import PanelQueryError, ReadPanel
+from fdai.delivery.read_api.routes.iam import append_iam_routes
+from fdai.delivery.read_api.routes.panels import PanelQueryError, ReadPanel, append_read_panels
 from fdai.delivery.read_api.routes.pantheon import append_pantheon_routes
-from fdai.delivery.read_api.routes.rca import RcaPanel
 from fdai.delivery.read_api.routes.scope import append_scope_route
 from fdai.delivery.read_api.routes.webhook import make_webhook_route
 from fdai.delivery.read_api.streaming.agent_activity_emitter import (
@@ -95,7 +86,28 @@ from fdai.shared.streaming.stage_publisher import SseSinkStagePublisher
 _LOGGER = logging.getLogger(__name__)
 
 _CORE_ROUTE_PATHS: frozenset[str] = frozenset(
-    {"/audit", "/kpi", "/hil-queue", "/incidents", "/rca", "/healthz"}
+    {
+        "/audit",
+        "/kpi",
+        "/hil-queue",
+        "/incidents",
+        "/rca",
+        "/healthz",
+        "/iam",
+        "/iam/self",
+        "/iam/directory/users",
+        "/iam/directory/roster",
+        "/iam/access-requests",
+        "/iam/access-requests/self",
+        "/me/context",
+        "/me/preferences",
+        "/me/memories",
+        "/me/policies",
+        "/me/briefing-subscriptions",
+        "/me/opening-briefing",
+        "/workflows/definitions",
+        "/workflows/bindings",
+    }
 )
 
 _READER_ROLES: tuple[Role, ...] = (Role.READER, Role.CONTRIBUTOR, Role.APPROVER, Role.OWNER)
@@ -299,6 +311,11 @@ class ReadApiConfig:
     :class:`~fdai.shared.contracts.models.OntologyLinkType`. See
     :attr:`ontology_object_types` for the pairing contract."""
 
+    ontology_action_types: tuple[Any, ...] = ()
+    """ActionType safety contracts exposed by ``GET /ontology/graph``.
+    Empty by default; ObjectType and LinkType exploration remains available
+    without an ActionType catalog."""
+
     inventory_graph_provider: Any = None
     """Opt-in deployed-inventory graph projection. An async callable
     ``(scope, depth, link_types) -> mapping`` returning CSP-neutral
@@ -412,12 +429,36 @@ class ReadApiConfig:
     endpoint unregistered (the FE deck then falls back to its built-in
     deterministic answerer)."""
 
+    chat_web_search: Any = None
+    """Optional controlled public-web evidence resolver for chat turns.
+    The resolver remains deny-by-default, sends only the bounded operator
+    query, and never receives the current screen snapshot or history."""
+
+    chat_probe_interval_seconds: int = 300
+    """Periodic latency-probe interval for routed narrator deployments.
+    The first benchmark warms every candidate; later rounds add one sample
+    per candidate so the rolling p50 adapts without excessive model calls."""
+
     chat_agent_delegate: Any = None
     """Optional read-only Bragi delegation adapter. When set alongside
     :attr:`chat`, the server routes domain questions to the owning pantheon
     agent and supplies that result to the narrator as server-owned evidence.
     The adapter cannot submit actions or materialize handoffs; those remain on
     their dedicated typed paths."""
+
+    conversation_policy_store: Any = None
+    """Optional principal-scoped typed response-policy store for the narrator.
+    Raw user prose is never read from this seam; the chat route compiles only
+    confirmed allowlisted policy fields into a bounded system layer."""
+
+    conversation_history_store: Any = None
+    """Optional principal-scoped durable Conversation and Turn store. When
+    configured, both chat routes append authenticated inbound turns and final
+    verified answers using request-id idempotency."""
+
+    user_context_ontology_projector: Any = None
+    """Optional metadata-only projector for Conversation, Turn, preference,
+    memory, briefing, and workflow ownership records."""
 
     console_action: Any = None
     """Opt-in console action submitter
@@ -429,6 +470,11 @@ class ReadApiConfig:
     never mutates a cloud resource directly. RBAC is server-derived
     (Contributor+ ``author-draft-pr``). Leave ``None`` to keep the console
     read-only with no action-submit surface."""
+
+    iam_access: Any = None  # Governed IAM projections and request commands.
+    iam_directory: Any = None  # Cloud-neutral Owner search and roster provider.
+    iam_identity_provider: str = "entra"  # Provider stamped on new requests.
+    iam_role_group_ids: Mapping[str, str] = field(default_factory=dict)  # Role groups.
 
     expose_pantheon: bool = False
     """Opt-in pantheon graph + workflows endpoints. When True, registers
@@ -462,6 +508,17 @@ class ReadApiConfig:
     default so upstream stays minimal.
     See :mod:`fdai.delivery.read_api.workflow_authoring`."""
 
+    workflow_execution: Any = None
+    """Opt-in Contributor-gated ``POST /workflows/run`` shadow command."""
+    workflow_definitions: Any = None
+    """Opt-in principal-scoped WorkflowDefinition and WorkflowBinding routes."""
+    user_context: Any = None
+    """Opt-in principal-scoped conversation, preference, memory, policy, and
+    briefing routes under ``/me``."""
+    model_settings: Any = None
+    """Opt-in sanitized model catalog, runtime latency, and per-user narrator preference."""
+    python_tasks: Any = None
+    """Opt-in governed Python task author, plan, schedule, and proposal routes."""
     reporting: Any = None
     """Opt-in reporting subsystem routes. When set (a
     :class:`~fdai.delivery.read_api.routes.reporting.ReportingConfig`),
@@ -568,59 +625,17 @@ def build_app(
         header = request.headers.get("authorization")
         return authenticator.require_roles(header, required=_READER_ROLES)
 
+    async def _authenticate_principal(request: Request) -> Principal:
+        """Authenticate a caller without requiring an assigned App Role."""
+        if resolved_config.dev_mode:
+            return Principal(oid=_DEV_MODE_PRINCIPAL, roles=frozenset({Role.CONTRIBUTOR}))
+        if local_cli_principal is not None:
+            return local_cli_principal
+        return authenticator.authenticate(request.headers.get("authorization"))
+
     # ------------------------------------------------------------------
     # Handlers
     # ------------------------------------------------------------------
-
-    async def get_audit(request: Request) -> Response:
-        oid = await _authorize(request)
-        try:
-            limit = _parse_int_query(request, "limit", default=DEFAULT_LIMIT)
-        except _BadQueryError as exc:
-            return _error(400, str(exc))
-        cursor = request.query_params.get("cursor")
-        if cursor is not None and len(cursor) > 1024:
-            # Real cursors are opaque tokens under 200 bytes; anything
-            # larger is either a client bug or a probe. Cap so the log
-            # line + downstream store lookup stay bounded.
-            return _error(400, "cursor is too long")
-        try:
-            correlation_id = request.query_params.get("correlation_id") or None
-            if correlation_id is not None and len(correlation_id) > 256:
-                return _error(400, "correlation_id MUST be at most 256 characters")
-            filters = parse_audit_filters(request.query_params)
-            page = await read_model.list_audit(
-                limit=clamp_limit(limit),
-                cursor=cursor,
-                correlation_id=correlation_id,
-                filters=filters,
-            )
-        except (AuditQueryError, ValueError) as exc:
-            return _error(400, str(exc))
-        _LOGGER.info("audit_page_served", extra={"actor": oid, "returned": len(page.items)})
-        return JSONResponse(page.to_dict())
-
-    async def get_kpi(request: Request) -> Response:
-        oid = await _authorize(request)
-        kpi = await read_model.dashboard_metrics()
-        _LOGGER.info("kpi_served", extra={"actor": oid, "event_count": kpi.event_count})
-        return JSONResponse(kpi.to_dict())
-
-    async def get_hil_queue(request: Request) -> Response:
-        oid = await _authorize(request)
-        try:
-            limit = _parse_int_query(request, "limit", default=DEFAULT_LIMIT)
-        except _BadQueryError as exc:
-            return _error(400, str(exc))
-        page = await read_model.list_hil_queue(limit=clamp_limit(limit))
-        _LOGGER.info(
-            "hil_queue_served",
-            extra={"actor": oid, "returned": len(page.items)},
-        )
-        return JSONResponse(page.to_dict())
-
-    async def healthz(_: Request) -> Response:
-        return JSONResponse({"status": "ok"})
 
     def _make_panel_handler(panel: ReadPanel) -> Callable[[Request], Awaitable[Response]]:
         async def get_panel(request: Request) -> Response:
@@ -649,36 +664,34 @@ def build_app(
             return _error(exc.status_code, exc.detail)
         return _error(500, "internal error")
 
-    routes: list[BaseRoute] = [
-        Route("/audit", get_audit, methods=["GET"]),
-        Route("/kpi", get_kpi, methods=["GET"]),
-        Route("/hil-queue", get_hil_queue, methods=["GET"]),
-        Route("/healthz", healthz, methods=["GET"]),
-    ]
+    routes: list[BaseRoute] = list(
+        make_core_read_routes(
+            read_model=read_model,
+            authorize_oid=_authorize,
+            authorize_principal=_authorize_principal,
+            dev_mode=resolved_config.dev_mode,
+        )
+    )
 
-    if local_cli_profile is not None:
+    if resolved_config.iam_access is not None:
+        append_iam_routes(
+            routes,
+            service=resolved_config.iam_access,
+            authorize=_authorize_principal,
+            authenticate=_authenticate_principal,
+            directory=resolved_config.iam_directory,
+            identity_provider=resolved_config.iam_identity_provider,
+            role_group_ids=dict(resolved_config.iam_role_group_ids),
+        )
 
-        async def get_local_auth_profile(_: Request) -> Response:
-            return JSONResponse(dict(local_cli_profile))
-
-        routes.append(Route("/local-auth/me", get_local_auth_profile, methods=["GET"]))
-
-    for _core_panel in (IncidentsPanel(read_model), RcaPanel(read_model)):
-        routes.append(Route(_core_panel.path, _make_panel_handler(_core_panel), methods=["GET"]))
-
-    # Fork-supplied panels: registered GET-only, after fail-fast validation
-    # so a colliding or malformed path cannot ship a broken revision.
-    seen_panel_paths: set[str] = set()
-    for panel in resolved_config.extra_panels:
-        path = panel.path
-        if not path.startswith("/"):
-            raise ValueError(f"panel path MUST start with '/', got {path!r} ({panel.name!r})")
-        if path in _CORE_ROUTE_PATHS:
-            raise ValueError(f"panel path {path!r} collides with a core route ({panel.name!r})")
-        if path in seen_panel_paths:
-            raise ValueError(f"duplicate panel path {path!r} ({panel.name!r})")
-        seen_panel_paths.add(path)
-        routes.append(Route(path, _make_panel_handler(panel), methods=["GET"]))
+    append_local_auth_route(routes, profile=local_cli_profile)
+    seen_panel_paths = append_read_panels(
+        routes,
+        read_model=read_model,
+        extra_panels=resolved_config.extra_panels,
+        handler_factory=_make_panel_handler,
+        core_paths=_CORE_ROUTE_PATHS,
+    )
 
     # Optional HIL callback POST route (Wave W1.3). Fails fast if the
     # config declares a callback but not a registry - the config error
@@ -861,6 +874,7 @@ def build_app(
             make_ontology_graph_route(
                 object_types=resolved_config.ontology_object_types,
                 link_types=resolved_config.ontology_link_types,
+                action_types=resolved_config.ontology_action_types,
                 authorize=_authorize,
             )
         )
@@ -1018,104 +1032,46 @@ def build_app(
             )
         )
 
-    from fdai.delivery.read_api.routes import dynamic_views
+    from fdai.delivery.read_api.routes.workflow_execution import append_workflow_run_route
 
-    # Dynamic prefixes must not shadow any route assembled above.
-    seen_panel_paths.update(route.path for route in routes if isinstance(route, Route))
-    routes.extend(
-        dynamic_views.build_dynamic_view_routes(
-            reporting=resolved_config.reporting,
-            process_views=resolved_config.process_views,
-            authorize=_authorize,
-            core_paths=_CORE_ROUTE_PATHS,
-            seen_extra_paths=seen_panel_paths,
-        )
-    )
-
-    # Optional rule-fire trace viewer.
-    trace_reader = resolved_config.trace_reader
-    if trace_reader is None:
-        from fdai.delivery.read_api.routes.rule_fire_trace_reader import (
-            ConsoleReadModelTraceReader,
-        )
-
-        trace_reader = ConsoleReadModelTraceReader(read_model)
-    if trace_reader is not None:
-        from fdai.delivery.read_api.routes.rule_fire_trace import (
-            make_rule_fire_trace_route,
-        )
-
-        # Path contains a template so collision is on the literal prefix
-        # ``/audit/`` rather than the full template - keep parity with
-        # the core `/audit` list route (they are siblings, both GETs, so
-        # no conflict).
-        routes.append(
-            make_rule_fire_trace_route(
-                reader=trace_reader,
-                authorize=_authorize,
-            )
-        )
-
-    # Optional bitemporal snapshot route.
-    if resolved_config.bitemporal_reader is not None:
-        from fdai.delivery.read_api.routes.bitemporal import make_bitemporal_route
-
-        routes.append(
-            make_bitemporal_route(
-                reader=resolved_config.bitemporal_reader,
-                authorize=_authorize,
-            )
-        )
-
-    # Optional what-if replay route.
-    if resolved_config.what_if_reader is not None and resolved_config.what_if_evaluators:
-        from fdai.delivery.read_api.routes.what_if import make_what_if_route
-
-        routes.append(
-            make_what_if_route(
-                reader=resolved_config.what_if_reader,
-                evaluators=dict(resolved_config.what_if_evaluators),
-                authorize=_authorize,
-            )
-        )
-
-    append_chat_routes(
+    append_workflow_run_route(
         routes,
-        backend=resolved_config.chat,
-        agent_delegate=resolved_config.chat_agent_delegate,
-        authorize=_authorize,
-        read_model=read_model,
+        config=resolved_config.workflow_execution,
+        authorize_principal=_authorize_principal,
         core_paths=_CORE_ROUTE_PATHS,
         panel_paths=seen_panel_paths,
-        logger=_LOGGER,
     )
 
-    # Optional console action-submit route. The ONE write-direction
-    # conversational path: an operator command becomes a typed ActionProposal
-    # published onto the raw event topic (pantheon judges/approves/executes).
-    # Propose-never-execute; server-derived RBAC (Contributor+). Registered
-    # only when a submitter is wired at composition root.
-    if resolved_config.console_action is not None:
-        from fdai.delivery.read_api.routes.console_action import (
-            DEFAULT_ACTION_PATH as _ACTION_PATH,
-        )
-        from fdai.delivery.read_api.routes.console_action import (
-            make_console_action_route,
-        )
+    if resolved_config.python_tasks is not None:
+        from fdai.delivery.read_api.routes.python_tasks import build_python_task_routes
 
-        if _ACTION_PATH in _CORE_ROUTE_PATHS:
-            raise ValueError(f"action path {_ACTION_PATH!r} collides with a core route")
-        routes.append(
-            make_console_action_route(
-                submitter=resolved_config.console_action,
+        routes.extend(
+            build_python_task_routes(
+                config=resolved_config.python_tasks,
+                authorize_oid=_authorize,
                 authorize_principal=_authorize_principal,
             )
         )
-        _LOGGER.warning(
-            "Console action-submit route wired at POST %s (propose-only, "
-            "Contributor+ required); operator commands enter the typed pipeline.",
-            _ACTION_PATH,
-        )
+
+    auxiliary_registration.append_auxiliary_routes(
+        routes,
+        config=resolved_config,
+        authorize=_authorize,
+        read_model=read_model,
+        core_paths=_CORE_ROUTE_PATHS,
+        seen_panel_paths=seen_panel_paths,
+        logger=_LOGGER,
+    )
+
+    from fdai.delivery.read_api.routes.console_action import append_console_action_route
+
+    append_console_action_route(
+        routes,
+        submitter=resolved_config.console_action,
+        authorize_principal=_authorize_principal,
+        core_paths=_CORE_ROUTE_PATHS,
+        logger=_LOGGER,
+    )
 
     dynamic_views.validate_route_method_collisions(routes)
 
@@ -1126,12 +1082,9 @@ def build_app(
         )
     )
     if resolved_config.cors_allow_origins:
-        # Console SPA cross-origin fetches. The base surface is GET-only;
-        # POST is opened only when the read-only chat backend or the explicit
-        # write-direction console action route is wired.
-        allow_methods = ["GET"]
-        if resolved_config.chat is not None or resolved_config.console_action is not None:
-            allow_methods.append("POST")
+        # Derive the allow-list from routes so opt-in user-owned PUT / DELETE
+        # surfaces cannot drift from CORS while absent methods stay closed.
+        allow_methods = auxiliary_registration.registered_cors_methods(routes)
         middleware.append(
             Middleware(
                 CORSMiddleware,
@@ -1156,24 +1109,74 @@ def build_app(
             await agent_emitter.start()
         if agent_broadcaster is not None:
             await agent_broadcaster.run()
-        bench_task = None
+        probe_tasks: list[Any] = []
         chat_backend = resolved_config.chat
-        if _is_routed_chat_backend(chat_backend):
+        web_search_resolver = resolved_config.chat_web_search
+        if (
+            chat_registration.is_routed_chat_backend(chat_backend)
+            or web_search_resolver is not None
+        ):
             import asyncio
 
-            async def _warm_router() -> None:
-                try:
-                    chose = await chat_backend.benchmark()
-                    _LOGGER.warning("CommandDeck router benchmarked - fastest candidate: %s", chose)
-                except Exception as exc:  # noqa: BLE001 - best-effort warm-up
-                    _LOGGER.warning("CommandDeck router benchmark failed: %s", exc)
+            async def _probe_forever(
+                target: Any,
+                *,
+                label: str,
+                interval_seconds: int,
+            ) -> None:
+                first_round = True
+                while True:
+                    try:
+                        chose = await target.benchmark(rounds=None if first_round else 1)
+                        _LOGGER.info(
+                            "%s latency benchmark selected candidate=%s",
+                            label,
+                            chose,
+                        )
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:  # noqa: BLE001 - best-effort probe
+                        _LOGGER.warning(
+                            "%s latency benchmark failed: %s",
+                            label,
+                            type(exc).__name__,
+                        )
+                    first_round = False
+                    await asyncio.sleep(interval_seconds)
 
-            bench_task = asyncio.create_task(_warm_router())
+            if chat_registration.is_routed_chat_backend(chat_backend):
+                probe_tasks.append(
+                    asyncio.create_task(
+                        _probe_forever(
+                            chat_backend,
+                            label="CommandDeck narrator router",
+                            interval_seconds=max(
+                                30,
+                                resolved_config.chat_probe_interval_seconds,
+                            ),
+                        )
+                    )
+                )
+            if web_search_resolver is not None:
+                probe_tasks.append(
+                    asyncio.create_task(
+                        _probe_forever(
+                            web_search_resolver,
+                            label="CommandDeck web-search router",
+                            interval_seconds=max(
+                                30,
+                                int(web_search_resolver.probe_interval_seconds),
+                            ),
+                        )
+                    )
+                )
         try:
             yield
         finally:
-            if bench_task is not None:
-                bench_task.cancel()
+            for probe_task in probe_tasks:
+                probe_task.cancel()
+            if probe_tasks:
+                await asyncio.gather(*probe_tasks, return_exceptions=True)
             if live_emitter is not None:
                 await live_emitter.stop()
             if live_broadcaster is not None:
@@ -1199,29 +1202,6 @@ def build_app(
         },
         lifespan=lifespan,
     )
-
-
-def _is_routed_chat_backend(backend: object) -> bool:
-    """Return whether the optional chat backend uses latency routing."""
-    if backend is None:
-        return False
-    from fdai.delivery.read_api.routes.chat import LatencyRoutedChatBackend
-
-    return isinstance(backend, LatencyRoutedChatBackend)
-
-
-class _BadQueryError(ValueError):
-    """A query string is malformed and should become an HTTP 400 response."""
-
-
-def _parse_int_query(request: Request, name: str, *, default: int) -> int:
-    raw = request.query_params.get(name)
-    if raw is None:
-        return default
-    try:
-        return int(raw)
-    except ValueError as exc:
-        raise _BadQueryError(f"query param {name!r} must be an integer, got {raw!r}") from exc
 
 
 def _error(status: int, message: str) -> JSONResponse:

@@ -1,0 +1,23 @@
+schema_version: "1.0.0"
+name: chaos-detection-validation
+version: "1.0.0"
+description: >-
+  Validate that an approved catalog fault produces its expected detection signal.
+trigger:
+  kind: signal
+  signal_type: chaos.experiment.requested
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 14
+  min_samples: 30
+  min_accuracy: 0.98
+  max_policy_escapes: 0
+steps:
+  - id: run_experiment
+    action_type_ref: tool.run-chaos-experiment
+    guard_rule_ref: null
+    compensated_by: null
+    on_failure: null
+anti_scope: >-
+  The workflow never bypasses scenario promotion, HIL approval, blast-radius
+  limits, bounded duration, rollback, or audit.

@@ -142,6 +142,54 @@ class PostgresStateStore(StateStore):
                     (key, json.dumps(dict(value), default=str)),
                 )
 
+    async def write_state_if_absent(self, key: str, value: Mapping[str, Any]) -> bool:
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
+            async with conn.transaction():
+                await self._set_statement_timeout(conn)
+                cursor = await conn.execute(
+                    """
+                    INSERT INTO state_kv (key, value)
+                    VALUES (%s, %s::jsonb)
+                    ON CONFLICT (key) DO NOTHING
+                    RETURNING key
+                    """,
+                    (key, json.dumps(dict(value), default=str)),
+                )
+                row = await cursor.fetchone()
+        return row is not None
+
+    async def read_states(
+        self,
+        prefix: str,
+        *,
+        limit: int,
+    ) -> tuple[Mapping[str, Any], ...]:
+        if limit < 1:
+            raise ValueError("limit MUST be >= 1")
+        escaped_prefix = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            row_factory=dict_row,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
+            async with conn.transaction():
+                await self._set_statement_timeout(conn)
+                cursor = await conn.execute(
+                    """
+                    SELECT value
+                      FROM state_kv
+                     WHERE key LIKE %s ESCAPE '\\'
+                     ORDER BY updated_at DESC, key DESC
+                     LIMIT %s
+                    """,
+                    (f"{escaped_prefix}%", limit),
+                )
+                rows = await cursor.fetchall()
+        return tuple(_json_object(row["value"]) for row in rows)
+
     async def append_incident_transition(self, entry: Mapping[str, Any]) -> IncidentAppendStatus:
         """Route incident transitions into the same audit chain.
 

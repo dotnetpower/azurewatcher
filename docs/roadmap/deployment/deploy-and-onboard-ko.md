@@ -1,8 +1,8 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: 7bef658c7b3717357a4c217b4287f51c8d98fd44
-translation_revised: 2026-07-15
+translation_source_sha: f43aad78cd424c0cbee44c23a78f9e0bd9931527
+translation_revised: 2026-07-16
 ---
 
 # 배포와 온보딩(Deploy and Onboard)
@@ -317,6 +317,8 @@ additional_tags = {
 | 9 | **Log Analytics workspace** | Pay-as-you-go, **기본 30일 보존** | traces / metrics / logs / audit-forward; App Insights 바인딩 | 보존은 배포 후 **UI에서 설정 가능**, 기본 30일 |
 | 10 | **Container Registry (ACR)** | Basic (나중에 geo-replication 필요 시 Standard) | 서명된 이미지 + 빌드 attestation | digest로 고정, mutable 태그 절대 아님 |
 | 11 | **Azure OpenAI / AI Foundry account** (**opt-in**, `var.enable_llm`) | Standard | T1 embedding + T2 mixed-model reasoner deployment (`resolved-models.json`의 각 capability 당 하나) | 배포자가 sub에 `Cognitive Services Contributor`를 갖고 AND 리전이 preferred family 노출할 때만 프로비저닝; 그렇지 않으면 해당 capability는 **`hil-only`**로 강등 ([dev-and-deploy-parity-ko.md § 배포자-스코프 LLM 프로비저닝](dev-and-deploy-parity-ko.md#배포자-스코프-llm-프로비저닝) 참조). `dev` 모드에서는 절대 배포 안 함 - dev-mode는 결정론적 fake 바인딩. |
+| 12 | **ADLS Gen2 document account** (**opt-in**, `enable_document_ingestion`) | StorageV2 Standard ZRS, HNS | private quarantine, immutable governed version, derived envelope | Private mode에서 Shared Key와 public access 비활성화; soft delete + lifecycle; `blob`과 `dfs` private endpoint |
+| 13 | **Document ingestion Container App** (**opt-in**) | Consumption, gateway + ClamAV sidecar | 인증된 bounded upload relay, safety scan, extraction, pgvector indexing, lifecycle event | Dedicated UAMI를 사용하며 external HTTPS gateway에는 executor permission이 없습니다. Durable worker는 `aw.document.events`를 consume합니다. |
 
 **자체 청구 가능한 Azure 리소스를 발생시키지 않는** 추가 필수 요소:
 
@@ -326,6 +328,10 @@ additional_tags = {
   Web API 오디언스), `fdai-approval-bot` (Teams SSO). 어느 것도 executor 아이덴티티
   보유 안 함. 단계별 `az` 생성:
   [../runbooks/entra-app-registration-ko.md](../../runbooks/entra-app-registration-ko.md).
+  콘솔 apply 후 deploy workflow는 Terraform이 출력한 Static Web App origin을 대상
+  tenant의 SPA redirect URI에 안전하게 재시도 가능한 방식으로 동기화합니다. Tenant가
+  일치하지 않거나 Graph 권한이 없으면, 사인인할 수 없는 콘솔을 배포하지 않도록
+  deployment를 차단합니다.
 - **Entra 보안 그룹 × 5** - `aw-readers`, `aw-contributors`, `aw-approvers`, `aw-owners`,
   `aw-break-glass`. 포크 소유; objectId는 config로 주입되고 시작 시 검증
   ([user-rbac-and-identity-ko.md#42-security-groups-slots](../interfaces/user-rbac-and-identity-ko.md#42-security-groups-slots)).
@@ -336,6 +342,30 @@ additional_tags = {
 - **Azure Bot (Free tier)** - HIL 승인용 Teams Adaptive Cards.
 - **Static Web Apps (Free tier)** - 읽기 전용 콘솔 호스팅; free tier가 의도한 대역폭 커버.
 - **Workload identity federation** - CI/CD 단명 OIDC 토큰; 리소스 아님, 비용 없음.
+
+### Document ingestion 배포
+
+`enable_document_ingestion=true`는 `enable_llm=true`, resolved `t1.embedding` capability,
+console API audience, Entra RBAC group id 5개, 명시적인 ingestion CORS origin과 함께 설정합니다.
+Terraform은 다음 항목을 프로비저닝합니다.
+
+- ACR pull, Key Vault DSN read, Event Hubs send, ADLS data, Azure OpenAI invoke role만 가진
+  dedicated ingestion UAMI
+- HNS, `documents`와 `derived` filesystem, quarantine expiry, derived-data cool tiering, soft
+  delete, Shared Key 비활성화를 적용한 StorageV2 account
+- App VNet과 ops runner VNet에 연결된 `privatelink.blob.core.windows.net` 및
+  `privatelink.dfs.core.windows.net` endpoint
+- FDAI gateway와 replica-local ClamAV sidecar가 포함된 ingestion Container App
+- Traffic 전에 document metadata와 pgvector schema를 적용하는 manual migration job
+
+`deploy-dev` workflow는 `deploy_document_ingestion` input을 제공합니다. 기본 동작은 plan이며,
+apply는 ingestion migration job을 실행하고 `ingestion_gateway_fqdn`을 출력합니다. Console은
+`VITE_INGESTION_API_BASE_URL=https://<fqdn>`으로 build합니다. Production gate는 private
+networking과 digest-pinned FDAI 및 ClamAV image를 요구합니다.
+
+Public Static Web App은 ADLS에 직접 접근하지 않습니다. Storage account를 private로 유지하기
+위해 인증된 gateway를 통해 stream합니다. Gateway는 ADLS, Event Hubs, Azure OpenAI에 Managed
+Identity를 사용하며 connection string 또는 Storage account key를 만들지 않습니다.
 
 첫날에 **프로비저닝되지 않음** (측정된 필요가 정당화할 때 후속 phase로 연기):
 
@@ -441,6 +471,7 @@ flowchart TD
 | `FDAI_INVENTORY_SOURCES` | env | upstream | Ordered fallback list. 기본값은 `arg,arm`입니다. `declarative`는 fixture path와 SHA-256이 모두 있을 때만 허용합니다. |
 | `FDAI_INVENTORY_MANAGEMENT_ENDPOINT` / `FDAI_INVENTORY_MANAGEMENT_AUDIENCE` | env | fork | 검증된 HTTPS ARM root 및 OIDC audience pair. 승인된 sovereign-cloud 또는 검증된 Resource Management Private Link 경로에서는 둘 다 override합니다. |
 | `FDAI_INVENTORY_FRESHNESS_SECONDS` | env | upstream | Active snapshot이 stale 상태가 되고 graph 기반 autonomy를 사람 검토로 낮추기 전의 최대 age입니다. 기본값은 `86400`입니다. |
+| `FDAI_ANALYZER_TARGETS` / `FDAI_ANALYZER_WINDOW_SECONDS` / `FDAI_ANALYZER_BUDGET_SECONDS` | env | fork / upstream | 선택적 analyzer target 및 bound. target이 비어 있으면 analyzer Job이 `FDAI_INVENTORY_DSN`을 통해 active inventory에서 지원 resource kind를 탐색합니다. |
 | `KAFKA_TOPIC_EVENTS` | env | fork | 주 이벤트 ingest 토픽 |
 | `KAFKA_TOPIC_DLQ_SUFFIX` | env | fork | dead-letter suffix (기본 `.dlq`) |
 | `TEAMS_HIL_CHANNEL_ID` | env | fork | HIL 라우팅 |
@@ -453,11 +484,15 @@ flowchart TD
 | `FDAI_LOG_LEVEL` | env | upstream | 코어 앱의 Python 로거 레벨 (`DEBUG` / `INFO` / `WARNING` / `ERROR`). 기본 `INFO`. |
 | `FDAI_READ_API_DEV_MODE` | env | dev-only | `1` 은 로컬 개발용으로 read API 의 Entra JWT 검증을 우회. staging / prod 에서 **금지**. |
 | `FDAI_READ_API_LOCAL_ENTRA` | env | dev-only | `1` 은 로컬 seed 하네스를 **실제** Entra JWT 검증과 함께 실행(`FDAI_ENTRA_TENANT_ID` + `FDAI_API_AUDIENCE` 필요)해 로컬에서 사인인 테스트 가능. dev-mode 와 상호배타; staging / prod 에서 **금지**. |
+| `FDAI_LOCAL_SCENARIO_REPLAY` | env | dev-only | 기본값은 미설정이며 Live와 Agents stream은 조용히 대기합니다. 생성 scenario demo가 명시적으로 필요할 때만 `1`로 설정하며 staging / prod에서는 설정하지 않습니다. |
 | `FDAI_POLICIES_ROOT` | env | fork | T0 와 verifier 가 소비하는 OPA / Rego 번들 루트의 절대 경로. 미설정 시 in-repo `policies/` 를 기본값. |
 | `FDAI_MI_CLIENT_ID` | env | upstream | 현재 process의 user-assigned MI client id. Core에는 executor id를 주입하고 inventory job에는 별도 read-only discovery id를 주입합니다. |
 | `FDAI_MEASUREMENT_MODE` | env | upstream | `shadow` (기본) 또는 `enforce` - `infra/modules/measurement-runners/` 의 Container Apps Jobs 러너를 지배. |
 | `FDAI_DIRECT_API_FAKE` | env | dev-only | `1` 은 executor direct-API 경로를 in-memory fake 로 스왑; 테스트와 로컬 개발용. |
 | `FDAI_TOOL_CALL_FAKE` | env | dev-only | `1` 은 executor tool-call 경로를 in-memory fake (`RecordingToolExecutor`) 로 스왑; 테스트와 로컬 개발용. |
+| `FDAI_WORKFLOW_SHADOW` | env | upstream | `1`이면 event-triggered catalog Workflow를 non-mutating shadow mode로 활성화합니다. Azure core app은 기본 설정입니다. |
+| `FDAI_IRP_ENABLED` / `FDAI_IRP_BUDGET_SECONDS` | env | upstream | alert-shaped event를 budgeted investigation -> typed proposal 경로로 처리합니다. proposal은 표준 risk/HIL/executor loop에 재진입합니다. |
+| `FDAI_CHAOS_CONTEXT_JSON` / `FDAI_CHAOS_ENFORCE` | env | fork | promoted chaos injector runtime context. 명시 flag가 `1`이고 scenario가 promoted 상태이며 injector와 probe가 모두 등록된 경우에만 enforce를 허용합니다. |
 | `FDAI_JIRA_BASE_URL` / `FDAI_JIRA_ACCOUNT_EMAIL` / `FDAI_JIRA_API_TOKEN_SECRET` / `FDAI_JIRA_TOOL_MAP_JSON` | env + KV ref | fork | Production `JiraToolExecutor`를 설정합니다. `TOOL_MAP_JSON`은 `tool.open-incident-ticket`을 Jira project key에 매핑합니다. Token 값은 KV-backed `FDAI_SECRET_<API_TOKEN_SECRET>`에서 resolve하며 mapping에 token을 넣지 않습니다. Durable Jira ledger와 distributed resource lock을 위해 `FDAI_STATE_STORE_DSN`이 필요합니다. |
 | `FDAI_JIRA_ENFORCE` | env | fork | unset/`0` 기본값은 Jira를 shadow-only로 유지합니다. `1`은 ActionType promotion gate와 risk/HIL decision도 enforce를 허용한 경우에만 enforce request를 허용합니다. Shadow receipt는 실제 incident ticket으로 link되지 않습니다. |
 | `FDAI_PROFILE_ID` | env | fork | `rule-catalog/profiles/` 에서 한 프로파일을 선택 ([rule-catalog-profiles-ko.md](../rules-and-detection/rule-catalog-profiles-ko.md) 참조). **2026-07 기준 composition-root 배선 대기.** |
@@ -465,9 +500,11 @@ flowchart TD
 | `FDAI_CHATOPS_APPROVE_CALLBACK_URL` / `FDAI_CHATOPS_REJECT_CALLBACK_URL` / `FDAI_CHATOPS_WEBHOOK_SECRET` / `FDAI_CHATOPS_TIMEOUT_SECONDS` | env + KV ref | fork | Chatops HIL 콜백 엔드포인트와 공유 webhook secret입니다. Secret 은 반드시 KV를 경유합니다. Secret 을 설정하면 production callback route 와 durable Postgres decision registry 가 활성화됩니다. |
 | `FDAI_KAFKA_BOOTSTRAP_SERVERS` / `FDAI_HIL_DECISION_TOPIC` | env | fork / upstream | Read API 가 durable HIL decision receipt 를 publish 하는 Event Hubs Kafka endpoint 입니다. Topic 기본값은 `aw.hil.decisions`이며 core 가 같은 topic 을 소비하고 resume/execution 을 소유합니다. |
 | `FDAI_GITOPS_API_BASE` / `FDAI_GITOPS_DEFAULT_BRANCH` / `FDAI_GITOPS_BRANCH_PREFIX` / `FDAI_GITOPS_TIMEOUT_SECONDS` | env | fork | `gitops-pr` 어댑터 target repo 설정 (GitHub App / Azure DevOps). 인증 secret 은 플랫폼 App installation 을 통해 흐르고 env var 아님. |
+| `FDAI_GITOPS_TOKEN` / `FDAI_GITOPS_OWNER` / `FDAI_GITOPS_REPO` / `FDAI_GITHUB_WORKFLOW_TOOLS_ENFORCE` | KV ref + env | fork | fix/release/security/incident/IRP artifact용 GitHub change feed 및 workflow tool binding. enforce flag는 ActionType promotion 및 risk/HIL gate를 우회하지 않습니다. |
 | `FDAI_RBAC_READERS_GROUP_ID` / `FDAI_RBAC_CONTRIBUTORS_GROUP_ID` / `FDAI_RBAC_APPROVERS_GROUP_ID` / `FDAI_RBAC_OWNERS_GROUP_ID` / `FDAI_RBAC_BREAK_GLASS_GROUP_ID` | env | fork | 5개 human role 의 Entra ID group object id ([user-rbac-and-identity-ko.md](../interfaces/user-rbac-and-identity-ko.md) 참조). 미설정 group = role 미할당. |
 | `FDAI_ENTRA_TENANT_ID` / `FDAI_API_AUDIENCE` | env | fork | 프로덕션 read-API Entra JWT verifier (`EntraJwtVerifier`) 필수: 포크의 tenant id 와 `fdai-api` App ID URI (`api://<fdai-api-guid>`). [user-rbac-and-identity-ko.md#102-api-토큰-검증](../interfaces/user-rbac-and-identity-ko.md#102-api-토큰-검증) 참조. |
 | `FDAI_ENTRA_ISSUER` / `FDAI_ENTRA_JWKS_URI` | env | fork | 선택 verifier 오버라이드; 기본값은 tenant 의 v2 발급자 + 공개 키 셋. v1-토큰 앱은 `ISSUER` 를 `https://sts.windows.net/<tenant>/` 로; `JWKS_URI` 는 소버린 / 에어갭 클라우드에서만 오버라이드. |
+| `FDAI_EXECUTOR_PRINCIPAL_ID` / `FDAI_EXECUTOR_EVENT_ROLE_DEFINITION_ID` / `FDAI_EXECUTOR_SECRET_ROLE_DEFINITION_ID` | env | upstream | read API onboarding probe 입력. ARG를 사용해 provisioned resource set 및 executor Event Hubs / Key Vault 역할을 검증합니다. |
 | `FDAI_DR_DRILL_SOURCE_SERVER_ARM_ID` / `FDAI_DR_DRILL_TARGET_LOCATION` / `FDAI_DR_DRILL_TARGET_RG_PREFIX` / `FDAI_DR_DRILL_TARGET_SERVER_PREFIX` / `FDAI_DR_DRILL_PITR_OFFSET_MINUTES` / `FDAI_DR_DRILL_DRY_RUN` | env | fork | DB-DR drill job 설정 ([../runbooks/db-dr-drill-ko.md](../../runbooks/db-dr-drill-ko.md) 참조); `DRY_RUN=true` upstream 기본으로 job 이 idempotent 유지. |
 | `FDAI_SECRET_KAFKA_TOKEN` / 기타 `FDAI_SECRET_*` | KV ref | fork | 전용 env var 이름이 아직 없는 어댑터가 소비하는 secret 을 위한 generic escape hatch; 모든 `FDAI_SECRET_*` 값은 반드시 KV 경유. |
 

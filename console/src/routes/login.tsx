@@ -1,5 +1,6 @@
 import type { AuthContext } from "../auth";
 import { NebulaBackground } from "../components/nebula-background";
+import { t } from "../i18n";
 
 /**
  * Sign-in screen. A procedural WebGL nebula backdrop (the same shader the
@@ -7,35 +8,51 @@ import { NebulaBackground } from "../components/nebula-background";
  * the Entra sign-in button. The nebula is decorative (`aria-hidden`) and
  * degrades to the CSS deep-space fallback when WebGL is unavailable.
  */
-export function LoginRoute({ auth }: { readonly auth: AuthContext }) {
+export function LoginRoute({ auth, allowDevBypass = false, onDevBypass }: {
+  readonly auth: AuthContext;
+  readonly allowDevBypass?: boolean;
+  readonly onDevBypass?: () => void;
+}) {
   return (
     <div class="login-cosmos">
       <NebulaBackground intensity={1.05} speed={1} class="login-nebula" />
 
       <main class="login-card" role="main">
-        <p class="login-eyebrow">Operator sign-in</p>
+        <p class="login-eyebrow">
+          {allowDevBypass ? t("login.localEyebrow") : t("login.eyebrow")}
+        </p>
         <h1 class="login-title">FDAI Console</h1>
-        <p class="login-subtitle">Autonomous cloud operations control plane</p>
+        <p class="login-subtitle">
+          {allowDevBypass ? t("login.localSubtitle") : t("login.subtitle")}
+        </p>
 
-        <button
-          type="button"
-          class="login-signin"
-          onClick={() => {
-            void auth.signIn();
-          }}
-        >
-          <svg viewBox="0 0 21 21" width="18" height="18" aria-hidden="true">
-            <rect x="1" y="1" width="9" height="9" fill="#f25022" />
-            <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
-            <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
-            <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
-          </svg>
-          <span>Sign in with Entra ID</span>
-        </button>
+        <div class="login-actions">
+          {auth.interactiveSignIn ? (
+            <button
+              type="button"
+              class="login-signin"
+              onClick={() => {
+                void auth.signIn();
+              }}
+            >
+              <svg viewBox="0 0 21 21" width="18" height="18" aria-hidden="true">
+                <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+              </svg>
+              <span>{t("login.signInEntra")}</span>
+            </button>
+          ) : null}
+          {allowDevBypass && onDevBypass ? (
+            <button type="button" class="login-bypass" onClick={onDevBypass}>
+              {t("login.continueDev")}
+            </button>
+          ) : null}
+        </div>
 
         <p class="login-foot">
-          Read-only operator console. Changes are delivered as remediation PRs
-          and high-risk actions require human approval.
+          {allowDevBypass ? t("login.localFoot") : t("login.foot")}
         </p>
       </main>
     </div>

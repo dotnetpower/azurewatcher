@@ -173,6 +173,10 @@ class OntologyInstanceStore(Protocol):
         """Return one object by id."""
         ...
 
+    async def delete_object(self, object_id: str) -> bool:
+        """Delete one object and every incident link; return whether it existed."""
+        ...
+
     async def query_objects(
         self,
         *,

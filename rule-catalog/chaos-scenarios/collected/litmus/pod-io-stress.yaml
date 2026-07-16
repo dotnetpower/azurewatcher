@@ -11,7 +11,7 @@ fault_family: saturate
 intensity: high
 duration_seconds: 360.0
 expected_signal: host_cpu
-injector: needs-injector
+injector: litmus:pod-io-stress
 blast_radius_cap: 1
 rollback_note: Delete the ChaosEngine.
 gates:

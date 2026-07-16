@@ -1,5 +1,29 @@
 import { describe, expect, test } from "vitest";
-import { matchingTurnIndexes, replyAgent, sessionIdFor } from "./command-deck";
+import {
+  matchingTurnIndexes,
+  clampDockWidth,
+  parseDeckLayoutMode,
+  replyAgent,
+  restoredTurn,
+  sessionIdFor,
+} from "./command-deck";
+
+describe("Deck layout mode", () => {
+  test("restores supported modes and defaults malformed values to floating", () => {
+    expect(parseDeckLayoutMode("floating")).toBe("floating");
+    expect(parseDeckLayoutMode("dock")).toBe("dock");
+    expect(parseDeckLayoutMode("workspace")).toBe("workspace");
+    expect(parseDeckLayoutMode("unknown")).toBe("floating");
+    expect(parseDeckLayoutMode(null)).toBe("floating");
+  });
+
+  test("clamps right-sidebar width to a usable viewport range", () => {
+    expect(clampDockWidth(100, 1440)).toBe(340);
+    expect(clampDockWidth(500, 1440)).toBe(500);
+    expect(clampDockWidth(900, 1440)).toBe(720);
+    expect(clampDockWidth(600, 800)).toBe(480);
+  });
+});
 
 describe("Deck backend session IDs", () => {
   test("isolates transcripts and restores an existing session ID", () => {
@@ -46,5 +70,38 @@ describe("terminal reply attribution", () => {
       .toBe("Bragi");
     expect(replyAgent({ delegation, verification: { ...verification, status: "consistent" } }))
       .toBe("Saga");
+  });
+});
+
+describe("durable transcript restoration", () => {
+  test("maps principal-scoped operator and assistant records into deck turns", () => {
+    const operator = restoredTurn({
+      turn_id: "turn-1",
+      conversation_id: "conversation-1",
+      turn_index: 0,
+      role: "operator",
+      content: "Show major issues.",
+      recorded_at: "2026-07-16T07:00:00Z",
+      metadata: {},
+    });
+    const assistant = restoredTurn({
+      turn_id: "turn-2",
+      conversation_id: "conversation-1",
+      turn_index: 1,
+      role: "assistant",
+      content: "No high issues.",
+      recorded_at: "2026-07-16T07:00:01Z",
+      metadata: { source: "llm:test", agent: "Bragi" },
+    });
+
+    expect(operator).toMatchObject({ id: "turn-1", role: "operator", text: "Show major issues." });
+    expect(assistant).toMatchObject({
+      id: "turn-2",
+      role: "deck",
+      text: "No high issues.",
+      source: "llm:test",
+      agent: "Bragi",
+      terminal: true,
+    });
   });
 });

@@ -18,7 +18,7 @@ from fdai.shared.providers.pattern_library_writer import PatternLibraryWriter
 class DeterministicEmbeddingModel(EmbeddingModel):
     """Hash-based fake embedding - same input → same vector, no network."""
 
-    def __init__(self, *, dim: int = 32) -> None:
+    def __init__(self, *, dim: int = 384) -> None:
         self.dim = dim
 
     async def embed(self, text: str) -> Sequence[float]:

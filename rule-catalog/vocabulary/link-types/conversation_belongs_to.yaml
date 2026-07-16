@@ -1,0 +1,7 @@
+schema_version: "1.0.0"
+name: conversation_belongs_to
+version: "1.0.0"
+from_type: Conversation
+to_type: Principal
+cardinality: many_to_one
+description: Authenticated principal that owns and may read a Conversation.

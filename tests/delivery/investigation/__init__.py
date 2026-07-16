@@ -1,0 +1,1 @@
+"""Investigation delivery adapter tests."""

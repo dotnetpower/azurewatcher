@@ -93,6 +93,14 @@ class EventHubsKafkaBusConfig:
     A fork MAY pin it explicitly for a non-Azure endpoint (Confluent,
     Redpanda, ...)."""
 
+    auto_offset_reset: str = "latest"
+    """Initial position for a new consumer group. Durable worker groups use
+    ``earliest`` so events published before their first replica starts are not lost."""
+
+    def __post_init__(self) -> None:
+        if self.auto_offset_reset not in {"earliest", "latest"}:
+            raise ValueError("auto_offset_reset MUST be earliest or latest")
+
 
 class _EntraTokenProvider(AbstractTokenProvider):  # type: ignore[misc]
     """Bridge :class:`WorkloadIdentity` into aiokafka's token contract."""
@@ -224,7 +232,7 @@ async def _iter_consumer(
         session_timeout_ms=config.session_timeout_ms,
         heartbeat_interval_ms=config.heartbeat_interval_ms,
         enable_auto_commit=False,
-        auto_offset_reset="latest",
+        auto_offset_reset=config.auto_offset_reset,
     )
     await consumer.start()
     try:

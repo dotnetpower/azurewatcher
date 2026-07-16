@@ -18,6 +18,8 @@ import json
 import pytest
 
 from fdai.delivery.read_api.streaming.agent_activity_emitter import (
+    _ALL_AGENTS,
+    _SCENARIOS,
     SyntheticAgentActivityEmitter,
 )
 from fdai.delivery.read_api.streaming.agent_activity_stream import (
@@ -182,6 +184,12 @@ class TestPublisher:
 
 
 class TestSyntheticEmitter:
+    def test_scenarios_cover_distinct_azure_operations(self) -> None:
+        assert len(_SCENARIOS) == 9
+        assert len({scenario.title for scenario in _SCENARIOS}) == 9
+        assert {scenario.severity for scenario in _SCENARIOS} == {"low", "medium", "high"}
+        assert all(scenario.involved and scenario.turns and scenario.rca for scenario in _SCENARIOS)
+
     async def test_incident_narrative_publishes_lifecycle(self) -> None:
         sink = InMemorySseSink()
         emitter = SyntheticAgentActivityEmitter(
@@ -224,6 +232,34 @@ class TestSyntheticEmitter:
         assert any(p["type"] == "conversation.turn" for p in seen)
         states = {p["state"] for p in seen if p["type"] == "agent.state"}
         assert "executing" in states or "approving" in states
+
+    async def test_late_subscriber_receives_periodic_agent_snapshot(self) -> None:
+        sink = InMemorySseSink()
+        emitter = SyntheticAgentActivityEmitter(
+            sink=sink,
+            channel="c",
+            incident_interval_seconds=10.0,
+            heartbeat_interval_seconds=0.01,
+        )
+        await emitter.start()
+        await asyncio.sleep(0)
+        seen: list[dict[str, object]] = []
+
+        async def collect_snapshot() -> None:
+            async for event in sink.subscribe("c"):
+                payload = json.loads(event.data)
+                if payload["type"] == "agent.state":
+                    seen.append(payload)
+                if len(seen) == 15:
+                    return
+
+        try:
+            await asyncio.wait_for(collect_snapshot(), timeout=1.0)
+        finally:
+            await emitter.stop()
+
+        assert {payload["agent"] for payload in seen} == set(_ALL_AGENTS)
+        assert all(payload["correlation_id"] is None for payload in seen)
 
     async def test_stop_is_idempotent(self) -> None:
         sink = InMemorySseSink()

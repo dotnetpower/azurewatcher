@@ -14,8 +14,10 @@
  * the whole screen, so typing is never disturbed. Read-only throughout.
  */
 
-import { createNarrator } from "./narrator/index.js";
-import type { NarratorContext } from "./narrator/types.js";
+import { randomUUID } from "node:crypto";
+
+import { withChannelLocale, type CliChannelContext } from "./channel-context.js";
+import { askChat } from "./data/read-api.js";
 import { t, type Locale } from "./i18n/index.js";
 
 const BRAND = "\x1b[38;2;99;166;156m"; // teal
@@ -223,59 +225,6 @@ export function parseScreenCommand(
   return null;
 }
 
-/** Live counters the cockpit's local answerer reads. Passed as a snapshot so
- * `localAnswer` stays pure and testable. */
-export interface CockpitStats {
-  readonly handled: number;
-  readonly byTier: Record<string, number>;
-  readonly awaitingYou: number;
-  readonly autoApplied: number;
-  readonly undone: number;
-  readonly activity: readonly { readonly resource: string; readonly text: string }[];
-}
-
-/** Answer a state/trust question from the LIVE cockpit counters (never a mock
- * seed), so what I say matches what is on screen. Returns null to let the
- * narrator handle anything outside live state. Pure over the query, the stats
- * snapshot, and the locale. */
-export function localAnswer(q: string, stats: CockpitStats, locale: Locale): string | null {
-  const norm = q.toLowerCase().trim();
-  const { handled, byTier, awaitingYou, autoApplied, undone, activity } = stats;
-  if (/(awaiting|approval|hil|queue|decision|need you|escalat)/.test(norm)) {
-    return awaitingYou > 0
-      ? t("cockpit.answer.awaitingSome", locale, { count: awaitingYou })
-      : t("cockpit.answer.awaitingNone", locale);
-  }
-  if (/(abstain|stepped|skip|no rule|why not)/.test(norm)) {
-    return t("cockpit.answer.abstain", locale, { count: byTier.abstain ?? 0 });
-  }
-  if (/(safe|trust|read.?only|audit|rollback|how do you|guarantee)/.test(norm)) {
-    return t("cockpit.answer.trust", locale);
-  }
-  if (/(recent|activity|last|what did you|history)/.test(norm)) {
-    const last = activity
-      .slice(-3)
-      .map((a) => `${a.resource} ${a.text.split(" - ")[0]}`)
-      .join("; ");
-    return t("cockpit.answer.recent", locale, {
-      last: last || t("cockpit.answer.nothingYet", locale),
-    });
-  }
-  if (/(kpi|status|summary|how many|handl|doing|happening|now|minute|overview|health)/.test(norm)) {
-    return t("cockpit.answer.kpi", locale, {
-      handled,
-      t0: byTier.t0 ?? 0,
-      t1: byTier.t1 ?? 0,
-      t2: byTier.t2 ?? 0,
-      abstain: byTier.abstain ?? 0,
-      auto: autoApplied,
-      awaiting: awaitingYou,
-      undone,
-    });
-  }
-  return null;
-}
-
 async function consumeSse(
   url: string,
   onFrame: (f: StageFrame) => void,
@@ -320,7 +269,7 @@ async function consumeSse(
   }
 }
 
-export async function startCockpit(ctx: NarratorContext): Promise<void> {
+export async function startCockpit(ctx: CliChannelContext): Promise<void> {
   const stdin = process.stdin;
   const apiUrl = ctx.apiUrl!;
   if (!stdin.isTTY || typeof stdin.setRawMode !== "function") {
@@ -330,8 +279,8 @@ export async function startCockpit(ctx: NarratorContext): Promise<void> {
     return;
   }
 
-  const narrator = createNarrator();
   const locale = ctx.locale ?? "en";
+  const sessionId = randomUUID();
 
   // ---- live state ----------------------------------------------------------
   let handled = 0;
@@ -653,7 +602,7 @@ export async function startCockpit(ctx: NarratorContext): Promise<void> {
   };
 
   const hint = t("cockpit.hint", locale, {
-    kind: t(narrator.kind === "llm" ? "cockpit.hintNarratorAi" : "cockpit.hintNarratorRules", locale),
+    kind: t("cockpit.hintNarratorAi", locale),
   });
   const renderInput = (): void => {
     frame(() => {
@@ -707,9 +656,6 @@ export async function startCockpit(ctx: NarratorContext): Promise<void> {
     `By resource type: ${topResourcesText(10)}. ` +
     `These are live event types from the stream, not a named resource-group inventory.`;
 
-  // ---- local answerer ------------------------------------------------------
-  // `localAnswer` is a module-level pure function over a stats snapshot.
-
   const streamReveal = async (): Promise<void> => {
     const total = [...answerTarget].length;
     const step = Math.max(1, Math.round(total / 80));
@@ -722,30 +668,11 @@ export async function startCockpit(ctx: NarratorContext): Promise<void> {
     }
   };
 
-  // The narrator gets a read-only screen handle so an LLM can also arrange the
-  // view (show a chart, focus a resource, pause) from free-form phrasings the
-  // local parser above does not cover. It only changes what is displayed.
   const convo: Array<{ role: "user" | "assistant"; content: string }> = [];
   const recordTurn = (q: string, a: string): void => {
     convo.push({ role: "user", content: q }, { role: "assistant", content: a });
     while (convo.length > 12) convo.shift();
   };
-  const narratorCtx: NarratorContext = {
-    ...ctx,
-    live: { overview: liveOverviewText },
-    history: convo,
-    screen: {
-      setView: (patch) => {
-        if (patch.mode) view.mode = patch.mode;
-        if (patch.focus !== undefined) view.focus = patch.focus;
-        if (typeof patch.paused === "boolean") view.paused = patch.paused;
-        renderHeader();
-        renderBody();
-        return t("cockpit.showing", locale, { badge: viewBadge(view, locale) });
-      },
-    },
-  };
-
   const ask = (q: string): void => {
     busy = true;
     // 1. Screen control (view switch) - handled locally, instantly, no LLM.
@@ -764,25 +691,37 @@ export async function startCockpit(ctx: NarratorContext): Promise<void> {
       });
       return;
     }
-    // 2. Grounded live-state answers.
-    const local = localAnswer(q, { handled, byTier, awaitingYou, autoApplied, undone, activity }, locale);
-    if (local !== null) {
-      thinking = false;
-      answerTarget = local;
-      answerShown = 0;
-      recordTurn(q, local);
-      void streamReveal().finally(() => {
-        busy = false;
-        renderInput();
-      });
-      return;
-    }
     thinking = true;
     answerTarget = "";
     answerShown = 0;
     renderQA();
-    void narrator
-      .answer(q, narratorCtx)
+    void askChat(apiUrl, q, {
+      viewContext: withChannelLocale(locale, {
+        routeId: "cli-live",
+        routeLabel: "Forward Deployed Agents",
+        purpose: "Read-only live control-loop activity and routing outcomes.",
+        facts: {
+          handled,
+          by_tier: { ...byTier },
+          awaiting_approval: awaitingYou,
+          auto_applied: autoApplied,
+          undone,
+          errors,
+          active_view: viewBadge(view, locale),
+          overview: liveOverviewText(),
+        },
+        records: {
+          activity: activity.slice(-40).map((item) => ({
+            resource_type: item.resource,
+            summary: item.text,
+            tier: item.tier,
+          })),
+        },
+      }),
+      history: convo,
+      sessionId,
+    })
+      .then((reply) => reply.answer)
       .then(async (a) => {
         thinking = false;
         answerTarget = a;

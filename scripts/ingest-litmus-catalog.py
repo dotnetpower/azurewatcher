@@ -9,11 +9,9 @@ scope (pod, container, node), and a small parameter set.
 This ingester is a hand-curated CSP-neutral projection of the ~15 most
 widely used generic experiments from the hub - the ones whose fault
 semantics map cleanly onto a signal FDAI's detection layer already
-knows. Every entry ships with `injector: needs-injector` because FDAI
-does not yet embed a Litmus CRD adapter; the same Chaos Mesh /
-kubectl-backed injectors could cover most of them if we wanted to
-substitute, but the honest thing is to leave them as reference until
-a Litmus delivery adapter lands.
+knows. Every entry ships with a `litmus:<experiment>` injector backed by
+the Litmus ChaosEngine adapter. The upstream experiment identity stays
+in `provenance.source_ref` and is also the installed ChaosExperiment name.
 
 Reasoning about the "why is Litmus separate from Chaos Mesh" question
 mirrors the earlier Chaos Studio insight: Litmus is a *managed
@@ -278,9 +276,7 @@ def _to_body(e: Entry) -> dict:
         "intensity": e.intensity,
         "duration_seconds": _ALERT_WINDOW_S if e.intensity != "extreme" else _ALERT_WINDOW_S * 2,
         "expected_signal": e.expected_signal,
-        # No Litmus CRD delivery adapter yet; kept in `collected/` for
-        # symptom vocabulary + RCA candidate matching.
-        "injector": "needs-injector",
+        "injector": f"litmus:{e.experiment_name}",
         "blast_radius_cap": e.blast_radius_cap,
         "rollback_note": e.rollback_note,
         "gates": {"shadow_status": "pending", "enforce_status": None},

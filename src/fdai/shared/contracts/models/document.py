@@ -55,6 +55,7 @@ class MalwareVerdict(StrEnum):
 class DocumentPurpose(StrEnum):
     KNOWLEDGE_BASE = "knowledge_base"
     MANUAL_DISTILLATION = "manual_distillation"
+    HANDOVER_BOOTSTRAP = "handover_bootstrap"
 
 
 class AccessDescriptor(_Base):

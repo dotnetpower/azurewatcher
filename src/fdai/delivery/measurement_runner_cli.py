@@ -73,7 +73,8 @@ async def _run_baseline() -> int:
         persist_mode=registry.persist,
     ).run_once()
     _LOGGER.info(
-        "measurement_baseline_complete",
+        "measurement_baseline_complete aborted_reason=%s",
+        report.aborted_reason or "none",
         extra={
             "scenario_set_version": report.scenario_set_version,
             "sample_count": report.sample_count,

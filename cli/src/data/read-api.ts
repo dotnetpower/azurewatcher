@@ -45,15 +45,75 @@ export interface ReadModelSnapshot {
   audit: AuditItemPayload[];
 }
 
+export interface ChatHistoryTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatReply {
+  answer: string;
+  model: string;
+  latency_ms?: number;
+  verification?: Record<string, unknown>;
+}
+
+export const DEFAULT_CHAT_TIMEOUT_MS = 135_000;
+
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
   if (!res.ok) {
-    throw new Error(`read API ${url} -> ${res.status} ${res.statusText}`);
+    throw await responseError(res, url);
   }
   return (await res.json()) as T;
 }
 
+async function responseError(res: Response, url: string): Promise<Error> {
+  let detail = "";
+  try {
+    const body = (await res.json()) as { detail?: unknown };
+    if (typeof body.detail === "string") detail = body.detail;
+  } catch {
+    // Status and statusText remain actionable when the body is not JSON.
+  }
+  const suffix = detail ? `: ${detail.replace(/\s+/g, " ").slice(0, 500)}` : "";
+  const statusText = res.statusText ? ` ${res.statusText}` : "";
+  return new Error(`read API ${url} -> ${res.status}${statusText}${suffix}`);
+}
+
 const norm = (baseUrl: string): string => baseUrl.replace(/\/$/, "");
+
+/** Delegate one conversational turn to the shared read-API coordinator. */
+export async function askChat(
+  baseUrl: string,
+  prompt: string,
+  options: {
+    viewContext?: Record<string, unknown>;
+    history?: readonly ChatHistoryTurn[];
+    sessionId?: string;
+    timeoutMs?: number;
+  } = {},
+): Promise<ChatReply> {
+  const url = `${norm(baseUrl)}/chat`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/json" },
+    signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_CHAT_TIMEOUT_MS),
+    body: JSON.stringify({
+      prompt,
+      view_context: options.viewContext ?? {},
+      history: options.history ?? [],
+      session_id: options.sessionId,
+    }),
+  });
+  if (!res.ok) {
+    throw await responseError(res, url);
+  }
+  const payload = (await res.json()) as Partial<ChatReply>;
+  if (typeof payload.answer !== "string" || typeof payload.model !== "string") {
+    throw new Error(`read API ${url} returned an invalid chat response`);
+  }
+  return payload as ChatReply;
+}
 
 export async function fetchKpi(baseUrl: string): Promise<KpiPayload> {
   return getJson<KpiPayload>(`${norm(baseUrl)}/kpi`);

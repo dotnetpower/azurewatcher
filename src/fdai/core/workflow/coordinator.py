@@ -71,6 +71,9 @@ class WorkflowTriggerCoordinator:
         tuple and starts nothing.
         """
         matched = self._index.for_signal(event.event_type)
+        scheduled_ref = _scheduled_workflow_ref(event)
+        if not matched and scheduled_ref is not None:
+            matched = self._index.for_schedule(scheduled_ref)
         if not matched:
             return ()
         target = _target_resource_id(event)
@@ -80,11 +83,50 @@ class WorkflowTriggerCoordinator:
                 workflow,
                 target_resource_id=target,
                 trigger_ts=event.detected_at,
-                context={"event.event_type": event.event_type},
+                context=_event_context(event),
                 correlation_id=event.correlation_id or str(event.event_id),
             )
             runs.append(run)
         return tuple(runs)
+
+
+def _scheduled_workflow_ref(event: Event) -> str | None:
+    workflow_ref = event.payload.get("workflow_ref")
+    if not isinstance(workflow_ref, str) or not workflow_ref:
+        return None
+    if event.event_type != f"workflow.schedule.{workflow_ref}":
+        return None
+    return workflow_ref
+
+
+def _event_context(event: Event) -> dict[str, str]:
+    context = {"event.event_type": event.event_type}
+    if event.resource_ref:
+        context["event.resource_ref"] = event.resource_ref
+    _flatten_payload(event.payload, prefix="event.payload", target=context)
+    return context
+
+
+def _flatten_payload(
+    value: Mapping[str, Any],
+    *,
+    prefix: str,
+    target: dict[str, str],
+    depth: int = 0,
+) -> None:
+    if depth >= 4 or len(target) >= 64:
+        return
+    for key in sorted(value):
+        if len(target) >= 64:
+            return
+        item = value[key]
+        path = f"{prefix}.{key}"
+        if isinstance(item, Mapping):
+            _flatten_payload(item, prefix=path, target=target, depth=depth + 1)
+        elif isinstance(item, (str, int, float, bool)):
+            rendered = str(item)
+            if len(rendered) <= 2_000:
+                target[path] = rendered
 
 
 __all__ = ["WorkflowTriggerCoordinator"]

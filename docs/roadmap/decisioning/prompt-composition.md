@@ -220,8 +220,10 @@ description, invocation schema, capability gate, allowlist, and output wrapper.
 Web search is the last-resort tool. It is opt-in per fork and never a
 grounding source.
 
-- **Default off**: upstream ships a no-op `WebSearchProvider`. A fork provides
-  an API key and a curated domain allowlist to activate it.
+- **Default off**: upstream ships a no-op `WebSearchProvider`. Set
+  `FDAI_WEB_SEARCH_ENABLED=true` and provide a curated domain allowlist to
+  activate the Azure Responses adapter. Production reuses the read API's
+  managed identity; no search API key is added to the conversation surface.
 - **When it may run**: T2 case, novelty score above threshold, capability's
   tool allowlist includes `web.search`, and the per-event query / cost budget
   is not exhausted. This decision is not prose - it is the pure, deterministic
@@ -243,16 +245,32 @@ grounding source.
 - **Replay determinism**: results are stored by `(content_hash, url, fetched_at)`
   in `web_evidence`; audit entries reference the hash. Replay reads the
   stored snapshot instead of re-fetching, so past runs stay reproducible.
-- **No native model browsing**: FDAI never delegates search to a model's
-  built-in browsing / `web_search` tool. Search is always a self-hosted
-  `WebSearchProvider` invoked behind the T2 tool manifest, so the domain
-  allowlist, snippet sanitization, and `web_evidence` replay determinism stay
-  under core control (native browsing would hide all three inside the model).
-  The capability whose allowlist carries `web.search` sets
+- **Controlled Azure Responses adapter**: arbitrary opaque native browsing is
+  not supported. The Azure-first adapter is the reviewed exception: it wraps
+  the Responses API `web_search` tool behind `WebSearchProvider`, sends
+  `allowed_domains` on every request, verifies that a `web_search_call`
+  occurred, rejects citations outside the allowlist, and stores the sanitized
+  evidence snapshot with the durable conversation turn. Only the bounded
+  operator query leaves FDAI; the screen snapshot and conversation history are
+  never sent to the search call. The capability whose allowlist carries
+  `web.search` sets
   `tool_calling_required: true` in `rule-catalog/llm-registry.yaml`; the
   bootstrap resolver degrades it to `hil-only` when the target region has no
   function-calling-capable family, so a tool that cannot actually be called
   never ships silently.
+- **Latency-routed model pool**: search candidates come from
+  `resolved-models.json`'s `narrator_candidates`. Startup measures every
+  candidate twice, then a periodic probe adds one sample per candidate every
+  300 seconds by default. Search calls choose the lowest rolling p50 and fail
+  over on errors; the selected deployment, p50/p95 history, and actual search
+  latency are returned as provenance. The probe does not invoke web search, so
+  periodic health measurement does not incur search-tool charges.
+- **External data boundary**: Azure `web_search` uses Grounding with Bing. The
+  Microsoft Data Protection Addendum does not apply to that transfer, and data
+  can leave the deployment's compliance and geography boundary. This is why
+  activation is explicit, domains are allowlisted, and GUIDs, Azure resource
+  IDs, email addresses, and private IP addresses are blocked before a query is
+  sent.
 
 ## Debate orchestrator (Proposer / Critic / Judge)
 

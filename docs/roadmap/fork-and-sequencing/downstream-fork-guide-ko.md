@@ -1,7 +1,7 @@
 ---
 title: Downstream Fork 가이드
 translation_of: downstream-fork-guide.md
-translation_source_sha: 64dab231007c5cf67acb500f389a3a642a5ffb4e
+translation_source_sha: 7e4810f53ce75c26b3ab71a77d8322c451b1e057
 translation_revised: 2026-07-15
 ---
 
@@ -228,6 +228,7 @@ ActionType이 이를 이름 지정하는 Rule 전에 landing):
 | [5.14](downstream-fork-seam-recipes-ko.md#514-console-readpanel-추가) | Console `ReadPanel` 추가 |
 | [5.15](downstream-fork-seam-recipes-ko.md#515-fork-진입점-entrypy) | Fork 진입점 (`entry.py`) |
 | [5.16](downstream-fork-seam-recipes-ko.md#516-매뉴얼-증류-manualsource--manualclassifier--distiller) | 매뉴얼 증류 (`ManualSource` / `ManualClassifier` / `Distiller`) |
+| [5.17](downstream-fork-seam-recipes-ko.md#517-capability-bundle-등록) | `CapabilityBundle` 등록과 시작 시 cross-validation |
 
 **새 비즈니스-오브젝트 vertical 구축**: non-Resource ObjectType
 lifecycle (아키텍처-리뷰 proposal, compliance-attestation 레코드,

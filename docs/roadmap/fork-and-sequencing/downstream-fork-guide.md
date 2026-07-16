@@ -231,6 +231,7 @@ before the Rule that names it, and so on):
 | [5.14](downstream-fork-seam-recipes.md#514-console-readpanel-additions) | Console `ReadPanel` additions |
 | [5.15](downstream-fork-seam-recipes.md#515-fork-entry-point-entrypy) | Fork entry point (`entry.py`) |
 | [5.16](downstream-fork-seam-recipes.md#516-manual-distillation-manualsource--manualclassifier--distiller) | Manual distillation (`ManualSource` / `ManualClassifier` / `Distiller`) |
+| [5.17](downstream-fork-seam-recipes.md#517-capability-bundle-registration) | `CapabilityBundle` registration and startup cross-validation |
 
 **Building a new business-object vertical**: a fork that adds a
 non-Resource ObjectType lifecycle (architecture-review proposal,

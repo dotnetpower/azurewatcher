@@ -14,6 +14,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { currentRoute, routeHref } from "../router";
 
 /**
  * Rule-fire trace viewer panel. Given a correlation id, calls
@@ -45,21 +46,17 @@ interface Props {
 }
 
 /**
- * Read a ``?correlation=`` deep-link value from the hash query string.
- * The Agent activity timeline links here (``#/trace?correlation=...``)
+ * Read a ``?correlation=`` deep-link value from the clean route query.
+ * The Agent activity timeline links here (``/trace?correlation=...``)
  * so an operator can jump from one agent's action straight into its
  * full pipeline trace.
  */
-function correlationFromHash(): string {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("correlation") || "";
-  return params.get("correlation") ?? "";
+function correlationFromRoute(): string {
+  return currentRoute().search.get("correlation")?.trim() ?? "";
 }
 
 export function RuleTraceRoute({ client }: Props) {
-  const [correlationId, setCorrelationId] = useState(
-    () => correlationFromHash() || "corr-dev-0001",
-  );
+  const [correlationId, setCorrelationId] = useState(correlationFromRoute);
   const [state, setState] = useState<AsyncState<TraceResponse>>({ status: "idle" });
   const requestGeneration = useRef(0);
 
@@ -87,7 +84,7 @@ export function RuleTraceRoute({ client }: Props) {
   // correlation changes while this panel stays mounted).
   useEffect(() => {
     const sync = () => {
-      const deepLinked = correlationFromHash();
+      const deepLinked = correlationFromRoute();
       if (!deepLinked) {
         requestGeneration.current += 1;
         setCorrelationId("");
@@ -217,7 +214,17 @@ function TraceView({ data }: { readonly data: TraceResponse }) {
   );
 
   const columns: readonly Column<TraceStep>[] = [
-    { key: "n", header: "#", render: (s) => s.seq, cellClass: "num", headerClass: "num" },
+    {
+      key: "n",
+      header: "#",
+      render: (s) => (
+        <a href={routeHref("audit", { params: { correlation: data.correlation_id, entry: s.seq } })}>
+          {s.seq}
+        </a>
+      ),
+      cellClass: "num",
+      headerClass: "num",
+    },
     { key: "at", header: "Recorded at", render: (s) => s.recorded_at, cellClass: "mono" },
     { key: "stage", header: "Stage", render: (s) => s.stage || <span class="muted">(unnamed)</span>, cellClass: "mono" },
     { key: "kind", header: "Action kind", render: (s) => s.action_kind, cellClass: "mono" },
@@ -250,6 +257,11 @@ function TraceView({ data }: { readonly data: TraceResponse }) {
           value={<span class="mono small">{data.correlation_id}</span>}
         />
       </KpiGrid>
+      <nav class="trace-evidence-links" aria-label="Correlation evidence">
+        <a href={routeHref("incidents", { params: { status: "all", correlation: data.correlation_id } })}>Incident</a>
+        <a href={routeHref("audit", { params: { correlation: data.correlation_id } })}>Audit</a>
+        <a href={routeHref("rca", { params: { correlation: data.correlation_id } })}>RCA</a>
+      </nav>
       <section class="stack-section">
         <h3 class="section-title">Timeline</h3>
         <DataTable

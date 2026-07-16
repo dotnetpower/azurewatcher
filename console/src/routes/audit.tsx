@@ -13,6 +13,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, agentTerm, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { currentRoute, routeHref } from "../router";
 import { appendAuditPage, type AuditData as Data } from "./audit.model";
 
 interface Props {
@@ -32,17 +33,27 @@ interface AuditFilters {
   readonly outcome: string | null;
   readonly vertical: string | null;
   readonly window: string | null;
+  readonly invalid: readonly string[];
 }
 
 function filtersFromSearch(): AuditFilters {
   const search = new URLSearchParams(window.location.search);
+  const mode = search.get("mode");
+  const tier = search.get("tier");
+  const windowFilter = search.get("window");
+  const invalid = [
+    ...(mode !== null && mode !== "shadow" && mode !== "enforce" ? [`mode=${mode}`] : []),
+    ...(tier !== null && tier !== "t0" && tier !== "t1" && tier !== "t2" ? [`tier=${tier}`] : []),
+    ...(windowFilter !== null && !/^[1-9][0-9]{0,2}d$/.test(windowFilter) ? [`window=${windowFilter}`] : []),
+  ];
   return {
-    mode: search.get("mode"),
-    tier: search.get("tier"),
+    mode,
+    tier,
     action: search.get("action"),
     outcome: search.get("outcome"),
     vertical: search.get("vertical"),
-    window: search.get("window"),
+    window: windowFilter,
+    invalid,
   };
 }
 
@@ -75,6 +86,13 @@ export function AuditRoute({ client }: Props) {
   useEffect(() => {
     const generation = requestGeneration.current + 1;
     requestGeneration.current = generation;
+    if (filters.invalid.length > 0) {
+      setState({
+        status: "error",
+        message: `Invalid audit filter: ${filters.invalid.join(", ")}`,
+      });
+      return;
+    }
     setState({ status: "loading" });
     setPageError(null);
     setLoadingMore(false);
@@ -134,9 +152,9 @@ export function AuditRoute({ client }: Props) {
           {t("incidents.auditFilter", { correlation: correlationId })}
         </p>
       ) : null}
-      {Object.entries(filters).some(([, value]) => value) ? (
+      {Object.entries(filters).some(([key, value]) => key !== "invalid" && value) ? (
         <div class="filter-summary" aria-label="active audit filters">
-          {Object.entries(filters).filter(([, value]) => value).map(([key, value]) => (
+          {Object.entries(filters).filter(([key, value]) => key !== "invalid" && value).map(([key, value]) => (
             <span key={key}>{key}: <strong>{value}</strong></span>
           ))}
         </div>
@@ -190,6 +208,14 @@ interface BodyProps {
 }
 
 function AuditBody({ data, loadingMore, pageError, onLoadMore }: BodyProps) {
+  const requestedEntry = Number(currentRoute().search.get("entry"));
+  const selectedSeq = Number.isInteger(requestedEntry) && requestedEntry > 0
+    ? requestedEntry
+    : null;
+  const entryHref = (seq: number): string => {
+    const params = Object.fromEntries(currentRoute().search.entries());
+    return routeHref("audit", { params: { ...params, entry: seq } });
+  };
   usePublishViewContext(
     () => ({
       routeId: "audit",
@@ -236,7 +262,13 @@ function AuditBody({ data, loadingMore, pageError, onLoadMore }: BodyProps) {
   );
 
   const columns: readonly Column<AuditItem>[] = [
-    { key: "seq", header: "#", render: (r) => r.seq, cellClass: "mono num", headerClass: "num" },
+    {
+      key: "seq",
+      header: "#",
+      render: (r) => <a href={entryHref(r.seq)}>{r.seq}</a>,
+      cellClass: "mono num",
+      headerClass: "num",
+    },
     { key: "at", header: "Recorded at", render: (r) => r.recorded_at, cellClass: "mono" },
     { key: "actor", header: "Actor", render: (r) => r.actor },
     { key: "kind", header: "Action kind", render: (r) => r.action_kind, cellClass: "mono" },
@@ -247,10 +279,21 @@ function AuditBody({ data, loadingMore, pageError, onLoadMore }: BodyProps) {
     },
     { key: "eid", header: "Event id", render: (r) => r.event_id, cellClass: "mono" },
     {
+      key: "evidence",
+      header: "Evidence",
+      render: (r) => r.correlation_id ? (
+        <span class="table-action-links">
+          <a href={routeHref("trace", { params: { correlation: r.correlation_id } })}>Trace</a>
+          <a href={routeHref("rca", { params: { correlation: r.correlation_id } })}>RCA</a>
+          <a href={routeHref("incidents", { params: { status: "all", correlation: r.correlation_id } })}>Incident</a>
+        </span>
+      ) : <span class="muted">-</span>,
+    },
+    {
       key: "raw",
       header: "Details",
       render: (r) => (
-        <details>
+        <details open={selectedSeq === r.seq}>
           <summary class="details-summary">view JSON</summary>
           <pre class="mono small entry-json">{JSON.stringify(r.entry, null, 2)}</pre>
         </details>

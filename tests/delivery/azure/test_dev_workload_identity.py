@@ -12,9 +12,11 @@ from unittest.mock import patch
 import pytest
 
 from fdai.delivery.azure.dev_workload_identity import (
+    AsyncAzureCliWorkloadIdentity,
     AzureCliCredentialError,
     AzureCliWorkloadIdentity,
 )
+from fdai.shared.providers.workload_identity import IdentityToken
 
 
 def _completed(
@@ -217,3 +219,22 @@ class TestGetTokenSync:
         assert "--resource" in argv
         resource = argv[argv.index("--resource") + 1]
         assert resource == "https://cognitiveservices.azure.com"
+
+
+async def test_async_adapter_returns_cli_token() -> None:
+    credential = AzureCliWorkloadIdentity()
+    adapter = AsyncAzureCliWorkloadIdentity(credential=credential)
+    expected = IdentityToken(
+        token="graph-token",
+        expires_at=datetime(2099, 1, 1, tzinfo=UTC),
+        audience="https://graph.microsoft.com/.default",
+    )
+    with patch.object(
+        AzureCliWorkloadIdentity,
+        "get_token_sync",
+        return_value=expected,
+    ) as get_token:
+        result = await adapter.get_token("https://graph.microsoft.com/.default")
+
+    assert result is expected
+    get_token.assert_called_once_with("https://graph.microsoft.com/.default")

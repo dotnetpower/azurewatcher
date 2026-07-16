@@ -54,6 +54,11 @@ def test_construction_rejects_empty_bootstrap_servers() -> None:
         EventHubsKafkaBus(identity=_StaticIdentity(), config=_cfg(bootstrap_servers=""))
 
 
+def test_config_rejects_invalid_auto_offset_reset() -> None:
+    with pytest.raises(ValueError, match="auto_offset_reset"):
+        _cfg(auto_offset_reset="middle")
+
+
 def test_encode_produces_deterministic_bytes() -> None:
     payload = {"b": 2, "a": 1}
     encoded = _encode(payload)

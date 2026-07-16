@@ -50,6 +50,11 @@ variable "executor_identity_id" {
   type        = string
 }
 
+variable "executor_identity_client_id" {
+  description = "Client id selecting the executor when multiple user-assigned identities are attached."
+  type        = string
+}
+
 variable "inventory_identity_id" {
   description = "Dedicated read-only user-assigned MI resource id for inventory discovery."
   type        = string
@@ -320,6 +325,30 @@ variable "tags" {
   description = "Tags."
   type        = map(string)
   default     = {}
+}
+
+variable "vm_task_enabled" {
+  description = "Bind the governed VM task ToolExecutor in the core app."
+  type        = bool
+  default     = false
+}
+
+variable "vm_task_enforce" {
+  description = "Allow promoted VM tasks to run after risk gate and Owner HIL."
+  type        = bool
+  default     = false
+}
+
+variable "vm_task_run_as_user" {
+  description = "Non-root Linux account configured on VM task hosts."
+  type        = string
+  default     = "fdai-task"
+}
+
+variable "vm_task_root" {
+  description = "Private guest task root configured on VM task hosts."
+  type        = string
+  default     = "/var/lib/fdai/tasks"
 }
 
 

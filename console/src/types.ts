@@ -236,11 +236,26 @@ export interface HilQueueItem {
   readonly reason: string;
   readonly requested_at: string;
   readonly correlation_id: string | null;
+  readonly approval_id: string;
+  readonly action_id: string;
+  readonly target_resource_ref: string;
+  readonly mode: string;
+  readonly stop_condition: string;
+  readonly rollback_kind: string;
+  readonly rollback_reference: string | null;
+  readonly blast_radius_scope: string;
+  readonly blast_radius_count: number | null;
+  readonly blast_radius_rate_per_minute: number | null;
+  readonly blast_radius_summary: string;
+  readonly reasons: readonly string[];
+  readonly citing_rule_ids: readonly string[];
+  readonly ttl_expires_at: string | null;
 }
 
 export interface HilQueuePage {
   readonly items: readonly HilQueueItem[];
   readonly total: number;
+  readonly detail_level: "full" | "count_only";
 }
 
 export interface ApiError {

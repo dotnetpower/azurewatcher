@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import zipfile
+from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -164,6 +165,16 @@ def test_contracts_are_frozen_and_reject_unknown_fields() -> None:
         capabilities.max_file_size = 1
     with pytest.raises(ValidationError):
         IngestionCapabilities(**capabilities.model_dump(), unknown=True)
+
+
+def test_handover_bootstrap_is_a_supported_document_purpose() -> None:
+    request = _request(b"RACI: Jordan is accountable for monitoring")
+    parsed = replace(
+        request,
+        purposes=(DocumentPurpose("handover_bootstrap"),),
+    )
+
+    assert parsed.purposes == (DocumentPurpose.HANDOVER_BOOTSTRAP,)
 
 
 def test_state_machine_rejects_skipped_safety_stage() -> None:

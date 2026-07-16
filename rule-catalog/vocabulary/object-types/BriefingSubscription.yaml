@@ -1,0 +1,16 @@
+schema_version: "1.0.0"
+name: BriefingSubscription
+version: "1.0.0"
+key: id
+description: Principal-scoped timezone-aware recurring briefing definition.
+properties:
+  id: {type: string, required: true}
+  principal_ref: {type: string, required: true, access_scope: owner, purpose_binding: [user_context]}
+  name: {type: string, required: true, access_scope: owner, purpose_binding: [user_context]}
+  briefing_kind: {type: string, required: true}
+  cron_expression: {type: string, required: true, access_scope: owner, purpose_binding: [user_context]}
+  timezone: {type: string, required: true}
+  delivery_modes: {type: array, required: true, access_scope: owner, purpose_binding: [user_context]}
+  enabled: {type: boolean, required: true}
+  next_run_at: {type: datetime, required: true}
+  revision: {type: integer, required: true}

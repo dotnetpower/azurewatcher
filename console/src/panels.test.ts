@@ -10,7 +10,14 @@ import {
 describe("panel navigation placement", () => {
   test("groups live operator work under Operations", () => {
     const operations = panelsInGroup("operations").map((panel) => panel.id);
-    expect(operations).toEqual(["live", "incidents", "hil-queue", "provision", "processes"]);
+    expect(operations).toEqual([
+      "live",
+      "incidents",
+      "hil-queue",
+      "provision",
+      "onboarding",
+      "processes",
+    ]);
     expect(panelForId("incidents").id).toBe("incidents");
   });
 
@@ -22,18 +29,21 @@ describe("panel navigation placement", () => {
       "agents", "pantheon", "agent-activity", "handover",
     ]);
     expect(panelsInGroup("governance").map((panel) => panel.id)).toEqual([
-      "architecture", "ontology", "rules", "workflow-builder", "blast-radius", "promotion-gates", "scope",
+      "architecture", "ontology", "rules", "workflow-builder", "capabilities", "blast-radius", "promotion-gates", "scope",
     ]);
     expect(panelsInGroup("evidence").map((panel) => panel.id)).toEqual([
       "audit", "reports", "trace", "rca", "documents",
     ]);
     expect(panelsInGroup("labs").map((panel) => panel.id)).toEqual(["labs"]);
+    expect(panelsInGroup("settings").map((panel) => panel.id)).toEqual([
+      "settings-general", "settings-models", "settings-iam", "settings-integrations", "settings-diagnostics",
+    ]);
   });
 
-  test("pins Settings to the bottom rail without changing its route", () => {
-    expect(bottomRailPanels().map((panel) => panel.id)).toEqual(["settings"]);
-    expect(resolvePanels().some((panel) => panel.id === "settings")).toBe(true);
-    expect(panelForId("settings").id).toBe("settings");
+  test("pins the Settings group to the bottom rail", () => {
+    expect(bottomRailPanels()).toEqual([]);
+    expect(resolvePanels().some((panel) => panel.id === "settings-general")).toBe(true);
+    expect(panelForId("settings-iam").id).toBe("settings-iam");
     expect(DEFAULT_PANEL_ID).toBe("dashboard");
   });
 });

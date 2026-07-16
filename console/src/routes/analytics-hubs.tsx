@@ -22,6 +22,7 @@ const OUTCOME_KEYS = [
   "human-touchpoints",
   "mttr",
   "change-lead-time",
+  "cost-per-resolved-event",
 ] as const;
 type OutcomeKey = (typeof OUTCOME_KEYS)[number];
 
@@ -29,6 +30,7 @@ function outcomeMetric(data: AutonomyPayload, key: OutcomeKey): MetricVsBaseline
   if (key === "auto-resolution") return data.success.auto_resolution_rate;
   if (key === "human-touchpoints") return data.success.human_touchpoints_per_100;
   if (key === "mttr") return data.success.mttr_seconds;
+  if (key === "cost-per-resolved-event") return data.success.cost_per_resolved_event_usd;
   return data.success.change_lead_time_seconds;
 }
 
@@ -41,6 +43,7 @@ function duration(seconds: number): string {
 function metricValue(metric: MetricVsBaseline, key: OutcomeKey): string {
   if (key === "auto-resolution") return `${Math.round(metric.value * 100)}%`;
   if (key === "human-touchpoints") return metric.value.toFixed(1);
+  if (key === "cost-per-resolved-event") return `$${metric.value.toFixed(2)}`;
   return duration(metric.value);
 }
 
@@ -116,16 +119,18 @@ function TrendChart({ values, label }: { readonly values: readonly number[]; rea
 export function OperatingOutcomesRoute({ client }: Props) {
   const state = useAnalyticsData(client);
   const segment = currentRoute().segments[0];
-  const active = OUTCOME_KEYS.includes(segment as OutcomeKey)
-    ? segment as OutcomeKey
-    : "auto-resolution";
+  const active: OutcomeKey | null = segment === undefined
+    ? "auto-resolution"
+    : OUTCOME_KEYS.includes(segment as OutcomeKey) ? segment as OutcomeKey : null;
   return (
     <div class="stack analytics-route">
       <PageHeader title={t("analytics.outcomes.title")} subtitle={t("analytics.outcomes.subtitle")} />
-      <HubTabs panelId="operating-outcomes" values={OUTCOME_KEYS} active={active} label={(key) => t(`analytics.metric.${key}`)} />
-      <AsyncBoundary state={state} resourceLabel={t("analytics.outcomes.title")}>
-        {(data) => data.autonomy ? <OutcomeBody data={data} active={active} /> : <UnavailableState message={t("analytics.autonomyUnavailable")} />}
-      </AsyncBoundary>
+      <HubTabs panelId="operating-outcomes" values={OUTCOME_KEYS} active={active ?? ""} label={(key) => t(`analytics.metric.${key}`)} />
+      {active === null ? <UnavailableState message={t("analytics.invalidDetail")} /> : (
+        <AsyncBoundary state={state} resourceLabel={t("analytics.outcomes.title")}>
+          {(data) => data.autonomy ? <OutcomeBody data={data} active={active} /> : <UnavailableState message={t("analytics.autonomyUnavailable")} />}
+        </AsyncBoundary>
+      )}
     </div>
   );
 }
@@ -208,19 +213,27 @@ function verticalPayloadKey(slug: string): string {
   return slug;
 }
 
+function verticalRouteSlug(payloadKey: string): string {
+  if (payloadKey === "change_safety") return "change-safety";
+  if (payloadKey === "cost") return "cost-governance";
+  return payloadKey;
+}
+
 export function VerticalOutcomesRoute({ client }: Props) {
   const state = useAnalyticsData(client);
   const segment = currentRoute().segments[0];
-  const active = VERTICAL_KEYS.includes(segment as (typeof VERTICAL_KEYS)[number])
-    ? segment!
-    : "resilience";
+  const active = segment === undefined
+    ? "resilience"
+    : VERTICAL_KEYS.includes(segment as (typeof VERTICAL_KEYS)[number]) ? segment : null;
   return (
     <div class="stack analytics-route">
       <PageHeader title={t("analytics.verticals.title")} subtitle={t("analytics.verticals.subtitle")} />
-      <HubTabs panelId="verticals" values={VERTICAL_KEYS} active={active} label={(key) => t(`analytics.vertical.${key}`)} />
-      <AsyncBoundary state={state} resourceLabel={t("analytics.verticals.title")}>
-        {(data) => data.autonomy ? <VerticalBody data={data} active={active} /> : <UnavailableState message={t("analytics.autonomyUnavailable")} />}
-      </AsyncBoundary>
+      <HubTabs panelId="verticals" values={VERTICAL_KEYS} active={active ?? ""} label={(key) => t(`analytics.vertical.${key}`)} />
+      {active === null ? <UnavailableState message={t("analytics.invalidDetail")} /> : (
+        <AsyncBoundary state={state} resourceLabel={t("analytics.verticals.title")}>
+          {(data) => data.autonomy ? <VerticalBody data={data} active={active} /> : <UnavailableState message={t("analytics.autonomyUnavailable")} />}
+        </AsyncBoundary>
+      )}
     </div>
   );
 }
@@ -243,9 +256,16 @@ function VerticalBody({ data, active }: { readonly data: AnalyticsData; readonly
         <h3>{t("analytics.verticals.comparison")}</h3>
         <VerticalTable verticals={data.autonomy!.verticals} />
       </section>
+      {data.autonomy!.synthetic ? (
+        <p class="muted footnote">{t("analytics.simulatedEvidenceBoundary")}</p>
+      ) : null}
       <EvidenceLinks links={[
-        [t("analytics.viewIncidents"), routeHref("incidents", { params: { vertical: active } })],
-        [t("analytics.viewAudit"), routeHref("audit", { params: { vertical: active } })],
+        [t("analytics.viewIncidents"), routeHref("incidents", {
+          params: { vertical: data.autonomy!.synthetic ? null : verticalPayloadKey(active) },
+        })],
+        [t("analytics.viewAudit"), routeHref("audit", {
+          params: { vertical: data.autonomy!.synthetic ? null : verticalPayloadKey(active) },
+        })],
       ]} />
     </div>
   );
@@ -253,7 +273,15 @@ function VerticalBody({ data, active }: { readonly data: AnalyticsData; readonly
 
 function VerticalTable({ verticals }: { readonly verticals: readonly VerticalSummary[] }) {
   const columns: readonly Column<VerticalSummary>[] = [
-    { key: "vertical", header: t("analytics.verticalLabel"), render: (row) => t(`overview.vertical.${row.key}`) },
+    {
+      key: "vertical",
+      header: t("analytics.verticalLabel"),
+      render: (row) => (
+        <a href={routeHref("verticals", { segments: [verticalRouteSlug(row.key)] })}>
+          {t(`overview.vertical.${row.key}`)}
+        </a>
+      ),
+    },
     { key: "events", header: t("analytics.events"), render: (row) => row.events, cellClass: "num" },
     { key: "resolved", header: t("analytics.autoResolved"), render: (row) => row.auto_resolved, cellClass: "num" },
     { key: "risks", header: t("analytics.openRisks"), render: (row) => row.open_risks, cellClass: "num" },
@@ -266,14 +294,18 @@ const TIER_KEYS = ["t0", "t1", "t2"] as const;
 export function TrustRoutingRoute({ client }: Props) {
   const state = useAnalyticsData(client);
   const segment = currentRoute().segments[0]?.toLowerCase();
-  const active = TIER_KEYS.includes(segment as (typeof TIER_KEYS)[number]) ? segment! : "t0";
+  const active = segment === undefined
+    ? "t0"
+    : TIER_KEYS.includes(segment as (typeof TIER_KEYS)[number]) ? segment : null;
   return (
     <div class="stack analytics-route">
       <PageHeader title={t("analytics.routing.title")} subtitle={t("analytics.routing.subtitle")} />
-      <HubTabs panelId="trust-routing" values={TIER_KEYS} active={active} label={(key) => key.toUpperCase()} />
-      <AsyncBoundary state={state} resourceLabel={t("analytics.routing.title")}>
-        {(data) => data.autonomy ? <RoutingBody data={data} active={active} /> : <UnavailableState message={t("analytics.autonomyUnavailable")} />}
-      </AsyncBoundary>
+      <HubTabs panelId="trust-routing" values={TIER_KEYS} active={active ?? ""} label={(key) => key.toUpperCase()} />
+      {active === null ? <UnavailableState message={t("analytics.invalidDetail")} /> : (
+        <AsyncBoundary state={state} resourceLabel={t("analytics.routing.title")}>
+          {(data) => data.autonomy ? <RoutingBody data={data} active={active} /> : <UnavailableState message={t("analytics.autonomyUnavailable")} />}
+        </AsyncBoundary>
+      )}
     </div>
   );
 }
@@ -310,7 +342,11 @@ function TierTable({ data }: { readonly data: AnalyticsData }) {
     count: data.kpi.by_tier[key] ?? 0,
   }));
   const columns: readonly Column<(typeof rows)[number]>[] = [
-    { key: "tier", header: t("analytics.tier"), render: (row) => row.key.toUpperCase() },
+    {
+      key: "tier",
+      header: t("analytics.tier"),
+      render: (row) => <a href={routeHref("trust-routing", { segments: [row.key] })}>{row.key.toUpperCase()}</a>,
+    },
     { key: "share", header: t("analytics.routing.share"), render: (row) => formatShare(row.share), cellClass: "num" },
     { key: "band", header: t("analytics.routing.targetBand"), render: (row) => row.band ? `${Math.round(row.band[0] * 100)}-${Math.round(row.band[1] * 100)}%` : "-", cellClass: "num" },
     { key: "events", header: t("analytics.events"), render: (row) => row.count, cellClass: "num" },

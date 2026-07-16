@@ -277,6 +277,16 @@ class TestResolveFromClaims:
         p = resolver.resolve_from_claims({"oid": "user-1"})
         assert p.roles == frozenset()
 
+    def test_preferred_username_is_used_as_v2_upn_fallback(self) -> None:
+        resolver = RoleResolver(group_mapping=_mapping())
+        p = resolver.resolve_from_claims(
+            {
+                "oid": "user-1",
+                "preferred_username": "user@example.com",
+            }
+        )
+        assert p.upn == "user@example.com"
+
     def test_unknown_role_string_dropped_silently(self) -> None:
         # An Entra admin who ships a new App Role value cannot bypass
         # the code - unknown role strings are ignored.

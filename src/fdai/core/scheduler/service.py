@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from croniter import croniter
+
 from fdai.core.scheduler.models import ScheduledTask
 from fdai.core.scheduler.store import ScheduleStore
 from fdai.shared.contracts.models import Event, Mode
@@ -43,6 +45,13 @@ def compute_due(tasks: Sequence[ScheduledTask], *, now: datetime) -> list[Schedu
             continue
         if task.start_at is not None and now < task.start_at:
             continue
+        if task.cron_expression is not None:
+            if not croniter.match(task.cron_expression, now):
+                continue
+            if task.last_run is not None and _minute_bucket(task.last_run) == _minute_bucket(now):
+                continue
+            due.append(task)
+            continue
         if task.last_run is None:
             due.append(task)
             continue
@@ -54,8 +63,16 @@ def compute_due(tasks: Sequence[ScheduledTask], *, now: datetime) -> list[Schedu
 
 def _schedule_idempotency_key(task: ScheduledTask, now: datetime) -> str:
     """Stable key per interval bucket so a retried tick does not double-fire."""
-    bucket = int(now.timestamp() // task.interval_seconds)
+    bucket = (
+        _minute_bucket(now)
+        if task.cron_expression is not None
+        else int(now.timestamp() // task.interval_seconds)
+    )
     return f"schedule:{task.task_id}:{bucket}"
+
+
+def _minute_bucket(value: datetime) -> int:
+    return int(value.timestamp() // 60)
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,10 +112,10 @@ class SchedulerService:
         fired = 0
         publish_errors: list[tuple[str, str]] = []
         for task in due:
-            event = self._build_event(task, at)
             key = task.resource_ref or task.task_id
             try:
-                await self._bus.publish(self._topic, key, event.model_dump(mode="json"))
+                payload = self._build_payload(task, at)
+                await self._bus.publish(self._topic, key, payload)
             except Exception as exc:  # noqa: BLE001 - one bad task must not silence the rest
                 publish_errors.append((task.task_id, f"{type(exc).__name__}:{exc}"))
                 _LOGGER.warning(
@@ -132,6 +149,39 @@ class SchedulerService:
             ingested_at=at,
             mode=self._mode,
         )
+
+    def _build_payload(self, task: ScheduledTask, at: datetime) -> dict[str, object]:
+        proposal = task.event_payload.get("action_proposal")
+        if not isinstance(proposal, dict):
+            return self._build_event(task, at).model_dump(mode="json")
+        initiator = proposal.get("initiator_principal")
+        action_type = proposal.get("action_type")
+        params = proposal.get("params")
+        if (
+            not isinstance(initiator, str)
+            or not initiator
+            or not isinstance(action_type, str)
+            or not action_type
+            or not isinstance(params, dict)
+        ):
+            raise ValueError(f"scheduled task {task.task_id!r} has an invalid action_proposal")
+        idempotency_key = _schedule_idempotency_key(task, at)
+        return {
+            "schema_version": "1.0.0",
+            "idempotency_key": idempotency_key,
+            "correlation_id": idempotency_key,
+            "initiator_principal": initiator,
+            "operator_initiated": True,
+            "action_type": action_type,
+            "resource_id": task.resource_ref,
+            "event_type": "operator_request",
+            "params": dict(params),
+            "scheduled_task": {
+                "task_id": task.task_id,
+                "name": task.name,
+                "created_by": task.created_by,
+            },
+        }
 
 
 __all__ = [

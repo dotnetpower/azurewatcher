@@ -1,8 +1,8 @@
 ---
 title: 진화하는 시스템 프롬프트
 translation_of: prompt-composition.md
-translation_source_sha: 5b66bff11e0825b864d03499c9a3698a2f73020b
-translation_revised: 2026-07-15
+translation_source_sha: 038061fccb8987b1930af31b1c3272f1a54eeff9
+translation_revised: 2026-07-16
 ---
 
 # 진화하는 시스템 프롬프트
@@ -215,8 +215,10 @@ capability gate, allowlist, output wrapper를 선언합니다.
 Web search는 최후의 수단 툴입니다. fork별 opt-in이며 절대 grounding source가
 아닙니다.
 
-- **기본 off**: 업스트림은 no-op `WebSearchProvider`를 배포. fork가 API key와
-  curated 도메인 allowlist를 제공하여 활성화합니다.
+- **기본 off**: 업스트림은 no-op `WebSearchProvider`를 배포합니다.
+  `FDAI_WEB_SEARCH_ENABLED=true`와 curated 도메인 allowlist를 설정하면 Azure
+  Responses adapter가 활성화됩니다. 프로덕션은 read API managed identity를
+  재사용하며 대화 surface에 검색 API key를 추가하지 않습니다.
 - **언제 실행 가능**: T2 케이스, novelty score가 threshold 초과, capability의
   tool allowlist가 `web.search`를 포함, 이벤트당 query / cost budget이 소진되지
   않음. 이 결정은 산문이 아니라 순수 · 결정론적
@@ -238,15 +240,27 @@ Web search는 최후의 수단 툴입니다. fork별 opt-in이며 절대 groundi
 - **Replay 결정성**: 결과는 `web_evidence`에 `(content_hash, url, fetched_at)`
   로 저장. audit 엔트리는 hash를 참조. Replay는 저장된 스냅샷을 읽으며 다시 fetch
   하지 않으므로 과거 실행이 재현 가능하게 유지됩니다.
-- **모델 native browsing 없음**: FDAI는 검색을 모델의 내장 browsing /
-  `web_search` 툴에 위임하지 않습니다. 검색은 항상 T2 tool manifest 뒤에서
-  호출되는 self-hosted `WebSearchProvider`이므로 도메인 allowlist, snippet
-  sanitization, `web_evidence` replay 결정성이 코어 통제 하에 남습니다
-  (native browsing은 이 셋을 모델 안에 숨깁니다). allowlist가 `web.search`를
-  담은 capability는 `rule-catalog/llm-registry.yaml`에 `tool_calling_required: true`
-  를 설정합니다. 부트스트랩 resolver는 대상 리전에 function-calling 가능
-  family가 없으면 `hil-only`로 강등시켜, 실제로 호출할 수 없는 툴이 조용히
-  배포되지 않도록 합니다.
+- **통제된 Azure Responses adapter**: 임의의 불투명한 native browsing은
+  지원되지 않습니다. Azure-first adapter는 검토된 예외입니다. Responses API
+  `web_search` 툴을 `WebSearchProvider` 뒤에 감싸고, 매 요청에
+  `allowed_domains`를 보내며, 실제 `web_search_call` 발생을 검증합니다.
+  Allowlist 밖 citation은 거부하고 sanitized evidence snapshot은 durable
+  conversation turn에 저장합니다. 제한된 operator query만 FDAI 밖으로 나가며
+  화면 snapshot과 대화 history는 검색 호출에 전송되지 않습니다. Allowlist가
+  `web.search`를 담은 capability는 `rule-catalog/llm-registry.yaml`에
+  `tool_calling_required: true`를 설정합니다. 부트스트랩 resolver는 대상 리전에
+  function-calling 가능 family가 없으면 `hil-only`로 강등합니다.
+- **지연 기반 모델 pool**: 검색 후보는 `resolved-models.json`의
+  `narrator_candidates`에서 가져옵니다. 시작할 때 각 후보를 두 번 측정한 뒤,
+  기본 300초마다 후보별 sample을 하나씩 추가합니다. 검색 호출은 rolling p50이
+  가장 낮은 후보를 선택하고 오류 시 다음 후보로 failover합니다. 선택 deployment,
+  p50/p95 history, 실제 검색 latency를 provenance로 반환합니다. Probe는 웹 검색을
+  호출하지 않으므로 주기적 상태 측정에는 검색 툴 비용이 발생하지 않습니다.
+- **외부 데이터 경계**: Azure `web_search`는 Grounding with Bing을 사용합니다.
+  이 전송에는 Microsoft Data Protection Addendum가 적용되지 않으며 데이터가
+  배포의 compliance 및 geography boundary 밖으로 나갈 수 있습니다. 따라서
+  명시적으로 활성화하고 도메인을 allowlist로 제한합니다. GUID, Azure resource
+  ID, email address, private IP address가 포함된 질의는 전송 전에 차단합니다.
 
 ## Debate orchestrator (Proposer / Critic / Judge)
 

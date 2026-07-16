@@ -142,9 +142,9 @@ def default_onboarding_spec() -> OnboardingSpec:
     role_assignments = (
         ExpectedRoleAssignment(
             principal_ref="executor",
-            role="least_privilege_action_whitelist",
-            scope_kind=OnboardingResourceKind.RUNTIME,
-            description="Executor MI scoped to its action whitelist.",
+            role="event_bus_data_owner",
+            scope_kind=OnboardingResourceKind.EVENT_BUS,
+            description="Executor MI can consume and publish the governed Kafka stream.",
         ),
         ExpectedRoleAssignment(
             principal_ref="executor",

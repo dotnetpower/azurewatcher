@@ -1,0 +1,39 @@
+import { describe, expect, test, vi } from "vitest";
+import {
+  clearLocalAuthBypass,
+  enableLocalAuthBypass,
+  readLocalAuthBypass,
+} from "./local-auth-session";
+
+function storage() {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+    removeItem: (key: string) => { values.delete(key); },
+  };
+}
+
+describe("local auth bypass session", () => {
+  test("enables and clears bypass in session-scoped storage", () => {
+    const session = storage();
+
+    expect(readLocalAuthBypass(session)).toBe(false);
+    expect(enableLocalAuthBypass(session)).toBe(true);
+    expect(readLocalAuthBypass(session)).toBe(true);
+    expect(clearLocalAuthBypass(session)).toBe(true);
+    expect(readLocalAuthBypass(session)).toBe(false);
+  });
+
+  test("fails closed when storage is unavailable", () => {
+    const unavailable = {
+      getItem: vi.fn(() => { throw new Error("blocked"); }),
+      setItem: vi.fn(() => { throw new Error("blocked"); }),
+      removeItem: vi.fn(() => { throw new Error("blocked"); }),
+    };
+
+    expect(readLocalAuthBypass(unavailable)).toBe(false);
+    expect(enableLocalAuthBypass(unavailable)).toBe(false);
+    expect(clearLocalAuthBypass(unavailable)).toBe(false);
+  });
+});

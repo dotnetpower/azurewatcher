@@ -28,7 +28,9 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any, Final
+from uuid import NAMESPACE_URL, uuid5
 
 from fdai.core.event_ingest.correlator import CorrelationResult, EventCorrelator
 from fdai.shared.contracts.models import Event
@@ -98,5 +100,62 @@ class EventIngest:
 def _coerce(raw: Event | Mapping[str, Any], *, validator: EventValidator) -> Event:
     if isinstance(raw, Event):
         return raw
-    validator.validate(dict(raw))
-    return Event.model_validate(dict(raw))
+    normalized = _normalize_operator_proposal(raw)
+    validator.validate(normalized)
+    return Event.model_validate(normalized)
+
+
+def _normalize_operator_proposal(raw: Mapping[str, Any]) -> dict[str, Any]:
+    """Wrap a raw ActionProposal in the canonical Event contract.
+
+    Only an explicit ``operator_request`` with strict boolean
+    ``operator_initiated`` is normalized. Every other mapping remains unchanged
+    and must already satisfy the Event schema.
+    """
+    value = dict(raw)
+    if value.get("event_type") != "operator_request" or value.get("operator_initiated") is not True:
+        return value
+    idempotency_key = value.get("idempotency_key")
+    initiator = value.get("initiator_principal")
+    action_type = value.get("action_type")
+    params = value.get("params")
+    if not isinstance(idempotency_key, str) or not idempotency_key:
+        return value
+    if not isinstance(initiator, str) or not initiator:
+        return value
+    if not isinstance(action_type, str) or not action_type:
+        return value
+    if not isinstance(params, Mapping):
+        return value
+    at = datetime.now(tz=UTC)
+    event_id = uuid5(NAMESPACE_URL, f"fdai.operator-request://{idempotency_key}")
+    resource_ref = value.get("resource_id")
+    return {
+        "schema_version": "1.0.0",
+        "event_id": str(event_id),
+        "idempotency_key": idempotency_key,
+        "correlation_id": str(value.get("correlation_id") or event_id),
+        "source": "operator_console",
+        "event_type": "operator_request",
+        "resource_ref": resource_ref if isinstance(resource_ref, str) else None,
+        "payload": {
+            "operator_request": {
+                "initiator_principal": initiator,
+                "action_type": action_type,
+                "params": dict(params),
+            },
+            **(
+                {"scheduled_task": dict(value["scheduled_task"])}
+                if isinstance(value.get("scheduled_task"), Mapping)
+                else {}
+            ),
+            "resource": {
+                "resource_id": resource_ref if isinstance(resource_ref, str) else None,
+                "resource_type": value.get("resource_type"),
+                "props": {},
+            },
+        },
+        "detected_at": at.isoformat(),
+        "ingested_at": at.isoformat(),
+        "mode": "shadow",
+    }

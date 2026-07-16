@@ -55,6 +55,7 @@ argument_schema:
       type: string
       enum:
       - jira
+      - github
       x-fdai-audit-safe: true
     summary:
       type: string

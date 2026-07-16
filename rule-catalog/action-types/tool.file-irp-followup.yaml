@@ -1,0 +1,71 @@
+schema_version: 1.0.0
+name: tool.file-irp-followup
+version: 1.0.0
+operation: create
+interfaces:
+- IdempotentByKey
+rollback_contract: state_forward_only
+irreversible: false
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 14
+  min_samples: 30
+  min_accuracy: 0.98
+  max_policy_escapes: 0
+preconditions: []
+stop_conditions:
+- kind: time_box_exceeded_seconds
+  seconds: 120
+- kind: provider_api_error_streak
+  count: 3
+blast_radius:
+  computation: static_enum
+  static_bucket: resource
+description: >-
+  File a tracked incident-response follow-up for a grounded investigation
+  recommendation. The recommendation re-enters the typed pipeline, receives
+  the normal risk verdict and human approval, and only then creates the issue.
+category: tool
+trigger_kind:
+  kind: both
+execution_path: tool_call
+ceiling_by_tier:
+  t0:
+    max_autonomy: enforce_hil
+    min_role: approver
+  t1:
+    max_autonomy: shadow_only
+    min_role: approver
+  t2:
+    max_autonomy: shadow_only
+    min_role: owner
+argument_schema:
+  type: object
+  additionalProperties: false
+  required:
+  - alert_id
+  - remediation_ref
+  - resource_ref
+  - priority
+  - detail
+  properties:
+    alert_id:
+      type: string
+      x-fdai-audit-safe: true
+      minLength: 1
+    remediation_ref:
+      type: string
+      x-fdai-audit-safe: true
+      minLength: 1
+    resource_ref:
+      type: string
+      x-fdai-audit-safe: true
+      minLength: 1
+    priority:
+      type: string
+      enum: [p1, p2, p3]
+    detail:
+      type: string
+      x-fdai-audit-safe: true
+      minLength: 1
+      maxLength: 1000

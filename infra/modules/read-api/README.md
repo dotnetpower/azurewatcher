@@ -8,8 +8,8 @@ plus a one-off schema-migration Container Apps Job.
 
 - `container-app/` - the read-API Container App (external ingress on port
   8000, running `uvicorn fdai.delivery.read_api.prod:app --factory`) and a
-  manual-trigger migration job (`alembic upgrade head`). Both share the
-  core app's executor MI and Container Apps Environment.
+  manual-trigger migration job (`alembic upgrade head`). Both use a dedicated
+  read-API MI and share only the Container Apps Environment with the core app.
 
 ## Wiring
 
@@ -28,7 +28,11 @@ module "read_api" {
   location                     = var.region
   resource_group_name          = module.resource_group.name
   image                        = var.read_api_image
-  executor_identity_id         = module.identity.resource_id
+  read_api_identity_id         = module.read_api_identity[0].resource_id
+  read_api_identity_client_id  = module.read_api_identity[0].client_id
+  resolved_models_path         = var.read_api_resolved_models_path
+  web_search_enabled           = var.read_api_web_search_enabled
+  web_search_allowed_domains   = var.read_api_web_search_allowed_domains
   acr_login_server             = module.container_registry.login_server
   state_store_dsn_secret_id    = azurerm_key_vault_secret.state_store_dsn.id
   entra_tenant_id              = var.tenant_id
@@ -46,9 +50,26 @@ resolves roles from the token's `groups` claim against five Entra security
 group ids. The image must be built with the `serve` extra (uvicorn) and
 bundle the alembic revisions (see the repo `Dockerfile`). Tenant-specific
 values (audience, group ids) are supplied via CI Variables, never committed.
+Set the audience to the token's exact `aud` claim. For Entra v2 tokens this is
+commonly the API application client id, not the `api://.../access` scope string.
 
-## Read-only invariant
+Set `read_api_resolved_models_path` to the container path of the resolver output
+to enable `/chat`, `/chat/stream`, and `/chat/health`. The production factory
+uses the dedicated read-API managed identity to invoke the configured narrator.
+Leave the value empty to keep those routes disabled.
+
+Web search stays disabled by default. To enable it, set
+`read_api_web_search_enabled=true` and provide exact public source hosts in
+`read_api_web_search_allowed_domains`. The module projects the result cap,
+request budget, narrator probe interval, and web-search probe interval into
+the Container App. Azure web search uses Grounding with Bing, so review its
+external compliance and geography boundary before enabling it.
+
+## Identity and write boundary
 
 The API projects audit / KPI / HIL-queue / ontology / views read-only from
-Postgres. It issues no privileged calls and shares no execution identity
-with the executor's action path.
+Postgres. Its bounded write routes can stage immutable Python task artifacts,
+store cron bindings, and publish typed proposals. It cannot create an Azure VM
+Run Command: the dedicated identity receives ACR pull, state-store secret read,
+and optional Azure OpenAI model invocation only. VM execution authority remains
+on the separate executor identity and target-scoped role.

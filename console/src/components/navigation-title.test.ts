@@ -6,7 +6,7 @@ describe("navigation title", () => {
     expect(navigationDomainForPanel("dashboard")).toBeNull();
     expect(navigationDomainForPanel("agents")).toBeNull();
     expect(navigationDomainForPanel("labs")).toBeNull();
-    expect(navigationDomainForPanel("settings")).toBeNull();
+    expect(navigationDomainForPanel("settings-general")).toBe("Settings");
   });
 
   test("returns the domain for detail panels", () => {

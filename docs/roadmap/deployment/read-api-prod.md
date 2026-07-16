@@ -19,7 +19,9 @@ model from environment only. This doc covers the production entrypoint.
 
 - **Same `build_app` glue.** The prod factory calls the shared
   [`build_app`](../../../src/fdai/delivery/read_api/main.py) with
-  `dev_mode=False`, so the read-only invariant (no POST routes) and the
+  `dev_mode=False`, so cloud-resource mutation remains outside the API. Opt-in
+  POST routes record proposals, approvals, or access requests but never hold
+  the executor identity. The
   staging/prod tripwires (CORS `*` refused, dev-mode refused) apply
   identically.
 - **Env-only composition.** Every value the factory needs arrives via
@@ -35,7 +37,10 @@ model from environment only. This doc covers the production entrypoint.
   configured, the factory registers `/live/stream` and `/agents/stream`.
   Separate consumer groups read the shared `aw.pipeline.stages` topic and fan
   validated stage records into process-local SSE sinks. The app lifespan starts
-  and stops both relays and closes the shared EventBus transport.
+  and stops both relays and closes the shared EventBus transport. These SSE GET
+  routes use the same Entra bearer authorization as snapshot GET routes. The
+  console consumes them with authenticated fetch streaming because the browser's
+  native `EventSource` API cannot attach an `Authorization` header.
 
 ## Environment contract
 
@@ -66,6 +71,31 @@ Optional (defaults apply):
 | `FDAI_STAGE_TOPIC` | `aw.pipeline.stages` | Stage topic published by the worker and consumed by the Live and Agents relays. The worker and read API should use the same value. |
 | `FDAI_INCIDENT_SLA_POLICY_JSON` | empty (disabled) | Strict JSON object with positive `acknowledge_seconds` and `resolve_seconds` values for every `sev1` through `sev5`; enables durable A2 SLA-breach monitoring. |
 | `FDAI_INCIDENT_SLA_INTERVAL_SECONDS` | `60` | Positive SLA scan interval; used only when the policy JSON is present. |
+| `FDAI_IAM_DIRECTORY_PROVIDER` | empty (directory search disabled) | Enables Owner-only human-directory search. The implemented value is `entra`; unsupported future provider names fail startup. |
+| `FDAI_IAM_ENTRA_GRAPH_BASE_URL` | `https://graph.microsoft.com/v1.0` | Microsoft Graph base URL for sovereign-cloud or test overrides. Used only when the directory provider is `entra`. |
+| `FDAI_NARRATOR_PROBE_INTERVAL_SECONDS` | `300` | Seconds between routed narrator latency probes. Minimum `30`; each periodic round adds one model-only sample per candidate. |
+| `FDAI_WEB_SEARCH_ENABLED` | `false` | Enables controlled Azure Responses web search for eligible Chat T2 turns. Requires resolved narrator candidates and an allowed-domain list. |
+| `FDAI_WEB_SEARCH_ALLOWED_DOMAINS` | empty | Comma-separated public source hosts. Required when web search is enabled; at most 100 exact hosts. |
+| `FDAI_WEB_SEARCH_MAX_RESULTS` | `3` | Maximum citations retained from one search, from `1` through `10`. |
+| `FDAI_WEB_SEARCH_BUDGET_MS` | `15000` | Per-search endpoint timeout in milliseconds. |
+| `FDAI_WEB_SEARCH_PROBE_INTERVAL_SECONDS` | `300` | Seconds between web-search candidate model probes. Minimum `30`; probes don't invoke the search tool. |
+
+Web search sends only the bounded operator query to Azure Responses. It never
+sends the current screen snapshot or conversation history. Azure web search
+uses Grounding with Bing, whose transfer can leave the deployment's compliance
+and geography boundary and isn't covered by the Microsoft Data Protection
+Addendum. Keep the feature disabled until the deployment owner accepts those
+terms and configures a primary-source allowlist.
+
+Terraform exposes the provider as `read_api_iam_directory_provider`; its default is empty.
+Set it to `entra` only after the read API managed identity has the required Graph consent.
+
+The Entra directory adapter requests `https://graph.microsoft.com/.default`
+through the read API's managed identity and needs Microsoft Graph application
+permission `User.Read.All` with admin consent. The permission is read-only and
+`GroupMember.Read.All` is also required to project configured FDAI role groups
+and their person members. Both permissions are read-only, aren't sent to the
+browser, and don't include group membership write access.
 
 ## Run it
 

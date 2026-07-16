@@ -37,18 +37,70 @@ import asyncio
 import logging
 import os
 import sys
+from datetime import UTC, datetime, timedelta
 
 from fdai.composition import default_container_from_env
+from fdai.core.briefing import BriefingCoordinator, BriefingSchedulerService
+from fdai.core.report_feed import ReportFeed
 from fdai.core.scheduler.service import SchedulerService
 from fdai.delivery.event_publisher import EventPublisherContext
+from fdai.delivery.persistence import (
+    PostgresBriefingRunStore,
+    PostgresBriefingStoreConfig,
+    PostgresBriefingSubscriptionStore,
+    PostgresReportSignalStore,
+    PostgresReportSignalStoreConfig,
+    PostgresUserContextRetention,
+    PostgresUserContextStoreConfig,
+)
+from fdai.delivery.persistence.postgres_ontology import (
+    PostgresOntologyInstanceStore,
+    PostgresOntologyInstanceStoreConfig,
+)
 from fdai.delivery.persistence.postgres_scheduler_store import (
     PostgresScheduleStore,
     PostgresScheduleStoreConfig,
+)
+from fdai.delivery.persistence.postgres_user_context_retention import (
+    ProjectionDeleteJob,
 )
 
 _LOGGER = logging.getLogger("fdai.delivery.scheduler_tick_cli")
 
 _ENV_DSN = "FDAI_SCHEDULE_STORE_DSN"
+_CONVERSATION_RETENTION_DAYS = 90
+_BRIEFING_RETENTION_DAYS = 90
+_PROJECTION_RETRY_BASE_SECONDS = 60
+_PROJECTION_RETRY_MAX_SECONDS = 3600
+
+
+def _projection_retry_delay(job: ProjectionDeleteJob) -> timedelta:
+    seconds = min(
+        _PROJECTION_RETRY_MAX_SECONDS,
+        _PROJECTION_RETRY_BASE_SECONDS * (2 ** min(job.attempts, 6)),
+    )
+    return timedelta(seconds=seconds)
+
+
+async def _drain_projection_deletes(
+    *,
+    retention: PostgresUserContextRetention,
+    ontology: PostgresOntologyInstanceStore,
+    now: datetime,
+) -> int:
+    completed = 0
+    for job in await retention.claim_deletions(now=now):
+        try:
+            await ontology.delete_object(job.object_id)
+            await retention.complete_deletion(job.object_id)
+            completed += 1
+        except Exception as exc:  # noqa: BLE001 - durable queue owns recovery
+            await retention.retry_deletion(
+                job.object_id,
+                available_at=now + _projection_retry_delay(job),
+                error=f"{type(exc).__name__}:{exc}",
+            )
+    return completed
 
 
 async def _tick() -> int:
@@ -65,11 +117,46 @@ async def _tick() -> int:
             event_bus=event_bus,
             topic=container.config.kafka.topic_events,
         ).run_once()
+    briefing_config = PostgresBriefingStoreConfig(dsn=dsn)
+    briefing_runs = await BriefingSchedulerService(
+        subscriptions=PostgresBriefingSubscriptionStore(config=briefing_config),
+        runs=PostgresBriefingRunStore(config=briefing_config),
+        coordinator=BriefingCoordinator(
+            report_feed=ReportFeed(
+                (PostgresReportSignalStore(config=PostgresReportSignalStoreConfig(dsn=dsn)),)
+            )
+        ),
+        worker_id=os.environ.get("HOSTNAME", "scheduler-job"),
+    ).run_once()
+    now = datetime.now(tz=UTC)
+    retention = PostgresUserContextRetention(config=PostgresUserContextStoreConfig(dsn=dsn))
+    retention_report = await retention.purge(
+        now=now,
+        conversation_before=now - timedelta(days=_CONVERSATION_RETENTION_DAYS),
+        briefing_before=now - timedelta(days=_BRIEFING_RETENTION_DAYS),
+    )
+    projection_deletes = 0
+    if container.ontology_object_types and container.ontology_link_types:
+        ontology = PostgresOntologyInstanceStore(
+            config=PostgresOntologyInstanceStoreConfig(dsn=dsn),
+            object_types=container.ontology_object_types,
+            link_types=container.ontology_link_types,
+        )
+        projection_deletes = await _drain_projection_deletes(
+            retention=retention,
+            ontology=ontology,
+            now=now,
+        )
     _LOGGER.info(
         "scheduler_tick_complete",
         extra={
             "fired": report.fired,
             "publish_errors": len(report.publish_errors),
+            "briefings": len(briefing_runs),
+            "retained_conversations_deleted": retention_report.conversations,
+            "expired_memories_deleted": retention_report.memories,
+            "old_briefing_runs_deleted": retention_report.briefing_runs,
+            "ontology_deletes_completed": projection_deletes,
         },
     )
     return 3 if report.publish_errors else 0

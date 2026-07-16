@@ -380,6 +380,46 @@ declare a new capability (e.g. `t1.judge.fast-pool`) with its own quality gate,
 route via the composer, and audit the swap - do not thread it through the
 narrator router.
 
+The read API refreshes this pool independently of operator traffic. It probes
+every candidate twice at startup and then adds one minimal sample per candidate
+every `FDAI_NARRATOR_PROBE_INTERVAL_SECONDS` (default `300`). Real conversation
+latencies share the same eight-sample rolling window, so a deployment that
+slows down or fails moves behind a healthier candidate without waiting for a
+restart.
+
+### Per-user Narrator Preference and TTFT
+
+Settings > Models projects the resolved T1/T2 capability inventory, bootstrap discovery and
+provisioning status, and runtime latency evidence without exposing model endpoints or
+credentials. Each authenticated principal can keep `Auto` routing or pin one deployment from
+the current `narrator_candidates` allowlist. A removed or unavailable preference falls back to
+`Auto`; the server validates the candidate, so the browser never sends an arbitrary model id to
+the upstream endpoint.
+
+The streaming router records time to first token (TTFT) when the first non-empty model token
+arrives. TTFT p50/p95 and total-latency p50/p95 use separate rolling windows and include their
+sample counts. An unmeasured TTFT renders unavailable rather than being inferred from total
+latency. This preference applies only to the T1 narrator. T1 internal judgment, embeddings, and
+all T2 secondary/critic/rubric/escalation assignments remain system-governed. The T2 primary
+pool keeps its same-publisher invariant and isn't personalized per operator.
+
+### Conversational Web-Search Latency Pool
+
+Public-web lookup is a separate Chat T2 tool invocation, not T1 judgment and
+not part of the action quality-gate pair. When explicitly enabled, the Azure
+Responses `WebSearchProvider` reuses `narrator_candidates` as a pool of
+function-calling deployments. It chooses the lowest rolling p50 for each search
+and fails over across the remaining candidates. This reuse does not change the
+T1/T2 classification: the deterministic web-search policy promotes the turn
+before the model-backed provider is called.
+
+The web-search pool runs the same warm-up and periodic measurement pattern as
+the narrator pool. Its periodic probe requests a minimal model response without
+the `web_search` tool; actual search calls add their end-to-end latency to the
+same window. This keeps the ranking fresh without paying a Bing search-tool
+charge for every health sample. `FDAI_WEB_SEARCH_PROBE_INTERVAL_SECONDS`
+defaults to `300` and cannot be set below `30`.
+
 ### T2 Primary Latency Pool (invariant-safe, opt-in)
 
 The blanket "no latency routing in T2" rule has exactly one reviewed exception:

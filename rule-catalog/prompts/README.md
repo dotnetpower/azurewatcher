@@ -34,13 +34,7 @@ for the full design.
 `PromptRegistry` Protocol. The composition root passes resolved bodies into the
 Azure OpenAI adapters; `core/` never opens these files directly.
 
-## Operator-console narrator
-
-`base/operator-console-narrator.v1.yaml` (base) and
-`packs/operator-console-cli.v1.yaml` (CLI surface overlay) are the shared,
-UI-agnostic prompt for the read-only operator-console narrator. They are bound to
-the `console.narrator` capability - not any T2 capability - so they are indexed
-by the registry but never enter T2 quality-gate composition. Every narrator
-surface loads them from here: the CLI cockpit via `cli/src/narrator/prompt-store.ts`
-and the read-API chat backend via this registry. Edit the YAML, not the
-per-surface code, so the narrator behaves identically everywhere.
+The operator-console narrator is not loaded from this catalog. Pull-direction
+channels call the shared read API, whose chat coordinator owns its grounded
+prompt and verification flow. Keep channel-specific presentation instructions
+out of this T2 prompt registry.

@@ -11,6 +11,9 @@ locals {
   # ACR names cannot contain hyphens (5-50, alphanumeric only).
   # Strip hyphens from the composed suffix.
   acr_suffix = replace(local.full_suffix, "-", "")
+  # Storage account names are globally unique. Derive a stable, non-reversible
+  # suffix from the subscription + environment without committing an id.
+  storage_unique_suffix = substr(md5("${data.azurerm_client_config.current.subscription_id}:${local.env_label}"), 0, 6)
 
   # Environment label: 'day-zero' for the unqualified deployment, else the env.
   env_label = var.env == "" ? "day-zero" : var.env
@@ -35,7 +38,10 @@ locals {
     "aw.change.events",
     "aw.dr.events",
     "aw.finops.events",
+    "aw.pantheon.objects",
+    "aw.document.events",
   ]
+  event_auxiliary_topics = ["aw.hil.decisions", "aw.pipeline.stages"]
 }
 
 # -----------------------------------------------------------------------
@@ -119,6 +125,16 @@ module "log_analytics" {
   tags                = local.tags
 }
 
+resource "azurerm_application_insights" "core" {
+  name                = "appi-${var.workload}${local.full_suffix}"
+  location            = var.region
+  resource_group_name = module.resource_group.name
+  workspace_id        = module.log_analytics.workspace_id
+  application_type    = "web"
+  retention_in_days   = var.log_retention_days
+  tags                = local.tags
+}
+
 # -----------------------------------------------------------------------
 # Container Registry - pin-by-digest images live here.
 # -----------------------------------------------------------------------
@@ -163,6 +179,62 @@ module "inventory_identity" {
   tags                = local.tags
 }
 
+# Read API identity is intentionally distinct from the executor. It can pull
+# the API image and read the state-store DSN, but receives no VM Run Command or
+# mutation role. This preserves the console/proposal identity boundary.
+module "read_api_identity" {
+  count               = var.enable_read_api ? 1 : 0
+  source              = "./modules/identity/user-assigned-mi"
+  name                = "id-${var.workload}${local.full_suffix}-readapi"
+  resource_group_name = module.resource_group.name
+  location            = var.region
+  tags                = local.tags
+}
+
+module "ingestion_identity" {
+  count               = var.enable_document_ingestion ? 1 : 0
+  source              = "./modules/identity/user-assigned-mi"
+  name                = "id-${var.workload}${local.full_suffix}-ingestion"
+  resource_group_name = module.resource_group.name
+  location            = var.region
+  tags                = merge(local.tags, { "fdai:component" = "document-ingestion" })
+}
+
+resource "azurerm_role_assignment" "read_api_acr_pull" {
+  count                = var.enable_read_api ? 1 : 0
+  scope                = module.container_registry.id
+  role_definition_name = "AcrPull"
+  principal_id         = module.read_api_identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "read_api_eventhubs_sender" {
+  count                = var.enable_read_api ? 1 : 0
+  scope                = module.event_bus.namespace_id
+  role_definition_name = "Azure Event Hubs Data Sender"
+  principal_id         = module.read_api_identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "read_api_reader" {
+  count                = var.enable_read_api ? 1 : 0
+  scope                = module.resource_group.id
+  role_definition_name = "Reader"
+  principal_id         = module.read_api_identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "ingestion_acr_pull" {
+  count                = var.enable_document_ingestion ? 1 : 0
+  scope                = module.container_registry.id
+  role_definition_name = "AcrPull"
+  principal_id         = module.ingestion_identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "ingestion_eventhubs_sender" {
+  count                = var.enable_document_ingestion ? 1 : 0
+  scope                = module.event_bus.namespace_id
+  role_definition_name = "Azure Event Hubs Data Sender"
+  principal_id         = module.ingestion_identity[0].principal_id
+}
+
 resource "azurerm_role_assignment" "inventory_reader" {
   scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
   role_definition_name = "Reader"
@@ -172,6 +244,12 @@ resource "azurerm_role_assignment" "inventory_reader" {
 resource "azurerm_role_assignment" "inventory_acr_pull" {
   scope                = module.container_registry.id
   role_definition_name = "AcrPull"
+  principal_id         = module.inventory_identity.principal_id
+}
+
+resource "azurerm_role_assignment" "inventory_eventhubs_sender" {
+  scope                = module.event_bus.namespace_id
+  role_definition_name = "Azure Event Hubs Data Sender"
   principal_id         = module.inventory_identity.principal_id
 }
 
@@ -238,6 +316,47 @@ resource "azurerm_role_assignment" "inventory_kv_secrets_user" {
   principal_id         = module.inventory_identity.principal_id
 }
 
+resource "azurerm_role_assignment" "read_api_kv_secrets_user" {
+  count                = var.enable_read_api ? 1 : 0
+  scope                = azurerm_key_vault_secret.state_store_dsn.resource_versionless_id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = module.read_api_identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "ingestion_kv_secrets_user" {
+  count                = var.enable_document_ingestion ? 1 : 0
+  scope                = azurerm_key_vault_secret.state_store_dsn.resource_versionless_id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = module.ingestion_identity[0].principal_id
+}
+
+# -----------------------------------------------------------------------
+# Governed document storage - StorageV2 with ADLS Gen2 HNS.
+# -----------------------------------------------------------------------
+module "document_storage" {
+  count  = var.enable_document_ingestion ? 1 : 0
+  source = "./modules/storage/adls-gen2"
+
+  name                            = substr("st${var.workload}doc${local.acr_suffix}${local.storage_unique_suffix}", 0, 24)
+  resource_group_name             = module.resource_group.name
+  location                        = var.region
+  deployer_principal_id           = data.azurerm_client_config.current.object_id
+  replication_type                = var.document_storage_replication_type
+  public_network_access_enabled   = !var.enable_private_networking
+  soft_delete_retention_days      = var.document_soft_delete_retention_days
+  container_delete_retention_days = var.document_soft_delete_retention_days
+  quarantine_retention_days       = var.document_quarantine_retention_days
+  derived_cool_after_days         = var.document_derived_cool_after_days
+  tags                            = merge(local.tags, { "fdai:component" = "document-ingestion" })
+}
+
+resource "azurerm_role_assignment" "ingestion_document_data" {
+  count                = var.enable_document_ingestion ? 1 : 0
+  scope                = module.document_storage[0].id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = module.ingestion_identity[0].principal_id
+}
+
 # Key Vault private endpoint + private DNS (privatelink.vaultcore.azure.net).
 # Only when private networking is on; this is what lets a VNet-resident deploy
 # host (CI runner / jumpbox) and the VNet-integrated Container App reach the
@@ -259,6 +378,36 @@ module "kv_private_endpoint" {
   # (which lives in the peered ops VNet) resolves the vault privately and can
   # write the persistence DSN secrets during apply.
   extra_vnet_links = var.runner_vnet_id != "" ? { ops = var.runner_vnet_id } : {}
+}
+
+module "document_blob_private_endpoint" {
+  count                 = var.enable_document_ingestion && var.enable_private_networking ? 1 : 0
+  source                = "./modules/private-endpoint"
+  name                  = "pe-doc-blob-${var.workload}${local.full_suffix}"
+  location              = var.region
+  resource_group_name   = module.resource_group.name
+  subnet_id             = module.network[0].pe_subnet_id
+  vnet_id               = module.network[0].vnet_id
+  target_resource_id    = module.document_storage[0].id
+  subresource_name      = "blob"
+  private_dns_zone_name = "privatelink.blob.core.windows.net"
+  extra_vnet_links      = var.runner_vnet_id != "" ? { ops = var.runner_vnet_id } : {}
+  tags                  = local.tags
+}
+
+module "document_dfs_private_endpoint" {
+  count                 = var.enable_document_ingestion && var.enable_private_networking ? 1 : 0
+  source                = "./modules/private-endpoint"
+  name                  = "pe-doc-dfs-${var.workload}${local.full_suffix}"
+  location              = var.region
+  resource_group_name   = module.resource_group.name
+  subnet_id             = module.network[0].pe_subnet_id
+  vnet_id               = module.network[0].vnet_id
+  target_resource_id    = module.document_storage[0].id
+  subresource_name      = "dfs"
+  private_dns_zone_name = "privatelink.dfs.core.windows.net"
+  extra_vnet_links      = var.runner_vnet_id != "" ? { ops = var.runner_vnet_id } : {}
+  tags                  = local.tags
 }
 
 # -----------------------------------------------------------------------
@@ -331,6 +480,7 @@ module "event_bus" {
   location            = var.region
   resource_group_name = module.resource_group.name
   topics              = local.event_topics
+  auxiliary_topics    = local.event_auxiliary_topics
   tags                = local.tags
 }
 
@@ -433,6 +583,7 @@ module "compute" {
   resource_group_name          = module.resource_group.name
   log_workspace_id             = module.log_analytics.workspace_id
   executor_identity_id         = module.identity.resource_id
+  executor_identity_client_id  = module.identity.client_id
   inventory_identity_id        = module.inventory_identity.resource_id
   inventory_identity_client_id = module.inventory_identity.client_id
   image                        = var.core_image
@@ -500,6 +651,15 @@ module "compute" {
   analyzer_budget_seconds       = var.analyzer_budget_seconds
   prometheus_endpoint           = var.prometheus_endpoint
   prometheus_audience           = var.prometheus_audience
+  vm_task_enabled               = var.vm_task_enabled
+  vm_task_enforce               = var.vm_task_enforce
+  vm_task_run_as_user           = var.vm_task_run_as_user
+  vm_task_root                  = var.vm_task_root
+  scheduler_cron_expression = (
+    var.vm_task_enabled && var.scheduler_tick_cron_expression == ""
+    ? "* * * * *"
+    : var.scheduler_tick_cron_expression
+  )
 
   tags = local.tags
 
@@ -525,6 +685,7 @@ module "compute" {
     azurerm_role_assignment.inventory_reader,
     azurerm_role_assignment.inventory_kv_secrets_user,
     azurerm_role_assignment.inventory_acr_pull,
+    azurerm_role_assignment.inventory_eventhubs_sender,
   ]
 }
 
@@ -541,6 +702,14 @@ module "llm_azure_openai" {
   location              = var.region
   resource_group_name   = module.resource_group.name
   executor_principal_id = module.identity.principal_id
+  additional_user_principal_ids = (
+    concat(
+      var.enable_read_api && var.python_task_author_capability != ""
+      ? [module.read_api_identity[0].principal_id]
+      : [],
+      var.enable_document_ingestion ? [module.ingestion_identity[0].principal_id] : [],
+    )
+  )
   resolved_capabilities = var.resolved_capabilities
   tags                  = local.tags
 }
@@ -563,7 +732,7 @@ module "measurement_runners" {
   image                        = var.core_image
   scenario_set_version         = var.measurement_scenario_set_version
   state_store_dsn_secret_id    = azurerm_key_vault_secret.state_store_dsn.id
-  environment = {
+  environment = merge({
     AZURE_TENANT_ID         = data.azurerm_client_config.current.tenant_id
     AZURE_SUBSCRIPTION_ID   = data.azurerm_client_config.current.subscription_id
     AZURE_REGION            = var.region
@@ -573,7 +742,12 @@ module "measurement_runners" {
     POSTGRES_HOST           = module.state_store.fqdn
     POSTGRES_DATABASE       = module.state_store.database_name
     RUNTIME_ENV             = local.env_label == "day-zero" ? "dev" : local.env_label
-  }
+    FDAI_MI_CLIENT_ID       = module.identity.client_id
+    }, var.enable_llm ? {
+    LLM_MODE                 = "azure"
+    LLM_RESOLVED_MODELS_PATH = "/app/resolved-models.json"
+    FDAI_LLM_ENDPOINT        = module.llm_azure_openai[0].endpoint
+  } : {})
   tags = local.tags
 }
 
@@ -632,15 +806,75 @@ module "read_api" {
   count  = var.enable_read_api ? 1 : 0
   source = "./modules/read-api/container-app"
 
-  name                         = "ca-${var.workload}${local.full_suffix}-readapi"
-  migrate_job_name             = "caj-${var.workload}${local.full_suffix}-migrate"
+  name                              = "ca-${var.workload}${local.full_suffix}-readapi"
+  migrate_job_name                  = "caj-${var.workload}${local.full_suffix}-migrate"
+  container_app_environment_id      = module.compute.environment_id
+  location                          = var.region
+  resource_group_name               = module.resource_group.name
+  image                             = var.read_api_image == "" ? var.core_image : var.read_api_image
+  read_api_identity_id              = module.read_api_identity[0].resource_id
+  read_api_identity_client_id       = module.read_api_identity[0].client_id
+  resolved_models_path              = var.read_api_resolved_models_path
+  narrator_probe_interval_seconds   = var.read_api_narrator_probe_interval_seconds
+  web_search_enabled                = var.read_api_web_search_enabled
+  web_search_allowed_domains        = var.read_api_web_search_allowed_domains
+  web_search_max_results            = var.read_api_web_search_max_results
+  web_search_budget_ms              = var.read_api_web_search_budget_ms
+  web_search_probe_interval_seconds = var.read_api_web_search_probe_interval_seconds
+  acr_login_server                  = module.container_registry.login_server
+  state_store_dsn_secret_id         = azurerm_key_vault_secret.state_store_dsn.id
+  entra_tenant_id                   = var.tenant_id
+  api_audience                      = var.read_api_audience
+  rbac_readers_group_id             = var.rbac_readers_group_id
+  rbac_contributors_group_id        = var.rbac_contributors_group_id
+  rbac_approvers_group_id           = var.rbac_approvers_group_id
+  rbac_owners_group_id              = var.rbac_owners_group_id
+  rbac_break_glass_group_id         = var.rbac_break_glass_group_id
+  cors_allow_origins                = var.read_api_cors_allow_origins
+  iam_directory_provider            = var.read_api_iam_directory_provider
+  inventory_freshness_seconds       = var.inventory_freshness_seconds
+  python_task_author_endpoint = (
+    var.enable_llm && var.python_task_author_capability != ""
+    ? module.llm_azure_openai[0].endpoint
+    : ""
+  )
+  python_task_author_deployment = (
+    var.enable_llm && var.python_task_author_capability != ""
+    ? lookup(module.llm_azure_openai[0].deployments, var.python_task_author_capability, "")
+    : ""
+  )
+  kafka_bootstrap_servers            = module.event_bus.kafka_bootstrap
+  kafka_topic_events                 = local.event_topics[0]
+  azure_subscription_id              = data.azurerm_client_config.current.subscription_id
+  azure_resource_group               = module.resource_group.name
+  executor_principal_id              = module.identity.principal_id
+  executor_event_role_definition_id  = azurerm_role_assignment.executor_eventhubs_data_owner.role_definition_id
+  executor_secret_role_definition_id = module.key_vault.executor_role_definition_id
+  tags                               = local.tags
+
+  depends_on = [
+    azurerm_key_vault_secret.state_store_dsn,
+    azurerm_role_assignment.read_api_acr_pull,
+    azurerm_role_assignment.read_api_kv_secrets_user,
+    azurerm_role_assignment.read_api_eventhubs_sender,
+    azurerm_role_assignment.read_api_reader,
+  ]
+}
+
+module "ingestion_gateway" {
+  count  = var.enable_document_ingestion ? 1 : 0
+  source = "./modules/ingestion-gateway/container-app"
+
+  name                         = "ca-${var.workload}${local.full_suffix}-ingestion"
+  migrate_job_name             = "caj-${var.workload}${local.full_suffix}-ingestion-migrate"
   container_app_environment_id = module.compute.environment_id
   location                     = var.region
   resource_group_name          = module.resource_group.name
-  image                        = var.read_api_image == "" ? var.core_image : var.read_api_image
-  executor_identity_id         = module.identity.resource_id
-  acr_login_server             = module.container_registry.login_server
-  state_store_dsn_secret_id    = azurerm_key_vault_secret.state_store_dsn.id
+  image                        = var.ingestion_image == "" ? var.core_image : var.ingestion_image
+  clamav_image                 = var.clamav_image
+  identity_id                  = module.ingestion_identity[0].resource_id
+  identity_client_id           = module.ingestion_identity[0].client_id
+  database_dsn_secret_id       = azurerm_key_vault_secret.state_store_dsn.id
   entra_tenant_id              = var.tenant_id
   api_audience                 = var.read_api_audience
   rbac_readers_group_id        = var.rbac_readers_group_id
@@ -648,13 +882,32 @@ module "read_api" {
   rbac_approvers_group_id      = var.rbac_approvers_group_id
   rbac_owners_group_id         = var.rbac_owners_group_id
   rbac_break_glass_group_id    = var.rbac_break_glass_group_id
-  cors_allow_origins           = var.read_api_cors_allow_origins
-  inventory_freshness_seconds  = var.inventory_freshness_seconds
-  tags                         = local.tags
+  cors_allow_origins           = var.ingestion_cors_allow_origins
+  adls_account_name            = module.document_storage[0].name
+  adls_account_url             = module.document_storage[0].primary_dfs_endpoint
+  adls_source_file_system      = module.document_storage[0].source_file_system
+  adls_derived_file_system     = module.document_storage[0].derived_file_system
+  embedding_endpoint           = var.enable_llm ? module.llm_azure_openai[0].endpoint : ""
+  embedding_deployment         = var.enable_llm ? lookup(module.llm_azure_openai[0].deployments, var.ingestion_embedding_capability, "") : ""
+  kafka_bootstrap_servers      = module.event_bus.kafka_bootstrap
+  document_event_topic         = "aw.document.events"
+  runtime_env                  = var.env == "" ? "dev" : var.env
+  max_file_size_bytes          = var.document_max_file_size_bytes
+  max_batch_count              = var.document_max_batch_count
+  chunk_max_chars              = var.document_chunk_max_chars
+  chunk_overlap                = var.document_chunk_overlap
+  policy_version               = var.document_policy_version
+  min_replicas                 = var.ingestion_min_replicas
+  max_replicas                 = var.ingestion_max_replicas
+  acr_login_server             = module.container_registry.login_server
+  tags                         = merge(local.tags, { "fdai:component" = "document-ingestion" })
 
   depends_on = [
-    azurerm_key_vault_secret.state_store_dsn,
-    azurerm_role_assignment.executor_acr_pull,
+    azurerm_role_assignment.ingestion_acr_pull,
+    azurerm_role_assignment.ingestion_eventhubs_sender,
+    azurerm_role_assignment.ingestion_kv_secrets_user,
+    azurerm_role_assignment.ingestion_document_data,
+    module.document_blob_private_endpoint,
+    module.document_dfs_private_endpoint,
   ]
 }
-

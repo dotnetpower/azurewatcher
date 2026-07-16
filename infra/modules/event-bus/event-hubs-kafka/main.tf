@@ -28,3 +28,11 @@ resource "azurerm_eventhub" "dlq" {
   message_retention   = 7
 }
 
+resource "azurerm_eventhub" "auxiliary" {
+  for_each            = toset(var.auxiliary_topics)
+  name                = each.value
+  namespace_name      = azurerm_eventhub_namespace.primary.name
+  resource_group_name = var.resource_group_name
+  partition_count     = var.partition_count
+  message_retention   = 1
+}

@@ -73,7 +73,16 @@ _ANCHOR_STOP: Final = frozenset(
     }
 )
 _CAUSAL_FIELDS: Final = frozenset(
-    {"cause", "detail", "gaps", "summary", "reason", "rca_cause", "rca_reason"}
+    {
+        "cause",
+        "detail",
+        "disabled_reason",
+        "gaps",
+        "summary",
+        "reason",
+        "rca_cause",
+        "rca_reason",
+    }
 )
 
 
@@ -308,6 +317,14 @@ def _collect_evidence(view_context: Mapping[str, Any]) -> tuple[EvidenceEntry, .
             concept.get("entries"),
             ref_prefix="glossary:entries",
             path_prefix="/_concept_evidence/entries",
+        )
+    web = view_context.get("_web_evidence")
+    if isinstance(web, Mapping) and web.get("status") == "matched":
+        _collect_nested_evidence(
+            entries,
+            web.get("snippets"),
+            ref_prefix="web:snippets",
+            path_prefix="/_web_evidence/snippets",
         )
     return tuple(entries)
 
@@ -561,10 +578,7 @@ def _verify_claim(
             for entry in entries
             if entry.kind == "text"
             and entry.field in _CAUSAL_FIELDS
-            and _narrative_contains(
-                draft.normalized_value,
-                _normalize_text(entry.raw_value),
-            )
+            and _causal_evidence_matches(draft, entry)
         )
     elif draft.kind == "id":
         candidates = tuple(entry for entry in entries if entry.raw_value == draft.raw_value)
@@ -809,6 +823,16 @@ def _narrative_contains(claim: str, evidence: str) -> bool:
     return claim in evidence or evidence in claim
 
 
+def _causal_evidence_matches(draft: _ClaimDraft, entry: EvidenceEntry) -> bool:
+    evidence = _normalize_text(entry.raw_value)
+    if _narrative_contains(draft.normalized_value, evidence):
+        return True
+    reason_anchors = _anchors(entry.raw_value)
+    if entry.field != "disabled_reason" or len(reason_anchors) < 3:
+        return False
+    return set(reason_anchors).issubset(_anchors(draft.raw_value))
+
+
 def _screen_absence_anchors(text: str) -> tuple[str, ...]:
     no_target = re.search(
         r"\bno\s+(.{1,80}?)\s+(?:are\s+|is\s+)?"
@@ -832,6 +856,9 @@ def _evidence_authority(view_context: Mapping[str, Any]) -> str:
     if isinstance(tool, Mapping):
         authority = _optional_text(tool.get("authority"))
         return authority or "server_read_model"
+    web = view_context.get("_web_evidence")
+    if isinstance(web, Mapping) and web.get("status") == "matched":
+        return "public_web_snapshot"
     if isinstance(view_context.get("_agent_evidence"), Mapping):
         return "pantheon_runtime"
     concept = view_context.get("_concept_evidence")

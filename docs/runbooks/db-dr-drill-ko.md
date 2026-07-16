@@ -1,8 +1,8 @@
 ---
 title: Deep DB-DR 복원 훈련 런북
 translation_of: db-dr-drill.md
-translation_source_sha: c8c4513f15ac73c122a4dd7070a6a2cc98004c94
-translation_revised: 2026-07-11
+translation_source_sha: 70ed6dab635f635b412e4f87275c150a4819f293
+translation_revised: 2026-07-16
 ---
 
 # Deep DB-DR 복원 훈련 런북
@@ -103,12 +103,51 @@ Azure 어댑터
    테이블마다 쿼리 하나에 smoke 스키마에 대한 세션 쓰기 하나를 더합니다. 어떤
    에러든 훈련은 실패로 처리됩니다.
 
+  모든 복원 스모크 스위트에 다음 사용자 컨텍스트 테이블을 포함합니다.
+
+  - `conversation_record`와 `conversation_turn`
+  - `user_preference`와 `user_memory_fact`
+  - `conversation_policy`
+  - `briefing_subscription`과 `briefing_run`
+  - `workflow_definition`과 `workflow_binding`
+  - `user_context_projection_delete_queue`
+
+  행 수뿐 아니라 외래 키, 고유 제약 조건, 원자적으로 할당되는
+  `conversation_record.next_turn_index` 값도 검증합니다. 삭제 큐에서는
+  `leased_until` 이후 leased 행을 다시 claim할 수 있고 작업 완료 시 행이
+  제거되는지 검증합니다.
+
 7. **정리.** 격리 리소스 그룹을 삭제합니다. 어댑터의 `teardown` 경로는
    멱등적이므로 404 응답은 '이미 삭제됨'을 의미하며 정상으로 간주합니다.
 
    ```bash
    az group delete -n "$DRILL_RG" --yes --no-wait
    ```
+
+## 보존 및 백업 잔존 데이터
+
+스케줄러는 90일이 지난 비활성 대화와 오래된 브리핑 실행을 live 데이터베이스에서
+삭제하고, `expires_at` 시각이 도래한 memory fact를 삭제합니다. 같은 트랜잭션은
+ontology object id를 `user_context_projection_delete_queue`에 기록합니다. 이후
+스케줄러가 격리된 재시도와 제한된 backoff를 적용해 metadata-only projection을
+삭제합니다.
+
+PITR은 개인정보 또는 보존 삭제 이전의 데이터베이스 상태를 복구할 수 있습니다.
+따라서 live store에서 삭제했다고 해서 보존된 모든 백업 복사본이 즉시 지워지는
+것은 아닙니다. 프로덕션은 35일 geo-redundant PostgreSQL 백업 window를 유지하며,
+그 이후 provider가 잔존 복사본을 만료시킵니다. 복원 서버 접근은 훈련 운영자로
+제한하고 검증이 끝나면 격리된 복원을 바로 삭제하는 것이 좋습니다.
+
+복원 서버에 스케줄러 또는 애플리케이션 프로세스를 연결하기 전에 다음 순서를
+따릅니다.
+
+1. 선택한 복원 지점을 확인하고 사용자 컨텍스트 삭제 이전 시점인지 기록합니다.
+2. raw turn 또는 memory body를 로그나 증거 artifact에 노출하지 않고 위의 사용자
+  컨텍스트 smoke check를 실행합니다.
+3. 범위가 제한된 retention tick을 한 번 실행하고 projection deletion queue를
+  비웁니다.
+4. 서버가 서비스에 투입되기 전에 source row와 ontology metadata가 일치하는지
+  확인합니다.
 
 ## 성공 기준
 

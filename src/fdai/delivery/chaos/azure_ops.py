@@ -645,7 +645,35 @@ class AzServiceBusFirewallInjector:
         )
 
 
+class AzCliStateProbe:
+    """Observe an injected Azure/guest state through one read-only az command."""
+
+    def __init__(
+        self,
+        *,
+        command: Sequence[str],
+        expected_substrings: Sequence[str] = (),
+        absent_substrings: Sequence[str] = (),
+    ) -> None:
+        if not command:
+            raise ValueError("command MUST be non-empty")
+        if not expected_substrings and not absent_substrings:
+            raise ValueError("at least one expected or absent substring is required")
+        self._command = tuple(command)
+        self._expected = tuple(expected_substrings)
+        self._absent = tuple(absent_substrings)
+
+    async def observed(self, *, signal: str, targets: Sequence[str]) -> bool:
+        rc, out, _err = await _az(self._command)
+        if rc != 0:
+            return False
+        return all(value in out for value in self._expected) and all(
+            value not in out for value in self._absent
+        )
+
+
 __all__ = [
+    "AzCliStateProbe",
     "AzCosmosFailoverInjector",
     "AzKeyVaultDenyAccessInjector",
     "AzLbBackendRemoveInjector",

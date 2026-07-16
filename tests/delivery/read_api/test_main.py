@@ -25,6 +25,8 @@ from typing import Any
 
 import pytest
 from starlette.applications import Starlette
+from starlette.responses import Response
+from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from fdai.core.rbac.enforcer import RoleEnforcer
@@ -40,6 +42,7 @@ from fdai.delivery.read_api.read_model import (
     HilQueueItem,
     InMemoryConsoleReadModel,
 )
+from fdai.delivery.read_api.routes.auxiliary_registration import registered_cors_methods
 from fdai.delivery.read_api.routes.panels import ExampleFinOpsPanel
 
 _DEV_MODE_ENV = "FDAI_READ_API_DEV_MODE"
@@ -384,7 +387,7 @@ class TestHilQueueRoute:
         client = TestClient(app)
         response = client.get("/hil-queue")
         assert response.status_code == 200
-        assert response.json() == {"items": [], "total": 0}
+        assert response.json() == {"items": [], "total": 0, "detail_level": "full"}
 
     def test_lists_pending(self, dev_env: None) -> None:
         del dev_env
@@ -411,6 +414,50 @@ class TestHilQueueRoute:
         client = TestClient(app)
         response = client.get("/hil-queue?limit=nope")
         assert response.status_code == 400
+
+    def test_reader_sees_count_without_sensitive_item_detail(self, no_dev_env: None) -> None:
+        del no_dev_env
+        app, model = _build_stack(dev_mode=False)
+        model.record_hil_pending(
+            HilQueueItem(
+                idempotency_key="k-reader",
+                event_id="e-reader",
+                action_kind="compute.restart",
+                reason="policy requires review",
+                requested_at="2026-07-15T00:00:00+00:00",
+                target_resource_ref="resource-sensitive",
+            )
+        )
+        client = TestClient(app)
+        response = client.get(
+            "/hil-queue",
+            headers={"authorization": f"Bearer {_reader_token()}"},
+        )
+        assert response.status_code == 200
+        assert response.json() == {"items": [], "total": 1, "detail_level": "count_only"}
+
+    def test_approver_sees_full_item_detail(self, no_dev_env: None) -> None:
+        del no_dev_env
+        app, model = _build_stack(dev_mode=False)
+        model.record_hil_pending(
+            HilQueueItem(
+                idempotency_key="k-approver",
+                event_id="e-approver",
+                action_kind="compute.restart",
+                reason="policy requires review",
+                requested_at="2026-07-15T00:00:00+00:00",
+                target_resource_ref="resource-visible-to-approver",
+            )
+        )
+        client = TestClient(app)
+        token = _forge_token({"oid": "approver", "roles": ["Approver"]})
+        response = client.get(
+            "/hil-queue",
+            headers={"authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        assert response.json()["detail_level"] == "full"
+        assert response.json()["items"][0]["target_resource_ref"] == "resource-visible-to-approver"
 
 
 # ---------------------------------------------------------------------------
@@ -602,6 +649,15 @@ class TestCors:
 
         assert response.status_code == 200
         assert "POST" in response.headers["access-control-allow-methods"]
+
+    def test_cors_methods_follow_registered_routes(self, no_dev_env: None) -> None:
+        del no_dev_env
+        routes = [
+            Route("/read", lambda request: Response(), methods=["GET"]),
+            Route("/owned-record", lambda request: Response(), methods=["PUT", "DELETE"]),
+        ]
+
+        assert registered_cors_methods(routes) == ["DELETE", "GET", "PUT"]
 
 
 # ---------------------------------------------------------------------------

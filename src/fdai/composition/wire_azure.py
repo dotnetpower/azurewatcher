@@ -243,9 +243,18 @@ async def wire_azure_container(
     proposer_composed = await composer.compose(capability_id="t2.proposer")
 
     tool_registry = FileSystemToolRegistry(overrides.catalog_root)
+    runtime_tool_providers = dict(container.capability_runtime.tool_providers)
+    override_tool_providers = dict(overrides.tool_providers or {})
+    duplicate_provider_ids = runtime_tool_providers.keys() & override_tool_providers.keys()
+    if duplicate_provider_ids:
+        names = ", ".join(sorted(duplicate_provider_ids))
+        raise ValueError(
+            f"duplicate tool providers across capability runtime and overrides: {names}"
+        )
+    tool_providers = runtime_tool_providers | override_tool_providers
     tool_executor = DefaultToolExecutor(
         registry=tool_registry,
-        providers=dict(overrides.tool_providers) if overrides.tool_providers else {},
+        providers=tool_providers,
     )
 
     # Wave 4 beta-2: compose the Critic system prompt from the shipped

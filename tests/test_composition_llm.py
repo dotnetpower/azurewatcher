@@ -14,6 +14,7 @@ from fdai.composition import (
     LlmBindingsUnavailableError,
     bind_azure_llm_bindings,
     default_container,
+    install_capability_bundle,
 )
 from fdai.shared.config import AppConfig
 from fdai.shared.config.models import LlmMode
@@ -59,6 +60,65 @@ def _config(
     )
 
 
+def test_install_capability_bundle_is_public_and_immutable() -> None:
+    from fdai.core.capability_catalog import (
+        Capability,
+        CapabilityBinding,
+        CapabilityBindingKind,
+        CapabilityBundle,
+        CapabilityCategory,
+        SideEffectClass,
+    )
+    from fdai.core.prompts.types import PromptMode
+    from fdai.core.tools import CapabilityGate, ToolArtifact
+    from fdai.core.tools.testing import InMemoryToolProvider
+
+    container = default_container(_config())
+    provider = InMemoryToolProvider()
+    artifact = ToolArtifact(
+        id="fork.query",
+        version=1,
+        description="Read fork data.",
+        input_schema={"type": "object"},
+        capability_gate=CapabilityGate(None, None, 0.0),
+        allowlist=None,
+        output_wrapper=None,
+        default_mode=PromptMode.SHADOW,
+        provider="ForkQueryProvider",
+        provenance_source="fork",
+    )
+    bundle = CapabilityBundle(
+        capabilities=(
+            Capability(
+                capability_id="fork.query",
+                name="Fork query",
+                category=CapabilityCategory.INVESTIGATION,
+                summary="Read fork-owned data.",
+                side_effect_class=SideEffectClass.READ,
+            ),
+        ),
+        bindings=(
+            CapabilityBinding(
+                capability_id="fork.query",
+                kind=CapabilityBindingKind.REASONING_TOOL,
+                target_ref="fork.query",
+                provider_id="ForkQueryProvider",
+            ),
+        ),
+        tool_providers={"ForkQueryProvider": provider},
+    )
+
+    installed = install_capability_bundle(
+        container,
+        bundle,
+        reasoning_tools=(artifact,),
+    )
+
+    assert container.capability_runtime.bound_capability_ids() == ()
+    assert installed.capability_runtime.resolve("fork.query").provider is provider
+    assert installed.capability_runtime.catalog.get("knowledge.register") is not None
+
+
 class _StaticIdentity(WorkloadIdentity):
     async def get_token(self, audience: str) -> IdentityToken:
         return IdentityToken(
@@ -78,6 +138,7 @@ def test_local_fake_mode_binds_deterministic_fakes() -> None:
     bindings = container.require_llm_bindings()
     assert isinstance(bindings, LlmBindings)
     assert bindings.embedding_model is not None
+    assert bindings.embedding_model.dim == 384
     # Two fake cross-check models so the quality-gate default quorum (2) works.
     assert len(bindings.cross_check_models) == 2
     assert bindings.require_t2_proposer() is not None
@@ -804,6 +865,69 @@ async def test_wire_azure_container_forwards_tool_providers(tmp_path: Path) -> N
     # reaching into implementation, but the fact that wire succeeded with
     # a non-empty mapping already exercises the branch that used to
     # hardcode ``providers={}`` in __main__.
+
+
+async def test_wire_azure_container_rejects_duplicate_runtime_provider(
+    tmp_path: Path,
+) -> None:
+    """A fork cannot silently shadow a capability-bundle provider."""
+    from dataclasses import replace
+
+    from fdai.composition import AzureWireOverrides, wire_azure_container
+    from fdai.core.capability_catalog import (
+        Capability,
+        CapabilityBinding,
+        CapabilityBindingKind,
+        CapabilityBundle,
+        CapabilityCategory,
+        CapabilityReferences,
+        SideEffectClass,
+    )
+    from fdai.core.operator_memory import InMemoryOperatorMemoryStore
+    from fdai.core.tools.testing import InMemoryToolProvider
+
+    resolved = tmp_path / "resolved-models.json"
+    resolved.write_text(_resolved_models_json(), encoding="utf-8")
+    container = default_container(_config(mode=LlmMode.AZURE, resolved_path=str(resolved)))
+    provider = InMemoryToolProvider()
+    runtime = container.capability_runtime.install(
+        CapabilityBundle(
+            capabilities=(
+                Capability(
+                    capability_id="evidence.audit",
+                    name="Audit evidence",
+                    category=CapabilityCategory.INVESTIGATION,
+                    summary="Read audit evidence.",
+                    side_effect_class=SideEffectClass.READ,
+                ),
+            ),
+            bindings=(
+                CapabilityBinding(
+                    capability_id="evidence.audit",
+                    kind=CapabilityBindingKind.REASONING_TOOL,
+                    target_ref="audit.query",
+                    provider_id="AuditLogQueryProvider",
+                ),
+            ),
+            tool_providers={"AuditLogQueryProvider": provider},
+        ),
+        references=CapabilityReferences(reasoning_tools={"audit.query": "AuditLogQueryProvider"}),
+    )
+    container = replace(container, capability_runtime=runtime)
+    http = httpx.AsyncClient(transport=httpx.MockTransport(lambda _r: httpx.Response(200)))
+
+    with pytest.raises(ValueError, match="duplicate tool providers"):
+        await wire_azure_container(
+            container,
+            http_client=http,
+            identity=_StaticIdentity(),
+            overrides=AzureWireOverrides(
+                endpoint="https://oai-fork.openai.azure.com",
+                catalog_root=_SHIPPED_CATALOG_ROOT,
+                operator_memory_store=InMemoryOperatorMemoryStore(),
+                tool_providers={"AuditLogQueryProvider": provider},
+            ),
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,115 @@
+"""Upstream command catalog: local checks plus one Azure read operation."""
+
+from __future__ import annotations
+
+from fdai.core.tools.command_catalog import (
+    CommandArgumentKind,
+    CommandArgumentSource,
+    CommandArgumentSpec,
+    CommandCatalog,
+    CommandSpec,
+)
+from fdai.shared.providers.command_runner import (
+    CommandExecutionClass,
+    CommandNetworkProfile,
+    CommandOutputFormat,
+)
+
+_TEST_PATH = r"(?:tests|src/fdai)(?:/[A-Za-z0-9_.-]+)*"
+_RESOURCE_GROUP = r"[A-Za-z0-9_.()-]{1,90}"
+_SUBSCRIPTION = r"[A-Za-z0-9-]{1,64}"
+
+
+def default_command_catalog() -> CommandCatalog:
+    """Return the versioned command set shipped by the upstream project."""
+
+    return CommandCatalog(
+        (
+            CommandSpec(
+                command_id="local.git.status",
+                version=1,
+                executable_ref="git.cli",
+                fixed_argv=("status", "--short", "--untracked-files=all"),
+                arguments=(),
+                execution_class=CommandExecutionClass.LOCAL_READ,
+                workspace_required=True,
+            ),
+            CommandSpec(
+                command_id="local.git.diff",
+                version=1,
+                executable_ref="git.cli",
+                fixed_argv=("diff", "--no-ext-diff", "--"),
+                arguments=(
+                    CommandArgumentSpec(
+                        name="path",
+                        kind=CommandArgumentKind.STRING,
+                        required=False,
+                        pattern=_TEST_PATH,
+                    ),
+                ),
+                execution_class=CommandExecutionClass.LOCAL_READ,
+                workspace_required=True,
+            ),
+            CommandSpec(
+                command_id="local.python.pytest",
+                version=1,
+                executable_ref="python.runtime",
+                fixed_argv=("-m", "pytest", "-q", "--no-cov"),
+                arguments=(
+                    CommandArgumentSpec(
+                        name="target",
+                        kind=CommandArgumentKind.STRING,
+                        pattern=_TEST_PATH,
+                    ),
+                ),
+                execution_class=CommandExecutionClass.LOCAL_READ,
+                timeout_seconds=900,
+                max_output_bytes=1_000_000,
+                workspace_required=True,
+            ),
+            CommandSpec(
+                command_id="local.python.ruff",
+                version=1,
+                executable_ref="python.runtime",
+                fixed_argv=("-m", "ruff", "check"),
+                arguments=(
+                    CommandArgumentSpec(
+                        name="target",
+                        kind=CommandArgumentKind.STRING,
+                        pattern=_TEST_PATH,
+                    ),
+                ),
+                execution_class=CommandExecutionClass.LOCAL_READ,
+                timeout_seconds=300,
+                workspace_required=True,
+            ),
+            CommandSpec(
+                command_id="azure.resource.list",
+                version=1,
+                executable_ref="azure.cli",
+                fixed_argv=("resource", "list", "--only-show-errors", "--output", "json"),
+                arguments=(
+                    CommandArgumentSpec(
+                        name="resource_group",
+                        kind=CommandArgumentKind.STRING,
+                        flag="--resource-group",
+                        pattern=_RESOURCE_GROUP,
+                    ),
+                    CommandArgumentSpec(
+                        name="subscription",
+                        kind=CommandArgumentKind.STRING,
+                        source=CommandArgumentSource.TRUSTED,
+                        flag="--subscription",
+                        pattern=_SUBSCRIPTION,
+                    ),
+                ),
+                execution_class=CommandExecutionClass.CLOUD_READ,
+                network_profile=CommandNetworkProfile.AZURE_CONTROL_PLANE,
+                output_format=CommandOutputFormat.JSON,
+                credential_profile="azure.reader",
+            ),
+        )
+    )
+
+
+__all__ = ["default_command_catalog"]

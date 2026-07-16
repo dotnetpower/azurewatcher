@@ -620,8 +620,12 @@ Follows W2. Implements
   read verbs). Real Azure Monitor / DeploymentHistory adapters stay
   fork territory.
 - **M1.6** `WebChatChannel` on the read-only console SPA.
-- **M1.7** Prompt-composition Wave 5 beta (concrete `WebSearchProvider`
-  fork adapter + composition wire).
+- **M1.7** Prompt-composition Wave 5 beta. **Shipped upstream** with the
+  opt-in Azure Responses `WebSearchProvider`, deterministic eligibility and
+  privacy gates, domain-filtered citation snapshots, durable conversation
+  replay evidence, and periodic rolling-p50 routing across eligible narrator
+  deployments. The feature remains disabled until a deployment supplies its
+  accepted primary-source allowlist.
 
 **Exit gate**
 

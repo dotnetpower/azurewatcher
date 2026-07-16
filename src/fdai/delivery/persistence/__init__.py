@@ -19,6 +19,12 @@ from fdai.delivery.persistence.postgres import (
     PostgresStateStore,
     PostgresStateStoreConfig,
 )
+from fdai.delivery.persistence.postgres_briefing import (
+    PostgresBriefingRunStore,
+    PostgresBriefingStoreConfig,
+    PostgresBriefingSubscriptionStore,
+    PostgresConversationPolicyStore,
+)
 from fdai.delivery.persistence.postgres_idempotency import (
     PostgresIdempotencyStore,
     PostgresIdempotencyStoreConfig,
@@ -30,6 +36,10 @@ from fdai.delivery.persistence.postgres_incident_proposal import (
     PostgresIncidentProposalStore,
 )
 from fdai.delivery.persistence.postgres_jira_ledger import PostgresJiraLedger
+from fdai.delivery.persistence.postgres_metering import (
+    PostgresMeteringStore,
+    PostgresMeteringStoreConfig,
+)
 from fdai.delivery.persistence.postgres_ontology import (
     PostgresOntologyInstanceStore,
     PostgresOntologyInstanceStoreConfig,
@@ -46,6 +56,10 @@ from fdai.delivery.persistence.postgres_process_runtime import (
     PostgresProcessRuntimeStore,
     PostgresProcessRuntimeStoreConfig,
 )
+from fdai.delivery.persistence.postgres_report_signal import (
+    PostgresReportSignalStore,
+    PostgresReportSignalStoreConfig,
+)
 from fdai.delivery.persistence.postgres_resource_lock import (
     PostgresAdvisoryResourceLock,
     PostgresAdvisoryResourceLockConfig,
@@ -53,6 +67,22 @@ from fdai.delivery.persistence.postgres_resource_lock import (
 from fdai.delivery.persistence.postgres_scheduler_store import (
     PostgresScheduleStore,
     PostgresScheduleStoreConfig,
+)
+from fdai.delivery.persistence.postgres_user_context import (
+    PostgresConversationHistoryStore,
+    PostgresUserContextStoreConfig,
+    PostgresUserMemoryStore,
+    PostgresUserPreferenceStore,
+)
+from fdai.delivery.persistence.postgres_user_context_retention import (
+    PostgresUserContextRetention,
+    ProjectionDeleteJob,
+    UserContextRetentionReport,
+)
+from fdai.delivery.persistence.postgres_workflow_definition import (
+    PostgresWorkflowBindingStore,
+    PostgresWorkflowDefinitionStore,
+    PostgresWorkflowDefinitionStoreConfig,
 )
 from fdai.delivery.persistence.state_store_action_promotion import (
     StateStoreActionPromotionRegistry,
@@ -68,10 +98,17 @@ __all__ = [
     "PgVectorPatternLibraryConfig",
     "PostgresAdvisoryResourceLock",
     "PostgresAdvisoryResourceLockConfig",
+    "PostgresBriefingRunStore",
+    "PostgresBriefingStoreConfig",
+    "PostgresBriefingSubscriptionStore",
+    "PostgresConversationHistoryStore",
+    "PostgresConversationPolicyStore",
     "PostgresIdempotencyStore",
     "PostgresIdempotencyStoreConfig",
     "PostgresIncidentProposalStore",
     "PostgresJiraLedger",
+    "PostgresMeteringStore",
+    "PostgresMeteringStoreConfig",
     "PostgresIncidentNotificationDeliveryStore",
     "PostgresOperatorMemoryStore",
     "PostgresOperatorMemoryStoreConfig",
@@ -81,10 +118,21 @@ __all__ = [
     "PostgresOutboxStoreConfig",
     "PostgresProcessRuntimeStore",
     "PostgresProcessRuntimeStoreConfig",
+    "PostgresReportSignalStore",
+    "PostgresReportSignalStoreConfig",
     "PostgresScheduleStore",
     "PostgresScheduleStoreConfig",
     "PostgresStateStore",
     "PostgresStateStoreConfig",
+    "PostgresUserContextStoreConfig",
+    "PostgresUserMemoryStore",
+    "PostgresUserPreferenceStore",
+    "PostgresUserContextRetention",
+    "ProjectionDeleteJob",
+    "UserContextRetentionReport",
+    "PostgresWorkflowBindingStore",
+    "PostgresWorkflowDefinitionStore",
+    "PostgresWorkflowDefinitionStoreConfig",
     "PostgresHilApprovalRegistry",
     "StateStoreHilApprovalRegistry",
     "StateStoreActionPromotionRegistry",

@@ -32,7 +32,7 @@ widgets:
     query:
       datasource: metric
       parameters:
-        metric_name: fdai.audit.entries.count
+        metric_name: $metric_name
         projection: scalar_sum
 
   - id: trend
@@ -41,5 +41,5 @@ widgets:
     query:
       datasource: metric
       parameters:
-        metric_name: fdai.audit.entries.count
-        group_by: [mode]
+        metric_name: $metric_name
+        group_by: [$group_by]

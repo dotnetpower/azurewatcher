@@ -11,7 +11,7 @@ fault_family: saturate
 intensity: high
 duration_seconds: 360.0
 expected_signal: node_cpu
-injector: needs-injector
+injector: litmus:pod-cpu-hog
 blast_radius_cap: 3
 rollback_note: Delete the ChaosEngine; the CPU stressor exits.
 gates:

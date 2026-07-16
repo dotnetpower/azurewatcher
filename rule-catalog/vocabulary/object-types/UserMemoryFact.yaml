@@ -1,0 +1,14 @@
+schema_version: "1.0.0"
+name: UserMemoryFact
+version: "1.0.0"
+key: id
+description: User-confirmed long-term memory metadata; the private body remains in UserMemoryStore.
+properties:
+  id: {type: string, required: true}
+  principal_ref: {type: string, required: true, access_scope: owner, purpose_binding: [user_context]}
+  category: {type: string, required: true}
+  source_turn_id: {type: string, required: true, access_scope: owner, purpose_binding: [user_context]}
+  consented_at: {type: datetime, required: true}
+  created_at: {type: datetime, required: true}
+  expires_at: {type: datetime, required: false}
+  superseded_by: {type: string, required: false}

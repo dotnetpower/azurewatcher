@@ -274,18 +274,42 @@ FDAI separates content by purpose so each layer can have its own access and rete
 
 | Store | Contents | Recommended Azure implementation |
 |-------|----------|----------------------------------|
-| Quarantine source | untrusted uploaded bytes and upload manifests | private Blob Storage container, no public access, short retention |
-| Governed source | accepted immutable source versions when managed-copy mode is selected | private Blob Storage with versioning, lifecycle policy, optional immutable/legal-hold controls |
-| Derived artifacts | normalized JSON/JSONL, page text, thumbnails, OCR output, extraction manifest | separate private Blob container, encrypted and ACL-linked to source |
+| Quarantine source | untrusted uploaded bytes and upload manifests | private ADLS Gen2 HNS `documents/quarantine/`, no public access, short lifecycle retention |
+| Governed source | accepted immutable source versions when managed-copy mode is selected | private ADLS Gen2 HNS `documents/governed/{document_id}/{version_id}/`, atomic rename from quarantine |
+| Derived artifacts | normalized JSON/JSONL, page text, thumbnails, OCR output, extraction manifest | separate private ADLS Gen2 HNS `derived` filesystem, encrypted and ACL-linked to source |
 | Metadata and status | document/version records, state transitions, policy, effective access references | PostgreSQL |
 | Search index | chunks, embeddings, source/version/access references | PostgreSQL with pgvector |
 | Audit | actor, state transition, policy decision, hashes and references, never document body | append-only audit ledger |
 | Worker scratch | temporary decrypted or expanded content | isolated encrypted ephemeral volume, wiped on completion/failure |
 
 Object names are opaque ids, not user filenames. The original filename is metadata protected by the
-same access policy. Storage accounts use private endpoints, encryption at rest, secure transport,
-key rotation, soft-delete/versioning according to policy, and no anonymous container access.
-Customer-managed keys are a fork policy choice, not a value hard-coded upstream.
+same access policy. The Azure implementation uses a dedicated StorageV2 account with hierarchical
+namespace (HNS), Shared Key disabled, TLS 1.2, soft delete, lifecycle policies, and both `blob` and
+`dfs` private endpoints. Blob versioning isn't available on HNS accounts, so FDAI never overwrites a
+source version: every `version_id` receives a new opaque path. Optional immutable retention and
+legal holds remain collection policy. Customer-managed keys are a fork policy choice, not a value
+hard-coded upstream.
+
+The public console sends bytes to the authenticated ingestion gateway. The gateway validates the
+declared size, streams the request to private ADLS without buffering the whole file, seals SHA-256
+and size metadata, and publishes `document.received` to `aw.document.events`. A durable Kafka
+consumer group runs the worker at least once; uncommitted failures are retried after restart.
+ClamAV runs as a replica-local sidecar, and only a clean document reaches extraction, pgvector
+indexing, and the atomic quarantine-to-governed rename.
+
+### Deferred non-Azure storage recommendations
+
+Azure is the only implemented target. The following entries are documentation-only recommendations
+for a future phase and do not authorize AWS or GCP adapters in this roadmap.
+
+| Future target | Recommended storage | Mapping to the FDAI contract |
+|---------------|---------------------|------------------------------|
+| AWS (TBD) | Amazon S3 with Block Public Access, bucket owner enforced, SSE-KMS, versioning/Object Lock where policy requires, lifecycle rules, gateway VPC endpoint, and IAM role credentials | `DocumentObjectStore` maps opaque keys to S3 objects; accepted versions use immutable prefixes and multipart upload |
+| GCP (TBD) | Cloud Storage with uniform bucket-level access, public access prevention, CMEK where policy requires, Object Versioning/retention policy, lifecycle rules, Private Google Access/PSC, and Workload Identity Federation | `DocumentObjectStore` maps opaque keys to Cloud Storage objects; accepted versions use immutable prefixes and resumable upload |
+
+Both future mappings retain PostgreSQL metadata and a vector-index adapter behind their existing
+provider seams. No AWS/GCP SDK, Terraform module, runtime branch, or deployment commitment ships
+with the Azure implementation.
 
 ### Source storage modes
 
@@ -320,6 +344,18 @@ Every extractor produces a versioned `DocumentEnvelope` rather than writing dire
 
 Knowledge indexing and manual distillation consume this envelope. They do not parse the raw upload
 independently, which keeps protection, citations, and deletion behavior consistent.
+
+The generic document index splits each structural unit independently. The defaults are `1200`
+characters per chunk with `150` characters of overlap, preferring paragraph, line, sentence, and
+word boundaries. Every chunk keeps its unit locator, source hash, collection, access descriptor,
+purpose, and immutable document/version identity. Stable version-scoped chunk ids make retries
+idempotent.
+
+The local gateway uses a deterministic in-memory embedding index for end-to-end development. The
+pgvector adapter computes all embeddings before opening the database transaction, atomically
+replaces one document version, and deletes by document/version identity. Retrieval requires both
+the collection and an explicit set of allowed access descriptor references. Governed chunks are
+marked and excluded from the unscoped free-form Knowledge Source query path.
 
 ## Security and content-safety pipeline
 
@@ -379,12 +415,27 @@ removal and ACL change events use the same reconciliation and lineage path.
 Document ingestion is served by a dedicated ingestion gateway, not by the read API and not by the
 executor process. The initial HTTP surface is:
 
+For local console development, you can run the guarded in-memory gateway on a separate port:
+
+```bash
+FDAI_INGESTION_GATEWAY_DEV_MODE=1 \
+  uv run uvicorn fdai.delivery.ingestion_gateway.dev:app \
+  --factory --host 127.0.0.1 --port 8011
+```
+
+Point `VITE_INGESTION_API_BASE_URL` at `http://127.0.0.1:8011`. The local factory refuses to
+start without the explicit dev-mode variable and isn't a production composition. It allows the
+standard local console ports `4173`, `5173`, `5180`, and `5190` on both `127.0.0.1` and
+`localhost`. For another port, set `FDAI_INGESTION_GATEWAY_CORS_ALLOW_ORIGINS` on the gateway
+process to a comma-separated list of exact HTTP(S) origins.
+
 | Method and path | Purpose |
 |-----------------|---------|
 | `GET /ingestion/capabilities` | formats, size/batch/archive limits, storage modes, policy versions |
 | `POST /ingestion/uploads` | authorize destination and create an `UploadSession` |
 | `POST /ingestion/uploads/{upload_id}/complete` | verify and commit the received object |
 | `GET /ingestion/uploads/{upload_id}` | resumable transfer and processing status |
+| `GET /ingestion/uploads/{upload_id}/handover-draft` | authorized grounded steward-map draft for the `handover_bootstrap` purpose |
 | `POST /ingestion/uploads/{upload_id}/cancel` | revoke grant and clean partial data |
 | `GET /documents/{document_id}/versions` | authorized metadata and state history |
 | `DELETE /documents/{document_id}/versions/{version_id}` | request governed deletion |
@@ -395,7 +446,9 @@ storage grants are never accepted in query strings that may be logged.
 State transitions publish typed events such as `document.received`, `document.held`,
 `document.ready`, `document.superseded`, `document.access_changed`, and `document.deleted`.
 Consumers are idempotent. Knowledge indexing and manual distillation subscribe to `document.ready`
-only when the version's declared purpose includes them.
+only when the version's declared purpose includes them. Purpose-specific processing can also bind a
+`DocumentReadyConsumer`; the worker passes only the safety-checked `DocumentEnvelope`. The shipped
+`handover_bootstrap` consumer turns that envelope into a grounded, review-only steward-map draft.
 
 ## Failure behavior
 
@@ -428,14 +481,16 @@ rights-reconciliation lag, orphaned partial uploads, indexing lag, deletion lag,
 
 The upstream implementation now ships the contracts, fail-closed lifecycle, dedicated ASGI
 gateway, console drop zone, streaming browser hash, local direct-upload adapter, safe text/OOXML
-extractor, protection signature detection, test adapters, and deletion lineage. Production forks
-still supply governed object/metadata/vector stores and approved malware, Purview/RMS, OCR, and
+extractor, protection signature detection, structure-aware chunking, a searchable in-memory
+embedding index, a governed pgvector document-index adapter, test adapters, and deletion lineage.
+Production forks still bind the pgvector adapter with their secret-backed DSN and embedding
+provider, and supply governed object/metadata stores plus approved malware, Purview/RMS, OCR, and
 rich-format providers.
 
 | Slice | Upstream status |
 |-------|-----------------|
 | Contract and metadata | Shipped: `DocumentEnvelope`, state machine, capability discovery, access provider, metadata/activity seams, and console visibility notice. |
-| Safe text | Shipped generically: direct-upload gateway, quarantine lifecycle, fail-closed scanner seam, UTF-8/OOXML extraction, artifact/index seams, and deletion. The upstream scanner abstains until a production provider is bound. |
+| Safe text | Shipped generically: direct-upload gateway, quarantine lifecycle, fail-closed scanner seam, UTF-8/OOXML extraction, structure-aware overlapping chunks, local embedding retrieval, atomic pgvector version replacement/deletion, access-filtered search, and deletion. The upstream scanner abstains until a production provider is bound. |
 | Layout | Partial: OOXML structure and PDF/protection detection ship; layout-aware PDF extraction, OCR, and previews require approved providers. |
 | Protection | Partial: PDF/Office/container encryption and suspicious rights metadata are detected and held. A Purview/RMS adapter, delegated authorization, and revocation reconciliation remain fork bindings. |
 | Connector and scale | Contract ready: resumable/scoped upload sessions, streaming hashes, bounded parser budgets, and provider seams ship. Azure Blob, durable metadata, connector delta sync, and measured capacity targets remain deployment work. |

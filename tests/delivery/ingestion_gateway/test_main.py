@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 from datetime import UTC, datetime
-from uuid import UUID
 
 import pytest
 from starlette.testclient import TestClient
@@ -147,9 +145,6 @@ def test_dev_direct_upload_complete_process_versions_and_delete(monkeypatch) -> 
     assert resumed.status_code == 200
     assert client.put(f"/ingestion/uploads/{upload_id}/content", content=content).status_code == 204
     assert client.post(f"/ingestion/uploads/{upload_id}/complete").status_code == 202
-    ready = asyncio.run(worker.process(UUID(upload_id)))
-    assert ready.state.value == "ready"
-
     status = client.get(f"/ingestion/uploads/{upload_id}")
     assert status.json()["state"] == "ready"
     versions = client.get(f"/documents/{document_id}/versions")
@@ -180,11 +175,54 @@ def test_direct_upload_route_is_hidden_outside_dev() -> None:
     assert response.status_code == 404
 
 
+def test_production_proxy_streams_upload_without_dev_mode() -> None:
+    service, worker = _stack()
+    app = build_app(
+        authenticator=_authenticator(),
+        service=service,
+        worker=worker,
+        config=IngestionGatewayConfig(proxy_upload=True),
+    )
+    client = TestClient(app)
+    content = b"private storage relay"
+    created = client.post(
+        "/ingestion/uploads",
+        headers={"authorization": "Bearer contributor"},
+        json=_body(content),
+    )
+
+    assert created.status_code == 201
+    payload = created.json()
+    upload_id = payload["session"]["upload_id"]
+    assert payload["upload"]["target"].endswith(f"/{upload_id}/content")
+    assert (
+        client.put(
+            payload["upload"]["target"],
+            headers={"authorization": "Bearer contributor"},
+            content=content,
+        ).status_code
+        == 204
+    )
+    assert (
+        client.post(
+            f"/ingestion/uploads/{upload_id}/complete",
+            headers={"authorization": "Bearer contributor"},
+        ).status_code
+        == 202
+    )
+    status = client.get(
+        f"/ingestion/uploads/{upload_id}",
+        headers={"authorization": "Bearer contributor"},
+    )
+    assert status.json()["state"] == "received"
+
+
 @pytest.mark.parametrize(
     "config",
     [
         IngestionGatewayConfig(dev_mode=True),
         IngestionGatewayConfig(direct_upload=True),
+        IngestionGatewayConfig(dev_mode=True, direct_upload=True, proxy_upload=True),
         IngestionGatewayConfig(cors_allow_origins=("*",)),
     ],
 )

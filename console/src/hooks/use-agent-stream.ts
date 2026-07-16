@@ -1,22 +1,27 @@
 /**
- * Agent-activity SSE stream hook (Track B).
+ * Authenticated agent-activity SSE stream.
  *
- * Subscribes to the read-API's `GET /agents/stream` SSE endpoint via
- * `EventSource` and hands each decoded {@link AgentActivityMessage} to a
- * consumer. Where {@link useLiveStream} is action-centric (pipeline stage
- * frames), this hook is agent-centric: per-agent status, incident tickets,
- * and agent-to-agent conversation turns.
- *
- * The emitter publishes with the default (`message`) SSE event name and a
- * JSON payload whose `type` field discriminates the three kinds, so the
- * hook reads `es.onmessage` and demultiplexes on `payload.type`.
- *
- * Pure read consumer - it issues no privileged calls. Reconnection is
- * delegated to the browser; the hook closes the connection while the tab is
- * hidden so a backgrounded tab cannot flood the backend with reconnects.
+ * `EventSource` cannot attach the bearer header required by the read API, so
+ * this hook uses fetch streaming. It keeps visibility gating and reconnect
+ * behavior while decoding only the three supported agent frames.
  */
 
 import { useEffect, useRef, useState } from "preact/hooks";
+import { loadConfig } from "../config";
+
+export interface AgentStreamDescriptor {
+  readonly url: string;
+  readonly source: "local" | "live";
+}
+
+export function agentStreamDescriptor(): AgentStreamDescriptor {
+  const config = loadConfig();
+  const base = config.readApiBaseUrl || (typeof window !== "undefined" ? window.location.origin : "");
+  return {
+    url: `${base.replace(/\/$/, "")}/agents/stream`,
+    source: config.devMode || config.localAzureCliAuth ? "local" : "live",
+  };
+}
 
 /** Agent status ring - mirrors `AgentState` in `agent_activity_stream.py`. */
 export type AgentStatus =
@@ -83,7 +88,7 @@ export interface UseAgentStreamOptions {
   readonly url: string;
   readonly onEvent: (event: AgentActivityMessage) => void;
   readonly onStatus?: (status: AgentStreamStatus) => void;
-  readonly withCredentials?: boolean;
+  readonly getAuthorizationHeader?: () => Promise<string | null>;
 }
 
 export interface UseAgentStreamResult {
@@ -91,107 +96,202 @@ export interface UseAgentStreamResult {
   readonly lastError: string | null;
 }
 
+const AGENT_STATES: ReadonlySet<string> = new Set([
+  "idle", "watching", "collecting", "analyzing", "deciding", "executing", "approving", "auditing",
+]);
+const TICKET_STATES: ReadonlySet<string> = new Set(["open", "investigating", "resolved"]);
+const TURN_KINDS: ReadonlySet<string> = new Set(["question", "answer", "handoff"]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+export function decodeAgentActivityMessage(data: string): AgentActivityMessage | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(data);
+  } catch {
+    return null;
+  }
+  if (!isRecord(value) || typeof value.type !== "string") return null;
+  if (
+    value.type === "agent.state" &&
+    typeof value.agent === "string" &&
+    typeof value.state === "string" && AGENT_STATES.has(value.state) &&
+    typeof value.ts === "string" && isNullableString(value.correlation_id) &&
+    isNullableString(value.detail)
+  ) return value as unknown as AgentStateMessage;
+  if (
+    value.type === "incident.ticket" &&
+    typeof value.ticket_id === "string" && typeof value.correlation_id === "string" &&
+    typeof value.status === "string" && TICKET_STATES.has(value.status) &&
+    typeof value.title === "string" && typeof value.severity === "string" &&
+    Array.isArray(value.involved_agents) &&
+    value.involved_agents.every((agent) => typeof agent === "string") &&
+    isNullableString(value.rca) && typeof value.ts === "string"
+  ) return value as unknown as IncidentTicketMessage;
+  if (
+    value.type === "conversation.turn" && typeof value.correlation_id === "string" &&
+    typeof value.from_agent === "string" && typeof value.to_agent === "string" &&
+    typeof value.kind === "string" && TURN_KINDS.has(value.kind) &&
+    typeof value.text === "string" && typeof value.ts === "string"
+  ) return value as unknown as ConversationTurnMessage;
+  return null;
+}
+
+export function agentStreamHeaders(authorization: string | null): Headers {
+  const headers = new Headers({ accept: "text/event-stream" });
+  if (authorization) headers.set("authorization", authorization);
+  return headers;
+}
+
+export function agentReconnectDelay(attempt: number): number {
+  return Math.min(30000, 1000 * (2 ** Math.min(attempt, 5)));
+}
+
+export function isPermanentAgentStreamFailure(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
+export async function consumeAgentActivitySse(
+  response: Response,
+  onEvent: (event: AgentActivityMessage) => void,
+): Promise<void> {
+  if (!response.ok) throw new Error(`agent stream returned HTTP ${response.status}`);
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!contentType.includes("text/event-stream")) {
+    throw new Error("agent stream returned an invalid content type");
+  }
+  if (!response.body) throw new Error("agent stream response has no body");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const consumeBlock = (block: string): void => {
+    const data = block.split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trimStart())
+      .join("\n");
+    if (!data) return;
+    const event = decodeAgentActivityMessage(data);
+    if (event) onEvent(event);
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer = (buffer + decoder.decode(value, { stream: !done })).replace(/\r\n/g, "\n");
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary >= 0) {
+      consumeBlock(buffer.slice(0, boundary));
+      buffer = buffer.slice(boundary + 2);
+      boundary = buffer.indexOf("\n\n");
+    }
+    if (done) {
+      if (buffer.trim()) consumeBlock(buffer);
+      return;
+    }
+  }
+}
+
 export function useAgentStream(options: UseAgentStreamOptions): UseAgentStreamResult {
   const [status, setStatus] = useState<AgentStreamStatus>(
-    typeof EventSource === "undefined" ? "unsupported" : "idle",
+    typeof fetch === "undefined" ? "unsupported" : "idle",
   );
   const [lastError, setLastError] = useState<string | null>(null);
-
   const onEventRef = useRef(options.onEvent);
   const onStatusRef = useRef(options.onStatus);
   onEventRef.current = options.onEvent;
   onStatusRef.current = options.onStatus;
-
-  const url = options.url;
-  const withCredentials = options.withCredentials ?? false;
+  const { url, getAuthorizationHeader } = options;
 
   useEffect(() => {
-    if (typeof EventSource === "undefined") return undefined;
-
+    if (typeof fetch === "undefined") return undefined;
     let cancelled = false;
-    let source: EventSource | null = null;
-
-    const connect = () => {
-      if (cancelled || source) return;
-      setStatus("connecting");
-      onStatusRef.current?.("connecting");
-
-      const es = new EventSource(url, { withCredentials });
-      source = es;
-
-      // The emitter publishes semantic frames with the default (`message`)
-      // event name; the `hello` boot frame is named and ignored here.
-      es.onmessage = (raw) => {
-        if (cancelled || source !== es) return;
-        try {
-          const parsed = JSON.parse(raw.data) as AgentActivityMessage;
-          onEventRef.current(parsed);
-        } catch (err) {
-          setLastError(err instanceof Error ? err.message : String(err));
+    let controller: AbortController | null = null;
+    let reconnectTimer: number | null = null;
+    let reconnectAttempt = 0;
+    let permanentFailure = false;
+    const publishStatus = (next: AgentStreamStatus): void => {
+      setStatus(next);
+      onStatusRef.current?.(next);
+    };
+    const isHidden = (): boolean => typeof document !== "undefined" && document.hidden;
+    const scheduleReconnect = (): void => {
+      if (cancelled || permanentFailure || isHidden()) return;
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+      const delay = agentReconnectDelay(reconnectAttempt);
+      reconnectAttempt += 1;
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        void connect();
+      }, delay);
+    };
+    const connect = async (): Promise<void> => {
+      if (cancelled || controller) return;
+      publishStatus("connecting");
+      const active = new AbortController();
+      controller = active;
+      try {
+        const authorization = await getAuthorizationHeader?.() ?? null;
+        if (cancelled || controller !== active) return;
+        const response = await fetch(url, {
+          method: "GET",
+          headers: agentStreamHeaders(authorization),
+          credentials: "omit",
+          signal: active.signal,
+        });
+        if (!response.ok) {
+          permanentFailure = isPermanentAgentStreamFailure(response.status);
+          throw new Error(`agent stream returned HTTP ${response.status}`);
         }
-      };
-
-      es.onopen = () => {
-        if (cancelled || source !== es) return;
-        setStatus("open");
+        publishStatus("open");
         setLastError(null);
-        onStatusRef.current?.("open");
-      };
-
-      es.onerror = () => {
-        if (cancelled || source !== es) return;
-        const nextStatus: AgentStreamStatus =
-          es.readyState === EventSource.CLOSED ? "closed" : "connecting";
-        setStatus(nextStatus);
-        if (es.readyState === EventSource.CLOSED) {
+        await consumeAgentActivitySse(response, (event) => {
+          if (!cancelled && controller === active) {
+            reconnectAttempt = 0;
+            onEventRef.current(event);
+          }
+        });
+        if (!cancelled && controller === active) {
           setLastError("connection to agent stream closed");
+          publishStatus("closed");
         }
-        onStatusRef.current?.(nextStatus);
-      };
-    };
-
-    const disconnect = (nextStatus: AgentStreamStatus) => {
-      if (source) {
-        source.close();
-        source = null;
+      } catch (error) {
+        if (!cancelled && !active.signal.aborted) {
+          setLastError(error instanceof Error ? error.message : String(error));
+          publishStatus("closed");
+        }
+      } finally {
+        if (controller === active) controller = null;
+        scheduleReconnect();
       }
-      setStatus(nextStatus);
-      onStatusRef.current?.(nextStatus);
     };
-
-    const isHidden = () => typeof document !== "undefined" && document.hidden;
-
-    const handleVisibility = () => {
+    const disconnect = (next: AgentStreamStatus): void => {
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      controller?.abort();
+      controller = null;
+      publishStatus(next);
+    };
+    const handleVisibility = (): void => {
       if (cancelled) return;
-      if (isHidden()) {
-        disconnect("idle");
-      } else {
-        connect();
-      }
+      if (isHidden()) disconnect("idle");
+      else void connect();
     };
-
-    if (isHidden()) {
-      setStatus("idle");
-      onStatusRef.current?.("idle");
-    } else {
-      connect();
-    }
-
-    if (typeof document !== "undefined") {
-      document.addEventListener("visibilitychange", handleVisibility);
-    }
-
+    if (isHidden()) publishStatus("idle");
+    else void connect();
+    document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       cancelled = true;
-      if (typeof document !== "undefined") {
-        document.removeEventListener("visibilitychange", handleVisibility);
-      }
-      if (source) {
-        source.close();
-        source = null;
-      }
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+      controller?.abort();
     };
-  }, [url, withCredentials]);
+  }, [url, getAuthorizationHeader]);
 
   return { status, lastError };
 }

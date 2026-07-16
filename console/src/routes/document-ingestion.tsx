@@ -3,18 +3,23 @@ import type { ReadApiClient } from "../api";
 import { PageHeader } from "../components/ui";
 import { loadConfig } from "../config";
 import { usePublishViewContext } from "../deck/context";
-import { composeGlossary } from "../deck/glossary";
-import { IngestionApiClient, type IngestionCapabilities } from "../ingestion-api";
+import {
+  IngestionApiClient,
+  type HandoverDraftResult,
+  type IngestionCapabilities,
+} from "../ingestion-api";
 import { t } from "../i18n";
+import { buildDocumentViewSnapshot } from "./document-ingestion.view";
 
 interface Props { readonly client: ReadApiClient }
 
-type UploadState = "queued" | "hashing" | "uploading" | "received" | "failed";
+type UploadState = "queued" | "hashing" | "uploading" | "processing" | "ready" | "failed";
 interface UploadRow {
   readonly key: string;
   readonly file: File;
   readonly state: UploadState;
   readonly uploadId?: string;
+  readonly draft?: HandoverDraftResult;
   readonly error?: string | undefined;
 }
 
@@ -37,28 +42,28 @@ export function DocumentIngestionRoute({ client }: Props) {
   }, [api]);
 
   usePublishViewContext(
-    () => ({
-      routeId: "documents",
+    () => buildDocumentViewSnapshot({
       routeLabel: t("route.documents"),
-      purpose: "Upload customer documents through the isolated ingestion safety pipeline.",
-      glossary: composeGlossary([]),
-      headline: `${rows.length} files, ${rows.filter((row) => row.state === "received").length} received`,
+      collection,
+      purpose,
+      storageMode,
+      consent,
+      uploads: rows.map((row) => ({
+        name: row.file.name,
+        size: row.file.size,
+        state: row.state,
+        ...(row.uploadId ? { uploadId: row.uploadId } : {}),
+      })),
+      capabilities: capabilities ? {
+        supportedFormats: capabilities.supported_formats,
+        maxFileSize: capabilities.max_file_size,
+        maxBatchCount: capabilities.max_batch_count,
+        storageModes: capabilities.storage_modes,
+      } : null,
+      capabilitiesAvailable: capabilities !== null && capabilityError === null,
       capturedAt: new Date().toISOString(),
-      facts: [
-        { key: "collection", value: collection, group: "upload" },
-        { key: "purpose", value: purpose, group: "upload" },
-        { key: "queued", value: rows.length, group: "upload" },
-      ],
-      records: {
-        uploads: rows.map((row) => ({
-          name: row.file.name,
-          size: row.file.size,
-          state: row.state,
-          upload_id: row.uploadId ?? null,
-        })),
-      },
     }),
-    [collection, purpose, rows],
+    [capabilities, capabilityError, collection, consent, purpose, rows, storageMode],
   );
 
   const addFiles = (files: FileList | readonly File[]) => {
@@ -99,8 +104,17 @@ export function DocumentIngestionRoute({ client }: Props) {
         });
         updateRow(row.key, { uploadId: created.session.upload_id });
         await api.uploadContent(created.upload.target, row.file);
-        const completed = await api.completeUpload(created.session.upload_id);
-        updateRow(row.key, { state: completed.state === "received" ? "received" : "failed" });
+        await api.completeUpload(created.session.upload_id);
+        updateRow(row.key, { state: "processing" });
+        const completed = await waitForTerminal(api, created.session.upload_id);
+        if (completed.state !== "ready" && completed.state !== "ready_with_warnings") {
+          updateRow(row.key, { state: "failed", error: completed.state });
+          continue;
+        }
+        const draft = purpose === "handover_bootstrap"
+          ? await api.handoverDraft(created.session.upload_id)
+          : undefined;
+        updateRow(row.key, { state: "ready", ...(draft ? { draft } : {}) });
       } catch (error) {
         updateRow(row.key, {
           state: "failed",
@@ -139,6 +153,7 @@ export function DocumentIngestionRoute({ client }: Props) {
           <select value={purpose} onChange={(event) => { setPurpose(event.currentTarget.value); setConsent(false); }}>
             <option value="knowledge_base">{t("documents.knowledgeBase")}</option>
             <option value="manual_distillation">{t("documents.manualDistillation")}</option>
+            <option value="handover_bootstrap">{t("documents.handoverBootstrap")}</option>
           </select>
         </label>
         <label>
@@ -179,12 +194,34 @@ export function DocumentIngestionRoute({ client }: Props) {
               <div><strong>{row.file.name}</strong><small>{formatBytes(row.file.size)}</small></div>
               <span class={`status status-${row.state}`}>{t(`documents.state.${row.state}`)}</span>
               {row.error ? <small class="document-upload-error">{row.error}</small> : null}
+              {row.draft ? (
+                <details class="document-handover-draft">
+                  <summary>{t("documents.handoverDraft", { outcome: row.draft.draft.outcome })}</summary>
+                  <p>{t("documents.handoverDraftSummary", {
+                    mappings: row.draft.draft.mappings.length,
+                    unresolved: row.draft.draft.unresolved_people.length,
+                    unmapped: row.draft.draft.unmapped_agents.length,
+                  })}</p>
+                  <pre><code>{row.draft.yaml}</code></pre>
+                </details>
+              ) : null}
             </div>
           ))}
         </section>
       ) : null}
     </div>
   );
+}
+
+async function waitForTerminal(api: IngestionApiClient, uploadId: string): Promise<import("../ingestion-api").UploadSession> {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const session = await api.status(uploadId);
+    if (["ready", "ready_with_warnings", "held", "failed", "deleted"].includes(session.state)) {
+      return session;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+  }
+  throw new Error(t("documents.processingTimeout"));
 }
 
 async function sha256(file: File): Promise<string> {

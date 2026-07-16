@@ -164,6 +164,229 @@ _SCENARIOS: tuple[_Scenario, ...] = (
         ),
         rca="Traffic burst exceeded deployment TPM; capacity raised to restore headroom",
     ),
+    _Scenario(
+        title="Container Apps revision readiness regression",
+        severity="high",
+        involved=("Huginn", "Heimdall", "Forseti", "Thor", "Saga"),
+        detector="Heimdall",
+        turns=(
+            (
+                "Huginn",
+                "Heimdall",
+                TurnKind.HANDOFF,
+                "new revision emitted repeated readiness failures",
+            ),
+            (
+                "Heimdall",
+                "Forseti",
+                TurnKind.HANDOFF,
+                "healthy replica ratio fell below the rollout stop-condition",
+            ),
+            (
+                "Forseti",
+                "Thor",
+                TurnKind.HANDOFF,
+                "revert the revision through the recorded deployment path",
+            ),
+            (
+                "Thor",
+                "Saga",
+                TurnKind.HANDOFF,
+                "rollback completed; prior revision is serving traffic",
+            ),
+        ),
+        rca=(
+            "The new revision failed its readiness probe; rollout stopped and the prior "
+            "revision was restored"
+        ),
+    ),
+    _Scenario(
+        title="PostgreSQL storage forecast crossed reserve",
+        severity="medium",
+        involved=("Heimdall", "Freyr", "Njord", "Forseti", "Var", "Thor", "Saga"),
+        detector="Heimdall",
+        turns=(
+            (
+                "Heimdall",
+                "Freyr",
+                TurnKind.QUESTION,
+                "storage trend reaches the reserve threshold within 18 hours",
+            ),
+            (
+                "Freyr",
+                "Njord",
+                TurnKind.QUESTION,
+                "compare bounded scale options against the monthly budget",
+            ),
+            (
+                "Njord",
+                "Forseti",
+                TurnKind.ANSWER,
+                "one storage step restores headroom within the cost ceiling",
+            ),
+            (
+                "Forseti",
+                "Var",
+                TurnKind.HANDOFF,
+                "capacity increase requires approval before dispatch",
+            ),
+            (
+                "Var",
+                "Thor",
+                TurnKind.HANDOFF,
+                "approved with the declared single-resource blast radius",
+            ),
+        ),
+        rca=(
+            "Sustained data growth exhausted reserved headroom; bounded storage expansion "
+            "restored the forecast margin"
+        ),
+    ),
+    _Scenario(
+        title="Event Hubs consumer lag exceeded drain budget",
+        severity="high",
+        involved=("Heimdall", "Freyr", "Forseti", "Thor", "Saga"),
+        detector="Heimdall",
+        turns=(
+            (
+                "Heimdall",
+                "Freyr",
+                TurnKind.HANDOFF,
+                "consumer lag grew for five consecutive windows",
+            ),
+            (
+                "Freyr",
+                "Forseti",
+                TurnKind.ANSWER,
+                "one additional consumer can drain the backlog inside the rate cap",
+            ),
+            (
+                "Forseti",
+                "Thor",
+                TurnKind.HANDOFF,
+                "apply the bounded scale-out plan in shadow mode",
+            ),
+            (
+                "Thor",
+                "Saga",
+                TurnKind.HANDOFF,
+                "simulation completed; predicted drain time is within budget",
+            ),
+        ),
+        rca=(
+            "A traffic burst outpaced the consumer group; bounded scale-out reduced the "
+            "projected drain time"
+        ),
+    ),
+    _Scenario(
+        title="Key Vault certificate expiry entered warning window",
+        severity="medium",
+        involved=("Huginn", "Mimir", "Forseti", "Var", "Saga"),
+        detector="Huginn",
+        turns=(
+            (
+                "Huginn",
+                "Mimir",
+                TurnKind.HANDOFF,
+                "certificate metadata entered the configured renewal window",
+            ),
+            (
+                "Mimir",
+                "Forseti",
+                TurnKind.ANSWER,
+                "the governing rule requires a reviewed rotation plan",
+            ),
+            (
+                "Forseti",
+                "Var",
+                TurnKind.HANDOFF,
+                "park the rotation proposal for a distinct approver",
+            ),
+            (
+                "Var",
+                "Saga",
+                TurnKind.HANDOFF,
+                "approval pending; no secret material entered the audit record",
+            ),
+        ),
+        rca=(
+            "Certificate age crossed the configured warning threshold; a redacted rotation "
+            "proposal was parked for review"
+        ),
+    ),
+    _Scenario(
+        title="Storage public-network access drift detected",
+        severity="high",
+        involved=("Huginn", "Heimdall", "Forseti", "Var", "Thor", "Saga"),
+        detector="Huginn",
+        turns=(
+            (
+                "Huginn",
+                "Heimdall",
+                TurnKind.HANDOFF,
+                "inventory diff shows public network access enabled",
+            ),
+            (
+                "Heimdall",
+                "Forseti",
+                TurnKind.ANSWER,
+                "the change is confirmed and affects one storage resource",
+            ),
+            (
+                "Forseti",
+                "Var",
+                TurnKind.HANDOFF,
+                "propose a PR-native remediation with tested rollback",
+            ),
+            (
+                "Var",
+                "Thor",
+                TurnKind.HANDOFF,
+                "approved; action hash and scope match the queued item",
+            ),
+            (
+                "Thor",
+                "Saga",
+                TurnKind.HANDOFF,
+                "remediation PR opened; direct substrate mutation was not used",
+            ),
+        ),
+        rca=(
+            "Configuration drift enabled public network access; a scoped remediation PR "
+            "restored the governed setting"
+        ),
+    ),
+    _Scenario(
+        title="Container Apps job schedule drift detected",
+        severity="low",
+        involved=("Huginn", "Mimir", "Forseti", "Thor", "Saga"),
+        detector="Huginn",
+        turns=(
+            (
+                "Huginn",
+                "Mimir",
+                TurnKind.HANDOFF,
+                "deployed cron schedule differs from the catalog declaration",
+            ),
+            (
+                "Mimir",
+                "Forseti",
+                TurnKind.ANSWER,
+                "the catalog source and deployed value have a deterministic diff",
+            ),
+            (
+                "Forseti",
+                "Thor",
+                TurnKind.HANDOFF,
+                "prepare a shadow remediation PR for the schedule only",
+            ),
+            ("Thor", "Saga", TurnKind.HANDOFF, "proposal recorded with no runtime execution"),
+        ),
+        rca=(
+            "The deployed job schedule drifted from catalog-as-code; a shadow remediation "
+            "proposal captured the exact diff"
+        ),
+    ),
 )
 
 
@@ -180,11 +403,13 @@ class SyntheticAgentActivityEmitter:
         sink: SseSink,
         channel: str,
         incident_interval_seconds: float = 12.0,
+        heartbeat_interval_seconds: float = 2.0,
         beat_seconds: float = 1.4,
         seed: int | None = None,
     ) -> None:
         self._publisher = SseAgentActivityPublisher(sink=sink, channel=channel)
         self._interval = incident_interval_seconds
+        self._heartbeat_interval = min(heartbeat_interval_seconds, incident_interval_seconds)
         self._beat = beat_seconds
         self._rng = random.Random(seed)  # noqa: S311 - dev emitter narrative, not cryptographic
         self._task: asyncio.Task[None] | None = None
@@ -210,12 +435,18 @@ class SyntheticAgentActivityEmitter:
     async def _run(self) -> None:
         try:
             await self._heartbeat()
+            elapsed = 0.0
             while self._running:
-                await asyncio.sleep(self._interval)
+                await asyncio.sleep(self._heartbeat_interval)
                 if not self._running:
                     break
+                elapsed += self._heartbeat_interval
+                if elapsed < self._interval:
+                    await self._heartbeat()
+                    continue
                 await self._run_incident(self._rng.choice(_SCENARIOS))
                 await self._heartbeat()
+                elapsed = 0.0
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 - a dev emitter must never crash the app

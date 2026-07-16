@@ -4,7 +4,7 @@ title: Agent Workflows
 
 # Agent Workflows
 
-The eleven cross-agent workflows that the pantheon composes into product-level
+The twelve cross-agent workflows that the pantheon composes into product-level
 capabilities. Each workflow names its participating agents, its trigger,
 its end-to-end sequence, and its exit criteria. Every workflow ships in
 shadow mode first ([agent-pantheon-implementation.md § Wave 7](agent-pantheon-implementation.md#11-wave-7---cross-agent-workflows-in-shadow))
@@ -544,7 +544,51 @@ to HIL via `remediate.right-size-role`). Does not define the environment model
 (consumes [scope-expansion.md](../fork-and-sequencing/scope-expansion.md)). Not a per-deploy check
 (that is [deployment-preflight.md](../deployment/deployment-preflight.md)).
 
-## 12. Workflow catalog summary
+## 12. Scheduled governed Python task
+
+**Purpose.** Run an immutable generated Python artifact on one inventory-selected
+GPU VM without giving the authoring surface a VM identity or accepting shell text.
+
+**Trigger.** Strict five-field cron schedule materialized by the scheduler with a
+target Resource and `PythonTask` artifact binding.
+
+**Agents.** Bragi owns authoring translation, Forseti owns the risk verdict,
+Var owns Owner HIL approval, Thor owns Managed Run Command execution, and Saga
+owns the audit record. The current runtime maps these responsibilities to the
+authoring API, scheduler plus `EventIngest`, unified risk gate, HIL resume
+coordinator, and tool executor. The optional Pantheon consumer remains a shadow
+observer and does not execute the proposal.
+
+```mermaid
+sequenceDiagram
+  participant B as Bragi
+  participant I as EventIngest
+  participant F as Forseti
+  participant V as Var
+  participant T as Thor
+  participant S as Saga
+  B->>I: raw operator_request {artifact_ref, target}
+  I->>F: canonical Event plus trusted inventory context
+  F->>F: validate ActionType, capability, freshness, blast radius
+  F->>V: Owner HIL request
+  V-->>F: approval
+  F->>T: tool.run-python-on-vm
+  T->>T: stage, rehash cache, preflight, bounded execute
+  T->>S: VmTaskRun receipt
+```
+
+**Exit criteria.** Every guest invocation rechecks the artifact files; the
+target is an active inventory `compute.vm`; GPU tasks run only on a GPU-capable
+target; retries reuse the same Managed Run Command; polling failure attempts a
+remote cancel; every terminal result is audited.
+
+**Promotion gate.** 14 days and 30 shadow plans; accuracy >= 99%; zero policy
+escapes; explicit Owner review before `FDAI_VM_TASK_ENFORCE=1`.
+
+**Anti-scope.** Does not provision VMs, install packages or drivers, accept shell
+commands, pass source through the event bus, or bypass the risk gate.
+
+## 13. Workflow catalog summary
 
 | # | Name | Trigger | Primary agent | Enforce prerequisite |
 |---|------|---------|---------------|----------------------|
@@ -559,6 +603,7 @@ to HIL via `remediate.right-size-role`). Does not define the environment model
 | 9 | Rollback rehearsal | Loki schedule (monthly) | Loki | 3 rehearsals per ActionType |
 | 10 | Retrospective what-if | Operator or post-incident | Bragi | (inherently shadow) |
 | 11 | Operational readiness handoff | `ownership_transfer` signal | Forseti | 30d shadow/env, zero critical FN, FP < 5% |
+| 12 | Scheduled governed Python task | Strict cron schedule | Forseti + Thor | 30 plans, >= 99% accuracy, zero escapes, Owner HIL |
 
 ## Next steps
 

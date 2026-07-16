@@ -1,4 +1,4 @@
-import { routeHref } from "../router";
+import { currentRoute, navigate, routeHref } from "../router";
 /**
  * Live cockpit route.
  *
@@ -10,9 +10,8 @@ import { routeHref } from "../router";
  * - **Information hierarchy** - the ActionType is the headline of each
  *   tile; tier / gate / age are quiet annotations. HIL and deny tiles
  *   visually pop (rim glow, badge, subtle scale).
- * - **Vertical rail** - the left rail carries the vertical color
- *   (change / resilience / cost / other); the tier chip lives at
- *   top-right of the tile.
+ * - **Status-local color** - vertical, tier, and gate colors stay on
+ *   chips, badges, dots, and whole-surface tints; tile edges stay neutral.
  * - **Stage progress** - six dots at the top of each tile fill in as the
  *   pipeline advances. A T2 event that spends time in `verify` is
  *   visible without leaving text.
@@ -64,15 +63,58 @@ function decisionLabel(decision: string): string {
 }
 
 export function LiveRoute({ client }: Props) {
+  const initialRoute = currentRoute();
   const [state, dispatch] = useReducer(reducer, undefined, makeInitialState);
   const [tickerPaused, setTickerPaused] = useState(false);
   const [tickerCollapsed, setTickerCollapsed] = useState(false);
-  const [viewMode, setViewMode] = useState<"queue" | "flow">("queue");
+  const [viewMode, setViewMode] = useState<"queue" | "flow">(
+    initialRoute.search.get("view") === "flow" ? "flow" : "queue",
+  );
   const [frozenObserved, setFrozenObserved] = useState(0);
   const pausedSnapshotRef = useRef<readonly LiveStageEvent[]>([]);
   const pausedRef = useRef(false);
   const frozenObservedRef = useRef(0);
   const pendingEventsRef = useRef<LiveStageEvent[]>([]);
+
+  const updateRoute = ({
+    eventId = state.selectedEventId,
+    filter = state.filter,
+    view = viewMode,
+  }: {
+    readonly eventId?: string | null;
+    readonly filter?: FilterKind;
+    readonly view?: "queue" | "flow";
+  }): void => {
+    navigate(routeHref("live", {
+      params: {
+        event: eventId,
+        filter: filter === "all" ? null : filter,
+        view: view === "queue" ? null : view,
+      },
+    }));
+  };
+
+  useEffect(() => {
+    const sync = () => {
+      const route = currentRoute();
+      const filter = route.search.get("filter");
+      dispatch({
+        kind: "filter",
+        value: filter === "hil" || filter === "deny" || filter === "failed" || filter === "stuck"
+          ? filter
+          : "all",
+      });
+      dispatch({ kind: "select", event_id: route.search.get("event") });
+      setViewMode(route.search.get("view") === "flow" ? "flow" : "queue");
+    };
+    sync();
+    window.addEventListener("popstate", sync);
+    window.addEventListener("fdai:route-changed", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("fdai:route-changed", sync);
+    };
+  }, []);
 
   const url = useMemo(() => {
     const cfg = loadConfig();
@@ -82,6 +124,7 @@ export function LiveRoute({ client }: Props) {
 
   const { status, lastError } = useLiveStream({
     url,
+    getAuthorizationHeader: client.authorizationHeader,
     onEvent: (event) => {
       // Buffer events; the setInterval flusher below folds them into
       // ONE reducer dispatch per tick so a high-rate stream never
@@ -129,10 +172,6 @@ export function LiveRoute({ client }: Props) {
     }, 250);
     return () => window.clearInterval(handle);
   }, []);
-
-  // Client is unused today but part of the panel contract; keep the
-  // reference alive to silence unused-var complaints in strict mode.
-  void client;
 
   // Pause freezes the full presentation while leaving the read-only SSE
   // connection open. Frames received during the pause are intentionally
@@ -373,7 +412,7 @@ export function LiveRoute({ client }: Props) {
       if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
       if (target?.closest('[role="dialog"]')) return;
       if (e.key === "Escape" && state.selectedEventId) {
-        dispatch({ kind: "select", event_id: null });
+        updateRoute({ eventId: null });
         e.preventDefault();
         return;
       }
@@ -387,14 +426,14 @@ export function LiveRoute({ client }: Props) {
         const filters: readonly FilterKind[] = ["all", "hil", "deny", "failed", "stuck"];
         const value = filters[idx];
         if (value !== undefined) {
-          dispatch({ kind: "filter", value });
+          updateRoute({ filter: value });
           e.preventDefault();
         }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [state.selectedEventId, tickerPaused, state.session_total, state.ticker]);
+  }, [state.selectedEventId, state.filter, tickerPaused, state.session_total, state.ticker, viewMode]);
 
   return (
     <div class="live" data-filter={state.filter} data-ticker-collapsed={tickerCollapsed ? "1" : "0"}>
@@ -460,7 +499,7 @@ export function LiveRoute({ client }: Props) {
         </div>
         <div>
           <span>{t("live.health.environment")}</span>
-          <strong>{isDevMode ? t("live.health.devSynthetic") : t("live.health.configuredRuntime")}</strong>
+          <strong>{isDevMode ? t("live.health.devLocal") : t("live.health.configuredRuntime")}</strong>
         </div>
         <div>
           <span>{t("live.health.presentation")}</span>
@@ -479,7 +518,7 @@ export function LiveRoute({ client }: Props) {
               <button
                 type="button"
                 class="live-attention-chip live-attention-hil"
-                onClick={() => dispatch({ kind: "filter", value: "hil" })}
+                onClick={() => updateRoute({ filter: "hil" })}
                 title={t("live.attention.approvalTitle")}
               >
                 {t("live.attention.approvals", { count: attention.hil })}
@@ -489,7 +528,7 @@ export function LiveRoute({ client }: Props) {
               <button
                 type="button"
                 class="live-attention-chip live-attention-deny"
-                onClick={() => dispatch({ kind: "filter", value: "deny" })}
+                onClick={() => updateRoute({ filter: "deny" })}
                 title={t("live.attention.deniedTitle")}
               >
                 {t("live.attention.denied", { count: attention.deny })}
@@ -499,7 +538,7 @@ export function LiveRoute({ client }: Props) {
               <button
                 type="button"
                 class="live-attention-chip live-attention-failed"
-                onClick={() => dispatch({ kind: "filter", value: "failed" })}
+                onClick={() => updateRoute({ filter: "failed" })}
                 title={t("live.attention.failedTitle")}
               >
                 {t("live.attention.failed", { count: attention.failed })}
@@ -509,7 +548,7 @@ export function LiveRoute({ client }: Props) {
               <button
                 type="button"
                 class="live-attention-chip live-attention-stuck"
-                onClick={() => dispatch({ kind: "filter", value: "stuck" })}
+                onClick={() => updateRoute({ filter: "stuck" })}
                 title={t("live.attention.stuckTitle")}
               >
                 {t("live.attention.stuck", { count: attention.stuck })}
@@ -590,7 +629,7 @@ export function LiveRoute({ client }: Props) {
         </div>
         <div class="segmented-control" role="group" aria-label={t("live.work.viewModeLabel")}>
           {(["queue", "flow"] as const).map((mode) => (
-            <button type="button" class={viewMode === mode ? "active" : undefined} aria-pressed={viewMode === mode} onClick={() => setViewMode(mode)}>
+            <button type="button" class={viewMode === mode ? "active" : undefined} aria-pressed={viewMode === mode} onClick={() => updateRoute({ view: mode })}>
               {mode === "queue" ? t("live.work.queue") : t("live.work.flow")}
             </button>
           ))}
@@ -603,7 +642,7 @@ export function LiveRoute({ client }: Props) {
             key={f}
             type="button"
             class={`live-filter-chip ${state.filter === f ? "active" : ""}`}
-            onClick={() => dispatch({ kind: "filter", value: f })}
+            onClick={() => updateRoute({ filter: f })}
             title={t("live.work.filterTitle", { filter: t(`live.filter.${f}`), key: i + 1 })}
             aria-keyshortcuts={`${i + 1}`}
           >
@@ -621,7 +660,7 @@ export function LiveRoute({ client }: Props) {
             filter={state.filter}
             selectedEventId={state.selectedEventId}
             now={state.now}
-            onSelect={(eventId) => dispatch({ kind: "select", event_id: eventId })}
+            onSelect={(eventId) => updateRoute({ eventId })}
           />
         </section>
       ) : (
@@ -642,9 +681,8 @@ export function LiveRoute({ client }: Props) {
             onClick={
               tile
                 ? () =>
-                    dispatch({
-                      kind: "select",
-                      event_id: tile.event_id === state.selectedEventId ? null : tile.event_id,
+                    updateRoute({
+                      eventId: tile.event_id === state.selectedEventId ? null : tile.event_id,
                     })
                 : undefined
             }
@@ -738,7 +776,7 @@ export function LiveRoute({ client }: Props) {
         <DetailPanel
           tile={selectedTile}
           now={state.now}
-          onClose={() => dispatch({ kind: "select", event_id: null })}
+          onClose={() => updateRoute({ eventId: null })}
         />
       ) : null}
     </div>

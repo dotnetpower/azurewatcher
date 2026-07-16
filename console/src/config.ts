@@ -24,6 +24,10 @@ export interface ConsoleConfig {
   /** When true, MSAL is bypassed and the local read API projects the
    *  current `az login` user (matches `FDAI_READ_API_LOCAL_AZURE_CLI=1`). */
   readonly localAzureCliAuth: boolean;
+  /** Show a local auth chooser before entering a dev-mode console. Defaults
+   *  to true when VITE_DEV_MODE=1; set VITE_LOCAL_LOGIN_PROMPT=0 to retain
+   *  immediate anonymous bypass. */
+  readonly localLoginPrompt: boolean;
   /** Optional `owner/repo` of the catalog repository. When set, the
    *  workflow builder can offer a one-click "Open a PR on GitHub" for a
    *  validated draft (a new-file link; the console still never commits).
@@ -39,14 +43,16 @@ function envVar(key: string, fallback = ""): string {
 }
 
 export function loadConfig(): ConsoleConfig {
+  const devMode = envVar("VITE_DEV_MODE", "0") === "1";
   return {
     readApiBaseUrl: envVar("VITE_READ_API_BASE_URL", "http://127.0.0.1:8000"),
-    ingestionApiBaseUrl: envVar("VITE_INGESTION_API_BASE_URL", "http://127.0.0.1:8010"),
+    ingestionApiBaseUrl: envVar("VITE_INGESTION_API_BASE_URL", "http://127.0.0.1:8011"),
     msalClientId: envVar("VITE_MSAL_CLIENT_ID"),
     msalTenantId: envVar("VITE_MSAL_TENANT_ID"),
     msalApiScope: envVar("VITE_MSAL_API_SCOPE"),
-    devMode: envVar("VITE_DEV_MODE", "0") === "1",
+    devMode,
     localAzureCliAuth: envVar("VITE_LOCAL_AZURE_CLI_AUTH", "0") === "1",
+    localLoginPrompt: envVar("VITE_LOCAL_LOGIN_PROMPT", devMode ? "1" : "0") === "1",
     workflowCatalogRepo: envVar("VITE_WORKFLOW_CATALOG_REPO"),
     workflowCatalogBranch: envVar("VITE_WORKFLOW_CATALOG_BRANCH", "main"),
   };

@@ -11,7 +11,7 @@ fault_family: saturate
 intensity: extreme
 duration_seconds: 720.0
 expected_signal: host_memory
-injector: needs-injector
+injector: litmus:node-memory-hog
 blast_radius_cap: 1
 rollback_note: Delete the ChaosEngine.
 gates:

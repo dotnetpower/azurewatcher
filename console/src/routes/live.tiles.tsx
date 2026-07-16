@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { architectureHref } from "../components/architecture-map.model";
 import type { LiveStageName } from "../hooks/use-live-stream";
+import { routeHref } from "../router";
 import { t } from "./i18n/live";
 import {
   STAGE_ORDER,
@@ -81,7 +82,7 @@ export function LiveTile({ tile, filter, selected, now, onClick }: TileProps) {
   return (
     <button
       type="button"
-      class={`live-tile live-tile-vertical-${vertical} live-tile-gate-${gate}${dimmed}`}
+      class={`live-tile live-tile-gate-${gate}${dimmed}`}
       data-empty="0"
       data-failed={failed}
       data-done={done}
@@ -604,10 +605,10 @@ export function DetailPanel({
           {t("live.detail.readOnly")}
         </p>
         <div class="live-detail-actions">
-          <a class="btn" href={`/trace?correlation=${encodeURIComponent(tile.correlation_id)}`}>
+          <a class="btn" href={routeHref("trace", { params: { correlation: tile.correlation_id } })}>
             {t("live.detail.openTrace")}
           </a>
-          <a class="btn" href={`/audit?correlation=${encodeURIComponent(tile.correlation_id)}`}>
+          <a class="btn" href={routeHref("audit", { params: { correlation: tile.correlation_id } })}>
             {t("live.detail.openAudit")}
           </a>
           <a class="btn" href={architectureHref(tile.scope ?? undefined)}>

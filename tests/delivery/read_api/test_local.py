@@ -8,6 +8,7 @@ import pytest
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
+from fdai.core.control_loop import ControlLoopOutcome
 from fdai.core.rbac.resolver import Principal
 from fdai.core.rbac.roles import Role
 from fdai.delivery.read_api.dev import local as _local
@@ -16,9 +17,89 @@ from fdai.delivery.read_api.dev.azure_cli_identity import LocalAzureCliIdentity
 _DEV_ENV = "FDAI_READ_API_DEV_MODE"
 _LOCAL_ENTRA_ENV = "FDAI_READ_API_LOCAL_ENTRA"
 _LOCAL_AZURE_CLI_ENV = "FDAI_READ_API_LOCAL_AZURE_CLI"
+_LOCAL_SCENARIO_REPLAY_ENV = "FDAI_LOCAL_SCENARIO_REPLAY"
+_LOCAL_AZURE_DISCOVERY_ENV = "FDAI_LOCAL_AZURE_DISCOVERY"
+_LOCAL_AZURE_SUBSCRIPTION_ENV = "FDAI_LOCAL_AZURE_SUBSCRIPTION_ID"
+
+
+def _python_task() -> dict[str, object]:
+    return {
+        "task_id": "gpu.local-health",
+        "version": "1.0.0",
+        "entrypoint": "main.py",
+        "files": [{"path": "main.py", "content": "print('ok')\n"}],
+        "required_modules": [],
+        "capabilities": [],
+        "timeout_seconds": 60,
+        "python_executable": "/usr/bin/python3",
+    }
 
 
 class TestLocalEntrypoint:
+    def test_inventory_graph_defaults_to_synthetic(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from fdai.delivery.read_api.routes.demo_inventory_graph import (
+            demo_inventory_graph_provider,
+        )
+
+        monkeypatch.delenv(_LOCAL_AZURE_DISCOVERY_ENV, raising=False)
+        assert _local._build_inventory_graph_provider() is demo_inventory_graph_provider
+
+    def test_local_azure_discovery_requires_explicit_subscription(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(_LOCAL_AZURE_DISCOVERY_ENV, "1")
+        monkeypatch.delenv(_LOCAL_AZURE_SUBSCRIPTION_ENV, raising=False)
+        with pytest.raises(ValueError, match=_LOCAL_AZURE_SUBSCRIPTION_ENV):
+            _local._build_inventory_graph_provider()
+
+    def test_local_azure_discovery_builds_cli_provider(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from fdai.delivery.read_api.dev.azure_inventory_graph import (
+            AzureCliInventoryGraphProvider,
+        )
+
+        monkeypatch.setenv(_LOCAL_AZURE_DISCOVERY_ENV, "1")
+        monkeypatch.setenv(
+            _LOCAL_AZURE_SUBSCRIPTION_ENV,
+            "00000000-0000-0000-0000-000000000000",
+        )
+        provider = _local._build_inventory_graph_provider()
+        assert isinstance(provider, AzureCliInventoryGraphProvider)
+
+    def test_agent_stream_is_quiet_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv(_LOCAL_SCENARIO_REPLAY_ENV, raising=False)
+        monkeypatch.delenv("FDAI_AGENTS_REAL_RELAY", raising=False)
+
+        live, agents = _local._build_agent_streams()
+
+        assert live.sink is not None
+        assert live.emitter_factory is None
+        assert agents.sink is not None
+        assert agents.emitter_factory is None
+
+    def test_agent_stream_uses_control_loop_relay_when_replay_enabled(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(_LOCAL_SCENARIO_REPLAY_ENV, "1")
+        monkeypatch.delenv("FDAI_AGENTS_REAL_RELAY", raising=False)
+
+        live, agents = _local._build_agent_streams()
+
+        assert live.emitter_factory is not None
+        assert agents.sink is not None
+        assert agents.emitter_factory is None
+
+    def test_agent_stream_allows_explicit_synthetic_demo(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(_LOCAL_SCENARIO_REPLAY_ENV, "1")
+        monkeypatch.setenv("FDAI_AGENTS_REAL_RELAY", "0")
+
+        _live, agents = _local._build_agent_streams()
+
+        assert agents.sink is None
+
     def test_refuses_without_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(_DEV_ENV, raising=False)
         monkeypatch.delenv(_LOCAL_ENTRA_ENV, raising=False)
@@ -36,6 +117,11 @@ class TestLocalEntrypoint:
         assert len(audit["items"]) >= 1
         hil = client.get("/hil-queue").json()
         assert len(hil["items"]) >= 1
+        assert hil["detail_level"] == "full"
+        assert hil["items"][0]["stop_condition"]
+        assert hil["items"][0]["rollback_kind"] == "pr_revert"
+        assert hil["items"][0]["blast_radius_count"] == 12
+        assert hil["items"][0]["citing_rule_ids"] == ["network.nsg.no-inbound-any-ssh"]
         kpi = client.get("/kpi").json()
         assert kpi["event_count"] >= 1
         assert kpi["hil_pending"] >= 1
@@ -45,6 +131,21 @@ class TestLocalEntrypoint:
         assert review["id"] == "architecture-review"
         assert review["process"]["status"] == "waiting"
         assert review["regions"][0]["report"]["id"] == "architecture-review-process"
+        metric_report = client.get(
+            "/reports/metric-explorer/render",
+            params={
+                "metric_name": "fdai.audit.entries.count",
+                "group_by": "actor",
+            },
+        ).json()
+        total = next(widget for widget in metric_report["widgets"] if widget["id"] == "total")
+        trend = next(widget for widget in metric_report["widgets"] if widget["id"] == "trend")
+        assert total["data"]["value"] == 34.0
+        assert {series["label"] for series in trend["data"]["series"]} >= {
+            "Huginn",
+            "Forseti",
+            "Thor",
+        }
 
     def test_wires_action_proposal_route(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(_DEV_ENV, "1")
@@ -71,6 +172,34 @@ class TestLocalEntrypoint:
             assert action_run.state.value == "succeeded"
             assert action_run.shadow_mode is True
             assert action_run.outcome == "shadow_success"
+
+    def test_python_task_request_reaches_authoritative_hil(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(_DEV_ENV, "1")
+        application = _local.app()
+        with TestClient(application) as client:
+            staged = client.post("/python-tasks/stage", json=_python_task())
+            assert staged.status_code == 200
+            submitted = client.post(
+                "/python-tasks/request-run",
+                json={
+                    "artifact_ref": staged.json()["artifact_ref"],
+                    "target_resource_ref": "resource:compute/vm/gpu-worker",
+                    "reason": "Run the local governed health task.",
+                    "idempotency_key": "local-gpu-health-1",
+                },
+            )
+            assert submitted.status_code == 202
+
+            runtime = application.state.local_operator_runtime
+            assert runtime is not None
+            deadline = time.monotonic() + 1.0
+            while not runtime.results and time.monotonic() < deadline:
+                time.sleep(0.01)
+
+            assert runtime.results[-1].outcome is ControlLoopOutcome.HIL
+            assert len(runtime.hil_channel.sent) == 1
 
     async def test_builds_inside_running_event_loop(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(_DEV_ENV, "1")

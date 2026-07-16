@@ -12,8 +12,10 @@
  * the narrator seam, which only calls read-only console tools.
  */
 
-import { createNarrator } from "./narrator/index.js";
-import type { NarratorContext } from "./narrator/types.js";
+import { randomUUID } from "node:crypto";
+
+import { withChannelLocale, type CliChannelContext } from "./channel-context.js";
+import { askChat, type ChatHistoryTurn } from "./data/read-api.js";
 
 const TEAL = "\x1b[38;2;99;166;156m";
 const DIM = "\x1b[38;2;124;132;139m";
@@ -45,15 +47,18 @@ function strWidth(s: string): number {
   return w;
 }
 
-export async function startRepl(ctx: NarratorContext): Promise<void> {
+export async function startRepl(ctx: CliChannelContext): Promise<void> {
   const stdin = process.stdin;
-  // No TTY (piped/CI): the briefing already printed; nothing interactive to do.
-  if (!stdin.isTTY || typeof stdin.setRawMode !== "function") return;
+  // Sample mode is a renderer fixture only. Interactive turns always go
+  // through the shared read-API coordinator.
+  if (!ctx.apiUrl || !stdin.isTTY || typeof stdin.setRawMode !== "function") return;
+  const apiUrl = ctx.apiUrl;
 
-  const narrator = createNarrator();
+  const chatHistory: ChatHistoryTurn[] = [];
+  const sessionId = randomUUID();
   const promptStr = `${TEAL}\u203a ${RESET}`;
   const promptW = 2; // "> " display width
-  const hintText = `narrator: ${narrator.kind} - ask a question, a card number, or /exit - Up/Down history, Ctrl+W word`;
+  const hintText = "narrator: shared-api - ask a question or /exit - Up/Down history, Ctrl+W word";
 
   let buf: string[] = [];
   let cur = 0;
@@ -146,9 +151,24 @@ export async function startRepl(ctx: NarratorContext): Promise<void> {
     if (history[history.length - 1] !== q) history.push(q);
     busy = true;
     renderInput();
-    void narrator
-      .answer(q, ctx)
-      .then((a) => streamAnswer(a))
+    const answer = askChat(apiUrl, q, {
+      viewContext: withChannelLocale(ctx.locale ?? "en", {
+        routeId: "cli-briefing",
+        routeLabel: "Operator briefing",
+        records: ctx.payload ?? {},
+      }),
+      history: chatHistory,
+      sessionId,
+    }).then((reply) => reply.answer);
+    void answer
+      .then(async (a) => {
+        await streamAnswer(a);
+        chatHistory.push(
+          { role: "user", content: q },
+          { role: "assistant", content: a },
+        );
+        while (chatHistory.length > 12) chatHistory.shift();
+      })
       .catch((err: unknown) => appendConv(`(error) ${(err as Error).message}\n`))
       .finally(() => {
         busy = false;

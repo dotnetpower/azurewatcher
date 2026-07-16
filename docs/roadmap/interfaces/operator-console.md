@@ -124,13 +124,18 @@ flowchart TD
     (t1.judge default, t2.reasoner.primary escalation).
   - `session.py` - `ConversationSession` dataclass; state is projected from
     the append-only audit log.
+- [`cli/`](../../../cli)
+  - `src/repl.ts` - IME-safe stdin/stdout channel for the shared `POST /chat`
+    coordinator.
+  - `src/cockpit.ts` - live SSE presentation that publishes a
+    self-describing screen snapshot to the same coordinator.
 - `src/fdai/delivery/channels/` (planned layout; today's Teams adapter
   lives in [`src/fdai/delivery/chatops/`](../../../src/fdai/delivery/chatops))
-  - `cli_repl.py` - Day-1 channel adapter (stdin/stdout).
   - `teams_bot.py` - pull-direction Teams adapter (Bot Framework messaging).
   - `slack_bot.py` - pull-direction Slack adapter (Socket Mode).
   - `web_chat.py` - WebSocket adapter surfaced by the read-console API.
-- [`tools/chat.py`](../../../tools/chat.py) - the CLI entry point.
+- [`tools/chat.py`](../../../tools/chat.py) - headless JSONL development harness
+  for the core coordinator. It is not a second policy implementation.
 
 The CSP-neutral rule stays intact: `core/conversation/` imports **only**
 Protocols. All Azure SDK / httpx / Bot Framework calls live under
@@ -425,9 +430,11 @@ class ChannelAdapter(Protocol):
 
 ## 6. Session model + memory
 
-A `ConversationSession` is bounded and stateless in memory - all state is
-**projected from the audit log** at session load, so the coordinator can
-crash and recover on any node.
+A `ConversationSession` is a bounded working projection over the
+principal-scoped `ConversationHistoryStore`. PostgreSQL `conversation` and
+`conversation_turn` rows are the memory of record in production; the browser
+and in-process session hold disposable caches so the coordinator can recover
+on any node without replaying raw text from the audit log.
 
 ### 6.1 Session fields
 
@@ -439,18 +446,42 @@ class ConversationSession:
     channel_id: str                # channel adapter's channel identifier
     started_at: datetime
     break_glass: BreakGlassGrant | None  # if session activated it (§7.3)
-    turns: tuple[Turn, ...]        # projected from audit log
+    turns: tuple[Turn, ...]        # loaded from ConversationHistoryStore
 ```
 
 - `Turn` = `{turn_id, role, content, tool_calls?, tool_results?, tier,
   audit_entry_id}`.
-- `turns` is loaded lazily by paginating `query_audit(session_id=...)`.
+- `turns` is loaded lazily through the principal-scoped conversation route.
 
 ### 6.2 Persistence rules
 
-- **Day 1**: every turn (inbound + outbound + tool_call + tool_result +
-  tier + escalation_trigger) writes one append-only audit entry with
-  `action_kind=console.turn`. No new Postgres table.
+- **Conversation record**: inbound and terminal assistant turns append to
+  `conversation_turn` with a stable request idempotency key. The audit and
+  generic ontology projections retain ids, hashes, routing metadata, and
+  evidence references, not raw conversation bodies.
+- **User context**: `UserPreferenceStore` holds locale, verbosity, timezone,
+  and learner consent. `UserMemoryStore` accepts only explicitly confirmed
+  facts with source-turn provenance and optional expiry. `operator_memory`
+  remains a separate store for approved resource-scoped operational knowledge.
+- **Learner consent**: learner-facing turn projection is metadata-only by
+  default. A raw turn body is available only when the same principal has an
+  explicit `share_with_learner: true` preference.
+- **Retention and projection cleanup**: the scheduler removes inactive
+  conversations and old briefing runs after 90 days and removes memory facts
+  at their explicit expiry. Each PostgreSQL source deletion atomically queues
+  the corresponding ontology object ids. A leased worker deletes those
+  metadata-only projections with bounded exponential retry, so a transient
+  ontology failure cannot silently leave a permanent copy.
+- **Projection consistency boundary**: source writes synchronously upsert their
+  ontology projection. Durable queue recovery currently covers deletion only;
+  a process failure after a source write commits but before its projection
+  completes can leave stale metadata until that record is written again. A
+  write-side reconciliation worker is required before ontology projections are
+  treated as a complete source of current user-context state.
+- **Proactive behavior**: allowlisted `ConversationPolicy` records compile to
+  fixed narrator prompt fragments. Opening and scheduled briefings share a
+  deterministic `BriefingSpec`; durable subscriptions use IANA timezones and
+  store each grounded `BriefingRun` for the owning principal.
 - **Web conversation navigation**: the Console SPA renders a conversation
   list and a **New conversation** control. The list is a tab-scoped
   `sessionStorage` index over isolated transcript caches, so switching threads
@@ -462,10 +493,10 @@ class ConversationSession:
   detail URL starts or restores its own transcript. The default narrator is
   **Bragi**, and both its reply header and conversation row use the Bragi agent
   icon rather than the generic Deck label. **Clear cache** and **Remove cached
-  conversation** delete browser copies only; they never delete audit history.
-  This browser index is navigation state only; the append-only audit
-  projection remains the memory of record and closing the tab clears the
-  cache. The open Command Deck remains open across route navigation and live
+  conversation** delete browser copies only; they never delete durable server
+  history. This browser index is navigation state only. On a cache miss, the
+  Command Deck reloads principal-scoped turns from the server and mirrors them
+  back into `sessionStorage`. The open Command Deck remains open across route navigation and live
   screen re-renders; only an explicit close action or `Escape` dismisses it.
   L3 response language follows the current turn: a Korean prompt renders a
   Korean answer even when the console display locale is English. Otherwise,
@@ -480,13 +511,9 @@ class ConversationSession:
   navigates to its origin before restoring the transcript, so prior turns are
   never combined with evidence from a different screen. Agent conversations
   remain in their own group and retain their explicit agent scope.
-- **Week 1**: `operator_memory` (already scaffolded by a parallel session
-  under [`src/fdai/core/operator_memory/`](../../../src/fdai/core/operator_memory))
-  becomes the store for **out-of-band operator preferences**: "this
-  environment always uses tag X", "quarantine this pattern for
-  investigation before firing", "resource Y is a legacy exception". The
-  console read-writes it via a Protocol seam; it never becomes narrator
-  memory.
+- **Operational memory**: `operator_memory` stores approved, resource-scoped
+  notes such as exceptions and runbook hints. It requires a distinct approver
+  and never doubles as personal narrator memory.
 - **Month 1+**: recurring investigation patterns detected across sessions
   become discovery-loop signals (§9). Still not narrator memory - a rule
   candidate in the catalog is the resulting artifact.
@@ -504,7 +531,7 @@ class ConversationSession:
 ### 6.4 Working context assembly (no turn limit)
 
 The session transcript is the **memory of record**: every turn is
-persisted (the audit-log projection above) and never dropped, so the
+persisted in `ConversationHistoryStore` until the retention policy removes it, so the
 session remembers everything that happened. What the narrator receives on
 a given turn is a separate, **bounded** projection - the *working
 context* - re-assembled every turn under a token budget so a long session
@@ -909,6 +936,29 @@ answer "why did this happen" without a per-screen answerer:
 }
 ```
 
+An interactive screen should publish a complete operator model, not only KPI
+counters. In addition to `purpose`, `glossary`, and `facts`, its `records`
+should contain:
+
+- `sections`: the visible regions and what each region means.
+- `controls`: available inputs and commands, current values, options, and
+  enabled state. Each control should include an operator-facing `label` and
+  `detail`; an unavailable control should include `disabled_reason`.
+- `constraints`: limits, prerequisites, safety boundaries, and reasons an
+  operation is unavailable.
+- Domain record collections: the actual visible rows needed for lookup and
+  causal explanation.
+
+A route may delegate this contract to a pure sibling `*.view.ts` builder. The
+contract gate resolves that builder and still requires its `purpose`,
+`glossary`, and shared glossary catalog import. For a current-screen
+explanation, Bragi synthesizes purpose -> sections -> current status ->
+controls -> constraints/safety. It does not reduce the answer to a raw fact
+list. Stable `key` and `control` tokens remain available for deterministic
+verification, while normal answers use `label`, `detail`, and
+`disabled_reason`. The verifier treats a published `disabled_reason` as causal
+evidence only when all reason-text anchors occur in the answer's cause.
+
 #### 13.4.1 Cross-screen operational evidence
 
 `ViewSnapshot` is authoritative only for the rendered route. When a turn asks
@@ -963,6 +1013,43 @@ evidence_resolving -> generating -> provisional -> verifying
   -> verified | consistent | corrected | unverified
 ```
 
+The `evidence_resolving` status includes a bounded preview of the current
+screen source. After server-side resolution, the `generating` status replaces
+it with the actual read-only tool, operational, agent, or glossary sources
+selected for the turn. Client-supplied internal evidence is removed before
+this second preview is built. The deck keeps the retrieval trace visible until
+text is ready and for a minimum of 420 ms, then changes the same pending
+surface into the streaming answer. The two surfaces share width and alignment,
+with short entry motion and staggered source rows. Text received during that
+interval enters an adaptive visual queue that drains one to three paced deltas
+per display frame according to backlog; it is never dumped as one large first
+paint. When the answer first appears and when its terminal revision renders,
+the transcript moves to the newest content even if the operator scrolled upward
+during preparation. The completed reply labels manifest entries as evidence
+references, not as independent sources. A bounded correction that removes
+unsupported sentences and passes re-verification uses the verified visual
+treatment.
+
+The reply renderer supports ATX headings, emphasis, strong text,
+strikethrough, unordered and ordered lists, read-only task lists, blockquotes,
+thematic breaks, safe `http` / `https` / relative links, tables, fenced code,
+and chart blocks. Open code fences render as stable plain previews while
+streaming and are highlighted only after closure. Executable or otherwise
+unsafe link schemes remain plain text.
+
+The deck opens as a movable, resizable floating panel by default so operators
+can inspect the source screen while chatting. Dragging the header title moves
+the panel. Its left and top edges keep a 12 px guard, while the right and bottom
+edges may move beyond the viewport. Header controls preserve the same
+conversation while switching to a right sidebar or to the full workspace. The
+sidebar starts at 440 px; its left separator supports pointer and arrow-key
+resizing from 340 to 720 px and stores the width for the tab. Right-sidebar
+mode reduces the shell body by that same current width, so it does not cover
+navigation or page content. Floating and dock modes remain non-modal and do
+not trap focus or block page interaction; full workspace retains the modal
+focus trap. The selected mode is tab-scoped, and compact mobile viewports use
+the full-screen geometry.
+
 - `verified` means the terminal answer was rendered from server-owned
   operational evidence.
 - `consistent` means the answer was checked against the browser's current
@@ -993,15 +1080,24 @@ grounded RCA take a deterministic fast path: the server streams the canonical
 answer immediately after evidence lookup and does not invoke a model. A
 `matched` result with grounded RCA MAY stream model prose provisionally, then
 replace it with the canonical verified cause when needed. Screen-only answers
-terminate as `consistent`. A later phase MAY add atomic claim generation and
-one bounded rewrite, but deterministic verification remains the authority and
-a failed rewrite ends in abstention.
+terminate as `consistent`. For a localized glossary answer, one bounded rewrite
+may remove unsupported scope-only addenda and re-run deterministic verification;
+other unsupported claims still end in abstention. For a complete screen
+snapshot with a partial claim mismatch, one bounded rewrite may remove the
+entire sentences that contain unsupported claims and verify the remaining
+answer again. This correction requires at least one supported claim before and
+after the rewrite. A `0/N` result, truncated snapshot, or extraction overflow
+still ends in abstention.
 
 Latency targets are: first progress event within 100 ms of request admission,
 fast-path terminal answer within 500 ms p95 after evidence lookup completes,
 normal model TTFT within 2.5 s p95, first verification event within 100 ms of
 the provisional completion, and provisional-to-terminal verification within
 1 s p95. Progress reports completed checks, never a fabricated percentage.
+Incremental SSE deltas render without client-side delay. Only a large single
+frame or a same-tick queue burst is grouped into paint-sized chunks with a
+short cosmetic cadence; deterministic fallback prose keeps its separate,
+slower typewriter cadence.
 
 Screen-only provisional answers additionally produce an atomic claim artifact
 without a second model call. The deterministic extractor recognizes IDs,
@@ -1057,6 +1153,27 @@ and scale-to-zero startup pay no model cost. Its package and model stay
 removable: promotion or removal is decided in a later measured issue using a
 frozen English/Korean corpus, p95 latency and memory/cold-start deltas,
 contradiction catch rate, unknown rate, and clean-answer false-positive rate.
+
+#### 13.4.2.1 Deterministic AnswerPlan
+
+Every Command Deck turn now receives a typed `AnswerPlan` before prose generation. The
+pure `core/conversation/answer_plan.py` parser classifies English and Korean requests as
+definition, why, procedure, comparison, diagnosis, status, list, summary, proposal, or
+open question. It also records explicit current-turn detail, format, evidence, and
+audience modifiers. When two explicit modifiers conflict, the later instruction in the
+same turn wins. Stored preferences cannot override the current turn.
+
+The plan supplies intent-specific sections, a bounded word target, format, and evidence
+requirement. It is injected as server-owned snapshot metadata, returned in both JSON and
+SSE terminal responses, persisted additively with the transcript, and rendered as a
+compact localized `Bragi / intent / detail` label. The browser discards the plan's subject
+text and never exposes prompts or hidden reasoning.
+
+Phase A remains single-agent. `discuss=skip` for every turn, so the deterministic planner
+adds no model call, contributor round, tool execution, judgment, or approval authority.
+Answer-plan coverage stays separate from deterministic answer verification. Adaptive
+preferences and the bounded multi-agent planning round remain future shadow phases tracked
+by issue #28.
 
 #### 13.4.3 Live observation contract
 
@@ -1241,9 +1358,9 @@ Contract rules (enforced by `console/src/routes/view-contract.test.ts`):
   The offline deterministic answerer (`console/src/deck/answerer.ts`) and the
   server narrator (`chat.py`) both ground term and cause answers in the same
   `purpose`/`glossary`.
-- The CLI narrator (`cli/src/narrator`) is a separate surface; carrying the
-  same self-describing snapshot into its `console-tool` results is parallel
-  follow-up work.
+- The CLI REPL and live cockpit send the same self-describing snapshot to the
+  server narrator through `POST /chat`. The CLI contains no model client,
+  intent router, cloud credential flow, or console-tool implementation.
 
 #### 13.5.1 RCA view (root-cause analysis)
 
@@ -1373,6 +1490,90 @@ Var approves a high-risk one, and only Thor executes (shadow-first).
   HIL wait, or deny) is asynchronous.
 - **This is the second documented write route** alongside the 13.3 approval
   callback; both record a signal and never hold the executor Managed Identity.
+
+### 13.7 Python VM task workbench
+
+The Workflow Builder includes a multi-file Python task workbench backed by the
+six `/python-tasks/*` routes in
+[`python_tasks.py`](../../../src/fdai/delivery/read_api/routes/python_tasks.py).
+Operators can edit source files, choose an entrypoint, declare modules and host
+capabilities, validate, stage an immutable artifact, and render a shadow plan
+for an inventory Resource.
+
+The workbench preserves the console identity boundary:
+
+- **Validate** is pure AST and manifest validation.
+- **Generate editable draft** calls the injected `PythonTaskAuthor` with the
+  operator intent, target capabilities, and allowlisted modules. The draft must
+  still validate and stage before any request control is enabled.
+- **Stage artifact** writes the content-addressed artifact store, not a VM.
+- **Test shadow plan** uses `PlanningVmTaskRunner`; the read API has no Managed
+  Identity capable of creating a Run Command.
+- **Request governed run** publishes a typed `ActionProposal`. It doesn't call
+  `VmTaskRunner`, copy a file, or execute Python from the console process.
+- **Create schedule** stores a strict cron binding for the selected catalog
+  Workflow, artifact, and inventory target. A later scheduler tick publishes
+  the typed event.
+
+The result panel shows validation issues, artifact reference, planned file and
+byte counts, target capabilities, or the submitted correlation id. Runtime
+status continues on the Processes and audit surfaces after the control loop
+accepts the proposal.
+
+### 13.8 Grounded code in chat replies
+
+When a terminal Command Deck answer contains a fenced code block, the read API
+extracts it as a bounded `GroundedCodeArtifact`. The artifact carries the code,
+language, SHA-256 reference, and a static validation result. Python blocks are
+parsed and compiled without importing or executing them. Other languages are
+marked `not_checked` rather than presented as validated.
+
+The console keeps code collapsed under **Code evidence** by default. Expanding
+the disclosure shows the exact grounded content, its artifact reference, and
+whether syntax validation passed. The terminal artifact is derived from the
+final verified answer, not from an incomplete streaming token sequence. A tab
+may retain the artifact in `sessionStorage` with the transcript; defensive
+parsing drops malformed or oversized persisted entries.
+
+This display contract does not grant execution authority:
+
+- **No runtime writes**: the chat route never writes generated code into the
+  FDAI source tree, installed package, container filesystem, or active Git
+  checkout.
+- **No chat execution**: static parsing is the only operation performed in the
+  read API. It does not import the generated module, start a subprocess, create
+  a virtual environment, or call `VmTaskRunner`.
+- **Governed execution stays separate**: an operator who wants to run code must
+  create and stage a `PythonTask`, then publish a typed `ActionProposal` through
+  the flow in section 13.7. The risk gate, approval ceiling, executor identity,
+  and audit path remain authoritative.
+- **Temporary storage is not the sandbox**: a runner may use a per-run directory
+  such as `/tmp/fdai-code/<run-id>` for writable files, but isolation comes from
+  a separate principal, a read-only runtime filesystem, path and symlink checks,
+  resource limits, network policy, and cleanup. A path convention alone is not
+  a security boundary.
+
+### 13.9 Ontology registry projection
+
+`GET /ontology/graph` is the read-only registry projection for the web
+console's three ontology views:
+
+- **Objects**: ObjectTypes and LinkType edges render as one selected,
+  deterministic one-hop neighborhood. The inspector shows recorded properties
+  plus incoming and outgoing relationships.
+- **Links**: selecting a LinkType shows every recorded `from_type -> to_type`
+  endpoint pair, cardinality, and the causal, transitive, and temporal flags.
+  The console doesn't infer relationship semantics absent from the catalog.
+- **Actions**: the response includes the loaded ActionType catalog as complete
+  safety-contract records. The catalog view exposes category, trigger,
+  execution path, rollback contract, default mode, preconditions, stop
+  conditions, blast-radius declaration, tier ceilings, and promotion gate.
+
+The ActionType projection is additive: `action_type_count` and `action_types`
+may be zero or absent on an older deployment, while ObjectType and LinkType
+exploration continues to work. ActionTypes stay out of the ObjectType graph so
+a large action catalog doesn't obscure resource relationships. All three views
+are GET-only and issue no action or approval call.
 
 ## 14. MCP - future work (Week 2+)
 

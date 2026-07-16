@@ -1,0 +1,7 @@
+schema_version: "1.0.0"
+name: instantiates_workflow
+version: "1.0.0"
+from_type: Process
+to_type: WorkflowDefinition
+cardinality: many_to_one
+description: Version-pinned WorkflowDefinition instantiated by a Process run.

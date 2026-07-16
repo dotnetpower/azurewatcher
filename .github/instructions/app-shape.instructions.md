@@ -53,6 +53,23 @@ shape maps to environments and CI/CD.
 - **Approval and execution are distinct principals** - no self-approval. See
   [../../docs/roadmap/architecture/security-and-identity.md](../../docs/roadmap/architecture/security-and-identity.md).
 
+## Console Visual Boundary (MUST)
+
+- Console cards, panels, page sections, callouts, workflow nodes, table rows, and list rows
+  **MUST NOT use a colored top edge or colored left edge as decoration or status**. This
+  prohibition includes thick `border-top` / `border-left`, inset edge shadows, absolutely
+  positioned bars, ribbons, rails, and `::before` / `::after` strips at the top or left.
+- Status and selection **MUST** use content-local cues instead: text, icons, badges, neutral
+  full borders, subtle whole-surface background tint, or an outline around the complete
+  control. A semantic color belongs on the status datum itself, never on the container edge.
+- Do not reintroduce the edge-accent pattern from static prototypes. Prototype palette and
+  information hierarchy may be reused, but colored card rails and top stamps are not part of
+  the production console design.
+- Exceptions are limited to non-content mechanics whose meaning depends on position: the
+  Activity Bar's active-navigation marker, drag-and-drop insertion indicators, loading
+  spinners, charts, graph edges, progress meters, and focus outlines. These exceptions MUST
+  NOT be repurposed as card or panel decoration.
+
 ## Azure Mapping (draft - reconfirm preview services at adoption time)
 
 Azure is the implemented target (see

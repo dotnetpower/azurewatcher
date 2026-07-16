@@ -17,6 +17,8 @@ properties:
   user_id:
     type: string
     required: true
+    access_scope: owner
+    purpose_binding: [user_context]
     description: RBAC-scoped user identifier; cross-user reads refused.
   started_at:
     type: string
@@ -33,4 +35,6 @@ properties:
   correlation_id:
     type: string
     required: false
+    access_scope: owner
+    purpose_binding: [user_context]
     description: Root correlation id linking this session to trace records.

@@ -327,6 +327,29 @@ def test_causal_claim_requires_narrative_evidence() -> None:
     )
 
 
+def test_disabled_reason_is_control_causal_evidence() -> None:
+    context = _context(
+        records={
+            "controls": [
+                {
+                    "label": "Upload files",
+                    "enabled": False,
+                    "disabled_reason": "Confirm shared visibility before uploading.",
+                }
+            ]
+        }
+    )
+
+    result = verify_screen_claims(
+        "Upload files is disabled because you must confirm shared visibility before uploading.",
+        context,
+    )
+
+    causal = next(claim for claim in result.claims if claim.kind == "causal")
+    assert causal.status == "supported"
+    assert causal.evidence_refs == ("snapshot:record:controls:0:disabled_reason",)
+
+
 def test_bounded_absence_requires_complete_zero_fact() -> None:
     context = _context(facts=[{"key": "pending_approvals", "value": 0}])
 

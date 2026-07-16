@@ -36,7 +36,7 @@ export function getDeckUser(): DeckUser | null {
 
 /** Derive the deck user from the MSAL auth context (roles from id-token claims). */
 export function deckUserFromAuth(auth: AuthContext): DeckUser {
-  if (auth.devMode && !auth.localAzureCli) {
+  if (auth.devMode && !auth.localAzureCli && !auth.account) {
     return { accountId: "dev", name: "dev", username: null, roles: [], devMode: true };
   }
   const account = auth.account;

@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -43,7 +44,7 @@ from typing import Any, Final
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from starlette.routing import Route
+from starlette.routing import BaseRoute, Route
 
 from fdai.agents.bragi import translate_action_intent
 from fdai.core.console_request import (
@@ -266,6 +267,21 @@ class ConsoleActionSubmitter:
                 max_question_chars=MAX_QUESTION_CHARS,
             )
             if incident_result is not None:
+                if (
+                    incident_result.get("submitted") is True
+                    and incident_result.get("action_type") == "incident.create"
+                ):
+                    try:
+                        await self._publish_incident_ticket_proposal(
+                            incident_result=incident_result,
+                            principal=principal,
+                            session_id=session_id,
+                        )
+                    except Exception:  # noqa: BLE001 - incident exists; surface ticket failure
+                        _LOG.exception("incident ticket proposal publish failed")
+                        incident_result["ticket_proposal_submitted"] = False
+                    else:
+                        incident_result["ticket_proposal_submitted"] = True
                 return incident_result
         action_type, resource_id = translate_action_intent(question, self.action_type_names)
         if action_type is None:
@@ -278,6 +294,37 @@ class ConsoleActionSubmitter:
         bounded_resource = resource_id[:MAX_RESOURCE_ID_CHARS] if resource_id else None
         bounded_question = question[:MAX_QUESTION_CHARS]
         bounded_session = session_id[:MAX_SESSION_ID_CHARS] if session_id else None
+        action_params: dict[str, object] = {
+            "question": bounded_question,
+            "session_id": bounded_session,
+        }
+        if action_type == "tool.run-chaos-experiment":
+            chaos_request = _parse_chaos_request(bounded_question)
+            if chaos_request is None:
+                return {
+                    "submitted": False,
+                    "reason": "invalid_action_arguments",
+                    "correlation_id": correlation_id,
+                    "action_type": action_type,
+                }
+            scenario_id, targets = chaos_request
+            bounded_resource = targets[0][:MAX_RESOURCE_ID_CHARS]
+            action_params = {"scenario_id": scenario_id, "targets": list(targets)}
+        elif action_type == "tool.run-investigation":
+            investigation_request = _parse_investigation_request(bounded_question)
+            if investigation_request is None:
+                return {
+                    "submitted": False,
+                    "reason": "invalid_action_arguments",
+                    "correlation_id": correlation_id,
+                    "action_type": action_type,
+                }
+            resource_kind, resource_ref = investigation_request
+            bounded_resource = resource_ref[:MAX_RESOURCE_ID_CHARS]
+            action_params = {
+                "resource_ref": bounded_resource,
+                "resource_kind": resource_kind,
+            }
         # Scenario B deny-override block: a prior deny for this exact request is
         # authoritative - a repeat console ask cannot lift it. A prior no-op (or
         # no prior verdict) proceeds to a fresh judgement. Only applied when a
@@ -314,7 +361,7 @@ class ConsoleActionSubmitter:
             "action_type": action_type,
             "resource_id": bounded_resource,
             "event_type": "operator_request",
-            "params": {"question": bounded_question, "session_id": bounded_session},
+            "params": action_params,
         }
         # Key by resource (per-resource ordering) so concurrent proposals on
         # the same resource serialize; fall back to the dedup key.
@@ -331,6 +378,67 @@ class ConsoleActionSubmitter:
             "action_type": action_type,
             "resource_id": bounded_resource,
         }
+
+    async def _publish_incident_ticket_proposal(
+        self,
+        *,
+        incident_result: dict[str, Any],
+        principal: Principal,
+        session_id: str | None,
+    ) -> None:
+        incident_id = str(incident_result["incident_id"])
+        resource_id = f"incident:{incident_id}"
+        correlation_id = f"incident-ticket:{incident_id}"
+        payload: dict[str, Any] = {
+            "idempotency_key": correlation_id,
+            "correlation_id": correlation_id,
+            "initiator_principal": principal.oid,
+            "operator_initiated": True,
+            "action_type": "tool.open-incident-ticket",
+            "resource_id": resource_id,
+            "event_type": "operator_request",
+            "params": {
+                "incident_id": incident_id,
+                "ticket_provider": "github",
+                "summary": f"FDAI incident {incident_id}",
+                "description": "Created from a confirmed operator conversation.",
+                "labels": ["fdai-incident"],
+            },
+            "session_id": session_id,
+        }
+        await self.event_bus.publish(self.raw_event_topic, resource_id, payload)
+
+
+_CHAOS_REQUEST = re.compile(
+    r"(?:tool\.)?run[- ]chaos[- ]experiment\s+"
+    r"(?P<scenario>[a-z0-9._-]+)\s+(?:on|targets?)\s+"
+    r"(?P<targets>[a-z0-9._:/,-]+)",
+    re.IGNORECASE,
+)
+_INVESTIGATION_REQUEST = re.compile(
+    r"(?:tool\.)?run[- ]investigation\s+"
+    r"(?P<kind>aks_cluster|mysql_flexible_server|azure_openai|"
+    r"application_gateway|api_management)\s+"
+    r"(?P<resource>[a-z0-9._:/-]+)",
+    re.IGNORECASE,
+)
+
+
+def _parse_chaos_request(question: str) -> tuple[str, tuple[str, ...]] | None:
+    match = _CHAOS_REQUEST.search(question)
+    if match is None:
+        return None
+    targets = tuple(item.strip() for item in match.group("targets").split(",") if item.strip())
+    if not targets:
+        return None
+    return match.group("scenario"), targets
+
+
+def _parse_investigation_request(question: str) -> tuple[str, str] | None:
+    match = _INVESTIGATION_REQUEST.search(question)
+    if match is None:
+        return None
+    return match.group("kind").lower(), match.group("resource")
 
 
 AuthorizePrincipalFn = Callable[[Request], Awaitable[Principal]]
@@ -415,3 +523,29 @@ def make_console_action_route(
         return JSONResponse(result, status_code=status_code)
 
     return Route(path, handler, methods=["POST"])
+
+
+def append_console_action_route(
+    routes: list[BaseRoute],
+    *,
+    submitter: ConsoleActionSubmitter | None,
+    authorize_principal: AuthorizePrincipalFn,
+    core_paths: frozenset[str],
+    logger: logging.Logger,
+) -> None:
+    """Append the optional propose-only console action route."""
+    if submitter is None:
+        return
+    if DEFAULT_ACTION_PATH in core_paths:
+        raise ValueError(f"action path {DEFAULT_ACTION_PATH!r} collides with a core route")
+    routes.append(
+        make_console_action_route(
+            submitter=submitter,
+            authorize_principal=authorize_principal,
+        )
+    )
+    logger.warning(
+        "Console action-submit route wired at POST %s (propose-only, "
+        "Contributor+ required); operator commands enter the typed pipeline.",
+        DEFAULT_ACTION_PATH,
+    )

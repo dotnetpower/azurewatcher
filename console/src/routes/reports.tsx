@@ -77,12 +77,24 @@ export function ReportsRoute({ client }: Props) {
   }, [client, requestedId]);
 
   const updateVariable = (name: string, value: string) => {
-    setState((current) => current.status === "ready"
-      ? {
-          status: "ready",
-          data: { ...current.data, variables: { ...current.data.variables, [name]: value } },
-        }
-      : current);
+    setState((current) => {
+      if (current.status !== "ready") return current;
+      const variables = { ...current.data.variables, [name]: value };
+      if (current.data.selected) {
+        window.history.replaceState(
+          window.history.state,
+          "",
+          routeHref("reports", {
+            segments: [current.data.selected.id],
+            params: variables,
+          }),
+        );
+      }
+      return {
+        status: "ready",
+        data: { ...current.data, variables },
+      };
+    });
   };
 
   const renderSelected = async () => {

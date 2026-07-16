@@ -63,6 +63,14 @@ resource "azurerm_container_app_job" "scheduler_tick" {
       command = ["python", "-m", "fdai.delivery.scheduler_tick_cli"]
 
       dynamic "env" {
+        for_each = merge(local.core_config_env, local.optional_config_env)
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+
+      dynamic "env" {
         for_each = nonsensitive(var.state_store_dsn_secret_id) == "" ? toset([]) : toset(["1"])
         content {
           name        = "FDAI_SCHEDULE_STORE_DSN"

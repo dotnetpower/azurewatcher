@@ -136,6 +136,18 @@ async def test_process_view_list_and_render() -> None:
     assert rendered.json()["regions"][0]["report"]["id"] == "architecture-review-process"
 
 
+async def test_process_journal_returns_snapshot_and_append_only_events() -> None:
+    client = await _client()
+
+    response = client.get("/views/process/process-1/events")
+
+    assert response.status_code == 200
+    assert response.json()["process"]["id"] == "process-1"
+    assert response.json()["process"]["has_view"] is True
+    assert response.json()["count"] == 1
+    assert response.json()["events"][0]["kind"] == "process.created"
+
+
 async def test_process_view_rejects_bad_or_missing_id() -> None:
     client = await _client()
     malformed = client.get("/views/process/%20")

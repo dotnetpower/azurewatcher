@@ -15,6 +15,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 
+from croniter import croniter
+
 
 @dataclass(frozen=True, slots=True)
 class ScheduledTask:
@@ -38,6 +40,7 @@ class ScheduledTask:
     enabled: bool = True
     start_at: datetime | None = None
     last_run: datetime | None = None
+    cron_expression: str | None = None
 
     def __post_init__(self) -> None:
         if self.interval_seconds <= 0:
@@ -46,6 +49,12 @@ class ScheduledTask:
             raise ValueError("ScheduledTask.task_id MUST be non-empty")
         if not self.created_by:
             raise ValueError("ScheduledTask.created_by MUST be non-empty")
+        if self.cron_expression is not None:
+            if len(self.cron_expression.split()) != 5 or not croniter.is_valid(
+                self.cron_expression,
+                strict=True,
+            ):
+                raise ValueError("ScheduledTask.cron_expression MUST be a strict 5-field cron")
 
     def with_last_run(self, at: datetime) -> ScheduledTask:
         """Return a copy with ``last_run`` advanced to ``at``."""

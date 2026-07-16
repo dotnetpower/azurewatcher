@@ -10,6 +10,7 @@
 import type {
   ActionTypePaletteEntry,
   WorkflowCatalogEntry,
+  WorkflowDefinitionCatalogResponse,
 } from "../workflow/validate";
 
 // ---------------------------------------------------------------------------
@@ -49,6 +50,7 @@ export interface FormState {
 export interface CombinedData {
   readonly palette: readonly ActionTypePaletteEntry[];
   readonly workflows: readonly WorkflowCatalogEntry[];
+  readonly definitions: WorkflowDefinitionCatalogResponse;
 }
 
 // ---------------------------------------------------------------------------

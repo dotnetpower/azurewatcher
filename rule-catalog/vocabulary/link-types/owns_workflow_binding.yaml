@@ -1,0 +1,7 @@
+schema_version: "1.0.0"
+name: owns_workflow_binding
+version: "1.0.0"
+from_type: Principal
+to_type: WorkflowBinding
+cardinality: one_to_many
+description: Workflow bindings owned by one authenticated Principal.

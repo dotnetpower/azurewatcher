@@ -26,7 +26,13 @@ import sql from "highlight.js/lib/languages/sql";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
-import { parseAnswer, parseInline, type ChartDatum, type ChartSpec } from "./rich-parse";
+import {
+  parseAnswer,
+  parseInline,
+  type ChartDatum,
+  type ChartSpec,
+  type ListItem,
+} from "./rich-parse";
 
 // Register the languages that plausibly appear in FDAI answers (config, IaC,
 // policy, glue). Unregistered languages fall back to auto-detect, then plain.
@@ -53,23 +59,78 @@ function TextBlock({ text, caret = false }: { readonly text: string; readonly ca
     <>
       {lines.map((line, i) => (
         <p key={i} class="deck-turn-line">
-          {parseInline(line).map((run, j) =>
-            run.t === "code" ? (
-              <code key={j} class="deck-inline-code">
-                {run.s}
-              </code>
-            ) : run.t === "strong" ? (
-              <strong key={j}>{run.s}</strong>
-            ) : (
-              <span key={j}>{run.s}</span>
-            ),
-          )}
+          <InlineContent text={line} />
           {caret && i === lines.length - 1 ? (
             <span class="deck-gr-caret" aria-hidden="true" />
           ) : null}
         </p>
       ))}
     </>
+  );
+}
+
+function HeadingBlock({ level, text }: { readonly level: number; readonly text: string }) {
+  const content = <InlineContent text={text} />;
+  if (level <= 1) return <h3 class="deck-rich-heading is-level-1">{content}</h3>;
+  if (level === 2) return <h4 class="deck-rich-heading is-level-2">{content}</h4>;
+  return <h5 class="deck-rich-heading is-level-3">{content}</h5>;
+}
+
+function InlineContent({ text }: { readonly text: string }) {
+  return (
+    <>
+      {parseInline(text).map((run, index) =>
+        run.t === "code" ? (
+          <code key={index} class="deck-inline-code">{run.s}</code>
+        ) : run.t === "strong" ? (
+          <strong key={index}>{run.s}</strong>
+        ) : run.t === "emphasis" ? (
+          <em key={index}>{run.s}</em>
+        ) : run.t === "strike" ? (
+          <del key={index}>{run.s}</del>
+        ) : run.t === "link" ? (
+          <a
+            key={index}
+            href={run.href}
+            target="_blank"
+            rel="noreferrer noopener"
+            aria-label={`${run.s} (opens in a new tab)`}
+          >
+            {run.s}
+          </a>
+        ) : (
+          <span key={index}>{run.s}</span>
+        ))}
+    </>
+  );
+}
+
+function ListBlock({ ordered, items }: {
+  readonly ordered: boolean;
+  readonly items: readonly ListItem[];
+}) {
+  const content = items.map((item, index) => (
+    <li key={index} class={item.checked !== undefined ? "is-task" : undefined}>
+      {item.checked !== undefined ? (
+        <span class={`deck-task-mark ${item.checked ? "is-checked" : ""}`} aria-hidden="true">
+          {item.checked ? "\u2713" : ""}
+        </span>
+      ) : null}
+      <InlineContent text={item.text} />
+    </li>
+  ));
+  return ordered ? (
+    <ol class="deck-rich-list is-ordered">{content}</ol>
+  ) : (
+    <ul class="deck-rich-list">{content}</ul>
+  );
+}
+
+function QuoteBlock({ text }: { readonly text: string }) {
+  return (
+    <blockquote class="deck-rich-quote">
+      <TextBlock text={text} />
+    </blockquote>
   );
 }
 
@@ -119,9 +180,17 @@ function highlightCode(code: string, lang: string): string {
   }
 }
 
-function CodeBlock({ lang, code }: { readonly lang: string; readonly code: string }) {
+function CodeBlock({
+  lang,
+  code,
+  pending,
+}: {
+  readonly lang: string;
+  readonly code: string;
+  readonly pending: boolean;
+}) {
   const [copied, setCopied] = useState(false);
-  const html = highlightCode(code, lang);
+  const html = pending ? null : highlightCode(code, lang);
   const copy = () => {
     void navigator.clipboard?.writeText(code).then(
       () => {
@@ -137,13 +206,24 @@ function CodeBlock({ lang, code }: { readonly lang: string; readonly code: strin
     <figure class="deck-code">
       <figcaption class="deck-code-head">
         <span class="deck-code-lang">{lang || "code"}</span>
-        <button type="button" class="deck-code-copy" onClick={copy}>
-          {copied ? "copied" : "copy"}
-        </button>
+        {pending ? (
+          <span class="deck-code-streaming">streaming</span>
+        ) : (
+          <button type="button" class="deck-code-copy" onClick={copy}>
+            {copied ? "copied" : "copy"}
+          </button>
+        )}
       </figcaption>
       <pre class="deck-code-pre">
-        {/* hljs escapes the input; its output HTML is safe to inject. */}
-        <code class="hljs" dangerouslySetInnerHTML={{ __html: html }} />
+        {html === null ? (
+          <code class="hljs deck-code-pending-text">
+            {code}
+            <span class="deck-gr-caret" aria-hidden="true" />
+          </code>
+        ) : (
+          // hljs escapes the input; its output HTML is safe to inject.
+          <code class="hljs" dangerouslySetInnerHTML={{ __html: html }} />
+        )}
       </pre>
     </figure>
   );
@@ -330,9 +410,11 @@ function LineChart({ spec }: { readonly spec: ChartSpec }) {
 export function RichContent({
   text,
   streaming = false,
+  suppressCode = false,
 }: {
   readonly text: string;
   readonly streaming?: boolean;
+  readonly suppressCode?: boolean;
 }) {
   const segments = parseAnswer(text);
   if (segments.length === 0) {
@@ -346,10 +428,26 @@ export function RichContent({
         if (seg.kind === "text") {
           return <TextBlock key={i} text={seg.text} caret={streaming && isLast} />;
         }
+        if (seg.kind === "heading") {
+          return <HeadingBlock key={i} level={seg.level} text={seg.text} />;
+        }
+        if (seg.kind === "list") {
+          return <ListBlock key={i} ordered={seg.ordered} items={seg.items} />;
+        }
+        if (seg.kind === "quote") {
+          return <QuoteBlock key={i} text={seg.text} />;
+        }
+        if (seg.kind === "divider") {
+          return <hr key={i} class="deck-rich-divider" />;
+        }
         if (seg.kind === "table") {
           return <TableBlock key={i} headers={seg.headers} rows={seg.rows} />;
         }
-        if (seg.kind === "code") return <CodeBlock key={i} lang={seg.lang} code={seg.code} />;
+        if (seg.kind === "code") {
+          return suppressCode ? null : (
+            <CodeBlock key={i} lang={seg.lang} code={seg.code} pending={seg.pending} />
+          );
+        }
         if (seg.kind === "chart-pending") return <ChartPending key={i} />;
         if (seg.spec.type === "line") return <LineChart key={i} spec={seg.spec} />;
         return <MiniChart key={i} spec={seg.spec} />;

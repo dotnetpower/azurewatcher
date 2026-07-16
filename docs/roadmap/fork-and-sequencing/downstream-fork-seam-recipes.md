@@ -38,6 +38,7 @@ that stitches these recipes together, see
 14. [Delivery adapter (custom publisher)](#513-delivery-adapter-custom-publisher)
 15. [Console ReadPanel additions](#514-console-readpanel-additions)
 16. [Fork entry point (`entry.py`)](#515-fork-entry-point-entrypy)
+17. [Capability bundle registration](#517-capability-bundle-registration)
 
 ### 5.1 Azure OpenAI adapters (LlmBindings)
 
@@ -1207,3 +1208,42 @@ expected candidates, (2) a sensitivity-tripping fixture routes to
 - Committing manuals or distilled rules upstream. They are customer
   data and live only in the fork, exactly like the rule catalog
   additions in 5.8.
+
+### 5.17 Capability bundle registration
+
+**When to use**: when one fork feature needs operator-facing discovery plus a
+reasoning tool, `ActionType`, or `Workflow` binding. Use the narrower recipes
+above when you only replace one infrastructure provider.
+
+**The seam**: `CapabilityBundle` groups `Capability` metadata,
+`CapabilityBinding` references, and reasoning-tool providers. Install it with
+`fdai.composition.install_capability_bundle(...)`. The installer returns a new
+`Container`; the original remains unchanged. An `ActionType` or `Workflow`
+binding is only a typed reference and never invokes the target directly.
+
+**How to bind**:
+
+1. Load the combined upstream and fork tool, ActionType, and Workflow catalogs.
+2. Construct the fork-owned provider and `CapabilityBundle`.
+3. Pass the loaded catalog objects to `install_capability_bundle`.
+4. In Azure mode, pass the returned container to `wire_azure_container`.
+   Installed reasoning-tool providers are included automatically.
+
+The installer blocks startup on unknown targets, missing or duplicate
+providers, mismatches between a tool artifact's declared provider and the
+bundle, and unreferenced providers. See
+[`fdai.fork_examples.capability_bundle`](../../../src/fdai/fork_examples/capability_bundle.py)
+for a copy-ready state-query provider and composition helper.
+
+**How to test**: assert that the original container has no fork binding, the
+returned container resolves the capability, malformed references fail before
+provider I/O, and the provider output satisfies the tool artifact's output
+contract. Keep mutating capabilities in shadow mode and test them through the
+normal risk-gate and executor path rather than calling the resolved target.
+
+**Anti-patterns**:
+
+- Registering the same provider through both a bundle and
+  `AzureWireOverrides.tool_providers`. Duplicate ids are a startup error.
+- Using a bundle as a generic function dispatcher for mutations. Mutations
+  remain `ActionType` invocations governed by the control loop.

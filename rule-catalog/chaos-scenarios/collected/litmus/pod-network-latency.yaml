@@ -11,7 +11,7 @@ fault_family: delay
 intensity: high
 duration_seconds: 360.0
 expected_signal: gateway_latency
-injector: needs-injector
+injector: litmus:pod-network-latency
 blast_radius_cap: 2
 rollback_note: Delete the ChaosEngine; tc qdisc del removes the rule.
 gates:

@@ -1,0 +1,7 @@
+schema_version: "1.0.0"
+name: preference_of
+version: "1.0.0"
+from_type: UserPreference
+to_type: Principal
+cardinality: one_to_one
+description: Principal whose semantic narrator preferences this record controls.

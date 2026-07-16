@@ -19,9 +19,10 @@ interface ShellProps {
   readonly activePanelId: string;
   readonly auth: AuthContext;
   readonly children: ComponentChildren;
+  readonly onExitLocalSession?: () => void;
 }
 
-export function Shell({ activePanelId, auth, children }: ShellProps) {
+export function Shell({ activePanelId, auth, children, onExitLocalSession }: ShellProps) {
   const [preferences, setPreferences] = useState<ConsolePreferences>(readConsolePreferences);
 
   useEffect(() => {
@@ -102,8 +103,23 @@ export function Shell({ activePanelId, auth, children }: ShellProps) {
               <span>{auth.account.username}</span>
               <span class="badge">Azure CLI</span>
             </>
+          ) : auth.devMode && auth.account ? (
+            <>
+              <span>{auth.account.username}</span>
+              <span class="badge">Local Entra</span>
+              <button type="button" onClick={() => { void auth.signOut(); }}>
+                {t("login.signOut")}
+              </button>
+            </>
           ) : auth.devMode ? (
-            <span class="badge">dev mode</span>
+            <>
+              <span class="badge">dev mode</span>
+              {onExitLocalSession ? (
+                <button type="button" onClick={onExitLocalSession}>
+                  {t("login.exitLocalSession")}
+                </button>
+              ) : null}
+            </>
           ) : auth.account ? (
             <>
               <span>{auth.account.username}</span>

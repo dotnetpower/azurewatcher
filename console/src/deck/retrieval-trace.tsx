@@ -20,7 +20,11 @@
  */
 
 import { useEffect, useState } from "preact/hooks";
-import type { BackendHealth } from "./backend";
+import type {
+  BackendHealth,
+  RetrievalSourcePreview,
+  VerificationProgress,
+} from "./backend";
 import type { ViewSnapshot } from "./context";
 
 /** Fixed card pitch: card height + gap. Keep in sync with styles.css
@@ -29,7 +33,7 @@ const CARD_PITCH_PX = 40;
 /** How many source cards stay in the slot window at once. */
 const VISIBLE = 3;
 /** Cadence of the source cascade. */
-const FACT_INTERVAL_MS = 110;
+const FACT_INTERVAL_MS = 95;
 
 interface Stage {
   readonly label: string;
@@ -38,9 +42,28 @@ interface Stage {
   readonly done: boolean;
 }
 
+interface SourceCard {
+  readonly kind: string;
+  readonly label: string;
+  readonly detail: string;
+}
+
+function sourceCards(
+  snapshot: ViewSnapshot | null,
+  previews: readonly RetrievalSourcePreview[],
+): readonly SourceCard[] {
+  if (previews.length > 0) return previews;
+  return (snapshot?.facts ?? []).map((fact) => ({
+    kind: fact.group ?? "fact",
+    label: fact.key,
+    detail: fact.value === null ? "-" : String(fact.value),
+  }));
+}
+
 function buildStages(
   snapshot: ViewSnapshot | null,
   health: BackendHealth | null,
+  progress: VerificationProgress | null,
 ): readonly Stage[] {
   const stages: Stage[] = [];
   if (snapshot) {
@@ -62,9 +85,14 @@ function buildStages(
     stages.push({ label: "Route", detail: health.model, side: "route", done: true });
   }
   stages.push({
-    label: "Consult backend",
-    detail: health ? health.mode : "connecting",
-    side: "read",
+    label: progress?.label ?? "Consult backend",
+    detail:
+      progress && progress.completed !== null && progress.total !== null
+        ? `${progress.completed}/${progress.total} checks`
+        : health
+          ? health.mode
+          : "connecting",
+    side: progress?.phase === "generating" ? "route" : "read",
     done: false,
   });
   return stages;
@@ -73,39 +101,67 @@ function buildStages(
 export function RetrievalTrace({
   snapshot,
   health,
+  progress,
 }: {
   readonly snapshot: ViewSnapshot | null;
   readonly health: BackendHealth | null;
+  readonly progress: VerificationProgress | null;
 }) {
-  const facts = snapshot?.facts ?? [];
-  const factCount = facts.length;
+  const sources = sourceCards(snapshot, progress?.sources ?? []);
+  const sourceCount = sources.length;
+  const sourceSignature = sources
+    .map((source) => `${source.kind}:${source.label}:${source.detail}`)
+    .join("|");
   const routeId = snapshot?.routeId ?? "";
   const [shown, setShown] = useState(0);
+  const [elapsedMs, setElapsedMs] = useState(0);
 
-  // Roll the source cards in one at a time (slot-machine cascade). The
-  // timer cancels itself once every fact is shown and on unmount.
   useEffect(() => {
-    setShown(factCount === 0 ? 0 : 1);
-    if (factCount <= 1) return;
-    let i = 1;
+    const startedAt = performance.now();
     const id = window.setInterval(() => {
-      i += 1;
-      setShown(i);
-      if (i >= factCount) window.clearInterval(id);
+      setElapsedMs(performance.now() - startedAt);
+    }, 100);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    setShown(0);
+  }, [routeId]);
+
+  // Roll source cards in one at a time. When server-owned sources replace the
+  // initial screen preview, preserve the visible count instead of rewinding.
+  useEffect(() => {
+    setShown((current) =>
+      sourceCount === 0 ? 0 : Math.min(sourceCount, Math.max(current, 1)));
+    if (sourceCount <= 1) return;
+    const id = window.setInterval(() => {
+      setShown((current) => {
+        const next = Math.min(sourceCount, current + 1);
+        if (next >= sourceCount) window.clearInterval(id);
+        return next;
+      });
     }, FACT_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [routeId, factCount]);
+  }, [routeId, sourceCount, sourceSignature]);
 
-  const stages = buildStages(snapshot, health);
+  const stages = buildStages(snapshot, health, progress);
   const rolled = Math.max(0, shown - VISIBLE);
-  const visibleFacts = facts.slice(0, shown);
+  const visibleSources = sources.slice(0, shown);
 
   return (
-    <article class="deck-rt" aria-live="polite" aria-label="preparing answer">
+    <article class="deck-rt" aria-label="preparing answer">
+      <span class="sr-only" role="status" aria-live="polite">
+        Preparing answer. {progress?.label ?? "Reading current screen sources"}.
+      </span>
       <header class="deck-rt-head">
         <span class="deck-rt-spin" aria-hidden="true" />
         <span class="deck-rt-title">Preparing answer</span>
-        <span class="deck-rt-sub muted">grounding on read-only sources</span>
+        <span class="deck-rt-sub muted">
+          {progress?.label ?? "grounding on read-only sources"}
+        </span>
+        <span class="deck-rt-elapsed muted" aria-hidden="true">
+          {(elapsedMs / 1000).toFixed(1)}s
+        </span>
       </header>
 
       <ol class="deck-rt-stages">
@@ -116,24 +172,34 @@ export function RetrievalTrace({
             <span class="deck-rt-detail muted">{s.detail}</span>
             <span class={`deck-rt-side deck-rt-side-${s.side}`}>{s.side}</span>
             {s.done ? <span class="deck-rt-check" aria-hidden="true">{"\u2713"}</span> : null}
+            {!s.done ? (
+              <span class="deck-rt-activity" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+            ) : null}
           </li>
         ))}
       </ol>
 
-      {factCount > 0 ? (
+      {sourceCount > 0 ? (
         <div class="deck-rt-sources">
-          <div class="deck-rt-sources-label muted">Reading sources - this screen</div>
+          <div class="deck-rt-sources-label muted">
+            <span>Reading sources</span>
+            <span>{Math.min(shown, sourceCount)}/{sourceCount}</span>
+          </div>
           <div class="deck-rt-slot">
             <ul
               class="deck-rt-strip"
               style={{ transform: `translateY(${-rolled * CARD_PITCH_PX}px)` }}
             >
-              {visibleFacts.map((f, i) => (
-                <li key={`${f.key}-${i}`} class="deck-rt-card">
-                  <span class="deck-rt-badge">{f.group ?? "fact"}</span>
+              {visibleSources.map((source, i) => (
+                <li key={`${source.kind}-${source.label}-${i}`} class="deck-rt-card">
+                  <span class={`deck-rt-badge is-${source.kind}`}>{source.kind}</span>
                   <span class="deck-rt-txt">
-                    <span class="deck-rt-k">{f.key}</span>
-                    <span class="deck-rt-v">{f.value === null ? "-" : String(f.value)}</span>
+                    <span class="deck-rt-k">{source.label}</span>
+                    <span class="deck-rt-v">{source.detail}</span>
                   </span>
                 </li>
               ))}

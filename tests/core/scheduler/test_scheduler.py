@@ -74,6 +74,21 @@ def test_recently_run_task_not_due_until_interval_elapses() -> None:
     assert compute_due([ready], now=_NOW) == [ready]
 
 
+def test_cron_task_fires_once_in_matching_minute() -> None:
+    task = _task(cron_expression="0 12 * * *")
+    assert compute_due([task], now=_NOW) == [task]
+    same_minute = _task(cron_expression="0 12 * * *", last_run=_NOW)
+    assert compute_due([same_minute], now=_NOW + timedelta(seconds=30)) == []
+    assert compute_due([task], now=_NOW + timedelta(minutes=1)) == []
+
+
+def test_model_rejects_invalid_or_non_five_field_cron() -> None:
+    with pytest.raises(ValueError, match="cron_expression"):
+        _task(cron_expression="not a cron")
+    with pytest.raises(ValueError, match="cron_expression"):
+        _task(cron_expression="0 12 * * * *")
+
+
 def test_model_rejects_bad_interval() -> None:
     with pytest.raises(ValueError, match="interval_seconds"):
         _task(interval_seconds=0)
@@ -150,3 +165,44 @@ async def test_run_once_idempotency_key_is_stable_per_bucket() -> None:
     key = bus.published[0][2]["idempotency_key"]
     bucket = int(_NOW.timestamp() // 300)
     assert key == f"schedule:t1:{bucket}"
+
+
+@pytest.mark.asyncio
+async def test_cron_run_uses_minute_idempotency_bucket() -> None:
+    store = InMemoryScheduleStore()
+    await store.create(_task(cron_expression="0 12 * * *"))
+    bus = _RecordingBus()
+    await SchedulerService(store=store, event_bus=bus).run_once(now=_NOW)
+
+    assert bus.published[0][2]["idempotency_key"] == (f"schedule:t1:{int(_NOW.timestamp() // 60)}")
+
+
+@pytest.mark.asyncio
+async def test_scheduled_action_proposal_enters_typed_operator_pipeline() -> None:
+    store = InMemoryScheduleStore()
+    task = _task(
+        cron_expression="0 12 * * *",
+        resource_ref="resource:compute/vm/gpu-worker",
+        event_type="workflow.schedule.scheduled-gpu-python-task",
+        event_payload={
+            "action_proposal": {
+                "initiator_principal": "operator-1",
+                "action_type": "tool.run-python-on-vm",
+                "params": {
+                    "artifact_ref": "python-task:gpu.health@1.0.0#" + "a" * 64,
+                    "target_resource_ref": "resource:compute/vm/gpu-worker",
+                    "reason": "Scheduled GPU health task invocation.",
+                },
+            }
+        },
+    )
+    await store.create(task)
+    bus = _RecordingBus()
+
+    await SchedulerService(store=store, event_bus=bus).run_once(now=_NOW)
+
+    payload = bus.published[0][2]
+    assert payload["event_type"] == "operator_request"
+    assert payload["operator_initiated"] is True
+    assert payload["action_type"] == "tool.run-python-on-vm"
+    assert payload["params"]["artifact_ref"].startswith("python-task:gpu.health")

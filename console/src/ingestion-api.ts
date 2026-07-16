@@ -20,6 +20,21 @@ export interface UploadSession {
   readonly collection_id: string;
 }
 
+export interface HandoverDraftResult {
+  readonly upload_id: string;
+  readonly document_id: string;
+  readonly version_id: string;
+  readonly draft: {
+    readonly outcome: "drafted" | "abstained";
+    readonly mappings: readonly unknown[];
+    readonly abstained: readonly unknown[];
+    readonly unresolved_people: readonly unknown[];
+    readonly unmapped_agents: readonly string[];
+    readonly warnings: readonly string[];
+  };
+  readonly yaml: string;
+}
+
 interface CreateUploadResponse {
   readonly session: UploadSession;
   readonly upload: {
@@ -93,6 +108,13 @@ export class IngestionApiClient {
     return this.#json<UploadSession>(`/ingestion/uploads/${encodeURIComponent(uploadId)}`, {
       method: "GET",
     });
+  }
+
+  async handoverDraft(uploadId: string): Promise<HandoverDraftResult> {
+    return this.#json<HandoverDraftResult>(
+      `/ingestion/uploads/${encodeURIComponent(uploadId)}/handover-draft`,
+      { method: "GET" },
+    );
   }
 
   async cancel(uploadId: string): Promise<UploadSession> {

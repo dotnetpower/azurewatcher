@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
-import { ReadApiError } from "../api";
+import { isOptionalReadApiUnavailable } from "../api";
 import type { ReadApiClient } from "../api";
+import { AgentWorkspaceNav } from "../components/agent-workspace-nav";
 import {
   AsyncBoundary,
   KpiCard,
@@ -11,6 +12,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, agentTerm, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { routeHref } from "../router";
 import { panelArray, panelBoolean, panelNullableString, panelNumber, panelRecord, panelString, panelStringArray } from "./panel-decode";
 
 /**
@@ -85,7 +87,7 @@ export function HandoverRoute({ client }: Props) {
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
-          if (err instanceof ReadApiError && err.status === 404) {
+          if (isOptionalReadApiUnavailable(err)) {
             setState({
               status: "unavailable",
               message:
@@ -105,6 +107,7 @@ export function HandoverRoute({ client }: Props) {
 
   return (
     <div class="stack">
+      <AgentWorkspaceNav />
       <PageHeader
         title={t("route.handover")}
         subtitle="Who owns each of the 15 agents now that FDAI runs the control plane - stewards, maintainers, and handover coverage. Read-only."
@@ -231,7 +234,8 @@ function HandoverBody({ data }: { readonly data: StewardshipResponse }) {
 
       <section class="stack">
         <h3>Handover map</h3>
-        <table class="cs-table">
+        <div class="data-table-wrap">
+          <table class="cs-table">
           <thead>
             <tr>
               <th>Agent</th>
@@ -243,7 +247,7 @@ function HandoverBody({ data }: { readonly data: StewardshipResponse }) {
           <tbody>
             {map.agents.map((a) => (
               <tr key={a.name}>
-                <td>{a.name}</td>
+                <td><a href={routeHref("agents", { params: { agent: a.name } })}>{a.name}</a></td>
                 <td>
                   {a.autonomous
                     ? `autonomous (${a.accept_autonomous_reason ?? "no reason"})`
@@ -256,13 +260,15 @@ function HandoverBody({ data }: { readonly data: StewardshipResponse }) {
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       </section>
 
       {coverage.findings.length > 0 ? (
         <section class="stack">
           <h3>Coverage findings</h3>
-          <table class="cs-table">
+          <div class="data-table-wrap">
+            <table class="cs-table">
             <thead>
               <tr>
                 <th>Severity</th>
@@ -276,12 +282,13 @@ function HandoverBody({ data }: { readonly data: StewardshipResponse }) {
                 <tr key={`${f.code}-${i}`}>
                   <td>{f.severity}</td>
                   <td>{f.code}</td>
-                  <td>{f.agent ?? "-"}</td>
+                  <td>{f.agent ? <a href={routeHref("agents", { params: { agent: f.agent } })}>{f.agent}</a> : "-"}</td>
                   <td>{f.message}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         </section>
       ) : null}
     </div>

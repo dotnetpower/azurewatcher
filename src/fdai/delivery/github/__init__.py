@@ -5,5 +5,12 @@ from fdai.delivery.github.change_feed import (
     GitHubChangeFeed,
     GitHubChangeFeedConfig,
 )
+from fdai.delivery.github.tool import GitHubWorkflowToolConfig, GitHubWorkflowToolExecutor
 
-__all__ = ["ChangeFeedError", "GitHubChangeFeed", "GitHubChangeFeedConfig"]
+__all__ = [
+    "ChangeFeedError",
+    "GitHubChangeFeed",
+    "GitHubChangeFeedConfig",
+    "GitHubWorkflowToolConfig",
+    "GitHubWorkflowToolExecutor",
+]

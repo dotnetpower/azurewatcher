@@ -161,6 +161,20 @@ class PostgresOntologyInstanceStore:
             objects = await self._load_objects(connection, identifiers=(object_id,))
         return objects.get(object_id)
 
+    async def delete_object(self, object_id: str) -> bool:
+        async with await self._connect() as connection:
+            async with connection.transaction():
+                await self._set_timeout(connection)
+                await connection.execute(
+                    "DELETE FROM ontology_link WHERE from_id = %s OR to_id = %s",
+                    (object_id, object_id),
+                )
+                cursor = await connection.execute(
+                    "DELETE FROM ontology_resource WHERE id = %s RETURNING id",
+                    (object_id,),
+                )
+                return await cursor.fetchone() is not None
+
     async def query_objects(
         self,
         *,

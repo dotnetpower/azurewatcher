@@ -131,6 +131,10 @@ class TestRouterConstruction:
                 "p95_ms": None,
                 "samples": 0,
                 "history_ms": [],
+                "ttft_p50_ms": None,
+                "ttft_p95_ms": None,
+                "ttft_samples": 0,
+                "ttft_history_ms": [],
             },
             {
                 "deployment": "b",
@@ -138,6 +142,10 @@ class TestRouterConstruction:
                 "p95_ms": None,
                 "samples": 0,
                 "history_ms": [],
+                "ttft_p50_ms": None,
+                "ttft_p95_ms": None,
+                "ttft_samples": 0,
+                "ttft_history_ms": [],
             },
         ]
 
@@ -212,6 +220,56 @@ class TestRouterWarmupAndSelection:
             for sample in entry["history_ms"]:
                 assert isinstance(sample, int)
                 assert sample >= 0
+
+    async def test_user_preference_pins_an_allowlisted_candidate(self) -> None:
+        router, fast, _, slow = await self._make_router()
+
+        reply = await router.answer(
+            prompt="hi",
+            view_context={},
+            history=[],
+            preferred_model="slow",
+        )
+
+        assert reply["model"] == "slow"
+        assert reply["router"]["reason"] == "user-preferred"
+        assert slow.calls == 1
+        assert fast.calls == 0
+
+    async def test_unknown_preference_falls_back_to_auto(self) -> None:
+        router, fast, _, _ = await self._make_router()
+
+        reply = await router.answer(
+            prompt="hi",
+            view_context={},
+            history=[],
+            preferred_model="not-deployed",
+        )
+
+        assert reply["model"] == "fast"
+        assert reply["router"]["reason"] == "warmup"
+        assert fast.calls == 1
+
+    async def test_stream_records_true_first_token_latency(self) -> None:
+        first = _StreamingBackend()
+        second = _StreamingBackend()
+        router = LatencyRoutedChatBackend(candidates=[("first", first), ("second", second)])
+
+        events = [
+            event
+            async for event in router.answer_stream(
+                prompt="hi",
+                view_context={},
+                history=[],
+                preferred_model="second",
+            )
+        ]
+
+        stats = {entry["deployment"]: entry for entry in router.stats()}
+        assert events[-1]["model"] == "second"
+        assert events[-1]["router"]["reason"] == "user-preferred"
+        assert stats["second"]["ttft_samples"] == 1
+        assert stats["second"]["ttft_p50_ms"] is not None
 
 
 class TestRouterFailureHandling:
@@ -404,7 +462,15 @@ class TestCompletionBodyParams:
     def test_new_models_use_max_completion_tokens_and_no_temperature(self) -> None:
         from fdai.delivery.read_api.routes.chat import _completion_body_params
 
-        for model in ("gpt-5-mini", "gpt-5-nano", "o3-mini", "o4-mini", "o1"):
+        for model in (
+            "gpt-5-mini",
+            "gpt-5-nano",
+            "o3-mini",
+            "o4-mini",
+            "o1",
+            "narrator-gpt-5-4-mini",
+            "narrator-gpt-5-mini",
+        ):
             params = _completion_body_params(model, temperature=0.2, max_tokens=800)
             assert params == {"max_completion_tokens": 800}
             assert "temperature" not in params

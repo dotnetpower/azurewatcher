@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
-import { ReadApiError } from "../api";
+import { isOptionalReadApiUnavailable, ReadApiError } from "../api";
 import type { ReadApiClient } from "../api";
 import { architectureHref } from "../components/architecture-map.model";
 import {
@@ -20,7 +20,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
-import { navigate, routeHref } from "../router";
+import { currentRoute, navigate, routeHref } from "../router";
 import { isRuleListUpdating } from "./rule-catalog.model";
 
 /**
@@ -144,9 +144,42 @@ interface Filters {
 
 const EMPTY_FILTERS: Filters = { origin: "", category: "", severity: "", source: "", q: "" };
 
+function ruleListStateFromRoute(): { readonly filters: Filters; readonly offset: number } {
+  const search = currentRoute().search;
+  const rawOffset = Number(search.get("offset"));
+  return {
+    filters: {
+      origin: search.get("origin") ?? "",
+      category: search.get("category") ?? "",
+      severity: search.get("severity") ?? "",
+      source: search.get("source") ?? "",
+      q: search.get("q") ?? "",
+    },
+    offset: Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0,
+  };
+}
+
+function ruleCatalogHref(
+  filters: Filters,
+  offset: number,
+  selection: Selection | null,
+): string {
+  return routeHref("rules", {
+    params: {
+      origin: selection?.origin || filters.origin || null,
+      category: filters.category || null,
+      severity: filters.severity || null,
+      source: filters.source || null,
+      q: filters.q || null,
+      offset: offset > 0 ? offset : null,
+      rule: selection?.id ?? null,
+    },
+  });
+}
+
 /** Parse the selected rule from the clean URL query (deep-link support). */
 function selectionFromHash(): Selection | null {
-  const params = new URLSearchParams(window.location.search);
+  const params = currentRoute().search;
   const id = params.get("rule");
   if (!id) return null;
   return { id, origin: params.get("origin") ?? "" };
@@ -154,14 +187,6 @@ function selectionFromHash(): Selection | null {
 
 /** Reflect the selected rule into the URL so it is shareable and
  * the browser back button closes the drawer. */
-function writeSelectionToHash(sel: Selection | null): void {
-  if (sel === null) {
-    navigate(routeHref("rules"));
-    return;
-  }
-  navigate(routeHref("rules", { params: { rule: sel.id, origin: sel.origin } }));
-}
-
 const SEVERITY_PILL: Record<string, PillKind> = {
   critical: "danger",
   high: "warning",
@@ -174,8 +199,10 @@ interface Props {
 }
 
 export function RuleCatalogRoute({ client }: Props) {
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [offset, setOffset] = useState(0);
+  const initialListState = ruleListStateFromRoute();
+  const [filters, setFilters] = useState<Filters>(initialListState.filters);
+  const [offset, setOffset] = useState(initialListState.offset);
+  const [selected, setSelected] = useState<Selection | null>(selectionFromHash);
   // Keep the last successful response so the controls + table stay
   // mounted across refetches (stale-while-revalidate). If we swapped the
   // whole body for a loading block on every fetch, the search <input>
@@ -186,16 +213,17 @@ export function RuleCatalogRoute({ client }: Props) {
 
   // Debounce the free-text box so a keystroke does not fire a request
   // per character.
-  const [searchInput, setSearchInput] = useState("");
+  const [searchInput, setSearchInput] = useState(initialListState.filters.q);
   const debounceRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     window.clearTimeout(debounceRef.current);
     debounceRef.current = window.setTimeout(() => {
-      setFilters((f) => ({ ...f, q: searchInput }));
-      setOffset(0);
+      if (searchInput === filters.q) return;
+      const next = { ...filters, q: searchInput };
+      navigate(ruleCatalogHref(next, 0, selected), true);
     }, 250);
     return () => window.clearTimeout(debounceRef.current);
-  }, [searchInput]);
+  }, [filters, searchInput, selected]);
 
   useEffect(() => {
     let cancelled = false;
@@ -219,7 +247,7 @@ export function RuleCatalogRoute({ client }: Props) {
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
-          if (err instanceof ReadApiError && err.status === 404) {
+          if (isOptionalReadApiUnavailable(err)) {
             setStatus("unavailable");
             setErrorMsg(
               "The rule-catalog route is not wired on this deployment. " +
@@ -261,30 +289,31 @@ export function RuleCatalogRoute({ client }: Props) {
   }, [client]);
 
   function updateFilter(patch: Partial<Filters>): void {
-    setFilters((f) => ({ ...f, ...patch }));
-    setOffset(0);
+    navigate(ruleCatalogHref({ ...filters, ...patch }, 0, selected));
   }
 
   // Row selection -> detail drawer. Fetches GET /rules/{id} with the
   // row origin so an id shared across tiers resolves unambiguously.
   // Selection is mirrored into the URL query (deep-link / shareable).
-  const [selected, setSelected] = useState<Selection | null>(selectionFromHash);
-
   function selectRule(sel: Selection | null): void {
-    setSelected(sel);
-    writeSelectionToHash(sel);
+    navigate(ruleCatalogHref(filters, offset, sel));
   }
 
   // React to back/forward + external route edits (open or close the drawer).
   // Preserve the previous object reference when the selection content is
   // unchanged so writing the hash after a click does not trigger a refetch.
   useEffect(() => {
-    const onRouteChange = () =>
+    const onRouteChange = () => {
+      const listState = ruleListStateFromRoute();
+      setFilters(listState.filters);
+      setSearchInput(listState.filters.q);
+      setOffset(listState.offset);
       setSelected((prev) => {
         const next = selectionFromHash();
         if (prev?.id === next?.id && prev?.origin === next?.origin) return prev;
         return next;
       });
+    };
     window.addEventListener("popstate", onRouteChange);
     window.addEventListener("fdai:route-changed", onRouteChange);
     return () => {
@@ -373,7 +402,7 @@ export function RuleCatalogRoute({ client }: Props) {
   // First load (no data yet): show a single state block.
   if (data === null) {
     return (
-      <div class="stack">
+      <div class="stack governance-route rules-route">
         {header}
         {status === "error" ? (
           <ErrorState message={`Failed to load rule catalog: ${errorMsg}`} />
@@ -390,7 +419,7 @@ export function RuleCatalogRoute({ client }: Props) {
   // shows an inline indicator, so the search box never loses focus.
   const listUpdating = isRuleListUpdating(searchInput, filters.q, status === "loading");
   return (
-    <div class="stack">
+    <div class="stack governance-route rules-route">
       {header}
       {status === "error" ? (
         <ErrorState message={`Failed to refresh rule catalog: ${errorMsg}`} />
@@ -407,7 +436,7 @@ export function RuleCatalogRoute({ client }: Props) {
         onSelect={selectRule}
         onFilter={updateFilter}
         onSearch={setSearchInput}
-        onPage={setOffset}
+        onPage={(nextOffset) => navigate(ruleCatalogHref(filters, nextOffset, selected))}
       />
       {selected !== null ? (
         <RuleDetailDrawer detail={detail} findings={findings} onClose={() => selectRule(null)} />
@@ -561,7 +590,16 @@ function RuleCatalogBody({
 
   const columns: readonly Column<RuleDto>[] = useMemo(
     () => [
-      { key: "id", header: "Rule", render: (r) => r.id, cellClass: "mono" },
+      {
+        key: "id",
+        header: "Rule",
+        render: (r) => (
+          <span class="rule-table-identity">
+            <code>{r.id}</code>
+            <small>provenance: {r.provenance.source_url || r.source}</small>
+          </span>
+        ),
+      },
       {
         key: "origin",
         header: "Origin",
@@ -576,7 +614,11 @@ function RuleCatalogBody({
           <StatusPill kind={SEVERITY_PILL[r.severity] ?? "neutral"} label={r.severity} />
         ),
       },
-      { key: "category", header: "Category", render: (r) => r.category },
+      {
+        key: "category",
+        header: "Category",
+        render: (r) => <span class={`rule-category-pill is-${r.category}`}>{r.category}</span>,
+      },
       {
         key: "resource_type",
         header: "Resource",
@@ -584,6 +626,7 @@ function RuleCatalogBody({
         cellClass: "mono",
       },
       { key: "source", header: "Source", render: (r) => r.source },
+      { key: "version", header: "Version", render: (r) => r.version, cellClass: "mono" },
       {
         key: "affected",
         header: "Affected",
@@ -612,6 +655,10 @@ function RuleCatalogBody({
 
   return (
     <div class="stack">
+      <div class="governance-readonly-banner">
+        <strong>Catalog-as-code.</strong>
+        <span>Every rule is a versioned artifact. This page renders active and collected entries; changes land through the catalog PR pipeline.</span>
+      </div>
       <KpiGrid>
         <KpiCard label="Total rules" value={data.total} />
         <KpiCard label="Active catalog" value={active} hint="Curated - T0 evaluates these" />
@@ -620,33 +667,33 @@ function RuleCatalogBody({
       </KpiGrid>
 
       <section class="stack-section">
-        <div class="form-grid inline">
-          <FacetSelect
+        <div class="rule-facet-toolbar">
+          <FacetChips
             label="Origin"
             value={filters.origin}
             counts={data.facets.by_origin}
             onChange={(v) => onFilter({ origin: v })}
           />
-          <FacetSelect
+          <FacetChips
             label="Category"
             value={filters.category}
             counts={data.facets.by_category}
             onChange={(v) => onFilter({ category: v })}
           />
-          <FacetSelect
+          <FacetChips
             label="Severity"
             value={filters.severity}
             counts={data.facets.by_severity}
             onChange={(v) => onFilter({ severity: v })}
           />
-          <FacetSelect
+          <FacetChips
             label="Source"
             value={filters.source}
             counts={data.facets.by_source}
             onChange={(v) => onFilter({ source: v })}
           />
-          <label>
-            Search id / resource
+          <label class="rule-facet-search">
+            <span class="sr-only">Search id or resource</span>
             <input
               type="search"
               value={searchInput}
@@ -700,7 +747,7 @@ function RuleCatalogBody({
   );
 }
 
-function FacetSelect({
+function FacetChips({
   label,
   value,
   counts,
@@ -713,17 +760,28 @@ function FacetSelect({
 }) {
   const options = Object.entries(counts);
   return (
-    <label>
-      {label}
-      <select value={value} onChange={(e) => onChange((e.target as HTMLSelectElement).value)}>
-        <option value="">All ({options.reduce((sum, [, n]) => sum + n, 0)})</option>
+    <div class="rule-facet-set">
+      <span>{label}</span>
+      <div>
+        <button
+          type="button"
+          class={value === "" ? "is-active" : undefined}
+          onClick={() => onChange("")}
+        >
+          All <small>{options.reduce((sum, [, count]) => sum + count, 0)}</small>
+        </button>
         {options.map(([key, count]) => (
-          <option key={key} value={key}>
-            {key} ({count})
-          </option>
+          <button
+            key={key}
+            type="button"
+            class={value === key ? "is-active" : undefined}
+            onClick={() => onChange(key)}
+          >
+            {key} <small>{count}</small>
+          </button>
         ))}
-      </select>
-    </label>
+      </div>
+    </div>
   );
 }
 

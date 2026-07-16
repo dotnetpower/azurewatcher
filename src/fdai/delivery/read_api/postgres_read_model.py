@@ -86,18 +86,18 @@ event_anchor AS (
     HAVING COUNT(DISTINCT correlation_id) = 1
 ),
 incident_open_raw AS (
-    SELECT entry->>'incident_id' AS incident_id,
+    SELECT a.entry->>'incident_id' AS incident_id,
            CASE
-               WHEN correlation_id IS NOT NULL AND correlation_id <> ''
-               THEN correlation_id
+               WHEN a.correlation_id IS NOT NULL AND a.correlation_id <> ''
+               THEN a.correlation_id
                ELSE key_stats.correlation_id
            END AS explicit_correlation_id,
            CASE
-               WHEN correlation_id IS NOT NULL AND correlation_id <> ''
+               WHEN a.correlation_id IS NOT NULL AND a.correlation_id <> ''
                THEN FALSE
                ELSE key_stats.candidate_count > 1
            END AS ambiguous
-      FROM bounded_audit
+      FROM bounded_audit AS a
       LEFT JOIN LATERAL (
           SELECT COUNT(DISTINCT SUBSTRING(value FROM 6)) AS candidate_count,
                  CASE
@@ -107,14 +107,14 @@ incident_open_raw AS (
                  END AS correlation_id
             FROM jsonb_array_elements_text(
                 CASE
-                    WHEN jsonb_typeof(entry->'correlation_keys') = 'array'
-                    THEN entry->'correlation_keys'
+                    WHEN jsonb_typeof(a.entry->'correlation_keys') = 'array'
+                    THEN a.entry->'correlation_keys'
                     ELSE '[]'::jsonb
                 END
             ) AS value
            WHERE value LIKE 'corr:%%'
       ) AS key_stats ON TRUE
-     WHERE entry->>'kind' = 'incident.open'
+     WHERE a.entry->>'kind' = 'incident.open'
 ),
 incident_open AS (
     SELECT incident_id,
@@ -208,8 +208,14 @@ incident_groups AS (
 selected AS (
     SELECT normalized_correlation_id, last_seq
       FROM incident_groups
-    WHERE (%(before_seq)s IS NULL OR last_seq < %(before_seq)s)
-         AND (%(vertical)s IS NULL OR projected_vertical = %(vertical)s)
+    WHERE (
+        CAST(%(before_seq)s AS BIGINT) IS NULL
+        OR last_seq < CAST(%(before_seq)s AS BIGINT)
+    )
+         AND (
+             CAST(%(vertical)s AS TEXT) IS NULL
+             OR projected_vertical = CAST(%(vertical)s AS TEXT)
+         )
        AND (
            %(status)s = 'all'
            OR (%(status)s = 'resolved' AND projected_state IN ('resolved', 'closed'))
@@ -320,7 +326,8 @@ def row_to_hil_queue_item(row: Mapping[str, Any]) -> HilQueueItem | None:
     parked_at = parked.get("parked_at")
     if not isinstance(parked_at, str) or not parked_at:
         return None
-    action = parked.get("action") if isinstance(parked.get("action"), Mapping) else {}
+    action_raw = parked.get("action")
+    action: Mapping[str, Any] = action_raw if isinstance(action_raw, Mapping) else {}
     idempotency_key = parked.get("idempotency_key") or action.get("idempotency_key")
     if not isinstance(idempotency_key, str) or not idempotency_key:
         return None
@@ -332,14 +339,28 @@ def row_to_hil_queue_item(row: Mapping[str, Any]) -> HilQueueItem | None:
         event_id = "00000000-0000-0000-0000-000000000000"
     action_type = parked.get("action_type") or action.get("action_type")
     rule_id = parked.get("rule_id")
-    reason_bits: list[str] = []
-    if isinstance(rule_id, str) and rule_id:
-        reason_bits.append(f"rule:{rule_id}")
-    submitter = parked.get("submitter_oid")
-    if isinstance(submitter, str) and submitter:
-        reason_bits.append(f"submitter:{submitter}")
-    reason = " ".join(reason_bits) if reason_bits else "hil.requested"
+    context_raw = parked.get("approval_context")
+    context: Mapping[str, Any] = context_raw if isinstance(context_raw, Mapping) else {}
+    reasons_raw = context.get("reasons")
+    reasons = (
+        tuple(value for value in reasons_raw if isinstance(value, str) and value)
+        if isinstance(reasons_raw, list)
+        else ()
+    )
+    reason = reasons[0] if reasons else "Approval required by the risk gate."
     correlation_id = parked.get("correlation_id")
+    rollback_raw = action.get("rollback_ref")
+    rollback: Mapping[str, Any] = rollback_raw if isinstance(rollback_raw, Mapping) else {}
+    blast_radius_raw = action.get("blast_radius")
+    blast_radius: Mapping[str, Any] = (
+        blast_radius_raw if isinstance(blast_radius_raw, Mapping) else {}
+    )
+    citing_rules_raw = action.get("citing_rules")
+    citing_rule_ids = (
+        tuple(value for value in citing_rules_raw if isinstance(value, str) and value)
+        if isinstance(citing_rules_raw, list)
+        else ((rule_id,) if isinstance(rule_id, str) and rule_id else ())
+    )
     return HilQueueItem(
         idempotency_key=idempotency_key,
         event_id=event_id,
@@ -348,6 +369,32 @@ def row_to_hil_queue_item(row: Mapping[str, Any]) -> HilQueueItem | None:
         requested_at=parked_at,
         correlation_id=(
             str(correlation_id) if isinstance(correlation_id, str) and correlation_id else None
+        ),
+        approval_id=approval_id,
+        action_id=str(action.get("action_id") or ""),
+        target_resource_ref=str(action.get("target_resource_ref") or ""),
+        mode=str(action.get("mode") or ""),
+        stop_condition=str(action.get("stop_condition") or ""),
+        rollback_kind=str(rollback.get("kind") or ""),
+        rollback_reference=(
+            str(rollback["reference"]) if rollback.get("reference") is not None else None
+        ),
+        blast_radius_scope=str(blast_radius.get("scope") or ""),
+        blast_radius_count=(
+            int(blast_radius["count"]) if isinstance(blast_radius.get("count"), int) else None
+        ),
+        blast_radius_rate_per_minute=(
+            int(blast_radius["rate_per_minute"])
+            if isinstance(blast_radius.get("rate_per_minute"), int)
+            else None
+        ),
+        blast_radius_summary=str(context.get("blast_radius_summary") or ""),
+        reasons=reasons,
+        citing_rule_ids=citing_rule_ids,
+        ttl_expires_at=(
+            str(context["expires_at"])
+            if isinstance(context.get("expires_at"), str) and context.get("expires_at")
+            else None
         ),
     )
 
@@ -495,24 +542,28 @@ class PostgresConsoleReadModel(ConsoleReadModel):
                         HAVING COUNT(DISTINCT correlation_id)
                             FILTER (WHERE correlation_id IS NOT NULL) = 1
                            AND MIN(correlation_id)
-                            FILTER (WHERE correlation_id IS NOT NULL) = %(correlation_id)s
+                            FILTER (WHERE correlation_id IS NOT NULL) = %(correlation_id)s::text
                     )
                     SELECT seq, event_id, correlation_id, actor, action_kind,
                            mode, entry, previous_hash, entry_hash, created_at
                       FROM audit_log
-                     WHERE (%(cutoff)s IS NULL OR seq < %(cutoff)s)
-                       AND (%(correlation_id)s IS NULL
-                            OR correlation_id = %(correlation_id)s
+                     WHERE (%(cutoff)s::bigint IS NULL OR seq < %(cutoff)s::bigint)
+                       AND (%(correlation_id)s::text IS NULL
+                           OR correlation_id = %(correlation_id)s::text
                             OR event_id IN (SELECT event_id FROM unambiguous_events))
-                       AND (%(mode)s IS NULL OR mode = %(mode)s)
-                       AND (%(tier)s IS NULL OR entry->>'tier' = %(tier)s)
-                       AND (%(action_kind)s IS NULL OR action_kind = %(action_kind)s)
-                       AND (%(outcome)s IS NULL OR entry->>'outcome' = %(outcome)s)
-                       AND (%(vertical)s IS NULL OR REPLACE(LOWER(COALESCE(
+                       AND (%(mode)s::text IS NULL OR mode = %(mode)s::text)
+                       AND (%(tier)s::text IS NULL OR entry->>'tier' = %(tier)s::text)
+                       AND (%(action_kind)s::text IS NULL
+                           OR action_kind = %(action_kind)s::text)
+                       AND (%(outcome)s::text IS NULL
+                           OR entry->>'outcome' = %(outcome)s::text)
+                       AND (%(vertical)s::text IS NULL OR REPLACE(LOWER(COALESCE(
                             entry->>'vertical', entry->>'category', ''
-                       )), '_', '-') = %(vertical)s)
-                       AND (%(window_days)s IS NULL OR created_at >=
-                            CURRENT_TIMESTAMP - make_interval(days => %(window_days)s))
+                       )), '_', '-') = %(vertical)s::text)
+                       AND (%(window_days)s::integer IS NULL OR created_at >=
+                           CURRENT_TIMESTAMP - make_interval(
+                              days => %(window_days)s::integer
+                           ))
                      ORDER BY seq DESC
                      LIMIT %(fetch)s
                     """,

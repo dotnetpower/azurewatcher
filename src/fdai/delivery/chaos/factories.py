@@ -15,14 +15,15 @@ namespace, resource-group, vm name, VM resource id, etc.) from the
 ``context`` dict the caller supplies. Secrets never appear in `context`;
 they stay behind provider adapters.
 
-Coverage today (against the shipped 119-entry catalog):
+Coverage today (against the shipped 132-entry catalog):
 
     ScenarioFactory.executable_entries(load_all()) yields the subset
     the harness can run end-to-end without a new delivery adapter -
-    everything under `chaos-mesh:*`, `kubectl:{pod-kill,scale,set-image}`,
-    `az:vm-run-command`, and `chaos-mesh:PodChaos`-backed backend-down.
-    `needs-injector` entries (Azure Chaos Studio, AWS FIS, most GPU)
-    are correctly reported as non-executable.
+    92 entries: Chaos Mesh, Litmus ChaosEngine, kubectl, MySQL, Azure
+    OpenAI, and supported direct Azure operations. Direct Azure faults
+    use provider-state probes rather than unrelated Kubernetes CRD status.
+    The 17 AWS FIS references, 22 GPU-hardware entries, and retired legacy
+    Redis reboot entry remain correctly non-executable.
 
 This module never imports from `core/` beyond the factory contract and
 the delivery-layer injector classes it wraps.
@@ -32,10 +33,17 @@ from __future__ import annotations
 
 from typing import Any
 
+import yaml
+
 from fdai.core.chaos.factory import ScenarioFactory
 from fdai.core.chaos.injector import FaultInjector, SignalProbe
 from fdai.core.chaos.scenario_catalog import CatalogEntry
+from fdai.delivery.chaos.aoai_ratelimit import (
+    AoaiRateLimitInjector,
+    AoaiRateLimitProbe,
+)
 from fdai.delivery.chaos.azure_ops import (
+    AzCliStateProbe,
     AzCosmosFailoverInjector,
     AzKeyVaultDenyAccessInjector,
     AzLbBackendRemoveInjector,
@@ -53,6 +61,7 @@ from fdai.delivery.chaos.chaos_mesh import (
     ChaosMeshInjectedProbe,
     ChaosMeshInjector,
 )
+from fdai.delivery.chaos.litmus import LitmusChaosInjector, LitmusChaosResultProbe
 from fdai.delivery.chaos.live_injectors import (
     AzureMonitorCpuProbe,
     AzVmCpuStressInjector,
@@ -64,6 +73,10 @@ from fdai.delivery.chaos.live_injectors import (
     KubectlPodKillInjector,
     KubeEventPodRestartProbe,
     KubeRolloutStallProbe,
+)
+from fdai.delivery.chaos.mysql_load import (
+    AzMysqlQueryLoadInjector,
+    AzureMonitorDbCpuProbe,
 )
 
 # ---------------------------------------------------------------------------
@@ -354,6 +367,11 @@ def _crd_name(entry: CatalogEntry) -> str:
     return f"fdai-{slug}"[:40].rstrip("-")
 
 
+def _litmus_engine_name(entry: CatalogEntry) -> str:
+    slug = entry.id.replace(".", "-").replace("_", "-").lower()
+    return f"fdai-{slug}"[:50].rstrip("-")
+
+
 # ---------------------------------------------------------------------------
 # Builders
 # ---------------------------------------------------------------------------
@@ -394,6 +412,67 @@ def _build_chaos_mesh_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalP
         kind=kind,
         name=_crd_name(entry),
         namespace=str(ctx["chaos_namespace"]),
+    )
+
+
+def _build_litmus(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    experiment_name = str(entry.spec["provenance"]["source_ref"])
+    params = {str(key): str(value) for key, value in (entry.spec.get("params") or {}).items()}
+    params["TOTAL_CHAOS_DURATION"] = str(
+        min(
+            int(float(entry.spec["duration_seconds"])),
+            int(ctx.get("litmus_max_duration_seconds", 180)),
+        )
+    )
+    if entry.spec["target_type"] == "node":
+        params.pop("NODE_LABEL", None)
+        params["TARGET_NODE"] = str(ctx["litmus_target_node"])
+    if experiment_name == "container-kill":
+        params["TARGET_CONTAINER"] = str(ctx["backend_container"])
+    engine_name = _litmus_engine_name(entry)
+    body = {
+        "apiVersion": "litmuschaos.io/v1alpha1",
+        "kind": "ChaosEngine",
+        "metadata": {"name": engine_name, "namespace": str(ctx["litmus_namespace"])},
+        "spec": {
+            "appinfo": {
+                "appns": str(ctx["workload_namespace"]),
+                "applabel": f"app={ctx['workload_label']}",
+                "appkind": "deployment",
+            },
+            "engineState": "active",
+            "annotationCheck": "false",
+            "chaosServiceAccount": str(ctx["litmus_service_account"]),
+            "experiments": [
+                {
+                    "name": experiment_name,
+                    "spec": {
+                        "components": {
+                            "env": [
+                                {"name": key, "value": value}
+                                for key, value in sorted(params.items())
+                            ]
+                        }
+                    },
+                }
+            ],
+        },
+    }
+    return LitmusChaosInjector(
+        fault_type=str(entry.spec["fault_family"]),
+        context=str(ctx["kubectl_context"]),
+        engine_name=engine_name,
+        namespace=str(ctx["litmus_namespace"]),
+        engine_yaml=yaml.safe_dump(body, sort_keys=False),
+    )
+
+
+def _build_litmus_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalProbe:
+    return LitmusChaosResultProbe(
+        context=str(ctx["kubectl_context"]),
+        engine_name=_litmus_engine_name(entry),
+        experiment_name=str(entry.spec["provenance"]["source_ref"]),
+        namespace=str(ctx["litmus_namespace"]),
     )
 
 
@@ -449,11 +528,31 @@ def _build_az_vm_run_command(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultI
     )
 
 
+def _build_mysql_query_load(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    params = entry.spec.get("params") or {}
+    return AzMysqlQueryLoadInjector(
+        connect_factory=ctx["mysql_connect_factory"],
+        concurrent_queries=int(params.get("concurrent_queries", 4)),
+    )
+
+
+def _build_aoai_rate_limit(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
+    params = entry.spec.get("params") or {}
+    return AoaiRateLimitInjector(
+        request_fn=ctx["aoai_load_request_fn"],
+        concurrency=int(params.get("concurrency", 8)),
+    )
+
+
 # ---- probes (signal -> probe builder) ------------------------------------
 
 
 def _build_pod_restart_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalProbe:
     ref = str(entry.spec.get("injector", ""))
+    if ref.startswith("az:"):
+        return _build_azure_state_probe(entry, ctx)
+    if ref.startswith("litmus:"):
+        return _build_litmus_probe(entry, ctx)
     if ref.startswith("chaos-mesh:"):
         return _build_chaos_mesh_probe(entry, ctx)
     return KubeEventPodRestartProbe(
@@ -464,6 +563,10 @@ def _build_pod_restart_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> Signal
 
 def _build_backend_health_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalProbe:
     ref = str(entry.spec.get("injector", ""))
+    if ref.startswith("az:"):
+        return _build_azure_state_probe(entry, ctx)
+    if ref.startswith("litmus:"):
+        return _build_litmus_probe(entry, ctx)
     if ref.startswith("chaos-mesh:"):
         return _build_chaos_mesh_probe(entry, ctx)
     return KubeBackendHealthProbe(
@@ -474,6 +577,8 @@ def _build_backend_health_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> Sig
 
 
 def _build_rollout_stall_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalProbe:
+    if str(entry.spec.get("injector", "")).startswith("litmus:"):
+        return _build_litmus_probe(entry, ctx)
     return KubeRolloutStallProbe(
         context=str(ctx["kubectl_context"]),
         namespace=str(ctx["workload_namespace"]),
@@ -483,6 +588,8 @@ def _build_rollout_stall_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> Sign
 
 def _build_host_cpu_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalProbe:
     ref = str(entry.spec.get("injector", ""))
+    if ref.startswith("litmus:"):
+        return _build_litmus_probe(entry, ctx)
     if ref.startswith("chaos-mesh:"):
         return _build_chaos_mesh_probe(entry, ctx)
     return AzureMonitorCpuProbe(
@@ -493,6 +600,8 @@ def _build_host_cpu_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalPro
 
 def _build_host_memory_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalProbe:
     ref = str(entry.spec.get("injector", ""))
+    if ref.startswith("litmus:"):
+        return _build_litmus_probe(entry, ctx)
     if ref.startswith("chaos-mesh:"):
         return _build_chaos_mesh_probe(entry, ctx)
     return AzVmMemProbe(
@@ -502,7 +611,26 @@ def _build_host_memory_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> Signal
     )
 
 
+def _build_db_cpu_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalProbe:
+    return AzureMonitorDbCpuProbe(
+        server_resource_id=str(ctx["mysql_server_resource_id"]),
+        threshold_pct=float(ctx.get("mysql_cpu_threshold_pct", 25.0)),
+    )
+
+
+def _build_rate_limit_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalProbe:
+    return AoaiRateLimitProbe(
+        request_fn=ctx["aoai_probe_request_fn"],
+        samples=int(ctx.get("aoai_probe_samples", 5)),
+    )
+
+
 def _build_cm_status_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalProbe:
+    ref = str(entry.spec.get("injector", ""))
+    if ref.startswith("az:"):
+        return _build_azure_state_probe(entry, ctx)
+    if ref.startswith("litmus:"):
+        return _build_litmus_probe(entry, ctx)
     return _build_chaos_mesh_probe(entry, ctx)
 
 
@@ -515,6 +643,216 @@ def _build_cm_status_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalPr
 # The 15 Azure Chaos Studio scenarios under
 # `rule-catalog/chaos-scenarios/collected/azure-chaos-studio/` map to these
 # builders via `az:*` injector strings (see azure_ops.py for the classes).
+
+
+def _vm_run_command_probe(ctx: dict[str, Any], script: str, expected: str) -> AzCliStateProbe:
+    return AzCliStateProbe(
+        command=(
+            "az",
+            "vm",
+            "run-command",
+            "invoke",
+            "-g",
+            str(ctx["resource_group"]),
+            "-n",
+            str(ctx["vm_name"]),
+            "--command-id",
+            "RunShellScript",
+            "--scripts",
+            script,
+            "--query",
+            "value[0].message",
+            "-o",
+            "tsv",
+        ),
+        expected_substrings=(expected,),
+    )
+
+
+def _build_azure_state_probe(entry: CatalogEntry, ctx: dict[str, Any]) -> SignalProbe:
+    ref = str(entry.spec["injector"])
+    params = entry.spec.get("params") or {}
+    resource_group = str(ctx["resource_group"])
+    if ref == "az:vm-network-latency":
+        interface = str(ctx.get("vm_interface", "eth0"))
+        return _vm_run_command_probe(ctx, f"tc qdisc show dev {interface}", "delay")
+    if ref == "az:vm-packet-loss":
+        interface = str(ctx.get("vm_interface", "eth0"))
+        return _vm_run_command_probe(ctx, f"tc qdisc show dev {interface}", "loss")
+    if ref == "az:vm-network-disconnect":
+        destination = str(
+            params.get("destination", ctx.get("network_disconnect_destination", "10.0.0.0/8"))
+        )
+        return _vm_run_command_probe(
+            ctx,
+            f"iptables -C OUTPUT -d {destination} -j DROP && echo blocked",
+            "blocked",
+        )
+    if ref == "az:vm-stop-service":
+        service = str(params.get("service", ctx.get("stop_service_name", "myservice")))
+        return _vm_run_command_probe(
+            ctx,
+            f"systemctl is-active {service} 2>/dev/null || true",
+            "inactive",
+        )
+    if ref == "az:vm-lifecycle":
+        action = str(params.get("action", "deallocate"))
+        if action == "deallocate":
+            return AzCliStateProbe(
+                command=(
+                    "az",
+                    "vm",
+                    "get-instance-view",
+                    "-g",
+                    resource_group,
+                    "-n",
+                    str(ctx["vm_name"]),
+                    "--query",
+                    "instanceView.statuses[?starts_with(code, 'PowerState/')].code | [0]",
+                    "-o",
+                    "tsv",
+                ),
+                expected_substrings=("PowerState/deallocated",),
+            )
+        return AzCliStateProbe(
+            command=(
+                "az",
+                "vm",
+                "show",
+                "-g",
+                resource_group,
+                "-n",
+                str(ctx["vm_name"]),
+                "--query",
+                "provisioningState",
+                "-o",
+                "tsv",
+            ),
+            expected_substrings=("Succeeded",),
+        )
+    if ref == "az:vmss-lifecycle":
+        return AzCliStateProbe(
+            command=(
+                "az",
+                "vmss",
+                "list-instances",
+                "-g",
+                resource_group,
+                "-n",
+                str(ctx["vmss_name"]),
+                "--expand",
+                "instanceView",
+                "--query",
+                "[].instanceView.statuses[?starts_with(code, 'PowerState/')].code",
+                "-o",
+                "tsv",
+            ),
+            expected_substrings=("PowerState/deallocated",),
+        )
+    if ref == "az:cosmosdb-failover":
+        priority_zero = next(
+            (
+                item.split("=", 1)[0]
+                for item in str(params["failover_priorities"]).split()
+                if item.endswith("=0")
+            ),
+            "",
+        )
+        return AzCliStateProbe(
+            command=(
+                "az",
+                "cosmosdb",
+                "show",
+                "-g",
+                resource_group,
+                "-n",
+                str(ctx["cosmos_account_name"]),
+                "--query",
+                "writeLocations[?failoverPriority==`0`].locationName | [0]",
+                "-o",
+                "tsv",
+            ),
+            expected_substrings=(priority_zero,),
+        )
+    if ref == "az:keyvault-deny":
+        return AzCliStateProbe(
+            command=(
+                "az",
+                "keyvault",
+                "show",
+                "-g",
+                resource_group,
+                "-n",
+                str(ctx["keyvault_name"]),
+                "--query",
+                "properties.networkAcls.defaultAction",
+                "-o",
+                "tsv",
+            ),
+            expected_substrings=("Deny",),
+        )
+    if ref == "az:nsg-rule":
+        return AzCliStateProbe(
+            command=(
+                "az",
+                "network",
+                "nsg",
+                "rule",
+                "show",
+                "-g",
+                resource_group,
+                "--nsg-name",
+                str(ctx["nsg_name"]),
+                "-n",
+                str(ctx.get("nsg_rule_name", "fdai-chaos-deny")),
+                "--query",
+                "access",
+                "-o",
+                "tsv",
+            ),
+            expected_substrings=("Deny",),
+        )
+    if ref == "az:lb-backend-remove":
+        return AzCliStateProbe(
+            command=(
+                "az",
+                "network",
+                "lb",
+                "address-pool",
+                "show",
+                "-g",
+                resource_group,
+                "--lb-name",
+                str(ctx["lb_name"]),
+                "-n",
+                str(ctx["lb_pool_name"]),
+                "--query",
+                "loadBalancerBackendAddresses[].name",
+                "-o",
+                "tsv",
+            ),
+            absent_substrings=(str(ctx["lb_address_name"]),),
+        )
+    if ref == "az:servicebus-firewall":
+        return AzCliStateProbe(
+            command=(
+                "az",
+                "servicebus",
+                "namespace",
+                "network-rule-set",
+                "show",
+                "-g",
+                resource_group,
+                "--namespace-name",
+                str(ctx["servicebus_namespace"]),
+                "--query",
+                "defaultAction",
+                "-o",
+                "tsv",
+            ),
+            expected_substrings=("Deny",),
+        )
+    raise ValueError(f"{entry.id}: no Azure state probe for {ref!r}")
 
 
 def _build_az_vm_network_latency(entry: CatalogEntry, ctx: dict[str, Any]) -> FaultInjector:
@@ -647,10 +985,13 @@ def register_default_builders(factory: ScenarioFactory) -> ScenarioFactory:
     """
     # Injectors: one prefix registration covers all chaos-mesh:<Kind> scenarios.
     factory.register_injector("chaos-mesh", _build_chaos_mesh)
+    factory.register_injector("litmus", _build_litmus)
     factory.register_injector("kubectl:pod-kill", _build_kubectl_pod_kill)
     factory.register_injector("kubectl:scale", _build_kubectl_scale)
     factory.register_injector("kubectl:set-image", _build_kubectl_set_image)
     factory.register_injector("az:vm-run-command", _build_az_vm_run_command)
+    factory.register_injector("mysql:query-load", _build_mysql_query_load)
+    factory.register_injector("aoai:rate-limit", _build_aoai_rate_limit)
     # Azure Chaos Studio equivalents (direct az CLI, no Chaos Studio service).
     factory.register_injector("az:vm-network-latency", _build_az_vm_network_latency)
     factory.register_injector("az:vm-packet-loss", _build_az_vm_packet_loss)
@@ -674,6 +1015,8 @@ def register_default_builders(factory: ScenarioFactory) -> ScenarioFactory:
     factory.register_probe("rollout_stall", _build_rollout_stall_probe)
     factory.register_probe("host_cpu", _build_host_cpu_probe)
     factory.register_probe("host_memory", _build_host_memory_probe)
+    factory.register_probe("db_cpu", _build_db_cpu_probe)
+    factory.register_probe("rate_limit", _build_rate_limit_probe)
     # Every remaining chaos-mesh-backed signal reads through the CRD
     # status probe (Chaos Mesh's AllInjected). Wiring a metric-backed
     # probe per signal (gateway_latency Kusto, request_failure SLO burn,

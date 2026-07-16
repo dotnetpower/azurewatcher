@@ -1,0 +1,7 @@
+schema_version: "1.0.0"
+name: subscribed_to_briefing
+version: "1.0.0"
+from_type: Principal
+to_type: BriefingSubscription
+cardinality: one_to_many
+description: Proactive briefing subscriptions configured by a Principal.

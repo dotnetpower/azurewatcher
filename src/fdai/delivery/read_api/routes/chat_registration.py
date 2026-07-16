@@ -8,11 +8,14 @@ from collections.abc import Awaitable, Callable, Collection
 from starlette.requests import Request
 from starlette.routing import BaseRoute
 
+from fdai.core.user_context_projection import UserContextOntologyProjector
 from fdai.delivery.read_api.read_model import ConsoleReadModel
 from fdai.delivery.read_api.routes.chat import (
     DEFAULT_ROUTE_PATH,
     AgentChatDelegate,
     ChatBackend,
+    ChatWebSearchEvidenceResolver,
+    LatencyRoutedChatBackend,
     describe_backend,
     make_chat_health_route,
     make_chat_route,
@@ -21,6 +24,8 @@ from fdai.delivery.read_api.routes.chat import (
 from fdai.delivery.read_api.routes.chat_evidence import OperationalEvidenceResolver
 from fdai.delivery.read_api.routes.chat_semantic import semantic_verifier_from_env
 from fdai.delivery.read_api.routes.chat_tools import ReadModelChatTools
+from fdai.shared.providers.briefing import ConversationPolicyStore
+from fdai.shared.providers.user_context import ConversationHistoryStore
 
 
 def append_chat_routes(
@@ -28,6 +33,11 @@ def append_chat_routes(
     *,
     backend: ChatBackend | None,
     agent_delegate: AgentChatDelegate | None,
+    web_search_resolver: ChatWebSearchEvidenceResolver | None = None,
+    conversation_policy_store: ConversationPolicyStore | None = None,
+    conversation_history_store: ConversationHistoryStore | None = None,
+    user_context_ontology_projector: UserContextOntologyProjector | None = None,
+    model_settings: object | None = None,
     authorize: Callable[[Request], Awaitable[str]],
     read_model: ConsoleReadModel,
     core_paths: Collection[str],
@@ -53,18 +63,40 @@ def append_chat_routes(
                 authorize=authorize,
                 evidence_resolver=evidence,
                 tool_resolver=tools,
+                web_search_resolver=web_search_resolver,
                 agent_delegate=agent_delegate,
                 semantic_verifier=semantic_verifier,
+                conversation_policy_store=conversation_policy_store,
+                conversation_history_store=conversation_history_store,
+                user_context_ontology_projector=user_context_ontology_projector,
+                model_preference_resolver=(
+                    getattr(model_settings, "preferred_model", None)
+                    if model_settings is not None
+                    else None
+                ),
             ),
             make_chat_stream_route(
                 backend=backend,
                 authorize=authorize,
                 evidence_resolver=evidence,
                 tool_resolver=tools,
+                web_search_resolver=web_search_resolver,
                 agent_delegate=agent_delegate,
                 semantic_verifier=semantic_verifier,
+                conversation_policy_store=conversation_policy_store,
+                conversation_history_store=conversation_history_store,
+                user_context_ontology_projector=user_context_ontology_projector,
+                model_preference_resolver=(
+                    getattr(model_settings, "preferred_model", None)
+                    if model_settings is not None
+                    else None
+                ),
             ),
-            make_chat_health_route(backend=backend, authorize=authorize),
+            make_chat_health_route(
+                backend=backend,
+                authorize=authorize,
+                web_search_resolver=web_search_resolver,
+            ),
         )
     )
 
@@ -84,4 +116,9 @@ def append_chat_routes(
         )
 
 
-__all__ = ["append_chat_routes"]
+def is_routed_chat_backend(backend: object) -> bool:
+    """Return whether the optional chat backend uses latency routing."""
+    return isinstance(backend, LatencyRoutedChatBackend)
+
+
+__all__ = ["append_chat_routes", "is_routed_chat_backend"]

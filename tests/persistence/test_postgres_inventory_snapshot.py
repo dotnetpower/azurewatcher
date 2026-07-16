@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from fdai.delivery.persistence.postgres_inventory_snapshot import (
+    PostgresInventoryContextProvider,
     PostgresInventoryGraphProvider,
     PostgresInventorySnapshotStore,
     PostgresInventorySnapshotStoreConfig,
@@ -60,6 +61,7 @@ async def test_failed_candidate_retains_last_active_snapshot() -> None:
     config = PostgresInventorySnapshotStoreConfig(dsn=_dsn())
     store = PostgresInventorySnapshotStore(config=config)
     provider = PostgresInventoryGraphProvider(config=config)
+    context_provider = PostgresInventoryContextProvider(config=config)
 
     first = await store.begin(_manifest("arg"))
     await store.stage(
@@ -81,6 +83,11 @@ async def test_failed_candidate_retains_last_active_snapshot() -> None:
     graph = await provider(None, 4, ("contains",))
     assert graph["source"] == "arg"
     assert [resource["id"] for resource in graph["resources"]] == ["rg-test"]
+    context = await context_provider("rg-test")
+    assert context is not None
+    assert context["resource_type"] == "resource-group"
+    assert context["props"] == {"name": "rg"}
+    assert await context_provider("missing-resource") is None
 
 
 async def test_promotion_rejects_dangling_link() -> None:

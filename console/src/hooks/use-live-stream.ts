@@ -2,16 +2,14 @@
  * Live stage-event stream hook.
  *
  * Subscribes to the read-API's `GET /live/stream` SSE endpoint via
- * `EventSource`, honours the connection lifecycle (open / closed /
+ * authenticated fetch streaming, honours the connection lifecycle (open / closed /
  * reconnecting), and hands raw {@link LiveStageEvent} records to a
  * consumer via a mutable ring buffer.
  *
  * The hook never issues privileged calls - it is a pure read consumer.
- * SSE reconnection is delegated to the browser (EventSource
- * automatically retries with a 3s default delay); `Last-Event-ID`
- * flows back to the server on retry so replay-capable adapters can
- * resume from the gap. Upstream today has no replay (audit page has
- * full history), and the FE keeps rendering when reconnection lands.
+ * Reconnection uses bounded exponential backoff. Upstream today has no
+ * replay (the audit page has full history), and the frontend keeps rendering
+ * when reconnection lands.
  *
  * Visibility gating: while the page is hidden (backgrounded tab) the
  * hook closes the `EventSource` and reports `idle`. This stops a
@@ -60,9 +58,8 @@ export interface UseLiveStreamOptions {
   readonly onEvent: (event: LiveStageEvent) => void;
   /** Optional connection-status observer. */
   readonly onStatus?: (status: LiveConnectionStatus) => void;
-  /** Send credentials (cookies) with the request. Same-origin
-   *  production deployments need this; cross-origin dev does not. */
-  readonly withCredentials?: boolean;
+  /** Acquire the current bearer header. Dev mode returns null. */
+  readonly getAuthorizationHeader?: () => Promise<string | null>;
 }
 
 export interface UseLiveStreamResult {
@@ -76,117 +73,171 @@ export interface UseLiveStreamResult {
  * passed to `onEvent` (in a `useRef` so re-renders do not tear the
  * subscription). The hook cleans up on unmount.
  */
-export function useLiveStream(options: UseLiveStreamOptions): UseLiveStreamResult {
-  const [status, setStatus] = useState<LiveConnectionStatus>(
-    typeof EventSource === "undefined" ? "unsupported" : "idle",
-  );
-  const [lastError, setLastError] = useState<string | null>(null);
+const LIVE_STAGES: ReadonlySet<string> = new Set(["ingest", "route", "verify", "gate", "execute", "audit"]);
+const LIVE_PHASES: ReadonlySet<string> = new Set(["begin", "progress", "done", "failed"]);
 
+export function decodeLiveStageEvent(data: string): LiveStageEvent | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(data);
+  } catch {
+    return null;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const event = value as Record<string, unknown>;
+  if (
+    typeof event.event_id !== "string" || typeof event.correlation_id !== "string" ||
+    typeof event.stage !== "string" || !LIVE_STAGES.has(event.stage) ||
+    typeof event.phase !== "string" || !LIVE_PHASES.has(event.phase) ||
+    typeof event.ts !== "string" ||
+    !(event.detail === undefined || (typeof event.detail === "object" && event.detail !== null && !Array.isArray(event.detail))) ||
+    !(event.error === undefined || typeof event.error === "string")
+  ) return null;
+  return event as unknown as LiveStageEvent;
+}
+
+export function liveStreamHeaders(authorization: string | null): Headers {
+  const headers = new Headers({ accept: "text/event-stream" });
+  if (authorization) headers.set("authorization", authorization);
+  return headers;
+}
+
+export function liveReconnectDelay(attempt: number): number {
+  return Math.min(30000, 1000 * (2 ** Math.min(attempt, 5)));
+}
+
+export function isPermanentLiveStreamFailure(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
+export async function consumeLiveSse(
+  response: Response,
+  onEvent: (event: LiveStageEvent) => void,
+): Promise<void> {
+  if (!response.ok) throw new Error(`live stream returned HTTP ${response.status}`);
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!contentType.includes("text/event-stream")) throw new Error("live stream returned an invalid content type");
+  if (!response.body) throw new Error("live stream response has no body");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const consumeBlock = (block: string): void => {
+    const data = block.split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trimStart())
+      .join("\n");
+    if (!data) return;
+    const event = decodeLiveStageEvent(data);
+    if (event) onEvent(event);
+  };
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer = (buffer + decoder.decode(value, { stream: !done })).replace(/\r\n/g, "\n");
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary >= 0) {
+      consumeBlock(buffer.slice(0, boundary));
+      buffer = buffer.slice(boundary + 2);
+      boundary = buffer.indexOf("\n\n");
+    }
+    if (done) {
+      if (buffer.trim()) consumeBlock(buffer);
+      return;
+    }
+  }
+}
+
+export function useLiveStream(options: UseLiveStreamOptions): UseLiveStreamResult {
+  const [status, setStatus] = useState<LiveConnectionStatus>(typeof fetch === "undefined" ? "unsupported" : "idle");
+  const [lastError, setLastError] = useState<string | null>(null);
   const onEventRef = useRef(options.onEvent);
   const onStatusRef = useRef(options.onStatus);
   onEventRef.current = options.onEvent;
   onStatusRef.current = options.onStatus;
-
-  const url = options.url;
-  const withCredentials = options.withCredentials ?? false;
+  const { url, getAuthorizationHeader } = options;
 
   useEffect(() => {
-    if (typeof EventSource === "undefined") return undefined;
-
+    if (typeof fetch === "undefined") return undefined;
     let cancelled = false;
-    let source: EventSource | null = null;
-
-    const connect = () => {
-      if (cancelled || source) return;
-      setStatus("connecting");
-      onStatusRef.current?.("connecting");
-
-      const es = new EventSource(url, { withCredentials });
-      source = es;
-
-      // Note: the server emits `event: stage` for real transitions and
-      // `event: hello` on connect. We only forward `stage` frames; the
-      // `hello` frame is observability-only.
-      es.addEventListener("stage", (raw) => {
-        if (cancelled || source !== es) return;
-        const messageEvent = raw as MessageEvent;
-        try {
-          const parsed = JSON.parse(messageEvent.data) as LiveStageEvent;
-          onEventRef.current(parsed);
-        } catch (err) {
-          setLastError(err instanceof Error ? err.message : String(err));
+    let controller: AbortController | null = null;
+    let reconnectTimer: number | null = null;
+    let reconnectAttempt = 0;
+    let permanentFailure = false;
+    const publishStatus = (next: LiveConnectionStatus): void => {
+      setStatus(next);
+      onStatusRef.current?.(next);
+    };
+    const isHidden = (): boolean => typeof document !== "undefined" && document.hidden;
+    const scheduleReconnect = (): void => {
+      if (cancelled || permanentFailure || isHidden()) return;
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+      const delay = liveReconnectDelay(reconnectAttempt);
+      reconnectAttempt += 1;
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        void connect();
+      }, delay);
+    };
+    const connect = async (): Promise<void> => {
+      if (cancelled || controller) return;
+      publishStatus("connecting");
+      const active = new AbortController();
+      controller = active;
+      try {
+        const authorization = await getAuthorizationHeader?.() ?? null;
+        if (cancelled || controller !== active) return;
+        const response = await fetch(url, {
+          method: "GET",
+          headers: liveStreamHeaders(authorization),
+          credentials: "omit",
+          signal: active.signal,
+        });
+        if (!response.ok) {
+          permanentFailure = isPermanentLiveStreamFailure(response.status);
+          throw new Error(`live stream returned HTTP ${response.status}`);
         }
-      });
-
-      es.onopen = () => {
-        if (cancelled || source !== es) return;
-        setStatus("open");
+        publishStatus("open");
         setLastError(null);
-        onStatusRef.current?.("open");
-      };
-
-      es.onerror = () => {
-        if (cancelled || source !== es) return;
-        // EventSource auto-reconnects for transient errors; when the
-        // browser gives up (readyState === CLOSED) we surface "closed".
-        const nextStatus: LiveConnectionStatus =
-          es.readyState === EventSource.CLOSED ? "closed" : "connecting";
-        setStatus(nextStatus);
-        // Populate lastError on close so the live view can render a real
-        // "connection lost" message instead of an empty span. Transient
-        // reconnect attempts leave an existing message untouched; onopen
-        // clears it on successful recovery.
-        if (es.readyState === EventSource.CLOSED) {
+        await consumeLiveSse(response, (event) => {
+          if (!cancelled && controller === active) {
+            reconnectAttempt = 0;
+            onEventRef.current(event);
+          }
+        });
+        if (!cancelled && controller === active) {
           setLastError("connection to live stream closed");
+          publishStatus("closed");
         }
-        onStatusRef.current?.(nextStatus);
-      };
-    };
-
-    const disconnect = (nextStatus: LiveConnectionStatus) => {
-      if (source) {
-        source.close();
-        source = null;
+      } catch (error) {
+        if (!cancelled && !active.signal.aborted) {
+          setLastError(error instanceof Error ? error.message : String(error));
+          publishStatus("closed");
+        }
+      } finally {
+        if (controller === active) controller = null;
+        scheduleReconnect();
       }
-      setStatus(nextStatus);
-      onStatusRef.current?.(nextStatus);
     };
-
-    // Only hold an open connection while the tab is visible. A hidden
-    // tab stays `idle` so it cannot flood the backend with reconnects.
-    const isHidden = () =>
-      typeof document !== "undefined" && document.hidden;
-
-    const handleVisibility = () => {
+    const disconnect = (next: LiveConnectionStatus): void => {
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      controller?.abort();
+      controller = null;
+      publishStatus(next);
+    };
+    const handleVisibility = (): void => {
       if (cancelled) return;
-      if (isHidden()) {
-        disconnect("idle");
-      } else {
-        connect();
-      }
+      if (isHidden()) disconnect("idle");
+      else void connect();
     };
-
-    if (isHidden()) {
-      setStatus("idle");
-      onStatusRef.current?.("idle");
-    } else {
-      connect();
-    }
-
-    if (typeof document !== "undefined") {
-      document.addEventListener("visibilitychange", handleVisibility);
-    }
-
+    if (isHidden()) publishStatus("idle");
+    else void connect();
+    document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       cancelled = true;
-      if (typeof document !== "undefined") {
-        document.removeEventListener("visibilitychange", handleVisibility);
-      }
-      if (source) source.close();
-      setStatus("closed");
-      onStatusRef.current?.("closed");
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+      controller?.abort();
     };
-  }, [url, withCredentials]);
-
+  }, [url, getAuthorizationHeader]);
   return { status, lastError };
 }

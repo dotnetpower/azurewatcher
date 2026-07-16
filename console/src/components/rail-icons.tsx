@@ -111,5 +111,7 @@ export function groupIcon(group: PanelGroup): JSX.Element {
       return <IconEvidence />;
     case "labs":
       return <IconLabs />;
+    case "settings":
+      return settingsIcon();
   }
 }

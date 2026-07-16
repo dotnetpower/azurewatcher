@@ -318,7 +318,14 @@ class RoleResolver:
         if not isinstance(oid, str) or not oid:
             raise ValueError("claims MUST carry a non-empty 'oid' - Entra stable user id")
 
-        upn = claims.get("upn") if isinstance(claims.get("upn"), str) else None
+        upn = next(
+            (
+                value
+                for key in ("upn", "preferred_username", "unique_name")
+                if isinstance((value := claims.get(key)), str) and value
+            ),
+            None,
+        )
         email = claims.get("email") if isinstance(claims.get("email"), str) else None
 
         raw_roles = claims.get("roles") or ()

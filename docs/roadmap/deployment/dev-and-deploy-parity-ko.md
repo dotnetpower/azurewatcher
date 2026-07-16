@@ -1,8 +1,8 @@
 ---
 title: Dev/Deploy Parity - 로컬 Fake vs Azure-First 프로비저닝
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: 32b9d056e882c15383c8811ea920472b61ac4c64
-translation_revised: 2026-07-12
+translation_source_sha: 4ac1911f9bfbee4808620273d3842c7068c4584e
+translation_revised: 2026-07-16
 ---
 
 # Dev/Deploy Parity - 로컬 Fake vs Azure-First 프로비저닝
@@ -49,6 +49,20 @@ translation_revised: 2026-07-12
 |-----------|-------------|--------------|
 | State store (통합 테스트) | `pgvector/pgvector:pg16` on `:5432` | Azure PostgreSQL Flexible + pgvector |
 | Event bus (통합 테스트) | Redpanda on `:19092` (Kafka wire) | Event Hubs Kafka on `:9093` |
+
+### 로컬 개발의 콘솔 live feed
+
+로컬 read API는 Live와 Agents feed를 등록하지만 기본적으로 producer를 시작하지 않으므로
+두 stream은 조용히 대기합니다. 명시적인 demo가 필요할 때만
+`FDAI_LOCAL_SCENARIO_REPLAY=1`을 설정합니다. 이 모드에서 `ControlLoopLiveEmitter`는
+`tests/scenarios/v2026.07/` 아래의 제공 이벤트와 catalog에서
+파생한 합성 resource template을 순환합니다. 각 replay에 새로운 event, correlation,
+idempotency identity를 부여하고 구성된 개발 속도로 실제 `ControlLoop.process()` 경로에
+보냅니다. 그런 다음 `ControlLoopAgentActivityRelay`가 실제 stage 결과를 agent 상태와
+`INC-<correlation_id>` ticket으로 투영합니다. 판정은 production 코드를 실행하지만 입력
+resource와 incident는 Azure tenant에서 관찰한 값이 아니라 생성된 예제입니다. Production의
+Agents broadcaster는 대신 구성된 Kafka `aw.pipeline.stages` topic을 소비하므로 incident는
+배포된 runtime stream을 나타냅니다.
 
 ### 지금은 Azure가 필요 - 로컬 모드 추가 필요
 

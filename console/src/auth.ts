@@ -33,6 +33,8 @@ export interface AuthContext {
   readonly localAzureCli?: boolean;
   /** The signed-in account, or `null` when not signed in / dev mode. */
   readonly account: AuthAccount | null;
+  /** True when this context can start an interactive identity-provider login. */
+  readonly interactiveSignIn?: boolean;
   /** Return the current bearer token or `null` when dev mode. */
   getAuthorizationHeader(): Promise<string | null>;
   /** Trigger sign-in redirect. No-op in dev mode. */
@@ -43,6 +45,7 @@ export interface AuthContext {
 
 class DevModeAuth implements AuthContext {
   readonly devMode = true;
+  readonly interactiveSignIn = false;
   readonly account = null;
   async getAuthorizationHeader(): Promise<string | null> {
     return null;
@@ -66,6 +69,7 @@ interface LocalCliProfile {
 class LocalAzureCliAuth implements AuthContext {
   readonly devMode = true;
   readonly localAzureCli = true;
+  readonly interactiveSignIn = false;
   readonly account: AuthAccount;
 
   constructor(profile: LocalCliProfile) {
@@ -90,14 +94,20 @@ class LocalAzureCliAuth implements AuthContext {
 }
 
 class MsalAuth implements AuthContext {
-  readonly devMode = false;
+  readonly interactiveSignIn = true;
+  readonly devMode: boolean;
   #client: PublicClientApplication;
   #scope: string;
   #account: AccountInfo | null = null;
 
-  constructor(client: PublicClientApplication, scope: string) {
+  constructor(
+    client: PublicClientApplication,
+    scope: string,
+    options: { readonly devMode?: boolean } = {},
+  ) {
     this.#client = client;
     this.#scope = scope;
+    this.devMode = options.devMode ?? false;
   }
 
   get account(): AuthAccount | null {
@@ -156,6 +166,14 @@ export async function initAuth(config: ConsoleConfig): Promise<AuthContext> {
     return new LocalAzureCliAuth(parseLocalCliProfile(await response.json()));
   }
   if (config.devMode) {
+    if (
+      config.localLoginPrompt &&
+      config.msalClientId &&
+      config.msalTenantId &&
+      config.msalApiScope
+    ) {
+      return initializeMsal(config, true);
+    }
     return new DevModeAuth();
   }
   if (!config.msalClientId || !config.msalTenantId || !config.msalApiScope) {
@@ -167,6 +185,10 @@ export async function initAuth(config: ConsoleConfig): Promise<AuthContext> {
         "VITE_MSAL_API_SCOPE MUST all be set for a non-dev build."
     );
   }
+  return initializeMsal(config, false);
+}
+
+async function initializeMsal(config: ConsoleConfig, devMode: boolean): Promise<AuthContext> {
   const msalConfig: Configuration = {
     auth: {
       clientId: config.msalClientId,
@@ -182,7 +204,7 @@ export async function initAuth(config: ConsoleConfig): Promise<AuthContext> {
   };
   const client = new PublicClientApplication(msalConfig);
   await client.initialize();
-  const auth = new MsalAuth(client, config.msalApiScope);
+  const auth = new MsalAuth(client, config.msalApiScope, { devMode });
   await auth.initialize();
   return auth;
 }

@@ -423,7 +423,109 @@ Human users never hold PATs or long-lived secrets:
 - Break-glass credential rotation and drill cadence are declared in
   [security-and-identity.md](../architecture/security-and-identity.md).
 
-## 11. Open Decisions
+## 11. Console Settings and Access Requests
+
+The Settings activity-bar group gives operators four stable routes without widening the
+console's cloud permissions:
+
+| Route | Purpose |
+|-------|---------|
+| `/settings/general` | Browser-local display, language, motion, and answer-verification preferences. |
+| `/settings/models` | Resolved T1/T2 models, automatic lifecycle status, latency evidence, and the signed-in user's T1 narrator preference. |
+| `/settings/iam` | Signed-in principal, App Roles, effective capabilities, referenced users, and access requests. |
+| `/settings/integrations` | Read-only identity, delivery, and operator-channel connection status. |
+| `/settings/diagnostics` | Read API endpoint and authentication-session diagnostics. |
+
+`/settings` remains a compatibility alias for `/settings/general`. Settings is a bottom
+navigation group, so selecting it opens the same Explorer pattern used by the operator
+domains instead of leaving the previous domain menu visible.
+
+### 11.1 IAM projection
+
+`GET /iam` returns the server-verified principal, the five fixed role definitions, and the
+effective capability union. `GET /iam/access-requests` returns requests visible to that
+principal. Access-request identities are Owner-only; Reader, Contributor, and Approver
+requests receive `403` and the console renders a locked surface. An unassigned user sees only
+their own request through the role-optional `GET /iam/self` projection.
+
+The Users tab combines two bounded sources. It shows the verified signed-in principal and
+users referenced by visible access requests. An Owner can also search the configured
+`HumanIdentityDirectory` through `GET /iam/directory/users?q=...` and select an account to
+prefill a governed access request. The browser never receives provider credentials.
+
+`GET /iam/directory/roster` projects the configured FDAI role groups and their person
+members. The Users tab can filter People and Groups and displays a role dropdown on every
+row. Selecting a role records a `set` request, meaning the assignment worker should replace
+the principal's routine FDAI role memberships with the selected role after approval. Alias
+search requires only the user and role selection; provider and subject ids remain
+server-projected values rather than operator input fields.
+
+`HumanIdentityDirectory` is cloud-provider-neutral. Every adapter returns a stable
+`provider`, `subject_id`, username, display name, user type, and active flag. Microsoft
+Entra ID is the implemented adapter and uses Microsoft Graph `/users` with managed identity
+and the application permissions `User.Read.All` and `GroupMember.Read.All`. AWS IAM Identity Center and Google Cloud
+Identity adapters are future scope; they can implement the same Protocol without changing
+the core service, API payload, or console.
+
+The anonymous local development mode keeps a synthetic directory for offline UI work. The
+authenticated local modes, `FDAI_READ_API_LOCAL_ENTRA=1` and
+`FDAI_READ_API_LOCAL_AZURE_CLI=1`, use the same Microsoft Graph adapter with the current Azure
+CLI credential and the five configured `FDAI_RBAC_*_GROUP_ID` values. They don't fall back to
+synthetic users, so alias search, the role roster, and access-request targets reflect the
+signed-in tenant while provider credentials remain outside the browser.
+
+### 11.2 Governed request flow
+
+A Contributor or higher role can submit `POST /iam/access-requests` with these fields:
+
+| Field | Rule |
+|-------|------|
+| `idempotency_key` | Required. Reuse with the same intent returns the existing request; reuse with different intent returns `409`. |
+| `identity_provider` | Stable adapter name, such as `entra`. |
+| `target_subject_id` | Stable account subject from that provider. Legacy `target_oid` input remains accepted during migration. |
+| `target_username` | Human-readable name or UPN for review. Authorization never relies on this value. |
+| `operation` | `grant`, `revoke`, or `set`. `set` expresses the per-row role dropdown change. |
+| `role` | `Reader`, `Contributor`, `Approver`, or `Owner`. Routine `BreakGlass` requests are blocked. |
+| `justification` | 20-2000 characters. Stored with the request and audit event. |
+
+The API derives the requester and capabilities from the validated token. It stores each
+request under an immutable, atomic state key and appends an `iam.access-requested` entry to
+the hash-chained audit log. The response status is `pending`; submitting the form doesn't
+approve the request or change Entra group membership.
+
+Approval stays in ChatOps or the governance pull-request path. After approval, an Owner
+applies the allowlisted `aw-*` group change through the tenant's identity-administration
+process. This separation keeps the browser, read API, and executor identity away from
+Microsoft Graph membership permissions.
+
+### 11.3 First sign-in without a role
+
+An authenticated user with no FDAI App Role doesn't enter the operator shell. The console
+calls role-optional `GET /iam/self` and renders an Access Required screen with:
+
+- the verified account;
+- the only self-service role available, `Reader`;
+- an optional message;
+- the current request id and `pending` status after submission;
+- check-again and sign-out actions.
+
+`POST /iam/access-requests/self` derives the target subject from the verified token. It
+allows only `grant Reader` for that same subject. Requests for another subject, a higher
+role, or a revoke are blocked even if the browser body is modified.
+
+The request appears in Settings > Identity and access for an Owner, including the requester,
+provider subject, role, and audit correlation. An Owner can record `approve` or `reject` with
+a justification in IAM. The API blocks self-approval and stores the decision separately from
+the immutable request, with an `iam.access-reviewed` audit entry. High-risk runtime approvals
+remain in ChatOps and the regular Approvals surface; an IAM review never approves an
+autonomous action.
+
+An approved IAM request has status `approved` but still requires the provider-side group
+assignment before the user's next token carries the role. Approval and assignment remain
+separate principals. Provider automation can consume the approved projection later without
+changing the request or review contract.
+
+## 12. Open Decisions
 
 - [ ] Whether the API stores the `entra_oid ↔ github_login` mapping in the same
       PostgreSQL as audit (single store) or in a separate fork-owned identity store.

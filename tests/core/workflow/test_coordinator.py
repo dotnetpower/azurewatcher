@@ -10,6 +10,7 @@ from fdai.core.rbac.resolver import GroupMapping
 from fdai.core.workflow.approval import WorkflowApprovalPlanner
 from fdai.core.workflow.coordinator import WorkflowTriggerCoordinator
 from fdai.core.workflow.orchestrator import WorkflowOrchestrator, derive_process_id
+from fdai.core.workflow.schedule import scheduled_task_from_workflow
 from fdai.core.workflow.trigger_index import WorkflowTriggerIndex
 from fdai.shared.contracts.models import (
     Autonomy,
@@ -65,6 +66,32 @@ def _wf(name: str, signal: str) -> Workflow:
             min_shadow_days=14, min_samples=100, min_accuracy=0.95, max_policy_escapes=0
         ),
         steps=[WorkflowStep(id="s", action_type_ref="ops.gated")],
+    )
+
+
+def _scheduled_wf() -> Workflow:
+    return Workflow(
+        schema_version="1.0.0",
+        name="scheduled-gpu-task",
+        version="1.0.0",
+        trigger=WorkflowTrigger(kind=WorkflowTriggerKind.SCHEDULE, schedule="0 2 * * *"),
+        default_mode=Mode.SHADOW,
+        promotion_gate=PromotionGate(
+            min_shadow_days=14,
+            min_samples=30,
+            min_accuracy=0.99,
+            max_policy_escapes=0,
+        ),
+        steps=[
+            WorkflowStep(
+                id="run",
+                action_type_ref="ops.gated",
+                params={
+                    "artifact_ref": "${event.payload.task.artifact_ref}",
+                    "target": "${event.resource_ref}",
+                },
+            )
+        ],
     )
 
 
@@ -192,3 +219,32 @@ async def test_resourceless_event_uses_sentinel_target() -> None:
         target_resource_id="event:object.drift",
         trigger_ts=_TS,
     )
+
+
+async def test_scheduled_event_runs_bound_workflow_and_templates_payload() -> None:
+    audit = InMemoryStateStore()
+    workflow = _scheduled_wf()
+    task = scheduled_task_from_workflow(
+        workflow,
+        target_resource_ref="resource:compute/vm/gpu-worker",
+        artifact_ref="python-task:gpu.health@1.0.0#" + "a" * 64,
+        created_by="operator-1",
+    )
+    event = _event(
+        event_type=task.event_type,
+        resource_ref=task.resource_ref,
+        payload=dict(task.event_payload),
+    )
+    proposal = task.event_payload["action_proposal"]
+    assert set(proposal["params"]) == {"artifact_ref", "target_resource_ref", "reason"}
+
+    runs = await _coordinator(audit, [workflow]).on_event(event)
+
+    assert [run.workflow_name for run in runs] == [workflow.name]
+    step = next(
+        row["entry"]
+        for row in audit.audit_entries
+        if row["entry"]["action_kind"] == "workflow.step"
+    )
+    assert step["params"]["artifact_ref"].startswith("python-task:gpu.health@")
+    assert step["params"]["target"] == "resource:compute/vm/gpu-worker"

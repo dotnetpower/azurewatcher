@@ -1,0 +1,16 @@
+schema_version: "1.0.0"
+name: BriefingRun
+version: "1.0.0"
+key: id
+description: Grounded result metadata for one opening or scheduled briefing.
+properties:
+  id: {type: string, required: true}
+  principal_ref: {type: string, required: true, access_scope: owner, purpose_binding: [user_context]}
+  subscription_ref: {type: string, required: false}
+  conversation_ref: {type: string, required: false}
+  scheduled_for: {type: datetime, required: true}
+  started_at: {type: datetime, required: true}
+  status: {type: string, required: true}
+  item_count: {type: integer, required: true}
+  evidence_refs: {type: array, required: true}
+  source_error_count: {type: integer, required: true}

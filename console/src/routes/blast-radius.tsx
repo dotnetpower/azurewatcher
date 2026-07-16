@@ -16,8 +16,16 @@ import {
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
+import { loadConfig } from "../config";
 import { t } from "../i18n";
-import { routeHref } from "../router";
+import { navigate } from "../router";
+import {
+  BLAST_RADIUS_LINKS,
+  blastRadiusHref,
+  blastRadiusQueryFromSearch,
+  DEFAULT_BLAST_RADIUS_LINKS,
+  type BlastRadiusQuery,
+} from "./blast-radius.model";
 
 /**
  * Blast-radius simulator panel. Wraps ``GET /simulate/blast-radius`` -
@@ -56,24 +64,41 @@ interface Props {
   readonly client: ReadApiClient;
 }
 
-const DEFAULT_LINKS: readonly string[] = ["contains", "depends_on"];
-const AVAILABLE_LINKS = ["contains", "depends_on", "attached_to"] as const;
-
 export function BlastRadiusRoute({ client }: Props) {
-  const [target, setTarget] = useState(() => targetFromHash(window.location.search) ?? "web-api");
-  const [architectureView, setArchitectureView] = useState(() => viewFromHash(window.location.search));
-  const [depth, setDepth] = useState(2);
-  const [linkSet, setLinkSet] = useState<Set<string>>(new Set(DEFAULT_LINKS));
+  const initialQuery = blastRadiusQueryFromSearch(window.location.search);
+  const [target, setTarget] = useState(() => initialQuery.target ?? "web-api");
+  const [architectureView, setArchitectureView] = useState(initialQuery.architectureView);
+  const [depth, setDepth] = useState(initialQuery.depth);
+  const [linkSet, setLinkSet] = useState<Set<string>>(() => new Set(initialQuery.links));
   const [state, setState] = useState<AsyncState<BlastRadiusResponse>>({ status: "idle" });
   const requestGeneration = useRef(0);
+  const initialSimulationStarted = useRef(false);
+
+  useEffect(() => {
+    if (initialSimulationStarted.current) return;
+    const config = loadConfig();
+    const query = blastRadiusQueryFromSearch(window.location.search);
+    const hasExplicitTarget = query.target !== null;
+    if (!hasExplicitTarget && !config.devMode && !config.localAzureCliAuth) return;
+    initialSimulationStarted.current = true;
+    void runSimulation({
+      target: query.target ?? target,
+      depth: query.depth,
+      links: query.links,
+      architectureView: query.architectureView,
+    });
+  }, [client]);
 
   useEffect(() => {
     const sync = () => {
       requestGeneration.current += 1;
-      const nextTarget = targetFromHash(window.location.search);
-      setTarget(nextTarget ?? "web-api");
-      setArchitectureView(viewFromHash(window.location.search));
-      setState({ status: "idle" });
+      const query = blastRadiusQueryFromSearch(window.location.search);
+      setTarget(query.target ?? "web-api");
+      setDepth(query.depth);
+      setLinkSet(new Set(query.links));
+      setArchitectureView(query.architectureView);
+      if (query.target) void runSimulation(query);
+      else setState({ status: "idle" });
     };
     window.addEventListener("popstate", sync);
     window.addEventListener("fdai:route-changed", sync);
@@ -92,15 +117,21 @@ export function BlastRadiusRoute({ client }: Props) {
     });
   }
 
-  async function runSimulation(): Promise<void> {
+  async function runSimulation(query: BlastRadiusQuery = {
+    target,
+    depth,
+    links: [...linkSet],
+    architectureView,
+  }): Promise<void> {
+    if (!query.target) return;
     const generation = requestGeneration.current + 1;
     requestGeneration.current = generation;
     setState({ status: "loading" });
     try {
       const params = new URLSearchParams();
-      params.set("target", target);
-      params.set("depth", String(depth));
-      for (const link of linkSet) params.append("link", link);
+      params.set("target", query.target);
+      params.set("depth", String(query.depth));
+      for (const link of query.links) params.append("link", link);
       const url = `/simulate/blast-radius?${params.toString()}`;
       const data = await client.panel<BlastRadiusResponse>(url);
       if (requestGeneration.current === generation) setState({ status: "ready", data });
@@ -115,7 +146,7 @@ export function BlastRadiusRoute({ client }: Props) {
   }
 
   return (
-    <div class="stack">
+    <div class="stack governance-route blast-radius-route">
       <PageHeader
         title={t("route.blastRadius")}
         subtitle="Simulate the reachable subgraph before approving a change. Read-only projection over the ontology - no resources are touched."
@@ -127,7 +158,12 @@ export function BlastRadiusRoute({ client }: Props) {
           class="form-grid"
           onSubmit={(e) => {
             e.preventDefault();
-            void runSimulation();
+            navigate(blastRadiusHref({
+              target: target.trim(),
+              depth,
+              links: [...linkSet],
+              architectureView,
+            }));
           }}
         >
           <label>
@@ -153,7 +189,7 @@ export function BlastRadiusRoute({ client }: Props) {
           <fieldset class="chip-fieldset">
             <legend>Link types</legend>
             <div class="chip-options">
-              {AVAILABLE_LINKS.map((name) => (
+              {BLAST_RADIUS_LINKS.map((name) => (
                 <label key={name} class="chip-option">
                   <input
                     type="checkbox"
@@ -185,9 +221,8 @@ export function BlastRadiusRoute({ client }: Props) {
     </div>
   );
 }
-
 function ReportView({ data, client, architectureView }: { readonly data: BlastRadiusResponse; readonly client: ReadApiClient; readonly architectureView: string | null }) {
-  const [view, setView] = useState<"map" | "table">("map");
+  const [view, setView] = useState<"impact" | "map" | "table">("impact");
   usePublishViewContext(
     () => ({
       routeId: "blast-radius",
@@ -226,7 +261,12 @@ function ReportView({ data, client, architectureView }: { readonly data: BlastRa
 
   const reachedColumns: readonly Column<ReachedNode>[] = [
     { key: "d", header: "Depth", render: (n) => n.depth, cellClass: "num", headerClass: "num" },
-    { key: "id", header: "Resource id", render: (n) => n.resource_id, cellClass: "mono" },
+    {
+      key: "id",
+      header: "Resource id",
+      render: (n) => <a href={architectureHref(n.resource_id, architectureView)}>{n.resource_id}</a>,
+      cellClass: "mono",
+    },
     {
       key: "via",
       header: "Reached via",
@@ -236,13 +276,31 @@ function ReportView({ data, client, architectureView }: { readonly data: BlastRa
   ];
   const edgeColumns: readonly Column<TraversedEdge>[] = [
     { key: "d", header: "Depth", render: (e) => e.depth, cellClass: "num", headerClass: "num" },
-    { key: "s", header: "Source", render: (e) => e.source, cellClass: "mono" },
+    {
+      key: "s",
+      header: "Source",
+      render: (e) => <a href={architectureHref(e.source, architectureView)}>{e.source}</a>,
+      cellClass: "mono",
+    },
     { key: "l", header: "Link", render: (e) => e.link_type, cellClass: "mono" },
-    { key: "t", header: "Target", render: (e) => e.target, cellClass: "mono" },
+    {
+      key: "t",
+      header: "Target",
+      render: (e) => <a href={architectureHref(e.target, architectureView)}>{e.target}</a>,
+      cellClass: "mono",
+    },
   ];
 
   return (
     <div class="stack">
+      <div class="governance-summary-strip" aria-label="Blast-radius context">
+        <span class="is-steel"><strong>{data.target}</strong></span>
+        <span>depth {data.traversal_depth}</span>
+        <span>{data.traversal_links.join(" + ") || "no links"}</span>
+        <span class={data.truncated_at_depth ? "is-plum" : "is-teal"}>
+          {data.truncated_at_depth ? "truncated at depth cap" : "bounded neighborhood complete"}
+        </span>
+      </div>
       <KpiGrid>
         <KpiCard
           label="Affected resources"
@@ -262,11 +320,14 @@ function ReportView({ data, client, architectureView }: { readonly data: BlastRa
         <div class="section-header">
           <h3 class="section-title">Affected topology</h3>
           <div class="segmented-control" role="group" aria-label="Blast radius view">
+            <button type="button" class={view === "impact" ? "active" : ""} onClick={() => setView("impact")}>Impact</button>
             <button type="button" class={view === "map" ? "active" : ""} onClick={() => setView("map")}>Map</button>
             <button type="button" class={view === "table" ? "active" : ""} onClick={() => setView("table")}>Table</button>
           </div>
         </div>
-        {view === "map" ? (
+        {view === "impact" ? (
+          <BlastImpact data={data} />
+        ) : view === "map" ? (
           <BlastRadiusMap client={client} data={data} architectureView={architectureView} />
         ) : (
           <DataTable
@@ -289,6 +350,61 @@ function ReportView({ data, client, architectureView }: { readonly data: BlastRa
       </section>
     </div>
   );
+}
+function BlastImpact({ data }: { readonly data: BlastRadiusResponse }) {
+  const nodes = data.reached.filter((node) => node.resource_id !== data.target);
+  const maxDepth = Math.max(1, data.traversal_depth);
+  return (
+    <div class="blast-impact-layout">
+      <div class="blast-rings" role="img" aria-label={`Blast radius around ${data.target}`}>
+        <svg viewBox="0 0 560 430">
+          {Array.from({ length: maxDepth }, (_, index) => {
+            const depth = maxDepth - index;
+            const radius = 58 + depth * 58;
+            return <circle key={depth} cx="280" cy="215" r={radius} class={`blast-ring depth-${depth}`} />;
+          })}
+          <circle cx="280" cy="215" r="42" class="blast-target" />
+          <text x="280" y="211" text-anchor="middle" class="blast-target-label">target</text>
+          <text x="280" y="229" text-anchor="middle" class="blast-target-name">{shortResource(data.target)}</text>
+          {nodes.slice(0, 24).map((node, index) => {
+            const peers = nodes.filter((candidate) => candidate.depth === node.depth);
+            const peerIndex = peers.indexOf(node);
+            const angle = (Math.PI * 2 * peerIndex) / Math.max(1, peers.length) - Math.PI / 2;
+            const radius = 58 + Math.max(1, node.depth) * 58;
+            const x = 280 + Math.cos(angle) * radius;
+            const y = 215 + Math.sin(angle) * radius;
+            return (
+              <g key={`${node.resource_id}:${index}`}>
+                <circle cx={x} cy={y} r="8" class={`blast-node depth-${node.depth}`} />
+                <text x={x} y={y + 20} text-anchor="middle" class="blast-node-label">{shortResource(node.resource_id)}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      <section class="blast-impact-list">
+        <header>
+          <h4>Impact tree</h4>
+          <span>{data.affected_count} affected</span>
+        </header>
+        <ol>
+          <li class="is-target"><span>0</span><a href={architectureHref(data.target)}><code>{data.target}</code></a><small>target</small></li>
+          {data.reached.map((node) => (
+            <li key={`${node.depth}:${node.resource_id}`}>
+              <span>{node.depth}</span>
+              <a href={architectureHref(node.resource_id)}><code>{node.resource_id}</code></a>
+              <small>{node.via_link_type ?? "direct"}</small>
+            </li>
+          ))}
+        </ol>
+      </section>
+    </div>
+  );
+}
+function shortResource(value: string): string {
+  const parts = value.split("/").filter(Boolean);
+  const last = parts[parts.length - 1] ?? value;
+  return last.length > 22 ? `${last.slice(0, 20)}...` : last;
 }
 
 function BlastRadiusMap({ client, data, architectureView }: { readonly client: ReadApiClient; readonly data: BlastRadiusResponse; readonly architectureView: string | null }) {
@@ -316,12 +432,4 @@ function BlastRadiusMap({ client, data, architectureView }: { readonly client: R
       <a class="btn blast-map-open" href={architectureHref(data.target, architectureView)}>Open full architecture</a>
     </div>
   );
-}
-
-function targetFromHash(search: string): string | null {
-  return new URLSearchParams(search.replace(/^\?/, "")).get("target");
-}
-
-function viewFromHash(search: string): string | null {
-  return new URLSearchParams(search.replace(/^\?/, "")).get("view");
 }

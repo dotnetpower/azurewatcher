@@ -57,6 +57,14 @@ locals {
     var.prometheus_audience == "" ? {} : {
       FDAI_PROMETHEUS_AUDIENCE = var.prometheus_audience
     },
+    var.vm_task_enabled ? {
+      FDAI_VM_TASK_ENABLED     = "1"
+      FDAI_VM_TASK_RUN_AS_USER = var.vm_task_run_as_user
+      FDAI_VM_TASK_ROOT        = var.vm_task_root
+    } : {},
+    var.vm_task_enforce ? {
+      FDAI_VM_TASK_ENFORCE = "1"
+    } : {},
   )
 }
 
@@ -178,6 +186,41 @@ resource "azurerm_container_app" "core" {
         value = "1"
       }
 
+      env {
+        name  = "FDAI_START_PANTHEON"
+        value = "1"
+      }
+
+      env {
+        name  = "FDAI_PANTHEON_ENFORCE"
+        value = "0"
+      }
+
+      env {
+        name  = "FDAI_WORKFLOW_SHADOW"
+        value = "1"
+      }
+
+      env {
+        name  = "FDAI_IRP_ENABLED"
+        value = "1"
+      }
+
+      env {
+        name  = "FDAI_IRP_BUDGET_SECONDS"
+        value = "60"
+      }
+
+      env {
+        name  = "FDAI_PANTHEON_OBJECT_TOPIC"
+        value = "aw.pantheon.objects"
+      }
+
+      env {
+        name  = "FDAI_MI_CLIENT_ID"
+        value = var.executor_identity_client_id
+      }
+
       dynamic "env" {
         for_each = nonsensitive(var.state_store_dsn_secret_id) == "" ? toset([]) : toset(["1"])
         content {
@@ -253,4 +296,3 @@ resource "azurerm_container_app_job" "oob" {
 
   tags = var.tags
 }
-

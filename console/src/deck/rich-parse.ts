@@ -22,10 +22,19 @@ export interface ChartSpec {
   readonly data: readonly ChartDatum[];
 }
 
+export interface ListItem {
+  readonly text: string;
+  readonly checked?: boolean;
+}
+
 export type Segment =
   | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "heading"; readonly level: number; readonly text: string }
+  | { readonly kind: "list"; readonly ordered: boolean; readonly items: readonly ListItem[] }
+  | { readonly kind: "quote"; readonly text: string }
+  | { readonly kind: "divider" }
   | { readonly kind: "table"; readonly headers: readonly string[]; readonly rows: readonly string[][] }
-  | { readonly kind: "code"; readonly lang: string; readonly code: string }
+  | { readonly kind: "code"; readonly lang: string; readonly code: string; readonly pending: boolean }
   | { readonly kind: "chart"; readonly spec: ChartSpec }
   | { readonly kind: "chart-pending" };
 
@@ -35,6 +44,12 @@ const TABLE_SEP = /^\s*\|?[\s:|-]*-{2,}[\s:|-]*\|?\s*$/;
 // Any fenced block open, capturing the info string (language / "chart").
 const FENCE_OPEN = /^\s*```([\w+#.-]*)\s*$/;
 const FENCE_CLOSE = /^\s*```\s*$/;
+const HEADING = /^\s*(#{1,6})\s+(.+?)\s*#*\s*$/;
+const UNORDERED_ITEM = /^\s*[-+*]\s+(.+)$/;
+const ORDERED_ITEM = /^\s*\d+[.)]\s+(.+)$/;
+const CHECK_ITEM = /^\[([ xX])\]\s+(.+)$/;
+const QUOTE = /^\s*>\s?(.*)$/;
+const THEMATIC_BREAK = /^\s{0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/;
 // A safe CSS hex color (#rgb or #rrggbb); anything else is rejected to keep
 // untrusted chart JSON from injecting arbitrary style values.
 const SAFE_HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -122,8 +137,64 @@ export function parseAnswer(text: string): Segment[] {
         buffer.push("```chart", ...body, "```");
       } else {
         flushText();
-        segments.push({ kind: "code", lang, code: raw });
+        segments.push({ kind: "code", lang, code: raw, pending: !terminated });
       }
+      continue;
+    }
+
+    const heading = line.match(HEADING);
+    if (heading) {
+      flushText();
+      segments.push({
+        kind: "heading",
+        level: heading[1]?.length ?? 1,
+        text: heading[2] ?? "",
+      });
+      continue;
+    }
+
+    if (THEMATIC_BREAK.test(line)) {
+      flushText();
+      segments.push({ kind: "divider" });
+      continue;
+    }
+
+    const unordered = line.match(UNORDERED_ITEM);
+    const ordered = line.match(ORDERED_ITEM);
+    if (unordered || ordered) {
+      flushText();
+      const isOrdered = ordered !== null;
+      const pattern = isOrdered ? ORDERED_ITEM : UNORDERED_ITEM;
+      const items: ListItem[] = [];
+      while (i < lines.length) {
+        const item = (lines[i] ?? "").match(pattern);
+        if (!item) break;
+        const raw = item[1] ?? "";
+        const check = !isOrdered ? raw.match(CHECK_ITEM) : null;
+        items.push(
+          check
+            ? { text: check[2] ?? "", checked: check[1]?.toLowerCase() === "x" }
+            : { text: raw },
+        );
+        i += 1;
+      }
+      i -= 1;
+      segments.push({ kind: "list", ordered: isOrdered, items });
+      continue;
+    }
+
+    const quote = line.match(QUOTE);
+    if (quote) {
+      flushText();
+      const quoted: string[] = [];
+      while (i < lines.length) {
+        const part = (lines[i] ?? "").match(QUOTE);
+        if (!part) break;
+        quoted.push(part[1] ?? "");
+        i += 1;
+      }
+      i -= 1;
+      segments.push({ kind: "quote", text: quoted.join("\n").trim() });
       continue;
     }
 
@@ -148,13 +219,24 @@ export function parseAnswer(text: string): Segment[] {
 }
 
 /** One inline run within a prose line. */
-export interface InlineRun {
-  readonly t: "text" | "code" | "strong";
-  readonly s: string;
-}
+export type InlineRun =
+  | { readonly t: "text" | "code" | "strong" | "emphasis" | "strike"; readonly s: string }
+  | { readonly t: "link"; readonly s: string; readonly href: string };
 
-// Inline markdown: `code` or **strong**. Non-greedy, no nesting.
-const INLINE = /(`[^`]+`|\*\*[^*]+\*\*)/g;
+// Inline markdown: `code`, **strong**, or [label](safe-url). Non-greedy, no nesting.
+const INLINE = /(`[^`]+`|\*\*[^*]+\*\*|~~[^~]+~~|\[[^\]]+\]\((?:[^()]|\([^()]*\))*\)|\*[^*]+\*|_[^_]+_)/g;
+const LINK = /^\[([^\]]+)\]\(((?:[^()]|\([^()]*\))*)\)$/;
+
+function safeHref(raw: string): string | null {
+  const href = raw.trim();
+  if (href.startsWith("/") || href.startsWith("#")) return href;
+  try {
+    const parsed = new URL(href);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? href : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Split one prose line into inline runs (plain text, `code`, **strong**).
@@ -169,8 +251,20 @@ export function parseInline(line: string): InlineRun[] {
     const tok = m[0];
     if (tok.startsWith("`")) {
       runs.push({ t: "code", s: tok.slice(1, -1) });
-    } else {
+    } else if (tok.startsWith("**")) {
       runs.push({ t: "strong", s: tok.slice(2, -2) });
+    } else if (tok.startsWith("~~")) {
+      runs.push({ t: "strike", s: tok.slice(2, -2) });
+    } else if (tok.startsWith("*") || tok.startsWith("_")) {
+      runs.push({ t: "emphasis", s: tok.slice(1, -1) });
+    } else {
+      const link = tok.match(LINK);
+      const href = safeHref(link?.[2] ?? "");
+      runs.push(
+        link && href
+          ? { t: "link", s: link[1] ?? href, href }
+          : { t: "text", s: tok },
+      );
     }
     last = idx + tok.length;
   }

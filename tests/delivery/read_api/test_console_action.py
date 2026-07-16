@@ -108,6 +108,49 @@ def test_owner_may_submit() -> None:
     assert res["action_type"] == "ops.failover-primary"
 
 
+def test_chaos_command_publishes_schema_valid_arguments() -> None:
+    sub, bus = _submitter()
+    sub = ConsoleActionSubmitter(
+        event_bus=bus,
+        raw_event_topic=_TOPIC,
+        action_type_names=frozenset({"tool.run-chaos-experiment"}),
+    )
+    result = asyncio.run(
+        sub.submit(
+            question="run chaos experiment chaos.litmus.pod-delete on pod-a,pod-b",
+            principal=_principal("u-owner", Role.OWNER),
+        )
+    )
+    envelope = asyncio.run(_drain(bus, _TOPIC))[0]
+    assert result["submitted"] is True
+    assert envelope.payload["action_type"] == "tool.run-chaos-experiment"
+    assert envelope.payload["params"] == {
+        "scenario_id": "chaos.litmus.pod-delete",
+        "targets": ["pod-a", "pod-b"],
+    }
+
+
+def test_investigation_command_publishes_schema_valid_arguments() -> None:
+    sub, bus = _submitter()
+    sub = ConsoleActionSubmitter(
+        event_bus=bus,
+        raw_event_topic=_TOPIC,
+        action_type_names=frozenset({"tool.run-investigation"}),
+    )
+    result = asyncio.run(
+        sub.submit(
+            question="run investigation azure_openai aoai-1",
+            principal=_principal("u-reader-plus", Role.CONTRIBUTOR),
+        )
+    )
+    envelope = asyncio.run(_drain(bus, _TOPIC))[0]
+    assert result["submitted"] is True
+    assert envelope.payload["params"] == {
+        "resource_ref": "aoai-1",
+        "resource_kind": "azure_openai",
+    }
+
+
 def test_unmapped_command_abstains_without_publishing() -> None:
     sub, bus = _submitter()
     res = asyncio.run(
@@ -152,8 +195,12 @@ def test_incident_request_requires_same_session_confirmation_then_creates() -> N
     assert created["submitted"] is True
     assert created["action_type"] == "incident.create"
     assert created["created"] is True
+    assert created["ticket_proposal_submitted"] is True
     assert len(registry.snapshot()) == 1
-    assert asyncio.run(_drain(bus, _TOPIC)) == []
+    events = asyncio.run(_drain(bus, _TOPIC))
+    assert len(events) == 1
+    assert events[0].payload["action_type"] == "tool.open-incident-ticket"
+    assert events[0].payload["params"]["ticket_provider"] == "github"
 
 
 def test_created_incident_audit_projects_into_roster() -> None:

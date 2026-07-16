@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { ReadApiError } from "../api";
+import { isOptionalReadApiUnavailable } from "../api";
 import type { ReadApiClient } from "../api";
 import {
   AsyncBoundary,
@@ -72,7 +72,7 @@ export function LlmCostRoute({ client }: Props) {
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
-          if (err instanceof ReadApiError && err.status === 404) {
+          if (isOptionalReadApiUnavailable(err)) {
             setState({
               status: "unavailable",
               message:
@@ -167,7 +167,6 @@ function LlmCostBody({ data }: { readonly data: Response }) {
         "cap spend (the model budget cap does that upstream).",
       glossary: composeGlossary([
         TERMS.tier,
-        TERMS.correlationId,
         TERMS.mode,
         TERMS.hil,
       ]),
@@ -237,7 +236,7 @@ function LlmCostBody({ data }: { readonly data: Response }) {
         ) : null}
         <DataTable
           rows={data.by_conversation}
-          columns={_summaryColumns("Correlation id")}
+          columns={_summaryColumns("Conversation id")}
           keyOf={(r) => r.key}
           empty="No LLM usage recorded yet"
         />

@@ -40,7 +40,7 @@ from fdai.core.scheduler.store import ScheduleNotFoundError
 
 _COLUMNS: Final[str] = (
     "task_id, name, interval_seconds, event_type, created_by, "
-    "event_payload, resource_ref, enabled, start_at, last_run"
+    "event_payload, resource_ref, enabled, start_at, last_run, cron_expression"
 )
 
 
@@ -80,7 +80,7 @@ class PostgresScheduleStore:
                     await conn.execute(
                         f"""
                         INSERT INTO scheduled_task ({_COLUMNS})
-                        VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s)
                         """,  # noqa: S608 - _COLUMNS is a module constant, values parametrized
                         (
                             task.task_id,
@@ -93,6 +93,7 @@ class PostgresScheduleStore:
                             task.enabled,
                             task.start_at,
                             task.last_run,
+                            task.cron_expression,
                         ),
                     )
             except psycopg.errors.UniqueViolation as exc:
@@ -173,6 +174,7 @@ def _row_to_task(row: dict[str, Any]) -> ScheduledTask:
         enabled=bool(row["enabled"]),
         start_at=row["start_at"],
         last_run=row["last_run"],
+        cron_expression=row.get("cron_expression"),
     )
 
 

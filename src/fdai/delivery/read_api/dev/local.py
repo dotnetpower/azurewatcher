@@ -58,6 +58,8 @@ from fdai.core.metering import (  # noqa: E402
     LlmInvocation,
     TokenUsage,
 )
+from fdai.core.onboarding import EmptyResourceProbe  # noqa: E402
+from fdai.core.rbac.access_request import AccessRequestService  # noqa: E402
 from fdai.core.rbac.resolver import GroupMapping, RoleResolver  # noqa: E402
 from fdai.core.risk_gate.blast_radius_simulator import (  # noqa: E402
     InMemoryOntologyGraph,
@@ -72,6 +74,9 @@ from fdai.delivery.read_api.auth import (  # noqa: E402
 )
 from fdai.delivery.read_api.dev.azure_cli_identity import (  # noqa: E402
     resolve_azure_cli_identity,
+)
+from fdai.delivery.read_api.dev.iam_directory import (  # noqa: E402
+    build_local_iam_directory,
 )
 from fdai.delivery.read_api.entra_verifier import (  # noqa: E402
     EntraJwtVerifier,
@@ -91,6 +96,7 @@ from fdai.delivery.read_api.routes.llm_cost import LlmCostPanel  # noqa: E402
 from fdai.delivery.read_api.routes.measurement_summary import (  # noqa: E402
     AutonomyMeasurementPanel,
 )
+from fdai.delivery.read_api.routes.onboarding import OnboardingPanel  # noqa: E402
 from fdai.delivery.read_api.routes.panels import (  # noqa: E402
     CapabilityCatalogPanel,
     ExampleFinOpsPanel,
@@ -129,15 +135,24 @@ from fdai.shared.providers.testing.live_event_bus import (  # noqa: E402
     LiveInMemoryEventBus,
 )
 from fdai.shared.providers.testing.sse import InMemorySseSink  # noqa: E402
+from fdai.shared.providers.testing.state_store import InMemoryStateStore  # noqa: E402
 
 _DEV_ENV = "FDAI_READ_API_DEV_MODE"
 _LOCAL_ENTRA_ENV = "FDAI_READ_API_LOCAL_ENTRA"
 _LOCAL_AZURE_CLI_ENV = "FDAI_READ_API_LOCAL_AZURE_CLI"
+_LOCAL_SCENARIO_REPLAY_ENV = "FDAI_LOCAL_SCENARIO_REPLAY"
+_LOCAL_AZURE_DISCOVERY_ENV = "FDAI_LOCAL_AZURE_DISCOVERY"
+_LOCAL_AZURE_SUBSCRIPTION_ENV = "FDAI_LOCAL_AZURE_SUBSCRIPTION_ID"
+_LOCAL_AZURE_CONFIG_DIR_ENV = "FDAI_LOCAL_AZURE_CONFIG_DIR"
 _CORS_ORIGINS_ENV = "FDAI_READ_API_CORS_ALLOW_ORIGINS"
 _LOCAL_ACTION_TOPIC = "aw.events"
 _DEFAULT_CORS_ORIGINS = (
     "http://127.0.0.1:5173",
     "http://localhost:5173",
+    "http://127.0.0.1:5180",
+    "http://localhost:5180",
+    "http://127.0.0.1:5190",
+    "http://localhost:5190",
     "http://127.0.0.1:4173",
     "http://localhost:4173",
     "http://127.0.0.1:8090",
@@ -678,14 +693,32 @@ def _seed(read_model: InMemoryConsoleReadModel) -> None:
         if _savings is not None:
             entry["estimated_savings"] = float(_savings)
         read_model.record_audit_entry(entry)
+    hil_requested_at = datetime.now(tz=UTC)
     read_model.record_hil_pending(
         HilQueueItem(
             idempotency_key="hil-dev-0001",
             event_id="00000000-0000-0000-0000-000000000010",
             action_kind="restrict-network-access",
             reason="blast-radius exceeds executor cap",
-            requested_at="2026-07-06T10:10:00+00:00",
+            requested_at=hil_requested_at.isoformat(),
             correlation_id="corr-dev-0001",
+            approval_id="approval-dev-0001",
+            action_id="action-dev-0001",
+            target_resource_ref="network-security-group/web-api",
+            mode="shadow",
+            stop_condition="health probe fails or approved scope changes",
+            rollback_kind="pr_revert",
+            rollback_reference="remediation-pr/example-network-lockdown",
+            blast_radius_scope="resource_group",
+            blast_radius_count=12,
+            blast_radius_rate_per_minute=2,
+            blast_radius_summary="12 resources in one resource group; 2/min cap",
+            reasons=(
+                "blast-radius exceeds executor cap",
+                "distinct human approval is required before enforce mode",
+            ),
+            citing_rule_ids=("network.nsg.no-inbound-any-ssh",),
+            ttl_expires_at=(hil_requested_at + timedelta(minutes=30)).isoformat(),
         )
     )
     _seed_trace(read_model, "corr-dev-0001")
@@ -955,7 +988,8 @@ def app() -> Starlette:
     local_cli_identity = resolve_azure_cli_identity() if local_azure_cli else None
     read_model = InMemoryConsoleReadModel()
     _seed(read_model)
-    resolver = RoleResolver(group_mapping=_group_mapping_from_env())
+    group_mapping = _group_mapping_from_env()
+    resolver = RoleResolver(group_mapping=group_mapping)
     # dev_mode (auth off) wins when both flags are set. Otherwise this is the
     # local real-login harness: verify genuine Entra access tokens against the
     # tenant JWKS (FDAI_ENTRA_TENANT_ID + FDAI_API_AUDIENCE required) while the
@@ -971,6 +1005,11 @@ def app() -> Starlette:
             verifier=EntraJwtVerifier.from_env(),
             resolver=resolver,
         )
+
+    iam = build_local_iam_directory(
+        group_mapping,
+        use_graph=local_entra or local_azure_cli,
+    )
 
     # Load the shipped ontology + action-type catalogs so the console's
     # explorer / promotion-gate dashboards render out of the box.
@@ -1109,13 +1148,94 @@ def app() -> Starlette:
 
     reporting = None
     process_views = None
+    workflow_execution = None
     if ontology_object_types and ontology_link_types and built_in_workflows:
-        reporting, process_views = _build_dynamic_process_views_sync(
+        reporting, process_views, workflow_execution = _build_dynamic_process_views_sync(
             read_model=read_model,
             object_types=ontology_object_types,
             link_types=ontology_link_types,
             workflows=built_in_workflows,
+            action_types=tuple(action_types),
         )
+
+    from fdai.core.briefing import BriefingCoordinator, OpeningBriefingService
+    from fdai.core.report_feed import ReportFeed
+    from fdai.core.user_context_projection import UserContextOntologyProjector
+    from fdai.core.workflow.definition import build_workflow_definition
+    from fdai.delivery.read_api.routes.user_context import UserContextRoutesConfig
+    from fdai.delivery.read_api.routes.workflow_definitions import (
+        WorkflowDefinitionRoutesConfig,
+    )
+    from fdai.shared.providers.testing import (
+        InMemoryBriefingRunStore,
+        InMemoryBriefingSubscriptionStore,
+        InMemoryConversationHistoryStore,
+        InMemoryConversationPolicyStore,
+        InMemoryOntologyInstanceStore,
+        InMemoryUserMemoryStore,
+        InMemoryUserPreferenceStore,
+        InMemoryWorkflowBindingStore,
+        InMemoryWorkflowDefinitionStore,
+    )
+    from fdai.shared.providers.workflow_definition import (
+        WorkflowLifecycle,
+        WorkflowOrigin,
+        WorkflowVisibility,
+    )
+
+    conversation_history_store = InMemoryConversationHistoryStore()
+    user_context_ontology_store = InMemoryOntologyInstanceStore(
+        object_types=ontology_object_types,
+        link_types=ontology_link_types,
+    )
+    user_context_ontology_projector = UserContextOntologyProjector(
+        store=user_context_ontology_store
+    )
+    user_preference_store = InMemoryUserPreferenceStore()
+    user_memory_store = InMemoryUserMemoryStore()
+    conversation_policy_store = InMemoryConversationPolicyStore()
+    briefing_subscription_store = InMemoryBriefingSubscriptionStore()
+    briefing_run_store = InMemoryBriefingRunStore()
+    opening_briefing = OpeningBriefingService(
+        policies=conversation_policy_store,
+        runs=briefing_run_store,
+        coordinator=BriefingCoordinator(report_feed=ReportFeed()),
+    )
+    user_context = UserContextRoutesConfig(
+        conversations=conversation_history_store,
+        preferences=user_preference_store,
+        memories=user_memory_store,
+        policies=conversation_policy_store,
+        subscriptions=briefing_subscription_store,
+        runs=briefing_run_store,
+        opening_briefing=opening_briefing,
+        ontology_projector=user_context_ontology_projector,
+    )
+    action_types_by_name = {item.name: item for item in action_types}
+    built_in_definitions = tuple(
+        build_workflow_definition(
+            workflow,
+            action_types=action_types_by_name,
+            origin=WorkflowOrigin.UPSTREAM,
+            visibility=WorkflowVisibility.GLOBAL,
+            lifecycle=WorkflowLifecycle.SHADOW,
+            created_at=datetime.now(tz=UTC),
+            source_ref=f"catalog:{workflow.name}@{workflow.version}",
+        )
+        for workflow in built_in_workflows
+    )
+    workflow_definitions = WorkflowDefinitionRoutesConfig(
+        definitions=InMemoryWorkflowDefinitionStore(built_in_definitions),
+        bindings=InMemoryWorkflowBindingStore(),
+        schema_registry=schema_registry,
+        action_types=tuple(action_types),
+        rule_ids=frozenset(r.id for r in rule_catalog_rules if getattr(r, "id", None)),
+        ontology_projector=user_context_ontology_projector,
+    )
+
+    async def seed_user_workflow_ontology() -> None:
+        for definition in built_in_definitions:
+            await user_context_ontology_projector.project_workflow_definition(definition)
 
     live_stream_config, agent_activity_config = _build_agent_streams()
     local_action_types = frozenset(action_type.name for action_type in action_types)
@@ -1161,6 +1281,66 @@ def app() -> Starlette:
         action_type_names=local_action_types,
         incident_workflow=incident_workflow,
     )
+    from fdai.core.scheduler.store import InMemoryScheduleStore
+    from fdai.delivery.read_api.routes.python_tasks import (
+        PythonTaskRoutesConfig,
+        PythonTaskRunSubmitter,
+    )
+    from fdai.shared.providers.testing.python_task_author import TemplatePythonTaskAuthor
+    from fdai.shared.providers.testing.vm_task import (
+        InMemoryPythonTaskArtifactStore,
+        InMemoryVmTaskRunner,
+        InMemoryVmTaskTargetResolver,
+    )
+    from fdai.shared.providers.vm_task import PythonTaskCapability, VmTaskTarget
+
+    python_task_artifacts = InMemoryPythonTaskArtifactStore()
+    python_task_targets = InMemoryVmTaskTargetResolver(
+        (
+            VmTaskTarget(
+                resource_ref="resource:compute/vm/gpu-worker",
+                capabilities=frozenset(
+                    {
+                        PythonTaskCapability.GPU,
+                        PythonTaskCapability.NETWORK,
+                        PythonTaskCapability.FILESYSTEM_READ,
+                        PythonTaskCapability.FILESYSTEM_WRITE,
+                    }
+                ),
+            ),
+        )
+    )
+    python_task_runner = InMemoryVmTaskRunner()
+    python_tasks = PythonTaskRoutesConfig(
+        artifacts=python_task_artifacts,
+        targets=python_task_targets,
+        runner=python_task_runner,
+        submitter=PythonTaskRunSubmitter(event_bus=event_bus, topic=_LOCAL_ACTION_TOPIC),
+        schedule_store=InMemoryScheduleStore(),
+        workflows=tuple(built_in_workflows),
+        author=TemplatePythonTaskAuthor(),
+    )
+    from fdai.delivery.read_api.dev.operator_runtime import (
+        build_local_operator_runtime,
+    )
+    from fdai.shared.streaming.stage_publisher import SseSinkStagePublisher
+
+    live_stage_sink = live_stream_config.sink
+    if live_stage_sink is None:  # pragma: no cover - _build_agent_streams invariant
+        raise RuntimeError("local operator runtime requires a live-stream sink")
+    local_operator_runtime = build_local_operator_runtime(
+        bus=event_bus,
+        topic=_LOCAL_ACTION_TOPIC,
+        repo_root=_REPO_ROOT,
+        action_types=action_types,
+        artifacts=python_task_artifacts,
+        targets=python_task_targets,
+        runner=python_task_runner,
+        stage_publisher=SseSinkStagePublisher(
+            live_stage_sink,
+            channel=live_stream_config.channel,
+        ),
+    )
 
     runtime_task: asyncio.Task[None] | None = None
 
@@ -1182,8 +1362,13 @@ def app() -> Starlette:
             runtime_task.cancel()
         await asyncio.gather(runtime_task, return_exceptions=True)
 
-    from fdai.delivery.read_api.routes.demo_inventory_graph import (
-        demo_inventory_graph_provider,
+    from fdai.delivery.read_api.routes.model_settings import ModelSettingsService
+
+    chat_backend = _build_chat_backend()
+    model_settings = ModelSettingsService(
+        resolved_models_path=_REPO_ROOT / "resolved-models.json",
+        store=InMemoryStateStore(),
+        backend=chat_backend,
     )
 
     application = build_app(
@@ -1203,7 +1388,14 @@ def app() -> Starlette:
             blast_radius_graph=_build_blast_radius_graph(),
             ontology_object_types=tuple(ontology_object_types),
             ontology_link_types=tuple(ontology_link_types),
-            inventory_graph_provider=demo_inventory_graph_provider,
+            ontology_action_types=tuple(action_types),
+            conversation_history_store=conversation_history_store,
+            conversation_policy_store=conversation_policy_store,
+            user_context_ontology_projector=user_context_ontology_projector,
+            user_context=user_context,
+            model_settings=model_settings,
+            workflow_definitions=workflow_definitions,
+            inventory_graph_provider=_build_inventory_graph_provider(),
             rule_catalog_rules=tuple(rule_catalog_rules),
             rule_catalog_collected_rules=tuple(rule_catalog_collected),
             rule_catalog_policies_root=policies_root if policies_root.is_dir() else None,
@@ -1217,6 +1409,7 @@ def app() -> Starlette:
                 ExampleFinOpsPanel(read_model),
                 AutonomyMeasurementPanel(read_model),
                 CapabilityCatalogPanel(),
+                OnboardingPanel(probe=EmptyResourceProbe()),
                 LlmCostPanel(
                     InMemoryMeteringSink(initial=_synthetic_llm_invocations()),
                     source="synthetic-dev",
@@ -1226,19 +1419,30 @@ def app() -> Starlette:
             bitemporal_reader=trace_reader,
             what_if_reader=trace_reader,
             what_if_evaluators=what_if_evaluators,
-            chat=_build_chat_backend(),
+            chat=chat_backend,
+            chat_web_search=_build_chat_web_search(),
+            chat_probe_interval_seconds=_chat_probe_interval_seconds(),
             chat_agent_delegate=PantheonChatDelegate(pantheon_runtime),
             console_action=console_action,
+            iam_access=AccessRequestService(store=InMemoryStateStore()),
+            iam_directory=iam.directory,
+            iam_role_group_ids=iam.role_group_ids,
             expose_pantheon=True,
             stewardship_map=_build_stewardship_map(),
             workflow_authoring=workflow_authoring,
+            workflow_execution=workflow_execution,
+            python_tasks=python_tasks,
             reporting=reporting,
             process_views=process_views,
-            startup_callbacks=(start_pantheon_runtime,),
-            shutdown_callbacks=(stop_pantheon_runtime,),
+            startup_callbacks=(seed_user_workflow_ontology, start_pantheon_runtime)
+            + ((local_operator_runtime.start,) if local_operator_runtime is not None else ()),
+            shutdown_callbacks=(stop_pantheon_runtime,)
+            + ((local_operator_runtime.stop,) if local_operator_runtime is not None else ())
+            + iam.shutdown_callbacks,
         ),
     )
     application.state.pantheon_runtime = pantheon_runtime
+    application.state.local_operator_runtime = local_operator_runtime
     return application
 
 
@@ -1248,12 +1452,14 @@ def _build_dynamic_process_views_sync(
     object_types: tuple[Any, ...],
     link_types: tuple[Any, ...],
     workflows: tuple[Any, ...],
-) -> tuple[Any, Any]:
+    action_types: tuple[Any, ...],
+) -> tuple[Any, Any, Any]:
     build = _build_dynamic_process_views(
         read_model=read_model,
         object_types=object_types,
         link_types=link_types,
         workflows=workflows,
+        action_types=action_types,
     )
     try:
         asyncio.get_running_loop()
@@ -1269,18 +1475,24 @@ async def _build_dynamic_process_views(
     object_types: tuple[Any, ...],
     link_types: tuple[Any, ...],
     workflows: tuple[Any, ...],
-) -> tuple[Any, Any]:
+    action_types: tuple[Any, ...],
+) -> tuple[Any, Any, Any]:
     """Seed one truthful dev Process and wire its declarative read projections."""
     from fdai.core.architecture_review import ArchitectureReviewProjector
+    from fdai.core.notifications.matrix import load_matrix_from_yaml
     from fdai.core.reporting.composition import default_reporting_engine
     from fdai.core.reporting.datasources import AuditReader
     from fdai.core.views import ViewEngine, load_view_catalog
+    from fdai.core.workflow.approval import WorkflowApprovalPlanner
+    from fdai.core.workflow.orchestrator import WorkflowOrchestrator
     from fdai.core.workflow.projection import (
         ProcessOntologyProjector,
         ProjectingProcessRuntimeStore,
     )
     from fdai.delivery.read_api.routes.process_views import ProcessViewsConfig
     from fdai.delivery.read_api.routes.reporting import ReportingConfig
+    from fdai.delivery.read_api.routes.workflow_execution import WorkflowExecutionConfig
+    from fdai.shared.providers.metric import MetricPoint, StaticMetricProvider
     from fdai.shared.providers.ontology_instance import OntologyObjectRecord
     from fdai.shared.providers.process_runtime import (
         ProcessEvent,
@@ -1291,6 +1503,7 @@ async def _build_dynamic_process_views(
     from fdai.shared.providers.testing import (
         InMemoryOntologyInstanceStore,
         InMemoryProcessRuntimeStore,
+        InMemoryStateStore,
     )
 
     ontology = InMemoryOntologyInstanceStore(
@@ -1377,9 +1590,36 @@ async def _build_dynamic_process_views(
             step_id="evidence",
         ),
     )
+    metric_provider = StaticMetricProvider(
+        tuple(
+            MetricPoint(
+                metric_name="fdai.audit.entries.count",
+                at=now - timedelta(minutes=55 - index * 5),
+                value=float(value),
+                labels={"mode": mode, "actor": actor},
+            )
+            for index, (value, mode, actor) in enumerate(
+                (
+                    (2, "shadow", "Huginn"),
+                    (3, "shadow", "Forseti"),
+                    (4, "shadow", "Thor"),
+                    (1, "enforce", "Saga"),
+                    (5, "shadow", "Njord"),
+                    (2, "enforce", "Var"),
+                    (3, "shadow", "Muninn"),
+                    (4, "shadow", "Norns"),
+                    (1, "enforce", "Odin"),
+                    (2, "shadow", "Freyr"),
+                    (3, "shadow", "Vidar"),
+                    (4, "shadow", "Heimdall"),
+                )
+            )
+        )
+    )
     report_engine, formats = default_reporting_engine(
         reports_root=_REPO_ROOT / "rule-catalog" / "reports",
         audit_reader=cast(AuditReader, read_model),
+        metric_provider=metric_provider,
         ontology_store=ontology,
         process_store=runtime,
     )
@@ -1392,9 +1632,24 @@ async def _build_dynamic_process_views(
         workflow_names={workflow.name for workflow in workflows},
     )
     view_engine = ViewEngine(specs=view_specs, reports=report_engine, processes=runtime)
+    action_types_by_name = {action_type.name: action_type for action_type in action_types}
+    workflow_orchestrator = WorkflowOrchestrator(
+        planner=WorkflowApprovalPlanner(
+            action_types=action_types_by_name,
+            group_mapping=_group_mapping_from_env(),
+            matrix=load_matrix_from_yaml(_REPO_ROOT / "config" / "notifications-matrix.yaml"),
+        ),
+        action_types=action_types_by_name,
+        audit_store=InMemoryStateStore(),
+        process_store=runtime,
+    )
     return (
         ReportingConfig(engine=report_engine, formats=formats),
         ProcessViewsConfig(engine=view_engine),
+        WorkflowExecutionConfig(
+            workflows=workflows,
+            orchestrator=workflow_orchestrator,
+        ),
     )
 
 
@@ -1444,6 +1699,29 @@ def _build_chat_backend() -> Any:
     from fdai.delivery.read_api.routes.chat import backend_from_env
 
     return backend_from_env()
+
+
+def _build_chat_web_search() -> Any:
+    """Resolve the opt-in controlled web-search path for local chat."""
+
+    from fdai.delivery.read_api.routes.chat_web_search import (
+        chat_web_search_from_env,
+    )
+
+    return chat_web_search_from_env()
+
+
+def _chat_probe_interval_seconds() -> int:
+    raw = os.environ.get("FDAI_NARRATOR_PROBE_INTERVAL_SECONDS", "").strip()
+    if not raw:
+        return 300
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError("FDAI_NARRATOR_PROBE_INTERVAL_SECONDS MUST be an integer") from exc
+    if value < 30:
+        raise ValueError("FDAI_NARRATOR_PROBE_INTERVAL_SECONDS MUST be >= 30")
+    return value
 
 
 def _build_live_stream_config(
@@ -1498,17 +1776,29 @@ def _build_live_stream_config(
 def _build_agent_streams() -> tuple[LiveStreamConfig, AgentActivityStreamConfig]:
     """Wire the live-stream and Now>Agents configs, optionally coupled.
 
-    Default: the live cockpit runs the real ControlLoop and Now>Agents is
-    driven by the standalone synthetic agent emitter (unchanged dev behavior).
+    Default: both SSE routes stay available with explicit in-memory sinks, but
+    no scenario producer runs. This keeps local startup quiet and prevents
+    generated incidents from being mistaken for tenant observations.
 
-    ``FDAI_AGENTS_REAL_RELAY=1``: the real ControlLoop's stage frames are teed
-    into the agent-activity channel via
+    ``FDAI_LOCAL_SCENARIO_REPLAY=1`` opts into the demo pump: the live cockpit
+    runs the real ControlLoop over shipped scenarios and relays its stage frames
+    into Now>Agents, so both screens describe the same generated work.
+
+    ``FDAI_AGENTS_REAL_RELAY=0`` opts into the standalone synthetic agent
+    narrative for isolated UI demos. Otherwise the real ControlLoop's stage
+    frames are teed into the agent-activity channel via
     :class:`~fdai.delivery.read_api.streaming.agent_activity_relay.ControlLoopAgentActivityRelay`,
     so the constellation lights up from the actual pipeline. The synthetic
     agent emitter is suppressed (a provided ``sink`` + no ``emitter_factory``
     tells ``build_app`` to run no emitter and serve the relay-fed sink).
     """
-    if os.environ.get("FDAI_AGENTS_REAL_RELAY") != "1":
+    if os.environ.get(_LOCAL_SCENARIO_REPLAY_ENV, "").strip() != "1":
+        return (
+            LiveStreamConfig(sink=InMemorySseSink()),
+            AgentActivityStreamConfig(sink=InMemorySseSink()),
+        )
+
+    if os.environ.get("FDAI_AGENTS_REAL_RELAY") == "0":
         return _build_live_stream_config(), AgentActivityStreamConfig()
 
     agent_sink: SseSink = InMemorySseSink()
@@ -1520,3 +1810,31 @@ def _build_agent_streams() -> tuple[LiveStreamConfig, AgentActivityStreamConfig]
     live_config = _build_live_stream_config(stage_publisher_wrapper=_wrapper)
     agent_config = AgentActivityStreamConfig(sink=agent_sink)
     return live_config, agent_config
+
+
+def _build_inventory_graph_provider() -> Any:
+    """Select synthetic or explicit read-only Azure CLI discovery for local use."""
+
+    from fdai.delivery.read_api.routes.demo_inventory_graph import (
+        demo_inventory_graph_provider,
+    )
+
+    if os.environ.get(_LOCAL_AZURE_DISCOVERY_ENV, "").strip() != "1":
+        return demo_inventory_graph_provider
+    subscription_id = os.environ.get(_LOCAL_AZURE_SUBSCRIPTION_ENV, "").strip()
+    if not subscription_id:
+        raise ValueError(
+            "FDAI_LOCAL_AZURE_SUBSCRIPTION_ID MUST be set when local Azure discovery is enabled"
+        )
+    from fdai.delivery.azure.dev_inventory import AzureCliInventory
+    from fdai.delivery.read_api.dev.azure_inventory_graph import (
+        AzureCliInventoryGraphProvider,
+    )
+
+    config_dir = os.environ.get(_LOCAL_AZURE_CONFIG_DIR_ENV, "").strip() or None
+    return AzureCliInventoryGraphProvider(
+        inventory=AzureCliInventory(
+            subscription_id=subscription_id,
+            azure_config_dir=config_dir,
+        )
+    )

@@ -45,3 +45,10 @@ resource "azurerm_role_assignment" "executor_openai_user" {
   role_definition_name = "Cognitive Services OpenAI User"
   principal_id         = var.executor_principal_id
 }
+
+resource "azurerm_role_assignment" "additional_openai_user" {
+  for_each             = var.additional_user_principal_ids
+  scope                = azurerm_cognitive_account.primary.id
+  role_definition_name = "Cognitive Services OpenAI User"
+  principal_id         = each.value
+}

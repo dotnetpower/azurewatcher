@@ -21,6 +21,10 @@ ENV UV_LINK_MODE=copy \
 
 RUN apk add --no-cache build-base zlib-dev
 RUN pip install --no-cache-dir uv==0.4.30
+RUN wget -q -O /usr/local/bin/opa \
+    https://openpolicyagent.org/downloads/v0.68.0/opa_linux_amd64_static \
+    && chmod 755 /usr/local/bin/opa \
+    && opa version
 
 WORKDIR /app
 COPY pyproject.toml uv.lock LICENSE README.md ./
@@ -41,8 +45,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 COPY --from=builder --chown=65532:65532 /app/.venv /app/.venv
+COPY --from=builder /usr/local/bin/opa /usr/local/bin/opa
 COPY --chown=65532:65532 rule-catalog/ /app/rule-catalog/
 COPY --chown=65532:65532 policies/ /app/policies/
+COPY --chown=65532:65532 config/ /app/config/
+COPY --chown=65532:65532 resolved-models.json /app/resolved-models.json
 COPY --chown=65532:65532 tests/scenarios/ /app/tests/scenarios/
 # App source colocated at /app/src (on PYTHONPATH) so path-relative catalog
 # resolution (``prod.py`` computes the catalog root from ``__file__``) finds

@@ -178,7 +178,7 @@ class AzureActivityLogFactory:
         start = resume_cursor.strip()
         if not start:
             since = datetime.now(tz=UTC) - timedelta(seconds=self._config.initial_lookback_seconds)
-            start = since.isoformat()
+            start = _activity_log_timestamp(since)
         else:
             # Parse-and-canonicalize the persisted resume cursor rather than
             # trusting it verbatim: only a valid RFC 3339 timestamp is folded
@@ -187,7 +187,7 @@ class AzureActivityLogFactory:
             parsed = _parse_ts(start)
             if parsed is None:
                 raise ActivityLogError("resume cursor is not a valid RFC 3339 timestamp")
-            start = parsed.isoformat()
+            start = _activity_log_timestamp(parsed)
         flt = f"eventTimestamp ge '{start}'"
         return (
             f"{self._config.arg_endpoint.rstrip('/')}"
@@ -292,6 +292,11 @@ class AzureActivityLogFactory:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _activity_log_timestamp(value: datetime) -> str:
+    """Serialize an Activity Log filter timestamp in Azure's accepted UTC form."""
+    return value.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _decode_cursor(cursor: str) -> tuple[datetime | None, str | None]:

@@ -16,6 +16,7 @@ import httpx
 import pytest
 
 from fdai.__main__ import (
+    _attach_runtime_metric_provider,
     _authoritative_decision,
     _build_audit_store,
     _build_hil_channel,
@@ -134,6 +135,31 @@ def test_summarize_config_is_secret_free(app_config: AppConfig) -> None:
     assert summary["env"] == "dev"
     assert summary["azure_region"] == "krc"
     assert summary["llm_bindings_available"] is True
+
+
+def test_live_monitor_binding_is_independent_of_llm_mode(
+    app_config: AppConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fdai.composition import default_container
+    from fdai.shared.providers.routed_metric import RoutedMetricProvider
+    from fdai.shared.providers.testing.workload_identity import StaticWorkloadIdentity
+
+    monkeypatch.setenv("FDAI_MONITOR_WORKSPACE_ID", "workspace-customer-id")
+    container = default_container(app_config)
+    with httpx.Client():
+        http_client = httpx.AsyncClient(transport=httpx.MockTransport(lambda request: None))
+        wired = _attach_runtime_metric_provider(
+            container,
+            http_client=http_client,
+            identity=StaticWorkloadIdentity(
+                audience="https://management.azure.com/.default",
+                token="test-token",
+            ),
+        )
+
+    assert isinstance(wired.metric_provider, RoutedMetricProvider)
+    asyncio.run(http_client.aclose())
 
 
 # ---------------------------------------------------------------------------

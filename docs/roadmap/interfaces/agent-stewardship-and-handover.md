@@ -331,6 +331,16 @@ deterministic-first, grounded, abstaining pipeline:
    and a run with nothing above the floor abstains. The output is a
    `StewardMapDraft`.
 
+The document-ingestion gateway accepts `handover_bootstrap` as an explicit
+`DocumentPurpose`. After quarantine, protection checks, and extraction complete,
+`DocumentIngestionWorker` dispatches the safe `DocumentEnvelope` to the injected
+`DocumentReadyConsumer` for that purpose. The upstream local composition binds
+`HandoverBootstrapConsumer`, stores the grounded draft separately from the source
+document, and exposes it through authenticated
+`GET /ingestion/uploads/{upload_id}/handover-draft`. The console polls the processing
+state and renders the draft JSON summary and YAML for review. It doesn't apply the map
+or create a privileged mutation path.
+
 Every emitted mapping cites its source span (`SourceSpan`), so nothing is
 ungrounded. `draft_yaml.py` renders the draft as `stewardship:`-shaped YAML that
 **round-trips through `load_stewardship_from_mapping`** (the same resolver and
@@ -339,8 +349,9 @@ unresolved people. The delivery layer surfaces that YAML as a governance draft
 PR a human reviews and merges - the console stays read-only, and no map is ever
 applied autonomously.
 
-Seams a fork binds: `HandoverInterpreter` (the T2 model) and `PersonDirectory`
-(name -> Entra object id). Both are async and injected; `core/` holds neither a
+Seams a fork binds: `HandoverInterpreter` (the T2 model), `PersonDirectory`
+(name -> Entra object id), a durable handover-draft store, and the purpose-specific
+`DocumentReadyConsumer`. These seams are async and injected; `core/` holds neither a
 cloud SDK nor an HTTP client (the module-boundary rule still applies).
 
 ## 12. Out of scope (tracked separately)

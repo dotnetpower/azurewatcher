@@ -42,6 +42,8 @@ Optional (respect defaults):
   MUST NOT contain ``*`` outside dev; ``build_app`` fails fast if it does.
 - ``FDAI_READ_API_STATEMENT_TIMEOUT_MS`` (default ``20000``).
 - ``FDAI_READ_API_CONNECT_TIMEOUT_S`` (default ``10``).
+- ``LLM_RESOLVED_MODELS_PATH`` - enables the Command Deck narrator from the
+    resolver output using the Container App's managed identity.
 - ``FDAI_INCIDENT_SLA_POLICY_JSON`` - enables the periodic incident SLA
     monitor. The JSON object defines positive integer ``acknowledge_seconds``
     and ``resolve_seconds`` values for every key from ``sev1`` through ``sev5``.
@@ -54,20 +56,32 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final, cast
 
 import httpx
 from starlette.applications import Starlette
 
+from fdai.core.notifications.matrix import load_matrix_from_yaml
+from fdai.core.onboarding import ResourceProbe
+from fdai.core.rbac.access_request import AccessRequestService
 from fdai.core.rbac.resolver import GroupMapping, RoleResolver
+from fdai.core.report_feed import ReportFeed
 from fdai.core.reporting.composition import default_reporting_engine
 from fdai.core.reporting.datasources import AuditReader
 from fdai.core.views import ViewEngine, load_view_catalog
+from fdai.core.workflow.approval import WorkflowApprovalPlanner
+from fdai.core.workflow.orchestrator import WorkflowOrchestrator
+from fdai.delivery.identity import EntraHumanIdentityDirectory
 from fdai.delivery.persistence import (
     PostgresHilApprovalRegistry,
     PostgresIncidentNotificationDeliveryStore,
     PostgresIncidentProposalStore,
+    PostgresMeteringStore,
+    PostgresMeteringStoreConfig,
+    PostgresReportSignalStore,
+    PostgresReportSignalStoreConfig,
     PostgresStateStore,
 )
 from fdai.delivery.persistence.postgres import PostgresStateStoreConfig
@@ -83,6 +97,15 @@ from fdai.delivery.persistence.postgres_process_runtime import (
     PostgresProcessRuntimeStore,
     PostgresProcessRuntimeStoreConfig,
 )
+from fdai.delivery.persistence.postgres_scheduler_store import (
+    PostgresScheduleStore,
+    PostgresScheduleStoreConfig,
+)
+from fdai.delivery.persistence.postgres_vm_task import (
+    PostgresPythonTaskArtifactStore,
+    PostgresVmTaskConfig,
+    PostgresVmTaskTargetResolver,
+)
 from fdai.delivery.read_api.auth import build_authenticator
 from fdai.delivery.read_api.entra_verifier import EntraJwtVerifier
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
@@ -90,20 +113,44 @@ from fdai.delivery.read_api.postgres_read_model import (
     PostgresConsoleReadModel,
     PostgresConsoleReadModelConfig,
 )
+from fdai.delivery.read_api.routes.chat import backend_from_env
+from fdai.delivery.read_api.routes.chat_web_search import chat_web_search_from_env
 from fdai.delivery.read_api.routes.hil_callback import HilCallbackConfig
+from fdai.delivery.read_api.routes.llm_cost import LlmCostPanel
+from fdai.delivery.read_api.routes.onboarding import OnboardingPanel
+from fdai.delivery.read_api.routes.panels import CapabilityCatalogPanel
 from fdai.delivery.read_api.routes.process_views import ProcessViewsConfig
+from fdai.delivery.read_api.routes.python_tasks import (
+    PythonTaskRoutesConfig,
+    PythonTaskRunSubmitter,
+)
 from fdai.delivery.read_api.routes.reporting import ReportingConfig
+from fdai.delivery.read_api.routes.workflow_authoring import WorkflowAuthoringConfig
+from fdai.delivery.read_api.routes.workflow_execution import WorkflowExecutionConfig
 from fdai.delivery.reporting import install_pdf_format_if_available
 from fdai.rule_catalog.schema.action_type import load_action_type_catalog
 from fdai.rule_catalog.schema.link_type import load_link_type_catalog
 from fdai.rule_catalog.schema.object_type import load_object_type_catalog
 from fdai.rule_catalog.schema.workflow import load_workflow_catalog
+from fdai.shared.contracts.models import (
+    OntologyActionType,
+    OntologyLinkType,
+    OntologyObjectType,
+    Workflow,
+)
 from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
 
 _DATABASE_URL_ENV: Final[str] = "FDAI_DATABASE_URL"
 _CORS_ORIGINS_ENV: Final[str] = "FDAI_READ_API_CORS_ALLOW_ORIGINS"
 _STATEMENT_TIMEOUT_ENV: Final[str] = "FDAI_READ_API_STATEMENT_TIMEOUT_MS"
 _CONNECT_TIMEOUT_ENV: Final[str] = "FDAI_READ_API_CONNECT_TIMEOUT_S"
+_ONBOARDING_ENV: Final[tuple[str, ...]] = (
+    "AZURE_SUBSCRIPTION_ID",
+    "AZURE_RESOURCE_GROUP",
+    "FDAI_EXECUTOR_PRINCIPAL_ID",
+    "FDAI_EXECUTOR_EVENT_ROLE_DEFINITION_ID",
+    "FDAI_EXECUTOR_SECRET_ROLE_DEFINITION_ID",
+)
 _INVENTORY_FRESHNESS_ENV: Final[str] = "FDAI_INVENTORY_FRESHNESS_SECONDS"
 _TENANT_ENV: Final[str] = "FDAI_ENTRA_TENANT_ID"
 _AUDIENCE_ENV: Final[str] = "FDAI_API_AUDIENCE"
@@ -113,6 +160,11 @@ _STAGE_TOPIC_ENV: Final[str] = "FDAI_STAGE_TOPIC"
 _EVENT_TOPIC_ENV: Final[str] = "KAFKA_TOPIC_EVENTS"
 _INCIDENT_SLA_POLICY_ENV: Final[str] = "FDAI_INCIDENT_SLA_POLICY_JSON"
 _INCIDENT_SLA_INTERVAL_ENV: Final[str] = "FDAI_INCIDENT_SLA_INTERVAL_SECONDS"
+_PYTHON_TASK_AUTHOR_ENDPOINT_ENV: Final[str] = "FDAI_PYTHON_TASK_AUTHOR_ENDPOINT"
+_PYTHON_TASK_AUTHOR_DEPLOYMENT_ENV: Final[str] = "FDAI_PYTHON_TASK_AUTHOR_DEPLOYMENT"
+_RESOLVED_MODELS_ENV: Final[str] = "LLM_RESOLVED_MODELS_PATH"
+_IAM_DIRECTORY_PROVIDER_ENV: Final[str] = "FDAI_IAM_DIRECTORY_PROVIDER"
+_IAM_ENTRA_BASE_URL_ENV: Final[str] = "FDAI_IAM_ENTRA_GRAPH_BASE_URL"
 
 _DEFAULT_STATEMENT_TIMEOUT_MS: Final[int] = 20_000
 _DEFAULT_CONNECT_TIMEOUT_S: Final[int] = 10
@@ -280,7 +332,17 @@ def _build_dynamic_views(
     statement_timeout_ms: int,
     connect_timeout_s: int,
     read_model: PostgresConsoleReadModel,
-) -> tuple[ReportingConfig, ProcessViewsConfig, tuple[object, ...], tuple[object, ...]]:
+    group_mapping: GroupMapping,
+) -> tuple[
+    ReportingConfig,
+    ProcessViewsConfig,
+    tuple[OntologyObjectType, ...],
+    tuple[OntologyLinkType, ...],
+    tuple[OntologyActionType, ...],
+    tuple[Workflow, ...],
+    WorkflowAuthoringConfig,
+    WorkflowExecutionConfig,
+]:
     schema_registry = PackageResourceSchemaRegistry()
     object_types = load_object_type_catalog(
         _REPO_ROOT / "rule-catalog" / "vocabulary" / "object-types",
@@ -317,9 +379,17 @@ def _build_dynamic_views(
         object_types=object_types,
         link_types=link_types,
     )
+    report_signal_store = PostgresReportSignalStore(
+        config=PostgresReportSignalStoreConfig(
+            dsn=dsn,
+            statement_timeout_ms=statement_timeout_ms,
+            connect_timeout_s=connect_timeout_s,
+        )
+    )
     report_engine, formats = default_reporting_engine(
         reports_root=_REPO_ROOT / "rule-catalog" / "reports",
         audit_reader=cast(AuditReader, read_model),
+        report_feed=ReportFeed((report_signal_store,)),
         ontology_store=ontology_store,
         process_store=process_store,
     )
@@ -329,6 +399,31 @@ def _build_dynamic_views(
         report_ids={spec.id for spec in report_engine.catalog().list()},
         workflow_names={workflow.name for workflow in workflows},
     )
+    action_types_by_name = {action_type.name: action_type for action_type in action_types}
+    workflow_execution = WorkflowExecutionConfig(
+        workflows=tuple(workflows),
+        orchestrator=WorkflowOrchestrator(
+            planner=WorkflowApprovalPlanner(
+                action_types=action_types_by_name,
+                group_mapping=group_mapping,
+                matrix=load_matrix_from_yaml(_REPO_ROOT / "config" / "notifications-matrix.yaml"),
+            ),
+            action_types=action_types_by_name,
+            audit_store=PostgresStateStore(
+                config=PostgresStateStoreConfig(
+                    dsn=dsn,
+                    statement_timeout_ms=statement_timeout_ms,
+                    connect_timeout_s=connect_timeout_s,
+                )
+            ),
+            process_store=process_store,
+        ),
+    )
+    workflow_authoring = WorkflowAuthoringConfig(
+        schema_registry=schema_registry,
+        action_types=tuple(action_types),
+        workflows=tuple(workflows),
+    )
     return (
         ReportingConfig(engine=report_engine, formats=formats),
         ProcessViewsConfig(
@@ -336,6 +431,10 @@ def _build_dynamic_views(
         ),
         tuple(object_types),
         tuple(link_types),
+        tuple(action_types),
+        tuple(workflows),
+        workflow_authoring,
+        workflow_execution,
     )
 
 
@@ -366,15 +465,57 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         ),
     )
     verifier = EntraJwtVerifier.from_env(env)
-    resolver = RoleResolver(group_mapping=_build_group_mapping(env))
+    group_mapping = _build_group_mapping(env)
+    resolver = RoleResolver(group_mapping=group_mapping)
     authenticator = build_authenticator(verifier=verifier, resolver=resolver)
     read_model = build_prod_read_model(env)
+    state_store_config = PostgresStateStoreConfig(
+        dsn=read_model._config.dsn,
+        statement_timeout_ms=read_model._config.statement_timeout_ms,
+        connect_timeout_s=read_model._config.connect_timeout_s,
+    )
+    state_store = PostgresStateStore(config=state_store_config)
+    shutdown_callbacks: tuple[Callable[[], Awaitable[None]], ...] = ()
+    iam_directory = None
+    iam_provider = env.get(_IAM_DIRECTORY_PROVIDER_ENV, "").strip().casefold()
+    if iam_provider:
+        if iam_provider != "entra":
+            raise ProdReadApiConfigError(
+                f"{_IAM_DIRECTORY_PROVIDER_ENV}={iam_provider!r} is not implemented; "
+                "supported value: 'entra'"
+            )
+        from fdai.delivery.azure.workload_identity import ManagedIdentityWorkloadIdentity
+
+        iam_http = httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=5.0, read=15.0, write=5.0, pool=5.0)
+        )
+        iam_directory = EntraHumanIdentityDirectory(
+            client=iam_http,
+            identity=ManagedIdentityWorkloadIdentity(http_client=iam_http),
+            base_url=env.get(_IAM_ENTRA_BASE_URL_ENV, "").strip()
+            or "https://graph.microsoft.com/v1.0",
+        )
+
+        async def _close_iam_http() -> None:
+            await iam_http.aclose()
+
+        shutdown_callbacks = (*shutdown_callbacks, _close_iam_http)
     cors_origins = _parse_cors_origins(env.get(_CORS_ORIGINS_ENV))
-    reporting, process_views, object_types, link_types = _build_dynamic_views(
+    (
+        reporting,
+        process_views,
+        object_types,
+        link_types,
+        action_types,
+        workflows,
+        workflow_authoring,
+        workflow_execution,
+    ) = _build_dynamic_views(
         dsn=read_model._config.dsn,
         statement_timeout_ms=read_model._config.statement_timeout_ms,
         connect_timeout_s=read_model._config.connect_timeout_s,
         read_model=read_model,
+        group_mapping=group_mapping,
     )
     hil_callback = None
     hil_registry = None
@@ -383,8 +524,122 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
     agent_activity = None
     console_action = None
     startup_callbacks: tuple[Callable[[], Awaitable[None]], ...] = ()
-    shutdown_callbacks: tuple[Callable[[], Awaitable[None]], ...] = ()
+    from fdai.core.briefing import BriefingCoordinator, OpeningBriefingService
+    from fdai.core.user_context_projection import UserContextOntologyProjector
+    from fdai.core.workflow.definition import build_workflow_definition
+    from fdai.delivery.persistence import (
+        PostgresBriefingRunStore,
+        PostgresBriefingStoreConfig,
+        PostgresBriefingSubscriptionStore,
+        PostgresConversationHistoryStore,
+        PostgresConversationPolicyStore,
+        PostgresUserContextStoreConfig,
+        PostgresUserMemoryStore,
+        PostgresUserPreferenceStore,
+        PostgresWorkflowBindingStore,
+        PostgresWorkflowDefinitionStore,
+        PostgresWorkflowDefinitionStoreConfig,
+    )
+    from fdai.delivery.read_api.routes.user_context import UserContextRoutesConfig
+    from fdai.delivery.read_api.routes.workflow_definitions import (
+        WorkflowDefinitionRoutesConfig,
+    )
+    from fdai.shared.providers.workflow_definition import (
+        WorkflowLifecycle,
+        WorkflowOrigin,
+        WorkflowVisibility,
+    )
+
+    user_store_config = PostgresUserContextStoreConfig(
+        dsn=read_model._config.dsn,
+        statement_timeout_ms=read_model._config.statement_timeout_ms,
+        connect_timeout_s=read_model._config.connect_timeout_s,
+    )
+    briefing_store_config = PostgresBriefingStoreConfig(
+        dsn=read_model._config.dsn,
+        statement_timeout_ms=read_model._config.statement_timeout_ms,
+        connect_timeout_s=read_model._config.connect_timeout_s,
+    )
+    workflow_store_config = PostgresWorkflowDefinitionStoreConfig(
+        dsn=read_model._config.dsn,
+        statement_timeout_ms=read_model._config.statement_timeout_ms,
+        connect_timeout_s=read_model._config.connect_timeout_s,
+    )
+    conversation_history_store = PostgresConversationHistoryStore(config=user_store_config)
+    user_context_ontology_projector = UserContextOntologyProjector(
+        store=PostgresOntologyInstanceStore(
+            config=PostgresOntologyInstanceStoreConfig(
+                dsn=read_model._config.dsn,
+                statement_timeout_ms=read_model._config.statement_timeout_ms,
+                connect_timeout_s=read_model._config.connect_timeout_s,
+            ),
+            object_types=object_types,
+            link_types=link_types,
+        )
+    )
+    user_preference_store = PostgresUserPreferenceStore(config=user_store_config)
+    user_memory_store = PostgresUserMemoryStore(config=user_store_config)
+    conversation_policy_store = PostgresConversationPolicyStore(config=briefing_store_config)
+    briefing_subscription_store = PostgresBriefingSubscriptionStore(config=briefing_store_config)
+    briefing_run_store = PostgresBriefingRunStore(config=briefing_store_config)
+    briefing_report_feed = ReportFeed(
+        (
+            PostgresReportSignalStore(
+                config=PostgresReportSignalStoreConfig(
+                    dsn=read_model._config.dsn,
+                    statement_timeout_ms=read_model._config.statement_timeout_ms,
+                    connect_timeout_s=read_model._config.connect_timeout_s,
+                )
+            ),
+        )
+    )
+    user_context = UserContextRoutesConfig(
+        conversations=conversation_history_store,
+        preferences=user_preference_store,
+        memories=user_memory_store,
+        policies=conversation_policy_store,
+        subscriptions=briefing_subscription_store,
+        runs=briefing_run_store,
+        opening_briefing=OpeningBriefingService(
+            policies=conversation_policy_store,
+            runs=briefing_run_store,
+            coordinator=BriefingCoordinator(report_feed=briefing_report_feed),
+        ),
+        ontology_projector=user_context_ontology_projector,
+    )
+    workflow_definition_store = PostgresWorkflowDefinitionStore(config=workflow_store_config)
+    workflow_binding_store = PostgresWorkflowBindingStore(config=workflow_store_config)
+    action_types_by_name = {item.name: item for item in action_types}
+    built_in_definitions = tuple(
+        build_workflow_definition(
+            workflow,
+            action_types=action_types_by_name,
+            origin=WorkflowOrigin.UPSTREAM,
+            visibility=WorkflowVisibility.GLOBAL,
+            lifecycle=WorkflowLifecycle.SHADOW,
+            created_at=datetime.now(tz=UTC),
+            source_ref=f"catalog:{workflow.name}@{workflow.version}",
+        )
+        for workflow in workflows
+    )
+
+    async def _seed_workflow_definitions() -> None:
+        for definition in built_in_definitions:
+            stored = await workflow_definition_store.put(definition)
+            await user_context_ontology_projector.project_workflow_definition(stored)
+
+    startup_callbacks = (*startup_callbacks, _seed_workflow_definitions)
+    workflow_definitions = WorkflowDefinitionRoutesConfig(
+        definitions=workflow_definition_store,
+        bindings=workflow_binding_store,
+        schema_registry=PackageResourceSchemaRegistry(),
+        action_types=tuple(action_types),
+        ontology_projector=user_context_ontology_projector,
+    )
     incident_sla_stop: Callable[[], Awaitable[None]] | None = None
+    event_bus = None
+    http_client: httpx.AsyncClient | None = None
+    event_topic = ""
     hil_secret = env.get(_HIL_SECRET_ENV, "").strip()
     kafka_bootstrap = env.get("FDAI_KAFKA_BOOTSTRAP_SERVERS", "").strip()
     if hil_secret or kafka_bootstrap:
@@ -420,13 +675,6 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
                 or _require_env(env, "FDAI_KAFKA_BOOTSTRAP_SERVERS")
             ),
         )
-        state_store_config = PostgresStateStoreConfig(
-            dsn=read_model._config.dsn,
-            statement_timeout_ms=read_model._config.statement_timeout_ms,
-            connect_timeout_s=read_model._config.connect_timeout_s,
-        )
-        state_store = PostgresStateStore(config=state_store_config)
-
         if kafka_bootstrap:
             stage_topic = env.get(_STAGE_TOPIC_ENV, "").strip() or DEFAULT_STAGE_TOPIC
             live_stream = LiveStreamConfig(
@@ -505,7 +753,7 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
                 incident_registry.rehydrate(entries)
                 await incident_notifier.replay(entries)
 
-            startup_callbacks = (_rehydrate_incidents,)
+            startup_callbacks = (*startup_callbacks, _rehydrate_incidents)
             raw_sla_policy = env.get(_INCIDENT_SLA_POLICY_ENV, "").strip()
             if raw_sla_policy:
                 try:
@@ -538,11 +786,157 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
             *((incident_sla_stop,) if incident_sla_stop is not None else ()),
             _close_event_transport,
         )
+    from fdai.delivery.vm_task import PlanningVmTaskRunner
+
+    vm_task_store_config = PostgresVmTaskConfig(
+        dsn=read_model._config.dsn,
+        statement_timeout_ms=read_model._config.statement_timeout_ms,
+        connect_timeout_s=read_model._config.connect_timeout_s,
+    )
+    task_author = None
+    author_endpoint = env.get(_PYTHON_TASK_AUTHOR_ENDPOINT_ENV, "").strip()
+    author_deployment = env.get(_PYTHON_TASK_AUTHOR_DEPLOYMENT_ENV, "").strip()
+    if bool(author_endpoint) != bool(author_deployment):
+        raise ProdReadApiConfigError(
+            f"{_PYTHON_TASK_AUTHOR_ENDPOINT_ENV} and "
+            f"{_PYTHON_TASK_AUTHOR_DEPLOYMENT_ENV} MUST be configured together"
+        )
+    if author_endpoint:
+        from fdai.delivery.azure.llm.python_task_author import (
+            AzureOpenAIPythonTaskAuthor,
+            AzureOpenAIPythonTaskAuthorConfig,
+        )
+        from fdai.delivery.azure.workload_identity import ManagedIdentityWorkloadIdentity
+
+        author_http = httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=5.0, read=60.0, write=15.0, pool=5.0)
+        )
+        task_author = AzureOpenAIPythonTaskAuthor(
+            identity=ManagedIdentityWorkloadIdentity(http_client=author_http),
+            http_client=author_http,
+            config=AzureOpenAIPythonTaskAuthorConfig(
+                endpoint=author_endpoint,
+                deployment=author_deployment,
+            ),
+        )
+
+        async def _close_task_author_http() -> None:
+            await author_http.aclose()
+
+        shutdown_callbacks = (*shutdown_callbacks, _close_task_author_http)
+    python_tasks = PythonTaskRoutesConfig(
+        artifacts=PostgresPythonTaskArtifactStore(config=vm_task_store_config),
+        targets=PostgresVmTaskTargetResolver(config=vm_task_store_config),
+        runner=PlanningVmTaskRunner(),
+        submitter=(
+            PythonTaskRunSubmitter(event_bus=event_bus, topic=event_topic)
+            if event_bus is not None and event_topic
+            else None
+        ),
+        schedule_store=PostgresScheduleStore(
+            config=PostgresScheduleStoreConfig(
+                dsn=read_model._config.dsn,
+                statement_timeout_ms=read_model._config.statement_timeout_ms,
+                connect_timeout_s=read_model._config.connect_timeout_s,
+            )
+        ),
+        workflows=workflows,
+        author=task_author,
+    )
+    onboarding_values = {name: env.get(name, "").strip() for name in _ONBOARDING_ENV}
+    configured_onboarding = {name for name, value in onboarding_values.items() if value}
+    if configured_onboarding and len(configured_onboarding) != len(_ONBOARDING_ENV):
+        missing = sorted(set(_ONBOARDING_ENV) - configured_onboarding)
+        raise ProdReadApiConfigError(
+            "Azure onboarding probe configuration is incomplete; missing: " + ", ".join(missing)
+        )
+    onboarding_probe: ResourceProbe
+    if configured_onboarding:
+        from fdai.delivery.azure.onboarding import (
+            AzureOnboardingProbeConfig,
+            AzureResourceProbe,
+        )
+        from fdai.delivery.azure.workload_identity import ManagedIdentityWorkloadIdentity
+
+        onboarding_http = httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=5.0, read=30.0, write=15.0, pool=5.0)
+        )
+        onboarding_probe = AzureResourceProbe(
+            config=AzureOnboardingProbeConfig(
+                subscription_id=onboarding_values["AZURE_SUBSCRIPTION_ID"],
+                resource_group=onboarding_values["AZURE_RESOURCE_GROUP"],
+                executor_principal_id=onboarding_values["FDAI_EXECUTOR_PRINCIPAL_ID"],
+                event_role_definition_id=onboarding_values[
+                    "FDAI_EXECUTOR_EVENT_ROLE_DEFINITION_ID"
+                ],
+                secret_role_definition_id=onboarding_values[
+                    "FDAI_EXECUTOR_SECRET_ROLE_DEFINITION_ID"
+                ],
+            ),
+            identity=ManagedIdentityWorkloadIdentity(http_client=onboarding_http),
+            http_client=onboarding_http,
+        )
+
+        async def _close_onboarding_http() -> None:
+            await onboarding_http.aclose()
+
+        shutdown_callbacks = (*shutdown_callbacks, _close_onboarding_http)
+    else:
+        from fdai.core.onboarding import EmptyResourceProbe
+
+        onboarding_probe = EmptyResourceProbe()
+    chat = None
+    chat_web_search = None
+    resolved_models_path = env.get(_RESOLVED_MODELS_ENV, "").strip()
+    narrator_api_key_configured = all(
+        env.get(name, "").strip()
+        for name in (
+            "FDAI_NARRATOR_BASE_URL",
+            "FDAI_NARRATOR_API_KEY",
+            "FDAI_NARRATOR_MODEL",
+        )
+    )
+    web_search_raw = env.get("FDAI_WEB_SEARCH_ENABLED", "").strip().casefold()
+    web_search_configured = web_search_raw not in {"", "0", "false", "no", "off"}
+    if resolved_models_path or narrator_api_key_configured or web_search_configured:
+        from fdai.delivery.azure.workload_identity import ManagedIdentityWorkloadIdentity
+
+        chat_http = httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=5.0, read=90.0, write=15.0, pool=5.0)
+        )
+        chat_identity = (
+            ManagedIdentityWorkloadIdentity(http_client=chat_http) if resolved_models_path else None
+        )
+        chat = backend_from_env(
+            dict(env),
+            identity=chat_identity,
+            http_client=chat_http,
+        )
+        chat_web_search = chat_web_search_from_env(
+            env,
+            identity=chat_identity,
+            http_client=chat_http,
+        )
+
+        async def _close_chat_http() -> None:
+            await chat_http.aclose()
+
+        shutdown_callbacks = (*shutdown_callbacks, _close_chat_http)
+    model_settings = None
+    if resolved_models_path:
+        from fdai.delivery.read_api.routes.model_settings import ModelSettingsService
+
+        model_settings = ModelSettingsService(
+            resolved_models_path=Path(resolved_models_path),
+            store=state_store,
+            backend=chat,
+        )
     config = ReadApiConfig(
         dev_mode=False,
         cors_allow_origins=cors_origins,
         ontology_object_types=object_types,
         ontology_link_types=link_types,
+        ontology_action_types=action_types,
         inventory_graph_provider=PostgresInventoryGraphProvider(
             config=PostgresInventorySnapshotStoreConfig(
                 dsn=read_model._config.dsn,
@@ -553,10 +947,49 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         ),
         reporting=reporting,
         process_views=process_views,
+        workflow_authoring=workflow_authoring,
+        workflow_execution=workflow_execution,
+        workflow_definitions=workflow_definitions,
+        user_context=user_context,
+        model_settings=model_settings,
+        python_tasks=python_tasks,
+        chat=chat,
+        chat_web_search=chat_web_search,
+        chat_probe_interval_seconds=_parse_positive_int(
+            env,
+            "FDAI_NARRATOR_PROBE_INTERVAL_SECONDS",
+            300,
+        ),
+        conversation_history_store=conversation_history_store,
+        conversation_policy_store=conversation_policy_store,
+        user_context_ontology_projector=user_context_ontology_projector,
+        extra_panels=(
+            CapabilityCatalogPanel(),
+            OnboardingPanel(probe=onboarding_probe),
+            LlmCostPanel(
+                PostgresMeteringStore(
+                    config=PostgresMeteringStoreConfig(
+                        dsn=read_model._config.dsn,
+                        statement_timeout_ms=read_model._config.statement_timeout_ms,
+                        connect_timeout_s=read_model._config.connect_timeout_s,
+                    )
+                )
+            ),
+        ),
         hil_callback=hil_callback,
         hil_registry=hil_registry,
         hil_decision_publisher=hil_decision_publisher,
         console_action=console_action,
+        iam_access=AccessRequestService(store=state_store),
+        iam_directory=iam_directory,
+        iam_identity_provider=iam_provider or "entra",
+        iam_role_group_ids={
+            "Reader": group_mapping.reader_group_id,
+            "Contributor": group_mapping.contributor_group_id,
+            "Approver": group_mapping.approver_group_id,
+            "Owner": group_mapping.owner_group_id,
+            "BreakGlass": group_mapping.break_glass_group_id,
+        },
         live_stream=live_stream,
         agent_activity=agent_activity,
         startup_callbacks=startup_callbacks,

@@ -108,12 +108,54 @@ tears down when done.
    per user-facing table plus a session write to a smoke schema. Any
    error fails the drill.
 
+  Include these user-context tables in every restore smoke suite:
+
+  - `conversation_record` and `conversation_turn`
+  - `user_preference` and `user_memory_fact`
+  - `conversation_policy`
+  - `briefing_subscription` and `briefing_run`
+  - `workflow_definition` and `workflow_binding`
+  - `user_context_projection_delete_queue`
+
+  Verify foreign keys, unique constraints, and the atomic
+  `conversation_record.next_turn_index` value as well as row counts.
+  For the deletion queue, verify that a leased row can be reclaimed
+  after `leased_until` and that completing the job removes it.
+
 7. **Tear down.** Delete the isolated resource group; the adapter's
    ``teardown`` path is idempotent — a 404 is a legal "already gone":
 
    ```bash
    az group delete -n "$DRILL_RG" --yes --no-wait
    ```
+
+## Retention and backup residuals
+
+The scheduler deletes inactive conversations and old briefing runs from
+the live database after 90 days, and deletes expired memory facts when
+their `expires_at` time arrives. The same transaction writes ontology
+object ids to `user_context_projection_delete_queue`; the scheduler then
+removes those metadata-only projections with isolated retries and bounded
+backoff.
+
+Point-in-time restore (PITR) can recover a database state from before a
+privacy or retention deletion. Therefore, live-store deletion does not
+mean that every retained backup copy is immediately erased. Production
+keeps a 35-day geo-redundant PostgreSQL backup window, after which the
+provider ages out the residual copy. Access to a restored server should
+remain restricted to the drill operators, and the isolated restore should
+be deleted as soon as verification is complete.
+
+Before directing any scheduler or application process at a restored
+server:
+
+1. Confirm the chosen restore point and document whether it predates a
+  user-context deletion.
+2. Run the user-context smoke checks above without exposing raw turn or
+  memory bodies in logs or evidence artifacts.
+3. Run one bounded retention tick and drain the projection deletion queue.
+4. Confirm that source rows and ontology metadata agree before the server
+  is eligible for service.
 
 ## Success criteria
 

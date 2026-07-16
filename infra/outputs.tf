@@ -165,3 +165,28 @@ output "read_api_migrate_job_name" {
   description = "Schema-migration Container Apps Job name (empty string when enable_read_api = false). Start it after apply to run `alembic upgrade head`."
   value       = length(module.read_api) > 0 ? module.read_api[0].migrate_job_name : ""
 }
+
+output "document_storage_account_name" {
+  description = "ADLS Gen2 document storage account name (empty when ingestion is disabled)."
+  value       = length(module.document_storage) > 0 ? module.document_storage[0].name : ""
+}
+
+output "document_storage_dfs_endpoint" {
+  description = "Private ADLS Gen2 DFS endpoint consumed by the ingestion gateway."
+  value       = length(module.document_storage) > 0 ? module.document_storage[0].primary_dfs_endpoint : ""
+}
+
+output "ingestion_gateway_fqdn" {
+  description = "Production ingestion gateway FQDN for VITE_INGESTION_API_BASE_URL."
+  value       = length(module.ingestion_gateway) > 0 ? module.ingestion_gateway[0].fqdn : ""
+}
+
+output "ingestion_migrate_job_name" {
+  description = "Ingestion schema migration job name."
+  value       = length(module.ingestion_gateway) > 0 ? module.ingestion_gateway[0].migrate_job_name : ""
+}
+
+output "ingestion_identity_principal_id" {
+  description = "Dedicated document-ingestion Managed Identity object id."
+  value       = length(module.ingestion_identity) > 0 ? module.ingestion_identity[0].principal_id : ""
+}

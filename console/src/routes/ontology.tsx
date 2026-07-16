@@ -1,11 +1,10 @@
-import { useEffect, useState } from "preact/hooks";
-import { ReadApiError } from "../api";
+import { useEffect, useMemo, useState } from "preact/hooks";
+import { isOptionalReadApiUnavailable } from "../api";
 import type { ReadApiClient } from "../api";
 import {
   AsyncBoundary,
-  KpiCard,
-  KpiGrid,
   PageHeader,
+  UnavailableState,
   type AsyncState,
 } from "../components/ui";
 import { MermaidDiagram } from "../components/mermaid-diagram";
@@ -17,29 +16,19 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { currentRoute, navigate, routeHref } from "../router";
+import { OntologyActionsView } from "./ontology-actions";
+import { OntologyLinksView } from "./ontology-links";
+import {
+  ontologyView,
+  type OntologyGraphResponse,
+  type OntologyView,
+} from "./ontology.types";
 
 /**
- * Ontology explorer panel. Fetches ``GET /ontology/graph`` and renders
- * the returned Mermaid ``classDiagram`` text as a copyable block plus
- * a small manifest of counts and known types.
- *
- * We intentionally do NOT bundle mermaid.js. A fork that wants an
- * inline rendered diagram can add ``mermaid`` as an extra dependency
- * and wrap this component; the shipped panel keeps the console
- * dependency-light and works offline.
+ * Ontology explorer panel. ObjectTypes render as a one-hop graph,
+ * LinkTypes as endpoint contracts, and ActionTypes as safety contracts.
  */
-
-interface OntologyGraphResponse {
-  readonly mermaid: string;
-  readonly object_type_count: number;
-  readonly link_type_count: number;
-  readonly object_types: readonly string[];
-  readonly link_types: readonly string[];
-  /** Structured nodes for the custom SVG renderer. Absent on old servers. */
-  readonly nodes?: readonly OntologyNode[];
-  /** Structured edges for the custom SVG renderer. Absent on old servers. */
-  readonly edges?: readonly OntologyEdge[];
-}
 
 interface Props {
   readonly client: ReadApiClient;
@@ -62,7 +51,7 @@ export function OntologyRoute({ client }: Props) {
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
-          if (err instanceof ReadApiError && err.status === 404) {
+          if (isOptionalReadApiUnavailable(err)) {
             setState({
               status: "unavailable",
               message:
@@ -82,23 +71,19 @@ export function OntologyRoute({ client }: Props) {
   }, [client, includeProperties]);
 
   return (
-    <div class="stack">
+    <div class="stack governance-route ontology-route">
       <PageHeader
         title={t("route.ontology")}
-        subtitle="ObjectTypes and LinkTypes registered on this deployment, rendered as a Mermaid classDiagram."
-        actions={
-          <label class="inline-toggle">
-            <input
-              type="checkbox"
-              checked={includeProperties}
-              onChange={(e) => setIncludeProperties((e.target as HTMLInputElement).checked)}
-            />
-            show properties
-          </label>
-        }
+        subtitle="Browse ObjectTypes, LinkTypes, and the ActionType safety contracts registered on this deployment."
       />
       <AsyncBoundary state={state} resourceLabel="ontology graph">
-        {(data) => <OntologyBody data={data} />}
+        {(data) => (
+          <OntologyBody
+            data={data}
+            includeProperties={includeProperties}
+            onIncludePropertiesChange={setIncludeProperties}
+          />
+        )}
       </AsyncBoundary>
     </div>
   );
@@ -106,9 +91,63 @@ export function OntologyRoute({ client }: Props) {
 
 function OntologyBody({
   data,
+  includeProperties,
+  onIncludePropertiesChange,
 }: {
   readonly data: OntologyGraphResponse;
+  readonly includeProperties: boolean;
+  readonly onIncludePropertiesChange: (value: boolean) => void;
 }) {
+  const initialName = useMemo(() => {
+    const requested = new URLSearchParams(window.location.search).get("type");
+    if (requested && data.nodes?.some((node) => node.name === requested)) return requested;
+    if (requested) return null;
+    return data.nodes?.[0]?.name ?? null;
+  }, [data.nodes]);
+  const [selectedName, setSelectedName] = useState<string | null>(initialName);
+  const [view, setView] = useState<OntologyView>(() => ontologyView(currentRoute().search.get("view")));
+  const [selectedLink, setSelectedLink] = useState<string | null>(() => {
+    const requested = currentRoute().search.get("link");
+    return requested && data.link_types.includes(requested) ? requested : data.link_types[0] ?? null;
+  });
+  const actionTypes = data.action_types ?? [];
+  const [selectedAction, setSelectedAction] = useState<string | null>(() => {
+    const requested = currentRoute().search.get("action");
+    return requested && actionTypes.some((action) => action.name === requested)
+      ? requested
+      : actionTypes[0]?.name ?? null;
+  });
+  const [invalidName, setInvalidName] = useState<string | null>(() => {
+    const requested = currentRoute().search.get("type");
+    return requested && !data.nodes?.some((node) => node.name === requested) ? requested : null;
+  });
+  useEffect(() => {
+    const sync = () => {
+      const route = currentRoute();
+      const requested = route.search.get("type");
+      const valid = requested && data.nodes?.some((node) => node.name === requested);
+      setInvalidName(requested && !valid ? requested : null);
+      setSelectedName(valid ? requested : requested ? null : data.nodes?.[0]?.name ?? null);
+      setView(ontologyView(route.search.get("view")));
+      const link = route.search.get("link");
+      setSelectedLink(link && data.link_types.includes(link) ? link : data.link_types[0] ?? null);
+      const action = route.search.get("action");
+      setSelectedAction(
+        action && actionTypes.some((item) => item.name === action)
+          ? action
+          : actionTypes[0]?.name ?? null,
+      );
+    };
+    window.addEventListener("popstate", sync);
+    window.addEventListener("fdai:route-changed", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("fdai:route-changed", sync);
+    };
+  }, [actionTypes, data.link_types, data.nodes]);
+  const selectType = (name: string | null): void => {
+    navigate(routeHref("ontology", { params: { view: "objects", type: name } }));
+  };
   usePublishViewContext(
     () => {
       // Ground the deck in the rendered graph, not just the two counts:
@@ -143,65 +182,162 @@ function OntologyBody({
           "control plane reasons over (resources, actions, and the causal links " +
           "between them). Read-only reference.",
         glossary: composeGlossary([TERMS.actionType, TERMS.blastRadius]),
-        headline: `${data.object_type_count} ObjectTypes - ${data.link_type_count} LinkTypes`,
+        headline: `${data.object_type_count} ObjectTypes - ${data.link_type_count} LinkTypes - ${data.action_type_count ?? actionTypes.length} ActionTypes`,
         capturedAt: new Date().toISOString(),
         facts: [
           { key: "object_type_count", value: data.object_type_count, group: "graph" },
           { key: "link_type_count", value: data.link_type_count, group: "graph" },
+          { key: "action_type_count", value: data.action_type_count ?? actionTypes.length, group: "catalog" },
         ],
         records: {
           object_types: objectTypeRecords,
           relationships: relationshipRecords,
+          action_types: actionTypes.map((action) => ({
+            name: action.name,
+            operation: action.operation,
+            category: action.category ?? "-",
+            trigger: String(action.trigger_kind?.kind ?? "-"),
+            execution_path: action.execution_path ?? "-",
+            rollback_contract: action.rollback_contract,
+            default_mode: action.default_mode,
+            irreversible: action.irreversible,
+            description: action.description ?? "-",
+          })),
         },
       };
     },
-    [data],
+    [actionTypes, data],
   );
   return (
-    <div class="stack">
-      <KpiGrid>
-        <KpiCard label="ObjectTypes" value={data.object_type_count} />
-        <KpiCard label="LinkTypes" value={data.link_type_count} />
-      </KpiGrid>
+    <div class="stack governance-ontology">
+      <nav class="ontology-tabs" aria-label="Ontology registry views">
+        <OntologyTab view="objects" active={view} count={data.object_type_count} label="Objects" />
+        <OntologyTab view="links" active={view} count={data.link_type_count} label="Links" />
+        <OntologyTab view="actions" active={view} count={data.action_type_count ?? actionTypes.length} label="Actions" />
+      </nav>
 
-      <section class="stack-section">
-        <div class="section-header">
-          <h3 class="section-title">Resource + link graph</h3>
-        </div>
-        {data.nodes && data.edges ? (
-          <OntologyGraph nodes={data.nodes} edges={data.edges} />
-        ) : (
-          <MermaidDiagram source={data.mermaid} ariaLabel="Ontology class diagram" />
-        )}
-        <details class="mermaid-source-toggle">
-          <summary class="details-summary">Show Mermaid source</summary>
-          <pre class="mono scroll code-block">{data.mermaid}</pre>
-        </details>
-      </section>
+      {view === "objects" ? (
+        <>
+          <div class="ontology-object-toolbar">
+            <span>One-hop ObjectType neighborhood</span>
+            <label class="inline-toggle">
+              <input
+                type="checkbox"
+                checked={includeProperties}
+                onChange={(event) => onIncludePropertiesChange((event.target as HTMLInputElement).checked)}
+              />
+              show properties
+            </label>
+          </div>
+          <div class="ontology-browser-layout">
+            <aside class="ontology-type-sidebar">
+              <TypeSelector
+                title="ObjectTypes"
+                names={data.object_types}
+                selected={selectedName}
+                onSelect={selectType}
+              />
+            </aside>
+            <section class="ontology-neighborhood">
+              <header>
+                <div>
+                  <h3>Neighborhood of <code>{selectedName ?? "ontology"}</code></h3>
+                  <p>Select a neighboring card to move through the one-hop graph. Hover or focus a card to inspect its properties.</p>
+                </div>
+              </header>
+              {invalidName ? (
+                <UnavailableState message={`ObjectType ${invalidName} is not registered. Choose a type from the directory.`} />
+              ) : data.nodes && data.edges ? (
+                <OntologyGraph
+                  key={selectedName ?? "default"}
+                  nodes={data.nodes}
+                  edges={data.edges}
+                  initialName={selectedName}
+                  onFocusChange={selectType}
+                  onLinkSelect={(name) => navigate(routeHref("ontology", { params: { view: "links", link: name } }))}
+                />
+              ) : (
+                <MermaidDiagram source={data.mermaid} ariaLabel="Ontology class diagram" />
+              )}
+            </section>
+          </div>
+          <details class="mermaid-source-toggle governance-source-details">
+            <summary class="details-summary">Show deterministic Mermaid source</summary>
+            <pre class="mono scroll code-block">{data.mermaid}</pre>
+          </details>
+        </>
+      ) : null}
 
-      <div class="two-col">
-        <section class="stack-section">
-          <h3 class="section-title">ObjectTypes ({data.object_types.length})</h3>
-          <TypeChipList names={data.object_types} />
-        </section>
-        <section class="stack-section">
-          <h3 class="section-title">LinkTypes ({data.link_types.length})</h3>
-          <TypeChipList names={data.link_types} />
-        </section>
-      </div>
+      {view === "links" ? (
+        <OntologyLinksView
+          names={data.link_types}
+          nodes={data.nodes ?? []}
+          edges={data.edges ?? []}
+          selectedName={selectedLink}
+        />
+      ) : null}
+
+      {view === "actions" ? (
+        <OntologyActionsView actions={actionTypes} selectedName={selectedAction} />
+      ) : null}
     </div>
   );
 }
 
-function TypeChipList({ names }: { readonly names: readonly string[] }) {
-  if (names.length === 0) {
-    return <div class="muted">None registered.</div>;
-  }
+function OntologyTab({
+  view,
+  active,
+  count,
+  label,
+}: {
+  readonly view: OntologyView;
+  readonly active: OntologyView;
+  readonly count: number;
+  readonly label: string;
+}) {
   return (
-    <ul class="type-chip-list">
-      {names.map((name) => (
-        <li key={name} class="type-chip mono">{name}</li>
-      ))}
-    </ul>
+    <a
+      href={routeHref("ontology", { params: { view } })}
+      class={view === active ? "is-active" : undefined}
+      aria-current={view === active ? "page" : undefined}
+    >
+      <span>{label}</span>
+      <strong>{count}</strong>
+    </a>
+  );
+}
+
+function TypeSelector({
+  title,
+  names,
+  selected,
+  onSelect,
+}: {
+  readonly title: string;
+  readonly names: readonly string[];
+  readonly selected: string | null;
+  readonly onSelect?: (name: string) => void;
+}) {
+  return (
+    <section>
+      <h3>{title} <span>{names.length}</span></h3>
+      {names.length === 0 ? <p class="muted">None registered.</p> : (
+        <ul>
+          {names.map((name) => (
+            <li key={name}>
+              {onSelect ? (
+                <button
+                  type="button"
+                  class={selected === name ? "is-active" : undefined}
+                  onClick={() => onSelect(name)}
+                >
+                  <code>{name}</code>
+                </button>
+              ) : <code>{name}</code>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

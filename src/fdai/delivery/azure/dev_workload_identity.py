@@ -27,6 +27,7 @@ the same skew the Managed-Identity adapter uses.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import subprocess
 from dataclasses import dataclass, field
@@ -152,6 +153,18 @@ class AzureCliWorkloadIdentity:
         )
 
 
+@dataclass(slots=True)
+class AsyncAzureCliWorkloadIdentity:
+    """Async local-dev adapter that keeps Azure CLI work off the event loop."""
+
+    credential: AzureCliWorkloadIdentity = field(default_factory=AzureCliWorkloadIdentity)
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
+
+    async def get_token(self, audience: str) -> IdentityToken:
+        async with self._lock:
+            return await asyncio.to_thread(self.credential.get_token_sync, audience)
+
+
 def _parse_expires_on(raw: str | int | float) -> datetime:
     """Parse the several formats ``az`` can emit for ``expiresOn``.
 
@@ -176,4 +189,8 @@ def _parse_expires_on(raw: str | int | float) -> datetime:
     return parsed.astimezone(UTC)
 
 
-__all__ = ["AzureCliCredentialError", "AzureCliWorkloadIdentity"]
+__all__ = [
+    "AsyncAzureCliWorkloadIdentity",
+    "AzureCliCredentialError",
+    "AzureCliWorkloadIdentity",
+]

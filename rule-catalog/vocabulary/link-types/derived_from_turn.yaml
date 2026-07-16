@@ -1,0 +1,7 @@
+schema_version: "1.0.0"
+name: derived_from_turn
+version: "1.0.0"
+from_type: UserMemoryFact
+to_type: Turn
+cardinality: many_to_one
+description: Source Turn that grounds a user-confirmed memory fact.

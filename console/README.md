@@ -29,7 +29,7 @@ The SPA starts with six always-on GET routes on the read API
 |-------|---------|
 | `GET /audit` | Paginated audit log rows (newest first), optionally filtered by `correlation_id`. |
 | `GET /kpi` | Dashboard KPIs (event count, shadow/enforce share, approvals pending, per-kind, per-outcome). |
-| `GET /hil-queue` | Pending approval items (approvals happen through ChatOps, not here). |
+| `GET /hil-queue` | Pending approval count for Readers; safety detail for Approvers and Owners (decisions still happen through ChatOps). |
 | `GET /incidents` | Paginated incident roster with active/resolved/all filters. |
 | `GET /audit/{correlation_id}/trace` | Ordered end-to-end trace for one incident. |
 | `GET /healthz` | Read-API health status. |
@@ -56,6 +56,14 @@ domain / panel hierarchy inside the shared page title (for example,
 repetition. In local dev mode, a `Labs` group appears immediately above Settings
 and links to development-only design tools such as the Logo lab.
 
+The production shell keeps this Activity Bar + Explorer hierarchy even though
+the static prototypes under [`mocks/ui/`](../mocks/ui/) use a single sidebar.
+The prototypes remain the visual reference for content: Calm Slate palette,
+hairline borders, compact section hierarchy, semantic tier/risk colors, KPI
+accents, evidence tables, and approval safety cards. Shared `--cs-*` tokens in
+[`src/styles.css`](src/styles.css) apply that language across every route while
+preserving the documented navigation and clean History API URLs.
+
 The **Operations > Incidents** panel is the incident-centric entry point. It groups
 the append-only audit stream by `correlation_id`, shows lifecycle status and
 the latest remediation disposition, and loads one incident's audit history on
@@ -75,6 +83,16 @@ attention**, and missing promotion or autonomy evidence shows **Evidence
 unavailable** rather than healthy. The Approvals view joins its bounded latest-item
 projection with the authoritative `/kpi.hil_pending` total so a queue larger
 than the display cap is labeled as truncated instead of silently undercounted.
+
+The Approvals route also enforces the visibility split in
+[`operator-console.md` section 3.2](../docs/roadmap/interfaces/operator-console.md#32-week-1-additions-write--approve--runbook).
+A Reader receives `detail_level=count_only`, an empty item array, and the
+authoritative queue total. A principal with the `approve-runtime-hil`
+capability receives `detail_level=full` plus the action's recorded target,
+mode, stop-condition, rollback reference, blast radius, citing rules, reasons,
+and TTL. The server performs the redaction; the browser never decides whether
+sensitive approval intent is visible. Older park records remain readable and
+show `Not recorded` for safety fields that predate the enriched projection.
 
 Human-facing console copy uses **Approvals**, **Approval required**, and
 **Pending approval** instead of exposing the `HIL` acronym by default. The
@@ -125,7 +143,7 @@ contract error instead of a render crash. Rule detail deep links also preserve
 their explicit `active` or `collected` origin; a missing rule in that origin
 returns `404` instead of falling back across catalog tiers.
 
-The Overview landing panel is eager; every other panel is loaded as a separate
+The Overview group's Dashboard landing panel is eager; every other panel is loaded as a separate
 route chunk behind a Suspense boundary. Heavy visualization libraries remain
 on-demand. Command Deck requests are bound to one transcript session and are
 retired on close, clear, session switch, route navigation, or unmount, so a
@@ -139,12 +157,23 @@ storage is blocked. The runtime section exposes the configured read-API
 endpoint for diagnostics. Settings never call the read API, mutate managed
 resources, or hold an execution identity.
 
+The **Agents > Pantheon** panel combines two read-only sources without
+conflating them. `GET /pantheon/graph` and `GET /pantheon/workflows` provide
+the fork-locked organization, ownership, reporting lines, flags, and workflow
+registrations. `GET /agents/stream` adds each agent's current runtime state,
+task detail, correlation id, and engaged count. The page follows the Calm
+Slate prototype with governance, pipeline, and domain card groups plus a
+registry-derived reporting tree. Local synthetic events are labeled `demo
+stream`; production Kafka relay events are labeled `live stream`. Neither
+source grants the console execution authority.
+
 The **History > Agent activity** panel
 ([`src/routes/agent-activity.tsx`](src/routes/agent-activity.tsx)) reuses the
 same `GET /audit` route - no new backend route. It reconstructs a per-agent
 view (which pantheon agent did what, when, and how) by grouping audit rows on
-their `actor`, and offers two toggled layouts: a **Timeline** (vertical, newest
-first) and a **Waterfall** master-detail. The waterfall's left column is a
+their `actor`, and offers two toggled layouts: a mock-aligned **Activity** view
+(per-agent groups, semantic verb rows, time/layer/verb/search filters) and a
+**Waterfall** master-detail. The waterfall's left column is a
 compact, collapsible incident tree (grouped by `correlation_id`); selecting a
 step opens a large detail pane on the right that renders the append-only entry
 verbatim - a lifecycle stepper (event sent -> received -> work started ->
@@ -154,7 +183,15 @@ doing the work, shown as `from -> to` bubbles), its structured inputs /
 outputs, and the full record (tier, mode, outcome, decision, hashes). A small
 speech-bubble badge on a left row marks the steps that carry a conversation.
 Agent chips (coloured by cognitive layer) filter both layouts, and every entry
-deep-links to its full pipeline trace via `#/trace?correlation=<id>`. The dev
+deep-links to its full pipeline trace via `/trace?correlation=<id>`.
+
+The panel also subscribes to `GET /agents/stream`. A bounded stream signal
+updates the current connection/engaged indicators and triggers a background
+refresh of the authoritative audit projection at most once per 1.5 seconds.
+The stream message itself is never rendered as an audit row. This preserves
+the append-only ledger as the source of truth while allowing a visible tab to
+update without polling. The hook closes the SSE connection while the tab is
+hidden and reconnects when it becomes visible. The dev
 read-API seed
 ([`src/fdai/delivery/read_api/_local.py`](../src/fdai/delivery/read_api/dev/local.py))
 attributes each row to its producing agent and carries the lifecycle
@@ -172,15 +209,20 @@ section renders only when its field is present. The audit shapes differ:
 | `tier`, `mode`, `action_kind`, `correlation_id` | present | present |
 | `event_ts` / `received_at` / `started_at` / `finished_at`, `inputs` / `outputs`, `conversation`, `summary` / `detail` | present | not emitted yet |
 
+The local agent stream rotates through nine bounded, customer-agnostic Azure
+operations narratives across low, medium, and high severity. This avoids a
+misleading roster made from the same three incident titles while preserving the
+same `agent.state`, `incident.ticket`, and `conversation.turn` wire contracts.
+
 So in live the panel still renders and stays segmented by real producer -
 `agentOf()` attributes a row to its `producer_principal` when set, else
 humanizes the service `actor` (`fdai.core.rca` -> `core.rca`) rather than
 collapsing every core row into `System`. The lifecycle stepper shows the one
 `Finished` node it can derive from `recorded_at`, and the conversation /
 inputs / outputs / narrative sections are omitted until the pipeline emits
-them. Making those live is core + pantheon work (agents stamping
-`producer_principal` and lifecycle spans; the conversational port emitting
-turns), tracked in the agent-pantheon roadmap - not a console change.
+them. Enriching those optional sections still requires producers to stamp
+`producer_principal`, lifecycle spans, and conversational turns; the console
+does not infer missing evidence.
 `src/routes/agent-activity.test.ts` pins this tolerance to both shapes.
 
 **Faithful full view (nothing stored is hidden).** The `audit_log.entry`
@@ -203,6 +245,38 @@ Beyond the three always-on routes above, the app factory registers several
 (ontology graph, pantheon, blast-radius, promotion gates, rule-fire trace, and
 the inventory graph, and the rule catalog below). Each is reader-role gated and collision-checked; none
 ships enabled upstream unless its `ReadApiConfig` input is set.
+
+### Governance presentation
+
+The Governance routes share the Calm Slate information hierarchy from
+[`mocks/ui/`](../mocks/ui/) while keeping their existing read contracts.
+Architecture is intentionally unchanged because it has no matching governance
+mock and already owns a specialized inventory canvas.
+
+- **Ontology** presents the structured `GET /ontology/graph` response as three
+  URL-addressable views. Objects uses a deterministic 2D one-hop neighborhood,
+  Links shows endpoint and cardinality contracts, and Actions provides a
+  filterable ActionType safety-contract catalog. The Mermaid source remains an
+  ObjectType fallback and evidence view.
+- **Rules** preserves server-side facets, paging, findings, and the detail
+  drawer. Facets render as count-bearing chips, while list rows expose only
+  recorded provenance, category, source, affected count, and version. The UI
+  does not invent shadow accuracy or override counts missing from the API.
+- **Workflow builder** keeps conversational authoring and pure validation. A
+  selected published workflow now renders as a read-only Palette / Canvas /
+  Inspector workspace backed by `GET /workflows/action-types` and
+  `GET /workflows/catalog`; drag, direct publication, and execution remain
+  unavailable.
+- **Blast radius** renders the actual simulation response as concentric depth
+  rings and an impact tree by default. The existing Architecture map and raw
+  table remain alternate views. No resource, personnel, or connection cap is
+  shown unless the response records it.
+- **Promotion gates** filters measured ActionTypes by ready/blocked state and
+  search text, and renders accuracy, reviewed/agreed progress, policy escapes,
+  and recorded gaps. Promotion remains a separate reviewed catalog PR.
+- **Scope** uses the same summary/evidence panels for monitoring scope, action
+  scope, and the hard executor boundary. Its builder still emits a policy-as-
+  code preview for a PR and never changes scope from the browser.
 
 ### Architecture panel (Knowledge)
 
@@ -370,6 +444,12 @@ accordion: selecting a row pins it and expands its workflow card (steps,
 agent-to-agent conversation, RCA) inline directly beneath that row; clicking
 the open row again collapses it.
 
+The local read API relays the same ControlLoop stage frames into Live and
+Agents by default, so the two screens describe one event stream. Set
+`FDAI_AGENTS_REAL_RELAY=0` only for an isolated synthetic UI narrative. The
+console labels the transport as `local` or `live`; authentication mode is not
+treated as evidence provenance.
+
 ### Org-chart layout + agent focus (Now > Agents)
 
 A **Constellation | Org chart** toggle in the header switches the stage between
@@ -431,6 +511,23 @@ Each route publishes a `ViewSnapshot` (`src/deck/context.tsx`) that is a screen
   token, `seeAlso` route, and `match` records-column. Routes compose these from
   the shared catalog in [`src/deck/glossary.ts`](src/deck/glossary.ts) so a term
   means the same thing on every screen.
+
+Interactive screens publish more than headline counters. Their `records`
+include the visible `sections`, available `controls`, and operational
+`constraints` or safety boundaries, plus the current values and enabled state.
+Facts keep stable machine `key` values for deterministic verification and can
+add a human-facing `label`. Controls publish `label`, `detail`, and a grounded
+`disabled_reason` when unavailable, so the narrator never has to infer a reason
+or read an internal token aloud.
+Pure sibling builders such as `document-ingestion.view.ts` keep this screen
+model testable without rendering the route. The route-contract gate accepts a
+builder only when that builder owns `purpose`, `glossary`, and the shared
+glossary import.
+
+For a screen-explanation turn, Bragi walks the model in a stable order:
+purpose, visible sections, current status, available controls, then constraints
+and safety boundaries. It explains why a control is disabled from the published
+reason instead of merely listing JSON facts.
 - **causal fields kept in `records`** - `detail`/`summary`/`reason`/`tier`/
   `outcome` are NOT projected away, so "why did this start" is answered by
   quoting the recorded narrative instead of shrugging.
@@ -456,13 +553,43 @@ reply stays partial and is labelled as such.
 
 While a turn is pending, the deck renders a **retrieval trace**
 (`src/deck/retrieval-trace.tsx`) in place of a bare typing indicator. It streams
-the read-only sources the deck is grounding on - the current screen snapshot
-facts - in a slot-machine window, alongside the stages it can honestly report
-from data it already holds (`Read this screen` from the snapshot, `Route` /
-`Consult backend` from the backend health descriptor). It fabricates nothing:
-every row comes from the live `ViewSnapshot` or `BackendHealth`. When the chat
-backend later streams real per-stage retrieval events (SSE), `retrieval-trace.tsx`
-is the seam that renders them.
+the read-only sources the deck is grounding on in a slot-machine window. The
+first SSE status frame previews the current `ViewSnapshot`; after evidence
+resolution, the server replaces that preview with a bounded list of the actual
+tool, operational, agent, or glossary sources it selected. The trace remains
+visible through every pre-token progress event and for at least 420 ms, then
+changes into the answer bubble when text is ready. The preparing and answer
+surfaces share the same width and alignment; short entry motion and staggered
+source rows avoid an abrupt layout jump. Tokens that arrive during the minimum
+interval enter an adaptive visual queue: each display frame drains one to three
+already-paced deltas, depending on backlog, rather than dumping the whole
+buffer at once. It fabricates nothing: every row comes from the live snapshot,
+backend health descriptor, or server-owned evidence selection.
+
+Rich replies render ATX headings, emphasis, strong text, strikethrough,
+unordered and ordered lists, read-only task lists, blockquotes, thematic
+breaks, safe links, tables, fenced code, and chart blocks. An open code fence
+stays a stable plain preview while streaming and receives syntax highlighting
+only after the closing fence arrives. Unsafe link schemes remain plain text.
+
+The completed reply distinguishes evidence references from sources. A screen
+or server-owned provider is a source; the individual manifest entries checked
+inside that source are shown as `evidence references`. A bounded correction
+that removes unsupported sentences and passes re-verification is presented as
+verified, not as a warning.
+
+Opening the deck uses a **floating panel** by default so the operator can keep
+the underlying console visible. Dragging the header title moves the panel and
+the bottom-right corner resizes it. The left and top edges retain a 12 px guard;
+the right and bottom edges may move beyond the viewport when the operator wants
+the panel partly out of the way. The header can switch the same live
+conversation to a **right sidebar** or to the existing **full workspace**. The
+sidebar starts at 440 px and its left
+separator resizes it from 340 to 720 px with pointer or arrow-key input. Its
+width is saved in `sessionStorage`, and the shell body always shrinks by the
+same current width so the panel never covers navigation or page content. The
+selected mode is also tab-scoped; compact mobile viewports render the panel as
+a full-screen surface.
 
 ### Conversation UX affordances
 
@@ -477,11 +604,18 @@ read-only and grounded:
 - **Stop** - an in-flight streaming reply can be cancelled; whatever streamed so
   far is kept and labelled `stopped` (the backend threads an `AbortSignal`
   through `askBackendStream`).
+- **Follow the answer** - the transcript moves to the newest content when the
+  answer first appears and again when its terminal revision is rendered. This
+  final move is intentional even when the operator scrolled upward during
+  preparation.
 - **Transport resilience** - the browser accepts LF or CRLF SSE framing,
   preserves split UTF-8 code points, and labels interrupted output as partial.
-  Cosmetic token pacing is disabled while the tab or window is unfocused, so a
-  background turn is complete when the operator returns and leaves no polling
-  timer behind.
+  Genuine incremental model deltas render immediately. Only a large frame or a
+  same-tick burst receives a short, paint-sized cadence, so bursty reasoning
+  models still look progressive without replaying every token through the
+  slower deterministic fallback typewriter. Cosmetic pacing is disabled while
+  the tab or window is unfocused, so a background turn is complete when the
+  operator returns and leaves no polling timer behind.
 - **Copy / Regenerate** - each completed reply exposes a Copy button and a
   Regenerate button that re-asks the operator question that produced it.
 - **Smart autoscroll** - the transcript follows streaming tokens only while the
@@ -574,8 +708,48 @@ FDAI_READ_API_DEV_MODE=1 \
   uv run uvicorn 'fdai.delivery.read_api.dev.local:app' \
         --factory --port 8000
 
-# Terminal 2: run the SPA against the dev-mode API.
+# Terminal 2: run the SPA against the dev-mode API. The local auth chooser
+# appears before the console.
 VITE_DEV_MODE=1 VITE_READ_API_BASE_URL=http://127.0.0.1:8000 npm run dev
+```
+
+When the three `VITE_MSAL_*` values are configured, the local chooser offers
+both **Sign in with Entra ID** and **Continue in dev mode**. The Entra option
+establishes a real browser identity session, while the dev API continues to use
+its fixed local authorization ceiling. Use the [Local sign-in test](#local-sign-in-test-real-entra)
+when you need end-to-end JWT and App-Role enforcement.
+
+The bypass marker lives in `sessionStorage`, so it applies only to the current
+browser tab. Choose **Exit local session** in the top bar to return to the
+chooser. To keep the previous immediate-bypass behavior, set:
+
+```sh
+VITE_DEV_MODE=1 VITE_LOCAL_LOGIN_PROMPT=0 npm run dev
+```
+
+The Documents route uses the dedicated ingestion gateway rather than the read
+API. Start its guarded in-memory local factory on a separate port:
+
+```bash
+FDAI_INGESTION_GATEWAY_DEV_MODE=1 \
+  uv run uvicorn fdai.delivery.ingestion_gateway.dev:app \
+  --factory --host 127.0.0.1 --port 8011
+```
+
+Set `VITE_INGESTION_API_BASE_URL=http://127.0.0.1:8011` for the console. The
+factory supports local direct upload only and refuses to boot unless the dev
+mode environment variable is explicit. Accepted text and OOXML documents are
+split by structural unit, embedded with the deterministic local model, and
+stored in a searchable in-memory index. The index is cleared when the gateway
+restarts. The factory allows the standard local console ports `4173`, `5173`,
+`5180`, and `5190` on both `127.0.0.1` and `localhost`. For another port, pass
+one or more exact origins to the gateway process:
+
+```bash
+FDAI_INGESTION_GATEWAY_DEV_MODE=1 \
+FDAI_INGESTION_GATEWAY_CORS_ALLOW_ORIGINS=http://127.0.0.1:5178 \
+  uv run uvicorn fdai.delivery.ingestion_gateway.dev:app \
+  --factory --host 127.0.0.1 --port 8011
 ```
 
 The local read API allows both Vite's development origin on port `5173`
@@ -694,11 +868,12 @@ CI env):
 | Env var | Meaning |
 |---------|---------|
 | `VITE_READ_API_BASE_URL` | Origin of the read API (e.g. `https://api.<fork>`). |
-| `VITE_INGESTION_API_BASE_URL` | Origin of the dedicated document-ingestion gateway. Defaults to `http://127.0.0.1:8010` for local development. |
+| `VITE_INGESTION_API_BASE_URL` | Origin of the dedicated document-ingestion gateway. Defaults to `http://127.0.0.1:8011` for local development. |
 | `VITE_MSAL_CLIENT_ID` | Entra App Registration client id (SPA). |
 | `VITE_MSAL_TENANT_ID` | Entra tenant id (single-tenant per fork). |
 | `VITE_MSAL_API_SCOPE` | API audience scope (e.g. `api://<api-guid>/access`). |
-| `VITE_DEV_MODE` | `1` to bypass MSAL. Never set in production. |
+| `VITE_DEV_MODE` | `1` to enable the local development authorization ceiling. Shows the local auth chooser by default. Never set in production. |
+| `VITE_LOCAL_LOGIN_PROMPT` | Local-only chooser toggle. Defaults to `1` with `VITE_DEV_MODE=1`; set `0` for immediate dev bypass. |
 | `VITE_LOCAL_AZURE_CLI_AUTH` | `1` to project the current local `az login` user through the dev read API. Never set in production or together with `VITE_DEV_MODE`. |
 | `VITE_CONSOLE_BASE_PATH` | Optional subpath if not served at origin root. |
 | `VITE_WORKFLOW_CATALOG_REPO` | Optional `owner/repo` of the catalog repo. When set, a validated workflow draft shows a one-click "Open a PR on GitHub" (new-file link); the console still never commits. |

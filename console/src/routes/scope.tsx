@@ -1,5 +1,6 @@
+import { architectureHref } from "../components/architecture-map.model";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { ReadApiError, type ReadApiClient } from "../api";
+import { isOptionalReadApiUnavailable, type ReadApiClient } from "../api";
 import type {
   EffectiveScope,
   ScopeAxis,
@@ -25,6 +26,15 @@ import { t } from "../i18n";
 /**
  * Scope view. Read-only projection of the effective monitoring and
  * automated-action scope (which subscriptions / resource groups FDAI
+    {
+      key: "topology",
+      header: "Topology",
+      render: (item) => (
+        <a href={architectureHref(undefined, item.resource_group ?? item.subscription)}>
+          Open scope
+        </a>
+      ),
+    },
  * observes and may act on), plus the hard RG-scoped executor IAM
  * boundary. Authoring a scope change never writes from the console: the
  * builder generates a policy-as-code artifact the operator submits as a
@@ -49,7 +59,7 @@ export function ScopeRoute({ client }: Props) {
         if (!live) return;
         // A deployment that does not wire a scope source returns 404 -
         // render "not served here" rather than a hard error.
-        if (error instanceof ReadApiError && error.status === 404) {
+        if (isOptionalReadApiUnavailable(error)) {
           setState({ status: "ready", data: null });
           return;
         }
@@ -65,7 +75,7 @@ export function ScopeRoute({ client }: Props) {
   }, [client]);
 
   return (
-    <div class="stack">
+    <div class="stack governance-route scope-route">
       <PageHeader title={t("route.scope")} subtitle={t("scope.subtitle")} />
       <AsyncBoundary state={state} resourceLabel={t("route.scope")}>
         {(data) =>
@@ -112,9 +122,25 @@ function ScopeBody({ data }: { readonly data: EffectiveScope }) {
   );
 
   return (
-    <div class="stack">
-      <ScopeAxisTable axis={data.monitoring} />
-      <ScopeAxisTable axis={data.action} />
+    <div class="stack governance-scope">
+      <div class="governance-readonly-banner">
+        <strong>Effective scope, not an editor.</strong>
+        <span>Monitoring and action scope come from policy-as-code. The executor boundary remains the hard privilege ceiling.</span>
+      </div>
+      <KpiGrid>
+        <KpiCard label="Monitoring entries" value={data.monitoring.entries.length} hint="resources FDAI can observe" />
+        <KpiCard label="Action entries" value={data.action.entries.length} hint="resources eligible for governed action" />
+        <KpiCard
+          label="Executor resource groups"
+          value={data.executor_boundary.resource_groups.length}
+          tone={data.executor_boundary.resource_groups.length > 0 ? "warning" : "default"}
+          hint="hard identity boundary"
+        />
+      </KpiGrid>
+      <div class="scope-axis-grid">
+        <ScopeAxisTable axis={data.monitoring} />
+        <ScopeAxisTable axis={data.action} />
+      </div>
       <ExecutorBoundaryCard boundary={data.executor_boundary} />
       <ScopeBuilder org={org} />
     </div>
@@ -148,7 +174,7 @@ function ScopeAxisTable({ axis }: { readonly axis: ScopeAxis }) {
     },
   ];
   return (
-    <section class="stack-section">
+    <section class="stack-section scope-axis-card">
       <h3 class="section-title">{t(`scope.axis.${axis.axis}`)}</h3>
       <p class="muted footnote">{t(`scope.axisHint.${axis.axis}`)}</p>
       <DataTable
@@ -167,7 +193,7 @@ function ExecutorBoundaryCard({
   readonly boundary: EffectiveScope["executor_boundary"];
 }) {
   return (
-    <section class="stack-section">
+    <section class="stack-section scope-executor-card">
       <h3 class="section-title">{t("scope.executor")}</h3>
       <p class="muted footnote">{t("scope.executorHint")}</p>
       <KpiGrid>
@@ -177,7 +203,13 @@ function ExecutorBoundaryCard({
             boundary.resource_groups.length === 0 ? (
               t("scope.none")
             ) : (
-              <span class="mono small">{boundary.resource_groups.join(", ")}</span>
+              <span class="scope-boundary-links">
+                {boundary.resource_groups.map((resourceGroup) => (
+                  <a key={resourceGroup} class="mono small" href={architectureHref(undefined, resourceGroup)}>
+                    {resourceGroup}
+                  </a>
+                ))}
+              </span>
             )
           }
         />
@@ -247,7 +279,11 @@ function ScopeBuilder({ org }: { readonly org: string }) {
   }
 
   return (
-    <section class="stack-section">
+    <section class="stack-section scope-builder-card">
+      <div class="governance-readonly-banner">
+        <strong>PR artifact only.</strong>
+        <span>The builder prepares policy-as-code for review. It never changes monitoring, action scope, or executor permissions from the browser.</span>
+      </div>
       <h3 class="section-title">{t("scope.builder")}</h3>
       <p class="muted footnote">{t("scope.builderHint")}</p>
       <form class="form-grid inline" onSubmit={addDraft}>

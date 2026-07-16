@@ -1,8 +1,8 @@
 ---
 title: LLM 전략(LLM Strategy)
 translation_of: llm-strategy.md
-translation_source_sha: 4cc54e06aa7867c75868709e2879f4d4f3a43cfd
-translation_revised: 2026-07-15
+translation_source_sha: 333dfa5821381df05dff82fb45e66d2ee08901f0
+translation_revised: 2026-07-16
 ---
 
 # LLM 전략(LLM Strategy)
@@ -351,6 +351,45 @@ HIL로 라우팅)을 반환하며, 다음 하드닝 불변식을 지킨다:
 포크가 지연-라우팅된 *judge* 를 원한다면, 그건 거버넌스 레벨 변경:
 새 capability(예: `t1.judge.fast-pool`)를 quality gate 와 함께 선언하고
 composer 로 라우팅, 스왑을 감사. narrator 라우터를 통해 쓰레딩하지 말 것.
+
+Read API는 operator traffic과 독립적으로 이 pool을 갱신합니다. 시작할 때 모든
+후보를 두 번 probe하고, 이후 `FDAI_NARRATOR_PROBE_INTERVAL_SECONDS`마다 후보별
+최소 sample을 하나씩 추가합니다. 기본값은 `300`초입니다. 실제 대화 latency도
+같은 8-sample rolling window에 들어가므로 느려지거나 실패한 deployment는 재시작을
+기다리지 않고 healthy 후보 뒤로 이동합니다.
+
+### 사용자별 Narrator 선호 및 TTFT
+
+Settings > Models는 모델 endpoint 또는 자격 증명을 노출하지 않고 해결된 T1/T2
+capability 목록, bootstrap discovery 및 provisioning 상태, 런타임 지연 시간 근거를
+projection합니다. 인증된 각 principal은 `Auto` 라우팅을 유지하거나 현재
+`narrator_candidates` 허용 목록의 deployment 하나를 선택할 수 있습니다. 선호 모델이
+제거되거나 사용할 수 없으면 `Auto`로 fallback합니다. 서버가 후보를 검증하므로
+브라우저가 임의 모델 id를 upstream endpoint에 전달하지 않습니다.
+
+Streaming router는 비어 있지 않은 첫 model token이 도착할 때 time to first token
+(TTFT)을 기록합니다. TTFT p50/p95와 전체 지연 시간 p50/p95는 별도 rolling window를
+사용하고 각각 sample 수를 함께 표시합니다. 측정되지 않은 TTFT는 전체 지연 시간에서
+추론하지 않고 사용할 수 없음으로 표시합니다. 이 선호는 T1 narrator에만 적용됩니다.
+T1 내부 judgment, embedding 및 모든 T2 secondary/critic/rubric/escalation 할당은
+시스템 관리 상태로 유지됩니다. T2 primary pool은 same-publisher invariant를 유지하며
+operator별로 개인화되지 않습니다.
+
+### 대화형 Web-Search Latency Pool
+
+Public-web lookup은 별도의 Chat T2 tool invocation입니다. T1 judgment가 아니며
+action quality-gate pair에도 포함되지 않습니다. 명시적으로 활성화하면 Azure
+Responses `WebSearchProvider`는 `narrator_candidates`를 function-calling deployment
+pool로 재사용합니다. 검색마다 rolling p50이 가장 낮은 후보를 선택하고 나머지
+후보로 failover합니다. 이 재사용은 T1/T2 분류를 바꾸지 않습니다. 결정론적
+web-search policy가 model-backed provider 호출 전에 turn을 승격합니다.
+
+Web-search pool은 narrator pool과 같은 warm-up 및 주기 측정 패턴을 사용합니다.
+주기 probe는 `web_search` 툴 없이 최소 model response만 요청하고, 실제 검색
+호출은 end-to-end latency를 같은 window에 추가합니다. 따라서 각 health sample에
+Bing 검색 툴 비용을 지불하지 않으면서 순위를 최신으로 유지합니다.
+`FDAI_WEB_SEARCH_PROBE_INTERVAL_SECONDS` 기본값은 `300`이며 `30` 미만은 허용되지
+않습니다.
 
 ### T2 Primary Latency Pool (invariant-safe, opt-in)
 

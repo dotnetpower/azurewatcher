@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..core.capability_catalog import CapabilityRuntime
 from ..core.quality_gate.critic import CriticModel
 from ..core.quality_gate.debate import DebateOrchestrator
 from ..core.quality_gate.gate import CrossCheckModel
@@ -147,6 +148,7 @@ class Container:
     distiller: Distiller = field(default_factory=AbstainingDistiller)
     manual_source: ManualSource = field(default_factory=EmptyManualSource)
     manual_classifier: ManualClassifier = field(default_factory=AbstainingManualClassifier)
+    capability_runtime: CapabilityRuntime = field(default_factory=CapabilityRuntime)
 
     def require_llm_bindings(self) -> LlmBindings:
         """Return :attr:`llm_bindings` or raise :class:`LlmBindingsUnavailableError`."""

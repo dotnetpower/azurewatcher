@@ -3,20 +3,32 @@ import { lazy, Suspense } from "preact/compat";
 import { ReadApiClient } from "./api";
 import type { AuthContext } from "./auth";
 import { initAuth } from "./auth";
+import { shouldLoadIamSelf, shouldShowAccessRequired } from "./access-routing";
 import { loadConfig, type ConsoleConfig } from "./config";
+import {
+  clearLocalAuthBypass,
+  enableLocalAuthBypass,
+  readLocalAuthBypass,
+} from "./local-auth-session";
 import { Shell } from "./components/shell";
 import { PanelErrorBoundary } from "./components/panel-error-boundary";
+import { PageHeader } from "./components/ui";
 import { setChatAuth } from "./deck/backend";
 import { ViewContextProvider } from "./deck/context";
 import { deckUserFromAuth, setDeckUser } from "./deck/deck-user";
 import { setWorkflowAuth } from "./workflow/validate";
+import { setPythonTaskAuth } from "./workflow/python-task";
+import { setUserContextAuth } from "./user-context-client";
 import { LoginRoute } from "./routes/login";
+import { AccessRequiredRoute } from "./routes/access-required";
+import type { IamSelfStatus } from "./routes/settings-iam.model";
 import { DEFAULT_PANEL_ID, panelForId, resolvePanels } from "./panels";
 import {
   currentRoute,
   installNavigationListener,
   migrateLegacyHash,
   panelPath,
+  shouldReplaceUnmatchedRoute,
 } from "./router";
 
 interface AppState {
@@ -24,6 +36,7 @@ interface AppState {
   readonly config?: ConsoleConfig;
   readonly auth?: AuthContext;
   readonly client?: ReadApiClient;
+  readonly iamSelf?: IamSelfStatus;
   readonly error?: string;
 }
 
@@ -31,6 +44,26 @@ const CommandDeck = lazy(async () => {
   const module = await import("./deck/command-deck");
   return { default: module.CommandDeck };
 });
+
+function PanelLoading({ title, subtitle }: { readonly title: string; readonly subtitle: string | undefined }) {
+  return (
+    <div class="stack panel-loading-shell" role="status" aria-live="polite">
+      <PageHeader title={title} subtitle={subtitle} />
+      <span class="sr-only">Loading {title}...</span>
+      <div class="panel-loading-summary" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <div class="panel-loading-body" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+        <span />
+      </div>
+    </div>
+  );
+}
 
 function currentPanelId(): string {
   if (typeof window === "undefined") return DEFAULT_PANEL_ID;
@@ -43,12 +76,20 @@ export function App() {
   const [routeKey, setRouteKey] = useState(() =>
     typeof window === "undefined" ? "/overview" : `${window.location.pathname}${window.location.search}`,
   );
+  const [localDevBypass, setLocalDevBypass] = useState(readLocalAuthBypass);
 
   useEffect(() => {
     migrateLegacyHash();
     const route = currentRoute();
-    if (!route.matched) {
+    if (shouldReplaceUnmatchedRoute(route, window.location.hash)) {
       window.history.replaceState(null, "", panelPath(DEFAULT_PANEL_ID));
+    } else if (route.matched && route.pathname !== route.canonicalPathname) {
+      const query = route.search.toString();
+      window.history.replaceState(
+        null,
+        "",
+        query ? `${route.canonicalPathname}?${query}` : route.canonicalPathname,
+      );
     }
     const syncRoute = () => {
       setPanelId(currentPanelId());
@@ -65,15 +106,24 @@ export function App() {
         const config = loadConfig();
         const auth = await initAuth(config);
         const client = new ReadApiClient(config, auth);
+        const iamSelf = shouldLoadIamSelf(auth) ? await client.iamSelf() : undefined;
         // Expose the signed-in operator's roles to the chat deck so it can
         // answer capability questions ("what can I do?").
         setDeckUser(deckUserFromAuth(auth));
         // Thread the operator's bearer token to the workflow-builder's
         // validate POST (the one non-GET, read-only call the console makes).
         setWorkflowAuth(auth);
+        setPythonTaskAuth(auth);
+        setUserContextAuth(auth);
         setChatAuth(auth);
         if (!cancelled) {
-          setState({ status: "ready", config, auth, client });
+          setState({
+            status: "ready",
+            config,
+            auth,
+            client,
+            ...(iamSelf ? { iamSelf } : {}),
+          });
         }
       } catch (err) {
         if (!cancelled) {
@@ -87,11 +137,17 @@ export function App() {
     return () => {
       cancelled = true;
       setChatAuth(null);
+      setUserContextAuth(null);
     };
   }, []);
 
   if (state.status === "loading") {
-    return <div class="empty">Loading...</div>;
+    const loadingPanel = panelForId(panelId);
+    return (
+      <main class="console-bootstrap">
+        <PanelLoading title={loadingPanel.label} subtitle={loadingPanel.subtitle} />
+      </main>
+    );
   }
 
   if (state.status === "error") {
@@ -112,15 +168,48 @@ export function App() {
     return <LoginRoute auth={auth} />;
   }
 
+  if (
+    auth.devMode &&
+    state.config?.localLoginPrompt &&
+    !auth.account &&
+    !localDevBypass
+  ) {
+    return (
+      <LoginRoute
+        auth={auth}
+        allowDevBypass
+        onDevBypass={() => {
+          enableLocalAuthBypass();
+          setLocalDevBypass(true);
+        }}
+      />
+    );
+  }
+
+  if (state.iamSelf && shouldShowAccessRequired(auth, state.iamSelf)) {
+    return <AccessRequiredRoute auth={auth} client={client} initialStatus={state.iamSelf} />;
+  }
+
   const panel = panelForId(panelId);
   const PanelComponent = panel.component;
 
   return (
     <ViewContextProvider scopeKey={routeKey}>
-      <Shell activePanelId={panel.id} auth={auth}>
+      <Shell
+        activePanelId={panel.id}
+        auth={auth}
+        {...(
+          auth.devMode && state.config?.localLoginPrompt && localDevBypass
+            ? { onExitLocalSession: () => {
+                clearLocalAuthBypass();
+                setLocalDevBypass(false);
+              } }
+            : {}
+        )}
+      >
         <PanelErrorBoundary key={routeKey}>
-          <Suspense fallback={<div class="state-block state-loading" role="status">Loading panel...</div>}>
-            <PanelComponent client={client} />
+          <Suspense fallback={<PanelLoading title={panel.label} subtitle={panel.subtitle} />}>
+            <PanelComponent client={client} auth={auth} />
           </Suspense>
         </PanelErrorBoundary>
       </Shell>

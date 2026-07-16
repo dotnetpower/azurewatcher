@@ -104,6 +104,33 @@ class ViewEngine:
             )
         return RenderedView(spec=spec, process=process, regions=tuple(regions))
 
+    async def process_journal(self, process_id: str) -> dict[str, Any]:
+        """Return the authoritative snapshot and append-only event journal."""
+        process = await self._processes.get(process_id)
+        if process is None:
+            raise ProcessNotFoundError(f"unknown process {process_id!r}")
+        events = await self._processes.events(process_id)
+        return {
+            "process": _process_dict(
+                process,
+                has_view=process.workflow_ref in self._by_workflow,
+            ),
+            "events": [
+                {
+                    "event_id": event.event_id,
+                    "kind": event.kind.value,
+                    "recorded_at": event.recorded_at.isoformat(),
+                    "correlation_id": event.correlation_id,
+                    "causation_id": event.causation_id,
+                    "step_id": event.step_id,
+                    "attempt": event.attempt,
+                    "payload": dict(event.payload),
+                }
+                for event in events
+            ],
+            "count": len(events),
+        }
+
     async def list_processes(
         self,
         *,
@@ -117,18 +144,40 @@ class ViewEngine:
             limit=limit,
         )
         return tuple(
-            {
-                "id": snapshot.process_id,
-                "workflow_ref": snapshot.workflow_ref,
-                "workflow_version": snapshot.workflow_version,
-                "status": snapshot.status.value,
-                "current_step": snapshot.current_step,
-                "target_resource_id": snapshot.target_resource_id,
-                "updated_at": snapshot.updated_at.isoformat(),
-                "has_view": snapshot.workflow_ref in self._by_workflow,
-            }
+            _process_dict(
+                snapshot,
+                has_view=snapshot.workflow_ref in self._by_workflow,
+                summary=True,
+            )
             for snapshot in snapshots
         )
+
+
+def _process_dict(
+    snapshot: ProcessSnapshot,
+    *,
+    has_view: bool,
+    summary: bool = False,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "id": snapshot.process_id,
+        "workflow_ref": snapshot.workflow_ref,
+        "workflow_version": snapshot.workflow_version,
+        "status": snapshot.status.value,
+        "current_step": snapshot.current_step,
+        "target_resource_id": snapshot.target_resource_id,
+        "updated_at": snapshot.updated_at.isoformat(),
+        "has_view": has_view,
+    }
+    if not summary:
+        result.update(
+            {
+                "started_at": snapshot.started_at.isoformat(),
+                "correlation_id": snapshot.correlation_id,
+                "revision": snapshot.revision,
+            }
+        )
+    return result
 
 
 __all__ = [

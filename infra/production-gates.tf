@@ -9,6 +9,47 @@ check "private_postgres_requires_network" {
   }
 }
 
+check "vm_task_enforce_requires_binding" {
+  assert {
+    condition     = !var.vm_task_enforce || var.vm_task_enabled
+    error_message = "vm_task_enforce requires vm_task_enabled."
+  }
+}
+
+check "python_task_author_requires_resolved_capability" {
+  assert {
+    condition = var.python_task_author_capability == "" || (
+      var.enable_llm &&
+      var.enable_read_api &&
+      contains(
+        [for capability in var.resolved_capabilities : capability.name],
+        var.python_task_author_capability,
+      )
+    )
+    error_message = "python_task_author_capability requires enable_llm, enable_read_api, and a matching resolved capability."
+  }
+}
+
+check "document_ingestion_requires_dependencies" {
+  assert {
+    condition = !var.enable_document_ingestion || (
+      var.enable_llm &&
+      trimspace(var.read_api_audience) != "" &&
+      trimspace(var.ingestion_cors_allow_origins) != "" &&
+      trimspace(var.rbac_readers_group_id) != "" &&
+      trimspace(var.rbac_contributors_group_id) != "" &&
+      trimspace(var.rbac_approvers_group_id) != "" &&
+      trimspace(var.rbac_owners_group_id) != "" &&
+      trimspace(var.rbac_break_glass_group_id) != "" &&
+      contains(
+        [for capability in var.resolved_capabilities : capability.name],
+        var.ingestion_embedding_capability,
+      )
+    )
+    error_message = "document ingestion requires Entra/RBAC/CORS values, enable_llm, and a matching embedding capability."
+  }
+}
+
 check "production_image_is_digest_pinned" {
   assert {
     condition = var.env != "prod" || (
@@ -16,6 +57,21 @@ check "production_image_is_digest_pinned" {
       !endswith(lower(var.core_image), "@sha256:0000000000000000000000000000000000000000000000000000000000000000")
     )
     error_message = "prod core_image must use a non-placeholder sha256 digest."
+  }
+}
+
+check "production_ingestion_is_private_and_pinned" {
+  assert {
+    condition = var.env != "prod" || (
+      var.enable_document_ingestion &&
+      var.enable_private_networking &&
+      can(regex("@sha256:[0-9a-f]{64}$", lower(var.clamav_image))) &&
+      (
+        var.ingestion_image == "" ||
+        can(regex("@sha256:[0-9a-f]{64}$", lower(var.ingestion_image)))
+      )
+    )
+    error_message = "prod requires private document ingestion and digest-pinned FDAI/ClamAV images."
   }
 }
 

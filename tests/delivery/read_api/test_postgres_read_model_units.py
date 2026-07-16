@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 import pytest
 
 from fdai.delivery.read_api.postgres_read_model import (
+    _INCIDENT_PAGE_SQL,
     PostgresConsoleReadModel,
     PostgresConsoleReadModelConfig,
     _parse_cursor,
@@ -22,6 +23,23 @@ from fdai.delivery.read_api.postgres_read_model import (
     row_to_hil_queue_item,
 )
 from fdai.delivery.read_api.read_model import AuditItem
+
+
+def test_incident_query_qualifies_correlation_after_lateral_join() -> None:
+    incident_open_raw = _INCIDENT_PAGE_SQL.split("incident_open_raw AS (", 1)[1].split(
+        "incident_open AS (", 1
+    )[0]
+
+    assert "FROM bounded_audit AS a" in incident_open_raw
+    assert "WHEN a.correlation_id IS NOT NULL" in incident_open_raw
+    assert "THEN a.correlation_id" in incident_open_raw
+    assert "jsonb_typeof(a.entry->'correlation_keys')" in incident_open_raw
+
+
+def test_incident_query_types_optional_parameters() -> None:
+    assert "CAST(%(before_seq)s AS BIGINT) IS NULL" in _INCIDENT_PAGE_SQL
+    assert "last_seq < CAST(%(before_seq)s AS BIGINT)" in _INCIDENT_PAGE_SQL
+    assert "CAST(%(vertical)s AS TEXT) IS NULL" in _INCIDENT_PAGE_SQL
 
 
 def _row(
@@ -166,6 +184,13 @@ def _park(
                 "idempotency_key": idempotency_key,
                 "event_id": event_id,
                 "action_type": action_type,
+                "action_id": "action-1",
+                "target_resource_ref": "resource-1",
+                "mode": "shadow",
+                "stop_condition": "health probe fails",
+                "rollback_ref": {"kind": "pr_revert", "reference": "pr-1"},
+                "blast_radius": {"scope": "single_resource", "count": 1},
+                "citing_rules": [rule_id],
             },
             "rule_id": rule_id,
             "action_type": action_type,
@@ -174,6 +199,12 @@ def _park(
             "correlation_id": correlation_id,
             "idempotency_key": idempotency_key,
             "parked_at": parked_at,
+            "approval_context": {
+                "reasons": ["Policy requires operator review."],
+                "blast_radius_summary": "1 resource, 0 downstream",
+                "ttl_seconds": 1800,
+                "expires_at": "2026-07-13T10:30:00+00:00",
+            },
             "on_call": None,
         },
         "updated_at": datetime(2026, 7, 13, 10, 0, tzinfo=UTC),
@@ -188,8 +219,14 @@ def test_row_to_hil_queue_item_full_shape() -> None:
     assert item.event_id == "00000000-0000-0000-0000-000000000002"
     assert item.requested_at == "2026-07-13T10:00:00+00:00"
     assert item.correlation_id == "corr-1"
-    assert "rule:azure.compute.stop_condition_required" in item.reason
-    assert "submitter:user-1" in item.reason
+    assert item.reason == "Policy requires operator review."
+    assert item.approval_id == "aid-1"
+    assert item.target_resource_ref == "resource-1"
+    assert item.stop_condition == "health probe fails"
+    assert item.rollback_kind == "pr_revert"
+    assert item.blast_radius_count == 1
+    assert item.citing_rule_ids == ("azure.compute.stop_condition_required",)
+    assert item.ttl_expires_at == "2026-07-13T10:30:00+00:00"
 
 
 def test_row_to_hil_queue_item_decodes_string_value() -> None:
@@ -247,9 +284,10 @@ def test_row_to_hil_queue_item_reason_defaults_when_no_rule_or_submitter() -> No
     # them out, so we get the fallback reason
     row["value"]["rule_id"] = ""  # type: ignore[union-attr]
     row["value"]["submitter_oid"] = ""  # type: ignore[union-attr]
+    row["value"]["approval_context"] = {}  # type: ignore[union-attr]
     item = row_to_hil_queue_item(row)
     assert item is not None
-    assert item.reason == "hil.requested"
+    assert item.reason == "Approval required by the risk gate."
 
 
 # ---------------------------------------------------------------------------

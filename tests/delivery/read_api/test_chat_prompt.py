@@ -301,6 +301,32 @@ def test_operator_reply_hides_internal_snapshot_keys_by_default() -> None:
     assert "hide JSON structure, field names, and row indexes" in system
 
 
+def test_screen_explanation_uses_sections_controls_and_constraints() -> None:
+    system = _system_of(
+        _build_messages(
+            "Explain this screen",
+            {
+                "routeId": "documents",
+                "purpose": "Prepare governed documents.",
+                "facts": [{"key": "selected_files", "value": 0}],
+                "records": {
+                    "sections": [{"title": "Shared visibility"}],
+                    "controls": [{"control": "choose_files", "enabled": True}],
+                    "constraints": [{"max_batch_count": 10}],
+                },
+            },
+            [],
+        )
+    )
+
+    assert "purpose, visible `records.sections`, current facts/status" in system
+    assert "available `records.controls`" in system
+    assert "`records.constraints` and safety boundaries" in system
+    assert "human-facing `label`, `detail`, and `disabled_reason`" in system
+    assert "hide machine `key`/`control` tokens" in system
+    assert "Do not reduce a screen explanation to a raw fact list" in system
+
+
 def test_current_turn_language_takes_precedence_over_history() -> None:
     system = _system_of(_build_messages("What is Forseti doing?", {}, []))
     assert "current turn's language, not history" in system
@@ -362,7 +388,12 @@ def test_lean_and_glossary_share_the_same_rules_block() -> None:
 def test_snapshot_is_embedded_in_system() -> None:
     ctx = {"routeId": "rules", "facts": [{"key": "active_rules", "value": 61}]}
     system = _system_of(_build_messages("hi", ctx, []))
-    assert json.dumps(ctx, ensure_ascii=False) in system
+    embedded = system.split(_SNAPSHOT_MARKER, 1)[1].strip()
+    payload = json.loads(embedded)
+
+    assert payload["routeId"] == "rules"
+    assert payload["facts"] == ctx["facts"]
+    assert payload["_answer_plan"]["intent"] == "open_question"
 
 
 def test_history_is_bounded_and_sanitised() -> None:
@@ -656,6 +687,31 @@ def test_operational_directive_only_appears_with_server_evidence() -> None:
     assert "do not guess" in evidence[1]["content"]
     assert "Never expose" in evidence[1]["content"]
     assert "raw internal" in evidence[1]["content"]
+
+
+def test_concept_directive_prioritizes_selected_glossary_over_screen() -> None:
+    messages = _messages(
+        "\uc5d0\uc774\uc804\ud2b8\uac00 \uc2a4\uc2a4\ub85c "
+        "\ub3d9\uc791\ud558\ub294\uac70 \uc544\ub2cc\uac00?",
+        {
+            "routeId": "ontology",
+            "_concept_evidence": {
+                "authority": "fdai_glossary",
+                "entries": [
+                    {
+                        "term": "Two-port model",
+                        "definition": "Agents expose typed and conversational ports.",
+                    }
+                ],
+            },
+        },
+        [],
+    )
+
+    directives = [message["content"] for message in messages if message["role"] == "system"]
+    assert any("primary authority" in directive for directive in directives)
+    assert any("Do not infer or mention facts" in directive for directive in directives)
+    assert any("operator's language" in directive for directive in directives)
 
 
 # ---------------------------------------------------------------------------

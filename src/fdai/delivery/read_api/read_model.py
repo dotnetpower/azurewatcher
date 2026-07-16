@@ -254,6 +254,20 @@ class HilQueueItem:
     reason: str
     requested_at: str
     correlation_id: str | None = None
+    approval_id: str = ""
+    action_id: str = ""
+    target_resource_ref: str = ""
+    mode: str = ""
+    stop_condition: str = ""
+    rollback_kind: str = ""
+    rollback_reference: str | None = None
+    blast_radius_scope: str = ""
+    blast_radius_count: int | None = None
+    blast_radius_rate_per_minute: int | None = None
+    blast_radius_summary: str = ""
+    reasons: tuple[str, ...] = ()
+    citing_rule_ids: tuple[str, ...] = ()
+    ttl_expires_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -263,6 +277,20 @@ class HilQueueItem:
             "reason": self.reason,
             "requested_at": self.requested_at,
             "correlation_id": self.correlation_id,
+            "approval_id": self.approval_id,
+            "action_id": self.action_id,
+            "target_resource_ref": self.target_resource_ref,
+            "mode": self.mode,
+            "stop_condition": self.stop_condition,
+            "rollback_kind": self.rollback_kind,
+            "rollback_reference": self.rollback_reference,
+            "blast_radius_scope": self.blast_radius_scope,
+            "blast_radius_count": self.blast_radius_count,
+            "blast_radius_rate_per_minute": self.blast_radius_rate_per_minute,
+            "blast_radius_summary": self.blast_radius_summary,
+            "reasons": list(self.reasons),
+            "citing_rule_ids": list(self.citing_rule_ids),
+            "ttl_expires_at": self.ttl_expires_at,
         }
 
 

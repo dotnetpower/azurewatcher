@@ -15,8 +15,8 @@ never get written. Every emitted scenario:
 
   - Uses a registered `expected_signal` from
     `fdai.core.detection.signals` (validated by the catalog loader).
-  - Ships `injector: needs-injector` unless a mapping to a shipped
-    delivery/chaos injector is known (only Chaos Mesh CRDs today);
+    - Ships `injector: needs-injector` unless a mapping to a shipped
+        delivery/chaos injector is known;
     the catalog loader keeps `needs-injector` scenarios out of
     `promoted/`.
   - Ships `gates.shadow_status: pending` and `enforce_status: null`.
@@ -180,7 +180,7 @@ _GENERAL_AXES: tuple[tuple, ...] = (
         "db",
         "saturate",
         "db_cpu",
-        "needs-injector",
+        "mysql:query-load",
         "resource_saturation",
         1,
         {"tool": "benchmark_load", "concurrent_queries": "4"},
@@ -192,7 +192,7 @@ _GENERAL_AXES: tuple[tuple, ...] = (
         "llm_endpoint",
         "throttle",
         "rate_limit",
-        "needs-injector",
+        "aoai:rate-limit",
         "quota",
         1,
         {"target": "aoai", "concurrency": "8"},

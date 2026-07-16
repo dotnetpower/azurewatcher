@@ -11,7 +11,7 @@ fault_family: saturate
 intensity: high
 duration_seconds: 360.0
 expected_signal: host_memory
-injector: needs-injector
+injector: litmus:pod-memory-hog
 blast_radius_cap: 2
 rollback_note: Delete the ChaosEngine; kernel reclaims on exit.
 gates:

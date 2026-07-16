@@ -26,6 +26,7 @@
 import type { ComponentType } from "preact";
 import { lazy } from "preact/compat";
 import type { ReadApiClient } from "./api";
+import type { AuthContext } from "./auth";
 import { t } from "./i18n";
 
 const DashboardRoute = lazy(async () => ({ default: (await import("./routes/dashboard")).DashboardRoute }));
@@ -51,23 +52,30 @@ const BlastRadiusRoute = lazy(async () => ({ default: (await import("./routes/bl
 const PromotionGatesRoute = lazy(async () => ({ default: (await import("./routes/promotion-gates")).PromotionGatesRoute }));
 const ScopeRoute = lazy(async () => ({ default: (await import("./routes/scope")).ScopeRoute }));
 const LlmCostRoute = lazy(async () => ({ default: (await import("./routes/llm-cost")).LlmCostRoute }));
+const CapabilitiesRoute = lazy(async () => ({ default: (await import("./routes/capabilities")).CapabilitiesRoute }));
+const OnboardingRoute = lazy(async () => ({ default: (await import("./routes/onboarding")).OnboardingRoute }));
 const OperatingOutcomesRoute = lazy(async () => ({ default: (await import("./routes/analytics-hubs")).OperatingOutcomesRoute }));
 const ControlAssuranceRoute = lazy(async () => ({ default: (await import("./routes/analytics-hubs")).ControlAssuranceRoute }));
 const VerticalOutcomesRoute = lazy(async () => ({ default: (await import("./routes/analytics-hubs")).VerticalOutcomesRoute }));
 const TrustRoutingRoute = lazy(async () => ({ default: (await import("./routes/analytics-hubs")).TrustRoutingRoute }));
-const SettingsRoute = lazy(async () => ({ default: (await import("./routes/settings")).SettingsRoute }));
+const SettingsGeneralRoute = lazy(async () => ({ default: (await import("./routes/settings")).SettingsGeneralRoute }));
+const SettingsModelsRoute = lazy(async () => ({ default: (await import("./routes/settings-models")).SettingsModelsRoute }));
+const SettingsIamRoute = lazy(async () => ({ default: (await import("./routes/settings-iam")).SettingsIamRoute }));
+const SettingsIntegrationsRoute = lazy(async () => ({ default: (await import("./routes/settings-system")).SettingsIntegrationsRoute }));
+const SettingsDiagnosticsRoute = lazy(async () => ({ default: (await import("./routes/settings-system")).SettingsDiagnosticsRoute }));
 const LabsRoute = lazy(async () => ({ default: (await import("./routes/labs")).LabsRoute }));
 
 /** Props every panel component receives. Read-only client only. */
 export interface PanelProps {
   readonly client: ReadApiClient;
+  readonly auth: AuthContext;
 }
 
 /** The five stable production navigation domains plus dev-only Labs.
  * Fork panels MUST pick one; the Explorer groups by this key. Adding a
  * new group is a design decision (docs update required); do not extend
  * this union in a fork without upstreaming the change. */
-export type PanelGroup = "overview" | "operations" | "agents" | "governance" | "evidence" | "labs";
+export type PanelGroup = "overview" | "operations" | "agents" | "governance" | "evidence" | "labs" | "settings";
 
 /** Optional visual placement for panels that are global utilities rather
  * than members of an Explorer domain. Grouped placement is the
@@ -96,6 +104,12 @@ export const PANEL_GROUPS: readonly PanelGroupMeta[] = [
     hint: t("nav.groupHint.labs"),
     placement: "bottom",
     devOnly: true,
+  },
+  {
+    id: "settings",
+    label: t("nav.group.settings"),
+    hint: t("nav.groupHint.settings"),
+    placement: "bottom",
   },
 ];
 
@@ -163,6 +177,13 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
     subtitle: t("nav.panelSub.provision"),
     group: "operations",
     component: ProvisionRoute,
+  },
+  {
+    id: "onboarding",
+    label: t("nav.panel.onboarding"),
+    subtitle: t("nav.panelSub.onboarding"),
+    group: "operations",
+    component: OnboardingRoute,
   },
   {
     id: "processes",
@@ -251,6 +272,13 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
     component: WorkflowBuilderRoute,
   },
   {
+    id: "capabilities",
+    label: t("nav.panel.capabilities"),
+    subtitle: t("nav.panelSub.capabilities"),
+    group: "governance",
+    component: CapabilitiesRoute,
+  },
+  {
     id: "documents",
     label: t("nav.panel.documents"),
     subtitle: t("nav.panelSub.documents"),
@@ -324,12 +352,39 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
     component: LabsRoute,
   },
   {
-    id: "settings",
-    label: t("nav.panel.settings"),
-    subtitle: t("nav.panelSub.settings"),
-    group: "overview",
-    placement: "bottom",
-    component: SettingsRoute,
+    id: "settings-general",
+    label: t("nav.panel.settingsGeneral"),
+    subtitle: t("nav.panelSub.settingsGeneral"),
+    group: "settings",
+    component: SettingsGeneralRoute,
+  },
+  {
+    id: "settings-models",
+    label: t("nav.panel.settingsModels"),
+    subtitle: t("nav.panelSub.settingsModels"),
+    group: "settings",
+    component: SettingsModelsRoute,
+  },
+  {
+    id: "settings-iam",
+    label: t("nav.panel.settingsIam"),
+    subtitle: t("nav.panelSub.settingsIam"),
+    group: "settings",
+    component: SettingsIamRoute,
+  },
+  {
+    id: "settings-integrations",
+    label: t("nav.panel.settingsIntegrations"),
+    subtitle: t("nav.panelSub.settingsIntegrations"),
+    group: "settings",
+    component: SettingsIntegrationsRoute,
+  },
+  {
+    id: "settings-diagnostics",
+    label: t("nav.panel.settingsDiagnostics"),
+    subtitle: t("nav.panelSub.settingsDiagnostics"),
+    group: "settings",
+    component: SettingsDiagnosticsRoute,
   },
 ];
 

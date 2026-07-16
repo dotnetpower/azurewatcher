@@ -166,6 +166,42 @@ variable "resolved_capabilities" {
   default = []
 }
 
+variable "python_task_author_capability" {
+  description = "Name of a resolved Azure OpenAI capability used to generate editable PythonTask drafts. Empty disables model authoring."
+  type        = string
+  default     = ""
+}
+
+variable "vm_task_enabled" {
+  description = "Bind the governed Azure VM task ToolExecutor in the headless core. Does not enable live execution."
+  type        = bool
+  default     = false
+}
+
+variable "vm_task_enforce" {
+  description = "Permit promoted tool.run-python-on-vm actions to reach Managed Run Command after risk gate and Owner HIL."
+  type        = bool
+  default     = false
+}
+
+variable "vm_task_run_as_user" {
+  description = "Non-root guest account prepared by modules/vm-task-host."
+  type        = string
+  default     = "fdai-task"
+}
+
+variable "vm_task_root" {
+  description = "Private guest directory for content-addressed task and run files."
+  type        = string
+  default     = "/var/lib/fdai/tasks"
+}
+
+variable "scheduler_tick_cron_expression" {
+  description = "Container Apps Job cadence that evaluates persistent schedules. Empty disables it unless vm_task_enabled is true."
+  type        = string
+  default     = ""
+}
+
 variable "measurement_scenario_set_version" {
   description = "Frozen P0 scenario-set version the automated baseline runner replays (e.g. 'v2026.07'). Bump this in lockstep with tests/scenarios/<version>/ contents so a promotion never compares metrics across versions."
   type        = string
@@ -369,8 +405,81 @@ variable "read_api_image" {
   default     = ""
 }
 
+variable "read_api_resolved_models_path" {
+  description = "Container path to resolved-models.json for the Command Deck narrator. Empty disables narrator routes. Supplied via CI Variables; never committed with environment-specific values."
+  type        = string
+  default     = ""
+}
+
+variable "read_api_narrator_probe_interval_seconds" {
+  description = "Periodic narrator model latency-probe interval in seconds."
+  type        = number
+  default     = 300
+
+  validation {
+    condition     = var.read_api_narrator_probe_interval_seconds >= 30
+    error_message = "read_api_narrator_probe_interval_seconds MUST be >= 30."
+  }
+}
+
+variable "read_api_web_search_enabled" {
+  description = "Enable controlled Azure Responses web search for eligible chat turns."
+  type        = bool
+  default     = false
+}
+
+variable "read_api_web_search_allowed_domains" {
+  description = "Exact public source hosts allowed for conversational web search."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = (
+      length(var.read_api_web_search_allowed_domains) <= 100 &&
+      alltrue([
+        for domain in var.read_api_web_search_allowed_domains :
+        can(regex("^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$", domain))
+      ])
+    )
+    error_message = "read_api_web_search_allowed_domains MUST contain at most 100 host names without schemes or paths."
+  }
+}
+
+variable "read_api_web_search_max_results" {
+  description = "Maximum citations retained from one conversational web search."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = var.read_api_web_search_max_results >= 1 && var.read_api_web_search_max_results <= 10
+    error_message = "read_api_web_search_max_results MUST be in [1, 10]."
+  }
+}
+
+variable "read_api_web_search_budget_ms" {
+  description = "Per-search Azure Responses timeout in milliseconds."
+  type        = number
+  default     = 15000
+
+  validation {
+    condition     = var.read_api_web_search_budget_ms >= 1
+    error_message = "read_api_web_search_budget_ms MUST be >= 1."
+  }
+}
+
+variable "read_api_web_search_probe_interval_seconds" {
+  description = "Periodic web-search candidate model probe interval in seconds."
+  type        = number
+  default     = 300
+
+  validation {
+    condition     = var.read_api_web_search_probe_interval_seconds >= 30
+    error_message = "read_api_web_search_probe_interval_seconds MUST be >= 30."
+  }
+}
+
 variable "read_api_audience" {
-  description = "Read-API App ID URI (FDAI_API_AUDIENCE), e.g. `api://<fdai-api-guid>`. Supplied via CI Variables; never committed."
+  description = "Expected JWT aud claim (FDAI_API_AUDIENCE), commonly the API application client id for v2 tokens. Do not use the OAuth scope string. Supplied via CI Variables; never committed."
   type        = string
   default     = ""
 }
@@ -409,6 +518,106 @@ variable "read_api_cors_allow_origins" {
   description = "Comma-separated allowed origins for the console SPA (e.g. the Static Web App origin). MUST NOT contain `*` outside dev."
   type        = string
   default     = ""
+}
+
+variable "read_api_iam_directory_provider" {
+  description = "Human identity directory adapter for IAM user search. Empty disables search; set entra only after Graph User.Read.All admin consent for the read API managed identity."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = contains(["", "entra"], var.read_api_iam_directory_provider)
+    error_message = "read_api_iam_directory_provider MUST be empty or entra."
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Governed document ingestion - production gateway + ADLS Gen2 HNS.
+# ---------------------------------------------------------------------------
+variable "enable_document_ingestion" {
+  description = "Provision the production ingestion gateway, ClamAV sidecar, ADLS Gen2 HNS storage, private endpoints, and dedicated Managed Identity."
+  type        = bool
+  default     = false
+}
+
+variable "ingestion_image" {
+  description = "FDAI runtime image containing the serve extra. Empty falls back to core_image."
+  type        = string
+  default     = ""
+}
+
+variable "clamav_image" {
+  description = "ClamAV sidecar image. Pin by digest for production."
+  type        = string
+  default     = "clamav/clamav:stable"
+}
+
+variable "ingestion_cors_allow_origins" {
+  description = "Comma-separated exact console origins allowed to call the ingestion gateway."
+  type        = string
+  default     = ""
+}
+
+variable "ingestion_embedding_capability" {
+  description = "Resolved Azure OpenAI embedding capability used for document indexing."
+  type        = string
+  default     = "t1.embedding"
+}
+
+variable "document_storage_replication_type" {
+  description = "ADLS Gen2 standard replication type."
+  type        = string
+  default     = "ZRS"
+}
+
+variable "document_soft_delete_retention_days" {
+  type    = number
+  default = 30
+}
+
+variable "document_quarantine_retention_days" {
+  type    = number
+  default = 30
+}
+
+variable "document_derived_cool_after_days" {
+  type    = number
+  default = 30
+}
+
+variable "document_max_file_size_bytes" {
+  type    = number
+  default = 26214400
+}
+
+variable "document_max_batch_count" {
+  type    = number
+  default = 10
+}
+
+variable "document_chunk_max_chars" {
+  type    = number
+  default = 1200
+}
+
+variable "document_chunk_overlap" {
+  type    = number
+  default = 150
+}
+
+variable "document_policy_version" {
+  type    = string
+  default = "prod-policy-v1"
+}
+
+variable "ingestion_min_replicas" {
+  type    = number
+  default = 1
+}
+
+variable "ingestion_max_replicas" {
+  type    = number
+  default = 3
 }
 
 # ---------------------------------------------------------------------------
@@ -467,4 +676,3 @@ variable "budget_alert_emails" {
   type        = list(string)
   default     = []
 }
-

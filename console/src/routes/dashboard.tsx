@@ -180,7 +180,7 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
         : {};
       return {
         routeId: "dashboard",
-        routeLabel: "Overview",
+        routeLabel: t("route.dashboard"),
         purpose:
           "The at-a-glance health of the control plane: event volume, the " +
           "shadow/enforce split, T0 deterministic share, approval backlog, and " +
@@ -203,6 +203,16 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
           { key: "shadow_share", value: formatShare(kpi.shadow_share), group: "overview" },
           { key: "t0_share", value: `${t0Share}%`, group: "overview" },
           { key: "hil_pending", value: kpi.hil_pending, group: "overview" },
+          {
+            key: "measurement_state",
+            value: autonomy === null ? "unavailable" : autonomy.synthetic ? "simulated" : "measured",
+            group: "autonomy",
+          },
+          {
+            key: "measurement_source",
+            value: autonomy?.source.name ?? "not connected",
+            group: "autonomy",
+          },
           {
             key: "monthly_savings",
             value: savings !== null ? formatUsd(savings) : "n/a",

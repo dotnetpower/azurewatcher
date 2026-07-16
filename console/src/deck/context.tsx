@@ -24,8 +24,10 @@ import {
 
 /** A single fact the deck can quote back at the operator. */
 export interface ViewFact {
-  /** Short label used in the digest column, e.g. "eps", "tile #4". */
+  /** Stable machine key used for deterministic lookup, e.g. "selected_files". */
   readonly key: string;
+  /** Optional operator-facing label that the narrator uses instead of the key. */
+  readonly label?: string;
   /** Human-readable value or JSON-serialisable primitive. */
   readonly value: string | number | boolean | null;
   /** Optional group heading for the digest column. */

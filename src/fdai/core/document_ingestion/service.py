@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -24,6 +24,7 @@ from fdai.shared.providers.document_ingestion import (
     DocumentActivitySink,
     DocumentMetadataStore,
     DocumentObjectStore,
+    StreamingUploadStore,
     UploadGrant,
 )
 
@@ -73,9 +74,17 @@ class DocumentIngestionService:
         return self._capabilities
 
     async def create_upload(
-        self, *, actor_id: str, request: CreateUploadRequest
+        self,
+        *,
+        actor_id: str,
+        request: CreateUploadRequest,
+        actor_groups: frozenset[str] = frozenset(),
     ) -> tuple[UploadSession, UploadGrant]:
-        await self._access.authorize_create(actor_id=actor_id, collection_id=request.collection_id)
+        await self._access.authorize_create(
+            actor_id=actor_id,
+            actor_groups=actor_groups,
+            collection_id=request.collection_id,
+        )
         if request.document_id is None and request.supersedes_version_id is not None:
             raise ValueError("supersedes_version_id requires document_id")
         if request.document_id is not None:
@@ -84,7 +93,9 @@ class DocumentIngestionService:
             previous = await self._metadata.get_version(
                 request.document_id, request.supersedes_version_id
             )
-            await self._access.authorize_delete(actor_id=actor_id, version=previous)
+            await self._access.authorize_delete(
+                actor_id=actor_id, actor_groups=actor_groups, version=previous
+            )
             if previous.access.collection_id != request.collection_id:
                 raise ValueError("a replacement cannot move a document between collections")
         if request.expected_size > self._capabilities.max_file_size:
@@ -146,18 +157,35 @@ class DocumentIngestionService:
         await self._record(session, actor_id=actor_id, action="upload.created")
         return session, grant
 
-    async def resume_upload(self, *, actor_id: str, upload_id: UUID) -> UploadGrant:
+    async def resume_upload(
+        self,
+        *,
+        actor_id: str,
+        upload_id: UUID,
+        actor_groups: frozenset[str] = frozenset(),
+    ) -> UploadGrant:
         session, version = await self._authorized_upload(actor_id=actor_id, upload_id=upload_id)
         if session.state is not DocumentState.UPLOADING:
             raise ValueError("only an uploading session can be resumed")
         if session.expires_at <= self._clock():
             raise ValueError("upload session has expired")
-        await self._access.authorize_delete(actor_id=actor_id, version=version)
+        await self._access.authorize_delete(
+            actor_id=actor_id, actor_groups=actor_groups, version=version
+        )
         return await self._objects.resume_upload(session)
 
-    async def put_local_content(self, *, actor_id: str, upload_id: UUID, content: bytes) -> None:
+    async def put_local_content(
+        self,
+        *,
+        actor_id: str,
+        upload_id: UUID,
+        content: bytes,
+        actor_groups: frozenset[str] = frozenset(),
+    ) -> None:
         session, version = await self._authorized_upload(actor_id=actor_id, upload_id=upload_id)
-        await self._access.authorize_delete(actor_id=actor_id, version=version)
+        await self._access.authorize_delete(
+            actor_id=actor_id, actor_groups=actor_groups, version=version
+        )
         if session.state is not DocumentState.UPLOADING:
             raise ValueError("upload session is not accepting content")
         if len(content) > self._capabilities.max_file_size:
@@ -166,9 +194,40 @@ class DocumentIngestionService:
             raise RuntimeError("direct upload is not supported by the object store")
         await self._objects.put(session.object_key, content)
 
-    async def complete_upload(self, *, actor_id: str, upload_id: UUID) -> UploadSession:
+    async def put_streaming_content(
+        self,
+        *,
+        actor_id: str,
+        upload_id: UUID,
+        chunks: AsyncIterator[bytes],
+        actor_groups: frozenset[str] = frozenset(),
+    ) -> None:
         session, version = await self._authorized_upload(actor_id=actor_id, upload_id=upload_id)
-        await self._access.authorize_delete(actor_id=actor_id, version=version)
+        await self._access.authorize_delete(
+            actor_id=actor_id, actor_groups=actor_groups, version=version
+        )
+        if session.state is not DocumentState.UPLOADING:
+            raise ValueError("upload session is not accepting content")
+        if not isinstance(self._objects, StreamingUploadStore):
+            raise RuntimeError("streaming upload is not supported by the object store")
+        await self._objects.put_stream(
+            session.object_key,
+            chunks,
+            expected_size=session.expected_size,
+            max_size=self._capabilities.max_file_size,
+        )
+
+    async def complete_upload(
+        self,
+        *,
+        actor_id: str,
+        upload_id: UUID,
+        actor_groups: frozenset[str] = frozenset(),
+    ) -> UploadSession:
+        session, version = await self._authorized_upload(actor_id=actor_id, upload_id=upload_id)
+        await self._access.authorize_delete(
+            actor_id=actor_id, actor_groups=actor_groups, version=version
+        )
         if session.state is not DocumentState.UPLOADING:
             raise ValueError("upload session is not awaiting completion")
         info = await self._objects.stat(session.object_key)
@@ -197,22 +256,40 @@ class DocumentIngestionService:
         await self._record(session, actor_id=actor_id, action="document.received")
         return session
 
-    async def get_upload(self, *, actor_id: str, upload_id: UUID) -> UploadSession:
+    async def get_upload(
+        self,
+        *,
+        actor_id: str,
+        upload_id: UUID,
+        actor_groups: frozenset[str] = frozenset(),
+    ) -> UploadSession:
         session, version = await self._authorized_upload(actor_id=actor_id, upload_id=upload_id)
-        await self._access.authorize_read(actor_id=actor_id, version=version)
+        await self._access.authorize_read(
+            actor_id=actor_id, actor_groups=actor_groups, version=version
+        )
         return session
 
     async def list_versions(
-        self, *, actor_id: str, document_id: UUID
+        self, *, actor_id: str, document_id: UUID, actor_groups: frozenset[str] = frozenset()
     ) -> tuple[DocumentVersion, ...]:
         versions = await self._metadata.list_versions(document_id)
         for version in versions:
-            await self._access.authorize_read(actor_id=actor_id, version=version)
+            await self._access.authorize_read(
+                actor_id=actor_id, actor_groups=actor_groups, version=version
+            )
         return versions
 
-    async def cancel_upload(self, *, actor_id: str, upload_id: UUID) -> UploadSession:
+    async def cancel_upload(
+        self,
+        *,
+        actor_id: str,
+        upload_id: UUID,
+        actor_groups: frozenset[str] = frozenset(),
+    ) -> UploadSession:
         session, version = await self._authorized_upload(actor_id=actor_id, upload_id=upload_id)
-        await self._access.authorize_delete(actor_id=actor_id, version=version)
+        await self._access.authorize_delete(
+            actor_id=actor_id, actor_groups=actor_groups, version=version
+        )
         if session.state not in {
             DocumentState.CREATED,
             DocumentState.UPLOADING,

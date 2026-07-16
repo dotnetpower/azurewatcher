@@ -1,0 +1,46 @@
+schema_version: "1.0.0"
+name: VmTaskRun
+version: "1.0.0"
+key: id
+description: One planned or submitted Python task run on a managed compute Resource.
+properties:
+  id:
+    type: string
+    required: true
+    description: Idempotent run reference.
+  artifact_hash:
+    type: string
+    required: true
+    description: PythonTask artifact digest selected for this run.
+  status:
+    type: string
+    required: true
+    description: planned, submitted, running, succeeded, failed, or cancelled.
+  target_resource_id:
+    type: string
+    required: true
+    description: Inventory Resource id for the target VM.
+  provider_run_ref:
+    type: string
+    required: false
+    description: Opaque provider status reference returned after submission.
+  dry_run:
+    type: boolean
+    required: true
+    description: True when no files were copied and no code executed.
+  exit_code:
+    type: integer
+    required: false
+    description: Guest process exit code when terminal.
+  started_at:
+    type: datetime
+    required: true
+    description: RFC 3339 start timestamp.
+  updated_at:
+    type: datetime
+    required: true
+    description: RFC 3339 latest status timestamp.
+  detail:
+    type: string
+    required: false
+    description: Bounded audit-safe provider status summary.

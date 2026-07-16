@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
@@ -114,6 +115,13 @@ class AzureCliInventory:
     resource_types: Sequence[str] = field(default_factory=lambda: tuple(_NEUTRAL_TYPE_TO_AZ_ARGS))
     subscription_id: str | None = None
     executable: str = "az"
+    azure_config_dir: str | None = None
+    """Optional isolated Azure CLI profile directory.
+
+    ``None`` removes an inherited ``AZURE_CONFIG_DIR`` so local discovery uses
+    the operator's default profile. A non-empty value selects that profile
+    explicitly. The subscription id still scopes every list command.
+    """
 
     def full_snapshot(self, since: str | None = None) -> AsyncIterator[InventoryBatch]:
         del since  # az CLI does not honour a since filter here.
@@ -145,7 +153,7 @@ class AzureCliInventory:
         argv = [self.executable, *_NEUTRAL_TYPE_TO_AZ_ARGS[resource_type]]
         if self.subscription_id:
             argv.extend(("--subscription", self.subscription_id))
-        proc = await asyncio.to_thread(_run_az, argv)
+        proc = await asyncio.to_thread(_run_az, argv, self.azure_config_dir)
         try:
             payload = json.loads(proc.stdout or "[]")
         except json.JSONDecodeError as exc:
@@ -160,7 +168,15 @@ class AzureCliInventory:
         )
 
 
-def _run_az(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
+def _run_az(
+    argv: Sequence[str],
+    azure_config_dir: str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    environment = os.environ.copy()
+    if azure_config_dir:
+        environment["AZURE_CONFIG_DIR"] = azure_config_dir
+    else:
+        environment.pop("AZURE_CONFIG_DIR", None)
     try:
         proc = subprocess.run(  # noqa: S603 - CLI-mode dev adapter, timeout enforced
             list(argv),
@@ -168,6 +184,7 @@ def _run_az(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
             text=True,
             timeout=_AZ_TIMEOUT_SECONDS,
             check=False,
+            env=environment,
         )
     except FileNotFoundError as exc:
         raise AzureCliInventoryError(

@@ -29,6 +29,7 @@ from fdai.core.irp.coordinator import (
     IrpResult,
     MitigationProposal,
     NullNotifier,
+    ProposalRouter,
 )
 from fdai.core.irp.hil_gate import HilChannelApprovalGate
 from fdai.core.irp.models import (
@@ -55,6 +56,7 @@ __all__ = [
     "IrpResult",
     "MitigationProposal",
     "NullNotifier",
+    "ProposalRouter",
     "PlanNotReadyError",
     "PlanRequirement",
     "PlanStatus",

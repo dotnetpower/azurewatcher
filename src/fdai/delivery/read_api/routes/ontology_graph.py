@@ -1,7 +1,7 @@
 """Read-only ``GET /ontology/graph`` route.
 
-Returns the rendered Mermaid ``classDiagram`` for the loaded ontology
-catalog plus a small manifest of node/edge counts. The rendered graph
+Returns the rendered Mermaid ``classDiagram`` for the loaded ObjectType /
+LinkType catalog plus the ActionType safety-contract catalog. The rendered graph
 is deterministic - a fork's PR that adds an ObjectType shows a
 diffable change in the exported Markdown / SPA snapshot.
 
@@ -20,7 +20,11 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from fdai.core.ontology_explorer import render_ontology_mermaid
-from fdai.shared.contracts.models import OntologyLinkType, OntologyObjectType
+from fdai.shared.contracts.models import (
+    OntologyActionType,
+    OntologyLinkType,
+    OntologyObjectType,
+)
 
 DEFAULT_ROUTE_PATH = "/ontology/graph"
 
@@ -29,6 +33,7 @@ def make_ontology_graph_route(
     *,
     object_types: Sequence[OntologyObjectType],
     link_types: Sequence[OntologyLinkType],
+    action_types: Sequence[OntologyActionType] = (),
     authorize: Callable[[Request], Awaitable[str]],
     path: str = DEFAULT_ROUTE_PATH,
 ) -> Route:
@@ -93,13 +98,19 @@ def make_ontology_graph_route(
             }
             for lt in link_types
         ]
+        actions = [
+            action_type.model_dump(mode="json", exclude_none=True)
+            for action_type in sorted(action_types, key=lambda item: item.name)
+        ]
         return JSONResponse(
             {
                 "mermaid": rendered.mermaid,
                 "object_type_count": rendered.object_type_count,
                 "link_type_count": rendered.link_type_count,
+                "action_type_count": len(actions),
                 "object_types": sorted(o.name for o in object_types),
                 "link_types": sorted(link.name for link in link_types),
+                "action_types": actions,
                 "nodes": nodes,
                 "edges": edges,
             }

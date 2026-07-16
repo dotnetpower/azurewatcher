@@ -11,7 +11,7 @@ fault_family: drop
 intensity: high
 duration_seconds: 360.0
 expected_signal: request_failure
-injector: needs-injector
+injector: litmus:pod-network-loss
 blast_radius_cap: 2
 rollback_note: Delete the ChaosEngine; tc qdisc del removes the rule.
 gates:

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ReadApiError } from "../api";
 import {
+  decodeProcessJournal,
   decodeProcessList,
   decodeRenderedProcessView,
   defaultProcessId,
@@ -49,10 +50,10 @@ describe("process view route model", () => {
     });
   });
 
-  it("preserves a current selection and defaults to the first renderable process", () => {
+  it("preserves a current selection and defaults to the newest process", () => {
     const items = [summary("unsupported", false), summary("ready", true)];
     expect(defaultProcessId(items, "#/processes?process=chosen")).toBe("chosen");
-    expect(defaultProcessId(items, "#/processes")).toBe("ready");
+    expect(defaultProcessId(items, "#/processes")).toBe("unsupported");
   });
 
   it("rejects malformed list and detail payloads at the boundary", () => {
@@ -79,6 +80,32 @@ describe("process view route model", () => {
     });
     expect(decoded.process.revision).toBe(2);
     expect(decoded.regions[0]?.report.widgets[0]?.id).toBe("status");
+  });
+
+  it("decodes a process snapshot and append-only journal", () => {
+    const decoded = decodeProcessJournal({
+      process: {
+        ...summary("process-1", false),
+        started_at: "2026-07-15T09:30:00Z",
+        correlation_id: "correlation-1",
+        revision: 3,
+      },
+      events: [{
+        event_id: "event-1",
+        kind: "step.completed",
+        recorded_at: "2026-07-15T09:30:01Z",
+        correlation_id: "correlation-1",
+        causation_id: null,
+        step_id: "inspect",
+        attempt: 1,
+        payload: { outcome: "success" },
+      }],
+      count: 1,
+    });
+
+    expect(decoded.process.has_view).toBe(false);
+    expect(decoded.events[0]?.step_id).toBe("inspect");
+    expect(decoded.events[0]?.payload["outcome"]).toBe("success");
   });
 });
 

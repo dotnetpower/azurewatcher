@@ -34,6 +34,7 @@ _CHAOS_OUTCOME_SEVERITY: dict[ExperimentOutcome, Severity] = {
 
 _IRP_OUTCOME_SEVERITY: dict[IrpOutcome, Severity] = {
     IrpOutcome.APPROVED: Severity.HIGH,
+    IrpOutcome.PENDING_APPROVAL: Severity.HIGH,
     IrpOutcome.REJECTED: Severity.MEDIUM,
     IrpOutcome.TIMEOUT: Severity.HIGH,
     IrpOutcome.NO_FINDING: Severity.LOW,

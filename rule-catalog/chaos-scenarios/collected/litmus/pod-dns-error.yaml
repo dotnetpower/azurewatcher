@@ -11,7 +11,7 @@ fault_family: deny
 intensity: extreme
 duration_seconds: 720.0
 expected_signal: request_failure
-injector: needs-injector
+injector: litmus:pod-dns-error
 blast_radius_cap: 2
 rollback_note: Delete the ChaosEngine.
 gates:

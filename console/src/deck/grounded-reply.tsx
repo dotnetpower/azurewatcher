@@ -15,7 +15,13 @@
  */
 
 import { useState } from "preact/hooks";
-import type { AnswerVerification, VerificationProgress } from "./backend";
+import { t } from "../i18n";
+import type {
+  AnswerPlanMetadata,
+  AnswerVerification,
+  GroundedCodeArtifact,
+  VerificationProgress,
+} from "./backend";
 import { RichContent } from "./rich-content";
 import { relevantCitations, type Citation } from "./citations";
 
@@ -27,6 +33,8 @@ export function GroundedReply({
   streaming,
   verification,
   verificationProgress,
+  answerPlan,
+  codeArtifacts,
   onRegenerate,
 }: {
   readonly turnId: string;
@@ -37,6 +45,8 @@ export function GroundedReply({
   readonly streaming: boolean;
   readonly verification: AnswerVerification | undefined;
   readonly verificationProgress: VerificationProgress | undefined;
+  readonly answerPlan: AnswerPlanMetadata | undefined;
+  readonly codeArtifacts: readonly GroundedCodeArtifact[] | undefined;
   /** Re-run the operator question that produced this reply, if known. */
   readonly onRegenerate?: () => void;
 }) {
@@ -44,6 +54,12 @@ export function GroundedReply({
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const cites = relevantCitations(citations ?? [], text);
+  const evidenceReferences = cites.every((citation) =>
+    citation.label.startsWith("evidence."));
+  const boundedCorrection = verification?.status === "corrected" && (
+    verification.reason_code === "screen_unsupported_sentences_removed" ||
+    verification.reason_code === "concept_scope_claims_removed"
+  );
 
   const copy = () => {
     void navigator.clipboard?.writeText(text).then(
@@ -59,9 +75,26 @@ export function GroundedReply({
 
   return (
     <div class="deck-gr">
+      {answerPlan ? (
+        <div class="deck-answer-plan" title={t(`deck.answerPlan.format.${answerPlan.format}`)}>
+          <span>Bragi</span>
+          <span aria-hidden="true">·</span>
+          <span>{t(`deck.answerPlan.intent.${answerPlan.intent}`)}</span>
+          <span aria-hidden="true">·</span>
+          <span>{t(`deck.answerPlan.detail.${answerPlan.detail_level}`)}</span>
+        </div>
+      ) : null}
       <div class="deck-turn-body">
-        <RichContent text={text} streaming={streaming} />
+        <RichContent
+          text={text}
+          streaming={streaming}
+          suppressCode={!streaming && (codeArtifacts?.length ?? 0) > 0}
+        />
       </div>
+
+      {!streaming && codeArtifacts && codeArtifacts.length > 0 ? (
+        <CodeEvidence artifacts={codeArtifacts} />
+      ) : null}
 
       {verificationProgress && !verification ? (
         <div class="deck-verification is-active" role="status" aria-live="polite">
@@ -77,12 +110,14 @@ export function GroundedReply({
 
       {verification ? (
         <div
-          class={`deck-verification is-${verification.status}`}
+          class={`deck-verification is-${boundedCorrection ? "verified" : verification.status}`}
           role="status"
-          aria-label={`Answer ${verification.status}`}
+          aria-label={`Answer ${boundedCorrection ? "verified" : verification.status}`}
         >
           <span class="deck-verification-mark" aria-hidden="true">
-            {verification.status === "verified" || verification.status === "consistent"
+            {verification.status === "verified" ||
+            verification.status === "consistent" ||
+            boundedCorrection
               ? "\u2713"
               : verification.status === "corrected"
                 ? "\u21bb"
@@ -138,8 +173,15 @@ export function GroundedReply({
               {"\u2713"}
             </span>
             <span>
-              Grounded on <strong>{cites.length}</strong>{" "}
-              {cites.length === 1 ? "source" : "sources"}
+              {evidenceReferences ? "Checked against" : "Grounded on"}{" "}
+              <strong>{cites.length}</strong>{" "}
+              {evidenceReferences
+                ? cites.length === 1
+                  ? "evidence reference"
+                  : "evidence references"
+                : cites.length === 1
+                  ? "source"
+                  : "sources"}
             </span>
             {source ? <span class="deck-gr-src muted">{source}</span> : null}
             <span class="deck-gr-more">{open ? "hide sources" : "show sources"}</span>
@@ -158,6 +200,37 @@ export function GroundedReply({
         </>
       ) : null}
     </div>
+  );
+}
+
+function CodeEvidence({ artifacts }: { readonly artifacts: readonly GroundedCodeArtifact[] }) {
+  return (
+    <details class="deck-code-evidence">
+      <summary>
+        <span>{t("deck.codeEvidence.label")}</span>
+        <span class="muted">{t("deck.codeEvidence.count", { count: artifacts.length })}</span>
+      </summary>
+      <div class="deck-code-evidence-list">
+        {artifacts.map((artifact, index) => (
+          <section key={artifact.artifact_ref} class="deck-code-evidence-item">
+            <header class="deck-code-evidence-head">
+              <span class="deck-code-lang">{artifact.language}</span>
+              <span class={`deck-code-validation is-${artifact.validation_status}`}>
+                {t(`deck.codeEvidence.status.${artifact.validation_status}`)}
+              </span>
+              <span class="muted">#{index + 1}</span>
+            </header>
+            <RichContent
+              text={`\`\`\`${artifact.language}\n${artifact.content}\`\`\``}
+            />
+            <footer class="deck-code-evidence-foot">
+              <code>{artifact.artifact_ref}</code>
+              {artifact.validation_detail ? <span>{artifact.validation_detail}</span> : null}
+            </footer>
+          </section>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -183,10 +256,19 @@ function verificationLabel(verification: AnswerVerification): string {
   const claimSummary = claims.length > 0
     ? ` (${supportedClaims}/${claims.length} claims supported)`
     : "";
+  const supportedSummary = supportedClaims > 0
+    ? ` (${supportedClaims} ${supportedClaims === 1 ? "claim" : "claims"} supported)`
+    : "";
   switch (verification.status) {
     case "verified":
       return `Verified against ${verification.evidence_refs.length} evidence reference(s)${claimSummary}`;
     case "corrected":
+      if (
+        verification.reason_code === "screen_unsupported_sentences_removed" ||
+        verification.reason_code === "concept_scope_claims_removed"
+      ) {
+        return `Verified after removing unsupported statements${supportedSummary}`;
+      }
       return `Corrected after evidence verification${claimSummary}`;
     case "consistent":
       return claims.length > 0

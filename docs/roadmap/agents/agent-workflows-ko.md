@@ -1,13 +1,13 @@
 ---
 title: 에이전트 워크플로우
 translation_of: agent-workflows.md
-translation_source_sha: cf93d1defa5273cd9b2bc8586893a47e763258f8
-translation_revised: 2026-07-11
+translation_source_sha: 22fdf3b12f804f42630600cab8b3a2d2f55c9852
+translation_revised: 2026-07-16
 ---
 
 # 에이전트 워크플로우
 
-판테온이 제품 수준 capability 로 조합하는 11개 cross-agent 워크플로우. 각
+판테온이 제품 수준 capability 로 조합하는 12개 cross-agent 워크플로우. 각
 워크플로우는 참여 에이전트, 트리거, 종단간 sequence, exit criteria 를
 명명한다. 모든 워크플로우는 shadow 모드로 먼저 배포
 ([agent-pantheon-implementation.md § Wave 7](agent-pantheon-implementation-ko.md#11-wave-7---shadow-\ub85c-cross-agent-workflows))
@@ -540,7 +540,51 @@ sequenceDiagram
 ([scope-expansion-ko.md](../fork-and-sequencing/scope-expansion-ko.md) 를 consume). per-deploy 체크가
 아님 (그것은 [deployment-preflight-ko.md](../deployment/deployment-preflight-ko.md)).
 
-## 12. 워크플로우 카탈로그 요약
+## 12. Scheduled governed Python task
+
+**Purpose.** Authoring surface 에 VM identity 를 주거나 shell text 를 받지 않고,
+immutable generated Python artifact 를 inventory 에서 선택한 GPU VM 하나에서
+실행합니다.
+
+**Trigger.** Target Resource 및 `PythonTask` artifact binding 과 함께 scheduler 가
+materialize 한 strict five-field cron schedule 입니다.
+
+**Agents.** Bragi 는 authoring translation, Forseti 는 risk verdict, Var 는 Owner HIL
+approval, Thor 는 Managed Run Command execution, Saga 는 audit record 를 담당합니다.
+Current runtime 은 이러한 책임을 authoring API, scheduler 와 `EventIngest`, unified
+risk gate, HIL resume coordinator, tool executor 에 매핑합니다. Optional Pantheon
+consumer 는 shadow observer 로 유지되며 proposal 을 실행하지 않습니다.
+
+```mermaid
+sequenceDiagram
+    participant B as Bragi
+    participant I as EventIngest
+    participant F as Forseti
+    participant V as Var
+    participant T as Thor
+    participant S as Saga
+    B->>I: raw operator_request {artifact_ref, target}
+    I->>F: canonical Event plus trusted inventory context
+    F->>F: validate ActionType, capability, freshness, blast radius
+    F->>V: Owner HIL request
+    V-->>F: approval
+    F->>T: tool.run-python-on-vm
+    T->>T: stage, rehash cache, preflight, bounded execute
+    T->>S: VmTaskRun receipt
+```
+
+**Exit criteria.** 모든 guest invocation 에서 artifact file 을 다시 검사하고 target 이
+active inventory `compute.vm` 이며 GPU task 는 GPU-capable target 에서만 실행됩니다.
+Retry 는 같은 Managed Run Command 를 재사용하고 polling failure 시 remote cancel 을
+시도하며 모든 terminal result 는 audit 됩니다.
+
+**Promotion gate.** 14일 및 shadow plan 30개, accuracy >= 99%, policy escape zero,
+`FDAI_VM_TASK_ENFORCE=1` 전에 explicit Owner review 가 필요합니다.
+
+**Anti-scope.** VM 을 provision 하거나 package 또는 driver 를 설치하거나 shell
+command 를 받거나 source 를 event bus 로 전달하거나 risk gate 를 우회하지 않습니다.
+
+## 13. 워크플로우 카탈로그 요약
 
 | # | 이름 | Trigger | Primary agent | Enforce 전제조건 |
 |---|------|---------|---------------|-----------------|
@@ -555,6 +599,7 @@ sequenceDiagram
 | 9 | Rollback rehearsal | Loki 스케줄 (monthly) | Loki | ActionType 당 3회 rehearsal |
 | 10 | Retrospective what-if | Operator 또는 post-incident | Bragi | (본질적으로 shadow) |
 | 11 | Operational readiness handoff | `ownership_transfer` signal | Forseti | env당 30일 shadow, critical FN zero, FP < 5% |
+| 12 | Scheduled governed Python task | Strict cron schedule | Forseti + Thor | plan 30개, accuracy >= 99%, escape zero, Owner HIL |
 
 ## Next steps
 

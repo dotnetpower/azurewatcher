@@ -48,6 +48,19 @@ and `uv run pytest` with **no Azure credentials**.
 | State store (integration tests) | `pgvector/pgvector:pg16` on `:5432` | Azure PostgreSQL Flexible + pgvector |
 | Event bus (integration tests) | Redpanda on `:19092` (Kafka wire) | Event Hubs Kafka on `:9093` |
 
+### Console live feeds in local development
+
+The local read API registers its Live and Agents feeds but starts no producer by default, so
+both streams stay quiet. Set `FDAI_LOCAL_SCENARIO_REPLAY=1` only for an explicit demo. In that
+mode, `ControlLoopLiveEmitter` cycles the shipped events under `tests/scenarios/v2026.07/` plus
+catalog-derived synthetic resource templates, gives each replay a fresh event, correlation,
+and idempotency identity, and sends it through the real `ControlLoop.process()` path at the
+configured development rate. `ControlLoopAgentActivityRelay` then projects those real stage
+results into agent states and `INC-<correlation_id>` tickets. The decisions exercise production
+code, but the input resources and incidents are generated examples, not observations from an
+Azure tenant. In production, the Agents broadcaster consumes the configured Kafka
+`aw.pipeline.stages` topic instead, so its incidents represent the deployed runtime stream.
+
 ### Currently needs Azure (must gain a local mode)
 
 | Subsystem | Status | Gap |

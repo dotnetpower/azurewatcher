@@ -79,6 +79,42 @@ export interface WorkflowCatalogResponse {
   readonly count: number;
 }
 
+export interface WorkflowDefinitionEntry {
+  readonly definition_id: string;
+  readonly workflow_name: string;
+  readonly workflow_version: string;
+  readonly origin: "upstream" | "tenant" | "user";
+  readonly visibility: "global" | "team" | "private";
+  readonly lifecycle: string;
+  readonly owner_ref: string | null;
+  readonly derived_from: string | null;
+  readonly resolved_action_versions: Readonly<Record<string, string>>;
+  readonly workflow_document: Omit<WorkflowCatalogEntry, "step_count" | "yaml">;
+}
+
+export interface WorkflowBindingEntry {
+  readonly binding_id: string;
+  readonly definition_id: string;
+  readonly trigger: "deck_open" | "schedule" | "signal";
+  readonly enabled: boolean;
+  readonly cron_expression: string | null;
+  readonly timezone: string | null;
+  readonly signal_type: string | null;
+  readonly scope_ref: string | null;
+  readonly parameters: Readonly<Record<string, string | number | boolean>>;
+  readonly revision: number;
+}
+
+export interface WorkflowDefinitionCatalogResponse {
+  readonly groups: {
+    readonly built_in: readonly WorkflowDefinitionEntry[];
+    readonly shared: readonly WorkflowDefinitionEntry[];
+    readonly mine: readonly WorkflowDefinitionEntry[];
+  };
+  readonly bindings: readonly WorkflowBindingEntry[];
+  readonly counts: Readonly<Record<string, number>>;
+}
+
 /** One validation issue keyed to a draft path. */
 export interface WorkflowIssue {
   readonly key: string;
@@ -96,6 +132,59 @@ let authContext: AuthContext | null = null;
 /** Set once at app init so the validate POST can attach the bearer token. */
 export function setWorkflowAuth(auth: AuthContext | null): void {
   authContext = auth;
+}
+
+export async function createWorkflowBinding(input: {
+  readonly definition_id: string;
+  readonly trigger: "deck_open" | "schedule" | "signal";
+  readonly cron_expression?: string;
+  readonly timezone?: string;
+  readonly signal_type?: string;
+  readonly scope_ref?: string;
+  readonly parameters?: Readonly<Record<string, string | number | boolean>>;
+}): Promise<WorkflowBindingEntry> {
+  return await workflowMutation("/workflows/bindings", "POST", {
+    ...input,
+    confirmed: true,
+  }) as unknown as WorkflowBindingEntry;
+}
+
+export async function deleteWorkflowBinding(bindingId: string): Promise<void> {
+  await workflowMutation(
+    `/workflows/bindings/${encodeURIComponent(bindingId)}`,
+    "DELETE",
+  );
+}
+
+async function workflowMutation(
+  path: string,
+  method: "POST" | "DELETE",
+  body?: Readonly<Record<string, unknown>>,
+): Promise<Record<string, unknown>> {
+  const cfg = loadConfig();
+  const base = cfg.readApiBaseUrl || (typeof window !== "undefined" ? window.location.origin : "");
+  const headers: Record<string, string> = { accept: "application/json" };
+  if (body !== undefined) headers["content-type"] = "application/json";
+  const authHeader = authContext ? await authContext.getAuthorizationHeader() : null;
+  if (authHeader !== null) headers.authorization = authHeader;
+  const response = await fetch(`${base.replace(/\/$/, "")}${path}`, {
+    method,
+    headers,
+    credentials: "omit",
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
+    try {
+      const payload = await response.json() as { detail?: string };
+      detail = payload.detail ?? detail;
+    } catch {
+      /* keep status */
+    }
+    throw new Error(detail);
+  }
+  if (response.status === 204) return {};
+  return await response.json() as Record<string, unknown>;
 }
 
 function validateUrl(): string {

@@ -12,18 +12,26 @@ properties:
   id:
     type: string
     required: true
+    access_scope: owner
+    purpose_binding: [user_context]
     description: RBAC-scoped user identifier (user_id in payload). Doubles as the instance key.
   locale:
     type: string
     required: false
+    access_scope: owner
+    purpose_binding: [user_context]
     description: BCP 47 tag (e.g. en, ko). Bragi renders responses in this locale.
   verbosity:
     type: string
     required: false
+    access_scope: owner
+    purpose_binding: [user_context]
     description: One of `concise`, `detailed`. Controls Bragi answer density.
   share_with_learner:
     type: boolean
     required: false
+    access_scope: owner
+    purpose_binding: [user_context]
     description: Opt-in for Norns turn-body access. Default false (metadata-only).
   updated_at:
     type: string

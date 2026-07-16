@@ -45,6 +45,7 @@ def _task_view(task: ScheduledTask) -> dict[str, Any]:
         "resource_ref": task.resource_ref,
         "enabled": task.enabled,
         "last_run": task.last_run.isoformat() if task.last_run else None,
+        "cron_expression": task.cron_expression,
     }
 
 
@@ -95,8 +96,9 @@ class CreateScheduleTool:
                 status="error",
                 preview="create_schedule requires 'name' and 'event_type'.",
             )
+        cron_expression = str(arguments.get("cron_expression") or "").strip() or None
         try:
-            interval = float(arguments.get("interval_seconds"))  # type: ignore[arg-type]
+            interval = float(arguments.get("interval_seconds", _MIN_INTERVAL_SECONDS))
         except (TypeError, ValueError):
             return ToolResult(
                 status="error", preview="create_schedule 'interval_seconds' must be a number."
@@ -117,6 +119,7 @@ class CreateScheduleTool:
             created_by=principal.id,
             event_payload=dict(payload) if isinstance(payload, Mapping) else {},
             resource_ref=str(resource_ref_arg) if resource_ref_arg else None,
+            cron_expression=cron_expression,
         )
         created = await self._store.create(task)
         return ToolResult(

@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
 from pydantic import ValidationError
 from starlette.applications import Starlette
+from starlette.background import BackgroundTask
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
@@ -23,6 +27,7 @@ from fdai.core.document_ingestion import (
 from fdai.core.rbac.enforcer import RoleRequiredError
 from fdai.core.rbac.resolver import Principal
 from fdai.core.rbac.roles import Role
+from fdai.delivery.ingestion_gateway.handover import HandoverDraftReader
 from fdai.delivery.read_api.auth import AuthenticationError, Authenticator
 from fdai.shared.contracts import DocumentPurpose, DocumentState, SourceStorageMode
 from fdai.shared.providers import (
@@ -40,7 +45,12 @@ _CONTRIBUTOR_ROLES = (Role.CONTRIBUTOR, Role.APPROVER, Role.OWNER)
 class IngestionGatewayConfig:
     dev_mode: bool = False
     direct_upload: bool = False
+    proxy_upload: bool = False
     cors_allow_origins: tuple[str, ...] = ()
+    default_reader_groups: tuple[str, ...] = ()
+    process_after_complete: bool = False
+    background_services: tuple[Callable[[], Coroutine[Any, Any, None]], ...] = ()
+    shutdown_callbacks: tuple[Callable[[], Awaitable[None]], ...] = ()
 
 
 def build_app(
@@ -48,6 +58,7 @@ def build_app(
     authenticator: Authenticator,
     service: DocumentIngestionService,
     worker: DocumentIngestionWorker,
+    handover_drafts: HandoverDraftReader | None = None,
     config: IngestionGatewayConfig | None = None,
 ) -> Starlette:
     resolved = config or IngestionGatewayConfig()
@@ -61,17 +72,24 @@ def build_app(
     async def capabilities(request: Request) -> Response:
         authorize(request, _READER_ROLES)
         payload = service.capabilities.model_copy(
-            update={"direct_upload": resolved.dev_mode and resolved.direct_upload}
+            update={
+                "direct_upload": (resolved.dev_mode and resolved.direct_upload)
+                or resolved.proxy_upload
+            }
         )
         return _json(payload)
 
     async def create_upload(request: Request) -> Response:
         principal = authorize(request, _CONTRIBUTOR_ROLES)
         body = await _json_body(request)
-        upload_request = _create_request(body)
-        session, grant = await service.create_upload(actor_id=principal.oid, request=upload_request)
+        upload_request = _create_request(body, default_reader_groups=resolved.default_reader_groups)
+        session, grant = await service.create_upload(
+            actor_id=principal.oid,
+            actor_groups=_access_principals(principal),
+            request=upload_request,
+        )
         target = grant.target
-        if resolved.dev_mode and resolved.direct_upload:
+        if (resolved.dev_mode and resolved.direct_upload) or resolved.proxy_upload:
             target = f"/ingestion/uploads/{session.upload_id}/content"
         return JSONResponse(
             {
@@ -88,9 +106,13 @@ def build_app(
     async def resume_upload(request: Request) -> Response:
         principal = authorize(request, _CONTRIBUTOR_ROLES)
         upload_id = _uuid(request.path_params["upload_id"], "upload_id")
-        grant = await service.resume_upload(actor_id=principal.oid, upload_id=upload_id)
+        grant = await service.resume_upload(
+            actor_id=principal.oid,
+            actor_groups=_access_principals(principal),
+            upload_id=upload_id,
+        )
         target = grant.target
-        if resolved.dev_mode and resolved.direct_upload:
+        if (resolved.dev_mode and resolved.direct_upload) or resolved.proxy_upload:
             target = f"/ingestion/uploads/{upload_id}/content"
         return JSONResponse(
             {
@@ -101,41 +123,85 @@ def build_app(
         )
 
     async def put_content(request: Request) -> Response:
-        if not (resolved.dev_mode and resolved.direct_upload):
+        if not ((resolved.dev_mode and resolved.direct_upload) or resolved.proxy_upload):
             return _error(404, "not_found", "direct upload is unavailable")
         principal = authorize(request, _CONTRIBUTOR_ROLES)
         upload_id = _uuid(request.path_params["upload_id"], "upload_id")
-        content = await _bounded_body(request, service.capabilities.max_file_size)
-        await service.put_local_content(
-            actor_id=principal.oid, upload_id=upload_id, content=content
-        )
+        if resolved.proxy_upload:
+            await service.put_streaming_content(
+                actor_id=principal.oid,
+                actor_groups=_access_principals(principal),
+                upload_id=upload_id,
+                chunks=request.stream(),
+            )
+        else:
+            content = await _bounded_body(request, service.capabilities.max_file_size)
+            await service.put_local_content(
+                actor_id=principal.oid,
+                actor_groups=_access_principals(principal),
+                upload_id=upload_id,
+                content=content,
+            )
         return Response(status_code=204)
 
     async def complete_upload(request: Request) -> Response:
         principal = authorize(request, _CONTRIBUTOR_ROLES)
         upload_id = _uuid(request.path_params["upload_id"], "upload_id")
-        session = await service.complete_upload(actor_id=principal.oid, upload_id=upload_id)
-        return _json(session, status_code=202)
+        session = await service.complete_upload(
+            actor_id=principal.oid,
+            actor_groups=_access_principals(principal),
+            upload_id=upload_id,
+        )
+        response = _json(session, status_code=202)
+        if resolved.dev_mode or resolved.process_after_complete:
+            response.background = BackgroundTask(worker.process, upload_id)
+        return response
+
+    async def handover_draft(request: Request) -> Response:
+        if handover_drafts is None:
+            return _error(404, "not_found", "handover bootstrap is unavailable")
+        principal = authorize(request, _READER_ROLES)
+        upload_id = _uuid(request.path_params["upload_id"], "upload_id")
+        await service.get_upload(
+            actor_id=principal.oid,
+            actor_groups=_access_principals(principal),
+            upload_id=upload_id,
+        )
+        artifact = await handover_drafts.get(upload_id)
+        return JSONResponse(artifact.to_dict())
 
     async def upload_status(request: Request) -> Response:
         principal = authorize(request, _READER_ROLES)
         upload_id = _uuid(request.path_params["upload_id"], "upload_id")
-        session = await service.get_upload(actor_id=principal.oid, upload_id=upload_id)
+        session = await service.get_upload(
+            actor_id=principal.oid,
+            actor_groups=_access_principals(principal),
+            upload_id=upload_id,
+        )
         return _json(session)
 
     async def cancel_upload(request: Request) -> Response:
         principal = authorize(request, _CONTRIBUTOR_ROLES)
         upload_id = _uuid(request.path_params["upload_id"], "upload_id")
-        session = await service.get_upload(actor_id=principal.oid, upload_id=upload_id)
+        session = await service.get_upload(
+            actor_id=principal.oid,
+            actor_groups=_access_principals(principal),
+            upload_id=upload_id,
+        )
         if session.state in {
             DocumentState.CREATED,
             DocumentState.UPLOADING,
             DocumentState.RECEIVED,
         }:
-            cancelled = await service.cancel_upload(actor_id=principal.oid, upload_id=upload_id)
+            cancelled = await service.cancel_upload(
+                actor_id=principal.oid,
+                actor_groups=_access_principals(principal),
+                upload_id=upload_id,
+            )
             return _json(cancelled, status_code=202)
         deleted = await worker.delete(
             actor_id=principal.oid,
+            actor_groups=_access_principals(principal),
             document_id=session.document_id,
             version_id=session.version_id,
         )
@@ -144,7 +210,11 @@ def build_app(
     async def versions(request: Request) -> Response:
         principal = authorize(request, _READER_ROLES)
         document_id = _uuid(request.path_params["document_id"], "document_id")
-        items = await service.list_versions(actor_id=principal.oid, document_id=document_id)
+        items = await service.list_versions(
+            actor_id=principal.oid,
+            actor_groups=_access_principals(principal),
+            document_id=document_id,
+        )
         return JSONResponse({"items": [item.model_dump(mode="json") for item in items]})
 
     async def delete_version(request: Request) -> Response:
@@ -152,7 +222,10 @@ def build_app(
         document_id = _uuid(request.path_params["document_id"], "document_id")
         version_id = _uuid(request.path_params["version_id"], "version_id")
         version = await worker.delete(
-            actor_id=principal.oid, document_id=document_id, version_id=version_id
+            actor_id=principal.oid,
+            document_id=document_id,
+            version_id=version_id,
+            actor_groups=_access_principals(principal),
         )
         return _json(version, status_code=202)
 
@@ -163,6 +236,11 @@ def build_app(
         Route("/ingestion/uploads/{upload_id}/content", put_content, methods=["PUT"]),
         Route("/ingestion/uploads/{upload_id}/complete", complete_upload, methods=["POST"]),
         Route("/ingestion/uploads/{upload_id}", upload_status, methods=["GET"]),
+        Route(
+            "/ingestion/uploads/{upload_id}/handover-draft",
+            handover_draft,
+            methods=["GET"],
+        ),
         Route("/ingestion/uploads/{upload_id}/cancel", cancel_upload, methods=["POST"]),
         Route("/documents/{document_id}/versions", versions, methods=["GET"]),
         Route(
@@ -198,6 +276,22 @@ def build_app(
     async def bad_request(_request: Request, exc: Exception) -> Response:
         return _error(400, "invalid_request", str(exc))
 
+    @asynccontextmanager
+    async def lifespan(_app: Starlette) -> AsyncIterator[None]:
+        tasks: list[asyncio.Task[None]] = [
+            asyncio.create_task(service()) for service in resolved.background_services
+        ]
+        try:
+            yield
+        finally:
+            for task in tasks:
+                task.cancel()
+            for task in tasks:
+                with suppress(asyncio.CancelledError):
+                    await task
+            for callback in resolved.shutdown_callbacks:
+                await callback()
+
     return Starlette(
         routes=routes,
         middleware=middleware,
@@ -210,6 +304,7 @@ def build_app(
             ValueError: bad_request,
             ValidationError: bad_request,
         },
+        lifespan=lifespan,
     )
 
 
@@ -221,11 +316,15 @@ def _validate_boundary(config: IngestionGatewayConfig) -> None:
         raise ValueError("ingestion dev mode is prohibited outside a local environment")
     if config.direct_upload and not config.dev_mode:
         raise ValueError("direct gateway upload is available only in explicit dev mode")
+    if config.proxy_upload and config.direct_upload:
+        raise ValueError("proxy_upload and direct_upload MUST NOT both be enabled")
     if "*" in config.cors_allow_origins and not config.dev_mode:
         raise ValueError("wildcard CORS is prohibited outside dev mode")
 
 
-def _create_request(body: dict[str, Any]) -> CreateUploadRequest:
+def _create_request(
+    body: dict[str, Any], *, default_reader_groups: tuple[str, ...] = ()
+) -> CreateUploadRequest:
     required = {
         "source_name",
         "collection_id",
@@ -253,7 +352,9 @@ def _create_request(body: dict[str, Any]) -> CreateUploadRequest:
         storage_mode=SourceStorageMode(str(body["storage_mode"])),
         purposes=tuple(DocumentPurpose(str(value)) for value in body["purposes"]),
         access_descriptor_ref=str(body["access_descriptor_ref"]),
-        reader_groups=tuple(str(value) for value in body.get("reader_groups", ())),
+        reader_groups=tuple(
+            str(value) for value in (body.get("reader_groups") or default_reader_groups)
+        ),
         retention_policy_version=str(body["retention_policy_version"]),
         document_id=_optional_uuid(body.get("document_id"), "document_id"),
         supersedes_version_id=_optional_uuid(
@@ -289,6 +390,11 @@ def _optional_uuid(value: object, field: str) -> UUID | None:
     if value is None:
         return None
     return _uuid(str(value), field)
+
+
+def _access_principals(principal: Principal) -> frozenset[str]:
+    role_markers = {f"role:{role.value}" for role in principal.roles}
+    return frozenset(principal.groups | role_markers)
 
 
 def _json(model: Any, *, status_code: int = 200) -> JSONResponse:

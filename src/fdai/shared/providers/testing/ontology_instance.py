@@ -63,6 +63,17 @@ class InMemoryOntologyInstanceStore:
     async def get_object(self, object_id: str) -> OntologyObjectRecord | None:
         return self._objects.get(object_id)
 
+    async def delete_object(self, object_id: str) -> bool:
+        existing = self._objects.pop(object_id, None)
+        if existing is None:
+            return False
+        self._links = {
+            key: link
+            for key, link in self._links.items()
+            if link.from_id != object_id and link.to_id != object_id
+        }
+        return True
+
     async def query_objects(
         self,
         *,

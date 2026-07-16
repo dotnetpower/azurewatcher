@@ -1,8 +1,8 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: ea4770ccc5e0d8288ad9f8280e05003f09bcb218
-translation_revised: 2026-07-15
+translation_source_sha: ad23292c734ab6840de530f3ee75ce49feb97e14
+translation_revised: 2026-07-16
 ---
 
 # 오퍼레이터 콘솔 (Conversational)
@@ -123,13 +123,18 @@ flowchart TD
     (t1.judge default, t2.reasoner.primary escalation).
   - `session.py` - `ConversationSession` dataclass; 상태는 append-only
     audit log 로부터 project 됨.
+- [`cli/`](../../../cli)
+  - `src/repl.ts` - 공유 `POST /chat` coordinator를 사용하는 IME-safe
+    stdin/stdout 채널입니다.
+  - `src/cockpit.ts` - 동일한 coordinator에 self-describing 화면 snapshot을
+    게시하는 live SSE presentation입니다.
 - `src/fdai/delivery/channels/` (계획된 layout; 현재 Teams adapter는
   [`src/fdai/delivery/chatops/`](../../../src/fdai/delivery/chatops) 아래에 존재)
-  - `cli_repl.py` - Day-1 채널 adapter (stdin/stdout).
   - `teams_bot.py` - pull-방향 Teams adapter (Bot Framework messaging).
   - `slack_bot.py` - pull-방향 Slack adapter (Socket Mode).
   - `web_chat.py` - read-console API가 노출하는 WebSocket adapter.
-- [`tools/chat.py`](../../../tools/chat.py) - CLI 엔트리 포인트.
+- [`tools/chat.py`](../../../tools/chat.py) - core coordinator를 위한 headless
+  JSONL 개발 harness입니다. 별도 policy 구현이 아닙니다.
 
 CSP-중립 규칙은 그대로 유지: `core/conversation/`은 **오직** Protocol만
 import. 모든 Azure SDK / httpx / Bot Framework 호출은 `delivery/` 아래
@@ -407,9 +412,11 @@ class ChannelAdapter(Protocol):
 
 ## 6. 세션 모델 + memory
 
-`ConversationSession`은 bounded 이고 in-memory 로는 stateless — 모든
-상태는 세션 로드 시 **audit log 로부터 project** 되므로, coordinator가
-어느 node 에서든 crash 하고 recover 가능.
+`ConversationSession`은 principal 범위 `ConversationHistoryStore`의 bounded
+working projection이다. Production에서는 PostgreSQL `conversation`과
+`conversation_turn` row가 memory of record이고, browser 및 in-process session은
+폐기 가능한 cache만 보유하므로 coordinator는 raw text를 audit log에서 replay하지
+않고 어느 node에서든 recover할 수 있다.
 
 ### 6.1 세션 필드
 
@@ -421,18 +428,42 @@ class ConversationSession:
     channel_id: str                # 채널 adapter 의 채널 식별자
     started_at: datetime
     break_glass: BreakGlassGrant | None  # 세션이 activate 했다면 (§7.3)
-    turns: tuple[Turn, ...]        # audit log 로부터 project
+    turns: tuple[Turn, ...]        # ConversationHistoryStore에서 로드
 ```
 
 - `Turn` = `{turn_id, role, content, tool_calls?, tool_results?, tier,
   audit_entry_id}`.
-- `turns`는 `query_audit(session_id=...)`를 페이지하며 lazy 로드.
+- `turns`는 principal 범위 conversation route를 통해 lazy 로드한다.
 
 ### 6.2 지속성 규칙
 
-- **Day 1**: 매 turn (inbound + outbound + tool_call + tool_result + tier
-  + escalation_trigger)은 `action_kind=console.turn`로 하나의 append-only
-  audit entry를 write. 신규 Postgres 테이블 없음.
+- **대화 원장**: inbound와 terminal assistant turn은 stable request idempotency
+  key와 함께 `conversation_turn`에 append된다. Audit와 generic ontology
+  projection에는 raw 대화 본문 대신 id, hash, routing metadata, evidence
+  reference만 남긴다.
+- **사용자 context**: `UserPreferenceStore`는 locale, verbosity, timezone,
+  learner consent를 저장한다. `UserMemoryStore`는 source-turn provenance와
+  선택적 expiry가 있는 명시적으로 확인된 fact만 수락한다. `operator_memory`는
+  승인된 resource 범위 운영 지식을 위한 별도 store로 유지한다.
+- **Learner consent**: learner-facing turn projection은 기본적으로 metadata만
+  제공한다. Raw turn body는 같은 principal이 `share_with_learner: true`를
+  명시적으로 설정한 경우에만 제공한다.
+- **보존 및 projection 정리**: 스케줄러는 90일이 지난 비활성 대화와 오래된
+  briefing run을 삭제하고 명시된 expiry 시각에 memory fact를 삭제한다. 각
+  PostgreSQL source 삭제는 해당 ontology object id를 같은 transaction에서
+  queue한다. Leased worker가 제한된 exponential retry로 metadata-only
+  projection을 삭제하므로 일시적인 ontology 실패가 영구 복사본을 조용히
+  남기지 않는다.
+- **Projection 일관성 경계**: source write는 ontology projection을 동기식으로
+  upsert한다. Durable queue recovery는 현재 삭제만 지원한다. Source write가
+  commit된 후 projection이 끝나기 전에 process가 실패하면 해당 record가 다시
+  쓰일 때까지 metadata가 stale할 수 있다. Ontology projection을 현재 사용자
+  context 상태의 완전한 source로 취급하기 전에 write-side reconciliation
+  worker가 필요하다.
+- **선제적 동작**: allowlist된 `ConversationPolicy` record만 고정 narrator prompt
+  fragment로 compile한다. Opening briefing과 scheduled briefing은 결정적
+  `BriefingSpec`을 공유하며, durable subscription은 IANA timezone을 사용하고
+  grounded `BriefingRun`을 소유 principal별로 저장한다.
 - **Web 대화 탐색**: Console SPA는 대화 목록과 **새 대화** control을
   표시. 목록은 분리된 transcript cache를 가리키는 tab-scoped
   `sessionStorage` index이므로 thread 전환 또는 tab reload 시 완료된
@@ -443,10 +474,10 @@ class ConversationSession:
   메뉴 또는 분석 detail URL은 자체 transcript를 시작하거나 복원. 기본
   narrator는 **Bragi**이며 reply header와 conversation row 모두 generic
   Deck label 대신 Bragi agent icon을 사용. **캐시 지우기**와 **캐시된
-  대화 제거**는 browser copy만
-  삭제하며 audit history는 삭제하지 않음. 이 browser index는 탐색
-  상태일 뿐이며 append-only audit projection이 memory of record로
-  유지되고 tab을 닫으면 cache가 삭제됨. 열린 Command Deck은 route 탐색과
+  대화 제거**는 browser copy만 삭제하며 durable server history는 삭제하지
+  않는다. 이 browser index는 탐색 상태일 뿐이다. Cache miss 시 Command Deck은
+  principal 범위 turn을 server에서 다시 로드하고 `sessionStorage`에 mirror한다.
+  열린 Command Deck은 route 탐색과
   live 화면 re-render 중에도 열린 상태를 유지하며, 명시적인 닫기 action 또는
   `Escape`만 이를 닫음. L3 응답 언어는 현재 turn을 따름: console display
   locale이 영어여도 한국어 prompt에는 한국어로 답변. 그 외에는 operator가
@@ -459,12 +490,9 @@ class ConversationSession:
   변경하지 않음. **다른 화면**의 thread를 선택하면 transcript를 복원하기 전에
   해당 origin으로 이동하므로 이전 turn이 다른 화면 evidence와 결합되지 않음.
   Agent 대화는 별도 그룹과 명시적 agent scope를 유지.
-- **Week 1**: `operator_memory` (parallel session이
-  [`src/fdai/core/operator_memory/`](../../../src/fdai/core/operator_memory)
-  아래 이미 scaffolded)가 **out-of-band 오퍼레이터 선호도**의 store가
-  됨: "이 environment는 항상 tag X 사용", "이 패턴은 발화 전 investigation
-  을 위해 격리", "resource Y는 legacy 예외". 콘솔은 Protocol seam을 통해
-  read-write; narrator memory 로는 절대 되지 않음.
+- **운영 memory**: `operator_memory`는 승인된 resource 범위 예외와 runbook
+  hint를 저장한다. Distinct approver를 요구하며 personal narrator memory로
+  사용하지 않는다.
 - **Month 1+**: 세션들에 걸쳐 감지된 반복 investigation 패턴이
   discovery-loop 시그널이 됨 (§9). 여전히 narrator memory 아님 - 카탈로그의
   rule 후보가 결과 아티팩트.
@@ -479,8 +507,8 @@ class ConversationSession:
 
 ### 6.4 Working context 조립 (턴 수 제한 없음)
 
-세션 transcript는 **memory of record**: 모든 턴이 지속(위의 audit-log
-projection)되고 절대 버려지지 않으므로 세션은 일어난 모든 것을 기억한다.
+세션 transcript는 **memory of record**다. 모든 turn은 retention policy가
+제거할 때까지 `ConversationHistoryStore`에 지속되므로 세션은 일어난 일을 기억한다.
 특정 턴에 narrator가 받는 것은 별개의 **경계가 있는** projection -
 *working context* - 로, 매 턴 토큰 예산 하에 재조립되므로 긴 세션이
 프롬프트를 폭발시키지 않는다. Memory(무손실, 세션 길이에 대해 `O(L)`)와
@@ -865,6 +893,27 @@ read-only 콘솔 SPA는 오퍼레이터가 지금 보는 화면을 `ViewSnapshot
 }
 ```
 
+Interactive screen은 KPI counter만이 아니라 완전한 operator model을 publish하는
+것이 좋습니다. `purpose`, `glossary`, `facts` 외에도 `records`에 다음을
+포함합니다.
+
+- `sections`: 화면에 보이는 영역과 각 영역의 의미.
+- `controls`: 사용 가능한 input/command, 현재 값, option 및 enabled state. 각
+  control은 operator-facing `label`과 `detail`을 포함하는 것이 좋으며, 사용할 수
+  없는 control은 `disabled_reason`을 포함하는 것이 좋습니다.
+- `constraints`: limit, prerequisite, safety boundary 및 operation을 사용할 수 없는
+  이유.
+- Domain record collection: lookup과 causal explanation에 필요한 실제 visible row.
+
+Route는 이 계약을 pure sibling `*.view.ts` builder에 위임할 수 있습니다. Contract
+gate는 해당 builder를 resolve하고 그 안의 `purpose`, `glossary`, shared glossary
+catalog import를 동일하게 요구합니다. Current-screen explanation에서 Bragi는
+purpose -> sections -> current status -> controls -> constraints/safety 순서로
+답변을 구성하며 raw fact list로 축소하지 않습니다. Stable `key`와 `control`
+token은 deterministic verification에 사용하고, 일반 답변은 `label`, `detail`,
+`disabled_reason`을 사용합니다. Verifier는 답변 cause에 reason text의 모든 anchor가
+포함된 경우에만 publish된 `disabled_reason`을 causal evidence로 처리합니다.
+
 #### 13.4.1 Cross-screen operational evidence
 
 `ViewSnapshot`은 렌더링된 route에 대해서만 authoritative. Turn이 해당 화면
@@ -918,6 +967,40 @@ evidence_resolving -> generating -> provisional -> verifying
   -> verified | consistent | corrected | unverified
 ```
 
+`evidence_resolving` status에는 현재 화면 source의 bounded preview가 포함됩니다.
+Server-side resolution이 끝나면 `generating` status가 해당 preview를 이번 turn에
+선택된 실제 read-only tool, operational, agent 또는 glossary source로 교체합니다.
+Client가 보낸 internal evidence는 두 번째 preview를 만들기 전에 제거됩니다. Deck은
+text가 준비되고 최소 420 ms가 지날 때까지 retrieval trace를 유지한 다음, 같은
+pending surface를 streaming answer로 전환합니다. 두 surface는 같은 폭과 정렬을
+사용하며 짧은 entry motion과 staggered source row로 갑작스러운 layout jump를
+줄입니다. 이 구간에 수신된 text는 adaptive visual queue로 들어가며 backlog에 따라
+display frame마다 이미 pacing된 delta 1-3개를 drain합니다. 첫 paint에서 전체
+buffer를 한 번에 표시하지 않습니다. Answer가 처음 표시될 때와 terminal revision이
+render될 때 transcript는 preparation 중 operator가 위로 scroll했더라도 최신
+content로 이동합니다. 완료된 reply는 manifest entry를 독립 source가 아니라
+evidence reference로 표시합니다. Unsupported 문장을 제거하고 재검증을 통과한
+bounded correction은 verified visual treatment를 사용합니다.
+
+Reply renderer는 ATX heading, emphasis, strong text, strikethrough,
+unordered/ordered list, read-only task list, blockquote, thematic break, 안전한
+`http` / `https` / relative link, table, fenced code 및 chart block을 지원합니다.
+닫히지 않은 code fence는 streaming 중 안정적인 plain preview로 표시하고 closing
+fence가 도착한 뒤에만 highlighting합니다. 실행 가능하거나 안전하지 않은 link
+scheme은 plain text로 유지합니다.
+
+Deck은 기본적으로 이동 및 resize 가능한 floating panel로 열려 operator가 채팅 중
+source screen을 계속 확인할 수 있습니다. Header title을 drag해 panel을 이동합니다.
+왼쪽과 상단에는 12 px guard를 유지하고 오른쪽과 하단은 viewport 밖으로 이동할 수
+있습니다. Header control은 같은 conversation을 유지하면서 right sidebar 또는 full
+workspace로 전환합니다. Sidebar 기본 폭은
+440 px이며 왼쪽 separator를 pointer 또는 arrow key로 조작해 340-720 px 범위에서
+resize하고 tab에 저장합니다. Right-sidebar mode는 shell body 폭을 현재 sidebar
+폭만큼 줄이므로 navigation이나 page content를 덮지 않습니다. Floating과 dock
+mode는 non-modal이며 focus를 가두거나 page interaction을 차단하지 않습니다. Full
+workspace는 modal focus trap을 유지합니다. 선택한 mode는 tab scope로 저장되며
+compact mobile viewport에서는 full-screen geometry를 사용합니다.
+
 - `verified`는 terminal answer가 server-owned operational evidence에서
   render되었음을 의미.
 - `consistent`는 browser의 현재 screen snapshot과 대조했지만 server projection이
@@ -946,14 +1029,22 @@ terminal answer를 결정론적으로 render하므로 model prose가 선택 inci
 server는 evidence lookup 직후 canonical answer를 stream하고 model을 호출하지 않음.
 Grounded RCA가 있는 `matched`는 model prose를 provisional로 stream한 뒤 필요하면
 canonical verified cause로 교체 MAY. Screen-only answer는 `consistent`로 종료.
-후속 phase는 atomic claim 생성과 1회 bounded rewrite를 추가할 수 있지만
-deterministic verification이 계속 authority이며 rewrite 실패는 abstention으로 종료.
+Localized glossary answer에서는 unsupported scope-only addendum을 제거하고
+deterministic verification을 다시 실행하는 bounded rewrite를 1회 적용할 수 있습니다.
+그 밖의 unsupported claim은 계속 abstention으로 종료됩니다. 완전한 screen
+snapshot에서 일부 claim만 mismatch이면 unsupported claim이 포함된 문장 전체를
+제거하고 남은 answer를 다시 검증하는 bounded rewrite를 1회 적용할 수 있습니다.
+이 correction은 rewrite 전후에 supported claim이 하나 이상 있어야 합니다. `0/N`
+결과, truncated snapshot 또는 extraction overflow는 계속 abstention으로 종료됩니다.
 
 Latency target은 request admission 후 첫 progress event 100 ms 이내, 일반 model
 TTFT p95 2.5초 이내, evidence lookup 완료 후 fast-path terminal answer p95 500 ms
 이내, provisional 완료 후 첫 verification event 100 ms 이내,
 provisional-to-terminal verification p95 1초 이내. Progress는 실제 완료 check를
 보고하며 가짜 percentage를 사용하지 않음.
+Incremental SSE delta는 client-side delay 없이 render됩니다. 큰 single frame 또는
+같은 tick의 queue burst만 paint-sized chunk와 짧은 cosmetic cadence로 묶습니다.
+Deterministic fallback prose는 별도의 더 느린 typewriter cadence를 유지합니다.
 
 Screen-only provisional answer는 두 번째 model call 없이 atomic claim artifact도
 생성. Deterministic extractor는 ID, number, percentage, timestamp, causal assertion,
@@ -1003,6 +1094,25 @@ user와 scale-to-zero startup은 model cost를 지불하지 않음. Package/mode
 가능 상태 유지: 후속 measured issue에서 frozen English/Korean corpus, p95 latency,
 memory/cold-start delta, contradiction catch rate, unknown rate, clean-answer false-positive
 rate를 기준으로 promotion 또는 제거를 결정.
+
+#### 13.4.2.1 결정론적 AnswerPlan
+
+이제 모든 Command Deck turn은 prose generation 전에 typed `AnswerPlan`을 받습니다. 순수
+`core/conversation/answer_plan.py` parser는 영문과 한글 요청을 definition, why, procedure,
+comparison, diagnosis, status, list, summary, proposal, open question으로 분류합니다. 또한 현재
+turn의 명시적 detail, format, evidence, audience modifier를 기록합니다. 같은 turn에서 명시적
+modifier가 충돌하면 뒤에 나온 지시가 우선합니다. 저장된 preference는 현재 turn을 override할 수
+없습니다.
+
+Plan은 intent별 section, bounded word target, format, evidence requirement를 제공합니다. Server가
+소유한 snapshot metadata로 주입되고 JSON과 SSE terminal response에 모두 반환되며 transcript에
+additive하게 저장됩니다. Console은 이를 compact한 localized `Bragi / intent / detail` label로
+렌더링합니다. Browser는 plan의 subject text를 버리고 prompt나 hidden reasoning을 노출하지 않습니다.
+
+Phase A는 single-agent 상태를 유지합니다. 모든 turn에서 `discuss=skip`이므로 결정론적 planner는
+추가 model call, contributor round, tool execution, judgment, approval authority를 만들지 않습니다.
+Answer-plan coverage는 deterministic answer verification과 분리됩니다. Adaptive preference와 bounded
+multi-agent planning round는 issue #28이 추적하는 이후 shadow phase로 남습니다.
 
 #### 13.4.3 실시간 관찰 계약
 
@@ -1172,8 +1282,9 @@ reporting catalog와 server-owned widget evidence를 렌더링합니다.
   코드 추가가 아니라 어휘 선언만으로 설명 가능해짐. 오프라인 결정론
   answerer(`console/src/deck/answerer.ts`)와 서버 narrator(`chat.py`)가
   동일한 `purpose`/`glossary` 에 grounding.
-- CLI narrator(`cli/src/narrator`)는 별개 surface; 같은 self-describing
-  snapshot을 그 `console-tool` 결과에 실어 나르는 것은 병행 후속 작업.
+- CLI REPL과 live cockpit은 동일한 self-describing snapshot을 `POST /chat`을
+  통해 server narrator에 전달합니다. CLI에는 model client, intent router,
+  cloud credential flow 또는 console-tool 구현이 없습니다.
 
 #### 13.5.1 RCA 뷰 (근본 원인 분석)
 
@@ -1294,6 +1405,88 @@ high-risk를 승인하며, Thor만 실행한다(shadow-first).
   HIL 대기, deny)는 비동기.
 - **이것은 13.3 approval callback과 나란한 두 번째 문서화된 write route**;
   둘 다 시그널을 기록할 뿐 executor Managed Identity를 갖지 않는다.
+
+### 13.7 Python VM task workbench
+
+Workflow Builder 는
+[`python_tasks.py`](../../../src/fdai/delivery/read_api/routes/python_tasks.py) 의 여섯
+`/python-tasks/*` route 를 사용하는 multi-file Python task workbench 를 포함합니다.
+Operator 는 source file 을 편집하고 entrypoint 를 선택하며 module 및 host
+capability 를 선언한 뒤 validate, immutable artifact stage, inventory Resource 대상
+shadow plan 을 수행할 수 있습니다.
+
+Workbench 는 console identity boundary 를 유지합니다.
+
+- **Validate** 는 pure AST 및 manifest validation 입니다.
+- **Generate editable draft** 는 operator intent, target capability, allowlisted
+  module 로 injected `PythonTaskAuthor` 를 호출합니다. Draft 는 request control 이
+  enable 되기 전에 계속 validate 및 stage 되어야 합니다.
+- **Stage artifact** 는 VM 이 아니라 content-addressed artifact store 에 씁니다.
+- **Test shadow plan** 은 `PlanningVmTaskRunner` 를 사용합니다. Read API 에는 Run
+  Command 를 만들 수 있는 Managed Identity 가 없습니다.
+- **Request governed run** 은 typed `ActionProposal` 을 publish 합니다. Console
+  process 에서 `VmTaskRunner` 를 호출하거나 file 을 copy 하거나 Python 을 실행하지
+  않습니다.
+- **Create schedule** 은 선택한 catalog Workflow, artifact, inventory target 의
+  strict cron binding 을 저장합니다. 이후 scheduler tick 이 typed event 를
+  publish 합니다.
+
+Result panel 은 validation issue, artifact reference, planned file 및 byte count,
+target capability 또는 submitted correlation id 를 표시합니다. Control loop 가
+proposal 을 수락한 후 runtime status 는 Processes 및 audit surface 에 이어집니다.
+
+### 13.8 채팅 답변의 그라운딩된 코드
+
+Command Deck 의 최종 답변에 fenced code block 이 있으면 read API 는 이를 크기가
+제한된 `GroundedCodeArtifact` 로 추출합니다. Artifact 는 code, language, SHA-256
+reference, static validation 결과를 포함합니다. Python block 은 import 하거나
+실행하지 않고 parse 및 compile 합니다. 다른 언어는 검증되었다고 표시하지 않고
+`not_checked` 로 표시합니다.
+
+Console 은 기본적으로 code 를 **코드 근거** 아래에 접어서 표시합니다. Disclosure
+를 펼치면 그라운딩된 정확한 content, artifact reference, syntax validation 통과
+여부를 볼 수 있습니다. 최종 artifact 는 완료되지 않은 streaming token 이 아니라
+검증된 최종 답변에서 생성됩니다. Tab 은 transcript 와 함께 artifact 를
+`sessionStorage` 에 보존할 수 있으며, 방어적 parser 는 malformed 또는 oversized
+entry 를 제거합니다.
+
+이 표시 계약은 실행 권한을 부여하지 않습니다.
+
+- **Runtime write 없음**: chat route 는 생성된 code 를 FDAI source tree, 설치된
+  package, container filesystem 또는 active Git checkout 에 쓰지 않습니다.
+- **Chat execution 없음**: read API 에서는 static parsing 만 수행합니다. 생성된
+  module 을 import 하거나 subprocess 를 시작하거나 virtual environment 를 만들거나
+  `VmTaskRunner` 를 호출하지 않습니다.
+- **Governed execution 분리**: code 실행이 필요한 operator 는 `PythonTask` 를 만들고
+  stage 한 후 section 13.7 flow 를 통해 typed `ActionProposal` 을 publish 합니다.
+  Risk gate, approval ceiling, executor identity, audit path 가 계속 권위입니다.
+- **Temporary storage 는 sandbox 자체가 아님**: runner 는 writable file 을 위해
+  `/tmp/fdai-code/<run-id>` 와 같은 per-run directory 를 사용할 수 있습니다. 실제
+  isolation 은 separate principal, read-only runtime filesystem, path 및 symlink 검사,
+  resource limit, network policy, cleanup 에서 나옵니다. Path convention 만으로는
+  security boundary 가 되지 않습니다.
+
+### 13.9 온톨로지 레지스트리 projection
+
+`GET /ontology/graph` 는 웹 콘솔의 세 가지 온톨로지 뷰를 위한 read-only
+레지스트리 projection 입니다.
+
+- **Objects**: ObjectType 과 LinkType edge 를 선택된 하나의 결정적 one-hop
+  neighborhood 로 렌더링합니다. Inspector 는 기록된 property 와 incoming 및
+  outgoing relationship 을 표시합니다.
+- **Links**: LinkType 을 선택하면 기록된 모든 `from_type -> to_type` endpoint pair,
+  cardinality, causal, transitive, temporal flag 를 표시합니다. 콘솔은 카탈로그에
+  없는 relationship semantics 를 추론하지 않습니다.
+- **Actions**: 응답은 로드된 ActionType 카탈로그를 완전한 safety-contract record 로
+  포함합니다. Catalog 뷰는 category, trigger, execution path, rollback contract,
+  default mode, precondition, stop condition, blast-radius declaration, tier ceiling,
+  promotion gate 를 표시합니다.
+
+ActionType projection 은 additive 입니다. 이전 deployment 에서는
+`action_type_count` 와 `action_types` 가 없거나 0일 수 있지만 ObjectType 과
+LinkType 탐색은 계속 동작합니다. 큰 action catalog 가 resource relationship 을
+가리지 않도록 ActionType 은 ObjectType graph 에 넣지 않습니다. 세 뷰는 모두
+GET-only 이며 action 또는 approval 호출을 실행하지 않습니다.
 
 ## 14. MCP - future work (Week 2+)
 

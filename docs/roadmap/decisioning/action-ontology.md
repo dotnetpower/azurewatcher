@@ -304,6 +304,15 @@ example:
   `state_forward_only` (delete the produced artifact).
   **Dispatcher: shadow-only** (`RecordingToolExecutor` Day-1 binding; a
   fork binds a live adapter).
+- `tool.run-python-on-vm` - stage a validated, content-addressed Python
+  artifact on one inventory-selected Linux VM and run it through the
+  `VmTaskRunner` provider. The task declares host capabilities such as `gpu`,
+  `network`, filesystem access, and child-process creation. The target must
+  advertise every required capability. The action accepts an artifact
+  reference, never source text or an arbitrary shell command. Shadow mode
+  produces a plan; enforce mode uses Azure Managed Run Command after Owner HIL.
+  Immutable files are verified again on the guest with SHA-256 before the
+  configured non-root account runs the entrypoint under a bounded timeout.
 
 Default `execution_path: tool_call`. `core/` knows only the Protocol; a
 fork binds a live adapter (a native Python registry, an MCP client, an

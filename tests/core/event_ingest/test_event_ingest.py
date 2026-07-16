@@ -107,3 +107,53 @@ def test_bounded_cache_evicts_oldest_entries(valid_event: dict[str, Any]) -> Non
     # itself evicts the oldest entry (key-2) since capacity is 2.
     assert ingest.ingest(_event(1)) is not None
     assert ingest.seen_keys() == {"key-3", "key-1"}
+
+
+def test_operator_proposal_normalizes_to_deterministic_event() -> None:
+    proposal = {
+        "idempotency_key": "operator-1::run-1",
+        "correlation_id": "vm-task-example",
+        "initiator_principal": "operator-1",
+        "operator_initiated": True,
+        "action_type": "tool.run-python-on-vm",
+        "resource_id": "resource:compute/vm/gpu-worker",
+        "event_type": "operator_request",
+        "params": {
+            "artifact_ref": "python-task:gpu.health@1.0.0#" + "a" * 64,
+            "target_resource_ref": "resource:compute/vm/gpu-worker",
+            "reason": "Run the governed GPU health task.",
+        },
+    }
+
+    first = EventIngest(validator=_validator()).ingest(proposal)
+    replay = EventIngest(validator=_validator()).ingest(proposal)
+
+    assert first is not None and replay is not None
+    assert first.event_id == replay.event_id
+    assert first.source == "operator_console"
+    assert first.resource_ref == proposal["resource_id"]
+    assert first.payload["operator_request"]["params"] == proposal["params"]
+
+
+@pytest.mark.parametrize(
+    "patch",
+    (
+        {"operator_initiated": "true"},
+        {"params": None},
+        {"initiator_principal": ""},
+    ),
+)
+def test_malformed_operator_proposal_is_not_normalized(patch: dict[str, Any]) -> None:
+    proposal = {
+        "idempotency_key": "operator-1::run-1",
+        "initiator_principal": "operator-1",
+        "operator_initiated": True,
+        "action_type": "tool.run-python-on-vm",
+        "resource_id": "resource:compute/vm/gpu-worker",
+        "event_type": "operator_request",
+        "params": {},
+        **patch,
+    }
+
+    with pytest.raises(ContractValidationError):
+        EventIngest(validator=_validator()).ingest(proposal)

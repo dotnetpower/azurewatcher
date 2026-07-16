@@ -1,8 +1,8 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: dd15026e675edd762bec219b0ba5a626ea48c997
-translation_revised: 2026-07-15
+translation_source_sha: 5bc85c008f2e96e5783e064ae20700913896fd44
+translation_revised: 2026-07-16
 ---
 
 # 프로젝트 구조
@@ -30,6 +30,7 @@ fdai/
 │   │   ├── tools/              # T2 툴 카탈로그 레지스트리 + `ToolExecutor` (shadow-mode 게이팅)
 │   │   ├── web_search/         # 최후 수단 웹 검색 seam (`NoOpWebSearchProvider` 기본; 도메인 allowlist + sanitizer)
 │   │   ├── operator_memory/    # HIL 승인된 오퍼레이터 메모리를 untrusted `<operator_note>` 데이터로 주입
+│   │   ├── briefing/           # report-feed evidence 기반 결정적 opening/scheduled briefing
 │   │   ├── document_ingestion/ # upload-session lifecycle + fail-closed scan/protection/extract/index worker
 │   │   ├── working_context/    # 턴당 경계-있는 프롬프트 조립: composer(토큰 예산) + planner/orchestrator(O(log L) 계층 fold) + summarizer/retriever seam
 │   │   ├── quality_gate/       # mixed-model 교차 검사, verifier, grounding (T2 방어)
@@ -44,16 +45,18 @@ fdai/
 │   │   ├── incident/           # 인시던트 라이프사이클 레지스트리 + 상태 머신 (open → triaging → mitigated → resolved → closed)
 │   │   ├── slo/                # 워크로드 SLO / burn-rate 평가기 (컨트롤 플레인 SLO 와는 구분)
 │   │   ├── runbook/            # 런북 오케스트레이터 (선형 시퀀스 + on-failure 브랜치)
-│   │   ├── workflow/           # 프로세스 자동화: 카탈로그 Workflow 를 Runbook 으로 컴파일 (+ saga 보상 맵); 승인 플래너 + shadow 오케스트레이터 + 트리거 인덱스 + 이벤트 코디네이터
+│   │   ├── workflow/           # version-pinned WorkflowDefinition + principal WorkflowBinding 컴파일; 승인 플래너 + shadow 오케스트레이터 + 트리거 인덱스 + 이벤트 코디네이터
+│   │   ├── python_task/         # generated multi-file PythonTask artifact static validation; task code 를 import 또는 실행하지 않음
 │   │   ├── postmortem/         # LLM 옵션 postmortem / PIR 드래프트 생성기
 │   │   ├── rule_catalog_profiles/  # 프로파일 / 팩 레이어 - 이름 붙은 룰 번들 (`extends` 체인 + overrides)
 │   │   ├── measurement/        # Phase-4 지속 측정 (regression, pattern growth, model tracking, latency budget, prompt probe, runners)
 │   │   ├── deploy_preflight/   # 배포 전 feasibility 프로브 → grounded readiness 리포트
 │   │   ├── assurance_twin/     # 읽기 전용 온톨로지 트윈: text-to-query 리뷰 / Q&A / assessment (제안만, 실행 안 함)
 │   │   ├── conversation/       # 오퍼레이터 콘솔 코디네이터 (Layer 2): 자연어 턴 → 하나의 read-only 툴 콜
+│   │   ├── user_context_projection.py  # principal context / workflow binding metadata만 runtime ontology에 projection
 │   │   ├── console_request/    # 오퍼레이터 콘솔 write-direction 재요청 정책 (Scenario B deny-override), 순수 함수 `evaluate_operator_rerequest` 하나
 │   │   ├── verticals/          # Resilience / Change Safety / Cost Governance (P3 통합 지점); 각 vertical 은 sub-package (G-6) 로 자체 orchestrator + 서브모듈 을 갖고, 공유 `Vertical` Protocol 은 `base.py`, `VerticalRegistry` seam 도 함께
-│   │   ├── control_loop/       # P1 파이프라인 오케스트레이터 (G-2 phase 1, 트래커 #14): `orchestrator.py` (ControlLoop 클래스) + `_helpers.py` (순수 함수 유틸) + `stages/` (Stage Protocol 스캐폴드 - phase-2 리팩터링용, `ControlLoop.process` 를 스테이지 클래스로 추출)
+│   │   ├── control_loop/       # P1 파이프라인: `orchestrator.py` (ControlLoop), `models.py` (typed result), `operator_request.py` (authoritative proposal -> inventory -> risk/HIL/executor lifecycle), `_helpers.py` (순수 유틸), `stages/` (Stage Protocol 스캐폴드)
 │   │   └── ontology_explorer.py    # 로드된 ObjectType / LinkType 카탈로그를 결정론적 Mermaid 로 렌더
 │   ├── shared/                # 크로스컷팅; core/ 로부터 import 금지
 │   │   ├── contracts/          # models.py + registry.py + validation.py + JSON 스키마들
@@ -65,7 +68,7 @@ fdai/
 │   │   ├── ontology/           # 런타임 온톨로지 헬퍼 (ACL, 감사 purposes, purpose taxonomy)
 │   │   ├── providers/          # CSP-중립 클라우드 프로바이더 인터페이스 (어댑터가 구현)
 │   │   │                       #   event_bus.py, secret_provider.py, state_store.py,
-│   │   │                       #   workload_identity.py, inventory.py + LLM / 채널 / RBAC / feasibility-probe seam
+│   │   │                       #   workload_identity.py, inventory.py, vm_task.py, python_task_author.py + LLM / 채널 / RBAC / feasibility-probe seam
 │   │   │                       # `providers/local/` = dev-mode 페이크 (`EnvSecretProvider`, `LocalWorkloadIdentity`, `FileFixtureInventory`);
 │   │   │                       # `providers/testing/` = 테스트 스위트 전반에서 쓰이는 인-메모리 페이크 (prod 에서는 바인딩 안 됨)
 │   │   ├── streaming/          # `SseBroadcaster` + `StagePublisher`: EventBus 토픽을 SSE 채널로 릴레이
@@ -77,6 +80,8 @@ fdai/
 │   │   ├── notifications/      # 채널별 sender (email HTTP, HIL sink) - `shared/providers` seam 이 배선
 │   │   ├── persistence/        # `shared/providers` 상태 seam 의 Postgres / pgvector 구체 구현
 │   │   ├── azure/              # Azure 전용 SDK 어댑터 (`azure-*` import 이 허용된 유일한 트리)
+│   │   │                       #   `vm_task.py` 는 Managed Run Command 사용; `llm/python_task_author.py` 는 inert draft 생성
+│   │   ├── vm_task/            # planning-only read adapter + ontology ToolExecutor bridge; cloud SDK import 없음
 │   │   ├── chaos/              # `Chaos` runbook 단계가 enforce로 갈 때 쓰는 라이브 카오스 주입 어댑터: `live_injectors.py` (CSP-중립 프리미티브 fan-out) + `chaos_mesh.py` (Chaos Mesh CRD) + `mysql_load.py` (MySQL 벤치마크 부하)
 │   │   ├── remediation/        # 직접 API 리메디에이션용 구체 `DirectApiExecutor` (`live_direct_api.py`); Protocol 은 `shared/providers/`에 있음
 │   │   ├── read_api/           # 얇은 ASGI - `main.py` 는 routes/ + streaming/ 서브패키지를 조립 (G-5, 트래커 #14). `routes/` 는 HTTP surface 당 한 모듈: **GET** (audit, kpi, hil-callback, rule-catalog, ontology-graph, inventory-graph, panels, promotion-gates, reporting, workflow-authoring, console-action, what-if, blast-radius, bitemporal, llm-cost, measurement-summary, pantheon, demo-findings, rule-fire-trace) + **POST** 카브아웃 2개 (chat, webhook - `webhook` 은 옵션이며 `webhook_ingress` 가 바인될 때만 마운트); `streaming/` 은 세 개의 SSE fan-out (live_stream, live_control_loop, provision_stream); `dev/` 는 `local.py` (구 `_local.py`) 로 dev 전용이며 프로덕션 컨테이너 이미지에서 제외; `auth.py` / `entra_verifier.py` / `read_model.py` 는 공유 인프라로 최상위 유지
@@ -89,7 +94,7 @@ fdai/
 │   │   ├── pipeline/           # watch → collect → shadow eval → regression → promote/rollback
 │   │   └── codegen/            # 저작 헬퍼 (`new_action_type`, `new_object_type`) - 스캐폴드 생성만, 라이브 카탈로그 변경 안 함
 │   ├── agents/                # 판테온 런타임 - 15개 이름있는 에이전트 모듈 (odin / thor / forseti / huginn / heimdall / ...), 타입드 토픽 + 버스, 어댑터 + 레지스트리; [agent-pantheon-ko.md](../agents/agent-pantheon-ko.md) 참조
-│   ├── composition/           # composition root 패키지 (G-3, 트래커 #14): `__init__.py` (파사드 + `default_container` + `default_container_from_env`) + `_helpers.py` (Container / LlmBindings / LlmBindingsUnavailableError) + `wire_llm.py` (Azure OpenAI LLM 바인더) + `wire_azure.py` (fork-wire 컨테이너 + `AzureWireOverrides`) + `wire_change_feed.py` (Azure DevOps / GitHub change-feed 팩토리) + `wire_metric_provider.py` (MetricProvider 바인더; `FDAI_MONITOR_WORKSPACE_ID` 세팅 시 Azure Monitor Logs 자동 바인드 - LOC 상한 유지를 위해 `wire_azure`에서 분리, G-4)
+│   ├── composition/           # composition root 패키지 (G-3, 트래커 #14): `__init__.py` (파사드 + `default_container` + `default_container_from_env`) + `_helpers.py` (Container / LlmBindings / LlmBindingsUnavailableError) + `wire_capabilities.py` (검증된 fork CapabilityBundle installer) + `wire_llm.py` (Azure OpenAI LLM 바인더) + `wire_azure.py` (fork-wire 컨테이너 + `AzureWireOverrides`) + `wire_change_feed.py` (Azure DevOps / GitHub change-feed 팩토리) + `wire_metric_provider.py` (MetricProvider 바인더; `FDAI_MONITOR_WORKSPACE_ID` 세팅 시 Azure Monitor Logs 자동 바인드 - LOC 상한 유지를 위해 `wire_azure`에서 분리, G-4)
 │   └── __main__.py            # 진입점 (P1 컨트롤 루프 기동)
 ├── rule-catalog/              # catalog-as-code 데이터 (YAML) - Python 아님; 파이프라인은 src/fdai/rule_catalog/ 에
 │   ├── schema/                 # JSON Schema 정의 (데이터)
@@ -128,6 +133,8 @@ fdai/
 │   │   ├── llm/                     # 배포자 스코프 LLM 프로비저닝 (dev-and-deploy parity 계약)
 │   │   │   └── azure-openai/        # 기본 Azure OpenAI 디플로이먼트 세트
 │   │   ├── measurement-runners/     # 자동 regression + pattern-growth 러너용 Container Apps Jobs
+│   │   ├── vm-task-host/             # custom Linux/GPU VM용 cloud-init profile
+│   │   ├── vm-task-rbac/             # target-VM-scoped Managed Run Command RBAC
 │   │   ├── preflight-toggles/       # preflight blocker 를 Terraform 토글로 매핑하는 피처 플래그 표면
 │   │   └── console/                 # 읽기 전용 SPA 를 호스팅하는 Static Web App
 │   │       └── static-web-app/      # 기본
@@ -190,7 +197,21 @@ fdai/
   패널 순서를 바꾸거나 숨길 수 있습니다. 숨김은 탐색 표시에만 적용되므로 직접 route와 검색은
   계속 사용할 수 있고, 현재 활성 패널은 숨길 수 없습니다. 세부 route는 공통 페이지 제목 안에
   간결한 영역 / 패널 계층을 렌더링하여 Explorer를 접어도 맥락을 유지합니다. 영역 루트와 독립
-  유틸리티는 계층이 제목을 반복할 뿐인 경우 단일 제목을 유지합니다. 로컬 dev mode는 Settings
+  유틸리티는 계층이 제목을 반복할 뿐인 경우 단일 제목을 유지합니다. 에이전트 영역은 Roster,
+  Organization, Activity, Handover 패널 전체에 표시되는 작업 공간 탭 행도 유지합니다. Roster는
+  기본 에이전트 보기이며 read API가 반환하지 않은 지표를 만들지 않고 현재 스트림 상태, 현재 작업,
+  인시던트 연결, 보고선, 증적 링크를 투영합니다. 필터와 검색은 브라우저 로컬 표시 제어이며,
+  또한 runtime binding을 별도로 표시합니다. 11개의 typed EventBus subscriber와 Huginn의 raw-ingress
+  subscriber는 대기 상태를 유지하고, Njord와 Freyr는 외부 adapter를 기다리며 Loki는 scheduled
+  trigger를 기다립니다. 리소스 discovery는 특정 이름의 agent가 소유하지 않습니다. 전용 Inventory
+  sync job이 Azure Resource Graph를 먼저 조회하고 ARM fallback을 사용한 뒤 immutable snapshot을
+  승격하고 delta를 Huginn으로 게시합니다. 배포 기본 주기는 6시간이며 로컬 harness는 Azure
+  discovery를 실행하지 않습니다.
+  Organization은 Directory와 Org chart 보기를 제공하며, `?view=org`는 실시간 보고 계층의 직접
+  링크를 유지하고 각 노드는 해당 에이전트의 런타임 상세 포커스를 엽니다.
+  Activity 링크는 선택한 에이전트를 route query에 유지합니다. Activity는 영구 audit timeline보다
+  먼저 해당 에이전트의 현재 스트림 상태와 최근 live incident를 표시하므로 audit attribution이
+  지연되거나 없어도 활성 에이전트가 빈 화면으로 보이지 않습니다. 로컬 dev mode는 Settings
   바로 위에 `Labs` 영역도 표시하며, production 탐색에서는 이 개발 전용 영역을 생략합니다.
 
 ## 구조 CI 게이트
@@ -260,6 +281,28 @@ fdai/
 - **상류의 기본 구현**: 메인 저장소는 모든 seam에 대해 동작하는 범용 기본 구현을 제공하여
   독립 실행 가능합니다. 포크는 필요한 seam만 교체합니다.
 
+### Capability Bundle
+
+포크가 인프라 seam을 교체하는 대신 탐색 가능한 capability를 추가할 때는
+`CapabilityBundle`을 사용합니다. Bundle은 운영자에게 표시할 `Capability` 메타데이터,
+하나의 typed `CapabilityBinding`, reasoning-tool `ToolProvider` 구현을 함께 묶습니다.
+Binding은 이미 로드된 reasoning tool, `ActionType`, `Workflow`를 가리키며 별도의 실행
+경로를 정의하지 않습니다.
+
+`fdai.composition.install_capability_bundle(...)`로 bundle을 설치합니다. Installer는 로드된
+카탈로그에서 cross-reference를 만들고 검증된 등록을 `capability_runtime`에 포함하는 새
+`Container`를 반환합니다. 대상이 없거나, provider가 누락 또는 중복되거나, tool에 선언된
+provider와 bundle이 일치하지 않거나, provider가 참조되지 않으면 시작이 차단됩니다. 검증이
+실패해도 입력 container는 변경되지 않습니다.
+
+`wire_azure_container(...)`는 설치된 runtime의 reasoning-tool provider를 읽고 명시적인
+`AzureWireOverrides.tool_providers`와 결합합니다. 중복 provider id는 암시적으로 덮어쓰지 않고
+설정 오류로 처리합니다. `ActionType`과 `Workflow` binding은 참조일 뿐입니다. 변경 요청은 계속
+trust router, risk gate, executor, audit 경로로 다시 들어갑니다. 복사해서 사용할 수 있는
+read-only provider와 bundle은
+[`fdai.fork_examples.capability_bundle`](../../../src/fdai/fork_examples/capability_bundle.py)를
+참조하세요.
+
 ### 주입 가능한 Seams
 
 아래 **CSP-중립성 계약** 으로 표시된 네 개의 seam 은 [csp-neutrality-ko.md](csp-neutrality-ko.md)
@@ -277,8 +320,11 @@ phase 는 `core/` 를 편집하지 않고 composition root 에서 새 구현을 
 | **Schema source** | `SchemaRegistry` (원시 JSON Schema 로더) | - | `PackageResourceSchemaRegistry` (패키지 내장 스키마) | 원격 schema-registry 어댑터; content hash 로 핀된 스냅샷 |
 | **Boundary validation** | `ContractValidator` / `EventValidator` (fail-closed 입력 검사) | - | `JsonSchemaContractValidator` + `JsonSchemaEventValidator` (draft-2020-12) | 포크가 `core/` 편집 없이 도메인 특이 체크(예: 소스 allowlist) 추가 가능 |
 | Rule / policy source | rule-catalog + `policies/` 로더 | - | 번들된 범용 규칙 | 고객 규칙 세트 / 임계값 |
+| **Capability bundle runtime** | `core/capability_catalog/`의 `CapabilityRuntime` + `CapabilityBundle`; `composition/`의 `install_capability_bundle(...)` | - | fork binding이 없는 기본 discovery catalog | reasoning tool provider를 추가하거나 capability를 기존 `ActionType` / `Workflow`에 binding; 모든 참조는 시작 시 검증 |
 | **Ontology ObjectType / LinkType** | `src/fdai/rule_catalog/schema/`의 `load_object_type_catalog(root, *, schema_registry)` 및 `load_link_type_catalog(root, *, schema_registry, object_types=...)` | - | upstream ObjectType 4개(`Resource`, `Rule`, `Signal`, `Finding`)와 `rule-catalog/vocabulary/{object-types,link-types}/` 아래의 LinkType들. 엔트리포인트가 `Container.ontology_object_types` / `Container.ontology_link_types`로 주입 | fork는 자체 YAML 디렉토리(예: `fork/vocabulary/object-types/ArchitectureProposal.yaml`)를 추가로 로드해 두 루트를 concatenate 후 `dataclasses.replace(container, ontology_object_types=..., ontology_link_types=...)`로 주입. 두 루트 간 `name` 중복은 fail-close. 자세한 절차는 [downstream-fork-seam-recipes-ko.md § 5.8a](../fork-and-sequencing/downstream-fork-seam-recipes-ko.md#58a-ontology-object-type--link-type-additions). |
 | **Workflow 카탈로그 (프로세스 자동화)** | `src/fdai/rule_catalog/schema/workflow.py`의 `load_workflow_catalog(root, *, schema_registry, action_type_names, rule_ids=...)`; `src/fdai/core/workflow/`의 `compile_workflow(...)` | - | `rule-catalog/workflows/` 아래 shadow-first Workflow들. 엔트리포인트가 ActionType + rule 카탈로그 뒤에 `Container.workflows`로 주입; 모든 스텝이 `ActionType`과 (설정 시) Rule id를 cross-reference, 시작 시 fail-close | fork는 자체 `fork/workflows/` 디렉토리에 Workflow YAML을 추가로 로드해 concatenate한 ActionType / rule 집합과 함께 `dataclasses.replace(container, workflows=...)`로 주입. 두 루트 간 `name` 중복은 fail-close. 자세한 내용은 [process-automation-ko.md](../decisioning/process-automation-ko.md). |
+| **Governed Python task** | `shared/providers/`의 `PythonTaskAuthor`, `PythonTaskArtifactStore`, `VmTaskTargetResolver`, `VmTaskRunner` | - | local template author + in-memory artifact/target + planning runner; production은 immutable artifact를 Postgres에 저장하고 active inventory에서 target을 resolve하며 headless executor가 Azure Managed Run Command를 bind | fork는 content hash, declared capability, idempotency, non-executing read-API plan, typed proposal dispatch를 유지하면서 다른 author, artifact repository, target resolver, compute runner를 제공. [process-automation-ko.md § 4.5](../decisioning/process-automation-ko.md#45-governed-python-task-및-cron-schedule) 참조. |
+| **Governed command, shell task 및 code workspace** | `shared/providers/`의 `CommandRunner`, `CommandPlan`, `ShellTaskChecker`, `ShellTaskSpec`, `CodeWorkspaceProvider`, `CodePatchSet`; `core/tools/` 및 `core/python_task/`의 `CommandCatalog`, default command spec, shell structural validation, workspace patch validation | - | `RecordingCommandRunner`, `BashSyntaxChecker`, opt-in `BubblewrapCommandRunner`, copy-on-write `GitCodeWorkspaceProvider`, `azure.resource.list` 전용 opt-in `AzureCliCommandRunner`; generated Python은 `process`를 거부하고 shell artifact는 validate하지만 실행하지 않으며 local command는 private read-only workspace에서만 실행되고 upstream app은 기본적으로 live runner를 bind하지 않음 | fork는 credential-free local runner와 private workspace provider 또는 credentialed Azure read broker를 bind할 수 있습니다. Server-owned scope 및 identity, deterministic argv rendering, raw command string 금지, stale-file hash check, idempotency, output bound, `tool_call` / `direct_api` / `run_runbook` path 분리를 유지해야 합니다. [process-automation-ko.md § 4.6](../decisioning/process-automation-ko.md#46-governed-command-및-shell-artifact) 참조. |
 | **Incident confirmation** | `core/incident/proposal_store.py`의 `IncidentProposalStore` | - | local development용 bounded `InMemoryIncidentProposalStore`; production의 `PostgresIncidentProposalStore`는 replica 간 atomic consume 사용 | 같은 principal/session binding, expiry, atomic single-consumer semantics를 보존하는 durable store만 주입 |
 | **Incident notification delivery** | `DurableIncidentLifecycleNotifier`로 감싼 `IncidentLifecycleNotifier`; atomic claim/complete/release용 `IncidentNotificationDeliveryStore` | - | local은 in-memory claim, production은 lease가 있는 PostgreSQL row-lock claim; notification matrix + HIL escalation fallback | `ChannelRegistry`에 Teams, Slack, email, webhook, pager adapter를 bind하고 stable `audit_id`, single-claimer semantics, lease recovery, startup replay 유지 |
 | Delivery adapter | delivery 인터페이스 | - | `gitops-pr` / `chatops` | 다른 PR 호스트 / 채팅 채널 |

@@ -10,6 +10,7 @@ from uuid import UUID
 
 from fdai.shared.contracts import (
     DocumentEnvelope,
+    DocumentPurpose,
     DocumentVersion,
     MalwareVerdict,
     ProtectionState,
@@ -59,11 +60,29 @@ class ProtectionInspection:
 
 @runtime_checkable
 class DocumentAccessProvider(Protocol):
-    async def authorize_create(self, *, actor_id: str, collection_id: str) -> None: ...
+    async def authorize_create(
+        self,
+        *,
+        actor_id: str,
+        actor_groups: frozenset[str],
+        collection_id: str,
+    ) -> None: ...
 
-    async def authorize_read(self, *, actor_id: str, version: DocumentVersion) -> None: ...
+    async def authorize_read(
+        self,
+        *,
+        actor_id: str,
+        actor_groups: frozenset[str],
+        version: DocumentVersion,
+    ) -> None: ...
 
-    async def authorize_delete(self, *, actor_id: str, version: DocumentVersion) -> None: ...
+    async def authorize_delete(
+        self,
+        *,
+        actor_id: str,
+        actor_groups: frozenset[str],
+        version: DocumentVersion,
+    ) -> None: ...
 
 
 @runtime_checkable
@@ -102,6 +121,23 @@ class DirectUploadStore(Protocol):
 
 
 @runtime_checkable
+class StreamingUploadStore(Protocol):
+    async def put_stream(
+        self,
+        object_key: str,
+        chunks: AsyncIterator[bytes],
+        *,
+        expected_size: int,
+        max_size: int,
+    ) -> StoredObjectInfo: ...
+
+
+@runtime_checkable
+class PromotableDocumentObjectStore(Protocol):
+    async def promote(self, session: UploadSession) -> str: ...
+
+
+@runtime_checkable
 class MalwareScanner(Protocol):
     async def scan(self, chunks: AsyncIterator[bytes]) -> MalwareVerdict: ...
 
@@ -135,6 +171,16 @@ class DocumentIndex(Protocol):
 
 
 @runtime_checkable
+class DocumentReadyConsumer(Protocol):
+    @property
+    def purpose(self) -> DocumentPurpose: ...
+
+    async def consume(
+        self, *, session: UploadSession, envelope: DocumentEnvelope
+    ) -> tuple[str, ...]: ...
+
+
+@runtime_checkable
 class DocumentActivitySink(Protocol):
     async def audit(self, record: Mapping[str, object]) -> None: ...
 
@@ -153,10 +199,13 @@ __all__ = [
     "DocumentMetadataStore",
     "DocumentNotFoundError",
     "DocumentObjectStore",
+    "DocumentReadyConsumer",
     "MalwareScanner",
     "ProtectionInspection",
     "ProtectionInspector",
+    "PromotableDocumentObjectStore",
     "ProviderUnavailableError",
     "StoredObjectInfo",
+    "StreamingUploadStore",
     "UploadGrant",
 ]

@@ -12,6 +12,7 @@ function config(overrides: Partial<ConsoleConfig> = {}): ConsoleConfig {
     msalApiScope: "",
     devMode: false,
     localAzureCliAuth: true,
+    localLoginPrompt: false,
     workflowCatalogRepo: "",
     workflowCatalogBranch: "main",
     ...overrides,
@@ -59,5 +60,17 @@ describe("local Azure CLI auth", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ source: "azure-cli" })));
 
     await expect(initAuth(config())).rejects.toThrow("invalid profile");
+  });
+
+  test("keeps immediate anonymous bypass when the local prompt is disabled", async () => {
+    const auth = await initAuth(config({
+      devMode: true,
+      localAzureCliAuth: false,
+      localLoginPrompt: false,
+    }));
+
+    expect(auth.devMode).toBe(true);
+    expect(auth.interactiveSignIn).toBe(false);
+    expect(auth.account).toBeNull();
   });
 });

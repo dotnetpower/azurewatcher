@@ -3,6 +3,7 @@ import { useContext } from "preact/hooks";
 import { PANEL_GROUPS, panelForId } from "../panels";
 
 const NavigationDomainContext = createContext<string | null>(null);
+const ROOT_PANEL_IDS = new Set(["dashboard", "agents", "labs"]);
 
 interface ProviderProps {
   readonly activePanelId: string;
@@ -11,9 +12,9 @@ interface ProviderProps {
 
 export function navigationDomainForPanel(activePanelId: string): string | null {
   const panel = panelForId(activePanelId);
-  if (panel.placement === "bottom") return null;
+  if (panel.placement === "bottom" || ROOT_PANEL_IDS.has(panel.id)) return null;
   const group = PANEL_GROUPS.find((candidate) => candidate.id === panel.group);
-  if (group === undefined || group.label === panel.label) return null;
+  if (group === undefined) return null;
   return group.label;
 }
 

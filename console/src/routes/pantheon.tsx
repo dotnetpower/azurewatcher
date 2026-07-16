@@ -1,17 +1,26 @@
-import { useEffect, useState } from "preact/hooks";
-import { ReadApiError } from "../api";
+import { useEffect, useMemo, useReducer, useState } from "preact/hooks";
+import { isOptionalReadApiUnavailable } from "../api";
 import type { ReadApiClient } from "../api";
+import { AgentOrgChart } from "../components/agent-org-chart";
+import { AgentWorkspaceNav } from "../components/agent-workspace-nav";
 import {
   AsyncBoundary,
-  KpiCard,
-  KpiGrid,
   PageHeader,
   type AsyncState,
 } from "../components/ui";
-import { MermaidDiagram } from "../components/mermaid-diagram";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, agentTerm, composeGlossary } from "../deck/glossary";
+import { agentStreamDescriptor, useAgentStream, type AgentStreamStatus } from "../hooks/use-agent-stream";
 import { t } from "../i18n";
+import { currentRoute, navigate, routeHref } from "../router";
+import {
+  activeAgentCount,
+  AGENT_ROLE,
+  makeInitialState,
+  reducer,
+  STATE_TASK,
+  type AgentsState,
+} from "./agents.model";
 import { panelArray, panelBoolean, panelNullableString, panelNumber, panelRecord, panelString, panelStringArray } from "./panel-decode";
 
 /**
@@ -73,6 +82,13 @@ interface Props {
 
 export function PantheonRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<CombinedData>>({ status: "loading" });
+  const [runtime, dispatch] = useReducer(reducer, undefined, makeInitialState);
+  const stream = useMemo(agentStreamDescriptor, []);
+  const { status: streamStatus } = useAgentStream({
+    url: stream.url,
+    getAuthorizationHeader: client.authorizationHeader,
+    onEvent: (message) => dispatch({ kind: "message", msg: message }),
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -89,7 +105,7 @@ export function PantheonRoute({ client }: Props) {
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
-          if (err instanceof ReadApiError && err.status === 404) {
+          if (isOptionalReadApiUnavailable(err)) {
             setState({
               status: "unavailable",
               message:
@@ -108,13 +124,21 @@ export function PantheonRoute({ client }: Props) {
   }, [client]);
 
   return (
-    <div class="stack">
+    <div class="stack pantheon-route">
+      <AgentWorkspaceNav />
       <PageHeader
         title={t("route.pantheon")}
-        subtitle="15 named agents that own the runtime control plane + 10 cross-agent workflows they compose."
+        subtitle="The fixed 15-agent organization, enriched with each agent's current runtime state."
       />
       <AsyncBoundary state={state} resourceLabel="pantheon">
-        {(data) => <PantheonBody data={data} />}
+        {(data) => (
+          <PantheonBody
+            data={data}
+            runtime={runtime}
+            streamStatus={streamStatus}
+            streamSource={stream.source}
+          />
+        )}
       </AsyncBoundary>
     </div>
   );
@@ -172,8 +196,42 @@ function decodePantheonWorkflows(value: unknown): PantheonWorkflowsResponse {
   };
 }
 
-function PantheonBody({ data }: { readonly data: CombinedData }) {
+const LAYER_ORDER = ["governance", "pipeline", "domain"] as const;
+const LAYER_COPY: Readonly<Record<string, string>> = {
+  governance: "Direction, memory, learning, and audit",
+  pipeline: "Sense, judge, approve, execute, and recover",
+  domain: "Advisory specialists that never execute",
+};
+
+type PantheonView = "directory" | "org";
+
+export function pantheonViewFromSearch(search: URLSearchParams): PantheonView {
+  return search.get("view") === "org" ? "org" : "directory";
+}
+
+function pantheonViewFromRoute(): PantheonView {
+  return pantheonViewFromSearch(currentRoute().search);
+}
+
+function PantheonBody({
+  data,
+  runtime,
+  streamStatus,
+  streamSource,
+}: {
+  readonly data: CombinedData;
+  readonly runtime: AgentsState;
+  readonly streamStatus: AgentStreamStatus;
+  readonly streamSource: "local" | "live";
+}) {
   const { graph, workflows } = data;
+  const active = activeAgentCount(runtime);
+  const [view, setView] = useState<PantheonView>(pantheonViewFromRoute);
+
+  const openView = (next: PantheonView): void => {
+    setView(next);
+    navigate(routeHref("pantheon", { params: { view: next === "directory" ? null : next } }));
+  };
   usePublishViewContext(
     () => ({
       routeId: "pantheon",
@@ -183,7 +241,7 @@ function PantheonBody({ data }: { readonly data: CombinedData }) {
         "judges, executes, approves, and audits. Shows reporting lines, owned " +
         "action kinds, and which agents sit on the hot path. Read-only.",
       glossary: composeGlossary([agentTerm(), TERMS.hil, TERMS.actionType]),
-      headline: `${graph.agent_count} agents - ${workflows.count} workflows`,
+      headline: `${graph.agent_count} agents - ${workflows.count} workflows - ${view} view`,
       capturedAt: new Date().toISOString(),
       facts: [
         { key: "agent_count", value: graph.agent_count, group: "pantheon" },
@@ -198,6 +256,9 @@ function PantheonBody({ data }: { readonly data: CombinedData }) {
           value: graph.hot_path_llm_agents.length,
           group: "pantheon",
         },
+        { key: "engaged_agents", value: active, group: "runtime" },
+        { key: "stream_status", value: streamStatus, group: "runtime" },
+        { key: "stream_source", value: streamSource, group: "runtime" },
       ],
       records: {
         agents: graph.agents.map((a) => ({
@@ -220,66 +281,103 @@ function PantheonBody({ data }: { readonly data: CombinedData }) {
         })),
       },
     }),
-    [graph, workflows],
+    [graph, workflows, active, streamStatus, streamSource, view],
   );
 
   return (
-    <div class="stack">
-      <KpiGrid>
-        <KpiCard label="Agents" value={graph.agent_count} />
-        <KpiCard label="Workflows" value={workflows.count} />
-        <KpiCard label="Hard dependencies" value={graph.hard_dependency_agents.length} />
-        <KpiCard label="Hot-path LLM" value={graph.hot_path_llm_agents.length} />
-      </KpiGrid>
-
-      <section class="stack-section">
-        <div class="section-header">
-          <h3 class="section-title">Org chart</h3>
+    <div class="stack pantheon-directory">
+      <section class="pantheon-source-banner" aria-label="Pantheon data source">
+        <div>
+          <strong>Read-only organization</strong>
+          <span>
+            Cards come from the fork-locked pantheon registry. Runtime state comes from
+            <code> GET /agents/stream</code> and never grants execution authority.
+          </span>
         </div>
-        <MermaidDiagram source={graph.mermaid} ariaLabel="Agent org chart" />
-        <details class="mermaid-source-toggle">
-          <summary class="details-summary">Show Mermaid source</summary>
-          <pre class="mono scroll code-block">{graph.mermaid}</pre>
-        </details>
+        <div class="pantheon-source-state">
+          <span class={`agents-conn conn-${streamStatus}`}>{streamStatus}</span>
+          <span class="status-pill status-pill-neutral">
+            {streamSource === "local" ? "local stream" : "runtime stream"}
+          </span>
+          <span><strong>{active}</strong> engaged</span>
+        </div>
       </section>
 
-      <section class="stack-section">
-        <h3 class="section-title">Agents ({graph.agents.length})</h3>
-        <div class="scroll">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Layer</th>
-                <th>Reports to</th>
-                <th>Owns</th>
-                <th>Flags</th>
-              </tr>
-            </thead>
-            <tbody>
-              {graph.agents.map((a) => (
-                <tr key={a.name}>
-                  <td class="mono">{a.name}</td>
-                  <td>{a.layer}</td>
-                  <td class="mono muted">{a.reports_to ?? "-"}</td>
-                  <td>
-                    <ChipList items={a.owns} />
-                  </td>
-                  <td>
-                    {a.hard_dependency ? <span class="badge hil">hard-dep</span> : null}
-                    {a.hot_path_llm ? <span class="badge shadow">hot-LLM</span> : null}
-                    {a.off_path_llm ? <span class="badge shadow">batch-LLM</span> : null}
-                  </td>
-                </tr>
+      <div class="pantheon-view-bar">
+        <div>
+          <strong>{view === "directory" ? "Agent directory" : "Reporting organization"}</strong>
+          <span>
+            {view === "directory"
+              ? "Compare ownership, dependencies, and runtime work by layer."
+              : "Follow reporting lines, inspect live state, and open an agent for detail."}
+          </span>
+        </div>
+        <div class="agents-layout-toggle" role="group" aria-label="Pantheon view">
+          <button
+            type="button"
+            class={view === "directory" ? "is-active" : ""}
+            aria-pressed={view === "directory"}
+            onClick={() => openView("directory")}
+          >
+            Directory
+          </button>
+          <button
+            type="button"
+            class={view === "org" ? "is-active" : ""}
+            aria-pressed={view === "org"}
+            onClick={() => openView("org")}
+          >
+            Org chart
+          </button>
+        </div>
+      </div>
+
+      <div class="pantheon-legend" aria-label="Pantheon flags">
+        <span class="pt-badge is-hotllm">hot-path LLM</span>
+        <span class="pt-badge is-offllm">off-path LLM</span>
+        <span class="pt-badge is-hard">hard dependency</span>
+      </div>
+
+      {view === "org" ? <AgentOrgChart state={runtime} /> : LAYER_ORDER.map((layer) => {
+        const agents = graph.agents.filter((agent) => agent.layer === layer);
+        return (
+          <section class="pt-layer" key={layer}>
+            <header class="pt-layer-head">
+              <div>
+                <h3>{titleCase(layer)} layer</h3>
+                <p>{LAYER_COPY[layer]}</p>
+              </div>
+              <span>{agents.length} agents</span>
+            </header>
+            <div class="pt-grid">
+              {agents.map((agent) => (
+                <PantheonAgentCard
+                  key={agent.name}
+                  agent={agent}
+                  runtime={runtime.agents[agent.name]}
+                />
               ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+            </div>
+          </section>
+        );
+      })}
 
-      <section class="stack-section">
-        <h3 class="section-title">Workflows ({workflows.workflows.length})</h3>
-        <div class="scroll">
+      {view === "directory" ? <section class="pantheon-tree-section">
+        <header class="pt-layer-head">
+          <div>
+            <h3>Reporting tree</h3>
+            <p>Every reporting line is projected from the registry.</p>
+          </div>
+        </header>
+        <ReportingTree agents={graph.agents} />
+      </section> : null}
+
+      <details class="pantheon-workflows">
+        <summary>
+          <strong>Cross-agent workflows</strong>
+          <span>{workflows.workflows.length} registered</span>
+        </summary>
+        <div class="data-table-wrap">
           <table class="data-table">
             <thead>
               <tr>
@@ -295,7 +393,11 @@ function PantheonBody({ data }: { readonly data: CombinedData }) {
                 <tr key={w.id}>
                   <td class="mono">{w.id}</td>
                   <td>{w.name}</td>
-                  <td class="mono">{w.primary_agent}</td>
+                  <td class="mono">
+                    <a href={routeHref("agents", { params: { agent: w.primary_agent } })}>
+                      {w.primary_agent}
+                    </a>
+                  </td>
                   <td>
                     <ChipList items={w.participating_agents} />
                   </td>
@@ -315,9 +417,73 @@ function PantheonBody({ data }: { readonly data: CombinedData }) {
             </tbody>
           </table>
         </div>
-      </section>
+      </details>
     </div>
   );
+}
+
+function PantheonAgentCard({
+  agent,
+  runtime,
+}: {
+  readonly agent: AgentDto;
+  readonly runtime: AgentsState["agents"][string] | undefined;
+}) {
+  const role = AGENT_ROLE[agent.name];
+  const state = runtime?.state ?? "idle";
+  return (
+    <article class={`pt-card is-${agent.layer}`}>
+      <header class="pt-card-head">
+        <span class={`pt-avatar is-${agent.layer}`}>{agent.name.slice(0, 2)}</span>
+        <div>
+          <h4><a href={routeHref("agents", { params: { agent: agent.name } })}>{agent.name}</a></h4>
+          <p>{role?.title ?? titleCase(agent.layer)}</p>
+        </div>
+        <span class={`pt-runtime state-${state}`}>
+          <i aria-hidden="true" />
+          {state}
+        </span>
+      </header>
+      {role ? <p class="pt-summary">{role.summary}</p> : null}
+      <p class="pt-owns">
+        <strong>Owns</strong>{" "}
+        {agent.owns.length > 0 ? agent.owns.map((item) => <code key={item}>{item}</code>) : "-"}
+      </p>
+      <p class="pt-reports"><strong>Reports to</strong> {agent.reports_to ?? "- (root)"}</p>
+      <div class="pt-badges">
+        {agent.hot_path_llm ? <span class="pt-badge is-hotllm">hot-path LLM</span> : null}
+        {agent.off_path_llm ? <span class="pt-badge is-offllm">off-path LLM</span> : null}
+        {agent.hard_dependency ? <span class="pt-badge is-hard">hard dependency</span> : null}
+      </div>
+      <div class="pt-live-detail">
+        <span>{runtime?.detail ?? STATE_TASK[state]}</span>
+        {runtime?.correlationId ? <code>{runtime.correlationId}</code> : null}
+      </div>
+    </article>
+  );
+}
+
+function ReportingTree({ agents }: { readonly agents: readonly AgentDto[] }) {
+  const byParent = new Map<string | null, AgentDto[]>();
+  for (const agent of agents) {
+    const siblings = byParent.get(agent.reports_to) ?? [];
+    siblings.push(agent);
+    byParent.set(agent.reports_to, siblings);
+  }
+  const branch = (agent: AgentDto) => (
+    <li key={agent.name}>
+      <a class="pt-tree-name" href={routeHref("agents", { params: { agent: agent.name } })}>{agent.name}</a>{" "}
+      <span class="pt-tree-role">- {AGENT_ROLE[agent.name]?.title ?? titleCase(agent.layer)}</span>
+      {(byParent.get(agent.name)?.length ?? 0) > 0 ? (
+        <ul>{byParent.get(agent.name)!.map(branch)}</ul>
+      ) : null}
+    </li>
+  );
+  return <div class="pt-tree"><ul>{(byParent.get(null) ?? []).map(branch)}</ul></div>;
+}
+
+function titleCase(value: string): string {
+  return value ? `${value[0]!.toUpperCase()}${value.slice(1)}` : value;
 }
 
 function ChipList({ items }: { readonly items: readonly string[] }) {
@@ -327,7 +493,9 @@ function ChipList({ items }: { readonly items: readonly string[] }) {
   return (
     <ul class="type-chip-list">
       {items.map((name) => (
-        <li key={name} class="type-chip mono">{name}</li>
+        <li key={name} class="type-chip mono">
+          <a href={routeHref("agents", { params: { agent: name } })}>{name}</a>
+        </li>
       ))}
     </ul>
   );

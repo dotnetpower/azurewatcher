@@ -9,7 +9,7 @@ fault_family: saturate
 intensity: high
 duration_seconds: 360.0
 expected_signal: db_cpu
-injector: needs-injector
+injector: mysql:query-load
 blast_radius_cap: 1
 rollback_note: Stop the load generator; server recovers on its own.
 gates:

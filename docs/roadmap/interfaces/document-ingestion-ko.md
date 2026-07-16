@@ -1,8 +1,8 @@
 ---
 title: 문서 인제스트와 Drop Zone
 translation_of: document-ingestion.md
-translation_source_sha: 441b067f6c7765d7fd120a732a1da02a3b6ffcfe
-translation_revised: 2026-07-14
+translation_source_sha: c45ef27d31402f0248134662aab7322cf2e1b980
+translation_revised: 2026-07-16
 ---
 # 문서 인제스트와 Drop Zone
 
@@ -281,19 +281,42 @@ worker로 latency를 줄입니다. Cross-collection 또는 cross-tenant deduplic
 
 | Store | Contents | Recommended Azure implementation |
 |-------|----------|----------------------------------|
-| Quarantine source | 신뢰되지 않은 uploaded bytes와 upload manifest | public access가 없는 private Blob Storage container, 짧은 retention |
-| Governed source | managed-copy mode를 선택했을 때 수락된 immutable source version | versioning, lifecycle policy, 선택적 immutable/legal-hold control이 적용된 private Blob Storage |
-| Derived artifacts | normalized JSON/JSONL, page text, thumbnail, OCR output, extraction manifest | source와 ACL로 연결되고 암호화된 별도 private Blob container |
+| Quarantine source | 신뢰되지 않은 uploaded bytes와 upload manifest | public access가 없고 짧은 lifecycle retention을 적용한 private ADLS Gen2 HNS `documents/quarantine/` |
+| Governed source | managed-copy mode를 선택했을 때 수락된 immutable source version | quarantine에서 atomic rename하는 private ADLS Gen2 HNS `documents/governed/{document_id}/{version_id}/` |
+| Derived artifacts | normalized JSON/JSONL, page text, thumbnail, OCR output, extraction manifest | source와 ACL로 연결되고 암호화된 별도 private ADLS Gen2 HNS `derived` filesystem |
 | Metadata and status | document/version record, state transition, policy, effective access reference | PostgreSQL |
 | Search index | chunk, embedding, source/version/access reference | PostgreSQL with pgvector |
 | Audit | actor, state transition, policy decision, hash와 reference, document body 제외 | append-only audit ledger |
 | Worker scratch | 임시 decrypted 또는 expanded content | 격리된 encrypted ephemeral volume, completion/failure 시 삭제 |
 
 Object name에는 user filename 대신 opaque id를 사용합니다. Original filename은 동일한 access
-policy로 보호되는 metadata입니다. Storage account에는 private endpoint, encryption at rest,
-secure transport, key rotation, policy에 따른 soft-delete/versioning, anonymous container access
-비활성화를 적용합니다. Customer-managed key는 upstream에 하드코딩하는 값이 아니라 fork
-policy 선택입니다.
+policy로 보호되는 metadata입니다. Azure 구현은 hierarchical namespace(HNS), Shared Key
+비활성화, TLS 1.2, soft delete, lifecycle policy, `blob`과 `dfs` private endpoint를 적용한 전용
+StorageV2 account를 사용합니다. HNS account에는 Blob versioning을 사용할 수 없으므로 source
+version을 overwrite하지 않고 모든 `version_id`에 새로운 opaque path를 할당합니다. 선택적
+immutable retention과 legal hold는 collection policy로 유지합니다. Customer-managed key는
+upstream에 하드코딩하는 값이 아니라 fork policy 선택입니다.
+
+Public console은 인증된 ingestion gateway로 byte를 전송합니다. Gateway는 선언된 size를
+검증하고 request 전체를 memory에 buffer하지 않은 채 private ADLS로 stream하며 SHA-256과 size
+metadata를 봉인한 후 `aw.document.events`에 `document.received`를 publish합니다. Durable Kafka
+consumer group이 worker를 at-least-once로 실행하며 commit되지 않은 failure는 restart 후
+retry합니다. ClamAV는 replica-local sidecar로 실행되고 clean 문서만 extraction, pgvector
+indexing, quarantine-to-governed atomic rename에 도달합니다.
+
+### 지연된 non-Azure storage 권장 사항
+
+Azure만 구현 대상입니다. 다음 항목은 future phase를 위한 문서상 권장 사항이며 이 roadmap에서
+AWS 또는 GCP adapter 구현을 허용하지 않습니다.
+
+| Future target | Recommended storage | FDAI contract mapping |
+|---------------|---------------------|-----------------------|
+| AWS (TBD) | Block Public Access, bucket owner enforced, SSE-KMS, policy에 따른 versioning/Object Lock, lifecycle rule, gateway VPC endpoint, IAM role credential을 적용한 Amazon S3 | `DocumentObjectStore`가 opaque key를 S3 object에 mapping하며 accepted version은 immutable prefix와 multipart upload를 사용합니다. |
+| GCP (TBD) | Uniform bucket-level access, public access prevention, policy에 따른 CMEK와 Object Versioning/retention policy, lifecycle rule, Private Google Access/PSC, Workload Identity Federation을 적용한 Cloud Storage | `DocumentObjectStore`가 opaque key를 Cloud Storage object에 mapping하며 accepted version은 immutable prefix와 resumable upload를 사용합니다. |
+
+두 future mapping은 기존 provider seam 뒤에서 PostgreSQL metadata와 vector-index adapter를
+유지합니다. Azure 구현에는 AWS/GCP SDK, Terraform module, runtime branch 또는 deployment
+commitment가 포함되지 않습니다.
 
 ### Source 저장 모드
 
@@ -328,6 +351,18 @@ migration하지 않습니다.
 
 Knowledge indexing과 manual distillation은 이 envelope를 소비합니다. Raw upload를 각각 별도로
 parse하지 않으므로 protection, citation, deletion behavior를 일관되게 유지할 수 있습니다.
+
+일반 document index는 각 structural unit을 독립적으로 분할합니다. 기본값은 chunk당 `1200`자와
+`150`자 overlap이며 paragraph, line, sentence, word boundary 순서로 경계를 우선합니다. 모든
+chunk는 unit locator, source hash, collection, access descriptor, purpose, immutable
+document/version identity를 유지합니다. 안정적인 version 범위 chunk id로 retry를 idempotent하게
+처리합니다.
+
+로컬 gateway는 end-to-end 개발을 위해 deterministic in-memory embedding index를 사용합니다.
+pgvector adapter는 database transaction을 열기 전에 모든 embedding을 계산하고, 하나의 document
+version을 원자적으로 교체하며 document/version identity로 삭제합니다. Retrieval에는 collection과
+명시적으로 허용된 access descriptor reference 집합이 모두 필요합니다. Governed chunk에는 marker를
+추가하며 범위가 지정되지 않은 free-form Knowledge Source query path에서는 제외합니다.
 
 ## 보안과 content-safety pipeline
 
@@ -389,12 +424,27 @@ Linked-source removal과 ACL change event에도 동일한 reconciliation 및 lin
 Document ingestion은 read API 또는 executor process가 아닌 전용 ingestion gateway가
 제공합니다. 초기 HTTP surface는 다음과 같습니다.
 
+로컬 콘솔 개발에서는 보호된 in-memory gateway를 별도 포트에서 실행할 수 있습니다.
+
+```bash
+FDAI_INGESTION_GATEWAY_DEV_MODE=1 \
+  uv run uvicorn fdai.delivery.ingestion_gateway.dev:app \
+  --factory --host 127.0.0.1 --port 8011
+```
+
+`VITE_INGESTION_API_BASE_URL`을 `http://127.0.0.1:8011`로 설정하세요. 로컬 factory는
+명시적 dev-mode 변수가 없으면 시작되지 않으며 production composition이 아닙니다. 기본적으로
+`127.0.0.1`과 `localhost`의 로컬 콘솔 포트 `4173`, `5173`, `5180`, `5190`을 허용합니다.
+다른 포트를 사용하려면 gateway process의 `FDAI_INGESTION_GATEWAY_CORS_ALLOW_ORIGINS`를
+쉼표로 구분한 정확한 HTTP(S) origin 목록으로 설정하세요.
+
 | Method and path | Purpose |
 |-----------------|---------|
 | `GET /ingestion/capabilities` | format, size/batch/archive limit, storage mode, policy version |
 | `POST /ingestion/uploads` | destination을 authorize하고 `UploadSession` 생성 |
 | `POST /ingestion/uploads/{upload_id}/complete` | 수신한 object를 verify하고 commit |
 | `GET /ingestion/uploads/{upload_id}` | resumable transfer와 processing status |
+| `GET /ingestion/uploads/{upload_id}/handover-draft` | `handover_bootstrap` purpose의 권한 적용 grounded steward-map draft |
 | `POST /ingestion/uploads/{upload_id}/cancel` | grant를 revoke하고 partial data 정리 |
 | `GET /documents/{document_id}/versions` | 권한이 적용된 metadata와 state history |
 | `DELETE /documents/{document_id}/versions/{version_id}` | governed deletion 요청 |
@@ -406,6 +456,9 @@ State transition은 `document.received`, `document.held`, `document.ready`,
 `document.superseded`, `document.access_changed`, `document.deleted` 같은 typed event를
 publish합니다. Consumer는 idempotent하게 동작합니다. Knowledge indexing과 manual distillation은
 version의 선언된 purpose에 자신이 포함된 경우에만 `document.ready`를 subscribe합니다.
+Purpose별 processing은 `DocumentReadyConsumer`를 bind할 수도 있습니다. Worker는 safety check를
+통과한 `DocumentEnvelope`만 전달합니다. 제공되는 `handover_bootstrap` consumer는 이 envelope를
+근거가 있고 검토 전용인 steward-map draft로 변환합니다.
 
 ## 실패 동작
 
@@ -439,14 +492,16 @@ rights-reconciliation lag, orphaned partial upload, indexing lag, deletion lag, 
 
 Upstream 구현은 이제 contract, fail-closed lifecycle, 전용 ASGI gateway, console drop zone,
 streaming browser hash, local direct-upload adapter, 안전한 text/OOXML extractor, protection
-signature detection, test adapter, deletion lineage를 제공합니다. Production fork는 거버넌스가
-적용된 object/metadata/vector store와 승인된 malware, Purview/RMS, OCR, rich-format provider를
-계속 제공해야 합니다.
+signature detection, structure-aware chunking, 검색 가능한 in-memory embedding index, governed
+pgvector document-index adapter, test adapter, deletion lineage를 제공합니다. Production fork는
+pgvector adapter에 secret-backed DSN과 embedding provider를 bind하고, 거버넌스가 적용된
+object/metadata store와 승인된 malware, Purview/RMS, OCR, rich-format provider를 계속 제공해야
+합니다.
 
 | Slice | Upstream 상태 |
 |-------|---------------|
 | Contract and metadata | 제공됨: `DocumentEnvelope`, state machine, capability discovery, access provider, metadata/activity seam, console visibility notice |
-| Safe text | 일반 구현 제공됨: direct-upload gateway, quarantine lifecycle, fail-closed scanner seam, UTF-8/OOXML extraction, artifact/index seam, deletion. Upstream scanner는 production provider를 bind할 때까지 abstain합니다. |
+| Safe text | 일반 구현 제공됨: direct-upload gateway, quarantine lifecycle, fail-closed scanner seam, UTF-8/OOXML extraction, structure-aware overlapping chunk, local embedding retrieval, 원자적 pgvector version 교체/삭제, access-filtered search, deletion. Upstream scanner는 production provider를 bind할 때까지 abstain합니다. |
 | Layout | 일부 제공됨: OOXML structure와 PDF/protection detection을 제공합니다. Layout-aware PDF extraction, OCR, preview에는 승인된 provider가 필요합니다. |
 | Protection | 일부 제공됨: PDF/Office/container encryption과 의심스러운 rights metadata를 감지하고 hold합니다. Purview/RMS adapter, delegated authorization, revocation reconciliation은 fork binding으로 남습니다. |
 | Connector and scale | Contract 준비됨: resumable/scoped upload session, streaming hash, bounded parser budget, provider seam을 제공합니다. Azure Blob, durable metadata, connector delta sync, 측정된 capacity target은 배포 작업으로 남습니다. |

@@ -32,9 +32,11 @@ module "console" {
 ```
 
 The `console_default_hostname` root output surfaces the
-`<name>.azurestaticapps.net` origin; wire it into MSAL app-registration
-redirect URIs. The `console/dist/` build output is uploaded out-of-band
-with the SWA deployment token (`az staticwebapp secrets list ...`).
+`<name>.azurestaticapps.net` origin. After an apply with `deploy_console=true`,
+`deploy-dev.yml` passes that origin to `scripts/sync-entra-spa-redirect.py`,
+which preserves existing MSAL redirect URIs and adds the deployed origin when
+needed. The `console/dist/` build output is uploaded out-of-band with the SWA
+deployment token (`az staticwebapp secrets list ...`).
 
 ## Read-only invariant
 

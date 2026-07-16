@@ -49,6 +49,36 @@ export const PANTHEON: readonly { readonly name: string; readonly layer: AgentLa
   { name: "Muninn", layer: "governance" },
 ];
 
+export type AgentRuntimeBinding =
+  | "event-bus subscriber"
+  | "raw ingress subscriber"
+  | "external adapter"
+  | "scheduled trigger";
+
+export const AGENT_RUNTIME_BINDING: Readonly<Record<string, AgentRuntimeBinding>> = {
+  Odin: "event-bus subscriber",
+  Thor: "event-bus subscriber",
+  Forseti: "event-bus subscriber",
+  Huginn: "raw ingress subscriber",
+  Heimdall: "event-bus subscriber",
+  Vidar: "event-bus subscriber",
+  Var: "event-bus subscriber",
+  Bragi: "event-bus subscriber",
+  Saga: "event-bus subscriber",
+  Mimir: "event-bus subscriber",
+  Muninn: "event-bus subscriber",
+  Norns: "event-bus subscriber",
+  Njord: "external adapter",
+  Freyr: "external adapter",
+  Loki: "scheduled trigger",
+};
+
+export function runtimeConsumerCount(): number {
+  return Object.values(AGENT_RUNTIME_BINDING).filter(
+    (binding) => binding === "event-bus subscriber" || binding === "raw ingress subscriber",
+  ).length;
+}
+
 const _LAYER_OF: Record<string, AgentLayer> = Object.fromEntries(
   PANTHEON.map((a) => [a.name, a.layer]),
 );

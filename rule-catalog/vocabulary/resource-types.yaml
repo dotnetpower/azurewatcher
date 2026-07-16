@@ -82,6 +82,16 @@ types:
     description: L4 load balancer (public or internal).
     azure_arm_type: Microsoft.Network/loadBalancers
     typical_parents: [resource-group]
+  - id: network.application-gateway
+    category: network
+    description: Layer-7 application gateway with backend pools and health probes.
+    azure_arm_type: Microsoft.Network/applicationGateways
+    typical_parents: [resource-group]
+  - id: api-gateway
+    category: network
+    description: Managed API gateway and policy enforcement surface.
+    azure_arm_type: Microsoft.ApiManagement/service
+    typical_parents: [resource-group]
   - id: network.dns-zone
     category: network
     description: DNS zone (public or private).
@@ -126,6 +136,11 @@ types:
     description: PostgreSQL engine (Flexible / Single).
     azure_arm_type: Microsoft.DBforPostgreSQL/flexibleServers
     typical_parents: [resource-group]
+  - id: mysql-server
+    category: database
+    description: MySQL-family managed database engine.
+    azure_arm_type: Microsoft.DBforMySQL/flexibleServers
+    typical_parents: [resource-group]
   - id: nosql-database
     category: database
     description: Document / KV NoSQL engine (Cosmos DB SQL API, DynamoDB, Firestore).
@@ -164,6 +179,11 @@ types:
     category: observability
     description: Prometheus-style metrics workspace bound to a log-workspace.
     azure_arm_type: Microsoft.Monitor/accounts
+    typical_parents: [resource-group]
+  - id: llm-endpoint
+    category: compute
+    description: Managed language-model inference endpoint with quota and rate limits.
+    azure_arm_type: Microsoft.CognitiveServices/accounts
     typical_parents: [resource-group]
 
   # ── governance / scope ───────────────────────────────────────────────

@@ -21,13 +21,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks"
 import { t } from "../i18n";
 import { navigate } from "../router";
 import {
+  fetchConversationTurns,
+  fetchOpeningBriefing,
+  type ConversationTurnPayload,
+} from "../user-context-client";
+import {
   askBackendStream,
   probeBackend,
   renderActionResult,
   submitAction,
   type AnswerVerification,
+  type AnswerPlanMetadata,
   type BackendHealth,
   type BackendTurn,
+  type GroundedCodeArtifact,
   type ProgressiveAnswer,
   type RouterSnapshot,
   type VerificationProgress,
@@ -62,6 +69,7 @@ import { RetrievalTrace } from "./retrieval-trace";
 import { introSuggestions } from "./intro-suggestions";
 import { DECK_OPEN_EVENT, type DeckOpenDetail } from "./open-deck";
 import { isNearBottom } from "./scroll-stick";
+import { drainStreamPaint } from "./stream-paint";
 import { parseTurns, serializeTurns, transcriptKeyFor } from "./transcript-store";
 
 interface Turn {
@@ -79,6 +87,8 @@ interface Turn {
   readonly revision?: number;
   readonly verification?: AnswerVerification;
   readonly verificationProgress?: VerificationProgress;
+  readonly answerPlan?: AnswerPlanMetadata;
+  readonly codeArtifacts?: readonly GroundedCodeArtifact[];
   /** Agent name when this turn speaks as a specific agent (renders its icon + name). */
   readonly agent?: string;
   readonly at: string;
@@ -91,9 +101,57 @@ interface ActiveRequest {
   readonly kind: "stream" | "action";
 }
 
+const MIN_PREPARING_VISIBLE_MS = 420;
+const DECK_LAYOUT_KEY = "fdai.deck.layout.v1";
+const DECK_DOCK_WIDTH_KEY = "fdai.deck.dock-width.v1";
+
+export type DeckLayoutMode = "floating" | "dock" | "workspace";
+
+export function parseDeckLayoutMode(value: string | null): DeckLayoutMode {
+  return value === "dock" || value === "workspace" || value === "floating"
+    ? value
+    : "floating";
+}
+
+export function clampDockWidth(value: number, viewportWidth: number): number {
+  const maximum = Math.max(340, Math.min(720, viewportWidth - 320));
+  return Math.round(Math.max(340, Math.min(maximum, value)));
+}
+
+function initialDockWidth(): number {
+  if (typeof window === "undefined") return 440;
+  const stored = Number.parseInt(sessionStore()?.getItem(DECK_DOCK_WIDTH_KEY) ?? "", 10);
+  return clampDockWidth(Number.isFinite(stored) ? stored : 440, window.innerWidth);
+}
+
+function initialFloatingPosition(): { readonly x: number; readonly y: number } {
+  if (typeof window === "undefined") return { x: 720, y: 84 };
+  return {
+    x: Math.max(68, window.innerWidth - 476),
+    y: 76,
+  };
+}
+
 function shortTime(): string {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
+}
+
+export function restoredTurn(turn: ConversationTurnPayload): Turn {
+  const at = new Date(turn.recorded_at);
+  const time = Number.isNaN(at.getTime())
+    ? turn.recorded_at
+    : at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const source = turn.metadata.source ?? (turn.role === "assistant" ? "history" : undefined);
+  return {
+    id: turn.turn_id,
+    role: turn.role === "operator" ? "operator" : "deck",
+    text: turn.content,
+    at: time,
+    terminal: true,
+    ...(source ? { source } : {}),
+    ...(turn.metadata.agent ? { agent: turn.metadata.agent } : {}),
+  };
 }
 
 function newId(): string {
@@ -197,6 +255,12 @@ export function CommandDeck() {
   const initialScreenSession = screenConversationKey(userScope, currentPathname());
   const initialRouteLabel = snapshot?.routeLabel ?? currentPathname();
   const [open, setOpen] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<DeckLayoutMode>(() =>
+    parseDeckLayoutMode(sessionStore()?.getItem(DECK_LAYOUT_KEY) ?? null));
+  const [floatingPosition, setFloatingPosition] = useState(initialFloatingPosition);
+  const [dockWidth, setDockWidth] = useState(initialDockWidth);
+  const [dockResizing, setDockResizing] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [draft, setDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
@@ -229,6 +293,8 @@ export function CommandDeck() {
   });
   const turnsRef = useRef<readonly Turn[]>(turns);
   const [pending, setPending] = useState(false);
+  const [retrievalProgress, setRetrievalProgress] =
+    useState<VerificationProgress | null>(null);
   const [health, setHealth] = useState<BackendHealth | null>(null);
   const [srStatus, setSrStatus] = useState("");
   const [inFlight, setInFlight] = useState(false);
@@ -240,11 +306,107 @@ export function CommandDeck() {
   // One stable backend correlation id per transcript session.
   const sessionIdsRef = useRef(new Map<string, string>());
   const sessionMetadataRef = useRef(new Map<string, ConversationSummary>());
+  const openingBriefingLoadedRef = useRef(new Set<string>());
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const scrollFrameRef = useRef<number | null>(null);
+
+  const selectLayoutMode = useCallback((mode: DeckLayoutMode) => {
+    setLayoutMode(mode);
+    try {
+      sessionStore()?.setItem(DECK_LAYOUT_KEY, mode);
+    } catch {
+      /* best-effort preference */
+    }
+  }, []);
+
+  const deckStyle = useMemo(() => {
+    if (layoutMode === "floating") {
+      return {
+        left: `${floatingPosition.x}px`,
+        top: `${floatingPosition.y}px`,
+      };
+    }
+    if (layoutMode === "dock") return { width: `${dockWidth}px` };
+    return undefined;
+  }, [dockWidth, floatingPosition, layoutMode]);
+
+  const startFloatingDrag = (event: MouseEvent) => {
+    if (layoutMode !== "floating" || event.button !== 0) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("button, a, input, textarea")) return;
+    event.preventDefault();
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+    const rect = overlay.getBoundingClientRect();
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
+    setDragging(true);
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const minX = 12;
+      const minY = 12;
+      setFloatingPosition({
+        x: Math.max(minX, moveEvent.clientX - offsetX),
+        y: Math.max(minY, moveEvent.clientY - offsetY),
+      });
+    };
+    const onEnd = () => {
+      setDragging(false);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onEnd);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onEnd);
+  };
+
+  const updateDockWidth = (value: number) => {
+    const next = clampDockWidth(value, window.innerWidth);
+    setDockWidth(next);
+    return next;
+  };
+
+  const saveDockWidth = (value: number) => {
+    try {
+      sessionStore()?.setItem(DECK_DOCK_WIDTH_KEY, String(value));
+    } catch {
+      /* best-effort preference */
+    }
+  };
+
+  const startDockResize = (event: MouseEvent) => {
+    if (layoutMode !== "dock" || event.button !== 0) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = dockWidth;
+    let latest = dockWidth;
+    setDockResizing(true);
+
+    const onMove = (moveEvent: MouseEvent) => {
+      latest = updateDockWidth(startWidth + startX - moveEvent.clientX);
+    };
+    const onEnd = () => {
+      setDockResizing(false);
+      saveDockWidth(latest);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onEnd);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onEnd);
+  };
+
+  const onDockResizeKeyDown = (event: KeyboardEvent) => {
+    if (layoutMode !== "dock" || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) {
+      return;
+    }
+    event.preventDefault();
+    const delta = event.key === "ArrowLeft" ? 20 : -20;
+    const next = updateDockWidth(dockWidth + delta);
+    saveDockWidth(next);
+  };
 
   const updateConversationIndex = useCallback(
     (summary: ConversationSummary) => {
@@ -348,6 +510,7 @@ export function CommandDeck() {
     turnsRef.current = completed;
     setTurns(completed);
     setPending(false);
+    setRetrievalProgress(null);
     setInFlight(false);
     return active?.kind ?? null;
   }, []);
@@ -366,7 +529,11 @@ export function CommandDeck() {
   // name in the header) and types its text in like a live reply, instead of
   // dumping the whole note at once. `agent` null falls back to a plain deck
   // turn. Pure client-side typewriter over an already-known string.
-  const streamContextTurn = useCallback((agent: string | null, fullText: string) => {
+  const streamContextTurn = useCallback((
+    agent: string | null,
+    fullText: string,
+    source = "context",
+  ) => {
     const turnId = newId();
     const shouldAnimate =
       document.visibilityState !== "hidden" &&
@@ -375,7 +542,7 @@ export function CommandDeck() {
       id: turnId,
       role: "deck",
       text: shouldAnimate ? "" : fullText,
-      source: "context",
+      source,
       streaming: shouldAnimate,
       at: shortTime(),
       ...(agent ? { agent } : {}),
@@ -398,6 +565,26 @@ export function CommandDeck() {
       window.setTimeout(step, CONTEXT_TYPE_MS);
     };
     window.setTimeout(step, CONTEXT_TYPE_MS);
+  }, []);
+
+  const hydrateDurableTurns = useCallback(async (key: string): Promise<void> => {
+    if (sessionKeyRef.current !== key || turnsRef.current.length > 0) return;
+    try {
+      const durable = await fetchConversationTurns(key);
+      if (sessionKeyRef.current !== key || turnsRef.current.length > 0 || durable.length === 0) {
+        return;
+      }
+      const restored = durable.map(restoredTurn);
+      turnsRef.current = restored;
+      setTurns(restored);
+      try {
+        sessionStore()?.setItem(transcriptKeyFor(key), serializeTurns(restored));
+      } catch {
+        /* browser cache is best-effort; durable history remains authoritative */
+      }
+    } catch {
+      /* A missing server conversation is a normal first-open cache miss. */
+    }
   }, []);
 
   // Switch the visible conversation to `key`, persisting the outgoing session
@@ -437,6 +624,7 @@ export function CommandDeck() {
       setSessionKey(key);
       setSessionLabel(agent);
       setTurns(next);
+      if (next.length === 0) void hydrateDurableTurns(key);
       setSearchQuery("");
       setActiveSearchMatch(0);
       historyRef.current = EMPTY_HISTORY;
@@ -466,7 +654,14 @@ export function CommandDeck() {
         streamContextTurn(agent, note);
       }
     },
-    [cancelActiveRequest, conversations, snapshot?.routeLabel, streamContextTurn, updateConversationIndex],
+    [
+      cancelActiveRequest,
+      conversations,
+      hydrateDurableTurns,
+      snapshot?.routeLabel,
+      streamContextTurn,
+      updateConversationIndex,
+    ],
   );
 
   const startNewConversation = useCallback(() => {
@@ -498,7 +693,27 @@ export function CommandDeck() {
       );
     }
     openDeck();
-  }, [openDeck, snapshot?.routeLabel, switchSession, userScope]);
+    if (
+      !openingBriefingLoadedRef.current.has(key)
+      && !turnsRef.current.some((turn) => turn.source === "briefing")
+    ) {
+      openingBriefingLoadedRef.current.add(key);
+      void hydrateDurableTurns(key)
+        .then(() => fetchOpeningBriefing(key))
+        .then((briefing) => {
+          if (briefing && sessionKeyRef.current === key) {
+            streamContextTurn(
+              "Bragi",
+              `**${briefing.title}**\n\n${briefing.body_markdown}`,
+              "briefing",
+            );
+          }
+        })
+        .catch(() => {
+          openingBriefingLoadedRef.current.delete(key);
+        });
+    }
+  }, [hydrateDurableTurns, openDeck, snapshot?.routeLabel, streamContextTurn, switchSession, userScope]);
 
   const removeCachedConversation = useCallback(
     (conversation: ConversationSummary) => {
@@ -543,6 +758,7 @@ export function CommandDeck() {
   // Trap Tab within the open overlay so keyboard focus cannot escape the modal
   // to the read-only page behind it (aria-modal contract).
   const onOverlayKeyDown = useCallback((e: KeyboardEvent) => {
+    if (layoutMode !== "workspace") return;
     if (e.key !== "Tab") return;
     const root = overlayRef.current;
     if (!root) return;
@@ -562,16 +778,27 @@ export function CommandDeck() {
       e.preventDefault();
       first.focus();
     }
-  }, []);
+  }, [layoutMode]);
 
   // While the deck overlay is open, mark the document so navigation-specific
   // overlay rules can apply without affecting other drawers.
   useEffect(() => {
-    const cls = "deck-open";
-    if (open) document.body.classList.add(cls);
-    else document.body.classList.remove(cls);
-    return () => document.body.classList.remove(cls);
-  }, [open]);
+    const workspaceClass = "deck-open";
+    const dockClass = "deck-dock-right";
+    const resizingClass = "deck-dock-resizing";
+    document.body.classList.toggle(workspaceClass, open && layoutMode === "workspace");
+    document.body.classList.toggle(dockClass, open && layoutMode === "dock");
+    document.body.classList.toggle(resizingClass, open && layoutMode === "dock" && dockResizing);
+    if (open && layoutMode === "dock") {
+      document.body.style.setProperty("--deck-dock-width", `${dockWidth}px`);
+    } else {
+      document.body.style.removeProperty("--deck-dock-width");
+    }
+    return () => {
+      document.body.classList.remove(workspaceClass, dockClass, resizingClass);
+      document.body.style.removeProperty("--deck-dock-width");
+    };
+  }, [dockResizing, dockWidth, layoutMode, open]);
 
   // Keyboard: Cmd/Ctrl+K, `/` opens; Escape closes.
   useEffect(() => {
@@ -696,7 +923,7 @@ export function CommandDeck() {
   // still-interactive navigation shell. A genuine click on a background control still
   // fires (click precedes focus); only the stuck-focus is corrected.
   useEffect(() => {
-    if (!open) return;
+    if (!open || layoutMode !== "workspace") return;
     const onFocusIn = (e: FocusEvent) => {
       const target = e.target as HTMLElement | null;
       if (!target) return;
@@ -707,15 +934,28 @@ export function CommandDeck() {
     };
     document.addEventListener("focusin", onFocusIn);
     return () => document.removeEventListener("focusin", onFocusIn);
-  }, [open]);
+  }, [layoutMode, open]);
 
   // Follow new content (including streaming token growth) only while the
   // operator is reading the latest turn. If they scrolled up to re-read an
   // earlier answer, an arriving reply must not yank them back down.
   const lastTurnLen = turns.length > 0 ? (turns[turns.length - 1]?.text.length ?? 0) : 0;
   useEffect(() => {
-    if (!scrollerRef.current || !stuck) return;
-    scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
+    if (!stuck) return;
+    if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
+    scrollFrameRef.current = requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      const el = scrollerRef.current;
+      if (!el) return;
+      const gap = el.scrollHeight - el.clientHeight - el.scrollTop;
+      if (gap > 1) el.scrollTop = el.scrollHeight;
+    });
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = null;
+      }
+    };
   }, [turns.length, lastTurnLen, stuck]);
 
   const onTranscriptScroll = useCallback(() => {
@@ -755,6 +995,16 @@ export function CommandDeck() {
     if (!el) return;
     el.scrollTop = el.scrollHeight;
     setStuck(true);
+  }, []);
+
+  const pinTranscriptToLatest = useCallback(() => {
+    setStuck(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = scrollerRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    });
   }, []);
 
   const searchMatches = useMemo(() => {
@@ -834,6 +1084,7 @@ export function CommandDeck() {
     setDraft("");
     historyRef.current = recordHistory(historyRef.current, text);
     setPending(true);
+    setRetrievalProgress(null);
     setSrStatus("Retrieving answer...");
     setInFlight(true);
 
@@ -884,13 +1135,20 @@ export function CommandDeck() {
     try {
       const deckId = newId();
       let started = false;
-      let acc = "";
+      let visibleAcc = "";
+      let pendingRevision = 0;
+      const preparingStartedAt = Date.now();
+      let revealTimer: number | null = null;
+      let paintFrame: number | null = null;
+      const paintQueue: string[] = [];
+      let paintDrainResolve: (() => void) | null = null;
       // Reveal the streaming reply bubble on the first token (until then the
       // RetrievalTrace "preparing answer" surface stays up).
       const ensureTurn = () => {
         if (started || !isCurrent()) return;
         started = true;
         setPending(false);
+        setRetrievalProgress(null);
         setSrStatus("Assistant is answering...");
         setTurns((prev) => {
           const next: readonly Turn[] = [
@@ -898,10 +1156,10 @@ export function CommandDeck() {
             {
               id: deckId,
               role: "deck",
-              text: "",
+              text: visibleAcc,
               streaming: true,
               terminal: false,
-              revision: 0,
+              revision: pendingRevision,
               agent: DEFAULT_NARRATOR,
               at: shortTime(),
             },
@@ -909,23 +1167,65 @@ export function CommandDeck() {
           turnsRef.current = next;
           return next;
         });
+        scheduleStreamPaint();
+        pinTranscriptToLatest();
+      };
+      const revealWhenReady = () => {
+        if (started || revealTimer !== null || !isCurrent()) return;
+        const remaining = MIN_PREPARING_VISIBLE_MS - (Date.now() - preparingStartedAt);
+        if (remaining <= 0) {
+          ensureTurn();
+          return;
+        }
+        revealTimer = window.setTimeout(() => {
+          revealTimer = null;
+          ensureTurn();
+        }, remaining);
+      };
+      const scheduleStreamPaint = () => {
+        if (!started || paintFrame !== null || paintQueue.length === 0 || !isCurrent()) return;
+        paintFrame = requestAnimationFrame(() => {
+          paintFrame = null;
+          if (!isCurrent()) return;
+          visibleAcc += drainStreamPaint(paintQueue);
+          setTurns((prev) => {
+            const next = prev.map((turn) =>
+              turn.id === deckId ? { ...turn, text: visibleAcc } : turn,
+            );
+            turnsRef.current = next;
+            return next;
+          });
+          if (paintQueue.length > 0) {
+            scheduleStreamPaint();
+          } else {
+            paintDrainResolve?.();
+            paintDrainResolve = null;
+          }
+        });
+      };
+      const waitForPaintDrain = async () => {
+        if (paintQueue.length === 0 && paintFrame === null) return;
+        await new Promise<void>((resolve) => {
+          paintDrainResolve = resolve;
+          scheduleStreamPaint();
+        });
       };
       const reply = await askBackendStream(text, snapshot, history, {
         sessionId: sessionIdFor(sessionIdsRef.current, originSessionKey),
         onToken: (delta) => {
           if (!isCurrent()) return;
-          acc += delta;
-          ensureTurn();
-          setTurns((prev) => {
-            const next = prev.map((t) => (t.id === deckId ? { ...t, text: acc } : t));
-            turnsRef.current = next;
-            return next;
-          });
+          paintQueue.push(delta);
+          revealWhenReady();
+          if (!started) return;
+          scheduleStreamPaint();
         },
         onProgress: (progress) => {
           if (!isCurrent()) return;
-          ensureTurn();
           setSrStatus(progress.label);
+          if (!started) {
+            setRetrievalProgress(progress);
+            return;
+          }
           setTurns((prev) => {
             const next = prev.map((turn) =>
               turn.id === deckId ? { ...turn, verificationProgress: progress } : turn,
@@ -936,8 +1236,10 @@ export function CommandDeck() {
         },
         onRevision: (answer, revision, status) => {
           if (!isCurrent()) return;
-          ensureTurn();
-          acc = answer;
+          visibleAcc = answer;
+          paintQueue.length = 0;
+          pendingRevision = revision;
+          revealWhenReady();
           setSrStatus(
             status === "corrected"
               ? "Answer corrected."
@@ -945,6 +1247,11 @@ export function CommandDeck() {
                 ? "Answer could not be verified."
                 : "Answer verified.",
           );
+          if (!started) return;
+          if (paintFrame !== null) {
+            cancelAnimationFrame(paintFrame);
+            paintFrame = null;
+          }
           setTurns((prev) => {
             const next = prev.map((turn) =>
               turn.id === deckId && revision > (turn.revision ?? 0)
@@ -957,7 +1264,22 @@ export function CommandDeck() {
         },
         signal: controller.signal,
       });
+      if (!started && isCurrent()) {
+        const remaining = MIN_PREPARING_VISIBLE_MS - (Date.now() - preparingStartedAt);
+        if (remaining > 0) {
+          await new Promise<void>((resolve) => window.setTimeout(resolve, remaining));
+        }
+      }
+      if (revealTimer !== null) {
+        window.clearTimeout(revealTimer);
+        revealTimer = null;
+      }
+      if (paintFrame !== null) {
+        cancelAnimationFrame(paintFrame);
+        paintFrame = null;
+      }
       ensureTurn();
+      await waitForPaintDrain();
       if (isCurrent()) {
         setTurns((prev) => {
           const next = prev.map((t) =>
@@ -973,12 +1295,15 @@ export function CommandDeck() {
                   agent: replyAgent(reply),
                   ...(reply.verification ? { verification: reply.verification } : {}),
                   ...(reply.router ? { router: reply.router } : {}),
+                  ...(reply.answerPlan ? { answerPlan: reply.answerPlan } : {}),
+                  ...(reply.codeArtifacts ? { codeArtifacts: reply.codeArtifacts } : {}),
                 }
               : t,
             );
             turnsRef.current = next;
             return next;
           });
+        pinTranscriptToLatest();
       }
     } finally {
       if (isCurrent()) {
@@ -986,12 +1311,21 @@ export function CommandDeck() {
         abortRef.current = null;
         inFlightRef.current = false;
         setPending(false);
+        setRetrievalProgress(null);
         setSrStatus(controller.signal.aborted ? "Stopped." : "Answer ready.");
         setInFlight(false);
         focusInput();
       }
     }
-  }, [snapshot, focusInput, pending, turns, conversations, updateConversationIndex]);
+  }, [
+    snapshot,
+    focusInput,
+    pending,
+    turns,
+    conversations,
+    updateConversationIndex,
+    pinTranscriptToLatest,
+  ]);
 
   const clearTurns = useCallback(() => {
     cancelActiveRequest();
@@ -1096,15 +1430,34 @@ export function CommandDeck() {
 
       {open ? (
         <div
-          class="deck-overlay"
-          role="dialog"
-          aria-modal="true"
+          class={`deck-overlay deck-overlay-mode-${layoutMode}${dragging ? " is-dragging" : ""}`}
+          role={layoutMode === "workspace" ? "dialog" : "complementary"}
+          aria-modal={layoutMode === "workspace" ? "true" : undefined}
           aria-label={t("deck.label")}
           ref={overlayRef}
+          style={deckStyle}
           onKeyDown={onOverlayKeyDown}
         >
+          <button
+            type="button"
+            class="deck-dock-resize-handle"
+            role="separator"
+            aria-label="Resize right sidebar"
+            aria-orientation="vertical"
+            aria-valuemin={340}
+            aria-valuemax={clampDockWidth(720, typeof window === "undefined" ? 1440 : window.innerWidth)}
+            aria-valuenow={dockWidth}
+            onMouseDown={startDockResize}
+            onKeyDown={onDockResizeKeyDown}
+          >
+            <span /><span /><span />
+          </button>
           <div class="deck-header">
-            <div class="deck-header-title">
+            <div
+              class="deck-header-title"
+              title={layoutMode === "floating" ? "Drag to move" : undefined}
+              onMouseDown={startFloatingDrag}
+            >
               <span class="deck-header-glyph" aria-hidden="true">◆</span>
               <span>Command deck</span>
               <span class="deck-header-sep muted">·</span>
@@ -1171,6 +1524,38 @@ export function CommandDeck() {
                 <kbd>{navigator.platform.toLowerCase().includes("mac") ? "⌘K" : "Ctrl K"}</kbd>
               </div>
             </div>
+            <div class="deck-layout-controls" aria-label="Command deck layout">
+              <button
+                type="button"
+                class="deck-layout-button"
+                aria-label="Floating panel"
+                title="Floating panel"
+                aria-pressed={layoutMode === "floating"}
+                onClick={() => selectLayoutMode("floating")}
+              >
+                <DeckLayoutIcon mode="floating" />
+              </button>
+              <button
+                type="button"
+                class="deck-layout-button"
+                aria-label="Dock right"
+                title="Dock right"
+                aria-pressed={layoutMode === "dock"}
+                onClick={() => selectLayoutMode("dock")}
+              >
+                <DeckLayoutIcon mode="dock" />
+              </button>
+              <button
+                type="button"
+                class="deck-layout-button"
+                aria-label="Full workspace"
+                title="Full workspace"
+                aria-pressed={layoutMode === "workspace"}
+                onClick={() => selectLayoutMode("workspace")}
+              >
+                <DeckLayoutIcon mode="workspace" />
+              </button>
+            </div>
             <button type="button" class="deck-close" onClick={closeDeck} aria-label="Close">
               ×
             </button>
@@ -1232,7 +1617,13 @@ export function CommandDeck() {
                     : {})}
                 />
               ))}
-              {pending ? <RetrievalTrace snapshot={snapshot} health={health} /> : null}
+              {pending ? (
+                <RetrievalTrace
+                  snapshot={snapshot}
+                  health={health}
+                  progress={retrievalProgress}
+                />
+              ) : null}
               {!stuck && turns.length > 0 ? (
                 <button
                   type="button"
@@ -1266,7 +1657,7 @@ export function CommandDeck() {
             <textarea
               ref={inputRef}
               class="deck-input"
-              placeholder="Ask anything (Enter to send, Shift+Enter for newline, Up for history, Esc to close)"
+              placeholder="Ask anything"
               value={draft}
               rows={1}
               onInput={(e) => setDraft((e.target as HTMLTextAreaElement).value)}
@@ -1305,6 +1696,30 @@ export function CommandDeck() {
         </div>
       ) : null}
     </>
+  );
+}
+
+function DeckLayoutIcon({ mode }: { readonly mode: DeckLayoutMode }) {
+  if (mode === "dock") {
+    return (
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+        <path d="M10 3v10" />
+      </svg>
+    );
+  }
+  if (mode === "workspace") {
+    return (
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M5.5 2.5h-3v3M10.5 2.5h3v3M5.5 13.5h-3v-3M10.5 13.5h3v-3" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <rect x="3" y="4" width="10" height="8" rx="1.5" />
+      <path d="M3.5 6.5h9" />
+    </svg>
   );
 }
 
@@ -1456,7 +1871,7 @@ function TurnBubble({
   return (
     <article
       id={`deck-turn-${turn.id}`}
-      class={`deck-turn deck-turn-${turn.role}${searchMatch ? " is-search-match" : ""}${activeSearchMatch ? " is-active-search-match" : ""}`}
+      class={`deck-turn deck-turn-${turn.role}${turn.streaming ? " is-streaming" : ""}${searchMatch ? " is-search-match" : ""}${activeSearchMatch ? " is-active-search-match" : ""}`}
     >
       <header class="deck-turn-head">
         {turn.agent || isDeck ? (
@@ -1493,6 +1908,8 @@ function TurnBubble({
           streaming={turn.streaming === true}
           verification={turn.verification}
           verificationProgress={turn.verificationProgress}
+          answerPlan={turn.answerPlan}
+          codeArtifacts={turn.codeArtifacts}
           {...(onRegenerate ? { onRegenerate } : {})}
         />
       ) : (

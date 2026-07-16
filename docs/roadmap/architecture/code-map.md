@@ -72,9 +72,11 @@ the safety-core modules held to the >= 90% coverage floor.
 |-----------|----------------|--------|-------|
 | knowledge | Long-term knowledge store seam | [src/fdai/core/knowledge/](../../../src/fdai/core/knowledge/) | [tests/core/knowledge/](../../../tests/core/knowledge/) |
 | operator_memory | HIL-approved operator note store | [src/fdai/core/operator_memory/](../../../src/fdai/core/operator_memory/) | [tests/core/operator_memory/](../../../tests/core/operator_memory/) |
+| briefing | Deterministic opening and scheduled briefings over the report feed | [src/fdai/core/briefing/](../../../src/fdai/core/briefing/) | [tests/core/briefing/](../../../tests/core/briefing/) |
+| user_context_projection | Metadata-only user context and workflow binding projection into the runtime ontology | [src/fdai/core/user_context_projection.py](../../../src/fdai/core/user_context_projection.py) | [tests/core/test_user_context_projection.py](../../../tests/core/test_user_context_projection.py) |
 | working_context | Per-turn prompt assembly (token-bounded) | [src/fdai/core/working_context/](../../../src/fdai/core/working_context/) | [tests/core/](../../../tests/core/) |
 | prompts | Catalog-as-code prompt composer | [src/fdai/core/prompts/](../../../src/fdai/core/prompts/) | [tests/core/](../../../tests/core/) |
-| tools | T2 tool registry + ToolExecutor | [src/fdai/core/tools/](../../../src/fdai/core/tools/) | [tests/core/tools/](../../../tests/core/tools/) |
+| tools | T2 tool registry + ToolExecutor + typed command catalog | [src/fdai/core/tools/](../../../src/fdai/core/tools/) | [tests/core/tools/](../../../tests/core/tools/) |
 | web_search | Last-resort web-search seam | [src/fdai/core/web_search/](../../../src/fdai/core/web_search/) | [tests/core/web_search/](../../../tests/core/web_search/) |
 | capability_catalog | What each agent knows how to do | [src/fdai/core/capability_catalog/](../../../src/fdai/core/capability_catalog/) | [tests/core/capability_catalog/](../../../tests/core/capability_catalog/) |
 | ontology_explorer | Deterministic Mermaid renderer for the loaded ObjectType / LinkType catalog (single module, not a package) | [src/fdai/core/ontology_explorer.py](../../../src/fdai/core/ontology_explorer.py) | [tests/core/](../../../tests/core/) |
@@ -103,7 +105,7 @@ the safety-core modules held to the >= 90% coverage floor.
 | readiness | Grounded readiness reports | [src/fdai/core/readiness/](../../../src/fdai/core/readiness/) | [tests/core/readiness/](../../../tests/core/readiness/) |
 | assurance_twin | Read-only ontology twin (never executes) | [src/fdai/core/assurance_twin/](../../../src/fdai/core/assurance_twin/) | [tests/core/assurance_twin/](../../../tests/core/assurance_twin/) |
 | architecture_review | Architecture-review manifest -> governed ontology projection | [src/fdai/core/architecture_review/](../../../src/fdai/core/architecture_review/) | [tests/core/architecture_review/](../../../tests/core/architecture_review/) |
-| workflow | Compile and run catalog Workflow with Process journal + projection retry | [src/fdai/core/workflow/](../../../src/fdai/core/workflow/) | [tests/core/workflow/](../../../tests/core/workflow/) |
+| workflow | Compile and run version-pinned WorkflowDefinition records with principal bindings, Process journal, and projection retry | [src/fdai/core/workflow/](../../../src/fdai/core/workflow/) | [tests/core/workflow/](../../../tests/core/workflow/) |
 | scheduler | Cron-shaped triggers | [src/fdai/core/scheduler/](../../../src/fdai/core/scheduler/) | [tests/core/scheduler/](../../../tests/core/scheduler/) |
 | metering | Usage metering counters | [src/fdai/core/metering/](../../../src/fdai/core/metering/) | [tests/core/metering/](../../../tests/core/metering/) |
 | measurement | Phase-4 continuous measurement | [src/fdai/core/measurement/](../../../src/fdai/core/measurement/) | [tests/core/measurement/](../../../tests/core/measurement/) |
@@ -141,6 +143,7 @@ for the fork-locked role bindings and change contract.
 | Adapter | Purpose | Source |
 |---------|---------|--------|
 | azure | Azure resource operations + probes | [src/fdai/delivery/azure/](../../../src/fdai/delivery/azure/) |
+| shell | Bash no-exec checks, private Git workspaces, and the credential-free bubblewrap command runner | [src/fdai/delivery/shell/](../../../src/fdai/delivery/shell/) |
 | azure_devops | Azure DevOps PR / pipeline gate | [src/fdai/delivery/azure_devops/](../../../src/fdai/delivery/azure_devops/) |
 | github | GitHub App / Checks API | [src/fdai/delivery/github/](../../../src/fdai/delivery/github/) |
 | gitops_pr | PR-native remediation packager | [src/fdai/delivery/gitops_pr/](../../../src/fdai/delivery/gitops_pr/) |
@@ -148,7 +151,8 @@ for the fork-locked role bindings and change contract.
 | notifications | Channel dispatch layer | [src/fdai/delivery/notifications/](../../../src/fdai/delivery/notifications/) |
 | read_api | Console read-only HTTP surface | [src/fdai/delivery/read_api/](../../../src/fdai/delivery/read_api/) |
 | provisioning | Terraform / IaC apply driver | [src/fdai/delivery/provisioning/](../../../src/fdai/delivery/provisioning/) |
-| persistence | Postgres + pgvector store | [src/fdai/delivery/persistence/](../../../src/fdai/delivery/persistence/) |
+| persistence | Postgres + pgvector store, including durable LLM metering and report-signal projections | [src/fdai/delivery/persistence/](../../../src/fdai/delivery/persistence/) |
+| document_index | Structure-aware document chunking and local embedding retrieval | [src/fdai/delivery/document_index/](../../../src/fdai/delivery/document_index/) |
 | pgvector | Vector-index helpers | [src/fdai/delivery/pgvector/](../../../src/fdai/delivery/pgvector/) |
 | datadog | Datadog metric / event adapter (`DatadogMetricProvider` in `metric.py`) | [src/fdai/delivery/datadog/](../../../src/fdai/delivery/datadog/) |
 | prometheus | Prometheus scrape adapter (`PrometheusMetricProvider` in `metric.py`) | [src/fdai/delivery/prometheus/](../../../src/fdai/delivery/prometheus/) |
@@ -158,8 +162,11 @@ for the fork-locked role bindings and change contract.
 | webhook | Generic outbound webhook + inbound `WebhookIngress` for the optional `POST /webhook` route | [src/fdai/delivery/webhook/](../../../src/fdai/delivery/webhook/) |
 | working_context | Delivery-side context assembly | [src/fdai/delivery/working_context/](../../../src/fdai/delivery/working_context/) |
 | chaos (delivery) | Live chaos-inject adapters used when a `Chaos` runbook step goes enforce - CSP-neutral `live_injectors.py` + `chaos_mesh.py` (Chaos Mesh CRDs) + `mysql_load.py` (MySQL benchmark load) | [src/fdai/delivery/chaos/](../../../src/fdai/delivery/chaos/) |
+| investigation (delivery) | Governed on-demand investigation ToolExecutor over the shared MetricProvider | [src/fdai/delivery/investigation/](../../../src/fdai/delivery/investigation/) |
+| irp (delivery) | Alert handler + EventBus proposal router that re-enters recommendations into the typed pipeline | [src/fdai/delivery/irp/](../../../src/fdai/delivery/irp/) |
 | remediation (delivery) | Concrete `DirectApiExecutor` for direct-API remediation (`live_direct_api.py`); the Protocol is defined in `shared/providers/` | [src/fdai/delivery/remediation/](../../../src/fdai/delivery/remediation/) |
 | scheduler_tick_cli | Standalone entry point that drives the scheduler tick from a cron / Container Apps Job (single module, not a package) | [src/fdai/delivery/scheduler_tick_cli.py](../../../src/fdai/delivery/scheduler_tick_cli.py) |
+| analyzer_tick_cli | Inventory-driven metric analyzer entry point that publishes findings and persists report signals | [src/fdai/delivery/analyzer_tick_cli.py](../../../src/fdai/delivery/analyzer_tick_cli.py) |
 
 ## Shared plumbing (`src/fdai/shared/`)
 

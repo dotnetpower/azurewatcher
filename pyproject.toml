@@ -85,6 +85,9 @@ dependencies = [
     # (see docs/roadmap/interfaces/user-rbac-and-identity.md § 10.2). `core/` never imports
     # it - only the delivery layer validates human tokens.
     "pyjwt[crypto]>=2.10,<3",
+    "croniter>=6,<7",
+    "azure-storage-file-datalake>=12.25,<13",
+    "aiohttp>=3.13,<4",
 ]
 
 [project.optional-dependencies]
@@ -240,3 +243,8 @@ branch = false
 fail_under = 90
 show_missing = true
 skip_covered = false
+
+[dependency-groups]
+dev = [
+    "types-croniter>=6.2.4.20260711",
+]

@@ -1,7 +1,7 @@
 ---
 translation_of: entra-app-registration.md
-translation_source_sha: d843252380b08df389f961509fcc35660bf2eb16
-translation_revised: 2026-07-11
+translation_source_sha: a379319208590226cf2f6bbaafeb3757115826ab
+translation_revised: 2026-07-16
 ---
 
 # Entra 앱 등록
@@ -40,6 +40,11 @@ Identity 입니다 ([security-and-identity.md](../roadmap/architecture/security-
 - 앱 등록을 만들고 admin consent를 부여할 수 있는 디렉터리 롤 (Application
   Administrator 또는 Cloud Application Administrator, 또는 Global
   Administrator).
+
+- 자동 배포를 사용하는 경우 self-hosted runner Managed Identity를
+  `fdai-console-spa`의 소유자로 지정하고, Microsoft Graph
+  `Application.ReadWrite.OwnedBy` application permission에 admin consent를
+  부여합니다. 그러면 workflow는 해당 identity가 소유한 앱만 업데이트할 수 있습니다.
 
 ## 1. `fdai-api` 생성
 
@@ -105,8 +110,8 @@ SPA_APPID=$(az ad app create \
   --query appId -o tsv)
 SPA_OBJID=$(az ad app show --id "$SPA_APPID" --query id -o tsv)
 
-# Local test uses the Vite dev origin; a deployment uses the console's real
-# HTTPS origin instead (e.g. https://console.<fork>).
+# Seed local Vite origins here. The deploy workflow adds the deployed console
+# HTTPS origin after Terraform creates the Static Web App.
 SCOPE_GUID=$(az ad app show --id "$API_APPID" \
   --query "api.oauth2PermissionScopes[?value=='access'].id | [0]" -o tsv)
 python3 - "$API_APPID" "$SCOPE_GUID" <<'PY' > /tmp/fdai_spa.json
@@ -124,6 +129,30 @@ az rest --method PATCH \
   --headers "Content-Type=application/json" \
   --body @/tmp/fdai_spa.json
 ```
+
+### 배포된 redirect URI 동기화 유지
+
+각 배포 대상에 다음 GitHub Actions repository variable을 설정합니다.
+
+| 변수 | 값 |
+|------|----|
+| `AZURE_TENANT_ID` | 대상 Entra tenant id. |
+| `ENTRA_CONSOLE_SPA_CLIENT_ID` | 해당 tenant의 `fdai-console-spa` application client id. |
+
+`deploy-dev.yml`을 `apply=true` 및 `deploy_console=true`로 실행하면 Terraform의
+`console_default_hostname`을 읽고 `scripts/sync-entra-spa-redirect.py`를
+실행합니다. 이 helper는 다음 작업을 수행합니다.
+
+1. 활성 Azure CLI tenant가 `AZURE_TENANT_ID`와 같은지 확인합니다.
+2. 기존 SPA redirect URI를 모두 보존하고, 배포된 HTTPS origin이 없을 때만
+   추가합니다.
+3. 앱 등록을 다시 읽고 새 URI가 보이지 않으면 배포를 실패 처리합니다.
+
+이 작업은 안전하게 재시도할 수 있습니다. 같은 tenant의 다른 subscription은 같은
+tenant-local 앱 등록을 사용합니다. 다른 tenant에 배포하려면 해당 tenant의 SPA
+client id와 그 tenant가 소유한 runner identity가 필요합니다. 변수가 없거나 tenant가
+일치하지 않거나 Graph 권한이 부족하면, 사인인이 부분 설정된 채 남지 않도록 배포가
+중단됩니다.
 
 ## 3. Service principal + 롤 할당
 

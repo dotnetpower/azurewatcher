@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -34,6 +34,15 @@ function publishingRoutes(): readonly { file: string; source: string }[] {
   return out;
 }
 
+function contractSource(file: string, routeSource: string): string {
+  const viewFile = file.replace(/\.tsx$/, ".view.ts");
+  const delegatesToViewBuilder = routeSource.includes(`./${viewFile.replace(/\.ts$/, "")}`);
+  if (delegatesToViewBuilder && existsSync(ROUTES_DIR + viewFile)) {
+    return readFileSync(ROUTES_DIR + viewFile, "utf8");
+  }
+  return routeSource;
+}
+
 describe("self-describing screen contract", () => {
   test("there is at least one publishing route (sanity)", () => {
     expect(publishingRoutes().length).toBeGreaterThan(5);
@@ -41,10 +50,11 @@ describe("self-describing screen contract", () => {
 
   for (const { file, source } of publishingRoutes()) {
     test(`${file} declares purpose + glossary from the shared catalog`, () => {
-      expect(source, `${file}: snapshot must declare a purpose`).toMatch(/\bpurpose:/);
-      expect(source, `${file}: snapshot must declare a glossary`).toMatch(/\bglossary:/);
+      const contract = contractSource(file, source);
+      expect(contract, `${file}: snapshot must declare a purpose`).toMatch(/\bpurpose:/);
+      expect(contract, `${file}: snapshot must declare a glossary`).toMatch(/\bglossary:/);
       expect(
-        source,
+        contract,
         `${file}: glossary must compose from the shared ../deck/glossary catalog`,
       ).toMatch(/from "\.\.\/deck\/glossary"/);
     });

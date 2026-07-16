@@ -49,6 +49,23 @@ class StateStore(Protocol):
         """
         ...
 
+    async def write_state_if_absent(self, key: str, value: Mapping[str, Any]) -> bool:
+        """Create tracked state only when ``key`` does not exist.
+
+        Return ``True`` when the value was created and ``False`` when an
+        existing value won the race. Implementations MUST make the check and
+        insert atomic so idempotent command handlers work across replicas.
+        """
+        ...
+
+    async def read_states(self, prefix: str, *, limit: int) -> tuple[Mapping[str, Any], ...]:
+        """Return up to ``limit`` tracked values whose key starts with ``prefix``.
+
+        Values are returned newest-first. This is a projection read; callers
+        cannot mutate the returned records.
+        """
+        ...
+
     async def append_incident_transition(self, entry: Mapping[str, Any]) -> IncidentAppendStatus:
         """Append one incident lifecycle transition.
 

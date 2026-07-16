@@ -27,6 +27,9 @@ _EXPECTED_FILES = frozenset(
         "wire_llm.py",
         "wire_azure.py",
         "wire_change_feed.py",
+        # Validates additive fork capability bundles and keeps their
+        # catalog cross-reference assembly out of the facade.
+        "wire_capabilities.py",
         # Application-level ORR wiring: composes assurance + preflight through
         # injected providers, audits the verdict, then publishes a read model.
         "readiness.py",
@@ -51,6 +54,7 @@ _PUBLIC_NAMES = (
     "bind_embedding_knowledge_source",
     "bind_github_change_feed",
     "load_pricing_table",
+    "install_capability_bundle",
     "OperationalReadinessService",
 )
 
@@ -67,6 +71,7 @@ _ALL_MEMBERS = (
     "wire_azure_container",
     "bind_azure_llm_bindings",
     "load_pricing_table",
+    "install_capability_bundle",
     "OperationalReadinessService",
 )
 

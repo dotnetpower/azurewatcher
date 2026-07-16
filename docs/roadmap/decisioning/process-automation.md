@@ -124,6 +124,33 @@ Field rules the loader enforces:
   (idempotent), or leave it null and rely on `compensated_by`. The shipped
   workflows leave `on_failure` null for this reason.
 
+### 2.2 Definitions, ownership, and bindings
+
+The catalog document and the operator's automation settings are separate
+records:
+
+- **`WorkflowDefinition`** is an immutable, content-hashed workflow document.
+  It records `origin` (`upstream`, `tenant`, or `user`), `visibility`
+  (`global`, `team`, or `private`), lifecycle, owner, provenance, the resolved
+  ActionType versions, and an ActionType catalog digest.
+- **`WorkflowBinding`** belongs to one authenticated principal and binds a
+  visible definition to `deck_open`, `schedule`, or `signal`. Schedule bindings
+  require a strict cron expression and IANA timezone; signal bindings require a
+  signal type. Parameter values stay scalar and cannot define a new action.
+
+The console groups definitions as **Built-in**, **Shared**, and **Mine**.
+Built-in definitions originate in the upstream git catalog. Shared definitions
+are tenant catalog artifacts that passed review. Mine contains private user
+definitions; **My automations** lists the principal's bindings separately so a
+new trigger or timezone reuses a definition instead of cloning its step graph.
+
+Every action step still resolves through the ActionType catalog. A binding
+cannot raise autonomy or add an unregistered action. Before a Process starts,
+the compiler pins the workflow version, definition hash, resolved ActionType
+versions, and catalog digest so replay does not depend on the current catalog.
+Sharing or promoting a private definition remains a reviewed governance flow,
+not an in-place visibility toggle.
+
 ## 3. Ontology additions
 
 Process automation adds exactly one ObjectType and two LinkTypes. This is the
@@ -262,6 +289,182 @@ Projection delivery uses a durable retry outbox:
 
 This separation lets runtime processing continue if the ontology store is briefly
 unavailable while preserving every projection intent for recovery.
+
+### 4.4 Manual shadow command
+
+You can start or resume a catalog Workflow without waiting for its production
+signal by calling the optional Contributor-gated `POST /workflows/run` command.
+The route accepts a catalog workflow name, target resource id, RFC 3339 trigger
+timestamp, and bounded string context. It invokes the same
+`WorkflowOrchestrator` used by event triggers. The orchestrator is shadow-only
+by construction, so the command writes Process and audit records but cannot
+change a cloud resource.
+
+The local dev composition wires the command and the Processes read routes to
+the same `ProcessRuntimeStore`. Use the CLI wrapper to exercise it:
+
+```bash
+FDAI_READ_API_DEV_MODE=1 uv run uvicorn \
+  'fdai.delivery.read_api.dev.local:app' --factory --port 8000
+
+uv run python scripts/run-workflow.py architecture-review \
+  --target fdai-control-plane
+```
+
+The response includes the Process id and links to its snapshot, journal, and
+console route. Reusing the same `trigger_ts` and target resumes the same
+safe-to-retry (idempotent) Process, which supports wait, approval, and decision
+context without creating a duplicate run. Production compositions opt in by
+injecting `WorkflowExecutionConfig`; leaving it unset registers no command
+route. The SPA does not call this endpoint. CLI and ChatOps are the command
+channels, and the console remains a read-only status surface.
+
+### 4.5 Governed Python tasks and cron schedules
+
+A Workflow can reference `tool.run-python-on-vm` to run a generated Python
+artifact on an ontology-selected compute Resource. `PythonTask` stores the
+immutable manifest and content hash. `VmTaskRun` stores one plan or execution
+receipt. The `executes_task` and `runs_on` links make the artifact and target
+traversable without placing source code in the Process journal or event bus.
+
+The authoring path separates six operations:
+
+1. `POST /python-tasks/generate` asks the injected `PythonTaskAuthor` for an
+  editable JSON source bundle grounded in the selected target capabilities and
+  allowlisted modules. The returned draft is statically validated and never
+  auto-staged.
+2. `POST /python-tasks/validate` parses and compiles the AST without executing
+  it. It rejects traversal, embedded secret markers, dynamic `eval` / `exec`,
+  undeclared external modules, undeclared host capabilities, and an inline
+  artifact larger than 64 KiB. Larger bundles require a future
+  managed-identity object-storage staging adapter rather than a larger Run
+  Command body.
+3. `POST /python-tasks/stage` immutably stores a valid content-addressed
+  artifact. Rewriting the same `task_id@version` with different content is
+  blocked.
+4. `POST /python-tasks/test` resolves the target from active inventory and
+  returns a shadow plan. The read API binds `PlanningVmTaskRunner`, which has
+  no executor identity and cannot copy files or run code.
+5. `POST /python-tasks/request-run` publishes only the artifact reference,
+  target Resource reference, and reason as an `ActionProposal`. The ordinary
+  control loop normalizes the proposal into a canonical Event, validates its
+  trigger and arguments against the referenced ActionType, loads trusted
+  target properties from active inventory, and applies the unified risk gate.
+  The Owner HIL ceiling and `ToolCallShadowExecutor` govern live work.
+6. `POST /python-tasks/schedule` binds a staged artifact, inventory target,
+   catalog Workflow, and strict cron expression into the persistent scheduler.
+   It records a future typed event; it does not contact the VM.
+
+The headless core binds `VmPythonToolExecutor` when
+`FDAI_VM_TASK_ENABLED=1`. Shadow dispatch calls the runner with `dry_run=true`.
+Enforce dispatch additionally requires `FDAI_VM_TASK_ENFORCE=1`; the Azure
+adapter resolves the provider ARM reference from active inventory, creates a
+Managed Run Command resource through the executor Managed Identity, stages
+base64-encoded files, and rechecks every SHA-256 digest on every invocation,
+including a cached artifact. It then verifies GPU and required modules and runs
+the entrypoint as the pre-created `fdai-task` user.
+The Run Command invokes a root-owned launcher that creates a transient systemd
+unit: source is read-only, output is confined to the per-run directory,
+network/process/device access follows declared capabilities, privilege
+escalation is disabled, and host credential paths are inaccessible. It never
+installs packages. Deleting the Run Command resource cancels an in-flight run;
+the content-addressed artifact remains an immutable cache. A status polling
+failure or local coroutine cancellation also attempts to delete the remote Run
+Command before reporting the terminal result.
+The reusable [`vm-task-host`](../../../infra/modules/vm-task-host) Terraform
+module produces the VM cloud-init profile. The separate
+[`vm-task-rbac`](../../../infra/modules/vm-task-rbac) module grants only VM read
+plus Managed Run Command read/write/delete at the target VM scope. Neither
+creates or starts a VM; a downstream composition passes the host profile into
+an approved GPU VM image that already contains Python, drivers, CUDA, and
+approved modules, then binds RBAC after the VM exists.
+The host module's `inventory_tags` output sets `fdai:vm-task-ready=true` and
+the declared `fdai:capabilities` list. The target resolver refuses an active
+inventory VM without that explicit opt-in and cross-checks GPU capability from
+the VM SKU (`NC`, `ND`, or `NV` family).
+
+Schedule-triggered Workflows use strict five-field cron expressions. The
+scheduler stores the cron alongside interval tasks, emits at most once per
+matching minute, and stores the catalog Workflow reference alongside the task.
+For a single-action scheduled Workflow, `scheduled_task_from_workflow()` also
+materializes a typed `action_proposal`. At due time the scheduler publishes it
+as the same raw `operator_request` used by an immediate request. `EventIngest`
+normalizes both forms, and `ActionBuilder` preserves only arguments allowed by
+the ActionType schema. The control loop loads the target environment from
+active inventory rather than trusting the proposal, parks the complete Action
+and policy context for Owner approval, and dispatches an approved request
+through the declared tool executor. The optional Pantheon runtime observes the
+same topic in shadow; it is not a second execution authority. The binding
+supplies one target and artifact without embedding either environment value in
+the upstream YAML.
+
+The local read API uses the same authoritative ControlLoop with in-memory task,
+inventory, audit, and HIL adapters. A Workflow Builder run request therefore
+reaches the Owner approval gate and emits route, gate, and terminal audit frames
+to `/live/stream`; the dev harness never auto-approves the parked action.
+
+### 4.6 Governed command and shell artifacts
+
+Generated Python tasks no longer receive the `process` capability. Static
+validation rejects it even when the source does not appear to spawn a child.
+This fail-closed default prevents generated Python from invoking an arbitrary
+binary from the task host `PATH` before a typed command broker is available.
+
+The command foundation separates intent, resolution, and execution:
+
+- **Typed catalog**: `CommandCatalog` accepts a registered `command_id`, typed
+  request arguments, and server-owned trusted values. It produces a frozen
+  `CommandPlan`; the request cannot select an executable, raw argv, environment,
+  credential profile, network profile, working directory, subscription, or
+  project.
+- **Runner seam**: `CommandRunner` receives only a resolved plan. The upstream
+  default remains `RecordingCommandRunner`, which keeps dry-run as a real no-op.
+  The opt-in `BubblewrapCommandRunner` executes `local_read` plans only: it
+  resolves an opaque ref beneath a private workspace root, mounts that workspace
+  and configured runtimes read-only, unshares the network, drops capabilities,
+  exposes only a private tmpfs, starts a new process group, and enforces timeout
+  and stdout/stderr byte caps. It rejects workspace-write, cloud, and credentialed
+  plans before process creation.
+- **Shell artifact**: `ShellTaskSpec` stores a content-addressed, credential-free
+  Bash bundle. Structural validation permits local constructs such as loops,
+  pipes, and heredocs, while refusing cloud CLIs, privilege-escalation tools,
+  protected host paths, metadata endpoints, embedded secret markers, `eval`,
+  `exec`, `source`, xtrace, and any non-offline network profile.
+- **No-exec syntax check**: `BashSyntaxChecker` invokes a pinned absolute Bash
+  path with `--noprofile --norc -n` and source on stdin. Its minimal environment,
+  timeout, and stderr cap make syntax checking bounded; `-n` parses commands but
+  does not execute them. ShellCheck remains required before a future live runner.
+- **Private workspace patch**: `CodePatchSet` targets only a content-addressed
+  `workspace_ref` and carries the base revision, one operation per repository-
+  relative path, the expected before hash, and the after-content hash. Validation
+  blocks traversal, duplicate operations, runtime/generated files, binary text,
+  and oversized changes. No upstream provider applies a patch to the active
+  runtime checkout. `GitCodeWorkspaceProvider` clones a committed revision with
+  no hardlinks, removes its origin, preserves source-checkout WIP, and materializes
+  each validated patch as a new copy-on-write workspace. Stale hashes, symlink
+  traversal, and protected paths are rechecked at the apply boundary.
+
+The upstream command catalog initially exposes only `local.git.status`, scoped
+`local.git.diff`, targeted `local.python.pytest`, targeted `local.python.ruff`,
+and the Azure read operation `azure.resource.list`. Local commands require a
+private workspace reference. The Azure command gets its subscription and
+credential profile from trusted composition values, not from model arguments.
+No cloud mutation, raw REST, recursive object-store operation, or arbitrary
+command entry exists in this catalog. The opt-in `AzureCliCommandRunner` supports
+that one read command. It creates a private `AZURE_CONFIG_DIR` per invocation,
+logs in with a configured user-assigned Managed Identity, disables dynamic
+extension installation, rechecks the active subscription, and validates the
+exact argv shape before invoking Azure CLI. Dry-run performs no login. The
+adapter is available for composition but is not bound by the upstream app.
+
+These contracts reuse the existing execution paths. Local checks and read-only
+result artifacts attach through `tool_call`; cloud substrate mutations remain
+`direct_api`; fixed operating procedures remain `run_runbook`. A generic
+`shell_exec` path and model-authored privileged `bash -c` command are not
+supported. Shell artifacts themselves still do not execute: `BashSyntaxChecker`
+only parses, while `BubblewrapCommandRunner` runs catalog-resolved argv. A future
+shell-artifact compiler must add ShellCheck, convert every external operation to
+a command id, and produce audit receipts before a complete script can run.
 
 
 ## 5. Saga compensation
@@ -485,9 +688,18 @@ Each artifact has one responsibility:
   catalog-as-code under [`rule-catalog/views/`](../../../rule-catalog/views/).
 - **ViewEngine** resolves the Process, matching ViewSpec, and reports into a bounded
   `RenderedView`. Reader-gated `GET /views/process` and
-  `GET /views/process/{process_id}` expose the list and detail projections.
+  `GET /views/process/{process_id}` expose the list and workflow-specific detail
+  projections. `GET /views/process/{process_id}/events` returns the authoritative
+  snapshot and append-only event journal for every Process, including workflows
+  that don't register a ViewSpec.
 - **Generic console renderer** supports the approved widget vocabulary only. It
   never turns arbitrary ontology properties into executable UI or action buttons.
+
+The **Processes** route lists every run, summarizes active, completed, and failed
+counts, and renders the selected Process timeline from oldest event to newest.
+Operators can refresh the read projection after a CLI or ChatOps command advances
+the Process. A workflow-specific ViewSpec, when available, appears below the
+runtime journal. The screen exposes no start, approve, retry, or execute button.
 
 The architecture map remains separate. It visualizes the actual infrastructure
 topology returned by the inventory graph. Process views visualize workflow state

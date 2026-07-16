@@ -11,7 +11,7 @@ fault_family: stop
 intensity: extreme
 duration_seconds: 720.0
 expected_signal: pod_restart
-injector: needs-injector
+injector: litmus:node-drain
 blast_radius_cap: 1
 rollback_note: Uncordon the node on ChaosEngine deletion; pods reschedule.
 gates:

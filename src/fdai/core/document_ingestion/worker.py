@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from uuid import UUID
 
 from fdai.core.document_ingestion.state_machine import transition
 from fdai.shared.contracts import (
+    DocumentEnvelope,
     DocumentState,
     DocumentVersion,
     MalwareVerdict,
@@ -23,7 +24,9 @@ from fdai.shared.providers.document_ingestion import (
     DocumentIndex,
     DocumentMetadataStore,
     DocumentObjectStore,
+    DocumentReadyConsumer,
     MalwareScanner,
+    PromotableDocumentObjectStore,
     ProtectionInspector,
 )
 
@@ -51,6 +54,7 @@ class DocumentIngestionWorker:
         artifacts: DocumentArtifactStore,
         index: DocumentIndex,
         activity: DocumentActivitySink,
+        consumers: Iterable[DocumentReadyConsumer] = (),
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._access = access
@@ -62,6 +66,7 @@ class DocumentIngestionWorker:
         self._artifacts = artifacts
         self._index = index
         self._activity = activity
+        self._consumers = {consumer.purpose: consumer for consumer in consumers}
         self._clock = clock or (lambda: datetime.now(tz=UTC))
 
     async def process(self, upload_id: UUID) -> DocumentVersion:
@@ -122,18 +127,26 @@ class DocumentIngestionWorker:
         try:
             await self._artifacts.put(envelope)
             await self._index.commit(envelope)
+            consumer_warnings = await self._consume(session, envelope)
+            if session.storage_mode is SourceStorageMode.MANAGED_COPY and isinstance(
+                self._objects, PromotableDocumentObjectStore
+            ):
+                promoted_key = await self._objects.promote(session)
+                session = session.model_copy(update={"object_key": promoted_key})
+                await self._metadata.save_upload(session)
         except Exception:  # noqa: BLE001 - no partially indexed document becomes available
             await self._index.delete(version.document_id, version.version_id)
             await self._artifacts.delete(version.document_id, version.version_id)
             return await self._fail(session, version, "indexing_failed")
 
-        target = DocumentState.READY_WITH_WARNINGS if envelope.warnings else DocumentState.READY
+        warnings = envelope.warnings + consumer_warnings
+        target = DocumentState.READY_WITH_WARNINGS if warnings else DocumentState.READY
         session, version = await self._advance(session, version, target)
         version = version.model_copy(
             update={
                 "active": True,
                 "available": True,
-                "warnings": envelope.warnings,
+                "warnings": warnings,
                 "updated_at": self._clock(),
             }
         )
@@ -143,11 +156,26 @@ class DocumentIngestionWorker:
             await self._objects.delete(session.object_key)
         return version
 
+    async def _consume(self, session: UploadSession, envelope: DocumentEnvelope) -> tuple[str, ...]:
+        warnings: list[str] = []
+        for purpose in envelope.purposes:
+            consumer = self._consumers.get(purpose)
+            if consumer is not None:
+                warnings.extend(await consumer.consume(session=session, envelope=envelope))
+        return tuple(warnings)
+
     async def delete(
-        self, *, actor_id: str, document_id: UUID, version_id: UUID
+        self,
+        *,
+        actor_id: str,
+        document_id: UUID,
+        version_id: UUID,
+        actor_groups: frozenset[str] = frozenset(),
     ) -> DocumentVersion:
         version = await self._metadata.get_version(document_id, version_id)
-        await self._access.authorize_delete(actor_id=actor_id, version=version)
+        await self._access.authorize_delete(
+            actor_id=actor_id, actor_groups=actor_groups, version=version
+        )
         if version.retention.legal_hold:
             raise ValueError("document version is subject to legal hold")
         session = await self._metadata.get_upload(version.upload_id)

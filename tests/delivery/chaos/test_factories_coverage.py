@@ -37,6 +37,9 @@ def _synthetic_context() -> dict[str, Any]:
         "workload_namespace": "demo",
         "workload_label": "api-backend",
         "chaos_namespace": "chaos-mesh",
+        "litmus_namespace": "litmus",
+        "litmus_service_account": "litmus-admin",
+        "litmus_target_node": "node-test",
         "backend_deployment": "api-backend",
         "backend_service": "api-backend",
         "backend_container": "web",
@@ -53,6 +56,14 @@ def _synthetic_context() -> dict[str, Any]:
         "lb_pool_name": "pool-test",
         "lb_address_name": "addr-test",
         "servicebus_namespace": "sb-test",
+        "mysql_connect_factory": lambda: None,
+        "mysql_server_resource_id": (
+            "/subscriptions/00000000-0000-0000-0000-000000000000"
+            "/resourceGroups/rg-test/providers/Microsoft.DBforMySQL"
+            "/flexibleServers/mysql-test"
+        ),
+        "aoai_load_request_fn": lambda: 200,
+        "aoai_probe_request_fn": lambda: 429,
         "vm_resource_id": (
             "/subscriptions/00000000-0000-0000-0000-000000000000"
             "/resourceGroups/rg-test/providers/Microsoft.Compute"
@@ -129,3 +140,4 @@ def test_executable_count_matches_catalog_split() -> None:
         "is a NON_EXECUTABLE_MARKERS injector - a probe gap would silently "
         "drop entries into non-executable and break this invariant."
     )
+    assert len(executable) == 92

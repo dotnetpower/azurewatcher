@@ -15,10 +15,11 @@
  * actor is not a known agent are grouped under "System".
  */
 
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import type { ReadApiClient } from "../api";
 import type { AuditItem } from "../types";
+import { AgentWorkspaceNav } from "../components/agent-workspace-nav";
 import {
   AsyncBoundary,
   EmptyState,
@@ -29,8 +30,29 @@ import {
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, agentTerm, composeGlossary } from "../deck/glossary";
+import { agentStreamDescriptor, useAgentStream, type AgentStreamStatus } from "../hooks/use-agent-stream";
 import { t } from "../i18n";
-import { routeHref } from "../router";
+import { currentRoute, navigate, routeHref } from "../router";
+import {
+  ActivityToolbar,
+  filterAgentActivity,
+  GroupedAgentActivity,
+  type ActivityFilters,
+  type ActivityLayer,
+  type ActivityVerb,
+  type ActivityWindow,
+} from "./agent-activity-groups";
+import {
+  activeAgentCount,
+  AGENT_ROLE,
+  incidentsForAgent,
+  makeInitialState,
+  reducer,
+  STATE_TASK,
+  type AgentNode,
+  type AgentsState,
+  type Incident,
+} from "./agents.model";
 
 interface Props {
   readonly client: ReadApiClient;
@@ -137,13 +159,6 @@ function modePill(mode: string): PillKind {
   if (mode === "enforce") return "enforce";
   if (mode === "shadow") return "shadow";
   return "neutral";
-}
-
-/** HH:MM:SS in the browser locale for a compact timeline stamp. */
-function stamp(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleTimeString();
 }
 
 /** Epoch millis for an ISO stamp, or 0 when unparseable. */
@@ -281,44 +296,97 @@ interface Data {
   readonly olderAvailable: boolean;
 }
 
-type ActivityView = "waterfall" | "timeline";
+type ActivityView = "activity" | "waterfall";
+
+function activityFiltersFromRoute(): ActivityFilters {
+  const search = currentRoute().search;
+  const window = search.get("window");
+  const layer = search.get("layer");
+  const verb = search.get("verb");
+  return {
+    window: window === "15m" || window === "24h" || window === "7d" ? window : "1h",
+    layer: layer === "governance" || layer === "pipeline" || layer === "domain" ? layer : "all",
+    verb: verb === "execute" || verb === "approve" || verb === "reject" ||
+      verb === "rollback" || verb === "abstain" || verb === "audit" ? verb : "all",
+    query: search.get("q") ?? "",
+  };
+}
 
 export function AgentActivityRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<Data>>({ status: "loading" });
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastEventAt, setLastEventAt] = useState<string | null>(null);
+  const [runtime, dispatch] = useReducer(reducer, undefined, makeInitialState);
+  const requestGeneration = useRef(0);
+  const lastStreamRefresh = useRef(0);
+  const stream = useMemo(agentStreamDescriptor, []);
+
+  async function loadAudit(showLoading: boolean): Promise<void> {
+    const generation = requestGeneration.current + 1;
+    requestGeneration.current = generation;
+    if (showLoading) setState({ status: "loading" });
+    else setRefreshing(true);
+    try {
+      const page = await client.listAudit({ limit: TIMELINE_LIMIT });
+      if (requestGeneration.current === generation) {
+        setState({
+          status: "ready",
+          data: { items: page.items, olderAvailable: page.next_cursor !== null },
+        });
+      }
+    } catch (err) {
+      if (requestGeneration.current === generation) {
+        setState({
+          status: "error",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    } finally {
+      if (requestGeneration.current === generation) setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const page = await client.listAudit({ limit: TIMELINE_LIMIT });
-        if (!cancelled) {
-          setState({
-            status: "ready",
-            data: { items: page.items, olderAvailable: page.next_cursor !== null },
-          });
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setState({
-            status: "error",
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-    })();
+    void loadAudit(true);
     return () => {
-      cancelled = true;
+      requestGeneration.current += 1;
     };
   }, [client]);
 
+  const { status: streamStatus } = useAgentStream({
+    url: stream.url,
+    getAuthorizationHeader: client.authorizationHeader,
+    onEvent: (message) => {
+      dispatch({ kind: "message", msg: message });
+      setLastEventAt(message.ts);
+      const now = Date.now();
+      if (now - lastStreamRefresh.current < 1500) return;
+      lastStreamRefresh.current = now;
+      void loadAudit(false);
+    },
+  });
+
   return (
     <div class="stack">
+      <AgentWorkspaceNav />
       <PageHeader
         title={t("route.agentActivity")}
-        subtitle="Per-agent timeline reconstructed from the audit log - which agent did what, when, and how. Read-only projection of the same append-only record."
+        subtitle={stream.source === "local"
+          ? "Local live state plus its per-agent audit projection. The stream is quiet unless scenario replay is explicitly enabled."
+          : "Per-agent runtime state and audit timeline - which agent did what, when, and how. Read-only projection of the configured event stream."}
       />
       <AsyncBoundary state={state} resourceLabel="agent activity">
-        {(data) => <ActivityBody data={data} />}
+        {(data) => (
+          <ActivityBody
+            data={data}
+            runtime={runtime}
+            streamStatus={streamStatus}
+            streamSource={stream.source}
+            liveAgents={activeAgentCount(runtime)}
+            lastEventAt={lastEventAt}
+            refreshing={refreshing}
+          />
+        )}
       </AsyncBoundary>
     </div>
   );
@@ -326,19 +394,91 @@ export function AgentActivityRoute({ client }: Props) {
 
 interface BodyProps {
   readonly data: Data;
+  readonly runtime: AgentsState;
+  readonly streamStatus: AgentStreamStatus;
+  readonly streamSource: "local" | "live";
+  readonly liveAgents: number;
+  readonly lastEventAt: string | null;
+  readonly refreshing: boolean;
 }
 
-function ActivityBody({ data }: BodyProps) {
+function ActivityBody({
+  data,
+  runtime,
+  streamStatus,
+  streamSource,
+  liveAgents,
+  lastEventAt,
+  refreshing,
+}: BodyProps) {
   const [selected, setSelected] = useState<string | null>(
-    () => new URLSearchParams(window.location.search).get("agent"),
+    () => currentRoute().search.get("agent"),
   );
-  const [view, setView] = useState<ActivityView>("waterfall");
+  const [view, setView] = useState<ActivityView>(
+    () => currentRoute().search.get("view") === "waterfall" ? "waterfall" : "activity",
+  );
+  const [filters, setFilters] = useState<ActivityFilters>(activityFiltersFromRoute);
+
+  const filtered = useMemo(
+    () => filterAgentActivity(data.items, filters, agentOf),
+    [data.items, filters],
+  );
+  const requestedStep = Number(currentRoute().search.get("step"));
+  const waterfallItems = useMemo(() => {
+    if (!Number.isInteger(requestedStep) || requestedStep <= 0) return filtered;
+    if (filtered.some((item) => item.seq === requestedStep)) return filtered;
+    const requested = data.items.find((item) => item.seq === requestedStep);
+    return requested ? [requested, ...filtered] : filtered;
+  }, [data.items, filtered, requestedStep]);
+
+  useEffect(() => {
+    const sync = () => {
+      const route = currentRoute();
+      setSelected(route.search.get("agent"));
+      setView(route.search.get("view") === "waterfall" ? "waterfall" : "activity");
+      setFilters(activityFiltersFromRoute());
+    };
+    window.addEventListener("popstate", sync);
+    window.addEventListener("fdai:route-changed", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("fdai:route-changed", sync);
+    };
+  }, []);
+
+  const openActivity = (agent: string | null, nextView: ActivityView): void => {
+    navigate(routeHref("agent-activity", {
+      params: {
+        agent,
+        view: nextView === "activity" ? null : nextView,
+        step: nextView === "waterfall" ? currentRoute().search.get("step") : null,
+        window: filters.window === "1h" ? null : filters.window,
+        layer: filters.layer === "all" ? null : filters.layer,
+        verb: filters.verb === "all" ? null : filters.verb,
+        q: filters.query || null,
+      },
+    }));
+  };
+  const openFilters = (next: ActivityFilters): void => {
+    const href = routeHref("agent-activity", {
+      params: {
+        agent: selected,
+        view: view === "activity" ? null : view,
+        step: view === "waterfall" ? currentRoute().search.get("step") : null,
+        window: next.window === "1h" ? null : next.window,
+        layer: next.layer === "all" ? null : next.layer,
+        verb: next.verb === "all" ? null : next.verb,
+        q: next.query || null,
+      },
+    });
+    navigate(href, next.query !== filters.query);
+  };
 
   // Newest first: the audit projection already returns newest-first, so
   // preserve that order for the timeline.
   const perAgent = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const item of data.items) {
+    for (const item of filtered) {
       const agent = agentOf(item);
       counts.set(agent, (counts.get(agent) ?? 0) + 1);
     }
@@ -352,15 +492,23 @@ function ActivityBody({ data }: BodyProps) {
       if (ra !== rb) return ra - rb;
       return b[1] - a[1];
     });
-  }, [data.items]);
+  }, [filtered]);
 
   const visible = useMemo(
     () =>
       selected === null
-        ? data.items
-        : data.items.filter((item) => agentOf(item) === selected),
-    [data.items, selected],
+        ? filtered
+        : filtered.filter((item) => agentOf(item) === selected),
+    [filtered, selected],
   );
+  const selectedNode = selected ? runtime.agents[selected] : undefined;
+  const selectedIncidents = useMemo(
+    () => selected ? incidentsForAgent(runtime, selected) : [],
+    [runtime, selected],
+  );
+  const selectedAuditCount = selected
+    ? (perAgent.find(([agent]) => agent === selected)?.[1] ?? 0)
+    : filtered.length;
 
   usePublishViewContext(
     () => ({
@@ -389,6 +537,12 @@ function ActivityBody({ data }: BodyProps) {
         { key: "agents", value: perAgent.length, group: "page" },
         { key: "filter", value: selected ?? "all", group: "page" },
         { key: "older_available", value: data.olderAvailable, group: "page" },
+        { key: "stream_status", value: streamStatus, group: "runtime" },
+        { key: "stream_source", value: streamSource, group: "runtime" },
+        { key: "live_agents", value: liveAgents, group: "runtime" },
+        { key: "window", value: filters.window, group: "filters" },
+        { key: "layer", value: filters.layer, group: "filters" },
+        { key: "verb", value: filters.verb, group: "filters" },
       ],
       records: {
         by_agent: perAgent.map(([agent, count]) => ({ agent, count })),
@@ -413,7 +567,17 @@ function ActivityBody({ data }: BodyProps) {
         })),
       },
     }),
-    [data.items, data.olderAvailable, perAgent, selected, visible],
+    [
+      data.items,
+      data.olderAvailable,
+      perAgent,
+      selected,
+      visible,
+      streamStatus,
+      streamSource,
+      liveAgents,
+      filters,
+    ],
   );
 
   if (data.items.length === 0) {
@@ -427,6 +591,23 @@ function ActivityBody({ data }: BodyProps) {
 
   return (
     <div class="stack">
+      <ActivityToolbar
+        filters={filters}
+        onChange={openFilters}
+        streamStatus={streamStatus}
+        streamSource={streamSource}
+        liveAgents={liveAgents}
+        lastEventAt={lastEventAt}
+        refreshing={refreshing}
+      />
+      {selectedNode ? (
+        <LiveAgentActivity
+          node={selectedNode}
+          incidents={selectedIncidents}
+          auditCount={selectedAuditCount}
+          streamStatus={streamStatus}
+        />
+      ) : null}
       {data.olderAvailable ? (
         <p class="muted footnote">Showing the latest {data.items.length} audit rows; older activity is available in the Audit log.</p>
       ) : null}
@@ -435,10 +616,10 @@ function ActivityBody({ data }: BodyProps) {
           type="button"
           class={`agent-chip ${selected === null ? "agent-chip-on" : ""}`}
           aria-pressed={selected === null}
-          onClick={() => setSelected(null)}
+          onClick={() => openActivity(null, view)}
         >
           All
-          <span class="agent-chip-count">{data.items.length}</span>
+          <span class="agent-chip-count">{filtered.length}</span>
         </button>
         {perAgent.map(([agent, count]) => (
           <button
@@ -447,82 +628,124 @@ function ActivityBody({ data }: BodyProps) {
             class={`agent-chip ${selected === agent ? "agent-chip-on" : ""}`}
             aria-pressed={selected === agent}
             data-layer={layerOf(agent)}
-            onClick={() => setSelected((s) => (s === agent ? null : agent))}
+            onClick={() => openActivity(selected === agent ? null : agent, view)}
           >
             <span class="agent-dot" data-layer={layerOf(agent)} aria-hidden="true" />
             {agent}
             <span class="agent-chip-count">{count}</span>
           </button>
         ))}
+        {selected && !perAgent.some(([agent]) => agent === selected) ? (
+          <button
+            type="button"
+            class="agent-chip agent-chip-on"
+            aria-pressed="true"
+            data-layer={layerOf(selected)}
+            onClick={() => openActivity(null, view)}
+          >
+            <span class="agent-dot" data-layer={layerOf(selected)} aria-hidden="true" />
+            {selected}
+            <span class="agent-chip-count">0</span>
+          </button>
+        ) : null}
       </div>
 
       <div class="view-toggle" role="group" aria-label="Activity view">
         <button
           type="button"
           class="view-toggle-btn"
-          aria-pressed={view === "waterfall"}
-          onClick={() => setView("waterfall")}
+          aria-pressed={view === "activity"}
+          onClick={() => openActivity(selected, "activity")}
         >
-          Waterfall
+          Activity
         </button>
         <button
           type="button"
           class="view-toggle-btn"
-          aria-pressed={view === "timeline"}
-          onClick={() => setView("timeline")}
+          aria-pressed={view === "waterfall"}
+          onClick={() => openActivity(selected, "waterfall")}
         >
-          Timeline
+          Waterfall
         </button>
       </div>
 
-      {view === "timeline" ? (
-        <ol class="timeline" aria-label="Agent activity timeline">
-          {visible.map((item) => (
-            <TimelineRow key={item.seq} item={item} />
-          ))}
-        </ol>
+      {visible.length === 0 ? (
+        <EmptyState
+          title={selected ? `No recorded audit activity for ${selected}` : "No activity matches these filters"}
+          body={selected
+            ? "Live state is shown above. This agent has no attributed audit row in the current window yet."
+            : "Widen the window or clear the layer, verb, agent, and search filters."}
+        />
+      ) : view === "activity" ? (
+        <GroupedAgentActivity items={visible} agentOf={agentOf} layerOf={layerOf} />
       ) : (
-        <Waterfall items={data.items} selected={selected} />
+        <Waterfall items={waterfallItems} selected={selected} />
       )}
     </div>
   );
 }
 
-function TimelineRow({ item }: { readonly item: AuditItem }) {
-  const agent = agentOf(item);
-  const layer = layerOf(agent);
-  const outcome = outcomeOf(item);
-  const summary = summaryOf(item);
-  const tier = tierOf(item);
-
+function LiveAgentActivity({
+  node,
+  incidents,
+  auditCount,
+  streamStatus,
+}: {
+  readonly node: AgentNode;
+  readonly incidents: readonly Incident[];
+  readonly auditCount: number;
+  readonly streamStatus: AgentStreamStatus;
+}) {
+  const role = AGENT_ROLE[node.name];
+  const activeIncident = node.correlationId
+    ? incidents.find((incident) => incident.correlationId === node.correlationId)
+    : undefined;
   return (
-    <li class="timeline-row">
-      <span class="timeline-marker" data-layer={layer} aria-hidden="true" />
-      <div class="timeline-card">
-        <div class="timeline-head">
-          <span class="timeline-agent" data-layer={layer}>
-            {agent}
-          </span>
-          <span class="timeline-action mono">{item.action_kind}</span>
-          <span class="timeline-time mono muted">{stamp(item.recorded_at)}</span>
+    <section class="aa-selected-agent" aria-label={`${node.name} live activity`}>
+      <header>
+        <div>
+          <span>Live now</span>
+          <h3>{node.name} <small>{role?.title ?? node.layer}</small></h3>
         </div>
-        {summary ? <p class="timeline-summary">{summary}</p> : null}
-        <div class="timeline-meta">
-          {tier ? <span class="timeline-tier mono">{tier}</span> : null}
-          <StatusPill kind={modePill(item.mode)} label={item.mode} />
-          {outcome ? <StatusPill kind={outcomePill(outcome)} label={outcome} /> : null}
-          {item.correlation_id ? (
-            <a
-              class="timeline-corr mono"
-              href={routeHref("trace", { params: { correlation: item.correlation_id } })}
-              title="Open this correlation in the Trace panel"
-            >
-              {item.correlation_id}
-            </a>
-          ) : null}
+        <span class={`aa-selected-state state-${node.state}`}>{node.state}</span>
+      </header>
+      <p>{node.detail ?? STATE_TASK[node.state]}</p>
+      <dl>
+        <div><dt>Stream</dt><dd>{streamStatus}</dd></div>
+        <div><dt>Active incident</dt><dd>{activeIncident?.ticketId ?? node.correlationId ?? "None"}</dd></div>
+        <div><dt>Live incidents</dt><dd>{incidents.length}</dd></div>
+        <div><dt>Audit rows</dt><dd>{auditCount}</dd></div>
+      </dl>
+      <nav aria-label={`${node.name} evidence links`}>
+        <a href={routeHref("agents", { params: { view: "org", agent: node.name, correlation: node.correlationId } })}>
+          Open live detail
+        </a>
+        {node.correlationId ? (
+          <>
+            <a href={routeHref("incidents", { params: { status: "all", correlation: node.correlationId } })}>Incident</a>
+            <a href={routeHref("trace", { params: { correlation: node.correlationId } })}>Trace</a>
+          </>
+        ) : null}
+      </nav>
+      {incidents.length > 0 ? (
+        <div class="aa-selected-incidents">
+          <strong>Recent live incidents</strong>
+          <ul>
+            {incidents.slice(0, 5).map((incident) => (
+              <li key={incident.correlationId}>
+                <a href={routeHref("agents", {
+                  params: { view: "org", agent: node.name, correlation: incident.correlationId },
+                })}>
+                  <span>{incident.ticketId || "Incident"}</span>
+                  <span>{incident.title}</span>
+                  <small>{incident.status}</small>
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
-      </div>
-    </li>
+      ) : null}
+    </section>
   );
 }
 
@@ -620,7 +843,38 @@ function Waterfall({
   // Collapsed correlation ids (default: all expanded). Chevron toggles a group.
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   // The audit row whose detail drawer is open, by stable `seq`.
-  const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
+  const [selectedSeq, setSelectedSeq] = useState<number | null>(() => {
+    const value = Number(currentRoute().search.get("step"));
+    return Number.isInteger(value) && value > 0 ? value : null;
+  });
+
+  useEffect(() => {
+    const sync = () => {
+      const value = Number(currentRoute().search.get("step"));
+      setSelectedSeq(Number.isInteger(value) && value > 0 ? value : null);
+    };
+    window.addEventListener("popstate", sync);
+    window.addEventListener("fdai:route-changed", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("fdai:route-changed", sync);
+    };
+  }, []);
+
+  const openStep = (step: number | null): void => {
+    const filters = activityFiltersFromRoute();
+    navigate(routeHref("agent-activity", {
+      params: {
+        agent: selected,
+        view: "waterfall",
+        step,
+        window: filters.window === "1h" ? null : filters.window,
+        layer: filters.layer === "all" ? null : filters.layer,
+        verb: filters.verb === "all" ? null : filters.verb,
+        q: filters.query || null,
+      },
+    }));
+  };
 
   const toggle = (correlation: string) =>
     setCollapsed((prev) => {
@@ -705,9 +959,7 @@ function Waterfall({
                           type="button"
                           class={`waterfall-row ${active ? "waterfall-row-active" : ""} ${dimmed ? "waterfall-row-dim" : ""}`}
                           aria-pressed={active}
-                          onClick={() =>
-                            setSelectedSeq((s) => (s === bar.item.seq ? null : bar.item.seq))
-                          }
+                          onClick={() => openStep(active ? null : bar.item.seq)}
                         >
                           <span class="agent-dot" data-layer={bar.layer} aria-hidden="true" />
                           <span class="waterfall-agent" data-layer={bar.layer}>
@@ -752,7 +1004,7 @@ function Waterfall({
       </div>
       <div class="waterfall-detail-pane">
         {selectedItem ? (
-          <StepDetail item={selectedItem} onClose={() => setSelectedSeq(null)} />
+          <StepDetail item={selectedItem} onClose={() => openStep(null)} />
         ) : (
           <div class="waterfall-detail-empty">
             <p class="waterfall-detail-empty-title">Select a step</p>

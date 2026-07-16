@@ -34,7 +34,7 @@ export function readNavigationPreferences(
   const hiddenPanelIds = stringArray(parsed.hiddenPanelIds).filter((id) => validIds.has(id));
   const groupOrder: Partial<Record<PanelGroup, readonly string[]>> = {};
   if (isRecord(parsed.groupOrder)) {
-    for (const group of ["overview", "operations", "agents", "governance", "evidence", "labs"] as const) {
+    for (const group of ["overview", "operations", "agents", "governance", "evidence", "labs", "settings"] as const) {
       const order = stringArray(parsed.groupOrder[group]).filter((id) => validIds.has(id));
       if (order.length > 0) groupOrder[group] = unique(order);
     }

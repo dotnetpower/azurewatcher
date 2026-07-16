@@ -283,6 +283,40 @@ async def test_servicebus_firewall_toggles(monkeypatch: pytest.MonkeyPatch) -> N
     assert calls[1][-1] == "Allow"
 
 
+async def test_az_cli_state_probe_matches_expected_and_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner, calls = _patch(monkeypatch)
+
+    async def state_runner(cmd, *, timeout=60.0, drop_azure_config_dir=False):  # type: ignore[no-untyped-def]
+        calls.append(list(cmd))
+        return 0, "PowerState/deallocated\n", ""
+
+    monkeypatch.setattr(ao, "_run", state_runner)
+    probe = ao.AzCliStateProbe(
+        command=("az", "vm", "show"),
+        expected_substrings=("deallocated",),
+        absent_substrings=("running",),
+    )
+    assert await probe.observed(signal="pod_restart", targets=("vm",)) is True
+
+
+async def test_az_cli_state_probe_fails_closed_on_command_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def state_runner(cmd, *, timeout=60.0, drop_azure_config_dir=False):  # type: ignore[no-untyped-def]
+        return 1, "", "failed"
+
+    monkeypatch.setattr(ao, "_run", state_runner)
+    probe = ao.AzCliStateProbe(command=("az", "vm", "show"), expected_substrings=("ok",))
+    assert await probe.observed(signal="pod_restart", targets=("vm",)) is False
+
+
+def test_az_cli_state_probe_requires_a_predicate() -> None:
+    with pytest.raises(ValueError, match="expected or absent"):
+        ao.AzCliStateProbe(command=("az", "vm", "show"))
+
+
 # ---------------------------------------------------------------------------
 # fault_type identifiers on every class match the catalog vocabulary
 # ---------------------------------------------------------------------------

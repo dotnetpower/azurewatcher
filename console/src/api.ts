@@ -28,6 +28,18 @@ import {
   type ReportingRegistry,
   type ReportList,
 } from "./routes/reporting.model";
+import {
+  decodeIamAccessRequests,
+  decodeIamOverview,
+  decodeIamSelfStatus,
+  decodeHumanIdentityResults,
+  decodeIdentityRoster,
+  type HumanIdentityResult,
+  type IamAccessRequest,
+  type IamOverview,
+  type IamSelfStatus,
+  type IdentityRosterItem,
+} from "./routes/settings-iam.model";
 
 export class ReadApiClient {
   #config: ConsoleConfig;
@@ -133,6 +145,30 @@ export class ReadApiClient {
     const params = new URLSearchParams();
     if (opts.limit !== undefined) params.set("limit", String(opts.limit));
     return decodeHilQueuePage(await this.#get<unknown>("/hil-queue", params));
+  }
+
+  async iamOverview(): Promise<IamOverview> {
+    return decodeIamOverview(await this.#get<unknown>("/iam"));
+  }
+
+  async iamSelf(): Promise<IamSelfStatus> {
+    return decodeIamSelfStatus(await this.#get<unknown>("/iam/self"));
+  }
+
+  async searchIamUsers(query: string, limit = 20): Promise<readonly HumanIdentityResult[]> {
+    const params = new URLSearchParams({ q: query, limit: String(limit) });
+    return decodeHumanIdentityResults(
+      await this.#get<unknown>("/iam/directory/users", params),
+    );
+  }
+
+  async iamRoster(): Promise<readonly IdentityRosterItem[]> {
+    return decodeIdentityRoster(await this.#get<unknown>("/iam/directory/roster"));
+  }
+
+  async listIamAccessRequests(limit = 50): Promise<readonly IamAccessRequest[]> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    return decodeIamAccessRequests(await this.#get<unknown>("/iam/access-requests", params));
   }
 
   async reports(): Promise<ReportList> {
@@ -246,6 +282,10 @@ export class ReadApiError extends Error {
     this.name = "ReadApiError";
     this.status = status;
   }
+}
+
+export function isOptionalReadApiUnavailable(error: unknown): error is ReadApiError {
+  return error instanceof ReadApiError && (error.status === 404 || error.status === 501);
 }
 
 export function decodeAuditPage(value: unknown): AuditPage {
@@ -575,9 +615,24 @@ export function decodeHilQueuePage(value: unknown): HilQueuePage {
         reason: apiString(item, "reason", "HIL queue item"),
         requested_at: apiString(item, "requested_at", "HIL queue item"),
         correlation_id: apiNullableString(item, "correlation_id", "HIL queue item"),
+        approval_id: apiOptionalString(item, "approval_id", "HIL queue item"),
+        action_id: apiOptionalString(item, "action_id", "HIL queue item"),
+        target_resource_ref: apiOptionalString(item, "target_resource_ref", "HIL queue item"),
+        mode: apiOptionalString(item, "mode", "HIL queue item"),
+        stop_condition: apiOptionalString(item, "stop_condition", "HIL queue item"),
+        rollback_kind: apiOptionalString(item, "rollback_kind", "HIL queue item"),
+        rollback_reference: apiOptionalNullableString(item, "rollback_reference", "HIL queue item"),
+        blast_radius_scope: apiOptionalString(item, "blast_radius_scope", "HIL queue item"),
+        blast_radius_count: apiOptionalNullableNonNegativeInteger(item, "blast_radius_count", "HIL queue item"),
+        blast_radius_rate_per_minute: apiOptionalNullableNonNegativeInteger(item, "blast_radius_rate_per_minute", "HIL queue item"),
+        blast_radius_summary: apiOptionalString(item, "blast_radius_summary", "HIL queue item"),
+        reasons: apiOptionalStringArray(item, "reasons", "HIL queue item"),
+        citing_rule_ids: apiOptionalStringArray(item, "citing_rule_ids", "HIL queue item"),
+        ttl_expires_at: apiOptionalNullableString(item, "ttl_expires_at", "HIL queue item"),
       };
     }),
     total: apiNonNegativeInteger(root, "total", "HIL queue page"),
+    detail_level: apiHilDetailLevel(root["detail_level"]),
   };
 }
 
@@ -602,6 +657,22 @@ function apiNullableString(value: Readonly<Record<string, unknown>>, key: string
   return apiString(value, key, label);
 }
 
+function apiOptionalString(
+  value: Readonly<Record<string, unknown>>,
+  key: string,
+  label: string,
+): string {
+  return value[key] === undefined ? "" : apiString(value, key, label);
+}
+
+function apiOptionalNullableString(
+  value: Readonly<Record<string, unknown>>,
+  key: string,
+  label: string,
+): string | null {
+  return value[key] === undefined ? null : apiNullableString(value, key, label);
+}
+
 function apiNumber(value: Readonly<Record<string, unknown>>, key: string, label: string): number {
   if (typeof value[key] !== "number" || !Number.isFinite(value[key])) {
     throw contractError(`${label}.${key} MUST be a finite number`);
@@ -615,6 +686,29 @@ function apiNonNegativeInteger(value: Readonly<Record<string, unknown>>, key: st
     throw contractError(`${label}.${key} MUST be a non-negative integer`);
   }
   return number;
+}
+
+function apiOptionalNullableNonNegativeInteger(
+  value: Readonly<Record<string, unknown>>,
+  key: string,
+  label: string,
+): number | null {
+  if (value[key] === undefined) return null;
+  if (value[key] === null) return null;
+  return apiNonNegativeInteger(value, key, label);
+}
+
+function apiOptionalStringArray(
+  value: Readonly<Record<string, unknown>>,
+  key: string,
+  label: string,
+): readonly string[] {
+  const items = value[key];
+  if (items === undefined) return [];
+  if (!Array.isArray(items) || items.some((item) => typeof item !== "string")) {
+    throw contractError(`${label}.${key} MUST be an array of strings`);
+  }
+  return items;
 }
 
 function apiPositiveInteger(value: Readonly<Record<string, unknown>>, key: string, label: string): number {
@@ -664,6 +758,12 @@ function apiRcaTier(value: unknown): "t0" | "t1" | "t2" | "unknown" {
 function apiRcaOutcome(value: unknown): "grounded" | "abstained" | "unknown" {
   if (value === "grounded" || value === "abstained" || value === "unknown") return value;
   throw contractError("RCA hypothesis.outcome MUST be grounded, abstained, or unknown");
+}
+
+function apiHilDetailLevel(value: unknown): "full" | "count_only" {
+  if (value === undefined || value === "full") return "full";
+  if (value === "count_only") return "count_only";
+  throw contractError("HIL queue page.detail_level MUST be full or count_only");
 }
 
 function apiBoolean(value: Readonly<Record<string, unknown>>, key: string, label: string): boolean {

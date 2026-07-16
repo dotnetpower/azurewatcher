@@ -55,6 +55,9 @@ def test_shipped_object_types_load() -> None:
         "HandoffEscalation",
         # Process automation (docs/roadmap/decisioning/process-automation.md)
         "Process",
+        # Governed Python task execution on managed compute.
+        "PythonTask",
+        "VmTaskRun",
         # Governed review workflow projection.
         "ReviewCase",
         "ReviewCheck",
@@ -62,6 +65,13 @@ def test_shipped_object_types_load() -> None:
         "Principal",
         "Approval",
         "Decision",
+        # Principal-scoped context, proactive briefing, and workflow ownership.
+        "UserMemoryFact",
+        "ConversationPolicy",
+        "BriefingSubscription",
+        "BriefingRun",
+        "WorkflowDefinition",
+        "WorkflowBinding",
     }
 
 

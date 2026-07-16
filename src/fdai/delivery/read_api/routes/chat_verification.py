@@ -10,6 +10,7 @@ from typing import Any, Literal
 from fdai.delivery.read_api.routes.chat_claims import (
     AtomicClaim,
     EvidenceManifest,
+    ScreenClaimResult,
     verify_screen_claims,
 )
 from fdai.delivery.read_api.routes.chat_semantic import (
@@ -121,6 +122,50 @@ def verify_answer(
     if not isinstance(raw, Mapping):
         screen = verify_screen_claims(provisional, view_context)
         if screen.overflow or not screen.manifest.complete or not screen.supported:
+            concept_correction = _correct_concept_scope_additions(
+                provisional,
+                view_context,
+                screen.claims,
+            )
+            if concept_correction is not None:
+                corrected, corrected_screen = concept_correction
+                return AnswerVerification(
+                    status="corrected",
+                    answer=corrected,
+                    authority=corrected_screen.manifest.authority,
+                    checks_completed=len(corrected_screen.claims),
+                    checks_total=len(corrected_screen.claims),
+                    evidence_refs=tuple(
+                        dict.fromkeys(
+                            ref for claim in corrected_screen.claims for ref in claim.evidence_refs
+                        )
+                    ),
+                    reason_code="concept_scope_claims_removed",
+                    claims=corrected_screen.claims,
+                    evidence_manifest=corrected_screen.manifest,
+                )
+            screen_correction = _correct_screen_unsupported_sentences(
+                provisional,
+                view_context,
+                screen,
+            )
+            if screen_correction is not None:
+                corrected, corrected_screen = screen_correction
+                return AnswerVerification(
+                    status="corrected",
+                    answer=corrected,
+                    authority=corrected_screen.manifest.authority,
+                    checks_completed=len(corrected_screen.claims),
+                    checks_total=len(corrected_screen.claims),
+                    evidence_refs=tuple(
+                        dict.fromkeys(
+                            ref for claim in corrected_screen.claims for ref in claim.evidence_refs
+                        )
+                    ),
+                    reason_code="screen_unsupported_sentences_removed",
+                    claims=corrected_screen.claims,
+                    evidence_manifest=corrected_screen.manifest,
+                )
             korean = _is_korean(locale)
             answer = (
                 "\ud604\uc7ac \ud654\uba74 \uadfc\uac70\ub85c \ub2f5\ubcc0\uc758 "
@@ -143,6 +188,7 @@ def verify_answer(
                     else "screen_claim_mismatch"
                 )
             )
+
             return AnswerVerification(
                 status="unverified",
                 answer=answer,
@@ -314,6 +360,60 @@ def _result(
 
 def _changed(provisional: str, canonical: str) -> VerificationStatus:
     return "verified" if provisional.strip() == canonical.strip() else "corrected"
+
+
+def _correct_concept_scope_additions(
+    answer: str,
+    view_context: Mapping[str, Any],
+    claims: Sequence[AtomicClaim],
+) -> tuple[str, ScreenClaimResult] | None:
+    """Remove unsupported scope-only addenda from a glossary answer once."""
+
+    if not isinstance(view_context.get("_concept_evidence"), Mapping):
+        return None
+    failed = tuple(claim for claim in claims if claim.status != "supported")
+    if not failed or any(claim.kind != "scope" for claim in failed):
+        return None
+    corrected = answer
+    for claim in sorted(failed, key=lambda item: item.start, reverse=True):
+        corrected = corrected[: claim.start] + corrected[claim.end :]
+    corrected = corrected.strip()
+    if not corrected:
+        return None
+    verified = verify_screen_claims(corrected, view_context)
+    if verified.overflow or not verified.manifest.complete or not verified.supported:
+        return None
+    return corrected, verified
+
+
+def _correct_screen_unsupported_sentences(
+    answer: str,
+    view_context: Mapping[str, Any],
+    result: ScreenClaimResult,
+) -> tuple[str, ScreenClaimResult] | None:
+    """Remove unsupported sentences when other screen claims are grounded."""
+
+    if result.overflow or not result.manifest.complete:
+        return None
+    failed = tuple(claim for claim in result.claims if claim.status != "supported")
+    supported = tuple(claim for claim in result.claims if claim.status == "supported")
+    if not failed or not supported:
+        return None
+    corrected = answer
+    for sentence in sorted({claim.text for claim in failed}, key=len, reverse=True):
+        corrected = corrected.replace(sentence, "")
+    corrected = corrected.strip()
+    if not corrected:
+        return None
+    verified = verify_screen_claims(corrected, view_context)
+    if (
+        verified.overflow
+        or not verified.manifest.complete
+        or not verified.supported
+        or not verified.claims
+    ):
+        return None
+    return corrected, verified
 
 
 def _is_korean(locale: str | None) -> bool:

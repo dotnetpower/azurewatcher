@@ -1,8 +1,8 @@
 ---
 title: 콘솔 read-API 프로덕션 배포
 translation_of: read-api-prod.md
-translation_source_sha: 2469b331e2a3b27616cde682d2a6ea332c3176fb
-translation_revised: 2026-07-15
+translation_source_sha: 73dc3c5d2dbd2cb93593c818bac0c04da80ef0fb
+translation_revised: 2026-07-16
 ---
 # 콘솔 read-API 프로덕션 배포
 
@@ -21,7 +21,9 @@ translation_revised: 2026-07-15
 
 - **동일한 `build_app` 글루.** 프로덕션 팩토리는 공용
   [`build_app`](../../../src/fdai/delivery/read_api/main.py)을
-  `dev_mode=False`로 호출한다. 그 결과 read-only 불변식(POST 라우트 없음)과
+  `dev_mode=False`로 호출합니다. 그 결과 cloud-resource mutation은 API 외부에
+  유지됩니다. Opt-in POST route는 proposal, approval 또는 access request를 기록하지만
+  executor ID를 보유하지 않습니다. 또한
   staging/prod 트립와이어(CORS `*` 거부, dev-mode 거부)가 그대로 적용된다.
 - **환경변수 전용 조립.** 팩토리가 필요로 하는 모든 값은 포크의 IaC가 Key Vault
   참조에서 채우는 환경변수로 도착한다. 설정 파일이 필요 없고, 고객 식별자가
@@ -35,7 +37,9 @@ translation_revised: 2026-07-15
   `/live/stream`과 `/agents/stream`을 등록합니다. 별도 consumer group이 공유
   `aw.pipeline.stages` 토픽을 읽고 검증된 단계 레코드를 프로세스 내부 SSE sink로
   전달합니다. 앱 lifespan은 두 relay를 시작하고 중지하며 공유 EventBus 전송을
-  닫습니다.
+  닫습니다. 이 SSE GET route는 snapshot GET route와 동일한 Entra bearer 인증을
+  사용합니다. 브라우저의 native `EventSource` API는 `Authorization` header를 첨부할 수
+  없으므로 콘솔은 인증된 fetch streaming으로 이를 소비합니다.
 
 ## 환경변수 계약
 
@@ -66,6 +70,31 @@ translation_revised: 2026-07-15
 | `FDAI_STAGE_TOPIC` | `aw.pipeline.stages` | worker가 게시하고 Live 및 Agents relay가 소비하는 단계 토픽입니다. worker와 read API는 같은 값을 사용하는 것이 좋습니다. |
 | `FDAI_INCIDENT_SLA_POLICY_JSON` | 비어 있음(disabled) | 모든 `sev1`부터 `sev5`까지 positive `acknowledge_seconds` 및 `resolve_seconds` 값을 가진 strict JSON object입니다. Durable A2 SLA-breach monitoring을 활성화합니다. |
 | `FDAI_INCIDENT_SLA_INTERVAL_SECONDS` | `60` | Positive SLA scan interval입니다. Policy JSON이 있을 때만 사용합니다. |
+| `FDAI_IAM_DIRECTORY_PROVIDER` | 비어 있음 (directory 검색 비활성화) | Owner 전용 사용자 directory 검색을 활성화합니다. 구현된 값은 `entra`이며 지원되지 않는 향후 provider 이름은 startup을 차단합니다. |
+| `FDAI_IAM_ENTRA_GRAPH_BASE_URL` | `https://graph.microsoft.com/v1.0` | Sovereign cloud 또는 테스트 override용 Microsoft Graph base URL입니다. Directory provider가 `entra`일 때만 사용합니다. |
+| `FDAI_NARRATOR_PROBE_INTERVAL_SECONDS` | `300` | Routed narrator latency probe 간격(초)입니다. 최솟값은 `30`이며 주기 round마다 후보별 model-only sample을 하나 추가합니다. |
+| `FDAI_WEB_SEARCH_ENABLED` | `false` | 조건을 충족한 Chat T2 turn에서 통제된 Azure Responses web search를 활성화합니다. Resolved narrator candidate와 allowed-domain 목록이 필요합니다. |
+| `FDAI_WEB_SEARCH_ALLOWED_DOMAINS` | 비어 있음 | 콤마로 구분된 public source host입니다. Web search를 활성화할 때 필요하며 정확한 host를 최대 100개까지 허용합니다. |
+| `FDAI_WEB_SEARCH_MAX_RESULTS` | `3` | 한 검색에서 유지할 citation 수입니다. `1`부터 `10`까지 허용합니다. |
+| `FDAI_WEB_SEARCH_BUDGET_MS` | `15000` | 검색별 endpoint timeout(ms)입니다. |
+| `FDAI_WEB_SEARCH_PROBE_INTERVAL_SECONDS` | `300` | Web-search candidate model probe 간격(초)입니다. 최솟값은 `30`이며 probe는 검색 툴을 호출하지 않습니다. |
+
+Web search는 제한된 operator query만 Azure Responses로 전송합니다. 현재 화면
+snapshot과 대화 history는 전송하지 않습니다. Azure web search는 Grounding with
+Bing을 사용합니다. 이 전송은 배포의 compliance 및 geography boundary 밖으로 나갈
+수 있고 Microsoft Data Protection Addendum의 적용을 받지 않습니다. 배포 owner가
+해당 조건을 수락하고 primary-source allowlist를 구성하기 전에는 비활성 상태를
+유지하는 것이 좋습니다.
+
+Terraform은 provider를 `read_api_iam_directory_provider`로 노출하며 기본값은 비어 있습니다.
+Read API managed identity에 필요한 Graph consent를 부여한 후에만 `entra`로 설정합니다.
+
+Entra directory adapter는 read API managed identity를 통해
+`https://graph.microsoft.com/.default`를 요청하며 admin consent가 적용된 Microsoft Graph
+application permission `User.Read.All`이 필요합니다. 이 권한은 읽기 전용이며 브라우저에
+전달되지 않습니다. 구성된 FDAI 역할 그룹과 사람 멤버를 projection하려면
+`GroupMember.Read.All`도 필요합니다. 두 권한 모두 읽기 전용이며 그룹 멤버십 쓰기 권한은
+포함하지 않습니다.
 
 ## 실행
 

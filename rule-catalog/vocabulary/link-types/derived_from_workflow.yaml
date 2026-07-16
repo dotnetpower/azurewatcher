@@ -1,0 +1,7 @@
+schema_version: "1.0.0"
+name: derived_from_workflow
+version: "1.0.0"
+from_type: WorkflowDefinition
+to_type: WorkflowDefinition
+cardinality: many_to_one
+description: Built-in or shared definition cloned into a distinct immutable definition.

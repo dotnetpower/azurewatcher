@@ -1,8 +1,8 @@
 ---
 title: 구현 계획 (표준 세트)
 translation_of: implementation-plan.md
-translation_source_sha: 436a9a42ff33f7de92af17632f688ac9354ec96b
-translation_revised: 2026-07-15
+translation_source_sha: 81251c03c17ef1e79d794038989840d3e856c418
+translation_revised: 2026-07-16
 ---
 
 # 구현 계획 (표준 세트)
@@ -593,8 +593,11 @@ W2 뒤. [execution-model.md § Month 1](../decisioning/execution-model.md#month-
   (`tools/chat.py`가 15개 툴 조립 = 기존 10개 + 5개 신규 read 버브).
   실제 Azure Monitor / DeploymentHistory 어댑터는 fork territory.
 - **M1.6** 읽기 전용 콘솔 SPA 위의 `WebChatChannel`.
-- **M1.7** Prompt-composition Wave 5 beta (concrete `WebSearchProvider`
-  fork 어댑터 + 컴포지션 와이어).
+- **M1.7** Prompt-composition Wave 5 beta. **업스트림에 제공됨.** Opt-in Azure
+  Responses `WebSearchProvider`, 결정론적 eligibility 및 privacy gate,
+  domain-filtered citation snapshot, durable conversation replay evidence,
+  eligible narrator deployment 사이의 주기적 rolling-p50 라우팅을 포함합니다.
+  배포가 승인한 primary-source allowlist를 제공하기 전까지 비활성 상태입니다.
 
 **Exit gate**
 

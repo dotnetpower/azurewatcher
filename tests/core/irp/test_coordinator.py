@@ -56,6 +56,14 @@ class _RecordingNotifier:
         self.sent.append((tuple(channels), subject))
 
 
+class _RecordingRouter:
+    def __init__(self) -> None:
+        self.seen: list[MitigationProposal] = []
+
+    async def route(self, proposal: MitigationProposal) -> None:
+        self.seen.append(proposal)
+
+
 def _alert() -> Alert:
     return Alert(
         alert_id="alert-1",
@@ -102,6 +110,25 @@ async def test_default_gate_rejects_fail_closed() -> None:
     result = await coordinator.respond(_alert())
 
     assert result.outcome is IrpOutcome.REJECTED
+
+
+@pytest.mark.asyncio
+async def test_proposal_router_queues_without_polling_direct_gate() -> None:
+    gate = _FixedGate(ApprovalDecision.APPROVED)
+    router = _RecordingRouter()
+    coordinator = IrpCoordinator(
+        investigator=_investigator({"http_429_rate": 0.4}),
+        approval_gate=gate,
+        proposal_router=router,
+        wall_clock=lambda: _NOW,
+    )
+
+    result = await coordinator.respond(_alert())
+
+    assert result.outcome is IrpOutcome.PENDING_APPROVAL
+    assert result.decision is None
+    assert router.seen[0].target_resource_ref == "aoai-1"
+    assert gate.seen == []
 
 
 @pytest.mark.asyncio

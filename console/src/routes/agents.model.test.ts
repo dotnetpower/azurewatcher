@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AgentActivityMessage, AgentStatus } from "../hooks/use-agent-stream";
 import {
   activeAgentCount,
+  AGENT_RUNTIME_BINDING,
   AGENT_ROLE,
   agentChatContext,
   engagedGroups,
@@ -11,6 +12,7 @@ import {
   ORG_CHART,
   PANTHEON,
   reducer,
+  runtimeConsumerCount,
 } from "./agents.model";
 
 function stateMsg(
@@ -117,6 +119,15 @@ describe("agents.model", () => {
 });
 
 describe("agents.model engagement helpers", () => {
+  it("distinguishes perpetual consumers from adapter and schedule driven agents", () => {
+    expect(runtimeConsumerCount()).toBe(12);
+    expect(AGENT_RUNTIME_BINDING.Huginn).toBe("raw ingress subscriber");
+    expect(AGENT_RUNTIME_BINDING.Heimdall).toBe("event-bus subscriber");
+    expect(AGENT_RUNTIME_BINDING.Njord).toBe("external adapter");
+    expect(AGENT_RUNTIME_BINDING.Freyr).toBe("external adapter");
+    expect(AGENT_RUNTIME_BINDING.Loki).toBe("scheduled trigger");
+  });
+
   it("stores the streamed detail on the agent node", () => {
     let s = makeInitialState();
     s = reducer(s, {

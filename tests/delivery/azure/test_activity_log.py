@@ -307,7 +307,8 @@ async def test_valid_resume_cursor_is_canonicalized() -> None:
     finally:
         await client.aclose()
 
-    # canonical isoformat uses +00:00, not Z (the input 'Z' was normalized)
+    # Activity Log rejects an explicit +00:00 offset in this filter and
+    # requires the canonical UTC Z form.
     url = str(captured[0].url)
-    assert "2026-07-10T05:00:00+00:00" in url
-    assert "05:00:00Z" not in url
+    assert "2026-07-10T05:00:00Z" in url
+    assert "05:00:00+00:00" not in url

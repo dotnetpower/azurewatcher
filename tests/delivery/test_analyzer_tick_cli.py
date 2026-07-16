@@ -15,6 +15,7 @@ from fdai.delivery.analyzer_tick_cli import (
     _load_targets,
     _positive_float,
     _run_tick,
+    _targets_from_inventory,
     main,
 )
 
@@ -83,6 +84,20 @@ def test_load_targets_rejects_non_object_item(
     monkeypatch.setenv(_ENV_TARGETS, json.dumps(["string-item"]))
     with pytest.raises(ValueError, match=r"\[0\] MUST be an object"):
         _load_targets()
+
+
+def test_inventory_resources_map_to_reference_analyzer_kinds() -> None:
+    targets = _targets_from_inventory(
+        [
+            {"id": "aks-1", "type": "kubernetes-cluster"},
+            {"id": "mysql-1", "type": "mysql-server"},
+            {"id": "ignored", "type": "object-storage"},
+        ]
+    )
+    assert [(item.resource_ref, item.resource_kind) for item in targets] == [
+        ("aks-1", "aks_cluster"),
+        ("mysql-1", "mysql_flexible_server"),
+    ]
 
 
 def test_positive_float_returns_default_on_missing(

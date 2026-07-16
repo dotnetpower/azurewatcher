@@ -16,6 +16,32 @@ export interface ProcessListResponse {
   readonly items: readonly ProcessSummary[];
 }
 
+export interface ProcessEvent {
+  readonly event_id: string;
+  readonly kind: string;
+  readonly recorded_at: string;
+  readonly correlation_id: string;
+  readonly causation_id: string | null;
+  readonly step_id: string | null;
+  readonly attempt: number;
+  readonly payload: Readonly<Record<string, unknown>>;
+}
+
+export interface ProcessJournalResponse {
+  readonly process: ProcessSummary & {
+    readonly started_at: string;
+    readonly correlation_id: string;
+    readonly revision: number;
+  };
+  readonly events: readonly ProcessEvent[];
+  readonly count: number;
+}
+
+export interface ProcessDetailData {
+  readonly journal: ProcessJournalResponse;
+  readonly view: RenderedProcessView | null;
+}
+
 export interface RenderedWidget {
   readonly id: string;
   readonly type: string;
@@ -85,13 +111,29 @@ export function defaultProcessId(
   items: readonly ProcessSummary[],
   currentHash: string,
 ): string | null {
-  return processIdFromHash(currentHash) ?? items.find((item) => item.has_view)?.id ?? null;
+  return processIdFromHash(currentHash) ?? items[0]?.id ?? null;
 }
 
 export function decodeProcessList(value: unknown): ProcessListResponse {
   const root = record(value, "process list");
   if (!Array.isArray(root["items"])) throw new Error("process list items MUST be an array");
   return { items: root["items"].map((item, index) => decodeSummary(item, `items[${index}]`)) };
+}
+
+export function decodeProcessJournal(value: unknown): ProcessJournalResponse {
+  const root = record(value, "process journal");
+  const process = record(root["process"], "process journal process");
+  if (!Array.isArray(root["events"])) throw new Error("process journal events MUST be an array");
+  return {
+    process: {
+      ...decodeSummary(process, "process journal process"),
+      started_at: stringField(process, "started_at", "process journal process"),
+      correlation_id: stringField(process, "correlation_id", "process journal process"),
+      revision: numberField(process, "revision", "process journal process"),
+    },
+    events: root["events"].map((value, index) => decodeProcessEvent(value, `events[${index}]`)),
+    count: numberField(root, "count", "process journal"),
+  };
 }
 
 export function decodeRenderedProcessView(value: unknown): RenderedProcessView {
@@ -158,6 +200,28 @@ function decodeSummary(value: unknown, label: string, requireHasView = true): Pr
     target_resource_id: stringField(item, "target_resource_id", label),
     updated_at: stringField(item, "updated_at", label),
     has_view: requireHasView ? booleanField(item, "has_view", label) : true,
+  };
+}
+
+function decodeProcessEvent(value: unknown, label: string): ProcessEvent {
+  const event = record(value, label);
+  const causationId = event["causation_id"];
+  const stepId = event["step_id"];
+  if (causationId !== null && typeof causationId !== "string") {
+    throw new Error(`${label}.causation_id MUST be a string or null`);
+  }
+  if (stepId !== null && typeof stepId !== "string") {
+    throw new Error(`${label}.step_id MUST be a string or null`);
+  }
+  return {
+    event_id: stringField(event, "event_id", label),
+    kind: stringField(event, "kind", label),
+    recorded_at: stringField(event, "recorded_at", label),
+    correlation_id: stringField(event, "correlation_id", label),
+    causation_id: causationId,
+    step_id: stepId,
+    attempt: numberField(event, "attempt", label),
+    payload: record(event["payload"], `${label}.payload`),
   };
 }
 

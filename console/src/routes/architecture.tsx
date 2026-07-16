@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { ReadApiError, type ReadApiClient } from "../api";
+import { isOptionalReadApiUnavailable, type ReadApiClient } from "../api";
 import { ArchitectureMap, type ArchitectureMapHandle } from "../components/architecture-map";
 import {
   ARCHITECTURE_LAYERS,
@@ -81,7 +81,7 @@ export function ArchitectureRoute({ client }: Props) {
       (error: unknown) => {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : String(error);
-        setState(error instanceof ReadApiError && error.status === 404
+        setState(isOptionalReadApiUnavailable(error)
           ? { status: "unavailable", message: "The inventory graph is not wired on this deployment." }
           : { status: "error", message });
       },

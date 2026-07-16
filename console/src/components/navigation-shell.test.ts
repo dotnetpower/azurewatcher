@@ -4,10 +4,10 @@ import { visibleNavigationGroups } from "./navigation-shell";
 describe("navigation shell groups", () => {
   test("shows Labs only in development mode", () => {
     expect(visibleNavigationGroups(false).map((group) => group.id)).toEqual([
-      "overview", "operations", "agents", "governance", "evidence",
+      "overview", "operations", "agents", "governance", "evidence", "settings",
     ]);
     expect(visibleNavigationGroups(true).map((group) => group.id)).toEqual([
-      "overview", "operations", "agents", "governance", "evidence", "labs",
+      "overview", "operations", "agents", "governance", "evidence", "labs", "settings",
     ]);
   });
 });

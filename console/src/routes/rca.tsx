@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ReadApiClient } from "../api";
+import { architectureHref } from "../components/architecture-map.model";
 import type { RcaHypothesis, RcaView } from "../types";
 import {
   AsyncBoundary,
@@ -297,9 +298,15 @@ function CausalChainSection({ hypothesis }: { readonly hypothesis: RcaHypothesis
               </span>
             </div>
             <div class="rca-chain-nodes">
-              <span><strong>{hop.cause_resource_ref}</strong><code>{hop.cause_event_id}</code></span>
+              <span>
+                <a href={architectureHref(hop.cause_resource_ref)}><strong>{hop.cause_resource_ref}</strong></a>
+                <code>{hop.cause_event_id}</code>
+              </span>
               <span aria-hidden="true">-&gt;</span>
-              <span><strong>{hop.effect_resource_ref}</strong><code>{hop.effect_event_id}</code></span>
+              <span>
+                <a href={architectureHref(hop.effect_resource_ref)}><strong>{hop.effect_resource_ref}</strong></a>
+                <code>{hop.effect_event_id}</code>
+              </span>
             </div>
           </li>
         ))}
@@ -318,7 +325,11 @@ function CitationsTable({ hypothesis }: { readonly hypothesis: RcaHypothesis }) 
     {
       key: "ref",
       header: t("rca.citationRef"),
-      render: (item) => <span class="mono small">{item.ref}</span>,
+      render: (item) => item.kind === "rule" ? (
+        <a class="mono small" href={routeHref("rules", { params: { rule: item.ref } })}>
+          {item.ref}
+        </a>
+      ) : <span class="mono small">{item.ref}</span>,
       cellClass: "mono",
     },
   ];

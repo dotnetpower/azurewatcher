@@ -33,28 +33,46 @@ class InMemoryDocumentAccessProvider:
         self._readers = dict(readers or {})
         self._owners = dict(owners or {})
 
-    async def authorize_create(self, *, actor_id: str, collection_id: str) -> None:
+    async def authorize_create(
+        self,
+        *,
+        actor_id: str,
+        actor_groups: frozenset[str] = frozenset(),
+        collection_id: str,
+    ) -> None:
         allowed = self._contributors.get(collection_id, frozenset()) | self._owners.get(
             collection_id, frozenset()
         )
-        if actor_id not in allowed:
+        if actor_id not in allowed and not actor_groups.intersection(allowed):
             raise DocumentAccessDeniedError("collection contributor access is required")
 
-    async def authorize_read(self, *, actor_id: str, version: DocumentVersion) -> None:
+    async def authorize_read(
+        self,
+        *,
+        actor_id: str,
+        actor_groups: frozenset[str] = frozenset(),
+        version: DocumentVersion,
+    ) -> None:
         allowed = (
             self._readers.get(version.access.collection_id, frozenset())
             | self._contributors.get(version.access.collection_id, frozenset())
             | self._owners.get(version.access.collection_id, frozenset())
             | frozenset({version.uploader_id})
         )
-        if actor_id not in allowed:
+        if actor_id not in allowed and not actor_groups.intersection(allowed):
             raise DocumentAccessDeniedError("document metadata access is denied")
 
-    async def authorize_delete(self, *, actor_id: str, version: DocumentVersion) -> None:
+    async def authorize_delete(
+        self,
+        *,
+        actor_id: str,
+        actor_groups: frozenset[str] = frozenset(),
+        version: DocumentVersion,
+    ) -> None:
         allowed = self._owners.get(version.access.collection_id, frozenset()) | frozenset(
             {version.uploader_id}
         )
-        if actor_id not in allowed:
+        if actor_id not in allowed and not actor_groups.intersection(allowed):
             raise DocumentAccessDeniedError("document delete access is denied")
 
 
@@ -120,6 +138,23 @@ class InMemoryDocumentObjectStore:
     async def put(self, object_key: str, content: bytes) -> StoredObjectInfo:
         self.objects[object_key] = bytes(content)
         return _object_info(object_key, content)
+
+    async def put_stream(
+        self,
+        object_key: str,
+        chunks: AsyncIterator[bytes],
+        *,
+        expected_size: int,
+        max_size: int,
+    ) -> StoredObjectInfo:
+        content = bytearray()
+        async for chunk in chunks:
+            content.extend(chunk)
+            if len(content) > max_size:
+                raise ValueError("content exceeds the advertised file-size limit")
+        if len(content) != expected_size:
+            raise ValueError("streamed content size does not match the upload session")
+        return await self.put(object_key, bytes(content))
 
     async def stat(self, object_key: str) -> StoredObjectInfo:
         try:

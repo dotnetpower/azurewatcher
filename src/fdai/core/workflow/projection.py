@@ -85,6 +85,22 @@ class ProcessOntologyProjector:
                     to_id=snapshot.target_resource_id,
                 )
             )
+        definitions = await self.store.query_objects(
+            object_types=("WorkflowDefinition",),
+            property_equals={
+                "workflow_name": snapshot.workflow_ref,
+                "workflow_version": snapshot.workflow_version,
+            },
+            limit=2,
+        )
+        if len(definitions.objects) == 1:
+            await self.store.upsert_link(
+                OntologyLinkRecord(
+                    link_type="instantiates_workflow",
+                    from_id=snapshot.process_id,
+                    to_id=definitions.objects[0].id,
+                )
+            )
         domain_projector = self.domain_projectors.get(snapshot.workflow_ref)
         if domain_projector is not None:
             await domain_projector.project(snapshot, event=event)

@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { legacyHashHref, panelPath, parseConsoleRoute, routeHref } from "./router";
+import {
+  legacyHashHref,
+  panelPath,
+  parseConsoleRoute,
+  routeHref,
+  shouldResetScroll,
+  shouldReplaceUnmatchedRoute,
+} from "./router";
 
 describe("clean console routes", () => {
   test("maps internal panel ids to user-facing kebab-case paths", () => {
@@ -7,6 +14,8 @@ describe("clean console routes", () => {
     expect(panelPath("hil-queue")).toBe("/approvals");
     expect(panelPath("agent-activity")).toBe("/agent-activity");
     expect(panelPath("labs")).toBe("/labs");
+    expect(panelPath("settings-general")).toBe("/settings/general");
+    expect(panelPath("settings-models")).toBe("/settings/models");
   });
 
   test("builds path segments without spaces or underscores", () => {
@@ -27,6 +36,23 @@ describe("clean console routes", () => {
     expect(route.search.get("window")).toBe("30d");
   });
 
+  test("matches nested Settings routes by their longest registered prefix", () => {
+    const route = parseConsoleRoute("/settings/iam/users", "?role=Owner");
+    expect(route.panelId).toBe("settings-iam");
+    expect(route.matched).toBe(true);
+    expect(route.canonicalPathname).toBe("/settings/iam/users");
+    expect(route.segments).toEqual(["users"]);
+    expect(route.search.get("role")).toBe("Owner");
+  });
+
+  test("keeps the legacy Settings URL as a canonical General alias", () => {
+    const route = parseConsoleRoute("/settings");
+    expect(route.panelId).toBe("settings-general");
+    expect(route.matched).toBe(true);
+    expect(route.canonicalPathname).toBe("/settings/general");
+    expect(route.segments).toEqual([]);
+  });
+
   test("marks unknown and root paths for canonical Overview replacement", () => {
     for (const pathname of ["/", "/typo", "/typo/detail"]) {
       const route = parseConsoleRoute(pathname);
@@ -43,5 +69,27 @@ describe("clean console routes", () => {
     expect(legacyHashHref("#/audit?correlation=corr-1")).toBe(
       "/audit?correlation=corr-1",
     );
+  });
+
+  test("preserves MSAL response and unknown hashes", () => {
+    expect(legacyHashHref("#code=authorization-code&state=request-state")).toBeNull();
+    expect(legacyHashHref("#error=access_denied&state=request-state")).toBeNull();
+    expect(legacyHashHref("#custom-fragment")).toBeNull();
+  });
+
+  test("does not canonicalize an unmatched callback route while a hash is present", () => {
+    const callbackRoute = parseConsoleRoute("/");
+    expect(shouldReplaceUnmatchedRoute(callbackRoute, "#code=value&state=value")).toBe(false);
+    expect(shouldReplaceUnmatchedRoute(callbackRoute, "")).toBe(true);
+  });
+  test("resolves capability and onboarding panels", () => {
+    expect(parseConsoleRoute("/capabilities").panelId).toBe("capabilities");
+    expect(parseConsoleRoute("/onboarding").panelId).toBe("onboarding");
+  });
+
+  test("resets scroll only when navigation changes the pathname", () => {
+    expect(shouldResetScroll("/agents", "/agent-activity")).toBe(true);
+    expect(shouldResetScroll("/agent-activity", "/agent-activity/")).toBe(false);
+    expect(shouldResetScroll("/agent-activity", "/agent-activity")).toBe(false);
   });
 });

@@ -132,6 +132,43 @@ export const TERMS = {
     tech: "UserPreference",
     seeAlso: "settings",
   },
+  documentCollection: {
+    term: "document collection",
+    plain:
+      "the shared access boundary and retrieval namespace that receives a governed document after ingestion checks pass",
+    tech: "collection_id",
+    seeAlso: "documents",
+    match: "collection",
+  },
+  processingPurpose: {
+    term: "processing purpose",
+    plain:
+      "the declared use for an uploaded document, such as knowledge-base grounding, manual distillation, or an agent-handover draft",
+    tech: "purposes",
+    seeAlso: "documents",
+    match: "processing_purpose",
+  },
+  sourceStorageMode: {
+    term: "source storage mode",
+    plain:
+      "how FDAI retains or references the original uploaded source while preserving the same ingestion and access checks",
+    tech: "storage_mode",
+    seeAlso: "documents",
+    match: "source_storage_mode",
+  },
+  ingestionSafety: {
+    term: "ingestion safety checks",
+    plain:
+      "the quarantine, malware, protection, extraction, and indexing checks that complete before an uploaded document becomes available",
+    seeAlso: "documents",
+  },
+  humanRbac: {
+    term: "human RBAC",
+    plain:
+      "the FDAI App Roles and capability checks that decide what a signed-in operator may view, request, review, or administer",
+    tech: "roles",
+    seeAlso: "settings-iam",
+  },
   blastRadius: {
     term: "blast radius",
     plain:

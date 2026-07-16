@@ -313,6 +313,24 @@ def _build_operator_memory_store() -> Any:
     return InMemoryOperatorMemoryStore()
 
 
+def _build_metering_store() -> Any:
+    """Select the durable metering sink used by Azure LLM adapters."""
+    dsn = (
+        os.environ.get("FDAI_METERING_DSN", "").strip()
+        or os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
+    )
+    if not dsn:
+        from .core.metering import InMemoryMeteringSink
+
+        _LOGGER.info("metering_store_backend", extra={"backend": "in-memory"})
+        return InMemoryMeteringSink()
+
+    from .delivery.persistence import PostgresMeteringStore, PostgresMeteringStoreConfig
+
+    _LOGGER.info("metering_store_backend", extra={"backend": "postgres"})
+    return PostgresMeteringStore(config=PostgresMeteringStoreConfig(dsn=dsn))
+
+
 def _build_pattern_library() -> PatternLibrary:
     """Select the :class:`PatternLibrary` backend for this process.
 
@@ -610,10 +628,88 @@ async def _finalize_llm_bindings(
             endpoint=endpoint,
             catalog_root=_resolve_catalog_root(),
             operator_memory_store=_build_operator_memory_store(),
+            metering_sink=_build_metering_store(),
             monitor_workspace_id=monitor_workspace_id,
             prometheus_base_url=prometheus_base_url,
             prometheus_audience=prometheus_audience,
         ),
+    )
+
+
+def _attach_runtime_metric_provider(
+    container: Container,
+    *,
+    http_client: httpx.AsyncClient,
+    identity: WorkloadIdentity,
+) -> Container:
+    """Attach live telemetry independently of the configured LLM mode."""
+    from .composition.wire_metric_provider import attach_metric_provider
+
+    monitor_workspace_id = os.environ.get("FDAI_MONITOR_WORKSPACE_ID", "").strip() or None
+    prometheus_base_url = os.environ.get("FDAI_PROMETHEUS_ENDPOINT", "").strip() or None
+    prometheus_audience = os.environ.get("FDAI_PROMETHEUS_AUDIENCE", "").strip() or None
+    return attach_metric_provider(
+        container,
+        identity=identity,
+        http_client=http_client,
+        monitor_workspace_id=monitor_workspace_id,
+        monitor_queries=None,
+        metrics_api_queries=None,
+        prometheus_base_url=prometheus_base_url,
+        prometheus_queries=None,
+        prometheus_audience=prometheus_audience,
+    )
+
+
+def _attach_runtime_knowledge_source(container: Container) -> Container:
+    """Bind the durable pgvector knowledge source when Postgres is available."""
+    if container.llm_bindings is None:
+        return container
+    dsn = (
+        os.environ.get("FDAI_KNOWLEDGE_DSN", "").strip()
+        or os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
+    )
+    if not dsn:
+        return container
+    from .composition import bind_pgvector_knowledge_source
+    from .delivery.pgvector.knowledge import PgvectorKnowledgeConfig
+    from .shared.providers.local import EnvSecretProvider
+
+    secret_name = (
+        "FDAI_KNOWLEDGE_DSN" if os.environ.get("FDAI_KNOWLEDGE_DSN") else "FDAI_STATE_STORE_DSN"
+    )
+    _LOGGER.info("knowledge_source_backend", extra={"backend": "pgvector"})
+    return bind_pgvector_knowledge_source(
+        container,
+        config=PgvectorKnowledgeConfig(dsn_secret=secret_name),
+        secrets=EnvSecretProvider(),
+    )
+
+
+def _attach_runtime_github_change_feed(
+    container: Container, *, http_client: httpx.AsyncClient
+) -> Container:
+    """Bind the configured GitOps repository as the RCA change feed."""
+    token = os.environ.get("FDAI_GITOPS_TOKEN", "").strip()
+    owner = os.environ.get("FDAI_GITOPS_OWNER", "").strip()
+    repo = os.environ.get("FDAI_GITOPS_REPO", "").strip()
+    if not token or not owner or not repo:
+        return container
+    from .composition.wire_change_feed import bind_github_change_feed
+    from .delivery.github import GitHubChangeFeedConfig
+
+    async def _token_provider() -> str:
+        return token
+
+    _LOGGER.info("change_feed_backend", extra={"backend": "github"})
+    return bind_github_change_feed(
+        container,
+        config=GitHubChangeFeedConfig(
+            repository=f"{owner}/{repo}",
+            api_base=os.environ.get("FDAI_GITOPS_API_BASE", "https://api.github.com").strip(),
+        ),
+        http_client=http_client,
+        token_provider=_token_provider,
     )
 
 
@@ -658,6 +754,7 @@ def _build_tool_executor(
     idempotency: IdempotencyStore | None = None,
     receipt_observer: ToolReceiptObserver | None = None,
     http_client: httpx.AsyncClient | None = None,
+    metric_provider: Any = None,
 ) -> ToolCallShadowExecutor | None:
     """Select the tool-call executor for this process.
 
@@ -673,6 +770,100 @@ def _build_tool_executor(
     shape.
     """
 
+    routes: dict[str, Any] = {}
+    enforce_actions: set[str] = set()
+    fallback: Any = None
+    gitops_token = os.environ.get("FDAI_GITOPS_TOKEN", "").strip()
+    if gitops_token:
+        if http_client is None:
+            raise RuntimeError("FDAI_GITOPS_TOKEN requires a shared HTTP client")
+        owner = os.environ.get("FDAI_GITOPS_OWNER", "").strip()
+        repo = os.environ.get("FDAI_GITOPS_REPO", "").strip()
+        if not owner or not repo:
+            raise RuntimeError("FDAI_GITOPS_TOKEN requires FDAI_GITOPS_OWNER and FDAI_GITOPS_REPO")
+        from .delivery.github import GitHubWorkflowToolConfig, GitHubWorkflowToolExecutor
+
+        workflow_tool = GitHubWorkflowToolExecutor(
+            config=GitHubWorkflowToolConfig(
+                owner=owner,
+                repo=repo,
+                api_base=os.environ.get("FDAI_GITOPS_API_BASE", "https://api.github.com").strip(),
+            ),
+            publisher=_build_publisher(http_client=http_client),
+            http_client=http_client,
+            token=gitops_token,
+        )
+        github_workflow_actions = {
+            "tool.open-fix-pr",
+            "tool.request-release",
+            "tool.file-security-followup",
+            "tool.file-irp-followup",
+            "tool.open-incident-ticket",
+        }
+        routes.update({name: workflow_tool for name in github_workflow_actions})
+        github_workflow_enforce = (
+            os.environ.get("FDAI_GITHUB_WORKFLOW_TOOLS_ENFORCE", "").strip() == "1"
+        )
+        if github_workflow_enforce:
+            enforce_actions.update(github_workflow_actions)
+        _LOGGER.info(
+            "tool_call_backend",
+            extra={"backend": "github-workflow", "enforce": github_workflow_enforce},
+        )
+    from .core.chaos.scenario_catalog import load_all as load_all_chaos_scenarios
+    from .core.chaos.scenario_catalog import load_promoted as load_promoted_chaos_scenarios
+    from .delivery.chaos.factories import default_factory as default_chaos_factory
+    from .delivery.chaos.tool import ChaosExperimentToolExecutor
+
+    chaos_context_raw = os.environ.get("FDAI_CHAOS_CONTEXT_JSON", "").strip()
+    try:
+        chaos_context = json.loads(chaos_context_raw) if chaos_context_raw else {}
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("FDAI_CHAOS_CONTEXT_JSON MUST be valid JSON") from exc
+    if not isinstance(chaos_context, dict):
+        raise RuntimeError("FDAI_CHAOS_CONTEXT_JSON MUST be a JSON object")
+    chaos_signal_writer = None
+    state_dsn = os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
+    if state_dsn:
+        from .delivery.persistence import (
+            PostgresReportSignalStore,
+            PostgresReportSignalStoreConfig,
+        )
+
+        chaos_signal_writer = PostgresReportSignalStore(
+            config=PostgresReportSignalStoreConfig(dsn=state_dsn)
+        )
+    all_chaos_scenarios = load_all_chaos_scenarios()
+    promoted_chaos_scenarios = load_promoted_chaos_scenarios()
+    chaos_tool = ChaosExperimentToolExecutor(
+        entries=all_chaos_scenarios,
+        promoted_ids=frozenset(entry.id for entry in promoted_chaos_scenarios),
+        factory=default_chaos_factory(),
+        context=chaos_context,
+        signal_writer=chaos_signal_writer,
+    )
+    routes["tool.run-chaos-experiment"] = chaos_tool
+    chaos_enforce = os.environ.get("FDAI_CHAOS_ENFORCE", "").strip() == "1"
+    if chaos_enforce:
+        if not chaos_context:
+            raise RuntimeError("FDAI_CHAOS_ENFORCE=1 requires FDAI_CHAOS_CONTEXT_JSON")
+        enforce_actions.add("tool.run-chaos-experiment")
+    _LOGGER.info(
+        "tool_call_backend",
+        extra={
+            "backend": "chaos-experiment",
+            "enforce": chaos_enforce,
+            "promoted_scenarios": len(promoted_chaos_scenarios),
+        },
+    )
+    if metric_provider is not None:
+        from .delivery.investigation import InvestigationToolExecutor
+
+        routes["tool.run-investigation"] = InvestigationToolExecutor(
+            metric_provider=metric_provider,
+            signal_writer=chaos_signal_writer,
+        )
+        enforce_actions.add("tool.run-investigation")
     jira_base_url = os.environ.get("FDAI_JIRA_BASE_URL", "").strip()
     if jira_base_url:
         if http_client is None:
@@ -703,7 +894,7 @@ def _build_tool_executor(
         )
         from .shared.providers.local import EnvSecretProvider
 
-        adapter: Any = JiraToolExecutor(
+        jira_adapter: Any = JiraToolExecutor(
             config=JiraToolExecutorConfig(
                 base_url=jira_base_url,
                 account_email=account_email,
@@ -714,18 +905,69 @@ def _build_tool_executor(
             secrets=EnvSecretProvider(),
             ledger=PostgresJiraLedger(config=PostgresIdempotencyStoreConfig(dsn=dsn)),
         )
-        enforce = os.environ.get("FDAI_JIRA_ENFORCE", "").strip() == "1"
+        jira_enforce = os.environ.get("FDAI_JIRA_ENFORCE", "").strip() == "1"
+        routes.update({name: jira_adapter for name in decoded_map})
+        if jira_enforce:
+            enforce_actions.update(decoded_map)
         _LOGGER.info(
             "tool_call_backend",
-            extra={"backend": "jira", "enforce": enforce},
+            extra={"backend": "jira", "enforce": jira_enforce},
         )
     elif os.environ.get("FDAI_TOOL_CALL_FAKE", "").strip() == "1":
-        adapter = RecordingToolExecutor()
-        enforce = False
+        fallback = RecordingToolExecutor()
         _LOGGER.info("tool_call_backend", extra={"backend": "recording"})
-    else:
+
+    if os.environ.get("FDAI_VM_TASK_ENABLED", "").strip() == "1":
+        if http_client is None:
+            raise RuntimeError("FDAI_VM_TASK_ENABLED requires a shared HTTP client")
+        dsn = os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
+        if not dsn:
+            raise RuntimeError("VM task execution requires FDAI_STATE_STORE_DSN")
+        from .delivery.azure.vm_task import AzureVmTaskRunner, AzureVmTaskRunnerConfig
+        from .delivery.azure.workload_identity import ManagedIdentityWorkloadIdentity
+        from .delivery.persistence.postgres_vm_task import (
+            PostgresPythonTaskArtifactStore,
+            PostgresVmTaskConfig,
+            PostgresVmTaskTargetResolver,
+        )
+        from .delivery.vm_task import VmPythonToolExecutor
+
+        vm_config = PostgresVmTaskConfig(dsn=dsn)
+        vm_adapter = VmPythonToolExecutor(
+            artifacts=PostgresPythonTaskArtifactStore(config=vm_config),
+            targets=PostgresVmTaskTargetResolver(config=vm_config),
+            runner=AzureVmTaskRunner(
+                identity=ManagedIdentityWorkloadIdentity(http_client=http_client),
+                http_client=http_client,
+                config=AzureVmTaskRunnerConfig(
+                    endpoint=os.environ.get(
+                        "FDAI_ARM_ENDPOINT", "https://management.azure.com"
+                    ).strip(),
+                    run_as_user=os.environ.get("FDAI_VM_TASK_RUN_AS_USER", "fdai-task").strip(),
+                    task_root=os.environ.get("FDAI_VM_TASK_ROOT", "/var/lib/fdai/tasks").strip(),
+                ),
+            ),
+        )
+        routes["tool.run-python-on-vm"] = vm_adapter
+        vm_enforce = os.environ.get("FDAI_VM_TASK_ENFORCE", "").strip() == "1"
+        if vm_enforce:
+            enforce_actions.add("tool.run-python-on-vm")
+        _LOGGER.info(
+            "tool_call_backend",
+            extra={"backend": "azure-vm-task", "enforce": vm_enforce},
+        )
+
+    if not routes and fallback is None:
         _LOGGER.info("tool_call_backend", extra={"backend": "none"})
         return None
+
+    from .delivery.tool_router import RoutingToolExecutor
+
+    adapter = RoutingToolExecutor(
+        routes=routes,
+        enforce_actions=frozenset(enforce_actions),
+        fallback=fallback,
+    )
 
     return ToolCallShadowExecutor(
         executor=adapter,
@@ -733,7 +975,7 @@ def _build_tool_executor(
         resource_lock=resource_lock,
         idempotency=idempotency,
         receipt_observer=receipt_observer,
-        enforce=enforce,
+        enforce=bool(enforce_actions),
     )
 
 
@@ -811,6 +1053,18 @@ def _build_inventory_age_provider() -> Any:
     )
 
     return PostgresInventoryAgeProvider(config=PostgresInventorySnapshotStoreConfig(dsn=dsn))
+
+
+def _build_inventory_context_provider() -> Any:
+    dsn = os.environ.get("FDAI_INVENTORY_DSN", "").strip()
+    if not dsn:
+        return None
+    from .delivery.persistence.postgres_inventory_snapshot import (
+        PostgresInventoryContextProvider,
+        PostgresInventorySnapshotStoreConfig,
+    )
+
+    return PostgresInventoryContextProvider(config=PostgresInventorySnapshotStoreConfig(dsn=dsn))
 
 
 def _build_workflow_coordinator(
@@ -1036,6 +1290,7 @@ def _build_control_loop(
         idempotency=idempotency_store,
         receipt_observer=tool_receipt_observer,
         http_client=http_client,
+        metric_provider=container.metric_provider,
     )
 
     # Detection-and-explanation seams (observability-and-detection.md).
@@ -1126,9 +1381,45 @@ def _build_control_loop(
         ),
         governance_assignments=governance_catalog.assignments,
         inventory_age_provider=_build_inventory_age_provider(),
+        inventory_context_provider=_build_inventory_context_provider(),
         promotion_state_refresher=promotion_state_refresher,
         stage_publisher=stage_publisher,
     )
+
+
+def _build_irp_event_handler(*, container: Container, bus: EventBus) -> Any | None:
+    """Build the alert-to-investigation bridge when explicitly enabled."""
+    if os.environ.get("FDAI_IRP_ENABLED", "").strip() != "1":
+        return None
+    budget_raw = os.environ.get("FDAI_IRP_BUDGET_SECONDS", "").strip()
+    try:
+        budget_seconds = float(budget_raw) if budget_raw else 60.0
+    except ValueError as exc:
+        raise RuntimeError("FDAI_IRP_BUDGET_SECONDS MUST be a number") from exc
+    from .core.investigation import InvestigationCoordinator, default_analyzers
+    from .core.irp import IrpCoordinator
+    from .delivery.irp import EventBusIrpProposalRouter, IrpEventHandler
+
+    signal_writer = None
+    dsn = os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
+    if dsn:
+        from .delivery.persistence import (
+            PostgresReportSignalStore,
+            PostgresReportSignalStoreConfig,
+        )
+
+        signal_writer = PostgresReportSignalStore(config=PostgresReportSignalStoreConfig(dsn=dsn))
+    coordinator = IrpCoordinator(
+        investigator=InvestigationCoordinator(
+            analyzers=default_analyzers(container.metric_provider)
+        ),
+        proposal_router=EventBusIrpProposalRouter(
+            bus=bus,
+            topic=container.config.kafka.topic_events,
+        ),
+        investigation_budget_seconds=budget_seconds,
+    )
+    return IrpEventHandler(coordinator=coordinator, signal_writer=signal_writer)
 
 
 async def _consume(
@@ -1139,6 +1430,7 @@ async def _consume(
     control_loop: ControlLoop,
     stop: asyncio.Event,
     divergence: ShadowDivergenceLedger | None = None,
+    irp_handler: Any | None = None,
 ) -> None:
     """Feed every Kafka envelope through the P1 control loop.
 
@@ -1190,6 +1482,22 @@ async def _consume(
                 or envelope.key
             )
             divergence.record_authoritative(correlation_id, _authoritative_decision(result))
+        if irp_handler is not None and result.outcome is not ControlLoopOutcome.DEDUPED:
+            try:
+                await irp_handler.handle(envelope.payload)
+            except Exception as exc:  # noqa: BLE001 - isolate the alert-response boundary
+                reason = f"irp_event_handler_error:{type(exc).__name__}"
+                _LOOP_LOGGER.exception(
+                    "irp_event_handler_error",
+                    extra={"key": envelope.key, "offset": envelope.offset},
+                )
+                await bus.dead_letter(
+                    envelope.topic,
+                    envelope.key,
+                    envelope.payload,
+                    reason,
+                )
+                continue
         _LOOP_LOGGER.info(
             "event_processed",
             extra={
@@ -1283,13 +1591,21 @@ async def _run() -> int:
     divergence_ledger: ShadowDivergenceLedger | None = None
 
     try:
-        if container.config.llm.mode == LlmMode.AZURE:
+        telemetry_requested = bool(
+            os.environ.get("FDAI_MONITOR_WORKSPACE_ID", "").strip()
+            or os.environ.get("FDAI_PROMETHEUS_ENDPOINT", "").strip()
+        )
+        if container.config.llm.mode == LlmMode.AZURE or telemetry_requested:
             from .delivery.azure.workload_identity import (
                 ManagedIdentityWorkloadIdentity,
             )
 
             http_client = _new_http_client()
             identity = ManagedIdentityWorkloadIdentity(http_client=http_client)
+
+        if container.config.llm.mode == LlmMode.AZURE:
+            if http_client is None or identity is None:
+                raise RuntimeError("Azure LLM mode requires HTTP and workload identity bindings")
             container = await _finalize_llm_bindings(
                 container, http_client=http_client, identity=identity
             )
@@ -1298,6 +1614,15 @@ async def _run() -> int:
                 "azure_llm_bindings_attached",
                 extra={"cross_check_models": len(bindings.cross_check_models)},
             )
+        elif telemetry_requested:
+            if http_client is None or identity is None:
+                raise RuntimeError("Azure telemetry requires HTTP and workload identity bindings")
+            container = _attach_runtime_metric_provider(
+                container,
+                http_client=http_client,
+                identity=identity,
+            )
+            container = _attach_runtime_knowledge_source(container)
 
         start_consumer = os.environ.get("FDAI_START_CONSUMER", "").lower() in (
             "1",
@@ -1327,6 +1652,16 @@ async def _run() -> int:
                     dlq_suffix=container.config.kafka.topic_dlq_suffix,
                 ),
             )
+            from .agents._framework.topics import OWNED_OBJECT_TOPICS
+            from .delivery.event_bus_multiplex import MultiplexedEventBus
+
+            bus = MultiplexedEventBus(
+                bus=bus,
+                logical_topics=OWNED_OBJECT_TOPICS,
+                physical_topic=os.environ.get(
+                    "FDAI_PANTHEON_OBJECT_TOPIC", "aw.pantheon.objects"
+                ).strip(),
+            )
             from .delivery.read_api.streaming.agent_activity_broadcaster import (
                 DEFAULT_STAGE_TOPIC,
             )
@@ -1338,6 +1673,11 @@ async def _run() -> int:
             # http_client exists before _build_control_loop needs one.
             if os.environ.get("FDAI_GITOPS_TOKEN") and http_client is None:
                 http_client = _new_http_client()
+            if os.environ.get("FDAI_GITOPS_TOKEN") and http_client is not None:
+                container = _attach_runtime_github_change_feed(
+                    container,
+                    http_client=http_client,
+                )
             # Same for the HIL channel - an Incoming Webhook URL opts in.
             if os.environ.get("FDAI_CHATOPS_WEBHOOK_URL") and http_client is None:
                 http_client = _new_http_client()
@@ -1494,6 +1834,7 @@ async def _run() -> int:
                     control_loop=control_loop,
                     stop=stop,
                     divergence=divergence_ledger,
+                    irp_handler=_build_irp_event_handler(container=container, bus=bus),
                 )
             )
             hil_decision_task: asyncio.Task[None] | None = None

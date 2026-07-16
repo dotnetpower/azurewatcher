@@ -250,8 +250,8 @@ class PostgresProcessRuntimeStore:
             await self._set_timeout(connection)
             cursor = await connection.execute(
                 "SELECT * FROM process_runtime "
-                "WHERE (%s IS NULL OR workflow_ref = %s) "
-                "AND (%s IS NULL OR status = %s) "
+                "WHERE (%s::text IS NULL OR workflow_ref = %s::text) "
+                "AND (%s::text IS NULL OR status = %s::text) "
                 "ORDER BY updated_at DESC, process_id DESC LIMIT %s",
                 (
                     workflow_ref,

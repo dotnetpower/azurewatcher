@@ -1,0 +1,7 @@
+schema_version: "1.0.0"
+name: binds_workflow_definition
+version: "1.0.0"
+from_type: WorkflowBinding
+to_type: WorkflowDefinition
+cardinality: many_to_one
+description: Immutable WorkflowDefinition selected by a principal-scoped binding.

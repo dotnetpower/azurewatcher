@@ -59,6 +59,10 @@ class WorkflowTriggerIndex:
         """Return every schedule-triggered Workflow (name-ordered)."""
         return self._scheduled
 
+    def for_schedule(self, workflow_name: str) -> tuple[Workflow, ...]:
+        """Return one scheduled Workflow by name, or an empty tuple."""
+        return tuple(workflow for workflow in self._scheduled if workflow.name == workflow_name)
+
     def signal_types(self) -> frozenset[str]:
         """Return every signal type that fires at least one Workflow."""
         return frozenset(self._by_signal)

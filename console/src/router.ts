@@ -7,6 +7,7 @@ export const PANEL_PATHS: Readonly<Record<string, string>> = {
   agents: "/agents",
   "hil-queue": "/approvals",
   provision: "/provisioning",
+  onboarding: "/onboarding",
   processes: "/processes",
   reports: "/reports",
   "agent-activity": "/agent-activity",
@@ -24,17 +25,26 @@ export const PANEL_PATHS: Readonly<Record<string, string>> = {
   "promotion-gates": "/promotion-gates",
   scope: "/scope",
   "llm-cost": "/llm-cost",
-  settings: "/settings",
+  "settings-general": "/settings/general",
+  "settings-models": "/settings/models",
+  "settings-iam": "/settings/iam",
+  "settings-integrations": "/settings/integrations",
+  "settings-diagnostics": "/settings/diagnostics",
   "operating-outcomes": "/operating-outcomes",
   "control-assurance": "/control-assurance",
   verticals: "/verticals",
   "trust-routing": "/trust-routing",
   labs: "/labs",
+  capabilities: "/capabilities",
 };
 
-const PATH_PANELS = new Map(
-  Object.entries(PANEL_PATHS).map(([panelId, path]) => [path.slice(1), panelId]),
-);
+const PANEL_ROUTES = Object.entries(PANEL_PATHS)
+  .map(([panelId, path]) => ({ panelId, path }))
+  .sort((left, right) => right.path.length - left.path.length);
+
+const PATH_ALIASES: Readonly<Record<string, string>> = {
+  "/settings": "settings-general",
+};
 
 const LEGACY_ALIASES: Readonly<Record<string, string>> = {
   dashboard: "dashboard",
@@ -81,10 +91,20 @@ export function routeHref(
 
 export function parseConsoleRoute(pathname: string, search = ""): ConsoleRoute {
   const normalized = normalizePathname(pathname);
-  const segments = normalized.split("/").filter(Boolean).map(decodeURIComponent);
-  const matchedPanel = segments.length === 0 ? undefined : PATH_PANELS.get(segments[0]!);
+  const aliasPanel = PATH_ALIASES[normalized];
+  const matchedRoute = PANEL_ROUTES.find(
+    (candidate) => normalized === candidate.path || normalized.startsWith(`${candidate.path}/`),
+  );
+  const matchedPanel = aliasPanel ?? matchedRoute?.panelId;
   const panelId = matchedPanel ?? "dashboard";
-  const detailSegments = matchedPanel === undefined ? [] : segments.slice(1);
+  const matchedPath = aliasPanel === undefined ? matchedRoute?.path : normalized;
+  const detailSegments = matchedPanel === undefined || matchedPath === undefined
+    ? []
+    : normalized
+      .slice(matchedPath.length)
+      .split("/")
+      .filter(Boolean)
+      .map(decodeURIComponent);
   const canonicalPathname = routeHref(panelId, { segments: detailSegments });
   return {
     panelId,
@@ -108,6 +128,7 @@ export function legacyHashHref(hash: string): string | null {
   if (!raw) return PANEL_PATHS.dashboard!;
   const [legacyId = "", query = ""] = raw.split("?", 2);
   const panelId = LEGACY_ALIASES[legacyId] ?? legacyId;
+  if (!(panelId in PANEL_PATHS)) return null;
   const path = panelPath(panelId);
   return query ? `${path}?${query}` : path;
 }
@@ -117,12 +138,22 @@ export function currentRoute(): ConsoleRoute {
   return parseConsoleRoute(window.location.pathname, window.location.search);
 }
 
+export function shouldReplaceUnmatchedRoute(route: ConsoleRoute, hash: string): boolean {
+  return !route.matched && hash === "";
+}
+
+export function shouldResetScroll(currentPathname: string, nextPathname: string): boolean {
+  return normalizePathname(currentPathname) !== normalizePathname(nextPathname);
+}
+
 export function navigate(href: string, replace = false): void {
   if (typeof window === "undefined") return;
   const url = new URL(href, window.location.origin);
+  const resetScroll = shouldResetScroll(window.location.pathname, url.pathname);
   const method = replace ? "replaceState" : "pushState";
   window.history[method](null, "", `${url.pathname}${url.search}`);
   window.dispatchEvent(new Event(ROUTE_EVENT));
+  if (resetScroll) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 }
 
 export function installNavigationListener(onRoute: () => void): () => void {

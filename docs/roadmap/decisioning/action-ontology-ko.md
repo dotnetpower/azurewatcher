@@ -1,8 +1,8 @@
 ---
 title: Action 온톨로지
 translation_of: action-ontology.md
-translation_source_sha: 57b55db4958f57b619ef6dd803d0167c12f7bcfc
-translation_revised: 2026-07-11
+translation_source_sha: 1e9b75853812fc7450e1b21f3a4f08af743fa737
+translation_revised: 2026-07-15
 ---
 
 # Action 온톨로지
@@ -298,6 +298,15 @@ substrate 를 mutate 하지 않고 등록된 함수 (tool) 를 invoke. LLM 이 t
   아티팩트 삭제).
   **Dispatcher: shadow-only** (`RecordingToolExecutor` Day-1 binding; fork 가
   live 어댑터 bind).
+- `tool.run-python-on-vm` - 검증된 content-addressed Python artifact 를
+  inventory 에서 선택한 Linux VM 하나에 stage 하고 `VmTaskRunner` provider 로
+  실행합니다. Task 는 `gpu`, `network`, filesystem access, child-process 생성 같은
+  host capability 를 선언합니다. Target 은 필요한 모든 capability 를 제공해야
+  합니다. Action 은 source text 또는 arbitrary shell command 가 아니라 artifact
+  reference 만 받습니다. Shadow mode 는 plan 을 만들고, enforce mode 는 Owner HIL
+  이후 Azure Managed Run Command 를 사용합니다. Immutable file 은 설정된 non-root
+  account 가 bounded timeout 으로 entrypoint 를 실행하기 전에 guest 에서 SHA-256
+  으로 다시 검증됩니다.
 
 기본 `execution_path: tool_call`. `core/` 는 Protocol 만 안다; fork 가
 composition root 에서 live 어댑터 (네이티브 Python registry, MCP 클라이언트,
@@ -305,7 +314,7 @@ HTTP callout) 를 bind - registry 는 MCP 어댑터의 자연스러운 attach po
 MCP 서버 tool 하나를 `tool.*` ActionType 하나에 매핑한다. `tool.*` ActionType
 은 측정 가능한 `promotion_gate` 를 가진 shadow-first 이고 임의의 mutation
 ActionType 과 동일한 4 개 안전 invariant 를 carry 하므로, 워크플로 스텝이
-`action_type_ref` 로 참조하며 이를 상속 MAY. 
+`action_type_ref` 로 참조하며 이를 상속 MAY.
 [execution-model-ko.md § 5.6](execution-model-ko.md#56-tool-call-tool_call) 참조.
 
 `tool.*` ActionType 은 `ceiling_by_tier` 를 declare SHOULD. reversible,

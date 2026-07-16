@@ -14,14 +14,17 @@
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
 import type { VNode } from "preact";
 import type { ReadApiClient } from "../api";
-import { loadConfig } from "../config";
-import { useAgentStream } from "../hooks/use-agent-stream";
+import { AgentWorkspaceNav } from "../components/agent-workspace-nav";
+import { UnavailableState } from "../components/ui";
+import { agentStreamDescriptor, useAgentStream } from "../hooks/use-agent-stream";
+import { currentRoute, navigate, routeHref } from "../router";
 import { usePublishViewContext } from "../deck/context";
 import { agentTerm, composeGlossary, TERMS } from "../deck/glossary";
 import { openDeckWithPrompt, openDeckWithContext } from "../deck/open-deck";
 import {
   PANTHEON,
   activeAgentCount,
+  AGENT_RUNTIME_BINDING,
   AGENT_ROLE,
   agentChatContext,
   engagedGroups,
@@ -30,6 +33,7 @@ import {
   makeInitialState,
   ORG_CHART,
   reducer,
+  runtimeConsumerCount,
   STATE_TASK,
   type AgentNode,
   type EngagedGroup,
@@ -67,6 +71,47 @@ const EMPTY_GEOMETRY: Geometry = { centers: {}, w: 0, h: 0 };
 
 /** How many incidents the side list shows before the "All" toggle. */
 const INCIDENT_PREVIEW = 10;
+
+type AgentLayout = "roster" | "constellation" | "org";
+type RosterLayer = "all" | "governance" | "pipeline" | "domain";
+type RosterState = "all" | "engaged" | "watching" | "idle";
+
+const GOVERNANCE_AGENTS = new Set(["Odin", "Mimir", "Muninn", "Saga", "Norns"]);
+const DOMAIN_AGENTS = new Set(["Njord", "Freyr", "Loki"]);
+
+function rosterLayerOf(name: string): Exclude<RosterLayer, "all"> {
+  if (GOVERNANCE_AGENTS.has(name)) return "governance";
+  if (DOMAIN_AGENTS.has(name)) return "domain";
+  return "pipeline";
+}
+
+function layoutFromRoute(): AgentLayout {
+  const view = currentRoute().search.get("view");
+  return view === "org" || view === "constellation" ? view : "roster";
+}
+
+function stateTime(iso: string): string {
+  if (!iso) return "No signal yet";
+  const value = new Date(iso);
+  if (Number.isNaN(value.getTime())) return iso;
+  return value.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function currentTask(node: AgentNode): string {
+  const binding = AGENT_RUNTIME_BINDING[node.name];
+  if (
+    node.state === "idle" &&
+    (binding === "event-bus subscriber" || binding === "raw ingress subscriber")
+  ) {
+    return "Subscribed and waiting for events";
+  }
+  return node.detail ?? STATE_TASK[node.state];
+}
 
 /**
  * CSS `mask-image` url for an agent's line icon (served from `public/
@@ -106,24 +151,23 @@ function centroid(points: readonly Point[]): Point | null {
   return { x: sum.x / points.length, y: sum.y / points.length };
 }
 
-export function AgentsRoute({ client: _client }: Props) {
+export function AgentsRoute({ client }: Props) {
+  const initialRoute = currentRoute();
   const [state, dispatch] = useReducer(reducer, undefined, makeInitialState);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialRoute.search.get("correlation"),
+  );
 
-  const url = useMemo(() => {
-    const cfg = loadConfig();
-    const base =
-      cfg.readApiBaseUrl || (typeof window !== "undefined" ? window.location.origin : "");
-    return `${base.replace(/\/$/, "")}/agents/stream`;
-  }, []);
+  const stream = useMemo(agentStreamDescriptor, []);
 
   const { status } = useAgentStream({
-    url,
+    url: stream.url,
+    getAuthorizationHeader: client.authorizationHeader,
     onEvent: (msg) => dispatch({ kind: "message", msg }),
   });
 
   // Auto-follow the newest incident until the operator picks one.
-  const [pinned, setPinned] = useState(false);
+  const [pinned, setPinned] = useState(initialRoute.search.has("correlation"));
   useEffect(() => {
     if (!pinned && state.incidentOrder.length > 0) {
       const first = state.incidentOrder[0];
@@ -139,16 +183,57 @@ export function AgentsRoute({ client: _client }: Props) {
   // chart that shows who reports to whom. Both share the same live nodes.
   // Defaults to the org chart so the pantheon's roles + reporting lines are
   // the first thing an operator sees.
-  const [layout, setLayout] = useState<"constellation" | "org">("org");
+  const [layout, setLayout] = useState<AgentLayout>(layoutFromRoute);
+  const [rosterLayer, setRosterLayer] = useState<RosterLayer>("all");
+  const [rosterState, setRosterState] = useState<RosterState>("all");
+  const [rosterQuery, setRosterQuery] = useState("");
 
   // Agent the operator clicked to focus - drives the "what events is this
   // agent in" side panel. Independent from the selected incident.
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(
+    initialRoute.search.get("agent"),
+  );
   const selectedAgentNode = selectedAgent ? (state.agents[selectedAgent] ?? null) : null;
   const selectedAgentIncidents = useMemo(
     () => (selectedAgent ? incidentsForAgent(state, selectedAgent) : []),
     [state, selectedAgent],
   );
+
+  useEffect(() => {
+    const sync = () => {
+      const route = currentRoute();
+      const correlation = route.search.get("correlation");
+      setSelectedId(correlation);
+      setPinned(correlation !== null);
+      setSelectedAgent(route.search.get("agent"));
+      setLayout(layoutFromRoute());
+    };
+    window.addEventListener("popstate", sync);
+    window.addEventListener("fdai:route-changed", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("fdai:route-changed", sync);
+    };
+  }, []);
+
+  const openFocus = (
+    agent: string | null,
+    correlation: string | null,
+    nextLayout: AgentLayout = layout,
+  ): void => {
+    navigate(routeHref("agents", {
+      params: {
+        view: nextLayout === "roster" ? null : nextLayout,
+        agent,
+        correlation,
+      },
+    }));
+  };
+
+  const selectLayout = (nextLayout: AgentLayout): void => {
+    setLayout(nextLayout);
+    openFocus(selectedAgent, selectedId, nextLayout);
+  };
 
   const selected: Incident | null = selectedId ? (state.incidents[selectedId] ?? null) : null;
   const involved = useMemo(
@@ -157,6 +242,29 @@ export function AgentsRoute({ client: _client }: Props) {
   );
 
   const active = activeAgentCount(state);
+  const rosterAgents = useMemo(() => {
+    const query = rosterQuery.trim().toLocaleLowerCase();
+    return PANTHEON
+      .map(({ name }) => state.agents[name])
+      .filter((node): node is AgentNode => node !== undefined)
+      .filter((node) => rosterLayer === "all" || rosterLayerOf(node.name) === rosterLayer)
+      .filter((node) => {
+        if (rosterState === "all") return true;
+        if (rosterState === "engaged") return isEngaged(node);
+        return node.state === rosterState;
+      })
+      .filter((node) => {
+        if (!query) return true;
+        const role = AGENT_ROLE[node.name];
+        return [node.name, node.state, node.detail, role?.title, STATE_TASK[node.state]]
+          .filter(Boolean)
+          .join(" ")
+          .toLocaleLowerCase()
+          .includes(query);
+      });
+  }, [state.agents, rosterLayer, rosterState, rosterQuery]);
+  const watching = Object.values(state.agents).filter((node) => node.state === "watching").length;
+  const idle = Object.values(state.agents).filter((node) => node.state === "idle").length;
 
   // Agents currently co-engaged, grouped by the incident they work on.
   // Drives the connection lines: one group == one ticket == one link mesh.
@@ -289,7 +397,7 @@ export function AgentsRoute({ client: _client }: Props) {
         }${selectedAgent === name ? " is-agent-selected" : ""}`}
         onMouseEnter={() => setHoveredAgent(name)}
         onMouseLeave={() => setHoveredAgent((cur) => (cur === name ? null : cur))}
-        onClick={() => setSelectedAgent((cur) => (cur === name ? null : name))}
+        onClick={() => openFocus(selectedAgent === name ? null : name, selectedId)}
       >
         <span class="agent-ring" aria-hidden="true">
           <span
@@ -306,22 +414,32 @@ export function AgentsRoute({ client: _client }: Props) {
 
   return (
     <div class="agents-route">
+      <AgentWorkspaceNav />
       <header class="agents-head">
         <div>
-          <h2>Agents</h2>
+          <span class="agents-eyebrow">Read-only live status</span>
+          <h2>Agent fleet</h2>
           <p class="agents-sub">
-            The 15-agent pantheon, live. Switch to the <strong>Org chart</strong>{" "}
-            to see who reports to whom and each agent's role; click an agent to
-            see the events it is working. Wire: <code>GET /agents/stream</code>.
+            Live work across the fixed 15-agent pantheon. Inspect current tasks,
+            open each agent's evidence timeline, or ask about its grounded context.
+            State comes from <code>GET /agents/stream</code>.
           </p>
         </div>
         <div class="agents-meta">
           <div class="agents-layout-toggle" role="group" aria-label="layout mode">
             <button
               type="button"
+              class={layout === "roster" ? "is-active" : ""}
+              aria-pressed={layout === "roster"}
+              onClick={() => selectLayout("roster")}
+            >
+              Roster
+            </button>
+            <button
+              type="button"
               class={layout === "constellation" ? "is-active" : ""}
               aria-pressed={layout === "constellation"}
-              onClick={() => setLayout("constellation")}
+              onClick={() => selectLayout("constellation")}
             >
               Constellation
             </button>
@@ -329,18 +447,41 @@ export function AgentsRoute({ client: _client }: Props) {
               type="button"
               class={layout === "org" ? "is-active" : ""}
               aria-pressed={layout === "org"}
-              onClick={() => setLayout("org")}
+              onClick={() => selectLayout("org")}
             >
               Org chart
             </button>
           </div>
           <span class={`agents-conn conn-${status}`}>{status}</span>
+          <span class="status-pill status-pill-neutral">
+            {stream.source === "local" ? "local stream" : "runtime stream"}
+          </span>
           <span class="agents-active">
             <strong>{active}</strong> engaged
           </span>
         </div>
       </header>
 
+      {layout === "roster" ? (
+        <AgentRoster
+          agents={rosterAgents}
+          state={state}
+          layer={rosterLayer}
+          stateFilter={rosterState}
+          query={rosterQuery}
+          active={active}
+          watching={watching}
+          idle={idle}
+          streamSource={stream.source}
+          onLayerChange={setRosterLayer}
+          onStateChange={setRosterState}
+          onQueryChange={setRosterQuery}
+          onOpen={(name) => {
+            setLayout("org");
+            openFocus(name, selectedId, "org");
+          }}
+        />
+      ) : (
       <div class="agents-layout">
         <section
           class={`agents-stage layout-${layout}`}
@@ -376,11 +517,17 @@ export function AgentsRoute({ client: _client }: Props) {
         </section>
 
         <aside class="agents-side">
+          {selectedAgent && !selectedAgentNode ? (
+            <UnavailableState message={`Agent ${selectedAgent} is not in the fixed pantheon.`} />
+          ) : null}
+          {selectedId && !selected ? (
+            <UnavailableState message={`Incident ${selectedId} is not present in the retained agent stream.`} />
+          ) : null}
           {selectedAgentNode && (
             <AgentFocus
               node={selectedAgentNode}
               incidents={selectedAgentIncidents}
-              onClose={() => setSelectedAgent(null)}
+              onClose={() => openFocus(null, selectedId)}
               onChat={() =>
                 openDeckWithContext({
                   sessionKey: `agent:${selectedAgentNode.name}`,
@@ -395,8 +542,7 @@ export function AgentsRoute({ client: _client }: Props) {
                 if (state.incidentOrder.indexOf(id) >= INCIDENT_PREVIEW) {
                   setShowAllIncidents(true);
                 }
-                setSelectedId(id);
-                setPinned(true);
+                openFocus(selectedAgent, id);
               }}
             />
           )}
@@ -434,9 +580,8 @@ export function AgentsRoute({ client: _client }: Props) {
                         }`}
                         aria-expanded={isOpen}
                         onClick={() => {
-                          setPinned(true);
                           // Toggle: click an open row to collapse it, another to open.
-                          setSelectedId((cur) => (cur === id ? null : id));
+                          openFocus(selectedAgent, isOpen ? null : id);
                         }}
                       >
                         <span class="incident-status">{inc.status}</span>
@@ -451,6 +596,252 @@ export function AgentsRoute({ client: _client }: Props) {
             )}
           </div>
         </aside>
+      </div>
+      )}
+    </div>
+  );
+}
+
+function AgentRoster({
+  agents,
+  state,
+  layer,
+  stateFilter,
+  query,
+  active,
+  watching,
+  idle,
+  streamSource,
+  onLayerChange,
+  onStateChange,
+  onQueryChange,
+  onOpen,
+}: {
+  readonly agents: readonly AgentNode[];
+  readonly state: ReturnType<typeof makeInitialState>;
+  readonly layer: RosterLayer;
+  readonly stateFilter: RosterState;
+  readonly query: string;
+  readonly active: number;
+  readonly watching: number;
+  readonly idle: number;
+  readonly streamSource: "local" | "live";
+  readonly onLayerChange: (value: RosterLayer) => void;
+  readonly onStateChange: (value: RosterState) => void;
+  readonly onQueryChange: (value: string) => void;
+  readonly onOpen: (name: string) => void;
+}) {
+  return (
+    <div class="agent-roster">
+      <section class="agent-roster-note" aria-label="Roster interpretation">
+        <strong>State is descriptive, not prescriptive.</strong>
+        <span>
+          Engaged counts agents handling a pipeline stage now, not every subscribed runtime
+          loop. Idle agents wake on their topics. This console observes work; it does not
+          approve or execute actions.
+          {streamSource === "local"
+            ? " Local streams are quiet by default. Scenario replay runs only when explicitly enabled; replayed items are generated examples, not Azure incidents."
+            : " Incidents come from the configured runtime event stream."}
+        </span>
+      </section>
+
+      <section class="agent-discovery-note" aria-label="Resource discovery ownership">
+        <div>
+          <strong>Resource discovery</strong>
+          <span>Inventory sync job</span>
+        </div>
+        <p>
+          Azure Resource Graph first, ARM fallback, then immutable inventory snapshot and delta
+          events into Huginn. Deployed schedule: every 6 hours. The local harness does not run
+          Azure discovery.
+        </p>
+      </section>
+
+      <section class="agent-roster-summary" aria-label="Fleet summary">
+        <RosterSummary
+          label="Consumers ready"
+          value={runtimeConsumerCount()}
+          detail="EventBus + raw ingress"
+          kind="consumers"
+        />
+        <RosterSummary label="Engaged" value={active} detail="working now" kind="engaged" />
+        <RosterSummary label="Watching" value={watching} detail="sensing signals" kind="watching" />
+        <RosterSummary label="Idle" value={idle} detail="ready to wake" kind="idle" />
+        <RosterSummary
+          label="Incidents"
+          value={state.incidentOrder.length}
+          detail="retained collaborations"
+          kind="incidents"
+        />
+      </section>
+
+      <section class="agent-roster-toolbar" aria-label="Roster filters">
+        <RosterFilter
+          label="Layer"
+          values={["all", "governance", "pipeline", "domain"]}
+          selected={layer}
+          onSelect={(value) => onLayerChange(value as RosterLayer)}
+        />
+        <RosterFilter
+          label="State"
+          values={["all", "engaged", "watching", "idle"]}
+          selected={stateFilter}
+          onSelect={(value) => onStateChange(value as RosterState)}
+        />
+        <label class="agent-roster-search">
+          <span class="sr-only">Filter agents</span>
+          <input
+            type="search"
+            value={query}
+            placeholder="Agent, role, or current work"
+            onInput={(event) => onQueryChange(event.currentTarget.value)}
+          />
+        </label>
+      </section>
+
+      {agents.length === 0 ? (
+        <div class="agent-roster-empty">
+          <strong>No agents match these filters.</strong>
+          <button
+            type="button"
+            onClick={() => {
+              onLayerChange("all");
+              onStateChange("all");
+              onQueryChange("");
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
+      ) : (
+        <div class="agent-roster-grid">
+          {agents.map((node) => {
+            const role = AGENT_ROLE[node.name];
+            const incident = node.correlationId ? state.incidents[node.correlationId] : undefined;
+            const agentIncidents = incidentsForAgent(state, node.name);
+            const iconUrl = agentIconUrl(node.name);
+            return (
+              <article class={`agent-roster-card layer-${node.layer}`} key={node.name}>
+                <header>
+                  <span class="agent-roster-avatar" aria-hidden="true">
+                    <span
+                      class="agent-icon"
+                      style={{ WebkitMaskImage: iconUrl, maskImage: iconUrl }}
+                    />
+                  </span>
+                  <div>
+                    <h3>{node.name}</h3>
+                    <p>{role?.title ?? node.layer} · {rosterLayerOf(node.name)}</p>
+                  </div>
+                  <span class={`agent-roster-state state-${node.state}`}>
+                    {_STATE_LABEL[node.state] ?? node.state}
+                  </span>
+                </header>
+                <p class="agent-roster-task">
+                  <span>Current work</span>
+                  <strong>{currentTask(node)}</strong>
+                </p>
+                <dl>
+                  <div>
+                    <dt>Active incident</dt>
+                    <dd>{incident?.ticketId || "None"}</dd>
+                  </div>
+                  <div>
+                    <dt>State since</dt>
+                    <dd>{stateTime(node.since)}</dd>
+                  </div>
+                  <div>
+                    <dt>Recent events</dt>
+                    <dd>{agentIncidents.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Reports to</dt>
+                    <dd>{role?.reportsTo ?? "-"}{role?.staff ? " (staff)" : ""}</dd>
+                  </div>
+                  <div>
+                    <dt>Runtime binding</dt>
+                    <dd>{AGENT_RUNTIME_BINDING[node.name] ?? "not configured"}</dd>
+                  </div>
+                  <div>
+                    <dt>Authority</dt>
+                    <dd>{node.name === "Thor" ? "Execute" : node.name === "Var" ? "Approve" : "Observe / advise"}</dd>
+                  </div>
+                </dl>
+                <footer>
+                  <button type="button" onClick={() => onOpen(node.name)}>Open</button>
+                  <a href={routeHref("agent-activity", { params: { agent: node.name } })}>
+                    Activity
+                  </a>
+                  <button
+                    type="button"
+                    class="is-primary"
+                    onClick={() =>
+                      openDeckWithContext({
+                        sessionKey: `agent:${node.name}`,
+                        sessionLabel: node.name,
+                        contextNote: agentChatContext(node, agentIncidents),
+                        prompt: `What has ${node.name} been working on?`,
+                      })
+                    }
+                  >
+                    Ask {node.name}
+                  </button>
+                </footer>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RosterSummary({
+  label,
+  value,
+  detail,
+  kind,
+}: {
+  readonly label: string;
+  readonly value: number;
+  readonly detail: string;
+  readonly kind: string;
+}) {
+  return (
+    <article class={`agent-roster-kpi kind-${kind}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </article>
+  );
+}
+
+function RosterFilter({
+  label,
+  values,
+  selected,
+  onSelect,
+}: {
+  readonly label: string;
+  readonly values: readonly string[];
+  readonly selected: string;
+  readonly onSelect: (value: string) => void;
+}) {
+  return (
+    <div class="agent-roster-filter">
+      <span>{label}</span>
+      <div role="group" aria-label={`${label} filter`}>
+        {values.map((value) => (
+          <button
+            type="button"
+            key={value}
+            class={selected === value ? "is-active" : undefined}
+            aria-pressed={selected === value}
+            onClick={() => onSelect(value)}
+          >
+            {value === "all" ? "All" : value[0]?.toUpperCase() + value.slice(1)}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -738,6 +1129,13 @@ function IncidentWorkflow({ incident }: { incident: Incident | null }) {
           executed here).
         </span>
       </div>
+
+      <nav class="incident-evidence-links" aria-label="Incident evidence">
+        <a href={routeHref("incidents", { params: { status: "all", correlation: incident.correlationId } })}>Incident</a>
+        <a href={routeHref("trace", { params: { correlation: incident.correlationId } })}>Trace</a>
+        <a href={routeHref("audit", { params: { correlation: incident.correlationId } })}>Audit</a>
+        <a href={routeHref("rca", { params: { correlation: incident.correlationId } })}>RCA</a>
+      </nav>
 
       <ol class="incident-steps">
         {steps.map((s) => (

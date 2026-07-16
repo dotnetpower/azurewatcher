@@ -18,6 +18,12 @@ variable "topics" {
   type        = list(string)
 }
 
+variable "auxiliary_topics" {
+  description = "Event Hub entities that do not receive a generated DLQ sibling."
+  type        = list(string)
+  default     = []
+}
+
 variable "partition_count" {
   description = "Partition count per topic. Day-zero default 2."
   type        = number
@@ -35,4 +41,3 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
-

@@ -73,7 +73,26 @@ class InMemoryStateStore(StateStore):
         return deepcopy(self._state.get(key)) if key in self._state else None
 
     async def write_state(self, key: str, value: Mapping[str, Any]) -> None:
-        self._state[key] = deepcopy(dict(value))
+        with self._lock:
+            self._state[key] = deepcopy(dict(value))
+
+    async def write_state_if_absent(self, key: str, value: Mapping[str, Any]) -> bool:
+        with self._lock:
+            if key in self._state:
+                return False
+            self._state[key] = deepcopy(dict(value))
+            return True
+
+    async def read_states(self, prefix: str, *, limit: int) -> tuple[Mapping[str, Any], ...]:
+        if limit < 1:
+            raise ValueError("limit MUST be >= 1")
+        with self._lock:
+            matching = [
+                deepcopy(value)
+                for key, value in reversed(tuple(self._state.items()))
+                if key.startswith(prefix)
+            ]
+        return tuple(matching[:limit])
 
     async def append_incident_transition(self, entry: Mapping[str, Any]) -> IncidentAppendStatus:
         """Append one incident transition to the shared audit chain.

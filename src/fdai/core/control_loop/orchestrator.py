@@ -9,9 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable, Iterable, Mapping
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from enum import StrEnum
 from typing import Any
 
 # G-2: module-level helpers extracted into _helpers.py for testability.
@@ -24,6 +22,8 @@ from fdai.core.control_loop._helpers import (
     build_shadow_authority_audit,
     evaluate_unified,
 )
+from fdai.core.control_loop.models import ControlLoopOutcome, ControlLoopResult
+from fdai.core.control_loop.operator_request import process_operator_request
 from fdai.core.event_ingest import EventCorrelator, EventIngest
 from fdai.core.executor import ExecutionResult, ShadowExecutor
 from fdai.core.executor.action_builder import ActionBuilder, ActionBuildError
@@ -105,44 +105,6 @@ _LOGGER = logging.getLogger(__name__)
 _HIL_SYSTEM_SUBMITTER = "system:control-loop"
 
 
-class ControlLoopOutcome(StrEnum):
-    """Top-level outcome for one :meth:`ControlLoop.process` call."""
-
-    DEDUPED = "deduped"
-    ABSTAINED_ROUTING = "abstained_routing"
-    ABSTAINED_T0 = "abstained_t0"
-    EXECUTED = "executed"
-    ABSTAINED_ACTION_BUILD = "abstained_action_build"
-    GOVERNANCE_OBSERVED = "governance_observed"
-    HIL = "hil"
-    DENIED = "denied"
-    T1_REUSE_LOGGED = "t1_reuse_logged"
-    T1_ABSTAINED = "t1_abstained"
-    T2_PROPOSED_LOGGED = "t2_proposed_logged"
-    T2_ESCALATED = "t2_escalated"
-    T2_DENIED = "t2_denied"
-    T2_ABSTAINED = "t2_abstained"
-
-
-@dataclass(frozen=True, slots=True)
-class ControlLoopResult:
-    """Aggregate typed result for one event."""
-
-    outcome: ControlLoopOutcome
-    tier: str
-    decision: str
-    resource_type: str | None
-    citing_rule_ids: tuple[str, ...] = ()
-    execution_results: tuple[
-        ExecutionResult | DirectApiExecutionResult | ToolCallExecutionResult, ...
-    ] = ()
-    reason: str | None = None
-    event_id: str | None = None
-    change_safety_decision: ChangeSafetyDecision | None = None
-    t1_decision: T1Decision | None = None
-    t2_decision: T2Decision | None = None
-
-
 _T2_OUTCOME_MAP: Mapping[T2Outcome, ControlLoopOutcome] = {
     T2Outcome.PROPOSED: ControlLoopOutcome.T2_PROPOSED_LOGGED,
     T2Outcome.ESCALATE: ControlLoopOutcome.T2_ESCALATED,
@@ -186,6 +148,9 @@ class ControlLoop:
         kill_switch: KillSwitch | None = None,
         governance_assignments: Iterable[Assignment] = (),
         inventory_age_provider: Callable[[str], Awaitable[int | None]] | None = None,
+        inventory_context_provider: (
+            Callable[[str], Awaitable[Mapping[str, Any] | None]] | None
+        ) = None,
         promotion_state_refresher: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         self._event_ingest = event_ingest
@@ -205,6 +170,7 @@ class ControlLoop:
         self._kill_switch = kill_switch
         self._governance_assignments = tuple(governance_assignments)
         self._inventory_age_provider = inventory_age_provider
+        self._inventory_context_provider = inventory_context_provider
         self._promotion_state_refresher = promotion_state_refresher
         self._cost_estimator = cost_estimator
         self._direct_api_executor = direct_api_executor
@@ -277,6 +243,11 @@ class ControlLoop:
         # Workflows in shadow off the ingested event. Pure side-effect
         # (audit rows only); never changes routing or the return path.
         await self._maybe_fire_workflows(event)
+
+        if event.event_type == "operator_request":
+            return await process_operator_request(
+                self, event=event, event_id=event_id, correlation_id=correlation_id
+            )
 
         # 1a. Optional Change Safety out-of-band detector.
         #
@@ -792,6 +763,7 @@ class ControlLoop:
         action: Action,
         rule: Rule,
         correlation_id: str,
+        submitter_oid: str = _HIL_SYSTEM_SUBMITTER,
     ) -> None:
         """Park a HIL-routed action and push an A1 approval card.
 
@@ -808,7 +780,7 @@ class ControlLoop:
             await self._hil_resume_coordinator.request_approval(
                 action=action,
                 rule=rule,
-                submitter_oid=_HIL_SYSTEM_SUBMITTER,
+                submitter_oid=submitter_oid,
                 correlation_id=correlation_id,
             )
         except Exception:  # noqa: BLE001 - park/push best-effort; HIL stays fail-closed

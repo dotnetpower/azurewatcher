@@ -80,6 +80,9 @@ Two Terraform layers plus a runner VM.
   `terraform apply`.
 - Non-secret Azure identifiers (subscription id / region / ops
   VNet id / state SA name) live in repo **Variables**.
+- Console deploys also set `ENTRA_CONSOLE_SPA_CLIENT_ID`. The runner MI is an
+  owner of that tenant's SPA app registration and has the Microsoft Graph
+  `Application.ReadWrite.OwnedBy` application permission with admin consent.
 - Postgres admin credentials live in repo **Secrets**.
 - The runner's identity does `az login --identity` at job start;
   no service principal secret is stored anywhere.
@@ -117,7 +120,11 @@ Two Terraform layers plus a runner VM.
    ```
    gh workflow run deploy-dev.yml -f apply=true
    ```
-5. **Post-apply audit**: read the runner's audit log (via
+5. **Console identity sync**: when `deploy_console=true`, the workflow reads
+  the Terraform Static Web App hostname, verifies the active tenant, preserves
+  existing SPA redirect URIs, and adds the deployed HTTPS origin. A missing
+  variable, tenant mismatch, or Graph authorization failure blocks the run.
+6. **Post-apply audit**: read the runner's audit log (via
    `az vm run-command` + `journalctl`); confirm no secrets landed
    in logs; deallocate the runner.
 

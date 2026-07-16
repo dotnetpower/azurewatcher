@@ -1,0 +1,7 @@
+schema_version: "1.0.0"
+name: runs_on
+version: "1.0.0"
+from_type: VmTaskRun
+to_type: Resource
+cardinality: many_to_one
+description: The inventory Resource targeted by a VM task run.

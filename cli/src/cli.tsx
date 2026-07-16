@@ -12,9 +12,9 @@
  *   tsx src/cli.tsx --surface=cli --mode=all-clear
  */
 
+import { CLI_HELP, isHelpRequest, parseCliArgs } from "./args.js";
 import { fetchSnapshot } from "./data/read-api.js";
-import { sampleBriefing, type BriefingMode } from "./data/sample-briefing.js";
-import { resolveLocale } from "./i18n/index.js";
+import { sampleBriefing } from "./data/sample-briefing.js";
 import type { Block } from "./view-model/blocks.js";
 import { buildBriefing } from "./view-model/build-briefing.js";
 import { buildFromReadModel } from "./view-model/build-from-readmodel.js";
@@ -23,34 +23,20 @@ import { renderTeams } from "./renderers/teams.js";
 import { renderText } from "./renderers/text.js";
 import type { BriefingPayload } from "./view-model/contract.js";
 
-type Surface = "cli" | "text" | "slack" | "teams";
-type Source = "sample" | "api";
-
-function flag(name: string, fallback: string): string {
-  const prefix = `--${name}=`;
-  const hit = process.argv.find((a) => a.startsWith(prefix));
-  return hit ? hit.slice(prefix.length) : fallback;
+const argv = process.argv.slice(2);
+if (isHelpRequest(argv)) {
+  console.log(CLI_HELP);
+  process.exit(0);
 }
 
-const surface = flag("surface", "cli") as Surface;
-const mode = flag("mode", "needs-me") as BriefingMode;
-const source = flag("source", "sample") as Source;
-const apiUrl = flag("api", "http://127.0.0.1:8010");
-// Locale resolution: --locale flag (highest) -> FDAI_LOCALE env -> en.
-const locale = resolveLocale(flag("locale", process.env.FDAI_LOCALE ?? "en"));
-
-if (!["cli", "text", "slack", "teams"].includes(surface)) {
-  console.error(`unknown --surface=${surface} (cli | text | slack | teams)`);
+let options;
+try {
+  options = parseCliArgs(argv);
+} catch (error) {
+  console.error((error as Error).message);
   process.exit(2);
 }
-if (!["needs-me", "all-clear"].includes(mode)) {
-  console.error(`unknown --mode=${mode} (needs-me | all-clear)`);
-  process.exit(2);
-}
-if (!["sample", "api"].includes(source)) {
-  console.error(`unknown --source=${source} (sample | api)`);
-  process.exit(2);
-}
+const { surface, mode, source, apiUrl, locale } = options;
 
 // Compile the content exactly once - this is what every surface shares.
 // `sample` uses synthetic data; `api` pulls the live read-only snapshot.

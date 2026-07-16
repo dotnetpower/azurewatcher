@@ -11,15 +11,16 @@ fault_family: stop
 intensity: extreme
 duration_seconds: 720.0
 expected_signal: request_failure
-injector: az:redis-reboot
+injector: needs-injector
 blast_radius_cap: 1
 rollback_note: Reboot is one-way; rollback = observe recovery.
 gates:
   shadow_status: pending
   enforce_status: null
 requires_hardware: false
-description: Reboot Azure Cache for Redis node(s) via az redis force-reboot. Reboot
-  is one-way; monitor the cache back to healthy.
+description: Legacy Azure Cache for Redis force-reboot reference. New cache creation
+  is retired and Azure Managed Redis has no equivalent reboot action, so this stays
+  non-executable.
 params:
   fault_name: urn:csci:microsoft:cache:reboot/1.0
   reboot_type: AllNodes

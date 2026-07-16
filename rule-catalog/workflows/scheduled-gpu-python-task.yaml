@@ -1,0 +1,25 @@
+schema_version: "1.0.0"
+name: scheduled-gpu-python-task
+version: "1.0.0"
+description: >-
+  Validate and plan a governed Python task for one inventory-selected GPU VM
+  on a reusable schedule.
+trigger:
+  kind: schedule
+  schedule: "0 2 * * *"
+default_mode: shadow
+promotion_gate:
+  min_shadow_days: 14
+  min_samples: 30
+  min_accuracy: 0.99
+  max_policy_escapes: 0
+steps:
+- id: run_gpu_task
+  action_type_ref: tool.run-python-on-vm
+  params:
+    artifact_ref: "${event.payload.task.artifact_ref}"
+    target_resource_ref: "${event.resource_ref}"
+    reason: "Run the scheduled governed Python task on the selected GPU VM."
+anti_scope: >-
+  This workflow does not provision a VM, install GPU drivers, install Python
+  packages, accept shell text, or bypass the risk gate and owner approval.

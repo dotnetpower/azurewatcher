@@ -179,7 +179,7 @@ describe("askBackendStream fallback typewriter", () => {
       ),
     );
     const mod = await import("./backend");
-    mod.fallbackTypewriter.intervalMs = 5;
+    mod.streamBurstPacer.intervalMs = 5;
 
     const stamps: number[] = [];
     const t0 = Date.now();
@@ -190,9 +190,30 @@ describe("askBackendStream fallback typewriter", () => {
     expect(reply.text).toBe(bigAnswer);
     // The pacer must have produced multiple paints, not one atomic drop.
     expect(stamps.length).toBeGreaterThan(2);
+    expect(stamps.length).toBeGreaterThanOrEqual(5);
     // Total pacing span > 0 (paints spread over time, not all at t=0).
     const span = stamps[stamps.length - 1]! - stamps[0]!;
     expect(span).toBeGreaterThan(0);
+  });
+
+  test("small incremental SSE delta bypasses cosmetic pacing", async () => {
+    const answer = "ready";
+    const body =
+      `event: token\ndata: ${JSON.stringify({ delta: answer })}\n\n` +
+      `event: done\ndata: ${JSON.stringify({ answer, model: "gpt-test" })}\n\n`;
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 200 })));
+    const timer = vi.spyOn(globalThis, "setTimeout");
+    const mod = await import("./backend");
+    mod.streamBurstPacer.intervalMs = 10_000;
+
+    const deltas: string[] = [];
+    const reply = await mod.askBackendStream("q", snap(), [], {
+      onToken: (delta) => deltas.push(delta),
+    });
+
+    expect(deltas).toEqual([answer]);
+    expect(reply.text).toBe(answer);
+    expect(timer).not.toHaveBeenCalled();
   });
 
   test("accepts CRLF-framed SSE from an intermediary", async () => {
@@ -252,7 +273,18 @@ describe("askBackendStream fallback typewriter", () => {
   test("applies one monotonic verified revision to the provisional answer", async () => {
     const frames = [
       ["status", { seq: 1, revision: 0, phase: "evidence_resolving", label: "Checking evidence" }],
-      ["status", { seq: 2, revision: 0, phase: "generating", label: "Drafting answer" }],
+      ["status", {
+        seq: 2,
+        revision: 0,
+        phase: "generating",
+        label: "Drafting answer",
+        sources: [{
+          kind: "operational",
+          label: "Operational evidence",
+          detail: "Memory pressure",
+          side_effect_class: "read",
+        }],
+      }],
       ["token", { seq: 3, revision: 0, delta: "Unsupported draft" }],
       // Same sequence is a replay and MUST be ignored.
       ["token", { seq: 3, revision: 0, delta: " duplicate" }],
@@ -343,6 +375,7 @@ describe("askBackendStream fallback typewriter", () => {
 
     const deltas: string[] = [];
     const progress: string[] = [];
+    let generatingSources: readonly { readonly kind: string; readonly label: string }[] = [];
     const revisions: Array<{ answer: string; revision: number; status: string }> = [];
     const callbackOrder: string[] = [];
     const reply = await mod.askBackendStream("q", snap(), [], {
@@ -350,7 +383,10 @@ describe("askBackendStream fallback typewriter", () => {
         deltas.push(delta);
         callbackOrder.push("token");
       },
-      onProgress: (item) => progress.push(item.phase),
+      onProgress: (item) => {
+        progress.push(item.phase);
+        if (item.phase === "generating") generatingSources = item.sources ?? [];
+      },
       onRevision: (answer, revision, status) => {
         revisions.push({ answer, revision, status });
         callbackOrder.push("revision");
@@ -363,6 +399,12 @@ describe("askBackendStream fallback typewriter", () => {
       "generating",
       "verifying",
       "corrected",
+    ]);
+    expect(generatingSources).toEqual([
+      expect.objectContaining({
+        kind: "operational",
+        label: "Operational evidence",
+      }),
     ]);
     expect(revisions).toEqual([
       { answer: "Verified canonical answer", revision: 1, status: "corrected" },
