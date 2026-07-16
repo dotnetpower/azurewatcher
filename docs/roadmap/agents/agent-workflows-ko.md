@@ -1,8 +1,8 @@
 ---
 title: 에이전트 워크플로우
 translation_of: agent-workflows.md
-translation_source_sha: 22fdf3b12f804f42630600cab8b3a2d2f55c9852
-translation_revised: 2026-07-16
+translation_source_sha: dbd6bbb18e925baa31d8175aa613d65eddb6660c
+translation_revised: 2026-07-17
 ---
 
 # 에이전트 워크플로우
@@ -162,7 +162,7 @@ sequenceDiagram
     H-->>V: observations
     V->>S: object.rollback {result, observations, recovery_time}
     S->>N: audit signal
-    N->>N: compare to baseline; emit drift signal if MTTR degraded
+    N->>N: compare to baseline, emit drift signal if MTTR degraded
 ```
 
 **Exit criteria.**
@@ -200,7 +200,7 @@ sequenceDiagram
     participant M as Mimir
     Va->>S: object.approval {rule_id, override_signal}
     S->>N: signal (batched)
-    N->>N: rolling count per rule_id; threshold check
+    N->>N: rolling count per rule_id, threshold check
     alt count > threshold
         N->>M: object.rule-candidate {rule_id, override_pattern, proposed_revision}
         M->>M: shadow evaluation on override cases
