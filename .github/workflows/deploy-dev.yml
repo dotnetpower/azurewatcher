@@ -94,7 +94,7 @@ jobs:
       TF_VAR_enable_document_ingestion: ${{ inputs.deploy_document_ingestion }}
       TF_VAR_enable_llm: ${{ inputs.deploy_document_ingestion || vars.ENABLE_LLM == 'true' }}
       TF_VAR_resolved_capabilities: ${{ vars.RESOLVED_CAPABILITIES_JSON }}
-        TF_VAR_core_image: ${{ vars.CORE_IMAGE || vars.READ_API_IMAGE }}
+      TF_VAR_core_image: ${{ vars.CORE_IMAGE || vars.READ_API_IMAGE }}
       # Read-API image + Entra/RBAC ids (tenant-specific; via repo Variables,
       # never committed). Empty when deploy_read_api is false.
       TF_VAR_read_api_image: ${{ vars.READ_API_IMAGE }}
