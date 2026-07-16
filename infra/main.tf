@@ -39,7 +39,6 @@ locals {
     "aw.dr.events",
     "aw.finops.events",
     "aw.pantheon.objects",
-    "aw.document.events",
   ]
   event_auxiliary_topics = ["aw.hil.decisions", "aw.pipeline.stages"]
 }
@@ -398,8 +397,18 @@ module "document_blob_private_endpoint" {
   target_resource_id    = module.document_storage[0].id
   subresource_name      = "blob"
   private_dns_zone_name = "privatelink.blob.core.windows.net"
-  extra_vnet_links      = var.runner_vnet_id != "" ? { ops = var.runner_vnet_id } : {}
+  extra_vnet_links      = {}
   tags                  = local.tags
+}
+
+resource "azurerm_private_dns_a_record" "document_blob_ops" {
+  count               = var.enable_document_ingestion && var.enable_private_networking && var.runner_vnet_id != "" ? 1 : 0
+  name                = module.document_storage[0].name
+  zone_name           = "privatelink.blob.core.windows.net"
+  resource_group_name = var.ops_resource_group_name
+  ttl                 = 300
+  records             = [module.document_blob_private_endpoint[0].private_ip_address]
+  tags                = merge(local.tags, { "fdai:component" = "document-ingestion" })
 }
 
 module "document_dfs_private_endpoint" {
@@ -899,7 +908,7 @@ module "ingestion_gateway" {
   embedding_endpoint           = var.enable_llm ? module.llm_azure_openai[0].endpoint : ""
   embedding_deployment         = var.enable_llm ? lookup(module.llm_azure_openai[0].deployments, var.ingestion_embedding_capability, "") : ""
   kafka_bootstrap_servers      = module.event_bus.kafka_bootstrap
-  document_event_topic         = "aw.document.events"
+  document_event_topic         = "aw.pipeline.stages"
   runtime_env                  = var.env == "" ? "dev" : var.env
   max_file_size_bytes          = var.document_max_file_size_bytes
   max_batch_count              = var.document_max_batch_count

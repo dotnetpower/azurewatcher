@@ -186,6 +186,52 @@ jobs:
             -backend-config="container_name=tfstate" \
             -backend-config="key=fdai-${{ inputs.environment }}.tfstate"
 
+      - name: Adopt existing Azure resources
+        run: |
+          set -euo pipefail
+          rg="rg-fdai-${TF_VAR_env}-${TF_VAR_region_short}"
+          namespace="evhns-fdai-${TF_VAR_env}-${TF_VAR_region_short}"
+
+          import_if_missing() {
+            local address="$1"
+            local resource_id="$2"
+            [ -z "$resource_id" ] && return 0
+            if terraform state show "$address" >/dev/null 2>&1; then
+              return 0
+            fi
+            echo "adopting $address"
+            terraform import -input=false "$address" "$resource_id"
+          }
+
+          resource_id() {
+            az resource show --resource-group "$rg" --name "$1" \
+              --resource-type "$2" --query id -o tsv 2>/dev/null || true
+          }
+
+          import_if_missing 'azurerm_application_insights.core' \
+            "$(resource_id "appi-fdai-${TF_VAR_env}-${TF_VAR_region_short}" 'Microsoft.Insights/components')"
+          import_if_missing 'module.inventory_identity.azurerm_user_assigned_identity.primary' \
+            "$(az identity show --resource-group "$rg" --name "id-fdai-${TF_VAR_env}-${TF_VAR_region_short}-inventory" --query id -o tsv 2>/dev/null || true)"
+
+          if [ "${TF_VAR_enable_llm}" = "true" ]; then
+            import_if_missing 'module.llm_azure_openai[0].azurerm_cognitive_account.primary' \
+              "$(az cognitiveservices account show --resource-group "$rg" --name "oai-fdai-${TF_VAR_env}-${TF_VAR_region_short}" --query id -o tsv 2>/dev/null || true)"
+          fi
+
+          for topic in aw.pantheon.objects; do
+            id="$(az eventhubs eventhub show --resource-group "$rg" --namespace-name "$namespace" --name "$topic" --query id -o tsv 2>/dev/null || true)"
+            import_if_missing "module.event_bus.azurerm_eventhub.topic[\"$topic\"]" "$id"
+          done
+          for topic in aw.pantheon.objects; do
+            name="$topic.dlq"
+            id="$(az eventhubs eventhub show --resource-group "$rg" --namespace-name "$namespace" --name "$name" --query id -o tsv 2>/dev/null || true)"
+            import_if_missing "module.event_bus.azurerm_eventhub.dlq[\"$topic\"]" "$id"
+          done
+          for topic in aw.hil.decisions aw.pipeline.stages; do
+            id="$(az eventhubs eventhub show --resource-group "$rg" --namespace-name "$namespace" --name "$topic" --query id -o tsv 2>/dev/null || true)"
+            import_if_missing "module.event_bus.azurerm_eventhub.auxiliary[\"$topic\"]" "$id"
+          done
+
       - name: Terraform format check
         run: terraform fmt -check -recursive
 

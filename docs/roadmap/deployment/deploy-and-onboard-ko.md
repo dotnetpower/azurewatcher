@@ -1,7 +1,7 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: eb2d899a71fc66024da72394c61ea40b557595c6
+translation_source_sha: 7fbbdd54f00ccf10c80caf9ca1c8ac4eec0990a8
 translation_revised: 2026-07-16
 ---
 
@@ -318,7 +318,7 @@ additional_tags = {
 | 10 | **Container Registry (ACR)** | Basic (나중에 geo-replication 필요 시 Standard) | 서명된 이미지 + 빌드 attestation | digest로 고정, mutable 태그 절대 아님 |
 | 11 | **Azure OpenAI / AI Foundry account** (**opt-in**, `var.enable_llm`) | Standard | T1 embedding + T2 mixed-model reasoner deployment (`resolved-models.json`의 각 capability 당 하나) | 배포자가 sub에 `Cognitive Services Contributor`를 갖고 AND 리전이 preferred family 노출할 때만 프로비저닝; 그렇지 않으면 해당 capability는 **`hil-only`**로 강등 ([dev-and-deploy-parity-ko.md § 배포자-스코프 LLM 프로비저닝](dev-and-deploy-parity-ko.md#배포자-스코프-llm-프로비저닝) 참조). `dev` 모드에서는 절대 배포 안 함 - dev-mode는 결정론적 fake 바인딩. |
 | 12 | **ADLS Gen2 document account** (**opt-in**, `enable_document_ingestion`) | StorageV2 Standard ZRS, HNS | private quarantine, immutable governed version, derived envelope | Private mode에서 Shared Key와 public access 비활성화; soft delete + lifecycle; `blob`과 `dfs` private endpoint |
-| 13 | **Document ingestion Container App** (**opt-in**) | Consumption, gateway + ClamAV sidecar | 인증된 bounded upload relay, safety scan, extraction, pgvector indexing, lifecycle event | Dedicated UAMI를 사용하며 external HTTPS gateway에는 executor permission이 없습니다. Durable worker는 `aw.document.events`를 consume합니다. |
+| 13 | **Document ingestion Container App** (**opt-in**) | Consumption, gateway + ClamAV sidecar | 인증된 bounded upload relay, safety scan, extraction, pgvector indexing, lifecycle event | Dedicated UAMI를 사용하며 external HTTPS gateway에는 executor permission이 없습니다. Durable worker는 shared `aw.pipeline.stages`의 document lifecycle record를 consume합니다. |
 
 **자체 청구 가능한 Azure 리소스를 발생시키지 않는** 추가 필수 요소:
 
@@ -353,8 +353,9 @@ Terraform은 다음 항목을 프로비저닝합니다.
   dedicated ingestion UAMI
 - HNS, `documents`와 `derived` filesystem, quarantine expiry, derived-data cool tiering, soft
   delete, Shared Key 비활성화를 적용한 StorageV2 account
-- App VNet과 ops runner VNet에 연결된 `privatelink.blob.core.windows.net` 및
-  `privatelink.dfs.core.windows.net` endpoint
+- `blob` 및 `dfs` private endpoint. App VNet은 endpoint zone에 link하고, ops runner는 기존
+  central Blob zone의 A record로 Blob을 resolve합니다. DFS zone은 두 VNet에 link합니다.
+  이 방식은 한 VNet을 같은 namespace의 중복 zone에 link하지 않습니다.
 - FDAI gateway와 replica-local ClamAV sidecar가 포함된 ingestion Container App
 - Traffic 전에 document metadata와 pgvector schema를 적용하는 manual migration job
 

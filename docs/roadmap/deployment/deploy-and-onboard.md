@@ -320,7 +320,7 @@ replica caps are still **fork-specific** and tuned per environment; the shape is
 | 10 | **Container Registry (ACR)** | Basic (Standard if geo-replication needed later) | signed images + build attestations | pin by digest, never a mutable tag |
 | 11 | **Azure OpenAI / AI Foundry account** (**opt-in**, `var.enable_llm`) | Standard | T1 embedding + T2 mixed-model reasoner deployments (one per capability from `resolved-models.json`) | provisioned only when the deployer holds `Cognitive Services Contributor` on the sub AND the region exposes the preferred family; otherwise the affected capabilities degrade to **`hil-only`** (see [dev-and-deploy-parity.md § Deployer-Scoped LLM Provisioning](dev-and-deploy-parity.md#deployer-scoped-llm-provisioning)). Never deployed in `dev` mode - dev-mode binds deterministic fakes. |
 | 12 | **ADLS Gen2 document account** (**opt-in**, `enable_document_ingestion`) | StorageV2 Standard ZRS, HNS | private quarantine, immutable governed versions, derived envelopes | Shared Key and public access disabled in private mode; soft delete + lifecycle; `blob` and `dfs` private endpoints |
-| 13 | **Document ingestion Container App** (**opt-in**) | Consumption, gateway + ClamAV sidecar | authenticated bounded upload relay, safety scan, extraction, pgvector indexing, lifecycle events | dedicated UAMI; external HTTPS gateway cannot access executor permissions; durable worker consumes `aw.document.events` |
+| 13 | **Document ingestion Container App** (**opt-in**) | Consumption, gateway + ClamAV sidecar | authenticated bounded upload relay, safety scan, extraction, pgvector indexing, lifecycle events | dedicated UAMI; external HTTPS gateway cannot access executor permissions; durable worker consumes document lifecycle records from shared `aw.pipeline.stages` |
 
 Additional required elements that **do not incur a billable Azure resource of their own**:
 
@@ -356,8 +356,9 @@ ingestion CORS origins. Terraform then provisions:
   and Azure OpenAI invoke roles;
 - a StorageV2 account with HNS, the `documents` and `derived` filesystems, quarantine expiry,
   derived-data cool tiering, soft delete, and no Shared Key;
-- both `privatelink.blob.core.windows.net` and `privatelink.dfs.core.windows.net` endpoints linked
-  to the app and ops runner VNets;
+- `blob` and `dfs` private endpoints. The app VNet links to the endpoint zones; the ops runner
+  resolves Blob through an A record in its existing central Blob zone, while the DFS zone links
+  to both VNets. This avoids linking one VNet to duplicate zones with the same namespace;
 - an ingestion Container App with the FDAI gateway and replica-local ClamAV sidecar;
 - a manual migration job that applies the document metadata and pgvector schema before traffic.
 

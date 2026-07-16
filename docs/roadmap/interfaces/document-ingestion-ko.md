@@ -1,7 +1,7 @@
 ---
 title: 문서 인제스트와 Drop Zone
 translation_of: document-ingestion.md
-translation_source_sha: 3a9acd1c95d57d82dd2456ca81ffe650c53576b0
+translation_source_sha: 5bf236bb6ce3bf869d2a34dabf3772ea86139cbb
 translation_revised: 2026-07-16
 ---
 # 문서 인제스트와 Drop Zone
@@ -300,7 +300,7 @@ upstream에 하드코딩하는 값이 아니라 fork policy 선택입니다.
 
 Public console은 인증된 ingestion gateway로 byte를 전송합니다. Gateway는 선언된 size를
 검증하고 request 전체를 memory에 buffer하지 않은 채 private ADLS로 stream하며 SHA-256과 size
-metadata를 봉인한 후 `aw.document.events`에 `document.received`를 publish합니다. Durable Kafka
+metadata를 봉인한 후 shared `aw.pipeline.stages` topic에 `document.received`를 publish합니다. Durable Kafka
 consumer group이 worker를 at-least-once로 실행하며 commit되지 않은 failure는 restart 후
 retry합니다. ClamAV는 replica-local sidecar로 실행되고 clean 문서만 extraction, pgvector
 indexing, quarantine-to-governed atomic rename에 도달합니다.
