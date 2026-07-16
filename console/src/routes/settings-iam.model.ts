@@ -46,6 +46,12 @@ export interface IamAccessRequestInput {
   readonly justification: string;
 }
 
+export interface IamAccessRequestPage {
+  readonly items: readonly IamAccessRequest[];
+  readonly total: number;
+  readonly nextCursor: number | null;
+}
+
 export interface IamSelfStatus {
   readonly principal: {
     readonly subjectId: string;
@@ -87,7 +93,7 @@ export function decodeIamOverview(value: unknown): IamOverview {
     };
   });
   const boundary = string(root["assignment_boundary"], "IAM assignment_boundary");
-  if (boundary !== "identity-provider-group" && boundary !== "entra-security-group") {
+  if (boundary !== "identity-provider-group") {
     throw new Error("IAM assignment_boundary MUST be identity-provider-group");
   }
   return {
@@ -104,8 +110,20 @@ export function decodeIamOverview(value: unknown): IamOverview {
 }
 
 export function decodeIamAccessRequests(value: unknown): readonly IamAccessRequest[] {
+  return decodeIamAccessRequestPage(value).items;
+}
+
+export function decodeIamAccessRequestPage(value: unknown): IamAccessRequestPage {
   const root = record(value, "IAM access request page");
-  return array(root["items"], "IAM access request page.items").map(decodeIamAccessRequest);
+  const items = array(root["items"], "IAM access request page.items").map(decodeIamAccessRequest);
+  const total = root["total"] === undefined
+    ? items.length
+    : nonNegativeInteger(root["total"], "IAM access request page.total");
+  const nextCursor = root["next_cursor"] === null || root["next_cursor"] === undefined
+    ? null
+    : nonNegativeInteger(root["next_cursor"], "IAM access request page.next_cursor");
+  if (total < items.length) throw new Error("IAM access request page.total is invalid");
+  return { items, total, nextCursor };
 }
 
 export function decodeIamAccessRequest(value: unknown): IamAccessRequest {
@@ -122,7 +140,7 @@ export function decodeIamAccessRequest(value: unknown): IamAccessRequest {
     requestId: string(item["request_id"], "IAM access request.request_id"),
     idempotencyKey: string(item["idempotency_key"], "IAM access request.idempotency_key"),
     requesterOid: string(item["requester_oid"], "IAM access request.requester_oid"),
-    identityProvider: optionalString(item["identity_provider"]) ?? "entra",
+    identityProvider: string(item["identity_provider"], "IAM access request.identity_provider"),
     targetSubjectId: string(
       item["target_subject_id"] ?? item["target_oid"],
       "IAM access request.target_subject_id",
@@ -131,10 +149,10 @@ export function decodeIamAccessRequest(value: unknown): IamAccessRequest {
     operation,
     role: iamRole(item["role"], "IAM access request.role"),
     justification: string(item["justification"], "IAM access request.justification"),
-    requestedAt: string(item["requested_at"], "IAM access request.requested_at"),
+    requestedAt: dateString(item["requested_at"], "IAM access request.requested_at"),
     status: status as IamAccessRequest["status"],
     reviewedBy: nullableString(item["reviewed_by"] ?? null, "IAM reviewed_by"),
-    reviewedAt: nullableString(item["reviewed_at"] ?? null, "IAM reviewed_at"),
+    reviewedAt: nullableDateString(item["reviewed_at"] ?? null, "IAM reviewed_at"),
     reviewJustification: nullableString(
       item["review_justification"] ?? null,
       "IAM review_justification",
@@ -220,13 +238,20 @@ function string(value: unknown, name: string): string {
   return value;
 }
 
-function optionalString(value: unknown): string | null {
-  return typeof value === "string" && value ? value : null;
-}
-
 function nullableString(value: unknown, name: string): string | null {
   if (value === null) return null;
   return string(value, name);
+}
+
+function dateString(value: unknown, name: string): string {
+  const parsed = string(value, name);
+  if (!Number.isFinite(Date.parse(parsed))) throw new Error(`${name} MUST be ISO 8601`);
+  return parsed;
+}
+
+function nullableDateString(value: unknown, name: string): string | null {
+  if (value === null) return null;
+  return dateString(value, name);
 }
 
 function stringArray(value: unknown, name: string): readonly string[] {
@@ -235,5 +260,12 @@ function stringArray(value: unknown, name: string): readonly string[] {
 
 function boolean(value: unknown, name: string): boolean {
   if (typeof value !== "boolean") throw new Error(`${name} MUST be a boolean`);
+  return value;
+}
+
+function nonNegativeInteger(value: unknown, name: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new Error(`${name} MUST be a non-negative integer`);
+  }
   return value;
 }

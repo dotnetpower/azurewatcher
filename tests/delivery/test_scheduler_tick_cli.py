@@ -6,6 +6,9 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 
 import fdai.delivery.scheduler_tick_cli as tick_cli
+from fdai.delivery.persistence.postgres_user_context_projection_recovery import (
+    ProjectionUpsertJob,
+)
 from fdai.delivery.persistence.postgres_user_context_retention import ProjectionDeleteJob
 
 
@@ -48,3 +51,22 @@ async def test_projection_delete_failures_are_retried_without_blocking() -> None
 def test_projection_retry_delay_is_bounded() -> None:
     assert tick_cli._projection_retry_delay(ProjectionDeleteJob("first", 0)) == timedelta(minutes=1)
     assert tick_cli._projection_retry_delay(ProjectionDeleteJob("later", 100)) == timedelta(hours=1)
+
+
+async def test_projection_upserts_complete_and_dead_letter_poison_jobs() -> None:
+    now = datetime(2026, 7, 16, 7, 0, tzinfo=UTC)
+    recovery = AsyncMock()
+    successful = ProjectionUpsertJob("preference", "user-1", "user-1", 0)
+    poison = ProjectionUpsertJob("policy", "user-1", "policy-1", 4)
+    recovery.claim.return_value = (successful, poison)
+    recovery.project.side_effect = (True, RuntimeError("invalid projection"))
+
+    completed = await tick_cli._drain_projection_upserts(recovery=recovery, now=now)
+
+    assert completed == 1
+    recovery.complete.assert_awaited_once_with(successful)
+    recovery.dead_letter.assert_awaited_once_with(
+        poison,
+        error="RuntimeError:invalid projection",
+    )
+    recovery.retry.assert_not_awaited()

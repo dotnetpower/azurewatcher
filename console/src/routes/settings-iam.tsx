@@ -1,10 +1,11 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { ReadApiClient } from "../api";
 import type { AuthContext } from "../auth";
 import { DataTable, PageHeader, StatusPill, type PillKind } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { currentRoute, navigate, routeHref } from "../router";
 import { AccessRequestsView } from "./settings-iam-requests";
 import { DirectoryUserSearch } from "./settings-iam-users";
 import { submitIamAccessRequest } from "./settings-iam.command";
@@ -25,35 +26,65 @@ interface Props {
 type IamTab = "my-access" | "users" | "roles" | "requests";
 
 export function SettingsIamRoute({ client, auth }: Props) {
-  const [tab, setTab] = useState<IamTab>("my-access");
+  const [tab, setTab] = useState<IamTab>(initialIamTab);
   const [overview, setOverview] = useState<IamOverview | null>(null);
   const [requests, setRequests] = useState<readonly IamAccessRequest[]>([]);
+  const [requestTotal, setRequestTotal] = useState(0);
+  const [nextRequestCursor, setNextRequestCursor] = useState<number | null>(null);
   const [roster, setRoster] = useState<readonly IdentityRosterItem[]>([]);
+  const [requestsError, setRequestsError] = useState<string | null>(null);
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [rosterAvailable, setRosterAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const loadGeneration = useRef(0);
 
   const load = async () => {
+    const generation = ++loadGeneration.current;
     setLoading(true);
     setError(null);
     try {
       const nextOverview = await client.iamOverview();
+      if (generation !== loadGeneration.current) return;
       setOverview(nextOverview);
       const manager = nextOverview.principal.capabilities.includes("manage-group-membership");
       if (manager) {
-        const [nextRequests, nextRoster] = await Promise.all([
+        const [requestResult, rosterResult] = await Promise.allSettled([
           client.listIamAccessRequests(),
           client.iamRoster(),
         ]);
-        setRequests(nextRequests);
-        setRoster(nextRoster);
+        if (generation !== loadGeneration.current) return;
+        if (requestResult.status === "fulfilled") {
+          setRequests(requestResult.value.items);
+          setRequestTotal(requestResult.value.total);
+          setNextRequestCursor(requestResult.value.nextCursor);
+          setRequestsError(null);
+        } else {
+          setRequestsError(errorMessage(requestResult.reason));
+        }
+        if (rosterResult.status === "fulfilled") {
+          setRoster(rosterResult.value);
+          setRosterAvailable(true);
+          setRosterError(null);
+        } else {
+          setRoster([]);
+          setRosterAvailable(false);
+          setRosterError(errorMessage(rosterResult.reason));
+        }
       } else {
         setRequests([]);
+        setRequestTotal(0);
+        setNextRequestCursor(null);
         setRoster([]);
+        setRequestsError(null);
+        setRosterError(null);
+        setRosterAvailable(false);
       }
     } catch (reason) {
+      if (generation !== loadGeneration.current) return;
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
   };
 
@@ -67,9 +98,19 @@ export function SettingsIamRoute({ client, auth }: Props) {
 
   const selectTab = (nextTab: IamTab) => {
     setTab(nextTab);
+    const segment = nextTab === "my-access" ? [] : [nextTab];
+    navigate(routeHref("settings-iam", { segments: segment }));
     if (nextTab === "users" || nextTab === "requests") {
       void load();
     }
+  };
+
+  const loadMoreRequests = async () => {
+    if (nextRequestCursor === null) return;
+    const page = await client.listIamAccessRequests(50, nextRequestCursor);
+    setRequests((current) => [...current, ...page.items]);
+    setRequestTotal(page.total);
+    setNextRequestCursor(page.nextCursor);
   };
 
   usePublishViewContext(
@@ -83,17 +124,22 @@ export function SettingsIamRoute({ client, auth }: Props) {
       facts: [
         { key: "principal", value: username, group: "identity" },
         { key: "roles", value: roles.join(",") || "unassigned", group: "identity" },
-        { key: "access_request_count", value: requests.length, group: "identity" },
+        { key: "access_request_count", value: requestTotal, group: "identity" },
       ],
       records: {},
     }),
-    [requests.length, roles, username],
+    [requestTotal, roles, username],
   );
 
   return (
     <div class="stack settings-route">
       <PageHeader title={t("route.settingsIam")} subtitle={t("settings.iam.subtitle")} />
-      <nav class="settings-tabs" aria-label={t("settings.iam.tabsLabel")}>
+      <div
+        class="settings-tabs"
+        role="tablist"
+        aria-label={t("settings.iam.tabsLabel")}
+        onKeyDown={(event) => handleTabKey(event, tab, canManage, selectTab)}
+      >
         {([
           ["my-access", t("settings.iam.myAccess")],
           ["users", t("settings.iam.users")],
@@ -102,26 +148,50 @@ export function SettingsIamRoute({ client, auth }: Props) {
         ] as const).map(([id, label]) => (
           <button
             key={id}
+            id={`settings-iam-tab-${id}`}
             type="button"
+            role="tab"
             class={tab === id ? "is-active" : undefined}
-            aria-pressed={tab === id}
+            aria-selected={tab === id}
+            aria-controls={`settings-iam-panel-${id}`}
+            tabIndex={tab === id ? 0 : -1}
+            disabled={!canManage && (id === "users" || id === "requests")}
             onClick={() => selectTab(id)}
           >
             {label}
           </button>
         ))}
-      </nav>
+      </div>
+      {!canManage && overview ? (
+        <p class="muted small">{t("settings.iam.ownerTabsHint")}</p>
+      ) : null}
 
       {loading ? <p class="muted" role="status">{t("settings.iam.loading")}</p> : null}
       {error ? <div class="error" role="alert">{t("settings.iam.loadFailed", { error })}</div> : null}
-      {!loading && !error && overview ? renderTab({
+      {!loading && !error && overview ? (
+        <div
+          id={`settings-iam-panel-${tab}`}
+          role="tabpanel"
+          aria-labelledby={`settings-iam-tab-${tab}`}
+        >
+          {requestsError && tab === "requests" ? (
+            <div class="error" role="alert">
+              {t("settings.iam.requestsUnavailable", { error: requestsError })}
+            </div>
+          ) : null}
+          {renderTab({
         tab,
         overview,
         requests,
+        requestTotal,
+        hasMoreRequests: nextRequestCursor !== null,
+        loadMoreRequests,
         roster,
+        rosterAvailable,
+        rosterError,
         username,
         canManage,
-        assignRole: async (identity, role) => {
+        assignRole: async (identity, role, justification) => {
           await submitIamAccessRequest(auth, client.readApiBaseUrl, {
             idempotencyKey: crypto.randomUUID(),
             identityProvider: identity.provider,
@@ -129,14 +199,16 @@ export function SettingsIamRoute({ client, auth }: Props) {
             targetUsername: identity.username ?? identity.displayName,
             operation: "set",
             role,
-            justification: `Owner requested ${role} role for ${identity.displayName}.`,
+            justification,
           });
           await load();
         },
         auth,
         client,
         reload: load,
-      }) : null}
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -145,12 +217,18 @@ function renderTab(props: {
   readonly tab: IamTab;
   readonly overview: IamOverview;
   readonly requests: readonly IamAccessRequest[];
+  readonly requestTotal: number;
+  readonly hasMoreRequests: boolean;
+  readonly loadMoreRequests: () => Promise<void>;
   readonly roster: readonly IdentityRosterItem[];
+  readonly rosterAvailable: boolean;
+  readonly rosterError: string | null;
   readonly username: string;
   readonly canManage: boolean;
   readonly assignRole: (
     identity: IdentityRosterItem | HumanIdentityResult,
     role: Exclude<IamRole, "BreakGlass">,
+    justification: string,
   ) => Promise<void>;
   readonly auth: AuthContext;
   readonly client: ReadApiClient;
@@ -166,6 +244,8 @@ function renderTab(props: {
           username={props.username}
           requests={props.requests}
           roster={props.roster}
+          rosterAvailable={props.rosterAvailable}
+          rosterError={props.rosterError}
           client={props.client}
           canManage={props.canManage}
           onAssign={props.assignRole}
@@ -177,6 +257,9 @@ function renderTab(props: {
       return (
         <AccessRequestsView
           requests={props.requests}
+          total={props.requestTotal}
+          hasMore={props.hasMoreRequests}
+          loadMore={props.loadMoreRequests}
           roster={props.roster}
           canManage={props.canManage}
           auth={props.auth}
@@ -305,6 +388,8 @@ function UsersView({
   username,
   requests,
   roster,
+  rosterAvailable,
+  rosterError,
   client,
   canManage,
   onAssign,
@@ -313,11 +398,14 @@ function UsersView({
   readonly username: string;
   readonly requests: readonly IamAccessRequest[];
   readonly roster: readonly IdentityRosterItem[];
+  readonly rosterAvailable: boolean;
+  readonly rosterError: string | null;
   readonly client: ReadApiClient;
   readonly canManage: boolean;
   readonly onAssign: (
     identity: IdentityRosterItem | HumanIdentityResult,
     role: Exclude<IamRole, "BreakGlass">,
+    justification: string,
   ) => Promise<void>;
 }) {
   const users = referencedUsers(overview, username, requests);
@@ -326,10 +414,42 @@ function UsersView({
       client={client}
       canManage={canManage}
       roster={roster}
+      rosterAvailable={rosterAvailable}
+      rosterError={rosterError}
       referencedUsers={users}
       onAssign={onAssign}
     />
   );
+}
+
+const IAM_TABS: readonly IamTab[] = ["my-access", "users", "roles", "requests"];
+
+function initialIamTab(): IamTab {
+  const [segment] = currentRoute().segments;
+  return IAM_TABS.includes(segment as IamTab) ? segment as IamTab : "my-access";
+}
+
+function errorMessage(reason: unknown): string {
+  return reason instanceof Error ? reason.message : String(reason);
+}
+
+function handleTabKey(
+  event: KeyboardEvent,
+  current: IamTab,
+  canManage: boolean,
+  select: (tab: IamTab) => void,
+): void {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  const available = canManage
+    ? IAM_TABS
+    : IAM_TABS.filter((tab) => tab !== "users" && tab !== "requests");
+  const offset = event.key === "ArrowRight" ? 1 : -1;
+  const currentIndex = Math.max(0, available.indexOf(current));
+  const next = available[(currentIndex + offset + available.length) % available.length];
+  if (next === undefined) return;
+  event.preventDefault();
+  select(next);
+  requestAnimationFrame(() => document.getElementById(`settings-iam-tab-${next}`)?.focus());
 }
 
 function RolesView({ roles }: { readonly roles: readonly IamRoleDefinition[] }) {

@@ -239,6 +239,34 @@ def test_only_owner_can_search_the_configured_identity_directory() -> None:
     ]
 
 
+def test_access_request_validates_directory_identity_and_stamps_provider() -> None:
+    api = client(with_directory=True)
+    actor_headers = headers("contributor-1", "Contributor")
+    valid = api.post(
+        "/iam/access-requests",
+        headers=actor_headers,
+        json=request_payload(
+            identity_provider="untrusted-provider",
+            target_oid="directory-user-1",
+            target_username="alex@example.com",
+        ),
+    )
+    mismatch = api.post(
+        "/iam/access-requests",
+        headers=actor_headers,
+        json=request_payload(
+            idempotency_key="iam-request-2",
+            target_oid="directory-user-1",
+            target_username="other@example.com",
+        ),
+    )
+
+    assert valid.status_code == 201
+    assert valid.json()["identity_provider"] == "entra"
+    assert mismatch.status_code == 400
+    assert "does not match" in mismatch.json()["error"]["message"]
+
+
 def test_owner_approves_request_but_requester_cannot_self_approve() -> None:
     api = client()
     request = api.post(

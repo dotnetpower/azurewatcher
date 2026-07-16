@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 
@@ -15,6 +17,17 @@ from fdai.core.rbac.access_request import (
 from fdai.core.rbac.resolver import Principal
 from fdai.core.rbac.roles import Role
 from fdai.shared.providers.testing.state_store import InMemoryStateStore
+
+
+class FailingAtomicStore(InMemoryStateStore):
+    async def write_state_with_audit_if_absent(
+        self,
+        key: str,
+        value: Mapping[str, Any],
+        audit_entry: Mapping[str, Any],
+    ) -> bool:
+        del key, value, audit_entry
+        raise RuntimeError("audit unavailable")
 
 
 @pytest.fixture
@@ -64,6 +77,17 @@ async def test_submit_is_idempotent_and_audited_once(
     assert len(entries) == 1
     assert entries[0]["entry"]["action_kind"] == "iam.access-requested"
     assert store.verify_chain()
+
+
+async def test_submit_does_not_leave_state_when_atomic_audit_fails() -> None:
+    store = FailingAtomicStore()
+    service = AccessRequestService(store=store)
+
+    with pytest.raises(RuntimeError, match="audit unavailable"):
+        await submit(service)
+
+    assert await store.read_states("rbac:access-request:", limit=10) == ()
+    assert tuple(store.audit_entries) == ()
 
 
 async def test_reused_idempotency_key_with_different_intent_is_rejected(
@@ -206,3 +230,21 @@ async def test_owner_reviews_request_and_requester_cannot_self_approve(
     )
     assert replay.reviewed_at == datetime(2026, 7, 16, 1, tzinfo=UTC)
     assert len(tuple(store.audit_entries)) == 2
+
+
+async def test_owner_can_review_request_older_than_two_hundred_records(
+    service: AccessRequestService,
+) -> None:
+    oldest = await submit(service, idempotency_key="request-000")
+    for index in range(1, 202):
+        await submit(service, idempotency_key=f"request-{index:03d}")
+
+    reviewed = await service.review(
+        principal=principal("owner-2", Role.OWNER),
+        request_id=oldest.request_id,
+        decision=AccessReviewDecision.APPROVE,
+        justification="Reviewed against the support access policy.",
+        now=datetime(2026, 7, 16, 1, tzinfo=UTC),
+    )
+
+    assert reviewed.status.value == "approved"

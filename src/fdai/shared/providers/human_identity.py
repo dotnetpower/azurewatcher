@@ -79,6 +79,10 @@ class HumanIdentityDirectory(Protocol):
         """Return up to ``limit`` matching identities in provider-defined order."""
         ...
 
+    async def get_by_subject_id(self, subject_id: str) -> HumanIdentity | None:
+        """Return one exact human subject, or ``None`` when it does not exist."""
+        ...
+
     async def list_role_roster(
         self,
         role_group_ids: Mapping[str, str],
@@ -109,6 +113,15 @@ class StaticHumanIdentityDirectory:
             or normalized in identity.display_name.casefold()
         )
         return tuple(matches)[:limit]
+
+    async def get_by_subject_id(self, subject_id: str) -> HumanIdentity | None:
+        normalized = subject_id.strip()
+        if not normalized:
+            raise ValueError("identity subject_id MUST be non-empty")
+        return next(
+            (identity for identity in self._identities if identity.subject_id == normalized),
+            None,
+        )
 
     async def list_role_roster(
         self,

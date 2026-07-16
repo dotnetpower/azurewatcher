@@ -58,12 +58,54 @@ class StateStore(Protocol):
         """
         ...
 
+    async def write_state_with_audit_if_absent(
+        self,
+        key: str,
+        value: Mapping[str, Any],
+        audit_entry: Mapping[str, Any],
+    ) -> bool:
+        """Atomically create tracked state and append its audit record."""
+        ...
+
+    async def compare_and_set_state_with_audit(
+        self,
+        key: str,
+        value: Mapping[str, Any],
+        *,
+        expected_revision: int,
+        audit_entry: Mapping[str, Any],
+    ) -> bool:
+        """Atomically write a matching revision and append its audit record."""
+        ...
+
+    async def find_state(
+        self,
+        prefix: str,
+        *,
+        field: str,
+        value: str,
+    ) -> Mapping[str, Any] | None:
+        """Find one tracked JSON object by an exact top-level field value."""
+        ...
+
     async def read_states(self, prefix: str, *, limit: int) -> tuple[Mapping[str, Any], ...]:
         """Return up to ``limit`` tracked values whose key starts with ``prefix``.
 
         Values are returned newest-first. This is a projection read; callers
         cannot mutate the returned records.
         """
+        ...
+
+    async def read_state_page(
+        self,
+        prefix: str,
+        *,
+        limit: int,
+        offset: int = 0,
+        field: str | None = None,
+        value: str | None = None,
+    ) -> tuple[tuple[Mapping[str, Any], ...], int]:
+        """Return one newest-first filtered page and its total row count."""
         ...
 
     async def append_incident_transition(self, entry: Mapping[str, Any]) -> IncidentAppendStatus:

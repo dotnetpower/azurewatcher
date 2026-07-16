@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import datetime
 
 from fdai.shared.providers.user_context import (
     ConversationRecord,
     ConversationTurnRecord,
+    ConversationTurnRole,
     UserContextConflictError,
     UserMemoryFact,
     UserPreferenceRecord,
@@ -91,6 +93,27 @@ class InMemoryConversationHistoryStore:
     ) -> tuple[ConversationTurnRecord, ...]:
         _validate_limit(limit)
         return tuple(self._turns.get((principal_id, conversation_id), ())[-limit:])
+
+    async def latest_operator_turn_ids(
+        self,
+        *,
+        principal_id: str,
+        conversation_ids: Sequence[str],
+    ) -> Mapping[str, str]:
+        requested = set(conversation_ids)
+        latest: dict[str, tuple[int, str]] = {}
+        for turns in self._turns.values():
+            for turn in turns:
+                if (
+                    turn.principal_id != principal_id
+                    or turn.conversation_id not in requested
+                    or turn.role is not ConversationTurnRole.OPERATOR
+                ):
+                    continue
+                current = latest.get(turn.conversation_id)
+                if current is None or turn.turn_index > current[0]:
+                    latest[turn.conversation_id] = (turn.turn_index, turn.turn_id)
+        return {conversation_id: value[1] for conversation_id, value in latest.items()}
 
     async def delete_conversation(self, *, principal_id: str, conversation_id: str) -> bool:
         key = (principal_id, conversation_id)

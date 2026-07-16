@@ -1,4 +1,5 @@
 import type { AuthContext } from "../auth";
+import { useState } from "preact/hooks";
 import { NebulaBackground } from "../components/nebula-background";
 import { t } from "../i18n";
 
@@ -13,6 +14,20 @@ export function LoginRoute({ auth, allowDevBypass = false, onDevBypass }: {
   readonly allowDevBypass?: boolean;
   readonly onDevBypass?: () => void;
 }) {
+  const [signingIn, setSigningIn] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const signIn = async () => {
+    setSigningIn(true);
+    setError(null);
+    try {
+      await auth.signIn();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+      setSigningIn(false);
+    }
+  };
+
   return (
     <div class="login-cosmos">
       <NebulaBackground intensity={1.05} speed={1} class="login-nebula" />
@@ -31,9 +46,8 @@ export function LoginRoute({ auth, allowDevBypass = false, onDevBypass }: {
             <button
               type="button"
               class="login-signin"
-              onClick={() => {
-                void auth.signIn();
-              }}
+              disabled={signingIn}
+              onClick={() => { void signIn(); }}
             >
               <svg viewBox="0 0 21 21" width="18" height="18" aria-hidden="true">
                 <rect x="1" y="1" width="9" height="9" fill="#f25022" />
@@ -41,7 +55,7 @@ export function LoginRoute({ auth, allowDevBypass = false, onDevBypass }: {
                 <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
                 <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
               </svg>
-              <span>{t("login.signInEntra")}</span>
+              <span>{signingIn ? t("login.signingIn") : t("login.signInEntra")}</span>
             </button>
           ) : null}
           {allowDevBypass && onDevBypass ? (
@@ -50,6 +64,8 @@ export function LoginRoute({ auth, allowDevBypass = false, onDevBypass }: {
             </button>
           ) : null}
         </div>
+
+        {error ? <p class="error" role="alert">{t("login.signInFailed", { error })}</p> : null}
 
         <p class="login-foot">
           {allowDevBypass ? t("login.localFoot") : t("login.foot")}

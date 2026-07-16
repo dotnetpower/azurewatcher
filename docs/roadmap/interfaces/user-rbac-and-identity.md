@@ -58,6 +58,9 @@ more roles.
 - **Break-Glass is NOT nested inside Owner**. It is a separately managed group; an Owner
   account is not authorized for break-glass actions unless also in `aw-break-glass`. This
   bounds blast radius even if an Owner account is compromised.
+- **Activation preserves verified entitlement**. Token resolution removes `BreakGlass` from
+  effective roles but retains a separate eligibility flag. Time-boxed activation checks that
+  flag before adding the emergency role.
 - **PIM is optional**. Upstream does not require it. A fork with Entra ID P2 MAY layer PIM
   on top of `aw-approvers` / `aw-owners` for just-in-time activation, but the default
   model works on P1.
@@ -148,7 +151,9 @@ Why App Roles over raw group claims:
 - **Portable across tenants.** App Role values are constants defined in code; group
   `objectId`s differ per tenant. A fork changes group assignments, not code.
 - **No groups-overage failure.** A user in >200 groups omits the `groups` claim from their
-  token by default, forcing a Graph lookup; the `roles` claim is unaffected.
+  token by default, while the `roles` claim is unaffected. If an overage token has no FDAI
+  App Role, the API fails closed with an actionable configuration error instead of treating
+  the principal as silently unassigned.
 - **App-scoped least privilege.** App Roles apply only to `fdai-api`; they cannot
   be reused elsewhere to widen a compromised token's blast radius.
 
@@ -454,11 +459,10 @@ users referenced by visible access requests. An Owner can also search the config
 prefill a governed access request. The browser never receives provider credentials.
 
 `GET /iam/directory/roster` projects the configured FDAI role groups and their person
-members. The Users tab can filter People and Groups and displays a role dropdown on every
-row. Selecting a role records a `set` request, meaning the assignment worker should replace
-the principal's routine FDAI role memberships with the selected role after approval. Alias
-search requires only the user and role selection; provider and subject ids remain
-server-projected values rather than operator input fields.
+members. The Users tab can filter People and Groups, but role requests are available only
+for active people. Selecting a role opens a confirmation form that requires an operational
+justification before it records a `set` request. After approval, the assignment worker should
+replace the principal's routine FDAI role memberships with the selected role.
 
 `HumanIdentityDirectory` is cloud-provider-neutral. Every adapter returns a stable
 `provider`, `subject_id`, username, display name, user type, and active flag. Microsoft
@@ -466,6 +470,10 @@ Entra ID is the implemented adapter and uses Microsoft Graph `/users` with manag
 and the application permissions `User.Read.All` and `GroupMember.Read.All`. AWS IAM Identity Center and Google Cloud
 Identity adapters are future scope; they can implement the same Protocol without changing
 the core service, API payload, or console.
+
+Before the API accepts a governed role request, it stamps the configured provider and uses
+`get_by_subject_id` to verify the subject, username, and active state. Client-supplied
+provider labels never select the identity backend.
 
 The anonymous local development mode keeps a synthetic directory for offline UI work. The
 authenticated local modes, `FDAI_READ_API_LOCAL_ENTRA=1` and
@@ -481,7 +489,7 @@ A Contributor or higher role can submit `POST /iam/access-requests` with these f
 | Field | Rule |
 |-------|------|
 | `idempotency_key` | Required. Reuse with the same intent returns the existing request; reuse with different intent returns `409`. |
-| `identity_provider` | Stable adapter name, such as `entra`. |
+| `identity_provider` | Informational client value. The API stamps the configured adapter name. |
 | `target_subject_id` | Stable account subject from that provider. Legacy `target_oid` input remains accepted during migration. |
 | `target_username` | Human-readable name or UPN for review. Authorization never relies on this value. |
 | `operation` | `grant`, `revoke`, or `set`. `set` expresses the per-row role dropdown change. |
@@ -489,9 +497,11 @@ A Contributor or higher role can submit `POST /iam/access-requests` with these f
 | `justification` | 20-2000 characters. Stored with the request and audit event. |
 
 The API derives the requester and capabilities from the validated token. It stores each
-request under an immutable, atomic state key and appends an `iam.access-requested` entry to
-the hash-chained audit log. The response status is `pending`; submitting the form doesn't
-approve the request or change Entra group membership.
+request and its `iam.access-requested` hash-chain entry in one transaction. Review decisions
+use the same state-and-audit transaction. Request review looks up the stable `request_id`
+directly, so older requests remain reviewable after the list projection is paginated. The
+response status is `pending`; submitting the form doesn't approve the request or change
+Entra group membership.
 
 Approval stays in ChatOps or the governance pull-request path. After approval, an Owner
 applies the allowlisted `aw-*` group change through the tenant's identity-administration

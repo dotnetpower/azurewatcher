@@ -250,7 +250,7 @@ function semanticVerificationLabel(
   }
 }
 
-function verificationLabel(verification: AnswerVerification): string {
+export function verificationLabel(verification: AnswerVerification): string {
   const claims = verification.claims ?? [];
   const supportedClaims = claims.filter((claim) => claim.status === "supported").length;
   const claimSummary = claims.length > 0
@@ -271,9 +271,14 @@ function verificationLabel(verification: AnswerVerification): string {
       }
       return `Corrected after evidence verification${claimSummary}`;
     case "consistent":
+      const evidenceScope = verification.authority === "client_snapshot"
+        ? "the current screen"
+        : verification.authority === "server_read_model"
+          ? "server evidence"
+          : "grounded evidence";
       return claims.length > 0
-        ? `Consistent with the current screen${claimSummary}`
-        : "Consistent with the current screen (no structured claims)";
+        ? `Consistent with ${evidenceScope}${claimSummary}`
+        : `Consistent with ${evidenceScope} (no structured claims)`;
     case "unverified":
       return `Verification could not be completed${claimSummary}`;
   }

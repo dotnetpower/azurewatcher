@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any, Final
@@ -10,6 +11,9 @@ from typing import Any, Final
 import psycopg
 from psycopg.rows import dict_row
 
+from fdai.delivery.persistence.postgres_user_context_projection_queue import (
+    enqueue_projection_upsert,
+)
 from fdai.shared.providers.user_context import (
     ConversationRecord,
     ConversationStatus,
@@ -239,6 +243,26 @@ class PostgresConversationHistoryStore(_PostgresBase):
         rows.reverse()
         return tuple(_turn(row) for row in rows)
 
+    async def latest_operator_turn_ids(
+        self,
+        *,
+        principal_id: str,
+        conversation_ids: Sequence[str],
+    ) -> Mapping[str, str]:
+        if not conversation_ids:
+            return {}
+        async with await self._connect() as connection:
+            await self._timeout(connection)
+            cursor = await connection.execute(
+                "SELECT DISTINCT ON (conversation_id) conversation_id, turn_id "
+                "FROM conversation_turn WHERE principal_id = %s "
+                "AND conversation_id = ANY(%s) AND role = 'operator' "
+                "ORDER BY conversation_id, turn_index DESC",
+                (principal_id, list(conversation_ids)),
+            )
+            rows = await cursor.fetchall()
+        return {str(row["conversation_id"]): str(row["turn_id"]) for row in rows}
+
     async def delete_conversation(self, *, principal_id: str, conversation_id: str) -> bool:
         async with await self._connect() as connection, connection.transaction():
             await self._timeout(connection)
@@ -355,6 +379,12 @@ class PostgresUserPreferenceStore(_PostgresBase):
                     updated_at,
                 ),
             )
+            await enqueue_projection_upsert(
+                connection,
+                projection_kind="preference",
+                principal_id=record.principal_id,
+                record_id=record.principal_id,
+            )
         return UserPreferenceRecord(
             principal_id=record.principal_id,
             locale=record.locale,
@@ -401,6 +431,12 @@ class PostgresUserMemoryStore(_PostgresBase):
                         fact.expires_at,
                         fact.superseded_by,
                     ),
+                )
+                await enqueue_projection_upsert(
+                    connection,
+                    projection_kind="memory",
+                    principal_id=fact.principal_id,
+                    record_id=fact.memory_id,
                 )
             except (psycopg.errors.UniqueViolation, psycopg.errors.ForeignKeyViolation) as exc:
                 raise UserContextConflictError(f"memory {fact.memory_id!r} conflicts") from exc

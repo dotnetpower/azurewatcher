@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Collection
+from typing import Any
 
 from starlette.requests import Request
 from starlette.routing import BaseRoute
@@ -23,6 +25,7 @@ from fdai.delivery.read_api.routes.chat import (
 )
 from fdai.delivery.read_api.routes.chat_evidence import OperationalEvidenceResolver
 from fdai.delivery.read_api.routes.chat_semantic import semantic_verifier_from_env
+from fdai.delivery.read_api.routes.chat_system_health import SystemHealthChatTools
 from fdai.delivery.read_api.routes.chat_tools import ReadModelChatTools
 from fdai.shared.providers.briefing import ConversationPolicyStore
 from fdai.shared.providers.user_context import ConversationHistoryStore
@@ -54,7 +57,7 @@ def append_chat_routes(
         raise ValueError(f"chat path {DEFAULT_ROUTE_PATH!r} collides with a panel path")
 
     evidence = OperationalEvidenceResolver(read_model)
-    tools = ReadModelChatTools(read_model)
+    tools = SystemHealthChatTools(read_model, ReadModelChatTools(read_model))
     semantic_verifier = semantic_verifier_from_env()
     routes.extend(
         (
@@ -121,4 +124,32 @@ def is_routed_chat_backend(backend: object) -> bool:
     return isinstance(backend, LatencyRoutedChatBackend)
 
 
-__all__ = ["append_chat_routes", "is_routed_chat_backend"]
+async def periodic_latency_probe(
+    target: Any,
+    *,
+    label: str,
+    interval_seconds: int,
+) -> None:
+    """Continuously refresh one router's bounded latency sample window."""
+    first_round = True
+    while True:
+        try:
+            chose = await target.benchmark(rounds=None if first_round else 1)
+            logging.getLogger("fdai.delivery.read_api").info(
+                "%s latency benchmark selected candidate=%s",
+                label,
+                chose,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - best-effort probe
+            logging.getLogger("fdai.delivery.read_api").warning(
+                "%s latency benchmark failed: %s",
+                label,
+                type(exc).__name__,
+            )
+        first_round = False
+        await asyncio.sleep(interval_seconds)
+
+
+__all__ = ["append_chat_routes", "is_routed_chat_backend", "periodic_latency_probe"]

@@ -83,6 +83,53 @@ class InMemoryStateStore(StateStore):
             self._state[key] = deepcopy(dict(value))
             return True
 
+    async def write_state_with_audit_if_absent(
+        self,
+        key: str,
+        value: Mapping[str, Any],
+        audit_entry: Mapping[str, Any],
+    ) -> bool:
+        with self._lock:
+            if key in self._state:
+                return False
+            self._state[key] = deepcopy(dict(value))
+            self._append_audit_locked(audit_entry)
+            return True
+
+    async def compare_and_set_state_with_audit(
+        self,
+        key: str,
+        value: Mapping[str, Any],
+        *,
+        expected_revision: int,
+        audit_entry: Mapping[str, Any],
+    ) -> bool:
+        with self._lock:
+            existing = self._state.get(key)
+            current_revision = existing.get("revision") if existing is not None else 0
+            if current_revision != expected_revision:
+                return False
+            self._state[key] = deepcopy(dict(value))
+            self._append_audit_locked(audit_entry)
+            return True
+
+    async def find_state(
+        self,
+        prefix: str,
+        *,
+        field: str,
+        value: str,
+    ) -> Mapping[str, Any] | None:
+        with self._lock:
+            return next(
+                (
+                    deepcopy(item)
+                    for key, item in self._state.items()
+                    if key.startswith(prefix) and item.get(field) == value
+                ),
+                None,
+            )
+
     async def read_states(self, prefix: str, *, limit: int) -> tuple[Mapping[str, Any], ...]:
         if limit < 1:
             raise ValueError("limit MUST be >= 1")
@@ -93,6 +140,25 @@ class InMemoryStateStore(StateStore):
                 if key.startswith(prefix)
             ]
         return tuple(matching[:limit])
+
+    async def read_state_page(
+        self,
+        prefix: str,
+        *,
+        limit: int,
+        offset: int = 0,
+        field: str | None = None,
+        value: str | None = None,
+    ) -> tuple[tuple[Mapping[str, Any], ...], int]:
+        if limit < 1 or offset < 0:
+            raise ValueError("limit MUST be >= 1 and offset MUST be >= 0")
+        with self._lock:
+            matching = [
+                deepcopy(item)
+                for key, item in reversed(tuple(self._state.items()))
+                if key.startswith(prefix) and (field is None or item.get(field) == value)
+            ]
+        return tuple(matching[offset : offset + limit]), len(matching)
 
     async def append_incident_transition(self, entry: Mapping[str, Any]) -> IncidentAppendStatus:
         """Append one incident transition to the shared audit chain.

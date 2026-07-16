@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: ad23292c734ab6840de530f3ee75ce49feb97e14
+translation_source_sha: 9dee13e5d6a2a7ee1808b32b82797f033071603b
 translation_revised: 2026-07-16
 ---
 
@@ -445,6 +445,9 @@ class ConversationSession:
   learner consent를 저장한다. `UserMemoryStore`는 source-turn provenance와
   선택적 expiry가 있는 명시적으로 확인된 fact만 수락한다. `operator_memory`는
   승인된 resource 범위 운영 지식을 위한 별도 store로 유지한다.
+- **Optimistic concurrency**: preference 및 policy write는 현재 revision을 요구하고
+  생성할 때만 `0`을 사용합니다. Policy 및 briefing-subscription delete도 현재 revision을
+  요구하므로 stale Settings tab은 `409`를 받습니다.
 - **Learner consent**: learner-facing turn projection은 기본적으로 metadata만
   제공한다. Raw turn body는 같은 principal이 `share_with_learner: true`를
   명시적으로 설정한 경우에만 제공한다.
@@ -454,12 +457,11 @@ class ConversationSession:
   queue한다. Leased worker가 제한된 exponential retry로 metadata-only
   projection을 삭제하므로 일시적인 ontology 실패가 영구 복사본을 조용히
   남기지 않는다.
-- **Projection 일관성 경계**: source write는 ontology projection을 동기식으로
-  upsert한다. Durable queue recovery는 현재 삭제만 지원한다. Source write가
-  commit된 후 projection이 끝나기 전에 process가 실패하면 해당 record가 다시
-  쓰일 때까지 metadata가 stale할 수 있다. Ontology projection을 현재 사용자
-  context 상태의 완전한 source로 취급하기 전에 write-side reconciliation
-  worker가 필요하다.
+- **Projection 일관성 경계**: preference, memory, policy 및 briefing subscription
+  write는 source record와 같은 transaction에서 source reference를 queue합니다.
+  Scheduler는 lease와 제한된 exponential retry를 사용해 upsert를 replay합니다.
+  5회 실패한 job은 무기한 retry하지 않고 operator diagnostics용 dead-letter로
+  이동합니다. Ontology projection은 source record에서 재구성할 수 있습니다.
 - **선제적 동작**: allowlist된 `ConversationPolicy` record만 고정 narrator prompt
   fragment로 compile한다. Opening briefing과 scheduled briefing은 결정적
   `BriefingSpec`을 공유하며, durable subscription은 IANA timezone을 사용하고
@@ -935,7 +937,10 @@ abstained 또는 citation 없는 hypothesis에서 incident cause를 단정하면
 
 1. incident 및 root-cause 질문에는 `OperationalEvidenceResolver`를 사용합니다.
 2. KPI, pending approval, audit 및 incident 목록 질문에는 server-owned
-  read-model tool을 사용합니다.
+  read-model tool을 사용합니다. Broad system-health 질문은 같은 KPI authority를
+  사용하지만 model synthesis 전에 deterministic `read-model-health` path를
+  사용합니다. 답변은 관측된 event sample, approval backlog, execution-mode mix,
+  evidence time을 보고하며 모든 component가 healthy라고 추론하지 않습니다.
 3. agent-owned domain에는 `PantheonChatDelegate`를 사용합니다. Bragi는 primary
   agent로 라우팅하고 bounded timeout으로 최대 3명의 matching contributor를
   호출합니다.

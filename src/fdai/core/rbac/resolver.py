@@ -112,6 +112,7 @@ class Principal:
     email: str | None = None
     groups: frozenset[str] = field(default_factory=frozenset)
     correlation_id: str | None = None
+    break_glass_eligible: bool = False
     break_glass: BreakGlassActivation | None = None
 
     def has_role(self, role: Role) -> bool:
@@ -133,6 +134,7 @@ class Principal:
             email=self.email,
             groups=self.groups,
             correlation_id=self.correlation_id,
+            break_glass_eligible=self.break_glass_eligible,
             break_glass=activation,
         )
 
@@ -157,6 +159,19 @@ class GroupMapping:
     approver_group_id: str
     owner_group_id: str
     break_glass_group_id: str
+
+    def __post_init__(self) -> None:
+        placeholder = "00000000-0000-0000-0000-000000000000"
+        configured = (
+            self.reader_group_id,
+            self.contributor_group_id,
+            self.approver_group_id,
+            self.owner_group_id,
+            self.break_glass_group_id,
+        )
+        concrete = tuple(group_id for group_id in configured if group_id != placeholder)
+        if len(set(concrete)) != len(concrete):
+            raise ValueError("RBAC group objectIds MUST be unique")
 
     def as_dict(self) -> Mapping[str, Role]:
         """Return an ``{objectId: Role}`` mapping (read-only)."""
@@ -330,9 +345,19 @@ class RoleResolver:
 
         raw_roles = claims.get("roles") or ()
         raw_groups = claims.get("groups") or ()
+        claimed_roles = _parse_role_claim(raw_roles)
+        claimed_groups = frozenset(_stringify_iter(raw_groups))
+        if not claimed_roles and _has_group_overage(claims):
+            raise ValueError(
+                "group overage tokens require FDAI App Roles; inline groups are unavailable"
+            )
+        break_glass_eligible = (
+            Role.BREAK_GLASS in claimed_roles
+            or self._group_mapping.break_glass_group_id in claimed_groups
+        )
 
         # Isolate BreakGlass - see module docstring.
-        role_set = frozenset(_parse_role_claim(raw_roles) - {Role.BREAK_GLASS})
+        role_set = frozenset(claimed_roles - {Role.BREAK_GLASS})
         if not role_set:
             role_set = frozenset(self._roles_from_groups(raw_groups) - {Role.BREAK_GLASS})
 
@@ -345,6 +370,7 @@ class RoleResolver:
             email=email,
             groups=group_set,
             correlation_id=correlation_id,
+            break_glass_eligible=break_glass_eligible,
             break_glass=None,
         )
 
@@ -378,9 +404,12 @@ class RoleResolver:
         :class:`Principal`, but presence in the raw claims means the
         Entra membership check passed. Passing an OID whose token never
         carried it constitutes an authorization bypass, so this method
-        does NOT re-check membership itself; the caller feeds it a
-        principal built from claims that included ``BreakGlass``.
+        re-checks the entitlement retained by :meth:`resolve_from_claims`.
         """
+        if not principal.break_glass_eligible:
+            raise BreakGlassActivationError(
+                "break-glass activation requires verified BreakGlass entitlement"
+            )
         if not incident_id or not incident_id.strip():
             raise BreakGlassActivationError(
                 "break-glass activation requires a non-empty incident_id"
@@ -420,6 +449,13 @@ def _parse_role_claim(raw: object) -> frozenset[Role]:
             # Unknown role string - drop, do not raise.
             continue
     return frozenset(values)
+
+
+def _has_group_overage(claims: Mapping[str, Any]) -> bool:
+    if claims.get("hasgroups") is True:
+        return True
+    claim_names = claims.get("_claim_names")
+    return isinstance(claim_names, Mapping) and "groups" in claim_names
 
 
 def _stringify_iter(raw: object) -> Iterable[str]:

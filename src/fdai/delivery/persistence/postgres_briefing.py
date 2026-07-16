@@ -10,6 +10,9 @@ from typing import Any, Final
 import psycopg
 from psycopg.rows import dict_row
 
+from fdai.delivery.persistence.postgres_user_context_projection_queue import (
+    enqueue_projection_upsert,
+)
 from fdai.shared.providers.briefing import (
     BriefingConflictError,
     BriefingDeliveryMode,
@@ -70,28 +73,37 @@ class PostgresConversationPolicyStore(_PostgresBase):
                     f"policy revision mismatch: expected {expected_revision}, current {current}"
                 )
             revision = current + 1
-            await connection.execute(
-                "INSERT INTO conversation_policy "
-                "(principal_id, policy_id, kind, enabled, revision, confirmed_at, "
-                "source_turn_id, briefing_spec, response_defaults) VALUES "
-                "(%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb) "
-                "ON CONFLICT (principal_id, policy_id) DO UPDATE SET "
-                "kind = EXCLUDED.kind, enabled = EXCLUDED.enabled, "
-                "revision = EXCLUDED.revision, confirmed_at = EXCLUDED.confirmed_at, "
-                "source_turn_id = EXCLUDED.source_turn_id, "
-                "briefing_spec = EXCLUDED.briefing_spec, "
-                "response_defaults = EXCLUDED.response_defaults",
-                (
-                    record.principal_id,
-                    record.policy_id,
-                    record.kind.value,
-                    record.enabled,
-                    revision,
-                    record.confirmed_at,
-                    record.source_turn_id,
-                    (_spec_json(record.briefing_spec) if record.briefing_spec else None),
-                    json.dumps(dict(record.response_defaults)),
-                ),
+            try:
+                await connection.execute(
+                    "INSERT INTO conversation_policy "
+                    "(principal_id, policy_id, kind, enabled, revision, confirmed_at, "
+                    "source_turn_id, briefing_spec, response_defaults) VALUES "
+                    "(%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb) "
+                    "ON CONFLICT (principal_id, policy_id) DO UPDATE SET "
+                    "kind = EXCLUDED.kind, enabled = EXCLUDED.enabled, "
+                    "revision = EXCLUDED.revision, confirmed_at = EXCLUDED.confirmed_at, "
+                    "source_turn_id = EXCLUDED.source_turn_id, "
+                    "briefing_spec = EXCLUDED.briefing_spec, "
+                    "response_defaults = EXCLUDED.response_defaults",
+                    (
+                        record.principal_id,
+                        record.policy_id,
+                        record.kind.value,
+                        record.enabled,
+                        revision,
+                        record.confirmed_at,
+                        record.source_turn_id,
+                        (_spec_json(record.briefing_spec) if record.briefing_spec else None),
+                        json.dumps(dict(record.response_defaults)),
+                    ),
+                )
+            except psycopg.errors.ForeignKeyViolation as exc:
+                raise BriefingConflictError("policy source turn was not found") from exc
+            await enqueue_projection_upsert(
+                connection,
+                projection_kind="policy",
+                principal_id=record.principal_id,
+                record_id=record.policy_id,
             )
         return ConversationPolicyRecord(
             policy_id=record.policy_id,
@@ -118,19 +130,27 @@ class PostgresConversationPolicyStore(_PostgresBase):
             )
             return tuple(_policy(row) for row in await cursor.fetchall())
 
-    async def delete(self, *, principal_id: str, policy_id: str) -> bool:
+    async def delete(
+        self,
+        *,
+        principal_id: str,
+        policy_id: str,
+        expected_revision: int,
+    ) -> bool:
         async with await self._connect() as connection, connection.transaction():
             await connection.execute(
                 "INSERT INTO user_context_projection_delete_queue (object_id) "
                 "SELECT 'policy:' || principal_id || ':' || policy_id "
                 "FROM conversation_policy WHERE principal_id = %s AND policy_id = %s "
+                "AND revision = %s "
                 "ON CONFLICT (object_id) DO NOTHING",
-                (principal_id, policy_id),
+                (principal_id, policy_id, expected_revision),
             )
             cursor = await connection.execute(
                 "DELETE FROM conversation_policy WHERE principal_id = %s AND policy_id = %s "
+                "AND revision = %s "
                 "RETURNING policy_id",
-                (principal_id, policy_id),
+                (principal_id, policy_id, expected_revision),
             )
             return await cursor.fetchone() is not None
 
@@ -160,6 +180,12 @@ class PostgresBriefingSubscriptionStore(_PostgresBase):
                         record.created_at,
                         record.max_lateness_seconds,
                     ),
+                )
+                await enqueue_projection_upsert(
+                    connection,
+                    projection_kind="briefing_subscription",
+                    principal_id=record.principal_id,
+                    record_id=record.subscription_id,
                 )
             except psycopg.errors.UniqueViolation as exc:
                 raise BriefingConflictError(
@@ -242,19 +268,26 @@ class PostgresBriefingSubscriptionStore(_PostgresBase):
                 raise LookupError(f"subscription {subscription_id!r} not found")
         return _subscription(row)
 
-    async def delete(self, *, principal_id: str, subscription_id: str) -> bool:
+    async def delete(
+        self,
+        *,
+        principal_id: str,
+        subscription_id: str,
+        expected_revision: int,
+    ) -> bool:
         async with await self._connect() as connection, connection.transaction():
             await connection.execute(
                 "INSERT INTO user_context_projection_delete_queue (object_id) "
                 "SELECT 'briefing-subscription:' || principal_id || ':' || subscription_id "
                 "FROM briefing_subscription WHERE principal_id = %s AND subscription_id = %s "
+                "AND revision = %s "
                 "ON CONFLICT (object_id) DO NOTHING",
-                (principal_id, subscription_id),
+                (principal_id, subscription_id, expected_revision),
             )
             cursor = await connection.execute(
                 "DELETE FROM briefing_subscription WHERE principal_id = %s "
-                "AND subscription_id = %s RETURNING subscription_id",
-                (principal_id, subscription_id),
+                "AND subscription_id = %s AND revision = %s RETURNING subscription_id",
+                (principal_id, subscription_id, expected_revision),
             )
             return await cursor.fetchone() is not None
 

@@ -112,6 +112,7 @@ class TestLocalEntrypoint:
         application = _local.app()
         assert isinstance(application, Starlette)
         client = TestClient(application)
+        assert "/provision/stream" in {route.path for route in application.routes}
         # Seed produced at least one audit row + one HIL entry.
         audit = client.get("/audit").json()
         assert len(audit["items"]) >= 1

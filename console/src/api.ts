@@ -29,13 +29,13 @@ import {
   type ReportList,
 } from "./routes/reporting.model";
 import {
-  decodeIamAccessRequests,
+  decodeIamAccessRequestPage,
   decodeIamOverview,
   decodeIamSelfStatus,
   decodeHumanIdentityResults,
   decodeIdentityRoster,
   type HumanIdentityResult,
-  type IamAccessRequest,
+  type IamAccessRequestPage,
   type IamOverview,
   type IamSelfStatus,
   type IdentityRosterItem,
@@ -166,9 +166,10 @@ export class ReadApiClient {
     return decodeIdentityRoster(await this.#get<unknown>("/iam/directory/roster"));
   }
 
-  async listIamAccessRequests(limit = 50): Promise<readonly IamAccessRequest[]> {
+  async listIamAccessRequests(limit = 50, cursor = 0): Promise<IamAccessRequestPage> {
     const params = new URLSearchParams({ limit: String(limit) });
-    return decodeIamAccessRequests(await this.#get<unknown>("/iam/access-requests", params));
+    if (cursor > 0) params.set("cursor", String(cursor));
+    return decodeIamAccessRequestPage(await this.#get<unknown>("/iam/access-requests", params));
   }
 
   async reports(): Promise<ReportList> {

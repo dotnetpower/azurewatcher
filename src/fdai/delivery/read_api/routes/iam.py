@@ -77,10 +77,22 @@ def append_iam_routes(
         try:
             raw_limit = request.query_params.get("limit", "50")
             limit = int(raw_limit)
-            items = await service.list_requests(principal=principal, limit=limit)
+            offset = int(request.query_params.get("cursor", "0"))
+            items, total = await service.list_request_page(
+                principal=principal,
+                limit=limit,
+                offset=offset,
+            )
         except (ValueError, AccessRequestError) as exc:
             return _error(400, str(exc))
-        return JSONResponse({"items": [item.to_dict() for item in items]})
+        next_cursor = offset + len(items) if offset + len(items) < total else None
+        return JSONResponse(
+            {
+                "items": [item.to_dict() for item in items],
+                "total": total,
+                "next_cursor": next_cursor,
+            }
+        )
 
     async def get_self(request: Request) -> Response:
         principal = await authenticate(request)
@@ -162,12 +174,27 @@ def append_iam_routes(
         principal = await authorize(request)
         try:
             body = await _read_json_object(request)
+            target_subject_id = _subject_id(body)
+            target_username = _string(body, "target_username")
+            if directory is not None:
+                try:
+                    identity = await directory.get_by_subject_id(target_subject_id)
+                except ValueError as exc:
+                    return _error(400, str(exc))
+                except Exception:  # noqa: BLE001 - provider failures fail closed
+                    return _error(503, "human identity directory is unavailable")
+                if identity is None:
+                    return _error(400, "target identity was not found")
+                if not identity.active:
+                    return _error(400, "target identity is inactive")
+                if identity.username.casefold() != target_username.casefold():
+                    return _error(400, "target username does not match the identity provider")
             access_request = await service.submit(
                 principal=principal,
                 idempotency_key=_string(body, "idempotency_key"),
-                identity_provider=_optional_string(body, "identity_provider") or identity_provider,
-                target_subject_id=_subject_id(body),
-                target_username=_string(body, "target_username"),
+                identity_provider=identity_provider,
+                target_subject_id=target_subject_id,
+                target_username=target_username,
                 operation=AccessOperation(_string(body, "operation")),
                 role=Role(_string(body, "role")),
                 justification=_string(body, "justification"),

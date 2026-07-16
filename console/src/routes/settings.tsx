@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { ReadApiClient } from "../api";
 import { PageHeader } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
@@ -16,6 +16,7 @@ import {
   deleteConversationPolicy,
   deleteBriefingSubscription,
   deleteUserMemory,
+  fetchUserContext,
   putConversationPolicy,
   putUserPreference,
   type UserContextPayload,
@@ -26,12 +27,15 @@ interface Props { readonly client: ReadApiClient }
 export function SettingsGeneralRoute({ client }: Props) {
   const [preferences, setPreferences] = useState<ConsolePreferences>(readConsolePreferences);
   const [serverContext, setServerContext] = useState<UserContextPayload | null>(null);
+  const [contextLoading, setContextLoading] = useState(true);
   const [contextError, setContextError] = useState<string | null>(null);
   const [verbosity, setVerbosity] = useState<"concise" | "detailed">("concise");
-  const [timezone, setTimezone] = useState("Asia/Seoul");
+  const [timezone, setTimezone] = useState(defaultTimezone);
   const [shareWithLearner, setShareWithLearner] = useState(false);
   const [briefingHour, setBriefingHour] = useState("07");
   const [savingContext, setSavingContext] = useState(false);
+  const [pendingDeletes, setPendingDeletes] = useState<ReadonlySet<string>>(new Set());
+  const refreshGeneration = useRef(0);
 
   useEffect(() => {
     const syncPreferences = () => setPreferences(readConsolePreferences());
@@ -40,15 +44,21 @@ export function SettingsGeneralRoute({ client }: Props) {
   }, []);
 
   const refreshContext = async (): Promise<void> => {
+    const generation = ++refreshGeneration.current;
+    setContextLoading(true);
     try {
-      const context = await client.panel<UserContextPayload>("/me/context");
+      const context = await fetchUserContext();
+      if (generation !== refreshGeneration.current) return;
       setServerContext(context);
       setVerbosity(context.preference?.verbosity ?? "concise");
-      setTimezone(context.preference?.timezone ?? "Asia/Seoul");
+      setTimezone(context.preference?.timezone ?? defaultTimezone());
       setShareWithLearner(context.preference?.share_with_learner ?? false);
       setContextError(null);
     } catch (error) {
+      if (generation !== refreshGeneration.current) return;
       setContextError(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (generation === refreshGeneration.current) setContextLoading(false);
     }
   };
 
@@ -111,24 +121,28 @@ export function SettingsGeneralRoute({ client }: Props) {
   )?.latest_operator_turn_id ?? null;
 
   const saveSemanticPreferences = async (): Promise<void> => {
+    if (!isValidTimezone(timezone)) {
+      setContextError(t("settings.contextTimezoneInvalid"));
+      return;
+    }
     setSavingContext(true);
+    let preferenceSaved = false;
     try {
       await putUserPreference({
         locale: preferences.locale,
         verbosity,
         timezone,
         share_with_learner: shareWithLearner,
-        ...(serverContext?.preference
-          ? { expected_revision: serverContext.preference.revision }
-          : {}),
+          expected_revision: serverContext?.preference?.revision ?? 0,
       });
+      preferenceSaved = true;
       if (latestSourceTurnId !== null) {
         await putConversationPolicy({
           policy_id: "response-defaults",
           kind: "response_defaults",
           source_turn_id: latestSourceTurnId,
           enabled: true,
-          ...(responsePolicy ? { expected_revision: responsePolicy.revision } : {}),
+          expected_revision: responsePolicy?.revision ?? 0,
           response_defaults: {
             verbosity,
             answer_language: preferences.locale,
@@ -138,16 +152,29 @@ export function SettingsGeneralRoute({ client }: Props) {
       await refreshContext();
       setContextError(null);
     } catch (error) {
-      setContextError(error instanceof Error ? error.message : String(error));
+      const detail = error instanceof Error ? error.message : String(error);
+      setContextError(
+        preferenceSaved
+          ? t("settings.contextPartialSave", { error: detail })
+          : detail,
+      );
     } finally {
       setSavingContext(false);
     }
   };
 
   const addDailyBriefing = async (): Promise<void> => {
+    const hour = parseBriefingHour(briefingHour);
+    if (hour === null) {
+      setContextError(t("settings.briefingHourInvalid"));
+      return;
+    }
+    if (!isValidTimezone(timezone)) {
+      setContextError(t("settings.contextTimezoneInvalid"));
+      return;
+    }
     setSavingContext(true);
     try {
-      const hour = Math.min(23, Math.max(0, Number.parseInt(briefingHour, 10) || 7));
       await createBriefingSubscription({
         name: "Daily major issues",
         cron_expression: `0 ${hour} * * *`,
@@ -178,7 +205,7 @@ export function SettingsGeneralRoute({ client }: Props) {
         kind: "opening_briefing",
         source_turn_id: latestSourceTurnId,
         enabled: true,
-        ...(openingPolicy ? { expected_revision: openingPolicy.revision } : {}),
+        expected_revision: openingPolicy?.revision ?? 0,
         briefing_spec: {
           kind: "major_issues",
           lookback_seconds: 86_400,
@@ -201,13 +228,45 @@ export function SettingsGeneralRoute({ client }: Props) {
     if (openingPolicy === null) return;
     setSavingContext(true);
     try {
-      await deleteConversationPolicy(openingPolicy.policy_id);
+      await deleteConversationPolicy(openingPolicy.policy_id, openingPolicy.revision);
       await refreshContext();
       setContextError(null);
     } catch (error) {
       setContextError(error instanceof Error ? error.message : String(error));
     } finally {
       setSavingContext(false);
+    }
+  };
+
+  const removeSubscription = async (subscriptionId: string, revision: number): Promise<void> => {
+    if (!window.confirm(t("settings.confirmDeleteSubscription"))) return;
+    await withPendingDelete(`subscription:${subscriptionId}`, async () => {
+      await deleteBriefingSubscription(subscriptionId, revision);
+      await refreshContext();
+    });
+  };
+
+  const removeMemory = async (memoryId: string): Promise<void> => {
+    if (!window.confirm(t("settings.confirmDeleteMemory"))) return;
+    await withPendingDelete(`memory:${memoryId}`, async () => {
+      await deleteUserMemory(memoryId);
+      await refreshContext();
+    });
+  };
+
+  const withPendingDelete = async (key: string, operation: () => Promise<void>) => {
+    setPendingDeletes((current) => new Set(current).add(key));
+    setContextError(null);
+    try {
+      await operation();
+    } catch (error) {
+      setContextError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPendingDeletes((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
     }
   };
 
@@ -282,25 +341,25 @@ export function SettingsGeneralRoute({ client }: Props) {
       </section>
 
       <section class="settings-section" aria-labelledby="settings-user-context">
-        <h3 id="settings-user-context">User context</h3>
+        <h3 id="settings-user-context">{t("settings.contextTitle")}</h3>
         <p class="muted small">
-          Account-scoped narrator preferences and explicit learner consent. Device display
-          preferences above remain browser-local.
+          {t("settings.contextDescription")}
         </p>
         {contextError ? <p class="error-text">{contextError}</p> : null}
+        {contextLoading ? <p class="muted small" role="status">{t("settings.contextLoading")}</p> : null}
         <div class="settings-list">
-          <SettingRow label="Answer detail" hint="Default response density for Bragi.">
+          <SettingRow label={t("settings.answerDetail")} hint={t("settings.answerDetailHint")}>
             <SegmentedControl
-              label="Answer detail"
+              label={t("settings.answerDetail")}
               value={verbosity}
               options={[
-                { value: "concise", label: "Concise" },
-                { value: "detailed", label: "Detailed" },
+                { value: "concise", label: t("settings.concise") },
+                { value: "detailed", label: t("settings.detailed") },
               ]}
               onChange={(value) => setVerbosity(value as "concise" | "detailed")}
             />
           </SettingRow>
-          <SettingRow label="Timezone" hint="IANA timezone used by recurring briefings.">
+          <SettingRow label={t("settings.timezone")} hint={t("settings.timezoneHint")}>
             <input
               class="form-input settings-context-input"
               value={timezone}
@@ -309,8 +368,8 @@ export function SettingsGeneralRoute({ client }: Props) {
             />
           </SettingRow>
           <SettingRow
-            label="Learner access"
-            hint="Allow Norns to use turn bodies for pattern extraction. Off by default."
+            label={t("settings.learnerAccess")}
+            hint={t("settings.learnerAccessHint")}
           >
             <label class="settings-toggle-control">
               <input
@@ -319,25 +378,25 @@ export function SettingsGeneralRoute({ client }: Props) {
                 onChange={(event) => setShareWithLearner(event.currentTarget.checked)}
               />
               <span aria-hidden="true" />
-              <strong>{shareWithLearner ? "Opted in" : "Metadata only"}</strong>
+              <strong>{shareWithLearner ? t("settings.optedIn") : t("settings.metadataOnly")}</strong>
             </label>
           </SettingRow>
         </div>
         <div class="settings-actions">
           <button type="button" class="btn" disabled={savingContext} onClick={() => void saveSemanticPreferences()}>
-            Save user context
+            {t("settings.saveContext")}
           </button>
         </div>
       </section>
 
       <section class="settings-section" aria-labelledby="settings-briefings">
-        <h3 id="settings-briefings">Proactive briefings</h3>
+        <h3 id="settings-briefings">{t("settings.briefingsTitle")}</h3>
         <div class="settings-context-list">
           <article>
             <div>
-              <strong>Brief when Command Deck opens</strong>
+              <strong>{t("settings.openingBriefing")}</strong>
               <small class="muted">
-                Show high and critical issues from the previous 24 hours once per conversation.
+                {t("settings.openingBriefingHint")}
               </small>
             </div>
             {openingPolicy ? (
@@ -347,7 +406,7 @@ export function SettingsGeneralRoute({ client }: Props) {
                 disabled={savingContext}
                 onClick={() => void removeOpeningBriefing()}
               >
-                Disable
+                {t("settings.disable")}
               </button>
             ) : (
               <button
@@ -355,21 +414,21 @@ export function SettingsGeneralRoute({ client }: Props) {
                 class="btn"
                 disabled={savingContext || latestSourceTurnId === null}
                 onClick={() => void enableOpeningBriefing()}
-                title={latestSourceTurnId === null ? "Start a conversation first." : undefined}
+                title={latestSourceTurnId === null ? t("settings.startConversation") : undefined}
               >
-                Enable
+                {t("settings.enable")}
               </button>
             )}
           </article>
           {latestSourceTurnId === null && !openingPolicy ? (
             <p class="muted small">
-              Start one Command Deck conversation before enabling this confirmed policy.
+              {t("settings.startConversationHint")}
             </p>
           ) : null}
         </div>
         <div class="settings-briefing-create">
           <label>
-            <span>Daily hour</span>
+            <span>{t("settings.dailyHour")}</span>
             <input
               class="form-input"
               type="number"
@@ -381,7 +440,7 @@ export function SettingsGeneralRoute({ client }: Props) {
           </label>
           <span class="muted small">{timezone}</span>
           <button type="button" class="btn" disabled={savingContext} onClick={() => void addDailyBriefing()}>
-            Add daily major-issue briefing
+            {t("settings.addDailyBriefing")}
           </button>
         </div>
         <div class="settings-context-list">
@@ -390,33 +449,36 @@ export function SettingsGeneralRoute({ client }: Props) {
               <div>
                 <strong>{subscription.name}</strong>
                 <small class="muted">
-                  {subscription.cron_expression} - {subscription.timezone} - next {subscription.next_run_at}
+                  {t("settings.subscriptionSummary", {
+                    cron: subscription.cron_expression,
+                    timezone: subscription.timezone,
+                    next: subscription.next_run_at,
+                  })}
                 </small>
               </div>
               <button
                 type="button"
                 class="secondary"
-                disabled={savingContext}
-                onClick={() => void deleteBriefingSubscription(subscription.subscription_id)
-                  .then(refreshContext)
-                  .catch((error: unknown) => setContextError(
-                    error instanceof Error ? error.message : String(error),
-                  ))}
+                disabled={pendingDeletes.has(`subscription:${subscription.subscription_id}`)}
+                onClick={() => void removeSubscription(
+                  subscription.subscription_id,
+                  subscription.revision,
+                )}
               >
-                Remove
+                {t("settings.remove")}
               </button>
             </article>
           ))}
-          {(serverContext?.subscriptions.length ?? 0) === 0 ? (
-            <p class="muted small">No proactive briefing subscriptions.</p>
+          {!contextLoading && (serverContext?.subscriptions.length ?? 0) === 0 ? (
+            <p class="muted small">{t("settings.noSubscriptions")}</p>
           ) : null}
         </div>
       </section>
 
       <section class="settings-section" aria-labelledby="settings-saved-memory">
-        <h3 id="settings-saved-memory">Saved memory</h3>
+        <h3 id="settings-saved-memory">{t("settings.memoryTitle")}</h3>
         <p class="muted small">
-          Only facts you explicitly confirmed are stored. Removing one also removes its ontology projection.
+          {t("settings.memoryDescription")}
         </p>
         <div class="settings-context-list">
           {(serverContext?.memories ?? []).map((memory) => (
@@ -425,31 +487,29 @@ export function SettingsGeneralRoute({ client }: Props) {
                 <strong>{memory.category}</strong>
                 <span>{memory.body}</span>
                 <small class="muted">
-                  Source {memory.source_turn_id}{memory.expires_at ? ` - expires ${memory.expires_at}` : ""}
+                  {memory.expires_at
+                    ? t("settings.memorySourceExpires", { source: memory.source_turn_id, expires: memory.expires_at })
+                    : t("settings.memorySource", { source: memory.source_turn_id })}
                 </small>
               </div>
               <button
                 type="button"
                 class="secondary"
-                disabled={savingContext}
-                onClick={() => void deleteUserMemory(memory.memory_id)
-                  .then(refreshContext)
-                  .catch((error: unknown) => setContextError(
-                    error instanceof Error ? error.message : String(error),
-                  ))}
+                disabled={pendingDeletes.has(`memory:${memory.memory_id}`)}
+                onClick={() => void removeMemory(memory.memory_id)}
               >
-                Remove
+                {t("settings.remove")}
               </button>
             </article>
           ))}
-          {(serverContext?.memories.length ?? 0) === 0 ? (
-            <p class="muted small">No explicitly saved memories.</p>
+          {!contextLoading && (serverContext?.memories.length ?? 0) === 0 ? (
+            <p class="muted small">{t("settings.noMemories")}</p>
           ) : null}
         </div>
       </section>
 
       <section class="settings-section" aria-labelledby="settings-briefing-history">
-        <h3 id="settings-briefing-history">Recent briefings</h3>
+        <h3 id="settings-briefing-history">{t("settings.recentBriefings")}</h3>
         <div class="settings-context-list">
           {(serverContext?.briefing_runs ?? []).slice(0, 10).map((run) => (
             <article key={run.run_id}>
@@ -457,13 +517,17 @@ export function SettingsGeneralRoute({ client }: Props) {
                 <strong>{run.title}</strong>
                 <span>{run.body_markdown}</span>
                 <small class="muted">
-                  {run.status} - {run.item_count} items - {run.evidence_refs.length} evidence refs
+                  {t("settings.briefingRunSummary", {
+                    status: run.status,
+                    count: run.item_count,
+                    evidence: run.evidence_refs.length,
+                  })}
                 </small>
               </div>
             </article>
           ))}
-          {(serverContext?.briefing_runs.length ?? 0) === 0 ? (
-            <p class="muted small">No briefing runs yet.</p>
+          {!contextLoading && (serverContext?.briefing_runs.length ?? 0) === 0 ? (
+            <p class="muted small">{t("settings.noBriefingRuns")}</p>
           ) : null}
         </div>
       </section>
@@ -516,4 +580,24 @@ function setLocaleOverride(locale: ConsolePreferences["locale"] | null): void {
   if (locale === null) url.searchParams.delete("locale");
   else url.searchParams.set("locale", locale);
   window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+export function defaultTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+export function isValidTimezone(value: string): boolean {
+  if (!value.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value.trim() }).format();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function parseBriefingHour(value: string): number | null {
+  if (!/^\d{1,2}$/.test(value.trim())) return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 23 ? parsed : null;
 }

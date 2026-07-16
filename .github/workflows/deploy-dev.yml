@@ -269,6 +269,7 @@ jobs:
 
       - name: Synchronize console Entra redirect URI
         if: ${{ inputs.apply && inputs.deploy_console }}
+        continue-on-error: true
         env:
           EXPECTED_AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           ENTRA_CONSOLE_SPA_CLIENT_ID: ${{ vars.ENTRA_CONSOLE_SPA_CLIENT_ID }}

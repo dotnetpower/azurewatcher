@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Final
+from urllib.parse import urlparse
 
 import httpx
 
@@ -73,6 +74,25 @@ class EntraHumanIdentityDirectory(HumanIdentityDirectory):
                 identities.append(parsed)
         return tuple(identities[:limit])
 
+    async def get_by_subject_id(self, subject_id: str) -> HumanIdentity | None:
+        normalized = subject_id.strip()
+        if not normalized:
+            raise ValueError("identity subject_id MUST be non-empty")
+        token = await self.identity.get_token(_GRAPH_SCOPE)
+        try:
+            response = await self._get_with_retry(
+                f"{self.base_url.rstrip('/')}/users/{normalized}",
+                params={
+                    "$select": "id,displayName,userPrincipalName,mail,userType,accountEnabled",
+                },
+                headers={"Authorization": f"Bearer {token.token}"},
+            )
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                return None
+            raise
+        return _parse_user(response.json())
+
     async def list_role_roster(
         self,
         role_group_ids: Mapping[str, str],
@@ -123,7 +143,7 @@ class EntraHumanIdentityDirectory(HumanIdentityDirectory):
         limit: int,
     ) -> None:
         url: str | None = (
-            f"{self.base_url.rstrip('/')}/groups/{group_id}/members/microsoft.graph.user"
+            f"{self.base_url.rstrip('/')}/groups/{group_id}/transitiveMembers/microsoft.graph.user"
         )
         params: dict[str, str] | None = {
             "$select": "id,displayName,userPrincipalName,mail,accountEnabled",
@@ -156,9 +176,27 @@ class EntraHumanIdentityDirectory(HumanIdentityDirectory):
                     active=identity.active,
                 )
             next_link = payload.get("@odata.nextLink")
-            url = next_link if isinstance(next_link, str) and next_link else None
+            url = self._validated_next_link(next_link)
             params = None
             pages += 1
+        if url is not None:
+            raise RuntimeError("Microsoft Graph roster pagination exceeded 10 pages")
+
+    def _validated_next_link(self, value: object) -> str | None:
+        if value is None or value == "":
+            return None
+        if not isinstance(value, str):
+            raise RuntimeError("Microsoft Graph nextLink MUST be a string")
+        base = urlparse(self.base_url)
+        candidate = urlparse(value)
+        base_path = base.path.rstrip("/")
+        if (
+            candidate.scheme != base.scheme
+            or candidate.netloc != base.netloc
+            or not candidate.path.startswith(f"{base_path}/")
+        ):
+            raise RuntimeError("Microsoft Graph nextLink is outside the configured API root")
+        return value
 
     async def _get_with_retry(
         self,

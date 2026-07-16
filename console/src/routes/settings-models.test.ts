@@ -29,6 +29,7 @@ const payload = {
   }],
   narrator: {
     selection_scope: "per-user",
+    revision: 1,
     requested: "auto",
     effective: "auto",
     fallback_reason: null,
@@ -83,6 +84,7 @@ describe("Settings Models contracts", () => {
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
       expect(JSON.parse(String(init?.body))).toEqual({
         preferred_narrator_model: "narrator-fast",
+        expected_revision: 1,
       });
       expect((init?.headers as Record<string, string>).authorization).toBe("Bearer token");
       return new Response(JSON.stringify({
@@ -103,14 +105,15 @@ describe("Settings Models contracts", () => {
       auth,
       "http://127.0.0.1:8030",
       "narrator-fast",
+      1,
     );
 
     expect(saved.narrator.effective).toBe("narrator-fast");
   });
 
   it("saves deployment-global web-search settings with revision", async () => {
-    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-      expect(url).toBe("http://127.0.0.1:8030/models/web-search-settings");
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      expect(String(url)).toBe("http://127.0.0.1:8030/models/web-search-settings");
       expect(JSON.parse(String(init?.body))).toEqual({
         enabled: true,
         allowed_domains: ["learn.microsoft.com"],
@@ -201,5 +204,19 @@ describe("Settings Models contracts", () => {
     expect(webSearchControlsDisabled(false, false)).toBe(true);
     expect(webSearchControlsDisabled(true, true)).toBe(true);
     expect(webSearchControlsDisabled(true, false)).toBe(false);
+  });
+
+  it.each([
+    { ...payload, provisioning: { ...payload.provisioning, resolved_count: -1 } },
+    {
+      ...payload,
+      narrator: {
+        ...payload.narrator,
+        candidates: [{ ...payload.narrator.candidates[0], ttft_p50_ms: -1 }],
+      },
+    },
+    { ...payload, discovery: { ...payload.discovery, status: "unknown" } },
+  ])("rejects invalid model metrics or statuses %#", (value) => {
+    expect(() => decodeModelSettings(value)).toThrow();
   });
 });

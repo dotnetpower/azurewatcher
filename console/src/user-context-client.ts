@@ -28,6 +28,7 @@ export interface BriefingSubscriptionPayload {
   readonly enabled: boolean;
   readonly next_run_at: string;
   readonly spec: Readonly<Record<string, unknown>>;
+  readonly revision: number;
 }
 
 export interface ConversationPolicyPayload {
@@ -77,10 +78,21 @@ export interface UserContextPayload {
   readonly conversations: readonly ConversationSummaryPayload[];
 }
 
+export class UserContextRequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "UserContextRequestError";
+  }
+}
+
 let authContext: AuthContext | null = null;
 
 export function setUserContextAuth(auth: AuthContext | null): void {
   authContext = auth;
+}
+
+export async function fetchUserContext(): Promise<UserContextPayload> {
+  return decodeUserContext(await request("/me/context", "GET"));
 }
 
 export async function fetchOpeningBriefing(conversationId: string): Promise<BriefingRunPayload | null> {
@@ -105,17 +117,20 @@ export async function putUserPreference(input: {
   readonly verbosity: "concise" | "detailed";
   readonly timezone: string | null;
   readonly share_with_learner: boolean;
-  readonly expected_revision?: number;
+  readonly expected_revision: number;
 }): Promise<UserPreferencePayload> {
-  return await request("/me/preferences", "PUT", input) as unknown as UserPreferencePayload;
+  return decodeUserPreference(await request("/me/preferences", "PUT", input));
 }
 
 export async function putConversationPolicy(input: Record<string, unknown>): Promise<Record<string, unknown>> {
   return request("/me/policies", "PUT", { ...input, confirmed: true });
 }
 
-export async function deleteConversationPolicy(policyId: string): Promise<void> {
-  await request(`/me/policies/${encodeURIComponent(policyId)}`, "DELETE");
+export async function deleteConversationPolicy(policyId: string, revision: number): Promise<void> {
+  await request(
+    `/me/policies/${encodeURIComponent(policyId)}?expected_revision=${revision}`,
+    "DELETE",
+  );
 }
 
 export async function deleteUserMemory(memoryId: string): Promise<void> {
@@ -126,8 +141,14 @@ export async function createBriefingSubscription(input: Record<string, unknown>)
   return request("/me/briefing-subscriptions", "POST", { ...input, confirmed: true });
 }
 
-export async function deleteBriefingSubscription(subscriptionId: string): Promise<void> {
-  await request(`/me/briefing-subscriptions/${encodeURIComponent(subscriptionId)}`, "DELETE");
+export async function deleteBriefingSubscription(
+  subscriptionId: string,
+  revision: number,
+): Promise<void> {
+  await request(
+    `/me/briefing-subscriptions/${encodeURIComponent(subscriptionId)}?expected_revision=${revision}`,
+    "DELETE",
+  );
 }
 
 async function request(
@@ -140,22 +161,213 @@ async function request(
   if (body !== undefined) headers["content-type"] = "application/json";
   const authorization = authContext ? await authContext.getAuthorizationHeader() : null;
   if (authorization !== null) headers.authorization = authorization;
-  const response = await fetch(`${base.replace(/\/$/, "")}${path}`, {
-    method,
-    headers,
-    credentials: "omit",
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 10_000);
+  let response: Response;
+  try {
+    response = await fetch(`${base.replace(/\/$/, "")}${path}`, {
+      method,
+      headers,
+      credentials: "omit",
+      signal: controller.signal,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new UserContextRequestError("User context request timed out", 0);
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
   if (!response.ok) {
     let detail = `HTTP ${response.status}`;
     try {
-      const payload = await response.json() as { detail?: string };
-      detail = payload.detail ?? detail;
+      const payload = await response.json() as {
+        readonly detail?: unknown;
+        readonly error?: { readonly message?: unknown };
+      };
+      if (typeof payload.detail === "string") detail = payload.detail;
+      else if (typeof payload.error?.message === "string") detail = payload.error.message;
     } catch {
       /* keep status */
     }
-    throw new Error(detail);
+    throw new UserContextRequestError(detail, response.status);
   }
   if (response.status === 204) return {};
   return await response.json() as Record<string, unknown>;
+}
+
+export function decodeUserContext(value: unknown): UserContextPayload {
+  const root = object(value, "user context");
+  return {
+    preference: root["preference"] === null
+      ? null
+      : decodeUserPreference(root["preference"]),
+    memories: array(root["memories"], "memories").map(decodeMemory),
+    policies: array(root["policies"], "policies").map(decodePolicy),
+    subscriptions: array(root["subscriptions"], "subscriptions").map(decodeSubscription),
+    briefing_runs: array(root["briefing_runs"], "briefing_runs").map(decodeBriefingRun),
+    conversations: array(root["conversations"], "conversations").map(decodeConversation),
+  };
+}
+
+function decodeUserPreference(value: unknown): UserPreferencePayload {
+  const item = object(value, "preference");
+  const locale = string(item["locale"], "preference.locale");
+  const verbosity = string(item["verbosity"], "preference.verbosity");
+  if (locale !== "en" && locale !== "ko") throw new Error("preference.locale is invalid");
+  if (verbosity !== "concise" && verbosity !== "detailed") {
+    throw new Error("preference.verbosity is invalid");
+  }
+  return {
+    principal_id: string(item["principal_id"], "preference.principal_id"),
+    locale,
+    verbosity,
+    timezone: nullableString(item["timezone"], "preference.timezone"),
+    share_with_learner: boolean(item["share_with_learner"], "preference.share_with_learner"),
+    revision: nonNegativeInteger(item["revision"], "preference.revision"),
+  };
+}
+
+function decodeMemory(value: unknown): UserMemoryPayload {
+  const item = object(value, "memory");
+  const category = string(item["category"], "memory.category");
+  if (!["preference", "context", "goal"].includes(category)) {
+    throw new Error("memory.category is invalid");
+  }
+  return {
+    memory_id: string(item["memory_id"], "memory.memory_id"),
+    category: category as UserMemoryPayload["category"],
+    body: string(item["body"], "memory.body"),
+    source_turn_id: string(item["source_turn_id"], "memory.source_turn_id"),
+    created_at: dateString(item["created_at"], "memory.created_at"),
+    expires_at: nullableDateString(item["expires_at"], "memory.expires_at"),
+  };
+}
+
+function decodePolicy(value: unknown): ConversationPolicyPayload {
+  const item = object(value, "policy");
+  const kind = string(item["kind"], "policy.kind");
+  if (kind !== "opening_briefing" && kind !== "response_defaults") {
+    throw new Error("policy.kind is invalid");
+  }
+  return {
+    policy_id: string(item["policy_id"], "policy.policy_id"),
+    kind,
+    enabled: boolean(item["enabled"], "policy.enabled"),
+    revision: nonNegativeInteger(item["revision"], "policy.revision"),
+    source_turn_id: string(item["source_turn_id"], "policy.source_turn_id"),
+    briefing_spec: nullableRecord(item["briefing_spec"], "policy.briefing_spec"),
+    response_defaults: stringRecord(item["response_defaults"], "policy.response_defaults"),
+  };
+}
+
+function decodeSubscription(value: unknown): BriefingSubscriptionPayload {
+  const item = object(value, "subscription");
+  return {
+    subscription_id: string(item["subscription_id"], "subscription.subscription_id"),
+    name: string(item["name"], "subscription.name"),
+    cron_expression: string(item["cron_expression"], "subscription.cron_expression"),
+    timezone: string(item["timezone"], "subscription.timezone"),
+    enabled: boolean(item["enabled"], "subscription.enabled"),
+    next_run_at: dateString(item["next_run_at"], "subscription.next_run_at"),
+    spec: object(item["spec"], "subscription.spec"),
+    revision: positiveInteger(item["revision"], "subscription.revision"),
+  };
+}
+
+function decodeBriefingRun(value: unknown): BriefingRunPayload {
+  const item = object(value, "briefing run");
+  return {
+    run_id: string(item["run_id"], "briefing_run.run_id"),
+    title: string(item["title"], "briefing_run.title"),
+    body_markdown: string(item["body_markdown"], "briefing_run.body_markdown"),
+    status: string(item["status"], "briefing_run.status"),
+    item_count: nonNegativeInteger(item["item_count"], "briefing_run.item_count"),
+    evidence_refs: stringArray(item["evidence_refs"], "briefing_run.evidence_refs"),
+    source_errors: stringArray(item["source_errors"], "briefing_run.source_errors"),
+  };
+}
+
+function decodeConversation(value: unknown): ConversationSummaryPayload {
+  const item = object(value, "conversation");
+  return {
+    conversation_id: string(item["conversation_id"], "conversation.conversation_id"),
+    channel_id: string(item["channel_id"], "conversation.channel_id"),
+    started_at: dateString(item["started_at"], "conversation.started_at"),
+    last_active: dateString(item["last_active"], "conversation.last_active"),
+    status: string(item["status"], "conversation.status"),
+    latest_operator_turn_id: nullableString(
+      item["latest_operator_turn_id"],
+      "conversation.latest_operator_turn_id",
+    ),
+  };
+}
+
+function object(value: unknown, label: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${label} MUST be an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function array(value: unknown, label: string): readonly unknown[] {
+  if (!Array.isArray(value)) throw new Error(`${label} MUST be an array`);
+  return value;
+}
+
+function string(value: unknown, label: string): string {
+  if (typeof value !== "string" || !value) throw new Error(`${label} MUST be a string`);
+  return value;
+}
+
+function nullableString(value: unknown, label: string): string | null {
+  if (value === null) return null;
+  return string(value, label);
+}
+
+function boolean(value: unknown, label: string): boolean {
+  if (typeof value !== "boolean") throw new Error(`${label} MUST be a boolean`);
+  return value;
+}
+
+function nonNegativeInteger(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new Error(`${label} MUST be a non-negative integer`);
+  }
+  return value;
+}
+
+function positiveInteger(value: unknown, label: string): number {
+  const parsed = nonNegativeInteger(value, label);
+  if (parsed < 1) throw new Error(`${label} MUST be positive`);
+  return parsed;
+}
+
+function dateString(value: unknown, label: string): string {
+  const parsed = string(value, label);
+  if (!Number.isFinite(Date.parse(parsed))) throw new Error(`${label} MUST be ISO 8601`);
+  return parsed;
+}
+
+function nullableDateString(value: unknown, label: string): string | null {
+  if (value === null) return null;
+  return dateString(value, label);
+}
+
+function stringArray(value: unknown, label: string): readonly string[] {
+  return array(value, label).map((item) => string(item, `${label}[]`));
+}
+
+function nullableRecord(value: unknown, label: string): Readonly<Record<string, unknown>> | null {
+  if (value === null) return null;
+  return object(value, label);
+}
+
+function stringRecord(value: unknown, label: string): Readonly<Record<string, string>> {
+  const record = object(value, label);
+  return Object.fromEntries(
+    Object.entries(record).map(([key, item]) => [key, string(item, `${label}.${key}`)]),
+  );
 }

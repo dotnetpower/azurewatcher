@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { ReadApiClient } from "../api";
 import type { AuthContext } from "../auth";
 import { DataTable, PageHeader, StatusPill } from "../components/ui";
@@ -37,6 +37,7 @@ export function SettingsModelsRoute({ client, auth }: Props) {
   const [savingWebSearch, setSavingWebSearch] = useState(false);
   const [webSearchError, setWebSearchError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const loadGeneration = useRef(0);
 
   const applyProjection = (next: ModelSettingsView) => {
     setView(next);
@@ -46,26 +47,35 @@ export function SettingsModelsRoute({ client, auth }: Props) {
   };
 
   const load = async () => {
+    const generation = ++loadGeneration.current;
     setLoading(true);
     setError(null);
     try {
       const next = decodeModelSettings(await client.panel<unknown>("/models/settings"));
+      if (generation !== loadGeneration.current) return;
       applyProjection(next);
       setWebSearchError(null);
     } catch (reason) {
+      if (generation !== loadGeneration.current) return;
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
   };
 
   useEffect(() => { void load(); }, [client]);
 
   const save = async () => {
+    loadGeneration.current += 1;
     setSaving(true);
     setError(null);
     try {
-      const next = await saveNarratorPreference(auth, client.readApiBaseUrl, selection);
+      const next = await saveNarratorPreference(
+        auth,
+        client.readApiBaseUrl,
+        selection,
+        view?.narrator.revision ?? 0,
+      );
       applyProjection(next);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -83,6 +93,7 @@ export function SettingsModelsRoute({ client, auth }: Props) {
       return;
     }
     setSavingWebSearch(true);
+    loadGeneration.current += 1;
     setWebSearchError(null);
     try {
       const next = await saveWebSearchSettings(auth, client.readApiBaseUrl, {

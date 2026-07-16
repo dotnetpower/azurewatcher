@@ -178,7 +178,13 @@ class ConversationPolicyStore(Protocol):
         self, *, principal_id: str
     ) -> Sequence[ConversationPolicyRecord]: ...
 
-    async def delete(self, *, principal_id: str, policy_id: str) -> bool: ...
+    async def delete(
+        self,
+        *,
+        principal_id: str,
+        policy_id: str,
+        expected_revision: int,
+    ) -> bool: ...
 
 
 @runtime_checkable
@@ -200,7 +206,13 @@ class BriefingSubscriptionStore(Protocol):
         next_run_at: datetime,
     ) -> BriefingSubscription: ...
 
-    async def delete(self, *, principal_id: str, subscription_id: str) -> bool: ...
+    async def delete(
+        self,
+        *,
+        principal_id: str,
+        subscription_id: str,
+        expected_revision: int,
+    ) -> bool: ...
 
 
 @runtime_checkable

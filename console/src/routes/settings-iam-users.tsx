@@ -22,10 +22,13 @@ interface Props {
   readonly client: ReadApiClient;
   readonly canManage: boolean;
   readonly roster: readonly IdentityRosterItem[];
+  readonly rosterAvailable: boolean;
+  readonly rosterError: string | null;
   readonly referencedUsers: readonly IdentityRosterItem[];
   readonly onAssign: (
     identity: IdentityRosterItem | HumanIdentityResult,
     role: AssignableRole,
+    justification: string,
   ) => Promise<void>;
 }
 
@@ -33,6 +36,8 @@ export function DirectoryUserSearch({
   client,
   canManage,
   roster,
+  rosterAvailable,
+  rosterError,
   referencedUsers,
   onAssign,
 }: Props) {
@@ -41,6 +46,11 @@ export function DirectoryUserSearch({
   const [filter, setFilter] = useState<RosterFilter>("all");
   const [searching, setSearching] = useState(false);
   const [pendingSubject, setPendingSubject] = useState<string | null>(null);
+  const [assignmentDraft, setAssignmentDraft] = useState<{
+    readonly identity: IdentityRosterItem | HumanIdentityResult;
+    readonly role: AssignableRole;
+  } | null>(null);
+  const [justification, setJustification] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   if (!canManage) {
@@ -61,15 +71,16 @@ export function DirectoryUserSearch({
     }
   };
 
-  const assign = async (
-    identity: IdentityRosterItem | HumanIdentityResult,
-    role: AssignableRole,
-  ) => {
+  const assign = async () => {
+    if (assignmentDraft === null || justification.trim().length < 20) return;
+    const { identity, role } = assignmentDraft;
     setPendingSubject(identity.subjectId);
     setError(null);
     try {
-      await onAssign(identity, role);
+      await onAssign(identity, role, justification.trim());
       if ("userType" in identity) setResults([]);
+      setAssignmentDraft(null);
+      setJustification("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -77,7 +88,7 @@ export function DirectoryUserSearch({
     }
   };
 
-  const source = roster.length > 0 ? roster : referencedUsers;
+  const source = rosterAvailable ? roster : referencedUsers;
   const visibleRoster = source.filter(
     (item) => filter === "all" || item.principalType === filter,
   );
@@ -130,7 +141,7 @@ export function DirectoryUserSearch({
                 <RoleDropdown
                   label={t("settings.iam.selectRoleAndAdd")}
                   disabled={!identity.active || pendingSubject === identity.subjectId}
-                  onSelect={(role) => { void assign(identity, role); }}
+                  onSelect={(role) => setAssignmentDraft({ identity, role })}
                 />
               </div>
             ))}
@@ -138,6 +149,46 @@ export function DirectoryUserSearch({
         ) : null}
         {error ? <div class="error" role="alert">{error}</div> : null}
       </div>
+
+      {assignmentDraft ? (
+        <div class="settings-role-request-form" role="group" aria-label={t("settings.iam.roleRequest") }>
+          <div>
+            <strong>
+              {assignmentDraft.identity.displayName} - {assignmentDraft.role}
+            </strong>
+            <small>{t("settings.iam.roleRequestHint")}</small>
+          </div>
+          <textarea
+            minLength={20}
+            maxLength={2000}
+            value={justification}
+            placeholder={t("settings.iam.roleRequestJustification")}
+            onInput={(event) => setJustification(event.currentTarget.value)}
+          />
+          <div>
+            <button
+              type="button"
+              disabled={justification.trim().length < 20 || pendingSubject !== null}
+              onClick={() => { void assign(); }}
+            >
+              {t("settings.iam.submitRoleRequest")}
+            </button>
+            <button
+              type="button"
+              disabled={pendingSubject !== null}
+              onClick={() => { setAssignmentDraft(null); setJustification(""); }}
+            >
+              {t("settings.iam.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {!rosterAvailable && rosterError ? (
+        <div class="settings-roster-unavailable" role="status">
+          {t("settings.iam.rosterUnavailable", { error: rosterError })}
+        </div>
+      ) : null}
 
       <div class="settings-roster-toolbar" role="group" aria-label={t("settings.iam.rosterFilter")}>
         {(["all", "person", "group"] as const).map((value) => (
@@ -190,8 +241,12 @@ export function DirectoryUserSearch({
             render: (item: IdentityRosterItem) => (
               <RoleDropdown
                 label={t("settings.iam.changeRole")}
-                disabled={!item.active || pendingSubject === item.subjectId}
-                onSelect={(role) => { void assign(item, role); }}
+                disabled={
+                  item.principalType !== "person"
+                  || !item.active
+                  || pendingSubject === item.subjectId
+                }
+                onSelect={(role) => setAssignmentDraft({ identity: item, role })}
               />
             ),
           },

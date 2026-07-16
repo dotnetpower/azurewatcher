@@ -161,6 +161,113 @@ class PostgresStateStore(StateStore):
                 row = await cursor.fetchone()
         return row is not None
 
+    async def write_state_with_audit_if_absent(
+        self,
+        key: str,
+        value: Mapping[str, Any],
+        audit_entry: Mapping[str, Any],
+    ) -> bool:
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
+            async with conn.transaction():
+                await self._set_statement_timeout(conn)
+                cursor = await conn.execute(
+                    """
+                    INSERT INTO state_kv (key, value)
+                    VALUES (%s, %s::jsonb)
+                    ON CONFLICT (key) DO NOTHING
+                    RETURNING key
+                    """,
+                    (key, json.dumps(dict(value), default=str)),
+                )
+                if await cursor.fetchone() is None:
+                    return False
+                await self._append_audit_in_transaction(conn, dict(audit_entry))
+        return True
+
+    async def compare_and_set_state_with_audit(
+        self,
+        key: str,
+        value: Mapping[str, Any],
+        *,
+        expected_revision: int,
+        audit_entry: Mapping[str, Any],
+    ) -> bool:
+        if expected_revision < 0:
+            raise ValueError("expected_revision MUST be >= 0")
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
+            async with conn.transaction():
+                await self._set_statement_timeout(conn)
+                if expected_revision == 0:
+                    cursor = await conn.execute(
+                        """
+                        INSERT INTO state_kv (key, value)
+                        VALUES (%s, %s::jsonb)
+                        ON CONFLICT (key) DO UPDATE
+                           SET value = EXCLUDED.value,
+                               updated_at = NOW()
+                         WHERE NOT (state_kv.value ? 'revision')
+                        RETURNING key
+                        """,
+                        (key, json.dumps(dict(value), default=str)),
+                    )
+                else:
+                    cursor = await conn.execute(
+                        """
+                        UPDATE state_kv
+                           SET value = %s::jsonb,
+                               updated_at = NOW()
+                         WHERE key = %s
+                           AND value ->> 'revision' = %s
+                        RETURNING key
+                        """,
+                        (
+                            json.dumps(dict(value), default=str),
+                            key,
+                            str(expected_revision),
+                        ),
+                    )
+                if await cursor.fetchone() is None:
+                    return False
+                await self._append_audit_in_transaction(conn, dict(audit_entry))
+        return True
+
+    async def find_state(
+        self,
+        prefix: str,
+        *,
+        field: str,
+        value: str,
+    ) -> Mapping[str, Any] | None:
+        if not field.replace("_", "").isalnum():
+            raise ValueError("state field MUST be an ASCII identifier")
+        escaped_prefix = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            row_factory=dict_row,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
+            async with conn.transaction():
+                await self._set_statement_timeout(conn)
+                cursor = await conn.execute(
+                    """
+                    SELECT value
+                      FROM state_kv
+                     WHERE key LIKE %s ESCAPE '\\'
+                       AND value ->> %s = %s
+                     ORDER BY updated_at DESC, key DESC
+                     LIMIT 1
+                    """,
+                    (f"{escaped_prefix}%", field, value),
+                )
+                row = await cursor.fetchone()
+        return None if row is None else _json_object(row["value"])
+
     async def read_states(
         self,
         prefix: str,
@@ -189,6 +296,48 @@ class PostgresStateStore(StateStore):
                 )
                 rows = await cursor.fetchall()
         return tuple(_json_object(row["value"]) for row in rows)
+
+    async def read_state_page(
+        self,
+        prefix: str,
+        *,
+        limit: int,
+        offset: int = 0,
+        field: str | None = None,
+        value: str | None = None,
+    ) -> tuple[tuple[Mapping[str, Any], ...], int]:
+        if limit < 1 or offset < 0:
+            raise ValueError("limit MUST be >= 1 and offset MUST be >= 0")
+        if field is not None and not field.replace("_", "").isalnum():
+            raise ValueError("state field MUST be an ASCII identifier")
+        if (field is None) != (value is None):
+            raise ValueError("state field and value MUST be supplied together")
+        escaped_prefix = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        filter_sql = "" if field is None else "AND value ->> %s = %s"
+        filter_params: tuple[object, ...] = () if field is None else (field, value)
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            row_factory=dict_row,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
+            async with conn.transaction():
+                await self._set_statement_timeout(conn)
+                count_cursor = await conn.execute(
+                    f"""SELECT COUNT(*) AS total FROM state_kv
+                         WHERE key LIKE %s ESCAPE '\\' {filter_sql}""",  # noqa: S608
+                    (f"{escaped_prefix}%", *filter_params),
+                )
+                count_row = await count_cursor.fetchone()
+                page_cursor = await conn.execute(
+                    f"""SELECT value FROM state_kv
+                         WHERE key LIKE %s ESCAPE '\\' {filter_sql}
+                         ORDER BY updated_at DESC, key DESC
+                         LIMIT %s OFFSET %s""",  # noqa: S608
+                    (f"{escaped_prefix}%", *filter_params, limit, offset),
+                )
+                rows = await page_cursor.fetchall()
+        total = int(count_row["total"]) if count_row is not None else 0
+        return tuple(_json_object(row["value"]) for row in rows), total
 
     async def append_incident_transition(self, entry: Mapping[str, Any]) -> IncidentAppendStatus:
         """Route incident transitions into the same audit chain.

@@ -1,7 +1,7 @@
 ---
 title: 사용자 RBAC와 Entra 아이덴티티
 translation_of: user-rbac-and-identity.md
-translation_source_sha: dcbb18d8f7c3bcd04adce865f8288727bbf98da6
+translation_source_sha: 3ea7ada26ac055e09c794edc3f82614c6e0c37c8
 translation_revised: 2026-07-16
 ---
 
@@ -60,6 +60,9 @@ CODEOWNERS 경로, 앱 레벨 정당화에서 옴.
 - **Break-Glass는 Owner 안에 중첩되지 않음.** 별도 관리 그룹; Owner 계정도 `aw-break-glass`
   에 없으면 break-glass 액션을 authorize하지 않음. 이는 Owner 계정이 손상되어도 blast radius
   제한.
+- **활성화 시 검증된 자격을 보존합니다.** Token 확인 과정은 유효 역할에서 `BreakGlass`를
+  제거하지만 별도의 자격 플래그를 유지합니다. 시간 제한 활성화는 긴급 역할을 추가하기 전에
+  이 플래그를 확인합니다.
 - **PIM은 선택**. 상류는 요구하지 않음. Entra ID P2 있는 포크는 just-in-time 활성화를 위해
   `aw-approvers` / `aw-owners` 위에 PIM을 얹을 수 있지만, 기본 모델은 P1에서 작동.
 
@@ -146,8 +149,9 @@ access token은 API가 직접 검증하는 `roles` claim(예: `"roles": ["Approv
 
 - **테넌트 간 이식 가능.** App Role 값은 코드에 정의된 상수; 그룹 `objectId` 는 테넌트마다
   다름. 포크는 코드가 아니라 그룹 할당을 변경.
-- **Groups-overage 실패 없음.** >200 그룹 소속 사용자는 기본으로 토큰에서 `groups` claim
-  생략, Graph 조회 강제; `roles` claim은 영향 없음.
+- **Groups-overage 실패 없음.** 200개가 넘는 그룹에 속한 사용자의 token은 기본으로
+  `groups` claim을 생략하지만 `roles` claim은 영향을 받지 않습니다. Overage token에 FDAI
+  App Role이 없으면 API는 principal을 조용히 미할당 처리하지 않고 구성 오류로 fail closed합니다.
 - **앱-스코프 최소권한.** App Roles는 `fdai-api` 에만 적용; 손상된 토큰의 blast
   radius를 넓히기 위해 다른 곳에서 재사용될 수 없음.
 
@@ -445,11 +449,10 @@ Users 탭은 범위가 제한된 두 원본을 결합합니다. 검증된 로그
 수도 있습니다. 브라우저는 provider 자격 증명을 받지 않습니다.
 
 `GET /iam/directory/roster`는 구성된 FDAI 역할 그룹과 사람 멤버를 projection합니다. Users
-탭은 People 및 Groups를 필터링하고 모든 행에 역할 dropdown을 표시합니다. 역할을 선택하면
-`set` 요청을 기록합니다. 이는 승인 후 assignment worker가 principal의 일반 FDAI 역할
-멤버십을 선택한 역할로 교체해야 한다는 뜻입니다. Alias 검색은 사용자와 역할 선택만
-요구하며 provider 및 subject ID는 운영자 입력 필드가 아니라 서버 projection 값으로
-유지됩니다.
+탭은 People 및 Groups를 필터링하지만 역할 요청은 활성 상태인 사람에게만 제공됩니다.
+역할을 선택하면 운영상 사유를 요구하는 확인 form이 열리고, 제출할 때 `set` 요청을
+기록합니다. 승인 후 assignment worker는 principal의 일반 FDAI 역할 멤버십을 선택한
+역할로 교체하는 것이 좋습니다.
 
 `HumanIdentityDirectory`는 cloud-provider-neutral 계약입니다. 각 adapter는 안정적인
 `provider`, `subject_id`, 사용자 이름, 표시 이름, 사용자 유형 및 활성 상태를 반환합니다.
@@ -458,6 +461,10 @@ Microsoft Entra ID가 구현된 adapter이며 managed identity 및 application p
 사용합니다. AWS IAM Identity Center와 Google
 Cloud Identity adapter는 향후 범위입니다. 동일한 Protocol을 구현하면 core service, API
 payload 또는 콘솔을 변경하지 않고 추가할 수 있습니다.
+
+API는 통제된 역할 요청을 수락하기 전에 구성된 provider를 기록하고
+`get_by_subject_id`로 subject, 사용자 이름 및 활성 상태를 확인합니다. Client가 제공한
+provider label은 ID backend를 선택하지 않습니다.
 
 익명 local development mode는 오프라인 UI 작업용 synthetic directory를 유지합니다. 인증된
 local mode인 `FDAI_READ_API_LOCAL_ENTRA=1` 및 `FDAI_READ_API_LOCAL_AZURE_CLI=1`은 현재
@@ -473,17 +480,18 @@ Contributor 이상 역할은 다음 필드로 `POST /iam/access-requests`를 제
 | 필드 | 규칙 |
 |------|------|
 | `idempotency_key` | 필수입니다. 동일한 의도로 재사용하면 기존 요청을 반환하고 다른 의도로 재사용하면 `409`를 반환합니다. |
-| `identity_provider` | `entra`와 같은 안정적인 adapter 이름입니다. |
+| `identity_provider` | Client의 정보용 값입니다. API가 구성된 adapter 이름을 기록합니다. |
 | `target_subject_id` | 해당 provider의 안정적인 계정 subject입니다. 마이그레이션 중에는 기존 `target_oid` 입력도 허용됩니다. |
 | `target_username` | 검토를 위한 사람이 읽을 수 있는 이름 또는 UPN입니다. 권한 부여는 이 값을 신뢰하지 않습니다. |
 | `operation` | `grant`, `revoke` 또는 `set`입니다. `set`은 행별 역할 dropdown 변경을 표현합니다. |
 | `role` | `Reader`, `Contributor`, `Approver` 또는 `Owner`입니다. 일반 `BreakGlass` 요청은 차단됩니다. |
 | `justification` | 20-2000자입니다. 요청 및 감사 이벤트와 함께 저장됩니다. |
 
-API는 검증된 토큰에서 요청자와 capability를 도출합니다. 각 요청을 원자적으로 생성되는
-불변 상태 키에 저장하고 hash-chain 감사 로그에 `iam.access-requested` 항목을 추가합니다.
-응답 상태는 `pending`입니다. 폼 제출은 요청을 승인하거나 Entra 그룹 멤버십을 변경하지
-않습니다.
+API는 검증된 토큰에서 요청자와 capability를 도출합니다. 각 요청과
+`iam.access-requested` hash-chain 항목을 하나의 transaction에 저장합니다. 검토 결정도 같은
+state-and-audit transaction을 사용합니다. 요청 검토는 안정적인 `request_id`를 직접 조회하므로
+목록 projection이 pagination된 후에도 오래된 요청을 검토할 수 있습니다. 응답 상태는
+`pending`입니다. Form 제출은 요청을 승인하거나 Entra 그룹 멤버십을 변경하지 않습니다.
 
 승인은 ChatOps 또는 거버넌스 PR 경로에 유지됩니다. 승인 후 Owner가 테넌트의 ID 관리
 프로세스를 통해 허용 목록에 포함된 `aw-*` 그룹 변경을 반영합니다. 이 분리를 통해 브라우저,

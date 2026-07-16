@@ -9,6 +9,7 @@ import {
 } from "./settings-iam.command";
 import {
   decodeIamAccessRequests,
+  decodeIamAccessRequestPage,
   decodeIamOverview,
   decodeIamSelfStatus,
   decodeHumanIdentityResults,
@@ -98,6 +99,23 @@ describe("IAM settings contracts", () => {
     expect(() => decodeIamAccessRequests({
       items: [{ ...accessRequest, status: "applied" }],
     })).toThrow("status is invalid");
+    expect(() => decodeIamAccessRequests({
+      items: [{ ...accessRequest, identity_provider: undefined }],
+    })).toThrow("identity_provider");
+    expect(() => decodeIamAccessRequests({
+      items: [{ ...accessRequest, requested_at: "not-a-date" }],
+    })).toThrow("ISO 8601");
+  });
+
+  test("decodes server request totals independently of page length", () => {
+    const page = decodeIamAccessRequestPage({
+      items: [accessRequest],
+      total: 51,
+      next_cursor: 50,
+    });
+    expect(page.items).toHaveLength(1);
+    expect(page.total).toBe(51);
+    expect(page.nextCursor).toBe(50);
   });
 
   test("submits the governed command with the bearer token", async () => {

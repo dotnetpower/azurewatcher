@@ -92,6 +92,32 @@ async def test_entra_directory_rejects_invalid_search_before_token_request() -> 
     assert identity.audiences == []
 
 
+async def test_entra_directory_gets_exact_subject_and_handles_not_found() -> None:
+    identity = FakeIdentity()
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1.0/users/user-1":
+            return httpx.Response(
+                200,
+                json={
+                    "id": "user-1",
+                    "displayName": "Alex Kim",
+                    "userPrincipalName": "alex@example.com",
+                    "accountEnabled": True,
+                },
+            )
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        directory = EntraHumanIdentityDirectory(client=client, identity=identity)
+        found = await directory.get_by_subject_id("user-1")
+        missing = await directory.get_by_subject_id("missing")
+
+    assert found is not None
+    assert found.username == "alex@example.com"
+    assert missing is None
+
+
 async def test_entra_directory_builds_group_and_people_role_roster() -> None:
     identity = FakeIdentity()
 
@@ -101,7 +127,7 @@ async def test_entra_directory_builds_group_and_people_role_roster() -> None:
             return httpx.Response(200, json={"id": "group-reader", "displayName": "fdai-readers"})
         if path == "/v1.0/groups/group-owner":
             return httpx.Response(200, json={"id": "group-owner", "displayName": "fdai-owners"})
-        if path.endswith("/members/microsoft.graph.user"):
+        if path.endswith("/transitiveMembers/microsoft.graph.user"):
             return httpx.Response(
                 200,
                 json={
@@ -129,3 +155,30 @@ async def test_entra_directory_builds_group_and_people_role_roster() -> None:
         ("person", "Alex Kim"),
     ]
     assert roster[-1].roles == ("Reader", "Owner")
+
+
+async def test_entra_directory_rejects_cross_origin_next_link() -> None:
+    identity = FakeIdentity()
+    requests: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path == "/v1.0/groups/group-reader":
+            return httpx.Response(200, json={"id": "group-reader", "displayName": "Readers"})
+        if request.url.path.endswith("/transitiveMembers/microsoft.graph.user"):
+            return httpx.Response(
+                200,
+                json={"value": [], "@odata.nextLink": "https://example.com/steal-token"},
+            )
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        directory = EntraHumanIdentityDirectory(client=client, identity=identity)
+        try:
+            await directory.list_role_roster({"Reader": "group-reader"})
+        except RuntimeError as exc:
+            assert "outside" in str(exc)
+        else:
+            raise AssertionError("cross-origin nextLink was accepted")
+
+    assert all(request.url.host == "graph.microsoft.com" for request in requests)

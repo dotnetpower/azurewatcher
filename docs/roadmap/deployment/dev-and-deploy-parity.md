@@ -50,9 +50,11 @@ and `uv run pytest` with **no Azure credentials**.
 
 ### Console live feeds in local development
 
-The local read API registers its Live and Agents feeds but starts no producer by default, so
-both streams stay quiet. Set `FDAI_LOCAL_SCENARIO_REPLAY=1` only for an explicit demo. In that
-mode, `ControlLoopLiveEmitter` cycles the shipped events under `tests/scenarios/v2026.07/` plus
+The local read API registers its Live, Agents, and Provisioning feeds but starts no producer
+by default, so all three streams stay quiet. The Provisioning page remains connected and waits
+for `provision.*` events instead of failing with an unavailable route. Set
+`FDAI_LOCAL_SCENARIO_REPLAY=1` only for an explicit Live and Agents demo. In that mode,
+`ControlLoopLiveEmitter` cycles the shipped events under `tests/scenarios/v2026.07/` plus
 catalog-derived synthetic resource templates, gives each replay a fresh event, correlation,
 and idempotency identity, and sends it through the real `ControlLoop.process()` path at the
 configured development rate. `ControlLoopAgentActivityRelay` then projects those real stage

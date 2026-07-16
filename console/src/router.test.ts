@@ -63,6 +63,13 @@ describe("clean console routes", () => {
     }
   });
 
+  test("treats malformed percent-encoded segments as unmatched", () => {
+      const route = parseConsoleRoute("/settings/iam/%E0%A4%A");
+      expect(route.matched).toBe(false);
+      expect(route.panelId).toBe("dashboard");
+      expect(route.segments).toEqual([]);
+    });
+
   test("migrates legacy hash bookmarks", () => {
     expect(legacyHashHref("#/dashboard")).toBe("/overview");
     expect(legacyHashHref("#%2Fhil-queue")).toBe("/approvals");

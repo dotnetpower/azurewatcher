@@ -38,11 +38,13 @@ import logging
 import os
 import sys
 from datetime import UTC, datetime, timedelta
+from typing import Protocol
 
 from fdai.composition import default_container_from_env
 from fdai.core.briefing import BriefingCoordinator, BriefingSchedulerService
 from fdai.core.report_feed import ReportFeed
 from fdai.core.scheduler.service import SchedulerService
+from fdai.core.user_context_projection import UserContextOntologyProjector
 from fdai.delivery.event_publisher import EventPublisherContext
 from fdai.delivery.persistence import (
     PostgresBriefingRunStore,
@@ -61,8 +63,8 @@ from fdai.delivery.persistence.postgres_scheduler_store import (
     PostgresScheduleStore,
     PostgresScheduleStoreConfig,
 )
-from fdai.delivery.persistence.postgres_user_context_retention import (
-    ProjectionDeleteJob,
+from fdai.delivery.persistence.postgres_user_context_projection_recovery import (
+    PostgresUserContextProjectionRecovery,
 )
 
 _LOGGER = logging.getLogger("fdai.delivery.scheduler_tick_cli")
@@ -72,14 +74,44 @@ _CONVERSATION_RETENTION_DAYS = 90
 _BRIEFING_RETENTION_DAYS = 90
 _PROJECTION_RETRY_BASE_SECONDS = 60
 _PROJECTION_RETRY_MAX_SECONDS = 3600
+_PROJECTION_MAX_ATTEMPTS = 5
 
 
-def _projection_retry_delay(job: ProjectionDeleteJob) -> timedelta:
+class _AttemptedJob(Protocol):
+    @property
+    def attempts(self) -> int: ...
+
+
+def _projection_retry_delay(job: _AttemptedJob) -> timedelta:
     seconds = min(
         _PROJECTION_RETRY_MAX_SECONDS,
         _PROJECTION_RETRY_BASE_SECONDS * (2 ** min(job.attempts, 6)),
     )
     return timedelta(seconds=seconds)
+
+
+async def _drain_projection_upserts(
+    *,
+    recovery: PostgresUserContextProjectionRecovery,
+    now: datetime,
+) -> int:
+    completed = 0
+    for job in await recovery.claim(now=now):
+        try:
+            await recovery.project(job)
+            await recovery.complete(job)
+            completed += 1
+        except Exception as exc:  # noqa: BLE001 - durable queue owns recovery
+            error = f"{type(exc).__name__}:{exc}"
+            if job.attempts + 1 >= _PROJECTION_MAX_ATTEMPTS:
+                await recovery.dead_letter(job, error=error)
+            else:
+                await recovery.retry(
+                    job,
+                    available_at=now + _projection_retry_delay(job),
+                    error=error,
+                )
+    return completed
 
 
 async def _drain_projection_deletes(
@@ -136,6 +168,7 @@ async def _tick() -> int:
         briefing_before=now - timedelta(days=_BRIEFING_RETENTION_DAYS),
     )
     projection_deletes = 0
+    projection_upserts = 0
     if container.ontology_object_types and container.ontology_link_types:
         ontology = PostgresOntologyInstanceStore(
             config=PostgresOntologyInstanceStoreConfig(dsn=dsn),
@@ -145,6 +178,13 @@ async def _tick() -> int:
         projection_deletes = await _drain_projection_deletes(
             retention=retention,
             ontology=ontology,
+            now=now,
+        )
+        projection_upserts = await _drain_projection_upserts(
+            recovery=PostgresUserContextProjectionRecovery(
+                config=PostgresUserContextStoreConfig(dsn=dsn),
+                projector=UserContextOntologyProjector(store=ontology),
+            ),
             now=now,
         )
     _LOGGER.info(
@@ -157,6 +197,7 @@ async def _tick() -> int:
             "expired_memories_deleted": retention_report.memories,
             "old_briefing_runs_deleted": retention_report.briefing_runs,
             "ontology_deletes_completed": projection_deletes,
+            "ontology_upserts_completed": projection_upserts,
         },
     )
     return 3 if report.publish_errors else 0

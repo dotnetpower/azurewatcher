@@ -54,6 +54,51 @@ class PostgresOntologyInstanceStore:
         self._object_types = {item.name: item for item in object_types}
         self._link_types = {item.name: item for item in link_types}
 
+    async def sync_catalog(self) -> None:
+        """Upsert Git-owned type declarations before writing graph instances."""
+        async with await self._connect() as connection:
+            async with connection.transaction():
+                await self._set_timeout(connection)
+                for object_type in self._object_types.values():
+                    await connection.execute(
+                        "INSERT INTO ontology_object_type "
+                        "(name, version, key_field, properties, description) "
+                        "VALUES (%s, %s, %s, %s::jsonb, %s) "
+                        "ON CONFLICT (name) DO UPDATE SET version = EXCLUDED.version, "
+                        "key_field = EXCLUDED.key_field, properties = EXCLUDED.properties, "
+                        "description = EXCLUDED.description",
+                        (
+                            object_type.name,
+                            str(object_type.version),
+                            object_type.key,
+                            json.dumps(
+                                {
+                                    name: declaration.model_dump(mode="json")
+                                    for name, declaration in object_type.properties.items()
+                                }
+                            ),
+                            object_type.description,
+                        ),
+                    )
+                for link_type in self._link_types.values():
+                    await connection.execute(
+                        "INSERT INTO ontology_link_type "
+                        "(name, version, from_type, to_type, cardinality, description) "
+                        "VALUES (%s, %s, %s, %s, %s, %s) "
+                        "ON CONFLICT (name) DO UPDATE SET version = EXCLUDED.version, "
+                        "from_type = EXCLUDED.from_type, to_type = EXCLUDED.to_type, "
+                        "cardinality = EXCLUDED.cardinality, "
+                        "description = EXCLUDED.description",
+                        (
+                            link_type.name,
+                            str(link_type.version),
+                            link_type.from_type,
+                            link_type.to_type,
+                            link_type.cardinality.value,
+                            link_type.description,
+                        ),
+                    )
+
     async def upsert_object(
         self,
         record: OntologyObjectRecord,

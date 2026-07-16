@@ -98,13 +98,25 @@ export function parseConsoleRoute(pathname: string, search = ""): ConsoleRoute {
   const matchedPanel = aliasPanel ?? matchedRoute?.panelId;
   const panelId = matchedPanel ?? "dashboard";
   const matchedPath = aliasPanel === undefined ? matchedRoute?.path : normalized;
-  const detailSegments = matchedPanel === undefined || matchedPath === undefined
+  const rawSegments = matchedPanel === undefined || matchedPath === undefined
     ? []
     : normalized
       .slice(matchedPath.length)
       .split("/")
-      .filter(Boolean)
-      .map(decodeURIComponent);
+      .filter(Boolean);
+  let detailSegments: readonly string[] = [];
+  try {
+    detailSegments = rawSegments.map(decodeURIComponent);
+  } catch {
+    return {
+      panelId: "dashboard",
+      pathname: normalized,
+      canonicalPathname: panelPath("dashboard"),
+      matched: false,
+      segments: [],
+      search: new URLSearchParams(search.startsWith("?") ? search.slice(1) : search),
+    };
+  }
   const canonicalPathname = routeHref(panelId, { segments: detailSegments });
   return {
     panelId,

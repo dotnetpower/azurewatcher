@@ -1057,6 +1057,7 @@ def build_app(
         routes,
         config=resolved_config,
         authorize=_authorize,
+        authorize_principal=_authorize_principal,
         read_model=read_model,
         core_paths=_CORE_ROUTE_PATHS,
         seen_panel_paths=seen_panel_paths,
@@ -1118,36 +1119,10 @@ def build_app(
         ):
             import asyncio
 
-            async def _probe_forever(
-                target: Any,
-                *,
-                label: str,
-                interval_seconds: int,
-            ) -> None:
-                first_round = True
-                while True:
-                    try:
-                        chose = await target.benchmark(rounds=None if first_round else 1)
-                        _LOGGER.info(
-                            "%s latency benchmark selected candidate=%s",
-                            label,
-                            chose,
-                        )
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception as exc:  # noqa: BLE001 - best-effort probe
-                        _LOGGER.warning(
-                            "%s latency benchmark failed: %s",
-                            label,
-                            type(exc).__name__,
-                        )
-                    first_round = False
-                    await asyncio.sleep(interval_seconds)
-
             if chat_registration.is_routed_chat_backend(chat_backend):
                 probe_tasks.append(
                     asyncio.create_task(
-                        _probe_forever(
+                        chat_registration.periodic_latency_probe(
                             chat_backend,
                             label="CommandDeck narrator router",
                             interval_seconds=max(
@@ -1160,7 +1135,7 @@ def build_app(
             if web_search_resolver is not None:
                 probe_tasks.append(
                     asyncio.create_task(
-                        _probe_forever(
+                        chat_registration.periodic_latency_probe(
                             web_search_resolver,
                             label="CommandDeck web-search router",
                             interval_seconds=max(

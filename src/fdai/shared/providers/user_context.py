@@ -154,6 +154,13 @@ class ConversationHistoryStore(Protocol):
         self, *, principal_id: str, conversation_id: str, limit: int = 200
     ) -> Sequence[ConversationTurnRecord]: ...
 
+    async def latest_operator_turn_ids(
+        self,
+        *,
+        principal_id: str,
+        conversation_ids: Sequence[str],
+    ) -> Mapping[str, str]: ...
+
     async def delete_conversation(self, *, principal_id: str, conversation_id: str) -> bool: ...
 
     async def purge_inactive(

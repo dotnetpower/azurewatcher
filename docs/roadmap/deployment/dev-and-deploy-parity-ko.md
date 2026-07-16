@@ -1,7 +1,7 @@
 ---
 title: Dev/Deploy Parity - 로컬 Fake vs Azure-First 프로비저닝
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: 4ac1911f9bfbee4808620273d3842c7068c4584e
+translation_source_sha: d7881ebbd9090e9e1e22da61bc91220acecfa8c0
 translation_revised: 2026-07-16
 ---
 
@@ -52,9 +52,11 @@ translation_revised: 2026-07-16
 
 ### 로컬 개발의 콘솔 live feed
 
-로컬 read API는 Live와 Agents feed를 등록하지만 기본적으로 producer를 시작하지 않으므로
-두 stream은 조용히 대기합니다. 명시적인 demo가 필요할 때만
-`FDAI_LOCAL_SCENARIO_REPLAY=1`을 설정합니다. 이 모드에서 `ControlLoopLiveEmitter`는
+로컬 read API는 Live, Agents, Provisioning feed를 등록하지만 기본적으로 producer를 시작하지
+않으므로 세 stream은 조용히 대기합니다. Provisioning 페이지는 사용할 수 없는 route 오류를
+표시하지 않고 연결된 상태에서 `provision.*` event를 기다립니다. 명시적인 Live와 Agents
+demo가 필요할 때만 `FDAI_LOCAL_SCENARIO_REPLAY=1`을 설정합니다. 이 모드에서
+`ControlLoopLiveEmitter`는
 `tests/scenarios/v2026.07/` 아래의 제공 이벤트와 catalog에서
 파생한 합성 resource template을 순환합니다. 각 replay에 새로운 event, correlation,
 idempotency identity를 부여하고 구성된 개발 속도로 실제 `ControlLoop.process()` 경로에

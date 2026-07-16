@@ -108,6 +108,22 @@ class ChatWebSearchResolver:
         self._config = config
         self._policy = WebSearchPolicyConfig(enabled=True)
 
+    def update_settings(
+        self,
+        *,
+        enabled: bool,
+        allowed_domains: tuple[str, ...],
+    ) -> None:
+        """Atomically replace deployment-wide search policy values."""
+        config = ChatWebSearchConfig(
+            allowed_domains=allowed_domains,
+            max_results=self._config.max_results,
+            budget_ms=self._config.budget_ms,
+            probe_interval_seconds=self._config.probe_interval_seconds,
+        )
+        self._config = config
+        self._policy = WebSearchPolicyConfig(enabled=enabled)
+
     @property
     def probe_interval_seconds(self) -> int:
         return self._config.probe_interval_seconds
@@ -125,6 +141,7 @@ class ChatWebSearchResolver:
         chose = pick_fn() if pick_fn is not None else None
         return {
             "available": True,
+            "enabled": self._policy.enabled,
             "mode": "azure-responses-web-search",
             "allowed_domains": list(self._config.allowed_domains),
             "router": {

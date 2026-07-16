@@ -463,6 +463,9 @@ class ConversationSession:
   and learner consent. `UserMemoryStore` accepts only explicitly confirmed
   facts with source-turn provenance and optional expiry. `operator_memory`
   remains a separate store for approved resource-scoped operational knowledge.
+- **Optimistic concurrency**: preference and policy writes require the current
+  revision, using `0` only for creation. Policy and briefing-subscription deletes
+  also require the current revision, so a stale Settings tab receives `409`.
 - **Learner consent**: learner-facing turn projection is metadata-only by
   default. A raw turn body is available only when the same principal has an
   explicit `share_with_learner: true` preference.
@@ -472,12 +475,12 @@ class ConversationSession:
   the corresponding ontology object ids. A leased worker deletes those
   metadata-only projections with bounded exponential retry, so a transient
   ontology failure cannot silently leave a permanent copy.
-- **Projection consistency boundary**: source writes synchronously upsert their
-  ontology projection. Durable queue recovery currently covers deletion only;
-  a process failure after a source write commits but before its projection
-  completes can leave stale metadata until that record is written again. A
-  write-side reconciliation worker is required before ontology projections are
-  treated as a complete source of current user-context state.
+- **Projection consistency boundary**: preference, memory, policy, and briefing
+  subscription writes enqueue source references in the same transaction as the
+  source record. The scheduler replays those upserts with leased, bounded
+  exponential retries. After five failed attempts it dead-letters the job for
+  operator diagnostics instead of retrying forever. Ontology projections can
+  be reconstructed from the source records.
 - **Proactive behavior**: allowlisted `ConversationPolicy` records compile to
   fixed narrator prompt fragments. Opening and scheduled briefings share a
   deterministic `BriefingSpec`; durable subscriptions use IANA timezones and
@@ -982,7 +985,10 @@ For other cross-screen questions, the web adapter uses this authority order:
 
 1. `OperationalEvidenceResolver` for incident and root-cause questions.
 2. Server-owned read-model tools for KPI, pending approval, audit, and incident
-  list questions.
+  list questions. Broad system-health questions use the same KPI authority but
+  take a deterministic `read-model-health` path before model synthesis. The
+  answer reports the observed event sample, approval backlog, execution-mode
+  mix, and evidence time; it does not infer that every component is healthy.
 3. `PantheonChatDelegate` for agent-owned domains. Bragi routes to the primary
   agent and calls at most three matching contributors with bounded timeouts.
 4. The canonical FDAI glossary for concept definitions. English concept turns

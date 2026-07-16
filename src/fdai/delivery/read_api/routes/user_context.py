@@ -67,22 +67,17 @@ def make_user_context_routes(
         conversations = await config.conversations.list_conversations(
             principal_id=principal_id, limit=50
         )
+        latest_operator_turns = await config.conversations.latest_operator_turn_ids(
+            principal_id=principal_id,
+            conversation_ids=tuple(item.conversation_id for item in conversations),
+        )
         conversation_views: list[dict[str, Any]] = []
         for conversation in conversations:
-            turns = await config.conversations.list_turns(
-                principal_id=principal_id,
-                conversation_id=conversation.conversation_id,
-                limit=200,
-            )
-            latest_operator_turn = next(
-                (turn for turn in reversed(turns) if turn.role.value == "operator"),
-                None,
-            )
             conversation_views.append(
                 {
                     **_json(conversation),
-                    "latest_operator_turn_id": (
-                        latest_operator_turn.turn_id if latest_operator_turn else None
+                    "latest_operator_turn_id": latest_operator_turns.get(
+                        conversation.conversation_id
                     ),
                 }
             )
@@ -100,14 +95,18 @@ def make_user_context_routes(
     async def put_preference(request: Request) -> Response:
         principal_id = await authorize(request)
         body = await _body(request)
-        expected = _optional_int(body, "expected_revision")
+        expected = _required_revision(body)
         try:
             record = UserPreferenceRecord(
                 principal_id=principal_id,
                 locale=str(body.get("locale") or "en"),
                 verbosity=str(body.get("verbosity") or "concise"),
                 timezone=_optional_text(body, "timezone"),
-                share_with_learner=bool(body.get("share_with_learner", False)),
+                share_with_learner=_optional_bool(
+                    body,
+                    "share_with_learner",
+                    default=False,
+                ),
                 updated_at=datetime.now(tz=UTC),
             )
             stored = await config.preferences.put(record, expected_revision=expected)
@@ -226,7 +225,7 @@ def make_user_context_routes(
                 policy_id=_required_text(body, "policy_id"),
                 principal_id=principal_id,
                 kind=kind,
-                enabled=bool(body.get("enabled", True)),
+                enabled=_optional_bool(body, "enabled", default=True),
                 revision=0,
                 confirmed_at=datetime.now(tz=UTC),
                 source_turn_id=_required_text(body, "source_turn_id"),
@@ -235,7 +234,7 @@ def make_user_context_routes(
             )
             stored = await config.policies.put(
                 record,
-                expected_revision=_optional_int(body, "expected_revision"),
+                expected_revision=_required_revision(body),
             )
             if config.ontology_projector is not None:
                 await config.ontology_projector.project_policy(stored)
@@ -248,10 +247,14 @@ def make_user_context_routes(
     async def delete_policy(request: Request) -> Response:
         principal_id = await authorize(request)
         policy_id = request.path_params["policy_id"]
-        deleted = await config.policies.delete(
-            principal_id=principal_id,
-            policy_id=policy_id,
-        )
+        try:
+            deleted = await config.policies.delete(
+                principal_id=principal_id,
+                policy_id=policy_id,
+                expected_revision=_query_revision(request),
+            )
+        except BriefingConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         if deleted and config.ontology_projector is not None:
             await config.ontology_projector.delete(f"policy:{principal_id}:{policy_id}")
         return Response(status_code=204 if deleted else 404)
@@ -300,10 +303,14 @@ def make_user_context_routes(
 
     async def delete_subscription(request: Request) -> Response:
         principal_id = await authorize(request)
-        deleted = await config.subscriptions.delete(
-            principal_id=principal_id,
-            subscription_id=request.path_params["subscription_id"],
-        )
+        try:
+            deleted = await config.subscriptions.delete(
+                principal_id=principal_id,
+                subscription_id=request.path_params["subscription_id"],
+                expected_revision=_query_revision(request),
+            )
+        except BriefingConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         if deleted and config.ontology_projector is not None:
             await config.ontology_projector.delete(
                 f"briefing-subscription:{principal_id}:{request.path_params['subscription_id']}"
@@ -382,8 +389,16 @@ def _briefing_spec(raw: object) -> BriefingSpec | None:
             minimum_severity=str(raw.get("minimum_severity", "high")),
             categories=tuple(str(item) for item in raw.get("categories", ())),
             max_items=int(raw.get("max_items", 5)),
-            include_pending_approvals=bool(raw.get("include_pending_approvals", True)),
-            include_failed_actions=bool(raw.get("include_failed_actions", True)),
+            include_pending_approvals=_mapping_bool(
+                raw,
+                "include_pending_approvals",
+                default=True,
+            ),
+            include_failed_actions=_mapping_bool(
+                raw,
+                "include_failed_actions",
+                default=True,
+            ),
             scope_ref=(str(raw["scope_ref"]) if raw.get("scope_ref") else None),
         )
     except (TypeError, ValueError) as exc:
@@ -417,6 +432,48 @@ def _optional_int(body: Mapping[str, Any], key: str) -> int | None:
         return None
     if not isinstance(value, int) or isinstance(value, bool):
         raise HTTPException(status_code=400, detail=f"{key} MUST be an integer")
+    return value
+
+
+def _required_revision(body: Mapping[str, Any]) -> int:
+    value = body.get("expected_revision")
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="expected_revision MUST be a non-negative integer",
+        )
+    return value
+
+
+def _query_revision(request: Request) -> int:
+    raw = request.query_params.get("expected_revision")
+    try:
+        revision = int(raw) if raw is not None else -1
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="expected_revision MUST be an integer",
+        ) from exc
+    if revision < 1:
+        raise HTTPException(status_code=400, detail="expected_revision MUST be >= 1")
+    return revision
+
+
+def _optional_bool(body: Mapping[str, Any], key: str, *, default: bool) -> bool:
+    if key not in body:
+        return default
+    value = body.get(key)
+    if not isinstance(value, bool):
+        raise HTTPException(status_code=400, detail=f"{key} MUST be a boolean")
+    return value
+
+
+def _mapping_bool(body: Mapping[str, object], key: str, *, default: bool) -> bool:
+    if key not in body:
+        return default
+    value = body.get(key)
+    if not isinstance(value, bool):
+        raise ValueError(f"{key} MUST be a boolean")
     return value
 
 

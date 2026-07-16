@@ -1,4 +1,5 @@
 import type { AuthContext } from "../auth";
+import { putGovernedJson } from "../governed-command";
 import {
   decodeIamAccessRequest,
   type IamAccessRequest,
@@ -10,17 +11,11 @@ export async function submitIamAccessRequest(
   readApiBaseUrl: string,
   input: IamAccessRequestInput,
 ): Promise<IamAccessRequest> {
-  const headers: Record<string, string> = {
-    accept: "application/json",
-    "content-type": "application/json",
-  };
-  const authorization = await auth.getAuthorizationHeader();
-  if (authorization !== null) headers["authorization"] = authorization;
-  const response = await fetch(new URL("/iam/access-requests", readApiBaseUrl), {
-    method: "POST",
-    headers,
-    credentials: "omit",
-    body: JSON.stringify({
+  return decodeIamAccessRequest(await putGovernedJson(
+    auth,
+    readApiBaseUrl,
+    "/iam/access-requests",
+    {
       idempotency_key: input.idempotencyKey,
       identity_provider: input.identityProvider,
       target_subject_id: input.targetSubjectId,
@@ -28,12 +23,9 @@ export async function submitIamAccessRequest(
       operation: input.operation,
       role: input.role,
       justification: input.justification,
-    }),
-  });
-  if (!response.ok) {
-    throw new Error(await errorMessage(response));
-  }
-  return decodeIamAccessRequest(await response.json());
+    },
+    "POST",
+  ));
 }
 
 export async function submitSelfAccessRequest(
@@ -41,23 +33,16 @@ export async function submitSelfAccessRequest(
   readApiBaseUrl: string,
   input: { readonly idempotencyKey: string; readonly message?: string },
 ): Promise<IamAccessRequest> {
-  const headers: Record<string, string> = {
-    accept: "application/json",
-    "content-type": "application/json",
-  };
-  const authorization = await auth.getAuthorizationHeader();
-  if (authorization !== null) headers["authorization"] = authorization;
-  const response = await fetch(new URL("/iam/access-requests/self", readApiBaseUrl), {
-    method: "POST",
-    headers,
-    credentials: "omit",
-    body: JSON.stringify({
+  return decodeIamAccessRequest(await putGovernedJson(
+    auth,
+    readApiBaseUrl,
+    "/iam/access-requests/self",
+    {
       idempotency_key: input.idempotencyKey,
       ...(input.message?.trim() ? { message: input.message.trim() } : {}),
-    }),
-  });
-  if (!response.ok) throw new Error(await errorMessage(response));
-  return decodeIamAccessRequest(await response.json());
+    },
+    "POST",
+  ));
 }
 
 export async function reviewIamAccessRequest(
@@ -66,29 +51,12 @@ export async function reviewIamAccessRequest(
   requestId: string,
   input: { readonly decision: "approve" | "reject"; readonly justification: string },
 ): Promise<IamAccessRequest> {
-  const headers: Record<string, string> = {
-    accept: "application/json",
-    "content-type": "application/json",
-  };
-  const authorization = await auth.getAuthorizationHeader();
-  if (authorization !== null) headers["authorization"] = authorization;
   const path = `/iam/access-requests/${encodeURIComponent(requestId)}/decision`;
-  const response = await fetch(new URL(path, readApiBaseUrl), {
-    method: "POST",
-    headers,
-    credentials: "omit",
-    body: JSON.stringify(input),
-  });
-  if (!response.ok) throw new Error(await errorMessage(response));
-  return decodeIamAccessRequest(await response.json());
-}
-
-async function errorMessage(response: Response): Promise<string> {
-  try {
-    const body = await response.json() as { error?: { message?: unknown } };
-    if (typeof body.error?.message === "string") return body.error.message;
-  } catch {
-    // Fall through to the stable status message.
-  }
-  return `IAM access request failed (HTTP ${response.status})`;
+  return decodeIamAccessRequest(await putGovernedJson(
+    auth,
+    readApiBaseUrl,
+    path,
+    { ...input },
+    "POST",
+  ));
 }

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S LC_ALL=C LANG=C bash
 # Pre-push hook - lightweight gate for trunk-based (no-branch) collaboration.
 #
 # Purpose: several people push straight to `main`, so this hook keeps that

@@ -566,16 +566,17 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         connect_timeout_s=read_model._config.connect_timeout_s,
     )
     conversation_history_store = PostgresConversationHistoryStore(config=user_store_config)
+    user_context_ontology_store = PostgresOntologyInstanceStore(
+        config=PostgresOntologyInstanceStoreConfig(
+            dsn=read_model._config.dsn,
+            statement_timeout_ms=read_model._config.statement_timeout_ms,
+            connect_timeout_s=read_model._config.connect_timeout_s,
+        ),
+        object_types=object_types,
+        link_types=link_types,
+    )
     user_context_ontology_projector = UserContextOntologyProjector(
-        store=PostgresOntologyInstanceStore(
-            config=PostgresOntologyInstanceStoreConfig(
-                dsn=read_model._config.dsn,
-                statement_timeout_ms=read_model._config.statement_timeout_ms,
-                connect_timeout_s=read_model._config.connect_timeout_s,
-            ),
-            object_types=object_types,
-            link_types=link_types,
-        )
+        store=user_context_ontology_store
     )
     user_preference_store = PostgresUserPreferenceStore(config=user_store_config)
     user_memory_store = PostgresUserMemoryStore(config=user_store_config)
@@ -628,7 +629,11 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
             stored = await workflow_definition_store.put(definition)
             await user_context_ontology_projector.project_workflow_definition(stored)
 
-    startup_callbacks = (*startup_callbacks, _seed_workflow_definitions)
+    startup_callbacks = (
+        *startup_callbacks,
+        user_context_ontology_store.sync_catalog,
+        _seed_workflow_definitions,
+    )
     workflow_definitions = WorkflowDefinitionRoutesConfig(
         definitions=workflow_definition_store,
         bindings=workflow_binding_store,
@@ -930,6 +935,7 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
             resolved_models_path=Path(resolved_models_path),
             store=state_store,
             backend=chat,
+            web_search_resolver=chat_web_search,
         )
     config = ReadApiConfig(
         dev_mode=False,

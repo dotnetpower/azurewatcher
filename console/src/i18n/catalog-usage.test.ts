@@ -6,6 +6,7 @@ import liveCatalog from "../routes/i18n/live.messages.en.json";
 
 const SOURCE_ROOT = join(process.cwd(), "src");
 const STATIC_TRANSLATION = /\bt\(\s*["']([^"']+)["']/g;
+const HARDCODED_JSX_TEXT = />\s*([A-Z][^<{]*?)\s*</g;
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -50,5 +51,14 @@ describe("console static translation keys", () => {
     }
 
     expect(missing).toEqual([]);
+  });
+
+  test("account-scoped General Settings has no hardcoded English JSX", () => {
+    const source = readFileSync(join(SOURCE_ROOT, "routes/settings.tsx"), "utf8");
+    const accountSections = source.slice(source.indexOf('aria-labelledby="settings-user-context"'));
+    const hardcoded = [...accountSections.matchAll(HARDCODED_JSX_TEXT)]
+      .map((match) => match[1]!.trim())
+      .filter(Boolean);
+    expect(hardcoded).toEqual([]);
   });
 });

@@ -38,7 +38,16 @@ class InMemoryConversationPolicyStore:
         found = [record for (owner, _), record in self._records.items() if owner == principal_id]
         return tuple(sorted(found, key=lambda item: item.policy_id))
 
-    async def delete(self, *, principal_id: str, policy_id: str) -> bool:
+    async def delete(
+        self,
+        *,
+        principal_id: str,
+        policy_id: str,
+        expected_revision: int,
+    ) -> bool:
+        current = self._records.get((principal_id, policy_id))
+        if current is not None and current.revision != expected_revision:
+            raise BriefingConflictError("policy revision mismatch")
         return self._records.pop((principal_id, policy_id), None) is not None
 
 
@@ -111,7 +120,16 @@ class InMemoryBriefingSubscriptionStore:
         self._leases.pop(subscription_id, None)
         return stored
 
-    async def delete(self, *, principal_id: str, subscription_id: str) -> bool:
+    async def delete(
+        self,
+        *,
+        principal_id: str,
+        subscription_id: str,
+        expected_revision: int,
+    ) -> bool:
+        current = self._records.get((principal_id, subscription_id))
+        if current is not None and current.revision != expected_revision:
+            raise BriefingConflictError("subscription revision mismatch")
         self._leases.pop(subscription_id, None)
         return self._records.pop((principal_id, subscription_id), None) is not None
 

@@ -187,6 +187,12 @@ class TestGroupMappingFromConfig:
         with pytest.raises(TypeError):
             as_dict["hijack"] = Role.OWNER  # type: ignore[index]
 
+    def test_duplicate_concrete_group_ids_fail_fast(self) -> None:
+        cfg = self._base_config()
+        cfg["rbac"]["entra"]["groups"]["owners"] = "r-oid"
+        with pytest.raises(ValueError, match="MUST be unique"):
+            GroupMapping.from_config(cfg, environ={})
+
     def test_shipped_rbac_groups_yaml_loads_with_env_overrides(self) -> None:
         """Drift-guard for `config/rbac-groups.yaml`.
 
@@ -277,6 +283,29 @@ class TestResolveFromClaims:
         p = resolver.resolve_from_claims({"oid": "user-1"})
         assert p.roles == frozenset()
 
+    def test_group_overage_without_app_role_fails_closed(self) -> None:
+        resolver = RoleResolver(group_mapping=_mapping())
+        with pytest.raises(ValueError, match="App Roles"):
+            resolver.resolve_from_claims({"oid": "user-1", "hasgroups": True})
+        with pytest.raises(ValueError, match="App Roles"):
+            resolver.resolve_from_claims(
+                {
+                    "oid": "user-1",
+                    "_claim_names": {"groups": "src1"},
+                }
+            )
+
+    def test_app_role_remains_authoritative_on_group_overage_token(self) -> None:
+        resolver = RoleResolver(group_mapping=_mapping())
+        principal = resolver.resolve_from_claims(
+            {
+                "oid": "user-1",
+                "roles": ["Reader"],
+                "hasgroups": True,
+            }
+        )
+        assert principal.roles == frozenset({Role.READER})
+
     def test_preferred_username_is_used_as_v2_upn_fallback(self) -> None:
         resolver = RoleResolver(group_mapping=_mapping())
         p = resolver.resolve_from_claims(
@@ -311,6 +340,7 @@ class TestResolveFromClaims:
         p = resolver.resolve_from_claims({"oid": "bg-user", "roles": ["Owner", "BreakGlass"]})
         assert Role.BREAK_GLASS not in p.roles
         assert Role.OWNER in p.roles
+        assert p.break_glass_eligible is True
         # But the raw groups membership survives so audits still see it.
         assert p.break_glass is None
 
@@ -363,7 +393,22 @@ class TestBreakGlassActivation:
         return datetime(2026, 7, 6, 12, 0, 0, tzinfo=UTC)
 
     def _principal(self) -> Principal:
-        return Principal(oid="bg-user", roles=frozenset({Role.OWNER}))
+        return Principal(
+            oid="bg-user",
+            roles=frozenset({Role.OWNER}),
+            break_glass_eligible=True,
+        )
+
+    def test_activation_without_verified_entitlement_is_rejected(self) -> None:
+        resolver = RoleResolver(group_mapping=_mapping())
+        now = self._now()
+        with pytest.raises(BreakGlassActivationError, match="verified"):
+            resolver.activate_break_glass(
+                Principal(oid="owner", roles=frozenset({Role.OWNER})),
+                incident_id="INC-1",
+                expires_at=now + timedelta(hours=1),
+                now=now,
+            )
 
     def test_activate_adds_role_and_stamps_activation(self) -> None:
         resolver = RoleResolver(group_mapping=_mapping())

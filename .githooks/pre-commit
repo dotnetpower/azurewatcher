@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S LC_ALL=C LANG=C bash
 # Pre-commit hook - run the repository's staged-file quality gates.
 #
 # core.hooksPath=.githooks makes this tracked hook authoritative, so it must

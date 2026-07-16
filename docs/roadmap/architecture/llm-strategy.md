@@ -396,6 +396,10 @@ the current `narrator_candidates` allowlist. A removed or unavailable preference
 `Auto`; the server validates the candidate, so the browser never sends an arbitrary model id to
 the upstream endpoint.
 
+Narrator preferences use an explicit revision. Creation sends revision `0`; later writes
+must match the current revision. The state update and its audit entry commit in one
+transaction, so concurrent sessions receive `409` instead of overwriting each other.
+
 The streaming router records time to first token (TTFT) when the first non-empty model token
 arrives. TTFT p50/p95 and total-latency p50/p95 use separate rolling windows and include their
 sample counts. An unmeasured TTFT renders unavailable rather than being inferred from total
@@ -419,6 +423,10 @@ the `web_search` tool; actual search calls add their end-to-end latency to the
 same window. This keeps the ranking fresh without paying a Bing search-tool
 charge for every health sample. `FDAI_WEB_SEARCH_PROBE_INTERVAL_SECONDS`
 defaults to `300` and cannot be set below `30`.
+
+Settings > Models exposes deployment-wide web-search enablement and exact-host allowlists to
+Owners. These writes use the same revisioned state-and-audit transaction and update the live
+resolver after the transaction succeeds. Non-Owners receive the projection as read-only.
 
 ### T2 Primary Latency Pool (invariant-safe, opt-in)
 

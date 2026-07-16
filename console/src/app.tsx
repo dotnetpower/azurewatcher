@@ -19,9 +19,8 @@ import { deckUserFromAuth, setDeckUser } from "./deck/deck-user";
 import { setWorkflowAuth } from "./workflow/validate";
 import { setPythonTaskAuth } from "./workflow/python-task";
 import { setUserContextAuth } from "./user-context-client";
-import { LoginRoute } from "./routes/login";
-import { AccessRequiredRoute } from "./routes/access-required";
 import type { IamSelfStatus } from "./routes/settings-iam.model";
+import { t } from "./i18n";
 import { DEFAULT_PANEL_ID, panelForId, resolvePanels } from "./panels";
 import {
   currentRoute,
@@ -32,7 +31,7 @@ import {
 } from "./router";
 
 interface AppState {
-  readonly status: "loading" | "ready" | "error";
+  readonly status: "loading" | "ready" | "access-error" | "error";
   readonly config?: ConsoleConfig;
   readonly auth?: AuthContext;
   readonly client?: ReadApiClient;
@@ -43,6 +42,16 @@ interface AppState {
 const CommandDeck = lazy(async () => {
   const module = await import("./deck/command-deck");
   return { default: module.CommandDeck };
+});
+
+const LoginRoute = lazy(async () => {
+  const module = await import("./routes/login");
+  return { default: module.LoginRoute };
+});
+
+const AccessRequiredRoute = lazy(async () => {
+  const module = await import("./routes/access-required");
+  return { default: module.AccessRequiredRoute };
 });
 
 function PanelLoading({ title, subtitle }: { readonly title: string; readonly subtitle: string | undefined }) {
@@ -106,7 +115,23 @@ export function App() {
         const config = loadConfig();
         const auth = await initAuth(config);
         const client = new ReadApiClient(config, auth);
-        const iamSelf = shouldLoadIamSelf(auth) ? await client.iamSelf() : undefined;
+        let iamSelf: IamSelfStatus | undefined;
+        if (shouldLoadIamSelf(auth)) {
+          try {
+            iamSelf = await client.iamSelf();
+          } catch (err) {
+            if (!cancelled) {
+              setState({
+                status: "access-error",
+                config,
+                auth,
+                client,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+            return;
+          }
+        }
         // Expose the signed-in operator's roles to the chat deck so it can
         // answer capability questions ("what can I do?").
         setDeckUser(deckUserFromAuth(auth));
@@ -159,13 +184,44 @@ export function App() {
     );
   }
 
+  if (state.status === "access-error") {
+    const { auth, client, config } = state;
+    if (!auth || !client || !config) {
+      return <div class="empty error">Internal state missing.</div>;
+    }
+    return (
+      <div class="empty error" role="alert">
+        <p>{t("accessRequired.checkFailed")}</p>
+        <p class="mono">{state.error}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setState({ status: "loading" });
+            void client.iamSelf().then(
+              (iamSelf) => setState({ status: "ready", config, auth, client, iamSelf }),
+              (reason: unknown) => setState({
+                status: "access-error",
+                config,
+                auth,
+                client,
+                error: reason instanceof Error ? reason.message : String(reason),
+              }),
+            );
+          }}
+        >
+          {t("accessRequired.retry")}
+        </button>
+      </div>
+    );
+  }
+
   const { auth, client } = state;
   if (!auth || !client) {
     return <div class="empty error">Internal state missing.</div>;
   }
 
   if (!auth.devMode && !auth.account) {
-    return <LoginRoute auth={auth} />;
+    return <Suspense fallback={null}><LoginRoute auth={auth} /></Suspense>;
   }
 
   if (
@@ -175,19 +231,25 @@ export function App() {
     !localDevBypass
   ) {
     return (
-      <LoginRoute
-        auth={auth}
-        allowDevBypass
-        onDevBypass={() => {
-          enableLocalAuthBypass();
-          setLocalDevBypass(true);
-        }}
-      />
+      <Suspense fallback={null}>
+        <LoginRoute
+          auth={auth}
+          allowDevBypass
+          onDevBypass={() => {
+            enableLocalAuthBypass();
+            setLocalDevBypass(true);
+          }}
+        />
+      </Suspense>
     );
   }
 
   if (state.iamSelf && shouldShowAccessRequired(auth, state.iamSelf)) {
-    return <AccessRequiredRoute auth={auth} client={client} initialStatus={state.iamSelf} />;
+    return (
+      <Suspense fallback={null}>
+        <AccessRequiredRoute auth={auth} client={client} initialStatus={state.iamSelf} />
+      </Suspense>
+    );
   }
 
   const panel = panelForId(panelId);

@@ -197,29 +197,31 @@ class AccessRequestService:
         existing = await self.store.read_state(state_key)
         if existing is not None:
             return _same_or_conflict(existing, request)
-        created = await self.store.write_state_if_absent(state_key, request.to_dict())
+        audit_entry = {
+            "event_id": str(uuid.uuid4()),
+            "correlation_id": request.request_id,
+            "actor": requester_oid,
+            "action_kind": "iam.access-requested",
+            "mode": "shadow",
+            "decision": "pending",
+            "idempotency_key": normalized_key,
+            "identity_provider": normalized_provider,
+            "target_subject_id": normalized_subject_id,
+            "operation": operation.value,
+            "role": role.value,
+            "timestamp": request.requested_at.isoformat(),
+        }
+        created = await self.store.write_state_with_audit_if_absent(
+            state_key,
+            request.to_dict(),
+            audit_entry,
+        )
         if not created:
             raced = await self.store.read_state(state_key)
             if raced is None:
                 raise RuntimeError("access request lost after an atomic create race")
             return _same_or_conflict(raced, request)
 
-        await self.store.append_audit_entry(
-            {
-                "event_id": str(uuid.uuid4()),
-                "correlation_id": request.request_id,
-                "actor": requester_oid,
-                "action_kind": "iam.access-requested",
-                "mode": "shadow",
-                "decision": "pending",
-                "idempotency_key": normalized_key,
-                "identity_provider": normalized_provider,
-                "target_subject_id": normalized_subject_id,
-                "operation": operation.value,
-                "role": role.value,
-                "timestamp": request.requested_at.isoformat(),
-            }
-        )
         return request
 
     async def list_requests(
@@ -230,16 +232,34 @@ class AccessRequestService:
     ) -> tuple[AccessRequest, ...]:
         """Return requests visible to the principal, newest-first."""
 
+        requests, _ = await self.list_request_page(principal=principal, limit=limit)
+        return requests
+
+    async def list_request_page(
+        self,
+        *,
+        principal: Principal,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[tuple[AccessRequest, ...], int]:
+        """Return one principal-scoped request page and the stable total."""
+
         if limit < 1 or limit > 200:
             raise AccessRequestError("limit MUST be between 1 and 200")
-        rows = await self.store.read_states(_STATE_PREFIX, limit=200)
+        if offset < 0:
+            raise AccessRequestError("offset MUST be >= 0")
+        manager = has_capability(principal.roles, Capability.MANAGE_GROUP_MEMBERSHIP)
+        rows, total = await self.store.read_state_page(
+            _STATE_PREFIX,
+            limit=limit,
+            offset=offset,
+            field=None if manager else "requester_oid",
+            value=None if manager else principal.oid,
+        )
         projected: list[AccessRequest] = []
         for row in rows:
             projected.append(await self._with_decision(AccessRequest.from_dict(dict(row))))
-        requests = tuple(projected)
-        if has_capability(principal.roles, Capability.MANAGE_GROUP_MEMBERSHIP):
-            return requests[:limit]
-        return tuple(item for item in requests if item.requester_oid == principal.oid)[:limit]
+        return tuple(projected), total
 
     async def review(
         self,
@@ -276,35 +296,36 @@ class AccessRequestService:
             "justification": normalized_justification,
         }
         decision_key = f"{_DECISION_PREFIX}{normalized_request_id}"
-        created = await self.store.write_state_if_absent(decision_key, payload)
+        audit_entry = {
+            "event_id": str(uuid.uuid4()),
+            "correlation_id": normalized_request_id,
+            "actor": principal.oid,
+            "action_kind": "iam.access-reviewed",
+            "mode": "shadow",
+            "decision": decision.value,
+            "idempotency_key": normalized_request_id,
+            "target_subject_id": request.target_subject_id,
+            "identity_provider": request.identity_provider,
+            "timestamp": reviewed_at.astimezone(UTC).isoformat(),
+        }
+        created = await self.store.write_state_with_audit_if_absent(
+            decision_key,
+            payload,
+            audit_entry,
+        )
         if not created:
             existing = await self.store.read_state(decision_key)
             if existing is None or not _same_review(existing, payload):
                 raise AccessRequestConflictError("access request already has a decision")
-        else:
-            await self.store.append_audit_entry(
-                {
-                    "event_id": str(uuid.uuid4()),
-                    "correlation_id": normalized_request_id,
-                    "actor": principal.oid,
-                    "action_kind": "iam.access-reviewed",
-                    "mode": "shadow",
-                    "decision": decision.value,
-                    "idempotency_key": normalized_request_id,
-                    "target_subject_id": request.target_subject_id,
-                    "identity_provider": request.identity_provider,
-                    "timestamp": reviewed_at.astimezone(UTC).isoformat(),
-                }
-            )
         return await self._with_decision(request)
 
     async def _find_request(self, request_id: str) -> AccessRequest | None:
-        rows = await self.store.read_states(_STATE_PREFIX, limit=200)
-        for row in rows:
-            request = AccessRequest.from_dict(dict(row))
-            if request.request_id == request_id:
-                return request
-        return None
+        row = await self.store.find_state(
+            _STATE_PREFIX,
+            field="request_id",
+            value=request_id,
+        )
+        return None if row is None else AccessRequest.from_dict(dict(row))
 
     async def _with_decision(self, request: AccessRequest) -> AccessRequest:
         decision = await self.store.read_state(f"{_DECISION_PREFIX}{request.request_id}")

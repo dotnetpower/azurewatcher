@@ -6,8 +6,21 @@ import { t } from "../i18n";
 import { reviewIamAccessRequest } from "./settings-iam.command";
 import type { IamAccessRequest, IdentityRosterItem } from "./settings-iam.model";
 
-export function AccessRequestsView({ requests, roster, canManage, auth, client, reload }: {
+export function AccessRequestsView({
+  requests,
+  total,
+  hasMore,
+  loadMore,
+  roster,
+  canManage,
+  auth,
+  client,
+  reload,
+}: {
   readonly requests: readonly IamAccessRequest[];
+  readonly total: number;
+  readonly hasMore: boolean;
+  readonly loadMore: () => Promise<void>;
   readonly roster: readonly IdentityRosterItem[];
   readonly canManage: boolean;
   readonly auth: AuthContext;
@@ -15,6 +28,8 @@ export function AccessRequestsView({ requests, roster, canManage, auth, client, 
   readonly reload: () => Promise<void>;
 }) {
   const [deniedVisible, setDeniedVisible] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   if (!canManage) {
     return (
@@ -50,7 +65,7 @@ export function AccessRequestsView({ requests, roster, canManage, auth, client, 
         </div>
         <div class="settings-roster-counts">
           <StatusPill kind="warning" label={t("settings.iam.pendingCount", { count: pending })} />
-          <StatusPill kind="neutral" label={t("settings.iam.totalCount", { count: requests.length })} />
+          <StatusPill kind="neutral" label={t("settings.iam.totalCount", { count: total })} />
         </div>
       </header>
       <DataTable
@@ -121,6 +136,22 @@ export function AccessRequestsView({ requests, roster, canManage, auth, client, 
         keyOf={(item) => item.requestId}
         empty={t("settings.iam.noRequests")}
       />
+      {hasMore ? (
+        <button
+          type="button"
+          disabled={loadingMore}
+          onClick={() => {
+            setLoadingMore(true);
+            setPageError(null);
+            void loadMore().catch((reason: unknown) => {
+              setPageError(reason instanceof Error ? reason.message : String(reason));
+            }).finally(() => setLoadingMore(false));
+          }}
+        >
+          {loadingMore ? t("settings.iam.loading") : t("settings.iam.loadMore")}
+        </button>
+      ) : null}
+      {pageError ? <div class="error" role="alert">{pageError}</div> : null}
     </section>
   );
 }

@@ -12,6 +12,7 @@ from starlette.routing import BaseRoute, Route
 from fdai.delivery.read_api.routes import chat_registration, dynamic_views
 
 AuthorizeFn = Callable[[Request], Awaitable[str]]
+AuthorizePrincipalFn = Callable[[Request], Awaitable[Any]]
 
 
 def append_auxiliary_routes(
@@ -19,6 +20,7 @@ def append_auxiliary_routes(
     *,
     config: Any,
     authorize: AuthorizeFn,
+    authorize_principal: AuthorizePrincipalFn,
     read_model: Any,
     core_paths: frozenset[str],
     seen_panel_paths: set[str],
@@ -92,7 +94,11 @@ def append_auxiliary_routes(
         from fdai.delivery.read_api.routes.model_settings import make_model_settings_routes
 
         routes.extend(
-            make_model_settings_routes(service=config.model_settings, authorize=authorize)
+            make_model_settings_routes(
+                service=config.model_settings,
+                authorize=authorize,
+                authorize_principal=authorize_principal,
+            )
         )
 
     if config.workflow_definitions is not None:

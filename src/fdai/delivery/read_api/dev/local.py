@@ -120,6 +120,7 @@ from fdai.delivery.read_api.streaming.live_stream import (  # noqa: E402
     LiveStreamConfig,
     SyntheticLiveEmitter,
 )
+from fdai.delivery.read_api.streaming.provision_stream import ProvisionStreamConfig  # noqa: E402
 from fdai.rule_catalog.schema.action_type import load_action_type_catalog  # noqa: E402
 from fdai.rule_catalog.schema.link_type import load_link_type_catalog  # noqa: E402
 from fdai.rule_catalog.schema.object_type import load_object_type_catalog  # noqa: E402
@@ -1365,10 +1366,12 @@ def app() -> Starlette:
     from fdai.delivery.read_api.routes.model_settings import ModelSettingsService
 
     chat_backend = _build_chat_backend()
+    chat_web_search = _build_chat_web_search()
     model_settings = ModelSettingsService(
         resolved_models_path=_REPO_ROOT / "resolved-models.json",
         store=InMemoryStateStore(),
         backend=chat_backend,
+        web_search_resolver=chat_web_search,
     )
 
     application = build_app(
@@ -1384,6 +1387,8 @@ def app() -> Starlette:
             ),
             cors_allow_origins=_cors_origins_from_env(),
             live_stream=live_stream_config,
+            # Keep the read-only page connected while no provisioning producer is active.
+            provision_stream=ProvisionStreamConfig(),
             agent_activity=agent_activity_config,
             blast_radius_graph=_build_blast_radius_graph(),
             ontology_object_types=tuple(ontology_object_types),
@@ -1420,7 +1425,7 @@ def app() -> Starlette:
             what_if_reader=trace_reader,
             what_if_evaluators=what_if_evaluators,
             chat=chat_backend,
-            chat_web_search=_build_chat_web_search(),
+            chat_web_search=chat_web_search,
             chat_probe_interval_seconds=_chat_probe_interval_seconds(),
             chat_agent_delegate=PantheonChatDelegate(pantheon_runtime),
             console_action=console_action,

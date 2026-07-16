@@ -72,6 +72,7 @@ from fdai.delivery.read_api.routes.chat_history import (
     append_operator_turn,
 )
 from fdai.delivery.read_api.routes.chat_semantic import SemanticVerifier
+from fdai.delivery.read_api.routes.chat_system_health import render_system_health_answer
 from fdai.delivery.read_api.routes.chat_verification import (
     attach_semantic_shadow,
     verify_answer,
@@ -2347,10 +2348,13 @@ def make_chat_route(
         # without opting in.
         started = time.monotonic()
         try:
+            response_locale = _response_locale(clean_prompt, view_context)
+            health_answer = render_system_health_answer(
+                view_context,
+                locale=response_locale,
+            )
             concept_answer = (
-                _concept_answer(view_context, answer_plan)
-                if _response_locale(clean_prompt, view_context) is None
-                else None
+                _concept_answer(view_context, answer_plan) if response_locale is None else None
             )
             if _uses_evidence_fast_path(view_context):
                 canonical = verify_answer(
@@ -2370,6 +2374,19 @@ def make_chat_route(
                     "verification": verification.to_dict(),
                 }
                 semantic_hypothesis = verification.answer
+            elif health_answer is not None:
+                verification = verify_answer(
+                    health_answer,
+                    view_context,
+                    locale=response_locale,
+                )
+                reply = {
+                    "answer": verification.answer,
+                    "model": "read-model-health",
+                    "source": "evidence:system-health",
+                    "verification": verification.to_dict(),
+                }
+                semantic_hypothesis = health_answer
             elif concept_answer is not None:
                 verification = verify_answer(
                     concept_answer,
@@ -2726,9 +2743,14 @@ def make_chat_stream_route(
                 delegation = _delegation_summary(enriched_context)
                 has_operational_evidence = "_operational_evidence" in enriched_context
                 evidence_fast_path = _uses_evidence_fast_path(enriched_context)
+                response_locale = _response_locale(clean_prompt, enriched_context)
+                health_answer = render_system_health_answer(
+                    enriched_context,
+                    locale=response_locale,
+                )
                 concept_answer = (
                     _concept_answer(enriched_context, answer_plan)
-                    if _response_locale(clean_prompt, enriched_context) is None
+                    if response_locale is None
                     else None
                 )
                 yield frame(
@@ -2737,11 +2759,13 @@ def make_chat_stream_route(
                         "phase": "generating",
                         "label": (
                             "Evidence ready; composing bounded answer"
-                            if evidence_fast_path
+                            if evidence_fast_path or health_answer is not None
                             else "Evidence ready; drafting answer"
                         ),
                         "authority": (
-                            "server_read_model" if has_operational_evidence else "client_snapshot"
+                            "server_read_model"
+                            if has_operational_evidence or health_answer is not None
+                            else "client_snapshot"
                         ),
                         "sources": _retrieval_source_previews(
                             enriched_context,
@@ -2762,6 +2786,11 @@ def make_chat_stream_route(
                     )
                     provisional_answer = canonical.answer
                     terminal_model = "evidence-verifier"
+                    for chunk in _chunk_answer_for_stream(provisional_answer):
+                        yield frame("token", {"delta": chunk})
+                elif health_answer is not None:
+                    provisional_answer = health_answer
+                    terminal_model = "read-model-health"
                     for chunk in _chunk_answer_for_stream(provisional_answer):
                         yield frame("token", {"delta": chunk})
                 elif concept_answer is not None:
@@ -2929,7 +2958,13 @@ def make_chat_stream_route(
                         "source": (
                             f"evidence:{verification.status}"
                             if evidence_fast_path
-                            else ("evidence:fdai-glossary" if concept_answer is not None else None)
+                            else (
+                                "evidence:system-health"
+                                if health_answer is not None
+                                else (
+                                    "evidence:fdai-glossary" if concept_answer is not None else None
+                                )
+                            )
                         ),
                         "latency_ms": int((time.monotonic() - started) * 1000),
                         "verification": verification.to_dict(),

@@ -62,6 +62,18 @@ export function NavigationShell({ activePanelId, principalId, devMode }: Props) 
   }, [panelIds, principalId]);
 
   useEffect(() => {
+    const media = window.matchMedia(MOBILE_QUERY);
+    const onChange = (event: MediaQueryListEvent) => {
+      if (!event.matches) return;
+      setPreferences((current) => ({ ...current, explorerOpen: false }));
+      setEditing(false);
+      setMenuOpen(false);
+    };
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== navigationPreferenceKey(principalId)) return;
       setPreferences(readNavigationPreferences(panelIds, principalId));
