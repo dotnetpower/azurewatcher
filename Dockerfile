@@ -12,6 +12,13 @@
 #   on the app volume by default; only the writable OTel/temp mounts are
 #   used.
 
+FROM golang@sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149aabd498d0699ff5fb2 AS opa-builder
+
+ARG OPA_VERSION=v1.18.2
+RUN CGO_ENABLED=0 /usr/local/go/bin/go install \
+    "github.com/open-policy-agent/opa@${OPA_VERSION}" \
+    && /go/bin/opa version
+
 FROM python@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0 AS builder
 
 ENV UV_LINK_MODE=copy \
@@ -21,14 +28,7 @@ ENV UV_LINK_MODE=copy \
 
 RUN apk add --no-cache build-base zlib-dev
 RUN pip install --no-cache-dir uv==0.4.30
-ARG OPA_VERSION=v1.18.2
-ARG OPA_SHA256=9903e5125ac281104f2c4b7371d10cc3b74a98933743fcbfc174f9bf0ab20de8
-RUN wget -q -O /tmp/opa \
-    "https://github.com/open-policy-agent/opa/releases/download/${OPA_VERSION}/opa_linux_amd64_static" \
-    && echo "${OPA_SHA256}  /tmp/opa" | sha256sum -c - \
-    && install -m 755 /tmp/opa /usr/local/bin/opa \
-    && rm /tmp/opa \
-    && opa version
+COPY --from=opa-builder /go/bin/opa /usr/local/bin/opa
 
 WORKDIR /app
 COPY pyproject.toml uv.lock LICENSE README.md ./
