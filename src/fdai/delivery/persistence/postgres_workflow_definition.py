@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Final
 
 import psycopg
@@ -52,6 +52,7 @@ class _PostgresBase:
 
 class PostgresWorkflowDefinitionStore(_PostgresBase):
     async def put(self, record: WorkflowDefinitionRecord) -> WorkflowDefinitionRecord:
+        stored = record
         async with await self._connect() as connection, connection.transaction():
             await self._timeout(connection)
             cursor = await connection.execute(
@@ -82,11 +83,12 @@ class PostgresWorkflowDefinitionStore(_PostgresBase):
             )
             if await cursor.fetchone() is None:
                 existing = await self._get(connection, record.definition_id)
-                if existing != record:
+                if existing is None or not _same_definition_except_created_at(existing, record):
                     raise WorkflowDefinitionConflictError(
                         f"definition {record.definition_id!r} is immutable"
                     )
-        return record
+                stored = existing
+        return stored
 
     async def get(self, *, definition_id: str) -> WorkflowDefinitionRecord | None:
         async with await self._connect() as connection:
@@ -221,6 +223,13 @@ _BINDING_SELECT = (
     "cron_expression, timezone, signal_type, parameters, revision, created_at, updated_at "
     "FROM workflow_binding"
 )
+
+
+def _same_definition_except_created_at(
+    existing: WorkflowDefinitionRecord,
+    candidate: WorkflowDefinitionRecord,
+) -> bool:
+    return existing == replace(candidate, created_at=existing.created_at)
 
 
 def _definition(row: dict[str, Any]) -> WorkflowDefinitionRecord:
