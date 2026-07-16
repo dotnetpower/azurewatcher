@@ -3,7 +3,7 @@ title: 승인과 알림 채널(Approvals and channels)
 description: FDAI가 고위험 승인과 알림을 위해 사람에게 도달하는 방식 - 어떤 채널을 쓰는지, 콘솔이 왜 실행하지 않는지, 아무도 응답하지 않으면 어떻게 되는지.
 translation_of: approvals-and-channels.md
 translation_source_sha: 5d40428402e1b8d7334d9c16c9d2728f329f5be6
-translation_revised: 2026-07-13
+translation_revised: 2026-07-17
 sidebar:
   order: 7
 ---
@@ -117,7 +117,7 @@ TTL, replay 방지 검사를 통과한 뒤 저장된 액션을 정확히 한 번
   넘어갑니다.
 - **모든 A1 채널이 다운되면** 요청은 큐에 쌓이고 **운영 레인을 페이징**합니다
   (PagerDuty / Opsgenie / SMS) - 그래도 결코 자동 실행되지 않습니다.
-- **kill-switch**는 모든 A1 발송을 즉시 중단하고 열려 있는 승인을 다시 큐잉할 수
+- **kill-switch**는 모든 A1 발송을 즉시 중단하고 열려 있는 승인을 다시 대기열에 넣을 수
   있습니다. 흐름을 한 번에 멈춰야 하는 경우를 위한 장치입니다.
 
 ## 메시지 수신 대상
