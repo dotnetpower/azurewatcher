@@ -74,6 +74,13 @@ DSN secrets during apply. Deploys run through the [`deploy-dev` workflow](../../
 on the `[self-hosted, fdai-deploy]` runner (plan-only by default; the `apply` input enforces).
 Full runbook: [`infra/bootstrap/README.md`](../../../infra/bootstrap/README.md).
 
+Scheduled drivers remain Terraform-owned through the `SCHEDULER_TICK_CRON_EXPRESSION` and
+`ANALYZER_TICK_CRON_EXPRESSION` repository variables. Optional analyzer inputs use
+`ANALYZER_TARGETS_JSON`, `ANALYZER_WINDOW_SECONDS`, and `ANALYZER_BUDGET_SECONDS`. An empty
+cron disables its job. Before each plan, the workflow safely adopts a matching existing
+scheduler or analyzer job when it isn't already in remote state. Subsequent image and
+configuration changes then converge through the same plan and apply path.
+
 #### Inventory discovery with restricted egress
 
 Strong NSG egress control should keep the application subnet closed without disabling Azure
