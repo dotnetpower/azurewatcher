@@ -181,7 +181,9 @@ class AzureDataLakeObjectStore:
             return
 
     async def promote(self, session: UploadSession) -> str:
-        target = f"governed/{session.document_id.hex}/{session.version_id.hex}/source"
+        if session.object_key.startswith("governed/"):
+            return session.object_key
+        target = self.governed_key(session)
         source = self._files.get_file_client(session.object_key)
         try:
             await source.rename_file(
@@ -191,6 +193,11 @@ class AzureDataLakeObjectStore:
         except ResourceNotFoundError as exc:
             raise DocumentNotFoundError("source object was not found during promotion") from exc
         return target
+
+    @staticmethod
+    def governed_key(session: UploadSession) -> str:
+        collection = hashlib.sha256(session.collection_id.encode("utf-8")).hexdigest()[:16]
+        return f"governed/{collection}/{session.document_id.hex}/{session.version_id.hex}/source"
 
     async def close(self) -> None:
         await self._service.close()

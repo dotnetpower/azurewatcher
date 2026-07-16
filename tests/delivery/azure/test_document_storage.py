@@ -198,7 +198,8 @@ async def test_object_store_streams_hashes_reads_and_promotes() -> None:
     assert info == stat
     assert info.sha256 == hashlib.sha256(b"content").hexdigest()
     assert content == b"content"
-    assert promoted == f"governed/{_DOCUMENT_ID.hex}/{_VERSION_ID.hex}/source"
+    collection = hashlib.sha256(b"shared-knowledge").hexdigest()[:16]
+    assert promoted == f"governed/{collection}/{_DOCUMENT_ID.hex}/{_VERSION_ID.hex}/source"
     source = service.file_systems["documents"].files[session.object_key]
     assert source.renamed_to == f"documents/{promoted}"
 

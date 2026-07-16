@@ -65,6 +65,23 @@ class _Ids:
         return UUID(int=self.value)
 
 
+class _PromotableInMemoryStore(InMemoryDocumentObjectStore):
+    def __init__(self, *, fail_once: bool = False) -> None:
+        super().__init__(chunk_size=7)
+        self.promoted: list[UUID] = []
+        self.fail_once = fail_once
+
+    async def promote(self, session) -> str:
+        if self.fail_once:
+            self.fail_once = False
+            raise RuntimeError("transient promotion failure")
+        self.promoted.append(session.upload_id)
+        return self.governed_key(session)
+
+    def governed_key(self, session) -> str:
+        return f"governed/{session.document_id.hex}/{session.version_id.hex}/source"
+
+
 def _capabilities(*, direct_upload: bool = True) -> IngestionCapabilities:
     return IngestionCapabilities(
         supported_formats=("text", "ooxml", "pdf-detect-only"),
@@ -100,14 +117,18 @@ def _request(
     )
 
 
-def _dependencies(*, malware: MalwareVerdict = MalwareVerdict.CLEAN):
+def _dependencies(
+    *,
+    malware: MalwareVerdict = MalwareVerdict.CLEAN,
+    objects: InMemoryDocumentObjectStore | None = None,
+):
     access = InMemoryDocumentAccessProvider(
         contributors={"collection-a": frozenset({"uploader"})},
         readers={"collection-a": frozenset({"reader"})},
         owners={"collection-a": frozenset({"owner"})},
     )
     metadata = InMemoryDocumentMetadataStore()
-    objects = InMemoryDocumentObjectStore(chunk_size=7)
+    objects = objects or InMemoryDocumentObjectStore(chunk_size=7)
     artifacts = InMemoryDocumentArtifactStore()
     index = InMemoryDocumentIndex()
     activity = RecordingDocumentActivitySink()
@@ -133,6 +154,60 @@ def _dependencies(*, malware: MalwareVerdict = MalwareVerdict.CLEAN):
         clock=lambda: _NOW,
     )
     return service, worker, metadata, objects, artifacts, index, activity
+
+
+async def test_managed_copy_promotes_source_before_ready() -> None:
+    objects = _PromotableInMemoryStore()
+    service, worker, metadata, _, _, _, _ = _dependencies(objects=objects)
+    session = await _upload(service, b"managed content")
+
+    version = await worker.process(session.upload_id)
+    persisted = await metadata.get_upload(session.upload_id)
+
+    assert version.state is DocumentState.READY
+    assert objects.promoted == [session.upload_id]
+    assert persisted.object_key.startswith("governed/")
+
+
+async def test_worker_resumes_indexing_and_terminal_redelivery_is_noop() -> None:
+    service, worker, metadata, _, _, _, activity = _dependencies()
+    session = await _upload(service, b"resume content")
+    version = await metadata.get_version(session.document_id, session.version_id)
+    interrupted_session = session.model_copy(update={"state": DocumentState.INDEXING})
+    interrupted_version = version.model_copy(
+        update={
+            "state": DocumentState.INDEXING,
+            "observed_format": "text",
+            "protection_state": ProtectionState.NONE,
+        }
+    )
+    await metadata.save_upload(interrupted_session)
+    await metadata.save_version(interrupted_version)
+
+    ready = await worker.process(session.upload_id)
+    audit_count = len(activity.audit_records)
+    replayed = await worker.process(session.upload_id)
+
+    assert ready.state is DocumentState.READY
+    assert replayed == ready
+    assert len(activity.audit_records) == audit_count
+
+
+async def test_transient_promotion_failure_restores_source_path_for_retry() -> None:
+    objects = _PromotableInMemoryStore(fail_once=True)
+    service, worker, metadata, _, _, _, _ = _dependencies(objects=objects)
+    session = await _upload(service, b"retry promotion")
+
+    with pytest.raises(RuntimeError, match="transient promotion"):
+        await worker.process(session.upload_id)
+
+    interrupted = await metadata.get_upload(session.upload_id)
+    assert interrupted.state is DocumentState.INDEXING
+    assert interrupted.object_key == session.object_key
+
+    ready = await worker.process(session.upload_id)
+    assert ready.state is DocumentState.READY
+    assert (await metadata.get_upload(session.upload_id)).object_key.startswith("governed/")
 
 
 async def _upload(

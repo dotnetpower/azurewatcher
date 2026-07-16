@@ -141,6 +141,19 @@ class PostgresDocumentMetadataStore:
             raise DocumentNotFoundError("document was not found")
         return tuple(DocumentVersion.model_validate(_payload(row["payload"])) for row in rows)
 
+    async def list_uploads_by_state(self, state: str, *, limit: int) -> tuple[UploadSession, ...]:
+        if limit < 1 or limit > 1000:
+            raise ValueError("document upload state limit MUST be in [1, 1000]")
+        async with await self._connect() as connection:
+            await self._timeout(connection)
+            cursor = await connection.execute(
+                "SELECT payload FROM document_upload_session WHERE state = %s "
+                "ORDER BY created_at ASC, upload_id ASC LIMIT %s",
+                (state, limit),
+            )
+            rows = await cursor.fetchall()
+        return tuple(UploadSession.model_validate(_payload(row["payload"])) for row in rows)
+
     async def _connect(self) -> psycopg.AsyncConnection[dict[str, Any]]:
         return await psycopg.AsyncConnection.connect(
             self._config.dsn,

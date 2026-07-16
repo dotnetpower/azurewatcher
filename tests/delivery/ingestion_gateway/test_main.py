@@ -217,6 +217,27 @@ def test_production_proxy_streams_upload_without_dev_mode() -> None:
     assert status.json()["state"] == "received"
 
 
+def test_collection_policy_rejects_client_reader_group_override() -> None:
+    service, worker = _stack()
+    app = build_app(
+        authenticator=_authenticator(),
+        service=service,
+        worker=worker,
+        config=IngestionGatewayConfig(default_reader_groups=("reader-group",)),
+    )
+    body = _body(b"text")
+    body["reader_groups"] = ["untrusted-group"]
+
+    response = TestClient(app).post(
+        "/ingestion/uploads",
+        headers={"authorization": "Bearer contributor"},
+        json=body,
+    )
+
+    assert response.status_code == 400
+    assert "collection policy" in response.json()["message"]
+
+
 @pytest.mark.parametrize(
     "config",
     [

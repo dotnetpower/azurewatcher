@@ -37,6 +37,15 @@ additional_tags = {
 # ---------------------------------------------------------------
 # enable_private_networking = true
 
+# Governed document ingestion (opt-in). The deployment workflow supplies
+# Entra/RBAC values and resolved model capability JSON from repository
+# Variables; never commit populated tenant ids here.
+# enable_document_ingestion       = true
+# enable_llm                      = true
+# ingestion_embedding_capability = "t1.embedding"
+# ingestion_cors_allow_origins    = "https://console.example.com"
+# clamav_image                    = "clamav/clamav:stable" # digest-pin outside dev
+
 # Ops/hub VNet coordinates (from `terraform -chdir=infra/bootstrap output`):
 #   ops_vnet_id             -> runner_vnet_id
 #   ops_vnet_name           -> runner_vnet_name
@@ -77,4 +86,3 @@ additional_tags = {
 # can; other metrics fail-closed.
 # prometheus_endpoint = "https://<data-collection-endpoint>.prometheus.monitor.azure.com"
 # prometheus_audience = "https://prometheus.monitor.azure.com"
-

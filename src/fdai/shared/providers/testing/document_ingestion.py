@@ -120,6 +120,10 @@ class InMemoryDocumentMetadataStore:
             raise DocumentNotFoundError("document was not found")
         return tuple(sorted(versions, key=lambda item: item.created_at))
 
+    async def list_uploads_by_state(self, state: str, *, limit: int) -> tuple[UploadSession, ...]:
+        uploads = [upload for upload in self.uploads.values() if upload.state.value == state]
+        return tuple(sorted(uploads, key=lambda item: item.created_at)[:limit])
+
 
 class InMemoryDocumentObjectStore:
     def __init__(self, *, chunk_size: int = 64 * 1024) -> None:

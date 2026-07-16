@@ -66,6 +66,7 @@ check "production_ingestion_is_private_and_pinned" {
       var.enable_document_ingestion &&
       var.enable_private_networking &&
       can(regex("@sha256:[0-9a-f]{64}$", lower(var.clamav_image))) &&
+      !endswith(lower(var.clamav_image), "@sha256:0000000000000000000000000000000000000000000000000000000000000000") &&
       (
         var.ingestion_image == "" ||
         can(regex("@sha256:[0-9a-f]{64}$", lower(var.ingestion_image)))

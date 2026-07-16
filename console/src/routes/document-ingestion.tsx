@@ -214,12 +214,12 @@ export function DocumentIngestionRoute({ client }: Props) {
 }
 
 async function waitForTerminal(api: IngestionApiClient, uploadId: string): Promise<import("../ingestion-api").UploadSession> {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  for (let attempt = 0; attempt < 240; attempt += 1) {
     const session = await api.status(uploadId);
     if (["ready", "ready_with_warnings", "held", "failed", "deleted"].includes(session.state)) {
       return session;
     }
-    await new Promise((resolve) => window.setTimeout(resolve, 250));
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
   }
   throw new Error(t("documents.processingTimeout"));
 }

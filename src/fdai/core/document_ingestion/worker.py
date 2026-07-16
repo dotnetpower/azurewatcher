@@ -72,72 +72,98 @@ class DocumentIngestionWorker:
     async def process(self, upload_id: UUID) -> DocumentVersion:
         session = await self._metadata.get_upload(upload_id)
         version = await self._metadata.get_version(session.document_id, session.version_id)
-        if version.state is not DocumentState.RECEIVED:
-            raise ValueError("worker accepts only received document versions")
-
-        session, version = await self._advance(session, version, DocumentState.QUARANTINED)
-        session, version = await self._advance(session, version, DocumentState.SCANNING)
-        try:
-            verdict = await self._malware.scan(self._objects.read(session.object_key))
-        except Exception:  # noqa: BLE001 - mandatory provider failures hold content
-            return await self._hold(session, version, "malware_scanner_unavailable")
-        if verdict is MalwareVerdict.INFECTED:
-            return await self._hold(session, version, "malware_detected")
-        if verdict is not MalwareVerdict.CLEAN:
-            return await self._hold(session, version, "malware_scanner_unavailable")
-
-        session, version = await self._advance(session, version, DocumentState.PROTECTION_CHECK)
-        try:
-            inspection = await self._protection.inspect(
-                source_name=session.source_name,
-                media_type_hint=session.media_type_hint,
-                chunks=self._objects.read(session.object_key),
-            )
-        except Exception:  # noqa: BLE001 - unknown protection never reaches extraction
-            return await self._hold(session, version, "protection_check_unavailable")
-        version = version.model_copy(
-            update={
-                "protection_state": inspection.state,
-                "observed_format": inspection.observed_format,
-                "media_type": inspection.media_type,
-                "sensitivity_label": inspection.sensitivity_label,
-                "updated_at": self._clock(),
-            }
-        )
-        await self._metadata.save_version(version)
-        if inspection.state not in _EXTRACTABLE_PROTECTION:
-            return await self._hold(
-                session, version, inspection.reason_code or inspection.state.value
-            )
-        if session.storage_mode is SourceStorageMode.METADATA_ONLY:
-            session, version = await self._advance(session, version, DocumentState.READY)
-            version = version.model_copy(update={"active": True, "available": True})
-            await self._metadata.save_version(version)
-            await self._record(session, version, "document.ready")
+        if version.state in {
+            DocumentState.READY,
+            DocumentState.READY_WITH_WARNINGS,
+            DocumentState.HELD,
+            DocumentState.FAILED,
+            DocumentState.DELETED,
+        }:
             return version
+        if version.state not in {
+            DocumentState.RECEIVED,
+            DocumentState.QUARANTINED,
+            DocumentState.SCANNING,
+            DocumentState.PROTECTION_CHECK,
+            DocumentState.EXTRACTING,
+            DocumentState.INDEXING,
+        }:
+            raise ValueError("worker cannot process the current document state")
 
-        session, version = await self._advance(session, version, DocumentState.EXTRACTING)
+        if version.state is DocumentState.RECEIVED:
+            session, version = await self._advance(session, version, DocumentState.QUARANTINED)
+        if version.state is DocumentState.QUARANTINED:
+            session, version = await self._advance(session, version, DocumentState.SCANNING)
+        if version.state is DocumentState.SCANNING:
+            try:
+                verdict = await self._malware.scan(self._objects.read(session.object_key))
+            except Exception:  # noqa: BLE001 - mandatory provider failures hold content
+                return await self._hold(session, version, "malware_scanner_unavailable")
+            if verdict is MalwareVerdict.INFECTED:
+                return await self._hold(session, version, "malware_detected")
+            if verdict is not MalwareVerdict.CLEAN:
+                return await self._hold(session, version, "malware_scanner_unavailable")
+            session, version = await self._advance(session, version, DocumentState.PROTECTION_CHECK)
+        if version.state is DocumentState.PROTECTION_CHECK:
+            try:
+                inspection = await self._protection.inspect(
+                    source_name=session.source_name,
+                    media_type_hint=session.media_type_hint,
+                    chunks=self._objects.read(session.object_key),
+                )
+            except Exception:  # noqa: BLE001 - unknown protection never reaches extraction
+                return await self._hold(session, version, "protection_check_unavailable")
+            version = version.model_copy(
+                update={
+                    "protection_state": inspection.state,
+                    "observed_format": inspection.observed_format,
+                    "media_type": inspection.media_type,
+                    "sensitivity_label": inspection.sensitivity_label,
+                    "updated_at": self._clock(),
+                }
+            )
+            await self._metadata.save_version(version)
+            if inspection.state not in _EXTRACTABLE_PROTECTION:
+                return await self._hold(
+                    session, version, inspection.reason_code or inspection.state.value
+                )
+            if session.storage_mode is SourceStorageMode.METADATA_ONLY:
+                session, version = await self._advance(session, version, DocumentState.READY)
+                version = version.model_copy(update={"active": True, "available": True})
+                await self._metadata.save_version(version)
+                await self._record(session, version, "document.ready")
+                return version
+            session, version = await self._advance(session, version, DocumentState.EXTRACTING)
+
         try:
             envelope = await self._extractor.extract(
                 version=version, chunks=self._objects.read(session.object_key)
             )
         except Exception:  # noqa: BLE001 - parser details must not leak
             return await self._fail(session, version, "extraction_failed")
-        session, version = await self._advance(session, version, DocumentState.INDEXING)
+        if version.state is DocumentState.EXTRACTING:
+            session, version = await self._advance(session, version, DocumentState.INDEXING)
         try:
             await self._artifacts.put(envelope)
             await self._index.commit(envelope)
             consumer_warnings = await self._consume(session, envelope)
-            if session.storage_mode is SourceStorageMode.MANAGED_COPY and isinstance(
-                self._objects, PromotableDocumentObjectStore
-            ):
-                promoted_key = await self._objects.promote(session)
-                session = session.model_copy(update={"object_key": promoted_key})
-                await self._metadata.save_upload(session)
         except Exception:  # noqa: BLE001 - no partially indexed document becomes available
             await self._index.delete(version.document_id, version.version_id)
             await self._artifacts.delete(version.document_id, version.version_id)
             return await self._fail(session, version, "indexing_failed")
+
+        if session.storage_mode is SourceStorageMode.MANAGED_COPY and isinstance(
+            self._objects, PromotableDocumentObjectStore
+        ):
+            source_session = session
+            promoted_key = self._objects.governed_key(session)
+            session = session.model_copy(update={"object_key": promoted_key})
+            await self._metadata.save_upload(session)
+            try:
+                await self._objects.promote(source_session)
+            except Exception:
+                await self._metadata.save_upload(source_session)
+                raise
 
         warnings = envelope.warnings + consumer_warnings
         target = DocumentState.READY_WITH_WARNINGS if warnings else DocumentState.READY

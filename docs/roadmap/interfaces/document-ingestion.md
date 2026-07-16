@@ -275,14 +275,15 @@ FDAI separates content by purpose so each layer can have its own access and rete
 | Store | Contents | Recommended Azure implementation |
 |-------|----------|----------------------------------|
 | Quarantine source | untrusted uploaded bytes and upload manifests | private ADLS Gen2 HNS `documents/quarantine/`, no public access, short lifecycle retention |
-| Governed source | accepted immutable source versions when managed-copy mode is selected | private ADLS Gen2 HNS `documents/governed/{document_id}/{version_id}/`, atomic rename from quarantine |
+| Governed source | accepted immutable source versions when managed-copy mode is selected | private ADLS Gen2 HNS `documents/governed/{collection_hash}/{document_id}/{version_id}/`, atomic rename from quarantine |
 | Derived artifacts | normalized JSON/JSONL, page text, thumbnails, OCR output, extraction manifest | separate private ADLS Gen2 HNS `derived` filesystem, encrypted and ACL-linked to source |
 | Metadata and status | document/version records, state transitions, policy, effective access references | PostgreSQL |
 | Search index | chunks, embeddings, source/version/access references | PostgreSQL with pgvector |
 | Audit | actor, state transition, policy decision, hashes and references, never document body | append-only audit ledger |
 | Worker scratch | temporary decrypted or expanded content | isolated encrypted ephemeral volume, wiped on completion/failure |
 
-Object names are opaque ids, not user filenames. The original filename is metadata protected by the
+Object names are opaque ids, not user filenames. Collection directories use a non-reversible hash
+segment rather than the collection label. The original filename is metadata protected by the
 same access policy. The Azure implementation uses a dedicated StorageV2 account with hierarchical
 namespace (HNS), Shared Key disabled, TLS 1.2, soft delete, lifecycle policies, and both `blob` and
 `dfs` private endpoints. Blob versioning isn't available on HNS accounts, so FDAI never overwrites a
@@ -437,6 +438,7 @@ process to a comma-separated list of exact HTTP(S) origins.
 | `GET /ingestion/uploads/{upload_id}` | resumable transfer and processing status |
 | `GET /ingestion/uploads/{upload_id}/handover-draft` | authorized grounded steward-map draft for the `handover_bootstrap` purpose |
 | `POST /ingestion/uploads/{upload_id}/cancel` | revoke grant and clean partial data |
+| `GET /documents/search?q=...&collection_id=...` | authenticated collection-scoped semantic retrieval with citations |
 | `GET /documents/{document_id}/versions` | authorized metadata and state history |
 | `DELETE /documents/{document_id}/versions/{version_id}` | request governed deletion |
 

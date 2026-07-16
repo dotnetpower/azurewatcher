@@ -28,7 +28,12 @@ class DurableDocumentActivitySink:
     ) -> None:
         event = dict(payload)
         event["event_type"] = topic
-        await self._event_bus.publish(self._event_topic, key, event)
+        try:
+            await self._event_bus.publish(self._event_topic, key, event)
+        except Exception:
+            # Audit and metadata are durable. The worker's received-state
+            # reconciler republishes or processes the item after broker recovery.
+            return
 
 
 __all__ = ["DurableDocumentActivitySink"]

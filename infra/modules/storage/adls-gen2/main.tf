@@ -64,6 +64,27 @@ resource "azurerm_storage_data_lake_gen2_filesystem" "derived" {
   depends_on = [azurerm_role_assignment.deployer_data_owner]
 }
 
+resource "azurerm_storage_data_lake_gen2_path" "quarantine" {
+  path               = "quarantine"
+  filesystem_name    = azurerm_storage_data_lake_gen2_filesystem.documents.name
+  storage_account_id = azurerm_storage_account.documents.id
+  resource           = "directory"
+}
+
+resource "azurerm_storage_data_lake_gen2_path" "governed" {
+  path               = "governed"
+  filesystem_name    = azurerm_storage_data_lake_gen2_filesystem.documents.name
+  storage_account_id = azurerm_storage_account.documents.id
+  resource           = "directory"
+}
+
+resource "azurerm_storage_data_lake_gen2_path" "derived_documents" {
+  path               = "documents"
+  filesystem_name    = azurerm_storage_data_lake_gen2_filesystem.derived.name
+  storage_account_id = azurerm_storage_account.documents.id
+  resource           = "directory"
+}
+
 resource "azurerm_storage_management_policy" "documents" {
   storage_account_id = azurerm_storage_account.documents.id
 

@@ -25,6 +25,7 @@ variable "embedding_deployment" { type = string }
 variable "kafka_bootstrap_servers" { type = string }
 variable "document_event_topic" { type = string }
 variable "runtime_env" { type = string }
+variable "document_collections" { type = string }
 
 variable "embedding_dim" {
   type    = number
@@ -63,7 +64,7 @@ variable "min_replicas" {
 
 variable "max_replicas" {
   type    = number
-  default = 3
+  default = 1
 }
 
 variable "gateway_cpu" {

@@ -165,6 +165,7 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
     worker_service = DocumentIngestionEventConsumer(
         event_bus=event_bus,
         worker=worker,
+        metadata=metadata,
         topic=env["FDAI_DOCUMENT_EVENT_TOPIC"].strip(),
     )
     verifier = EntraJwtVerifier.from_env(env)
@@ -174,11 +175,15 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         authenticator=authenticator,
         service=service,
         worker=worker,
+        search_index=document_index,
         config=IngestionGatewayConfig(
             proxy_upload=True,
-            background_services=(worker_service.run,),
+            background_services=(worker_service.run, worker_service.reconcile),
             cors_allow_origins=_origins(env["FDAI_INGESTION_CORS_ALLOW_ORIGINS"]),
             default_reader_groups=(env["FDAI_RBAC_READERS_GROUP_ID"].strip(),),
+            allowed_collections=_collections(
+                env.get("FDAI_DOCUMENT_COLLECTIONS", "shared-knowledge")
+            ),
             shutdown_callbacks=(
                 event_bus.close,
                 object_store.close,
@@ -208,6 +213,13 @@ def _origins(raw: str) -> tuple[str, ...]:
     if not origins or "*" in origins:
         raise ProdIngestionConfigError("ingestion CORS origins MUST be explicit")
     return origins
+
+
+def _collections(raw: str) -> tuple[str, ...]:
+    collections = tuple(value.strip() for value in raw.split(",") if value.strip())
+    if not collections:
+        raise ProdIngestionConfigError("at least one document collection is required")
+    return collections
 
 
 def _positive_int(env: Mapping[str, str], key: str, default: int) -> int:

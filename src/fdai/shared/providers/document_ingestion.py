@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol, runtime_checkable
@@ -16,6 +16,7 @@ from fdai.shared.contracts import (
     ProtectionState,
     UploadSession,
 )
+from fdai.shared.providers.knowledge import KnowledgeChunk
 
 
 class DocumentIngestionError(RuntimeError):
@@ -99,6 +100,10 @@ class DocumentMetadataStore(Protocol):
 
     async def list_versions(self, document_id: UUID) -> tuple[DocumentVersion, ...]: ...
 
+    async def list_uploads_by_state(
+        self, state: str, *, limit: int
+    ) -> tuple[UploadSession, ...]: ...
+
 
 @runtime_checkable
 class DocumentObjectStore(Protocol):
@@ -134,6 +139,8 @@ class StreamingUploadStore(Protocol):
 
 @runtime_checkable
 class PromotableDocumentObjectStore(Protocol):
+    def governed_key(self, session: UploadSession) -> str: ...
+
     async def promote(self, session: UploadSession) -> str: ...
 
 
@@ -171,6 +178,18 @@ class DocumentIndex(Protocol):
 
 
 @runtime_checkable
+class DocumentSearch(Protocol):
+    async def search(
+        self,
+        query: str,
+        *,
+        collection_id: str,
+        allowed_access_refs: frozenset[str],
+        k: int = 5,
+    ) -> Sequence[KnowledgeChunk]: ...
+
+
+@runtime_checkable
 class DocumentReadyConsumer(Protocol):
     @property
     def purpose(self) -> DocumentPurpose: ...
@@ -200,6 +219,7 @@ __all__ = [
     "DocumentNotFoundError",
     "DocumentObjectStore",
     "DocumentReadyConsumer",
+    "DocumentSearch",
     "MalwareScanner",
     "ProtectionInspection",
     "ProtectionInspector",

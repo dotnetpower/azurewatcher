@@ -33,6 +33,7 @@ from fdai.shared.contracts import DocumentPurpose, DocumentState, SourceStorageM
 from fdai.shared.providers import (
     DocumentAccessDeniedError,
     DocumentNotFoundError,
+    DocumentSearch,
     ProviderUnavailableError,
 )
 
@@ -48,6 +49,7 @@ class IngestionGatewayConfig:
     proxy_upload: bool = False
     cors_allow_origins: tuple[str, ...] = ()
     default_reader_groups: tuple[str, ...] = ()
+    allowed_collections: tuple[str, ...] = ()
     process_after_complete: bool = False
     background_services: tuple[Callable[[], Coroutine[Any, Any, None]], ...] = ()
     shutdown_callbacks: tuple[Callable[[], Awaitable[None]], ...] = ()
@@ -58,6 +60,7 @@ def build_app(
     authenticator: Authenticator,
     service: DocumentIngestionService,
     worker: DocumentIngestionWorker,
+    search_index: DocumentSearch | None = None,
     handover_drafts: HandoverDraftReader | None = None,
     config: IngestionGatewayConfig | None = None,
 ) -> Starlette:
@@ -82,7 +85,11 @@ def build_app(
     async def create_upload(request: Request) -> Response:
         principal = authorize(request, _CONTRIBUTOR_ROLES)
         body = await _json_body(request)
-        upload_request = _create_request(body, default_reader_groups=resolved.default_reader_groups)
+        upload_request = _create_request(
+            body,
+            default_reader_groups=resolved.default_reader_groups,
+            allowed_collections=resolved.allowed_collections,
+        )
         session, grant = await service.create_upload(
             actor_id=principal.oid,
             actor_groups=_access_principals(principal),
@@ -229,6 +236,43 @@ def build_app(
         )
         return _json(version, status_code=202)
 
+    async def search_documents(request: Request) -> Response:
+        authorize(request, _READER_ROLES)
+        if search_index is None:
+            return _error(404, "not_found", "document search is unavailable")
+        query = request.query_params.get("q", "").strip()
+        collection_id = request.query_params.get("collection_id", "").strip()
+        if not query or not collection_id:
+            raise ValueError("q and collection_id are required")
+        if resolved.allowed_collections and collection_id not in resolved.allowed_collections:
+            raise DocumentAccessDeniedError("document collection access is denied")
+        raw_limit = request.query_params.get("limit", "5")
+        limit = int(raw_limit)
+        if limit < 1 or limit > 20:
+            raise ValueError("limit MUST be in [1, 20]")
+        hits = await search_index.search(
+            query,
+            collection_id=collection_id,
+            allowed_access_refs=frozenset({f"collection:{collection_id}"}),
+            k=limit,
+        )
+        return JSONResponse(
+            {
+                "items": [
+                    {
+                        "document_id": hit.metadata.get("document_id", hit.doc_id),
+                        "version_id": hit.metadata.get("version_id", ""),
+                        "chunk_id": hit.chunk_id,
+                        "text": hit.text,
+                        "source_ref": hit.source_ref,
+                        "score": hit.score,
+                        "locator": hit.metadata.get("locator", ""),
+                    }
+                    for hit in hits
+                ]
+            }
+        )
+
     routes = [
         Route("/ingestion/capabilities", capabilities, methods=["GET"]),
         Route("/ingestion/uploads", create_upload, methods=["POST"]),
@@ -248,6 +292,7 @@ def build_app(
             delete_version,
             methods=["DELETE"],
         ),
+        Route("/documents/search", search_documents, methods=["GET"]),
     ]
     middleware: list[Middleware] = []
     if resolved.cors_allow_origins:
@@ -323,8 +368,13 @@ def _validate_boundary(config: IngestionGatewayConfig) -> None:
 
 
 def _create_request(
-    body: dict[str, Any], *, default_reader_groups: tuple[str, ...] = ()
+    body: dict[str, Any],
+    *,
+    default_reader_groups: tuple[str, ...] = (),
+    allowed_collections: tuple[str, ...] = (),
 ) -> CreateUploadRequest:
+    if default_reader_groups and "reader_groups" in body:
+        raise ValueError("reader_groups is controlled by the collection policy")
     required = {
         "source_name",
         "collection_id",
@@ -339,19 +389,27 @@ def _create_request(
     missing = sorted(required - body.keys())
     if missing:
         raise ValueError(f"missing required fields: {', '.join(missing)}")
+    collection_id = str(body["collection_id"])
+    if allowed_collections and collection_id not in allowed_collections:
+        raise DocumentAccessDeniedError("document collection access is denied")
+    managed_access_ref = f"collection:{collection_id}"
+    if default_reader_groups and str(body["access_descriptor_ref"]) != managed_access_ref:
+        raise ValueError("access_descriptor_ref is controlled by the collection policy")
     allowed = required | {"reader_groups", "document_id", "supersedes_version_id"}
     unknown = sorted(body.keys() - allowed)
     if unknown:
         raise ValueError(f"unknown fields: {', '.join(unknown)}")
     return CreateUploadRequest(
         source_name=str(body["source_name"]),
-        collection_id=str(body["collection_id"]),
+        collection_id=collection_id,
         media_type_hint=str(body["media_type_hint"]),
         expected_size=int(body["expected_size"]),
         expected_sha256=str(body["expected_sha256"]),
         storage_mode=SourceStorageMode(str(body["storage_mode"])),
         purposes=tuple(DocumentPurpose(str(value)) for value in body["purposes"]),
-        access_descriptor_ref=str(body["access_descriptor_ref"]),
+        access_descriptor_ref=(
+            managed_access_ref if default_reader_groups else str(body["access_descriptor_ref"])
+        ),
         reader_groups=tuple(
             str(value) for value in (body.get("reader_groups") or default_reader_groups)
         ),

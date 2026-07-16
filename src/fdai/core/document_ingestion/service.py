@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -122,7 +123,7 @@ class DocumentIngestionService:
             actor_id=actor_id,
             source_name=request.source_name,
             collection_id=request.collection_id,
-            object_key=f"quarantine/{upload_id.hex}",
+            object_key=f"quarantine/{_collection_segment(request.collection_id)}/{upload_id.hex}",
             media_type_hint=request.media_type_hint,
             expected_size=request.expected_size,
             expected_sha256=request.expected_sha256,
@@ -338,6 +339,10 @@ class DocumentIngestionService:
         }
         await self._activity.audit(record)
         await self._activity.publish(action, str(session.document_id), record)
+
+
+def _collection_segment(collection_id: str) -> str:
+    return hashlib.sha256(collection_id.encode("utf-8")).hexdigest()[:16]
 
 
 __all__ = ["CreateUploadRequest", "DocumentIngestionService"]

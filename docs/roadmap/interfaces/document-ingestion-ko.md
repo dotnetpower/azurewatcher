@@ -1,7 +1,7 @@
 ---
 title: 문서 인제스트와 Drop Zone
 translation_of: document-ingestion.md
-translation_source_sha: c45ef27d31402f0248134662aab7322cf2e1b980
+translation_source_sha: 3a9acd1c95d57d82dd2456ca81ffe650c53576b0
 translation_revised: 2026-07-16
 ---
 # 문서 인제스트와 Drop Zone
@@ -282,15 +282,16 @@ worker로 latency를 줄입니다. Cross-collection 또는 cross-tenant deduplic
 | Store | Contents | Recommended Azure implementation |
 |-------|----------|----------------------------------|
 | Quarantine source | 신뢰되지 않은 uploaded bytes와 upload manifest | public access가 없고 짧은 lifecycle retention을 적용한 private ADLS Gen2 HNS `documents/quarantine/` |
-| Governed source | managed-copy mode를 선택했을 때 수락된 immutable source version | quarantine에서 atomic rename하는 private ADLS Gen2 HNS `documents/governed/{document_id}/{version_id}/` |
+| Governed source | managed-copy mode를 선택했을 때 수락된 immutable source version | quarantine에서 atomic rename하는 private ADLS Gen2 HNS `documents/governed/{collection_hash}/{document_id}/{version_id}/` |
 | Derived artifacts | normalized JSON/JSONL, page text, thumbnail, OCR output, extraction manifest | source와 ACL로 연결되고 암호화된 별도 private ADLS Gen2 HNS `derived` filesystem |
 | Metadata and status | document/version record, state transition, policy, effective access reference | PostgreSQL |
 | Search index | chunk, embedding, source/version/access reference | PostgreSQL with pgvector |
 | Audit | actor, state transition, policy decision, hash와 reference, document body 제외 | append-only audit ledger |
 | Worker scratch | 임시 decrypted 또는 expanded content | 격리된 encrypted ephemeral volume, completion/failure 시 삭제 |
 
-Object name에는 user filename 대신 opaque id를 사용합니다. Original filename은 동일한 access
-policy로 보호되는 metadata입니다. Azure 구현은 hierarchical namespace(HNS), Shared Key
+Object name에는 user filename 대신 opaque id를 사용합니다. Collection directory에는 collection
+label 대신 non-reversible hash segment를 사용합니다. Original filename은 동일한 access policy로
+보호되는 metadata입니다. Azure 구현은 hierarchical namespace(HNS), Shared Key
 비활성화, TLS 1.2, soft delete, lifecycle policy, `blob`과 `dfs` private endpoint를 적용한 전용
 StorageV2 account를 사용합니다. HNS account에는 Blob versioning을 사용할 수 없으므로 source
 version을 overwrite하지 않고 모든 `version_id`에 새로운 opaque path를 할당합니다. 선택적
@@ -446,6 +447,7 @@ FDAI_INGESTION_GATEWAY_DEV_MODE=1 \
 | `GET /ingestion/uploads/{upload_id}` | resumable transfer와 processing status |
 | `GET /ingestion/uploads/{upload_id}/handover-draft` | `handover_bootstrap` purpose의 권한 적용 grounded steward-map draft |
 | `POST /ingestion/uploads/{upload_id}/cancel` | grant를 revoke하고 partial data 정리 |
+| `GET /documents/search?q=...&collection_id=...` | 인증과 collection scope가 적용된 citation 포함 semantic retrieval |
 | `GET /documents/{document_id}/versions` | 권한이 적용된 metadata와 state history |
 | `DELETE /documents/{document_id}/versions/{version_id}` | governed deletion 요청 |
 

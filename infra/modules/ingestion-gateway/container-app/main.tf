@@ -163,6 +163,10 @@ resource "azurerm_container_app" "ingestion" {
         name  = "FDAI_DOCUMENT_POLICY_VERSION"
         value = var.policy_version
       }
+      env {
+        name  = "FDAI_DOCUMENT_COLLECTIONS"
+        value = var.document_collections
+      }
     }
 
     container {

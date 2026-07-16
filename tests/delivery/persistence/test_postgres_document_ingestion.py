@@ -108,6 +108,8 @@ async def test_live_metadata_crud_and_active_version_replacement() -> None:
         await store.save_version(second_version)
 
         assert await store.get_upload(first_session.upload_id) == promoted_session
+        pending = await store.list_uploads_by_state(DocumentState.RECEIVED.value, limit=100)
+        assert first_session.upload_id in {session.upload_id for session in pending}
         persisted_first = await store.get_version(
             first_version.document_id, first_version.version_id
         )

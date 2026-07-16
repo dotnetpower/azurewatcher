@@ -610,6 +610,12 @@ variable "document_policy_version" {
   default = "prod-policy-v1"
 }
 
+variable "document_collections" {
+  description = "Comma-separated governed collection ids accepted by the ingestion gateway."
+  type        = string
+  default     = "shared-knowledge"
+}
+
 variable "ingestion_min_replicas" {
   type    = number
   default = 1
@@ -617,7 +623,12 @@ variable "ingestion_min_replicas" {
 
 variable "ingestion_max_replicas" {
   type    = number
-  default = 3
+  default = 1
+
+  validation {
+    condition     = var.ingestion_max_replicas == 1
+    error_message = "ingestion_max_replicas MUST remain 1 until distributed upload claiming is implemented."
+  }
 }
 
 # ---------------------------------------------------------------------------

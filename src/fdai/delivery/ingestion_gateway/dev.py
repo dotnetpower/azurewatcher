@@ -128,11 +128,13 @@ def app() -> Starlette:
         authenticator=authenticator,
         service=service,
         worker=worker,
+        search_index=document_index,
         handover_drafts=handover_drafts,
         config=IngestionGatewayConfig(
             dev_mode=True,
             direct_upload=True,
             cors_allow_origins=_cors_origins_from_env(),
+            allowed_collections=(_LOCAL_COLLECTION,),
         ),
     )
     application.state.document_index = document_index

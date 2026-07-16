@@ -235,6 +235,13 @@ resource "azurerm_role_assignment" "ingestion_eventhubs_sender" {
   principal_id         = module.ingestion_identity[0].principal_id
 }
 
+resource "azurerm_role_assignment" "ingestion_eventhubs_receiver" {
+  count                = var.enable_document_ingestion ? 1 : 0
+  scope                = module.event_bus.namespace_id
+  role_definition_name = "Azure Event Hubs Data Receiver"
+  principal_id         = module.ingestion_identity[0].principal_id
+}
+
 resource "azurerm_role_assignment" "inventory_reader" {
   scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
   role_definition_name = "Reader"
@@ -866,7 +873,7 @@ module "ingestion_gateway" {
   source = "./modules/ingestion-gateway/container-app"
 
   name                         = "ca-${var.workload}${local.full_suffix}-ingestion"
-  migrate_job_name             = "caj-${var.workload}${local.full_suffix}-ingestion-migrate"
+  migrate_job_name             = "caj-${var.workload}${local.full_suffix}-docmig"
   container_app_environment_id = module.compute.environment_id
   location                     = var.region
   resource_group_name          = module.resource_group.name
@@ -897,6 +904,7 @@ module "ingestion_gateway" {
   chunk_max_chars              = var.document_chunk_max_chars
   chunk_overlap                = var.document_chunk_overlap
   policy_version               = var.document_policy_version
+  document_collections         = var.document_collections
   min_replicas                 = var.ingestion_min_replicas
   max_replicas                 = var.ingestion_max_replicas
   acr_login_server             = module.container_registry.login_server
@@ -905,6 +913,7 @@ module "ingestion_gateway" {
   depends_on = [
     azurerm_role_assignment.ingestion_acr_pull,
     azurerm_role_assignment.ingestion_eventhubs_sender,
+    azurerm_role_assignment.ingestion_eventhubs_receiver,
     azurerm_role_assignment.ingestion_kv_secrets_user,
     azurerm_role_assignment.ingestion_document_data,
     module.document_blob_private_endpoint,

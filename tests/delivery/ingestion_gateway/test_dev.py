@@ -135,3 +135,11 @@ def test_dev_gateway_chunks_embeds_and_indexes_uploaded_document(
     assert len(hits) == 2
     assert {hit.metadata["locator"] for hit in hits} == {"line:1", "line:2"}
     assert all(hit.source_ref.startswith("document://") for hit in hits)
+
+    response = client.get(
+        "/documents/search",
+        params={"q": "disk full", "collection_id": "shared-knowledge", "limit": 2},
+    )
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == 2
+    assert {item["locator"] for item in response.json()["items"]} == {"line:1", "line:2"}

@@ -1,7 +1,7 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: f43aad78cd424c0cbee44c23a78f9e0bd9931527
+translation_source_sha: eb2d899a71fc66024da72394c61ea40b557595c6
 translation_revised: 2026-07-16
 ---
 
@@ -485,6 +485,9 @@ flowchart TD
 | `FDAI_READ_API_DEV_MODE` | env | dev-only | `1` 은 로컬 개발용으로 read API 의 Entra JWT 검증을 우회. staging / prod 에서 **금지**. |
 | `FDAI_READ_API_LOCAL_ENTRA` | env | dev-only | `1` 은 로컬 seed 하네스를 **실제** Entra JWT 검증과 함께 실행(`FDAI_ENTRA_TENANT_ID` + `FDAI_API_AUDIENCE` 필요)해 로컬에서 사인인 테스트 가능. dev-mode 와 상호배타; staging / prod 에서 **금지**. |
 | `FDAI_LOCAL_SCENARIO_REPLAY` | env | dev-only | 기본값은 미설정이며 Live와 Agents stream은 조용히 대기합니다. 생성 scenario demo가 명시적으로 필요할 때만 `1`로 설정하며 staging / prod에서는 설정하지 않습니다. |
+| `FDAI_LOCAL_AZURE_DISCOVERY` | env | dev-only | `1`이면 synthetic 로컬 Architecture graph를 읽기 전용 Azure CLI discovery로 교체합니다. 명시적인 로컬 subscription id가 필요합니다. |
+| `FDAI_LOCAL_AZURE_SUBSCRIPTION_ID` | env | dev-only | 로컬 Azure discovery가 활성화될 때 모든 `az group/resource list` 호출에 전달하는 subscription입니다. 채워진 값을 commit하지 않습니다. |
+| `FDAI_LOCAL_AZURE_CONFIG_DIR` | env | dev-only | 선택적 격리 Azure CLI profile입니다. 미설정 시 adapter가 상속된 `AZURE_CONFIG_DIR`를 제거하고 기본 profile을 사용합니다. |
 | `FDAI_POLICIES_ROOT` | env | fork | T0 와 verifier 가 소비하는 OPA / Rego 번들 루트의 절대 경로. 미설정 시 in-repo `policies/` 를 기본값. |
 | `FDAI_MI_CLIENT_ID` | env | upstream | 현재 process의 user-assigned MI client id. Core에는 executor id를 주입하고 inventory job에는 별도 read-only discovery id를 주입합니다. |
 | `FDAI_MEASUREMENT_MODE` | env | upstream | `shadow` (기본) 또는 `enforce` - `infra/modules/measurement-runners/` 의 Container Apps Jobs 러너를 지배. |

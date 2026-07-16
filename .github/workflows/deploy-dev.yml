@@ -12,7 +12,10 @@ name: deploy-dev
 #   - Repo variables (Settings > Secrets and variables > Actions > Variables):
 #       ARM_SUBSCRIPTION_ID, AZURE_REGION, AZURE_REGION_SHORT, AZURE_TENANT_ID,
 #       OPS_RESOURCE_GROUP_NAME, OPS_VNET_ID, OPS_VNET_NAME, STATE_STORAGE_ACCOUNT,
-#       ENTRA_CONSOLE_SPA_CLIENT_ID (required when deploy_console=true)
+#       ENTRA_CONSOLE_SPA_CLIENT_ID (required when deploy_console=true),
+#       RESOLVED_CAPABILITIES_JSON, READ_API_AUDIENCE, RBAC_*_GROUP_ID,
+#       INGESTION_CORS_ALLOW_ORIGINS, CLAMAV_IMAGE
+#       (required when deploy_document_ingestion=true; prod images use digests)
 #   - Repo secrets:
 #       POSTGRES_ADMIN_LOGIN, POSTGRES_ADMIN_PASSWORD
 #   - Production workflow inputs:
@@ -89,6 +92,8 @@ jobs:
       TF_VAR_enable_console: ${{ inputs.deploy_console }}
       TF_VAR_enable_read_api: ${{ inputs.deploy_read_api }}
       TF_VAR_enable_document_ingestion: ${{ inputs.deploy_document_ingestion }}
+      TF_VAR_enable_llm: ${{ inputs.deploy_document_ingestion || vars.ENABLE_LLM == 'true' }}
+      TF_VAR_resolved_capabilities: ${{ vars.RESOLVED_CAPABILITIES_JSON }}
       # Read-API image + Entra/RBAC ids (tenant-specific; via repo Variables,
       # never committed). Empty when deploy_read_api is false.
       TF_VAR_read_api_image: ${{ vars.READ_API_IMAGE }}
@@ -101,8 +106,9 @@ jobs:
       TF_VAR_rbac_break_glass_group_id: ${{ vars.RBAC_BREAK_GLASS_GROUP_ID }}
       TF_VAR_read_api_cors_allow_origins: ${{ vars.READ_API_CORS_ALLOW_ORIGINS }}
       TF_VAR_ingestion_image: ${{ vars.INGESTION_IMAGE }}
-      TF_VAR_clamav_image: ${{ vars.CLAMAV_IMAGE }}
+      TF_VAR_clamav_image: ${{ vars.CLAMAV_IMAGE || 'clamav/clamav:stable' }}
       TF_VAR_ingestion_cors_allow_origins: ${{ vars.INGESTION_CORS_ALLOW_ORIGINS }}
+      TF_VAR_ingestion_embedding_capability: ${{ vars.INGESTION_EMBEDDING_CAPABILITY || 't1.embedding' }}
       TF_VAR_runner_vnet_id: ${{ vars.OPS_VNET_ID }}
       TF_VAR_runner_vnet_name: ${{ vars.OPS_VNET_NAME }}
       TF_VAR_ops_resource_group_name: ${{ vars.OPS_RESOURCE_GROUP_NAME }}

@@ -21,6 +21,7 @@ import uuid
 from collections.abc import Sequence
 from pathlib import Path
 
+import psycopg
 import pytest
 
 from fdai.delivery.pgvector.knowledge import (
@@ -186,6 +187,15 @@ async def test_topk_rank_parity_with_reference() -> None:
         for doc_id, ref, text in _CORPUS
     ]
 
+    async def clean_corpus() -> None:
+        async with await psycopg.AsyncConnection.connect(dsn) as connection:
+            await connection.execute(
+                "DELETE FROM knowledge_chunk WHERE source_ref = ANY(%s)",
+                ([source_ref for _, source_ref, _ in _CORPUS],),
+            )
+
+    await clean_corpus()
+
     reference = EmbeddingKnowledgeSource(embedder=embedder)
     await reference.ingest(docs)
 
@@ -194,15 +204,18 @@ async def test_topk_rank_parity_with_reference() -> None:
         embedder=embedder,
         secrets=_StaticSecrets({"db/dsn": dsn}),
     )
-    added = await adapter.ingest(docs)
-    assert added == len(docs)  # one chunk per short doc
+    try:
+        added = await adapter.ingest(docs)
+        assert added == len(docs)  # one chunk per short doc
 
-    query = "disk full free space"
-    ref_hits = await reference.search(query, k=3)
-    # The reference sees only this run's docs; the adapter shares a table,
-    # so restrict the adapter ranking to this run's doc ids before comparing.
-    adapter_hits = [c for c in await adapter.search(query, k=20) if c.doc_id.startswith(prefix)][:3]
+        query = "disk full free space"
+        ref_hits = await reference.search(query, k=3)
+        adapter_hits = await adapter.search(query, k=3)
 
-    assert [c.chunk_id for c in adapter_hits] == [c.chunk_id for c in ref_hits]
-    # Top hit is the disk doc for both.
-    assert adapter_hits[0].doc_id == f"{prefix}-doc-disk"
+        # Top hit is deterministic. CPU and network have the same score for this
+        # query, so PostgreSQL may return that tied pair in either order.
+        assert adapter_hits[0].chunk_id == ref_hits[0].chunk_id
+        assert {c.chunk_id for c in adapter_hits[1:]} == {c.chunk_id for c in ref_hits[1:]}
+        assert adapter_hits[0].doc_id == f"{prefix}-doc-disk"
+    finally:
+        await clean_corpus()

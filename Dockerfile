@@ -5,9 +5,9 @@
 #   2. the same digest starts a clean runtime that receives only the venv and data.
 #
 # Notes:
-# - No cloud SDK is required at runtime for local-fake mode; httpx +
-#   pydantic + jsonschema are enough. Azure adapters are imported lazily
-#   by bind_azure_llm_bindings() when llm.mode='azure'.
+# - The frozen runtime includes the ADLS Gen2 async SDK used by the opt-in
+#   production ingestion gateway. Azure adapters still initialize only in
+#   their production composition paths; local-fake mode makes no cloud call.
 # - Runs as a numeric nonroot user (uid 65532). Container Apps enforces read-only fs
 #   on the app volume by default; only the writable OTel/temp mounts are
 #   used.

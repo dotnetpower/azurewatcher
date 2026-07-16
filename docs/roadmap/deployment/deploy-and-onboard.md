@@ -494,6 +494,9 @@ full expanded catalog and defaults are authored during the inventory PR.
 | `FDAI_READ_API_DEV_MODE` | env | dev-only | `1` bypasses Entra JWT validation in the read API for local dev. MUST NOT be set in staging / prod. |
 | `FDAI_READ_API_LOCAL_ENTRA` | env | dev-only | `1` runs the local seed harness with **real** Entra JWT verification (requires `FDAI_ENTRA_TENANT_ID` + `FDAI_API_AUDIENCE`) so sign-in can be tested locally. Mutually exclusive with dev-mode; MUST NOT be set in staging / prod. |
 | `FDAI_LOCAL_SCENARIO_REPLAY` | env | dev-only | Unset by default, leaving Live and Agents streams quiet. Set to `1` only for an explicit generated-scenario demo; never set it in staging / prod. |
+| `FDAI_LOCAL_AZURE_DISCOVERY` | env | dev-only | `1` replaces the synthetic local Architecture graph with read-only Azure CLI discovery. Requires an explicit local subscription id. |
+| `FDAI_LOCAL_AZURE_SUBSCRIPTION_ID` | env | dev-only | Subscription passed to every local `az group/resource list` call when local Azure discovery is enabled. Never commit a populated value. |
+| `FDAI_LOCAL_AZURE_CONFIG_DIR` | env | dev-only | Optional isolated Azure CLI profile. When omitted, the adapter removes an inherited `AZURE_CONFIG_DIR` and uses the default profile. |
 | `FDAI_POLICIES_ROOT` | env | fork | absolute path to the OPA / Rego bundle root consumed by T0 and the verifier. Defaults to the in-repo `policies/` when unset. |
 | `FDAI_MI_CLIENT_ID` | env | upstream | User-assigned MI client id for the current process. The core receives the executor id; the inventory job receives its distinct read-only discovery id. |
 | `FDAI_MEASUREMENT_MODE` | env | upstream | `shadow` (default) or `enforce` - governs the Container Apps Jobs runners in `infra/modules/measurement-runners/`. |
