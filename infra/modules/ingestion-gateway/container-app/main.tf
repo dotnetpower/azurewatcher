@@ -3,6 +3,7 @@ resource "azurerm_container_app" "ingestion" {
   container_app_environment_id = var.container_app_environment_id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
 
   identity {
     type         = "UserAssigned"
@@ -189,6 +190,7 @@ resource "azurerm_container_app_job" "migrate" {
   container_app_environment_id = var.container_app_environment_id
   resource_group_name          = var.resource_group_name
   location                     = var.location
+  workload_profile_name        = "Consumption"
   replica_timeout_in_seconds   = 600
   replica_retry_limit          = 1
 

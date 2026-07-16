@@ -18,6 +18,7 @@ resource "azurerm_container_app_job" "rule_watcher" {
   container_app_environment_id = azurerm_container_app_environment.primary.id
   resource_group_name          = var.resource_group_name
   location                     = var.location
+  workload_profile_name        = "Consumption"
   // Rule watcher is a short-lived batch: pull each due source, snapshot,
   // verify. Anything longer means a source manifest points at a huge tree
   // and needs its own dedicated job.

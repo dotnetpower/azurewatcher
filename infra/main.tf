@@ -416,6 +416,10 @@ resource "azurerm_private_dns_a_record" "document_blob_ops" {
   ttl                 = 300
   records             = [module.document_blob_private_endpoint[0].private_ip_address]
   tags                = merge(local.tags, { "fdai:component" = "document-ingestion" })
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }
 
 module "document_dfs_private_endpoint" {

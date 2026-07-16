@@ -29,6 +29,7 @@ resource "azurerm_container_app_job" "baseline_regression" {
   container_app_environment_id = var.container_app_environment_id
   resource_group_name          = var.resource_group_name
   location                     = var.location
+  workload_profile_name        = "Consumption"
   // One full replay of the P0 scenario set. If a replay takes longer than
   // this, the scenario set has grown past its budget and needs to be split.
   replica_timeout_in_seconds = 1800
@@ -101,6 +102,7 @@ resource "azurerm_container_app_job" "pattern_growth" {
   container_app_environment_id = var.container_app_environment_id
   resource_group_name          = var.resource_group_name
   location                     = var.location
+  workload_profile_name        = "Consumption"
   // A single drain of the audit outcome stream. Anything longer indicates
   // the audit tail grew unboundedly and the drain cadence needs to be
   // shortened, not this timeout raised.

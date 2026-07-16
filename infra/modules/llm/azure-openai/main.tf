@@ -36,6 +36,12 @@ resource "azurerm_cognitive_deployment" "capability" {
     name     = each.value.sku
     capacity = each.value.capacity_units
   }
+
+  # Azure resolves the current compatible model version when configuration
+  # intentionally leaves it unpinned. Do not plan a null reset on every run.
+  lifecycle {
+    ignore_changes = [model[0].version]
+  }
 }
 
 # Runtime role: executor MI invokes deployments as an AOAI User (data-plane).

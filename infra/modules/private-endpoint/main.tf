@@ -14,6 +14,12 @@ resource "azurerm_private_dns_zone" "this" {
   name                = var.private_dns_zone_name
   resource_group_name = var.resource_group_name
   tags                = var.tags
+
+  # Some tenant policies normalize Private DNS tags after writes. The zone's
+  # security boundary is its links and records, so tag churn is non-functional.
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "this" {
@@ -23,6 +29,10 @@ resource "azurerm_private_dns_zone_virtual_network_link" "this" {
   virtual_network_id    = var.vnet_id
   registration_enabled  = false
   tags                  = var.tags
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }
 
 # Additional VNet links (e.g. a peered ops/hub VNet) so a runner outside the
@@ -35,6 +45,10 @@ resource "azurerm_private_dns_zone_virtual_network_link" "extra" {
   virtual_network_id    = each.value
   registration_enabled  = false
   tags                  = var.tags
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }
 
 resource "azurerm_private_endpoint" "this" {

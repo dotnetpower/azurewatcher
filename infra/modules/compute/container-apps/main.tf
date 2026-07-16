@@ -9,6 +9,11 @@ resource "azurerm_container_app_environment" "primary" {
   # environment used on an unrestricted tenant.
   infrastructure_subnet_id = var.infrastructure_subnet_id
   tags                     = var.tags
+
+  workload_profile {
+    name                  = "Consumption"
+    workload_profile_type = "Consumption"
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -76,6 +81,7 @@ resource "azurerm_container_app" "core" {
   container_app_environment_id = azurerm_container_app_environment.primary.id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
 
   identity {
     type         = "UserAssigned"
@@ -259,6 +265,7 @@ resource "azurerm_container_app_job" "oob" {
   container_app_environment_id = azurerm_container_app_environment.primary.id
   resource_group_name          = var.resource_group_name
   location                     = var.location
+  workload_profile_name        = "Consumption"
   replica_timeout_in_seconds   = 300
   replica_retry_limit          = 3
 
