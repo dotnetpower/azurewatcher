@@ -421,6 +421,11 @@ export default defineConfig({
               link: "/reference/roadmap/decisioning/risk-classification/",
             },
             {
+              label: "Architecture Review Board",
+              translations: { ko: "\uc544\ud0a4\ud14d\ucc98 \uac80\ud1a0 \ubcf4\ub4dc" },
+              link: "/reference/roadmap/architecture/architecture-review-board/",
+            },
+            {
               label: "Implementation plan",
               translations: { ko: "\uad6c\ud604 \uacc4\ud68d" },
               link: "/reference/roadmap/fork-and-sequencing/implementation-plan/",

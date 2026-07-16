@@ -80,7 +80,7 @@ FDAI, and keeps deep engineering internals on GitHub only.
   (`README`, `goals-and-metrics`, `risk-classification`, `operator-console`,
   `channels-and-notifications`, `deploy-and-onboard`, `deployment-preflight`,
   `preflight-active-reassembly`, `implementation-plan`, `agent-workflows`,
-  `operational-readiness`).
+  `operational-readiness`, `architecture-review-board`).
 - **Out (GitHub only)**: the rest of `docs/roadmap/**` - deep internals
   (`project-structure`, `tech-stack`, `csp-neutrality`, `execution-model`,
   `llm-strategy`, `prompt-composition`, `assurance-twin`,

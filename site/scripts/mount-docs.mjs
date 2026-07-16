@@ -70,6 +70,7 @@ const ROADMAP_SITE_ALLOWLIST = new Set([
   "implementation-plan",
   "agent-workflows",
   "operational-readiness",
+  "architecture-review-board",
 ]);
 
 /**
