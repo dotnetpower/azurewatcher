@@ -539,17 +539,24 @@ header.header :is(a, button, .social-icons a) {
   color: #e6e9f0;
 }
 /*
- * Header layout: a symmetric 3-column grid keeps Search centred. The
- * centre track is widened (up to 650px) and Search fills it, so the box
- * is a comfortable size instead of the tiny default pill.
+ * Header layout: the brand (left) and controls (right) are sized to their
+ * content and take priority; Search fills the flexible centre track. The
+ * search box is centred and capped at a comfortable width, but the track is
+ * `minmax(0, 1fr)` so it shrinks with the viewport instead of crowding the
+ * logo on a narrow window.
  */
 header.header .header {
-  grid-template-columns: 1fr minmax(0, 650px) 1fr;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: clamp(0.5rem, 2.5vw, 1.5rem);
 }
 header.header .right-group {
   justify-self: end;
 }
-header.header .sl-flex:has(> site-search),
+header.header .sl-flex:has(> site-search) {
+  justify-self: center;
+  width: 100%;
+  max-width: 640px;
+}
 header.header site-search,
 header.header site-search button {
   width: 100%;
