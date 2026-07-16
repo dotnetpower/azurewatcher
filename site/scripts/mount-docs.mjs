@@ -68,6 +68,8 @@ const ROADMAP_SITE_ALLOWLIST = new Set([
   "deployment-preflight",
   "preflight-active-reassembly",
   "implementation-plan",
+  "agent-workflows",
+  "operational-readiness",
 ]);
 
 /**

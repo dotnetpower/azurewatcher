@@ -73,10 +73,14 @@ FDAI, and keeps deep engineering internals on GitHub only.
 - **In (full)**: [docs/user-guide/**](../docs/user-guide/) - Get Started,
   Concepts, and Guides (both English and Korean pairs via i18n).
 - **In (curated)**: a small operator- and configuration-facing subset of
-  [docs/roadmap/**](../docs/roadmap/), published under `/reference/roadmap/`.
-  The allowlist lives in [`ROADMAP_SITE_ALLOWLIST`](scripts/mount-docs.mjs)
+  [docs/roadmap/**](../docs/roadmap/), surfaced through the redesigned,
+  customer-facing sidebar (How FDAI decides, The operating model, Capabilities,
+  Deploy & onboard, Operate, Reference). The allowlist lives in
+  [`ROADMAP_SITE_ALLOWLIST`](scripts/mount-docs.mjs)
   (`README`, `goals-and-metrics`, `risk-classification`, `operator-console`,
-  `channels-and-notifications`, `deploy-and-onboard`, `deployment-preflight`).
+  `channels-and-notifications`, `deploy-and-onboard`, `deployment-preflight`,
+  `preflight-active-reassembly`, `implementation-plan`, `agent-workflows`,
+  `operational-readiness`).
 - **Out (GitHub only)**: the rest of `docs/roadmap/**` - deep internals
   (`project-structure`, `tech-stack`, `csp-neutrality`, `execution-model`,
   `llm-strategy`, `prompt-composition`, `assurance-twin`,

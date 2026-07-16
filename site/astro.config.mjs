@@ -282,29 +282,148 @@ export default defineConfig({
       ],
       sidebar: [
         {
-          label: "Get Started",
+          label: "Get started",
           translations: { ko: "\uc2dc\uc791\ud558\uae30" },
           link: "/get-started/",
         },
         {
-          label: "Concepts",
-          translations: { ko: "\uac1c\ub150" },
-          autogenerate: { directory: "concepts" },
+          label: "How FDAI decides",
+          translations: { ko: "FDAI\uc758 \ud310\ub2e8 \ubc29\uc2dd" },
+          items: [
+            {
+              label: "Deterministic first",
+              translations: { ko: "\uacb0\uc815\ub860 \uc6b0\uc120" },
+              link: "/concepts/deterministic-first/",
+            },
+            {
+              label: "Trust tiers (T0/T1/T2)",
+              translations: { ko: "\uc2e0\ub8b0 \ud2f0\uc5b4" },
+              link: "/concepts/risk-tiers/",
+            },
+            {
+              label: "Shadow, then enforce",
+              translations: { ko: "\uc12c\ub3c4\uc6b0 \ud6c4 \uac15\uc81c" },
+              link: "/concepts/shadow-then-enforce/",
+            },
+          ],
         },
         {
-          label: "Guides",
-          translations: { ko: "\uac00\uc774\ub4dc" },
-          autogenerate: { directory: "guides" },
+          label: "The operating model",
+          translations: { ko: "\uc6b4\uc601 \ubaa8\ub378" },
+          items: [
+            {
+              label: "Ontology-driven automation",
+              translations: { ko: "\uc628\ud1a0\ub85c\uc9c0 \uae30\ubc18 \uc790\ub3d9\ud654" },
+              link: "/concepts/ontology-driven-automation/",
+            },
+            {
+              label: "Workflows & processes",
+              translations: { ko: "\uc6cc\ud06c\ud50c\ub85c\uc640 \ud504\ub85c\uc138\uc2a4" },
+              link: "/reference/roadmap/agents/agent-workflows/",
+            },
+            {
+              label: "The agent organization",
+              translations: { ko: "\uc5d0\uc774\uc804\ud2b8 \uc870\uc9c1" },
+              link: "/concepts/agents-and-self-healing/",
+            },
+          ],
+        },
+        {
+          label: "Capabilities",
+          translations: { ko: "\uae30\ub2a5" },
+          items: [
+            {
+              label: "Resilience & SRE",
+              translations: { ko: "\ud68c\ubcf5\ud0c4\ub825\uc131\uacfc SRE" },
+              link: "/concepts/sre-foundations/",
+            },
+            {
+              label: "Operational Readiness (dev to ops)",
+              translations: { ko: "\uc6b4\uc601 \uc900\ube44\uc131 \uac80\ud1a0" },
+              link: "/reference/roadmap/operations/operational-readiness/",
+            },
+          ],
+        },
+        {
+          label: "Deploy & onboard",
+          translations: { ko: "\ubc30\ud3ec\uc640 \uc628\ubcf4\ub529" },
+          items: [
+            {
+              label: "Preflight",
+              translations: { ko: "\uc0ac\uc804 \uc810\uac80" },
+              link: "/reference/roadmap/deployment/deployment-preflight/",
+            },
+            {
+              label: "Deploy and onboard",
+              translations: { ko: "\ubc30\ud3ec\uc640 \uc628\ubcf4\ub529" },
+              link: "/reference/roadmap/deployment/deploy-and-onboard/",
+            },
+          ],
+        },
+        {
+          label: "Operate",
+          translations: { ko: "\uc6b4\uc601" },
+          items: [
+            {
+              label: "Operator console",
+              translations: { ko: "\uc6b4\uc601\uc790 \ucf58\uc194" },
+              link: "/reference/roadmap/interfaces/operator-console/",
+            },
+            {
+              label: "Approvals & channels",
+              translations: { ko: "\uc2b9\uc778\uacfc \ucc44\ub110" },
+              link: "/concepts/approvals-and-channels/",
+            },
+            {
+              label: "Notification channels",
+              translations: { ko: "\uc54c\ub9bc \ucc44\ub110" },
+              link: "/reference/roadmap/interfaces/channels-and-notifications/",
+            },
+            {
+              label: "Approve a change",
+              translations: { ko: "\ubcc0\uacbd \uc2b9\uc778" },
+              link: "/guides/approve-change/",
+            },
+            {
+              label: "Read the audit log",
+              translations: { ko: "\uac10\uc0ac \ub85c\uadf8 \uc77d\uae30" },
+              link: "/guides/read-audit-log/",
+            },
+            {
+              label: "Override a rule",
+              translations: { ko: "\uaddc\uce59 \uc624\ubc84\ub77c\uc774\ub4dc" },
+              link: "/guides/override-a-rule/",
+            },
+          ],
         },
         {
           label: "Reference",
           translations: { ko: "\ub808\ud37c\ub7f0\uc2a4" },
           items: [
             {
-              label: "Roadmap",
-              translations: { ko: "\ub85c\ub4dc\ub9f5" },
-              autogenerate: { directory: "reference/roadmap" },
-              collapsed: true,
+              label: "Goals & metrics",
+              translations: { ko: "\ubaa9\ud45c\uc640 \uba54\ud2b8\ub9ad" },
+              link: "/reference/roadmap/architecture/goals-and-metrics/",
+            },
+            {
+              label: "Risk classification",
+              translations: { ko: "\ub9ac\uc2a4\ud06c \ubd84\ub958" },
+              link: "/reference/roadmap/decisioning/risk-classification/",
+            },
+            {
+              label: "Implementation plan",
+              translations: { ko: "\uad6c\ud604 \uacc4\ud68d" },
+              link: "/reference/roadmap/fork-and-sequencing/implementation-plan/",
+            },
+            {
+              label: "Preflight active reassembly",
+              translations: { ko: "\uc0ac\uc804\uc810\uac80 \ub2a5\ub3d9 \uc7ac\uc870\ub9bd" },
+              link: "/reference/roadmap/deployment/preflight-active-reassembly/",
+            },
+            {
+              label: "Full roadmap",
+              translations: { ko: "\uc804\uccb4 \ub85c\ub4dc\ub9f5" },
+              link: "/reference/roadmap/",
             },
           ],
         },
