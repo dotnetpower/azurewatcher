@@ -291,6 +291,10 @@ source version: every `version_id` receives a new opaque path. Optional immutabl
 legal holds remain collection policy. Customer-managed keys are a fork policy choice, not a value
 hard-coded upstream.
 
+Before quarantine promotion, the ADLS adapter creates each governed HNS parent directory
+idempotently. If a rename response is lost, retry treats an existing governed target as success;
+it reports a missing source only when neither the source nor target can complete the promotion.
+
 The public console sends bytes to the authenticated ingestion gateway. The gateway validates the
 declared size, streams the request to private ADLS without buffering the whole file, seals SHA-256
 and size metadata, and publishes `document.received` to the shared `aw.pipeline.stages` topic. A durable Kafka

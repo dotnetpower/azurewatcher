@@ -10,7 +10,7 @@ from typing import Any, Final
 from uuid import UUID
 
 from azure.core.credentials import AccessToken
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.storage.filedatalake.aio import DataLakeServiceClient
 
 from fdai.shared.contracts import DocumentEnvelope, UploadSession
@@ -184,6 +184,7 @@ class AzureDataLakeObjectStore:
         if session.object_key.startswith("governed/"):
             return session.object_key
         target = self.governed_key(session)
+        await self._ensure_parent_directories(target)
         source = self._files.get_file_client(session.object_key)
         try:
             await source.rename_file(
@@ -191,8 +192,25 @@ class AzureDataLakeObjectStore:
                 timeout=self._config.operation_timeout_seconds,
             )
         except ResourceNotFoundError as exc:
-            raise DocumentNotFoundError("source object was not found during promotion") from exc
+            try:
+                await self._files.get_file_client(target).get_file_properties(
+                    timeout=self._config.operation_timeout_seconds
+                )
+            except ResourceNotFoundError:
+                raise DocumentNotFoundError("source object was not found during promotion") from exc
         return target
+
+    async def _ensure_parent_directories(self, target: str) -> None:
+        parts = target.rsplit("/", 1)[0].split("/")
+        for index in range(1, len(parts) + 1):
+            directory = "/".join(parts[:index])
+            try:
+                await self._files.create_directory(
+                    directory,
+                    timeout=self._config.operation_timeout_seconds,
+                )
+            except ResourceExistsError:
+                continue
 
     @staticmethod
     def governed_key(session: UploadSession) -> str:

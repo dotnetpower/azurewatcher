@@ -10,6 +10,7 @@ from typing import Any, cast
 from uuid import UUID
 
 import pytest
+from azure.core.exceptions import ResourceNotFoundError
 
 from fdai.delivery.azure.document_storage import (
     AzureDataLakeArtifactStore,
@@ -60,6 +61,7 @@ class _File:
         self.metadata: dict[str, str] = {}
         self.deleted = False
         self.renamed_to: str | None = None
+        self.rename_not_found = False
 
     async def upload_data(self, data: Any, **_kwargs: Any) -> dict[str, str]:
         if hasattr(data, "__aiter__"):
@@ -88,6 +90,8 @@ class _File:
         self.deleted = True
 
     async def rename_file(self, new_name: str, **_kwargs: Any) -> _File:
+        if self.rename_not_found:
+            raise ResourceNotFoundError("source missing after completed rename")
         self.renamed_to = new_name
         return self
 
@@ -95,9 +99,13 @@ class _File:
 class _FileSystem:
     def __init__(self) -> None:
         self.files: dict[str, _File] = {}
+        self.created_directories: list[str] = []
 
     def get_file_client(self, path: str) -> _File:
         return self.files.setdefault(path, _File(path))
+
+    async def create_directory(self, path: str, **_kwargs: Any) -> None:
+        self.created_directories.append(path)
 
 
 class _Service:
@@ -200,7 +208,14 @@ async def test_object_store_streams_hashes_reads_and_promotes() -> None:
     assert content == b"content"
     collection = hashlib.sha256(b"shared-knowledge").hexdigest()[:16]
     assert promoted == f"governed/{collection}/{_DOCUMENT_ID.hex}/{_VERSION_ID.hex}/source"
-    source = service.file_systems["documents"].files[session.object_key]
+    file_system = service.file_systems["documents"]
+    assert file_system.created_directories == [
+        "governed",
+        f"governed/{collection}",
+        f"governed/{collection}/{_DOCUMENT_ID.hex}",
+        f"governed/{collection}/{_DOCUMENT_ID.hex}/{_VERSION_ID.hex}",
+    ]
+    source = file_system.files[session.object_key]
     assert source.renamed_to == f"documents/{promoted}"
 
 
@@ -213,6 +228,20 @@ async def test_object_store_deletes_partial_oversized_upload() -> None:
         await store.put_stream(key, _chunks(b"12345", b"67890"), expected_size=8, max_size=8)
 
     assert service.file_systems["documents"].files[key].deleted is True
+
+
+async def test_object_store_promotion_accepts_existing_governed_target() -> None:
+    service = _Service()
+    store = AzureDataLakeObjectStore(config=_config(), service_client=cast(Any, service))
+    session = _session()
+    file_system = service.get_file_system_client("documents")
+    file_system.get_file_client(session.object_key).rename_not_found = True
+    target = store.governed_key(session)
+    file_system.get_file_client(target).data = b"content"
+
+    promoted = await store.promote(session)
+
+    assert promoted == target
 
 
 async def test_artifact_store_persists_and_deletes_envelope() -> None:
