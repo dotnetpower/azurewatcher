@@ -770,6 +770,34 @@ The dev-mode env var is a **boot-time tripwire** - the API refuses to build a
 `dev_mode=True` app unless `FDAI_READ_API_DEV_MODE=1` is set. A fork's
 production build pipeline never sets that env var.
 
+### Auto-open the narrator endpoint (local dev)
+
+When the Command Deck shows a `deterministic` badge even though a keyless
+narrator is wired, the usual cause is that the Azure OpenAI account behind the
+narrator has `publicNetworkAccess: Disabled` (a tenant policy can flip it), so
+every call from the laptop returns `403 "Public access is disabled"` and the
+`/chat/health` mode reads `azure-ad-routed-unavailable`.
+
+The **local** read API reconciles this at startup **by default**: it finds the
+account behind the narrator endpoint and, only when the endpoint is
+unreachable, adds this machine's current public IP to the account firewall and
+enables restricted public access (`defaultAction: Deny` plus the single IP). An
+already-reachable account is left untouched. Disable the hook with
+`FDAI_NARRATOR_AUTO_OPEN_AOAI=0` (also accepts `false` / `no` / `off`).
+
+```sh
+# Auto-open runs by default; set the flag to 0 to opt out.
+FDAI_READ_API_LOCAL_AZURE_CLI=1 \
+  uv run uvicorn 'fdai.delivery.read_api.dev.local:app' \
+    --factory --host 127.0.0.1 --port 8010
+```
+
+The hook is **local-dev only and fail-safe**: it shells out to `az`
+against the developer's own signed-in subscription, and any failure (no `az`
+CLI, not logged in, RBAC denied, dynamic IP changed) is logged and swallowed so
+the API still boots and the console keeps working via the deterministic
+fallback. It is never wired into a production build.
+
 ## Local Azure CLI sign-in
 
 Use this mode when you want the local console to reuse the interactive account

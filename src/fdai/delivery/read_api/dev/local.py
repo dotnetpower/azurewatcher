@@ -1367,6 +1367,20 @@ def app() -> Starlette:
 
     chat_backend = _build_chat_backend()
     chat_web_search = _build_chat_web_search()
+
+    async def open_narrator_endpoint() -> None:
+        """Local-dev startup hook (on by default; disable with
+        ``FDAI_NARRATOR_AUTO_OPEN_AOAI=0``): ensure the narrator's Azure OpenAI
+        account allows this machine's IP so the CommandDeck LLM path is
+        reachable instead of falling back to the deterministic answerer.
+        Best-effort and fail-safe - see
+        :mod:`fdai.delivery.read_api.dev.narrator_endpoint_access`."""
+        from fdai.delivery.read_api.dev.narrator_endpoint_access import (
+            ensure_narrator_endpoint_open,
+        )
+
+        await ensure_narrator_endpoint_open(chat_backend)
+
     model_settings = ModelSettingsService(
         resolved_models_path=_REPO_ROOT / "resolved-models.json",
         store=InMemoryStateStore(),
@@ -1440,6 +1454,7 @@ def app() -> Starlette:
             reporting=reporting,
             process_views=process_views,
             startup_callbacks=(seed_user_workflow_ontology, start_pantheon_runtime)
+            + (open_narrator_endpoint,)
             + ((local_operator_runtime.start,) if local_operator_runtime is not None else ()),
             shutdown_callbacks=(stop_pantheon_runtime,)
             + ((local_operator_runtime.stop,) if local_operator_runtime is not None else ())
