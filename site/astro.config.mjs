@@ -343,9 +343,9 @@ export default defineConfig({
               link: "/capabilities/cost-governance/",
             },
             {
-              label: "Resilience & SRE",
-              translations: { ko: "\ud68c\ubcf5\ud0c4\ub825\uc131\uacfc SRE" },
-              link: "/concepts/sre-foundations/",
+              label: "Resilience",
+              translations: { ko: "\ud68c\ubcf5\ud0c4\ub825\uc131" },
+              link: "/capabilities/resilience/",
             },
             {
               label: "Operational Readiness (dev to ops)",
