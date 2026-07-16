@@ -684,9 +684,7 @@
     "previousMatch": "Previous match",
     "nextMatch": "Next match",
     "removeCachedConversation": "Remove cached conversation",
-    "removeCachedConversationHint": "Remove this tab's cached transcript. Audit history is unchanged.",
-    "clearCachedConversation": "Clear cache",
-    "clearCachedConversationHint": "Clear this cached transcript. Audit history is unchanged."
+    "removeCachedConversationHint": "Remove this tab's cached transcript. Audit history is unchanged."
   },
   "workflowBuilder": {
     "subtitle": "Browse and design catalog workflows, or author a governed Python VM task. YAML changes remain PR-native; Python source must validate and stage as an immutable artifact before a shadow plan, schedule, or typed run request."

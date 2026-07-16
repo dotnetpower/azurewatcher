@@ -678,9 +678,7 @@
     "previousMatch": "이전 검색 결과",
     "nextMatch": "다음 검색 결과",
     "removeCachedConversation": "캐시된 대화 제거",
-    "removeCachedConversationHint": "이 탭에 캐시된 대화만 제거합니다. 감사 이력은 유지됩니다.",
-    "clearCachedConversation": "캐시 지우기",
-    "clearCachedConversationHint": "캐시된 대화 내용만 지웁니다. 감사 이력은 유지됩니다."
+    "removeCachedConversationHint": "이 탭에 캐시된 대화만 제거합니다. 감사 이력은 유지됩니다."
   },
   "workflowBuilder": {
     "subtitle": "Catalog workflow를 둘러보고 설계하거나 governed Python VM task를 작성합니다. YAML 변경은 PR-native로 유지되며 Python source는 shadow plan, schedule, typed run request 전에 검증되어 immutable artifact로 stage되어야 합니다."

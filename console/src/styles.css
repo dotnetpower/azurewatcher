@@ -4006,7 +4006,7 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
 }
 .deck-overlay-mode-floating .deck-header,
 .deck-overlay-mode-dock .deck-header {
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 8px;
   padding: 10px 12px;
 }
@@ -4094,7 +4094,7 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
 /* Header --------------------------------------------------------------- */
 .deck-header {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   align-items: center;
   gap: 16px;
   padding: 14px 24px;
@@ -4112,7 +4112,41 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
   color: var(--accent);
   font-size: 16px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
+.deck-header-glyph svg { display: block; }
+/* Compact "new conversation" button - only surfaces in the narrow floating /
+ * dock layouts, where the full conversation sidebar (with its own New
+ * conversation button) is hidden. Workspace mode keeps the sidebar, so this
+ * stays hidden there. */
+.deck-header-new {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.deck-header-new:hover {
+  color: var(--fg);
+  border-color: var(--fg-muted);
+  background: var(--bg-elevated);
+}
+.deck-header-new:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.deck-header-new-glyph { font-size: 15px; line-height: 1; }
+.deck-overlay-mode-floating .deck-header-new,
+.deck-overlay-mode-dock .deck-header-new { display: inline-flex; }
+/* In the tightest floating width, drop the label and keep the + affordance. */
+.deck-overlay-mode-floating .deck-header-new-label { display: none; }
 .deck-header-sep { font-size: 14px; }
 .deck-header-route {
   color: var(--fg-muted);
@@ -5422,7 +5456,48 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
   padding: 12px 20px 16px;
   border-top: 1px solid var(--border);
   background: var(--bg-elevated);
+  position: relative;
 }
+/* Slash-command hint palette - floats just above the composer, never inside
+ * the input grid so it cannot disturb the textarea / actions layout. */
+.deck-slash-palette {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: calc(100% - 6px);
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--fg) 16%, transparent);
+  z-index: 5;
+}
+.deck-slash-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.deck-slash-item:hover,
+.deck-slash-item:focus-visible {
+  background: color-mix(in oklab, var(--accent) 12%, var(--bg));
+  outline: none;
+}
+.deck-slash-name { font-weight: 600; font-size: 13px; }
+.deck-slash-summary { font-size: 12px; }
 .deck-input {
   width: 100%;
   resize: none;
@@ -5436,7 +5511,7 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
   color: var(--fg);
   min-height: 40px;
   max-height: 180px;
-  overflow-y: auto;
+  overflow-y: hidden;
 }
 .deck-input:focus {
   outline: none;

@@ -209,6 +209,48 @@ function routerTooltip(router: RouterSnapshot | undefined): string | undefined {
 
 const DEFAULT_NARRATOR = "Bragi";
 
+/** Local slash commands handled entirely in the composer - they never reach
+ *  the narrator or the typed pipeline. `name` is the canonical token; the
+ *  first alias (if any) is shown as a hint. */
+interface DeckSlashCommand {
+  readonly name: string;
+  readonly aliases: readonly string[];
+  readonly summary: string;
+}
+
+const DECK_SLASH_COMMANDS: readonly DeckSlashCommand[] = [
+  { name: "new", aliases: ["n"], summary: "Start a new conversation" },
+  { name: "clear", aliases: ["c"], summary: "Clear this conversation's cached transcript" },
+  { name: "close", aliases: ["q"], summary: "Close the command deck" },
+  { name: "help", aliases: ["?", "h"], summary: "List the available slash commands" },
+];
+
+/** Parse a composer string into a slash command. Returns `null` when the input
+ *  is not a slash command (normal prompt). For an unrecognised `/token` the
+ *  canonical name is the empty string, which callers render as help. */
+function matchSlashCommand(
+  input: string,
+): { readonly canonical: string; readonly token: string } | null {
+  const trimmed = input.trim();
+  if (!trimmed.startsWith("/") || trimmed.length < 2) return null;
+  const token = trimmed.slice(1).split(/\s+/, 1)[0]?.toLowerCase() ?? "";
+  for (const cmd of DECK_SLASH_COMMANDS) {
+    if (cmd.name === token || cmd.aliases.includes(token)) {
+      return { canonical: cmd.name, token };
+    }
+  }
+  return { canonical: "", token };
+}
+
+/** One-line help block listing every slash command. */
+function slashHelpText(): string {
+  const lines = DECK_SLASH_COMMANDS.map((c) => {
+    const alias = c.aliases.length > 0 ? ` (/${c.aliases.join(", /")})` : "";
+    return `/${c.name}${alias} - ${c.summary}`;
+  });
+  return ["Available commands:", ...lines].join("\n");
+}
+
 export function replyAgent(
   reply: Pick<ProgressiveAnswer, "delegation" | "verification">,
 ): string {
@@ -313,6 +355,23 @@ export function CommandDeck() {
   const searchRef = useRef<HTMLInputElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
+
+  // Auto-grow the composer: keep it one line tall until the text wraps, then
+  // grow with the content up to the CSS max-height. The vertical scrollbar
+  // only appears once the content exceeds that ceiling, so a single-line
+  // prompt never shows an idle scrollbar.
+  const autoGrowInput = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const maxHeight = 180; // keep in sync with .deck-input max-height
+    el.style.height = "auto";
+    const next = Math.min(el.scrollHeight, maxHeight);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, []);
+  useEffect(() => {
+    autoGrowInput();
+  }, [draft, open, autoGrowInput]);
 
   const selectLayoutMode = useCallback((mode: DeckLayoutMode) => {
     setLayoutMode(mode);
@@ -1339,6 +1398,50 @@ export function CommandDeck() {
     }
   }, [cancelActiveRequest]);
 
+  // Append a local narrator-voiced notice (slash-command feedback). It never
+  // hits the backend or the typed pipeline - purely a composer affordance.
+  const appendDeckNotice = useCallback((text: string) => {
+    const turn: Turn = {
+      id: newId(),
+      role: "deck",
+      text,
+      agent: DEFAULT_NARRATOR,
+      terminal: true,
+      at: shortTime(),
+    };
+    setTurns((prev) => [...prev, turn]);
+    turnsRef.current = [...turnsRef.current, turn];
+  }, []);
+
+  // Intercept a `/command` typed in the composer. Returns true when the input
+  // was a slash command (handled locally, not sent to the narrator). Unknown
+  // `/tokens` render the help block instead of reaching the backend.
+  const runSlashCommand = useCallback(
+    (input: string): boolean => {
+      const match = matchSlashCommand(input);
+      if (match === null) return false;
+      setDraft("");
+      switch (match.canonical) {
+        case "new":
+          startNewConversation();
+          break;
+        case "clear":
+          clearTurns();
+          break;
+        case "close":
+          closeDeck();
+          break;
+        case "help":
+          appendDeckNotice(slashHelpText());
+          break;
+        default:
+          appendDeckNotice(`Unknown command "/${match.token}".\n\n${slashHelpText()}`);
+      }
+      return true;
+    },
+    [startNewConversation, clearTurns, closeDeck, appendDeckNotice],
+  );
+
   // Cancel an in-flight reply, keeping whatever streamed so far.
   const stopStream = useCallback(() => {
     const kind = cancelActiveRequest();
@@ -1370,6 +1473,7 @@ export function CommandDeck() {
       const el = e.target as HTMLTextAreaElement;
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
+        if (runSlashCommand(el.value)) return;
         submit(el.value);
         return;
       }
@@ -1395,11 +1499,23 @@ export function CommandDeck() {
         }
       }
     },
-    [submit],
+    [submit, runSlashCommand],
   );
 
   const headline = snapshot?.headline ?? "Idle. Open any route to publish a view snapshot.";
   const routeLabel = snapshot?.routeLabel ?? t("deck.label");
+
+  // Slash-command hint palette: surfaces while the operator is still typing the
+  // command token (a leading `/` with no whitespace yet). Empties out the
+  // moment the input stops looking like a bare command.
+  const slashSuggestions = useMemo(() => {
+    const trimmed = draft.trim();
+    if (!/^\/\S*$/.test(trimmed)) return [] as DeckSlashCommand[];
+    const token = trimmed.slice(1).toLowerCase();
+    return DECK_SLASH_COMMANDS.filter(
+      (c) => c.name.startsWith(token) || c.aliases.some((a) => a.startsWith(token)),
+    );
+  }, [draft]);
 
   return (
     <>
@@ -1460,7 +1576,18 @@ export function CommandDeck() {
               title={layoutMode === "floating" ? "Drag to move" : undefined}
               onMouseDown={startFloatingDrag}
             >
-              <span class="deck-header-glyph" aria-hidden="true">◆</span>
+              <span class="deck-header-glyph" aria-hidden="true">
+                <svg viewBox="0 0 16 16" width="14" height="14">
+                  <path
+                    d="M3 2.75h10a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H7L3.5 14v-2.25H3a1.5 1.5 0 0 1-1.5-1.5v-6A1.5 1.5 0 0 1 3 2.75Z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
               <span>Command deck</span>
               <span class="deck-header-sep muted">·</span>
               <span class="deck-header-route">{routeLabel}</span>
@@ -1526,6 +1653,16 @@ export function CommandDeck() {
                 <kbd>{navigator.platform.toLowerCase().includes("mac") ? "⌘K" : "Ctrl K"}</kbd>
               </div>
             </div>
+            <button
+              type="button"
+              class="deck-header-new"
+              onClick={startNewConversation}
+              title={t("deck.newConversation")}
+              aria-label={t("deck.newConversation")}
+            >
+              <span class="deck-header-new-glyph" aria-hidden="true">+</span>
+              <span class="deck-header-new-label">{t("deck.newConversation")}</span>
+            </button>
             <div class="deck-layout-controls" aria-label="Command deck layout">
               <button
                 type="button"
@@ -1653,28 +1790,40 @@ export function CommandDeck() {
             class="deck-input-row"
             onSubmit={(e) => {
               e.preventDefault();
+              if (runSlashCommand(draft)) return;
               submit(draft);
             }}
           >
+            {slashSuggestions.length > 0 ? (
+              <ul class="deck-slash-palette" aria-label="slash commands">
+                {slashSuggestions.map((cmd) => (
+                  <li key={cmd.name}>
+                    <button
+                      type="button"
+                      class="deck-slash-item"
+                      onMouseDown={(e) => {
+                        // Keep composer focus; run before the input blurs.
+                        e.preventDefault();
+                        runSlashCommand(`/${cmd.name}`);
+                      }}
+                    >
+                      <span class="deck-slash-name">/{cmd.name}</span>
+                      <span class="deck-slash-summary muted">{cmd.summary}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             <textarea
               ref={inputRef}
               class="deck-input"
-              placeholder="Ask anything"
+              placeholder="Ask anything, or type / for commands"
               value={draft}
               rows={1}
               onInput={(e) => setDraft((e.target as HTMLTextAreaElement).value)}
               onKeyDown={onInputKeyDown}
             />
             <div class="deck-input-actions">
-              <button
-                type="button"
-                class="deck-btn deck-btn-secondary"
-                onClick={clearTurns}
-                disabled={turns.length === 0}
-                title={t("deck.clearCachedConversationHint")}
-              >
-                {t("deck.clearCachedConversation")}
-              </button>
               {inFlight ? (
                 <button
                   type="button"
