@@ -52,6 +52,16 @@ variable "chunk_overlap" {
   default = 150
 }
 
+variable "indexing_stage_timeout_seconds" {
+  type    = number
+  default = 90
+
+  validation {
+    condition     = var.indexing_stage_timeout_seconds > 0
+    error_message = "indexing_stage_timeout_seconds must be positive."
+  }
+}
+
 variable "policy_version" {
   type    = string
   default = "prod-policy-v1"

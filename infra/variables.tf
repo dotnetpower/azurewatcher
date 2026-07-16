@@ -605,6 +605,17 @@ variable "document_chunk_overlap" {
   default = 150
 }
 
+variable "document_indexing_stage_timeout_seconds" {
+  description = "Deadline in seconds for each artifact, index, and ready-consumer operation."
+  type        = number
+  default     = 90
+
+  validation {
+    condition     = var.document_indexing_stage_timeout_seconds > 0
+    error_message = "document_indexing_stage_timeout_seconds must be positive."
+  }
+}
+
 variable "document_policy_version" {
   type    = string
   default = "prod-policy-v1"

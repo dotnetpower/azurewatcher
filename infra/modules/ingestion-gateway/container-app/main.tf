@@ -160,6 +160,10 @@ resource "azurerm_container_app" "ingestion" {
         value = tostring(var.chunk_overlap)
       }
       env {
+        name  = "FDAI_DOCUMENT_INDEXING_STAGE_TIMEOUT_SECONDS"
+        value = tostring(var.indexing_stage_timeout_seconds)
+      }
+      env {
         name  = "FDAI_DOCUMENT_POLICY_VERSION"
         value = var.policy_version
       }
