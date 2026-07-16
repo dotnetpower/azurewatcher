@@ -19,6 +19,20 @@ class _Worker:
         self.upload_ids.append(upload_id)
 
 
+class _FlakyWorker(_Worker):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+        self.completed = asyncio.Event()
+
+    async def process(self, upload_id: UUID) -> None:
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("transient worker failure")
+        self.upload_ids.append(upload_id)
+        self.completed.set()
+
+
 class _Metadata:
     def __init__(self, upload_id: UUID) -> None:
         self._upload_id = upload_id
@@ -28,6 +42,15 @@ class _Metadata:
         self.calls += 1
         assert limit == 100
         if state == "received" and self.calls == 1:
+            return (SimpleNamespace(upload_id=self._upload_id),)
+        return ()
+
+
+class _PersistentMetadata(_Metadata):
+    async def list_uploads_by_state(self, state: str, *, limit: int):
+        self.calls += 1
+        assert limit == 100
+        if state == "received":
             return (SimpleNamespace(upload_id=self._upload_id),)
         return ()
 
@@ -86,4 +109,27 @@ async def test_reconcile_processes_durable_received_upload() -> None:
     except asyncio.CancelledError:
         pass
 
+    assert worker.upload_ids == [upload_id]
+
+
+async def test_reconcile_retries_after_worker_runtime_error() -> None:
+    upload_id = UUID("00000000-0000-0000-0000-000000000403")
+    worker = _FlakyWorker()
+    consumer = DocumentIngestionEventConsumer(
+        event_bus=InMemoryEventBus(),
+        worker=worker,  # type: ignore[arg-type]
+        metadata=_PersistentMetadata(upload_id),  # type: ignore[arg-type]
+        topic="aw.document.events",
+        reconcile_interval_seconds=0.01,
+    )
+
+    task = asyncio.create_task(consumer.reconcile())
+    await asyncio.wait_for(worker.completed.wait(), timeout=0.5)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    assert worker.calls == 2
     assert worker.upload_ids == [upload_id]

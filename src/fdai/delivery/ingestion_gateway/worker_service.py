@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Final
 from uuid import UUID
 
@@ -10,6 +11,8 @@ from fdai.core.document_ingestion import DocumentIngestionWorker
 from fdai.shared.contracts import DocumentState
 from fdai.shared.providers.document_ingestion import DocumentMetadataStore
 from fdai.shared.providers.event_bus import EventBus
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class DocumentIngestionEventConsumer:
@@ -57,28 +60,48 @@ class DocumentIngestionEventConsumer:
                 await asyncio.sleep(self._retry_seconds)
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as exc:
+                _LOGGER.error(
+                    "document_ingestion_event_consumer_failed",
+                    extra={"exception_type": type(exc).__name__},
+                )
                 await asyncio.sleep(self._retry_seconds)
 
     async def reconcile(self) -> None:
         while True:
-            for state in (
-                DocumentState.RECEIVED,
-                DocumentState.QUARANTINED,
-                DocumentState.SCANNING,
-                DocumentState.PROTECTION_CHECK,
-                DocumentState.EXTRACTING,
-                DocumentState.INDEXING,
-            ):
-                sessions = await self._metadata.list_uploads_by_state(
-                    state.value,
-                    limit=self._reconcile_batch_size,
+            try:
+                for state in (
+                    DocumentState.RECEIVED,
+                    DocumentState.QUARANTINED,
+                    DocumentState.SCANNING,
+                    DocumentState.PROTECTION_CHECK,
+                    DocumentState.EXTRACTING,
+                    DocumentState.INDEXING,
+                ):
+                    sessions = await self._metadata.list_uploads_by_state(
+                        state.value,
+                        limit=self._reconcile_batch_size,
+                    )
+                    for session in sessions:
+                        try:
+                            await self._process_once(session.upload_id)
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception as exc:
+                            _LOGGER.error(
+                                "document_ingestion_reconcile_upload_failed",
+                                extra={
+                                    "upload_id": str(session.upload_id),
+                                    "exception_type": type(exc).__name__,
+                                },
+                            )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                _LOGGER.error(
+                    "document_ingestion_reconcile_cycle_failed",
+                    extra={"exception_type": type(exc).__name__},
                 )
-                for session in sessions:
-                    try:
-                        await self._process_once(session.upload_id)
-                    except ValueError:
-                        continue
             await asyncio.sleep(self._reconcile_interval_seconds)
 
     async def _process_once(self, upload_id: UUID) -> None:

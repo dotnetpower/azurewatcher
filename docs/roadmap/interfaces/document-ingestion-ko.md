@@ -1,7 +1,7 @@
 ---
 title: 문서 인제스트와 Drop Zone
 translation_of: document-ingestion.md
-translation_source_sha: 09a277d2a8afc9dbda2180a4cf1f82a859808b9b
+translation_source_sha: 144fe2378b03f1969e99dfca64fe32e8fd7ecca9
 translation_revised: 2026-07-16
 ---
 # 문서 인제스트와 Drop Zone
@@ -467,6 +467,8 @@ version의 선언된 purpose에 자신이 포함된 경우에만 `document.ready
 Purpose별 processing은 `DocumentReadyConsumer`를 bind할 수도 있습니다. Worker는 safety check를
 통과한 `DocumentEnvelope`만 전달합니다. 제공되는 `handover_bootstrap` consumer는 이 envelope를
 근거가 있고 검토 전용인 steward-map draft로 변환합니다.
+Durable reconciler는 upload 또는 metadata cycle 예외의 type을 log에 기록하고 in-process
+deduplication slot을 해제한 뒤, task를 종료하지 않고 다음 bounded interval에 계속 실행합니다.
 
 ## 실패 동작
 

@@ -457,6 +457,8 @@ Consumers are idempotent. Knowledge indexing and manual distillation subscribe t
 only when the version's declared purpose includes them. Purpose-specific processing can also bind a
 `DocumentReadyConsumer`; the worker passes only the safety-checked `DocumentEnvelope`. The shipped
 `handover_bootstrap` consumer turns that envelope into a grounded, review-only steward-map draft.
+The durable reconciler logs an upload or metadata-cycle exception by type, releases its in-process
+deduplication slot, and continues on the next bounded interval instead of terminating its task.
 
 ## Failure behavior
 
