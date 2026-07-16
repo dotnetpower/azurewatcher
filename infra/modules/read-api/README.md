@@ -71,5 +71,6 @@ The API projects audit / KPI / HIL-queue / ontology / views read-only from
 Postgres. Its bounded write routes can stage immutable Python task artifacts,
 store cron bindings, and publish typed proposals. It cannot create an Azure VM
 Run Command: the dedicated identity receives ACR pull, state-store secret read,
-and optional Azure OpenAI model invocation only. VM execution authority remains
-on the separate executor identity and target-scoped role.
+Event Hubs send/receive for typed pipeline and live projection topics, and Azure OpenAI model
+invocation only. VM execution authority remains on the separate executor identity and
+target-scoped role.

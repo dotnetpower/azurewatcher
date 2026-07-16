@@ -213,6 +213,13 @@ resource "azurerm_role_assignment" "read_api_eventhubs_sender" {
   principal_id         = module.read_api_identity[0].principal_id
 }
 
+resource "azurerm_role_assignment" "read_api_eventhubs_receiver" {
+  count                = var.enable_read_api ? 1 : 0
+  scope                = module.event_bus.namespace_id
+  role_definition_name = "Azure Event Hubs Data Receiver"
+  principal_id         = module.read_api_identity[0].principal_id
+}
+
 resource "azurerm_role_assignment" "read_api_reader" {
   count                = var.enable_read_api ? 1 : 0
   scope                = module.resource_group.id
@@ -720,7 +727,7 @@ module "llm_azure_openai" {
   executor_principal_id = module.identity.principal_id
   additional_user_principal_ids = (
     merge(
-      var.enable_read_api && var.python_task_author_capability != ""
+      var.enable_read_api
       ? { read_api = module.read_api_identity[0].principal_id }
       : {},
       var.enable_document_ingestion
@@ -890,8 +897,10 @@ module "read_api" {
     azurerm_key_vault_secret.state_store_dsn,
     azurerm_role_assignment.read_api_acr_pull,
     azurerm_role_assignment.read_api_kv_secrets_user,
+    azurerm_role_assignment.read_api_eventhubs_receiver,
     azurerm_role_assignment.read_api_eventhubs_sender,
     azurerm_role_assignment.read_api_reader,
+    module.llm_azure_openai,
   ]
 }
 
@@ -899,43 +908,44 @@ module "ingestion_gateway" {
   count  = var.enable_document_ingestion ? 1 : 0
   source = "./modules/ingestion-gateway/container-app"
 
-  name                         = "ca-${var.workload}${local.full_suffix}-ingestion"
-  migrate_job_name             = "caj-${var.workload}${local.full_suffix}-docmig"
-  container_app_environment_id = module.compute.environment_id
-  location                     = var.region
-  resource_group_name          = module.resource_group.name
-  image                        = var.ingestion_image == "" ? var.core_image : var.ingestion_image
-  clamav_image                 = var.clamav_image
-  identity_id                  = module.ingestion_identity[0].resource_id
-  identity_client_id           = module.ingestion_identity[0].client_id
-  database_dsn_secret_id       = azurerm_key_vault_secret.state_store_dsn.id
-  entra_tenant_id              = var.tenant_id
-  api_audience                 = var.read_api_audience
-  rbac_readers_group_id        = var.rbac_readers_group_id
-  rbac_contributors_group_id   = var.rbac_contributors_group_id
-  rbac_approvers_group_id      = var.rbac_approvers_group_id
-  rbac_owners_group_id         = var.rbac_owners_group_id
-  rbac_break_glass_group_id    = var.rbac_break_glass_group_id
-  cors_allow_origins           = var.ingestion_cors_allow_origins
-  adls_account_name            = module.document_storage[0].name
-  adls_account_url             = module.document_storage[0].primary_dfs_endpoint
-  adls_source_file_system      = module.document_storage[0].source_file_system
-  adls_derived_file_system     = module.document_storage[0].derived_file_system
-  embedding_endpoint           = var.enable_llm ? module.llm_azure_openai[0].endpoint : ""
-  embedding_deployment         = var.enable_llm ? lookup(module.llm_azure_openai[0].deployments, var.ingestion_embedding_capability, "") : ""
-  kafka_bootstrap_servers      = module.event_bus.kafka_bootstrap
-  document_event_topic         = "aw.pipeline.stages"
-  runtime_env                  = var.env == "" ? "dev" : var.env
-  max_file_size_bytes          = var.document_max_file_size_bytes
-  max_batch_count              = var.document_max_batch_count
-  chunk_max_chars              = var.document_chunk_max_chars
-  chunk_overlap                = var.document_chunk_overlap
-  policy_version               = var.document_policy_version
-  document_collections         = var.document_collections
-  min_replicas                 = var.ingestion_min_replicas
-  max_replicas                 = var.ingestion_max_replicas
-  acr_login_server             = module.container_registry.login_server
-  tags                         = merge(local.tags, { "fdai:component" = "document-ingestion" })
+  name                           = "ca-${var.workload}${local.full_suffix}-ingestion"
+  migrate_job_name               = "caj-${var.workload}${local.full_suffix}-docmig"
+  container_app_environment_id   = module.compute.environment_id
+  location                       = var.region
+  resource_group_name            = module.resource_group.name
+  image                          = var.ingestion_image == "" ? var.core_image : var.ingestion_image
+  clamav_image                   = var.clamav_image
+  identity_id                    = module.ingestion_identity[0].resource_id
+  identity_client_id             = module.ingestion_identity[0].client_id
+  database_dsn_secret_id         = azurerm_key_vault_secret.state_store_dsn.id
+  entra_tenant_id                = var.tenant_id
+  api_audience                   = var.read_api_audience
+  rbac_readers_group_id          = var.rbac_readers_group_id
+  rbac_contributors_group_id     = var.rbac_contributors_group_id
+  rbac_approvers_group_id        = var.rbac_approvers_group_id
+  rbac_owners_group_id           = var.rbac_owners_group_id
+  rbac_break_glass_group_id      = var.rbac_break_glass_group_id
+  cors_allow_origins             = var.ingestion_cors_allow_origins
+  adls_account_name              = module.document_storage[0].name
+  adls_account_url               = module.document_storage[0].primary_dfs_endpoint
+  adls_source_file_system        = module.document_storage[0].source_file_system
+  adls_derived_file_system       = module.document_storage[0].derived_file_system
+  embedding_endpoint             = var.enable_llm ? module.llm_azure_openai[0].endpoint : ""
+  embedding_deployment           = var.enable_llm ? lookup(module.llm_azure_openai[0].deployments, var.ingestion_embedding_capability, "") : ""
+  kafka_bootstrap_servers        = module.event_bus.kafka_bootstrap
+  document_event_topic           = "aw.pipeline.stages"
+  runtime_env                    = var.env == "" ? "dev" : var.env
+  max_file_size_bytes            = var.document_max_file_size_bytes
+  max_batch_count                = var.document_max_batch_count
+  chunk_max_chars                = var.document_chunk_max_chars
+  chunk_overlap                  = var.document_chunk_overlap
+  indexing_stage_timeout_seconds = var.document_indexing_stage_timeout_seconds
+  policy_version                 = var.document_policy_version
+  document_collections           = var.document_collections
+  min_replicas                   = var.ingestion_min_replicas
+  max_replicas                   = var.ingestion_max_replicas
+  acr_login_server               = module.container_registry.login_server
+  tags                           = merge(local.tags, { "fdai:component" = "document-ingestion" })
 
   depends_on = [
     azurerm_role_assignment.ingestion_acr_pull,
