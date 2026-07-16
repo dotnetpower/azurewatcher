@@ -213,6 +213,8 @@ jobs:
             "$(resource_id "appi-fdai-${TF_VAR_env}-${TF_VAR_region_short}" 'Microsoft.Insights/components')"
           import_if_missing 'module.inventory_identity.azurerm_user_assigned_identity.primary' \
             "$(az identity show --resource-group "$rg" --name "id-fdai-${TF_VAR_env}-${TF_VAR_region_short}-inventory" --query id -o tsv 2>/dev/null || true)"
+          import_if_missing 'module.compute.azurerm_container_app_job.inventory[0]' \
+            "$(az containerapp job show --resource-group "$rg" --name "ca-fdai-${TF_VAR_env}-${TF_VAR_region_short}-core-inventory" --query id -o tsv 2>/dev/null || true)"
 
           inventory_principal="$(az identity show --resource-group "$rg" --name "id-fdai-${TF_VAR_env}-${TF_VAR_region_short}-inventory" --query principalId -o tsv 2>/dev/null || true)"
           subscription_scope="/subscriptions/${ARM_SUBSCRIPTION_ID}"
