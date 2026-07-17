@@ -98,7 +98,7 @@ def _resource_of(question: str, *, action_type: str | None = None) -> str | None
     for token in re.findall(r"[a-z0-9-]+", question.lower()):
         resembles_id = "-" in token or any(character.isdigit() for character in token)
         if token not in ignored and len(token) >= 3 and resembles_id:
-            return token
+            return str(token)
     return None
 
 

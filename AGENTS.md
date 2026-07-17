@@ -24,5 +24,5 @@ follows in this repo.
 
 ## Pre-commit gate (single entry)
 
-Run `scripts/verify.sh` before committing (fast text gates + ruff). Add
-`--full` to include the pytest suite.
+Run `scripts/verify.sh` before committing (Ruff + strict mypy + fast text gates).
+Add `--full` to include the pytest suite.

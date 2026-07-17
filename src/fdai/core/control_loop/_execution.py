@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable, Iterable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime
 
 from fdai.core.control_loop._helpers import (
@@ -55,7 +55,7 @@ class ControlLoopExecutionMixin:
     _degradation: DegradationController | None
     _direct_api_executor: DirectApiShadowExecutor | None
     _executor: ShadowExecutor
-    _governance_assignments: Iterable[Assignment]
+    _governance_assignments: Sequence[Assignment]
     _inventory_age_provider: Callable[[str], Awaitable[int | None]] | None
     _kill_switch: KillSwitch | None
     _promotion_state_refresher: Callable[[str], Awaitable[None]] | None

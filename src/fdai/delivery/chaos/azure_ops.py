@@ -72,4 +72,5 @@ __all__ = [
     "AzVmPacketLossInjector",
     "AzVmStopServiceInjector",
     "AzVmssLifecycleInjector",
+    "_run",
 ]

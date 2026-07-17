@@ -33,9 +33,7 @@ process cannot silently degrade to fakes in production.
 Design references
 -----------------
 - ``docs/roadmap/architecture/project-structure.md § Customization via Dependency Injection``
-- ``docs/roadmap/deployment/dev-and-deploy-parity.md § Parity Contract``
 - ``docs/roadmap/deployment/deploy-and-onboard.md § Runtime Configuration Matrix``
-- ``.github/instructions/generic-scope.instructions.md``
 """
 
 from __future__ import annotations
@@ -392,6 +390,8 @@ __all__ = [
     "OperationalReadinessService",
     "attach_metric_provider",
     "bind_azure_llm_bindings",
+    "bind_azure_devops_change_feed",
+    "bind_github_change_feed",
     "default_container",
     "default_container_from_env",
     "install_capability_bundle",

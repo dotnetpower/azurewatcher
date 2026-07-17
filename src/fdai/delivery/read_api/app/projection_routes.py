@@ -19,8 +19,8 @@ def append_projection_routes(
     config: ReadApiConfig,
     authorize: Callable[[Request], Awaitable[str]],
     authorize_principal: Callable[[Request], Awaitable[Principal]],
-    core_paths: Collection[str],
-    panel_paths: Collection[str],
+    core_paths: frozenset[str],
+    panel_paths: set[str],
 ) -> None:
     """Append optional projections in their established registration order."""
     if config.blast_radius_graph is not None:

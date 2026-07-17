@@ -131,9 +131,9 @@ principles into a phased engineering plan.
 
 ## Repo Hints (agent-facing)
 
-- **Pre-commit gate (single entry)**: run `scripts/verify.sh` (fast text + lint gates) or
-  `scripts/verify.sh --full [<path>]` to include pytest. Individual `scripts/check-*.sh`
-  remain as the CI-side primitives.
+- **Pre-commit gate (single entry)**: run `scripts/verify.sh` (Ruff + strict mypy + fast
+  text gates) or `scripts/verify.sh --full [<path>]` to include pytest. Individual
+  `scripts/check-*.sh` remain as the CI-side primitives.
 - **Runtime and generated artifacts (do not hand-edit)**: `resolved-models.json`,
   `resolved-models-local.json`, `infra/dev.plan`, `infra/terraform.tfstate*`,
   `alembic/versions/*` (schema migrations, append-only), and every `__pycache__/`. Treat

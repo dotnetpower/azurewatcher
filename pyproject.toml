@@ -179,8 +179,7 @@ ignore = []
 # Developer helper scripts shell out to `git` / `python3` with hardcoded
 # argument lists - the S6xx subprocess warnings assume attacker-controlled
 # input, which does not apply here.
-"scripts/**" = ["S603", "S607"]
-"scripts/validate-catalog-full.py" = ["N999", "S603", "S607"]
+"scripts/**" = ["N999", "S603", "S607"]
 "tools/**" = ["S603", "S607"]
 # Alembic migrations construct DELETE-IN-list queries from hardcoded module
 # constants (`_LINK_TYPES`, `_OBJECT_TYPES`); no user input flows into the

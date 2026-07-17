@@ -272,12 +272,12 @@ class ResolvedModels:
             ),
             narrator=_narrator_from_dict(raw.get("narrator")),
             narrator_candidates=tuple(
-                _narrator_from_dict(n)  # type: ignore[misc]
+                _narrator_from_dict(n)
                 for n in raw.get("narrator_candidates", ())
                 if isinstance(n, dict)
             ),
             reasoner_primary_candidates=tuple(
-                _narrator_from_dict(n)  # type: ignore[misc]
+                _narrator_from_dict(n)
                 for n in raw.get("reasoner_primary_candidates", ())
                 if isinstance(n, dict)
             ),

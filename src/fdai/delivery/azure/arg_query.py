@@ -362,4 +362,7 @@ __all__ = [
     "ArgQueryError",
     "AzureArgQueryFactory",
     "AzureArgQueryFactoryConfig",
+    "_build_arm_to_neutral_map",
+    "_to_neutral_id",
+    "_truncate_props",
 ]

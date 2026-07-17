@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 from fdai.core.control_loop._helpers import (
     _extract_resource_id,
@@ -128,7 +128,7 @@ async def process_event(host: Any, raw_event: Event | Mapping[str, Any]) -> Cont
             correlation_id=correlation_id,
         )
         if fallback is not None:
-            return fallback
+            return cast(ControlLoopResult, fallback)
         await host._emit_stage(
             event_id=event_id,
             correlation_id=correlation_id,
@@ -191,7 +191,7 @@ async def process_event(host: Any, raw_event: Event | Mapping[str, Any]) -> Cont
             correlation_id=correlation_id,
         )
         if fallback is not None:
-            return fallback
+            return cast(ControlLoopResult, fallback)
         await host._emit_stage(
             event_id=event_id,
             correlation_id=correlation_id,

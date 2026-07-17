@@ -14,11 +14,11 @@
 #   - check-stewardship.sh (handover map: 15 agents, maintainer floor, no role fields)
 #   - check-chaos-scenarios.sh (chaos-scenarios catalog + compiled symptom index)
 #   - check-arb-readiness.py (ARB artifact, blocker, owner, evidence contract)
-#   - mypy (strict static types)                [--full only]
+#   - mypy (strict static types)
 #   - pytest                                    [--full only]
 #
 # Usage:
-#   scripts/verify.sh              # --fast (text + lint gates only)
+#   scripts/verify.sh              # --fast (text + lint + strict type gates)
 #   scripts/verify.sh --fast       # same as default
 #   scripts/verify.sh --full       # add pytest (whole suite)
 #   scripts/verify.sh --full <path>  # pytest scoped to <path>
@@ -81,6 +81,15 @@ else
     RESULTS+=("SKIP" "SKIP")
 fi
 
+if command -v uv >/dev/null 2>&1; then
+    run_gate "mypy (strict)" uv run mypy
+else
+    echo "verify.sh: 'uv' not found; install uv before verification" >&2
+    NAMES+=("mypy (strict)")
+    RESULTS+=("FAIL")
+    overall=1
+fi
+
 run_gate "punctuation"  bash scripts/check-punctuation.sh
 run_gate "guids"        bash scripts/check-guids.sh
 run_gate "translations" bash scripts/check-translations.sh
@@ -120,14 +129,6 @@ fi
 # ---- full gates (opt-in) ----------------------------------------------------
 
 if [[ "$MODE" == "full" ]]; then
-    if command -v mypy >/dev/null 2>&1; then
-        run_gate "mypy (strict)" mypy
-    else
-        echo "verify.sh: 'mypy' not found; activate .venv before --full" >&2
-        NAMES+=("mypy (strict)")
-        RESULTS+=("SKIP")
-        overall=1
-    fi
     if command -v pytest >/dev/null 2>&1; then
         if [[ -n "$PYTEST_PATH" ]]; then
             run_gate "pytest ($PYTEST_PATH)" pytest -q --no-cov "$PYTEST_PATH"

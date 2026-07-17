@@ -461,3 +461,16 @@ def make_chat_route(
         return JSONResponse(enriched)
 
     return Route(path, handler, methods=["POST"])
+
+
+__all__ = [
+    "AgentChatDelegate",
+    "ChatBackend",
+    "ChatWebSearchEvidenceResolver",
+    "LatencyRoutedChatBackend",
+    "backend_from_env",
+    "describe_backend",
+    "make_chat_health_route",
+    "make_chat_route",
+    "make_chat_stream_route",
+]

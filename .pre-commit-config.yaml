@@ -43,6 +43,12 @@ repos:
   #    tracked file set itself.
   - repo: local
     hooks:
+      - id: mypy-strict
+        name: mypy --strict
+        entry: uv run mypy
+        language: system
+        pass_filenames: false
+        files: ^(src/|pyproject\.toml$)
       - id: resign-integrity
         name: resign-if-surface-staged.sh (auto re-sign manifest, upstream signer only)
         entry: bash scripts/resign-if-surface-staged.sh

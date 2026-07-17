@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from typing import Any
 
 from fdai.core.control_loop.models import ControlLoopOutcome, ControlLoopResult
 from fdai.core.executor.action_builder import ActionBuilder, ActionBuildError
@@ -39,7 +40,16 @@ class ControlLoopFallbackMixin:
     _t1_engine: T1Tier | None
     _t2_engine: T2Tier | None
 
-    async def _emit_stage(self, **kwargs: object) -> None: ...
+    async def _emit_stage(
+        self,
+        *,
+        event_id: str,
+        correlation_id: str,
+        stage: StageName,
+        phase: StagePhase,
+        detail: Mapping[str, Any] | None = None,
+        error: str | None = None,
+    ) -> None: ...
 
     async def _evaluate_and_audit(
         self, *, event: Event, action: Action, rule: Rule
