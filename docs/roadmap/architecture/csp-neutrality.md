@@ -265,7 +265,11 @@ the executor identity.
 The projection publishes named architecture views. The default view is FDAI's own control
 plane; additional `application` views partition the services FDAI can judge and observe.
 Supplying `scope=<view-id>` returns that view's bounded resource and link set while preserving
-the same CSP-neutral wire contract.
+the same CSP-neutral wire contract. A named-view provider returns `404` when an explicit view
+id isn't registered; it doesn't substitute the default view. The console can then load the
+default manifest to show the registered recovery links. Providers that use `scope` for a
+resource id or prefix, such as the Postgres inventory snapshot, retain their resource-scoped
+query behavior and don't opt into the named-view not-found contract.
 
 | CSP / substrate | Inventory source | Delta source | Wire |
 |---|---|---|---|

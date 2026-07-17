@@ -19,6 +19,9 @@ DEFAULT_ROUTE_PREFIX = "/views/process"
 class ProcessViewsConfig:
     engine: ViewEngine
     prefix: str = DEFAULT_ROUTE_PREFIX
+    source: str = "unknown"
+    synthetic: bool | None = None
+    durable: bool | None = None
 
 
 def build_process_view_routes(
@@ -52,7 +55,14 @@ def build_process_view_routes(
             )
         except (ValueError, TypeError) as exc:
             return _error(400, str(exc))
-        return JSONResponse({"items": list(items)})
+        return JSONResponse(
+            {
+                "source": config.source,
+                "synthetic": config.synthetic,
+                "durable": config.durable,
+                "items": list(items),
+            }
+        )
 
     async def render_process(request: Request) -> Response:
         await authorize(request)

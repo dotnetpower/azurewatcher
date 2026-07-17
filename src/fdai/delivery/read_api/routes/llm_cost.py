@@ -90,6 +90,9 @@ class LlmCostPanel:
         total = summarize_total(records)
         payload: dict[str, Any] = {
             "source": self._source,
+            "latest_occurred_at": (
+                max(record.occurred_at for record in records).isoformat() if records else None
+            ),
             "currency": total.currency,
             "invocations": total.invocations,
             "total": dict(summaries_as_mapping([total])[0]),

@@ -11,11 +11,15 @@ resource "azurerm_cognitive_account" "primary" {
 }
 
 locals {
-  # Terraform expresses capacity in units of 1k TPM per the AOAI provider.
-  # The resolver emits raw tokens/min; convert here and clamp to >= 1.
+  # Standard deployments use 1k TPM units. Provisioned deployments use an
+  # exact PTU count; dividing PTUs by 1000 would silently under-provision.
   deployments_by_name = {
     for cap in var.resolved_capabilities : cap.name => merge(cap, {
-      capacity_units = max(1, floor(cap.capacity_tpm / 1000))
+      capacity_units = (
+        cap.capacity_unit == "ptu"
+        ? cap.capacity_value
+        : max(1, floor(cap.capacity_tpm / 1000))
+      )
     })
   }
 }

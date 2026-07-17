@@ -158,12 +158,65 @@ variable "enable_llm" {
 variable "resolved_capabilities" {
   description = "Resolved LLM capabilities produced by the bootstrap resolver (fdai.rule_catalog.schema.llm_resolver_cli). Entries with status='hil-only' MUST be filtered out before being passed here."
   type = list(object({
-    name         = string
-    family       = string
-    sku          = string
-    capacity_tpm = number
+    name           = string
+    family         = string
+    sku            = string
+    capacity_tpm   = optional(number, 0)
+    capacity_unit  = optional(string, "tpm")
+    capacity_value = optional(number, 0)
   }))
   default = []
+
+  validation {
+    condition = alltrue([
+      for capability in var.resolved_capabilities :
+      contains(["tpm", "ptu"], capability.capacity_unit) &&
+      (
+        capability.capacity_unit == "tpm"
+        ? capability.capacity_tpm >= 1000 && capability.capacity_value == 0
+        : capability.capacity_tpm == 0 && capability.capacity_value >= 1
+      )
+    ])
+    error_message = "resolved capabilities MUST use capacity_tpm for tpm or capacity_value for ptu, never both."
+  }
+}
+
+variable "enable_model_apim_gateway" {
+  description = "Attach an FDAI model API to an existing APIM service. False keeps the minimum-cost inventory unchanged."
+  type        = bool
+  default     = false
+}
+
+variable "model_apim_gateway" {
+  description = "Existing APIM and same-family PTU/Standard backend configuration. Required only when enable_model_apim_gateway is true."
+  type = object({
+    resource_group_name = string
+    api_management_name = string
+    gateway_url         = string
+    api_name            = string
+    api_path            = string
+    frontend_tenant_id  = string
+    frontend_audience   = string
+    api_version         = optional(string, "2024-10-21")
+    apim_principal_id   = string
+    ptu_backend = object({
+      name        = string
+      url         = string
+      resource_id = string
+    })
+    standard_backend = object({
+      name        = string
+      url         = string
+      resource_id = string
+    })
+  })
+  default  = null
+  nullable = true
+
+  validation {
+    condition     = !var.enable_model_apim_gateway || var.model_apim_gateway != null
+    error_message = "enable_model_apim_gateway requires model_apim_gateway configuration."
+  }
 }
 
 variable "python_task_author_capability" {

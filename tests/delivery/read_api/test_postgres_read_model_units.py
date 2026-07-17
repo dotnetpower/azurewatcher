@@ -316,6 +316,9 @@ def test_aggregate_kpi_empty_returns_zero_shares() -> None:
     assert kpi.by_outcome == {}
     assert kpi.by_tier == {}
     assert kpi.last_recorded_at is None
+    assert kpi.audit_sample is not None
+    assert kpi.audit_sample.row_count == 0
+    assert kpi.audit_sample.limit == 500
 
 
 def test_aggregate_kpi_counts_modes_kinds_outcomes_tiers() -> None:
@@ -324,18 +327,21 @@ def test_aggregate_kpi_counts_modes_kinds_outcomes_tiers() -> None:
     # the LATEST `created_at` regardless of iteration order.
     rows = [
         {
+            "seq": 3,
             "action_kind": "hil.requested",
             "mode": "shadow",
             "entry": {"outcome": "hil"},
             "created_at": datetime(2026, 7, 13, 10, 10, tzinfo=UTC),  # newest
         },
         {
+            "seq": 2,
             "action_kind": "risk_gate.decide",
             "mode": "enforce",
             "entry": {"outcome": "auto", "tier": "T0"},
             "created_at": datetime(2026, 7, 13, 10, 5, tzinfo=UTC),
         },
         {
+            "seq": 1,
             "action_kind": "risk_gate.decide",
             "mode": "shadow",
             "entry": {"outcome": "auto", "tier": "T0"},
@@ -346,7 +352,7 @@ def test_aggregate_kpi_counts_modes_kinds_outcomes_tiers() -> None:
     assert kpi.event_count == 3
     assert kpi.by_action_kind == {"risk_gate.decide": 2, "hil.requested": 1}
     assert kpi.by_outcome == {"auto": 2, "hil": 1}
-    assert kpi.by_tier == {"T0": 2}
+    assert kpi.by_tier == {"t0": 2}
     assert kpi.shadow_share == pytest.approx(2 / 3)
     assert kpi.enforce_share == pytest.approx(1 / 3)
     assert kpi.hil_pending == 1
@@ -356,6 +362,10 @@ def test_aggregate_kpi_counts_modes_kinds_outcomes_tiers() -> None:
     # the console panel needs).
     assert kpi.last_recorded_at is not None
     assert kpi.last_recorded_at.startswith("2026-07-13T10:10:00")
+    assert kpi.audit_sample is not None
+    assert kpi.audit_sample.from_seq == 1
+    assert kpi.audit_sample.through_seq == 3
+    assert kpi.audit_sample.row_count == 3
 
 
 def test_aggregate_kpi_last_recorded_survives_out_of_order_rows() -> None:
@@ -422,7 +432,7 @@ def test_aggregate_kpi_handles_string_entry_and_missing_fields() -> None:
     ]
     kpi = aggregate_kpi(rows, hil_pending=0)
     assert kpi.event_count == 3
-    assert kpi.by_tier == {"T2": 1}
+    assert kpi.by_tier == {"t2": 1}
     assert kpi.by_outcome == {"auto": 1, "unknown": 2}
     # Two shadow, zero enforce, one unrecognized mode.
     assert kpi.shadow_share == pytest.approx(2 / 3)

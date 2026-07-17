@@ -21,12 +21,22 @@ from __future__ import annotations
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.sdk.trace.export import (
+    BatchSpanProcessor,
+    ConsoleSpanExporter,
+    SpanExporter,
+)
 
 _CONFIGURED = False
 
 
-def configure_tracing(service_name: str, env: str) -> None:
+def configure_tracing(
+    service_name: str,
+    env: str,
+    *,
+    otlp_endpoint: str | None = None,
+    otlp_insecure: bool = False,
+) -> None:
     """Install a :class:`TracerProvider` if one has not been installed yet.
 
     Idempotent - a repeat call is a no-op. OTel forbids replacing the
@@ -43,7 +53,14 @@ def configure_tracing(service_name: str, env: str) -> None:
         }
     )
     provider = TracerProvider(resource=resource)
-    provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+    exporter: SpanExporter
+    if otlp_endpoint is None:
+        exporter = ConsoleSpanExporter()
+    else:
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
+        exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=otlp_insecure)
+    provider.add_span_processor(BatchSpanProcessor(exporter))
     trace.set_tracer_provider(provider)
     _CONFIGURED = True
 

@@ -10,7 +10,7 @@ before making changes here.
 - `name` - CAF-named AOAI account (recommend `oai-<workload>-<env>-<region>`).
 - `resolved_capabilities` - array from
   `resolved-models.json`; entries with `status == "hil-only"` are excluded by
-  the caller.
+  the caller. Standard entries declare TPM; provisioned entries declare PTU.
 - `executor_principal_id` - object id of the executor MI; the module
   role-assigns `Cognitive Services OpenAI User` for runtime data-plane calls.
 
@@ -19,13 +19,16 @@ before making changes here.
 - `endpoint` - custom-subdomain URL to bind on `T2_MODEL_ENDPOINT`.
 - `deployments` - capability → deployment-name map (consumed by the runtime
   container's env vars).
-- `capacity_units` - capability → provisioned units (thousand TPM). The
-  resolver's raw `capacity_tpm` is divided by 1000 (rounded down) with a
-  floor of 1 unit.
+- `capacity_units` - capability → Azure deployment capacity. Standard TPM is
+  divided by 1000 with a floor of 1. `ProvisionedManaged`,
+  `GlobalProvisionedManaged`, and `DataZoneProvisionedManaged` use the exact
+  `capacity_value` PTU count with no TPM conversion.
 
 ## Guards enforced here
 
 - Duplicate capability names are rejected in `variables.tf` validation.
+- TPM and PTU fields are mutually exclusive; an ambiguous capacity fails plan
+  validation.
 - The AOAI account disables `local_auth`; only the executor MI (or another
   RBAC assignee) can call the data plane.
 - Public network access is off by default; a fork opens it explicitly if the

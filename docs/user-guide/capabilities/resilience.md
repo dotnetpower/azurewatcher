@@ -60,7 +60,9 @@ first and is promoted only after its measured accuracy holds.
 
 <!-- fdai:cards -->
 
-- [SRE foundations](../concepts/sre-foundations.md) - The SRE practices FDAI encodes.
+- [Site Reliability Engineering](../sre/README.md) - The complete observe, respond, recover, and learn lifecycle.
+- [Disaster recovery and drills](../sre/disaster-recovery-and-drills.md) - How recovery paths are isolated, measured, and audited.
+- [Chaos engineering](../sre/chaos-engineering.md) - How bounded fault scenarios prove recovery behavior.
 - [Agents and self-healing](../concepts/agents-and-self-healing.md) - How the agent organization resolves failures.
 - [Risk tiers](../concepts/risk-tiers.md) - How a recovery action is routed to auto, HIL, or deny.
 - [Operational Readiness](../../roadmap/operations/operational-readiness.md) - The dev-to-ops readiness gate.

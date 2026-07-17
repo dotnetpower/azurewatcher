@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from fdai.delivery.read_api.routes.inventory_graph import InventoryGraphViewNotFoundError
+
 _FDAI_RESOURCES: tuple[dict[str, Any], ...] = (
     {
         "id": "sub-example",
@@ -548,7 +550,9 @@ async def demo_inventory_graph_provider(
     """
 
     del depth
-    active_view = scope if scope in _VIEW_GRAPHS else "fdai-control-plane"
+    if scope is not None and scope not in _VIEW_GRAPHS:
+        raise InventoryGraphViewNotFoundError(f"architecture view not found: {scope}")
+    active_view = scope or "fdai-control-plane"
     resources, links = _VIEW_GRAPHS[active_view]
     return {
         "snapshot_at": datetime.now(UTC).isoformat(),

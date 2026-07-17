@@ -336,6 +336,32 @@ async def test_timeout_no_execution() -> None:
 
 
 @pytest.mark.asyncio
+async def test_expired_approve_times_out_before_execution() -> None:
+    coordinator, publisher, store, _ = _coordinator()
+    await _park(coordinator, approval_id="aid-expired")
+    parked = await store.read_state("hil_park:aid-expired")
+    assert parked is not None
+    parked["approval_context"]["expires_at"] = (
+        datetime.now(tz=UTC) - timedelta(seconds=1)
+    ).isoformat()
+    await store.write_state("hil_park:aid-expired", parked)
+
+    result = await coordinator.resolve(
+        approval_id="aid-expired",
+        decision=HilDecision.APPROVE,
+        approver_oid=_APPROVER,
+    )
+
+    assert result.outcome is ResolveOutcome.TIMED_OUT
+    assert result.reason == "approval_expired"
+    assert publisher.records == ()
+    resolved = await store.read_state("hil_park:aid-expired")
+    assert resolved is not None
+    assert resolved["decision"] == "timeout"
+    assert "hil.timeout" in _audit_kinds(store)
+
+
+@pytest.mark.asyncio
 async def test_double_approve_is_idempotent() -> None:
     coordinator, publisher, store, _ = _coordinator()
     await _park(coordinator, approval_id="aid-5")

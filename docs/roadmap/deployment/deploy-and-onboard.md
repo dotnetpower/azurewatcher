@@ -530,6 +530,10 @@ full expanded catalog and defaults are authored during the inventory PR.
 
 Rules that apply to every key:
 
+The Onboarding console reports `probe_mode=configured` only when every Azure probe input is
+present. When the inputs are absent, `probe_mode=not-configured` means the displayed gaps are the
+required baseline, not observations from the signed-in tenant.
+
 - Startup **fails fast** on missing or unparseable config
   ([coding-conventions.instructions.md](../../../.github/instructions/coding-conventions.instructions.md)).
 - Secrets go through Key Vault refs, never plain env; a secret in plain env fails the CI

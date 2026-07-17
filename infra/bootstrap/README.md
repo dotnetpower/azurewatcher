@@ -12,7 +12,7 @@ makes that possible, and it survives app rebuilds.
 |----------|-----|
 | Ops resource group `rg-<workload>-ops-<region_short>` | Separate from the app RG so it outlives app teardowns. |
 | Ops (hub) VNet + `snet-runner` + `snet-pe` | Stable network the runner lives in. |
-| State storage account (private) + `tfstate` container | Terraform remote backend the runner reaches over a private endpoint. |
+| State storage account (private) + `tfstate` and `deployment-plans` containers | Terraform remote backend plus protected plan artifacts the runner reaches over a private endpoint. |
 | Blob private endpoint + `privatelink.blob.core.windows.net` | Private resolution of the state account from the ops VNet. |
 | NAT gateway + static public IP on `snet-runner` (`nat.tf`) | Explicit, durable outbound egress. The subnet originally relied on Azure "default outbound access", which is being retired: after a VM deallocate/start cycle the runner lost all outbound internet (GitHub + ARM + AAD all timed out) while the private state endpoint stayed reachable. A NAT gateway restores egress through one static IP while the VM keeps **no** public IP (no inbound exposure), and it survives deallocate/start cycles. |
 | Runner VM (no public IP) + system-assigned MI | The only host with line-of-sight to the app's private endpoints. |
@@ -42,8 +42,13 @@ terraform -chdir=infra/bootstrap output backend_config_hint
 
 State for THIS layer stays local (it holds only infrastructure handles, no app
 secrets). The `backend_config_hint` output feeds the app config's
-`terraform init -backend-config=...` and the CI workflow. The `tfstate`
-container is created from the runner (over the blob PE) by the deploy workflow.
+`terraform init -backend-config=...` and the CI workflow. The `tfstate` and
+`deployment-plans` containers are created from the runner (over the blob PE) by
+the deploy workflow. CLI-requested plans use immutable run-specific blob paths;
+their metadata carries a one-hour logical expiry and never includes target ids
+or secret values. Each new CLI plan run deletes allowlisted plan blobs older
+than 24 hours under a bounded scan/delete cap; it never targets `tfstate` or an
+unknown blob path.
 
 ## Runner registration
 

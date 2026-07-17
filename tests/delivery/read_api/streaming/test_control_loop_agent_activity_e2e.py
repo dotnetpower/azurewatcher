@@ -24,7 +24,7 @@ from fdai.delivery.read_api.streaming.live_control_loop import (
     ControlLoopEmitterUnavailable,
     build_control_loop_emitter,
 )
-from fdai.shared.providers.stage_publisher import StagePublisher
+from fdai.shared.providers.stage_publisher import ObservationSource, StagePublisher
 from fdai.shared.providers.testing.sse import InMemorySseSink
 
 
@@ -71,6 +71,7 @@ async def test_real_control_loop_drives_agent_activity() -> None:
     assert any(isinstance(e, IncidentTicketEvent) for e in recorder.events), (
         "the real pipeline MUST surface incident.ticket frames on the relay"
     )
+    assert all(event.source is ObservationSource.REPLAY for event in recorder.events)
     # Every relayed agent is a real pantheon name (never the 'unknown' sentinel
     # for a mapped pipeline stage).
     agents = {e.agent for e in recorder.events if isinstance(e, AgentStateEvent)}

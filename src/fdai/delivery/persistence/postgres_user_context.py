@@ -333,7 +333,9 @@ class PostgresUserPreferenceStore(_PostgresBase):
         async with await self._connect() as connection:
             await self._timeout(connection)
             cursor = await connection.execute(
-                "SELECT principal_id, locale, verbosity, timezone, share_with_learner, "
+                "SELECT principal_id, locale, verbosity, answer_detail, answer_format, "
+                "answer_preferences_enabled, answer_intent_detail, answer_intent_format, "
+                "timezone, share_with_learner, "
                 "revision, updated_at FROM user_preference WHERE principal_id = %s",
                 (principal_id,),
             )
@@ -362,17 +364,28 @@ class PostgresUserPreferenceStore(_PostgresBase):
             updated_at = record.updated_at or datetime.now().astimezone()
             await connection.execute(
                 "INSERT INTO user_preference "
-                "(principal_id, locale, verbosity, timezone, share_with_learner, "
-                "revision, updated_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s) "
+                "(principal_id, locale, verbosity, answer_detail, answer_format, "
+                "answer_preferences_enabled, answer_intent_detail, answer_intent_format, "
+                "timezone, share_with_learner, revision, updated_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s, %s) "
                 "ON CONFLICT (principal_id) DO UPDATE SET locale = EXCLUDED.locale, "
                 "verbosity = EXCLUDED.verbosity, timezone = EXCLUDED.timezone, "
+                "answer_detail = EXCLUDED.answer_detail, "
+                "answer_format = EXCLUDED.answer_format, "
+                "answer_preferences_enabled = EXCLUDED.answer_preferences_enabled, "
+                "answer_intent_detail = EXCLUDED.answer_intent_detail, "
+                "answer_intent_format = EXCLUDED.answer_intent_format, "
                 "share_with_learner = EXCLUDED.share_with_learner, "
                 "revision = EXCLUDED.revision, updated_at = EXCLUDED.updated_at",
                 (
                     record.principal_id,
                     record.locale,
                     record.verbosity,
+                    record.answer_detail,
+                    record.answer_format,
+                    record.answer_preferences_enabled,
+                    json.dumps(dict(record.answer_intent_detail)),
+                    json.dumps(dict(record.answer_intent_format)),
                     record.timezone,
                     record.share_with_learner,
                     revision,
@@ -389,6 +402,11 @@ class PostgresUserPreferenceStore(_PostgresBase):
             principal_id=record.principal_id,
             locale=record.locale,
             verbosity=record.verbosity,
+            answer_detail=record.answer_detail,
+            answer_format=record.answer_format,
+            answer_preferences_enabled=record.answer_preferences_enabled,
+            answer_intent_detail=dict(record.answer_intent_detail),
+            answer_intent_format=dict(record.answer_intent_format),
             timezone=record.timezone,
             share_with_learner=record.share_with_learner,
             revision=revision,
@@ -543,6 +561,11 @@ def _preference(row: dict[str, Any]) -> UserPreferenceRecord:
         principal_id=str(row["principal_id"]),
         locale=str(row["locale"]),
         verbosity=str(row["verbosity"]),
+        answer_detail=str(row["answer_detail"]),
+        answer_format=str(row["answer_format"]),
+        answer_preferences_enabled=bool(row["answer_preferences_enabled"]),
+        answer_intent_detail=dict(row["answer_intent_detail"]),
+        answer_intent_format=dict(row["answer_intent_format"]),
         timezone=str(row["timezone"]) if row["timezone"] is not None else None,
         share_with_learner=bool(row["share_with_learner"]),
         revision=int(row["revision"]),

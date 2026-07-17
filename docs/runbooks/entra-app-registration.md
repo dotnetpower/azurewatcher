@@ -1,3 +1,7 @@
+---
+title: Entra App Registration
+---
+
 # Entra App Registration
 
 How to create the two Entra ID app registrations the FDAI console needs -

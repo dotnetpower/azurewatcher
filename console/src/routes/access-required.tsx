@@ -1,9 +1,13 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { ReadApiClient } from "../api";
 import type { AuthContext } from "../auth";
 import { NebulaBackground } from "../components/nebula-background";
 import { StatusPill } from "../components/ui";
 import { t } from "../i18n";
+import {
+  identityForMutationIntent,
+  type MutationIntentIdentity,
+} from "../mutation-intent";
 import { submitSelfAccessRequest } from "./settings-iam.command";
 import type { IamSelfStatus } from "./settings-iam.model";
 
@@ -13,7 +17,23 @@ interface Props {
   readonly initialStatus: IamSelfStatus;
 }
 
+interface AccessCheckGeneration { current: number }
+
+export function beginAccessCheck(generation: AccessCheckGeneration): number {
+  generation.current += 1;
+  return generation.current;
+}
+
+export function isCurrentAccessCheck(
+  generation: AccessCheckGeneration,
+  candidate: number,
+): boolean {
+  return generation.current === candidate;
+}
+
 export function AccessRequiredRoute({ auth, client, initialStatus }: Props) {
+  const statusGeneration = useRef(0);
+  const accessRequestIntent = useRef<MutationIntentIdentity | null>(null);
   const [request, setRequest] = useState(initialStatus.request);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -22,18 +42,25 @@ export function AccessRequiredRoute({ auth, client, initialStatus }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const checkStatus = async () => {
+    const generation = beginAccessCheck(statusGeneration);
     setChecking(true);
     setError(null);
     try {
       const status = await client.iamSelf();
+      if (!isCurrentAccessCheck(statusGeneration, generation)) return;
       setRequest(status.request);
       if (status.canAccessConsole) window.location.reload();
     } catch (reason) {
+      if (!isCurrentAccessCheck(statusGeneration, generation)) return;
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      setChecking(false);
+      if (isCurrentAccessCheck(statusGeneration, generation)) setChecking(false);
     }
   };
+
+  useEffect(() => () => {
+    statusGeneration.current += 1;
+  }, []);
 
   useEffect(() => {
     if (request?.status !== "pending") return;
@@ -45,10 +72,17 @@ export function AccessRequiredRoute({ auth, client, initialStatus }: Props) {
     setSubmitting(true);
     setError(null);
     try {
+      const normalizedMessage = message.trim();
+      const identity = identityForMutationIntent(
+        accessRequestIntent.current,
+        normalizedMessage,
+      );
+      accessRequestIntent.current = identity;
       const created = await submitSelfAccessRequest(auth, client.readApiBaseUrl, {
-        idempotencyKey: crypto.randomUUID(),
-        ...(message.trim() ? { message } : {}),
+        idempotencyKey: identity.idempotencyKey,
+        ...(normalizedMessage ? { message: normalizedMessage } : {}),
       });
+      accessRequestIntent.current = null;
       setRequest(created);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));

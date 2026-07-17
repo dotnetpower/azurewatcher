@@ -13,8 +13,12 @@ import {
 import {
   DEFAULT_WEB_SEARCH_DOMAINS,
   decodeModelSettings,
+  draftRevisionIsCurrent,
   normalizeAndValidateDomains,
+  projectionGenerationIsCurrent,
   type ModelCapabilityView,
+  type ModelEndpointInventoryView,
+  type ModelRoutingCandidateView,
   type ModelSettingsView,
   type NarratorCandidateView,
   webSearchControlsDisabled,
@@ -26,6 +30,8 @@ interface Props {
 }
 
 export function SettingsModelsRoute({ client, auth }: Props) {
+  const narratorDraftRevision = useRef(0);
+  const webSearchDraftRevision = useRef(0);
   const [view, setView] = useState<ModelSettingsView | null>(null);
   const [selection, setSelection] = useState("auto");
   const [loading, setLoading] = useState(true);
@@ -38,12 +44,26 @@ export function SettingsModelsRoute({ client, auth }: Props) {
   const [webSearchError, setWebSearchError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const loadGeneration = useRef(0);
+  const mounted = useRef(true);
 
-  const applyProjection = (next: ModelSettingsView) => {
+  const applyProjection = (
+    next: ModelSettingsView,
+    submittedRevisions?: { readonly narrator: number; readonly webSearch: number },
+  ) => {
     setView(next);
-    setSelection(next.narrator.requested);
-    setWebSearchEnabled(next.webSearch.enabled);
-    setAllowedDomainsText(next.webSearch.allowedDomains.join("\n"));
+    if (
+      submittedRevisions === undefined
+      || draftRevisionIsCurrent(narratorDraftRevision.current, submittedRevisions.narrator)
+    ) {
+      setSelection(next.narrator.requested);
+    }
+    if (
+      submittedRevisions === undefined
+      || draftRevisionIsCurrent(webSearchDraftRevision.current, submittedRevisions.webSearch)
+    ) {
+      setWebSearchEnabled(next.webSearch.enabled);
+      setAllowedDomainsText(next.webSearch.allowedDomains.join("\n"));
+    }
   };
 
   const load = async () => {
@@ -52,21 +72,31 @@ export function SettingsModelsRoute({ client, auth }: Props) {
     setError(null);
     try {
       const next = decodeModelSettings(await client.panel<unknown>("/models/settings"));
-      if (generation !== loadGeneration.current) return;
+      if (!projectionGenerationIsCurrent(loadGeneration.current, generation)) return;
       applyProjection(next);
       setWebSearchError(null);
     } catch (reason) {
-      if (generation !== loadGeneration.current) return;
+      if (!projectionGenerationIsCurrent(loadGeneration.current, generation)) return;
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      if (generation === loadGeneration.current) setLoading(false);
+      if (projectionGenerationIsCurrent(loadGeneration.current, generation)) setLoading(false);
     }
   };
 
-  useEffect(() => { void load(); }, [client]);
+  useEffect(() => {
+    void load();
+    return () => {
+      mounted.current = false;
+      loadGeneration.current += 1;
+    };
+  }, [client]);
 
   const save = async () => {
-    loadGeneration.current += 1;
+    const submittedRevisions = {
+      narrator: narratorDraftRevision.current,
+      webSearch: webSearchDraftRevision.current,
+    };
+    const generation = ++loadGeneration.current;
     setSaving(true);
     setError(null);
     try {
@@ -76,11 +106,15 @@ export function SettingsModelsRoute({ client, auth }: Props) {
         selection,
         view?.narrator.revision ?? 0,
       );
-      applyProjection(next);
+      if (projectionGenerationIsCurrent(loadGeneration.current, generation)) {
+        applyProjection(next, submittedRevisions);
+      }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (projectionGenerationIsCurrent(loadGeneration.current, generation)) {
+        setError(reason instanceof Error ? reason.message : String(reason));
+      }
     } finally {
-      setSaving(false);
+      if (mounted.current) setSaving(false);
     }
   };
 
@@ -93,7 +127,11 @@ export function SettingsModelsRoute({ client, auth }: Props) {
       return;
     }
     setSavingWebSearch(true);
-    loadGeneration.current += 1;
+    const submittedRevisions = {
+      narrator: narratorDraftRevision.current,
+      webSearch: webSearchDraftRevision.current,
+    };
+    const generation = ++loadGeneration.current;
     setWebSearchError(null);
     try {
       const next = await saveWebSearchSettings(auth, client.readApiBaseUrl, {
@@ -101,21 +139,32 @@ export function SettingsModelsRoute({ client, auth }: Props) {
         allowedDomains: validation.domains,
         expectedRevision: view.webSearch.revision,
       });
-      applyProjection(next);
+      if (projectionGenerationIsCurrent(loadGeneration.current, generation)) {
+        applyProjection(next, submittedRevisions);
+      }
     } catch (reason) {
       if (reason instanceof ModelSettingsCommandError && reason.status === 409) {
         try {
           const latest = decodeModelSettings(await client.panel<unknown>("/models/settings"));
-          applyProjection(latest);
-          setWebSearchError(t("settings.models.webSearchConflict"));
+          if (projectionGenerationIsCurrent(loadGeneration.current, generation)) {
+            applyProjection(latest, {
+              narrator: submittedRevisions.narrator,
+              webSearch: webSearchDraftRevision.current,
+            });
+            setWebSearchError(t("settings.models.webSearchConflict"));
+          }
         } catch {
-          setWebSearchError(t("settings.models.webSearchConflictReloadFailed"));
+          if (projectionGenerationIsCurrent(loadGeneration.current, generation)) {
+            setWebSearchError(t("settings.models.webSearchConflictReloadFailed"));
+          }
         }
       } else {
-        setWebSearchError(reason instanceof Error ? reason.message : String(reason));
+        if (projectionGenerationIsCurrent(loadGeneration.current, generation)) {
+          setWebSearchError(reason instanceof Error ? reason.message : String(reason));
+        }
       }
     } finally {
-      setSavingWebSearch(false);
+      if (mounted.current) setSavingWebSearch(false);
     }
   };
 
@@ -134,19 +183,29 @@ export function SettingsModelsRoute({ client, auth }: Props) {
         { key: "provisioning_status", value: view.provisioning.status, group: "models" },
         { key: "capability_count", value: view.capabilities.length, group: "models" },
         { key: "web_search_enabled", value: view.webSearch.enabled, group: "web_search" },
+        { key: "web_search_available", value: view.webSearch.available, group: "web_search" },
         {
           key: "web_search_allowed_domain_count",
           value: view.webSearch.allowedDomains.length,
           group: "web_search",
         },
         { key: "web_search_provider", value: view.webSearch.provider, group: "web_search" },
+        { key: "resolved_metadata_source", value: view.resolvedMetadata.source, group: "models" },
+        { key: "resolved_metadata_as_of", value: view.resolvedMetadata.asOf, group: "models" },
         {
           key: "web_search_current_model",
           value: view.webSearch.currentAutoPick ?? "unavailable",
           group: "web_search",
         },
       ] : [],
-      records: {},
+      records: view ? {
+        narrator_candidates: view.narrator.candidates.map((candidate) => ({ ...candidate })),
+        model_capabilities: view.capabilities.map((capability) => ({
+          ...capability,
+          reasons: capability.reasons.join(", ") || "-",
+        })),
+        model_endpoints: view.endpointInventory.map((endpoint) => ({ ...endpoint })),
+      } : {},
     }),
     [view],
   );
@@ -165,6 +224,13 @@ export function SettingsModelsRoute({ client, auth }: Props) {
                 <p>{t("settings.models.automationHint")}</p>
               </div>
             </header>
+            <div class="filter-summary" aria-label={t("settings.models.resolvedMetadata")}>
+              <span>{t("settings.models.source")}: <strong>{view.resolvedMetadata.source}</strong></span>
+              <span>{t("settings.models.kind")}: <strong>{view.resolvedMetadata.kind}</strong></span>
+              <span>{t("settings.models.asOf")}: <strong>
+                {new Date(view.resolvedMetadata.asOf).toLocaleString()}
+              </strong></span>
+            </div>
             <div class="settings-access-strip settings-model-summary">
               <SummaryDatum
                 label={t("settings.models.discovery")}
@@ -175,6 +241,11 @@ export function SettingsModelsRoute({ client, auth }: Props) {
                 label={t("settings.models.provisioning")}
                 value={view.provisioning.automatic ? t("settings.models.automatic") : t("settings.models.manual")}
                 status={view.provisioning.status}
+              />
+              <SummaryDatum
+                label={t("settings.models.capabilityCoverage")}
+                value={t("settings.models.resolvedCount", { count: view.provisioning.resolvedCount })}
+                status={t("settings.models.hilOnlyCount", { count: view.provisioning.hilOnlyCount })}
               />
               <SummaryDatum
                 label={t("settings.models.region")}
@@ -197,7 +268,10 @@ export function SettingsModelsRoute({ client, auth }: Props) {
               <select
                 id="preferred-narrator-model"
                 value={selection}
-                onChange={(event) => setSelection(event.currentTarget.value)}
+                onChange={(event) => {
+                  narratorDraftRevision.current += 1;
+                  setSelection(event.currentTarget.value);
+                }}
               >
                 <option value="auto">{t("settings.models.autoFastest")}</option>
                 {view.narrator.candidates.map((candidate) => (
@@ -228,6 +302,53 @@ export function SettingsModelsRoute({ client, auth }: Props) {
             />
           </section>
 
+          <section class="settings-iam-panel" aria-labelledby="model-routing-heading">
+            <header class="settings-iam-panel-head">
+              <div>
+                <h3 id="model-routing-heading">{t("settings.models.routing")}</h3>
+                <p>{t("settings.models.routingHint")}</p>
+              </div>
+              <StatusPill kind="neutral" label={t("settings.models.systemGoverned")} />
+            </header>
+            {view.modelRouting.length === 0 ? (
+              <p class="muted">{t("settings.models.noRoutingState")}</p>
+            ) : view.modelRouting.map((routing) => (
+              <div class="settings-model-routing" key={routing.role}>
+                <div class="settings-model-routing-summary">
+                  <strong>{routing.role}</strong>
+                  <span>
+                    {t("settings.models.selectedDeployment", {
+                      model: routing.selectedDeployment ?? t("settings.models.unavailable"),
+                    })}
+                  </span>
+                  <small>{routing.selectionReason ?? t("settings.models.noFallback")}</small>
+                </div>
+                <DataTable
+                  columns={routingCandidateColumns()}
+                  rows={routing.candidates}
+                  keyOf={(candidate) => candidate.deployment}
+                  empty={t("settings.models.noHealthTransitions")}
+                />
+              </div>
+            ))}
+          </section>
+
+          <section class="settings-iam-panel" aria-labelledby="model-endpoints-heading">
+            <header class="settings-iam-panel-head">
+              <div>
+                <h3 id="model-endpoints-heading">{t("settings.models.endpointInventory")}</h3>
+                <p>{t("settings.models.endpointInventoryHint")}</p>
+              </div>
+              <StatusPill kind="neutral" label={t("settings.models.readOnlyInventory")} />
+            </header>
+            <DataTable
+              columns={endpointColumns()}
+              rows={view.endpointInventory}
+              keyOf={(endpoint) => endpoint.bindingId}
+              empty={t("settings.models.noEndpoints")}
+            />
+          </section>
+
           <section class="settings-iam-panel" aria-labelledby="web-search-settings-heading">
             <header class="settings-iam-panel-head">
               <div>
@@ -236,9 +357,11 @@ export function SettingsModelsRoute({ client, auth }: Props) {
               </div>
               <StatusPill
                 kind="neutral"
-                label={view.webSearch.canManage
-                  ? t("settings.models.deploymentWide")
-                  : t("settings.models.ownerManaged")}
+                label={!view.webSearch.available
+                  ? t("settings.models.unavailable")
+                  : view.webSearch.canManage
+                    ? t("settings.models.deploymentWide")
+                    : t("settings.models.ownerManaged")}
               />
             </header>
             <div class="settings-web-search-body">
@@ -255,7 +378,10 @@ export function SettingsModelsRoute({ client, auth }: Props) {
                       view.webSearch.canManage,
                       savingWebSearch,
                     )}
-                    onChange={(event) => setWebSearchEnabled(event.currentTarget.checked)}
+                    onChange={(event) => {
+                      webSearchDraftRevision.current += 1;
+                      setWebSearchEnabled(event.currentTarget.checked);
+                    }}
                   />
                   <span aria-hidden="true" />
                   <strong>
@@ -275,13 +401,19 @@ export function SettingsModelsRoute({ client, auth }: Props) {
                     view.webSearch.canManage,
                     savingWebSearch,
                   )}
-                  onInput={(event) => setAllowedDomainsText(event.currentTarget.value)}
-                  onBlur={() => setAllowedDomainsText(
-                    normalizeAndValidateDomains(
-                      allowedDomainsText,
-                      webSearchEnabled,
-                    ).domains.join("\n"),
-                  )}
+                  onInput={(event) => {
+                    webSearchDraftRevision.current += 1;
+                    setAllowedDomainsText(event.currentTarget.value);
+                  }}
+                  onBlur={() => {
+                    webSearchDraftRevision.current += 1;
+                    setAllowedDomainsText(
+                      normalizeAndValidateDomains(
+                        allowedDomainsText,
+                        webSearchEnabled,
+                      ).domains.join("\n"),
+                    );
+                  }}
                 />
               </label>
 
@@ -391,6 +523,36 @@ function candidateColumns() {
   ];
 }
 
+function routingCandidateColumns() {
+  return [
+    {
+      key: "deployment",
+      header: t("settings.models.model"),
+      render: (item: ModelRoutingCandidateView) => item.deployment,
+    },
+    {
+      key: "status",
+      header: t("settings.models.status"),
+      render: (item: ModelRoutingCandidateView) => (
+        <StatusPill
+          kind={item.status === "recovered" ? "success" : "warning"}
+          label={item.status}
+        />
+      ),
+    },
+    {
+      key: "failure",
+      header: t("settings.models.fallbackReason"),
+      render: (item: ModelRoutingCandidateView) => item.failureKind ?? t("settings.models.none"),
+    },
+    {
+      key: "cooldown",
+      header: t("settings.models.cooldown"),
+      render: (item: ModelRoutingCandidateView) => `${item.cooldownSeconds}s`,
+    },
+  ];
+}
+
 function capabilityColumns() {
   return [
     {
@@ -416,7 +578,78 @@ function capabilityColumns() {
     {
       key: "capacity",
       header: t("settings.models.capacity"),
-      render: (item: ModelCapabilityView) => `${item.capacityTpm} TPM`,
+      render: (item: ModelCapabilityView) => (
+        `${item.capacityValue} ${item.capacityUnit.toUpperCase()}`
+      ),
+    },
+    {
+      key: "reason",
+      header: t("settings.models.resolutionReason"),
+      render: (item: ModelCapabilityView) => item.reasons.length > 0 ? (
+        <details>
+          <summary class="details-summary">
+            {t("settings.models.reasonCount", { count: item.reasons.length })}
+          </summary>
+          <ul>{item.reasons.map((reason) => <li key={reason}><code>{reason}</code></li>)}</ul>
+        </details>
+      ) : <span class="muted">-</span>,
+    },
+  ];
+}
+
+function endpointColumns() {
+  return [
+    {
+      key: "binding",
+      header: t("settings.models.capability"),
+      render: (item: ModelEndpointInventoryView) => (
+        <span class="settings-model-name">
+          <strong>{item.capability}</strong>
+          <small>{item.bindingId}</small>
+        </span>
+      ),
+    },
+    {
+      key: "route",
+      header: t("settings.models.route"),
+      render: (item: ModelEndpointInventoryView) => (
+        <span class="settings-model-name">
+          <strong>{item.routeKind}</strong>
+          <small>{item.providerKind}</small>
+        </span>
+      ),
+    },
+    {
+      key: "model",
+      header: t("settings.models.model"),
+      render: (item: ModelEndpointInventoryView) => (
+        <span class="settings-model-name">
+          <strong>{item.deployment}</strong>
+          <small>{item.publisher} / {item.family}</small>
+        </span>
+      ),
+    },
+    {
+      key: "protocol",
+      header: t("settings.models.protocol"),
+      render: (item: ModelEndpointInventoryView) => `${item.apiStyle} / ${item.authKind}`,
+    },
+    {
+      key: "capacity",
+      header: t("settings.models.capacity"),
+      render: (item: ModelEndpointInventoryView) => (
+        `${item.capacityValue} ${item.capacityUnit.toUpperCase()}`
+      ),
+    },
+    {
+      key: "discovery",
+      header: t("settings.models.discovery"),
+      render: (item: ModelEndpointInventoryView) => (
+        <span class="settings-model-name">
+          <strong>{item.discoverySource}</strong>
+          <small>{new Date(item.verifiedAt).toLocaleString()}</small>
+        </span>
+      ),
     },
   ];
 }

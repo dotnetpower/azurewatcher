@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { ReadApiClient } from "../api";
 import { AsyncBoundary, PageHeader, type AsyncState } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
@@ -23,6 +23,102 @@ interface ReportsData {
   readonly selected: ReportSummary | null;
   readonly rendered: RenderedReportView | null;
   readonly variables: Readonly<Record<string, string>>;
+  readonly operationError: string | null;
+}
+
+export type ReportHeadlineState =
+  | { readonly kind: "empty" }
+  | { readonly kind: "unavailable"; readonly name: string }
+  | { readonly kind: "rendered"; readonly name: string; readonly count: number };
+
+export function reportHeadlineState(
+  selected: Pick<ReportSummary, "name"> | null,
+  rendered: Pick<RenderedReportView, "widgets"> | null,
+): ReportHeadlineState {
+  if (selected === null) return { kind: "empty" };
+  if (rendered === null) return { kind: "unavailable", name: selected.name };
+  return { kind: "rendered", name: selected.name, count: rendered.widgets.length };
+}
+
+export function updateReportVariable(
+  data: ReportsData,
+  name: string,
+  value: string,
+): ReportsData {
+  return {
+    ...data,
+    variables: { ...data.variables, [name]: value },
+    rendered: null,
+    operationError: null,
+  };
+}
+
+export function reportVariableErrors(
+  report: Pick<ReportSummary, "variables"> | null,
+  values: Readonly<Record<string, string>>,
+): readonly string[] {
+  return (report?.variables ?? []).flatMap((variable) => {
+    const value = (values[variable.name] ?? "").trim();
+    if (!value) return [`${variable.name} is required`];
+    if (variable.values.length > 0 && !variable.values.includes(value)) {
+      return [`${variable.name} has an unsupported value: ${value}`];
+    }
+    return [];
+  });
+}
+
+export function aggregateEvidenceAsOf(
+  sources: readonly { readonly as_of: string | null }[],
+): string | null {
+  if (sources.length === 0 || sources.some((source) => source.as_of === null)) return null;
+  const timestamps = sources
+    .map((source) => source.as_of!)
+    .filter((value) => Number.isFinite(Date.parse(value)))
+    .sort();
+  return timestamps.length === sources.length ? timestamps[0] ?? null : null;
+}
+
+export function reportDownloadCanComplete(
+  mounted: boolean,
+  currentGeneration: number,
+  candidateGeneration: number,
+): boolean {
+  return mounted && currentGeneration === candidateGeneration;
+}
+
+export function triggerBlobDownload(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.append(anchor);
+  try {
+    anchor.click();
+  } finally {
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+}
+
+export function defaultReport(
+  items: readonly ReportSummary[],
+  registry?: ReportingRegistry,
+): ReportSummary | null {
+  const unavailable = new Set(
+    registry?.datasource_provenance
+      .filter((source) => source.availability === "unavailable")
+      .map((source) => source.datasource) ?? [],
+  );
+  const candidates = items.filter((report) =>
+    report.datasources.every((datasource) => !unavailable.has(datasource)),
+  );
+  const available = candidates.length > 0 ? candidates : items;
+  return available.find((report) => report.variables.length > 0 && report.variables.every((variable) =>
+      (variable.default ?? variable.values[0] ?? "").trim().length > 0,
+    )) ??
+    available.find((report) => report.variables.length === 0) ??
+    available[0] ??
+    null;
 }
 
 export function ReportsRoute({ client }: Props) {
@@ -30,9 +126,20 @@ export function ReportsRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<ReportsData>>({ status: "loading" });
   const [refreshing, setRefreshing] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const renderGeneration = useRef(0);
+  const downloadGeneration = useRef(0);
+  const mounted = useRef(true);
+
+  useEffect(() => () => {
+    mounted.current = false;
+    renderGeneration.current += 1;
+    downloadGeneration.current += 1;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
+    setRefreshing(false);
+    setDownloading(false);
     setState({ status: "loading" });
     void (async () => {
       try {
@@ -42,7 +149,7 @@ export function ReportsRoute({ client }: Props) {
         ]);
         const selected = requestedId
           ? catalog.items.find((report) => report.id === requestedId) ?? null
-          : catalog.items[0] ?? null;
+          : defaultReport(catalog.items, registry);
         const queryVariables = new URLSearchParams(window.location.search);
         const variables = Object.fromEntries(
           (selected?.variables ?? []).map((variable) => [
@@ -50,16 +157,21 @@ export function ReportsRoute({ client }: Props) {
             queryVariables.get(variable.name) ?? variable.default ?? variable.values[0] ?? "",
           ]),
         );
-        const complete = selected?.variables.every((variable) =>
-          (variables[variable.name] ?? "").trim().length > 0,
-        ) ?? false;
-        const rendered = selected && complete
-          ? await client.renderReport(selected.id, variables)
-          : null;
+        const variablesValid = selected !== null
+          && reportVariableErrors(selected, variables).length === 0;
+        let rendered: RenderedReportView | null = null;
+        let operationError: string | null = null;
+        if (selected && variablesValid) {
+          try {
+            rendered = await client.renderReport(selected.id, variables);
+          } catch (error) {
+            operationError = error instanceof Error ? error.message : String(error);
+          }
+        }
         if (!cancelled) {
           setState({
             status: "ready",
-            data: { catalog, registry, selected, rendered, variables },
+            data: { catalog, registry, selected, rendered, variables, operationError },
           });
         }
       } catch (error) {
@@ -73,67 +185,94 @@ export function ReportsRoute({ client }: Props) {
     })();
     return () => {
       cancelled = true;
+      renderGeneration.current += 1;
+      downloadGeneration.current += 1;
     };
   }, [client, requestedId]);
 
   const updateVariable = (name: string, value: string) => {
+    renderGeneration.current += 1;
+    setRefreshing(false);
     setState((current) => {
       if (current.status !== "ready") return current;
-      const variables = { ...current.data.variables, [name]: value };
+      const data = updateReportVariable(current.data, name, value);
       if (current.data.selected) {
         window.history.replaceState(
           window.history.state,
           "",
           routeHref("reports", {
             segments: [current.data.selected.id],
-            params: variables,
+            params: data.variables,
           }),
         );
       }
       return {
         status: "ready",
-        data: { ...current.data, variables },
+        data,
       };
     });
   };
 
   const renderSelected = async () => {
     if (state.status !== "ready" || state.data.selected === null || refreshing) return;
-    if (state.data.selected.variables.some((variable) =>
-      (state.data.variables[variable.name] ?? "").trim().length === 0,
-    )) return;
+    if (reportVariableErrors(state.data.selected, state.data.variables).length > 0) return;
+    const generation = renderGeneration.current + 1;
+    renderGeneration.current = generation;
+    const selectedId = state.data.selected.id;
+    const variables = { ...state.data.variables };
     setRefreshing(true);
+    setState((current) => current.status === "ready"
+      ? { status: "ready", data: { ...current.data, operationError: null } }
+      : current);
     try {
-      const rendered = await client.renderReport(state.data.selected.id, state.data.variables);
-      setState((current) => current.status === "ready"
-        ? { status: "ready", data: { ...current.data, rendered } }
-        : current);
+      const rendered = await client.renderReport(selectedId, variables);
+      if (renderGeneration.current === generation) {
+        setState((current) => current.status === "ready" && current.data.selected?.id === selectedId
+          ? { status: "ready", data: { ...current.data, rendered } }
+          : current);
+      }
     } catch (error) {
-      setState({ status: "error", message: error instanceof Error ? error.message : String(error) });
+      if (renderGeneration.current === generation) {
+        const message = error instanceof Error ? error.message : String(error);
+        setState((current) => current.status === "ready"
+          ? { status: "ready", data: { ...current.data, operationError: message } }
+          : current);
+      }
     } finally {
-      setRefreshing(false);
+      if (renderGeneration.current === generation) setRefreshing(false);
     }
   };
 
   const downloadSelected = async () => {
     if (state.status !== "ready" || state.data.selected === null || downloading) return;
+    const generation = downloadGeneration.current + 1;
+    downloadGeneration.current = generation;
+    const selectedId = state.data.selected.id;
+    const variables = { ...state.data.variables };
     setDownloading(true);
+    setState((current) => current.status === "ready"
+      ? { status: "ready", data: { ...current.data, operationError: null } }
+      : current);
     try {
       const blob = await client.downloadReport(
-        state.data.selected.id,
+        selectedId,
         "pdf",
-        state.data.variables,
+        variables,
       );
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `${state.data.selected.id}.pdf`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      if (reportDownloadCanComplete(mounted.current, downloadGeneration.current, generation)) {
+        triggerBlobDownload(blob, `${selectedId}.pdf`);
+      }
     } catch (error) {
-      setState({ status: "error", message: error instanceof Error ? error.message : String(error) });
+      if (reportDownloadCanComplete(mounted.current, downloadGeneration.current, generation)) {
+        const message = error instanceof Error ? error.message : String(error);
+        setState((current) => current.status === "ready"
+          ? { status: "ready", data: { ...current.data, operationError: message } }
+          : current);
+      }
     } finally {
-      setDownloading(false);
+      if (reportDownloadCanComplete(mounted.current, downloadGeneration.current, generation)) {
+        setDownloading(false);
+      }
     }
   };
 
@@ -171,23 +310,29 @@ function ReportsBody({
   readonly onRender: () => Promise<void>;
   readonly onDownload: () => Promise<void>;
 }) {
-  const variablesComplete = data.selected?.variables.every((variable) =>
-    (data.variables[variable.name] ?? "").trim().length > 0,
-  ) ?? false;
+  const variableErrors = reportVariableErrors(data.selected, data.variables);
+  const variablesComplete = data.selected !== null && variableErrors.length === 0;
+  const evidenceAsOf = aggregateEvidenceAsOf(data.rendered?.provenance.sources ?? []);
+  const headline = reportHeadlineState(data.selected, data.rendered);
   usePublishViewContext(
     () => ({
       routeId: "reports",
       routeLabel: t("route.reports"),
       purpose: t("reports.viewPurpose"),
       glossary: composeGlossary([TERMS.report, TERMS.widget]),
-      headline: data.selected
-        ? t("reports.viewHeadline", { name: data.selected.name, count: data.rendered?.widgets.length ?? 0 })
-        : t("reports.empty"),
-      capturedAt: new Date().toISOString(),
+      headline: headline.kind === "rendered"
+        ? t("reports.viewHeadline", { name: headline.name, count: headline.count })
+        : headline.kind === "unavailable"
+          ? t("reports.viewHeadlineUnavailable", { name: headline.name })
+          : t("reports.empty"),
+      capturedAt: evidenceAsOf ?? data.rendered?.generated_at ?? new Date().toISOString(),
       facts: [
         { key: "report_count", value: data.catalog.items.length, group: "reports" },
         { key: "selected_report", value: data.selected?.id ?? null, group: "selection" },
         { key: "registered_widget_types", value: data.registry.widgets.length, group: "registry" },
+        { key: "evidence_availability", value: data.rendered?.provenance.availability ?? null, group: "evidence" },
+        { key: "evidence_synthetic", value: data.rendered?.provenance.synthetic ?? null, group: "evidence" },
+        { key: "evidence_as_of", value: evidenceAsOf, group: "evidence" },
       ],
       records: {
         reports: data.catalog.items.map((report) => ({
@@ -199,7 +344,7 @@ function ReportsBody({
         })),
       },
     }),
-    [data],
+    [data, evidenceAsOf, headline],
   );
 
   return (
@@ -220,6 +365,9 @@ function ReportsBody({
       </nav>
 
       <section class="reports-detail" aria-live="polite">
+        {data.operationError ? (
+          <div class="state-block state-error" role="alert">{data.operationError}</div>
+        ) : null}
         {data.selected ? (
           <>
             <header class="reports-header">
@@ -229,12 +377,43 @@ function ReportsBody({
                 <p>{data.selected.description}</p>
               </div>
               {data.rendered ? (
-                <span class="muted small">{t("reports.generated", { time: data.rendered.generated_at })}</span>
+                <span class="muted small">{t("reports.renderedAt", { time: data.rendered.generated_at })}</span>
               ) : null}
             </header>
 
+            {data.rendered ? (
+              <div class="analytics-evidence reports-evidence">
+                <strong>
+                  {data.rendered.provenance.synthetic === true
+                    ? t("reports.simulated")
+                    : data.rendered.provenance.synthetic === false
+                      ? t("reports.measured")
+                      : t("reports.provenanceUnknown")}
+                </strong>
+                <span>{t("reports.availability", {
+                  status: data.rendered.provenance.availability,
+                })}</span>
+                {data.rendered.provenance.sources.map((source) => (
+                  <span key={source.datasource}>
+                    {source.datasource}: {source.source}
+                    {source.as_of ? ` - ${t("reports.asOf", { time: source.as_of })}` : ""}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {data.rendered?.provenance.availability === "unavailable" ? (
+              <div class="state-block state-unavailable" role="status">
+                {t("reports.datasourceUnavailable")}
+              </div>
+            ) : null}
+
             {data.selected.variables.length > 0 ? (
               <div class="reports-variables" aria-label={t("reports.variables")}>
+                {variableErrors.length > 0 ? (
+                  <div class="state-block state-unavailable" role="alert">
+                    {variableErrors.join("; ")}
+                  </div>
+                ) : null}
                 {data.selected.variables.map((variable) => (
                   <label key={variable.name}>
                     <span>{variable.name}</span>

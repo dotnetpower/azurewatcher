@@ -125,7 +125,9 @@ class PostgresUserContextProjectionRecovery:
             return await self._project_conversation_bundle(job)
         if job.projection_kind == "preference":
             record = await self._one(
-                "SELECT principal_id, locale, verbosity, timezone, share_with_learner, "
+                "SELECT principal_id, locale, verbosity, answer_detail, answer_format, "
+                "answer_preferences_enabled, answer_intent_detail, answer_intent_format, "
+                "timezone, share_with_learner, "
                 "revision, updated_at FROM user_preference "
                 "WHERE principal_id = %s",
                 (job.principal_id,),

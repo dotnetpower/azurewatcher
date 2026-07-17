@@ -9,15 +9,19 @@ file loaders that turn local documents into
 from __future__ import annotations
 
 from fdai.delivery.knowledge.loader import (
+    DEFAULT_CONVERTIBLE_SUFFIXES,
     DEFAULT_MAX_BYTES,
     DEFAULT_TEXT_SUFFIXES,
     documents_from_files,
     load_knowledge_documents,
+    load_knowledge_documents_with_converter,
 )
 
 __all__ = [
+    "DEFAULT_CONVERTIBLE_SUFFIXES",
     "DEFAULT_MAX_BYTES",
     "DEFAULT_TEXT_SUFFIXES",
     "documents_from_files",
     "load_knowledge_documents",
+    "load_knowledge_documents_with_converter",
 ]

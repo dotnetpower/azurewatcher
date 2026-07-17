@@ -193,6 +193,46 @@ class RenderedWidget:
 
 
 @dataclass(frozen=True, slots=True)
+class DataSourceProvenance:
+    """Composition-owned origin and availability for one datasource slot."""
+
+    datasource: str
+    source: str
+    availability: str = "unknown"
+    synthetic: bool | None = None
+    as_of: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.availability not in {"available", "unavailable", "unknown"}:
+            raise ValueError("datasource availability is invalid")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "datasource": self.datasource,
+            "source": self.source,
+            "availability": self.availability,
+            "synthetic": self.synthetic,
+            "as_of": self.as_of,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ReportProvenance:
+    """Aggregate provenance for every query-backed widget in one render."""
+
+    availability: str = "unknown"
+    synthetic: bool | None = None
+    sources: tuple[DataSourceProvenance, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "availability": self.availability,
+            "synthetic": self.synthetic,
+            "sources": [source.to_dict() for source in self.sources],
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class RenderedReport:
     """The engine's return value.
 
@@ -211,6 +251,7 @@ class RenderedReport:
     variables: Mapping[str, str]
     widgets: tuple[RenderedWidget, ...]
     tags: tuple[str, ...] = ()
+    provenance: ReportProvenance = field(default_factory=ReportProvenance)
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-serializable form; canonical FE contract."""
@@ -231,6 +272,7 @@ def _rendered_report_to_dict(report: RenderedReport) -> dict[str, Any]:
         "variables": dict(report.variables),
         "widgets": [_rendered_widget_to_dict(w) for w in report.widgets],
         "tags": list(report.tags),
+        "provenance": report.provenance.to_dict(),
     }
 
 
@@ -251,8 +293,10 @@ def _rendered_widget_to_dict(widget: RenderedWidget) -> dict[str, Any]:
 
 __all__ = [
     "DataSet",
+    "DataSourceProvenance",
     "QuerySpec",
     "RenderedReport",
+    "ReportProvenance",
     "RenderedWidget",
     "ReportSpec",
     "Series",

@@ -5,7 +5,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Final
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from fdai.core.conversation.answer_preferences import ResponsePreferenceProfile
 
 
 class AnswerIntent(StrEnum):
@@ -110,6 +113,7 @@ class AnswerPlan:
     discuss: DiscussPolicy
     subject: str
     explicit_overrides: tuple[str, ...] = ()
+    preference_applied: bool = False
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -124,6 +128,7 @@ class AnswerPlan:
             "discuss": self.discuss.value,
             "subject": self.subject,
             "explicit_overrides": list(self.explicit_overrides),
+            "preference_applied": self.preference_applied,
         }
 
 
@@ -263,7 +268,12 @@ _MODIFIERS: Final[tuple[tuple[str, re.Pattern[str]], ...]] = (
 )
 
 
-def build_answer_plan(prompt: str, *, route_id: str | None = None) -> AnswerPlan:
+def build_answer_plan(
+    prompt: str,
+    *,
+    route_id: str | None = None,
+    preferences: ResponsePreferenceProfile | None = None,
+) -> AnswerPlan:
     """Build one deterministic response plan without model or provider calls."""
     intent = _intent(prompt)
     detail = (
@@ -276,6 +286,17 @@ def build_answer_plan(prompt: str, *, route_id: str | None = None) -> AnswerPlan
     audience = AudienceLevel.GENERAL
     overrides: list[str] = []
     subject = prompt.strip()
+    preference_applied = False
+
+    if preferences is not None:
+        preferred_detail = preferences.detail_for(intent)
+        preferred_format = preferences.format_for(intent)
+        if preferred_detail is not None:
+            detail = preferred_detail
+            preference_applied = True
+        if preferred_format is not None:
+            format_ = preferred_format
+            preference_applied = True
 
     matched = sorted(
         (
@@ -317,6 +338,7 @@ def build_answer_plan(prompt: str, *, route_id: str | None = None) -> AnswerPlan
         discuss=DiscussPolicy.SKIP,
         subject=subject,
         explicit_overrides=tuple(overrides),
+        preference_applied=preference_applied,
     )
 
 

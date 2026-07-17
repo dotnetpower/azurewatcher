@@ -25,10 +25,12 @@ from __future__ import annotations
 import json
 import subprocess
 from collections.abc import Sequence
+from urllib.parse import quote, urlencode, urlparse
 
 from fdai.rule_catalog.schema.llm_resolver import (
     CatalogQuery,
     PermissionQuery,
+    ProvisionedCapacityQuery,
     QuotaQuery,
 )
 
@@ -275,6 +277,173 @@ class AzureCliQuotaQuery(QuotaQuery):
         return out
 
 
+class AzureCliProvisionedCapacityQuery(ProvisionedCapacityQuery):
+    """Query live deployable PTUs from the Azure Model Capacities REST API."""
+
+    _API_VERSION = "2024-10-01"
+
+    def __init__(
+        self,
+        *,
+        subscription_id: str,
+        executable: str = "az",
+        timeout: float = _DEFAULT_TIMEOUT_SECONDS,
+        max_pages: int = 5,
+    ) -> None:
+        if not subscription_id.strip() or max_pages < 1:
+            raise ValueError("PTU capacity query subscription and page cap MUST be valid")
+        self._subscription_id = subscription_id
+        self._executable = executable
+        self._timeout = timeout
+        self._max_pages = max_pages
+        self._versions: dict[tuple[str, str], str] = {}
+        self._capacity: dict[tuple[str, str, str], int] = {}
+
+    def available_capacity_ptu(
+        self,
+        *,
+        region: str,
+        publisher: str,
+        family: str,
+        sku: str,
+    ) -> int:
+        if publisher.casefold() != "openai":
+            return 0
+        key = (region.casefold(), family, sku)
+        if key not in self._capacity:
+            version = self._model_version(region=region, family=family)
+            self._capacity[key] = self._load_capacity(
+                region=region,
+                family=family,
+                version=version,
+                sku=sku,
+            )
+        return self._capacity[key]
+
+    def _model_version(self, *, region: str, family: str) -> str:
+        key = (region.casefold(), family)
+        cached = self._versions.get(key)
+        if cached is not None:
+            return cached
+        query = (
+            "[?kind=='OpenAI' && model.name=='"
+            + _jmes_literal(family)
+            + "' && model.lifecycleStatus=='GenerallyAvailable'].model.version"
+        )
+        stdout = _run_az(
+            [
+                self._executable,
+                "cognitiveservices",
+                "model",
+                "list",
+                "-l",
+                region,
+                "--query",
+                query,
+                "-o",
+                "json",
+            ],
+            timeout=self._timeout,
+        )
+        try:
+            payload = json.loads(stdout or "[]")
+        except json.JSONDecodeError as exc:
+            raise AzureCliResolverError(
+                "az CLI returned non-JSON for PTU model version discovery"
+            ) from exc
+        versions = (
+            sorted({value for value in payload if isinstance(value, str) and value})
+            if isinstance(payload, list)
+            else []
+        )
+        if not versions:
+            raise AzureCliResolverError(
+                f"no generally available model version for PTU family {family!r}"
+            )
+        self._versions[key] = versions[-1]
+        return versions[-1]
+
+    def _load_capacity(self, *, region: str, family: str, version: str, sku: str) -> int:
+        query = urlencode(
+            {
+                "api-version": self._API_VERSION,
+                "modelFormat": "OpenAI",
+                "modelName": family,
+                "modelVersion": version,
+            }
+        )
+        url = (
+            "https://management.azure.com/subscriptions/"
+            + quote(self._subscription_id, safe="")
+            + "/providers/Microsoft.CognitiveServices/modelCapacities?"
+            + query
+        )
+        available = 0
+        for _page in range(self._max_pages):
+            payload = self._get_page(url)
+            values = payload.get("value")
+            if not isinstance(values, list):
+                raise AzureCliResolverError("model capacities response MUST carry a value array")
+            for entry in values:
+                if not isinstance(entry, dict):
+                    continue
+                properties = entry.get("properties")
+                if not isinstance(properties, dict):
+                    continue
+                model = properties.get("model")
+                if not isinstance(model, dict):
+                    continue
+                if (
+                    str(entry.get("location", "")).casefold() != region.casefold()
+                    or properties.get("skuName") != sku
+                    or model.get("format") != "OpenAI"
+                    or model.get("name") != family
+                    or model.get("version") != version
+                ):
+                    continue
+                candidate = _as_int(properties.get("availableCapacity"))
+                if candidate is not None:
+                    available = max(available, candidate)
+            next_link = payload.get("nextLink")
+            if next_link is None:
+                return available
+            if not isinstance(next_link, str) or not _safe_management_url(next_link):
+                raise AzureCliResolverError("model capacities nextLink is invalid")
+            url = next_link
+        raise AzureCliResolverError("model capacities pagination exceeded the page cap")
+
+    def _get_page(self, url: str) -> dict[str, object]:
+        stdout = _run_az(
+            [self._executable, "rest", "--method", "get", "--url", url, "-o", "json"],
+            timeout=self._timeout,
+        )
+        try:
+            payload = json.loads(stdout or "{}")
+        except json.JSONDecodeError as exc:
+            raise AzureCliResolverError("az CLI returned non-JSON for model capacities") from exc
+        if not isinstance(payload, dict):
+            raise AzureCliResolverError("model capacities response MUST be an object")
+        return payload
+
+
+def _jmes_literal(value: str) -> str:
+    allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+    if not value or any(character not in allowed for character in value):
+        raise AzureCliResolverError("model family contains unsupported characters")
+    return value
+
+
+def _safe_management_url(value: str) -> bool:
+    parsed = urlparse(value)
+    return (
+        parsed.scheme == "https"
+        and parsed.hostname == "management.azure.com"
+        and parsed.username is None
+        and parsed.password is None
+        and parsed.fragment == ""
+    )
+
+
 def _as_int(value: object) -> int | None:
     """Coerce a JSON value to a non-negative int; ``None`` on any failure."""
     if isinstance(value, bool):
@@ -329,6 +498,7 @@ def _family_keys(name_value: str) -> set[str]:
 __all__ = [
     "AzureCliCatalogQuery",
     "AzureCliPermissionQuery",
+    "AzureCliProvisionedCapacityQuery",
     "AzureCliQuotaQuery",
     "AzureCliResolverError",
 ]

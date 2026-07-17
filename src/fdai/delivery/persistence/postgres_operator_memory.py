@@ -182,6 +182,47 @@ class PostgresOperatorMemoryStore(OperatorMemoryStore):
                     (str(superseded_by), str(entry_id)),
                 )
 
+    async def list_for_review(
+        self,
+        *,
+        limit: int,
+        scope_kind: ScopeKind | None = None,
+        scope_ref: str | None = None,
+    ) -> tuple[OperatorMemoryEntry, ...]:
+        if not 1 <= limit <= 200:
+            raise ValueError("operator memory review limit MUST be in [1, 200]")
+        clauses: list[str] = []
+        params: list[object] = []
+        if scope_kind is not None:
+            clauses.append("scope_kind = %s")
+            params.append(scope_kind.value)
+        if scope_ref is not None:
+            clauses.append("scope_ref = %s")
+            params.append(scope_ref)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.append(limit)
+        async with await psycopg.AsyncConnection.connect(
+            self._config.dsn,
+            row_factory=dict_row,
+            connect_timeout=self._config.connect_timeout_s,
+        ) as conn:
+            async with conn.transaction():
+                await self._set_statement_timeout(conn)
+                cursor = await conn.execute(
+                    f"""
+                    SELECT id, scope_kind, scope_ref, category, body,
+                           source_event, source_ref, author, approved_by,
+                           created_at, superseded_by, ttl_seconds
+                      FROM operator_memory
+                      {where}
+                     ORDER BY created_at DESC, id DESC
+                     LIMIT %s
+                    """,  # noqa: S608 - where uses fixed clauses only
+                    tuple(params),
+                )
+                rows = await cursor.fetchall()
+        return tuple(_row_to_entry(row) for row in rows)
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------

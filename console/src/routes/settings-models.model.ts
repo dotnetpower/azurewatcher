@@ -5,8 +5,36 @@ export interface ModelCapabilityView {
   readonly family: string | null;
   readonly status: string;
   readonly capacityTpm: number;
+  readonly capacityUnit: "tpm" | "ptu";
+  readonly capacityValue: number;
   readonly invocation: string;
   readonly reasons: readonly string[];
+}
+
+export interface ModelEndpointInventoryView {
+  readonly bindingId: string;
+  readonly capability: string;
+  readonly providerKind: "azure-openai" | "self-hosted";
+  readonly routeKind: "direct" | "apim-gateway";
+  readonly apiStyle: "azure-openai" | "openai-v1";
+  readonly deployment: string;
+  readonly apiVersion: string | null;
+  readonly authKind: "entra" | "api-key-ref" | "none";
+  readonly publisher: string;
+  readonly family: string;
+  readonly version: string | null;
+  readonly capacityUnit: "tpm" | "ptu" | "gpu";
+  readonly capacityValue: number;
+  readonly features: {
+    readonly streaming: boolean;
+    readonly embeddings: boolean;
+    readonly structuredOutput: boolean;
+    readonly toolCalling: boolean;
+  };
+  readonly discoverySource: string;
+  readonly verifiedAt: string;
+  readonly managedBy: "catalog-and-resolver";
+  readonly userSelectable: false;
 }
 
 export interface NarratorCandidateView {
@@ -22,6 +50,7 @@ export interface NarratorCandidateView {
 }
 
 export interface WebSearchSettingsView {
+  readonly available: boolean;
   readonly enabled: boolean;
   readonly allowedDomains: readonly string[];
   readonly revision: number;
@@ -29,6 +58,22 @@ export interface WebSearchSettingsView {
   readonly provider: string;
   readonly currentAutoPick: string | null;
   readonly candidates: readonly unknown[];
+}
+
+export interface ModelRoutingCandidateView {
+  readonly deployment: string;
+  readonly status: "unhealthy" | "recovered";
+  readonly failureKind: string | null;
+  readonly cooldownSeconds: number;
+  readonly updatedAt: string;
+}
+
+export interface ModelRoutingRoleView {
+  readonly role: string;
+  readonly selectedDeployment: string | null;
+  readonly selectionReason: string | null;
+  readonly selectedAt: string | null;
+  readonly candidates: readonly ModelRoutingCandidateView[];
 }
 
 export const DEFAULT_WEB_SEARCH_DOMAINS = [
@@ -42,6 +87,14 @@ export const DEFAULT_WEB_SEARCH_DOMAINS = [
   "postgresql.org",
 ] as const;
 
+export function draftRevisionIsCurrent(current: number, submitted: number): boolean {
+  return current === submitted;
+}
+
+export function projectionGenerationIsCurrent(current: number, candidate: number): boolean {
+  return current === candidate;
+}
+
 export type DomainValidationError = "required" | "too-many" | "invalid";
 
 export interface DomainValidationResult {
@@ -53,6 +106,11 @@ export interface DomainValidationResult {
 export interface ModelSettingsView {
   readonly region: string | null;
   readonly mixedModelMode: string | null;
+  readonly resolvedMetadata: {
+    readonly kind: string;
+    readonly source: string;
+    readonly asOf: string;
+  };
   readonly discovery: {
     readonly automatic: boolean;
     readonly source: string;
@@ -65,6 +123,7 @@ export interface ModelSettingsView {
     readonly hilOnlyCount: number;
   };
   readonly capabilities: readonly ModelCapabilityView[];
+  readonly endpointInventory: readonly ModelEndpointInventoryView[];
   readonly narrator: {
     readonly revision: number;
     readonly requested: string;
@@ -74,6 +133,7 @@ export interface ModelSettingsView {
     readonly candidates: readonly NarratorCandidateView[];
   };
   readonly webSearch: WebSearchSettingsView;
+  readonly modelRouting: readonly ModelRoutingRoleView[];
   readonly t2SelectionScope: "system-governed";
 }
 
@@ -81,15 +141,24 @@ export function decodeModelSettings(value: unknown): ModelSettingsView {
   const root = object(value, "model settings");
   const discovery = object(root["discovery"], "model settings.discovery");
   const provisioning = object(root["provisioning"], "model settings.provisioning");
+  const resolvedMetadata = object(root["resolved_metadata"], "model settings.resolved_metadata");
   const narrator = object(root["narrator"], "model settings.narrator");
   const webSearch = object(root["web_search"], "model settings.web_search");
+  const modelRouting = array(root["model_routing"], "model settings.model_routing").map(
+    (entry) => decodeModelRouting(entry),
+  );
   const capabilities = array(root["capabilities"], "model settings.capabilities").map(
     (entry) => decodeCapability(entry),
   );
+  const endpointInventory = array(
+    root["endpoint_inventory"] ?? [],
+    "model settings.endpoint_inventory",
+  ).map((entry) => decodeEndpointInventory(entry));
   const candidates = array(narrator["candidates"], "model settings.narrator.candidates").map(
     (entry) => decodeCandidate(entry),
   );
   requireUnique(capabilities.map((item) => item.name), "model capability.name");
+  requireUnique(endpointInventory.map((item) => item.bindingId), "endpoint binding.binding_id");
   requireUnique(candidates.map((item) => item.deployment), "narrator candidate.deployment");
   const scope = string(narrator["selection_scope"], "narrator.selection_scope");
   if (scope !== "per-user") throw new Error("narrator.selection_scope MUST be per-user");
@@ -100,6 +169,11 @@ export function decodeModelSettings(value: unknown): ModelSettingsView {
   return {
     region: nullableString(root["region"], "model settings.region"),
     mixedModelMode: nullableString(root["mixed_model_mode"], "mixed_model_mode"),
+    resolvedMetadata: {
+      kind: string(resolvedMetadata["kind"], "resolved_metadata.kind"),
+      source: string(resolvedMetadata["source"], "resolved_metadata.source"),
+      asOf: string(resolvedMetadata["as_of"], "resolved_metadata.as_of"),
+    },
     discovery: {
       automatic: boolean(discovery["automatic"], "discovery.automatic"),
       source: string(discovery["source"], "discovery.source"),
@@ -112,6 +186,7 @@ export function decodeModelSettings(value: unknown): ModelSettingsView {
       hilOnlyCount: nonNegativeInteger(provisioning["hil_only_count"], "provisioning.hil_only_count"),
     },
     capabilities,
+    endpointInventory,
     narrator: {
       revision: nonNegativeInteger(narrator["revision"], "narrator.revision"),
       requested: string(narrator["requested"], "narrator.requested"),
@@ -121,6 +196,7 @@ export function decodeModelSettings(value: unknown): ModelSettingsView {
       candidates,
     },
     webSearch: {
+      available: boolean(webSearch["available"], "web_search.available"),
       enabled: boolean(webSearch["enabled"], "web_search.enabled"),
       allowedDomains: array(webSearch["allowed_domains"], "web_search.allowed_domains").map(
         (domain) => {
@@ -138,7 +214,46 @@ export function decodeModelSettings(value: unknown): ModelSettingsView {
       ),
       candidates: array(webSearch["candidates"], "web_search.candidates"),
     },
+    modelRouting,
     t2SelectionScope: "system-governed",
+  };
+}
+
+function decodeModelRouting(value: unknown): ModelRoutingRoleView {
+  const item = object(value, "model routing role");
+  return {
+    role: string(item["role"], "model routing role.role"),
+    selectedDeployment: nullableString(
+      item["selected_deployment"],
+      "model routing role.selected_deployment",
+    ),
+    selectionReason: nullableString(
+      item["selection_reason"],
+      "model routing role.selection_reason",
+    ),
+    selectedAt: nullableString(item["selected_at"], "model routing role.selected_at"),
+    candidates: array(item["candidates"], "model routing role.candidates").map(
+      (candidate) => {
+        const parsed = object(candidate, "model routing candidate");
+        const status = knownString(parsed["status"], "model routing candidate.status", [
+          "unhealthy",
+          "recovered",
+        ]);
+        return {
+          deployment: string(parsed["deployment"], "model routing candidate.deployment"),
+          status: status as ModelRoutingCandidateView["status"],
+          failureKind: nullableString(
+            parsed["failure_kind"],
+            "model routing candidate.failure_kind",
+          ),
+          cooldownSeconds: nonNegativeInteger(
+            parsed["cooldown_seconds"],
+            "model routing candidate.cooldown_seconds",
+          ),
+          updatedAt: string(parsed["updated_at"], "model routing candidate.updated_at"),
+        };
+      },
+    ),
   };
 }
 
@@ -198,10 +313,69 @@ function decodeCapability(value: unknown): ModelCapabilityView {
       "resolved", "capacity-reduced", "hil-only",
     ]),
     capacityTpm: nonNegativeNumber(item["capacity_tpm"], "model capability.capacity_tpm"),
+    capacityUnit: knownString(
+      item["capacity_unit"] ?? "tpm",
+      "model capability.capacity_unit",
+      ["tpm", "ptu"],
+    ) as ModelCapabilityView["capacityUnit"],
+    capacityValue: nonNegativeNumber(
+      item["capacity_value"] ?? item["capacity_tpm"],
+      "model capability.capacity_value",
+    ),
     invocation: string(item["invocation"], "model capability.invocation"),
     reasons: array(item["reasons"], "model capability.reasons").map((reason) =>
       string(reason, "model capability.reason")
     ),
+  };
+}
+
+function decodeEndpointInventory(value: unknown): ModelEndpointInventoryView {
+  const item = object(value, "endpoint binding");
+  const features = object(item["features"], "endpoint binding.features");
+  const managedBy = string(item["managed_by"], "endpoint binding.managed_by");
+  if (managedBy !== "catalog-and-resolver") {
+    throw new Error("endpoint binding.managed_by MUST be catalog-and-resolver");
+  }
+  if (item["user_selectable"] !== false) {
+    throw new Error("endpoint binding.user_selectable MUST be false");
+  }
+  return {
+    bindingId: string(item["binding_id"], "endpoint binding.binding_id"),
+    capability: string(item["capability"], "endpoint binding.capability"),
+    providerKind: knownString(item["provider_kind"], "endpoint binding.provider_kind", [
+      "azure-openai", "self-hosted",
+    ]) as ModelEndpointInventoryView["providerKind"],
+    routeKind: knownString(item["route_kind"], "endpoint binding.route_kind", [
+      "direct", "apim-gateway",
+    ]) as ModelEndpointInventoryView["routeKind"],
+    apiStyle: knownString(item["api_style"], "endpoint binding.api_style", [
+      "azure-openai", "openai-v1",
+    ]) as ModelEndpointInventoryView["apiStyle"],
+    deployment: string(item["deployment"], "endpoint binding.deployment"),
+    apiVersion: nullableString(item["api_version"], "endpoint binding.api_version"),
+    authKind: knownString(item["auth_kind"], "endpoint binding.auth_kind", [
+      "entra", "api-key-ref", "none",
+    ]) as ModelEndpointInventoryView["authKind"],
+    publisher: string(item["publisher"], "endpoint binding.publisher"),
+    family: string(item["family"], "endpoint binding.family"),
+    version: nullableString(item["version"], "endpoint binding.version"),
+    capacityUnit: knownString(item["capacity_unit"], "endpoint binding.capacity_unit", [
+      "tpm", "ptu", "gpu",
+    ]) as ModelEndpointInventoryView["capacityUnit"],
+    capacityValue: nonNegativeNumber(item["capacity_value"], "endpoint binding.capacity_value"),
+    features: {
+      streaming: boolean(features["streaming"], "endpoint binding.features.streaming"),
+      embeddings: boolean(features["embeddings"], "endpoint binding.features.embeddings"),
+      structuredOutput: boolean(
+        features["structured_output"],
+        "endpoint binding.features.structured_output",
+      ),
+      toolCalling: boolean(features["tool_calling"], "endpoint binding.features.tool_calling"),
+    },
+    discoverySource: string(item["discovery_source"], "endpoint binding.discovery_source"),
+    verifiedAt: string(item["verified_at"], "endpoint binding.verified_at"),
+    managedBy: "catalog-and-resolver",
+    userSelectable: false,
   };
 }
 

@@ -6,6 +6,7 @@ import json
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+from hashlib import sha256
 from typing import Any
 from uuid import uuid4
 
@@ -39,6 +40,21 @@ from fdai.shared.providers.user_context import (
 )
 
 AuthorizeFn = Callable[[Request], Awaitable[str]]
+
+
+def _same_subscription_intent(
+    existing: BriefingSubscription,
+    requested: BriefingSubscription,
+) -> bool:
+    return (
+        existing.name == requested.name
+        and existing.spec == requested.spec
+        and existing.cron_expression == requested.cron_expression
+        and existing.timezone == requested.timezone
+        and existing.delivery_modes == requested.delivery_modes
+        and existing.channel_binding_ref == requested.channel_binding_ref
+        and existing.max_lateness_seconds == requested.max_lateness_seconds
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +117,15 @@ def make_user_context_routes(
                 principal_id=principal_id,
                 locale=str(body.get("locale") or "en"),
                 verbosity=str(body.get("verbosity") or "concise"),
+                answer_detail=str(body.get("answer_detail") or "standard"),
+                answer_format=str(body.get("answer_format") or "prose"),
+                answer_preferences_enabled=_optional_bool(
+                    body,
+                    "answer_preferences_enabled",
+                    default=True,
+                ),
+                answer_intent_detail=_optional_string_mapping(body, "answer_intent_detail"),
+                answer_intent_format=_optional_string_mapping(body, "answer_intent_format"),
                 timezone=_optional_text(body, "timezone"),
                 share_with_learner=_optional_bool(
                     body,
@@ -117,6 +142,13 @@ def make_user_context_routes(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return JSONResponse(_json(stored))
+
+    async def delete_preference(request: Request) -> Response:
+        principal_id = await authorize(request)
+        deleted = await config.preferences.delete(principal_id=principal_id)
+        if deleted and config.ontology_projector is not None:
+            await config.ontology_projector.delete(f"preference:{principal_id}")
+        return Response(status_code=204 if deleted else 404)
 
     async def conversation_turns(request: Request) -> Response:
         principal_id = await authorize(request)
@@ -263,6 +295,12 @@ def make_user_context_routes(
         principal_id = await authorize(request)
         body = await _confirmed_body(request)
         now = datetime.now(tz=UTC)
+        idempotency_key = _required_text(body, "idempotency_key")
+        if len(idempotency_key) > 200:
+            raise HTTPException(status_code=400, detail="idempotency_key MUST be bounded")
+        subscription_id = (
+            "briefing-" + sha256(f"{principal_id}::{idempotency_key}".encode()).hexdigest()[:32]
+        )
         cron_expression = _required_text(body, "cron_expression")
         timezone = _required_text(body, "timezone")
         modes_raw = body.get("delivery_modes", [BriefingDeliveryMode.IN_APP.value])
@@ -279,7 +317,7 @@ def make_user_context_routes(
             )
         try:
             record = BriefingSubscription(
-                subscription_id=f"briefing-{uuid4().hex}",
+                subscription_id=subscription_id,
                 principal_id=principal_id,
                 name=_required_text(body, "name"),
                 spec=_briefing_spec(body.get("spec")) or BriefingSpec(),
@@ -292,6 +330,20 @@ def make_user_context_routes(
                 channel_binding_ref=_optional_text(body, "channel_binding_ref"),
                 max_lateness_seconds=int(body.get("max_lateness_seconds", 3600)),
             )
+            existing = next(
+                (
+                    item
+                    for item in await config.subscriptions.list_for_principal(
+                        principal_id=principal_id
+                    )
+                    if item.subscription_id == subscription_id
+                ),
+                None,
+            )
+            if existing is not None:
+                if not _same_subscription_intent(existing, record):
+                    raise BriefingConflictError("idempotency key reused with different input")
+                return JSONResponse(_json(existing), status_code=200)
             stored = await config.subscriptions.create(record)
             if config.ontology_projector is not None:
                 await config.ontology_projector.project_subscription(stored)
@@ -341,6 +393,7 @@ def make_user_context_routes(
             methods=["DELETE"],
         ),
         Route("/me/preferences", put_preference, methods=["PUT"]),
+        Route("/me/preferences", delete_preference, methods=["DELETE"]),
         Route("/me/memories", create_memory, methods=["POST"]),
         Route("/me/memories/{memory_id:str}", delete_memory, methods=["DELETE"]),
         Route("/me/policies", put_policy, methods=["PUT"]),
@@ -466,6 +519,18 @@ def _optional_bool(body: Mapping[str, Any], key: str, *, default: bool) -> bool:
     if not isinstance(value, bool):
         raise HTTPException(status_code=400, detail=f"{key} MUST be a boolean")
     return value
+
+
+def _optional_string_mapping(body: Mapping[str, Any], key: str) -> dict[str, str]:
+    value = body.get(key, {})
+    if not isinstance(value, Mapping):
+        raise HTTPException(status_code=400, detail=f"{key} MUST be an object")
+    if not all(
+        isinstance(item_key, str) and isinstance(item_value, str)
+        for item_key, item_value in value.items()
+    ):
+        raise HTTPException(status_code=400, detail=f"{key} MUST map strings to strings")
+    return dict(value)
 
 
 def _mapping_bool(body: Mapping[str, object], key: str, *, default: bool) -> bool:

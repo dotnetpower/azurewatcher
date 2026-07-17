@@ -218,7 +218,8 @@ is not enough by itself.
 ## Get started
 
 - **Understand the operating model**: Read
-  [SRE foundations](concepts/sre-foundations.md), then
+  [Site Reliability Engineering](sre/README.md), then
+  [FDAI SRE foundations](concepts/sre-foundations.md) and
   [deterministic-first decisioning](concepts/deterministic-first.md).
 - **Prepare an environment**: Follow
   [deployment preflight](../roadmap/deployment/deployment-preflight.md), then
@@ -234,7 +235,9 @@ is not enough by itself.
 
 <!-- fdai:cards -->
 
-- [SRE foundations](concepts/sre-foundations.md) - The SRE functions FDAI automates.
+- [Site Reliability Engineering](sre/README.md) - Observe, respond, recover, and learn across FDAI.
+- [Incident management](sre/incident-management.md) - Follow the incident lifecycle from signal to closure.
+- [Root-cause analysis](sre/root-cause-analysis.md) - Understand tiered, grounded cause hypotheses.
 - [Deterministic-first](concepts/deterministic-first.md) - Why known decisions stay deterministic.
 - [Risk tiers](concepts/risk-tiers.md) - The three trust tiers in depth.
 - [Ontology-driven automation](concepts/ontology-driven-automation.md) - How the action ontology drives automation.

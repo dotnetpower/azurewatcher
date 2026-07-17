@@ -147,6 +147,63 @@ injection ([security-and-identity.md](security-and-identity.md)).
 - Route to Azure OpenAI, other Azure Foundry models, or third-party endpoints purely by config,
   keeping the core CSP-neutral.
 
+### Heterogeneous Endpoint and Gateway Contract
+
+FDAI resolves model capability, provider, route, wire protocol, authentication, and capacity as
+separate fields. A deployment can therefore use Azure OpenAI directly, Azure OpenAI through Azure
+API Management (APIM), or an OpenAI-compatible self-hosted GPU model through APIM without changing
+the T1/T2 core contracts.
+
+`resolved-models.json` optionally carries `endpoint_bindings`. Each verified binding declares:
+
+- **Provider and route:** `azure-openai` or `self-hosted`, independently from `direct` or
+  `apim-gateway`.
+- **Wire protocol:** Azure deployment paths (`azure-openai`) or `/v1` paths with a request-body
+  model id (`openai-v1`).
+- **Authentication:** Entra audience or a credential reference. Runtime T1/T2 bindings currently
+  require Entra; an unsupported auth kind blocks startup instead of falling back to a direct
+  endpoint.
+- **Capacity:** `tpm`, `ptu`, or `gpu` with one positive value. PTU and GPU values are never
+  converted as if they were TPM.
+- **Features and provenance:** Streaming, embeddings, structured output, tool calling, discovery
+  source, a resource-reference digest, and verification time.
+
+Endpoint URLs and credentials are not serialized in the operator projection. The binding stores an
+opaque `endpoint_ref`; the composition root resolves it to an HTTPS URL from protected deployment
+configuration. A binding without an injected resolver fails startup. Embedding, proposer, primary
+and secondary cross-check, Critic, Judge, RCA, and narrator paths use the same request-target
+builder. Legacy files without `endpoint_bindings` keep the direct Azure OpenAI path.
+
+APIM is a route and governance boundary, not a model publisher. The mixed-model quality gate still
+compares the publishers and families behind the gateway. Primary and secondary capabilities remain
+separate bindings even when they share an APIM hostname, and a same-publisher pair is still invalid.
+
+Self-hosted endpoints are never discovered by scanning a virtual network or trusting `/v1/models`
+alone. They enter the candidate set through a publisher-keyed, domain-separated Ed25519 registration
+(`fdai.model-endpoint-registration.v1`). Invalid signatures are rejected before parsing. Capability
+probes and quality replay remain required before a registered GPU model can leave shadow mode.
+
+Provisioned capacity discovery uses the Azure Model Capacities management API. The live resolver
+first selects the latest generally available model version from the regional catalog, then queries
+the subscription-scoped capacity endpoint with model format, family, and version. It filters the
+response by region and provisioned SKU, follows only bounded `management.azure.com` pagination, and
+uses `availableCapacity` as PTU. Missing catalog versions, malformed responses, untrusted next links,
+or unavailable service capacity fail closed to `hil-only`.
+
+An APIM route must return `x-fdai-model-backend`, `x-fdai-capacity-unit`, and
+`x-fdai-spillover` response headers. T2 proposer and cross-check clients reject an otherwise
+successful response when this evidence is missing or malformed. Accepted evidence appends a
+redacted `selected` transition through the durable model-health sink, recording the actual backend,
+TPM/PTU/GPU unit, spillover decision, and binding id. Endpoint URLs, APIM request ids, and provider
+error text are not persisted.
+
+The optional Terraform package under `infra/modules/llm/apim-ai-gateway` attaches one capability to
+an existing APIM instance. It validates the FDAI caller's Entra audience, authenticates APIM to both
+Azure OpenAI backends with managed identity, sends the first request to PTU, retries exactly once to
+a same-family Standard deployment on HTTP 429, and emits the mandatory evidence headers. It never
+creates an APIM service. Root composition keeps the module disabled by default, so the minimum-cost
+day-zero inventory is unchanged.
+
 ## Model Provisioning and Lifecycle
 
 Model availability, versions, and deprecations shift continuously. Hard-coding a model id
@@ -198,8 +255,10 @@ Rules the registry enforces (MUST, at config load):
 - **Family, not version.** Preferences pin the model *family* (e.g. `gpt-4o-mini`); the
   bootstrap resolver picks the latest stable version at provisioning time and records it in
   the resolved mapping. Never pin a dated version in the registry - it hides deprecation.
-- **`capacity_tpm` is a cost ceiling.** Overflow degrades to HIL (per Cost Controls);
-  provisioning a capacity below the fork's measured minimum is a config-load error.
+- **Capacity units are explicit.** Standard and Global Standard use `capacity_tpm` as a cost ceiling.
+  `ProvisionedManaged`, `GlobalProvisionedManaged`, and `DataZoneProvisionedManaged` use
+  `capacity_ptu`; supplying TPM for a provisioned SKU or PTU for a standard SKU is invalid. Overflow
+  degrades to HIL (per Cost Controls).
 - **Escalated capability is opt-in per invocation** (`invocation: on_disagreement`); it is
   not called on every T2 request and never bypasses the quality gate.
 - **RCA reasoner is opt-in per invocation** (`invocation: on_novel_case`, capability
@@ -234,7 +293,7 @@ flowchart LR
     RES --> CAT[query catalog:<br/>available families + versions in region]
     CAT --> PICK{for each capability:<br/>first preference available}
     PICK -->|none available| FAIL[abort bootstrap: no HIL-silent fallback]
-    PICK -->|resolved| DEPLOY[create deployment<br/>with capacity_tpm cap]
+    PICK -->|resolved| DEPLOY[create deployment<br/>with TPM or PTU capacity]
     DEPLOY --> INV[verify mixed-model invariant:<br/>primary.publisher ≠ secondary.publisher]
     INV -->|violated| FAIL
     INV -->|ok| MAP[write resolved-models.json to Key Vault<br/>+ audit entry]
@@ -407,6 +466,13 @@ latency. This preference applies only to the T1 narrator. T1 internal judgment, 
 all T2 secondary/critic/rubric/escalation assignments remain system-governed. The T2 primary
 pool keeps its same-publisher invariant and isn't personalized per operator.
 
+The same page projects a read-only endpoint inventory for verified bindings. It shows capability,
+provider, direct or APIM route, API style, deployment, model family, TPM/PTU/GPU capacity, feature
+flags, discovery source, and verification time. It never returns `endpoint_ref`, auth audience,
+resource-reference digest, URL, or credential data. Endpoint registration, APIM backend changes,
+PTU resizing, GPU image changes, and T2 role assignment remain catalog/deployment workflows, not
+Settings writes.
+
 ### Conversational Web-Search Latency Pool
 
 Public-web lookup is a separate Chat T2 tool invocation, not T1 judgment and
@@ -427,6 +493,15 @@ defaults to `300` and cannot be set below `30`.
 Settings > Models exposes deployment-wide web-search enablement and exact-host allowlists to
 Owners. These writes use the same revisioned state-and-audit transaction and update the live
 resolver after the transaction succeeds. Non-Owners receive the projection as read-only.
+When no web-search resolver is registered, the projection reports `available=false`,
+`enabled=false`, no provider domains, and no management capability. The console renders the
+controls as unavailable, and settings writes return `503` before persistence. Configuration
+defaults alone never imply that an Azure Responses provider is present or healthy.
+
+Settings > Models also reports the generated resolved-model snapshot's sanitized filename,
+`kind=generated-file`, and UTC filesystem modification time as `as_of`. The projection never
+returns the full local path. Automatic discovery and provisioning labels describe configured
+bootstrap behavior; they don't replace snapshot freshness evidence.
 
 ### T2 Primary Latency Pool (invariant-safe, opt-in)
 
@@ -464,6 +539,26 @@ deployments for one side of the pair.
 - **Audit-recorded pick.** Every routed call records the chosen deployment in the
   audit entry, so replay (judge-only, never re-executes) stays deterministic even
   though the live pick varies with measured p50.
+- **Bounded in-call failover.** If the selected primary deployment raises, the router records a
+  penalty and tries each remaining same-publisher primary at most once. It never crosses into the
+  secondary publisher or changes critic and judge bindings. If every primary candidate fails, the
+  final error propagates and the quality gate routes the case to human review rather than silently
+  accepting a weaker judgment.
+- **Failure health and cooldown.** The router classifies auth, rate-limit, overloaded, timeout,
+  transport, and unknown failures without retaining provider error text. Each failure sets a
+  bounded per-deployment cooldown with a capped multiplier. Healthy candidates remain eligible;
+  an expired candidate re-enters warm-up as a recovery probe, and a success clears its failure
+  state. When every primary is cooling down, the router fails fast and the case moves to human
+  review. Cooldown never selects the secondary publisher as a replacement primary.
+- **Durable routing transitions.** Failure, recovery, and selected-deployment events are appended
+  through a role-agnostic `ModelHealthTransitionSink`. Records contain the model role, deployment,
+  redacted failure class, bounded cooldown, and a stable selection reason - never provider error
+  text. PostgreSQL persistence survives process restart and the same contract accepts narrator,
+  T1, and other T2 role events. Telemetry persistence failure is logged but does not block model
+  failover or a successful proposal.
+- **Operator visibility.** The read API projects the latest selected deployment, failover reason,
+  unhealthy/recovered candidates, and cooldown on Settings > Models. The console remains read-only;
+  it cannot alter routing, clear cooldown, or promote a deployment.
 
 **Resolver + wiring.** The resolver emits a `t2.reasoner.primary` candidate pool
 the same way `collect_narrator` emits `narrator_candidates` (viable same-publisher

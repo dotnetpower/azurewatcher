@@ -51,6 +51,13 @@ from .command_runner import (
     CommandRunner,
     CommandStatus,
 )
+from .conversation_channel import (
+    ChannelAttachment,
+    ConversationChannelAdapter,
+    ConversationChannelKind,
+    InboundTurn,
+    OutboundResponse,
+)
 from .cost_estimator import (
     CostConfidence,
     CostEstimate,
@@ -66,6 +73,11 @@ from .direct_api import (
     DirectApiPromotionError,
     DirectApiReceipt,
     DirectApiRequest,
+)
+from .document_converter import (
+    DocumentConversionRequest,
+    DocumentConversionResult,
+    DocumentConverter,
 )
 from .document_ingestion import (
     DirectUploadStore,
@@ -232,6 +244,9 @@ __all__ = [
     "CommandRunner",
     "CommandStatus",
     "ConversationHistoryStore",
+    "ChannelAttachment",
+    "ConversationChannelAdapter",
+    "ConversationChannelKind",
     "ConversationPolicyKind",
     "ConversationPolicyRecord",
     "ConversationPolicyStore",
@@ -254,6 +269,9 @@ __all__ = [
     "DocumentAccessProvider",
     "DocumentActivitySink",
     "DocumentArtifactStore",
+    "DocumentConversionRequest",
+    "DocumentConversionResult",
+    "DocumentConverter",
     "DocumentExtractor",
     "DocumentIndex",
     "DocumentIngestionError",
@@ -283,6 +301,7 @@ __all__ = [
     "IncidentCorrelator",
     "Inventory",
     "InventoryBatch",
+    "InboundTurn",
     "LinkRecord",
     "LiveBlastProbe",
     "LogQueryError",
@@ -301,6 +320,7 @@ __all__ = [
     "OntologyInstanceValidationError",
     "OntologyLinkRecord",
     "OntologyObjectRecord",
+    "OutboundResponse",
     "PrPublishReceipt",
     "PreflightCheck",
     "PreflightCheckPublishError",

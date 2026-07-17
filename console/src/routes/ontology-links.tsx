@@ -14,6 +14,7 @@ export function OntologyLinksView({
 }) {
   const selectedEdges = edges.filter((edge) => edge.name === selectedName);
   const selected = selectedEdges[0] ?? null;
+  const invalidSelection = selectedName !== null && !names.includes(selectedName);
   const nodesByName = new Map(nodes.map((node) => [node.name, node]));
 
   return (
@@ -103,6 +104,10 @@ export function OntologyLinksView({
               </aside>
             </div>
           </>
+        ) : invalidSelection ? (
+          <div class="state-block state-unavailable" role="alert">
+            LinkType <code>{selectedName}</code> is not registered. Choose a LinkType from the directory.
+          </div>
         ) : (
           <div class="empty-state">Choose a LinkType to inspect its endpoint contract.</div>
         )}

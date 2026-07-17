@@ -43,6 +43,12 @@ The drop zone is one entry point for a document ingestion service. Drag and drop
 ChatOps attachment, email-in gateway, and connector all create the same `UploadSession` and enter
 the same pipeline. A channel adapter cannot skip scanning or classification.
 
+ChatOps adapters retain only an opaque vendor attachment id and bounded metadata. A delivery-layer
+fetcher with server-owned credentials retrieves the bytes; payload-supplied URLs never cross into
+core. Size and SHA-256 are recomputed before upload completion. Only versions that finish in
+`ready` or `ready_with_warnings` become `doc:` citations. Attachment content is not appended to the
+operator message or tool arguments.
+
 ### Before the operator selects a file
 
 The surface shows these facts before upload:
@@ -436,6 +442,7 @@ process to a comma-separated list of exact HTTP(S) origins.
 
 | Method and path | Purpose |
 |-----------------|---------|
+| `GET /healthz` | unauthenticated process liveness for deployment verification; returns only `{"status":"ok"}` |
 | `GET /ingestion/capabilities` | formats, size/batch/archive limits, storage modes, policy versions |
 | `POST /ingestion/uploads` | authorize destination and create an `UploadSession` |
 | `POST /ingestion/uploads/{upload_id}/complete` | verify and commit the received object |
@@ -507,6 +514,7 @@ providers through dependency injection when they require Purview/RMS, OCR, or ri
 | Contract and metadata | Shipped: `DocumentEnvelope`, state machine, capability discovery, access provider, metadata/activity seams, and console visibility notice. |
 | Safe text | Shipped generically: direct-upload gateway, quarantine lifecycle, fail-closed scanner seam, UTF-8/OOXML extraction, structure-aware overlapping chunks, local embedding retrieval, atomic pgvector version replacement/deletion, access-filtered search, and deletion. The upstream scanner abstains until a production provider is bound. |
 | Layout | Partial: OOXML structure and PDF/protection detection ship; layout-aware PDF extraction, OCR, and previews require approved providers. |
+| Channel evidence | Shipped generically: bounded opaque Slack/Teams metadata, credential-fetcher seam, byte/hash verification, full protected ingestion, reject-before-tool gating, and citation-only `doc:` refs. PNG/JPEG/GIF/WebP signatures produce metadata-only envelopes; OCR and vendor credential composition remain provider bindings. |
 | Protection | Partial: PDF/Office/container encryption and suspicious rights metadata are detected and held. A Purview/RMS adapter, delegated authorization, and revocation reconciliation remain fork bindings. |
 | Connector and scale | Contract ready: resumable/scoped upload sessions, streaming hashes, bounded parser budgets, and provider seams ship. Azure Blob, durable metadata, connector delta sync, and measured capacity targets remain deployment work. |
 

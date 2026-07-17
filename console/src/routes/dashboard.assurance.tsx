@@ -18,7 +18,9 @@ export function ExecutiveDecisionGrid({
   readonly attentionCount: number;
   readonly policyEscapes: number | null;
 }) {
-  const failedGuards = autonomy?.guards.filter((guard) => !guard.ok) ?? [];
+  const failedGuards = autonomy !== null && !autonomy.synthetic
+    ? autonomy.guards.filter((guard) => !guard.ok)
+    : [];
   return (
     <section class="overview-decision-grid" aria-label={t("overview.decision.label")}>
       <a href={routeHref("control-assurance")} class="overview-control-panel overview-drill-card">
@@ -51,13 +53,15 @@ export function ExecutiveDecisionGrid({
             label={t("overview.assurance.thresholds")}
             value={
               autonomy
-                ? t("overview.assurance.thresholdCount", {
-                    failed: failedGuards.length,
-                    total: autonomy.guards.length,
-                  })
+                ? autonomy.synthetic
+                  ? t("overview.evidence.simulated")
+                  : t("overview.assurance.thresholdCount", {
+                      failed: failedGuards.length,
+                      total: autonomy.guards.length,
+                    })
                 : t("overview.evidence.unavailable")
             }
-            ok={autonomy !== null && failedGuards.length === 0}
+            ok={autonomy !== null && !autonomy.synthetic && failedGuards.length === 0}
           />
           <AssuranceRow
             label={t("overview.assurance.shadow")}
@@ -111,7 +115,7 @@ export function ExecutiveDecisionGrid({
             {failedGuards.map((guard) => (
               <AttentionItem
                 key={guard.key}
-                href={routeHref("promotion-gates", { params: { status: "blocked", guard: guard.key } })}
+                href={routeHref("control-assurance")}
                 tone="high"
                 title={t("overview.attention.guardTitle", {
                   guard: t(`overview.guard.${guard.key}`),

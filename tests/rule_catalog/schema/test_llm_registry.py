@@ -92,6 +92,38 @@ def test_capacity_tpm_floor_is_enforced() -> None:
         load_llm_registry_from_mapping(raw)
 
 
+@pytest.mark.parametrize(
+    "sku",
+    ("ProvisionedManaged", "GlobalProvisionedManaged", "DataZoneProvisionedManaged"),
+)
+def test_provisioned_skus_require_ptu_capacity(sku: str) -> None:
+    raw = _minimal()
+    models = raw["models"]
+    assert isinstance(models, dict)
+    primary = models["t2.reasoner.primary"]
+    assert isinstance(primary, dict)
+    primary["sku"] = sku
+    del primary["capacity_tpm"]
+    primary["capacity_ptu"] = 30
+
+    registry = load_llm_registry_from_mapping(raw)
+
+    assert registry.models["t2.reasoner.primary"].requested_capacity == 30
+    assert registry.models["t2.reasoner.primary"].capacity_unit == "ptu"
+
+
+def test_provisioned_sku_rejects_tpm_capacity() -> None:
+    raw = _minimal()
+    models = raw["models"]
+    assert isinstance(models, dict)
+    primary = models["t2.reasoner.primary"]
+    assert isinstance(primary, dict)
+    primary["sku"] = "ProvisionedManaged"
+
+    with pytest.raises(LlmRegistryError, match="capacity_ptu"):
+        load_llm_registry_from_mapping(raw)
+
+
 def test_capability_must_have_at_least_one_preference() -> None:
     raw = _minimal()
     models = raw["models"]

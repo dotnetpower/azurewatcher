@@ -15,11 +15,12 @@ email-in gateway - because they all land a file on disk.
 Scope and boundaries
 --------------------
 
-- **Text formats only upstream.** Plain-text sources (``.md``, ``.txt``,
+- **Text formats by default.** Plain-text sources (``.md``, ``.txt``,
   ``.rst``) and infrastructure/plan text (``.tf``, ``.tfvars``, ``.json``,
   ``.yaml``, ``.yml``, ``.rego``) are read directly. Binary office formats
-  (``.pdf`` / ``.docx`` / ``.pptx``) need a converter dependency and are a
-  fork concern - an unknown or binary extension is skipped, never guessed.
+  (``.pdf`` / ``.docx`` / ``.pptx``) are accepted only through an explicitly
+  injected converter and server-owned sandbox profile. The upstream package
+  supplies no concrete converter. Unknown extensions are skipped, never guessed.
 - **Fail-safe.** An oversized file, an undecodable (binary) file, or an
   unreadable path is skipped with a warning; one bad file never aborts a
   batch. The caller ingests whatever loaded cleanly.
@@ -38,12 +39,20 @@ import logging
 from collections.abc import Sequence
 from pathlib import Path
 
+from fdai.core.sandbox import (
+    DocumentConverterSandboxCatalog,
+    ProfiledDocumentConverter,
+    SandboxPolicyError,
+)
+from fdai.shared.providers.document_converter import (
+    DocumentConversionRequest,
+    DocumentConverter,
+)
 from fdai.shared.providers.knowledge import KnowledgeDocument
 
 _LOGGER = logging.getLogger("fdai.delivery.knowledge.loader")
 
-#: Text extensions read directly upstream. Binary office formats need a
-#: converter and are a fork concern.
+#: Text extensions read directly without a converter.
 DEFAULT_TEXT_SUFFIXES: frozenset[str] = frozenset(
     {
         ".md",
@@ -57,6 +66,8 @@ DEFAULT_TEXT_SUFFIXES: frozenset[str] = frozenset(
         ".rego",
     }
 )
+
+DEFAULT_CONVERTIBLE_SUFFIXES: frozenset[str] = frozenset({".pdf", ".docx", ".pptx"})
 
 #: SRE-agent parity: a 16 MB per-file ceiling. A larger file is skipped.
 DEFAULT_MAX_BYTES: int = 16 * 1024 * 1024
@@ -175,9 +186,84 @@ def documents_from_files(
     return documents
 
 
+async def load_knowledge_documents_with_converter(
+    root: Path | str,
+    *,
+    converter_id: str,
+    converter: DocumentConverter,
+    sandbox_catalog: DocumentConverterSandboxCatalog,
+    convertible_suffixes: frozenset[str] = DEFAULT_CONVERTIBLE_SUFFIXES,
+    max_bytes: int = DEFAULT_MAX_BYTES,
+    max_output_bytes: int = 5_000_000,
+) -> list[KnowledgeDocument]:
+    """Load text plus explicitly sandboxed binary document conversions."""
+    if max_bytes < 1 or max_output_bytes < 1:
+        raise ValueError("document conversion byte limits MUST be positive")
+    if not convertible_suffixes.isdisjoint(DEFAULT_TEXT_SUFFIXES):
+        raise ValueError("convertible suffixes MUST NOT overlap direct text suffixes")
+
+    root_path = Path(root)
+    documents = load_knowledge_documents(root_path, max_bytes=max_bytes)
+    if not root_path.is_dir():
+        return documents
+
+    profiled = ProfiledDocumentConverter(
+        catalog=sandbox_catalog,
+        converter=converter,
+    )
+    for path in sorted(root_path.rglob("*")):
+        suffix = path.suffix.lower()
+        if not path.is_file() or suffix not in convertible_suffixes:
+            continue
+        try:
+            size = path.stat().st_size
+            if size > max_bytes:
+                _LOGGER.warning(
+                    "skipping %s: %d bytes exceeds max_bytes=%d",
+                    path,
+                    size,
+                    max_bytes,
+                )
+                continue
+            content = path.read_bytes()
+            if not content:
+                continue
+            source_ref = path.relative_to(root_path).as_posix()
+            result = await profiled.convert(
+                DocumentConversionRequest(
+                    converter_id=converter_id,
+                    source_ref=source_ref,
+                    source_suffix=suffix,
+                    content=content,
+                    max_output_bytes=max_output_bytes,
+                )
+            )
+        except SandboxPolicyError:
+            raise
+        except (OSError, ValueError):
+            _LOGGER.warning("cannot convert %s; skipping", path, exc_info=True)
+            continue
+        documents.append(
+            KnowledgeDocument(
+                doc_id=source_ref,
+                text=result.text,
+                source_ref=source_ref,
+                metadata={
+                    "suffix": suffix,
+                    "bytes": str(size),
+                    "converter_id": converter_id,
+                },
+            )
+        )
+    documents.sort(key=lambda document: document.doc_id)
+    return documents
+
+
 __all__ = [
+    "DEFAULT_CONVERTIBLE_SUFFIXES",
     "DEFAULT_MAX_BYTES",
     "DEFAULT_TEXT_SUFFIXES",
     "documents_from_files",
     "load_knowledge_documents",
+    "load_knowledge_documents_with_converter",
 ]

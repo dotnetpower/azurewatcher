@@ -5,6 +5,10 @@ import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
 import {
+  identityForMutationIntent,
+  type MutationIntentIdentity,
+} from "../mutation-intent";
+import {
   PREFERENCES_CHANGED_EVENT,
   readConsolePreferences,
   resetConsolePreferences,
@@ -15,27 +19,39 @@ import {
   createBriefingSubscription,
   deleteConversationPolicy,
   deleteBriefingSubscription,
+  deleteUserPreference,
   deleteUserMemory,
   fetchUserContext,
   putConversationPolicy,
   putUserPreference,
   type UserContextPayload,
+  type UserPreferencePayload,
 } from "../user-context-client";
 
 interface Props { readonly client: ReadApiClient }
+
+export function contextWithSavedPreference(
+  context: UserContextPayload | null,
+  preference: UserPreferencePayload,
+): UserContextPayload | null {
+  return context === null ? null : { ...context, preference };
+}
 
 export function SettingsGeneralRoute({ client }: Props) {
   const [preferences, setPreferences] = useState<ConsolePreferences>(readConsolePreferences);
   const [serverContext, setServerContext] = useState<UserContextPayload | null>(null);
   const [contextLoading, setContextLoading] = useState(true);
   const [contextError, setContextError] = useState<string | null>(null);
-  const [verbosity, setVerbosity] = useState<"concise" | "detailed">("concise");
+  const [answerDetail, setAnswerDetail] = useState<UserPreferencePayload["answer_detail"]>("standard");
+  const [answerFormat, setAnswerFormat] = useState<UserPreferencePayload["answer_format"]>("prose");
+  const [answerPreferencesEnabled, setAnswerPreferencesEnabled] = useState(true);
   const [timezone, setTimezone] = useState(defaultTimezone);
   const [shareWithLearner, setShareWithLearner] = useState(false);
   const [briefingHour, setBriefingHour] = useState("07");
   const [savingContext, setSavingContext] = useState(false);
   const [pendingDeletes, setPendingDeletes] = useState<ReadonlySet<string>>(new Set());
   const refreshGeneration = useRef(0);
+  const briefingIntent = useRef<MutationIntentIdentity | null>(null);
 
   useEffect(() => {
     const syncPreferences = () => setPreferences(readConsolePreferences());
@@ -50,7 +66,9 @@ export function SettingsGeneralRoute({ client }: Props) {
       const context = await fetchUserContext();
       if (generation !== refreshGeneration.current) return;
       setServerContext(context);
-      setVerbosity(context.preference?.verbosity ?? "concise");
+      setAnswerDetail(context.preference?.answer_detail ?? "standard");
+      setAnswerFormat(context.preference?.answer_format ?? "prose");
+      setAnswerPreferencesEnabled(context.preference?.answer_preferences_enabled ?? true);
       setTimezone(context.preference?.timezone ?? defaultTimezone());
       setShareWithLearner(context.preference?.share_with_learner ?? false);
       setContextError(null);
@@ -104,10 +122,19 @@ export function SettingsGeneralRoute({ client }: Props) {
     window.location.reload();
   };
 
-  const reset = () => {
-    const persisted = resetConsolePreferences();
-    setLocaleOverride(persisted ? null : "en");
-    window.location.reload();
+  const reset = async (): Promise<void> => {
+    setSavingContext(true);
+    try {
+      if (serverContext?.preference !== null && serverContext?.preference !== undefined) {
+        await deleteUserPreference();
+      }
+      const persisted = resetConsolePreferences();
+      setLocaleOverride(persisted ? null : "en");
+      window.location.reload();
+    } catch (error) {
+      setContextError(error instanceof Error ? error.message : String(error));
+      setSavingContext(false);
+    }
   };
 
   const openingPolicy = serverContext?.policies.find(
@@ -128,14 +155,20 @@ export function SettingsGeneralRoute({ client }: Props) {
     setSavingContext(true);
     let preferenceSaved = false;
     try {
-      await putUserPreference({
+      const savedPreference = await putUserPreference({
         locale: preferences.locale,
-        verbosity,
+        verbosity: answerDetail === "deep" ? "detailed" : "concise",
+        answer_detail: answerDetail,
+        answer_format: answerFormat,
+        answer_preferences_enabled: answerPreferencesEnabled,
+        answer_intent_detail: serverContext?.preference?.answer_intent_detail ?? {},
+        answer_intent_format: serverContext?.preference?.answer_intent_format ?? {},
         timezone,
         share_with_learner: shareWithLearner,
           expected_revision: serverContext?.preference?.revision ?? 0,
       });
       preferenceSaved = true;
+      setServerContext((current) => contextWithSavedPreference(current, savedPreference));
       if (latestSourceTurnId !== null) {
         await putConversationPolicy({
           policy_id: "response-defaults",
@@ -144,7 +177,7 @@ export function SettingsGeneralRoute({ client }: Props) {
           enabled: true,
           expected_revision: responsePolicy?.revision ?? 0,
           response_defaults: {
-            verbosity,
+            verbosity: answerDetail === "deep" ? "detailed" : "concise",
             answer_language: preferences.locale,
           },
         });
@@ -175,6 +208,11 @@ export function SettingsGeneralRoute({ client }: Props) {
     }
     setSavingContext(true);
     try {
+      const identity = identityForMutationIntent(
+        briefingIntent.current,
+        JSON.stringify({ hour, timezone }),
+      );
+      briefingIntent.current = identity;
       await createBriefingSubscription({
         name: "Daily major issues",
         cron_expression: `0 ${hour} * * *`,
@@ -186,7 +224,7 @@ export function SettingsGeneralRoute({ client }: Props) {
           minimum_severity: "high",
           max_items: 5,
         },
-      });
+      }, identity.idempotencyKey);
       await refreshContext();
       setContextError(null);
     } catch (error) {
@@ -310,6 +348,22 @@ export function SettingsGeneralRoute({ client }: Props) {
               <strong>{preferences.motion === "reduced" ? t("settings.reduced") : t("settings.system")}</strong>
             </label>
           </SettingRow>
+          <SettingRow
+            label={t("settings.showTokenUsage")}
+            hint={t("settings.showTokenUsageHint")}
+          >
+            <label class="settings-toggle-control">
+              <input
+                type="checkbox"
+                checked={preferences.showTokenUsage}
+                onChange={(event) => update("showTokenUsage", event.currentTarget.checked)}
+              />
+              <span aria-hidden="true" />
+              <strong>
+                {preferences.showTokenUsage ? t("settings.enabled") : t("settings.disabled")}
+              </strong>
+            </label>
+          </SettingRow>
         </div>
       </section>
 
@@ -351,13 +405,43 @@ export function SettingsGeneralRoute({ client }: Props) {
           <SettingRow label={t("settings.answerDetail")} hint={t("settings.answerDetailHint")}>
             <SegmentedControl
               label={t("settings.answerDetail")}
-              value={verbosity}
+              value={answerDetail}
               options={[
-                { value: "concise", label: t("settings.concise") },
-                { value: "detailed", label: t("settings.detailed") },
+                { value: "brief", label: t("settings.brief") },
+                { value: "standard", label: t("settings.standard") },
+                { value: "deep", label: t("settings.deep") },
               ]}
-              onChange={(value) => setVerbosity(value as "concise" | "detailed")}
+              onChange={(value) => setAnswerDetail(value as UserPreferencePayload["answer_detail"])}
             />
+          </SettingRow>
+          <SettingRow label={t("settings.answerFormat")} hint={t("settings.answerFormatHint")}>
+            <SegmentedControl
+              label={t("settings.answerFormat")}
+              value={answerFormat}
+              options={[
+                { value: "prose", label: t("settings.formatProse") },
+                { value: "bullets", label: t("settings.formatBullets") },
+                { value: "numbered_steps", label: t("settings.formatSteps") },
+                { value: "table", label: t("settings.formatTable") },
+              ]}
+              onChange={(value) => setAnswerFormat(value as UserPreferencePayload["answer_format"])}
+            />
+          </SettingRow>
+          <SettingRow
+            label={t("settings.answerPreferences")}
+            hint={t("settings.answerPreferencesHint")}
+          >
+            <label class="settings-toggle-control">
+              <input
+                type="checkbox"
+                checked={answerPreferencesEnabled}
+                onChange={(event) => setAnswerPreferencesEnabled(event.currentTarget.checked)}
+              />
+              <span aria-hidden="true" />
+              <strong>
+                {answerPreferencesEnabled ? t("settings.enabled") : t("settings.disabled")}
+              </strong>
+            </label>
           </SettingRow>
           <SettingRow label={t("settings.timezone")} hint={t("settings.timezoneHint")}>
             <input
@@ -533,7 +617,9 @@ export function SettingsGeneralRoute({ client }: Props) {
       </section>
 
       <div class="settings-actions">
-        <button type="button" class="secondary" onClick={reset}>{t("settings.reset")}</button>
+        <button type="button" class="secondary" disabled={savingContext} onClick={() => void reset()}>
+          {t("settings.reset")}
+        </button>
       </div>
     </div>
   );

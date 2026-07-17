@@ -3,10 +3,20 @@ import type { AuditItem } from "../types";
 import {
   agentOf,
   entryConversation,
+  isAgentActivitySelectionValid,
   layerOf,
   lifecycleOf,
   otherEntryFields,
 } from "./agent-activity";
+
+describe("agent activity deep-link selection", () => {
+  test("accepts fixed agents and grounded service producers only", () => {
+    expect(isAgentActivitySelectionValid("Forseti", [])).toBe(true);
+    expect(isAgentActivitySelectionValid("custom-worker", ["custom-worker"])).toBe(true);
+    expect(isAgentActivitySelectionValid("not-a-real-agent", ["Forseti"])).toBe(false);
+    expect(isAgentActivitySelectionValid(null, [])).toBe(true);
+  });
+});
 
 /**
  * These tests pin the Agent-activity panel's tolerance to the two audit

@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { isValidTimezone, parseBriefingHour } from "./settings";
+import { contextWithSavedPreference, isValidTimezone, parseBriefingHour } from "./settings";
 
 describe("General Settings validation", () => {
+  it("keeps the successful preference revision after a later partial-save failure", () => {
+    const context = {
+      preference: { revision: 3 },
+      memories: [],
+      policies: [],
+      subscriptions: [],
+      conversations: [],
+    } as never;
+    const saved = { revision: 4 } as never;
+    expect(contextWithSavedPreference(context, saved)?.preference?.revision).toBe(4);
+  });
+
   it("accepts valid IANA timezones", () => {
     expect(isValidTimezone("UTC")).toBe(true);
     expect(isValidTimezone("Asia/Seoul")).toBe(true);

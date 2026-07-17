@@ -33,6 +33,7 @@ from fdai.delivery.read_api.streaming.agent_activity_stream import (
     TurnKind,
 )
 from fdai.shared.providers.sse import SseSink
+from fdai.shared.providers.stage_publisher import ObservationSource
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -457,7 +458,14 @@ class SyntheticAgentActivityEmitter:
 
         for agent in _ALL_AGENTS:
             state = AgentState.WATCHING if agent in _SENSING else AgentState.IDLE
-            await self._publisher.publish(AgentStateEvent(agent=agent, state=state, ts=_now()))
+            await self._publisher.publish(
+                AgentStateEvent(
+                    agent=agent,
+                    state=state,
+                    ts=_now(),
+                    source=ObservationSource.SYNTHETIC_DEV,
+                )
+            )
 
     async def _state(self, agent: str, state: AgentState, correlation_id: str) -> None:
         await self._publisher.publish(
@@ -467,6 +475,7 @@ class SyntheticAgentActivityEmitter:
                 ts=_now(),
                 correlation_id=correlation_id,
                 detail=_STATE_DETAIL.get(state),
+                source=ObservationSource.SYNTHETIC_DEV,
             )
         )
         await asyncio.sleep(self._beat)
@@ -488,6 +497,7 @@ class SyntheticAgentActivityEmitter:
                 severity=scenario.severity,
                 involved_agents=scenario.involved,
                 ts=_now(),
+                source=ObservationSource.SYNTHETIC_DEV,
             )
         )
         await self._state("Saga", AgentState.AUDITING, correlation_id)
@@ -503,6 +513,7 @@ class SyntheticAgentActivityEmitter:
                     kind=kind,
                     text=text,
                     ts=_now(),
+                    source=ObservationSource.SYNTHETIC_DEV,
                 )
             )
             # Light up the addressed agent as it engages.
@@ -524,6 +535,7 @@ class SyntheticAgentActivityEmitter:
                 involved_agents=scenario.involved,
                 ts=_now(),
                 rca=scenario.rca,
+                source=ObservationSource.SYNTHETIC_DEV,
             )
         )
 
@@ -539,6 +551,7 @@ class SyntheticAgentActivityEmitter:
                 involved_agents=scenario.involved,
                 ts=_now(),
                 rca=scenario.rca,
+                source=ObservationSource.SYNTHETIC_DEV,
             )
         )
 

@@ -1,7 +1,11 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { ReadApiClient } from "../api";
 import { DataTable, StatusPill } from "../components/ui";
 import { t } from "../i18n";
+import {
+  identityForMutationIntent,
+  type MutationIntentIdentity,
+} from "../mutation-intent";
 import type {
   HumanIdentityResult,
   IamRole,
@@ -18,6 +22,10 @@ const ASSIGNABLE_ROLES: readonly AssignableRole[] = [
   "Owner",
 ];
 
+export function isCurrentDirectorySearch(currentGeneration: number, candidate: number): boolean {
+  return currentGeneration === candidate;
+}
+
 interface Props {
   readonly client: ReadApiClient;
   readonly canManage: boolean;
@@ -29,6 +37,7 @@ interface Props {
     identity: IdentityRosterItem | HumanIdentityResult,
     role: AssignableRole,
     justification: string,
+    idempotencyKey: string,
   ) => Promise<void>;
 }
 
@@ -52,6 +61,12 @@ export function DirectoryUserSearch({
   } | null>(null);
   const [justification, setJustification] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const assignmentIntent = useRef<MutationIntentIdentity | null>(null);
+  const searchGeneration = useRef(0);
+
+  useEffect(() => () => {
+    searchGeneration.current += 1;
+  }, []);
 
   if (!canManage) {
     return <LockedIamPanel message={t("settings.iam.usersOwnerOnly")} />;
@@ -59,25 +74,42 @@ export function DirectoryUserSearch({
 
   const search = async (event: SubmitEvent) => {
     event.preventDefault();
+    const generation = searchGeneration.current + 1;
+    searchGeneration.current = generation;
+    const submittedQuery = query.trim();
     setSearching(true);
     setError(null);
     try {
-      setResults(await client.searchIamUsers(query));
+      const next = await client.searchIamUsers(submittedQuery);
+      if (isCurrentDirectorySearch(searchGeneration.current, generation)) setResults(next);
     } catch (reason) {
+      if (!isCurrentDirectorySearch(searchGeneration.current, generation)) return;
       setError(reason instanceof Error ? reason.message : String(reason));
       setResults([]);
     } finally {
-      setSearching(false);
+      if (isCurrentDirectorySearch(searchGeneration.current, generation)) setSearching(false);
     }
   };
 
   const assign = async () => {
     if (assignmentDraft === null || justification.trim().length < 20) return;
     const { identity, role } = assignmentDraft;
+    const normalizedJustification = justification.trim();
+    const intent = identityForMutationIntent(
+      assignmentIntent.current,
+      JSON.stringify({
+        provider: identity.provider,
+        subjectId: identity.subjectId,
+        role,
+        justification: normalizedJustification,
+      }),
+    );
+    assignmentIntent.current = intent;
     setPendingSubject(identity.subjectId);
     setError(null);
     try {
-      await onAssign(identity, role, justification.trim());
+      await onAssign(identity, role, normalizedJustification, intent.idempotencyKey);
+      assignmentIntent.current = null;
       if ("userType" in identity) setResults([]);
       setAssignmentDraft(null);
       setJustification("");
@@ -122,7 +154,12 @@ export function DirectoryUserSearch({
               required
               value={query}
               placeholder={t("settings.iam.aliasPlaceholder")}
-              onInput={(event) => setQuery(event.currentTarget.value)}
+              onInput={(event) => {
+                searchGeneration.current += 1;
+                setQuery(event.currentTarget.value);
+                setResults([]);
+                setSearching(false);
+              }}
             />
             <button type="submit" disabled={searching}>
               {searching ? t("settings.iam.searching") : t("settings.iam.search")}

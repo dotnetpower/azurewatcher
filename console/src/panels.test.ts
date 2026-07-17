@@ -36,7 +36,7 @@ describe("panel navigation placement", () => {
     ]);
     expect(panelsInGroup("labs").map((panel) => panel.id)).toEqual(["labs"]);
     expect(panelsInGroup("settings").map((panel) => panel.id)).toEqual([
-      "settings-general", "settings-models", "settings-iam", "settings-integrations", "settings-diagnostics",
+      "settings-general", "settings-models", "settings-memory", "settings-iam", "settings-integrations", "settings-diagnostics",
     ]);
   });
 

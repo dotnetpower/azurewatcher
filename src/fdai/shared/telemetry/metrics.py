@@ -9,14 +9,24 @@ from __future__ import annotations
 
 from opentelemetry import metrics
 from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import InMemoryMetricReader
+from opentelemetry.sdk.metrics.export import (
+    InMemoryMetricReader,
+    MetricReader,
+    PeriodicExportingMetricReader,
+)
 from opentelemetry.sdk.resources import Resource
 
 _CONFIGURED = False
 _READER: InMemoryMetricReader | None = None
 
 
-def configure_metrics(service_name: str, env: str) -> None:
+def configure_metrics(
+    service_name: str,
+    env: str,
+    *,
+    otlp_endpoint: str | None = None,
+    otlp_insecure: bool = False,
+) -> None:
     """Install a :class:`MeterProvider` if one has not been installed yet.
 
     Idempotent - a repeat call is a no-op.
@@ -31,8 +41,19 @@ def configure_metrics(service_name: str, env: str) -> None:
             "runtime.env": env,
         }
     )
-    _READER = InMemoryMetricReader()
-    provider = MeterProvider(resource=resource, metric_readers=[_READER])
+    readers: list[MetricReader] = []
+    if otlp_endpoint is None:
+        _READER = InMemoryMetricReader()
+        readers.append(_READER)
+    else:
+        from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+
+        readers.append(
+            PeriodicExportingMetricReader(
+                OTLPMetricExporter(endpoint=otlp_endpoint, insecure=otlp_insecure)
+            )
+        )
+    provider = MeterProvider(resource=resource, metric_readers=readers)
     metrics.set_meter_provider(provider)
     _CONFIGURED = True
 

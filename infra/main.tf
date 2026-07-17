@@ -743,6 +743,31 @@ module "llm_azure_openai" {
   tags                  = local.tags
 }
 
+module "model_apim_gateway" {
+  count  = var.enable_model_apim_gateway ? 1 : 0
+  source = "./modules/llm/apim-ai-gateway"
+
+  resource_group_name = var.model_apim_gateway == null ? "" : var.model_apim_gateway.resource_group_name
+  api_management_name = var.model_apim_gateway == null ? "" : var.model_apim_gateway.api_management_name
+  gateway_url         = var.model_apim_gateway == null ? "https://example.com" : var.model_apim_gateway.gateway_url
+  api_name            = var.model_apim_gateway == null ? "disabled" : var.model_apim_gateway.api_name
+  api_path            = var.model_apim_gateway == null ? "disabled/path" : var.model_apim_gateway.api_path
+  frontend_tenant_id  = var.model_apim_gateway == null ? "" : var.model_apim_gateway.frontend_tenant_id
+  frontend_audience   = var.model_apim_gateway == null ? "" : var.model_apim_gateway.frontend_audience
+  api_version         = var.model_apim_gateway == null ? "2024-10-21" : var.model_apim_gateway.api_version
+  apim_principal_id   = var.model_apim_gateway == null ? "" : var.model_apim_gateway.apim_principal_id
+  ptu_backend = var.model_apim_gateway == null ? {
+    name        = "disabled-ptu"
+    url         = "https://example.com/openai/deployments/disabled-ptu"
+    resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example/providers/Microsoft.CognitiveServices/accounts/example"
+  } : var.model_apim_gateway.ptu_backend
+  standard_backend = var.model_apim_gateway == null ? {
+    name        = "disabled-standard"
+    url         = "https://example.com/openai/deployments/disabled-standard"
+    resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example/providers/Microsoft.CognitiveServices/accounts/example"
+  } : var.model_apim_gateway.standard_backend
+}
+
 module "llm_private_endpoint" {
   count                 = var.enable_llm && var.enable_private_networking ? 1 : 0
   source                = "./modules/private-endpoint"

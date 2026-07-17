@@ -20,10 +20,13 @@ import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
 import { routeHref } from "../router";
 import {
+  auditSampleParams,
   formatShare,
   formatUsd,
   overviewAttentionCount,
+  overviewCostActions,
   overviewHealth,
+  overviewT0Share,
   type GatesSummary,
 } from "./dashboard.model";
 import {
@@ -114,9 +117,9 @@ export function DashboardRoute({ client }: Props) {
 
 function OverviewBody({ data }: { readonly data: OverviewData }) {
   const { kpi, finops, gates, autonomy } = data;
+  const sampleParams = auditSampleParams(kpi);
 
-  const tierTotal = Object.values(kpi.by_tier).reduce((a, b) => a + b, 0);
-  const t0Share = tierTotal > 0 ? Math.round(((kpi.by_tier.t0 ?? 0) / tierTotal) * 100) : 0;
+  const t0Share = overviewT0Share(kpi.by_tier);
   const policyEscapes = gates ? gates.rows.reduce((sum, r) => sum + r.policy_escapes, 0) : null;
   const readyCount = gates ? gates.ready_count : null;
   const gateTotal = gates ? gates.rows.length : null;
@@ -201,7 +204,7 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
           { key: "health", value: health, group: "overview" },
           { key: "event_count", value: kpi.event_count, group: "overview" },
           { key: "shadow_share", value: formatShare(kpi.shadow_share), group: "overview" },
-          { key: "t0_share", value: `${t0Share}%`, group: "overview" },
+          { key: "t0_share", value: t0Share, group: "overview" },
           { key: "hil_pending", value: kpi.hil_pending, group: "overview" },
           {
             key: "measurement_state",
@@ -218,7 +221,7 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
             value: savings !== null ? formatUsd(savings) : "n/a",
             group: "cost",
           },
-          { key: "cost_actions", value: finops ? finops.total_actions : 0, group: "cost" },
+          { key: "cost_actions", value: overviewCostActions(finops), group: "cost" },
           { key: "policy_escapes", value: policyEscapes ?? "n/a", group: "guards" },
           {
             key: "promotion_ready",
@@ -310,7 +313,7 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
       {autonomy ? (
         <section class="overview-operating-signals" aria-label={t("overview.operations.label")}>
           <TierBands tier={autonomy.tier} />
-          <LivingRules rules={autonomy.rules} />
+          <LivingRules rules={autonomy.rules} provenance={autonomy} />
         </section>
       ) : (
         <section class="overview-operating-signals" aria-label={t("overview.operations.label")}>
@@ -325,20 +328,20 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
         </summary>
         <div class="stack overview-details-body">
           <KpiGrid>
-            <a class="overview-kpi-link" href={routeHref("audit")}><KpiCard label="Events (audit)" value={kpi.event_count} hint="terminal audit entries" /></a>
-            <a class="overview-kpi-link" href={routeHref("audit", { params: { mode: "shadow" } })}><KpiCard label="Shadow share" value={formatShare(kpi.shadow_share)} hint="judge-only, no mutation" tone={kpi.shadow_share > 0.95 ? "positive" : "default"} /></a>
-            <a class="overview-kpi-link" href={routeHref("audit", { params: { mode: "enforce" } })}><KpiCard label="Enforce share" value={formatShare(kpi.enforce_share)} hint="promoted to production" /></a>
+            <a class="overview-kpi-link" href={routeHref("audit", { params: sampleParams })}><KpiCard label="Events (audit)" value={kpi.event_count} hint="terminal audit entries" /></a>
+            <a class="overview-kpi-link" href={routeHref("audit", { params: { ...sampleParams, mode: "shadow" } })}><KpiCard label="Shadow share" value={formatShare(kpi.shadow_share)} hint="judge-only, no mutation" tone={kpi.shadow_share > 0.95 ? "positive" : "default"} /></a>
+            <a class="overview-kpi-link" href={routeHref("audit", { params: { ...sampleParams, mode: "enforce" } })}><KpiCard label="Enforce share" value={formatShare(kpi.enforce_share)} hint="promoted to production" /></a>
             <a class="overview-kpi-link" href={routeHref("hil-queue")}><KpiCard label={t("overview.detailMetric.approvals")} value={kpi.hil_pending} tone={kpi.hil_pending > 0 ? "warning" : "positive"} hint={kpi.hil_pending > 0 ? t("overview.detailMetric.approvalHint") : t("overview.detailMetric.approvalClear")} /></a>
           </KpiGrid>
 
           <div class="two-col">
             <section class="stack-section">
               <h3 class="section-title">Actions by kind</h3>
-              <CountTable data={kpi.by_action_kind} keyLabel="Action kind" filterKey="action" />
+              <CountTable data={kpi.by_action_kind} keyLabel="Action kind" filterKey="action" sampleParams={sampleParams} />
             </section>
             <section class="stack-section">
               <h3 class="section-title">Outcomes</h3>
-              <CountTable data={kpi.by_outcome} keyLabel="Outcome" filterKey="outcome" />
+              <CountTable data={kpi.by_outcome} keyLabel="Outcome" filterKey="outcome" sampleParams={sampleParams} />
             </section>
           </div>
         </div>
@@ -381,17 +384,19 @@ function CountTable({
   data,
   keyLabel,
   filterKey,
+  sampleParams,
 }: {
   readonly data: Record<string, number>;
   readonly keyLabel: string;
   readonly filterKey: "action" | "outcome";
+  readonly sampleParams: Readonly<Record<string, number>>;
 }) {
   const rows: readonly KeyCount[] = Object.entries(data)
     .sort(([, a], [, b]) => b - a)
     .map(([key, count]) => ({ key, count }));
 
   const columns: readonly Column<KeyCount>[] = [
-    { key: "k", header: keyLabel, render: (r) => <a href={routeHref("audit", { params: { [filterKey]: r.key } })}>{r.key}</a>, cellClass: "mono" },
+    { key: "k", header: keyLabel, render: (r) => <a href={routeHref("audit", { params: { ...sampleParams, [filterKey]: r.key } })}>{r.key}</a>, cellClass: "mono" },
     { key: "c", header: "Count", render: (r) => r.count, cellClass: "num", headerClass: "num" },
   ];
 

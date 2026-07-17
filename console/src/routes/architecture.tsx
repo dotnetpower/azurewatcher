@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { isOptionalReadApiUnavailable, type ReadApiClient } from "../api";
+import { isOptionalReadApiUnavailable, ReadApiError, type ReadApiClient } from "../api";
 import { ArchitectureMap, type ArchitectureMapHandle } from "../components/architecture-map";
 import {
   ARCHITECTURE_LAYERS,
@@ -40,6 +40,41 @@ const CAMERA_LABELS: Readonly<Record<ArchitectureCameraView, string>> = {
   front: "Front",
 };
 
+export function architectureResourceExists(
+  resources: readonly Pick<InventoryResource, "id">[],
+  requestedId: string | null,
+): boolean {
+  return requestedId === null || resources.some((resource) => resource.id === requestedId);
+}
+
+export function architectureViewExists(
+  graph: Pick<InventoryGraphResponse, "active_view" | "views">,
+  requestedView: string | null,
+): boolean {
+  if (requestedView === null) return true;
+  if (graph.active_view === requestedView) return true;
+  return graph.views?.some((view) => view.id === requestedView) ?? false;
+}
+
+export async function loadArchitectureGraph(
+  client: Pick<ReadApiClient, "panel">,
+  requestedView: string | null,
+): Promise<InventoryGraphResponse> {
+  const params = { depth: "4", include: "contains,attached_to,depends_on" };
+  if (requestedView === null) {
+    return client.panel<InventoryGraphResponse>("/inventory/graph", params);
+  }
+  try {
+    return await client.panel<InventoryGraphResponse>("/inventory/graph", {
+      ...params,
+      scope: requestedView,
+    });
+  } catch (error) {
+    if (!(error instanceof ReadApiError) || error.status !== 404) throw error;
+    return client.panel<InventoryGraphResponse>("/inventory/graph", params);
+  }
+}
+
 export function ArchitectureRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<InventoryGraphResponse>>({ status: "loading" });
   const [selectedId, setSelectedId] = useState<string | null>(() => selectedResourceIdFromHash(window.location.search));
@@ -71,12 +106,7 @@ export function ArchitectureRoute({ client }: Props) {
   useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
-    const params: Record<string, string> = {
-      depth: "4",
-      include: "contains,attached_to,depends_on",
-    };
-    if (viewScope) params.scope = viewScope;
-    client.panel<InventoryGraphResponse>("/inventory/graph", params).then(
+    loadArchitectureGraph(client, viewScope).then(
       (data) => { if (!cancelled) setState({ status: "ready", data }); },
       (error: unknown) => {
         if (cancelled) return;
@@ -121,6 +151,7 @@ export function ArchitectureRoute({ client }: Props) {
         {(data) => (
           <ArchitectureBody
             graph={data}
+            requestedView={viewScope}
             selectedId={selectedId}
             visibleLayers={visibleLayers}
             onSelect={selectResource}
@@ -148,6 +179,7 @@ export function ArchitectureRoute({ client }: Props) {
 
 function ArchitectureBody({
   graph,
+  requestedView,
   selectedId,
   visibleLayers,
   onSelect,
@@ -162,6 +194,7 @@ function ArchitectureBody({
   onToggleDisplay,
 }: {
   readonly graph: InventoryGraphResponse;
+  readonly requestedView: string | null;
   readonly selectedId: string | null;
   readonly visibleLayers: ReadonlySet<ArchitectureLayer>;
   readonly onSelect: (resource: InventoryResource | null) => void;
@@ -175,6 +208,15 @@ function ArchitectureBody({
   readonly displayOptions: ArchitectureDisplayOptions;
   readonly onToggleDisplay: (key: keyof ArchitectureDisplayOptions) => void;
 }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const ageMs = Math.max(0, now - Date.parse(graph.snapshot_at));
+    const timer = window.setTimeout(
+      () => setNow(Date.now()),
+      ageMs < 60_000 ? 1_000 : 60_000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [graph.snapshot_at, now]);
   const filtered = useMemo(
     () => graphSubset(graph, visibleLayers),
     [graph, visibleLayers],
@@ -194,6 +236,8 @@ function ArchitectureBody({
     [graph],
   );
   const selected = graph.resources.find((resource) => resource.id === selectedId) ?? null;
+  const requestedViewExists = architectureViewExists(graph, requestedView);
+  const requestedResourceExists = architectureResourceExists(graph.resources, selectedId);
   const parent = selected?.parent_id
     ? graph.resources.find((resource) => resource.id === selected.parent_id)
     : null;
@@ -206,7 +250,7 @@ function ArchitectureBody({
       headline: `${graph.resources.length} resources - ${graph.links.length} links - ${graph.freshness}`,
       capturedAt: graph.snapshot_at,
       facts: [
-        { key: "freshness", value: graph.freshness, group: "inventory" },
+        { key: "snapshot_freshness", value: graph.freshness, group: "inventory" },
         { key: "source", value: graph.source ?? "inventory", group: "inventory" },
         { key: "truncated", value: graph.truncated, group: "inventory" },
       ],
@@ -226,6 +270,26 @@ function ArchitectureBody({
     }),
     [graph],
   );
+  if (!requestedViewExists && requestedView !== null) {
+    return (
+      <div class="state-block state-unavailable" role="alert">
+        <span class="state-icon" aria-hidden="true">?</span>
+        <div>
+          <strong>Architecture view unavailable</strong>
+          <p><code>{requestedView}</code> is not registered in this inventory projection.</p>
+          {(graph.views ?? []).length > 0 ? (
+            <nav class="analytics-links" aria-label="Available architecture views">
+              {(graph.views ?? []).map((view) => (
+                <a key={view.id} href={architectureHref(undefined, view.id)}>{view.label}</a>
+              ))}
+            </nav>
+          ) : (
+            <a href={architectureHref()}>Open default architecture</a>
+          )}
+        </div>
+      </div>
+    );
+  }
   return (
     <div class="architecture-workspace">
       <div class="architecture-toolbar">
@@ -242,7 +306,7 @@ function ArchitectureBody({
           <small>{graph.views?.find((view) => view.id === graph.active_view)?.description}</small>
         </label>
         <div class={`inventory-freshness is-${graph.freshness}`}>
-          <span />{graph.freshness} <small>{formatAge(graph.snapshot_at)}</small>
+          <span />snapshot {graph.freshness} <small>{formatAge(graph.snapshot_at, now)}</small>
         </div>
       </div>
       <div class="architecture-stage">
@@ -328,6 +392,15 @@ function ArchitectureBody({
                 </dl>
                 <a class="btn" href={routeHref("blast-radius", { params: { target: selected.id, view: graph.active_view } })}>View blast radius</a>
               </>
+            ) : !requestedResourceExists && selectedId ? (
+              <div class="state-block state-unavailable" role="alert">
+                <span class="state-icon" aria-hidden="true">?</span>
+                <div>
+                  <strong>Resource unavailable</strong>
+                  <p><code>{selectedId}</code> is not present in this architecture view.</p>
+                  <a href={architectureHref(undefined, graph.active_view)}>Open current architecture</a>
+                </div>
+              </div>
             ) : (
               <div class="architecture-empty-inspector">
                 <strong>Select a resource</strong>
@@ -341,8 +414,8 @@ function ArchitectureBody({
   );
 }
 
-function formatAge(timestamp: string): string {
-  const seconds = Math.max(0, Math.round((Date.now() - Date.parse(timestamp)) / 1000));
+export function formatAge(timestamp: string, now = Date.now()): string {
+  const seconds = Math.max(0, Math.round((now - Date.parse(timestamp)) / 1000));
   if (seconds < 60) return `${seconds}s ago`;
   if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`;
   return `${Math.round(seconds / 3600)}h ago`;

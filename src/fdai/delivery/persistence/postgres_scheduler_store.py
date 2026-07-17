@@ -35,12 +35,17 @@ from typing import Any, Final
 import psycopg
 from psycopg.rows import dict_row
 
-from fdai.core.scheduler.models import ScheduledTask
+from fdai.core.scheduler.models import (
+    ScheduledRunIsolationProfile,
+    ScheduledTask,
+    ScheduleKind,
+)
 from fdai.core.scheduler.store import ScheduleNotFoundError
 
 _COLUMNS: Final[str] = (
     "task_id, name, interval_seconds, event_type, created_by, "
-    "event_payload, resource_ref, enabled, start_at, last_run, cron_expression"
+    "event_payload, resource_ref, enabled, start_at, last_run, cron_expression, "
+    "schedule_kind, timezone, exit_event_type, exit_observed_at, isolation_profile"
 )
 
 
@@ -80,7 +85,10 @@ class PostgresScheduleStore:
                     await conn.execute(
                         f"""
                         INSERT INTO scheduled_task ({_COLUMNS})
-                        VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s)
+                        VALUES (
+                            %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s::jsonb
+                        )
                         """,  # noqa: S608 - _COLUMNS is a module constant, values parametrized
                         (
                             task.task_id,
@@ -94,6 +102,27 @@ class PostgresScheduleStore:
                             task.start_at,
                             task.last_run,
                             task.cron_expression,
+                            task.kind.value,
+                            task.timezone,
+                            task.exit_event_type,
+                            task.exit_observed_at,
+                            json.dumps(
+                                {
+                                    "profile_id": task.isolation_profile.profile_id,
+                                    "max_session_seconds": (
+                                        task.isolation_profile.max_session_seconds
+                                    ),
+                                    "max_context_chars": task.isolation_profile.max_context_chars,
+                                    "max_tool_calls": task.isolation_profile.max_tool_calls,
+                                    "allowed_tool_ids": sorted(
+                                        task.isolation_profile.allowed_tool_ids
+                                    ),
+                                    "command_sandbox_profile_id": (
+                                        task.isolation_profile.command_sandbox_profile_id
+                                    ),
+                                },
+                                sort_keys=True,
+                            ),
                         ),
                     )
             except psycopg.errors.UniqueViolation as exc:
@@ -148,6 +177,22 @@ class PostgresScheduleStore:
             raise ScheduleNotFoundError(task_id)
         return _row_to_task(row)
 
+    async def mark_exit_event(self, event_type: str, at: datetime) -> int:
+        async with await self._connect() as conn:
+            async with conn.transaction():
+                await self._set_session_knobs(conn)
+                cursor = await conn.execute(
+                    """
+                    UPDATE scheduled_task
+                       SET enabled = FALSE, exit_observed_at = %s
+                     WHERE schedule_kind = 'event-exit'
+                       AND exit_event_type = %s
+                       AND enabled = TRUE
+                    """,
+                    (at, event_type),
+                )
+        return cursor.rowcount
+
     async def _connect(self, *, row_factory: bool = False) -> psycopg.AsyncConnection[Any]:
         kwargs: dict[str, Any] = {"connect_timeout": self._config.connect_timeout_s}
         if row_factory:
@@ -163,6 +208,11 @@ def _row_to_task(row: dict[str, Any]) -> ScheduledTask:
     payload = row["event_payload"]
     if isinstance(payload, str):
         payload = json.loads(payload)
+    isolation = row["isolation_profile"]
+    if isinstance(isolation, str):
+        isolation = json.loads(isolation)
+    if not isinstance(isolation, dict):
+        raise ValueError("scheduled task isolation_profile MUST be a JSON object")
     return ScheduledTask(
         task_id=str(row["task_id"]),
         name=str(row["name"]),
@@ -175,6 +225,22 @@ def _row_to_task(row: dict[str, Any]) -> ScheduledTask:
         start_at=row["start_at"],
         last_run=row["last_run"],
         cron_expression=row.get("cron_expression"),
+        schedule_kind=ScheduleKind(str(row["schedule_kind"])),
+        timezone=str(row["timezone"]),
+        exit_event_type=row["exit_event_type"],
+        exit_observed_at=row["exit_observed_at"],
+        isolation_profile=ScheduledRunIsolationProfile(
+            profile_id=str(isolation["profile_id"]),
+            max_session_seconds=int(isolation["max_session_seconds"]),
+            max_context_chars=int(isolation["max_context_chars"]),
+            max_tool_calls=int(isolation["max_tool_calls"]),
+            allowed_tool_ids=frozenset(str(value) for value in isolation["allowed_tool_ids"]),
+            command_sandbox_profile_id=(
+                str(isolation["command_sandbox_profile_id"])
+                if isolation.get("command_sandbox_profile_id") is not None
+                else None
+            ),
+        ),
     )
 
 

@@ -70,6 +70,8 @@ class _IntentMatch:
 
 
 _VERB_PATTERNS: tuple[tuple[str, str], ...] = (
+    (r"^\s*(?P<verb>search[_\s-]?tools?)\b\s*(?P<rest>.*)$", "search_tools"),
+    (r"^\s*(?P<verb>describe[_\s-]?tool)\b\s*(?P<rest>.*)$", "describe_tool"),
     # Explicit verb + argument. Anchored so an accidental substring
     # never triggers the tool (e.g. "explore_catalogue" would not match
     # "explore_catalog" without the word boundary).
@@ -383,6 +385,14 @@ def _extract_tool_arguments(tool_name: str, query: str) -> dict[str, Any]:
 
     if tool_name == "explore_catalog":
         return {"query": query} if query else {"query": ""}
+    if tool_name == "search_tools":
+        search_args = _parse_kv_tokens(query)
+        positional = [token for token in query.split() if "=" not in token]
+        if "query" not in search_args:
+            search_args["query"] = " ".join(positional)
+        return search_args
+    if tool_name == "describe_tool":
+        return {"tool_name": query}
     if tool_name == "describe_event":
         # Two positional tokens: resource_type resource_id (rest is
         # ignored). "key=value" tokens override.

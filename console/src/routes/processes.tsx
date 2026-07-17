@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useReducer, useState } from "preact/hooks";
 import type { ReadApiClient } from "../api";
 import { AsyncBoundary, EmptyState, PageHeader, StatusPill, type AsyncState } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
@@ -6,18 +6,23 @@ import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
 import { currentRoute, routeHref } from "../router";
 import { ProcessWidget, RenderedRegion } from "./process-view-renderer";
+import { schedulerRunsText } from "./scheduler-runs.i18n";
+import { SchedulerRunsRoute } from "./scheduler-runs";
 import {
   decodeProcessList,
   decodeProcessJournal,
   decodeRenderedProcessView,
     displayValue,
+    INITIAL_PROCESS_REFRESH,
     type ProcessDetailData,
     type ProcessEvent,
   defaultProcessId,
   processHref,
+  processEventHref,
   processIdFromHash,
   processListFailure,
   processTone,
+  reduceProcessRefresh,
   type ProcessListResponse,
   type ProcessSummary,
   type RenderedProcessView,
@@ -25,11 +30,23 @@ import {
 
 interface Props { readonly client: ReadApiClient }
 
+interface LoadedProcessList {
+  readonly response: ProcessListResponse;
+  readonly generation: number;
+}
+
 export function ProcessesRoute({ client }: Props) {
-  const [listState, setListState] = useState<AsyncState<ProcessListResponse>>({ status: "loading" });
+  if (currentRoute().segments[0] === "scheduler-runs") {
+    return <SchedulerRunsRoute client={client} />;
+  }
+  return <ProcessRuntimeRoute client={client} />;
+}
+
+function ProcessRuntimeRoute({ client }: Props) {
+  const [listState, setListState] = useState<AsyncState<LoadedProcessList>>({ status: "loading" });
   const [selectedId, setSelectedId] = useState<string | null>(() => currentRoute().segments[0] ?? null);
   const [detailState, setDetailState] = useState<AsyncState<ProcessDetailData>>({ status: "idle" });
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshCycle, dispatchRefresh] = useReducer(reduceProcessRefresh, INITIAL_PROCESS_REFRESH);
 
   useEffect(() => {
     const sync = () => setSelectedId(currentRoute().segments[0] ?? null);
@@ -51,55 +68,67 @@ export function ProcessesRoute({ client }: Props) {
           data = decodeProcessList(payload);
         } catch (error) {
           setListState(processListFailure(error));
+          dispatchRefresh({ type: "finish", generation: refreshCycle.generation });
           return;
         }
-        setListState({ status: "ready", data });
+        setListState({
+          status: "ready",
+          data: { response: data, generation: refreshCycle.generation },
+        });
         const defaultId = currentRoute().segments[0] ?? defaultProcessId(data.items, "");
         if (!currentRoute().segments[0] && defaultId) {
           window.history.replaceState(window.history.state, "", processHref(defaultId));
           setSelectedId(defaultId);
+        } else if (!defaultId) {
+          dispatchRefresh({ type: "finish", generation: refreshCycle.generation });
         }
       },
       (error: unknown) => {
         if (cancelled) return;
         setListState(processListFailure(error));
+        dispatchRefresh({ type: "finish", generation: refreshCycle.generation });
       },
     );
     return () => { cancelled = true; };
-  }, [client, refreshKey]);
+  }, [client, refreshCycle.generation]);
 
   useEffect(() => {
-    if (!selectedId) { setDetailState({ status: "idle" }); return; }
-    const selected = listState.status === "ready"
-      ? listState.data.items.find((item) => item.id === selectedId)
-      : undefined;
+    if (listState.status !== "ready") return;
+    const generation = listState.data.generation;
+    if (!selectedId) {
+      setDetailState({ status: "idle" });
+      dispatchRefresh({ type: "finish", generation });
+      return;
+    }
     let cancelled = false;
     setDetailState({ status: "loading" });
     const encodedId = encodeURIComponent(selectedId);
-    Promise.all([
-      client.panel<unknown>(`/views/process/${encodedId}/events`),
-      selected?.has_view
-        ? client.panel<unknown>(`/views/process/${encodedId}`)
-        : Promise.resolve(null),
-    ]).then(
-      ([journalPayload, viewPayload]) => {
-        if (cancelled) return;
-        try {
+    void (async () => {
+      try {
+        const journalPayload = await client.panel<unknown>(`/views/process/${encodedId}/events`);
+        const journal = decodeProcessJournal(journalPayload);
+        const viewPayload = journal.process.has_view
+          ? await client.panel<unknown>(`/views/process/${encodedId}`)
+          : null;
+        if (!cancelled) {
           setDetailState({
             status: "ready",
             data: {
-              journal: decodeProcessJournal(journalPayload),
+              journal,
               view: viewPayload === null ? null : decodeRenderedProcessView(viewPayload),
             },
           });
-        } catch (error) {
+        }
+      } catch (error) {
+        if (!cancelled) {
           setDetailState({ status: "error", message: error instanceof Error ? error.message : String(error) });
         }
-      },
-      (error: unknown) => { if (!cancelled) setDetailState({ status: "error", message: error instanceof Error ? error.message : String(error) }); },
-    );
+      } finally {
+        if (!cancelled) dispatchRefresh({ type: "finish", generation });
+      }
+    })();
     return () => { cancelled = true; };
-  }, [client, selectedId, listState, refreshKey]);
+  }, [client, selectedId, listState]);
 
   return (
     <div class="stack process-route">
@@ -107,23 +136,35 @@ export function ProcessesRoute({ client }: Props) {
         title={t("route.processes")}
         subtitle="Workflow run status from authoritative Process snapshots and append-only journals. Execution remains outside the console."
         actions={
-          <button type="button" class="btn btn-small" onClick={() => setRefreshKey((value) => value + 1)}>
-            Refresh status
-          </button>
+          <>
+            <a class="btn btn-small" href={routeHref("processes", { segments: ["scheduler-runs"] })}>
+              {schedulerRunsText("title")}
+            </a>
+            <button
+              type="button"
+              class="btn btn-small"
+              disabled={refreshCycle.refreshing || listState.status === "loading" || detailState.status === "loading"}
+              aria-busy={refreshCycle.refreshing}
+              onClick={() => dispatchRefresh({ type: "start" })}
+            >
+              {refreshCycle.refreshing ? "Refreshing..." : "Refresh status"}
+            </button>
+          </>
         }
       />
       <AsyncBoundary state={listState} resourceLabel="processes">
-        {(data) => <ProcessWorkspace processes={data.items} selectedId={selectedId} detailState={detailState} />}
+        {(data) => <ProcessWorkspace processList={data.response} selectedId={selectedId} detailState={detailState} />}
       </AsyncBoundary>
     </div>
   );
 }
 
-function ProcessWorkspace({ processes, selectedId, detailState }: {
-  readonly processes: readonly ProcessSummary[];
+function ProcessWorkspace({ processList, selectedId, detailState }: {
+  readonly processList: ProcessListResponse;
   readonly selectedId: string | null;
   readonly detailState: AsyncState<ProcessDetailData>;
 }) {
+  const processes = processList.items;
   const selected = processes.find((item) => item.id === selectedId) ?? null;
   usePublishViewContext(
     () => ({
@@ -135,6 +176,9 @@ function ProcessWorkspace({ processes, selectedId, detailState }: {
       capturedAt: selected?.updated_at ?? new Date().toISOString(),
       facts: [
         { key: "process_count", value: processes.length, group: "process" },
+        { key: "source", value: processList.source, group: "process" },
+        { key: "synthetic", value: processList.synthetic, group: "process" },
+        { key: "durable", value: processList.durable, group: "process" },
         { key: "selected", value: selected?.id ?? "-", group: "process" },
         { key: "status", value: selected?.status ?? "-", group: "process" },
       ],
@@ -151,7 +195,7 @@ function ProcessWorkspace({ processes, selectedId, detailState }: {
         })),
       },
     }),
-    [processes, selected],
+    [processList, processes, selected],
   );
   if (processes.length === 0) {
     return <EmptyState title="No workflow processes" body="Process runs appear here after the workflow runtime records them." />;
@@ -159,6 +203,15 @@ function ProcessWorkspace({ processes, selectedId, detailState }: {
   const hasRenderableProcess = processes.some((process) => process.has_view);
   return (
     <div class="stack process-status-workspace">
+      <div class="filter-summary" aria-label="Process projection provenance">
+        <span>Source: <strong>{processList.source}</strong></span>
+        <span>Evidence: <strong>
+          {processList.synthetic === true ? "Synthetic" : processList.synthetic === false ? "Observed" : "Unknown"}
+        </strong></span>
+        <span>Storage: <strong>
+          {processList.durable === true ? "Durable" : processList.durable === false ? "Volatile" : "Unknown"}
+        </strong></span>
+      </div>
       <ProcessStatusSummary processes={processes} />
       <div class="process-workspace">
         <aside class="process-list" aria-label="Workflow processes">
@@ -258,10 +311,7 @@ function ProcessJournal({
                 <strong>{event.kind.replaceAll(".", " ")}</strong>
                 <a
                   class="mono small"
-                  href={routeHref("processes", {
-                    segments: [processId],
-                    params: { event: event.event_id },
-                  })}
+                  href={processEventHref(processId, event.event_id)}
                 >
                   {event.event_id}
                 </a>

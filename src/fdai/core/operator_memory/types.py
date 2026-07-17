@@ -42,6 +42,7 @@ class MemorySource(StrEnum):
     OVERRIDE_CREATE = "override.create"
     CHATOPS_PREFERENCE = "chatops.preference"
     PR_REVIEW = "pr.review"
+    MEMORY_COMPACTION = "memory.compaction"
 
 
 class MemoryCategory(StrEnum):

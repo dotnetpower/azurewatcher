@@ -215,6 +215,47 @@ description, invocation schema, capability gate, allowlist, and output wrapper.
 - **Judge holds no tools**: judgment is separation-of-duties; a Judge that
   calls tools would collapse into a second Proposer.
 
+### Reviewed runtime skills
+
+Runtime skills are portable Markdown instructions that teach an agent how to use already
+registered tools. They are separate from repository coding-agent skills and grant no tool,
+identity, role, or execution authority.
+
+- **Strict artifact:** YAML front matter declares `name`, semantic `version`, description,
+  provenance source, body SHA-256, required tool ids, and an optional fixed-agent allowlist.
+  Unknown keys, including dependency installers, are rejected.
+- **Trust before activation:** an injected `SkillTrustVerifier` approves publisher provenance.
+  The body digest and trust decision must pass before the artifact installs, and every install is
+  disabled by default.
+- **Reference gates:** enable fails when a required tool or named agent is unknown. Prompt
+  projection rechecks tool availability so a removed tool cannot leave stale instructions active.
+- **Whole-block budget:** an eligible skill enters the prompt as one complete trusted instruction
+  block. If the combined projection exceeds the configured character budget, composition fails
+  instead of truncating instructions into a different behavior.
+- **No dynamic code:** runtime skills cannot install binaries, inject environment secrets, load a
+  provider, or bypass the tool catalog and risk gate.
+- **Audited proposal workshop:** `SkillWorkshop` validates an agent draft and stores it as inert
+  content-addressed data. An injected human authorizer must approve or reject with a reason; the
+  proposer cannot self-review. Every transition is sent to an append-only audit sink without
+  embedding the Markdown body. PostgreSQL persistence survives restart and applies review and
+  materialization with expected-state compare-and-swap. Promotion re-runs digest and publisher
+  trust verification, then installs the approved artifact disabled. It never enables the skill or
+  changes an active prompt; reference and budget gates still apply afterward.
+
+### Operator-memory review and compaction
+
+The operator-memory store exposes a bounded review projection that includes active, expired, and
+superseded entries with scope, source event/reference, author, distinct approver, TTL-derived
+expiry, and supersession pointer. The Settings > Operator memory console view is GET-only. Changes
+still enter through approved HIL or ChatOps workflows.
+
+`MemoryCompactionService` can propose a shorter entry only from two or more active, unique source
+entries that share scope and category and carry provenance refs. Candidate text passes injection
+screening and remains inert until a distinct authorized reviewer approves it. PostgreSQL promotion
+atomically appends the compacted entry, preserves source ids/refs, and supersedes the originals.
+Rollback restores the original source entries and marks the compacted entry inactive without
+deleting any body. Compaction grants no role, tool, action, or execution authority.
+
 ## Web search policy
 
 Web search is the last-resort tool. It is opt-in per fork and never a

@@ -1,8 +1,8 @@
 ---
 title: 운영과 검증(Operating and Verification)
 translation_of: operating-and-verification.md
-translation_source_sha: d584e70f36f960046eb96d7fdb46d544af7203c9
-translation_revised: 2026-07-13
+translation_source_sha: a4212b1f4d0a17f7c310baec1cede6cbc44f515a
+translation_revised: 2026-07-17
 ---
 
 # 운영과 검증(Operating and Verification)
@@ -42,6 +42,16 @@ translation_revised: 2026-07-13
 
 신호는 OpenTelemetry로 설정된 backend로 emit
 ([deployment-ko.md#observability-slos-and-alerting](../deployment/deployment-ko.md#observability-slos-and-alerting)).
+
+`OTEL_EXPORTER_OTLP_ENDPOINT`는 OTLP/gRPC trace 및 metric export를 enable합니다. Loopback 밖에서는
+HTTPS가 필수이며 endpoint의 credential, query string, fragment는 거부됩니다. Endpoint가 없으면
+local console span 및 in-memory metric이 default로 유지됩니다.
+
+Channel, extension, model, scheduler, security lifecycle component는 process-singleton emitter를 통해
+같은 `fdai.transition` span 및 `fdai.transition.count` metric을 emit합니다. Attribute는 bounded
+allowlisted domain, name, outcome, component-specific scalar key를 사용하며 provider error text,
+payload, credential, arbitrary label은 허용되지 않습니다. Emission은 best-effort이므로 exporter
+failure가 routing 또는 safety decision을 차단할 수 없습니다.
 
 ## 합성 카나리 이벤트(Synthetic Canary Event)
 

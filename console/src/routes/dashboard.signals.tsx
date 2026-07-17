@@ -62,9 +62,9 @@ export function TierBands({ tier }: { readonly tier: AutonomyPayload["tier"] }) 
     <section class="overview-tiers" aria-label="trust tier mix vs target band">
       <span class="overview-guards-label">{t("overview.tier.label")}</span>
       {keys.map((key) => {
-        const share = tier.mix[key] ?? 0;
+        const share = measuredTierMix(tier.mix, key);
         const band = tier.bands[key];
-        const inBand = band ? share >= band[0] && share <= band[1] : true;
+        const inBand = share !== null && (band ? share >= band[0] && share <= band[1] : true);
         const bandText = band
           ? `${Math.round(band[0] * 100)}-${Math.round(band[1] * 100)}%`
           : "";
@@ -75,7 +75,7 @@ export function TierBands({ tier }: { readonly tier: AutonomyPayload["tier"] }) 
             class={`overview-tier overview-tier-${key} ${inBand ? "ok" : "warn"}`}
             title={bandText ? t("overview.tier.band", { range: bandText }) : ""}
           >
-            {key.toUpperCase()} {Math.round(share * 100)}%
+            {key.toUpperCase()} {share === null ? "unavailable" : `${Math.round(share * 100)}%`}
           </a>
         );
       })}
@@ -83,11 +83,42 @@ export function TierBands({ tier }: { readonly tier: AutonomyPayload["tier"] }) 
   );
 }
 
-export function LivingRules({ rules }: { readonly rules: AutonomyPayload["rules"] }) {
+export function measuredTierMix(
+  mix: Readonly<Record<string, number>>,
+  key: string,
+): number | null {
+  return Object.hasOwn(mix, key) ? mix[key] ?? null : null;
+}
+
+export function livingRulesProvenance(
+  autonomy: Pick<AutonomyPayload, "synthetic" | "source">,
+): { readonly kind: "simulated" | "measured"; readonly source: string; readonly asOf: string | null } {
+  return {
+    kind: autonomy.synthetic ? "simulated" : "measured",
+    source: autonomy.source.name,
+    asOf: autonomy.source.as_of,
+  };
+}
+
+export function LivingRules({
+  rules,
+  provenance,
+}: {
+  readonly rules: AutonomyPayload["rules"];
+  readonly provenance: Pick<AutonomyPayload, "synthetic" | "source">;
+}) {
+  const evidence = livingRulesProvenance(provenance);
   return (
     <section class="overview-rules" aria-label="living rule catalog">
       <span class="overview-guards-label">{t("overview.rules.label")}</span>
-      <a class="overview-rules-stat" href={routeHref("rules", { params: { status: "active" } })}>
+      <span class="overview-rules-provenance">
+        <strong>{t(`overview.evidence.${evidence.kind}`)}</strong>
+        <small>
+          {t("overview.evidence.source", { source: evidence.source })}
+          {evidence.asOf ? ` - ${t("overview.evidence.asOf", { time: evidence.asOf })}` : ""}
+        </small>
+      </span>
+      <a class="overview-rules-stat" href={routeHref("rules", { params: { status: "active", origin: "active" } })}>
         <b>{rules.active}</b> {t("overview.rules.active")}
       </a>
       <a class="overview-rules-stat" href={routeHref("rules", { params: { status: "promoted", window: "30d" } })}>

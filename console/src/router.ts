@@ -27,6 +27,7 @@ export const PANEL_PATHS: Readonly<Record<string, string>> = {
   "llm-cost": "/llm-cost",
   "settings-general": "/settings/general",
   "settings-models": "/settings/models",
+  "settings-memory": "/settings/memory",
   "settings-iam": "/settings/iam",
   "settings-integrations": "/settings/integrations",
   "settings-diagnostics": "/settings/diagnostics",
@@ -117,7 +118,9 @@ export function parseConsoleRoute(pathname: string, search = ""): ConsoleRoute {
       search: new URLSearchParams(search.startsWith("?") ? search.slice(1) : search),
     };
   }
-  const canonicalPathname = routeHref(panelId, { segments: detailSegments });
+  const canonicalPathname = panelId === "processes" && detailSegments.length > 0
+    ? `${panelPath(panelId)}/${detailSegments.map(encodeURIComponent).join("/")}`
+    : routeHref(panelId, { segments: detailSegments });
   return {
     panelId,
     pathname: normalized,
@@ -166,6 +169,16 @@ export function navigate(href: string, replace = false): void {
   window.history[method](null, "", `${url.pathname}${url.search}`);
   window.dispatchEvent(new Event(ROUTE_EVENT));
   if (resetScroll) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+}
+
+/** Replace the current clean URL without notifying the route boundary.
+ * Use this for free-text controls whose component already owns the next
+ * state; dispatching ROUTE_EVENT on every keystroke would remount the panel
+ * and drop input focus. */
+export function replaceRouteState(href: string): void {
+  if (typeof window === "undefined") return;
+  const url = new URL(href, window.location.origin);
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}`);
 }
 
 export function installNavigationListener(onRoute: () => void): () => void {

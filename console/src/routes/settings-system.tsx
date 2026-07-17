@@ -1,15 +1,20 @@
 import type { ReadApiClient } from "../api";
 import type { AuthContext } from "../auth";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { PageHeader, StatusPill } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
+import { routeHref } from "../router";
 import { SettingRow } from "./settings";
 
 interface Props {
   readonly client: ReadApiClient;
   readonly auth: AuthContext;
+}
+
+export function isCurrentDiagnosticCheck(current: number, candidate: number): boolean {
+  return current === candidate;
 }
 
 export function SettingsIntegrationsRoute({ auth }: Props) {
@@ -25,6 +30,8 @@ export function SettingsIntegrationsRoute({ auth }: Props) {
       capturedAt: new Date().toISOString(),
       facts: [
         { key: "authentication_mode", value: authMode, group: "identity" },
+        { key: "github_app_status", value: "not-probed", group: "delivery" },
+        { key: "teams_status", value: "not-probed", group: "delivery" },
       ],
       records: {},
     }),
@@ -47,14 +54,19 @@ export function SettingsIntegrationsRoute({ auth }: Props) {
       </section>
       <section class="settings-section" aria-labelledby="settings-delivery-integrations">
         <h3 id="settings-delivery-integrations">{t("settings.delivery")}</h3>
+        <p class="muted small">{t("settings.integrationProbeUnavailable")}</p>
         <div class="settings-list">
           <SettingRow label={t("settings.githubApp")} hint={t("settings.githubAppHint")}>
-            <StatusPill kind="neutral" label={t("settings.statusUnknown")} />
+            <StatusPill kind="neutral" label={t("settings.statusNotProbed")} />
           </SettingRow>
           <SettingRow label={t("settings.teams")} hint={t("settings.teamsHint")}>
-            <StatusPill kind="neutral" label={t("settings.statusUnknown")} />
+            <StatusPill kind="neutral" label={t("settings.statusNotProbed")} />
           </SettingRow>
         </div>
+        <nav class="settings-integration-links" aria-label="Integration evidence">
+          <a href={routeHref("settings-diagnostics")}>{t("route.settingsDiagnostics")}</a>
+          <a href={routeHref("onboarding")}>{t("route.onboarding")}</a>
+        </nav>
       </section>
     </div>
   );
@@ -63,22 +75,44 @@ export function SettingsIntegrationsRoute({ auth }: Props) {
 export function SettingsDiagnosticsRoute({ client, auth }: Props) {
   const authMode = authenticationMode(auth);
   const [health, setHealth] = useState<"checking" | "available" | "unavailable">("checking");
+  const [readPath, setReadPath] = useState<"checking" | "available" | "unavailable">("checking");
   const [healthError, setHealthError] = useState<string | null>(null);
+  const checkGeneration = useRef(0);
 
   const checkHealth = async () => {
+    const generation = ++checkGeneration.current;
     setHealth("checking");
+    setReadPath("checking");
     setHealthError(null);
-    try {
-      const result = await client.panel<unknown>("/healthz");
-      if (!isHealthy(result)) throw new Error("Health response was invalid");
+    const [liveness, kpiRead] = await Promise.allSettled([
+      client.panel<unknown>("/healthz"),
+      client.dashboardMetrics(),
+    ]);
+    if (!isCurrentDiagnosticCheck(checkGeneration.current, generation)) return;
+    const errors: string[] = [];
+    if (liveness.status === "fulfilled" && isHealthy(liveness.value)) {
       setHealth("available");
-    } catch (reason) {
+    } else {
       setHealth("unavailable");
-      setHealthError(reason instanceof Error ? reason.message : String(reason));
+      errors.push(liveness.status === "rejected"
+        ? liveness.reason instanceof Error ? liveness.reason.message : String(liveness.reason)
+        : "Liveness response was invalid");
     }
+    if (kpiRead.status === "fulfilled") {
+      setReadPath("available");
+    } else {
+      setReadPath("unavailable");
+      errors.push(kpiRead.reason instanceof Error ? kpiRead.reason.message : String(kpiRead.reason));
+    }
+    setHealthError(errors.length > 0 ? errors.join("; ") : null);
   };
 
-  useEffect(() => { void checkHealth(); }, [client]);
+  useEffect(() => {
+    void checkHealth();
+    return () => {
+      checkGeneration.current += 1;
+    };
+  }, [client]);
 
   usePublishViewContext(
     () => ({
@@ -86,15 +120,16 @@ export function SettingsDiagnosticsRoute({ client, auth }: Props) {
       routeLabel: t("route.settingsDiagnostics"),
       purpose: "Read-only runtime and authentication diagnostics for this console session.",
       glossary: composeGlossary([TERMS.humanRbac]),
-      headline: `Runtime health: ${health}; authentication mode: ${authMode}`,
+      headline: `Read API liveness: ${health}; KPI read path: ${readPath}; authentication mode: ${authMode}`,
       capturedAt: new Date().toISOString(),
       facts: [
-        { key: "read_api_health", value: health, group: "runtime" },
+        { key: "read_api_liveness", value: health, group: "runtime" },
+        { key: "kpi_read_path", value: readPath, group: "runtime" },
         { key: "authentication_mode", value: authMode, group: "identity" },
       ],
       records: {},
     }),
-    [authMode, health],
+    [authMode, health, readPath],
   );
 
   return (
@@ -106,7 +141,7 @@ export function SettingsDiagnosticsRoute({ client, auth }: Props) {
       <section class="settings-section" aria-labelledby="settings-runtime">
         <h3 id="settings-runtime">{t("settings.runtime")}</h3>
         <div class="settings-list">
-          <SettingRow label={t("settings.readApi")} hint={t("settings.readApiHint")}>
+          <SettingRow label={t("settings.readApiLiveness")} hint={t("settings.readApiLivenessHint")}>
             <span class="settings-diagnostic-action">
               <StatusPill
                 kind={health === "available" ? "success" : health === "unavailable" ? "danger" : "neutral"}
@@ -116,6 +151,12 @@ export function SettingsDiagnosticsRoute({ client, auth }: Props) {
                 {t("settings.retry")}
               </button>
             </span>
+          </SettingRow>
+          <SettingRow label={t("settings.readPath")} hint={t("settings.readPathHint")}>
+            <StatusPill
+              kind={readPath === "available" ? "success" : readPath === "unavailable" ? "danger" : "neutral"}
+              label={t(`settings.health.${readPath}`)}
+            />
           </SettingRow>
           <SettingRow label={t("settings.authentication")} hint={t("settings.authenticationHint")}>
             <code class="settings-runtime-value">{authMode}</code>
@@ -137,8 +178,9 @@ export function isHealthy(value: unknown): boolean {
     && (value as Record<string, unknown>)["status"] === "ok";
 }
 
-function authenticationMode(auth: AuthContext): string {
+export function authenticationMode(auth: AuthContext): string {
   if (auth.localAzureCli) return "Azure CLI";
+  if (auth.devMode && auth.account) return "Local Entra";
   if (auth.devMode) return "Development";
   return "Microsoft Entra ID";
 }

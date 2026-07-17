@@ -12,9 +12,10 @@ import { t } from "../i18n";
 export function LoginRoute({ auth, allowDevBypass = false, onDevBypass }: {
   readonly auth: AuthContext;
   readonly allowDevBypass?: boolean;
-  readonly onDevBypass?: () => void;
+  readonly onDevBypass?: () => Promise<void>;
 }) {
   const [signingIn, setSigningIn] = useState(false);
+  const [checkingDev, setCheckingDev] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const signIn = async () => {
@@ -23,8 +24,25 @@ export function LoginRoute({ auth, allowDevBypass = false, onDevBypass }: {
     try {
       await auth.signIn();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setError(t("login.signInFailed", {
+        error: reason instanceof Error ? reason.message : String(reason),
+      }));
       setSigningIn(false);
+    }
+  };
+
+  const continueDev = async () => {
+    if (!onDevBypass) return;
+    setCheckingDev(true);
+    setError(null);
+    try {
+      await onDevBypass();
+    } catch (reason) {
+      setError(t("login.devBypassFailed", {
+        error: reason instanceof Error ? reason.message : String(reason),
+      }));
+    } finally {
+      setCheckingDev(false);
     }
   };
 
@@ -46,7 +64,7 @@ export function LoginRoute({ auth, allowDevBypass = false, onDevBypass }: {
             <button
               type="button"
               class="login-signin"
-              disabled={signingIn}
+              disabled={signingIn || checkingDev}
               onClick={() => { void signIn(); }}
             >
               <svg viewBox="0 0 21 21" width="18" height="18" aria-hidden="true">
@@ -59,13 +77,18 @@ export function LoginRoute({ auth, allowDevBypass = false, onDevBypass }: {
             </button>
           ) : null}
           {allowDevBypass && onDevBypass ? (
-            <button type="button" class="login-bypass" onClick={onDevBypass}>
-              {t("login.continueDev")}
+            <button
+              type="button"
+              class="login-bypass"
+              disabled={signingIn || checkingDev}
+              onClick={() => { void continueDev(); }}
+            >
+              {checkingDev ? t("login.checkingDev") : t("login.continueDev")}
             </button>
           ) : null}
         </div>
 
-        {error ? <p class="error" role="alert">{t("login.signInFailed", { error })}</p> : null}
+        {error ? <p class="error" role="alert">{error}</p> : null}
 
         <p class="login-foot">
           {allowDevBypass ? t("login.localFoot") : t("login.foot")}

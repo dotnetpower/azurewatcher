@@ -59,11 +59,20 @@ from fdai.core.metering import (  # noqa: E402
     TokenUsage,
 )
 from fdai.core.onboarding import EmptyResourceProbe  # noqa: E402
+from fdai.core.operator_memory import (  # noqa: E402
+    InMemoryMemoryCompactionRepository,
+    InMemoryOperatorMemoryStore,
+    OperatorMemoryReviewService,
+)
 from fdai.core.rbac.access_request import AccessRequestService  # noqa: E402
 from fdai.core.rbac.resolver import GroupMapping, RoleResolver  # noqa: E402
 from fdai.core.risk_gate.blast_radius_simulator import (  # noqa: E402
     InMemoryOntologyGraph,
     OntologyGraph,
+)
+from fdai.core.scheduler import (  # noqa: E402
+    InMemoryScheduleRunLedger,
+    ScheduleRunHistoryService,
 )
 from fdai.core.tiers.t0_deterministic.opa_evaluator import (  # noqa: E402
     MissingOpaBinaryError,
@@ -97,6 +106,7 @@ from fdai.delivery.read_api.routes.measurement_summary import (  # noqa: E402
     AutonomyMeasurementPanel,
 )
 from fdai.delivery.read_api.routes.onboarding import OnboardingPanel  # noqa: E402
+from fdai.delivery.read_api.routes.operator_memory import OperatorMemoryPanel  # noqa: E402
 from fdai.delivery.read_api.routes.panels import (  # noqa: E402
     CapabilityCatalogPanel,
     ExampleFinOpsPanel,
@@ -104,6 +114,7 @@ from fdai.delivery.read_api.routes.panels import (  # noqa: E402
 from fdai.delivery.read_api.routes.rule_fire_trace_reader import (  # noqa: E402
     ConsoleReadModelTraceReader,
 )
+from fdai.delivery.read_api.routes.scheduler_runs import SchedulerRunsPanel  # noqa: E402
 from fdai.delivery.read_api.streaming.agent_activity_relay import (  # noqa: E402
     ControlLoopAgentActivityRelay,
 )
@@ -537,7 +548,11 @@ def _seed(read_model: InMemoryConsoleReadModel) -> None:
             "approver (no self-approval). It stays parked - no execution - until an "
             "operator approves or the request times out to a no-op.",
             70,
-            {"action": "restrict-network-access", "risk": "high", "approver_role": "sre-oncall"},
+            {
+                "action": "remediate.restrict-network-access",
+                "risk": "high",
+                "approver_role": "sre-oncall",
+            },
             {"queue": "hil", "state": "awaiting_approval", "self_approval": "blocked"},
         ),
         # -- Cost Governance vertical: a right-size + a shutdown, each carrying
@@ -699,13 +714,13 @@ def _seed(read_model: InMemoryConsoleReadModel) -> None:
         HilQueueItem(
             idempotency_key="hil-dev-0001",
             event_id="00000000-0000-0000-0000-000000000010",
-            action_kind="restrict-network-access",
+            action_kind="remediate.restrict-network-access",
             reason="blast-radius exceeds executor cap",
             requested_at=hil_requested_at.isoformat(),
             correlation_id="corr-dev-0001",
             approval_id="approval-dev-0001",
             action_id="action-dev-0001",
-            target_resource_ref="network-security-group/web-api",
+            target_resource_ref="web-api",
             mode="shadow",
             stop_condition="health probe fails or approved scope changes",
             rollback_kind="pr_revert",
@@ -1428,7 +1443,16 @@ def app() -> Starlette:
                 ExampleFinOpsPanel(read_model),
                 AutonomyMeasurementPanel(read_model),
                 CapabilityCatalogPanel(),
-                OnboardingPanel(probe=EmptyResourceProbe()),
+                OperatorMemoryPanel(
+                    service=OperatorMemoryReviewService(store=InMemoryOperatorMemoryStore()),
+                    compactions=InMemoryMemoryCompactionRepository(),
+                ),
+                SchedulerRunsPanel(
+                    service=ScheduleRunHistoryService(ledger=InMemoryScheduleRunLedger()),
+                    source="synthetic-dev",
+                    durable=False,
+                ),
+                OnboardingPanel(probe=EmptyResourceProbe(), configured=False),
                 LlmCostPanel(
                     InMemoryMeteringSink(initial=_synthetic_llm_invocations()),
                     source="synthetic-dev",
@@ -1643,6 +1667,29 @@ async def _build_dynamic_process_views(
         ontology_store=ontology,
         process_store=runtime,
     )
+    from fdai.core.reporting.models import DataSourceProvenance
+
+    for datasource in ("audit", "ontology"):
+        report_engine.datasource_registry().register(
+            report_engine.datasource_registry().get(datasource),
+            provenance=DataSourceProvenance(
+                datasource=datasource,
+                source="synthetic-dev",
+                availability="available",
+                synthetic=True,
+                as_of=now.isoformat(),
+            ),
+        )
+    report_engine.datasource_registry().register(
+        report_engine.datasource_registry().get("metric"),
+        provenance=DataSourceProvenance(
+            datasource="metric",
+            source="static-dev-metric",
+            availability="available",
+            synthetic=True,
+            as_of=now.isoformat(),
+        ),
+    )
     from fdai.delivery.reporting import install_pdf_format_if_available
 
     install_pdf_format_if_available(formats)
@@ -1665,7 +1712,12 @@ async def _build_dynamic_process_views(
     )
     return (
         ReportingConfig(engine=report_engine, formats=formats),
-        ProcessViewsConfig(engine=view_engine),
+        ProcessViewsConfig(
+            engine=view_engine,
+            source="synthetic-dev",
+            synthetic=True,
+            durable=False,
+        ),
         WorkflowExecutionConfig(
             workflows=workflows,
             orchestrator=workflow_orchestrator,

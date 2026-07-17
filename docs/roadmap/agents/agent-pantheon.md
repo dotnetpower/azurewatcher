@@ -503,6 +503,31 @@ pantheon precedence (governance > pipeline > domain). The winner is
 `primary_agent`; the runners-up become `contributors`. Every routing
 decision is written to `Turn.score_breakdown` for later inspection.
 
+#### 6.3.1 Shadow answer planning
+
+The Command Deck can use the same deterministic scores to select up to two
+read-only contributors for a presentation-only `AnswerPlanningRound`. This
+round is separate from Bragi's existing terminal multi-agent aggregation and
+from the Quality Gate Debate. In Phase C, typed contributions are measured but
+never injected into the narrator context or terminal answer.
+
+- **Bragi** owns the final answer plan and remains the displayed narrator.
+- **Contributors** expose facts and evidence references from their owned state.
+  They cannot call tools, recurse into another round, judge, approve, or execute.
+- **Norns** never participates synchronously. It can analyze opted-in aggregate
+  metadata off-path after the turn.
+- **Odin** is excluded from routine collection. A later Phase E can consult it
+  only for genuine cross-domain conflict, without execution authority.
+- **Saga** is selected only for audit, history, issue, or handoff questions. It
+  is not a universal answer reviewer or verifier.
+- **Forseti, Var, and Thor** retain their judgment, approval, and execution
+  boundaries. Answer style never changes their authority.
+
+Shipping limits are two contributors, one round, `1200 ms`, and `800` estimated
+added tokens. Nested rounds are disabled. Contributor failure degrades to the
+primary-only answer and bounded metadata; it never routes a supported read-only
+answer to HIL.
+
 ### 6.4 Handoff escalation protocol
 
 When an agent cannot resolve a request through its owned data, T0, T1, or

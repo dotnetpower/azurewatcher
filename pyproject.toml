@@ -36,9 +36,8 @@ dependencies = [
     # to its own P0 work item so a violation is easy to spot in the lockfile diff.
     "pydantic>=2.9,<3",
     "jsonschema>=4.23,<5",
-    # W1.4 - OpenTelemetry API + SDK. The OTLP exporter is intentionally left
-    # for W4.1 (collector deployment); day-zero uses the console exporter for
-    # traces and the in-memory reader for metrics.
+    # W1.4 - OpenTelemetry API + SDK. Day-zero uses local exporters; optional
+    # OTLP/gRPC export is enabled only when a collector endpoint is configured.
     "opentelemetry-api>=1.29,<2",
     "opentelemetry-sdk>=1.29,<2",
     # W1.5 / W1.6 - schema migrations against PostgreSQL (pgvector). Alembic
@@ -88,6 +87,7 @@ dependencies = [
     "croniter>=6,<7",
     "azure-storage-file-datalake>=12.25,<13",
     "aiohttp>=3.13,<4",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.29,<2",
 ]
 
 [project.optional-dependencies]
@@ -139,6 +139,9 @@ pdf-report = [
 [project.urls]
 Homepage = "https://github.com/dotnetpower/fdai"
 Documentation = "https://github.com/dotnetpower/fdai/blob/main/docs/roadmap/README.md"
+
+[project.scripts]
+fdaictl = "fdai.deployment_cli.cli:main"
 
 [build-system]
 requires = ["hatchling>=1.24"]
@@ -214,7 +217,8 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests", "src/fdai"]
-addopts = ["-ra", "--strict-markers", "--strict-config"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "--import-mode=importlib"]
+pythonpath = ["."]
 markers = [
     "integration: requires a live Postgres (pgvector). Skipped unless FDAI_DATABASE_URL is set.",
 ]

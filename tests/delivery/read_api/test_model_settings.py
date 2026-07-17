@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,10 @@ from starlette.testclient import TestClient
 
 from fdai.core.rbac.resolver import Principal
 from fdai.core.rbac.roles import Role
+from fdai.delivery.azure.llm.latency_routed_cross_check import (
+    ModelFailureKind,
+    ModelHealthTransition,
+)
 from fdai.delivery.read_api.routes.chat import LatencyRoutedChatBackend, make_chat_route
 from fdai.delivery.read_api.routes.model_settings import (
     ModelSettingsService,
@@ -46,6 +51,42 @@ class _WebSearchResolver:
     def update_settings(self, *, enabled: bool, allowed_domains: tuple[str, ...]) -> None:
         self.enabled = enabled
         self.domains = allowed_domains
+
+
+class _RoutingStatus:
+    async def list_recent(self, *, limit: int = 200) -> tuple[ModelHealthTransition, ...]:
+        del limit
+        at = datetime(2026, 7, 17, 10, 0, tzinfo=UTC)
+        return (
+            ModelHealthTransition(
+                model_role="t2.reasoner.primary",
+                deployment="primary-b",
+                status="selected",
+                failure_kind=None,
+                failure_count=0,
+                cooldown_seconds=0,
+                recorded_at=at,
+                reason="failover_after_1_candidate_failure",
+            ),
+            ModelHealthTransition(
+                model_role="t2.reasoner.primary",
+                deployment="primary-a",
+                status="recovered",
+                failure_kind=None,
+                failure_count=0,
+                cooldown_seconds=0,
+                recorded_at=at,
+            ),
+            ModelHealthTransition(
+                model_role="t2.reasoner.primary",
+                deployment="primary-b",
+                status="unhealthy",
+                failure_kind=ModelFailureKind.RATE_LIMIT,
+                failure_count=1,
+                cooldown_seconds=60,
+                recorded_at=at,
+            ),
+        )
 
 
 def _resolved(path: Path) -> Path:
@@ -88,6 +129,39 @@ def _resolved(path: Path) -> Path:
                     {"deployment": "narrator-fast"},
                     {"deployment": "narrator-steady"},
                 ],
+                "endpoint_bindings": [
+                    {
+                        "binding_id": "t2-primary-prod",
+                        "capability": "t2.reasoner.primary",
+                        "provider_kind": "azure-openai",
+                        "route_kind": "apim-gateway",
+                        "api_style": "azure-openai",
+                        "endpoint_ref": "model-gateway-primary",
+                        "deployment": "t2-primary",
+                        "api_version": "2024-10-21",
+                        "auth": {
+                            "kind": "entra",
+                            "audience": "api://fdai-model-gateway",
+                        },
+                        "model": {
+                            "publisher": "OpenAI",
+                            "family": "gpt-4o",
+                            "version": "2024-08-06",
+                        },
+                        "capacity": {"unit": "ptu", "value": 30},
+                        "features": {
+                            "streaming": True,
+                            "embeddings": False,
+                            "structured_output": True,
+                            "tool_calling": True,
+                        },
+                        "discovery": {
+                            "source": "apim-management",
+                            "resource_ref_digest": "a" * 64,
+                            "verified_at": "2026-07-17T00:00:00+00:00",
+                        },
+                    }
+                ],
             }
         ),
         encoding="utf-8",
@@ -104,6 +178,7 @@ def _service(tmp_path: Path) -> ModelSettingsService:
         store=InMemoryStateStore(),
         backend=router,
         web_search_resolver=_WebSearchResolver(),
+        model_routing_status=_RoutingStatus(),
     )
 
 
@@ -123,6 +198,9 @@ async def test_projects_capabilities_provisioning_and_latency_candidates(tmp_pat
     projection = await service.projection("user-1")
 
     assert projection["region"] == "example-region"
+    assert projection["resolved_metadata"]["kind"] == "generated-file"
+    assert projection["resolved_metadata"]["source"] == "resolved-models.json"
+    assert datetime.fromisoformat(projection["resolved_metadata"]["as_of"]).tzinfo is not None
     assert projection["discovery"]["automatic"] is True
     assert projection["provisioning"] == {
         "automatic": True,
@@ -137,7 +215,62 @@ async def test_projects_capabilities_provisioning_and_latency_candidates(tmp_pat
         "narrator-steady",
     ]
     assert projection["t2_selection_scope"] == "system-governed"
+    assert projection["endpoint_inventory"] == [
+        {
+            "binding_id": "t2-primary-prod",
+            "capability": "t2.reasoner.primary",
+            "provider_kind": "azure-openai",
+            "route_kind": "apim-gateway",
+            "api_style": "azure-openai",
+            "deployment": "t2-primary",
+            "api_version": "2024-10-21",
+            "auth_kind": "entra",
+            "publisher": "OpenAI",
+            "family": "gpt-4o",
+            "version": "2024-08-06",
+            "capacity_unit": "ptu",
+            "capacity_value": 30,
+            "features": {
+                "streaming": True,
+                "embeddings": False,
+                "structured_output": True,
+                "tool_calling": True,
+            },
+            "discovery_source": "apim-management",
+            "verified_at": "2026-07-17T00:00:00+00:00",
+            "managed_by": "catalog-and-resolver",
+            "user_selectable": False,
+        }
+    ]
+    assert "endpoint_ref" not in projection["endpoint_inventory"][0]
+    assert "audience" not in projection["endpoint_inventory"][0]
+    assert "resource_ref_digest" not in projection["endpoint_inventory"][0]
+    assert projection["model_routing"] == [
+        {
+            "role": "t2.reasoner.primary",
+            "selected_deployment": "primary-b",
+            "selection_reason": "failover_after_1_candidate_failure",
+            "selected_at": "2026-07-17T10:00:00+00:00",
+            "candidates": [
+                {
+                    "deployment": "primary-a",
+                    "status": "recovered",
+                    "failure_kind": None,
+                    "cooldown_seconds": 0,
+                    "updated_at": "2026-07-17T10:00:00+00:00",
+                },
+                {
+                    "deployment": "primary-b",
+                    "status": "unhealthy",
+                    "failure_kind": "rate_limit",
+                    "cooldown_seconds": 60,
+                    "updated_at": "2026-07-17T10:00:00+00:00",
+                },
+            ],
+        }
+    ]
     assert projection["web_search"] == {
+        "available": True,
         "enabled": True,
         "allowed_domains": ["learn.microsoft.com"],
         "revision": 0,
@@ -146,6 +279,33 @@ async def test_projects_capabilities_provisioning_and_latency_candidates(tmp_pat
         "current_auto_pick": "narrator-fast",
         "candidates": [],
     }
+
+
+async def test_unconfigured_web_search_is_unavailable_and_not_writable(tmp_path: Path) -> None:
+    service = ModelSettingsService(
+        resolved_models_path=_resolved(tmp_path / "resolved-models.json"),
+        store=InMemoryStateStore(),
+    )
+
+    projection = await service.projection("user-1", can_manage_web_search=True)
+
+    assert projection["web_search"] == {
+        "available": False,
+        "enabled": False,
+        "allowed_domains": [],
+        "revision": 0,
+        "can_manage": False,
+        "provider": "unavailable",
+        "current_auto_pick": None,
+        "candidates": [],
+    }
+    with pytest.raises(ModelSettingsUnavailableError, match="not configured"):
+        await service.set_web_search_settings(
+            actor_id="user-1",
+            enabled=True,
+            allowed_domains=("learn.microsoft.com",),
+            expected_revision=0,
+        )
 
 
 async def test_persists_allowlisted_user_preference(tmp_path: Path) -> None:
@@ -249,6 +409,7 @@ def test_owner_updates_web_search_and_stale_revision_conflicts(tmp_path: Path) -
 
     assert updated.status_code == 200
     assert updated.json()["web_search"] == {
+        "available": True,
         "enabled": False,
         "allowed_domains": ["nvd.nist.gov"],
         "revision": 1,

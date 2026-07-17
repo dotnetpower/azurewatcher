@@ -67,10 +67,16 @@ def make_core_read_routes(
             limit = _parse_int_query(request, "limit", default=DEFAULT_LIMIT)
         except _BadQueryError as exc:
             return _error(400, str(exc))
-        page = await read_model.list_hil_queue(limit=clamp_limit(limit))
         detail_visible = dev_mode or has_capability(
             principal.roles,
             Capability.APPROVE_RUNTIME_HIL,
+        )
+        search = (request.query_params.get("q") or "").strip() or None
+        if search is not None and len(search) > 200:
+            return _error(400, "q MUST be at most 200 characters")
+        page = await read_model.list_hil_queue(
+            limit=clamp_limit(limit),
+            search=search if detail_visible else None,
         )
         payload = page.to_dict()
         payload["detail_level"] = "full" if detail_visible else "count_only"

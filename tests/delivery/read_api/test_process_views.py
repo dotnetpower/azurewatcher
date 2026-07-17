@@ -118,7 +118,13 @@ async def _client(
         read_model=InMemoryConsoleReadModel(),
         config=ReadApiConfig(
             dev_mode=True,
-            process_views=ProcessViewsConfig(engine=engine, prefix=prefix),
+            process_views=ProcessViewsConfig(
+                engine=engine,
+                prefix=prefix,
+                source="test-runtime",
+                synthetic=True,
+                durable=False,
+            ),
         ),
     )
     return TestClient(app, raise_server_exceptions=raise_server_exceptions)
@@ -131,6 +137,9 @@ async def test_process_view_list_and_render() -> None:
 
     assert listing.status_code == 200
     assert listing.json()["items"][0]["has_view"] is True
+    assert listing.json()["source"] == "test-runtime"
+    assert listing.json()["synthetic"] is True
+    assert listing.json()["durable"] is False
     assert rendered.status_code == 200
     assert rendered.json()["process"]["current_step"] == "evidence"
     assert rendered.json()["regions"][0]["report"]["id"] == "architecture-review-process"

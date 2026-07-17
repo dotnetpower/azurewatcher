@@ -75,6 +75,14 @@ export interface PythonTaskGenerationResponse {
   readonly validation: PythonTaskValidation;
 }
 
+export function pythonTaskDraftKey(task: PythonTaskDraft): string {
+  return JSON.stringify(task);
+}
+
+export function pythonTaskGenerationCanApply(currentRevision: number, submittedRevision: number): boolean {
+  return currentRevision === submittedRevision;
+}
+
 let authContext: AuthContext | null = null;
 
 export function setPythonTaskAuth(auth: AuthContext | null): void {

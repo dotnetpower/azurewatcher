@@ -1,8 +1,8 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: 5bc85c008f2e96e5783e064ae20700913896fd44
-translation_revised: 2026-07-16
+translation_source_sha: 29a725a66433288ad70468fd2ea69687e92e8142
+translation_revised: 2026-07-17
 ---
 
 # 프로젝트 구조
@@ -194,7 +194,11 @@ fdai/
   `에이전트`, `거버넌스`, `감사·증적`을 사용합니다. 인접한 Explorer는 선택한 영역에 등록된
   패널을 렌더링합니다. 영어가 기본 표시 언어이며, 한국어 카탈로그는 group id, panel id,
   route를 바꾸지 않고 한국어 레이블을 제공합니다. 운영자는 브라우저 로컬의 계정별 설정에서
-  패널 순서를 바꾸거나 숨길 수 있습니다. 숨김은 탐색 표시에만 적용되므로 직접 route와 검색은
+  패널 순서를 바꾸거나 숨길 수 있습니다. 아이콘 전용 shell control은 키보드 focus에서 즉시
+  열리고 pointer hover에서는 잠시 지연되는 공통 tooltip으로 현지화된 레이블을 표시합니다.
+  이 tooltip은 document body portal에 렌더링되고 viewport 안에 머물도록 방향이나 위치를
+  조정하며 reduced-motion 설정을 따르므로 브라우저 기본 `title` 표시에 의존하지 않습니다.
+  숨김은 탐색 표시에만 적용되므로 직접 route와 검색은
   계속 사용할 수 있고, 현재 활성 패널은 숨길 수 없습니다. 세부 route는 공통 페이지 제목 안에
   간결한 영역 / 패널 계층을 렌더링하여 Explorer를 접어도 맥락을 유지합니다. 영역 루트와 독립
   유틸리티는 계층이 제목을 반복할 뿐인 경우 단일 제목을 유지합니다. 에이전트 영역은 Roster,
@@ -303,6 +307,33 @@ read-only provider와 bundle은
 [`fdai.fork_examples.capability_bundle`](../../../src/fdai/fork_examples/capability_bundle.py)를
 참조하세요.
 
+Deployment에서 해당 bundle에 install, enable, disable, uninstall lifecycle이 필요하면
+`core/capability_catalog/extensions.py`의 `ExtensionManager`를 사용합니다. Install은 archive
+SHA-256 digest, injected publisher trust decision, host-version compatibility,
+manifest-to-bundle capability parity를 검증합니다. 검증된 extension은 disabled 상태로
+설치됩니다. Enable은 immutable base와 enabled bundle 전체에서 candidate `CapabilityRuntime`을
+다시 만들므로 unknown ActionType, Workflow, reasoning tool 또는 provider가 있으면 현재 manager를
+변경하지 않고 activation을 차단합니다. Uninstall 전에 extension을 disable합니다.
+
+이 lifecycle은 dynamic code loader나 public package downloader가 아닙니다. Fork composition
+root가 이미 review한 provider 구현과 trust verifier를 제공합니다. Extension activation은 typed
+reference만 등록합니다. 모든 mutation은 정상 pipeline을 계속 사용하고 ActionType 또는 Workflow
+contract에 따라 shadow mode에서 시작합니다.
+
+`core/supply_chain/`은 extension과 skill이 공유하는 durable trusted-artifact contract 및 install
+orchestration을 소유합니다. Install은 먼저 기존 extension 또는 skill lifecycle을 통과한 다음 exact
+raw artifact, detached signature, publisher source, digest, disabled state를 저장합니다. Durable
+write가 실패하면 candidate catalog를 caller에게 반환하지 않습니다. `delivery/trust/`는 서로 다른
+extension 및 skill signature domain을 사용하는 source-keyed Ed25519 verifier를 제공하므로
+signature는 artifact kind, source, id, version, content digest 사이에서 replay될 수 없습니다.
+
+Production은 `PostgresTrustedArtifactStore`와 `trusted_artifact` table을 사용합니다. Extension 및
+skill id는 하나의 schema를 공유하지만 `artifact_kind`로 분리됩니다. Insert는 expected revision
+0을 요구하고 update는 exact revision 및 1 증가를 요구합니다. Table은 content size, SHA-256,
+64-byte signature, state, timestamp, revision constraint를 반복합니다. Private key 또는 provider
+credential은 저장하지 않습니다. Restarted composition은 enabled runtime state를 다시 만들기 전에
+stored raw artifact와 signature를 재검증할 수 있습니다.
+
 ### 주입 가능한 Seams
 
 아래 **CSP-중립성 계약** 으로 표시된 네 개의 seam 은 [csp-neutrality-ko.md](csp-neutrality-ko.md)
@@ -320,10 +351,12 @@ phase 는 `core/` 를 편집하지 않고 composition root 에서 새 구현을 
 | **Schema source** | `SchemaRegistry` (원시 JSON Schema 로더) | - | `PackageResourceSchemaRegistry` (패키지 내장 스키마) | 원격 schema-registry 어댑터; content hash 로 핀된 스냅샷 |
 | **Boundary validation** | `ContractValidator` / `EventValidator` (fail-closed 입력 검사) | - | `JsonSchemaContractValidator` + `JsonSchemaEventValidator` (draft-2020-12) | 포크가 `core/` 편집 없이 도메인 특이 체크(예: 소스 allowlist) 추가 가능 |
 | Rule / policy source | rule-catalog + `policies/` 로더 | - | 번들된 범용 규칙 | 고객 규칙 세트 / 임계값 |
-| **Capability bundle runtime** | `core/capability_catalog/`의 `CapabilityRuntime` + `CapabilityBundle`; `composition/`의 `install_capability_bundle(...)` | - | fork binding이 없는 기본 discovery catalog | reasoning tool provider를 추가하거나 capability를 기존 `ActionType` / `Workflow`에 binding; 모든 참조는 시작 시 검증 |
+| **Capability bundle runtime** | `core/capability_catalog/`의 `CapabilityRuntime` + `CapabilityBundle` 및 trust-verified `ExtensionManager`; `composition/`의 `install_capability_bundle(...)` | - | fork binding이 없는 기본 discovery catalog, extension은 disabled 상태로 설치 | review된 reasoning tool provider 추가 또는 capability를 기존 `ActionType` / `Workflow`에 binding; digest, trust, compatibility, manifest parity, 모든 reference를 activation 전에 검증 |
+| **Typed external RPC** | `core/rpc/`의 `RpcRegistry`, `RpcMethod`, scope, idempotency contract, `delivery/rpc/`의 bounded HTTP client/route, deterministic Python stub codegen, `build_production_rpc_app(...)` | - | Control plane은 RPC route를 mount하지 않으며 opt-in standalone app이 built-in tool discovery와 PostgreSQL hashed claim을 binding | Fork가 identity-aware authorizer와 explicit additional method를 제공합니다. Side-effect method는 durable idempotency claim이 필요하고 executor를 직접 호출하지 않고 typed proposal을 제출합니다. |
 | **Ontology ObjectType / LinkType** | `src/fdai/rule_catalog/schema/`의 `load_object_type_catalog(root, *, schema_registry)` 및 `load_link_type_catalog(root, *, schema_registry, object_types=...)` | - | upstream ObjectType 4개(`Resource`, `Rule`, `Signal`, `Finding`)와 `rule-catalog/vocabulary/{object-types,link-types}/` 아래의 LinkType들. 엔트리포인트가 `Container.ontology_object_types` / `Container.ontology_link_types`로 주입 | fork는 자체 YAML 디렉토리(예: `fork/vocabulary/object-types/ArchitectureProposal.yaml`)를 추가로 로드해 두 루트를 concatenate 후 `dataclasses.replace(container, ontology_object_types=..., ontology_link_types=...)`로 주입. 두 루트 간 `name` 중복은 fail-close. 자세한 절차는 [downstream-fork-seam-recipes-ko.md § 5.8a](../fork-and-sequencing/downstream-fork-seam-recipes-ko.md#58a-ontology-object-type--link-type-additions). |
 | **Workflow 카탈로그 (프로세스 자동화)** | `src/fdai/rule_catalog/schema/workflow.py`의 `load_workflow_catalog(root, *, schema_registry, action_type_names, rule_ids=...)`; `src/fdai/core/workflow/`의 `compile_workflow(...)` | - | `rule-catalog/workflows/` 아래 shadow-first Workflow들. 엔트리포인트가 ActionType + rule 카탈로그 뒤에 `Container.workflows`로 주입; 모든 스텝이 `ActionType`과 (설정 시) Rule id를 cross-reference, 시작 시 fail-close | fork는 자체 `fork/workflows/` 디렉토리에 Workflow YAML을 추가로 로드해 concatenate한 ActionType / rule 집합과 함께 `dataclasses.replace(container, workflows=...)`로 주입. 두 루트 간 `name` 중복은 fail-close. 자세한 내용은 [process-automation-ko.md](../decisioning/process-automation-ko.md). |
 | **Governed Python task** | `shared/providers/`의 `PythonTaskAuthor`, `PythonTaskArtifactStore`, `VmTaskTargetResolver`, `VmTaskRunner` | - | local template author + in-memory artifact/target + planning runner; production은 immutable artifact를 Postgres에 저장하고 active inventory에서 target을 resolve하며 headless executor가 Azure Managed Run Command를 bind | fork는 content hash, declared capability, idempotency, non-executing read-API plan, typed proposal dispatch를 유지하면서 다른 author, artifact repository, target resolver, compute runner를 제공. [process-automation-ko.md § 4.5](../decisioning/process-automation-ko.md#45-governed-python-task-및-cron-schedule) 참조. |
+| **Governed sandbox profile** | `core/sandbox/`의 `SandboxProfileCatalog`, `VmTaskSandboxCatalog`, `ToolSandboxCatalog`, `DocumentConverterSandboxCatalog`; `shared/providers/`의 `DocumentConverter` | - | Profile이 없는 command, VM-task, tool, converter request는 fail closed합니다. Profiled wrapper는 concrete adapter 직전에 capability, mode, suffix, timeout, argument/input/output byte, workspace/network ceiling을 적용합니다. | Fork는 각 adapter binding과 함께 explicit server-owned profile을 제공합니다. Provider contract 뒤에서 converter 또는 alternate runner를 구현할 수 있지만 host path, executable, credential 또는 더 넓은 request authority를 노출하지 않습니다. [process-automation-ko.md § 4.6](../decisioning/process-automation-ko.md#46-governed-command-및-shell-artifact) 참조. |
 | **Governed command, shell task 및 code workspace** | `shared/providers/`의 `CommandRunner`, `CommandPlan`, `ShellTaskChecker`, `ShellTaskSpec`, `CodeWorkspaceProvider`, `CodePatchSet`; `core/tools/` 및 `core/python_task/`의 `CommandCatalog`, default command spec, shell structural validation, workspace patch validation | - | `RecordingCommandRunner`, `BashSyntaxChecker`, opt-in `BubblewrapCommandRunner`, copy-on-write `GitCodeWorkspaceProvider`, `azure.resource.list` 전용 opt-in `AzureCliCommandRunner`; generated Python은 `process`를 거부하고 shell artifact는 validate하지만 실행하지 않으며 local command는 private read-only workspace에서만 실행되고 upstream app은 기본적으로 live runner를 bind하지 않음 | fork는 credential-free local runner와 private workspace provider 또는 credentialed Azure read broker를 bind할 수 있습니다. Server-owned scope 및 identity, deterministic argv rendering, raw command string 금지, stale-file hash check, idempotency, output bound, `tool_call` / `direct_api` / `run_runbook` path 분리를 유지해야 합니다. [process-automation-ko.md § 4.6](../decisioning/process-automation-ko.md#46-governed-command-및-shell-artifact) 참조. |
 | **Incident confirmation** | `core/incident/proposal_store.py`의 `IncidentProposalStore` | - | local development용 bounded `InMemoryIncidentProposalStore`; production의 `PostgresIncidentProposalStore`는 replica 간 atomic consume 사용 | 같은 principal/session binding, expiry, atomic single-consumer semantics를 보존하는 durable store만 주입 |
 | **Incident notification delivery** | `DurableIncidentLifecycleNotifier`로 감싼 `IncidentLifecycleNotifier`; atomic claim/complete/release용 `IncidentNotificationDeliveryStore` | - | local은 in-memory claim, production은 lease가 있는 PostgreSQL row-lock claim; notification matrix + HIL escalation fallback | `ChannelRegistry`에 Teams, Slack, email, webhook, pager adapter를 bind하고 stable `audit_id`, single-claimer semantics, lease recovery, startup replay 유지 |

@@ -1,11 +1,11 @@
 # Upstream built-in ObjectType: UserPreference.
 #
-# A `UserPreference` scopes per-user Bragi behavior: locale, verbosity,
+# A `UserPreference` scopes per-user Bragi behavior: locale, answer shape,
 # and consent for Norns learner access. Default `share_with_learner:
 # false`. See docs/roadmap/agents/agent-pantheon.md § 6.5.
 schema_version: "1.0.0"
 name: UserPreference
-version: "1.0.0"
+version: "1.1.0"
 key: id
 description: Per-user Bragi personalization + Norns learner opt-in state.
 properties:
@@ -27,6 +27,36 @@ properties:
     access_scope: owner
     purpose_binding: [user_context]
     description: One of `concise`, `detailed`. Controls Bragi answer density.
+  answer_detail:
+    type: string
+    required: false
+    access_scope: owner
+    purpose_binding: [user_context]
+    description: Default deterministic AnswerPlan detail level.
+  answer_format:
+    type: string
+    required: false
+    access_scope: owner
+    purpose_binding: [user_context]
+    description: Default deterministic AnswerPlan response format.
+  answer_preferences_enabled:
+    type: boolean
+    required: false
+    access_scope: owner
+    purpose_binding: [user_context]
+    description: Whether stored answer-shape defaults apply to new turns.
+  answer_intent_detail:
+    type: object
+    required: false
+    access_scope: owner
+    purpose_binding: [user_context]
+    description: Explicit per-intent detail overrides keyed by AnswerIntent.
+  answer_intent_format:
+    type: object
+    required: false
+    access_scope: owner
+    purpose_binding: [user_context]
+    description: Explicit per-intent format overrides keyed by AnswerIntent.
   share_with_learner:
     type: boolean
     required: false

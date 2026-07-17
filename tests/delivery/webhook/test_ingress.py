@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 from fdai.delivery.webhook.ingress import (
+    TypedWebhookMapping,
     WebhookConfig,
     WebhookIngress,
     verify_signature,
@@ -125,3 +126,64 @@ async def test_publish_failure_reported() -> None:
 def test_empty_secret_rejected() -> None:
     with pytest.raises(ValueError, match="signing_secret"):
         WebhookIngress(config=WebhookConfig(), signing_secret="", event_bus=_RecordingBus())
+
+
+async def test_typed_mapping_uses_fixed_allowlisted_targets_and_hashed_session() -> None:
+    bus = _RecordingBus()
+    mapping = TypedWebhookMapping(
+        mapping_id="deployment-alert",
+        event_type="deployment.external-failed",
+        target_agent="Huginn",
+        allowed_event_types=frozenset({"deployment.external-failed"}),
+        allowed_agents=frozenset({"Huginn"}),
+        session_key_fields=("tenant", "run.id"),
+        payload_fields={"run_id": "run.id", "status": "run.status"},
+        resource_field="resource",
+    )
+    ingress = WebhookIngress(
+        config=WebhookConfig(mapping=mapping),
+        signing_secret=_SECRET,
+        event_bus=bus,
+    )
+    body = json.dumps(
+        {
+            "event_type": "attacker.override",
+            "agent": "Thor",
+            "tenant": "example",
+            "run": {"id": "run-1", "status": "failed"},
+            "resource": "resource:example",
+        }
+    ).encode()
+
+    result = await ingress.handle(headers={"X-FDAI-Signature": _sign(body)}, body=body)
+
+    assert result.accepted is True
+    payload = bus.published[0][2]
+    assert payload["event_type"] == "deployment.external-failed"
+    projection = payload["payload"]["webhook_mapping"]
+    assert projection["target_agent"] == "Huginn"
+    assert projection["session_key"].startswith("webhook-session:")
+    assert "attacker.override" not in repr(payload)
+    assert "Thor" not in repr(payload)
+
+
+async def test_typed_mapping_rejects_missing_or_container_fields_without_publish() -> None:
+    bus = _RecordingBus()
+    mapping = TypedWebhookMapping(
+        mapping_id="deployment-alert",
+        event_type="deployment.external-failed",
+        target_agent="Huginn",
+        allowed_event_types=frozenset({"deployment.external-failed"}),
+        allowed_agents=frozenset({"Huginn"}),
+        session_key_fields=("run.id",),
+        payload_fields={"status": "run.status"},
+    )
+    ingress = WebhookIngress(
+        config=WebhookConfig(mapping=mapping), signing_secret=_SECRET, event_bus=bus
+    )
+    body = json.dumps({"run": {"id": {"nested": True}}}).encode()
+
+    result = await ingress.handle(headers={"X-FDAI-Signature": _sign(body)}, body=body)
+
+    assert result.reason == "typed mapping rejected payload"
+    assert bus.published == []

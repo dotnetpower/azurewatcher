@@ -26,6 +26,7 @@ import sql from "highlight.js/lib/languages/sql";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
+import { useTransientFlag } from "../hooks/use-transient-flag";
 import {
   parseAnswer,
   parseInline,
@@ -189,13 +190,12 @@ function CodeBlock({
   readonly code: string;
   readonly pending: boolean;
 }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, showCopied] = useTransientFlag(1200);
   const html = pending ? null : highlightCode(code, lang);
   const copy = () => {
     void navigator.clipboard?.writeText(code).then(
       () => {
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1200);
+        showCopied();
       },
       () => {
         /* clipboard blocked - ignore */

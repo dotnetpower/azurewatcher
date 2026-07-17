@@ -1,6 +1,7 @@
 import type { AuditItem } from "../types";
 import { StatusPill, type PillKind } from "../components/ui";
 import type { AgentStreamStatus } from "../hooks/use-agent-stream";
+import { observationSourceLabel, type ObservationSource } from "../hooks/observation-source";
 import { routeHref } from "../router";
 
 export type ActivityWindow = "15m" | "1h" | "24h" | "7d";
@@ -31,7 +32,7 @@ interface ActivityToolbarProps {
   readonly filters: ActivityFilters;
   readonly onChange: (next: ActivityFilters) => void;
   readonly streamStatus: AgentStreamStatus;
-  readonly streamSource: "local" | "live";
+  readonly streamSource: ObservationSource;
   readonly liveAgents: number;
   readonly lastEventAt: string | null;
   readonly refreshing: boolean;
@@ -84,13 +85,13 @@ export function filterAgentActivity(
 ): readonly AuditItem[] {
   const latest = items.reduce((value, item) => Math.max(value, timestamp(item.recorded_at)), 0);
   const cutoff = latest > 0 ? latest - WINDOW_MS[filters.window] : 0;
-  const query = filters.query.trim().toLocaleLowerCase();
+  const query = normalizeSearch(filters.query);
   return items.filter((item) => {
     const agent = agentOf(item);
     if (cutoff > 0 && timestamp(item.recorded_at) < cutoff) return false;
     if (filters.layer !== "all" && pantheonLayerOf(agent) !== filters.layer) return false;
     if (filters.verb !== "all" && activityVerb(item) !== filters.verb) return false;
-    if (query && !activitySearchText(item, agent).includes(query)) return false;
+    if (query && !normalizeSearch(activitySearchText(item, agent)).includes(query)) return false;
     return true;
   });
 }
@@ -109,7 +110,7 @@ export function ActivityToolbar({
       <div class="aa-live-state">
         <span class={`agents-conn conn-${streamStatus}`}>{streamStatus}</span>
         <span class="status-pill status-pill-neutral">
-          {streamSource === "local" ? "local stream" : "runtime stream"}
+          {observationSourceLabel(streamSource)}
         </span>
         <span><strong>{liveAgents}</strong> engaged</span>
         <span>{refreshing ? "Refreshing audit..." : lastEventAt ? `Last signal ${clock(lastEventAt)}` : "Waiting for signal"}</span>
@@ -278,6 +279,14 @@ function activitySearchText(item: AuditItem, agent: string): string {
     stringEntry(item, "target_resource_ref"),
     stringEntry(item, "rule_id"),
   ].filter(Boolean).join(" ").toLocaleLowerCase();
+}
+
+function normalizeSearch(value: string): string {
+  return value
+    .toLocaleLowerCase()
+    .replace(/[-_.:/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function stringEntry(item: AuditItem, key: string): string | null {

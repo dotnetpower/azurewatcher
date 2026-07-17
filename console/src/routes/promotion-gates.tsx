@@ -14,7 +14,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
-import { currentRoute, navigate, routeHref } from "../router";
+import { currentRoute, navigate, replaceRouteState, routeHref } from "../router";
 import { panelArray, panelBoolean, panelNumber, panelRecord, panelString, panelStringArray } from "./panel-decode";
 
 /**
@@ -46,6 +46,40 @@ interface Props {
   readonly client: ReadApiClient;
 }
 
+type PromotionReason = "policy-escape" | null;
+
+interface PromotionReasonState {
+  readonly reason: PromotionReason;
+  readonly invalid: string | null;
+}
+
+export function promotionReasonFromValue(value: string | null): PromotionReasonState {
+  if (value === null) return { reason: null, invalid: null };
+  return value === "policy-escape"
+    ? { reason: "policy-escape", invalid: null }
+    : { reason: null, invalid: value };
+}
+
+function promotionReasonFromRoute(): PromotionReasonState {
+  return promotionReasonFromValue(currentRoute().search.get("reason"));
+}
+
+export function filterPromotionRows(
+  rows: readonly Row[],
+  statusFilter: "all" | "ready" | "blocked",
+  query: string,
+  reason: PromotionReason,
+): readonly Row[] {
+  const needle = query.trim().toLocaleLowerCase();
+  return rows.filter((row) => {
+    if (statusFilter === "ready" && !row.ready) return false;
+    if (statusFilter === "blocked" && row.ready) return false;
+    if (reason === "policy-escape" && row.policy_escapes <= 0) return false;
+    return !needle || row.action_type_name.toLocaleLowerCase().includes(needle) ||
+      row.gaps.some((gap) => gap.toLocaleLowerCase().includes(needle));
+  });
+}
+
 export function PromotionGatesRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<Response>>({ status: "loading" });
   const initialStatus = currentRoute().search.get("status");
@@ -53,12 +87,14 @@ export function PromotionGatesRoute({ client }: Props) {
     initialStatus === "ready" || initialStatus === "blocked" ? initialStatus : "all",
   );
   const [query, setQuery] = useState(() => currentRoute().search.get("q") ?? "");
+  const [reasonState, setReasonState] = useState<PromotionReasonState>(promotionReasonFromRoute);
 
   useEffect(() => {
     const sync = () => {
       const status = currentRoute().search.get("status");
       setStatusFilter(status === "ready" || status === "blocked" ? status : "all");
       setQuery(currentRoute().search.get("q") ?? "");
+      setReasonState(promotionReasonFromRoute());
     };
     window.addEventListener("popstate", sync);
     window.addEventListener("fdai:route-changed", sync);
@@ -106,15 +142,31 @@ export function PromotionGatesRoute({ client }: Props) {
           data={data}
           statusFilter={statusFilter}
           query={query}
+          reason={reasonState.reason}
+          invalidReason={reasonState.invalid}
           onStatus={(status) => navigate(routeHref("promotion-gates", {
-            params: { status: status === "all" ? null : status, q: query || null },
+            params: {
+              status: status === "all" ? null : status,
+              q: query || null,
+              reason: reasonState.invalid ?? reasonState.reason,
+            },
           }))}
-          onQuery={(nextQuery) => navigate(routeHref("promotion-gates", {
+          onQuery={(nextQuery) => {
+            setQuery(nextQuery);
+            replaceRouteState(routeHref("promotion-gates", {
+              params: {
+                status: statusFilter === "all" ? null : statusFilter,
+                q: nextQuery || null,
+                reason: reasonState.invalid ?? reasonState.reason,
+              },
+            }));
+          }}
+          onClearReason={() => navigate(routeHref("promotion-gates", {
             params: {
               status: statusFilter === "all" ? null : statusFilter,
-              q: nextQuery || null,
+              q: query || null,
             },
-          }), true)}
+          }))}
         />}
       </AsyncBoundary>
     </div>
@@ -152,24 +204,25 @@ function PromotionBody({
   data,
   statusFilter,
   query,
+  reason,
+  invalidReason,
   onStatus,
   onQuery,
+  onClearReason,
 }: {
   readonly data: Response;
   readonly statusFilter: "all" | "ready" | "blocked";
   readonly query: string;
+  readonly reason: PromotionReason;
+  readonly invalidReason: string | null;
   readonly onStatus: (status: "all" | "ready" | "blocked") => void;
   readonly onQuery: (query: string) => void;
+  readonly onClearReason: () => void;
 }) {
-  const rows = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase();
-    return data.rows.filter((row) => {
-      if (statusFilter === "ready" && !row.ready) return false;
-      if (statusFilter === "blocked" && row.ready) return false;
-      return !needle || row.action_type_name.toLocaleLowerCase().includes(needle) ||
-        row.gaps.some((gap) => gap.toLocaleLowerCase().includes(needle));
-    });
-  }, [data.rows, statusFilter, query]);
+  const rows = useMemo(
+    () => invalidReason === null ? filterPromotionRows(data.rows, statusFilter, query, reason) : [],
+    [data.rows, statusFilter, query, reason, invalidReason],
+  );
   usePublishViewContext(
     () => ({
       routeId: "promotion-gates",
@@ -342,6 +395,18 @@ function PromotionBody({
           />
         </label>
       </section>
+      {reason === "policy-escape" ? (
+        <div class="filter-summary" aria-label="active promotion filters">
+          <span>reason: <strong>policy escape</strong></span>
+          <button type="button" class="btn btn-small" onClick={onClearReason}>Clear</button>
+        </div>
+      ) : null}
+      {invalidReason !== null ? (
+        <div class="state-block state-unavailable" role="alert">
+          <span>Promotion reason <code>{invalidReason}</code> is not registered.</span>
+          <button type="button" class="btn btn-small" onClick={onClearReason}>Clear filter</button>
+        </div>
+      ) : null}
       <section class="stack-section">
         <h3 class="section-title">ActionTypes ({rows.length})</h3>
         <DataTable

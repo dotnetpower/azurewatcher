@@ -87,6 +87,7 @@ from starlette.routing import Route
 
 from fdai.shared.providers.sse import SseEvent, SseSink
 from fdai.shared.providers.stage_publisher import (
+    ObservationSource,
     StageEvent,
     StageName,
     StagePhase,
@@ -389,6 +390,7 @@ class SyntheticLiveEmitter(LiveEmitter):
                 correlation_id=correlation_id,
                 stage=StageName.INGEST,
                 phase=StagePhase.DONE,
+                source=ObservationSource.SYNTHETIC_DEV,
                 detail={**base_detail, "producer_principal": "Huginn"},
             )
         )
@@ -399,6 +401,7 @@ class SyntheticLiveEmitter(LiveEmitter):
                 correlation_id=correlation_id,
                 stage=StageName.ROUTE,
                 phase=StagePhase.DONE,
+                source=ObservationSource.SYNTHETIC_DEV,
                 detail={**base_detail, "routed_to": tier, "producer_principal": "Heimdall"},
             )
         )
@@ -410,6 +413,7 @@ class SyntheticLiveEmitter(LiveEmitter):
                     correlation_id=correlation_id,
                     stage=StageName.VERIFY,
                     phase=StagePhase.DONE,
+                    source=ObservationSource.SYNTHETIC_DEV,
                     detail={
                         **base_detail,
                         "checks": ["schema", "policy", "what_if"],
@@ -424,6 +428,7 @@ class SyntheticLiveEmitter(LiveEmitter):
                 correlation_id=correlation_id,
                 stage=StageName.GATE,
                 phase=StagePhase.DONE,
+                source=ObservationSource.SYNTHETIC_DEV,
                 detail={
                     **base_detail,
                     "gate_decision": outcome,
@@ -439,6 +444,7 @@ class SyntheticLiveEmitter(LiveEmitter):
                     correlation_id=correlation_id,
                     stage=StageName.EXECUTE,
                     phase=StagePhase.DONE,
+                    source=ObservationSource.SYNTHETIC_DEV,
                     detail={**base_detail, "mode": "shadow", "producer_principal": "Thor"},
                 )
             )
@@ -449,6 +455,7 @@ class SyntheticLiveEmitter(LiveEmitter):
                 correlation_id=correlation_id,
                 stage=StageName.AUDIT,
                 phase=StagePhase.DONE,
+                source=ObservationSource.SYNTHETIC_DEV,
                 detail={**base_detail, "gate_decision": outcome, "producer_principal": "Saga"},
             )
         )

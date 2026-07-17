@@ -72,6 +72,7 @@ def _report(*findings: ProbeFinding) -> DeploymentReadinessReport:
         mode=Mode.ENFORCE,
         verdict=verdict,
         findings=tuple(findings),
+        checked_categories=(ProbeCategory.POLICY_GUARDRAIL,),
     )
 
 

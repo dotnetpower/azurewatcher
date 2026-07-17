@@ -347,6 +347,27 @@ def test_incidents_route_filters_vertical_before_limit(dev_env: None) -> None:
     assert [item["correlation_id"] for item in response.json()["items"]] == ["corr-target"]
 
 
+def test_incidents_route_filters_correlation_before_limit(dev_env: None) -> None:
+    del dev_env
+    client, read_model = _client()
+    for index in range(30):
+        read_model.record_audit_entry(
+            {
+                "event_id": f"event-{index}",
+                "correlation_id": f"corr-{index}",
+                "stage": "gate",
+            }
+        )
+
+    response = client.get(
+        "/incidents",
+        params={"status": "all", "limit": "1", "correlation_id": "corr-0"},
+    )
+
+    assert response.status_code == 200
+    assert [item["correlation_id"] for item in response.json()["items"]] == ["corr-0"]
+
+
 def test_correlation_filtered_audit_and_default_trace(dev_env: None) -> None:
     del dev_env
     client, read_model = _client()

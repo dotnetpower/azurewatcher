@@ -41,6 +41,7 @@ from fdai.core.reporting.datasources import (
 )
 from fdai.core.reporting.engine import ReportEngine
 from fdai.core.reporting.formats import install_default_formats
+from fdai.core.reporting.models import DataSourceProvenance
 from fdai.core.reporting.registry import (
     DataSourceRegistry,
     FormatRegistry,
@@ -60,6 +61,15 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 _KNOWN_DATASOURCE_NAMES: frozenset[str] = frozenset(
     {"audit", "report_feed", "metric", "log_query", "ontology"}
 )
+
+
+def _provenance(name: str, *, wired: bool) -> DataSourceProvenance:
+    return DataSourceProvenance(
+        datasource=name,
+        source=name if wired else "noop",
+        availability="available" if wired else "unavailable",
+        synthetic=False if wired else None,
+    )
 
 
 def default_reporting_engine(
@@ -91,29 +101,59 @@ def default_reporting_engine(
     sources = DataSourceRegistry()
 
     if audit_reader is not None:
-        sources.register(AuditDataSource(reader=audit_reader))
+        sources.register(
+            AuditDataSource(reader=audit_reader),
+            provenance=_provenance("audit", wired=True),
+        )
     else:
-        sources.register(NoopDataSource(name="audit"))
+        sources.register(
+            NoopDataSource(name="audit"),
+            provenance=_provenance("audit", wired=False),
+        )
 
     if report_feed is not None:
-        sources.register(ReportFeedDataSource(feed=report_feed))
+        sources.register(
+            ReportFeedDataSource(feed=report_feed),
+            provenance=_provenance("report_feed", wired=True),
+        )
     else:
-        sources.register(NoopDataSource(name="report_feed"))
+        sources.register(
+            NoopDataSource(name="report_feed"),
+            provenance=_provenance("report_feed", wired=False),
+        )
 
     if metric_provider is not None:
-        sources.register(MetricDataSource(provider=metric_provider))
+        sources.register(
+            MetricDataSource(provider=metric_provider),
+            provenance=_provenance("metric", wired=True),
+        )
     else:
-        sources.register(NoopDataSource(name="metric"))
+        sources.register(
+            NoopDataSource(name="metric"),
+            provenance=_provenance("metric", wired=False),
+        )
 
     if log_query_provider is not None:
-        sources.register(LogQueryDataSource(provider=log_query_provider))
+        sources.register(
+            LogQueryDataSource(provider=log_query_provider),
+            provenance=_provenance("log_query", wired=True),
+        )
     else:
-        sources.register(NoopDataSource(name="log_query"))
+        sources.register(
+            NoopDataSource(name="log_query"),
+            provenance=_provenance("log_query", wired=False),
+        )
 
     if ontology_store is not None and process_store is not None:
-        sources.register(OntologyDataSource(ontology=ontology_store, processes=process_store))
+        sources.register(
+            OntologyDataSource(ontology=ontology_store, processes=process_store),
+            provenance=_provenance("ontology", wired=True),
+        )
     else:
-        sources.register(NoopDataSource(name="ontology"))
+        sources.register(
+            NoopDataSource(name="ontology"),
+            provenance=_provenance("ontology", wired=False),
+        )
 
     catalog = ReportCatalog()
     if reports_root is not None:

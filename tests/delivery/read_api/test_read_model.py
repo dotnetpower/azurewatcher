@@ -7,7 +7,7 @@ implements the same three methods drops in with the same test contract.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -162,6 +162,19 @@ class TestListAudit:
         assert [item.action_kind for item in page.items] == ["target"]
         assert page.next_cursor is None
 
+    async def test_sequence_range_is_inclusive_and_precedes_dimension_filters(self) -> None:
+        model = InMemoryConsoleReadModel()
+        model.record_audit_entry(_entry(action_kind="outside-low", tier="t0"))
+        model.record_audit_entry(_entry(action_kind="inside", tier="T0"))
+        model.record_audit_entry(_entry(action_kind="outside-high", tier="t0"))
+
+        page = await model.list_audit(
+            filters=AuditQueryFilters(from_seq=2, through_seq=2, tier="t0")
+        )
+
+        assert [item.seq for item in page.items] == [2]
+        assert [item.action_kind for item in page.items] == ["inside"]
+
 
 class TestDashboardMetrics:
     async def test_empty_snapshot(self) -> None:
@@ -173,6 +186,11 @@ class TestDashboardMetrics:
         assert kpi.hil_pending == 0
         assert kpi.by_tier == {}
         assert kpi.last_recorded_at is None
+        assert kpi.audit_sample is not None
+        assert kpi.audit_sample.from_seq is None
+        assert kpi.audit_sample.through_seq is None
+        assert kpi.audit_sample.row_count == 0
+        assert kpi.audit_sample.limit == 500
 
     async def test_shadow_and_enforce_shares(self) -> None:
         model = InMemoryConsoleReadModel()
@@ -202,6 +220,29 @@ class TestDashboardMetrics:
         model.record_audit_entry(_entry(tier="t2"))
         kpi = await model.dashboard_metrics()
         assert kpi.by_tier == {"t0": 2, "t1": 1, "t2": 1}
+
+    async def test_newest_500_rows_define_the_reproducible_sample(self) -> None:
+        model = InMemoryConsoleReadModel()
+        for index in range(501):
+            model.record_audit_entry(_entry(action_kind=f"action-{index}"))
+
+        kpi = await model.dashboard_metrics()
+
+        assert kpi.event_count == 500
+        assert "action-0" not in kpi.by_action_kind
+        assert kpi.audit_sample is not None
+        assert kpi.audit_sample.from_seq == 2
+        assert kpi.audit_sample.through_seq == 501
+        assert kpi.audit_sample.row_count == 500
+
+    async def test_tier_counts_are_case_normalized(self) -> None:
+        model = InMemoryConsoleReadModel()
+        model.record_audit_entry(_entry(tier="T0"))
+        model.record_audit_entry(_entry(tier="t0"))
+
+        kpi = await model.dashboard_metrics()
+
+        assert kpi.by_tier == {"t0": 2}
 
     async def test_tier_absent_is_not_counted(self) -> None:
         model = InMemoryConsoleReadModel()
@@ -234,6 +275,34 @@ class TestDashboardMetrics:
 
 
 class TestHilQueue:
+    async def test_search_filters_before_limit(self) -> None:
+        model = InMemoryConsoleReadModel()
+        now = datetime.now(tz=UTC).isoformat()
+        model.record_hil_pending(
+            HilQueueItem(
+                idempotency_key="needle",
+                event_id="target-event",
+                action_kind="compute.restart",
+                reason="matching approval",
+                requested_at=now,
+            )
+        )
+        for index in range(100):
+            model.record_hil_pending(
+                HilQueueItem(
+                    idempotency_key=f"other-{index}",
+                    event_id=f"other-event-{index}",
+                    action_kind="network.inspect",
+                    reason="unrelated approval",
+                    requested_at=now,
+                )
+            )
+
+        page = await model.list_hil_queue(limit=100, search="target-event")
+
+        assert [item.idempotency_key for item in page.items] == ["needle"]
+        assert page.total == 1
+
     async def test_empty(self) -> None:
         model = InMemoryConsoleReadModel()
         page = await model.list_hil_queue()
@@ -254,6 +323,37 @@ class TestHilQueue:
         page = await model.list_hil_queue(limit=3)
         keys = [item.idempotency_key for item in page.items]
         assert keys == ["k-4", "k-3", "k-2"]
+
+    async def test_expired_items_are_not_pending_or_counted(self) -> None:
+        model = InMemoryConsoleReadModel()
+        now = datetime.now(tz=UTC)
+        model.record_hil_pending(
+            HilQueueItem(
+                idempotency_key="expired",
+                event_id="expired",
+                action_kind="ak",
+                reason="r",
+                requested_at=now.isoformat(),
+                ttl_expires_at=(now - timedelta(seconds=1)).isoformat(),
+            )
+        )
+        model.record_hil_pending(
+            HilQueueItem(
+                idempotency_key="future",
+                event_id="future",
+                action_kind="ak",
+                reason="r",
+                requested_at=now.isoformat(),
+                ttl_expires_at=(now + timedelta(minutes=5)).isoformat(),
+            )
+        )
+
+        page = await model.list_hil_queue()
+        kpi = await model.dashboard_metrics()
+
+        assert [item.idempotency_key for item in page.items] == ["future"]
+        assert page.total == 1
+        assert kpi.hil_pending == 1
 
 
 class TestAuditItemSerialization:

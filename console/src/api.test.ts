@@ -242,6 +242,28 @@ describe("read API response decoders", () => {
   });
 });
 
+  test("decodes a reproducible KPI audit sample and accepts legacy omission", () => {
+    const base = {
+      event_count: 2,
+      shadow_share: 1,
+      enforce_share: 0,
+      hil_pending: 0,
+      by_action_kind: {},
+      by_outcome: {},
+      by_tier: {},
+      last_recorded_at: null,
+    };
+    expect(decodeDashboardKpi(base).audit_sample).toBeNull();
+    expect(decodeDashboardKpi({
+      ...base,
+      audit_sample: { from_seq: 4, through_seq: 7, row_count: 2, limit: 500 },
+    }).audit_sample).toEqual({ from_seq: 4, through_seq: 7, row_count: 2, limit: 500 });
+    expect(() => decodeDashboardKpi({
+      ...base,
+      audit_sample: { from_seq: 7, through_seq: 4, row_count: 2, limit: 500 },
+    })).toThrow(/inconsistent/);
+  });
+
 describe("optional read API availability", () => {
   test("treats only missing and unimplemented routes as unavailable", () => {
     expect(isOptionalReadApiUnavailable(new ReadApiError(404, "missing"))).toBe(true);

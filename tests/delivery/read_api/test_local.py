@@ -123,6 +123,8 @@ class TestLocalEntrypoint:
         assert hil["items"][0]["rollback_kind"] == "pr_revert"
         assert hil["items"][0]["blast_radius_count"] == 12
         assert hil["items"][0]["citing_rule_ids"] == ["network.nsg.no-inbound-any-ssh"]
+        assert hil["items"][0]["action_kind"] == "remediate.restrict-network-access"
+        assert hil["items"][0]["target_resource_ref"] == "web-api"
         kpi = client.get("/kpi").json()
         assert kpi["event_count"] >= 1
         assert kpi["hil_pending"] >= 1

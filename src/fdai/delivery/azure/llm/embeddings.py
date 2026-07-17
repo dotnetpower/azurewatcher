@@ -9,10 +9,13 @@ from typing import Final
 import httpx
 
 from fdai.core.metering.emitter import MeteringEmitter
+from fdai.delivery.azure.llm.request_target import (
+    COGNITIVE_SERVICES_SCOPE,
+    ModelRequestTarget,
+)
 from fdai.delivery.azure.llm.usage import extract_usage
+from fdai.rule_catalog.schema.model_endpoint import ModelApiStyle, ModelRouteKind
 from fdai.shared.providers.workload_identity import WorkloadIdentity
-
-_COGNITIVE_SCOPE: Final[str] = "https://cognitiveservices.azure.com/.default"
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +37,10 @@ class AzureOpenAIEmbeddingModelConfig:
     MUST match the pgvector schema contract."""
 
     timeout_seconds: float = 30.0
+    api_style: ModelApiStyle = ModelApiStyle.AZURE_OPENAI
+    auth_audience: str = COGNITIVE_SERVICES_SCOPE
+    route_kind: ModelRouteKind = ModelRouteKind.DIRECT
+    binding_id: str | None = None
 
 
 class AzureOpenAIEmbeddingModel:
@@ -52,10 +59,15 @@ class AzureOpenAIEmbeddingModel:
         config: AzureOpenAIEmbeddingModelConfig,
         metering: MeteringEmitter | None = None,
     ) -> None:
-        if not config.endpoint.startswith(("https://", "http://")):
-            raise ValueError("endpoint MUST be an absolute https URL")
-        if not config.deployment:
-            raise ValueError("deployment MUST NOT be empty")
+        target = ModelRequestTarget(
+            endpoint=config.endpoint,
+            deployment=config.deployment,
+            api_style=config.api_style,
+            api_version=config.api_version,
+            auth_audience=config.auth_audience,
+            route_kind=config.route_kind,
+            binding_id=config.binding_id,
+        )
         if config.dim <= 0:
             raise ValueError("dim MUST be > 0")
         if config.timeout_seconds <= 0:
@@ -64,6 +76,7 @@ class AzureOpenAIEmbeddingModel:
         self._http: Final[httpx.AsyncClient] = http_client
         self._config: Final[AzureOpenAIEmbeddingModelConfig] = config
         self._metering: Final[MeteringEmitter | None] = metering
+        self._target: Final[ModelRequestTarget] = target
         # `EmbeddingModel` Protocol declares `dim: int` as a settable
         # attribute; expose it as a plain instance variable rather than a
         # read-only property so structural-typing checks accept the class.
@@ -71,34 +84,32 @@ class AzureOpenAIEmbeddingModel:
 
     async def embed(self, text: str) -> Sequence[float]:
         """Return the embedding vector for ``text``."""
-        token = await self._identity.get_token(_COGNITIVE_SCOPE)
-        url = (
-            self._config.endpoint.rstrip("/")
-            + "/openai/deployments/"
-            + self._config.deployment
-            + "/embeddings"
-        )
+        token = await self._identity.get_token(self._target.auth_audience)
+        request = self._target.operation("embeddings")
+        request_body: dict[str, object] = {"input": text, "dimensions": self._config.dim}
+        if request.model_body_field is not None:
+            request_body["model"] = request.model_body_field
         response = await self._http.post(
-            url,
-            params={"api-version": self._config.api_version},
+            request.url,
+            params=request.params,
             headers={
                 "Authorization": f"Bearer {token.token}",
                 "Content-Type": "application/json",
             },
-            json={"input": text, "dimensions": self._config.dim},
+            json=request_body,
             timeout=self._config.timeout_seconds,
         )
         response.raise_for_status()
-        body = response.json()
+        response_body = response.json()
         if self._metering is not None:
-            usage = extract_usage(body)
+            usage = extract_usage(response_body)
             if usage is not None:
                 await self._metering.emit_safe(usage)
         try:
-            vector = body["data"][0]["embedding"]
+            vector = response_body["data"][0]["embedding"]
         except (KeyError, IndexError, TypeError) as exc:
             raise RuntimeError(
-                f"Azure OpenAI embeddings response missing data[0].embedding: {body!r}"
+                f"Azure OpenAI embeddings response missing data[0].embedding: {response_body!r}"
             ) from exc
         if not isinstance(vector, list):
             raise RuntimeError("Azure OpenAI embeddings response 'embedding' MUST be a list")

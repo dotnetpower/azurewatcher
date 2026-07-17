@@ -1,8 +1,8 @@
 ---
 title: 진화하는 시스템 프롬프트
 translation_of: prompt-composition.md
-translation_source_sha: 038061fccb8987b1930af31b1c3272f1a54eeff9
-translation_revised: 2026-07-16
+translation_source_sha: fb3a281e08f87e18c7350cdc9c03384589491b35
+translation_revised: 2026-07-17
 ---
 
 # 진화하는 시스템 프롬프트
@@ -209,6 +209,49 @@ capability gate, allowlist, output wrapper를 선언합니다.
   상한을 강제. 초과 시 HIL로 abort.
 - **Judge는 툴을 쥐지 않음**: judgment는 직무 분리입니다. 툴을 호출하는 Judge는
   두 번째 Proposer로 붕괴합니다.
+
+### Reviewed runtime skill
+
+Runtime skill은 이미 등록된 tool 사용법을 agent에게 알려주는 portable Markdown
+instruction입니다. Repository coding-agent skill과 별개이며 tool, identity, role, execution
+authority를 부여하지 않습니다.
+
+- **Strict artifact:** YAML front matter는 `name`, semantic `version`, description, provenance
+  source, body SHA-256, required tool id, optional fixed-agent allowlist를 선언합니다. Dependency
+  installer를 포함한 unknown key는 차단됩니다.
+- **Activation 전 trust:** Injected `SkillTrustVerifier`가 publisher provenance를 승인합니다.
+  Body digest와 trust decision이 통과해야 artifact가 install되며 모든 install은 기본적으로
+  disabled입니다.
+- **Reference gate:** Required tool 또는 named agent가 unknown이면 enable이 실패합니다. Prompt
+  projection은 tool availability를 다시 확인하므로 제거된 tool의 stale instruction이 active로
+  남지 않습니다.
+- **Whole-block budget:** Eligible skill은 하나의 complete trusted instruction block으로 prompt에
+  들어갑니다. Combined projection이 configured character budget을 넘으면 instruction을 잘라
+  다른 behavior로 만들지 않고 composition이 실패합니다.
+- **Dynamic code 없음:** Runtime skill은 binary 설치, environment secret injection, provider load,
+  tool catalog 및 risk gate bypass를 할 수 없습니다.
+- **Audited proposal workshop:** `SkillWorkshop`은 agent draft를 validate하고 inert
+  content-addressed data로 저장합니다. Injected human authorizer가 reason과 함께 approve 또는
+  reject해야 하며 proposer는 self-review할 수 없습니다. 모든 transition은 Markdown body를
+  포함하지 않고 append-only audit sink로 전송됩니다. PostgreSQL persistence는 restart 후에도
+  유지되며 review 및 materialization에 expected-state compare-and-swap을 적용합니다. Promotion은
+  digest 및 publisher trust verification을 다시 실행한 뒤 approved artifact를 disabled 상태로
+  install합니다. Skill을 enable하거나 active prompt를 변경하지 않으며 이후에도 reference 및
+  budget gate가 적용됩니다.
+
+### Operator-memory review 및 compaction
+
+Operator-memory store는 active, expired, superseded entry를 scope, source event/reference, author,
+distinct approver, TTL-derived expiry, supersession pointer와 함께 bounded review projection으로
+제공합니다. Settings > Operator memory console view는 GET-only입니다. 변경은 계속 approved HIL
+또는 ChatOps workflow로 진입합니다.
+
+`MemoryCompactionService`는 scope 및 category가 같고 provenance ref를 가진 active unique source
+entry 2개 이상에서만 더 짧은 entry를 제안할 수 있습니다. Candidate text는 injection screening을
+통과하고 distinct authorized reviewer가 approve하기 전까지 inert합니다. PostgreSQL promotion은
+compacted entry append, source id/ref 보존, original supersession을 atomic하게 수행합니다. Rollback은
+body를 삭제하지 않고 original source entry를 복원하며 compacted entry를 inactive로 만듭니다.
+Compaction은 role, tool, action, execution authority를 부여하지 않습니다.
 
 ## Web search 정책
 

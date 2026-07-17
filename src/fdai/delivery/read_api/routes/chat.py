@@ -39,6 +39,7 @@ own search/filter.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -64,9 +65,21 @@ from fdai.core.conversation.answer_plan import (
     DetailLevel,
     build_answer_plan,
 )
+from fdai.core.conversation.answer_planning import AnswerPlanningResult
+from fdai.core.conversation.answer_preferences import ResponsePreferenceProfile
 from fdai.core.conversation.policy_prompt import UserPolicyCompiler
 from fdai.core.python_task.grounded_code import extract_grounded_code
 from fdai.core.user_context_projection import UserContextOntologyProjector
+from fdai.delivery.azure.llm.request_target import (
+    COGNITIVE_SERVICES_SCOPE,
+    ModelRequestTarget,
+)
+from fdai.delivery.read_api.routes.chat_answer_planning import (
+    AnswerPlanningDelegate,
+    cancel_planning,
+    planning_metadata,
+    start_shadow_answer_planning,
+)
 from fdai.delivery.read_api.routes.chat_history import (
     append_assistant_turn,
     append_operator_turn,
@@ -77,6 +90,7 @@ from fdai.delivery.read_api.routes.chat_verification import (
     attach_semantic_shadow,
     verify_answer,
 )
+from fdai.rule_catalog.schema.model_endpoint import ModelApiStyle
 from fdai.shared.providers.briefing import ConversationPolicyStore
 from fdai.shared.providers.user_context import ConversationHistoryStore
 from fdai.shared.providers.workload_identity import WorkloadIdentity
@@ -645,8 +659,9 @@ def _build_messages(
     view_context = dict(view_context)
     compiled_policy = view_context.pop(_COMPILED_USER_POLICY_KEY, None)
     view_context = _trim_view_context(view_context)
-    plan = build_answer_plan(prompt, route_id=str(view_context.get("routeId") or "") or None)
-    view_context = {**view_context, "_answer_plan": plan.to_dict()}
+    if not isinstance(view_context.get("_answer_plan"), dict):
+        plan = build_answer_plan(prompt, route_id=str(view_context.get("routeId") or "") or None)
+        view_context = {**view_context, "_answer_plan": plan.to_dict()}
     locale = _response_locale(prompt, view_context)
     snapshot_json = _snapshot_json_capped(view_context, DEFAULT_MAX_CONTEXT_BYTES)
     glossary = _GLOSSARY if _is_concept_query(prompt) else ""
@@ -1051,6 +1066,7 @@ def _turn_metadata(
     *,
     model: str,
     view_context: Mapping[str, Any],
+    answer_planning: Mapping[str, object] | None = None,
 ) -> dict[str, Any]:
     """Persist replay evidence while keeping it out of the browser payload."""
 
@@ -1058,6 +1074,8 @@ def _turn_metadata(
     web = view_context.get("_web_evidence")
     if isinstance(web, Mapping):
         metadata["web_evidence"] = dict(web)
+    if answer_planning is not None:
+        metadata["answer_planning"] = dict(answer_planning)
     return metadata
 
 
@@ -1385,12 +1403,22 @@ def _build_single_azure_backend(
     endpoint = narrator.get("endpoint")
     deployment = narrator.get("deployment")
     api_version = narrator.get("api_version")
+    api_style = narrator.get("api_style", ModelApiStyle.AZURE_OPENAI.value)
+    auth_audience = narrator.get("auth_audience", COGNITIVE_SERVICES_SCOPE)
     if not (isinstance(endpoint, str) and isinstance(deployment, str)):
+        return None
+    if not isinstance(api_style, str) or not isinstance(auth_audience, str):
+        return None
+    try:
+        parsed_api_style = ModelApiStyle(api_style)
+    except ValueError:
         return None
     return AzureAdChatBackend(
         endpoint=endpoint,
         deployment=deployment,
         api_version=api_version if isinstance(api_version, str) else "2024-08-01-preview",
+        api_style=parsed_api_style,
+        auth_audience=auth_audience,
         identity=identity,
         http_client=http_client,
     )
@@ -1419,7 +1447,15 @@ def _build_routed_backend(
         endpoint = entry.get("endpoint")
         deployment = entry.get("deployment")
         api_version = entry.get("api_version")
+        api_style = entry.get("api_style", ModelApiStyle.AZURE_OPENAI.value)
+        auth_audience = entry.get("auth_audience", COGNITIVE_SERVICES_SCOPE)
         if not (isinstance(endpoint, str) and isinstance(deployment, str)):
+            continue
+        if not isinstance(api_style, str) or not isinstance(auth_audience, str):
+            continue
+        try:
+            parsed_api_style = ModelApiStyle(api_style)
+        except ValueError:
             continue
         if deployment in seen:
             continue
@@ -1433,6 +1469,8 @@ def _build_routed_backend(
                     api_version=api_version
                     if isinstance(api_version, str)
                     else "2024-08-01-preview",
+                    api_style=parsed_api_style,
+                    auth_audience=auth_audience,
                     identity=identity,
                     http_client=http_client,
                 ),
@@ -1506,9 +1544,13 @@ def describe_backend(backend: ChatBackend) -> dict[str, Any]:
         stats = backend.stats()
         chose = backend.current_pick_name()
         return {
-            "available": True,
-            "mode": "azure-ad-routed",
-            "model": chose,
+            "available": backend.has_available_candidate(),
+            "mode": (
+                "azure-ad-routed"
+                if backend.has_available_candidate()
+                else "azure-ad-routed-unavailable"
+            ),
+            "model": chose if backend.has_available_candidate() else None,
             "endpoint": _host_of(backend.endpoints()[0]) if backend.endpoints() else None,
             "router": {
                 "chose": chose,
@@ -1575,7 +1617,7 @@ def make_chat_health_route(
 # ---------------------------------------------------------------------------
 
 
-_COGNITIVE_SCOPE: Final[str] = "https://cognitiveservices.azure.com/.default"
+_COGNITIVE_SCOPE: Final[str] = COGNITIVE_SERVICES_SCOPE
 
 
 def _usage_summary(raw: Any) -> dict[str, int] | None:
@@ -1628,13 +1670,18 @@ class AzureAdChatBackend:
         # 90s: reasoning models (gpt-5, o1/o3/o4) can take 60-90s to first
         # token; the SSE route layers a heartbeat on top for intermediaries.
         timeout_seconds: float = 90.0,
+        api_style: ModelApiStyle = ModelApiStyle.AZURE_OPENAI,
+        auth_audience: str = COGNITIVE_SERVICES_SCOPE,
         http_client: httpx.AsyncClient | None = None,
         identity: WorkloadIdentity | None = None,
     ) -> None:
-        if not endpoint.startswith(("https://", "http://")):
-            raise ValueError("endpoint MUST be an absolute URL")
-        if not deployment:
-            raise ValueError("deployment MUST NOT be empty")
+        target = ModelRequestTarget(
+            endpoint=endpoint,
+            deployment=deployment,
+            api_style=api_style,
+            api_version=api_version,
+            auth_audience=auth_audience,
+        )
         self._endpoint = endpoint.rstrip("/")
         self._deployment = deployment
         self._api_version = api_version
@@ -1643,6 +1690,7 @@ class AzureAdChatBackend:
         self._timeout = timeout_seconds
         self._http = http_client if http_client is not None else _default_chat_http_client()
         self._workload_identity = identity
+        self._target = target
         # Lazy identity - defer import so this module stays importable
         # in tests that never touch Azure.
         self._identity_cached: Any = None
@@ -1665,9 +1713,12 @@ class AzureAdChatBackend:
 
         try:
             token = (
-                await self._workload_identity.get_token(_COGNITIVE_SCOPE)
+                await self._workload_identity.get_token(self._target.auth_audience)
                 if self._workload_identity is not None
-                else await asyncio.to_thread(self._identity().get_token_sync, _COGNITIVE_SCOPE)
+                else await asyncio.to_thread(
+                    self._identity().get_token_sync,
+                    self._target.auth_audience,
+                )
             )
         except Exception as exc:
             _LOG.warning("chat backend workload identity failed: %s", exc)
@@ -1683,15 +1734,17 @@ class AzureAdChatBackend:
                 max_tokens=self._max_tokens,
             ),
         }
-        url = f"{self._endpoint}/openai/deployments/{self._deployment}/chat/completions"
+        request = self._target.operation("chat/completions")
+        if request.model_body_field is not None:
+            body["model"] = request.model_body_field
         headers = {
             "Authorization": f"Bearer {token.token}",
             "Content-Type": "application/json",
         }
         try:
             response = await self._http.post(
-                url,
-                params={"api-version": self._api_version},
+                request.url,
+                params=request.params,
                 headers=headers,
                 json=body,
                 timeout=self._timeout,
@@ -1737,9 +1790,12 @@ class AzureAdChatBackend:
 
         try:
             token = (
-                await self._workload_identity.get_token(_COGNITIVE_SCOPE)
+                await self._workload_identity.get_token(self._target.auth_audience)
                 if self._workload_identity is not None
-                else await asyncio.to_thread(self._identity().get_token_sync, _COGNITIVE_SCOPE)
+                else await asyncio.to_thread(
+                    self._identity().get_token_sync,
+                    self._target.auth_audience,
+                )
             )
         except Exception as exc:
             _LOG.warning("chat backend workload identity failed: %s", exc)
@@ -1759,7 +1815,9 @@ class AzureAdChatBackend:
                 max_tokens=self._max_tokens,
             ),
         }
-        url = f"{self._endpoint}/openai/deployments/{self._deployment}/chat/completions"
+        request = self._target.operation("chat/completions")
+        if request.model_body_field is not None:
+            body["model"] = request.model_body_field
         headers = {
             "Authorization": f"Bearer {token.token}",
             "Content-Type": "application/json",
@@ -1769,8 +1827,8 @@ class AzureAdChatBackend:
         try:
             async with self._http.stream(
                 "POST",
-                url,
-                params={"api-version": self._api_version},
+                request.url,
+                params=request.params,
                 headers=headers,
                 json=body,
                 timeout=self._timeout,
@@ -1874,6 +1932,7 @@ class LatencyRoutedChatBackend:
         self._ttft_samples: dict[str, deque[int]] = {
             name: deque(maxlen=_ROUTER_WINDOW_SIZE) for name, _ in candidates
         }
+        self._success_counts: dict[str, int] = {name: 0 for name, _ in candidates}
         # Concurrency fairness: N async turns arriving simultaneously during
         # warm-up would all read the same "coldest" candidate from _pick()
         # and stampede one backend. Counting outstanding picks per name lets
@@ -1923,6 +1982,14 @@ class LatencyRoutedChatBackend:
         name, _ = self._pick()
         return name
 
+    def has_available_candidate(self) -> bool:
+        """Return whether routing has a successful or not-yet-probed candidate."""
+        if any(count > 0 for count in self._success_counts.values()):
+            return True
+        return not all(
+            len(self._samples[name]) >= _ROUTER_WARMUP_SAMPLES for name, _ in self._candidates
+        )
+
     def endpoints(self) -> list[str]:
         """Endpoint hosts (best-effort - only Azure-AD backends expose one)."""
         out: list[str] = []
@@ -1961,6 +2028,7 @@ class LatencyRoutedChatBackend:
                 )
                 return
             self._samples[name].append(int((time.monotonic() - started) * 1000))
+            self._success_counts[name] += 1
 
         for _ in range(effective_rounds):
             await asyncio.gather(*(_probe(name, be) for name, be in self._candidates))
@@ -2021,6 +2089,7 @@ class LatencyRoutedChatBackend:
 
             latency = int((time.monotonic() - started) * 1000)
             self._samples[name].append(latency)
+            self._success_counts[name] += 1
             reason = (
                 "failover"
                 if attempted
@@ -2150,6 +2219,7 @@ class LatencyRoutedChatBackend:
                 self._in_flight[name] = max(0, self._in_flight[name] - 1)
 
             self._samples[name].append(int((time.monotonic() - started) * 1000))
+            self._success_counts[name] += 1
             return
 
         self._log_all_penalised_if_saturated()
@@ -2253,6 +2323,7 @@ def _p95(samples: deque[int]) -> float:
 
 AuthorizeFn = Callable[[Request], Awaitable[str]]
 ModelPreferenceResolver = Callable[[str], Awaitable[str | None]]
+AnswerPreferenceResolver = Callable[[str], Awaitable[ResponsePreferenceProfile | None]]
 
 
 async def _with_compiled_user_policy(
@@ -2285,11 +2356,13 @@ def make_chat_route(
     tool_resolver: ChatToolResolver | None = None,
     web_search_resolver: ChatWebSearchEvidenceResolver | None = None,
     agent_delegate: AgentChatDelegate | None = None,
+    answer_planning_delegate: AnswerPlanningDelegate | None = None,
     semantic_verifier: SemanticVerifier | None = None,
     conversation_policy_store: ConversationPolicyStore | None = None,
     conversation_history_store: ConversationHistoryStore | None = None,
     user_context_ontology_projector: UserContextOntologyProjector | None = None,
     model_preference_resolver: ModelPreferenceResolver | None = None,
+    answer_preference_resolver: AnswerPreferenceResolver | None = None,
     path: str = DEFAULT_ROUTE_PATH,
     max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
 ) -> Route:
@@ -2305,6 +2378,11 @@ def make_chat_route(
         preferred_model = (
             await model_preference_resolver(user_id)
             if model_preference_resolver is not None
+            else None
+        )
+        answer_preferences = (
+            await answer_preference_resolver(user_id)
+            if answer_preference_resolver is not None
             else None
         )
 
@@ -2336,6 +2414,7 @@ def make_chat_route(
             view_context = {}
         if not isinstance(view_context, dict):
             raise HTTPException(status_code=400, detail="view_context MUST be an object")
+        view_context.pop("_answer_plan", None)
         history_raw = body.get("history", [])
         if not isinstance(history_raw, list):
             raise HTTPException(status_code=400, detail="history MUST be a list")
@@ -2361,7 +2440,9 @@ def make_chat_route(
         answer_plan = build_answer_plan(
             clean_prompt,
             route_id=str(view_context.get("routeId") or "") or None,
+            preferences=answer_preferences,
         )
+        view_context["_answer_plan"] = answer_plan.to_dict()
         session_id = _session_id(body)
         request_id = _request_id(body)
         semantic_enabled = _semantic_verification_enabled(body)
@@ -2397,6 +2478,12 @@ def make_chat_route(
             view_context,
             web_search_resolver,
         )
+        answer_plan, planning_task = start_shadow_answer_planning(
+            prompt=clean_prompt,
+            plan=answer_plan,
+            delegate=answer_planning_delegate,
+        )
+        view_context["_answer_plan"] = answer_plan.to_dict()
 
         # Wall-clock latency around the backend call - surfaced to the FE
         # so the deck can render a "gpt-4o-mini · 830ms" badge next to
@@ -2494,11 +2581,16 @@ def make_chat_route(
                 "verification": verification.to_dict(),
             }
         except ChatBackendUnavailableError:
+            await cancel_planning(planning_task)
             raise HTTPException(
                 status_code=501,
                 detail="chat backend not configured on this deployment",
             ) from None
+        except Exception:
+            await cancel_planning(planning_task)
+            raise
         latency_ms = int((time.monotonic() - started) * 1000)
+        answer_planning = await planning_metadata(planning_task)
         enriched: dict[str, Any] = dict(reply)
         delegation = _delegation_summary(view_context)
         if delegation is not None:
@@ -2508,6 +2600,8 @@ def make_chat_route(
             enriched["web_search"] = web_search
         enriched["latency_ms"] = latency_ms
         enriched["answer_plan"] = answer_plan.to_dict()
+        if answer_planning is not None:
+            enriched["answer_planning"] = answer_planning
         enriched["code_artifacts"] = [
             artifact.to_dict() for artifact in extract_grounded_code(verification.answer)
         ]
@@ -2522,6 +2616,7 @@ def make_chat_route(
                 metadata=_turn_metadata(
                     model=str(reply.get("model") or "unknown"),
                     view_context=view_context,
+                    answer_planning=answer_planning,
                 ),
                 ontology_projector=user_context_ontology_projector,
             )
@@ -2655,11 +2750,13 @@ def make_chat_stream_route(
     tool_resolver: ChatToolResolver | None = None,
     web_search_resolver: ChatWebSearchEvidenceResolver | None = None,
     agent_delegate: AgentChatDelegate | None = None,
+    answer_planning_delegate: AnswerPlanningDelegate | None = None,
     semantic_verifier: SemanticVerifier | None = None,
     conversation_policy_store: ConversationPolicyStore | None = None,
     conversation_history_store: ConversationHistoryStore | None = None,
     user_context_ontology_projector: UserContextOntologyProjector | None = None,
     model_preference_resolver: ModelPreferenceResolver | None = None,
+    answer_preference_resolver: AnswerPreferenceResolver | None = None,
     path: str = DEFAULT_STREAM_PATH,
     max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
 ) -> Route:
@@ -2680,6 +2777,11 @@ def make_chat_stream_route(
         preferred_model = (
             await model_preference_resolver(user_id)
             if model_preference_resolver is not None
+            else None
+        )
+        answer_preferences = (
+            await answer_preference_resolver(user_id)
+            if answer_preference_resolver is not None
             else None
         )
 
@@ -2707,6 +2809,7 @@ def make_chat_stream_route(
             view_context = {}
         if not isinstance(view_context, dict):
             raise HTTPException(status_code=400, detail="view_context MUST be an object")
+        view_context.pop("_answer_plan", None)
         history_raw = body.get("history", [])
         if not isinstance(history_raw, list):
             raise HTTPException(status_code=400, detail="history MUST be a list")
@@ -2725,7 +2828,9 @@ def make_chat_stream_route(
         answer_plan = build_answer_plan(
             clean_prompt,
             route_id=str(view_context.get("routeId") or "") or None,
+            preferences=answer_preferences,
         )
+        view_context["_answer_plan"] = answer_plan.to_dict()
         session_id = _session_id(body)
         semantic_enabled = _semantic_verification_enabled(body)
         request_id = _request_id(body)
@@ -2741,9 +2846,11 @@ def make_chat_stream_route(
             )
 
         async def event_source() -> AsyncIterator[bytes]:
+            nonlocal answer_plan
             started = time.monotonic()
             sequence = 0
             revision = 0
+            planning_task: asyncio.Task[AnswerPlanningResult] | None = None
 
             def frame(event: str, payload: dict[str, Any]) -> bytes:
                 nonlocal sequence
@@ -2797,6 +2904,12 @@ def make_chat_stream_route(
                     enriched_context,
                     web_search_resolver,
                 )
+                answer_plan, planning_task = start_shadow_answer_planning(
+                    prompt=clean_prompt,
+                    plan=answer_plan,
+                    delegate=answer_planning_delegate,
+                )
+                enriched_context["_answer_plan"] = answer_plan.to_dict()
                 delegation = _delegation_summary(enriched_context)
                 has_operational_evidence = "_operational_evidence" in enriched_context
                 evidence_fast_path = _uses_evidence_fast_path(enriched_context)
@@ -2995,6 +3108,7 @@ def make_chat_stream_route(
                             "evidence_refs": list(verification.evidence_refs),
                         },
                     )
+                answer_planning = await planning_metadata(planning_task)
                 if conversation_history_store is not None:
                     await append_assistant_turn(
                         store=conversation_history_store,
@@ -3006,6 +3120,7 @@ def make_chat_stream_route(
                         metadata=_turn_metadata(
                             model=str(terminal_model or "unknown"),
                             view_context=enriched_context,
+                            answer_planning=answer_planning,
                         ),
                         ontology_projector=user_context_ontology_projector,
                     )
@@ -3032,6 +3147,7 @@ def make_chat_stream_route(
                         "delegation": delegation,
                         "web_search": _web_search_summary(enriched_context),
                         "answer_plan": answer_plan.to_dict(),
+                        "answer_planning": answer_planning,
                         "code_artifacts": [
                             artifact.to_dict()
                             for artifact in extract_grounded_code(verification.answer)
@@ -3045,6 +3161,8 @@ def make_chat_stream_route(
             except Exception as exc:  # noqa: BLE001 - surface as a stream error, never 500 mid-stream
                 _LOG.warning("chat stream failed: %s", type(exc).__name__, exc_info=True)
                 yield frame("error", {"detail": "chat stream failed"})
+            finally:
+                await cancel_planning(planning_task)
 
         return StreamingResponse(
             event_source(),

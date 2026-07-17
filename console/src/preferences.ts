@@ -8,6 +8,8 @@ export interface ConsolePreferences {
   readonly locale: ConsoleLocale;
   readonly motion: MotionPreference;
   readonly semanticVerification: SemanticVerificationPreference;
+  /** Show per-reply token usage on the chat reply badge. */
+  readonly showTokenUsage: boolean;
 }
 
 type StorageReader = Pick<Storage, "getItem">;
@@ -19,6 +21,7 @@ const STORAGE_KEYS = {
   locale: "fdai:console:locale",
   motion: "fdai:console:motion",
   semanticVerification: "fdai:console:semantic-verification",
+  showTokenUsage: "fdai:console:show-token-usage",
 } as const;
 
 const DEFAULT_PREFERENCES: ConsolePreferences = {
@@ -26,6 +29,7 @@ const DEFAULT_PREFERENCES: ConsolePreferences = {
   locale: "en",
   motion: "system",
   semanticVerification: "off",
+  showTokenUsage: true,
 };
 
 let sessionPreferences: Partial<ConsolePreferences> = {};
@@ -39,6 +43,7 @@ export function readConsolePreferences(
   const storedLocale = safeGet(storage, STORAGE_KEYS.locale);
   const storedMotion = safeGet(storage, STORAGE_KEYS.motion);
   const storedSemanticVerification = safeGet(storage, STORAGE_KEYS.semanticVerification);
+  const storedShowTokenUsage = safeGet(storage, STORAGE_KEYS.showTokenUsage);
 
   return {
     theme: sessionPreferences.theme
@@ -61,6 +66,12 @@ export function readConsolePreferences(
       ?? (storedSemanticVerification === "shadow" || storedSemanticVerification === "off"
         ? storedSemanticVerification
         : DEFAULT_PREFERENCES.semanticVerification),
+    showTokenUsage: sessionPreferences.showTokenUsage
+      ?? (storedShowTokenUsage === "false"
+        ? false
+        : storedShowTokenUsage === "true"
+          ? true
+          : DEFAULT_PREFERENCES.showTokenUsage),
   };
 }
 
@@ -72,7 +83,7 @@ export function setConsolePreference<Key extends keyof ConsolePreferences>(
   if (typeof window === "undefined") return false;
   let persisted = true;
   try {
-    window.localStorage.setItem(STORAGE_KEYS[key], value);
+    window.localStorage.setItem(STORAGE_KEYS[key], String(value));
   } catch {
     persisted = false;
     // The in-memory preference still applies for this browser session.

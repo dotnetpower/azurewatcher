@@ -14,6 +14,7 @@ export interface ReportSummary {
   readonly description: string;
   readonly tags: readonly string[];
   readonly widget_count: number;
+  readonly datasources: readonly string[];
   readonly variables: readonly ReportVariable[];
 }
 
@@ -24,8 +25,23 @@ export interface ReportList {
 
 export interface ReportingRegistry {
   readonly datasources: readonly string[];
+  readonly datasource_provenance: readonly DataSourceProvenance[];
   readonly widgets: readonly string[];
   readonly formats: readonly string[];
+}
+
+export interface DataSourceProvenance {
+  readonly datasource: string;
+  readonly source: string;
+  readonly availability: "available" | "unavailable" | "unknown";
+  readonly synthetic: boolean | null;
+  readonly as_of: string | null;
+}
+
+export interface ReportProvenance {
+  readonly availability: "available" | "partial" | "unavailable" | "unknown" | "not_applicable";
+  readonly synthetic: boolean | null;
+  readonly sources: readonly DataSourceProvenance[];
 }
 
 export interface RenderedReportView {
@@ -38,6 +54,7 @@ export interface RenderedReportView {
   readonly variables: Readonly<Record<string, string>>;
   readonly widgets: readonly RenderedWidget[];
   readonly tags: readonly string[];
+  readonly provenance: ReportProvenance;
 }
 
 export function decodeReportList(value: unknown): ReportList {
@@ -54,6 +71,13 @@ export function decodeReportingRegistry(value: unknown): ReportingRegistry {
   const root = record(value, "reporting registry");
   return {
     datasources: stringArray(root["datasources"], "reporting registry.datasources"),
+    datasource_provenance: root["datasource_provenance"] === undefined
+      ? []
+      : array(root["datasource_provenance"], "reporting registry.datasource_provenance")
+        .map((item, index) => decodeDataSourceProvenance(
+          item,
+          `reporting registry.datasource_provenance[${index}]`,
+        )),
     widgets: stringArray(root["widgets"], "reporting registry.widgets"),
     formats: stringArray(root["formats"], "reporting registry.formats"),
   };
@@ -73,6 +97,53 @@ export function decodeRenderedReport(value: unknown): RenderedReportView {
       decodeRenderedWidget(widget, `rendered report.widgets[${index}]`),
     ),
     tags: stringArray(root["tags"], "rendered report.tags"),
+    provenance: root["provenance"] === undefined
+      ? { availability: "unknown", synthetic: null, sources: [] }
+      : decodeReportProvenance(root["provenance"]),
+  };
+}
+
+function decodeReportProvenance(value: unknown): ReportProvenance {
+  const item = record(value, "rendered report.provenance");
+  const availability = stringField(item, "availability", "rendered report.provenance");
+  if (!["available", "partial", "unavailable", "unknown", "not_applicable"].includes(availability)) {
+    throw contractError("rendered report.provenance.availability is invalid");
+  }
+  const synthetic = item["synthetic"];
+  if (synthetic !== null && typeof synthetic !== "boolean") {
+    throw contractError("rendered report.provenance.synthetic MUST be boolean or null");
+  }
+  return {
+    availability: availability as ReportProvenance["availability"],
+    synthetic,
+    sources: array(item["sources"], "rendered report.provenance.sources")
+      .map((source, index) => decodeDataSourceProvenance(
+        source,
+        `rendered report.provenance.sources[${index}]`,
+      )),
+  };
+}
+
+function decodeDataSourceProvenance(value: unknown, label: string): DataSourceProvenance {
+  const item = record(value, label);
+  const availability = stringField(item, "availability", label);
+  if (!["available", "unavailable", "unknown"].includes(availability)) {
+    throw contractError(`${label}.availability is invalid`);
+  }
+  const synthetic = item["synthetic"];
+  const asOf = item["as_of"];
+  if (synthetic !== null && typeof synthetic !== "boolean") {
+    throw contractError(`${label}.synthetic MUST be boolean or null`);
+  }
+  if (asOf !== null && typeof asOf !== "string") {
+    throw contractError(`${label}.as_of MUST be string or null`);
+  }
+  return {
+    datasource: stringField(item, "datasource", label),
+    source: stringField(item, "source", label),
+    availability: availability as DataSourceProvenance["availability"],
+    synthetic,
+    as_of: asOf,
   };
 }
 
@@ -85,6 +156,9 @@ function decodeReportSummary(value: unknown, label: string): ReportSummary {
     description: stringField(item, "description", label),
     tags: stringArray(item["tags"], `${label}.tags`),
     widget_count: nonNegativeInteger(item, "widget_count", label),
+    datasources: item["datasources"] === undefined
+      ? []
+      : stringArray(item["datasources"], `${label}.datasources`),
     variables: array(item["variables"], `${label}.variables`).map((raw, index) => {
       const variable = record(raw, `${label}.variables[${index}]`);
       const defaultValue = variable["default"];

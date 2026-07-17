@@ -43,6 +43,7 @@ from fdai.rule_catalog.schema.llm_registry import (
     LlmRegistry,
     MixedModelMode,
 )
+from fdai.rule_catalog.schema.model_endpoint import ModelApiStyle, ModelEndpointBinding
 
 _MIN_QUOTA_RATIO = 0.2
 """Floor: challenger capacity must be at least this share of requested."""
@@ -91,6 +92,20 @@ class QuotaQuery(Protocol):
     def available_capacity_tpm(self, *, region: str, publisher: str, family: str) -> int: ...
 
 
+@runtime_checkable
+class ProvisionedCapacityQuery(Protocol):
+    """Available deployable PTUs after both quota and service capacity checks."""
+
+    def available_capacity_ptu(
+        self,
+        *,
+        region: str,
+        publisher: str,
+        family: str,
+        sku: str,
+    ) -> int: ...
+
+
 # ---------------------------------------------------------------------------
 # Frozen output records
 # ---------------------------------------------------------------------------
@@ -110,6 +125,17 @@ class ResolvedCapability:
     reasons: tuple[str, ...] = field(default_factory=tuple)
     """Human-readable breadcrumbs written into the audit entry."""
 
+    capacity_unit: str = "tpm"
+    capacity_value: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.capacity_unit not in {"tpm", "ptu"}:
+            raise ValueError("resolved capability capacity_unit MUST be tpm or ptu")
+        if self.capacity_unit == "ptu" and self.capacity_tpm != 0:
+            raise ValueError("PTU capability MUST NOT populate capacity_tpm")
+        if self.capacity_value is not None and self.capacity_value < 0:
+            raise ValueError("resolved capability capacity_value MUST be non-negative")
+
 
 @dataclass(frozen=True, slots=True)
 class NarratorCandidate:
@@ -118,6 +144,8 @@ class NarratorCandidate:
     endpoint: str
     deployment: str
     api_version: str = "2024-08-01-preview"
+    api_style: ModelApiStyle = ModelApiStyle.AZURE_OPENAI
+    auth_audience: str = "https://cognitiveservices.azure.com/.default"
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,6 +184,21 @@ class ResolvedModels:
     see docs/roadmap/architecture/llm-strategy.md § T2 Primary Latency Pool.
     """
 
+    endpoint_bindings: tuple[ModelEndpointBinding, ...] = ()
+    """Verified direct or gateway endpoint bindings.
+
+    Optional for schema-v1 compatibility. When absent, existing Azure
+    composition continues to use the legacy endpoint plus deployment fields.
+    """
+
+    def __post_init__(self) -> None:
+        binding_ids = [binding.binding_id for binding in self.endpoint_bindings]
+        if len(binding_ids) != len(set(binding_ids)):
+            raise ValueError("resolved model endpoint binding ids MUST be unique")
+        capabilities = [binding.capability for binding in self.endpoint_bindings]
+        if len(capabilities) != len(set(capabilities)):
+            raise ValueError("resolved model endpoint capabilities MUST be unique")
+
     def to_json(self) -> str:
         """JSON with sorted keys - same input yields the same bytes.
 
@@ -169,19 +212,7 @@ class ResolvedModels:
             "subscription_id": self.subscription_id,
             "deployer_object_id": self.deployer_object_id,
             "mixed_model_mode": self.mixed_model_mode,
-            "capabilities": [
-                {
-                    "name": c.name,
-                    "status": c.status.value,
-                    "publisher": c.publisher,
-                    "family": c.family,
-                    "sku": c.sku,
-                    "capacity_tpm": c.capacity_tpm,
-                    "invocation": c.invocation,
-                    "reasons": list(c.reasons),
-                }
-                for c in self.capabilities
-            ],
+            "capabilities": [_capability_to_dict(c) for c in self.capabilities],
         }
         if self.narrator is not None:
             payload["narrator"] = _narrator_to_dict(self.narrator)
@@ -192,6 +223,11 @@ class ResolvedModels:
         if self.reasoner_primary_candidates:
             payload["reasoner_primary_candidates"] = [
                 _narrator_to_dict(n) for n in self.reasoner_primary_candidates
+            ]
+        if self.endpoint_bindings:
+            payload["endpoint_bindings"] = [
+                binding.to_dict()
+                for binding in sorted(self.endpoint_bindings, key=lambda item: item.capability)
             ]
         return json.dumps(payload, sort_keys=True, indent=2) + "\n"
 
@@ -214,6 +250,10 @@ class ResolvedModels:
                     capacity_tpm=int(c["capacity_tpm"]),
                     invocation=str(c["invocation"]),
                     reasons=tuple(str(r) for r in c.get("reasons", ())),
+                    capacity_unit=str(c.get("capacity", {}).get("unit", "tpm")),
+                    capacity_value=(
+                        int(c["capacity"]["value"]) if isinstance(c.get("capacity"), dict) else None
+                    ),
                 )
                 for c in raw["capabilities"]
             ),
@@ -228,15 +268,44 @@ class ResolvedModels:
                 for n in raw.get("reasoner_primary_candidates", ())
                 if isinstance(n, dict)
             ),
+            endpoint_bindings=tuple(
+                ModelEndpointBinding.from_dict(binding)
+                for binding in raw.get("endpoint_bindings", ())
+                if isinstance(binding, dict)
+            ),
         )
 
 
 def _narrator_to_dict(n: NarratorCandidate) -> dict[str, str]:
-    return {
+    payload = {
         "endpoint": n.endpoint,
         "deployment": n.deployment,
         "api_version": n.api_version,
     }
+    if n.api_style is not ModelApiStyle.AZURE_OPENAI:
+        payload["api_style"] = n.api_style.value
+    if n.auth_audience != "https://cognitiveservices.azure.com/.default":
+        payload["auth_audience"] = n.auth_audience
+    return payload
+
+
+def _capability_to_dict(capability: ResolvedCapability) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "name": capability.name,
+        "status": capability.status.value,
+        "publisher": capability.publisher,
+        "family": capability.family,
+        "sku": capability.sku,
+        "capacity_tpm": capability.capacity_tpm,
+        "invocation": capability.invocation,
+        "reasons": list(capability.reasons),
+    }
+    if capability.capacity_unit != "tpm":
+        payload["capacity"] = {
+            "unit": capability.capacity_unit,
+            "value": capability.capacity_value or 0,
+        }
+    return payload
 
 
 def _narrator_from_dict(raw: Any) -> NarratorCandidate | None:
@@ -247,10 +316,17 @@ def _narrator_from_dict(raw: Any) -> NarratorCandidate | None:
     if not (isinstance(endpoint, str) and isinstance(deployment, str)):
         return None
     api_version = raw.get("api_version")
+    api_style = raw.get("api_style", ModelApiStyle.AZURE_OPENAI.value)
+    auth_audience = raw.get(
+        "auth_audience",
+        "https://cognitiveservices.azure.com/.default",
+    )
     return NarratorCandidate(
         endpoint=endpoint,
         deployment=deployment,
         api_version=api_version if isinstance(api_version, str) else "2024-08-01-preview",
+        api_style=ModelApiStyle(api_style),
+        auth_audience=str(auth_audience),
     )
 
 
@@ -268,6 +344,7 @@ def resolve(
     catalog: CatalogQuery,
     permission: PermissionQuery,
     quota: QuotaQuery,
+    provisioned_capacity: ProvisionedCapacityQuery | None = None,
     tool_calling_families: frozenset[str] | None = None,
 ) -> ResolvedModels:
     """Produce a :class:`ResolvedModels` for the target deployment.
@@ -357,10 +434,36 @@ def resolve(
             )
             continue
 
-        available = quota.available_capacity_tpm(
-            region=region, publisher=chosen_pub or "", family=chosen_family
-        )
-        floor = int(spec.capacity_tpm * _MIN_QUOTA_RATIO)
+        requested = spec.requested_capacity
+        capacity_unit = spec.capacity_unit
+        if capacity_unit == "ptu":
+            if provisioned_capacity is None:
+                entries.append(
+                    ResolvedCapability(
+                        name=name,
+                        status=CapabilityStatus.HIL_ONLY,
+                        publisher=chosen_pub,
+                        family=chosen_family,
+                        sku=spec.sku.value,
+                        capacity_tpm=0,
+                        invocation=spec.invocation.value,
+                        reasons=("provisioned_capacity_query_unavailable",),
+                        capacity_unit="ptu",
+                        capacity_value=0,
+                    )
+                )
+                continue
+            available = provisioned_capacity.available_capacity_ptu(
+                region=region,
+                publisher=chosen_pub or "",
+                family=chosen_family,
+                sku=spec.sku.value,
+            )
+        else:
+            available = quota.available_capacity_tpm(
+                region=region, publisher=chosen_pub or "", family=chosen_family
+            )
+        floor = max(1, int(requested * _MIN_QUOTA_RATIO))
         if available <= 0:
             entries.append(
                 ResolvedCapability(
@@ -371,7 +474,15 @@ def resolve(
                     sku=None,
                     capacity_tpm=0,
                     invocation=spec.invocation.value,
-                    reasons=(f"zero_quota:family={chosen_family}:region={region}",),
+                    reasons=(
+                        (
+                            f"zero_quota:family={chosen_family}:region={region}"
+                            if capacity_unit == "tpm"
+                            else f"zero_ptu_capacity:family={chosen_family}:region={region}"
+                        ),
+                    ),
+                    capacity_unit=capacity_unit,
+                    capacity_value=0 if capacity_unit == "ptu" else None,
                 )
             )
             continue
@@ -388,21 +499,26 @@ def resolve(
                     invocation=spec.invocation.value,
                     reasons=(
                         f"quota_below_min_ratio:available={available}<"
-                        f"floor={floor}:requested={spec.capacity_tpm}",
+                        f"floor={floor}:requested={requested}:unit={capacity_unit}",
                     ),
+                    capacity_unit=capacity_unit,
+                    capacity_value=0 if capacity_unit == "ptu" else None,
                 )
             )
             continue
 
-        effective = min(spec.capacity_tpm, available)
+        effective = min(requested, available)
         status = (
             CapabilityStatus.RESOLVED
-            if effective == spec.capacity_tpm
+            if effective == requested
             else CapabilityStatus.CAPACITY_REDUCED
         )
         reasons: tuple[str, ...] = ()
         if status is CapabilityStatus.CAPACITY_REDUCED:
-            reasons = (f"capacity_reduced:requested={spec.capacity_tpm}:effective={effective}",)
+            reasons = (
+                f"capacity_reduced:requested={requested}:effective={effective}:"
+                f"unit={capacity_unit}",
+            )
         entries.append(
             ResolvedCapability(
                 name=name,
@@ -410,9 +526,11 @@ def resolve(
                 publisher=chosen_pub,
                 family=chosen_family,
                 sku=spec.sku.value,
-                capacity_tpm=effective,
+                capacity_tpm=effective if capacity_unit == "tpm" else 0,
                 invocation=spec.invocation.value,
                 reasons=reasons,
+                capacity_unit=capacity_unit,
+                capacity_value=effective if capacity_unit == "ptu" else None,
             )
         )
 
@@ -657,7 +775,7 @@ def collect_narrator_deployments(
         available = quota.available_capacity_tpm(
             region=region, publisher=pref.publisher, family=pref.family
         )
-        effective = min(spec.capacity_tpm, available)
+        effective = min(spec.requested_capacity, available)
         out.append(
             ResolvedCapability(
                 name=deployment_name,
@@ -772,7 +890,7 @@ def collect_primary_deployments(
         available = quota.available_capacity_tpm(
             region=region, publisher=pref.publisher, family=pref.family
         )
-        effective = min(spec.capacity_tpm, available)
+        effective = min(spec.requested_capacity, available)
         out.append(
             ResolvedCapability(
                 name=reasoner_primary_deployment_name(pref.family),

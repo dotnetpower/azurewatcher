@@ -46,6 +46,7 @@ _REASON_STATUS: Final[dict[str, int]] = {
     "unparseable JSON body": 400,
     "body is not a JSON object": 400,
     "publish failed": 502,
+    "typed mapping rejected payload": 400,
 }
 
 

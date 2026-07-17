@@ -1,0 +1,1 @@
+../../../../../../docs/user-guide/capabilities/cost-governance-ko.md

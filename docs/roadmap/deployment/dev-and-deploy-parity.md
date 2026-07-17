@@ -52,7 +52,9 @@ and `uv run pytest` with **no Azure credentials**.
 
 The local read API registers its Live, Agents, and Provisioning feeds but starts no producer
 by default, so all three streams stay quiet. The Provisioning page remains connected and waits
-for `provision.*` events instead of failing with an unavailable route. Set
+for `provision.*` events instead of failing with an unavailable route. A connected stream alone
+does not mean that a run started or that progress is 0%; the page shows "no run observed" and
+doesn't render a progress meter until the first provisioning event arrives. Set
 `FDAI_LOCAL_SCENARIO_REPLAY=1` only for an explicit Live and Agents demo. In that mode,
 `ControlLoopLiveEmitter` cycles the shipped events under `tests/scenarios/v2026.07/` plus
 catalog-derived synthetic resource templates, gives each replay a fresh event, correlation,

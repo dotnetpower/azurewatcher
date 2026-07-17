@@ -1,7 +1,25 @@
 import { describe, expect, it } from "vitest";
+import { IngestionApiError } from "../ingestion-api";
+import { t } from "../i18n";
+import { claimUploadBatch, documentCapabilityFailure } from "./document-ingestion";
 import { buildDocumentViewSnapshot } from "./document-ingestion.view";
 
 describe("Documents ViewSnapshot", () => {
+  it("allows only one upload batch to own the route lock", () => {
+    const lock = { current: false };
+    expect(claimUploadBatch(lock)).toBe(true);
+    expect(claimUploadBatch(lock)).toBe(false);
+  });
+
+  it("classifies unwired capability endpoints without hiding operational failures", () => {
+    expect(documentCapabilityFailure(new IngestionApiError(404, "Not Found")))
+      .toBe(t("documents.unavailable"));
+    expect(documentCapabilityFailure(new IngestionApiError(501, "Not Implemented")))
+      .toBe(t("documents.unavailable"));
+    expect(documentCapabilityFailure(new IngestionApiError(503, "gateway unavailable")))
+      .toBe("gateway unavailable");
+  });
+
   it("publishes visible sections, controls, constraints, and current state", () => {
     const snapshot = buildDocumentViewSnapshot({
       routeLabel: "Documents",

@@ -71,13 +71,19 @@ repository. It publishes the content a reader needs to understand and configure
 FDAI, and keeps deep engineering internals on GitHub only.
 
 - **In (full)**: [docs/user-guide/**](../docs/user-guide/) - Get Started,
-  Concepts, and Guides (both English and Korean pairs via i18n).
+  Concepts, SRE, Capabilities, and Guides (both English and Korean pairs via
+  i18n).
+- **In (curated)**: customer-neutral operator procedures from
+  [docs/runbooks/**](../docs/runbooks/), surfaced under `Operate > Runbooks`.
+  Environment-specific commands and values remain fork-local.
 - **In (curated)**: a small operator- and configuration-facing subset of
   [docs/roadmap/**](../docs/roadmap/), surfaced through the redesigned,
-  customer-facing sidebar (How FDAI decides, The operating model, Capabilities,
-  Deploy & onboard, Operate, Reference). The allowlist lives in
+  customer-facing sidebar (How FDAI decides, The operating model, SRE,
+  Capabilities, Deploy & onboard, Operate, Reference). The allowlist lives in
   [`ROADMAP_SITE_ALLOWLIST`](scripts/mount-docs.mjs)
-  (`README`, `goals-and-metrics`, `risk-classification`, `operator-console`,
+  (`README`, `goals-and-metrics`, `risk-classification`,
+  `observability-and-detection`, `escalation-and-standing-authority`,
+  `operating-and-verification`, `operator-console`,
   `channels-and-notifications`, `deploy-and-onboard`, `deployment-preflight`,
   `preflight-active-reassembly`, `implementation-plan`, `agent-workflows`,
   `operational-readiness`, `architecture-review-board`).

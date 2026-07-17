@@ -59,8 +59,11 @@
 .architecture-color-legend i { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 2px; }
 .architecture-stage { display: grid; grid-template-columns: minmax(0, 1fr) 252px; min-height: 0; }
 .architecture-canvas-shell { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.architecture-map-frame { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; }
 .architecture-map { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
 .architecture-map:active { cursor: grabbing; }
+.architecture-resource-picker { position: absolute; top: 12px; left: 12px; z-index: 4; width: min(300px, calc(100% - 76px)); }
+.architecture-resource-picker select { width: 100%; min-height: 32px; border: 1px solid var(--border); border-radius: 5px; background: color-mix(in oklab, var(--bg-elevated) 96%, transparent); color: var(--fg); padding: 0 30px 0 9px; font-size: 11px; box-shadow: 0 3px 10px rgba(29,42,56,.08); }
 .architecture-inspector {
   padding: 16px; background: color-mix(in oklab, var(--bg-elevated) 96%, transparent); border-left: 1px solid var(--border);
   overflow: auto;
@@ -88,6 +91,8 @@
 .architecture-inspector .eyebrow { color: #71808e; font-size: 10px; text-transform: uppercase; font-weight: 750; }
 .architecture-inspector h3 { margin: 4px 0 15px; font-size: 17px; }
 .architecture-inspector dl { display: grid; grid-template-columns: 70px 1fr; gap: 8px; margin: 0 0 18px; font-size: 11px; }
+.incident-evidence-links { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 12px 0; }
+.incident-evidence-links a { min-width: 0; overflow-wrap: anywhere; }
 .architecture-inspector dt { color: #71808e; }
 .architecture-inspector dd { margin: 0; overflow-wrap: anywhere; }
 .architecture-inspector .status-healthy { color: #277a52; font-weight: 650; }
@@ -516,6 +521,69 @@ body.deck-open { overflow: hidden; }
 }
 .activity-bar-button svg { width: 20px; height: 20px; display: block; }
 
+.tooltip-anchor {
+  display: inline-flex;
+}
+.app-tooltip {
+  --tooltip-enter-x: 0;
+  --tooltip-enter-y: 0;
+  position: fixed;
+  z-index: 100;
+  max-width: min(320px, calc(100vw - 32px));
+  overflow-wrap: anywhere;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--fg);
+  box-shadow: 0 4px 12px rgba(15, 23, 30, 0.12);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  pointer-events: none;
+}
+.app-tooltip[data-side="top"] {
+  --tooltip-enter-y: 4px;
+  transform-origin: 50% 100%;
+}
+.app-tooltip[data-side="right"] {
+  --tooltip-enter-x: -4px;
+  transform-origin: 0 50%;
+}
+.app-tooltip[data-side="bottom"] {
+  --tooltip-enter-y: -4px;
+  transform-origin: 50% 0;
+}
+.app-tooltip[data-side="left"] {
+  --tooltip-enter-x: 4px;
+  transform-origin: 100% 50%;
+}
+.app-tooltip[data-state="delayed-open"],
+.app-tooltip[data-state="instant-open"] {
+  animation: app-tooltip-in 0.15s ease-out both;
+}
+.app-tooltip[data-state="closed"] {
+  animation: app-tooltip-out 0.05s ease-out both;
+}
+@keyframes app-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translate(var(--tooltip-enter-x), var(--tooltip-enter-y)) scale(0.98);
+  }
+  to { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+@keyframes app-tooltip-out {
+  from { opacity: 1; transform: translate(0, 0) scale(1); }
+  to {
+    opacity: 0;
+    transform: translate(var(--tooltip-enter-x), var(--tooltip-enter-y)) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-tooltip { animation: none !important; }
+}
+
 .navigation-explorer {
   min-width: 0;
   height: 100%;
@@ -751,6 +819,11 @@ body.deck-open { overflow: hidden; }
 main {
   padding: 24px;
   min-width: 0; /* let grid item shrink so wide swarms scroll horizontally not blow layout */
+}
+
+.shell-body > main {
+  height: calc(100dvh - var(--header-height) - var(--deck-invoke-height));
+  overflow-y: auto;
 }
 
 .card {
@@ -1703,6 +1776,7 @@ pre {
   inset: 0;
   background: rgba(0,0,0,0.45);
   z-index: 30;
+  touch-action: none;
   animation: live-backdrop-fade 0.18s ease-out;
 }
 @keyframes live-backdrop-fade {
@@ -1718,6 +1792,8 @@ pre {
   border-left: 1px solid var(--border);
   padding: 20px 20px 24px;
   overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   animation: live-panel-in 0.24s ease-out;
 }
 @keyframes live-panel-in {
@@ -2088,6 +2164,9 @@ pre {
 .rule-drawer-head h3 { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
 .rule-drawer-actions { display: flex; gap: 6px; flex: 0 0 auto; }
 .rule-drawer-body { padding: 16px 18px; overflow-y: auto; overscroll-behavior: contain; }
+.rule-citation-unavailable > div { min-width: 0; }
+.rule-citation-unavailable p { margin: 6px 0 10px; }
+.rule-citation-unavailable code { overflow-wrap: anywhere; }
 .pill-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .detail-grid {
   display: grid; grid-template-columns: max-content 1fr;
@@ -2207,7 +2286,13 @@ pre {
 .mini-list { margin: 0; padding-left: 16px; font-size: 12px; }
 .mini-list li { margin: 0; }
 
-.scroll { max-height: 480px; overflow: auto; }
+.scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  max-height: 480px;
+  overflow: auto;
+}
 
 .mono.small { font-size: 11.5px; }
 
@@ -2939,6 +3024,16 @@ pre {
   font-variant-numeric: tabular-nums;
   margin-right: 3px;
 }
+.overview-rules-provenance {
+  display: grid;
+  gap: 2px;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-elevated);
+}
+.overview-rules-provenance strong { color: var(--fg); font-size: 11px; }
+.overview-rules-provenance small { font-size: 10px; }
 .overview-drill {
   margin-left: auto;
   color: var(--fg-muted);
@@ -3049,6 +3144,9 @@ pre {
 
 /* DataTable ----------------------------------------------------------- */
 .data-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-elevated);
@@ -3455,6 +3553,7 @@ pre {
 .workflow-palette-panel > p { margin: 5px 0 8px; color: var(--fg-muted); font-size: 11.5px; }
 .workflow-palette-panel ul { max-height: 560px; overflow: auto; margin: 0; padding: 0; list-style: none; }
 .workflow-palette-panel li { display: flex; align-items: center; gap: 7px; padding: 7px 8px; border-top: 1px dashed var(--border); }
+.workflow-palette-panel li.is-selected { background: color-mix(in oklab, var(--accent) 10%, transparent); }
 .workflow-palette-panel li:first-child { border-top: 0; }
 .workflow-palette-panel code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .workflow-palette-panel li span { margin-left: auto; padding: 2px 5px; border-radius: 3px; color: var(--cs-steel); background: color-mix(in oklab, var(--cs-steel) 10%, transparent); font-size: 9.5px; }
@@ -3929,13 +4028,10 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
   z-index: 80;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--bg) 96%, var(--accent)) 0%,
-      var(--bg) 45%,
-      var(--bg) 100%
-    );
+  /* Flat, theme-adaptive canvas: white in light, dark card in dark. Header
+     and input keep their hairline borders for separation, so a messenger
+     style reply on a clean surface reads better than a tinted gradient. */
+  background: var(--bg-elevated);
   animation: deck-appear 0.22s ease-out;
 }
 @keyframes deck-appear {
@@ -4609,8 +4705,10 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
 }
 .deck-turn-operator .deck-turn-body {
   padding: 9px 15px;
-  border-radius: 16px;
-  background: color-mix(in oklab, var(--accent) 12%, var(--bg-elevated));
+  /* Sent-message shape: rounded except the bottom-right, which tucks in so the
+     bubble reads as the operator's outgoing message. */
+  border-radius: 16px 16px 5px 16px;
+  background: var(--bg-subtle);
   color: var(--fg);
 }
 /* Bragi answer: plain body text on the deck background - no card chrome, so
@@ -4926,6 +5024,24 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
   gap: 6px;
   margin: 2px 0 4px;
 }
+/* One-line reply footer: verification chip, copy/regenerate, and the evidence
+   pill share a single wrapping row instead of stacking on three lines. */
+.deck-gr-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px 7px;
+  margin-top: 6px;
+}
+/* In the one-line footer the verification chip drops its box and reads as a
+   plain colored mark + word, so it packs tightly next to the tools + pill. */
+.deck-gr-actions .deck-verification {
+  margin-top: 0;
+  border: none;
+  padding: 0;
+  background: none;
+}
+.deck-gr-actions .deck-gr-pill { margin: 0; align-self: center; }
 .deck-gr-tool {
   padding: 3px 10px;
   border: 1px solid var(--border);
@@ -5646,7 +5762,7 @@ button.wf-node:hover { border-color: var(--accent); background: color-mix(in okl
 }
 
 @media (max-width: 640px) {
-  .deck-invoke,
+  .deck-invoke { left: var(--rail-width); }
   .deck-overlay { left: 0; }
   .deck-overlay-mode-floating,
   .deck-overlay-mode-dock {
@@ -8055,6 +8171,7 @@ main { padding-bottom: 60px !important; }
 .agent-roster-kpi.kind-consumers > strong { color: var(--agent-steel); }
 .agent-roster-kpi.kind-watching > strong { color: var(--agent-teal); }
 .agent-roster-kpi.kind-incidents > strong { color: var(--agent-terracotta); }
+.agent-roster-kpi.kind-activity > strong { color: var(--agent-steel); }
 
 .agent-roster-toolbar {
   display: flex;
@@ -8786,6 +8903,8 @@ main { padding-bottom: 60px !important; }
   opacity: 0.7;
   font-style: italic;
 }
+.agent-focus-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.agent-focus-actions > a { font-size: 0.78rem; }
 /* Primary CTA: start a conversation primed with this agent's recent work. */
 .agent-focus-chat {
   display: inline-flex;
@@ -9060,6 +9179,72 @@ main { padding-bottom: 60px !important; }
   gap: 6px;
   flex-wrap: wrap;
 }
+.onboarding-actions,
+.onboarding-gap-list,
+.onboarding-role-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.onboarding-actions a,
+.onboarding-gap-list li,
+.onboarding-role-list li {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--surface);
+}
+.capabilities-filterbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+.capabilities-filterbar label { display: grid; gap: 4px; color: var(--fg-muted); font-size: 11px; }
+.capabilities-filterbar > *,
+.capabilities-filterbar input,
+.capabilities-filterbar select { min-width: 0; width: 100%; }
+.scheduler-runs-filter {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(160px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+.scheduler-runs-filter label {
+  display: grid;
+  gap: 4px;
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+.scheduler-runs-filter input,
+.scheduler-runs-filter select { min-width: 0; width: 100%; }
+.scheduler-runs-route .stack-section > .btn { justify-self: start; }
+.capability-detail {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  background: var(--surface);
+}
+.capability-detail dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 16px; }
+.capability-detail dl div { min-width: 0; }
+.capability-detail dt { color: var(--fg-muted); font-size: 10px; text-transform: uppercase; }
+.capability-detail dd { margin: 3px 0 0; overflow-wrap: anywhere; }
+.settings-integration-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+@media (max-width: 900px) {
+  .capabilities-filterbar,
+  .scheduler-runs-filter,
+  .capability-detail dl { grid-template-columns: minmax(0, 1fr); }
+}
+.onboarding-role-list li {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) minmax(150px, 1fr) minmax(100px, auto);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
 .process-event-detail { margin-top: 6px; }
 .process-event-detail dl {
   display: grid;
@@ -9224,6 +9409,10 @@ main { padding-bottom: 60px !important; }
 }
 
 /* Dynamic workflow Process views ----------------------------------------- */
+.process-status-workspace,
+.process-detail,
+.process-journal,
+.process-widget-section { min-width: 0; }
 .process-status-workspace { gap: 12px; }
 .process-status-summary {
   display: flex;
@@ -9313,7 +9502,7 @@ main { padding-bottom: 60px !important; }
 .process-section-heading h2,
 .process-section-heading h3 { margin: 3px 0 0; font-size: 1rem; }
 .process-section-heading p { margin: 4px 0 0; }
-.process-event-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.process-event-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 .process-event-head strong { text-transform: capitalize; }
 .process-event-head time { color: var(--fg-muted); font-size: 0.72rem; white-space: nowrap; }
 .process-generic-note { padding: 12px 0; border-top: 1px dashed var(--border); }
@@ -9417,7 +9606,7 @@ main { padding-bottom: 60px !important; }
 .reports-registry { margin: 10px 0; }
 .reports-widget-grid { margin-top: 12px; }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .process-workspace { grid-template-columns: 1fr; }
   .process-list { display: flex; border-right: 0; border-bottom: 1px solid var(--border); overflow-x: auto; }
   .process-list-entry { min-width: 220px; border-right: 1px solid var(--border); border-bottom: 0; }
@@ -9429,6 +9618,8 @@ main { padding-bottom: 60px !important; }
   .reports-list a { min-width: 220px; border-right: 1px solid var(--border); border-bottom: 0; }
 }
 @media (max-width: 600px) {
+  .onboarding-role-list li { grid-template-columns: minmax(0, 1fr); }
+  .onboarding-role-list li > * { min-width: 0; overflow-wrap: anywhere; }
   .process-view-stage { padding: 12px; }
   .process-view-header { flex-direction: column; }
   .process-runtime-meta { grid-template-columns: 1fr; }
@@ -9706,6 +9897,7 @@ main { padding-bottom: 60px !important; }
 .settings-model-latency { display: grid; gap: 3px; }
 .settings-model-name small,
 .settings-model-latency small { color: var(--fg-muted); font-size: 0.72rem; }
+.settings-models-route .data-table code { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
 .settings-web-search-body { min-width: 0; }
 .settings-web-search-toggle-row {
   display: flex;

@@ -475,6 +475,7 @@ export function DetailPanel({
     const previousFocus = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
+    document.body.classList.add("scroll-locked");
     closeRef.current?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -506,6 +507,7 @@ export function DetailPanel({
     document.addEventListener("keydown", handleKeyDown, true);
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true);
+      document.body.classList.remove("scroll-locked");
       if (previousFocus?.isConnected) previousFocus.focus();
     };
   }, []);

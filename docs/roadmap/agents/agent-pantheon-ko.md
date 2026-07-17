@@ -1,8 +1,8 @@
 ---
 title: 에이전트 판테온
 translation_of: agent-pantheon.md
-translation_source_sha: 01b4d7e62c42228c530ad98290dcb8cb0cb286b9
-translation_revised: 2026-07-15
+translation_source_sha: 0ed2d51b08ef1e17b4b0450e881c17f34c491300
+translation_revised: 2026-07-17
 ---
 
 # 에이전트 판테온
@@ -482,6 +482,31 @@ Tie-break 순서 (deterministic): specificity > ownership > recency > 판테온
 precedence (governance > pipeline > domain). 승자는 `primary_agent`, 나머지는
 `contributors`. 모든 라우팅 결정은 사후 검토를 위해 `Turn.score_breakdown` 에
 기록된다.
+
+#### 6.3.1 Shadow answer planning
+
+Command Deck은 동일한 deterministic score를 사용해 presentation 전용
+`AnswerPlanningRound`의 read-only contributor를 최대 2명 선택할 수 있습니다. 이
+round는 Bragi의 기존 terminal multi-agent aggregation 및 Quality Gate Debate와
+분리됩니다. Phase C에서는 typed contribution을 측정하지만 narrator context 또는
+terminal answer에 주입하지 않습니다.
+
+- **Bragi**는 최종 answer plan을 소유하고 표시되는 narrator로 유지됩니다.
+- **Contributor**는 소유 상태의 fact와 evidence reference를 제공합니다. Tool 호출,
+  다른 round 재귀 호출, judgment, approval 또는 execution은 허용되지 않습니다.
+- **Norns**는 synchronous하게 참여하지 않습니다. Turn 이후 opt-in aggregate
+  metadata를 off-path로 분석할 수 있습니다.
+- **Odin**은 routine collection에서 제외됩니다. 이후 Phase E에서 진짜 cross-domain
+  conflict에만 참여할 수 있으며 execution authority는 없습니다.
+- **Saga**는 audit, history, issue 또는 handoff 질문에만 선택됩니다. Universal answer
+  reviewer 또는 verifier로 사용하지 않습니다.
+- **Forseti, Var, Thor**는 각각 judgment, approval, execution 경계를 유지합니다.
+  Answer style은 이 권한을 바꾸지 않습니다.
+
+Shipping limit은 contributor 2명, round 1회, `1200 ms`, estimated added token
+`800`입니다. Nested round는 비활성화합니다. Contributor failure는 primary-only
+answer와 bounded metadata로 degrade하며 지원 가능한 read-only answer를 HIL로 보내지
+않습니다.
 
 ### 6.4 Handoff 에스컬레이션 프로토콜
 

@@ -155,14 +155,24 @@ report, composition wiring, and tests. Next increments, staged so each is
 separately reviewable:
 
 1. Live Azure adapters under `delivery/azure/preflight/` (Policy Insights,
-   Resource Graph, Firewall / NSG, Quota), shadow-mode first. **Partially
-   delivered**: a shared read-only ARM client (`AzureArmClient`, injected
+   Resource Graph, Firewall / NSG, Quota), shadow-mode first. **Delivered for
+   protected-plan evidence**: a shared read-only ARM client (`AzureArmClient`, injected
    `httpx.AsyncClient` + `WorkloadIdentity` bearer token, fail-closed) plus the
    `AzurePolicyGuardrailProbe` (real Azure Policy `deny` guardrails - `Not
    allowed` / `Allowed resource types`) and the `AzureQuotaProbe` (Compute
-   usages per subscription + location) have landed with mock-HTTP unit tests.
-   The Firewall / NSG egress and Resource-Graph identity adapters are the
-   remaining sub-steps.
+  usages per subscription + location) have landed with mock-HTTP unit tests.
+  `fdaictl deploy preflight --environment-config` composes both through the same
+  analyzer with Azure CLI workload identity, bounded read-only ARM transport,
+  neutral-to-ARM type mapping, and sanitized fail-closed errors. The existing
+  Resource Graph role observer is also composed through `AzureIdentityRbacProbe`
+  to report missing event-bus and secret-reader executor roles without emitting
+  principal or role-definition ids. `AzureSecretConfigProbe` checks required Key
+  Vault references by status only, never reads a response body or secret value,
+  and emits hashed references. Reports record sanitized per-category check coverage even when
+  clear. The private runner requires all four Azure categories in enforce mode, combines them with
+  bounded TLS egress evidence, stores only sanitized reports in private Blob storage, and binds
+  both evidence digests into exact-plan verification. The Firewall / NSG topology adapter remains
+  a separate future enhancement; it is not required for direct runner reachability evidence.
 2. The `infra/modules/` capability-mode toggles in the table above.
 3. A GitHub Check that posts the report on an infrastructure PR.
 4. A cached **Deployment Environment Profile** (which guardrails apply to a

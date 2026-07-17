@@ -24,6 +24,7 @@ describe("AnswerPlan boundary parser", () => {
       max_words: 650,
       discuss: "skip",
       explicit_overrides: ["deep", "table"],
+      preference_applied: false,
     });
   });
 

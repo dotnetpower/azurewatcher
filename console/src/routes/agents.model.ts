@@ -88,6 +88,7 @@ export interface AgentNode {
   readonly name: string;
   readonly layer: AgentLayer;
   readonly state: AgentStatus;
+  readonly observed: boolean;
   readonly correlationId: string | null;
   readonly since: string;
   /** Free-text task description streamed with the state (may be null). */
@@ -123,6 +124,7 @@ export function makeInitialState(): AgentsState {
       name,
       layer,
       state: "idle",
+      observed: false,
       correlationId: null,
       since: "",
       detail: null,
@@ -141,6 +143,7 @@ function applyAgentState(
     name: msg.agent,
     layer,
     state: msg.state,
+    observed: true,
     correlationId: msg.correlation_id,
     since: msg.ts,
     detail: msg.detail,
@@ -255,6 +258,7 @@ function hydrateIncidents(
     agents.Var = {
       ...currentVar,
       state: "approving",
+      observed: true,
       correlationId: awaitingApproval.correlation_id,
       since: awaitingApproval.last_updated_at,
       detail: "awaiting human approval",
@@ -295,6 +299,10 @@ export function activeAgentCount(state: AgentsState): number {
   return Object.values(state.agents).filter(
     (a) => a.state !== "idle" && a.state !== "watching",
   ).length;
+}
+
+export function currentRuntimeCount(streamOpen: boolean, count: number): number | null {
+  return streamOpen ? count : null;
 }
 
 /** True when an agent is actively working (not resting or merely watching). */

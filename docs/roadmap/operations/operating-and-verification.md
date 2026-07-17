@@ -40,6 +40,16 @@ Signals a healthy deployment MUST emit continuously. Every signal maps 1:1 to an
 Signals emit via OpenTelemetry to the configured backend
 ([deployment.md#observability-slos-and-alerting](../deployment/deployment.md#observability-slos-and-alerting)).
 
+`OTEL_EXPORTER_OTLP_ENDPOINT` enables OTLP/gRPC trace and metric export. HTTPS is required outside
+loopback; credentials, query strings, and fragments are rejected in the endpoint. Without an
+endpoint, local console spans and in-memory metrics remain the default.
+
+Channel, extension, model, scheduler, and security lifecycle components emit the same
+`fdai.transition` span and `fdai.transition.count` metric through a process-singleton emitter.
+Attributes use bounded allowlisted domain, name, outcome, and component-specific scalar keys;
+provider error text, payloads, credentials, and arbitrary labels are not accepted. Emission is
+best-effort so exporter failure cannot block routing or safety decisions.
+
 ## Synthetic Canary Event
 
 A scale-to-zero, event-driven system has a specific silent failure mode: **no events arrive →

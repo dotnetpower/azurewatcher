@@ -87,6 +87,9 @@ class PreflightAnalyzer:
             mode=self._mode,
             verdict=self._verdict(ordered),
             findings=ordered,
+            checked_categories=tuple(
+                sorted({probe.category for probe in self._probes}, key=lambda value: value.value)
+            ),
         )
 
     @staticmethod

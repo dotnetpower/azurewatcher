@@ -276,11 +276,9 @@ def test_rca_route_requires_correlation(dev_env: None) -> None:
     assert client.get("/rca?correlation=").status_code == 400
 
 
-def test_rca_route_empty_incident_returns_no_hypotheses(dev_env: None) -> None:
+def test_rca_route_unknown_correlation_returns_404(dev_env: None) -> None:
     del dev_env
     client, _ = _client()
     response = client.get("/rca?correlation=corr-unknown")
-    assert response.status_code == 200
-    body = response.json()
-    assert body["hypotheses"] == []
-    assert body["response"] is None
+    assert response.status_code == 404
+    assert "no audit evidence" in response.json()["error"]["message"]

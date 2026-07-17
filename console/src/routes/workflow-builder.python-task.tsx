@@ -1,8 +1,9 @@
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import { CopyButton, StatusPill } from "../components/ui";
 import {
   generatePythonTask,
-  newPythonTaskRunIdempotencyKey,
+  pythonTaskDraftKey,
+  pythonTaskGenerationCanApply,
   requestPythonTaskRun,
   schedulePythonTask,
   stagePythonTask,
@@ -16,6 +17,10 @@ import {
   type PythonTaskScheduleResponse,
   type PythonTaskValidation,
 } from "../workflow/python-task";
+import {
+  identityForMutationIntent,
+  type MutationIntentIdentity,
+} from "../mutation-intent";
 
 const CAPABILITIES: readonly PythonTaskCapability[] = [
   "gpu",
@@ -41,7 +46,14 @@ const INITIAL_FILES: readonly PythonTaskFileDraft[] = [{
 
 type Result = PythonTaskValidation | PythonTaskPlanResponse | PythonTaskRunRequestResponse | PythonTaskScheduleResponse;
 
+interface StagedArtifact {
+  readonly ref: string;
+  readonly draftKey: string;
+}
+
 export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void }) {
+  const governedRunIntent = useRef<MutationIntentIdentity | null>(null);
+  const draftRevision = useRef(0);
   const [files, setFiles] = useState<readonly PythonTaskFileDraft[]>(INITIAL_FILES);
   const [intent, setIntent] = useState("Write a Python task that reports CUDA availability and GPU count as JSON.");
   const [selectedPath, setSelectedPath] = useState("main.py");
@@ -55,7 +67,7 @@ export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void })
   const [target, setTarget] = useState("resource:compute/vm/gpu-worker");
   const [reason, setReason] = useState("Run the validated GPU health task.");
   const [cronExpression, setCronExpression] = useState("0 2 * * *");
-  const [artifactRef, setArtifactRef] = useState<string | null>(null);
+  const [stagedArtifact, setStagedArtifact] = useState<StagedArtifact | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,8 +83,15 @@ export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void })
     timeout_seconds: timeoutSeconds,
     python_executable: "/usr/bin/python3",
   });
+  const artifactRef = stagedArtifact?.draftKey === pythonTaskDraftKey(draft())
+    ? stagedArtifact.ref
+    : null;
 
-  const run = async (action: string, operation: () => Promise<Result>) => {
+  const run = async (
+    action: string,
+    operation: () => Promise<Result>,
+    stagedDraftKey?: string,
+  ) => {
     setBusy(action);
     setError(null);
     try {
@@ -82,9 +101,11 @@ export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void })
         "staged" in next
         && next.staged === true
         && typeof next.artifact_ref === "string"
+        && stagedDraftKey !== undefined
       ) {
-        setArtifactRef(next.artifact_ref);
+        setStagedArtifact({ ref: next.artifact_ref, draftKey: stagedDraftKey });
       }
+      if ("submitted" in next && next.submitted) governedRunIntent.current = null;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
@@ -93,29 +114,33 @@ export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void })
   };
 
   const updateSelected = (content: string) => {
+    draftRevision.current += 1;
     setFiles(files.map((file) => file.path === selected?.path ? { ...file, content } : file));
-    setArtifactRef(null);
+    setStagedArtifact(null);
   };
 
   const addFile = () => {
     const path = newPath.trim();
     if (!path || files.some((file) => file.path === path)) return;
+    draftRevision.current += 1;
     setFiles([...files, { path, content: "" }]);
     setSelectedPath(path);
     setNewPath("");
-    setArtifactRef(null);
+    setStagedArtifact(null);
   };
 
   const removeSelected = () => {
     if (!selected || files.length === 1) return;
+    draftRevision.current += 1;
     const remaining = files.filter((file) => file.path !== selected.path);
     setFiles(remaining);
     setSelectedPath(remaining[0]?.path ?? "");
     if (entrypoint === selected.path) setEntrypoint(remaining[0]?.path ?? "");
-    setArtifactRef(null);
+    setStagedArtifact(null);
   };
 
   const generate = async () => {
+    const submittedRevision = draftRevision.current;
     setBusy("generate");
     setError(null);
     try {
@@ -125,7 +150,12 @@ export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void })
         targetResourceRef: target.trim(),
         allowedModules: modules.split(",").map((value) => value.trim()).filter(Boolean),
       });
+      if (!pythonTaskGenerationCanApply(draftRevision.current, submittedRevision)) {
+        setError("Generated draft was discarded because the task changed while authoring.");
+        return;
+      }
       const task = generated.task;
+      draftRevision.current += 1;
       setFiles(task.files);
       setSelectedPath(task.entrypoint);
       setTaskId(task.task_id);
@@ -134,7 +164,7 @@ export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void })
       setModules(task.required_modules.join(","));
       setCapabilities(task.capabilities);
       setTimeoutSeconds(task.timeout_seconds);
-      setArtifactRef(null);
+      setStagedArtifact(null);
       setResult(generated.validation);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
@@ -184,14 +214,14 @@ export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void })
         </section>
 
         <aside class="python-task-manifest" aria-label="Task manifest">
-          <label><span>Task id</span><input value={taskId} onInput={(event) => { setTaskId((event.target as HTMLInputElement).value); setArtifactRef(null); }} /></label>
-          <label><span>Version</span><input value={version} onInput={(event) => { setVersion((event.target as HTMLInputElement).value); setArtifactRef(null); }} /></label>
-          <label><span>Entrypoint</span><select value={entrypoint} onChange={(event) => setEntrypoint((event.target as HTMLSelectElement).value)}>{files.filter((file) => file.path.endsWith(".py")).map((file) => <option key={file.path} value={file.path}>{file.path}</option>)}</select></label>
-          <label><span>Required modules</span><input value={modules} placeholder="torch,numpy" onInput={(event) => setModules((event.target as HTMLInputElement).value)} /></label>
-          <label><span>Timeout seconds</span><input type="number" min="1" max="86400" value={timeoutSeconds} onInput={(event) => setTimeoutSeconds(Number((event.target as HTMLInputElement).value))} /></label>
+          <label><span>Task id</span><input value={taskId} onInput={(event) => { draftRevision.current += 1; setTaskId((event.target as HTMLInputElement).value); setStagedArtifact(null); }} /></label>
+          <label><span>Version</span><input value={version} onInput={(event) => { draftRevision.current += 1; setVersion((event.target as HTMLInputElement).value); setStagedArtifact(null); }} /></label>
+          <label><span>Entrypoint</span><select value={entrypoint} onChange={(event) => { draftRevision.current += 1; setEntrypoint((event.target as HTMLSelectElement).value); }}>{files.filter((file) => file.path.endsWith(".py")).map((file) => <option key={file.path} value={file.path}>{file.path}</option>)}</select></label>
+          <label><span>Required modules</span><input value={modules} placeholder="torch,numpy" onInput={(event) => { draftRevision.current += 1; setModules((event.target as HTMLInputElement).value); }} /></label>
+          <label><span>Timeout seconds</span><input type="number" min="1" max="86400" value={timeoutSeconds} onInput={(event) => { draftRevision.current += 1; setTimeoutSeconds(Number((event.target as HTMLInputElement).value)); }} /></label>
           <fieldset>
             <legend>Capabilities</legend>
-            {CAPABILITIES.map((capability) => <label key={capability} class="python-task-check"><input type="checkbox" checked={capabilities.includes(capability)} onChange={() => setCapabilities(capabilities.includes(capability) ? capabilities.filter((value) => value !== capability) : [...capabilities, capability])} /><span>{capability.replaceAll("_", " ")}</span></label>)}
+            {CAPABILITIES.map((capability) => <label key={capability} class="python-task-check"><input type="checkbox" checked={capabilities.includes(capability)} onChange={() => { draftRevision.current += 1; setCapabilities(capabilities.includes(capability) ? capabilities.filter((value) => value !== capability) : [...capabilities, capability]); }} /><span>{capability.replaceAll("_", " ")}</span></label>)}
           </fieldset>
           <label><span>Target Resource</span><input value={target} onInput={(event) => setTarget((event.target as HTMLInputElement).value)} /></label>
           <label><span>Run reason</span><textarea value={reason} rows={3} onInput={(event) => setReason((event.target as HTMLTextAreaElement).value)} /></label>
@@ -206,9 +236,9 @@ export function PythonTaskWorkbench({ onBack }: { readonly onBack: () => void })
 
       <div class="python-task-actions">
         <button type="button" class="btn" disabled={busy !== null} onClick={() => void run("validate", () => validatePythonTask(draft()))}>{busy === "validate" ? "Validating..." : "Validate"}</button>
-        <button type="button" class="btn" disabled={busy !== null} onClick={() => void run("stage", () => stagePythonTask(draft()))}>{busy === "stage" ? "Staging..." : "Stage artifact"}</button>
+        <button type="button" class="btn" disabled={busy !== null} onClick={() => { const task = draft(); void run("stage", () => stagePythonTask(task), pythonTaskDraftKey(task)); }}>{busy === "stage" ? "Staging..." : "Stage artifact"}</button>
         <button type="button" class="btn" disabled={busy !== null || !target.trim()} onClick={() => void run("test", () => testPythonTask(draft(), target.trim()))}>{busy === "test" ? "Testing..." : "Test shadow plan"}</button>
-        <button type="button" class="btn primary" disabled={busy !== null || artifactRef === null || reason.trim().length < 10} onClick={() => void run("request", () => requestPythonTaskRun({ artifactRef: artifactRef ?? "", targetResourceRef: target.trim(), reason: reason.trim(), idempotencyKey: newPythonTaskRunIdempotencyKey() }))}>{busy === "request" ? "Submitting..." : "Request governed run"}</button>
+        <button type="button" class="btn primary" disabled={busy !== null || artifactRef === null || reason.trim().length < 10} onClick={() => { const request = { artifactRef: artifactRef ?? "", targetResourceRef: target.trim(), reason: reason.trim() }; const identity = identityForMutationIntent(governedRunIntent.current, JSON.stringify(request)); governedRunIntent.current = identity; void run("request", () => requestPythonTaskRun({ ...request, idempotencyKey: identity.idempotencyKey })); }}>{busy === "request" ? "Submitting..." : "Request governed run"}</button>
         <button type="button" class="btn" disabled={busy !== null || artifactRef === null || !cronExpression.trim()} onClick={() => void run("schedule", () => schedulePythonTask({ artifactRef: artifactRef ?? "", targetResourceRef: target.trim(), workflowRef: "scheduled-gpu-python-task", cronExpression: cronExpression.trim() }))}>{busy === "schedule" ? "Scheduling..." : "Create schedule"}</button>
       </div>
 

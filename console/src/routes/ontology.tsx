@@ -16,8 +16,8 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
-import { currentRoute, navigate, routeHref } from "../router";
-import { OntologyActionsView } from "./ontology-actions";
+import { currentRoute, navigate, replaceRouteState, routeHref } from "../router";
+import { OntologyActionsView, requestedOntologyAction } from "./ontology-actions";
 import { OntologyLinksView } from "./ontology-links";
 import {
   ontologyView,
@@ -34,9 +34,26 @@ interface Props {
   readonly client: ReadApiClient;
 }
 
+export function ontologyNamedSelection(
+  names: readonly string[],
+  requested: string | null,
+): string | null {
+  return requested ?? names[0] ?? null;
+}
+
 export function OntologyRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<OntologyGraphResponse>>({ status: "loading" });
-  const [includeProperties, setIncludeProperties] = useState(true);
+  const [includeProperties, setIncludeProperties] = useState(
+    () => currentRoute().search.get("properties") !== "false",
+  );
+
+  const changeIncludeProperties = (value: boolean): void => {
+    const params = Object.fromEntries(currentRoute().search.entries());
+    setIncludeProperties(value);
+    replaceRouteState(routeHref("ontology", {
+      params: { ...params, properties: value ? null : "false" },
+    }));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -81,7 +98,7 @@ export function OntologyRoute({ client }: Props) {
           <OntologyBody
             data={data}
             includeProperties={includeProperties}
-            onIncludePropertiesChange={setIncludeProperties}
+            onIncludePropertiesChange={changeIncludeProperties}
           />
         )}
       </AsyncBoundary>
@@ -108,15 +125,12 @@ function OntologyBody({
   const [view, setView] = useState<OntologyView>(() => ontologyView(currentRoute().search.get("view")));
   const [selectedLink, setSelectedLink] = useState<string | null>(() => {
     const requested = currentRoute().search.get("link");
-    return requested && data.link_types.includes(requested) ? requested : data.link_types[0] ?? null;
+    return ontologyNamedSelection(data.link_types, requested);
   });
   const actionTypes = data.action_types ?? [];
-  const [selectedAction, setSelectedAction] = useState<string | null>(() => {
-    const requested = currentRoute().search.get("action");
-    return requested && actionTypes.some((action) => action.name === requested)
-      ? requested
-      : actionTypes[0]?.name ?? null;
-  });
+  const [selectedAction, setSelectedAction] = useState<string | null>(
+    () => requestedOntologyAction(currentRoute().search),
+  );
   const [invalidName, setInvalidName] = useState<string | null>(() => {
     const requested = currentRoute().search.get("type");
     return requested && !data.nodes?.some((node) => node.name === requested) ? requested : null;
@@ -130,13 +144,8 @@ function OntologyBody({
       setSelectedName(valid ? requested : requested ? null : data.nodes?.[0]?.name ?? null);
       setView(ontologyView(route.search.get("view")));
       const link = route.search.get("link");
-      setSelectedLink(link && data.link_types.includes(link) ? link : data.link_types[0] ?? null);
-      const action = route.search.get("action");
-      setSelectedAction(
-        action && actionTypes.some((item) => item.name === action)
-          ? action
-          : actionTypes[0]?.name ?? null,
-      );
+      setSelectedLink(ontologyNamedSelection(data.link_types, link));
+      setSelectedAction(requestedOntologyAction(route.search));
     };
     window.addEventListener("popstate", sync);
     window.addEventListener("fdai:route-changed", sync);

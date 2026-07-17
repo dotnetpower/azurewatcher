@@ -331,6 +331,111 @@ export default defineConfig({
           ],
         },
         {
+          label: "SRE",
+          translations: { ko: "SRE" },
+          items: [
+            {
+              label: "SRE overview",
+              translations: { ko: "SRE 개요" },
+              link: "/sre/",
+            },
+            {
+              label: "FDAI SRE foundations",
+              translations: { ko: "FDAI SRE 기초" },
+              link: "/concepts/sre-foundations/",
+            },
+            {
+              label: "Observe and prevent",
+              translations: { ko: "관찰과 예방" },
+              items: [
+                {
+                  label: "Observability, detection, and forecasting",
+                  translations: { ko: "관측성, 감지, 예측" },
+                  link: "/sre/observability-detection-and-forecasting/",
+                },
+                {
+                  label: "SLOs and error budgets",
+                  translations: { ko: "SLO와 오류 예산" },
+                  link: "/sre/slos-and-error-budgets/",
+                },
+                {
+                  label: "Capacity and performance",
+                  translations: { ko: "용량과 성능" },
+                  link: "/sre/capacity-and-performance/",
+                },
+              ],
+            },
+            {
+              label: "Incident response",
+              translations: { ko: "인시던트 대응" },
+              items: [
+                {
+                  label: "Incident management",
+                  translations: { ko: "인시던트 관리" },
+                  link: "/sre/incident-management/",
+                },
+                {
+                  label: "Triage and investigation",
+                  translations: { ko: "분류와 조사" },
+                  link: "/sre/triage-and-investigation/",
+                },
+                {
+                  label: "Root-cause analysis",
+                  translations: { ko: "근본 원인 분석" },
+                  link: "/sre/root-cause-analysis/",
+                },
+                {
+                  label: "Response plans and mitigation",
+                  translations: { ko: "대응 계획과 완화" },
+                  link: "/sre/response-plans-and-mitigation/",
+                },
+                {
+                  label: "On-call and escalation",
+                  translations: { ko: "온콜과 에스컬레이션" },
+                  link: "/sre/on-call-and-escalation/",
+                },
+              ],
+            },
+            {
+              label: "Learn and improve",
+              translations: { ko: "학습과 개선" },
+              items: [
+                {
+                  label: "SRE scenario validation",
+                  translations: { ko: "SRE 시나리오 검증" },
+                  link: "/sre/scenario-validation-inventory/",
+                },
+                {
+                  label: "Postmortems and learning",
+                  translations: { ko: "포스트모템과 학습" },
+                  link: "/sre/postmortems-and-learning/",
+                },
+                {
+                  label: "Measuring SRE outcomes",
+                  translations: { ko: "SRE 성과 측정" },
+                  link: "/sre/measuring-sre-outcomes/",
+                },
+              ],
+            },
+            {
+              label: "Resilience engineering",
+              translations: { ko: "회복탄력성 엔지니어링" },
+              items: [
+                {
+                  label: "Disaster recovery and drills",
+                  translations: { ko: "재해 복구와 훈련" },
+                  link: "/sre/disaster-recovery-and-drills/",
+                },
+                {
+                  label: "Chaos engineering",
+                  translations: { ko: "카오스 엔지니어링" },
+                  link: "/sre/chaos-engineering/",
+                },
+              ],
+            },
+          ],
+        },
+        {
           label: "Capabilities",
           translations: { ko: "\uae30\ub2a5" },
           items: [
@@ -385,6 +490,57 @@ export default defineConfig({
               label: "Operator console",
               translations: { ko: "\uc6b4\uc601\uc790 \ucf58\uc194" },
               link: "/reference/roadmap/interfaces/operator-console/",
+            },
+            {
+              label: "Runbooks",
+              translations: { ko: "Runbook" },
+              items: [
+                {
+                  label: "Runbook index",
+                  translations: { ko: "Runbook 목록" },
+                  link: "/runbooks/",
+                },
+                {
+                  label: "Incident triage",
+                  translations: { ko: "인시던트 분류" },
+                  link: "/runbooks/incident-triage/",
+                },
+                {
+                  label: "SLO burn response",
+                  translations: { ko: "SLO burn 대응" },
+                  link: "/runbooks/slo-burn-response/",
+                },
+                {
+                  label: "RCA evidence collection",
+                  translations: { ko: "RCA 증거 수집" },
+                  link: "/runbooks/rca-evidence-collection/",
+                },
+                {
+                  label: "Mitigation and rollback",
+                  translations: { ko: "완화와 rollback" },
+                  link: "/runbooks/incident-mitigation-and-rollback/",
+                },
+                {
+                  label: "Postmortem workflow",
+                  translations: { ko: "포스트모템 workflow" },
+                  link: "/runbooks/postmortem-workflow/",
+                },
+                {
+                  label: "DB-DR restore drill",
+                  translations: { ko: "DB-DR 복원 훈련" },
+                  link: "/runbooks/db-dr-drill/",
+                },
+                {
+                  label: "Chaos game day",
+                  translations: { ko: "Chaos game day" },
+                  link: "/runbooks/chaos-game-day/",
+                },
+                {
+                  label: "Alert tuning",
+                  translations: { ko: "Alert tuning" },
+                  link: "/runbooks/alert-tuning/",
+                },
+              ],
             },
             {
               label: "Approvals & channels",

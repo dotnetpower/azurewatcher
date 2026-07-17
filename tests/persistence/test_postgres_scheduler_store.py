@@ -18,7 +18,11 @@ from pathlib import Path
 
 import pytest
 
-from fdai.core.scheduler.models import ScheduledTask
+from fdai.core.scheduler.models import (
+    ScheduledRunIsolationProfile,
+    ScheduledTask,
+    ScheduleKind,
+)
 from fdai.core.scheduler.store import ScheduleNotFoundError
 from fdai.delivery.persistence.postgres_scheduler_store import (
     PostgresScheduleStore,
@@ -148,3 +152,52 @@ async def test_scheduler_run_once_over_postgres_store() -> None:
     refreshed = await store.get(tid)
     assert refreshed.last_run is not None
     await store.cancel(tid)
+
+
+@pytest.mark.integration
+async def test_expanded_schedule_fields_and_event_exit_survive_restart() -> None:
+    url = _requires_live_db()
+    _upgrade_head()
+    dsn = _plain_dsn(url)
+    store = PostgresScheduleStore(config=PostgresScheduleStoreConfig(dsn=dsn))
+    cron_id = f"cron-{uuid.uuid4().hex[:8]}"
+    exit_id = f"exit-{uuid.uuid4().hex[:8]}"
+    await store.create(
+        ScheduledTask(
+            task_id=cron_id,
+            name="local cron",
+            interval_seconds=60,
+            event_type="synthetic.cron",
+            created_by="operator-example",
+            schedule_kind=ScheduleKind.CRON,
+            cron_expression="0 21 * * *",
+            timezone="Asia/Seoul",
+        )
+    )
+    await store.create(
+        ScheduledTask(
+            task_id=exit_id,
+            name="until deployment",
+            interval_seconds=60,
+            event_type="synthetic.until",
+            created_by="operator-example",
+            schedule_kind=ScheduleKind.EVENT_EXIT,
+            exit_event_type="deployment.completed",
+            isolation_profile=ScheduledRunIsolationProfile(
+                profile_id="scheduled.inventory",
+                max_tool_calls=1,
+                allowed_tool_ids=frozenset({"query_inventory"}),
+            ),
+        )
+    )
+
+    restarted = PostgresScheduleStore(config=PostgresScheduleStoreConfig(dsn=dsn))
+    cron = await restarted.get(cron_id)
+    assert cron.kind is ScheduleKind.CRON
+    assert cron.timezone == "Asia/Seoul"
+    assert await restarted.mark_exit_event("deployment.completed", datetime.now(tz=UTC)) >= 1
+    exited = await restarted.get(exit_id)
+    assert exited.enabled is False
+    assert exited.isolation_profile.allowed_tool_ids == frozenset({"query_inventory"})
+    await restarted.cancel(cron_id)
+    await restarted.cancel(exit_id)

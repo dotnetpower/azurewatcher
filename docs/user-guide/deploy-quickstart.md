@@ -11,7 +11,8 @@ derives_from:
 FDAI is provisioned from infrastructure-as-code under `infra/`, with Terraform as
 the execution engine and source of truth. Two equivalent paths stand up the same
 minimum-set Azure inventory: a turnkey `azd` wrapper, or Terraform directly.
-Both preview before they apply, so an accidental provision is not possible.
+Both support a preview-first workflow. Review the plan before you run the separate
+apply step.
 
 ## Before you start
 
@@ -22,6 +23,9 @@ Both preview before they apply, so an accidental provision is not possible.
   collects quota, permission, connectivity, and rollback blockers before the
   control loop starts.
 - Per-environment values in a `*.tfvars` file, which is **never committed**.
+- Network access from the deployment host to every private endpoint. In a
+   private-only environment, run Terraform from the VNet-connected deployment
+   runner instead of an operator workstation.
 
 ## Provision the minimum-set inventory
 
@@ -67,7 +71,7 @@ terraform -chdir=infra apply -var-file=envs/dev.tfvars
 4. **Promote one action.** Turn on enforcement only for an action that clears its
    promotion gate, and leave the rest in shadow.
 
-The [Get started](../get-started/) guide covers this first safe rollout in
+The [Get started](get-started.md) guide covers this first safe rollout in
 depth, and [deploy and onboard](../roadmap/deployment/deploy-and-onboard.md) is
 the full deployment reference.
 
@@ -77,5 +81,5 @@ the full deployment reference.
 
 - [Preflight](../roadmap/deployment/deployment-preflight.md) - Resolve blockers before you provision.
 - [Deploy and onboard](../roadmap/deployment/deploy-and-onboard.md) - The full deployment reference and Azure inventory.
-- [Get started](../get-started/) - Orientation and your first safe rollout.
+- [Get started](get-started.md) - Orientation and your first safe rollout.
 - [Operator console](../roadmap/interfaces/operator-console.md) - Run and query FDAI once it is live.

@@ -2,13 +2,15 @@
 // mount-docs.mjs - link canonical Markdown under docs/ into
 // src/content/docs without copying, using symbolic links.
 //
-// The site presents two content trees, both mounted as read-only
+// The site presents three content trees, all mounted as read-only
 // views over the canonical Markdown:
 //
 //   docs/user-guide/**       → site/src/content/docs/**           (root locale)
 //                              site/src/content/docs/ko/**        (Korean)
 //   docs/roadmap/**          → site/src/content/docs/reference/roadmap/**
 //                              site/src/content/docs/ko/reference/roadmap/**
+//   docs/runbooks/**         → site/src/content/docs/runbooks/**
+//                              site/src/content/docs/ko/runbooks/**
 //
 // User-facing pages (Get Started, Concepts, Guides) sit at the top
 // of the URL space; the engineering roadmap moves under /reference/
@@ -62,6 +64,9 @@ const ROADMAP_SITE_ALLOWLIST = new Set([
   "README",
   "goals-and-metrics",
   "risk-classification",
+  "observability-and-detection",
+  "escalation-and-standing-authority",
+  "operating-and-verification",
   "operator-console",
   "channels-and-notifications",
   "deploy-and-onboard",
@@ -71,6 +76,20 @@ const ROADMAP_SITE_ALLOWLIST = new Set([
   "agent-workflows",
   "operational-readiness",
   "architecture-review-board",
+]);
+
+const RUNBOOK_SITE_ALLOWLIST = new Set([
+  "README",
+  "alert-tuning",
+  "chaos-game-day",
+  "db-dr-drill",
+  "exemption-workflow",
+  "entra-app-registration",
+  "incident-mitigation-and-rollback",
+  "incident-triage",
+  "postmortem-workflow",
+  "rca-evidence-collection",
+  "slo-burn-response",
 ]);
 
 /**
@@ -93,6 +112,13 @@ const MOUNTS = [
     koPrefix: ["ko", "reference", "roadmap"],
     optional: false,
     include: ROADMAP_SITE_ALLOWLIST,
+  },
+  {
+    source: resolve(repoRoot, "docs", "runbooks"),
+    enPrefix: ["runbooks"],
+    koPrefix: ["ko", "runbooks"],
+    optional: false,
+    include: RUNBOOK_SITE_ALLOWLIST,
   },
 ];
 

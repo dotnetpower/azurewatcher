@@ -41,18 +41,19 @@ export function ProcessWidget({ widget }: { readonly widget: RenderedWidget }) {
 
 function BarChartWidget({ widget }: { readonly widget: RenderedWidget }) {
   const bars = asRows(widget.data["bars"]);
-  const max = Math.max(1, ...bars.map((bar) => numeric(bar["value"])));
+  const values = bars.map((bar) => numericBarValue(bar["value"]));
+  const max = Math.max(1, ...values.filter((value): value is number => value !== null));
   return (
     <section class="process-widget-section report-bar-chart" aria-labelledby={`${widget.id}-title`}>
       <h3 id={`${widget.id}-title`}>{widget.title}</h3>
       <div class="report-bars">
         {bars.map((bar, index) => {
-          const value = numeric(bar["value"]);
+          const value = numericBarValue(bar["value"]);
           return (
             <div class="report-bar-row" key={`${widget.id}-${index}`}>
               <span>{displayValue(bar["label"])}</span>
               <span class="report-bar-track" aria-hidden="true">
-                <span style={{ width: `${Math.max(2, (value / max) * 100)}%` }} />
+                <span style={{ width: `${barWidthPercent(value, max)}%` }} />
               </span>
               <strong>{displayValue(bar["value"])}</strong>
             </div>
@@ -106,8 +107,13 @@ function TabsWidget({ widget }: { readonly widget: RenderedWidget }) {
             tabIndex={index === active ? 0 : -1}
             onClick={() => setActive(index)}
             onKeyDown={(event) => {
-              const next = nextTabIndex(active, event.key, children.length);
-              if (next !== active) {
+              const next = activateTabByKey(index, event.key, children.length, (targetIndex) => {
+                event.currentTarget.parentElement
+                  ?.querySelectorAll<HTMLButtonElement>("[role='tab']")
+                  .item(targetIndex)
+                  ?.focus();
+              });
+              if (next !== index) {
                 event.preventDefault();
                 setActive(next);
               }
@@ -133,6 +139,26 @@ export function nextTabIndex(current: number, key: string, count: number): numbe
   if (key === "ArrowRight" || key === "ArrowDown") return (current + 1) % count;
   if (key === "ArrowLeft" || key === "ArrowUp") return (current - 1 + count) % count;
   return current;
+}
+
+export function activateTabByKey(
+  current: number,
+  key: string,
+  count: number,
+  focus: (index: number) => void,
+): number {
+  const next = nextTabIndex(current, key, count);
+  if (next !== current) focus(next);
+  return next;
+}
+
+export function numericBarValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+export function barWidthPercent(value: number | null, maximum: number): number {
+  if (value === null || value <= 0 || maximum <= 0) return 0;
+  return Math.min(100, (value / maximum) * 100);
 }
 
 function CheckStatusWidget({ widget }: { readonly widget: RenderedWidget }) {
@@ -259,10 +285,6 @@ function deriveColumns(rows: readonly Readonly<Record<string, unknown>>[]): read
   const names = new Set<string>();
   rows.forEach((row) => Object.keys(row).forEach((key) => names.add(key)));
   return [...names].slice(0, 20);
-}
-
-function numeric(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function numericPoints(value: unknown): readonly (readonly [number, number])[] {

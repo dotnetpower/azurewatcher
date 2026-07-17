@@ -39,6 +39,8 @@ class TestDefaultReportingEngine:
         # raises.
         for widget in rendered.widgets:
             assert widget.error is None
+        assert rendered.provenance.availability == "unavailable"
+        assert rendered.provenance.sources[0].source == "noop"
 
     def test_yaml_load_fails_when_datasource_missing(self, tmp_path: Path) -> None:
         # Craft a report that references an unwired datasource; the
@@ -94,6 +96,8 @@ widgets:
         assert {"audit", "report_feed", "metric", "log_query"} <= names
         # The sample catalog still validates and renders end to end.
         rendered = _sync_render(engine, "shadow-mode-daily")
+        assert rendered.provenance.availability == "available"
+        assert rendered.provenance.synthetic is False
         for widget in rendered.widgets:
             assert widget.error is None
 

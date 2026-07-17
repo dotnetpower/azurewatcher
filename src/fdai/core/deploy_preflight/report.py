@@ -28,6 +28,7 @@ from enum import StrEnum
 from fdai.shared.contracts.models import Mode
 from fdai.shared.providers.feasibility_probe import (
     FindingSeverity,
+    ProbeCategory,
     ProbeFinding,
 )
 
@@ -49,6 +50,7 @@ class DeploymentReadinessReport:
     mode: Mode
     verdict: ReadinessVerdict
     findings: tuple[ProbeFinding, ...]
+    checked_categories: tuple[ProbeCategory, ...]
 
     @property
     def blocking_findings(self) -> tuple[ProbeFinding, ...]:
@@ -65,11 +67,23 @@ class DeploymentReadinessReport:
 
     def to_dict(self) -> dict[str, object]:
         """Serialize to a plain JSON-friendly dict for delivery adapters."""
+        finding_counts = {
+            category: sum(1 for finding in self.findings if finding.category is category)
+            for category in self.checked_categories
+        }
         return {
             "scope": self.scope,
             "generated_at": self.generated_at,
             "mode": self.mode.value,
             "verdict": self.verdict.value,
             "blocks_deploy": self.blocks_deploy,
+            "checks": [
+                {
+                    "category": category.value,
+                    "status": "finding" if finding_counts[category] else "clear",
+                    "finding_count": finding_counts[category],
+                }
+                for category in self.checked_categories
+            ],
             "findings": [f.to_dict() for f in self.findings],
         }

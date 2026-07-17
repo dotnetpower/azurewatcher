@@ -15,8 +15,13 @@ import pytest
 
 from fdai.core.quality_gate.gate import QualityCandidate
 from fdai.delivery.azure.llm.latency_routed_cross_check import (
+    InMemoryModelHealthTransitionSink,
     LatencyRoutedCrossCheckModel,
+    ModelFailureKind,
+    ModelPoolUnavailableError,
+    classify_model_failure,
 )
+from fdai.shared.telemetry import InMemoryRoutingTransitionSink
 
 
 def _candidate() -> QualityCandidate:
@@ -53,6 +58,18 @@ class _RaisingModel:
         del candidate
         self.calls += 1
         raise RuntimeError("upstream down")
+
+
+class _StatusError(RuntimeError):
+    def __init__(self, status_code: int) -> None:
+        super().__init__("provider detail")
+        self.status_code = status_code
+
+
+class _FailingTransitionSink:
+    async def append(self, transition: object) -> None:
+        del transition
+        raise RuntimeError("telemetry unavailable")
 
 
 class TestConstruction:
@@ -101,14 +118,115 @@ class TestRouting:
         assert router.current_pick_name() == "b-fast"
         assert fast.calls > slow.calls
 
-    async def test_failure_penalizes_and_reraises(self) -> None:
+    async def test_failure_penalizes_and_fails_over_within_call(self) -> None:
         boom = _RaisingModel()
-        ok = _FixedLatencyModel(delay_ms=2)
+        ok = _FixedLatencyModel(delay_ms=2, result=("fallback.action", {"safe": True}))
         router = LatencyRoutedCrossCheckModel(candidates=[("a", boom), ("z", ok)])
+
+        result = await router.propose(_candidate())
+
+        assert result == ("fallback.action", {"safe": True})
+        assert boom.calls == 1
+        assert ok.calls == 1
+
+    async def test_transition_sink_failure_does_not_block_model_failover(self) -> None:
+        boom = _RaisingModel()
+        ok = _FixedLatencyModel(delay_ms=1, result=("fallback.action", {"safe": True}))
+        router = LatencyRoutedCrossCheckModel(
+            candidates=[("a", boom), ("b", ok)],
+            transition_sink=_FailingTransitionSink(),
+        )
+
+        result = await router.propose(_candidate())
+
+        assert result == ("fallback.action", {"safe": True})
+
+    async def test_all_failures_raise_after_each_candidate_once(self) -> None:
+        first = _RaisingModel()
+        second = _RaisingModel()
+        router = LatencyRoutedCrossCheckModel(candidates=[("a", first), ("b", second)])
+
         with pytest.raises(RuntimeError, match="upstream down"):
-            await router.propose(_candidate())  # cold -> picks "a"
-        # "a" carries a penalty sample; the still-cold "z" is picked next.
-        assert router.current_pick_name() == "z"
+            await router.propose(_candidate())
+
+        assert first.calls == 1
+        assert second.calls == 1
+
+    async def test_cooldown_skips_failed_candidate_then_allows_recovery_probe(self) -> None:
+        now = [100.0]
+        boom = _RaisingModel()
+        ok = _FixedLatencyModel(delay_ms=1)
+        router = LatencyRoutedCrossCheckModel(
+            candidates=[("a", boom), ("b", ok)],
+            clock=lambda: now[0],
+        )
+
+        await router.propose(_candidate())
+        assert router.current_pick_name() == "b"
+        state = {row["deployment"]: row for row in router.stats()}
+        assert state["a"]["last_failure_kind"] == "unknown"
+        assert state["a"]["cooldown_remaining_seconds"] == 30
+
+        now[0] += 31
+        assert router.current_pick_name() == "a"
+
+    async def test_failure_and_recovery_transitions_are_role_scoped(self) -> None:
+        now = [100.0]
+        transitions = InMemoryModelHealthTransitionSink()
+        first = _RaisingModel()
+        fallback = _FixedLatencyModel(delay_ms=1)
+        router = LatencyRoutedCrossCheckModel(
+            candidates=[("a", first), ("b", fallback)],
+            clock=lambda: now[0],
+            transition_sink=transitions,
+            model_role="narrator",
+        )
+        await router.propose(_candidate())
+        first.propose = fallback.propose  # type: ignore[method-assign]
+        now[0] += 31
+        await router.propose(_candidate())
+
+        assert [event.status for event in transitions.transitions] == [
+            "unhealthy",
+            "selected",
+            "recovered",
+            "selected",
+        ]
+        assert all(event.model_role == "narrator" for event in transitions.transitions)
+        assert transitions.transitions[0].failure_kind is ModelFailureKind.UNKNOWN
+        assert transitions.transitions[0].cooldown_seconds == 30
+        assert transitions.transitions[1].reason == "failover_after_1_candidate_failure"
+
+    async def test_model_router_emits_stable_selection_transition(self) -> None:
+        transitions = InMemoryRoutingTransitionSink()
+        router = LatencyRoutedCrossCheckModel(
+            candidates=[
+                ("a", _FixedLatencyModel(delay_ms=1)),
+                ("b", _FixedLatencyModel(delay_ms=1)),
+            ],
+            routing_transition_sink=transitions,
+        )
+
+        await router.propose(_candidate())
+
+        assert transitions.transitions[0].domain == "model"
+        assert transitions.transitions[0].outcome == "selected"
+
+    async def test_all_candidates_in_cooldown_fail_fast_on_next_call(self) -> None:
+        now = [100.0]
+        first = _RaisingModel()
+        second = _RaisingModel()
+        router = LatencyRoutedCrossCheckModel(
+            candidates=[("a", first), ("b", second)],
+            clock=lambda: now[0],
+        )
+        with pytest.raises(RuntimeError, match="upstream down"):
+            await router.propose(_candidate())
+
+        with pytest.raises(ModelPoolUnavailableError, match="cooling down"):
+            await router.propose(_candidate())
+        assert first.calls == 1
+        assert second.calls == 1
 
     async def test_records_chosen_deployment_for_audit(self, caplog: Any) -> None:
         a = _FixedLatencyModel(delay_ms=1)
@@ -135,3 +253,18 @@ class TestRouting:
         after = {row["deployment"]: row for row in router.stats()}
         assert after["a"]["samples"] == 1
         assert isinstance(after["a"]["p50_ms"], (int, float))
+
+
+@pytest.mark.parametrize(
+    ("error", "kind"),
+    (
+        (_StatusError(401), ModelFailureKind.AUTH),
+        (_StatusError(429), ModelFailureKind.RATE_LIMIT),
+        (_StatusError(503), ModelFailureKind.OVERLOADED),
+        (TimeoutError(), ModelFailureKind.TIMEOUT),
+        (ConnectionError(), ModelFailureKind.TRANSPORT),
+        (RuntimeError(), ModelFailureKind.UNKNOWN),
+    ),
+)
+def test_failure_classification(error: Exception, kind: ModelFailureKind) -> None:
+    assert classify_model_failure(error) is kind

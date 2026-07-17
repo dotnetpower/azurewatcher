@@ -17,10 +17,10 @@ report's ``blocks_deploy`` flag (enforce mode + promoted category), never the
 probe. Read-only and fail-closed - any ARM error propagates as
 :class:`AzurePreflightError` so the pass never reports a false ``clear``.
 
-Resource-type namespace: for the Azure adapter, ``PreflightTarget.resource_types``
-carry ARM types (``Microsoft.Compute/disks``) so they match the policy ``type``
-field directly - the composition root populates the target from the plan's ARM
-types.
+Resource-type namespace: ``PreflightTarget.resource_types`` stays CSP-neutral.
+``AzurePolicyProbeConfig.resource_type_map`` translates those values to ARM types
+(``Microsoft.Compute/disks``) inside this adapter. Direct ARM types remain accepted
+for compatibility; an unmapped neutral type fails closed before an ARM request.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from fdai.delivery.azure.preflight._client import AzureArmClient
+from fdai.delivery.azure.preflight._client import AzureArmClient, AzurePreflightError
 from fdai.shared.providers.feasibility_probe import (
     FindingSeverity,
     PreflightTarget,
@@ -54,6 +54,7 @@ class AzurePolicyProbeConfig:
     resource_group: str | None = None
     assignments_api_version: str = _DEFAULT_ASSIGNMENTS_API
     definitions_api_version: str = _DEFAULT_DEFINITIONS_API
+    resource_type_map: Mapping[str, str] = field(default_factory=dict)
     resolutions: Mapping[str, ToggleResolution] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -82,6 +83,10 @@ class AzurePolicyGuardrailProbe:
     async def evaluate(self, target: PreflightTarget) -> Sequence[ProbeFinding]:
         if not target.resource_types:
             return ()
+        arm_resource_types = _arm_resource_types(
+            target.resource_types,
+            self._config.resource_type_map,
+        )
         assignments = await self._client.get_values(
             f"{self._config.scope}/providers/Microsoft.Authorization/policyAssignments",
             api_version=self._config.assignments_api_version,
@@ -90,14 +95,14 @@ class AzurePolicyGuardrailProbe:
         findings: list[ProbeFinding] = []
         seen: set[tuple[str, str]] = set()
         for assignment in assignments:
-            findings.extend(await self._evaluate_assignment(assignment, target, seen))
+            findings.extend(await self._evaluate_assignment(assignment, arm_resource_types, seen))
         # Deterministic order: blocking findings by (resource type, policy id).
         return tuple(sorted(findings, key=lambda f: f.id))
 
     async def _evaluate_assignment(
         self,
         assignment: Mapping[str, Any],
-        target: PreflightTarget,
+        arm_resource_types: tuple[str, ...],
         seen: set[tuple[str, str]],
     ) -> list[ProbeFinding]:
         props = assignment.get("properties")
@@ -113,7 +118,7 @@ class AzurePolicyGuardrailProbe:
         if parsed is None:
             return []
         mode, denied_types, policy_ref = parsed
-        denied_hit = _denied_hit(mode, denied_types, target.resource_types)
+        denied_hit = _denied_hit(mode, denied_types, arm_resource_types)
         findings: list[ProbeFinding] = []
         for rtype in sorted(denied_hit):
             key = (rtype, policy_ref)
@@ -159,6 +164,27 @@ def _denied_hit(mode: str, denied_types: frozenset[str], target_types: tuple[str
         return {t for t in targets if _matches(t, denied_types)}
     # allowed: any target type NOT in the allow-list is denied.
     return {t for t in targets if not _matches(t, denied_types)}
+
+
+def _arm_resource_types(
+    target_types: tuple[str, ...],
+    resource_type_map: Mapping[str, str],
+) -> tuple[str, ...]:
+    mapped: set[str] = set()
+    missing: set[str] = set()
+    for resource_type in target_types:
+        if "/" in resource_type:
+            mapped.add(resource_type)
+            continue
+        arm_type = resource_type_map.get(resource_type)
+        if arm_type is None:
+            missing.add(resource_type)
+            continue
+        mapped.add(arm_type)
+    if missing:
+        values = ", ".join(sorted(missing))
+        raise AzurePreflightError(f"ARM resource type mapping is missing for: {values}")
+    return tuple(sorted(mapped))
 
 
 def _matches(resource_type: str, listed: frozenset[str]) -> bool:

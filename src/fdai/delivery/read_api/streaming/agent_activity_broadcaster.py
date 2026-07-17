@@ -45,7 +45,12 @@ from fdai.delivery.read_api.streaming.agent_activity_stream import (
     AgentActivityPublisher,
 )
 from fdai.shared.providers.event_bus import EventBus
-from fdai.shared.providers.stage_publisher import StageEvent, StageName, StagePhase
+from fdai.shared.providers.stage_publisher import (
+    ObservationSource,
+    StageEvent,
+    StageName,
+    StagePhase,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,6 +87,11 @@ def parse_stage_event(payload: Mapping[str, Any]) -> StageEvent | None:
         error = payload.get("error")
         if error is not None and not isinstance(error, str):
             return None
+        source_raw = payload.get("source", ObservationSource.UNKNOWN.value)
+        try:
+            source = ObservationSource(source_raw)
+        except (TypeError, ValueError):
+            source = ObservationSource.UNKNOWN
         # StageEvent.__post_init__ enforces the FAILED-iff-error and tz-aware
         # invariants; a violation raises and we fail closed below.
         return StageEvent(
@@ -89,6 +99,7 @@ def parse_stage_event(payload: Mapping[str, Any]) -> StageEvent | None:
             correlation_id=correlation_id,
             stage=stage,
             phase=phase,
+            source=source,
             ts=ts,
             detail=dict(detail),
             error=error,

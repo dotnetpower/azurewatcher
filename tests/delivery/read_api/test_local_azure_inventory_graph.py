@@ -9,6 +9,7 @@ import pytest
 from fdai.delivery.read_api.dev.azure_inventory_graph import (
     AzureCliInventoryGraphProvider,
 )
+from fdai.delivery.read_api.routes.inventory_graph import InventoryGraphViewNotFoundError
 from fdai.shared.providers.inventory import InventoryBatch, ResourceRecord
 
 
@@ -95,6 +96,13 @@ def test_filters_links_and_marks_truncation() -> None:
     graph = asyncio.run(provider(None, 4, ("depends_on",)))
     assert graph["truncated"] is True
     assert graph["links"] == []
+
+
+def test_rejects_unknown_named_view() -> None:
+    provider = AzureCliInventoryGraphProvider(inventory=_Inventory())
+
+    with pytest.raises(InventoryGraphViewNotFoundError, match="production"):
+        asyncio.run(provider("production", 4, ("contains",)))
 
 
 def test_rejects_snapshot_without_final_fence() -> None:

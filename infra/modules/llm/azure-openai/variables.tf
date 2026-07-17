@@ -56,19 +56,35 @@ variable "resolved_capabilities" {
     filter; keeping the boundary explicit).
 
     Every entry deploys as `azurerm_cognitive_deployment` under the account.
-    The Terraform-side capacity is the resolver's `capacity_tpm` divided by
-    1000 (Azure counts capacity in units of 1k TPM), rounded down.
+    Standard entries use `capacity_tpm` divided by 1000. Provisioned entries
+    use `capacity_value` as the exact PTU count and MUST NOT populate TPM.
   EOT
   type = list(object({
-    name         = string
-    family       = string
-    sku          = string
-    capacity_tpm = number
+    name           = string
+    family         = string
+    sku            = string
+    capacity_tpm   = optional(number, 0)
+    capacity_unit  = optional(string, "tpm")
+    capacity_value = optional(number, 0)
   }))
   default = []
 
   validation {
     condition     = length(distinct([for c in var.resolved_capabilities : c.name])) == length(var.resolved_capabilities)
     error_message = "resolved_capabilities MUST have unique names."
+  }
+
+
+  validation {
+    condition = alltrue([
+      for capability in var.resolved_capabilities :
+      contains(["tpm", "ptu"], capability.capacity_unit) &&
+      (
+        capability.capacity_unit == "tpm"
+        ? capability.capacity_tpm >= 1000 && capability.capacity_value == 0
+        : capability.capacity_tpm == 0 && capability.capacity_value >= 1
+      )
+    ])
+    error_message = "resolved capabilities MUST declare exactly one TPM or PTU capacity value."
   }
 }

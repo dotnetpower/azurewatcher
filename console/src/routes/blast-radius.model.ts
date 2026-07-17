@@ -22,21 +22,27 @@ export function blastRadiusQueryFromSearch(search: string): BlastRadiusQuery {
   const links = [...new Set(requestedLinks.map((value) => value.trim()).filter(
     (value) => BLAST_RADIUS_LINKS.includes(value as (typeof BLAST_RADIUS_LINKS)[number]),
   ))];
+  const explicitlyEmptyLinks = params.get("links") === "none";
   return {
     target,
     depth,
-    links: links.length > 0 ? links : DEFAULT_BLAST_RADIUS_LINKS,
+    links: explicitlyEmptyLinks ? [] : links.length > 0 ? links : DEFAULT_BLAST_RADIUS_LINKS,
     architectureView: params.get("view")?.trim() || null,
   };
 }
 
-export function blastRadiusHref(query: BlastRadiusQuery): string {
+export function blastRadiusHref(query: BlastRadiusQuery, result: string | null = null): string {
   return routeHref("blast-radius", {
     params: {
       target: query.target,
       depth: query.depth,
-      links: query.links.join(","),
+      links: query.links.length > 0 ? query.links.join(",") : "none",
       view: query.architectureView,
+      result,
     },
   });
+}
+
+export function blastRadiusRequestIsCurrent(current: number, candidate: number): boolean {
+  return current === candidate;
 }

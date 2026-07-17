@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  clearScheduledTimeouts,
   matchingTurnIndexes,
   clampDockWidth,
   parseDeckLayoutMode,
@@ -7,6 +8,18 @@ import {
   restoredTurn,
   sessionIdFor,
 } from "./command-deck";
+
+describe("Deck scheduled work", () => {
+  test("cancels every tracked context timeout", () => {
+    const timers = new Set([11, 12, 13]);
+    const cleared: number[] = [];
+
+    clearScheduledTimeouts(timers, (timer) => cleared.push(timer));
+
+    expect(cleared).toEqual([11, 12, 13]);
+    expect(timers.size).toBe(0);
+  });
+});
 
 describe("Deck layout mode", () => {
   test("restores supported modes and defaults malformed values to floating", () => {

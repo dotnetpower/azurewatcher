@@ -70,6 +70,7 @@ from starlette.routing import Route
 
 from fdai.delivery.read_api.streaming.live_stream import make_live_stream_route
 from fdai.shared.providers.sse import SseEvent, SseSink
+from fdai.shared.providers.stage_publisher import ObservationSource
 
 # The channel agent-activity publishers fan out on. A relay / emitter MUST
 # publish onto this same channel for its events to reach the console.
@@ -141,6 +142,7 @@ class AgentStateEvent:
     ts: str
     correlation_id: str | None = None
     detail: str | None = None
+    source: ObservationSource = ObservationSource.UNKNOWN
 
     def to_sse_event(self) -> SseEvent:
         return _sse(
@@ -151,6 +153,7 @@ class AgentStateEvent:
                 "ts": self.ts,
                 "correlation_id": self.correlation_id,
                 "detail": self.detail,
+                "source": self.source.value,
             }
         )
 
@@ -167,6 +170,7 @@ class IncidentTicketEvent:
     involved_agents: Sequence[str]
     ts: str
     rca: str | None = None
+    source: ObservationSource = ObservationSource.UNKNOWN
 
     def to_sse_event(self) -> SseEvent:
         return _sse(
@@ -180,6 +184,7 @@ class IncidentTicketEvent:
                 "involved_agents": list(self.involved_agents),
                 "rca": self.rca,
                 "ts": self.ts,
+                "source": self.source.value,
             }
         )
 
@@ -194,6 +199,7 @@ class ConversationTurnEvent:
     kind: TurnKind
     text: str
     ts: str
+    source: ObservationSource = ObservationSource.UNKNOWN
 
     def to_sse_event(self) -> SseEvent:
         return _sse(
@@ -205,6 +211,7 @@ class ConversationTurnEvent:
                 "kind": self.kind.value,
                 "text": self.text,
                 "ts": self.ts,
+                "source": self.source.value,
             }
         )
 

@@ -12,10 +12,16 @@ import httpx
 from fdai.core.metering.emitter import MeteringEmitter
 from fdai.core.quality_gate.gate import QualityCandidate
 from fdai.core.tiers.t2_reasoning import T2ProposalContext
+from fdai.delivery.azure.llm.gateway_evidence import record_gateway_route_evidence
+from fdai.delivery.azure.llm.latency_routed_cross_check import ModelHealthTransitionSink
+from fdai.delivery.azure.llm.request_target import (
+    COGNITIVE_SERVICES_SCOPE,
+    ModelRequestTarget,
+)
 from fdai.delivery.azure.llm.usage import extract_usage
+from fdai.rule_catalog.schema.model_endpoint import ModelApiStyle, ModelRouteKind
 from fdai.shared.providers.workload_identity import WorkloadIdentity
 
-_COGNITIVE_SCOPE: Final[str] = "https://cognitiveservices.azure.com/.default"
 _SECRET_KEYS: Final[frozenset[str]] = frozenset(
     {"authorization", "credential", "password", "secret", "token"}
 )
@@ -30,6 +36,10 @@ class AzureOpenAIProposerConfig:
     temperature: float = 0.0
     max_tokens: int = 512
     timeout_seconds: float = 30.0
+    api_style: ModelApiStyle = ModelApiStyle.AZURE_OPENAI
+    auth_audience: str = COGNITIVE_SERVICES_SCOPE
+    route_kind: ModelRouteKind = ModelRouteKind.DIRECT
+    binding_id: str | None = None
 
 
 class AzureOpenAIProposer:
@@ -42,11 +52,17 @@ class AzureOpenAIProposer:
         http_client: httpx.AsyncClient,
         config: AzureOpenAIProposerConfig,
         metering: MeteringEmitter | None = None,
+        gateway_route_sink: ModelHealthTransitionSink | None = None,
     ) -> None:
-        if not config.endpoint.startswith(("https://", "http://")):
-            raise ValueError("endpoint MUST be an absolute https URL")
-        if not config.deployment:
-            raise ValueError("deployment MUST NOT be empty")
+        target = ModelRequestTarget(
+            endpoint=config.endpoint,
+            deployment=config.deployment,
+            api_style=config.api_style,
+            api_version=config.api_version,
+            auth_audience=config.auth_audience,
+            route_kind=config.route_kind,
+            binding_id=config.binding_id,
+        )
         if not config.system_prompt:
             raise ValueError("system_prompt MUST NOT be empty")
         if config.max_tokens < 1:
@@ -59,17 +75,14 @@ class AzureOpenAIProposer:
         self._http = http_client
         self._config = config
         self._metering = metering
+        self._target = target
+        self._gateway_route_sink = gateway_route_sink
 
     async def propose(self, *, context: T2ProposalContext) -> QualityCandidate | None:
         if not context.allowed_rules or not context.target_resource_ref:
             return None
-        token = await self._identity.get_token(_COGNITIVE_SCOPE)
-        url = (
-            self._config.endpoint.rstrip("/")
-            + "/openai/deployments/"
-            + self._config.deployment
-            + "/chat/completions"
-        )
+        token = await self._identity.get_token(self._target.auth_audience)
+        request = self._target.operation("chat/completions")
         body: dict[str, Any] = {
             "messages": [
                 {"role": "system", "content": self._config.system_prompt},
@@ -79,9 +92,11 @@ class AzureOpenAIProposer:
             "max_tokens": self._config.max_tokens,
             "response_format": {"type": "json_object"},
         }
+        if request.model_body_field is not None:
+            body["model"] = request.model_body_field
         response = await self._http.post(
-            url,
-            params={"api-version": self._config.api_version},
+            request.url,
+            params=request.params,
             headers={
                 "Authorization": f"Bearer {token.token}",
                 "Content-Type": "application/json",
@@ -90,6 +105,12 @@ class AzureOpenAIProposer:
             timeout=self._config.timeout_seconds,
         )
         response.raise_for_status()
+        await record_gateway_route_evidence(
+            response=response,
+            target=self._target,
+            model_role="t2.reasoner.primary",
+            sink=self._gateway_route_sink,
+        )
         envelope = response.json()
         if self._metering is not None:
             usage = extract_usage(envelope)

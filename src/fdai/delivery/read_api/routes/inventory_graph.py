@@ -23,6 +23,10 @@ InventoryGraphProvider = Callable[
 ]
 
 
+class InventoryGraphViewNotFoundError(LookupError):
+    """Raised by named-view providers for an unknown explicit view id."""
+
+
 def make_inventory_graph_route(
     *,
     provider: InventoryGraphProvider,
@@ -50,7 +54,10 @@ def make_inventory_graph_route(
         if unknown:
             return _error(400, f"unsupported link type(s): {', '.join(unknown)}")
 
-        payload = dict(await provider(scope, depth, links))
+        try:
+            payload = dict(await provider(scope, depth, links))
+        except InventoryGraphViewNotFoundError as exc:
+            return _error(404, str(exc))
         resources = payload.get("resources")
         graph_links = payload.get("links")
         if not isinstance(resources, (list, tuple)) or not isinstance(graph_links, (list, tuple)):
@@ -74,4 +81,9 @@ def _error(status: int, message: str) -> JSONResponse:
     return JSONResponse({"error": {"status": status, "message": message}}, status_code=status)
 
 
-__all__ = ["DEFAULT_ROUTE_PATH", "InventoryGraphProvider", "make_inventory_graph_route"]
+__all__ = [
+    "DEFAULT_ROUTE_PATH",
+    "InventoryGraphProvider",
+    "InventoryGraphViewNotFoundError",
+    "make_inventory_graph_route",
+]

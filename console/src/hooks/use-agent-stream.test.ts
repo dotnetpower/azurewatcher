@@ -26,6 +26,16 @@ describe("agent activity stream boundary", () => {
     }));
     expect(event?.type).toBe("agent.state");
     expect(event && "state" in event ? event.state : null).toBe("watching");
+    expect(event?.source).toBe("unknown");
+    expect(decodeAgentActivityMessage(JSON.stringify({
+      type: "agent.state",
+      agent: "Heimdall",
+      state: "watching",
+      source: "synthetic-dev",
+      ts: "2026-07-16T06:00:00Z",
+      correlation_id: null,
+      detail: null,
+    }))?.source).toBe("synthetic-dev");
   });
 
   test("rejects malformed and unknown semantic frames", () => {

@@ -13,6 +13,7 @@ const summary = {
   description: "Daily evidence.",
   tags: ["shadow"],
   widget_count: 2,
+  datasources: ["audit"],
   variables: [{ name: "env", default: "prod", values: ["prod"], description: "Environment" }],
 };
 
@@ -22,6 +23,13 @@ describe("reporting wire decoders", () => {
       .toBe("shadow-mode-daily");
     expect(decodeReportingRegistry({
       datasources: ["audit"],
+      datasource_provenance: [{
+        datasource: "audit",
+        source: "synthetic-dev",
+        availability: "available",
+        synthetic: true,
+        as_of: "2026-07-15T00:00:00Z",
+      }],
       widgets: ["query_value", "bar_chart"],
       formats: ["json"],
     }).widgets).toEqual(["query_value", "bar_chart"]);
@@ -34,8 +42,20 @@ describe("reporting wire decoders", () => {
         { id: "total", type: "query_value", title: "Total", data: { value: 3 }, options: {} },
         { id: "mode", type: "bar_chart", title: "By mode", data: { bars: [] }, options: {} },
       ],
+      provenance: {
+        availability: "available",
+        synthetic: true,
+        sources: [{
+          datasource: "audit",
+          source: "synthetic-dev",
+          availability: "available",
+          synthetic: true,
+          as_of: "2026-07-15T00:00:00Z",
+        }],
+      },
     });
     expect(rendered.widgets.map((widget) => widget.type)).toEqual(["query_value", "bar_chart"]);
+    expect(rendered.provenance.synthetic).toBe(true);
   });
 
   test("rejects malformed report payloads at the API boundary", () => {

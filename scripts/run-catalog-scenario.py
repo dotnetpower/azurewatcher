@@ -204,6 +204,9 @@ async def _dry_run(factory: ScenarioFactory) -> int:
         "workload_namespace": "demo",
         "workload_label": "api-backend",
         "chaos_namespace": "chaos-mesh",
+        "litmus_namespace": "litmus",
+        "litmus_service_account": "litmus-admin",
+        "litmus_target_node": "node-test",
         "backend_deployment": "api-backend",
         "backend_service": "api-backend",
         "backend_container": "web",
@@ -211,6 +214,23 @@ async def _dry_run(factory: ScenarioFactory) -> int:
         "backend_image": "nginx",
         "resource_group": "rg-test",
         "vm_name": "vm-test",
+        "vmss_name": "vmss-test",
+        "redis_cache_name": "redis-test",
+        "cosmos_account_name": "cosmos-test",
+        "keyvault_name": "kv-test",
+        "nsg_name": "nsg-test",
+        "lb_name": "lb-test",
+        "lb_pool_name": "pool-test",
+        "lb_address_name": "addr-test",
+        "servicebus_namespace": "sb-test",
+        "mysql_connect_factory": lambda: None,
+        "mysql_server_resource_id": (
+            "/subscriptions/00000000-0000-0000-0000-000000000000/"
+            "resourceGroups/rg-test/providers/Microsoft.DBforMySQL/"
+            "flexibleServers/mysql-test"
+        ),
+        "aoai_load_request_fn": lambda: 200,
+        "aoai_probe_request_fn": lambda: 429,
         "vm_resource_id": (
             "/subscriptions/00000000-0000-0000-0000-000000000000/"
             "resourceGroups/rg-test/providers/Microsoft.Compute/virtualMachines/vm-test"

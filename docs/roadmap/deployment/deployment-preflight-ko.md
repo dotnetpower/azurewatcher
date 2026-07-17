@@ -1,8 +1,8 @@
 ---
 title: 배포 프리플라이트 (배포 가능성 및 blocker 수집)
 translation_of: deployment-preflight.md
-translation_source_sha: 7024fcd0c6574bf9ed894a5381290d35278fa956
-translation_revised: 2026-07-11
+translation_source_sha: 7b4663df02b4bb459a4c7deb2019986148750087
+translation_revised: 2026-07-17
 ---
 # 배포 프리플라이트 (배포 가능성 및 blocker 수집)
 
@@ -143,12 +143,22 @@ seam을 통해 주입됩니다. 상류 기본값은 프로브를 바인딩하지
 테스트. 다음 증분들은 각각 별도로 리뷰 가능하도록 단계화됨:
 
 1. `delivery/azure/preflight/` 아래의 라이브 Azure 어댑터(Policy Insights, Resource
-   Graph, Firewall / NSG, Quota), shadow 모드 우선. **일부 전달됨**: 공유 읽기 전용 ARM
+  Graph, Firewall / NSG, Quota), shadow 모드 우선. **Protected-plan evidence에 제공됨**: 공유 읽기 전용 ARM
    클라이언트(`AzureArmClient`, 주입된 `httpx.AsyncClient` + `WorkloadIdentity` bearer
    토큰, fail-closed)와 `AzurePolicyGuardrailProbe`(실제 Azure Policy `deny` 가드레일 -
    `Not allowed` / `Allowed resource types`), `AzureQuotaProbe`(구독 + 위치별 Compute
-   usage)가 mock-HTTP 유닛 테스트와 함께 landed. Firewall / NSG egress와 Resource-Graph
-   identity 어댑터가 남은 하위 단계다.
+  usage)가 mock-HTTP 유닛 테스트와 함께 landed. `fdaictl deploy preflight
+  --environment-config`는 Azure CLI workload identity, bounded read-only ARM transport,
+  neutral-to-ARM type mapping, sanitized fail-closed error와 함께 두 probe를 같은 analyzer에
+  조립합니다. 기존 Resource Graph role observer도 `AzureIdentityRbacProbe`를 통해 조립되어
+  principal 또는 role-definition id를 출력하지 않고 누락된 event-bus 및 secret-reader
+  executor role을 보고합니다. `AzureSecretConfigProbe`는 status만으로 required Key Vault
+  reference를 검사하고 response body 또는 secret value를 읽지 않으며 hashed reference를
+  출력합니다. Report는 clear인 경우에도 sanitized per-category check coverage를 기록합니다.
+  Private runner는 enforce mode에서 Azure category 네 개를 모두 요구하고 bounded TLS egress
+  evidence와 결합합니다. Sanitized report만 private Blob storage에 저장하고 두 evidence digest를
+  exact-plan verification에 binding합니다. Firewall / NSG topology adapter는 별도 future
+  enhancement이며 direct runner reachability evidence에는 필요하지 않습니다.
 2. 위 표의 `infra/modules/` capability-mode 토글.
 3. 인프라 PR에 리포트를 게시하는 GitHub Check.
 4. 캐시된 **Deployment Environment Profile**(어떤 가드레일이 scope에 적용되는지), Inventory

@@ -449,6 +449,19 @@ class TestRouterBenchmark:
         by_name = {s["deployment"]: s for s in router.stats()}
         assert by_name["broken"]["p50_ms"] is not None
         assert by_name["broken"]["p50_ms"] >= 30_000
+        assert describe_backend(router)["available"] is True
+
+    async def test_health_is_unavailable_when_every_candidate_probe_fails(self) -> None:
+        first = _RaisingBackend(model="first")
+        second = _RaisingBackend(model="second")
+        router = LatencyRoutedChatBackend(candidates=[("first", first), ("second", second)])
+
+        await router.benchmark()
+
+        descriptor = describe_backend(router)
+        assert descriptor["available"] is False
+        assert descriptor["mode"] == "azure-ad-routed-unavailable"
+        assert descriptor["model"] is None
 
 
 class TestCompletionBodyParams:

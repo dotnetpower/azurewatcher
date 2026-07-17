@@ -19,6 +19,12 @@
  */
 
 import { useEffect, useRef, useState } from "preact/hooks";
+import {
+  mergeObservationSource,
+  normalizeObservationSource,
+  type FrameSource,
+  type ObservationSource,
+} from "./observation-source";
 
 /** Stage identifier - mirrors {@link fdai.shared.providers.stage_publisher.StageName}. */
 export type LiveStageName =
@@ -38,6 +44,7 @@ export interface LiveStageEvent {
   readonly correlation_id: string;
   readonly stage: LiveStageName;
   readonly phase: LiveStagePhase;
+  readonly source?: FrameSource;
   readonly ts: string;
   readonly detail?: Record<string, unknown>;
   readonly error?: string;
@@ -64,6 +71,7 @@ export interface UseLiveStreamOptions {
 
 export interface UseLiveStreamResult {
   readonly status: LiveConnectionStatus;
+  readonly source: ObservationSource;
   /** Best-effort last error the browser reported. */
   readonly lastError: string | null;
 }
@@ -93,7 +101,7 @@ export function decodeLiveStageEvent(data: string): LiveStageEvent | null {
     !(event.detail === undefined || (typeof event.detail === "object" && event.detail !== null && !Array.isArray(event.detail))) ||
     !(event.error === undefined || typeof event.error === "string")
   ) return null;
-  return event as unknown as LiveStageEvent;
+  return { ...event, source: normalizeObservationSource(event.source) } as unknown as LiveStageEvent;
 }
 
 export function liveStreamHeaders(authorization: string | null): Headers {
@@ -149,6 +157,7 @@ export async function consumeLiveSse(
 export function useLiveStream(options: UseLiveStreamOptions): UseLiveStreamResult {
   const [status, setStatus] = useState<LiveConnectionStatus>(typeof fetch === "undefined" ? "unsupported" : "idle");
   const [lastError, setLastError] = useState<string | null>(null);
+  const [source, setSource] = useState<ObservationSource>("unknown");
   const onEventRef = useRef(options.onEvent);
   const onStatusRef = useRef(options.onStatus);
   onEventRef.current = options.onEvent;
@@ -200,6 +209,10 @@ export function useLiveStream(options: UseLiveStreamOptions): UseLiveStreamResul
         await consumeLiveSse(response, (event) => {
           if (!cancelled && controller === active) {
             reconnectAttempt = 0;
+            setSource((current) => mergeObservationSource(
+              current,
+              normalizeObservationSource(event.source),
+            ));
             onEventRef.current(event);
           }
         });
@@ -239,5 +252,5 @@ export function useLiveStream(options: UseLiveStreamOptions): UseLiveStreamResul
       controller?.abort();
     };
   }, [url, getAuthorizationHeader]);
-  return { status, lastError };
+  return { status, lastError, source };
 }

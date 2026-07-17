@@ -17,6 +17,12 @@ export interface KpiPayload {
   by_outcome: Record<string, number>;
   by_tier: Record<string, number>;
   last_recorded_at: string | null;
+  audit_sample?: {
+    from_seq: number | null;
+    through_seq: number | null;
+    row_count: number;
+    limit: number;
+  } | null;
 }
 
 /** One pending HIL item (mirrors HilQueueItem.to_dict). */

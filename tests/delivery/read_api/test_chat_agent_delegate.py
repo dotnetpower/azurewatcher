@@ -73,3 +73,39 @@ def test_action_and_no_route_return_no_agent_evidence() -> None:
 
     assert action is None
     assert unknown is None
+
+
+def test_shadow_planning_route_is_deterministic_and_excludes_norns_and_odin() -> None:
+    route = _delegate().route_answer_planning("Ask Freyr and Njord about capacity and cost")
+
+    assert route.primary_agent == "Freyr"
+    assert [candidate.agent for candidate in route.candidates] == ["Freyr", "Njord"]
+    assert all(candidate.agent not in {"Norns", "Odin"} for candidate in route.candidates)
+
+
+def test_collects_typed_agent_owned_contribution_without_tool_call() -> None:
+    contribution = asyncio.run(
+        _delegate().contribute(
+            agent="Njord",
+            prompt="Compare capacity and cost",
+            max_tokens=400,
+        )
+    )
+
+    assert contribution is not None
+    assert contribution.agent == "Njord"
+    assert contribution.facts
+    assert all(fact.evidence_ref.startswith("agent-owned:njord:") for fact in contribution.facts)
+    assert set(fact.evidence_ref for fact in contribution.facts) <= set(contribution.evidence_refs)
+
+
+def test_shadow_contributor_refuses_action_and_synchronous_norns() -> None:
+    delegate = _delegate()
+
+    action = asyncio.run(delegate.contribute(agent="Thor", prompt="restart svc-1", max_tokens=400))
+    learner = asyncio.run(
+        delegate.contribute(agent="Norns", prompt="Why did this fail?", max_tokens=400)
+    )
+
+    assert action is None
+    assert learner is None

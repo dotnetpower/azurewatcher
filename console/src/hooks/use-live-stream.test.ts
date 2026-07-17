@@ -25,6 +25,15 @@ describe("live stream boundary", () => {
       detail: { tier: "t0" },
     }));
     expect(event?.stage).toBe("ingest");
+    expect(event?.source).toBe("unknown");
+    expect(decodeLiveStageEvent(JSON.stringify({
+      event_id: "event-2",
+      correlation_id: "incident-2",
+      stage: "audit",
+      phase: "done",
+      source: "replay",
+      ts: "2026-07-16T06:00:00Z",
+    }))?.source).toBe("replay");
     expect(decodeLiveStageEvent("not json")).toBeNull();
     expect(decodeLiveStageEvent(JSON.stringify({ stage: "unknown" }))).toBeNull();
   });

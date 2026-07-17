@@ -88,6 +88,7 @@ from fdai.shared.providers.notifications.base import (
 )
 from fdai.shared.providers.stage_publisher import (
     NullStagePublisher,
+    ObservationSource,
     StageEvent,
     StageName,
     StagePhase,
@@ -1022,6 +1023,7 @@ class ControlLoop:
                 correlation_id=correlation_id,
                 stage=stage,
                 phase=phase,
+                source=ObservationSource.RUNTIME_OBSERVED,
                 detail=dict(detail) if detail else {},
                 error=error,
             )

@@ -26,6 +26,7 @@ from fdai.delivery.azure.preflight._client import (
     AzureArmClient,
     AzurePreflightError,
 )
+from fdai.delivery.azure.preflight.identity_rbac import AzureIdentityRbacProbe
 from fdai.delivery.azure.preflight.policy_guardrail import (
     AzurePolicyGuardrailProbe,
     AzurePolicyProbeConfig,
@@ -35,14 +36,23 @@ from fdai.delivery.azure.preflight.quota_capacity import (
     AzureQuotaProbeConfig,
     QuotaCheck,
 )
+from fdai.delivery.azure.preflight.secret_config import (
+    AzureSecretConfigProbe,
+    AzureSecretProbeConfig,
+    AzureSecretProbeError,
+)
 
 __all__ = [
     "ArmClientConfig",
     "AzureArmClient",
+    "AzureIdentityRbacProbe",
     "AzurePolicyGuardrailProbe",
     "AzurePolicyProbeConfig",
     "AzurePreflightError",
     "AzureQuotaProbe",
     "AzureQuotaProbeConfig",
+    "AzureSecretConfigProbe",
+    "AzureSecretProbeConfig",
+    "AzureSecretProbeError",
     "QuotaCheck",
 ]

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { LiveStageEvent } from "../hooks/use-live-stream";
 import {
+  liveSelectionState,
   applyEvent,
   HIL_RETENTION_MS,
   isTileStuck,
@@ -8,6 +9,20 @@ import {
   matchesFilter,
   pickSlot,
 } from "./live.model";
+import { liveTraceHref } from "./live";
+
+describe("live event selection", () => {
+  test("links a recent outcome to correlation-scoped Trace evidence", () => {
+    expect(liveTraceHref("corr-1")).toBe("/trace?correlation=corr-1");
+  });
+
+  test("distinguishes waiting, selected, and unavailable deep links", () => {
+    expect(liveSelectionState(null, null, 0)).toBe("none");
+    expect(liveSelectionState("event-1", null, 0)).toBe("waiting");
+    expect(liveSelectionState("event-1", {} as never, 0)).toBe("selected");
+    expect(liveSelectionState("event-1", null, 1)).toBe("unavailable");
+  });
+});
 
 function stageEvent(
   stage: LiveStageEvent["stage"],
@@ -18,6 +33,7 @@ function stageEvent(
     correlation_id: "corr-live-1",
     stage,
     phase: "done",
+    source: "runtime-observed",
     ts: "2026-07-15T00:00:00.000Z",
     detail,
   };

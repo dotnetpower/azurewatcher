@@ -274,6 +274,7 @@ class _OpaReanalyze:
             mode=Mode.ENFORCE,
             verdict=verdict,
             findings=findings,
+            checked_categories=(ProbeCategory.POLICY_GUARDRAIL,),
         )
 
 

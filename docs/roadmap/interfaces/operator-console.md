@@ -129,11 +129,22 @@ flowchart TD
     coordinator.
   - `src/cockpit.ts` - live SSE presentation that publishes a
     self-describing screen snapshot to the same coordinator.
-- `src/fdai/delivery/channels/` (planned layout; today's Teams adapter
-  lives in [`src/fdai/delivery/chatops/`](../../../src/fdai/delivery/chatops))
-  - `teams_bot.py` - pull-direction Teams adapter (Bot Framework messaging).
-  - `slack_bot.py` - pull-direction Slack adapter (Socket Mode).
-  - `web_chat.py` - WebSocket adapter surfaced by the read-console API.
+- [`src/fdai/core/conversation/channel_gateway.py`](../../../src/fdai/core/conversation/channel_gateway.py)
+  - authenticates senders through an injected principal resolver, derives bounded session ids,
+    claims message idempotency keys, calls the existing coordinator, and routes the response to
+    the originating thread.
+- [`src/fdai/delivery/channels/`](../../../src/fdai/delivery/channels)
+  - `teams.py` - normalizes Bot Framework activities after bearer-token verification and uses an
+    injected publisher for replies. It never trusts a payload-supplied reply URL.
+  - `slack.py` - verifies timestamped Slack request signatures, rejects replayed or bot-authored
+    events, normalizes messages, and uses an injected publisher for replies.
+  - Web chat continues to use the authenticated read-console chat API. A dedicated WebSocket
+    adapter remains optional future transport work.
+- [`src/fdai/delivery/read_api/routes/scheduler_runs.py`](../../../src/fdai/delivery/read_api/routes/scheduler_runs.py)
+  and [`console/src/routes/scheduler-runs.tsx`](../../../console/src/routes/scheduler-runs.tsx)
+  - expose task-scoped scheduler dispatch evidence through a reader-role `GET` panel and a
+    read-only Operations view. The route supports status filtering and opaque cursor pagination,
+    but has no retry, cancel, execute, or approval control.
 - [`tools/chat.py`](../../../tools/chat.py) - headless JSONL development harness
   for the core coordinator. It is not a second policy implementation.
 
@@ -147,6 +158,18 @@ Tools are **pipeline-stage views**. Each one has a stable name, a JSON
 Schema for arguments (generated from the function signature at
 registration time), an RBAC floor, and a documented failure surface. New
 tools are additive; they never override a rule or a policy.
+
+`RuntimeToolDiscovery` provides search and describe over installed narrator schemas. It
+intersects schema metadata with the actually installed tool names, applies the same RBAC ladder as
+the coordinator, and returns only name, verb, description, argument hint, RBAC floor, and
+side-effect class. A lower-role principal cannot discover a higher-role tool, and descriptors
+contain no handler or invocation capability. Discovery improves navigation; it grants no new
+authority.
+
+The same projection is available through the deterministic channel verbs `search_tools` and
+`describe_tool`, and typed read RPC methods `tools.search` and `tools.describe`. Channel calls use
+the resolved `Principal`; RPC calls derive the role from server-authorized scopes, never from a
+caller-supplied role parameter. Both surfaces return descriptors only and cannot invoke the target.
 
 ### 3.1 Day-1 tool set (read-only + explain)
 
@@ -327,6 +350,11 @@ production fork injects a durable sink (`AzureWireOverrides.metering_sink`)
 and reader (into `LlmCostPanel`) - typically Postgres `agent_transcript`
 rows. Prices are illustrative list-price defaults a fork overrides for
 its region / currency / negotiated rate.
+The panel also returns nullable `latest_occurred_at`, calculated from the
+measured invocation records. The LLM cost screen shows that timestamp and uses
+it as the Deck snapshot's `capturedAt`; it doesn't replace stale metering
+freshness with the browser's current time. An empty metering source returns
+`null`.
 
 The metering path is hardened to fail safe: prices are validated finite
 at load (a NaN/Infinity rate is rejected), every invocation records the
@@ -422,6 +450,9 @@ class ChannelAdapter(Protocol):
 
 - One adapter per wire (CLI, Teams Bot Framework, Slack Socket Mode,
   WebSocket).
+- `InboundTurn` validates bounded channel, message, sender, thread, and text fields before the
+  coordinator sees them. `ConversationChannelGateway` denies unresolved senders and suppresses
+  duplicate message ids before any tool can run.
 - Push-direction adapters
   ([channels-and-notifications.md](channels-and-notifications.md)) are
   **not** merged with pull adapters; they share credentials via config
@@ -690,10 +721,34 @@ because the trust posture is different: a push adapter has send-only
 credentials; a pull adapter must maintain a Bot Framework session /
 Socket Mode socket that can receive user input.
 
+The shared pull-direction contract, gateway, Slack signed ingress, Teams authenticated activity
+normalizer, bounded Starlette routes, Slack Web API publisher, and Teams Bot Framework publisher
+are implemented. The Slack route verifies timestamped signatures. The Teams route calls an
+injected bearer authenticator before parsing activity JSON. Reply publishers use only configured
+HTTPS endpoints, injected app/workload credentials, and server-owned conversation resolution.
+Production composition still needs to bind the concrete Bot Framework JWT verifier, channel
+principal resolver, app credentials, and background gateway lifecycle. Those bindings stay in
+`delivery/`; they do not change the coordinator.
+
+`ChannelAccessService` is the sender-access foundation for those principal resolvers. Each channel
+selects `disabled`, `allowlist`, or `pairing`. Unknown senders resolve to no principal and never
+reach the coordinator. Pairing mode issues a bounded, expiring challenge, stores only its SHA-256
+digest, caps pending requests per channel, requires a separately authorized approver, verifies the
+code in constant time, and maps the approved sender to an existing FDAI principal. Disabled and
+allowlist modes never self-enroll a sender. The PostgreSQL store now enforces the pending cap and
+approval transition atomically across replicas. Native challenge delivery replies in the originating
+thread and conditionally removes the pending digest when delivery fails. The code is never stored or
+placed in response metadata.
+
+`CrossChannelIdentityLinkService` records an explicit relationship only after both channel senders
+are independently paired to the same principal. It rejects same-channel links, self-approval,
+unapproved endpoints, and any attempt to relate two distinct principals. The durable link is
+idempotent and does not merge principal records, roles, sessions, or audit histories.
+
 | Channel | Push (existing) | Pull (this doc) | Shared config |
 |---------|-----------------|-----------------|---------------|
-| Teams | `TeamsHilAdapter` (Adaptive Card via Incoming Webhook or Bot Framework send) | `TeamsBotChannel` (Bot Framework receive + reply) | Tenant, channel id, app registration |
-| Slack | `SlackWebhookChannel` (Block Kit via Incoming Webhook) | `SlackBotChannel` (Socket Mode receive + `chat.postMessage` reply) | Workspace, channel id, app credentials |
+| Teams | `TeamsHilAdapter` (Adaptive Card via Incoming Webhook or Bot Framework send) | `TeamsBotChannel` + bounded activity route + workload-identity reply publisher; concrete JWT/principal composition remains | Tenant, channel id, app registration |
+| Slack | `SlackWebhookChannel` (Block Kit via Incoming Webhook) | `SlackBotChannel` + signed Events API route + fixed-endpoint Web API reply publisher; app composition remains | Workspace, channel id, app credentials |
 | Email | send-only | (not planned; asynchronous, ill-suited to interactive) | n/a |
 | Webhook | send-only | (not planned; caller must own an interactive protocol themselves) | n/a |
 | Pager (PagerDuty) | send-only | (not planned) | n/a |
@@ -1175,11 +1230,52 @@ SSE terminal responses, persisted additively with the transcript, and rendered a
 compact localized `Bragi / intent / detail` label. The browser discards the plan's subject
 text and never exposes prompts or hidden reasoning.
 
-Phase A remains single-agent. `discuss=skip` for every turn, so the deterministic planner
-adds no model call, contributor round, tool execution, judgment, or approval authority.
-Answer-plan coverage stays separate from deterministic answer verification. Adaptive
-preferences and the bounded multi-agent planning round remain future shadow phases tracked
-by issue #28.
+Phase B adds an explicit, principal-scoped response preference profile through the existing
+`UserPreferenceStore` seam. Settings lets an operator inspect and edit the default
+`brief`/`standard`/`deep` detail level, choose a default response format, disable application
+without deleting the profile, or reset both the account projection and browser-local display
+preferences. The profile also reserves validated per-intent detail and format maps. Reads use
+the authenticated principal only, and the server discards client-supplied `_answer_plan`
+metadata before constructing its own plan.
+
+Stored defaults apply only when the current turn does not request a conflicting shape. An
+explicit modifier such as `briefly`, `step by step`, `짧게`, or `표로` still wins. A one-off
+modifier is recorded in bounded turn metadata but is not promoted into the stored profile.
+Automatic preference learning remains off; future shadow measurement can evaluate repeated
+explicit signals without changing current answers. Locale resolution is unchanged.
+
+#### 13.4.2.2 Shadow Answer Planning Round
+
+Phase C adds a read-only `AnswerPlanningRound` behind a dedicated provider seam. It runs in
+shadow for eligible `why`, `comparison`, and `diagnosis` turns, plus explicit multi-perspective
+requests. A brief request, definition, status, list, direct tool result, or route with no
+complementary contributor does not create a planning task. Eligible plans carry
+`discuss=shadow`; all other plans keep `discuss=skip`.
+
+The round selects at most two contributors in deterministic score and agent-name order and
+calls their read-only conversational ports in parallel. Contributors return typed
+`AnswerContribution` records with grounded facts, vouched-for evidence references, suggested
+sections, caveats, and confidence. The production pantheon adapter excludes Bragi, Norns, and
+Odin from routine collection. Saga participates only for audit, history, issue, or handoff
+questions. Action-shaped requests abstain through the existing typed-pipeline guard.
+
+The shipping limits are fixed at two contributors, one round, `1200 ms`, and `800` estimated
+added tokens, with nested rounds disabled. Timeout, exception, abstention, agent mismatch, or
+token overflow becomes bounded degraded metadata. It never blocks or changes an otherwise
+supported answer. Contributor facts do not enter the narrator snapshot in Phase C, so the
+primary-only answer remains the terminal answer.
+
+JSON and SSE terminal responses, durable turn metadata, and the browser transcript carry the
+same bounded shadow record: status, consulted agents, evidence references, suggested sections,
+failure kinds, elapsed time, token estimate, effective budget, section coverage, and unique or
+duplicate evidence counts. They do not carry the prompt, free-form contributor reasoning, or
+hidden chain-of-thought. Structured logs emit counts and latency only. Answer-plan coverage
+and contributor utility remain separate from deterministic answer trust status.
+
+Phase D selective activation and Phase E cross-domain conflict handling remain unpromoted.
+Promotion requires the frozen bilingual evaluation set, zero unsupported-claim escapes and
+authority violations, no clean-answer regression, and measured latency, token-cost, unique-
+evidence, correction-rate, and follow-up-rate gates from this shadow baseline.
 
 #### 13.4.3 Live observation contract
 
@@ -1200,6 +1296,13 @@ Assurance.
   threshold.
 - **Mode is recorded, not inferred.** The control loop publishes the actual
   `Action.mode` on stage frames. Reaching `execute` does not imply shadow mode.
+- **Observation source is recorded, not inferred.** Live and Agent Activity
+  frames carry top-level `source`: `synthetic-dev`, `replay`,
+  `runtime-observed`, or `unknown`. Legacy or unfamiliar values normalize to
+  `unknown`; conflicting known values in one browser connection render as
+  `mixed`. The browser never derives source from dev mode, authentication mode,
+  or endpoint URL. `runtime-observed` describes the producer path and is not an
+  Azure-health or execution attestation.
 - **Terminal state is authoritative.** Per-finding gate frames may report
   different decisions for one event. The terminal `audit.done` frame carries
   the event-level outcome and decision, which replace any intermediate value.
@@ -1334,12 +1437,115 @@ deep link therefore searches the complete filtered result set rather than
 filtering only the first browser page. The cursor is bound to the incident
 status and vertical, so changing either filter invalidates a stale cursor.
 
+Overview audit KPIs aggregate the newest 500 audit rows in both the in-memory
+and Postgres read models. `GET /kpi` returns that immutable sample as
+`audit_sample` with inclusive `from_seq` and `through_seq` bounds, `row_count`,
+and `limit`. Every Overview link to Audit carries those bounds, and `GET
+/audit` applies `from_seq` and `through_seq` before dimension filters and
+cursor pagination. Operators can therefore enumerate the same append-only
+sample that produced the displayed count or ratio even after newer rows
+arrive. `hil_pending` remains a separate current queue projection and is not
+part of the audit sample. Tier keys and tier filtering use lowercase canonical
+values (`t0`, `t1`, `t2`).
+
 The SPA preserves native table semantics for the incident roster. The first
 cell contains the selection button, each selected row exposes
 `aria-selected`, and the control points to the incident detail region with
 `aria-controls`. Unknown top-level URLs are replaced with canonical
 `/overview`, so one visible screen cannot create multiple conversation caches
 under typo paths.
+
+Explicit child-view and entity identifiers fail closed. When a URL names an
+unknown workflow, ObjectType, LinkType, ActionType, agent, audit entry,
+architecture view or resource, incident correlation, promotion reason, IAM
+tab, or live event, the console preserves the requested value and renders an
+unavailable or waiting state with valid recovery links. It never substitutes
+the first row, default workflow, default view, or another entity's evidence.
+Only a URL with no explicit identifier can select the documented default.
+ActionType directory filters are canonical URL state (`q`, `category`,
+`trigger`, and `execution`) and remain intact when an operator selects an
+action, so refresh, back navigation, and shared links reproduce the same list.
+Blast-radius query drafts write `target`, `depth`, and `links` to the URL
+without running the simulation; `links=none` preserves an explicitly empty
+selection until the operator chooses a valid traversal set.
+Opaque entity identifiers also remain byte-for-byte stable across canonical
+URL replacement and nested drilldowns. In particular, Process ids are encoded
+but never lowercased or slugified, and a workflow step link preserves its
+catalog ownership group. Manual RCA and Trace lookups first write the submitted
+correlation id to the canonical URL; editing the input invalidates any earlier
+response so evidence cannot appear under a different identifier.
+
+Write-direction forms keep one idempotency key for one unchanged operator
+intent. A transport failure or lost response therefore retries the same key;
+changing the target, parameters, or justification rotates it, and a confirmed
+success retires it. Daily briefing subscription creation derives a stable
+principal-scoped subscription identity from that key and returns the existing
+record for an identical retry. Access requests, IAM role requests, and governed
+Python runs use the same rule. Batch document upload locks collection, purpose,
+storage mode, consent, and selected files until completion, and stops issuing
+new requests after the route unmounts.
+
+Canonical source mutations and derivative ontology projections have separate
+success boundaries. A committed workflow definition or binding returns the
+source-store result even when its immediate ontology projection fails. The
+PostgreSQL source transaction enqueues the corresponding projection recovery
+record, so a retry never misreports a committed create as a conflict or a
+committed delete as not found.
+
+Agent runtime state also requires observed evidence. Before an agent state
+frame or durable incident projection attributes work to an agent, Agents,
+Agent Activity, and Pantheon render that agent as `unobserved`, not `idle` or
+ready. The fixed runtime-binding map reports declared subscriber bindings only;
+it doesn't prove that a consumer process is healthy. Deployment schedule
+status stays unavailable until a scheduler projection supplies it.
+
+The Capabilities route is an inert catalog projection. Its response identifies
+`source=static-catalog` and `execution_eligibility=false`; entries describe
+declared side-effect classes, required roles, and default modes. Catalog
+presence doesn't prove a provider binding, runtime health, or permission to
+execute. Those decisions remain with composition, RBAC, verification, and the
+risk gate.
+
+Operational read surfaces render provenance from their payload instead of
+static claims. Scheduler Runs shows its ledger `source` and `durable` flag; LLM
+Cost shows `latest_occurred_at`; Settings Models shows the generated snapshot
+filename and `as_of`. Missing fields render unavailable or fail contract
+decoding. The browser doesn't infer durability, freshness, or provider health
+from a route name, environment mode, or configured default.
+
+Exact entity lookups filter on the server before page limits. Incident
+correlation links, Audit entry links, and Approval searches therefore resolve
+beyond the first roster page instead of reporting a false absence. Approval
+search remains unavailable to count-only roles so filtered totals cannot leak
+hidden queue content. Independent sources are isolated: an optional principal
+workflow projection cannot hide the built-in workflow catalog, and an unused
+analytics source cannot replace another hub with an error screen. Report render
+and PDF failures stay local to the selected operation and do not remove the
+catalog or variable editor; late downloads are discarded after route changes.
+
+Diagnostics distinguishes process liveness from an authenticated KPI read
+path. A successful `/healthz` response never claims that operational data is
+healthy. Likewise, last-observed agent frames remain visible as history, but
+Engaged, Watching, and Idle are current counts only while the agent stream is
+open. Canvas visualizations provide an equivalent keyboard and screen-reader
+resource selector, and composite tab widgets move DOM focus together with
+roving selection.
+
+Time-bound and aggregate evidence remains conservative while a route stays
+open. Approval and Operator Memory rows cross their recorded TTL boundary
+without requiring a reload; Architecture continuously advances snapshot age
+while retaining the server's snapshot freshness verdict. A missing tier
+measurement is unavailable, not measured zero. Scope eligibility counts only
+`included` entries. A multi-datasource report has a known aggregate evidence
+time only when every source supplies one, and then uses the oldest source time.
+Mixed-currency LLM cost groups are labelled non-additive and never displayed as
+a single-currency total.
+
+The Process list follows the same rule with `source`, nullable `synthetic`, and
+nullable `durable`. The local seeded runtime reports
+`synthetic-dev/true/false`; production reports `postgres/false/true`. Process
+status, journals, and dynamic views remain server-owned, but a current render
+doesn't erase how the underlying snapshot was produced or stored.
 
 The selected incident detail keeps the summary and evidence layers separate.
 It shows the server-owned incident id, ticket id, lifecycle status and source,
@@ -1355,6 +1561,11 @@ the success surface includes cost per resolved event, mixed-model
 disagreement, verifier failure, shadow divergence, the measurement window,
 sample size, confidence, and the named source. **History > Reports** renders
 the declarative reporting catalog and its server-owned widget evidence.
+Synthetic measurement can illustrate the analytical shape, but it cannot
+decide operational health, increase the attention count, or create failed-guard
+drilldowns. Overview and Control Assurance treat synthetic guards as unknown
+for operational posture while continuing to label their source, window, sample
+size, and confidence.
 
 Contract rules (enforced by `console/src/routes/view-contract.test.ts`):
 
@@ -1390,6 +1601,10 @@ The API contract is one GET route:
 | Route | Purpose |
 |-------|---------|
 | `GET /rca?correlation=<id>` | Return the per-incident RCA view for one correlation id. |
+
+The route returns `404` when the correlation has no audit rows. It never turns
+an unknown correlation into a normal empty RCA dossier, because that would
+present missing evidence as a completed analysis.
 
 The projection composes existing audit data; it introduces no new source of
 truth. The control loop writes each hypothesis as a shadow `rca.hypothesis`
@@ -1589,14 +1804,20 @@ exploration continues to work. ActionTypes stay out of the ObjectType graph so
 a large action catalog doesn't obscure resource relationships. All three views
 are GET-only and issue no action or approval call.
 
-## 14. MCP - future work (Week 2+)
+## 14. MCP delivery and managed catalog
 
-The upstream console does **not** ship an MCP server on Day 1. Once the
-in-process tool set is stable and the RBAC matrix is exercised, the
-Week-2+ addition is an MCP server surface at
-`src/fdai/delivery/mcp/server.py` that publishes the same tool
-catalog (`list_tools` / `call_tool`) plus the operator-console read
-resources (rule catalog, action types, runbook index) as MCP resources.
+FDAI can consume externally hosted MCP tools through the managed outbound catalog under
+`src/fdai/delivery/mcp/`. Servers install disabled. Enable performs a non-invoking `tools/list`
+discovery and verifies every ActionType-to-tool allowlist entry. Catalog mutations use a durable
+revision-CAS snapshot; manifest, health, revision, and the admin audit record commit in one
+PostgreSQL transaction. A periodic monitor records health transitions, and only enabled, healthy
+servers are routable. Endpoint validation rejects credentials, query strings, fragments, and
+non-loopback plaintext HTTP.
+
+This outbound catalog is distinct from publishing FDAI itself as an MCP server. The upstream
+console does **not** ship that inbound MCP server on Day 1. Once the in-process tool set is stable
+and the RBAC matrix is exercised, a later addition can publish the same tool catalog
+(`list_tools` / `call_tool`) plus operator-console read resources as MCP resources.
 
 The MCP layer is **additive**: the same coordinator handles MCP-sourced
 tool calls exactly as CLI/Teams-sourced ones, and the RBAC gate stays

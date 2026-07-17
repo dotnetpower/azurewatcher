@@ -1,18 +1,107 @@
 import { describe, expect, test } from "vitest";
+import { ReadApiError } from "../api";
 import {
   buildGithubNewFileUrl,
   hasActionTypeRef,
+  hasEquivalentWorkflowBinding,
   humanizeName,
+  requestedActionType,
+  loadWorkflowDefinitions,
   suggestDraftFromText,
   suggestStepId,
+  workflowSelection,
+  workflowStepHref,
 } from "./workflow-builder";
 import type { ActionTypePaletteEntry } from "../workflow/validate";
+import type { WorkflowBindingEntry } from "../workflow/validate";
 
 describe("workflow catalog wire tolerance", () => {
+  test("keeps built-in browsing available when principal definitions are unwired", async () => {
+    const definitions = await loadWorkflowDefinitions({
+      panel: async () => { throw new ReadApiError(404, "Not Found"); },
+    } as never);
+    expect(definitions).toEqual({
+      groups: { built_in: [], shared: [], mine: [] },
+      bindings: [],
+      counts: { built_in: 0, shared: 0, mine: 0 },
+    });
+  });
+
+  test("keeps the ownership group in step drilldowns", () => {
+    expect(workflowStepHref("shared", "shared-check", "verify/1")).toBe(
+      "/workflow-builder?group=shared&workflow=shared-check&step=verify%2F1",
+    );
+  });
+
+  test("preserves an explicit unknown workflow instead of substituting the default", () => {
+    const workflows = [
+      { name: "default-workflow", steps: [{ id: "restart", action_type_ref: "compute.restart" }] },
+      { name: "other-workflow", steps: [] },
+    ];
+    expect(workflowSelection(workflows, "missing-workflow", null)).toBe("missing-workflow");
+    expect(workflowSelection(workflows, null, null)).toBe("default-workflow");
+    expect(workflowSelection(workflows, null, "compute.restart")).toBe("default-workflow");
+    expect(workflowSelection(workflows, null, "missing.action")).toBeNull();
+  });
+
   test("tolerates metadata-only live steps with a null action_type_ref", () => {
     expect(hasActionTypeRef({ action_type_ref: null })).toBe(false);
     expect(hasActionTypeRef({ action_type_ref: "" })).toBe(false);
     expect(hasActionTypeRef({ action_type_ref: "compute.restart" })).toBe(true);
+  });
+
+  test("resolves an action deep link from the authoritative palette", () => {
+    const action: ActionTypePaletteEntry = {
+      name: "remediate.restrict-network-access",
+      operation: "update",
+      category: "remediation",
+      rollback_contract: "pr_revert",
+      irreversible: false,
+      default_mode: "shadow",
+      execution_path: "gitops_pr",
+      env_scope: "all",
+      hil_tiers: ["t2"],
+      description: "Restrict network access.",
+    };
+    expect(requestedActionType([action], action.name)).toBe(action);
+    expect(requestedActionType([action], "unknown.action")).toBeNull();
+  });
+});
+
+describe("workflow binding equivalence", () => {
+  const binding: WorkflowBindingEntry = {
+    binding_id: "binding-1",
+    definition_id: "definition-1",
+    trigger: "schedule",
+    enabled: false,
+    cron_expression: "0 7 * * *",
+    timezone: "Asia/Seoul",
+    signal_type: null,
+    scope_ref: null,
+    parameters: {},
+    revision: 1,
+  };
+
+  test("matches the backend duplicate-binding rule", () => {
+    expect(hasEquivalentWorkflowBinding(
+      [binding],
+      "definition-1",
+      "schedule",
+      " 0 7 * * * ",
+      " Asia/Seoul ",
+      "unused",
+    )).toBe(true);
+  });
+
+  test("allows a distinct trigger configuration", () => {
+    expect(hasEquivalentWorkflowBinding(
+      [binding],
+      "definition-1",
+      "signal",
+      "0 7 * * *",
+      "Asia/Seoul",
+      "object.event",
+    )).toBe(false);
   });
 });
 

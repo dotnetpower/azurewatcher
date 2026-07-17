@@ -27,7 +27,7 @@
       "additionalPropertiesShape": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["preferences", "capacity_tpm"],
+        "required": ["preferences"],
         "properties": {
           "preferences": {
             "type": "array",
@@ -42,8 +42,9 @@
               }
             }
           },
-          "sku": {"type": "string", "enum": ["Standard", "GlobalStandard", "ProvisionedManaged"]},
+          "sku": {"type": "string", "enum": ["Standard", "GlobalStandard", "ProvisionedManaged", "GlobalProvisionedManaged", "DataZoneProvisionedManaged"]},
           "capacity_tpm": {"type": "integer", "minimum": 1000},
+          "capacity_ptu": {"type": "integer", "minimum": 1},
           "invocation": {"type": "string", "enum": ["always", "on_disagreement", "on_novel_case"]},
           "tool_calling_required": {"type": "boolean", "default": false}
         }
@@ -52,7 +53,27 @@
         "^(t1|t2)\\.[a-z][a-z0-9._-]{1,63}$": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["preferences", "capacity_tpm"],
+          "required": ["preferences"],
+          "allOf": [
+            {
+              "if": {
+                "required": ["sku"],
+                "properties": {
+                  "sku": {
+                    "enum": ["ProvisionedManaged", "GlobalProvisionedManaged", "DataZoneProvisionedManaged"]
+                  }
+                }
+              },
+              "then": {
+                "required": ["capacity_ptu"],
+                "not": {"required": ["capacity_tpm"]}
+              },
+              "else": {
+                "required": ["capacity_tpm"],
+                "not": {"required": ["capacity_ptu"]}
+              }
+            }
+          ],
           "properties": {
             "preferences": {
               "type": "array",
@@ -69,10 +90,11 @@
             },
             "sku": {
               "type": "string",
-              "enum": ["Standard", "GlobalStandard", "ProvisionedManaged"],
+              "enum": ["Standard", "GlobalStandard", "ProvisionedManaged", "GlobalProvisionedManaged", "DataZoneProvisionedManaged"],
               "default": "Standard"
             },
             "capacity_tpm": {"type": "integer", "minimum": 1000},
+            "capacity_ptu": {"type": "integer", "minimum": 1},
             "invocation": {
               "type": "string",
               "enum": ["always", "on_disagreement", "on_novel_case"],

@@ -37,6 +37,7 @@ from .entra_verifier import (
 from .read_model import (
     AuditItem,
     AuditPage,
+    AuditSample,
     ConsoleReadModel,
     DashboardKpi,
     HilQueueItem,
@@ -47,6 +48,7 @@ from .read_model import (
 __all__ = [
     "AuditItem",
     "AuditPage",
+    "AuditSample",
     "AuthenticationError",
     "Authenticator",
     "ClaimsVerifier",

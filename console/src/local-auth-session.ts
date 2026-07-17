@@ -38,6 +38,16 @@ export function clearLocalAuthBypass(
   }
 }
 
+export async function establishLocalAuthBypass(
+  probeAnonymousAccess: () => Promise<unknown>,
+  storage: StorageWriter | null = browserWritableStorage(),
+): Promise<void> {
+  await probeAnonymousAccess();
+  if (!enableLocalAuthBypass(storage)) {
+    throw new Error("Browser session storage is unavailable.");
+  }
+}
+
 function browserStorage(): StorageReader | null {
   if (typeof window === "undefined") return null;
   try {

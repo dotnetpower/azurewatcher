@@ -97,7 +97,7 @@ class _HangingArtifactStore:
 
 def _capabilities(*, direct_upload: bool = True) -> IngestionCapabilities:
     return IngestionCapabilities(
-        supported_formats=("text", "ooxml", "pdf-detect-only"),
+        supported_formats=("text", "ooxml", "image-metadata", "pdf-detect-only"),
         storage_modes=tuple(SourceStorageMode),
         max_file_size=1024 * 1024,
         max_batch_count=10,
@@ -183,6 +183,21 @@ async def test_managed_copy_promotes_source_before_ready() -> None:
     assert version.state is DocumentState.READY
     assert objects.promoted == [session.upload_id]
     assert persisted.object_key.startswith("governed/")
+
+
+async def test_image_signature_becomes_metadata_only_ready_evidence() -> None:
+    content = b"\x89PNG\r\n\x1a\n" + b"synthetic-image-bytes"
+    service, worker, _, _, artifacts, _, _ = _dependencies()
+    session = await _upload(service, content, name="evidence.png")
+
+    version = await worker.process(session.upload_id)
+    envelope = artifacts.envelopes[(version.document_id, version.version_id)]
+
+    assert version.state is DocumentState.READY
+    assert version.media_type == "image/png"
+    assert envelope.observed_format == "image"
+    assert envelope.units == ()
+    assert b"synthetic-image-bytes" not in repr(envelope).encode()
 
 
 async def test_worker_resumes_indexing_and_terminal_redelivery_is_noop() -> None:

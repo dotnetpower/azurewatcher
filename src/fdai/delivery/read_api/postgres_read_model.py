@@ -50,9 +50,11 @@ import psycopg
 from psycopg.rows import dict_row
 
 from fdai.delivery.read_api.read_model import (
+    KPI_AUDIT_SAMPLE_LIMIT,
     AuditItem,
     AuditPage,
     AuditQueryFilters,
+    AuditSample,
     ConsoleReadModel,
     DashboardKpi,
     HilQueueItem,
@@ -238,6 +240,10 @@ selected AS (
         CAST(%(before_seq)s AS BIGINT) IS NULL
         OR last_seq < CAST(%(before_seq)s AS BIGINT)
     )
+         AND (
+             CAST(%(correlation_id)s AS TEXT) IS NULL
+             OR normalized_correlation_id = CAST(%(correlation_id)s AS TEXT)
+         )
          AND (
              CAST(%(vertical)s AS TEXT) IS NULL
              OR projected_vertical = CAST(%(vertical)s AS TEXT)
@@ -447,6 +453,17 @@ def aggregate_kpi(
     backends produce identical shapes for the same input.
     """
     total = len(rows)
+    sequences = [
+        seq
+        for row in rows
+        if isinstance((seq := row.get("seq")), int) and not isinstance(seq, bool)
+    ]
+    audit_sample = AuditSample(
+        from_seq=min(sequences) if len(sequences) == total and sequences else None,
+        through_seq=max(sequences) if len(sequences) == total and sequences else None,
+        row_count=total,
+        limit=KPI_AUDIT_SAMPLE_LIMIT,
+    )
     if total == 0:
         return DashboardKpi(
             event_count=0,
@@ -457,6 +474,7 @@ def aggregate_kpi(
             by_outcome={},
             by_tier={},
             last_recorded_at=None,
+            audit_sample=audit_sample,
         )
     by_kind: dict[str, int] = {}
     by_outcome: dict[str, int] = {}
@@ -489,7 +507,7 @@ def aggregate_kpi(
         by_outcome[outcome] = by_outcome.get(outcome, 0) + 1
         tier = entry.get("tier")
         if tier is not None:
-            tier_key = str(tier)
+            tier_key = str(tier).lower()
             by_tier[tier_key] = by_tier.get(tier_key, 0) + 1
         mode = str(row.get("mode", ""))
         if mode == "shadow":
@@ -521,6 +539,7 @@ def aggregate_kpi(
         by_outcome=by_outcome,
         by_tier=by_tier,
         last_recorded_at=latest_iso,
+        audit_sample=audit_sample,
     )
 
 
@@ -574,11 +593,15 @@ class PostgresConsoleReadModel(ConsoleReadModel):
                            mode, entry, previous_hash, entry_hash, created_at
                       FROM audit_log
                      WHERE (%(cutoff)s::bigint IS NULL OR seq < %(cutoff)s::bigint)
+                                               AND (%(from_seq)s::bigint IS NULL
+                                                   OR seq >= %(from_seq)s::bigint)
+                                               AND (%(through_seq)s::bigint IS NULL
+                                                   OR seq <= %(through_seq)s::bigint)
                        AND (%(correlation_id)s::text IS NULL
                            OR correlation_id = %(correlation_id)s::text
                             OR event_id IN (SELECT event_id FROM unambiguous_events))
                        AND (%(mode)s::text IS NULL OR mode = %(mode)s::text)
-                       AND (%(tier)s::text IS NULL OR entry->>'tier' = %(tier)s::text)
+                       AND (%(tier)s::text IS NULL OR LOWER(entry->>'tier') = %(tier)s::text)
                        AND (%(action_kind)s::text IS NULL
                            OR action_kind = %(action_kind)s::text)
                        AND (%(outcome)s::text IS NULL
@@ -595,6 +618,8 @@ class PostgresConsoleReadModel(ConsoleReadModel):
                     """,
                     {
                         "cutoff": cutoff,
+                        "from_seq": active.from_seq,
+                        "through_seq": active.through_seq,
                         "correlation_id": correlation_id,
                         "mode": active.mode,
                         "tier": active.tier,
@@ -621,6 +646,7 @@ class PostgresConsoleReadModel(ConsoleReadModel):
         limit: int = 50,
         cursor: str | None = None,
         vertical: str | None = None,
+        correlation_id: str | None = None,
     ) -> IncidentPage:
         """Return a bounded incident roster derived from the audit ledger."""
 
@@ -645,6 +671,7 @@ class PostgresConsoleReadModel(ConsoleReadModel):
                         "before_seq": decoded.before_seq if decoded else None,
                         "status": status,
                         "vertical": vertical,
+                        "correlation_id": correlation_id,
                         "fetch": fetch,
                         "summary_history_limit": INCIDENT_SUMMARY_HISTORY_LIMIT,
                     },
@@ -713,13 +740,7 @@ class PostgresConsoleReadModel(ConsoleReadModel):
         return IncidentPage(items=items, next_cursor=next_cursor)
 
     async def dashboard_metrics(self) -> DashboardKpi:
-        # KPI is scoped to the most recent window so the aggregation is
-        # bounded regardless of how large the audit log grows. The
-        # in-memory reference model aggregates over every stored row;
-        # the Postgres path bounds the scan with an explicit LIMIT that
-        # matches the ``clamp_limit`` ceiling used by ``list_audit`` so
-        # a KPI page and an audit page reason about the same window.
-        window = clamp_limit(None) * 10  # up to 500 rows, matching MAX_LIMIT
+        # KPI aggregation is bounded to the newest immutable audit sample.
         async with await psycopg.AsyncConnection.connect(
             self._config.dsn,
             row_factory=dict_row,
@@ -729,12 +750,12 @@ class PostgresConsoleReadModel(ConsoleReadModel):
                 await self._set_statement_timeout(conn)
                 cur = await conn.execute(
                     """
-                    SELECT action_kind, mode, entry, created_at
+                                        SELECT seq, action_kind, mode, entry, created_at
                       FROM audit_log
                      ORDER BY seq DESC
                      LIMIT %s
                     """,
-                    (window,),
+                    (KPI_AUDIT_SAMPLE_LIMIT,),
                 )
                 rows = await cur.fetchall()
                 cur_pending = await conn.execute(
@@ -743,6 +764,16 @@ class PostgresConsoleReadModel(ConsoleReadModel):
                       FROM state_kv
                      WHERE key LIKE %s
                        AND value->>'status' = %s
+                                             AND (
+                                                 value#>>'{approval_context,expires_at}' IS NULL
+                                                 OR (
+                                                     value#>>'{approval_context,expires_at}' ~
+                                                         '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}'
+                                                     AND (
+                                                         value#>>'{approval_context,expires_at}'
+                                                     )::timestamptz > CURRENT_TIMESTAMP
+                                                 )
+                                             )
                     """,
                     (f"{PARK_KEY_PREFIX}%", DEFAULT_PENDING_STATUS),
                 )
@@ -750,7 +781,12 @@ class PostgresConsoleReadModel(ConsoleReadModel):
         hil_pending = int(pending_row["n"]) if pending_row is not None else 0
         return aggregate_kpi(rows, hil_pending=hil_pending)
 
-    async def list_hil_queue(self, *, limit: int = 50) -> HilQueuePage:
+    async def list_hil_queue(
+        self,
+        *,
+        limit: int = 50,
+        search: str | None = None,
+    ) -> HilQueuePage:
         bounded = clamp_limit(limit)
         async with await psycopg.AsyncConnection.connect(
             self._config.dsn,
@@ -765,6 +801,30 @@ class PostgresConsoleReadModel(ConsoleReadModel):
                       FROM state_kv
                      WHERE key LIKE %s
                        AND value->>'status' = %s
+                                             AND (
+                                                 value#>>'{approval_context,expires_at}' IS NULL
+                                                 OR (
+                                                     value#>>'{approval_context,expires_at}' ~
+                                                         '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}'
+                                                     AND (
+                                                         value#>>'{approval_context,expires_at}'
+                                                     )::timestamptz > CURRENT_TIMESTAMP
+                                                 )
+                                             )
+                       AND (
+                           %s IS NULL
+                           OR CONCAT_WS(
+                               ' ',
+                               value->>'approval_id',
+                               value->>'correlation_id',
+                               value->>'action_type',
+                               value->>'rule_id',
+                               value#>>'{action,event_id}',
+                               value#>>'{action,target_resource_ref}',
+                               value#>>'{approval_context,reasons}',
+                               value#>>'{action,citing_rules}'
+                           ) ILIKE %s
+                       )
                      ORDER BY
                        -- Cast `parked_at` to `timestamptz` so different UTC
                        -- offsets sort chronologically (raw string sort
@@ -782,7 +842,13 @@ class PostgresConsoleReadModel(ConsoleReadModel):
                        END DESC
                      LIMIT %s
                     """,
-                    (f"{PARK_KEY_PREFIX}%", DEFAULT_PENDING_STATUS, bounded),
+                    (
+                        f"{PARK_KEY_PREFIX}%",
+                        DEFAULT_PENDING_STATUS,
+                        search,
+                        f"%{search}%" if search else None,
+                        bounded,
+                    ),
                 )
                 rows = await cur.fetchall()
         items: list[HilQueueItem] = []

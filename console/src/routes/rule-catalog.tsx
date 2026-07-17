@@ -20,7 +20,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
-import { currentRoute, navigate, routeHref } from "../router";
+import { currentRoute, navigate, replaceRouteState, routeHref } from "../router";
 import { isRuleListUpdating } from "./rule-catalog.model";
 
 /**
@@ -127,7 +127,14 @@ interface FindingsResponse {
 type DetailState =
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly data: RuleDetailDto }
+  | { readonly status: "unavailable"; readonly ruleId: string }
   | { readonly status: "error"; readonly message: string };
+
+export function ruleDetailFailure(error: unknown, ruleId: string): DetailState {
+  return error instanceof ReadApiError && error.status === 404
+    ? { status: "unavailable", ruleId }
+    : { status: "error", message: error instanceof Error ? error.message : String(error) };
+}
 
 type FindingsState =
   | { readonly status: "loading" }
@@ -142,14 +149,29 @@ interface Filters {
   readonly q: string;
 }
 
+type RuleLifecycleStatus = "active" | "promoted" | "candidate" | null;
+
+export function ruleLifecycleStatusFromSearch(search: URLSearchParams): RuleLifecycleStatus | "invalid" {
+  const value = search.get("status");
+  if (value === null || value === "") return null;
+  return value === "active" || value === "promoted" || value === "candidate"
+    ? value
+    : "invalid";
+}
+
 const EMPTY_FILTERS: Filters = { origin: "", category: "", severity: "", source: "", q: "" };
 
-function ruleListStateFromRoute(): { readonly filters: Filters; readonly offset: number } {
-  const search = currentRoute().search;
+export function ruleListStateFromSearch(
+  search: URLSearchParams,
+): { readonly filters: Filters; readonly offset: number } {
   const rawOffset = Number(search.get("offset"));
+  const legacyDetailOrigin = search.has("rule") && !search.has("rule_origin");
+  const lifecycleStatus = ruleLifecycleStatusFromSearch(search);
   return {
     filters: {
-      origin: search.get("origin") ?? "",
+      origin: legacyDetailOrigin
+        ? ""
+        : search.get("origin") ?? (lifecycleStatus === "active" ? "active" : ""),
       category: search.get("category") ?? "",
       severity: search.get("severity") ?? "",
       source: search.get("source") ?? "",
@@ -159,14 +181,19 @@ function ruleListStateFromRoute(): { readonly filters: Filters; readonly offset:
   };
 }
 
-function ruleCatalogHref(
+function ruleListStateFromRoute(): { readonly filters: Filters; readonly offset: number } {
+  return ruleListStateFromSearch(currentRoute().search);
+}
+
+export function ruleCatalogHref(
   filters: Filters,
   offset: number,
   selection: Selection | null,
 ): string {
   return routeHref("rules", {
     params: {
-      origin: selection?.origin || filters.origin || null,
+      origin: filters.origin || null,
+      rule_origin: selection?.origin || null,
       category: filters.category || null,
       severity: filters.severity || null,
       source: filters.source || null,
@@ -178,11 +205,14 @@ function ruleCatalogHref(
 }
 
 /** Parse the selected rule from the clean URL query (deep-link support). */
-function selectionFromHash(): Selection | null {
-  const params = currentRoute().search;
+export function ruleSelectionFromSearch(params: URLSearchParams): Selection | null {
   const id = params.get("rule");
   if (!id) return null;
-  return { id, origin: params.get("origin") ?? "" };
+  return { id, origin: params.get("rule_origin") ?? params.get("origin") ?? "" };
+}
+
+function selectionFromHash(): Selection | null {
+  return ruleSelectionFromSearch(currentRoute().search);
 }
 
 /** Reflect the selected rule into the URL so it is shareable and
@@ -200,6 +230,9 @@ interface Props {
 
 export function RuleCatalogRoute({ client }: Props) {
   const initialListState = ruleListStateFromRoute();
+  const [lifecycleStatus, setLifecycleStatus] = useState(ruleLifecycleStatusFromSearch(
+    currentRoute().search,
+  ));
   const [filters, setFilters] = useState<Filters>(initialListState.filters);
   const [offset, setOffset] = useState(initialListState.offset);
   const [selected, setSelected] = useState<Selection | null>(selectionFromHash);
@@ -220,13 +253,25 @@ export function RuleCatalogRoute({ client }: Props) {
     debounceRef.current = window.setTimeout(() => {
       if (searchInput === filters.q) return;
       const next = { ...filters, q: searchInput };
-      navigate(ruleCatalogHref(next, 0, selected), true);
+      setFilters(next);
+      setOffset(0);
+      replaceRouteState(ruleCatalogHref(next, 0, selected));
     }, 250);
     return () => window.clearTimeout(debounceRef.current);
   }, [filters, searchInput, selected]);
 
   useEffect(() => {
     let cancelled = false;
+    if (lifecycleStatus === "promoted" || lifecycleStatus === "candidate" || lifecycleStatus === "invalid") {
+      setData(null);
+      setStatus("unavailable");
+      setErrorMsg(
+        lifecycleStatus === "invalid"
+          ? "The requested rule lifecycle status is not registered."
+          : `Rule ${lifecycleStatus} lifecycle evidence is not exposed by this deployment.`,
+      );
+      return () => { cancelled = true; };
+    }
     setStatus("loading");
     (async () => {
       try {
@@ -264,7 +309,7 @@ export function RuleCatalogRoute({ client }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [client, filters, offset]);
+  }, [client, filters, lifecycleStatus, offset]);
 
   // Affected-resource counts per rule (active tier), fetched once after
   // the list renders. Non-blocking: badges fill in when it resolves;
@@ -305,6 +350,7 @@ export function RuleCatalogRoute({ client }: Props) {
   useEffect(() => {
     const onRouteChange = () => {
       const listState = ruleListStateFromRoute();
+      setLifecycleStatus(ruleLifecycleStatusFromSearch(currentRoute().search));
       setFilters(listState.filters);
       setSearchInput(listState.filters.q);
       setOffset(listState.offset);
@@ -335,10 +381,7 @@ export function RuleCatalogRoute({ client }: Props) {
         if (!cancelled) setDetail({ status: "ready", data });
       } catch (err) {
         if (!cancelled) {
-          setDetail({
-            status: "error",
-            message: err instanceof Error ? err.message : String(err),
-          });
+          setDetail(ruleDetailFailure(err, selected.id));
         }
       }
     })();
@@ -854,6 +897,20 @@ function RuleDetailDrawer({
         <div class="rule-drawer-body">
           {detail.status === "loading" ? (
             <LoadingState label="Loading rule detail..." />
+          ) : detail.status === "unavailable" ? (
+            <div class="state-block state-unavailable rule-citation-unavailable" role="alert">
+              <span class="state-icon" aria-hidden="true">?</span>
+              <div>
+                <strong>Historical rule citation unavailable</strong>
+                <p>
+                  <code>{detail.ruleId}</code> is not in the current rule catalog. It may have
+                  been retired, renamed, or excluded from this deployment.
+                </p>
+                <a href={routeHref("rules", { params: { q: detail.ruleId } })}>
+                  Search current catalog
+                </a>
+              </div>
+            </div>
           ) : detail.status === "error" ? (
             <ErrorState message={`Failed to load rule detail: ${detail.message}`} />
           ) : (

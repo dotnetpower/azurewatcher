@@ -69,6 +69,11 @@ def test_preference_ignores_client_principal_and_persists_timezone() -> None:
             "principal_id": "principal-b",
             "locale": "ko",
             "verbosity": "detailed",
+            "answer_detail": "deep",
+            "answer_format": "table",
+            "answer_preferences_enabled": True,
+            "answer_intent_detail": {"comparison": "brief"},
+            "answer_intent_format": {"comparison": "bullets"},
             "timezone": "Asia/Seoul",
             "expected_revision": 0,
         },
@@ -77,6 +82,36 @@ def test_preference_ignores_client_principal_and_persists_timezone() -> None:
     assert response.json()["principal_id"] == "principal-a"
     context = client.get("/me/context").json()
     assert context["preference"]["timezone"] == "Asia/Seoul"
+    assert context["preference"]["answer_detail"] == "deep"
+    assert context["preference"]["answer_intent_format"] == {"comparison": "bullets"}
+
+
+def test_preference_reset_removes_principal_projection() -> None:
+    client = _client()
+    assert (
+        client.put(
+            "/me/preferences",
+            json={"answer_detail": "deep", "expected_revision": 0},
+        ).status_code
+        == 200
+    )
+
+    assert client.delete("/me/preferences").status_code == 204
+    assert client.get("/me/context").json()["preference"] is None
+    assert client.delete("/me/preferences").status_code == 404
+
+
+def test_preference_rejects_invalid_answer_shape() -> None:
+    response = _client().put(
+        "/me/preferences",
+        json={
+            "answer_detail": "unbounded",
+            "answer_intent_format": {"comparison": "essay"},
+            "expected_revision": 0,
+        },
+    )
+
+    assert response.status_code == 400
 
 
 def test_persistent_policy_requires_explicit_confirmation() -> None:
@@ -103,6 +138,7 @@ def test_persistent_policy_requires_explicit_confirmation() -> None:
 def test_subscription_requires_timezone_and_confirmation() -> None:
     client = _client()
     body = {
+        "idempotency_key": "morning-briefing-intent",
         "name": "Morning briefing",
         "cron_expression": "0 7 * * *",
         "timezone": "Asia/Seoul",
@@ -114,6 +150,10 @@ def test_subscription_requires_timezone_and_confirmation() -> None:
     assert payload["principal_id"] == "principal-a"
     assert payload["timezone"] == "Asia/Seoul"
     assert payload["next_run_at"].endswith("+00:00")
+    retry = client.post("/me/briefing-subscriptions", json={**body, "confirmed": True})
+    assert retry.status_code == 200
+    assert retry.json()["subscription_id"] == payload["subscription_id"]
+    assert len(client.get("/me/context").json()["subscriptions"]) == 1
     subscription_id = payload["subscription_id"]
     assert (
         client.delete(
@@ -135,6 +175,7 @@ def test_subscription_rejects_delivery_modes_without_runtime_adapter() -> None:
         "/me/briefing-subscriptions",
         json={
             "confirmed": True,
+            "idempotency_key": "unsupported-email-intent",
             "name": "Email briefing",
             "cron_expression": "0 7 * * *",
             "timezone": "Asia/Seoul",

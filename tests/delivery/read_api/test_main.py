@@ -335,6 +335,22 @@ class TestAuditRoute:
         assert client.get("/audit?window=0d").status_code == 400
         assert client.get("/audit?tier=t9").status_code == 400
 
+    def test_sequence_range_is_inclusive_and_validated(self, dev_env: None) -> None:
+        del dev_env
+        app, model = _build_stack(dev_mode=True)
+        for index in range(4):
+            model.record_audit_entry({"event_id": f"event-{index}", "mode": "shadow", "tier": "T0"})
+        client = TestClient(app)
+
+        response = client.get("/audit?from_seq=2&through_seq=3&tier=t0")
+
+        assert response.status_code == 200
+        assert [item["seq"] for item in response.json()["items"]] == [3, 2]
+        assert client.get("/audit?from_seq=0").status_code == 400
+        assert client.get("/audit?through_seq=not-a-number").status_code == 400
+        assert client.get("/audit?from_seq=4&through_seq=3").status_code == 400
+        assert client.get("/audit?from_seq=9223372036854775808").status_code == 400
+
 
 # ---------------------------------------------------------------------------
 # GET /kpi
@@ -869,6 +885,8 @@ class TestCapabilityCatalogPanel:
         body = client.get("/capabilities").json()
 
         assert body["surface"] == "capabilities"
+        assert body["source"] == "static-catalog"
+        assert body["execution_eligibility"] is False
         assert body["count"] >= 1
         ids = {c["capability_id"] for c in body["capabilities"]}
         assert "investigation.run" in ids

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
@@ -34,6 +35,18 @@ from fdai.shared.providers.workflow_definition import (
 )
 
 AuthorizeFn = Callable[[Request], Awaitable[str]]
+_LOGGER = logging.getLogger(__name__)
+
+
+async def _project_after_commit(
+    operation: Awaitable[object],
+    *,
+    record_ref: str,
+) -> None:
+    try:
+        await operation
+    except Exception:  # noqa: BLE001 - source commit succeeded; durable recovery owns retry
+        _LOGGER.exception("workflow ontology projection deferred for %s", record_ref)
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,7 +116,10 @@ def make_workflow_definition_routes(
             )
             stored = await config.definitions.put(definition)
             if config.ontology_projector is not None:
-                await config.ontology_projector.project_workflow_definition(stored)
+                await _project_after_commit(
+                    config.ontology_projector.project_workflow_definition(stored),
+                    record_ref=f"workflow-definition:{stored.definition_id}",
+                )
         except WorkflowCatalogError as exc:
             return JSONResponse(
                 {
@@ -178,7 +194,10 @@ def make_workflow_definition_routes(
             )
             stored = await config.bindings.create(record)
             if config.ontology_projector is not None:
-                await config.ontology_projector.project_workflow_binding(stored)
+                await _project_after_commit(
+                    config.ontology_projector.project_workflow_binding(stored),
+                    record_ref=f"workflow-binding:{principal_id}:{stored.binding_id}",
+                )
         except WorkflowDefinitionConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except ValueError as exc:
@@ -212,7 +231,10 @@ def make_workflow_definition_routes(
             )
             stored = await config.bindings.put(updated, expected_revision=expected)
             if config.ontology_projector is not None:
-                await config.ontology_projector.project_workflow_binding(stored)
+                await _project_after_commit(
+                    config.ontology_projector.project_workflow_binding(stored),
+                    record_ref=f"workflow-binding:{principal_id}:{stored.binding_id}",
+                )
         except WorkflowDefinitionConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except ValueError as exc:
@@ -226,8 +248,10 @@ def make_workflow_definition_routes(
             binding_id=request.path_params["binding_id"],
         )
         if deleted and config.ontology_projector is not None:
-            await config.ontology_projector.delete(
-                f"workflow-binding:{principal_id}:{request.path_params['binding_id']}"
+            object_id = f"workflow-binding:{principal_id}:{request.path_params['binding_id']}"
+            await _project_after_commit(
+                config.ontology_projector.delete(object_id),
+                record_ref=object_id,
             )
         return Response(status_code=204 if deleted else 404)
 

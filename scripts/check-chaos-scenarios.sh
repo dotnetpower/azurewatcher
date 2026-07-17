@@ -15,13 +15,18 @@
 # `scripts/build-symptom-index.py` fails here instead of shipping a
 # stale runtime artifact.
 #
-# Exit code: 0 on all-pass, non-zero on any failure. Safe when the
-# catalog is empty (yields zero entries, exits 0).
+# Finally, checks that both user-facing SRE scenario inventory pages list
+# every current catalog id exactly once. This keeps the published English and
+# Korean inventory synchronized with catalog growth.
+#
+# Exit code: 0 on all-pass, non-zero on any failure. An empty catalog passes
+# only when both published inventories are empty too; otherwise the freshness
+# check correctly reports the stale documented ids.
 
 set -uo pipefail
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-cd "$repo_root"
+cd "$repo_root" || exit 2
 
 if command -v uv >/dev/null 2>&1; then
     python_cmd=(uv run python)
@@ -76,4 +81,48 @@ if ! diff -q "$index_path" "$tmp_index" >/dev/null; then
     exit 1
 fi
 
-echo "check-chaos-scenarios: OK (catalog validates, symptom index matches)"
+# ---- 3. user-facing scenario inventories match load_all() ----------------
+
+if ! PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}" \
+    "${python_cmd[@]}" - <<'PY'
+import re
+import sys
+from collections import Counter
+from pathlib import Path
+
+from fdai.core.chaos.scenario_catalog import load_all
+
+expected = {entry.id for entry in load_all()}
+inventory_paths = (
+    Path("docs/user-guide/sre/scenario-validation-inventory.md"),
+    Path("docs/user-guide/sre/scenario-validation-inventory-ko.md"),
+)
+pattern = re.compile(r"`(chaos\.[a-zA-Z0-9_.-]+)`")
+
+for path in inventory_paths:
+    if not path.is_file():
+        print(f"missing SRE scenario inventory: {path}", file=sys.stderr)
+        raise SystemExit(1)
+    counts = Counter(pattern.findall(path.read_text(encoding="utf-8")))
+    actual = set(counts)
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    duplicated = sorted(scenario_id for scenario_id, count in counts.items() if count != 1)
+    if missing or extra or duplicated:
+        print(f"stale SRE scenario inventory: {path}", file=sys.stderr)
+        if missing:
+            print(f"  missing: {missing}", file=sys.stderr)
+        if extra:
+            print(f"  extra: {extra}", file=sys.stderr)
+        if duplicated:
+            print(f"  duplicated: {duplicated}", file=sys.stderr)
+        raise SystemExit(1)
+
+print(f"scenario inventories list {len(expected)} catalog ids each")
+PY
+then
+    echo "check-chaos-scenarios: scenario inventory freshness failed" >&2
+    exit 1
+fi
+
+echo "check-chaos-scenarios: OK (catalog, symptom index, inventories match)"

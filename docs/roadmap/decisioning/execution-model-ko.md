@@ -1,8 +1,8 @@
 ---
 title: Execution 모델
 translation_of: execution-model.md
-translation_source_sha: 2336606f4e7b832329d7fb0b395ced26d009467a
-translation_revised: 2026-07-12
+translation_source_sha: b0075cdaf0574ba5ff157ce9c5d7cc93630ac873
+translation_revised: 2026-07-17
 ---
 
 # Execution 모델
@@ -524,6 +524,10 @@ RiskGate 가 `hil` 을 반환하면 executor 는 실행되지 않고 control loo
   executor selection (§5.4) 으로 재-dispatch; `hil.approved.executed`
   audit 엔트리 하나 기록.
 - **REJECT** / **TIMEOUT** - 기록하되 실행 안 함 (fail-closed).
+- **만료된 APPROVE** - delegation과 executor selection 전에 `expires_at`을
+  확인한다. Expiry 시각 이후의 승인은 atomic하게 `TIMEOUT`으로 resolve하고
+  `hil.timeout`을 기록하며 실행하지 않는다. 만료 record는 Reader HIL queue와
+  `hil_pending` KPI projection에서 제외한다.
 - **idempotent** - park 는 첫 terminal 결정에서 `status=resolved` 로
   전환; 중복 결정은 no-op, 상충 결정은 거부되어 승인이 double-apply
   될 수 없음.
@@ -579,6 +583,13 @@ operational-alert 도 emit 한다 - outbound-only, 정보성이며 승인 버튼
   dispatch. tool registry 는 MCP 어댑터의 자연스러운 attach point 다 -
   Protocol 을 구현한 `McpToolExecutor` 가 MCP 서버 tool 하나를 `tool.*`
   ActionType 하나에 매핑한다.
+- MCP server는 `McpServerCatalog`를 통해 등록합니다. Server manifest는 endpoint 및
+  ActionType-to-tool allowlist를 검증하고 disabled 상태로 install되며 read-only `tools/list`
+  discovery가 모든 allowlisted tool의 존재를 확인한 후에만 enable할 수 있습니다. Public
+  endpoint는 HTTPS가 필요하고 HTTP는 loopback sidecar에만 허용됩니다. Payload URL은 configured
+  server endpoint를 override하지 않습니다. 두 enabled server는 같은 ActionType을 소유할 수
+  없습니다. Enabled catalog는 기존 `RoutingToolExecutor`에 route를 project하며 새 execution
+  path를 만들지 않습니다.
 - `core/` 는 Protocol 만 안다; fork 가 composition root 에서 live 어댑터
   (네이티브 Python registry, MCP 클라이언트, HTTP callout) 를 bind. Default
   binding 은 `RecordingToolExecutor` (실제 함수 실행 없음). Configured

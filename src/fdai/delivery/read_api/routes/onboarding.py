@@ -14,13 +14,15 @@ class OnboardingPanel:
     path = "/onboarding"
     name = "onboarding"
 
-    def __init__(self, *, probe: ResourceProbe) -> None:
+    def __init__(self, *, probe: ResourceProbe, configured: bool = True) -> None:
         self._verifier = OnboardingVerifier(probe=probe)
+        self._configured = configured
 
     async def render(self, *, params: Mapping[str, str]) -> Mapping[str, Any]:
         del params
         report = await self._verifier.verify(default_onboarding_spec())
         return {
+            "probe_mode": "configured" if self._configured else "not-configured",
             "ready": report.ready,
             "blocked": report.blocked,
             "missing_resources": [item.value for item in report.missing_resources],

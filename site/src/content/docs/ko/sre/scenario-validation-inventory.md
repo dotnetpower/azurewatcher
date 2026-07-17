@@ -1,0 +1,1 @@
+../../../../../../docs/user-guide/sre/scenario-validation-inventory-ko.md

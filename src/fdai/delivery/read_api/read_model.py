@@ -41,6 +41,7 @@ from typing import Any, Literal, Protocol, runtime_checkable
 
 _DEFAULT_LIMIT = 50
 _MAX_LIMIT = 500
+KPI_AUDIT_SAMPLE_LIMIT = 500
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +110,8 @@ class AuditQueryFilters:
     outcome: str | None = None
     vertical: str | None = None
     window_days: int | None = None
+    from_seq: int | None = None
+    through_seq: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -213,6 +216,16 @@ def decode_incident_cursor(
 
 
 @dataclass(frozen=True, slots=True)
+class AuditSample:
+    """Immutable audit sequence range used by one KPI aggregation."""
+
+    from_seq: int | None
+    through_seq: int | None
+    row_count: int
+    limit: int
+
+
+@dataclass(frozen=True, slots=True)
 class DashboardKpi:
     """KPI dashboard aggregates derived from the audit stream.
 
@@ -231,6 +244,7 @@ class DashboardKpi:
     by_outcome: Mapping[str, int] = field(default_factory=dict)
     by_tier: Mapping[str, int] = field(default_factory=dict)
     last_recorded_at: str | None = None
+    audit_sample: AuditSample | None = None
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -485,6 +499,7 @@ class ConsoleReadModel(Protocol):
         limit: int = _DEFAULT_LIMIT,
         cursor: str | None = None,
         vertical: str | None = None,
+        correlation_id: str | None = None,
     ) -> IncidentPage:
         """Return incident-centric projections, newest activity first."""
         ...
@@ -493,7 +508,12 @@ class ConsoleReadModel(Protocol):
         """Return the KPI snapshot."""
         ...
 
-    async def list_hil_queue(self, *, limit: int = _DEFAULT_LIMIT) -> HilQueuePage:
+    async def list_hil_queue(
+        self,
+        *,
+        limit: int = _DEFAULT_LIMIT,
+        search: str | None = None,
+    ) -> HilQueuePage:
         """Return the pending HIL items (newest first)."""
         ...
 
@@ -524,11 +544,15 @@ def _normalized_filter_value(value: Any) -> str:
 
 def _audit_item_matches(item: AuditItem, filters: AuditQueryFilters) -> bool:
     entry = item.entry
+    if filters.from_seq is not None and item.seq < filters.from_seq:
+        return False
+    if filters.through_seq is not None and item.seq > filters.through_seq:
+        return False
     if filters.mode is not None and item.mode != filters.mode:
         return False
     if filters.action_kind is not None and item.action_kind != filters.action_kind:
         return False
-    if filters.tier is not None and str(entry.get("tier", "")) != filters.tier:
+    if filters.tier is not None and str(entry.get("tier", "")).lower() != filters.tier:
         return False
     if filters.outcome is not None and str(entry.get("outcome", "")) != filters.outcome:
         return False
@@ -544,6 +568,31 @@ def _audit_item_matches(item: AuditItem, filters: AuditQueryFilters) -> bool:
         if recorded < datetime.now(tz=UTC) - timedelta(days=filters.window_days):
             return False
     return True
+
+
+def _hil_item_pending(item: HilQueueItem, *, now: datetime) -> bool:
+    if item.ttl_expires_at is None:
+        return True
+    try:
+        expires_at = datetime.fromisoformat(item.ttl_expires_at.replace("Z", "+00:00"))
+        return expires_at.tzinfo is not None and expires_at > now
+    except ValueError:
+        return False
+
+
+def _hil_search_text(item: HilQueueItem) -> str:
+    return " ".join(
+        (
+            item.approval_id,
+            item.action_kind,
+            item.target_resource_ref,
+            item.event_id,
+            item.correlation_id or "",
+            item.reason,
+            *item.reasons,
+            *item.citing_rule_ids,
+        )
+    ).casefold()
 
 
 # ---------------------------------------------------------------------------
@@ -663,6 +712,7 @@ class InMemoryConsoleReadModel(ConsoleReadModel):
         limit: int = _DEFAULT_LIMIT,
         cursor: str | None = None,
         vertical: str | None = None,
+        correlation_id: str | None = None,
     ) -> IncidentPage:
         from fdai.delivery.read_api.routes.incident_projection import project_incidents
 
@@ -672,6 +722,8 @@ class InMemoryConsoleReadModel(ConsoleReadModel):
             snapshot_seq = decoded.snapshot_seq if decoded else self._seq
             snapshot = tuple(item for item in self._audit if item.seq <= snapshot_seq)
         summaries = project_incidents(snapshot, status=status)
+        if correlation_id is not None:
+            summaries = tuple(item for item in summaries if item.correlation_id == correlation_id)
         if vertical is not None:
             summaries = tuple(item for item in summaries if item.vertical == vertical)
         if decoded is not None:
@@ -693,9 +745,16 @@ class InMemoryConsoleReadModel(ConsoleReadModel):
 
     async def dashboard_metrics(self) -> DashboardKpi:
         with self._lock:
-            snapshot = list(self._audit)
-            hil_pending = len(self._hil)
+            snapshot = list(self._audit[-KPI_AUDIT_SAMPLE_LIMIT:])
+            now = datetime.now(tz=UTC)
+            hil_pending = sum(1 for item in self._hil if _hil_item_pending(item, now=now))
         total = len(snapshot)
+        audit_sample = AuditSample(
+            from_seq=snapshot[0].seq if snapshot else None,
+            through_seq=snapshot[-1].seq if snapshot else None,
+            row_count=total,
+            limit=KPI_AUDIT_SAMPLE_LIMIT,
+        )
         if total == 0:
             return DashboardKpi(
                 event_count=0,
@@ -706,6 +765,7 @@ class InMemoryConsoleReadModel(ConsoleReadModel):
                 by_outcome={},
                 by_tier={},
                 last_recorded_at=None,
+                audit_sample=audit_sample,
             )
         by_kind: dict[str, int] = {}
         by_outcome: dict[str, int] = {}
@@ -718,7 +778,7 @@ class InMemoryConsoleReadModel(ConsoleReadModel):
             by_outcome[outcome] = by_outcome.get(outcome, 0) + 1
             tier = item.entry.get("tier")
             if tier is not None:
-                tier_key = str(tier)
+                tier_key = str(tier).lower()
                 by_tier[tier_key] = by_tier.get(tier_key, 0) + 1
             if item.mode == "shadow":
                 shadow += 1
@@ -733,13 +793,24 @@ class InMemoryConsoleReadModel(ConsoleReadModel):
             by_outcome=by_outcome,
             by_tier=by_tier,
             last_recorded_at=snapshot[-1].recorded_at,
+            audit_sample=audit_sample,
         )
 
-    async def list_hil_queue(self, *, limit: int = _DEFAULT_LIMIT) -> HilQueuePage:
+    async def list_hil_queue(
+        self,
+        *,
+        limit: int = _DEFAULT_LIMIT,
+        search: str | None = None,
+    ) -> HilQueuePage:
         bounded = clamp_limit(limit)
         with self._lock:
-            total = len(self._hil)
-            page = list(reversed(self._hil))[:bounded]
+            now = datetime.now(tz=UTC)
+            pending = [item for item in self._hil if _hil_item_pending(item, now=now)]
+            if search:
+                needle = search.casefold()
+                pending = [item for item in pending if needle in _hil_search_text(item)]
+            total = len(pending)
+            page = list(reversed(pending))[:bounded]
         return HilQueuePage(items=tuple(page), total=total)
 
     # ------------------------------------------------------------------
@@ -764,8 +835,10 @@ def _parse_cursor(cursor: str | None) -> int | None:
 __all__ = [
     "DEFAULT_LIMIT",
     "MAX_LIMIT",
+    "KPI_AUDIT_SAMPLE_LIMIT",
     "AuditItem",
     "AuditPage",
+    "AuditSample",
     "ConsoleReadModel",
     "DashboardKpi",
     "HilQueueItem",

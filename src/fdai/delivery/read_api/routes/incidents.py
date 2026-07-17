@@ -43,6 +43,7 @@ class IncidentsPanel:
             raise PanelQueryError("limit MUST be an integer") from exc
         cursor = params.get("cursor") or None
         vertical = (params.get("vertical") or "").replace("-", "_") or None
+        correlation_id = params.get("correlation_id") or None
         if vertical is not None and vertical not in _VALID_VERTICALS:
             raise PanelQueryError(
                 "vertical MUST be one of: resilience, change-safety, cost-governance, unknown"
@@ -53,6 +54,7 @@ class IncidentsPanel:
                 limit=clamp_limit(limit),
                 cursor=cursor,
                 vertical=vertical,
+                correlation_id=correlation_id,
             )
         except ValueError as exc:
             raise PanelQueryError(str(exc)) from exc

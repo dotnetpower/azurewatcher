@@ -14,25 +14,17 @@
  */
 
 import { loadConfig } from "../config";
-import type { AuthContext } from "../auth";
 import { getLocale } from "../i18n";
 import { readConsolePreferences } from "../preferences";
 import { answer as deterministicAnswer, ROUTE_ACTION_HINTS, type Answer } from "./answerer";
+import { chatRequestHeaders } from "./auth";
 import type { ViewSnapshot } from "./context";
 import { getDeckUser } from "./deck-user";
 
-let chatAuth: AuthContext | null = null;
-
-export function setChatAuth(auth: AuthContext | null): void {
-  chatAuth = auth;
-}
+export { setChatAuth } from "./auth";
 
 async function requestHeaders(contentType: boolean = false): Promise<Record<string, string>> {
-  const headers: Record<string, string> = {};
-  if (contentType) headers["content-type"] = "application/json";
-  const authorization = await chatAuth?.getAuthorizationHeader() ?? null;
-  if (authorization) headers.authorization = authorization;
-  return headers;
+  return chatRequestHeaders(contentType);
 }
 
 /** Build the `view_context` sent to the chat backend: the screen snapshot plus
@@ -161,7 +153,7 @@ export interface DelegationMetadata {
 }
 
 export interface AnswerPlanMetadata {
-  readonly intent: "definition" | "why" | "procedure" | "comparison" | "diagnosis" | "status" | "list" | "summary" | "proposal" | "open_question";
+  readonly intent: "definition" | "why" | "procedure" | "comparison" | "diagnosis" | "status" | "list" | "summary" | "proposal" | "open_question" | "greeting";
   readonly detail_level: "brief" | "standard" | "deep";
   readonly format: "prose" | "bullets" | "numbered_steps" | "table" | "checklist" | "mixed";
   readonly sections: readonly string[];
@@ -169,6 +161,36 @@ export interface AnswerPlanMetadata {
   readonly max_words: number;
   readonly discuss: "skip" | "shadow" | "selective";
   readonly explicit_overrides: readonly string[];
+  readonly preference_applied: boolean;
+}
+
+export interface AnswerPlanningContributionMetadata {
+  readonly agent: string;
+  readonly evidence_refs: readonly string[];
+  readonly confidence: number;
+  readonly suggested_sections: readonly string[];
+}
+
+export interface AnswerPlanningMetadata {
+  readonly mode: "shadow";
+  readonly status: "skipped" | "completed" | "degraded" | "timed_out";
+  readonly primary_agent: string | null;
+  readonly consulted_agents: readonly string[];
+  readonly contributions: readonly AnswerPlanningContributionMetadata[];
+  readonly failures: readonly { readonly agent: string; readonly kind: string }[];
+  readonly elapsed_ms: number;
+  readonly unique_evidence_count: number;
+  readonly duplicate_evidence_count: number;
+  readonly covered_sections: readonly string[];
+  readonly estimated_added_tokens: number;
+  readonly budget: {
+    readonly max_contributors: number;
+    readonly max_rounds: number;
+    readonly max_wall_ms: number;
+    readonly max_added_tokens: number;
+    readonly nested_rounds: false;
+  };
+  readonly reason: string | null;
 }
 
 export interface VerificationProgress {
@@ -203,6 +225,7 @@ export type ProgressiveAnswer = Answer & {
   readonly verification?: AnswerVerification;
   readonly delegation?: DelegationMetadata;
   readonly answerPlan?: AnswerPlanMetadata;
+  readonly answerPlanning?: AnswerPlanningMetadata;
   readonly codeArtifacts?: readonly GroundedCodeArtifact[];
 };
 
@@ -397,6 +420,11 @@ export async function askBackend(
       ? (payload as Record<string, unknown>).answer_plan
       : undefined,
   );
+  const answerPlanning = parseAnswerPlanning(
+    typeof payload === "object" && payload !== null
+      ? (payload as Record<string, unknown>).answer_planning
+      : undefined,
+  );
   const codeArtifacts = parseGroundedCodeArtifacts(
     typeof payload === "object" && payload !== null
       ? (payload as Record<string, unknown>).code_artifacts
@@ -434,6 +462,7 @@ export async function askBackend(
     ...(router ? { router } : {}),
     ...(delegation ? { delegation } : {}),
     ...(answerPlan ? { answerPlan } : {}),
+    ...(answerPlanning ? { answerPlanning } : {}),
     ...(codeArtifacts.length > 0 ? { codeArtifacts } : {}),
   };
 }
@@ -840,6 +869,7 @@ export async function askBackendStream(
   const verification = parseAnswerVerification(done.verification);
   const delegation = parseDelegation(done.delegation);
   const answerPlan = parseAnswerPlan(done.answer_plan);
+  const answerPlanning = parseAnswerPlanning(done.answer_planning);
   const codeArtifacts = parseGroundedCodeArtifacts(done.code_artifacts);
   const chosen = router?.chose ?? model;
   const explicitSource = typeof done.source === "string" ? done.source : null;
@@ -859,6 +889,7 @@ export async function askBackendStream(
     ...(router ? { router } : {}),
     ...(delegation ? { delegation } : {}),
     ...(answerPlan ? { answerPlan } : {}),
+    ...(answerPlanning ? { answerPlanning } : {}),
     ...(codeArtifacts.length > 0 ? { codeArtifacts } : {}),
   };
 }
@@ -924,7 +955,7 @@ export function parseGroundedCodeArtifacts(raw: unknown): GroundedCodeArtifact[]
 export function parseAnswerPlan(raw: unknown): AnswerPlanMetadata | undefined {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
   const record = raw as Record<string, unknown>;
-  const intents = ["definition", "why", "procedure", "comparison", "diagnosis", "status", "list", "summary", "proposal", "open_question"] as const;
+  const intents = ["definition", "why", "procedure", "comparison", "diagnosis", "status", "list", "summary", "proposal", "open_question", "greeting"] as const;
   const details = ["brief", "standard", "deep"] as const;
   const formats = ["prose", "bullets", "numbered_steps", "table", "checklist", "mixed"] as const;
   const evidence = ["none", "screen", "catalog", "server_read_model", "agent_owned"] as const;
@@ -934,6 +965,9 @@ export function parseAnswerPlan(raw: unknown): AnswerPlanMetadata | undefined {
   if (!formats.includes(record.format as typeof formats[number])) return undefined;
   if (!evidence.includes(record.evidence_requirement as typeof evidence[number])) return undefined;
   if (!discuss.includes(record.discuss as typeof discuss[number])) return undefined;
+  if (record.preference_applied !== undefined && typeof record.preference_applied !== "boolean") {
+    return undefined;
+  }
   if (typeof record.max_words !== "number" || !Number.isInteger(record.max_words) || record.max_words < 1 || record.max_words > 2000) return undefined;
   if (!Array.isArray(record.sections) || !record.sections.every((item) => typeof item === "string") || record.sections.length > 12) return undefined;
   const overrides = Array.isArray(record.explicit_overrides)
@@ -948,7 +982,99 @@ export function parseAnswerPlan(raw: unknown): AnswerPlanMetadata | undefined {
     max_words: record.max_words,
     discuss: record.discuss as AnswerPlanMetadata["discuss"],
     explicit_overrides: overrides,
+    preference_applied: record.preference_applied === true,
   };
+}
+
+export function parseAnswerPlanning(raw: unknown): AnswerPlanningMetadata | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
+  const record = raw as Record<string, unknown>;
+  const statuses = ["skipped", "completed", "degraded", "timed_out"] as const;
+  if (record.mode !== "shadow") return undefined;
+  if (!statuses.includes(record.status as typeof statuses[number])) return undefined;
+  if (record.primary_agent !== null && !boundedString(record.primary_agent, 64)) return undefined;
+  const consulted = boundedStringArray(record.consulted_agents, 2, 64);
+  const covered = boundedStringArray(record.covered_sections, 12, 64);
+  if (consulted === undefined || covered === undefined) return undefined;
+  if (!Array.isArray(record.contributions) || record.contributions.length > 2) return undefined;
+  const contributions: AnswerPlanningContributionMetadata[] = [];
+  for (const rawContribution of record.contributions) {
+    if (typeof rawContribution !== "object" || rawContribution === null) return undefined;
+    const contribution = rawContribution as Record<string, unknown>;
+    const evidenceRefs = boundedStringArray(contribution.evidence_refs, 32, 512);
+    const sections = boundedStringArray(contribution.suggested_sections, 12, 64);
+    if (!boundedString(contribution.agent, 64) || evidenceRefs === undefined || sections === undefined) {
+      return undefined;
+    }
+    if (typeof contribution.confidence !== "number" || !Number.isFinite(contribution.confidence)
+      || contribution.confidence < 0 || contribution.confidence > 1) return undefined;
+    contributions.push({
+      agent: contribution.agent,
+      evidence_refs: evidenceRefs,
+      confidence: contribution.confidence,
+      suggested_sections: sections,
+    });
+  }
+  if (!Array.isArray(record.failures) || record.failures.length > 3) return undefined;
+  const failures: { readonly agent: string; readonly kind: string }[] = [];
+  for (const rawFailure of record.failures) {
+    if (typeof rawFailure !== "object" || rawFailure === null) return undefined;
+    const failure = rawFailure as Record<string, unknown>;
+    if (!boundedString(failure.agent, 64) || !boundedString(failure.kind, 64)) return undefined;
+    failures.push({ agent: failure.agent, kind: failure.kind });
+  }
+  if (!boundedInteger(record.elapsed_ms, 0, 5_000)) return undefined;
+  if (!boundedInteger(record.unique_evidence_count, 0, 64)) return undefined;
+  if (!boundedInteger(record.duplicate_evidence_count, 0, 64)) return undefined;
+  if (!boundedInteger(record.estimated_added_tokens, 0, 800)) return undefined;
+  if (typeof record.budget !== "object" || record.budget === null || Array.isArray(record.budget)) {
+    return undefined;
+  }
+  const budget = record.budget as Record<string, unknown>;
+  if (!boundedInteger(budget.max_contributors, 1, 2) || budget.max_rounds !== 1
+    || !boundedInteger(budget.max_wall_ms, 1, 1_200)
+    || !boundedInteger(budget.max_added_tokens, 1, 800)
+    || budget.nested_rounds !== false) return undefined;
+  if (record.reason !== null && !boundedString(record.reason, 64)) return undefined;
+  return {
+    mode: "shadow",
+    status: record.status as AnswerPlanningMetadata["status"],
+    primary_agent: record.primary_agent,
+    consulted_agents: consulted,
+    contributions,
+    failures,
+    elapsed_ms: record.elapsed_ms,
+    unique_evidence_count: record.unique_evidence_count,
+    duplicate_evidence_count: record.duplicate_evidence_count,
+    covered_sections: covered,
+    estimated_added_tokens: record.estimated_added_tokens,
+    budget: {
+      max_contributors: budget.max_contributors,
+      max_rounds: 1,
+      max_wall_ms: budget.max_wall_ms,
+      max_added_tokens: budget.max_added_tokens,
+      nested_rounds: false,
+    },
+    reason: record.reason,
+  };
+}
+
+function boundedString(value: unknown, maxLength: number): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= maxLength;
+}
+
+function boundedStringArray(
+  value: unknown,
+  maxItems: number,
+  maxLength: number,
+): readonly string[] | undefined {
+  if (!Array.isArray(value) || value.length > maxItems) return undefined;
+  return value.every((item) => boundedString(item, maxLength)) ? value : undefined;
+}
+
+function boundedInteger(value: unknown, minimum: number, maximum: number): value is number {
+  return typeof value === "number" && Number.isInteger(value)
+    && value >= minimum && value <= maximum;
 }
 
 function parseDelegation(raw: unknown): DelegationMetadata | undefined {
@@ -1175,8 +1301,10 @@ function totalTokensOf(raw: unknown): number | null {
   return null;
 }
 
-/** `" · <N> tok"` suffix for the source badge, or `""` when usage is absent. */
+/** `" · <N> tok"` suffix for the source badge, or `""` when usage is absent
+ *  or the operator has turned off token display in settings. */
 function tokenSuffix(usage: unknown): string {
+  if (!readConsolePreferences().showTokenUsage) return "";
   const total = totalTokensOf(usage);
   if (total === null) return "";
   const label =

@@ -42,9 +42,11 @@ from fdai.core.reporting.contracts import (
 )
 from fdai.core.reporting.models import (
     DataSet,
+    DataSourceProvenance,
     QuerySpec,
     RenderedReport,
     RenderedWidget,
+    ReportProvenance,
     ReportSpec,
     WidgetSpec,
 )
@@ -127,6 +129,7 @@ class ReportEngine:
         resolved_vars = self._resolve_variables(spec, variables or {})
         now = self._clock()
         since, until = spec.time_range.resolve(now=now)
+        provenance = self._report_provenance(spec.widgets)
 
         # Hard cap: a spec that would blow up the response body is
         # replaced with a single sentinel widget explaining why. The
@@ -154,6 +157,7 @@ class ReportEngine:
                 variables=resolved_vars,
                 widgets=(sentinel,),
                 tags=spec.tags,
+                provenance=provenance,
             )
 
         rendered = await self._render_widgets(
@@ -172,6 +176,39 @@ class ReportEngine:
             variables=resolved_vars,
             widgets=tuple(rendered),
             tags=spec.tags,
+            provenance=provenance,
+        )
+
+    def _report_provenance(self, widgets: Sequence[WidgetSpec]) -> ReportProvenance:
+        names = sorted(_datasource_names(widgets))
+        if not names:
+            return ReportProvenance(availability="not_applicable")
+        sources_list: list[DataSourceProvenance] = []
+        for name in names:
+            try:
+                sources_list.append(self._sources.provenance(name))
+            except DataSourceNotFoundError:
+                sources_list.append(
+                    DataSourceProvenance(
+                        datasource=name,
+                        source="unregistered",
+                        availability="unavailable",
+                    )
+                )
+        sources = tuple(sources_list)
+        states = {source.availability for source in sources}
+        availability = next(iter(states)) if len(states) == 1 else "partial"
+        synthetic = (
+            True
+            if any(source.synthetic is True for source in sources)
+            else False
+            if all(source.synthetic is False for source in sources)
+            else None
+        )
+        return ReportProvenance(
+            availability=availability,
+            synthetic=synthetic,
+            sources=sources,
         )
 
     def _resolve_variables(
@@ -414,6 +451,13 @@ def _count_widgets(widgets: Sequence[WidgetSpec]) -> int:
         if widget.children:
             total += _count_widgets(widget.children)
     return total
+
+
+def _datasource_names(widgets: Sequence[WidgetSpec]) -> set[str]:
+    names = {widget.query.datasource for widget in widgets if widget.query is not None}
+    for widget in widgets:
+        names.update(_datasource_names(widget.children))
+    return names
 
 
 def _cap(message: str, limit: int) -> str:

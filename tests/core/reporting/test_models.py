@@ -7,8 +7,10 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from fdai.core.reporting.models import (
+    DataSourceProvenance,
     RenderedReport,
     RenderedWidget,
+    ReportProvenance,
     Series,
     TimeRange,
 )
@@ -65,6 +67,19 @@ class TestRenderedReport:
                 ),
             ),
             tags=("ops",),
+            provenance=ReportProvenance(
+                availability="available",
+                synthetic=True,
+                sources=(
+                    DataSourceProvenance(
+                        datasource="metric",
+                        source="static-dev-metric",
+                        availability="available",
+                        synthetic=True,
+                        as_of="2026-07-10T11:55:00+00:00",
+                    ),
+                ),
+            ),
         )
         payload = report.to_dict()
         assert payload["id"] == "demo"
@@ -75,6 +90,19 @@ class TestRenderedReport:
             "until": now.isoformat(),
         }
         assert [w["id"] for w in payload["widgets"]] == ["v", "ts"]
+        assert payload["provenance"] == {
+            "availability": "available",
+            "synthetic": True,
+            "sources": [
+                {
+                    "datasource": "metric",
+                    "source": "static-dev-metric",
+                    "availability": "available",
+                    "synthetic": True,
+                    "as_of": "2026-07-10T11:55:00+00:00",
+                }
+            ],
+        }
         # Ensure defensive copies - mutating the returned dict never
         # leaks into another call (frozen dataclass promise).
         payload["widgets"][0]["data"]["value"] = 99

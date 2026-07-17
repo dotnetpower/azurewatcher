@@ -6,16 +6,23 @@ import {
   decodeRenderedProcessView,
   defaultProcessId,
   displayValue,
+  INITIAL_PROCESS_REFRESH,
   processHref,
+  processEventHref,
   processIdFromHash,
   processListFailure,
   processTone,
+  reduceProcessRefresh,
 } from "./processes.model";
 
 describe("process view route model", () => {
   it("builds a clean process detail path and accepts legacy queries", () => {
     const href = processHref("process:review-1");
     expect(href).toBe("/processes/process%3Areview-1");
+    expect(processHref("Run_A")).toBe("/processes/Run_A");
+    expect(processEventHref("Run_A", "Event/1")).toBe(
+      "/processes/Run_A?event=Event%2F1",
+    );
     expect(processIdFromHash("#%2Fprocesses%3Fprocess%3Dprocess-1")).toBe("process-1");
   });
 
@@ -54,6 +61,20 @@ describe("process view route model", () => {
     const items = [summary("unsupported", false), summary("ready", true)];
     expect(defaultProcessId(items, "#/processes?process=chosen")).toBe("chosen");
     expect(defaultProcessId(items, "#/processes")).toBe("unsupported");
+  });
+
+  it("coalesces refresh starts until the matching generation finishes", () => {
+    const started = reduceProcessRefresh(INITIAL_PROCESS_REFRESH, { type: "start" });
+    expect(started).toEqual({ generation: 1, refreshing: true });
+    expect(reduceProcessRefresh(started, { type: "start" })).toBe(started);
+    expect(reduceProcessRefresh(started, { type: "finish", generation: 0 })).toBe(started);
+
+    const finished = reduceProcessRefresh(started, { type: "finish", generation: 1 });
+    expect(finished).toEqual({ generation: 1, refreshing: false });
+    expect(reduceProcessRefresh(finished, { type: "start" })).toEqual({
+      generation: 2,
+      refreshing: true,
+    });
   });
 
   it("rejects malformed list and detail payloads at the boundary", () => {

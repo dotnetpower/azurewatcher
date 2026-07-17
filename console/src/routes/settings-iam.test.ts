@@ -1,7 +1,17 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { AuthContext } from "../auth";
-import { iamIdentityPresentation } from "./settings-iam";
-import { isRoleAssigned, rosterIdentity } from "./settings-iam-requests";
+import {
+  iamIdentityPresentation,
+  iamTabFromSegment,
+  isCurrentIamLoad,
+  referencedUsers,
+} from "./settings-iam";
+import {
+  isRoleAssigned,
+  pendingAccessRequestCountKey,
+  rosterIdentity,
+} from "./settings-iam-requests";
+import { isCurrentDirectorySearch } from "./settings-iam-users";
 import {
   reviewIamAccessRequest,
   submitIamAccessRequest,
@@ -56,6 +66,27 @@ afterEach(() => {
 });
 
 describe("IAM settings contracts", () => {
+  test("qualifies pending counts until every request page is loaded", () => {
+    expect(pendingAccessRequestCountKey(true)).toBe("settings.iam.pendingLoadedCount");
+    expect(pendingAccessRequestCountKey(false)).toBe("settings.iam.pendingCount");
+  });
+
+  test("rejects directory results from before the query changed", () => {
+    expect(isCurrentDirectorySearch(3, 2)).toBe(false);
+    expect(isCurrentDirectorySearch(3, 3)).toBe(true);
+  });
+
+  test("rejects a pagination response from before a full reload", () => {
+    expect(isCurrentIamLoad(4, 3)).toBe(false);
+    expect(isCurrentIamLoad(4, 4)).toBe(true);
+  });
+
+  test("distinguishes the default IAM tab from an invalid explicit segment", () => {
+    expect(iamTabFromSegment(undefined)).toBe("my-access");
+    expect(iamTabFromSegment("roles")).toBe("roles");
+    expect(iamTabFromSegment("not-a-tab")).toBeNull();
+  });
+
   test("separates local Entra identity from the dev authorization principal", () => {
     const auth: AuthContext = {
       devMode: true,
@@ -78,6 +109,16 @@ describe("IAM settings contracts", () => {
       source: "local-entra",
       subjectId: "entra-subject",
       authorization: "local-ceiling",
+    });
+  });
+
+  test("does not turn a missing account name into a roster username", () => {
+    const decoded = decodeIamOverview(overview);
+
+    expect(referencedUsers(decoded, null, [])[0]).toMatchObject({
+      subjectId: "principal-1",
+      displayName: "principal-1",
+      username: null,
     });
   });
 

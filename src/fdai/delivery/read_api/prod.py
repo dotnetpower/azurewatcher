@@ -65,11 +65,13 @@ from starlette.applications import Starlette
 
 from fdai.core.notifications.matrix import load_matrix_from_yaml
 from fdai.core.onboarding import ResourceProbe
+from fdai.core.operator_memory import OperatorMemoryReviewService
 from fdai.core.rbac.access_request import AccessRequestService
 from fdai.core.rbac.resolver import GroupMapping, RoleResolver
 from fdai.core.report_feed import ReportFeed
 from fdai.core.reporting.composition import default_reporting_engine
 from fdai.core.reporting.datasources import AuditReader
+from fdai.core.scheduler import ScheduleRunHistoryService
 from fdai.core.views import ViewEngine, load_view_catalog
 from fdai.core.workflow.approval import WorkflowApprovalPlanner
 from fdai.core.workflow.orchestrator import WorkflowOrchestrator
@@ -78,10 +80,18 @@ from fdai.delivery.persistence import (
     PostgresHilApprovalRegistry,
     PostgresIncidentNotificationDeliveryStore,
     PostgresIncidentProposalStore,
+    PostgresMemoryCompactionRepository,
+    PostgresMemoryCompactionRepositoryConfig,
     PostgresMeteringStore,
     PostgresMeteringStoreConfig,
+    PostgresModelHealthTransitionSink,
+    PostgresModelHealthTransitionSinkConfig,
+    PostgresOperatorMemoryStore,
+    PostgresOperatorMemoryStoreConfig,
     PostgresReportSignalStore,
     PostgresReportSignalStoreConfig,
+    PostgresScheduleRunLedger,
+    PostgresScheduleRunLedgerConfig,
     PostgresStateStore,
 )
 from fdai.delivery.persistence.postgres import PostgresStateStoreConfig
@@ -118,6 +128,7 @@ from fdai.delivery.read_api.routes.chat_web_search import chat_web_search_from_e
 from fdai.delivery.read_api.routes.hil_callback import HilCallbackConfig
 from fdai.delivery.read_api.routes.llm_cost import LlmCostPanel
 from fdai.delivery.read_api.routes.onboarding import OnboardingPanel
+from fdai.delivery.read_api.routes.operator_memory import OperatorMemoryPanel
 from fdai.delivery.read_api.routes.panels import CapabilityCatalogPanel
 from fdai.delivery.read_api.routes.process_views import ProcessViewsConfig
 from fdai.delivery.read_api.routes.python_tasks import (
@@ -125,6 +136,7 @@ from fdai.delivery.read_api.routes.python_tasks import (
     PythonTaskRunSubmitter,
 )
 from fdai.delivery.read_api.routes.reporting import ReportingConfig
+from fdai.delivery.read_api.routes.scheduler_runs import SchedulerRunsPanel
 from fdai.delivery.read_api.routes.workflow_authoring import WorkflowAuthoringConfig
 from fdai.delivery.read_api.routes.workflow_execution import WorkflowExecutionConfig
 from fdai.delivery.reporting import install_pdf_format_if_available
@@ -427,7 +439,10 @@ def _build_dynamic_views(
     return (
         ReportingConfig(engine=report_engine, formats=formats),
         ProcessViewsConfig(
-            engine=ViewEngine(specs=view_specs, reports=report_engine, processes=process_store)
+            engine=ViewEngine(specs=view_specs, reports=report_engine, processes=process_store),
+            source="postgres",
+            synthetic=False,
+            durable=True,
         ),
         tuple(object_types),
         tuple(link_types),
@@ -936,6 +951,13 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
             store=state_store,
             backend=chat,
             web_search_resolver=chat_web_search,
+            model_routing_status=PostgresModelHealthTransitionSink(
+                config=PostgresModelHealthTransitionSinkConfig(
+                    dsn=read_model._config.dsn,
+                    statement_timeout_ms=read_model._config.statement_timeout_ms,
+                    connect_timeout_s=read_model._config.connect_timeout_s,
+                )
+            ),
         )
     config = ReadApiConfig(
         dev_mode=False,
@@ -971,7 +993,41 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         user_context_ontology_projector=user_context_ontology_projector,
         extra_panels=(
             CapabilityCatalogPanel(),
-            OnboardingPanel(probe=onboarding_probe),
+            OperatorMemoryPanel(
+                service=OperatorMemoryReviewService(
+                    store=PostgresOperatorMemoryStore(
+                        config=PostgresOperatorMemoryStoreConfig(
+                            dsn=read_model._config.dsn,
+                            statement_timeout_ms=read_model._config.statement_timeout_ms,
+                            connect_timeout_s=read_model._config.connect_timeout_s,
+                        )
+                    )
+                ),
+                compactions=PostgresMemoryCompactionRepository(
+                    config=PostgresMemoryCompactionRepositoryConfig(
+                        dsn=read_model._config.dsn,
+                        statement_timeout_ms=read_model._config.statement_timeout_ms,
+                        connect_timeout_s=read_model._config.connect_timeout_s,
+                    )
+                ),
+            ),
+            SchedulerRunsPanel(
+                service=ScheduleRunHistoryService(
+                    ledger=PostgresScheduleRunLedger(
+                        config=PostgresScheduleRunLedgerConfig(
+                            dsn=read_model._config.dsn,
+                            statement_timeout_ms=read_model._config.statement_timeout_ms,
+                            connect_timeout_s=read_model._config.connect_timeout_s,
+                        )
+                    )
+                ),
+                source="postgres",
+                durable=True,
+            ),
+            OnboardingPanel(
+                probe=onboarding_probe,
+                configured=bool(configured_onboarding),
+            ),
             LlmCostPanel(
                 PostgresMeteringStore(
                     config=PostgresMeteringStoreConfig(

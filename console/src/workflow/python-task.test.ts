@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   newPythonTaskRunIdempotencyKey,
+  pythonTaskDraftKey,
+  pythonTaskGenerationCanApply,
   requestPythonTaskRun,
   validatePythonTask,
   type PythonTaskDraft,
@@ -22,6 +24,19 @@ afterEach(() => {
 });
 
 describe("Python task authoring client", () => {
+  it("binds a staged artifact to every execution-relevant draft field", () => {
+    const key = pythonTaskDraftKey(TASK);
+    expect(pythonTaskDraftKey({ ...TASK, entrypoint: "worker.py" })).not.toBe(key);
+    expect(pythonTaskDraftKey({ ...TASK, required_modules: ["torch", "numpy"] })).not.toBe(key);
+    expect(pythonTaskDraftKey({ ...TASK, timeout_seconds: 301 })).not.toBe(key);
+    expect(pythonTaskDraftKey({ ...TASK, capabilities: ["gpu", "network"] })).not.toBe(key);
+  });
+
+  it("discards generation results after a manual draft edit", () => {
+    expect(pythonTaskGenerationCanApply(4, 3)).toBe(false);
+    expect(pythonTaskGenerationCanApply(4, 4)).toBe(true);
+  });
+
   it("creates a fresh bounded idempotency key for each immediate run", () => {
     const first = newPythonTaskRunIdempotencyKey();
     const second = newPythonTaskRunIdempotencyKey();

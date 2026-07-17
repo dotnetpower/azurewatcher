@@ -154,6 +154,9 @@ def build_reporting_routes(
         oid = await authorize(request)
         payload = {
             "datasources": list(engine.datasource_registry().names()),
+            "datasource_provenance": [
+                item.to_dict() for item in engine.datasource_registry().provenances()
+            ],
             "widgets": list(engine.widget_registry().types()),
             "formats": list(formats.names()),
         }
@@ -273,6 +276,7 @@ def _summarize_spec(spec: ReportSpec) -> dict[str, Any]:
         "description": spec.description,
         "tags": list(spec.tags),
         "widget_count": _widget_count(spec.widgets),
+        "datasources": sorted(_widget_datasources(spec.widgets)),
         "variables": [
             {
                 "name": v.name,
@@ -327,6 +331,13 @@ def _widget_count(widgets: tuple[WidgetSpec, ...]) -> int:
         if widget.children:
             total += _widget_count(widget.children)
     return total
+
+
+def _widget_datasources(widgets: tuple[WidgetSpec, ...]) -> set[str]:
+    sources = {widget.query.datasource for widget in widgets if widget.query is not None}
+    for widget in widgets:
+        sources.update(_widget_datasources(widget.children))
+    return sources
 
 
 def _error(status: int, message: str) -> Response:

@@ -1,5 +1,5 @@
-import { useState } from "preact/hooks";
-import { routeHref } from "../router";
+import { useEffect, useState } from "preact/hooks";
+import { currentRoute, replaceRouteState, routeHref } from "../router";
 import {
   compactRecord,
   formatUnknown,
@@ -10,6 +10,52 @@ import {
 
 const ALL = "all";
 
+export interface OntologyActionFilters {
+  readonly query: string;
+  readonly category: string;
+  readonly trigger: string;
+  readonly execution: string;
+}
+
+export function ontologyActionFiltersFromSearch(search: URLSearchParams): OntologyActionFilters {
+  return {
+    query: search.get("q") ?? "",
+    category: search.get("category") ?? ALL,
+    trigger: search.get("trigger") ?? ALL,
+    execution: search.get("execution") ?? ALL,
+  };
+}
+
+export function requestedOntologyAction(search: URLSearchParams): string | null {
+  return search.get("action");
+}
+
+export function ontologyActionHref(
+  filters: OntologyActionFilters,
+  selectedName: string | null,
+): string {
+  return routeHref("ontology", {
+    params: {
+      view: "actions",
+      action: selectedName,
+      q: filters.query || null,
+      category: filters.category === ALL ? null : filters.category,
+      trigger: filters.trigger === ALL ? null : filters.trigger,
+      execution: filters.execution === ALL ? null : filters.execution,
+    },
+  });
+}
+
+export function resolveOntologyActionSelection(
+  actions: readonly OntologyActionTypeRecord[],
+  filtered: readonly OntologyActionTypeRecord[],
+  selectedName: string | null,
+): OntologyActionTypeRecord | null {
+  if (selectedName === null) return filtered[0] ?? null;
+  const requested = actions.find((action) => action.name === selectedName) ?? null;
+  return requested !== null && filtered.includes(requested) ? requested : null;
+}
+
 export function OntologyActionsView({
   actions,
   selectedName,
@@ -17,10 +63,23 @@ export function OntologyActionsView({
   readonly actions: readonly OntologyActionTypeRecord[];
   readonly selectedName: string | null;
 }) {
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState(ALL);
-  const [trigger, setTrigger] = useState(ALL);
-  const [execution, setExecution] = useState(ALL);
+  const [filters, setFilters] = useState<OntologyActionFilters>(
+    () => ontologyActionFiltersFromSearch(currentRoute().search),
+  );
+  useEffect(() => {
+    const sync = () => setFilters(ontologyActionFiltersFromSearch(currentRoute().search));
+    window.addEventListener("popstate", sync);
+    window.addEventListener("fdai:route-changed", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("fdai:route-changed", sync);
+    };
+  }, []);
+  const updateFilters = (next: OntologyActionFilters): void => {
+    setFilters(next);
+    replaceRouteState(ontologyActionHref(next, selectedName));
+  };
+  const { query, category, trigger, execution } = filters;
   const normalizedQuery = query.trim().toLowerCase();
   const categories = uniqueValues(actions.map((action) => action.category));
   const triggers = uniqueValues(actions.map((action) => recordValue(action.trigger_kind, "kind")));
@@ -36,7 +95,9 @@ export function OntologyActionsView({
       && (execution === ALL || action.execution_path === execution);
   });
   const requested = actions.find((action) => action.name === selectedName) ?? null;
-  const selected = requested && filtered.includes(requested) ? requested : filtered[0] ?? null;
+  const selected = resolveOntologyActionSelection(actions, filtered, selectedName);
+  const invalidSelection = selectedName !== null && requested === null;
+  const hiddenSelection = requested !== null && !filtered.includes(requested);
 
   if (actions.length === 0) {
     return <div class="empty-state">ActionType projection is unavailable on this deployment.</div>;
@@ -51,12 +112,30 @@ export function OntologyActionsView({
             type="search"
             value={query}
             placeholder="ActionType name or operation"
-            onInput={(event) => setQuery((event.target as HTMLInputElement).value)}
+            onInput={(event) => updateFilters({
+              ...filters,
+              query: (event.target as HTMLInputElement).value,
+            })}
           />
         </label>
-        <ActionFilter label="Category" value={category} values={categories} onChange={setCategory} />
-        <ActionFilter label="Trigger" value={trigger} values={triggers} onChange={setTrigger} />
-        <ActionFilter label="Execution" value={execution} values={executions} onChange={setExecution} />
+        <ActionFilter
+          label="Category"
+          value={category}
+          values={categories}
+          onChange={(value) => updateFilters({ ...filters, category: value })}
+        />
+        <ActionFilter
+          label="Trigger"
+          value={trigger}
+          values={triggers}
+          onChange={(value) => updateFilters({ ...filters, trigger: value })}
+        />
+        <ActionFilter
+          label="Execution"
+          value={execution}
+          values={executions}
+          onChange={(value) => updateFilters({ ...filters, execution: value })}
+        />
         <span class="ontology-action-result-count">{filtered.length} of {actions.length}</span>
       </div>
 
@@ -78,7 +157,7 @@ export function OntologyActionsView({
                 <tr key={action.name} class={action.name === selected?.name ? "is-selected" : undefined}>
                   <td>
                     <a
-                      href={routeHref("ontology", { params: { view: "actions", action: action.name } })}
+                      href={ontologyActionHref(filters, action.name)}
                       aria-current={action.name === selected?.name ? "page" : undefined}
                     >
                       <code>{action.name}</code>
@@ -97,7 +176,15 @@ export function OntologyActionsView({
           {filtered.length === 0 ? <div class="empty-state">No ActionTypes match these filters.</div> : null}
         </div>
 
-        {selected ? <ActionInspector action={selected} /> : null}
+        {selected ? <ActionInspector action={selected} /> : invalidSelection ? (
+          <div class="state-block state-unavailable" role="alert">
+            ActionType <code>{selectedName}</code> is not registered. Choose an ActionType from the table.
+          </div>
+        ) : hiddenSelection ? (
+          <div class="state-block state-unavailable" role="status">
+            The selected ActionType is hidden by the current filters.
+          </div>
+        ) : null}
       </div>
     </section>
   );

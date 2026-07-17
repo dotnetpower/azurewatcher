@@ -19,6 +19,7 @@ import pytest
 from fdai.shared.providers.event_bus import EventEnvelope
 from fdai.shared.providers.stage_publisher import (
     NullStagePublisher,
+    ObservationSource,
     StageEvent,
     StageName,
     StagePhase,
@@ -63,6 +64,7 @@ class TestStageEvent:
         )
         d = ev.to_dict()
         assert d["detail"] == {"gate_decision": "auto", "tier": "t0"}
+        assert d["source"] == "unknown"
 
     def test_failed_phase_requires_error(self) -> None:
         with pytest.raises(ValueError, match="error MUST be set"):
@@ -73,6 +75,16 @@ class TestStageEvent:
                 phase=StagePhase.FAILED,
                 # missing error
             )
+
+    def test_explicit_observation_source_is_serialized(self) -> None:
+        event = StageEvent(
+            event_id="evt-1",
+            correlation_id="corr-1",
+            stage=StageName.AUDIT,
+            phase=StagePhase.DONE,
+            source=ObservationSource.REPLAY,
+        )
+        assert event.to_dict()["source"] == "replay"
 
     def test_non_failed_phase_rejects_error(self) -> None:
         with pytest.raises(ValueError, match="error MUST be set"):

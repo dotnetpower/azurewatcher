@@ -138,6 +138,104 @@ and what its authentication can prove.
   until the mapping provider returns a non-empty entry for the responding Slack user; a
   missing mapping is treated as "no approver" (fail-closed to HIL queue).
 
+### 4.1 Sender pairing trust bootstrap
+
+`ChannelAccessService` supports `disabled`, `allowlist`, and `pairing` per channel. The durable
+PostgreSQL store serializes request creation with a channel-scoped transaction lock, enforces the
+pending cap atomically, excludes expired requests from that cap, and conditionally approves the
+stored digest. An approved sender cannot re-enroll and overwrite its principal mapping.
+
+`NativePairingChallengeFlow` sends the plaintext challenge only as a same-thread channel reply;
+the store and response metadata retain only the SHA-256 digest and expiry. A delivery failure
+conditionally deletes the matching pending digest so an undelivered code cannot consume capacity.
+Approval still requires a distinct authorized actor and an existing FDAI principal. Pairing grants
+identity resolution only; it never grants a role or bypasses the coordinator's tool RBAC.
+
+Cross-channel identity links are explicit relation records above pairing, not identity merges. Both
+senders MUST already be independently approved for the same FDAI principal, the link MUST span two
+channel kinds, and a distinct authorized actor MUST approve it. If the sender mappings name two
+different principals, the service rejects the request before any write. The deterministic link id
+makes retries idempotent, and the PostgreSQL record survives restart without modifying either
+sender mapping or either principal's role.
+
+Channel attachments are evidence inputs, never instructions. Slack and Teams adapters normalize
+only bounded file metadata and an opaque vendor id; payload-supplied download URLs are discarded.
+A server-owned, app-credential fetcher resolves that id, and `ProtectedChannelAttachmentIngestor`
+verifies the fetched byte count and SHA-256 before sending the source through the existing malware,
+protection, extraction, indexing, access, and retention pipeline. The conversation gateway dispatches
+the operator's original text unchanged and appends only READY `doc:` refs to response citations.
+Held, infected, unknown-protection, oversized, or malformed attachments block tool dispatch. Common
+bitmap signatures produce metadata-only envelopes with no text units, so image bytes cannot become
+prompt instructions. Deployments bind vendor credential fetchers as part of the P0-15 channel
+composition; arbitrary attachment URLs are not a supported seam.
+
+Teams ingress separates two identities. `BotFrameworkJwtAuthenticator` verifies the Bot Framework
+service token against cached JWKS with RS256 signature, app audience, Bot Framework issuer,
+expiration/not-before, and required `serviceurl`. The route then requires the activity
+`serviceUrl` and `channelId=msteams` to match that verified service identity. Only after that check
+does `TeamsPrincipalResolver` validate the activity tenant and map `from.aadObjectId` to a bounded,
+configured canonical FDAI principal. A service-token failure returns `401`; an unknown tenant or
+user binding returns `403`; neither reaches the channel queue. The vendor id is replaced by the
+canonical principal before the conversation gateway sees the turn.
+
+Production composition reads `FDAI_TEAMS_BOT_APP_ID`, optional HTTPS issuer/JWKS overrides,
+`FDAI_TEAMS_TENANT_ID`, and `FDAI_TEAMS_PRINCIPAL_BINDINGS_JSON`. The binding map is a non-empty
+string-to-string JSON object capped at 1000 entries. Missing, malformed, or unbounded configuration
+fails at startup. The Bot service token authenticates the channel service; it never substitutes
+for the operator's Entra principal or grants an FDAI role.
+
+`ProductionChannelRuntime` owns the standalone channel gateway process. It is not mounted into the
+read-only console API and never receives the executor identity. During ASGI startup it resolves
+Slack signing and bot-token references through the injected `SecretProvider`, builds fixed-endpoint
+Slack and workload-identity Teams publishers, registers only the enabled bounded ingress routes,
+and starts one `ConversationChannelGateway.run` consumer per adapter. Missing credentials, Teams
+identity, endpoint resolver, JWT config, or principal bindings fail startup before a route accepts
+traffic. Shutdown closes channel queues, waits for consumers, removes dynamic routes, and closes an
+owned HTTP client.
+
+Channel enablement and queue bounds use `FDAI_SLACK_CHANNEL_ENABLED`,
+`FDAI_TEAMS_CHANNEL_ENABLED`, `FDAI_SLACK_SIGNING_SECRET_REF`,
+`FDAI_SLACK_BOT_TOKEN_REF`, and `FDAI_CHANNEL_QUEUE_CAPACITY`. Secret values remain in the provider;
+configuration and errors carry reference names only. `GET /healthz` exposes process liveness and no
+channel, principal, or credential data.
+
+### 4.2 Rich thread and delivery behavior
+
+`OutboundResponse` carries vendor-neutral rich delivery intent without giving core code a Slack or
+Teams dependency. Existing text replies remain the default. A response can optionally add bounded
+mentions and select exactly one rich operation: incremental stream chunks, an edit target, or a
+reaction. Ambiguous combinations and oversized values fail before a publisher call.
+
+Concrete publishers map that intent as follows:
+
+| Behavior | Slack | Teams | Text fallback |
+|----------|-------|-------|---------------|
+| Thread reply | `chat.postMessage` with `thread_ts` | Message activity with `replyToId` | Same originating thread |
+| Mention | `<@vendor-id>` | `<at>` text plus a Bot Framework mention entity | `@display-name`; the opaque target id is omitted |
+| Streaming | Initial `chat.postMessage`, then cumulative `chat.update` | Initial activity `POST`, then cumulative activity `PUT` | One final text reply |
+| Edit | `chat.update` for the declared message id | Activity `PUT` for the declared activity id | New thread reply prefixed with `Update:` |
+| Reaction | `reactions.add` against the inbound message | `messageReaction` activity against the inbound message | New thread reply with a `Reaction:` label |
+
+The concrete Slack and Teams configurations own capability flags for mentions, streaming, edits,
+and reactions. A disabled capability never causes the core to guess a vendor payload; the publisher
+uses the documented text fallback instead. Thread context is preserved during every fallback.
+Vendor endpoints remain fixed in publisher configuration or the authenticated Teams endpoint
+resolver. Response data cannot supply a URL, token, or alternate API method.
+
+Every accepted send returns a `ChannelDeliveryReceipt` with the requested operation, vendor message
+id, and whether the request degraded to text. Slack requires an `ok=true` response and message
+timestamp for posts. Teams requires the Bot Framework resource id for message creation. Missing or
+malformed acknowledgements fail the send rather than reporting delivery. The adapters forward the
+receipt to the caller; transport failures still raise and follow the existing retry/audit path.
+
+Authenticated generic webhooks can opt into `TypedWebhookMapping`. The mapping fixes one
+allowlisted normalized event type and target agent at configuration time; payload-supplied event,
+agent, command, or session values cannot override them. Server-owned dot paths project only
+bounded scalar fields. Missing fields, containers, oversized strings, or non-allowlisted targets
+fail before publication. A bounded session key is the SHA-256 digest of explicitly selected scalar
+values, so raw external identity values do not become session ids. The projected event still
+enters event-ingest, trust routing, risk gating, and audit; the webhook never executes an action.
+
 ## 5. Channel Interface (contract)
 
 The `Channel` interface lives in `shared/providers/` and is implemented per vendor under
@@ -403,4 +501,3 @@ the source strings are English, and a channel MAY render them in another locale.
   per channel in `config/notifications-matrix.yaml` under `matrix.channels`
   (`<channel-id>: { locale: ko }`), not per operator. A channel without an entry
   renders in English.
-

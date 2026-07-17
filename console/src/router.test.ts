@@ -36,6 +36,12 @@ describe("clean console routes", () => {
     expect(route.search.get("window")).toBe("30d");
   });
 
+  test("preserves opaque Process identifiers during canonicalization", () => {
+    const route = parseConsoleRoute("/processes/Run_A");
+    expect(route.canonicalPathname).toBe("/processes/Run_A");
+    expect(route.segments).toEqual(["Run_A"]);
+  });
+
   test("matches nested Settings routes by their longest registered prefix", () => {
     const route = parseConsoleRoute("/settings/iam/users", "?role=Owner");
     expect(route.panelId).toBe("settings-iam");

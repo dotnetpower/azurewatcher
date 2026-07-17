@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 
 from fdai.core.conversation.answer_plan import (
@@ -13,6 +15,7 @@ from fdai.core.conversation.answer_plan import (
     EvidenceRequirement,
     build_answer_plan,
 )
+from fdai.core.conversation.answer_preferences import ResponsePreferenceProfile
 
 
 @pytest.mark.parametrize(
@@ -96,6 +99,51 @@ def test_last_current_turn_detail_modifier_wins() -> None:
     reversed_plan = build_answer_plan("Briefly, but in detail explain ActionType")
     assert reversed_plan.detail_level is DetailLevel.DEEP
     assert reversed_plan.explicit_overrides == ("brief", "deep")
+
+
+def test_current_turn_overrides_stored_intent_preferences() -> None:
+    preferences = ResponsePreferenceProfile(
+        locale="en",
+        default_detail=DetailLevel.DEEP,
+        default_format=AnswerFormat.BULLETS,
+        intent_detail={AnswerIntent.COMPARISON: DetailLevel.DEEP},
+        intent_format={AnswerIntent.COMPARISON: AnswerFormat.TABLE},
+        explicit_only=False,
+        updated_at=datetime(2026, 7, 17, tzinfo=UTC),
+    )
+
+    preferred = build_answer_plan("Compare T1 and T2", preferences=preferences)
+    default_format = build_answer_plan("What is ActionType?", preferences=preferences)
+    overridden = build_answer_plan(
+        "Compare T1 and T2 briefly, step by step",
+        preferences=preferences,
+    )
+
+    assert preferred.detail_level is DetailLevel.DEEP
+    assert preferred.format is AnswerFormat.TABLE
+    assert preferred.preference_applied is True
+    assert default_format.format is AnswerFormat.BULLETS
+    assert overridden.detail_level is DetailLevel.BRIEF
+    assert overridden.format is AnswerFormat.NUMBERED_STEPS
+    assert overridden.preference_applied is True
+
+
+def test_explicit_only_profile_does_not_change_plan_defaults() -> None:
+    preferences = ResponsePreferenceProfile(
+        locale="ko",
+        default_detail=DetailLevel.DEEP,
+        default_format=AnswerFormat.BULLETS,
+        intent_detail={AnswerIntent.DEFINITION: DetailLevel.DEEP},
+        intent_format={AnswerIntent.DEFINITION: AnswerFormat.CHECKLIST},
+        explicit_only=True,
+        updated_at=datetime(2026, 7, 17, tzinfo=UTC),
+    )
+
+    plan = build_answer_plan("ActionType이 뭐야?", preferences=preferences)
+
+    assert plan.detail_level is DetailLevel.STANDARD
+    assert plan.format is AnswerFormat.PROSE
+    assert plan.preference_applied is False
 
 
 def test_greeting_is_brief_and_needs_no_screen_evidence() -> None:

@@ -1,3 +1,9 @@
+---
+title: Exemption Workflow
+owner: aw-owners (Owner-tier)
+sla: "Approval decision within 1 business day of PR open"
+---
+
 # Exemption Workflow
 
 Time-boxed, audited, owner-approved waiver path for a specific rule

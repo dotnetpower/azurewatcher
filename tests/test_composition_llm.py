@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -209,6 +210,181 @@ def test_bind_azure_llm_bindings_attaches_adapters(tmp_path: Path) -> None:
     bindings = finalized.require_llm_bindings()
     assert bindings.embedding_model is not None
     assert len(bindings.cross_check_models) == 2
+
+
+def _resolved_models_json_with_endpoint_bindings() -> str:
+    payload = json.loads(_resolved_models_json())
+    observed_at = "2026-07-17T00:00:00+00:00"
+
+    def binding(
+        capability: str,
+        *,
+        deployment: str,
+        publisher: str,
+        family: str,
+        provider_kind: str,
+        capacity_unit: str,
+        capacity_value: int,
+        embeddings: bool = False,
+    ) -> dict[str, Any]:
+        return {
+            "binding_id": capability.replace(".", "-") + "-prod",
+            "capability": capability,
+            "provider_kind": provider_kind,
+            "route_kind": "apim-gateway",
+            "api_style": "openai-v1",
+            "endpoint_ref": capability.replace(".", "-"),
+            "deployment": deployment,
+            "api_version": None,
+            "auth": {"kind": "entra", "audience": "api://fdai-model-gateway"},
+            "model": {"publisher": publisher, "family": family, "version": None},
+            "capacity": {"unit": capacity_unit, "value": capacity_value},
+            "features": {
+                "streaming": True,
+                "embeddings": embeddings,
+                "structured_output": not embeddings,
+                "tool_calling": not embeddings,
+            },
+            "discovery": {
+                "source": (
+                    "signed-registration" if provider_kind == "self-hosted" else "apim-management"
+                ),
+                "resource_ref_digest": "a" * 64,
+                "verified_at": observed_at,
+            },
+        }
+
+    payload["endpoint_bindings"] = [
+        binding(
+            "t1.embedding",
+            deployment="embedding-model",
+            publisher="OpenAI",
+            family="text-embedding-3-small",
+            provider_kind="azure-openai",
+            capacity_unit="tpm",
+            capacity_value=100_000,
+            embeddings=True,
+        ),
+        binding(
+            "t2.reasoner.primary",
+            deployment="primary-model",
+            publisher="OpenAI",
+            family="gpt-4o",
+            provider_kind="azure-openai",
+            capacity_unit="ptu",
+            capacity_value=30,
+        ),
+        binding(
+            "t2.reasoner.secondary",
+            deployment="secondary-model",
+            publisher="Anthropic",
+            family="claude-opus-4",
+            provider_kind="self-hosted",
+            capacity_unit="gpu",
+            capacity_value=2,
+        ),
+    ]
+    return json.dumps(payload)
+
+
+class _RecordingIdentity(WorkloadIdentity):
+    def __init__(self) -> None:
+        self.audiences: list[str] = []
+
+    async def get_token(self, audience: str) -> IdentityToken:
+        self.audiences.append(audience)
+        return IdentityToken(
+            token="test-token",
+            expires_at=datetime.now(tz=UTC) + timedelta(minutes=10),
+            audience=audience,
+        )
+
+
+async def test_endpoint_bindings_drive_apim_openai_v1_runtime(tmp_path: Path) -> None:
+    resolved = tmp_path / "resolved-models.json"
+    resolved.write_text(_resolved_models_json_with_endpoint_bindings(), encoding="utf-8")
+    container = default_container(_config(mode=LlmMode.AZURE, resolved_path=str(resolved)))
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path.endswith("/embeddings"):
+            return httpx.Response(200, json={"data": [{"embedding": [0.1] * 384}]})
+        return httpx.Response(
+            200,
+            headers={
+                "x-fdai-model-backend": "primary-ptu",
+                "x-fdai-capacity-unit": "ptu",
+                "x-fdai-spillover": "false",
+            },
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {"action_type": "remediate.tag-add", "params": {}}
+                            )
+                        }
+                    }
+                ]
+            },
+        )
+
+    identity = _RecordingIdentity()
+    from fdai.delivery.azure.llm.latency_routed_cross_check import (
+        InMemoryModelHealthTransitionSink,
+    )
+
+    route_sink = InMemoryModelHealthTransitionSink()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        finalized = bind_azure_llm_bindings(
+            container,
+            identity=identity,
+            http_client=http,
+            endpoint="https://legacy.example.com",
+            endpoint_resolver=lambda _ref: "https://models.example.com",
+            system_prompt=_TEST_SYSTEM_PROMPT,
+            model_health_sink=route_sink,
+        )
+        bindings = finalized.require_llm_bindings()
+        await bindings.embedding_model.embed("hello")
+        from fdai.core.quality_gate.gate import QualityCandidate
+
+        await bindings.cross_check_models[0].propose(
+            QualityCandidate(
+                action_type="remediate.tag-add",
+                target_resource_ref="resource:example/one",
+                params={},
+                cited_rule_ids=("rule.one",),
+            )
+        )
+
+    assert [request.url.path for request in requests] == [
+        "/v1/embeddings",
+        "/v1/chat/completions",
+    ]
+    assert all(request.url.host == "models.example.com" for request in requests)
+    assert identity.audiences == [
+        "api://fdai-model-gateway",
+        "api://fdai-model-gateway",
+    ]
+    assert route_sink.transitions[0].deployment == "primary-ptu"
+    assert "spillover=false" in route_sink.transitions[0].reason
+
+
+def test_endpoint_bindings_require_reference_resolver(tmp_path: Path) -> None:
+    resolved = tmp_path / "resolved-models.json"
+    resolved.write_text(_resolved_models_json_with_endpoint_bindings(), encoding="utf-8")
+    container = default_container(_config(mode=LlmMode.AZURE, resolved_path=str(resolved)))
+
+    with pytest.raises(LlmBindingsUnavailableError, match="endpoint_ref resolver"):
+        bind_azure_llm_bindings(
+            container,
+            identity=_StaticIdentity(),
+            http_client=httpx.AsyncClient(),
+            endpoint="https://legacy.example.com",
+            system_prompt=_TEST_SYSTEM_PROMPT,
+        )
 
 
 def test_bind_accepts_inline_json_in_resolved_models_path() -> None:

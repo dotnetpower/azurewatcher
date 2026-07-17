@@ -1,5 +1,5 @@
 import { ReadApiError } from "../api";
-import { routeHref } from "../router";
+import { panelPath } from "../router";
 
 export interface ProcessSummary {
   readonly id: string;
@@ -13,7 +13,38 @@ export interface ProcessSummary {
 }
 
 export interface ProcessListResponse {
+  readonly source: string;
+  readonly synthetic: boolean | null;
+  readonly durable: boolean | null;
   readonly items: readonly ProcessSummary[];
+}
+
+export interface ProcessRefreshCycle {
+  readonly generation: number;
+  readonly refreshing: boolean;
+}
+
+export type ProcessRefreshAction =
+  | { readonly type: "start" }
+  | { readonly type: "finish"; readonly generation: number };
+
+export const INITIAL_PROCESS_REFRESH: ProcessRefreshCycle = {
+  generation: 0,
+  refreshing: false,
+};
+
+export function reduceProcessRefresh(
+  state: ProcessRefreshCycle,
+  action: ProcessRefreshAction,
+): ProcessRefreshCycle {
+  if (action.type === "start") {
+    return state.refreshing
+      ? state
+      : { generation: state.generation + 1, refreshing: true };
+  }
+  return state.refreshing && action.generation === state.generation
+    ? { ...state, refreshing: false }
+    : state;
 }
 
 export interface ProcessEvent {
@@ -91,7 +122,12 @@ export function processIdFromHash(hash: string): string | null {
 }
 
 export function processHref(processId: string): string {
-  return routeHref("processes", { segments: [processId] });
+  return `${panelPath("processes")}/${encodeURIComponent(processId)}`;
+}
+
+export function processEventHref(processId: string, eventId: string): string {
+  const search = new URLSearchParams({ event: eventId });
+  return `${processHref(processId)}?${search.toString()}`;
 }
 
 export function processTone(status: string): "success" | "warning" | "danger" | "info" {
@@ -117,7 +153,20 @@ export function defaultProcessId(
 export function decodeProcessList(value: unknown): ProcessListResponse {
   const root = record(value, "process list");
   if (!Array.isArray(root["items"])) throw new Error("process list items MUST be an array");
-  return { items: root["items"].map((item, index) => decodeSummary(item, `items[${index}]`)) };
+  const synthetic = root["synthetic"];
+  const durable = root["durable"];
+  if (synthetic !== undefined && synthetic !== null && typeof synthetic !== "boolean") {
+    throw new Error("process list synthetic MUST be boolean or null");
+  }
+  if (durable !== undefined && durable !== null && typeof durable !== "boolean") {
+    throw new Error("process list durable MUST be boolean or null");
+  }
+  return {
+    source: typeof root["source"] === "string" ? root["source"] : "unknown",
+    synthetic: synthetic === undefined ? null : synthetic,
+    durable: durable === undefined ? null : durable,
+    items: root["items"].map((item, index) => decodeSummary(item, `items[${index}]`)),
+  };
 }
 
 export function decodeProcessJournal(value: unknown): ProcessJournalResponse {

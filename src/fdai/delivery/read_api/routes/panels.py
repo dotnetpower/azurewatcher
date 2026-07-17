@@ -51,6 +51,10 @@ class PanelQueryError(ValueError):
     """A caller-supplied panel query parameter failed validation."""
 
 
+class PanelNotFoundError(LookupError):
+    """A valid panel lookup key has no matching read-model record."""
+
+
 @runtime_checkable
 class ReadPanel(Protocol):
     """A fork-supplied read-only console panel.
@@ -214,6 +218,8 @@ class CapabilityCatalogPanel:
         )
         return {
             "surface": "capabilities",
+            "source": "static-catalog",
+            "execution_eligibility": False,
             "count": len(items),
             "capabilities": [
                 {

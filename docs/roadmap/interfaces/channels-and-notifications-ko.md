@@ -1,8 +1,8 @@
 ---
 title: 채널과 알림(Channels and Notifications)
 translation_of: channels-and-notifications.md
-translation_source_sha: 04c2a360af3b3b0d3a937514119e53af79628b18
-translation_revised: 2026-07-11
+translation_source_sha: 472810f340117420271d199d2c310beded00fc84
+translation_revised: 2026-07-17
 ---
 
 # 채널과 알림(Channels and Notifications)
@@ -137,6 +137,105 @@ flowchart LR
 - **Slack A1은 userId↔OID 매핑 필요.** 매핑 provider가 응답 Slack 사용자에 대해 non-empty
   엔트리를 반환할 때까지 어댑터는 A1 트래픽 서비스 거부; 매핑 부재는 "승인자 없음" 취급
   (HIL 큐로 fail-closed).
+
+### 4.1 Sender pairing trust bootstrap
+
+`ChannelAccessService`는 channel별 `disabled`, `allowlist`, `pairing`을 지원합니다. Durable
+PostgreSQL store는 channel-scoped transaction lock으로 request 생성을 직렬화하고 pending cap을
+atomic하게 강제하고 expired request를 cap에서 제외하고 저장된 digest를 조건부 승인합니다.
+승인된 sender는 재등록해 principal mapping을 덮어쓸 수 없습니다.
+
+`NativePairingChallengeFlow`는 plaintext challenge를 동일 thread의 channel reply로만 보냅니다.
+Store와 response metadata에는 SHA-256 digest 및 expiry만 남습니다. Delivery 실패 시 일치하는
+pending digest를 조건부 삭제하므로 전달되지 않은 code가 capacity를 소비하지 않습니다.
+Approval은 별도 authorized actor 및 기존 FDAI principal을 계속 요구합니다. Pairing은 identity
+resolution만 부여하며 role을 부여하거나 coordinator의 tool RBAC을 우회하지 않습니다.
+
+Cross-channel identity link는 identity merge가 아니라 pairing 위의 explicit relation record입니다.
+두 sender는 같은 FDAI principal에 각각 독립 승인되어 있어야 하고 link는 서로 다른 두 channel
+kind를 연결해야 하며 별도 authorized actor가 승인해야 합니다. Sender mapping이 서로 다른 두
+principal을 가리키면 service는 write 전에 request를 거부합니다. Deterministic link id로 retry가
+idempotent하고 PostgreSQL record는 어느 sender mapping 또는 principal role도 변경하지 않으면서
+restart 후에도 유지됩니다.
+
+Channel attachment는 instruction이 아니라 evidence input입니다. Slack 및 Teams adapter는 bounded
+file metadata와 opaque vendor id만 normalize하고 payload가 제공한 download URL은 버립니다.
+Server-owned app-credential fetcher가 해당 id를 resolve하고 `ProtectedChannelAttachmentIngestor`는
+가져온 byte count 및 SHA-256을 검증한 뒤 기존 malware, protection, extraction, indexing, access,
+retention pipeline에 source를 전달합니다. Conversation gateway는 operator의 원래 text를 변경하지
+않고 READY `doc:` ref만 response citation에 추가합니다. Held, infected, unknown-protection,
+oversized, malformed attachment는 tool dispatch를 차단합니다. 일반 bitmap signature는 text unit이
+없는 metadata-only envelope를 만들므로 image byte가 prompt instruction이 될 수 없습니다.
+Deployment는 P0-15 channel composition에서 vendor credential fetcher를 binding하며 arbitrary
+attachment URL은 지원 seam이 아닙니다.
+
+Teams ingress는 두 identity를 분리합니다. `BotFrameworkJwtAuthenticator`는 cached JWKS를
+사용해 Bot Framework service token의 RS256 signature, app audience, Bot Framework issuer,
+expiration/not-before, required `serviceurl`을 검증합니다. 그 다음 route는 activity의
+`serviceUrl` 및 `channelId=msteams`가 verified service identity와 일치하도록 요구합니다. 이
+검사를 통과한 뒤에만 `TeamsPrincipalResolver`가 activity tenant를 검증하고
+`from.aadObjectId`를 bounded configured canonical FDAI principal로 mapping합니다. Service-token
+failure는 `401`, unknown tenant 또는 user binding은 `403`이며 둘 다 channel queue에 도달하지
+않습니다. Conversation gateway가 turn을 보기 전에 vendor id는 canonical principal로 교체됩니다.
+
+Production composition은 `FDAI_TEAMS_BOT_APP_ID`, optional HTTPS issuer/JWKS override,
+`FDAI_TEAMS_TENANT_ID`, `FDAI_TEAMS_PRINCIPAL_BINDINGS_JSON`을 읽습니다. Binding map은 non-empty
+string-to-string JSON object이며 최대 1000 entry입니다. Missing, malformed, unbounded config는
+startup에서 실패합니다. Bot service token은 channel service를 인증하며 operator의 Entra
+principal을 대체하거나 FDAI role을 부여하지 않습니다.
+
+`ProductionChannelRuntime`은 standalone channel gateway process를 소유합니다. Read-only console
+API에 mount되지 않고 executor identity를 받지 않습니다. ASGI startup에서 injected
+`SecretProvider`를 통해 Slack signing 및 bot-token reference를 resolve하고 fixed-endpoint Slack,
+workload-identity Teams publisher를 생성하며 enabled bounded ingress route만 등록하고 adapter별
+`ConversationChannelGateway.run` consumer를 하나씩 시작합니다. Credential, Teams identity,
+endpoint resolver, JWT config, principal binding이 누락되면 route가 traffic을 받기 전에 startup이
+실패합니다. Shutdown은 channel queue를 닫고 consumer를 기다리고 dynamic route를 제거하며 owned
+HTTP client를 닫습니다.
+
+Channel enablement 및 queue bound는 `FDAI_SLACK_CHANNEL_ENABLED`,
+`FDAI_TEAMS_CHANNEL_ENABLED`, `FDAI_SLACK_SIGNING_SECRET_REF`,
+`FDAI_SLACK_BOT_TOKEN_REF`, `FDAI_CHANNEL_QUEUE_CAPACITY`를 사용합니다. Secret value는 provider
+안에 유지되고 configuration 및 error에는 reference name만 들어갑니다. `GET /healthz`는 process
+liveness만 노출하며 channel, principal, credential data를 포함하지 않습니다.
+
+### 4.2 Rich thread 및 delivery behavior
+
+`OutboundResponse`는 core code에 Slack 또는 Teams dependency를 주지 않고 vendor-neutral rich
+delivery intent를 전달합니다. 기존 text reply가 기본값으로 유지됩니다. Response는 bounded
+mention을 선택적으로 추가하고 incremental stream chunk, edit target, reaction 중 정확히 하나의
+rich operation을 선택할 수 있습니다. 모호한 조합과 크기 제한을 넘는 값은 publisher call 전에
+차단됩니다.
+
+Concrete publisher는 해당 intent를 다음과 같이 mapping합니다.
+
+| Behavior | Slack | Teams | Text fallback |
+|----------|-------|-------|---------------|
+| Thread reply | `thread_ts`를 사용하는 `chat.postMessage` | `replyToId`를 사용하는 message activity | 같은 originating thread |
+| Mention | `<@vendor-id>` | `<at>` text 및 Bot Framework mention entity | `@display-name`; opaque target id는 생략 |
+| Streaming | 최초 `chat.postMessage` 후 cumulative `chat.update` | 최초 activity `POST` 후 cumulative activity `PUT` | 최종 text reply 하나 |
+| Edit | 선언된 message id에 `chat.update` | 선언된 activity id에 activity `PUT` | `Update:` prefix가 있는 새 thread reply |
+| Reaction | inbound message에 `reactions.add` | inbound message에 `messageReaction` activity | `Reaction:` label이 있는 새 thread reply |
+
+Concrete Slack 및 Teams configuration은 mention, streaming, edit, reaction capability flag를
+소유합니다. Disabled capability가 core에서 vendor payload를 추측하게 하지 않으며 publisher가
+문서화된 text fallback을 사용합니다. 모든 fallback에서 thread context를 보존합니다. Vendor
+endpoint는 publisher configuration 또는 authenticated Teams endpoint resolver에 고정됩니다.
+Response data는 URL, token, alternate API method를 제공할 수 없습니다.
+
+Accepted send는 요청한 operation, vendor message id, text degradation 여부를 포함하는
+`ChannelDeliveryReceipt`를 반환합니다. Slack post는 `ok=true` response 및 message timestamp를
+요구합니다. Teams message 생성은 Bot Framework resource id를 요구합니다. Acknowledgement가
+누락되거나 malformed이면 delivery를 보고하지 않고 send를 실패시킵니다. Adapter는 receipt를
+caller에게 전달하며 transport failure는 계속 raise되어 기존 retry/audit path를 따릅니다.
+
+Authenticated generic webhook은 `TypedWebhookMapping`을 opt-in할 수 있습니다. Mapping은 하나의
+allowlisted normalized event type 및 target agent를 configuration에서 고정하고 payload가 제공한
+event, agent, command, session value는 이를 override할 수 없습니다. Server-owned dot path는 bounded
+scalar field만 project합니다. Missing field, container, oversized string, non-allowlisted target은
+publication 전에 fail합니다. Bounded session key는 명시적으로 선택된 scalar value의 SHA-256
+digest이므로 raw external identity value가 session id가 되지 않습니다. Projected event는 여전히
+event-ingest, trust routing, risk gating, audit에 진입하며 webhook은 action을 execute하지 않습니다.
 
 ## 5. Channel 인터페이스 (계약)
 
@@ -391,4 +490,3 @@ channel_routing:
 - **로케일은 채널 속성.** 알림은 fan-out이므로 로케일은 오퍼레이터별이 아니라
   `config/notifications-matrix.yaml`의 `matrix.channels`에서 채널별로 설정한다
   (`<channel-id>: { locale: ko }`). 항목이 없는 채널은 영어로 렌더링된다.
-

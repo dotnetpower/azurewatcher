@@ -29,6 +29,7 @@ interface Props {
 }
 
 interface ProvisionState {
+  readonly observed: boolean;
   readonly fraction: number;
   readonly waiting: string | null;
   readonly waitingReason: string | null;
@@ -41,6 +42,7 @@ interface ProvisionState {
 }
 
 export const INITIAL: ProvisionState = {
+  observed: false,
   fraction: 0,
   waiting: null,
   waitingReason: null,
@@ -74,6 +76,7 @@ export function safeHttpUrl(url: string | null): string | null {
 
 export function reducer(state: ProvisionState, ev: ProvisionEvent): ProvisionState {
   if (state.done && ev.phase !== "done") return state;
+  const observedState = state.observed ? state : { ...state, observed: true };
   switch (ev.phase) {
     case "progress": {
       // Newest-first, unique: a repeat completion (reconnect replay / retry)
@@ -82,7 +85,7 @@ export function reducer(state: ProvisionState, ev: ProvisionEvent): ProvisionSta
         ? [ev.node, ...state.recent.filter((n) => n !== ev.node)].slice(0, RECENT_CAP)
         : state.recent;
       return {
-        ...state,
+        ...observedState,
         // A progress bar never regresses: keep the high-water mark even if a
         // reconnect replays an earlier (lower) fraction.
         fraction: Math.max(state.fraction, ev.fraction ?? state.fraction),
@@ -94,7 +97,7 @@ export function reducer(state: ProvisionState, ev: ProvisionEvent): ProvisionSta
     }
     case "waiting":
       return {
-        ...state,
+        ...observedState,
         waiting: ev.node ?? "a resource",
         waitingReason: ev.reason ?? null,
       };
@@ -105,10 +108,10 @@ export function reducer(state: ProvisionState, ev: ProvisionEvent): ProvisionSta
       // display keeps the shape simple; identity check keeps it honest.
       return ev.node && state.waiting !== ev.node
         ? state
-        : { ...state, waiting: null, waitingReason: null };
+        : { ...observedState, waiting: null, waitingReason: null };
     case "done":
       return {
-        ...state,
+        ...observedState,
         done: true,
         fraction: 1,
         waiting: null,
@@ -121,7 +124,7 @@ export function reducer(state: ProvisionState, ev: ProvisionEvent): ProvisionSta
       };
     case "failed":
       return {
-        ...state,
+        ...observedState,
         // The waiting resource resolving into a failure clears the hold.
         waiting: null,
         waitingReason: null,
@@ -129,7 +132,7 @@ export function reducer(state: ProvisionState, ev: ProvisionEvent): ProvisionSta
         failedReason: ev.reason ?? null,
       };
     default:
-      return state;
+      return observedState;
   }
 }
 
@@ -188,19 +191,27 @@ export function ProvisionRoute({ client }: Props) {
         executes provisioning.
       </p>
 
-      <div
-        class={`provision-meter${state.failed ? " is-failed" : ""}${
-          state.done ? " is-done" : ""
-        }`}
-        role="progressbar"
-        aria-label="Provisioning progress"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={pct}
-      >
-        <div class="provision-meter-fill" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
-      </div>
-      <div class="provision-pct">{pct.toFixed(1)}%</div>
+      {state.observed ? (
+        <>
+          <div
+            class={`provision-meter${state.failed ? " is-failed" : ""}${
+              state.done ? " is-done" : ""
+            }`}
+            role="progressbar"
+            aria-label="Provisioning progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={pct}
+          >
+            <div class="provision-meter-fill" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+          </div>
+          <div class="provision-pct">{pct.toFixed(1)}%</div>
+        </>
+      ) : (
+        <div class="state-block state-unavailable" role="status">
+          No provisioning run has been observed on this stream. A connected stream alone does not imply 0% progress.
+        </div>
+      )}
 
       {/* Live region: state transitions (waiting / failed / done) are
           announced to assistive tech, which a purely visual meter cannot do. */}

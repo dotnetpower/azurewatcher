@@ -41,7 +41,12 @@ from fdai.delivery.read_api.streaming.agent_activity_stream import (
     TicketStatus,
     TurnKind,
 )
-from fdai.shared.providers.stage_publisher import StageEvent, StageName, StagePhase
+from fdai.shared.providers.stage_publisher import (
+    ObservationSource,
+    StageEvent,
+    StageName,
+    StagePhase,
+)
 
 # The one stage -> owning pantheon agent map, shared with the live cockpit's
 # attribution (fdai.delivery.read_api.streaming.live_control_loop imports it).
@@ -218,7 +223,7 @@ def project_stage(projection: AgentActivityProjection, event: StageEvent) -> Pro
             last_agent=agent if agent != _UNKNOWN_AGENT else None,
         )
         incidents[correlation_id] = incident
-        ticket_events.append(_ticket_event(incident, ts))
+        ticket_events.append(_ticket_event(incident, ts, event.source))
     else:
         involved = prior.with_agent(agent)
         if waiting_for_approval:
@@ -233,7 +238,7 @@ def project_stage(projection: AgentActivityProjection, event: StageEvent) -> Pro
         # populates an incident's `involved` set only from ticket frames, so a
         # newly-engaged agent MUST ride a ticket event or it never lights up.
         if incident != prior:
-            ticket_events.append(_ticket_event(incident, ts))
+            ticket_events.append(_ticket_event(incident, ts, event.source))
 
     turn_events: list[ConversationTurnEvent] = []
     if prev_agent is not None and agent != _UNKNOWN_AGENT and prev_agent != agent:
@@ -245,6 +250,7 @@ def project_stage(projection: AgentActivityProjection, event: StageEvent) -> Pro
                 kind=TurnKind.HANDOFF,
                 text=_handoff_text(event.stage, agent),
                 ts=ts,
+                source=event.source,
             )
         )
 
@@ -256,6 +262,7 @@ def project_stage(projection: AgentActivityProjection, event: StageEvent) -> Pro
         ts=ts,
         correlation_id=correlation_id,
         detail=_state_detail(event),
+        source=event.source,
     )
 
     terminal_states: list[AgentStateEvent] = []
@@ -278,6 +285,7 @@ def project_stage(projection: AgentActivityProjection, event: StageEvent) -> Pro
                         if waiting_for_approval and involved_agent == "Var"
                         else "pipeline stage complete"
                     ),
+                    source=event.source,
                 )
             )
 
@@ -318,7 +326,11 @@ def _terminal_decision(event: StageEvent) -> str:
     return str(event.detail.get("decision") or event.detail.get("gate_decision") or "").lower()
 
 
-def _ticket_event(incident: IncidentProjection, ts: str) -> IncidentTicketEvent:
+def _ticket_event(
+    incident: IncidentProjection,
+    ts: str,
+    source: ObservationSource,
+) -> IncidentTicketEvent:
     return IncidentTicketEvent(
         ticket_id=incident.ticket_id,
         correlation_id=incident.correlation_id,
@@ -327,6 +339,7 @@ def _ticket_event(incident: IncidentProjection, ts: str) -> IncidentTicketEvent:
         severity=incident.severity,
         involved_agents=incident.involved,
         ts=ts,
+        source=source,
     )
 
 

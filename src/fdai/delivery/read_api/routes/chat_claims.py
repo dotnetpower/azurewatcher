@@ -661,6 +661,13 @@ def _resolve_candidates(
     if not candidates:
         return _claim(claim_id, draft, "unsupported", (), "no_supporting_evidence")
     anchored = tuple(entry for entry in candidates if _anchor_overlap(draft.anchors, entry.anchors))
+    if anchored:
+        strongest_score = max(_anchor_score(draft.anchors, entry.anchors) for entry in anchored)
+        anchored = tuple(
+            entry
+            for entry in anchored
+            if _anchor_score(draft.anchors, entry.anchors) == strongest_score
+        )
     selected = anchored or candidates
     if len(selected) > 1 and not anchored:
         structured_facts = tuple(
@@ -772,6 +779,10 @@ def _anchor_token(raw: str) -> str:
 
 def _anchor_overlap(left: tuple[str, ...], right: tuple[str, ...]) -> bool:
     return bool(set(left) & set(right))
+
+
+def _anchor_score(left: tuple[str, ...], right: tuple[str, ...]) -> int:
+    return len(set(left) & set(right))
 
 
 def _window(text: str, start: int, end: int, radius: int = 48) -> str:

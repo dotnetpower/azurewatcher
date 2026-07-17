@@ -56,6 +56,13 @@ async def test_no_findings_is_clear() -> None:
     assert report.verdict is ReadinessVerdict.CLEAR
     assert report.findings == ()
     assert report.blocks_deploy is False
+    assert report.to_dict()["checks"] == [
+        {
+            "category": "policy_guardrail",
+            "status": "clear",
+            "finding_count": 0,
+        }
+    ]
 
 
 async def test_warning_only_is_needs_review() -> None:
@@ -164,3 +171,7 @@ async def test_end_to_end_with_real_probes_and_toggle_map() -> None:
         "blocked-egress:registry-1.docker.io",
     }
     assert all(f.resolution.autofix for f in report.findings)
+    assert [check["category"] for check in report.to_dict()["checks"]] == [
+        "policy_guardrail",
+        "supply_chain_egress",
+    ]

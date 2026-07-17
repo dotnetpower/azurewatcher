@@ -13,6 +13,19 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.testclient import TestClient
 
+from fdai.core.conversation.answer_plan import (
+    AnswerFormat,
+    AnswerIntent,
+    AnswerSection,
+    DetailLevel,
+)
+from fdai.core.conversation.answer_planning import (
+    AnswerContribution,
+    AnswerPlanningRoute,
+    GroundedFact,
+    PlanningCandidate,
+)
+from fdai.core.conversation.answer_preferences import ResponsePreferenceProfile
 from fdai.delivery.read_api.routes.chat import (
     AzureAdChatBackend,
     ChatBackend,
@@ -99,6 +112,50 @@ def _app(backend: ChatBackend) -> Starlette:
     return Starlette(routes=[make_chat_route(backend=backend, authorize=_allow)])
 
 
+async def _deep_comparison_preferences(_principal_id: str) -> ResponsePreferenceProfile:
+    return ResponsePreferenceProfile(
+        locale="en",
+        default_detail=DetailLevel.STANDARD,
+        default_format=AnswerFormat.PROSE,
+        intent_detail={AnswerIntent.COMPARISON: DetailLevel.DEEP},
+        intent_format={AnswerIntent.COMPARISON: AnswerFormat.TABLE},
+        explicit_only=False,
+        updated_at=datetime(2026, 7, 17, tzinfo=UTC),
+    )
+
+
+def test_authenticated_preferences_shape_plan_but_current_turn_still_wins() -> None:
+    backend = _RecordingBackend(model="test", delay_ms=0)
+    app = Starlette(
+        routes=[
+            make_chat_route(
+                backend=backend,
+                authorize=_allow,
+                answer_preference_resolver=_deep_comparison_preferences,
+            )
+        ]
+    )
+    client = TestClient(app)
+
+    preferred = client.post(
+        "/chat",
+        json={
+            "prompt": "Compare T1 and T2",
+            "view_context": {"_answer_plan": {"detail_level": "brief"}},
+        },
+    ).json()
+    overridden = client.post(
+        "/chat",
+        json={"prompt": "Compare T1 and T2 briefly, step by step"},
+    ).json()
+
+    assert preferred["answer_plan"]["detail_level"] == "deep"
+    assert preferred["answer_plan"]["format"] == "table"
+    assert preferred["answer_plan"]["preference_applied"] is True
+    assert overridden["answer_plan"]["detail_level"] == "brief"
+    assert overridden["answer_plan"]["format"] == "numbered_steps"
+
+
 class _EvidenceResolver:
     async def resolve(self, prompt: str) -> dict[str, Any] | None:
         if "recent" not in prompt:
@@ -150,6 +207,50 @@ class _AgentDelegate:
         }
 
 
+class _PlanningDelegate:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, int]] = []
+
+    def route_answer_planning(self, prompt: str) -> AnswerPlanningRoute:  # noqa: ARG002
+        return AnswerPlanningRoute(
+            primary_agent="Forseti",
+            candidates=(
+                PlanningCandidate("Freyr", 0.9),
+                PlanningCandidate("Njord", 0.8),
+                PlanningCandidate("Loki", 0.4),
+            ),
+        )
+
+    async def contribute(
+        self,
+        *,
+        agent: str,
+        prompt: str,  # noqa: ARG002
+        max_tokens: int,
+    ) -> AnswerContribution | None:
+        self.calls.append((agent, max_tokens))
+        evidence_ref = f"agent-owned:{agent.lower()}:test"
+        return AnswerContribution(
+            agent=agent,
+            facts=(GroundedFact(f"{agent} fact", evidence_ref),),
+            caveats=(),
+            suggested_sections=(AnswerSection.TRADE_OFFS,),
+            evidence_refs=(evidence_ref,),
+            confidence=0.8,
+        )
+
+
+class _FailIfCalledPlanningDelegate(_PlanningDelegate):
+    async def contribute(
+        self,
+        *,
+        agent: str,
+        prompt: str,
+        max_tokens: int,
+    ) -> AnswerContribution | None:
+        raise AssertionError("simple path MUST NOT invoke a planning contributor")
+
+
 class _ToolResolver:
     async def resolve(self, prompt: str) -> dict[str, Any] | None:  # noqa: ARG002
         return {
@@ -199,6 +300,53 @@ class TestChatRouteLatencySurface:
         # 25ms sleep + overhead; keep the assertion soft to stay hermetic.
         assert body["latency_ms"] >= 20
         assert body["latency_ms"] < 5_000
+
+    def test_shadow_planning_adds_metadata_without_changing_narrator_input_or_answer(self) -> None:
+        backend = _RecordingBackend(model="test", delay_ms=0)
+        planning = _PlanningDelegate()
+        app = Starlette(
+            routes=[
+                make_chat_route(
+                    backend=backend,
+                    authorize=_allow,
+                    answer_planning_delegate=planning,
+                )
+            ]
+        )
+
+        response = TestClient(app).post(
+            "/chat",
+            json={"prompt": "Compare capacity and cost"},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["answer"] == "hello"
+        assert body["answer_plan"]["discuss"] == "shadow"
+        assert body["answer_planning"]["status"] == "completed"
+        assert body["answer_planning"]["consulted_agents"] == ["Freyr", "Njord"]
+        assert body["answer_planning"]["unique_evidence_count"] == 2
+        assert planning.calls == [("Freyr", 400), ("Njord", 400)]
+        assert backend.view_context is not None
+        assert "_answer_planning" not in backend.view_context
+
+    def test_simple_status_path_does_not_start_planning_round(self) -> None:
+        backend = _RecordingBackend(model="test", delay_ms=0)
+        app = Starlette(
+            routes=[
+                make_chat_route(
+                    backend=backend,
+                    authorize=_allow,
+                    answer_planning_delegate=_FailIfCalledPlanningDelegate(),
+                )
+            ]
+        )
+
+        body = TestClient(app).post("/chat", json={"prompt": "Show current status"}).json()
+
+        assert body["answer"] == "hello"
+        assert body["answer_plan"]["discuss"] == "skip"
+        assert "answer_planning" not in body
 
     async def test_azure_backend_uses_injected_workload_identity(self) -> None:
         identity = _RecordingIdentity()
@@ -259,6 +407,35 @@ class TestChatRouteLatencySurface:
             {"type": "done", "answer": "managed stream", "model": "narrator-mini"},
         ]
         assert identity.audiences == ["https://cognitiveservices.azure.com/.default"]
+
+    async def test_apim_openai_v1_narrator_uses_gateway_audience(self) -> None:
+        identity = _RecordingIdentity()
+        captured: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(
+                200,
+                json={"choices": [{"message": {"content": "gateway ready"}}]},
+            )
+
+        from fdai.rule_catalog.schema.model_endpoint import ModelApiStyle
+
+        backend = AzureAdChatBackend(
+            endpoint="https://models.example.com",
+            deployment="narrator-gpu",
+            api_style=ModelApiStyle.OPENAI_V1,
+            auth_audience="api://fdai-model-gateway",
+            identity=identity,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        )
+
+        reply = await backend.answer(prompt="status", view_context={}, history=[])
+
+        assert reply == {"answer": "gateway ready", "model": "narrator-gpu"}
+        assert captured[0].url.path == "/v1/chat/completions"
+        assert json.loads(captured[0].content)["model"] == "narrator-gpu"
+        assert identity.audiences == ["api://fdai-model-gateway"]
 
     def test_disabled_backend_returns_501(self) -> None:
         client = TestClient(_app(_DisabledBackend()))
@@ -795,6 +972,51 @@ class TestChatStreamEvidence:
         assert done["revision"] == 0
         assert done["answer_plan"]["intent"] == "definition"
         assert done["answer_plan"]["detail_level"] == "standard"
+
+    def test_stream_applies_authenticated_preferences(self) -> None:
+        backend = _RecordingBackend(model="gpt-stream", delay_ms=0)
+        app = Starlette(
+            routes=[
+                make_chat_stream_route(
+                    backend=backend,
+                    authorize=_allow,
+                    answer_preference_resolver=_deep_comparison_preferences,
+                )
+            ]
+        )
+
+        response = TestClient(app).post(
+            "/chat/stream",
+            json={"request_id": "req-preference", "prompt": "Compare T1 and T2"},
+        )
+
+        done = _parse_sse(response.text)[-1][1]
+        assert done["answer_plan"]["detail_level"] == "deep"
+        assert done["answer_plan"]["format"] == "table"
+        assert done["answer_plan"]["preference_applied"] is True
+
+    def test_stream_emits_same_shadow_planning_metadata(self) -> None:
+        planning = _PlanningDelegate()
+        app = Starlette(
+            routes=[
+                make_chat_stream_route(
+                    backend=_RecordingBackend(model="gpt-stream", delay_ms=0),
+                    authorize=_allow,
+                    answer_planning_delegate=planning,
+                )
+            ]
+        )
+
+        response = TestClient(app).post(
+            "/chat/stream",
+            json={"request_id": "req-planning", "prompt": "Compare capacity and cost"},
+        )
+
+        done = _parse_sse(response.text)[-1][1]
+        assert done["answer"] == "hello"
+        assert done["answer_plan"]["discuss"] == "shadow"
+        assert done["answer_planning"]["status"] == "completed"
+        assert done["answer_planning"]["consulted_agents"] == ["Freyr", "Njord"]
 
     def test_screen_stream_reports_semantic_shadow_without_revision(self) -> None:
         verifier = _SemanticVerifier()

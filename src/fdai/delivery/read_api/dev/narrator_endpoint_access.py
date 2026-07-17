@@ -114,9 +114,12 @@ def _current_public_ip(logger: logging.Logger) -> str | None:
     for service in _IP_ECHO_SERVICES:
         try:
             with urlopen(service, timeout=_IP_TIMEOUT_SECONDS) as resp:  # noqa: S310 - fixed https hosts
-                ip = resp.read().decode("utf-8").strip()
+                payload = resp.read()
         except Exception:  # noqa: BLE001,S112 - try the next echo service
             continue
+        if not isinstance(payload, bytes):
+            continue
+        ip = payload.decode("utf-8").strip()
         if ip:
             return ip
     logger.warning("narrator auto-open: could not determine public IP; skipping")
@@ -148,7 +151,8 @@ def _az_json(args: list[str], logger: logging.Logger) -> object | None:
         )
         return None
     try:
-        return json.loads(proc.stdout or "null")
+        parsed: object = json.loads(proc.stdout or "null")
+        return parsed
     except json.JSONDecodeError:
         logger.warning("narrator auto-open: 'az %s' returned non-JSON output", " ".join(args))
         return None

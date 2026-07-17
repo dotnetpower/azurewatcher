@@ -20,6 +20,7 @@ from fdai.core.reporting.contracts import (
 from fdai.core.reporting.engine import ReportEngine
 from fdai.core.reporting.models import (
     DataSet,
+    DataSourceProvenance,
     QuerySpec,
     ReportSpec,
     TimeRange,
@@ -128,6 +129,42 @@ class TestEngineRender:
         assert rendered.widgets[0].data == {"value": 42}
         assert rendered.widgets[0].error is None
         assert len(source.calls) == 1
+        assert rendered.provenance.availability == "unknown"
+
+    async def test_aggregates_explicit_datasource_provenance(self) -> None:
+        source = FakeDataSource(name="kpi", dataset=DataSet(scalar=42))
+        report = ReportSpec(
+            id="provenance",
+            version="1.0.0",
+            name="Provenance",
+            description="d",
+            time_range=TimeRange(relative_duration=timedelta(hours=1)),
+            widgets=(
+                WidgetSpec(
+                    id="v",
+                    type="query_value",
+                    title="Val",
+                    query=QuerySpec(datasource="kpi"),
+                ),
+            ),
+        )
+        engine = _build_engine(sources=(source,), reports=(report,))
+        engine.datasource_registry().register(
+            source,
+            provenance=DataSourceProvenance(
+                datasource="kpi",
+                source="static-test",
+                availability="available",
+                synthetic=True,
+                as_of="2026-07-10T11:00:00+00:00",
+            ),
+        )
+
+        rendered = await engine.render("provenance")
+
+        assert rendered.provenance.availability == "available"
+        assert rendered.provenance.synthetic is True
+        assert rendered.provenance.sources[0].source == "static-test"
 
     async def test_group_widget_recurses_without_datasource(self) -> None:
         text_report = ReportSpec(
@@ -156,6 +193,7 @@ class TestEngineRender:
         rendered = await engine.render("text-only")
         assert rendered.widgets[0].type == "group"
         assert rendered.widgets[0].children[0].data == {"body": "hi"}
+        assert rendered.provenance.availability == "not_applicable"
 
     async def test_unknown_datasource_becomes_error_widget(self) -> None:
         report = ReportSpec(

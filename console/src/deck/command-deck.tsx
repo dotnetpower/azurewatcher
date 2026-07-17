@@ -32,6 +32,7 @@ import {
   submitAction,
   type AnswerVerification,
   type AnswerPlanMetadata,
+  type AnswerPlanningMetadata,
   type BackendHealth,
   type BackendTurn,
   type GroundedCodeArtifact,
@@ -88,6 +89,7 @@ interface Turn {
   readonly verification?: AnswerVerification;
   readonly verificationProgress?: VerificationProgress;
   readonly answerPlan?: AnswerPlanMetadata;
+  readonly answerPlanning?: AnswerPlanningMetadata;
   readonly codeArtifacts?: readonly GroundedCodeArtifact[];
   /** Agent name when this turn speaks as a specific agent (renders its icon + name). */
   readonly agent?: string;
@@ -168,6 +170,14 @@ export function sessionIdFor(
   const created = create();
   sessions.set(sessionKey, created);
   return created;
+}
+
+export function clearScheduledTimeouts(
+  timers: Set<number>,
+  clear: (timer: number) => void = (timer) => window.clearTimeout(timer),
+): void {
+  for (const timer of timers) clear(timer);
+  timers.clear();
 }
 
 /** Return indexes of turns containing a case-insensitive search query. */
@@ -357,6 +367,7 @@ export function CommandDeck() {
   const searchRef = useRef<HTMLInputElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
+  const contextTimersRef = useRef(new Set<number>());
 
   // Auto-grow the composer: keep it one line tall until the text wraps, then
   // grow with the content up to the CSS max-height. The vertical scrollbar
@@ -548,6 +559,7 @@ export function CommandDeck() {
   }, [focusInput]);
 
   const cancelActiveRequest = useCallback((): ActiveRequest["kind"] | null => {
+    clearScheduledTimeouts(contextTimersRef.current);
     const active = activeRequestRef.current;
     activeRequestRef.current = null;
     abortRef.current = null;
@@ -613,6 +625,13 @@ export function CommandDeck() {
     if (!shouldAnimate) return;
     const chunks = contextChunks(fullText);
     let i = 0;
+    const scheduleStep = (): void => {
+      const timer = window.setTimeout(() => {
+        contextTimersRef.current.delete(timer);
+        step();
+      }, CONTEXT_TYPE_MS);
+      contextTimersRef.current.add(timer);
+    };
     const step = (): void => {
       if (i >= chunks.length) {
         setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, streaming: false } : t)));
@@ -623,9 +642,9 @@ export function CommandDeck() {
       setTurns((prev) =>
         prev.map((t) => (t.id === turnId ? { ...t, text: t.text + piece } : t)),
       );
-      window.setTimeout(step, CONTEXT_TYPE_MS);
+      scheduleStep();
     };
-    window.setTimeout(step, CONTEXT_TYPE_MS);
+    scheduleStep();
   }, []);
 
   const hydrateDurableTurns = useCallback(async (key: string): Promise<void> => {
@@ -967,9 +986,11 @@ export function CommandDeck() {
   useEffect(() => { routeLabelRef.current = snapshot?.routeLabel; }, [snapshot?.routeLabel]);
   useEffect(() => {
     const switchToCurrentRoute = () => {
-      if (layoutModeRef.current === "workspace") {
-        // Full workspace covers the content area; a menu click would land on a
-        // page hidden behind the deck, so close it to reveal the destination.
+      if (layoutModeRef.current === "workspace" || layoutModeRef.current === "dock") {
+        // Workspace covers the whole content area and dock covers the right of
+        // it (and fully overlays on narrow screens), so a menu click would land
+        // partly hidden behind the deck. Close it to reveal the destination.
+        // Floating is a small movable panel, so it stays open on navigation.
         closeDeck();
         return;
       }
@@ -1223,6 +1244,11 @@ export function CommandDeck() {
       let paintFrame: number | null = null;
       const paintQueue: string[] = [];
       let paintDrainResolve: (() => void) | null = null;
+      const resolvePaintDrain = (): void => {
+        const resolve = paintDrainResolve;
+        paintDrainResolve = null;
+        if (resolve !== null) resolve();
+      };
       // Reveal the streaming reply bubble on the first token (until then the
       // RetrievalTrace "preparing answer" surface stays up).
       const ensureTurn = () => {
@@ -1279,8 +1305,7 @@ export function CommandDeck() {
           if (paintQueue.length > 0) {
             scheduleStreamPaint();
           } else {
-            paintDrainResolve?.();
-            paintDrainResolve = null;
+            resolvePaintDrain();
           }
         });
       };
@@ -1291,9 +1316,11 @@ export function CommandDeck() {
           scheduleStreamPaint();
         });
       };
-      const reply = await askBackendStream(text, snapshot, history, {
-        sessionId: sessionIdFor(sessionIdsRef.current, originSessionKey),
-        onToken: (delta) => {
+      let reply: Awaited<ReturnType<typeof askBackendStream>>;
+      try {
+        reply = await askBackendStream(text, snapshot, history, {
+          sessionId: sessionIdFor(sessionIdsRef.current, originSessionKey),
+          onToken: (delta) => {
           if (!isCurrent()) return;
           paintQueue.push(delta);
           revealWhenReady();
@@ -1343,8 +1370,14 @@ export function CommandDeck() {
             return next;
           });
         },
-        signal: controller.signal,
-      });
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (revealTimer !== null) window.clearTimeout(revealTimer);
+        if (paintFrame !== null) cancelAnimationFrame(paintFrame);
+        resolvePaintDrain();
+        throw error;
+      }
       if (!started && isCurrent()) {
         const remaining = MIN_PREPARING_VISIBLE_MS - (Date.now() - preparingStartedAt);
         if (remaining > 0) {
@@ -1377,6 +1410,7 @@ export function CommandDeck() {
                   ...(reply.verification ? { verification: reply.verification } : {}),
                   ...(reply.router ? { router: reply.router } : {}),
                   ...(reply.answerPlan ? { answerPlan: reply.answerPlan } : {}),
+                  ...(reply.answerPlanning ? { answerPlanning: reply.answerPlanning } : {}),
                   ...(reply.codeArtifacts ? { codeArtifacts: reply.codeArtifacts } : {}),
                 }
               : t,
@@ -1529,7 +1563,10 @@ export function CommandDeck() {
           return;
         }
         if (e.key === "Escape") {
+          // Dismiss only the palette, not the whole deck: stop the event from
+          // reaching the window-level Escape handler that closes the overlay.
           e.preventDefault();
+          e.stopPropagation();
           setDraft("");
           return;
         }

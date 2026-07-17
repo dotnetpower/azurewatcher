@@ -165,6 +165,18 @@ export interface TileState {
   readonly failed: boolean;
 }
 
+export type LiveSelectionState = "none" | "waiting" | "selected" | "unavailable";
+
+export function liveSelectionState(
+  selectedEventId: string | null,
+  selectedTile: TileState | null,
+  sessionTotal: number,
+): LiveSelectionState {
+  if (selectedEventId === null) return "none";
+  if (selectedTile !== null) return "selected";
+  return sessionTotal === 0 ? "waiting" : "unavailable";
+}
+
 export interface LiveState {
   /** Fixed-size pool. ``null`` means "empty slot"; populated tiles keep
    *  their index for the whole lifetime of an event so the FE never

@@ -88,6 +88,11 @@ class UserContextOntologyProjector:
             "id": object_id,
             "locale": record.locale,
             "verbosity": record.verbosity,
+            "answer_detail": record.answer_detail,
+            "answer_format": record.answer_format,
+            "answer_preferences_enabled": record.answer_preferences_enabled,
+            "answer_intent_detail": dict(record.answer_intent_detail),
+            "answer_intent_format": dict(record.answer_intent_format),
             "share_with_learner": record.share_with_learner,
         }
         if record.updated_at is not None:

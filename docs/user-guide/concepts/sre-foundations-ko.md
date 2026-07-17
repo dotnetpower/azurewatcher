@@ -2,7 +2,7 @@
 title: SRE 기초(SRE foundations)
 description: FDAI가 자동화하는 핵심 SRE 기능과, 각 기능이 컨트롤 루프·에이전트·세 버티컬에 어떻게 매핑되는가.
 translation_of: sre-foundations.md
-translation_source_sha: ba25517dc2d6c09103f8ba2b136277c7079086ad
+translation_source_sha: 2ab0ec72c09982400c646efceebbaafcf01eea3d
 translation_revised: 2026-07-17
 sidebar:
   order: 1
@@ -120,6 +120,9 @@ executor는 변경 실행을 중지합니다.
 
 | 학습 대상 | 문서 |
 |-----------|------|
+| 운영자를 위한 전체 SRE 지도 | [사이트 신뢰성 엔지니어링](../sre/README-ko.md) |
+| Incident가 open에서 closed까지 이동하는 방법 | [인시던트 관리](../sre/incident-management-ko.md) |
+| FDAI가 grounded cause hypothesis를 만드는 방법 | [근본 원인 분석](../sre/root-cause-analysis-ko.md) |
 | 반복 가능한 다수가 왜 LLM에 닿지 않는가 | [deterministic-first-ko.md](deterministic-first-ko.md) |
 | 판정이 어떻게 auto vs HIL이 되는가 | [risk-tiers-ko.md](risk-tiers-ko.md) |
 | 모든 액션이 어떻게 안전 계약을 물려받는가 | [ontology-driven-automation-ko.md](ontology-driven-automation-ko.md) |

@@ -133,6 +133,13 @@ export interface EffectiveScope {
   readonly executor_boundary: ExecutorBoundary;
 }
 
+export interface AuditSample {
+  readonly from_seq: number | null;
+  readonly through_seq: number | null;
+  readonly row_count: number;
+  readonly limit: number;
+}
+
 export interface DashboardKpi {
   readonly event_count: number;
   readonly shadow_share: number;
@@ -142,6 +149,7 @@ export interface DashboardKpi {
   readonly by_outcome: Record<string, number>;
   readonly by_tier: Record<string, number>;
   readonly last_recorded_at: string | null;
+  readonly audit_sample: AuditSample | null;
 }
 
 /**

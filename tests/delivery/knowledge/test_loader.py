@@ -6,10 +6,21 @@ from pathlib import Path
 
 import pytest
 
+from fdai.core.sandbox import (
+    DocumentConverterSandboxCatalog,
+    DocumentConverterSandboxProfile,
+    SandboxPolicyError,
+)
 from fdai.delivery.knowledge.loader import (
+    DEFAULT_CONVERTIBLE_SUFFIXES,
     DEFAULT_MAX_BYTES,
     documents_from_files,
     load_knowledge_documents,
+    load_knowledge_documents_with_converter,
+)
+from fdai.shared.providers.document_converter import (
+    DocumentConversionRequest,
+    DocumentConversionResult,
 )
 
 
@@ -82,3 +93,59 @@ def test_documents_from_files_outside_root_skipped(tmp_path: Path) -> None:
 
 def test_default_max_bytes_is_16mb() -> None:
     assert DEFAULT_MAX_BYTES == 16 * 1024 * 1024
+
+
+class _Converter:
+    def __init__(self) -> None:
+        self.requests: list[DocumentConversionRequest] = []
+
+    async def convert(
+        self,
+        request: DocumentConversionRequest,
+    ) -> DocumentConversionResult:
+        self.requests.append(request)
+        return DocumentConversionResult(text="converted runbook")
+
+
+def _converter_catalog() -> DocumentConverterSandboxCatalog:
+    return DocumentConverterSandboxCatalog(
+        (
+            DocumentConverterSandboxProfile(
+                profile_id="document.office",
+                converter_ids=frozenset({"office.text"}),
+                allowed_suffixes=DEFAULT_CONVERTIBLE_SUFFIXES,
+                max_input_bytes=1_000,
+                max_output_bytes=1_000,
+            ),
+        )
+    )
+
+
+async def test_binary_documents_require_profiled_conversion(tmp_path: Path) -> None:
+    (tmp_path / "notes.md").write_text("plain text", encoding="utf-8")
+    (tmp_path / "runbook.pdf").write_bytes(b"pdf-content")
+    converter = _Converter()
+
+    documents = await load_knowledge_documents_with_converter(
+        tmp_path,
+        converter_id="office.text",
+        converter=converter,
+        sandbox_catalog=_converter_catalog(),
+    )
+
+    assert [document.doc_id for document in documents] == ["notes.md", "runbook.pdf"]
+    assert documents[1].text == "converted runbook"
+    assert documents[1].metadata["converter_id"] == "office.text"
+    assert converter.requests[0].source_ref == "runbook.pdf"
+
+
+async def test_unprofiled_binary_converter_fails_closed(tmp_path: Path) -> None:
+    (tmp_path / "runbook.pdf").write_bytes(b"pdf-content")
+
+    with pytest.raises(SandboxPolicyError, match="no sandbox profile"):
+        await load_knowledge_documents_with_converter(
+            tmp_path,
+            converter_id="office.text",
+            converter=_Converter(),
+            sandbox_catalog=DocumentConverterSandboxCatalog(),
+        )

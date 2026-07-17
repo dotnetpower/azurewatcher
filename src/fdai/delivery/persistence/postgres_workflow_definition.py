@@ -10,6 +10,9 @@ from typing import Any, Final
 import psycopg
 from psycopg.rows import dict_row
 
+from fdai.delivery.persistence.postgres_user_context_projection_queue import (
+    enqueue_projection_upsert,
+)
 from fdai.shared.providers.workflow_definition import (
     WorkflowBindingRecord,
     WorkflowBindingTrigger,
@@ -88,6 +91,12 @@ class PostgresWorkflowDefinitionStore(_PostgresBase):
                         f"definition {record.definition_id!r} is immutable"
                     )
                 stored = existing
+            await enqueue_projection_upsert(
+                connection,
+                projection_kind="workflow_definition",
+                principal_id=stored.owner_ref or "system",
+                record_id=stored.definition_id,
+            )
         return stored
 
     async def get(self, *, definition_id: str) -> WorkflowDefinitionRecord | None:
@@ -150,6 +159,12 @@ class PostgresWorkflowBindingStore(_PostgresBase):
                 raise WorkflowDefinitionConflictError(
                     f"binding {record.binding_id!r} conflicts"
                 ) from exc
+            await enqueue_projection_upsert(
+                connection,
+                projection_kind="workflow_binding",
+                principal_id=record.principal_id,
+                record_id=record.binding_id,
+            )
         return _with_binding_revision(record, 1)
 
     async def list_for_principal(self, *, principal_id: str) -> tuple[WorkflowBindingRecord, ...]:
@@ -193,6 +208,12 @@ class PostgresWorkflowBindingStore(_PostgresBase):
                     "binding revision mismatch or record not found"
                 )
             revision = int(row["revision"])
+            await enqueue_projection_upsert(
+                connection,
+                projection_kind="workflow_binding",
+                principal_id=record.principal_id,
+                record_id=record.binding_id,
+            )
         return _with_binding_revision(record, revision)
 
     async def delete(self, *, principal_id: str, binding_id: str) -> bool:

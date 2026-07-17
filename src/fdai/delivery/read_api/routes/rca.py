@@ -21,7 +21,7 @@ from fdai.delivery.read_api.read_model import (
     MAX_LIMIT,
     ConsoleReadModel,
 )
-from fdai.delivery.read_api.routes.panels import PanelQueryError
+from fdai.delivery.read_api.routes.panels import PanelNotFoundError, PanelQueryError
 from fdai.delivery.read_api.routes.rca_projection import project_rca
 
 
@@ -45,6 +45,8 @@ class RcaPanel:
             raise PanelQueryError("correlation MUST be provided")
         correlation = correlation.strip()
         page = await self._read_model.list_audit(correlation_id=correlation, limit=MAX_LIMIT)
+        if not page.items:
+            raise PanelNotFoundError(f"no audit evidence for correlation {correlation!r}")
         view = project_rca(page.items, correlation_id=correlation)
         return view.to_dict()
 

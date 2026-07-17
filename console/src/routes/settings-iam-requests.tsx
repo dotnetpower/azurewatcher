@@ -6,6 +6,10 @@ import { t } from "../i18n";
 import { reviewIamAccessRequest } from "./settings-iam.command";
 import type { IamAccessRequest, IdentityRosterItem } from "./settings-iam.model";
 
+export function pendingAccessRequestCountKey(hasMore: boolean): string {
+  return hasMore ? "settings.iam.pendingLoadedCount" : "settings.iam.pendingCount";
+}
+
 export function AccessRequestsView({
   requests,
   total,
@@ -64,7 +68,10 @@ export function AccessRequestsView({
           <p>{t("settings.iam.requestsAdminHint")}</p>
         </div>
         <div class="settings-roster-counts">
-          <StatusPill kind="warning" label={t("settings.iam.pendingCount", { count: pending })} />
+          <StatusPill
+            kind="warning"
+            label={t(pendingAccessRequestCountKey(hasMore), { count: pending })}
+          />
           <StatusPill kind="neutral" label={t("settings.iam.totalCount", { count: total })} />
         </div>
       </header>

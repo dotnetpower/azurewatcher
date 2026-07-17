@@ -27,21 +27,31 @@ from fdai.core.reporting.contracts import (
     WidgetBuilder,
     WidgetTypeNotFoundError,
 )
-from fdai.core.reporting.models import ReportSpec
+from fdai.core.reporting.models import DataSourceProvenance, ReportSpec
 
 
 class DataSourceRegistry:
     """Datasource lookup by name; last-write-wins on re-register."""
 
-    __slots__ = ("_by_name",)
+    __slots__ = ("_by_name", "_provenance")
 
     def __init__(self, sources: Iterable[ReportDataSource] = ()) -> None:
         self._by_name: dict[str, ReportDataSource] = {}
+        self._provenance: dict[str, DataSourceProvenance] = {}
         for source in sources:
             self.register(source)
 
-    def register(self, source: ReportDataSource) -> None:
+    def register(
+        self,
+        source: ReportDataSource,
+        *,
+        provenance: DataSourceProvenance | None = None,
+    ) -> None:
         self._by_name[source.name] = source
+        self._provenance[source.name] = provenance or DataSourceProvenance(
+            datasource=source.name,
+            source=source.name,
+        )
 
     def get(self, name: str) -> ReportDataSource:
         try:
@@ -51,6 +61,15 @@ class DataSourceRegistry:
 
     def names(self) -> tuple[str, ...]:
         return tuple(sorted(self._by_name))
+
+    def provenance(self, name: str) -> DataSourceProvenance:
+        try:
+            return self._provenance[name]
+        except KeyError as exc:
+            raise DataSourceNotFoundError(name) from exc
+
+    def provenances(self) -> tuple[DataSourceProvenance, ...]:
+        return tuple(self._provenance[name] for name in sorted(self._provenance))
 
 
 class WidgetRegistry:

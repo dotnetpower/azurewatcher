@@ -5,11 +5,14 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Collection
+from datetime import UTC, datetime
 from typing import Any
 
 from starlette.requests import Request
 from starlette.routing import BaseRoute
 
+from fdai.core.conversation.answer_plan import AnswerFormat, AnswerIntent, DetailLevel
+from fdai.core.conversation.answer_preferences import ResponsePreferenceProfile
 from fdai.core.user_context_projection import UserContextOntologyProjector
 from fdai.delivery.read_api.read_model import ConsoleReadModel
 from fdai.delivery.read_api.routes.chat import (
@@ -23,12 +26,13 @@ from fdai.delivery.read_api.routes.chat import (
     make_chat_route,
     make_chat_stream_route,
 )
+from fdai.delivery.read_api.routes.chat_answer_planning import compatible_planning_delegate
 from fdai.delivery.read_api.routes.chat_evidence import OperationalEvidenceResolver
 from fdai.delivery.read_api.routes.chat_semantic import semantic_verifier_from_env
 from fdai.delivery.read_api.routes.chat_system_health import SystemHealthChatTools
 from fdai.delivery.read_api.routes.chat_tools import ReadModelChatTools
 from fdai.shared.providers.briefing import ConversationPolicyStore
-from fdai.shared.providers.user_context import ConversationHistoryStore
+from fdai.shared.providers.user_context import ConversationHistoryStore, UserPreferenceStore
 
 
 def append_chat_routes(
@@ -39,6 +43,7 @@ def append_chat_routes(
     web_search_resolver: ChatWebSearchEvidenceResolver | None = None,
     conversation_policy_store: ConversationPolicyStore | None = None,
     conversation_history_store: ConversationHistoryStore | None = None,
+    answer_preference_store: UserPreferenceStore | None = None,
     user_context_ontology_projector: UserContextOntologyProjector | None = None,
     model_settings: object | None = None,
     authorize: Callable[[Request], Awaitable[str]],
@@ -68,6 +73,7 @@ def append_chat_routes(
                 tool_resolver=tools,
                 web_search_resolver=web_search_resolver,
                 agent_delegate=agent_delegate,
+                answer_planning_delegate=compatible_planning_delegate(agent_delegate),
                 semantic_verifier=semantic_verifier,
                 conversation_policy_store=conversation_policy_store,
                 conversation_history_store=conversation_history_store,
@@ -77,6 +83,7 @@ def append_chat_routes(
                     if model_settings is not None
                     else None
                 ),
+                answer_preference_resolver=_answer_preference_resolver(answer_preference_store),
             ),
             make_chat_stream_route(
                 backend=backend,
@@ -85,6 +92,7 @@ def append_chat_routes(
                 tool_resolver=tools,
                 web_search_resolver=web_search_resolver,
                 agent_delegate=agent_delegate,
+                answer_planning_delegate=compatible_planning_delegate(agent_delegate),
                 semantic_verifier=semantic_verifier,
                 conversation_policy_store=conversation_policy_store,
                 conversation_history_store=conversation_history_store,
@@ -94,6 +102,7 @@ def append_chat_routes(
                     if model_settings is not None
                     else None
                 ),
+                answer_preference_resolver=_answer_preference_resolver(answer_preference_store),
             ),
             make_chat_health_route(
                 backend=backend,
@@ -117,6 +126,35 @@ def append_chat_routes(
             "deterministic answerer. Set FDAI_NARRATOR_* env vars or ship "
             "resolved-models.json to enable the LLM path."
         )
+
+
+def _answer_preference_resolver(
+    store: UserPreferenceStore | None,
+) -> Callable[[str], Awaitable[ResponsePreferenceProfile | None]] | None:
+    if store is None:
+        return None
+
+    async def resolve(principal_id: str) -> ResponsePreferenceProfile | None:
+        record = await store.get(principal_id=principal_id)
+        if record is None:
+            return None
+        return ResponsePreferenceProfile(
+            locale=record.locale,
+            default_detail=DetailLevel(record.answer_detail),
+            default_format=AnswerFormat(record.answer_format),
+            intent_detail={
+                AnswerIntent(intent): DetailLevel(detail)
+                for intent, detail in record.answer_intent_detail.items()
+            },
+            intent_format={
+                AnswerIntent(intent): AnswerFormat(format_)
+                for intent, format_ in record.answer_intent_format.items()
+            },
+            explicit_only=not record.answer_preferences_enabled,
+            updated_at=record.updated_at or datetime(1970, 1, 1, tzinfo=UTC),
+        )
+
+    return resolve
 
 
 def is_routed_chat_backend(backend: object) -> bool:

@@ -131,6 +131,9 @@ console or notification channel inheriting executor authority.
 
 | To learn about | Read |
 |----------------|------|
+| The complete operator-facing SRE map | [Site Reliability Engineering](../sre/README.md) |
+| How incidents move from open to closed | [Incident management](../sre/incident-management.md) |
+| How FDAI produces grounded cause hypotheses | [Root-cause analysis](../sre/root-cause-analysis.md) |
 | Why the repeatable majority never reaches an LLM | [deterministic-first.md](deterministic-first.md) |
 | How verdicts become auto vs HIL | [risk-tiers.md](risk-tiers.md) |
 | How every action inherits a safety contract | [ontology-driven-automation.md](ontology-driven-automation.md) |

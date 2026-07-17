@@ -53,6 +53,13 @@ const DEFAULT_OPTIONS: ArchitectureDisplayOptions = {
   showGrid: true,
 };
 
+export function architectureResourceFromValue(
+  resources: readonly InventoryResource[],
+  value: string,
+): InventoryResource | null {
+  return resources.find((resource) => resource.id === value) ?? null;
+}
+
 export const ArchitectureMap = forwardRef<ArchitectureMapHandle, Props>(function ArchitectureMap({
   graph,
   selectedId = null,
@@ -199,7 +206,29 @@ export const ArchitectureMap = forwardRef<ArchitectureMapHandle, Props>(function
     notifyZoom();
   }, [graph]);
 
-  return <canvas ref={canvasRef} class={`architecture-map ${className}`} aria-label="Resource architecture map" />;
+  return (
+    <div class={`architecture-map-frame ${className}`}>
+      <canvas ref={canvasRef} class="architecture-map" aria-label="Resource architecture map" />
+      <label class="architecture-resource-picker">
+        <span class="sr-only">Select architecture resource</span>
+        <select
+          aria-label="Select architecture resource"
+          value={selectedId ?? ""}
+          disabled={onSelect === undefined}
+          onChange={(event) => onSelect?.(
+            architectureResourceFromValue(graph.resources, event.currentTarget.value),
+          )}
+        >
+          <option value="">Select resource</option>
+          {graph.resources.map((resource) => (
+            <option key={resource.id} value={resource.id}>
+              {resource.name} - {resource.type}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
 });
 
 function applyCameraView(camera: Camera, view: ArchitectureCameraView): void {

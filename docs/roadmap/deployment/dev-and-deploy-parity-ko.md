@@ -1,8 +1,8 @@
 ---
 title: Dev/Deploy Parity - 로컬 Fake vs Azure-First 프로비저닝
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: d7881ebbd9090e9e1e22da61bc91220acecfa8c0
-translation_revised: 2026-07-16
+translation_source_sha: 979d092bcf970326b52bdfe7d6a76d6c0c8e78eb
+translation_revised: 2026-07-17
 ---
 
 # Dev/Deploy Parity - 로컬 Fake vs Azure-First 프로비저닝
@@ -54,7 +54,9 @@ translation_revised: 2026-07-16
 
 로컬 read API는 Live, Agents, Provisioning feed를 등록하지만 기본적으로 producer를 시작하지
 않으므로 세 stream은 조용히 대기합니다. Provisioning 페이지는 사용할 수 없는 route 오류를
-표시하지 않고 연결된 상태에서 `provision.*` event를 기다립니다. 명시적인 Live와 Agents
+표시하지 않고 연결된 상태에서 `provision.*` event를 기다립니다. Stream이 연결되었다는 사실만으로
+run이 시작되었거나 progress가 0%라는 뜻은 아닙니다. 첫 provisioning event가 도착하기 전에는
+"관찰된 run 없음"을 표시하고 progress meter를 렌더링하지 않습니다. 명시적인 Live와 Agents
 demo가 필요할 때만 `FDAI_LOCAL_SCENARIO_REPLAY=1`을 설정합니다. 이 모드에서
 `ControlLoopLiveEmitter`는
 `tests/scenarios/v2026.07/` 아래의 제공 이벤트와 catalog에서

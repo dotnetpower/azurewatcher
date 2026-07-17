@@ -18,13 +18,27 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from croniter import croniter
 
-from fdai.core.scheduler.models import ScheduledTask
+from fdai.core.scheduler.isolation import isolation_payload
+from fdai.core.scheduler.models import ScheduledTask, ScheduleKind
+from fdai.core.scheduler.run_ledger import (
+    InMemoryScheduleRunLedger,
+    ScheduleDispatchRun,
+    ScheduleDispatchStatus,
+    ScheduleRunLedger,
+)
 from fdai.core.scheduler.store import ScheduleStore
 from fdai.shared.contracts.models import Event, Mode
 from fdai.shared.providers.event_bus import EventBus
+from fdai.shared.telemetry.transitions import (
+    RoutingTransition,
+    RoutingTransitionSink,
+    default_transition_emitter,
+    emit_transition_safely,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,8 +59,15 @@ def compute_due(tasks: Sequence[ScheduledTask], *, now: datetime) -> list[Schedu
             continue
         if task.start_at is not None and now < task.start_at:
             continue
-        if task.cron_expression is not None:
-            if not croniter.match(task.cron_expression, now):
+        if task.kind is ScheduleKind.EVENT_EXIT and task.exit_observed_at is not None:
+            continue
+        if task.kind is ScheduleKind.ONE_SHOT:
+            if task.last_run is None:
+                due.append(task)
+            continue
+        if task.kind is ScheduleKind.CRON:
+            local_now = now.astimezone(ZoneInfo(task.timezone))
+            if not croniter.match(task.cron_expression or "", local_now):
                 continue
             if task.last_run is not None and _minute_bucket(task.last_run) == _minute_bucket(now):
                 continue
@@ -63,11 +84,12 @@ def compute_due(tasks: Sequence[ScheduledTask], *, now: datetime) -> list[Schedu
 
 def _schedule_idempotency_key(task: ScheduledTask, now: datetime) -> str:
     """Stable key per interval bucket so a retried tick does not double-fire."""
-    bucket = (
-        _minute_bucket(now)
-        if task.cron_expression is not None
-        else int(now.timestamp() // task.interval_seconds)
-    )
+    if task.kind is ScheduleKind.ONE_SHOT:
+        bucket = f"at:{int((task.start_at or now).timestamp())}"
+    elif task.kind is ScheduleKind.CRON:
+        bucket = f"cron:{_minute_bucket(now)}"
+    else:
+        bucket = f"interval:{int(now.timestamp() // task.interval_seconds)}"
     return f"schedule:{task.task_id}:{bucket}"
 
 
@@ -82,12 +104,21 @@ class SchedulerRunReport:
     fired: int
     publish_errors: tuple[tuple[str, str], ...] = ()
     """``(task_id, short_error)`` for each publish that failed."""
+    duplicates_suppressed: int = 0
 
 
 class SchedulerService:
     """Fire due scheduled tasks into the control loop."""
 
-    __slots__ = ("_bus", "_clock", "_mode", "_store", "_topic")
+    __slots__ = (
+        "_bus",
+        "_clock",
+        "_ledger",
+        "_mode",
+        "_store",
+        "_topic",
+        "_transition_sink",
+    )
 
     def __init__(
         self,
@@ -97,12 +128,16 @@ class SchedulerService:
         clock: Callable[[], datetime] | None = None,
         topic: str = SCHEDULE_EVENT_TOPIC,
         mode: Mode = Mode.SHADOW,
+        run_ledger: ScheduleRunLedger | None = None,
+        transition_sink: RoutingTransitionSink | None = None,
     ) -> None:
         self._store = store
         self._bus = event_bus
         self._clock: Callable[[], datetime] = clock or (lambda: datetime.now(tz=UTC))
         self._topic = topic
         self._mode = mode
+        self._ledger = run_ledger or InMemoryScheduleRunLedger()
+        self._transition_sink = transition_sink or default_transition_emitter()
 
     async def run_once(self, *, now: datetime | None = None) -> SchedulerRunReport:
         at = now or self._clock()
@@ -110,23 +145,74 @@ class SchedulerService:
         due = compute_due(tasks, now=at)
 
         fired = 0
+        duplicates_suppressed = 0
         publish_errors: list[tuple[str, str]] = []
         for task in due:
             key = task.resource_ref or task.task_id
+            run_id = _schedule_idempotency_key(task, at)
+            claimed = await self._ledger.claim(
+                ScheduleDispatchRun(
+                    run_id=run_id,
+                    task_id=task.task_id,
+                    scheduled_for=at,
+                    claimed_at=at,
+                )
+            )
+            if not claimed:
+                duplicates_suppressed += 1
+                continue
             try:
                 payload = self._build_payload(task, at)
                 await self._bus.publish(self._topic, key, payload)
             except Exception as exc:  # noqa: BLE001 - one bad task must not silence the rest
+                await self._ledger.complete(
+                    run_id,
+                    status=ScheduleDispatchStatus.FAILED,
+                    at=at,
+                    error_kind=type(exc).__name__,
+                )
                 publish_errors.append((task.task_id, f"{type(exc).__name__}:{exc}"))
+                self._emit(task, "dispatch", "failed", {"error_kind": type(exc).__name__})
                 _LOGGER.warning(
                     "schedule_publish_failed",
                     extra={"task_id": task.task_id, "error": str(exc)},
                 )
                 continue
+            await self._ledger.complete(
+                run_id,
+                status=ScheduleDispatchStatus.PUBLISHED,
+                at=at,
+            )
             await self._store.mark_run(task.task_id, at)
             fired += 1
+            self._emit(task, "dispatch", "accepted", {})
 
-        return SchedulerRunReport(fired=fired, publish_errors=tuple(publish_errors))
+        return SchedulerRunReport(
+            fired=fired,
+            publish_errors=tuple(publish_errors),
+            duplicates_suppressed=duplicates_suppressed,
+        )
+
+    async def observe_event(self, event: Event) -> int:
+        """Disable event-exit schedules matching one normalized event type."""
+        return await self._store.mark_exit_event(event.event_type, event.detected_at)
+
+    def _emit(
+        self,
+        task: ScheduledTask,
+        name: str,
+        outcome: str,
+        attributes: dict[str, str],
+    ) -> None:
+        emit_transition_safely(
+            self._transition_sink,
+            RoutingTransition(
+                domain="scheduler",
+                name=name,
+                outcome=outcome,
+                attributes={"schedule_kind": task.kind.value, **attributes},
+            ),
+        )
 
     def _build_event(self, task: ScheduledTask, at: datetime) -> Event:
         payload = {
@@ -135,6 +221,7 @@ class SchedulerService:
                 "task_id": task.task_id,
                 "name": task.name,
                 "created_by": task.created_by,
+                "isolation": isolation_payload(task.isolation_profile),
             },
         }
         return Event(
@@ -180,6 +267,7 @@ class SchedulerService:
                 "task_id": task.task_id,
                 "name": task.name,
                 "created_by": task.created_by,
+                "isolation": isolation_payload(task.isolation_profile),
             },
         }
 

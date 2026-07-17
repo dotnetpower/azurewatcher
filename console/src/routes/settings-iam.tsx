@@ -25,8 +25,14 @@ interface Props {
 
 type IamTab = "my-access" | "users" | "roles" | "requests";
 
+export function isCurrentIamLoad(currentGeneration: number, candidate: number): boolean {
+  return currentGeneration === candidate;
+}
+
 export function SettingsIamRoute({ client, auth }: Props) {
-  const [tab, setTab] = useState<IamTab>(initialIamTab);
+  const requestedTab = iamTabFromSegment(currentRoute().segments[0]);
+  const invalidTab = requestedTab === null;
+  const [tab, setTab] = useState<IamTab>(requestedTab ?? "my-access");
   const [overview, setOverview] = useState<IamOverview | null>(null);
   const [requests, setRequests] = useState<readonly IamAccessRequest[]>([]);
   const [requestTotal, setRequestTotal] = useState(0);
@@ -90,9 +96,13 @@ export function SettingsIamRoute({ client, auth }: Props) {
 
   useEffect(() => {
     void load();
+    return () => {
+      loadGeneration.current += 1;
+    };
   }, [client]);
 
-  const username = auth.account?.username ?? t("settings.unavailable");
+  const username = auth.account?.username ?? null;
+  const displayUsername = username ?? t("settings.unavailable");
   const roles = overview?.principal.roles ?? currentTokenRoles(auth);
   const canManage = overview?.principal.capabilities.includes("manage-group-membership") ?? false;
 
@@ -107,7 +117,10 @@ export function SettingsIamRoute({ client, auth }: Props) {
 
   const loadMoreRequests = async () => {
     if (nextRequestCursor === null) return;
-    const page = await client.listIamAccessRequests(50, nextRequestCursor);
+    const generation = loadGeneration.current;
+    const cursor = nextRequestCursor;
+    const page = await client.listIamAccessRequests(50, cursor);
+    if (!isCurrentIamLoad(loadGeneration.current, generation)) return;
     setRequests((current) => [...current, ...page.items]);
     setRequestTotal(page.total);
     setNextRequestCursor(page.nextCursor);
@@ -119,7 +132,7 @@ export function SettingsIamRoute({ client, auth }: Props) {
       routeLabel: t("route.settingsIam"),
       purpose: "Human identity roles, effective capabilities, and governed access requests.",
       glossary: composeGlossary([TERMS.humanRbac]),
-      headline: `${username}: ${roles.join(", ") || "unassigned"}`,
+      headline: `${displayUsername}: ${roles.join(", ") || "unassigned"}`,
       capturedAt: new Date().toISOString(),
       facts: [
         { key: "principal", value: username, group: "identity" },
@@ -128,7 +141,7 @@ export function SettingsIamRoute({ client, auth }: Props) {
       ],
       records: {},
     }),
-    [requestTotal, roles, username],
+    [displayUsername, requestTotal, roles, username],
   );
 
   return (
@@ -151,8 +164,8 @@ export function SettingsIamRoute({ client, auth }: Props) {
             id={`settings-iam-tab-${id}`}
             type="button"
             role="tab"
-            class={tab === id ? "is-active" : undefined}
-            aria-selected={tab === id}
+            class={!invalidTab && tab === id ? "is-active" : undefined}
+            aria-selected={!invalidTab && tab === id}
             aria-controls={`settings-iam-panel-${id}`}
             tabIndex={tab === id ? 0 : -1}
             disabled={!canManage && (id === "users" || id === "requests")}
@@ -168,7 +181,12 @@ export function SettingsIamRoute({ client, auth }: Props) {
 
       {loading ? <p class="muted" role="status">{t("settings.iam.loading")}</p> : null}
       {error ? <div class="error" role="alert">{t("settings.iam.loadFailed", { error })}</div> : null}
-      {!loading && !error && overview ? (
+      {!loading && !error && overview && invalidTab ? (
+        <div class="state-block state-unavailable" role="alert">
+          {t("settings.iam.invalidTab")}
+        </div>
+      ) : null}
+      {!loading && !error && overview && !invalidTab ? (
         <div
           id={`settings-iam-panel-${tab}`}
           role="tabpanel"
@@ -191,9 +209,9 @@ export function SettingsIamRoute({ client, auth }: Props) {
         rosterError,
         username,
         canManage,
-        assignRole: async (identity, role, justification) => {
+        assignRole: async (identity, role, justification, idempotencyKey) => {
           await submitIamAccessRequest(auth, client.readApiBaseUrl, {
-            idempotencyKey: crypto.randomUUID(),
+            idempotencyKey,
             identityProvider: identity.provider,
             targetSubjectId: identity.subjectId,
             targetUsername: identity.username ?? identity.displayName,
@@ -223,12 +241,13 @@ function renderTab(props: {
   readonly roster: readonly IdentityRosterItem[];
   readonly rosterAvailable: boolean;
   readonly rosterError: string | null;
-  readonly username: string;
+  readonly username: string | null;
   readonly canManage: boolean;
   readonly assignRole: (
     identity: IdentityRosterItem | HumanIdentityResult,
     role: Exclude<IamRole, "BreakGlass">,
     justification: string,
+    idempotencyKey: string,
   ) => Promise<void>;
   readonly auth: AuthContext;
   readonly client: ReadApiClient;
@@ -272,7 +291,7 @@ function renderTab(props: {
 
 function MyAccess({ overview, username, auth }: {
   readonly overview: IamOverview;
-  readonly username: string;
+  readonly username: string | null;
   readonly auth: AuthContext;
 }) {
   const identity = iamIdentityPresentation(auth, overview);
@@ -310,7 +329,7 @@ function MyAccess({ overview, username, auth }: {
       <div class="settings-access-body">
         <dl class="settings-access-details">
           <dt>{t("settings.iam.signedInAs")}</dt>
-          <dd>{username}</dd>
+          <dd>{username ?? t("settings.unavailable")}</dd>
           {identity.subjectId ? (
             <>
               <dt>{t("settings.iam.subjectId")}</dt>
@@ -395,7 +414,7 @@ function UsersView({
   onAssign,
 }: {
   readonly overview: IamOverview;
-  readonly username: string;
+  readonly username: string | null;
   readonly requests: readonly IamAccessRequest[];
   readonly roster: readonly IdentityRosterItem[];
   readonly rosterAvailable: boolean;
@@ -406,6 +425,7 @@ function UsersView({
     identity: IdentityRosterItem | HumanIdentityResult,
     role: Exclude<IamRole, "BreakGlass">,
     justification: string,
+    idempotencyKey: string,
   ) => Promise<void>;
 }) {
   const users = referencedUsers(overview, username, requests);
@@ -424,9 +444,9 @@ function UsersView({
 
 const IAM_TABS: readonly IamTab[] = ["my-access", "users", "roles", "requests"];
 
-function initialIamTab(): IamTab {
-  const [segment] = currentRoute().segments;
-  return IAM_TABS.includes(segment as IamTab) ? segment as IamTab : "my-access";
+export function iamTabFromSegment(segment: string | undefined): IamTab | null {
+  if (segment === undefined) return "my-access";
+  return IAM_TABS.includes(segment as IamTab) ? segment as IamTab : null;
 }
 
 function errorMessage(reason: unknown): string {
@@ -501,16 +521,16 @@ function RolesView({ roles }: { readonly roles: readonly IamRoleDefinition[] }) 
   );
 }
 
-function referencedUsers(
+export function referencedUsers(
   overview: IamOverview,
-  username: string,
+  username: string | null,
   requests: readonly IamAccessRequest[],
 ): readonly IdentityRosterItem[] {
   const users = new Map<string, IdentityRosterItem>();
   users.set(`current:${overview.principal.oid}`, {
     provider: "authenticated",
     subjectId: overview.principal.oid,
-    displayName: username,
+    displayName: username ?? overview.principal.oid,
     principalType: "person",
     username,
     roles: overview.principal.roles,

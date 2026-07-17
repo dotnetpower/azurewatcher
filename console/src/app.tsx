@@ -7,13 +7,13 @@ import { shouldLoadIamSelf, shouldShowAccessRequired } from "./access-routing";
 import { loadConfig, type ConsoleConfig } from "./config";
 import {
   clearLocalAuthBypass,
-  enableLocalAuthBypass,
+  establishLocalAuthBypass,
   readLocalAuthBypass,
 } from "./local-auth-session";
 import { Shell } from "./components/shell";
 import { PanelErrorBoundary } from "./components/panel-error-boundary";
 import { PageHeader } from "./components/ui";
-import { setChatAuth } from "./deck/backend";
+import { setChatAuth } from "./deck/auth";
 import { ViewContextProvider } from "./deck/context";
 import { deckUserFromAuth, setDeckUser } from "./deck/deck-user";
 import { setWorkflowAuth } from "./workflow/validate";
@@ -235,8 +235,8 @@ export function App() {
         <LoginRoute
           auth={auth}
           allowDevBypass
-          onDevBypass={() => {
-            enableLocalAuthBypass();
+          onDevBypass={async () => {
+            await establishLocalAuthBypass(() => client.dashboardMetrics());
             setLocalDevBypass(true);
           }}
         />

@@ -76,6 +76,15 @@ class OperatorMemoryStore(Protocol):
         Raises :class:`LookupError` when the id is unknown.
         """
 
+    async def list_for_review(
+        self,
+        *,
+        limit: int,
+        scope_kind: ScopeKind | None = None,
+        scope_ref: str | None = None,
+    ) -> tuple[OperatorMemoryEntry, ...]:
+        """Return a bounded newest-first review set including inactive entries."""
+
 
 @dataclass(frozen=True, slots=True)
 class _Node:
@@ -143,6 +152,24 @@ class InMemoryOperatorMemoryStore(OperatorMemoryStore):
             )
         replacement = replace(existing, superseded_by=superseded_by)
         self._nodes[idx] = _Node(entry=replacement)
+
+    async def list_for_review(
+        self,
+        *,
+        limit: int,
+        scope_kind: ScopeKind | None = None,
+        scope_ref: str | None = None,
+    ) -> tuple[OperatorMemoryEntry, ...]:
+        if not 1 <= limit <= 200:
+            raise ValueError("operator memory review limit MUST be in [1, 200]")
+        entries = [
+            node.entry
+            for node in self._nodes
+            if (scope_kind is None or node.entry.scope_kind is scope_kind)
+            and (scope_ref is None or node.entry.scope_ref == scope_ref)
+        ]
+        entries.sort(key=lambda entry: (entry.created_at, str(entry.id)), reverse=True)
+        return tuple(entries[:limit])
 
     def _now(self) -> datetime:
         if self._now_fn is None:

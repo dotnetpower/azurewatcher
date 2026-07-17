@@ -9,6 +9,7 @@
 
 import type { ComponentChildren, JSX } from "preact";
 import { useState } from "preact/hooks";
+import { useTransientFlag } from "../hooks/use-transient-flag";
 import { useNavigationDomain } from "./navigation-title";
 
 // ---------------------------------------------------------------------------
@@ -384,12 +385,11 @@ export interface CopyButtonProps {
 }
 
 export function CopyButton({ text, label = "Copy" }: CopyButtonProps) {
-  const [copied, setCopied] = useState(false);
+  const [copied, showCopied] = useTransientFlag(1500);
   async function copy(): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
+      showCopied();
     } catch {
       /* clipboard unavailable (insecure context) - stay silent */
     }

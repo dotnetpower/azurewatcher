@@ -193,7 +193,11 @@ Dependency direction is strict and one-way; a violation is a review blocker.
   renders the panels registered for the selected domain. English is the default display
   language, and the Korean catalog provides `전체 현황`, `운영`, `에이전트`, `거버넌스`, and
   `감사·증적` without changing group ids, panel ids, or routes. An operator can reorder or hide
-  panels in browser-local, account-scoped preferences. Hiding changes navigation display only;
+  panels in browser-local, account-scoped preferences. Icon-only shell controls expose their
+  localized labels through a shared tooltip that opens on keyboard focus, delays pointer hover,
+  renders through a document-body portal, and flips or shifts to remain in the viewport. It also
+  honors reduced-motion preferences instead of relying on browser-native `title` bubbles.
+  Hiding changes navigation display only;
   direct routes and search remain available, and the active panel cannot be hidden. Detail
   routes render a compact domain / panel hierarchy inside the shared page title so context
   remains visible when the Explorer is collapsed. Domain roots and standalone utilities keep
@@ -304,6 +308,33 @@ audit path. See
 [`fdai.fork_examples.capability_bundle`](../../../src/fdai/fork_examples/capability_bundle.py)
 for a copy-ready read-only provider and bundle.
 
+When a deployment needs install, enable, disable, or uninstall lifecycle around those bundles,
+use `ExtensionManager` in `core/capability_catalog/extensions.py`. Installation verifies the
+archive SHA-256 digest, an injected publisher trust decision, host-version compatibility, and
+manifest-to-bundle capability parity. A verified extension is installed disabled. Enabling it
+rebuilds a candidate `CapabilityRuntime` from the immutable base and every enabled bundle, so an
+unknown ActionType, Workflow, reasoning tool, or provider blocks activation without changing the
+current manager. Disable the extension before uninstalling it.
+
+This lifecycle is intentionally not a dynamic code loader or public package downloader. The fork
+composition root supplies already-reviewed provider implementations and the trust verifier.
+Extension activation registers typed references only; every mutation still uses the normal
+pipeline and starts in shadow mode according to its ActionType or Workflow contract.
+
+`core/supply_chain/` owns the durable trusted-artifact contract and install orchestration shared by
+extensions and skills. Installation first passes the existing extension or skill lifecycle, then
+persists the exact raw artifact, detached signature, publisher source, digest, and disabled state.
+A failed durable write returns no candidate catalog to the caller. `delivery/trust/` provides the
+concrete source-keyed Ed25519 verifiers with distinct extension and skill signature domains, so a
+signature cannot replay across artifact kind, source, id, version, or content digest.
+
+Production uses `PostgresTrustedArtifactStore` and the `trusted_artifact` table. Extension and skill
+ids share one schema but remain separated by `artifact_kind`; insert requires expected revision 0,
+and every update requires an exact revision and increments by one. The table repeats the content
+size, SHA-256, 64-byte signature, state, timestamp, and revision constraints. It stores no private
+key or provider credential. A restarted composition can re-verify the stored raw artifact and
+signature before rebuilding enabled runtime state.
+
 ### Injectable Seams
 
 The five seams marked **CSP-neutrality contract** below realize the wire-level contracts in
@@ -321,10 +352,12 @@ non-Azure phase registers a new implementation at the composition root without e
 | **Schema source** | `SchemaRegistry` (raw JSON Schema loader) | - | `PackageResourceSchemaRegistry` (schemas ship inside the package) | remote schema-registry adapter; snapshot pinned by content hash |
 | **Boundary validation** | `ContractValidator` / `EventValidator` (fail-closed input check) | - | `JsonSchemaContractValidator` + `JsonSchemaEventValidator` (draft-2020-12) | fork MAY layer domain-specific checks (e.g. source allowlist) without editing `core/` |
 | Rule / policy source | rule-catalog + `policies/` loader | - | bundled generic rules | customer rule set / thresholds |
-| **Capability bundle runtime** | `CapabilityRuntime` + `CapabilityBundle` in `core/capability_catalog/`; `install_capability_bundle(...)` in `composition/` | - | default discovery catalog with no fork bindings | add a reasoning tool provider or bind a capability to an existing `ActionType` / `Workflow`; all references validate at startup |
+| **Capability bundle runtime** | `CapabilityRuntime` + `CapabilityBundle` and trust-verified `ExtensionManager` in `core/capability_catalog/`; `install_capability_bundle(...)` in `composition/` | - | default discovery catalog with no fork bindings; extensions install disabled | add a reviewed reasoning tool provider or bind a capability to an existing `ActionType` / `Workflow`; digest, trust, compatibility, manifest parity, and all references validate before activation |
+| **Typed external RPC** | `RpcRegistry`, `RpcMethod`, scopes, and idempotency contract in `core/rpc/`; bounded HTTP client/route, deterministic Python stub codegen, and `build_production_rpc_app(...)` in `delivery/rpc/` | - | no RPC route is mounted by the control plane; opt-in standalone app binds built-in tool discovery and PostgreSQL hashed claims | a fork supplies the identity-aware authorizer and explicit additional methods; side-effect methods require durable idempotency claims and still submit typed proposals rather than invoking an executor directly |
 | **Ontology ObjectType / LinkType** | `load_object_type_catalog(root, *, schema_registry)` and `load_link_type_catalog(root, *, schema_registry, object_types=...)` in `src/fdai/rule_catalog/schema/` | - | four upstream ObjectTypes (`Resource`, `Rule`, `Signal`, `Finding`) and the shipped LinkTypes under `rule-catalog/vocabulary/{object-types,link-types}/`, loaded into `Container.ontology_object_types` / `Container.ontology_link_types` by the entry point | fork ships additional YAML under a fork-local directory (e.g. `fork/vocabulary/object-types/ArchitectureProposal.yaml`), loads both roots at its composition root, and passes the concatenated tuples via `dataclasses.replace(container, ontology_object_types=..., ontology_link_types=...)`. Duplicate `name` across roots fails-closed. See [downstream-fork-seam-recipes.md § 5.8a](../fork-and-sequencing/downstream-fork-seam-recipes.md#58a-ontology-object-type--link-type-additions). |
 | **Workflow catalog (process automation)** | `load_workflow_catalog(root, *, schema_registry, action_type_names, rule_ids=...)` in `src/fdai/rule_catalog/schema/workflow.py`; `compile_workflow(...)` in `src/fdai/core/workflow/` | - | shadow-first Workflows under `rule-catalog/workflows/`, loaded into `Container.workflows` by the entry point after the ActionType + rule catalogs; every step cross-references an `ActionType` and (when set) a Rule id, fail-closed at startup | fork ships additional Workflow YAML under a fork-local `fork/workflows/` directory, loads it at its composition root with the concatenated ActionType / rule sets, and passes the tuple via `dataclasses.replace(container, workflows=...)`. Duplicate `name` across roots fails-closed. See [process-automation.md](../decisioning/process-automation.md). |
 | **Governed Python task** | `PythonTaskAuthor`, `PythonTaskArtifactStore`, `VmTaskTargetResolver`, and `VmTaskRunner` in `shared/providers/` | - | local template author + in-memory artifacts/targets + planning runner; production stores immutable artifacts in Postgres, resolves targets from active inventory, and the headless executor binds Azure Managed Run Command | a fork supplies another author, artifact repository, target resolver, or compute runner while preserving content hashes, declared capabilities, idempotency, non-executing read-API plans, and typed proposal dispatch. See [process-automation.md § 4.5](../decisioning/process-automation.md#45-governed-python-tasks-and-cron-schedules). |
+| **Governed sandbox profiles** | `SandboxProfileCatalog`, `VmTaskSandboxCatalog`, `ToolSandboxCatalog`, and `DocumentConverterSandboxCatalog` in `core/sandbox/`; `DocumentConverter` in `shared/providers/` | - | unprofiled command, VM-task, tool, and converter requests fail closed; profiled wrappers enforce capability, mode, suffix, timeout, argument/input/output byte, and workspace/network ceilings immediately before concrete adapters | a fork supplies explicit server-owned profiles with each adapter binding. It may implement a converter or alternate runner behind the provider contracts, but cannot expose host paths, executables, credentials, or broader request authority. See [process-automation.md § 4.6](../decisioning/process-automation.md#46-governed-command-and-shell-artifacts). |
 | **Governed command, shell task, and code workspace** | `CommandRunner`, `CommandPlan`, `ShellTaskChecker`, `ShellTaskSpec`, `CodeWorkspaceProvider`, and `CodePatchSet` in `shared/providers/`; `CommandCatalog`, default command specs, shell structural validation, and workspace patch validation in `core/tools/` and `core/python_task/` | - | `RecordingCommandRunner`, `BashSyntaxChecker`, opt-in `BubblewrapCommandRunner`, copy-on-write `GitCodeWorkspaceProvider`, and opt-in `AzureCliCommandRunner` for `azure.resource.list`; generated Python rejects `process`, shell artifacts validate but do not execute, local commands run only in private read-only workspaces, and the upstream app binds no live runner by default | a fork may bind the credential-free local runner and private workspace provider, or the credentialed Azure read broker. It must preserve server-owned scope and identity, deterministic argv rendering, no raw command strings, stale-file hash checks, idempotency, output bounds, and the `tool_call` / `direct_api` / `run_runbook` path split. See [process-automation.md § 4.6](../decisioning/process-automation.md#46-governed-command-and-shell-artifacts). |
 | **Incident confirmation** | `IncidentProposalStore` in `core/incident/proposal_store.py` | - | bounded `InMemoryIncidentProposalStore` for local development; `PostgresIncidentProposalStore` in production uses atomic consume across replicas | inject another durable store only when it preserves same-principal/session binding, expiry, and atomic single-consumer semantics |
 | **Incident notification delivery** | `IncidentLifecycleNotifier` wrapped by `DurableIncidentLifecycleNotifier`; `IncidentNotificationDeliveryStore` for atomic claim/complete/release | - | in-memory claims for local; PostgreSQL row-lock claims with leases in production; notification matrix + HIL escalation fallback | bind Teams, Slack, email, webhook, or pager adapters in `ChannelRegistry`; preserve stable `audit_id`, single-claimer semantics, lease recovery, and startup replay |

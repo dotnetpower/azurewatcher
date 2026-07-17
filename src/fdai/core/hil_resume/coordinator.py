@@ -93,6 +93,20 @@ def _park_key(approval_id: str) -> str:
     return f"{_PARK_PREFIX}{approval_id}"
 
 
+def _approval_expired(parked: Mapping[str, Any], *, now: datetime) -> bool:
+    context = parked.get("approval_context")
+    if not isinstance(context, Mapping):
+        return True
+    raw = context.get("expires_at")
+    if not isinstance(raw, str) or not raw:
+        return True
+    try:
+        expires_at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return expires_at.tzinfo is None or expires_at <= now
+    except ValueError:
+        return True
+
+
 def _on_call_detail(resolution: OnCallResolution | None) -> dict[str, Any] | None:
     """Serialize an on-call resolution for the park record + audit entry.
 
@@ -411,6 +425,23 @@ class HilResumeCoordinator:
                     reason=f"already resolved as {prior}",
                 )
             return ResolveResult(outcome=ResolveOutcome.ALREADY_RESOLVED, approval_id=approval_id)
+
+        if decision is HilDecision.APPROVE and _approval_expired(parked, now=datetime.now(tz=UTC)):
+            await self._mark_resolved(
+                parked, decision=HilDecision.TIMEOUT, approver_oid=approver_oid
+            )
+            await self._audit(
+                action_kind="hil.timeout",
+                idempotency_key=f"{idem}:hil_timeout",
+                approval_id=approval_id,
+                correlation_id=correlation_id,
+                detail={"reason": "approval_expired", "attempted_decision": decision.value},
+            )
+            return ResolveResult(
+                outcome=ResolveOutcome.TIMED_OUT,
+                approval_id=approval_id,
+                reason="approval_expired",
+            )
 
         submitter_oid = str(parked.get("submitter_oid") or "").strip()
         delegation = None

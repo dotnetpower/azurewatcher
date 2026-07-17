@@ -1,7 +1,7 @@
 ---
 title: 배포와 온보딩(Deploy and Onboard)
 translation_of: deploy-and-onboard.md
-translation_source_sha: 16b3c7e6cf55b4aef8597123d86e818a40d5ca09
+translation_source_sha: 99ebe4c7d8c121c6358b9b49b82867120564748a
 translation_revised: 2026-07-17
 ---
 
@@ -520,6 +520,10 @@ flowchart TD
 | `FDAI_SECRET_KAFKA_TOKEN` / 기타 `FDAI_SECRET_*` | KV ref | fork | 전용 env var 이름이 아직 없는 어댑터가 소비하는 secret 을 위한 generic escape hatch; 모든 `FDAI_SECRET_*` 값은 반드시 KV 경유. |
 
 모든 키에 적용되는 규칙:
+
+Onboarding 콘솔은 모든 Azure probe 입력이 있을 때만 `probe_mode=configured`를 보고합니다.
+입력이 없을 때 `probe_mode=not-configured`는 표시된 gap이 로그인한 tenant의 관찰 결과가
+아니라 필요한 baseline임을 의미합니다.
 
 - 시작 시 누락/파싱 불가 config에 대해 **fail fast**
   ([coding-conventions.instructions.md](../../../.github/instructions/coding-conventions.instructions.md)).

@@ -8,10 +8,15 @@
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import { loadConfig } from "../config";
+import {
+  mergeObservationSource,
+  normalizeObservationSource,
+  type FrameSource,
+  type ObservationSource,
+} from "./observation-source";
 
 export interface AgentStreamDescriptor {
   readonly url: string;
-  readonly source: "local" | "live";
 }
 
 export function agentStreamDescriptor(): AgentStreamDescriptor {
@@ -19,7 +24,6 @@ export function agentStreamDescriptor(): AgentStreamDescriptor {
   const base = config.readApiBaseUrl || (typeof window !== "undefined" ? window.location.origin : "");
   return {
     url: `${base.replace(/\/$/, "")}/agents/stream`,
-    source: config.devMode || config.localAzureCliAuth ? "local" : "live",
   };
 }
 
@@ -47,6 +51,7 @@ export interface AgentStateMessage {
   readonly ts: string;
   readonly correlation_id: string | null;
   readonly detail: string | null;
+  readonly source?: FrameSource;
 }
 
 export interface IncidentTicketMessage {
@@ -59,6 +64,7 @@ export interface IncidentTicketMessage {
   readonly involved_agents: readonly string[];
   readonly rca: string | null;
   readonly ts: string;
+  readonly source?: FrameSource;
 }
 
 export interface ConversationTurnMessage {
@@ -69,6 +75,7 @@ export interface ConversationTurnMessage {
   readonly kind: TurnKind;
   readonly text: string;
   readonly ts: string;
+  readonly source?: FrameSource;
 }
 
 /** One decoded agent-activity frame (discriminated by `type`). */
@@ -94,6 +101,7 @@ export interface UseAgentStreamOptions {
 export interface UseAgentStreamResult {
   readonly status: AgentStreamStatus;
   readonly lastError: string | null;
+  readonly source: ObservationSource;
 }
 
 const AGENT_STATES: ReadonlySet<string> = new Set([
@@ -124,7 +132,7 @@ export function decodeAgentActivityMessage(data: string): AgentActivityMessage |
     typeof value.state === "string" && AGENT_STATES.has(value.state) &&
     typeof value.ts === "string" && isNullableString(value.correlation_id) &&
     isNullableString(value.detail)
-  ) return value as unknown as AgentStateMessage;
+  ) return { ...value, source: normalizeObservationSource(value.source) } as unknown as AgentStateMessage;
   if (
     value.type === "incident.ticket" &&
     typeof value.ticket_id === "string" && typeof value.correlation_id === "string" &&
@@ -133,13 +141,13 @@ export function decodeAgentActivityMessage(data: string): AgentActivityMessage |
     Array.isArray(value.involved_agents) &&
     value.involved_agents.every((agent) => typeof agent === "string") &&
     isNullableString(value.rca) && typeof value.ts === "string"
-  ) return value as unknown as IncidentTicketMessage;
+  ) return { ...value, source: normalizeObservationSource(value.source) } as unknown as IncidentTicketMessage;
   if (
     value.type === "conversation.turn" && typeof value.correlation_id === "string" &&
     typeof value.from_agent === "string" && typeof value.to_agent === "string" &&
     typeof value.kind === "string" && TURN_KINDS.has(value.kind) &&
     typeof value.text === "string" && typeof value.ts === "string"
-  ) return value as unknown as ConversationTurnMessage;
+  ) return { ...value, source: normalizeObservationSource(value.source) } as unknown as ConversationTurnMessage;
   return null;
 }
 
@@ -202,6 +210,7 @@ export function useAgentStream(options: UseAgentStreamOptions): UseAgentStreamRe
     typeof fetch === "undefined" ? "unsupported" : "idle",
   );
   const [lastError, setLastError] = useState<string | null>(null);
+  const [source, setSource] = useState<ObservationSource>("unknown");
   const onEventRef = useRef(options.onEvent);
   const onStatusRef = useRef(options.onStatus);
   onEventRef.current = options.onEvent;
@@ -253,6 +262,10 @@ export function useAgentStream(options: UseAgentStreamOptions): UseAgentStreamRe
         await consumeAgentActivitySse(response, (event) => {
           if (!cancelled && controller === active) {
             reconnectAttempt = 0;
+            setSource((current) => mergeObservationSource(
+              current,
+              normalizeObservationSource(event.source),
+            ));
             onEventRef.current(event);
           }
         });
@@ -293,5 +306,5 @@ export function useAgentStream(options: UseAgentStreamOptions): UseAgentStreamRe
     };
   }, [url, getAuthorizationHeader]);
 
-  return { status, lastError };
+  return { status, lastError, source };
 }

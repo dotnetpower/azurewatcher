@@ -84,6 +84,11 @@ describe("agent activity filters", () => {
     ];
     expect(filterAgentActivity(rows, { ...BASE_FILTERS, query: "storage-example" }, agentOf))
       .toEqual([rows[0]]);
+    expect(filterAgentActivity(rows, { ...BASE_FILTERS, query: "storage example" }, agentOf))
+      .toEqual([rows[0]]);
+    expect(filterAgentActivity([
+      item(3, "Thor", "restrict-network-access", "2026-07-15T11:00:02Z"),
+    ], { ...BASE_FILTERS, query: "restrict network" }, agentOf)).toHaveLength(1);
     expect(filterAgentActivity(rows, { ...BASE_FILTERS, query: "not-recorded" }, agentOf))
       .toEqual([]);
   });

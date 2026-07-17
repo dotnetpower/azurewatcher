@@ -1,4 +1,4 @@
-import { currentRoute, navigate, routeHref } from "../router";
+import { currentRoute, replaceRouteState, routeHref } from "../router";
 /**
  * Live cockpit route.
  *
@@ -34,6 +34,7 @@ import type { ReadApiClient } from "../api";
 import { loadConfig } from "../config";
 import type { LiveStageEvent } from "../hooks/use-live-stream";
 import { useLiveStream } from "../hooks/use-live-stream";
+import { observationSourceLabel } from "../hooks/observation-source";
 import { t } from "./i18n/live";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
@@ -43,6 +44,7 @@ import {
   formatDuration,
   formatAge,
   isTileStuck,
+  liveSelectionState,
   makeInitialState,
   reducer,
   shortTime,
@@ -60,6 +62,10 @@ function decisionLabel(decision: string): string {
   const key = `live.decision.${decision}`;
   const label = t(key);
   return label === key ? decision : label;
+}
+
+export function liveTraceHref(correlationId: string): string {
+  return routeHref("trace", { params: { correlation: correlationId } });
 }
 
 export function LiveRoute({ client }: Props) {
@@ -85,11 +91,24 @@ export function LiveRoute({ client }: Props) {
     readonly filter?: FilterKind;
     readonly view?: "queue" | "flow";
   }): void => {
-    navigate(routeHref("live", {
+    dispatch({ kind: "filter", value: filter });
+    setViewMode(view);
+    replaceRouteState(routeHref("live", {
       params: {
         event: eventId,
         filter: filter === "all" ? null : filter,
         view: view === "queue" ? null : view,
+      },
+    }));
+  };
+
+  const selectEvent = (eventId: string | null): void => {
+    dispatch({ kind: "select", event_id: eventId });
+    replaceRouteState(routeHref("live", {
+      params: {
+        event: eventId,
+        filter: state.filter === "all" ? null : state.filter,
+        view: viewMode === "queue" ? null : viewMode,
       },
     }));
   };
@@ -122,7 +141,7 @@ export function LiveRoute({ client }: Props) {
     return `${base.replace(/\/$/, "")}/live/stream`;
   }, []);
 
-  const { status, lastError } = useLiveStream({
+  const { status, lastError, source: streamSource } = useLiveStream({
     url,
     getAuthorizationHeader: client.authorizationHeader,
     onEvent: (event) => {
@@ -197,6 +216,11 @@ export function LiveRoute({ client }: Props) {
   const selectedTile = state.selectedEventId
     ? state.tiles.find((t) => t?.event_id === state.selectedEventId) ?? null
     : null;
+  const selectionState = liveSelectionState(
+    state.selectedEventId,
+    selectedTile,
+    state.session_total,
+  );
 
   const eps = (state.ratePings.length / (RATE_WINDOW_MS / 1000)).toFixed(1);
   const gateTotal = Object.values(state.gateCounts).reduce((a, b) => a + b, 0);
@@ -220,7 +244,6 @@ export function LiveRoute({ client }: Props) {
 
   // Environment / mode indicator. Dev mode is a session flag from config
   // - never fabricate a customer-facing environment value here.
-  const isDevMode = useMemo(() => loadConfig().devMode === true, []);
 
   // Publish a rich view snapshot to the CommandDeck so the operator
   // can ask "what am I looking at?" and get grounded answers.
@@ -412,7 +435,7 @@ export function LiveRoute({ client }: Props) {
       if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
       if (target?.closest('[role="dialog"]')) return;
       if (e.key === "Escape" && state.selectedEventId) {
-        updateRoute({ eventId: null });
+        selectEvent(null);
         e.preventDefault();
         return;
       }
@@ -465,11 +488,9 @@ export function LiveRoute({ client }: Props) {
             )}
             {tickerPaused ? t("live.resume") : t("live.freeze")}
           </button>
-          {isDevMode ? (
-            <span class="live-env-badge live-env-dev" title={t("live.context.devTitle")}>
-              dev
-            </span>
-          ) : null}
+          <span class="live-env-badge" title={observationSourceLabel(streamSource)}>
+            {observationSourceLabel(streamSource)}
+          </span>
           <span class="live-context-tag">
             {t("live.context.source")} <code>GET /live/stream</code>
           </span>
@@ -499,7 +520,7 @@ export function LiveRoute({ client }: Props) {
         </div>
         <div>
           <span>{t("live.health.environment")}</span>
-          <strong>{isDevMode ? t("live.health.devLocal") : t("live.health.configuredRuntime")}</strong>
+          <strong>{observationSourceLabel(streamSource)}</strong>
         </div>
         <div>
           <span>{t("live.health.presentation")}</span>
@@ -660,7 +681,7 @@ export function LiveRoute({ client }: Props) {
             filter={state.filter}
             selectedEventId={state.selectedEventId}
             now={state.now}
-            onSelect={(eventId) => updateRoute({ eventId })}
+            onSelect={selectEvent}
           />
         </section>
       ) : (
@@ -681,9 +702,7 @@ export function LiveRoute({ client }: Props) {
             onClick={
               tile
                 ? () =>
-                    updateRoute({
-                      eventId: tile.event_id === state.selectedEventId ? null : tile.event_id,
-                    })
+                    selectEvent(tile.event_id === state.selectedEventId ? null : tile.event_id)
                 : undefined
             }
           />
@@ -751,7 +770,9 @@ export function LiveRoute({ client }: Props) {
                   <span class={`live-tier live-tier-${tier}`}>
                     {tier === "abstain" ? "N/A" : tier.toUpperCase()}
                   </span>
-                  <code>{evt.event_id.slice(0, 8)}</code>
+                  <a href={liveTraceHref(evt.correlation_id)} title={evt.correlation_id}>
+                    <code>{evt.event_id.slice(0, 8)}</code>
+                  </a>
                   {action ? <strong>{action}</strong> : null}
                   {scope ? <span class="live-ticker-scope">@{scope}</span> : null}
                   {rule && rule !== action ? <span class="muted">({rule})</span> : null}
@@ -772,11 +793,22 @@ export function LiveRoute({ client }: Props) {
         </footer>
       </aside>
 
+      {selectionState === "waiting" && state.selectedEventId ? (
+        <div class="state-block state-unavailable" role="status">
+          {t("live.selectionWaiting", { event: state.selectedEventId })}
+        </div>
+      ) : selectionState === "unavailable" && state.selectedEventId ? (
+        <div class="state-block state-unavailable" role="alert">
+          <span>{t("live.selectionUnavailable", { event: state.selectedEventId })}</span>
+          <a href={routeHref("audit")}>{t("live.selectionOpenAudit")}</a>
+        </div>
+      ) : null}
+
       {selectedTile ? (
         <DetailPanel
           tile={selectedTile}
           now={state.now}
-          onClose={() => updateRoute({ eventId: null })}
+          onClose={() => selectEvent(null)}
         />
       ) : null}
     </div>

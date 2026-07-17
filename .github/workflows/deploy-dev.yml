@@ -12,6 +12,7 @@ name: deploy-dev
 #   - Repo variables (Settings > Secrets and variables > Actions > Variables):
 #       ARM_SUBSCRIPTION_ID, AZURE_REGION, AZURE_REGION_SHORT, AZURE_TENANT_ID,
 #       OPS_RESOURCE_GROUP_NAME, OPS_VNET_ID, OPS_VNET_NAME, STATE_STORAGE_ACCOUNT,
+#       DEPLOY_PREFLIGHT_INPUT_JSON (non-secret complete live-probe profile),
 #       ENTRA_CONSOLE_SPA_CLIENT_ID (required when deploy_console=true),
 #       RESOLVED_CAPABILITIES_JSON, READ_API_AUDIENCE, RBAC_*_GROUP_ID,
 #       INGESTION_CORS_ALLOW_ORIGINS, CLAMAV_IMAGE,
@@ -37,6 +38,26 @@ on:
         description: "Apply the plan (true) or plan-only (false, default)."
         type: boolean
         default: false
+      request_id:
+        description: "Optional fdaictl plan request id."
+        type: string
+        required: false
+      context_digest:
+        description: "Optional SHA-256 digest of the fdaictl deployment context."
+        type: string
+        required: false
+      commit_sha:
+        description: "Optional exact commit requested by fdaictl."
+        type: string
+        required: false
+      plan_id:
+        description: "Protected plan id required for exact apply."
+        type: string
+        required: false
+      plan_digest:
+        description: "Protected plan SHA-256 digest required for exact apply."
+        type: string
+        required: false
       deploy_console:
         description: "Provision the operator console Static Web App (enable_console)."
         type: boolean
@@ -76,6 +97,7 @@ concurrency:
 jobs:
   terraform:
     runs-on: [self-hosted, fdai-deploy]
+    environment: ${{ inputs.apply && inputs.environment || 'plan-only' }}
     defaults:
       run:
         working-directory: infra
@@ -95,7 +117,7 @@ jobs:
       TF_VAR_enable_read_api: ${{ inputs.deploy_read_api }}
       TF_VAR_enable_document_ingestion: ${{ inputs.deploy_document_ingestion }}
       TF_VAR_enable_llm: ${{ inputs.deploy_document_ingestion || vars.ENABLE_LLM == 'true' }}
-      TF_VAR_resolved_capabilities: ${{ vars.RESOLVED_CAPABILITIES_JSON }}
+      TF_VAR_resolved_capabilities: "${{ vars.RESOLVED_CAPABILITIES_JSON }}"
       TF_VAR_core_image: ${{ vars.CORE_IMAGE || vars.READ_API_IMAGE }}
       # Read-API image + Entra/RBAC ids (tenant-specific; via repo Variables,
       # never committed). Empty when deploy_read_api is false.
@@ -120,11 +142,73 @@ jobs:
       TF_VAR_runner_vnet_id: ${{ vars.OPS_VNET_ID }}
       TF_VAR_runner_vnet_name: ${{ vars.OPS_VNET_NAME }}
       TF_VAR_ops_resource_group_name: ${{ vars.OPS_RESOURCE_GROUP_NAME }}
+      PREFLIGHT_EGRESS_HOSTS_JSON: ${{ vars.PREFLIGHT_EGRESS_HOSTS_JSON || '["api.github.com","management.azure.com","login.microsoftonline.com","registry.terraform.io","pypi.org","files.pythonhosted.org"]' }}
+      DEPLOY_PREFLIGHT_INPUT_JSON: ${{ vars.DEPLOY_PREFLIGHT_INPUT_JSON }}
       TF_VAR_postgres_admin_login: ${{ secrets.POSTGRES_ADMIN_LOGIN }}
       TF_VAR_postgres_admin_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate remote plan request
+        if: ${{ !inputs.apply && inputs.request_id != '' }}
+        env:
+          PLAN_REQUEST_ID: ${{ inputs.request_id }}
+          PLAN_CONTEXT_DIGEST: ${{ inputs.context_digest }}
+          PLAN_COMMIT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$PLAN_REQUEST_ID" =~ ^plan-[0-9a-f]{24}$ ]]; then
+            echo "request_id must be a bounded fdaictl plan id." >&2
+            exit 1
+          fi
+          if [[ ! "$PLAN_CONTEXT_DIGEST" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "context_digest must be a lowercase SHA-256 digest." >&2
+            exit 1
+          fi
+          if [[ ! "$PLAN_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "commit_sha must be a lowercase git SHA." >&2
+            exit 1
+          fi
+          if [[ "$PLAN_COMMIT_SHA" != "$GITHUB_SHA" ]]; then
+            echo "requested commit does not match the workflow checkout." >&2
+            exit 1
+          fi
+
+      - name: Validate exact apply request
+        if: ${{ inputs.apply }}
+        env:
+          APPLY_REQUEST_ID: ${{ inputs.request_id }}
+          APPLY_CONTEXT_DIGEST: ${{ inputs.context_digest }}
+          APPLY_COMMIT_SHA: ${{ inputs.commit_sha }}
+          APPLY_PLAN_ID: ${{ inputs.plan_id }}
+          APPLY_PLAN_DIGEST: ${{ inputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$APPLY_REQUEST_ID" =~ ^apply-[0-9a-f]{24}$ ]]; then
+            echo "apply request_id must be a bounded fdaictl id." >&2
+            exit 1
+          fi
+          if [[ ! "$APPLY_CONTEXT_DIGEST" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "apply context_digest must be a lowercase SHA-256 digest." >&2
+            exit 1
+          fi
+          if [[ ! "$APPLY_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "apply commit_sha must be a lowercase git SHA." >&2
+            exit 1
+          fi
+          if [[ "$APPLY_COMMIT_SHA" != "$GITHUB_SHA" ]]; then
+            echo "requested apply commit does not match the workflow checkout." >&2
+            exit 1
+          fi
+          if [[ ! "$APPLY_PLAN_ID" =~ ^plan-[1-9][0-9]*-[1-9][0-9]*$ ]]; then
+            echo "plan_id is invalid." >&2
+            exit 1
+          fi
+          if [[ ! "$APPLY_PLAN_DIGEST" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "plan_digest must be a lowercase SHA-256 digest." >&2
+            exit 1
+          fi
 
       - name: Install readiness gate dependency
         if: inputs.environment == 'prod'
@@ -174,14 +258,19 @@ jobs:
       - name: Azure login (runner managed identity)
         run: az login --identity --allow-no-subscriptions
 
-      - name: Ensure state container
+      - name: Ensure protected storage containers
         # Created data-plane from the runner (inside the VNet, over the blob
         # private endpoint) since the account is private + key-auth is
         # policy-forbidden. Idempotent.
         run: |
           az storage container create \
             --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
-            --name tfstate --auth-mode login --only-show-errors
+            --name tfstate --auth-mode login --public-access off --only-show-errors \
+            --output none
+          az storage container create \
+            --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            --name deployment-plans --auth-mode login --public-access off --only-show-errors \
+            --output none
 
       - name: Activate remote state backend
         run: cp backend.azurerm.tf.example backend.tf
@@ -271,16 +360,325 @@ jobs:
       - name: Terraform validate
         run: terraform validate
 
+      - name: Run runner egress preflight
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$PREFLIGHT_EGRESS_HOSTS_JSON" > runner-egress-hosts.json
+          python3 ../scripts/check-runner-egress.py runner-egress-hosts.json \
+            --output runner-egress-evidence.json --timeout-seconds 5
+
       - name: Terraform plan
+        if: ${{ !inputs.apply }}
         run: terraform plan -input=false -lock-timeout=300s -out=dev.plan
+
+      - name: Install pinned uv for live preflight
+        if: ${{ !inputs.apply && inputs.request_id != '' }}
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.22"
+          enable-cache: true
+          prune-cache: false
+
+      - name: Install locked FDAI CLI
+        if: ${{ !inputs.apply && inputs.request_id != '' }}
+        working-directory: ${{ github.workspace }}
+        run: uv sync --locked
+
+      - name: Run complete Azure live preflight
+        if: ${{ !inputs.apply && inputs.request_id != '' }}
+        env:
+          PREFLIGHT_ENVIRONMENT: ${{ inputs.environment }}
+          PREFLIGHT_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+          PREFLIGHT_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          PREFLIGHT_REGION: ${{ vars.AZURE_REGION }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DEPLOY_PREFLIGHT_INPUT_JSON" ]; then
+          echo "DEPLOY_PREFLIGHT_INPUT_JSON is required for protected plans." >&2
+          exit 1
+          fi
+          printf '%s' "$DEPLOY_PREFLIGHT_INPUT_JSON" > runner-live-preflight-input.json
+          created_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          export CREATED_AT="$created_at"
+          python3 - <<'PY'
+          import json
+          import os
+
+          required = {
+            "identity_rbac",
+            "policy_guardrail",
+            "quota_capacity",
+            "secret_config",
+          }
+          with open("runner-live-preflight-input.json", encoding="utf-8") as stream:
+            profile = json.load(stream)
+          live = profile.get("azure_live")
+          if not isinstance(live, dict) or set(live.get("required_categories", ())) != required:
+            raise SystemExit("runner preflight profile must require all Azure live categories")
+          profile["mode"] = "enforce"
+          profile["generated_at"] = os.environ["CREATED_AT"]
+          profile["scope"] = "resource-group-equivalent:deployment"
+          with open("runner-live-preflight-input.json", "w", encoding="utf-8") as stream:
+            json.dump(profile, stream, sort_keys=True, separators=(",", ":"))
+            stream.write("\n")
+          environment = {
+            "schema_version": "fdai.deployment.environment.v1",
+            "environment": os.environ["PREFLIGHT_ENVIRONMENT"],
+            "azure": {
+              "subscription_id": os.environ["PREFLIGHT_SUBSCRIPTION_ID"],
+              "tenant_id": os.environ["PREFLIGHT_TENANT_ID"],
+              "region": os.environ["PREFLIGHT_REGION"],
+            },
+            "execution_target": "remote-runner",
+            "autonomy_mode_default": "shadow",
+          }
+          with open("runner-environment.json", "w", encoding="utf-8") as stream:
+            json.dump(environment, stream, sort_keys=True, separators=(",", ":"))
+            stream.write("\n")
+          PY
+          terraform show -json dev.plan > dev.plan.json
+          trap 'rm -f dev.plan.json runner-live-preflight-input.json runner-environment.json' EXIT
+          ../.venv/bin/fdaictl deploy preflight \
+          --input runner-live-preflight-input.json \
+          --terraform-plan dev.plan.json \
+          --environment-config runner-environment.json \
+          --output json > azure-preflight-evidence.json
+          python3 - <<'PY'
+          import json
+
+          required = {
+            "identity_rbac",
+            "policy_guardrail",
+            "quota_capacity",
+            "secret_config",
+          }
+          with open("azure-preflight-evidence.json", encoding="utf-8") as stream:
+            payload = json.load(stream)
+          report = payload.get("report")
+          if not isinstance(report, dict):
+            raise SystemExit("Azure live preflight report is missing")
+          checks = report.get("checks")
+          if not isinstance(checks, list):
+            raise SystemExit("Azure live preflight check coverage is missing")
+          categories = {
+            check.get("category") for check in checks if isinstance(check, dict)
+          }
+          if not required.issubset(categories):
+            raise SystemExit("Azure live preflight did not execute every required category")
+          if report.get("verdict") != "clear" or report.get("blocks_deploy") is not False:
+            raise SystemExit("Azure live preflight did not produce a clear report")
+          PY
+
+      - name: Cleanup expired protected plans
+        if: ${{ !inputs.apply && inputs.request_id != '' }}
+        run: |
+          set -euo pipefail
+          az storage blob list \
+            --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            --container-name deployment-plans --auth-mode login \
+            --num-results 1001 --only-show-errors --output json > plan-blobs.json
+          python3 ../scripts/cleanup-deployment-plans.py plan-blobs.json > expired-plan-blobs.txt
+          deleted=0
+          while IFS= read -r blob_name; do
+            [ -z "$blob_name" ] && continue
+            az storage blob delete \
+              --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+              --container-name deployment-plans --name "$blob_name" \
+              --auth-mode login --only-show-errors --output none
+            deleted=$((deleted + 1))
+          done < expired-plan-blobs.txt
+          echo "Expired protected plan blobs deleted: $deleted" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Store protected plan artifact
+        if: ${{ !inputs.apply && inputs.request_id != '' }}
+        env:
+          PLAN_REQUEST_ID: ${{ inputs.request_id }}
+          PLAN_CONTEXT_DIGEST: ${{ inputs.context_digest }}
+          PLAN_COMMIT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          plan_id="plan-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          plan_digest="$(sha256sum dev.plan | cut -d' ' -f1)"
+          preflight_evidence_digest="$(sha256sum runner-egress-evidence.json | cut -d' ' -f1)"
+          azure_preflight_evidence_digest="$(sha256sum azure-preflight-evidence.json | cut -d' ' -f1)"
+          created_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          expires_at="$(date -u -d '+1 hour' '+%Y-%m-%dT%H:%M:%SZ')"
+          export PLAN_ID="$plan_id" PLAN_DIGEST="$plan_digest" \
+            PREFLIGHT_EVIDENCE_DIGEST="$preflight_evidence_digest" CREATED_AT="$created_at" \
+            AZURE_PREFLIGHT_EVIDENCE_DIGEST="$azure_preflight_evidence_digest" \
+            EXPIRES_AT="$expires_at"
+          python3 - <<'PY'
+          import json
+          import os
+
+          metadata = {
+              "schema_version": "fdai.deployment-plan.v1",
+              "plan_id": os.environ["PLAN_ID"],
+              "plan_digest": os.environ["PLAN_DIGEST"],
+              "context_digest": os.environ["PLAN_CONTEXT_DIGEST"],
+              "preflight_evidence_digest": os.environ["PREFLIGHT_EVIDENCE_DIGEST"],
+                "azure_preflight_evidence_digest": os.environ[
+                  "AZURE_PREFLIGHT_EVIDENCE_DIGEST"
+                ],
+              "preflight_blocks": False,
+              "commit_sha": os.environ["PLAN_COMMIT_SHA"],
+              "request_id": os.environ["PLAN_REQUEST_ID"],
+              "created_at": os.environ["CREATED_AT"],
+              "expires_at": os.environ["EXPIRES_AT"],
+              "status": "ready",
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+          }
+          with open("plan-metadata.json", "w", encoding="utf-8") as stream:
+              json.dump(metadata, stream, sort_keys=True, separators=(",", ":"))
+              stream.write("\n")
+          PY
+          blob_prefix="${TF_VAR_env}/${plan_id}"
+          az storage blob upload \
+            --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            --container-name deployment-plans \
+            --name "${blob_prefix}/terraform.plan" \
+            --file dev.plan --auth-mode login --overwrite false --only-show-errors \
+            --output none
+          az storage blob upload \
+            --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            --container-name deployment-plans \
+            --name "${blob_prefix}/metadata.json" \
+            --file plan-metadata.json --auth-mode login --overwrite false --only-show-errors \
+            --content-type application/json --output none
+          az storage blob upload \
+            --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            --container-name deployment-plans \
+            --name "${blob_prefix}/preflight-evidence.json" \
+            --file runner-egress-evidence.json --auth-mode login --overwrite false \
+            --only-show-errors --content-type application/json --output none
+          az storage blob upload \
+            --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            --container-name deployment-plans \
+            --name "${blob_prefix}/azure-preflight-evidence.json" \
+            --file azure-preflight-evidence.json --auth-mode login --overwrite false \
+            --only-show-errors --content-type application/json --output none
+          {
+            echo "Plan id: \`$plan_id\`"
+            echo "Plan digest: \`$plan_digest\`"
+            echo "Expires at: \`$expires_at\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish sanitized plan metadata
+        if: ${{ !inputs.apply && inputs.request_id != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-plan-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: infra/plan-metadata.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Restore and verify exact protected plan
+        if: ${{ inputs.apply }}
+        env:
+          APPLY_CONTEXT_DIGEST: ${{ inputs.context_digest }}
+          APPLY_COMMIT_SHA: ${{ inputs.commit_sha }}
+          APPLY_PLAN_ID: ${{ inputs.plan_id }}
+          APPLY_PLAN_DIGEST: ${{ inputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          blob_prefix="${TF_VAR_env}/${APPLY_PLAN_ID}"
+          az storage blob download \
+            --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            --container-name deployment-plans \
+            --name "${blob_prefix}/terraform.plan" --file dev.plan \
+            --auth-mode login --overwrite --only-show-errors --output none
+          az storage blob download \
+            --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            --container-name deployment-plans \
+            --name "${blob_prefix}/metadata.json" --file plan-metadata.json \
+            --auth-mode login --overwrite --only-show-errors --output none
+          az storage blob download \
+            --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            --container-name deployment-plans \
+            --name "${blob_prefix}/preflight-evidence.json" \
+            --file plan-preflight-evidence.json \
+            --auth-mode login --overwrite --only-show-errors --output none
+          az storage blob download \
+            --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            --container-name deployment-plans \
+            --name "${blob_prefix}/azure-preflight-evidence.json" \
+            --file plan-azure-preflight-evidence.json \
+            --auth-mode login --overwrite --only-show-errors --output none
+          python3 ../scripts/verify-deployment-plan.py \
+            --plan dev.plan --metadata plan-metadata.json \
+            --preflight-evidence plan-preflight-evidence.json \
+            --azure-preflight-evidence plan-azure-preflight-evidence.json \
+            --plan-id "$APPLY_PLAN_ID" --plan-digest "$APPLY_PLAN_DIGEST" \
+            --context-digest "$APPLY_CONTEXT_DIGEST" --commit-sha "$APPLY_COMMIT_SHA"
+
+      - name: Claim exact plan apply
+        if: ${{ inputs.apply }}
+        env:
+          APPLY_PLAN_ID: ${{ inputs.plan_id }}
+          APPLY_PLAN_DIGEST: ${{ inputs.plan_digest }}
+          APPLY_CONTEXT_DIGEST: ${{ inputs.context_digest }}
+        run: |
+          set -euo pipefail
+          claimed_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          export CLAIMED_AT="$claimed_at" APPLY_PLAN_ID APPLY_PLAN_DIGEST \
+            APPLY_CONTEXT_DIGEST
+          python3 - <<'PY'
+          import json
+          import os
+
+          claim = {
+              "schema_version": "fdai.deployment-apply-claim.v1",
+              "plan_id": os.environ["APPLY_PLAN_ID"],
+              "plan_digest": os.environ["APPLY_PLAN_DIGEST"],
+              "context_digest": os.environ["APPLY_CONTEXT_DIGEST"],
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+              "workflow_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "claimed_at": os.environ["CLAIMED_AT"],
+          }
+          with open("apply-claim.json", "w", encoding="utf-8") as stream:
+              json.dump(claim, stream, sort_keys=True, separators=(",", ":"))
+              stream.write("\n")
+          PY
+          az storage blob upload \
+            --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            --container-name deployment-plans \
+            --name "${TF_VAR_env}/${APPLY_PLAN_ID}/apply-claim.json" \
+            --file apply-claim.json --auth-mode login --overwrite false \
+            --only-show-errors --content-type application/json --output none
+
+      - name: Publish sanitized apply claim
+        if: ${{ inputs.apply }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-apply-claim-${{ inputs.plan_id }}
+          path: infra/apply-claim.json
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Terraform apply
         if: ${{ inputs.apply }}
         run: terraform apply -input=false -lock-timeout=300s dev.plan
 
+      - name: Verify Terraform convergence
+        if: ${{ inputs.apply }}
+        run: |
+          set +e
+          terraform plan -input=false -lock-timeout=300s -detailed-exitcode \
+            -out=post-apply.plan
+          plan_exit=$?
+          set -e
+          rm -f post-apply.plan
+          if [ "$plan_exit" -eq 1 ]; then
+            echo "post-apply Terraform convergence check failed." >&2
+            exit 1
+          fi
+          if [ "$plan_exit" -eq 2 ]; then
+            echo "post-apply Terraform state is not converged." >&2
+            exit 1
+          fi
+
       - name: Synchronize console Entra redirect URI
         if: ${{ inputs.apply && inputs.deploy_console }}
-        continue-on-error: true
         env:
           EXPECTED_AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           ENTRA_CONSOLE_SPA_CLIENT_ID: ${{ vars.ENTRA_CONSOLE_SPA_CLIENT_ID }}
@@ -333,6 +731,67 @@ jobs:
             done
             [ "$completed" = "true" ] || { echo "$job migration did not complete in time"; exit 1; }
           done
+
+      - name: Verify deployed health endpoints
+        if: ${{ inputs.apply && (inputs.deploy_read_api || inputs.deploy_document_ingestion) }}
+        run: |
+          set -euo pipefail
+          targets=()
+          if [ "${{ inputs.deploy_read_api }}" = "true" ]; then
+            targets+=("https://$(terraform output -raw read_api_fqdn)/healthz")
+          fi
+          if [ "${{ inputs.deploy_document_ingestion }}" = "true" ]; then
+            targets+=("https://$(terraform output -raw ingestion_gateway_fqdn)/healthz")
+          fi
+          for target in "${targets[@]}"; do
+            payload="$(curl --fail --silent --show-error --retry 12 --retry-delay 5 \
+              --retry-all-errors --connect-timeout 5 --max-time 10 "$target")"
+            printf '%s' "$payload" | python3 -c \
+              'import json, sys; value=json.load(sys.stdin); assert value == {"status": "ok"}'
+          done
+
+      - name: Record exact plan apply receipt
+        if: ${{ inputs.apply && success() }}
+        env:
+          APPLY_PLAN_ID: ${{ inputs.plan_id }}
+          APPLY_PLAN_DIGEST: ${{ inputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          applied_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          export APPLIED_AT="$applied_at" APPLY_PLAN_ID APPLY_PLAN_DIGEST
+          python3 - <<'PY'
+          import json
+          import os
+
+          receipt = {
+              "schema_version": "fdai.deployment-apply-receipt.v1",
+              "plan_id": os.environ["APPLY_PLAN_ID"],
+              "plan_digest": os.environ["APPLY_PLAN_DIGEST"],
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+              "workflow_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "applied_at": os.environ["APPLIED_AT"],
+              "status": "applied",
+          }
+          with open("apply-receipt.json", "w", encoding="utf-8") as stream:
+              json.dump(receipt, stream, sort_keys=True, separators=(",", ":"))
+              stream.write("\n")
+          PY
+          az storage blob upload \
+            --account-name "${{ vars.STATE_STORAGE_ACCOUNT }}" \
+            --container-name deployment-plans \
+            --name "${TF_VAR_env}/${APPLY_PLAN_ID}/apply-receipt.json" \
+            --file apply-receipt.json --auth-mode login --overwrite false \
+            --only-show-errors --content-type application/json --output none
+          echo "Applied protected plan: \`$APPLY_PLAN_ID\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish sanitized apply receipt
+        if: ${{ inputs.apply && success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-apply-receipt-${{ inputs.plan_id }}
+          path: infra/apply-receipt.json
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Publish console API endpoints
         if: ${{ inputs.apply && inputs.deploy_console }}

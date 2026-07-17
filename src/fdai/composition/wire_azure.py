@@ -128,6 +128,7 @@ class AzureWireOverrides:
     tool_providers: Mapping[str, Any] | None = None
     scope_resolver: Any | None = None
     metering_sink: MeteringSink | None = None
+    model_health_sink: Any | None = None
     pricing: PricingTable | None = None
     monitor_workspace_id: str | None = None
     monitor_queries: Mapping[str, MetricKqlTemplate] | None = None
@@ -361,6 +362,7 @@ async def wire_azure_container(
         rca_system_prompt=rca_system_prompt,
         metering_sink=overrides.metering_sink,
         pricing=pricing,
+        model_health_sink=overrides.model_health_sink,
     )
 
     return attach_metric_provider(

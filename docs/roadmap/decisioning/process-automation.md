@@ -398,6 +398,45 @@ same topic in shadow; it is not a second execution authority. The binding
 supplies one target and artifact without embedding either environment value in
 the upstream YAML.
 
+Scheduled tasks declare one of four kinds: `interval`, `one-shot`, `cron`, or `event-exit`.
+One-shot tasks fire once at or after `start_at`. Cron tasks evaluate a strict five-field expression
+in a validated IANA timezone while retaining a UTC occurrence id. Event-exit tasks repeat on their
+interval until `SchedulerService.observe_event()` receives the configured normalized event type,
+then the durable store records the exit time and disables the task. Kind-qualified deterministic
+occurrence ids prevent retry, restart, and cross-kind duplicate publication.
+
+Every task also carries a durable `ScheduledRunIsolationProfile`. The default profile denies all
+ambient tools and bounds session duration and context size. An opt-in profile must name every
+allowed tool, cap total tool calls, and may reference a server-owned command sandbox profile.
+`ScheduledRunIsolationGuard` rechecks context, elapsed time, tool id, and prior call count at the
+downstream execution boundary. Every synthetic event and action proposal carries this immutable
+profile; a scheduled run never inherits the creating operator's broader session, credentials,
+workspace, or tool authority.
+
+Every due publication is recorded in the durable `schedule_dispatch_run` ledger before the
+event bus call. An atomic claim keyed by the schedule idempotency key moves through
+`claimed -> published|failed`. A `published` row is written before `scheduled_task.last_run` is
+advanced, so a process failure between broker publication and task-state update does not publish
+the same event again. `failed` rows can be reclaimed for retry. The scheduler job reconciles a
+`claimed` row older than its configured lease to `lost`, and `lost` rows can also be reclaimed.
+The attempt counter and task-scoped history survive process restarts in PostgreSQL.
+
+`published` means only that the synthetic event reached the event bus. It does not claim that the
+downstream control loop or requested action succeeded. Those later outcomes remain in the normal
+event, process, action, and audit records.
+
+`ScheduleRunHistoryService` projects the ledger as a read-only task-scoped history. It orders
+attempts newest first, supports status filtering and bounded limits, and uses an opaque cursor
+derived from `(scheduled_for, run_id)` so page boundaries remain stable as newer runs arrive. The
+projection exposes status, attempt, timestamps, and error kind only. It has no retry, cancel, or
+execute method. The reader-role `GET /scheduler-runs` panel accepts `task_id`, optional status,
+bounded limit, and opaque cursor parameters. Production composes it with the PostgreSQL ledger;
+the console's `/processes/scheduler-runs` nested view preserves task and status filters in the URL
+and renders cursor-paginated evidence without action buttons or executor identity. The response
+also carries `source` and `durable`: production reports `postgres` and `true`, while the local
+in-memory harness reports `synthetic-dev` and `false`. The console renders these fields instead of
+inferring durability from the route name or static copy.
+
 The local read API uses the same authoritative ControlLoop with in-memory task,
 inventory, audit, and HIL adapters. A Workflow Builder run request therefore
 reaches the Owner approval gate and emits route, gate, and terminal audit frames
@@ -425,6 +464,22 @@ The command foundation separates intent, resolution, and execution:
   exposes only a private tmpfs, starts a new process group, and enforces timeout
   and stdout/stderr byte caps. It rejects workspace-write, cloud, and credentialed
   plans before process creation.
+- **Sandbox profile gate**: `SandboxProfileCatalog` gives each command id exactly one server-owned
+  isolation profile. Unprofiled commands are denied. A profile fixes its backend, allowed
+  execution classes and network profiles, workspace access, credential policy, timeout, and
+  output ceiling. `ProfiledCommandRunner` validates the final `CommandPlan` immediately before the
+  concrete runner and lowers requested limits to the profile ceilings. Bubblewrap profiles are
+  structurally read-only, offline, and credential-free; a profile that attempts to widen those
+  properties is rejected at registration.
+- **Cross-adapter sandbox adoption**: VM tasks, external tools, and binary document converters use
+  the same default-deny pattern at their concrete adapter boundaries. `ProfiledVmTaskRunner`
+  limits task capabilities, input count and bytes, and timeout; profiles never allow the `process`
+  capability. `McpServerCatalog.build_routes(...)` requires a `ToolSandboxCatalog` for every
+  enabled ActionType, and `ProfiledToolExecutor` rechecks mode, argument count and bytes, and tool
+  reference size before invocation. Binary knowledge ingestion accepts only an injected
+  `DocumentConverter` paired with a `DocumentConverterSandboxCatalog`; the profile owns converter
+  ids, suffixes, and input/output byte ceilings, while the request exposes relative provenance and
+  content bytes rather than a host path or executable. Missing or violated profiles fail closed.
 - **Shell artifact**: `ShellTaskSpec` stores a content-addressed, credential-free
   Bash bundle. Structural validation permits local constructs such as loops,
   pipes, and heredocs, while refusing cloud CLIs, privilege-escalation tools,

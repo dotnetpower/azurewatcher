@@ -52,6 +52,49 @@ _SOURCE = "fdai.delivery.webhook"
 _DEFAULT_MAX_BODY_BYTES: Final[int] = 256 * 1024
 
 
+class WebhookMappingError(ValueError):
+    """Authenticated webhook payload does not satisfy its typed mapping."""
+
+
+@dataclass(frozen=True, slots=True)
+class TypedWebhookMapping:
+    mapping_id: str
+    event_type: str
+    target_agent: str
+    allowed_event_types: frozenset[str]
+    allowed_agents: frozenset[str]
+    session_key_fields: tuple[str, ...]
+    payload_fields: dict[str, str]
+    resource_field: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.mapping_id or not self.event_type or not self.target_agent:
+            raise ValueError("typed webhook mapping ids and targets MUST be non-empty")
+        if self.event_type not in self.allowed_event_types:
+            raise ValueError("typed webhook event target is not allowlisted")
+        if self.target_agent not in self.allowed_agents:
+            raise ValueError("typed webhook agent target is not allowlisted")
+        if not self.session_key_fields or len(self.session_key_fields) > 8:
+            raise ValueError("typed webhook session fields MUST contain [1, 8] paths")
+        if not self.payload_fields or len(self.payload_fields) > 50:
+            raise ValueError("typed webhook payload fields MUST contain [1, 50] paths")
+
+    def project(self, payload: dict[str, Any]) -> tuple[str, str | None, dict[str, object]]:
+        session_values = tuple(_scalar_path(payload, path) for path in self.session_key_fields)
+        raw_session = "\0".join(str(value) for value in session_values)
+        session_key = "webhook-session:" + hashlib.sha256(raw_session.encode()).hexdigest()[:40]
+        projected: dict[str, object] = {
+            output: _scalar_path(payload, path)
+            for output, path in sorted(self.payload_fields.items())
+        }
+        resource_ref = (
+            str(_scalar_path(payload, self.resource_field))
+            if self.resource_field is not None
+            else None
+        )
+        return session_key, resource_ref, projected
+
+
 @dataclass(frozen=True, slots=True)
 class WebhookConfig:
     """Configuration for the webhook ingress.
@@ -71,6 +114,7 @@ class WebhookConfig:
     topic: str = WEBHOOK_EVENT_TOPIC
     max_body_bytes: int = _DEFAULT_MAX_BODY_BYTES
     mode: Mode = Mode.SHADOW
+    mapping: TypedWebhookMapping | None = None
 
     def __post_init__(self) -> None:
         if self.max_body_bytes <= 0:
@@ -144,7 +188,10 @@ class WebhookIngress:
         idempotency_key = low.get(self._config.delivery_id_header.lower()) or (
             "webhook:" + hashlib.sha256(body).hexdigest()
         )
-        event = self._build_event(parsed, idempotency_key)
+        try:
+            event = self._build_event(parsed, idempotency_key)
+        except WebhookMappingError:
+            return WebhookResult(accepted=False, reason="typed mapping rejected payload")
         key = event.resource_ref or idempotency_key
         try:
             await self._bus.publish(self._config.topic, key, event.model_dump(mode="json"))
@@ -161,6 +208,27 @@ class WebhookIngress:
 
     def _build_event(self, parsed: dict[str, Any], idempotency_key: str) -> Event:
         now = datetime.now(tz=UTC)
+        if self._config.mapping is not None:
+            session_key, resource_ref, projected = self._config.mapping.project(parsed)
+            return Event(
+                schema_version="1.0.0",
+                event_id=uuid4(),
+                idempotency_key=idempotency_key,
+                source=_SOURCE,
+                event_type=self._config.mapping.event_type,
+                resource_ref=resource_ref,
+                payload={
+                    "webhook_mapping": {
+                        "mapping_id": self._config.mapping.mapping_id,
+                        "target_agent": self._config.mapping.target_agent,
+                        "session_key": session_key,
+                        "fields": projected,
+                    }
+                },
+                detected_at=now,
+                ingested_at=now,
+                mode=self._config.mode,
+            )
         event_type = parsed.get(self._config.event_type_field)
         resource_ref = parsed.get(self._config.resource_field)
         return Event(
@@ -177,10 +245,27 @@ class WebhookIngress:
         )
 
 
+def _scalar_path(payload: dict[str, Any], path: str) -> str | int | float | bool:
+    if not path or len(path) > 256:
+        raise WebhookMappingError("typed mapping path is invalid")
+    value: object = payload
+    for segment in path.split("."):
+        if not segment or not isinstance(value, dict) or segment not in value:
+            raise WebhookMappingError("typed mapping field is missing")
+        value = value[segment]
+    if isinstance(value, bool) or isinstance(value, (str, int, float)):
+        if isinstance(value, str) and len(value) > 1000:
+            raise WebhookMappingError("typed mapping scalar exceeds cap")
+        return value
+    raise WebhookMappingError("typed mapping field MUST be scalar")
+
+
 __all__ = [
     "WEBHOOK_EVENT_TOPIC",
     "WebhookConfig",
     "WebhookIngress",
+    "WebhookMappingError",
     "WebhookResult",
+    "TypedWebhookMapping",
     "verify_signature",
 ]

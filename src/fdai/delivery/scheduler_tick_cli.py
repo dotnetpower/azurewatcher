@@ -52,6 +52,8 @@ from fdai.delivery.persistence import (
     PostgresBriefingSubscriptionStore,
     PostgresReportSignalStore,
     PostgresReportSignalStoreConfig,
+    PostgresScheduleRunLedger,
+    PostgresScheduleRunLedgerConfig,
     PostgresUserContextRetention,
     PostgresUserContextStoreConfig,
 )
@@ -75,6 +77,7 @@ _BRIEFING_RETENTION_DAYS = 90
 _PROJECTION_RETRY_BASE_SECONDS = 60
 _PROJECTION_RETRY_MAX_SECONDS = 3600
 _PROJECTION_MAX_ATTEMPTS = 5
+_SCHEDULE_CLAIM_LEASE_SECONDS = 900
 
 
 class _AttemptedJob(Protocol):
@@ -142,13 +145,25 @@ async def _tick() -> int:
         return 0
 
     store = PostgresScheduleStore(config=PostgresScheduleStoreConfig(dsn=dsn))
+    run_ledger = PostgresScheduleRunLedger(config=PostgresScheduleRunLedgerConfig(dsn=dsn))
+    schedule_now = datetime.now(tz=UTC)
+    lost_runs = await run_ledger.reconcile_stale(
+        before=schedule_now - timedelta(seconds=_SCHEDULE_CLAIM_LEASE_SECONDS),
+        at=schedule_now,
+    )
+    if lost_runs:
+        _LOGGER.warning(
+            "scheduler_stale_claims_reconciled",
+            extra={"lost_run_count": len(lost_runs)},
+        )
     container = default_container_from_env()
     async with EventPublisherContext(kafka=container.config.kafka) as event_bus:
         report = await SchedulerService(
             store=store,
             event_bus=event_bus,
             topic=container.config.kafka.topic_events,
-        ).run_once()
+            run_ledger=run_ledger,
+        ).run_once(now=schedule_now)
     briefing_config = PostgresBriefingStoreConfig(dsn=dsn)
     briefing_runs = await BriefingSchedulerService(
         subscriptions=PostgresBriefingSubscriptionStore(config=briefing_config),

@@ -11,19 +11,33 @@ from .metrics import configure_metrics, get_meter, in_memory_reader
 from .metrics_derivation import DashboardMetrics, derive_dashboard_metrics
 from .setup import configure_telemetry
 from .tracing import configure_tracing, get_tracer
+from .transitions import (
+    InMemoryRoutingTransitionSink,
+    RoutingTransition,
+    RoutingTransitionEmitter,
+    RoutingTransitionSink,
+    default_transition_emitter,
+    emit_transition_safely,
+)
 
 __all__ = [
     "DashboardMetrics",
     "JsonFormatter",
+    "InMemoryRoutingTransitionSink",
+    "RoutingTransition",
+    "RoutingTransitionEmitter",
+    "RoutingTransitionSink",
     "configure_logging",
     "configure_metrics",
     "configure_telemetry",
     "configure_tracing",
     "current_correlation_id",
     "derive_dashboard_metrics",
+    "default_transition_emitter",
     "get_logger",
     "get_meter",
     "get_tracer",
+    "emit_transition_safely",
     "in_memory_reader",
     "log_extra",
     "with_correlation",

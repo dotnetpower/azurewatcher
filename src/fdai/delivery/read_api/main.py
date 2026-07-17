@@ -54,7 +54,12 @@ from fdai.delivery.read_api.routes.hil_callback import (
     make_hil_callback_route,
 )
 from fdai.delivery.read_api.routes.iam import append_iam_routes
-from fdai.delivery.read_api.routes.panels import PanelQueryError, ReadPanel, append_read_panels
+from fdai.delivery.read_api.routes.panels import (
+    PanelNotFoundError,
+    PanelQueryError,
+    ReadPanel,
+    append_read_panels,
+)
 from fdai.delivery.read_api.routes.pantheon import append_pantheon_routes
 from fdai.delivery.read_api.routes.scope import append_scope_route
 from fdai.delivery.read_api.routes.webhook import make_webhook_route
@@ -644,6 +649,8 @@ def build_app(
                 payload = await panel.render(params=dict(request.query_params))
             except PanelQueryError as exc:
                 return _error(400, str(exc))
+            except PanelNotFoundError as exc:
+                return _error(404, str(exc))
             _LOGGER.info("panel_served", extra={"actor": oid, "panel": panel.name})
             return JSONResponse(dict(payload))
 

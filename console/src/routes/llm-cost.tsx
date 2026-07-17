@@ -14,7 +14,15 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
-import { panelArray, panelBoolean, panelNumber, panelRecord, panelString } from "./panel-decode";
+import { routeHref } from "../router";
+import {
+  panelArray,
+  panelBoolean,
+  panelNullableString,
+  panelNumber,
+  panelRecord,
+  panelString,
+} from "./panel-decode";
 
 /**
  * LLM cost panel. Fetches ``GET /kpi/llm-cost`` and renders measured
@@ -41,6 +49,7 @@ interface Summary {
 
 interface Response {
   readonly source: string;
+  readonly latest_occurred_at: string | null;
   readonly currency: string;
   readonly invocations: number;
   readonly total: Summary;
@@ -56,8 +65,8 @@ interface Props {
   readonly client: ReadApiClient;
 }
 
-function _fmtCost(s: Summary): string {
-  return `${s.cost} ${s.currency}`;
+export function formatLlmCost(s: Pick<Summary, "cost" | "currency" | "has_mixed_currency">): string {
+  return s.has_mixed_currency ? "Mixed currencies" : `${s.cost} ${s.currency}`;
 }
 
 export function LlmCostRoute({ client }: Props) {
@@ -122,6 +131,7 @@ export function decodeLlmCost(value: unknown): Response {
     .map((item, index) => decodeSummary(item, `LLM cost.${key}[${index}]`));
   return {
     source: panelString(root, "source", "LLM cost"),
+    latest_occurred_at: panelNullableString(root, "latest_occurred_at", "LLM cost"),
     currency: panelString(root, "currency", "LLM cost"),
     invocations: panelNumber(root, "invocations", "LLM cost"),
     total: decodeSummary(root["total"], "LLM cost.total"),
@@ -134,9 +144,21 @@ export function decodeLlmCost(value: unknown): Response {
   };
 }
 
-function _summaryColumns(keyHeader: string): readonly Column<Summary>[] {
+export function llmCostCorrelationHref(correlationId: string): string {
+  return routeHref("audit", { params: { correlation: correlationId } });
+}
+
+function _summaryColumns(
+  keyHeader: string,
+  keyHref?: (key: string) => string,
+): readonly Column<Summary>[] {
   return [
-    { key: "k", header: keyHeader, render: (r) => r.key, cellClass: "mono" },
+    {
+      key: "k",
+      header: keyHeader,
+      render: (r) => keyHref ? <a href={keyHref(r.key)}>{r.key}</a> : r.key,
+      cellClass: "mono",
+    },
     { key: "inv", header: "Calls", render: (r) => r.invocations },
     { key: "pt", header: "Prompt", render: (r) => r.prompt_tokens.toLocaleString() },
     { key: "ct", header: "Completion", render: (r) => r.completion_tokens.toLocaleString() },
@@ -145,12 +167,16 @@ function _summaryColumns(keyHeader: string): readonly Column<Summary>[] {
       key: "cost",
       header: "Cost",
       render: (r) =>
-        r.has_unpriced ? (
+        r.has_mixed_currency ? (
           <span>
-            {_fmtCost(r)} <StatusPill kind="warning" label="partial" />
+            {formatLlmCost(r)} <StatusPill kind="warning" label="not additive" />
+          </span>
+        ) : r.has_unpriced ? (
+          <span>
+            {formatLlmCost(r)} <StatusPill kind="warning" label="partial" />
           </span>
         ) : (
-          _fmtCost(r)
+          formatLlmCost(r)
         ),
     },
   ];
@@ -170,13 +196,15 @@ function LlmCostBody({ data }: { readonly data: Response }) {
         TERMS.mode,
         TERMS.hil,
       ]),
-      headline: `${data.total.total_tokens.toLocaleString()} tokens - ${_fmtCost(data.total)} (${data.source})`,
-      capturedAt: new Date().toISOString(),
+      headline: `${data.total.total_tokens.toLocaleString()} tokens - ${formatLlmCost(data.total)} (${data.source})`,
+      capturedAt: data.latest_occurred_at ?? new Date().toISOString(),
       facts: [
         { key: "source", value: data.source, group: "summary" },
+        { key: "latest_occurred_at", value: data.latest_occurred_at, group: "summary" },
         { key: "invocations", value: data.invocations, group: "summary" },
         { key: "total_tokens", value: data.total.total_tokens, group: "summary" },
-        { key: "total_cost", value: _fmtCost(data.total), group: "summary" },
+        { key: "total_cost", value: formatLlmCost(data.total), group: "summary" },
+        { key: "mixed_currency", value: data.total.has_mixed_currency, group: "summary" },
       ],
       records: {
         by_month: data.by_month.map((r) => ({ ...r })),
@@ -191,9 +219,18 @@ function LlmCostBody({ data }: { readonly data: Response }) {
     <div class="stack">
       <KpiGrid>
         <KpiCard label="Source" value={data.source} />
+        <KpiCard
+          label="Latest invocation"
+          value={data.latest_occurred_at ? new Date(data.latest_occurred_at).toLocaleString() : "Unavailable"}
+        />
         <KpiCard label="LLM calls" value={data.invocations.toLocaleString()} />
         <KpiCard label="Total tokens" value={data.total.total_tokens.toLocaleString()} />
-        <KpiCard label="Total cost" value={_fmtCost(data.total)} />
+        <KpiCard
+          label="Total cost"
+          value={formatLlmCost(data.total)}
+          tone={data.total.has_mixed_currency ? "warning" : "default"}
+          hint={data.total.has_mixed_currency ? "Raw cross-currency sums are not shown" : undefined}
+        />
       </KpiGrid>
 
       <section class="stack">
@@ -236,7 +273,7 @@ function LlmCostBody({ data }: { readonly data: Response }) {
         ) : null}
         <DataTable
           rows={data.by_conversation}
-          columns={_summaryColumns("Conversation id")}
+          columns={_summaryColumns("Conversation id", llmCostCorrelationHref)}
           keyOf={(r) => r.key}
           empty="No LLM usage recorded yet"
         />

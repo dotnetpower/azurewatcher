@@ -1,0 +1,1 @@
+../../../../../../docs/runbooks/entra-app-registration-ko.md

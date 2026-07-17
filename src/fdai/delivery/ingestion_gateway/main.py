@@ -273,7 +273,11 @@ def build_app(
             }
         )
 
+    async def healthz(_request: Request) -> Response:
+        return JSONResponse({"status": "ok"})
+
     routes = [
+        Route("/healthz", healthz, methods=["GET"]),
         Route("/ingestion/capabilities", capabilities, methods=["GET"]),
         Route("/ingestion/uploads", create_upload, methods=["POST"]),
         Route("/ingestion/uploads/{upload_id}/resume", resume_upload, methods=["POST"]),

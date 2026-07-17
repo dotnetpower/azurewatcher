@@ -25,6 +25,14 @@ from fdai.delivery.persistence.postgres_briefing import (
     PostgresBriefingSubscriptionStore,
     PostgresConversationPolicyStore,
 )
+from fdai.delivery.persistence.postgres_channel_identity_link import (
+    PostgresChannelIdentityLinkStore,
+    PostgresChannelIdentityLinkStoreConfig,
+)
+from fdai.delivery.persistence.postgres_channel_pairing import (
+    PostgresChannelPairingStore,
+    PostgresChannelPairingStoreConfig,
+)
 from fdai.delivery.persistence.postgres_idempotency import (
     PostgresIdempotencyStore,
     PostgresIdempotencyStoreConfig,
@@ -36,9 +44,17 @@ from fdai.delivery.persistence.postgres_incident_proposal import (
     PostgresIncidentProposalStore,
 )
 from fdai.delivery.persistence.postgres_jira_ledger import PostgresJiraLedger
+from fdai.delivery.persistence.postgres_memory_compaction import (
+    PostgresMemoryCompactionRepository,
+    PostgresMemoryCompactionRepositoryConfig,
+)
 from fdai.delivery.persistence.postgres_metering import (
     PostgresMeteringStore,
     PostgresMeteringStoreConfig,
+)
+from fdai.delivery.persistence.postgres_model_health import (
+    PostgresModelHealthTransitionSink,
+    PostgresModelHealthTransitionSinkConfig,
 )
 from fdai.delivery.persistence.postgres_ontology import (
     PostgresOntologyInstanceStore,
@@ -64,9 +80,26 @@ from fdai.delivery.persistence.postgres_resource_lock import (
     PostgresAdvisoryResourceLock,
     PostgresAdvisoryResourceLockConfig,
 )
+from fdai.delivery.persistence.postgres_rpc_idempotency import (
+    PostgresRpcIdempotencyStore,
+    PostgresRpcIdempotencyStoreConfig,
+    RpcClaimConflictError,
+)
+from fdai.delivery.persistence.postgres_schedule_run_ledger import (
+    PostgresScheduleRunLedger,
+    PostgresScheduleRunLedgerConfig,
+)
 from fdai.delivery.persistence.postgres_scheduler_store import (
     PostgresScheduleStore,
     PostgresScheduleStoreConfig,
+)
+from fdai.delivery.persistence.postgres_skill_proposal import (
+    PostgresSkillProposalStore,
+    PostgresSkillProposalStoreConfig,
+)
+from fdai.delivery.persistence.postgres_trusted_artifact import (
+    PostgresTrustedArtifactStore,
+    PostgresTrustedArtifactStoreConfig,
 )
 from fdai.delivery.persistence.postgres_user_context import (
     PostgresConversationHistoryStore,
@@ -101,6 +134,10 @@ __all__ = [
     "PostgresBriefingRunStore",
     "PostgresBriefingStoreConfig",
     "PostgresBriefingSubscriptionStore",
+    "PostgresChannelPairingStore",
+    "PostgresChannelPairingStoreConfig",
+    "PostgresChannelIdentityLinkStore",
+    "PostgresChannelIdentityLinkStoreConfig",
     "PostgresConversationHistoryStore",
     "PostgresConversationPolicyStore",
     "PostgresIdempotencyStore",
@@ -109,6 +146,10 @@ __all__ = [
     "PostgresJiraLedger",
     "PostgresMeteringStore",
     "PostgresMeteringStoreConfig",
+    "PostgresMemoryCompactionRepository",
+    "PostgresMemoryCompactionRepositoryConfig",
+    "PostgresModelHealthTransitionSink",
+    "PostgresModelHealthTransitionSinkConfig",
     "PostgresIncidentNotificationDeliveryStore",
     "PostgresOperatorMemoryStore",
     "PostgresOperatorMemoryStoreConfig",
@@ -120,8 +161,16 @@ __all__ = [
     "PostgresProcessRuntimeStoreConfig",
     "PostgresReportSignalStore",
     "PostgresReportSignalStoreConfig",
+    "PostgresRpcIdempotencyStore",
+    "PostgresRpcIdempotencyStoreConfig",
     "PostgresScheduleStore",
     "PostgresScheduleStoreConfig",
+    "PostgresScheduleRunLedger",
+    "PostgresScheduleRunLedgerConfig",
+    "PostgresSkillProposalStore",
+    "PostgresSkillProposalStoreConfig",
+    "PostgresTrustedArtifactStore",
+    "PostgresTrustedArtifactStoreConfig",
     "PostgresStateStore",
     "PostgresStateStoreConfig",
     "PostgresUserContextStoreConfig",
@@ -133,6 +182,7 @@ __all__ = [
     "PostgresWorkflowBindingStore",
     "PostgresWorkflowDefinitionStore",
     "PostgresWorkflowDefinitionStoreConfig",
+    "RpcClaimConflictError",
     "PostgresHilApprovalRegistry",
     "StateStoreHilApprovalRegistry",
     "StateStoreActionPromotionRegistry",

@@ -14,7 +14,7 @@ import { usePublishViewContext } from "../deck/context";
 import { TERMS, agentTerm, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
 import { currentRoute, routeHref } from "../router";
-import { appendAuditPage, type AuditData as Data } from "./audit.model";
+import { appendAuditPage, resolveAuditEntry, type AuditData as Data } from "./audit.model";
 
 interface Props {
   readonly client: ReadApiClient;
@@ -33,18 +33,41 @@ interface AuditFilters {
   readonly outcome: string | null;
   readonly vertical: string | null;
   readonly window: string | null;
+  readonly fromSeq: number | null;
+  readonly throughSeq: number | null;
   readonly invalid: readonly string[];
 }
 
-function filtersFromSearch(): AuditFilters {
-  const search = new URLSearchParams(window.location.search);
+function auditSeq(
+  search: URLSearchParams,
+  key: "entry" | "from_seq" | "through_seq",
+): number | null {
+  const value = search.get(key);
+  if (value === null || !/^[1-9][0-9]*$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+export function auditFiltersFromSearch(search: URLSearchParams): AuditFilters {
   const mode = search.get("mode");
   const tier = search.get("tier");
   const windowFilter = search.get("window");
+  const rawFromSeq = search.get("from_seq");
+  const rawThroughSeq = search.get("through_seq");
+  const rawEntry = search.get("entry");
+  const entrySeq = auditSeq(search, "entry");
+  const fromSeq = entrySeq ?? auditSeq(search, "from_seq");
+  const throughSeq = entrySeq ?? auditSeq(search, "through_seq");
   const invalid = [
     ...(mode !== null && mode !== "shadow" && mode !== "enforce" ? [`mode=${mode}`] : []),
     ...(tier !== null && tier !== "t0" && tier !== "t1" && tier !== "t2" ? [`tier=${tier}`] : []),
     ...(windowFilter !== null && !/^[1-9][0-9]{0,2}d$/.test(windowFilter) ? [`window=${windowFilter}`] : []),
+    ...(rawFromSeq !== null && fromSeq === null ? [`from_seq=${rawFromSeq}`] : []),
+    ...(rawThroughSeq !== null && throughSeq === null ? [`through_seq=${rawThroughSeq}`] : []),
+    ...(rawEntry !== null && entrySeq === null ? [`entry=${rawEntry}`] : []),
+    ...(fromSeq !== null && throughSeq !== null && fromSeq > throughSeq
+      ? [`from_seq=${fromSeq}>through_seq=${throughSeq}`]
+      : []),
   ];
   return {
     mode,
@@ -53,8 +76,14 @@ function filtersFromSearch(): AuditFilters {
     outcome: search.get("outcome"),
     vertical: search.get("vertical"),
     window: windowFilter,
+    fromSeq,
+    throughSeq,
     invalid,
   };
+}
+
+function filtersFromSearch(): AuditFilters {
+  return auditFiltersFromSearch(new URLSearchParams(window.location.search));
 }
 
 export function AuditRoute({ client }: Props) {
@@ -197,6 +226,8 @@ function auditRequest(filters: AuditFilters, correlationId: string | null) {
     ...(filters.outcome ? { outcome: filters.outcome } : {}),
     ...(filters.vertical ? { vertical: filters.vertical } : {}),
     ...(filters.window ? { window: filters.window } : {}),
+    ...(filters.fromSeq !== null ? { fromSeq: filters.fromSeq } : {}),
+    ...(filters.throughSeq !== null ? { throughSeq: filters.throughSeq } : {}),
   };
 }
 
@@ -208,10 +239,8 @@ interface BodyProps {
 }
 
 function AuditBody({ data, loadingMore, pageError, onLoadMore }: BodyProps) {
-  const requestedEntry = Number(currentRoute().search.get("entry"));
-  const selectedSeq = Number.isInteger(requestedEntry) && requestedEntry > 0
-    ? requestedEntry
-    : null;
+  const entrySelection = resolveAuditEntry(data, currentRoute().search.get("entry"));
+  const selectedSeq = entrySelection.status === "selected" ? entrySelection.seq : null;
   const entryHref = (seq: number): string => {
     const params = Object.fromEntries(currentRoute().search.entries());
     return routeHref("audit", { params: { ...params, entry: seq } });
@@ -303,6 +332,19 @@ function AuditBody({ data, loadingMore, pageError, onLoadMore }: BodyProps) {
 
   return (
     <div class="stack">
+      {entrySelection.status === "invalid" ? (
+        <p class="state-error-text" role="alert">Invalid audit entry: {entrySelection.value}</p>
+      ) : null}
+      {entrySelection.status === "pending" ? (
+        <p class="state-block state-unavailable" role="status">
+          Audit entry #{entrySelection.seq} is not in the loaded rows. Load more to continue the search.
+        </p>
+      ) : null}
+      {entrySelection.status === "unavailable" ? (
+        <p class="state-block state-unavailable" role="alert">
+          Audit entry #{entrySelection.seq} is unavailable in this filtered audit result.
+        </p>
+      ) : null}
       <DataTable
         columns={columns}
         rows={data.items}

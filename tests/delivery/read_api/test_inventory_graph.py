@@ -81,6 +81,23 @@ def test_inventory_graph_route_is_opt_in_and_get_only() -> None:
     assert _client(wired=True).post("/inventory/graph").status_code == 405
 
 
+def test_demo_inventory_graph_rejects_unknown_named_view() -> None:
+    auth = build_authenticator(verifier=lambda token: {"oid": "u"}, resolver=lambda claims: None)
+    app = build_app(
+        authenticator=auth,
+        read_model=InMemoryConsoleReadModel(),
+        config=ReadApiConfig(
+            dev_mode=True,
+            inventory_graph_provider=demo_inventory_graph_provider,
+        ),
+    )
+
+    response = TestClient(app).get("/inventory/graph", params={"scope": "production"})
+
+    assert response.status_code == 404
+    assert response.json()["error"]["message"] == "architecture view not found: production"
+
+
 async def test_demo_provider_defaults_to_fdai_and_separates_application_views() -> None:
     fdai = await demo_inventory_graph_provider(None, 4, ("contains", "depends_on"))
     commerce = await demo_inventory_graph_provider("commerce-api", 4, ("contains", "depends_on"))

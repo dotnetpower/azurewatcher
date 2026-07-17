@@ -133,6 +133,13 @@ class SignatureProtectionInspector:
             )
         if content.startswith(b"PK\x03\x04"):
             return _inspect_zip(content, suffix)
+        image_type = _image_media_type(content)
+        if image_type is not None:
+            return ProtectionInspection(
+                state=ProtectionState.NONE,
+                observed_format="image",
+                media_type=image_type,
+            )
         if suffix in _TEXT_EXTENSIONS or _looks_like_text(content):
             _decode_text(content)
             return ProtectionInspection(
@@ -170,6 +177,8 @@ class StandardLibraryDocumentExtractor:
             )
         elif observed == "ooxml":
             units = _extract_ooxml(content)
+        elif observed == "image":
+            units = ()
         else:
             raise ValueError("no safe standard-library extractor is available for this format")
         return DocumentEnvelope(
@@ -187,6 +196,18 @@ class StandardLibraryDocumentExtractor:
             extractor_name="stdlib-safe",
             extractor_version="1.0.0",
         )
+
+
+def _image_media_type(content: bytes) -> str | None:
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if content.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if content.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if len(content) >= 12 and content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 
 async def _read_bounded(chunks: AsyncIterator[bytes]) -> bytes:

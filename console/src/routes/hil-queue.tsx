@@ -1,5 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import type { ReadApiClient } from "../api";
+import { architectureHref } from "../components/architecture-map.model";
 import type { HilQueueItem } from "../types";
 import {
   AsyncBoundary,
@@ -11,22 +12,42 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, agentTerm, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
-import { routeHref } from "../router";
+import { currentRoute, replaceRouteState, routeHref } from "../router";
 
 interface Props {
   readonly client: ReadApiClient;
 }
 
 export function HilQueueRoute({ client }: Props) {
+  const [query, setQuery] = useState(() => currentRoute().search.get("q") ?? "");
+  const [serverQuery, setServerQuery] = useState(query.trim());
   const [state, setState] = useState<AsyncState<HilQueueData>>({
     status: "loading",
   });
 
   useEffect(() => {
+    const sync = () => setQuery(currentRoute().search.get("q") ?? "");
+    window.addEventListener("popstate", sync);
+    window.addEventListener("fdai:route-changed", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("fdai:route-changed", sync);
+    };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setServerQuery(query.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const page = await client.listHilQueue({ limit: 100 });
+        const page = await client.listHilQueue({
+          limit: 100,
+          ...(serverQuery ? { query: serverQuery } : {}),
+        });
         if (!cancelled) {
           setState({
             status: "ready",
@@ -45,7 +66,7 @@ export function HilQueueRoute({ client }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [client]);
+  }, [client, serverQuery]);
 
   return (
     <div class="stack">
@@ -57,7 +78,7 @@ export function HilQueueRoute({ client }: Props) {
         }
       />
       <AsyncBoundary state={state} resourceLabel={t("approvals.resource")}>
-        {(data) => <HilBody data={data} />}
+        {(data) => <HilBody data={data} query={query} onQueryChange={setQuery} />}
       </AsyncBoundary>
     </div>
   );
@@ -69,9 +90,28 @@ interface HilQueueData {
   readonly detailLevel: "full" | "count_only";
 }
 
-function HilBody({ data }: { readonly data: HilQueueData }) {
+function HilBody({
+  data,
+  query,
+  onQueryChange,
+}: {
+  readonly data: HilQueueData;
+  readonly query: string;
+  readonly onQueryChange: (value: string) => void;
+}) {
   const { items, total, detailLevel } = data;
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const delay = nextApprovalExpiryDelay(items, now);
+    if (delay === null) return undefined;
+    const timer = window.setTimeout(() => setNow(Date.now()), delay);
+    return () => window.clearTimeout(timer);
+  }, [items, now]);
   const truncated = total > items.length;
+  const updateQuery = (value: string): void => {
+    onQueryChange(value);
+    replaceRouteState(routeHref("hil-queue", { params: { q: value || null } }));
+  };
   usePublishViewContext(
     () => ({
       routeId: "hil-queue",
@@ -140,7 +180,6 @@ function HilBody({ data }: { readonly data: HilQueueData }) {
     );
   }
 
-  const [query, setQuery] = useState("");
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const visibleItems = normalizedQuery
     ? items.filter((item) => approvalSearchText(item).includes(normalizedQuery))
@@ -164,7 +203,7 @@ function HilBody({ data }: { readonly data: HilQueueData }) {
             type="search"
             value={query}
             placeholder={t("approvals.filterPlaceholder")}
-            onInput={(event) => setQuery(event.currentTarget.value)}
+            onInput={(event) => updateQuery(event.currentTarget.value)}
           />
         </label>
       </div>
@@ -180,11 +219,24 @@ function HilBody({ data }: { readonly data: HilQueueData }) {
         />
       ) : (
         <div class="approval-card-list">
-          {visibleItems.map((item) => <ApprovalCard key={item.idempotency_key} item={item} />)}
+          {visibleItems.map((item) => (
+            <ApprovalCard key={item.idempotency_key} item={item} now={now} />
+          ))}
         </div>
       )}
     </div>
   );
+}
+
+export function nextApprovalExpiryDelay(
+  items: readonly HilQueueItem[],
+  now: number,
+): number | null {
+  const next = items
+    .map((item) => item.ttl_expires_at === null ? Number.NaN : Date.parse(item.ttl_expires_at))
+    .filter((expiresAt) => Number.isFinite(expiresAt) && expiresAt > now)
+    .sort((left, right) => left - right)[0];
+  return next === undefined ? null : Math.min(2_147_483_647, Math.max(1, next - now + 20));
 }
 
 function approvalSearchText(item: HilQueueItem): string {
@@ -199,9 +251,9 @@ function approvalSearchText(item: HilQueueItem): string {
   ].filter(Boolean).join(" ").toLocaleLowerCase();
 }
 
-function ApprovalCard({ item }: { readonly item: HilQueueItem }) {
+function ApprovalCard({ item, now }: { readonly item: HilQueueItem; readonly now: number }) {
   const expired = item.ttl_expires_at !== null &&
-    new Date(item.ttl_expires_at).getTime() <= Date.now();
+    new Date(item.ttl_expires_at).getTime() <= now;
   const reasons = item.reasons.length > 0 ? item.reasons : [item.reason];
   const blastRadius = item.blast_radius_summary || [
     item.blast_radius_count !== null
@@ -227,7 +279,11 @@ function ApprovalCard({ item }: { readonly item: HilQueueItem }) {
     <article class="approval-card">
       <div class="approval-card-body">
         <header class="approval-card-head">
-          <h3>{item.action_kind}</h3>
+          <h3>
+            <a href={routeHref("workflow-builder", { params: { action: item.action_kind } })}>
+              {item.action_kind}
+            </a>
+          </h3>
           <StatusPill
             kind={expired ? "danger" : "hil"}
             label={expired ? t("approvals.expiredApproval") : t("approvals.pendingApproval")}
@@ -254,7 +310,9 @@ function ApprovalCard({ item }: { readonly item: HilQueueItem }) {
             <div key={label}>
               <dt>{label}</dt>
               <dd>
-                {label === t("approvals.fieldGroundedOn") && item.citing_rule_ids.length > 0 ? (
+                {label === t("approvals.fieldTarget") && item.target_resource_ref ? (
+                  <a href={architectureHref(item.target_resource_ref)}>{item.target_resource_ref}</a>
+                ) : label === t("approvals.fieldGroundedOn") && item.citing_rule_ids.length > 0 ? (
                   <span class="approval-rule-links">
                     {item.citing_rule_ids.map((ruleId) => (
                       <a key={ruleId} href={routeHref("rules", { params: { rule: ruleId } })}>

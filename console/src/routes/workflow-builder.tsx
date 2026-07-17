@@ -54,7 +54,45 @@ export function hasActionTypeRef(step: { readonly action_type_ref?: string | nul
   return typeof step.action_type_ref === "string" && step.action_type_ref.trim().length > 0;
 }
 
+export function requestedActionType(
+  palette: readonly ActionTypePaletteEntry[],
+  actionName: string | null,
+): ActionTypePaletteEntry | null {
+  return actionName === null
+    ? null
+    : palette.find((entry) => entry.name === actionName) ?? null;
+}
+
+export function hasEquivalentWorkflowBinding(
+  bindings: readonly WorkflowBindingEntry[],
+  definitionId: string,
+  trigger: WorkflowBindingEntry["trigger"],
+  cronExpression: string,
+  timezone: string,
+  signalType: string,
+): boolean {
+  const cron = trigger === "schedule" ? cronExpression.trim() : null;
+  const zone = trigger === "schedule" ? timezone.trim() : null;
+  const signal = trigger === "signal" ? signalType.trim() : null;
+  return bindings.some((binding) =>
+    binding.definition_id === definitionId &&
+    binding.trigger === trigger &&
+    binding.scope_ref === null &&
+    binding.cron_expression === cron &&
+    binding.timezone === zone &&
+    binding.signal_type === signal
+  );
+}
+
 type WorkflowGroup = "built_in" | "shared" | "mine";
+
+export function workflowStepHref(
+  group: WorkflowGroup,
+  workflow: string,
+  step: string,
+): string {
+  return routeHref("workflow-builder", { params: { group, workflow, step } });
+}
 
 function workflowGroup(value: string | null): WorkflowGroup {
   return value === "shared" || value === "mine" ? value : "built_in";
@@ -75,8 +113,41 @@ function workflowFromDefinition(definition: WorkflowDefinitionEntry): WorkflowCa
   };
 }
 
+export function workflowSelection(
+  workflows: readonly Pick<WorkflowCatalogEntry, "name" | "steps">[],
+  requestedWorkflow: string | null,
+  requestedAction: string | null,
+): string | null {
+  if (requestedWorkflow !== null) return requestedWorkflow;
+  if (requestedAction !== null) {
+    return workflows.find((workflow) =>
+      workflow.steps.some((step) => step.action_type_ref === requestedAction)
+    )?.name ?? null;
+  }
+  return workflows.find((workflow) => workflow.steps.some(hasActionTypeRef))?.name
+    ?? workflows[0]?.name
+    ?? null;
+}
+
 interface Props {
   readonly client: ReadApiClient;
+}
+
+const EMPTY_WORKFLOW_DEFINITIONS: WorkflowDefinitionCatalogResponse = {
+  groups: { built_in: [], shared: [], mine: [] },
+  bindings: [],
+  counts: { built_in: 0, shared: 0, mine: 0 },
+};
+
+export async function loadWorkflowDefinitions(
+  client: Pick<ReadApiClient, "panel">,
+): Promise<WorkflowDefinitionCatalogResponse> {
+  try {
+    return await client.panel<WorkflowDefinitionCatalogResponse>("/workflows/definitions");
+  } catch (error) {
+    if (isOptionalReadApiUnavailable(error)) return EMPTY_WORKFLOW_DEFINITIONS;
+    throw error;
+  }
 }
 
 export function WorkflowBuilderRoute({ client }: Props) {
@@ -90,7 +161,7 @@ export function WorkflowBuilderRoute({ client }: Props) {
         const [palette, catalog, definitions] = await Promise.all([
           client.panel<ActionTypePaletteResponse>("/workflows/action-types"),
           client.panel<WorkflowCatalogResponse>("/workflows/catalog"),
-          client.panel<WorkflowDefinitionCatalogResponse>("/workflows/definitions"),
+          loadWorkflowDefinitions(client),
         ]);
         if (!cancelled) {
           setState({
@@ -236,25 +307,19 @@ function BuiltInList({
   const groupedWorkflows = group === "built_in"
     ? workflows
     : definitions.groups[group].map(workflowFromDefinition);
-  const defaultWorkflow = groupedWorkflows.find((workflow) =>
-    workflow.steps.some(hasActionTypeRef),
-  ) ?? groupedWorkflows[0] ?? null;
   const requestedWorkflow = currentRoute().search.get("workflow");
   const requestedAction = currentRoute().search.get("action");
-  const initialWorkflow = groupedWorkflows.find((workflow) => workflow.name === requestedWorkflow) ??
-    groupedWorkflows.find((workflow) => workflow.steps.some((step) => step.action_type_ref === requestedAction)) ??
-    defaultWorkflow;
-  const [selected, setSelected] = useState<string | null>(initialWorkflow?.name ?? null);
+  const [selected, setSelected] = useState<string | null>(() => workflowSelection(
+    groupedWorkflows,
+    requestedWorkflow,
+    requestedAction,
+  ));
   const [filter, setFilter] = useState("");
   const [bindings, setBindings] = useState<readonly WorkflowBindingEntry[]>(definitions.bindings);
   const current = groupedWorkflows.find((w) => w.name === selected) ?? null;
   const currentDefinition = current
     ? definitions.groups[group].find((definition) => definition.workflow_name === current.name) ?? null
     : null;
-  useEffect(() => {
-    if (current !== null || defaultWorkflow === null) return;
-    setSelected(defaultWorkflow.name);
-  }, [current, defaultWorkflow]);
   useEffect(() => {
     const sync = () => {
       const route = currentRoute();
@@ -265,10 +330,7 @@ function BuiltInList({
       const available = nextGroup === "built_in"
         ? workflows
         : definitions.groups[nextGroup].map(workflowFromDefinition);
-      const requested = available.find((workflow) => workflow.name === workflowName) ??
-        available.find((workflow) => workflow.steps.some((step) => step.action_type_ref === actionName)) ??
-        defaultWorkflow;
-      setSelected(requested?.name ?? null);
+      setSelected(workflowSelection(available, workflowName, actionName));
     };
     window.addEventListener("popstate", sync);
     window.addEventListener("fdai:route-changed", sync);
@@ -276,7 +338,11 @@ function BuiltInList({
       window.removeEventListener("popstate", sync);
       window.removeEventListener("fdai:route-changed", sync);
     };
-  }, [defaultWorkflow, definitions.groups, workflows]);
+  }, [definitions.groups, workflows]);
+  const invalidRequestedWorkflow = requestedWorkflow !== null && current === null;
+  const invalidRequestedAction = requestedWorkflow === null
+    && requestedAction !== null
+    && current === null;
   const openWorkflow = (workflow: WorkflowCatalogEntry | null): void => {
     navigate(routeHref("workflow-builder", {
       params: { group, workflow: workflow?.name, step: null, action: null },
@@ -416,6 +482,16 @@ function BuiltInList({
         )}
       </section>
 
+      {invalidRequestedWorkflow ? (
+        <div class="state-block state-unavailable" role="alert">
+          Workflow <code>{requestedWorkflow}</code> is not registered in this group. Choose a workflow from the table.
+        </div>
+      ) : invalidRequestedAction ? (
+        <div class="state-block state-unavailable" role="alert">
+          ActionType <code>{requestedAction}</code> is not connected to a workflow in this group.
+        </div>
+      ) : null}
+
       <WorkflowAutomations
         bindings={bindings}
         definitions={definitions}
@@ -426,7 +502,7 @@ function BuiltInList({
         )}
       />
 
-      {current ? <WorkflowDetail workflow={current} palette={palette} /> : null}
+      {current ? <WorkflowDetail workflow={current} palette={palette} group={group} /> : null}
     </div>
   );
 }
@@ -454,6 +530,14 @@ function WorkflowAutomations({
     Object.values(definitions.groups)
       .flat()
       .map((definition) => [definition.definition_id, definition] as const),
+  );
+  const equivalentBinding = selectedDefinition !== null && hasEquivalentWorkflowBinding(
+    bindings,
+    selectedDefinition.definition_id,
+    trigger,
+    cronExpression,
+    timezone,
+    signalType,
   );
 
   const createBinding = async (): Promise<void> => {
@@ -571,10 +655,10 @@ function WorkflowAutomations({
           <button
             type="button"
             class="btn"
-            disabled={saving || selectedDefinition === null}
+            disabled={saving || selectedDefinition === null || equivalentBinding}
             onClick={() => void createBinding()}
           >
-            Save configuration
+            {equivalentBinding ? "Configuration saved" : "Save configuration"}
           </button>
         </div>
       </div>
@@ -586,9 +670,11 @@ function WorkflowAutomations({
 function WorkflowDetail({
   workflow,
   palette,
+  group,
 }: {
   readonly workflow: WorkflowCatalogEntry;
   readonly palette: readonly ActionTypePaletteEntry[];
+  readonly group: WorkflowGroup;
 }) {
   const gate = workflow.promotion_gate;
   const requestedStep = currentRoute().search.get("step");
@@ -597,10 +683,16 @@ function WorkflowDetail({
     ? workflow.steps.find((step) => step.id === requestedStep) ?? null
     : null;
   const invalidRequestedStep = requestedStep !== null && matchedRequestedStep === null;
+  const requestedActionStep = requestedAction !== null
+    ? workflow.steps.find((step) => step.action_type_ref === requestedAction) ?? null
+    : null;
+  const requestedPaletteAction = requestedActionType(palette, requestedAction);
+  const invalidRequestedAction = requestedAction !== null && requestedPaletteAction === null;
   const defaultStep = requestedStep !== null
     ? matchedRequestedStep
-    : workflow.steps.find((step) => step.action_type_ref === requestedAction) ??
-      workflow.steps.find(hasActionTypeRef) ?? workflow.steps[0] ?? null;
+    : requestedAction !== null
+      ? requestedActionStep
+      : workflow.steps.find(hasActionTypeRef) ?? workflow.steps[0] ?? null;
   const [selectedStep, setSelectedStep] = useState<string | null>(defaultStep?.id ?? null);
   const selected = workflow.steps.find((step) => step.id === selectedStep) ?? defaultStep;
   useEffect(() => {
@@ -625,13 +717,11 @@ function WorkflowDetail({
     };
   }, [defaultStep, workflow.steps]);
   const openStep = (stepId: string): void => {
-    navigate(routeHref("workflow-builder", {
-      params: { workflow: workflow.name, step: stepId },
-    }));
+    navigate(workflowStepHref(group, workflow.name, stepId));
   };
   const actionType = selected
     ? palette.find((entry) => entry.name === selected.action_type_ref) ?? null
-    : null;
+    : requestedPaletteAction;
   return (
     <section class="workflow-catalog-workspace">
       <aside class="workflow-palette-panel">
@@ -639,7 +729,7 @@ function WorkflowDetail({
         <p>Available on this deployment. Catalog view is read-only.</p>
         <ul>
           {palette.map((entry) => (
-            <li key={entry.name}>
+            <li key={entry.name} class={entry.name === actionType?.name ? "is-selected" : undefined}>
               <code>{entry.name}</code>
               <span class={`is-${entry.category ?? "other"}`}>{entry.category ?? "other"}</span>
             </li>
@@ -688,6 +778,22 @@ function WorkflowDetail({
         <h3>Inspect <span>selected step</span></h3>
         {invalidRequestedStep ? (
           <UnavailableState message={`Step ${requestedStep} is not registered in ${workflow.name}.`} />
+        ) : invalidRequestedAction ? (
+          <UnavailableState message={`ActionType ${requestedAction} is not registered in this deployment.`} />
+        ) : selected === null && actionType !== null ? (
+          <>
+            <code class="workflow-inspector-name">{actionType.name}</code>
+            <dl>
+              <div><dt>Category</dt><dd>{actionType.category ?? "not recorded"}</dd></div>
+              <div><dt>Operation</dt><dd>{actionType.operation}</dd></div>
+              <div><dt>Execution path</dt><dd>{actionType.execution_path ?? "not recorded"}</dd></div>
+              <div><dt>Rollback</dt><dd>{actionType.rollback_contract}</dd></div>
+              <div><dt>Default mode</dt><dd>{actionType.default_mode}</dd></div>
+              <div><dt>Environment scope</dt><dd>{actionType.env_scope}</dd></div>
+              <div><dt>HIL tiers</dt><dd>{actionType.hil_tiers.join(", ") || "none"}</dd></div>
+              <div><dt>Description</dt><dd>{actionType.description ?? "not recorded"}</dd></div>
+            </dl>
+          </>
         ) : selected ? (
           <>
             <code class="workflow-inspector-name">{selected.action_type_ref || selected.id}</code>

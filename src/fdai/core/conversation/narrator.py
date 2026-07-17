@@ -216,6 +216,22 @@ def default_tool_schemas() -> tuple[ToolSchema, ...]:
 
 _DEFAULT_SCHEMAS: tuple[ToolSchema, ...] = (
     ToolSchema(
+        verb="search_tools",
+        tool_name="search_tools",
+        argument_hint="<capability query> [limit=N]",
+        summary="Search installed tools visible to the current principal.",
+        rbac_floor="reader",
+        side_effect_class="read",
+    ),
+    ToolSchema(
+        verb="describe_tool",
+        tool_name="describe_tool",
+        argument_hint="<tool_name>",
+        summary="Describe one installed tool without invoking it.",
+        rbac_floor="reader",
+        side_effect_class="read",
+    ),
+    ToolSchema(
         verb="explore_catalog",
         tool_name="explore_catalog",
         argument_hint="<free-text query>",

@@ -11,6 +11,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, agentTerm, composeGlossary } from "../deck/glossary";
 import { agentStreamDescriptor, useAgentStream, type AgentStreamStatus } from "../hooks/use-agent-stream";
+import { observationSourceLabel, type ObservationSource } from "../hooks/observation-source";
 import { t } from "../i18n";
 import { currentRoute, navigate, routeHref } from "../router";
 import {
@@ -80,11 +81,17 @@ interface Props {
   readonly client: ReadApiClient;
 }
 
+export function pantheonAgentHref(agent: string, correlation?: string | null): string {
+  return routeHref("agents", {
+    params: { view: "org", agent, correlation: correlation || null },
+  });
+}
+
 export function PantheonRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<CombinedData>>({ status: "loading" });
   const [runtime, dispatch] = useReducer(reducer, undefined, makeInitialState);
   const stream = useMemo(agentStreamDescriptor, []);
-  const { status: streamStatus } = useAgentStream({
+  const { status: streamStatus, source: streamSource } = useAgentStream({
     url: stream.url,
     getAuthorizationHeader: client.authorizationHeader,
     onEvent: (message) => dispatch({ kind: "message", msg: message }),
@@ -136,7 +143,7 @@ export function PantheonRoute({ client }: Props) {
             data={data}
             runtime={runtime}
             streamStatus={streamStatus}
-            streamSource={stream.source}
+            streamSource={streamSource}
           />
         )}
       </AsyncBoundary>
@@ -222,7 +229,7 @@ function PantheonBody({
   readonly data: CombinedData;
   readonly runtime: AgentsState;
   readonly streamStatus: AgentStreamStatus;
-  readonly streamSource: "local" | "live";
+  readonly streamSource: ObservationSource;
 }) {
   const { graph, workflows } = data;
   const active = activeAgentCount(runtime);
@@ -258,7 +265,7 @@ function PantheonBody({
         },
         { key: "engaged_agents", value: active, group: "runtime" },
         { key: "stream_status", value: streamStatus, group: "runtime" },
-        { key: "stream_source", value: streamSource, group: "runtime" },
+        { key: "stream_source", value: observationSourceLabel(streamSource), group: "runtime" },
       ],
       records: {
         agents: graph.agents.map((a) => ({
@@ -297,7 +304,7 @@ function PantheonBody({
         <div class="pantheon-source-state">
           <span class={`agents-conn conn-${streamStatus}`}>{streamStatus}</span>
           <span class="status-pill status-pill-neutral">
-            {streamSource === "local" ? "local stream" : "runtime stream"}
+            {observationSourceLabel(streamSource)}
           </span>
           <span><strong>{active}</strong> engaged</span>
         </div>
@@ -394,12 +401,12 @@ function PantheonBody({
                   <td class="mono">{w.id}</td>
                   <td>{w.name}</td>
                   <td class="mono">
-                    <a href={routeHref("agents", { params: { agent: w.primary_agent } })}>
+                    <a href={pantheonAgentHref(w.primary_agent, runtime.agents[w.primary_agent]?.correlationId)}>
                       {w.primary_agent}
                     </a>
                   </td>
                   <td>
-                    <ChipList items={w.participating_agents} />
+                    <ChipList items={w.participating_agents} runtime={runtime} />
                   </td>
                   <td>
                     <span
@@ -430,13 +437,13 @@ function PantheonAgentCard({
   readonly runtime: AgentsState["agents"][string] | undefined;
 }) {
   const role = AGENT_ROLE[agent.name];
-  const state = runtime?.state ?? "idle";
+  const state = runtime?.observed ? runtime.state : "unobserved";
   return (
     <article class={`pt-card is-${agent.layer}`}>
       <header class="pt-card-head">
         <span class={`pt-avatar is-${agent.layer}`}>{agent.name.slice(0, 2)}</span>
         <div>
-          <h4><a href={routeHref("agents", { params: { agent: agent.name } })}>{agent.name}</a></h4>
+          <h4><a href={pantheonAgentHref(agent.name, runtime?.correlationId)}>{agent.name}</a></h4>
           <p>{role?.title ?? titleCase(agent.layer)}</p>
         </div>
         <span class={`pt-runtime state-${state}`}>
@@ -456,7 +463,7 @@ function PantheonAgentCard({
         {agent.hard_dependency ? <span class="pt-badge is-hard">hard dependency</span> : null}
       </div>
       <div class="pt-live-detail">
-        <span>{runtime?.detail ?? STATE_TASK[state]}</span>
+        <span>{runtime?.observed ? runtime.detail ?? STATE_TASK[runtime.state] : "No runtime signal observed"}</span>
         {runtime?.correlationId ? <code>{runtime.correlationId}</code> : null}
       </div>
     </article>
@@ -472,7 +479,7 @@ function ReportingTree({ agents }: { readonly agents: readonly AgentDto[] }) {
   }
   const branch = (agent: AgentDto) => (
     <li key={agent.name}>
-      <a class="pt-tree-name" href={routeHref("agents", { params: { agent: agent.name } })}>{agent.name}</a>{" "}
+      <a class="pt-tree-name" href={pantheonAgentHref(agent.name)}>{agent.name}</a>{" "}
       <span class="pt-tree-role">- {AGENT_ROLE[agent.name]?.title ?? titleCase(agent.layer)}</span>
       {(byParent.get(agent.name)?.length ?? 0) > 0 ? (
         <ul>{byParent.get(agent.name)!.map(branch)}</ul>
@@ -486,7 +493,13 @@ function titleCase(value: string): string {
   return value ? `${value[0]!.toUpperCase()}${value.slice(1)}` : value;
 }
 
-function ChipList({ items }: { readonly items: readonly string[] }) {
+function ChipList({
+  items,
+  runtime,
+}: {
+  readonly items: readonly string[];
+  readonly runtime?: AgentsState;
+}) {
   if (items.length === 0) {
     return <span class="muted">-</span>;
   }
@@ -494,7 +507,7 @@ function ChipList({ items }: { readonly items: readonly string[] }) {
     <ul class="type-chip-list">
       {items.map((name) => (
         <li key={name} class="type-chip mono">
-          <a href={routeHref("agents", { params: { agent: name } })}>{name}</a>
+          <a href={pantheonAgentHref(name, runtime?.agents[name]?.correlationId)}>{name}</a>
         </li>
       ))}
     </ul>

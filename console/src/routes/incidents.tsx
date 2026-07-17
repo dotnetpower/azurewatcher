@@ -36,6 +36,13 @@ interface IncidentData {
 const PAGE_SIZE = 25;
 const FILTERS: readonly IncidentStatusFilter[] = ["active", "resolved", "all"];
 
+export function resolveIncidentSelection(
+  items: readonly Pick<IncidentSummary, "correlation_id">[],
+  requested: string | null,
+): string | null {
+  return requested ?? items[0]?.correlation_id ?? null;
+}
+
 export function IncidentsRoute({ client }: Props) {
   const initialRoute = currentRoute();
   const initialStatus = initialRoute.search.get("status");
@@ -87,22 +94,33 @@ export function IncidentsRoute({ client }: Props) {
     setState({ status: "loading" });
     setPageError(null);
     setLoadingMore(false);
-    void client.listIncidents({
+    const requestedCorrelation = selectedId;
+    const filters = {
       status: filter,
       limit: PAGE_SIZE,
       ...(verticalFilter ? { vertical: verticalFilter } : {}),
-    }).then(
-      (page) => {
+    } as const;
+    void Promise.all([
+      client.listIncidents(filters),
+      requestedCorrelation === null
+        ? Promise.resolve<IncidentPage | null>(null)
+        : client.listIncidents({
+          ...filters,
+          limit: 1,
+          correlationId: requestedCorrelation,
+        }),
+    ]).then(
+      ([page, exact]) => {
         if (rosterGeneration.current !== generation) return;
-        const items = page.items;
-        const first = items[0]?.correlation_id ?? null;
+        const exactItem = exact?.items[0];
+        const items = exactItem && !page.items.some(
+          (item) => item.correlation_id === exactItem.correlation_id,
+        ) ? [exactItem, ...page.items] : page.items;
         setState({
           status: "ready",
           data: { items, nextCursor: page.next_cursor },
         });
-        setSelectedId((current) => items.some((item) => item.correlation_id === current)
-          ? current
-          : first);
+        setSelectedId((current) => resolveIncidentSelection(items, current));
       },
       (error: unknown) => {
         if (rosterGeneration.current === generation) {
@@ -116,7 +134,7 @@ export function IncidentsRoute({ client }: Props) {
     return () => {
       if (rosterGeneration.current === generation) rosterGeneration.current += 1;
     };
-  }, [client, filter, verticalFilter]);
+  }, [client, filter, selectedId, verticalFilter]);
 
   useEffect(() => {
     const generation = historyGeneration.current + 1;
@@ -334,7 +352,17 @@ function IncidentBody({
         <p class="muted footnote">{t("incidents.end")}</p>
       )}
       {selected ? <IncidentDetail incident={selected} history={history} /> : (
-        <p class="muted">{t("incidents.select")}</p>
+        selectedId ? (
+          <div class="state-block state-unavailable" role={data.nextCursor ? "status" : "alert"}>
+            <span class="state-icon" aria-hidden="true">?</span>
+            <span>
+              Incident <code>{selectedId}</code> is not in the loaded results.
+              {data.nextCursor
+                ? " Load more to continue the search."
+                : " It is unavailable in this filtered incident result."}
+            </span>
+          </div>
+        ) : <p class="muted">{t("incidents.select")}</p>
       )}
     </div>
   );
@@ -370,18 +398,15 @@ function IncidentDetail({
             : t("incidents.none")}
         />
       </KpiGrid>
-      <p>
+      <nav class="incident-evidence-links" aria-label="Incident evidence">
         <a href={routeHref("reports", {
           segments: ["incident-rca-dossier"],
           params: { correlation_id: incident.correlation_id },
         })}>{t("incidents.report")}</a>
-        {" | "}
         <a href={routeHref("audit", { params: { correlation: incident.correlation_id } })}>{t("incidents.audit")}</a>
-        {" | "}
         <a href={routeHref("trace", { params: { correlation: incident.correlation_id } })}>{t("incidents.trace")}</a>
-        {" | "}
         <a href={routeHref("rca", { params: { correlation: incident.correlation_id } })}>{t("incidents.rca")}</a>
-      </p>
+      </nav>
       <AsyncBoundary state={history} resourceLabel={t("incidents.timeline")}>
         {(items) => (
           <div class="stack">

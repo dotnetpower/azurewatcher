@@ -17,6 +17,7 @@ package facade.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
 
@@ -33,6 +34,7 @@ from ..core.quality_gate.testing import MatchTypeCrossCheckModel, MismatchCrossC
 from ..core.rca import LlmRcaReasoner, RcaReasoner
 from ..core.tiers.t2_reasoning.testing import AbstainingT2Proposer
 from ..rule_catalog.schema.llm_resolver import ResolvedCapability
+from ..rule_catalog.schema.model_endpoint import ModelAuthKind, ModelEndpointBinding
 from ..shared.config.models import LlmMode
 from ..shared.providers.workload_identity import WorkloadIdentity
 from ._helpers import (
@@ -62,6 +64,8 @@ def bind_azure_llm_bindings(
     proposer_system_prompt: str | None = None,
     metering_sink: MeteringSink | None = None,
     pricing: PricingTable | None = None,
+    model_health_sink: Any | None = None,
+    endpoint_resolver: Callable[[str], str] | None = None,
 ) -> Container:
     """Return a new :class:`Container` with the Azure OpenAI adapters attached.
 
@@ -172,6 +176,51 @@ def bind_azure_llm_bindings(
     embedding_cap = _capability(resolved, "t1.embedding")
     primary_cap = _capability(resolved, "t2.reasoner.primary")
     secondary_cap = _capability(resolved, "t2.reasoner.secondary")
+    endpoint_bindings = {binding.capability: binding for binding in resolved.endpoint_bindings}
+    supported_binding_capabilities = {
+        "t1.embedding",
+        "t1.judge",
+        "t2.critic",
+        "t2.rca",
+        "t2.reasoner.primary",
+        "t2.reasoner.secondary",
+    }
+    unsupported_bindings = sorted(set(endpoint_bindings) - supported_binding_capabilities)
+    if unsupported_bindings:
+        raise LlmBindingsUnavailableError(
+            "resolved endpoint bindings include capabilities whose gateway transport is not "
+            f"implemented: {', '.join(unsupported_bindings)}"
+        )
+    if endpoint_bindings and endpoint_resolver is None:
+        raise LlmBindingsUnavailableError(
+            "resolved endpoint bindings require an endpoint_ref resolver at composition"
+        )
+    if (
+        any(binding.route_kind.value == "apim-gateway" for binding in endpoint_bindings.values())
+        and model_health_sink is None
+    ):
+        raise LlmBindingsUnavailableError(
+            "APIM endpoint bindings require a durable model health transition sink"
+        )
+    if "t2.reasoner.primary" in endpoint_bindings and resolved.reasoner_primary_candidates:
+        raise LlmBindingsUnavailableError(
+            "a bound T2 primary endpoint cannot also use the legacy primary latency pool"
+        )
+
+    def _target(
+        capability_id: str,
+        *,
+        legacy_deployment: str,
+        legacy_api_version: str,
+    ) -> dict[str, Any]:
+        binding = endpoint_bindings.get(capability_id)
+        if binding is None:
+            return {
+                "endpoint": endpoint,
+                "deployment": legacy_deployment,
+                "api_version": legacy_api_version,
+            }
+        return _binding_target(binding, endpoint_resolver)
 
     def _emitter_for(
         capability_id: str, cap: ResolvedCapability, tier: str
@@ -198,11 +247,15 @@ def bind_azure_llm_bindings(
             identity=identity,
             http_client=http_client,
             config=AzureOpenAIProposerConfig(
-                endpoint=endpoint,
-                deployment=primary_cap.name,
+                **_target(
+                    "t2.reasoner.primary",
+                    legacy_deployment=primary_cap.name,
+                    legacy_api_version="2024-06-01",
+                ),
                 system_prompt=proposer_system_prompt,
             ),
             metering=_emitter_for("t2.reasoner.primary", primary_cap, "T2"),
+            gateway_route_sink=model_health_sink,
         )
         if primary_cap is not None and proposer_system_prompt
         else AbstainingT2Proposer()
@@ -225,8 +278,11 @@ def bind_azure_llm_bindings(
                     identity=identity,
                     http_client=http_client,
                     config=AzureOpenAICrossCheckModelConfig(
-                        endpoint=endpoint,
-                        deployment=primary_cap.name,
+                        **_target(
+                            "t2.reasoner.primary",
+                            legacy_deployment=primary_cap.name,
+                            legacy_api_version="2024-06-01",
+                        ),
                         system_prompt=system_prompt,
                     ),
                     tool_registry=tool_registry,
@@ -235,6 +291,7 @@ def bind_azure_llm_bindings(
                     capability_id=("t2.reasoner.primary" if prompt_composer is not None else None),
                     scope_resolver=scope_resolver,
                     metering=_emitter_for("t2.reasoner.primary", primary_cap, "T2"),
+                    gateway_route_sink=model_health_sink,
                 )
             else:
                 primary_model = MatchTypeCrossCheckModel(model_id="hil-only-primary-noop")
@@ -242,8 +299,11 @@ def bind_azure_llm_bindings(
                 identity=identity,
                 http_client=http_client,
                 config=AzureOpenAIEmbeddingModelConfig(
-                    endpoint=endpoint,
-                    deployment=embedding_cap.name,
+                    **_target(
+                        "t1.embedding",
+                        legacy_deployment=embedding_cap.name,
+                        legacy_api_version="2024-06-01",
+                    ),
                     dim=_default_dim_for_family(embedding_cap.family or ""),
                 ),
                 metering=_emitter_for("t1.embedding", embedding_cap, "T1"),
@@ -267,8 +327,11 @@ def bind_azure_llm_bindings(
         identity=identity,
         http_client=http_client,
         config=AzureOpenAIEmbeddingModelConfig(
-            endpoint=endpoint,
-            deployment=embedding_cap.name,
+            **_target(
+                "t1.embedding",
+                legacy_deployment=embedding_cap.name,
+                legacy_api_version="2024-06-01",
+            ),
             dim=_default_dim_for_family(embedding_cap.family or ""),
         ),
         metering=_emitter_for("t1.embedding", embedding_cap, "T1"),
@@ -277,8 +340,11 @@ def bind_azure_llm_bindings(
         identity=identity,
         http_client=http_client,
         config=AzureOpenAICrossCheckModelConfig(
-            endpoint=endpoint,
-            deployment=primary_cap.name,
+            **_target(
+                "t2.reasoner.primary",
+                legacy_deployment=primary_cap.name,
+                legacy_api_version="2024-06-01",
+            ),
             system_prompt=system_prompt,
         ),
         tool_registry=tool_registry,
@@ -287,6 +353,7 @@ def bind_azure_llm_bindings(
         capability_id=("t2.reasoner.primary" if prompt_composer is not None else None),
         scope_resolver=scope_resolver,
         metering=_emitter_for("t2.reasoner.primary", primary_cap, "T2"),
+        gateway_route_sink=model_health_sink,
     )
     # T2 Primary Latency Pool (invariant-safe, opt-in). When the flag is on AND
     # the resolver emitted >= 2 same-publisher candidates, wrap the primary
@@ -330,13 +397,19 @@ def bind_azure_llm_bindings(
             )
             for cand in primary_pool
         ]
-        primary = LatencyRoutedCrossCheckModel(candidates=pool_members)
+        primary = LatencyRoutedCrossCheckModel(
+            candidates=pool_members,
+            transition_sink=model_health_sink,
+        )
     secondary = AzureOpenAICrossCheckModel(
         identity=identity,
         http_client=http_client,
         config=AzureOpenAICrossCheckModelConfig(
-            endpoint=endpoint,
-            deployment=secondary_cap.name,
+            **_target(
+                "t2.reasoner.secondary",
+                legacy_deployment=secondary_cap.name,
+                legacy_api_version="2024-06-01",
+            ),
             system_prompt=system_prompt,
         ),
         tool_registry=tool_registry,
@@ -345,6 +418,7 @@ def bind_azure_llm_bindings(
         capability_id=("t2.reasoner.secondary" if prompt_composer is not None else None),
         scope_resolver=scope_resolver,
         metering=_emitter_for("t2.reasoner.secondary", secondary_cap, "T2"),
+        gateway_route_sink=model_health_sink,
     )
     # Wave 4 beta-2: opt-in Critic binding. Only bind when both the
     # ``t2.critic`` capability resolves AND the caller supplied a
@@ -358,8 +432,11 @@ def bind_azure_llm_bindings(
             identity=identity,
             http_client=http_client,
             config=AzureOpenAICriticModelConfig(
-                endpoint=endpoint,
-                deployment=critic_cap.name,
+                **_target(
+                    "t2.critic",
+                    legacy_deployment=critic_cap.name,
+                    legacy_api_version="2024-06-01",
+                ),
                 system_prompt=critic_system_prompt,
             ),
         )
@@ -376,8 +453,11 @@ def bind_azure_llm_bindings(
             identity=identity,
             http_client=http_client,
             config=AzureOpenAIJudgeModelConfig(
-                endpoint=endpoint,
-                deployment=judge_cap.name,
+                **_target(
+                    "t1.judge",
+                    legacy_deployment=judge_cap.name,
+                    legacy_api_version="2024-06-01",
+                ),
                 system_prompt=judge_system_prompt,
             ),
         )
@@ -402,8 +482,11 @@ def bind_azure_llm_bindings(
                 identity=identity,
                 http_client=http_client,
                 config=AzureOpenAIRcaModelConfig(
-                    endpoint=endpoint,
-                    deployment=rca_cap.name,
+                    **_target(
+                        "t2.rca",
+                        legacy_deployment=rca_cap.name,
+                        legacy_api_version="2024-06-01",
+                    ),
                     system_prompt=rca_system_prompt,
                 ),
                 metering=_emitter_for("t2.rca", rca_cap, "T2"),
@@ -419,3 +502,30 @@ def bind_azure_llm_bindings(
         t2_proposer=proposer,
     )
     return replace(container, llm_bindings=bindings)
+
+
+def _binding_target(
+    binding: ModelEndpointBinding,
+    endpoint_resolver: Callable[[str], str] | None,
+) -> dict[str, Any]:
+    if endpoint_resolver is None:  # pragma: no cover - guarded by caller
+        raise LlmBindingsUnavailableError("endpoint_ref resolver is unavailable")
+    if binding.auth_kind is not ModelAuthKind.ENTRA or binding.auth_audience is None:
+        raise LlmBindingsUnavailableError(
+            f"endpoint binding {binding.binding_id!r} requires unsupported auth kind "
+            f"{binding.auth_kind.value!r}; runtime model bindings require Entra auth"
+        )
+    endpoint = endpoint_resolver(binding.endpoint_ref)
+    if not endpoint:
+        raise LlmBindingsUnavailableError(
+            f"endpoint binding {binding.binding_id!r} resolved to an empty endpoint"
+        )
+    return {
+        "endpoint": endpoint,
+        "deployment": binding.deployment,
+        "api_version": binding.api_version or "2024-06-01",
+        "api_style": binding.api_style,
+        "auth_audience": binding.auth_audience,
+        "route_kind": binding.route_kind,
+        "binding_id": binding.binding_id,
+    }

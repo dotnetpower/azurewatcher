@@ -2,7 +2,7 @@
 title: FDAI 시작하기
 description: FDAI 5분 오리엔테이션 - 무엇인지, 언제 적합한지, 다음으로 어디를 볼지.
 translation_of: get-started.md
-translation_source_sha: ecb5fae15620e3eba12720688d15c14f298dc3a3
+translation_source_sha: 3e1a82e21593bf44a9d4021df6607f724622f83c
 translation_revised: 2026-07-17
 ---
 
@@ -199,7 +199,8 @@ flowchart TB
 ## 시작하기
 
 - **운영 모델 이해**:
-  [SRE 기초](concepts/sre-foundations-ko.md)을 읽은 다음
+  [사이트 신뢰성 엔지니어링](sre/README-ko.md)을 읽은 다음
+  [FDAI SRE 기초](concepts/sre-foundations-ko.md)와
   [결정론 우선 의사 결정](concepts/deterministic-first-ko.md)을 살펴보세요.
 - **환경 준비**:
   [배포 사전 검사](../roadmap/deployment/deployment-preflight-ko.md)를 수행한 다음
@@ -215,7 +216,9 @@ flowchart TB
 
 <!-- fdai:cards -->
 
-- [SRE 기초](concepts/sre-foundations-ko.md) - FDAI가 자동화하는 SRE 기능.
+- [사이트 신뢰성 엔지니어링](sre/README-ko.md) - FDAI 전반의 관찰, 대응, 복구, 학습.
+- [인시던트 관리](sre/incident-management-ko.md) - 신호부터 종료까지 incident lifecycle 따라가기.
+- [근본 원인 분석](sre/root-cause-analysis-ko.md) - 티어별 grounded cause hypothesis 이해하기.
 - [결정론 우선](concepts/deterministic-first-ko.md) - 왜 알려진 결정은 결정론적으로 남는가.
 - [리스크 티어](concepts/risk-tiers-ko.md) - 세 신뢰 티어의 상세.
 - [온톨로지 기반 자동화](concepts/ontology-driven-automation-ko.md) - 액션 온톨로지가 자동화를 이끄는 방식.

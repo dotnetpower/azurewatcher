@@ -1,0 +1,1 @@
+../../../../../../docs/user-guide/sre/triage-and-investigation-ko.md

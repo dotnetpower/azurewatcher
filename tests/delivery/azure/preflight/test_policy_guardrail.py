@@ -187,6 +187,38 @@ async def test_type_not_denied_yields_no_finding() -> None:
     assert findings == ()
 
 
+async def test_neutral_resource_type_is_mapped_inside_azure_adapter() -> None:
+    handler = _handler(
+        {
+            "policyAssignments": _assignments(
+                (_NOT_ALLOWED_DEF_ID, {"listOfResourceTypesNotAllowed": {"value": [_DISK]}}),
+            ),
+            "policyDefinitions/not-allowed-types": _NOT_ALLOWED_DEF,
+        }
+    )
+    probe = _probe(
+        handler,
+        _config(resource_type_map={"compute.disk": _DISK}),
+    )
+
+    findings = await probe.evaluate(
+        PreflightTarget(scope="rg:app", resource_types=("compute.disk",))
+    )
+
+    assert len(findings) == 1
+    assert findings[0].title == f"{_DISK} denied by policy not-allowed-types"
+
+
+async def test_unmapped_neutral_resource_type_fails_before_arm_call() -> None:
+    def handle(_request: httpx.Request) -> httpx.Response:  # pragma: no cover - must not run
+        raise AssertionError("no ARM call expected for an unmapped neutral type")
+
+    probe = _probe(handle, _config())
+
+    with pytest.raises(AzurePreflightError, match="mapping is missing"):
+        await probe.evaluate(PreflightTarget(scope="rg:app", resource_types=("compute.disk",)))
+
+
 async def test_non_deny_effect_is_ignored() -> None:
     audit_def = {
         "name": "audit-types",

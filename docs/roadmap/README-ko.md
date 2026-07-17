@@ -1,8 +1,8 @@
 ---
 title: FDAI 로드맵
 translation_of: README.md
-translation_source_sha: 7667a4b51d37909cebe2f8d0b0e4a23299d0bb2d
-translation_revised: 2026-07-14
+translation_source_sha: 34ead3056ec688e26255902735cd451a95eec803
+translation_revised: 2026-07-17
 ---
 
 # FDAI 로드맵
@@ -114,6 +114,7 @@ FDAI 뒤편의 엔지니어링 계획. 이 폴더는
 |---|------|-------------|
 | 25 | [implementation-plan-ko.md](fork-and-sequencing/implementation-plan-ko.md) | 2026-07-06 트랜치 문서 전반에 걸친 순서 확정. 여섯 개의 표준 세트 설계 결정(R1 축 파생, R2 ConsoleTool = ActionType 프로젝션, R3 통합 LlmBinding, R4 공유 projection 프리미티브, R6 operator_memory = 감사 로그 view, R7 pr_manual = 플래그)과 웨이브 플랜 (F -> D1 -> W1 -> W2 -> M1, Twin과 Preflight 병렬 트랙 포함) |
 | 26 | [agent-pantheon-implementation-ko.md](agents/agent-pantheon-implementation-ko.md) | 판테온 롤아웃 웨이브 계획 (W0 docs -> W1 scaffolding -> W2 governance -> W3 pipeline -> W4 interface -> W5 specialists -> W6 handoff / security -> W7 workflows -> W8 KPI + promotion + degradation drill); 모든 웨이브는 측정 가능한 exit gate 를 가지며 판테온 invariant (single-writer topic, judge != executor, Saga / Vidar hard dependency) 를 유지 |
+| 27 | [productization-and-extensibility-ko.md](fork-and-sequencing/productization-and-extensibility-ko.md) | Install 및 diagnostics, bidirectional channel, trusted extension 및 MCP, model 및 scheduler resilience, security audit, typed API와 FDAI app shape 밖에 의도적으로 유지하는 capability의 prioritized P0/P1/P2 상태 matrix |
 
 ## 페이즈 타임라인
 

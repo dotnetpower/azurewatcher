@@ -37,6 +37,11 @@ function ev(partial: Partial<ProvisionEvent> & { phase: ProvisionEvent["phase"] 
 }
 
 describe("reducer", () => {
+  test("does not claim progress before the first observed provision event", () => {
+    expect(INITIAL.observed).toBe(false);
+    expect(reducer(INITIAL, ev({ phase: "progress", fraction: 0 })).observed).toBe(true);
+  });
+
   test("progress fraction never regresses", () => {
     let state = reducer(INITIAL, ev({ phase: "progress", fraction: 0.6 }));
     state = reducer(state, ev({ phase: "progress", fraction: 0.3 }));

@@ -81,7 +81,7 @@ def app() -> Starlette:
     objects = InMemoryDocumentObjectStore()
     activity = RecordingDocumentActivitySink()
     capabilities = IngestionCapabilities(
-        supported_formats=("text", "ooxml", "pdf-detect-only"),
+        supported_formats=("text", "ooxml", "image-metadata", "pdf-detect-only"),
         storage_modes=tuple(SourceStorageMode),
         max_file_size=25 * 1024 * 1024,
         max_batch_count=10,

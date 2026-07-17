@@ -141,6 +141,11 @@ output "llm_capacity_units" {
   value       = length(module.llm_azure_openai) > 0 ? module.llm_azure_openai[0].capacity_units : {}
 }
 
+output "model_apim_gateway_endpoint" {
+  description = "Optional OpenAI-compatible APIM endpoint. Null when the existing-APIM integration is disabled."
+  value       = try(module.model_apim_gateway[0].gateway_endpoint, null)
+}
+
 output "monitoring_action_group_id" {
   description = "Action group id for Azure Monitor alerts (null when enable_monitoring = false)."
   value       = var.enable_monitoring ? module.monitoring[0].action_group_id : null

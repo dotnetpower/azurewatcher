@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 from uuid import uuid4
 
 from starlette.exceptions import HTTPException
@@ -17,6 +17,7 @@ from starlette.routing import Route
 
 from fdai.core.rbac.resolver import Principal
 from fdai.core.rbac.roles import Capability, has_capability
+from fdai.delivery.azure.llm.latency_routed_cross_check import ModelHealthTransition
 from fdai.delivery.read_api.routes.chat import LatencyRoutedChatBackend
 from fdai.shared.providers.state_store import StateStore
 
@@ -35,6 +36,10 @@ _DEFAULT_WEB_SEARCH_DOMAINS = (
 )
 
 
+class ModelRoutingStatusReader(Protocol):
+    async def list_recent(self, *, limit: int = 200) -> Sequence[ModelHealthTransition]: ...
+
+
 @dataclass(frozen=True, slots=True)
 class ModelSettingsService:
     """Combine resolved capability state, runtime metrics, and user preference."""
@@ -45,6 +50,7 @@ class ModelSettingsService:
     web_search_resolver: object | None = None
     automatic_discovery: bool = True
     automatic_provisioning: bool = True
+    model_routing_status: ModelRoutingStatusReader | None = None
 
     def __post_init__(self) -> None:
         self._load_resolved()
@@ -121,9 +127,23 @@ class ModelSettingsService:
         )
         hil_only_count = sum(item["status"] == "hil-only" for item in capabilities)
         web_search = await self._web_search_projection(can_manage=can_manage_web_search)
+        model_routing = await self._model_routing_projection()
+        endpoint_inventory = [
+            _endpoint_binding_view(item)
+            for item in resolved.get("endpoint_bindings", [])
+            if isinstance(item, dict)
+        ]
         return {
             "region": resolved.get("region"),
             "mixed_model_mode": resolved.get("mixed_model_mode"),
+            "resolved_metadata": {
+                "kind": "generated-file",
+                "source": self.resolved_models_path.name,
+                "as_of": datetime.fromtimestamp(
+                    self.resolved_models_path.stat().st_mtime,
+                    tz=UTC,
+                ).isoformat(),
+            },
             "discovery": {
                 "automatic": self.automatic_discovery,
                 "source": "rule-catalog/llm-registry.yaml",
@@ -136,6 +156,7 @@ class ModelSettingsService:
                 "hil_only_count": hil_only_count,
             },
             "capabilities": capabilities,
+            "endpoint_inventory": endpoint_inventory,
             "narrator": {
                 "selection_scope": "per-user",
                 "revision": preference_revision,
@@ -150,8 +171,56 @@ class ModelSettingsService:
                 "candidates": candidates,
             },
             "web_search": web_search,
+            "model_routing": model_routing,
             "t2_selection_scope": "system-governed",
         }
+
+    async def _model_routing_projection(self) -> list[dict[str, Any]]:
+        if self.model_routing_status is None:
+            return []
+        transitions = await self.model_routing_status.list_recent(limit=200)
+        roles: dict[str, dict[str, Any]] = {}
+        for transition in transitions:
+            role = roles.setdefault(
+                transition.model_role,
+                {
+                    "role": transition.model_role,
+                    "selected_deployment": None,
+                    "selection_reason": None,
+                    "selected_at": None,
+                    "candidates": {},
+                },
+            )
+            if transition.status == "selected" and role["selected_deployment"] is None:
+                role["selected_deployment"] = transition.deployment
+                role["selection_reason"] = transition.reason
+                role["selected_at"] = transition.recorded_at.isoformat()
+            candidates: dict[str, dict[str, Any]] = role["candidates"]
+            if (
+                transition.status in {"unhealthy", "recovered"}
+                and transition.deployment not in candidates
+            ):
+                candidates[transition.deployment] = {
+                    "deployment": transition.deployment,
+                    "status": transition.status,
+                    "failure_kind": (
+                        transition.failure_kind.value
+                        if transition.failure_kind is not None
+                        else None
+                    ),
+                    "cooldown_seconds": transition.cooldown_seconds,
+                    "updated_at": transition.recorded_at.isoformat(),
+                }
+        return [
+            {
+                **{key: value for key, value in role.items() if key != "candidates"},
+                "candidates": sorted(
+                    role["candidates"].values(),
+                    key=lambda candidate: candidate["deployment"],
+                ),
+            }
+            for role in sorted(roles.values(), key=lambda item: item["role"])
+        ]
 
     async def set_web_search_settings(
         self,
@@ -161,6 +230,8 @@ class ModelSettingsService:
         allowed_domains: tuple[str, ...],
         expected_revision: int,
     ) -> None:
+        if self.web_search_resolver is None:
+            raise ModelSettingsUnavailableError("web-search resolver is not configured")
         normalized = _normalize_domains(allowed_domains)
         if enabled and not normalized:
             raise ValueError("allowed_domains MUST contain at least one host when enabled")
@@ -234,12 +305,24 @@ class ModelSettingsService:
         return value
 
     async def _web_search_projection(self, *, can_manage: bool) -> dict[str, Any]:
+        if self.web_search_resolver is None:
+            return {
+                "available": False,
+                "enabled": False,
+                "allowed_domains": [],
+                "revision": 0,
+                "can_manage": False,
+                "provider": "unavailable",
+                "current_auto_pick": None,
+                "candidates": [],
+            }
         record = await self._web_search_record()
         self._apply_web_search(record)
         descriptor_fn = getattr(self.web_search_resolver, "descriptor", None)
         descriptor = descriptor_fn() if descriptor_fn is not None else {}
         router = descriptor.get("router") if isinstance(descriptor, Mapping) else None
         return {
+            "available": True,
             "enabled": bool(record["enabled"]),
             "allowed_domains": list(record["allowed_domains"]),
             "revision": int(record["revision"]),
@@ -383,6 +466,8 @@ def make_model_settings_routes(
             )
         except ModelSettingsConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ModelSettingsUnavailableError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return JSONResponse(await service.projection(principal.oid, can_manage_web_search=True))
@@ -454,6 +539,7 @@ def _valid_domain(domain: str) -> bool:
 
 
 def _capability_view(item: dict[str, Any]) -> dict[str, Any]:
+    capacity = item.get("capacity") if isinstance(item.get("capacity"), dict) else None
     return {
         "name": item.get("name"),
         "tier": str(item.get("name") or "").split(".", 1)[0].upper(),
@@ -461,10 +547,52 @@ def _capability_view(item: dict[str, Any]) -> dict[str, Any]:
         "family": item.get("family"),
         "status": item.get("status"),
         "capacity_tpm": item.get("capacity_tpm"),
+        "capacity_unit": capacity.get("unit") if capacity is not None else "tpm",
+        "capacity_value": (
+            capacity.get("value") if capacity is not None else item.get("capacity_tpm")
+        ),
         "invocation": item.get("invocation"),
         "reasons": item.get("reasons") if isinstance(item.get("reasons"), list) else [],
         "user_selectable": False,
     }
+
+
+def _endpoint_binding_view(item: dict[str, Any]) -> dict[str, Any]:
+    auth = _mapping_value(item, "auth")
+    model = _mapping_value(item, "model")
+    capacity = _mapping_value(item, "capacity")
+    features = _mapping_value(item, "features")
+    discovery = _mapping_value(item, "discovery")
+    return {
+        "binding_id": item.get("binding_id"),
+        "capability": item.get("capability"),
+        "provider_kind": item.get("provider_kind"),
+        "route_kind": item.get("route_kind"),
+        "api_style": item.get("api_style"),
+        "deployment": item.get("deployment"),
+        "api_version": item.get("api_version"),
+        "auth_kind": auth.get("kind"),
+        "publisher": model.get("publisher"),
+        "family": model.get("family"),
+        "version": model.get("version"),
+        "capacity_unit": capacity.get("unit"),
+        "capacity_value": capacity.get("value"),
+        "features": {
+            "streaming": bool(features.get("streaming", False)),
+            "embeddings": bool(features.get("embeddings", False)),
+            "structured_output": bool(features.get("structured_output", False)),
+            "tool_calling": bool(features.get("tool_calling", False)),
+        },
+        "discovery_source": discovery.get("source"),
+        "verified_at": discovery.get("verified_at"),
+        "managed_by": "catalog-and-resolver",
+        "user_selectable": False,
+    }
+
+
+def _mapping_value(item: Mapping[str, Any], key: str) -> Mapping[str, Any]:
+    value = item.get(key)
+    return value if isinstance(value, Mapping) else {}
 
 
 def _preference_key(principal_id: str) -> str:

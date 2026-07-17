@@ -541,6 +541,10 @@ A later decision (a ChatOps callback or a poll) drives
   re-dispatched through the same executor selection (§5.4); one
   `hil.approved.executed` audit entry is written.
 - **REJECT** / **TIMEOUT** - recorded, never executed (fail-closed).
+- **expired APPROVE** - `expires_at` is checked before delegation and executor
+  selection. An approval at or after expiry is atomically resolved as
+  `TIMEOUT`, writes `hil.timeout`, and never executes. Expired records are
+  excluded from the Reader HIL queue and `hil_pending` KPI projection.
 - **idempotent** - the park flips to `status=resolved` on the first
   terminal decision; a duplicate decision is a no-op and a conflicting
   decision is refused, so an approval can never double-apply.
@@ -599,6 +603,12 @@ router is an optional seam: absent, the loop behaves exactly as before.
   dispatches it here. The tool registry is the natural attach point for
   an MCP adapter - an `McpToolExecutor` implementing the Protocol maps
   one MCP server tool onto one `tool.*` ActionType.
+- MCP servers register through `McpServerCatalog`. A server manifest validates its endpoint and
+  ActionType-to-tool allowlist, installs disabled, and can enable only after a read-only
+  `tools/list` discovery proves every allowlisted tool exists. Public endpoints require HTTPS;
+  HTTP is accepted only for loopback sidecars. Payload URLs never override the configured server
+  endpoint. Two enabled servers cannot own the same ActionType. The enabled catalog projects
+  routes into the existing `RoutingToolExecutor`; it creates no new execution path.
 - `core/` knows only the Protocol; a fork binds a live adapter (a native
   Python registry, an MCP client, an HTTP callout) at the composition
   root. The default binding is `RecordingToolExecutor` (no real function

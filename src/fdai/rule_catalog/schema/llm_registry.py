@@ -72,6 +72,16 @@ class Sku(StrEnum):
     STANDARD = "Standard"
     GLOBAL_STANDARD = "GlobalStandard"
     PROVISIONED_MANAGED = "ProvisionedManaged"
+    GLOBAL_PROVISIONED_MANAGED = "GlobalProvisionedManaged"
+    DATA_ZONE_PROVISIONED_MANAGED = "DataZoneProvisionedManaged"
+
+    @property
+    def is_provisioned(self) -> bool:
+        return self in {
+            Sku.PROVISIONED_MANAGED,
+            Sku.GLOBAL_PROVISIONED_MANAGED,
+            Sku.DATA_ZONE_PROVISIONED_MANAGED,
+        }
 
 
 class Invocation(StrEnum):
@@ -96,7 +106,8 @@ class CapabilitySpec(BaseModel):
 
     preferences: tuple[FamilyPreference, ...]
     sku: Sku = Sku.STANDARD
-    capacity_tpm: Annotated[int, Field(ge=1000)]
+    capacity_tpm: Annotated[int, Field(ge=1000)] | None = None
+    capacity_ptu: Annotated[int, Field(ge=1)] | None = None
     invocation: Invocation = Invocation.ALWAYS
     tool_calling_required: bool = False
     """Whether this capability must resolve to a function-calling-capable
@@ -108,6 +119,28 @@ class CapabilitySpec(BaseModel):
     manifest - FDAI never delegates to a model's native browsing, which
     would hide the allowlist + evidence-store replay determinism the core
     controls (docs/roadmap/decisioning/prompt-composition.md)."""
+
+    @model_validator(mode="after")
+    def _require_capacity_for_sku(self) -> CapabilitySpec:
+        if self.sku.is_provisioned:
+            if self.capacity_ptu is None or self.capacity_tpm is not None:
+                raise ValueError(
+                    "provisioned model SKU requires capacity_ptu and forbids capacity_tpm"
+                )
+        elif self.capacity_tpm is None or self.capacity_ptu is not None:
+            raise ValueError("standard model SKU requires capacity_tpm and forbids capacity_ptu")
+        return self
+
+    @property
+    def capacity_unit(self) -> str:
+        return "ptu" if self.sku.is_provisioned else "tpm"
+
+    @property
+    def requested_capacity(self) -> int:
+        value = self.capacity_ptu if self.sku.is_provisioned else self.capacity_tpm
+        if value is None:  # pragma: no cover - guarded by model validation
+            raise ValueError("model capability capacity is unavailable")
+        return value
 
 
 class LlmRegistry(BaseModel):

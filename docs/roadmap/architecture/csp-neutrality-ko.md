@@ -1,8 +1,8 @@
 ---
 title: CSP-중립성 계약
 translation_of: csp-neutrality.md
-translation_source_sha: 575bf92438b602129cfead2ae64ff27b7df75629
-translation_revised: 2026-07-14
+translation_source_sha: 413d9be7aa1ee2926aede0db21ed37797a99002c
+translation_revised: 2026-07-17
 ---
 
 # CSP-중립성 계약
@@ -256,7 +256,11 @@ executor 는 런타임 서브스트레이트에서 얻은 **짧은 수명의 OID
 이 프로젝션은 이름이 지정된 아키텍처 뷰를 제공합니다. 기본 뷰는 FDAI 자체 컨트롤
 플레인이며, 추가 `application` 뷰는 FDAI가 판단하고 관찰할 수 있는 서비스를
 분리합니다. `scope=<view-id>`를 지정하면 동일한 CSP-중립 와이어 계약을 유지하면서
-해당 뷰의 경계가 제한된 리소스와 링크 집합을 반환합니다.
+해당 뷰의 경계가 제한된 리소스와 링크 집합을 반환합니다. Named-view provider는
+명시된 view id가 등록되지 않았으면 default view로 대체하지 않고 `404`를 반환합니다.
+Console은 default manifest를 다시 불러와 등록된 복구 link를 표시할 수 있습니다.
+Postgres inventory snapshot처럼 `scope`를 resource id 또는 prefix로 사용하는 provider는
+기존 resource-scoped query 동작을 유지하며 named-view not-found 계약을 사용하지 않습니다.
 
 | CSP / 서브스트레이트 | 인벤토리 소스 | Delta 소스 | 와이어 |
 |---|---|---|---|

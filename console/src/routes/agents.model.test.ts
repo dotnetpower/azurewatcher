@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AgentActivityMessage, AgentStatus } from "../hooks/use-agent-stream";
 import {
   activeAgentCount,
+  currentRuntimeCount,
   AGENT_RUNTIME_BINDING,
   AGENT_ROLE,
   agentChatContext,
@@ -27,6 +28,7 @@ function stateMsg(
     ts: "2026-07-12T00:00:00+00:00",
     correlation_id,
     detail: null,
+    source: "unknown",
   };
 }
 
@@ -45,6 +47,7 @@ function ticketMsg(
     involved_agents: ["Heimdall", "Forseti"],
     rca,
     ts: "2026-07-12T00:00:00+00:00",
+    source: "unknown",
   };
 }
 
@@ -57,20 +60,23 @@ function turnMsg(correlation_id: string): AgentActivityMessage {
     kind: "handoff",
     text: "anomaly 0.92",
     ts: "2026-07-12T00:00:00+00:00",
+    source: "unknown",
   };
 }
 
 describe("agents.model", () => {
-  it("seeds all 15 agents idle", () => {
+  it("seeds all 15 agents as unobserved", () => {
     const s = makeInitialState();
     expect(Object.keys(s.agents)).toHaveLength(15);
     expect(PANTHEON.every((a) => s.agents[a.name]?.state === "idle")).toBe(true);
+    expect(PANTHEON.every((a) => s.agents[a.name]?.observed === false)).toBe(true);
   });
 
   it("applies an agent.state transition", () => {
     let s = makeInitialState();
     s = reducer(s, { kind: "message", msg: stateMsg("Heimdall", "collecting", "inc-1") });
     expect(s.agents.Heimdall?.state).toBe("collecting");
+    expect(s.agents.Heimdall?.observed).toBe(true);
     expect(s.agents.Heimdall?.correlationId).toBe("inc-1");
   });
 
@@ -147,11 +153,17 @@ describe("agents.model", () => {
     expect(s.incidents["inc-history"]?.involved).toEqual(["Heimdall", "Forseti", "Var"]);
     expect(s.incidents["inc-live"]?.status).toBe("resolved");
     expect(s.agents.Var?.state).toBe("approving");
+    expect(s.agents.Var?.observed).toBe(true);
     expect(s.agents.Var?.correlationId).toBe("inc-history");
   });
 });
 
 describe("agents.model engagement helpers", () => {
+  it("does not claim a current runtime count after the stream closes", () => {
+    expect(currentRuntimeCount(true, 3)).toBe(3);
+    expect(currentRuntimeCount(false, 3)).toBeNull();
+  });
+
   it("distinguishes perpetual consumers from adapter and schedule driven agents", () => {
     expect(runtimeConsumerCount()).toBe(12);
     expect(AGENT_RUNTIME_BINDING.Huginn).toBe("raw ingress subscriber");
@@ -172,6 +184,7 @@ describe("agents.model engagement helpers", () => {
         ts: "2026-07-12T00:00:00+00:00",
         correlation_id: "inc-1",
         detail: "root-cause reasoning",
+        source: "runtime-observed",
       },
     });
     expect(s.agents.Forseti?.detail).toBe("root-cause reasoning");
@@ -260,6 +273,7 @@ describe("agents.model org chart + agent events", () => {
         involved_agents: ["Heimdall", "Forseti"],
         rca: null,
         ts: "2026-07-12T00:00:00+00:00",
+        source: "runtime-observed",
       },
     });
     s = reducer(s, {
@@ -274,6 +288,7 @@ describe("agents.model org chart + agent events", () => {
         involved_agents: ["Forseti", "Loki"],
         rca: null,
         ts: "2026-07-12T00:00:01+00:00",
+        source: "runtime-observed",
       },
     });
     const forseti = incidentsForAgent(s, "Forseti").map((i) => i.correlationId);
@@ -288,6 +303,7 @@ describe("agents.model org chart + agent events", () => {
       name: "Forseti",
       layer: "judge" as const,
       state: "analyzing" as const,
+      observed: true,
       correlationId: "inc-1",
       since: "2026-07-12T00:00:00+00:00",
       detail: null,
@@ -318,6 +334,7 @@ describe("agents.model org chart + agent events", () => {
       name: "Bragi",
       layer: "conversational" as const,
       state: "idle" as const,
+      observed: false,
       correlationId: null,
       since: "",
       detail: null,

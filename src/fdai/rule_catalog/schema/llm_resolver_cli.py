@@ -42,6 +42,7 @@ from fdai.rule_catalog.schema.llm_registry import load_llm_registry_from_yaml
 from fdai.rule_catalog.schema.llm_resolver import (
     CatalogQuery,
     PermissionQuery,
+    ProvisionedCapacityQuery,
     QuotaQuery,
     ResolvedModels,
     ResolverError,
@@ -216,18 +217,19 @@ class _ArgValidationError(ValueError):
 
 def _build_queries(
     args: argparse.Namespace,
-) -> tuple[CatalogQuery, PermissionQuery, QuotaQuery]:
-    """Build the three resolver queries from either fixtures or the az CLI.
+) -> tuple[CatalogQuery, PermissionQuery, QuotaQuery, ProvisionedCapacityQuery | None]:
+    """Build resolver queries from either fixtures or the Azure CLI.
 
     Two modes are mutually exclusive:
 
     - **fixture mode** (default): all three ``--*-fixture`` paths MUST
       be provided; each is JSON-decoded and wrapped in the local
       ``_Fixture*`` classes. Used by CI + offline dev.
-    - **az CLI mode** (``--use-azure-cli``): the three fixture flags
+        - **az CLI mode** (``--use-azure-cli``): the three fixture flags
       MUST be omitted; each query hits ``az cognitiveservices ...`` /
       ``az role assignment ...`` via
       :mod:`fdai.delivery.azure.llm.resolver_queries`. Requires an
+            additional Model Capacities REST query for provisioned SKU entries.
       existing ``az login`` (respects ``AZURE_CONFIG_DIR``).
     """
     fixture_flags = [args.catalog_fixture, args.permission_fixture, args.quota_fixture]
@@ -246,10 +248,16 @@ def _build_queries(
         from fdai.delivery.azure.llm.resolver_queries import (
             AzureCliCatalogQuery,
             AzureCliPermissionQuery,
+            AzureCliProvisionedCapacityQuery,
             AzureCliQuotaQuery,
         )
 
-        return AzureCliCatalogQuery(), AzureCliPermissionQuery(), AzureCliQuotaQuery()
+        return (
+            AzureCliCatalogQuery(),
+            AzureCliPermissionQuery(),
+            AzureCliQuotaQuery(),
+            AzureCliProvisionedCapacityQuery(subscription_id=args.subscription_id),
+        )
 
     catalog_data = _load_json_file(args.catalog_fixture)
     permission_data = _load_json_file(args.permission_fixture)
@@ -268,6 +276,7 @@ def _build_queries(
         _FixtureCatalog(catalog_data),
         _FixturePermission(permission_data),
         _FixtureQuota(quota_data),
+        None,
     )
 
 
@@ -321,7 +330,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     try:
-        catalog_query, permission_query, quota_query = _build_queries(args)
+        catalog_query, permission_query, quota_query, provisioned_capacity_query = _build_queries(
+            args
+        )
     except _ArgValidationError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -335,6 +346,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             catalog=catalog_query,
             permission=permission_query,
             quota=quota_query,
+            provisioned_capacity=provisioned_capacity_query,
         )
     except ResolverError as exc:
         print(f"error: {exc}", file=sys.stderr)

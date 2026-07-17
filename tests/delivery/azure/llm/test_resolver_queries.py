@@ -11,6 +11,7 @@ import pytest
 from fdai.delivery.azure.llm.resolver_queries import (
     AzureCliCatalogQuery,
     AzureCliPermissionQuery,
+    AzureCliProvisionedCapacityQuery,
     AzureCliQuotaQuery,
     AzureCliResolverError,
 )
@@ -250,4 +251,108 @@ class TestQuotaQuery:
         with pytest.raises(AzureCliResolverError):
             AzureCliQuotaQuery().available_capacity_tpm(
                 region="koreacentral", publisher="OpenAI", family="gpt-4o-mini"
+            )
+
+
+class TestProvisionedCapacityQuery:
+    def test_queries_model_version_and_live_ptu_capacity(
+        self, fake_subprocess: _FakeSubprocess
+    ) -> None:
+        fake_subprocess._responses = [
+            _CompletedProc(returncode=0, stdout=json.dumps(["2024-08-06"])),
+            _CompletedProc(
+                returncode=0,
+                stdout=json.dumps(
+                    {
+                        "value": [
+                            {
+                                "location": "koreacentral",
+                                "properties": {
+                                    "model": {
+                                        "format": "OpenAI",
+                                        "name": "gpt-4o",
+                                        "version": "2024-08-06",
+                                    },
+                                    "skuName": "ProvisionedManaged",
+                                    "availableCapacity": 30,
+                                },
+                            },
+                            {
+                                "location": "eastus",
+                                "properties": {
+                                    "model": {
+                                        "format": "OpenAI",
+                                        "name": "gpt-4o",
+                                        "version": "2024-08-06",
+                                    },
+                                    "skuName": "ProvisionedManaged",
+                                    "availableCapacity": 100,
+                                },
+                            },
+                        ]
+                    }
+                ),
+            ),
+        ]
+        query = AzureCliProvisionedCapacityQuery(
+            subscription_id="00000000-0000-0000-0000-000000000000"
+        )
+
+        first = query.available_capacity_ptu(
+            region="koreacentral",
+            publisher="OpenAI",
+            family="gpt-4o",
+            sku="ProvisionedManaged",
+        )
+        second = query.available_capacity_ptu(
+            region="koreacentral",
+            publisher="OpenAI",
+            family="gpt-4o",
+            sku="ProvisionedManaged",
+        )
+
+        assert first == second == 30
+        assert len(fake_subprocess.calls) == 2
+        rest_call = fake_subprocess.calls[1]
+        rest_url = rest_call[rest_call.index("--url") + 1]
+        assert "modelCapacities" in rest_url
+        assert "modelName=gpt-4o" in rest_url
+        assert "modelVersion=2024-08-06" in rest_url
+
+    def test_non_openai_publisher_returns_zero_without_cli(
+        self, fake_subprocess: _FakeSubprocess
+    ) -> None:
+        query = AzureCliProvisionedCapacityQuery(
+            subscription_id="00000000-0000-0000-0000-000000000000"
+        )
+
+        assert (
+            query.available_capacity_ptu(
+                region="koreacentral",
+                publisher="Anthropic",
+                family="claude-opus-4",
+                sku="ProvisionedManaged",
+            )
+            == 0
+        )
+        assert fake_subprocess.calls == []
+
+    def test_rejects_untrusted_pagination_link(self, fake_subprocess: _FakeSubprocess) -> None:
+        fake_subprocess._responses = [
+            _CompletedProc(returncode=0, stdout=json.dumps(["2024-08-06"])),
+            _CompletedProc(
+                returncode=0,
+                stdout=json.dumps({"value": [], "nextLink": "https://untrusted.example.com/next"}),
+            ),
+        ]
+        query = AzureCliProvisionedCapacityQuery(
+            subscription_id="00000000-0000-0000-0000-000000000000"
+        )
+
+        with pytest.raises(AzureCliResolverError, match="nextLink"):
+            query.available_capacity_ptu(
+                region="koreacentral",
+                publisher="OpenAI",
+                family="gpt-4o",
+                sku="ProvisionedManaged",
             )

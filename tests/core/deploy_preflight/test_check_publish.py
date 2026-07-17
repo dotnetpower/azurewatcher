@@ -11,6 +11,7 @@ from fdai.core.deploy_preflight import (
     publish_preflight_check,
 )
 from fdai.shared.contracts.models import Mode
+from fdai.shared.providers.feasibility_probe import ProbeCategory
 from fdai.shared.providers.preflight_check import (
     PreflightCheck,
     PreflightCheckPublishError,
@@ -28,6 +29,7 @@ def _report(*, mode: Mode = Mode.SHADOW) -> DeploymentReadinessReport:
         mode=mode,
         verdict=ReadinessVerdict.CLEAR,
         findings=(),
+        checked_categories=(ProbeCategory.POLICY_GUARDRAIL,),
     )
 
 

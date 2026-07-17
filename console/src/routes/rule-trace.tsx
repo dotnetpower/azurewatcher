@@ -14,7 +14,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
-import { currentRoute, routeHref } from "../router";
+import { currentRoute, navigate, routeHref } from "../router";
 
 /**
  * Rule-fire trace viewer panel. Given a correlation id, calls
@@ -53,6 +53,10 @@ interface Props {
  */
 function correlationFromRoute(): string {
   return currentRoute().search.get("correlation")?.trim() ?? "";
+}
+
+export function traceCorrelationHref(correlationId: string): string {
+  return routeHref("trace", { params: { correlation: correlationId.trim() } });
 }
 
 export function RuleTraceRoute({ client }: Props) {
@@ -118,7 +122,7 @@ export function RuleTraceRoute({ client }: Props) {
           class="form-grid inline"
           onSubmit={(e) => {
             e.preventDefault();
-            void fetchTrace();
+            navigate(traceCorrelationHref(correlationId));
           }}
         >
           <label>
@@ -126,7 +130,11 @@ export function RuleTraceRoute({ client }: Props) {
             <input
               type="text"
               value={correlationId}
-              onInput={(e) => setCorrelationId((e.target as HTMLInputElement).value)}
+              onInput={(e) => {
+                requestGeneration.current += 1;
+                setCorrelationId((e.target as HTMLInputElement).value);
+                setState({ status: "idle" });
+              }}
               required
             />
           </label>

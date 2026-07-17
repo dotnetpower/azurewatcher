@@ -12,6 +12,7 @@ from fdai.rule_catalog.schema.llm_resolver import (
     CapabilityStatus,
     CatalogQuery,
     PermissionQuery,
+    ProvisionedCapacityQuery,
     QuotaQuery,
     ResolvedCapability,
     ResolvedModels,
@@ -82,6 +83,22 @@ class _DictQuota(QuotaQuery):
     def available_capacity_tpm(self, *, region: str, publisher: str, family: str) -> int:
         del region
         return self._table.get((publisher, family), self._default)
+
+
+class _PtuCapacity(ProvisionedCapacityQuery):
+    def __init__(self, available: int) -> None:
+        self._available = available
+
+    def available_capacity_ptu(
+        self,
+        *,
+        region: str,
+        publisher: str,
+        family: str,
+        sku: str,
+    ) -> int:
+        del region, publisher, family, sku
+        return self._available
 
 
 def _default_full_quota() -> _DictQuota:
@@ -264,6 +281,71 @@ def test_quota_reduction_marks_capacity_reduced() -> None:
     assert embed.status is CapabilityStatus.CAPACITY_REDUCED
     assert embed.capacity_tpm == 50_000
     assert any("capacity_reduced" in r for r in embed.reasons)
+
+
+def test_provisioned_capacity_uses_ptu_without_tpm_conversion() -> None:
+    raw = _minimal_registry_with_provisioned_primary()
+    result = resolve(
+        registry=load_llm_registry_from_mapping(raw),
+        region=_REGION,
+        subscription_id=_SUB,
+        deployer_object_id=_OID,
+        catalog=_StaticCatalog(_families_full()),
+        permission=_AlwaysPermissionQuery(True),
+        quota=_default_full_quota(),
+        provisioned_capacity=_PtuCapacity(20),
+    )
+
+    primary = _cap(result, "t2.reasoner.primary")
+    assert primary.status is CapabilityStatus.CAPACITY_REDUCED
+    assert primary.capacity_tpm == 0
+    assert primary.capacity_unit == "ptu"
+    assert primary.capacity_value == 20
+    assert '"capacity": {' in result.to_json()
+    assert '"value": 20' in result.to_json()
+
+
+def test_provisioned_capacity_without_capacity_query_fails_closed() -> None:
+    result = resolve(
+        registry=load_llm_registry_from_mapping(_minimal_registry_with_provisioned_primary()),
+        region=_REGION,
+        subscription_id=_SUB,
+        deployer_object_id=_OID,
+        catalog=_StaticCatalog(_families_full()),
+        permission=_AlwaysPermissionQuery(True),
+        quota=_default_full_quota(),
+    )
+
+    primary = _cap(result, "t2.reasoner.primary")
+    assert primary.status is CapabilityStatus.HIL_ONLY
+    assert primary.capacity_unit == "ptu"
+    assert "provisioned_capacity_query_unavailable" in primary.reasons
+
+
+def _minimal_registry_with_provisioned_primary() -> dict[str, Any]:
+    raw = {
+        "schema_version": "1.0.0",
+        "models": {
+            "t1.embedding": {
+                "preferences": [{"publisher": "OpenAI", "family": "text-embedding-3-small"}],
+                "capacity_tpm": 100_000,
+            },
+            "t1.judge": {
+                "preferences": [{"publisher": "OpenAI", "family": "gpt-4o-mini"}],
+                "capacity_tpm": 40_000,
+            },
+            "t2.reasoner.primary": {
+                "preferences": [{"publisher": "OpenAI", "family": "gpt-4o"}],
+                "sku": "ProvisionedManaged",
+                "capacity_ptu": 30,
+            },
+            "t2.reasoner.secondary": {
+                "preferences": [{"publisher": "Anthropic", "family": "claude-opus-4"}],
+                "capacity_tpm": 10_000,
+            },
+        },
+    }
+    return raw
 
 
 def test_quota_below_min_ratio_marks_hil_only() -> None:

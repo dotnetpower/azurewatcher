@@ -19,6 +19,7 @@ import {
 } from "../panels";
 import { panelPath } from "../router";
 import { groupIcon, settingsIcon } from "./rail-icons";
+import { Tooltip } from "./tooltip";
 
 interface Props {
   readonly activePanelId: string;
@@ -239,26 +240,27 @@ export function NavigationShell({ activePanelId, principalId, devMode }: Props) 
       : group.label;
     return (
       <li key={group.id}>
-        <button
-          ref={(element) => { groupRefs.current.set(group.id, element); }}
-          type="button"
-          class={`activity-bar-button ${selected ? "active" : ""}`}
-          aria-label={label}
-          aria-pressed={selected && preferences.explorerOpen}
-          title={label}
-          onClick={() => selectGroup(group.id)}
-          onKeyDown={(event) => {
-            if (event.key === "ArrowDown") {
-              event.preventDefault();
-              focusGroup(group.id, 1);
-            } else if (event.key === "ArrowUp") {
-              event.preventDefault();
-              focusGroup(group.id, -1);
-            }
-          }}
-        >
-          <span aria-hidden="true">{groupIcon(group.id)}</span>
-        </button>
+        <Tooltip content={label} placement="right">
+          <button
+            ref={(element) => { groupRefs.current.set(group.id, element); }}
+            type="button"
+            class={`activity-bar-button ${selected ? "active" : ""}`}
+            aria-label={label}
+            aria-pressed={selected && preferences.explorerOpen}
+            onClick={() => selectGroup(group.id)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                focusGroup(group.id, 1);
+              } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                focusGroup(group.id, -1);
+              }
+            }}
+          >
+            <span aria-hidden="true">{groupIcon(group.id)}</span>
+          </button>
+        </Tooltip>
       </li>
     );
   };
@@ -273,16 +275,17 @@ export function NavigationShell({ activePanelId, principalId, devMode }: Props) 
           {visibleGroups.filter((group) => group.placement === "bottom").map(renderGroupButton)}
           {bottomRailPanels().map((panel) => (
             <li key={panel.id}>
-              <a
-                href={panelPath(panel.id)}
-                class={`activity-bar-button ${activePanelId === panel.id ? "active" : ""}`}
-                aria-label={panel.label}
-                aria-current={activePanelId === panel.id ? "page" : undefined}
-                title={panel.label}
-                onClick={() => setExplorerOpen(false)}
-              >
-                <span aria-hidden="true">{panel.id === "settings" ? settingsIcon() : null}</span>
-              </a>
+              <Tooltip content={panel.label} placement="right">
+                <a
+                  href={panelPath(panel.id)}
+                  class={`activity-bar-button ${activePanelId === panel.id ? "active" : ""}`}
+                  aria-label={panel.label}
+                  aria-current={activePanelId === panel.id ? "page" : undefined}
+                  onClick={() => setExplorerOpen(false)}
+                >
+                  <span aria-hidden="true">{panel.id === "settings" ? settingsIcon() : null}</span>
+                </a>
+              </Tooltip>
             </li>
           ))}
         </ul>
@@ -295,19 +298,20 @@ export function NavigationShell({ activePanelId, principalId, devMode }: Props) 
             <small>{selectedMeta.hint}</small>
           </div>
           <div ref={menuRef} class="navigation-more-wrap">
-            <button
-              type="button"
-              class="navigation-icon-button"
-              aria-label={t("nav.moreActions")}
-              aria-expanded={menuOpen}
-              title={t("nav.moreActions")}
-              onClick={(event) => {
-                event.stopPropagation();
-                setMenuOpen((open) => !open);
-              }}
-            >
-              ...
-            </button>
+            <Tooltip content={t("nav.moreActions")} placement="bottom">
+              <button
+                type="button"
+                class="navigation-icon-button"
+                aria-label={t("nav.moreActions")}
+                aria-expanded={menuOpen}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMenuOpen((open) => !open);
+                }}
+              >
+                ...
+              </button>
+            </Tooltip>
             {menuOpen ? (
               <div class="navigation-more-menu" role="menu">
                 <button type="button" role="menuitem" onClick={() => { setEditing(true); setMenuOpen(false); }}>
@@ -334,22 +338,23 @@ export function NavigationShell({ activePanelId, principalId, devMode }: Props) 
                     class={`navigation-row ${panel.id === activePanelId ? "active" : ""}`}
                   >
                     {editing ? (
-                      <button
-                        type="button"
-                        class="navigation-drag-handle"
-                        aria-label={t("nav.reorder", { panel: panel.label })}
-                        title={t("nav.reorderHint")}
-                        onPointerDown={(event) => startDrag(event, panel.id)}
-                        onKeyDown={(event) => {
-                          if (!event.altKey) return;
-                          if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-                            event.preventDefault();
-                            movePanel(panel.id, event.key === "ArrowUp" ? -1 : 1);
-                          }
-                        }}
-                      >
-                        <span aria-hidden="true">::</span>
-                      </button>
+                      <Tooltip content={t("nav.reorderHint")} placement="right">
+                        <button
+                          type="button"
+                          class="navigation-drag-handle"
+                          aria-label={t("nav.reorder", { panel: panel.label })}
+                          onPointerDown={(event) => startDrag(event, panel.id)}
+                          onKeyDown={(event) => {
+                            if (!event.altKey) return;
+                            if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                              event.preventDefault();
+                              movePanel(panel.id, event.key === "ArrowUp" ? -1 : 1);
+                            }
+                          }}
+                        >
+                          <span aria-hidden="true">::</span>
+                        </button>
+                      </Tooltip>
                     ) : null}
                     <a
                       href={panelPath(panel.id)}
@@ -359,16 +364,22 @@ export function NavigationShell({ activePanelId, principalId, devMode }: Props) 
                       {panel.label}
                     </a>
                     {editing ? (
-                      <button
-                        type="button"
-                        class="navigation-row-action"
-                        disabled={panel.id === activePanelId}
-                        aria-label={t("nav.hidePanel", { panel: panel.label })}
-                        title={panel.id === activePanelId ? t("nav.hideActiveDisabled") : t("nav.hidePanel", { panel: panel.label })}
-                        onClick={() => hidePanel(panel.id)}
+                      <Tooltip
+                        content={panel.id === activePanelId
+                          ? t("nav.hideActiveDisabled")
+                          : t("nav.hidePanel", { panel: panel.label })}
+                        placement="left"
                       >
-                        <span aria-hidden="true">⊘</span>
-                      </button>
+                        <button
+                          type="button"
+                          class="navigation-row-action"
+                          disabled={panel.id === activePanelId}
+                          aria-label={t("nav.hidePanel", { panel: panel.label })}
+                          onClick={() => hidePanel(panel.id)}
+                        >
+                          <span aria-hidden="true">⊘</span>
+                        </button>
+                      </Tooltip>
                     ) : null}
                   </li>
                 );
@@ -384,15 +395,16 @@ export function NavigationShell({ activePanelId, principalId, devMode }: Props) 
                   {hiddenPanels.map((panel) => (
                     <li key={panel.id} class="navigation-row hidden">
                       <span>{panel.label}</span>
-                      <button
-                        type="button"
-                        class="navigation-row-action"
-                        aria-label={t("nav.showPanel", { panel: panel.label })}
-                        title={t("nav.showPanel", { panel: panel.label })}
-                        onClick={() => showPanel(panel.id)}
-                      >
-                        <span aria-hidden="true">↶</span>
-                      </button>
+                      <Tooltip content={t("nav.showPanel", { panel: panel.label })} placement="left">
+                        <button
+                          type="button"
+                          class="navigation-row-action"
+                          aria-label={t("nav.showPanel", { panel: panel.label })}
+                          onClick={() => showPanel(panel.id)}
+                        >
+                          <span aria-hidden="true">↶</span>
+                        </button>
+                      </Tooltip>
                     </li>
                   ))}
                 </ul>

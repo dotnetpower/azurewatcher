@@ -318,6 +318,12 @@ recommendations; a fork tunes them via Conditional Access.
 - **Sign-out**: `/logout?post_logout_redirect_uri=...` clears both console session and the
   Entra session for the tenant.
 
+> **Local development**: When the local login chooser exposes the dev bypass, the console
+> first calls a core read endpoint without a token. It stores the session-scoped bypass only
+> after that probe succeeds. A `401` or `403` keeps the chooser open and directs the operator
+> to Entra sign-in, so an auth-enforcing local API cannot be entered as a broken anonymous
+> session.
+
 ```mermaid
 sequenceDiagram
   actor U as User

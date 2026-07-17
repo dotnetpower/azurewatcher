@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
@@ -28,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[3]
 NOW = datetime(2026, 7, 16, 7, 0, tzinfo=UTC)
 
 
-def _fixture() -> tuple[TestClient, str]:
+def _fixture(*, projector: object | None = None) -> tuple[TestClient, str]:
     registry = PackageResourceSchemaRegistry()
     actions = load_action_type_catalog(
         ROOT / "rule-catalog" / "action-types", schema_registry=registry
@@ -53,6 +54,7 @@ def _fixture() -> tuple[TestClient, str]:
         bindings=InMemoryWorkflowBindingStore(),
         schema_registry=registry,
         action_types=tuple(actions),
+        ontology_projector=projector,  # type: ignore[arg-type]
     )
 
     async def authorize(_request) -> str:
@@ -88,6 +90,30 @@ def test_binding_requires_confirmation_and_uses_authenticated_principal() -> Non
     duplicate = client.post("/workflows/bindings", json={**body, "confirmed": True})
     assert duplicate.status_code == 409
     assert "equivalent" in duplicate.text
+
+
+def test_projection_failure_does_not_reverse_committed_binding_mutations() -> None:
+    projector = MagicMock()
+    projector.project_workflow_binding = AsyncMock(side_effect=RuntimeError("projection down"))
+    projector.delete = AsyncMock(side_effect=RuntimeError("projection down"))
+    client, definition_id = _fixture(projector=projector)
+    body = {
+        "confirmed": True,
+        "definition_id": definition_id,
+        "trigger": "schedule",
+        "cron_expression": "0 7 * * *",
+        "timezone": "Asia/Seoul",
+    }
+
+    created = client.post("/workflows/bindings", json=body)
+    assert created.status_code == 201
+    binding_id = created.json()["binding_id"]
+    assert [
+        item["binding_id"] for item in client.get("/workflows/definitions").json()["bindings"]
+    ] == [binding_id]
+
+    assert client.delete(f"/workflows/bindings/{binding_id}").status_code == 204
+    assert client.get("/workflows/definitions").json()["bindings"] == []
 
 
 def test_custom_definition_cannot_reference_unknown_action_type() -> None:

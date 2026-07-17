@@ -25,14 +25,16 @@ import {
   EmptyState,
   PageHeader,
   StatusPill,
+  UnavailableState,
   type AsyncState,
   type PillKind,
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, agentTerm, composeGlossary } from "../deck/glossary";
 import { agentStreamDescriptor, useAgentStream, type AgentStreamStatus } from "../hooks/use-agent-stream";
+import { observationSourceLabel, type ObservationSource } from "../hooks/observation-source";
 import { t } from "../i18n";
-import { currentRoute, navigate, routeHref } from "../router";
+import { currentRoute, navigate, replaceRouteState, routeHref } from "../router";
 import {
   ActivityToolbar,
   filterAgentActivity,
@@ -143,6 +145,13 @@ function humanizeActor(actor: string): string {
 /** True when the label is one of the 15 fixed pantheon agents. */
 function isKnownAgent(label: string): boolean {
   return label in AGENT_LAYER;
+}
+
+export function isAgentActivitySelectionValid(
+  selected: string | null,
+  observedAgents: readonly string[],
+): boolean {
+  return selected === null || isKnownAgent(selected) || observedAgents.includes(selected);
 }
 
 export function layerOf(agent: string): string {
@@ -323,7 +332,7 @@ function activityFiltersFromRoute(): ActivityFilters {
   const layer = search.get("layer");
   const verb = search.get("verb");
   return {
-    window: window === "15m" || window === "24h" || window === "7d" ? window : "1h",
+    window: window === "15m" || window === "1h" || window === "7d" ? window : "24h",
     layer: layer === "governance" || layer === "pipeline" || layer === "domain" ? layer : "all",
     verb: verb === "execute" || verb === "approve" || verb === "reject" ||
       verb === "rollback" || verb === "abstain" || verb === "audit" ? verb : "all",
@@ -372,7 +381,7 @@ export function AgentActivityRoute({ client }: Props) {
     };
   }, [client]);
 
-  const { status: streamStatus } = useAgentStream({
+  const { status: streamStatus, source: streamSource } = useAgentStream({
     url: stream.url,
     getAuthorizationHeader: client.authorizationHeader,
     onEvent: (message) => {
@@ -390,9 +399,7 @@ export function AgentActivityRoute({ client }: Props) {
       <AgentWorkspaceNav />
       <PageHeader
         title={t("route.agentActivity")}
-        subtitle={stream.source === "local"
-          ? "Local live state plus its per-agent audit projection. The stream is quiet unless scenario replay is explicitly enabled."
-          : "Per-agent runtime state and audit timeline - which agent did what, when, and how. Read-only projection of the configured event stream."}
+        subtitle="Per-agent runtime state and audit timeline - which agent did what, when, and how. Read-only projection with frame-owned source provenance."
       />
       <AsyncBoundary state={state} resourceLabel="agent activity">
         {(data) => (
@@ -400,7 +407,7 @@ export function AgentActivityRoute({ client }: Props) {
             data={data}
             runtime={runtime}
             streamStatus={streamStatus}
-            streamSource={stream.source}
+            streamSource={streamSource}
             liveAgents={activeAgentCount(runtime)}
             lastEventAt={lastEventAt}
             refreshing={refreshing}
@@ -415,7 +422,7 @@ interface BodyProps {
   readonly data: Data;
   readonly runtime: AgentsState;
   readonly streamStatus: AgentStreamStatus;
-  readonly streamSource: "local" | "live";
+  readonly streamSource: ObservationSource;
   readonly liveAgents: number;
   readonly lastEventAt: string | null;
   readonly refreshing: boolean;
@@ -471,7 +478,7 @@ function ActivityBody({
         agent,
         view: nextView === "activity" ? null : nextView,
         step: nextView === "waterfall" ? currentRoute().search.get("step") : null,
-        window: filters.window === "1h" ? null : filters.window,
+        window: filters.window === "24h" ? null : filters.window,
         layer: filters.layer === "all" ? null : filters.layer,
         verb: filters.verb === "all" ? null : filters.verb,
         q: filters.query || null,
@@ -484,13 +491,18 @@ function ActivityBody({
         agent: selected,
         view: view === "activity" ? null : view,
         step: view === "waterfall" ? currentRoute().search.get("step") : null,
-        window: next.window === "1h" ? null : next.window,
+        window: next.window === "24h" ? null : next.window,
         layer: next.layer === "all" ? null : next.layer,
         verb: next.verb === "all" ? null : next.verb,
         q: next.query || null,
       },
     });
-    navigate(href, next.query !== filters.query);
+    if (next.query !== filters.query) {
+      setFilters(next);
+      replaceRouteState(href);
+      return;
+    }
+    navigate(href);
   };
 
   // Newest first: the audit projection already returns newest-first, so
@@ -519,6 +531,10 @@ function ActivityBody({
         ? filtered
         : filtered.filter((item) => agentOf(item) === selected),
     [filtered, selected],
+  );
+  const selectionValid = isAgentActivitySelectionValid(
+    selected,
+    perAgent.map(([agent]) => agent),
   );
   const selectedNode = selected ? runtime.agents[selected] : undefined;
   const selectedIncidents = useMemo(
@@ -557,7 +573,7 @@ function ActivityBody({
         { key: "filter", value: selected ?? "all", group: "page" },
         { key: "older_available", value: data.olderAvailable, group: "page" },
         { key: "stream_status", value: streamStatus, group: "runtime" },
-        { key: "stream_source", value: streamSource, group: "runtime" },
+        { key: "stream_source", value: observationSourceLabel(streamSource), group: "runtime" },
         { key: "live_agents", value: liveAgents, group: "runtime" },
         { key: "window", value: filters.window, group: "filters" },
         { key: "layer", value: filters.layer, group: "filters" },
@@ -619,6 +635,9 @@ function ActivityBody({
         lastEventAt={lastEventAt}
         refreshing={refreshing}
       />
+      {!selectionValid && selected ? (
+        <UnavailableState message={`Agent ${selected} is not in the fixed pantheon or the loaded audit activity.`} />
+      ) : null}
       {selectedNode ? (
         <LiveAgentActivity
           node={selectedNode}
@@ -654,7 +673,7 @@ function ActivityBody({
             <span class="agent-chip-count">{count}</span>
           </button>
         ))}
-        {selected && !perAgent.some(([agent]) => agent === selected) ? (
+        {selectionValid && selected && !perAgent.some(([agent]) => agent === selected) ? (
           <button
             type="button"
             class="agent-chip agent-chip-on"
@@ -688,7 +707,7 @@ function ActivityBody({
         </button>
       </div>
 
-      {visible.length === 0 ? (
+      {!selectionValid ? null : visible.length === 0 ? (
         <EmptyState
           title={selected ? `No recorded audit activity for ${selected}` : "No activity matches these filters"}
           body={selected
@@ -723,12 +742,14 @@ function LiveAgentActivity({
     <section class="aa-selected-agent" aria-label={`${node.name} live activity`}>
       <header>
         <div>
-          <span>Live now</span>
+          <span>{node.observed ? "Live now" : "Runtime not observed"}</span>
           <h3>{node.name} <small>{role?.title ?? node.layer}</small></h3>
         </div>
-        <span class={`aa-selected-state state-${node.state}`}>{node.state}</span>
+        <span class={`aa-selected-state state-${node.observed ? node.state : "unobserved"}`}>
+          {node.observed ? node.state : "unobserved"}
+        </span>
       </header>
-      <p>{node.detail ?? STATE_TASK[node.state]}</p>
+      <p>{node.observed ? node.detail ?? STATE_TASK[node.state] : "No runtime signal observed for this agent."}</p>
       <dl>
         <div><dt>Stream</dt><dd>{streamStatus}</dd></div>
         <div><dt>Active incident</dt><dd>{activeIncident?.ticketId ?? node.correlationId ?? "None"}</dd></div>
@@ -887,7 +908,7 @@ function Waterfall({
         agent: selected,
         view: "waterfall",
         step,
-        window: filters.window === "1h" ? null : filters.window,
+        window: filters.window === "24h" ? null : filters.window,
         layer: filters.layer === "all" ? null : filters.layer,
         verb: filters.verb === "all" ? null : filters.verb,
         q: filters.query || null,

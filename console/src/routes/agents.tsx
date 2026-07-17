@@ -17,13 +17,15 @@ import type { ReadApiClient } from "../api";
 import { AgentWorkspaceNav } from "../components/agent-workspace-nav";
 import { UnavailableState } from "../components/ui";
 import { agentStreamDescriptor, useAgentStream } from "../hooks/use-agent-stream";
-import { currentRoute, navigate, routeHref } from "../router";
+import { observationSourceLabel, type ObservationSource } from "../hooks/observation-source";
+import { currentRoute, navigate, replaceRouteState, routeHref } from "../router";
 import { usePublishViewContext } from "../deck/context";
 import { agentTerm, composeGlossary, TERMS } from "../deck/glossary";
 import { openDeckWithPrompt, openDeckWithContext } from "../deck/open-deck";
 import {
   PANTHEON,
   activeAgentCount,
+  currentRuntimeCount,
   AGENT_RUNTIME_BINDING,
   AGENT_ROLE,
   agentChatContext,
@@ -74,7 +76,7 @@ const INCIDENT_PREVIEW = 10;
 
 type AgentLayout = "roster" | "constellation" | "org";
 type RosterLayer = "all" | "governance" | "pipeline" | "domain";
-type RosterState = "all" | "engaged" | "watching" | "idle";
+type RosterState = "all" | "engaged" | "watching" | "idle" | "unobserved";
 
 const GOVERNANCE_AGENTS = new Set(["Odin", "Mimir", "Muninn", "Saga", "Norns"]);
 const DOMAIN_AGENTS = new Set(["Njord", "Freyr", "Loki"]);
@@ -90,6 +92,23 @@ function layoutFromRoute(): AgentLayout {
   return view === "org" || view === "constellation" ? view : "roster";
 }
 
+function rosterFiltersFromRoute(): {
+  readonly layer: RosterLayer;
+  readonly state: RosterState;
+  readonly query: string;
+} {
+  const search = currentRoute().search;
+  const layer = search.get("layer");
+  const state = search.get("state");
+  return {
+    layer: layer === "governance" || layer === "pipeline" || layer === "domain" ? layer : "all",
+    state: state === "engaged" || state === "watching" || state === "idle" || state === "unobserved"
+      ? state
+      : "all",
+    query: search.get("q") ?? "",
+  };
+}
+
 function stateTime(iso: string): string {
   if (!iso) return "No signal yet";
   const value = new Date(iso);
@@ -103,6 +122,7 @@ function stateTime(iso: string): string {
 }
 
 function currentTask(node: AgentNode): string {
+  if (!node.observed) return "No runtime signal observed";
   const binding = AGENT_RUNTIME_BINDING[node.name];
   if (
     node.state === "idle" &&
@@ -111,6 +131,14 @@ function currentTask(node: AgentNode): string {
     return "Subscribed and waiting for events";
   }
   return node.detail ?? STATE_TASK[node.state];
+}
+
+function agentStateLabel(node: AgentNode): string {
+  return node.observed ? (_STATE_LABEL[node.state] ?? node.state) : "unobserved";
+}
+
+function agentStateClass(node: AgentNode): string {
+  return node.observed ? node.state : "unobserved";
 }
 
 /**
@@ -153,6 +181,7 @@ function centroid(points: readonly Point[]): Point | null {
 
 export function AgentsRoute({ client }: Props) {
   const initialRoute = currentRoute();
+  const initialRosterFilters = rosterFiltersFromRoute();
   const [state, dispatch] = useReducer(reducer, undefined, makeInitialState);
   const [selectedId, setSelectedId] = useState<string | null>(
     initialRoute.search.get("correlation"),
@@ -161,7 +190,7 @@ export function AgentsRoute({ client }: Props) {
 
   const stream = useMemo(agentStreamDescriptor, []);
 
-  const { status } = useAgentStream({
+  const { status, source: streamSource } = useAgentStream({
     url: stream.url,
     getAuthorizationHeader: client.authorizationHeader,
     onEvent: (msg) => dispatch({ kind: "message", msg }),
@@ -200,9 +229,9 @@ export function AgentsRoute({ client }: Props) {
   // Defaults to the org chart so the pantheon's roles + reporting lines are
   // the first thing an operator sees.
   const [layout, setLayout] = useState<AgentLayout>(layoutFromRoute);
-  const [rosterLayer, setRosterLayer] = useState<RosterLayer>("all");
-  const [rosterState, setRosterState] = useState<RosterState>("all");
-  const [rosterQuery, setRosterQuery] = useState("");
+  const [rosterLayer, setRosterLayer] = useState<RosterLayer>(initialRosterFilters.layer);
+  const [rosterState, setRosterState] = useState<RosterState>(initialRosterFilters.state);
+  const [rosterQuery, setRosterQuery] = useState(initialRosterFilters.query);
 
   // Agent the operator clicked to focus - drives the "what events is this
   // agent in" side panel. Independent from the selected incident.
@@ -223,6 +252,10 @@ export function AgentsRoute({ client }: Props) {
       setPinned(correlation !== null);
       setSelectedAgent(route.search.get("agent"));
       setLayout(layoutFromRoute());
+      const filters = rosterFiltersFromRoute();
+      setRosterLayer(filters.layer);
+      setRosterState(filters.state);
+      setRosterQuery(filters.query);
     };
     window.addEventListener("popstate", sync);
     window.addEventListener("fdai:route-changed", sync);
@@ -242,8 +275,37 @@ export function AgentsRoute({ client }: Props) {
         view: nextLayout === "roster" ? null : nextLayout,
         agent,
         correlation,
+        layer: rosterLayer === "all" ? null : rosterLayer,
+        state: rosterState === "all" ? null : rosterState,
+        q: rosterQuery || null,
       },
     }));
+  };
+
+  const openRosterFilters = (
+    layer: RosterLayer,
+    stateFilter: RosterState,
+    query: string,
+    replace = false,
+  ): void => {
+    const href = routeHref("agents", {
+      params: {
+        view: layout === "roster" ? null : layout,
+        agent: selectedAgent,
+        correlation: selectedId,
+        layer: layer === "all" ? null : layer,
+        state: stateFilter === "all" ? null : stateFilter,
+        q: query || null,
+      },
+    });
+    if (replace) {
+      setRosterLayer(layer);
+      setRosterState(stateFilter);
+      setRosterQuery(query);
+      replaceRouteState(href);
+      return;
+    }
+    navigate(href);
   };
 
   const selectLayout = (nextLayout: AgentLayout): void => {
@@ -257,7 +319,8 @@ export function AgentsRoute({ client }: Props) {
     [selected],
   );
 
-  const active = activeAgentCount(state);
+  const runtimeCurrent = status === "open";
+  const active = currentRuntimeCount(runtimeCurrent, activeAgentCount(state));
   const rosterAgents = useMemo(() => {
     const query = rosterQuery.trim().toLocaleLowerCase();
     return PANTHEON
@@ -266,25 +329,34 @@ export function AgentsRoute({ client }: Props) {
       .filter((node) => rosterLayer === "all" || rosterLayerOf(node.name) === rosterLayer)
       .filter((node) => {
         if (rosterState === "all") return true;
-        if (rosterState === "engaged") return isEngaged(node);
-        return node.state === rosterState;
+        if (rosterState === "engaged") return runtimeCurrent && isEngaged(node);
+        if (rosterState === "unobserved") return !node.observed;
+        return node.observed && node.state === rosterState;
       })
       .filter((node) => {
         if (!query) return true;
         const role = AGENT_ROLE[node.name];
-        return [node.name, node.state, node.detail, role?.title, STATE_TASK[node.state]]
+        return [node.name, agentStateLabel(node), node.detail, role?.title, currentTask(node)]
           .filter(Boolean)
           .join(" ")
           .toLocaleLowerCase()
           .includes(query);
       });
-  }, [state.agents, rosterLayer, rosterState, rosterQuery]);
-  const watching = Object.values(state.agents).filter((node) => node.state === "watching").length;
-  const idle = Object.values(state.agents).filter((node) => node.state === "idle").length;
+  }, [runtimeCurrent, state.agents, rosterLayer, rosterState, rosterQuery]);
+  const watching = currentRuntimeCount(runtimeCurrent, Object.values(state.agents).filter(
+    (node) => node.observed && node.state === "watching",
+  ).length);
+  const idle = currentRuntimeCount(runtimeCurrent, Object.values(state.agents).filter(
+    (node) => node.observed && node.state === "idle",
+  ).length);
+  const unobserved = Object.values(state.agents).filter((node) => !node.observed).length;
 
   // Agents currently co-engaged, grouped by the incident they work on.
   // Drives the connection lines: one group == one ticket == one link mesh.
-  const groups = useMemo(() => engagedGroups(state), [state.agents, state.incidents]);
+  const groups = useMemo(
+    () => runtimeCurrent ? engagedGroups(state) : [],
+    [runtimeCurrent, state.agents, state.incidents],
+  );
 
   // Which agent the pointer is over - emphasises its links and shows the
   // hover card. Kept in state (not just CSS) so the SVG links react too.
@@ -342,7 +414,7 @@ export function AgentsRoute({ client }: Props) {
       ]),
       headline: selected
         ? `${selected.title} (${selected.status}) - ${selected.involved.length} agent(s), ${selected.turns.length} turn(s)`
-        : `${state.incidentOrder.length} incident(s) - ${active} agent(s) engaged`,
+        : `${state.incidentOrder.length} incident(s) - ${active ?? "unknown"} agent(s) engaged`,
       capturedAt: new Date().toISOString(),
       facts: [
         { key: "incidents", value: state.incidentOrder.length, group: "page" },
@@ -355,8 +427,8 @@ export function AgentsRoute({ client }: Props) {
         selected_agent: selectedAgentNode
           ? [{
               agent: selectedAgentNode.name,
-              state: selectedAgentNode.state,
-              task: selectedAgentNode.detail ?? STATE_TASK[selectedAgentNode.state],
+              state: agentStateLabel(selectedAgentNode),
+              task: currentTask(selectedAgentNode),
               correlation_id: selectedAgentNode.correlationId,
             }]
           : [],
@@ -393,7 +465,7 @@ export function AgentsRoute({ client }: Props) {
     if (!node) return null;
     const isInvolved = involved.has(name);
     const dim = selected !== null && !isInvolved;
-    const engaged = isEngaged(node);
+    const engaged = runtimeCurrent && isEngaged(node);
     const incident = node.correlationId ? (state.incidents[node.correlationId] ?? null) : null;
     const role = AGENT_ROLE[name];
     const subLabel = layout === "org" && role ? role.title : (_STATE_LABEL[node.state] ?? node.state);
@@ -471,10 +543,10 @@ export function AgentsRoute({ client }: Props) {
           </div>
           <span class={`agents-conn conn-${status}`}>{status}</span>
           <span class="status-pill status-pill-neutral">
-            {stream.source === "local" ? "local stream" : "runtime stream"}
+            {observationSourceLabel(streamSource)}
           </span>
           <span class="agents-active">
-            <strong>{active}</strong> engaged
+            <strong>{active ?? "-"}</strong> engaged
           </span>
         </div>
       </header>
@@ -493,10 +565,12 @@ export function AgentsRoute({ client }: Props) {
           active={active}
           watching={watching}
           idle={idle}
-          streamSource={stream.source}
-          onLayerChange={setRosterLayer}
-          onStateChange={setRosterState}
-          onQueryChange={setRosterQuery}
+          unobserved={unobserved}
+          runtimeCurrent={runtimeCurrent}
+          streamSource={streamSource}
+          onLayerChange={(next) => openRosterFilters(next, rosterState, rosterQuery)}
+          onStateChange={(next) => openRosterFilters(rosterLayer, next, rosterQuery)}
+          onQueryChange={(next) => openRosterFilters(rosterLayer, rosterState, next, true)}
           onOpen={(name) => {
             setLayout("org");
             openFocus(name, selectedId, "org");
@@ -632,6 +706,8 @@ function AgentRoster({
   active,
   watching,
   idle,
+  unobserved,
+  runtimeCurrent,
   streamSource,
   onLayerChange,
   onStateChange,
@@ -643,15 +719,26 @@ function AgentRoster({
   readonly layer: RosterLayer;
   readonly stateFilter: RosterState;
   readonly query: string;
-  readonly active: number;
-  readonly watching: number;
-  readonly idle: number;
-  readonly streamSource: "local" | "live";
+  readonly active: number | null;
+  readonly watching: number | null;
+  readonly idle: number | null;
+  readonly unobserved: number;
+  readonly runtimeCurrent: boolean;
+  readonly streamSource: ObservationSource;
   readonly onLayerChange: (value: RosterLayer) => void;
   readonly onStateChange: (value: RosterState) => void;
   readonly onQueryChange: (value: string) => void;
   readonly onOpen: (name: string) => void;
 }) {
+  const recentTouches = Object.values(state.incidents).reduce(
+    (total, incident) => total + incident.involved.length,
+    0,
+  );
+  const latestSignalMs = [
+    ...Object.values(state.agents).map((agent) => new Date(agent.since).getTime()),
+    ...Object.values(state.incidents).map((incident) => new Date(incident.updatedAt).getTime()),
+  ].reduce((latest, value) => Number.isFinite(value) ? Math.max(latest, value) : latest, 0);
+  const latestSignal = latestSignalMs > 0 ? stateTime(new Date(latestSignalMs).toISOString()) : "No signal yet";
   return (
     <div class="agent-roster">
       <section class="agent-roster-note" aria-label="Roster interpretation">
@@ -660,9 +747,7 @@ function AgentRoster({
           Engaged counts agents handling a pipeline stage now, not every subscribed runtime
           loop. Idle agents wake on their topics. This console observes work; it does not
           approve or execute actions.
-          {streamSource === "local"
-            ? " Local streams are quiet by default. Scenario replay runs only when explicitly enabled; replayed items are generated examples, not Azure incidents."
-            : " Incident history comes from the durable audit projection; current work comes from the runtime stage stream."}
+          {` Live delta source: ${observationSourceLabel(streamSource)}. Incident history comes from the durable audit projection.`}
         </span>
       </section>
 
@@ -673,26 +758,33 @@ function AgentRoster({
         </div>
         <p>
           Azure Resource Graph first, ARM fallback, then immutable inventory snapshot and delta
-          events into Huginn. Deployed schedule: every 6 hours. The local harness does not run
-          Azure discovery.
+          events into Huginn. The design cadence is every 6 hours; deployment schedule status is
+          unavailable without scheduler evidence. The local harness does not run Azure discovery.
         </p>
       </section>
 
       <section class="agent-roster-summary" aria-label="Fleet summary">
         <RosterSummary
-          label="Consumers ready"
+          label="Subscriber bindings"
           value={runtimeConsumerCount()}
-          detail="EventBus + raw ingress"
+          detail="declared, not health-probed"
           kind="consumers"
         />
-        <RosterSummary label="Engaged" value={active} detail="working now" kind="engaged" />
-        <RosterSummary label="Watching" value={watching} detail="sensing signals" kind="watching" />
-        <RosterSummary label="Idle" value={idle} detail="ready to wake" kind="idle" />
+        <RosterSummary label="Engaged" value={active ?? "-"} detail={runtimeCurrent ? "working now" : "live stream unavailable"} kind="engaged" />
+        <RosterSummary label="Watching" value={watching ?? "-"} detail={runtimeCurrent ? "sensing signals" : "last state retained"} kind="watching" />
+        <RosterSummary label="Idle" value={idle ?? "-"} detail={runtimeCurrent ? "ready to wake" : "last state retained"} kind="idle" />
+        <RosterSummary label="Unobserved" value={unobserved} detail="no runtime signal" kind="idle" />
         <RosterSummary
           label="Incidents"
           value={state.incidentOrder.length}
           detail="retained collaborations"
           kind="incidents"
+        />
+        <RosterSummary
+          label="Recent touches"
+          value={recentTouches}
+          detail={`last signal ${latestSignal}`}
+          kind="activity"
         />
       </section>
 
@@ -705,7 +797,7 @@ function AgentRoster({
         />
         <RosterFilter
           label="State"
-          values={["all", "engaged", "watching", "idle"]}
+          values={["all", "engaged", "watching", "idle", "unobserved"]}
           selected={stateFilter}
           onSelect={(value) => onStateChange(value as RosterState)}
         />
@@ -824,7 +916,7 @@ function RosterSummary({
   kind,
 }: {
   readonly label: string;
-  readonly value: number;
+  readonly value: number | string;
   readonly detail: string;
   readonly kind: string;
 }) {
@@ -1073,12 +1165,19 @@ function AgentFocus({
         </span>
       </div>
       <p class="agent-focus-task">{task}</p>
-      <button type="button" class="agent-focus-chat" onClick={onChat}>
-        <span class="agent-focus-chat-glyph" aria-hidden="true">
-          {"\u25c6"}
-        </span>
-        Chat with {node.name}
-      </button>
+      <div class="agent-focus-actions">
+        <button type="button" class="agent-focus-chat" onClick={onChat}>
+          <span class="agent-focus-chat-glyph" aria-hidden="true">
+            {"\u25c6"}
+          </span>
+          Chat with {node.name}
+        </button>
+        <a href={routeHref("agent-activity", {
+          params: { agent: node.name, correlation: node.correlationId },
+        })}>
+          Activity
+        </a>
+      </div>
       <div class="agent-focus-events">
         <h4>
           Events <span class="agent-focus-count">{incidents.length}</span>

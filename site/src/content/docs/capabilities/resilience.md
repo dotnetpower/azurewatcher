@@ -1,0 +1,1 @@
+../../../../../docs/user-guide/capabilities/resilience.md

@@ -74,6 +74,7 @@ from fdai.shared.contracts.validation import (
 )
 from fdai.shared.providers.sse import SseSink
 from fdai.shared.providers.stage_publisher import (
+    ObservationSource,
     StageEvent,
     StagePublisher,
 )
@@ -106,6 +107,16 @@ class _AgentAttributingStagePublisher:
         detail = dict(event.detail or {})
         detail.setdefault("producer_principal", stage_agent(event.stage, detail))
         await self._inner.emit(replace(event, detail=detail))
+
+
+class _ReplaySourceStagePublisher:
+    """Stamp replay provenance before any wrapped consumer sees a frame."""
+
+    def __init__(self, inner: StagePublisher) -> None:
+        self._inner = inner
+
+    async def emit(self, event: StageEvent) -> None:
+        await self._inner.emit(replace(event, source=ObservationSource.REPLAY))
 
 
 class ControlLoopEmitterUnavailableError(RuntimeError):
@@ -260,6 +271,7 @@ class ControlLoopLiveEmitter(LiveEmitter):
         )
         if self.stage_publisher_wrapper is not None:
             stage_publisher = self.stage_publisher_wrapper(stage_publisher)
+        stage_publisher = _ReplaySourceStagePublisher(stage_publisher)
 
         # NOTE on risk-gate wiring.
         # The shipped risk table + shipped ActionTypes route the vast

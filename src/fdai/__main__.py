@@ -331,6 +331,24 @@ def _build_metering_store() -> Any:
     return PostgresMeteringStore(config=PostgresMeteringStoreConfig(dsn=dsn))
 
 
+def _build_model_health_sink() -> Any | None:
+    """Select append-only routing health telemetry when PostgreSQL is configured."""
+    dsn = (
+        os.environ.get("FDAI_MODEL_HEALTH_DSN", "").strip()
+        or os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
+    )
+    if not dsn:
+        return None
+    from .delivery.persistence import (
+        PostgresModelHealthTransitionSink,
+        PostgresModelHealthTransitionSinkConfig,
+    )
+
+    return PostgresModelHealthTransitionSink(
+        config=PostgresModelHealthTransitionSinkConfig(dsn=dsn)
+    )
+
+
 def _build_pattern_library() -> PatternLibrary:
     """Select the :class:`PatternLibrary` backend for this process.
 
@@ -629,6 +647,7 @@ async def _finalize_llm_bindings(
             catalog_root=_resolve_catalog_root(),
             operator_memory_store=_build_operator_memory_store(),
             metering_sink=_build_metering_store(),
+            model_health_sink=_build_model_health_sink(),
             monitor_workspace_id=monitor_workspace_id,
             prometheus_base_url=prometheus_base_url,
             prometheus_audience=prometheus_audience,

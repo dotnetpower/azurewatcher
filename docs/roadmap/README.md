@@ -116,6 +116,7 @@ build. Read the reference docs first, then the phases in order.
 |---|----------|----------------|
 | 25 | [implementation-plan.md](fork-and-sequencing/implementation-plan.md) | authoritative sequencing across all the 2026-07-06 tranche docs: the six standard-set design decisions (R1 axis derivation, R2 ConsoleTool as ActionType projection, R3 unified LlmBinding, R4 shared projection primitive, R6 operator_memory as materialized view, R7 pr_manual as a flag) and the wave plan (F -> D1 -> W1 -> W2 -> M1, plus Twin and Preflight tracks) |
 | 26 | [agent-pantheon-implementation.md](agents/agent-pantheon-implementation.md) | pantheon rollout wave plan (W0 docs -> W1 scaffolding -> W2 governance -> W3 pipeline -> W4 interface -> W5 specialists -> W6 handoff / security -> W7 workflows -> W8 KPI + promotion + degradation drills); every wave has a measurable exit gate and preserves the pantheon invariants (single-writer topics, judge != executor, Saga / Vidar hard dependency) |
+| 27 | [productization-and-extensibility.md](fork-and-sequencing/productization-and-extensibility.md) | prioritized P0/P1/P2 status matrix for install and diagnostics, bidirectional channels, trusted extensions and MCP, model and scheduler resilience, security audit, typed APIs, and the capabilities intentionally kept outside the FDAI app shape |
 
 ## Phase timeline
 

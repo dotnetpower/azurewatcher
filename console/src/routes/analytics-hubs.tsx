@@ -26,6 +26,17 @@ const OUTCOME_KEYS = [
 ] as const;
 type OutcomeKey = (typeof OUTCOME_KEYS)[number];
 
+export function measuredTierValue(
+  values: Readonly<Record<string, number>>,
+  tier: string,
+): number | null {
+  return Object.prototype.hasOwnProperty.call(values, tier) ? values[tier] ?? null : null;
+}
+
+export function formatMeasuredSavings(value: number): string {
+  return formatUsd(value);
+}
+
 function outcomeMetric(data: AutonomyPayload, key: OutcomeKey): MetricVsBaseline {
   if (key === "auto-resolution") return data.success.auto_resolution_rate;
   if (key === "human-touchpoints") return data.success.human_touchpoints_per_100;
@@ -163,7 +174,7 @@ function OutcomeBody({ data, active }: { readonly data: AnalyticsData; readonly 
 }
 
 export function ControlAssuranceRoute({ client }: Props) {
-  const state = useAnalyticsData(client);
+  const state = useAnalyticsData(client, { includeGates: true });
   return (
     <div class="stack analytics-route">
       <PageHeader title={t("analytics.assurance.title")} subtitle={t("analytics.assurance.subtitle")} />
@@ -179,6 +190,7 @@ function AssuranceBody({ data }: { readonly data: AnalyticsData }) {
   const health = overviewHealth(data.kpi, escapes, data.autonomy);
   return (
     <div class="stack">
+      {data.autonomy ? <EvidenceStrip autonomy={data.autonomy} /> : null}
       <KpiGrid>
         <KpiCard label={t("analytics.assurance.posture")} value={t(`analytics.health.${health}`)} tone={health === "healthy" ? "positive" : "warning"} />
         <KpiCard label={t("analytics.assurance.escapes")} value={escapes ?? t("analytics.unavailable")} tone={escapes === 0 ? "positive" : "warning"} />
@@ -250,7 +262,7 @@ function VerticalBody({ data, active }: { readonly data: AnalyticsData; readonly
         <KpiCard label={t("analytics.autoResolved")} value={vertical.auto_resolved} />
         <KpiCard label={t("analytics.resolutionRate")} value={formatShare(resolution)} />
         <KpiCard label={t("analytics.openRisks")} value={vertical.open_risks} tone={vertical.open_risks > 0 ? "warning" : "positive"} />
-        <KpiCard label={t("analytics.monthlySavings")} value={vertical.monthly_savings > 0 ? formatUsd(vertical.monthly_savings) : t("analytics.notApplicable")} />
+        <KpiCard label={t("analytics.monthlySavings")} value={formatMeasuredSavings(vertical.monthly_savings)} />
       </KpiGrid>
       <section class="analytics-panel">
         <h3>{t("analytics.verticals.comparison")}</h3>
@@ -311,18 +323,18 @@ export function TrustRoutingRoute({ client }: Props) {
 }
 
 function RoutingBody({ data, active }: { readonly data: AnalyticsData; readonly active: string }) {
-  const share = data.autonomy!.tier.mix[active] ?? 0;
+  const share = measuredTierValue(data.autonomy!.tier.mix, active);
   const band = data.autonomy!.tier.bands[active];
-  const count = data.kpi.by_tier[active] ?? 0;
-  const inBand = band ? share >= band[0] && share <= band[1] : null;
+  const count = measuredTierValue(data.kpi.by_tier, active);
+  const inBand = band && share !== null ? share >= band[0] && share <= band[1] : null;
   return (
     <div class="stack">
       <EvidenceStrip autonomy={data.autonomy!} />
       <KpiGrid>
-        <KpiCard label={t("analytics.routing.share")} value={formatShare(share)} />
+        <KpiCard label={t("analytics.routing.share")} value={share === null ? t("analytics.unavailable") : formatShare(share)} />
         <KpiCard label={t("analytics.routing.targetBand")} value={band ? `${Math.round(band[0] * 100)}-${Math.round(band[1] * 100)}%` : t("analytics.unavailable")} />
-        <KpiCard label={t("analytics.events")} value={count} />
-        <KpiCard label={t("analytics.status")} value={inBand === null ? t("analytics.unavailable") : inBand ? t("analytics.inBand") : t("analytics.outOfBand")} tone={inBand === false ? "warning" : "positive"} />
+        <KpiCard label={t("analytics.events")} value={count ?? t("analytics.unavailable")} />
+        <KpiCard label={t("analytics.status")} value={inBand === null ? t("analytics.unavailable") : inBand ? t("analytics.inBand") : t("analytics.outOfBand")} tone={inBand === null ? "default" : inBand ? "positive" : "warning"} />
       </KpiGrid>
       <TierTable data={data} />
       <EvidenceLinks links={[
@@ -337,9 +349,9 @@ function RoutingBody({ data, active }: { readonly data: AnalyticsData; readonly 
 function TierTable({ data }: { readonly data: AnalyticsData }) {
   const rows = TIER_KEYS.map((key) => ({
     key,
-    share: data.autonomy!.tier.mix[key] ?? 0,
+    share: measuredTierValue(data.autonomy!.tier.mix, key),
     band: data.autonomy!.tier.bands[key],
-    count: data.kpi.by_tier[key] ?? 0,
+    count: measuredTierValue(data.kpi.by_tier, key),
   }));
   const columns: readonly Column<(typeof rows)[number]>[] = [
     {
@@ -347,9 +359,9 @@ function TierTable({ data }: { readonly data: AnalyticsData }) {
       header: t("analytics.tier"),
       render: (row) => <a href={routeHref("trust-routing", { segments: [row.key] })}>{row.key.toUpperCase()}</a>,
     },
-    { key: "share", header: t("analytics.routing.share"), render: (row) => formatShare(row.share), cellClass: "num" },
+    { key: "share", header: t("analytics.routing.share"), render: (row) => row.share === null ? t("analytics.unavailable") : formatShare(row.share), cellClass: "num" },
     { key: "band", header: t("analytics.routing.targetBand"), render: (row) => row.band ? `${Math.round(row.band[0] * 100)}-${Math.round(row.band[1] * 100)}%` : "-", cellClass: "num" },
-    { key: "events", header: t("analytics.events"), render: (row) => row.count, cellClass: "num" },
+    { key: "events", header: t("analytics.events"), render: (row) => row.count ?? t("analytics.unavailable"), cellClass: "num" },
   ];
   return <DataTable columns={columns} rows={rows} keyOf={(row) => row.key} />;
 }

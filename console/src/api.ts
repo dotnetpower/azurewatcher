@@ -68,6 +68,8 @@ export class ReadApiClient {
     outcome?: string;
     vertical?: string;
     window?: string;
+    fromSeq?: number;
+    throughSeq?: number;
   } = {}): Promise<AuditPage> {
     const params = new URLSearchParams();
     if (opts.limit !== undefined) params.set("limit", String(opts.limit));
@@ -79,6 +81,8 @@ export class ReadApiClient {
     if (opts.outcome !== undefined) params.set("outcome", opts.outcome);
     if (opts.vertical !== undefined) params.set("vertical", opts.vertical);
     if (opts.window !== undefined) params.set("window", opts.window);
+      if (opts.fromSeq !== undefined) params.set("from_seq", String(opts.fromSeq));
+      if (opts.throughSeq !== undefined) params.set("through_seq", String(opts.throughSeq));
     return decodeAuditPage(await this.#get<unknown>("/audit", params));
   }
 
@@ -87,12 +91,14 @@ export class ReadApiClient {
     limit?: number;
     cursor?: string;
     vertical?: string;
+    correlationId?: string;
   } = {}): Promise<IncidentPage> {
     const params = new URLSearchParams();
     if (opts.status !== undefined) params.set("status", opts.status);
     if (opts.limit !== undefined) params.set("limit", String(opts.limit));
     if (opts.cursor !== undefined) params.set("cursor", opts.cursor);
     if (opts.vertical !== undefined) params.set("vertical", opts.vertical);
+    if (opts.correlationId !== undefined) params.set("correlation_id", opts.correlationId);
     return decodeIncidentPage(await this.#get<unknown>("/incidents", params));
   }
 
@@ -141,9 +147,10 @@ export class ReadApiClient {
     return decodeAutonomyPayload(await this.#get<unknown>("/kpi/autonomy"));
   }
 
-  async listHilQueue(opts: { limit?: number } = {}): Promise<HilQueuePage> {
+  async listHilQueue(opts: { limit?: number; query?: string } = {}): Promise<HilQueuePage> {
     const params = new URLSearchParams();
     if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+    if (opts.query !== undefined) params.set("q", opts.query);
     return decodeHilQueuePage(await this.#get<unknown>("/hil-queue", params));
   }
 
@@ -439,8 +446,10 @@ function decodeRcaCausalChain(value: unknown): RcaView["hypotheses"][number]["ca
 
 export function decodeDashboardKpi(value: unknown): DashboardKpi {
   const root = apiRecord(value, "dashboard KPI");
+  const eventCount = apiNonNegativeInteger(root, "event_count", "dashboard KPI");
+  const auditSample = decodeAuditSample(root["audit_sample"], eventCount);
   return {
-    event_count: apiNonNegativeInteger(root, "event_count", "dashboard KPI"),
+    event_count: eventCount,
     shadow_share: apiRatio(root, "shadow_share", "dashboard KPI"),
     enforce_share: apiRatio(root, "enforce_share", "dashboard KPI"),
     hil_pending: apiNonNegativeInteger(root, "hil_pending", "dashboard KPI"),
@@ -448,7 +457,27 @@ export function decodeDashboardKpi(value: unknown): DashboardKpi {
     by_outcome: apiNumberRecord(root["by_outcome"], "dashboard KPI.by_outcome"),
     by_tier: apiNumberRecord(root["by_tier"], "dashboard KPI.by_tier"),
     last_recorded_at: apiNullableString(root, "last_recorded_at", "dashboard KPI"),
+    audit_sample: auditSample,
   };
+}
+
+function decodeAuditSample(value: unknown, eventCount: number): DashboardKpi["audit_sample"] {
+  if (value === undefined || value === null) return null;
+  const sample = apiRecord(value, "dashboard KPI.audit_sample");
+  const context = "dashboard KPI.audit_sample";
+  const result = {
+    from_seq: sample["from_seq"] === null ? null : apiPositiveInteger(sample, "from_seq", context),
+    through_seq: sample["through_seq"] === null ? null : apiPositiveInteger(sample, "through_seq", context),
+    row_count: apiNonNegativeInteger(sample, "row_count", context),
+    limit: apiPositiveInteger(sample, "limit", context),
+  };
+  const empty = result.row_count === 0;
+  if (
+    result.row_count !== eventCount || result.row_count > result.limit ||
+    empty !== (result.from_seq === null && result.through_seq === null) ||
+    (!empty && result.from_seq! > result.through_seq!)
+  ) throw contractError("dashboard KPI.audit_sample is inconsistent");
+  return result;
 }
 
 export function decodeAutonomyPayload(value: unknown): AutonomyPayload {

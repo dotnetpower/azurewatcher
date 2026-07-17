@@ -45,6 +45,10 @@ interface Props {
   readonly client: ReadApiClient;
 }
 
+export function includedScopeEntryCount(entries: readonly ScopeEntry[]): number {
+  return entries.filter((entry) => entry.state === "included").length;
+}
+
 export function ScopeRoute({ client }: Props) {
   const [state, setState] = useState<AsyncState<EffectiveScope | null>>({ status: "loading" });
 
@@ -92,6 +96,8 @@ export function ScopeRoute({ client }: Props) {
 
 function ScopeBody({ data }: { readonly data: EffectiveScope }) {
   const org = useMemo(() => deriveOrg(data), [data]);
+  const monitoringCount = includedScopeEntryCount(data.monitoring.entries);
+  const actionCount = includedScopeEntryCount(data.action.entries);
 
   usePublishViewContext(
     () => ({
@@ -100,13 +106,13 @@ function ScopeBody({ data }: { readonly data: EffectiveScope }) {
       purpose: t("scope.viewPurpose"),
       glossary: composeGlossary([TERMS.mode, TERMS.gateDecision]),
       headline: t("scope.viewHeadline", {
-        monitoring: data.monitoring.entries.length,
-        action: data.action.entries.length,
+        monitoring: monitoringCount,
+        action: actionCount,
       }),
       capturedAt: new Date().toISOString(),
       facts: [
-        { key: "monitoring_entries", value: data.monitoring.entries.length, group: "scope" },
-        { key: "action_entries", value: data.action.entries.length, group: "scope" },
+        { key: "monitoring_entries", value: monitoringCount, group: "scope" },
+        { key: "action_entries", value: actionCount, group: "scope" },
         {
           key: "executor_resource_groups",
           value: data.executor_boundary.resource_groups.length,
@@ -118,7 +124,7 @@ function ScopeBody({ data }: { readonly data: EffectiveScope }) {
         action: data.action.entries.map((e) => ({ ...e })),
       },
     }),
-    [data],
+    [actionCount, data, monitoringCount],
   );
 
   return (
@@ -128,8 +134,8 @@ function ScopeBody({ data }: { readonly data: EffectiveScope }) {
         <span>Monitoring and action scope come from policy-as-code. The executor boundary remains the hard privilege ceiling.</span>
       </div>
       <KpiGrid>
-        <KpiCard label="Monitoring entries" value={data.monitoring.entries.length} hint="resources FDAI can observe" />
-        <KpiCard label="Action entries" value={data.action.entries.length} hint="resources eligible for governed action" />
+        <KpiCard label="Monitoring resources" value={monitoringCount} hint="included resources FDAI can observe" />
+        <KpiCard label="Action-eligible resources" value={actionCount} hint="included resources eligible for governed action" />
         <KpiCard
           label="Executor resource groups"
           value={data.executor_boundary.resource_groups.length}
@@ -227,13 +233,28 @@ interface DraftEntry {
   readonly resourceGroup: string;
 }
 
+type CopyState = "idle" | "copied" | "failed";
+
+export async function copyScopeArtifact(
+  clipboard: Pick<Clipboard, "writeText"> | undefined,
+  artifact: string,
+): Promise<Exclude<CopyState, "idle">> {
+  if (!clipboard) return "failed";
+  try {
+    await clipboard.writeText(artifact);
+    return "copied";
+  } catch {
+    return "failed";
+  }
+}
+
 function ScopeBuilder({ org }: { readonly org: string }) {
   const [axis, setAxis] = useState<ScopeAxisName>("action");
   const [entryState, setEntryState] = useState<ScopeEntryState>("included");
   const [subscription, setSubscription] = useState("");
   const [resourceGroup, setResourceGroup] = useState("");
   const [drafts, setDrafts] = useState<readonly DraftEntry[]>([]);
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<CopyState>("idle");
   const nextId = useRef(1);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -268,13 +289,11 @@ function ScopeBuilder({ org }: { readonly org: string }) {
   const artifact = useMemo(() => renderArtifact(org, drafts), [org, drafts]);
 
   async function copyArtifact(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(artifact);
-      setCopied(true);
-      if (copyTimer.current !== null) clearTimeout(copyTimer.current);
-      copyTimer.current = setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* clipboard unavailable - the artifact is still visible to copy by hand */
+    const result = await copyScopeArtifact(navigator.clipboard, artifact);
+    setCopyState(result);
+    if (copyTimer.current !== null) clearTimeout(copyTimer.current);
+    if (result === "copied") {
+      copyTimer.current = setTimeout(() => setCopyState("idle"), 2000);
     }
   }
 
@@ -340,8 +359,15 @@ function ScopeBuilder({ org }: { readonly org: string }) {
           <p class="muted footnote">{t("scope.artifactHint")}</p>
           <pre class="mono small entry-json">{artifact}</pre>
           <button type="button" class="btn" onClick={() => void copyArtifact()}>
-            {copied ? t("scope.copied") : t("scope.copy")}
+            {copyState === "copied"
+              ? t("scope.copied")
+              : copyState === "failed"
+                ? t("scope.copyFailed")
+                : t("scope.copy")}
           </button>
+          {copyState === "failed" ? (
+            <p class="state-error-text" role="alert">{t("scope.copyFailedHint")}</p>
+          ) : null}
         </div>
       )}
     </section>

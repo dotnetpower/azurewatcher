@@ -1,7 +1,7 @@
 ---
 title: 사용자 RBAC와 Entra 아이덴티티
 translation_of: user-rbac-and-identity.md
-translation_source_sha: 3ea7ada26ac055e09c794edc3f82614c6e0c37c8
+translation_source_sha: a9f2643b796885d3b97d9a14ad895357d0d2eb3a
 translation_revised: 2026-07-16
 ---
 
@@ -310,6 +310,11 @@ Adaptive Card, 코어 감사 writer로 전파.
   refresh는 MSAL `acquireTokenSilent` 가 관리.
 - **사인아웃**: `/logout?post_logout_redirect_uri=...` 이 콘솔 세션과 테넌트의 Entra 세션
   모두 클리어.
+
+> **로컬 개발**: 로컬 로그인 선택기에서 dev bypass를 제공할 때 콘솔은 먼저 토큰 없이
+> core read endpoint를 호출합니다. 이 probe가 성공한 경우에만 현재 세션의 bypass를
+> 저장합니다. `401` 또는 `403`이면 선택기를 유지하고 운영자에게 Entra 로그인을 안내하므로,
+> 인증을 강제하는 로컬 API에 깨진 anonymous 세션으로 진입하지 않습니다.
 
 ```mermaid
 sequenceDiagram

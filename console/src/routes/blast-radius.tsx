@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import type { ReadApiClient } from "../api";
+import { isOptionalReadApiUnavailable, type ReadApiClient } from "../api";
 import { ArchitectureMap } from "../components/architecture-map";
 import {
   architectureHref,
@@ -16,13 +16,13 @@ import {
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
-import { loadConfig } from "../config";
 import { t } from "../i18n";
-import { navigate } from "../router";
+import { currentRoute, navigate, replaceRouteState, routeHref } from "../router";
 import {
   BLAST_RADIUS_LINKS,
   blastRadiusHref,
   blastRadiusQueryFromSearch,
+  blastRadiusRequestIsCurrent,
   DEFAULT_BLAST_RADIUS_LINKS,
   type BlastRadiusQuery,
 } from "./blast-radius.model";
@@ -64,9 +64,24 @@ interface Props {
   readonly client: ReadApiClient;
 }
 
+export function blastRadiusFailure(error: unknown): AsyncState<never> {
+  if (isOptionalReadApiUnavailable(error)) {
+    return {
+      status: "unavailable",
+      message:
+        "Blast-radius simulation is not wired on this deployment. " +
+        "Configure the inventory graph provider to enable it.",
+    };
+  }
+  return {
+    status: "error",
+    message: error instanceof Error ? error.message : String(error),
+  };
+}
+
 export function BlastRadiusRoute({ client }: Props) {
   const initialQuery = blastRadiusQueryFromSearch(window.location.search);
-  const [target, setTarget] = useState(() => initialQuery.target ?? "web-api");
+  const [target, setTarget] = useState(() => initialQuery.target ?? "");
   const [architectureView, setArchitectureView] = useState(initialQuery.architectureView);
   const [depth, setDepth] = useState(initialQuery.depth);
   const [linkSet, setLinkSet] = useState<Set<string>>(() => new Set(initialQuery.links));
@@ -76,13 +91,11 @@ export function BlastRadiusRoute({ client }: Props) {
 
   useEffect(() => {
     if (initialSimulationStarted.current) return;
-    const config = loadConfig();
     const query = blastRadiusQueryFromSearch(window.location.search);
-    const hasExplicitTarget = query.target !== null;
-    if (!hasExplicitTarget && !config.devMode && !config.localAzureCliAuth) return;
+    if (query.target === null) return;
     initialSimulationStarted.current = true;
     void runSimulation({
-      target: query.target ?? target,
+      target: query.target,
       depth: query.depth,
       links: query.links,
       architectureView: query.architectureView,
@@ -93,7 +106,7 @@ export function BlastRadiusRoute({ client }: Props) {
     const sync = () => {
       requestGeneration.current += 1;
       const query = blastRadiusQueryFromSearch(window.location.search);
-      setTarget(query.target ?? "web-api");
+      setTarget(query.target ?? "");
       setDepth(query.depth);
       setLinkSet(new Set(query.links));
       setArchitectureView(query.architectureView);
@@ -108,11 +121,23 @@ export function BlastRadiusRoute({ client }: Props) {
     };
   }, []);
 
+  function syncDraft(next: BlastRadiusQuery): void {
+    requestGeneration.current += 1;
+    setState({ status: "idle" });
+    replaceRouteState(blastRadiusHref(next, currentRoute().search.get("result")));
+  }
+
   function toggleLink(name: string): void {
     setLinkSet((prev) => {
       const next = new Set(prev);
       if (next.has(name)) next.delete(name);
       else next.add(name);
+      syncDraft({
+        target: target.trim() || null,
+        depth,
+        links: [...next],
+        architectureView,
+      });
       return next;
     });
   }
@@ -134,13 +159,12 @@ export function BlastRadiusRoute({ client }: Props) {
       for (const link of query.links) params.append("link", link);
       const url = `/simulate/blast-radius?${params.toString()}`;
       const data = await client.panel<BlastRadiusResponse>(url);
-      if (requestGeneration.current === generation) setState({ status: "ready", data });
+      if (blastRadiusRequestIsCurrent(requestGeneration.current, generation)) {
+        setState({ status: "ready", data });
+      }
     } catch (err) {
-      if (requestGeneration.current === generation) {
-        setState({
-          status: "error",
-          message: err instanceof Error ? err.message : String(err),
-        });
+      if (blastRadiusRequestIsCurrent(requestGeneration.current, generation)) {
+        setState(blastRadiusFailure(err));
       }
     }
   }
@@ -171,7 +195,16 @@ export function BlastRadiusRoute({ client }: Props) {
             <input
               type="text"
               value={target}
-              onInput={(e) => setTarget((e.target as HTMLInputElement).value)}
+              onInput={(e) => {
+                const nextTarget = (e.target as HTMLInputElement).value;
+                setTarget(nextTarget);
+                syncDraft({
+                  target: nextTarget.trim() || null,
+                  depth,
+                  links: [...linkSet],
+                  architectureView,
+                });
+              }}
               required
             />
           </label>
@@ -182,7 +215,16 @@ export function BlastRadiusRoute({ client }: Props) {
               min={1}
               max={5}
               value={depth}
-              onInput={(e) => setDepth(Number((e.target as HTMLInputElement).value))}
+              onInput={(e) => {
+                const nextDepth = Number((e.target as HTMLInputElement).value);
+                setDepth(nextDepth);
+                syncDraft({
+                  target: target.trim() || null,
+                  depth: nextDepth,
+                  links: [...linkSet],
+                  architectureView,
+                });
+              }}
               required
             />
           </label>
@@ -204,7 +246,7 @@ export function BlastRadiusRoute({ client }: Props) {
           <button
             type="submit"
             class="btn primary"
-            disabled={state.status === "loading" || linkSet.size === 0}
+            disabled={state.status === "loading" || target.trim().length === 0 || linkSet.size === 0}
           >
             Simulate
           </button>
@@ -222,7 +264,17 @@ export function BlastRadiusRoute({ client }: Props) {
   );
 }
 function ReportView({ data, client, architectureView }: { readonly data: BlastRadiusResponse; readonly client: ReadApiClient; readonly architectureView: string | null }) {
-  const [view, setView] = useState<"impact" | "map" | "table">("impact");
+  const initialResult = currentRoute().search.get("result");
+  const [view, setView] = useState<"impact" | "map" | "table">(
+    initialResult === "map" || initialResult === "table" ? initialResult : "impact",
+  );
+  const selectView = (next: "impact" | "map" | "table"): void => {
+    const params = Object.fromEntries(currentRoute().search.entries());
+    setView(next);
+    replaceRouteState(routeHref("blast-radius", {
+      params: { ...params, result: next === "impact" ? null : next },
+    }));
+  };
   usePublishViewContext(
     () => ({
       routeId: "blast-radius",
@@ -320,13 +372,13 @@ function ReportView({ data, client, architectureView }: { readonly data: BlastRa
         <div class="section-header">
           <h3 class="section-title">Affected topology</h3>
           <div class="segmented-control" role="group" aria-label="Blast radius view">
-            <button type="button" class={view === "impact" ? "active" : ""} onClick={() => setView("impact")}>Impact</button>
-            <button type="button" class={view === "map" ? "active" : ""} onClick={() => setView("map")}>Map</button>
-            <button type="button" class={view === "table" ? "active" : ""} onClick={() => setView("table")}>Table</button>
+            <button type="button" class={view === "impact" ? "active" : ""} onClick={() => selectView("impact")}>Impact</button>
+            <button type="button" class={view === "map" ? "active" : ""} onClick={() => selectView("map")}>Map</button>
+            <button type="button" class={view === "table" ? "active" : ""} onClick={() => selectView("table")}>Table</button>
           </div>
         </div>
         {view === "impact" ? (
-          <BlastImpact data={data} />
+          <BlastImpact data={data} architectureView={architectureView} />
         ) : view === "map" ? (
           <BlastRadiusMap client={client} data={data} architectureView={architectureView} />
         ) : (
@@ -351,7 +403,13 @@ function ReportView({ data, client, architectureView }: { readonly data: BlastRa
     </div>
   );
 }
-function BlastImpact({ data }: { readonly data: BlastRadiusResponse }) {
+function BlastImpact({
+  data,
+  architectureView,
+}: {
+  readonly data: BlastRadiusResponse;
+  readonly architectureView: string | null;
+}) {
   const nodes = data.reached.filter((node) => node.resource_id !== data.target);
   const maxDepth = Math.max(1, data.traversal_depth);
   return (
@@ -388,11 +446,11 @@ function BlastImpact({ data }: { readonly data: BlastRadiusResponse }) {
           <span>{data.affected_count} affected</span>
         </header>
         <ol>
-          <li class="is-target"><span>0</span><a href={architectureHref(data.target)}><code>{data.target}</code></a><small>target</small></li>
+          <li class="is-target"><span>0</span><a href={architectureHref(data.target, architectureView)}><code>{data.target}</code></a><small>target</small></li>
           {data.reached.map((node) => (
             <li key={`${node.depth}:${node.resource_id}`}>
               <span>{node.depth}</span>
-              <a href={architectureHref(node.resource_id)}><code>{node.resource_id}</code></a>
+              <a href={architectureHref(node.resource_id, architectureView)}><code>{node.resource_id}</code></a>
               <small>{node.via_link_type ?? "direct"}</small>
             </li>
           ))}

@@ -5,6 +5,7 @@ import { loadConfig } from "../config";
 import { usePublishViewContext } from "../deck/context";
 import {
   IngestionApiClient,
+  IngestionApiError,
   type HandoverDraftResult,
   type IngestionCapabilities,
 } from "../ingestion-api";
@@ -23,9 +24,26 @@ interface UploadRow {
   readonly error?: string | undefined;
 }
 
+interface UploadBatchLock { current: boolean }
+
+export function claimUploadBatch(lock: UploadBatchLock): boolean {
+  if (lock.current) return false;
+  lock.current = true;
+  return true;
+}
+
+export function documentCapabilityFailure(error: unknown): string {
+  if (error instanceof IngestionApiError && (error.status === 404 || error.status === 501)) {
+    return t("documents.unavailable");
+  }
+  return error instanceof Error ? error.message : t("documents.unavailable");
+}
+
 export function DocumentIngestionRoute({ client }: Props) {
   const api = useMemo(() => new IngestionApiClient(loadConfig(), client), [client]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const uploadBatchLock = useRef(false);
+  const mounted = useRef(true);
   const [capabilities, setCapabilities] = useState<IngestionCapabilities | null>(null);
   const [capabilityError, setCapabilityError] = useState<string | null>(null);
   const [rows, setRows] = useState<readonly UploadRow[]>([]);
@@ -34,11 +52,21 @@ export function DocumentIngestionRoute({ client }: Props) {
   const [storageMode, setStorageMode] = useState("managed_copy");
   const [consent, setConsent] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => () => {
+    mounted.current = false;
+  }, []);
 
   useEffect(() => {
-    void api.capabilities().then(setCapabilities).catch((error: unknown) => {
-      setCapabilityError(error instanceof Error ? error.message : t("documents.unavailable"));
-    });
+    let cancelled = false;
+    void api.capabilities().then(
+      (value) => { if (!cancelled) setCapabilities(value); },
+      (error: unknown) => {
+        if (!cancelled) setCapabilityError(documentCapabilityFailure(error));
+      },
+    );
+    return () => { cancelled = true; };
   }, [api]);
 
   usePublishViewContext(
@@ -67,6 +95,7 @@ export function DocumentIngestionRoute({ client }: Props) {
   );
 
   const addFiles = (files: FileList | readonly File[]) => {
+    if (uploadBatchLock.current) return;
     const maxBatch = capabilities?.max_batch_count ?? 1;
     const maxSize = capabilities?.max_file_size ?? 0;
     const selected = Array.from(files).slice(0, maxBatch);
@@ -79,48 +108,77 @@ export function DocumentIngestionRoute({ client }: Props) {
   };
 
   const updateRow = (key: string, update: Partial<UploadRow>) => {
+    if (!mounted.current) return;
     setRows((current) => current.map((row) => row.key === key ? { ...row, ...update } : row));
   };
 
   const uploadAll = async () => {
     if (!capabilities || !consent || !collection.trim()) return;
-    for (const row of rows) {
-      if (row.state !== "queued") continue;
-      try {
-        updateRow(row.key, { state: "hashing", error: undefined });
-        const digest = await sha256(row.file);
-        updateRow(row.key, { state: "uploading" });
-        const created = await api.createUpload({
-          source_name: row.file.name,
-          collection_id: collection.trim(),
-          media_type_hint: row.file.type || "application/octet-stream",
-          expected_size: row.file.size,
-          expected_sha256: digest,
-          storage_mode: storageMode,
-          purposes: [purpose],
-          access_descriptor_ref: `collection:${collection.trim()}`,
-          retention_policy_version: capabilities.policy_versions[0] ?? "default",
-          reader_groups: [],
-        });
-        updateRow(row.key, { uploadId: created.session.upload_id });
-        await api.uploadContent(created.upload.target, row.file);
-        await api.completeUpload(created.session.upload_id);
-        updateRow(row.key, { state: "processing" });
-        const completed = await waitForTerminal(api, created.session.upload_id);
-        if (completed.state !== "ready" && completed.state !== "ready_with_warnings") {
-          updateRow(row.key, { state: "failed", error: completed.state });
-          continue;
+    if (!claimUploadBatch(uploadBatchLock)) return;
+    const batch = {
+      capabilities,
+      collection: collection.trim(),
+      purpose,
+      storageMode,
+    };
+    setUploading(true);
+    try {
+      for (const row of rows) {
+        if (row.state !== "queued") continue;
+        try {
+          updateRow(row.key, { state: "hashing", error: undefined });
+          const digest = await sha256(row.file);
+          if (!mounted.current) return;
+          updateRow(row.key, { state: "uploading" });
+          const created = await api.createUpload({
+            source_name: row.file.name,
+            collection_id: batch.collection,
+            media_type_hint: row.file.type || "application/octet-stream",
+            expected_size: row.file.size,
+            expected_sha256: digest,
+            storage_mode: batch.storageMode,
+            purposes: [batch.purpose],
+            access_descriptor_ref: `collection:${batch.collection}`,
+            retention_policy_version: batch.capabilities.policy_versions[0] ?? "default",
+            reader_groups: [],
+          });
+          if (!mounted.current) {
+            await api.cancel(created.session.upload_id).catch(() => undefined);
+            return;
+          }
+          updateRow(row.key, { uploadId: created.session.upload_id });
+          await api.uploadContent(created.upload.target, row.file);
+          if (!mounted.current) {
+            await api.cancel(created.session.upload_id).catch(() => undefined);
+            return;
+          }
+          await api.completeUpload(created.session.upload_id);
+          if (!mounted.current) return;
+          updateRow(row.key, { state: "processing" });
+          const completed = await waitForTerminal(
+            api,
+            created.session.upload_id,
+            () => mounted.current,
+          );
+          if (completed.state !== "ready" && completed.state !== "ready_with_warnings") {
+            updateRow(row.key, { state: "failed", error: completed.state });
+            continue;
+          }
+          const draft = batch.purpose === "handover_bootstrap"
+            ? await api.handoverDraft(created.session.upload_id)
+            : undefined;
+          if (!mounted.current) return;
+          updateRow(row.key, { state: "ready", ...(draft ? { draft } : {}) });
+        } catch (error) {
+          updateRow(row.key, {
+            state: "failed",
+            error: error instanceof Error ? error.message : t("documents.uploadFailed"),
+          });
         }
-        const draft = purpose === "handover_bootstrap"
-          ? await api.handoverDraft(created.session.upload_id)
-          : undefined;
-        updateRow(row.key, { state: "ready", ...(draft ? { draft } : {}) });
-      } catch (error) {
-        updateRow(row.key, {
-          state: "failed",
-          error: error instanceof Error ? error.message : t("documents.uploadFailed"),
-        });
       }
+    } finally {
+      uploadBatchLock.current = false;
+      if (mounted.current) setUploading(false);
     }
   };
 
@@ -138,7 +196,7 @@ export function DocumentIngestionRoute({ client }: Props) {
           <p>{t("documents.visibilityNotice", { collection: collection || t("documents.collectionFallback") })}</p>
         </div>
         <label class="document-consent">
-          <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.currentTarget.checked)} />
+          <input type="checkbox" checked={consent} disabled={uploading} onChange={(event) => setConsent(event.currentTarget.checked)} />
           <span>{t("documents.visibilityConfirm")}</span>
         </label>
       </section>
@@ -146,11 +204,11 @@ export function DocumentIngestionRoute({ client }: Props) {
       <section class="document-upload-settings" aria-label={t("documents.settings") }>
         <label>
           <span>{t("documents.collection")}</span>
-          <input value={collection} maxLength={256} onInput={(event) => { setCollection(event.currentTarget.value); setConsent(false); }} />
+          <input value={collection} maxLength={256} disabled={uploading} onInput={(event) => { setCollection(event.currentTarget.value); setConsent(false); }} />
         </label>
         <label>
           <span>{t("documents.purpose")}</span>
-          <select value={purpose} onChange={(event) => { setPurpose(event.currentTarget.value); setConsent(false); }}>
+          <select value={purpose} disabled={uploading} onChange={(event) => { setPurpose(event.currentTarget.value); setConsent(false); }}>
             <option value="knowledge_base">{t("documents.knowledgeBase")}</option>
             <option value="manual_distillation">{t("documents.manualDistillation")}</option>
             <option value="handover_bootstrap">{t("documents.handoverBootstrap")}</option>
@@ -158,7 +216,7 @@ export function DocumentIngestionRoute({ client }: Props) {
         </label>
         <label>
           <span>{t("documents.storageMode")}</span>
-          <select value={storageMode} onChange={(event) => { setStorageMode(event.currentTarget.value); setConsent(false); }}>
+          <select value={storageMode} disabled={uploading} onChange={(event) => { setStorageMode(event.currentTarget.value); setConsent(false); }}>
             {(capabilities?.storage_modes ?? ["managed_copy"]).map((mode) => <option value={mode}>{mode}</option>)}
           </select>
         </label>
@@ -170,11 +228,11 @@ export function DocumentIngestionRoute({ client }: Props) {
         onDragLeave={() => setDragging(false)}
         onDrop={(event) => { event.preventDefault(); setDragging(false); addFiles(event.dataTransfer?.files ?? []); }}
       >
-        <input ref={inputRef} type="file" multiple hidden onChange={(event) => addFiles(event.currentTarget.files ?? [])} />
+        <input ref={inputRef} type="file" multiple hidden disabled={uploading} onChange={(event) => addFiles(event.currentTarget.files ?? [])} />
         <div class="document-drop-icon" aria-hidden="true">⇧</div>
         <h3>{t("documents.dropTitle")}</h3>
         <p>{t("documents.dropHint")}</p>
-        <button type="button" class="secondary" onClick={() => inputRef.current?.click()} disabled={!capabilities}>
+        <button type="button" class="secondary" onClick={() => inputRef.current?.click()} disabled={!capabilities || uploading}>
           {t("documents.chooseFiles")}
         </button>
         <small>{t("documents.limits", { formats, size: maxSize, count: capabilities?.max_batch_count ?? "-" })}</small>
@@ -185,7 +243,7 @@ export function DocumentIngestionRoute({ client }: Props) {
         <section class="document-upload-list" aria-labelledby="document-files-title">
           <div class="document-upload-list-head">
             <h3 id="document-files-title">{t("documents.files")}</h3>
-            <button type="button" onClick={() => void uploadAll()} disabled={!consent || readyCount === 0}>
+            <button type="button" onClick={() => void uploadAll()} disabled={!consent || readyCount === 0 || uploading}>
               {t("documents.uploadFiles")}
             </button>
           </div>
@@ -213,12 +271,18 @@ export function DocumentIngestionRoute({ client }: Props) {
   );
 }
 
-async function waitForTerminal(api: IngestionApiClient, uploadId: string): Promise<import("../ingestion-api").UploadSession> {
+async function waitForTerminal(
+  api: IngestionApiClient,
+  uploadId: string,
+  active: () => boolean = () => true,
+): Promise<import("../ingestion-api").UploadSession> {
   for (let attempt = 0; attempt < 240; attempt += 1) {
+    if (!active()) throw new Error("Upload batch cancelled");
     const session = await api.status(uploadId);
     if (["ready", "ready_with_warnings", "held", "failed", "deleted"].includes(session.state)) {
       return session;
     }
+    if (!active()) throw new Error("Upload batch cancelled");
     await new Promise((resolve) => window.setTimeout(resolve, 500));
   }
   throw new Error(t("documents.processingTimeout"));

@@ -74,6 +74,7 @@ async def test_render_all_groupings() -> None:
     panel = LlmCostPanel(await _seeded_sink())
     payload = await panel.render(params={})
     assert payload["source"] == "metering"
+    assert payload["latest_occurred_at"] == "2026-07-10T09:00:00+00:00"
     assert payload["invocations"] == 3
     assert payload["total"]["cost"] == "0.50"
     assert [row["key"] for row in payload["by_conversation"]] == ["evt-a", "evt-b"]
@@ -142,6 +143,11 @@ def test_panel_metadata() -> None:
     panel = LlmCostPanel(InMemoryMeteringSink())
     assert panel.path == "/kpi/llm-cost"
     assert panel.name == "llm-cost"
+
+
+async def test_empty_metering_has_no_latest_invocation() -> None:
+    payload = await LlmCostPanel(InMemoryMeteringSink()).render(params={})
+    assert payload["latest_occurred_at"] is None
 
 
 @pytest.fixture

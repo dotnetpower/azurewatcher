@@ -14,8 +14,10 @@
 
 import {
   parseAnswerPlan,
+  parseAnswerPlanning,
   parseGroundedCodeArtifacts,
   type AnswerPlanMetadata,
+  type AnswerPlanningMetadata,
   type AnswerVerification,
   type GroundedCodeArtifact,
 } from "./backend";
@@ -49,6 +51,7 @@ export interface PersistedTurn {
   readonly revision?: number;
   readonly verification?: AnswerVerification;
   readonly answerPlan?: AnswerPlanMetadata;
+  readonly answerPlanning?: AnswerPlanningMetadata;
   readonly codeArtifacts?: readonly GroundedCodeArtifact[];
 }
 
@@ -84,6 +87,7 @@ export function serializeTurns(
         ...(typeof t.revision === "number" ? { revision: t.revision } : {}),
         ...(validVerification(t.verification) ? { verification: t.verification } : {}),
         ...(t.answerPlan ? { answerPlan: t.answerPlan } : {}),
+        ...(t.answerPlanning ? { answerPlanning: t.answerPlanning } : {}),
         ...(t.codeArtifacts && t.codeArtifacts.length > 0
           ? { codeArtifacts: t.codeArtifacts }
           : {}),
@@ -111,6 +115,7 @@ export function parseTurns(raw: string | null): PersistedTurn[] {
     if (typeof rec.text !== "string") continue;
     if (typeof rec.at !== "string") continue;
     const answerPlan = parseAnswerPlan(rec.answerPlan);
+    const answerPlanning = parseAnswerPlanning(rec.answerPlanning);
     const codeArtifacts = parseGroundedCodeArtifacts(rec.codeArtifacts);
     const turn: PersistedTurn = {
       id: rec.id,
@@ -127,6 +132,7 @@ export function parseTurns(raw: string | null): PersistedTurn[] {
         : {}),
       ...(validVerification(rec.verification) ? { verification: rec.verification } : {}),
       ...(answerPlan ? { answerPlan } : {}),
+      ...(answerPlanning ? { answerPlanning } : {}),
       ...(codeArtifacts.length > 0 ? { codeArtifacts } : {}),
     };
     out.push(turn);

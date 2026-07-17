@@ -79,6 +79,15 @@ class StagePhase(StrEnum):
     stack trace, never a secret)."""
 
 
+class ObservationSource(StrEnum):
+    """Provenance of a stage observation, not an execution attestation."""
+
+    UNKNOWN = "unknown"
+    SYNTHETIC_DEV = "synthetic-dev"
+    REPLAY = "replay"
+    RUNTIME_OBSERVED = "runtime-observed"
+
+
 @dataclass(frozen=True, slots=True)
 class StageEvent:
     """One stage-transition record.
@@ -98,6 +107,7 @@ class StageEvent:
 
     stage: StageName
     phase: StagePhase
+    source: ObservationSource = ObservationSource.UNKNOWN
 
     ts: datetime = field(default_factory=lambda: datetime.now(UTC))
     """Emission timestamp (server clock, timezone-aware UTC)."""
@@ -129,6 +139,7 @@ class StageEvent:
             "correlation_id": self.correlation_id,
             "stage": self.stage.value,
             "phase": self.phase.value,
+            "source": self.source.value,
             "ts": _iso(self.ts),
         }
         if self.detail:
@@ -176,6 +187,7 @@ def _iso(ts: datetime) -> str:
 
 __all__ = [
     "NullStagePublisher",
+    "ObservationSource",
     "StageEvent",
     "StageName",
     "StagePhase",

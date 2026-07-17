@@ -15,6 +15,7 @@
  */
 
 import { useState } from "preact/hooks";
+import { useTransientFlag } from "../hooks/use-transient-flag";
 import { t } from "../i18n";
 import type {
   AnswerPlanMetadata,
@@ -52,7 +53,7 @@ export function GroundedReply({
 }) {
   void turnId;
   const [open, setOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, showCopied] = useTransientFlag(1500);
   const cites = relevantCitations(citations ?? [], text);
   const evidenceReferences = cites.every((citation) =>
     citation.label.startsWith("evidence."));
@@ -64,8 +65,7 @@ export function GroundedReply({
   const copy = () => {
     void navigator.clipboard?.writeText(text).then(
       () => {
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1500);
+        showCopied();
       },
       () => {
         /* clipboard denied - leave the label unchanged */
@@ -82,6 +82,12 @@ export function GroundedReply({
           <span>{t(`deck.answerPlan.intent.${answerPlan.intent}`)}</span>
           <span aria-hidden="true">·</span>
           <span>{t(`deck.answerPlan.detail.${answerPlan.detail_level}`)}</span>
+          {answerPlan.preference_applied ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>{t("deck.answerPlan.preferenceApplied")}</span>
+            </>
+          ) : null}
         </div>
       ) : null}
       <div class="deck-turn-body">
@@ -108,97 +114,95 @@ export function GroundedReply({
         </div>
       ) : null}
 
-      {verification ? (
-        <div
-          class={`deck-verification is-${boundedCorrection ? "verified" : verification.status}`}
-          role="status"
-          aria-label={verificationLabel(verification)}
-          title={verificationLabel(verification)}
-        >
-          <span class="deck-verification-mark" aria-hidden="true">
-            {verification.status === "verified" ||
-            verification.status === "consistent" ||
-            boundedCorrection
-              ? "\u2713"
-              : verification.status === "corrected"
-                ? "\u21bb"
-                : "!"}
-          </span>
-          <span class="deck-verification-short">
-            {shortVerificationStatus(verification, boundedCorrection)}
-          </span>
-        </div>
-      ) : null}
+      {!streaming && (verification || text.trim().length > 0 || cites.length > 0) ? (
+        <div class="deck-gr-actions">
+          {verification ? (
+            <div
+              class={`deck-verification is-${boundedCorrection ? "verified" : verification.status}`}
+              role="status"
+              aria-label={verificationLabel(verification)}
+              title={verificationLabel(verification)}
+            >
+              <span class="deck-verification-mark" aria-hidden="true">
+                {verification.status === "verified" ||
+                verification.status === "consistent" ||
+                boundedCorrection
+                  ? "\u2713"
+                  : verification.status === "corrected"
+                    ? "\u21bb"
+                    : "!"}
+              </span>
+              <span class="deck-verification-short">
+                {shortVerificationStatus(verification, boundedCorrection)}
+              </span>
+            </div>
+          ) : null}
 
-      {verification?.semantic ? (
-        <div
-          class="deck-verification is-semantic-shadow"
-          role="note"
-          title="Experimental shadow signal; does not change the answer trust status"
-        >
-          <span class="deck-verification-mark" aria-hidden="true">S</span>
-          <span>{semanticVerificationLabel(verification.semantic)}</span>
-        </div>
-      ) : null}
+          {verification?.semantic ? (
+            <div
+              class="deck-verification is-semantic-shadow"
+              role="note"
+              title="Experimental shadow signal; does not change the answer trust status"
+            >
+              <span class="deck-verification-mark" aria-hidden="true">S</span>
+              <span>{semanticVerificationLabel(verification.semantic)}</span>
+            </div>
+          ) : null}
 
-      {!streaming && text.trim().length > 0 ? (
-        <div class="deck-gr-tools">
-          <button
-            type="button"
-            class="deck-gr-tool deck-gr-icon"
-            onClick={copy}
-            title={copied ? "Copied" : "Copy reply"}
-            aria-label="Copy reply"
-          >
-            {copied ? <IconCheck /> : <IconCopy />}
-          </button>
-          {onRegenerate ? (
+          {text.trim().length > 0 ? (
+            <>
+              <button
+                type="button"
+                class="deck-gr-tool deck-gr-icon"
+                onClick={copy}
+                title={copied ? "Copied" : "Copy reply"}
+                aria-label="Copy reply"
+              >
+                {copied ? <IconCheck /> : <IconCopy />}
+              </button>
+              {onRegenerate ? (
+                <button
+                  type="button"
+                  class="deck-gr-tool deck-gr-icon"
+                  onClick={onRegenerate}
+                  title="Ask this question again"
+                  aria-label="Regenerate"
+                >
+                  <IconRegenerate />
+                </button>
+              ) : null}
+            </>
+          ) : null}
+
+          {cites.length > 0 && verification?.status !== "unverified" ? (
             <button
               type="button"
-              class="deck-gr-tool deck-gr-icon"
-              onClick={onRegenerate}
-              title="Ask this question again"
-              aria-label="Regenerate"
+              class="deck-gr-pill"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              title={
+                evidenceReferences
+                  ? `Checked against ${cites.length} evidence reference(s)`
+                  : `Grounded on ${cites.length} source(s)`
+              }
             >
-              <IconRegenerate />
+              <span class="deck-gr-check" aria-hidden="true">{"\u2713"}</span>
+              <span>
+                <strong>{cites.length}</strong>{" "}
+                {evidenceReferences
+                  ? "evidence"
+                  : cites.length === 1
+                    ? "source"
+                    : "sources"}
+              </span>
+              <span class="deck-gr-more">{open ? "hide" : "show"}</span>
             </button>
-          ) : null}
-          {source && cites.length === 0 ? (
-            <span class="deck-gr-src deck-gr-src-inline muted" title="reply source">
-              {source}
-            </span>
           ) : null}
         </div>
       ) : null}
 
-      {!streaming && cites.length > 0 && verification?.status !== "unverified" ? (
-        <>
-          <button
-            type="button"
-            class="deck-gr-pill"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-          >
-            <span class="deck-gr-check" aria-hidden="true">
-              {"\u2713"}
-            </span>
-            <span>
-              {evidenceReferences ? "Checked against" : "Grounded on"}{" "}
-              <strong>{cites.length}</strong>{" "}
-              {evidenceReferences
-                ? cites.length === 1
-                  ? "evidence reference"
-                  : "evidence references"
-                : cites.length === 1
-                  ? "source"
-                  : "sources"}
-            </span>
-            {source ? <span class="deck-gr-src muted">{source}</span> : null}
-            <span class="deck-gr-more">{open ? "hide sources" : "show sources"}</span>
-          </button>
-
-          {open ? <SourceDetail verification={verification} cites={cites} /> : null}
-        </>
+      {!streaming && open && cites.length > 0 && verification?.status !== "unverified" ? (
+        <SourceDetail verification={verification} cites={cites} />
       ) : null}
     </div>
   );

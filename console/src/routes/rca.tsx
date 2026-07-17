@@ -16,7 +16,7 @@ import {
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
-import { routeHref } from "../router";
+import { navigate, routeHref } from "../router";
 
 /**
  * RCA (root-cause analysis) view. Given an incident correlation id, calls
@@ -36,7 +36,11 @@ interface Props {
  * The Incidents roster links here (``#/rca?correlation=...``). */
 function correlationFromHash(): string {
   const params = new URLSearchParams(window.location.search);
-  return params.get("correlation") ?? "";
+  return params.get("correlation")?.trim() ?? "";
+}
+
+export function rcaCorrelationHref(correlationId: string): string {
+  return routeHref("rca", { params: { correlation: correlationId.trim() } });
 }
 
 export function RcaRoute({ client }: Props) {
@@ -67,7 +71,12 @@ export function RcaRoute({ client }: Props) {
   useEffect(() => {
     const sync = () => {
       const deepLinked = correlationFromHash();
-      if (!deepLinked) return;
+      if (!deepLinked) {
+        requestGeneration.current += 1;
+        setCorrelationId("");
+        setState({ status: "idle" });
+        return;
+      }
       setCorrelationId(deepLinked);
       void fetchRca(deepLinked);
     };
@@ -91,7 +100,7 @@ export function RcaRoute({ client }: Props) {
           class="form-grid inline"
           onSubmit={(e) => {
             e.preventDefault();
-            void fetchRca();
+            navigate(rcaCorrelationHref(correlationId));
           }}
         >
           <label>
@@ -99,7 +108,11 @@ export function RcaRoute({ client }: Props) {
             <input
               type="text"
               value={correlationId}
-              onInput={(e) => setCorrelationId((e.target as HTMLInputElement).value)}
+              onInput={(e) => {
+                requestGeneration.current += 1;
+                setCorrelationId((e.target as HTMLInputElement).value);
+                setState({ status: "idle" });
+              }}
               required
             />
           </label>

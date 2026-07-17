@@ -35,6 +35,8 @@ class ScheduleStore(Protocol):
 
     async def mark_run(self, task_id: str, at: datetime) -> ScheduledTask: ...
 
+    async def mark_exit_event(self, event_type: str, at: datetime) -> int: ...
+
 
 class InMemoryScheduleStore:
     """Process-local schedule store - the upstream default."""
@@ -67,6 +69,14 @@ class InMemoryScheduleStore:
         updated = task.with_last_run(at)
         self._tasks[task_id] = updated
         return updated
+
+    async def mark_exit_event(self, event_type: str, at: datetime) -> int:
+        matched = 0
+        for task_id, task in tuple(self._tasks.items()):
+            if task.enabled and task.exit_event_type == event_type:
+                self._tasks[task_id] = task.with_exit_observed(at)
+                matched += 1
+        return matched
 
 
 __all__ = [

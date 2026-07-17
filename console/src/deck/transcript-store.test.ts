@@ -32,6 +32,34 @@ describe("serializeTurns", () => {
         followUps: ["Show T1"],
         terminal: true,
         revision: 1,
+        answerPlanning: {
+          mode: "shadow" as const,
+          status: "completed" as const,
+          primary_agent: "Forseti",
+          consulted_agents: ["Freyr", "Njord"],
+          contributions: [
+            {
+              agent: "Freyr",
+              evidence_refs: ["agent-owned:freyr:1"],
+              confidence: 0.8,
+              suggested_sections: ["trade_offs"],
+            },
+          ],
+          failures: [],
+          elapsed_ms: 12,
+          unique_evidence_count: 1,
+          duplicate_evidence_count: 0,
+          covered_sections: ["trade_offs"],
+          estimated_added_tokens: 24,
+          budget: {
+            max_contributors: 2,
+            max_rounds: 1,
+            max_wall_ms: 1200,
+            max_added_tokens: 800,
+            nested_rounds: false as const,
+          },
+          reason: null,
+        },
         verification: {
           status: "corrected" as const,
           authority: "server_read_model",
@@ -99,6 +127,7 @@ describe("serializeTurns", () => {
     expect(parsed[1]!.followUps).toEqual(["Show T1"]);
     expect(parsed[1]!.terminal).toBe(true);
     expect(parsed[1]!.revision).toBe(1);
+    expect(parsed[1]!.answerPlanning?.consulted_agents).toEqual(["Freyr", "Njord"]);
     expect(parsed[1]!.verification?.status).toBe("corrected");
     expect(parsed[1]!.verification?.claims?.[0]?.claim_id).toBe("c001");
     expect(parsed[1]!.verification?.evidence_manifest?.manifest_id).toBe("sha256:abc");

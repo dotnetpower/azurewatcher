@@ -5,6 +5,11 @@ export interface UserPreferencePayload {
   readonly principal_id: string;
   readonly locale: "en" | "ko";
   readonly verbosity: "concise" | "detailed";
+  readonly answer_detail: "brief" | "standard" | "deep";
+  readonly answer_format: "prose" | "bullets" | "numbered_steps" | "table" | "checklist" | "mixed";
+  readonly answer_preferences_enabled: boolean;
+  readonly answer_intent_detail: Readonly<Record<string, "brief" | "standard" | "deep">>;
+  readonly answer_intent_format: Readonly<Record<string, "prose" | "bullets" | "numbered_steps" | "table" | "checklist" | "mixed">>;
   readonly timezone: string | null;
   readonly share_with_learner: boolean;
   readonly revision: number;
@@ -115,11 +120,20 @@ export async function fetchConversationTurns(
 export async function putUserPreference(input: {
   readonly locale: "en" | "ko";
   readonly verbosity: "concise" | "detailed";
+  readonly answer_detail: UserPreferencePayload["answer_detail"];
+  readonly answer_format: UserPreferencePayload["answer_format"];
+  readonly answer_preferences_enabled: boolean;
+  readonly answer_intent_detail: UserPreferencePayload["answer_intent_detail"];
+  readonly answer_intent_format: UserPreferencePayload["answer_intent_format"];
   readonly timezone: string | null;
   readonly share_with_learner: boolean;
   readonly expected_revision: number;
 }): Promise<UserPreferencePayload> {
   return decodeUserPreference(await request("/me/preferences", "PUT", input));
+}
+
+export async function deleteUserPreference(): Promise<void> {
+  await request("/me/preferences", "DELETE");
 }
 
 export async function putConversationPolicy(input: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -137,8 +151,15 @@ export async function deleteUserMemory(memoryId: string): Promise<void> {
   await request(`/me/memories/${encodeURIComponent(memoryId)}`, "DELETE");
 }
 
-export async function createBriefingSubscription(input: Record<string, unknown>): Promise<Record<string, unknown>> {
-  return request("/me/briefing-subscriptions", "POST", { ...input, confirmed: true });
+export async function createBriefingSubscription(
+  input: Record<string, unknown>,
+  idempotencyKey: string,
+): Promise<Record<string, unknown>> {
+  return request("/me/briefing-subscriptions", "POST", {
+    ...input,
+    idempotency_key: idempotencyKey,
+    confirmed: true,
+  });
 }
 
 export async function deleteBriefingSubscription(
@@ -216,14 +237,38 @@ function decodeUserPreference(value: unknown): UserPreferencePayload {
   const item = object(value, "preference");
   const locale = string(item["locale"], "preference.locale");
   const verbosity = string(item["verbosity"], "preference.verbosity");
+  const answerDetail = string(item["answer_detail"], "preference.answer_detail");
+  const answerFormat = string(item["answer_format"], "preference.answer_format");
   if (locale !== "en" && locale !== "ko") throw new Error("preference.locale is invalid");
   if (verbosity !== "concise" && verbosity !== "detailed") {
     throw new Error("preference.verbosity is invalid");
+  }
+  if (!["brief", "standard", "deep"].includes(answerDetail)) {
+    throw new Error("preference.answer_detail is invalid");
+  }
+  if (!["prose", "bullets", "numbered_steps", "table", "checklist", "mixed"].includes(answerFormat)) {
+    throw new Error("preference.answer_format is invalid");
   }
   return {
     principal_id: string(item["principal_id"], "preference.principal_id"),
     locale,
     verbosity,
+    answer_detail: answerDetail as UserPreferencePayload["answer_detail"],
+    answer_format: answerFormat as UserPreferencePayload["answer_format"],
+    answer_preferences_enabled: boolean(
+      item["answer_preferences_enabled"],
+      "preference.answer_preferences_enabled",
+    ),
+    answer_intent_detail: enumRecord(
+      item["answer_intent_detail"],
+      "preference.answer_intent_detail",
+      ["brief", "standard", "deep"] as const,
+    ),
+    answer_intent_format: enumRecord(
+      item["answer_intent_format"],
+      "preference.answer_intent_format",
+      ["prose", "bullets", "numbered_steps", "table", "checklist", "mixed"] as const,
+    ),
     timezone: nullableString(item["timezone"], "preference.timezone"),
     share_with_learner: boolean(item["share_with_learner"], "preference.share_with_learner"),
     revision: nonNegativeInteger(item["revision"], "preference.revision"),
@@ -370,4 +415,16 @@ function stringRecord(value: unknown, label: string): Readonly<Record<string, st
   return Object.fromEntries(
     Object.entries(record).map(([key, item]) => [key, string(item, `${label}.${key}`)]),
   );
+}
+
+function enumRecord<const Value extends string>(
+  value: unknown,
+  label: string,
+  allowed: readonly Value[],
+): Readonly<Record<string, Value>> {
+  const record = stringRecord(value, label);
+  if (Object.values(record).some((item) => !allowed.includes(item as Value))) {
+    throw new Error(`${label} contains an invalid value`);
+  }
+  return record as Readonly<Record<string, Value>>;
 }

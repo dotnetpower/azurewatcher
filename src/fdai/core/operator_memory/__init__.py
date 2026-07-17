@@ -23,10 +23,23 @@ Design references:
 
 from __future__ import annotations
 
+from fdai.core.operator_memory.compaction import (
+    InMemoryMemoryCompactionRepository,
+    MemoryCompactionAuthorizer,
+    MemoryCompactionCandidate,
+    MemoryCompactionError,
+    MemoryCompactionRepository,
+    MemoryCompactionService,
+    MemoryCompactionState,
+)
 from fdai.core.operator_memory.hil_pipeline import (
     HilMaterializationError,
     HilRejectMaterial,
     HilRejectMaterializer,
+)
+from fdai.core.operator_memory.review import (
+    OperatorMemoryReviewItem,
+    OperatorMemoryReviewService,
 )
 from fdai.core.operator_memory.sanitizer import (
     InjectionMarkerError,
@@ -51,11 +64,20 @@ __all__ = [
     "HilRejectMaterial",
     "HilRejectMaterializer",
     "InMemoryOperatorMemoryStore",
+    "InMemoryMemoryCompactionRepository",
     "InjectionMarkerError",
     "MemoryCategory",
+    "MemoryCompactionAuthorizer",
+    "MemoryCompactionCandidate",
+    "MemoryCompactionError",
+    "MemoryCompactionRepository",
+    "MemoryCompactionService",
+    "MemoryCompactionState",
     "MemorySource",
     "OperatorMemoryEntry",
     "OperatorMemoryPolicyError",
+    "OperatorMemoryReviewItem",
+    "OperatorMemoryReviewService",
     "OperatorMemoryStore",
     "OperatorScope",
     "ScopeKind",

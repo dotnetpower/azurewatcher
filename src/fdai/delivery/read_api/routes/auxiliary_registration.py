@@ -76,6 +76,9 @@ def append_auxiliary_routes(
         web_search_resolver=config.chat_web_search,
         conversation_policy_store=config.conversation_policy_store,
         conversation_history_store=config.conversation_history_store,
+        answer_preference_store=(
+            config.user_context.preferences if config.user_context is not None else None
+        ),
         user_context_ontology_projector=config.user_context_ontology_projector,
         model_settings=config.model_settings,
         authorize=authorize,

@@ -16,7 +16,12 @@ from fdai.delivery.read_api.streaming.agent_activity_stream import (
     AgentStateEvent,
     IncidentTicketEvent,
 )
-from fdai.shared.providers.stage_publisher import StageEvent, StageName, StagePhase
+from fdai.shared.providers.stage_publisher import (
+    ObservationSource,
+    StageEvent,
+    StageName,
+    StagePhase,
+)
 from fdai.shared.providers.testing.event_bus import InMemoryEventBus
 
 _TS = datetime(2026, 7, 12, 9, 0, 0, tzinfo=UTC)
@@ -119,6 +124,20 @@ class TestParseStageEvent:
         payload = _stage_dict()
         payload["error"] = 123  # non-string error field
         assert parse_stage_event(payload) is None
+
+    def test_legacy_and_unknown_sources_normalize_without_dropping_frame(self) -> None:
+        original = StageEvent(
+            event_id="e1",
+            correlation_id="c1",
+            stage=StageName.ROUTE,
+            phase=StagePhase.DONE,
+            ts=_TS,
+        )
+        legacy = original.to_dict()
+        legacy.pop("source")
+        assert parse_stage_event(legacy).source is ObservationSource.UNKNOWN
+        future = {**original.to_dict(), "source": "future-source"}
+        assert parse_stage_event(future).source is ObservationSource.UNKNOWN
 
 
 # ---------------------------------------------------------------------------

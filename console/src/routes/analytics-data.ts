@@ -1,15 +1,18 @@
 import { useEffect, useState } from "preact/hooks";
 import type { ReadApiClient } from "../api";
 import { ReadApiError } from "../api";
-import type { AutonomyPayload, DashboardKpi, FinOpsPayload } from "../types";
+import type { AutonomyPayload, DashboardKpi } from "../types";
 import type { AsyncState } from "../components/ui";
 import type { GatesSummary } from "./dashboard.model";
 
 export interface AnalyticsData {
   readonly kpi: DashboardKpi;
   readonly autonomy: AutonomyPayload | null;
-  readonly finops: FinOpsPayload | null;
   readonly gates: GatesSummary | null;
+}
+
+interface AnalyticsDataOptions {
+  readonly includeGates?: boolean;
 }
 
 async function optional<T>(load: () => Promise<T>): Promise<T | null> {
@@ -23,19 +26,31 @@ async function optional<T>(load: () => Promise<T>): Promise<T | null> {
   }
 }
 
-export function useAnalyticsData(client: ReadApiClient): AsyncState<AnalyticsData> {
+export async function loadAnalyticsData(
+  client: ReadApiClient,
+  options: AnalyticsDataOptions = {},
+): Promise<AnalyticsData> {
+  const [kpi, autonomy, gates] = await Promise.all([
+    client.dashboardMetrics(),
+    optional(() => client.autonomy()),
+    options.includeGates
+      ? optional(() => client.panel<GatesSummary>("/kpi/promotion-gates"))
+      : Promise.resolve(null),
+  ]);
+  return { kpi, autonomy, gates };
+}
+
+export function useAnalyticsData(
+  client: ReadApiClient,
+  options: AnalyticsDataOptions = {},
+): AsyncState<AnalyticsData> {
   const [state, setState] = useState<AsyncState<AnalyticsData>>({ status: "loading" });
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const [kpi, autonomy, finops, gates] = await Promise.all([
-          client.dashboardMetrics(),
-          optional(() => client.autonomy()),
-          optional(() => client.finops()),
-          optional(() => client.panel<GatesSummary>("/kpi/promotion-gates")),
-        ]);
-        if (!cancelled) setState({ status: "ready", data: { kpi, autonomy, finops, gates } });
+        const data = await loadAnalyticsData(client, options);
+        if (!cancelled) setState({ status: "ready", data });
       } catch (error) {
         if (!cancelled) {
           setState({
@@ -46,6 +61,6 @@ export function useAnalyticsData(client: ReadApiClient): AsyncState<AnalyticsDat
       }
     })();
     return () => { cancelled = true; };
-  }, [client]);
+  }, [client, options.includeGates]);
   return state;
 }

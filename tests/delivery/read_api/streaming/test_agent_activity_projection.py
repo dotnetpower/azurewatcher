@@ -17,7 +17,12 @@ from fdai.delivery.read_api.streaming.agent_activity_stream import (
     TicketStatus,
     TurnKind,
 )
-from fdai.shared.providers.stage_publisher import StageEvent, StageName, StagePhase
+from fdai.shared.providers.stage_publisher import (
+    ObservationSource,
+    StageEvent,
+    StageName,
+    StagePhase,
+)
 
 _TS = datetime(2026, 7, 12, 9, 0, 0, tzinfo=UTC)
 
@@ -30,12 +35,14 @@ def _stage(
     event_id: str = "evt-1",
     detail: dict[str, object] | None = None,
     error: str | None = None,
+    source: ObservationSource = ObservationSource.UNKNOWN,
 ) -> StageEvent:
     return StageEvent(
         event_id=event_id,
         correlation_id=correlation_id,
         stage=stage,
         phase=phase,
+        source=source,
         ts=_TS,
         detail=detail or {},
         error=error,
@@ -322,6 +329,15 @@ class TestDeterminism:
 
 
 class TestDetailShaping:
+    def test_projected_frames_preserve_observation_source(self) -> None:
+        _projection, events = _run(
+            [
+                _stage(StageName.ROUTE, source=ObservationSource.REPLAY),
+            ]
+        )
+        assert events
+        assert all(event.source is ObservationSource.REPLAY for event in events)
+
     def test_ticket_title_uses_the_firing_rule_when_present(self) -> None:
         _proj, events = _run(
             [_stage(StageName.INGEST, detail={"rule": "storage.public-blob.deny"})]

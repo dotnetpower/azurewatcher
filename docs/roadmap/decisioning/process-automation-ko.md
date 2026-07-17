@@ -1,8 +1,8 @@
 ---
 title: 프로세스 자동화(Process Automation)
 translation_of: process-automation.md
-translation_source_sha: a76d3eb1b3bac612de04ace7a7779b4241e1a7bf
-translation_revised: 2026-07-16
+translation_source_sha: 9f6e1bb8051285309e493d132124b739863f4ec9
+translation_revised: 2026-07-17
 ---
 
 # 프로세스 자동화(Process Automation)
@@ -386,6 +386,55 @@ Pantheon runtime 은 같은 topic 을 shadow 로 관찰하며 두 번째 executi
 아닙니다. Binding 은 upstream YAML 에 environment value 를 넣지 않고 target 및
 artifact 하나를 제공합니다.
 
+Scheduled task는 `interval`, `one-shot`, `cron`, `event-exit` 네 kind 중 하나를 선언합니다.
+One-shot task는 `start_at` 이후 한 번 실행됩니다. Cron task는 validated IANA timezone에서 strict
+5-field expression을 평가하며 UTC occurrence id를 유지합니다. Event-exit task는
+`SchedulerService.observe_event()`가 configured normalized event type을 받을 때까지 interval로
+반복하고 durable store가 exit time을 기록하고 task를 disable합니다. Kind-qualified deterministic
+occurrence id가 retry, restart, cross-kind duplicate publication을 방지합니다.
+
+모든 task는 durable `ScheduledRunIsolationProfile`도 가집니다. Default profile은 ambient tool을
+모두 deny하고 session duration 및 context size를 제한합니다. Opt-in profile은 allowed tool을 모두
+명시하고 total tool call을 cap하며 server-owned command sandbox profile을 참조할 수 있습니다.
+`ScheduledRunIsolationGuard`는 downstream execution boundary에서 context, elapsed time, tool id,
+prior call count를 다시 검사합니다. 모든 synthetic event 및 action proposal이 immutable profile을
+포함하며 scheduled run은 creating operator의 더 넓은 session, credential, workspace, tool
+authority를 상속하지 않습니다.
+
+Scheduled task는 이제 `interval`, `one-shot`, `cron`, `event-exit` 네 kind 중 하나를 선언합니다.
+One-shot task는 `start_at` 이후 한 번 실행됩니다. Cron task는 validated IANA timezone에서 strict
+5-field expression을 평가하며 UTC occurrence id를 유지합니다. Event-exit task는
+`SchedulerService.observe_event()`가 configured normalized event type을 받을 때까지 interval로
+반복하고, durable store가 exit time을 기록하고 task를 disable합니다. Occurrence id는 schedule
+kind와 deterministic interval/minute/timestamp bucket을 포함하므로 retry 및 process restart가
+double-publish하거나 kind 간 충돌하지 않습니다. PostgreSQL migration은 기존 row를 UTC timezone의
+cron 또는 interval로 backfill합니다.
+
+모든 due publication은 event bus 호출 전에 durable `schedule_dispatch_run` ledger에
+기록됩니다. Schedule idempotency key를 사용하는 atomic claim은
+`claimed -> published|failed` 상태로 이동합니다. `published` row는
+`scheduled_task.last_run` 갱신 전에 기록되므로 broker publication과 task-state update 사이에서
+process가 실패해도 같은 event를 다시 publish하지 않습니다. `failed` row는 retry를 위해 다시
+claim할 수 있습니다. Scheduler job은 구성된 lease보다 오래된 `claimed` row를 `lost`로
+reconcile하며 `lost` row도 다시 claim할 수 있습니다. Attempt counter와 task-scoped history는
+PostgreSQL에서 process restart 이후에도 유지됩니다.
+
+`published`는 synthetic event가 event bus에 도달했다는 뜻만 가집니다. Downstream control loop
+또는 요청된 action이 성공했다는 뜻은 아닙니다. 이후 outcome은 기존 event, process, action,
+audit record에 유지됩니다.
+
+`ScheduleRunHistoryService`는 ledger를 read-only task-scoped history로 project합니다. Attempt를
+newest first로 정렬하고 status filter와 bounded limit을 지원하며 `(scheduled_for, run_id)`에서
+만든 opaque cursor를 사용하므로 새 run이 도착해도 page boundary가 안정적입니다. Projection은
+status, attempt, timestamp, error kind만 노출합니다. Retry, cancel, execute method가 없습니다.
+Reader-role `GET /scheduler-runs` panel은 `task_id`, optional status, bounded limit, opaque
+cursor parameter를 받습니다. Production은 PostgreSQL ledger와 이를 구성하며 console의
+`/processes/scheduler-runs` nested view는 task 및 status filter를 URL에 보존하고 action button
+또는 executor identity 없이 cursor-paginated 근거를 렌더링합니다. Response는 `source`와
+`durable`도 포함합니다. Production은 `postgres`와 `true`, local in-memory harness는
+`synthetic-dev`와 `false`를 보고합니다. Console은 route 이름이나 static copy에서 durability를
+추론하지 않고 이 필드를 렌더링합니다.
+
 Local read API 도 in-memory task, inventory, audit, HIL adapter 와 함께 동일한
 authoritative ControlLoop 를 사용합니다. 따라서 Workflow Builder run request 는 Owner
 approval gate 까지 도달하고 route, gate, terminal audit frame 을 `/live/stream` 으로
@@ -411,6 +460,22 @@ Command 기반은 intent, resolution, execution 을 분리합니다.
   mount하며 network 를 unshare하고 capability 를 drop합니다. Private tmpfs 만 노출하고
   새 process group, timeout, stdout/stderr byte cap 을 적용합니다. Workspace-write,
   cloud, credentialed plan 은 process 생성 전에 거부합니다.
+- **Sandbox profile gate**: `SandboxProfileCatalog`은 각 command id에 정확히 하나의 server-owned
+  isolation profile을 부여합니다. Profile이 없는 command는 차단됩니다. Profile은 backend,
+  allowed execution class 및 network profile, workspace access, credential policy, timeout,
+  output ceiling을 고정합니다. `ProfiledCommandRunner`는 concrete runner 직전에 최종
+  `CommandPlan`을 검증하고 requested limit을 profile ceiling으로 낮춥니다. Bubblewrap profile은
+  구조적으로 read-only, offline, credential-free이며 이를 넓히려는 profile은 registration에서
+  차단됩니다.
+- **Cross-adapter sandbox 적용**: VM task, external tool, binary document converter는 concrete
+  adapter boundary에서 같은 default-deny pattern을 사용합니다. `ProfiledVmTaskRunner`는 task
+  capability, input count와 byte, timeout을 제한하며 profile은 `process` capability를 허용하지
+  않습니다. `McpServerCatalog.build_routes(...)`는 enabled ActionType마다 `ToolSandboxCatalog`을
+  요구하고 `ProfiledToolExecutor`는 invocation 전에 mode, argument count와 byte, tool reference
+  size를 다시 검사합니다. Binary knowledge ingestion은 `DocumentConverterSandboxCatalog`과
+  결합된 injected `DocumentConverter`만 받습니다. Profile은 converter id, suffix, input/output
+  byte ceiling을 소유하고 request는 host path나 executable 대신 relative provenance와 content
+  byte만 노출합니다. Profile이 없거나 위반되면 fail closed합니다.
 - **Shell artifact**: `ShellTaskSpec` 은 content-addressed credential-free Bash bundle 을
   저장합니다. Structural validation 은 loop, pipe, heredoc 같은 local construct 를
   허용하면서 cloud CLI, privilege-escalation tool, protected host path, metadata endpoint,

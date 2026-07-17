@@ -75,6 +75,11 @@ class UserPreferenceRecord:
     principal_id: str
     locale: str = "en"
     verbosity: str = "concise"
+    answer_detail: str = "standard"
+    answer_format: str = "prose"
+    answer_preferences_enabled: bool = True
+    answer_intent_detail: Mapping[str, str] = field(default_factory=dict)
+    answer_intent_format: Mapping[str, str] = field(default_factory=dict)
     timezone: str | None = None
     share_with_learner: bool = False
     revision: int = 0
@@ -86,6 +91,27 @@ class UserPreferenceRecord:
             raise ValueError("UserPreferenceRecord.locale MUST be en or ko")
         if self.verbosity not in {"concise", "detailed"}:
             raise ValueError("UserPreferenceRecord.verbosity MUST be concise or detailed")
+        if self.answer_detail not in {"brief", "standard", "deep"}:
+            raise ValueError("UserPreferenceRecord.answer_detail MUST be brief, standard, or deep")
+        if self.answer_format not in {
+            "prose",
+            "bullets",
+            "numbered_steps",
+            "table",
+            "checklist",
+            "mixed",
+        }:
+            raise ValueError("UserPreferenceRecord.answer_format is invalid")
+        _validate_answer_intent_preferences(
+            self.answer_intent_detail,
+            values={"brief", "standard", "deep"},
+            field_name="answer_intent_detail",
+        )
+        _validate_answer_intent_preferences(
+            self.answer_intent_format,
+            values={"prose", "bullets", "numbered_steps", "table", "checklist", "mixed"},
+            field_name="answer_intent_format",
+        )
         if self.timezone is not None:
             _require_text("UserPreferenceRecord.timezone", self.timezone)
             try:
@@ -183,6 +209,29 @@ class UserPreferenceStore(Protocol):
     ) -> UserPreferenceRecord: ...
 
     async def delete(self, *, principal_id: str) -> bool: ...
+
+
+def _validate_answer_intent_preferences(
+    preferences: Mapping[str, str],
+    *,
+    values: set[str],
+    field_name: str,
+) -> None:
+    intents = {
+        "definition",
+        "why",
+        "procedure",
+        "comparison",
+        "diagnosis",
+        "status",
+        "list",
+        "summary",
+        "proposal",
+        "open_question",
+        "greeting",
+    }
+    if any(intent not in intents or value not in values for intent, value in preferences.items()):
+        raise ValueError(f"UserPreferenceRecord.{field_name} is invalid")
 
 
 @runtime_checkable

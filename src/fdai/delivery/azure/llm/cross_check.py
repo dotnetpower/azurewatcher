@@ -41,10 +41,15 @@ from fdai.core.prompts.composer import PromptComposer
 from fdai.core.prompts.types import PromptMode
 from fdai.core.quality_gate.gate import QualityCandidate
 from fdai.core.tools import ToolExecutor, ToolRegistry
+from fdai.delivery.azure.llm.gateway_evidence import record_gateway_route_evidence
+from fdai.delivery.azure.llm.latency_routed_cross_check import ModelHealthTransitionSink
+from fdai.delivery.azure.llm.request_target import (
+    COGNITIVE_SERVICES_SCOPE,
+    ModelRequestTarget,
+)
 from fdai.delivery.azure.llm.usage import extract_usage
+from fdai.rule_catalog.schema.model_endpoint import ModelApiStyle, ModelRouteKind
 from fdai.shared.providers.workload_identity import WorkloadIdentity
-
-_COGNITIVE_SCOPE: Final[str] = "https://cognitiveservices.azure.com/.default"
 
 # OpenAI function names accept ``[A-Za-z0-9_-]{1,64}`` only, so tool ids
 # with dots (our catalog convention) need a lossless wire encoding. The
@@ -88,6 +93,10 @@ class AzureOpenAICrossCheckModelConfig:
     max_tokens: int = 512
     timeout_seconds: float = 30.0
     max_tool_iterations: int = 3
+    api_style: ModelApiStyle = ModelApiStyle.AZURE_OPENAI
+    auth_audience: str = COGNITIVE_SERVICES_SCOPE
+    route_kind: ModelRouteKind = ModelRouteKind.DIRECT
+    binding_id: str | None = None
 
 
 class AzureOpenAICrossCheckModel:
@@ -105,11 +114,17 @@ class AzureOpenAICrossCheckModel:
         capability_id: str | None = None,
         scope_resolver: ScopeResolver | None = None,
         metering: MeteringEmitter | None = None,
+        gateway_route_sink: ModelHealthTransitionSink | None = None,
     ) -> None:
-        if not config.endpoint.startswith(("https://", "http://")):
-            raise ValueError("endpoint MUST be an absolute https URL")
-        if not config.deployment:
-            raise ValueError("deployment MUST NOT be empty")
+        target = ModelRequestTarget(
+            endpoint=config.endpoint,
+            deployment=config.deployment,
+            api_style=config.api_style,
+            api_version=config.api_version,
+            auth_audience=config.auth_audience,
+            route_kind=config.route_kind,
+            binding_id=config.binding_id,
+        )
         if not config.system_prompt:
             raise ValueError(
                 "system_prompt MUST NOT be empty - compose it via "
@@ -152,6 +167,8 @@ class AzureOpenAICrossCheckModel:
         self._capability_id: Final[str | None] = capability_id
         self._scope_resolver: Final[ScopeResolver | None] = scope_resolver
         self._metering: Final[MeteringEmitter | None] = metering
+        self._target: Final[ModelRequestTarget] = target
+        self._gateway_route_sink = gateway_route_sink
 
         # Snapshot the enforce-mode tools at construction so the
         # advertised manifest is deterministic per model instance and
@@ -182,13 +199,8 @@ class AzureOpenAICrossCheckModel:
         self._name_to_id: Final[Mapping[str, str]] = name_to_id
 
     async def propose(self, candidate: QualityCandidate) -> tuple[str, Mapping[str, Any]]:
-        token = await self._identity.get_token(_COGNITIVE_SCOPE)
-        url = (
-            self._config.endpoint.rstrip("/")
-            + "/openai/deployments/"
-            + self._config.deployment
-            + "/chat/completions"
-        )
+        token = await self._identity.get_token(self._target.auth_audience)
+        request = self._target.operation("chat/completions")
         system_prompt = await self._resolve_system_prompt(candidate)
         user_prompt = json.dumps(
             {
@@ -226,9 +238,11 @@ class AzureOpenAICrossCheckModel:
                 if self._tools_param is not None:
                     body["tools"] = self._tools_param
                     body["tool_choice"] = "auto"
+                if request.model_body_field is not None:
+                    body["model"] = request.model_body_field
                 response = await self._http.post(
-                    url,
-                    params={"api-version": self._config.api_version},
+                    request.url,
+                    params=request.params,
                     headers={
                         "Authorization": f"Bearer {token.token}",
                         "Content-Type": "application/json",
@@ -237,6 +251,12 @@ class AzureOpenAICrossCheckModel:
                     timeout=self._config.timeout_seconds,
                 )
                 response.raise_for_status()
+                await record_gateway_route_evidence(
+                    response=response,
+                    target=self._target,
+                    model_role=self._capability_id or "t2.reasoner",
+                    sink=self._gateway_route_sink,
+                )
                 envelope = response.json()
                 call_usage = extract_usage(envelope)
                 if call_usage is not None:

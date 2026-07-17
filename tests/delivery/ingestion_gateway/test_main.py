@@ -105,6 +105,9 @@ def test_production_gateway_requires_auth_and_contributor_role() -> None:
     app = build_app(authenticator=_authenticator(), service=service, worker=worker)
     client = TestClient(app)
 
+    health = client.get("/healthz")
+    assert health.status_code == 200
+    assert health.json() == {"status": "ok"}
     assert client.get("/ingestion/capabilities").status_code == 401
     response = client.post(
         "/ingestion/uploads",

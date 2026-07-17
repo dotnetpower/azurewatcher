@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from time import monotonic
 from typing import Any
 
+from fdai.delivery.read_api.routes.inventory_graph import InventoryGraphViewNotFoundError
 from fdai.shared.providers.inventory import Inventory, ResourceRecord
 
 _VIEW_ID = "azure-cli-subscription"
@@ -39,7 +40,9 @@ class AzureCliInventoryGraphProvider:
         depth: int,
         link_types: tuple[str, ...],
     ) -> dict[str, Any]:
-        del scope, depth
+        if scope is not None and scope != _VIEW_ID:
+            raise InventoryGraphViewNotFoundError(f"architecture view not found: {scope}")
+        del depth
         graph = await self._graph()
         payload = dict(graph)
         payload["links"] = [dict(link) for link in graph["links"] if link["type"] in link_types]

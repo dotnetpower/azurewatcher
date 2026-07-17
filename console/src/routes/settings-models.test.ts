@@ -7,13 +7,20 @@ import {
 import {
   DEFAULT_WEB_SEARCH_DOMAINS,
   decodeModelSettings,
+  draftRevisionIsCurrent,
   normalizeAndValidateDomains,
+  projectionGenerationIsCurrent,
   webSearchControlsDisabled,
 } from "./settings-models.model";
 
 const payload = {
   region: "example-region",
   mixed_model_mode: "hil-only",
+  resolved_metadata: {
+    kind: "generated-file",
+    source: "resolved-models.json",
+    as_of: "2026-07-17T08:00:00+00:00",
+  },
   discovery: { automatic: true, source: "rule-catalog/llm-registry.yaml", status: "enabled" },
   provisioning: { automatic: true, status: "degraded", resolved_count: 1, hil_only_count: 1 },
   capabilities: [{
@@ -25,6 +32,31 @@ const payload = {
     capacity_tpm: 1000,
     invocation: "always",
     reasons: [],
+    user_selectable: false,
+  }],
+  endpoint_inventory: [{
+    binding_id: "t2-primary-prod",
+    capability: "t2.reasoner.primary",
+    provider_kind: "azure-openai",
+    route_kind: "apim-gateway",
+    api_style: "azure-openai",
+    deployment: "t2-primary",
+    api_version: "2024-10-21",
+    auth_kind: "entra",
+    publisher: "OpenAI",
+    family: "gpt-4o",
+    version: "2024-08-06",
+    capacity_unit: "ptu",
+    capacity_value: 30,
+    features: {
+      streaming: true,
+      embeddings: false,
+      structured_output: true,
+      tool_calling: true,
+    },
+    discovery_source: "apim-management",
+    verified_at: "2026-07-17T00:00:00+00:00",
+    managed_by: "catalog-and-resolver",
     user_selectable: false,
   }],
   narrator: {
@@ -47,6 +79,7 @@ const payload = {
     }],
   },
   web_search: {
+    available: true,
     enabled: true,
     allowed_domains: [...DEFAULT_WEB_SEARCH_DOMAINS],
     revision: 1,
@@ -55,24 +88,60 @@ const payload = {
     current_auto_pick: "narrator-fast",
     candidates: [],
   },
+  model_routing: [{
+    role: "t2.reasoner.primary",
+    selected_deployment: "primary-b",
+    selection_reason: "failover_after_1_candidate_failure",
+    selected_at: "2026-07-17T10:00:00+00:00",
+    candidates: [{
+      deployment: "primary-a",
+      status: "recovered",
+      failure_kind: null,
+      cooldown_seconds: 0,
+      updated_at: "2026-07-17T10:00:00+00:00",
+    }],
+  }],
   t2_selection_scope: "system-governed",
 };
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Settings Models contracts", () => {
+  it("rejects a projection response superseded by another load or save", () => {
+    expect(projectionGenerationIsCurrent(9, 8)).toBe(false);
+    expect(projectionGenerationIsCurrent(9, 9)).toBe(true);
+  });
+
+  it("preserves a draft edited after a save request began", () => {
+    expect(draftRevisionIsCurrent(8, 7)).toBe(false);
+    expect(draftRevisionIsCurrent(8, 8)).toBe(true);
+  });
+
   it("decodes true TTFT separately from total latency", () => {
     const decoded = decodeModelSettings(payload);
 
     expect(decoded.narrator.candidates[0]?.ttftP50Ms).toBe(220);
     expect(decoded.narrator.candidates[0]?.totalP50Ms).toBe(800);
     expect(decoded.t2SelectionScope).toBe("system-governed");
+    expect(decoded.resolvedMetadata.source).toBe("resolved-models.json");
+    expect(decoded.resolvedMetadata.asOf).toBe("2026-07-17T08:00:00+00:00");
     expect(decoded.webSearch.enabled).toBe(true);
+    expect(decoded.webSearch.available).toBe(true);
     expect(decoded.webSearch.allowedDomains).toEqual(DEFAULT_WEB_SEARCH_DOMAINS);
     expect(decoded.webSearch.revision).toBe(1);
+    expect(decoded.modelRouting[0]?.selectedDeployment).toBe("primary-b");
+    expect(decoded.modelRouting[0]?.candidates[0]?.status).toBe("recovered");
+    expect(decoded.endpointInventory[0]).toMatchObject({
+      routeKind: "apim-gateway",
+      providerKind: "azure-openai",
+      capacityUnit: "ptu",
+      capacityValue: 30,
+      userSelectable: false,
+    });
   });
 
   it.each([
+    ["available", { ...payload.web_search, available: "yes" }],
     ["enabled", { ...payload.web_search, enabled: "yes" }],
     ["domains", { ...payload.web_search, allowed_domains: "learn.microsoft.com" }],
     ["revision", { ...payload.web_search, revision: 1.5 }],

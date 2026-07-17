@@ -229,6 +229,19 @@ server-owned facts and performs no analysis of its own.
   "name": "Shadow-Mode Daily Rollup",
   "description": "...",
   "generated_at": "2026-07-10T12:00:00+00:00",
+  "provenance": {
+    "availability": "available",
+    "synthetic": false,
+    "sources": [
+      {
+        "datasource": "audit",
+        "source": "audit",
+        "availability": "available",
+        "synthetic": false,
+        "as_of": "2026-07-10T11:59:30+00:00"
+      }
+    ]
+  },
   "time_range": {
     "since": "2026-07-09T12:00:00+00:00",
     "until": "2026-07-10T12:00:00+00:00"
@@ -254,6 +267,21 @@ server-owned facts and performs no analysis of its own.
   "tags": ["control-loop", "shadow-mode"]
 }
 ```
+
+`generated_at` is the report render time, not the evidence observation time.
+`provenance.sources[].as_of` carries evidence freshness when the composition
+root can provide it. Datasource registrations default to `unknown`; explicit
+Noop bindings report `availability=unavailable`, and local static sources
+report `synthetic=true`. The console labels these states and never presents a
+fresh render time as fresh evidence. Annotation-only reports use
+`availability=not_applicable`.
+
+Catalog summaries include the recursive datasource ids declared by each
+report. When no report id is explicit in the URL, the console excludes reports
+whose datasources are explicitly unavailable before choosing a render-ready
+default. Unknown legacy descriptors remain eligible, and an explicit report id
+is always preserved so unavailable evidence stays inspectable rather than
+being silently replaced.
 
 The FE only needs to know `type` and the per-type `data` schema in
 [Widget catalog](#widget-catalog). New reports and new datasources do

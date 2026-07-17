@@ -40,9 +40,12 @@ from fdai.core.quality_gate.critic import (
     CriticStance,
 )
 from fdai.core.quality_gate.gate import QualityCandidate
+from fdai.delivery.azure.llm.request_target import (
+    COGNITIVE_SERVICES_SCOPE,
+    ModelRequestTarget,
+)
+from fdai.rule_catalog.schema.model_endpoint import ModelApiStyle, ModelRouteKind
 from fdai.shared.providers.workload_identity import WorkloadIdentity
-
-_COGNITIVE_SCOPE: Final[str] = "https://cognitiveservices.azure.com/.default"
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +66,10 @@ class AzureOpenAICriticModelConfig:
     temperature: float = 0.0
     max_tokens: int = 512
     timeout_seconds: float = 30.0
+    api_style: ModelApiStyle = ModelApiStyle.AZURE_OPENAI
+    auth_audience: str = COGNITIVE_SERVICES_SCOPE
+    route_kind: ModelRouteKind = ModelRouteKind.DIRECT
+    binding_id: str | None = None
 
 
 class AzureOpenAICriticModel:
@@ -75,10 +82,15 @@ class AzureOpenAICriticModel:
         http_client: httpx.AsyncClient,
         config: AzureOpenAICriticModelConfig,
     ) -> None:
-        if not config.endpoint.startswith(("https://", "http://")):
-            raise ValueError("endpoint MUST be an absolute https URL")
-        if not config.deployment:
-            raise ValueError("deployment MUST NOT be empty")
+        target = ModelRequestTarget(
+            endpoint=config.endpoint,
+            deployment=config.deployment,
+            api_style=config.api_style,
+            api_version=config.api_version,
+            auth_audience=config.auth_audience,
+            route_kind=config.route_kind,
+            binding_id=config.binding_id,
+        )
         if not config.system_prompt:
             raise ValueError(
                 "system_prompt MUST NOT be empty - compose it via "
@@ -94,19 +106,15 @@ class AzureOpenAICriticModel:
         self._identity: Final[WorkloadIdentity] = identity
         self._http: Final[httpx.AsyncClient] = http_client
         self._config: Final[AzureOpenAICriticModelConfig] = config
+        self._target: Final[ModelRequestTarget] = target
 
     async def critique(
         self,
         candidate: QualityCandidate,
         proposer_output: tuple[str, Mapping[str, Any]],
     ) -> CriticOutput:
-        token = await self._identity.get_token(_COGNITIVE_SCOPE)
-        url = (
-            self._config.endpoint.rstrip("/")
-            + "/openai/deployments/"
-            + self._config.deployment
-            + "/chat/completions"
-        )
+        token = await self._identity.get_token(self._target.auth_audience)
+        request = self._target.operation("chat/completions")
         proposer_action_type, proposer_params = proposer_output
         user_prompt = json.dumps(
             {
@@ -132,9 +140,11 @@ class AzureOpenAICriticModel:
             "max_tokens": self._config.max_tokens,
             "response_format": {"type": "json_object"},
         }
+        if request.model_body_field is not None:
+            body["model"] = request.model_body_field
         response = await self._http.post(
-            url,
-            params={"api-version": self._config.api_version},
+            request.url,
+            params=request.params,
             headers={
                 "Authorization": f"Bearer {token.token}",
                 "Content-Type": "application/json",
