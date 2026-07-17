@@ -24,8 +24,12 @@ from fdai.core.executor.renderer import TemplateRenderer
 from fdai.core.executor.tool_call import ToolReceiptObserver
 from fdai.core.hil_resume import HilResumeCoordinator
 from fdai.core.notifications.matrix import load_matrix_from_yaml
-from fdai.core.quality_gate import QualityGate, RuleBasedVerifier
-from fdai.core.quality_gate.testing import InMemoryGroundingSource
+from fdai.core.quality_gate import (
+    HashedRuleEmbeddingIndex,
+    QualityGate,
+    RagGroundingSource,
+    RuleBasedVerifier,
+)
 from fdai.core.rbac.resolver import GroupMapping
 from fdai.core.rca import KnowledgeEvidenceGatherer, RcaCoordinator
 from fdai.core.risk_gate import ActionPromotionRegistry, RiskGate
@@ -76,6 +80,7 @@ from fdai.runtime.providers import (
 from fdai.shared.providers.event_bus import EventBus
 from fdai.shared.providers.stage_publisher import StagePublisher
 from fdai.shared.providers.testing.process_runtime import InMemoryProcessRuntimeStore
+from fdai.shared.resilience import StateStoreKillSwitch
 
 _LOGGER = logging.getLogger("fdai.startup")
 
@@ -246,10 +251,16 @@ def _build_control_loop(
 
     try:
         evaluator: Any = OpaRegoEvaluator(policies_root=policies_root)
-    except MissingOpaBinaryError:
+    except MissingOpaBinaryError as exc:
         # opa binary is required for full T0 verdicts; without it, T0
-        # abstains on every candidate. Log the fact and continue so the
-        # loop still exercises event-ingest + routing paths.
+        # abstains on every candidate. Local dev keeps that fail-closed
+        # fallback, but a deployed runtime must not advertise a healthy
+        # deterministic tier that cannot evaluate any policy.
+        runtime_env = os.environ.get("RUNTIME_ENV", "").strip().lower()
+        if runtime_env in {"staging", "prod"}:
+            raise RuntimeError(
+                f"RUNTIME_ENV={runtime_env!r} requires the OPA binary for T0 policy evaluation"
+            ) from exc
         _LOGGER.warning("opa_binary_missing_fallback_to_abstain")
         evaluator = None
 
@@ -275,7 +286,10 @@ def _build_control_loop(
         promotion_state_refresher = durable_registry.refresh
     else:
         promotion_registry = ActionPromotionRegistry()
-    risk_gate = RiskGate(registry=promotion_registry)
+    risk_gate = RiskGate(
+        registry=promotion_registry,
+        exemption_registry=container.exemption_registry,
+    )
     llm_bindings = container.require_llm_bindings()
     t1 = T1Tier(
         embedding_model=llm_bindings.embedding_model,
@@ -285,7 +299,10 @@ def _build_control_loop(
     quality_gate = QualityGate(
         verifier=RuleBasedVerifier(rules_by_id=rules_by_id),
         cross_check_models=llm_bindings.cross_check_models,
-        grounding=InMemoryGroundingSource(rules_by_id),
+        grounding=RagGroundingSource(
+            rules=rules_by_id,
+            embedding_index=HashedRuleEmbeddingIndex(),
+        ),
         rubric_evaluator=llm_bindings.rubric_evaluator,
     )
     t2 = T2Tier(
@@ -367,6 +384,7 @@ def _build_control_loop(
         action_types_by_name=action_types_by_name,
         pending_index_writer=_pending_index_writer,
     )
+    kill_switch = StateStoreKillSwitch(store=audit_store)
 
     return ControlLoop(
         event_ingest=event_ingest,
@@ -406,6 +424,8 @@ def _build_control_loop(
         inventory_context_provider=_build_inventory_context_provider(),
         promotion_state_refresher=promotion_state_refresher,
         stage_publisher=stage_publisher,
+        kill_switch=kill_switch,
+        kill_switch_refresher=kill_switch.refresh,
     )
 
 

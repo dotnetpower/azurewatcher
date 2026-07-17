@@ -33,3 +33,7 @@ output "inventory_job_id" {
   value       = try(azurerm_container_app_job.inventory[0].id, null)
 }
 
+output "canary_job_name" {
+  description = "Synthetic full-loop canary publisher Job name, or empty when disabled."
+  value       = try(azurerm_container_app_job.canary[0].name, "")
+}

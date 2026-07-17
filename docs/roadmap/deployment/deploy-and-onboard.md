@@ -125,6 +125,8 @@ All default to the dev posture (the live env is unchanged) and tighten via tfvar
 | Key Vault | `kv_purge_protection_enabled`, `kv_soft_delete_retention_days` | `true`, `90` |
 | Postgres network | `enable_private_postgres` | `true` |
 | Postgres durability | `postgres_backup_retention_days`, `postgres_geo_redundant_backup` | `35`, `true` |
+| Postgres availability | `postgres_high_availability_mode` | `ZoneRedundant` |
+| HIL delivery | `enable_chatops_hil`, `chatops_webhook_url`, `chatops_webhook_secret` | enabled + CI secrets |
 | Registry | `acr_sku` | `Premium` |
 | Monitoring | `enable_monitoring`, `alert_email`, `alert_webhook_url` | on + destination |
 | Cost | `monthly_budget_amount`, `budget_alert_emails`, bootstrap `runner_auto_shutdown_time` | set |
@@ -315,12 +317,12 @@ replica caps are still **fork-specific** and tuned per environment; the shape is
 
 | # | Resource | Tier | Purpose | Notes |
 |---|----------|------|---------|-------|
-| 1 | **Container Apps environment** | Consumption | scale-to-zero compute host | one environment shared by all core services; realizes the [Runtime contract](../architecture/csp-neutrality.md#2-runtime-contract--oci-image--knative-compatible-manifest) |
-| 2 | **Container App** (unified core) | 1 app, `minReplicas: 0`, KEDA scaler on Kafka lag (Event Hubs) | `event-ingest` (primary) + `trust-router`, `executor`, `audit-writer` as **sidecar containers** | one scale unit, `localhost` IPC - see [Compute Shape](#compute-shape-sidecar-containers); no Dapr, no Envoy-specific ingress |
+| 1 | **Container Apps environment** | Consumption | shared serverless compute host | one environment shared by the core app and scheduled jobs; realizes the [Runtime contract](../architecture/csp-neutrality.md#2-runtime-contract--oci-image--knative-compatible-manifest) |
+| 2 | **Container App** (unified core) | 1 app, `minReplicas: 1`, max 3 by default | one modular process composes `event-ingest`, `trust-router`, `executor`, and `audit` | Kafka-lag scale-to-zero remains deferred until credential-free scaler authentication is verified; see [Compute Shape](#compute-shape-single-modular-process) |
 | 3 | **Container Apps Job** | Consumption | scheduled probes and out-of-band change detection | replaces Azure Functions; shares the environment |
 | 4 | **Event Hubs namespace** | Standard (1 TU, auto-inflate off) | Kafka-wire event bus (endpoint on `:9093`) | realizes the [Event Bus contract](../architecture/csp-neutrality.md#1-event-bus-contract--kafka-wire-protocol); DLQ is a Kafka `<topic>.dlq` convention, not a native DLQ resource |
 | 5 | **Diagnostic Settings + `azure-events`-style forwarders** | included with Log Analytics / Activity Log | forward Activity Log / resource events into an Event Hubs Kafka topic | replaces standalone Event Grid system topics; the core sees Kafka only |
-| 6 | **PostgreSQL Flexible Server** | Burstable **B1ms**, 1 zone, 7-day backup | audit + KPI + pattern library + **pgvector** T1 embeddings, single store | HA / multi-zone deferred to Phase 4 |
+| 6 | **PostgreSQL Flexible Server** | Dev: Burstable **B1ms**, HA disabled, 7-day backup; prod: zone-redundant HA, 35-day geo backup | audit + KPI + pattern library + **pgvector** T1 embeddings, single store | production plan fails unless `postgres_high_availability_mode=ZoneRedundant` |
 | 7 | **Key Vault** | Standard | secret backend consumed via **Container Apps native secret + Key Vault reference** - realizes the [Secret contract](../architecture/csp-neutrality.md#3-secret-contract--environment--k8s-secret) | Premium (HSM) not required; app never calls a secret SDK |
 | 8 | **User-assigned Managed Identity** | - | executor's least-privilege, action-whitelisted identity; realizes the [Workload Identity contract](../architecture/csp-neutrality.md#4-workload-identity-contract--oidc-token) | Phase 1 ships **one** MI (`mi-aw-executor`) using built-in role composition, RG-scoped; Phase 3 splits into per-domain MIs - see [security-and-identity.md § Identity Mapping (Phased)](../architecture/security-and-identity.md#identity-mapping-phased) |
 | 9 | **Log Analytics workspace** | Pay-as-you-go, **30-day default retention** | traces / metrics / logs / audit-forward; App Insights binds to it | retention is **UI-configurable** post-deploy, defaulting to 30 days |
@@ -328,6 +330,7 @@ replica caps are still **fork-specific** and tuned per environment; the shape is
 | 11 | **Azure OpenAI / AI Foundry account** (**opt-in**, `var.enable_llm`) | Standard | T1 embedding + T2 mixed-model reasoner deployments (one per capability from `resolved-models.json`) | provisioned only when the deployer holds `Cognitive Services Contributor` on the sub AND the region exposes the preferred family; otherwise the affected capabilities degrade to **`hil-only`** (see [dev-and-deploy-parity.md § Deployer-Scoped LLM Provisioning](dev-and-deploy-parity.md#deployer-scoped-llm-provisioning)). Never deployed in `dev` mode - dev-mode binds deterministic fakes. |
 | 12 | **ADLS Gen2 document account** (**opt-in**, `enable_document_ingestion`) | StorageV2 Standard ZRS, HNS | private quarantine, immutable governed versions, derived envelopes | Shared Key and public access disabled in private mode; soft delete + lifecycle; `blob` and `dfs` private endpoints |
 | 13 | **Document ingestion Container App** (**opt-in**) | Consumption, gateway + ClamAV sidecar | authenticated bounded upload relay, safety scan, extraction, pgvector indexing, lifecycle events | dedicated UAMI; external HTTPS gateway cannot access executor permissions; durable worker consumes document lifecycle records from shared `aw.pipeline.stages` |
+| 14 | **Control-loop canary Job** | Consumption, every 5 minutes | publishes one idempotent event to `aw.control.canary` | dedicated UAMI has only ACR pull and Event Hubs send; the core records a no-op audit through a separate consumer path |
 
 Additional required elements that **do not incur a billable Azure resource of their own**:
 
@@ -349,6 +352,13 @@ Additional required elements that **do not incur a billable Azure resource of th
   `aw-break-glass`. Available on Entra ID P1
   ([user-rbac-and-identity.md#43-conditional-access](../interfaces/user-rbac-and-identity.md#43-conditional-access)).
 - **Azure Bot (Free tier)** - Teams Adaptive Cards for HIL approvals.
+- **Signed HIL webhook** - production supplies the URL and a 32+ character HMAC secret through
+  CI secrets. Terraform stores both in Key Vault; the core reads URL + secret and the read API
+  receives only the callback secret.
+- **Topic-scoped Event Hubs roles** - the executor receives Data Owner on each currently
+  provisioned hub entity, not the namespace. Inventory and canary can send only to their own
+  topics. The read API command identity sends proposals/HIL decisions and receives the stage
+  topic. Document ingestion is limited to `aw.pipeline.stages`.
 - **Static Web Apps (Free tier)** - read-only console hosting; free tier covers the intended
   bandwidth.
 - **Workload identity federation** - CI/CD short-lived OIDC tokens; not a resource, no cost.
@@ -394,29 +404,22 @@ justifies them):
   [Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must)).
 - Separate Application Insights resource (it binds to the shared Log Analytics workspace).
 
-### Compute Shape (sidecar containers)
+### Compute Shape (single modular process)
 
-The core is deployed as **one Container App with sidecar containers**, not one app per
-subsystem. This keeps deployment count minimal while preserving the SRP boundaries defined at
-the code level in [project-structure.md](../architecture/project-structure.md).
+The core currently deploys as one signed image and one Python process inside one Container App.
+Code-level subsystem boundaries remain explicit through Protocols and the composition root; there
+is no undocumented localhost IPC or sidecar image lifecycle.
 
-- **Primary container**: `event-ingest` - the Kafka consumer (Event Hubs `:9093`) that
-  drives KEDA scale-to-zero via Kafka lag.
-- **Sidecar containers** (same replica pod): `trust-router`, `executor`, `audit-writer`, and
-  any other core subsystem.
-- **IPC**: containers talk via `localhost` (HTTP/gRPC on 127.0.0.1). No cross-network hop, no
-  external service discovery.
-- **Independence**: each sidecar ships as its own **signed image**; images are versioned and
-  rolled independently at the registry level even though they deploy together.
-- **Trade-off (accepted for the initial scale)**: sidecars share one scale unit - when
-  ingress scales up, every sidecar scales with it, and restarts happen together. If any
-  sidecar develops a distinct scaling profile, it graduates into its own Container App in a
-  later phase. This graduation is **planned**, not a rewrite: sidecars communicate over
-  loopback the same way they would over a service mesh, so the split is a config change.
-- **Safety invariants unchanged**: sidecars share the executor's identity **only if their
-  responsibility requires it**; sidecars that do not execute (e.g. `trust-router`) MUST run
-  under a **less-privileged identity** so the executor's role is not leaked into every
-  container.
+- **Runtime**: `python -m fdai` starts the Kafka consumer and composes routing, quality, risk,
+  execution, and audit stages in one process.
+- **Health**: internal `/live` and `/ready` probes open only after the authoritative control loop
+  is assembled. The app exposes no public ingress.
+- **Replica floor**: the default is one replica. A zero floor without a verified Kafka scaler
+  would never wake on Event Hubs data, so Terraform does not claim scale-to-zero.
+- **Graduation rule**: split a subsystem into another Container App only after measured load or
+  privilege isolation requires an independent scale unit and a typed transport is available.
+- **Identity split**: the separate read API attaches a read UAMI and a command-transport UAMI;
+  Event Hubs send/receive does not belong to the read principal.
 
 ## Bootstrap Sequence
 
@@ -569,8 +572,9 @@ Every provisioning choice honors these principles; a resource that violates them
 explicit justification in the deployment PR. The **illustrative monthly cost envelope** that
 results from these principles is in [cost-model.md](../interfaces/cost-model.md).
 
-1. **Scale-to-zero first** - idle compute cost MUST be zero. KEDA drives Container Apps and
-   Container Apps Jobs off **Kafka consumer lag** on the Event Hubs endpoint.
+1. **Event-driven first** - scheduled Container Apps Jobs scale to zero between runs. The core
+  currently keeps one replica because a credential-free Event Hubs Kafka-lag scaler has not
+  been verified; changing that floor requires a measured, tested scaler.
 2. **One region, one zone, non-HA at day zero** - multi-zone and multi-region are Phase 4
    (TBD). The initial deployment is a single geographic footprint.
 3. **Managed services collapsed** - pgvector inside PostgreSQL is the vector store; App
@@ -580,10 +584,9 @@ results from these principles is in [cost-model.md](../interfaces/cost-model.md)
    variants, geo-replication, and private-endpoint premium features are deferred.
 5. **Free tiers where they cover the use case** - Static Web Apps (console), Azure Bot
    (HIL Adaptive Cards), and workload identity federation (CI/CD) are all Free tier.
-6. **Monolithic-with-sidecars deployment** - one Container App runs the core subsystems as
-   sidecars ([Compute Shape](#compute-shape-sidecar-containers)). SRP is enforced at the code
-   level; deployment is minimized. Splitting into multiple Container Apps is a **later
-   configuration change**, not a rewrite.
+6. **Single modular process** - one Container App runs the core composition
+  ([Compute Shape](#compute-shape-single-modular-process)). SRP is enforced at the code level;
+  a later process split requires a typed transport and measured justification.
 7. **Model budget cap** - T2 inference is designed to reach ~5-10% of events; token/spend
    budgets are enforced and overflow degrades to HIL, never to uncapped inference.
 8. **Catalog is git-hosted, not a service** - the rule catalog lives in a git repository, not
@@ -612,5 +615,5 @@ results from these principles is in [cost-model.md](../interfaces/cost-model.md)
   PostgreSQL path; ACR/Event Hubs private endpoints remain tenant-policy-driven additions.
 - [ ] Full runtime config key list (values matrix expanded).
 - [ ] Day-zero seed rule set (which sources, which rule ids) - cross-linked to Phase 1.
-- [ ] Sidecar → separate Container App **graduation triggers**: metrics that indicate a
-      subsystem needs its own scale unit and privilege boundary.
+- [ ] Single process -> separate Container App **graduation triggers**: metrics that indicate a
+  subsystem needs its own scale unit, typed transport, and privilege boundary.

@@ -15,7 +15,7 @@ from collections import Counter, deque
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from fdai.agents._framework.action_semantics import is_irreversible
+from fdai.agents._framework.action_semantics import ActionSemanticsCatalog, is_irreversible
 from fdai.agents._framework.base import Agent
 from fdai.agents._framework.bus import PantheonBus
 from fdai.agents._framework.introspection import (
@@ -76,6 +76,7 @@ class Heimdall(Agent):
         incident_candidate_hook: IncidentCandidateHook | None = None,
         alert_rate_per_hour: int = 5,
         clock: Callable[[], float] | None = None,
+        action_semantics: ActionSemanticsCatalog | None = None,
     ) -> None:
         super().__init__(spec=_HEIMDALL)
         self.bus = bus
@@ -92,6 +93,7 @@ class Heimdall(Agent):
         # Injected clock keeps the window deterministic under test; defaults
         # to a monotonic source so a wall-clock jump cannot reopen the budget.
         self._clock = clock or time.monotonic
+        self._action_semantics = action_semantics
         self._alert_windows: dict[str, tuple[float, int]] = {}
 
     def bind_bus(self, bus: PantheonBus) -> None:
@@ -167,7 +169,7 @@ class Heimdall(Agent):
             if e.get("initiator_principal") == initiator and e.get("attempted_action") == action
         )
         severity: str
-        if hint == "critical" or is_irreversible(action):
+        if hint == "critical" or is_irreversible(action, self._action_semantics):
             severity = "high"
         elif matches >= self._security_high_threshold:
             severity = "high"

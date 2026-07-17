@@ -94,9 +94,8 @@ resource "azurerm_container_app" "core" {
   # Set `acr_login_server` (e.g. "crfdaidev.azurecr.io") when the image
   # comes from a private ACR; Container Apps then uses the executor MI
   # (already granted `AcrPull` at the root module) instead of admin
-  # credentials. Empty string means the image is public (MCR / Docker
-  # Hub) and no auth is needed - the upstream default day-zero image is
-  # `mcr.microsoft.com/azure-cli:latest`, which pulls anonymously.
+  # credentials. Empty string means the FDAI image is publicly readable
+  # and no registry authentication is needed.
   # -------------------------------------------------------------------------
   dynamic "registry" {
     for_each = var.acr_login_server == "" ? toset([]) : toset(["1"])
@@ -131,6 +130,24 @@ resource "azurerm_container_app" "core" {
       name                = "state-store-dsn"
       identity            = var.executor_identity_id
       key_vault_secret_id = var.state_store_dsn_secret_id
+    }
+  }
+
+  dynamic "secret" {
+    for_each = nonsensitive(var.chatops_webhook_url_secret_id) == "" ? toset([]) : toset(["1"])
+    content {
+      name                = "chatops-webhook-url"
+      identity            = var.executor_identity_id
+      key_vault_secret_id = var.chatops_webhook_url_secret_id
+    }
+  }
+
+  dynamic "secret" {
+    for_each = nonsensitive(var.chatops_webhook_secret_id) == "" ? toset([]) : toset(["1"])
+    content {
+      name                = "chatops-webhook-secret"
+      identity            = var.executor_identity_id
+      key_vault_secret_id = var.chatops_webhook_secret_id
     }
   }
 
@@ -181,6 +198,22 @@ resource "azurerm_container_app" "core" {
         }
       }
 
+      dynamic "env" {
+        for_each = nonsensitive(var.chatops_webhook_url_secret_id) == "" ? toset([]) : toset(["1"])
+        content {
+          name        = "FDAI_CHATOPS_WEBHOOK_URL"
+          secret_name = "chatops-webhook-url"
+        }
+      }
+
+      dynamic "env" {
+        for_each = nonsensitive(var.chatops_webhook_secret_id) == "" ? toset([]) : toset(["1"])
+        content {
+          name        = "FDAI_CHATOPS_WEBHOOK_SECRET"
+          secret_name = "chatops-webhook-secret"
+        }
+      }
+
       # `python -m fdai` starts the Kafka consumer only when
       # FDAI_START_CONSUMER is truthy. Without this env the Container
       # App boots cleanly but never subscribes to the event bus - a
@@ -190,6 +223,16 @@ resource "azurerm_container_app" "core" {
       env {
         name  = "FDAI_START_CONSUMER"
         value = "1"
+      }
+
+      env {
+        name  = "FDAI_HEALTH_PORT"
+        value = tostring(var.health_port)
+      }
+
+      env {
+        name  = "FDAI_CANARY_TOPIC"
+        value = var.canary_topic
       }
 
       env {
@@ -249,6 +292,36 @@ resource "azurerm_container_app" "core" {
           name        = "FDAI_T1_PATTERN_LIBRARY_DSN"
           secret_name = "pattern-library-dsn"
         }
+      }
+
+      startup_probe {
+        transport               = "HTTP"
+        port                    = var.health_port
+        path                    = "/ready"
+        interval_seconds        = 5
+        timeout                 = 2
+        failure_count_threshold = 30
+      }
+
+      liveness_probe {
+        transport               = "HTTP"
+        port                    = var.health_port
+        path                    = "/live"
+        initial_delay           = 5
+        interval_seconds        = 30
+        timeout                 = 5
+        failure_count_threshold = 3
+      }
+
+      readiness_probe {
+        transport               = "HTTP"
+        port                    = var.health_port
+        path                    = "/ready"
+        initial_delay           = 1
+        interval_seconds        = 10
+        timeout                 = 3
+        failure_count_threshold = 3
+        success_count_threshold = 1
       }
     }
   }

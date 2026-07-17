@@ -2,8 +2,8 @@
 title: 배포 빠른 시작
 description: FDAI 최소 세트 인벤토리를 Azure에 프로비저닝하는 방법. 동등한 두 경로(azd 턴키 또는 Terraform 직접 실행) 모두 먼저 미리보고, 계획이 맞을 때만 적용합니다.
 translation_of: deploy-quickstart.md
-translation_source_sha: e44ed055ebfe08abe00b00fa109c7f42a7d7d0ac
-translation_revised: 2026-07-17
+translation_source_sha: ef95ca9adbbfb546fa1617e3c102ad24cffb690c
+translation_revised: 2026-07-18
 ---
 
 # 배포 빠른 시작
@@ -20,6 +20,9 @@ FDAI는 `infra/` 아래의 코드형 인프라(IaC)를 사용해 프로비저닝
 - [배포 사전 점검](../roadmap/deployment/deployment-preflight-ko.md)을 완료해야 합니다.
    이 점검은 컨트롤 루프가 시작되기 전에 쿼터, 권한, 연결, 롤백 차단 요소를 수집합니다.
 - 환경별 값을 `*.tfvars` 파일에 입력합니다. 이 파일은 **커밋하지 마세요**.
+- 저장소 `Dockerfile`로 빌드한 FDAI runtime image가 필요합니다.
+   `container-supply-chain.yml`이 생성한 commit tag를 `core_image`에 설정하고 production에서는
+   attested digest를 사용하세요. Terraform은 이전 Azure CLI placeholder를 차단합니다.
 - 배포 호스트에서 모든 private endpoint로 연결할 수 있어야 합니다. Private-only 환경에서는
    운영자 워크스테이션 대신 VNet에 연결된 배포 runner에서 Terraform을 실행하세요.
 
@@ -60,11 +63,14 @@ terraform -chdir=infra apply -var-file=envs/dev.tfvars
 
 1. **인벤토리 검증.** 리소스가 프로비저닝됐는지, 실행자(executor) 아이덴티티가 지정된
    범위에서 최소 권한만 갖는지 확인합니다.
-2. **제한된 범위 하나 온보딩.** 리소스 그룹 수준과 동등한 범위 하나로 시작하고
+2. **Runtime health 검증.** 내부 core probe가 정상인지, 즉시 실행한 canary publisher Job이
+   완료됐는지 확인합니다. Read API를 사용하면 read identity와 command-transport identity가
+   분리됐는지 확인합니다.
+3. **제한된 범위 하나 온보딩.** 리소스 그룹 수준과 동등한 범위 하나로 시작하고
    소유자를 지정합니다.
-3. **shadow 모드로 관찰.** FDAI가 변경을 적용하지 않고 판단과 감사만 수행하도록 두고,
+4. **shadow 모드로 관찰.** FDAI가 변경을 적용하지 않고 판단과 감사만 수행하도록 두고,
    실행됐을 액션을 검토합니다.
-4. **하나의 액션 승격.** 승격 게이트를 통과한 액션만 enforce로 전환하고, 나머지는
+5. **하나의 액션 승격.** 승격 게이트를 통과한 액션만 enforce로 전환하고, 나머지는
    shadow로 둡니다.
 
 [시작하기](get-started-ko.md) 가이드에서는 이 첫 번째 안전한 롤아웃을 자세히 다룹니다.

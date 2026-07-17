@@ -72,6 +72,11 @@ output "core_app_name" {
   value       = module.compute.core_app_name
 }
 
+output "canary_job_name" {
+  description = "Synthetic control-loop canary publisher Job name."
+  value       = module.compute.canary_job_name
+}
+
 output "measurement_baseline_job_name" {
   description = "Automated-baseline regression Container Apps Job name (Phase-4 continuous measurement)."
   value       = module.measurement_runners.baseline_job_name

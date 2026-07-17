@@ -3,7 +3,7 @@ title: Deploy Quickstart
 description: Provision the FDAI minimum-set inventory on Azure - two equivalent paths (azd turnkey or Terraform direct), preview first, apply only when the plan looks right.
 derives_from:
   - source: docs/roadmap/deployment/deploy-and-onboard.md
-    sha: 99ebe4c7d8c121c6358b9b49b82867120564748a
+    sha: 804b61e58e5a76180e4f0e3a18229d2f97df51db
 ---
 
 # Deploy Quickstart
@@ -23,6 +23,9 @@ apply step.
   collects quota, permission, connectivity, and rollback blockers before the
   control loop starts.
 - Per-environment values in a `*.tfvars` file, which is **never committed**.
+- A FDAI runtime image built from the repository `Dockerfile`. Set `core_image`
+   to the commit tag emitted by `container-supply-chain.yml`; production uses
+   the attested digest. Terraform rejects the former Azure CLI placeholder.
 - Network access from the deployment host to every private endpoint. In a
    private-only environment, run Terraform from the VNet-connected deployment
    runner instead of an operator workstation.
@@ -64,11 +67,14 @@ terraform -chdir=infra apply -var-file=envs/dev.tfvars
 
 1. **Verify the inventory.** Confirm the resources provisioned and the executor
    identity has only its scoped, least-privilege permissions.
-2. **Onboard one bounded scope.** Start with a single resource-group-equivalent
+2. **Verify runtime health.** Confirm the internal core probes are healthy and
+   the immediate canary publisher Job completed. When the read API is enabled,
+   verify that its read and command-transport identities are distinct.
+3. **Onboard one bounded scope.** Start with a single resource-group-equivalent
    scope and name its owner.
-3. **Observe in shadow mode.** Let FDAI judge and audit without mutating, and
+4. **Observe in shadow mode.** Let FDAI judge and audit without mutating, and
    review its would-be actions.
-4. **Promote one action.** Turn on enforcement only for an action that clears its
+5. **Promote one action.** Turn on enforcement only for an action that clears its
    promotion gate, and leave the rest in shadow.
 
 The [Get started](get-started.md) guide covers this first safe rollout in

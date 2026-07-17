@@ -62,6 +62,7 @@ import httpx
 from starlette.applications import Starlette
 
 from fdai.core.rbac.access_request import AccessRequestService
+from fdai.core.rbac.kill_switch_command import KillSwitchCommandService
 from fdai.delivery.persistence import (
     PostgresModelHealthTransitionSink,
     PostgresModelHealthTransitionSinkConfig,
@@ -353,6 +354,7 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         hil_registry=runtime.hil_registry,
         hil_decision_publisher=runtime.hil_decision_publisher,
         console_action=runtime.console_action,
+        kill_switch_command=KillSwitchCommandService(store=state_store),
         iam_access=AccessRequestService(store=state_store),
         iam_directory=iam_directory,
         iam_identity_provider=iam_provider or "entra",

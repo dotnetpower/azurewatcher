@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Final
@@ -87,6 +88,20 @@ class ManagedIdentityWorkloadIdentity:
         # result the first caller stores.
         self._audience_locks: dict[str, asyncio.Lock] = {}
         self._registry_lock = asyncio.Lock()
+
+    @classmethod
+    def from_env(
+        cls,
+        *,
+        http_client: httpx.AsyncClient,
+        env: Mapping[str, str] | None = None,
+        client_id_env: str = "FDAI_MI_CLIENT_ID",
+    ) -> ManagedIdentityWorkloadIdentity:
+        """Build an adapter selecting one attached UAMI by env key."""
+        return cls(
+            http_client=http_client,
+            config=_config_from_env(env=env, client_id_env=client_id_env),
+        )
 
     async def _audience_lock(self, audience: str) -> asyncio.Lock:
         async with self._registry_lock:
@@ -159,12 +174,25 @@ def _audience_to_resource(audience: str) -> str:
 
 
 def _config_from_env(
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
+    *,
+    client_id_env: str = "FDAI_MI_CLIENT_ID",
 ) -> ManagedIdentityWorkloadIdentityConfig:
     """Read the standard Container Apps / IMDS env vars."""
-    src = env if env is not None else dict(os.environ)
-    endpoint = src.get("IDENTITY_ENDPOINT") or src.get("MSI_ENDPOINT")
-    header = src.get("IDENTITY_HEADER") or src.get("MSI_SECRET") or ""
+    src: Mapping[str, str] = env if env is not None else os.environ
+    endpoint = (
+        src.get("IDENTITY_ENDPOINT")
+        or src.get("MSI_ENDPOINT")
+        or os.environ.get("IDENTITY_ENDPOINT")
+        or os.environ.get("MSI_ENDPOINT")
+    )
+    header = (
+        src.get("IDENTITY_HEADER")
+        or src.get("MSI_SECRET")
+        or os.environ.get("IDENTITY_HEADER")
+        or os.environ.get("MSI_SECRET")
+        or ""
+    )
     if not endpoint:
         raise ManagedIdentityConfigurationError(
             "IDENTITY_ENDPOINT (or MSI_ENDPOINT) MUST be set - this adapter "
@@ -173,7 +201,7 @@ def _config_from_env(
     return ManagedIdentityWorkloadIdentityConfig(
         endpoint=endpoint,
         header=header,
-        client_id=src.get("FDAI_MI_CLIENT_ID"),
+        client_id=src.get(client_id_env),
     )
 
 

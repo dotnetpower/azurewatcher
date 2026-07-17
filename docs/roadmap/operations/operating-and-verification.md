@@ -52,23 +52,27 @@ best-effort so exporter failure cannot block routing or safety decisions.
 
 ## Synthetic Canary Event
 
-A scale-to-zero, event-driven system has a specific silent failure mode: **no events arrive →
-looks healthy**. Mitigation: a periodic canary.
+A mostly event-driven system has a specific silent failure mode: **no events arrive -> looks
+healthy**. Mitigation: a periodic canary on a separately authorized topic.
 
-- A **synthetic event** with a known payload is emitted on a fixed cadence from a canary
-  service into the same event bus a real event uses.
-- The canary event carries a marker so the **risk gate always short-circuits it to a no-op
-  audit entry** - it never mutates any resource.
+- A **synthetic event** is emitted every five minutes from a Container Apps Job into
+  `aw.control.canary` on the same Event Hubs namespace.
+- A dedicated UAMI can only pull the image and send to Event Hubs. The core's separate canary
+  consumer accepts only `source=fdai.canary-job` and `event_type=fdai.control.canary`.
+- The canary path records ingest, route, and audit stages plus a no-op audit entry. It never
+  enters T0/T1/T2, the risk gate, execution, IRP, or the learning loop.
 - The **full loop** - `ingest → correlation → tier decision → audit entry` - MUST complete
   within a bounded budget; a failure to complete raises an SLO-burn alert on the
   [operational lane](#alert-routing).
 - The canary is **versioned**, **rate-capped**, and its idempotency key is distinguishable
   from a real event's so canary samples cannot corrupt regression measurement or the
   autonomous discovery loop's observe stage.
-- The canary MUST be exercised in **kill-switch on** and **kill-switch off** states so the
-  kill-switch itself stays proven.
+- Each five-minute slot derives a stable UUID and `canary:<slot>` idempotency key. Container Apps
+  caps publisher execution at 120 seconds and the audit row records measured latency.
 
-**TBD**: canary cadence, exact payload shape, and round-trip budget.
+> The deployment workflow now blocks when an immediate canary publisher run fails. A blocking
+> audit-freshness query, numeric round-trip SLO, and scheduled kill-switch on/off drill remain
+> production-readiness evidence items.
 
 ## Post-Deploy Smoke Tests
 
@@ -91,7 +95,9 @@ Automated tests run against the live deployment after every promotion. A failing
 6. **HIL dry-run** - a synthetic high-risk finding is routed to the HIL channel, an approver
    approves (in a dry-run harness that does not execute), the audit trail records both hops.
 
-**TBD**: fixture composition, per-step budgets, and the promotion-gate wiring.
+The current apply workflow verifies schema migrations, optional HTTP health endpoints, and a
+successful canary publisher Job. Full audit-round-trip, fixture replay, kill-switch drill, and HIL
+dry-run remain required before production promotion.
 
 ## Alert Routing
 

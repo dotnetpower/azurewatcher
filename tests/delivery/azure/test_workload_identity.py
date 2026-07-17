@@ -143,6 +143,34 @@ def test_config_rejects_empty_header() -> None:
 
 
 @pytest.mark.asyncio
+async def test_from_env_selects_named_attached_identity() -> None:
+    captured: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(
+            200,
+            json={"access_token": "x", "expires_on": _future_epoch(3600)},
+        )
+
+    env = {
+        "IDENTITY_ENDPOINT": "https://containerapps-identity.local/token",
+        "IDENTITY_HEADER": "header",
+        "FDAI_MI_CLIENT_ID": "read-client",
+        "FDAI_COMMAND_MI_CLIENT_ID": "command-client",
+    }
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        identity = ManagedIdentityWorkloadIdentity.from_env(
+            http_client=http,
+            env=env,
+            client_id_env="FDAI_COMMAND_MI_CLIENT_ID",
+        )
+        await identity.get_token("aud")
+
+    assert captured[0].url.params["client_id"] == "command-client"
+
+
+@pytest.mark.asyncio
 async def test_concurrent_get_token_calls_share_one_imds_roundtrip() -> None:
     """A burst of concurrent callers for the same audience MUST NOT
     stampede the IMDS endpoint.

@@ -72,23 +72,33 @@ variable "postgres_admin_password" {
 
 variable "core_image" {
   description = <<-EOT
-    Container image reference for the core control-plane app. The default
-    `mcr.microsoft.com/azure-cli:latest` is a **placeholder** used so
-    `terraform apply` succeeds without a pre-built image; that image's
-    ENTRYPOINT is `az`, so the deployed replica will exit immediately
-    and Container Apps will restart-loop until a fork overrides this
-    value with an image built from the repo Dockerfile
-    (ENTRYPOINT `python -m fdai`). Pin by digest for production; a tag
-    is acceptable for dev only.
+    FDAI container image reference for the core control-plane app. Supply an
+    image built from this repository's Dockerfile. The supply-chain workflow
+    publishes `ghcr.io/<owner>/<repo>:sha-<commit>` and records its digest.
+    Production requires the digest form; a commit tag is acceptable in dev.
   EOT
   type        = string
-  default     = "mcr.microsoft.com/azure-cli:latest"
+
+  validation {
+    condition = (
+      trimspace(var.core_image) != "" &&
+      !strcontains(lower(var.core_image), "mcr.microsoft.com/azure-cli") &&
+      !startswith(lower(var.core_image), "replace")
+    )
+    error_message = "core_image must reference an FDAI runtime image, not azure-cli or a REPLACE placeholder."
+  }
 }
 
 variable "max_replicas" {
   description = "Container App max replica count (KEDA scale ceiling). Day-zero default is 3."
   type        = number
   default     = 3
+}
+
+variable "canary_cron_expression" {
+  description = "Full-loop canary cadence in UTC cron format. Empty disables canary publication."
+  type        = string
+  default     = "*/5 * * * *"
 }
 
 variable "log_retention_days" {
@@ -420,6 +430,26 @@ variable "alert_webhook_url" {
   sensitive   = true
 }
 
+variable "enable_chatops_hil" {
+  description = "Enable signed ChatOps delivery for runtime HIL approvals."
+  type        = bool
+  default     = false
+}
+
+variable "chatops_webhook_url" {
+  description = "Teams-compatible HIL webhook URL. Supply through CI secret; never commit a value."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "chatops_webhook_secret" {
+  description = "HMAC secret shared by HIL card delivery and the decision callback."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # ---------------------------------------------------------------------------
 # Operator console (layer 3) - Azure Static Web App hosting the read-only SPA.
 # Default false so a day-zero deploy stays headless; a fork/operator opts in.
@@ -722,6 +752,17 @@ variable "postgres_geo_redundant_backup" {
   description = "Postgres geo-redundant (paired-region) backup. Adds cost; prod default true once RTO/RPO is signed off."
   type        = bool
   default     = false
+}
+
+variable "postgres_high_availability_mode" {
+  description = "PostgreSQL Flexible HA mode. Production requires ZoneRedundant."
+  type        = string
+  default     = "Disabled"
+
+  validation {
+    condition     = contains(["Disabled", "SameZone", "ZoneRedundant"], var.postgres_high_availability_mode)
+    error_message = "postgres_high_availability_mode must be Disabled, SameZone, or ZoneRedundant."
+  }
 }
 
 variable "acr_sku" {

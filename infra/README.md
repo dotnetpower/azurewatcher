@@ -20,6 +20,19 @@ Container App tagged `azd-service-name: core` (set in
 A `services` block only drives `azd deploy`; `azd provision --preview` is
 unaffected.
 
+Direct Terraform plans require `core_image` to reference an FDAI image built
+from the repository Dockerfile. The variable rejects the former
+`mcr.microsoft.com/azure-cli` bootstrap placeholder. The core Container App
+keeps one replica, exposes internal `/live` and `/ready` probes, and starts a
+dedicated five-minute canary Job. The canary UAMI has only ACR pull and Event
+Hubs send. When the read API is enabled, a read UAMI owns ACR, Key Vault, and
+Reader access while a separate command UAMI owns Event Hubs send/receive.
+
+Production plans also require PostgreSQL `ZoneRedundant` high availability,
+35-day geo-redundant backup, and signed HIL delivery. Supply the HIL URL and
+32+ character HMAC secret through CI secrets; Terraform stores them in Key
+Vault and never writes populated values to this repository.
+
 Environment values (subscription id, tenant id, resource group, etc.) are supplied
 at apply time via env vars / tfvars files that are **never committed** - the repo
 stays customer-agnostic per

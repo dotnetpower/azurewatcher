@@ -9,12 +9,14 @@ of 2 for an irreversible action.
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 import pytest
 
 from fdai.agents._framework.action_semantics import (
     DEFAULT_QUORUM,
     IRREVERSIBLE_QUORUM,
+    ActionSemanticsCatalog,
     is_irreversible,
     outcome_result,
     quorum_for,
@@ -24,6 +26,10 @@ from fdai.agents._framework.registry import load_pantheon
 from fdai.agents.forseti import Forseti
 from fdai.agents.thor import ActionRunState, Thor
 from fdai.agents.var import Var
+from fdai.rule_catalog.schema.action_type import load_action_type_catalog
+from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _bus() -> InMemoryBus:
@@ -101,6 +107,22 @@ class TestForsetiStampsQuorum:
         )
         assert verdict is not None
         assert verdict["quorum_required"] == 1
+
+    def test_catalog_irreversible_flag_overrides_name_heuristic(self) -> None:
+        action_types = load_action_type_catalog(
+            REPO_ROOT / "rule-catalog" / "action-types",
+            schema_registry=PackageResourceSchemaRegistry(),
+        )
+        semantics = ActionSemanticsCatalog.from_action_types(action_types)
+        f = Forseti(bus=None, action_semantics=semantics)
+
+        verdict = asyncio.run(
+            f.judge({"action_type": "ops.restart-service", "correlation_id": "c-catalog"})
+        )
+
+        assert verdict is not None
+        assert verdict["quorum_required"] == IRREVERSIBLE_QUORUM
+        assert verdict["rollback_contract"] == "state_forward_only"
 
 
 class TestThorPropagatesQuorum:

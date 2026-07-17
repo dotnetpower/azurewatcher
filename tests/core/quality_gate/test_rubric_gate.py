@@ -474,11 +474,11 @@ async def test_debate_resolved_disagreement_still_honors_rubric_fail() -> None:
         rubric_evaluator=_partial_fail_rubric(),
     )
     decision = await gate.evaluate(_candidate(confidence=0.9))
-    # The debate PROCEEDs (resolves the cross-check disagreement), but the
-    # rubric FAILed - the outcome MUST be ABSTAIN, not ELIGIBLE.
+    # Debate cannot resolve a cross-check quorum failure. The rubric failure
+    # remains recorded, while DISAGREE is the authoritative HIL reason.
     assert decision.rubric_verdict == "fail"
     assert any(r.startswith("rubric_failed") for r in decision.reasons)
-    assert decision.outcome is QualityOutcome.ABSTAIN
+    assert decision.outcome is QualityOutcome.DISAGREE
     # Confidence was folded down to the min rubric score (subtractive).
     assert decision.aggregate_confidence == pytest.approx(0.6)
 

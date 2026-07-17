@@ -300,6 +300,25 @@ def test_forseti_routes_no_rule_match_with_resource_to_hil() -> None:
     assert published[0].payload["risk_verdict"] == "hil"
 
 
+def test_forseti_cost_spike_has_no_placeholder_remediation() -> None:
+    f = Forseti(bus=None)
+
+    verdict = asyncio.run(
+        f.judge(
+            {
+                "event_type": "cost_spike",
+                "resource_id": "subscription-cost",
+                "correlation_id": "corr-cost-spike",
+            }
+        )
+    )
+
+    assert verdict is not None
+    assert verdict["risk_verdict"] == "hil"
+    assert verdict["action_type"] == ""
+    assert verdict["reason"] == "no_rule_match"
+
+
 def test_forseti_operator_initiated_unknown_principal_fails_closed_to_deny() -> None:
     # An operator-initiated proposal whose initiator is unknown to the RBAC
     # seam MUST deny (never silently widen privilege via the chat port).

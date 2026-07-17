@@ -46,11 +46,13 @@ def _candidate(
     *,
     action_type: str = "remediate.tag-add",
     target_resource_ref: str = "vm-1",
+    target_resource_type: str | None = "compute.vm",
     cited_rule_ids: tuple[str, ...] = (),
 ) -> QualityCandidate:
     return QualityCandidate(
         action_type=action_type,
         target_resource_ref=target_resource_ref,
+        target_resource_type=target_resource_type,
         params={"owner": "team-a"},
         cited_rule_ids=cited_rule_ids,
     )
@@ -159,8 +161,8 @@ def test_verifier_skips_rule_of_wrong_target_type(valid_rule: dict[str, Any]) ->
     )
 
 
-def test_verifier_target_type_filter_is_optional(valid_rule: dict[str, Any]) -> None:
-    """No lookup supplied → verifier does not filter on resource_type."""
+def test_verifier_abstains_when_target_type_is_unresolved(valid_rule: dict[str, Any]) -> None:
+    """No candidate type or lookup means the verifier cannot authorize."""
     rule = _make_rule(
         valid_rule,
         rule_id="rule.a",
@@ -172,19 +174,18 @@ def test_verifier_target_type_filter_is_optional(valid_rule: dict[str, Any]) -> 
         verifier.verify(
             _candidate(
                 action_type="remediate.tag-add",
+                target_resource_type=None,
                 cited_rule_ids=("rule.a",),
             )
         )
-        is True
+        is None
     )
 
 
-def test_verifier_returns_false_when_lookup_missing_target(
+def test_verifier_abstains_when_lookup_missing_target(
     valid_rule: dict[str, Any],
 ) -> None:
-    """Lookup supplied but the target ref is not registered - treated
-    as 'no type filter' for that candidate (fail-open on the filter
-    only; the deny-based safety still holds)."""
+    """A lookup miss cannot authorize an action on an unknown target type."""
     rule = _make_rule(
         valid_rule,
         rule_id="rule.a",
@@ -195,17 +196,16 @@ def test_verifier_returns_false_when_lookup_missing_target(
         rules_by_id={"rule.a": rule},
         target_resource_type_lookup={"vm-1": "compute.vm"},
     )
-    # target 'unknown-ref' returns None from the lookup → filter skipped
-    # → cited rule authorizes → True.
     assert (
         verifier.verify(
             _candidate(
                 action_type="remediate.tag-add",
                 target_resource_ref="unknown-ref",
+                target_resource_type=None,
                 cited_rule_ids=("rule.a",),
             )
         )
-        is True
+        is None
     )
 
 
@@ -237,6 +237,7 @@ async def test_rulebased_verifier_composes_with_quality_gate(
     candidate = QualityCandidate(
         action_type="remediate.tag-add",
         target_resource_ref="vm-1",
+        target_resource_type="compute.vm",
         params={"owner": "team-a"},
         cited_rule_ids=("rule.a",),
         confidence_signals={"verifier_margin": 0.9, "retrieval": 0.9},
@@ -271,6 +272,7 @@ async def test_rulebased_verifier_denies_invented_action(valid_rule: dict[str, A
     invented = QualityCandidate(
         action_type="remediate.invented",
         target_resource_ref="vm-1",
+        target_resource_type="compute.vm",
         params={},
         cited_rule_ids=("rule.a",),
     )

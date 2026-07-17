@@ -16,6 +16,15 @@ from fdai.shared.providers.testing.process_runtime import InMemoryProcessRuntime
 from fdai.shared.providers.testing.state_store import InMemoryStateStore
 
 _LOGGER = logging.getLogger("fdai.startup")
+_DURABLE_RUNTIME_ENVS = frozenset({"staging", "prod"})
+
+
+def _require_durable_backend(*, env_var: str, backend: str) -> None:
+    runtime_env = os.environ.get("RUNTIME_ENV", "").strip().lower()
+    if runtime_env in _DURABLE_RUNTIME_ENVS:
+        raise RuntimeError(
+            f"RUNTIME_ENV={runtime_env!r} requires {env_var} for the durable {backend} backend"
+        )
 
 
 def _build_audit_store() -> Any:
@@ -32,6 +41,7 @@ def _build_audit_store() -> Any:
 
         _LOGGER.info("state_store_backend", extra={"backend": "postgres"})
         return PostgresStateStore(config=PostgresStateStoreConfig(dsn=dsn))
+    _require_durable_backend(env_var="FDAI_STATE_STORE_DSN", backend="state store")
     _LOGGER.info("state_store_backend", extra={"backend": "in-memory"})
     return InMemoryStateStore()
 
@@ -47,6 +57,7 @@ def _build_process_store() -> Any:
 
         _LOGGER.info("process_runtime_backend", extra={"backend": "postgres"})
         return PostgresProcessRuntimeStore(config=PostgresProcessRuntimeStoreConfig(dsn=dsn))
+    _require_durable_backend(env_var="FDAI_STATE_STORE_DSN", backend="process runtime")
     _LOGGER.info("process_runtime_backend", extra={"backend": "in-memory"})
     return InMemoryProcessRuntimeStore()
 
@@ -70,6 +81,7 @@ def _build_ontology_instance_store(
             object_types=object_types,
             link_types=link_types,
         )
+    _require_durable_backend(env_var="FDAI_STATE_STORE_DSN", backend="ontology instance store")
     _LOGGER.info("ontology_instance_backend", extra={"backend": "in-memory"})
     return InMemoryOntologyInstanceStore(
         object_types=object_types,
@@ -92,6 +104,10 @@ def _build_resource_lock() -> ResourceLock:
         or os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
     )
     if not dsn:
+        _require_durable_backend(
+            env_var="FDAI_RESOURCE_LOCK_DSN or FDAI_STATE_STORE_DSN",
+            backend="resource lock",
+        )
         _LOGGER.info("resource_lock_backend", extra={"backend": "in-memory"})
         return ResourceLockManager()
 
@@ -144,6 +160,7 @@ def _build_operator_memory_store() -> Any:
 
         _LOGGER.info("operator_memory_store_backend", extra={"backend": "postgres"})
         return PostgresOperatorMemoryStore(config=PostgresOperatorMemoryStoreConfig(dsn=dsn))
+    _require_durable_backend(env_var="FDAI_OPERATOR_MEMORY_DSN", backend="operator memory store")
     _LOGGER.info("operator_memory_store_backend", extra={"backend": "in-memory"})
     return InMemoryOperatorMemoryStore()
 
@@ -155,6 +172,10 @@ def _build_metering_store() -> Any:
         or os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
     )
     if not dsn:
+        _require_durable_backend(
+            env_var="FDAI_METERING_DSN or FDAI_STATE_STORE_DSN",
+            backend="metering store",
+        )
         from fdai.core.metering import InMemoryMeteringSink
 
         _LOGGER.info("metering_store_backend", extra={"backend": "in-memory"})
@@ -204,6 +225,9 @@ def _build_pattern_library() -> PatternLibrary:
     """
     dsn = os.environ.get("FDAI_T1_PATTERN_LIBRARY_DSN", "").strip()
     if not dsn:
+        _require_durable_backend(
+            env_var="FDAI_T1_PATTERN_LIBRARY_DSN", backend="T1 pattern library"
+        )
         _LOGGER.info("pattern_library_backend", extra={"backend": "in-memory"})
         return InMemoryPatternLibrary()
 
@@ -259,6 +283,10 @@ def _build_idempotency_store() -> IdempotencyStore | None:
         or os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
     )
     if not dsn:
+        _require_durable_backend(
+            env_var="FDAI_IDEMPOTENCY_DSN or FDAI_STATE_STORE_DSN",
+            backend="idempotency store",
+        )
         _LOGGER.info("idempotency_backend", extra={"backend": "in-process-l1-only"})
         return None
 
@@ -272,8 +300,15 @@ def _build_idempotency_store() -> IdempotencyStore | None:
 
 
 def _build_inventory_age_provider() -> Any:
-    dsn = os.environ.get("FDAI_INVENTORY_DSN", "").strip()
+    dsn = (
+        os.environ.get("FDAI_INVENTORY_DSN", "").strip()
+        or os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
+    )
     if not dsn:
+        _require_durable_backend(
+            env_var="FDAI_INVENTORY_DSN or FDAI_STATE_STORE_DSN",
+            backend="inventory age provider",
+        )
         return None
     from fdai.delivery.persistence.postgres_inventory_snapshot import (
         PostgresInventoryAgeProvider,
@@ -284,8 +319,15 @@ def _build_inventory_age_provider() -> Any:
 
 
 def _build_inventory_context_provider() -> Any:
-    dsn = os.environ.get("FDAI_INVENTORY_DSN", "").strip()
+    dsn = (
+        os.environ.get("FDAI_INVENTORY_DSN", "").strip()
+        or os.environ.get("FDAI_STATE_STORE_DSN", "").strip()
+    )
     if not dsn:
+        _require_durable_backend(
+            env_var="FDAI_INVENTORY_DSN or FDAI_STATE_STORE_DSN",
+            backend="inventory context provider",
+        )
         return None
     from fdai.delivery.persistence.postgres_inventory_snapshot import (
         PostgresInventoryContextProvider,

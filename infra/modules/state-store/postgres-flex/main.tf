@@ -35,6 +35,13 @@ resource "azurerm_postgresql_flexible_server" "primary" {
     # this single-zone day-zero config does not use.
     ignore_changes = [zone]
   }
+
+  dynamic "high_availability" {
+    for_each = var.high_availability_mode == "Disabled" ? [] : [var.high_availability_mode]
+    content {
+      mode = high_availability.value
+    }
+  }
 }
 
 resource "azurerm_postgresql_flexible_server_database" "primary" {
@@ -81,4 +88,3 @@ resource "azurerm_postgresql_flexible_server_configuration" "vector_extension" {
   server_id = azurerm_postgresql_flexible_server.primary.id
   value     = "VECTOR"
 }
-

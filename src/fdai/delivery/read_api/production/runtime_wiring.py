@@ -83,7 +83,12 @@ def build_production_runtime(
         http_client = httpx.AsyncClient(
             timeout=httpx.Timeout(connect=5.0, read=30.0, write=15.0, pool=5.0)
         )
-        identity = ManagedIdentityWorkloadIdentity(http_client=http_client)
+        _require_env(env, _env.COMMAND_MI_CLIENT_ID_ENV)
+        identity = ManagedIdentityWorkloadIdentity.from_env(
+            http_client=http_client,
+            env=env,
+            client_id_env=_env.COMMAND_MI_CLIENT_ID_ENV,
+        )
         event_bus = EventHubsKafkaBus(
             identity=identity,
             config=EventHubsKafkaBusConfig(

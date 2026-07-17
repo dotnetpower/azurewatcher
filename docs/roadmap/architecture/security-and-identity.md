@@ -174,9 +174,10 @@ no-op".
 - A **global kill-switch** halts all auto-execution immediately and drops every path to
   shadow/HIL; it is operable without the executor identity. The risk gate realizes this via a
   `kill_switch` ceiling axis fed by `KillSwitch.is_engaged()`
-  ([execution-model.md](../decisioning/execution-model.md) 2.6b); upstream ships an in-memory
-  default and a fork backs the state in the state store so the switch is durable and
-  cluster-wide.
+  ([execution-model.md](../decisioning/execution-model.md) 2.6b). The production runtime reads
+  the state from PostgreSQL before every authority decision; a read failure is treated as
+  engaged. Owner and Break-Glass principals change it through `POST /system/kill-switch`, which
+  uses revision compare-and-set and writes the audit entry in the same transaction.
 - A **break-glass** procedure grants scoped emergency access under mandatory audit and
   post-incident review; break-glass use raises an alert and auto-expires.
 

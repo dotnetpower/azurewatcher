@@ -14,7 +14,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from fdai.agents._framework.action_semantics import quorum_for
+from fdai.agents._framework.action_semantics import (
+    ActionSemanticsCatalog,
+    quorum_for,
+    rollback_contract_for,
+)
 from fdai.agents._framework.base import Agent
 from fdai.agents._framework.bounded import BoundedLruDict
 from fdai.agents._framework.bus import PantheonBus
@@ -35,7 +39,6 @@ _RULE_MATCH: dict[str, str] = {
     "public_network_enabled": "remediate.disable-public-access",
     "unencrypted_disk": "remediate.enable-encryption",
     "restart_needed": "ops.restart-service",
-    "cost_spike": "governance.notify-admin-privilege-violation",  # placeholder
     "chaos_experiment_request": "ops.restart-service",
 }
 
@@ -50,16 +53,6 @@ _RISK_VERDICT: dict[str, str] = {
     "ops.failover-primary": "hil",
     "remediate.delete-storage": "deny",  # irreversible
 }
-
-_ROLLBACK_CONTRACT: dict[str, str] = {
-    "remediate.disable-public-access": "state_forward_only",
-    "remediate.enable-encryption": "state_forward_only",
-    "ops.restart-service": "state_forward_only",
-    "governance.notify-admin-privilege-violation": "state_forward_only",
-    "ops.failover-primary": "scripted",
-    "remediate.delete-storage": "pitr",
-}
-
 
 # ---------------------------------------------------------------------------
 # RBAC (wave 3 minimal model)
@@ -84,10 +77,12 @@ class Forseti(Agent):
         *,
         bus: PantheonBus | None = None,
         rbac: dict[str, frozenset[str]] | None = None,
+        action_semantics: ActionSemanticsCatalog | None = None,
     ) -> None:
         super().__init__(spec=_FORSETI)
         self.bus = bus
         self._rbac = rbac if rbac is not None else _DEFAULT_RBAC
+        self._action_semantics = action_semantics
         # Latest arbitration winner per correlation id (populated when Odin
         # resolves a cross-vertical conflict Forseti raised).
         self.arbitrations: dict[str, str] = {}
@@ -322,8 +317,11 @@ class Forseti(Agent):
             # it. Reversible actions carry the single-approver default. This
             # rides along even on a deny verdict (harmless, and correct if a
             # fork's risk table routes the same action to hil instead).
-            "quorum_required": quorum_for(action_type),
-            "rollback_contract": _ROLLBACK_CONTRACT.get(action_type, "state_forward_only"),
+            "quorum_required": quorum_for(action_type, self._action_semantics),
+            "rollback_contract": rollback_contract_for(
+                action_type,
+                self._action_semantics,
+            ),
             # Propagate the operator initiator (None for rule-fired) so the
             # approver principal downstream can enforce no-self-approval.
             "initiator_principal": event.get("initiator_principal"),

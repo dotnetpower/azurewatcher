@@ -387,7 +387,7 @@ async def test_aggregate_confidence_zero_when_no_signals() -> None:
     assert decision.aggregate_confidence == 0.0
 
 
-def test_candidate_aggregate_ignores_non_numeric_signals() -> None:
+def test_candidate_aggregate_fails_closed_on_non_numeric_signals() -> None:
     candidate = QualityCandidate(
         action_type="a",
         target_resource_ref="r",
@@ -395,12 +395,11 @@ def test_candidate_aggregate_ignores_non_numeric_signals() -> None:
         cited_rule_ids=(),
         confidence_signals={"good": 0.8, "bad": "not-a-number"},  # type: ignore[dict-item]
     )
-    assert candidate.aggregate_confidence == 0.8
+    assert candidate.aggregate_confidence == 0.0
 
 
-def test_candidate_aggregate_excludes_bool_values() -> None:
-    """`bool` subtypes `int`; letting it slip through would silently
-    inflate the aggregate to 1.0. Ensure it is excluded."""
+def test_candidate_aggregate_fails_closed_on_bool_values() -> None:
+    """A bool is malformed confidence evidence, so the whole aggregate is 0."""
     candidate = QualityCandidate(
         action_type="a",
         target_resource_ref="r",
@@ -408,8 +407,7 @@ def test_candidate_aggregate_excludes_bool_values() -> None:
         cited_rule_ids=(),
         confidence_signals={"passed": True, "score": 0.6},
     )
-    # Only 0.6 counts; True → excluded.
-    assert candidate.aggregate_confidence == 0.6
+    assert candidate.aggregate_confidence == 0.0
 
 
 def test_candidate_aggregate_bool_only_returns_zero() -> None:
@@ -546,7 +544,7 @@ def test_gate_rejects_half_wired_router_config_missing_orchestrator() -> None:
 
 
 @pytest.mark.asyncio
-async def test_debate_proceed_flips_disagreement_to_eligible() -> None:
+async def test_debate_proceed_keeps_disagreement_for_human_review() -> None:
     from fdai.core.quality_gate.debate_router import DebateRouterConfig
 
     gate = QualityGate(
@@ -561,9 +559,8 @@ async def test_debate_proceed_flips_disagreement_to_eligible() -> None:
         debate_router_config=DebateRouterConfig(),
     )
     decision = await gate.evaluate(_candidate())
-    assert decision.outcome is QualityOutcome.ELIGIBLE
-    # The disagreement reason is preserved for audit; the debate
-    # reasons explain why the outcome flipped.
+    assert decision.outcome is QualityOutcome.DISAGREE
+    # Debate enriches the audit but cannot override mixed-model disagreement.
     assert any("cross_check_below_quorum" in r for r in decision.reasons)
     assert any("debate_route:debate:cross_check_disagreement" in r for r in decision.reasons)
     assert any("debate_outcome:proceed:judge accepted" in r for r in decision.reasons)
@@ -615,10 +612,8 @@ async def test_debate_router_skip_leaves_outcome_as_disagree() -> None:
 
 
 @pytest.mark.asyncio
-async def test_debate_proceed_with_other_soft_issue_still_abstains() -> None:
-    """Debate resolves the disagreement but low confidence remains -
-    the outcome MUST NOT be ELIGIBLE. The debate is one axis; every
-    other check still applies."""
+async def test_debate_proceed_with_other_soft_issue_stays_disagree() -> None:
+    """Quorum disagreement remains authoritative even with low confidence."""
 
     from fdai.core.quality_gate.debate_router import DebateRouterConfig
 
@@ -637,7 +632,7 @@ async def test_debate_proceed_with_other_soft_issue_still_abstains() -> None:
     decision = await gate.evaluate(
         _candidate(confidence={"retrieval": 0.1, "verifier_margin": 0.1})
     )
-    assert decision.outcome is QualityOutcome.ABSTAIN
+    assert decision.outcome is QualityOutcome.DISAGREE
     assert any("debate_outcome:proceed" in r for r in decision.reasons)
     assert any(r.startswith("confidence=") for r in decision.reasons)
 

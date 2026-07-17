@@ -65,6 +65,27 @@ variable "inventory_identity_client_id" {
   type        = string
 }
 
+variable "canary_identity_id" {
+  description = "Dedicated canary publisher UAMI resource id."
+  type        = string
+}
+
+variable "canary_identity_client_id" {
+  description = "Client id of the dedicated canary publisher UAMI."
+  type        = string
+}
+
+variable "canary_topic" {
+  description = "Dedicated Event Hubs topic consumed only by the trusted canary path."
+  type        = string
+}
+
+variable "canary_cron_expression" {
+  description = "Cron for the full-loop synthetic canary. Empty disables the job."
+  type        = string
+  default     = "*/5 * * * *"
+}
+
 variable "inventory_dsn_secret_id" {
   description = "Key Vault secret id containing the inventory snapshot PostgreSQL DSN."
   type        = string
@@ -112,8 +133,7 @@ variable "acr_login_server" {
     (e.g. "crfdaidev.azurecr.io"). When non-empty, a `registry {}`
     block is attached to the Container App and image pull authenticates
     via the executor MI (which the root module grants `AcrPull` on).
-    Leave empty for public images (MCR / Docker Hub); the day-zero
-    default `mcr.microsoft.com/azure-cli:latest` requires no auth.
+    Leave empty only when the supplied FDAI image is publicly readable.
   EOT
   type        = string
   default     = ""
@@ -153,6 +173,17 @@ variable "core_memory" {
   validation {
     condition     = can(regex("^[0-9]+(\\.[0-9]+)?Gi$", var.core_memory))
     error_message = "core_memory must be a Container Apps value like `1Gi` / `2.5Gi`."
+  }
+}
+
+variable "health_port" {
+  description = "Internal HTTP port for the core liveness and readiness probes. No ingress is exposed."
+  type        = number
+  default     = 8080
+
+  validation {
+    condition     = var.health_port >= 1 && var.health_port <= 65535
+    error_message = "health_port must be between 1 and 65535."
   }
 }
 
@@ -319,6 +350,20 @@ variable "pattern_library_dsn_secret_id" {
   type        = string
   default     = ""
   sensitive   = true
+}
+
+variable "chatops_webhook_url_secret_id" {
+  description = "Key Vault secret id containing the HIL webhook URL. Empty disables push delivery."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "chatops_webhook_secret_id" {
+  description = "Key Vault secret id containing the HIL HMAC secret."
+  type        = string
+  sensitive   = true
+  default     = ""
 }
 
 variable "tags" {

@@ -20,7 +20,7 @@ shape maps to environments and CI/CD.
 
 | # | Layer | Shape | Scales to zero | Rationale |
 |---|-------|-------|----------------|-----------|
-| 1 | **Core engine** | headless, event-driven backend (no UI) - trust router, T0/T1/T2, risk gate, executor | yes | wakes on events; Azure adapter today, other CSPs TBD behind the same interface |
+| 1 | **Core engine** | headless, event-driven backend (no UI) - trust router, T0/T1/T2, risk gate, executor | not yet | current Azure baseline keeps one replica until a credential-free Kafka-lag scaler is verified; scheduled jobs scale to zero |
 | 2 | **Action delivery** | GitOps / PR-native (GitHub App or Azure DevOps) - actions are remediation PRs/IaC | n/a (git-hosted) | audit, rollback, and approval already exist in git |
 | 3 | **Operator console** | thin, read-only SPA - KPI dashboard, audit log, shadow results, HIL queue view | yes (static hosting) | minimal read surface; never executes actions itself |
 | 4 | **Human channel** | ChatOps (Teams bot + Adaptive Cards) - high-risk HIL approvals and alerts | yes (event-driven) | reach operators where they already are |
@@ -85,17 +85,20 @@ Recommended mapping:
   (Kafka wire protocol is the CSP-neutral contract); Service Bus and Event Grid are **not**
   in the day-zero inventory. Where a native Azure signal is needed (Activity Log, resource
   events), it is forwarded into a Kafka topic on Event Hubs - the core sees Kafka only.
-- Core consumer: **Azure Container Apps** (Consumption, KEDA scale + scale-to-zero) - **one
-  app with sidecar containers** for the core subsystems (`event-ingest` primary, others as
-  sidecars); AKS only if heavier scaling profiles emerge later. The app ships as an **OCI
+- Core consumer: **Azure Container Apps** (Consumption) - **one app with one modular Python
+  process** that composes the core subsystems behind internal interfaces. The current
+  Terraform baseline keeps `minReplicas = 1`; scale-to-zero remains blocked until an
+  Event Hubs Kafka-lag scaler can authenticate without adding a long-lived secret. AKS is
+  reserved for a measured heavier profile. The app ships as an **OCI
   image + a Knative-compatible manifest subset**, rendered into `containerapp` resources by
   IaC. **Dapr sidecars and Envoy-specific ingress rules are prohibited** to keep the runtime
   contract portable.
 - Light triggers: **Container Apps Jobs** in the same environment for out-of-band change
   detection and cost-anomaly probes (avoids provisioning a separate Functions plan); rendered
   from the same manifest as a K8s `CronJob` on non-Azure targets.
-- Audit/state/KPI + T1 vectors: **PostgreSQL Flexible** (Burstable, 1 zone) with **pgvector**
-  co-located; Cosmos DB only if RU-metering and geo-distribution outgrow a single primary.
+- Audit/state/KPI + T1 vectors: **PostgreSQL Flexible** with **pgvector** co-located. Dev uses
+  Burstable with HA disabled; production requires zone-redundant HA plus geo-redundant backup.
+  Cosmos DB is considered only if RU-metering and geo-distribution outgrow this boundary.
 - Secrets: the app reads **environment variables only**; **Key Vault** is bridged in via
   **Container Apps native secret + Key Vault reference** (K8s targets use External Secrets
   Operator). The app never calls a secret SDK.

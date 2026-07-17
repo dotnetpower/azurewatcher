@@ -1,8 +1,8 @@
 ---
 title: 사용자 RBAC와 Entra 아이덴티티
 translation_of: user-rbac-and-identity.md
-translation_source_sha: a9f2643b796885d3b97d9a14ad895357d0d2eb3a
-translation_revised: 2026-07-16
+translation_source_sha: d2d74a7dead761291f04b9e1278cda5264648e64
+translation_revised: 2026-07-18
 ---
 
 # 사용자 RBAC와 Entra 아이덴티티
@@ -84,6 +84,11 @@ CODEOWNERS 경로, 앱 레벨 정당화에서 옴.
 | `aw-*` 그룹 멤버십 관리 | | | | ✓ | |
 | 인프라 IaC 적용 (deployer) | | | | ✓ | |
 | Executor Managed Identity 보유 | (절대) - MI는 비-사람 |||||
+
+Production API는 durable command service가 연결된 경우에만 `POST /system/kill-switch`를
+노출합니다. Owner와 활성 Break-Glass principal은 호출할 수 있지만 Reader, Contributor,
+Approver는 호출할 수 없습니다. 이 endpoint는 console button이 아니며 executor identity를
+사용하지 않고 revision state 변경과 audit entry를 원자적으로 기록합니다.
 
 ## 4. Entra ID 아티팩트
 

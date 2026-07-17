@@ -26,7 +26,14 @@ kv_purge_protection_enabled    = true
 kv_soft_delete_retention_days  = 90
 postgres_backup_retention_days = 35
 postgres_geo_redundant_backup  = true
+postgres_high_availability_mode = "ZoneRedundant"
 acr_sku                        = "Premium"
+
+# Required in prod. Supply URL and 32+ character secret through CI secrets,
+# not a committed tfvars file.
+enable_chatops_hil = true
+# chatops_webhook_url    = "https://..."
+# chatops_webhook_secret = "..."
 
 enable_monitoring = true
 # alert_email       = "oncall@example.com"
@@ -40,9 +47,9 @@ additional_tags = {
   "fdai:environment-class" = "prod"
 }
 
-# Governed document ingestion is required by the production gate. Replace
-# image digests, Entra ids, CORS origin, and confirm model availability before
-# planning. HNS document storage remains private and keyless.
+# Governed document ingestion is optional. When enabled, replace image digests,
+# Entra ids, CORS origin, and confirm model availability before planning. HNS
+# document storage remains private and keyless.
 enable_document_ingestion      = true
 enable_llm                     = true
 ingestion_embedding_capability = "t1.embedding"

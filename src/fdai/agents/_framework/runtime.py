@@ -36,6 +36,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from fdai.agents._framework.action_semantics import ActionSemanticsCatalog
 from fdai.agents._framework.base import Agent
 from fdai.agents._framework.bus_bridge import EventBusBridge
 from fdai.agents._framework.divergence import ShadowDivergenceLedger
@@ -51,6 +52,7 @@ from fdai.agents.saga import Saga, compute_fingerprint
 from fdai.agents.thor import ActionExecutor, ActionRunStore, Thor
 from fdai.agents.vidar import RollbackExecutor, Vidar
 from fdai.core.chaos.coverage import ScenarioCoverageAggregator
+from fdai.shared.contracts.models import OntologyActionType
 from fdai.shared.providers.event_bus import EventBus
 
 _LOG = logging.getLogger(__name__)
@@ -99,6 +101,7 @@ class PantheonRuntime:
         operator_rbac: dict[str, frozenset[str]] | None = None,
         incident_candidate_hook: IncidentCandidateHook | None = None,
         scenario_coverage_aggregator: ScenarioCoverageAggregator | None = None,
+        action_types: tuple[OntologyActionType, ...] = (),
     ) -> PantheonRuntime:
         """Instantiate + wire the pantheon against ``provider``.
 
@@ -160,10 +163,18 @@ class PantheonRuntime:
             consumer_group_prefix=consumer_group_prefix,
         )
         instantiated = instantiate_pantheon()
+        action_semantics = (
+            ActionSemanticsCatalog.from_action_types(action_types) if action_types else None
+        )
         if scenario_coverage_aggregator is not None:
             instantiated["Norns"] = Norns(coverage_aggregator=scenario_coverage_aggregator)
-        if operator_rbac is not None:
-            instantiated["Forseti"] = Forseti(rbac=operator_rbac)
+        if operator_rbac is not None or action_semantics is not None:
+            instantiated["Forseti"] = Forseti(
+                rbac=operator_rbac,
+                action_semantics=action_semantics,
+            )
+        if action_semantics is not None:
+            instantiated["Heimdall"] = Heimdall(action_semantics=action_semantics)
         if saga is not None:
             instantiated["Saga"] = saga
         if rollback_executors is not None:

@@ -372,7 +372,7 @@ class PostgresConsoleReadModel(ConsoleReadModel):
                                                  )
                                              )
                        AND (
-                           %s IS NULL
+                           %s::text IS NULL
                            OR CONCAT_WS(
                                ' ',
                                value->>'approval_id',
@@ -383,7 +383,7 @@ class PostgresConsoleReadModel(ConsoleReadModel):
                                value#>>'{action,target_resource_ref}',
                                value#>>'{approval_context,reasons}',
                                value#>>'{action,citing_rules}'
-                           ) ILIKE %s
+                           ) ILIKE %s::text
                        )
                      ORDER BY
                        -- Cast `parked_at` to `timestamptz` so different UTC

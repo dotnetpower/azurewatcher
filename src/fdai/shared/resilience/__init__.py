@@ -14,7 +14,12 @@ from fdai.shared.resilience.circuit_breaker import (
     CircuitState,
 )
 from fdai.shared.resilience.degradation import DegradationController, SystemMode
-from fdai.shared.resilience.kill_switch import InMemoryKillSwitch, KillSwitch
+from fdai.shared.resilience.kill_switch import (
+    KILL_SWITCH_STATE_KEY,
+    InMemoryKillSwitch,
+    KillSwitch,
+    StateStoreKillSwitch,
+)
 
 __all__ = [
     "Backpressure",
@@ -24,8 +29,10 @@ __all__ = [
     "CircuitOpenError",
     "CircuitState",
     "DegradationController",
+    "KILL_SWITCH_STATE_KEY",
     "InMemoryKillSwitch",
     "KillSwitch",
     "LoadShedError",
+    "StateStoreKillSwitch",
     "SystemMode",
 ]

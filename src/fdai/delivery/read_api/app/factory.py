@@ -76,6 +76,7 @@ _CORE_ROUTE_PATHS: frozenset[str] = frozenset(
         "/incidents",
         "/rca",
         "/healthz",
+        "/system/kill-switch",
         "/iam",
         "/iam/self",
         "/iam/directory/users",
@@ -237,6 +238,16 @@ def build_app(
             dev_mode=resolved_config.dev_mode,
         )
     )
+
+    if resolved_config.kill_switch_command is not None:
+        from fdai.delivery.read_api.routes.kill_switch import make_kill_switch_route
+
+        routes.append(
+            make_kill_switch_route(
+                service=resolved_config.kill_switch_command,
+                authorize_principal=_authorize_principal,
+            )
+        )
 
     if resolved_config.iam_access is not None:
         append_iam_routes(

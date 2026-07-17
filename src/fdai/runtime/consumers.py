@@ -139,6 +139,42 @@ async def _consume_hil_decisions(
             continue
 
 
+async def _consume_canaries(
+    *,
+    bus: EventBus,
+    topic: str,
+    control_loop: ControlLoop,
+    stop: asyncio.Event,
+) -> None:
+    """Consume the separately authorized canary topic without IRP or learning hooks."""
+    async for envelope in bus.subscribe(topic, "fdai-canary"):
+        if stop.is_set():
+            return
+        try:
+            result = await control_loop.process_canary(envelope.payload)
+        except Exception as exc:  # noqa: BLE001 - broker boundary isolation
+            reason = f"canary_consume_error:{type(exc).__name__}"
+            await control_loop.record_unhandled_failure(
+                payload=envelope.payload,
+                reason=reason,
+            )
+            await bus.dead_letter(
+                envelope.topic,
+                envelope.key,
+                envelope.payload,
+                reason,
+            )
+            continue
+        _LOOP_LOGGER.info(
+            "canary_processed",
+            extra={
+                "outcome": result.outcome.value,
+                "event_id": result.event_id,
+                "topic": envelope.topic,
+            },
+        )
+
+
 def _authoritative_decision(result: ControlLoopResult) -> str:
     """Normalize a P1 :class:`ControlLoopResult` to the shared decision
     vocabulary used by the pantheon (``auto`` / ``hil`` / ``deny`` /

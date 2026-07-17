@@ -12,6 +12,7 @@ from datetime import timedelta
 from typing import Any
 
 from fdai.core.control_loop._boundary import ControlLoopBoundaryMixin
+from fdai.core.control_loop._canary import process_canary
 from fdai.core.control_loop._execution import ControlLoopExecutionMixin
 from fdai.core.control_loop._fallback import ControlLoopFallbackMixin
 from fdai.core.control_loop._process import process_event
@@ -81,6 +82,7 @@ class ControlLoop(
         workflow_coordinator: WorkflowTriggerCoordinator | None = None,
         degradation: DegradationController | None = None,
         kill_switch: KillSwitch | None = None,
+        kill_switch_refresher: Callable[[], Awaitable[None]] | None = None,
         governance_assignments: Iterable[Assignment] = (),
         inventory_age_provider: Callable[[str], Awaitable[int | None]] | None = None,
         inventory_context_provider: (
@@ -103,6 +105,7 @@ class ControlLoop(
         self._risk_gate = risk_gate
         self._degradation = degradation
         self._kill_switch = kill_switch
+        self._kill_switch_refresher = kill_switch_refresher
         self._governance_assignments = tuple(governance_assignments)
         self._inventory_age_provider = inventory_age_provider
         self._inventory_context_provider = inventory_context_provider
@@ -139,6 +142,15 @@ class ControlLoop(
     async def process(self, raw_event: Event | Mapping[str, Any]) -> ControlLoopResult:
         """Process one raw or normalized event through the control loop."""
         return await process_event(self, raw_event)
+
+    async def process_canary(self, raw_event: Event | Mapping[str, Any]) -> ControlLoopResult:
+        """Record one event consumed from the separately authorized canary topic."""
+        return await process_canary(self, raw_event)
+
+    @property
+    def action_types(self) -> tuple[OntologyActionType, ...]:
+        """Return the immutable ActionType catalog loaded by this loop."""
+        return tuple(self._action_types_by_name.values())
 
 
 __all__ = ["ControlLoop"]

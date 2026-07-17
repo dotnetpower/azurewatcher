@@ -84,6 +84,11 @@ more roles.
 | Apply infra IaC (deployer) | | | | ✓ | |
 | Hold the executor Managed Identity | (never) - the MI is non-human |||||
 
+The production API exposes `POST /system/kill-switch` only when a durable command service is
+wired. Owner and active Break-Glass principals can call it; Reader, Contributor, and Approver
+cannot. The endpoint is not a console button, uses no executor identity, and atomically records
+the revisioned state change with its audit entry.
+
 ## 4. Entra ID Artifacts
 
 ### 4.1 App Registrations

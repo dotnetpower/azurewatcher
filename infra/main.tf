@@ -1,6 +1,21 @@
 # -----------------------------------------------------------------------
 # Deterministic name suffixes.
 # -----------------------------------------------------------------------
+moved {
+  from = azurerm_role_assignment.executor_eventhubs_data_owner
+  to   = azurerm_role_assignment.executor_eventhubs_data_owner["aw.change.events"]
+}
+
+moved {
+  from = azurerm_role_assignment.command_api_eventhubs_sender[0]
+  to   = azurerm_role_assignment.command_api_eventhubs_sender["aw.change.events"]
+}
+
+moved {
+  from = azurerm_role_assignment.command_api_eventhubs_receiver[0]
+  to   = azurerm_role_assignment.command_api_eventhubs_receiver["aw.pipeline.stages"]
+}
+
 data "azurerm_client_config" "current" {}
 
 locals {
@@ -34,11 +49,13 @@ locals {
   tags = merge(local.base_tags, var.additional_tags)
 
   # Kafka topics served by Event Hubs (see docs/roadmap/deployment/deploy-and-onboard.md § Event Source Subscription).
+  canary_topic = "aw.control.canary"
   event_topics = [
     "aw.change.events",
     "aw.dr.events",
     "aw.finops.events",
     "aw.pantheon.objects",
+    local.canary_topic,
   ]
   event_auxiliary_topics = ["aw.hil.decisions", "aw.pipeline.stages"]
 }
@@ -178,6 +195,14 @@ module "inventory_identity" {
   tags                = local.tags
 }
 
+module "canary_identity" {
+  source              = "./modules/identity/user-assigned-mi"
+  name                = "id-${var.workload}${local.full_suffix}-canary"
+  resource_group_name = module.resource_group.name
+  location            = var.region
+  tags                = merge(local.tags, { "fdai:component" = "control-loop-canary" })
+}
+
 # Read API identity is intentionally distinct from the executor. It can pull
 # the API image and read the state-store DSN, but receives no VM Run Command or
 # mutation role. This preserves the console/proposal identity boundary.
@@ -188,6 +213,15 @@ module "read_api_identity" {
   resource_group_name = module.resource_group.name
   location            = var.region
   tags                = local.tags
+}
+
+module "command_api_identity" {
+  count               = var.enable_read_api ? 1 : 0
+  source              = "./modules/identity/user-assigned-mi"
+  name                = "id-${var.workload}${local.full_suffix}-command"
+  resource_group_name = module.resource_group.name
+  location            = var.region
+  tags                = merge(local.tags, { "fdai:component" = "command-transport" })
 }
 
 module "ingestion_identity" {
@@ -206,18 +240,23 @@ resource "azurerm_role_assignment" "read_api_acr_pull" {
   principal_id         = module.read_api_identity[0].principal_id
 }
 
-resource "azurerm_role_assignment" "read_api_eventhubs_sender" {
-  count                = var.enable_read_api ? 1 : 0
-  scope                = module.event_bus.namespace_id
+resource "azurerm_role_assignment" "command_api_eventhubs_sender" {
+  for_each = var.enable_read_api ? {
+    (local.event_topics[0]) = module.event_bus.topic_ids[local.event_topics[0]]
+    "aw.hil.decisions"      = module.event_bus.auxiliary_topic_ids["aw.hil.decisions"]
+  } : {}
+  scope                = each.value
   role_definition_name = "Azure Event Hubs Data Sender"
-  principal_id         = module.read_api_identity[0].principal_id
+  principal_id         = module.command_api_identity[0].principal_id
 }
 
-resource "azurerm_role_assignment" "read_api_eventhubs_receiver" {
-  count                = var.enable_read_api ? 1 : 0
-  scope                = module.event_bus.namespace_id
+resource "azurerm_role_assignment" "command_api_eventhubs_receiver" {
+  for_each = var.enable_read_api ? {
+    "aw.pipeline.stages" = module.event_bus.auxiliary_topic_ids["aw.pipeline.stages"]
+  } : {}
+  scope                = each.value
   role_definition_name = "Azure Event Hubs Data Receiver"
-  principal_id         = module.read_api_identity[0].principal_id
+  principal_id         = module.command_api_identity[0].principal_id
 }
 
 resource "azurerm_role_assignment" "read_api_reader" {
@@ -236,14 +275,14 @@ resource "azurerm_role_assignment" "ingestion_acr_pull" {
 
 resource "azurerm_role_assignment" "ingestion_eventhubs_sender" {
   count                = var.enable_document_ingestion ? 1 : 0
-  scope                = module.event_bus.namespace_id
+  scope                = module.event_bus.auxiliary_topic_ids["aw.pipeline.stages"]
   role_definition_name = "Azure Event Hubs Data Sender"
   principal_id         = module.ingestion_identity[0].principal_id
 }
 
 resource "azurerm_role_assignment" "ingestion_eventhubs_receiver" {
   count                = var.enable_document_ingestion ? 1 : 0
-  scope                = module.event_bus.namespace_id
+  scope                = module.event_bus.auxiliary_topic_ids["aw.pipeline.stages"]
   role_definition_name = "Azure Event Hubs Data Receiver"
   principal_id         = module.ingestion_identity[0].principal_id
 }
@@ -261,9 +300,21 @@ resource "azurerm_role_assignment" "inventory_acr_pull" {
 }
 
 resource "azurerm_role_assignment" "inventory_eventhubs_sender" {
-  scope                = module.event_bus.namespace_id
+  scope                = module.event_bus.topic_ids[local.event_topics[0]]
   role_definition_name = "Azure Event Hubs Data Sender"
   principal_id         = module.inventory_identity.principal_id
+}
+
+resource "azurerm_role_assignment" "canary_acr_pull" {
+  scope                = module.container_registry.id
+  role_definition_name = "AcrPull"
+  principal_id         = module.canary_identity.principal_id
+}
+
+resource "azurerm_role_assignment" "canary_eventhubs_sender" {
+  scope                = module.event_bus.topic_ids[local.canary_topic]
+  role_definition_name = "Azure Event Hubs Data Sender"
+  principal_id         = module.canary_identity.principal_id
 }
 
 # -----------------------------------------------------------------------
@@ -517,7 +568,8 @@ module "event_bus" {
 # splitting into two role assignments; the namespace has
 # `local_authentication_enabled = false` so this is the only path in.
 resource "azurerm_role_assignment" "executor_eventhubs_data_owner" {
-  scope                = module.event_bus.namespace_id
+  for_each             = module.event_bus.all_topic_ids
+  scope                = each.value
   role_definition_name = "Azure Event Hubs Data Owner"
   principal_id         = module.identity.principal_id
 }
@@ -539,6 +591,7 @@ module "state_store" {
   # Hardening knobs (default to dev posture; tighten via tfvars for prod).
   backup_retention_days         = var.postgres_backup_retention_days
   geo_redundant_backup_enabled  = var.postgres_geo_redundant_backup
+  high_availability_mode        = var.postgres_high_availability_mode
   public_network_access_enabled = !var.enable_private_postgres
   allow_azure_services_firewall = !var.enable_private_postgres
   delegated_subnet_id           = var.enable_private_postgres ? module.network[0].postgres_subnet_id : null
@@ -572,6 +625,28 @@ resource "azurerm_key_vault_secret" "state_store_dsn" {
   value        = module.state_store.application_dsn
   key_vault_id = module.key_vault.id
   content_type = "postgres-dsn"
+  tags         = local.tags
+
+  depends_on = [azurerm_role_assignment.kv_officer_self, module.kv_private_endpoint, azurerm_virtual_network_peering.spoke_to_hub, azurerm_virtual_network_peering.hub_to_spoke]
+}
+
+resource "azurerm_key_vault_secret" "chatops_webhook_url" {
+  count        = var.enable_chatops_hil ? 1 : 0
+  name         = "fdai-chatops-webhook-url"
+  value        = var.chatops_webhook_url
+  key_vault_id = module.key_vault.id
+  content_type = "chatops-webhook-url"
+  tags         = local.tags
+
+  depends_on = [azurerm_role_assignment.kv_officer_self, module.kv_private_endpoint, azurerm_virtual_network_peering.spoke_to_hub, azurerm_virtual_network_peering.hub_to_spoke]
+}
+
+resource "azurerm_key_vault_secret" "chatops_webhook_secret" {
+  count        = var.enable_chatops_hil ? 1 : 0
+  name         = "fdai-chatops-webhook-secret"
+  value        = var.chatops_webhook_secret
+  key_vault_id = module.key_vault.id
+  content_type = "chatops-hmac-secret"
   tags         = local.tags
 
   depends_on = [azurerm_role_assignment.kv_officer_self, module.kv_private_endpoint, azurerm_virtual_network_peering.spoke_to_hub, azurerm_virtual_network_peering.hub_to_spoke]
@@ -613,6 +688,10 @@ module "compute" {
   executor_identity_client_id  = module.identity.client_id
   inventory_identity_id        = module.inventory_identity.resource_id
   inventory_identity_client_id = module.inventory_identity.client_id
+  canary_identity_id           = module.canary_identity.resource_id
+  canary_identity_client_id    = module.canary_identity.client_id
+  canary_topic                 = local.canary_topic
+  canary_cron_expression       = var.canary_cron_expression
   image                        = var.core_image
   max_replicas                 = var.max_replicas
 
@@ -653,10 +732,16 @@ module "compute" {
   state_store_dsn_secret_id     = azurerm_key_vault_secret.state_store_dsn.id
   operator_memory_dsn_secret_id = azurerm_key_vault_secret.operator_memory_dsn.id
   pattern_library_dsn_secret_id = azurerm_key_vault_secret.pattern_library_dsn.id
-  inventory_dsn_secret_id       = azurerm_key_vault_secret.state_store_dsn.id
-  inventory_cron_expression     = var.inventory_cron_expression
-  inventory_sources             = var.inventory_sources
-  inventory_freshness_seconds   = var.inventory_freshness_seconds
+  chatops_webhook_url_secret_id = (
+    var.enable_chatops_hil ? azurerm_key_vault_secret.chatops_webhook_url[0].id : ""
+  )
+  chatops_webhook_secret_id = (
+    var.enable_chatops_hil ? azurerm_key_vault_secret.chatops_webhook_secret[0].id : ""
+  )
+  inventory_dsn_secret_id     = azurerm_key_vault_secret.state_store_dsn.id
+  inventory_cron_expression   = var.inventory_cron_expression
+  inventory_sources           = var.inventory_sources
+  inventory_freshness_seconds = var.inventory_freshness_seconds
 
   # DB-DR drill (opt-in; the fork toggles dr_drill_enabled + supplies the
   # source server ARM id once the runbook in docs/runbooks/db-dr-drill.md
@@ -713,6 +798,8 @@ module "compute" {
     azurerm_role_assignment.inventory_kv_secrets_user,
     azurerm_role_assignment.inventory_acr_pull,
     azurerm_role_assignment.inventory_eventhubs_sender,
+    azurerm_role_assignment.canary_acr_pull,
+    azurerm_role_assignment.canary_eventhubs_sender,
   ]
 }
 
@@ -868,7 +955,8 @@ module "console" {
 # Operator console read API (opt-in) - Azure Container App serving
 # `fdai.delivery.read_api.prod:app` with external ingress so the console
 # SPA can call it cross-origin. Enforces Entra JWT + RBAC group resolution.
-# Shares the executor MI + Container Apps Environment with the core app.
+# Uses separate read and command-transport identities in the shared
+# Container Apps Environment.
 # A manual-trigger migration job runs `alembic upgrade head`. Tenant-specific
 # Entra/RBAC ids arrive via CI Variables (never committed).
 # -----------------------------------------------------------------------
@@ -884,6 +972,8 @@ module "read_api" {
   image                             = var.read_api_image == "" ? var.core_image : var.read_api_image
   read_api_identity_id              = module.read_api_identity[0].resource_id
   read_api_identity_client_id       = module.read_api_identity[0].client_id
+  command_api_identity_id           = module.command_api_identity[0].resource_id
+  command_api_identity_client_id    = module.command_api_identity[0].client_id
   resolved_models_path              = var.read_api_resolved_models_path
   narrator_probe_interval_seconds   = var.read_api_narrator_probe_interval_seconds
   web_search_enabled                = var.read_api_web_search_enabled
@@ -893,16 +983,19 @@ module "read_api" {
   web_search_probe_interval_seconds = var.read_api_web_search_probe_interval_seconds
   acr_login_server                  = module.container_registry.login_server
   state_store_dsn_secret_id         = azurerm_key_vault_secret.state_store_dsn.id
-  entra_tenant_id                   = var.tenant_id
-  api_audience                      = var.read_api_audience
-  rbac_readers_group_id             = var.rbac_readers_group_id
-  rbac_contributors_group_id        = var.rbac_contributors_group_id
-  rbac_approvers_group_id           = var.rbac_approvers_group_id
-  rbac_owners_group_id              = var.rbac_owners_group_id
-  rbac_break_glass_group_id         = var.rbac_break_glass_group_id
-  cors_allow_origins                = var.read_api_cors_allow_origins
-  iam_directory_provider            = var.read_api_iam_directory_provider
-  inventory_freshness_seconds       = var.inventory_freshness_seconds
+  chatops_webhook_secret_id = (
+    var.enable_chatops_hil ? azurerm_key_vault_secret.chatops_webhook_secret[0].id : ""
+  )
+  entra_tenant_id             = var.tenant_id
+  api_audience                = var.read_api_audience
+  rbac_readers_group_id       = var.rbac_readers_group_id
+  rbac_contributors_group_id  = var.rbac_contributors_group_id
+  rbac_approvers_group_id     = var.rbac_approvers_group_id
+  rbac_owners_group_id        = var.rbac_owners_group_id
+  rbac_break_glass_group_id   = var.rbac_break_glass_group_id
+  cors_allow_origins          = var.read_api_cors_allow_origins
+  iam_directory_provider      = var.read_api_iam_directory_provider
+  inventory_freshness_seconds = var.inventory_freshness_seconds
   python_task_author_endpoint = (
     var.enable_llm && var.python_task_author_capability != ""
     ? module.llm_azure_openai[0].endpoint
@@ -918,7 +1011,7 @@ module "read_api" {
   azure_subscription_id              = data.azurerm_client_config.current.subscription_id
   azure_resource_group               = module.resource_group.name
   executor_principal_id              = module.identity.principal_id
-  executor_event_role_definition_id  = azurerm_role_assignment.executor_eventhubs_data_owner.role_definition_id
+  executor_event_role_definition_id  = azurerm_role_assignment.executor_eventhubs_data_owner[local.event_topics[0]].role_definition_id
   executor_secret_role_definition_id = module.key_vault.executor_role_definition_id
   tags                               = local.tags
 
@@ -926,8 +1019,8 @@ module "read_api" {
     azurerm_key_vault_secret.state_store_dsn,
     azurerm_role_assignment.read_api_acr_pull,
     azurerm_role_assignment.read_api_kv_secrets_user,
-    azurerm_role_assignment.read_api_eventhubs_receiver,
-    azurerm_role_assignment.read_api_eventhubs_sender,
+    azurerm_role_assignment.command_api_eventhubs_receiver,
+    azurerm_role_assignment.command_api_eventhubs_sender,
     azurerm_role_assignment.read_api_reader,
     module.llm_azure_openai,
   ]

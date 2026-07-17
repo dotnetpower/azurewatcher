@@ -113,3 +113,13 @@ variable "geo_redundant_backup_enabled" {
   default     = false
 }
 
+variable "high_availability_mode" {
+  description = "PostgreSQL Flexible HA mode: Disabled, SameZone, or ZoneRedundant."
+  type        = string
+  default     = "Disabled"
+
+  validation {
+    condition     = contains(["Disabled", "SameZone", "ZoneRedundant"], var.high_availability_mode)
+    error_message = "high_availability_mode must be Disabled, SameZone, or ZoneRedundant."
+  }
+}

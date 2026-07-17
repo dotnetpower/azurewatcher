@@ -31,6 +31,7 @@ class ControlLoopOutcome(StrEnum):
     T2_DENIED = "t2_denied"
     T2_ABSTAINED = "t2_abstained"
     OPERATOR_REQUEST_LOGGED = "operator_request_logged"
+    CANARY_RECORDED = "canary_recorded"
 
 
 @dataclass(frozen=True, slots=True)

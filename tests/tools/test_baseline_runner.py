@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -56,6 +57,37 @@ def test_run_is_reproducible() -> None:
     assert first_copy == second_copy
 
 
+def test_measured_observations_are_marked_but_small_sample_is_not_claim_eligible(
+    tmp_path: Path,
+) -> None:
+    scenarios = [
+        json.loads(path.read_text(encoding="utf-8")) for path in sorted(SCENARIOS.glob("*.json"))
+    ]
+    observations = {
+        "reference_agent": "reference-observation@example",
+        "scenario_set_version": "v2026.07",
+        "outcomes": [
+            {
+                "scenario_id": scenario["id"],
+                "predicted_tier": scenario["expected"]["tier"],
+                "predicted_decision": scenario["expected"]["decision"],
+                "executed": False,
+                "rolled_back": False,
+                "policy_violation": False,
+            }
+            for scenario in scenarios
+        ],
+    }
+    path = tmp_path / "observations.json"
+    path.write_text(json.dumps(observations), encoding="utf-8")
+
+    _, summary = _run(SCENARIOS, path)
+
+    assert summary["evidence"]["kind"] == "measured-observations"
+    assert summary["evidence"]["claim_eligible"] is False
+    assert summary["confidence_intervals_95"]["routed_correctly_rate"]["sample_size"] == 9
+
+
 def test_cli_writes_report_and_json(tmp_path: Path) -> None:
     """`python -m tools.baseline_run` runs green and produces both artifacts."""
     report = tmp_path / "report.md"
@@ -88,6 +120,22 @@ def test_cli_writes_report_and_json(tmp_path: Path) -> None:
     # The KO sibling MUST have been emitted alongside the EN report.
     ko_sibling = report.with_name(report.stem + "-ko" + report.suffix)
     assert ko_sibling.exists()
+
+    report_bytes = report.read_bytes()
+    ko_text = ko_sibling.read_text(encoding="utf-8")
+    assert report_bytes.endswith(b"\n") and not report_bytes.endswith(b"\n\n")
+    assert ko_text.endswith("\n") and not ko_text.endswith("\n\n")
+
+    recorded_sha = next(
+        line.removeprefix("translation_source_sha: ")
+        for line in ko_text.splitlines()
+        if line.startswith("translation_source_sha: ")
+    )
+    expected_sha = hashlib.sha1(  # noqa: S324 - verifies Git blob compatibility
+        b"blob " + str(len(report_bytes)).encode() + b"\x00" + report_bytes,
+        usedforsecurity=False,
+    ).hexdigest()
+    assert recorded_sha == expected_sha
 
 
 def test_committed_baseline_artifact_matches_a_fresh_run() -> None:

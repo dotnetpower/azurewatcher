@@ -63,13 +63,14 @@ check "production_image_is_digest_pinned" {
 check "production_ingestion_is_private_and_pinned" {
   assert {
     condition = var.env != "prod" || (
-      var.enable_document_ingestion &&
-      var.enable_private_networking &&
-      can(regex("@sha256:[0-9a-f]{64}$", lower(var.clamav_image))) &&
-      !endswith(lower(var.clamav_image), "@sha256:0000000000000000000000000000000000000000000000000000000000000000") &&
-      (
-        var.ingestion_image == "" ||
-        can(regex("@sha256:[0-9a-f]{64}$", lower(var.ingestion_image)))
+      !var.enable_document_ingestion || (
+        var.enable_private_networking &&
+        can(regex("@sha256:[0-9a-f]{64}$", lower(var.clamav_image))) &&
+        !endswith(lower(var.clamav_image), "@sha256:0000000000000000000000000000000000000000000000000000000000000000") &&
+        (
+          var.ingestion_image == "" ||
+          can(regex("@sha256:[0-9a-f]{64}$", lower(var.ingestion_image)))
+        )
       )
     )
     error_message = "prod requires private document ingestion and digest-pinned FDAI/ClamAV images."
@@ -86,9 +87,10 @@ check "production_control_plane_hardening" {
       var.kv_soft_delete_retention_days == 90 &&
       var.postgres_backup_retention_days == 35 &&
       var.postgres_geo_redundant_backup &&
+      var.postgres_high_availability_mode == "ZoneRedundant" &&
       var.acr_sku == "Premium"
     )
-    error_message = "prod requires private networking/Postgres, delete and purge protection, 90-day KV retention, 35-day geo-redundant Postgres backup, and ACR Premium."
+    error_message = "prod requires private networking/Postgres, delete and purge protection, 90-day KV retention, 35-day geo-redundant backup, zone-redundant Postgres HA, and ACR Premium."
   }
 }
 
@@ -99,6 +101,17 @@ check "production_alert_destination" {
       (trimspace(var.alert_email) != "" || trimspace(nonsensitive(var.alert_webhook_url)) != "")
     )
     error_message = "prod monitoring must be enabled with at least one alert destination."
+  }
+}
+
+check "production_hil_transport" {
+  assert {
+    condition = var.env != "prod" || (
+      var.enable_chatops_hil &&
+      trimspace(nonsensitive(var.chatops_webhook_url)) != "" &&
+      length(nonsensitive(var.chatops_webhook_secret)) >= 32
+    )
+    error_message = "prod requires signed ChatOps HIL delivery with a webhook URL and a secret of at least 32 characters."
   }
 }
 

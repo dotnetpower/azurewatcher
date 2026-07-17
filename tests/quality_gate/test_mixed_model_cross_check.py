@@ -61,7 +61,7 @@ def _grounding(valid_rule: dict[str, object]) -> InMemoryGroundingSource:
     return InMemoryGroundingSource({rule.id: rule})
 
 
-def test_aggregate_confidence_excludes_out_of_range_signals() -> None:
+def test_aggregate_confidence_fails_closed_on_out_of_range_signals() -> None:
     # Confidence is a probability: a signal outside [0,1] is corrupt and
     # MUST NOT push the aggregate past the gate threshold. Only the
     # in-range 0.8 counts here (1.5 and -0.2 are dropped).
@@ -72,7 +72,7 @@ def test_aggregate_confidence_excludes_out_of_range_signals() -> None:
         cited_rule_ids=(),
         confidence_signals={"a": 0.8, "inflated": 1.5, "negative": -0.2},
     )
-    assert candidate.aggregate_confidence == 0.8
+    assert candidate.aggregate_confidence == 0.0
 
 
 def test_aggregate_confidence_zero_when_all_signals_out_of_range() -> None:

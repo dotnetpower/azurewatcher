@@ -74,6 +74,7 @@ from fdai.core.quality_gate.judge import (
     evaluate_judge_output,
 )
 from fdai.core.quality_gate.rag_grounding import (
+    HashedRuleEmbeddingIndex,
     RagGroundingSource,
     RuleEmbeddingIndex,
 )
@@ -116,6 +117,7 @@ __all__ = [
     "EscalationRoute",
     "EscalationTier",
     "GroundingSource",
+    "HashedRuleEmbeddingIndex",
     "JudgeDecision",
     "JudgeModel",
     "JudgeOutput",

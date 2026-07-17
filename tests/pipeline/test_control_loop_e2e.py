@@ -185,6 +185,48 @@ def _make_event(
     }
 
 
+@pytest.mark.asyncio
+async def test_trusted_canary_records_no_op_without_entering_tiers(
+    shipped_catalog: tuple[Any, Any],
+) -> None:
+    loop, publisher, audit = _make_loop(shipped_catalog, with_opa=False)
+    event = _make_event(
+        idempotency_key="canary-1",
+        resource_type="object-storage",
+        resource_id="canary-target",
+        props={},
+        event_type="fdai.control.canary",
+    )
+    event["source"] = "fdai.canary-job"
+
+    result = await loop.process_canary(event)
+
+    assert result.outcome is ControlLoopOutcome.CANARY_RECORDED
+    assert result.tier == "canary"
+    assert publisher.records == ()
+    entries = [item["entry"] for item in audit.audit_entries]
+    assert len(entries) == 1
+    assert entries[0]["action_kind"] == "control_loop.canary"
+    assert entries[0]["decision"] == "no-op"
+
+
+@pytest.mark.asyncio
+async def test_canary_entry_point_rejects_noncanonical_source(
+    shipped_catalog: tuple[Any, Any],
+) -> None:
+    loop, _publisher, _audit = _make_loop(shipped_catalog, with_opa=False)
+    event = _make_event(
+        idempotency_key="canary-spoof",
+        resource_type="object-storage",
+        resource_id="canary-target",
+        props={},
+        event_type="fdai.control.canary",
+    )
+
+    with pytest.raises(ValueError, match="canonical canary"):
+        await loop.process_canary(event)
+
+
 # ---------------------------------------------------------------------------
 # Abstain paths (no OPA required)
 # ---------------------------------------------------------------------------
@@ -403,6 +445,40 @@ async def test_kill_switch_engaged_caps_authority_to_shadow(
     for entry in authority:
         assert entry["decision"] in {"shadow", "deny"}
         assert "kill_switch" in entry["resolved_ceiling"]["axes"]
+
+
+@requires_opa
+@pytest.mark.asyncio
+async def test_kill_switch_refresh_failure_caps_authority_to_shadow(
+    shipped_catalog: tuple[Any, Any],
+) -> None:
+    """A durable switch read failure is an emergency halt, never auto authority."""
+    from fdai.core.risk_gate.risk_table import load_risk_table
+    from fdai.shared.resilience.kill_switch import InMemoryKillSwitch
+
+    async def _fail_refresh() -> None:
+        raise RuntimeError("state store unavailable")
+
+    table = load_risk_table(REPO_ROOT / "rule-catalog" / "risk-classification.yaml")
+    loop, _publisher, audit = _make_loop(shipped_catalog, risk_table=table)
+    loop._kill_switch = InMemoryKillSwitch(engaged=False)
+    loop._kill_switch_refresher = _fail_refresh
+    result = await loop.process(
+        _make_event(
+            idempotency_key="e-auth-killswitch-refresh-failed",
+            resource_type="object-storage",
+            resource_id="stg-open",
+            props={"public_access": "enabled", "tags": {"owner": "team-a"}},
+        )
+    )
+    assert result.outcome is ControlLoopOutcome.EXECUTED
+    authority = [
+        entry["entry"]
+        for entry in audit.audit_entries
+        if entry["entry"].get("action_kind") == "risk_gate.shadow_authority"
+    ]
+    assert authority
+    assert all("kill_switch" in entry["resolved_ceiling"]["axes"] for entry in authority)
 
 
 @requires_opa

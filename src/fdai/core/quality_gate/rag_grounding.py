@@ -40,6 +40,8 @@ Design notes
 
 from __future__ import annotations
 
+import hashlib
+import math
 from collections.abc import Mapping
 from typing import Protocol, runtime_checkable
 
@@ -75,6 +77,48 @@ class RuleEmbeddingIndex(Protocol):
         than raise, so a rule / candidate with degenerate text falls
         through to the threshold as "not similar".
         """
+
+
+class HashedRuleEmbeddingIndex:
+    """Deterministic token index for catalog grounding.
+
+    This local index is intentionally lexical, not semantic. It provides a
+    reproducible production baseline without a network call and rejects cited
+    rules that share no intent tokens with the candidate. A deployment can
+    replace it with a stronger implementation behind :class:`RuleEmbeddingIndex`.
+    """
+
+    _TOKEN_SPLIT_CHARS = " \t\n\r.,;:/_-()[]{}\"'"  # noqa: S105 - punctuation set
+
+    def __init__(self, *, dim: int = 64) -> None:
+        if dim < 1:
+            raise ValueError("dim MUST be >= 1")
+        self._dim = dim
+
+    def encode(self, text: str) -> tuple[float, ...]:
+        vector = [0.0] * self._dim
+        for token in self._tokenize(text):
+            digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
+            bucket = int.from_bytes(digest, "big") % self._dim
+            vector[bucket] += 1.0
+        return tuple(vector)
+
+    def cosine(self, a: tuple[float, ...], b: tuple[float, ...]) -> float:
+        if len(a) != len(b):
+            raise ValueError("cosine requires equal-length vectors")
+        dot = sum(x * y for x, y in zip(a, b, strict=True))
+        norm_a = math.sqrt(sum(x * x for x in a))
+        norm_b = math.sqrt(sum(y * y for y in b))
+        if norm_a == 0.0 or norm_b == 0.0:
+            return 0.0
+        return dot / (norm_a * norm_b)
+
+    @classmethod
+    def _tokenize(cls, text: str) -> list[str]:
+        normalized = text.lower()
+        for char in cls._TOKEN_SPLIT_CHARS:
+            normalized = normalized.replace(char, " ")
+        return [token for token in normalized.split(" ") if token]
 
 
 class RagGroundingSource:
@@ -172,6 +216,7 @@ class RagGroundingSource:
 
 
 __all__ = [
+    "HashedRuleEmbeddingIndex",
     "RagGroundingSource",
     "RuleEmbeddingIndex",
 ]

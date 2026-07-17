@@ -25,6 +25,7 @@ import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Final
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 import psycopg
 from psycopg.rows import dict_row
@@ -478,6 +479,9 @@ class PostgresStateStore(StateStore):
         row = await cursor.fetchone()
         previous = row[0] if row is not None else _GENESIS_HASH
         entry_hash = _next_hash(previous, payload)
+        event_id = _audit_event_id(payload)
+        actor = _audit_actor(payload)
+        action_kind = _audit_action_kind(payload)
         await conn.execute(
             """
             INSERT INTO audit_log
@@ -487,16 +491,50 @@ class PostgresStateStore(StateStore):
                 (%s::uuid, %s, %s, %s, %s, %s::jsonb, %s, %s)
             """,
             (
-                str(payload.get("event_id") or "00000000-0000-0000-0000-000000000000"),
+                event_id,
                 payload.get("correlation_id"),
-                str(payload.get("actor", "fdai")),
-                str(payload.get("action_kind", "unknown")),
+                actor,
+                action_kind,
                 mode,
                 _canonical(payload),
                 previous,
                 entry_hash,
             ),
         )
+
+
+def _audit_event_id(payload: Mapping[str, Any]) -> str:
+    raw = payload.get("event_id")
+    if raw is not None:
+        try:
+            return str(UUID(str(raw)))
+        except ValueError:
+            pass
+    identity = next(
+        (
+            str(payload[key])
+            for key in ("idempotency_key", "correlation_id", "audit_id")
+            if payload.get(key)
+        ),
+        _canonical(payload),
+    )
+    return str(uuid5(NAMESPACE_URL, f"fdai.audit://{identity}"))
+
+
+def _audit_actor(payload: Mapping[str, Any]) -> str:
+    for key in ("actor", "actor_oid", "producer_principal"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return "fdai.system"
+
+
+def _audit_action_kind(payload: Mapping[str, Any]) -> str:
+    for key in ("action_kind", "kind", "event_type"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return "audit.record"
 
 
 def _incident_lock(incident_id: str) -> int:

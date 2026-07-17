@@ -6,9 +6,9 @@
 # RBAC group resolution (see `src/fdai/delivery/read_api/prod.py`).
 #
 # The API is stateless: it projects audit / KPI / HIL-queue / ontology / views
-# from the persisted Postgres state store (read-only). It shares the executor
-# user-assigned MI (ACR pull + Key Vault Secrets User) with the core app, so
-# no new role assignments are required.
+# from the persisted Postgres state store. The read identity pulls the image,
+# resolves the DSN, and reads Azure state. A separate command identity owns
+# Event Hubs send/receive for proposals, HIL decisions, and live projections.
 #
 # A one-off manual-trigger Container Apps Job runs `alembic upgrade head`
 # against the same state store using the same image (alembic is bundled into
@@ -23,7 +23,7 @@ resource "azurerm_container_app" "read_api" {
 
   identity {
     type         = "UserAssigned"
-    identity_ids = [var.read_api_identity_id]
+    identity_ids = [var.read_api_identity_id, var.command_api_identity_id]
   }
 
   dynamic "registry" {
@@ -40,6 +40,15 @@ resource "azurerm_container_app" "read_api" {
     name                = "dsn"
     identity            = var.read_api_identity_id
     key_vault_secret_id = var.state_store_dsn_secret_id
+  }
+
+  dynamic "secret" {
+    for_each = nonsensitive(var.chatops_webhook_secret_id) == "" ? toset([]) : toset(["1"])
+    content {
+      name                = "chatops-webhook-secret"
+      identity            = var.read_api_identity_id
+      key_vault_secret_id = var.chatops_webhook_secret_id
+    }
   }
 
   ingress {
@@ -78,6 +87,13 @@ resource "azurerm_container_app" "read_api" {
       env {
         name        = "FDAI_DATABASE_URL"
         secret_name = "dsn"
+      }
+      dynamic "env" {
+        for_each = nonsensitive(var.chatops_webhook_secret_id) == "" ? toset([]) : toset(["1"])
+        content {
+          name        = "FDAI_CHATOPS_WEBHOOK_SECRET"
+          secret_name = "chatops-webhook-secret"
+        }
       }
       env {
         name  = "FDAI_ENTRA_TENANT_ID"
@@ -154,6 +170,10 @@ resource "azurerm_container_app" "read_api" {
       env {
         name  = "FDAI_MI_CLIENT_ID"
         value = var.read_api_identity_client_id
+      }
+      env {
+        name  = "FDAI_COMMAND_MI_CLIENT_ID"
+        value = var.command_api_identity_client_id
       }
       dynamic "env" {
         for_each = var.resolved_models_path == "" ? [] : [var.resolved_models_path]

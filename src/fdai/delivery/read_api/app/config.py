@@ -313,6 +313,15 @@ class ReadApiConfig:
     (Contributor+ ``author-draft-pr``). Leave ``None`` to keep the console
     read-only with no action-submit surface."""
 
+    kill_switch_command: Any = None
+    """Opt-in Owner/BreakGlass emergency-stop command service.
+
+    Registers ``POST /system/kill-switch`` without exposing a console control
+    or executor identity. The service changes control-plane authority state
+    atomically with its audit record. Production wires the shared Postgres
+    state store; local and test compositions remain off unless explicit.
+    """
+
     iam_access: Any = None  # Governed IAM projections and request commands.
     iam_directory: Any = None  # Cloud-neutral Owner search and roster provider.
     iam_identity_provider: str = "entra"  # Provider stamped on new requests.

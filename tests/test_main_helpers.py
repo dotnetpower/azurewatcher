@@ -20,9 +20,12 @@ from fdai.__main__ import (
     _authoritative_decision,
     _build_audit_store,
     _build_hil_channel,
+    _build_idempotency_store,
     _build_pattern_library,
     _build_publisher,
+    _build_resource_lock,
     _consume,
+    _consume_canaries,
     _consume_hil_decisions,
     _resolve_catalog_root,
     _resolve_policies_root,
@@ -119,6 +122,35 @@ def test_build_audit_store_selects_postgres_when_dsn_set(
     from fdai.delivery.persistence import PostgresStateStore
 
     assert isinstance(store, PostgresStateStore)
+
+
+@pytest.mark.parametrize("runtime_env", ["staging", "prod"])
+@pytest.mark.parametrize(
+    ("builder", "backend"),
+    [
+        (_build_audit_store, "state store"),
+        (_build_resource_lock, "resource lock"),
+        (_build_idempotency_store, "idempotency store"),
+        (_build_pattern_library, "T1 pattern library"),
+    ],
+)
+def test_production_runtime_rejects_in_memory_safety_backends(
+    monkeypatch: pytest.MonkeyPatch,
+    runtime_env: str,
+    builder: object,
+    backend: str,
+) -> None:
+    monkeypatch.setenv("RUNTIME_ENV", runtime_env)
+    for name in (
+        "FDAI_STATE_STORE_DSN",
+        "FDAI_RESOURCE_LOCK_DSN",
+        "FDAI_IDEMPOTENCY_DSN",
+        "FDAI_T1_PATTERN_LIBRARY_DSN",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    with pytest.raises(RuntimeError, match=backend):
+        builder()  # type: ignore[operator]
 
 
 def test_summarize_config_is_secret_free(app_config: AppConfig) -> None:
@@ -259,6 +291,42 @@ class _FailingLoop:
 
     async def record_unhandled_failure(self, **entry: object) -> None:
         self.failures.append(dict(entry))
+
+
+class _RecordingCanaryLoop:
+    def __init__(self) -> None:
+        self.payloads: list[object] = []
+
+    async def process_canary(self, payload: object) -> ControlLoopResult:
+        self.payloads.append(payload)
+        return ControlLoopResult(
+            outcome=ControlLoopOutcome.CANARY_RECORDED,
+            tier="canary",
+            decision="no-op",
+            resource_type=None,
+            event_id="canary-event",
+        )
+
+    async def record_unhandled_failure(self, **entry: object) -> None:
+        raise AssertionError(f"unexpected canary failure: {entry}")
+
+
+def test_canary_consumer_uses_dedicated_control_loop_entry_point() -> None:
+    bus = InMemoryEventBus()
+    loop = _RecordingCanaryLoop()
+
+    async def _run() -> None:
+        payload = {"event_id": "canary-event", "idempotency_key": "canary-key"}
+        await bus.publish("canaries", "canary-key", payload)
+        await _consume_canaries(
+            bus=bus,
+            topic="canaries",
+            control_loop=loop,  # type: ignore[arg-type]
+            stop=asyncio.Event(),
+        )
+
+    asyncio.run(_run())
+    assert loop.payloads == [{"event_id": "canary-event", "idempotency_key": "canary-key"}]
 
 
 def test_consume_audits_and_dead_letters_before_committing() -> None:
@@ -853,16 +921,49 @@ def test_build_control_loop_wires_rca_and_correlator(
     from fdai.__main__ import _build_control_loop
     from fdai.composition import default_container
 
-    loop = _build_control_loop(default_container(app_config), http_client=None)
+    container = default_container(app_config)
+    loop = _build_control_loop(container, http_client=None)
     assert loop._rca_coordinator is not None
     assert loop._rca_coordinator.has_symptom_index
     assert loop._event_correlator is not None
     assert loop._risk_table is not None
     assert loop._risk_table.version == "1.0.0"
     assert loop._risk_gate is not None
+    assert loop._risk_gate._exemptions is container.exemption_registry
     assert loop._t1_engine is not None
     assert loop._t2_engine is not None
     assert loop._inventory_age_provider is None
+
+
+def test_build_control_loop_requires_opa_in_production(
+    monkeypatch: pytest.MonkeyPatch,
+    app_config: AppConfig,
+) -> None:
+    from fdai.__main__ import _build_control_loop
+    from fdai.composition import default_container
+    from fdai.core.tiers.t0_deterministic import opa_evaluator
+
+    monkeypatch.setenv("RUNTIME_ENV", "prod")
+    monkeypatch.setattr(opa_evaluator.shutil, "which", lambda _binary: None)
+
+    with pytest.raises(RuntimeError, match="requires the OPA binary"):
+        _build_control_loop(default_container(app_config), http_client=None)
+
+
+def test_build_control_loop_keeps_opa_abstain_fallback_in_dev(
+    monkeypatch: pytest.MonkeyPatch,
+    app_config: AppConfig,
+) -> None:
+    from fdai.__main__ import _build_control_loop
+    from fdai.composition import default_container
+    from fdai.core.tiers.t0_deterministic import AbstainEvaluator, opa_evaluator
+
+    monkeypatch.setenv("RUNTIME_ENV", "dev")
+    monkeypatch.setattr(opa_evaluator.shutil, "which", lambda _binary: None)
+
+    loop = _build_control_loop(default_container(app_config), http_client=None)
+
+    assert isinstance(loop._t0_engine._evaluator, AbstainEvaluator)
 
 
 def test_build_control_loop_uses_injected_symptom_index(app_config: AppConfig) -> None:

@@ -117,22 +117,28 @@ class QualityCandidate:
 
     @property
     def aggregate_confidence(self) -> float:
-        """Mean of the derived signals; 0.0 when none are supplied.
+        """Mean of valid derived signals; 0.0 when absent or malformed.
 
         ``bool`` values are excluded even though they subtype ``int``:
         confidence signals are numeric floats, and letting ``True`` pass
         as ``1.0`` would silently inflate the aggregate. Values outside
         ``[0.0, 1.0]`` are likewise excluded - a confidence is a
         probability, so an out-of-range signal is corrupt and MUST NOT be
-        allowed to push the aggregate past the gate threshold.
+        allowed to push the aggregate past the gate threshold. One malformed
+        signal invalidates the whole aggregate rather than being silently
+        dropped, because partial confidence evidence is not authoritative.
         """
         if not self.confidence_signals:
             return 0.0
-        values = [
-            float(v)
-            for v in self.confidence_signals.values()
-            if isinstance(v, (int, float)) and not isinstance(v, bool) and 0.0 <= float(v) <= 1.0
-        ]
+        values: list[float] = []
+        for value in self.confidence_signals.values():
+            if (
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or not 0.0 <= float(value) <= 1.0
+            ):
+                return 0.0
+            values.append(float(value))
         if not values:
             return 0.0
         return sum(values) / len(values)
@@ -521,34 +527,9 @@ class QualityGate:
 
         # Decide outcome
         outcome: QualityOutcome
-        if (
-            any(r.startswith("cross_check_below_quorum") for r in reasons)
-            and not debate_resolved_disagreement
-        ):
+        if any(r.startswith("cross_check_below_quorum") for r in reasons):
             outcome = QualityOutcome.DISAGREE
-        elif debate_resolved_disagreement and not any(
-            r.startswith(
-                (
-                    "verifier_abstained",
-                    "unknown_cited_rule",
-                    "ungrounded_citation",
-                    "no_grounded_citation",
-                    "confidence=",
-                    # Any rubric-originated reason (failed / abstained /
-                    # no_reasoning_trace / evaluator_error) is a subtractive
-                    # signal the debate resolution MUST NOT override.
-                    "rubric_",
-                )
-            )
-            for r in reasons
-        ):
-            outcome = QualityOutcome.ELIGIBLE
-        elif reasons and not debate_resolved_disagreement:
-            outcome = QualityOutcome.ABSTAIN
         elif reasons:
-            # Debate resolved the disagreement but other soft issues
-            # remain (e.g. verifier abstained, low confidence). Abstain
-            # so the caller routes to HIL rather than auto-executing.
             outcome = QualityOutcome.ABSTAIN
         else:
             outcome = QualityOutcome.ELIGIBLE

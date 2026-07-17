@@ -14,6 +14,7 @@ from fdai.runtime.configuration import (
 from fdai.runtime.consumers import (
     _authoritative_decision,
     _consume,
+    _consume_canaries,
     _consume_hil_decisions,
     _log_pantheon_exit,
 )
@@ -69,6 +70,7 @@ __all__ = [
     "_build_tool_executor",
     "_build_workflow_coordinator",
     "_consume",
+    "_consume_canaries",
     "_consume_hil_decisions",
     "_finalize_llm_bindings",
     "_log_pantheon_exit",

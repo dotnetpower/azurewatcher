@@ -38,6 +38,23 @@ variable "read_api_identity_client_id" {
   type        = string
 }
 
+variable "chatops_webhook_secret_id" {
+  description = "Key Vault secret id containing the HIL callback HMAC secret."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "command_api_identity_id" {
+  description = "Dedicated command-transport UAMI resource id with Event Hubs send/receive only."
+  type        = string
+}
+
+variable "command_api_identity_client_id" {
+  description = "Command-transport UAMI client id selected for Event Hubs token acquisition."
+  type        = string
+}
+
 variable "resolved_models_path" {
   description = "Container path to the resolver output used by the Command Deck narrator. Empty disables the narrator routes."
   type        = string

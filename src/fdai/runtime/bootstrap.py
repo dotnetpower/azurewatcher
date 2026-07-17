@@ -27,9 +27,15 @@ from fdai.runtime.configuration import (
     _new_http_client,
     _summarize_config,
 )
-from fdai.runtime.consumers import _consume, _consume_hil_decisions, _log_pantheon_exit
+from fdai.runtime.consumers import (
+    _consume,
+    _consume_canaries,
+    _consume_hil_decisions,
+    _log_pantheon_exit,
+)
 from fdai.runtime.control_loop import _build_control_loop, _build_irp_event_handler
 from fdai.runtime.delivery import _build_incident_notifier
+from fdai.runtime.health import RuntimeHealthServer
 from fdai.runtime.providers import _build_audit_store
 from fdai.shared.config.models import LlmMode
 from fdai.shared.providers.event_bus import EventBus
@@ -49,6 +55,7 @@ async def _run() -> int:
     pantheon_runtime: PantheonRuntime | None = None
     pantheon_heartbeat: float | None = None
     divergence_ledger: ShadowDivergenceLedger | None = None
+    health_server: RuntimeHealthServer | None = None
 
     try:
         telemetry_requested = bool(
@@ -251,6 +258,7 @@ async def _run() -> int:
                     scenario_coverage_aggregator=ScenarioCoverageAggregator(
                         index=runtime_symptom_index
                     ),
+                    action_types=control_loop.action_types,
                 )
                 hb_raw = os.environ.get("FDAI_PANTHEON_HEARTBEAT_SECONDS", "").strip()
                 if hb_raw:
@@ -279,6 +287,20 @@ async def _run() -> int:
             # than silently no-op so a miswired container is visible.
             _LOGGER.warning("pantheon_requested_without_consumer")
 
+        health_port_raw = os.environ.get("FDAI_HEALTH_PORT", "").strip()
+        if health_port_raw:
+            if control_loop is None:
+                raise RuntimeError(
+                    "FDAI_HEALTH_PORT requires a ready control loop; set FDAI_START_CONSUMER=1"
+                )
+            try:
+                health_port = int(health_port_raw)
+            except ValueError as port_error:
+                raise RuntimeError("FDAI_HEALTH_PORT MUST be an integer") from port_error
+            health_server = RuntimeHealthServer(port=health_port)
+            await health_server.start()
+            _LOGGER.info("health_server_ready", extra={"port": health_port})
+
         stop = asyncio.Event()
         loop = asyncio.get_running_loop()
 
@@ -301,6 +323,18 @@ async def _run() -> int:
                     irp_handler=_build_irp_event_handler(container=container, bus=bus),
                 )
             )
+            canary_task: asyncio.Task[None] | None = None
+            canary_topic = os.environ.get("FDAI_CANARY_TOPIC", "").strip()
+            if canary_topic:
+                canary_task = asyncio.create_task(
+                    _consume_canaries(
+                        bus=bus,
+                        topic=canary_topic,
+                        control_loop=control_loop,
+                        stop=stop,
+                    ),
+                    name="canary-consumer",
+                )
             hil_decision_task: asyncio.Task[None] | None = None
             if control_loop._hil_resume_coordinator is not None:
                 from fdai.delivery.chatops.hil_decision import DEFAULT_HIL_DECISION_TOPIC
@@ -330,6 +364,8 @@ async def _run() -> int:
                 pantheon_task.add_done_callback(_log_pantheon_exit)
 
             wait_set = {consumer_task, wait_task}
+            if canary_task is not None:
+                wait_set.add(canary_task)
             if hil_decision_task is not None:
                 wait_set.add(hil_decision_task)
             done, _pending = await asyncio.wait(
@@ -338,6 +374,8 @@ async def _run() -> int:
             )
             consumer_task.cancel()
             wait_task.cancel()
+            if canary_task is not None:
+                canary_task.cancel()
             if hil_decision_task is not None:
                 hil_decision_task.cancel()
             if pantheon_task is not None:
@@ -348,6 +386,8 @@ async def _run() -> int:
             # ``finally``. Without this a cancelled consumer can be
             # racing the aiokafka close and log noisy warnings on exit.
             cleanup_tasks: list[asyncio.Task[Any]] = [consumer_task, wait_task]
+            if canary_task is not None:
+                cleanup_tasks.append(canary_task)
             if hil_decision_task is not None:
                 cleanup_tasks.append(hil_decision_task)
             if pantheon_task is not None:
@@ -363,6 +403,11 @@ async def _run() -> int:
         _LOGGER.info("shutdown_complete")
         return 0
     finally:
+        if health_server is not None:
+            try:
+                await health_server.close()
+            except Exception:  # noqa: BLE001
+                _LOGGER.warning("health_server_stop_failed", exc_info=True)
         if pantheon_runtime is not None:
             try:
                 await pantheon_runtime.stop()

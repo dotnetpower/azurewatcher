@@ -53,11 +53,11 @@ def _upgrade_head() -> None:
     assert result.returncode == 0, result.stderr
 
 
-def _entry(uid: uuid.UUID, source_ref: str) -> OperatorMemoryEntry:
+def _entry(uid: uuid.UUID, source_ref: str, *, scope_ref: str) -> OperatorMemoryEntry:
     return OperatorMemoryEntry(
         id=uid,
         scope_kind=ScopeKind.RESOURCE_GROUP,
-        scope_ref="resource-group:example",
+        scope_ref=scope_ref,
         category=MemoryCategory.RUNBOOK_HINT,
         body=source_ref,
         source_event=MemorySource.HIL_REJECT,
@@ -73,9 +73,10 @@ async def test_promotion_and_rollback_are_atomic_and_restart_safe() -> None:
     dsn = _requires_live_db()
     _upgrade_head()
     memory = PostgresOperatorMemoryStore(config=PostgresOperatorMemoryStoreConfig(dsn=dsn))
+    scope_ref = f"resource-group:integration-{uuid.uuid4()}"
     sources = (
-        _entry(uuid.uuid4(), "hil.reject:first"),
-        _entry(uuid.uuid4(), "hil.reject:second"),
+        _entry(uuid.uuid4(), "hil.reject:first", scope_ref=scope_ref),
+        _entry(uuid.uuid4(), "hil.reject:second", scope_ref=scope_ref),
     )
     for source in sources:
         await memory.append(source)
@@ -98,7 +99,7 @@ async def test_promotion_and_rollback_are_atomic_and_restart_safe() -> None:
     promoted = await service.promote(candidate.candidate_id, actor_id="owner-example", at=_NOW)
     active_after_promote = await memory.list_active_for_scope(
         scope_kind=ScopeKind.RESOURCE_GROUP,
-        scope_ref="resource-group:example",
+        scope_ref=scope_ref,
     )
     assert [entry.id for entry in active_after_promote] == [promoted.promoted_entry_id]
 
@@ -109,7 +110,7 @@ async def test_promotion_and_rollback_are_atomic_and_restart_safe() -> None:
     rolled_back = await restarted.rollback(candidate.candidate_id, actor_id="owner-example")
     active_after_rollback = await memory.list_active_for_scope(
         scope_kind=ScopeKind.RESOURCE_GROUP,
-        scope_ref="resource-group:example",
+        scope_ref=scope_ref,
     )
     assert rolled_back.state is MemoryCompactionState.ROLLED_BACK
     assert {entry.id for entry in active_after_rollback} == {entry.id for entry in sources}

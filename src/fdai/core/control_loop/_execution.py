@@ -58,6 +58,7 @@ class ControlLoopExecutionMixin:
     _governance_assignments: Sequence[Assignment]
     _inventory_age_provider: Callable[[str], Awaitable[int | None]] | None
     _kill_switch: KillSwitch | None
+    _kill_switch_refresher: Callable[[], Awaitable[None]] | None
     _promotion_state_refresher: Callable[[str], Awaitable[None]] | None
     _risk_gate: RiskGate | None
     _risk_table: RiskTable | None
@@ -154,7 +155,20 @@ class ControlLoopExecutionMixin:
         system_degraded = (
             self._degradation is not None and not self._degradation.autonomy_permitted()
         )
-        kill_switch_engaged = self._kill_switch is not None and self._kill_switch.is_engaged()
+        kill_switch_refresh_failed = False
+        if self._kill_switch_refresher is not None:
+            try:
+                await self._kill_switch_refresher()
+            except Exception:  # noqa: BLE001 - emergency-state lookup fails closed
+                kill_switch_refresh_failed = True
+                _LOGGER.warning(
+                    "kill_switch_refresh_failed",
+                    extra={"action_type": action.action_type},
+                    exc_info=True,
+                )
+        kill_switch_engaged = kill_switch_refresh_failed or (
+            self._kill_switch is not None and self._kill_switch.is_engaged()
+        )
         inventory_age_seconds = None
         if self._inventory_age_provider is not None:
             try:

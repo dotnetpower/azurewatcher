@@ -10,7 +10,7 @@ tenant_id = "00000000-0000-0000-0000-000000000000"
 postgres_admin_login    = "fdaiadmin"
 postgres_admin_password = "SET-ME-VIA-VAULT"
 
-core_image   = "mcr.microsoft.com/azure-cli:latest"
+core_image   = "REPLACE_WITH_FDAI_IMAGE"
 max_replicas = 5
 
 # Private-networking + ops runner (same as dev; supply from infra/bootstrap).

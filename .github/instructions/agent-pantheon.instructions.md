@@ -181,17 +181,23 @@ These are documented shortfalls between `agent-pantheon.md` and the current
 code. A change in the affected area SHOULD close the gap or, at minimum, MUST NOT
 deepen it. Do not delete this list without closing the item.
 
-- **Quorum for irreversible actions is plumbed end to end.** Forseti stamps
+- **Quorum for irreversible actions is catalog-backed and plumbed end to end.** Forseti stamps
   `quorum_required` on the verdict via
   `agents/_framework/action_semantics.quorum_for` (2 for an irreversible
   ActionType, 1 otherwise), Thor propagates it onto the `ActionRun` (floored
   at 1, never hard-coded), and Var enforces the distinct-approver quorum with
-  no self-approval. The wave-3 irreversibility signal is still the
-  `delete`/`destroy` name heuristic (shared by Heimdall); the ActionType
-  schema's `irreversible` flag supersedes it once the real ontology loads.
+   no self-approval. The live `PantheonRuntime` receives the authoritative
+   ActionType catalog from the control loop; Forseti and Heimdall share its
+   `irreversible` and `rollback_contract` values. The name heuristic remains
+   only as a zero-config unit-test/local fallback when no catalog is injected.
   The `remediate.delete-storage` default verdict remains `deny` (a policy
   choice, not a plumbing gap); the quorum rides along so a fork that routes
   an irreversible action to `hil` gets two-approver enforcement for free.
+- **Forseti's `cost_spike` placeholder remediation is removed.** A raw
+   `cost_spike` event without a typed ActionType now routes to HIL/no-rule-match
+   rather than being mislabeled as an admin-privilege notification. The other
+   Wave-3 event/risk tables remain deterministic compatibility defaults until
+   their event-to-rule projection has a schema-backed source.
 - **Forseti no-rule-match routes to HIL** (rule 4.7). An identifiable
   incident with a concrete resource target but no matching rule emits an
   `hil` verdict (`reason: no_rule_match`, empty `action_type`,
