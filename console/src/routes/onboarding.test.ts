@@ -22,4 +22,20 @@ describe("onboarding response", () => {
     expect(() => decodeOnboarding({ ...payload, error: { message: "denied" } }))
       .toThrow(/string or null/);
   });
+
+  it("requires each role gap to contain principal, role, and target", () => {
+    expect(() => decodeOnboarding({ ...payload, missing_role_assignments: [["executor", "reader"]] }))
+      .toThrow(/principal, role, and target/);
+  });
+
+  it("rejects contradictory readiness and invalid counts", () => {
+    expect(() => decodeOnboarding({ ...payload, ready: true, blocked: true }))
+      .toThrow(/MUST NOT both be true/);
+    expect(() => decodeOnboarding({ ...payload, ready: false, blocked: false }))
+      .toThrow(/either ready or blocked/);
+    expect(() => decodeOnboarding({ ...payload, present_resource_count: -1 }))
+      .toThrow(/non-negative integer/);
+    expect(() => decodeOnboarding({ ...payload, present_role_count: 1.5 }))
+      .toThrow(/non-negative integer/);
+  });
 });

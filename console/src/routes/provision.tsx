@@ -17,12 +17,16 @@
 
 import { useMemo, useReducer } from "preact/hooks";
 import type { ReadApiClient } from "../api";
+import { PageHeader, StatusPill } from "../components/ui";
 import { loadConfig } from "../config";
+import { usePublishViewContext } from "../deck/context";
+import { TERMS, composeGlossary } from "../deck/glossary";
 import type {
   ProvisionConnectionStatus,
   ProvisionEvent,
 } from "../hooks/use-provision-stream";
 import { useProvisionStream } from "../hooks/use-provision-stream";
+import { t } from "../i18n";
 
 interface Props {
   readonly client: ReadApiClient;
@@ -68,14 +72,15 @@ export function safeHttpUrl(url: string | null): string | null {
   if (!url) return null;
   try {
     const parsed = new URL(url);
-    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : null;
+    const supported = parsed.protocol === "http:" || parsed.protocol === "https:";
+    return supported && !parsed.username && !parsed.password ? parsed.href : null;
   } catch {
     return null;
   }
 }
 
 export function reducer(state: ProvisionState, ev: ProvisionEvent): ProvisionState {
-  if (state.done && ev.phase !== "done") return state;
+  if (state.done) return state;
   const observedState = state.observed ? state : { ...state, observed: true };
   switch (ev.phase) {
     case "progress": {
@@ -88,7 +93,10 @@ export function reducer(state: ProvisionState, ev: ProvisionEvent): ProvisionSta
         ...observedState,
         // A progress bar never regresses: keep the high-water mark even if a
         // reconnect replays an earlier (lower) fraction.
-        fraction: Math.max(state.fraction, ev.fraction ?? state.fraction),
+        fraction: Math.max(
+          state.fraction,
+          Number.isFinite(ev.fraction) ? Math.max(0, Math.min(1, ev.fraction!)) : state.fraction,
+        ),
         // Do NOT clear `waiting` here: progress for an unrelated resource must
         // not hide the "waiting on X" banner. The bridge emits `resumed` when
         // the waiting resource itself completes (see below).
@@ -139,15 +147,15 @@ export function reducer(state: ProvisionState, ev: ProvisionEvent): ProvisionSta
 function statusLabel(status: ProvisionConnectionStatus): string {
   switch (status) {
     case "open":
-      return "Streaming";
+      return t("provision.status.streaming");
     case "connecting":
-      return "Connecting";
+      return t("provision.status.connecting");
     case "closed":
-      return "Disconnected";
+      return t("provision.status.disconnected");
     case "idle":
-      return "Idle";
+      return t("provision.status.idle");
     case "unsupported":
-      return "SSE unsupported";
+      return t("provision.status.unsupported");
     default:
       return status;
   }
@@ -172,23 +180,45 @@ export function ProvisionRoute({ client }: Props) {
   const pct = Math.max(0, Math.min(100, Math.round(state.fraction * 1000) / 10));
   const consoleUrl = safeHttpUrl(state.consoleUrl);
 
+  usePublishViewContext(
+    () => ({
+      routeId: "provision",
+      routeLabel: t("nav.panel.provision"),
+      purpose: t("provision.viewPurpose"),
+      glossary: composeGlossary([TERMS.shadowMode]),
+      headline: state.done
+        ? t("provision.done")
+        : state.failed
+        ? t("provision.failed", { resource: state.failed, reason: state.failedReason ?? t("provision.reasonUnavailable") })
+        : t("provision.viewHeadline", { percent: pct.toFixed(1), status: statusLabel(status) }),
+      capturedAt: new Date().toISOString(),
+      facts: [
+        { key: "connection_status", value: status, group: "stream" },
+        { key: "observed", value: state.observed, group: "run" },
+        { key: "progress_percent", value: pct, group: "run" },
+        { key: "waiting_resource", value: state.waiting, group: "run" },
+        { key: "failed_resource", value: state.failed, group: "run" },
+        { key: "done", value: state.done, group: "run" },
+        { key: "recent_resource_count", value: state.recent.length, group: "run" },
+        { key: "stream_error", value: lastError, group: "stream" },
+      ],
+      records: {
+        recent_resources: state.recent.map((resource) => ({ resource })),
+      },
+    }),
+    [lastError, pct, state, status],
+  );
+
   return (
     <div class="provision">
-      <header class="provision-head">
-        <h1 class="provision-title">Provisioning</h1>
-        <span
-          class={`provision-conn provision-conn--${status}`}
-          role="status"
-          aria-live="polite"
-        >
-          {statusLabel(status)}
-        </span>
-      </header>
+      <PageHeader
+        title={t("nav.panel.provision")}
+        subtitle={t("provision.subtitle")}
+        actions={<StatusPill kind={status === "open" ? "success" : status === "closed" ? "danger" : "neutral"} label={statusLabel(status)} />}
+      />
 
       <p class="provision-sub">
-        A read-only view of an in-flight re-provision, streamed from{" "}
-        <code>GET /provision/stream</code>. This screen renders progress; it never
-        executes provisioning.
+        {t("provision.readOnlyPrefix")} <code>GET /provision/stream</code>. {t("provision.readOnlySuffix")}
       </p>
 
       {state.observed ? (
@@ -198,7 +228,7 @@ export function ProvisionRoute({ client }: Props) {
               state.done ? " is-done" : ""
             }`}
             role="progressbar"
-            aria-label="Provisioning progress"
+            aria-label={t("provision.progressLabel")}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={pct}
@@ -209,7 +239,7 @@ export function ProvisionRoute({ client }: Props) {
         </>
       ) : (
         <div class="state-block state-unavailable" role="status">
-          No provisioning run has been observed on this stream. A connected stream alone does not imply 0% progress.
+          {t("provision.notObserved")}
         </div>
       )}
 
@@ -218,24 +248,24 @@ export function ProvisionRoute({ client }: Props) {
       <div class="provision-status" role="status" aria-live="polite">
         {state.waiting && (
           <p class="provision-line provision-line--waiting">
-            Waiting on <code>{state.waiting}</code>
-            {state.waitingReason ? ` - ${state.waitingReason}` : ""}. Holding, honestly.
+            {t("provision.waitingOn")} <code>{state.waiting}</code>
+            {state.waitingReason ? ` - ${state.waitingReason}` : ""}. {t("provision.waitingSuffix")}
           </p>
         )}
 
         {state.failed && (
           <p class="provision-line provision-line--failed">
-            Failed on <code>{state.failed}</code>
+            {t("provision.failedOn")} <code>{state.failed}</code>
             {state.failedReason ? ` - ${state.failedReason}` : ""}.
           </p>
         )}
 
         {state.done && (
           <div class="provision-done">
-            <p class="provision-line provision-line--done">Every resource is up.</p>
+            <p class="provision-line provision-line--done">{t("provision.done")}</p>
             {consoleUrl && (
               <a class="provision-enter" href={consoleUrl} rel="noopener noreferrer">
-                Enter the control plane
+                {t("provision.enter")}
               </a>
             )}
           </div>
@@ -243,7 +273,7 @@ export function ProvisionRoute({ client }: Props) {
       </div>
 
       {state.recent.length > 0 && (
-        <ul class="provision-recent" aria-label="Recently provisioned resources">
+        <ul class="provision-recent" aria-label={t("provision.recentLabel")}>
           {state.recent.map((node) => (
             <li key={node} class="provision-recent-item">
               <code>{node}</code>
@@ -254,12 +284,11 @@ export function ProvisionRoute({ client }: Props) {
 
       {status === "idle" && !state.done && (
         <p class="provision-idle">
-          No provisioning in progress. This screen wakes when the stream carries a{" "}
-          <code>provision.*</code> event.
+          {t("provision.idlePrefix")} <code>provision.*</code> {t("provision.idleSuffix")}
         </p>
       )}
 
-      {lastError && <p class="provision-error mono">{lastError}</p>}
+      {lastError && <p class="provision-error mono" role="alert">{lastError}</p>}
     </div>
   );
 }

@@ -161,11 +161,13 @@ export function decodeProcessList(value: unknown): ProcessListResponse {
   if (durable !== undefined && durable !== null && typeof durable !== "boolean") {
     throw new Error("process list durable MUST be boolean or null");
   }
+  const items = root["items"].map((item, index) => decodeSummary(item, `items[${index}]`));
+  assertUnique(items.map((item) => item.id), "process list item ids");
   return {
     source: typeof root["source"] === "string" ? root["source"] : "unknown",
     synthetic: synthetic === undefined ? null : synthetic,
     durable: durable === undefined ? null : durable,
-    items: root["items"].map((item, index) => decodeSummary(item, `items[${index}]`)),
+    items,
   };
 }
 
@@ -173,15 +175,23 @@ export function decodeProcessJournal(value: unknown): ProcessJournalResponse {
   const root = record(value, "process journal");
   const process = record(root["process"], "process journal process");
   if (!Array.isArray(root["events"])) throw new Error("process journal events MUST be an array");
+  const events = root["events"].map((value, index) => decodeProcessEvent(value, `events[${index}]`));
+  assertUnique(events.map((event) => event.event_id), "process journal event ids");
+  const count = nonNegativeIntegerField(root, "count", "process journal");
+  if (count !== events.length) throw new Error("process journal.count MUST equal the returned event count");
+  const decodedProcess = {
+    ...decodeSummary(process, "process journal process"),
+    started_at: stringField(process, "started_at", "process journal process"),
+    correlation_id: stringField(process, "correlation_id", "process journal process"),
+    revision: nonNegativeIntegerField(process, "revision", "process journal process"),
+  };
+  if (events.some((event) => event.correlation_id !== decodedProcess.correlation_id)) {
+    throw new Error("process journal events MUST match the process correlation_id");
+  }
   return {
-    process: {
-      ...decodeSummary(process, "process journal process"),
-      started_at: stringField(process, "started_at", "process journal process"),
-      correlation_id: stringField(process, "correlation_id", "process journal process"),
-      revision: numberField(process, "revision", "process journal process"),
-    },
-    events: root["events"].map((value, index) => decodeProcessEvent(value, `events[${index}]`)),
-    count: numberField(root, "count", "process journal"),
+    process: decodedProcess,
+    events,
+    count,
   };
 }
 
@@ -189,6 +199,32 @@ export function decodeRenderedProcessView(value: unknown): RenderedProcessView {
   const root = record(value, "process view");
   const process = record(root["process"], "process view process");
   if (!Array.isArray(root["regions"])) throw new Error("process view regions MUST be an array");
+  const regions = root["regions"].map((item, index) => {
+      const region = record(item, `regions[${index}]`);
+      const report = record(region["report"], `regions[${index}].report`);
+      if (!Array.isArray(report["widgets"])) {
+        throw new Error(`regions[${index}].report widgets MUST be an array`);
+      }
+      const widgets = report["widgets"].map((widget, widgetIndex) =>
+        decodeRenderedWidget(widget, `regions[${index}].report.widgets[${widgetIndex}]`));
+      assertUnique(widgets.map((widget) => widget.id), `regions[${index}].report widget ids`);
+      const columnSpan = nonNegativeIntegerField(region, "column_span", `regions[${index}]`);
+      if (columnSpan < 1 || columnSpan > 12) {
+        throw new Error(`regions[${index}].column_span MUST be between 1 and 12`);
+      }
+      return {
+        id: stringField(region, "id", `regions[${index}]`),
+        column_span: columnSpan,
+        report: {
+          id: stringField(report, "id", `regions[${index}].report`),
+          name: stringField(report, "name", `regions[${index}].report`),
+          description: stringField(report, "description", `regions[${index}].report`),
+          generated_at: stringField(report, "generated_at", `regions[${index}].report`),
+          widgets,
+        },
+      };
+    });
+  assertUnique(regions.map((region) => region.id), "process view region ids");
   return {
     id: stringField(root, "id", "process view"),
     version: stringField(root, "version", "process view"),
@@ -199,28 +235,23 @@ export function decodeRenderedProcessView(value: unknown): RenderedProcessView {
       ...decodeSummary(process, "process view process", false),
       started_at: stringField(process, "started_at", "process view process"),
       correlation_id: stringField(process, "correlation_id", "process view process"),
-      revision: numberField(process, "revision", "process view process"),
+      revision: nonNegativeIntegerField(process, "revision", "process view process"),
     },
-    regions: root["regions"].map((item, index) => {
-      const region = record(item, `regions[${index}]`);
-      const report = record(region["report"], `regions[${index}].report`);
-      if (!Array.isArray(report["widgets"])) {
-        throw new Error(`regions[${index}].report widgets MUST be an array`);
-      }
-      return {
-        id: stringField(region, "id", `regions[${index}]`),
-        column_span: numberField(region, "column_span", `regions[${index}]`),
-        report: {
-          id: stringField(report, "id", `regions[${index}].report`),
-          name: stringField(report, "name", `regions[${index}].report`),
-          description: stringField(report, "description", `regions[${index}].report`),
-          generated_at: stringField(report, "generated_at", `regions[${index}].report`),
-          widgets: report["widgets"].map((widget, widgetIndex) =>
-            decodeRenderedWidget(widget, `regions[${index}].report.widgets[${widgetIndex}]`)),
-        },
-      };
-    }),
+    regions,
   };
+}
+
+export function assertProcessDetailSelection(
+  selectedId: string,
+  journal: ProcessJournalResponse,
+  view: RenderedProcessView | null,
+): void {
+  if (journal.process.id !== selectedId) {
+    throw new Error("process journal id does not match the selected process");
+  }
+  if (view !== null && view.process.id !== selectedId) {
+    throw new Error("rendered process view id does not match the selected process");
+  }
 }
 
 export function processListFailure(error: unknown):
@@ -269,7 +300,7 @@ function decodeProcessEvent(value: unknown, label: string): ProcessEvent {
     correlation_id: stringField(event, "correlation_id", label),
     causation_id: causationId,
     step_id: stepId,
-    attempt: numberField(event, "attempt", label),
+    attempt: nonNegativeIntegerField(event, "attempt", label),
     payload: record(event["payload"], `${label}.payload`),
   };
 }
@@ -308,6 +339,18 @@ function numberField(value: Readonly<Record<string, unknown>>, key: string, labe
     throw new Error(`${label}.${key} MUST be a finite number`);
   }
   return value[key];
+}
+
+function nonNegativeIntegerField(value: Readonly<Record<string, unknown>>, key: string, label: string): number {
+  const result = numberField(value, key, label);
+  if (!Number.isInteger(result) || result < 0) {
+    throw new Error(`${label}.${key} MUST be a non-negative integer`);
+  }
+  return result;
+}
+
+function assertUnique(values: readonly string[], label: string): void {
+  if (new Set(values).size !== values.length) throw new Error(`${label} MUST be unique`);
 }
 
 function booleanField(value: Readonly<Record<string, unknown>>, key: string, label: string): boolean {

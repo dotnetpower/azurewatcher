@@ -37,6 +37,7 @@ export function LivePanels({
   tickerPaused,
   tickerCollapsed,
   frozenObserved,
+  droppedFrames,
   displayedTicker,
   viewMode,
   selectionState,
@@ -54,6 +55,7 @@ export function LivePanels({
   readonly tickerPaused: boolean;
   readonly tickerCollapsed: boolean;
   readonly frozenObserved: number;
+  readonly droppedFrames: number;
   readonly displayedTicker: readonly LiveStageEvent[];
   readonly viewMode: LiveViewMode;
   readonly selectionState: LiveSelectionState;
@@ -131,6 +133,14 @@ export function LivePanels({
         <div>
           <span>{t("live.health.presentation")}</span>
           <strong>{tickerPaused ? t("live.health.frozen", { count: frozenObserved }) : t("live.health.following")}</strong>
+        </div>
+        <div>
+          <span>{t("live.health.backlog")}</span>
+          <strong class={droppedFrames > 0 ? "live-health-warn" : "live-health-ok"}>
+            {droppedFrames > 0
+              ? t("live.health.dropped", { count: droppedFrames })
+              : t("live.health.complete")}
+          </strong>
         </div>
       </section>
 

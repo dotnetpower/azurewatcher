@@ -9,7 +9,7 @@ import {
   matchesFilter,
   pickSlot,
 } from "./live.model";
-import { liveTraceHref } from "./live";
+import { appendLiveBacklog, drainLiveBacklog, liveTraceHref } from "./live";
 
 describe("live event selection", () => {
   test("links a recent outcome to correlation-scoped Trace evidence", () => {
@@ -21,6 +21,28 @@ describe("live event selection", () => {
     expect(liveSelectionState("event-1", null, 0)).toBe("waiting");
     expect(liveSelectionState("event-1", {} as never, 0)).toBe("selected");
     expect(liveSelectionState("event-1", null, 1)).toBe("unavailable");
+  });
+});
+
+describe("live frame backlog", () => {
+  test("preserves arrival order across bounded drains", () => {
+    const events = [
+      { ...stageEvent("ingest", {}), event_id: "one" },
+      { ...stageEvent("route", {}), event_id: "two" },
+      { ...stageEvent("audit", {}), event_id: "three" },
+    ];
+    const first = drainLiveBacklog(events, 2);
+    expect(first.drained.map((event) => event.event_id)).toEqual(["one", "two"]);
+    expect(first.remaining.map((event) => event.event_id)).toEqual(["three"]);
+  });
+
+  test("retains newest frames and reports bounded overflow", () => {
+    const one = { ...stageEvent("ingest", {}), event_id: "one" };
+    const two = { ...stageEvent("route", {}), event_id: "two" };
+    const three = { ...stageEvent("audit", {}), event_id: "three" };
+    const result = appendLiveBacklog([one, two], three, 2);
+    expect(result.backlog.map((event) => event.event_id)).toEqual(["two", "three"]);
+    expect(result.dropped).toBe(1);
   });
 });
 

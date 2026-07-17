@@ -168,20 +168,31 @@ function decodeRcaCausalChain(value: unknown): RcaView["hypotheses"][number]["ca
 export function decodeHilQueuePage(value: unknown): HilQueuePage {
   const root = apiRecord(value, "HIL queue page");
   if (!Array.isArray(root["items"])) throw contractError("HIL queue page.items MUST be an array");
-  return {
-    items: root["items"].map((raw, index) => {
+  const items = root["items"].map((raw, index) => {
       const item = apiRecord(raw, `HIL queue page.items[${index}]`);
+      const requestedAt = apiString(item, "requested_at", "HIL queue item");
+      const mode = apiOptionalString(item, "mode", "HIL queue item");
+      const ttlExpiresAt = apiOptionalNullableString(item, "ttl_expires_at", "HIL queue item");
+      if (!isRfc3339Timestamp(requestedAt)) {
+        throw contractError("HIL queue item.requested_at MUST be an RFC 3339 timestamp");
+      }
+      if (ttlExpiresAt !== null && !isRfc3339Timestamp(ttlExpiresAt)) {
+        throw contractError("HIL queue item.ttl_expires_at MUST be an RFC 3339 timestamp or null");
+      }
+      if (mode !== "" && mode !== "shadow" && mode !== "enforce") {
+        throw contractError("HIL queue item.mode MUST be shadow, enforce, or omitted");
+      }
       return {
         idempotency_key: apiString(item, "idempotency_key", "HIL queue item"),
         event_id: apiString(item, "event_id", "HIL queue item"),
         action_kind: apiString(item, "action_kind", "HIL queue item"),
         reason: apiString(item, "reason", "HIL queue item"),
-        requested_at: apiString(item, "requested_at", "HIL queue item"),
+        requested_at: requestedAt,
         correlation_id: apiNullableString(item, "correlation_id", "HIL queue item"),
         approval_id: apiOptionalString(item, "approval_id", "HIL queue item"),
         action_id: apiOptionalString(item, "action_id", "HIL queue item"),
         target_resource_ref: apiOptionalString(item, "target_resource_ref", "HIL queue item"),
-        mode: apiOptionalString(item, "mode", "HIL queue item"),
+        mode,
         stop_condition: apiOptionalString(item, "stop_condition", "HIL queue item"),
         rollback_kind: apiOptionalString(item, "rollback_kind", "HIL queue item"),
         rollback_reference: apiOptionalNullableString(item, "rollback_reference", "HIL queue item"),
@@ -191,12 +202,31 @@ export function decodeHilQueuePage(value: unknown): HilQueuePage {
         blast_radius_summary: apiOptionalString(item, "blast_radius_summary", "HIL queue item"),
         reasons: apiOptionalStringArray(item, "reasons", "HIL queue item"),
         citing_rule_ids: apiOptionalStringArray(item, "citing_rule_ids", "HIL queue item"),
-        ttl_expires_at: apiOptionalNullableString(item, "ttl_expires_at", "HIL queue item"),
+        ttl_expires_at: ttlExpiresAt,
       };
-    }),
-    total: apiNonNegativeInteger(root, "total", "HIL queue page"),
-    detail_level: apiHilDetailLevel(root["detail_level"]),
+    });
+  const total = apiNonNegativeInteger(root, "total", "HIL queue page");
+  const detailLevel = apiHilDetailLevel(root["detail_level"]);
+  if (total < items.length) {
+    throw contractError("HIL queue page.total MUST be at least the number of returned items");
+  }
+  if (detailLevel === "count_only" && items.length > 0) {
+    throw contractError("count-only HIL queue pages MUST NOT include item details");
+  }
+  const keys = items.map((item) => item.idempotency_key);
+  if (new Set(keys).size !== keys.length) {
+    throw contractError("HIL queue page.items MUST have unique idempotency keys");
+  }
+  return {
+    items,
+    total,
+    detail_level: detailLevel,
   };
+}
+
+function isRfc3339Timestamp(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+    Number.isFinite(Date.parse(value));
 }
 
 function apiIncidentStatus(value: unknown): "open" | "in_progress" | "resolved" {

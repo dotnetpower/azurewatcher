@@ -9,6 +9,8 @@ import {
   type AsyncState,
   type Column,
 } from "../components/ui";
+import { usePublishViewContext } from "../deck/context";
+import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
 import { currentRoute, navigate, routeHref } from "../router";
 import { schedulerRunsText } from "./scheduler-runs.i18n";
@@ -54,6 +56,7 @@ export function SchedulerRunsRoute({ client }: { readonly client: ReadApiClient 
         ...(cursor ? { cursor } : {}),
       });
       const page = decodeSchedulerRunPage(payload);
+      assertSchedulerRunTask(page, query.taskId);
       if (request !== generation.current) return;
       setState((current) => append && current.status === "ready"
         ? {
@@ -87,13 +90,9 @@ export function SchedulerRunsRoute({ client }: { readonly client: ReadApiClient 
     event.preventDefault();
     const taskId = taskInput.trim();
     if (!taskId) return;
-    const query = { taskId, status: statusInput };
-    setActiveQuery(query);
-    navigate(routeHref("processes", {
-      segments: ["scheduler-runs"],
+    navigate(routeHref("scheduler-runs", {
       params: { task_id: taskId, status: statusInput || null },
     }), true);
-    void load(query, null, false);
   };
 
   return (
@@ -118,10 +117,10 @@ export function SchedulerRunsRoute({ client }: { readonly client: ReadApiClient 
             onChange={(event) => setStatusInput(event.currentTarget.value as Query["status"])}
           >
             <option value="">{schedulerRunsText("allStatuses")}</option>
-            <option value="claimed">claimed</option>
-            <option value="published">published</option>
-            <option value="failed">failed</option>
-            <option value="lost">lost</option>
+            <option value="claimed">{schedulerRunsText("statusClaimed")}</option>
+            <option value="published">{schedulerRunsText("statusPublished")}</option>
+            <option value="failed">{schedulerRunsText("statusFailed")}</option>
+            <option value="lost">{schedulerRunsText("statusLost")}</option>
           </select>
         </label>
         <button type="submit" class="btn" disabled={state.status === "loading"}>
@@ -156,6 +155,31 @@ function SchedulerRunsTable({ page, loadingMore, pageError, onLoadMore }: {
   readonly pageError: string | null;
   readonly onLoadMore: () => void;
 }) {
+  usePublishViewContext(
+    () => ({
+      routeId: "scheduler-runs",
+      routeLabel: schedulerRunsText("title"),
+      purpose: "Read-only task dispatch attempts from the configured scheduler ledger. The console cannot retry, cancel, or execute a task.",
+      glossary: composeGlossary([TERMS.process], [{
+        term: "scheduler run",
+        plain: "one recorded attempt to claim and publish a scheduled task at its due time",
+        tech: "run_id",
+      }]),
+      headline: schedulerRunsText("viewHeadline", { taskId: page.task_id, count: page.items.length }),
+      capturedAt: new Date().toISOString(),
+      facts: [
+        { key: "task_id", value: page.task_id, group: "scheduler" },
+        { key: "source", value: page.source, group: "provenance" },
+        { key: "durable", value: page.durable, group: "provenance" },
+        { key: "loaded_runs", value: page.items.length, group: "scheduler" },
+        { key: "has_more", value: page.next_cursor !== null, group: "scheduler" },
+      ],
+      records: {
+        runs: page.items.map((item) => ({ ...item })),
+      },
+    }),
+    [page],
+  );
   const columns: readonly Column<SchedulerRunItem>[] = [
     {
       key: "run",
@@ -169,10 +193,15 @@ function SchedulerRunsTable({ page, loadingMore, pageError, onLoadMore }: {
       render: (item) => formatSchedulerTimestamp(item.scheduled_for),
     },
     {
+      key: "claimed",
+      header: schedulerRunsText("claimedAt"),
+      render: (item) => formatSchedulerTimestamp(item.claimed_at),
+    },
+    {
       key: "status",
       header: schedulerRunsText("status"),
       render: (item) => (
-        <StatusPill kind={schedulerRunTone(item.status)} label={item.status} />
+        <StatusPill kind={schedulerRunTone(item.status)} label={schedulerRunStatusLabel(item.status)} />
       ),
     },
     {
@@ -222,6 +251,22 @@ function SchedulerRunsTable({ page, loadingMore, pageError, onLoadMore }: {
       ) : null}
     </section>
   );
+}
+
+export function assertSchedulerRunTask(page: SchedulerRunPage, requestedTaskId: string): void {
+  if (page.task_id !== requestedTaskId) {
+    throw new Error("scheduler runs response task_id does not match the requested task");
+  }
+}
+
+function schedulerRunStatusLabel(status: SchedulerRunStatus): string {
+  const keys = {
+    claimed: "statusClaimed",
+    published: "statusPublished",
+    failed: "statusFailed",
+    lost: "statusLost",
+  } as const;
+  return schedulerRunsText(keys[status]);
 }
 
 function queryFromRoute(): Query {

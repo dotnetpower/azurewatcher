@@ -1,3 +1,5 @@
+import { resolvePanels } from "./panels";
+
 const ROUTE_EVENT = "fdai:route-changed";
 
 export const PANEL_PATHS: Readonly<Record<string, string>> = {
@@ -9,6 +11,7 @@ export const PANEL_PATHS: Readonly<Record<string, string>> = {
   provision: "/provisioning",
   onboarding: "/onboarding",
   processes: "/processes",
+  "scheduler-runs": "/scheduler-runs",
   reports: "/reports",
   "agent-activity": "/agent-activity",
   audit: "/audit",
@@ -39,12 +42,9 @@ export const PANEL_PATHS: Readonly<Record<string, string>> = {
   capabilities: "/capabilities",
 };
 
-const PANEL_ROUTES = Object.entries(PANEL_PATHS)
-  .map(([panelId, path]) => ({ panelId, path }))
-  .sort((left, right) => right.path.length - left.path.length);
-
 const PATH_ALIASES: Readonly<Record<string, string>> = {
   "/settings": "settings-general",
+  "/processes/scheduler-runs": "scheduler-runs",
 };
 
 const LEGACY_ALIASES: Readonly<Record<string, string>> = {
@@ -68,7 +68,11 @@ function normalizePathname(pathname: string): string {
 }
 
 export function panelPath(panelId: string): string {
-  return PANEL_PATHS[panelId] ?? PANEL_PATHS.dashboard!;
+  const explicit = PANEL_PATHS[panelId];
+  if (explicit !== undefined) return explicit;
+  return resolvePanels().some((panel) => panel.id === panelId)
+    ? `/${panelId}`
+    : PANEL_PATHS.dashboard!;
 }
 
 export function routeHref(
@@ -93,7 +97,7 @@ export function routeHref(
 export function parseConsoleRoute(pathname: string, search = ""): ConsoleRoute {
   const normalized = normalizePathname(pathname);
   const aliasPanel = PATH_ALIASES[normalized];
-  const matchedRoute = PANEL_ROUTES.find(
+  const matchedRoute = registeredPanelRoutes().find(
     (candidate) => normalized === candidate.path || normalized.startsWith(`${candidate.path}/`),
   );
   const matchedPanel = aliasPanel ?? matchedRoute?.panelId;
@@ -129,6 +133,28 @@ export function parseConsoleRoute(pathname: string, search = ""): ConsoleRoute {
     segments: detailSegments,
     search: new URLSearchParams(search.startsWith("?") ? search.slice(1) : search),
   };
+}
+
+export function registeredPanelRoutes(): readonly { readonly panelId: string; readonly path: string }[] {
+  const routes = resolvePanels().map((panel) => ({ panelId: panel.id, path: panelPath(panel.id) }));
+  const paths = new Map<string, string>();
+  for (const route of routes) {
+    const existing = paths.get(route.path);
+    if (existing !== undefined && existing !== route.panelId) {
+      throw new Error(`Duplicate console panel path ${route.path}: ${existing}, ${route.panelId}`);
+    }
+    if (!/^\/[a-z0-9]+(?:[/-][a-z0-9]+)*$/.test(route.path)) {
+      throw new Error(`Console panel path MUST be lowercase kebab-case: ${route.path}`);
+    }
+    paths.set(route.path, route.panelId);
+  }
+  for (const [aliasPath, aliasPanel] of Object.entries(PATH_ALIASES)) {
+    const canonicalPanel = paths.get(aliasPath);
+    if (canonicalPanel !== undefined && canonicalPanel !== aliasPanel) {
+      throw new Error(`Console alias path collides with panel path ${aliasPath}`);
+    }
+  }
+  return routes.sort((left, right) => right.path.length - left.path.length);
 }
 
 export function legacyHashHref(hash: string): string | null {

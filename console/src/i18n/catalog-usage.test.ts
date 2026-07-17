@@ -2,6 +2,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { extname, join, relative } from "node:path";
 import { describe, expect, test } from "vitest";
 import mainCatalog from "./messages.en.json";
+import analyticsCatalog from "../routes/i18n/analytics.en.json";
+import llmCostCatalog from "../routes/i18n/llm-cost.en.json";
 import liveCatalog from "../routes/i18n/live.messages.en.json";
 
 const SOURCE_ROOT = join(process.cwd(), "src");
@@ -39,12 +41,21 @@ function staticKeys(source: string): string[] {
 describe("console static translation keys", () => {
   test("all literal t() calls resolve in their English source catalog", () => {
     const mainKeys = catalogKeys(mainCatalog);
+    const analyticsKeys = catalogKeys({ analytics: analyticsCatalog });
+    const llmCostKeys = catalogKeys({ llmCost: llmCostCatalog });
     const liveKeys = catalogKeys({ live: liveCatalog });
     const missing: string[] = [];
 
     for (const file of sourceFiles(SOURCE_ROOT)) {
       const source = readFileSync(file, "utf8");
-      const expected = source.includes('from "./i18n/live"') ? liveKeys : mainKeys;
+      const routeKeys = source.includes('from "./i18n/live"')
+        ? liveKeys
+        : source.includes('from "./i18n/analytics"')
+          ? analyticsKeys
+          : source.includes('from "./i18n/llm-cost"')
+            ? llmCostKeys
+            : new Set<string>();
+      const expected = new Set([...mainKeys, ...routeKeys]);
       for (const key of staticKeys(source)) {
         if (!expected.has(key)) missing.push(`${relative(SOURCE_ROOT, file)}: ${key}`);
       }

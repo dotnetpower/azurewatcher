@@ -3,6 +3,7 @@ import {
   legacyHashHref,
   panelPath,
   parseConsoleRoute,
+  registeredPanelRoutes,
   routeHref,
   shouldResetScroll,
   shouldReplaceUnmatchedRoute,
@@ -13,9 +14,18 @@ describe("clean console routes", () => {
     expect(panelPath("dashboard")).toBe("/overview");
     expect(panelPath("hil-queue")).toBe("/approvals");
     expect(panelPath("agent-activity")).toBe("/agent-activity");
+    expect(panelPath("scheduler-runs")).toBe("/scheduler-runs");
     expect(panelPath("labs")).toBe("/labs");
     expect(panelPath("settings-general")).toBe("/settings/general");
     expect(panelPath("settings-models")).toBe("/settings/models");
+    expect(panelPath("not-registered")).toBe("/overview");
+  });
+
+  test("gives every registered panel one unique canonical route", () => {
+    const routes = registeredPanelRoutes();
+    expect(new Set(routes.map((route) => route.panelId)).size).toBe(routes.length);
+    expect(new Set(routes.map((route) => route.path)).size).toBe(routes.length);
+    expect(routes.every((route) => /^\/[a-z0-9]+(?:[/-][a-z0-9]+)*$/.test(route.path))).toBe(true);
   });
 
   test("builds path segments without spaces or underscores", () => {
@@ -33,6 +43,17 @@ describe("clean console routes", () => {
     expect(route.matched).toBe(true);
     expect(route.canonicalPathname).toBe("/trust-routing/t2");
     expect(route.segments).toEqual(["t2"]);
+    expect(route.search.get("window")).toBe("30d");
+  });
+
+  test("round-trips Overview analytical routes with preserved filters", () => {
+    const href = routeHref("control-assurance", {
+      params: { guard: "false_negative", window: "30d" },
+    });
+    const url = new URL(href, "https://example.com");
+    const route = parseConsoleRoute(url.pathname, url.search);
+    expect(route.panelId).toBe("control-assurance");
+    expect(route.search.get("guard")).toBe("false_negative");
     expect(route.search.get("window")).toBe("30d");
   });
 
@@ -57,6 +78,14 @@ describe("clean console routes", () => {
     expect(route.matched).toBe(true);
     expect(route.canonicalPathname).toBe("/settings/general");
     expect(route.segments).toEqual([]);
+  });
+
+  test("canonicalizes the former nested Scheduler Runs route", () => {
+    const route = parseConsoleRoute("/processes/scheduler-runs", "?task_id=inventory");
+    expect(route.panelId).toBe("scheduler-runs");
+    expect(route.matched).toBe(true);
+    expect(route.canonicalPathname).toBe("/scheduler-runs");
+    expect(route.search.get("task_id")).toBe("inventory");
   });
 
   test("marks unknown and root paths for canonical Overview replacement", () => {

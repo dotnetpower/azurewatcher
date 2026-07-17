@@ -13,7 +13,8 @@ import {
 } from "../components/ui";
 import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
-import { t } from "../i18n";
+import { getLocale } from "../i18n";
+import { t } from "./i18n/llm-cost";
 import { routeHref } from "../router";
 import {
   panelArray,
@@ -66,7 +67,7 @@ interface Props {
 }
 
 export function formatLlmCost(s: Pick<Summary, "cost" | "currency" | "has_mixed_currency">): string {
-  return s.has_mixed_currency ? "Mixed currencies" : `${s.cost} ${s.currency}`;
+  return s.has_mixed_currency ? t("llmCost.mixedCurrencies") : `${s.cost} ${s.currency}`;
 }
 
 export function LlmCostRoute({ client }: Props) {
@@ -84,10 +85,7 @@ export function LlmCostRoute({ client }: Props) {
           if (isOptionalReadApiUnavailable(err)) {
             setState({
               status: "unavailable",
-              message:
-                "LLM cost route is not wired on this deployment. Register " +
-                "LlmCostPanel with a MeteringReader in the composition root " +
-                "(ReadApiConfig.extra_panels) to enable it.",
+              message: t("llmCost.unavailable"),
             });
           } else {
             setState({ status: "error", message });
@@ -101,9 +99,9 @@ export function LlmCostRoute({ client }: Props) {
   }, [client]);
 
   return (
-    <div class="stack">
+    <div class="stack analytics-route">
       <PageHeader title={t("route.llmCost")} subtitle={t("nav.panelSub.llmCost")} />
-      <AsyncBoundary state={state} resourceLabel="LLM cost">
+      <AsyncBoundary state={state} resourceLabel={t("route.llmCost")}>
         {(data) => <LlmCostBody data={data} />}
       </AsyncBoundary>
     </div>
@@ -159,21 +157,21 @@ function _summaryColumns(
       render: (r) => keyHref ? <a href={keyHref(r.key)}>{r.key}</a> : r.key,
       cellClass: "mono",
     },
-    { key: "inv", header: "Calls", render: (r) => r.invocations },
-    { key: "pt", header: "Prompt", render: (r) => r.prompt_tokens.toLocaleString() },
-    { key: "ct", header: "Completion", render: (r) => r.completion_tokens.toLocaleString() },
-    { key: "tt", header: "Total tokens", render: (r) => r.total_tokens.toLocaleString() },
+    { key: "inv", header: t("llmCost.column.calls"), render: (r) => r.invocations },
+    { key: "pt", header: t("llmCost.column.prompt"), render: (r) => r.prompt_tokens.toLocaleString(getLocale() === "ko" ? "ko-KR" : "en-US") },
+    { key: "ct", header: t("llmCost.column.completion"), render: (r) => r.completion_tokens.toLocaleString(getLocale() === "ko" ? "ko-KR" : "en-US") },
+    { key: "tt", header: t("llmCost.totalTokens"), render: (r) => r.total_tokens.toLocaleString(getLocale() === "ko" ? "ko-KR" : "en-US") },
     {
       key: "cost",
-      header: "Cost",
+      header: t("llmCost.column.cost"),
       render: (r) =>
         r.has_mixed_currency ? (
           <span>
-            {formatLlmCost(r)} <StatusPill kind="warning" label="not additive" />
+            {formatLlmCost(r)} <StatusPill kind="warning" label={t("llmCost.notAdditive")} />
           </span>
         ) : r.has_unpriced ? (
           <span>
-            {formatLlmCost(r)} <StatusPill kind="warning" label="partial" />
+            {formatLlmCost(r)} <StatusPill kind="warning" label={t("llmCost.partial")} />
           </span>
         ) : (
           formatLlmCost(r)
@@ -183,10 +181,11 @@ function _summaryColumns(
 }
 
 function LlmCostBody({ data }: { readonly data: Response }) {
+  const locale = getLocale() === "ko" ? "ko-KR" : "en-US";
   usePublishViewContext(
     () => ({
       routeId: "llm-cost",
-      routeLabel: "LLM cost",
+      routeLabel: t("route.llmCost"),
       purpose:
         "Measured LLM token usage and spend, rolled up per conversation, per " +
         "day, and per month. Read-only: it reports recorded usage, it does not " +
@@ -196,7 +195,7 @@ function LlmCostBody({ data }: { readonly data: Response }) {
         TERMS.mode,
         TERMS.hil,
       ]),
-      headline: `${data.total.total_tokens.toLocaleString()} tokens - ${formatLlmCost(data.total)} (${data.source})`,
+      headline: `${data.total.total_tokens.toLocaleString(locale)} tokens - ${formatLlmCost(data.total)} (${data.source})`,
       capturedAt: data.latest_occurred_at ?? new Date().toISOString(),
       facts: [
         { key: "source", value: data.source, group: "summary" },
@@ -218,64 +217,66 @@ function LlmCostBody({ data }: { readonly data: Response }) {
   return (
     <div class="stack">
       <KpiGrid>
-        <KpiCard label="Source" value={data.source} />
+        <KpiCard label={t("llmCost.source")} value={data.source} />
         <KpiCard
-          label="Latest invocation"
-          value={data.latest_occurred_at ? new Date(data.latest_occurred_at).toLocaleString() : "Unavailable"}
+          label={t("llmCost.latestInvocation")}
+          value={data.latest_occurred_at ? new Date(data.latest_occurred_at).toLocaleString(locale) : t("llmCost.valueUnavailable")}
         />
-        <KpiCard label="LLM calls" value={data.invocations.toLocaleString()} />
-        <KpiCard label="Total tokens" value={data.total.total_tokens.toLocaleString()} />
+        <KpiCard label={t("llmCost.calls")} value={data.invocations.toLocaleString(locale)} />
+        <KpiCard label={t("llmCost.totalTokens")} value={data.total.total_tokens.toLocaleString(locale)} />
         <KpiCard
-          label="Total cost"
+          label={t("llmCost.totalCost")}
           value={formatLlmCost(data.total)}
           tone={data.total.has_mixed_currency ? "warning" : "default"}
-          hint={data.total.has_mixed_currency ? "Raw cross-currency sums are not shown" : undefined}
+          hint={data.total.has_mixed_currency ? t("llmCost.mixedCurrencyHint") : undefined}
         />
       </KpiGrid>
 
       <section class="stack">
-        <h3>Shadow vs enforce</h3>
+        <h3>{t("llmCost.byMode")}</h3>
         <DataTable
           rows={data.by_mode}
-          columns={_summaryColumns("Mode")}
+          columns={_summaryColumns(t("llmCost.column.mode"))}
           keyOf={(r) => r.key}
-          empty="No LLM usage recorded yet"
+          empty={t("llmCost.empty")}
         />
       </section>
 
       <section class="stack">
-        <h3>Per month</h3>
+        <h3>{t("llmCost.byMonth")}</h3>
         <DataTable
           rows={data.by_month}
-          columns={_summaryColumns("Month")}
+          columns={_summaryColumns(t("llmCost.column.month"))}
           keyOf={(r) => r.key}
-          empty="No LLM usage recorded yet"
+          empty={t("llmCost.empty")}
         />
       </section>
 
       <section class="stack">
-        <h3>Per day</h3>
+        <h3>{t("llmCost.byDay")}</h3>
         <DataTable
           rows={data.by_day}
-          columns={_summaryColumns("Day")}
+          columns={_summaryColumns(t("llmCost.column.day"))}
           keyOf={(r) => r.key}
-          empty="No LLM usage recorded yet"
+          empty={t("llmCost.empty")}
         />
       </section>
 
       <section class="stack">
-        <h3>Per conversation</h3>
+        <h3>{t("llmCost.byConversation")}</h3>
         {data.by_conversation_truncated ? (
           <p class="muted">
-            Showing the costliest {data.by_conversation.length} of {data.conversation_count}{" "}
-            conversations.
+            {t("llmCost.truncated", {
+              shown: data.by_conversation.length,
+              total: data.conversation_count,
+            })}
           </p>
         ) : null}
         <DataTable
           rows={data.by_conversation}
-          columns={_summaryColumns("Conversation id", llmCostCorrelationHref)}
+          columns={_summaryColumns(t("llmCost.column.conversationId"), llmCostCorrelationHref)}
           keyOf={(r) => r.key}
-          empty="No LLM usage recorded yet"
+          empty={t("llmCost.empty")}
         />
       </section>
     </div>

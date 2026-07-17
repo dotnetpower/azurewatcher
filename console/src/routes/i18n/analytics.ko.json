@@ -1,0 +1,92 @@
+{
+  "detailViews": "상세 보기",
+  "simulated": "시뮬레이션 근거",
+  "measured": "실측 근거",
+  "window": "기간: {days}일",
+  "samples": "표본: 이벤트 {count}건",
+  "confidence": "신뢰도: {value}%",
+  "confidenceUnavailable": "신뢰도 근거 없음",
+  "trendUnavailable": "이 지표의 추세 근거가 없습니다.",
+  "autonomyUnavailable": "이 배포에는 자율성 측정이 연결되지 않았습니다.",
+  "invalidDetail": "등록되지 않은 상세 키입니다. 위에서 사용 가능한 보기를 선택하세요.",
+  "invalidGuard": "현재 측정 projection에 이 가드가 없습니다.",
+  "unavailable": "근거 없음",
+  "notApplicable": "해당 없음",
+  "current": "현재",
+  "baseline": "기준선",
+  "direction": "개선 방향",
+  "higherBetter": "높을수록 좋음",
+  "lowerBetter": "낮을수록 좋음",
+  "sampleSize": "표본 수",
+  "threshold": "임계값",
+  "status": "상태",
+  "passing": "통과",
+  "blocked": "차단",
+  "simulatedStatus": "시뮬레이션 - 운영 판정 없음",
+  "inBand": "목표 범위",
+  "outOfBand": "목표 이탈",
+  "guard": "가드",
+  "events": "이벤트",
+  "autoResolved": "자동 해결",
+  "resolutionRate": "해결률",
+  "openRisks": "미해결 위험",
+  "monthlySavings": "월 절감액",
+  "verticalLabel": "영역",
+  "tier": "티어",
+  "relatedEvidence": "관련 근거",
+  "simulatedEvidenceBoundary": "이 시뮬레이션 영역에는 직접 연결되는 기록 필터가 없습니다. 아래 링크는 전체 근거 집합을 엽니다.",
+  "viewAudit": "감사 근거 보기",
+  "viewShadowAudit": "Shadow 감사 보기",
+  "viewIncidents": "관련 인시던트 보기",
+  "viewPromotion": "승격 가드 보기",
+  "viewApprovals": "승인 대기 보기",
+  "viewRules": "근거 규칙 보기",
+  "viewLlmCost": "모델 비용 및 사용량 보기",
+  "health": {
+    "healthy": "통제 정상",
+    "attention": "조치 필요",
+    "unknown": "근거 없음"
+  },
+  "metric": {
+    "auto-resolution": "자동 해결",
+    "human-touchpoints": "사람 개입",
+    "mttr": "평균 복구시간",
+    "change-lead-time": "변경 리드타임",
+    "cost-per-resolved-event": "해결 이벤트당 비용"
+  },
+  "outcomes": {
+    "title": "운영 성과",
+    "subtitle": "각 운영 성과의 측정값, 기준선, 추세, 근거를 보여줍니다.",
+    "trend": "{metric} 추세",
+    "breakdown": "영역별 기여"
+  },
+  "assurance": {
+    "title": "통제 보증",
+    "subtitle": "자율 운영을 허용, 차단, 보류하는 결정론적 가드 근거입니다.",
+    "posture": "운영 상태",
+    "escapes": "정책위반 탈출",
+    "shadow": "Shadow 비율",
+    "ready": "승격 준비도"
+  },
+  "vertical": {
+    "resilience": "복원력",
+    "change-safety": "변경 안전",
+    "cost-governance": "비용 거버넌스"
+  },
+  "verticals": {
+    "title": "영역별 성과",
+    "subtitle": "FDAI 영역별 운영 성과와 미해결 위험을 보여줍니다.",
+    "comparison": "영역 비교",
+    "unavailable": "현재 측정 projection에 이 영역이 없습니다."
+  },
+  "routing": {
+    "title": "신뢰 라우팅",
+    "subtitle": "결정론, 재사용, 근거 기반 추론 티어에 작업이 분배된 결과입니다.",
+    "share": "라우팅 비율",
+    "targetBand": "목표 범위",
+    "leadingIndicators": "T2 선행 지표",
+    "indicator": "지표",
+    "invalidIndicator": "등록되지 않은 선행 지표입니다.",
+    "indicatorT2Only": "선행 지표는 T2 상세 보기에 적용됩니다."
+  }
+}

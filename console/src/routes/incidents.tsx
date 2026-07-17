@@ -21,6 +21,7 @@ import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
 import { currentRoute, navigate, routeHref } from "../router";
+import { formatConsoleTimestamp } from "../time-format";
 
 const INCIDENT_DETAIL_ID = "incident-detail";
 
@@ -35,6 +36,24 @@ interface IncidentData {
 
 const PAGE_SIZE = 25;
 const FILTERS: readonly IncidentStatusFilter[] = ["active", "resolved", "all"];
+const INCIDENT_VERTICALS = ["resilience", "change_safety", "cost_governance", "unknown"] as const;
+type IncidentVertical = typeof INCIDENT_VERTICALS[number];
+
+export function parseIncidentVertical(value: string | null): IncidentVertical | null {
+  if (value === null) return null;
+  const normalized = value.trim().toLowerCase().replaceAll("-", "_");
+  return INCIDENT_VERTICALS.includes(normalized as IncidentVertical)
+    ? normalized as IncidentVertical
+    : null;
+}
+
+export function mergeIncidentItems(
+  current: readonly IncidentSummary[],
+  incoming: readonly IncidentSummary[],
+): readonly IncidentSummary[] {
+  const seen = new Set(current.map((item) => item.correlation_id));
+  return [...current, ...incoming.filter((item) => !seen.has(item.correlation_id))];
+}
 
 export function resolveIncidentSelection(
   items: readonly Pick<IncidentSummary, "correlation_id">[],
@@ -46,8 +65,8 @@ export function resolveIncidentSelection(
 export function IncidentsRoute({ client }: Props) {
   const initialRoute = currentRoute();
   const initialStatus = initialRoute.search.get("status");
-  const [verticalFilter, setVerticalFilter] = useState<string | null>(
-    initialRoute.search.get("vertical"),
+  const [verticalFilter, setVerticalFilter] = useState<IncidentVertical | null>(
+    parseIncidentVertical(initialRoute.search.get("vertical")),
   );
   const [filter, setFilter] = useState<IncidentStatusFilter>(
     initialStatus === "resolved" || initialStatus === "all" ? initialStatus : "active",
@@ -61,13 +80,14 @@ export function IncidentsRoute({ client }: Props) {
   const [pageError, setPageError] = useState<string | null>(null);
   const rosterGeneration = useRef(0);
   const historyGeneration = useRef(0);
+  const exactLookup = useRef<string | null>(null);
 
   useEffect(() => {
     const sync = () => {
       const route = currentRoute();
       const status = route.search.get("status");
       setFilter(status === "resolved" || status === "all" ? status : "active");
-      setVerticalFilter(route.search.get("vertical"));
+      setVerticalFilter(parseIncidentVertical(route.search.get("vertical")));
       setSelectedId(route.search.get("correlation"));
     };
     window.addEventListener("popstate", sync);
@@ -94,33 +114,20 @@ export function IncidentsRoute({ client }: Props) {
     setState({ status: "loading" });
     setPageError(null);
     setLoadingMore(false);
-    const requestedCorrelation = selectedId;
     const filters = {
       status: filter,
       limit: PAGE_SIZE,
       ...(verticalFilter ? { vertical: verticalFilter } : {}),
     } as const;
-    void Promise.all([
-      client.listIncidents(filters),
-      requestedCorrelation === null
-        ? Promise.resolve<IncidentPage | null>(null)
-        : client.listIncidents({
-          ...filters,
-          limit: 1,
-          correlationId: requestedCorrelation,
-        }),
-    ]).then(
-      ([page, exact]) => {
+    exactLookup.current = null;
+    void client.listIncidents(filters).then(
+      (page) => {
         if (rosterGeneration.current !== generation) return;
-        const exactItem = exact?.items[0];
-        const items = exactItem && !page.items.some(
-          (item) => item.correlation_id === exactItem.correlation_id,
-        ) ? [exactItem, ...page.items] : page.items;
         setState({
           status: "ready",
-          data: { items, nextCursor: page.next_cursor },
+          data: { items: page.items, nextCursor: page.next_cursor },
         });
-        setSelectedId((current) => resolveIncidentSelection(items, current));
+        setSelectedId((current) => resolveIncidentSelection(page.items, current));
       },
       (error: unknown) => {
         if (rosterGeneration.current === generation) {
@@ -134,7 +141,36 @@ export function IncidentsRoute({ client }: Props) {
     return () => {
       if (rosterGeneration.current === generation) rosterGeneration.current += 1;
     };
-  }, [client, filter, selectedId, verticalFilter]);
+  }, [client, filter, verticalFilter]);
+
+  useEffect(() => {
+    if (selectedId === null || state.status !== "ready") return;
+    if (state.data.items.some((item) => item.correlation_id === selectedId)) return;
+    const lookupKey = `${filter}:${verticalFilter ?? "all"}:${selectedId}`;
+    if (exactLookup.current === lookupKey) return;
+    exactLookup.current = lookupKey;
+    const generation = rosterGeneration.current;
+    void client.listIncidents({
+      status: filter,
+      limit: 1,
+      correlationId: selectedId,
+      ...(verticalFilter ? { vertical: verticalFilter } : {}),
+    }).then(
+      (page) => {
+        if (rosterGeneration.current !== generation) return;
+        setState((current) => current.status === "ready"
+          ? {
+              status: "ready",
+              data: {
+                ...current.data,
+                items: mergeIncidentItems(page.items, current.data.items),
+              },
+            }
+          : current);
+      },
+      () => undefined,
+    );
+  }, [client, filter, selectedId, state, verticalFilter]);
 
   useEffect(() => {
     const generation = historyGeneration.current + 1;
@@ -183,8 +219,7 @@ export function IncidentsRoute({ client }: Props) {
             status: "ready",
             data: {
               items: [
-                ...current.data.items,
-                ...page.items,
+                ...mergeIncidentItems(current.data.items, page.items),
               ],
               nextCursor: page.next_cursor,
             },
@@ -317,7 +352,7 @@ function IncidentBody({
     {
       key: "updated",
       header: t("incidents.column.updated"),
-      render: (item) => item.last_updated_at,
+      render: (item) => formatConsoleTimestamp(item.last_updated_at),
       cellClass: "mono",
     },
   ];
@@ -382,8 +417,8 @@ function IncidentDetail({
         <KpiCard label={t("incidents.correlation")} value={<span class="mono small">{incident.correlation_id}</span>} />
         <KpiCard label={t("incidents.incidentId")} value={<span class="mono small">{incident.incident_id ?? t("incidents.none")}</span>} />
         <KpiCard label={t("incidents.ticketId")} value={<span class="mono small">{incident.ticket_id ?? t("incidents.none")}</span>} />
-        <KpiCard label={t("incidents.opened")} value={<span class="mono small">{incident.opened_at}</span>} />
-        <KpiCard label={t("incidents.lastUpdated")} value={<span class="mono small">{incident.last_updated_at}</span>} />
+        <KpiCard label={t("incidents.opened")} value={<span class="mono small">{formatConsoleTimestamp(incident.opened_at)}</span>} />
+        <KpiCard label={t("incidents.lastUpdated")} value={<span class="mono small">{formatConsoleTimestamp(incident.last_updated_at)}</span>} />
         <KpiCard label={t("incidents.currentStatus")} value={<StatusPill kind={statusPill(incident.status)} label={localized("status", incident.status)} />} />
         <KpiCard label={t("incidents.currentDisposition")} value={localized("disposition", incident.disposition)} />
         <KpiCard label={t("incidents.currentVerdict")} value={<StatusPill kind={verdictPill(incident.verdict)} label={incident.verdict} />} />
@@ -426,7 +461,7 @@ function IncidentDetail({
 
 function IncidentTimeline({ items }: { readonly items: readonly AuditItem[] }) {
   const columns: readonly Column<AuditItem>[] = [
-    { key: "at", header: t("incidents.column.updated"), render: (item) => item.recorded_at, cellClass: "mono" },
+    { key: "at", header: t("incidents.column.updated"), render: (item) => formatConsoleTimestamp(item.recorded_at), cellClass: "mono" },
     { key: "actor", header: t("incidents.actor"), render: (item) => item.actor },
     { key: "action", header: t("incidents.action"), render: (item) => item.action_kind, cellClass: "mono" },
     { key: "decision", header: t("incidents.decision"), render: (item) => entryString(item, "decision") },

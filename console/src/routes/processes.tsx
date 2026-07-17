@@ -5,6 +5,7 @@ import { usePublishViewContext } from "../deck/context";
 import { TERMS, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
 import { currentRoute, routeHref } from "../router";
+import { formatConsoleTimestamp } from "../time-format";
 import { ProcessWidget, RenderedRegion } from "./process-view-renderer";
 import { schedulerRunsText } from "./scheduler-runs.i18n";
 import { SchedulerRunsRoute } from "./scheduler-runs";
@@ -12,6 +13,7 @@ import {
   decodeProcessList,
   decodeProcessJournal,
   decodeRenderedProcessView,
+    assertProcessDetailSelection,
     displayValue,
     INITIAL_PROCESS_REFRESH,
     type ProcessDetailData,
@@ -110,12 +112,14 @@ function ProcessRuntimeRoute({ client }: Props) {
         const viewPayload = journal.process.has_view
           ? await client.panel<unknown>(`/views/process/${encodedId}`)
           : null;
+        const view = viewPayload === null ? null : decodeRenderedProcessView(viewPayload);
+        assertProcessDetailSelection(selectedId, journal, view);
         if (!cancelled) {
           setDetailState({
             status: "ready",
             data: {
               journal,
-              view: viewPayload === null ? null : decodeRenderedProcessView(viewPayload),
+              view,
             },
           });
         }
@@ -134,10 +138,10 @@ function ProcessRuntimeRoute({ client }: Props) {
     <div class="stack process-route">
       <PageHeader
         title={t("route.processes")}
-        subtitle="Workflow run status from authoritative Process snapshots and append-only journals. Execution remains outside the console."
+        subtitle={t("processesView.subtitle")}
         actions={
           <>
-            <a class="btn btn-small" href={routeHref("processes", { segments: ["scheduler-runs"] })}>
+            <a class="btn btn-small" href={routeHref("scheduler-runs")}>
               {schedulerRunsText("title")}
             </a>
             <button
@@ -147,12 +151,12 @@ function ProcessRuntimeRoute({ client }: Props) {
               aria-busy={refreshCycle.refreshing}
               onClick={() => dispatchRefresh({ type: "start" })}
             >
-              {refreshCycle.refreshing ? "Refreshing..." : "Refresh status"}
+              {refreshCycle.refreshing ? t("processesView.refreshing") : t("processesView.refresh")}
             </button>
           </>
         }
       />
-      <AsyncBoundary state={listState} resourceLabel="processes">
+      <AsyncBoundary state={listState} resourceLabel={t("processesView.resourceLabel")}>
         {(data) => <ProcessWorkspace processList={data.response} selectedId={selectedId} detailState={detailState} />}
       </AsyncBoundary>
     </div>
@@ -169,10 +173,12 @@ function ProcessWorkspace({ processList, selectedId, detailState }: {
   usePublishViewContext(
     () => ({
       routeId: "processes",
-      routeLabel: "Processes",
-      purpose: "Read-only workflow Process snapshots and ontology-backed dynamic views.",
+      routeLabel: t("route.processes"),
+      purpose: t("processesView.viewPurpose"),
       glossary: composeGlossary([TERMS.process, TERMS.viewSpec]),
-      headline: `${processes.length} process(es)${selected ? ` - ${selected.workflow_ref}: ${selected.status}` : ""}`,
+      headline: selected
+        ? t("processesView.viewHeadlineSelected", { count: processes.length, workflow: selected.workflow_ref, status: selected.status })
+        : t("processesView.viewHeadline", { count: processes.length }),
       capturedAt: selected?.updated_at ?? new Date().toISOString(),
       facts: [
         { key: "process_count", value: processes.length, group: "process" },
@@ -198,23 +204,23 @@ function ProcessWorkspace({ processList, selectedId, detailState }: {
     [processList, processes, selected],
   );
   if (processes.length === 0) {
-    return <EmptyState title="No workflow processes" body="Process runs appear here after the workflow runtime records them." />;
+    return <EmptyState title={t("processesView.emptyTitle")} body={t("processesView.emptyBody")} />;
   }
   const hasRenderableProcess = processes.some((process) => process.has_view);
   return (
     <div class="stack process-status-workspace">
-      <div class="filter-summary" aria-label="Process projection provenance">
-        <span>Source: <strong>{processList.source}</strong></span>
-        <span>Evidence: <strong>
-          {processList.synthetic === true ? "Synthetic" : processList.synthetic === false ? "Observed" : "Unknown"}
+      <div class="filter-summary" aria-label={t("processesView.provenanceLabel")}>
+        <span>{t("processesView.source")}: <strong>{processList.source}</strong></span>
+        <span>{t("processesView.evidence")}: <strong>
+          {processList.synthetic === true ? t("processesView.synthetic") : processList.synthetic === false ? t("processesView.observed") : t("processesView.unknown")}
         </strong></span>
-        <span>Storage: <strong>
-          {processList.durable === true ? "Durable" : processList.durable === false ? "Volatile" : "Unknown"}
+        <span>{t("processesView.storage")}: <strong>
+          {processList.durable === true ? t("processesView.durable") : processList.durable === false ? t("processesView.volatile") : t("processesView.unknown")}
         </strong></span>
       </div>
       <ProcessStatusSummary processes={processes} />
       <div class="process-workspace">
-        <aside class="process-list" aria-label="Workflow processes">
+        <aside class="process-list" aria-label={t("processesView.listLabel")}>
           {processes.map((process) => (
           <a key={process.id} href={processHref(process.id)} class={`process-list-entry ${process.id === selectedId ? "is-active" : ""}`}>
             <ProcessListLabel process={process} />
@@ -222,7 +228,7 @@ function ProcessWorkspace({ processList, selectedId, detailState }: {
           ))}
         </aside>
         <section class="process-view-stage">
-          <AsyncBoundary state={detailState} resourceLabel="process status" idle={<p class="muted">{hasRenderableProcess ? "Select a process." : "Select a process to inspect its runtime journal."}</p>}>
+          <AsyncBoundary state={detailState} resourceLabel={t("processesView.detailResourceLabel")} idle={<p class="muted">{hasRenderableProcess ? t("processesView.select") : t("processesView.selectJournal")}</p>}>
             {(detail) => <ProcessDetail detail={detail} />}
           </AsyncBoundary>
         </section>
@@ -238,7 +244,7 @@ function ProcessListLabel({ process }: {
     <>
       <div>
         <strong>{process.workflow_ref}</strong>
-        <small>{process.current_step || "terminal"}{process.has_view ? "" : " - runtime"}</small>
+        <small>{process.current_step || t("processesView.terminal")}{process.has_view ? "" : ` - ${t("processesView.runtime")}`}</small>
       </div>
       <StatusPill kind={processTone(process.status)} label={process.status} />
     </>
@@ -250,11 +256,11 @@ function ProcessStatusSummary({ processes }: { readonly processes: readonly Proc
   const failed = processes.filter((process) => ["failed", "cancelled", "timed_out"].includes(process.status)).length;
   const completed = processes.length - active - failed;
   return (
-    <div class="process-status-summary" aria-label="Workflow run summary">
-      <span><strong>{processes.length}</strong> runs</span>
-      <span><strong>{active}</strong> active</span>
-      <span><strong>{completed}</strong> completed</span>
-      <span class={failed > 0 ? "is-danger" : undefined}><strong>{failed}</strong> failed</span>
+    <div class="process-status-summary" aria-label={t("processesView.summaryLabel")}>
+      <span><strong>{processes.length}</strong> {t("processesView.runs")}</span>
+      <span><strong>{active}</strong> {t("processesView.active")}</span>
+      <span><strong>{completed}</strong> {t("processesView.completed")}</span>
+      <span class={failed > 0 ? "is-danger" : undefined}><strong>{failed}</strong> {t("processesView.failed")}</span>
     </div>
   );
 }
@@ -267,22 +273,22 @@ function ProcessDetail({ detail }: { readonly detail: ProcessDetailData }) {
         <div>
           <span class="eyebrow">{process.workflow_ref} <span class="mono">v{process.workflow_version}</span></span>
           <h2>{process.target_resource_id}</h2>
-          <p class="muted">Process <span class="mono">{process.id}</span></p>
+          <p class="muted">{t("processesView.process")} <span class="mono">{process.id}</span></p>
         </div>
         <div class="process-view-status">
           <StatusPill kind={processTone(process.status)} label={process.status} />
-          <span class="mono">{process.current_step || "terminal"}</span>
+          <span class="mono">{process.current_step || t("processesView.terminal")}</span>
         </div>
       </header>
       <dl class="process-runtime-meta">
-        <div><dt>Started</dt><dd>{formatTimestamp(process.started_at)}</dd></div>
-        <div><dt>Updated</dt><dd>{formatTimestamp(process.updated_at)}</dd></div>
-        <div><dt>Revision</dt><dd>{process.revision}</dd></div>
-        <div><dt>Journal events</dt><dd>{detail.journal.count}</dd></div>
+        <div><dt>{t("processesView.started")}</dt><dd>{formatConsoleTimestamp(process.started_at)}</dd></div>
+        <div><dt>{t("processesView.updated")}</dt><dd>{formatConsoleTimestamp(process.updated_at)}</dd></div>
+        <div><dt>{t("processesView.revision")}</dt><dd>{process.revision}</dd></div>
+        <div><dt>{t("processesView.journalEvents")}</dt><dd>{detail.journal.count}</dd></div>
       </dl>
       <ProcessJournal processId={process.id} events={events} />
       {detail.view ? <RenderedProcess view={detail.view} compactHeader /> : (
-        <p class="process-generic-note muted">No workflow-specific ViewSpec is registered. The runtime snapshot and journal above remain available for every workflow.</p>
+        <p class="process-generic-note muted">{t("processesView.noViewSpec")}</p>
       )}
     </div>
   );
@@ -299,8 +305,8 @@ function ProcessJournal({
   return (
     <section class="process-journal" aria-labelledby="process-journal-title">
       <div class="process-section-heading">
-        <div><span class="eyebrow">Execution journal</span><h3 id="process-journal-title">Step timeline</h3></div>
-        <span class="muted">oldest to newest</span>
+        <div><span class="eyebrow">{t("processesView.executionJournal")}</span><h3 id="process-journal-title">{t("processesView.stepTimeline")}</h3></div>
+        <span class="muted">{t("processesView.oldestToNewest")}</span>
       </div>
       <ol class="process-timeline">
         {events.map((event) => (
@@ -315,16 +321,16 @@ function ProcessJournal({
                 >
                   {event.event_id}
                 </a>
-                <time dateTime={event.recorded_at}>{formatTimestamp(event.recorded_at)}</time>
+                <time dateTime={event.recorded_at}>{formatConsoleTimestamp(event.recorded_at)}</time>
               </div>
-              <p>{event.step_id ? <span class="mono">{event.step_id}</span> : "Process lifecycle"}{eventSummary(event) ? ` - ${eventSummary(event)}` : ""}</p>
+              <p>{event.step_id ? <span class="mono">{event.step_id}</span> : t("processesView.lifecycle")}{eventSummary(event) ? ` - ${eventSummary(event)}` : ""}</p>
               <details class="process-event-detail" open={selectedEvent === event.event_id}>
-                <summary class="details-summary">Recorded event</summary>
+                <summary class="details-summary">{t("processesView.recordedEvent")}</summary>
                 <dl>
-                  <div><dt>Event id</dt><dd><code>{event.event_id}</code></dd></div>
-                  <div><dt>Correlation</dt><dd><code>{event.correlation_id}</code></dd></div>
-                  <div><dt>Causation</dt><dd><code>{event.causation_id ?? "-"}</code></dd></div>
-                  <div><dt>Attempt</dt><dd>{event.attempt}</dd></div>
+                  <div><dt>{t("processesView.eventId")}</dt><dd><code>{event.event_id}</code></dd></div>
+                  <div><dt>{t("processesView.correlation")}</dt><dd><code>{event.correlation_id}</code></dd></div>
+                  <div><dt>{t("processesView.causation")}</dt><dd><code>{event.causation_id ?? "-"}</code></dd></div>
+                  <div><dt>{t("processesView.attempt")}</dt><dd>{event.attempt}</dd></div>
                 </dl>
                 <pre class="mono small entry-json">{JSON.stringify(event.payload, null, 2)}</pre>
               </details>
@@ -343,17 +349,12 @@ function eventSummary(event: ProcessEvent): string {
   return "";
 }
 
-function formatTimestamp(value: string): string {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
-}
-
 function RenderedProcess({ view, compactHeader = false }: { readonly view: RenderedProcessView; readonly compactHeader?: boolean }) {
   return (
     <div class="stack process-domain-view">
       <header class={compactHeader ? "process-section-heading" : "process-view-header"}>
         <div><span class="eyebrow">{view.process.workflow_ref}</span><h2>{view.name}</h2><p class="muted">{view.description}</p></div>
-        {!compactHeader ? <div class="process-view-status"><StatusPill kind={processTone(view.process.status)} label={view.process.status} /><span class="mono">{view.process.current_step || "terminal"}</span></div> : null}
+        {!compactHeader ? <div class="process-view-status"><StatusPill kind={processTone(view.process.status)} label={view.process.status} /><span class="mono">{view.process.current_step || t("processesView.terminal")}</span></div> : null}
       </header>
       <div class="process-region-grid">
         {view.regions.map((region) => (

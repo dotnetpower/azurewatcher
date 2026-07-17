@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
-import { visibleNavigationGroups } from "./navigation-shell";
+import { nextMenuItemIndex, visibleNavigationGroups } from "./navigation-shell";
 import { TOOLTIP_DELAY_MS, TOOLTIP_EXIT_MS } from "./tooltip";
 
 const styles = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
@@ -37,5 +37,14 @@ describe("navigation shell groups", () => {
   test("keeps pointer entry deliberate and tooltip exit fast", () => {
     expect(TOOLTIP_DELAY_MS).toBe(100);
     expect(TOOLTIP_EXIT_MS).toBe(50);
+  });
+
+  test("implements wrapping keyboard navigation for the action menu", () => {
+    expect(nextMenuItemIndex(0, "ArrowDown", 3)).toBe(1);
+    expect(nextMenuItemIndex(2, "ArrowDown", 3)).toBe(0);
+    expect(nextMenuItemIndex(0, "ArrowUp", 3)).toBe(2);
+    expect(nextMenuItemIndex(1, "Home", 3)).toBe(0);
+    expect(nextMenuItemIndex(1, "End", 3)).toBe(2);
+    expect(nextMenuItemIndex(1, "Enter", 3)).toBe(1);
   });
 });

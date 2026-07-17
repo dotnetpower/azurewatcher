@@ -23,6 +23,28 @@ interface Props {
   readonly client: ReadApiClient;
 }
 
+export const LIVE_BACKLOG_CAP = 1_000;
+export const LIVE_FLUSH_CAP = 200;
+
+export function appendLiveBacklog(
+  backlog: readonly LiveStageEvent[],
+  event: LiveStageEvent,
+  cap = LIVE_BACKLOG_CAP,
+): { readonly backlog: readonly LiveStageEvent[]; readonly dropped: number } {
+  if (cap <= 0) return { backlog: [], dropped: 1 };
+  const appended = [...backlog, event];
+  const dropped = Math.max(0, appended.length - cap);
+  return { backlog: dropped > 0 ? appended.slice(dropped) : appended, dropped };
+}
+
+export function drainLiveBacklog(
+  backlog: readonly LiveStageEvent[],
+  cap = LIVE_FLUSH_CAP,
+): { readonly drained: readonly LiveStageEvent[]; readonly remaining: readonly LiveStageEvent[] } {
+  const count = Math.max(0, cap);
+  return { drained: backlog.slice(0, count), remaining: backlog.slice(count) };
+}
+
 export function LiveRoute({ client }: Props) {
   const initialRoute = currentRoute();
   const [state, dispatch] = useReducer(reducer, undefined, makeInitialState);
@@ -32,6 +54,7 @@ export function LiveRoute({ client }: Props) {
     initialRoute.search.get("view") === "flow" ? "flow" : "queue",
   );
   const [frozenObserved, setFrozenObserved] = useState(0);
+  const [droppedFrames, setDroppedFrames] = useState(0);
   const pausedSnapshotRef = useRef<readonly LiveStageEvent[]>([]);
   const pausedRef = useRef(false);
   const frozenObservedRef = useRef(0);
@@ -96,16 +119,16 @@ export function LiveRoute({ client }: Props) {
     url,
     getAuthorizationHeader: client.authorizationHeader,
     onEvent: (event) => {
+      const next = appendLiveBacklog(pendingEventsRef.current, event);
+      pendingEventsRef.current = [...next.backlog];
+      if (next.dropped > 0) setDroppedFrames((current) => current + next.dropped);
       if (pausedRef.current) {
         frozenObservedRef.current += 1;
-        return;
       }
-      pendingEventsRef.current.push(event);
     },
   });
 
   useEffect(() => {
-    const flushCap = 200;
     const handle = window.setInterval(() => {
       if (pausedRef.current) {
         setFrozenObserved(frozenObservedRef.current);
@@ -113,8 +136,8 @@ export function LiveRoute({ client }: Props) {
       }
       const buffer = pendingEventsRef.current;
       if (buffer.length === 0) return;
-      const drained = buffer.length > flushCap ? buffer.slice(-flushCap) : buffer.slice();
-      pendingEventsRef.current = [];
+      const { drained, remaining } = drainLiveBacklog(buffer);
+      pendingEventsRef.current = [...remaining];
       dispatch({ kind: "batch", events: drained });
     }, 250);
     return () => {
@@ -141,7 +164,6 @@ export function LiveRoute({ client }: Props) {
       pausedRef.current = true;
       frozenObservedRef.current = 0;
       setFrozenObserved(0);
-      pendingEventsRef.current = [];
       pausedSnapshotRef.current = state.ticker;
       setTickerPaused(true);
     }
@@ -156,7 +178,7 @@ export function LiveRoute({ client }: Props) {
     selectedTile,
     state.session_total,
   );
-  const view = useLiveViewModel(state, status, selectedTile);
+  const view = useLiveViewModel(state, status, selectedTile, droppedFrames);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -198,6 +220,7 @@ export function LiveRoute({ client }: Props) {
       tickerPaused={tickerPaused}
       tickerCollapsed={tickerCollapsed}
       frozenObserved={frozenObserved}
+      droppedFrames={droppedFrames}
       displayedTicker={displayedTicker}
       viewMode={viewMode}
       selectionState={selectionState}

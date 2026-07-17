@@ -1,0 +1,29 @@
+{
+  "unavailable": "LLM 비용 측정을 사용할 수 없습니다.",
+  "mixedCurrencies": "여러 통화",
+  "notAdditive": "합산 불가",
+  "partial": "일부만 산정",
+  "valueUnavailable": "근거 없음",
+  "source": "출처",
+  "latestInvocation": "최근 호출",
+  "calls": "LLM 호출",
+  "totalTokens": "전체 토큰",
+  "totalCost": "전체 비용",
+  "mixedCurrencyHint": "통화가 다른 원시 합계는 표시하지 않습니다",
+  "byMode": "Shadow 및 강제 적용",
+  "byMonth": "월별",
+  "byDay": "일별",
+  "byConversation": "대화별",
+  "truncated": "비용이 높은 대화 {total}개 중 {shown}개를 표시합니다.",
+  "empty": "아직 기록된 LLM 사용량이 없습니다.",
+  "column": {
+    "mode": "모드",
+    "month": "월",
+    "day": "일",
+    "conversationId": "대화 ID",
+    "calls": "호출",
+    "prompt": "프롬프트",
+    "completion": "완성",
+    "cost": "비용"
+  }
+}

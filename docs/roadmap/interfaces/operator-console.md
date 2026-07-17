@@ -1560,7 +1560,14 @@ Synthetic measurement can illustrate the analytical shape, but it cannot
 decide operational health, increase the attention count, or create failed-guard
 drilldowns. Overview and Control Assurance treat synthetic guards as unknown
 for operational posture while continuing to label their source, window, sample
-size, and confidence.
+size, confidence, and source timestamp. A zero-event vertical renders its
+resolution rate as unavailable instead of inferring 0%. Overview loads the
+required audit KPI and independent optional cost, promotion, and autonomy
+projections concurrently; only the documented unavailable statuses degrade an
+optional projection. Analytical tab and comparison links preserve the current
+query. Failed guards and T2 leading indicators add canonical `guard` and
+`indicator` filters, and an unknown filter value renders unavailable instead of
+selecting another row.
 
 Contract rules (enforced by `console/src/routes/view-contract.test.ts`):
 

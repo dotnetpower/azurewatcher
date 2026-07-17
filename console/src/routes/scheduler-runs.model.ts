@@ -6,6 +6,7 @@ import {
   panelRecord,
   panelString,
 } from "./panel-decode";
+import { formatConsoleTimestamp } from "../time-format";
 
 export type SchedulerRunStatus = "claimed" | "published" | "failed" | "lost";
 
@@ -81,7 +82,5 @@ export function schedulerRunTone(status: SchedulerRunStatus): "success" | "warni
 }
 
 export function formatSchedulerTimestamp(value: string | null): string {
-  if (value === null) return "-";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+  return formatConsoleTimestamp(value);
 }

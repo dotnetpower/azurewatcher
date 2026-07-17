@@ -100,6 +100,7 @@
       "capabilities": "Capabilities",
       "onboarding": "Onboarding",
       "processes": "Processes",
+      "schedulerRuns": "Scheduler runs",
       "operatorMemory": "Operator memory",
       "reports": "Reports",
       "documents": "Documents",
@@ -139,6 +140,7 @@
       "capabilities": "Declared capability contracts, side-effect classes, roles, and default modes",
       "onboarding": "Provisioned resources and required role assignments",
       "processes": "Workflow runtime state and dynamic ontology-backed views",
+      "schedulerRuns": "Task dispatch history from the configured scheduler ledger",
       "operatorMemory": "Scope-bounded approved guidance, provenance, expiry, and supersession",
       "reports": "Declarative live boards rendered from the report catalog",
       "documents": "Upload, scan, protect, and index governed documents",
@@ -178,6 +180,104 @@
     "viewPurpose": "Read-only catalog reports rendered by the reporting subsystem. Widgets display server-owned evidence and never execute actions.",
     "viewHeadline": "{name}: {count} rendered widgets",
     "viewHeadlineUnavailable": "{name}: render unavailable"
+  },
+  "provision": {
+    "subtitle": "Read-only progress from the active provisioning stream",
+    "viewPurpose": "Observe provisioning progress and terminal outcomes from the read-only stream. This screen cannot start, retry, or alter provisioning.",
+    "viewHeadline": "Provisioning is {percent}% complete; stream is {status}",
+    "readOnlyPrefix": "In-flight provisioning evidence streamed from",
+    "readOnlySuffix": "This screen renders progress and never executes provisioning.",
+    "progressLabel": "Provisioning progress",
+    "notObserved": "No provisioning run has been observed on this stream. A connected stream alone does not imply 0% progress.",
+    "waitingOn": "Waiting on",
+    "waitingSuffix": "The run remains on hold.",
+    "failedOn": "Failed on",
+    "failed": "Provisioning failed on {resource}: {reason}",
+    "reasonUnavailable": "reason not recorded",
+    "done": "Every resource is up.",
+    "enter": "Enter the control plane",
+    "recentLabel": "Recently provisioned resources",
+    "idlePrefix": "No provisioning is in progress. This screen wakes when the stream carries a",
+    "idleSuffix": "event.",
+    "status": {
+      "streaming": "Streaming",
+      "connecting": "Connecting",
+      "disconnected": "Disconnected",
+      "idle": "Idle",
+      "unsupported": "SSE unsupported"
+    }
+  },
+  "onboardingView": {
+    "resourceLabel": "onboarding readiness",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing...",
+    "viewPurpose": "Check whether required runtime resources and executor role assignments are present before FDAI can operate.",
+    "headlineUnavailable": "Onboarding readiness is unavailable",
+    "headlineReady": "Onboarding prerequisites are ready",
+    "headlineBlocked": "{resources} resource gap(s), {roles} role gap(s)",
+    "notConfigured": "The Azure onboarding probe is not configured. These gaps describe the required baseline, not observed tenant state.",
+    "probeFailed": "The configured Azure onboarding probe failed. No tenant readiness observation is available.",
+    "readiness": "Readiness",
+    "ready": "Ready",
+    "blocked": "Blocked",
+    "resourcesObserved": "Resources observed",
+    "rolesObserved": "Roles observed",
+    "lastChecked": "Last checked",
+    "drilldowns": "Onboarding drilldowns",
+    "openProvisioning": "Open provisioning",
+    "reviewAccess": "Review access requests",
+    "inspectArchitecture": "Inspect architecture",
+    "missingResources": "Missing resources",
+    "requiredResources": "Required resources",
+    "missingRoles": "Missing role assignments",
+    "requiredRoles": "Required role assignments",
+    "none": "None"
+  },
+  "processesView": {
+    "subtitle": "Workflow run status from authoritative Process snapshots and append-only journals. Execution remains outside the console.",
+    "resourceLabel": "processes",
+    "detailResourceLabel": "process status",
+    "refresh": "Refresh status",
+    "refreshing": "Refreshing...",
+    "viewPurpose": "Read-only workflow Process snapshots and ontology-backed dynamic views.",
+    "viewHeadline": "{count} process(es)",
+    "viewHeadlineSelected": "{count} process(es) - {workflow}: {status}",
+    "emptyTitle": "No workflow processes",
+    "emptyBody": "Process runs appear here after the workflow runtime records them.",
+    "provenanceLabel": "Process projection provenance",
+    "source": "Source",
+    "evidence": "Evidence",
+    "storage": "Storage",
+    "synthetic": "Synthetic",
+    "observed": "Observed",
+    "unknown": "Unknown",
+    "durable": "Durable",
+    "volatile": "Volatile",
+    "listLabel": "Workflow processes",
+    "select": "Select a process.",
+    "selectJournal": "Select a process to inspect its runtime journal.",
+    "terminal": "terminal",
+    "runtime": "runtime",
+    "summaryLabel": "Workflow run summary",
+    "runs": "runs",
+    "active": "active",
+    "completed": "completed",
+    "failed": "failed",
+    "process": "Process",
+    "started": "Started",
+    "updated": "Updated",
+    "revision": "Revision",
+    "journalEvents": "Journal events",
+    "noViewSpec": "No workflow-specific ViewSpec is registered. The runtime snapshot and journal above remain available for every workflow.",
+    "executionJournal": "Execution journal",
+    "stepTimeline": "Step timeline",
+    "oldestToNewest": "oldest to newest",
+    "lifecycle": "Process lifecycle",
+    "recordedEvent": "Recorded event",
+    "eventId": "Event id",
+    "correlation": "Correlation",
+    "causation": "Causation",
+    "attempt": "Attempt"
   },
   "rca": {
     "subtitle": "Root-cause analysis for one incident, projected read-only from the append-only audit log. An RCA result is a grounded hypothesis, never an authoritative verdict; execution eligibility stays with the risk gate and verifier.",
@@ -812,11 +912,13 @@
     },
     "status": {
       "label": "Executive operating posture",
+      "linkLabel": "{state}. {count} attention signals. Open control assurance.",
       "healthy": "Operations under control",
       "attention": "Operations need attention",
       "unknown": "Operating evidence unavailable",
       "signals": "{count} attention signals",
       "summary": "{rate}% autonomous resolution - Approvals pending: {hil} - {escapes} policy escapes",
+      "simulatedSummary": "Simulation: {rate}% autonomous resolution - Approvals pending: {hil} - {escapes} policy escapes",
       "fallback": "{events} audit events - Approvals pending: {hil} - autonomy evidence unavailable",
       "auditCurrent": "Latest audit record: {time}"
     },
@@ -839,6 +941,7 @@
       "syntheticHint": "Dev harness: synthetic measurement, not a measured claim"
     },
     "metric": {
+      "groupLabel": "Success metrics compared with baseline",
       "autoRes": "Auto-resolution",
       "touchpoints": "Human touchpoints / 100",
       "mttr": "MTTR",
@@ -866,7 +969,13 @@
       "thresholds": "Guard thresholds",
       "thresholdCount": "{failed}/{total} outside threshold",
       "shadow": "Shadow coverage",
-      "promotion": "Promotion readiness"
+      "promotion": "Promotion readiness",
+      "stateLabel": "{label}: {value}. State: {state}.",
+      "state": {
+        "ok": "passing",
+        "attention": "attention required",
+        "unknown": "evidence unavailable"
+      }
     },
     "attention": {
       "label": "Requires attention",
@@ -883,12 +992,14 @@
       "unknownTitle": "Required evidence is not connected",
       "unknownHint": "The console does not infer a healthy state from missing guard data.",
       "clearTitle": "Guard evidence is clear",
-      "clearHint": "No approval backlog, policy escape, or failed guard is recorded."
+      "clearHint": "No approval backlog, policy escape, or failed guard is recorded.",
+      "itemLabel": "{priority}: {title}"
     },
     "organization": {
       "label": "Agent organization",
       "title": "Autonomy with separation of duties",
       "summary": "The agent organization resolved {rate}% autonomously and held {hil} for human approval.",
+      "simulatedSummary": "The simulation models {rate}% autonomous resolution and {hil} items held for human approval.",
       "simulated": "Simulated outcome - {days} days",
       "measured": "Measured outcome - {days} days",
       "roleChain": "accountable agent role chain",
@@ -904,7 +1015,8 @@
       }
     },
     "trend": {
-      "autoRes": "Auto-resolution 30d"
+      "autoRes": "Auto-resolution 30d",
+      "summary": "Trend from {start} to {end}, a change of {delta}."
     },
     "vertical": {
       "label": "Business outcomes by vertical",
@@ -914,7 +1026,8 @@
       "events": "events",
       "auto": "auto-resolved",
       "risks": "{count} need attention",
-      "clear": "all clear"
+      "clear": "all clear",
+      "monthlySavings": "{amount}/month"
     },
     "health": {
       "label": "System health",
@@ -953,10 +1066,12 @@
     },
     "tier": {
       "label": "Trust tiers",
-      "band": "target {range}"
+      "band": "target {range}",
+      "groupLabel": "Trust tier mix compared with target bands"
     },
     "rules": {
       "label": "Living rules",
+      "groupLabel": "Living rule catalog evidence",
       "active": "active",
       "promoted": "promoted (30d)",
       "candidates": "candidates"
@@ -968,9 +1083,21 @@
       "browse": "Browse catalog"
     },
     "detailMetric": {
+      "events": "Events (audit)",
+      "eventsHint": "Terminal audit entries",
+      "shadow": "Shadow share",
+      "shadowHint": "Judge-only, no mutation",
+      "enforce": "Enforce share",
+      "enforceHint": "Promoted to production",
       "approvals": "Approvals pending",
       "approvalHint": "Needs a human approver",
-      "approvalClear": "No approvals waiting"
+      "approvalClear": "No approvals waiting",
+      "actionsByKind": "Actions by kind",
+      "actionKind": "Action kind",
+      "outcomes": "Outcomes",
+      "outcome": "Outcome",
+      "count": "Count",
+      "empty": "No data yet."
     },
     "detail": "Operational evidence",
     "detailHint": "Audit-level metrics and distributions"
@@ -987,6 +1114,7 @@
     "mechanicsBody": "High-risk work stays parked until a distinct approver acts in ChatOps. Rejects and timeouts are audited; this screen only renders evidence.",
     "pendingCount": "{count} pending",
     "shownCount": "{count} shown",
+    "expiredCount": "{count} expired in loaded details",
     "readOnly": "read-only",
     "filter": "Filter approvals",
     "filterPlaceholder": "Filter by action, resource, rule, or event",
@@ -1019,54 +1147,5 @@
     "openTrace": "Open trace",
     "openAudit": "Open audit",
     "openRca": "Open RCA"
-  },
-  "analytics": {
-    "simulated": "Simulated evidence",
-    "measured": "Measured evidence",
-    "window": "Window: {days} days",
-    "samples": "Sample: {count} events",
-    "confidence": "Confidence: {value}%",
-    "confidenceUnavailable": "Confidence unavailable",
-    "trendUnavailable": "Trend evidence is unavailable for this metric.",
-    "autonomyUnavailable": "Autonomy measurement is not connected on this deployment.",
-    "invalidDetail": "This detail key is not registered. Choose one of the available views above.",
-    "unavailable": "Unavailable",
-    "notApplicable": "Not applicable",
-    "current": "Current",
-    "baseline": "Baseline",
-    "direction": "Better when",
-    "higherBetter": "Higher",
-    "lowerBetter": "Lower",
-    "sampleSize": "Sample size",
-    "threshold": "Threshold",
-    "status": "Status",
-    "passing": "Passing",
-    "blocked": "Blocked",
-    "inBand": "Within target",
-    "outOfBand": "Outside target",
-    "guard": "Guard",
-    "events": "Events",
-    "autoResolved": "Auto-resolved",
-    "resolutionRate": "Resolution rate",
-    "openRisks": "Open risks",
-    "monthlySavings": "Monthly savings",
-    "verticalLabel": "Vertical",
-    "tier": "Tier",
-    "relatedEvidence": "Related evidence",
-    "simulatedEvidenceBoundary": "This simulated vertical has no direct record filter. The links below open the complete evidence sets.",
-    "viewAudit": "View supporting audit records",
-    "viewShadowAudit": "View shadow audit records",
-    "viewIncidents": "View related incidents",
-    "viewPromotion": "View promotion gates",
-    "viewApprovals": "View pending approvals",
-    "viewRules": "View grounded rules",
-    "viewLlmCost": "View model cost and usage",
-    "health": {"healthy": "Under control", "attention": "Needs attention", "unknown": "Evidence unavailable"},
-    "metric": {"auto-resolution": "Auto-resolution", "human-touchpoints": "Human touchpoints", "mttr": "MTTR", "change-lead-time": "Change lead time", "cost-per-resolved-event": "Cost per resolved event"},
-    "outcomes": {"title": "Operating outcomes", "subtitle": "Measured results, baselines, trends, and the evidence behind each outcome.", "trend": "{metric} trend", "breakdown": "Contribution by vertical"},
-    "assurance": {"title": "Control assurance", "subtitle": "Deterministic guard evidence that permits, blocks, or holds autonomous operation.", "posture": "Operating posture", "escapes": "Policy escapes", "shadow": "Shadow coverage", "ready": "Promotion readiness"},
-    "vertical": {"resilience": "Resilience", "change-safety": "Change Safety", "cost-governance": "Cost Governance"},
-    "verticals": {"title": "Vertical outcomes", "subtitle": "Operational results and unresolved risk by FDAI vertical.", "comparison": "Cross-vertical comparison", "unavailable": "This vertical is not present in the current measurement projection."},
-    "routing": {"title": "Trust routing", "subtitle": "How work is distributed across deterministic, reuse, and grounded reasoning tiers.", "share": "Routed share", "targetBand": "Target band"}
   }
 }

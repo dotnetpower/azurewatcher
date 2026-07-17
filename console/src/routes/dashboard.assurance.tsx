@@ -121,7 +121,7 @@ export function ExecutiveDecisionGrid({
             {failedGuards.map((guard) => (
               <AttentionItem
                 key={guard.key}
-                href={routeHref("control-assurance")}
+                href={routeHref("control-assurance", { params: { guard: guard.key } })}
                 tone="high"
                 title={t("overview.attention.guardTitle", {
                   guard: t(`overview.guard.${guard.key}`),
@@ -155,7 +155,17 @@ function AssuranceRow({
   return (
     <div>
       <dt>{label}</dt>
-      <dd class={state}>{value}</dd>
+      <dd
+        class={state}
+        role="status"
+        aria-label={t("overview.assurance.stateLabel", {
+          label,
+          state: t(`overview.assurance.state.${state}`),
+          value,
+        })}
+      >
+        {value}
+      </dd>
     </div>
   );
 }
@@ -173,7 +183,7 @@ function AttentionItem({
 }) {
   return (
     <li>
-      <a href={href}>
+      <a href={href} aria-label={t("overview.attention.itemLabel", { priority: t(`overview.attention.${tone}`), title })}>
         <span class={`overview-attention-tone overview-attention-tone-${tone}`}>
           {t(`overview.attention.${tone}`)}
         </span>

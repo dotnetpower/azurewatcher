@@ -1,8 +1,8 @@
 ---
 title: 관측성과 감지(Observability and Detection)
 translation_of: observability-and-detection.md
-translation_source_sha: b6249d794c0f5f89c0f5323849db1f298de88a6f
-translation_revised: 2026-07-15
+translation_source_sha: e275b2df57f00e84e4e96b5919afc27f953b1d41
+translation_revised: 2026-07-18
 ---
 
 # 관측성과 감지(Observability and Detection)
@@ -124,6 +124,50 @@ FDAI가 원시 원격측정을 컨트롤 루프가 액션할 수 있는 **findin
   없고, flat-baseline member 는 고정 weight 를 기여하며, fusion 은 member
   순서와 무관하게 결정론적이다. composite 는 여전히 risk gate 가 관장하는
   shadow-mode finding 이다 - 더 강하게 감지할 뿐, 행동하지 않는다.
+
+### 운영 insight recipe 카탈로그
+
+`core/detection/insights.py`는 통계 모델이 필요하지 않은 운영 조건을 위한
+결정론적 recipe 평가기를 추가합니다. 호출자는 정규화된 현재값, 이전값,
+baseline 값과 sample count, last-seen timestamp를 제공합니다. 평가기는 열 가지
+명시적 operator(`above`, `below`, delta, percentage change, ratio, `absent`,
+`stale`) 중 하나를 적용하고 관측값, reference, score, threshold, 설명을
+`operational-insight.finding` 이벤트에 기록합니다. 불완전하거나 유한하지 않은
+입력, sample 부족, 0으로 나누는 입력은 finding을 만들지 않고 검토를 위해
+보류합니다.
+
+버전 관리되는 `rule-catalog/operational-insights/catalog.yaml` 카탈로그는 다음
+50개 초기 recipe를 제공합니다.
+
+- **인프라와 원격측정(9)**: CPU, 메모리, 디스크, restart, process,
+  peer-hotspot, freshness, ingestion volume, cardinality 조건을 평가합니다.
+- **변경과 애플리케이션 성능(9)**: 배포 latency, error, throughput, request
+  error, tail latency, 애플리케이션 성능 점수, dependency amplification, trace
+  critical path, span error를 평가합니다.
+- **데이터와 능동 검사(9)**: slow query, lock wait, consumer lag, dead-letter
+  증가, synthetic availability와 latency, log volume, 새 log pattern, rare
+  error를 평가합니다.
+- **SLO, alert 품질, ownership(8)**: fast/slow burn, error budget, alert storm,
+  flapping, stale evaluation, no-data, 누락된 ownership을 평가합니다.
+- **비용 거버넌스(6)**: 일일 지출 변화, 예산 초과, 미할당/유휴 지출, unit
+  cost, container request 낭비를 평가합니다.
+- **보안, 영향, 복구 위생(9)**: critical misconfiguration, excess privilege,
+  sensitive-data 증가, runtime threat, reachable vulnerability, 영향받은 session,
+  certificate 만료, backup freshness, network retransmission을 평가합니다.
+
+Threshold와 metric binding은 카탈로그 데이터로 유지되므로 환경별 조정에서
+평가기 코드를 바꿀 필요가 없습니다. 모든 recipe는 기본적으로 shadow mode를
+사용하고 engine, recipe, resource, window에서 안정 key를 만들며, trust routing
+전에 dedup할 수 있도록 `event-ingest`로 재진입합니다.
+
+`core/detection/insight_source.py`의 `OperationalInsightSource`는 공유
+`MetricProvider` seam으로 연결되는 runtime bridge입니다. 리소스와 window마다
+고유 metric을 한 번씩 조회하고 현재값, 이전값, 과거 baseline 값을 만든 뒤 하나의
+정규화된 observation으로 카탈로그를 평가합니다. 성공한 빈 조회는 `absent`의
+증거가 될 수 있지만 provider 오류는 metric을 unavailable로 표시하고 의존하는
+모든 recipe를 억제합니다. 따라서 원격측정 장애를 workload 장애로 오인하지
+않습니다. Stale recipe는 stale threshold의 두 배까지 bounded lookback을
+확장합니다. 이 범위에도 last-seen sample이 없으면 값을 추론하지 않고 보류합니다.
 
 ## 3. 예측 / 예보(Predictive / Forecasting)
 

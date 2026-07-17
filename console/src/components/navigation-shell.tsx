@@ -46,6 +46,8 @@ export function NavigationShell({ activePanelId, principalId, devMode }: Props) 
   const [menuOpen, setMenuOpen] = useState(false);
   const groupRefs = useRef(new Map<PanelGroup, HTMLButtonElement | null>());
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const menuItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const visibleGroups = useMemo(
     () => visibleNavigationGroups(devMode),
     [devMode],
@@ -90,6 +92,7 @@ export function NavigationShell({ activePanelId, principalId, devMode }: Props) 
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (menuOpen) window.requestAnimationFrame(() => menuButtonRef.current?.focus());
         setMenuOpen(false);
         setEditing(false);
       }
@@ -100,7 +103,11 @@ export function NavigationShell({ activePanelId, principalId, devMode }: Props) 
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, []);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (menuOpen) window.requestAnimationFrame(() => menuItemRefs.current[0]?.focus());
+  }, [menuOpen]);
 
   const selectedMeta = PANEL_GROUPS.find((group) => group.id === selectedGroup)!;
   const orderedPanels = orderPanels(panelsInGroup(selectedGroup), preferences.groupOrder[selectedGroup]);
@@ -300,10 +307,12 @@ export function NavigationShell({ activePanelId, principalId, devMode }: Props) 
           <div ref={menuRef} class="navigation-more-wrap">
             <Tooltip content={t("nav.moreActions")} placement="bottom">
               <button
+                ref={menuButtonRef}
                 type="button"
                 class="navigation-icon-button"
                 aria-label={t("nav.moreActions")}
                 aria-expanded={menuOpen}
+                aria-haspopup="menu"
                 onClick={(event) => {
                   event.stopPropagation();
                   setMenuOpen((open) => !open);
@@ -313,14 +322,34 @@ export function NavigationShell({ activePanelId, principalId, devMode }: Props) 
               </button>
             </Tooltip>
             {menuOpen ? (
-              <div class="navigation-more-menu" role="menu">
-                <button type="button" role="menuitem" onClick={() => { setEditing(true); setMenuOpen(false); }}>
+              <div class="navigation-more-menu" role="menu" aria-label={t("nav.moreActions")}>
+                <button
+                  ref={(element) => { menuItemRefs.current[0] = element; }}
+                  type="button"
+                  role="menuitem"
+                  onKeyDown={(event) => focusMenuItem(event, 0, menuItemRefs.current)}
+                  onClick={() => { setEditing(true); setMenuOpen(false); }}
+                >
                   {t("nav.customize")}
                 </button>
-                <button type="button" role="menuitem" onClick={() => setExplorerOpen(false)}>
+                <button
+                  ref={(element) => { menuItemRefs.current[1] = element; }}
+                  type="button"
+                  role="menuitem"
+                  onKeyDown={(event) => focusMenuItem(event, 1, menuItemRefs.current)}
+                  onClick={() => setExplorerOpen(false)}
+                >
                   <span>{t("nav.hideNavigation")}</span>
                 </button>
-                <button type="button" role="menuitem" onClick={resetMenu}>{t("nav.reset")}</button>
+                <button
+                  ref={(element) => { menuItemRefs.current[2] = element; }}
+                  type="button"
+                  role="menuitem"
+                  onKeyDown={(event) => focusMenuItem(event, 2, menuItemRefs.current)}
+                  onClick={resetMenu}
+                >
+                  {t("nav.reset")}
+                </button>
               </div>
             ) : null}
           </div>
@@ -444,4 +473,24 @@ function clearDragClasses(...classNames: readonly string[]): void {
   for (const className of classNames) {
     document.querySelectorAll(`.${className}`).forEach((element) => element.classList.remove(className));
   }
+}
+
+export function nextMenuItemIndex(index: number, key: string, count: number): number {
+  if (count <= 0) return index;
+  if (key === "ArrowDown") return (index + 1) % count;
+  if (key === "ArrowUp") return (index - 1 + count) % count;
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  return index;
+}
+
+function focusMenuItem(
+  event: KeyboardEvent,
+  index: number,
+  items: readonly (HTMLButtonElement | null)[],
+): void {
+  const next = nextMenuItemIndex(index, event.key, items.length);
+  if (next === index && !["Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  items[next]?.focus();
 }

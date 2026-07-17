@@ -2,8 +2,10 @@ import { describe, expect, test } from "vitest";
 import {
   appendSchedulerRunPage,
   decodeSchedulerRunPage,
+  formatSchedulerTimestamp,
   schedulerRunTone,
 } from "./scheduler-runs.model";
+import { assertSchedulerRunTask } from "./scheduler-runs";
 
 const PAGE = {
   task_id: "inventory",
@@ -57,5 +59,19 @@ describe("scheduler run response", () => {
     expect(schedulerRunTone("published")).toBe("success");
     expect(schedulerRunTone("claimed")).toBe("warning");
     expect(schedulerRunTone("lost")).toBe("danger");
+  });
+
+  test("rejects a response for a different requested task", () => {
+    const page = decodeSchedulerRunPage(PAGE);
+    expect(() => assertSchedulerRunTask(page, "cost-probe")).toThrow(
+      "task_id does not match",
+    );
+    expect(() => assertSchedulerRunTask(page, "inventory")).not.toThrow();
+  });
+
+  test("formats valid timestamps with a timezone and preserves invalid evidence", () => {
+    expect(formatSchedulerTimestamp(null)).toBe("-");
+    expect(formatSchedulerTimestamp("not-a-timestamp")).toBe("not-a-timestamp");
+    expect(formatSchedulerTimestamp("2026-07-17T08:00:00Z")).toMatch(/2026/);
   });
 });

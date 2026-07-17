@@ -49,9 +49,15 @@ function TrendSpark({
   const first = series[0] ?? 0;
   const last = series[series.length - 1] ?? 0;
   const deltaPp = Math.round((last - first) * 100);
+  const summary = t("overview.trend.summary", {
+    start: `${(first * 100).toFixed(1)}%`,
+    end: `${(last * 100).toFixed(1)}%`,
+    delta: `${deltaPp >= 0 ? "+" : ""}${deltaPp}pp`,
+  });
   return (
     <div class="overview-trend">
       <span class="overview-trend-label muted">{label}</span>
+      <span class="sr-only">{summary}</span>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         width={width}
@@ -102,7 +108,10 @@ export function ExecutiveStatus({
     <a
       href={routeHref("control-assurance")}
       class={`overview-status overview-status-${health}`}
-      aria-label={t("overview.status.label")}
+      aria-label={t("overview.status.linkLabel", {
+        state: statusTitle,
+        count: attentionCount,
+      })}
     >
       <div class="overview-status-copy">
         <span class="overview-status-kicker">{t("overview.status.label")}</span>
@@ -116,7 +125,7 @@ export function ExecutiveStatus({
         </div>
         <p class="overview-status-summary">
           {autonomy
-            ? t("overview.status.summary", {
+            ? t(autonomy.synthetic ? "overview.status.simulatedSummary" : "overview.status.summary", {
                 rate: Math.round(autonomy.success.auto_resolution_rate.value * 100),
                 hil: kpi.hil_pending,
                 escapes: policyEscapes ?? t("overview.evidence.unavailable"),
@@ -179,7 +188,7 @@ export function SuccessMetrics({
     ["cost", "cost-per-resolved-event", `$${success.cost_per_resolved_event_usd.value.toFixed(2)}`, success.cost_per_resolved_event_usd, `$${success.cost_per_resolved_event_usd.baseline.toFixed(2)}`],
   ] as const;
   return (
-    <section class="overview-metrics" aria-label="success metrics vs baseline">
+    <section class="overview-metrics" aria-label={t("overview.metric.groupLabel")}>
       {metrics.map(([key, slug, value, metric, baseline]) => (
         <SuccessMetric
           key={key}
@@ -251,7 +260,11 @@ export function LeadingIndicators({
       <h3 id="overview-leading-title" class="section-title">{t("overview.leading.title")}</h3>
       <KpiGrid>
         {indicators.map(([key, metric]) => (
-          <a key={key} class="overview-kpi-link" href={routeHref("trust-routing", { segments: ["t2"] })}>
+          <a
+            key={key}
+            class="overview-kpi-link"
+            href={routeHref("trust-routing", { segments: ["t2"], params: { indicator: key } })}
+          >
             <KpiCard
               label={t(`overview.leading.${key}`)}
               value={`${(metric.value * 100).toFixed(1)}%`}
@@ -297,7 +310,7 @@ export function AgentOrganization({
         <a href={routeHref("agents")} class="overview-organization-summary">
           <h3 id="overview-organization-title">{t("overview.organization.title")}</h3>
           <p>
-            {t("overview.organization.summary", {
+            {t(autonomy.synthetic ? "overview.organization.simulatedSummary" : "overview.organization.summary", {
               rate: Math.round(autonomy.success.auto_resolution_rate.value * 100),
               hil: hilPending,
             })}

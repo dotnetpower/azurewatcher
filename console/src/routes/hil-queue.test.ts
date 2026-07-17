@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { HilQueueItem } from "../types";
-import { nextApprovalExpiryDelay } from "./hil-queue";
+import { approvalSearchText, nextApprovalExpiryDelay } from "./hil-queue";
 
 function item(expiresAt: string | null): HilQueueItem {
   return { ttl_expires_at: expiresAt } as HilQueueItem;
@@ -17,5 +17,41 @@ describe("approval expiry clock", () => {
     ], now)).toBe(5_020);
     expect(nextApprovalExpiryDelay([item(null), item("2026-07-17T08:59:00Z")], now))
       .toBeNull();
+  });
+
+  test("ignores malformed future timestamps", () => {
+    const now = Date.parse("2026-07-17T09:00:00Z");
+    expect(nextApprovalExpiryDelay([item("not-a-time")], now)).toBeNull();
+  });
+});
+
+describe("approval search evidence", () => {
+  test("indexes action, resource, event, correlation, reason, and rules case-insensitively", () => {
+    const approval = {
+      idempotency_key: "idem-1",
+      action_kind: "Compute.Restart",
+      target_resource_ref: "Resource-A",
+      event_id: "EVENT-1",
+      correlation_id: "CORR-1",
+      reason: "Risk Gate",
+      reasons: ["Verifier Review"],
+      citing_rule_ids: ["Rule.Example"],
+      requested_at: "2026-07-17T09:00:00Z",
+      approval_id: "approval-1",
+      action_id: "action-1",
+      mode: "shadow",
+      stop_condition: "health probe fails",
+      rollback_kind: "pr_revert",
+      rollback_reference: null,
+      blast_radius_scope: "single_resource",
+      blast_radius_count: 1,
+      blast_radius_rate_per_minute: null,
+      blast_radius_summary: "1 resource",
+      ttl_expires_at: null,
+    } satisfies HilQueueItem;
+    const text = approvalSearchText(approval);
+    for (const expected of ["compute.restart", "resource-a", "event-1", "corr-1", "risk gate", "verifier review", "rule.example"]) {
+      expect(text).toContain(expected);
+    }
   });
 });

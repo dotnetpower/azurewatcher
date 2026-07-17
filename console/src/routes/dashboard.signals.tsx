@@ -10,7 +10,7 @@ export function VerticalCards({
   readonly verticals: readonly VerticalSummary[];
 }) {
   return (
-    <section class="overview-verticals" aria-label="per-vertical activity">
+    <section class="overview-verticals" aria-label={t("overview.vertical.label")}>
       {verticals.map((vertical) => (
         <VerticalCard key={vertical.key} vertical={vertical} />
       ))}
@@ -49,7 +49,7 @@ function VerticalCard({ vertical }: { readonly vertical: VerticalSummary }) {
         </span>
         {vertical.monthly_savings > 0 ? (
           <span class="overview-vertical-savings">
-            {formatUsd(vertical.monthly_savings)}/mo
+            {t("overview.vertical.monthlySavings", { amount: formatUsd(vertical.monthly_savings) })}
           </span>
         ) : null}
       </div>
@@ -60,7 +60,7 @@ function VerticalCard({ vertical }: { readonly vertical: VerticalSummary }) {
 export function TierBands({ tier }: { readonly tier: AutonomyPayload["tier"] }) {
   const keys = ["t0", "t1", "t2"] as const;
   return (
-    <section class="overview-tiers" aria-label="trust tier mix vs target band">
+    <section class="overview-tiers" aria-label={t("overview.tier.groupLabel")}>
       <span class="overview-guards-label">{t("overview.tier.label")}</span>
       {keys.map((key) => {
         const share = measuredTierMix(tier.mix, key);
@@ -75,7 +75,7 @@ export function TierBands({ tier }: { readonly tier: AutonomyPayload["tier"] }) 
               href={routeHref("trust-routing", { segments: [key] })}
               class={`overview-tier overview-tier-${key} ${inBand ? "ok" : "warn"}`}
             >
-              {key.toUpperCase()} {share === null ? "unavailable" : `${Math.round(share * 100)}%`}
+              {key.toUpperCase()} {share === null ? t("overview.evidence.unavailable") : `${Math.round(share * 100)}%`}
             </a>
           </Tooltip>
         );
@@ -110,7 +110,7 @@ export function LivingRules({
 }) {
   const evidence = livingRulesProvenance(provenance);
   return (
-    <section class="overview-rules" aria-label="living rule catalog">
+    <section class="overview-rules" aria-label={t("overview.rules.groupLabel")}>
       <span class="overview-guards-label">{t("overview.rules.label")}</span>
       <span class="overview-rules-provenance">
         <strong>{t(`overview.evidence.${evidence.kind}`)}</strong>

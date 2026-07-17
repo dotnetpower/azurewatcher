@@ -1,0 +1,444 @@
+version: 1
+recipes:
+  - recipe_id: infrastructure.cpu-saturation
+    title: CPU saturation
+    category: reliability
+    severity: high
+    operator: above
+    metric: system.cpu.utilization
+    threshold: 0.90
+    min_samples: 5
+    description: Detect sustained compute saturation on a host or workload.
+  - recipe_id: infrastructure.memory-pressure
+    title: Memory pressure
+    category: reliability
+    severity: high
+    operator: ratio_below
+    metric: system.memory.available_bytes
+    comparison_metric: system.memory.total_bytes
+    threshold: 0.10
+    min_samples: 5
+    description: Detect when available memory falls below a safe share of capacity.
+  - recipe_id: infrastructure.disk-pressure
+    title: Disk capacity pressure
+    category: reliability
+    severity: high
+    operator: ratio_below
+    metric: system.disk.free_bytes
+    comparison_metric: system.disk.total_bytes
+    threshold: 0.10
+    min_samples: 5
+    description: Detect a volume approaching capacity exhaustion.
+  - recipe_id: infrastructure.container-restart-surge
+    title: Container restart surge
+    category: reliability
+    severity: high
+    operator: delta_above
+    metric: container.restarts
+    threshold: 3
+    description: Detect a burst of container restarts within one window.
+  - recipe_id: infrastructure.process-disappearance
+    title: Required process disappearance
+    category: reliability
+    severity: critical
+    operator: absent
+    metric: process.heartbeat
+    threshold: 1
+    description: Detect that a required process heartbeat is absent.
+  - recipe_id: telemetry.freshness-gap
+    title: Telemetry freshness gap
+    category: reliability
+    severity: high
+    operator: stale
+    metric: telemetry.heartbeat
+    threshold: 300
+    description: Detect a telemetry source that has stopped reporting.
+  - recipe_id: telemetry.ingestion-drop
+    title: Metric ingestion drop
+    category: reliability
+    severity: high
+    operator: percent_change_below
+    metric: telemetry.points_ingested
+    threshold: -50
+    min_samples: 5
+    description: Detect a sharp drop in ingested telemetry volume.
+  - recipe_id: telemetry.cardinality-surge
+    title: Metric cardinality surge
+    category: cost
+    severity: medium
+    operator: percent_change_above
+    metric: telemetry.active_series
+    threshold: 100
+    min_samples: 5
+    description: Detect a rapid increase in active metric series.
+  - recipe_id: infrastructure.peer-hotspot
+    title: Peer resource hotspot
+    category: reliability
+    severity: high
+    operator: ratio_above
+    metric: resource.load
+    comparison_metric: peer.median_load
+    threshold: 2
+    min_samples: 5
+    description: Detect one resource running substantially hotter than its peers.
+  - recipe_id: change.latency-regression
+    title: Deployment latency regression
+    category: reliability
+    severity: high
+    operator: percent_change_above
+    metric: deployment.request_latency_p95_ms
+    threshold: 20
+    min_samples: 20
+    description: Detect latency regression after a deployment.
+  - recipe_id: change.error-regression
+    title: Deployment error regression
+    category: reliability
+    severity: critical
+    operator: percent_change_above
+    metric: deployment.error_rate
+    threshold: 25
+    min_samples: 20
+    description: Detect an error-rate regression after a deployment.
+  - recipe_id: change.throughput-regression
+    title: Deployment throughput regression
+    category: reliability
+    severity: high
+    operator: percent_change_below
+    metric: deployment.requests_per_second
+    threshold: -30
+    min_samples: 20
+    description: Detect a throughput drop after a deployment.
+  - recipe_id: apm.request-error-rate
+    title: Request error rate
+    category: reliability
+    severity: critical
+    operator: above
+    metric: service.request_error_rate
+    threshold: 0.05
+    min_samples: 20
+    description: Detect a service request error rate above its operating band.
+  - recipe_id: apm.request-latency-p99
+    title: Request p99 latency
+    category: reliability
+    severity: high
+    operator: above
+    metric: service.request_latency_p99_ms
+    threshold: 2000
+    min_samples: 20
+    description: Detect tail request latency above the service limit.
+  - recipe_id: apm.apdex-drop
+    title: Application performance score drop
+    category: reliability
+    severity: high
+    operator: below
+    metric: service.apdex
+    threshold: 0.85
+    min_samples: 20
+    description: Detect degraded user-perceived application performance.
+  - recipe_id: apm.dependency-error-amplification
+    title: Dependency error amplification
+    category: reliability
+    severity: high
+    operator: ratio_above
+    metric: dependency.error_rate
+    comparison_metric: service.error_rate
+    threshold: 1.5
+    min_samples: 20
+    description: Detect a dependency contributing disproportionate request errors.
+  - recipe_id: apm.critical-path-dominance
+    title: Trace critical path dominance
+    category: reliability
+    severity: medium
+    operator: ratio_above
+    metric: trace.critical_path_ms
+    comparison_metric: trace.duration_ms
+    threshold: 0.70
+    min_samples: 20
+    description: Detect a critical span consuming most of an end-to-end trace.
+  - recipe_id: apm.span-error-rate
+    title: Span error rate
+    category: reliability
+    severity: high
+    operator: above
+    metric: trace.span_error_rate
+    threshold: 0.05
+    min_samples: 20
+    description: Detect elevated errors in distributed trace spans.
+  - recipe_id: database.slow-query-rate
+    title: Slow query rate
+    category: reliability
+    severity: high
+    operator: above
+    metric: database.slow_query_rate
+    threshold: 0.10
+    min_samples: 20
+    description: Detect an excessive share of slow database queries.
+  - recipe_id: database.lock-wait-ratio
+    title: Database lock wait ratio
+    category: reliability
+    severity: high
+    operator: above
+    metric: database.lock_wait_ratio
+    threshold: 0.20
+    min_samples: 20
+    description: Detect database work dominated by lock contention.
+  - recipe_id: stream.consumer-lag
+    title: Stream consumer lag
+    category: reliability
+    severity: high
+    operator: above
+    metric: stream.consumer_lag
+    threshold: 10000
+    min_samples: 5
+    description: Detect a stream consumer falling behind producers.
+  - recipe_id: stream.dead-letter-growth
+    title: Dead-letter growth
+    category: reliability
+    severity: critical
+    operator: delta_above
+    metric: stream.dead_letter_messages
+    threshold: 100
+    description: Detect rapid growth in dead-lettered messages.
+  - recipe_id: synthetic.availability-drop
+    title: Synthetic availability drop
+    category: reliability
+    severity: critical
+    operator: below
+    metric: synthetic.availability
+    threshold: 0.99
+    min_samples: 5
+    description: Detect failed external availability checks.
+  - recipe_id: synthetic.latency-regression
+    title: Synthetic latency regression
+    category: reliability
+    severity: high
+    operator: percent_change_above
+    metric: synthetic.latency_ms
+    threshold: 20
+    min_samples: 5
+    description: Detect a user-journey latency regression.
+  - recipe_id: slo.fast-burn
+    title: Fast SLO burn
+    category: reliability
+    severity: critical
+    operator: above
+    metric: slo.fast_burn_rate
+    threshold: 14.4
+    min_samples: 5
+    description: Detect fast error-budget consumption requiring immediate review.
+  - recipe_id: slo.slow-burn
+    title: Slow SLO burn
+    category: reliability
+    severity: high
+    operator: above
+    metric: slo.slow_burn_rate
+    threshold: 1
+    min_samples: 5
+    description: Detect sustained error-budget consumption across a long window.
+  - recipe_id: slo.error-budget-low
+    title: Error budget low
+    category: reliability
+    severity: high
+    operator: below
+    metric: slo.error_budget_remaining_ratio
+    threshold: 0.10
+    min_samples: 5
+    description: Detect an SLO with little error budget remaining.
+  - recipe_id: alert.storm
+    title: Alert storm
+    category: reliability
+    severity: high
+    operator: delta_above
+    metric: alert.notifications
+    threshold: 50
+    description: Detect a burst of alert notifications in one window.
+  - recipe_id: alert.flapping
+    title: Alert state flapping
+    category: reliability
+    severity: medium
+    operator: above
+    metric: alert.state_transitions
+    threshold: 6
+    description: Detect an alert repeatedly changing state.
+  - recipe_id: alert.evaluation-stale
+    title: Alert evaluation stale
+    category: reliability
+    severity: high
+    operator: stale
+    metric: alert.last_evaluated
+    threshold: 300
+    description: Detect an alert definition that is no longer being evaluated.
+  - recipe_id: alert.no-data
+    title: Alert input no data
+    category: reliability
+    severity: high
+    operator: absent
+    metric: alert.input_signal
+    threshold: 1
+    description: Detect a monitor whose input signal has disappeared.
+  - recipe_id: ownership.missing
+    title: Service ownership missing
+    category: config_drift
+    severity: medium
+    operator: absent
+    metric: service.owner_binding
+    threshold: 1
+    description: Detect an operational service without an accountable owner binding.
+  - recipe_id: log.volume-regression
+    title: Log volume regression
+    category: reliability
+    severity: medium
+    operator: percent_change_above
+    metric: log.events
+    threshold: 100
+    min_samples: 5
+    description: Detect an unexpected increase in log event volume.
+  - recipe_id: log.new-pattern-surge
+    title: New log pattern surge
+    category: reliability
+    severity: high
+    operator: delta_above
+    metric: log.new_patterns
+    threshold: 5
+    description: Detect the emergence of several previously unseen log patterns.
+  - recipe_id: log.rare-error-growth
+    title: Rare error growth
+    category: reliability
+    severity: high
+    operator: delta_above
+    metric: log.rare_error_events
+    threshold: 3
+    description: Detect growth in low-frequency error signatures.
+  - recipe_id: cost.daily-spend-change
+    title: Daily spend change
+    category: cost
+    severity: high
+    operator: percent_change_above
+    metric: cost.daily_amortized
+    threshold: 20
+    min_samples: 5
+    description: Detect a material daily spend increase.
+  - recipe_id: cost.budget-overrun
+    title: Budget overrun
+    category: cost
+    severity: high
+    operator: ratio_above
+    metric: cost.actual
+    comparison_metric: cost.budget
+    threshold: 1
+    min_samples: 5
+    description: Detect actual spend exceeding the configured budget.
+  - recipe_id: cost.unallocated-spend
+    title: Unallocated spend share
+    category: cost
+    severity: medium
+    operator: ratio_above
+    metric: cost.unallocated
+    comparison_metric: cost.total
+    threshold: 0.10
+    min_samples: 5
+    description: Detect spend that cannot be attributed to an owner or service.
+  - recipe_id: cost.idle-resource-share
+    title: Idle resource cost share
+    category: cost
+    severity: medium
+    operator: ratio_above
+    metric: cost.idle_resources
+    comparison_metric: cost.total
+    threshold: 0.15
+    min_samples: 5
+    description: Detect a high share of cost from idle resources.
+  - recipe_id: cost.unit-cost-regression
+    title: Unit cost regression
+    category: cost
+    severity: high
+    operator: percent_change_above
+    metric: cost.per_service_unit
+    threshold: 10
+    min_samples: 5
+    description: Detect increased cost per request, job, or business unit.
+  - recipe_id: cost.container-request-waste
+    title: Container request waste
+    category: cost
+    severity: medium
+    operator: ratio_above
+    metric: container.requested_capacity
+    comparison_metric: container.used_capacity
+    threshold: 2
+    min_samples: 20
+    description: Detect container requests materially above measured use.
+  - recipe_id: security.misconfiguration
+    title: Critical security misconfiguration
+    category: security
+    severity: critical
+    operator: above
+    metric: security.critical_misconfigurations
+    threshold: 0
+    description: Detect one or more critical cloud configuration findings.
+  - recipe_id: security.excess-privilege
+    title: Excess privilege exposure
+    category: security
+    severity: critical
+    operator: above
+    metric: security.excess_privilege_findings
+    threshold: 0
+    description: Detect identities with privileges beyond their declared role.
+  - recipe_id: security.sensitive-data-growth
+    title: Sensitive data finding growth
+    category: security
+    severity: high
+    operator: delta_above
+    metric: security.sensitive_data_findings
+    threshold: 0
+    description: Detect newly observed sensitive data in telemetry or storage scans.
+  - recipe_id: security.runtime-threat-growth
+    title: Runtime threat signal growth
+    category: security
+    severity: critical
+    operator: delta_above
+    metric: security.runtime_threat_signals
+    threshold: 0
+    description: Detect new process, file, or network runtime threat signals.
+  - recipe_id: security.vulnerability-exposure
+    title: Reachable vulnerability exposure
+    category: security
+    severity: high
+    operator: above
+    metric: security.reachable_vulnerabilities
+    threshold: 0
+    description: Detect reachable vulnerabilities in running services.
+  - recipe_id: impact.user-session-error-share
+    title: User session impact
+    category: reliability
+    severity: high
+    operator: ratio_above
+    metric: impact.error_sessions
+    comparison_metric: impact.total_sessions
+    threshold: 0.05
+    min_samples: 20
+    description: Detect an incident affecting a material share of user sessions.
+  - recipe_id: certificate.expiry-window
+    title: Certificate expiry window
+    category: security
+    severity: high
+    operator: below
+    metric: certificate.days_remaining
+    threshold: 30
+    description: Detect a certificate approaching expiration.
+  - recipe_id: backup.freshness-gap
+    title: Backup freshness gap
+    category: reliability
+    severity: critical
+    operator: stale
+    metric: backup.last_success
+    threshold: 86400
+    description: Detect a backup target without a recent successful backup.
+  - recipe_id: network.retransmit-rate
+    title: Network retransmit rate
+    category: reliability
+    severity: high
+    operator: above
+    metric: network.tcp_retransmit_rate
+    threshold: 0.05
+    min_samples: 20
+    description: Detect network degradation through elevated TCP retransmissions.

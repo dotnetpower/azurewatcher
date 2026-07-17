@@ -1,4 +1,5 @@
 import type { AutonomyPayload, DashboardKpi } from "../types";
+import { getLocale } from "../i18n";
 
 export type OverviewHealth = "healthy" | "attention" | "unknown";
 
@@ -27,7 +28,7 @@ export function formatShare(value: number): string {
 }
 
 export function formatUsd(value: number): string {
-  return value.toLocaleString("en-US", {
+  return value.toLocaleString(getLocale() === "ko" ? "ko-KR" : "en-US", {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0,

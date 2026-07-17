@@ -5,6 +5,7 @@ import {
   panelForId,
   panelsInGroup,
   resolvePanels,
+  validatePanelRegistry,
 } from "./panels";
 
 describe("panel navigation placement", () => {
@@ -17,6 +18,7 @@ describe("panel navigation placement", () => {
       "provision",
       "onboarding",
       "processes",
+      "scheduler-runs",
     ]);
     expect(panelForId("incidents").id).toBe("incidents");
   });
@@ -45,5 +47,12 @@ describe("panel navigation placement", () => {
     expect(resolvePanels().some((panel) => panel.id === "settings-general")).toBe(true);
     expect(panelForId("settings-iam").id).toBe("settings-iam");
     expect(DEFAULT_PANEL_ID).toBe("dashboard");
+  });
+
+  test("rejects invalid extension panel registrations", () => {
+    const panel = resolvePanels()[0]!;
+    expect(() => validatePanelRegistry([panel, panel])).toThrow(/Duplicate console panel id/);
+    expect(() => validatePanelRegistry([{ ...panel, id: "Bad_Panel" }])).toThrow(/kebab-case/);
+    expect(() => validatePanelRegistry([{ ...panel, label: " " }])).toThrow(/MUST NOT be empty/);
   });
 });

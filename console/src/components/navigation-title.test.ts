@@ -12,5 +12,6 @@ describe("navigation title", () => {
   test("returns the domain for detail panels", () => {
     expect(navigationDomainForPanel("llm-cost")).toBe("Overview");
     expect(navigationDomainForPanel("incidents")).toBe("Operations");
+    expect(navigationDomainForPanel("scheduler-runs")).toBe("Operations");
   });
 });

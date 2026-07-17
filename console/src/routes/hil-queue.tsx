@@ -13,6 +13,7 @@ import { usePublishViewContext } from "../deck/context";
 import { TERMS, agentTerm, composeGlossary } from "../deck/glossary";
 import { t } from "../i18n";
 import { currentRoute, replaceRouteState, routeHref } from "../router";
+import { formatConsoleTimestamp } from "../time-format";
 
 interface Props {
   readonly client: ReadApiClient;
@@ -180,10 +181,11 @@ function HilBody({
     );
   }
 
-  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const normalizedQuery = query.trim().toLowerCase();
   const visibleItems = normalizedQuery
     ? items.filter((item) => approvalSearchText(item).includes(normalizedQuery))
     : items;
+  const expiredCount = items.filter((item) => approvalIsExpired(item, now)).length;
 
   return (
     <div class="stack approvals-view">
@@ -195,6 +197,9 @@ function HilBody({
         <div class="approvals-summary" aria-label="Approval queue summary">
           <StatusPill kind="hil" label={t("approvals.pendingCount", { count: total })} />
           <StatusPill kind="neutral" label={t("approvals.shownCount", { count: visibleItems.length })} />
+          {expiredCount > 0 ? (
+            <StatusPill kind="danger" label={t("approvals.expiredCount", { count: expiredCount })} />
+          ) : null}
           <StatusPill kind="shadow" label={t("approvals.readOnly")} />
         </div>
         <label class="approvals-search">
@@ -239,7 +244,7 @@ export function nextApprovalExpiryDelay(
   return next === undefined ? null : Math.min(2_147_483_647, Math.max(1, next - now + 20));
 }
 
-function approvalSearchText(item: HilQueueItem): string {
+export function approvalSearchText(item: HilQueueItem): string {
   return [
     item.action_kind,
     item.target_resource_ref,
@@ -248,13 +253,12 @@ function approvalSearchText(item: HilQueueItem): string {
     item.reason,
     ...item.reasons,
     ...item.citing_rule_ids,
-  ].filter(Boolean).join(" ").toLocaleLowerCase();
+  ].filter(Boolean).join(" ").toLowerCase();
 }
 
 function ApprovalCard({ item, now }: { readonly item: HilQueueItem; readonly now: number }) {
-  const expired = item.ttl_expires_at !== null &&
-    new Date(item.ttl_expires_at).getTime() <= now;
-  const reasons = item.reasons.length > 0 ? item.reasons : [item.reason];
+  const expired = approvalIsExpired(item, now);
+  const reasons = [...new Set(item.reasons.length > 0 ? item.reasons : [item.reason])];
   const blastRadius = item.blast_radius_summary || [
     item.blast_radius_count !== null
       ? t(item.blast_radius_count === 1 ? "approvals.resourceCountOne" : "approvals.resourceCountMany", { count: item.blast_radius_count })
@@ -303,7 +307,7 @@ function ApprovalCard({ item, now }: { readonly item: HilQueueItem; readonly now
         </p>
         <div class="approval-card-why">
           <strong>{t("approvals.why")}</strong>
-          <ul>{reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+          <ul>{reasons.map((reason, index) => <li key={`${index}:${reason}`}>{reason}</li>)}</ul>
         </div>
         <dl class="approval-facts">
           {facts.map(([label, value]) => (
@@ -314,7 +318,7 @@ function ApprovalCard({ item, now }: { readonly item: HilQueueItem; readonly now
                   <a href={architectureHref(item.target_resource_ref)}>{item.target_resource_ref}</a>
                 ) : label === t("approvals.fieldGroundedOn") && item.citing_rule_ids.length > 0 ? (
                   <span class="approval-rule-links">
-                    {item.citing_rule_ids.map((ruleId) => (
+                    {[...new Set(item.citing_rule_ids)].map((ruleId) => (
                       <a key={ruleId} href={routeHref("rules", { params: { rule: ruleId } })}>
                         {ruleId}
                       </a>
@@ -326,9 +330,9 @@ function ApprovalCard({ item, now }: { readonly item: HilQueueItem; readonly now
           ))}
         </dl>
         <footer class="approval-card-foot">
-          <span>{t("approvals.requested", { timestamp: item.requested_at })}</span>
+          <span>{t("approvals.requested", { timestamp: formatConsoleTimestamp(item.requested_at) })}</span>
           {item.ttl_expires_at ? (
-            <span>{t("approvals.expires", { timestamp: item.ttl_expires_at })}</span>
+            <span>{t("approvals.expires", { timestamp: formatConsoleTimestamp(item.ttl_expires_at) })}</span>
           ) : <span class="muted">{t("approvals.ttlNotRecorded")}</span>}
           <code>{item.event_id}</code>
           {item.correlation_id ? <code>{item.correlation_id}</code> : null}
@@ -352,4 +356,8 @@ function ApprovalCard({ item, now }: { readonly item: HilQueueItem; readonly now
       </div>
     </article>
   );
+}
+
+function approvalIsExpired(item: HilQueueItem, now: number): boolean {
+  return item.ttl_expires_at !== null && Date.parse(item.ttl_expires_at) <= now;
 }

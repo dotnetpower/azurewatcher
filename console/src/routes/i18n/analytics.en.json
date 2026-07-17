@@ -1,0 +1,92 @@
+{
+  "detailViews": "Detail views",
+  "simulated": "Simulated evidence",
+  "measured": "Measured evidence",
+  "window": "Window: {days} days",
+  "samples": "Sample: {count} events",
+  "confidence": "Confidence: {value}%",
+  "confidenceUnavailable": "Confidence unavailable",
+  "trendUnavailable": "Trend evidence is unavailable for this metric.",
+  "autonomyUnavailable": "Autonomy measurement is not connected on this deployment.",
+  "invalidDetail": "This detail key is not registered. Choose one of the available views above.",
+  "invalidGuard": "This guard is not present in the current measurement projection.",
+  "unavailable": "Unavailable",
+  "notApplicable": "Not applicable",
+  "current": "Current",
+  "baseline": "Baseline",
+  "direction": "Better when",
+  "higherBetter": "Higher",
+  "lowerBetter": "Lower",
+  "sampleSize": "Sample size",
+  "threshold": "Threshold",
+  "status": "Status",
+  "passing": "Passing",
+  "blocked": "Blocked",
+  "simulatedStatus": "Simulated - no operational verdict",
+  "inBand": "Within target",
+  "outOfBand": "Outside target",
+  "guard": "Guard",
+  "events": "Events",
+  "autoResolved": "Auto-resolved",
+  "resolutionRate": "Resolution rate",
+  "openRisks": "Open risks",
+  "monthlySavings": "Monthly savings",
+  "verticalLabel": "Vertical",
+  "tier": "Tier",
+  "relatedEvidence": "Related evidence",
+  "simulatedEvidenceBoundary": "This simulated vertical has no direct record filter. The links below open the complete evidence sets.",
+  "viewAudit": "View supporting audit records",
+  "viewShadowAudit": "View shadow audit records",
+  "viewIncidents": "View related incidents",
+  "viewPromotion": "View promotion gates",
+  "viewApprovals": "View pending approvals",
+  "viewRules": "View grounded rules",
+  "viewLlmCost": "View model cost and usage",
+  "health": {
+    "healthy": "Under control",
+    "attention": "Needs attention",
+    "unknown": "Evidence unavailable"
+  },
+  "metric": {
+    "auto-resolution": "Auto-resolution",
+    "human-touchpoints": "Human touchpoints",
+    "mttr": "MTTR",
+    "change-lead-time": "Change lead time",
+    "cost-per-resolved-event": "Cost per resolved event"
+  },
+  "outcomes": {
+    "title": "Operating outcomes",
+    "subtitle": "Measured results, baselines, trends, and the evidence behind each outcome.",
+    "trend": "{metric} trend",
+    "breakdown": "Contribution by vertical"
+  },
+  "assurance": {
+    "title": "Control assurance",
+    "subtitle": "Deterministic guard evidence that permits, blocks, or holds autonomous operation.",
+    "posture": "Operating posture",
+    "escapes": "Policy escapes",
+    "shadow": "Shadow coverage",
+    "ready": "Promotion readiness"
+  },
+  "vertical": {
+    "resilience": "Resilience",
+    "change-safety": "Change Safety",
+    "cost-governance": "Cost Governance"
+  },
+  "verticals": {
+    "title": "Vertical outcomes",
+    "subtitle": "Operational results and unresolved risk by FDAI vertical.",
+    "comparison": "Cross-vertical comparison",
+    "unavailable": "This vertical is not present in the current measurement projection."
+  },
+  "routing": {
+    "title": "Trust routing",
+    "subtitle": "How work is distributed across deterministic, reuse, and grounded reasoning tiers.",
+    "share": "Routed share",
+    "targetBand": "Target band",
+    "leadingIndicators": "T2 leading indicators",
+    "indicator": "Indicator",
+    "invalidIndicator": "This leading indicator is not registered.",
+    "indicatorT2Only": "Leading indicators apply to the T2 detail view."
+  }
+}

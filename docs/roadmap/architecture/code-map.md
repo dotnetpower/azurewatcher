@@ -54,7 +54,7 @@ the safety-core modules held to the >= 90% coverage floor.
 
 | Subsystem | Responsibility | Source | Tests |
 |-----------|----------------|--------|-------|
-| detection | Anomaly / forecast producers (re-enter event-ingest) | [src/fdai/core/detection/](../../../src/fdai/core/detection/) | [tests/core/detection/](../../../tests/core/detection/) |
+| detection | Anomaly, forecast, and 50 catalog-driven operational insight producers (re-enter event-ingest) | [src/fdai/core/detection/](../../../src/fdai/core/detection/) | [tests/core/detection/](../../../tests/core/detection/) |
 | rca | Root-cause analysis (T0 + T2 behind seam) | [src/fdai/core/rca/](../../../src/fdai/core/rca/) | [tests/core/rca/](../../../tests/core/rca/) |
 | incident | Incident lifecycle registry + state machine | [src/fdai/core/incident/](../../../src/fdai/core/incident/) | [tests/core/incident/](../../../tests/core/incident/) |
 | slo | Workload SLO / burn-rate evaluator | [src/fdai/core/slo/](../../../src/fdai/core/slo/) | [tests/core/slo/](../../../tests/core/slo/) |

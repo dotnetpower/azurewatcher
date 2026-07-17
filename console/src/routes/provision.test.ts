@@ -30,6 +30,10 @@ describe("safeHttpUrl", () => {
     expect(safeHttpUrl("")).toBeNull();
     expect(safeHttpUrl(null)).toBeNull();
   });
+
+  test("rejects URLs that embed credentials", () => {
+    expect(safeHttpUrl("https://user:password@example.com/console")).toBeNull();
+  });
 });
 
 function ev(partial: Partial<ProvisionEvent> & { phase: ProvisionEvent["phase"] }): ProvisionEvent {
@@ -48,6 +52,12 @@ describe("reducer", () => {
     expect(state.fraction).toBe(0.6);
   });
 
+  test("progress clamps invalid wire fractions to the valid range", () => {
+    expect(reducer(INITIAL, ev({ phase: "progress", fraction: 2 })).fraction).toBe(1);
+    expect(reducer(INITIAL, ev({ phase: "progress", fraction: -1 })).fraction).toBe(0);
+    expect(reducer(INITIAL, ev({ phase: "progress", fraction: Number.NaN })).fraction).toBe(0);
+  });
+
   test("done clears a prior transient failure", () => {
     let state = reducer(INITIAL, ev({ phase: "failed", node: "x", reason: "boom" }));
     expect(state.failed).toBe("x");
@@ -62,6 +72,7 @@ describe("reducer", () => {
     expect(reducer(done, ev({ phase: "progress", fraction: 0.2, node: "late" }))).toBe(done);
     expect(reducer(done, ev({ phase: "failed", node: "late", reason: "replay" }))).toBe(done);
     expect(reducer(done, ev({ phase: "waiting", node: "late" }))).toBe(done);
+    expect(reducer(done, ev({ phase: "done", console_url: "https://other.example" }))).toBe(done);
   });
 
   test("waiting then resumed clears the hold", () => {

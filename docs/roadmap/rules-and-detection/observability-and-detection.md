@@ -130,6 +130,52 @@ performance, reliability, security, and cost.
   order. The composite is still a shadow-mode finding governed by the risk
   gate - it detects harder, it does not act.
 
+### Operational insight recipe catalog
+
+`core/detection/insights.py` adds a deterministic recipe evaluator for
+operational conditions that do not need a statistical model. A caller supplies
+normalized current, previous, and baseline values plus sample counts and last-seen
+timestamps. The evaluator applies one of ten explicit operators (`above`, `below`,
+delta, percentage change, ratio, `absent`, or `stale`) and records the observed
+value, reference, score, threshold, and explanation in an
+`operational-insight.finding` event. Incomplete, non-finite, undersampled, or
+division-by-zero inputs hold without a finding.
+
+The versioned catalog at
+`rule-catalog/operational-insights/catalog.yaml` supplies 50 initial recipes:
+
+- **Infrastructure and telemetry (9)**: CPU, memory, disk, restart, process,
+  peer-hotspot, freshness, ingestion-volume, and cardinality conditions.
+- **Change and application performance (9)**: deployment latency, errors,
+  throughput, request errors, tail latency, application performance score,
+  dependency amplification, trace critical path, and span errors.
+- **Data and active checks (9)**: slow queries, lock waits, consumer lag,
+  dead-letter growth, synthetic availability and latency, log volume, new log
+  patterns, and rare errors.
+- **SLO, alert quality, and ownership (8)**: fast and slow burn, error budget,
+  alert storms, flapping, stale evaluation, no-data, and missing ownership.
+- **Cost governance (6)**: daily spend change, budget overrun, unallocated and
+  idle spend, unit cost, and container request waste.
+- **Security, impact, and recovery hygiene (9)**: critical misconfiguration,
+  excess privilege, sensitive-data growth, runtime threats, reachable
+  vulnerabilities, impacted sessions, certificate expiry, backup freshness,
+  and network retransmission.
+
+Thresholds and metric bindings remain catalog data, so an environment can tune
+them without changing the evaluator. Every recipe defaults to shadow mode,
+uses a stable key derived from engine, recipe, resource, and window, and
+re-enters `event-ingest` for deduplication before trust routing.
+
+`core/detection/insight_source.py` (`OperationalInsightSource`) is the runtime
+bridge to the shared `MetricProvider` seam. It queries each distinct metric
+once per resource and window, derives current, previous, and historical
+baseline values, and evaluates the catalog as one normalized observation. A
+successful empty query can prove `absent`; a provider error marks the metric
+unavailable and suppresses every dependent recipe, so a telemetry outage cannot
+be mistaken for a workload outage. Stale recipes extend their bounded lookback
+to twice the stale threshold; if no last-seen sample exists in that window, the
+recipe holds instead of inferring one.
+
 ## 3. Predictive / Forecasting
 
 Proactive detection: forecast a threshold breach **before** it happens - the AIOps "predict

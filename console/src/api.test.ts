@@ -105,6 +105,28 @@ describe("read API response decoders", () => {
       .toEqual({ items: [], total: 3, detail_level: "count_only" });
   });
 
+  test("rejects contradictory or ambiguous HIL queue evidence", () => {
+    const item = {
+      idempotency_key: "idem-1",
+      event_id: "event-1",
+      action_kind: "compute.restart",
+      reason: "Approval required.",
+      requested_at: "2026-07-15T10:00:00Z",
+      correlation_id: "corr-1",
+    };
+    expect(() => decodeHilQueuePage({ items: [item], total: 0 })).toThrow(/total MUST/);
+    expect(() => decodeHilQueuePage({ items: [item], total: 1, detail_level: "count_only" }))
+      .toThrow(/MUST NOT include/);
+    expect(() => decodeHilQueuePage({ items: [item, item], total: 2 }))
+      .toThrow(/unique idempotency/);
+    expect(() => decodeHilQueuePage({ items: [{ ...item, mode: "auto" }], total: 1 }))
+      .toThrow(/mode MUST/);
+    expect(() => decodeHilQueuePage({ items: [{ ...item, requested_at: "yesterday" }], total: 1 }))
+      .toThrow(/RFC 3339/);
+    expect(() => decodeHilQueuePage({ items: [{ ...item, ttl_expires_at: "later" }], total: 1 }))
+      .toThrow(/RFC 3339/);
+  });
+
   test("decodes an incident page and rejects invalid status", () => {
     const item = {
       correlation_id: "corr-1",

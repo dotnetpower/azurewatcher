@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ReadApiError } from "../api";
 import {
+  assertProcessDetailSelection,
   decodeProcessJournal,
   decodeProcessList,
   decodeRenderedProcessView,
@@ -127,8 +128,95 @@ describe("process view route model", () => {
     expect(decoded.process.has_view).toBe(false);
     expect(decoded.events[0]?.step_id).toBe("inspect");
     expect(decoded.events[0]?.payload["outcome"]).toBe("success");
+    expect(() => assertProcessDetailSelection("process-1", decoded, null)).not.toThrow();
+  });
+
+  it("rejects duplicate process and journal identities", () => {
+    const repeated = summary("process-1", false);
+    expect(() => decodeProcessList({ items: [repeated, repeated] })).toThrow(/ids MUST be unique/);
+    const journal = validJournal();
+    expect(() => decodeProcessJournal({ ...journal, events: [journal.events[0], journal.events[0]], count: 2 }))
+      .toThrow(/event ids MUST be unique/);
+  });
+
+  it("rejects contradictory journal counts, correlations, and numeric fields", () => {
+    const journal = validJournal();
+    expect(() => decodeProcessJournal({ ...journal, count: 2 })).toThrow(/count MUST equal/);
+    expect(() => decodeProcessJournal({
+      ...journal,
+      events: [{ ...journal.events[0], correlation_id: "other" }],
+    })).toThrow(/correlation_id/);
+    expect(() => decodeProcessJournal({
+      ...journal,
+      process: { ...journal.process, revision: -1 },
+    })).toThrow(/non-negative integer/);
+    expect(() => decodeProcessJournal({
+      ...journal,
+      events: [{ ...journal.events[0], attempt: 0.5 }],
+    })).toThrow(/non-negative integer/);
+  });
+
+  it("rejects evidence for a different selected process", () => {
+    const journal = decodeProcessJournal(validJournal());
+    expect(() => assertProcessDetailSelection("other", journal, null)).toThrow(/journal id/);
+    const view = decodeRenderedProcessView(validView());
+    expect(() => assertProcessDetailSelection("process-1", journal, view)).not.toThrow();
+    expect(() => assertProcessDetailSelection("other", journal, view)).toThrow();
+  });
+
+  it("rejects duplicate or invalid ViewSpec layout identities", () => {
+    const view = validView();
+    expect(() => decodeRenderedProcessView({
+      ...view,
+      regions: [view.regions[0], view.regions[0]],
+    })).toThrow(/region ids MUST be unique/);
+    expect(() => decodeRenderedProcessView({
+      ...view,
+      regions: [{ ...view.regions[0], column_span: 13 }],
+    })).toThrow(/between 1 and 12/);
   });
 });
+
+function validJournal() {
+  return {
+    process: {
+      ...summary("process-1", false),
+      started_at: "2026-07-15T09:30:00Z",
+      correlation_id: "correlation-1",
+      revision: 3,
+    },
+    events: [{
+      event_id: "event-1",
+      kind: "step.completed",
+      recorded_at: "2026-07-15T09:30:01Z",
+      correlation_id: "correlation-1",
+      causation_id: null,
+      step_id: "inspect",
+      attempt: 1,
+      payload: { outcome: "success" },
+    }],
+    count: 1,
+  };
+}
+
+function validView() {
+  return {
+    id: "view-1", version: "1", name: "View", description: "Description", route: "/processes",
+    process: {
+      ...summary("process-1", true),
+      started_at: "2026-07-13T00:00:00Z",
+      correlation_id: "correlation-1",
+      revision: 2,
+    },
+    regions: [{
+      id: "summary", column_span: 12,
+      report: {
+        id: "report-1", name: "Report", description: "Description", generated_at: "2026-07-13T00:00:00Z",
+        widgets: [{ id: "status", type: "query_value", title: "Status", data: { value: "waiting" }, options: {} }],
+      },
+    }],
+  };
+}
 
 function summary(id: string, hasView: boolean) {
   return {

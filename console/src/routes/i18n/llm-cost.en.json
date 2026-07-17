@@ -1,0 +1,29 @@
+{
+  "unavailable": "LLM cost metering is unavailable.",
+  "mixedCurrencies": "Mixed currencies",
+  "notAdditive": "not additive",
+  "partial": "partial",
+  "valueUnavailable": "Unavailable",
+  "source": "Source",
+  "latestInvocation": "Latest invocation",
+  "calls": "LLM calls",
+  "totalTokens": "Total tokens",
+  "totalCost": "Total cost",
+  "mixedCurrencyHint": "Raw cross-currency sums are not shown",
+  "byMode": "Shadow vs enforce",
+  "byMonth": "Per month",
+  "byDay": "Per day",
+  "byConversation": "Per conversation",
+  "truncated": "Showing the costliest {shown} of {total} conversations.",
+  "empty": "No LLM usage recorded yet.",
+  "column": {
+    "mode": "Mode",
+    "month": "Month",
+    "day": "Day",
+    "conversationId": "Conversation id",
+    "calls": "Calls",
+    "prompt": "Prompt",
+    "completion": "Completion",
+    "cost": "Cost"
+  }
+}

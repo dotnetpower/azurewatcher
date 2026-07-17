@@ -54,6 +54,7 @@ const ScopeRoute = lazy(async () => ({ default: (await import("./routes/scope"))
 const LlmCostRoute = lazy(async () => ({ default: (await import("./routes/llm-cost")).LlmCostRoute }));
 const CapabilitiesRoute = lazy(async () => ({ default: (await import("./routes/capabilities")).CapabilitiesRoute }));
 const OnboardingRoute = lazy(async () => ({ default: (await import("./routes/onboarding")).OnboardingRoute }));
+const SchedulerRunsRoute = lazy(async () => ({ default: (await import("./routes/scheduler-runs")).SchedulerRunsRoute }));
 const OperatingOutcomesRoute = lazy(async () => ({ default: (await import("./routes/analytics-hubs")).OperatingOutcomesRoute }));
 const ControlAssuranceRoute = lazy(async () => ({ default: (await import("./routes/analytics-hubs")).ControlAssuranceRoute }));
 const VerticalOutcomesRoute = lazy(async () => ({ default: (await import("./routes/analytics-hubs")).VerticalOutcomesRoute }));
@@ -136,7 +137,7 @@ export interface ConsolePanel {
 const DASHBOARD_PANEL: ConsolePanel = {
   id: "dashboard",
   label: t("nav.panel.dashboard"),
-  subtitle: t("nav.panelSub.dashboard"),
+  subtitle: t("overview.subtitle"),
   group: "overview",
   component: DashboardRoute,
 };
@@ -192,6 +193,13 @@ export const CORE_PANELS: readonly ConsolePanel[] = [
     subtitle: t("nav.panelSub.processes"),
     group: "operations",
     component: ProcessesRoute,
+  },
+  {
+    id: "scheduler-runs",
+    label: t("nav.panel.schedulerRuns"),
+    subtitle: t("nav.panelSub.schedulerRuns"),
+    group: "operations",
+    component: SchedulerRunsRoute,
   },
   // Agents and evidence
   {
@@ -412,7 +420,22 @@ export const EXTRA_PANELS: readonly ConsolePanel[] = [];
 
 /** All panels the running console exposes (core first, then fork panels). */
 export function resolvePanels(): readonly ConsolePanel[] {
-  return [...CORE_PANELS, ...EXTRA_PANELS];
+  return validatePanelRegistry([...CORE_PANELS, ...EXTRA_PANELS]);
+}
+
+export function validatePanelRegistry(panels: readonly ConsolePanel[]): readonly ConsolePanel[] {
+  const ids = new Set<string>();
+  const groupIds = new Set(PANEL_GROUPS.map((group) => group.id));
+  for (const panel of panels) {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(panel.id)) {
+      throw new Error(`Console panel id MUST be lowercase kebab-case: ${panel.id}`);
+    }
+    if (ids.has(panel.id)) throw new Error(`Duplicate console panel id: ${panel.id}`);
+    if (!panel.label.trim()) throw new Error(`Console panel label MUST NOT be empty: ${panel.id}`);
+    if (!groupIds.has(panel.group)) throw new Error(`Unknown console panel group: ${panel.group}`);
+    ids.add(panel.id);
+  }
+  return panels;
 }
 
 /** Panels filtered to a single group, in registration order. */

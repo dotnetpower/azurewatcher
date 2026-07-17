@@ -1,6 +1,6 @@
 {
   "algorithm": "sha256",
-  "file_count": 608,
+  "file_count": 610,
   "files": {
     ".github/instructions/agent-pantheon.instructions.md": "9753051d17e401c398b2eb3644a3556121b5c2654616367a98a7bef44b5197ca",
     ".github/instructions/agent-stewardship.instructions.md": "1c8fc6d9f84766d32af430703bbb63e164321ad9d680a90b8a91e9fa4a7594ec",
@@ -144,11 +144,13 @@
     "src/fdai/core/deploy_preflight/reassemble.py": "26a4ffd34ce6b777963a978af68c77dcd884ee7e983f5904a57829658641f74c",
     "src/fdai/core/deploy_preflight/reassembly_proposals.py": "ff8aff3b51a41cdff08865bf3b1042037006b0ef3929c6fd3aac8c34754ece30",
     "src/fdai/core/deploy_preflight/report.py": "b1ae646aeb9a0657b5b87ce1961b25299ed75f03f63f5d5dbbd6d1825fdec17c",
-    "src/fdai/core/detection/__init__.py": "149a495b8d87d08cdf00a00201fe131eee6b415eaf1895dc711e7e0785c30ae7",
+    "src/fdai/core/detection/__init__.py": "4f9e793d05a409e3ad7604505e3d01c99696f1353637e6148025c1046d068632",
     "src/fdai/core/detection/anomaly.py": "b1191d2b9cd45d5dc5d1029ac6ea7cf79cd04929306f4509b651db37d1b00aaf",
     "src/fdai/core/detection/composite.py": "7086d475ec009a2342171d8c2325c5ce08788df9831c2746b4006a93971c2957",
     "src/fdai/core/detection/forecast.py": "03b59b9c0035078cd5dff8557d55a3ab3f8bb5856dbed554c9693c56d6e4fd53",
     "src/fdai/core/detection/forecast_band.py": "ec26269b9b96ce5b2d22f08d0ea7e26eb2257d994e5de6a962a0d414552a410b",
+    "src/fdai/core/detection/insight_source.py": "7b4cd68750876b4fc9794d0741427f256d4ea36b99b1ddd6f46ec54ce5430f1f",
+    "src/fdai/core/detection/insights.py": "4901f5884d481e7524d613d662540c8708078eb64491dbd2b8b801b9c9e45bf7",
     "src/fdai/core/detection/metric_source.py": "2c579170c38e154bc1073dad71a126a311130ada1080fb3b910ce93b7c10daaa",
     "src/fdai/core/detection/seasonal.py": "040bd8e3ce796824e3820a36da40c2601b1e8682f013490c307c9bf54c778eec",
     "src/fdai/core/detection/series.py": "68863a9ecb67e693e545655373846eff93a5168660f19f886307031b60d8c784",
@@ -611,7 +613,7 @@
     "src/fdai/shared/providers/workflow_definition.py": "01c40a52343b9b0f301a921d7931cc03ae5cc1d916b12f8fcaf06816d0b1c23a",
     "src/fdai/shared/providers/workload_identity.py": "96f26525f5d243ff4c818766d0ee9223a23f1c31c76b141708a01e405a8fd204"
   },
-  "generated_at": "2026-07-17T17:43:53Z",
+  "generated_at": "2026-07-17T22:39:23Z",
   "surface": [
     "src/fdai/core/",
     "src/fdai/composition.py",

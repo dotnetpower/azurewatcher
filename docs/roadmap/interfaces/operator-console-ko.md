@@ -1,8 +1,8 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: d673d426969ad12e5f36a8ab5eaf0bfece06e0ed
-translation_revised: 2026-07-17
+translation_source_sha: 34fee6092a5ecd2c3591dff2c16b8aa6504bc66d
+translation_revised: 2026-07-18
 ---
 
 # 오퍼레이터 콘솔 (Conversational)
@@ -1466,7 +1466,13 @@ reporting catalog와 server-owned widget evidence를 렌더링합니다.
 Synthetic measurement는 분석 shape를 설명할 수 있지만 operational health를 결정하거나,
 attention count를 늘리거나, failed-guard drilldown을 만들 수 없습니다. Overview와
 Control Assurance는 synthetic guard를 operational posture에서 unknown으로 처리하면서
-source, window, sample size, confidence를 계속 표시합니다.
+source, window, sample size, confidence, source timestamp를 계속 표시합니다. 이벤트가
+0건인 영역은 해결률을 0%로 추정하지 않고 unavailable로 렌더링합니다. Overview는 필수
+audit KPI와 독립적인 optional cost, promotion, autonomy projection을 동시에 불러오며,
+문서화된 unavailable status만 해당 optional projection을 degrade합니다. 분석 tab과
+comparison link는 현재 query를 보존합니다. 실패 guard와 T2 leading indicator는 canonical
+`guard`, `indicator` filter를 추가하며 알 수 없는 filter 값은 다른 row를 선택하지 않고
+unavailable로 렌더링합니다.
 
 계약 규칙 (`console/src/routes/view-contract.test.ts` 가 강제):
 

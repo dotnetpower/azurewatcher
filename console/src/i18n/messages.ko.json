@@ -99,6 +99,7 @@
       "capabilities": "기능",
       "onboarding": "온보딩",
       "processes": "프로세스",
+      "schedulerRuns": "스케줄러 실행",
       "operatorMemory": "오퍼레이터 메모리",
       "reports": "리포트",
       "documents": "문서",
@@ -135,6 +136,7 @@
       "capabilities": "선언된 capability 계약, side-effect class, 역할 및 기본 모드",
       "onboarding": "프로비저닝된 리소스 및 필수 역할 할당",
       "processes": "워크플로우 런타임 상태와 동적 온톨로지 기반 보기",
+      "schedulerRuns": "구성된 스케줄러 원장의 작업 디스패치 이력",
       "operatorMemory": "범위가 제한된 approved guidance, provenance, expiry, supersession",
       "reports": "리포트 카탈로그에서 렌더링한 선언형 라이브 보드",
       "documents": "거버넌스 적용 문서를 업로드, 검사, 보호, 인덱싱",
@@ -172,6 +174,104 @@
     "viewPurpose": "리포팅 서브시스템이 렌더링한 read-only 카탈로그 리포트입니다. 위젯은 서버 소유 근거를 표시하며 작업을 실행하지 않습니다.",
     "viewHeadline": "{name}: 렌더링된 위젯 {count}개",
     "viewHeadlineUnavailable": "{name}: 렌더링을 사용할 수 없음"
+  },
+  "provision": {
+    "subtitle": "활성 프로비저닝 스트림의 읽기 전용 진행 상태",
+    "viewPurpose": "읽기 전용 스트림에서 프로비저닝 진행 상태와 종단 결과를 관찰합니다. 이 화면은 프로비저닝을 시작, 재시도 또는 변경할 수 없습니다.",
+    "viewHeadline": "프로비저닝 {percent}% 완료, 스트림 상태: {status}",
+    "readOnlyPrefix": "진행 중인 프로비저닝 근거의 스트림:",
+    "readOnlySuffix": "이 화면은 진행 상태만 렌더링하며 프로비저닝을 실행하지 않습니다.",
+    "progressLabel": "프로비저닝 진행률",
+    "notObserved": "이 스트림에서 관찰된 프로비저닝 실행이 없습니다. 스트림 연결만으로 진행률이 0%라고 판단하지 않습니다.",
+    "waitingOn": "대기 중인 리소스:",
+    "waitingSuffix": "실행은 보류 상태를 유지합니다.",
+    "failedOn": "실패한 리소스:",
+    "failed": "{resource}에서 프로비저닝 실패: {reason}",
+    "reasonUnavailable": "기록된 이유 없음",
+    "done": "모든 리소스가 준비되었습니다.",
+    "enter": "컨트롤 플레인 열기",
+    "recentLabel": "최근 프로비저닝된 리소스",
+    "idlePrefix": "진행 중인 프로비저닝이 없습니다. 스트림에",
+    "idleSuffix": "이벤트가 들어오면 이 화면이 활성화됩니다.",
+    "status": {
+      "streaming": "스트리밍 중",
+      "connecting": "연결 중",
+      "disconnected": "연결 끊김",
+      "idle": "대기",
+      "unsupported": "SSE 미지원"
+    }
+  },
+  "onboardingView": {
+    "resourceLabel": "온보딩 준비 상태",
+    "refresh": "새로고침",
+    "refreshing": "새로고침 중...",
+    "viewPurpose": "FDAI 운영 전에 필수 런타임 리소스와 실행자 역할 할당이 준비되었는지 확인합니다.",
+    "headlineUnavailable": "온보딩 준비 상태를 사용할 수 없음",
+    "headlineReady": "온보딩 사전 조건 준비 완료",
+    "headlineBlocked": "리소스 차이 {resources}건, 역할 차이 {roles}건",
+    "notConfigured": "Azure 온보딩 프로브가 구성되지 않았습니다. 표시된 차이는 관찰된 테넌트 상태가 아니라 필수 기준입니다.",
+    "probeFailed": "구성된 Azure 온보딩 프로브가 실패했습니다. 테넌트 준비 상태 관찰을 사용할 수 없습니다.",
+    "readiness": "준비 상태",
+    "ready": "준비됨",
+    "blocked": "차단됨",
+    "resourcesObserved": "관찰된 리소스",
+    "rolesObserved": "관찰된 역할",
+    "lastChecked": "마지막 확인",
+    "drilldowns": "온보딩 상세 보기",
+    "openProvisioning": "프로비저닝 열기",
+    "reviewAccess": "액세스 요청 검토",
+    "inspectArchitecture": "아키텍처 검사",
+    "missingResources": "누락 리소스",
+    "requiredResources": "필수 리소스",
+    "missingRoles": "누락 역할 할당",
+    "requiredRoles": "필수 역할 할당",
+    "none": "없음"
+  },
+  "processesView": {
+    "subtitle": "권위 있는 Process 스냅샷과 추가 전용 저널의 워크플로우 실행 상태입니다. 실행은 콘솔 외부에서 유지됩니다.",
+    "resourceLabel": "프로세스",
+    "detailResourceLabel": "프로세스 상태",
+    "refresh": "상태 새로고침",
+    "refreshing": "새로고침 중...",
+    "viewPurpose": "읽기 전용 워크플로우 Process 스냅샷과 온톨로지 기반 동적 보기입니다.",
+    "viewHeadline": "프로세스 {count}건",
+    "viewHeadlineSelected": "프로세스 {count}건 - {workflow}: {status}",
+    "emptyTitle": "워크플로우 프로세스 없음",
+    "emptyBody": "워크플로우 런타임이 실행을 기록하면 Process가 여기에 표시됩니다.",
+    "provenanceLabel": "Process projection 출처",
+    "source": "소스",
+    "evidence": "근거",
+    "storage": "저장소",
+    "synthetic": "합성",
+    "observed": "관찰됨",
+    "unknown": "알 수 없음",
+    "durable": "내구성 있음",
+    "volatile": "휘발성",
+    "listLabel": "워크플로우 프로세스",
+    "select": "프로세스를 선택하세요.",
+    "selectJournal": "런타임 저널을 검사할 프로세스를 선택하세요.",
+    "terminal": "종단",
+    "runtime": "런타임",
+    "summaryLabel": "워크플로우 실행 요약",
+    "runs": "건 실행",
+    "active": "건 활성",
+    "completed": "건 완료",
+    "failed": "건 실패",
+    "process": "Process",
+    "started": "시작",
+    "updated": "업데이트",
+    "revision": "리비전",
+    "journalEvents": "저널 이벤트",
+    "noViewSpec": "워크플로우 전용 ViewSpec이 등록되지 않았습니다. 모든 워크플로우에서 위 런타임 스냅샷과 저널은 계속 사용할 수 있습니다.",
+    "executionJournal": "실행 저널",
+    "stepTimeline": "단계 타임라인",
+    "oldestToNewest": "오래된 항목부터 최신 순",
+    "lifecycle": "Process 수명 주기",
+    "recordedEvent": "기록된 이벤트",
+    "eventId": "이벤트 ID",
+    "correlation": "상관관계",
+    "causation": "인과관계",
+    "attempt": "시도"
   },
   "rca": {
     "subtitle": "추가 전용 감사 로그에서 읽기 전용으로 투영한 단일 인시던트의 근본 원인 분석입니다. RCA 결과는 근거를 갖춘 가설이며 권위 있는 판정이 아닙니다. 실행 자격은 여전히 리스크 게이트와 검증기에 있습니다.",
@@ -806,11 +906,13 @@
     },
     "status": {
       "label": "경영진 운영 상태",
+      "linkLabel": "{state}. 조치 신호 {count}건. 통제 보증 열기.",
       "healthy": "운영 통제 정상",
       "attention": "운영 조치 필요",
       "unknown": "운영 근거 없음",
       "signals": "조치 신호 {count}건",
       "summary": "자율 해결 {rate}% - 승인 대기: {hil}건 - 정책위반 탈출 {escapes}건",
+      "simulatedSummary": "시뮬레이션: 자율 해결 {rate}% - 승인 대기: {hil}건 - 정책위반 탈출 {escapes}건",
       "fallback": "감사 이벤트 {events}건 - 승인 대기: {hil}건 - 자율성 근거 없음",
       "auditCurrent": "최근 감사 기록: {time}"
     },
@@ -833,6 +935,7 @@
       "syntheticHint": "개발 하네스: 합성 측정값, 실측 주장 아님"
     },
     "metric": {
+      "groupLabel": "기준선과 비교한 성과 지표",
       "autoRes": "자동 해결",
       "touchpoints": "사람 개입 / 100건",
       "mttr": "평균 복구시간",
@@ -860,7 +963,13 @@
       "thresholds": "가드 임계값",
       "thresholdCount": "{failed}/{total} 임계값 이탈",
       "shadow": "Shadow 비율",
-      "promotion": "승격 준비도"
+      "promotion": "승격 준비도",
+      "stateLabel": "{label}: {value}. 상태: {state}.",
+      "state": {
+        "ok": "통과",
+        "attention": "조치 필요",
+        "unknown": "근거 없음"
+      }
     },
     "attention": {
       "label": "개입 필요",
@@ -877,12 +986,14 @@
       "unknownTitle": "필수 근거가 연결되지 않음",
       "unknownHint": "가드 데이터가 없으면 정상 상태로 추정하지 않습니다.",
       "clearTitle": "가드 근거 정상",
-      "clearHint": "승인 대기, 정책위반 탈출, 실패 가드가 기록되지 않았습니다."
+      "clearHint": "승인 대기, 정책위반 탈출, 실패 가드가 기록되지 않았습니다.",
+      "itemLabel": "{priority}: {title}"
     },
     "organization": {
       "label": "에이전트 조직",
       "title": "역할 분리 기반 자율 운영",
       "summary": "에이전트 조직이 {rate}%를 자율 해결하고 {hil}건을 사람 승인으로 보류했습니다.",
+      "simulatedSummary": "시뮬레이션에서 자율 해결 {rate}%와 사람 승인 보류 {hil}건을 모델링합니다.",
       "simulated": "시뮬레이션 결과 - {days}일",
       "measured": "실측 결과 - {days}일",
       "roleChain": "책임 있는 에이전트 역할 체인",
@@ -898,7 +1009,8 @@
       }
     },
     "trend": {
-      "autoRes": "자동 해결 30일"
+      "autoRes": "자동 해결 30일",
+      "summary": "{start}에서 {end}로 변경, 변화량 {delta}."
     },
     "vertical": {
       "label": "영역별 운영 성과",
@@ -908,7 +1020,8 @@
       "events": "건 처리",
       "auto": "자동 해결",
       "risks": "{count}건 조치 필요",
-      "clear": "이상 없음"
+      "clear": "이상 없음",
+      "monthlySavings": "{amount}/월"
     },
     "health": {
       "label": "시스템 상태",
@@ -947,10 +1060,12 @@
     },
     "tier": {
       "label": "신뢰 등급",
-      "band": "목표 {range}"
+      "band": "목표 {range}",
+      "groupLabel": "목표 범위와 비교한 신뢰 티어 구성"
     },
     "rules": {
       "label": "살아있는 규칙",
+      "groupLabel": "살아있는 규칙 카탈로그 근거",
       "active": "활성",
       "promoted": "승격 (30일)",
       "candidates": "후보"
@@ -962,9 +1077,21 @@
       "browse": "카탈로그 보기"
     },
     "detailMetric": {
+      "events": "이벤트 (감사)",
+      "eventsHint": "종단 감사 항목",
+      "shadow": "Shadow 비율",
+      "shadowHint": "판정만 수행, 변경 없음",
+      "enforce": "강제 적용 비율",
+      "enforceHint": "운영 환경으로 승격됨",
       "approvals": "승인 대기",
       "approvalHint": "사람 승인 필요",
-      "approvalClear": "승인 대기 없음"
+      "approvalClear": "승인 대기 없음",
+      "actionsByKind": "종류별 작업",
+      "actionKind": "작업 종류",
+      "outcomes": "결과",
+      "outcome": "결과",
+      "count": "건수",
+      "empty": "데이터가 없습니다."
     },
     "detail": "운영 근거",
     "detailHint": "감사 단위 지표 및 분포"
@@ -981,6 +1108,7 @@
     "mechanicsBody": "고위험 작업은 별도 승인자가 ChatOps에서 결정할 때까지 보류됩니다. 거절과 시간 초과는 감사 기록에 남으며 이 화면은 근거만 표시합니다.",
     "pendingCount": "{count}건 대기",
     "shownCount": "{count}건 표시",
+    "expiredCount": "불러온 상세 중 {count}건 만료",
     "readOnly": "읽기 전용",
     "filter": "승인 필터",
     "filterPlaceholder": "작업, 리소스, 규칙 또는 이벤트로 필터",
@@ -1013,54 +1141,5 @@
     "openTrace": "추적 열기",
     "openAudit": "감사 열기",
     "openRca": "RCA 열기"
-  },
-  "analytics": {
-    "simulated": "시뮬레이션 근거",
-    "measured": "실측 근거",
-    "window": "기간: {days}일",
-    "samples": "표본: 이벤트 {count}건",
-    "confidence": "신뢰도: {value}%",
-    "confidenceUnavailable": "신뢰도 근거 없음",
-    "trendUnavailable": "이 지표의 추세 근거가 없습니다.",
-    "autonomyUnavailable": "이 배포에는 자율성 측정이 연결되지 않았습니다.",
-    "invalidDetail": "등록되지 않은 상세 키입니다. 위에서 사용 가능한 보기를 선택하세요.",
-    "unavailable": "근거 없음",
-    "notApplicable": "해당 없음",
-    "current": "현재",
-    "baseline": "기준선",
-    "direction": "개선 방향",
-    "higherBetter": "높을수록 좋음",
-    "lowerBetter": "낮을수록 좋음",
-    "sampleSize": "표본 수",
-    "threshold": "임계값",
-    "status": "상태",
-    "passing": "통과",
-    "blocked": "차단",
-    "inBand": "목표 범위",
-    "outOfBand": "목표 이탈",
-    "guard": "가드",
-    "events": "이벤트",
-    "autoResolved": "자동 해결",
-    "resolutionRate": "해결률",
-    "openRisks": "미해결 위험",
-    "monthlySavings": "월 절감액",
-    "verticalLabel": "영역",
-    "tier": "티어",
-    "relatedEvidence": "관련 근거",
-    "simulatedEvidenceBoundary": "이 시뮬레이션 영역에는 직접 연결되는 기록 필터가 없습니다. 아래 링크는 전체 근거 집합을 엽니다.",
-    "viewAudit": "감사 근거 보기",
-    "viewShadowAudit": "Shadow 감사 보기",
-    "viewIncidents": "관련 인시던트 보기",
-    "viewPromotion": "승격 가드 보기",
-    "viewApprovals": "승인 대기 보기",
-    "viewRules": "근거 규칙 보기",
-    "viewLlmCost": "모델 비용 및 사용량 보기",
-    "health": {"healthy": "통제 정상", "attention": "조치 필요", "unknown": "근거 없음"},
-    "metric": {"auto-resolution": "자동 해결", "human-touchpoints": "사람 개입", "mttr": "평균 복구시간", "change-lead-time": "변경 리드타임", "cost-per-resolved-event": "해결 이벤트당 비용"},
-    "outcomes": {"title": "운영 성과", "subtitle": "각 운영 성과의 측정값, 기준선, 추세, 근거를 보여줍니다.", "trend": "{metric} 추세", "breakdown": "영역별 기여"},
-    "assurance": {"title": "통제 보증", "subtitle": "자율 운영을 허용, 차단, 보류하는 결정론적 가드 근거입니다.", "posture": "운영 상태", "escapes": "정책위반 탈출", "shadow": "Shadow 비율", "ready": "승격 준비도"},
-    "vertical": {"resilience": "복원력", "change-safety": "변경 안전", "cost-governance": "비용 거버넌스"},
-    "verticals": {"title": "영역별 성과", "subtitle": "FDAI 영역별 운영 성과와 미해결 위험을 보여줍니다.", "comparison": "영역 비교", "unavailable": "현재 측정 projection에 이 영역이 없습니다."},
-    "routing": {"title": "신뢰 라우팅", "subtitle": "결정론, 재사용, 근거 기반 추론 티어에 작업이 분배된 결과입니다.", "share": "라우팅 비율", "targetBand": "목표 범위"}
   }
 }

@@ -63,33 +63,14 @@ export function DashboardRoute({ client }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        // `/kpi` is the required backbone; `/finops` is a fork opt-in panel,
-        // so a 404 degrades to a null cost axis instead of failing the page.
-        const kpi = await client.dashboardMetrics();
-        let finops: FinOpsPayload | null = null;
-        try {
-          finops = await client.finops();
-        } catch (err) {
-          if (!(err instanceof ReadApiError && err.status === 404)) throw err;
-        }
-        // Promotion-gate summary powers the release guard (policy escapes
-        // MUST be 0). Opt-in like finops: 404/501 degrades to no guard row.
-        let gates: GatesSummary | null = null;
-        try {
-          gates = await client.panel<GatesSummary>("/kpi/promotion-gates");
-        } catch (err) {
-          if (!(err instanceof ReadApiError && (err.status === 404 || err.status === 501)))
-            throw err;
-        }
-        // Autonomy measurement summary (success vs baseline, guards,
-        // verticals, tier, trend). Opt-in: 404/501 => audit-only fallback.
-        let autonomy: AutonomyPayload | null = null;
-        try {
-          autonomy = await client.autonomy();
-        } catch (err) {
-          if (!(err instanceof ReadApiError && (err.status === 404 || err.status === 501 || err.status === 502)))
-            throw err;
-        }
+        // `/kpi` is the required backbone. Independent optional projections
+        // load concurrently and degrade only for their documented statuses.
+        const [kpi, finops, gates, autonomy] = await Promise.all([
+          client.dashboardMetrics(),
+          optionalOverview(() => client.finops(), [404]),
+          optionalOverview(() => client.panel<GatesSummary>("/kpi/promotion-gates"), [404, 501]),
+          optionalOverview(() => client.autonomy(), [404, 501, 502]),
+        ]);
         if (!cancelled) setState({ status: "ready", data: { kpi, finops, gates, autonomy } });
       } catch (err) {
         if (!cancelled) {
@@ -113,6 +94,18 @@ export function DashboardRoute({ client }: Props) {
       </AsyncBoundary>
     </div>
   );
+}
+
+async function optionalOverview<T>(
+  load: () => Promise<T>,
+  unavailableStatuses: readonly number[],
+): Promise<T | null> {
+  try {
+    return await load();
+  } catch (error) {
+    if (error instanceof ReadApiError && unavailableStatuses.includes(error.status)) return null;
+    throw error;
+  }
 }
 
 function OverviewBody({ data }: { readonly data: OverviewData }) {
@@ -328,20 +321,20 @@ function OverviewBody({ data }: { readonly data: OverviewData }) {
         </summary>
         <div class="stack overview-details-body">
           <KpiGrid>
-            <a class="overview-kpi-link" href={routeHref("audit", { params: sampleParams })}><KpiCard label="Events (audit)" value={kpi.event_count} hint="terminal audit entries" /></a>
-            <a class="overview-kpi-link" href={routeHref("audit", { params: { ...sampleParams, mode: "shadow" } })}><KpiCard label="Shadow share" value={formatShare(kpi.shadow_share)} hint="judge-only, no mutation" tone={kpi.shadow_share > 0.95 ? "positive" : "default"} /></a>
-            <a class="overview-kpi-link" href={routeHref("audit", { params: { ...sampleParams, mode: "enforce" } })}><KpiCard label="Enforce share" value={formatShare(kpi.enforce_share)} hint="promoted to production" /></a>
+            <a class="overview-kpi-link" href={routeHref("audit", { params: sampleParams })}><KpiCard label={t("overview.detailMetric.events")} value={kpi.event_count} hint={t("overview.detailMetric.eventsHint")} /></a>
+            <a class="overview-kpi-link" href={routeHref("audit", { params: { ...sampleParams, mode: "shadow" } })}><KpiCard label={t("overview.detailMetric.shadow")} value={formatShare(kpi.shadow_share)} hint={t("overview.detailMetric.shadowHint")} tone={kpi.shadow_share > 0.95 ? "positive" : "default"} /></a>
+            <a class="overview-kpi-link" href={routeHref("audit", { params: { ...sampleParams, mode: "enforce" } })}><KpiCard label={t("overview.detailMetric.enforce")} value={formatShare(kpi.enforce_share)} hint={t("overview.detailMetric.enforceHint")} /></a>
             <a class="overview-kpi-link" href={routeHref("hil-queue")}><KpiCard label={t("overview.detailMetric.approvals")} value={kpi.hil_pending} tone={kpi.hil_pending > 0 ? "warning" : "positive"} hint={kpi.hil_pending > 0 ? t("overview.detailMetric.approvalHint") : t("overview.detailMetric.approvalClear")} /></a>
           </KpiGrid>
 
           <div class="two-col">
             <section class="stack-section">
-              <h3 class="section-title">Actions by kind</h3>
-              <CountTable data={kpi.by_action_kind} keyLabel="Action kind" filterKey="action" sampleParams={sampleParams} />
+              <h3 class="section-title">{t("overview.detailMetric.actionsByKind")}</h3>
+              <CountTable data={kpi.by_action_kind} keyLabel={t("overview.detailMetric.actionKind")} filterKey="action" sampleParams={sampleParams} />
             </section>
             <section class="stack-section">
-              <h3 class="section-title">Outcomes</h3>
-              <CountTable data={kpi.by_outcome} keyLabel="Outcome" filterKey="outcome" sampleParams={sampleParams} />
+              <h3 class="section-title">{t("overview.detailMetric.outcomes")}</h3>
+              <CountTable data={kpi.by_outcome} keyLabel={t("overview.detailMetric.outcome")} filterKey="outcome" sampleParams={sampleParams} />
             </section>
           </div>
         </div>
@@ -362,11 +355,11 @@ function OverviewSection({
   readonly children: preact.ComponentChildren;
 }) {
   return (
-    <section class="overview-section">
+    <section class="overview-section" aria-labelledby={`overview-section-${number}`}>
       <header class="overview-section-head">
         <span class="overview-section-number" aria-hidden="true">{number}</span>
         <div>
-          <h3>{title}</h3>
+          <h3 id={`overview-section-${number}`}>{title}</h3>
           <p>{description}</p>
         </div>
       </header>
@@ -397,7 +390,7 @@ function CountTable({
 
   const columns: readonly Column<KeyCount>[] = [
     { key: "k", header: keyLabel, render: (r) => <a href={routeHref("audit", { params: { ...sampleParams, [filterKey]: r.key } })}>{r.key}</a>, cellClass: "mono" },
-    { key: "c", header: "Count", render: (r) => r.count, cellClass: "num", headerClass: "num" },
+    { key: "c", header: t("overview.detailMetric.count"), render: (r) => r.count, cellClass: "num", headerClass: "num" },
   ];
 
   return (
@@ -405,7 +398,7 @@ function CountTable({
       columns={columns}
       rows={rows}
       keyOf={(r) => r.key}
-      empty="No data yet."
+      empty={t("overview.detailMetric.empty")}
     />
   );
 }

@@ -23,6 +23,7 @@ export function useLiveViewModel(
   state: LiveState,
   status: LiveConnectionStatus,
   selectedTile: TileState | null,
+  droppedFrames = 0,
 ) {
   const eps = (state.ratePings.length / (RATE_WINDOW_MS / 1000)).toFixed(1);
   const gateTotal = Object.values(state.gateCounts).reduce((total, count) => total + count, 0);
@@ -117,6 +118,7 @@ export function useLiveViewModel(
         facts: [
           { key: "eps", value: eps, group: "throughput" },
           { key: "session.total", value: state.session_total, group: "throughput" },
+          { key: "stream.frames_dropped", value: droppedFrames, group: "throughput" },
           { key: "session.duration", value: formatDuration(state.now - state.session_started_at), group: "throughput" },
           { key: "tiles.active", value: activeTileCount, group: "tiles" },
           { key: "tiles.empty", value: POOL_SIZE - activeTileCount, group: "tiles" },
@@ -179,6 +181,7 @@ export function useLiveViewModel(
       state.tierCounts,
       state.gateCounts,
       state.session_total,
+      droppedFrames,
       state.session_started_at,
       eps,
       gateTotal,
