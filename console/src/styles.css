@@ -2754,6 +2754,7 @@ pre {
 }
 .overview-assurance-list dd.ok { color: var(--overview-sage); }
 .overview-assurance-list dd.attention { color: var(--overview-terracotta); }
+.overview-assurance-list dd.unknown { color: var(--fg-muted); }
 .overview-attention-list {
   display: grid;
   gap: 8px;

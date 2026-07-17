@@ -47,7 +47,7 @@ export function ExecutiveDecisionGrid({
                   ? t("overview.assurance.noneRecorded")
                   : t("overview.assurance.escapeCount", { count: policyEscapes })
             }
-            ok={policyEscapes === 0}
+            state={policyEscapes === null ? "unknown" : policyEscapes === 0 ? "ok" : "attention"}
           />
           <AssuranceRow
             label={t("overview.assurance.thresholds")}
@@ -61,12 +61,18 @@ export function ExecutiveDecisionGrid({
                     })
                 : t("overview.evidence.unavailable")
             }
-            ok={autonomy !== null && !autonomy.synthetic && failedGuards.length === 0}
+            state={
+              autonomy === null || autonomy.synthetic
+                ? "unknown"
+                : failedGuards.length === 0
+                  ? "ok"
+                  : "attention"
+            }
           />
           <AssuranceRow
             label={t("overview.assurance.shadow")}
             value={formatShare(kpi.shadow_share)}
-            ok={kpi.shadow_share >= 0.95}
+            state={kpi.shadow_share >= 0.95 ? "ok" : "attention"}
           />
           <AssuranceRow
             label={t("overview.assurance.promotion")}
@@ -78,7 +84,7 @@ export function ExecutiveDecisionGrid({
                   })
                 : t("overview.evidence.unavailable")
             }
-            ok={gates !== null && gates.blocked_count === 0}
+            state={gates === null ? "unknown" : gates.blocked_count === 0 ? "ok" : "attention"}
           />
         </dl>
       </a>
@@ -140,16 +146,16 @@ export function ExecutiveDecisionGrid({
 function AssuranceRow({
   label,
   value,
-  ok,
+  state,
 }: {
   readonly label: string;
   readonly value: string;
-  readonly ok: boolean;
+  readonly state: "ok" | "attention" | "unknown";
 }) {
   return (
     <div>
       <dt>{label}</dt>
-      <dd class={ok ? "ok" : "attention"}>{value}</dd>
+      <dd class={state}>{value}</dd>
     </div>
   );
 }
