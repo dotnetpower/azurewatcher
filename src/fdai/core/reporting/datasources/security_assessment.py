@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping, Sequence
-from datetime import datetime
+import time
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import cast
 
@@ -17,6 +18,7 @@ from fdai.core.report_feed.models import (
 )
 from fdai.core.reporting.models import DataSet, QuerySpec
 from fdai.core.security import (
+    ApplicabilityStatus,
     ControlStatus,
     RemediationPriority,
     SecurityAssessment,
@@ -54,12 +56,38 @@ _SUMMARY_FIELDS = frozenset(
 class SecurityAssessmentDataSource:
     """Build and project a deterministic assessment from security signals."""
 
-    __slots__ = ("_cache_key", "_cache_report", "_feed", "_lock", "_name")
+    __slots__ = (
+        "_cache_key",
+        "_cache_deadline",
+        "_cache_report",
+        "_cache_ttl_seconds",
+        "_clock",
+        "_feed",
+        "_freshness_ttl",
+        "_lock",
+        "_name",
+    )
 
-    def __init__(self, *, feed: ReportFeed, name: str = "security_assessment") -> None:
+    def __init__(
+        self,
+        *,
+        feed: ReportFeed,
+        name: str = "security_assessment",
+        freshness_ttl: timedelta = timedelta(days=1),
+        cache_ttl: timedelta = timedelta(seconds=5),
+        monotonic_clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if freshness_ttl <= timedelta(0):
+            raise ValueError("freshness_ttl MUST be positive")
+        if cache_ttl <= timedelta(0):
+            raise ValueError("cache_ttl MUST be positive")
         self._feed = feed
         self._name = name
+        self._freshness_ttl = freshness_ttl
+        self._cache_ttl_seconds = cache_ttl.total_seconds()
+        self._clock = monotonic_clock
         self._cache_key: tuple[datetime, datetime, str] | None = None
+        self._cache_deadline = 0.0
         self._cache_report: SecurityAssessment | None = None
         self._lock = asyncio.Lock()
 
@@ -118,16 +146,27 @@ class SecurityAssessmentDataSource:
     ) -> SecurityAssessment:
         key = (since, until, scope)
         async with self._lock:
-            if self._cache_key == key and self._cache_report is not None:
+            now = self._clock()
+            if (
+                self._cache_key == key
+                and self._cache_report is not None
+                and now < self._cache_deadline
+            ):
                 return self._cache_report
             result = await self._feed.collect(
                 since=since,
                 until=until,
                 category=ReportCategory.SECURITY,
             )
-            report = _build_from_feed(result, scope=scope, assessed_at=until)
+            report = _build_from_feed(
+                result,
+                scope=scope,
+                assessed_at=until,
+                freshness_ttl=self._freshness_ttl,
+            )
             self._cache_key = key
             self._cache_report = report
+            self._cache_deadline = now + self._cache_ttl_seconds
             return report
 
 
@@ -136,18 +175,24 @@ def _build_from_feed(
     *,
     scope: str,
     assessed_at: datetime,
+    freshness_ttl: timedelta,
 ) -> SecurityAssessment:
-    controls = tuple(
-        _signal_to_control(signal)
-        for signal in result.signals
-        if signal.kind is SignalKind.SECURITY_ASSESSMENT
+    control_signals = _latest_control_signals(
+        signal for signal in result.signals if signal.kind is SignalKind.SECURITY_ASSESSMENT
     )
+    controls = tuple(_signal_to_control(signal) for signal in control_signals)
     findings = tuple(
         _signal_to_finding(signal)
         for signal in result.signals
         if signal.kind is not SignalKind.SECURITY_ASSESSMENT
     )
-    coverage = _source_coverage(controls, result.source_errors, scope=scope)
+    coverage = _source_coverage(
+        controls,
+        result.source_errors,
+        scope=scope,
+        assessed_at=assessed_at,
+        freshness_ttl=freshness_ttl,
+    )
     return build_security_assessment(
         findings,
         scope=scope,
@@ -156,6 +201,19 @@ def _build_from_feed(
         controls=controls,
         source_coverage=coverage,
     )
+
+
+def _latest_control_signals(signals: Iterable[ReportSignal]) -> tuple[ReportSignal, ...]:
+    latest: dict[tuple[str, str], ReportSignal] = {}
+    for signal in signals:
+        key = (signal.metadata.get("control_id", signal.signal_id), signal.resource_ref)
+        current = latest.get(key)
+        if current is None or (signal.occurred_at, signal.signal_id) > (
+            current.occurred_at,
+            current.signal_id,
+        ):
+            latest[key] = signal
+    return tuple(latest[key] for key in sorted(latest))
 
 
 def _signal_to_control(signal: ReportSignal) -> SecurityControlObservation:
@@ -181,7 +239,11 @@ def _signal_to_control(signal: ReportSignal) -> SecurityControlObservation:
         validation=metadata.get("validation", ""),
         priority=priority,
         due_days=_non_negative_int(metadata.get("due_days")),
-        applicability=metadata.get("applicability", "applicable"),
+        applicability=_enum_or_default(
+            ApplicabilityStatus,
+            metadata.get("applicability"),
+            ApplicabilityStatus.UNKNOWN,
+        ),
         cve_ids=_split(metadata.get("cve_ids", "")),
         compliance_controls=_split(metadata.get("compliance_controls", "")),
         source_urls=_split(metadata.get("source_urls", "")),
@@ -208,24 +270,50 @@ def _source_coverage(
     errors: Sequence[tuple[str, str]],
     *,
     scope: str,
+    assessed_at: datetime,
+    freshness_ttl: timedelta,
 ) -> tuple[SecuritySourceCoverage, ...]:
     records: dict[str, list[SecurityControlObservation]] = {}
     for control in controls:
         records.setdefault(control.source, []).append(control)
-    error_by_source = dict(errors)
+    error_by_source = {name: _safe_source_error(error) for name, error in errors}
     names = sorted(set(records) | set(error_by_source))
     return tuple(
         SecuritySourceCoverage(
             source=name,
             status=_coverage_status(records.get(name, ()), has_error=name in error_by_source),
             record_count=len(records.get(name, ())),
-            as_of=max((item.collected_at for item in records.get(name, ())), default=None),
+            as_of=(
+                as_of := max(
+                    (item.collected_at for item in records.get(name, ())),
+                    default=None,
+                )
+            ),
             scope=scope,
             error=error_by_source.get(name, ""),
-            fresh=None,
+            fresh=_freshness(as_of, assessed_at=assessed_at, ttl=freshness_ttl),
         )
         for name in names
     )
+
+
+def _freshness(
+    as_of: datetime | None,
+    *,
+    assessed_at: datetime,
+    ttl: timedelta,
+) -> bool | None:
+    if as_of is None:
+        return None
+    age = assessed_at - as_of
+    return timedelta(0) <= age <= ttl
+
+
+def _safe_source_error(error: str) -> str:
+    """Expose only a bounded exception class, never provider error detail."""
+
+    kind = error.partition(":")[0].strip()
+    return kind[:100] if kind else "SourceError"
 
 
 def _coverage_status(
@@ -312,7 +400,7 @@ def _control_rows(controls: Sequence[SecurityControlObservation]) -> DataSet:
                 "resource_ref": control.resource_ref,
                 "current_value": control.current_value,
                 "expected_value": control.expected_value,
-                "applicability": control.applicability,
+                "applicability": control.applicability.value,
                 "patch_status": control.patch_status or "not_assessed",
                 "source": control.source,
                 "collected_at": control.collected_at.isoformat(),
@@ -371,7 +459,7 @@ def _cve_rows(controls: Sequence[SecurityControlObservation]) -> DataSet:
                 "control_id": control.control_id,
                 "resource_ref": control.resource_ref,
                 "severity": control.severity,
-                "applicability": control.applicability,
+                "applicability": control.applicability.value,
                 "patch_status": control.patch_status or "not_assessed",
                 "managed_service_note": control.managed_service_note,
                 "source_urls": ", ".join(control.source_urls),

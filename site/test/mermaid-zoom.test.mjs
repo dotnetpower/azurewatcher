@@ -7,6 +7,7 @@ import {
   createPanGesture,
   scaledSvgWidth,
   shouldCloseBackdrop,
+  wheelZoomFactor,
   zoomLabels,
 } from "../src/scripts/mermaid-zoom.mjs";
 
@@ -14,6 +15,15 @@ test("zoom clamps to supported bounds and resizes the SVG itself", () => {
   assert.equal(clampZoom(0.01), 0.2);
   assert.equal(clampZoom(20), 8);
   assert.equal(scaledSvgWidth(1000, 1.44), 1440);
+});
+
+test("wheel zoom follows delta magnitude without trackpad jumps", () => {
+  assert.ok(wheelZoomFactor(-1) > 1);
+  assert.ok(wheelZoomFactor(-1) < 1.01);
+  assert.ok(wheelZoomFactor(-100) > wheelZoomFactor(-1));
+  assert.equal(wheelZoomFactor(-1000), 1.25);
+  assert.equal(wheelZoomFactor(1000), 0.8);
+  assert.equal(wheelZoomFactor(-10, 1), 1.25);
 });
 
 test("a drag suppresses the generated backdrop click", () => {
@@ -83,4 +93,22 @@ test("keyboard users can zoom, reset, and pan the expanded diagram", async () =>
   assert.match(script, /event\.key === "0"/);
   assert.match(script, /event\.key === "ArrowLeft"/);
   assert.match(script, /aria-live", "polite"/);
+});
+
+test("close and capture loss clear the active pan lifecycle", async () => {
+  const script = await readFile(
+    new URL("../src/scripts/mermaid-zoom.mjs", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(script, /const releaseActivePointer = \(\) =>/);
+  assert.match(script, /const close = \(\) => \{[\s\S]*?releaseActivePointer\(\)/);
+  assert.match(script, /stage\.addEventListener\("lostpointercapture"/);
+});
+
+test("toolbar controls expose a high-contrast keyboard focus indicator", async () => {
+  const css = await readFile(new URL("../src/styles/custom.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.mermaid-zoom-toolbar button:focus-visible\s*\{/);
+  assert.match(css, /@media \(forced-colors: active\)/);
 });

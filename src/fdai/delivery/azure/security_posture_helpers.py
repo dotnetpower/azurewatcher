@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Final
 
 from fdai.core.security import (
+    ApplicabilityStatus,
     ControlStatus,
     RemediationPriority,
     SecurityControlObservation,
@@ -37,7 +38,7 @@ def control(
     due_days: int | None = None,
     compliance: tuple[str, ...] = (),
     cves: tuple[str, ...] = (),
-    applicability: str = "applicable",
+    applicability: ApplicabilityStatus = ApplicabilityStatus.APPLICABLE,
     patch_status: str = "",
     managed_note: str = "",
     source_url: str = "",
@@ -187,21 +188,24 @@ def private_mysql_value(network: Mapping[str, Any], properties: Mapping[str, Any
 def cve_status(cves: Sequence[AzureCveEvidence]) -> tuple[ControlStatus, str]:
     if not cves:
         return (ControlStatus.UNKNOWN, "not_assessed")
-    if any(item.applicability == "applicable" and item.patch_status == "affected" for item in cves):
+    if any(
+        item.applicability is ApplicabilityStatus.APPLICABLE and item.patch_status == "affected"
+        for item in cves
+    ):
         return (ControlStatus.FAIL, "affected")
     if all(item.patch_status in {"patched", "not_affected"} for item in cves):
         return (ControlStatus.PASS, "patched_or_not_affected")
     return (ControlStatus.WARNING, "partially_assessed")
 
 
-def combined_applicability(cves: Sequence[AzureCveEvidence]) -> str:
+def combined_applicability(cves: Sequence[AzureCveEvidence]) -> ApplicabilityStatus:
     if not cves:
-        return "unknown"
-    if any(item.applicability == "applicable" for item in cves):
-        return "applicable"
-    if all(item.applicability == "not_applicable" for item in cves):
-        return "not_applicable"
-    return "unknown"
+        return ApplicabilityStatus.UNKNOWN
+    if any(item.applicability is ApplicabilityStatus.APPLICABLE for item in cves):
+        return ApplicabilityStatus.APPLICABLE
+    if all(item.applicability is ApplicabilityStatus.NOT_APPLICABLE for item in cves):
+        return ApplicabilityStatus.NOT_APPLICABLE
+    return ApplicabilityStatus.UNKNOWN
 
 
 __all__ = [

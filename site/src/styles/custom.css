@@ -382,6 +382,17 @@ pre.mermaid[role="button"]:focus-visible {
   background: var(--sl-color-gray-5);
 }
 
+.mermaid-zoom-toolbar button:focus-visible {
+  outline: 2px solid var(--sl-color-white);
+  outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .mermaid-zoom-toolbar button:focus-visible {
+    outline-color: Highlight;
+  }
+}
+
 /*
  * Landing-page cosmic backdrop.
  *

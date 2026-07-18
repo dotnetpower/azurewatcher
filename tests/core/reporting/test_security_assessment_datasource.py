@@ -79,6 +79,7 @@ def _feed() -> ReportFeed:
             remediation="Enable managed identity integration.",
             validation="Verify group-based access.",
             cve_ids="CVE-2099-0001",
+            applicability="applicable",
             patch_status="affected",
             compliance_controls="CIS-2.1,MCSB-IM-1",
             source_urls="https://example.com/advisory",
@@ -174,11 +175,106 @@ async def test_source_failure_and_unknown_control_remain_visible() -> None:
     sources = await _query("source_rows")
     by_source = {row["source"]: row for row in sources.rows}
     assert by_source["inventory"]["status"] == "available"
+    assert by_source["inventory"]["fresh"] is True
     assert by_source["policy-compliance"]["status"] == "unavailable"
+    assert by_source["policy-compliance"]["error"] == "RuntimeError"
+    assert "provider unavailable" not in str(by_source["policy-compliance"])
 
     gaps = await _query("gap_rows")
     subjects = {row["subject"] for row in gaps.rows}
     assert {"patch-evidence", "subscription"} <= subjects
+
+
+async def test_stale_source_is_counted_and_future_source_is_not_fresh() -> None:
+    source = SecurityAssessmentDataSource(feed=_feed(), freshness_ttl=timedelta(minutes=30))
+    stale = await source.query(
+        QuerySpec(
+            datasource="security_assessment",
+            parameters={"projection": "summary_value", "field": "stale_source_count"},
+        ),
+        since=_NOW - timedelta(days=1),
+        until=_NOW + timedelta(hours=1),
+        variables={"scope": "subscription"},
+    )
+    assert stale.scalar == 2
+
+
+def test_freshness_ttl_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="freshness_ttl"):
+        SecurityAssessmentDataSource(feed=_feed(), freshness_ttl=timedelta(0))
+
+
+async def test_latest_control_observation_wins_within_report_window() -> None:
+    old = _control(
+        "network-policy",
+        status="fail",
+        severity=Severity.HIGH,
+        current_value="none",
+    )
+    new = ReportSignal(
+        **{
+            field: getattr(old, field)
+            for field in old.__dataclass_fields__
+            if field not in {"signal_id", "occurred_at", "metadata"}
+        },
+        signal_id="network-policy-new",
+        occurred_at=_NOW + timedelta(minutes=1),
+        metadata={**old.metadata, "status": "pass", "current_value": "azure"},
+    )
+    feed = ReportFeed((StaticSignalSource("history", (old, new)),))
+    source = SecurityAssessmentDataSource(feed=feed)
+    result = await source.query(
+        QuerySpec(datasource="security_assessment", parameters={"projection": "control_rows"}),
+        since=_NOW - timedelta(days=1),
+        until=_NOW + timedelta(hours=1),
+        variables={"scope": "subscription"},
+    )
+
+    assert len(result.rows) == 1
+    assert result.rows[0]["status"] == "pass"
+    assert result.rows[0]["current_value"] == "azure"
+
+
+async def test_identical_window_cache_expires_and_refetches() -> None:
+    class _CountingSource:
+        name = "counting"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def signals(self, *, since: datetime, until: datetime):
+            del since, until
+            self.calls += 1
+            return (_control("cache-control", status="pass", severity=Severity.LOW),)
+
+    clock = {"now": 10.0}
+    counter = _CountingSource()
+    source = SecurityAssessmentDataSource(
+        feed=ReportFeed((counter,)),
+        cache_ttl=timedelta(seconds=5),
+        monotonic_clock=lambda: clock["now"],
+    )
+    spec = QuerySpec(
+        datasource="security_assessment",
+        parameters={"projection": "summary_value", "field": "control_count"},
+    )
+    kwargs = {
+        "since": _NOW - timedelta(days=1),
+        "until": _NOW + timedelta(minutes=1),
+        "variables": {"scope": "subscription"},
+    }
+
+    await source.query(spec, **kwargs)
+    await source.query(spec, **kwargs)
+    assert counter.calls == 1
+    clock["now"] = 15.0
+    await source.query(spec, **kwargs)
+    assert counter.calls == 2
+
+
+def test_cache_ttl_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="cache_ttl"):
+        SecurityAssessmentDataSource(feed=_feed(), cache_ttl=timedelta(0))
 
 
 async def test_security_assessment_report_renders_every_widget() -> None:

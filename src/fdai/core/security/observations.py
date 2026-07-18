@@ -31,6 +31,14 @@ class SourceStatus(StrEnum):
     UNAVAILABLE = "unavailable"
 
 
+class ApplicabilityStatus(StrEnum):
+    """Whether vulnerability or control evidence applies to the resource."""
+
+    APPLICABLE = "applicable"
+    NOT_APPLICABLE = "not_applicable"
+    UNKNOWN = "unknown"
+
+
 class RemediationPriority(StrEnum):
     """Operational ordering for a grounded recommendation."""
 
@@ -62,7 +70,7 @@ class SecurityControlObservation:
     validation: str = ""
     priority: RemediationPriority = RemediationPriority.NONE
     due_days: int | None = None
-    applicability: str = "applicable"
+    applicability: ApplicabilityStatus = ApplicabilityStatus.APPLICABLE
     cve_ids: tuple[str, ...] = ()
     compliance_controls: tuple[str, ...] = ()
     source_urls: tuple[str, ...] = ()
@@ -82,6 +90,10 @@ class SecurityControlObservation:
             raise ValueError("SecurityControlObservation identity fields MUST be non-empty")
         if self.due_days is not None and self.due_days < 0:
             raise ValueError("SecurityControlObservation.due_days MUST be >= 0")
+        if self.collected_at.utcoffset() is None:
+            raise ValueError("SecurityControlObservation.collected_at MUST be timezone-aware")
+        if not isinstance(self.applicability, ApplicabilityStatus):
+            raise ValueError("SecurityControlObservation.applicability is invalid")
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +131,7 @@ class SecurityRecommendation:
 
 __all__ = [
     "ControlStatus",
+    "ApplicabilityStatus",
     "RemediationPriority",
     "SecurityControlObservation",
     "SecurityRecommendation",

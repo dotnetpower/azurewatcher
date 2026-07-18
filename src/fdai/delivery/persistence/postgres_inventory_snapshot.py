@@ -437,18 +437,20 @@ class PostgresInventoryAgeProvider:
                 "EXISTS (SELECT 1 FROM inventory_snapshot_resource r "
                 "WHERE r.snapshot_id=s.id AND r.resource_id=%s) AND NOT EXISTS ("
                 "SELECT 1 FROM inventory_realtime_resource d WHERE d.resource_id=%s)) "
-                "AS resource_present, EXISTS (SELECT 1 FROM inventory_snapshot newer "
+                "AS resource_present, EXISTS (SELECT 1 FROM inventory_realtime_resource d "
+                "WHERE d.resource_id=%s) AS realtime_pending, "
+                "EXISTS (SELECT 1 FROM inventory_snapshot newer "
                 "WHERE newer.id<>s.id AND newer.started_at>s.completed_at AND ("
                 "newer.status='failed' OR (newer.status='collecting' AND "
                 "newer.started_at < NOW() - INTERVAL '30 minutes'))) AS newer_failure "
                 "FROM inventory_active a JOIN inventory_snapshot s ON s.id=a.snapshot_id "
                 "WHERE a.singleton=TRUE AND s.status='active'",
-                (resource_ref, resource_ref, resource_ref),
+                (resource_ref, resource_ref, resource_ref, resource_ref),
             )
             row = await cursor.fetchone()
         if row is None or row["age_seconds"] is None:
             return None
-        if not row["resource_present"] or row["newer_failure"]:
+        if not row["resource_present"] or row["realtime_pending"] or row["newer_failure"]:
             return None
         if row["observation_kind"] != InventoryObservationKind.OBSERVED.value:
             return None

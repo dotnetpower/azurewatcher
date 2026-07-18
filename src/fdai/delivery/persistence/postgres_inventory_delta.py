@@ -77,7 +77,9 @@ class PostgresInventoryDeltaProjector:
                     "props=EXCLUDED.props, provider_ref=EXCLUDED.provider_ref, "
                     "observed_at=EXCLUDED.observed_at, event_id=EXCLUDED.event_id, "
                     "idempotency_key=EXCLUDED.idempotency_key, applied_at=NOW() "
-                    "WHERE inventory_realtime_resource.observed_at <= EXCLUDED.observed_at",
+                    "WHERE inventory_realtime_resource.observed_at < EXCLUDED.observed_at "
+                    "OR (inventory_realtime_resource.observed_at = EXCLUDED.observed_at "
+                    "AND inventory_realtime_resource.event_id < EXCLUDED.event_id)",
                     (
                         resource_id,
                         change_kind,
@@ -106,7 +108,9 @@ class PostgresInventoryDeltaProjector:
                         "change_kind=EXCLUDED.change_kind, props=EXCLUDED.props, "
                         "observed_at=EXCLUDED.observed_at, event_id=EXCLUDED.event_id, "
                         "idempotency_key=EXCLUDED.idempotency_key, applied_at=NOW() "
-                        "WHERE inventory_realtime_link.observed_at <= EXCLUDED.observed_at",
+                        "WHERE inventory_realtime_link.observed_at < EXCLUDED.observed_at "
+                        "OR (inventory_realtime_link.observed_at = EXCLUDED.observed_at "
+                        "AND inventory_realtime_link.event_id < EXCLUDED.event_id)",
                         (
                             _required_str(link, "from_id"),
                             _required_str(link, "from_type"),

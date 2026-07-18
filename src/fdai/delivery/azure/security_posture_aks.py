@@ -196,7 +196,7 @@ def aks_controls(
             "supply-chain",
             _image_cleaner_status(image_cleaner, security),
             "medium",
-            display(lookup(image_cleaner, "enabled")),
+            _image_cleaner_value(image_cleaner, security),
             "true",
             "azure-resource-graph",
             "Image cleanup reduces stale vulnerable image exposure.",
@@ -352,6 +352,18 @@ def _image_cleaner_status(
     if isinstance(interval, int) and not isinstance(interval, bool) and interval > 0:
         return ControlStatus.PASS
     return ControlStatus.FAIL
+
+
+def _image_cleaner_value(image_cleaner: Mapping[str, Any], security: Mapping[str, Any]) -> str:
+    enabled = lookup(image_cleaner, "enabled")
+    if enabled is not MISSING:
+        return display(enabled)
+    interval = lookup(security, "imageCleanerIntervalHours")
+    if interval is MISSING:
+        return "unavailable"
+    if isinstance(interval, int) and not isinstance(interval, bool) and interval > 0:
+        return f"enabled ({interval}h interval)"
+    return "disabled"
 
 
 def _tier_status(value: object) -> ControlStatus:

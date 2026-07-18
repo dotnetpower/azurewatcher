@@ -1,7 +1,7 @@
 ---
 title: 어슈어런스 트윈 (질의가능하고 선제적이며 검증가능한 리뷰)
 translation_of: assurance-twin.md
-translation_source_sha: 5af326403b0af87bd836110009fef1a729e97a5d
+translation_source_sha: be99df90df6cb0e28c86840bcd2c7c92639a6356
 translation_revised: 2026-07-18
 ---
 # 어슈어런스 트윈 (질의가능하고 선제적이며 검증가능한 리뷰)
@@ -180,6 +180,11 @@ record, policy compliance, diagnostic setting, version/advisory match를
 control 상태, 적용 가능성, source와 수집 시각, evidence reference, remediation과
 검증 단계, 우선순위와 조치 기한, CVE 적용 가능성과 patch 상태, compliance mapping,
 managed-service patch note를 기록합니다.
+
+적용 가능성은 bounded enum(`applicable`, `not_applicable`, `unknown`)이며 observation
+timestamp는 timezone-aware입니다. `unknown` control은 실행 가능한 recommendation이 아니라
+evidence gap입니다. Recommendation은 근거가 있는 remediation text를 가진 fail 또는 warning
+control에서만 파생합니다.
 
 Assessment는 각 사실을 제공한 source를 기록합니다.
 

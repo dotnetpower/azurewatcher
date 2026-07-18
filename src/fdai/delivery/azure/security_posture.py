@@ -70,7 +70,7 @@ def controls_to_report_signals(
                 "validation": control.validation,
                 "priority": control.priority.value,
                 "due_days": "" if control.due_days is None else str(control.due_days),
-                "applicability": control.applicability,
+                "applicability": control.applicability.value,
                 "cve_ids": ",".join(control.cve_ids),
                 "compliance_controls": ",".join(control.compliance_controls),
                 "source_urls": ",".join(control.source_urls),

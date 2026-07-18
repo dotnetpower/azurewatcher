@@ -185,7 +185,15 @@ assessment at `/reports/security-assessment`. Its datasource converts
 `SignalKind.SECURITY_ASSESSMENT` records into normalized control observations
 and converts other security-category signals into findings. One render-window
 assessment is cached inside the datasource so its 20 or more widgets query the
-underlying feed once, not once per widget.
+underlying feed once, not once per widget. The cache has a five-second TTL so an
+identical report window cannot retain stale data indefinitely. Within the report
+window, only the newest observation for each `(control_id, resource_ref)` pair
+contributes to current posture; older observations remain in the durable feed for
+history but do not double-count the current assessment.
+
+Source freshness is derived against a configurable freshness TTL. Provider
+errors are reduced to a bounded exception class before they reach the report;
+raw provider response text is never rendered.
 
 The page includes executive verdict and completeness metrics,
 pass/evidence/source coverage, control status, severity/category/resource

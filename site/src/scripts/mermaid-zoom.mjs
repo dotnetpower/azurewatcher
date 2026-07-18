@@ -10,6 +10,12 @@ export function scaledSvgWidth(baseWidth, scale) {
   return Math.max(1, Math.round(baseWidth * clampZoom(scale)));
 }
 
+export function wheelZoomFactor(deltaY, deltaMode = 0) {
+  const unit = deltaMode === 1 ? 16 : deltaMode === 2 ? 800 : 1;
+  const factor = Math.exp(-deltaY * unit * 0.002);
+  return Math.min(1.25, Math.max(0.8, factor));
+}
+
 export function shouldCloseBackdrop(targetIsBackdrop, suppressClick) {
   return targetIsBackdrop && !suppressClick;
 }
@@ -111,12 +117,21 @@ export function installMermaidZoom(root = document) {
     apply();
   };
 
+  const releaseActivePointer = () => {
+    const pointerId = activePointerId;
+    activePointerId = undefined;
+    stage?.classList.remove("dragging");
+    if (pointerId !== undefined && stage?.hasPointerCapture?.(pointerId)) {
+      stage.releasePointerCapture(pointerId);
+    }
+  };
+
   const close = () => {
     if (!overlay) return;
+    releaseActivePointer();
     overlay.classList.remove("open");
     root.documentElement.style.overflow = "";
     gesture.cancel();
-    activePointerId = undefined;
     suppressBackdropClick = false;
     opener?.focus?.({ preventScroll: true });
     opener = undefined;
@@ -124,11 +139,7 @@ export function installMermaidZoom(root = document) {
 
   const finishPan = (event, cancelled = false) => {
     if (activePointerId !== event.pointerId) return;
-    if (stage.hasPointerCapture?.(event.pointerId)) {
-      stage.releasePointerCapture(event.pointerId);
-    }
-    stage.classList.remove("dragging");
-    activePointerId = undefined;
+    releaseActivePointer();
     if (cancelled) {
       gesture.cancel();
       suppressBackdropClick = false;
@@ -197,7 +208,7 @@ export function installMermaidZoom(root = document) {
       "wheel",
       (event) => {
         event.preventDefault();
-        zoomBy(event.deltaY < 0 ? 1.1 : 1 / 1.1);
+        zoomBy(wheelZoomFactor(event.deltaY, event.deltaMode));
       },
       { passive: false },
     );
@@ -223,6 +234,13 @@ export function installMermaidZoom(root = document) {
 
     stage.addEventListener("pointerup", (event) => finishPan(event));
     stage.addEventListener("pointercancel", (event) => finishPan(event, true));
+    stage.addEventListener("lostpointercapture", (event) => {
+      if (activePointerId !== event.pointerId) return;
+      activePointerId = undefined;
+      stage.classList.remove("dragging");
+      gesture.cancel();
+      suppressBackdropClick = false;
+    });
 
     root.addEventListener("keydown", (event) => {
       if (!overlay.classList.contains("open")) return;

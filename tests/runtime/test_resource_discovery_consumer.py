@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import pytest
 import yaml
 
 from fdai.rule_catalog.schema.resource_type import load_resource_type_registry_from_mapping
@@ -68,3 +69,38 @@ async def test_resource_change_consumer_dead_letters_malformed_event() -> None:
     records = [item async for item in bus.subscribe("aw.inventory.raw.dlq", "assert")]
     assert len(records) == 1
     assert records[0].payload["reason"].startswith("resource_discovery_normalize_error")
+
+
+async def test_resource_change_publish_failure_retries_raw_event() -> None:
+    class FailingCanonicalBus(InMemoryEventBus):
+        fail_canonical = False
+
+        async def publish(self, topic, key, payload):  # type: ignore[no-untyped-def]
+            if self.fail_canonical and topic == "aw.change.events":
+                raise RuntimeError("synthetic canonical publish failure")
+            return await super().publish(topic, key, payload)
+
+    bus = FailingCanonicalBus()
+    await bus.publish("aw.inventory.raw", "raw-1", _raw_event())
+    bus.fail_canonical = True
+
+    with pytest.raises(RuntimeError, match="canonical publish failure"):
+        await _consume_resource_changes(
+            bus=bus,
+            raw_topic="aw.inventory.raw",
+            canonical_topic="aw.change.events",
+            resource_types=_registry(),
+            stop=asyncio.Event(),
+        )
+
+    assert [item async for item in bus.subscribe("aw.inventory.raw.dlq", "assert")] == []
+    bus.fail_canonical = False
+    await _consume_resource_changes(
+        bus=bus,
+        raw_topic="aw.inventory.raw",
+        canonical_topic="aw.change.events",
+        resource_types=_registry(),
+        stop=asyncio.Event(),
+    )
+    records = [item async for item in bus.subscribe("aw.change.events", "assert")]
+    assert len(records) == 1

@@ -36,12 +36,6 @@ async def _consume_resource_changes(
                 envelope.payload,
                 resource_types=resource_types,
             )
-            for event in events:
-                await bus.publish(
-                    canonical_topic,
-                    event.resource_ref or str(event.event_id),
-                    event.model_dump(mode="json"),
-                )
         except Exception as exc:  # noqa: BLE001 - broker boundary isolation
             reason = f"resource_discovery_normalize_error:{type(exc).__name__}"
             _LOOP_LOGGER.exception(
@@ -53,6 +47,13 @@ async def _consume_resource_changes(
                 envelope.key,
                 envelope.payload,
                 reason,
+            )
+            continue
+        for event in events:
+            await bus.publish(
+                canonical_topic,
+                event.resource_ref or str(event.event_id),
+                event.model_dump(mode="json"),
             )
 
 

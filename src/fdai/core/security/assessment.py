@@ -34,6 +34,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 
 from fdai.core.security.observations import (
+    ApplicabilityStatus,
     ControlStatus,
     RemediationPriority,
     SecurityControlObservation,
@@ -226,7 +227,7 @@ def build_security_assessment(
     applicable_cves = {
         cve
         for control in frozen_controls
-        if control.applicability == "applicable"
+        if control.applicability is ApplicabilityStatus.APPLICABLE
         for cve in control.cve_ids
     }
 
@@ -323,6 +324,7 @@ def _summary(
         f"({control_counts[ControlStatus.PASS.value]} pass, "
         f"{control_counts[ControlStatus.FAIL.value]} fail, "
         f"{control_counts[ControlStatus.WARNING.value]} warning, "
+        f"{control_counts[ControlStatus.NOT_APPLICABLE.value]} not applicable, "
         f"{control_counts[ControlStatus.UNKNOWN.value]} unknown)."
     )
 
@@ -363,8 +365,7 @@ def _recommendations(
             evidence_refs=control.evidence_refs,
         )
         for control in controls
-        if control.status in {ControlStatus.FAIL, ControlStatus.WARNING, ControlStatus.UNKNOWN}
-        and control.remediation
+        if control.status in {ControlStatus.FAIL, ControlStatus.WARNING} and control.remediation
     ]
     recommendations.sort(
         key=lambda item: (
@@ -500,7 +501,7 @@ def _control_to_dict(control: SecurityControlObservation) -> dict[str, object]:
         "validation": control.validation,
         "priority": control.priority.value,
         "due_days": control.due_days,
-        "applicability": control.applicability,
+        "applicability": control.applicability.value,
         "cve_ids": list(control.cve_ids),
         "compliance_controls": list(control.compliance_controls),
         "source_urls": list(control.source_urls),

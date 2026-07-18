@@ -201,6 +201,11 @@ applicability, source and collection time, evidence references, remediation and
 validation steps, priority and due interval, CVE applicability and patch state,
 compliance mappings, and managed-service patch notes.
 
+Applicability is a bounded enum (`applicable`, `not_applicable`, `unknown`) and
+observation timestamps are timezone-aware. An `unknown` control is an evidence
+gap, not an actionable recommendation. Recommendations are derived only from
+failed or warning controls with grounded remediation text.
+
 The assessment records which source supplied each fact:
 
 | Source data | Information extracted |

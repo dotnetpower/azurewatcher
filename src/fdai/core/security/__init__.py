@@ -7,6 +7,7 @@ from fdai.core.security.assessment import (
     build_security_assessment,
 )
 from fdai.core.security.observations import (
+    ApplicabilityStatus,
     ControlStatus,
     RemediationPriority,
     SecurityControlObservation,
@@ -17,6 +18,7 @@ from fdai.core.security.observations import (
 
 __all__ = [
     "SecurityAssessment",
+    "ApplicabilityStatus",
     "SecurityControlObservation",
     "SecurityFindingEntry",
     "SecurityRecommendation",

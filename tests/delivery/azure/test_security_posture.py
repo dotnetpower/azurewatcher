@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fdai.core.security import ControlStatus
+from fdai.core.security import ApplicabilityStatus, ControlStatus
 from fdai.delivery.azure.security_posture import (
     AzureCveEvidence,
     AzureResourceSecurityEvidence,
@@ -107,7 +107,7 @@ def test_azure_inventory_and_supplemental_evidence_produce_thirty_controls() -> 
             cves=(
                 AzureCveEvidence(
                     cve_id="CVE-2099-0001",
-                    applicability="applicable",
+                    applicability=ApplicabilityStatus.APPLICABLE,
                     patch_status="affected",
                     source_url="https://example.com/advisory",
                     managed_service_note="Provider backport state requires confirmation.",
@@ -128,6 +128,7 @@ def test_azure_inventory_and_supplemental_evidence_produce_thirty_controls() -> 
     assert by_id["aks-entra-integration"].status is ControlStatus.FAIL
     assert by_id["aks-defender"].status is ControlStatus.PASS
     assert by_id["aks-image-cleaner"].status is ControlStatus.PASS
+    assert by_id["aks-image-cleaner"].current_value == "enabled (168h interval)"
     assert by_id["aks-policy-addon"].status is ControlStatus.FAIL
     assert by_id["aks-service-tier"].status is ControlStatus.WARNING
     assert by_id["aks-node-image"].status is ControlStatus.PASS

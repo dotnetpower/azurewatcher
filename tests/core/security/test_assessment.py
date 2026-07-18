@@ -10,6 +10,7 @@ from fdai.core.security.assessment import (
     build_security_assessment,
 )
 from fdai.core.security.observations import (
+    ApplicabilityStatus,
     ControlStatus,
     RemediationPriority,
     SecurityControlObservation,
@@ -144,7 +145,7 @@ def _control(
     priority: RemediationPriority = RemediationPriority.NONE,
     remediation: str = "",
     due_days: int | None = None,
-    applicability: str = "applicable",
+    applicability: ApplicabilityStatus = ApplicabilityStatus.APPLICABLE,
     cves: tuple[str, ...] = (),
     compliance: tuple[str, ...] = (),
 ) -> SecurityControlObservation:
@@ -200,7 +201,7 @@ def test_deep_assessment_derives_coverage_recommendations_and_applicability() ->
         _control(
             "cilium-version",
             ControlStatus.NOT_APPLICABLE,
-            applicability="not_applicable",
+            applicability=ApplicabilityStatus.NOT_APPLICABLE,
             cves=("CVE-2099-0003",),
         ),
     )
@@ -245,6 +246,7 @@ def test_deep_assessment_derives_coverage_recommendations_and_applicability() ->
         "not_applicable": 1,
         "unknown": 1,
     }
+    assert "1 not applicable" in report.summary
     assert report.control_pass_rate_percent == 33.3
     assert report.evidence_coverage_percent == 80.0
     assert report.source_coverage_percent == 50.0
@@ -276,3 +278,48 @@ def test_observation_rejects_negative_remediation_sla() -> None:
 
     with pytest.raises(ValueError, match="due_days"):
         _control("bad-sla", ControlStatus.FAIL, due_days=-1)
+
+
+def test_observation_rejects_naive_timestamp_and_invalid_applicability() -> None:
+    import pytest
+
+    base = _control("timestamp", ControlStatus.PASS)
+    with pytest.raises(ValueError, match="timezone-aware"):
+        SecurityControlObservation(
+            **{
+                field: getattr(base, field)
+                for field in base.__dataclass_fields__
+                if field != "collected_at"
+            },
+            collected_at=datetime(2026, 7, 10),
+        )
+    with pytest.raises(ValueError, match="applicability"):
+        SecurityControlObservation(
+            **{
+                field: getattr(base, field)
+                for field in base.__dataclass_fields__
+                if field != "applicability"
+            },
+            applicability="Applicable",  # type: ignore[arg-type]
+        )
+
+
+def test_unknown_control_is_a_gap_not_an_actionable_recommendation() -> None:
+    report = build_security_assessment(
+        [],
+        scope="subscription",
+        assessed_at=_AT,
+        controls=(
+            _control(
+                "unmeasured-control",
+                ControlStatus.UNKNOWN,
+                severity="critical",
+                priority=RemediationPriority.CRITICAL,
+                remediation="Do not execute without evidence.",
+            ),
+        ),
+    )
+
+    assert report.verdict is SecurityVerdict.CLEAR
+    assert report.recommendations == ()
+    assert report.unknown_controls[0].control_id == "unmeasured-control"

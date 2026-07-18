@@ -12,11 +12,11 @@ from fdai.core.reporting.catalog import (
     load_report_catalog,
     load_report_from_mapping,
 )
-from fdai.core.reporting.widgets import default_widget_builders
+from fdai.core.reporting.widgets import GROUP_LIKE_WIDGET_TYPES, default_widget_builders
 
 
 def _base_widget_types() -> frozenset[str]:
-    return frozenset({b.type_name for b in default_widget_builders()} | {"group"})
+    return frozenset({b.type_name for b in default_widget_builders()}) | GROUP_LIKE_WIDGET_TYPES
 
 
 class TestLoadReportFromMapping:
@@ -155,6 +155,7 @@ class TestLoadReportCatalog:
                     "metric",
                     "log_query",
                     "ontology",
+                    "security_assessment",
                     "static",
                     "noop",
                 }

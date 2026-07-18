@@ -14,6 +14,7 @@ from fdai.delivery.persistence.postgres_inventory_delta import (
     PostgresInventoryDeltaProjector,
 )
 from fdai.delivery.persistence.postgres_inventory_snapshot import (
+    PostgresInventoryAgeProvider,
     PostgresInventoryContextProvider,
     PostgresInventoryGraphProvider,
     PostgresInventorySnapshotStore,
@@ -200,3 +201,92 @@ async def test_realtime_overlay_upsert_and_delete_override_active_snapshot() -> 
     context = await context_provider("rg-overlay/vm-new")
     assert context is not None
     assert context["props"] == {"name": "new"}
+
+
+async def test_realtime_overlay_equal_timestamps_use_event_id_tiebreaker() -> None:
+    _upgrade()
+    config = PostgresInventorySnapshotStoreConfig(dsn=_dsn())
+    store = PostgresInventorySnapshotStore(config=config)
+    projector = PostgresInventoryDeltaProjector(config=config)
+    context_provider = PostgresInventoryContextProvider(config=config)
+
+    manifest = _manifest("arg")
+    attempt = await store.begin(manifest)
+    await store.stage(
+        attempt,
+        InventoryBatch(
+            resources=(ResourceRecord("rg-tie/vm", "compute.vm", {"name": "base"}),),
+        ),
+    )
+    await store.promote(attempt, manifest)
+
+    async def project(event_id: str, name: str) -> None:
+        await projector(
+            {
+                "event_id": event_id,
+                "idempotency_key": f"inventory-tie-{event_id}",
+                "inventory_change": {
+                    "kind": "upsert",
+                    "resource": {
+                        "resource_id": "rg-tie/vm",
+                        "type": "compute.vm",
+                        "props": {"name": name},
+                        "provider_ref": None,
+                        "last_seen": "2026-07-18T02:00:00Z",
+                    },
+                    "links": [],
+                },
+            }
+        )
+
+    await project("event-z", "winner")
+    await project("event-a", "late-loser")
+
+    context = await context_provider("rg-tie/vm")
+    assert context is not None
+    assert context["props"] == {"name": "winner"}
+
+
+async def test_realtime_overlay_makes_graph_freshness_unknown_until_reconciliation() -> None:
+    _upgrade()
+    config = PostgresInventorySnapshotStoreConfig(dsn=_dsn())
+    store = PostgresInventorySnapshotStore(config=config)
+    projector = PostgresInventoryDeltaProjector(config=config)
+    age_provider = PostgresInventoryAgeProvider(config=config)
+
+    now = datetime.now(tz=UTC)
+    manifest = InventoryCoverageManifest(
+        source="arg",
+        scopes=("scope-test",),
+        resource_types=("compute.vm",),
+        started_at=now,
+        completed_at=now,
+        metadata={"link_types": ("contains", "attached_to", "depends_on")},
+    )
+    attempt = await store.begin(manifest)
+    await store.stage(
+        attempt,
+        InventoryBatch(resources=(ResourceRecord("rg-fresh/vm", "compute.vm"),)),
+    )
+    await store.promote(attempt, manifest)
+    assert await age_provider("rg-fresh/vm") is not None
+
+    await projector(
+        {
+            "event_id": "event-realtime",
+            "idempotency_key": "inventory-realtime",
+            "inventory_change": {
+                "kind": "upsert",
+                "resource": {
+                    "resource_id": "rg-fresh/vm",
+                    "type": "compute.vm",
+                    "props": {"name": "changed"},
+                    "provider_ref": None,
+                    "last_seen": "2026-07-18T02:00:00Z",
+                },
+                "links": [],
+            },
+        }
+    )
+
+    assert await age_provider("rg-fresh/vm") is None

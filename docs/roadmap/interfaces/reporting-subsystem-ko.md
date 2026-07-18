@@ -1,7 +1,7 @@
 ---
 title: 리포팅 서브시스템
 translation_of: reporting-subsystem.md
-translation_source_sha: 52f7ea42c7ef5922e90809bf1b15594782e7f9f9
+translation_source_sha: d8107156c9dfdf088fd9781305169cda2d9004f0
 translation_revised: 2026-07-18
 ---
 # 리포팅 서브시스템
@@ -188,7 +188,14 @@ Protocol을 받아 wire-up을 한 방향으로 유지합니다.
 Datasource는 `SignalKind.SECURITY_ASSESSMENT` record를 정규화된 control observation으로
 변환하고 다른 security category signal은 finding으로 변환합니다. 한 render window의
 assessment를 datasource 내부에서 cache하므로 20개 이상의 widget이 underlying feed를
-widget마다 반복 조회하지 않고 한 번만 조회합니다.
+widget마다 반복 조회하지 않고 한 번만 조회합니다. Cache에는 5초 TTL이 있어 동일 report
+window가 stale data를 무기한 유지하지 않습니다. Report window 안에서는 각
+`(control_id, resource_ref)` pair의 최신 observation만 현재 posture에 반영합니다. 이전
+observation은 history를 위해 durable feed에 남지만 현재 assessment에 중복 집계되지 않습니다.
+
+Source freshness는 구성 가능한 freshness TTL을 기준으로 파생합니다. Provider error는
+report에 도달하기 전에 bounded exception class로 축약되며 raw provider response text는
+렌더링하지 않습니다.
 
 페이지에는 executive verdict와 completeness metric, pass/evidence/source coverage,
 control status, severity/category/resource 분포를 표시합니다. 탭 테이블은 configuration과
