@@ -19,6 +19,10 @@ export function resolveCssFallbacks(source: string): string {
   );
 }
 
+export function canonicalTextArtifact(source: string): Buffer {
+  return Buffer.from(`${source.replace(/\n+$/u, "")}\n`);
+}
+
 export interface DiagramArtifact {
   path: string;
   content: Buffer;
@@ -32,7 +36,7 @@ export async function compileDiagram(spec: DiagramSpec): Promise<DiagramArtifact
     const svg = await renderSvg(spec, layout, locale);
     artifacts.push({
       path: `${spec.id}.${locale}.svg`,
-      content: Buffer.from(svg),
+      content: canonicalTextArtifact(svg),
     });
     artifacts.push({
       path: `${spec.id}.${locale}.png`,
