@@ -30,11 +30,6 @@ from .auth import (
     UnsafeClaimsExtractor,
     build_authenticator,
 )
-from .busy_input_runtime import (
-    BusyInputRuntime,
-    BusyInputRuntimeMetrics,
-    build_postgres_busy_input_runtime,
-)
 from .entra_verifier import (
     EntraJwtVerifier,
     EntraVerifierConfigError,
@@ -48,6 +43,11 @@ from .read_model import (
     HilQueueItem,
     HilQueuePage,
     InMemoryConsoleReadModel,
+)
+from .routes.busy_input_runtime import (
+    BusyInputRuntime,
+    BusyInputRuntimeMetrics,
+    build_postgres_busy_input_runtime,
 )
 
 __all__ = [

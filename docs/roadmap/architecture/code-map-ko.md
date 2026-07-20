@@ -1,7 +1,7 @@
 ---
 title: 코드 맵
 translation_of: code-map.md
-translation_source_sha: 3c15451397836a2f541a72caed8999b663921771
+translation_source_sha: 49759f7ed5ead57c8e9f68b31ee53fb8757991a3
 translation_revised: 2026-07-21
 ---
 # 코드 맵
@@ -163,7 +163,7 @@ shared 패키지를 커버한다.
 | gitops_pr | PR-native 리메디에이션 패키저 | [src/fdai/delivery/gitops_pr/](../../../src/fdai/delivery/gitops_pr/) |
 | chatops | Teams / Slack Adaptive Cards | [src/fdai/delivery/chatops/](../../../src/fdai/delivery/chatops/) |
 | notifications | 채널 dispatch와 PagerDuty/ServiceNow incident lifecycle 및 PagerDuty roster adapter | [notifications/](../../../src/fdai/delivery/notifications/), [incident_platform/](../../../src/fdai/delivery/incident_platform/) |
-| read_api | 콘솔 read-only HTTP 서피스 | [src/fdai/delivery/read_api/](../../../src/fdai/delivery/read_api/) |
+| read_api | 콘솔 read-only HTTP 서피스와 route-owned background, busy-input, skill runtime helper | [src/fdai/delivery/read_api/](../../../src/fdai/delivery/read_api/) |
 | provisioning | Terraform / IaC apply 드라이버 | [src/fdai/delivery/provisioning/](../../../src/fdai/delivery/provisioning/) |
 | persistence | Durable conversation delivery, execution submission/attempt, LLM metering, report-signal projection, skill-source state, programmatic pipeline receipt/aggregate를 포함한 Postgres + pgvector store | [src/fdai/delivery/persistence/](../../../src/fdai/delivery/persistence/) |
 | document_index | Structure-aware document chunking과 로컬 embedding retrieval | [src/fdai/delivery/document_index/](../../../src/fdai/delivery/document_index/) |

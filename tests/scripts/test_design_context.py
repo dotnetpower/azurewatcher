@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -30,20 +32,15 @@ def test_required_context_composes_every_matching_route() -> None:
 
 
 def test_pre_tool_use_denies_edit_without_current_reads(
-    monkeypatch: object, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "_state_path", lambda payload: tmp_path / "receipt.json")
+    target = REPO_ROOT / "src/fdai/core/risk_gate/gate.py"
     payload = {
         "sessionId": "session-1",
         "toolName": "functions.apply_patch",
-        "toolInput": {
-            "input": (
-                "*** Begin Patch\n"
-                "*** Update File: /home/moonchoi/dev/fdai/src/fdai/core/risk_gate/gate.py\n"
-                "*** End Patch"
-            )
-        },
+        "toolInput": {"input": (f"*** Begin Patch\n*** Update File: {target}\n*** End Patch")},
     }
 
     result = module.enforce_edit(payload)
@@ -52,7 +49,7 @@ def test_pre_tool_use_denies_edit_without_current_reads(
     assert "architecture.instructions.md" in result["systemMessage"]
 
 
-def test_recorded_current_reads_allow_edit(monkeypatch: object, tmp_path: Path) -> None:
+def test_recorded_current_reads_allow_edit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     module = _load_module()
     state_path = tmp_path / "receipt.json"
     monkeypatch.setattr(module, "_state_path", lambda payload: state_path)

@@ -1690,7 +1690,7 @@ The workbench preserves the console identity boundary:
   Workflow, artifact, and inventory target. A later scheduler tick publishes
   the typed event.
 
-The result panel shows validation issues, artifact reference, planned file and
+The read-API keeps background, busy-input, and skill runtime composition helpers under `routes/`; the result panel shows validation issues, artifact reference, planned file and
 byte counts, target capabilities, or the submitted correlation id. Runtime
 status continues on the Processes and audit surfaces after the control loop
 accepts the proposal.

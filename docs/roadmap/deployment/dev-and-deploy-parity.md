@@ -55,7 +55,7 @@ enabled by that launch profile.
 
 ### Console data in local development
 
-The canonical local read API uses `FDAI_READ_API_LOCAL_ENTRA=1`. The browser obtains the API token
+The canonical local read API uses `FDAI_READ_API_LOCAL_ENTRA=1` and shares route-owned runtime helpers with deployment. The browser obtains the API token
 and the API verifies its JWT and App Roles exactly as deployment does. The server's Azure CLI token
 is confined to Azure adapters such as Resource Graph, Microsoft Graph, model discovery, and Event
 Hubs. `FDAI_READ_API_LOCAL_AZURE_CLI=1` with `VITE_LOCAL_AZURE_CLI_AUTH=1` is an explicit

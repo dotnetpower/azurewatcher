@@ -10,7 +10,7 @@ from fdai.core.conversation import (
     BusyInputMode,
     InMemoryBusyInputStore,
 )
-from fdai.delivery.read_api.busy_input_runtime import (
+from fdai.delivery.read_api.routes.busy_input_runtime import (
     BUSY_INPUT_METRIC_NAMES,
     BusyInputRuntimeMetrics,
 )

@@ -2,7 +2,7 @@
 
 from fdai.delivery.read_api.app.config import ReadApiConfig
 from fdai.delivery.read_api.app.factory import build_app
-from fdai.delivery.read_api.busy_input_runtime import (
+from fdai.delivery.read_api.routes.busy_input_runtime import (
     BusyInputRuntime,
     BusyInputRuntimeMetrics,
     build_postgres_busy_input_runtime,

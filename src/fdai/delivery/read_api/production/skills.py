@@ -20,11 +20,11 @@ from fdai.delivery.persistence import (
     PostgresTrustedArtifactStoreConfig,
 )
 from fdai.delivery.read_api.production.config import ProdReadApiConfigError
-from fdai.delivery.read_api.routes.skills import RuntimeSkillsPanel
-from fdai.delivery.read_api.skill_runtime import (
+from fdai.delivery.read_api.routes.skill_runtime import (
     READ_API_SKILL_TOOL_IDS,
     empty_runtime_skill_disclosure,
 )
+from fdai.delivery.read_api.routes.skills import RuntimeSkillsPanel
 from fdai.delivery.trust import (
     Ed25519SkillBundleCatalogVerifier,
     Ed25519SkillBundleVerifierFactory,

@@ -1,7 +1,7 @@
 ---
 title: 오퍼레이터 콘솔 (Conversational)
 translation_of: operator-console.md
-translation_source_sha: a4492cfa09808d002e95b8990113dddd9740359e
+translation_source_sha: 2ac28e9a588536ecf442a47194ea076fbfaa98c7
 translation_revised: 2026-07-21
 ---
 
@@ -1597,7 +1597,7 @@ Workbench 는 console identity boundary 를 유지합니다.
   strict cron binding 을 저장합니다. 이후 scheduler tick 이 typed event 를
   publish 합니다.
 
-Result panel 은 validation issue, artifact reference, planned file 및 byte count,
+Background task, busy input, skill의 read API composition helper는 `routes/`에 두며 result panel은 validation issue, artifact reference, planned file 및 byte count,
 target capability 또는 submitted correlation id 를 표시합니다. Control loop 가
 proposal 을 수락한 후 runtime status 는 Processes 및 audit surface 에 이어집니다.
 

@@ -162,7 +162,7 @@ for the fork-locked role bindings and change contract.
 | gitops_pr | PR-native remediation packager | [src/fdai/delivery/gitops_pr/](../../../src/fdai/delivery/gitops_pr/) |
 | chatops | Teams / Slack Adaptive Cards | [src/fdai/delivery/chatops/](../../../src/fdai/delivery/chatops/) |
 | notifications | Channel dispatch plus PagerDuty/ServiceNow incident lifecycle and PagerDuty roster adapters | [notifications/](../../../src/fdai/delivery/notifications/), [incident_platform/](../../../src/fdai/delivery/incident_platform/) |
-| read_api | Console read-only HTTP surface | [src/fdai/delivery/read_api/](../../../src/fdai/delivery/read_api/) |
+| read_api | Console read-only HTTP surface; route-owned background, busy-input, and skill runtime helpers | [src/fdai/delivery/read_api/](../../../src/fdai/delivery/read_api/) |
 | provisioning | Terraform / IaC apply driver | [src/fdai/delivery/provisioning/](../../../src/fdai/delivery/provisioning/) |
 | persistence | Postgres + pgvector stores, including durable conversation delivery, execution submissions/attempts, LLM metering, report-signal projections, skill-source state, and programmatic pipeline receipts/aggregates | [src/fdai/delivery/persistence/](../../../src/fdai/delivery/persistence/) |
 | document_index | Structure-aware document chunking and local embedding retrieval | [src/fdai/delivery/document_index/](../../../src/fdai/delivery/document_index/) |

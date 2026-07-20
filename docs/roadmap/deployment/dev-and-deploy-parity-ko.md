@@ -1,7 +1,7 @@
 ---
 title: Runtime Parity - Authoritative Local Development 및 Test Fixture
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: 2dad8bdd172fc39a57e7f85ab6536d2948568b1c
+translation_source_sha: 5b02ef8873d53da76adc5a784b087310562d8a8e
 translation_revised: 2026-07-21
 ---
 
@@ -58,7 +58,7 @@ profile에서 활성화되지 않습니다.
 
 ### 로컬 개발의 Console 데이터
 
-Canonical local read API는 `FDAI_READ_API_LOCAL_ENTRA=1`을 사용합니다. Browser가 API token을
+Canonical local read API는 `FDAI_READ_API_LOCAL_ENTRA=1`을 사용하고 deployment와 route-owned runtime helper를 공유합니다. Browser가 API token을
 얻고 API는 deployment와 동일하게 JWT 및 App Role을 검증합니다. Server의 Azure CLI token은
 Resource Graph, Microsoft Graph, model discovery, Event Hubs 같은 Azure adapter로 제한됩니다.
 `FDAI_READ_API_LOCAL_AZURE_CLI=1`과 `VITE_LOCAL_AZURE_CLI_AUTH=1` 조합은 fixed role ceiling을

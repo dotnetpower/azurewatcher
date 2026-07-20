@@ -151,10 +151,10 @@ from fdai.delivery.read_api.routes.rule_fire_trace_reader import (  # noqa: E402
     ConsoleReadModelTraceReader,
 )
 from fdai.delivery.read_api.routes.scheduler_runs import SchedulerRunsPanel  # noqa: E402
-from fdai.delivery.read_api.routes.skills import RuntimeSkillsPanel  # noqa: E402
-from fdai.delivery.read_api.skill_runtime import (  # noqa: E402
+from fdai.delivery.read_api.routes.skill_runtime import (  # noqa: E402
     empty_runtime_skill_disclosure,
 )
+from fdai.delivery.read_api.routes.skills import RuntimeSkillsPanel  # noqa: E402
 from fdai.delivery.read_api.streaming.agent_activity_stream import (  # noqa: E402
     runtime_agent_state_snapshot,
 )

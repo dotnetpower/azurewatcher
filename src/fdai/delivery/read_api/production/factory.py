@@ -87,8 +87,6 @@ from fdai.delivery.persistence.postgres_vm_task import (
     PostgresVmTaskConfig,
     PostgresVmTaskTargetResolver,
 )
-from fdai.delivery.read_api.background_runtime import build_background_task_runtime
-from fdai.delivery.read_api.busy_input_runtime import build_postgres_busy_input_runtime
 from fdai.delivery.read_api.main import ReadApiConfig, build_app
 from fdai.delivery.read_api.production import env_contract as _env
 from fdai.delivery.read_api.production.config import (
@@ -108,6 +106,8 @@ from fdai.delivery.read_api.production.skills import build_production_skill_runt
 from fdai.delivery.read_api.production.user_context import build_production_user_context
 from fdai.delivery.read_api.production.views import _build_dynamic_views
 from fdai.delivery.read_api.routes.arb_status import ArchitectureReviewStatusPanel
+from fdai.delivery.read_api.routes.background_runtime import build_background_task_runtime
+from fdai.delivery.read_api.routes.busy_input_runtime import build_postgres_busy_input_runtime
 from fdai.delivery.read_api.routes.chat import backend_from_env
 from fdai.delivery.read_api.routes.chat_web_search import chat_web_search_from_env
 from fdai.delivery.read_api.routes.post_turn_event_bus import EventBusPostTurnReviewIntake

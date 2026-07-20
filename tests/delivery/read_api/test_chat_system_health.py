@@ -11,11 +11,11 @@ from starlette.testclient import TestClient
 
 from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
 from fdai.delivery.read_api.routes.chat import (
-    _with_tool_evidence,
     make_chat_route,
     make_chat_stream_route,
 )
 from fdai.delivery.read_api.routes.chat_claims import verify_screen_claims
+from fdai.delivery.read_api.routes.chat_evidence_enrichment import _with_tool_evidence
 from fdai.delivery.read_api.routes.chat_system_health import (
     SystemHealthChatTools,
     render_system_health_answer,
@@ -75,6 +75,7 @@ async def test_broad_health_query_uses_server_metrics_from_any_screen() -> None:
             "facts": [{"key": "selected_files", "value": 0}],
         },
         resolver,
+        principal_id="test-reader",
     )
 
     evidence = context["_tool_evidence"]
@@ -104,6 +105,7 @@ async def test_route_local_control_question_stays_with_the_screen() -> None:
         "Is this upload button working?",
         {"routeId": "documents", "facts": []},
         resolver,
+        principal_id="test-reader",
     )
 
     assert "_tool_evidence" not in context

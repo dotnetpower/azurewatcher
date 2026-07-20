@@ -12,7 +12,7 @@ from fdai.core.background_task import (
     BackgroundTaskStatus,
     BackgroundTaskUsage,
 )
-from fdai.delivery.read_api.background_runtime import (
+from fdai.delivery.read_api.routes.background_runtime import (
     ConversationBackgroundTaskCompletionSink,
 )
 from fdai.shared.providers.testing.state_store import InMemoryStateStore

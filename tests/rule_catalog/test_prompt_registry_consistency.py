@@ -26,10 +26,11 @@ from fdai.rule_catalog.schema.llm_registry import load_llm_registry_from_yaml
 _REPO = Path(__file__).resolve().parents[2]
 _CATALOG = _REPO / "rule-catalog"
 
-# Capabilities that intentionally have NO llm-registry entry: the console
-# narrator is prompt-only and reuses the t1.judge deployment. Adding to
-# this set requires a stated reason (a new prompt-only capability).
-_PROMPT_ONLY_CAPABILITIES = frozenset({"console.narrator", "t2.proposer"})
+# Capabilities that intentionally have NO llm-registry entry. The console
+# narrator reuses t1.judge, t2.proposer selects the reasoner pair, and the
+# Norns review prompt selects t2.reasoner.primary/secondary off-path. Adding
+# to this set requires a stated reason (a new prompt-only lookup key).
+_PROMPT_ONLY_CAPABILITIES = frozenset({"console.narrator", "norns.post-turn-review", "t2.proposer"})
 
 
 def _registry_capabilities() -> set[str]:

@@ -10,7 +10,7 @@ from fdai.core.background_task import (
     BackgroundTaskOrigin,
     BackgroundTaskUsage,
 )
-from fdai.delivery.read_api.background_executor import ChatBackendBackgroundTaskExecutor
+from fdai.delivery.read_api.routes.background_executor import ChatBackendBackgroundTaskExecutor
 
 
 class _Backend:

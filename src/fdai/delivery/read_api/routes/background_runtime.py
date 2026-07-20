@@ -15,7 +15,7 @@ from fdai.delivery.persistence import (
     PostgresBackgroundTaskStore,
     PostgresBackgroundTaskStoreConfig,
 )
-from fdai.delivery.read_api.background_executor import ChatBackendBackgroundTaskExecutor
+from fdai.delivery.read_api.routes.background_executor import ChatBackendBackgroundTaskExecutor
 from fdai.delivery.read_api.routes.background_tasks import BackgroundTaskRoutesConfig
 from fdai.delivery.read_api.routes.chat_backend_common import ChatBackend
 from fdai.shared.providers.state_store import StateStore

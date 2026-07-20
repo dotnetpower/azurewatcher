@@ -9,7 +9,7 @@ from typing import Any
 from fdai.core.hil_resume import HilResumeCoordinator
 from fdai.core.rbac.resolver import Principal
 from fdai.core.skills import RuntimeSkillDisclosure
-from fdai.delivery.read_api.busy_input_runtime import BusyInputRuntime
+from fdai.delivery.read_api.routes.busy_input_runtime import BusyInputRuntime
 from fdai.delivery.read_api.routes.hil_callback import HilCallbackConfig
 from fdai.delivery.read_api.routes.panels import ReadPanel
 from fdai.delivery.read_api.streaming.agent_activity_stream import AgentActivityStreamConfig
