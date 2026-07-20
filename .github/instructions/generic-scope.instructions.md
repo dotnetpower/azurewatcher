@@ -1,6 +1,6 @@
 ---
-description: Customer-agnostic scope and the fork-per-customer model.
-applyTo: "**"
+description: "Use when adding configuration, examples, fixtures, deployment values, tenant scope, or downstream customization. Prevents customer data and defines the fork boundary."
+applyTo: "config/**,docs/**,examples/**,mocks/**,infra/**,rule-catalog/**,src/**,tests/**,.github/**"
 ---
 
 # Customer-Agnostic Scope
@@ -52,22 +52,30 @@ To keep examples concrete without leaking anything, use synthetic placeholders:
 - config keys and env-var names (the *schema*), never their populated customer values
 - generic, portable rules that apply to any tenant
 
-## Fork-Per-Customer Model
+## Downstream Customization Model
 
-- Customer-specific customization lives in a **separate downstream fork**, never here.
-- This repo is the **main project**; a fork customizes it by **dependency injection** - it
-  registers its own implementations (provider adapters, rules/policies, secret/config providers,
-  delivery adapters, risk thresholds, model providers) at the composition root and selects
-  bindings via configuration. A fork MUST NOT patch `core/`. See the injectable seams in
+- This repo is the generic upstream distribution. A fork is an optional downstream distribution
+  that limits or extends capabilities through supported seams. It is not a tenant, deployment
+  environment, production state, or autonomy mode.
+- Customer-specific code, catalog entries, and adapters that cannot remain generic live in a
+  separate downstream distribution. Tenant ids, resource names, endpoints, secrets, environment,
+  and promotion state are deployment configuration and SHOULD remain outside source control.
+- A fork customizes by **dependency injection** - it registers provider adapters, rules/policies,
+  delivery adapters, model providers, and capability overlays at its composition root. A fork
+  MUST NOT patch `core/`. See the injectable seams in
   [project-structure.md](../../docs/roadmap/architecture/project-structure.md#customization-via-dependency-injection).
+- Upstream and forks may each have zero or many dev, staging, and production deployments. Fork
+  detection protects the framework surface only; it MUST NOT branch runtime, RBAC, evidence,
+  promotion, or execution behavior. See
+  [ADR-0002](../../docs/roadmap/architecture/decisions/0002-independent-runtime-axes.md).
 - **Fork walkthrough (procedural)**: the Day-1 checklist, the seam-by-seam recipes
   (LlmBindings, OperatorMemoryStore, HilRejectMaterializer + second-approval channel,
   WebSearchProvider, HilChannel, ScopeResolver, Critic + Judge, rule catalog, Rego
   overlays), the upstream sync procedure, and the hard don'ts all live in
   [downstream-fork-guide.md](../../docs/roadmap/fork-and-sequencing/downstream-fork-guide.md). Point every fork
   maintainer at that guide first; `project-structure.md` is the seam catalog it operationalizes.
-- Keep everything in this repo parameterized and configuration-driven so a fork supplies its
-  own values (env vars, secret store references, config files) **without changing core code**
+- Keep everything in this repo parameterized and configuration-driven so a deployment supplies its
+  own values (environment variables and secret-store references) **without changing core code**
   (see the safety rules in [coding-conventions.instructions.md](coding-conventions.instructions.md)).
 - **Downstream sync**: forks pull generic improvements from this upstream repo (rebase/merge
   from upstream `main`); upstream never pulls from a fork.
@@ -164,7 +172,7 @@ Author and reviewer are both responsible.
 
 - If a diff introduces any customer-identifying value or one-off customer logic, treat it as a
   defect and **block the merge** - no exceptions.
-- Fix by moving the value into configuration (env var / config file / secret-store reference)
-  and moving the logic into the downstream customer fork.
+- Fix by moving values into deployment configuration and moving non-generic capability logic into
+  a downstream customization distribution.
 - If customer data was already committed, it also exists in git history: rotate any exposed
   secret and rewrite history (e.g., `git filter-repo`) before considering it resolved.

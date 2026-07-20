@@ -64,6 +64,41 @@ direction, window, and severity so an operator can reproduce why it fired.
 - **Change awareness**: maintenance and in-flight changes annotate or suppress
   expected deviations.
 
+Composite detection is a fuser, not another baseline. It collapses duplicate
+metrics to their strongest occurrence and emits only when a configured quorum
+of distinct members fires for the same resource and window. Below quorum it
+abstains. At or above quorum it can raise severity from the breadth and combined
+magnitude of the members, but the result remains a shadow-mode finding.
+
+## Evaluate deterministic operational conditions
+
+Not every useful condition needs a statistical baseline. The versioned
+operational-insight catalog supplies deterministic recipes for infrastructure,
+application performance, data systems, SLO burn, alert quality, cost, security,
+and recovery hygiene. Each recipe applies an explicit operator such as
+`above`, `below`, delta, ratio, `absent`, or `stale` to normalized samples.
+
+Recipes record the observed value, reference, threshold, score, and explanation.
+Incomplete, non-finite, undersampled, or invalid ratio inputs hold without a
+finding. Thresholds and metric bindings stay in catalog data so a deployment can
+tune them without changing the evaluator. Every recipe starts in shadow mode
+and re-enters event ingest for stable deduplication before trust routing.
+
+## Distinguish absence from provider failure
+
+A successful query with no samples can be evidence for an `absent` recipe. A
+provider error is different: FDAI marks that metric unavailable and suppresses
+every dependent recipe, so a telemetry outage cannot be reported as a workload
+outage. Stale recipes use a bounded extended lookback; if no last-seen sample
+exists there, they hold instead of inventing a timestamp or a value.
+
+| Input state | Detector behavior | Operator meaning |
+|-------------|-------------------|------------------|
+| Successful query with valid samples | Evaluate the recipe or baseline | Evidence is available |
+| Successful empty query | Evaluate only semantics that allow absence | Absence may be evidence |
+| Provider error | Suppress dependent evaluations | Evidence is unavailable |
+| Cold or stale history | Abstain or hold | Evidence is insufficient |
+
 ## Forecast threshold breaches
 
 Forecast detectors estimate whether a measured trend will cross a configured
@@ -78,14 +113,21 @@ A forecast is not deterministic truth. It raises a finding and can propose a
 preventive remediation pull request, but the proposal still passes the trust
 router, verifier, risk gate, and normal approval policy.
 
+Before promotion, a forecaster backtests known historical breaches and clears
+its configured accuracy bar in shadow mode. FDAI tracks forecast error after
+promotion. Measured drift moves the forecaster back to shadow, while prediction
+intervals can suppress an uncertain point-estimate breach but never create a
+breach the point forecast did not predict.
+
 ## Operator workflow
 
 1. Confirm the provider, resource, time window, and data freshness.
 2. Inspect the baseline, threshold, deviation, and cold-start state.
-3. Check incident membership and whether a deployment or maintenance window
+3. Distinguish a successful empty query from an unavailable provider result.
+4. Check incident membership and whether a deployment or maintenance window
    explains the signal.
-4. Follow the correlation ID to RCA, verdict, action proposal, and audit rows.
-5. Treat missing evidence as unavailable. Do not infer zero or healthy state.
+5. Follow the correlation ID to RCA, verdict, action proposal, and audit rows.
+6. Treat missing evidence as unavailable. Do not infer zero or healthy state.
 
 ## Evidence and guard metrics
 

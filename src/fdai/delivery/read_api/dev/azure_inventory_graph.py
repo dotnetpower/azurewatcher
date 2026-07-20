@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from time import monotonic
 from typing import Any
 
-from fdai.delivery.read_api.routes.architecture_views import project_architecture_graph
+from fdai.core.views.architecture_graph import project_architecture_graph
 from fdai.shared.providers.inventory import Inventory, ResourceRecord
 
 _ROOT_ID = "azure-subscription"

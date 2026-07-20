@@ -30,9 +30,58 @@ An escalation ladder defines levels, wait periods, channels, roles, and stop
 conditions. A pending decision can move from primary on-call to secondary,
 incident commander, or owner according to scope and severity.
 
-The slower supervisory loop never changes the underlying risk verdict. It can
-seek an accountable approver or expire the request, but cannot turn `deny` into
-`auto` or approve on behalf of a person.
+The slower supervisory loop never changes the underlying risk verdict directly.
+It can seek an accountable approver or expire the request, but cannot turn
+`deny` into `auto` or approve on behalf of a person. A matching standing
+authorization can only cause the typed proposal to re-enter the risk gate for a
+fresh decision after the ladder deadline.
+
+## Distinguish delivery fallback from authority escalation
+
+These mechanisms answer different failures and keep separate audit histories.
+
+| Mechanism | Trigger | What changes |
+|-----------|---------|--------------|
+| Channel fallback | A channel cannot deliver to the same recipient | The delivery pipe |
+| Escalation ladder | Delivery succeeded but no authorized decision arrived before the rung TTL | The human authority being asked |
+
+Each ladder has a finite number of rungs and an overall deadline. Every rung
+transition records the audience, category, start, expiry, and result. Later
+rungs still enforce no self-approval and do not inherit executor identity.
+
+## Compress time when a forecast is credible
+
+For a forecast-backed incident, the supervisor recomputes urgency on each tick.
+The effective rung window follows
+`effective_ttl = min(rung.ttl, k * remaining_lead_time)`, so a closing breach
+ETA can shorten but never lengthen the configured TTL. Impact can also select a
+higher starting rung.
+
+Only a forecast whose prediction interval clears the configured confidence
+level may compress time. A noisy point estimate cannot accelerate escalation.
+Urgency changes how quickly people are asked; it does not grant execution
+authority.
+
+## Use standing authority without bypassing review
+
+A standing authorization is an operator-authored policy artifact. It identifies
+a deterministic condition, a resource-group-equivalent or narrower envelope,
+reversible action types, a tested rollback contract, and the unanswered-ladder
+trigger. It starts in shadow mode and follows its own promotion gate.
+
+After the deadline, the supervisor verifies that the authorization is valid,
+unexpired, in scope, and still contains the pending action. It then re-injects
+the proposal into the typed pipeline. Forseti and the risk gate re-evaluate
+current inventory and policy; Thor executes only if the new verdict is `auto`.
+An irreversible action, stale evidence, widened blast radius, or envelope miss
+ends as an audited no-op.
+
+| Terminal state | Meaning |
+|----------------|---------|
+| Approved | An authorized human decided before expiry |
+| Rejected | An authorized human rejected; no action |
+| Standing-authority executed | Deadline passed and a fresh risk decision verified the envelope |
+| Terminal no-op | Ladder ended without a valid human or standing decision |
 
 ## Operator checks
 

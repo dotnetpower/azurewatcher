@@ -16,6 +16,7 @@ decision, alternatives, consequences, status, and replacement history reviewable
 | ADR | Status | Decision | Supersedes |
 |-----|--------|----------|------------|
 | [ADR-0001](0001-azure-day-zero-platform.md) | Accepted | Azure day-zero platform baseline | lightweight OD entries in `tech-stack.md` and deployment drafts |
+| [ADR-0002](0002-independent-runtime-axes.md) | Accepted | Independent runtime, identity, autonomy, and fork axes | local shadow-only and production-fork coupling |
 
 ## Status vocabulary
 
@@ -57,4 +58,5 @@ new ADR that explicitly supersedes the affected section.
 |----------------|------|
 | Current ARB decision | [Architecture Review Board Packet](../architecture-review-board.md) |
 | Azure day-zero baseline | [ADR-0001](0001-azure-day-zero-platform.md) |
+| Runtime and customization axes | [ADR-0002](0002-independent-runtime-axes.md) |
 | Technology selection detail | [Technology Stack](../tech-stack.md) |

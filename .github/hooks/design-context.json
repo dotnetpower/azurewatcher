@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "python3 scripts/agent/design_context.py record-read",
+        "timeout": 10
+      }
+    ],
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "python3 scripts/agent/design_context.py pre-tool-use",
+        "timeout": 10
+      }
+    ]
+  }
+}

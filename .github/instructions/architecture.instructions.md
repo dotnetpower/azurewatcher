@@ -1,6 +1,6 @@
 ---
-description: Architecture principles, trust routing, control loop, and rule catalog.
-applyTo: "**"
+description: "Use when changing the control loop, agents, contracts, ontology, rules, policies, risk decisions, or autonomous action behavior."
+applyTo: "src/fdai/core/**,src/fdai/agents/**,src/fdai/shared/contracts/**,src/fdai/shared/ontology/**,rule-catalog/**,policies/**"
 ---
 
 # Architecture
@@ -138,25 +138,11 @@ action and hand off to HIL.
 
 ## Rule Catalog
 
-- Normalize every rule to a common, CSP-neutral schema:
-  `id, version, source, severity, category, resource-type, check-logic, remediation,
-  provenance`.
-- **Conflict handling**: when multiple rules match one event, deduplicate by `id` and resolve
-  precedence by severity, then by source priority; ties escalate to HIL rather than
-  auto-picking. Version each rule so changes are traceable and reversible.
-- Sources include Azure WAF/AKS Baseline/MCSB/Policy/Advisor, CIS Benchmarks, OPA/Gatekeeper,
-  IaC scanners (Checkov, tfsec, KICS, Trivy), kube-bench, and static analyzers.
-- The catalog is stored as **catalog-as-code** and updated via a continuous pipeline
-  (`source watcher -> collect -> shadow evaluation -> regression -> promote/rollback`).
-  Promotion requires the regression suite to pass with no policy-violation escapes; a failing
-  regression blocks promotion and can roll a rule back.
-- **Autonomous discovery loop** - the same pipeline also runs a long-horizon loop that
-  observes operational signals (audit log, HIL approvals, shadow outcomes, rollbacks,
-  override events) and proposes rule candidates: **new** rules for recurring patterns not
-  yet covered, **revisions** for rules whose upstream source changed or whose shadow
-  accuracy drifted, and **retirements** for rules whose active overrides indicate a poor
-  fit. Candidates are handled as inert data until the quality gate promotes them; the loop
-  never mutates the catalog directly.
+Rules use the normalized CSP-neutral schema and remain catalog-as-code. Conflict precedence is
+severity, then configured source priority; unresolved ties route to HIL. Every collected, revised,
+or discovered candidate carries provenance and stays inert until schema, verifier, regression, and
+shadow promotion gates pass. Overrides never mutate catalog entries. Full governance lives in
+[rule-governance.md](../../docs/roadmap/rules-and-detection/rule-governance.md).
 
 ## Action Ontology and Console Vocabulary
 
@@ -192,54 +178,15 @@ neither raises autonomy above the other.
 
 ## Agent Pantheon
 
-The control loop is owned by a fixed set of 15 named agents that live as first-class
-`Agent` objects in the ontology. The pantheon is customer-agnostic and defined upstream
-only: forks configure it (bindings, enable/disable, rate limits) but MUST NOT add,
-remove, or rename agents. Full design, org chart, topic contract, and per-agent
-responsibilities live in [../../docs/roadmap/agents/agent-pantheon.md](../../docs/roadmap/agents/agent-pantheon.md).
-When editing agent code under `src/fdai/agents/**`, the role table and the MUST rules
-in [agent-pantheon.instructions.md](agent-pantheon.instructions.md) apply (it auto-loads
-for that path).
+The pantheon is exactly 15 named agents. `PANTHEON_SPECS` in
+`src/fdai/agents/_framework/pantheon.py` is the machine source of truth. Changes under
+`src/fdai/agents/` MUST load [agent-pantheon.instructions.md](agent-pantheon.instructions.md)
+and the [agent-pantheon-edit skill](../skills/agent-pantheon-edit/SKILL.md).
 
-The names below are the canonical identifiers used in code, config, audit entries, and
-docs. Reuse them verbatim.
-
-- **Odin** (Master Planner) - cross-vertical arbitration; final tie-breaker before Forseti
-  finalizes a verdict.
-- **Thor** (Responder) - dispatcher of verdicts and sole privileged executor principal;
-  MUST NOT judge.
-- **Forseti** (Judge) - issues the `Verdict` (auto / hil / deny) after mixed-model
-  cross-check, verifier, and grounding; reports to Odin, not Thor.
-- **Huginn** (Event Collector / real-time resource discovery ingress), **Heimdall**
-  (Observer / discovery assurance) - sensing; deterministic-first, MUST NOT invoke an LLM
-  synchronously in the hot-path. Huginn owns normalized resource-change Events while injected
-  adapters parse Azure signals and project durable inventory deltas. The Inventory sync job
-  remains the periodic reconciliation backstop.
-- **Var** (Approver) - HIL approval principal; MUST stay distinct from Thor.
-- **Vidar** (Recovery) - rollback and DR failover principal.
-- **Bragi** (Narrator) - conversational-port translator only; a Bragi that calls an
-  executor directly is a defect.
-- **Saga** (Auditor) - append-only audit and Handoff-to-GitHub-issue executor.
-- **Mimir** (Rule Steward), **Norns** (Learner), **Muninn** (Memory) - governance staff.
-- **Njord** (Cost), **Freyr** (Capacity), **Loki** (Chaos) - domain specialists;
-  advisory to Forseti, they do not execute.
-
-Two-port model: every agent exposes a **typed pub/sub port** (schema-checked, hot-path,
-deterministic-first) and a **conversational port** (natural language, LLM-backed, for
-operator questions and agent-to-agent introspection). The two ports share nothing except
-the correlation trace; a conversational request that asks for an action MUST re-enter
-the typed pipeline (no bypass).
-
-Every `ActionType` binds five agent roles: `initiators`, `judge`, `executor`, `approver`,
-`auditor`. The registry rejects any lifecycle event whose `producer_principal` does not
-match the declared role. The `executor`, `judge`, `approver`, `auditor`, and `initiators`
-fields are fork-locked (see the fork boundaries in
-[../../docs/roadmap/agents/agent-pantheon.md](../../docs/roadmap/agents/agent-pantheon.md#10-fork-customization)).
-
-Handoff, security notification, and privilege-escalation monitoring all flow through the
-same lifecycle and audit machinery - no side-channel side-effects. When an agent cannot
-resolve a request, Saga materializes a `HandoffEscalation` into a GitHub issue with
-fingerprint-based deduplication.
+The control-loop boundaries are fixed: Forseti judges, Thor alone executes, Var approves, Saga
+audits, Vidar rolls back, and Bragi only translates. Typed and conversational ports share only the
+correlation trace. Role bindings are distribution-locked and runtime configuration cannot repoint
+them.
 
 ## Safety Invariants
 
@@ -255,33 +202,11 @@ escapes in shadow; regressions demote back to shadow automatically
 
 ## Human Override
 
-An operator MAY override an accepted rule when it is too aggressive for a specific
-environment. Overrides sit **above** the automated quality gate - an override always wins
-against the promotion decision on the scope it covers - but they never bypass audit or
-grounding.
-
-- **Policy-as-code, separate artifact**: an override is a declarative artifact stored
-  alongside the catalog, not an edit to the rule text. Removing the override restores the
-  rule automatically; upstream rule updates flow through without touching overrides.
-- **Scope MUST be bounded to a resource-group-equivalent grouping or narrower** (the
-  `resource-group` layer of the scope hierarchy in
-  [rule-governance.md](../../docs/roadmap/rules-and-detection/rule-governance.md), or `resource`).
-  Organization- or account-wide overrides are rejected; disabling a rule everywhere is not
-  an override, it is a rule retirement and must go through the catalog pipeline.
-- **Permitted modes**: `disabled` (rule off in the scope), `severity-downgrade`
-  (e.g. `critical -> medium`), and `parameter-relaxation` (widen a threshold within limits
-  the rule declares). Anything broader is out of scope for override.
-- **No forced expiry**: overrides MAY be long-lived. A justification and a distinct
-  approver (no self-approval) are always required.
-- **Shadow keeps running**: an override disables *execution* on the scope, not detection.
-  The evaluator continues to record what the rule would have flagged, feeding the
-  autonomous discovery loop.
-- **Feedback**: recurring or long-lived overrides on the same rule are treated by the
-  discovery loop as a signal to propose a revision or retirement of that rule; the
-  proposal still passes the standard quality gate.
-- Every override create/modify/remove event is an append-only audit entry with actor,
-  reason, target rule, and scope. Overrides never suppress the audit record of the
-  underlying finding; they record why execution was suppressed.
+Overrides are separate, audited policy artifacts. They may disable, lower severity, or relax a
+declared parameter only at resource-group-equivalent scope or narrower. They never edit a rule,
+suppress its finding, stop shadow evaluation, or bypass grounding and approval. Organization-wide
+disablement is retirement, not override. See
+[rule-governance.md](../../docs/roadmap/rules-and-detection/rule-governance.md).
 
 ## Observability
 

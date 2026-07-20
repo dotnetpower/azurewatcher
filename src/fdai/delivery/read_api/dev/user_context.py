@@ -10,7 +10,10 @@ from typing import Any
 from fdai.core.briefing import BriefingCoordinator, OpeningBriefingService
 from fdai.core.report_feed import ReportFeed
 from fdai.core.user_context_projection import UserContextOntologyProjector
-from fdai.core.workflow.definition import build_workflow_definition
+from fdai.core.workflow.definition import (
+    build_workflow_definition,
+    built_in_workflow_lifecycle,
+)
 from fdai.delivery.read_api.routes.user_context import UserContextRoutesConfig
 from fdai.delivery.read_api.routes.workflow_definitions import WorkflowDefinitionRoutesConfig
 from fdai.shared.providers.testing import (
@@ -25,7 +28,6 @@ from fdai.shared.providers.testing import (
     InMemoryWorkflowDefinitionStore,
 )
 from fdai.shared.providers.workflow_definition import (
-    WorkflowLifecycle,
     WorkflowOrigin,
     WorkflowVisibility,
 )
@@ -49,6 +51,7 @@ def build_local_user_context(
     action_types: Sequence[Any],
     workflows: Sequence[Any],
     rule_ids: frozenset[str],
+    promoted_workflows: frozenset[str] = frozenset(),
 ) -> LocalUserContext:
     """Build local user context and upstream workflow projections."""
     conversations = InMemoryConversationHistoryStore()
@@ -83,7 +86,10 @@ def build_local_user_context(
             action_types=action_types_by_name,
             origin=WorkflowOrigin.UPSTREAM,
             visibility=WorkflowVisibility.GLOBAL,
-            lifecycle=WorkflowLifecycle.SHADOW,
+            lifecycle=built_in_workflow_lifecycle(
+                workflow.name,
+                promoted_workflows=promoted_workflows,
+            ),
             created_at=datetime.now(tz=UTC),
             source_ref=f"catalog:{workflow.name}@{workflow.version}",
         )

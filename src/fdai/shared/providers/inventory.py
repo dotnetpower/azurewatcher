@@ -40,6 +40,10 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
 
+class InventoryGraphViewNotFoundError(LookupError):
+    """Raised by named-view providers for an unknown explicit view id."""
+
+
 @dataclass(frozen=True, slots=True)
 class ResourceRecord:
     """One CSP-neutral resource observed by the inventory adapter.
@@ -158,6 +162,7 @@ __all__ = [
     "EmptyInventory",
     "Inventory",
     "InventoryBatch",
+    "InventoryGraphViewNotFoundError",
     "LinkRecord",
     "ResourceRecord",
 ]

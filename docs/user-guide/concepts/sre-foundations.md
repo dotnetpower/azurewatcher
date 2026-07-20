@@ -62,6 +62,33 @@ the router selects a tier -> the risk gate evaluates the proposed scaling
 action -> shadow, HIL, or promoted auto behavior follows. The prediction itself
 never scales the workload.
 
+## Reasoning tier is not autonomy level
+
+FDAI makes two monotonic decisions. First, the trust router selects the lowest
+tier that can produce a supported candidate. Then the risk gate combines that
+tier with the matched policy, `ActionType` ceiling, static and live blast
+radius, environment, operator role, evidence freshness, and promotion state.
+Each input can lower autonomy; none can raise it above a stricter input.
+
+| Candidate source | What it proves | What it does not prove |
+|------------------|----------------|------------------------|
+| T0 rule match | A deterministic rule applies | The action is low risk or promoted |
+| T1 reuse | A prior pattern may apply after re-verification | Current scope and dependencies are unchanged |
+| T2 proposal | Grounded reasoning passed its quality gate | The proposal may execute |
+
+This separation explains why a deterministic finding can still route to human
+review and why a well-grounded T2 result can remain shadow-only.
+
+## The runtime contract remains mandatory
+
+Before mutation, FDAI rechecks the proposed action against current inventory
+and policy. The executor proceeds only with a dry run, stop condition, rollback
+path, blast-radius limit, per-resource lock, stable idempotency key, authorized
+workload identity, and writable audit path. If any required input becomes stale
+or unavailable, the action becomes an audited no-op, shadow result, or denial
+according to policy. A console button or notification reply cannot replace
+these checks.
+
 ## Change management
 
 Before a change ships, it is dry-run against policy-as-code, blast-radius

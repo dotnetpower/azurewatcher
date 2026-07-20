@@ -15,9 +15,9 @@
 #      tests/core/stewardship/test_pantheon_parity.py).
 #   3. Maintainer floor: at least 1 maintainer must be declared.
 #
-# Placeholder policy (all-zero upstream, real ids in a fork) is enforced by the
-# shared check-guids.sh gate and by the resolver at startup, so it is not
-# repeated here.
+# Placeholder policy (all-zero tracked config, real ids in deployed environments) is
+# enforced by check-guids.sh and by the resolver when
+# FDAI_STEWARDSHIP_REQUIRE_BINDINGS=1, so it is not repeated here.
 #
 # Exit codes: 0 clean / skip, 1 on any violation.
 

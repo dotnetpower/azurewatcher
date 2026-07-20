@@ -10,12 +10,13 @@
 # fork-locked ontology (see agent-pantheon.instructions.md). check-stewardship.sh
 # rejects a file that tries.
 #
-# Upstream ships all-zero placeholder objectIds. A per-customer fork MUST replace
+# Upstream ships all-zero placeholder objectIds. Deployment configuration MUST replace
 # every id with its tenant's real Entra user/group objectId before deploying;
-# leaving a placeholder in a fork fails the check (see generic-scope). Missing or
+# leaving a placeholder in a protected downstream distribution fails the check. Missing or
 # malformed values fail fast at startup (StewardshipValidationError).
 #
 # Env-var overrides (no YAML edit needed):
+#     FDAI_STEWARDSHIP_REQUIRE_BINDINGS  1 in every deployed environment
 #     FDAI_MAINTAINERS                 comma-separated user OIDs
 #     FDAI_STEWARD_<AGENT>             comma-separated user:<oid> / group:<oid>
 #                                      tokens, e.g. FDAI_STEWARD_THOR

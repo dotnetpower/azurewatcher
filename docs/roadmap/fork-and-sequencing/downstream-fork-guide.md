@@ -4,26 +4,26 @@ title: Downstream Fork Guide
 
 # Downstream Fork Guide
 
-How to fork this repo, keep the fork clean, and customize per customer.
-This is the single entry point for **fork maintainers** - engineers
-who take the upstream FDAI and adapt it to one specific
-deployment (a customer tenant, a compliance regime, or a proof-of-
-concept environment).
+How to create a downstream FDAI distribution, keep it synchronized, and limit or extend
+capabilities through supported seams. This is the single entry point for **fork maintainers**.
+A fork packages a customization profile; it is not a deployment, tenant, environment, or
+production state.
 
 The upstream repo is deliberately generic and customer-agnostic
 ([generic-scope.instructions.md](../../../.github/instructions/generic-scope.instructions.md)).
-A fork is where every customer-specific value, rule, adapter, and
-secret lives. The rules below exist so a fork can sync with
-upstream without conflict pain and so upstream sees zero
-customer values.
+A fork contains downstream adapter implementations and catalog or presentation overlays that
+cannot remain generic. Deployment values, tenant identity, secrets, environment, and promotion
+state remain in deployment configuration or a secret store. The rules below let a fork sync with
+upstream without conflict and keep customer values out of upstream history.
 
 Prerequisites: read
 [project-structure.md § Customization via Dependency Injection](../architecture/project-structure.md#customization-via-dependency-injection)
 first for the DI seam catalog, plus
 [architecture.instructions.md](../../../.github/instructions/architecture.instructions.md)
 for the T0/T1/T2 trust router and quality-gate concepts referenced
-throughout this guide. This document turns those references into
-procedural recipes.
+throughout this guide. Also read
+[ADR-0002](../architecture/decisions/0002-independent-runtime-axes.md) for the independent
+runtime and customization axes. This document turns those references into procedural recipes.
 
 **Contents**
 
@@ -50,14 +50,29 @@ execution) and is promoted to `enforce` only after its declared
 
 - **Upstream** = this repository. Ships the generic control plane
   (core engine, DI seams, deny-by-default fakes, catalog schemas).
-- **Fork** = a separate repository the customer team owns. Contains
-  the tenant identity, secret refs, allowlists, per-customer rules,
-  and any concrete adapters the deny-by-default fakes replace.
+- **Fork** = an optional downstream distribution. Contains concrete adapters and capability,
+  catalog, policy, or presentation overlays applied through supported seams.
+- **Deployment** = a running instance of upstream or a fork. Supplies tenant identity, secret
+  references, resource scope, environment, and promotion state outside source control.
 - **Direction of contribution**: upstream never pulls from a fork.
   A fork pulls from upstream `main` for improvements. When a fork
   produces a change that would be useful for every customer, the
   change is **scrubbed of customer values** and shipped as a
   standalone upstream PR.
+
+The axes remain independent:
+
+| Axis | Examples | Does a fork select it? |
+|------|----------|------------------------|
+| Distribution | upstream, downstream fork | yes - source/package boundary only |
+| Deployment environment | dev, staging, production | no |
+| Evidence profile | authoritative, fixture | no |
+| Autonomy | shadow, enforce per capability | no |
+| Human and executor identity | Entra App Roles, Managed Identity | no |
+
+One fork can have no deployments or several deployments in different environments. Upstream can
+also be deployed directly. `.fdai-fork`, `FDAI_FORK`, and `git config fdai.fork true` enable
+repository-integrity checks only; runtime code must not branch on them.
 
 ## 2. Day-1 checklist
 
@@ -68,7 +83,7 @@ Do these before your first `git commit` on the fork.
    fails on an untouched checkout, stop and diagnose before adding
    any fork code - the fork must never inherit a red baseline.
 2. **Clone with a distinct default branch name** (optional but
-   recommended): `fork/main` or `customer-x/main` so no `git push`
+  recommended): `fork/main` or `distribution/main` so no `git push`
    accidentally targets upstream.
 3. **Verify `git remote -v`**: `origin` MUST point at your fork
    repository, NOT at `dotnetpower/fdai`. Getting this wrong
@@ -92,7 +107,7 @@ Do these before your first `git commit` on the fork.
    (API key, connection string, DSN with password) goes through
    `fdai.shared.providers.secret_provider.SecretProvider` -
    the Protocol contract forbids logging or persisting the value.
-6. **Create a `fork/` (or `customer/`) top-level directory** for
+6. **Create a `fork/` top-level directory** for
    fork-owned modules. This is where your composition-root override,
    adapters, and rule additions live. `core/` stays 100% upstream.
 7. **Register your fork package in `pyproject.toml`**: add your

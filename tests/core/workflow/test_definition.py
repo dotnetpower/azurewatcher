@@ -5,7 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from fdai.core.workflow.definition import build_workflow_definition
+from fdai.core.workflow.definition import (
+    build_workflow_definition,
+    built_in_workflow_lifecycle,
+)
 from fdai.rule_catalog.schema.action_type import load_action_type_catalog
 from fdai.rule_catalog.schema.workflow import load_workflow_catalog
 from fdai.shared.contracts.registry import PackageResourceSchemaRegistry
@@ -79,3 +82,22 @@ def test_definition_rejects_missing_action_type() -> None:
             lifecycle=WorkflowLifecycle.SHADOW,
             created_at=NOW,
         )
+
+
+def test_built_in_lifecycle_uses_shared_promotion_state() -> None:
+    promoted = frozenset({"cost-aware-remediation"})
+
+    assert (
+        built_in_workflow_lifecycle(
+            "cost-aware-remediation",
+            promoted_workflows=promoted,
+        )
+        is WorkflowLifecycle.PUBLISHED
+    )
+    assert (
+        built_in_workflow_lifecycle(
+            "architecture-review",
+            promoted_workflows=promoted,
+        )
+        is WorkflowLifecycle.SHADOW
+    )

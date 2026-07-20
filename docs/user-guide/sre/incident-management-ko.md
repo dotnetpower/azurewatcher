@@ -2,8 +2,8 @@
 title: 인시던트 관리
 description: FDAI가 first-class incident를 생성하고 소유자를 지정하며 전환, 측정, 종료하는 방법입니다.
 translation_of: incident-management.md
-translation_source_sha: 0bf98a1c61aca87b583497a868b21f5abd63f889
-translation_revised: 2026-07-17
+translation_source_sha: eaa7fd600c79a2079ef38cd52389b8d990dd641d
+translation_revised: 2026-07-20
 ---
 
 # 인시던트 관리
@@ -29,6 +29,15 @@ State machine이 전환을 검증하고 idempotent하게 기록합니다. 오래
 | `resolved` | 서비스 복구가 검증됨 |
 | `closed` | 후속 조치와 필수 사후 작업이 완료됨 |
 
+Incident module은 lifecycle의 single writer입니다. Vertical과 operator는 transition을
+제안할 수 있지만 직접 append할 수는 없습니다. Transition은 incident, target state,
+actor 조합으로 dedup됩니다. Persistence layer는 incident를 잠그고 expected state를 확인한
+뒤 global audit chain에 transition을 하나의 작업으로 append합니다. 경쟁에서 진 writer는
+어떤 state가 이겼는지 추측하지 않고 canonical projection을 다시 읽습니다.
+
+지원되는 reopen path는 `resolved -> triaging`입니다. Severity 변경은 이 edge에서만
+허용되므로 replay가 active incident의 severity를 조용히 다시 쓸 수 없습니다.
+
 ## 레코드에 포함되는 내용
 
 Incident는 안정적인 ID, correlation key, severity, status, source, owner, timestamp,
@@ -48,6 +57,20 @@ Assignment change는 감사되며 notification delivery는 durable합니다. 알
 record를 rollback하지 않고, retry claim은 중복 전달이 중복 state transition이 되는 것을
 방지합니다.
 
+## Lifecycle truth와 delivery truth 분리
+
+Incident transition과 notification은 서로 관련되지만 별개의 결과를 가집니다. Audit append가
+성공하면 transition이 authoritative 상태가 됩니다. Notification delivery는 안정적인 audit ID,
+single-claimer lease, sent checkpoint를 사용합니다. Startup replay는 checkpoint가 없는 row를
+다시 시도합니다.
+
+| Lifecycle 결과 | Delivery 결과 | 운영자 해석 |
+|----------------|---------------|-------------|
+| Applied | Sent | State와 notice가 최신임 |
+| Applied | Pending 또는 failed | State는 최신이며 delivery retry 또는 escalation 필요 |
+| Duplicate | Already sent | Replay가 새 state나 message를 만들지 않음 |
+| Conflict | Not sent | Incident를 다시 읽고 요청된 transition 재검토 |
+
 ## 분류, 완화, 해결
 
 1. Membership, scope, severity, 현재 owner를 확인합니다.
@@ -62,6 +85,16 @@ record를 rollback하지 않고, retry claim은 중복 전달이 중복 state tr
 Severity별 acknowledge 및 resolution target을 transition stream에서 평가할 수 있습니다.
 Event storm은 deterministic incident ID, deduplication, 명시적 remediation step으로 제한되며
 무제한 병렬 변경을 만들지 않습니다.
+
+SLA target은 hardcoded assumption이 아니라 deployment policy입니다. 모든 severity에 대해
+acknowledgment 및 resolution budget이 구성되기 전까지 monitor는 disabled 상태입니다. 활성화되면
+ordered transition record에서 deadline을 계산하고 breach마다 안정적인 operational notice를 한 번
+생성합니다. Resolved 및 closed incident는 alert를 계속 만들지 않습니다.
+
+Storm 중에는 결정론적 sequencing이 제안된 remediation을 severity, blast radius, stable ID
+순으로 정렬합니다. 설정된 concurrency cap이 이를 wave로 나누고 storm이 active인 동안 approval
+bar를 높일 수 있습니다. Storm coordinator는 risk-gate에 조언할 뿐 실행하거나 권한을 가지지
+않습니다.
 
 ## 다음 단계
 

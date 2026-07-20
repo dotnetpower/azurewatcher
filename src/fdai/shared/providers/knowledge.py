@@ -167,7 +167,7 @@ class EmbeddingKnowledgeSource:
     Chunks each document, embeds every chunk through the injected
     :class:`Embedder`, and answers ``search`` by cosine top-k. Backed by a
     plain in-memory list - deterministic and network-free for tests. A
-    production fork replaces the store with a pgvector adapter under
+    deployed composition replaces the store with a pgvector adapter under
     ``delivery/`` while keeping this exact :class:`KnowledgeSource`
     contract.
     """

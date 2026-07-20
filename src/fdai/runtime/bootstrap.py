@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import signal
+from collections.abc import Mapping
 from typing import Any
 
 import httpx
@@ -46,6 +47,12 @@ from fdai.shared.providers.event_bus import EventBus
 from fdai.shared.providers.workload_identity import WorkloadIdentity
 
 _LOGGER = logging.getLogger("fdai.startup")
+
+
+def _pantheon_start_enabled(environ: Mapping[str, str]) -> bool:
+    """Start all agents unless the operator explicitly disables the runtime."""
+    raw = environ.get("FDAI_START_PANTHEON", "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
 
 
 async def _run() -> int:
@@ -229,17 +236,15 @@ async def _run() -> int:
                 },
             )
 
-            # Optional pantheon: the 15 named agents consume the same
+            # Pantheon: the 15 named agents consume the same
             # ingress topic under distinct consumer groups (fan-out) and
-            # react immediately. Opt-in via FDAI_START_PANTHEON and shadow
+            # react immediately. Enabled by default; FDAI_START_PANTHEON=0
+            # is the explicit maintenance escape hatch. Thor stays shadow
             # by default - the agents use in-memory audit / issue / admin
             # adapters and Thor's executor stays in shadow, so running it
             # beside the P1 loop adds no autonomous mutation. See
             # docs/roadmap/agents/agent-pantheon-implementation.md.
-            start_pantheon = os.environ.get("FDAI_START_PANTHEON", "").lower() in (
-                "1",
-                "true",
-            )
+            start_pantheon = _pantheon_start_enabled(os.environ)
             if start_pantheon:
                 pantheon_enforce = os.environ.get("FDAI_PANTHEON_ENFORCE", "").lower() in (
                     "1",

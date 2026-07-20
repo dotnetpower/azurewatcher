@@ -662,6 +662,25 @@ header.header::after {
 header.header :is(a, button, .social-icons a) {
   color: #e6e9f0;
 }
+
+/* Starlight's light-theme gray tokens are dark, but the branded header stays
+   piano-black in both themes. Override the nested labels and subtitle that do
+   not inherit the anchor/button color above. */
+html[data-theme="light"]
+  header.header
+  :is(.fda-full, starlight-theme-select label, starlight-lang-select label) {
+  color: #e6e9f0;
+}
+html[data-theme="light"]
+  header.header
+  :is(starlight-theme-select label, starlight-lang-select label):hover {
+  color: #ffffff;
+}
+@media (min-width: 50rem) {
+  html[data-theme="light"] header.header site-search button {
+    color: var(--sl-color-gray-2);
+  }
+}
 /*
  * Header layout: the brand (left) and controls (right) are sized to their
  * content and take priority; Search fills the flexible centre track. The

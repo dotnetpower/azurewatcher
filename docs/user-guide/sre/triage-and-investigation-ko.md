@@ -2,8 +2,8 @@
 title: 분류와 조사
 description: FDAI가 범위가 제한된 cross-resource 증거를 수집하고 감사 가능한 investigation report를 만드는 방법입니다.
 translation_of: triage-and-investigation.md
-translation_source_sha: 564169e459fcd3eb3ffecf5ab6c3e80adb3d8bf8
-translation_revised: 2026-07-17
+translation_source_sha: 55821d982f32fd90dac42a0234043e6a400353db
+translation_revised: 2026-07-20
 ---
 
 # 분류와 조사
@@ -27,6 +27,17 @@ action pipeline에 다시 들어가야 합니다.
 - **Latency budget**은 조사가 정해진 시간 안에 완료됐는지 기록합니다.
 - **Provider failure**는 unavailable evidence가 되며 사실을 만들어내지 않습니다.
 - **Priority**는 recommendation을 P1, P2, P3로 정렬하지만 실행 권한을 주지 않습니다.
+
+Evidence availability는 누락된 field에서 추론하지 않고 명시적으로 기록합니다. Priority는
+report 내부의 local ordering입니다. 별도 policy가 정의하지 않는 한 severity, confidence,
+autonomy verdict가 아닙니다.
+
+| Evidence state | 의미 | Downstream 동작 |
+|----------------|------|-----------------|
+| Available | Provider가 범위가 제한된 fresh data 반환 | Finding 및 hypothesis 근거로 사용 가능 |
+| Empty | Query 성공, 일치하는 record 없음 | Query scope와 함께 부재 보고 |
+| Unavailable | Provider 실패 또는 dependency unhealthy | Gap 표시 및 의존 claim 억제 |
+| Stale | Data는 있지만 freshness policy 초과 | 의존 conclusion을 검토 보류 |
 
 ## 분류 워크플로
 
@@ -53,6 +64,15 @@ action pipeline에 다시 들어가야 합니다.
 멈춘 analyzer는 시간 제한을 받고 no-action 결과를 생성합니다. Exception은 unavailable
 evidence로 기록되며 response를 crash시켜 audit trail을 잃지 않습니다. Cancellation은
 조사를 정상적으로 중단합니다.
+
+Analyzer는 서로 독립적으로 실패합니다. 완료된 analyzer result는 partial report에 남고,
+실패하거나 timeout된 analyzer는 명시적인 gap을 추가합니다. 전체 latency budget이 만료되면
+coordinator는 새 evidence 수집을 중지하고 budget 충족 여부를 기록하며 근거가 있는 observation만
+반환합니다. 누락된 section을 model prose로 채우거나 partial report를 action으로 바꾸지 않습니다.
+
+Recommendation을 사용하기 전에 supporting analyzer가 완료됐는지, cited evidence가 fresh인지,
+recommendation이 선언된 resource 및 time scope 안에 있는지 확인합니다. 높은 report priority는
+검토를 앞당길 수 있지만 RCA grounding, risk classification, approval을 우회할 수 없습니다.
 
 ## 다음 단계
 

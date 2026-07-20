@@ -59,7 +59,7 @@ class AzureWireOverrides:
     ``operator_memory_store`` - the :class:`OperatorMemoryStore` the
     composer uses to inject operator-memory blocks. Upstream ships
     :class:`~fdai.core.operator_memory.InMemoryOperatorMemoryStore`;
-    a production fork typically supplies
+    a deployment composition typically supplies
     :class:`~fdai.delivery.persistence.PostgresOperatorMemoryStore`
     or a fork-owned adapter.
 

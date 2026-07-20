@@ -1,0 +1,31 @@
+{
+  "name": "@fdai/architecture-diagrams",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Compile FDAI architecture diagram specifications into static and interactive documentation assets.",
+  "scripts": {
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "validate": "tsx src/cli.ts validate",
+    "render": "tsx src/cli.ts render",
+    "check": "tsx src/cli.ts check",
+    "build:viewer": "esbuild src/viewer/architecture-diagram.ts --bundle --format=esm --minify --outfile=dist/architecture-diagram.js"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "elkjs": "^0.11.0",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "esbuild": "^0.25.9",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

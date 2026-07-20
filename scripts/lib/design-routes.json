@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "instruction_line_budget": 220,
+  "routes": [
+    {
+      "id": "baseline",
+      "paths": ["**"],
+      "must_read": [
+        ".github/copilot-instructions.md"
+      ],
+      "validate": ["scripts/verify.sh"]
+    },
+    {
+      "id": "python",
+      "paths": ["src/**/*.py", "tests/**/*.py"],
+      "must_read": [
+        ".github/instructions/coding-conventions.instructions.md"
+      ],
+      "validate": ["uv run ruff check", "uv run mypy"]
+    },
+    {
+      "id": "architecture-core",
+      "paths": ["src/fdai/core/**", "src/fdai/shared/**", "src/fdai/composition/**"],
+      "must_read": [
+        ".github/instructions/architecture.instructions.md",
+        "docs/roadmap/architecture/project-structure.md",
+        "docs/roadmap/architecture/code-map.md"
+      ],
+      "docs_update": [
+        "docs/roadmap/architecture/project-structure.md",
+        "docs/roadmap/architecture/code-map.md",
+        "docs/roadmap/architecture/decisions/0002-independent-runtime-axes.md"
+      ]
+    },
+    {
+      "id": "agents",
+      "paths": ["src/fdai/agents/**"],
+      "must_read": [
+        ".github/instructions/agent-pantheon.instructions.md",
+        ".github/skills/agent-pantheon-edit/SKILL.md",
+        "docs/roadmap/agents/agent-pantheon.md"
+      ],
+      "docs_update": ["docs/roadmap/agents/agent-pantheon.md"]
+    },
+    {
+      "id": "stewardship",
+      "paths": ["config/agent-stewardship.yaml", "src/fdai/core/stewardship/**"],
+      "must_read": [
+        ".github/instructions/agent-stewardship.instructions.md",
+        "docs/roadmap/interfaces/agent-stewardship-and-handover.md"
+      ]
+    },
+    {
+      "id": "operator-surfaces",
+      "paths": ["console/**", "cli/**", "src/fdai/delivery/read_api/**"],
+      "must_read": [
+        ".github/instructions/app-shape.instructions.md",
+        "docs/roadmap/interfaces/operator-console.md"
+      ],
+      "docs_update": [
+        "docs/roadmap/interfaces/operator-console.md",
+        "docs/roadmap/deployment/dev-and-deploy-parity.md"
+      ]
+    },
+    {
+      "id": "local-parity",
+      "paths": [
+        ".vscode/**",
+        "console/src/config.ts",
+        "console/src/auth.ts",
+        "src/fdai/delivery/read_api/dev/**",
+        "tests/delivery/read_api/test_local.py"
+      ],
+      "must_read": [
+        ".github/instructions/app-shape.instructions.md",
+        "docs/roadmap/deployment/dev-and-deploy-parity.md",
+        "docs/roadmap/interfaces/user-rbac-and-identity.md",
+        "docs/roadmap/operations/operator-initiated-sre-and-arb.md"
+      ],
+      "docs_update": [
+        "docs/roadmap/deployment/dev-and-deploy-parity.md",
+        "docs/roadmap/interfaces/user-rbac-and-identity.md"
+      ]
+    },
+    {
+      "id": "deployment",
+      "paths": ["infra/**", "azure.yaml", ".github/workflows/deploy-*.yml"],
+      "must_read": [
+        ".github/instructions/app-shape.instructions.md",
+        "docs/roadmap/deployment/deployment.md",
+        "docs/roadmap/deployment/deploy-and-onboard.md"
+      ],
+      "docs_update": ["docs/roadmap/deployment/deploy-and-onboard.md"]
+    },
+    {
+      "id": "fork-customization",
+      "paths": [
+        "scripts/integrity/**",
+        "scripts/lib/framework-surface.txt",
+        "docs/roadmap/fork-and-sequencing/**"
+      ],
+      "optional_paths": [".fdai-fork", "fork/**"],
+      "must_read": [
+        ".github/instructions/generic-scope.instructions.md",
+        ".github/skills/fork-customization/SKILL.md",
+        "docs/roadmap/fork-and-sequencing/downstream-fork-guide.md"
+      ],
+      "docs_update": [
+        "docs/roadmap/fork-and-sequencing/downstream-fork-guide.md"
+      ]
+    },
+    {
+      "id": "documentation",
+      "paths": ["README.md", "README-ko.md", "docs/**/*.md", "**/README.md"],
+      "must_read": [
+        ".github/instructions/documentation-style.instructions.md",
+        ".github/instructions/language.instructions.md",
+        ".github/skills/documentation-writing/SKILL.md"
+      ],
+      "validate": [
+        "scripts/quality/localization/check-translations.sh",
+        "scripts/quality/repository/check-doc-links.sh"
+      ]
+    },
+    {
+      "id": "catalog",
+      "paths": ["rule-catalog/**", "policies/**", "src/fdai/rule_catalog/**"],
+      "must_read": [
+        ".github/instructions/architecture.instructions.md",
+        "rule-catalog/RULE_AUTHORING_GUIDE.md",
+        "docs/roadmap/rules-and-detection/rule-governance.md"
+      ]
+    },
+    {
+      "id": "repository-language",
+      "paths": ["**/*.md", "**/*.json", "**/*.yaml", "**/*.yml"],
+      "must_read": [
+        ".github/instructions/language.instructions.md",
+        ".github/instructions/generic-scope.instructions.md"
+      ]
+    }
+  ]
+}

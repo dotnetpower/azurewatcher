@@ -1,30 +1,31 @@
 ---
 title: Downstream Fork 가이드
 translation_of: downstream-fork-guide.md
-translation_source_sha: 9a64fe997d5d8a8a48dd7030fe22c73d9b1e2bd7
-translation_revised: 2026-07-18
+translation_source_sha: 7e1063200e1f67183816b4dee2f59851a25d2f41
+translation_revised: 2026-07-20
 ---
 
 # Downstream Fork 가이드
 
-이 저장소를 fork하고, fork를 깨끗하게 유지하고, 고객별로
-커스터마이즈하는 방법. **Fork 유지관리자** - upstream FDAI을
-가져가서 특정 배포 (고객 tenant, 컴플라이언스 체제, 개념 증명 환경)에
-맞춰 조정하는 엔지니어를 위한 단일 진입점입니다.
+Downstream FDAI distribution을 만들고 동기화 상태를 유지하며 지원되는 seam을 통해 capability를
+제한하거나 확장하는 방법입니다. **Fork 유지관리자**를 위한 단일 진입점입니다. Fork는
+customization profile을 package하며 deployment, tenant, environment, production state가 아닙니다.
 
 Upstream 저장소는 의도적으로 generic하고 customer-agnostic 합니다
 ([generic-scope.instructions.md](../../../.github/instructions/generic-scope.instructions.md)).
-Fork는 모든 고객별 값, rule, 어댑터, 비밀이 사는 곳입니다. 아래 규칙은
-fork가 conflict 없이 upstream과 sync 가능하고 upstream이 고객 값을
-zero로 볼 수 있게 존재합니다.
+Fork에는 generic으로 유지할 수 없는 downstream adapter implementation, catalog 또는 presentation
+overlay가 들어갑니다. Deployment value, tenant identity, secret, environment, promotion state는
+deployment configuration 또는 secret store에 남습니다. 아래 규칙은 fork가 conflict 없이
+upstream과 sync하고 upstream history에 customer value가 들어가지 않게 합니다.
 
 전제 조건: DI seam 카탈로그를 먼저
 [project-structure.md § Customization via Dependency Injection](../architecture/project-structure-ko.md#customization-via-dependency-injection)에서
 읽고, 이 가이드 전반에서 참조하는 T0/T1/T2 trust router와 quality-
 gate 개념은
 [architecture.instructions.md](../../../.github/instructions/architecture.instructions.md)를
-읽으세요 (`.github/**`는 English-only). 이 문서는 그 참조들을 절차적
-recipe로 바꿉니다.
+읽으세요 (`.github/**`는 English-only). 독립적인 runtime 및 customization 축은
+[ADR-0002](../architecture/decisions/0002-independent-runtime-axes-ko.md)를 읽으세요. 이 문서는
+그 참조를 절차적 recipe로 바꿉니다.
 
 **목차**
 
@@ -55,13 +56,28 @@ invariant -
 
 - **Upstream** = 이 저장소. Generic한 컨트롤 플레인 (core engine, DI
   seam, 기본 비활성 fake, 카탈로그 스키마) 배포.
-- **Fork** = 고객 팀이 소유한 별도 저장소. Tenant identity, secret
-  ref, allowlist, per-customer rule, 기본 비활성 fake를 대체하는
-  구체적 어댑터 포함.
+- **Fork** = 선택적인 downstream distribution. 지원되는 seam으로 적용하는 concrete adapter와
+  capability, catalog, policy, presentation overlay를 포함합니다.
+- **Deployment** = upstream 또는 fork의 running instance입니다. Tenant identity, secret reference,
+  resource scope, environment, promotion state를 source control 밖에서 제공합니다.
 - **기여 방향**: upstream은 fork에서 절대 pull하지 않음. Fork가
   개선을 위해 upstream `main`에서 pull. Fork가 모든 고객에게 유용한
   변경을 만들면, 그 변경은 **고객 값이 제거**되고 독립적인 upstream
   PR로 배포됩니다.
+
+각 축은 독립 상태를 유지합니다.
+
+| 축 | 예 | Fork가 선택하나요? |
+|----|----|---------------------|
+| Distribution | upstream, downstream fork | 예, source/package boundary만 선택 |
+| Deployment environment | dev, staging, production | 아니요 |
+| Evidence profile | authoritative, fixture | 아니요 |
+| Autonomy | capability별 shadow, enforce | 아니요 |
+| Human 및 executor identity | Entra App Role, Managed Identity | 아니요 |
+
+하나의 fork는 deployment가 없거나 서로 다른 environment에 여러 deployment가 있을 수 있습니다.
+Upstream도 직접 deploy할 수 있습니다. `.fdai-fork`, `FDAI_FORK`, `git config fdai.fork true`는
+repository-integrity 검사만 활성화하며 runtime code는 이 값을 기준으로 분기하면 안 됩니다.
 
 ## 2. Day-1 체크리스트
 
@@ -72,7 +88,7 @@ Fork에서 첫 `git commit` 전에 이것들을 하세요.
    fail하면 fork 코드 추가 전에 멈추고 진단 - fork는 red baseline을
    절대 상속하지 말 것.
 2. **구별되는 기본 브랜치 이름으로 clone** (선택적이지만 권장):
-   `fork/main` 또는 `customer-x/main` - `git push`가 실수로 upstream을
+  `fork/main` 또는 `distribution/main` - `git push`가 실수로 upstream을
    대상으로 하지 않도록.
 3. **`git remote -v` 확인**: `origin`이 `dotnetpower/fdai`이
    아니라 fork 저장소를 가리켜야 함. 한 번 실수하면 고객 커밋이
@@ -95,8 +111,8 @@ Fork에서 첫 `git commit` 전에 이것들을 하세요.
    포함 DSN)은
    `fdai.shared.providers.secret_provider.SecretProvider`를
    경유 - Protocol 계약이 값의 로그 기록 / 영속을 금지.
-6. Fork-owned 모듈을 위한 **`fork/` (또는 `customer/`) 최상위 디렉터리
-   생성**. 여기가 composition-root override, 어댑터, rule 추가가 사는
+6. Fork-owned 모듈을 위한 **`fork/` 최상위 디렉터리 생성**. 여기가
+  composition-root override, 어댑터, rule 추가가 사는
    곳. `core/`는 100% upstream 유지.
 7. **`pyproject.toml`에 fork 패키지 등록**: `fork/` 디렉터리를
    `[tool.setuptools.packages.find]` (또는 사용 중인 빌드 backend의

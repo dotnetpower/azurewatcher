@@ -1,7 +1,7 @@
 ---
-title: Dev/Deploy Parity - Test Fakes and Azure-Backed Local Development
+title: Runtime Parity - Authoritative Local Development and Test Fixtures
 ---
-# Dev/Deploy Parity - Test Fakes and Azure-Backed Local Development
+# Runtime Parity - Authoritative Local Development and Test Fixtures
 
 **Goal**: automated tests remain deterministic and secret-free, while every interactive local
 Console session shows the operator's actual Azure development environment. Azure deployment
@@ -10,26 +10,27 @@ resources are provisioned**. Three truths hold at the same time:
 
 - **Automated-test truth**: pytest and committed mocks may bind deterministic fakes. They use an
   explicit test-fixture builder and never represent observed Azure state.
-- **Full-stack local truth**: `Console Web: Full Stack` requires the current Azure CLI identity.
-  Inventory and model availability come from Azure. Audit, Incidents, Approvals, Agent activity,
-  live control-loop state, cost, promotion evidence, scope, and scheduler data appear only when
-  their authoritative FDAI Azure data plane is deployed and configured. Missing sources render
-  unavailable or explicitly empty; the Console never substitutes generated examples.
+- **Full-stack local truth**: `Console Web: Full Stack` uses browser Entra sign-in with the same
+  App Role checks as deployment. The server's Azure CLI session supplies provider credentials for
+  the Azure development data plane only. Inventory, model availability, agent activity, Process
+  state, promotion evidence, and audit data appear only from authoritative providers. Missing
+  sources render unavailable or explicitly empty; the Console never substitutes generated examples.
 - **Deploy truth**: `terraform apply` provisions the Azure-side realizations of the
   CSP-neutral contracts. The **LLM subset is deployer-scoped**: the bootstrap resolver
   queries the deployer's identity against the target region's catalog, provisions
   **only what the deployer has permission to create**, and records the resolved
   `{capability → deployment}` mapping in the audit log.
 
-Both modes share **one code path**: only the composition-root bindings differ
+All profiles share **one control path**: only composition-root adapters and credentials differ
 ([project-structure.md § Customization via Dependency Injection](../architecture/project-structure.md#customization-via-dependency-injection)).
 Adding a real Azure client is a fork-side injection; it MUST NOT edit `core/`.
 
 ## Audit - What Works Local, What Needs Azure
 
-Snapshot as of 2026-07-19. "Automated test" means pytest or a committed mock invoked by the
-test runner. "Full-stack local" means the VS Code compound launch using the current Azure CLI
-context. Test fixtures are never enabled by that launch profile.
+Snapshot as of 2026-07-20. "Automated test" means pytest or a committed mock invoked by the
+test runner. "Full-stack local" means the VS Code compound launch using browser Entra for the
+operator and the current Azure CLI context for server-side Azure adapters. Test fixtures are never
+enabled by that launch profile.
 
 ### Fully working in automated tests (no Azure needed)
 
@@ -38,7 +39,7 @@ context. Test fixtures are never enabled by that launch profile.
 | T0 deterministic engine | `opa` binary + Rego policies + rule catalog | 100% offline; the CI parity gate proves this |
 | Rule catalog loader + shadow eval pipeline | filesystem YAML | no cloud calls |
 | Risk gate + promotion registry | in-memory `ActionPromotionRegistry` | seam swappable |
-| Executor + resource lock | in-process | no PR delivery in dev-mode |
+| Executor + resource lock | in-process | fixture-only; never an interactive executor |
 | Audit store | `InMemoryStateStore` (hash-chain verified) | prod backend = Postgres |
 | Event ingest + trust router | in-process | no bus wired |
 | Verticals (Resilience / FinOps / Change Safety) | pure decision modules | no cloud |
@@ -54,38 +55,31 @@ context. Test fixtures are never enabled by that launch profile.
 
 ### Console data in local development
 
-The local read API authenticates with `FDAI_READ_API_LOCAL_AZURE_CLI=1`; the SPA pairs it with
-`VITE_LOCAL_AZURE_CLI_AUTH=1`. The access token remains server-side. The inventory graph reads
-the selected Azure subscription through `AzureCliInventory`, and the model catalog reads actual
-Azure model availability.
+The canonical local read API uses `FDAI_READ_API_LOCAL_ENTRA=1`. The browser obtains the API token
+and the API verifies its JWT and App Roles exactly as deployment does. The server's Azure CLI token
+is confined to Azure adapters such as Resource Graph, Microsoft Graph, model discovery, and Event
+Hubs. `FDAI_READ_API_LOCAL_AZURE_CLI=1` with `VITE_LOCAL_AZURE_CLI_AUTH=1` is an explicit
+CLI-principal debug alternative with a fixed role ceiling.
 
-The local factory does not start a local Pantheon runtime, scenario replay, synthetic Live or
-Agents emitter, seeded audit model, demo findings, generated Process, synthetic scheduler,
-synthetic cost meter, scope template, or blast-radius graph. When FDAI's Azure PostgreSQL/Event
-Hubs/runtime resources are absent, those panels are unavailable or empty with no runtime claim.
-Repository catalogs and schemas remain visible because they are configuration-as-code, not
-observed runtime evidence.
+When Azure Event Hubs is configured, the local factory starts all 15 agents against that real bus
+under a dedicated local consumer group. Workflow definitions use the same enforce allowlist as
+deployment, while each ActionType remains subject to its authoritative promotion and risk gates.
+Thor does not receive the developer's credential: privileged execution remains in the deployed
+Managed Identity runtime. Scenario replay, seeded audit rows, recording executors, VM-task fakes,
+synthetic scheduler/cost data, scope templates, and blast-radius fixtures remain pytest-only.
+
+When FDAI's Azure PostgreSQL, Event Hubs, runtime, or executor resources are absent, the associated
+surfaces are unavailable or empty with no runtime claim. Repository catalogs and schemas remain
+visible because they are configuration-as-code, not observed runtime evidence.
 
 ### Azure-backed integrations
 
 | Subsystem | Status | Gap |
 |-----------|--------|-----|
 | Azure Resource Graph inventory | Production adapter exists (`delivery/azure/inventory.py`) | Full-stack local always uses read-only `AzureCliInventory`; synthetic opt-out is rejected |
-| Managed Identity token (`WorkloadIdentity`) | Protocol only, no adapter | Dev-mode MUST use a deterministic in-memory token issuer |
-| Key Vault secret provider (`SecretProvider`) | Protocol only, no adapter | Dev-mode MUST read secrets from `.env` (already the fork pattern; formalise it as a `EnvSecretProvider`) |
-| GitOps PR publisher | Real GitHub adapter exists | Dev-mode already has a `RecordingRemediationPrPublisher` fake ✅ |
-
-### Not yet built at all
-
-| Subsystem | Missing artifact | Consequence |
-|-----------|------------------|-------------|
-| Azure OpenAI / AI Foundry Terraform module | `infra/modules/llm/azure-openai/` | `T2_MODEL_ENDPOINT` env var is documented but never populated |
-| `rule-catalog/llm-registry.yaml` | designed in [llm-strategy.md § Capability Preferences Registry](../architecture/llm-strategy.md#capability-preferences-registry) | no capability→family preference source |
-| Bootstrap resolver CLI | designed in [llm-strategy.md § Bootstrap Provisioner](../architecture/llm-strategy.md#bootstrap-provisioner) | nothing queries deployer identity + region catalog |
-| `resolved-models.json` writer / reader | designed | no runtime `capability → deployment` map |
-| Azure OpenAI adapter (`AzureOpenAIEmbeddingModel`, `AzureOpenAICrossCheckModel`) | not written | prod cannot bind real LLMs |
-| `LlmConfig` in `AppConfig` | not in `schema.json` / `models.py` | no way to declare mode / endpoint / capabilities |
-| Reconciler weekly Job | designed | no drift / deprecation surfacer |
+| Managed Identity token (`WorkloadIdentity`) | Deployed adapter exists | interactive local publishes to the deployed executor; fixture tests may use a local issuer |
+| Key Vault secret provider (`SecretProvider`) | deployment injects Key Vault references | interactive adapters use environment references; fixture values remain test-only |
+| GitOps PR publisher | Real GitHub adapter exists | interactive execution uses the configured adapter; recording publishers are test-only |
 
 ## Parity Contract (MUST)
 
@@ -158,7 +152,8 @@ Each work item below reflects what actually landed - code, tests, and gate cover
 ### W-A: Config schema for LLM + dev-mode flag ✅ *(baseline, shipped)*
 
 - Add `LlmConfig` to `src/fdai/shared/config/schema.json` + `models.py`:
-  - `mode`: `local-fake` | `azure` (default `local-fake` when `runtime.env == "dev"`).
+  - `mode`: `local-fake` | `azure`. `local-fake` is an explicit test/mock binding; deployment
+    environment does not select it.
   - `resolved_models_path`: optional KV secret name or filesystem path.
   - `capabilities`: list of capability names (`t1.embedding`, `t1.judge`,
     `t2.reasoner.primary`, `t2.reasoner.secondary`) - mirrors the registry.
@@ -228,12 +223,12 @@ Each work item below reflects what actually landed - code, tests, and gate cover
     bind per capability. A missing entry raises `ConfigError` (fail-fast).
 - Tests: both branches; assert `local-fake` never imports `delivery.azure.llm`.
 
-### W-G: Dev-mode identity + secret + inventory adapters  ✅ *(parity fillers, shipped)*
+### W-G: Fixture identity + secret + inventory adapters  ✅ *(test support, shipped)*
 
 - `EnvSecretProvider` in `shared/providers/testing/` (renamed to
   `shared/providers/local/` to reflect dev usage).
-- `LocalWorkloadIdentity` - issues an in-memory OIDC token that adapters accept in
-  dev-mode (no network).
+- `LocalWorkloadIdentity` - issues an in-memory OIDC token accepted only by fixture adapters
+  (no network). Interactive local never uses it as Thor's identity.
 - `FileFixtureInventory` - reads `Resource` records from any YAML fixture the fork passes to its constructor (`fixture=Path(...)`); upstream ships zero seed fixtures, and the recommended convention is `tests/scenarios/inventory/*.yaml` alongside the frozen scenario replay so verticals can dry-run without ARG.
 - Tests + docstrings show the exact fork-side pattern.
 
@@ -245,7 +240,7 @@ Each work item below reflects what actually landed - code, tests, and gate cover
 - Update [deploy-and-onboard.md § Azure Resource Inventory](deploy-and-onboard.md#azure-resource-inventory-minimum-set)
   to add row 11 (Azure OpenAI, opt-in).
 - Update [tech-stack.md § Local Development](../architecture/tech-stack.md#local-development) to
-  explicitly state "LLM stays fake in dev by default".
+  distinguish authoritative interactive adapters from explicit fixtures.
 - Update [llm-strategy.md § Bootstrap Provisioner](../architecture/llm-strategy.md#bootstrap-provisioner)
   to reference this doc for the deployer-permission gates.
 
@@ -271,9 +266,12 @@ Everything above stays customer-agnostic. A fork customises without touching `co
 
 Each work item MUST be provable at CI time:
 
-- `runtime.env == "dev"` end-to-end pytest run **imports zero `delivery.azure.*` modules**
-  (enforced by `scripts/quality/architecture/check-core-imports.sh` - extend it to gate `delivery.azure.llm.*`
-  imports on `dev-mode` fixtures).
+- The explicit fixture profile imports zero `delivery.azure.*` modules. Interactive local uses the
+  Azure adapters selected by its authoritative profile.
+- Identical input, App Roles, promotion state, and risk configuration produce the same local and
+  deployed verdict and Process transition.
+- Interactive local starts all 15 agents only with authoritative Event Hubs transport and never
+  binds recording or in-memory executors.
 - Terraform plan with `enable_llm=false` succeeds on a fresh subscription with only
   `Reader` role - proving the LLM module is truly opt-in.
 - Resolver dry-run against a recorded region catalog produces a stable
@@ -284,7 +282,6 @@ Each work item MUST be provable at CI time:
 - **Where does `resolved-models.json` live at runtime?** Options: Key Vault secret, ACR
   attestation, filesystem in the container image. Preference: Key Vault (fits the existing
   secret contract).
-- **Is a local Ollama / LM Studio path worth adding as a second dev mode?** Not now - the
-  deterministic fake already gives full parity for correctness tests; a "semantic" dev mode
-  can land later without churning the composition root.
+- **Is a local Ollama / LM Studio fixture worth adding?** Not now. It would be an explicit model
+  binding and would not redefine the interactive local profile.
 - **Reconciler alerts channel** - assumed Teams; confirm at W-I time.

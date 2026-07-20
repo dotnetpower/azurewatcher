@@ -1,0 +1,29 @@
+{
+  "source": "https://arch-center.azureedge.net/icons/Azure_Public_Service_Icons_V24.zip",
+  "sourcePage": "https://learn.microsoft.com/azure/architecture/icons/",
+  "version": "V24",
+  "published": "2026-07-08",
+  "archiveSha256": "921594ccd1bf3d9c0a1bd7b6d924e050551a59342f2b353bb74bdcf761c35141",
+  "icons": {
+    "event-hubs": {
+      "file": "event-hubs.svg",
+      "productName": "Azure Event Hubs",
+      "sha256": "55187fecea1de7b135e53cc100bc765ad06ab419365263456bf548906c3107f8"
+    },
+    "monitor": {
+      "file": "monitor.svg",
+      "productName": "Azure Monitor",
+      "sha256": "1396f59a7d8fd7505a423842b987c9b343a092263d1ab5c7b0d94d58d8b17448"
+    },
+    "postgresql": {
+      "file": "postgresql.svg",
+      "productName": "Azure Database for PostgreSQL",
+      "sha256": "8232e8ecfbd607ce3b54646199805a823646d71e552f9aa71e7a3952cde35620"
+    },
+    "resource-graph": {
+      "file": "resource-graph.svg",
+      "productName": "Azure Resource Graph",
+      "sha256": "6e9262653086bd4e83184ba6abb2e8b39a29e676107540c1fcfa41b4c8c0db37"
+    }
+  }
+}

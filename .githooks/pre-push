@@ -130,12 +130,32 @@ if [ -f scripts/integrity/check-integrity.sh ] && [ -f security/integrity/manife
 fi
 
 # ---------------------------------------------------------------------------
+# 4c. Design-document impact. Routes behavior-bearing paths through the
+#     machine-readable design registry and requires an owning design doc in
+#     the same pushed range.
+# ---------------------------------------------------------------------------
+if [ -f scripts/quality/architecture/check-design-doc-impact.py ]; then
+  if ! python3 scripts/quality/architecture/check-design-doc-impact.py "$range"; then
+    echo "pre-push: BLOCKED - owning design documentation was not updated."
+    exit 1
+  fi
+fi
+if [ -f scripts/quality/architecture/check-document-size.py ]; then
+  if ! python3 scripts/quality/architecture/check-document-size.py "$range"; then
+    echo "pre-push: BLOCKED - oversized roadmap document grew instead of being split."
+    exit 1
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # 5. Structural gates (warn-only in the hook - CI is the authoritative
 #    fail surface). Kept lightweight so pushes stay fast. Tracker #14,
 #    issue #22.
 # ---------------------------------------------------------------------------
 for gate_path in \
   scripts/quality/architecture/check-agents-imports.sh \
+  scripts/quality/architecture/check-design-routes.py \
+  scripts/quality/architecture/check-fork-runtime-independence.py \
   scripts/quality/architecture/check-file-loc.sh \
   scripts/quality/architecture/check-subsystem-fanout.sh \
   scripts/quality/repository/check-doc-links.sh
@@ -149,7 +169,12 @@ do
   # Pre-push runs in warn-only mode for the two threshold gates (H2/H5
   # give them their loud voices in CI); suppress per-file lines with
   # CHECK_QUIET so a routine push does not flood the terminal.
-  if ! CHECK_QUIET=1 bash "$gate_path" > /tmp/pre-push-${gate}.out 2>&1; then
+  if [[ "$gate_path" == *.py ]]; then
+    gate_command=(python3 "$gate_path")
+  else
+    gate_command=(bash "$gate_path")
+  fi
+  if ! CHECK_QUIET=1 "${gate_command[@]}" > /tmp/pre-push-${gate}.out 2>&1; then
     echo "pre-push: BLOCKED - ${gate} failed:"
     sed 's/^/  /' /tmp/pre-push-${gate}.out
     exit 1

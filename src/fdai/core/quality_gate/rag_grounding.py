@@ -25,7 +25,7 @@ Design notes
 ------------
 
 - ``core/`` stays CSP-neutral: the embedding index is a Protocol, not a
-  hard-coded SDK call. A production fork MAY back it with any
+    hard-coded SDK call. A deployment adapter MAY back it with any
   embedding service by registering an implementation at the
   composition root; the upstream default is the deterministic
   :class:`~fdai.core.quality_gate.testing.HashedRuleEmbeddingIndex`.

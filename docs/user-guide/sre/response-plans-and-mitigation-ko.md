@@ -2,8 +2,8 @@
 title: 대응 계획과 완화
 description: FDAI가 action pipeline을 우회하지 않고 incident response plan을 작성, 사전 테스트, 승인, 라우팅하는 방법입니다.
 translation_of: response-plans-and-mitigation.md
-translation_source_sha: fdead9be999339ca139b5fb28539ac56967ab765
-translation_revised: 2026-07-17
+translation_source_sha: 5bb2c8ccbf7201ac2b315837005041d84f605b4b
+translation_revised: 2026-07-20
 ---
 
 # 대응 계획과 완화
@@ -23,6 +23,17 @@ Pretest는 유사한 resolved incident에 대해 plan을 평가합니다. Report
 있는 과거 case와 필수 evidence 또는 step이 누락된 지점을 보여 줍니다. Pretest 성공은
 검토 증거이며 자동 activation이 아닙니다.
 
+Plan activation과 action promotion은 별개의 판단입니다. Plan을 activate한다는 것은 trigger와
+response structure를 사용할 준비가 됐다는 뜻입니다. 참조된 `ActionType`을 promotion하거나
+risk tier를 낮추거나 실행 권한을 부여하지 않습니다.
+
+| Plan 관심사 | 소유 판단 | 안전한 실패 |
+|-------------|-----------|-------------|
+| 필수 step, owner, channel, rollback | Plan readiness gate | Plan을 inactive로 유지 |
+| Historical coverage | Pretest review | Gap 기록, 자동 activate 금지 |
+| Action safety 및 promotion | Action registry 및 risk-gate | Shadow, HIL 또는 deny |
+| Runtime mutation | Executor 검사 | No-op, 중지 또는 rollback |
+
 ## Alert 대응 흐름
 
 1. Alert가 시간 제한이 있는 investigation을 시작합니다.
@@ -35,6 +46,14 @@ Pretest는 유사한 resolved incident에 대해 plan을 평가합니다. Report
 기본 approval gate는 deny합니다. Approval binding이 없거나 고장 나면 action이 발생하지
 않습니다.
 
+## 직무 분리 유지
+
+Plan coordinator는 근거 있는 recommendation을 선택하지만 judge, approve, execute를 모두
+수행하지 않습니다. Forseti는 verdict를 만들고, Var는 approval record를 전달하며, Thor는
+privileged executor이고, Vidar는 rollback을 소유하며, Saga는 audit evidence를 append합니다.
+Policy가 요구하는 경우 requester, approver, executor는 서로 다른 principal로 유지됩니다.
+Chat message나 성공한 notification delivery는 authenticated approval decision이 아닙니다.
+
 ## 완화는 실행이 아님
 
 Response step은 `ActionType`을 지정하며 executor를 호출하지 않습니다. 일반 pipeline이
@@ -43,11 +62,19 @@ precondition, stop condition, blast radius, rollback, mode, lock, identity, poli
 
 ## 실패 동작
 
-- Actionable finding이 없으면 proposal을 만들지 않습니다.
-- Investigation timeout 또는 exception은 action 없이 audit-shaped result를 남깁니다.
-- Approval reject 또는 timeout은 no-op입니다.
-- Routing failure는 out-of-band API call로 전환되지 않습니다.
-- Partial execution은 runbook에 선언된 failure 및 compensation branch를 따릅니다.
+| 실패 지점 | 최종 동작 | 유지되는 증거 |
+|-----------|-----------|---------------|
+| Grounded actionable finding 없음 | Proposal 없음 | Investigation result 및 gap |
+| Investigation timeout 또는 exception | Action 없음 | Partial report 및 unavailable evidence |
+| Approval reject | 감사되는 no-op | Rejecting principal 및 reason |
+| Approval timeout | 감사되는 no-op 또는 escalation | Expiry 및 ladder state |
+| Routing 또는 notification failure | Durable retry 또는 escalation | Delivery attempt, approval 아님 |
+| 실행 중 stop condition | 중지 후 compensation policy 적용 | Step outcome 및 rollback reference |
+
+응답 없는 escalation deadline 이후 유효한 standing authorization이 적용되더라도 plan이 직접
+실행하지 않습니다. Supervisor는 pending typed action을 새 risk-gate 판단에 제출합니다.
+Expired authorization, stale inventory, 넓어진 blast radius, envelope mismatch는 no-op으로
+종료됩니다.
 
 ## 다음 단계
 

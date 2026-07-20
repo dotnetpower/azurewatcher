@@ -28,6 +28,17 @@ proposal and must re-enter the typed action pipeline.
 - **Priorities** rank recommendations as P1, P2, or P3 without granting
   execution authority.
 
+Evidence availability is explicit rather than inferred from a missing field.
+Priority is local ordering inside the report; it is not severity, confidence,
+or an autonomy verdict unless a separate policy says so.
+
+| Evidence state | Meaning | Downstream behavior |
+|----------------|---------|---------------------|
+| Available | Provider returned bounded, fresh data | May support findings and hypotheses |
+| Empty | Query succeeded with no matching records | Report absence with query scope |
+| Unavailable | Provider failed or dependency is unhealthy | Mark the gap and suppress dependent claims |
+| Stale | Data exists but exceeds its freshness policy | Hold dependent conclusions for review |
+
 ## Triage workflow
 
 1. Confirm incident severity, owner, affected resources, and user impact.
@@ -54,6 +65,18 @@ proposal and must re-enter the typed action pipeline.
 A wedged analyzer is bounded and produces a no-action result. An exception is
 recorded as unavailable evidence rather than crashing the response and losing
 the audit trail. Cancellation still aborts the investigation cleanly.
+
+Analyzers fail independently. Completed analyzer results remain in a partial
+report while failed or timed-out analyzers contribute explicit gaps. When the
+overall latency budget expires, the coordinator stops gathering new evidence,
+records whether the budget was met, and returns only supported observations.
+It does not fill missing sections with model prose or turn a partial report into
+an action.
+
+Before using a recommendation, verify that its supporting analyzer completed,
+the cited evidence is fresh, and the recommendation remains within the declared
+resource and time scope. A high report priority can accelerate review, but it
+cannot bypass RCA grounding, risk classification, or approval.
 
 ## Next steps
 

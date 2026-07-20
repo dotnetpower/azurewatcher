@@ -47,6 +47,7 @@ def build_local_view_wiring(
     repo_root: Path,
     read_model: Any,
     include_test_fixtures: bool = False,
+    promoted_workflows: frozenset[str] = frozenset(),
 ) -> LocalViewWiring:
     """Build local catalogs, dynamic process views, and user context."""
     catalog = build_local_catalog_wiring(
@@ -103,6 +104,7 @@ def build_local_view_wiring(
         action_types=catalog.action_types,
         workflows=catalog.workflows,
         rule_ids=frozenset(rule.id for rule in catalog.rules if getattr(rule, "id", None)),
+        promoted_workflows=promoted_workflows,
     )
     return LocalViewWiring(
         catalog=catalog,

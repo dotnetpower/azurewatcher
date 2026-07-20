@@ -1,7 +1,7 @@
 ---
 title: Architecture Review Board 패킷
 translation_of: architecture-review-board.md
-translation_source_sha: 82a96927a8e732839af5a83e18b6bef4dc0d170d
+translation_source_sha: 25396cc8a0af01614a6c1d5e78ce9bacbe461865
 translation_revised: 2026-07-20
 ---
 # Architecture Review Board 패킷
@@ -102,7 +102,7 @@ python3 scripts/governance/check-arb-readiness.py --require-production-ready
 
 ## Nonfunctional evidence contract
 
-배포에 따라 달라지는 target은 upstream universal constant가 아닙니다. Production 포크는 승인
+배포에 따라 달라지는 target은 upstream universal constant가 아닙니다. Production deployment는 승인
 값, 측정 방법, 결과, timestamp, approver를 evidence binding에 기록합니다.
 
 | 영역 | 필수 production evidence | 통과 조건 |
@@ -122,7 +122,7 @@ python3 scripts/governance/check-arb-readiness.py --require-production-ready
 
 [Data Governance](data-governance-ko.md)는 classification, minimization, residency, retention,
 legal hold, deletion, model provider, privacy-assessment contract를 정의합니다. Upstream 설계는
-customer compliance certification을 주장하지 않습니다. Production 포크는 control profile을
+customer compliance certification을 주장하지 않습니다. Deployment owner는 control profile을
 선택하고 control을 evidence에 mapping하며 exception과 privacy/data owner를 기록합니다.
 
 ## Ownership과 support

@@ -78,6 +78,15 @@ Required sections (order matters, headings can vary):
    bulleted lists + tables** over walls of prose. A section that runs longer
    than ~15 lines of prose SHOULD be broken into H3 subsections or a table.
 
+One document owns one coherent design responsibility. Target no more than 300 lines. A new
+roadmap document over 400 lines is rejected, and a legacy document over 650 lines may only shrink.
+The `check-document-size.py` ratchet enforces those bounds.
+
+When a document outgrows one responsibility, keep the original path as a short index and move
+complete concepts into focused companion documents. Do not duplicate normative text. Update
+`docs/roadmap/README.md`, `code-map.md` when applicable, and `scripts/lib/design-routes.json` so an
+agent receives every new owner document. English/Korean pairs split together.
+
 Optional but SHOULD when they fit:
 
 - **`## Next steps`** or **`## Related docs`** - a table linking to the
@@ -107,6 +116,11 @@ These apply to **every** tier:
 - **ASCII punctuation only** ([language.instructions.md](language.instructions.md#formats-machine-parseable)).
   Use `-`, `"`, `'`, `...`. Never em-dash, en-dash, smart quotes, ellipsis
   character, or no-break space. CI blocks these via `scripts/quality/repository/check-punctuation.sh`.
+- **Plain-language display terms**: lead with the term a reader can act on, in both English and
+  Korean. Use `Decision`, `Human approval`, and `Ownership` instead of bare `verdict`, `HIL`, and
+  `stewardship`. Preserve canonical contract terms in code, schemas, serialized examples, and the
+  first technical gloss when readers need to correlate the two layers. Use the terminology table in
+  the [documentation-writing skill](../skills/documentation-writing/SKILL.md#separate-contract-vocabulary-from-display-vocabulary).
 - **Bold lead-ins**: bulleted lists in Tier A / B docs use a `**Bold key**:`
   lead-in when practical, so the eye can scan.
 - **Concrete examples**: any capability described in prose SHOULD have an

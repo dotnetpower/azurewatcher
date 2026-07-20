@@ -21,6 +21,13 @@ scope: repository
 
 This skill governs work **inside a downstream fork** (a repo that carries a
 committed `.fdai-fork` marker, `FDAI_FORK=1`, or `git config fdai.fork true`).
+Those signals select repository-integrity enforcement only. They MUST NOT select a
+deployment environment, tenant, evidence profile, RBAC policy, or shadow/enforce mode.
+
+A fork is an optional distribution customization boundary. Upstream and forks may each
+have zero or many deployments in any environment. Runtime behavior continues to follow
+the same contracts and authoritative configuration described by
+[ADR-0002](../../../docs/roadmap/architecture/decisions/0002-independent-runtime-axes.md).
 The always-loaded short contract is
 [.github/instructions/generic-scope.instructions.md](../../instructions/generic-scope.instructions.md)
 (§ "Editable vs Locked"). The procedural walkthrough is

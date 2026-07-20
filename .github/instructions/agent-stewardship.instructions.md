@@ -54,7 +54,7 @@ strong default; **MAY** is optional.
 
 - Upstream ships every objectId as the all-zero placeholder. A fork MUST replace
   them with real Entra ids; the resolver rejects a leftover placeholder when
-  `FDAI_FORK` is set, and `check-guids.sh` blocks any non-placeholder GUID from
+  `FDAI_STEWARDSHIP_REQUIRE_BINDINGS=1` is set, and `check-guids.sh` blocks any non-placeholder GUID from
   landing upstream. Never commit a real tenant objectId to this repo.
 
 ## 5. Core-module discipline (MUST)

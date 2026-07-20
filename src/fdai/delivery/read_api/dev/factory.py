@@ -112,7 +112,10 @@ from fdai.delivery.read_api.dev.iam_directory import (  # noqa: E402
     build_local_iam_directory,
 )
 from fdai.delivery.read_api.dev.model_wiring import build_local_model_wiring  # noqa: E402
-from fdai.delivery.read_api.dev.runtime_wiring import build_local_runtime_wiring  # noqa: E402
+from fdai.delivery.read_api.dev.runtime_wiring import (  # noqa: E402
+    build_interactive_pantheon_wiring,
+    build_local_runtime_wiring,
+)
 from fdai.delivery.read_api.dev.view_wiring import build_local_view_wiring  # noqa: E402
 from fdai.delivery.read_api.entra_verifier import (  # noqa: E402
     EntraJwtVerifier,
@@ -187,7 +190,7 @@ def build_local_app(
     if not dev_mode and not local_entra and not local_azure_cli:
         raise RuntimeError(
             f"fdai.delivery.read_api.dev.local requires {_DEV_ENV}=1 (auth bypassed) "
-            f"or {_LOCAL_ENTRA_ENV}=1 (real Entra sign-in against seed data) or "
+            f"or {_LOCAL_ENTRA_ENV}=1 (real Entra sign-in with Azure-backed providers) or "
             f"{_LOCAL_AZURE_CLI_ENV}=1 (current az login user); this module is a "
             "local dev entrypoint and MUST NOT boot in production."
         )
@@ -219,10 +222,16 @@ def build_local_app(
         application_id=entra_application_id_from_env(),
     )
 
+    enforce_workflows = frozenset(
+        item.strip()
+        for item in os.environ.get("FDAI_WORKFLOW_ENFORCE_ALLOWLIST", "").split(",")
+        if item.strip()
+    )
     views = build_local_view_wiring(
         repo_root=_REPO_ROOT,
         read_model=read_model,
         include_test_fixtures=test_fixtures,
+        promoted_workflows=enforce_workflows,
     )
     catalog = views.catalog
     ontology_object_types = catalog.object_types
@@ -259,11 +268,6 @@ def build_local_app(
         )
     )
     workflow_execution = views.workflow_execution
-    enforce_workflows = frozenset(
-        item.strip()
-        for item in os.environ.get("FDAI_WORKFLOW_ENFORCE_ALLOWLIST", "").split(",")
-        if item.strip()
-    )
     if workflow_execution is not None and command_transport is not None:
         workflow_execution = replace(
             workflow_execution,
@@ -285,7 +289,7 @@ def build_local_app(
         local_operator_oid = (
             local_cli_identity.principal.oid if local_cli_identity is not None else "dev-anon"
         )
-        runtime = build_local_runtime_wiring(
+        fixture_runtime = build_local_runtime_wiring(
             read_model=read_model,
             action_types=tuple(action_types),
             workflows=tuple(built_in_workflows),
@@ -294,12 +298,28 @@ def build_local_app(
             action_topic=_LOCAL_ACTION_TOPIC,
             repo_root=_REPO_ROOT,
         )
+        runtime = fixture_runtime
         agent_activity_config = replace(
             agent_activity_config,
             snapshot_factory=lambda: runtime_agent_state_snapshot(
-                runtime.pantheon_runtime.health()
+                fixture_runtime.pantheon_runtime.health()
             ),
         )
+    elif command_transport is not None:
+        interactive_runtime = build_interactive_pantheon_wiring(
+            event_bus=command_transport.event_bus,
+            event_topic=command_transport.event_topic,
+            read_model=read_model,
+            action_types=tuple(action_types),
+        )
+        runtime = interactive_runtime
+        if agent_activity_config is not None:
+            agent_activity_config = replace(
+                agent_activity_config,
+                snapshot_factory=lambda: runtime_agent_state_snapshot(
+                    interactive_runtime.pantheon_runtime.health()
+                ),
+            )
     metering = InMemoryMeteringSink(
         initial=_synthetic_llm_invocations() if test_fixtures else (),
     )
@@ -404,7 +424,7 @@ def build_local_app(
             ),
             console_action=(
                 runtime.console_action
-                if runtime is not None
+                if runtime is not None and runtime.console_action is not None
                 else command_transport.console_action
                 if command_transport is not None
                 else None

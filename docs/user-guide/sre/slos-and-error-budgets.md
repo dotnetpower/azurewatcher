@@ -28,6 +28,18 @@ are validated at load time.
 | Error budget | The allowed unsuccessful fraction for that window |
 | Burn rate | How quickly the remaining budget is being consumed |
 
+## Keep the two SLO identities separate
+
+Workload SLOs measure the service FDAI operates. Control-plane SLOs measure
+FDAI itself, such as event-processing latency, action success, and console
+availability. A healthy control plane does not prove the workload is healthy,
+and a workload incident does not by itself prove FDAI is degraded.
+
+| Identity | Used for | Example |
+|----------|----------|---------|
+| Workload SLO | Incident impact and risky-change policy | Request success for a managed service |
+| FDAI control-plane SLO | Platform readiness and safe degradation | Event decision completed within budget |
+
 ## Evaluate burn rate
 
 FDAI uses short and long windows together. A short spike alone can be noise; a
@@ -38,6 +50,12 @@ budget consumption.
 The result records objective, attainment, remaining budget, evaluated windows,
 thresholds, and source freshness. Missing or stale metric data fails closed and
 does not become a healthy value.
+
+The catalog defines the short and long windows and their thresholds. The guide
+does not prescribe one universal numeric pair because service traffic and
+objectives differ. FDAI evaluates the configured pair deterministically and
+records both window results, including a no-finding outcome, so operators can
+reproduce why an alert fired or held.
 
 ## From breach to response
 
@@ -51,6 +69,12 @@ does not become a healthy value.
 An SLO breach is a finding, not permission to roll back or scale. Any response
 still needs an `ActionType`, verification, blast-radius bounds, rollback, and
 the required verdict.
+
+During active budget burn, policy can raise incident priority or lower the
+autonomy ceiling for risky changes. That policy is an explicit risk-gate input,
+not an implicit side effect of the dashboard. Missing data cannot consume zero
+budget or authorize a change; it produces unavailable evidence and suppresses
+dependent decisions.
 
 ## Operator checks
 

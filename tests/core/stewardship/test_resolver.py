@@ -73,12 +73,15 @@ def test_non_uuid_id_fails(valid_raw: dict) -> None:
         load_stewardship_from_mapping(valid_raw)
 
 
-def test_fork_rejects_placeholder(valid_raw: dict) -> None:
+def test_deployment_binding_gate_rejects_placeholder(valid_raw: dict) -> None:
     with pytest.raises(StewardshipValidationError, match="all-zero placeholder"):
-        load_stewardship_from_mapping(valid_raw, environ={"FDAI_FORK": "1"})
+        load_stewardship_from_mapping(
+            valid_raw,
+            environ={"FDAI_STEWARDSHIP_REQUIRE_BINDINGS": "1"},
+        )
 
 
-def test_non_fork_allows_placeholder(valid_raw: dict) -> None:
+def test_reference_profile_allows_placeholder(valid_raw: dict) -> None:
     mp = load_stewardship_from_mapping(valid_raw, environ={})
     assert len(mp.agents) == 15
 

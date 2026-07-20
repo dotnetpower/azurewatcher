@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import time
+from pathlib import Path
 
 import pytest
 from starlette.applications import Starlette
@@ -19,6 +20,9 @@ from fdai.delivery.read_api.dev.config import (
     entra_application_id_from_env,
     local_entra_verifier_environment,
 )
+from fdai.delivery.read_api.dev.runtime_wiring import build_interactive_pantheon_wiring
+from fdai.delivery.read_api.read_model import InMemoryConsoleReadModel
+from fdai.shared.providers.testing.live_event_bus import LiveInMemoryEventBus
 
 _DEV_ENV = "FDAI_READ_API_DEV_MODE"
 _LOCAL_ENTRA_ENV = "FDAI_READ_API_LOCAL_ENTRA"
@@ -26,6 +30,7 @@ _LOCAL_AZURE_CLI_ENV = "FDAI_READ_API_LOCAL_AZURE_CLI"
 _LOCAL_SCENARIO_REPLAY_ENV = "FDAI_LOCAL_SCENARIO_REPLAY"
 _LOCAL_AZURE_DISCOVERY_ENV = "FDAI_LOCAL_AZURE_DISCOVERY"
 _LOCAL_AZURE_SUBSCRIPTION_ENV = "FDAI_LOCAL_AZURE_SUBSCRIPTION_ID"
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _unsigned_token(claims: dict[str, object]) -> str:
@@ -45,6 +50,41 @@ def _python_task() -> dict[str, object]:
         "timeout_seconds": 60,
         "python_executable": "/usr/bin/python3",
     }
+
+
+def test_interactive_pantheon_wires_all_agents_without_fixture_executors() -> None:
+    wiring = build_interactive_pantheon_wiring(
+        event_bus=LiveInMemoryEventBus(),
+        event_topic="aw.events",
+        read_model=InMemoryConsoleReadModel(),
+        action_types=(),
+    )
+
+    assert len(wiring.pantheon_runtime.agents) == 15
+    assert wiring.pantheon_runtime.enforce is False
+    assert wiring.console_action is None
+    assert wiring.python_tasks is None
+    assert wiring.operator_runtime is None
+
+
+def test_full_stack_launch_uses_entra_rbac_without_fixture_or_cli_principal() -> None:
+    launch = json.loads((_REPO_ROOT / ".vscode" / "launch.json").read_text(encoding="utf-8"))
+    configs = {item["name"]: item for item in launch["configurations"]}
+    api_env = configs["Console Web: Read API"]["env"]
+    frontend_env = configs["Console Web: Frontend"]["env"]
+    compound = next(
+        item for item in launch["compounds"] if item["name"] == "Console Web: Full Stack"
+    )
+
+    assert api_env["FDAI_READ_API_LOCAL_ENTRA"] == "1"
+    assert api_env["FDAI_READ_API_DEV_MODE"] == "0"
+    assert api_env["FDAI_READ_API_LOCAL_AZURE_CLI"] == "0"
+    assert frontend_env["VITE_DEV_MODE"] == "0"
+    assert frontend_env["VITE_LOCAL_AZURE_CLI_AUTH"] == "0"
+    assert compound["configurations"] == [
+        "Console Web: Read API",
+        "Console Web: Frontend",
+    ]
 
 
 class TestLocalEntrypoint:

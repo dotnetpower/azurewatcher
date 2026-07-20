@@ -5,7 +5,7 @@ title: Deploy and Onboard
 
 How to provision FDAI into an Azure subscription and complete first-time onboarding
 so the system is ready to observe. This file is authoritative for **the concrete deployment
-inventory, the bootstrap sequence, and the fork ↔ core responsibility split**; the deployment
+inventory, the bootstrap sequence, and the distribution/deployment responsibility split**; the deployment
 lifecycle (CI/CD, progressive delivery, rollback, DR) remains in
 [deployment.md](deployment.md).
 
@@ -15,7 +15,7 @@ All identifiers are synthetic per
 [generic-scope.instructions.md](../../../.github/instructions/generic-scope.instructions.md).
 
 > The day-zero service tiers and counts are decided in
-> [Azure Resource Inventory](#azure-resource-inventory-minimum-set). A fork confirms the
+> [Azure Resource Inventory](#azure-resource-inventory-minimum-set). A deployment owner confirms the
 > region, quota, retention, replica caps, and production tier overrides before deployment.
 > The **execution engine is decided**: `terraform apply` against `infra/` (Terraform HCL).
 > The planned operator entry point is the installable `fdaictl` facade, which keeps Terraform
@@ -278,10 +278,10 @@ these capabilities rely on, not a behavior any single script hardcodes:
 - **Cost attribution** - Cost Management and Resource Graph can group spend by `fdai:vertical`
   and isolate the total FDAI footprint as the `fdai:managed=true` slice.
 
-### Fork-supplied tags (`additional_tags`)
+### Deployment-supplied tags (`additional_tags`)
 
 Customer- and environment-specific keys are **never** hardcoded in `base_tags` (that would
-break [generic-scope](../../../.github/instructions/generic-scope.instructions.md)). A fork
+break [generic-scope](../../../.github/instructions/generic-scope.instructions.md)). A deployment
 supplies them via the `additional_tags` map in its `*.tfvars`, keeping the `fdai:` namespace:
 
 ```hcl
@@ -293,7 +293,7 @@ additional_tags = {
 }
 ```
 
-`additional_tags` is merged on top of `base_tags`, so a fork can also override a base value
+`additional_tags` is merged on top of `base_tags`, so a deployment can also override a base value
 (e.g. pin `fdai:vertical`) without editing core.
 
 ### Per-resource overrides
@@ -320,7 +320,7 @@ driven by the [Cost-Efficiency Principles](#cost-efficiency-principles) at the e
 document. The inventory is rendered from the four CSP-neutral contracts (event bus, runtime,
 secret, workload identity) defined in [csp-neutrality.md](../architecture/csp-neutrality.md); Azure is
 today's realization of each contract. Concrete tier values, exact names, region, and per-app
-replica caps are still **fork-specific** and tuned per environment; the shape is stable.
+replica caps are still **deployment-specific** and tuned per environment; the shape is stable.
 
 | # | Resource | Tier | Purpose | Notes |
 |---|----------|------|---------|-------|
@@ -352,7 +352,7 @@ Additional required elements that **do not incur a billable Azure resource of th
   redirect URIs. A tenant mismatch or missing Graph permission blocks the
   deployment rather than shipping a console that cannot sign in.
 - **Entra security groups × 5** - `aw-readers`, `aw-contributors`, `aw-approvers`,
-  `aw-owners`, `aw-break-glass`. Fork-owned; objectIds injected via config and validated at
+  `aw-owners`, `aw-break-glass`. Deployment-owned; objectIds injected via config and validated at
   startup ([user-rbac-and-identity.md#42-security-groups-slots](../interfaces/user-rbac-and-identity.md#42-security-groups-slots)).
 - **Conditional Access policies** - phishing-resistant MFA on `aw-approvers`/`aw-owners`,
   compliant-device on `aw-owners`, dedicated hardware token + sign-in alert on
@@ -457,23 +457,21 @@ flowchart TD
 - Post-deploy smoke tests and the synthetic canary are defined in
   [operating-and-verification.md](../operations/operating-and-verification.md).
 
-## Fork vs Core Responsibility Matrix
+## Distribution and Deployment Responsibility Matrix
 
-The upstream repo (this repo) ships everything **customer-agnostic**. A per-customer **fork**
-provides values, secrets, and any customer-specific bindings via dependency injection at the
-composition root - never by editing `core/`
+The upstream repo ships everything **customer-agnostic**. A downstream distribution may limit or
+extend capabilities through dependency injection without editing `core/`. A deployment supplies
+environment values, identity, secret references, and promotion state outside source control
 ([generic-scope.instructions.md](../../../.github/instructions/generic-scope.instructions.md)).
 
-| Concern | Upstream (this repo) | Fork (per-customer) |
-|---------|----------------------|---------------------|
-| IaC modules | parameterized modules, no environment values | environment tfvars, secret references |
-| Provider adapters | Azure adapter interfaces + Azure implementation | fork MAY override an implementation via DI |
-| Rule catalog seed | no seeded rules | day-zero seed set + custom rules |
-| Assignments and overrides | none | tenant/RG-scoped assignments, RG-scoped overrides |
-| HIL approver list | not committed | Teams channel id, approver group ids |
-| MSAL / OIDC config | schema + envelope | client ids, tenant id, redirect URIs |
-| Model endpoints (T2) | interface + capability config + bootstrap resolver + weekly reconciler ([llm-strategy.md § Model Provisioning and Lifecycle](../architecture/llm-strategy.md#model-provisioning-and-lifecycle)) | `rule-catalog/llm-registry.yaml` overrides, mixed-model mode (`azure-foundry` / `external` / `hil-only`), Azure OpenAI or Foundry resource values |
-| Runtime config values | key schema (no values) | env vars + Key Vault refs |
+| Concern | Upstream distribution | Downstream customization | Deployment configuration |
+|---------|-----------------------|--------------------------|--------------------------|
+| IaC modules | parameterized modules | optional module overlays | environment tfvars, state, secret references |
+| Provider adapters | Protocols and Azure implementations | optional replacement implementation through DI | endpoint and identity bindings |
+| Rule catalog | generic seed and schemas | additional rules and policy overlays | assignments, exemptions, promotion state |
+| HIL and RBAC | role and approval contracts | optional channel adapter | Entra groups, channel ids, approver bindings |
+| Models | capability registry and resolver | optional provider adapter or preference overlay | resolved endpoints, quota, region, identity |
+| Runtime values | validated key schema | no tenant values | environment variables and Key Vault references |
 
 ## Runtime Configuration Matrix
 
@@ -483,64 +481,65 @@ full expanded catalog and defaults are authored during the inventory PR.
 
 | Key | Source | Owner | Notes |
 |-----|--------|-------|-------|
-| `AZURE_TENANT_ID` | env | fork | non-secret |
-| `AZURE_SUBSCRIPTION_ID` | env | fork | non-secret |
-| `AZURE_RG` | env | fork | target resource group |
-| `KAFKA_BOOTSTRAP_SERVERS` | env | fork | Event Hubs Kafka endpoint (`<ns>.servicebus.windows.net:9093`); realizes the [Event Bus contract](../architecture/csp-neutrality.md#1-event-bus-contract--kafka-wire-protocol) |
-| `KAFKA_SECURITY_PROTOCOL` | env | fork | `SASL_SSL` on Azure; provider-specific value elsewhere |
-| `KAFKA_SASL_MECHANISM` | env | fork | `OAUTHBEARER` on Azure |
-| `KEYVAULT_URL` | env | fork | executor MI has GET on secrets |
+| `AZURE_TENANT_ID` | env | deployment | non-secret |
+| `AZURE_SUBSCRIPTION_ID` | env | deployment | non-secret |
+| `AZURE_RG` | env | deployment | target resource group |
+| `KAFKA_BOOTSTRAP_SERVERS` | env | deployment | Event Hubs Kafka endpoint (`<ns>.servicebus.windows.net:9093`); realizes the [Event Bus contract](../architecture/csp-neutrality.md#1-event-bus-contract--kafka-wire-protocol) |
+| `KAFKA_SECURITY_PROTOCOL` | env | deployment | `SASL_SSL` on Azure; provider-specific value elsewhere |
+| `KAFKA_SASL_MECHANISM` | env | deployment | `OAUTHBEARER` on Azure |
+| `KEYVAULT_URL` | env | deployment | executor MI has GET on secrets |
 | `FDAI_STATE_STORE_DSN` | KV ref | upstream | Postgres connection URI for audit + KPI; wired by `infra/main.tf` `azurerm_key_vault_secret.state_store_dsn` from `module.state_store.application_dsn`, exposed to the Container App via `secret{}` + `env{}` (see [project-structure.md](../architecture/project-structure.md) `infra/modules/compute/container-apps/`). Empty at runtime => in-memory fallback. |
-| `FDAI_OPERATOR_MEMORY_DSN` | KV ref | upstream | Postgres DSN for HIL-approved operator memory. Same source as `FDAI_STATE_STORE_DSN` day-zero (single Flexible Server); a fork MAY split it later without touching core code. |
+| `FDAI_OPERATOR_MEMORY_DSN` | KV ref | upstream | Postgres DSN for HIL-approved operator memory. Same source as `FDAI_STATE_STORE_DSN` day-zero (single Flexible Server); a deployment MAY split it later without touching core code. |
 | `FDAI_T1_PATTERN_LIBRARY_DSN` | KV ref | upstream | Postgres DSN for the pgvector-backed T1 pattern library. Same source day-zero; wired identically. |
 | `FDAI_INVENTORY_DSN` | KV ref | upstream | PostgreSQL DSN used only by the scheduled inventory collector to stage immutable candidates and atomically promote the active graph. |
-| `FDAI_INVENTORY_SCOPES` / `FDAI_INVENTORY_RESOURCE_TYPES` | env | fork | Comma-separated subscription scopes and optional CSP-neutral resource-type subset. Empty scope fails startup. |
+| `FDAI_INVENTORY_SCOPES` / `FDAI_INVENTORY_RESOURCE_TYPES` | env | deployment | Comma-separated subscription scopes and optional CSP-neutral resource-type subset. Empty scope fails startup. |
 | `FDAI_INVENTORY_SOURCES` | env | upstream | Ordered fallback list: `arg,arm` by default; `declarative` is accepted only with a fixture path and SHA-256. |
-| `FDAI_INVENTORY_MANAGEMENT_ENDPOINT` / `FDAI_INVENTORY_MANAGEMENT_AUDIENCE` | env | fork | Validated HTTPS ARM root and OIDC audience pair. Override both for an approved sovereign-cloud or validated Resource Management Private Link path. |
+| `FDAI_INVENTORY_MANAGEMENT_ENDPOINT` / `FDAI_INVENTORY_MANAGEMENT_AUDIENCE` | env | deployment | Validated HTTPS ARM root and OIDC audience pair. Override both for an approved sovereign-cloud or validated Resource Management Private Link path. |
 | `FDAI_INVENTORY_FRESHNESS_SECONDS` | env | upstream | Maximum active snapshot age before the projection becomes stale and graph-dependent autonomy degrades to human review. Default `86400`. |
-| `FDAI_ANALYZER_TARGETS` / `FDAI_ANALYZER_WINDOW_SECONDS` / `FDAI_ANALYZER_BUDGET_SECONDS` | env | fork / upstream | Optional explicit analyzer targets and bounds. When targets are empty, the analyzer Job discovers supported resource kinds from the active inventory through `FDAI_INVENTORY_DSN`. |
-| `KAFKA_TOPIC_EVENTS` | env | fork | primary event ingest topic |
-| `KAFKA_TOPIC_DLQ_SUFFIX` | env | fork | dead-letter suffix (default `.dlq`) |
-| `TEAMS_HIL_CHANNEL_ID` | env | fork | HIL routing |
-| `T2_MODEL_ENDPOINT` | env | fork | primary reasoner - populated by the bootstrap resolver from `rule-catalog/llm-registry.yaml`; see [llm-strategy.md § Model Provisioning and Lifecycle](../architecture/llm-strategy.md#model-provisioning-and-lifecycle) |
-| `T2_MODEL_ENDPOINT_CROSSCHECK` | env | fork | mixed-model cross-check target - distinct publisher enforced at bootstrap |
-| `LLM_MODE` | env | fork | `local-fake` (default in `dev`) or `azure`. Governs the composition-root binding; see [dev-and-deploy-parity.md § Parity Contract](dev-and-deploy-parity.md#parity-contract-must). |
-| `LLM_RESOLVED_MODELS_PATH` | KV ref | fork | required when `LLM_MODE=azure`; points at the `resolved-models.json` written by the bootstrap resolver |
-| `RULE_CATALOG_REF` | env | fork | git ref of catalog snapshot |
-| `AUTONOMY_MODE_DEFAULT` | env | fork | MUST default to `shadow` |
+| `FDAI_ANALYZER_TARGETS` / `FDAI_ANALYZER_WINDOW_SECONDS` / `FDAI_ANALYZER_BUDGET_SECONDS` | env | deployment / upstream | Optional explicit analyzer targets and bounds. When targets are empty, the analyzer Job discovers supported resource kinds from the active inventory through `FDAI_INVENTORY_DSN`. |
+| `KAFKA_TOPIC_EVENTS` | env | deployment | primary event ingest topic |
+| `KAFKA_TOPIC_DLQ_SUFFIX` | env | deployment | dead-letter suffix (default `.dlq`) |
+| `TEAMS_HIL_CHANNEL_ID` | env | deployment | HIL routing |
+| `T2_MODEL_ENDPOINT` | env | deployment | primary reasoner - populated by the bootstrap resolver from `rule-catalog/llm-registry.yaml`; see [llm-strategy.md § Model Provisioning and Lifecycle](../architecture/llm-strategy.md#model-provisioning-and-lifecycle) |
+| `T2_MODEL_ENDPOINT_CROSSCHECK` | env | deployment | mixed-model cross-check target - distinct publisher enforced at bootstrap |
+| `LLM_MODE` | env | deployment | `local-fake` for explicit tests/mocks or `azure` for authoritative profiles. Environment does not select the binding; see [dev-and-deploy-parity.md § Parity Contract](dev-and-deploy-parity.md#parity-contract-must). |
+| `LLM_RESOLVED_MODELS_PATH` | KV ref | deployment | required when `LLM_MODE=azure`; points at the `resolved-models.json` written by the bootstrap resolver |
+| `RULE_CATALOG_REF` | env | deployment | git ref of catalog snapshot |
+| `AUTONOMY_MODE_DEFAULT` | env | deployment | MUST default to `shadow` |
 | `FDAI_LOG_LEVEL` | env | upstream | Python logger level for the core app (`DEBUG` / `INFO` / `WARNING` / `ERROR`). Default `INFO`. |
-| `FDAI_READ_API_LOCAL_AZURE_CLI` | env | local-only | Standard interactive local mode. Requires the current `az login` identity, keeps its token server-side, and exposes only browser-safe profile metadata. Paired with `VITE_LOCAL_AZURE_CLI_AUTH=1`. |
+| `FDAI_READ_API_LOCAL_AZURE_CLI` | env | local-only | Explicit CLI-principal debug alternative with a fixed role ceiling. Paired with `VITE_LOCAL_AZURE_CLI_AUTH=1`. |
 | `FDAI_READ_API_DEV_MODE` | env | test-only | Authentication bypass for automated read-API tests. The VS Code full-stack profile MUST NOT set it. |
-| `FDAI_READ_API_LOCAL_ENTRA` | env | test-only | Exercises real Entra JWT verification over isolated pytest fixtures. It is not an interactive data profile and MUST NOT seed the local Console. |
+| `FDAI_READ_API_LOCAL_ENTRA` | env | local-only | Canonical interactive profile. Browser Entra JWT and App Roles match deployment; the server Azure CLI session is confined to Azure adapters. |
 | `FDAI_LOCAL_SCENARIO_REPLAY` | env | test-only | Generated scenario replay for automated tests and explicit mock applications. Interactive local startup rejects it. |
 | `FDAI_LOCAL_AZURE_DISCOVERY` | env | local-only | Azure discovery is mandatory. Unset or `1` uses read-only `AzureCliInventory`; `0` is rejected and never selects a synthetic graph. |
 | `FDAI_LOCAL_AZURE_SUBSCRIPTION_ID` | env | dev-only | Optional subscription passed to every local `az group/resource list` call. When omitted, discovery uses the active subscription in the selected Azure CLI profile. Never commit a populated value. |
 | `FDAI_LOCAL_AZURE_CONFIG_DIR` | env | dev-only | Optional isolated Azure CLI profile. When omitted, the adapter removes an inherited `AZURE_CONFIG_DIR` and uses the default profile. |
-| `FDAI_POLICIES_ROOT` | env | fork | absolute path to the OPA / Rego bundle root consumed by T0 and the verifier. Defaults to the in-repo `policies/` when unset. |
+| `FDAI_POLICIES_ROOT` | env | deployment | absolute path to the OPA / Rego bundle root consumed by T0 and the verifier. Defaults to the in-repo `policies/` when unset. |
 | `FDAI_MI_CLIENT_ID` | env | upstream | User-assigned MI client id for the current process. The core receives the executor id; the inventory job receives its distinct read-only discovery id. |
-| `FDAI_EMAIL_ENDPOINT` / `FDAI_EMAIL_SENDER_ADDRESS` / `FDAI_EMAIL_RECIPIENT_ADDRESSES_JSON` / `FDAI_NOTIFICATION_MI_CLIENT_ID` | env | upstream / fork | Enables the ACS Email A2/A4 channels. Terraform derives the endpoint and Azure-managed sender, attaches a dedicated notification MI, and injects the client id. A fork supplies recipients through `NOTIFICATION_EMAIL_RECIPIENTS_JSON`; no access key or connection string enters the app. Partial configuration fails startup. |
+| `FDAI_EMAIL_ENDPOINT` / `FDAI_EMAIL_SENDER_ADDRESS` / `FDAI_EMAIL_RECIPIENT_ADDRESSES_JSON` / `FDAI_NOTIFICATION_MI_CLIENT_ID` | env | upstream / deployment | Enables the ACS Email A2/A4 channels. Terraform derives the endpoint and Azure-managed sender, attaches a dedicated notification MI, and injects the client id. Deployment configuration supplies recipients through `NOTIFICATION_EMAIL_RECIPIENTS_JSON`; no access key or connection string enters the app. Partial configuration fails startup. |
 | `FDAI_MEASUREMENT_MODE` | env | upstream | `shadow` (default) or `enforce` - governs the Container Apps Jobs runners in `infra/modules/measurement-runners/`. |
 | `FDAI_DIRECT_API_FAKE` | env | test-only | `1` swaps the executor direct-API path for the in-memory fake in automated tests. Interactive local startup does not wire an executor. |
 | `FDAI_TOOL_CALL_FAKE` | env | test-only | `1` swaps the executor tool-call path for `RecordingToolExecutor` in automated tests. Interactive local startup does not wire an executor. |
 | `FDAI_WORKFLOW_SHADOW` | env | upstream | `1` enables event-triggered catalog Workflows in non-mutating shadow mode. The Azure core app sets it by default. |
-| `FDAI_WORKFLOW_ENFORCE_ALLOWLIST` | env | fork / local | Comma-separated Workflow names an Owner may start with `mode=enforce`. Requires Event Hubs command transport. Action steps re-enter the normal promotion/risk/HIL/executor path. |
+| `FDAI_WORKFLOW_ENFORCE_ALLOWLIST` | env | deployment / local | Comma-separated Workflow names an Owner may start with `mode=enforce`. Requires Event Hubs command transport. Action steps re-enter the normal promotion/risk/HIL/executor path. |
 | `KAFKA_TOPIC_EVENTS` / `FDAI_STAGE_TOPIC` | env | upstream / local | Event and stage topics shared by deployed runtime and interactive local command/progress transport. Local transport also requires `FDAI_KAFKA_BOOTSTRAP_SERVERS` and uses the current Azure CLI token. |
 | `FDAI_IRP_ENABLED` / `FDAI_IRP_BUDGET_SECONDS` | env | upstream | Enables alert-shaped event handling through the budgeted investigation -> typed proposal path. The proposal re-enters the standard risk/HIL/executor loop. |
-| `FDAI_CHAOS_CONTEXT_JSON` / `FDAI_CHAOS_ENFORCE` | env | fork | Runtime context for promoted chaos injectors. Enforce stays disabled unless the explicit flag is `1`, the scenario is promoted, and both injector and probe are registered. |
-| `FDAI_JIRA_BASE_URL` / `FDAI_JIRA_ACCOUNT_EMAIL` / `FDAI_JIRA_API_TOKEN_SECRET` / `FDAI_JIRA_TOOL_MAP_JSON` | env + KV ref | fork | Configures the production `JiraToolExecutor`. `TOOL_MAP_JSON` maps `tool.open-incident-ticket` to a Jira project key. The token value is resolved from `FDAI_SECRET_<API_TOKEN_SECRET>` (KV-backed); never place the token in the mapping. Requires `FDAI_STATE_STORE_DSN` for the durable Jira ledger and distributed resource lock. |
-| `FDAI_JIRA_ENFORCE` | env | fork | Default unset/`0` keeps Jira shadow-only. `1` permits enforce requests only after the ActionType promotion gate and risk/HIL decision also permit enforce. Shadow receipts are never linked as real incident tickets. |
-| `FDAI_PROFILE_ID` | env | fork | selects one profile from `rule-catalog/profiles/` (see [rule-catalog-profiles.md](../rules-and-detection/rule-catalog-profiles.md)). **Composition-root wiring pending** as of 2026-07. |
-| `FDAI_NARRATOR_PROVIDER` / `FDAI_NARRATOR_BASE_URL` / `FDAI_NARRATOR_MODEL` / `FDAI_NARRATOR_API_VERSION` / `FDAI_NARRATOR_API_KEY` | env + KV ref | fork | Operator-console narrator translator config (see [operator-console.md](../interfaces/operator-console.md)); `API_KEY` MUST go through KV. Empty provider = deterministic fallback. |
-| `FDAI_CHATOPS_APPROVE_CALLBACK_URL` / `FDAI_CHATOPS_REJECT_CALLBACK_URL` / `FDAI_CHATOPS_WEBHOOK_SECRET` / `FDAI_CHATOPS_TIMEOUT_SECONDS` | env + KV ref | fork | Chatops HIL callback endpoints and the shared webhook secret; the secret MUST go through KV. Setting the secret enables the production callback route and durable Postgres decision registry. |
-| `FDAI_KAFKA_BOOTSTRAP_SERVERS` / `FDAI_HIL_DECISION_TOPIC` | env | fork / upstream | Event Hubs Kafka endpoint used by the read API to publish durable HIL decision receipts; topic defaults to `aw.hil.decisions`. Core consumes the same topic and owns resume/execution. |
-| `FDAI_GITOPS_API_BASE` / `FDAI_GITOPS_DEFAULT_BRANCH` / `FDAI_GITOPS_BRANCH_PREFIX` / `FDAI_GITOPS_TIMEOUT_SECONDS` | env | fork | `gitops-pr` adapter target repo config (GitHub App / Azure DevOps). Auth secrets flow through the platform's App installation, not env vars. |
-| `FDAI_GITOPS_TOKEN` / `FDAI_GITOPS_OWNER` / `FDAI_GITOPS_REPO` / `FDAI_GITHUB_WORKFLOW_TOOLS_ENFORCE` | KV ref + env | fork | Binds the GitHub change feed and workflow tools for fix/release/security/incident/IRP artifacts. The enforce flag never bypasses the ActionType promotion and risk/HIL gates. |
-| `FDAI_RBAC_READERS_GROUP_ID` / `FDAI_RBAC_CONTRIBUTORS_GROUP_ID` / `FDAI_RBAC_APPROVERS_GROUP_ID` / `FDAI_RBAC_OWNERS_GROUP_ID` / `FDAI_RBAC_BREAK_GLASS_GROUP_ID` | env | fork | Entra ID group object ids for the five human roles (see [user-rbac-and-identity.md](../interfaces/user-rbac-and-identity.md)). Unset group = role unassigned. |
-| `FDAI_ENTRA_TENANT_ID` / `FDAI_API_AUDIENCE` | env | fork | Required for the production read-API Entra JWT verifier (`EntraJwtVerifier`): the fork's tenant id and the `fdai-api` App ID URI (`api://<fdai-api-guid>`). See [user-rbac-and-identity.md#102-api-token-validation](../interfaces/user-rbac-and-identity.md#102-api-token-validation). |
-| `FDAI_ENTRA_ISSUER` / `FDAI_ENTRA_JWKS_URI` | env | fork | Optional verifier overrides; default to the tenant's v2 issuer + public key set. Set `ISSUER` to `https://sts.windows.net/<tenant>/` for a v1-token app; override `JWKS_URI` only for sovereign / air-gapped clouds. |
+| `FDAI_CHAOS_CONTEXT_JSON` / `FDAI_CHAOS_ENFORCE` | env | deployment | Runtime context for promoted chaos injectors. Enforce stays disabled unless the explicit flag is `1`, the scenario is promoted, and both injector and probe are registered. |
+| `FDAI_JIRA_BASE_URL` / `FDAI_JIRA_ACCOUNT_EMAIL` / `FDAI_JIRA_API_TOKEN_SECRET` / `FDAI_JIRA_TOOL_MAP_JSON` | env + KV ref | deployment | Configures the production `JiraToolExecutor`. `TOOL_MAP_JSON` maps `tool.open-incident-ticket` to a Jira project key. The token value is resolved from `FDAI_SECRET_<API_TOKEN_SECRET>` (KV-backed); never place the token in the mapping. Requires `FDAI_STATE_STORE_DSN` for the durable Jira ledger and distributed resource lock. |
+| `FDAI_JIRA_ENFORCE` | env | deployment | Default unset/`0` keeps Jira shadow-only. `1` permits enforce requests only after the ActionType promotion gate and risk/HIL decision also permit enforce. Shadow receipts are never linked as real incident tickets. |
+| `FDAI_PROFILE_ID` | env | deployment | selects one profile from `rule-catalog/profiles/` (see [rule-catalog-profiles.md](../rules-and-detection/rule-catalog-profiles.md)). **Composition-root wiring pending** as of 2026-07. |
+| `FDAI_NARRATOR_PROVIDER` / `FDAI_NARRATOR_BASE_URL` / `FDAI_NARRATOR_MODEL` / `FDAI_NARRATOR_API_VERSION` / `FDAI_NARRATOR_API_KEY` | env + KV ref | deployment | Operator-console narrator translator config (see [operator-console.md](../interfaces/operator-console.md)); `API_KEY` MUST go through KV. Empty provider = deterministic fallback. |
+| `FDAI_CHATOPS_APPROVE_CALLBACK_URL` / `FDAI_CHATOPS_REJECT_CALLBACK_URL` / `FDAI_CHATOPS_WEBHOOK_SECRET` / `FDAI_CHATOPS_TIMEOUT_SECONDS` | env + KV ref | deployment | Chatops HIL callback endpoints and the shared webhook secret; the secret MUST go through KV. Setting the secret enables the production callback route and durable Postgres decision registry. |
+| `FDAI_KAFKA_BOOTSTRAP_SERVERS` / `FDAI_HIL_DECISION_TOPIC` | env | deployment / upstream | Event Hubs Kafka endpoint used by the read API to publish durable HIL decision receipts; topic defaults to `aw.hil.decisions`. Core consumes the same topic and owns resume/execution. |
+| `FDAI_GITOPS_API_BASE` / `FDAI_GITOPS_DEFAULT_BRANCH` / `FDAI_GITOPS_BRANCH_PREFIX` / `FDAI_GITOPS_TIMEOUT_SECONDS` | env | deployment | `gitops-pr` adapter target repo config (GitHub App / Azure DevOps). Auth secrets flow through the platform's App installation, not env vars. |
+| `FDAI_GITOPS_TOKEN` / `FDAI_GITOPS_OWNER` / `FDAI_GITOPS_REPO` / `FDAI_GITHUB_WORKFLOW_TOOLS_ENFORCE` | KV ref + env | deployment | Binds the GitHub change feed and workflow tools for fix/release/security/incident/IRP artifacts. The enforce flag never bypasses the ActionType promotion and risk/HIL gates. |
+| `FDAI_RBAC_READERS_GROUP_ID` / `FDAI_RBAC_CONTRIBUTORS_GROUP_ID` / `FDAI_RBAC_APPROVERS_GROUP_ID` / `FDAI_RBAC_OWNERS_GROUP_ID` / `FDAI_RBAC_BREAK_GLASS_GROUP_ID` | env | deployment | Entra ID group object ids for the five human roles (see [user-rbac-and-identity.md](../interfaces/user-rbac-and-identity.md)). Unset group = role unassigned. |
+| `FDAI_STEWARDSHIP_REQUIRE_BINDINGS` | env | deployment | Set to `1` in every deployed environment so placeholder maintainer/steward ids fail startup. This readiness gate is independent of fork status. |
+| `FDAI_ENTRA_TENANT_ID` / `FDAI_API_AUDIENCE` | env | deployment | Required for the production read-API Entra JWT verifier (`EntraJwtVerifier`): the deployment tenant id and the `fdai-api` App ID URI (`api://<fdai-api-guid>`). See [user-rbac-and-identity.md#102-api-token-validation](../interfaces/user-rbac-and-identity.md#102-api-token-validation). |
+| `FDAI_ENTRA_ISSUER` / `FDAI_ENTRA_JWKS_URI` | env | deployment | Optional verifier overrides; default to the tenant's v2 issuer + public key set. Set `ISSUER` to `https://sts.windows.net/<tenant>/` for a v1-token app; override `JWKS_URI` only for sovereign / air-gapped clouds. |
 | `FDAI_EXECUTOR_PRINCIPAL_ID` / `FDAI_EXECUTOR_EVENT_ROLE_DEFINITION_ID` / `FDAI_EXECUTOR_SECRET_ROLE_DEFINITION_ID` | env | upstream | Read-API onboarding probe inputs. The probe uses ARG to verify the provisioned resource set and the executor's Event Hubs / Key Vault roles. |
-| `FDAI_DR_DRILL_SOURCE_SERVER_ARM_ID` / `FDAI_DR_DRILL_TARGET_LOCATION` / `FDAI_DR_DRILL_TARGET_RG_PREFIX` / `FDAI_DR_DRILL_TARGET_SERVER_PREFIX` / `FDAI_DR_DRILL_PITR_OFFSET_MINUTES` / `FDAI_DR_DRILL_DRY_RUN` | env | fork | DB-DR drill job config (see [../runbooks/db-dr-drill.md](../../runbooks/db-dr-drill.md)); `DRY_RUN=true` upstream default keeps the job idempotent. |
-| `FDAI_SECRET_KAFKA_TOKEN` / other `FDAI_SECRET_*` | KV ref | fork | generic escape hatch for a secret consumed by an adapter that does not yet have a dedicated env-var name; every `FDAI_SECRET_*` value MUST come from KV. |
+| `FDAI_DR_DRILL_SOURCE_SERVER_ARM_ID` / `FDAI_DR_DRILL_TARGET_LOCATION` / `FDAI_DR_DRILL_TARGET_RG_PREFIX` / `FDAI_DR_DRILL_TARGET_SERVER_PREFIX` / `FDAI_DR_DRILL_PITR_OFFSET_MINUTES` / `FDAI_DR_DRILL_DRY_RUN` | env | deployment | DB-DR drill job config (see [../runbooks/db-dr-drill.md](../../runbooks/db-dr-drill.md)); `DRY_RUN=true` upstream default keeps the job idempotent. |
+| `FDAI_SECRET_KAFKA_TOKEN` / other `FDAI_SECRET_*` | KV ref | deployment | generic escape hatch for a secret consumed by an adapter that does not yet have a dedicated env-var name; every `FDAI_SECRET_*` value MUST come from KV. |
 
 Rules that apply to every key:
 

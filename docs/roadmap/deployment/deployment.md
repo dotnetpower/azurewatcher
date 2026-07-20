@@ -12,8 +12,9 @@ in [Release and Rollback](#release-and-rollback).
 The core is **CSP-neutral by design**: cloud access sits behind provider adapters, so the
 Azure mapping below is the one implemented target. **Non-Azure providers are TBD** (see
 [Implementation Focus](../../../.github/copilot-instructions.md#implementation-focus-must)); the
-adapter surface is preserved so a future target is additive. A per-customer fork supplies its
-own provider, identities, and state backends without editing the core (see
+adapter surface is preserved so a future target is additive. A downstream distribution may supply
+provider implementations without editing core; each deployment supplies identities and state
+bindings through configuration (see
 [generic-scope.instructions.md](../../../.github/instructions/generic-scope.instructions.md)).
 
 ## Environments
@@ -24,12 +25,13 @@ prod topology so shadow evaluation is representative.
 
 | Environment | Purpose | Autonomy level |
 |-------------|---------|----------------|
-| `dev` | development and unit/integration tests | shadow only |
+| `dev` | development and integration validation | authoritative promotion state; same risk/HIL gates |
 | `staging` | pre-prod validation, shadow evaluation of new rules/actions (prod-mirrored) | shadow, selective enforce |
 | `prod` | live operations | enforce for low-risk; HIL for high-risk |
 
 - Config differs per environment; **no environment values in source** - all injected at runtime.
-- A per-customer fork supplies its own environment config without editing the core.
+- A deployment supplies its environment config without editing core. Environment never promotes or
+  demotes a capability; see [ADR-0002](../architecture/decisions/0002-independent-runtime-axes.md).
 - **Console and executor deploy as distinct identities** - the console is read-only and never
   holds the executor's privileged Managed Identity (see
   [security-and-identity.md](../architecture/security-and-identity.md)).

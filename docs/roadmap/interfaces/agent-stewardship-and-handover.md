@@ -15,7 +15,7 @@ A person is typically in both models (an Approver who is also Var's steward), bu
 the two are resolved and validated independently.
 
 > Customer-agnostic: every objectId, group id, and name below is a **placeholder**
-> (all-zero UUID). A fork supplies the real Entra values via config
+> (all-zero UUID). Deployment configuration supplies the real Entra values
 > ([generic-scope.instructions.md](../../../.github/instructions/generic-scope.instructions.md)).
 
 ## 1. Design principles
@@ -221,8 +221,8 @@ Hard errors (raise `StewardshipValidationError`, block a clean boot of the layer
 - an agent with neither an `accountable` steward nor `accept_autonomous`,
 - an `accept_autonomous` without a `reason`,
 - a malformed subject (`kind` not in {user, group}, id not a UUID shape),
-- in a fork (`FDAI_FORK`/marker), any steward or maintainer id left at the
-  all-zero placeholder.
+- when `FDAI_STEWARDSHIP_REQUIRE_BINDINGS=1`, any steward or maintainer id left at the
+  all-zero placeholder. Every deployed environment sets this flag; fork status is irrelevant.
 
 ### 7.2 Non-blocking findings (warn, surfaced in the coverage report)
 
@@ -249,8 +249,8 @@ Runs in `scripts/verify.sh` and CI:
 - the file does not attempt to declare any ActionType role field (grep guard: the
   stewardship file MUST NOT contain `executor:`/`judge:`/`approver:`/`initiators:`/
   `auditor:` keys - those live only in the fork-locked ontology),
-- placeholder policy: upstream requires all-zero, a fork requires non-placeholder
-  (reuses the `check-guids.sh` shape rule).
+- placeholder policy: tracked upstream config requires all-zero values; deployed environments
+  require non-placeholder bindings through `FDAI_STEWARDSHIP_REQUIRE_BINDINGS=1`.
 
 ## 8. Workflow-change notification and audit
 

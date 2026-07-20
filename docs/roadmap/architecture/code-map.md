@@ -91,7 +91,7 @@ the safety-core modules held to the >= 90% coverage floor.
 | notifications | Channel-routing layer over the matrix | [src/fdai/core/notifications/](../../../src/fdai/core/notifications/) | [tests/notifications/](../../../tests/notifications/) |
 | report_feed | Rendered report subscriptions | [src/fdai/core/report_feed/](../../../src/fdai/core/report_feed/) | [tests/core/report_feed/](../../../tests/core/report_feed/) |
 | reporting | Report composers + formatters | [src/fdai/core/reporting/](../../../src/fdai/core/reporting/) | [tests/core/reporting/](../../../tests/core/reporting/) |
-| views | Workflow-matched ViewSpec -> bounded RenderedView | [src/fdai/core/views/](../../../src/fdai/core/views/) | [tests/core/views/](../../../tests/core/views/) |
+| views | Workflow-matched ViewSpec -> bounded RenderedView plus deterministic inventory architecture projection | [src/fdai/core/views/](../../../src/fdai/core/views/) | [tests/core/views/](../../../tests/core/views/) and read-API architecture-view tests |
 | rbac | Human RBAC for the read API | [src/fdai/core/rbac/](../../../src/fdai/core/rbac/) | [tests/core/](../../../tests/core/) |
 | stewardship | Human <-> agent handover map (accountability + escalation overlay) | [src/fdai/core/stewardship/](../../../src/fdai/core/stewardship/) | [tests/core/stewardship/](../../../tests/core/stewardship/) |
 
@@ -201,6 +201,10 @@ local development, verification, and session hand-off consistent.
 | Path | Purpose |
 |------|---------|
 | [scripts/verify.sh](../../../scripts/verify.sh) | Single local gate: fast text/lint and clean-checkout contracts by default; `--full` adds safety-core coverage plus console and CLI verification, while `--full <path>` runs a focused pytest target. |
+| [scripts/lib/design-routes.json](../../../scripts/lib/design-routes.json) | Machine-readable path -> required instructions/design docs -> owning docs -> focused validation routes. |
+| [scripts/agent/design_context.py](../../../scripts/agent/design_context.py) / [.github/hooks/design-context.json](../../../.github/hooks/design-context.json) | Records successful design-document reads per agent session and blocks edits when required context is missing or stale. |
+| [check-design-doc-impact.py](../../../scripts/quality/architecture/check-design-doc-impact.py) / [check-document-size.py](../../../scripts/quality/architecture/check-document-size.py) | Docs-after enforcement plus the new-doc and legacy-growth size ratchet. |
+| [check-fork-runtime-independence.py](../../../scripts/quality/architecture/check-fork-runtime-independence.py) | Rejects fork integrity markers from runtime/config/infra behavior. |
 | [scripts/quality/ci/check-ci-contracts.py](../../../scripts/quality/ci/check-ci-contracts.py) | Clean-checkout, Docker build-context, and live-DB skip-order regression checks shared by local verification and CI. |
 | [scripts/quality/ci/run-python-tests.sh](../../../scripts/quality/ci/run-python-tests.sh) | Capped parallel non-integration tests, serial live-DB integration tests, slow-test reporting, and the safety-core coverage floor. |
 | [scripts/quality/ci/run-operator-surfaces.sh](../../../scripts/quality/ci/run-operator-surfaces.sh) | Console and CLI tests, type checks, production build, and entry-bundle budget. |

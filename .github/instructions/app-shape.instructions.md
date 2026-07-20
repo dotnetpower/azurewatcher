@@ -1,6 +1,6 @@
 ---
-description: Deployment topology, app shape, and anti-patterns.
-applyTo: "**"
+description: "Use when changing the console, read API, local launch, runtime topology, deployment, or layer boundaries. Covers app shape and local/deployed parity."
+applyTo: ".vscode/**,console/**,src/fdai/delivery/read_api/**,src/fdai/runtime/**,infra/**,azure.yaml"
 ---
 
 # App Shape
@@ -70,11 +70,13 @@ shape maps to environments and CI/CD.
 
 ## Local Azure Truth Contract (MUST)
 
-- The interactive local full-stack profile uses the operator's current Azure CLI identity and
-  reads the Azure development environment. `FDAI_READ_API_LOCAL_AZURE_CLI=1` and
-  `VITE_LOCAL_AZURE_CLI_AUTH=1` are the standard local authentication pair;
-  `FDAI_READ_API_DEV_MODE=1` and `VITE_DEV_MODE=1` are test-only and MUST NOT be used by the
-  VS Code full-stack launch profile.
+- The standard interactive profile uses browser Entra sign-in and verifies the same JWT, audience,
+  issuer, lifetime, and App Roles as deployment (`FDAI_READ_API_LOCAL_ENTRA=1`). The server's
+  current Azure CLI session supplies short-lived credentials only to Azure read/provider adapters.
+  It never replaces the browser principal or Thor's executor identity.
+- `FDAI_READ_API_LOCAL_AZURE_CLI=1` plus `VITE_LOCAL_AZURE_CLI_AUTH=1` is an explicit CLI-principal
+  debug alternative with a fixed role ceiling. `FDAI_READ_API_DEV_MODE=1`, `VITE_DEV_MODE=1`, and
+  synthetic fixtures are pytest/mock-only and MUST NOT be used by the VS Code full-stack profile.
 - Interactive local routes MUST NOT seed or synthesize audit rows, Incidents, Approvals,
   agent activity, live control-loop frames, findings, inventory, scope, blast-radius graphs,
   scheduler runs, cost records, promotion evidence, security assessments, or Process runs.
@@ -92,6 +94,21 @@ shape maps to environments and CI/CD.
 - Offline development without Azure access is fail-closed: reference/catalog screens may load,
   but Azure runtime screens remain unavailable. There is no synthetic offline mode for the
   interactive Console.
+
+## Local Runtime Parity Contract (MUST)
+
+- Execution venue, deployment environment, evidence profile, promotion state, human identity,
+  executor identity, and upstream/fork distribution are independent axes. The canonical decision
+  is [ADR-0002](../../docs/roadmap/architecture/decisions/0002-independent-runtime-axes.md).
+- Interactive local starts the same 15-agent Pantheon when authoritative Event Hubs transport is
+  configured. Missing transport renders live agent/runtime surfaces unavailable; it never selects
+  an in-memory bus or executor.
+- Local and deployed read the same Workflow allowlist, ActionType promotion state, risk table,
+  approval policy, Process transitions, and stage events. Local execution MUST NOT force a promoted
+  capability back to shadow or promote an unpromoted capability.
+- A local process never receives Thor's privileged identity. Mutation proposals enter the
+  development event bus and execute behind the deployed Managed Identity boundary. Test-only
+  recording, VM-task, HIL, state, or executor fakes MUST NOT enter interactive composition.
 
 ## Console Visual Boundary (MUST)
 

@@ -12,7 +12,8 @@ Fail-fast invariants (raise :class:`StewardshipValidationError`):
 - an agent with neither an accountable steward nor ``accept_autonomous``,
 - an ``accept_autonomous`` without a non-empty ``reason``,
 - a malformed subject (bad ``kind`` / non-UUID id / bad ``responsibility``),
-- in a fork, any maintainer or steward id left at the all-zero placeholder.
+- when deployment bindings are required, any maintainer or steward id left at the all-zero
+    placeholder.
 
 Design authority:
 [`docs/roadmap/interfaces/agent-stewardship-and-handover.md § 7.1`]
@@ -47,23 +48,23 @@ _PLACEHOLDER_PREFIX = "00000000-0000-0000-0000-"
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
 
 
-def _is_fork(env: Mapping[str, str]) -> bool:
-    return env.get("FDAI_FORK", "").strip().lower() in _TRUTHY
+def _requires_real_bindings(env: Mapping[str, str]) -> bool:
+    return env.get("FDAI_STEWARDSHIP_REQUIRE_BINDINGS", "").strip().lower() in _TRUTHY
 
 
 def _is_placeholder(oid: str) -> bool:
     return oid.startswith(_PLACEHOLDER_PREFIX)
 
 
-def _validate_oid(oid: str, *, where: str, is_fork: bool) -> str:
+def _validate_oid(oid: str, *, where: str, require_real_bindings: bool) -> str:
     if not isinstance(oid, str) or not _UUID_RE.match(oid):
         raise StewardshipValidationError(
             f"stewardship config: {where} is not a valid Entra object id (UUID): {oid!r}"
         )
-    if is_fork and _is_placeholder(oid):
+    if require_real_bindings and _is_placeholder(oid):
         raise StewardshipValidationError(
             f"stewardship config: {where} is still the all-zero placeholder; "
-            "a fork MUST supply a real Entra object id"
+            "deployment configuration MUST supply a real Entra object id"
         )
     return oid
 
@@ -82,7 +83,7 @@ def load_stewardship_from_mapping(
 ) -> StewardshipMap:
     """Validate an already-parsed mapping and return the typed map."""
     env = environ if environ is not None else os.environ
-    is_fork = _is_fork(env)
+    require_real_bindings = _requires_real_bindings(env)
 
     root = raw.get("stewardship")
     if not isinstance(root, Mapping):
@@ -92,11 +93,19 @@ def load_stewardship_from_mapping(
     if not isinstance(version, int) or version < 1:
         raise StewardshipValidationError("stewardship config: 'version' MUST be a positive integer")
 
-    maintainers = _parse_maintainers(root.get("maintainers"), env=env, is_fork=is_fork)
+    maintainers = _parse_maintainers(
+        root.get("maintainers"),
+        env=env,
+        require_real_bindings=require_real_bindings,
+    )
     channels = _parse_channels(root.get("channels"))
     hop_timeout = _parse_hop_timeout(root.get("escalation"))
     over_assigned_max = _parse_over_assigned_max(root.get("thresholds"))
-    agents = _parse_agents(root.get("agents"), env=env, is_fork=is_fork)
+    agents = _parse_agents(
+        root.get("agents"),
+        env=env,
+        require_real_bindings=require_real_bindings,
+    )
 
     return StewardshipMap(
         version=version,
@@ -109,7 +118,7 @@ def load_stewardship_from_mapping(
 
 
 def _parse_maintainers(
-    raw: Any, *, env: Mapping[str, str], is_fork: bool
+    raw: Any, *, env: Mapping[str, str], require_real_bindings: bool
 ) -> tuple[Maintainer, ...]:
     override = env.get("FDAI_MAINTAINERS")
     if override is not None:
@@ -130,7 +139,13 @@ def _parse_maintainers(
             "stewardship config: at least 1 maintainer is required (fail-fast); 2 recommended"
         )
     validated = tuple(
-        Maintainer(oid=_validate_oid(o, where=f"maintainers[{i}].oid", is_fork=is_fork))
+        Maintainer(
+            oid=_validate_oid(
+                o,
+                where=f"maintainers[{i}].oid",
+                require_real_bindings=require_real_bindings,
+            )
+        )
         for i, o in enumerate(oids)
     )
     return validated
@@ -178,7 +193,7 @@ def _parse_over_assigned_max(raw: Any) -> int:
 
 
 def _parse_agents(
-    raw: Any, *, env: Mapping[str, str], is_fork: bool
+    raw: Any, *, env: Mapping[str, str], require_real_bindings: bool
 ) -> dict[str, AgentStewardship]:
     if not isinstance(raw, Mapping):
         raise StewardshipValidationError("stewardship config: 'agents' MUST be a mapping")
@@ -199,17 +214,27 @@ def _parse_agents(
 
     agents: dict[str, AgentStewardship] = {}
     for name in AGENT_NAMES:
-        agents[name] = _parse_one_agent(name, raw[name], env=env, is_fork=is_fork)
+        agents[name] = _parse_one_agent(
+            name,
+            raw[name],
+            env=env,
+            require_real_bindings=require_real_bindings,
+        )
     return agents
 
 
 def _parse_one_agent(
-    name: str, raw: Any, *, env: Mapping[str, str], is_fork: bool
+    name: str, raw: Any, *, env: Mapping[str, str], require_real_bindings: bool
 ) -> AgentStewardship:
     if not isinstance(raw, Mapping):
         raise StewardshipValidationError(f"stewardship config: agent {name!r} MUST be a mapping")
 
-    stewards = _parse_stewards(name, raw.get("stewards"), env=env, is_fork=is_fork)
+    stewards = _parse_stewards(
+        name,
+        raw.get("stewards"),
+        env=env,
+        require_real_bindings=require_real_bindings,
+    )
 
     accept = raw.get("accept_autonomous")
     reason: str | None = None
@@ -237,11 +262,15 @@ def _parse_one_agent(
 
 
 def _parse_stewards(
-    agent: str, raw: Any, *, env: Mapping[str, str], is_fork: bool
+    agent: str, raw: Any, *, env: Mapping[str, str], require_real_bindings: bool
 ) -> tuple[StewardSubject, ...]:
     override = env.get(f"FDAI_STEWARD_{agent.upper()}")
     if override is not None:
-        return _parse_steward_env_tokens(agent, override, is_fork=is_fork)
+        return _parse_steward_env_tokens(
+            agent,
+            override,
+            require_real_bindings=require_real_bindings,
+        )
 
     if raw is None:
         return ()
@@ -257,7 +286,9 @@ def _parse_stewards(
             )
         kind = _parse_kind(agent, i, entry.get("kind"))
         oid = _validate_oid(
-            entry.get("id", ""), where=f"agent {agent!r} stewards[{i}].id", is_fork=is_fork
+            entry.get("id", ""),
+            where=f"agent {agent!r} stewards[{i}].id",
+            require_real_bindings=require_real_bindings,
         )
         resp = _parse_responsibility(agent, i, entry.get("responsibility"))
         subjects.append(StewardSubject(kind=kind, id=oid, responsibility=resp))
@@ -265,7 +296,7 @@ def _parse_stewards(
 
 
 def _parse_steward_env_tokens(
-    agent: str, override: str, *, is_fork: bool
+    agent: str, override: str, *, require_real_bindings: bool
 ) -> tuple[StewardSubject, ...]:
     subjects: list[StewardSubject] = []
     for raw_tok in override.split(","):
@@ -279,7 +310,11 @@ def _parse_steward_env_tokens(
                 "'group:<oid>' (optionally ':accountable'/':informed')"
             )
         kind = _parse_kind(agent, -1, parts[0])
-        oid = _validate_oid(parts[1], where=f"FDAI_STEWARD_{agent.upper()} token", is_fork=is_fork)
+        oid = _validate_oid(
+            parts[1],
+            where=f"FDAI_STEWARD_{agent.upper()} token",
+            require_real_bindings=require_real_bindings,
+        )
         resp = (
             _parse_responsibility(agent, -1, parts[2])
             if len(parts) >= 3

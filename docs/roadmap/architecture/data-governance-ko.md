@@ -1,13 +1,13 @@
 ---
 title: Data Governance와 Privacy Evidence
 translation_of: data-governance.md
-translation_source_sha: faeba4063730f3262c9b764df5b727625dc49cd0
-translation_revised: 2026-07-13
+translation_source_sha: afd75170776f53994c8987699c427128d03489f5
+translation_revised: 2026-07-20
 ---
 # Data Governance와 Privacy Evidence
 
 이 문서는 FDAI의 data classification, minimization, lifecycle, residency, privacy evidence
-contract를 정의합니다. 재사용 가능한 control model을 제공하며 각 production 포크는 customer
+contract를 정의합니다. 재사용 가능한 control model을 제공하며 각 deployment는 customer
 data를 upstream에 commit하지 않고 승인 값과 evidence를 기록합니다.
 
 > **범위:** 이 문서는 certification 또는 완료된 privacy impact assessment가 아닙니다.
@@ -94,7 +94,7 @@ Privacy impact assessment는 다음을 기록합니다.
 ## Compliance evidence
 
 Upstream catalog는 MCSB, CIS 또는 다른 standard control을 인용할 수 있지만 certification을
-증명하지는 않습니다. Production 포크는 control id, implementation, automated/manual evidence,
+증명하지는 않습니다. Deployment owner는 control id, implementation, automated/manual evidence,
 owner, frequency, exception, residual risk가 포함된 crosswalk를 만듭니다. Unsupported 또는
 not-applicable control은 명시적으로 남기며 조용히 누락하지 않습니다.
 

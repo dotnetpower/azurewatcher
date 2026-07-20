@@ -1,8 +1,8 @@
 ---
 title: Architecture Decision Record
 translation_of: README.md
-translation_source_sha: c23ee5742728b61d46002b5537721f44432526b7
-translation_revised: 2026-07-13
+translation_source_sha: 563911d49fa23aeb4bc84878a1e767ab84822540
+translation_revised: 2026-07-20
 ---
 # Architecture Decision Record
 
@@ -19,6 +19,7 @@ status, replacement history를 한 곳에서 review할 수 있게 합니다.
 | ADR | 상태 | 결정 | 대체 대상 |
 |-----|------|------|-----------|
 | [ADR-0001](0001-azure-day-zero-platform-ko.md) | Accepted | Azure day-zero platform baseline | `tech-stack.md`의 lightweight OD와 deployment 초안 |
+| [ADR-0002](0002-independent-runtime-axes-ko.md) | Accepted | 독립적인 runtime, identity, autonomy, fork 축 | local shadow-only 및 production-fork 결합 |
 
 ## Status vocabulary
 
@@ -60,4 +61,5 @@ deployment contract를 이루는 inseparable service choice를 묶을 수 있습
 |-------------|-----------|
 | 현재 ARB 결정 | [Architecture Review Board 패킷](../architecture-review-board-ko.md) |
 | Azure day-zero baseline | [ADR-0001](0001-azure-day-zero-platform-ko.md) |
+| Runtime 및 customization 축 | [ADR-0002](0002-independent-runtime-axes-ko.md) |
 | Technology 선택 상세 | [Technology Stack](../tech-stack-ko.md) |

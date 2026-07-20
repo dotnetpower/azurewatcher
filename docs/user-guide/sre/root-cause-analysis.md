@@ -21,6 +21,11 @@ T1 reuse re-verifies the prior cause and learned action against current
 evidence. A T1 causal chain requires a preceding change as its root; a window
 containing only symptoms abstains instead of inventing a cause.
 
+If reuse fails re-verification, FDAI does not replay the learned action. It can
+try a configured T2 reasoner with the current evidence set or hold for human
+review. Either path records why T1 was rejected, so a similarity hit cannot hide
+stale scope, changed dependencies, or a superseded remediation.
+
 ## Grounding gate
 
 Every citation must come from the evidence set supplied to the reasoner. A
@@ -30,6 +35,19 @@ review.
 
 Telemetry and operator documents are untrusted inputs. Model text cannot
 override policy, what-if results, or the deterministic verifier.
+
+Confidence comes from verifier, cross-check, and grounding signals rather than
+the reasoner's self-reported confidence. The T2 quality gate requires
+independent cross-checking, deterministic verification, and citations that
+resolve inside the supplied evidence allowlist. A rubric or cross-check can
+only lower eligibility; it cannot rescue an unsupported candidate.
+
+| RCA outcome | Stored result | Response path |
+|-------------|---------------|---------------|
+| Grounded and above configured threshold | Hypothesis with citations | May inform a typed proposal |
+| Ambiguous alternatives | Capped-confidence hypothesis | Human review |
+| Stale T1 reuse | Rejected reuse with provenance | Current-evidence T2 or human review |
+| Malformed or fabricated citation | Abstained hypothesis | No action; audit and review |
 
 ## Causal chains
 

@@ -1,6 +1,6 @@
 ---
-description: Language and naming policy for all FDAI artifacts.
-applyTo: "**"
+description: "Use when editing prose, identifiers, serialized records, localization catalogs, docs, or user-facing strings. Covers bilingual content and ASCII tooling rules."
+applyTo: "**/*.{md,py,ts,tsx,js,json,yaml,yml,sh,tf}"
 ---
 
 # Language Policy
@@ -74,25 +74,11 @@ recommendation (**SHOULD**), no longer a hard gate. Localize the human-facing
 **labels around** a machine record freely; think twice before translating the
 record's own stable keys or a serialized enum value.
 
-## Notes on specific cases
+## Specific constraints
 
-Korean is broadly allowed (see the [Bilingual policy](#bilingual-policy-english--korean-everywhere)
-above). A few specific cases still need care:
-
-- **Identifiers and paths stay ASCII.** Non-ASCII in a variable / function / class /
-  module / file name or a git branch name is still a defect (tooling compatibility),
-  even though Korean is fine in comments and string **values**.
-- **Machine records SHOULD stay English.** An audit entry, event payload, serialized
-  verdict, log key, rule id, or config key is machine-consumed; keep those English so
-  deterministic replay, correlation, and cross-fork search stay reliable (SHOULD, not
-  gated).
-- **Quoted data**: when a non-English string is the literal subject under test (a
-  parser or encoding fixture), encoding it explicitly (`\uXXXX` or UTF-8 bytes) with a
-  one-line note stays good practice for clarity.
-- **Vendored / generated code**: do not hand-edit third-party or generated files to
-  translate their comments.
-- **Emoji**: not in identifiers, paths, or branch names; in prose only when it adds
-  meaning, never as a substitute for words.
+Identifiers and paths stay ASCII. Machine records SHOULD stay English for replay. Encode non-English
+parser fixtures explicitly when clarity benefits, and never hand-edit generated or vendored code.
+Emoji may appear in prose only when it adds meaning.
 
 ## User-Facing Doc Translations (`-ko.md`)
 
@@ -163,40 +149,19 @@ the scope named here.
 
 ## Product i18n (L2)
 
-L2 surfaces (operator console, CLI, ChatOps cards, notifications, the docs site) are
-**bilingual**. This operationalizes the [Localization](#allowed-exceptions) exception:
+Reusable product strings SHOULD use an English-source catalog plus a Korean overlay. English is the
+mandatory fallback; Korean keys may lag but MUST NOT invent keys absent from English. Locale order is
+explicit preference, request `Accept-Language`, then `en`. Presentation localizes labels around L0
+machine records and never rewrites serialized values. Human-facing approval labels use `Approvals`
+rather than bare `HIL` unless explaining the raw verdict. Load the
+[i18n-catalog skill](../skills/i18n-catalog/SKILL.md) for catalog changes.
 
-- **Bilingual source is allowed.** A user-facing string on an L2 surface MAY be
-  written in Korean (or English) **inline**, or authored as an English key in a
-  message catalog. Catalogs are **recommended** for reusable strings - they give a
-  mandatory English fallback and keep `en` / `ko` in parity - but inline Korean is
-  permitted for surface-specific presentation text. There is no english-only gate,
-  so Korean on any surface (or anywhere else) does not fail CI.
-- **Approval terminology:** human-facing L2 labels and default L3 prose SHOULD use
-  `Approvals`, `Approval required`, or `Pending approval` instead of the bare `HIL`
-  acronym. `HIL` MAY appear when explaining the raw `hil` verdict, in a technical
-  glossary, or when an operator asks about the term explicitly. L0 identifiers and
-  values such as `hil`, `/hil-queue`, schemas, types, events, and audit records keep
-  the canonical machine vocabulary; presentation code never renames serialized values.
-- **One catalog pair per surface.** `messages.en.json` (source) + `messages.ko.json`
-  (translation), or the surface's native i18n format (e.g. Astro Starlight locales for
-  the docs site). Catalogs live in a dedicated resource path.
-- **English fallback is mandatory** for catalog strings. A missing or empty translation
-  key renders the English source - never a blank, the key name, or an error. A partial
-  `ko` catalog ships fine.
-- **Locale resolution order:** explicit user preference (`UserPreference.locale`) ->
-  request `Accept-Language` -> default `en`.
-- **Catalog parity (CI):** every key in `messages.ko.json` MUST exist in
-  `messages.en.json` (no orphan translations); the `en` catalog is the source of truth,
-  mirroring the `-ko.md` SHA gate. A `ko` catalog MAY lag (fallback covers it) but MUST
-  NOT invent keys the `en` catalog does not have.
-- **Machine records SHOULD stay English** even on an L2 surface. A `ko` catalog value
-  is fine, but an audit entry, event payload, log key, or config key that a resource
-  file carries SHOULD stay English for replay / correlation - localize the labels
-  around it, not the record.
-- **Do NOT localize L0 in place.** When an L0 record (audit entry, log line, event
-  payload, PR body, Rego, error code, identifier) surfaces inside a localized L2 view,
-  the view localizes the **labels around it**, never the machine record itself.
+Treat contract vocabulary and display vocabulary as separate layers. Keep canonical tokens such as
+`verdict`, `hil`, and `stewardship` in identifiers, serialized records, schemas, and API examples.
+In user-facing prose and labels, lead with plain English or Korean such as `Decision` / `결정`,
+`Human approval` / `사람 승인`, and `Ownership` / `담당 체계`. Show the canonical term in
+parentheses only when readers need to correlate the display with a technical contract. Never expose
+a raw enum value as the primary label when a localized display mapping exists.
 
 ### L3 - conversational (Bragi narrator)
 
@@ -222,65 +187,16 @@ NOT change what the typed pipeline decides.
   Auto-fix: `python3 scripts/quality/localization/normalize-punctuation.py` (fence-aware for `.md`;
   add `--whole-file` for source files where the whole content is code).
 
-## Why
+## Naming and automation
 
-- The control plane is designed to be **CSP-neutral** (cloud-provider-neutral) and
-  portable across teams and clouds.
-- Mixed-language artifacts break searchability, reviewability, and tooling (linters,
-  policy engines, LLM grounding).
-- A single language keeps the rule catalog and audit logs machine-parseable.
+Use canonical English identifiers and the shared vocabulary (`T0`, `T1`, `T2`, `HIL`,
+`trust-router`, `risk-gate`, `shadow-mode`). Repository prose remains bilingual.
 
-## Naming
+CI enforces ASCII punctuation, translation pairs, and catalog key parity through:
 
-- Use clear, descriptive English identifiers. "Avoid transliterated abbreviations" means:
-  do not romanize non-English words into code (write `approval-queue`, not a phonetic
-  spelling of a foreign term).
-- Domain vocabulary is defined canonically in
-  [architecture.instructions.md](architecture.instructions.md); reuse those terms:
-  `trust-router`, `deterministic-engine`, `rule-catalog`, `risk-gate`, `remediation-pr`,
-  `shadow-mode`, `HIL` (human-in-the-loop).
-- Casing: tiers and acronyms are uppercase (`T0`, `T1`, `T2`, `HIL`); code symbols follow
-  their language convention (e.g., kebab-case configs, snake_case Python, camelCase JS).
+- `scripts/quality/repository/check-punctuation.sh`
+- `scripts/quality/localization/check-translations.sh`
+- `scripts/quality/localization/check-catalog-parity.sh`
 
-## Examples
-
-- Good: `// retry the remediation-pr when the risk-gate abstains`
-- Also good: `// risk-gate가 abstain하면 remediation-pr을 재시도` (Korean comment is fine).
-- Bad: a **non-ASCII identifier** (`def 실행():`) or a Korean git branch name.
-- Fixture: `{"input": "\uD55C\uAE00", "note": "non-ASCII parse case"}` - encoding a
-  string-under-test explicitly stays good practice for clarity.
-
-## Automation & Review Check
-
-- **No repository-wide english-only gate.** Korean is allowed in natural-language
-  repository text; there is no CI check that blocks it.
-  (`scripts/check-english-only.sh` has been retired.) GitHub issue language is
-  enforced by author and reviewer discipline.
-- **Punctuation gate**: `scripts/quality/repository/check-punctuation.sh` runs in CI and enforces the
-  ASCII-only punctuation rule above; it blocks em-dash, en-dash, ellipsis,
-  smart-quotes, and no-break-space anywhere in a tracked text file (including inside
-  `-ko.md`, code blocks, and comments) - regardless of language.
-- **Translation-pair gate**: `scripts/quality/localization/check-translations.sh` runs in CI and enforces
-  the [paired-update rule](#user-facing-doc-translations-ko) for docs that use the
-  pair convention: every in-scope `foo.md` has a `foo-ko.md`, every `foo-ko.md` has
-  front-matter with `translation_of` and `translation_source_sha`, and each
-  `translation_source_sha` matches the current `git hash-object` of the source file.
-- **Catalog-parity gate**: `scripts/quality/localization/check-catalog-parity.sh` runs in CI and enforces
-  the [Product i18n](#product-i18n-l2) rule for L2 message catalogs: for every
-  `<name>.en.json` / `<name>.ko.json` sibling pair, the `ko` keys MUST be a subset of
-  the `en` keys (no orphan translations; `en` is the source of truth, `ko` MAY lag
-  under English fallback). No catalogs present is a pass, so it is safe before any
-  catalog exists.
-- **Review guidance**: an identifier / filename / branch name that is not ASCII, or an
-  L0 machine record (audit entry, event payload, log key, config key, serialized
-  verdict) written in Korean, is worth flagging in review - the first breaks tooling,
-  the second weakens replay / correlation (SHOULD keep English). Korean prose anywhere
-  else is fine.
-
-> One line: **FDAI repository prose is fully bilingual; GitHub issues are the
-> English-only project-tracking exception.** The other hard constraints are ASCII
-> identifiers / filenames / branch names and ASCII punctuation (all tooling or
-> collaboration concerns). Machine records (audit / events / log keys / config keys)
-> SHOULD stay English for replay and cross-fork search. The `-ko.md` doc pairs and L2
-> message catalogs remain the recommended mechanisms for structured bilingual
-> delivery.
+A non-ASCII identifier or path is a defect. Korean prose is not. GitHub issues remain the only
+English-only collaboration surface.

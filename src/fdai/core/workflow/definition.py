@@ -16,6 +16,15 @@ from fdai.shared.providers.workflow_definition import (
 )
 
 
+def built_in_workflow_lifecycle(
+    workflow_name: str, *, promoted_workflows: frozenset[str]
+) -> WorkflowLifecycle:
+    """Resolve a built-in definition from the shared promotion configuration."""
+    if workflow_name in promoted_workflows:
+        return WorkflowLifecycle.PUBLISHED
+    return WorkflowLifecycle.SHADOW
+
+
 def build_workflow_definition(
     workflow: Workflow,
     *,
@@ -82,4 +91,4 @@ def _canonical(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
-__all__ = ["build_workflow_definition"]
+__all__ = ["build_workflow_definition", "built_in_workflow_lifecycle"]

@@ -16,8 +16,8 @@
 # silently dropped (per the "fail toward safety" principle).
 #
 # Placeholder channel-ids follow the shape `<vendor>-<purpose>-<env>`.
-# A per-customer fork replaces every channel-id with its real one via a
-# fork-side override file; upstream never carries a tenant-identifying
+# Deployment configuration replaces every channel-id with its real one through
+# an environment-specific overlay; upstream never carries a tenant-identifying
 # value (see .github/instructions/generic-scope.instructions.md).
 
 matrix:

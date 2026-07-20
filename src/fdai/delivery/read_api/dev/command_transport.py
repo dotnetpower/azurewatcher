@@ -20,6 +20,7 @@ from fdai.delivery.read_api.streaming.agent_activity_stream import AgentActivity
 from fdai.delivery.read_api.streaming.live_stage_broadcaster import LiveStageBroadcaster
 from fdai.delivery.read_api.streaming.live_stream import LiveStreamConfig
 from fdai.delivery.workflow_action_dispatcher import EventBusWorkflowActionDispatcher
+from fdai.shared.providers.event_bus import EventBus
 
 _BOOTSTRAP_ENV = "FDAI_KAFKA_BOOTSTRAP_SERVERS"
 _EVENT_TOPIC_ENV = "KAFKA_TOPIC_EVENTS"
@@ -28,6 +29,8 @@ _STAGE_TOPIC_ENV = "FDAI_STAGE_TOPIC"
 
 @dataclass(frozen=True, slots=True)
 class LocalCommandTransport:
+    event_bus: EventBus
+    event_topic: str
     console_action: ConsoleActionSubmitter
     action_dispatcher: EventBusWorkflowActionDispatcher
     live_stream: LiveStreamConfig
@@ -66,6 +69,8 @@ def build_local_command_transport(
         await event_bus.close()
 
     return LocalCommandTransport(
+        event_bus=event_bus,
+        event_topic=event_topic,
         console_action=ConsoleActionSubmitter(
             event_bus=event_bus,
             raw_event_topic=event_topic,

@@ -1,0 +1,158 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://fdai.example/schemas/architecture-diagram.json",
+  "title": "FDAI architecture diagram",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "version", "kind", "locales", "canvas", "groups", "nodes", "edges"],
+  "properties": {
+    "id": { "$ref": "#/definitions/id" },
+    "version": { "type": "integer", "minimum": 1 },
+    "kind": {
+      "enum": ["context", "container", "component", "deployment", "data-flow", "network"]
+    },
+    "updated": { "type": "string", "format": "date" },
+    "locales": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["en", "ko"],
+      "properties": {
+        "en": { "$ref": "#/definitions/documentText" },
+        "ko": { "$ref": "#/definitions/documentText" }
+      }
+    },
+    "canvas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height", "direction"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 640, "maximum": 2400 },
+        "height": { "type": "integer", "minimum": 360, "maximum": 1800 },
+        "direction": { "enum": ["RIGHT", "DOWN"] },
+        "padding": { "type": "integer", "minimum": 16, "maximum": 160, "default": 40 }
+      }
+    },
+    "groups": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/group" }
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/node" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/edge" }
+    },
+    "legend": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/legendItem" }
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "url"],
+        "properties": {
+          "label": { "$ref": "#/definitions/localizedText" },
+          "url": { "type": "string", "format": "uri" }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "localizedText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["en", "ko"],
+      "properties": {
+        "en": { "type": "string", "minLength": 1 },
+        "ko": { "type": "string", "minLength": 1 }
+      }
+    },
+    "documentText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "description", "alt"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "alt": { "type": "string", "minLength": 1 }
+      }
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "label"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "parent": { "$ref": "#/definitions/id" },
+        "kind": { "enum": ["system", "cloud", "region", "network", "subnet", "cluster", "layer"] },
+        "label": { "$ref": "#/definitions/localizedText" },
+        "description": { "$ref": "#/definitions/localizedText" },
+        "direction": { "enum": ["RIGHT", "DOWN"] },
+        "layout": { "enum": ["flow", "row", "column", "free"] }
+      }
+    },
+    "port": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "side"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "side": { "enum": ["NORTH", "EAST", "SOUTH", "WEST"] }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "label"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "parent": { "$ref": "#/definitions/id" },
+        "kind": { "enum": ["azure-service", "service", "process", "store", "external", "person", "agent", "decision"] },
+        "icon": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "label": { "$ref": "#/definitions/localizedText" },
+        "description": { "$ref": "#/definitions/localizedText" },
+        "width": { "type": "integer", "minimum": 96, "maximum": 360 },
+        "height": { "type": "integer", "minimum": 64, "maximum": 220 },
+        "ports": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/port" }
+        }
+      }
+    },
+    "endpoint": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*(?::[a-z0-9][a-z0-9-]*)?$"
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "from", "to", "kind"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "from": { "$ref": "#/definitions/endpoint" },
+        "to": { "$ref": "#/definitions/endpoint" },
+        "kind": { "enum": ["request", "event", "approval", "mutation", "audit", "rollback", "read", "write"] },
+        "label": { "$ref": "#/definitions/localizedText" },
+        "protocol": { "type": "string", "minLength": 1 }
+      }
+    },
+    "legendItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label"],
+      "properties": {
+        "kind": { "enum": ["request", "event", "approval", "mutation", "audit", "rollback", "read", "write"] },
+        "label": { "$ref": "#/definitions/localizedText" }
+      }
+    }
+  }
+}

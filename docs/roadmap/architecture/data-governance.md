@@ -4,7 +4,7 @@ title: Data Governance and Privacy Evidence
 # Data Governance and Privacy Evidence
 
 This document defines the data classification, minimization, lifecycle, residency, and privacy
-evidence contract for FDAI. It supplies the reusable control model; each production fork records
+evidence contract for FDAI. It supplies the reusable control model; each deployment records
 its approved values and evidence without committing customer data upstream.
 
 > **Scope:** this is not a certification or a completed privacy impact assessment. Production
@@ -90,7 +90,7 @@ for human review and does not transmit it.
 ## Compliance evidence
 
 The upstream catalog may cite controls from MCSB, CIS, or other standards, but those citations do
-not establish certification. A production fork creates a crosswalk with control id, implementation,
+not establish certification. A deployment owner creates a crosswalk with control id, implementation,
 automated evidence, manual evidence, owner, frequency, exceptions, and residual risk. Unsupported
 or not-applicable controls remain explicit; they are not silently omitted.
 

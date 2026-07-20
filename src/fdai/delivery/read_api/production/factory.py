@@ -175,12 +175,18 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         read_model=read_model,
         group_mapping=group_mapping,
     )
+    enforce_workflows = frozenset(
+        item.strip()
+        for item in env.get(_env.WORKFLOW_ENFORCE_ALLOWLIST_ENV, "").split(",")
+        if item.strip()
+    )
     user_context_group = build_production_user_context(
         read_model=read_model,
         object_types=object_types,
         link_types=link_types,
         action_types=action_types,
         workflows=workflows,
+        promoted_workflows=enforce_workflows,
     )
     conversation_history_store = user_context_group.conversation_history_store
     conversation_policy_store = user_context_group.conversation_policy_store
@@ -197,11 +203,6 @@ def build_prod_app(environ: Mapping[str, str] | None = None) -> Starlette:
         shutdown_callbacks=shutdown_callbacks,
     )
     shutdown_callbacks = runtime.shutdown_callbacks
-    enforce_workflows = frozenset(
-        item.strip()
-        for item in env.get(_env.WORKFLOW_ENFORCE_ALLOWLIST_ENV, "").split(",")
-        if item.strip()
-    )
     if enforce_workflows:
         if runtime.event_bus is None or not runtime.event_topic:
             raise ProdReadApiConfigError(

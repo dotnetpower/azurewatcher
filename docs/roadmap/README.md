@@ -16,8 +16,10 @@ and scale-out.
 > Korean / English switcher. See [site/](../../site/README.md) for how the mount
 > and deploy work.
 
-> **Scope:** the repo is generic and customer-agnostic; per-customer values live
-> in a fork ([generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md)).
+> **Scope:** the repo is generic and customer-agnostic. Deployment values stay in environment
+> configuration or secret stores; optional downstream distributions limit or extend capabilities
+> through supported seams
+> ([generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md)).
 >
 > **Implementation focus:** Azure is the only implemented target. Non-Azure
 > providers and Phase 4 multi-cloud expansion are TBD. The CSP-neutral
@@ -84,7 +86,7 @@ build. Read the reference docs first, then the phases in order.
 | 16 | [channels-and-notifications.md](interfaces/channels-and-notifications.md) | non-web-UI channels (Teams / Slack / email / webhook / pager / SMS), category and trust-tier matrix |
 | 17 | [risk-classification.md](decisioning/risk-classification.md) | auto vs HIL vs deny classification: dimensions, initial rule table, environment detection |
 | 17b | [escalation-and-standing-authority.md](decisioning/escalation-and-standing-authority.md) | what happens after a `hil` verdict when nobody answers: the supervised OODA loop, the impact-tiered time-decaying escalation ladder (distinct from channel fallback), and standing authorization (pre-authorized, envelope-bounded, reversible-only conditional auto-action as a deterministic risk-gate input) |
-| 18 | [dev-and-deploy-parity.md](deployment/dev-and-deploy-parity.md) | dev-mode local-fake vs deploy-mode Azure-first parity contract; deployer-scoped LLM provisioning gates |
+| 18 | [dev-and-deploy-parity.md](deployment/dev-and-deploy-parity.md) | authoritative interactive local/deployed parity, explicit fixture profile, and deployer-scoped LLM gates |
 | 19 | [operator-console.md](interfaces/operator-console.md) | conversational surface (CLI / Teams / Slack / web), three-layer architecture, per-tool RBAC matrix, LLM tier model, session persistence |
 | 19a | [document-ingestion.md](interfaces/document-ingestion.md) | drop-zone UX, large and protected document handling, format extraction, private storage, shared visibility, retention, and deletion contracts |
 | 20 | [action-ontology.md](decisioning/action-ontology.md) | ActionType schema (remediation + ops + governance), trigger axis, tier / role / prod / live-probe ceilings, fork override seams |
@@ -165,9 +167,9 @@ exit criteria and its dependencies.
   double-apply.
 - **Separation of duties**: approval and execution are distinct principals; the
   console is read-only ([security-and-identity.md](architecture/security-and-identity.md)).
-- **English-only, customer-agnostic artifacts**
-  ([generic-scope.instructions.md](../../.github/instructions/generic-scope.instructions.md));
-  Korean only in maintainer chat.
+- **Bilingual, customer-agnostic artifacts**: English and Korean are first-class prose languages;
+  identifiers and machine records remain stable as defined by the language contract
+  ([language.instructions.md](../../.github/instructions/language.instructions.md)).
 
 ## Next steps
 

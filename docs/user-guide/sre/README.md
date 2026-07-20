@@ -70,6 +70,34 @@ signals -> finding -> incident -> investigation -> RCA
         -> recovery evidence -> postmortem -> improvement candidate
 ```
 
+## Two decisions govern every response
+
+Trust routing and execution policy answer different questions. The trust router
+picks T0 (deterministic rules), T1 (verified reuse), or T2 (grounded reasoning)
+to produce a decision candidate. The risk gate then computes the strictest
+allowed outcome from policy, action type, blast radius, environment, evidence
+freshness, identity, and promotion state.
+
+| Decision | Question | Possible result |
+|----------|----------|-----------------|
+| Trust routing | Which tier can explain or propose? | T0, T1, T2, or hold for review |
+| Risk gating | What may this proposal do now? | `auto`, `hil`, `deny`, or shadow-only |
+| Execution | Are all runtime safety checks still valid? | Apply once, no-op, stop, or roll back |
+
+A T0 match is not automatic permission to mutate, and a T2 proposal cannot
+grant itself authority. Every executable action still needs a dry run,
+stop condition, rollback path, blast-radius limit, fresh inventory,
+per-resource lock, idempotency key, authorized identity, and audit record.
+
+## Degraded operation is an explicit state
+
+FDAI does not translate missing evidence into a healthy system. A provider
+failure marks dependent evidence unavailable. Stale inventory, a failed audit
+write, an unavailable lock, or an unverified rollback path lowers the affected
+action to shadow or deny. Notification failure follows durable retry or
+escalation, but never becomes approval and never rolls back an already valid
+incident transition.
+
 ## SRE capability map
 
 | Area | Read | Upstream status |
@@ -117,3 +145,4 @@ signals -> finding -> incident -> investigation -> RCA
 | How actions inherit safety contracts | [Ontology-driven automation](../concepts/ontology-driven-automation.md) |
 | How recovery becomes a product capability | [Resilience](../capabilities/resilience.md) |
 | How to inspect the evidence trail | [Read the audit log](../guides/read-audit-log.md) |
+| What happens when approval receives no answer | [Escalation and standing authority](../../roadmap/decisioning/escalation-and-standing-authority.md) |

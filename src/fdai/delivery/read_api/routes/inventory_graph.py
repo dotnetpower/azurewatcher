@@ -14,6 +14,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from fdai.shared.providers.inventory import InventoryGraphViewNotFoundError
+
 DEFAULT_ROUTE_PATH = "/inventory/graph"
 _ALLOWED_LINKS = frozenset({"contains", "attached_to", "depends_on"})
 
@@ -21,10 +23,6 @@ InventoryGraphProvider = Callable[
     [str | None, int, tuple[str, ...]],
     Awaitable[Mapping[str, Any]],
 ]
-
-
-class InventoryGraphViewNotFoundError(LookupError):
-    """Raised by named-view providers for an unknown explicit view id."""
 
 
 def make_inventory_graph_route(

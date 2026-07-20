@@ -2,8 +2,8 @@
 title: 온콜과 에스컬레이션
 description: FDAI가 accountable responder를 선택하고 pending decision을 에스컬레이션하며 paging integration이 없을 때 fail closed하는 방법입니다.
 translation_of: on-call-and-escalation.md
-translation_source_sha: a4b85ffdb35e0cf2574f0626340b7eaa246032b2
-translation_revised: 2026-07-17
+translation_source_sha: 39e11a933f7e61dd97feff5a3537b8e4b2a3fc88
+translation_revised: 2026-07-20
 ---
 
 # 온콜과 에스컬레이션
@@ -32,8 +32,53 @@ Escalation ladder는 level, wait period, channel, role, stop condition을 정의
 decision은 scope와 severity에 따라 primary on-call에서 secondary, incident commander,
 owner로 이동할 수 있습니다.
 
-느린 supervisory loop는 기저 risk verdict를 변경하지 않습니다. 책임 있는 approver를 찾거나
-request를 expire할 수 있지만, `deny`를 `auto`로 바꾸거나 사람 대신 승인할 수 없습니다.
+느린 supervisory loop는 기저 risk verdict를 직접 변경하지 않습니다. 책임 있는 approver를
+찾거나 request를 expire할 수 있지만 `deny`를 `auto`로 바꾸거나 사람 대신 승인할 수 없습니다.
+일치하는 standing authorization은 ladder deadline 이후 typed proposal을 새 판단을 위해
+risk-gate에 다시 넣을 수만 있습니다.
+
+## Delivery fallback과 authority escalation 구분
+
+두 mechanism은 서로 다른 실패에 답하며 별개의 audit history를 유지합니다.
+
+| Mechanism | Trigger | 변경되는 내용 |
+|-----------|---------|---------------|
+| Channel fallback | 동일 recipient에게 channel이 전달하지 못함 | Delivery pipe |
+| Escalation ladder | 전달은 성공했지만 rung TTL 전에 authorized decision이 없음 | 요청 대상 human authority |
+
+각 ladder는 유한한 rung 수와 overall deadline을 가집니다. 모든 rung transition은 audience,
+category, start, expiry, result를 기록합니다. 이후 rung도 no self-approval을 적용하며 executor
+identity를 상속하지 않습니다.
+
+## 신뢰할 수 있는 forecast에 따른 시간 단축
+
+Forecast-backed incident에서 supervisor는 tick마다 urgency를 다시 계산합니다. Effective rung
+window는 `effective_ttl = min(rung.ttl, k * remaining_lead_time)`을 따르므로 가까워지는 breach
+ETA가 configured TTL을 줄일 수는 있지만 늘릴 수는 없습니다. Impact에 따라 더 높은 시작
+rung을 선택할 수도 있습니다.
+
+Prediction interval이 configured confidence level을 통과한 forecast만 시간을 줄일 수 있습니다.
+Noisy point estimate는 escalation을 가속할 수 없습니다. Urgency는 사람에게 요청하는 속도만
+바꾸며 실행 권한을 주지 않습니다.
+
+## 검토를 우회하지 않는 standing authority
+
+Standing authorization은 operator-authored policy artifact입니다. Deterministic condition,
+resource-group-equivalent 이하 envelope, reversible action type, tested rollback contract,
+unanswered-ladder trigger를 식별합니다. Shadow mode에서 시작하고 자체 promotion gate를 따릅니다.
+
+Deadline 이후 supervisor는 authorization이 valid, unexpired, in-scope 상태이며 pending action을
+계속 포함하는지 확인합니다. 그런 다음 proposal을 typed pipeline에 다시 주입합니다. Forseti와
+risk-gate가 현재 inventory 및 policy를 다시 평가하고, 새 verdict가 `auto`인 경우에만 Thor가
+실행합니다. Irreversible action, stale evidence, 넓어진 blast radius, envelope miss는 감사되는
+no-op으로 종료됩니다.
+
+| 최종 상태 | 의미 |
+|-----------|------|
+| Approved | Authorized human이 expiry 전에 결정 |
+| Rejected | Authorized human이 reject, action 없음 |
+| Standing-authority executed | Deadline 통과 후 새 risk decision이 envelope 검증 |
+| Terminal no-op | Valid human 또는 standing decision 없이 ladder 종료 |
 
 ## 운영자 확인 사항
 

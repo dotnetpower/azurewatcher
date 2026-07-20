@@ -63,7 +63,7 @@ class InMemoryMeteringSink:
     ``max_records`` caps retention (oldest records are evicted first) so a
     long-running single process cannot grow memory without bound; pass
     ``None`` for an explicitly unbounded buffer (tests / short runs). A
-    production fork injects a durable sink instead of relying on this.
+    deployed runtime injects a durable sink instead of relying on this.
     """
 
     def __init__(

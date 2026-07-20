@@ -165,7 +165,7 @@ normalized `ProtectionState` distinguishes:
 ### FDAI respects protection rather than removing it
 
 FDAI does not crack passwords, strip labels, downgrade rights, or reuse a decrypted copy outside
-the source policy. For a rights-managed file, a production fork can use a short-lived delegated
+the source policy. For a rights-managed file, a production deployment can use a short-lived delegated
 on-behalf-of token or an approved workload identity only when the source policy grants it read
 rights. Broad tenant-wide decryption permission is not an acceptable default.
 
@@ -256,7 +256,7 @@ streaming path instead.
 ## Performance and capacity
 
 The user-visible goal is immediate acceptance and observable progress, not synchronous completion.
-Each production fork establishes measured baselines and sets p50/p95 targets for:
+Each production deployment establishes measured baselines and sets p50/p95 targets for:
 
 - upload-session creation and commit acknowledgement;
 - transfer throughput by size band and network condition;
@@ -514,7 +514,7 @@ The upstream implementation now ships the contracts, fail-closed lifecycle, dedi
 gateway, console drop zone, streaming browser hash, local direct-upload adapter, safe text/OOXML
 extractor, protection signature detection, structure-aware chunking, ADLS Gen2 source and artifact
 stores, PostgreSQL metadata, a governed pgvector index, Azure OpenAI embeddings, Event Hubs Kafka
-processing, ClamAV scanning, test adapters, and deletion lineage. Production forks can replace
+processing, ClamAV scanning, test adapters, and deletion lineage. Deployments can replace
 providers through dependency injection when they require Purview/RMS, OCR, or richer formats.
 
 | Slice | Upstream status |

@@ -163,6 +163,39 @@ jobs:
       - name: check-translations.sh
         run: bash scripts/quality/localization/check-translations.sh
 
+  design-contracts:
+    name: instruction routes and docs-after contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate instruction and design routes
+        run: |
+          python3 scripts/quality/architecture/check-design-routes.py
+          python3 scripts/quality/architecture/check-fork-runtime-independence.py
+
+      - name: Resolve changed range
+        id: range
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [[ -n "$PR_BASE_SHA" ]]; then
+            echo "value=$PR_BASE_SHA...HEAD" >> "$GITHUB_OUTPUT"
+          elif [[ -n "$PUSH_BEFORE_SHA" && ! "$PUSH_BEFORE_SHA" =~ ^0+$ ]]; then
+            echo "value=$PUSH_BEFORE_SHA...HEAD" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=HEAD^...HEAD" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require owning design documentation
+        run: |
+          python3 scripts/quality/architecture/check-design-doc-impact.py "${{ steps.range.outputs.value }}"
+          python3 scripts/quality/architecture/check-document-size.py "${{ steps.range.outputs.value }}"
+
   catalog-parity:
     name: L2 message-catalog parity (ko keys subset of en)
     runs-on: ubuntu-24.04

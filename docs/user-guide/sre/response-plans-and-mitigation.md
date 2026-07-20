@@ -21,6 +21,17 @@ shows which historical cases the plan could cover and where required evidence
 or steps are missing. Pretest success is evidence for review, not automatic
 activation.
 
+Plan activation and action promotion are separate decisions. Activating a plan
+means its trigger and response structure are ready to use. It does not promote
+any referenced `ActionType`, lower its risk tier, or grant execution authority.
+
+| Plan concern | Owning decision | Safe failure |
+|--------------|-----------------|--------------|
+| Required steps, owner, channel, rollback | Plan readiness gate | Keep the plan inactive |
+| Historical coverage | Pretest review | Record gaps; don't activate automatically |
+| Action safety and promotion | Action registry and risk gate | Shadow, HIL, or deny |
+| Runtime mutation | Executor checks | No-op, stop, or rollback |
+
 ## Alert response flow
 
 1. An alert starts a time-bounded investigation.
@@ -33,6 +44,15 @@ activation.
 The default approval gate denies. A missing or broken approval binding therefore
 produces no action.
 
+## Preserve separation of duties
+
+The plan coordinator selects a supported recommendation, but does not judge,
+approve, and execute it. Forseti produces the verdict, Var carries the approval
+record, Thor is the privileged executor, Vidar owns rollback, and Saga appends
+the audit evidence. The requester, approver, and executor remain distinct where
+policy requires it. A chat message or successful notification delivery is not
+an authenticated approval decision.
+
 ## Mitigation is not execution
 
 A response step names an `ActionType`; it does not call an executor. The normal
@@ -42,11 +62,19 @@ audited no-ops.
 
 ## Failure behavior
 
-- No actionable finding produces no proposal.
-- Investigation timeout or exception produces no action and retains an audit-shaped result.
-- Approval rejection or timeout produces no-op.
-- Routing failure does not become an out-of-band API call.
-- Partial execution follows the runbook's declared failure and compensation branch.
+| Failure point | Terminal behavior | Evidence retained |
+|---------------|-------------------|-------------------|
+| No grounded actionable finding | No proposal | Investigation result and gaps |
+| Investigation timeout or exception | No action | Partial report and unavailable evidence |
+| Approval rejection | Audited no-op | Rejecting principal and reason |
+| Approval timeout | Audited no-op or escalation | Expiry and ladder state |
+| Routing or notification failure | Durable retry or escalation | Delivery attempt, never approval |
+| Stop condition during execution | Stop and follow compensation policy | Step outcomes and rollback reference |
+
+When a valid standing authorization applies after an unanswered escalation
+deadline, the plan still does not execute directly. The supervisor submits the
+pending typed action for a fresh risk-gate decision. An expired authorization,
+stale inventory, wider blast radius, or envelope mismatch ends as a no-op.
 
 ## Next steps
 

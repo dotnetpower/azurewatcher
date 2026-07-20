@@ -99,7 +99,7 @@ python3 scripts/governance/check-arb-readiness.py --require-production-ready
 
 ## Nonfunctional evidence contract
 
-Targets that depend on a deployment are not universal upstream constants. A production fork records
+Targets that depend on a deployment are not universal upstream constants. A production deployment records
 the approved value, measurement method, result, timestamp, and approver in its evidence binding.
 
 | Area | Required production evidence | Pass condition |
@@ -119,7 +119,7 @@ the approved value, measurement method, result, timestamp, and approver in its e
 
 [Data Governance](data-governance.md) defines the classification, minimization, residency,
 retention, legal-hold, deletion, model-provider, and privacy-assessment contract. The upstream
-design does not claim a customer compliance certification. A production fork selects its control
+design does not claim a customer compliance certification. A deployment owner selects its control
 profile, maps controls to evidence, records exceptions, and binds a privacy and data owner.
 
 ## Ownership and support

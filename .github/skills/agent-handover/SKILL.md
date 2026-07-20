@@ -87,7 +87,7 @@ bus-factor 1).
   - `maintainer_single` -> appoint a second maintainer,
   - `bus_factor_one` -> add a second accountable steward where the loss would hurt,
   - `over_assigned` -> spread load off any one over-loaded person.
-- [ ] In a fork, no id is left at the all-zero placeholder (`FDAI_FORK=1` load
+- [ ] In a deployment, no id is left at the all-zero placeholder (`FDAI_STEWARDSHIP_REQUIRE_BINDINGS=1` load
       raises otherwise; `check-guids.sh` also blocks it).
 - [ ] Every agent is either mapped to an `accountable` steward or explicitly
       `accept_autonomous` with a reason - never silently unowned.

@@ -12,7 +12,7 @@ from uuid import uuid4
 import psycopg
 from psycopg.rows import dict_row
 
-from fdai.delivery.read_api.routes.architecture_views import project_architecture_graph
+from fdai.core.views.architecture_graph import project_architecture_graph
 from fdai.shared.providers.inventory import InventoryBatch
 from fdai.shared.providers.inventory_snapshot import (
     InventoryAttemptFailure,

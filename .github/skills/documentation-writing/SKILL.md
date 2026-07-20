@@ -167,7 +167,44 @@ files are exempt.
 | `least privilege` | `minimum permissions (least privilege)` |
 | `discovery loop` | `discovery loop (the pipeline that proposes new or revised rules)` |
 
-### 5. Sentence rhythm and connectors
+### 5. Separate contract vocabulary from display vocabulary
+
+Internal contracts need stable, searchable names. Readers need labels they can understand and act
+on. Keep the canonical term in identifiers, schemas, serialized records, API examples, and audit
+payloads. Use the following display terms in headings, navigation, status text, explanations, and
+other user-facing prose.
+
+| Canonical contract term | English display term | Korean display term |
+|-------------------------|----------------------|---------------------|
+| `verdict` | Decision / Final decision | 결정 / 최종 판정 |
+| `HIL`, `hil` | Human approval / Pending approval | 사람 승인 / 승인 대기 |
+| `stewardship` | Ownership / Operational ownership | 담당 체계 / 운영 책임 |
+| `steward` | Accountable owner | 책임 담당자 |
+| `maintainer` | FDAI maintainer | FDAI 유지관리자 |
+| `bus factor` | Backup coverage / Single-person dependency | 담당 가능 인원 / 1인 의존 여부 |
+| `abstain` | Held for review / Review required | 판단 보류 / 검토 필요 |
+| `shadow mode` | Observation mode / No changes applied | 관찰 모드 / 변경 미적용 |
+| `enforce` | Enforcement mode / Changes enabled | 적용 모드 / 변경 적용 |
+| `blast radius` | Impact scope | 영향 범위 |
+| `grounding` | Evidence check / Supported by evidence | 근거 확인 / 근거 있음 |
+| `remediation` | Fix / Recovery action | 수정 / 복구 작업 |
+| `risk gate` | Safety check | 안전성 검토 |
+| `finding` | Detected issue / Finding | 발견된 문제 / 점검 결과 |
+| `handover` | Ownership handover | 담당자 인수인계 |
+| `accountable` | Final owner | 최종 책임자 |
+| `informed` | Notified / Kept informed | 알림 대상 |
+
+Apply the table with these rules:
+
+- Lead with the display term. Add the canonical term in parentheses only on first mention when the
+  reader must correlate it with an API, config field, audit value, or technical reference.
+- Do not replace canonical terms inside code, paths, commands, enum values, event names, or copied
+  machine records.
+- Do not show a raw enum as the primary user-facing label. Map `hil` to `Human approval` / `사람
+  승인`, for example, and expose `hil` only in technical details.
+- Prefer a short explanation over a literal translation when the literal term remains obscure.
+
+### 6. Sentence rhythm and connectors
 
 - Prefer periods to em-dash-equivalents. Two short sentences beat one
   clause-stacked sentence.
@@ -175,7 +212,7 @@ files are exempt.
 - When introducing a list, use a full lead-in sentence ending in a colon:
   `Common uses of FDAI include:`.
 
-### 6. Korean-side tone (KO docs)
+### 7. Korean-side tone (KO docs)
 
 Match Microsoft Learn Korean docs. In particular:
 
@@ -236,21 +273,23 @@ Before merging a PR that touches a `.md` file:
 2. Hero: first paragraph is 1-3 sentences, no code / table / diagram before it.
 3. Sections: H2 boundaries clear, no wall-of-prose H2 over ~15 lines.
 4. Jargon gloss: every domain term glossed on first mention in this doc.
-5. Voice: user-facing docs are reader-directed; RFC 2119 verbs softened.
-6. Next steps: user-facing docs end with a `Next steps` (or `Related docs`)
+5. Display vocabulary: user-facing prose leads with the plain English / Korean term; canonical
+  contract terms appear only where technical correlation is useful.
+6. Voice: user-facing docs are reader-directed; RFC 2119 verbs softened.
+7. Next steps: user-facing docs end with a `Next steps` (or `Related docs`)
    table linking to real files.
-7. Bilingual pair: `-ko.md` updated with translated prose (not just the
+8. Bilingual pair: `-ko.md` updated with translated prose (not just the
    English left in place) and its front-matter SHA refreshed via
    `python3 scripts/quality/localization/refresh-translation-sha.py`.
-8. CI gates: run locally before pushing:
+9. CI gates: run locally before pushing:
 
     ```bash
     bash scripts/quality/repository/check-punctuation.sh
     bash scripts/quality/localization/check-translations.sh
     ```
 
-9. Links: every relative link resolves; no `will exist` placeholders.
-10. Anti-patterns: none of the items in the [Anti-Patterns](#anti-patterns)
+10. Links: every relative link resolves; no `will exist` placeholders.
+11. Anti-patterns: none of the items in the [Anti-Patterns](#anti-patterns)
     section slipped in.
 
 ## Where to Look for Reference

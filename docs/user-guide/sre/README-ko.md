@@ -2,8 +2,8 @@
 title: 사이트 신뢰성 엔지니어링
 description: 신호와 인시던트부터 대응, 복구, 학습까지 이어지는 FDAI의 SRE 운영 모델입니다.
 translation_of: README.md
-translation_source_sha: 6c9cd35e190dde86fe91cf1b4a9454d3bb863cfe
-translation_revised: 2026-07-17
+translation_source_sha: c2710f27b0f408bb783878eafe4a6475708706fa
+translation_revised: 2026-07-20
 ---
 
 # 사이트 신뢰성 엔지니어링
@@ -68,6 +68,32 @@ signals -> finding -> incident -> investigation -> RCA
         -> recovery evidence -> postmortem -> improvement candidate
 ```
 
+## 모든 대응을 제어하는 두 가지 판단
+
+Trust routing과 execution policy는 서로 다른 질문에 답합니다. Trust-router는 판단 후보를
+만들 T0(결정론 규칙), T1(검증된 재사용), T2(근거 기반 추론)를 선택합니다. Risk-gate는
+policy, action type, blast radius, environment, evidence freshness, identity, promotion
+state에서 가장 엄격한 허용 결과를 계산합니다.
+
+| 판단 | 질문 | 가능한 결과 |
+|------|------|-------------|
+| Trust routing | 어떤 tier가 설명하거나 제안할 수 있는가? | T0, T1, T2 또는 검토 보류 |
+| Risk gating | 이 제안이 지금 무엇을 할 수 있는가? | `auto`, `hil`, `deny` 또는 shadow-only |
+| Execution | 모든 runtime 안전 검사가 여전히 유효한가? | 한 번 적용, no-op, 중지 또는 rollback |
+
+T0 match가 변경 권한을 자동으로 부여하지 않으며 T2 proposal이 스스로 권한을 부여할 수도
+없습니다. 실행 가능한 모든 action에는 계속 dry run, stop condition, rollback path,
+blast-radius limit, fresh inventory, per-resource lock, idempotency key, authorized identity,
+audit record가 필요합니다.
+
+## 명시적 상태인 저하 운영
+
+FDAI는 누락된 증거를 정상 상태로 바꾸지 않습니다. Provider failure는 의존 증거를
+unavailable로 표시합니다. Stale inventory, audit write 실패, unavailable lock, 검증되지 않은
+rollback path는 영향을 받는 action을 shadow 또는 deny로 낮춥니다. Notification failure는
+durable retry 또는 escalation을 따르지만 승인이 되지 않으며, 이미 유효한 incident transition을
+되돌리지도 않습니다.
+
 ## SRE 기능 지도
 
 | 영역 | 문서 | Upstream 상태 |
@@ -114,3 +140,4 @@ signals -> finding -> incident -> investigation -> RCA
 | 액션이 안전 계약을 상속하는 방법 | [온톨로지 기반 자동화](../concepts/ontology-driven-automation-ko.md) |
 | 복구가 제품 기능이 되는 방법 | [회복탄력성](../capabilities/resilience-ko.md) |
 | 증거 추적을 검사하는 방법 | [감사 로그 읽기](../guides/read-audit-log-ko.md) |
+| 승인 요청에 응답이 없을 때의 동작 | [에스컬레이션과 상시 권한](../../roadmap/decisioning/escalation-and-standing-authority-ko.md) |

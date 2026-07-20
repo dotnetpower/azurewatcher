@@ -181,124 +181,13 @@ do all of the following before proposing the change as complete:
    invariants it touches (single-writer rejection, no-self-approval, shadow-mode
    no-mutation, quorum, fail-closed degradation).
 
-## 5. Known role/implementation gaps (keep visible; do not regress)
+## 5. Implementation status
 
-These are documented shortfalls between `agent-pantheon.md` and the current
-code. A change in the affected area SHOULD close the gap or, at minimum, MUST NOT
-deepen it. Do not delete this list without closing the item.
+Current gaps and rollout evidence belong in the canonical
+[agent-pantheon implementation plan](../../docs/roadmap/agents/agent-pantheon-implementation.md),
+not in this edit-time contract. Before changing an affected path, load the
+[agent-pantheon-edit skill](../skills/agent-pantheon-edit/SKILL.md), verify the
+current implementation and neighboring tests, and update the plan when behavior changes.
 
-- **Quorum for irreversible actions is catalog-backed and plumbed end to end.** Forseti stamps
-  `quorum_required` on the verdict via
-  `agents/_framework/action_semantics.quorum_for` (2 for an irreversible
-  ActionType, 1 otherwise), Thor propagates it onto the `ActionRun` (floored
-  at 1, never hard-coded), and Var enforces the distinct-approver quorum with
-   no self-approval. The live `PantheonRuntime` receives the authoritative
-   ActionType catalog from the control loop; Forseti and Heimdall share its
-   `irreversible` and `rollback_contract` values. The name heuristic remains
-   only as a zero-config unit-test/local fallback when no catalog is injected.
-  The `remediate.delete-storage` default verdict remains `deny` (a policy
-  choice, not a plumbing gap); the quorum rides along so a fork that routes
-  an irreversible action to `hil` gets two-approver enforcement for free.
-- **Forseti's `cost_spike` placeholder remediation is removed.** A raw
-   `cost_spike` event without a typed ActionType now routes to HIL/no-rule-match
-   rather than being mislabeled as an admin-privilege notification. The other
-   Wave-3 event/risk tables remain deterministic compatibility defaults until
-   their event-to-rule projection has a schema-backed source.
-- **Forseti no-rule-match routes to HIL** (rule 4.7). An identifiable
-  incident with a concrete resource target but no matching rule emits an
-  `hil` verdict (`reason: no_rule_match`, empty `action_type`,
-  `quorum_required: 1`) so a human triages it instead of the event
-  vanishing. A payload with no resource target or no correlation id
-  abstains (recorded via the `no_rule_match` counter) so malformed / junk
-  ingress cannot manufacture HIL items - dropping malformed input is the
-  event-ingest boundary's job, not the judge's.
-- **Vidar rollback dispatch is provider-backed.** The runtime injects rollback
-   executors keyed by `rollback_contract`; an unbound contract, provider error,
-   or missing receipt emits a failed rollback instead of fabricating success.
-   Thor keeps the failed ActionRun and resource lock until Vidar's receipt
-   arrives, then records `rolled_back` or `rollback_failed`.
-- **Pantheon enforce mode fails closed at startup.** A live Thor executor,
-   durable ActionRun store, StateStore-backed Saga, and rollback executor
-   registry are all required before `enforce=True` can start.
-- **Live degradation policy is not driven by health probes** (Saga/Vidar
-  availability are constructor flags, not runtime signals).
-- **Discovery loop (Saga -> Norns -> Mimir) is mostly wired.** The
-  **outcome loop** is closed: Saga republishes each terminal action outcome
-  (succeeded / failed / rolled_back, normalized via
-  `action_semantics.outcome_result`) as `object.audit-entry`, and Norns'
-  outcome learner - now aligned to its declared `object.audit-entry`
-  subscription and deduping per `correlation_id` - scores rollback rates
-  from it. `object.override` is no longer subscribed (it is not a pantheon
-  topic); the override learner is the public `Norns.observe_override()` the
-  exemption machinery calls. **Norns now publishes `object.rule-candidate`**:
-  its `flush_candidates()` drains newly-formed inert candidates onto the bus
-  (single-writer; idempotent via a cursor), and Mimir consumes them through
-  its `CandidateGuard` (grounded provenance + poisoning defense) into the
-  pending / quarantine lists - it never auto-promotes. **The `object.approval`
-  learner is wired**: recurring HIL rejections of the same action type propose
-  an inert `revision` candidate (the safe, autonomy-lowering direction,
-  symmetric with the override learner; approvals are counted for evidence
-  only, never an auto-promotion). **Saga now publishes `object.issue`**: on
-  `escalate_to_github_issue` it emits the issue onto the bus (it is the single
-  writer of Issue), so recurring handoffs feed Norns' fingerprint learner end
-  to end. **The handoff trigger is wired**: `PantheonRuntime.ask` calls
-  `Saga.escalate_to_github_issue` when a conversational turn abstains with no
-  route (`handoff_needed`), fingerprinted on the normalized question so repeat
-  asks dedup (a comment, not a new issue) - it never bypasses the typed
-  pipeline (it records that no agent could help, not the operator's action).
-  **Remaining**: the optional scenario-coverage learner's `new-scenario`
-  proposal_kind is not yet in the `CandidateGuard` allowlist (quarantined until
-  a scenario intake path lands).
-- **LLM bindings are placeholders** (`hot_path_llm` / `off_path_llm` booleans; no
-  `llm_bindings` field; no model is invoked). The conversational port answers are
-  base stubs on all agents except Bragi routing.
-- **Rate limits are enforced on the proposal path.** Per-agent measurable
-  behaviour IS emitted: every agent records colon-namespaced behaviour
-  counters (`verdict:auto`, `no_rule_match`, `security_event`, ...) via the
-  base `record_behavior`, exposed through `behavior_snapshot()` /
-  `health()` and merged per-agent into `PantheonRuntime.health()`. This is
-  the measurement substrate for scenario tests and the KPI collector;
-  wiring the counters into a durable KPI sink is the remaining step. The
-  declared `RateLimits` (default 20/min, 100/hr - agent-pantheon.md 7.9)
-  are now enforced by the base `Agent._publish_proposal` helper backed by a
-  deterministic `RateLimiter` (per-minute + per-hour windows): a discretionary
-  proposal over budget is throttled (held on the emitting agent's bounded
-  buffer, flushed when the window refills) and the drop is recorded as
-  `rate_limit_exceeded`. **Scope**: only genuinely discretionary proposals
-  route through `_publish_proposal` (Norns' `object.rule-candidate` and Njord's
-  `object.cost-anomaly`, which fire only on an actual pattern / anomaly);
-  pipeline-critical emissions (verdicts, action-runs, approvals, audit) and
-  sensing findings (anomaly / drift / forecast) publish directly and are never
-  rate-limited. Freyr's `object.capacity-forecast` is deliberately NOT rate
-  limited: it is a telemetry-cadence refresh (one per ingested sample, bounded
-  by the caller's sampling rate), not a discretionary proposal, so throttling
-  it would shed meaningful forecasts at random when the window fills with
-  routine samples. **Remaining**: Loki keeps its own stronger blast-radius cap
-  (a proposal-storm guard that also gates in-flight targets, so a generic
-  limiter would be redundant and could leak the in-flight accounting); Forseti
-  arbitration requests MAY adopt `_publish_proposal` later; and the overflow
-  `RateLimitExceeded` audit entry (agent-pantheon.md 7.9) is recorded as a
-  behaviour counter, not yet a durable audit-chain record.
-- **Producer-principal is now verified on both sides.** Publish-side
-  single-writer auth (`registry.assert_can_publish`) is complemented by a
-  consumer-side check in `EventBusBridge` (`verify_producer_principal`,
-  default on): a delivered record whose `producer_principal` is not the
-  topic owner is dead-lettered, never handed to a subscriber. An absent
-  principal is allowed (publish-side `missing_*` counters surface it).
-- **DLQ redrive and ordered-topic halt are opt-in, not automatic.**
-  `EventBusBridge.redrive` reprocesses `<topic>.dlq` only when an operator
-  invokes it; `halt_ordered_topic_on_poison` (default off) preserves
-  per-resource ordering by halting a consumer on a poison mutation record.
-- **Bus-level payload schema validation is a seam, not a default.**
-  `EventBusBridge.payload_validator` can reject a malformed record at the
-  publish boundary, but no `ContractValidator`-backed validator is wired by
-  default - a fork opts in.
-- **Event replay / offset seek is not exposed on the `EventBus` Protocol.**
-  Deterministic replay for post-incident review relies on the audit chain,
-  not a broker seek; adding a `seek` / `replay` capability to the Protocol
-  is future work.
-
-> One line: editing an agent means first restating its role from section 2,
-> keeping the nine structural invariants (section 3), and satisfying the nine
-> code-change rules (section 4) - including proposing the follow-up work for any
-> dead seam you touch.
+> One line: restate the agent role, preserve all nine structural invariants, satisfy all nine
+> change rules, and call out any dead seam exposed by the edit.
