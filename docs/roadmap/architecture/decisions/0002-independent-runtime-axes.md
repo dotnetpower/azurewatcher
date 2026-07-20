@@ -35,6 +35,7 @@ FDAI treats the following axes as independent configuration:
 | Human identity | Entra principal plus App Roles | browser token and RBAC policy |
 | Executor identity | managed workload identity | deployed executor boundary |
 | Distribution | `upstream`, `fork` | source and customization boundary |
+| Operational safety profile | `mscp-operational-v1` | versioned core policy; never an execution authority |
 
 No value on one axis selects a value on another axis. In particular:
 
@@ -47,6 +48,8 @@ No value on one axis selects a value on another axis. In particular:
   directly.
 - Fork detection protects the upstream framework surface. It never changes runtime behavior,
   autonomy, identity, or environment.
+- The operational safety profile is venue-, environment-, evidence-, lifecycle-, identity-, and
+  distribution-neutral. Its checks may only preserve or lower an existing autonomy decision.
 
 ### Interactive local profile
 

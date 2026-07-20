@@ -20,6 +20,17 @@ from fdai.core.executor.tool_call import (
     ToolCallExecutionResult,
     ToolCallShadowExecutor,
 )
+from fdai.core.mscp_profile import (
+    EffectVerificationReason,
+    EffectVerificationResult,
+    EffectVerificationStatus,
+    ExpectedEffect,
+    ExpectedEffectProvider,
+    IndependentEffectObserver,
+    ObservedEffect,
+    build_shadow_effect_audit,
+    verify_effect,
+)
 from fdai.core.risk_gate.evaluator import UnifiedRiskDecision
 from fdai.core.risk_gate.gate import RiskGate
 from fdai.core.risk_gate.risk_table import RiskTable
@@ -59,6 +70,8 @@ class ControlLoopExecutionMixin:
     _inventory_age_provider: Callable[[str], Awaitable[int | None]] | None
     _kill_switch: KillSwitch | None
     _kill_switch_refresher: Callable[[], Awaitable[None]] | None
+    _mscp_effect_observer: IndependentEffectObserver | None
+    _mscp_expected_effect_provider: ExpectedEffectProvider | None
     _promotion_state_refresher: Callable[[str], Awaitable[None]] | None
     _risk_gate: RiskGate | None
     _risk_table: RiskTable | None
@@ -120,25 +133,120 @@ class ControlLoopExecutionMixin:
         self, *, action: Action, rule: Rule
     ) -> ExecutionResult | DirectApiExecutionResult | ToolCallExecutionResult:
         """Route an action to the executor its ActionType declares."""
+        expected, prediction_failure = await self._prepare_mscp_effect(action)
         action_type = self._action_types_by_name.get(action.action_type)
         path = action_type.execution_path if action_type is not None else None
+        result: ExecutionResult | DirectApiExecutionResult | ToolCallExecutionResult
 
         if path is ExecutionPath.DIRECT_API and self._direct_api_executor is not None:
-            return await self._direct_api_executor.execute(action=action)
-        if path is ExecutionPath.TOOL_CALL and self._tool_executor is not None:
-            return await self._tool_executor.execute(action=action)
-        if path in (ExecutionPath.DIRECT_API, ExecutionPath.TOOL_CALL):
+            result = await self._direct_api_executor.execute(action=action)
+        elif path is ExecutionPath.TOOL_CALL and self._tool_executor is not None:
+            result = await self._tool_executor.execute(action=action)
+        else:
+            if path in (ExecutionPath.DIRECT_API, ExecutionPath.TOOL_CALL):
+                _LOGGER.warning(
+                    "action_type opts into %s but no matching executor is wired; "
+                    "falling back to PR-native (which cannot render this path)",
+                    path.value,
+                    extra={
+                        "action_type": action.action_type,
+                        "execution_path": path.value,
+                        "idempotency_key": action.idempotency_key,
+                    },
+                )
+            result = await self._executor.execute(action=action, rule=rule)
+        await self._record_mscp_effect_shadow(
+            action=action,
+            result=result,
+            expected=expected,
+            prediction_failure=prediction_failure,
+        )
+        return result
+
+    async def _prepare_mscp_effect(
+        self,
+        action: Action,
+    ) -> tuple[ExpectedEffect | None, EffectVerificationReason | None]:
+        provider = self._mscp_expected_effect_provider
+        if provider is None:
+            return None, None
+        try:
+            expected = await provider(action)
+        except Exception:  # noqa: BLE001 - shadow observer never breaks dispatch
             _LOGGER.warning(
-                "action_type opts into %s but no matching executor is wired; "
-                "falling back to PR-native (which cannot render this path)",
-                path.value,
-                extra={
-                    "action_type": action.action_type,
-                    "execution_path": path.value,
-                    "idempotency_key": action.idempotency_key,
-                },
+                "mscp_effect_prediction_failed",
+                extra={"action_type": action.action_type},
+                exc_info=True,
             )
-        return await self._executor.execute(action=action, rule=rule)
+            return None, EffectVerificationReason.PREDICTION_PROVIDER_FAILED
+        if expected is None:
+            return None, EffectVerificationReason.PREDICTION_UNAVAILABLE
+        if expected.target_ref != action.target_resource_ref:
+            return expected, EffectVerificationReason.PREDICTION_TARGET_MISMATCH
+        return expected, None
+
+    async def _record_mscp_effect_shadow(
+        self,
+        *,
+        action: Action,
+        result: ExecutionResult | DirectApiExecutionResult | ToolCallExecutionResult,
+        expected: ExpectedEffect | None,
+        prediction_failure: EffectVerificationReason | None,
+    ) -> None:
+        observer = self._mscp_effect_observer
+        if observer is None:
+            return
+
+        observed: ObservedEffect | None = None
+        if prediction_failure is not None:
+            verification = EffectVerificationResult(
+                EffectVerificationStatus.HOLD,
+                prediction_failure,
+            )
+        elif expected is None:  # pragma: no cover - constructor/provider contract narrows this
+            verification = EffectVerificationResult(
+                EffectVerificationStatus.HOLD,
+                EffectVerificationReason.PREDICTION_UNAVAILABLE,
+            )
+        else:
+            try:
+                observed = await observer(action, expected)
+            except Exception:  # noqa: BLE001 - shadow observer never breaks dispatch
+                _LOGGER.warning(
+                    "mscp_effect_observation_failed",
+                    extra={"action_type": action.action_type},
+                    exc_info=True,
+                )
+                verification = EffectVerificationResult(
+                    EffectVerificationStatus.HOLD,
+                    EffectVerificationReason.OBSERVATION_PROVIDER_FAILED,
+                )
+            else:
+                verification = (
+                    verify_effect(expected, observed)
+                    if observed is not None
+                    else EffectVerificationResult(
+                        EffectVerificationStatus.HOLD,
+                        EffectVerificationReason.OBSERVATION_UNAVAILABLE,
+                    )
+                )
+
+        entry = build_shadow_effect_audit(
+            action=action,
+            execution_outcome=result.outcome.value,
+            verification=verification,
+            recorded_at=datetime.now(tz=UTC),
+            expected=expected,
+            observed=observed,
+        )
+        try:
+            await self._audit_store.append_audit_entry(entry)
+        except Exception:  # noqa: BLE001 - side-consumer never changes executor result
+            _LOGGER.warning(
+                "mscp_effect_shadow_audit_failed",
+                extra={"action_type": action.action_type},
+                exc_info=True,
+            )
 
     async def _evaluate_and_audit(
         self, *, event: Event, action: Action, rule: Rule

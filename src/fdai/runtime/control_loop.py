@@ -438,6 +438,8 @@ def _build_control_loop(
         stage_publisher=stage_publisher,
         kill_switch=kill_switch,
         kill_switch_refresher=kill_switch.refresh,
+        mscp_expected_effect_provider=container.mscp_expected_effect_provider,
+        mscp_effect_observer=container.mscp_effect_observer,
     )
 
 

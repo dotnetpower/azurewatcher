@@ -33,6 +33,33 @@
       ]
     },
     {
+      "id": "mscp-operational-profile",
+      "paths": [
+        "src/fdai/core/mscp_profile/**",
+        "tests/core/mscp_profile/**"
+      ],
+      "optional_paths": [
+        "src/fdai/core/control_loop/_execution.py",
+        "src/fdai/core/control_loop/orchestrator.py",
+        "src/fdai/composition/_helpers.py",
+        "src/fdai/runtime/control_loop.py"
+      ],
+      "must_read": [
+        ".github/instructions/architecture.instructions.md",
+        "docs/roadmap/architecture/mscp-operational-profile.md"
+      ],
+      "docs_update": [
+        "docs/roadmap/architecture/mscp-operational-profile.md",
+        "docs/roadmap/architecture/code-map.md",
+        "docs/roadmap/architecture/project-structure.md"
+      ],
+      "validate": [
+        "uv run pytest -q --no-cov tests/core/mscp_profile",
+        "uv run ruff check src/fdai/core/mscp_profile src/fdai/core/control_loop/_execution.py src/fdai/core/control_loop/orchestrator.py src/fdai/composition/_helpers.py src/fdai/runtime/control_loop.py tests/core/mscp_profile",
+        "uv run mypy src/fdai/core/mscp_profile src/fdai/core/control_loop/_execution.py src/fdai/core/control_loop/orchestrator.py src/fdai/composition/_helpers.py src/fdai/runtime/control_loop.py tests/core/mscp_profile"
+      ]
+    },
+    {
       "id": "agents",
       "paths": ["src/fdai/agents/**"],
       "must_read": [

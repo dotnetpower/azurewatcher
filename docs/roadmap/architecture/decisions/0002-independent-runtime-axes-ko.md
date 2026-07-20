@@ -1,8 +1,8 @@
 ---
 title: ADR-0002 Independent Runtime and Customization Axes
 translation_of: 0002-independent-runtime-axes.md
-translation_source_sha: b3ea942b701d52a793ba36107735730664de01be
-translation_revised: 2026-07-20
+translation_source_sha: 66e2e580e38114bdbbf1427aec88773478e108e9
+translation_revised: 2026-07-21
 ---
 # ADR-0002: 독립적인 Runtime 및 Customization 축
 
@@ -39,6 +39,7 @@ FDAI는 다음 축을 독립 configuration으로 취급합니다.
 | 사용자 identity | Entra principal 및 App Role | browser token 및 RBAC policy |
 | Executor identity | managed workload identity | deployed executor boundary |
 | Distribution | `upstream`, `fork` | source 및 customization boundary |
+| Operational safety profile | `mscp-operational-v1` | Versioned core policy, 실행 authority 아님 |
 
 어떤 축의 값도 다른 축의 값을 선택하지 않습니다. 특히 다음 계약을 적용합니다.
 
@@ -51,6 +52,9 @@ FDAI는 다음 축을 독립 configuration으로 취급합니다.
   deploy할 수 있습니다.
 - Fork detection은 upstream framework surface를 보호합니다. Runtime behavior, autonomy, identity,
   environment를 변경하지 않습니다.
+- Operational safety profile은 실행 위치, environment, evidence, lifecycle, identity 및
+  distribution과 독립적입니다. Profile check는 기존 autonomy decision을 유지하거나 낮출 수만
+  있습니다.
 
 ### Interactive local profile
 

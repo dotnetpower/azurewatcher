@@ -24,6 +24,7 @@ from fdai.core.executor.action_builder import ActionBuilder
 from fdai.core.executor.direct_api import DirectApiShadowExecutor
 from fdai.core.executor.tool_call import ToolCallShadowExecutor
 from fdai.core.hil_resume import HilResumeCoordinator
+from fdai.core.mscp_profile import ExpectedEffectProvider, IndependentEffectObserver
 from fdai.core.notifications.router import NotificationRouter
 from fdai.core.rca import IncidentMemberSource, RcaCoordinator
 from fdai.core.risk_gate.gate import RiskGate
@@ -89,7 +90,13 @@ class ControlLoop(
             Callable[[str], Awaitable[Mapping[str, Any] | None]] | None
         ) = None,
         promotion_state_refresher: Callable[[str], Awaitable[None]] | None = None,
+        mscp_expected_effect_provider: ExpectedEffectProvider | None = None,
+        mscp_effect_observer: IndependentEffectObserver | None = None,
     ) -> None:
+        if (mscp_expected_effect_provider is None) != (mscp_effect_observer is None):
+            raise ValueError(
+                "mscp_expected_effect_provider and mscp_effect_observer MUST be bound together"
+            )
         self._event_ingest = event_ingest
         self._trust_router = trust_router
         self._t0_engine = t0_engine
@@ -110,6 +117,8 @@ class ControlLoop(
         self._inventory_age_provider = inventory_age_provider
         self._inventory_context_provider = inventory_context_provider
         self._promotion_state_refresher = promotion_state_refresher
+        self._mscp_expected_effect_provider = mscp_expected_effect_provider
+        self._mscp_effect_observer = mscp_effect_observer
         self._cost_estimator = cost_estimator
         self._direct_api_executor = direct_api_executor
         self._tool_executor = tool_executor

@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..core.capability_catalog import CapabilityRuntime
+from ..core.mscp_profile import ExpectedEffectProvider, IndependentEffectObserver
 from ..core.quality_gate.critic import CriticModel
 from ..core.quality_gate.debate import DebateOrchestrator
 from ..core.quality_gate.gate import CrossCheckModel
@@ -149,6 +150,14 @@ class Container:
     manual_source: ManualSource = field(default_factory=EmptyManualSource)
     manual_classifier: ManualClassifier = field(default_factory=AbstainingManualClassifier)
     capability_runtime: CapabilityRuntime = field(default_factory=CapabilityRuntime)
+    mscp_expected_effect_provider: ExpectedEffectProvider | None = None
+    mscp_effect_observer: IndependentEffectObserver | None = None
+
+    def __post_init__(self) -> None:
+        if (self.mscp_expected_effect_provider is None) != (self.mscp_effect_observer is None):
+            raise ValueError(
+                "Container MSCP expected-effect provider and observer MUST be bound together"
+            )
 
     def require_llm_bindings(self) -> LlmBindings:
         """Return :attr:`llm_bindings` or raise :class:`LlmBindingsUnavailableError`."""
