@@ -117,6 +117,9 @@ jobs:
           sudo mv /tmp/opa /usr/local/bin/opa
           opa version
 
+      - name: Apply PostgreSQL migrations
+        run: uv run alembic upgrade head
+
       - name: pytest + coverage
         run: bash scripts/quality/ci/run-python-tests.sh
 
