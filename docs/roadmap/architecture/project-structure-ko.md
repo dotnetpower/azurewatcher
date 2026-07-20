@@ -1,8 +1,8 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: dcc1b7e2ca42fbc2f1d7e32be1d45c2645e75438
-translation_revised: 2026-07-18
+translation_source_sha: fd890ed4a785d3fdc3fa0c5cf4b6452a3f786790
+translation_revised: 2026-07-21
 ---
 
 # 프로젝트 구조
@@ -50,6 +50,7 @@ fdai/
 │   │   ├── postmortem/         # LLM 옵션 postmortem / PIR 드래프트 생성기
 │   │   ├── rule_catalog_profiles/  # 프로파일 / 팩 레이어 - 이름 붙은 룰 번들 (`extends` 체인 + overrides)
 │   │   ├── measurement/        # Phase-4 지속 측정 (regression, pattern growth, model tracking, latency budget, prompt probe, runners)
+│   │   ├── mscp_profile/       # 실행 authority 없는 순수 mscp-operational-v1 provenance, effect verification, cycle guard 및 runtime-integrity policy
 │   │   ├── deploy_preflight/   # 배포 전 feasibility 프로브 → grounded readiness 리포트
 │   │   ├── assurance_twin/     # 읽기 전용 온톨로지 트윈: text-to-query 리뷰 / Q&A / assessment (제안만, 실행 안 함)
 │   │   ├── conversation/       # 오퍼레이터 콘솔 코디네이터 (Layer 2): 자연어 턴 → 하나의 read-only 툴 콜
@@ -361,6 +362,7 @@ phase 는 `core/` 를 편집하지 않고 composition root 에서 새 구현을 
 | **Boundary validation** | `ContractValidator` / `EventValidator` (fail-closed 입력 검사) | - | `JsonSchemaContractValidator` + `JsonSchemaEventValidator` (draft-2020-12) | 포크가 `core/` 편집 없이 도메인 특이 체크(예: 소스 allowlist) 추가 가능 |
 | Rule / policy source | rule-catalog + `policies/` 로더 | - | 번들된 범용 규칙 | 고객 규칙 세트 / 임계값 |
 | **Capability bundle runtime** | `core/capability_catalog/`의 `CapabilityRuntime` + `CapabilityBundle` 및 trust-verified `ExtensionManager`; `composition/`의 `install_capability_bundle(...)` | - | fork binding이 없는 기본 discovery catalog, extension은 disabled 상태로 설치 | review된 reasoning tool provider 추가 또는 capability를 기존 `ActionType` / `Workflow`에 binding; digest, trust, compatibility, manifest parity, 모든 reference를 activation 전에 검증 |
+| **MSCP effect observation** | `core/mscp_profile/`의 `ExpectedEffectProvider`, `IndependentEffectObserver`; immutable `Container`의 optional pair | - | 기본 unbound, headless runtime이 완전한 pair를 ControlLoop로 전달해 predict -> dispatch -> observe -> shadow-audit 순서 유지 | `dataclasses.replace`로 두 collaborator를 함께 bind, 일부 binding은 fail fast, shadow result는 autonomy를 높이지 않음 ([설계](mscp-operational-profile-ko.md)) |
 | **Typed external RPC** | `core/rpc/`의 `RpcRegistry`, `RpcMethod`, scope, idempotency contract, `delivery/rpc/`의 bounded HTTP client/route, deterministic Python stub codegen, `build_production_rpc_app(...)` | - | Control plane은 RPC route를 mount하지 않으며 opt-in standalone app이 built-in tool discovery와 PostgreSQL hashed claim을 binding | Fork가 identity-aware authorizer와 explicit additional method를 제공합니다. Side-effect method는 durable idempotency claim이 필요하고 executor를 직접 호출하지 않고 typed proposal을 제출합니다. |
 | **Ontology ObjectType / LinkType** | `src/fdai/rule_catalog/schema/`의 `load_object_type_catalog(root, *, schema_registry)` 및 `load_link_type_catalog(root, *, schema_registry, object_types=...)` | - | upstream ObjectType 4개(`Resource`, `Rule`, `Signal`, `Finding`)와 `rule-catalog/vocabulary/{object-types,link-types}/` 아래의 LinkType들. 엔트리포인트가 `Container.ontology_object_types` / `Container.ontology_link_types`로 주입 | fork는 자체 YAML 디렉토리(예: `fork/vocabulary/object-types/ArchitectureProposal.yaml`)를 추가로 로드해 두 루트를 concatenate 후 `dataclasses.replace(container, ontology_object_types=..., ontology_link_types=...)`로 주입. 두 루트 간 `name` 중복은 fail-close. 자세한 절차는 [downstream-fork-seam-recipes-ko.md § 5.8a](../fork-and-sequencing/downstream-fork-seam-recipes-ko.md#58a-ontology-object-type--link-type-additions). |
 | **Workflow 카탈로그 (프로세스 자동화)** | `src/fdai/rule_catalog/schema/workflow.py`의 `load_workflow_catalog(root, *, schema_registry, action_type_names, rule_ids=...)`; `src/fdai/core/workflow/`의 `compile_workflow(...)` | - | `rule-catalog/workflows/` 아래 shadow-first Workflow들. 엔트리포인트가 ActionType + rule 카탈로그 뒤에 `Container.workflows`로 주입; 모든 스텝이 `ActionType`과 (설정 시) Rule id를 cross-reference, 시작 시 fail-close | fork는 자체 `fork/workflows/` 디렉토리에 Workflow YAML을 추가로 로드해 concatenate한 ActionType / rule 집합과 함께 `dataclasses.replace(container, workflows=...)`로 주입. 두 루트 간 `name` 중복은 fail-close. 자세한 내용은 [process-automation-ko.md](../decisioning/process-automation-ko.md). |

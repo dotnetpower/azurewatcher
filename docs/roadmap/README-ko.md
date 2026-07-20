@@ -1,8 +1,8 @@
 ---
 title: FDAI 로드맵
 translation_of: README.md
-translation_source_sha: 50582ea1e31d505199605842422e9b6ede05c529
-translation_revised: 2026-07-20
+translation_source_sha: 5983944f32e468957b5678d5b1fa4528b9e093a7
+translation_revised: 2026-07-21
 ---
 
 # FDAI 로드맵
@@ -54,6 +54,7 @@ FDAI 뒤편의 엔지니어링 계획. 이 폴더는
 | 7a | [architecture-review-board-ko.md](architecture/architecture-review-board-ko.md) | Canonical ARB 패킷: 결정 경계, evidence contract, owner, dependency, production 종료 gate |
 | 7b | [data-governance-ko.md](architecture/data-governance-ko.md) | Data inventory, classification, lifecycle, privacy assessment, model-provider/compliance evidence |
 | 7c | [Architecture Decision Record](architecture/decisions/README-ko.md) | ADR register와 승인된 Azure day-zero platform baseline |
+| 7d | [mscp-operational-profile-ko.md](architecture/mscp-operational-profile-ko.md) | 전체 conformance 주장 없이 선택적으로 차용한 MSCP effect, cycle 및 runtime-integrity policy |
 
 ### 규칙, 탐지, 운영
 

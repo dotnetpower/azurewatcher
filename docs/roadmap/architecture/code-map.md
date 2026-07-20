@@ -109,6 +109,7 @@ the safety-core modules held to the >= 90% coverage floor.
 | scheduler | Cron-shaped triggers | [src/fdai/core/scheduler/](../../../src/fdai/core/scheduler/) | [tests/core/scheduler/](../../../tests/core/scheduler/) |
 | metering | Usage metering counters | [src/fdai/core/metering/](../../../src/fdai/core/metering/) | [tests/core/metering/](../../../tests/core/metering/) |
 | measurement | Phase-4 continuous measurement | [src/fdai/core/measurement/](../../../src/fdai/core/measurement/) | [tests/core/measurement/](../../../tests/core/measurement/) |
+| mscp_profile | Level-neutral `mscp-operational-v1` provenance, pure effect/cycle/integrity checks, and optional ControlLoop shadow observation ([design](mscp-operational-profile.md)) | [src/fdai/core/mscp_profile/](../../../src/fdai/core/mscp_profile/) | [tests/core/mscp_profile/](../../../tests/core/mscp_profile/) |
 | security | Security-signal producers | [src/fdai/core/security/](../../../src/fdai/core/security/) | [tests/core/security/](../../../tests/core/security/) |
 | platform | Platform-primitive facade | [src/fdai/core/platform/](../../../src/fdai/core/platform/) | [tests/core/](../../../tests/core/) |
 | verticals | Resilience / Change Safety / Cost | [src/fdai/core/verticals/](../../../src/fdai/core/verticals/) | [tests/core/verticals/](../../../tests/core/verticals/) |
