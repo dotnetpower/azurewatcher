@@ -73,8 +73,9 @@ The reference index and PostgreSQL adapter use the same ordering contract:
 6. Deterministic tie-breaking uses the stable `behavior_id`.
 
 The PostgreSQL adapter combines `tsvector`, `pg_trgm`, and pgvector cosine similarity. The in-memory
-adapter mirrors the exact and authority ordering and uses reciprocal-rank fusion for lexical and
-semantic candidates. OpenSearch is not part of this design. A future index adapter can be considered
+adapter mirrors exact-class, top-hit, and authority ordering and uses reciprocal-rank fusion for
+lexical and semantic candidates. Low-confidence hybrid tail order can differ because its lexical
+scorer uses normalized token overlap. OpenSearch is not part of this design. A future index adapter can be considered
 only after measured corpus size, query rate, sharding, or aggregation requirements exceed the
 PostgreSQL boundary.
 
@@ -146,7 +147,7 @@ The current implementation is intentionally split so deployed claims remain accu
 Focused tests cover exact alias priority, normalized subject ranking, idempotent reindexing, stale
 hashes, implemented and test-backed authority, source citation shape and symbol precision, source
 body exclusion, client evidence replacement, prompt-injection isolation, comparisons, localization,
-and PostgreSQL/in-memory rank parity. A frozen set of 20 holdout architecture paraphrases scores
+and PostgreSQL/in-memory top-hit and exact-class parity. A frozen set of 20 holdout architecture paraphrases scores
 routing, status, current citations, precise symbols, authority, structure, facts, exclusions and
 safety, localization, and directness. The measured 2026-07-20 result is `10.0/10`: 20 of 20 route
 correctly, cold initialization is 46.6 ms, and 200 warm samples measure 8.4 ms p50 and 20.5 ms p95.

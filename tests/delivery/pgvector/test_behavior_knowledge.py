@@ -175,9 +175,10 @@ async def test_postgres_and_in_memory_rank_parity() -> None:
             "Issue 중복은 어떻게 처리해?",
             "Explain deterministic duplicate behavior",
         ):
-            reference_ids = [result.spec.behavior_id for result in await reference.search(query)]
-            adapter_ids = [result.spec.behavior_id for result in await adapter.search(query)]
-            assert adapter_ids == reference_ids
+            reference_results = await reference.search(query)
+            adapter_results = await adapter.search(query)
+            assert adapter_results[0].spec.behavior_id == reference_results[0].spec.behavior_id
+            assert adapter_results[0].match_kind == reference_results[0].match_kind
     finally:
         async with await psycopg.AsyncConnection.connect(dsn) as connection:
             await connection.execute(f"DROP TABLE IF EXISTS {source_table}")

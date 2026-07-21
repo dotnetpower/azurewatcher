@@ -101,7 +101,10 @@ async def test_failed_candidate_retains_last_active_snapshot() -> None:
     context = await context_provider("rg-test")
     assert context is not None
     assert context["resource_type"] == "resource-group"
-    assert context["props"] == {"name": "rg"}
+    assert context["props"] == {
+        "name": "rg",
+        "tags": {"fdai:managed": "true", "fdai:workload": "fdai"},
+    }
     assert await context_provider("missing-resource") is None
 
 
