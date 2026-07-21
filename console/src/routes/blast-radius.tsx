@@ -176,10 +176,13 @@ export function BlastRadiusRoute({ client }: Props) {
         subtitle="Simulate the reachable subgraph before approving a change. Read-only projection over the ontology - no resources are touched."
       />
 
-      <section class="stack-section">
-        <h3 class="section-title">Query</h3>
+      <section class="impact-query-panel" aria-labelledby="impact-query-title">
+        <header class="impact-query-head">
+          <h3 id="impact-query-title">Impact query</h3>
+          <p>Read-only traversal. No resource changes are sent.</p>
+        </header>
         <form
-          class="form-grid"
+          class="impact-query-grid"
           onSubmit={(e) => {
             e.preventDefault();
             navigate(blastRadiusHref({
@@ -190,9 +193,10 @@ export function BlastRadiusRoute({ client }: Props) {
             }));
           }}
         >
-          <label>
-            Target resource id
+          <label class="impact-query-field">
+            <span>Target resource id</span>
             <input
+              class="impact-query-input"
               type="text"
               value={target}
               onInput={(e) => {
@@ -208,9 +212,10 @@ export function BlastRadiusRoute({ client }: Props) {
               required
             />
           </label>
-          <label>
-            Traversal depth (1-5)
+          <label class="impact-query-field is-compact">
+            <span>Traversal depth (1-5)</span>
             <input
+              class="impact-query-input"
               type="number"
               min={1}
               max={5}
@@ -228,35 +233,39 @@ export function BlastRadiusRoute({ client }: Props) {
               required
             />
           </label>
-          <fieldset class="chip-fieldset">
+          <fieldset class="impact-query-checks">
             <legend>Link types</legend>
-            <div class="chip-options">
+            <div class="impact-query-options">
               {BLAST_RADIUS_LINKS.map((name) => (
-                <label key={name} class="chip-option">
+                <label key={name} class="impact-query-check">
                   <input
                     type="checkbox"
                     checked={linkSet.has(name)}
                     onChange={() => toggleLink(name)}
                   />
+                  <span class="impact-query-check-box" aria-hidden="true" />
                   <span>{name}</span>
                 </label>
               ))}
             </div>
           </fieldset>
-          <button
-            type="submit"
-            class="btn primary"
-            disabled={state.status === "loading" || target.trim().length === 0 || linkSet.size === 0}
-          >
-            Simulate
-          </button>
+          <div class="impact-query-action">
+            <span>Run read-only check</span>
+            <button
+              type="submit"
+              class="btn primary impact-query-submit"
+              disabled={state.status === "loading" || target.trim().length === 0 || linkSet.size === 0}
+            >
+              Simulate impact
+            </button>
+          </div>
         </form>
       </section>
 
       <AsyncBoundary
         state={state}
         resourceLabel="blast-radius simulation"
-        idle={<p class="muted footnote">Enter a target and click Simulate.</p>}
+        idle={<p class="muted footnote">Enter a target and select at least one link type to simulate impact.</p>}
       >
         {(data) => <ReportView data={data} client={client} architectureView={architectureView} />}
       </AsyncBoundary>

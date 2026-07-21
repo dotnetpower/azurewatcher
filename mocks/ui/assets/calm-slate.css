@@ -359,6 +359,82 @@ body.cs-has-sidebar { padding-left: var(--cs-sidebar-w); }
 }
 .cs-help { font-size: 12.5px; color: var(--cs-text-soft); margin-top: 5px; }
 
+/* Query workbench - dense read-only simulation/search controls. */
+.cs-query-panel {
+  padding: 18px;
+  border: 1px solid var(--cs-hairline);
+  border-radius: var(--cs-radius);
+  background: var(--cs-card);
+  box-shadow: var(--cs-shadow);
+}
+.cs-query-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.cs-query-head h2 { margin: 0; font-size: 15px; }
+.cs-query-head p { margin: 0; color: var(--cs-text-soft); font-size: 12.5px; }
+.cs-query-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: end; }
+.cs-query-field { display: grid; grid-column: span 4; min-width: 0; gap: 6px; }
+.cs-query-field.is-compact { grid-column: span 2; }
+.cs-query-label,
+.cs-query-checks legend { color: var(--cs-text-soft); font-size: 12px; font-weight: 600; }
+.cs-query-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid var(--cs-hairline);
+  border-radius: var(--cs-radius-sm);
+  background: var(--cs-bg);
+  color: var(--cs-text);
+  font: 14px var(--cs-font);
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.cs-query-input:hover { border-color: #C9C6C1; background: var(--cs-card); }
+.cs-query-input:focus { outline: none; border-color: var(--cs-steel); background: var(--cs-card); box-shadow: 0 0 0 3px rgba(68,104,142,.12); }
+.cs-query-checks { grid-column: span 4; min-width: 0; margin: 0; padding: 8px 10px 10px; border: 1px solid var(--cs-hairline); border-radius: var(--cs-radius-sm); background: var(--cs-bg); }
+.cs-query-checks legend { padding: 0 5px; }
+.cs-query-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.cs-query-check {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  gap: 7px;
+  padding: 5px 10px;
+  border: 1px solid var(--cs-hairline);
+  border-radius: 6px;
+  background: var(--cs-card);
+  color: var(--cs-text-soft);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.cs-query-check:hover { border-color: #C9C6C1; color: var(--cs-text); }
+.cs-query-check input { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.cs-query-check-box { position: relative; width: 15px; height: 15px; flex: 0 0 auto; border: 1px solid #B9B6B1; border-radius: 4px; background: var(--cs-card); }
+.cs-query-check-box::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; opacity: 0; transform: rotate(45deg); }
+.cs-query-check:has(input:checked) { border-color: rgba(68,104,142,.34); background: rgba(68,104,142,.08); color: var(--cs-steel); font-weight: 600; }
+.cs-query-check input:checked + .cs-query-check-box { border-color: var(--cs-steel); background: var(--cs-steel); }
+.cs-query-check input:checked + .cs-query-check-box::after { opacity: 1; }
+.cs-query-check:has(input:focus-visible) { outline: 2px solid rgba(68,104,142,.36); outline-offset: 2px; }
+.cs-query-action { display: grid; grid-column: span 2; gap: 6px; }
+.cs-query-action .cs-btn { min-height: 42px; justify-content: center; }
+.cs-btn:focus-visible { outline: 2px solid rgba(68,104,142,.42); outline-offset: 2px; }
+.cs-btn:disabled { border-color: var(--cs-hairline); background: #DDE3E9; color: #78838E; cursor: not-allowed; opacity: 1; }
+@media (max-width: 900px) {
+  .cs-query-field { grid-column: span 6; }
+  .cs-query-field.is-compact { grid-column: span 3; }
+  .cs-query-checks { grid-column: span 9; }
+  .cs-query-action { grid-column: span 3; }
+}
+@media (max-width: 620px) {
+  .cs-query-panel { padding: 14px; }
+  .cs-query-head { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .cs-query-field,
+  .cs-query-field.is-compact,
+  .cs-query-checks,
+  .cs-query-action { grid-column: 1 / -1; }
+  .cs-query-action .cs-btn { width: 100%; }
+}
+
 /* ----- Tabs ----- */
 .cs-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--cs-hairline); margin-bottom: 20px; flex-wrap: wrap; }
 .cs-tab { padding: 9px 15px; font-size: 14px; color: var(--cs-text-soft); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; border-top: none; border-left: none; border-right: none; font-family: inherit; }

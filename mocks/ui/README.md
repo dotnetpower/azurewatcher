@@ -35,7 +35,7 @@ Fleet / Safety surfaces (mirror console panels under `Now` and `Safety`):
 | [agents-constellation.html](agents-constellation.html) | Fleet constellation - console-style org chart with focus rings + the per-incident agent-to-agent conversation panel |
 | [pantheon.html](pantheon.html) | Pantheon directory - 15 agents grouped by governance / pipeline / domain layer, with the reporting tree |
 | [agent-activity.html](agent-activity.html) | Per-agent timeline projected from the audit log - who did what, when, and how; verbs = execute / approve / reject / rollback / abstain / audit |
-| [blast-radius.html](blast-radius.html) | Per-action impact view - concentric target / direct / indirect rings plus cap bars enforced by the risk gate |
+| [blast-radius.html](blast-radius.html) | Per-action impact view - responsive query controls, concentric target / direct / indirect rings, and cap bars enforced by the risk gate |
 | [provision.html](provision.html) | In-flight re-provision - Terraform stream projected as status + resource list + live event log; console URL surfaces on `provision.done` |
 | [llm-cost.html](llm-cost.html) | LLM spend - per-tier daily budget bars, event mix, 7-day trend, per-model attribution table |
 

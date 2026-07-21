@@ -73,6 +73,47 @@
         regardless of confidence.</p>
     </div>
 
+    <section class="cs-query-panel cs-mb-24" aria-labelledby="impact-query-title">
+      <div class="cs-query-head">
+        <h2 id="impact-query-title">Impact query</h2>
+        <p>Read-only traversal. No resource changes are sent.</p>
+      </div>
+      <form class="cs-query-grid">
+        <label class="cs-query-field">
+          <span class="cs-query-label">Target resource id</span>
+          <input class="cs-query-input" type="text" value="database-primary" />
+        </label>
+        <label class="cs-query-field is-compact">
+          <span class="cs-query-label">Traversal depth</span>
+          <input class="cs-query-input" type="number" min="1" max="5" value="2" />
+        </label>
+        <fieldset class="cs-query-checks">
+          <legend>Link types</legend>
+          <div class="cs-query-options">
+            <label class="cs-query-check">
+              <input type="checkbox" checked />
+              <span class="cs-query-check-box" aria-hidden="true"></span>
+              <span>contains</span>
+            </label>
+            <label class="cs-query-check">
+              <input type="checkbox" checked />
+              <span class="cs-query-check-box" aria-hidden="true"></span>
+              <span>depends_on</span>
+            </label>
+            <label class="cs-query-check">
+              <input type="checkbox" />
+              <span class="cs-query-check-box" aria-hidden="true"></span>
+              <span>attached_to</span>
+            </label>
+          </div>
+        </fieldset>
+        <div class="cs-query-action">
+          <span class="cs-query-label">Run read-only check</span>
+          <button class="cs-btn is-primary" type="button">Simulate impact</button>
+        </div>
+      </form>
+    </section>
+
     <!-- Context strip -->
     <div class="cs-flex cs-wrap cs-gap-12 cs-mb-24">
       <span class="cs-tag is-steel"><strong>ActionType</strong>&nbsp;<code>database.enable-pitr</code></span>
