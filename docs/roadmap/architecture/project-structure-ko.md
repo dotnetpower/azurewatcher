@@ -1,7 +1,7 @@
 ---
 title: 프로젝트 구조
 translation_of: project-structure.md
-translation_source_sha: 36182beab1243ba01cc02274e1ffa5820c2ff2bf
+translation_source_sha: 6350a73da4c0190fd413debe0b2947fb2fadc0dc
 translation_revised: 2026-07-21
 ---
 
@@ -24,7 +24,7 @@ fdai/
 │   │   ├── trust_router/       # 계산된 신뢰도로 각 이벤트를 T0 | T1 | T2 로 라우팅
 │   │   ├── tiers/
 │   │   │   ├── t0_deterministic/    # deterministic-engine: policy, checklist, what-if, drift eval
-│   │   │   ├── t1_lightweight/      # 임베딩 유사도, 학습된 액션 재사용, 소형 모델 분류
+│   │   │   ├── t1_lightweight/      # 임베딩 유사도, 학습된 액션 재사용, 소형 모델 분류; non-finite reuse evidence는 abstain
 │   │   │   └── t2_reasoning/        # 신규/모호 케이스에만 사용하는 프론티어 모델 추론
 │   │   ├── prompts/            # catalog-as-code 프롬프트 컴포저 (`rule-catalog/prompts/` 로드, T2에 공급)
 │   │   ├── tools/              # T2 툴 카탈로그 레지스트리 + `ToolExecutor` (shadow-mode 게이팅)

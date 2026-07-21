@@ -8,6 +8,7 @@ import pytest
 
 from fdai.core.tiers.t1_lightweight import (
     LearnedAction,
+    SimilarityMatch,
     T1Config,
     T1Outcome,
     T1Tier,
@@ -138,6 +139,46 @@ async def test_low_success_rate_abstains_even_when_similarity_high() -> None:
     assert any("success_rate=" in r for r in decision.reasons)
 
 
+@pytest.mark.asyncio
+async def test_non_finite_similarity_score_abstains() -> None:
+    class _NonFiniteLibrary:
+        async def search(self, query_vector: Any, *, k: int = 5):
+            return (SimilarityMatch(action=_action(), score=float("nan")),)
+
+    tier = T1Tier(
+        embedding_model=DeterministicEmbeddingModel(),
+        pattern_library=_NonFiniteLibrary(),
+    )
+
+    decision = await tier.evaluate(event=_event())
+
+    assert decision.outcome is T1Outcome.ABSTAIN
+    assert decision.reason == "non_finite_similarity_score"
+    assert decision.best_match is None
+
+
+@pytest.mark.asyncio
+async def test_non_finite_success_rate_abstains() -> None:
+    class _NonFiniteLibrary:
+        async def search(self, query_vector: Any, *, k: int = 5):
+            return (
+                SimilarityMatch(
+                    action=_action(success_rate=float("nan")),
+                    score=1.0,
+                ),
+            )
+
+    tier = T1Tier(
+        embedding_model=DeterministicEmbeddingModel(),
+        pattern_library=_NonFiniteLibrary(),
+    )
+
+    decision = await tier.evaluate(event=_event())
+
+    assert decision.outcome is T1Outcome.ABSTAIN
+    assert decision.reason == "non_finite_success_rate"
+
+
 # ---------------------------------------------------------------------------
 # Reuse path
 # ---------------------------------------------------------------------------
@@ -196,6 +237,8 @@ def test_cosine_similarity_handles_empty_and_mismatched_vectors() -> None:
     assert cosine_similarity([], []) == 0.0
     assert cosine_similarity([1.0, 2.0], [1.0]) == 0.0
     assert cosine_similarity([0.0, 0.0], [1.0, 1.0]) == 0.0
+    assert cosine_similarity([1.0, float("nan")], [1.0, 1.0]) == 0.0
+    assert cosine_similarity([1.0, float("inf")], [1.0, 1.0]) == 0.0
     # Identical vectors → cosine 1.0.
     assert cosine_similarity([1.0, 2.0], [1.0, 2.0]) == pytest.approx(1.0)
 

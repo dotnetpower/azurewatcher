@@ -19,7 +19,7 @@ fdai/
 │   │   ├── trust_router/       # routes each event to T0 | T1 | T2 by computed confidence
 │   │   ├── tiers/
 │   │   │   ├── t0_deterministic/    # deterministic-engine: policy, checklist, what-if, drift eval
-│   │   │   ├── t1_lightweight/      # embedding similarity, learned-action reuse, small-model classify
+│   │   │   ├── t1_lightweight/      # embedding similarity, learned-action reuse, small-model classify; non-finite reuse evidence abstains
 │   │   │   └── t2_reasoning/        # frontier-model reasoning for novel/ambiguous cases only
 │   │   ├── prompts/            # catalog-as-code prompt composer (loads `rule-catalog/prompts/`, supplies T2)
 │   │   ├── tools/              # T2 tool-catalog registry + `ToolExecutor` (shadow-mode gated)

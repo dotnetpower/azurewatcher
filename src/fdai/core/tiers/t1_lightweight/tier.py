@@ -37,7 +37,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from math import sqrt
+from math import isfinite, sqrt
 from typing import Any, Protocol, runtime_checkable
 
 from fdai.shared.contracts.models import Event
@@ -182,6 +182,16 @@ class T1Tier:
                 reasons=("no_neighbour_found",),
             )
 
+        if any(not isfinite(match.score) for match in matches):
+            return T1Decision(
+                outcome=T1Outcome.ABSTAIN,
+                event_id=str(event.event_id),
+                threshold=self._config.similarity_threshold,
+                best_match=None,
+                reason="non_finite_similarity_score",
+                reasons=("non_finite_similarity_score",),
+            )
+
         # matches are already ordered by descending score by contract;
         # we still take the max to be safe.
         best = max(matches, key=lambda m: m.score)
@@ -192,7 +202,9 @@ class T1Tier:
                 f"similarity={best.score:.4f}<threshold={self._config.similarity_threshold:.4f}"
             )
 
-        if best.action.success_rate < self._config.min_success_rate:
+        if not isfinite(best.action.success_rate):
+            reasons.append("non_finite_success_rate")
+        elif best.action.success_rate < self._config.min_success_rate:
             reasons.append(
                 f"success_rate={best.action.success_rate:.4f}<"
                 f"floor={self._config.min_success_rate:.4f}"
@@ -249,10 +261,12 @@ def cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
     """Cosine similarity used by the fake pattern library."""
     if not a or not b or len(a) != len(b):
         return 0.0
+    if any(not isfinite(value) for value in (*a, *b)):
+        return 0.0
     dot = sum(x * y for x, y in zip(a, b, strict=False))
     na = sqrt(sum(x * x for x in a))
     nb = sqrt(sum(y * y for y in b))
-    if na == 0.0 or nb == 0.0:
+    if not all(isfinite(value) for value in (dot, na, nb)) or na == 0.0 or nb == 0.0:
         return 0.0
     return dot / (na * nb)
 
