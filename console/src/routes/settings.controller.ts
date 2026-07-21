@@ -24,6 +24,7 @@ import {
   type UserPreferencePayload,
 } from "../user-context-client";
 import {
+  buildResponseDefaultsPolicy,
   claimSettingsDelete,
   claimSettingsMutation,
   contextWithSavedPreference,
@@ -31,6 +32,7 @@ import {
   isValidTimezone,
   parseBriefingHour,
   releaseSettingsMutation,
+  responseDefaultsPolicyForSave,
   setLocaleOverride,
 } from "./settings.model";
 
@@ -145,9 +147,7 @@ export function useSettingsController(client: ReadApiClient) {
   const openingPolicy = serverContext?.policies.find(
     (policy) => policy.kind === "opening_briefing" && policy.enabled,
   ) ?? null;
-  const responsePolicy = serverContext?.policies.find(
-    (policy) => policy.kind === "response_defaults" && policy.enabled,
-  ) ?? null;
+  const responsePolicy = responseDefaultsPolicyForSave(serverContext?.policies ?? []);
   const latestSourceTurnId = serverContext?.conversations.find(
     (conversation) => conversation.latest_operator_turn_id !== null,
   )?.latest_operator_turn_id ?? null;
@@ -175,17 +175,13 @@ export function useSettingsController(client: ReadApiClient) {
       preferenceSaved = true;
       setServerContext((current) => contextWithSavedPreference(current, savedPreference));
       if (latestSourceTurnId !== null) {
-        await putConversationPolicy({
-          policy_id: "response-defaults",
-          kind: "response_defaults",
-          source_turn_id: latestSourceTurnId,
-          enabled: true,
-          expected_revision: responsePolicy?.revision ?? 0,
-          response_defaults: {
-            verbosity: answerDetail === "deep" ? "detailed" : "concise",
-            answer_language: preferences.locale,
-          },
-        });
+        await putConversationPolicy(buildResponseDefaultsPolicy({
+          sourceTurnId: latestSourceTurnId,
+          enabled: answerPreferencesEnabled,
+          expectedRevision: responsePolicy?.revision ?? 0,
+          answerDetail,
+          locale: preferences.locale,
+        }));
       }
       await refreshContext();
       setContextError(null);

@@ -1,5 +1,9 @@
 import type { ConsolePreferences } from "../preferences";
-import type { UserContextPayload, UserPreferencePayload } from "../user-context-client";
+import type {
+  ConversationPolicyPayload,
+  UserContextPayload,
+  UserPreferencePayload,
+} from "../user-context-client";
 
 export interface SettingsMutationLock {
   current: boolean;
@@ -26,6 +30,32 @@ export function contextWithSavedPreference(
   preference: UserPreferencePayload,
 ): UserContextPayload | null {
   return context === null ? null : { ...context, preference };
+}
+
+export function responseDefaultsPolicyForSave(
+  policies: readonly ConversationPolicyPayload[],
+): ConversationPolicyPayload | null {
+  return policies.find((policy) => policy.kind === "response_defaults") ?? null;
+}
+
+export function buildResponseDefaultsPolicy(input: {
+  readonly sourceTurnId: string;
+  readonly enabled: boolean;
+  readonly expectedRevision: number;
+  readonly answerDetail: UserPreferencePayload["answer_detail"];
+  readonly locale: ConsolePreferences["locale"];
+}) {
+  return {
+    policy_id: "response-defaults",
+    kind: "response_defaults",
+    source_turn_id: input.sourceTurnId,
+    enabled: input.enabled,
+    expected_revision: input.expectedRevision,
+    response_defaults: {
+      verbosity: input.answerDetail === "deep" ? "detailed" : "concise",
+      answer_language: input.locale,
+    },
+  } as const;
 }
 
 export function setLocaleOverride(locale: ConsolePreferences["locale"] | null): void {

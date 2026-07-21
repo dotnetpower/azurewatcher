@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildResponseDefaultsPolicy,
   claimSettingsDelete,
   claimSettingsMutation,
   contextWithSavedPreference,
   isValidTimezone,
   parseBriefingHour,
   releaseSettingsMutation,
+  responseDefaultsPolicyForSave,
 } from "./settings";
 
 describe("General Settings validation", () => {
@@ -22,6 +24,36 @@ describe("General Settings validation", () => {
     expect(claimSettingsDelete(claims, "memory:one")).toBe(true);
     expect(claimSettingsDelete(claims, "memory:one")).toBe(false);
     expect(claimSettingsDelete(claims, "memory:two")).toBe(true);
+  });
+
+  it("reuses a disabled response-default policy revision", () => {
+    const disabledPolicy = {
+      policy_id: "response-defaults",
+      kind: "response_defaults",
+      enabled: false,
+      revision: 7,
+    } as never;
+    expect(responseDefaultsPolicyForSave([disabledPolicy])?.revision).toBe(7);
+  });
+
+  it("disables response defaults when saved answer preferences are disabled", () => {
+    expect(buildResponseDefaultsPolicy({
+      sourceTurnId: "turn-1",
+      enabled: false,
+      expectedRevision: 7,
+      answerDetail: "deep",
+      locale: "ko",
+    })).toEqual({
+      policy_id: "response-defaults",
+      kind: "response_defaults",
+      source_turn_id: "turn-1",
+      enabled: false,
+      expected_revision: 7,
+      response_defaults: {
+        verbosity: "detailed",
+        answer_language: "ko",
+      },
+    });
   });
 
   it("keeps the successful preference revision after a later partial-save failure", () => {
