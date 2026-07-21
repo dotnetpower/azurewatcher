@@ -30,6 +30,7 @@ _EXACT_PATHS: frozenset[str] = frozenset(
         "/live/stream",
         "/onboarding",
         "/operator-memory",
+        "/rca",
         "/reports",
         "/reports/registry",
         "/scheduler-runs",

@@ -61,6 +61,7 @@ def test_proxy_handles_canonical_context_selection_comparisons_route() -> None:
     ("path", "expected"),
     (
         ("/audit", True),
+        ("/rca", True),
         ("/reports/monthly", True),
         ("/views/process/run-1", True),
         ("/reports/../local", False),
