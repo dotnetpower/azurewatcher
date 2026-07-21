@@ -1483,7 +1483,8 @@ A truncated snapshot carries an explicit partial-inventory notice. Pointer inter
 Architecture renders a subscription-scoped cached snapshot immediately when one exists. It labels an
 expired or change-invalidated snapshot as stale, shows the refresh-in-progress state, and polls only
 until the read API atomically promotes the completed background refresh. Cache state never upgrades
-the server-owned freshness verdict.
+the server-owned freshness verdict. Polling retries transient failures with a bounded 2-to-30-second
+backoff while keeping the stale graph usable.
 
 Time-bound and aggregate evidence remains conservative while a route stays
 open. Approval and Operator Memory rows cross their recorded TTL boundary

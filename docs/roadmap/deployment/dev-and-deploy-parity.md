@@ -129,15 +129,6 @@ or adding an approval endpoint.
 
 | Subsystem | Status | Gap |
 |-----------|--------|-----|
-
-The local inventory cache promotes only scans that reach the final fence and writes them by atomic
-replace. A fresh cache returns immediately across read API restarts. An expired or Huginn-invalidated
-cache returns immediately as `stale` with `cache.status=refreshing`, then a background Azure CLI scan
-atomically replaces it. When a provisioned `aw.inventory.raw` topic is configured through
-`FDAI_INVENTORY_RAW_TOPIC`, accepted write/delete events invalidate the local cache after durable
-projection. A stack without that auxiliary-topic binding converges through TTL refresh. A missing explicit subscription
-disables persistent cache reuse rather than risking a snapshot from another active Azure CLI
-subscription.
 | Azure Resource Graph inventory | Production reads the promoted PostgreSQL snapshot plus Huginn's real-time delta overlay | Full-stack local uses read-only `AzureCliInventory` with a `.fdai/cache/inventory` snapshot isolated by subscription and Azure CLI profile fingerprint; synthetic opt-out is rejected |
 | Azure Monitor Logs KQL | Production and local adapters share `AzureLogAnalyticsQueryProvider` | Requires server-owned `FDAI_MONITOR_WORKSPACE_ID`; explicit `query_log` fails closed when unavailable |
 | Managed Identity token (`WorkloadIdentity`) | Deployed adapter exists | interactive local publishes to the deployed executor; fixture tests may use a local issuer |
@@ -145,6 +136,16 @@ subscription.
 | Browser evidence | Provider-neutral contracts, optional Playwright adapter, PostgreSQL artifacts, and GET-only inspection exist | unbound by default; interactive local has no executor identity and renders unavailable until an isolated restricted-egress browser runtime and exact origin policies are configured |
 | Key Vault secret provider (`SecretProvider`) | deployment injects Key Vault references | interactive adapters use environment references; fixture values remain test-only |
 | GitOps PR publisher | Real GitHub adapter exists | interactive execution uses the configured adapter; recording publishers are test-only |
+The local inventory cache promotes only scans that reach the final fence and writes them by atomic
+replace. A fresh cache returns immediately across read API restarts. An expired or Huginn-invalidated
+cache returns immediately as `stale` with `cache.status=refreshing`, then a background Azure CLI scan
+atomically replaces it. When a provisioned `aw.inventory.raw` topic is configured through
+`FDAI_INVENTORY_RAW_TOPIC`, accepted write/delete events invalidate the local cache after durable
+projection. A stack without that auxiliary-topic binding converges through TTL refresh. A missing
+explicit subscription disables persistent cache reuse rather than risking a snapshot from another
+active Azure CLI subscription. The cache envelope also binds the resource limit, rejects malformed
+or materially future-dated snapshots, and bounds each local refresh to 240 seconds. Cache-file or
+marker I/O failure preserves the last complete in-memory graph and falls back to TTL convergence.
 
 ## Parity Contract (MUST)
 
