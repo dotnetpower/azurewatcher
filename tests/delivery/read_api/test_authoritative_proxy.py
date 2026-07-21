@@ -7,6 +7,7 @@ from starlette.middleware import Middleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
+from starlette.types import Message, Scope
 
 from fdai.delivery.read_api.dev.authoritative_proxy import (
     AuthoritativeReadProxy,
@@ -22,6 +23,39 @@ def _app(proxy: AuthoritativeReadProxy) -> Starlette:
         routes=[Route("/kpi", local), Route("/local", local)],
         middleware=[Middleware(AuthoritativeReadProxyMiddleware, proxy=proxy)],
     )
+
+
+class _FailingStream(httpx.AsyncByteStream):
+    async def __aiter__(self):  # type: ignore[no-untyped-def]
+        yield b"partial"
+        raise httpx.ReadError("stream interrupted")
+
+
+async def _proxy_messages(proxy: AuthoritativeReadProxy) -> list[Message]:
+    messages: list[Message] = []
+    scope: Scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/audit",
+        "raw_path": b"/audit",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"authorization", b"Bearer token")],
+        "client": None,
+        "server": None,
+    }
+
+    async def receive() -> Message:
+        return {"type": "http.disconnect"}
+
+    async def send(message: Message) -> None:
+        messages.append(message)
+
+    await proxy(scope, receive, send)
+    return messages
 
 
 def test_proxy_forwards_only_allowlisted_gets_with_bearer_and_query() -> None:
@@ -50,6 +84,40 @@ def test_proxy_forwards_only_allowlisted_gets_with_bearer_and_query() -> None:
     assert seen[0].headers["authorization"] == "Bearer signed-token"
     assert local.json() == {"source": "local"}
     assert post.status_code == 405
+
+
+async def test_proxy_returns_503_when_remote_fails_before_response_start() -> None:
+    async def fail(_request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("remote unavailable")
+
+    proxy = AuthoritativeReadProxy(
+        base_url="https://read.example.test",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(fail)),
+    )
+
+    messages = await _proxy_messages(proxy)
+
+    starts = [message for message in messages if message["type"] == "http.response.start"]
+    assert len(starts) == 1
+    assert starts[0]["status"] == 503
+
+
+async def test_proxy_closes_body_without_second_start_when_remote_stream_fails() -> None:
+    proxy = AuthoritativeReadProxy(
+        base_url="https://read.example.test",
+        client=httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(200, stream=_FailingStream())
+            )
+        ),
+    )
+
+    messages = await _proxy_messages(proxy)
+
+    starts = [message for message in messages if message["type"] == "http.response.start"]
+    assert len(starts) == 1
+    assert starts[0]["status"] == 200
+    assert messages[-1] == {"type": "http.response.body", "body": b"", "more_body": False}
 
 
 def test_proxy_handles_canonical_context_selection_comparisons_route() -> None:

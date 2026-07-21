@@ -81,6 +81,7 @@ class AuthoritativeReadProxy:
             return
         query = bytes(scope.get("query_string", b"")).decode("ascii")
         target = f"{self._base_url}{path}{f'?{query}' if query else ''}"
+        response_started = False
         try:
             async with self._client.stream(
                 "GET",
@@ -103,6 +104,7 @@ class AuthoritativeReadProxy:
                         "headers": headers,
                     }
                 )
+                response_started = True
                 if response.is_stream_consumed:
                     await send(
                         {
@@ -116,6 +118,9 @@ class AuthoritativeReadProxy:
                         await send({"type": "http.response.body", "body": chunk, "more_body": True})
                 await send({"type": "http.response.body", "body": b"", "more_body": False})
         except httpx.HTTPError as exc:
+            if response_started:
+                await send({"type": "http.response.body", "body": b"", "more_body": False})
+                return
             await _json_error(
                 send,
                 503,
