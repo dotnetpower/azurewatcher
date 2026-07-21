@@ -39,6 +39,13 @@ CATALOG_DIRS = [
 ]
 
 
+def _load_yaml(path: Path) -> object:
+    text = path.read_text(encoding="utf-8")
+    if hasattr(yaml, "CSafeLoader"):
+        return yaml.load(text, Loader=yaml.CSafeLoader)
+    return yaml.safe_load(text)
+
+
 @pytest.fixture(scope="module")
 def known_rule_ids() -> frozenset[str]:
     """The union of every rule id shipped in this repo (catalog + collected)."""
@@ -47,7 +54,7 @@ def known_rule_ids() -> frozenset[str]:
         if not root.is_dir():
             continue
         for path in root.rglob("*.yaml"):
-            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            data = _load_yaml(path)
             if isinstance(data, dict) and "id" in data:
                 ids.add(str(data["id"]))
     assert len(ids) >= 1000, f"expected thousands of rule ids; got {len(ids)}"
@@ -59,7 +66,7 @@ def registry() -> ProfileRegistry:
     return ProfileRegistry.from_directories(upstream=PROFILES_DIR)
 
 
-def test_every_shipped_profile_resolves_strict(
+def test_shipped_profile_resolution_contract(
     registry: ProfileRegistry,
     known_rule_ids: frozenset[str],
 ) -> None:
@@ -83,14 +90,6 @@ def test_every_shipped_profile_resolves_strict(
         failures
     )
     assert checked >= 100, f"expected 100+ profiles; only walked {checked}"
-
-
-def test_every_extends_reference_points_to_a_known_profile(
-    registry: ProfileRegistry,
-) -> None:
-    """`extends` is resolved lazily inside `resolve`; this test locks
-    the invariant separately so a profile with a bad ``extends`` fails
-    even before any caller asks for a resolution."""
     known = {p.id for p in registry.all()}
     missing: list[str] = []
     for profile in registry.all():

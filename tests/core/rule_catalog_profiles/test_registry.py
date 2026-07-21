@@ -189,24 +189,15 @@ def test_resolve_accepts_severity_escalation() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_load_upstream_ships_baseline_recommended_strict() -> None:
-    reg = ProfileRegistry.from_directories(upstream=UPSTREAM_PROFILES)
-    ids = {p.id for p in reg.all()}
+def test_shipped_profile_contract() -> None:
+    registry = ProfileRegistry.from_directories(upstream=UPSTREAM_PROFILES)
+    ids = {p.id for p in registry.all()}
     assert {"baseline", "recommended", "strict"}.issubset(ids)
-
-
-def test_load_upstream_baseline_resolves_to_expected_size() -> None:
-    reg = ProfileRegistry.from_directories(upstream=UPSTREAM_PROFILES)
-    baseline = reg.resolve("baseline", strict=False)
+    baseline = registry.resolve("baseline", strict=False)
     # Rough size check - baseline is intentionally small so a new fork can adopt it.
     assert 5 <= len(baseline.rules) <= 20
-
-
-def test_load_upstream_strict_extends_recommended_extends_baseline() -> None:
-    reg = ProfileRegistry.from_directories(upstream=UPSTREAM_PROFILES)
-    strict = reg.resolve("strict", strict=False)
-    baseline = reg.resolve("baseline", strict=False)
-    recommended = reg.resolve("recommended", strict=False)
+    strict = registry.resolve("strict", strict=False)
+    recommended = registry.resolve("recommended", strict=False)
     # Every baseline rule id must appear in recommended and strict.
     assert set(baseline.ids()).issubset(set(recommended.ids()))
     assert set(recommended.ids()).issubset(set(strict.ids()))
@@ -214,25 +205,32 @@ def test_load_upstream_strict_extends_recommended_extends_baseline() -> None:
     assert len(strict.rules) > len(recommended.rules) or _has_enforce(strict) > _has_enforce(
         recommended
     )
+    assert registry.overlay_replacements() == ()
 
 
-def test_load_overlay_directory_wins_on_id_collision(tmp_path: Path) -> None:
-    """Fork overlay replaces an upstream profile with the same id."""
-    overlay_dir = tmp_path / "profiles-overrides"
-    overlay_dir.mkdir()
-    (overlay_dir / "baseline.yaml").write_text(
-        """
+def _write_baseline_profile(directory: Path, title: str) -> None:
+    directory.mkdir()
+    (directory / "baseline.yaml").write_text(
+        f"""
 schema_version: "1.0.0"
 id: baseline
-title: (Fork) Custom baseline
+title: {title}
 rules:
   - id: object-storage.public-access.deny
     mode: enforce
 """,
         encoding="utf-8",
     )
+
+
+def test_load_overlay_directory_wins_on_id_collision(tmp_path: Path) -> None:
+    """Fork overlay replaces an upstream profile with the same id."""
+    upstream_dir = tmp_path / "profiles"
+    overlay_dir = tmp_path / "profiles-overrides"
+    _write_baseline_profile(upstream_dir, "Upstream baseline")
+    _write_baseline_profile(overlay_dir, "(Fork) Custom baseline")
     reg = ProfileRegistry.from_directories(
-        upstream=UPSTREAM_PROFILES,
+        upstream=upstream_dir,
         overlays=[overlay_dir],
     )
     baseline = reg.get("baseline")
@@ -296,27 +294,13 @@ def test_resolve_strict_false_explicitly_bypasses_check() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_overlay_replacements_is_empty_without_overlays() -> None:
-    reg = ProfileRegistry.from_directories(upstream=UPSTREAM_PROFILES)
-    assert reg.overlay_replacements() == ()
-
-
 def test_overlay_replacements_reports_shadowed_upstream_ids(tmp_path: Path) -> None:
+    upstream_dir = tmp_path / "profiles"
     overlay_dir = tmp_path / "overlay"
-    overlay_dir.mkdir()
-    (overlay_dir / "baseline.yaml").write_text(
-        """
-schema_version: "1.0.0"
-id: baseline
-title: (Fork) Shadowed baseline
-rules:
-  - id: object-storage.public-access.deny
-    mode: enforce
-""",
-        encoding="utf-8",
-    )
+    _write_baseline_profile(upstream_dir, "Upstream baseline")
+    _write_baseline_profile(overlay_dir, "(Fork) Shadowed baseline")
     reg = ProfileRegistry.from_directories(
-        upstream=UPSTREAM_PROFILES,
+        upstream=upstream_dir,
         overlays=[overlay_dir],
     )
     reports = reg.overlay_replacements()

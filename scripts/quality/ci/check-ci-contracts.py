@@ -109,6 +109,28 @@ def _validate_shared_runners() -> list[str]:
     return errors
 
 
+def _validate_python_test_partitioning() -> list[str]:
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    runner = (REPO_ROOT / "scripts" / "quality" / "ci" / "run-python-tests.sh").read_text(
+        encoding="utf-8"
+    )
+    required_workflow_fragments = (
+        "pytest regression shard ${{ matrix.shard }}/3",
+        "FDAI_PYTEST_MODE: coverage",
+        "FDAI_PYTEST_MODE: integration",
+        "behavior source citation precision",
+    )
+    errors = [
+        f"ci.yml is missing partition contract: {fragment}"
+        for fragment in required_workflow_fragments
+        if fragment not in workflow
+    ]
+    for mode in ("all)", "full)", "coverage)", "integration)"):
+        if mode not in runner:
+            errors.append(f"run-python-tests.sh is missing mode branch: {mode}")
+    return errors
+
+
 def _contains_guard_call(node: ast.AST) -> bool:
     return any(
         isinstance(child, ast.Call)
@@ -151,6 +173,7 @@ def main() -> int:
     errors = [
         *_validate_build_context(),
         *_validate_shared_runners(),
+        *_validate_python_test_partitioning(),
         *_validate_live_db_guards(),
     ]
     if errors:

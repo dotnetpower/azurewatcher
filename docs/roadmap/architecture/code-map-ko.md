@@ -1,7 +1,7 @@
 ---
 title: 코드 맵
 translation_of: code-map.md
-translation_source_sha: 49759f7ed5ead57c8e9f68b31ee53fb8757991a3
+translation_source_sha: 83bef864b5e25adc7d708cce58d219d8a5e1994b
 translation_revised: 2026-07-21
 ---
 # 코드 맵
@@ -223,8 +223,9 @@ shared 패키지를 커버한다.
 | [scripts/agent/design_context.py](../../../scripts/agent/design_context.py) / [.github/hooks/design-context.json](../../../.github/hooks/design-context.json) | Agent session별 design-document read 성공을 기록하고 required context가 없거나 stale이면 edit를 차단합니다. |
 | [check-design-doc-impact.py](../../../scripts/quality/architecture/check-design-doc-impact.py) / [check-document-size.py](../../../scripts/quality/architecture/check-document-size.py) | Docs-after enforcement와 new-doc/legacy-growth size ratchet입니다. |
 | [check-fork-runtime-independence.py](../../../scripts/quality/architecture/check-fork-runtime-independence.py) | Fork integrity marker가 runtime/config/infra behavior에 들어오면 차단합니다. |
-| [scripts/quality/ci/check-ci-contracts.py](../../../scripts/quality/ci/check-ci-contracts.py) | 로컬 검증과 CI가 공유하는 clean-checkout, Docker build-context, live-DB skip 순서 회귀 검사입니다. |
-| [scripts/quality/ci/run-python-tests.sh](../../../scripts/quality/ci/run-python-tests.sh) | 작업자 수를 제한한 병렬 non-integration 테스트, 직렬 live-DB integration 테스트, 느린 테스트 보고, safety-core coverage 하한을 실행합니다. |
+| [scripts/quality/ci/check-ci-contracts.py](../../../scripts/quality/ci/check-ci-contracts.py) | 로컬 검증과 CI가 공유하는 clean-checkout, Docker build-context, live-DB skip 순서, Python test partition 회귀 검사입니다. |
+| [scripts/quality/ci/run-python-tests.sh](../../../scripts/quality/ci/run-python-tests.sh) | Local `all` mode는 coverage와 integration을 유지합니다. CI는 deterministic no-coverage regression shard, core-focused coverage, serial live-DB integration 중 하나를 선택합니다. Change-scope 분류는 docs-only와 console-only 변경에서 비싼 Python job을 생략합니다. |
+| [scripts/quality/ci/pytest_shard.py](../../../scripts/quality/ci/pytest_shard.py) / [resolve_test_scope.py](../../../scripts/quality/ci/resolve_test_scope.py) | 비싼 CI test job을 위한 stable file-level shard assignment와 Git diff 분류입니다. |
 | [scripts/quality/ci/run-operator-surfaces.sh](../../../scripts/quality/ci/run-operator-surfaces.sh) | Console/CLI 테스트, type check, production build, entry-bundle 예산 검사를 실행합니다. |
 | [scripts/deployment/local/dev-up.sh](../../../scripts/deployment/local/dev-up.sh) / [dev-down.sh](../../../scripts/deployment/local/dev-down.sh) / [dev-logs.sh](../../../scripts/deployment/local/dev-logs.sh) / [dev-status.sh](../../../scripts/deployment/local/dev-status.sh) | 로컬 Docker Compose 스택 (pgvector + Redpanda) 라이프사이클. |
 | [scripts/automation/tests-for-diff.sh](../../../scripts/automation/tests-for-diff.sh) | 현재 diff에 영향받는 pytest 파일만 실행. |

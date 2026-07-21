@@ -40,9 +40,11 @@ CATALOG_DIRS = [
 SCHEMA_PATH = REPO_ROOT / "src" / "fdai" / "shared" / "contracts" / "rule" / "schema.json"
 
 
-@pytest.fixture(scope="module")
-def rule_validator() -> Draft202012Validator:
-    return Draft202012Validator(json.loads(SCHEMA_PATH.read_text(encoding="utf-8")))
+def _load_yaml(path: Path) -> object:
+    text = path.read_text(encoding="utf-8")
+    if hasattr(yaml, "CSafeLoader"):
+        return yaml.load(text, Loader=yaml.CSafeLoader)
+    return yaml.safe_load(text)
 
 
 def _iter_rule_files() -> list[Path]:
@@ -54,18 +56,22 @@ def _iter_rule_files() -> list[Path]:
     return files
 
 
-def test_every_shipped_rule_yaml_matches_schema(
-    rule_validator: Draft202012Validator,
+@pytest.fixture(scope="module")
+def loaded_rules() -> tuple[tuple[Path, object], ...]:
+    return tuple((path, _load_yaml(path)) for path in _iter_rule_files())
+
+
+def test_shipped_rule_catalog_contract(
+    loaded_rules: tuple[tuple[Path, object], ...],
 ) -> None:
-    files = _iter_rule_files()
-    assert files, "expected at least one rule YAML to exist"
+    validator = Draft202012Validator(json.loads(SCHEMA_PATH.read_text(encoding="utf-8")))
+    assert loaded_rules, "expected at least one rule YAML to exist"
     failures: list[str] = []
     checked = 0
-    for path in files:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    for path, data in loaded_rules:
         if data is None:
             continue
-        errors = sorted(rule_validator.iter_errors(data), key=lambda e: list(e.path))
+        errors = sorted(validator.iter_errors(data), key=lambda e: list(e.path))
         if errors:
             first = errors[0]
             where = ".".join(str(p) for p in first.absolute_path) or "<root>"
@@ -76,12 +82,8 @@ def test_every_shipped_rule_yaml_matches_schema(
     assert not failures, "rule schema violations:\n" + "\n".join(failures)
     # Sanity: we expect thousands of imports now, not just the hand-authored 55.
     assert checked >= 1000, f"only {checked} rule files were validated"
-
-
-def test_every_shipped_rule_id_is_globally_unique() -> None:
     id_counter: Counter[str] = Counter()
-    for path in _iter_rule_files():
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    for _path, data in loaded_rules:
         if isinstance(data, dict) and "id" in data:
             id_counter[str(data["id"])] += 1
     duplicates = {k: v for k, v in id_counter.items() if v > 1}
