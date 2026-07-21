@@ -148,7 +148,11 @@ class EventHubsKafkaBus(EventBus):
                     linger_ms=5,
                     acks="all",
                 )
-                await producer.start()
+                try:
+                    await producer.start()
+                except BaseException:
+                    await _stop_after_failure(producer, operation="producer_start")
+                    raise
                 self._producer = producer
             return self._producer
 
@@ -252,6 +256,14 @@ async def _iter_consumer(
             await consumer.commit()
     finally:
         await consumer.stop()
+
+
+async def _stop_after_failure(client: Any, *, operation: str) -> None:
+    """Best-effort cleanup that never masks the triggering transport failure."""
+    try:
+        await client.stop()
+    except BaseException:  # cleanup must preserve the original failure, including cancellation
+        _LOGGER.warning("event_bus_cleanup_failed", extra={"operation": operation}, exc_info=True)
 
 
 def _encode(payload: Mapping[str, Any]) -> bytes:

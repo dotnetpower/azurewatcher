@@ -155,6 +155,34 @@ async def test_close_is_idempotent_before_start() -> None:
 
 
 @pytest.mark.asyncio
+async def test_producer_start_failure_stops_partial_producer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instances: list[_StartFailingProducer] = []
+
+    class _StartFailingProducer:
+        def __init__(self, **_kwargs: object) -> None:
+            self.stopped = False
+            instances.append(self)
+
+        async def start(self) -> None:
+            raise RuntimeError("broker unavailable")
+
+        async def stop(self) -> None:
+            self.stopped = True
+
+    monkeypatch.setattr(event_bus_module, "AIOKafkaProducer", _StartFailingProducer)
+    bus = EventHubsKafkaBus(identity=_StaticIdentity(), config=_cfg())
+
+    with pytest.raises(RuntimeError, match="broker unavailable"):
+        await bus.publish("aw.control.events", "event-1", {"event_id": "event-1"})
+
+    assert len(instances) == 1
+    assert instances[0].stopped is True
+    assert vars(bus)["_producer"] is None
+
+
+@pytest.mark.asyncio
 async def test_consumer_start_failure_stops_consumer(monkeypatch: pytest.MonkeyPatch) -> None:
     instances: list[_StartFailingConsumer] = []
 
