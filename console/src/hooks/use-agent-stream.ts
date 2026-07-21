@@ -14,6 +14,7 @@ import {
   type FrameSource,
   type ObservationSource,
 } from "./observation-source";
+import { readSseChunk } from "./sse-reader";
 
 export interface AgentStreamDescriptor {
   readonly url: string;
@@ -194,7 +195,7 @@ export async function consumeAgentActivitySse(
   };
 
   while (true) {
-    const { value, done } = await reader.read();
+    const { value, done } = await readSseChunk(reader);
     buffer = (buffer + decoder.decode(value, { stream: !done })).replace(/\r\n/g, "\n");
     let boundary = buffer.indexOf("\n\n");
     while (boundary >= 0) {

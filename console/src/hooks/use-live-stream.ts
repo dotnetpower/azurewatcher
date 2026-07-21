@@ -25,6 +25,7 @@ import {
   type FrameSource,
   type ObservationSource,
 } from "./observation-source";
+import { readSseChunk } from "./sse-reader";
 
 /** Stage identifier - mirrors {@link fdai.shared.providers.stage_publisher.StageName}. */
 export type LiveStageName =
@@ -139,7 +140,7 @@ export async function consumeLiveSse(
     if (event) onEvent(event);
   };
   while (true) {
-    const { value, done } = await reader.read();
+    const { value, done } = await readSseChunk(reader);
     buffer = (buffer + decoder.decode(value, { stream: !done })).replace(/\r\n/g, "\n");
     let boundary = buffer.indexOf("\n\n");
     while (boundary >= 0) {
