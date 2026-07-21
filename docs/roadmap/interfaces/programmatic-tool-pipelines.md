@@ -100,6 +100,9 @@ Alembic revision `20260720_0046` adds `programmatic_pipeline_call` and
 run. Aggregate results are keyed by `idempotency_key` and retain status, source digest, compact
 output, receipt references, and statistics. Calls can land before aggregate completion, which
 preserves evidence when the child fails between its final tool call and terminal result write.
+Deployment composition converts the SQLAlchemy-style PostgreSQL URL to a plain psycopg DSN before
+constructing the store. The live-database integration suite uses the same conversion for store and
+cleanup connections.
 
 ## Measurement
 

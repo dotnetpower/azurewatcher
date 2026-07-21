@@ -273,10 +273,14 @@ class TestLocalEntrypoint:
             assert payload["action_type"] == "ops.restart-service"
 
             thor = application.state.pantheon_runtime.agents["Thor"]
-            deadline = time.monotonic() + 1.0
-            while payload["correlation_id"] not in thor.action_runs and time.monotonic() < deadline:
+            action_run = None
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline:
+                action_run = thor.action_runs.get(payload["correlation_id"])
+                if action_run is not None and action_run.state.value == "succeeded":
+                    break
                 time.sleep(0.01)
-            action_run = thor.action_runs[payload["correlation_id"]]
+            assert action_run is not None
             assert action_run.state.value == "succeeded"
             assert action_run.shadow_mode is True
             assert action_run.outcome == "shadow_success"

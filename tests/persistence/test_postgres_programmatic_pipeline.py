@@ -67,17 +67,22 @@ def test_postgres_pipeline_config_rejects_empty_dsn() -> None:
         PostgresProgrammaticPipelineStoreConfig(dsn="")
 
 
+def _plain_dsn(url: str) -> str:
+    return url.replace("postgresql+psycopg://", "postgresql://", 1)
+
+
 @pytest.mark.integration
 async def test_postgres_pipeline_store_live_round_trip() -> None:
     dsn = os.environ.get("FDAI_DATABASE_URL")
     if not dsn:
         pytest.skip("FDAI_DATABASE_URL is unset")
+    plain_dsn = _plain_dsn(dsn)
     store = PostgresProgrammaticPipelineStore(
-        config=PostgresProgrammaticPipelineStoreConfig(dsn=dsn)
+        config=PostgresProgrammaticPipelineStoreConfig(dsn=plain_dsn)
     )
     receipt = _receipt()
     result = _result()
-    async with await psycopg.AsyncConnection.connect(dsn) as connection:
+    async with await psycopg.AsyncConnection.connect(plain_dsn) as connection:
         await connection.execute(
             "DELETE FROM programmatic_pipeline_call WHERE run_id = %s",
             (result.run_id,),
@@ -96,7 +101,7 @@ async def test_postgres_pipeline_store_live_round_trip() -> None:
         assert await store.calls_for(result.run_id) == (receipt,)
         assert await store.result_for("pipeline-store-idempotency") == result
     finally:
-        async with await psycopg.AsyncConnection.connect(dsn) as connection:
+        async with await psycopg.AsyncConnection.connect(plain_dsn) as connection:
             await connection.execute(
                 "DELETE FROM programmatic_pipeline_call WHERE run_id = %s",
                 (result.run_id,),

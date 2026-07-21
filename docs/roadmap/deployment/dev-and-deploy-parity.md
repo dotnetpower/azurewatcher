@@ -140,6 +140,10 @@ Every seam that touches an out-of-process dependency MUST provide:
 Every test that exercises the pipeline runs in mode (1)+(2) so the CI parity gate never
 needs an Azure token.
 
+Automated action tests wait for the agent run to reach its expected terminal state; an observed
+intermediate state such as `verdicted` does not count as completion. CI also disables narrator
+endpoint auto-open so deterministic parity tests never invoke Azure CLI or change firewall rules.
+
 Execution backend parity follows the same rule. Automated tests may bind the in-memory ledger and
 mock HTTP transport. Interactive local may inspect a disabled profile through a shadow health or
 plan probe, but it does not submit work or receive Thor's identity. Deployment binds the same

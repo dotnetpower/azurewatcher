@@ -1,7 +1,7 @@
 ---
 title: Runtime Parity - Authoritative Local Development 및 Test Fixture
 translation_of: dev-and-deploy-parity.md
-translation_source_sha: 5b02ef8873d53da76adc5a784b087310562d8a8e
+translation_source_sha: 207983a29b1a3c7a8708a1bd66ce603eba89a562
 translation_revised: 2026-07-21
 ---
 
@@ -143,6 +143,11 @@ out-of-process 의존을 건드리는 모든 seam은 다음을 갖춰야:
 
 파이프라인을 exercise하는 모든 테스트는 (1)+(2) 모드로 실행 → CI parity gate가 Azure 토큰
 필요 없음.
+
+자동화 action test는 agent run이 예상 terminal state에 도달할 때까지 기다립니다. 관측된
+`verdicted` 같은 intermediate state를 완료로 취급하지 않습니다. CI는 narrator endpoint
+auto-open도 비활성화하므로 결정론적 parity test가 Azure CLI를 호출하거나 firewall rule을
+변경하지 않습니다.
 
 Execution backend parity도 같은 규칙을 따릅니다. 자동화 테스트는 in-memory ledger와 mock HTTP
 transport를 bind할 수 있습니다. Interactive local은 disabled profile을 shadow health 또는 plan

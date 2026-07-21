@@ -1,7 +1,7 @@
 ---
 title: 프로그래밍 방식 도구 파이프라인
 translation_of: programmatic-tool-pipelines.md
-translation_source_sha: a60f3648a97c90453664e51fd31e17e6be242f4c
+translation_source_sha: 0b7fddad32813ac32a4f0128120ea9d39042726a
 translation_revised: 2026-07-21
 ---
 # 프로그래밍 방식 도구 파이프라인
@@ -99,6 +99,9 @@ Alembic revision `20260720_0046`은 `programmatic_pipeline_call`과
 sequence를 가집니다. Aggregate result는 `idempotency_key`를 key로 사용하고 status, source digest,
 compact output, receipt reference, statistics를 보존합니다. Aggregate 완료 전에도 call을 저장하므로
 마지막 tool call과 terminal result write 사이에 child가 실패해도 evidence가 남습니다.
+Deployment composition은 store를 만들기 전에 SQLAlchemy 형식의 PostgreSQL URL을 plain psycopg
+DSN으로 변환합니다. Live-database integration suite는 store와 cleanup connection에 같은 변환을
+사용합니다.
 
 ## 측정
 
