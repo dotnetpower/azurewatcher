@@ -47,6 +47,16 @@ def test_proxy_forwards_only_allowlisted_gets_with_bearer_and_query() -> None:
     assert post.status_code == 405
 
 
+def test_proxy_handles_canonical_context_selection_comparisons_route() -> None:
+    proxy = AuthoritativeReadProxy(
+        base_url="https://read.example.test",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200))),
+    )
+
+    assert proxy.handles("/context-selection-comparisons") is True
+    assert proxy.handles("/context-selection/comparisons") is False
+
+
 def test_proxy_requires_bearer_and_rejects_unsafe_origins() -> None:
     proxy = AuthoritativeReadProxy(
         base_url="https://read.example.test",

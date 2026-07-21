@@ -17,7 +17,7 @@ _EXACT_PATHS: frozenset[str] = frozenset(
         "/audit",
         "/automation-blueprints",
         "/browser-evidence",
-        "/context-selection/comparisons",
+        "/context-selection-comparisons",
         "/conversation-delivery",
         "/finops",
         "/hil-queue",
